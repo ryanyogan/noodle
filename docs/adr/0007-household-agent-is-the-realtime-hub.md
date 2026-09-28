@@ -1,0 +1,3 @@
+# One Household Agent (Durable Object) is the real-time hub
+
+Each Household gets one Cloudflare Agent (a Durable Object) that both Parents' open screens connect to over a hibernating WebSocket. After any write lands in D1, the writer notifies the Household Agent, which broadcasts a small "what changed" message; clients invalidate the matching Query keys rather than receiving data over the socket, so D1 stays the single source of truth and privacy rules (ADR-0003) are applied by the normal read path. The same Agent owns per-Household schedules (Check-in prep, Nudges), receives forwarded email, and hosts the "Ask" assistant. Polling was rejected for battery and latency on iPhone; a global pub/sub was unnecessary at two-Parent scale.

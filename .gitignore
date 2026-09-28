@@ -1,0 +1,9 @@
+node_modules/
+.wrangler/
+.dev.vars*
+.env*
+dist/
+.turbo/
+.scratch/
+test-results/
+playwright-report/
