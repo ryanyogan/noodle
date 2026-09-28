@@ -33,7 +33,7 @@ The Worker is `noodle` (https://noodle.ryanyogan.workers.dev) with D1 database `
 One-time setup, not automated:
 
 - Worker secrets: `wrangler secret put CLERK_SECRET_KEY` and `wrangler secret put VITE_CLERK_PUBLISHABLE_KEY` (run in `apps/web`). Without them every request returns 500.
-- GitHub Actions secrets: `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` (Clerk dev instance, for E2E), `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` (for deploy).
+- GitHub Actions secrets: `VITE_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` (Clerk dev instance, for E2E; `gh secret set -f apps/web/.dev.vars` sets both), `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` (for deploy).
 
 ## Verified versions (2026-09-28)
 
