@@ -1,0 +1,19 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "noodle",
+	"compatibility_date": "2026-09-28",
+	"compatibility_flags": ["nodejs_compat"],
+	"main": "@tanstack/react-start/server-entry",
+	"observability": { "enabled": true },
+	"vars": {
+		"CLERK_SIGN_IN_URL": "/sign-in"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "noodle",
+			"database_id": "dc862efc-c574-409a-a2c2-05fa98807dac",
+			"migrations_dir": "../../packages/db/drizzle"
+		}
+	]
+}

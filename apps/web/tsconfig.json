@@ -1,0 +1,9 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"jsx": "react-jsx",
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"types": ["vite/client", "node"]
+	},
+	"include": ["src", "e2e", "worker-configuration.d.ts", "*.config.ts"]
+}

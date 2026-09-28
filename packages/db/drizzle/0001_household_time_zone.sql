@@ -1,0 +1,1 @@
+ALTER TABLE `households` ADD `time_zone` text DEFAULT 'UTC' NOT NULL;

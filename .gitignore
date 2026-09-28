@@ -7,3 +7,4 @@ dist/
 .scratch/
 test-results/
 playwright-report/
+!.dev.vars.example
