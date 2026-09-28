@@ -1,7 +1,7 @@
 import type { Cadence, Cents, Charge, DayKey, MonthKey } from "@noodle/domain";
 import { and, eq, gt, gte, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import type { Db } from "./index";
-import { commitments, commitmentTerms, transactions } from "./schema";
+import { commitments, commitmentTerms, splits, transactions } from "./schema";
 
 // A Household's Commitments and the payments recorded against them. Every query is scoped by
 // household_id; Commitment IDs from the client are only ever used together with it. Writes are
@@ -105,30 +105,44 @@ export async function endCommitment(
 /** A payment recorded against a Commitment, with the Transaction's ID. */
 export type CommitmentCharge = Charge & { id: string };
 
-/** The month's Transactions assigned to Commitments. */
+/**
+ * The month's Transactions assigned to Commitments, whole or through Splits. A split Transaction's
+ * Splits paying the same Commitment are one charge of it (see assignedParts in @noodle/domain).
+ */
 export async function loadCharges(
 	db: Db,
 	householdId: string,
 	month: MonthKey,
 ): Promise<CommitmentCharge[]> {
-	const rows = await db
-		.select({
-			id: transactions.id,
-			commitmentId: transactions.commitmentId,
-			amount: transactions.amountCents,
-			date: transactions.date,
-		})
-		.from(transactions)
-		.where(
-			and(
-				eq(transactions.householdId, householdId),
-				gte(transactions.date, `${month}-01`),
-				lte(transactions.date, `${month}-31`),
-				isNotNull(transactions.commitmentId),
-			),
-		);
+	const inMonth = and(
+		eq(transactions.householdId, householdId),
+		gte(transactions.date, `${month}-01`),
+		lte(transactions.date, `${month}-31`),
+	);
+	const [whole, split] = await db.batch([
+		db
+			.select({
+				id: transactions.id,
+				commitmentId: transactions.commitmentId,
+				amount: transactions.amountCents,
+				date: transactions.date,
+			})
+			.from(transactions)
+			.where(and(inMonth, isNotNull(transactions.commitmentId))),
+		db
+			.select({
+				id: splits.transactionId,
+				commitmentId: splits.commitmentId,
+				amount: sql<number>`sum(${splits.amountCents})`,
+				date: transactions.date,
+			})
+			.from(splits)
+			.innerJoin(transactions, eq(transactions.id, splits.transactionId))
+			.where(and(inMonth, eq(splits.householdId, householdId), isNotNull(splits.commitmentId)))
+			.groupBy(splits.transactionId, splits.commitmentId),
+	]);
 	// commitment_id is filtered to non-null, and dates are always written as DayKeys.
-	return rows as CommitmentCharge[];
+	return [...whole, ...split] as CommitmentCharge[];
 }
 
 export type CommitmentPaymentResult = { ok: true } | { ok: false; reason: "not-in-plan" };

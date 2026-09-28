@@ -54,3 +54,11 @@ export {
 	totalCommitments,
 } from "./plan";
 export { type MonthlySpend, rolledOver, rolloverSince } from "./rollover";
+export {
+	type AssignedTransaction,
+	type Assignment,
+	assignedParts,
+	type Split,
+	splitRemainder,
+	splitsBalance,
+} from "./splits";

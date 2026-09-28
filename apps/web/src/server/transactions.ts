@@ -3,11 +3,12 @@ import {
 	deleteTransaction as deleteTransactionInDb,
 	loadBucketUses,
 	loadTransactionsPage,
+	splitTransaction as splitTransactionInDb,
 	type TransactionCursor,
 	type TransactionRow,
 	updateTransaction as updateTransactionInDb,
 } from "@noodle/db";
-import { type BucketUse, type DayKey, dayKeyAt, MAX_CENTS } from "@noodle/domain";
+import { type BucketUse, type DayKey, dayKeyAt, MAX_CENTS, splitsBalance } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getDb } from "./db";
@@ -93,6 +94,12 @@ export const getTransactions = createServerFn({ method: "GET" })
 			loadTransactionsPage(getDb(), context.household.id, { ...data, limit: PAGE_SIZE }),
 	);
 
+/** What a Transaction, or one of its Splits, is assigned to. */
+const assignmentSchema = z.union([
+	z.object({ bucketId: ulidSchema }),
+	z.object({ commitmentId: ulidSchema }),
+]);
+
 /**
  * Changes a Transaction's amount, assignment, note, and For. `month` is the Transaction's own,
  * so the right month's screens refresh. Idempotent, so the client can retry it safely.
@@ -104,10 +111,7 @@ export const updateTransaction = createServerFn({ method: "POST" })
 			transactionId: ulidSchema,
 			month: monthKeySchema,
 			amountCents: z.number().int().min(1).max(MAX_CENTS),
-			assignment: z.union([
-				z.object({ bucketId: ulidSchema }),
-				z.object({ commitmentId: ulidSchema }),
-			]),
+			assignment: assignmentSchema,
 			note: z.string().trim().max(80).optional(),
 			forMemberIds: z.array(ulidSchema).max(20),
 		}),
@@ -122,6 +126,67 @@ export const updateTransaction = createServerFn({ method: "POST" })
 			forMemberIds: data.forMemberIds,
 		});
 		if (!result.ok) throw new Error("That isn’t in the Plan for this Transaction’s month.");
+		await notifyHousehold(context.household.id, [
+			// Every month: what's left can roll into later ones.
+			"months",
+			"for-earlier",
+			"bucket-uses",
+		]);
+	});
+
+/** How many Splits one Transaction can have. */
+const MAX_SPLITS = 20;
+
+/**
+ * Splits a Transaction: sets its amount and note and replaces its whole assignment and For (and
+ * any Splits it had) with `splits`, which must add up to the amount. Idempotent by the Splits'
+ * client IDs, so the client can retry it safely.
+ */
+export const splitTransaction = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z
+			.object({
+				transactionId: ulidSchema,
+				month: monthKeySchema,
+				amountCents: z.number().int().min(1).max(MAX_CENTS),
+				note: z.string().trim().max(80).optional(),
+				splits: z
+					.array(
+						z.object({
+							id: ulidSchema,
+							amountCents: z.number().int().min(1).max(MAX_CENTS),
+							assignment: assignmentSchema,
+							forMemberIds: z.array(ulidSchema).max(20),
+						}),
+					)
+					.min(2)
+					.max(MAX_SPLITS),
+			})
+			.refine(
+				(data) =>
+					splitsBalance(
+						data.amountCents,
+						data.splits.map((split) => ({ amount: split.amountCents })),
+					),
+				"Splits must add up to the Transaction’s amount.",
+			),
+	)
+	.handler(async ({ data, context }) => {
+		const result = await splitTransactionInDb(getDb(), {
+			householdId: context.household.id,
+			transactionId: data.transactionId,
+			amountCents: data.amountCents,
+			note: data.note || null,
+			splits: data.splits,
+		});
+		if (!result.ok) {
+			throw new Error(
+				result.reason === "splits-unbalanced"
+					? "Splits must add up to the Transaction’s amount."
+					: "A Split isn’t in the Plan for this Transaction’s month.",
+			);
+		}
 		await notifyHousehold(context.household.id, [
 			// Every month: what's left can roll into later ones.
 			"months",

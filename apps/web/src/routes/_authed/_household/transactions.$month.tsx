@@ -9,7 +9,7 @@ import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound, useHydrated, useNavigate } from "@tanstack/react-router";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { ChevronLeft, ChevronRight, ReceiptText } from "lucide-react";
+import { ChevronLeft, ChevronRight, ReceiptText, Split as SplitIcon } from "lucide-react";
 import { type ComponentProps, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { asBucketColor, monogram } from "../../../buckets";
@@ -345,8 +345,11 @@ function TransactionList({
 	);
 }
 
-/** What a Transaction is assigned to, by name, with its Bucket's colour. */
-function assignmentOf(transaction: TransactionRow, plan: Pick<Plan, "buckets" | "commitments">) {
+/** What a Transaction or Split is assigned to, by name, with its Bucket's colour. */
+function assignmentOf(
+	transaction: Pick<TransactionRow, "bucketId" | "commitmentId">,
+	plan: Pick<Plan, "buckets" | "commitments">,
+) {
 	if (transaction.bucketId) {
 		const bucket = plan.buckets.find((b) => b.id === transaction.bucketId);
 		return {
@@ -361,7 +364,10 @@ function assignmentOf(transaction: TransactionRow, plan: Pick<Plan, "buckets" | 
 	return { name: "Unassigned", color: null };
 }
 
-/** One Transaction: what it was, what it's assigned to and who it was For, and its amount. */
+/**
+ * One Transaction: what it was, what it's assigned to and who it was For, and its amount. A split
+ * one says how many Splits it has and what they're assigned to.
+ */
 function TransactionItem({
 	transaction,
 	plan,
@@ -375,15 +381,24 @@ function TransactionItem({
 	members: MemberSummary[];
 	onEdit: (transaction: TransactionRow) => void;
 }) {
+	const split = transaction.splits.length > 0;
 	const assignment = assignmentOf(transaction, plan);
 	const title = transaction.note || (transaction.commitmentId ? "Payment" : "Quick Add");
-	const who = forLabel(members, transaction.for);
 	const amount = formatMoney(transaction.amountCents);
+	const detail = split
+		? `Split across ${transaction.splits.length} · ${[
+				...new Set(transaction.splits.map((s) => assignmentOf(s, plan).name)),
+			].join(", ")}`
+		: `${assignment.name} · ${forLabel(members, transaction.for)}`;
 	return (
 		<li data-slot="list-row" className={className} {...props}>
 			<button
 				type="button"
-				aria-label={`${title}, ${amount}, ${assignment.name}, For ${who}`}
+				aria-label={
+					split
+						? `${title}, ${amount}, ${detail.replace(" · ", ": ")}`
+						: `${title}, ${amount}, ${assignment.name}, For ${forLabel(members, transaction.for)}`
+				}
 				onClick={() => onEdit(transaction)}
 				className={cn(
 					"grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-(--card-pad) py-3.5 text-start",
@@ -391,14 +406,18 @@ function TransactionItem({
 					"focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
 				)}
 			>
-				<Tile aria-hidden="true" bucket={assignment.color ?? undefined}>
-					{monogram(assignment.name)}
-				</Tile>
+				{split ? (
+					<Tile aria-hidden="true">
+						<SplitIcon className="size-4" />
+					</Tile>
+				) : (
+					<Tile aria-hidden="true" bucket={assignment.color ?? undefined}>
+						{monogram(assignment.name)}
+					</Tile>
+				)}
 				<span className="grid min-w-0 gap-0.5">
 					<span className="truncate text-sm font-medium">{title}</span>
-					<span className="truncate text-[13px] text-muted-foreground">
-						{assignment.name} · {who}
-					</span>
+					<span className="truncate text-[13px] text-muted-foreground">{detail}</span>
 				</span>
 				<span className="text-sm font-semibold tabular-nums">{amount}</span>
 			</button>

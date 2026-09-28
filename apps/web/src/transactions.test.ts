@@ -45,6 +45,7 @@ const skates: TransactionRow = {
 	commitmentId: null,
 	note: "Pro Hockey Life",
 	for: [],
+	splits: [],
 };
 
 const change = (next: TransactionChange["next"]): TransactionChange => ({
@@ -137,6 +138,46 @@ describe("withTransactionChange: editing reassigns spending in the month's state
 	});
 });
 
+describe("withTransactionChange: splitting reassigns each Split in the month's state", () => {
+	const splitSkates = change({
+		amountCents: 6_499,
+		note: null,
+		splits: [
+			{ id: "s1", amountCents: 4_499, assignment: { bucketId: "hockey" }, forMemberIds: ["leo"] },
+			{ id: "s2", amountCents: 1_500, assignment: { bucketId: "groceries" }, forMemberIds: [] },
+			{ id: "s3", amountCents: 500, assignment: { commitmentId: "mortgage" }, forMemberIds: [] },
+		],
+	});
+
+	test("each Split lands in its own Bucket or Commitment, not the whole in one", () => {
+		const edited = withTransactionChange(month, splitSkates);
+		expect(spentIn(edited)).toEqual({ groceries: 20_142, hockey: 4_499 });
+		expect(monthState(edited).commitments[0]?.actual).toBe(500);
+	});
+
+	test("each Split counts toward its own Members' totals", () => {
+		const totals = forTotals(withTransactionChange(month, splitSkates).spending);
+		expect(totals.members.leo).toEqual({ total: 4_499, buckets: { hockey: 4_499 } });
+		expect(totals.household.total).toBe(18_642 + 1_500);
+	});
+
+	test("splitting twice lands once, and removing the Splits goes back to one assignment", () => {
+		const once = withTransactionChange(month, splitSkates);
+		expect(withTransactionChange(once, splitSkates)).toEqual(once);
+		const whole = withTransactionChange(
+			once,
+			change({
+				amountCents: 6_499,
+				assignment: { bucketId: "groceries" },
+				note: null,
+				forMemberIds: [],
+			}),
+		);
+		expect(spentIn(whole)).toEqual(spentIn(month));
+		expect(whole.charges).toEqual([]);
+	});
+});
+
 describe("withRowChange: the list shows the change", () => {
 	const list = {
 		pageParams: [undefined],
@@ -159,6 +200,40 @@ describe("withRowChange: the list shows the change", () => {
 			bucketId: "hockey",
 			note: "Skates",
 			for: ["leo"],
+		});
+	});
+
+	test("shows a split row's Splits, with no whole assignment or For", () => {
+		const edited = withRowChange(
+			list,
+			change({
+				amountCents: 6_499,
+				note: null,
+				splits: [
+					{
+						id: "s1",
+						amountCents: 4_499,
+						assignment: { bucketId: "hockey" },
+						forMemberIds: ["leo"],
+					},
+					{
+						id: "s2",
+						amountCents: 2_000,
+						assignment: { commitmentId: "mortgage" },
+						forMemberIds: [],
+					},
+				],
+			}),
+		);
+		expect(edited.pages[0]?.transactions[0]).toEqual({
+			...skates,
+			note: null,
+			bucketId: null,
+			for: [],
+			splits: [
+				{ id: "s1", amountCents: 4_499, bucketId: "hockey", commitmentId: null, for: ["leo"] },
+				{ id: "s2", amountCents: 2_000, bucketId: null, commitmentId: "mortgage", for: [] },
+			],
 		});
 	});
 

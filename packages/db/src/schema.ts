@@ -237,6 +237,48 @@ export const transactionFor = sqliteTable(
 	],
 );
 
+// A portion of one Transaction with its own amount, assignment, and For. A split Transaction is
+// assigned only through its Splits (its own bucket_id, commitment_id, and For are empty), and its
+// Splits' amounts add up to its amount. Each Split is assigned to a Bucket or a Commitment; a Goal
+// will be one more nullable column. `position` keeps the order they were entered in.
+export const splits = sqliteTable(
+	"splits",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		transactionId: text("transaction_id")
+			.notNull()
+			.references(() => transactions.id),
+		position: integer("position").notNull(),
+		amountCents: integer("amount_cents").notNull(),
+		bucketId: text("bucket_id").references(() => buckets.id),
+		commitmentId: text("commitment_id").references(() => commitments.id),
+	},
+	(t) => [index("splits_household_transaction_idx").on(t.householdId, t.transactionId)],
+);
+
+// Who a Split was For, like transaction_for: one row per Member, none for the whole Household.
+export const splitFor = sqliteTable(
+	"split_for",
+	{
+		splitId: text("split_id")
+			.notNull()
+			.references(() => splits.id),
+		memberId: text("member_id")
+			.notNull()
+			.references(() => members.id),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+	},
+	(t) => [
+		primaryKey({ columns: [t.splitId, t.memberId] }),
+		index("split_for_household_member_idx").on(t.householdId, t.memberId),
+	],
+);
+
 // A Move of planned money within one month's Plan (no real money moves): from a Bucket, or from
 // Free to Spend when `from_bucket_id` is null, to a Bucket. Balances are derived from these rows
 // (ADR-0004); undoing a Move deletes its row.

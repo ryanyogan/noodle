@@ -1,5 +1,5 @@
-import type { Assignment, TransactionCursor, TransactionRow } from "@noodle/db";
-import type { MonthKey } from "@noodle/domain";
+import type { Assignment, SplitRow, TransactionCursor, TransactionRow } from "@noodle/db";
+import { assignedParts, type MonthKey } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import {
 	type InfiniteData,
@@ -15,11 +15,12 @@ import type { MonthData } from "./server/month";
 import {
 	deleteTransaction,
 	getTransactions,
+	splitTransaction,
 	type TransactionsPage,
 	updateTransaction,
 } from "./server/transactions";
 
-export type { Assignment, TransactionRow };
+export type { Assignment, SplitRow, TransactionRow };
 
 /** The list's filters: a Bucket, and who it was For (a Member, or "everyone"). */
 export type TransactionFilters = { bucket?: string; for?: string };
@@ -44,17 +45,29 @@ export const transactionsQuery = (month: MonthKey, filters: TransactionFilters) 
 		getNextPageParam: (page) => page.next ?? undefined,
 	});
 
+/** A Split as a Parent edits it; `id` is a client ULID, kept for Splits that already exist. */
+export type SplitEdit = {
+	id: string;
+	amountCents: number;
+	assignment: Assignment;
+	forMemberIds: string[];
+};
+
+/**
+ * New values for what a Parent can edit on a Transaction: its amount and note, and either one
+ * assignment and For for the whole of it, or Splits that add up to the amount.
+ */
+export type TransactionEdit = { amountCents: number; note: string | null } & (
+	| { assignment: Assignment; forMemberIds: string[] }
+	| { splits: SplitEdit[] }
+);
+
 /** A change to one Transaction: new values for what a Parent can edit, or `null` to delete it. */
 export type TransactionChange = {
 	transaction: TransactionRow;
 	/** What it's called in messages: its transactionLabel from before the change. */
 	label: string;
-	next: {
-		amountCents: number;
-		assignment: Assignment;
-		note: string | null;
-		forMemberIds: string[];
-	} | null;
+	next: TransactionEdit | null;
 };
 
 /** The month a Transaction is in. */
@@ -63,31 +76,74 @@ export const monthOfTransaction = (transaction: TransactionRow) =>
 
 /**
  * A month's inputs with a Transaction changed or deleted, mirroring what the server records: its
- * spending leaves whichever Bucket or Commitment it was in and, unless deleted, lands in its new
- * one with its new amount and For. `monthState` then reassigns it everywhere at once.
+ * spending leaves whichever Buckets or Commitments it (or its Splits) was in and, unless deleted,
+ * lands in its new ones with its new amounts and For. `monthState` then reassigns it everywhere
+ * at once.
  */
 export function withTransactionChange(data: MonthData, change: TransactionChange): MonthData {
 	const { id, date } = change.transaction;
 	const spending = data.spending.filter((spend) => spend.id !== id);
 	const charges = data.charges.filter((charge) => charge.id !== id);
 	const next = change.next;
-	if (next && "bucketId" in next.assignment) {
-		spending.push({
-			id,
-			date,
-			bucketId: next.assignment.bucketId,
-			amount: next.amountCents,
-			for: next.forMemberIds,
-		});
-	} else if (next && "commitmentId" in next.assignment) {
-		charges.push({
-			id,
-			date,
-			commitmentId: next.assignment.commitmentId,
-			amount: next.amountCents,
-		});
+	if (next) {
+		const parts = assignedParts(
+			"splits" in next
+				? {
+						date,
+						amount: next.amountCents,
+						assignment: null,
+						for: [],
+						splits: next.splits.map((split) => ({
+							amount: split.amountCents,
+							assignment: split.assignment,
+							for: split.forMemberIds,
+						})),
+					}
+				: {
+						date,
+						amount: next.amountCents,
+						assignment: next.assignment,
+						for: next.forMemberIds,
+						splits: [],
+					},
+		);
+		spending.push(...parts.spending.map((spend) => ({ ...spend, id })));
+		charges.push(...parts.charges.map((charge) => ({ ...charge, id })));
 	}
 	return { ...data, spending, charges };
+}
+
+/** A Transaction's row once `next` has landed on it. */
+function editedRow(row: TransactionRow, next: TransactionEdit): TransactionRow {
+	if ("splits" in next) {
+		return {
+			...row,
+			amountCents: next.amountCents,
+			note: next.note,
+			// A split Transaction is assigned, and For, only through its Splits.
+			bucketId: null,
+			commitmentId: null,
+			for: [],
+			splits: next.splits.map(
+				(split): SplitRow => ({
+					id: split.id,
+					amountCents: split.amountCents,
+					bucketId: "bucketId" in split.assignment ? split.assignment.bucketId : null,
+					commitmentId: "commitmentId" in split.assignment ? split.assignment.commitmentId : null,
+					for: split.forMemberIds,
+				}),
+			),
+		};
+	}
+	return {
+		...row,
+		amountCents: next.amountCents,
+		bucketId: "bucketId" in next.assignment ? next.assignment.bucketId : null,
+		commitmentId: "commitmentId" in next.assignment ? next.assignment.commitmentId : null,
+		note: next.note,
+		for: next.forMemberIds,
+		splits: [],
+	};
 }
 
 /** A list's pages with a Transaction changed or deleted. */
@@ -102,26 +158,14 @@ export function withRowChange(
 		pages: data.pages.map((page) => ({
 			...page,
 			transactions: next
-				? page.transactions.map((row) =>
-						row.id === id
-							? {
-									...row,
-									amountCents: next.amountCents,
-									bucketId: "bucketId" in next.assignment ? next.assignment.bucketId : null,
-									commitmentId:
-										"commitmentId" in next.assignment ? next.assignment.commitmentId : null,
-									note: next.note,
-									for: next.forMemberIds,
-								}
-							: row,
-					)
+				? page.transactions.map((row) => (row.id === id ? editedRow(row, next) : row))
 				: page.transactions.filter((row) => row.id !== id),
 		})),
 	};
 }
 
 /**
- * Edits or deletes a Transaction. The change lands in its month's cached inputs and every cached
+ * Edits, splits, or deletes a Transaction. The change lands in its month's cached inputs and every cached
  * list of that month at once (ADR-0006), so This Month's Bucket meters and the list move before
  * the server answers. A failure rolls both back and offers a retry. Lives above the edit sheet,
  * so it finishes after the sheet closes.
@@ -132,6 +176,17 @@ export function useTransactionChange() {
 		mutationKey: monthChangeKey,
 		mutationFn: ({ transaction, next }: TransactionChange) => {
 			const month = monthOfTransaction(transaction);
+			if (next && "splits" in next) {
+				return splitTransaction({
+					data: {
+						transactionId: transaction.id,
+						month,
+						amountCents: next.amountCents,
+						note: next.note ?? undefined,
+						splits: next.splits,
+					},
+				});
+			}
 			return next
 				? updateTransaction({
 						data: {
