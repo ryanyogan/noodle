@@ -1,9 +1,18 @@
-import { addQuickAdd as addQuickAddInDb, loadBucketUses } from "@noodle/db";
-import { type BucketUse, dayKeyAt, MAX_CENTS, monthOfDay } from "@noodle/domain";
+import {
+	addQuickAdd as addQuickAddInDb,
+	deleteTransaction as deleteTransactionInDb,
+	loadBucketUses,
+	loadTransactionsPage,
+	type TransactionCursor,
+	type TransactionRow,
+	updateTransaction as updateTransactionInDb,
+} from "@noodle/db";
+import { type BucketUse, type DayKey, dayKeyAt, MAX_CENTS, monthOfDay } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getDb } from "./db";
 import { householdMiddleware } from "./household";
+import { monthKeySchema } from "./month";
 import { notifyHousehold } from "./notify";
 import { ulidSchema } from "./schemas";
 
@@ -52,4 +61,85 @@ export const getBucketUses = createServerFn({ method: "GET" })
 			context.household.id,
 			dayKeyAt(since, context.household.timeZone),
 		);
+	});
+
+/** How many Transactions one page of the list holds. */
+const PAGE_SIZE = 50;
+
+const dayKeySchema = z
+	.string()
+	.regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+	.transform((day) => day as DayKey);
+
+/** Who the list is filtered to: a Member, or "everyone" for spending For the whole Household. */
+export const forFilterSchema = z.union([ulidSchema, z.literal("everyone")]);
+
+export type TransactionsPage = { transactions: TransactionRow[]; next: TransactionCursor | null };
+
+/** One page of a month's Transactions, newest first, filtered by Bucket and by who it was For. */
+export const getTransactions = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			month: monthKeySchema,
+			bucketId: ulidSchema.optional(),
+			forMember: forFilterSchema.optional(),
+			after: z.object({ date: dayKeySchema, id: ulidSchema }).optional(),
+		}),
+	)
+	.handler(
+		({ data, context }): Promise<TransactionsPage> =>
+			loadTransactionsPage(getDb(), context.household.id, { ...data, limit: PAGE_SIZE }),
+	);
+
+/**
+ * Changes a Transaction's amount, assignment, note, and For. `month` is the Transaction's own,
+ * so the right month's screens refresh. Idempotent, so the client can retry it safely.
+ */
+export const updateTransaction = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			transactionId: ulidSchema,
+			month: monthKeySchema,
+			amountCents: z.number().int().min(1).max(MAX_CENTS),
+			assignment: z.union([
+				z.object({ bucketId: ulidSchema }),
+				z.object({ commitmentId: ulidSchema }),
+			]),
+			note: z.string().trim().max(80).optional(),
+			forMemberIds: z.array(ulidSchema).max(20),
+		}),
+	)
+	.handler(async ({ data, context }) => {
+		const result = await updateTransactionInDb(getDb(), {
+			householdId: context.household.id,
+			transactionId: data.transactionId,
+			amountCents: data.amountCents,
+			assignment: data.assignment,
+			note: data.note || null,
+			forMemberIds: data.forMemberIds,
+		});
+		if (!result.ok) throw new Error("That isn’t in the Plan for this Transaction’s month.");
+		await notifyHousehold(context.household.id, [
+			`month:${data.month}`,
+			"for-earlier",
+			"bucket-uses",
+		]);
+	});
+
+/** Deletes a Transaction. Idempotent, so the client can retry it safely. */
+export const deleteTransaction = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ transactionId: ulidSchema, month: monthKeySchema }))
+	.handler(async ({ data, context }) => {
+		await deleteTransactionInDb(getDb(), {
+			householdId: context.household.id,
+			transactionId: data.transactionId,
+		});
+		await notifyHousehold(context.household.id, [
+			`month:${data.month}`,
+			"for-earlier",
+			"bucket-uses",
+		]);
 	});

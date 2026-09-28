@@ -17,6 +17,8 @@ import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
 import { Route as AuthedHouseholdHouseholdRouteImport } from './routes/_authed/_household/household'
 import { Route as AuthedHouseholdMonthIndexRouteImport } from './routes/_authed/_household/month.index'
 import { Route as AuthedHouseholdMonthMonthRouteImport } from './routes/_authed/_household/month.$month'
+import { Route as AuthedHouseholdTransactionsIndexRouteImport } from './routes/_authed/_household/transactions.index'
+import { Route as AuthedHouseholdTransactionsMonthRouteImport } from './routes/_authed/_household/transactions.$month'
 import { Route as AuthedHouseholdMonthMonthIndexRouteImport } from './routes/_authed/_household/month.$month.index'
 import { Route as AuthedHouseholdMonthMonthPlanRouteImport } from './routes/_authed/_household/month.$month.plan'
 
@@ -61,6 +63,18 @@ const AuthedHouseholdMonthMonthRoute =
     path: '/month/$month',
     getParentRoute: () => AuthedHouseholdRoute,
   } as any)
+const AuthedHouseholdTransactionsIndexRoute =
+  AuthedHouseholdTransactionsIndexRouteImport.update({
+    id: '/transactions/',
+    path: '/transactions/',
+    getParentRoute: () => AuthedHouseholdRoute,
+  } as any)
+const AuthedHouseholdTransactionsMonthRoute =
+  AuthedHouseholdTransactionsMonthRouteImport.update({
+    id: '/transactions/$month',
+    path: '/transactions/$month',
+    getParentRoute: () => AuthedHouseholdRoute,
+  } as any)
 const AuthedHouseholdMonthMonthIndexRoute =
   AuthedHouseholdMonthMonthIndexRouteImport.update({
     id: '/',
@@ -80,7 +94,9 @@ export interface FileRoutesByFullPath {
   '/sign-in/$': typeof SignInSplatRoute
   '/household': typeof AuthedHouseholdHouseholdRoute
   '/month/$month': typeof AuthedHouseholdMonthMonthRouteWithChildren
+  '/transactions/$month': typeof AuthedHouseholdTransactionsMonthRoute
   '/month/': typeof AuthedHouseholdMonthIndexRoute
+  '/transactions/': typeof AuthedHouseholdTransactionsIndexRoute
   '/month/$month/plan': typeof AuthedHouseholdMonthMonthPlanRoute
   '/month/$month/': typeof AuthedHouseholdMonthMonthIndexRoute
 }
@@ -89,7 +105,9 @@ export interface FileRoutesByTo {
   '/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/household': typeof AuthedHouseholdHouseholdRoute
+  '/transactions/$month': typeof AuthedHouseholdTransactionsMonthRoute
   '/month': typeof AuthedHouseholdMonthIndexRoute
+  '/transactions': typeof AuthedHouseholdTransactionsIndexRoute
   '/month/$month/plan': typeof AuthedHouseholdMonthMonthPlanRoute
   '/month/$month': typeof AuthedHouseholdMonthMonthIndexRoute
 }
@@ -102,7 +120,9 @@ export interface FileRoutesById {
   '/sign-in/$': typeof SignInSplatRoute
   '/_authed/_household/household': typeof AuthedHouseholdHouseholdRoute
   '/_authed/_household/month/$month': typeof AuthedHouseholdMonthMonthRouteWithChildren
+  '/_authed/_household/transactions/$month': typeof AuthedHouseholdTransactionsMonthRoute
   '/_authed/_household/month/': typeof AuthedHouseholdMonthIndexRoute
+  '/_authed/_household/transactions/': typeof AuthedHouseholdTransactionsIndexRoute
   '/_authed/_household/month/$month/plan': typeof AuthedHouseholdMonthMonthPlanRoute
   '/_authed/_household/month/$month/': typeof AuthedHouseholdMonthMonthIndexRoute
 }
@@ -114,7 +134,9 @@ export interface FileRouteTypes {
     | '/sign-in/$'
     | '/household'
     | '/month/$month'
+    | '/transactions/$month'
     | '/month/'
+    | '/transactions/'
     | '/month/$month/plan'
     | '/month/$month/'
   fileRoutesByTo: FileRoutesByTo
@@ -123,7 +145,9 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/sign-in/$'
     | '/household'
+    | '/transactions/$month'
     | '/month'
+    | '/transactions'
     | '/month/$month/plan'
     | '/month/$month'
   id:
@@ -135,7 +159,9 @@ export interface FileRouteTypes {
     | '/sign-in/$'
     | '/_authed/_household/household'
     | '/_authed/_household/month/$month'
+    | '/_authed/_household/transactions/$month'
     | '/_authed/_household/month/'
+    | '/_authed/_household/transactions/'
     | '/_authed/_household/month/$month/plan'
     | '/_authed/_household/month/$month/'
   fileRoutesById: FileRoutesById
@@ -204,6 +230,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedHouseholdMonthMonthRouteImport
       parentRoute: typeof AuthedHouseholdRoute
     }
+    '/_authed/_household/transactions/': {
+      id: '/_authed/_household/transactions/'
+      path: '/transactions'
+      fullPath: '/transactions/'
+      preLoaderRoute: typeof AuthedHouseholdTransactionsIndexRouteImport
+      parentRoute: typeof AuthedHouseholdRoute
+    }
+    '/_authed/_household/transactions/$month': {
+      id: '/_authed/_household/transactions/$month'
+      path: '/transactions/$month'
+      fullPath: '/transactions/$month'
+      preLoaderRoute: typeof AuthedHouseholdTransactionsMonthRouteImport
+      parentRoute: typeof AuthedHouseholdRoute
+    }
     '/_authed/_household/month/$month/': {
       id: '/_authed/_household/month/$month/'
       path: '/'
@@ -240,13 +280,17 @@ const AuthedHouseholdMonthMonthRouteWithChildren =
 interface AuthedHouseholdRouteChildren {
   AuthedHouseholdHouseholdRoute: typeof AuthedHouseholdHouseholdRoute
   AuthedHouseholdMonthMonthRoute: typeof AuthedHouseholdMonthMonthRouteWithChildren
+  AuthedHouseholdTransactionsMonthRoute: typeof AuthedHouseholdTransactionsMonthRoute
   AuthedHouseholdMonthIndexRoute: typeof AuthedHouseholdMonthIndexRoute
+  AuthedHouseholdTransactionsIndexRoute: typeof AuthedHouseholdTransactionsIndexRoute
 }
 
 const AuthedHouseholdRouteChildren: AuthedHouseholdRouteChildren = {
   AuthedHouseholdHouseholdRoute: AuthedHouseholdHouseholdRoute,
   AuthedHouseholdMonthMonthRoute: AuthedHouseholdMonthMonthRouteWithChildren,
+  AuthedHouseholdTransactionsMonthRoute: AuthedHouseholdTransactionsMonthRoute,
   AuthedHouseholdMonthIndexRoute: AuthedHouseholdMonthIndexRoute,
+  AuthedHouseholdTransactionsIndexRoute: AuthedHouseholdTransactionsIndexRoute,
 }
 
 const AuthedHouseholdRouteWithChildren = AuthedHouseholdRoute._addFileChildren(

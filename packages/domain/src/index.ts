@@ -20,6 +20,7 @@ export {
 export { type BucketUse, likelyBucketOrder } from "./likely";
 export { type Cents, MAX_CENTS, parseDollars } from "./money";
 export {
+	addMonths,
 	type DayKey,
 	dayKeyAt,
 	daysBetween,

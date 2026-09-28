@@ -35,3 +35,18 @@ export function shortDay(key: string): string {
 		timeZone: "UTC",
 	});
 }
+
+/** "Sat, Sep 12" for a "YYYY-MM-DD" day key; "Today" and "Yesterday" relative to `today`. */
+export function dayName(key: string, today: string): string {
+	const [year, month, day] = key.split("-").map(Number);
+	const date = new Date(Date.UTC(year ?? 1970, (month ?? 1) - 1, day ?? 1));
+	if (key === today) return "Today";
+	const [ty, tm, td] = today.split("-").map(Number);
+	if (Date.UTC(ty ?? 1970, (tm ?? 1) - 1, (td ?? 1) - 1) === date.getTime()) return "Yesterday";
+	return date.toLocaleDateString("en-US", {
+		weekday: "short",
+		month: "short",
+		day: "numeric",
+		timeZone: "UTC",
+	});
+}

@@ -3,7 +3,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Logo } from "@noodle/ui/components/logo";
 import { cn } from "@noodle/ui/lib/utils";
 import { Link, type LinkProps } from "@tanstack/react-router";
-import { CalendarDays, type LucideIcon, Plus, UsersRound } from "lucide-react";
+import { CalendarDays, List, type LucideIcon, Plus, UsersRound } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 import { markQuickAddOpened, quickAddSearch } from "./quick-add";
 
@@ -12,6 +12,7 @@ type NavItem = { to: LinkProps["to"]; label: string; short: string; icon: Lucide
 // Every top-level destination, in order. The sidebar (desktop) and tab bar (phone) both render it.
 const nav: NavItem[] = [
 	{ to: "/month", label: "This Month", short: "Month", icon: CalendarDays },
+	{ to: "/transactions", label: "Transactions", short: "Transactions", icon: List },
 	{ to: "/household", label: "Household", short: "Household", icon: UsersRound },
 ];
 
@@ -105,41 +106,49 @@ function QuickAddLink(props: Omit<ComponentProps<"a">, "href">) {
 }
 
 function TabBar() {
+	// Quick Add sits in the middle of the bar, in easy reach of either thumb, with the
+	// destinations split either side of it.
+	const half = Math.ceil(nav.length / 2);
 	return (
 		<nav
 			aria-label="Main"
 			className={cn(
-				"fixed inset-x-0 bottom-0 z-20 grid auto-cols-fr grid-flow-col border-t lg:hidden",
+				"fixed inset-x-0 bottom-0 z-20 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] border-t lg:hidden",
 				"bg-card/80 backdrop-blur-xl backdrop-saturate-150",
 				"px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+6px)]",
 			)}
 		>
-			{nav.map((item, index) => [
-				// Quick Add sits in the middle of the bar, in easy reach of either thumb.
-				index === Math.ceil(nav.length / 2) ? (
-					<QuickAddLink
-						key="quick-add"
-						className={cn(
-							"grid h-10 w-12 place-items-center self-center justify-self-center rounded-[14px] bg-primary text-primary-foreground",
-							"transition-transform duration-(--duration-fast) ease-standard active:scale-[0.94]",
-						)}
-					>
-						<Plus className="size-5.5" strokeWidth={2.2} aria-hidden="true" />
-						<span className="sr-only">Quick Add</span>
-					</QuickAddLink>
-				) : null,
+			<TabGroup items={nav.slice(0, half)} />
+			<QuickAddLink
+				className={cn(
+					"mx-2 grid h-10 w-12 place-items-center self-center rounded-[14px] bg-primary text-primary-foreground",
+					"transition-transform duration-(--duration-fast) ease-standard active:scale-[0.94]",
+				)}
+			>
+				<Plus className="size-5.5" strokeWidth={2.2} aria-hidden="true" />
+				<span className="sr-only">Quick Add</span>
+			</QuickAddLink>
+			<TabGroup items={nav.slice(half)} />
+		</nav>
+	);
+}
+
+function TabGroup({ items }: { items: NavItem[] }) {
+	return (
+		<div className="grid auto-cols-fr grid-flow-col">
+			{items.map((item) => (
 				<Link
 					key={item.label}
 					to={item.to}
 					className={cn(
-						"grid h-(--tabbar-height) place-content-center justify-items-center gap-1 rounded-lg text-[11px] font-medium text-subtle-foreground",
+						"grid h-(--tabbar-height) min-w-0 place-content-center justify-items-center gap-1 rounded-lg text-[11px] font-medium text-subtle-foreground",
 						"transition-colors duration-(--duration-fast) ease-standard data-[status=active]:text-foreground",
 					)}
 				>
 					<item.icon className="size-5.5" strokeWidth={1.75} aria-hidden="true" />
 					{item.short}
-				</Link>,
-			])}
-		</nav>
+				</Link>
+			))}
+		</div>
 	);
 }

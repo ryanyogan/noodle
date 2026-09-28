@@ -47,6 +47,13 @@ export function addDays(day: DayKey, days: number): DayKey {
 	return new Date(utcOf(day) + days * 86_400_000).toISOString().slice(0, 10) as DayKey;
 }
 
+/** The month `months` after `month` (before it, when negative). */
+export function addMonths(month: MonthKey, months: number): MonthKey {
+	const [year = 1970, m = 1] = month.split("-").map(Number);
+	const index = year * 12 + (m - 1) + months;
+	return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}` as MonthKey;
+}
+
 /** 28–31, accounting for leap years. */
 export function daysInMonth(month: MonthKey): number {
 	const [year, m] = month.split("-").map(Number);

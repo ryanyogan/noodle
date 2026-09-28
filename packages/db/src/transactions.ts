@@ -1,7 +1,7 @@
 import type { AttributedSpend, BucketUse, Cents, DayKey, MonthKey } from "@noodle/domain";
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type { Db } from "./index";
-import { buckets, members, transactionFor, transactions } from "./schema";
+import { buckets, commitments, members, transactionFor, transactions } from "./schema";
 
 // Transactions for a Household. Every query is scoped by household_id; IDs from the client are
 // only ever used together with it (ADR-0004: rows are appended, never read-modify-written).
@@ -200,4 +200,216 @@ export async function addQuickAdd(
 			),
 		);
 	return written ? { ok: true } : { ok: false, reason: "bucket-not-in-plan" };
+}
+
+/** A Transaction as the Transactions list shows it. */
+export type TransactionRow = {
+	id: string;
+	date: DayKey;
+	amountCents: Cents;
+	/** What it's assigned to as a whole: a Bucket, a Commitment, or neither while unassigned. */
+	bucketId: string | null;
+	commitmentId: string | null;
+	note: string | null;
+	for: string[];
+};
+
+/** Where a page of the list starts: after this Transaction, going back in time. */
+export type TransactionCursor = { date: DayKey; id: string };
+
+/** Transactions with For rows, optionally only those For one Member. */
+const hasForRows = (memberId?: string) =>
+	sql`exists (select 1 from ${transactionFor} where ${transactionFor.transactionId} = ${transactions.id}${
+		memberId ? sql` and ${transactionFor.memberId} = ${memberId}` : sql``
+	})`;
+
+/**
+ * One page of a month's Transactions, newest first, optionally only those in a Bucket and only
+ * those For a Member (or For the whole Household). `after` continues from a previous page.
+ */
+export async function loadTransactionsPage(
+	db: Db,
+	householdId: string,
+	query: {
+		month: MonthKey;
+		bucketId?: string;
+		/** A Member's ID, or "everyone" for spending For the whole Household. */
+		forMember?: string;
+		after?: TransactionCursor;
+		limit: number;
+	},
+): Promise<{ transactions: TransactionRow[]; next: TransactionCursor | null }> {
+	const rows = await db
+		.select({
+			id: transactions.id,
+			date: transactions.date,
+			amountCents: transactions.amountCents,
+			bucketId: transactions.bucketId,
+			commitmentId: transactions.commitmentId,
+			note: transactions.note,
+		})
+		.from(transactions)
+		.where(
+			and(
+				eq(transactions.householdId, householdId),
+				gte(transactions.date, `${query.month}-01`),
+				lt(transactions.date, nextMonthStart(query.month)),
+				query.bucketId ? eq(transactions.bucketId, query.bucketId) : undefined,
+				query.forMember === "everyone"
+					? sql`not ${hasForRows()}`
+					: query.forMember
+						? hasForRows(query.forMember)
+						: undefined,
+				query.after
+					? or(
+							lt(transactions.date, query.after.date),
+							and(eq(transactions.date, query.after.date), lt(transactions.id, query.after.id)),
+						)
+					: undefined,
+			),
+		)
+		.orderBy(desc(transactions.date), desc(transactions.id))
+		// One more than asked for says whether there's another page.
+		.limit(query.limit + 1);
+	const page = rows.slice(0, query.limit);
+	const forRows =
+		page.length === 0
+			? []
+			: await db
+					.select({
+						transactionId: transactionFor.transactionId,
+						memberId: transactionFor.memberId,
+					})
+					.from(transactionFor)
+					.where(
+						and(
+							eq(transactionFor.householdId, householdId),
+							inArray(
+								transactionFor.transactionId,
+								page.map((row) => row.id),
+							),
+						),
+					);
+	const forOf = groupFor(forRows);
+	const last = page.at(-1);
+	return {
+		// Dates are always written as DayKeys.
+		transactions: page.map((row) => ({ ...row, for: forOf.get(row.id) ?? [] }) as TransactionRow),
+		next: rows.length > query.limit && last ? { date: last.date as DayKey, id: last.id } : null,
+	};
+}
+
+/** A Transaction's assignment: a Bucket or a Commitment, each in the Plan for its month. */
+export type Assignment = { bucketId: string } | { commitmentId: string };
+
+export type TransactionEditResult = { ok: true } | { ok: false; reason: "not-in-plan" };
+
+/**
+ * Changes a Transaction's amount, assignment, note, and For, all at once. Idempotent: it sets
+ * values, so a retry lands the same. The Transaction only changes if, at write time, it is the
+ * Household's and what it's assigned to is in the Plan for its month; its For only changes
+ * together with it, in the same batch.
+ */
+export async function updateTransaction(
+	db: Db,
+	input: {
+		householdId: string;
+		transactionId: string;
+		amountCents: Cents;
+		assignment: Assignment;
+		note: string | null;
+		forMemberIds: string[];
+	},
+): Promise<TransactionEditResult> {
+	const bucketId = "bucketId" in input.assignment ? input.assignment.bucketId : null;
+	const commitmentId = "commitmentId" in input.assignment ? input.assignment.commitmentId : null;
+	// The month of the Transaction being updated (a correlated reference inside the guards).
+	const month = sql`substr(${transactions.date}, 1, 7)`;
+	const assignable = bucketId
+		? sql`exists (select 1 from ${buckets} where ${bucketInPlan(input.householdId, bucketId, month)})`
+		: sql`exists (select 1 from ${commitments} where ${and(
+				eq(commitments.id, commitmentId ?? ""),
+				eq(commitments.householdId, input.householdId),
+				lte(commitments.fromMonth, month),
+				or(isNull(commitments.endedFromMonth), sql`${commitments.endedFromMonth} > ${month}`),
+			)})`;
+	const theTransaction = and(
+		eq(transactions.id, input.transactionId),
+		eq(transactions.householdId, input.householdId),
+	);
+	// True once the Transaction holds the new values: the update landed, now or on an earlier try.
+	const edited = sql`exists (select 1 from ${transactions} where ${and(
+		theTransaction,
+		eq(transactions.amountCents, input.amountCents),
+		sql`${transactions.bucketId} is ${bucketId}`,
+		sql`${transactions.commitmentId} is ${commitmentId}`,
+		sql`${transactions.note} is ${input.note}`,
+	)})`;
+	const update = db
+		.update(transactions)
+		.set({ amountCents: input.amountCents, bucketId, commitmentId, note: input.note })
+		.where(and(theTransaction, assignable));
+	const clearFor = db
+		.delete(transactionFor)
+		.where(
+			and(
+				eq(transactionFor.transactionId, input.transactionId),
+				eq(transactionFor.householdId, input.householdId),
+				edited,
+			),
+		);
+	if (input.forMemberIds.length > 0) {
+		const setFor = db
+			.insert(transactionFor)
+			.select(
+				db
+					.select({
+						transactionId: sql<string>`${input.transactionId}`.as("transaction_id"),
+						memberId: members.id,
+						householdId: members.householdId,
+					})
+					.from(members)
+					.where(
+						and(
+							inArray(members.id, input.forMemberIds),
+							eq(members.householdId, input.householdId),
+							edited,
+						),
+					),
+			)
+			.onConflictDoNothing();
+		await db.batch([update, clearFor, setFor]);
+	} else {
+		await db.batch([update, clearFor]);
+	}
+	const [landed] = await db
+		.select({ id: transactions.id })
+		.from(transactions)
+		.where(and(theTransaction, edited));
+	return landed ? { ok: true } : { ok: false, reason: "not-in-plan" };
+}
+
+/** Deletes a Transaction and its For. Idempotent: deleting it again changes nothing. */
+export async function deleteTransaction(
+	db: Db,
+	input: { householdId: string; transactionId: string },
+): Promise<void> {
+	await db.batch([
+		db
+			.delete(transactionFor)
+			.where(
+				and(
+					eq(transactionFor.transactionId, input.transactionId),
+					eq(transactionFor.householdId, input.householdId),
+				),
+			),
+		db
+			.delete(transactions)
+			.where(
+				and(
+					eq(transactions.id, input.transactionId),
+					eq(transactions.householdId, input.householdId),
+				),
+			),
+	]);
 }

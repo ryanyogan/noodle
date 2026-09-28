@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayKeyAt, daysInMonth, lastDayOf, type MonthKey, monthKeyAt } from "./index";
+import { addMonths, dayKeyAt, daysInMonth, lastDayOf, type MonthKey, monthKeyAt } from "./index";
 
 describe("monthKeyAt: the Household's current month in its own time zone", () => {
 	it.each([
@@ -38,5 +38,17 @@ describe("daysInMonth and lastDayOf", () => {
 	] as const)("%s has %i days, ending %s", (month, days, last) => {
 		expect(daysInMonth(month as MonthKey)).toBe(days);
 		expect(lastDayOf(month as MonthKey)).toBe(last);
+	});
+});
+
+describe("addMonths", () => {
+	it.each([
+		["2026-09", 1, "2026-10"],
+		["2026-12", 1, "2027-01"],
+		["2026-01", -1, "2025-12"],
+		["2026-09", -21, "2024-12"],
+		["2026-09", 0, "2026-09"],
+	] as const)("%s plus %i is %s", (month, months, expected) => {
+		expect(addMonths(month, months)).toBe(expected);
 	});
 });

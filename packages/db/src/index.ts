@@ -297,10 +297,17 @@ export {
 	updateBucket,
 } from "./plan";
 export {
+	type Assignment,
 	addQuickAdd,
 	type BucketSpend,
+	deleteTransaction,
 	loadBucketUses,
 	loadSpending,
 	loadSpendingEarlierInYear,
+	loadTransactionsPage,
 	type QuickAddResult,
+	type TransactionCursor,
+	type TransactionEditResult,
+	type TransactionRow,
+	updateTransaction,
 } from "./transactions";
