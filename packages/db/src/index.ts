@@ -315,6 +315,19 @@ export {
 	undoMove,
 } from "./moves";
 export {
+	forgetPushSubscription,
+	loadNudgePreferences,
+	loadNudgeRecipients,
+	loadPushSubscriptions,
+	loadQuickAddForNudge,
+	type NudgeRecipient,
+	type PushSubscriptionKeys,
+	type QuickAddForNudge,
+	removePushSubscription,
+	saveNudgePreferences,
+	savePushSubscription,
+} from "./nudges";
+export {
 	addBucket,
 	addPersonalAllowance,
 	archiveBucket,

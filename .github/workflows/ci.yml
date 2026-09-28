@@ -33,11 +33,13 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bunx playwright install --with-deps chromium
         working-directory: apps/web
-      - name: Write Clerk dev keys for the local Worker
+      - name: Write dev keys for the local Worker
         working-directory: apps/web
         run: |
           printf 'VITE_CLERK_PUBLISHABLE_KEY=%s\nCLERK_SECRET_KEY=%s\n' \
             "${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" "${{ secrets.CLERK_SECRET_KEY }}" > .dev.vars
+          # Throwaway VAPID keys for Nudges; nothing is really pushed in E2E.
+          bun scripts/vapid-keys.ts >> .dev.vars
       - run: bun run e2e
         working-directory: apps/web
       - uses: actions/upload-artifact@v4

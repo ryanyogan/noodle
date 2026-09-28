@@ -36,7 +36,7 @@ export const getViewer = createServerFn({ method: "GET" }).handler(async (): Pro
 	return { signedIn: true, household: null, invite };
 });
 
-const timeZoneSchema = z.string().refine((zone) => {
+export const timeZoneSchema = z.string().refine((zone) => {
 	try {
 		new Intl.DateTimeFormat("en-US", { timeZone: zone });
 		return true;

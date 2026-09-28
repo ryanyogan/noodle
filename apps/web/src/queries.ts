@@ -4,6 +4,7 @@ import { getGoals } from "./server/goals";
 import { getHouseholdParents } from "./server/invites";
 import { getForTotalsEarlierInYear, getMembers } from "./server/members";
 import { getMonth, type MonthData } from "./server/month";
+import { getNudgeSettings } from "./server/nudges";
 import { getViewer } from "./server/session";
 import { getBucketUses } from "./server/transactions";
 
@@ -71,4 +72,11 @@ export const goalsQuery = () =>
 	queryOptions({
 		queryKey: ["goals"],
 		queryFn: () => getGoals(),
+	});
+
+/** The viewer's own Nudge preferences, and the key a device subscribes with. Never shared. */
+export const nudgeSettingsQuery = () =>
+	queryOptions({
+		queryKey: ["nudges"],
+		queryFn: () => getNudgeSettings(),
 	});

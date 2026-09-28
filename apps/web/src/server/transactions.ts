@@ -50,7 +50,11 @@ export const addQuickAdd = createServerFn({ method: "POST" })
 		});
 		if (!result.ok) throw new Error("That Bucket isn’t in this month’s Plan.");
 		// Every month: what's left can roll into later ones.
-		await notifyHousehold(context.household.id, ["months", "bucket-uses"]);
+		await notifyHousehold(
+			context.household.id,
+			["months", "bucket-uses"],
+			[{ type: "quick-add", transactionId: data.transactionId }],
+		);
 	});
 
 /** Recent spending's Buckets, so Quick Add can offer the likeliest first. */

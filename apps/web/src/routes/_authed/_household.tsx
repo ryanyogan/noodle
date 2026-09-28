@@ -5,6 +5,7 @@ import { z } from "zod";
 import { AppShell } from "../../components/app-shell";
 import { QuickAdd } from "../../components/quick-add";
 import { useLiveUpdates } from "../../live-updates";
+import { useKeepPushSubscription } from "../../push-device";
 import { bucketUsesQuery, membersQuery, monthQuery } from "../../queries";
 
 // The authenticated app layout: requires the Parent to belong to a Household.
@@ -28,6 +29,7 @@ export const Route = createFileRoute("/_authed/_household")({
 function AppLayout() {
 	const { household, parentId } = Route.useRouteContext();
 	useLiveUpdates();
+	useKeepPushSubscription();
 	return (
 		<>
 			<AppShell householdName={household.name}>

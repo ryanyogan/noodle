@@ -23,5 +23,11 @@
 	},
 	"exports": {
 		"HouseholdAgent": { "type": "durable-object", "storage": "sqlite" }
+	},
+	// Nudges the Household Agent decides go out through this Queue, consumed by this Worker, which
+	// sends each as Web Push. Needs VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, and VAPID_SUBJECT secrets.
+	"queues": {
+		"producers": [{ "binding": "NUDGE_QUEUE", "queue": "noodle-nudges" }],
+		"consumers": [{ "queue": "noodle-nudges", "max_batch_size": 10, "max_retries": 3 }]
 	}
 }

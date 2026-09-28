@@ -406,6 +406,50 @@ export const moves = sqliteTable(
 	(t) => [index("moves_household_month_idx").on(t.householdId, t.month)],
 );
 
+// Where a Parent's Nudges go: one Web Push subscription per browser or installed app that
+// turned them on. The endpoint is the push service's URL for that device, unique to it, so a
+// device a different Parent turns Nudges on for moves to them.
+export const pushSubscriptions = sqliteTable(
+	"push_subscriptions",
+	{
+		endpoint: text("endpoint").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		memberId: text("member_id")
+			.notNull()
+			.references(() => members.id),
+		// The subscription's public key and auth secret (base64url), which encrypt what's sent to it.
+		p256dh: text("p256dh").notNull(),
+		auth: text("auth").notNull(),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [index("push_subscriptions_member_idx").on(t.memberId)],
+);
+
+// Which Nudges a Parent wants and when they're quiet. No row means the defaults
+// (defaultNudgePreferences in @noodle/domain). Quiet hours are minutes after local midnight in
+// the Parent's own `time_zone`; null when they have none.
+export const nudgePreferences = sqliteTable("nudge_preferences", {
+	memberId: text("member_id")
+		.primaryKey()
+		.references(() => members.id),
+	householdId: text("household_id")
+		.notNull()
+		.references(() => households.id),
+	bucketPace: integer("bucket_pace", { mode: "boolean" }).notNull(),
+	otherParentQuickAdds: integer("other_parent_quick_adds", { mode: "boolean" }).notNull(),
+	windfalls: integer("windfalls", { mode: "boolean" }).notNull(),
+	quietStart: integer("quiet_start"),
+	quietEnd: integer("quiet_end"),
+	timeZone: text("time_zone").notNull(),
+	updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+		.notNull()
+		.default(sql`(unixepoch() * 1000)`),
+});
+
 export type Household = typeof households.$inferSelect;
 export type Member = typeof members.$inferSelect;
 export type Invite = typeof invites.$inferSelect;

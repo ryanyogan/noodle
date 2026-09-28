@@ -60,6 +60,19 @@ export {
 	type Spend,
 } from "./month-state";
 export {
+	bucketsPassingPace,
+	defaultNudgePreferences,
+	isQuietAt,
+	minuteOfDayAt,
+	type NudgeKind,
+	type NudgePreferences,
+	nextLocalMinute,
+	nudgeDeliveryTime,
+	PACE_NUDGE_MIN_DAYS_LEFT,
+	type QuietHours,
+	wantsNudge,
+} from "./nudges";
+export {
 	type BucketRecord,
 	type CommitmentRecord,
 	canAssign,

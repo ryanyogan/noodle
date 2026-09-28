@@ -3,15 +3,20 @@ import { clerkClient } from "@clerk/tanstack-react-start/server";
 import { findMembershipByClerkUser } from "@noodle/db";
 import { type HouseholdChange, householdChangesMessage } from "../household-changes";
 import { getDb } from "./db";
+import { type HouseholdEvent, HouseholdNudges } from "./nudge-agent";
 
 /**
  * The Household Agent (ADR-0007): one per Household, named by its ID. Both Parents' open screens
  * hold a hibernating WebSocket to it, and after a write lands in D1 it tells them what changed.
- * It holds no data, so it can sleep between writes without dropping anyone.
+ * It holds no Household data, so it can sleep between writes without dropping anyone. It also
+ * decides the Household's Nudges, waking on its alarm to send them.
  */
 export class HouseholdAgent extends DurableObject<Env> {
+	private readonly nudges: HouseholdNudges;
+
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
+		this.nudges = new HouseholdNudges(ctx.storage);
 		// Screens ping to keep their connection alive and to notice when it silently drops;
 		// the runtime answers without waking the Agent.
 		ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
@@ -25,8 +30,15 @@ export class HouseholdAgent extends DurableObject<Env> {
 		return new Response(null, { status: 101, webSocket: client });
 	}
 
-	/** Tells every open screen what changed; each refetches it through the normal read path. */
-	async notify(changes: HouseholdChange[]): Promise<void> {
+	/**
+	 * Tells every open screen what changed; each refetches it through the normal read path. Then
+	 * notes the write for Nudges, which are decided shortly after on the alarm.
+	 */
+	async notify(
+		householdId: string,
+		changes: HouseholdChange[],
+		events: HouseholdEvent[] = [],
+	): Promise<void> {
 		const message = householdChangesMessage(changes);
 		for (const socket of this.ctx.getWebSockets()) {
 			try {
@@ -35,6 +47,12 @@ export class HouseholdAgent extends DurableObject<Env> {
 				// Already closing: that screen reconnects and catches up on everything.
 			}
 		}
+		await this.nudges.raise(householdId, changes, events);
+	}
+
+	/** Decides and sends Nudges; retried by the runtime if it throws. */
+	override async alarm(): Promise<void> {
+		await this.nudges.run();
 	}
 
 	// Screens send nothing but pings, which the auto-response answers.
