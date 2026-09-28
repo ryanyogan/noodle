@@ -1,0 +1,100 @@
+import { UserButton } from "@clerk/tanstack-react-start";
+import { Logo } from "@noodle/ui/components/logo";
+import { cn } from "@noodle/ui/lib/utils";
+import { Link, type LinkProps } from "@tanstack/react-router";
+import { CalendarDays, type LucideIcon, UsersRound } from "lucide-react";
+import type { ReactNode } from "react";
+
+type NavItem = { to: LinkProps["to"]; label: string; short: string; icon: LucideIcon };
+
+// Every top-level destination, in order. The sidebar (desktop) and tab bar (phone) both render it.
+const nav: NavItem[] = [
+	{ to: "/month", label: "This Month", short: "Month", icon: CalendarDays },
+	{ to: "/household", label: "Household", short: "Household", icon: UsersRound },
+];
+
+/** The authenticated app frame: a sidebar on desktop, a bottom tab bar on phones. */
+export function AppShell({
+	householdName,
+	children,
+}: {
+	householdName: string;
+	children: ReactNode;
+}) {
+	return (
+		<div className="min-h-dvh lg:grid lg:grid-cols-[var(--sidebar-width)_minmax(0,1fr)]">
+			<Sidebar householdName={householdName} />
+			<main
+				id="main"
+				className={cn(
+					"mx-auto w-full max-w-[1200px] px-(--gutter)",
+					"pt-[calc(env(safe-area-inset-top)+16px)] pb-[calc(var(--tabbar-height)+env(safe-area-inset-bottom)+32px)]",
+					"lg:pt-6 lg:pb-12",
+				)}
+			>
+				{children}
+			</main>
+			<TabBar />
+		</div>
+	);
+}
+
+function Sidebar({ householdName }: { householdName: string }) {
+	return (
+		<aside className="sticky top-0 hidden h-dvh flex-col gap-6 border-e bg-card/55 px-3 py-5 lg:flex">
+			<Link to="/month" className="rounded-lg px-3 py-1" aria-label="Noodle, This Month">
+				<Logo />
+			</Link>
+			<nav aria-label="Main" className="grid gap-0.5">
+				{nav.map((item) => (
+					<Link
+						key={item.label}
+						to={item.to}
+						className={cn(
+							"flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium text-muted-foreground",
+							"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2 hover:text-foreground",
+							"data-[status=active]:bg-card data-[status=active]:text-foreground data-[status=active]:shadow-card data-[status=active]:ring-1 data-[status=active]:ring-border",
+						)}
+					>
+						<item.icon className="size-4.5" strokeWidth={1.75} aria-hidden="true" />
+						{item.label}
+					</Link>
+				))}
+			</nav>
+			<div className="mt-auto flex items-center gap-2.5 rounded-xl p-2.5">
+				<UserButton />
+				<div className="grid min-w-0 text-[13px] leading-tight">
+					<span className="truncate font-medium">{householdName}</span>
+					<span className="text-xs text-subtle-foreground">Household</span>
+				</div>
+			</div>
+		</aside>
+	);
+}
+
+function TabBar() {
+	return (
+		<nav
+			aria-label="Main"
+			className={cn(
+				"fixed inset-x-0 bottom-0 z-20 grid auto-cols-fr grid-flow-col border-t lg:hidden",
+				"bg-card/80 backdrop-blur-xl backdrop-saturate-150",
+				"px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+6px)]",
+			)}
+		>
+			{nav.map((item) => (
+				<Link
+					key={item.label}
+					to={item.to}
+					className={cn(
+						"grid h-(--tabbar-height) place-content-center justify-items-center gap-1 rounded-lg text-[11px] font-medium text-subtle-foreground",
+						"transition-colors duration-(--duration-fast) ease-standard data-[status=active]:text-foreground",
+					)}
+				>
+					<item.icon className="size-5.5" strokeWidth={1.75} aria-hidden="true" />
+					{item.short}
+				</Link>
+			))}
+		</nav>
+	);
+}

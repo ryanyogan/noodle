@@ -1,0 +1,20 @@
+@import "@noodle/ui/globals.css";
+
+/* Clerk's sign-in and account UI, themed from the same tokens (follows light/dark). */
+:root {
+	--clerk-color-primary: var(--primary);
+	--clerk-color-primary-foreground: var(--primary-foreground);
+	--clerk-color-background: var(--card);
+	--clerk-color-foreground: var(--foreground);
+	--clerk-color-muted: var(--surface-2);
+	--clerk-color-muted-foreground: var(--muted-foreground);
+	--clerk-color-neutral: var(--foreground);
+	--clerk-color-input: var(--surface-2);
+	--clerk-color-input-foreground: var(--foreground);
+	--clerk-color-border: var(--border-strong);
+	--clerk-color-ring: var(--brand);
+	--clerk-color-danger: var(--over);
+	--clerk-color-modal-backdrop: var(--scrim);
+	--clerk-font-family: var(--font-sans);
+	--clerk-border-radius: 0.75rem;
+}

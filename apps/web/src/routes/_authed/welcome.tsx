@@ -1,8 +1,13 @@
 import type { InviteToJoin } from "@noodle/db";
+import { Button } from "@noodle/ui/components/button";
+import { Card } from "@noodle/ui/components/card";
+import { Field, FormError } from "@noodle/ui/components/field";
+import { Input } from "@noodle/ui/components/input";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, redirect, useHydrated, useRouter } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { ulid } from "ulid";
+import { CenteredHeading, CenteredPage } from "../../components/centered-page";
 import { acceptInvite } from "../../server/invites";
 import { createHousehold } from "../../server/session";
 
@@ -58,26 +63,44 @@ function CreateHousehold() {
 	}
 
 	return (
-		<main>
-			<h1>Welcome to Noodle</h1>
-			<p>Start by naming your Household. You can invite the other Parent next.</p>
-			<form onSubmit={onSubmit}>
-				<label>
-					Household name
-					<input name="householdName" required maxLength={80} autoComplete="off" />
-				</label>
-				<label>
-					Your name
-					<input name="parentName" required maxLength={80} autoComplete="given-name" />
-				</label>
-				{create.isError ? (
-					<p role="alert">We couldn't create your Household. Please try again.</p>
-				) : null}
-				<button type="submit" disabled={!hydrated || create.isPending || create.isSuccess}>
-					Create Household
-				</button>
-			</form>
-		</main>
+		<CenteredPage>
+			<CenteredHeading title="Welcome to Noodle">
+				Start by naming your Household. You can invite the other Parent next.
+			</CenteredHeading>
+			<Card>
+				<form onSubmit={onSubmit} className="grid gap-4 p-(--card-pad)">
+					<Field label="Household name" htmlFor="householdName">
+						<Input
+							id="householdName"
+							name="householdName"
+							required
+							maxLength={80}
+							autoComplete="off"
+							placeholder="The Rinks"
+						/>
+					</Field>
+					<Field label="Your name" htmlFor="parentName">
+						<Input
+							id="parentName"
+							name="parentName"
+							required
+							maxLength={80}
+							autoComplete="given-name"
+						/>
+					</Field>
+					{create.isError ? (
+						<FormError>We couldn’t create your Household. Please try again.</FormError>
+					) : null}
+					<Button
+						type="submit"
+						size="lg"
+						disabled={!hydrated || create.isPending || create.isSuccess}
+					>
+						Create Household
+					</Button>
+				</form>
+			</Card>
+		</CenteredPage>
 	);
 }
 
@@ -100,36 +123,53 @@ function JoinHousehold({ invite, onStartOwn }: { invite: InviteToJoin; onStartOw
 	}
 
 	return (
-		<main>
-			<h1>Welcome to Noodle</h1>
-			<p>You've been invited to share a Plan with {invite.householdName}.</p>
-			<form onSubmit={onSubmit}>
-				<label>
-					Your name
-					<input name="parentName" required maxLength={80} autoComplete="given-name" />
-				</label>
-				{refused === "invite-unusable" ? (
-					<p role="alert">
-						This invite can no longer be used. Ask the Parent who invited you to invite you again.
-					</p>
-				) : null}
-				{refused === "in-another-household" ? (
-					<p role="alert">You already belong to another Household.</p>
-				) : null}
-				{join.isError ? (
-					<p role="alert">We couldn't add you to this Household. Please try again.</p>
-				) : null}
-				<button
-					type="submit"
-					disabled={!hydrated || join.isPending || join.data?.ok === true || refused !== null}
+		<CenteredPage>
+			<CenteredHeading title={`Join ${invite.householdName}`}>
+				You’ve been invited to share a Plan with {invite.householdName}.
+			</CenteredHeading>
+			<Card>
+				<form onSubmit={onSubmit} className="grid gap-4 p-(--card-pad)">
+					<Field label="Your name" htmlFor="parentName">
+						<Input
+							id="parentName"
+							name="parentName"
+							required
+							maxLength={80}
+							autoComplete="given-name"
+						/>
+					</Field>
+					{refused === "invite-unusable" ? (
+						<FormError>
+							This invite can no longer be used. Ask the Parent who invited you to invite you again.
+						</FormError>
+					) : null}
+					{refused === "in-another-household" ? (
+						<FormError>You already belong to another Household.</FormError>
+					) : null}
+					{join.isError ? (
+						<FormError>We couldn’t add you to this Household. Please try again.</FormError>
+					) : null}
+					<Button
+						type="submit"
+						size="lg"
+						disabled={!hydrated || join.isPending || join.data?.ok === true || refused !== null}
+					>
+						Join {invite.householdName}
+					</Button>
+				</form>
+			</Card>
+			<div className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+				Not expecting this invite?
+				<Button
+					type="button"
+					variant="link"
+					className="h-auto px-0 font-medium text-foreground underline underline-offset-4"
+					onClick={onStartOwn}
+					disabled={!hydrated || join.isPending}
 				>
-					Join {invite.householdName}
-				</button>
-			</form>
-			<p>Not expecting this invite?</p>
-			<button type="button" onClick={onStartOwn} disabled={!hydrated || join.isPending}>
-				Start my own Household instead
-			</button>
-		</main>
+					Start my own Household instead
+				</Button>
+			</div>
+		</CenteredPage>
 	);
 }

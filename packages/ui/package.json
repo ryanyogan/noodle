@@ -3,10 +3,33 @@
 	"version": "0.0.0",
 	"private": true,
 	"type": "module",
+	"imports": {
+		"#components/*": "./src/components/*.tsx",
+		"#lib/*": "./src/lib/*.ts",
+		"#hooks/*": "./src/hooks/*.ts"
+	},
 	"exports": {
-		".": "./src/index.ts"
+		"./globals.css": "./src/styles/globals.css",
+		"./fonts/*": "./src/fonts/*",
+		"./components/*": "./src/components/*.tsx",
+		"./lib/*": "./src/lib/*.ts",
+		"./hooks/*": "./src/hooks/*.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc -p tsconfig.json"
+	},
+	"peerDependencies": {
+		"react": "^19"
+	},
+	"dependencies": {
+		"class-variance-authority": "0.7.1",
+		"clsx": "2.1.1",
+		"lucide-react": "1.48.0",
+		"radix-ui": "1.6.7",
+		"tailwind-merge": "3.7.0"
+	},
+	"devDependencies": {
+		"@types/react": "19.3.0",
+		"tailwindcss": "4.3.3"
 	}
 }

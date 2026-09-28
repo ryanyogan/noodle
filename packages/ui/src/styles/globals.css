@@ -1,0 +1,293 @@
+/*
+ * Noodle design tokens: the single source of colour, type, spacing, radii, and motion.
+ * Approved in #2 (round 2 prototype). Every component reads these through Tailwind utilities
+ * (bg-card, text-muted-foreground, bg-pace, …) or the raw custom properties.
+ */
+@import "tailwindcss";
+@source "../../../../apps/web/src";
+@source "../";
+
+/* Appearance follows the device setting. */
+@custom-variant dark (@media (prefers-color-scheme: dark));
+
+/* ---------- Font: Geist, self-hosted (Latin), with a metric-matched fallback ---------- */
+@font-face {
+	font-family: "Geist";
+	font-style: normal;
+	font-weight: 100 900;
+	font-display: swap;
+	src: url("../fonts/geist-latin-wght-normal.woff2") format("woff2");
+	unicode-range:
+		U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+		U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* Arial (or its metric twin Liberation Sans) resized to Geist's metrics, so the swap doesn't shift layout.
+   Values from @capsizecss/core createFontStack([geist, arial]). */
+@font-face {
+	font-family: "Geist Fallback";
+	src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("LiberationSans");
+	ascent-override: 95.9379%;
+	descent-override: 28.1609%;
+	line-gap-override: 0%;
+	size-adjust: 104.7553%;
+}
+
+/* ---------- Colour ---------- */
+:root {
+	color-scheme: light;
+
+	/* Surfaces */
+	--background: #f4f5f7;
+	--card: #ffffff;
+	--surface-2: #f2f4f7;
+	--surface-3: #e9ecf1;
+	--border: #e5e8ed;
+	--border-strong: #d6dae1;
+
+	/* Text */
+	--foreground: #0e1525;
+	--muted-foreground: #545e70;
+	--subtle-foreground: #8a93a4;
+
+	/* The one accent, plus the two reserved state colours */
+	--brand: #3e63dd;
+	--brand-soft: rgb(62 99 221 / 0.1);
+	--pace: #e0940a;
+	--pace-soft: rgb(224 148 10 / 0.12);
+	--pace-foreground: #8a5b06;
+	--over: #cc3d3d;
+	--over-soft: rgb(204 61 61 / 0.1);
+
+	/* Faint glows behind the page */
+	--glow-1: rgb(62 99 221 / 0.07);
+	--glow-2: rgb(242 162 12 / 0.05);
+
+	--scrim: rgb(14 21 37 / 0.36);
+	--elevation-card: 0 1px 2px rgb(14 21 37 / 0.04), 0 1px 1px rgb(14 21 37 / 0.02);
+	--elevation-pop: 0 12px 32px -8px rgb(14 21 37 / 0.22), 0 2px 6px rgb(14 21 37 / 0.06);
+	--card-highlight: inset 0 0 0 0 transparent;
+
+	/* Bucket identity, assigned in this order (colour-blind validated in #2); tiles and meters only. */
+	--bucket-1: #2a78d6;
+	--bucket-2: #e34948;
+	--bucket-3: #0e8fa8;
+	--bucket-4: #008300;
+	--bucket-5: #4a3aa7;
+	--bucket-6: #1baf7a;
+	--bucket-7: #9a5b2e;
+	--bucket-8: #e87ba4;
+
+	/* shadcn role names, mapped onto the tokens above */
+	--card-foreground: var(--foreground);
+	--popover: var(--card);
+	--popover-foreground: var(--foreground);
+	--primary: var(--foreground);
+	--primary-foreground: var(--card);
+	--secondary: var(--surface-2);
+	--secondary-foreground: var(--foreground);
+	--muted: var(--surface-2);
+	--accent: var(--surface-2);
+	--accent-foreground: var(--foreground);
+	--destructive: var(--over);
+	--input: var(--border-strong);
+	--ring: var(--brand);
+
+	/* Motion durations (easings live in @theme as ease-standard / ease-spring) */
+	--duration-fast: 120ms;
+	--duration-base: 220ms;
+	--duration-slow: 420ms;
+	--duration-meter: 650ms;
+
+	/* Layout */
+	--gutter: 16px;
+	--card-pad: 16px;
+	--sidebar-width: 248px;
+	--tabbar-height: 56px;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		color-scheme: dark;
+		--background: #090c12;
+		--card: #10141c;
+		--surface-2: #161b25;
+		--surface-3: #1d2330;
+		--border: #1c2230;
+		--border-strong: #283041;
+		--foreground: #eceff4;
+		--muted-foreground: #a0a8b7;
+		--subtle-foreground: #6c7486;
+		--brand: #7c9bff;
+		--brand-soft: rgb(124 155 255 / 0.14);
+		--pace: #f5b23a;
+		--pace-soft: rgb(245 178 58 / 0.14);
+		--pace-foreground: #f5c46a;
+		--over: #f07171;
+		--over-soft: rgb(240 113 113 / 0.14);
+		--glow-1: rgb(124 155 255 / 0.1);
+		--glow-2: rgb(245 178 58 / 0.05);
+		--scrim: rgb(0 0 0 / 0.6);
+		--elevation-card: 0 1px 2px rgb(0 0 0 / 0.4);
+		--elevation-pop: 0 16px 40px -8px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.04);
+		--card-highlight: inset 0 1px 0 rgb(255 255 255 / 0.03);
+		--bucket-1: #3987e5;
+		--bucket-2: #e66767;
+		--bucket-3: #2aa3bd;
+		--bucket-4: #2f9e3a;
+		--bucket-5: #9085e9;
+		--bucket-6: #199e70;
+		--bucket-7: #c47a36;
+		--bucket-8: #d55181;
+	}
+}
+
+@media (min-width: 64rem) {
+	:root {
+		--gutter: 40px;
+		--card-pad: 20px;
+	}
+}
+
+/*
+ * Radii use Tailwind's scale: rounded-lg 8px (small buttons, nav), rounded-xl 12px (buttons,
+ * tiles, inputs), rounded-2xl 16px (cards), rounded-3xl 24px (sheets), rounded-full (pills).
+ * Spacing uses Tailwind's 4px scale.
+ */
+@theme inline {
+	--font-sans:
+		"Geist", "Geist Fallback", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-subtle-foreground: var(--subtle-foreground);
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-destructive: var(--destructive);
+	--color-border: var(--border);
+	--color-border-strong: var(--border-strong);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
+	--color-surface-2: var(--surface-2);
+	--color-surface-3: var(--surface-3);
+	--color-brand: var(--brand);
+	--color-brand-soft: var(--brand-soft);
+	--color-pace: var(--pace);
+	--color-pace-soft: var(--pace-soft);
+	--color-pace-foreground: var(--pace-foreground);
+	--color-over: var(--over);
+	--color-over-soft: var(--over-soft);
+	--color-scrim: var(--scrim);
+	--color-bucket-1: var(--bucket-1);
+	--color-bucket-2: var(--bucket-2);
+	--color-bucket-3: var(--bucket-3);
+	--color-bucket-4: var(--bucket-4);
+	--color-bucket-5: var(--bucket-5);
+	--color-bucket-6: var(--bucket-6);
+	--color-bucket-7: var(--bucket-7);
+	--color-bucket-8: var(--bucket-8);
+
+	--shadow-card: var(--elevation-card), var(--card-highlight);
+	--shadow-pop: var(--elevation-pop);
+
+	/* Motion */
+	--ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+	--ease-spring: cubic-bezier(0.3, 1.25, 0.5, 1);
+
+	--animate-enter: enter var(--duration-base) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+	--animate-row-in: row-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+	--animate-halo: halo 2.4s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+
+	@keyframes enter {
+		from {
+			opacity: 0;
+			transform: translateY(4px);
+		}
+	}
+	@keyframes row-in {
+		from {
+			opacity: 0;
+			transform: translateY(-6px);
+			background: var(--brand-soft);
+		}
+		60% {
+			background: var(--brand-soft);
+		}
+	}
+	@keyframes halo {
+		0% {
+			transform: scale(0.6);
+			opacity: 0.35;
+		}
+		70%,
+		100% {
+			transform: scale(2.2);
+			opacity: 0;
+		}
+	}
+}
+
+@layer base {
+	*,
+	::before,
+	::after {
+		border-color: var(--border);
+	}
+	html {
+		-webkit-text-size-adjust: 100%;
+		-webkit-tap-highlight-color: transparent;
+	}
+	body {
+		min-height: 100dvh;
+		background:
+			radial-gradient(900px 420px at 10% -120px, var(--glow-1), transparent 70%),
+			radial-gradient(700px 360px at 95% -160px, var(--glow-2), transparent 70%), var(--background);
+		background-attachment: fixed;
+		color: var(--foreground);
+		font-family: var(--font-sans);
+		font-size: 0.875rem;
+		line-height: 1.45;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+	}
+	h1,
+	h2,
+	h3 {
+		text-wrap: balance;
+	}
+	/* Visible keyboard focus everywhere; components may refine it. */
+	:focus-visible {
+		outline: 2px solid var(--ring);
+		outline-offset: 2px;
+	}
+	button:not(:disabled),
+	[role="button"]:not([aria-disabled="true"]) {
+		cursor: pointer;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		*,
+		::before,
+		::after {
+			/* biome-ignore lint/complexity/noImportantStyles: reduce-motion must beat every component's own timing */
+			animation-duration: 0ms !important;
+			/* biome-ignore lint/complexity/noImportantStyles: reduce-motion must beat every component's own timing */
+			animation-iteration-count: 1 !important;
+			/* biome-ignore lint/complexity/noImportantStyles: reduce-motion must beat every component's own timing */
+			transition-duration: 0ms !important;
+		}
+	}
+}
+
+@utility tabular {
+	font-variant-numeric: tabular-nums;
+	letter-spacing: -0.01em;
+}

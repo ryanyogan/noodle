@@ -16,6 +16,10 @@ export default defineConfig({
 		baseURL: `http://localhost:${port}`,
 		trace: "retain-on-failure",
 	},
+	expect: {
+		// Absorbs anti-aliasing differences between machines, not layout changes.
+		toHaveScreenshot: { maxDiffPixelRatio: 0.01, animations: "disabled", caret: "hide" },
+	},
 	projects: [
 		{ name: "setup", testMatch: /global\.setup\.ts/ },
 		{

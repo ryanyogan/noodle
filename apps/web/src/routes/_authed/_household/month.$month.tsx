@@ -1,6 +1,9 @@
+import { EmptyState } from "@noodle/ui/components/empty-state";
+import { PageHeader } from "@noodle/ui/components/page-header";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { monthLabel } from "../../../format";
+import { CalendarDays } from "lucide-react";
+import { monthName } from "../../../format";
 import { thisMonthQuery } from "../../../queries";
 import { monthKeySchema } from "../../../server/month";
 
@@ -17,12 +20,15 @@ function ThisMonth() {
 	const { month } = Route.useParams();
 	const { data } = useSuspenseQuery(thisMonthQuery(month));
 	return (
-		<main>
-			<h1>This Month</h1>
-			<p>{monthLabel(data.month)}</p>
+		<>
+			<PageHeader eyebrow="This Month" title={monthName(data.month)} />
 			{data.buckets.length === 0 ? (
-				<p>Nothing planned yet. Your Buckets will appear here.</p>
+				<EmptyState
+					icon={<CalendarDays />}
+					title="Nothing planned yet"
+					description="Your Buckets will appear here once the Plan is set up."
+				/>
 			) : null}
-		</main>
+		</>
 	);
 }

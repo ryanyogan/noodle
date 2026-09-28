@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+	<title>Noodle</title>
+	<style>
+		.bg { fill: #0e1525; }
+		.mark { stroke: #ffffff; }
+		@media (prefers-color-scheme: dark) { .bg { fill: #eceff4; } .mark { stroke: #0e1525; } }
+	</style>
+	<rect class="bg" width="64" height="64" rx="16"/>
+	<path class="mark" d="M18 44V26a8 8 0 0 1 16 0v11a8 8 0 0 0 16 0V20" fill="none" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+	<circle cx="50" cy="20" r="5.5" fill="#f2a20c"/>
+</svg>

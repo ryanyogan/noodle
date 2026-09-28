@@ -1,22 +1,6 @@
-import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
-import { type Browser, expect, type Page, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-
-async function signedInPage(browser: Browser, email: string): Promise<Page> {
-	const page = await (await browser.newContext()).newPage();
-	await setupClerkTestingToken({ page });
-	await page.goto("/");
-	await clerk.signIn({ page, emailAddress: email });
-	return page;
-}
-
-async function createHousehold(page: Page, householdName: string, parentName: string) {
-	await page.goto("/welcome");
-	await page.getByLabel("Household name").fill(householdName);
-	await page.getByLabel("Your name").fill(parentName);
-	await page.getByRole("button", { name: "Create Household" }).click();
-	await expect(page).toHaveURL(/\/month\//);
-}
+import { createHousehold, signedInPage } from "./session";
 
 async function invite(page: Page, email: string) {
 	await page.getByLabel("Their email").fill(email);
