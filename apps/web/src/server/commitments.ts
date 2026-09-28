@@ -10,11 +10,12 @@ import { z } from "zod";
 import { getDb } from "./db";
 import { householdMiddleware } from "./household";
 import { monthKeySchema } from "./month";
+import { notifyHousehold } from "./notify";
 import { assertEditable, centsSchema } from "./plan";
 import { ulidSchema } from "./schemas";
 
 // Commitments in the Plan, and payments against them. Each change is idempotent, so the client
-// can retry any of them safely.
+// can retry any of them safely, and tells both Parents' screens that every month changed.
 
 export const commitmentNameSchema = z.string().trim().min(1).max(40);
 
@@ -40,6 +41,7 @@ export const addCommitment = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }) => {
 		assertEditable(context.household, data.month);
 		await addCommitmentInDb(getDb(), { householdId: context.household.id, ...data });
+		await notifyHousehold(context.household.id, ["months"]);
 	});
 
 /** Renames a Commitment, and sets what it expects from `month` onward. */
@@ -49,6 +51,7 @@ export const updateCommitment = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }) => {
 		assertEditable(context.household, data.month);
 		await updateCommitmentInDb(getDb(), { householdId: context.household.id, ...data });
+		await notifyHousehold(context.household.id, ["months"]);
 	});
 
 export const endCommitment = createServerFn({ method: "POST" })
@@ -57,6 +60,7 @@ export const endCommitment = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }) => {
 		assertEditable(context.household, data.month);
 		await endCommitmentInDb(getDb(), { householdId: context.household.id, ...data });
+		await notifyHousehold(context.household.id, ["months"]);
 	});
 
 /**
@@ -80,4 +84,5 @@ export const addCommitmentPayment = createServerFn({ method: "POST" })
 			createdByMemberId: context.parent.id,
 		});
 		if (!result.ok) throw new Error("That Commitment isn’t in this month’s Plan.");
+		await notifyHousehold(context.household.id, ["months"]);
 	});

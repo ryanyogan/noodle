@@ -12,9 +12,11 @@ import { z } from "zod";
 import { getDb } from "./db";
 import { type HouseholdSummary, householdMiddleware } from "./household";
 import { monthKeySchema } from "./month";
+import { notifyHousehold } from "./notify";
 import { ulidSchema } from "./schemas";
 
-// Changes to the Plan. Each is idempotent, so the client can retry any of them safely.
+// Changes to the Plan. Each is idempotent, so the client can retry any of them safely, and
+// each tells both Parents' screens that every month changed, since a Plan change carries forward.
 
 export const centsSchema = z.number().int().min(0).max(MAX_CENTS);
 export const bucketNameSchema = z.string().trim().min(1).max(40);
@@ -33,6 +35,7 @@ export const setBaseline = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }) => {
 		assertEditable(context.household, data.month);
 		await setBaselineInDb(getDb(), { householdId: context.household.id, ...data });
+		await notifyHousehold(context.household.id, ["months"]);
 	});
 
 export const addBucket = createServerFn({ method: "POST" })
@@ -49,6 +52,7 @@ export const addBucket = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }) => {
 		assertEditable(context.household, data.month);
 		await addBucketInDb(getDb(), { householdId: context.household.id, ...data });
+		await notifyHousehold(context.household.id, ["months"]);
 	});
 
 export const updateBucket = createServerFn({ method: "POST" })
@@ -62,6 +66,7 @@ export const updateBucket = createServerFn({ method: "POST" })
 	)
 	.handler(async ({ data, context }) => {
 		await updateBucketInDb(getDb(), { householdId: context.household.id, ...data });
+		await notifyHousehold(context.household.id, ["months"]);
 	});
 
 export const setAllowance = createServerFn({ method: "POST" })
@@ -70,6 +75,7 @@ export const setAllowance = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }) => {
 		assertEditable(context.household, data.month);
 		await setAllowanceInDb(getDb(), { householdId: context.household.id, ...data });
+		await notifyHousehold(context.household.id, ["months"]);
 	});
 
 export const reorderBuckets = createServerFn({ method: "POST" })
@@ -77,6 +83,7 @@ export const reorderBuckets = createServerFn({ method: "POST" })
 	.validator(z.object({ bucketIds: z.array(ulidSchema).min(1).max(100) }))
 	.handler(async ({ data, context }) => {
 		await reorderBucketsInDb(getDb(), { householdId: context.household.id, ...data });
+		await notifyHousehold(context.household.id, ["months"]);
 	});
 
 export const archiveBucket = createServerFn({ method: "POST" })
@@ -85,4 +92,5 @@ export const archiveBucket = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }) => {
 		assertEditable(context.household, data.month);
 		await archiveBucketInDb(getDb(), { householdId: context.household.id, ...data });
+		await notifyHousehold(context.household.id, ["months"]);
 	});

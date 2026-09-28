@@ -4,6 +4,7 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { z } from "zod";
 import { AppShell } from "../../components/app-shell";
 import { QuickAdd } from "../../components/quick-add";
+import { useLiveUpdates } from "../../live-updates";
 import { bucketUsesQuery, monthQuery } from "../../queries";
 
 // The authenticated app layout: requires the Parent to belong to a Household.
@@ -25,6 +26,7 @@ export const Route = createFileRoute("/_authed/_household")({
 
 function AppLayout() {
 	const { household } = Route.useRouteContext();
+	useLiveUpdates();
 	return (
 		<>
 			<AppShell householdName={household.name}>

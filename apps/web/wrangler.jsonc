@@ -3,7 +3,8 @@
 	"name": "noodle",
 	"compatibility_date": "2026-09-28",
 	"compatibility_flags": ["nodejs_compat"],
-	"main": "@tanstack/react-start/server-entry",
+	// TanStack Start's server entry, plus the Household Agent class it exports.
+	"main": "src/server.ts",
 	"observability": { "enabled": true },
 	"vars": {
 		"CLERK_SIGN_IN_URL": "/sign-in"
@@ -15,5 +16,12 @@
 			"database_id": "dc862efc-c574-409a-a2c2-05fa98807dac",
 			"migrations_dir": "../../packages/db/drizzle"
 		}
-	]
+	],
+	// One Household Agent per Household: the real-time hub both Parents' screens connect to (ADR-0007).
+	"durable_objects": {
+		"bindings": [{ "name": "HOUSEHOLD_AGENT", "class_name": "HouseholdAgent" }]
+	},
+	"exports": {
+		"HouseholdAgent": { "type": "durable-object", "storage": "sqlite" }
+	}
 }

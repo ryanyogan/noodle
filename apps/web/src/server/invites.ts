@@ -10,6 +10,7 @@ import { z } from "zod";
 import { requireUserId, verifiedEmails } from "./auth";
 import { getDb } from "./db";
 import { householdMiddleware, toHouseholdSummary } from "./household";
+import { notifyHousehold } from "./notify";
 import { ulidSchema } from "./schemas";
 
 /** The Household's Parents and its open invite, if any. */
@@ -39,7 +40,9 @@ export const inviteParent = createServerFn({ method: "POST" })
 			invitedByMemberId: context.parent.id,
 			inviterEmails: await verifiedEmails(await requireUserId()),
 		});
-		return result.ok ? { ok: true as const, email: result.invite.email } : result;
+		if (!result.ok) return result;
+		await notifyHousehold(context.household.id, ["parents"]);
+		return { ok: true as const, email: result.invite.email };
 	});
 
 export const acceptInvite = createServerFn({ method: "POST" })
@@ -59,7 +62,8 @@ export const acceptInvite = createServerFn({ method: "POST" })
 			clerkUserId,
 			emails: await verifiedEmails(clerkUserId),
 		});
-		return result.ok
-			? { ok: true as const, household: toHouseholdSummary(result.membership.household) }
-			: result;
+		if (!result.ok) return result;
+		const { household } = result.membership;
+		await notifyHousehold(household.id, ["parents"]);
+		return { ok: true as const, household: toHouseholdSummary(household) };
 	});

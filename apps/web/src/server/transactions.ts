@@ -1,9 +1,10 @@
 import { addQuickAdd as addQuickAddInDb, loadBucketUses } from "@noodle/db";
-import { type BucketUse, dayKeyAt, MAX_CENTS } from "@noodle/domain";
+import { type BucketUse, dayKeyAt, MAX_CENTS, monthOfDay } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getDb } from "./db";
 import { householdMiddleware } from "./household";
+import { notifyHousehold } from "./notify";
 import { ulidSchema } from "./schemas";
 
 /** How far back Quick Add looks to order Buckets by likelihood. */
@@ -24,16 +25,18 @@ export const addQuickAdd = createServerFn({ method: "POST" })
 		}),
 	)
 	.handler(async ({ data, context }) => {
+		const date = dayKeyAt(new Date(), context.household.timeZone);
 		const result = await addQuickAddInDb(getDb(), {
 			householdId: context.household.id,
 			transactionId: data.transactionId,
 			bucketId: data.bucketId,
-			date: dayKeyAt(new Date(), context.household.timeZone),
+			date,
 			amountCents: data.amountCents,
 			note: data.note || null,
 			createdByMemberId: context.parent.id,
 		});
 		if (!result.ok) throw new Error("That Bucket isn’t in this month’s Plan.");
+		await notifyHousehold(context.household.id, [`month:${monthOfDay(date)}`, "bucket-uses"]);
 	});
 
 /** Recent spending's Buckets, so Quick Add can offer the likeliest first. */
