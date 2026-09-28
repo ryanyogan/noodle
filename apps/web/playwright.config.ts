@@ -4,7 +4,8 @@ import { config } from "dotenv";
 // Clerk keys live in .dev.vars (read by wrangler for the Worker); load them for the test runner too.
 config({ path: ".dev.vars", quiet: true });
 
-const port = 5173;
+// Matches vite.config.ts: set PORT to run a second checkout's E2E alongside this one.
+const port = Number(process.env.PORT ?? 5173);
 
 export default defineConfig({
 	testDir: "./e2e",

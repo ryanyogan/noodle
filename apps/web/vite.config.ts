@@ -5,7 +5,8 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-	server: { port: 5173, strictPort: true },
+	// PORT lets several checkouts (git worktrees) run the app and its E2E side by side.
+	server: { port: Number(process.env.PORT ?? 5173), strictPort: true },
 	plugins: [
 		cloudflare({ viteEnvironment: { name: "ssr" } }),
 		tanstackStart(),
