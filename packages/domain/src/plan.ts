@@ -14,6 +14,11 @@ export type PlanRecords = {
 	commitments: CommitmentRecord[];
 	/** A Commitment's terms set for a month hold for later months until set again. */
 	commitmentTerms: ({ commitmentId: string; month: MonthKey } & CommitmentTerms)[];
+	/**
+	 * Whether a Bucket is Rolling (true) or Fresh-start (false) holds, once set for a month, for
+	 * later months until set again. A Bucket with none set is Fresh-start.
+	 */
+	rolling: { bucketId: string; month: MonthKey; rolling: boolean }[];
 };
 
 export type BucketRecord = {
@@ -38,7 +43,14 @@ export type CommitmentRecord = {
 	endedFromMonth: MonthKey | null;
 };
 
-export type PlanBucket = { id: string; name: string; color: number; allowance: Cents };
+export type PlanBucket = {
+	id: string;
+	name: string;
+	color: number;
+	allowance: Cents;
+	/** Rolling: what's left at the end of this month carries into the next. Else Fresh-start. */
+	rolling: boolean;
+};
 
 export type PlanCommitment = { id: string; name: string } & CommitmentTerms;
 
@@ -91,6 +103,11 @@ export function planForMonth(records: PlanRecords, month: MonthKey): Plan {
 					records.allowances.filter((a) => a.bucketId === id),
 					month,
 				)?.amount ?? 0,
+			rolling:
+				effective(
+					records.rolling.filter((r) => r.bucketId === id),
+					month,
+				)?.rolling ?? false,
 		}));
 	return {
 		month,

@@ -20,6 +20,7 @@ const planOf = (month: MonthKey, allowances: Record<string, number>, baseline = 
 		name: id,
 		color: i + 1,
 		allowance,
+		rolling: false,
 	})),
 });
 

@@ -70,6 +70,11 @@ export const withAllowance = (
 	{ bucketId, amountCents }: { bucketId: string; amountCents: number },
 ) => mapBucket(data, bucketId, (b) => ({ ...b, allowance: amountCents }));
 
+export const withRolling = (
+	data: MonthData,
+	{ bucketId, rolling }: { bucketId: string; rolling: boolean },
+) => mapBucket(data, bucketId, (b) => ({ ...b, rolling }));
+
 export const withBucketDetails = (
 	data: MonthData,
 	{ bucketId, name, color }: { bucketId: string; name?: string; color?: number },
@@ -89,7 +94,10 @@ export const withNewBucket = (
 			? plan
 			: {
 					...plan,
-					buckets: [...plan.buckets, { id: bucketId, name, color, allowance: allowanceCents }],
+					buckets: [
+						...plan.buckets,
+						{ id: bucketId, name, color, allowance: allowanceCents, rolling: false },
+					],
 				},
 	);
 

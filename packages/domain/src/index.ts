@@ -53,3 +53,4 @@ export {
 	totalAllowances,
 	totalCommitments,
 } from "./plan";
+export { type MonthlySpend, rolledOver, rolloverSince } from "./rollover";

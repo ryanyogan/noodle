@@ -14,9 +14,9 @@ const plan: Plan = {
 	baseline: 500_000,
 	commitments: [],
 	buckets: [
-		{ id: "groceries", name: "Groceries", color: 1, allowance: 120_000 },
-		{ id: "hockey", name: "Hockey", color: 2, allowance: 40_000 },
-		{ id: "fun", name: "Fun", color: 3, allowance: 25_000 },
+		{ id: "groceries", name: "Groceries", color: 1, allowance: 120_000, rolling: false },
+		{ id: "hockey", name: "Hockey", color: 2, allowance: 40_000, rolling: false },
+		{ id: "fun", name: "Fun", color: 3, allowance: 25_000, rolling: false },
 	],
 };
 

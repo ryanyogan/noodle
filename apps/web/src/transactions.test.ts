@@ -22,8 +22,8 @@ const month: MonthData = {
 			},
 		],
 		buckets: [
-			{ id: "groceries", name: "Groceries", color: 1, allowance: 120_000 },
-			{ id: "hockey", name: "Hockey", color: 2, allowance: 40_000 },
+			{ id: "groceries", name: "Groceries", color: 1, allowance: 120_000, rolling: false },
+			{ id: "hockey", name: "Hockey", color: 2, allowance: 40_000, rolling: false },
 		],
 	},
 	spending: [
@@ -32,6 +32,7 @@ const month: MonthData = {
 	],
 	charges: [],
 	moves: [],
+	rolledOver: {},
 	asOf: "2026-09-15",
 	editable: true,
 };

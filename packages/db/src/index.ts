@@ -286,7 +286,14 @@ export {
 	removeChild,
 	updateChild,
 } from "./members";
-export { addCover, type CoverResult, loadMoves, type PlanMove, undoMove } from "./moves";
+export {
+	addCover,
+	type CoverResult,
+	loadMoves,
+	loadMovesBetween,
+	type PlanMove,
+	undoMove,
+} from "./moves";
 export {
 	addBucket,
 	archiveBucket,
@@ -294,8 +301,10 @@ export {
 	reorderBuckets,
 	setAllowance,
 	setBaseline,
+	setRolling,
 	updateBucket,
 } from "./plan";
+export { loadRolledOver } from "./rollover";
 export {
 	type Assignment,
 	addQuickAdd,

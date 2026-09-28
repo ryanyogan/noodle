@@ -9,9 +9,11 @@ import {
 	createHouseholdForParent,
 	type Db,
 	loadPlanRecords,
+	loadRolledOver,
 	loadSpending,
 	setAllowance,
 	setBaseline,
+	setRolling,
 	updateCommitment,
 } from "./index";
 import { addCover, bucketLeftSql, freeToSpendSql, loadMoves, undoMove } from "./moves";
@@ -271,5 +273,65 @@ describe("undoMove", () => {
 		await cover("m1", null, "hockey", 1_000);
 		await undoMove(db, { householdId: "another-household", moveId: "m1", month: "2026-09" });
 		expect(await loadMoves(db, householdId, "2026-09")).toHaveLength(1);
+	});
+});
+
+describe("what rolls over", () => {
+	it("carries a Rolling Bucket's September leftover, after Covers, into October and later", async () => {
+		await setRolling(db, { householdId, bucketId: "hockey", month: "2026-09", rolling: true });
+		await quickAdd("t1", "hockey", 45_000);
+		await cover("m1", "fun", "hockey", 2_000);
+		await quickAdd("t2", "groceries", 100_000);
+		const into = async (month: MonthKey) =>
+			loadRolledOver(db, householdId, await loadPlanRecords(db, householdId, month), month);
+		expect(await into("2026-09")).toEqual({});
+		// Hockey: 40,000 + 2,000 covered − 45,000; Groceries is Fresh-start.
+		expect(await into("2026-10")).toEqual({ hockey: -3_000 });
+		expect(await into("2026-11")).toEqual({ hockey: 37_000 });
+	});
+
+	it("keeps the Cover guard in step with the domain once something has rolled over", async () => {
+		await setRolling(db, { householdId, bucketId: "hockey", month: "2026-09", rolling: true });
+		await quickAdd("t1", "hockey", 10_000);
+		const month = "2026-10";
+		const records = await loadPlanRecords(db, householdId, month);
+		const carried = await loadRolledOver(db, householdId, records, month);
+		const state = monthState({
+			plan: planForMonth(records, month),
+			spending: [],
+			rolledOver: carried,
+			asOf: `${month}-15`,
+		});
+		const hockey = state.buckets.find((b) => b.id === "hockey");
+		expect(hockey?.left).toBe(70_000);
+		expect(await evaluate(bucketLeftSql(householdId, "hockey", month, carried.hockey))).toBe(
+			70_000,
+		);
+		const coverFromHockey = (moveId: string, amountCents: number) =>
+			addCover(db, {
+				householdId,
+				moveId,
+				month,
+				fromBucketId: "hockey",
+				toBucketId: "fun",
+				amountCents,
+				fromRolledOverCents: carried.hockey,
+				createdByMemberId: parentId,
+			});
+		expect(await coverFromHockey("m1", 70_001)).toEqual({ ok: false, reason: "refused" });
+		expect(await coverFromHockey("m2", 70_000)).toEqual({ ok: true });
+	});
+
+	it("sets Rolling only on the Household's own Buckets, replacing the same month's setting", async () => {
+		await setRolling(db, {
+			householdId: "other",
+			bucketId: "hockey",
+			month: "2026-09",
+			rolling: true,
+		});
+		await setRolling(db, { householdId, bucketId: "fun", month: "2026-10", rolling: true });
+		await setRolling(db, { householdId, bucketId: "fun", month: "2026-10", rolling: false });
+		const records = await loadPlanRecords(db, householdId, "2026-12");
+		expect(records.rolling).toEqual([{ bucketId: "fun", month: "2026-10", rolling: false }]);
 	});
 });

@@ -127,6 +127,26 @@ export const bucketAllowances = sqliteTable(
 	],
 );
 
+// Whether a Bucket is Rolling (1) or Fresh-start (0) from `month` onward, effective-dated like an
+// allowance. A Bucket with no row is Fresh-start.
+export const bucketRolling = sqliteTable(
+	"bucket_rolling",
+	{
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		bucketId: text("bucket_id")
+			.notNull()
+			.references(() => buckets.id),
+		month: text("month").notNull(),
+		rolling: integer("rolling", { mode: "boolean" }).notNull(),
+	},
+	(t) => [
+		primaryKey({ columns: [t.bucketId, t.month] }),
+		index("bucket_rolling_household_idx").on(t.householdId),
+	],
+);
+
 // A recurring obligation in the Plan from `from_month` until (once ended) `ended_from_month`.
 // What it expects is effective-dated like an allowance: terms set for a month hold for later
 // months until set again, so changing it never rewrites an earlier month.

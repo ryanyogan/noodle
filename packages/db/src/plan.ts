@@ -1,7 +1,14 @@
 import type { Cents, MonthKey, PlanRecords } from "@noodle/domain";
 import { and, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
 import type { Db } from "./index";
-import { baselines, bucketAllowances, buckets, commitments, commitmentTerms } from "./schema";
+import {
+	baselines,
+	bucketAllowances,
+	bucketRolling,
+	buckets,
+	commitments,
+	commitmentTerms,
+} from "./schema";
 
 // The Plan's records for a Household (ADR-0004: effective-dated rows, written idempotently so a
 // retried save lands once). Every query is scoped by household_id; bucket IDs from the client
@@ -13,52 +20,63 @@ export async function loadPlanRecords(
 	householdId: string,
 	month: MonthKey,
 ): Promise<PlanRecords> {
-	const [baselineRows, bucketRows, allowanceRows, commitmentRows, termRows] = await db.batch([
-		db
-			.select({ month: baselines.month, amount: baselines.amountCents })
-			.from(baselines)
-			.where(and(eq(baselines.householdId, householdId), lte(baselines.month, month))),
-		db
-			.select({
-				id: buckets.id,
-				name: buckets.name,
-				color: buckets.color,
-				position: buckets.position,
-				fromMonth: buckets.fromMonth,
-				archivedFromMonth: buckets.archivedFromMonth,
-			})
-			.from(buckets)
-			.where(and(eq(buckets.householdId, householdId), lte(buckets.fromMonth, month))),
-		db
-			.select({
-				bucketId: bucketAllowances.bucketId,
-				month: bucketAllowances.month,
-				amount: bucketAllowances.amountCents,
-			})
-			.from(bucketAllowances)
-			.where(
-				and(eq(bucketAllowances.householdId, householdId), lte(bucketAllowances.month, month)),
-			),
-		db
-			.select({
-				id: commitments.id,
-				name: commitments.name,
-				fromMonth: commitments.fromMonth,
-				endedFromMonth: commitments.endedFromMonth,
-			})
-			.from(commitments)
-			.where(and(eq(commitments.householdId, householdId), lte(commitments.fromMonth, month))),
-		db
-			.select({
-				commitmentId: commitmentTerms.commitmentId,
-				month: commitmentTerms.month,
-				amount: commitmentTerms.amountCents,
-				cadence: commitmentTerms.cadence,
-				dueDate: commitmentTerms.dueDate,
-			})
-			.from(commitmentTerms)
-			.where(and(eq(commitmentTerms.householdId, householdId), lte(commitmentTerms.month, month))),
-	]);
+	const [baselineRows, bucketRows, allowanceRows, commitmentRows, termRows, rollingRows] =
+		await db.batch([
+			db
+				.select({ month: baselines.month, amount: baselines.amountCents })
+				.from(baselines)
+				.where(and(eq(baselines.householdId, householdId), lte(baselines.month, month))),
+			db
+				.select({
+					id: buckets.id,
+					name: buckets.name,
+					color: buckets.color,
+					position: buckets.position,
+					fromMonth: buckets.fromMonth,
+					archivedFromMonth: buckets.archivedFromMonth,
+				})
+				.from(buckets)
+				.where(and(eq(buckets.householdId, householdId), lte(buckets.fromMonth, month))),
+			db
+				.select({
+					bucketId: bucketAllowances.bucketId,
+					month: bucketAllowances.month,
+					amount: bucketAllowances.amountCents,
+				})
+				.from(bucketAllowances)
+				.where(
+					and(eq(bucketAllowances.householdId, householdId), lte(bucketAllowances.month, month)),
+				),
+			db
+				.select({
+					id: commitments.id,
+					name: commitments.name,
+					fromMonth: commitments.fromMonth,
+					endedFromMonth: commitments.endedFromMonth,
+				})
+				.from(commitments)
+				.where(and(eq(commitments.householdId, householdId), lte(commitments.fromMonth, month))),
+			db
+				.select({
+					commitmentId: commitmentTerms.commitmentId,
+					month: commitmentTerms.month,
+					amount: commitmentTerms.amountCents,
+					cadence: commitmentTerms.cadence,
+					dueDate: commitmentTerms.dueDate,
+				})
+				.from(commitmentTerms)
+				.where(
+					and(eq(commitmentTerms.householdId, householdId), lte(commitmentTerms.month, month)),
+				),
+			db
+				.select({
+					bucketId: bucketRolling.bucketId,
+					month: bucketRolling.month,
+					rolling: bucketRolling.rolling,
+				})
+				.from(bucketRolling)
+				.where(and(eq(bucketRolling.householdId, householdId), lte(bucketRolling.month, month))),
+		]);
 	// Months and days are always written as MonthKeys and DayKeys by the functions that write them.
 	return {
 		baselines: baselineRows as PlanRecords["baselines"],
@@ -66,6 +84,7 @@ export async function loadPlanRecords(
 		allowances: allowanceRows as PlanRecords["allowances"],
 		commitments: commitmentRows as PlanRecords["commitments"],
 		commitmentTerms: termRows as PlanRecords["commitmentTerms"],
+		rolling: rollingRows as PlanRecords["rolling"],
 	};
 }
 
@@ -162,6 +181,33 @@ export async function setAllowance(
 		.onConflictDoUpdate({
 			target: [bucketAllowances.bucketId, bucketAllowances.month],
 			set: { amountCents: input.amountCents },
+		});
+}
+
+/**
+ * Sets a Bucket Rolling or Fresh-start from `month` onward. Setting it again for the same month
+ * replaces it.
+ */
+export async function setRolling(
+	db: Db,
+	input: { householdId: string; bucketId: string; month: MonthKey; rolling: boolean },
+): Promise<void> {
+	await db
+		.insert(bucketRolling)
+		.select(
+			db
+				.select({
+					householdId: buckets.householdId,
+					bucketId: buckets.id,
+					month: sql<string>`${input.month}`.as("month"),
+					rolling: sql<boolean>`${input.rolling ? 1 : 0}`.as("rolling"),
+				})
+				.from(buckets)
+				.where(ownBucket(input.householdId, input.bucketId)),
+		)
+		.onConflictDoUpdate({
+			target: [bucketRolling.bucketId, bucketRolling.month],
+			set: { rolling: input.rolling },
 		});
 }
 

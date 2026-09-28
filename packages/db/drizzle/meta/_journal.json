@@ -57,6 +57,13 @@
       "when": 1790635688564,
       "tag": "0007_moves",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1790635956507,
+      "tag": "0008_bucket_rolling",
+      "breakpoints": true
     }
   ]
 }

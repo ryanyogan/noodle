@@ -34,9 +34,11 @@ export type Move = {
 export type BucketStatus = "on-pace" | "ahead" | "over";
 
 export type BucketState = PlanBucket & {
+	/** Carried in from last month, when the Bucket was Rolling then; negative if it was overspent. */
+	rolledOver: Cents;
 	/** Moved into the Bucket this month, less what was moved out of it. */
 	moved: Cents;
-	/** What the Bucket has to spend this month: its allowance and what was moved into it. */
+	/** What the Bucket has to spend this month: its allowance, what rolled over, and what was moved into it. */
 	available: Cents;
 	spent: Cents;
 	/** Negative once the Bucket is overspent. */
@@ -101,7 +103,8 @@ const PACE_TOLERANCE = 0.03;
 /**
  * The state of a month: each Bucket's allowance, spent, left, Pace, and status, each
  * Commitment's expected and actual amounts, and Free to Spend, as of the end of a given day.
- * Moves shift money between Buckets and Free to Spend. Spending, charges, and Moves outside the
+ * Moves shift money between Buckets and Free to Spend; what rolled over from last month (see
+ * `rolledOver`) adds to a Bucket without touching Free to Spend. Spending, charges, and Moves outside the
  * month, or involving a Bucket or Commitment not in the Plan, are ignored. The server and the client's optimistic updates both call this, so the numbers a
  * Parent sees before and after a save are the same.
  */
@@ -110,12 +113,15 @@ export function monthState({
 	spending,
 	charges = [],
 	moves = [],
+	rolledOver = {},
 	asOf,
 }: {
 	plan: Plan;
 	spending: Spend[];
 	charges?: Charge[];
 	moves?: Move[];
+	/** Per Bucket ID, what carried in from last month. */
+	rolledOver?: Record<string, Cents>;
 	asOf: DayKey;
 }): MonthState {
 	const days = daysInMonth(plan.month);
@@ -136,7 +142,8 @@ export function monthState({
 	}
 	const buckets = plan.buckets.map((bucket): BucketState => {
 		const moved = movedByBucket.get(bucket.id) ?? 0;
-		const available = bucket.allowance + moved;
+		const carried = rolledOver[bucket.id] ?? 0;
+		const available = bucket.allowance + carried + moved;
 		const spent = spentByBucket.get(bucket.id) ?? 0;
 		const left = available - spent;
 		// Pace spreads what the Bucket has to spend evenly across the month.
@@ -146,6 +153,7 @@ export function monthState({
 			left < 0 ? "over" : spent - paceSpent > paced * PACE_TOLERANCE ? "ahead" : "on-pace";
 		return {
 			...bucket,
+			rolledOver: carried,
 			moved,
 			available,
 			spent,

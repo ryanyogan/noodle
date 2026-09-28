@@ -7,7 +7,7 @@ import {
 	type TransactionRow,
 	updateTransaction as updateTransactionInDb,
 } from "@noodle/db";
-import { type BucketUse, type DayKey, dayKeyAt, MAX_CENTS, monthOfDay } from "@noodle/domain";
+import { type BucketUse, type DayKey, dayKeyAt, MAX_CENTS } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getDb } from "./db";
@@ -48,7 +48,8 @@ export const addQuickAdd = createServerFn({ method: "POST" })
 			createdByMemberId: context.parent.id,
 		});
 		if (!result.ok) throw new Error("That Bucket isn’t in this month’s Plan.");
-		await notifyHousehold(context.household.id, [`month:${monthOfDay(date)}`, "bucket-uses"]);
+		// Every month: what's left can roll into later ones.
+		await notifyHousehold(context.household.id, ["months", "bucket-uses"]);
 	});
 
 /** Recent spending's Buckets, so Quick Add can offer the likeliest first. */
@@ -122,7 +123,8 @@ export const updateTransaction = createServerFn({ method: "POST" })
 		});
 		if (!result.ok) throw new Error("That isn’t in the Plan for this Transaction’s month.");
 		await notifyHousehold(context.household.id, [
-			`month:${data.month}`,
+			// Every month: what's left can roll into later ones.
+			"months",
 			"for-earlier",
 			"bucket-uses",
 		]);
@@ -138,7 +140,8 @@ export const deleteTransaction = createServerFn({ method: "POST" })
 			transactionId: data.transactionId,
 		});
 		await notifyHousehold(context.household.id, [
-			`month:${data.month}`,
+			// Every month: what's left can roll into later ones.
+			"months",
 			"for-earlier",
 			"bucket-uses",
 		]);

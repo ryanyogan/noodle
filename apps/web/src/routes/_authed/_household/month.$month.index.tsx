@@ -1,7 +1,9 @@
 import {
+	addMonths,
 	type BucketState,
 	type CoverSource,
 	lastDayOf,
+	type MonthKey,
 	type MonthState,
 	monthOfDay,
 } from "@noodle/domain";
@@ -15,9 +17,9 @@ import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarDays, SlidersHorizontal } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { CalendarDays, ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react";
+import { type ReactNode, type TouchEvent, useRef, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../../../buckets";
 import { Commitments } from "../../../components/commitment-list";
@@ -53,20 +55,31 @@ function ThisMonth() {
 			toName: bucket.name,
 			amountCents,
 		}) satisfies CoverVariables;
+	const current = monthOfDay(state.asOf);
+	const swipe = useMonthSwipe(month);
 	return (
-		<>
+		<div {...swipe}>
 			<PageHeader
-				eyebrow="This Month"
-				title={monthName(month)}
+				className="max-w-2xl"
+				eyebrow={month === current ? "This Month" : "Month"}
+				title={
+					month.slice(0, 4) === current.slice(0, 4)
+						? monthName(month)
+						: `${monthName(month)} ${month.slice(0, 4)}`
+				}
 				actions={
-					planned ? (
-						<Button variant="outline" size="sm" asChild>
-							<Link to="/month/$month/plan" params={{ month }}>
-								<SlidersHorizontal />
-								Edit Plan
-							</Link>
-						</Button>
-					) : null
+					<div className="flex items-center gap-1">
+						{planned ? (
+							<Button variant="outline" size="sm" className="me-2" asChild>
+								<Link to="/month/$month/plan" params={{ month }}>
+									<SlidersHorizontal />
+									Edit Plan
+								</Link>
+							</Button>
+						) : null}
+						<MonthLink month={addMonths(month, -1)} label="Previous month" />
+						<MonthLink month={addMonths(month, 1)} label="Next month" />
+					</div>
 				}
 			/>
 			{planned ? (
@@ -140,8 +153,57 @@ function ThisMonth() {
 					if (bucket) cover.mutate(coverVariables(bucket, source, amountCents));
 				}}
 			/>
-		</>
+		</div>
 	);
+}
+
+/**
+ * A chevron to an adjacent month, as on Transactions; its data preloads on hover or touch (the
+ * router's default). Later months are open for planning ahead.
+ */
+function MonthLink({ month, label }: { month: MonthKey; label: string }) {
+	return (
+		<Button variant="ghost" size="icon" asChild>
+			<Link to="/month/$month" params={{ month }} aria-label={label}>
+				{label === "Next month" ? (
+					<ChevronRight className="size-5" />
+				) : (
+					<ChevronLeft className="size-5" />
+				)}
+			</Link>
+		</Button>
+	);
+}
+
+/** A mostly sideways swipe this far moves to the adjacent month. */
+const SWIPE_DISTANCE = 64;
+
+/** Touch handlers for swiping between months on phones: left for the next, right for the previous. */
+function useMonthSwipe(month: MonthKey) {
+	const navigate = useNavigate();
+	const start = useRef<{ x: number; y: number } | null>(null);
+	return {
+		onTouchStart: (event: TouchEvent) => {
+			const touch = event.touches[0];
+			// Leave form fields and sheets' own gestures alone.
+			const inField = (event.target as Element).closest("input, textarea, [role=dialog]");
+			start.current =
+				touch && event.touches.length === 1 && !inField
+					? { x: touch.clientX, y: touch.clientY }
+					: null;
+		},
+		onTouchEnd: (event: TouchEvent) => {
+			const touch = event.changedTouches[0];
+			const from = start.current;
+			start.current = null;
+			if (!touch || !from) return;
+			const dx = touch.clientX - from.x;
+			const dy = touch.clientY - from.y;
+			if (Math.abs(dx) < SWIPE_DISTANCE || Math.abs(dx) < Math.abs(dy) * 2) return;
+			const to = addMonths(month, dx < 0 ? 1 : -1);
+			navigate({ to: "/month/$month", params: { month: to } });
+		},
+	};
 }
 
 /** Free to Spend, said plainly, with where the rest of the month stands beneath it. */
@@ -240,6 +302,8 @@ function BucketRow({ bucket, covers }: { bucket: BucketState; covers?: ReactNode
 			}
 			meta={[
 				`${formatMoney(bucket.spent)} spent`,
+				bucket.rolledOver > 0 ? `${formatMoney(bucket.rolledOver)} rolled over` : null,
+				bucket.rolledOver < 0 ? `${formatMoney(-bucket.rolledOver)} overspent last month` : null,
 				bucket.moved < 0 ? `${formatMoney(-bucket.moved)} moved out` : null,
 			]
 				.filter(Boolean)

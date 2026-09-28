@@ -50,17 +50,20 @@ export const coverBucket = createServerFn({ method: "POST" })
 		const db = getDb();
 		const leftNow = async () => {
 			const month = await loadMonth(db, household, data.month);
+			const fromRolledOver =
+				data.fromBucketId === null ? 0 : (month.rolledOver[data.fromBucketId] ?? 0);
 			// A retry mustn't count its own earlier attempt against the source.
 			const state = monthState({
 				...month,
 				moves: month.moves.filter((m) => m.id !== data.moveId),
 			});
-			if (!state.buckets.some((b) => b.id === data.toBucketId)) return null;
-			return leftToMove(state, data.fromBucketId);
+			const left = leftToMove(state, data.fromBucketId);
+			if (left === null || !state.buckets.some((b) => b.id === data.toBucketId)) return null;
+			return { left, fromRolledOver };
 		};
-		const left = await leftNow();
-		if (left === null) throw new Error("That Bucket isn’t in this month’s Plan.");
-		if (left < data.amountCents) return { ok: false, left: Math.max(0, left) };
+		const now = await leftNow();
+		if (now === null) throw new Error("That Bucket isn’t in this month’s Plan.");
+		if (now.left < data.amountCents) return { ok: false, left: Math.max(0, now.left) };
 		const result = await addCover(db, {
 			householdId: household.id,
 			moveId: data.moveId,
@@ -68,11 +71,14 @@ export const coverBucket = createServerFn({ method: "POST" })
 			fromBucketId: data.fromBucketId,
 			toBucketId: data.toBucketId,
 			amountCents: data.amountCents,
+			// Earlier months are closed, so what rolled into the source can't change meanwhile.
+			fromRolledOverCents: now.fromRolledOver,
 			createdByMemberId: context.parent.id,
 		});
 		// Another write got there between the check and this one.
-		if (!result.ok) return { ok: false, left: Math.max(0, (await leftNow()) ?? 0) };
-		await notifyHousehold(household.id, [`month:${data.month}`]);
+		if (!result.ok) return { ok: false, left: Math.max(0, (await leftNow())?.left ?? 0) };
+		// What's left this month can roll into later months.
+		await notifyHousehold(household.id, ["months"]);
 		return { ok: true };
 	});
 
@@ -83,5 +89,5 @@ export const undoCover = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }) => {
 		assertCurrentMonth(context.household, data.month);
 		await undoMove(getDb(), { householdId: context.household.id, ...data });
-		await notifyHousehold(context.household.id, [`month:${data.month}`]);
+		await notifyHousehold(context.household.id, ["months"]);
 	});

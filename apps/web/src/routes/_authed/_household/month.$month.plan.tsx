@@ -26,6 +26,7 @@ import {
 	withNewBucket,
 	withOrder,
 	withoutBucket,
+	withRolling,
 } from "../../../plan-changes";
 import { useMonthState } from "../../../queries";
 import { endCommitment } from "../../../server/commitments";
@@ -35,6 +36,7 @@ import {
 	reorderBuckets,
 	setAllowance,
 	setBaseline,
+	setRolling,
 	updateBucket,
 } from "../../../server/plan";
 
@@ -231,6 +233,7 @@ function BucketEditor({
 		<ListRow
 			leading={<Tile bucket={color}>{monogram(bucket.name)}</Tile>}
 			title={bucket.name}
+			meta={bucket.rolling ? "Rolling" : "Fresh-start"}
 			trailing={
 				<div className="flex items-center gap-1.5">
 					<MoneyInput
@@ -278,7 +281,7 @@ function BucketEditor({
 	);
 }
 
-/** Rename, recolour, move, or archive a Bucket. */
+/** Rename, recolour, set Rolling or Fresh-start, move, or archive a Bucket. */
 function BucketDetails({
 	month,
 	bucket,
@@ -296,6 +299,7 @@ function BucketDetails({
 	const [confirmArchive, setConfirmArchive] = useState(false);
 	// The colour just picked, shown until the cache catches up (or rolls back).
 	const [pickedColor, setPickedColor] = useState<number | null>(null);
+	const [pickedRolling, setPickedRolling] = useState<boolean | null>(null);
 	const details = usePlanChange(month, {
 		save: (data: { bucketId: string; name?: string; color?: number }) => updateBucket({ data }),
 		apply: withBucketDetails,
@@ -303,6 +307,10 @@ function BucketDetails({
 	const reorder = usePlanChange(month, {
 		save: (data: { bucketIds: string[] }) => reorderBuckets({ data }),
 		apply: withOrder,
+	});
+	const rolling = usePlanChange(month, {
+		save: (data: { bucketId: string; month: MonthKey; rolling: boolean }) => setRolling({ data }),
+		apply: withRolling,
 	});
 
 	function move(by: -1 | 1) {
@@ -322,6 +330,7 @@ function BucketDetails({
 		<div className="grid gap-4 rounded-xl bg-surface-2 p-3">
 			<SaveFailed change={details} />
 			<SaveFailed change={reorder} />
+			<SaveFailed change={rolling} />
 			<form onSubmit={rename}>
 				<Field label="Name" htmlFor={nameId}>
 					<div className="flex gap-2">
@@ -371,6 +380,33 @@ function BucketDetails({
 					))}
 				</div>
 			</fieldset>
+			<fieldset className="grid gap-2">
+				<legend className="mb-2 text-sm font-medium">At the end of the month</legend>
+				{rollingOptions.map((option) => (
+					<label
+						key={option.label}
+						className="flex cursor-pointer items-start gap-3 rounded-lg bg-card px-3 py-2.5"
+					>
+						<input
+							type="radio"
+							name={`rolling-${bucket.id}`}
+							checked={(pickedRolling ?? bucket.rolling) === option.rolling}
+							onChange={() => {
+								setPickedRolling(option.rolling);
+								rolling.mutate(
+									{ bucketId: bucket.id, month, rolling: option.rolling },
+									{ onSettled: () => setPickedRolling(null) },
+								);
+							}}
+							className="mt-0.5 size-4 shrink-0 accent-foreground"
+						/>
+						<span className="grid gap-0.5">
+							<span className="text-sm font-medium">{option.label}</span>
+							<span className="text-[13px] text-muted-foreground">{option.description}</span>
+						</span>
+					</label>
+				))}
+			</fieldset>
 			<div className="flex flex-wrap items-center gap-2">
 				<Button
 					type="button"
@@ -415,6 +451,20 @@ function BucketDetails({
 		</div>
 	);
 }
+
+const rollingOptions = [
+	{
+		rolling: false,
+		label: "Fresh-start",
+		description: "Starts each month at its allowance.",
+	},
+	{
+		rolling: true,
+		label: "Rolling",
+		description:
+			"What’s left carries into next month, and so does overspending that isn’t Covered.",
+	},
+];
 
 function AddBucket({ month, buckets }: { month: MonthKey; buckets: PlanBucket[] }) {
 	const hydrated = useHydrated();

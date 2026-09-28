@@ -4,6 +4,7 @@ import {
 	reorderBuckets as reorderBucketsInDb,
 	setAllowance as setAllowanceInDb,
 	setBaseline as setBaselineInDb,
+	setRolling as setRollingInDb,
 	updateBucket as updateBucketInDb,
 } from "@noodle/db";
 import { MAX_CENTS, type MonthKey, monthKeyAt } from "@noodle/domain";
@@ -75,6 +76,16 @@ export const setAllowance = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }) => {
 		assertEditable(context.household, data.month);
 		await setAllowanceInDb(getDb(), { householdId: context.household.id, ...data });
+		await notifyHousehold(context.household.id, ["months"]);
+	});
+
+/** Sets a Bucket Rolling or Fresh-start from `month` onward; it changes what rolls into later months. */
+export const setRolling = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ bucketId: ulidSchema, month: monthKeySchema, rolling: z.boolean() }))
+	.handler(async ({ data, context }) => {
+		assertEditable(context.household, data.month);
+		await setRollingInDb(getDb(), { householdId: context.household.id, ...data });
 		await notifyHousehold(context.household.id, ["months"]);
 	});
 

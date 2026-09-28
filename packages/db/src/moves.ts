@@ -1,5 +1,5 @@
-import { type Cents, daysInMonth, type MonthKey, type Move } from "@noodle/domain";
-import { and, eq, gt, isNull, lte, or, type SQL, sql } from "drizzle-orm";
+import { addMonths, type Cents, daysInMonth, type MonthKey, type Move } from "@noodle/domain";
+import { and, eq, gt, gte, isNull, lt, lte, or, type SQL, sql } from "drizzle-orm";
 import type { Db } from "./index";
 import { buckets, moves } from "./schema";
 
@@ -11,7 +11,17 @@ import { buckets, moves } from "./schema";
 export type PlanMove = Move & { id: string };
 
 /** The month's Moves, oldest first. */
-export async function loadMoves(db: Db, householdId: string, month: MonthKey): Promise<PlanMove[]> {
+export function loadMoves(db: Db, householdId: string, month: MonthKey): Promise<PlanMove[]> {
+	return loadMovesBetween(db, householdId, month, addMonths(month, 1));
+}
+
+/** Moves in months from `from` up to, not including, `until`, oldest first. */
+export async function loadMovesBetween(
+	db: Db,
+	householdId: string,
+	from: MonthKey,
+	until: MonthKey,
+): Promise<PlanMove[]> {
 	const rows = await db
 		.select({
 			id: moves.id,
@@ -21,7 +31,7 @@ export async function loadMoves(db: Db, householdId: string, month: MonthKey): P
 			month: moves.month,
 		})
 		.from(moves)
-		.where(and(eq(moves.householdId, householdId), eq(moves.month, month)))
+		.where(and(eq(moves.householdId, householdId), gte(moves.month, from), lt(moves.month, until)))
 		.orderBy(moves.id);
 	// Months are always written as MonthKeys.
 	return rows as PlanMove[];
@@ -53,10 +63,19 @@ const allowanceSql = (month: MonthKey, bucketId: SQL) =>
 const inPlanSql = (alias: string, month: MonthKey) =>
 	sql`${sql.raw(alias)}.from_month <= ${month} and (${sql.raw(alias)}.archived_from_month is null or ${sql.raw(alias)}.archived_from_month > ${month})`;
 
-/** What a Bucket has left this month; null when it isn't the Household's or isn't in the Plan. */
-export function bucketLeftSql(householdId: string, bucketId: string, month: MonthKey): SQL {
+/**
+ * What a Bucket has left this month; null when it isn't the Household's or isn't in the Plan.
+ * What rolled into it from last month is given as a constant, since it depends only on earlier
+ * months, and those are closed.
+ */
+export function bucketLeftSql(
+	householdId: string,
+	bucketId: string,
+	month: MonthKey,
+	rolledOverCents: Cents = 0,
+): SQL {
 	const id = sql`s.id`;
-	return sql`(select ${allowanceSql(month, id)}
+	return sql`(select ${allowanceSql(month, id)} + ${rolledOverCents}
 		+ ${movedSql(householdId, month, "to_bucket_id", id)}
 		- ${movedSql(householdId, month, "from_bucket_id", id)}
 		- coalesce((select sum(t.amount_cents) from transactions t
@@ -125,6 +144,8 @@ export async function addCover(
 		fromBucketId: string | null;
 		toBucketId: string;
 		amountCents: Cents;
+		/** What rolled into the source Bucket from last month (see rolledOver in @noodle/domain). */
+		fromRolledOverCents?: Cents;
 		createdByMemberId: string;
 	},
 ): Promise<CoverResult> {
@@ -132,7 +153,7 @@ export async function addCover(
 	const sourceLeft =
 		fromBucketId === null
 			? freeToSpendSql(householdId, month)
-			: bucketLeftSql(householdId, fromBucketId, month);
+			: bucketLeftSql(householdId, fromBucketId, month, input.fromRolledOverCents);
 	await db
 		.insert(moves)
 		.select(

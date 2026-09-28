@@ -32,6 +32,11 @@ describe("planForMonth: the Plan in force for a month", () => {
 		],
 		commitments: [],
 		commitmentTerms: [],
+		rolling: [
+			{ bucketId: "hockey", month: "2026-09", rolling: true },
+			{ bucketId: "hockey", month: "2026-11", rolling: false },
+			{ bucketId: "groceries", month: "2026-12", rolling: true },
+		],
 	};
 
 	it("orders Buckets by position", () => {
@@ -48,6 +53,15 @@ describe("planForMonth: the Plan in force for a month", () => {
 		expect(groceries("2026-11")).toBe(120_000);
 		expect(groceries("2026-12")).toBe(130_000);
 		expect(groceries("2027-01")).toBe(130_000);
+	});
+
+	it("makes a Bucket Fresh-start until it is set Rolling, and carries that forward", () => {
+		const rolling = (month: `${number}-${number}`) =>
+			Object.fromEntries(planForMonth(records, month).buckets.map((b) => [b.id, b.rolling]));
+		expect(rolling("2026-09")).toMatchObject({ hockey: true, groceries: false });
+		expect(rolling("2026-10")).toMatchObject({ hockey: true, groceries: false });
+		expect(rolling("2026-11")).toMatchObject({ hockey: false, groceries: false });
+		expect(rolling("2026-12")).toMatchObject({ hockey: false, groceries: true });
 	});
 
 	it("includes a Bucket from the month it was added until the month it was archived", () => {
@@ -74,6 +88,7 @@ describe("planForMonth: the Plan in force for a month", () => {
 			name: "groceries",
 			color: 1,
 			allowance: 120_000,
+			rolling: false,
 		});
 	});
 });
@@ -118,6 +133,7 @@ describe("planForMonth: Commitments", () => {
 				dueDate: "2026-10-12",
 			},
 		],
+		rolling: [],
 	};
 	const ids = (month: `${number}-${number}`) =>
 		planForMonth(records, month).commitments.map((c) => c.id);
@@ -153,7 +169,13 @@ describe("freeToSpend: the Baseline not yet assigned", () => {
 		month: "2026-09" as const,
 		baseline,
 		commitments: [],
-		buckets: allowances.map((allowance, i) => ({ id: `b${i}`, name: "", color: 1, allowance })),
+		buckets: allowances.map((allowance, i) => ({
+			id: `b${i}`,
+			name: "",
+			color: 1,
+			allowance,
+			rolling: false,
+		})),
 	});
 
 	it.each([
