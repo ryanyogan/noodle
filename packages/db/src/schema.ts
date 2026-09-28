@@ -36,6 +36,10 @@ export const members = sqliteTable(
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()
 			.default(sql`(unixepoch() * 1000)`),
+		// Set only for Children: 1–8, their identity colour (--bucket-N).
+		color: integer("color"),
+		// A removed Child leaves the Household's pickers, but Transactions For them keep it.
+		removedAt: integer("removed_at", { mode: "timestamp_ms" }),
 	},
 	(t) => [index("members_household_idx").on(t.householdId)],
 );
@@ -190,6 +194,27 @@ export const transactions = sqliteTable(
 		commitmentId: text("commitment_id").references(() => commitments.id),
 	},
 	(t) => [index("transactions_household_date_idx").on(t.householdId, t.date)],
+);
+
+// Who a Transaction was For: one row per Member it was spent on. No rows means the whole
+// Household, so shared spending is never counted again under each Member.
+export const transactionFor = sqliteTable(
+	"transaction_for",
+	{
+		transactionId: text("transaction_id")
+			.notNull()
+			.references(() => transactions.id),
+		memberId: text("member_id")
+			.notNull()
+			.references(() => members.id),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+	},
+	(t) => [
+		primaryKey({ columns: [t.transactionId, t.memberId] }),
+		index("transaction_for_household_member_idx").on(t.householdId, t.memberId),
+	],
 );
 
 export type Household = typeof households.$inferSelect;

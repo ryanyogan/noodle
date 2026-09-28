@@ -22,6 +22,8 @@ export const addQuickAdd = createServerFn({ method: "POST" })
 			bucketId: ulidSchema,
 			amountCents: z.number().int().min(1).max(MAX_CENTS),
 			note: z.string().trim().max(80).optional(),
+			// Who it was For; none means the whole Household.
+			forMemberIds: z.array(ulidSchema).max(20).default([]),
 		}),
 	)
 	.handler(async ({ data, context }) => {
@@ -33,6 +35,7 @@ export const addQuickAdd = createServerFn({ method: "POST" })
 			date,
 			amountCents: data.amountCents,
 			note: data.note || null,
+			forMemberIds: data.forMemberIds,
 			createdByMemberId: context.parent.id,
 		});
 		if (!result.ok) throw new Error("That Bucket isn’t in this month’s Plan.");

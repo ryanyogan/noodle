@@ -2,7 +2,9 @@ import type { MonthKey } from "@noodle/domain";
 import type { QueryKey } from "@tanstack/react-query";
 import {
 	bucketUsesQuery,
+	forTotalsEarlierKey,
 	householdParentsQuery,
+	membersQuery,
 	monthQuery,
 	monthsKey,
 	viewerQuery,
@@ -22,6 +24,10 @@ const changedQueries = {
 	"bucket-uses": bucketUsesQuery().queryKey,
 	/** The Household's Parents and its open invite. */
 	parents: householdParentsQuery().queryKey,
+	/** Every Member, Children included. */
+	members: membersQuery().queryKey,
+	/** What each Member cost earlier in the year: only edits to past spending change it. */
+	"for-earlier": forTotalsEarlierKey,
 	/** The Household itself, as each screen's viewer sees it. */
 	viewer: viewerQuery().queryKey,
 } satisfies Record<string, QueryKey>;

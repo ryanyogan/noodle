@@ -7,6 +7,15 @@ export {
 	dueDatesIn,
 	expectedIn,
 } from "./commitments";
+export {
+	type AttributedSpend,
+	type For,
+	type ForTotals,
+	forTotals,
+	noForTotals,
+	type SpendTotal,
+	shares,
+} from "./for";
 export { type BucketUse, likelyBucketOrder } from "./likely";
 export { type Cents, MAX_CENTS, parseDollars } from "./money";
 export {

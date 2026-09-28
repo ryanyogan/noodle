@@ -230,6 +230,9 @@ export async function acceptInvite(
 						name: sql<string>`${input.parentName}`.as("name"),
 						clerkUserId: sql<string>`${input.clerkUserId}`.as("clerk_user_id"),
 						createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
+						// Selected in the table's column order: insert … select is positional.
+						color: sql<number | null>`null`.as("color"),
+						removedAt: sql<Date | null>`null`.as("removed_at"),
 					})
 					.from(invites)
 					.where(
@@ -277,6 +280,13 @@ export {
 	updateCommitment,
 } from "./commitments";
 export {
+	addChild,
+	listMembers,
+	type MemberSummary,
+	removeChild,
+	updateChild,
+} from "./members";
+export {
 	addBucket,
 	archiveBucket,
 	loadPlanRecords,
@@ -290,5 +300,6 @@ export {
 	type BucketSpend,
 	loadBucketUses,
 	loadSpending,
+	loadSpendingEarlierInYear,
 	type QuickAddResult,
 } from "./transactions";

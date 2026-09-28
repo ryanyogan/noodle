@@ -1,0 +1,134 @@
+import { expect, type Page, test } from "@playwright/test";
+import { createTestParent } from "./parents";
+import { createPlannedHousehold, signedInPage } from "./session";
+
+let parent: Awaited<ReturnType<typeof createTestParent>>;
+
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
+});
+
+const children = (page: Page) =>
+	page.getByRole("region", { name: "Children" }).getByRole("listitem");
+const sheet = (page: Page) => page.getByRole("dialog", { name: "Quick Add" });
+const costOf = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
+
+async function goToHousehold(page: Page) {
+	await page.goto("/household");
+	await expect(page.getByRole("heading", { name: "Children" })).toBeVisible();
+}
+
+async function addChild(page: Page, name: string) {
+	await page.getByLabel("Add a Child").fill(name);
+	await page.getByRole("button", { name: "Add Child" }).click();
+	await expect(children(page).filter({ hasText: name })).toBeVisible();
+}
+
+/** Opens Quick Add, types an amount, picks who it was For, then the Bucket. */
+async function quickAdd(page: Page, amount: string, bucket: string, forName?: string) {
+	await page.getByRole("link", { name: "Quick Add" }).click();
+	await expect(sheet(page)).toBeVisible();
+	await page.keyboard.type(amount);
+	if (forName) {
+		await sheet(page)
+			.getByRole("group", { name: "For" })
+			.getByRole("button", { name: forName })
+			.click();
+	}
+	await sheet(page)
+		.getByRole("button", { name: new RegExp(`^${bucket}`) })
+		.click();
+	await expect(sheet(page)).toBeHidden();
+}
+
+test("a Parent adds, renames, recolours, and removes Children", async ({ browser }) => {
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Fun", "200"]] });
+	await goToHousehold(page);
+	await addChild(page, "Maya");
+	await addChild(page, "Leo");
+	await expect(children(page)).toHaveCount(2);
+
+	await page.getByRole("button", { name: "Edit Leo" }).click();
+	const name = children(page).filter({ hasText: "Leo" }).getByLabel("Name");
+	await name.fill("Leon");
+	await page.getByRole("button", { name: "Rename" }).click();
+	await expect(page.getByRole("button", { name: "Edit Leon" })).toBeVisible();
+	const leon = children(page).filter({ has: page.getByRole("button", { name: "Edit Leon" }) });
+	await leon.getByRole("radio", { name: "Violet" }).check();
+	await expect(leon.getByRole("radio", { name: "Violet" })).toBeChecked();
+
+	await page.reload();
+	await expect(page.getByRole("button", { name: "Edit Leon" })).toBeVisible();
+	await page.getByRole("button", { name: "Edit Leon" }).click();
+	await expect(children(page).getByRole("radio", { name: "Violet" })).toBeChecked();
+
+	await page.getByRole("button", { name: "Edit Maya" }).click();
+	await children(page)
+		.filter({ hasText: "Maya" })
+		.getByRole("button", { name: "Remove", exact: true })
+		.click();
+	await page.getByRole("button", { name: "Remove Maya" }).click();
+	await expect(children(page)).toHaveCount(1);
+	await page.reload();
+	await expect(children(page)).toHaveCount(1);
+	await expect(children(page)).toContainText("Leon");
+
+	// A removed Child can't be picked for new spending.
+	await page.getByRole("link", { name: "Quick Add" }).click();
+	const forPicker = sheet(page).getByRole("group", { name: "For" });
+	await expect(forPicker.getByRole("button", { name: "Leon" })).toBeVisible();
+	await expect(forPicker.getByRole("button", { name: "Maya" })).toHaveCount(0);
+	await page.context().close();
+});
+
+test("Quick Add is For Everyone unless a Child is picked, and each Child's cost is shown", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, {
+		baseline: "5,000",
+		buckets: [
+			["Groceries", "1,200"],
+			["Hockey", "400"],
+			["Fun", "200"],
+		],
+	});
+	await goToHousehold(page);
+	await addChild(page, "Maya");
+	await addChild(page, "Leo");
+
+	// Everyone, then each Child, then each Parent; Everyone is picked to start with.
+	await page.keyboard.press("q");
+	const forPicker = sheet(page).getByRole("group", { name: "For" });
+	await expect(forPicker.getByRole("button")).toHaveText(["Everyone", "Maya", "Leo", "Alex"]);
+	await expect(forPicker.getByRole("button", { name: "Everyone" })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+	await page.keyboard.press("Escape");
+
+	await quickAdd(page, "64.99", "Hockey", "Leo");
+	await quickAdd(page, "20", "Fun", "Leo");
+	await quickAdd(page, "186.42", "Groceries");
+
+	const leo = costOf(page, "Leo");
+	await expect(leo.getByRole("row", { name: /^Hockey/ })).toHaveText(/Hockey\$64\.99\$64\.99/);
+	await expect(leo.getByRole("row", { name: /^Fun/ })).toHaveText(/Fun\$20\$20/);
+	await expect(leo.getByRole("row", { name: /^Total/ })).toHaveText(/Total\$84\.99\$84\.99/);
+	await expect(costOf(page, "Maya")).toContainText("Nothing yet");
+	// Groceries for Everyone is the Household's, not counted under either Child.
+	await expect(page.getByText(/^Spending For Everyone counts once/)).toContainText(
+		"$186.42 this month",
+	);
+
+	await page.reload();
+	await expect(costOf(page, "Leo").getByRole("row", { name: /^Total/ })).toHaveText(
+		/Total\$84\.99\$84\.99/,
+	);
+	await page.context().close();
+});

@@ -36,6 +36,8 @@ describe("queryKeysFor", () => {
 			["month"],
 			["bucket-uses"],
 			["household", "parents"],
+			["household", "members"],
+			["for-earlier"],
 			["viewer"],
 		]);
 	});

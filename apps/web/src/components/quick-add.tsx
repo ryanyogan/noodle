@@ -11,7 +11,7 @@ import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useRouter, useSearch } from "@tanstack/react-router";
 import { Delete } from "lucide-react";
 import {
@@ -26,8 +26,9 @@ import {
 import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../buckets";
 import { formatMoney } from "../format";
-import { bucketUsesQuery, useMonthState } from "../queries";
+import { bucketUsesQuery, membersQuery, useMonthState } from "../queries";
 import { type QuickAddVariables, useQuickAdd } from "../quick-add";
+import { ForPicker } from "./for-picker";
 
 /** The search param that opens Quick Add over whatever screen is showing. */
 export const quickAddSearch = { sheet: "quick-add" } as const;
@@ -148,6 +149,8 @@ function QuickAddForm({
 	// Read by key presses, which can arrive faster than re-renders.
 	const typedSoFar = useRef("");
 	const [note, setNote] = useState("");
+	const members = useSuspenseQuery(membersQuery()).data;
+	const [forMemberIds, setForMemberIds] = useState<string[]>([]);
 	const display = useRef<HTMLOutputElement>(null);
 	const added = useRef(false);
 	const cents = parseDollars(amount) ?? 0;
@@ -200,6 +203,7 @@ function QuickAddForm({
 			bucketName: bucket.name,
 			amountCents: cents,
 			note: note.trim(),
+			forMemberIds,
 			date: entry.today,
 		});
 	}
@@ -253,6 +257,7 @@ function QuickAddForm({
 					))}
 				</ul>
 			</div>
+			<ForPicker members={members} value={forMemberIds} onChange={setForMemberIds} />
 			<Input
 				aria-label="Note"
 				placeholder="Add a note (optional)"

@@ -15,6 +15,8 @@ export type QuickAddVariables = {
 	bucketName: string;
 	amountCents: number;
 	note: string;
+	/** Who it was For; none means the whole Household. */
+	forMemberIds: string[];
 	/** Today in the Household's time zone, as the server will date it. */
 	date: DayKey;
 };
@@ -27,6 +29,7 @@ export function withQuickAdd(data: MonthData, variables: QuickAddVariables): Mon
 		bucketId: variables.bucketId,
 		amount: variables.amountCents,
 		date: variables.date,
+		for: variables.forMemberIds,
 	};
 	return { ...data, spending: [...data.spending, spend] };
 }
@@ -41,8 +44,10 @@ export function useQuickAdd() {
 	const queryClient = useQueryClient();
 	const quickAdd = useMutation({
 		mutationKey: monthChangeKey,
-		mutationFn: ({ transactionId, bucketId, amountCents, note }: QuickAddVariables) =>
-			addQuickAdd({ data: { transactionId, bucketId, amountCents, note: note || undefined } }),
+		mutationFn: ({ transactionId, bucketId, amountCents, note, forMemberIds }: QuickAddVariables) =>
+			addQuickAdd({
+				data: { transactionId, bucketId, amountCents, note: note || undefined, forMemberIds },
+			}),
 		onMutate: async (variables) => {
 			const { queryKey } = monthQuery(monthOfDay(variables.date));
 			await queryClient.cancelQueries({ queryKey });
