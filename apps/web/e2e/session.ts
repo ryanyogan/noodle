@@ -22,3 +22,9 @@ export async function createHousehold(page: Page, householdName: string, parentN
 	await page.getByRole("button", { name: "Create Household" }).click();
 	await expect(page).toHaveURL(/\/month\//);
 }
+
+/** True for calls to the named server function (its id is base64url JSON naming the export). */
+export const serverFn = (name: string) => (url: URL) => {
+	const id = url.pathname.split("/_serverFn/")[1];
+	return !!id && Buffer.from(id, "base64url").toString().includes(`"${name}_`);
+};

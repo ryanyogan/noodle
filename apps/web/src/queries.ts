@@ -1,12 +1,25 @@
-import { queryOptions } from "@tanstack/react-query";
+import { type MonthKey, type MonthState, monthState } from "@noodle/domain";
+import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { getHouseholdParents } from "./server/invites";
-import { getThisMonth } from "./server/month";
+import { getMonth, type MonthData } from "./server/month";
 
-export const thisMonthQuery = (month: string) =>
+/** Every month's data; a Plan change can affect later months too. */
+export const monthsKey = ["month"] as const;
+
+export const monthQuery = (month: MonthKey) =>
 	queryOptions({
-		queryKey: ["month", month],
-		queryFn: () => getThisMonth({ data: { month } }),
+		queryKey: [...monthsKey, month],
+		queryFn: () => getMonth({ data: { month } }),
 	});
+
+const toMonthState = (data: MonthData): MonthState & { editable: boolean } => ({
+	...monthState(data),
+	editable: data.editable,
+});
+
+/** A month's state, derived from its cached inputs, so optimistic edits show up everywhere. */
+export const useMonthState = (month: MonthKey) =>
+	useSuspenseQuery({ ...monthQuery(month), select: toMonthState }).data;
 
 export const householdParentsQuery = () =>
 	queryOptions({

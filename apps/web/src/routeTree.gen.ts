@@ -17,6 +17,8 @@ import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
 import { Route as AuthedHouseholdHouseholdRouteImport } from './routes/_authed/_household/household'
 import { Route as AuthedHouseholdMonthIndexRouteImport } from './routes/_authed/_household/month.index'
 import { Route as AuthedHouseholdMonthMonthRouteImport } from './routes/_authed/_household/month.$month'
+import { Route as AuthedHouseholdMonthMonthIndexRouteImport } from './routes/_authed/_household/month.$month.index'
+import { Route as AuthedHouseholdMonthMonthPlanRouteImport } from './routes/_authed/_household/month.$month.plan'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -59,22 +61,37 @@ const AuthedHouseholdMonthMonthRoute =
     path: '/month/$month',
     getParentRoute: () => AuthedHouseholdRoute,
   } as any)
+const AuthedHouseholdMonthMonthIndexRoute =
+  AuthedHouseholdMonthMonthIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthedHouseholdMonthMonthRoute,
+  } as any)
+const AuthedHouseholdMonthMonthPlanRoute =
+  AuthedHouseholdMonthMonthPlanRouteImport.update({
+    id: '/plan',
+    path: '/plan',
+    getParentRoute: () => AuthedHouseholdMonthMonthRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/household': typeof AuthedHouseholdHouseholdRoute
-  '/month/$month': typeof AuthedHouseholdMonthMonthRoute
+  '/month/$month': typeof AuthedHouseholdMonthMonthRouteWithChildren
   '/month/': typeof AuthedHouseholdMonthIndexRoute
+  '/month/$month/plan': typeof AuthedHouseholdMonthMonthPlanRoute
+  '/month/$month/': typeof AuthedHouseholdMonthMonthIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/household': typeof AuthedHouseholdHouseholdRoute
-  '/month/$month': typeof AuthedHouseholdMonthMonthRoute
   '/month': typeof AuthedHouseholdMonthIndexRoute
+  '/month/$month/plan': typeof AuthedHouseholdMonthMonthPlanRoute
+  '/month/$month': typeof AuthedHouseholdMonthMonthIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -84,16 +101,31 @@ export interface FileRoutesById {
   '/_authed/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/_authed/_household/household': typeof AuthedHouseholdHouseholdRoute
-  '/_authed/_household/month/$month': typeof AuthedHouseholdMonthMonthRoute
+  '/_authed/_household/month/$month': typeof AuthedHouseholdMonthMonthRouteWithChildren
   '/_authed/_household/month/': typeof AuthedHouseholdMonthIndexRoute
+  '/_authed/_household/month/$month/plan': typeof AuthedHouseholdMonthMonthPlanRoute
+  '/_authed/_household/month/$month/': typeof AuthedHouseholdMonthMonthIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/welcome' | '/sign-in/$' | '/household' | '/month/$month' | '/month/'
+    | '/'
+    | '/welcome'
+    | '/sign-in/$'
+    | '/household'
+    | '/month/$month'
+    | '/month/'
+    | '/month/$month/plan'
+    | '/month/$month/'
   fileRoutesByTo: FileRoutesByTo
   to:
-    '/' | '/welcome' | '/sign-in/$' | '/household' | '/month/$month' | '/month'
+    | '/'
+    | '/welcome'
+    | '/sign-in/$'
+    | '/household'
+    | '/month'
+    | '/month/$month/plan'
+    | '/month/$month'
   id:
     | '__root__'
     | '/'
@@ -104,6 +136,8 @@ export interface FileRouteTypes {
     | '/_authed/_household/household'
     | '/_authed/_household/month/$month'
     | '/_authed/_household/month/'
+    | '/_authed/_household/month/$month/plan'
+    | '/_authed/_household/month/$month/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -170,18 +204,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedHouseholdMonthMonthRouteImport
       parentRoute: typeof AuthedHouseholdRoute
     }
+    '/_authed/_household/month/$month/': {
+      id: '/_authed/_household/month/$month/'
+      path: '/'
+      fullPath: '/month/$month/'
+      preLoaderRoute: typeof AuthedHouseholdMonthMonthIndexRouteImport
+      parentRoute: typeof AuthedHouseholdMonthMonthRoute
+    }
+    '/_authed/_household/month/$month/plan': {
+      id: '/_authed/_household/month/$month/plan'
+      path: '/plan'
+      fullPath: '/month/$month/plan'
+      preLoaderRoute: typeof AuthedHouseholdMonthMonthPlanRouteImport
+      parentRoute: typeof AuthedHouseholdMonthMonthRoute
+    }
   }
 }
 
+interface AuthedHouseholdMonthMonthRouteChildren {
+  AuthedHouseholdMonthMonthPlanRoute: typeof AuthedHouseholdMonthMonthPlanRoute
+  AuthedHouseholdMonthMonthIndexRoute: typeof AuthedHouseholdMonthMonthIndexRoute
+}
+
+const AuthedHouseholdMonthMonthRouteChildren: AuthedHouseholdMonthMonthRouteChildren =
+  {
+    AuthedHouseholdMonthMonthPlanRoute: AuthedHouseholdMonthMonthPlanRoute,
+    AuthedHouseholdMonthMonthIndexRoute: AuthedHouseholdMonthMonthIndexRoute,
+  }
+
+const AuthedHouseholdMonthMonthRouteWithChildren =
+  AuthedHouseholdMonthMonthRoute._addFileChildren(
+    AuthedHouseholdMonthMonthRouteChildren,
+  )
+
 interface AuthedHouseholdRouteChildren {
   AuthedHouseholdHouseholdRoute: typeof AuthedHouseholdHouseholdRoute
-  AuthedHouseholdMonthMonthRoute: typeof AuthedHouseholdMonthMonthRoute
+  AuthedHouseholdMonthMonthRoute: typeof AuthedHouseholdMonthMonthRouteWithChildren
   AuthedHouseholdMonthIndexRoute: typeof AuthedHouseholdMonthIndexRoute
 }
 
 const AuthedHouseholdRouteChildren: AuthedHouseholdRouteChildren = {
   AuthedHouseholdHouseholdRoute: AuthedHouseholdHouseholdRoute,
-  AuthedHouseholdMonthMonthRoute: AuthedHouseholdMonthMonthRoute,
+  AuthedHouseholdMonthMonthRoute: AuthedHouseholdMonthMonthRouteWithChildren,
   AuthedHouseholdMonthIndexRoute: AuthedHouseholdMonthIndexRoute,
 }
 

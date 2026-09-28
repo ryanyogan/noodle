@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createHousehold, signedInPage } from "./session";
+import { createHousehold, serverFn, signedInPage } from "./session";
 
 // Screenshot regression for the app shell and its components, in both appearances,
 // at iPhone and desktop sizes. Update baselines with `bun run e2e --update-snapshots`.
@@ -88,12 +88,6 @@ test("keyboard focus is visible on the shell's navigation", async ({ browser }) 
 	expect(outline).not.toBe("none");
 	await page.context().close();
 });
-
-/** True for calls to the named server function (its id is base64url JSON naming the export). */
-const serverFn = (name: string) => (url: URL) => {
-	const id = url.pathname.split("/_serverFn/")[1];
-	return !!id && Buffer.from(id, "base64url").toString().includes(`"${name}_`);
-};
 
 test("a slow page shows a skeleton, then its content", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email, screens.desktop);

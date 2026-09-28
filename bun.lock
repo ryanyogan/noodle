@@ -53,6 +53,7 @@
       "name": "@noodle/db",
       "version": "0.0.0",
       "dependencies": {
+        "@noodle/domain": "workspace:*",
         "drizzle-orm": "0.45.3",
       },
       "devDependencies": {

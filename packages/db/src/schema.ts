@@ -1,5 +1,12 @@
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import {
+	index,
+	integer,
+	primaryKey,
+	sqliteTable,
+	text,
+	uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 // IDs are client-generated ULIDs (they double as idempotency keys).
 // Every Household-owned table carries household_id.
@@ -61,6 +68,62 @@ export const invites = sqliteTable(
 	],
 );
 
+// The Plan is stored effective-dated (see planForMonth in @noodle/domain): a Baseline or
+// allowance set for a month holds for later months until set again. Months are "YYYY-MM".
+// Money is integer cents.
+
+export const baselines = sqliteTable(
+	"baselines",
+	{
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		month: text("month").notNull(),
+		amountCents: integer("amount_cents").notNull(),
+	},
+	(t) => [primaryKey({ columns: [t.householdId, t.month] })],
+);
+
+export const buckets = sqliteTable(
+	"buckets",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		name: text("name").notNull(),
+		// 1–8: the Bucket's identity colour (--bucket-N).
+		color: integer("color").notNull(),
+		position: integer("position").notNull(),
+		// The first month the Bucket is in the Plan, and (once archived) the first it isn't.
+		fromMonth: text("from_month").notNull(),
+		archivedFromMonth: text("archived_from_month"),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [index("buckets_household_idx").on(t.householdId)],
+);
+
+export const bucketAllowances = sqliteTable(
+	"bucket_allowances",
+	{
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		bucketId: text("bucket_id")
+			.notNull()
+			.references(() => buckets.id),
+		month: text("month").notNull(),
+		amountCents: integer("amount_cents").notNull(),
+	},
+	(t) => [
+		primaryKey({ columns: [t.bucketId, t.month] }),
+		index("bucket_allowances_household_idx").on(t.householdId),
+	],
+);
+
 export type Household = typeof households.$inferSelect;
 export type Member = typeof members.$inferSelect;
 export type Invite = typeof invites.$inferSelect;
+export type Bucket = typeof buckets.$inferSelect;

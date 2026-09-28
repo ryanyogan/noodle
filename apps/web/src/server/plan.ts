@@ -1,0 +1,88 @@
+import {
+	addBucket as addBucketInDb,
+	archiveBucket as archiveBucketInDb,
+	reorderBuckets as reorderBucketsInDb,
+	setAllowance as setAllowanceInDb,
+	setBaseline as setBaselineInDb,
+	updateBucket as updateBucketInDb,
+} from "@noodle/db";
+import { MAX_CENTS, type MonthKey, monthKeyAt } from "@noodle/domain";
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { getDb } from "./db";
+import { type HouseholdSummary, householdMiddleware } from "./household";
+import { monthKeySchema } from "./month";
+import { ulidSchema } from "./schemas";
+
+// Changes to the Plan. Each is idempotent, so the client can retry any of them safely.
+
+const centsSchema = z.number().int().min(0).max(MAX_CENTS);
+export const bucketNameSchema = z.string().trim().min(1).max(40);
+const colorSchema = z.number().int().min(1).max(8);
+
+/** Past months' Plans are closed; only this month and later can change. */
+function assertEditable(household: Pick<HouseholdSummary, "timeZone">, month: MonthKey) {
+	if (month < monthKeyAt(new Date(), household.timeZone)) {
+		throw new Error("Plans for past months can’t be changed.");
+	}
+}
+
+export const setBaseline = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ month: monthKeySchema, amountCents: centsSchema }))
+	.handler(async ({ data, context }) => {
+		assertEditable(context.household, data.month);
+		await setBaselineInDb(getDb(), { householdId: context.household.id, ...data });
+	});
+
+export const addBucket = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			bucketId: ulidSchema,
+			month: monthKeySchema,
+			name: bucketNameSchema,
+			color: colorSchema,
+			allowanceCents: centsSchema,
+		}),
+	)
+	.handler(async ({ data, context }) => {
+		assertEditable(context.household, data.month);
+		await addBucketInDb(getDb(), { householdId: context.household.id, ...data });
+	});
+
+export const updateBucket = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			bucketId: ulidSchema,
+			name: bucketNameSchema.optional(),
+			color: colorSchema.optional(),
+		}),
+	)
+	.handler(async ({ data, context }) => {
+		await updateBucketInDb(getDb(), { householdId: context.household.id, ...data });
+	});
+
+export const setAllowance = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ bucketId: ulidSchema, month: monthKeySchema, amountCents: centsSchema }))
+	.handler(async ({ data, context }) => {
+		assertEditable(context.household, data.month);
+		await setAllowanceInDb(getDb(), { householdId: context.household.id, ...data });
+	});
+
+export const reorderBuckets = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ bucketIds: z.array(ulidSchema).min(1).max(100) }))
+	.handler(async ({ data, context }) => {
+		await reorderBucketsInDb(getDb(), { householdId: context.household.id, ...data });
+	});
+
+export const archiveBucket = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ bucketId: ulidSchema, month: monthKeySchema }))
+	.handler(async ({ data, context }) => {
+		assertEditable(context.household, data.month);
+		await archiveBucketInDb(getDb(), { householdId: context.household.id, ...data });
+	});
