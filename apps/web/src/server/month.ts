@@ -1,9 +1,12 @@
 import {
 	type BucketSpend,
 	type CommitmentCharge,
+	type Db,
 	loadCharges,
+	loadMoves,
 	loadPlanRecords,
 	loadSpending,
+	type PlanMove,
 } from "@noodle/db";
 import {
 	type DayKey,
@@ -16,7 +19,7 @@ import {
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getDb } from "./db";
-import { householdMiddleware } from "./household";
+import { type HouseholdSummary, householdMiddleware } from "./household";
 
 export const monthKeySchema = z
 	.string()
@@ -24,37 +27,47 @@ export const monthKeySchema = z
 	.transform((month) => month as MonthKey);
 
 /**
- * The inputs to a month's state: its Plan, the spending and Commitment payments recorded in it,
- * and today in the Household's time zone. Components derive the state with `monthState` from
- * @noodle/domain, so an optimistic edit to these inputs updates every number the same way the
- * server would.
+ * The inputs to a month's state: its Plan, the spending, Commitment payments, and Moves recorded
+ * in it, and today in the Household's time zone. Components derive the state with `monthState`
+ * from @noodle/domain, so an optimistic edit to these inputs updates every number the same way
+ * the server would.
  */
 export type MonthData = {
 	plan: Plan;
 	spending: BucketSpend[];
 	charges: CommitmentCharge[];
+	moves: PlanMove[];
 	asOf: DayKey;
 	/** Past months' Plans are closed; this month and later can be changed. */
 	editable: boolean;
 };
 
+/** A month's inputs, read from D1 now. */
+export async function loadMonth(
+	db: Db,
+	household: Pick<HouseholdSummary, "id" | "timeZone">,
+	month: MonthKey,
+): Promise<MonthData> {
+	const [records, spending, charges, moves] = await Promise.all([
+		loadPlanRecords(db, household.id, month),
+		loadSpending(db, household.id, month),
+		loadCharges(db, household.id, month),
+		loadMoves(db, household.id, month),
+	]);
+	const now = new Date();
+	return {
+		plan: planForMonth(records, month),
+		spending,
+		charges,
+		moves,
+		asOf: dayKeyAt(now, household.timeZone),
+		editable: month >= monthKeyAt(now, household.timeZone),
+	};
+}
+
 export const getMonth = createServerFn({ method: "GET" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ month: monthKeySchema }))
-	.handler(async ({ data, context }): Promise<MonthData> => {
-		const { id, timeZone } = context.household;
-		const db = getDb();
-		const [records, spending, charges] = await Promise.all([
-			loadPlanRecords(db, id, data.month),
-			loadSpending(db, id, data.month),
-			loadCharges(db, id, data.month),
-		]);
-		const now = new Date();
-		return {
-			plan: planForMonth(records, data.month),
-			spending,
-			charges,
-			asOf: dayKeyAt(now, timeZone),
-			editable: data.month >= monthKeyAt(now, timeZone),
-		};
-	});
+	.handler(
+		({ data, context }): Promise<MonthData> => loadMonth(getDb(), context.household, data.month),
+	);

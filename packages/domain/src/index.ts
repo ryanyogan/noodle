@@ -7,6 +7,7 @@ export {
 	dueDatesIn,
 	expectedIn,
 } from "./commitments";
+export { type CoverSource, coverSources, leftToMove } from "./cover";
 export {
 	type AttributedSpend,
 	type For,
@@ -35,6 +36,7 @@ export {
 	type CommitmentState,
 	type CommitmentStatus,
 	type MonthState,
+	type Move,
 	monthState,
 	type Spend,
 } from "./month-state";

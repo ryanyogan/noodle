@@ -1,6 +1,6 @@
 import { dueDatesIn } from "./commitments";
 import type { Cents } from "./money";
-import { type DayKey, daysElapsed, daysInMonth, monthOfDay } from "./month";
+import { type DayKey, daysElapsed, daysInMonth, type MonthKey, monthOfDay } from "./month";
 import {
 	freeToSpend,
 	type Plan,
@@ -17,12 +17,27 @@ export type Spend = { bucketId: string; amount: Cents; date: DayKey };
 export type Charge = { commitmentId: string; amount: Cents; date: DayKey };
 
 /**
+ * A Move of planned money within one month's Plan, from a Bucket (or from Free to Spend, when
+ * `fromBucketId` is null) to a Bucket. No real money moves. A Cover is one.
+ */
+export type Move = {
+	fromBucketId: string | null;
+	toBucketId: string;
+	amount: Cents;
+	month: MonthKey;
+};
+
+/**
  * `ahead`: spent faster than Pace allows (by more than a small tolerance).
  * `over`: spent more than the allowance.
  */
 export type BucketStatus = "on-pace" | "ahead" | "over";
 
 export type BucketState = PlanBucket & {
+	/** Moved into the Bucket this month, less what was moved out of it. */
+	moved: Cents;
+	/** What the Bucket has to spend this month: its allowance and what was moved into it. */
+	available: Cents;
 	spent: Cents;
 	/** Negative once the Bucket is overspent. */
 	left: Cents;
@@ -70,6 +85,8 @@ export type MonthState = Omit<Plan, "buckets" | "commitments"> & {
 	planned: Cents;
 	/** Everything the Commitments are expected to take this month. */
 	committed: Cents;
+	/** Moved from Free to Spend into Buckets this month. */
+	movedToBuckets: Cents;
 	/** Negative when the Plan assigns more than the Baseline. */
 	freeToSpend: Cents;
 	/** What's left across Buckets, not counting any Bucket's overspending. */
@@ -84,19 +101,21 @@ const PACE_TOLERANCE = 0.03;
 /**
  * The state of a month: each Bucket's allowance, spent, left, Pace, and status, each
  * Commitment's expected and actual amounts, and Free to Spend, as of the end of a given day.
- * Spending and charges outside the month, or against a Bucket or Commitment not in the Plan,
- * are ignored. The server and the client's optimistic updates both call this, so the numbers a
+ * Moves shift money between Buckets and Free to Spend. Spending, charges, and Moves outside the
+ * month, or involving a Bucket or Commitment not in the Plan, are ignored. The server and the client's optimistic updates both call this, so the numbers a
  * Parent sees before and after a save are the same.
  */
 export function monthState({
 	plan,
 	spending,
 	charges = [],
+	moves = [],
 	asOf,
 }: {
 	plan: Plan;
 	spending: Spend[];
 	charges?: Charge[];
+	moves?: Move[];
 	asOf: DayKey;
 }): MonthState {
 	const days = daysInMonth(plan.month);
@@ -106,18 +125,29 @@ export function monthState({
 		if (monthOfDay(spend.date) !== plan.month) continue;
 		spentByBucket.set(spend.bucketId, (spentByBucket.get(spend.bucketId) ?? 0) + spend.amount);
 	}
+	const inPlan = new Set(plan.buckets.map((b) => b.id));
+	const movedByBucket = new Map<string, Cents>();
+	let movedToBuckets = 0;
+	for (const { fromBucketId: from, toBucketId: to, amount, month } of moves) {
+		if (month !== plan.month || !inPlan.has(to) || (from !== null && !inPlan.has(from))) continue;
+		movedByBucket.set(to, (movedByBucket.get(to) ?? 0) + amount);
+		if (from === null) movedToBuckets += amount;
+		else movedByBucket.set(from, (movedByBucket.get(from) ?? 0) - amount);
+	}
 	const buckets = plan.buckets.map((bucket): BucketState => {
+		const moved = movedByBucket.get(bucket.id) ?? 0;
+		const available = bucket.allowance + moved;
 		const spent = spentByBucket.get(bucket.id) ?? 0;
-		const left = bucket.allowance - spent;
-		const paceSpent = Math.round((bucket.allowance * elapsed) / days);
+		const left = available - spent;
+		// Pace spreads what the Bucket has to spend evenly across the month.
+		const paced = Math.max(0, available);
+		const paceSpent = Math.round((paced * elapsed) / days);
 		const status: BucketStatus =
-			left < 0
-				? "over"
-				: spent - paceSpent > bucket.allowance * PACE_TOLERANCE
-					? "ahead"
-					: "on-pace";
+			left < 0 ? "over" : spent - paceSpent > paced * PACE_TOLERANCE ? "ahead" : "on-pace";
 		return {
 			...bucket,
+			moved,
+			available,
 			spent,
 			left,
 			pace: { spent: paceSpent, leftShare: 1 - elapsed / days },
@@ -161,7 +191,8 @@ export function monthState({
 		daysLeft: days - elapsed,
 		planned: totalAllowances(plan),
 		committed: totalCommitments(plan),
-		freeToSpend: freeToSpend(plan),
+		movedToBuckets,
+		freeToSpend: freeToSpend(plan) - movedToBuckets,
 		leftInBuckets: buckets.reduce((sum, b) => sum + Math.max(0, b.left), 0),
 		commitments,
 		buckets,

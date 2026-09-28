@@ -162,6 +162,9 @@ function Summary({ state }: { state: MonthState & { editable: boolean } }) {
 						<SummaryRow label="Commitments" value={`−${formatMoney(state.committed)}`} />
 					) : null}
 					<SummaryRow label="In Buckets" value={`−${formatMoney(state.planned)}`} />
+					{state.movedToBuckets > 0 ? (
+						<SummaryRow label="Covers" value={`−${formatMoney(state.movedToBuckets)}`} />
+					) : null}
 					<SummaryRow
 						label="Free to Spend"
 						value={formatMoney(state.freeToSpend)}

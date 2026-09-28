@@ -286,6 +286,7 @@ export {
 	removeChild,
 	updateChild,
 } from "./members";
+export { addCover, type CoverResult, loadMoves, type PlanMove, undoMove } from "./moves";
 export {
 	addBucket,
 	archiveBucket,

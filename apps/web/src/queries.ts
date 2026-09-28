@@ -22,9 +22,10 @@ export const monthQuery = (month: MonthKey) =>
 		queryFn: () => getMonth({ data: { month } }),
 	});
 
-const toMonthState = (data: MonthData): MonthState & { editable: boolean } => ({
+const toMonthState = (data: MonthData): MonthState & Pick<MonthData, "editable" | "moves"> => ({
 	...monthState(data),
 	editable: data.editable,
+	moves: data.moves,
 });
 
 /** A month's state, derived from its cached inputs, so optimistic edits show up everywhere. */

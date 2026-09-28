@@ -217,6 +217,31 @@ export const transactionFor = sqliteTable(
 	],
 );
 
+// A Move of planned money within one month's Plan (no real money moves): from a Bucket, or from
+// Free to Spend when `from_bucket_id` is null, to a Bucket. Balances are derived from these rows
+// (ADR-0004); undoing a Move deletes its row.
+export const moves = sqliteTable(
+	"moves",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		kind: text("kind", { enum: ["cover"] }).notNull(),
+		month: text("month").notNull(),
+		fromBucketId: text("from_bucket_id").references(() => buckets.id),
+		toBucketId: text("to_bucket_id")
+			.notNull()
+			.references(() => buckets.id),
+		amountCents: integer("amount_cents").notNull(),
+		createdByMemberId: text("created_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [index("moves_household_month_idx").on(t.householdId, t.month)],
+);
+
 export type Household = typeof households.$inferSelect;
 export type Member = typeof members.$inferSelect;
 export type Invite = typeof invites.$inferSelect;

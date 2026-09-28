@@ -1,5 +1,10 @@
-import type { BucketState, MonthState } from "@noodle/domain";
-import { lastDayOf } from "@noodle/domain";
+import {
+	type BucketState,
+	type CoverSource,
+	lastDayOf,
+	type MonthState,
+	monthOfDay,
+} from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
@@ -12,8 +17,12 @@ import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarDays, SlidersHorizontal } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../../../buckets";
 import { Commitments } from "../../../components/commitment-list";
+import { ALittleOver, CoverSheet, CoversInto, sourceName } from "../../../components/cover";
+import { type CoverVariables, useCovers } from "../../../covers";
 import { formatMoney, monthName, shortDay } from "../../../format";
 import { useMonthState } from "../../../queries";
 
@@ -24,10 +33,26 @@ export const Route = createFileRoute("/_authed/_household/month/$month/")({
 function ThisMonth() {
 	const { month } = Route.useRouteContext();
 	const state = useMonthState(month);
+	const { cover, undo } = useCovers();
+	// The overspent Bucket being covered, by ID, so the sheet follows its latest state.
+	const [covering, setCovering] = useState<string | null>(null);
 	const planned =
 		state.baseline !== null || state.buckets.length > 0 || state.commitments.length > 0;
 	// Commitments due this month, or paid anyway.
 	const commitments = state.commitments.filter((c) => c.status !== "not-due");
+	// Covers happen within the current month; earlier months are closed.
+	const canCover = monthOfDay(state.asOf) === month;
+	const over = canCover ? state.buckets.filter((b) => b.status === "over") : [];
+	const coverVariables = (bucket: BucketState, source: CoverSource, amountCents: number) =>
+		({
+			moveId: ulid(),
+			month,
+			fromBucketId: source.bucket?.id ?? null,
+			fromName: sourceName(source.bucket),
+			toBucketId: bucket.id,
+			toName: bucket.name,
+			amountCents,
+		}) satisfies CoverVariables;
 	return (
 		<>
 			<PageHeader
@@ -47,13 +72,41 @@ function ThisMonth() {
 			{planned ? (
 				<div className="grid max-w-2xl gap-8">
 					<FreeToSpend state={state} />
+					{over.length > 0 ? (
+						<ALittleOver buckets={over} onCover={(bucket) => setCovering(bucket.id)} />
+					) : null}
 					{state.buckets.length > 0 ? (
 						<Section aria-labelledby="buckets">
 							<SectionHeader id="buckets" title="Buckets" count={state.buckets.length} />
 							<List>
-								{state.buckets.map((bucket) => (
-									<BucketRow key={bucket.id} bucket={bucket} />
-								))}
+								{state.buckets.map((bucket) => {
+									const covers = state.moves.filter((m) => m.toBucketId === bucket.id);
+									return (
+										<BucketRow
+											key={bucket.id}
+											bucket={bucket}
+											covers={
+												covers.length > 0 ? (
+													<CoversInto
+														moves={covers}
+														buckets={state.buckets}
+														onUndo={
+															canCover
+																? (move, fromName) =>
+																		undo.mutate({
+																			moveId: move.id,
+																			month,
+																			fromName,
+																			toName: bucket.name,
+																		})
+																: undefined
+														}
+													/>
+												) : null
+											}
+										/>
+									);
+								})}
 							</List>
 						</Section>
 					) : null}
@@ -75,6 +128,18 @@ function ThisMonth() {
 					}
 				/>
 			)}
+			<CoverSheet
+				state={state}
+				bucket={over.find((b) => b.id === covering) ?? null}
+				onOpenChange={(open) => {
+					if (!open) setCovering(null);
+				}}
+				onCover={(source, amountCents) => {
+					const bucket = over.find((b) => b.id === covering);
+					setCovering(null);
+					if (bucket) cover.mutate(coverVariables(bucket, source, amountCents));
+				}}
+			/>
 		</>
 	);
 }
@@ -143,14 +208,17 @@ function PlanLink({ month, children }: { month: MonthState["month"]; children: s
 	);
 }
 
-/** A Bucket's vessel: what's left, draining as money is spent, against its Pace tick. */
-function BucketRow({ bucket }: { bucket: BucketState }) {
+/**
+ * A Bucket's vessel: what's left of what it has this month, draining as money is spent, against
+ * its Pace tick. `covers` lists Covers into it.
+ */
+function BucketRow({ bucket, covers }: { bucket: BucketState; covers?: ReactNode }) {
 	const color = asBucketColor(bucket.color);
-	const share = (cents: number) => (bucket.allowance > 0 ? cents / bucket.allowance : 0);
+	const share = (cents: number) => (bucket.available > 0 ? cents / bucket.available : 0);
 	const left = Math.max(0, bucket.left);
 	return (
 		<ListRow
-			aria-label={`${bucket.name}: ${formatMoney(left)} left of ${formatMoney(bucket.allowance)}${
+			aria-label={`${bucket.name}: ${formatMoney(left)} left of ${formatMoney(bucket.available)}${
 				bucket.status === "over"
 					? `, over by ${formatMoney(-bucket.left)}`
 					: bucket.status === "ahead"
@@ -170,22 +238,30 @@ function BucketRow({ bucket }: { bucket: BucketState }) {
 					</Badge>
 				) : null
 			}
-			meta={`${formatMoney(bucket.spent)} spent`}
+			meta={[
+				`${formatMoney(bucket.spent)} spent`,
+				bucket.moved < 0 ? `${formatMoney(-bucket.moved)} moved out` : null,
+			]
+				.filter(Boolean)
+				.join(" · ")}
 			trailing={
 				<>
 					<span className="text-sm font-semibold tabular-nums">{formatMoney(left)}</span>
 					<span className="text-xs text-subtle-foreground tabular-nums">
-						of {formatMoney(bucket.allowance)}
+						of {formatMoney(bucket.available)}
 					</span>
 				</>
 			}
 			below={
-				<Meter
-					bucket={color}
-					left={share(bucket.left)}
-					paceLeft={bucket.pace.leftShare}
-					over={bucket.status === "over"}
-				/>
+				<div className="grid gap-1.5">
+					<Meter
+						bucket={color}
+						left={share(bucket.left)}
+						paceLeft={bucket.pace.leftShare}
+						over={bucket.status === "over"}
+					/>
+					{covers}
+				</div>
 			}
 		/>
 	);
