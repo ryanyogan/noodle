@@ -23,6 +23,17 @@ import {
 } from "drizzle-orm";
 import type { Db } from "./index";
 import {
+	asPrivateSpending,
+	assignableBy,
+	changeableBy,
+	partlyPrivate,
+	privateTotals,
+	type Viewer,
+	visibleSplit,
+	visibleSplitsSum,
+	visibleTo,
+} from "./privacy";
+import {
 	buckets,
 	commitments,
 	members,
@@ -36,6 +47,8 @@ export type { Assignment };
 
 // Transactions for a Household. Every query is scoped by household_id; IDs from the client are
 // only ever used together with it (ADR-0004: rows are appended, never read-modify-written).
+// Reads are made for a Viewer through privacy.ts, so another Parent's Personal Allowance
+// spending, whole or split, never leaves the server (ADR-0003).
 
 /**
  * Spending recorded against a Bucket, with who it was For and the Transaction's ID: a whole
@@ -45,28 +58,29 @@ export type BucketSpend = AttributedSpend & { id: string };
 
 /**
  * Spending assigned to Buckets on days from `from` up to, not including, `until`: whole
- * Transactions, and the Splits of split ones.
+ * Transactions, and the Splits of split ones, as `viewer` may see them: another Parent's
+ * Personal Allowance only as its monthly totals.
  */
 async function loadSpendingBetween(
 	db: Db,
-	householdId: string,
+	viewer: Viewer,
 	from: DayKey,
 	until: DayKey,
 ): Promise<BucketSpend[]> {
 	const inRange = and(
-		eq(transactions.householdId, householdId),
+		visibleTo(viewer),
 		gte(transactions.date, from),
 		lt(transactions.date, until),
 		isNotNull(transactions.bucketId),
 	);
 	const splitsInRange = and(
-		eq(splits.householdId, householdId),
-		eq(transactions.householdId, householdId),
+		visibleSplit(viewer),
+		eq(transactions.householdId, viewer.householdId),
 		gte(transactions.date, from),
 		lt(transactions.date, until),
 		isNotNull(splits.bucketId),
 	);
-	const [rows, forRows, splitRows, splitForRows] = await db.batch([
+	const [rows, forRows, splitRows, splitForRows, hiddenWhole, hiddenSplits] = await db.batch([
 		db
 			.select({
 				id: transactions.id,
@@ -80,7 +94,7 @@ async function loadSpendingBetween(
 			.select({ transactionId: transactionFor.transactionId, memberId: transactionFor.memberId })
 			.from(transactionFor)
 			.innerJoin(transactions, eq(transactions.id, transactionFor.transactionId))
-			.where(and(eq(transactionFor.householdId, householdId), inRange)),
+			.where(and(eq(transactionFor.householdId, viewer.householdId), inRange)),
 		db
 			.select({
 				splitId: splits.id,
@@ -98,15 +112,19 @@ async function loadSpendingBetween(
 			.from(splitFor)
 			.innerJoin(splits, eq(splits.id, splitFor.splitId))
 			.innerJoin(transactions, eq(transactions.id, splits.transactionId))
-			.where(and(eq(splitFor.householdId, householdId), splitsInRange)),
+			.where(and(eq(splitFor.householdId, viewer.householdId), splitsInRange)),
+		...privateTotals(db, viewer, from, until),
 	]);
 	const forOf = groupFor(forRows);
 	const splitForOf = groupFor(splitForRows);
 	// bucket_id is filtered to non-null, and dates are always written as DayKeys.
 	return [
-		...rows.map((row) => ({ ...row, for: forOf.get(row.id) ?? [] })),
-		...splitRows.map(({ splitId, ...row }) => ({ ...row, for: splitForOf.get(splitId) ?? [] })),
-	] as BucketSpend[];
+		...rows.map((row) => ({ ...row, for: forOf.get(row.id) ?? [] }) as BucketSpend),
+		...splitRows.map(
+			({ splitId, ...row }) => ({ ...row, for: splitForOf.get(splitId) ?? [] }) as BucketSpend,
+		),
+		...asPrivateSpending(hiddenWhole, hiddenSplits),
+	];
 }
 
 /** Member IDs by Transaction ID, sorted so the same For always reads the same. */
@@ -126,20 +144,23 @@ function nextMonthStart(month: MonthKey): DayKey {
 	) as DayKey;
 }
 
-/** The month's spending assigned to Buckets. */
-export function loadSpending(db: Db, householdId: string, month: MonthKey): Promise<BucketSpend[]> {
-	return loadSpendingBetween(db, householdId, `${month}-01` as DayKey, nextMonthStart(month));
+/** The month's spending assigned to Buckets, as `viewer` may see it. */
+export function loadSpending(db: Db, viewer: Viewer, month: MonthKey): Promise<BucketSpend[]> {
+	return loadSpendingBetween(db, viewer, `${month}-01` as DayKey, nextMonthStart(month));
 }
 
-/** Spending assigned to Buckets in `month`'s year before `month`, for year-to-date totals. */
+/**
+ * Spending assigned to Buckets in `month`'s year before `month`, for year-to-date totals, as
+ * `viewer` may see it.
+ */
 export function loadSpendingEarlierInYear(
 	db: Db,
-	householdId: string,
+	viewer: Viewer,
 	month: MonthKey,
 ): Promise<BucketSpend[]> {
 	return loadSpendingBetween(
 		db,
-		householdId,
+		viewer,
 		`${month.slice(0, 4)}-01-01` as DayKey,
 		`${month}-01` as DayKey,
 	);
@@ -149,15 +170,11 @@ export function loadSpendingEarlierInYear(
 const USES_LIMIT = 500;
 
 /**
- * Which Buckets spending went into since `since`, newest first, for likelyBucketOrder: whole
- * Transactions and Splits.
+ * Which Buckets spending `viewer` can see went into since `since`, newest first, for
+ * likelyBucketOrder: whole Transactions and Splits.
  */
-export async function loadBucketUses(
-	db: Db,
-	householdId: string,
-	since: DayKey,
-): Promise<BucketUse[]> {
-	const recent = and(eq(transactions.householdId, householdId), gte(transactions.date, since));
+export async function loadBucketUses(db: Db, viewer: Viewer, since: DayKey): Promise<BucketUse[]> {
+	const recent = and(visibleTo(viewer), gte(transactions.date, since));
 	const [whole, split] = await db.batch([
 		db
 			.select({ bucketId: transactions.bucketId, date: transactions.date })
@@ -169,7 +186,7 @@ export async function loadBucketUses(
 			.select({ bucketId: splits.bucketId, date: transactions.date })
 			.from(splits)
 			.innerJoin(transactions, eq(transactions.id, splits.transactionId))
-			.where(and(recent, eq(splits.householdId, householdId), isNotNull(splits.bucketId)))
+			.where(and(recent, visibleSplit(viewer), isNotNull(splits.bucketId)))
 			.orderBy(desc(transactions.date))
 			.limit(USES_LIMIT),
 	]);
@@ -226,8 +243,8 @@ export type QuickAddResult = { ok: true } | { ok: false; reason: "bucket-not-in-
 /**
  * Records a Quick Add: `amountCents` spent today into a Bucket, For some Members (none for the
  * whole Household). Idempotent per `transactionId`, so a retried or double-tapped Quick Add is
- * recorded once. It is only written if, at write time, the Bucket belongs to the Household and
- * is in the Plan for `date`'s month.
+ * recorded once. It is only written if, at write time, the Bucket belongs to the Household, is
+ * in the Plan for `date`'s month, and isn't the other Parent's Personal Allowance.
  */
 export async function addQuickAdd(
 	db: Db,
@@ -260,7 +277,12 @@ export async function addQuickAdd(
 					commitmentId: sql<string | null>`null`.as("commitment_id"),
 				})
 				.from(buckets)
-				.where(bucketInPlan(input.householdId, input.bucketId, month)),
+				.where(
+					and(
+						bucketInPlan(input.householdId, input.bucketId, month),
+						assignableBy(input.createdByMemberId),
+					),
+				),
 		)
 		.onConflictDoNothing({ target: transactions.id });
 	if (input.forMemberIds.length > 0) {
@@ -291,10 +313,11 @@ export type SplitRow = {
 	for: string[];
 };
 
-/** A Transaction as the Transactions list shows it. */
+/** A Transaction as the Transactions list shows it (to a Viewer). */
 export type TransactionRow = {
 	id: string;
 	date: DayKey;
+	/** Its amount; the sum of the Splits shown when some are in the other Parent's Personal Allowance. */
 	amountCents: Cents;
 	/**
 	 * What it's assigned to as a whole: a Bucket, a Commitment, or neither while unassigned or
@@ -302,9 +325,10 @@ export type TransactionRow = {
 	 */
 	bucketId: string | null;
 	commitmentId: string | null;
+	/** Its note; none shown when some of its Splits are in the other Parent's Personal Allowance. */
 	note: string | null;
 	for: string[];
-	/** Its Splits in the order they were entered; none unless it's split. */
+	/** Its Splits in the order they were entered, those the Viewer may see; none unless it's split. */
 	splits: SplitRow[];
 };
 
@@ -327,9 +351,9 @@ const isSplit = sql`exists (select 1 from ${splits} where ${splits.transactionId
 
 /**
  * Transactions in a Bucket and For a Member (or For the whole Household): assigned so as a whole,
- * or through one Split that is both. Undefined when there's nothing to filter by.
+ * or through one Split `viewer` may see that is both. Undefined when there's nothing to filter by.
  */
-function matching(bucketId?: string, forMember?: string): SQL | undefined {
+function matching(viewer: Viewer, bucketId?: string, forMember?: string): SQL | undefined {
 	if (bucketId === undefined && forMember === undefined) return undefined;
 	const whole = and(
 		sql`not ${isSplit}`,
@@ -342,6 +366,7 @@ function matching(bucketId?: string, forMember?: string): SQL | undefined {
 	);
 	const aSplit = sql`exists (select 1 from ${splits} where ${and(
 		eq(splits.transactionId, transactions.id),
+		visibleSplit(viewer),
 		bucketId ? eq(splits.bucketId, bucketId) : undefined,
 		forMember === "everyone"
 			? sql`not ${splitHasForRows()}`
@@ -353,12 +378,14 @@ function matching(bucketId?: string, forMember?: string): SQL | undefined {
 }
 
 /**
- * One page of a month's Transactions, newest first, optionally only those in a Bucket and only
- * those For a Member (or For the whole Household). `after` continues from a previous page.
+ * One page of a month's Transactions that `viewer` may see, newest first, optionally only those
+ * in a Bucket and only those For a Member (or For the whole Household). `after` continues from
+ * a previous page. A Transaction split partly into the other Parent's Personal Allowance shows
+ * only its other Splits, with their sum as its amount and no note.
  */
 export async function loadTransactionsPage(
 	db: Db,
-	householdId: string,
+	viewer: Viewer,
 	query: {
 		month: MonthKey;
 		bucketId?: string;
@@ -368,22 +395,24 @@ export async function loadTransactionsPage(
 		limit: number;
 	},
 ): Promise<{ transactions: TransactionRow[]; next: TransactionCursor | null }> {
+	const householdId = viewer.householdId;
+	const partly = partlyPrivate(viewer);
 	const rows = await db
 		.select({
 			id: transactions.id,
 			date: transactions.date,
-			amountCents: transactions.amountCents,
+			amountCents: sql<number>`case when ${partly} then ${visibleSplitsSum(viewer)} else ${transactions.amountCents} end`,
 			bucketId: transactions.bucketId,
 			commitmentId: transactions.commitmentId,
-			note: transactions.note,
+			note: sql<string | null>`case when ${partly} then null else ${transactions.note} end`,
 		})
 		.from(transactions)
 		.where(
 			and(
-				eq(transactions.householdId, householdId),
+				visibleTo(viewer),
 				gte(transactions.date, `${query.month}-01`),
 				lt(transactions.date, nextMonthStart(query.month)),
-				matching(query.bucketId, query.forMember),
+				matching(viewer, query.bucketId, query.forMember),
 				query.after
 					? or(
 							lt(transactions.date, query.after.date),
@@ -422,13 +451,19 @@ export async function loadTransactionsPage(
 							commitmentId: splits.commitmentId,
 						})
 						.from(splits)
-						.where(and(eq(splits.householdId, householdId), inArray(splits.transactionId, ids)))
+						.where(and(visibleSplit(viewer), inArray(splits.transactionId, ids)))
 						.orderBy(splits.transactionId, splits.position),
 					db
 						.select({ transactionId: splitFor.splitId, memberId: splitFor.memberId })
 						.from(splitFor)
 						.innerJoin(splits, eq(splits.id, splitFor.splitId))
-						.where(and(eq(splitFor.householdId, householdId), inArray(splits.transactionId, ids))),
+						.where(
+							and(
+								eq(splitFor.householdId, householdId),
+								visibleSplit(viewer),
+								inArray(splits.transactionId, ids),
+							),
+						),
 				]);
 	const forOf = groupFor(forRows);
 	const splitForOf = groupFor(splitForRows);
@@ -458,10 +493,16 @@ export type TransactionEditResult =
 	| { ok: true }
 	| { ok: false; reason: "not-in-plan" | "splits-unbalanced" };
 
-/** What `assignment` names is the Household's and in the Plan for `month` (a SQL expression). */
-const assignable = (householdId: string, assignment: Assignment, month: SQL) =>
+/**
+ * What `assignment` names is the Household's and in the Plan for `month` (a SQL expression), and,
+ * if a Bucket, one the Parent `memberId` can assign to (not the other Parent's Personal Allowance).
+ */
+const assignable = (householdId: string, memberId: string, assignment: Assignment, month: SQL) =>
 	"bucketId" in assignment
-		? sql`exists (select 1 from ${buckets} where ${bucketInPlan(householdId, assignment.bucketId, month)})`
+		? sql`exists (select 1 from ${buckets} where ${and(
+				bucketInPlan(householdId, assignment.bucketId, month),
+				assignableBy(memberId),
+			)})`
 		: sql`exists (select 1 from ${commitments} where ${and(
 				eq(commitments.id, assignment.commitmentId),
 				eq(commitments.householdId, householdId),
@@ -494,14 +535,17 @@ function clearSplits(db: Db, householdId: string, transactionId: string, when?: 
 
 /**
  * Changes a Transaction's amount, assignment, note, and For, all at once, assigning it as a whole
- * (so any Splits it had are removed). Idempotent: it sets values, so a retry lands the same. The
- * Transaction only changes if, at write time, it is the Household's and what it's assigned to is
- * in the Plan for its month; its For and Splits only change together with it, in the same batch.
+ * (so any Splits it had are removed), for the Parent `memberId`. Idempotent: it sets values, so a
+ * retry lands the same. The Transaction only changes if, at write time, it is the Household's and
+ * theirs to change (no spending in the other Parent's Personal Allowance, even through a Split),
+ * and what it's assigned to is in the Plan for its month and, if a Bucket, one they can assign
+ * to. Its For and Splits only change together with it, in the same batch.
  */
 export async function updateTransaction(
 	db: Db,
 	input: {
 		householdId: string;
+		memberId: string;
 		transactionId: string;
 		amountCents: Cents;
 		assignment: Assignment;
@@ -515,7 +559,7 @@ export async function updateTransaction(
 	const month = sql`substr(${transactions.date}, 1, 7)`;
 	const theTransaction = and(
 		eq(transactions.id, input.transactionId),
-		eq(transactions.householdId, input.householdId),
+		changeableBy({ householdId: input.householdId, memberId: input.memberId }),
 	);
 	// True once the Transaction holds the new values: the update landed, now or on an earlier try.
 	const edited = sql`exists (select 1 from ${transactions} where ${and(
@@ -528,7 +572,9 @@ export async function updateTransaction(
 	const update = db
 		.update(transactions)
 		.set({ amountCents: input.amountCents, bucketId, commitmentId, note: input.note })
-		.where(and(theTransaction, assignable(input.householdId, input.assignment, month)));
+		.where(
+			and(theTransaction, assignable(input.householdId, input.memberId, input.assignment, month)),
+		);
 	const clearFor = db
 		.delete(transactionFor)
 		.where(
@@ -582,20 +628,23 @@ export type SplitInput = {
  * Splits a Transaction: sets its amount and note and replaces its whole assignment, its For, and
  * any Splits it had with `splits`, all in one batch. The Splits must add up to the amount.
  * Idempotent by the Splits' client IDs, so a retry lands the same. Nothing changes unless, at
- * write time, the Transaction is the Household's and every Split's Bucket or Commitment is in the
- * Plan for its month; Splits and their For are only written onto that Transaction.
+ * write time, the Transaction is the Household's and the Parent `memberId`'s to change (no
+ * spending in the other Parent's Personal Allowance), and every Split's Bucket or Commitment is in
+ * the Plan for its month and, if a Bucket, one they can assign to (so never the other Parent's
+ * Personal Allowance); Splits and their For are only written onto that Transaction.
  */
 export async function splitTransaction(
 	db: Db,
 	input: {
 		householdId: string;
+		memberId: string;
 		transactionId: string;
 		amountCents: Cents;
 		note: string | null;
 		splits: SplitInput[];
 	},
 ): Promise<TransactionEditResult> {
-	const { householdId, transactionId } = input;
+	const { householdId, memberId, transactionId } = input;
 	if (
 		!splitsBalance(
 			input.amountCents,
@@ -606,11 +655,11 @@ export async function splitTransaction(
 	}
 	const theTransaction = and(
 		eq(transactions.id, transactionId),
-		eq(transactions.householdId, householdId),
+		changeableBy({ householdId, memberId }),
 	);
 	const month = sql`(select substr(${transactions.date}, 1, 7) from ${transactions} where ${theTransaction})`;
 	const allAssignable = and(
-		...input.splits.map((split) => assignable(householdId, split.assignment, month)),
+		...input.splits.map((split) => assignable(householdId, memberId, split.assignment, month)),
 	);
 	// True once the Transaction holds the new values as a split one, now or on an earlier try.
 	const edited = sql`exists (select 1 from ${transactions} where ${and(
@@ -717,28 +766,31 @@ export async function splitTransaction(
 	return landed ? { ok: true } : { ok: false, reason: "not-in-plan" };
 }
 
-/** Deletes a Transaction, its For, and its Splits. Idempotent: deleting it again changes nothing. */
+/**
+ * Deletes a Transaction, its For, and its Splits, for the Parent `memberId`: never one with
+ * spending in the other Parent's Personal Allowance, even through a Split. Idempotent: deleting it
+ * again changes nothing.
+ */
 export async function deleteTransaction(
 	db: Db,
-	input: { householdId: string; transactionId: string },
+	input: { householdId: string; memberId: string; transactionId: string },
 ): Promise<void> {
+	const theTransaction = and(
+		eq(transactions.id, input.transactionId),
+		changeableBy({ householdId: input.householdId, memberId: input.memberId }),
+	);
+	const deletable = sql`exists (select 1 from ${transactions} where ${theTransaction})`;
 	await db.batch([
-		...clearSplits(db, input.householdId, input.transactionId),
+		...clearSplits(db, input.householdId, input.transactionId, deletable),
 		db
 			.delete(transactionFor)
 			.where(
 				and(
 					eq(transactionFor.transactionId, input.transactionId),
 					eq(transactionFor.householdId, input.householdId),
+					deletable,
 				),
 			),
-		db
-			.delete(transactions)
-			.where(
-				and(
-					eq(transactions.id, input.transactionId),
-					eq(transactions.householdId, input.householdId),
-				),
-			),
+		db.delete(transactions).where(theTransaction),
 	]);
 }

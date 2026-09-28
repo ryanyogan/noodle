@@ -2,6 +2,7 @@ import {
 	addMonths,
 	type BucketState,
 	type CoverSource,
+	canAssign,
 	lastDayOf,
 	type MonthKey,
 	type MonthState,
@@ -33,7 +34,7 @@ export const Route = createFileRoute("/_authed/_household/month/$month/")({
 });
 
 function ThisMonth() {
-	const { month } = Route.useRouteContext();
+	const { month, parentId } = Route.useRouteContext();
 	const state = useMonthState(month);
 	const { cover, undo } = useCovers();
 	// The overspent Bucket being covered, by ID, so the sheet follows its latest state.
@@ -44,7 +45,44 @@ function ThisMonth() {
 	const commitments = state.commitments.filter((c) => c.status !== "not-due");
 	// Covers happen within the current month; earlier months are closed.
 	const canCover = monthOfDay(state.asOf) === month;
-	const over = canCover ? state.buckets.filter((b) => b.status === "over") : [];
+	// The other Parent's Personal Allowance is theirs to Cover, and to Cover from.
+	const over = canCover
+		? state.buckets.filter((b) => b.status === "over" && canAssign(b, parentId))
+		: [];
+	const buckets = state.buckets.filter((b) => b.owner === undefined);
+	const allowances = state.buckets.filter((b) => b.owner !== undefined);
+	const bucketRow = (bucket: BucketState) => {
+		const mine = canAssign(bucket, parentId);
+		const covers = state.moves.filter((m) => m.toBucketId === bucket.id);
+		return (
+			<BucketRow
+				key={bucket.id}
+				month={month}
+				bucket={bucket}
+				// Only the other Parent's Personal Allowance is private; its totals are all there is.
+				private={!mine}
+				covers={
+					covers.length > 0 ? (
+						<CoversInto
+							moves={covers}
+							buckets={state.buckets}
+							onUndo={
+								canCover && mine
+									? (move, fromName) =>
+											undo.mutate({
+												moveId: move.id,
+												month,
+												fromName,
+												toName: bucket.name,
+											})
+									: undefined
+							}
+						/>
+					) : null
+				}
+			/>
+		);
+	};
 	const coverVariables = (bucket: BucketState, source: CoverSource, amountCents: number) =>
 		({
 			moveId: ulid(),
@@ -88,39 +126,20 @@ function ThisMonth() {
 					{over.length > 0 ? (
 						<ALittleOver buckets={over} onCover={(bucket) => setCovering(bucket.id)} />
 					) : null}
-					{state.buckets.length > 0 ? (
+					{buckets.length > 0 ? (
 						<Section aria-labelledby="buckets">
-							<SectionHeader id="buckets" title="Buckets" count={state.buckets.length} />
-							<List>
-								{state.buckets.map((bucket) => {
-									const covers = state.moves.filter((m) => m.toBucketId === bucket.id);
-									return (
-										<BucketRow
-											key={bucket.id}
-											bucket={bucket}
-											covers={
-												covers.length > 0 ? (
-													<CoversInto
-														moves={covers}
-														buckets={state.buckets}
-														onUndo={
-															canCover
-																? (move, fromName) =>
-																		undo.mutate({
-																			moveId: move.id,
-																			month,
-																			fromName,
-																			toName: bucket.name,
-																		})
-																: undefined
-														}
-													/>
-												) : null
-											}
-										/>
-									);
-								})}
-							</List>
+							<SectionHeader id="buckets" title="Buckets" count={buckets.length} />
+							<List>{buckets.map(bucketRow)}</List>
+						</Section>
+					) : null}
+					{allowances.length > 0 ? (
+						<Section aria-labelledby="personal-allowances">
+							<SectionHeader
+								id="personal-allowances"
+								title="Personal Allowances"
+								count={allowances.length}
+							/>
+							<List>{allowances.map(bucketRow)}</List>
 						</Section>
 					) : null}
 					{commitments.length > 0 ? (
@@ -142,7 +161,7 @@ function ThisMonth() {
 				/>
 			)}
 			<CoverSheet
-				state={state}
+				state={{ ...state, buckets: state.buckets.filter((b) => canAssign(b, parentId)) }}
 				bucket={over.find((b) => b.id === covering) ?? null}
 				onOpenChange={(open) => {
 					if (!open) setCovering(null);
@@ -274,7 +293,18 @@ function PlanLink({ month, children }: { month: MonthState["month"]; children: s
  * A Bucket's vessel: what's left of what it has this month, draining as money is spent, against
  * its Pace tick. `covers` lists Covers into it.
  */
-function BucketRow({ bucket, covers }: { bucket: BucketState; covers?: ReactNode }) {
+function BucketRow({
+	month,
+	bucket,
+	covers,
+	private: isPrivate = false,
+}: {
+	month: MonthKey;
+	bucket: BucketState;
+	covers?: ReactNode;
+	/** The other Parent's Personal Allowance: its totals only, with nothing to drill into. */
+	private?: boolean;
+}) {
 	const color = asBucketColor(bucket.color);
 	const share = (cents: number) => (bucket.available > 0 ? cents / bucket.available : 0);
 	const left = Math.max(0, bucket.left);
@@ -286,9 +316,23 @@ function BucketRow({ bucket, covers }: { bucket: BucketState; covers?: ReactNode
 					: bucket.status === "ahead"
 						? ", ahead of Pace"
 						: ""
-			}`}
+			}${isPrivate ? ", private" : ""}`}
 			leading={<Tile bucket={color}>{monogram(bucket.name)}</Tile>}
-			title={bucket.name}
+			title={
+				bucket.owner && !isPrivate ? (
+					// Your own Personal Allowance's Transactions are yours to see.
+					<Link
+						to="/transactions/$month"
+						params={{ month }}
+						search={{ bucket: bucket.id }}
+						className="hover:underline"
+					>
+						{bucket.name}
+					</Link>
+				) : (
+					bucket.name
+				)
+			}
 			badge={
 				bucket.status === "over" ? (
 					<Badge variant="over" dot>
@@ -302,6 +346,7 @@ function BucketRow({ bucket, covers }: { bucket: BucketState; covers?: ReactNode
 			}
 			meta={[
 				`${formatMoney(bucket.spent)} spent`,
+				isPrivate ? "Private" : null,
 				bucket.rolledOver > 0 ? `${formatMoney(bucket.rolledOver)} rolled over` : null,
 				bucket.rolledOver < 0 ? `${formatMoney(-bucket.rolledOver)} overspent last month` : null,
 				bucket.moved < 0 ? `${formatMoney(-bucket.moved)} moved out` : null,

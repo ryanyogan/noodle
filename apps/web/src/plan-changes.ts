@@ -101,6 +101,21 @@ export const withNewBucket = (
 				},
 	);
 
+export const withNewPersonalAllowance = (
+	data: MonthData,
+	variables: {
+		bucketId: string;
+		name: string;
+		color: number;
+		allowanceCents: number;
+		owner: string;
+	},
+) =>
+	mapBucket(withNewBucket(data, variables), variables.bucketId, (b) => ({
+		...b,
+		owner: variables.owner,
+	}));
+
 export const withOrder = (data: MonthData, { bucketIds }: { bucketIds: string[] }) =>
 	mapPlan(data, (plan) => ({
 		...plan,

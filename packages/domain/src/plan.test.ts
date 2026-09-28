@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { type BucketRecord, freeToSpend, type PlanRecords, planForMonth } from "./index";
+import {
+	type BucketRecord,
+	canAssign,
+	freeToSpend,
+	type PlanRecords,
+	planForMonth,
+	totalAllowances,
+} from "./index";
 
 const bucket = (id: string, overrides: Partial<BucketRecord> = {}): BucketRecord => ({
 	id,
@@ -186,5 +193,46 @@ describe("freeToSpend: the Baseline not yet assigned", () => {
 		["negative before a Baseline is set", plan(null, 5_000), -5_000],
 	])("is %s", (_, input, expected) => {
 		expect(freeToSpend(input)).toBe(expected);
+	});
+});
+
+describe("Personal Allowances", () => {
+	const records: PlanRecords = {
+		baselines: [{ month: "2026-09", amount: 900_000 }],
+		buckets: [
+			bucket("groceries", { owner: null }),
+			bucket("alex", { position: 2, owner: "parent-alex" }),
+			bucket("sam", { position: 3, owner: "parent-sam" }),
+		],
+		allowances: [
+			{ bucketId: "groceries", month: "2026-09", amount: 120_000 },
+			{ bucketId: "alex", month: "2026-09", amount: 15_000 },
+			{ bucketId: "sam", month: "2026-09", amount: 20_000 },
+		],
+		commitments: [],
+		commitmentTerms: [],
+		rolling: [],
+	};
+	const plan = planForMonth(records, "2026-09");
+
+	it("belong to their Parent and count in the Plan like any Bucket", () => {
+		expect(plan.buckets.map((b) => [b.id, b.owner])).toEqual([
+			["groceries", undefined],
+			["alex", "parent-alex"],
+			["sam", "parent-sam"],
+		]);
+		expect(totalAllowances(plan)).toBe(155_000);
+		expect(freeToSpend(plan)).toBe(745_000);
+	});
+
+	it("take spending only from their own Parent", () => {
+		const [groceries, alex, sam] = plan.buckets.map(
+			(b) => (parentId: string) => canAssign(b, parentId),
+		);
+		expect(groceries?.("parent-alex")).toBe(true);
+		expect(groceries?.("parent-sam")).toBe(true);
+		expect(alex?.("parent-alex")).toBe(true);
+		expect(alex?.("parent-sam")).toBe(false);
+		expect(sam?.("parent-alex")).toBe(false);
 	});
 });

@@ -28,6 +28,7 @@ import { testDb } from "./test-db";
 const householdId = "household";
 const parentId = "parent";
 const month = "2026-09";
+const viewer = { householdId, memberId: parentId };
 
 let db: Db;
 
@@ -87,6 +88,7 @@ const costcoSplits = [
 const splitCostco = (splits = costcoSplits, amountCents = 25_000) =>
 	splitTransaction(db, {
 		householdId,
+		memberId: parentId,
 		transactionId: "costco",
 		amountCents,
 		note: "Costco",
@@ -94,7 +96,7 @@ const splitCostco = (splits = costcoSplits, amountCents = 25_000) =>
 	});
 
 const page = (query: { bucketId?: string; forMember?: string } = {}) =>
-	loadTransactionsPage(db, householdId, { month, limit: 50, ...query });
+	loadTransactionsPage(db, viewer, { month, limit: 50, ...query });
 
 const count = async (table: string) => {
 	const [row] = await db.all<{ n: number }>(sql.raw(`select count(*) as n from ${table}`));
@@ -104,7 +106,7 @@ const count = async (table: string) => {
 describe("splitting a Transaction", () => {
 	it("spends each Split from its own Bucket, For its own Members, instead of the whole", async () => {
 		expect(await splitCostco()).toEqual({ ok: true });
-		const spending = await loadSpending(db, householdId, month);
+		const spending = await loadSpending(db, viewer, month);
 		expect(spending).toEqual([
 			{ id: "costco", bucketId: "groceries", amount: 18_000, date: "2026-09-12", for: [] },
 			{ id: "costco", bucketId: "hockey", amount: 7_000, date: "2026-09-12", for: ["leo"] },
@@ -142,7 +144,7 @@ describe("splitting a Transaction", () => {
 		).toEqual({ ok: true });
 		expect((await page()).transactions[0]?.splits.map((s) => s.id)).toEqual(["s3", "s4", "s5"]);
 		expect(await count("split_for")).toBe(3);
-		expect(await loadCharges(db, householdId, month)).toEqual([
+		expect(await loadCharges(db, viewer, month)).toEqual([
 			{ id: "costco", commitmentId: "daycare", amount: 6_000, date: "2026-09-12" },
 		]);
 	});
@@ -152,10 +154,10 @@ describe("splitting a Transaction", () => {
 			split("s1", 20_000, { commitmentId: "daycare" }, "leo"),
 			split("s2", 5_000, { commitmentId: "daycare" }, "maya"),
 		]);
-		expect(await loadCharges(db, householdId, month)).toEqual([
+		expect(await loadCharges(db, viewer, month)).toEqual([
 			{ id: "costco", commitmentId: "daycare", amount: 25_000, date: "2026-09-12" },
 		]);
-		expect(await loadSpending(db, householdId, month)).toEqual([]);
+		expect(await loadSpending(db, viewer, month)).toEqual([]);
 	});
 
 	it("refuses Splits that don't add up to the amount, changing nothing", async () => {
@@ -187,7 +189,7 @@ describe("splitting a Transaction", () => {
 		]);
 		expect(result).toEqual({ ok: false, reason: "not-in-plan" });
 		expect(await count("splits")).toBe(0);
-		expect(await loadSpending(db, householdId, month)).toEqual([
+		expect(await loadSpending(db, viewer, month)).toEqual([
 			{ id: "costco", bucketId: "groceries", amount: 25_000, date: "2026-09-12", for: ["maya"] },
 		]);
 	});
@@ -203,6 +205,7 @@ describe("splitting a Transaction", () => {
 		});
 		const fromOther = await splitTransaction(db, {
 			householdId: "other",
+			memberId: "other-parent",
 			transactionId: "costco",
 			amountCents: 25_000,
 			note: "Costco",
@@ -235,6 +238,7 @@ describe("removing Splits", () => {
 		expect(
 			await updateTransaction(db, {
 				householdId,
+				memberId: parentId,
 				transactionId: "costco",
 				amountCents: 25_000,
 				assignment: { bucketId: "hockey" },
@@ -244,14 +248,14 @@ describe("removing Splits", () => {
 		).toEqual({ ok: true });
 		expect(await count("splits")).toBe(0);
 		expect(await count("split_for")).toBe(0);
-		expect(await loadSpending(db, householdId, month)).toEqual([
+		expect(await loadSpending(db, viewer, month)).toEqual([
 			{ id: "costco", bucketId: "hockey", amount: 25_000, date: "2026-09-12", for: ["leo"] },
 		]);
 	});
 
 	it("goes with the Transaction when it's deleted", async () => {
 		await splitCostco();
-		await deleteTransaction(db, { householdId, transactionId: "costco" });
+		await deleteTransaction(db, { householdId, memberId: parentId, transactionId: "costco" });
 		expect(await count("splits")).toBe(0);
 		expect(await count("split_for")).toBe(0);
 		expect(await count("transactions")).toBe(0);
@@ -297,7 +301,7 @@ describe("Splits everywhere spending is summed", () => {
 		const records = await loadPlanRecords(db, householdId, month);
 		const state = monthState({
 			plan: planForMonth(records, month),
-			spending: await loadSpending(db, householdId, month),
+			spending: await loadSpending(db, viewer, month),
 			rolledOver: {},
 			asOf: "2026-09-15",
 		});
@@ -308,17 +312,29 @@ describe("Splits everywhere spending is summed", () => {
 	});
 
 	it("rolls a Rolling Bucket's leftover over after its Splits", async () => {
-		await setRolling(db, { householdId, bucketId: "hockey", month, rolling: true });
+		await setRolling(db, {
+			householdId,
+			memberId: parentId,
+			bucketId: "hockey",
+			month,
+			rolling: true,
+		});
 		await splitCostco();
 		const next: MonthKey = "2026-10";
-		await setAllowance(db, { householdId, bucketId: "hockey", month: next, amountCents: 40_000 });
+		await setAllowance(db, {
+			householdId,
+			memberId: parentId,
+			bucketId: "hockey",
+			month: next,
+			amountCents: 40_000,
+		});
 		const records = await loadPlanRecords(db, householdId, next);
 		expect(await loadRolledOver(db, householdId, records, next)).toEqual({ hockey: 33_000 });
 	});
 
 	it("counts each Split in a Bucket as a use of it", async () => {
 		await splitCostco();
-		const uses = await loadBucketUses(db, householdId, "2026-09-01");
+		const uses = await loadBucketUses(db, viewer, "2026-09-01");
 		expect(uses.map((use) => use.bucketId).sort()).toEqual(["groceries", "hockey"]);
 	});
 });

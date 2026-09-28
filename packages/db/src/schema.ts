@@ -105,8 +105,17 @@ export const buckets = sqliteTable(
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()
 			.default(sql`(unixepoch() * 1000)`),
+		// Set for a Personal Allowance: the Parent it belongs to. Its Transactions are private to
+		// them; the other Parent only ever reads its totals (ADR-0003, see privacy.ts).
+		ownerMemberId: text("owner_member_id").references(() => members.id),
 	},
-	(t) => [index("buckets_household_idx").on(t.householdId)],
+	(t) => [
+		index("buckets_household_idx").on(t.householdId),
+		// Each Parent has one Personal Allowance.
+		uniqueIndex("buckets_one_personal_allowance")
+			.on(t.ownerMemberId)
+			.where(sql`${t.ownerMemberId} is not null`),
+	],
 );
 
 export const bucketAllowances = sqliteTable(

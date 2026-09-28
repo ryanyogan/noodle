@@ -1,5 +1,6 @@
 import {
 	type BucketState,
+	canAssign,
 	dayKeyAt,
 	likelyBucketOrder,
 	monthKeyAt,
@@ -49,7 +50,7 @@ export function markQuickAddOpened() {
  * Quick Add, over any screen in the app frame: open while the URL says `?sheet=quick-add`, so
  * the iPhone back gesture closes it and the screen underneath stays mounted. Also opens with Q.
  */
-export function QuickAdd({ timeZone }: { timeZone: string }) {
+export function QuickAdd({ timeZone, parentId }: { timeZone: string; parentId: string }) {
 	const open = useSearch({
 		from: "/_authed/_household",
 		select: (search) => search.sheet === quickAddSearch.sheet,
@@ -101,6 +102,7 @@ export function QuickAdd({ timeZone }: { timeZone: string }) {
 				<Suspense fallback={<QuickAddPending />}>
 					<QuickAddForm
 						timeZone={timeZone}
+						parentId={parentId}
 						onAdd={(variables) => {
 							close();
 							quickAdd.mutate(variables);
@@ -128,9 +130,12 @@ function typed(amount: string, key: string): string | null {
 
 function QuickAddForm({
 	timeZone,
+	parentId,
 	onAdd,
 }: {
 	timeZone: string;
+	/** The signed-in Parent: the other Parent's Personal Allowance isn't theirs to spend from. */
+	parentId: string;
 	onAdd: (variables: QuickAddVariables) => void;
 }) {
 	// Fixed for this entry: the day it's dated and its ID, reused by any retry.
@@ -144,7 +149,11 @@ function QuickAddForm({
 	});
 	const state = useMonthState(entry.month);
 	const uses = useQuery(bucketUsesQuery()).data ?? [];
-	const buckets = likelyBucketOrder(state.buckets, uses, entry.today);
+	const buckets = likelyBucketOrder(
+		state.buckets.filter((b) => canAssign(b, parentId)),
+		uses,
+		entry.today,
+	);
 	const [amount, setAmount] = useState("");
 	// Read by key presses, which can arrive faster than re-renders.
 	const typedSoFar = useRef("");

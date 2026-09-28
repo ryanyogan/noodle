@@ -1,6 +1,7 @@
 import type { Cents, MonthKey, PlanRecords } from "@noodle/domain";
 import { and, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
 import type { Db } from "./index";
+import { assignableBy } from "./privacy";
 import {
 	baselines,
 	bucketAllowances,
@@ -34,6 +35,7 @@ export async function loadPlanRecords(
 					position: buckets.position,
 					fromMonth: buckets.fromMonth,
 					archivedFromMonth: buckets.archivedFromMonth,
+					owner: buckets.ownerMemberId,
 				})
 				.from(buckets)
 				.where(and(eq(buckets.householdId, householdId), lte(buckets.fromMonth, month))),
@@ -107,6 +109,13 @@ const ownBucket = (householdId: string, bucketId: string) =>
 	and(eq(buckets.id, bucketId), eq(buckets.householdId, householdId));
 
 /**
+ * Guards a change to a Bucket to only land if it belongs to the Household and the Parent
+ * `memberId` may change it: a Personal Allowance is set only by its own Parent.
+ */
+const changeableBucket = (input: { householdId: string; bucketId: string; memberId: string }) =>
+	and(ownBucket(input.householdId, input.bucketId), assignableBy(input.memberId));
+
+/**
  * Adds a Bucket to the Plan from `month` onward, placed last, with its first allowance.
  * Idempotent per `bucketId`: a retry leaves the first attempt's Bucket as it was.
  */
@@ -150,20 +159,82 @@ export async function addBucket(
 	]);
 }
 
-/** Renames or recolours a Bucket (in every month). */
+/**
+ * Adds the Parent `memberId`'s Personal Allowance to the Plan from `month` onward, placed last,
+ * with its first allowance. Each Parent has one: idempotent per `bucketId`, and a second one for
+ * the same Parent (say, from another tab) is refused, leaving the first as it was.
+ */
+export async function addPersonalAllowance(
+	db: Db,
+	input: {
+		householdId: string;
+		memberId: string;
+		bucketId: string;
+		name: string;
+		color: number;
+		month: MonthKey;
+		allowanceCents: Cents;
+	},
+): Promise<void> {
+	await db.batch([
+		db
+			.insert(buckets)
+			.values({
+				id: input.bucketId,
+				householdId: input.householdId,
+				name: input.name,
+				color: input.color,
+				position: sql`(select coalesce(max(${buckets.position}), 0) + 1 from ${buckets} where ${buckets.householdId} = ${input.householdId})`,
+				fromMonth: input.month,
+				ownerMemberId: input.memberId,
+			})
+			// The Bucket's ID, or the Parent already having one.
+			.onConflictDoNothing(),
+		db
+			.insert(bucketAllowances)
+			.select(
+				db
+					.select({
+						householdId: buckets.householdId,
+						bucketId: buckets.id,
+						month: sql<string>`${input.month}`.as("month"),
+						amountCents: sql<number>`${input.allowanceCents}`.as("amount_cents"),
+					})
+					.from(buckets)
+					.where(
+						and(
+							ownBucket(input.householdId, input.bucketId),
+							eq(buckets.ownerMemberId, input.memberId),
+						),
+					),
+			)
+			.onConflictDoNothing({ target: [bucketAllowances.bucketId, bucketAllowances.month] }),
+	]);
+}
+
+/** Renames or recolours a Bucket (in every month), for the Parent `memberId`. */
 export async function updateBucket(
 	db: Db,
-	input: { householdId: string; bucketId: string; name?: string; color?: number },
+	input: { householdId: string; memberId: string; bucketId: string; name?: string; color?: number },
 ): Promise<void> {
 	const { name, color } = input;
 	if (name === undefined && color === undefined) return;
-	await db.update(buckets).set({ name, color }).where(ownBucket(input.householdId, input.bucketId));
+	await db.update(buckets).set({ name, color }).where(changeableBucket(input));
 }
 
-/** Sets a Bucket's allowance from `month` onward. Setting it again for the same month replaces it. */
+/**
+ * Sets a Bucket's allowance from `month` onward, for the Parent `memberId`. Setting it again for
+ * the same month replaces it.
+ */
 export async function setAllowance(
 	db: Db,
-	input: { householdId: string; bucketId: string; month: MonthKey; amountCents: Cents },
+	input: {
+		householdId: string;
+		memberId: string;
+		bucketId: string;
+		month: MonthKey;
+		amountCents: Cents;
+	},
 ): Promise<void> {
 	await db
 		.insert(bucketAllowances)
@@ -176,7 +247,7 @@ export async function setAllowance(
 					amountCents: sql<number>`${input.amountCents}`.as("amount_cents"),
 				})
 				.from(buckets)
-				.where(ownBucket(input.householdId, input.bucketId)),
+				.where(changeableBucket(input)),
 		)
 		.onConflictDoUpdate({
 			target: [bucketAllowances.bucketId, bucketAllowances.month],
@@ -185,12 +256,18 @@ export async function setAllowance(
 }
 
 /**
- * Sets a Bucket Rolling or Fresh-start from `month` onward. Setting it again for the same month
- * replaces it.
+ * Sets a Bucket Rolling or Fresh-start from `month` onward, for the Parent `memberId`. Setting it
+ * again for the same month replaces it.
  */
 export async function setRolling(
 	db: Db,
-	input: { householdId: string; bucketId: string; month: MonthKey; rolling: boolean },
+	input: {
+		householdId: string;
+		memberId: string;
+		bucketId: string;
+		month: MonthKey;
+		rolling: boolean;
+	},
 ): Promise<void> {
 	await db
 		.insert(bucketRolling)
@@ -203,7 +280,7 @@ export async function setRolling(
 					rolling: sql<boolean>`${input.rolling ? 1 : 0}`.as("rolling"),
 				})
 				.from(buckets)
-				.where(ownBucket(input.householdId, input.bucketId)),
+				.where(changeableBucket(input)),
 		)
 		.onConflictDoUpdate({
 			target: [bucketRolling.bucketId, bucketRolling.month],
@@ -227,7 +304,8 @@ export async function reorderBuckets(
 
 /**
  * Takes a Bucket out of the Plan from `month` onward; earlier months keep it. Archiving from a
- * later month than it already was is a no-op.
+ * later month than it already was is a no-op. A Personal Allowance stays: its Parent sets its
+ * allowance to zero instead.
  */
 export async function archiveBucket(
 	db: Db,
@@ -239,6 +317,7 @@ export async function archiveBucket(
 		.where(
 			and(
 				ownBucket(input.householdId, input.bucketId),
+				isNull(buckets.ownerMemberId),
 				or(isNull(buckets.archivedFromMonth), gt(buckets.archivedFromMonth, input.month)),
 			),
 		);

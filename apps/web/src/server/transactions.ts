@@ -12,7 +12,7 @@ import { type BucketUse, type DayKey, dayKeyAt, MAX_CENTS, splitsBalance } from 
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getDb } from "./db";
-import { householdMiddleware } from "./household";
+import { householdMiddleware, viewerOf } from "./household";
 import { monthKeySchema } from "./month";
 import { notifyHousehold } from "./notify";
 import { ulidSchema } from "./schemas";
@@ -58,11 +58,7 @@ export const getBucketUses = createServerFn({ method: "GET" })
 	.middleware([householdMiddleware])
 	.handler(async ({ context }): Promise<BucketUse[]> => {
 		const since = new Date(Date.now() - LIKELY_WINDOW_DAYS * 86_400_000);
-		return loadBucketUses(
-			getDb(),
-			context.household.id,
-			dayKeyAt(since, context.household.timeZone),
-		);
+		return loadBucketUses(getDb(), viewerOf(context), dayKeyAt(since, context.household.timeZone));
 	});
 
 /** How many Transactions one page of the list holds. */
@@ -78,7 +74,10 @@ export const forFilterSchema = z.union([ulidSchema, z.literal("everyone")]);
 
 export type TransactionsPage = { transactions: TransactionRow[]; next: TransactionCursor | null };
 
-/** One page of a month's Transactions, newest first, filtered by Bucket and by who it was For. */
+/**
+ * One page of a month's Transactions, newest first, filtered by Bucket and by who it was For.
+ * Never the other Parent's Personal Allowance Transactions, whatever the filters.
+ */
 export const getTransactions = createServerFn({ method: "GET" })
 	.middleware([householdMiddleware])
 	.validator(
@@ -91,7 +90,7 @@ export const getTransactions = createServerFn({ method: "GET" })
 	)
 	.handler(
 		({ data, context }): Promise<TransactionsPage> =>
-			loadTransactionsPage(getDb(), context.household.id, { ...data, limit: PAGE_SIZE }),
+			loadTransactionsPage(getDb(), viewerOf(context), { ...data, limit: PAGE_SIZE }),
 	);
 
 /** What a Transaction, or one of its Splits, is assigned to. */
@@ -119,6 +118,7 @@ export const updateTransaction = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }) => {
 		const result = await updateTransactionInDb(getDb(), {
 			householdId: context.household.id,
+			memberId: context.parent.id,
 			transactionId: data.transactionId,
 			amountCents: data.amountCents,
 			assignment: data.assignment,
@@ -175,6 +175,7 @@ export const splitTransaction = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }) => {
 		const result = await splitTransactionInDb(getDb(), {
 			householdId: context.household.id,
+			memberId: context.parent.id,
 			transactionId: data.transactionId,
 			amountCents: data.amountCents,
 			note: data.note || null,
@@ -202,6 +203,7 @@ export const deleteTransaction = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }) => {
 		await deleteTransactionInDb(getDb(), {
 			householdId: context.household.id,
+			memberId: context.parent.id,
 			transactionId: data.transactionId,
 		});
 		await notifyHousehold(context.household.id, [

@@ -44,6 +44,7 @@ export {
 export {
 	type BucketRecord,
 	type CommitmentRecord,
+	canAssign,
 	freeToSpend,
 	type Plan,
 	type PlanBucket,

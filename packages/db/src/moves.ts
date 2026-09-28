@@ -1,6 +1,7 @@
 import { addMonths, type Cents, daysInMonth, type MonthKey, type Move } from "@noodle/domain";
 import { and, eq, gt, gte, isNull, lt, lte, or, type SQL, sql } from "drizzle-orm";
 import type { Db } from "./index";
+import { assignableBy, othersAllowance } from "./privacy";
 import { buckets, moves } from "./schema";
 
 // Moves of planned money within a month's Plan (ADR-0004: appended rows, never a stored balance
@@ -177,7 +178,11 @@ export async function addCover(
 				.where(
 					and(
 						bucketInPlan(householdId, input.toBucketId, month),
-						fromBucketId === null ? undefined : sql`${buckets.id} <> ${fromBucketId}`,
+						// The other Parent's Personal Allowance is theirs to Cover, and to Cover from.
+						assignableBy(input.createdByMemberId),
+						fromBucketId === null
+							? undefined
+							: sql`${buckets.id} <> ${fromBucketId} and not ${othersAllowance(input.createdByMemberId, fromBucketId)}`,
 						sql`${sourceLeft} >= ${input.amountCents}`,
 					),
 				),

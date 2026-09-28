@@ -111,8 +111,8 @@ const evaluate = async (expression: SQL) =>
 async function domainState(month: MonthKey) {
 	const [records, spending, charges, moves] = await Promise.all([
 		loadPlanRecords(db, householdId, month),
-		loadSpending(db, householdId, month),
-		loadCharges(db, householdId, month),
+		loadSpending(db, { householdId, memberId: parentId }, month),
+		loadCharges(db, { householdId, memberId: parentId }, month),
 		loadMoves(db, householdId, month),
 	]);
 	return monthState({
@@ -133,6 +133,7 @@ describe("the Cover guard's SQL agrees with @noodle/domain", () => {
 	beforeEach(async () => {
 		await setAllowance(db, {
 			householdId,
+			memberId: parentId,
 			bucketId: "groceries",
 			month: "2026-10",
 			amountCents: 100_000,
@@ -278,7 +279,13 @@ describe("undoMove", () => {
 
 describe("what rolls over", () => {
 	it("carries a Rolling Bucket's September leftover, after Covers, into October and later", async () => {
-		await setRolling(db, { householdId, bucketId: "hockey", month: "2026-09", rolling: true });
+		await setRolling(db, {
+			householdId,
+			memberId: parentId,
+			bucketId: "hockey",
+			month: "2026-09",
+			rolling: true,
+		});
 		await quickAdd("t1", "hockey", 45_000);
 		await cover("m1", "fun", "hockey", 2_000);
 		await quickAdd("t2", "groceries", 100_000);
@@ -291,7 +298,13 @@ describe("what rolls over", () => {
 	});
 
 	it("keeps the Cover guard in step with the domain once something has rolled over", async () => {
-		await setRolling(db, { householdId, bucketId: "hockey", month: "2026-09", rolling: true });
+		await setRolling(db, {
+			householdId,
+			memberId: parentId,
+			bucketId: "hockey",
+			month: "2026-09",
+			rolling: true,
+		});
 		await quickAdd("t1", "hockey", 10_000);
 		const month = "2026-10";
 		const records = await loadPlanRecords(db, householdId, month);
@@ -325,12 +338,25 @@ describe("what rolls over", () => {
 	it("sets Rolling only on the Household's own Buckets, replacing the same month's setting", async () => {
 		await setRolling(db, {
 			householdId: "other",
+			memberId: parentId,
 			bucketId: "hockey",
 			month: "2026-09",
 			rolling: true,
 		});
-		await setRolling(db, { householdId, bucketId: "fun", month: "2026-10", rolling: true });
-		await setRolling(db, { householdId, bucketId: "fun", month: "2026-10", rolling: false });
+		await setRolling(db, {
+			householdId,
+			memberId: parentId,
+			bucketId: "fun",
+			month: "2026-10",
+			rolling: true,
+		});
+		await setRolling(db, {
+			householdId,
+			memberId: parentId,
+			bucketId: "fun",
+			month: "2026-10",
+			rolling: false,
+		});
 		const records = await loadPlanRecords(db, householdId, "2026-12");
 		expect(records.rolling).toEqual([{ bucketId: "fun", month: "2026-10", rolling: false }]);
 	});

@@ -21,7 +21,7 @@ import {
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getDb } from "./db";
-import { type HouseholdSummary, householdMiddleware } from "./household";
+import { type HouseholdSummary, householdMiddleware, viewerOf } from "./household";
 
 export const monthKeySchema = z
 	.string()
@@ -49,16 +49,21 @@ export type MonthData = {
 	editable: boolean;
 };
 
-/** A month's inputs, read from D1 now. */
+/**
+ * A month's inputs as the Parent `parentId` may see them, read from D1 now: the other Parent's
+ * Personal Allowance spending only as its total.
+ */
 export async function loadMonth(
 	db: Db,
 	household: Pick<HouseholdSummary, "id" | "timeZone">,
+	parentId: string,
 	month: MonthKey,
 ): Promise<MonthData> {
+	const viewer = viewerOf({ household, parent: { id: parentId } });
 	const [records, spending, charges, moves] = await Promise.all([
 		loadPlanRecords(db, household.id, month),
-		loadSpending(db, household.id, month),
-		loadCharges(db, household.id, month),
+		loadSpending(db, viewer, month),
+		loadCharges(db, viewer, month),
 		loadMoves(db, household.id, month),
 	]);
 	const rolledOver = await loadRolledOver(db, household.id, records, month);
@@ -78,5 +83,6 @@ export const getMonth = createServerFn({ method: "GET" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ month: monthKeySchema }))
 	.handler(
-		({ data, context }): Promise<MonthData> => loadMonth(getDb(), context.household, data.month),
+		({ data, context }): Promise<MonthData> =>
+			loadMonth(getDb(), context.household, context.parent.id, data.month),
 	);

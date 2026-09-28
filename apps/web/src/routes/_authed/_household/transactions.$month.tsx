@@ -1,4 +1,11 @@
-import { addMonths, type DayKey, type MonthKey, monthKeyAt, type Plan } from "@noodle/domain";
+import {
+	addMonths,
+	canAssign,
+	type DayKey,
+	type MonthKey,
+	monthKeyAt,
+	type Plan,
+} from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { List, ListGroupLabel } from "@noodle/ui/components/list";
@@ -52,10 +59,14 @@ export const Route = createFileRoute("/_authed/_household/transactions/$month")(
 });
 
 function TransactionsPage() {
-	const { month, current } = Route.useRouteContext();
+	const { month, current, parentId } = Route.useRouteContext();
 	const filters = Route.useLoaderDeps();
 	const navigate = useNavigate({ from: Route.fullPath });
-	const { plan, asOf } = useSuspenseQuery(monthQuery(month)).data;
+	const data = useSuspenseQuery(monthQuery(month)).data;
+	const { asOf } = data;
+	// The other Parent's Personal Allowance isn't this Parent's to filter by or assign to (its
+	// Transactions never reach them).
+	const plan = { ...data.plan, buckets: data.plan.buckets.filter((b) => canAssign(b, parentId)) };
 	const members = useSuspenseQuery(membersQuery()).data;
 	const [editing, setEditing] = useState<TransactionRow | null>(null);
 	const change = useTransactionChange();

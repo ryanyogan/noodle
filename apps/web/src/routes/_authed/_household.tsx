@@ -12,8 +12,8 @@ export const Route = createFileRoute("/_authed/_household")({
 	// `sheet` opens a sheet over whichever page is showing.
 	validateSearch: z.object({ sheet: z.enum(["quick-add"]).optional().catch(undefined) }),
 	beforeLoad: ({ context }) => {
-		if (!context.household) throw redirect({ to: "/welcome" });
-		return { household: context.household };
+		if (!context.household || !context.parentId) throw redirect({ to: "/welcome" });
+		return { household: context.household, parentId: context.parentId };
 	},
 	// Quick Add can open from any page; have what it shows ready (not awaited, so pages don't wait).
 	loader: ({ context }) => {
@@ -26,7 +26,7 @@ export const Route = createFileRoute("/_authed/_household")({
 });
 
 function AppLayout() {
-	const { household } = Route.useRouteContext();
+	const { household, parentId } = Route.useRouteContext();
 	useLiveUpdates();
 	return (
 		<>
@@ -35,7 +35,7 @@ function AppLayout() {
 			</AppShell>
 			{/* Outside the frame: while a sheet is open the whole frame is hidden from assistive tech
 			    as one element, and the Toaster (a live region, which stays exposed) isn't inside it. */}
-			<QuickAdd timeZone={household.timeZone} />
+			<QuickAdd timeZone={household.timeZone} parentId={parentId} />
 			<Toaster />
 		</>
 	);

@@ -1,0 +1,2 @@
+ALTER TABLE `buckets` ADD `owner_member_id` text REFERENCES members(id);--> statement-breakpoint
+CREATE UNIQUE INDEX `buckets_one_personal_allowance` ON `buckets` (`owner_member_id`) WHERE "buckets"."owner_member_id" is not null;

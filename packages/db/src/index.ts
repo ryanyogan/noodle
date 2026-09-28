@@ -296,6 +296,7 @@ export {
 } from "./moves";
 export {
 	addBucket,
+	addPersonalAllowance,
 	archiveBucket,
 	loadPlanRecords,
 	reorderBuckets,
@@ -304,6 +305,7 @@ export {
 	setRolling,
 	updateBucket,
 } from "./plan";
+export { privateTotalId, type Viewer } from "./privacy";
 export { loadRolledOver } from "./rollover";
 export {
 	type Assignment,

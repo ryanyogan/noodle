@@ -1,6 +1,7 @@
 import type { Cadence, Cents, Charge, DayKey, MonthKey } from "@noodle/domain";
 import { and, eq, gt, gte, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import type { Db } from "./index";
+import { type Viewer, visibleTo } from "./privacy";
 import { commitments, commitmentTerms, splits, transactions } from "./schema";
 
 // A Household's Commitments and the payments recorded against them. Every query is scoped by
@@ -106,16 +107,17 @@ export async function endCommitment(
 export type CommitmentCharge = Charge & { id: string };
 
 /**
- * The month's Transactions assigned to Commitments, whole or through Splits. A split Transaction's
- * Splits paying the same Commitment are one charge of it (see assignedParts in @noodle/domain).
+ * The month's Transactions assigned to Commitments, whole or through Splits, as `viewer` may see
+ * them. A split Transaction's Splits paying the same Commitment are one charge of it (see
+ * assignedParts in @noodle/domain).
  */
 export async function loadCharges(
 	db: Db,
-	householdId: string,
+	viewer: Viewer,
 	month: MonthKey,
 ): Promise<CommitmentCharge[]> {
 	const inMonth = and(
-		eq(transactions.householdId, householdId),
+		visibleTo(viewer),
 		gte(transactions.date, `${month}-01`),
 		lte(transactions.date, `${month}-31`),
 	);
@@ -138,7 +140,9 @@ export async function loadCharges(
 			})
 			.from(splits)
 			.innerJoin(transactions, eq(transactions.id, splits.transactionId))
-			.where(and(inMonth, eq(splits.householdId, householdId), isNotNull(splits.commitmentId)))
+			.where(
+				and(inMonth, eq(splits.householdId, viewer.householdId), isNotNull(splits.commitmentId)),
+			)
 			.groupBy(splits.transactionId, splits.commitmentId),
 	]);
 	// commitment_id is filtered to non-null, and dates are always written as DayKeys.

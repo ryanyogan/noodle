@@ -13,7 +13,8 @@ import { ulidSchema } from "./schemas";
 
 export type Viewer =
 	| { signedIn: false }
-	| { signedIn: true; household: HouseholdSummary; invite: null }
+	// `parentId`: the signed-in Parent's own Member ID.
+	| { signedIn: true; household: HouseholdSummary; parentId: string; invite: null }
 	// Not in a Household yet: possibly invited to join one.
 	| { signedIn: true; household: null; invite: InviteToJoin | null };
 
@@ -24,7 +25,12 @@ export const getViewer = createServerFn({ method: "GET" }).handler(async (): Pro
 	const db = getDb();
 	const membership = await findMembershipByClerkUser(db, userId);
 	if (membership) {
-		return { signedIn: true, household: toHouseholdSummary(membership.household), invite: null };
+		return {
+			signedIn: true,
+			household: toHouseholdSummary(membership.household),
+			parentId: membership.parent.id,
+			invite: null,
+		};
 	}
 	const invite = await findInviteForEmails(db, await verifiedEmails(userId));
 	return { signedIn: true, household: null, invite };

@@ -1,5 +1,6 @@
 import {
 	addBucket as addBucketInDb,
+	addPersonalAllowance as addPersonalAllowanceInDb,
 	archiveBucket as archiveBucketInDb,
 	reorderBuckets as reorderBucketsInDb,
 	setAllowance as setAllowanceInDb,
@@ -66,7 +67,33 @@ export const updateBucket = createServerFn({ method: "POST" })
 		}),
 	)
 	.handler(async ({ data, context }) => {
-		await updateBucketInDb(getDb(), { householdId: context.household.id, ...data });
+		await updateBucketInDb(getDb(), {
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			...data,
+		});
+		await notifyHousehold(context.household.id, ["months"]);
+	});
+
+/** Adds the signed-in Parent's Personal Allowance to the Plan from `month` onward. */
+export const addPersonalAllowance = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			bucketId: ulidSchema,
+			month: monthKeySchema,
+			name: bucketNameSchema,
+			color: colorSchema,
+			allowanceCents: centsSchema,
+		}),
+	)
+	.handler(async ({ data, context }) => {
+		assertEditable(context.household, data.month);
+		await addPersonalAllowanceInDb(getDb(), {
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			...data,
+		});
 		await notifyHousehold(context.household.id, ["months"]);
 	});
 
@@ -75,7 +102,11 @@ export const setAllowance = createServerFn({ method: "POST" })
 	.validator(z.object({ bucketId: ulidSchema, month: monthKeySchema, amountCents: centsSchema }))
 	.handler(async ({ data, context }) => {
 		assertEditable(context.household, data.month);
-		await setAllowanceInDb(getDb(), { householdId: context.household.id, ...data });
+		await setAllowanceInDb(getDb(), {
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			...data,
+		});
 		await notifyHousehold(context.household.id, ["months"]);
 	});
 
@@ -85,7 +116,11 @@ export const setRolling = createServerFn({ method: "POST" })
 	.validator(z.object({ bucketId: ulidSchema, month: monthKeySchema, rolling: z.boolean() }))
 	.handler(async ({ data, context }) => {
 		assertEditable(context.household, data.month);
-		await setRollingInDb(getDb(), { householdId: context.household.id, ...data });
+		await setRollingInDb(getDb(), {
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			...data,
+		});
 		await notifyHousehold(context.household.id, ["months"]);
 	});
 

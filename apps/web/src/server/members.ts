@@ -11,7 +11,7 @@ import { type ForTotals, forTotals } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getDb } from "./db";
-import { householdMiddleware } from "./household";
+import { householdMiddleware, viewerOf } from "./household";
 import { monthKeySchema } from "./month";
 import { notifyHousehold } from "./notify";
 import { ulidSchema } from "./schemas";
@@ -74,7 +74,7 @@ export const getForTotalsEarlierInYear = createServerFn({ method: "GET" })
 	.handler(async ({ data, context }): Promise<ForTotalsEarlier> => {
 		const db = getDb();
 		const [spending, records] = await Promise.all([
-			loadSpendingEarlierInYear(db, context.household.id, data.month),
+			loadSpendingEarlierInYear(db, viewerOf(context), data.month),
 			loadPlanRecords(db, context.household.id, data.month),
 		]);
 		return {

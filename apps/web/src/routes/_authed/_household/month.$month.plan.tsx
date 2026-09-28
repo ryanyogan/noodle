@@ -8,6 +8,7 @@ import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { Archive, ArrowDown, ArrowUp, ChevronLeft, Pencil, Plus } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
@@ -24,14 +25,16 @@ import {
 	withBaseline,
 	withBucketDetails,
 	withNewBucket,
+	withNewPersonalAllowance,
 	withOrder,
 	withoutBucket,
 	withRolling,
 } from "../../../plan-changes";
-import { useMonthState } from "../../../queries";
+import { membersQuery, useMonthState } from "../../../queries";
 import { endCommitment } from "../../../server/commitments";
 import {
 	addBucket,
+	addPersonalAllowance,
 	archiveBucket,
 	reorderBuckets,
 	setAllowance,
@@ -45,8 +48,10 @@ export const Route = createFileRoute("/_authed/_household/month/$month/plan")({
 });
 
 function PlanPage() {
-	const { month } = Route.useRouteContext();
+	const { month, parentId } = Route.useRouteContext();
 	const state = useMonthState(month);
+	const buckets = state.buckets.filter((b) => b.owner === undefined);
+	const allowances = state.buckets.filter((b) => b.owner !== undefined);
 	// Owned here: archiving removes the Bucket's row, which must not take the error with it.
 	const archive = usePlanChange(month, {
 		save: (data: { bucketId: string; month: MonthKey }) => archiveBucket({ data }),
@@ -100,16 +105,16 @@ function PlanPage() {
 					{state.editable ? <AddCommitment month={month} /> : null}
 				</Section>
 				<Section aria-labelledby="plan-buckets">
-					<SectionHeader id="plan-buckets" title="Buckets" count={state.buckets.length} />
+					<SectionHeader id="plan-buckets" title="Buckets" count={buckets.length} />
 					<SaveFailed change={archive} />
-					{state.buckets.length > 0 ? (
+					{buckets.length > 0 ? (
 						<List>
-							{state.buckets.map((bucket, index) => (
+							{buckets.map((bucket, index) => (
 								<BucketEditor
 									key={bucket.id}
 									month={month}
 									bucket={bucket}
-									order={state.buckets.map((b) => b.id)}
+									order={buckets.map((b) => b.id)}
 									index={index}
 									editable={state.editable}
 									onArchive={(bucketId) => archive.mutate({ bucketId, month })}
@@ -118,6 +123,32 @@ function PlanPage() {
 						</List>
 					) : null}
 					{state.editable ? <AddBucket month={month} buckets={state.buckets} /> : null}
+				</Section>
+				<Section aria-labelledby="plan-personal-allowances">
+					<SectionHeader
+						id="plan-personal-allowances"
+						title="Personal Allowances"
+						count={allowances.length}
+					/>
+					{allowances.length > 0 ? (
+						<List>
+							{allowances.map((bucket) => (
+								<BucketEditor
+									key={bucket.id}
+									month={month}
+									bucket={bucket}
+									order={[bucket.id]}
+									index={0}
+									// Each Parent sets their own; the other's shows its amount.
+									editable={state.editable && bucket.owner === parentId}
+									onArchive={() => undefined}
+								/>
+							))}
+						</List>
+					) : null}
+					{state.editable && !allowances.some((b) => b.owner === parentId) ? (
+						<AddPersonalAllowance month={month} parentId={parentId} buckets={state.buckets} />
+					) : null}
 				</Section>
 			</div>
 		</>
@@ -407,38 +438,42 @@ function BucketDetails({
 					</label>
 				))}
 			</fieldset>
-			<div className="flex flex-wrap items-center gap-2">
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					disabled={index === 0}
-					onClick={() => move(-1)}
-				>
-					<ArrowUp />
-					Move up
-				</Button>
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					disabled={index === order.length - 1}
-					onClick={() => move(1)}
-				>
-					<ArrowDown />
-					Move down
-				</Button>
-				<Button
-					type="button"
-					variant="ghost"
-					size="sm"
-					className="ms-auto"
-					onClick={() => setConfirmArchive(true)}
-				>
-					<Archive />
-					Archive
-				</Button>
-			</div>
+			{/* A Personal Allowance has its own section, and stays in the Plan: its Parent sets it to
+			    zero rather than archiving it. */}
+			{bucket.owner === undefined ? (
+				<div className="flex flex-wrap items-center gap-2">
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						disabled={index === 0}
+						onClick={() => move(-1)}
+					>
+						<ArrowUp />
+						Move up
+					</Button>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						disabled={index === order.length - 1}
+						onClick={() => move(1)}
+					>
+						<ArrowDown />
+						Move down
+					</Button>
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						className="ms-auto"
+						onClick={() => setConfirmArchive(true)}
+					>
+						<Archive />
+						Archive
+					</Button>
+				</div>
+			) : null}
 			{confirmArchive ? (
 				<Confirm
 					onConfirm={() => onArchive(bucket.id)}
@@ -465,6 +500,89 @@ const rollingOptions = [
 			"What’s left carries into next month, and so does overspending that isn’t Covered.",
 	},
 ];
+
+/**
+ * Sets up the signed-in Parent's Personal Allowance: a Bucket of their own, counted in the Plan,
+ * whose Transactions only they see.
+ */
+function AddPersonalAllowance({
+	month,
+	parentId,
+	buckets,
+}: {
+	month: MonthKey;
+	parentId: string;
+	buckets: PlanBucket[];
+}) {
+	const hydrated = useHydrated();
+	const members = useSuspenseQuery(membersQuery()).data;
+	const firstName = members.find((m) => m.id === parentId)?.name.split(/\s+/)[0];
+	// Reused by a retry of the same attempt, so it's added once.
+	const [bucketId] = useState(() => ulid());
+	const [invalidAmount, setInvalidAmount] = useState(false);
+	const add = usePlanChange(month, {
+		save: (data: {
+			bucketId: string;
+			month: MonthKey;
+			name: string;
+			color: number;
+			allowanceCents: number;
+		}) => addPersonalAllowance({ data }),
+		apply: (data, variables) => withNewPersonalAllowance(data, { ...variables, owner: parentId }),
+	});
+
+	function onSubmit(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		const allowanceCents = parseDollars(
+			String(new FormData(event.currentTarget).get("allowance") ?? ""),
+		);
+		setInvalidAmount(allowanceCents === null);
+		if (allowanceCents === null) return;
+		add.mutate({
+			bucketId,
+			month,
+			name: firstName ? `${firstName}’s Personal Allowance` : "Personal Allowance",
+			color: nextBucketColor(buckets.map((b) => b.color)),
+			allowanceCents,
+		});
+	}
+
+	return (
+		<Card>
+			<form onSubmit={onSubmit} className="grid gap-3 p-(--card-pad)">
+				<p className="text-[13px] text-muted-foreground">
+					Money that’s yours to spend each month. It counts in the Plan like any Bucket; the other
+					Parent sees only its totals, never what you spent it on.
+				</p>
+				<Field label="Your Personal Allowance" htmlFor="new-personal-allowance">
+					<Input
+						id="new-personal-allowance"
+						name="allowance"
+						required
+						inputMode="decimal"
+						autoComplete="off"
+						placeholder="0"
+						className="tabular-nums sm:w-40"
+						aria-invalid={invalidAmount || undefined}
+					/>
+				</Field>
+				{invalidAmount ? (
+					<FormError>Enter the allowance as a dollar amount, like 250 or 85.50.</FormError>
+				) : null}
+				<SaveFailed change={add} />
+				<Button
+					type="submit"
+					variant="secondary"
+					className="justify-self-start"
+					disabled={!hydrated}
+				>
+					<Plus />
+					Set up Personal Allowance
+				</Button>
+			</form>
+		</Card>
+	);
+}
 
 function AddBucket({ month, buckets }: { month: MonthKey; buckets: PlanBucket[] }) {
 	const hydrated = useHydrated();

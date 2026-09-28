@@ -49,7 +49,7 @@ export const coverBucket = createServerFn({ method: "POST" })
 		assertCurrentMonth(household, data.month);
 		const db = getDb();
 		const leftNow = async () => {
-			const month = await loadMonth(db, household, data.month);
+			const month = await loadMonth(db, household, context.parent.id, data.month);
 			const fromRolledOver =
 				data.fromBucketId === null ? 0 : (month.rolledOver[data.fromBucketId] ?? 0);
 			// A retry mustn't count its own earlier attempt against the source.

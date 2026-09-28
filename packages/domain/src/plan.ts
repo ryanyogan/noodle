@@ -32,6 +32,8 @@ export type BucketRecord = {
 	fromMonth: MonthKey;
 	/** The first month the Bucket is no longer part of the Plan, once archived. */
 	archivedFromMonth: MonthKey | null;
+	/** Set for a Personal Allowance: the Parent it belongs to. */
+	owner?: string | null;
 };
 
 export type CommitmentRecord = {
@@ -50,6 +52,11 @@ export type PlanBucket = {
 	allowance: Cents;
 	/** Rolling: what's left at the end of this month carries into the next. Else Fresh-start. */
 	rolling: boolean;
+	/**
+	 * Set for a Personal Allowance: the Parent it belongs to. Only they see its Transactions and
+	 * assign spending to it (see `canAssign`); it counts in the Plan like any Bucket.
+	 */
+	owner?: string;
 };
 
 export type PlanCommitment = { id: string; name: string } & CommitmentTerms;
@@ -94,7 +101,8 @@ export function planForMonth(records: PlanRecords, month: MonthKey): Plan {
 	const buckets = records.buckets
 		.filter((b) => inPlan(month, b.fromMonth, b.archivedFromMonth))
 		.sort((a, b) => a.position - b.position || (a.id < b.id ? -1 : 1))
-		.map(({ id, name, color }) => ({
+		.map(({ id, name, color, owner }) => ({
+			...(owner ? { owner } : {}),
 			id,
 			name,
 			color,
@@ -115,6 +123,14 @@ export function planForMonth(records: PlanRecords, month: MonthKey): Plan {
 		commitments,
 		buckets,
 	};
+}
+
+/**
+ * Whether a Parent can assign spending to a Bucket: any Bucket but the other Parent's Personal
+ * Allowance.
+ */
+export function canAssign(bucket: Pick<PlanBucket, "owner">, parentId: string): boolean {
+	return bucket.owner === undefined || bucket.owner === parentId;
 }
 
 /** Everything the Plan assigns to Buckets this month. */
