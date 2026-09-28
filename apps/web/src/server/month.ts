@@ -1,4 +1,4 @@
-import { loadPlanRecords } from "@noodle/db";
+import { type BucketSpend, loadPlanRecords, loadSpending } from "@noodle/db";
 import {
 	type DayKey,
 	dayKeyAt,
@@ -6,7 +6,6 @@ import {
 	monthKeyAt,
 	type Plan,
 	planForMonth,
-	type Spend,
 } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -25,7 +24,7 @@ export const monthKeySchema = z
  */
 export type MonthData = {
 	plan: Plan;
-	spending: Spend[];
+	spending: BucketSpend[];
 	asOf: DayKey;
 	/** Past months' Plans are closed; this month and later can be changed. */
 	editable: boolean;
@@ -36,12 +35,15 @@ export const getMonth = createServerFn({ method: "GET" })
 	.validator(z.object({ month: monthKeySchema }))
 	.handler(async ({ data, context }): Promise<MonthData> => {
 		const { id, timeZone } = context.household;
-		const records = await loadPlanRecords(getDb(), id, data.month);
+		const db = getDb();
+		const [records, spending] = await Promise.all([
+			loadPlanRecords(db, id, data.month),
+			loadSpending(db, id, data.month),
+		]);
 		const now = new Date();
 		return {
 			plan: planForMonth(records, data.month),
-			// Transactions arrive with Quick Add (#6).
-			spending: [],
+			spending,
 			asOf: dayKeyAt(now, timeZone),
 			editable: data.month >= monthKeyAt(now, timeZone),
 		};

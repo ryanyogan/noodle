@@ -2,6 +2,15 @@ import { type MonthKey, type MonthState, monthState } from "@noodle/domain";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { getHouseholdParents } from "./server/invites";
 import { getMonth, type MonthData } from "./server/month";
+import { getViewer } from "./server/session";
+import { getBucketUses } from "./server/transactions";
+
+/** Who is signed in and their Household; read by the route guards. */
+export const viewerQuery = () =>
+	queryOptions({
+		queryKey: ["viewer"],
+		queryFn: () => getViewer(),
+	});
 
 /** Every month's data; a Plan change can affect later months too. */
 export const monthsKey = ["month"] as const;
@@ -20,6 +29,13 @@ const toMonthState = (data: MonthData): MonthState & { editable: boolean } => ({
 /** A month's state, derived from its cached inputs, so optimistic edits show up everywhere. */
 export const useMonthState = (month: MonthKey) =>
 	useSuspenseQuery({ ...monthQuery(month), select: toMonthState }).data;
+
+/** Recent spending's Buckets, for ordering Quick Add's Buckets by likelihood. */
+export const bucketUsesQuery = () =>
+	queryOptions({
+		queryKey: ["bucket-uses"],
+		queryFn: () => getBucketUses(),
+	});
 
 export const householdParentsQuery = () =>
 	queryOptions({

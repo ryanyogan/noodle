@@ -1,9 +1,11 @@
 import { UserButton } from "@clerk/tanstack-react-start";
+import { Button } from "@noodle/ui/components/button";
 import { Logo } from "@noodle/ui/components/logo";
 import { cn } from "@noodle/ui/lib/utils";
 import { Link, type LinkProps } from "@tanstack/react-router";
-import { CalendarDays, type LucideIcon, UsersRound } from "lucide-react";
-import type { ReactNode } from "react";
+import { CalendarDays, type LucideIcon, Plus, UsersRound } from "lucide-react";
+import type { ComponentProps, ReactNode } from "react";
+import { markQuickAddOpened, quickAddSearch } from "./quick-add";
 
 type NavItem = { to: LinkProps["to"]; label: string; short: string; icon: LucideIcon };
 
@@ -45,6 +47,17 @@ function Sidebar({ householdName }: { householdName: string }) {
 			<Link to="/month" className="rounded-lg px-3 py-1" aria-label="Noodle, This Month">
 				<Logo />
 			</Link>
+			<Button asChild className="mx-1">
+				<QuickAddLink>
+					<Plus />
+					Quick Add
+					<span aria-hidden="true" className="ms-auto">
+						<kbd className="rounded-sm border border-current/40 px-1 font-sans text-xs leading-4 opacity-60">
+							Q
+						</kbd>
+					</span>
+				</QuickAddLink>
+			</Button>
 			<nav aria-label="Main" className="grid gap-0.5">
 				{nav.map((item) => (
 					<Link
@@ -72,6 +85,25 @@ function Sidebar({ householdName }: { householdName: string }) {
 	);
 }
 
+/** Opens Quick Add over the current page (a history entry, so Back closes it). */
+function QuickAddLink(props: Omit<ComponentProps<"a">, "href">) {
+	return (
+		<Link
+			to="."
+			search={(prev) => ({ ...prev, ...quickAddSearch })}
+			aria-keyshortcuts="Q"
+			{...props}
+			onClick={(event) => {
+				props.onClick?.(event);
+				// A modified click opens a new tab; this one stays where it is.
+				if (!(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)) {
+					markQuickAddOpened();
+				}
+			}}
+		/>
+	);
+}
+
 function TabBar() {
 	return (
 		<nav
@@ -82,7 +114,20 @@ function TabBar() {
 				"px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+6px)]",
 			)}
 		>
-			{nav.map((item) => (
+			{nav.map((item, index) => [
+				// Quick Add sits in the middle of the bar, in easy reach of either thumb.
+				index === Math.ceil(nav.length / 2) ? (
+					<QuickAddLink
+						key="quick-add"
+						className={cn(
+							"grid h-10 w-12 place-items-center self-center justify-self-center rounded-[14px] bg-primary text-primary-foreground",
+							"transition-transform duration-(--duration-fast) ease-standard active:scale-[0.94]",
+						)}
+					>
+						<Plus className="size-5.5" strokeWidth={2.2} aria-hidden="true" />
+						<span className="sr-only">Quick Add</span>
+					</QuickAddLink>
+				) : null,
 				<Link
 					key={item.label}
 					to={item.to}
@@ -93,8 +138,8 @@ function TabBar() {
 				>
 					<item.icon className="size-5.5" strokeWidth={1.75} aria-hidden="true" />
 					{item.short}
-				</Link>
-			))}
+				</Link>,
+			])}
 		</nav>
 	);
 }

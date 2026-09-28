@@ -3,7 +3,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { monthQuery, monthsKey } from "./queries";
 import type { MonthData } from "./server/month";
 
-const planChangeKey = ["plan-change"] as const;
+/**
+ * Every change that edits a month's cached inputs (Plan changes, Quick Adds) shares this key, so
+ * the refetch after one waits until none is in flight rather than briefly undoing another.
+ */
+export const monthChangeKey = ["month-change"] as const;
 
 /**
  * A change to the Plan, applied to the month's cached inputs at once (ADR-0006) so every screen
@@ -25,7 +29,7 @@ export function usePlanChange<TVariables>(
 	const queryClient = useQueryClient();
 	const { queryKey } = monthQuery(month);
 	return useMutation({
-		mutationKey: planChangeKey,
+		mutationKey: monthChangeKey,
 		mutationFn: save,
 		onMutate: async (variables) => {
 			await queryClient.cancelQueries({ queryKey });
@@ -38,7 +42,7 @@ export function usePlanChange<TVariables>(
 		},
 		onSettled: () => {
 			// Refetching while another change is in flight would briefly undo it on screen.
-			if (queryClient.isMutating({ mutationKey: planChangeKey }) === 1) {
+			if (queryClient.isMutating({ mutationKey: monthChangeKey }) === 1) {
 				return queryClient.invalidateQueries({ queryKey: monthsKey });
 			}
 		},

@@ -276,3 +276,10 @@ export {
 	setBaseline,
 	updateBucket,
 } from "./plan";
+export {
+	addQuickAdd,
+	type BucketSpend,
+	loadBucketUses,
+	loadSpending,
+	type QuickAddResult,
+} from "./transactions";

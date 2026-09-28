@@ -123,6 +123,31 @@ export const bucketAllowances = sqliteTable(
 	],
 );
 
+// Real money in or out. `date` is the day it happened in the Household's time zone ("YYYY-MM-DD");
+// `amount_cents` is money spent, so spending is positive. A Quick Add has no Account until it is
+// Matched to an imported Transaction.
+export const transactions = sqliteTable(
+	"transactions",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		source: text("source", { enum: ["quick-add"] }).notNull(),
+		date: text("date").notNull(),
+		amountCents: integer("amount_cents").notNull(),
+		// The Bucket it is assigned to as a whole; null while unassigned.
+		bucketId: text("bucket_id").references(() => buckets.id),
+		note: text("note"),
+		// The Parent who entered it; null for imported Transactions.
+		createdByMemberId: text("created_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [index("transactions_household_date_idx").on(t.householdId, t.date)],
+);
+
 export type Household = typeof households.$inferSelect;
 export type Member = typeof members.$inferSelect;
 export type Invite = typeof invites.$inferSelect;

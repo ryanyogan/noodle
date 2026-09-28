@@ -1,13 +1,16 @@
 // Pure money math for the Plan (no I/O). Scenario projection and Affordability entry points
 // land here as their tickets arrive.
+export { type BucketUse, likelyBucketOrder } from "./likely";
 export { type Cents, MAX_CENTS, parseDollars } from "./money";
 export {
 	type DayKey,
 	dayKeyAt,
+	daysBetween,
 	daysInMonth,
 	lastDayOf,
 	type MonthKey,
 	monthKeyAt,
+	monthOfDay,
 } from "./month";
 export {
 	type BucketState,

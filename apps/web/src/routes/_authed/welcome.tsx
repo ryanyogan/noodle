@@ -3,11 +3,12 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useHydrated, useRouter } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { ulid } from "ulid";
 import { CenteredHeading, CenteredPage } from "../../components/centered-page";
+import { viewerQuery } from "../../queries";
 import { acceptInvite } from "../../server/invites";
 import { createHousehold } from "../../server/session";
 
@@ -32,7 +33,9 @@ function Welcome() {
 /** After joining or creating, re-run the route guards so they see the new Household. */
 function useEnterHousehold() {
 	const router = useRouter();
+	const queryClient = useQueryClient();
 	return async () => {
+		await queryClient.invalidateQueries({ queryKey: viewerQuery().queryKey, refetchType: "none" });
 		await router.invalidate();
 		await router.navigate({ to: "/month" });
 	};
