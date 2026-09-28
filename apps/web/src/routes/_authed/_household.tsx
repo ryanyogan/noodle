@@ -1,5 +1,5 @@
 import { UserButton } from "@clerk/tanstack-react-start";
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, redirect } from "@tanstack/react-router";
 
 // The authenticated app layout: requires the Parent to belong to a Household.
 export const Route = createFileRoute("/_authed/_household")({
@@ -16,6 +16,9 @@ function AppLayout() {
 		<div>
 			<header>
 				<span>{household.name}</span>
+				<nav>
+					<Link to="/month">This Month</Link> <Link to="/household">Household</Link>
+				</nav>
 				<UserButton />
 			</header>
 			<Outlet />

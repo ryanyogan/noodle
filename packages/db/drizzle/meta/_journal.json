@@ -15,6 +15,13 @@
       "when": 1790610502721,
       "tag": "0001_household_time_zone",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790617043927,
+      "tag": "0002_invites",
+      "breakpoints": true
     }
   ]
 }

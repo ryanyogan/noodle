@@ -1,24 +1,34 @@
-import { createHouseholdForParent, findMembershipByClerkUser } from "@noodle/db";
+import {
+	createHouseholdForParent,
+	findInviteForEmails,
+	findMembershipByClerkUser,
+	type InviteToJoin,
+} from "@noodle/db";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { currentUserId, requireUserId } from "./auth";
+import { currentUserId, requireUserId, verifiedEmails } from "./auth";
 import { getDb } from "./db";
 import { type HouseholdSummary, toHouseholdSummary } from "./household";
+import { ulidSchema } from "./schemas";
 
-export type Viewer = { signedIn: false } | { signedIn: true; household: HouseholdSummary | null };
+export type Viewer =
+	| { signedIn: false }
+	| { signedIn: true; household: HouseholdSummary; invite: null }
+	// Not in a Household yet: possibly invited to join one.
+	| { signedIn: true; household: null; invite: InviteToJoin | null };
 
 /** Who is looking: used by route guards to redirect to sign in or Household creation. */
 export const getViewer = createServerFn({ method: "GET" }).handler(async (): Promise<Viewer> => {
 	const userId = await currentUserId();
 	if (!userId) return { signedIn: false };
-	const membership = await findMembershipByClerkUser(getDb(), userId);
-	return {
-		signedIn: true,
-		household: membership ? toHouseholdSummary(membership.household) : null,
-	};
+	const db = getDb();
+	const membership = await findMembershipByClerkUser(db, userId);
+	if (membership) {
+		return { signedIn: true, household: toHouseholdSummary(membership.household), invite: null };
+	}
+	const invite = await findInviteForEmails(db, await verifiedEmails(userId));
+	return { signedIn: true, household: null, invite };
 });
-
-const ulidSchema = z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/, "Expected a ULID");
 
 const timeZoneSchema = z.string().refine((zone) => {
 	try {

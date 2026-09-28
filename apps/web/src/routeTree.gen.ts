@@ -14,6 +14,7 @@ import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as AuthedHouseholdRouteImport } from './routes/_authed/_household'
 import { Route as AuthedWelcomeRouteImport } from './routes/_authed/welcome'
 import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
+import { Route as AuthedHouseholdHouseholdRouteImport } from './routes/_authed/_household/household'
 import { Route as AuthedHouseholdMonthIndexRouteImport } from './routes/_authed/_household/month.index'
 import { Route as AuthedHouseholdMonthMonthRouteImport } from './routes/_authed/_household/month.$month'
 
@@ -40,6 +41,12 @@ const SignInSplatRoute = SignInSplatRouteImport.update({
   path: '/sign-in/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthedHouseholdHouseholdRoute =
+  AuthedHouseholdHouseholdRouteImport.update({
+    id: '/household',
+    path: '/household',
+    getParentRoute: () => AuthedHouseholdRoute,
+  } as any)
 const AuthedHouseholdMonthIndexRoute =
   AuthedHouseholdMonthIndexRouteImport.update({
     id: '/month/',
@@ -57,6 +64,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
+  '/household': typeof AuthedHouseholdHouseholdRoute
   '/month/$month': typeof AuthedHouseholdMonthMonthRoute
   '/month/': typeof AuthedHouseholdMonthIndexRoute
 }
@@ -64,6 +72,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
+  '/household': typeof AuthedHouseholdHouseholdRoute
   '/month/$month': typeof AuthedHouseholdMonthMonthRoute
   '/month': typeof AuthedHouseholdMonthIndexRoute
 }
@@ -74,14 +83,17 @@ export interface FileRoutesById {
   '/_authed/_household': typeof AuthedHouseholdRouteWithChildren
   '/_authed/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
+  '/_authed/_household/household': typeof AuthedHouseholdHouseholdRoute
   '/_authed/_household/month/$month': typeof AuthedHouseholdMonthMonthRoute
   '/_authed/_household/month/': typeof AuthedHouseholdMonthIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/welcome' | '/sign-in/$' | '/month/$month' | '/month/'
+  fullPaths:
+    '/' | '/welcome' | '/sign-in/$' | '/household' | '/month/$month' | '/month/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/welcome' | '/sign-in/$' | '/month/$month' | '/month'
+  to:
+    '/' | '/welcome' | '/sign-in/$' | '/household' | '/month/$month' | '/month'
   id:
     | '__root__'
     | '/'
@@ -89,6 +101,7 @@ export interface FileRouteTypes {
     | '/_authed/_household'
     | '/_authed/welcome'
     | '/sign-in/$'
+    | '/_authed/_household/household'
     | '/_authed/_household/month/$month'
     | '/_authed/_household/month/'
   fileRoutesById: FileRoutesById
@@ -136,6 +149,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignInSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authed/_household/household': {
+      id: '/_authed/_household/household'
+      path: '/household'
+      fullPath: '/household'
+      preLoaderRoute: typeof AuthedHouseholdHouseholdRouteImport
+      parentRoute: typeof AuthedHouseholdRoute
+    }
     '/_authed/_household/month/': {
       id: '/_authed/_household/month/'
       path: '/month'
@@ -154,11 +174,13 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthedHouseholdRouteChildren {
+  AuthedHouseholdHouseholdRoute: typeof AuthedHouseholdHouseholdRoute
   AuthedHouseholdMonthMonthRoute: typeof AuthedHouseholdMonthMonthRoute
   AuthedHouseholdMonthIndexRoute: typeof AuthedHouseholdMonthIndexRoute
 }
 
 const AuthedHouseholdRouteChildren: AuthedHouseholdRouteChildren = {
+  AuthedHouseholdHouseholdRoute: AuthedHouseholdHouseholdRoute,
   AuthedHouseholdMonthMonthRoute: AuthedHouseholdMonthMonthRoute,
   AuthedHouseholdMonthIndexRoute: AuthedHouseholdMonthIndexRoute,
 }

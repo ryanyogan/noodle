@@ -20,6 +20,6 @@ export const householdMiddleware = createMiddleware({ type: "function" }).server
 	async ({ next }) => {
 		const membership = await findMembershipByClerkUser(getDb(), await requireUserId());
 		if (!membership) throw new Error("No Household for this Parent");
-		return next({ context: { household: membership.household } });
+		return next({ context: { household: membership.household, parent: membership.parent } });
 	},
 );
