@@ -10,10 +10,13 @@ import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { Archive, ArrowDown, ArrowUp, ChevronLeft, Pencil, Plus } from "lucide-react";
-import { type FormEvent, type ReactNode, useId, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, bucketColors, monogram, nextBucketColor } from "../../../buckets";
+import { withoutCommitment } from "../../../commitments";
+import { AddCommitment, CommitmentEditor } from "../../../components/commitment-editor";
 import { MoneyInput } from "../../../components/money-input";
+import { Confirm, SaveFailed } from "../../../components/plan-editing";
 import { formatMoney, monthName } from "../../../format";
 import {
 	usePlanChange,
@@ -25,6 +28,7 @@ import {
 	withoutBucket,
 } from "../../../plan-changes";
 import { useMonthState } from "../../../queries";
+import { endCommitment } from "../../../server/commitments";
 import {
 	addBucket,
 	archiveBucket,
@@ -46,6 +50,11 @@ function PlanPage() {
 		save: (data: { bucketId: string; month: MonthKey }) => archiveBucket({ data }),
 		apply: withoutBucket,
 	});
+	// Owned here for the same reason: ending a Commitment removes its row.
+	const end = usePlanChange(month, {
+		save: (data: { commitmentId: string; month: MonthKey }) => endCommitment({ data }),
+		apply: withoutCommitment,
+	});
 	return (
 		<>
 			<PageHeader
@@ -66,6 +75,28 @@ function PlanPage() {
 					</Card>
 				)}
 				<Summary state={state} />
+				<Section aria-labelledby="plan-commitments">
+					<SectionHeader
+						id="plan-commitments"
+						title="Commitments"
+						count={state.commitments.length}
+					/>
+					<SaveFailed change={end} />
+					{state.commitments.length > 0 ? (
+						<List>
+							{state.commitments.map((commitment) => (
+								<CommitmentEditor
+									key={commitment.id}
+									month={month}
+									commitment={commitment}
+									editable={state.editable}
+									onEnd={(commitmentId) => end.mutate({ commitmentId, month })}
+								/>
+							))}
+						</List>
+					) : null}
+					{state.editable ? <AddCommitment month={month} /> : null}
+				</Section>
 				<Section aria-labelledby="plan-buckets">
 					<SectionHeader id="plan-buckets" title="Buckets" count={state.buckets.length} />
 					<SaveFailed change={archive} />
@@ -91,7 +122,10 @@ function PlanPage() {
 	);
 }
 
-/** Baseline, less what the Buckets take, is Free to Spend. Over-planning is said out loud. */
+/**
+ * Baseline, less what the Commitments and Buckets take, is Free to Spend. Over-planning is
+ * said out loud.
+ */
 function Summary({ state }: { state: MonthState & { editable: boolean } }) {
 	const hydrated = useHydrated();
 	const change = usePlanChange(state.month, {
@@ -124,6 +158,9 @@ function Summary({ state }: { state: MonthState & { editable: boolean } }) {
 					<SaveFailed change={change} />
 				</div>
 				<dl className="grid gap-2 border-t p-(--card-pad) text-sm">
+					{state.commitments.length > 0 ? (
+						<SummaryRow label="Commitments" value={`−${formatMoney(state.committed)}`} />
+					) : null}
 					<SummaryRow label="In Buckets" value={`−${formatMoney(state.planned)}`} />
 					<SummaryRow
 						label="Free to Spend"
@@ -136,8 +173,9 @@ function Summary({ state }: { state: MonthState & { editable: boolean } }) {
 						role="status"
 						className="border-t bg-over-soft px-(--card-pad) py-3 text-[13px] text-over"
 					>
-						Your Buckets add up to {formatMoney(overBy)} more than your Baseline. Lower an allowance
-						or raise the Baseline.
+						{state.commitments.length > 0
+							? `Your Commitments and Buckets add up to ${formatMoney(overBy)} more than your Baseline. Lower an amount or raise the Baseline.`
+							: `Your Buckets add up to ${formatMoney(overBy)} more than your Baseline. Lower an allowance or raise the Baseline.`}
 					</p>
 				) : null}
 			</Card>
@@ -159,24 +197,6 @@ function SummaryRow({
 			<dt>{label}</dt>
 			<dd className="tabular-nums">{value}</dd>
 		</div>
-	);
-}
-
-/** Says a Plan change didn't save (and was rolled back), with a retry of the same change. */
-function SaveFailed<V>({
-	change,
-}: {
-	change: { isError: boolean; variables: V | undefined; mutate: (variables: V) => void };
-}) {
-	if (!change.isError || change.variables === undefined) return null;
-	const { variables } = change;
-	return (
-		<FormError className="items-center justify-between">
-			We couldn’t save that change, so it’s been undone.
-			<Button variant="outline" size="sm" type="button" onClick={() => change.mutate(variables)}>
-				Try again
-			</Button>
-		</FormError>
 	);
 }
 
@@ -389,32 +409,6 @@ function BucketDetails({
 					{bucket.name} leaves the Plan from {monthName(month)} on. Earlier months keep it.
 				</Confirm>
 			) : null}
-		</div>
-	);
-}
-
-function Confirm({
-	children,
-	confirmLabel,
-	onConfirm,
-	onCancel,
-}: {
-	children: ReactNode;
-	confirmLabel: string;
-	onConfirm: () => void;
-	onCancel: () => void;
-}) {
-	return (
-		<div role="alertdialog" aria-label={confirmLabel} className="grid gap-3 rounded-xl bg-card p-3">
-			<p className="text-sm">{children}</p>
-			<div className="flex justify-end gap-2">
-				<Button type="button" variant="ghost" size="sm" onClick={onCancel}>
-					Cancel
-				</Button>
-				<Button type="button" variant="destructive" size="sm" onClick={onConfirm}>
-					{confirmLabel}
-				</Button>
-			</div>
 		</div>
 	);
 }

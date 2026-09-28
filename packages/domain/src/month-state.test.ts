@@ -1,9 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { type DayKey, type MonthKey, monthState, type Plan, type Spend } from "./index";
+import {
+	type Cadence,
+	type Charge,
+	type DayKey,
+	dueDatesIn,
+	type MonthKey,
+	monthState,
+	type Plan,
+	type PlanCommitment,
+	type Spend,
+} from "./index";
 
 const planOf = (month: MonthKey, allowances: Record<string, number>, baseline = 500_000): Plan => ({
 	month,
 	baseline,
+	commitments: [],
 	buckets: Object.entries(allowances).map(([id, allowance], i) => ({
 		id,
 		name: id,
@@ -162,5 +173,184 @@ describe("monthState: status against Pace", () => {
 			spending: [],
 		});
 		expect(state.buckets[0]).toMatchObject({ status: "on-pace", left: 0, pace: { spent: 0 } });
+	});
+});
+
+const commitment = (
+	id: string,
+	amount: number,
+	cadence: Cadence,
+	dueDate: DayKey,
+): PlanCommitment => ({ id, name: id, amount, cadence, dueDate });
+
+const charge = (commitmentId: string, amount: number, date: DayKey): Charge => ({
+	commitmentId,
+	amount,
+	date,
+});
+
+describe("Commitment cadences: the days a Commitment is due in a month", () => {
+	it.each([
+		// Monthly: once a month on the due date's day, or the month's last day when it's shorter.
+		["monthly", "2026-09-15", "2026-09", ["2026-09-15"]],
+		["monthly", "2026-09-15", "2027-01", ["2027-01-15"]],
+		["monthly", "2026-01-31", "2026-03", ["2026-03-31"]],
+		["monthly", "2026-01-31", "2026-04", ["2026-04-30"]],
+		["monthly", "2026-01-31", "2026-02", ["2026-02-28"]],
+		["monthly", "2026-01-31", "2028-02", ["2028-02-29"]],
+		["monthly", "2026-01-01", "2026-12", ["2026-12-01"]],
+		// Every 14 days, both before and after the due date: two or three a month.
+		["biweekly", "2026-01-02", "2026-01", ["2026-01-02", "2026-01-16", "2026-01-30"]],
+		["biweekly", "2026-01-02", "2026-02", ["2026-02-13", "2026-02-27"]],
+		["biweekly", "2026-01-02", "2026-05", ["2026-05-08", "2026-05-22"]],
+		["biweekly", "2026-01-02", "2025-12", ["2025-12-05", "2025-12-19"]],
+		// Month edges: the 1st and the last day both count.
+		["biweekly", "2026-10-31", "2026-10", ["2026-10-03", "2026-10-17", "2026-10-31"]],
+		["biweekly", "2026-10-31", "2026-11", ["2026-11-14", "2026-11-28"]],
+		["biweekly", "2026-12-25", "2027-01", ["2027-01-08", "2027-01-22"]],
+		// Leap years: Feb 29 is a real day in the count.
+		["biweekly", "2028-02-01", "2028-02", ["2028-02-01", "2028-02-15", "2028-02-29"]],
+		["biweekly", "2027-02-01", "2027-02", ["2027-02-01", "2027-02-15"]],
+		["biweekly", "2028-02-15", "2028-03", ["2028-03-14", "2028-03-28"]],
+		["biweekly", "2027-02-15", "2027-03", ["2027-03-01", "2027-03-15", "2027-03-29"]],
+		// Annual: in the due date's month each year, and no other.
+		["annual", "2027-03-15", "2026-03", ["2026-03-15"]],
+		["annual", "2027-03-15", "2027-03", ["2027-03-15"]],
+		["annual", "2027-03-15", "2026-09", []],
+		["annual", "2026-12-31", "2027-12", ["2027-12-31"]],
+		["annual", "2026-12-31", "2027-01", []],
+		["annual", "2028-02-29", "2029-02", ["2029-02-28"]],
+		["annual", "2028-02-29", "2032-02", ["2032-02-29"]],
+	] as const)("%s due %s: in %s on %j", (cadence, dueDate, month, expected) => {
+		expect(dueDatesIn({ cadence, dueDate }, month)).toEqual(expected);
+	});
+});
+
+describe("monthState: Commitments count against the Baseline", () => {
+	const plan = (month: MonthKey): Plan => ({
+		...planOf(month, { groceries: 120_000 }, 900_000),
+		commitments: [
+			commitment("mortgage", 250_000, "monthly", "2026-09-01"),
+			commitment("daycare", 60_000, "biweekly", "2026-09-04"),
+			commitment("insurance", 90_000, "annual", "2027-03-01"),
+		],
+	});
+	const state = (month: MonthKey, charges: Charge[] = []) =>
+		monthState({ plan: plan(month), spending: [], charges, asOf: `${month}-15` as DayKey });
+
+	it.each([
+		// month, what the Commitments are expected to take, Free to Spend
+		["2026-09", 250_000 + 2 * 60_000, 900_000 - 370_000 - 120_000], // daycare Sep 4, 18
+		["2026-10", 250_000 + 3 * 60_000, 900_000 - 430_000 - 120_000], // daycare Oct 2, 16, 30
+		["2027-03", 250_000 + 2 * 60_000 + 90_000, 900_000 - 460_000 - 120_000], // insurance's month
+	] as const)("in %s, takes %i and leaves %i Free to Spend", (month, committed, free) => {
+		expect(state(month).committed).toBe(committed);
+		expect(state(month).freeToSpend).toBe(free);
+	});
+
+	it("sums each Commitment's expected amount for the month", () => {
+		expect(
+			state("2026-10").commitments.map(({ id, dueDates, expected }) => ({
+				id,
+				dueDates,
+				expected,
+			})),
+		).toEqual([
+			{ id: "mortgage", dueDates: ["2026-10-01"], expected: 250_000 },
+			{ id: "daycare", dueDates: ["2026-10-02", "2026-10-16", "2026-10-30"], expected: 180_000 },
+			{ id: "insurance", dueDates: [], expected: 0 },
+		]);
+	});
+
+	it("goes negative when Commitments and allowances exceed the Baseline", () => {
+		const over = monthState({
+			plan: { ...plan("2026-09"), baseline: 400_000 },
+			spending: [],
+			asOf: "2026-09-15",
+		});
+		expect(over.freeToSpend).toBe(400_000 - 370_000 - 120_000);
+	});
+
+	it("isn't changed by what was actually charged", () => {
+		expect(state("2026-09", [charge("mortgage", 262_000, "2026-09-01")]).freeToSpend).toBe(
+			state("2026-09").freeToSpend,
+		);
+	});
+});
+
+describe("monthState: each Commitment's expected against actual", () => {
+	const plan: Plan = {
+		...planOf("2026-09", {}),
+		commitments: [
+			commitment("mortgage", 250_000, "monthly", "2026-09-01"),
+			commitment("daycare", 60_000, "biweekly", "2026-09-04"),
+			commitment("insurance", 90_000, "annual", "2027-03-01"),
+		],
+	};
+	const stateOf = (id: string, charges: Charge[]) => {
+		const state = monthState({ plan, spending: [], charges, asOf: "2026-09-20" });
+		const found = state.commitments.find((c) => c.id === id);
+		return found && { actual: found.actual, difference: found.difference, status: found.status };
+	};
+
+	it.each([
+		["mortgage", [], { actual: 0, difference: 0, status: "upcoming" }],
+		[
+			"mortgage",
+			[charge("mortgage", 250_000, "2026-09-01")],
+			{ actual: 250_000, difference: 0, status: "paid" },
+		],
+		// A charge for more or less than expected is flagged by how much it differs.
+		[
+			"mortgage",
+			[charge("mortgage", 262_050, "2026-09-01")],
+			{ actual: 262_050, difference: 12_050, status: "differs" },
+		],
+		[
+			"mortgage",
+			[charge("mortgage", 240_000, "2026-09-01")],
+			{ actual: 240_000, difference: -10_000, status: "differs" },
+		],
+		// Charged more often than it's due: the extra charge wasn't expected at all.
+		[
+			"mortgage",
+			[charge("mortgage", 250_000, "2026-09-01"), charge("mortgage", 250_000, "2026-09-02")],
+			{ actual: 500_000, difference: 250_000, status: "differs" },
+		],
+		// Biweekly, due twice: one charge so far is still upcoming, not short.
+		[
+			"daycare",
+			[charge("daycare", 60_000, "2026-09-04")],
+			{ actual: 60_000, difference: 0, status: "upcoming" },
+		],
+		[
+			"daycare",
+			[charge("daycare", 60_000, "2026-09-04"), charge("daycare", 60_000, "2026-09-18")],
+			{ actual: 120_000, difference: 0, status: "paid" },
+		],
+		[
+			"daycare",
+			[charge("daycare", 60_000, "2026-09-04"), charge("daycare", 64_500, "2026-09-18")],
+			{ actual: 124_500, difference: 4_500, status: "differs" },
+		],
+		// Annual, in another month.
+		["insurance", [], { actual: 0, difference: 0, status: "not-due" }],
+		[
+			"insurance",
+			[charge("insurance", 90_000, "2026-09-10")],
+			{ actual: 90_000, difference: 90_000, status: "differs" },
+		],
+	] as const)("%s charged %j is %j", (id, charges, expected) => {
+		expect(stateOf(id, [...charges])).toEqual(expected);
+	});
+
+	it("ignores charges in other months and against Commitments not in the Plan", () => {
+		expect(
+			stateOf("mortgage", [
+				charge("mortgage", 250_000, "2026-08-31"),
+				charge("mortgage", 250_000, "2026-10-01"),
+				charge("ended", 5_000, "2026-09-10"),
+			]),
+		).toEqual({ actual: 0, difference: 0, status: "upcoming" });
 	});
 });

@@ -1,7 +1,7 @@
 import type { Cents, MonthKey, PlanRecords } from "@noodle/domain";
 import { and, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
 import type { Db } from "./index";
-import { baselines, bucketAllowances, buckets } from "./schema";
+import { baselines, bucketAllowances, buckets, commitments, commitmentTerms } from "./schema";
 
 // The Plan's records for a Household (ADR-0004: effective-dated rows, written idempotently so a
 // retried save lands once). Every query is scoped by household_id; bucket IDs from the client
@@ -13,7 +13,7 @@ export async function loadPlanRecords(
 	householdId: string,
 	month: MonthKey,
 ): Promise<PlanRecords> {
-	const [baselineRows, bucketRows, allowanceRows] = await db.batch([
+	const [baselineRows, bucketRows, allowanceRows, commitmentRows, termRows] = await db.batch([
 		db
 			.select({ month: baselines.month, amount: baselines.amountCents })
 			.from(baselines)
@@ -39,12 +39,33 @@ export async function loadPlanRecords(
 			.where(
 				and(eq(bucketAllowances.householdId, householdId), lte(bucketAllowances.month, month)),
 			),
+		db
+			.select({
+				id: commitments.id,
+				name: commitments.name,
+				fromMonth: commitments.fromMonth,
+				endedFromMonth: commitments.endedFromMonth,
+			})
+			.from(commitments)
+			.where(and(eq(commitments.householdId, householdId), lte(commitments.fromMonth, month))),
+		db
+			.select({
+				commitmentId: commitmentTerms.commitmentId,
+				month: commitmentTerms.month,
+				amount: commitmentTerms.amountCents,
+				cadence: commitmentTerms.cadence,
+				dueDate: commitmentTerms.dueDate,
+			})
+			.from(commitmentTerms)
+			.where(and(eq(commitmentTerms.householdId, householdId), lte(commitmentTerms.month, month))),
 	]);
-	// Months are always written as MonthKeys by the functions below.
+	// Months and days are always written as MonthKeys and DayKeys by the functions that write them.
 	return {
 		baselines: baselineRows as PlanRecords["baselines"],
 		buckets: bucketRows as PlanRecords["buckets"],
 		allowances: allowanceRows as PlanRecords["allowances"],
+		commitments: commitmentRows as PlanRecords["commitments"],
+		commitmentTerms: termRows as PlanRecords["commitmentTerms"],
 	};
 }
 

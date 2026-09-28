@@ -30,6 +30,8 @@ describe("planForMonth: the Plan in force for a month", () => {
 			{ bucketId: "fun", month: "2026-10", amount: 20_000 },
 			{ bucketId: "life", month: "2026-09", amount: 30_000 },
 		],
+		commitments: [],
+		commitmentTerms: [],
 	};
 
 	it("orders Buckets by position", () => {
@@ -61,6 +63,7 @@ describe("planForMonth: the Plan in force for a month", () => {
 		expect(planForMonth(records, "2026-08")).toEqual({
 			month: "2026-08",
 			baseline: null,
+			commitments: [],
 			buckets: [],
 		});
 	});
@@ -75,9 +78,81 @@ describe("planForMonth: the Plan in force for a month", () => {
 	});
 });
 
+describe("planForMonth: Commitments", () => {
+	const records: PlanRecords = {
+		baselines: [{ month: "2026-09", amount: 900_000 }],
+		buckets: [],
+		allowances: [],
+		commitments: [
+			{ id: "02-daycare", name: "Daycare", fromMonth: "2026-09", endedFromMonth: "2027-01" },
+			{ id: "01-mortgage", name: "Mortgage", fromMonth: "2026-09", endedFromMonth: null },
+			{ id: "03-netflix", name: "Netflix", fromMonth: "2026-10", endedFromMonth: null },
+		],
+		commitmentTerms: [
+			{
+				commitmentId: "01-mortgage",
+				month: "2026-09",
+				amount: 250_000,
+				cadence: "monthly",
+				dueDate: "2026-09-01",
+			},
+			{
+				commitmentId: "01-mortgage",
+				month: "2026-11",
+				amount: 255_000,
+				cadence: "monthly",
+				dueDate: "2026-11-15",
+			},
+			{
+				commitmentId: "02-daycare",
+				month: "2026-09",
+				amount: 60_000,
+				cadence: "biweekly",
+				dueDate: "2026-09-04",
+			},
+			{
+				commitmentId: "03-netflix",
+				month: "2026-10",
+				amount: 1_799,
+				cadence: "monthly",
+				dueDate: "2026-10-12",
+			},
+		],
+	};
+	const ids = (month: `${number}-${number}`) =>
+		planForMonth(records, month).commitments.map((c) => c.id);
+
+	it("lists Commitments in the order they were added", () => {
+		expect(ids("2026-10")).toEqual(["01-mortgage", "02-daycare", "03-netflix"]);
+	});
+
+	it("includes a Commitment from the month it was added until the month it ended", () => {
+		expect(ids("2026-08")).toEqual([]);
+		expect(ids("2026-09")).toEqual(["01-mortgage", "02-daycare"]);
+		expect(ids("2026-12")).toContain("02-daycare");
+		expect(ids("2027-01")).toEqual(["01-mortgage", "03-netflix"]);
+	});
+
+	it("carries a Commitment's terms forward until they are set again", () => {
+		const mortgage = (month: `${number}-${number}`) =>
+			planForMonth(records, month).commitments.find((c) => c.id === "01-mortgage");
+		expect(mortgage("2026-10")).toEqual({
+			id: "01-mortgage",
+			name: "Mortgage",
+			amount: 250_000,
+			cadence: "monthly",
+			dueDate: "2026-09-01",
+		});
+		expect(mortgage("2026-11")).toMatchObject({ amount: 255_000, dueDate: "2026-11-15" });
+		expect(mortgage("2027-06")).toMatchObject({ amount: 255_000 });
+	});
+});
+
 describe("freeToSpend: the Baseline not yet assigned", () => {
 	const plan = (baseline: number | null, ...allowances: number[]) => ({
+		month: "2026-09" as const,
 		baseline,
+		commitments: [],
 		buckets: allowances.map((allowance, i) => ({ id: `b${i}`, name: "", color: 1, allowance })),
 	});
 

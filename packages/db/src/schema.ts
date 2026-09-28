@@ -123,6 +123,48 @@ export const bucketAllowances = sqliteTable(
 	],
 );
 
+// A recurring obligation in the Plan from `from_month` until (once ended) `ended_from_month`.
+// What it expects is effective-dated like an allowance: terms set for a month hold for later
+// months until set again, so changing it never rewrites an earlier month.
+export const commitments = sqliteTable(
+	"commitments",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		name: text("name").notNull(),
+		fromMonth: text("from_month").notNull(),
+		endedFromMonth: text("ended_from_month"),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [index("commitments_household_idx").on(t.householdId)],
+);
+
+// `amount_cents` each time it's due; `cadence` and `due_date` (any one day it's due,
+// "YYYY-MM-DD") set when that is (see dueDatesIn in @noodle/domain).
+export const commitmentTerms = sqliteTable(
+	"commitment_terms",
+	{
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		commitmentId: text("commitment_id")
+			.notNull()
+			.references(() => commitments.id),
+		month: text("month").notNull(),
+		amountCents: integer("amount_cents").notNull(),
+		cadence: text("cadence", { enum: ["monthly", "biweekly", "annual"] }).notNull(),
+		dueDate: text("due_date").notNull(),
+	},
+	(t) => [
+		primaryKey({ columns: [t.commitmentId, t.month] }),
+		index("commitment_terms_household_idx").on(t.householdId),
+	],
+);
+
 // Real money in or out. `date` is the day it happened in the Household's time zone ("YYYY-MM-DD");
 // `amount_cents` is money spent, so spending is positive. A Quick Add has no Account until it is
 // Matched to an imported Transaction.
@@ -144,6 +186,8 @@ export const transactions = sqliteTable(
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()
 			.default(sql`(unixepoch() * 1000)`),
+		// The Commitment it pays, as a whole, when it isn't assigned to a Bucket.
+		commitmentId: text("commitment_id").references(() => commitments.id),
 	},
 	(t) => [index("transactions_household_date_idx").on(t.householdId, t.date)],
 );

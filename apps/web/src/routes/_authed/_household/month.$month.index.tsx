@@ -13,6 +13,7 @@ import { cn } from "@noodle/ui/lib/utils";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarDays, SlidersHorizontal } from "lucide-react";
 import { asBucketColor, monogram } from "../../../buckets";
+import { Commitments } from "../../../components/commitment-list";
 import { formatMoney, monthName, shortDay } from "../../../format";
 import { useMonthState } from "../../../queries";
 
@@ -23,7 +24,10 @@ export const Route = createFileRoute("/_authed/_household/month/$month/")({
 function ThisMonth() {
 	const { month } = Route.useRouteContext();
 	const state = useMonthState(month);
-	const planned = state.baseline !== null || state.buckets.length > 0;
+	const planned =
+		state.baseline !== null || state.buckets.length > 0 || state.commitments.length > 0;
+	// Commitments due this month, or paid anyway.
+	const commitments = state.commitments.filter((c) => c.status !== "not-due");
 	return (
 		<>
 			<PageHeader
@@ -52,6 +56,9 @@ function ThisMonth() {
 								))}
 							</List>
 						</Section>
+					) : null}
+					{commitments.length > 0 ? (
+						<Commitments month={month} asOf={state.asOf} commitments={commitments} />
 					) : null}
 				</div>
 			) : (
@@ -97,7 +104,8 @@ function FreeToSpend({ state }: { state: MonthState }) {
 						</>
 					) : overPlanned ? (
 						<>
-							Your Buckets add up to {formatMoney(-state.freeToSpend)} more than your Baseline.{" "}
+							Your {state.committed > 0 ? "Commitments and Buckets" : "Buckets"} add up to{" "}
+							{formatMoney(-state.freeToSpend)} more than your Baseline.{" "}
 							<PlanLink month={state.month}>Adjust the Plan</PlanLink>
 						</>
 					) : (

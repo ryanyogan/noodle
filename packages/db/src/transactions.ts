@@ -90,6 +90,7 @@ export async function addQuickAdd(
 					note: sql<string | null>`${input.note}`.as("note"),
 					createdByMemberId: sql<string>`${input.createdByMemberId}`.as("created_by_member_id"),
 					createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
+					commitmentId: sql<string | null>`null`.as("commitment_id"),
 				})
 				.from(buckets)
 				.where(

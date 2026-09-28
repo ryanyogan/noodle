@@ -42,6 +42,11 @@ export function daysBetween(from: DayKey, to: DayKey): number {
 	return Math.round((utcOf(to) - utcOf(from)) / 86_400_000);
 }
 
+/** The day `days` after `day` (before it, when negative). */
+export function addDays(day: DayKey, days: number): DayKey {
+	return new Date(utcOf(day) + days * 86_400_000).toISOString().slice(0, 10) as DayKey;
+}
+
 /** 28–31, accounting for leap years. */
 export function daysInMonth(month: MonthKey): number {
 	const [year, m] = month.split("-").map(Number);

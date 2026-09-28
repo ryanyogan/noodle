@@ -1,9 +1,20 @@
+import { dueDatesIn } from "./commitments";
 import type { Cents } from "./money";
 import { type DayKey, daysElapsed, daysInMonth, monthOfDay } from "./month";
-import { freeToSpend, type Plan, type PlanBucket, totalAllowances } from "./plan";
+import {
+	freeToSpend,
+	type Plan,
+	type PlanBucket,
+	type PlanCommitment,
+	totalAllowances,
+	totalCommitments,
+} from "./plan";
 
 /** Spending recorded against a Bucket on a day (a Transaction or one of its Splits). */
 export type Spend = { bucketId: string; amount: Cents; date: DayKey };
+
+/** A payment recorded against a Commitment on a day (a Transaction or one of its Splits). */
+export type Charge = { commitmentId: string; amount: Cents; date: DayKey };
 
 /**
  * `ahead`: spent faster than Pace allows (by more than a small tolerance).
@@ -24,17 +35,46 @@ export type BucketState = PlanBucket & {
 	status: BucketStatus;
 };
 
-export type MonthState = Omit<Plan, "buckets"> & {
+/**
+ * `not-due`: not due this month, and not charged.
+ * `upcoming`: due more times than it has been charged so far, each charge as expected.
+ * `paid`: charged each time it's due, each for the expected amount.
+ * `differs`: what was charged isn't what was expected for those charges.
+ */
+export type CommitmentStatus = "not-due" | "upcoming" | "paid" | "differs";
+
+export type CommitmentState = PlanCommitment & {
+	/** The days this month it's due. */
+	dueDates: DayKey[];
+	/** What the Plan sets aside for it this month: its amount each time it's due. */
+	expected: Cents;
+	/** What has been charged to it this month so far. */
+	actual: Cents;
+	/** How many charges that took. */
+	charges: number;
+	/**
+	 * How much more (negative: less) was charged than expected for the charges so far. Each
+	 * charge, up to the number of times it's due, is expected to be `amount`; any beyond that
+	 * wasn't expected at all.
+	 */
+	difference: Cents;
+	status: CommitmentStatus;
+};
+
+export type MonthState = Omit<Plan, "buckets" | "commitments"> & {
 	asOf: DayKey;
 	daysInMonth: number;
 	/** Days after the as-of day until the month ends. */
 	daysLeft: number;
 	/** Everything assigned to Buckets. */
 	planned: Cents;
+	/** Everything the Commitments are expected to take this month. */
+	committed: Cents;
 	/** Negative when the Plan assigns more than the Baseline. */
 	freeToSpend: Cents;
 	/** What's left across Buckets, not counting any Bucket's overspending. */
 	leftInBuckets: Cents;
+	commitments: CommitmentState[];
 	buckets: BucketState[];
 };
 
@@ -42,18 +82,21 @@ export type MonthState = Omit<Plan, "buckets"> & {
 const PACE_TOLERANCE = 0.03;
 
 /**
- * The state of a month: each Bucket's allowance, spent, left, Pace, and status, and Free to
- * Spend, as of the end of a given day. Spending outside the month, or against a Bucket not in
- * the Plan, is ignored. The server and the client's optimistic updates both call this, so the
- * numbers a Parent sees before and after a save are the same.
+ * The state of a month: each Bucket's allowance, spent, left, Pace, and status, each
+ * Commitment's expected and actual amounts, and Free to Spend, as of the end of a given day.
+ * Spending and charges outside the month, or against a Bucket or Commitment not in the Plan,
+ * are ignored. The server and the client's optimistic updates both call this, so the numbers a
+ * Parent sees before and after a save are the same.
  */
 export function monthState({
 	plan,
 	spending,
+	charges = [],
 	asOf,
 }: {
 	plan: Plan;
 	spending: Spend[];
+	charges?: Charge[];
 	asOf: DayKey;
 }): MonthState {
 	const days = daysInMonth(plan.month);
@@ -81,6 +124,35 @@ export function monthState({
 			status,
 		};
 	});
+	const chargedByCommitment = new Map<string, Cents[]>();
+	for (const charge of charges) {
+		if (monthOfDay(charge.date) !== plan.month) continue;
+		const amounts = chargedByCommitment.get(charge.commitmentId) ?? [];
+		chargedByCommitment.set(charge.commitmentId, [...amounts, charge.amount]);
+	}
+	const commitments = plan.commitments.map((commitment): CommitmentState => {
+		const dueDates = dueDatesIn(commitment, plan.month);
+		const charged = chargedByCommitment.get(commitment.id) ?? [];
+		const actual = charged.reduce((sum, amount) => sum + amount, 0);
+		const difference = actual - commitment.amount * Math.min(charged.length, dueDates.length);
+		const status: CommitmentStatus =
+			difference !== 0
+				? "differs"
+				: charged.length < dueDates.length
+					? "upcoming"
+					: dueDates.length > 0
+						? "paid"
+						: "not-due";
+		return {
+			...commitment,
+			dueDates,
+			expected: commitment.amount * dueDates.length,
+			actual,
+			charges: charged.length,
+			difference,
+			status,
+		};
+	});
 	return {
 		month: plan.month,
 		baseline: plan.baseline,
@@ -88,8 +160,10 @@ export function monthState({
 		daysInMonth: days,
 		daysLeft: days - elapsed,
 		planned: totalAllowances(plan),
+		committed: totalCommitments(plan),
 		freeToSpend: freeToSpend(plan),
 		leftInBuckets: buckets.reduce((sum, b) => sum + Math.max(0, b.left), 0),
+		commitments,
 		buckets,
 	};
 }

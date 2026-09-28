@@ -16,12 +16,12 @@ import { ulidSchema } from "./schemas";
 
 // Changes to the Plan. Each is idempotent, so the client can retry any of them safely.
 
-const centsSchema = z.number().int().min(0).max(MAX_CENTS);
+export const centsSchema = z.number().int().min(0).max(MAX_CENTS);
 export const bucketNameSchema = z.string().trim().min(1).max(40);
 const colorSchema = z.number().int().min(1).max(8);
 
 /** Past months' Plans are closed; only this month and later can change. */
-function assertEditable(household: Pick<HouseholdSummary, "timeZone">, month: MonthKey) {
+export function assertEditable(household: Pick<HouseholdSummary, "timeZone">, month: MonthKey) {
 	if (month < monthKeyAt(new Date(), household.timeZone)) {
 		throw new Error("Plans for past months can’t be changed.");
 	}
