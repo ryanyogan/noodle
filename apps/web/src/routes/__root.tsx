@@ -14,8 +14,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 			{ title: "Noodle" },
 			{ name: "description", content: "A calm monthly Plan for your Household." },
 			{ name: "color-scheme", content: "light dark" },
-			{ name: "theme-color", media: "(prefers-color-scheme: light)", content: "#f4f5f7" },
-			{ name: "theme-color", media: "(prefers-color-scheme: dark)", content: "#090c12" },
 			// Installed to the iPhone home screen, Noodle opens full-screen under a translucent status bar.
 			{ name: "apple-mobile-web-app-capable", content: "yes" },
 			{ name: "mobile-web-app-capable", content: "yes" },
@@ -39,6 +37,9 @@ function RootShell({ children }: { children: ReactNode }) {
 			<html lang="en">
 				<head>
 					<HeadContent />
+					{/* Rendered here, not in head(): head() keeps one meta per name, and there are two. */}
+					<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f5f7" />
+					<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#090c12" />
 				</head>
 				<body>
 					{children}
