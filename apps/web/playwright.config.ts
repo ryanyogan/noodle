@@ -12,6 +12,9 @@ export default defineConfig({
 	fullyParallel: true,
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 1 : 0,
+	// CI runners have 2 vCPUs, which Playwright's default turns into 1 worker; the specs mostly wait
+	// on Clerk and the Worker, so two per runner is safe.
+	workers: process.env.CI ? 2 : undefined,
 	reporter: process.env.CI ? "github" : "list",
 	use: {
 		baseURL: `http://localhost:${port}`,

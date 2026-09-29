@@ -23,6 +23,12 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    # Four runners at once: a private repo's runner has 2 vCPUs, so one runner ran every spec in
+    # series on a single worker (12+ minutes).
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     env:
       CI: "true"
     steps:
@@ -40,12 +46,12 @@ jobs:
             "${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" "${{ secrets.CLERK_SECRET_KEY }}" > .dev.vars
           # Throwaway VAPID keys for Nudges; nothing is really pushed in E2E.
           bun scripts/vapid-keys.ts >> .dev.vars
-      - run: bun run e2e
+      - run: bun run e2e --shard=${{ matrix.shard }}/4
         working-directory: apps/web
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-traces
+          name: playwright-traces-${{ matrix.shard }}
           path: apps/web/test-results
 
   deploy:
