@@ -1,3 +1,7 @@
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { deflateSync } from "node:zlib";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
@@ -106,6 +110,88 @@ test("a snapped Receipt fills in Quick Add and is attached to what's saved", asy
 	await expect(editSheet(page).getByRole("region", { name: "Receipt" })).toContainText(
 		"Corner Market",
 	);
+	await page.context().close();
+});
+
+const q = (value: string) => `'${value.replaceAll("'", "''")}'`;
+
+/** Moves the Household's Plan (its Baseline, Buckets and allowances) back to start in `month`. */
+function planFrom(clerkUserId: string, month: string) {
+	const household = `(select household_id from members where clerk_user_id = ${q(clerkUserId)})`;
+	const statements = [
+		`update baselines set month = ${q(month)} where household_id = ${household};`,
+		`update buckets set from_month = ${q(month)} where household_id = ${household};`,
+		`update bucket_allowances set month = ${q(month)} where household_id = ${household};`,
+	];
+	const file = join(mkdtempSync(join(tmpdir(), "noodle-snap-")), "seed.sql");
+	writeFileSync(file, statements.join("\n"));
+	execFileSync("bunx", ["wrangler", "d1", "execute", "noodle", "--local", `--file=${file}`], {
+		stdio: "ignore",
+	});
+}
+
+/** The last day of last month, in the browser's (and so the Household's) time zone. */
+function lastMonthsLastDay() {
+	const day = new Date();
+	day.setDate(0);
+	const pad = (n: number) => String(n).padStart(2, "0");
+	return {
+		day: `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`,
+		name: day.toLocaleDateString("en-US", { month: "long" }),
+	};
+}
+
+test("a Receipt dated last month is added to last month's Plan, or today when it had none", async ({
+	browser,
+}) => {
+	// Planning the month and seeding through wrangler take most of the default budget.
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, plan);
+	const thisMonth = page.url().replace(/^.*\/month\/(\d{4}-\d{2}).*$/, "$1");
+	const lastMonth = lastMonthsLastDay();
+	const snap = async (total: string) => {
+		await page.getByRole("link", { name: "Quick Add" }).click();
+		await expect(sheet(page).getByRole("button", { name: "Snap receipt" })).toBeEnabled();
+		await sheet(page)
+			.getByLabel("Receipt photo")
+			.setInputFiles({
+				name: "receipt.png",
+				mimeType: "image/png",
+				buffer: receiptPhoto(
+					["Corner Market", lastMonth.day, `MILK ${total}`, `TOTAL ${total}`].join("\n"),
+				),
+			});
+		await expect(sheet(page).getByRole("status", { name: "Amount" })).toHaveText(`$${total}`);
+	};
+	const savedIn = async (month: string, row: RegExp) => {
+		await page.goto(`/transactions/${month}`);
+		await expect(list(page).getByRole("button", { name: row })).toBeVisible();
+	};
+
+	// Last month had no Plan, so it's dated today, in this month's.
+	await snap("4.29");
+	await expect(sheet(page)).toContainText(`${lastMonth.name} has no Plan, so it’s added today`);
+	await picks(page).getByRole("listitem").first().getByRole("button").click();
+	await expect(page.getByRole("status").filter({ hasText: "added to" })).toHaveText(
+		"$4.29 added to Groceries",
+	);
+	await savedIn(thisMonth, /^Corner Market, \$4\.29/);
+
+	// With a Plan last month, it's offered last month's Buckets and saved there.
+	planFrom(parent.userId, lastMonth.day.slice(0, 7));
+	await page.reload();
+	await snap("6.10");
+	await expect(sheet(page)).toContainText(`, so it’s added to ${lastMonth.name}`);
+	const first = picks(page).getByRole("listitem").first();
+	await expect(first).toContainText("Groceries");
+	// Last month's Groceries, not this month's ($795.71 left).
+	await expect(first).toContainText("$800 left · Suggested");
+	await first.getByRole("button").click();
+	await expect(page.getByRole("status").filter({ hasText: "added to" })).toHaveText(
+		"$6.10 added to Groceries",
+	);
+	await savedIn(lastMonth.day.slice(0, 7), /^Corner Market, \$6\.10/);
 	await page.context().close();
 });
 

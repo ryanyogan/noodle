@@ -21,6 +21,8 @@ export type QuickAddVariables = {
 	date: DayKey;
 	/** The Receipt the Parent snapped for it, attached as it's saved. */
 	receiptId?: string;
+	/** Dated today, not on the Receipt's day: that month has no Plan to add it to. */
+	datedToday?: boolean;
 };
 
 /** A month's inputs with a Quick Add's spending in them; adding the same one twice changes nothing. */
@@ -53,6 +55,7 @@ export function useQuickAdd() {
 			note,
 			forMemberIds,
 			receiptId,
+			datedToday,
 		}: QuickAddVariables) =>
 			addQuickAdd({
 				data: {
@@ -62,6 +65,7 @@ export function useQuickAdd() {
 					note: note || undefined,
 					forMemberIds,
 					receiptId,
+					datedToday,
 				},
 			}),
 		onMutate: async (variables) => {

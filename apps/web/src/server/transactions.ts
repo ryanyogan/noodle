@@ -25,8 +25,9 @@ const LIKELY_WINDOW_DAYS = 90;
 
 /**
  * Records a Quick Add, dated today in the Household's time zone, or with the Receipt the Parent
- * snapped for it (`receiptId`), dated as that is and with it attached. Idempotent per
- * `transactionId` (a client ULID), so the client can retry it safely.
+ * snapped for it (`receiptId`), dated as that is (or today, `datedToday`, when that month has no
+ * Plan) and with it attached. Idempotent per `transactionId` (a client ULID), so the client can
+ * retry it safely.
  */
 export const addQuickAdd = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
@@ -39,6 +40,8 @@ export const addQuickAdd = createServerFn({ method: "POST" })
 			// Who it was For; none means the whole Household.
 			forMemberIds: z.array(ulidSchema).max(20).default([]),
 			receiptId: ulidSchema.optional(),
+			// The Receipt's month has no Plan to add it to, and the Parent was told it's dated today.
+			datedToday: z.boolean().default(false),
 		}),
 	)
 	.handler(async ({ data, context }) => {
@@ -51,7 +54,7 @@ export const addQuickAdd = createServerFn({ method: "POST" })
 			householdId: context.household.id,
 			transactionId: data.transactionId,
 			bucketId: data.bucketId,
-			date: receipt?.date ?? today,
+			date: (data.datedToday ? null : receipt?.date) ?? today,
 			amountCents: data.amountCents,
 			note: data.note || null,
 			forMemberIds: data.forMemberIds,

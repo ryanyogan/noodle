@@ -13,7 +13,7 @@ import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
-import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useRouter, useSearch } from "@tanstack/react-router";
 import { Delete, ReceiptText } from "lucide-react";
 import {
@@ -27,8 +27,8 @@ import {
 } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../buckets";
-import { formatMoney, shortDay } from "../format";
-import { bucketUsesQuery, membersQuery, useMonthState } from "../queries";
+import { formatMoney, monthName, shortDay } from "../format";
+import { bucketUsesQuery, membersQuery, monthQuery, useMonthState } from "../queries";
 import { type QuickAddVariables, useQuickAdd } from "../quick-add";
 import { type CaptureDraft, type SnapResult, typedAmount } from "../snap";
 import { ForPicker } from "./for-picker";
@@ -150,13 +150,8 @@ function QuickAddForm({
 			transactionId: ulid(),
 		};
 	});
-	const state = useMonthState(entry.month);
+	const queryClient = useQueryClient();
 	const uses = useQuery(bucketUsesQuery()).data ?? [];
-	const buckets = likelyBucketOrder(
-		state.buckets.filter((b) => canAssign(b, parentId)),
-		uses,
-		entry.today,
-	);
 	const [amount, setAmount] = useState("");
 	// Read by key presses, which can arrive faster than re-renders.
 	const typedSoFar = useRef("");
@@ -171,6 +166,13 @@ function QuickAddForm({
 	const [filled, setFilled] = useState(false);
 	const [receipt, setReceipt] = useState<(SnapResult & { kind: "draft" }) | null>(null);
 	const [attached, setAttached] = useState<(SnapResult & { kind: "attached" }) | null>(null);
+	// The Buckets of the month it's dated in: a Receipt's, unless that month has no Plan to add it
+	// to (the server refuses a Bucket that isn't in it), and then today's, and the Parent is told.
+	const receiptMonth = receipt ? monthOfDay(receipt.date) : entry.month;
+	const inReceiptMonth = useMonthState(receiptMonth).buckets.filter((b) => canAssign(b, parentId));
+	const inThisMonth = useMonthState(entry.month).buckets.filter((b) => canAssign(b, parentId));
+	const datedToday = receipt !== null && inReceiptMonth.length === 0;
+	const buckets = likelyBucketOrder(datedToday ? inThisMonth : inReceiptMonth, uses, entry.today);
 	const offered = suggested
 		? [
 				...buckets.filter((bucket) => bucket.id === suggested),
@@ -191,8 +193,10 @@ function QuickAddForm({
 		setFilled(true);
 	}
 
-	function snapped(result: SnapResult) {
+	async function snapped(result: SnapResult) {
 		if (result.kind === "attached") return setAttached(result);
+		// Its month's Buckets, loaded before they're offered so the sheet doesn't blank meanwhile.
+		await queryClient.ensureQueryData(monthQuery(monthOfDay(result.date))).catch(() => undefined);
 		setReceipt(result);
 		fill(result.draft);
 	}
@@ -246,8 +250,9 @@ function QuickAddForm({
 			amountCents: cents,
 			note: note.trim(),
 			forMemberIds,
-			date: receipt?.date ?? entry.today,
+			date: receipt && !datedToday ? receipt.date : entry.today,
 			receiptId: receipt?.receiptId,
+			datedToday,
 		});
 	}
 
@@ -318,6 +323,11 @@ function QuickAddForm({
 					<span>
 						Receipt{receipt.draft.note ? ` from ${receipt.draft.note}` : ""}, dated{" "}
 						{shortDay(receipt.date)}
+						{datedToday
+							? `. ${monthName(receiptMonth)} has no Plan, so it’s added today`
+							: receiptMonth !== entry.month
+								? `, so it’s added to ${monthName(receiptMonth)}`
+								: ""}
 						{receipt.buckets > 1 ? ". Split it across its Buckets from Transactions." : ""}
 					</span>
 				</p>
@@ -328,7 +338,8 @@ function QuickAddForm({
 				</p>
 				<ul aria-labelledby="quick-add-buckets" className="grid grid-cols-2 gap-2">
 					{offered.map((bucket) => (
-						<li key={bucket.id} className="grid">
+						// The suggested one takes the whole row, so "Suggested" fits on a phone.
+						<li key={bucket.id} className={cn("grid", bucket.id === suggested && "col-span-2")}>
 							<BucketPick
 								bucket={bucket}
 								ready={cents > 0}
