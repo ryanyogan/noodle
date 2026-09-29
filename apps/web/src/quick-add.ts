@@ -17,8 +17,10 @@ export type QuickAddVariables = {
 	note: string;
 	/** Who it was For; none means the whole Household. */
 	forMemberIds: string[];
-	/** Today in the Household's time zone, as the server will date it. */
+	/** Today in the Household's time zone, or a snapped Receipt's day, as the server will date it. */
 	date: DayKey;
+	/** The Receipt the Parent snapped for it, attached as it's saved. */
+	receiptId?: string;
 };
 
 /** A month's inputs with a Quick Add's spending in them; adding the same one twice changes nothing. */
@@ -44,9 +46,23 @@ export function useQuickAdd() {
 	const queryClient = useQueryClient();
 	const quickAdd = useMutation({
 		mutationKey: monthChangeKey,
-		mutationFn: ({ transactionId, bucketId, amountCents, note, forMemberIds }: QuickAddVariables) =>
+		mutationFn: ({
+			transactionId,
+			bucketId,
+			amountCents,
+			note,
+			forMemberIds,
+			receiptId,
+		}: QuickAddVariables) =>
 			addQuickAdd({
-				data: { transactionId, bucketId, amountCents, note: note || undefined, forMemberIds },
+				data: {
+					transactionId,
+					bucketId,
+					amountCents,
+					note: note || undefined,
+					forMemberIds,
+					receiptId,
+				},
 			}),
 		onMutate: async (variables) => {
 			const { queryKey } = monthQuery(monthOfDay(variables.date));

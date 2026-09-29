@@ -11,10 +11,10 @@ Ask is a stateless streaming server function (an async-generator `createServerFn
 | Job | Model | Why |
 | --- | --- | --- |
 | `chat`: Ask, Check-in phrasing | `@cf/zai-org/glm-5.3-flash` | Fast function calling, cheap, cached input ($0.15/$0.50 per M) |
-| `classify`: categorization, Receipt line items (text and photos) | `@cf/google/gemma-4-26b-a4b-it` | High volume, short JSON; MoE with 4B active ($0.10/$0.30 per M) |
+| `classify`: categorization, Receipt line items (text, forwarded pictures and snapped photos), a spoken or typed Quick Add phrase | `@cf/google/gemma-4-26b-a4b-it` | High volume, short JSON; MoE with 4B active; reads images too ($0.10/$0.30 per M) |
 | `reason`: Insights, Perk research, Plan drafting | `@cf/openai/gpt-oss-120b` | Nightly or one-off, latency doesn't matter; strongest reasoning at mid price ($0.35/$0.75 per M) |
 | `embed`: merchant similarity (Vectorize) | `@cf/qwen/qwen3-embedding-0.6b` | $0.012 per M |
-| `speech`: Snap and speak, voice | `@cf/openai/whisper-large-v3-turbo` | Voice capture |
-| `vision`: Snap and speak, receipt photos | `@cf/meta/llama-4-scout-17b-16e-instruct` | Vision with function calling |
+
+Snap and speak needs no speech or vision model of its own. The phone's browser turns speech into text (Web Speech API, in Safari and Chrome; typing where there's none), so no audio leaves the device, and `classify` reads the phrase into the words that say the amount, a Bucket, For and a note; `@noodle/domain` reads the amount from those words ("forty", "twelve fifty"). A snapped Receipt photo is read by `classify` exactly as a forwarded picture is (ADR-0016).
 
 Frontier-priced models (glm-5.3, kimi-k2.x, deepseek-v4-pro) aren't used: with the math in tools, the extra reasoning buys little for a household budget and costs several times as much per answer.

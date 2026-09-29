@@ -320,3 +320,26 @@ export async function loadReceipt(
 		},
 	};
 }
+
+/**
+ * A Receipt the Parent `viewer` snapped and hasn't filed yet (attached to nothing): the day it's
+ * dated, which its Quick Add takes. Null for anyone else's, or one already attached.
+ */
+export async function loadUnfiledReceipt(
+	db: Db,
+	viewer: Viewer,
+	receiptId: string,
+): Promise<{ date: DayKey | null } | null> {
+	const [row] = await db
+		.select({ date: receipts.date })
+		.from(receipts)
+		.where(
+			and(
+				eq(receipts.id, receiptId),
+				eq(receipts.householdId, viewer.householdId),
+				eq(receipts.memberId, viewer.memberId),
+				isNull(receipts.transactionId),
+			),
+		);
+	return row ? { date: row.date as DayKey | null } : null;
+}

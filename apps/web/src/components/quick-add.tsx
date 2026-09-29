@@ -4,6 +4,7 @@ import {
 	dayKeyAt,
 	likelyBucketOrder,
 	monthKeyAt,
+	monthOfDay,
 	parseDollars,
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
@@ -14,7 +15,7 @@ import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useRouter, useSearch } from "@tanstack/react-router";
-import { Delete } from "lucide-react";
+import { Delete, ReceiptText } from "lucide-react";
 import {
 	type CSSProperties,
 	type ReactNode,
@@ -26,10 +27,12 @@ import {
 } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../buckets";
-import { formatMoney } from "../format";
+import { formatMoney, shortDay } from "../format";
 import { bucketUsesQuery, membersQuery, useMonthState } from "../queries";
 import { type QuickAddVariables, useQuickAdd } from "../quick-add";
+import { type CaptureDraft, type SnapResult, typedAmount } from "../snap";
 import { ForPicker } from "./for-picker";
+import { SnapAndSpeak } from "./quick-add-capture";
 
 /** The search param that opens Quick Add over whatever screen is showing. */
 export const quickAddSearch = { sheet: "quick-add" } as const;
@@ -163,6 +166,36 @@ function QuickAddForm({
 	const display = useRef<HTMLOutputElement>(null);
 	const added = useRef(false);
 	const cents = parseDollars(amount) ?? 0;
+	// What a snapped Receipt or a phrase filled in: a Bucket to offer first, and the Receipt.
+	const [suggested, setSuggested] = useState<string | null>(null);
+	const [filled, setFilled] = useState(false);
+	const [receipt, setReceipt] = useState<(SnapResult & { kind: "draft" }) | null>(null);
+	const [attached, setAttached] = useState<(SnapResult & { kind: "attached" }) | null>(null);
+	const offered = suggested
+		? [
+				...buckets.filter((bucket) => bucket.id === suggested),
+				...buckets.filter((bucket) => bucket.id !== suggested),
+			]
+		: buckets;
+
+	/** Fills the form in with what was read, for the Parent to check before they save it. */
+	function fill(draft: CaptureDraft) {
+		const said = draft.amountCents === null ? null : typedAmount(draft.amountCents);
+		if (said !== null) {
+			typedSoFar.current = said;
+			setAmount(said);
+		}
+		if (draft.note) setNote(draft.note.slice(0, 80));
+		if (draft.forMemberIds.length > 0) setForMemberIds(draft.forMemberIds);
+		setSuggested(draft.bucketId);
+		setFilled(true);
+	}
+
+	function snapped(result: SnapResult) {
+		if (result.kind === "attached") return setAttached(result);
+		setReceipt(result);
+		fill(result.draft);
+	}
 
 	const shake = useCallback(() => {
 		if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -213,8 +246,28 @@ function QuickAddForm({
 			amountCents: cents,
 			note: note.trim(),
 			forMemberIds,
-			date: entry.today,
+			date: receipt?.date ?? entry.today,
+			receiptId: receipt?.receiptId,
 		});
+	}
+
+	if (attached) {
+		const { transaction } = attached;
+		return (
+			<div className="grid justify-items-center gap-3 py-6 text-center">
+				<p className="text-sm text-muted-foreground">
+					That Receipt is for {transaction.note || "a Transaction"},{" "}
+					{formatMoney(transaction.amountCents)} on {shortDay(transaction.date)}, already in
+					Transactions. It’s attached there
+					{attached.applied ? ", split across its Buckets." : "."}
+				</p>
+				<Button variant="outline" asChild>
+					<Link to="/transactions/$month" params={{ month: monthOfDay(transaction.date) }}>
+						See it in Transactions
+					</Link>
+				</Button>
+			</div>
+		);
 	}
 
 	if (buckets.length === 0) {
@@ -251,17 +304,37 @@ function QuickAddForm({
 					{fraction === undefined ? null : `.${fraction}`}
 				</output>
 				<p className="min-h-[1.4em] text-[13px] text-subtle-foreground">
-					{cents > 0 ? "Tap a Bucket to add it" : "Type an amount"}
+					{cents === 0
+						? "Type an amount"
+						: filled
+							? "Check it, then tap a Bucket to add it"
+							: "Tap a Bucket to add it"}
 				</p>
 			</div>
+			<SnapAndSpeak onPhrase={fill} onSnap={snapped} />
+			{receipt ? (
+				<p className="flex items-center justify-center gap-1.5 text-[13px] text-muted-foreground">
+					<ReceiptText className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+					<span>
+						Receipt{receipt.draft.note ? ` from ${receipt.draft.note}` : ""}, dated{" "}
+						{shortDay(receipt.date)}
+						{receipt.buckets > 1 ? ". Split it across its Buckets from Transactions." : ""}
+					</span>
+				</p>
+			) : null}
 			<div className="grid gap-2">
 				<p className="text-xs font-medium text-muted-foreground" id="quick-add-buckets">
 					Add to
 				</p>
 				<ul aria-labelledby="quick-add-buckets" className="grid grid-cols-2 gap-2">
-					{buckets.map((bucket) => (
+					{offered.map((bucket) => (
 						<li key={bucket.id} className="grid">
-							<BucketPick bucket={bucket} ready={cents > 0} onPick={() => add(bucket)} />
+							<BucketPick
+								bucket={bucket}
+								ready={cents > 0}
+								suggested={bucket.id === suggested}
+								onPick={() => add(bucket)}
+							/>
 						</li>
 					))}
 				</ul>
@@ -302,10 +375,13 @@ function QuickAddForm({
 function BucketPick({
 	bucket,
 	ready,
+	suggested,
 	onPick,
 }: {
 	bucket: BucketState;
 	ready: boolean;
+	/** What a snapped Receipt or a phrase said it's for: offered first, and marked. */
+	suggested: boolean;
 	onPick: () => void;
 }) {
 	const color = asBucketColor(bucket.color);
@@ -322,14 +398,16 @@ function BucketPick({
 				ready
 					? "hover:border-[color-mix(in_oklab,var(--tile)_45%,var(--border))] hover:bg-[color-mix(in_oklab,var(--tile)_5%,var(--card))] active:scale-[0.98]"
 					: "opacity-45",
+				suggested && "border-border-strong",
 			)}
 		>
 			<Tile bucket={color} aria-hidden="true" className="row-span-2 size-8 rounded-[10px]">
 				{monogram(bucket.name)}
 			</Tile>
 			<span className="truncate text-[13px] font-medium">{bucket.name}</span>
-			<span className="text-xs text-subtle-foreground tabular-nums">
+			<span className="truncate text-xs text-subtle-foreground tabular-nums">
 				{formatMoney(Math.max(0, bucket.left))} left
+				{suggested ? <span className="text-muted-foreground"> · Suggested</span> : null}
 			</span>
 		</button>
 	);

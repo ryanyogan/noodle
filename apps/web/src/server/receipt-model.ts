@@ -267,15 +267,22 @@ function stubDate(receipt: string): string | null {
  * ending in an amount is read, by its words ("TOTAL", "TAX", "COUPON", "DELIVERY FEE"); an item
  * it knows goes, sure, to a Bucket whose name has the right word (milk to "Groceries"), one naming
  * a Bucket goes there, less sure, and one naming a Member is For them. The merchant is the first
- * line with no amount and no colon. A picture or PDF reads as nothing.
+ * line with no amount and no colon. A picture reads as the receipt text it carries in a PNG text
+ * chunk keyed "Receipt" (the photos E2E snaps), else as nothing, as a PDF does.
  */
 export const stubReceiptReader: ReceiptReader = {
 	async read(input, buckets, members) {
-		if (input.kind !== "text") return NOTHING_READ;
+		const text =
+			input.kind === "text"
+				? input.text
+				: input.kind === "image"
+					? pngText(input.bytes, "Receipt")
+					: null;
+		if (text === null) return NOTHING_READ;
 		let merchant: string | null = null;
 		let total: string | null = null;
 		const lines: ReadLine[] = [];
-		for (const raw of input.text.split("\n")) {
+		for (const raw of text.split("\n")) {
 			const line = raw.replace(/\s+/g, " ").trim();
 			const amountLine = AMOUNT_LINE.exec(line);
 			if (!amountLine) {
@@ -327,6 +334,26 @@ export const stubReceiptReader: ReceiptReader = {
 						: [],
 			});
 		}
-		return { merchant, date: stubDate(input.text), total, lines: lines.slice(0, MAX_LINES) };
+		return { merchant, date: stubDate(text), total, lines: lines.slice(0, MAX_LINES) };
 	},
 };
+
+/** The text a PNG carries in its `tEXt` chunk with `keyword`, or null. */
+export function pngText(bytes: Uint8Array, keyword: string): string | null {
+	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+	const latin1 = (from: number, to: number) =>
+		String.fromCharCode(...bytes.subarray(from, Math.min(to, bytes.length)));
+	if (latin1(1, 4) !== "PNG") return null;
+	// After the 8-byte signature: length, type, data, CRC, chunk after chunk.
+	for (let at = 8; at + 8 <= bytes.length; ) {
+		const length = view.getUint32(at);
+		const type = latin1(at + 4, at + 8);
+		if (type === "tEXt" && length < 0x8000) {
+			const data = latin1(at + 8, at + 8 + length);
+			if (data.startsWith(`${keyword}\0`)) return data.slice(keyword.length + 1);
+		}
+		if (type === "IEND") break;
+		at += 12 + length;
+	}
+	return null;
+}

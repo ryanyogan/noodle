@@ -29,11 +29,12 @@ import {
 import type { ReceiptInput, ReceiptReader } from "./receipt-model";
 import { idFor } from "./stable-id";
 
-// Filing a Receipt, however it arrived (a forwarded email now; a photo later): the model reads
-// it, the domain parses and reconciles what it read, and it's attached to the Transaction it's
-// for, or a Quick Add is made for it. When the model was sure of every item and nobody has decided
-// the Transaction's assignment yet, its Splits are applied on their own. Nothing here knows the
-// Worker, so tests run it against a test D1 with the fake model.
+// Filing a Receipt, however it arrived (forwarded by email, or snapped in Quick Add): the model
+// reads it, the domain parses and reconciles what it read, and it's attached to the Transaction
+// it's for, or a Quick Add is made for it (a snapped one waits for the Parent to check it first).
+// When the model was sure of every item and nobody has decided the Transaction's assignment yet,
+// its Splits are applied on their own. Nothing here knows the Worker, so tests run it against a
+// test D1 with the fake model.
 
 /** A Receipt as read: what it says, parsed, and the Splits it proposes. */
 export type ReadReceipt = {
@@ -105,6 +106,11 @@ export async function fileReceipt(
 		newId: () => string;
 		/** Files a new Quick Add the way a captured one is, when the Receipt doesn't. */
 		categorize?: (transactionId: string) => Promise<unknown>;
+		/**
+		 * Keep a Receipt that matches no Transaction unattached, for the Parent to check and save as
+		 * a Quick Add themselves (a snapped one), rather than making the Quick Add for it.
+		 */
+		keepUnmatched?: boolean;
 	},
 	viewer: Viewer,
 	receipt: { id: string; source: "email" | "photo"; fileKey: string; thumbnailKey: string | null },
@@ -121,7 +127,7 @@ export async function fileReceipt(
 					await loadReceiptCandidates(db, viewer, date),
 				);
 	const quickAdd =
-		matched === null && totalCents !== null
+		matched === null && totalCents !== null && !deps.keepUnmatched
 			? {
 					transactionId: await idFor(`${receipt.id}|quick-add`),
 					date,

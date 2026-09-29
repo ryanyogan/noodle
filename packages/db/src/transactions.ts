@@ -1,10 +1,12 @@
 import {
 	type Assignment,
 	type AttributedSpend,
+	addDays,
 	type BucketUse,
 	type CategorizationMethod,
 	type Cents,
 	type DayKey,
+	MATCH_WINDOW,
 	type MonthKey,
 	type SplitAssignment,
 	splitsBalance,
@@ -24,9 +26,11 @@ import {
 	type SQL,
 	sql,
 } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import { counts } from "./counting";
 import { earmarkSql } from "./goals";
 import type { Db } from "./index";
+import { matchImported } from "./matches";
 import {
 	asPrivateSpending,
 	assignableBy,
@@ -46,6 +50,7 @@ import {
 	goals,
 	matches,
 	members,
+	receipts,
 	refunds,
 	splitFor,
 	splits,
@@ -282,13 +287,22 @@ function insertFor(
 		.onConflictDoNothing();
 }
 
-export type QuickAddResult = { ok: true } | { ok: false; reason: "bucket-not-in-plan" };
+export type QuickAddResult =
+	| {
+			ok: true;
+			/** The months whose Quick Adds were Matched with a bank copy already imported. */
+			matchedMonths: string[];
+	  }
+	| { ok: false; reason: "bucket-not-in-plan" };
 
 /**
- * Records a Quick Add: `amountCents` spent today into a Bucket, For some Members (none for the
- * whole Household). Idempotent per `transactionId`, so a retried or double-tapped Quick Add is
+ * Records a Quick Add: `amountCents` spent on `date` into a Bucket, For some Members (none for
+ * the whole Household). Idempotent per `transactionId`, so a retried or double-tapped Quick Add is
  * recorded once. It is only written if, at write time, the Bucket belongs to the Household, is
- * in the Plan for `date`'s month, and isn't the other Parent's Personal Allowance.
+ * in the Plan for `date`'s month, and isn't the other Parent's Personal Allowance. With a
+ * `receipt` the Parent snapped, the Receipt is attached to it in the same batch (while it's theirs
+ * and attached to nothing), and a bank copy already imported, dated within the Match window, is
+ * Matched right away: a Receipt's date can be days back.
  */
 export async function addQuickAdd(
 	db: Db,
@@ -301,6 +315,7 @@ export async function addQuickAdd(
 		note: string | null;
 		forMemberIds: string[];
 		createdByMemberId: string;
+		receipt?: { id: string; newId: () => string };
 	},
 ): Promise<QuickAddResult> {
 	const month = input.date.slice(0, 7);
@@ -334,11 +349,28 @@ export async function addQuickAdd(
 				),
 		)
 		.onConflictDoNothing({ target: transactions.id });
-	if (input.forMemberIds.length > 0) {
-		await db.batch([insertTransaction, insertFor(db, input)]);
-	} else {
-		await insertTransaction;
+	const batch: BatchItem<"sqlite">[] = [insertTransaction];
+	if (input.forMemberIds.length > 0) batch.push(insertFor(db, input));
+	const { receipt } = input;
+	if (receipt) {
+		batch.push(
+			db
+				.update(receipts)
+				.set({ transactionId: input.transactionId })
+				.where(
+					and(
+						eq(receipts.id, receipt.id),
+						eq(receipts.householdId, input.householdId),
+						eq(receipts.memberId, input.createdByMemberId),
+						isNull(receipts.transactionId),
+						// Only once the Quick Add is written, and never a second Receipt for it.
+						sql`exists (select 1 from ${transactions} where ${transactions.id} = ${input.transactionId} and ${transactions.householdId} = ${input.householdId})`,
+						sql`not exists (select 1 from ${receipts} as attached where attached.transaction_id = ${input.transactionId})`,
+					),
+				),
+		);
 	}
+	await db.batch(batch as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
 	// Either this call or an earlier attempt with the same ID wrote it, or the Bucket was refused.
 	const [written] = await db
 		.select({ id: transactions.id })
@@ -349,7 +381,17 @@ export async function addQuickAdd(
 				eq(transactions.householdId, input.householdId),
 			),
 		);
-	return written ? { ok: true } : { ok: false, reason: "bucket-not-in-plan" };
+	if (!written) return { ok: false, reason: "bucket-not-in-plan" };
+	if (!receipt) return { ok: true, matchedMonths: [] };
+	// A bank copy imported before the Receipt was snapped, dated within the Match window.
+	const matched = await matchImported(
+		db,
+		input.householdId,
+		addDays(input.date, MATCH_WINDOW.from),
+		addDays(input.date, MATCH_WINDOW.to),
+		receipt.newId,
+	);
+	return { ok: true, matchedMonths: matched.months };
 }
 
 /** One of a Transaction's Splits, as the list and the edit sheet show it. */

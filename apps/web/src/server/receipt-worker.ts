@@ -34,6 +34,20 @@ export async function handleReceiptEmail(message: ForwardableEmailMessage): Prom
 	});
 }
 
+/** A photographed Receipt's 320px WebP thumbnail, made with the Images binding. */
+export async function receiptThumbnail({
+	bytes,
+}: {
+	bytes: Uint8Array;
+}): Promise<Uint8Array | null> {
+	const picture = new Response(bytes as Uint8Array<ArrayBuffer>).body;
+	if (!picture) return null;
+	const result = await env.IMAGES.input(picture)
+		.transform({ width: 320 })
+		.output({ format: "image/webp" });
+	return new Uint8Array(await result.response().arrayBuffer());
+}
+
 /** Files one queued Receipt and tells the Household. Throws for the Queue to retry. */
 export async function consumeReceipt(message: ReceiptMessage): Promise<void> {
 	const filed = await fileReceiptEmail(
@@ -47,14 +61,7 @@ export async function consumeReceipt(message: ReceiptMessage): Promise<void> {
 			store: async (key, bytes) => {
 				await env.STATEMENTS.put(key, bytes, { httpMetadata: { contentType: "image/webp" } });
 			},
-			thumbnail: async ({ bytes }) => {
-				const picture = new Response(bytes as Uint8Array<ArrayBuffer>).body;
-				if (!picture) return null;
-				const result = await env.IMAGES.input(picture)
-					.transform({ width: 320 })
-					.output({ format: "image/webp" });
-				return new Uint8Array(await result.response().arrayBuffer());
-			},
+			thumbnail: receiptThumbnail,
 			newId: ulid,
 			categorize: categorizeCaptured,
 		},

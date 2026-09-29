@@ -184,7 +184,10 @@ describe("Personal Allowance privacy: writes", () => {
 			ok: false,
 			reason: "bucket-not-in-plan",
 		});
-		expect(await quickAdd(alex, "lunch", "alex-pa", 1_200)).toEqual({ ok: true });
+		expect(await quickAdd(alex, "lunch", "alex-pa", 1_200)).toEqual({
+			ok: true,
+			matchedMonths: [],
+		});
 	});
 
 	it("lets its owner move a Transaction into and out of it", async () => {

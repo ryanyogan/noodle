@@ -440,6 +440,7 @@ export {
 	loadReceipt,
 	loadReceiptAddress,
 	loadReceiptCandidates,
+	loadUnfiledReceipt,
 	type ReceiptView,
 	setReceiptAddress,
 } from "./receipts";

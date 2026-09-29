@@ -3,6 +3,7 @@ import {
 	deleteTransaction as deleteTransactionInDb,
 	loadBucketUses,
 	loadTransactionsPage,
+	loadUnfiledReceipt,
 	splitTransaction as splitTransactionInDb,
 	type TransactionCursor,
 	type TransactionRow,
@@ -10,6 +11,7 @@ import {
 } from "@noodle/db";
 import { type BucketUse, type DayKey, dayKeyAt, MAX_CENTS, splitsBalance } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
+import { ulid } from "ulid";
 import { z } from "zod";
 import { afterAssignment } from "./categorize";
 import { getDb } from "./db";
@@ -22,7 +24,8 @@ import { ulidSchema } from "./schemas";
 const LIKELY_WINDOW_DAYS = 90;
 
 /**
- * Records a Quick Add, dated today in the Household's time zone. Idempotent per
+ * Records a Quick Add, dated today in the Household's time zone, or with the Receipt the Parent
+ * snapped for it (`receiptId`), dated as that is and with it attached. Idempotent per
  * `transactionId` (a client ULID), so the client can retry it safely.
  */
 export const addQuickAdd = createServerFn({ method: "POST" })
@@ -35,25 +38,33 @@ export const addQuickAdd = createServerFn({ method: "POST" })
 			note: z.string().trim().max(80).optional(),
 			// Who it was For; none means the whole Household.
 			forMemberIds: z.array(ulidSchema).max(20).default([]),
+			receiptId: ulidSchema.optional(),
 		}),
 	)
 	.handler(async ({ data, context }) => {
-		const date = dayKeyAt(new Date(), context.household.timeZone);
-		const result = await addQuickAddInDb(getDb(), {
+		const db = getDb();
+		const viewer = viewerOf(context);
+		const today = dayKeyAt(new Date(), context.household.timeZone);
+		// A retry after the Receipt was attached finds it filed: the Quick Add is already written.
+		const receipt = data.receiptId ? await loadUnfiledReceipt(db, viewer, data.receiptId) : null;
+		const result = await addQuickAddInDb(db, {
 			householdId: context.household.id,
 			transactionId: data.transactionId,
 			bucketId: data.bucketId,
-			date,
+			date: receipt?.date ?? today,
 			amountCents: data.amountCents,
 			note: data.note || null,
 			forMemberIds: data.forMemberIds,
 			createdByMemberId: context.parent.id,
+			receipt: receipt && data.receiptId ? { id: data.receiptId, newId: ulid } : undefined,
 		});
 		if (!result.ok) throw new Error("That Bucket isn’t in this month’s Plan.");
 		// Every month: what's left can roll into later ones.
 		await notifyHousehold(
 			context.household.id,
-			["months", "bucket-uses"],
+			result.matchedMonths.length > 0
+				? ["months", "for-earlier", "bucket-uses"]
+				: ["months", "bucket-uses"],
 			[{ type: "quick-add", transactionId: data.transactionId }],
 		);
 	});

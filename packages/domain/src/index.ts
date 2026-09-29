@@ -394,6 +394,7 @@ export {
 	splitRemainder,
 	splitsBalance,
 } from "./splits";
+export { findSpokenAmount, parseSpokenAmount, spokenAmount } from "./spoken";
 export { readStatement } from "./statement-file";
 export {
 	type ClosingBalance,

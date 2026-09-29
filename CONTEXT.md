@@ -126,6 +126,7 @@ _Avoid_: Credit, return, income
 
 **Quick Add**:
 A Transaction entered by hand at the moment of spending, before any bank data exists for it. One the Parent's iPhone Shortcut captures when they pay with Wallet (tap to capture) is a Quick Add too; it is filed the way imported Transactions are (by Rule, similar merchant, or the model), else goes to Review.
+Quick Add can be filled in by snapping a paper Receipt or by saying or typing a phrase ("forty on pizza after hockey"): the amount, a suggested Bucket, For and a note are read for the Parent to check, and nothing is saved until they tap a Bucket. One saved from a snapped Receipt is dated as the Receipt is, with it attached.
 _Avoid_: Manual entry, pending
 
 **Import**:
@@ -153,7 +154,7 @@ _Avoid_: Burn rate, target, on track
 
 **Receipt**:
 An itemized record of a purchase (photo or forwarded email) attached to a Transaction, used to fill in its Splits.
-A Parent forwards one to the Receipt address; it's attached to the Transaction with its total to the cent (a Quick Add is made when there's none yet). Its lines must add up to its total, each discount staying with its item and tax shared out; when the model was sure of every item and nobody has decided the Transaction's assignment, its Splits are applied on their own, otherwise a Parent applies them from the Transaction's detail.
+A Parent forwards one to the Receipt address, or snaps one in Quick Add; it's attached to the Transaction with its total to the cent (for a forwarded one, a Quick Add is made when there's none yet; a snapped one fills in Quick Add for the Parent to save). Its lines must add up to its total, each discount staying with its item and tax shared out; when the model was sure of every item and nobody has decided the Transaction's assignment, its Splits are applied on their own, otherwise a Parent applies them from the Transaction's detail.
 _Avoid_: Proof, attachment, invoice
 
 **Receipt address**:
