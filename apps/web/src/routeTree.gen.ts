@@ -25,6 +25,8 @@ import { Route as AuthedHouseholdMonthIndexRouteImport } from './routes/_authed/
 import { Route as AuthedHouseholdMonthMonthRouteImport } from './routes/_authed/_household/month.$month'
 import { Route as AuthedHouseholdPlanIndexRouteImport } from './routes/_authed/_household/plan.index'
 import { Route as AuthedHouseholdPlanMonthRouteImport } from './routes/_authed/_household/plan.$month'
+import { Route as AuthedHouseholdReviewIndexRouteImport } from './routes/_authed/_household/review.index'
+import { Route as AuthedHouseholdReviewRulesRouteImport } from './routes/_authed/_household/review.rules'
 import { Route as AuthedHouseholdTransactionsIndexRouteImport } from './routes/_authed/_household/transactions.index'
 import { Route as AuthedHouseholdTransactionsMonthRouteImport } from './routes/_authed/_household/transactions.$month'
 import { Route as AuthedHouseholdGoalsAccountsAccountIdRouteImport } from './routes/_authed/_household/goals.accounts.$accountId'
@@ -122,6 +124,18 @@ const AuthedHouseholdPlanMonthRoute =
     path: '/plan/$month',
     getParentRoute: () => AuthedHouseholdRoute,
   } as any)
+const AuthedHouseholdReviewIndexRoute =
+  AuthedHouseholdReviewIndexRouteImport.update({
+    id: '/review/',
+    path: '/review/',
+    getParentRoute: () => AuthedHouseholdRoute,
+  } as any)
+const AuthedHouseholdReviewRulesRoute =
+  AuthedHouseholdReviewRulesRouteImport.update({
+    id: '/review/rules',
+    path: '/review/rules',
+    getParentRoute: () => AuthedHouseholdRoute,
+  } as any)
 const AuthedHouseholdTransactionsIndexRoute =
   AuthedHouseholdTransactionsIndexRouteImport.update({
     id: '/transactions/',
@@ -195,10 +209,12 @@ export interface FileRoutesByFullPath {
   '/goals/$goalId': typeof AuthedHouseholdGoalsGoalIdRoute
   '/month/$month': typeof AuthedHouseholdMonthMonthRouteWithChildren
   '/plan/$month': typeof AuthedHouseholdPlanMonthRouteWithChildren
+  '/review/rules': typeof AuthedHouseholdReviewRulesRoute
   '/transactions/$month': typeof AuthedHouseholdTransactionsMonthRoute
   '/goals/': typeof AuthedHouseholdGoalsIndexRoute
   '/month/': typeof AuthedHouseholdMonthIndexRoute
   '/plan/': typeof AuthedHouseholdPlanIndexRoute
+  '/review/': typeof AuthedHouseholdReviewIndexRoute
   '/transactions/': typeof AuthedHouseholdTransactionsIndexRoute
   '/goals/accounts/$accountId': typeof AuthedHouseholdGoalsAccountsAccountIdRoute
   '/month/$month/plan': typeof AuthedHouseholdMonthMonthPlanRoute
@@ -219,10 +235,12 @@ export interface FileRoutesByTo {
   '/reports': typeof AuthedHouseholdReportsRoute
   '/explore/afford': typeof AuthedHouseholdExploreAffordRoute
   '/goals/$goalId': typeof AuthedHouseholdGoalsGoalIdRoute
+  '/review/rules': typeof AuthedHouseholdReviewRulesRoute
   '/transactions/$month': typeof AuthedHouseholdTransactionsMonthRoute
   '/goals': typeof AuthedHouseholdGoalsIndexRoute
   '/month': typeof AuthedHouseholdMonthIndexRoute
   '/plan': typeof AuthedHouseholdPlanIndexRoute
+  '/review': typeof AuthedHouseholdReviewIndexRoute
   '/transactions': typeof AuthedHouseholdTransactionsIndexRoute
   '/goals/accounts/$accountId': typeof AuthedHouseholdGoalsAccountsAccountIdRoute
   '/month/$month/plan': typeof AuthedHouseholdMonthMonthPlanRoute
@@ -248,10 +266,12 @@ export interface FileRoutesById {
   '/_authed/_household/goals/$goalId': typeof AuthedHouseholdGoalsGoalIdRoute
   '/_authed/_household/month/$month': typeof AuthedHouseholdMonthMonthRouteWithChildren
   '/_authed/_household/plan/$month': typeof AuthedHouseholdPlanMonthRouteWithChildren
+  '/_authed/_household/review/rules': typeof AuthedHouseholdReviewRulesRoute
   '/_authed/_household/transactions/$month': typeof AuthedHouseholdTransactionsMonthRoute
   '/_authed/_household/goals/': typeof AuthedHouseholdGoalsIndexRoute
   '/_authed/_household/month/': typeof AuthedHouseholdMonthIndexRoute
   '/_authed/_household/plan/': typeof AuthedHouseholdPlanIndexRoute
+  '/_authed/_household/review/': typeof AuthedHouseholdReviewIndexRoute
   '/_authed/_household/transactions/': typeof AuthedHouseholdTransactionsIndexRoute
   '/_authed/_household/goals/accounts/$accountId': typeof AuthedHouseholdGoalsAccountsAccountIdRoute
   '/_authed/_household/month/$month/plan': typeof AuthedHouseholdMonthMonthPlanRoute
@@ -276,10 +296,12 @@ export interface FileRouteTypes {
     | '/goals/$goalId'
     | '/month/$month'
     | '/plan/$month'
+    | '/review/rules'
     | '/transactions/$month'
     | '/goals/'
     | '/month/'
     | '/plan/'
+    | '/review/'
     | '/transactions/'
     | '/goals/accounts/$accountId'
     | '/month/$month/plan'
@@ -300,10 +322,12 @@ export interface FileRouteTypes {
     | '/reports'
     | '/explore/afford'
     | '/goals/$goalId'
+    | '/review/rules'
     | '/transactions/$month'
     | '/goals'
     | '/month'
     | '/plan'
+    | '/review'
     | '/transactions'
     | '/goals/accounts/$accountId'
     | '/month/$month/plan'
@@ -328,10 +352,12 @@ export interface FileRouteTypes {
     | '/_authed/_household/goals/$goalId'
     | '/_authed/_household/month/$month'
     | '/_authed/_household/plan/$month'
+    | '/_authed/_household/review/rules'
     | '/_authed/_household/transactions/$month'
     | '/_authed/_household/goals/'
     | '/_authed/_household/month/'
     | '/_authed/_household/plan/'
+    | '/_authed/_household/review/'
     | '/_authed/_household/transactions/'
     | '/_authed/_household/goals/accounts/$accountId'
     | '/_authed/_household/month/$month/plan'
@@ -463,6 +489,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedHouseholdPlanMonthRouteImport
       parentRoute: typeof AuthedHouseholdRoute
     }
+    '/_authed/_household/review/': {
+      id: '/_authed/_household/review/'
+      path: '/review'
+      fullPath: '/review/'
+      preLoaderRoute: typeof AuthedHouseholdReviewIndexRouteImport
+      parentRoute: typeof AuthedHouseholdRoute
+    }
+    '/_authed/_household/review/rules': {
+      id: '/_authed/_household/review/rules'
+      path: '/review/rules'
+      fullPath: '/review/rules'
+      preLoaderRoute: typeof AuthedHouseholdReviewRulesRouteImport
+      parentRoute: typeof AuthedHouseholdRoute
+    }
     '/_authed/_household/transactions/': {
       id: '/_authed/_household/transactions/'
       path: '/transactions'
@@ -584,10 +624,12 @@ interface AuthedHouseholdRouteChildren {
   AuthedHouseholdGoalsGoalIdRoute: typeof AuthedHouseholdGoalsGoalIdRoute
   AuthedHouseholdMonthMonthRoute: typeof AuthedHouseholdMonthMonthRouteWithChildren
   AuthedHouseholdPlanMonthRoute: typeof AuthedHouseholdPlanMonthRouteWithChildren
+  AuthedHouseholdReviewRulesRoute: typeof AuthedHouseholdReviewRulesRoute
   AuthedHouseholdTransactionsMonthRoute: typeof AuthedHouseholdTransactionsMonthRoute
   AuthedHouseholdGoalsIndexRoute: typeof AuthedHouseholdGoalsIndexRoute
   AuthedHouseholdMonthIndexRoute: typeof AuthedHouseholdMonthIndexRoute
   AuthedHouseholdPlanIndexRoute: typeof AuthedHouseholdPlanIndexRoute
+  AuthedHouseholdReviewIndexRoute: typeof AuthedHouseholdReviewIndexRoute
   AuthedHouseholdTransactionsIndexRoute: typeof AuthedHouseholdTransactionsIndexRoute
   AuthedHouseholdGoalsAccountsAccountIdRoute: typeof AuthedHouseholdGoalsAccountsAccountIdRoute
 }
@@ -601,10 +643,12 @@ const AuthedHouseholdRouteChildren: AuthedHouseholdRouteChildren = {
   AuthedHouseholdGoalsGoalIdRoute: AuthedHouseholdGoalsGoalIdRoute,
   AuthedHouseholdMonthMonthRoute: AuthedHouseholdMonthMonthRouteWithChildren,
   AuthedHouseholdPlanMonthRoute: AuthedHouseholdPlanMonthRouteWithChildren,
+  AuthedHouseholdReviewRulesRoute: AuthedHouseholdReviewRulesRoute,
   AuthedHouseholdTransactionsMonthRoute: AuthedHouseholdTransactionsMonthRoute,
   AuthedHouseholdGoalsIndexRoute: AuthedHouseholdGoalsIndexRoute,
   AuthedHouseholdMonthIndexRoute: AuthedHouseholdMonthIndexRoute,
   AuthedHouseholdPlanIndexRoute: AuthedHouseholdPlanIndexRoute,
+  AuthedHouseholdReviewIndexRoute: AuthedHouseholdReviewIndexRoute,
   AuthedHouseholdTransactionsIndexRoute: AuthedHouseholdTransactionsIndexRoute,
   AuthedHouseholdGoalsAccountsAccountIdRoute:
     AuthedHouseholdGoalsAccountsAccountIdRoute,

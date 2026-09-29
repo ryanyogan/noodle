@@ -21,6 +21,7 @@ import {
 	ArrowLeftRight,
 	ChevronLeft,
 	ChevronRight,
+	ListChecks,
 	ReceiptText,
 	Sparkles,
 	Split as SplitIcon,
@@ -33,7 +34,7 @@ import { NativeSelect } from "../../../components/native-select";
 import { TransactionEditor } from "../../../components/transaction-editor";
 import { dayName, formatMoney, monthName } from "../../../format";
 import { forLabel, type MemberSummary, pickableMembers } from "../../../members";
-import { membersQuery, monthQuery } from "../../../queries";
+import { membersQuery, monthQuery, reviewQuery } from "../../../queries";
 import { monthKeySchema } from "../../../server/month";
 import { ulidSchema } from "../../../server/schemas";
 import { forFilterSchema } from "../../../server/transactions";
@@ -63,6 +64,7 @@ export const Route = createFileRoute("/_authed/_household/transactions/$month")(
 		Promise.all([
 			context.queryClient.ensureQueryData(monthQuery(context.month)),
 			context.queryClient.ensureQueryData(membersQuery()),
+			context.queryClient.ensureQueryData(reviewQuery()),
 			context.queryClient.ensureInfiniteQueryData(transactionsQuery(context.month, deps)),
 		]),
 	component: TransactionsPage,
@@ -80,6 +82,7 @@ function TransactionsPage() {
 	const members = useSuspenseQuery(membersQuery()).data;
 	const [editing, setEditing] = useState<TransactionRow | null>(null);
 	const change = useTransactionChange();
+	const waiting = useSuspenseQuery(reviewQuery()).data.total;
 	const sameYear = month.slice(0, 4) === current.slice(0, 4);
 	const filtered = filters.bucket !== undefined || filters.for !== undefined;
 
@@ -91,6 +94,20 @@ function TransactionsPage() {
 				title={sameYear ? monthName(month) : `${monthName(month)} ${month.slice(0, 4)}`}
 				actions={
 					<div className="flex items-center gap-1">
+						<Button variant="outline" size="sm" className="me-2" asChild>
+							<Link
+								to="/review"
+								aria-label={waiting > 0 ? `Review, ${waiting} to review` : "Review"}
+							>
+								<ListChecks />
+								Review
+								{waiting > 0 ? (
+									<Badge variant="count" className="-me-1">
+										{waiting}
+									</Badge>
+								) : null}
+							</Link>
+						</Button>
 						<Button variant="ghost" size="icon" asChild>
 							<Link
 								to="/transactions/$month"

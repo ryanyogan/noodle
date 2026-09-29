@@ -23,8 +23,9 @@ import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, ChevronRight, ListChecks } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../../../buckets";
@@ -38,7 +39,7 @@ import { type CoverVariables, useCovers } from "../../../covers";
 import { formatMoney, shortDay } from "../../../format";
 import { type GoalView, useGoals } from "../../../goals";
 import { closingWeek, useCloseMonth } from "../../../month-close";
-import { useMonthState } from "../../../queries";
+import { reviewQuery, useMonthState } from "../../../queries";
 import { useIncome, useWindfalls } from "../../../windfalls";
 
 export const Route = createFileRoute("/_authed/_household/month/$month/")({
@@ -156,6 +157,7 @@ function ThisMonth() {
 							emergencyGoalId={goals.emergencyGoalId}
 						/>
 					) : null}
+					{month === current ? <ReviewChip /> : null}
 					<FreeToSpend state={state} check={check} />
 					{state.windfallLeft > 0 && month <= current ? (
 						<WindfallSection
@@ -273,6 +275,25 @@ function ThisMonth() {
 				}}
 			/>
 		</div>
+	);
+}
+
+/** "3 to review", when imported Transactions wait in Review; nothing otherwise. */
+function ReviewChip() {
+	const waiting = useQuery(reviewQuery()).data?.total ?? 0;
+	if (waiting === 0) return null;
+	return (
+		<Link
+			to="/review"
+			className={cn(
+				"-mb-3 inline-flex w-fit items-center gap-2 rounded-full bg-card py-1.5 ps-3 pe-2 text-sm font-medium shadow-card ring-1 ring-border",
+				"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2",
+			)}
+		>
+			<ListChecks className="size-4 text-muted-foreground" aria-hidden="true" />
+			{waiting} to review
+			<ChevronRight className="size-4 text-muted-foreground" aria-hidden="true" />
+		</Link>
 	);
 }
 

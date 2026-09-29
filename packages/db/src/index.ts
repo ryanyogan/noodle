@@ -285,10 +285,8 @@ export {
 	fileCategorizations,
 	loadCategorizableBuckets,
 	loadCorrection,
-	loadRules,
 	loadUncategorized,
 	loadUncategorizedTransaction,
-	saveRule,
 	settleCategorization,
 	type Uncategorized,
 } from "./categorize";
@@ -406,7 +404,19 @@ export {
 	type ReportItem,
 	type ReportScope,
 } from "./reports";
+export { loadReview, type ReviewItem, type ReviewQueue, returnToReview } from "./review";
 export { loadRolledOver } from "./rollover";
+export {
+	applyRule,
+	deleteRule,
+	editRule,
+	listRules,
+	loadRules,
+	type RuleEditResult,
+	type RuleRow,
+	type StoredRule,
+	saveRule,
+} from "./rules";
 export {
 	applyLevers,
 	deleteScenario,

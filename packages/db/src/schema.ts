@@ -686,8 +686,12 @@ export const monthCloses = sqliteTable(
 );
 
 // A Rule: a stated mapping from a merchant pattern (a merchantKey from @noodle/domain, matched as
-// whole words) to a Bucket. Categorization tries Rules before anything learned or modelled, and a
-// Rule always wins. One per Household and pattern.
+// whole words) to a Bucket, and For whoever `rule_for` names. Categorization tries Rules before
+// anything learned or modelled, and a Rule always wins. A Rule into a Parent's own Personal
+// Allowance is theirs alone (`owner_member_id`, ADR-0003): the other Parent never reads it and
+// their Imports never use it. One per Household, pattern, and owner, so a Parent's private Rule
+// and the Household's for the same merchant can't overwrite each other. `matched_count` counts
+// the Transactions it has filed.
 export const rules = sqliteTable(
 	"rules",
 	{
@@ -703,8 +707,34 @@ export const rules = sqliteTable(
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()
 			.default(sql`(unixepoch() * 1000)`),
+		ownerMemberId: text("owner_member_id").references(() => members.id),
+		matchedCount: integer("matched_count").notNull().default(0),
 	},
-	(t) => [uniqueIndex("rules_household_pattern_idx").on(t.householdId, t.pattern)],
+	(t) => [
+		uniqueIndex("rules_household_pattern_owner_idx").on(
+			t.householdId,
+			t.pattern,
+			sql`coalesce(${t.ownerMemberId}, '')`,
+		),
+	],
+);
+
+// Who a Rule files spending For: one row per Member, like `transaction_for` (ADR-0011). No rows
+// means the whole Household.
+export const ruleFor = sqliteTable(
+	"rule_for",
+	{
+		ruleId: text("rule_id")
+			.notNull()
+			.references(() => rules.id, { onDelete: "cascade" }),
+		memberId: text("member_id")
+			.notNull()
+			.references(() => members.id),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+	},
+	(t) => [primaryKey({ columns: [t.ruleId, t.memberId] })],
 );
 
 // What categorization decided for an imported Transaction, made for the Parent who imported it

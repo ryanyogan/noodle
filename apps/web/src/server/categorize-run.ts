@@ -69,10 +69,11 @@ async function categorize(
 	const months = [...new Set(rows.map((row) => row.date.slice(0, 7)))].sort();
 	const [buckets, allRules] = await Promise.all([
 		loadCategorizableBuckets(db, viewer, months[0] as string, months.at(-1) as string),
-		loadRules(db, viewer.householdId),
+		// Never the other Parent's private Rules.
+		loadRules(db, viewer),
 	]);
 	const choosable = new Set(buckets.map((bucket) => bucket.id));
-	// A Rule into a Bucket this Parent can't assign (the other's Personal Allowance) isn't theirs.
+	// Nor one into a Bucket this Parent can't assign, or that isn't in the Plan for these months.
 	const rules = allRules.filter((rule) => choosable.has(rule.bucketId));
 
 	const merchantOf = new Map(rows.map((row) => [row.id, merchantKey(row.note ?? "")]));
@@ -100,8 +101,9 @@ async function categorize(
 	const decisions = rows.map((row): CategorizationDecision => {
 		const merchant = merchantOf.get(row.id) as string;
 		const guess = modelled.get(merchant);
+		const rule = ruleFor(rules, merchant);
 		const categorization = decideCategorization({
-			rule: ruleFor(rules, merchant),
+			rule,
 			similar: similar.get(merchant),
 			model:
 				guess && (guess.bucketId === null || choosable.has(guess.bucketId))
@@ -120,7 +122,7 @@ async function categorize(
 				categorization: { outcome: "review", bucketId: null, confidence: null },
 			};
 		}
-		return { transactionId: row.id, merchant, categorization };
+		return { transactionId: row.id, merchant, categorization, ruleId: rule?.id };
 	});
 	await fileCategorizations(db, viewer, decisions);
 	const filed = decisions.filter((d) => d.categorization.outcome === "filed").length;

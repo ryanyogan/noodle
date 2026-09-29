@@ -4,7 +4,7 @@ import { toast } from "@noodle/ui/components/toast";
 import {
 	type InfiniteData,
 	infiniteQueryOptions,
-	type QueryKey,
+	type QueryClient,
 	useMutation,
 	useQueryClient,
 } from "@tanstack/react-query";
@@ -169,6 +169,73 @@ export function withRowChange(
 	};
 }
 
+/** Saves a change to a Transaction on the server: an edit, a split, or a delete. */
+export function saveTransactionChange({ transaction, next }: TransactionChange) {
+	const month = monthOfTransaction(transaction);
+	if (next && "splits" in next) {
+		return splitTransaction({
+			data: {
+				transactionId: transaction.id,
+				month,
+				amountCents: next.amountCents,
+				note: next.note ?? undefined,
+				splits: next.splits,
+			},
+		});
+	}
+	return next
+		? updateTransaction({
+				data: {
+					transactionId: transaction.id,
+					month,
+					amountCents: next.amountCents,
+					assignment: next.assignment,
+					note: next.note ?? undefined,
+					forMemberIds: next.forMemberIds,
+				},
+			})
+		: deleteTransaction({ data: { transactionId: transaction.id, month } });
+}
+
+/**
+ * Lands a change to a Transaction in its month's cached inputs and every cached list of that
+ * month at once (ADR-0006). Returns what puts them back if the change fails.
+ */
+export async function applyTransactionChange(queryClient: QueryClient, change: TransactionChange) {
+	const month = monthOfTransaction(change.transaction);
+	const monthKey = monthQuery(month).queryKey;
+	// Also cancels the month's lists, which live under its key.
+	await queryClient.cancelQueries({ queryKey: monthKey });
+	const previousMonth = queryClient.getQueryData(monthKey);
+	if (previousMonth) {
+		queryClient.setQueryData(monthKey, withTransactionChange(previousMonth, change));
+	}
+	const previousLists = queryClient.getQueriesData<InfiniteData<TransactionsPage>>({
+		queryKey: transactionsKey(month),
+	});
+	for (const [queryKey, list] of previousLists) {
+		if (list) queryClient.setQueryData(queryKey, withRowChange(list, change));
+	}
+	return () => {
+		if (previousMonth) queryClient.setQueryData(monthKey, previousMonth);
+		for (const [queryKey, list] of previousLists) queryClient.setQueryData(queryKey, list);
+	};
+}
+
+/**
+ * After a change to spending settles: refetch every month, and what follows from spending. Not
+ * while another change is in flight, which the refetch would briefly undo on screen.
+ */
+export function refetchAfterChange(queryClient: QueryClient) {
+	if (queryClient.isMutating({ mutationKey: monthChangeKey }) === 1) {
+		return Promise.all([
+			queryClient.invalidateQueries({ queryKey: monthsKey }),
+			queryClient.invalidateQueries({ queryKey: forTotalsEarlierKey }),
+			queryClient.invalidateQueries({ queryKey: bucketUsesQuery().queryKey }),
+		]);
+	}
+}
+
 /**
  * Edits, splits, or deletes a Transaction. The change lands in its month's cached inputs and every cached
  * list of that month at once (ADR-0006), so This Month's Bucket meters and the list move before
@@ -179,56 +246,12 @@ export function useTransactionChange() {
 	const queryClient = useQueryClient();
 	const change = useMutation({
 		mutationKey: monthChangeKey,
-		mutationFn: ({ transaction, next }: TransactionChange) => {
-			const month = monthOfTransaction(transaction);
-			if (next && "splits" in next) {
-				return splitTransaction({
-					data: {
-						transactionId: transaction.id,
-						month,
-						amountCents: next.amountCents,
-						note: next.note ?? undefined,
-						splits: next.splits,
-					},
-				});
-			}
-			return next
-				? updateTransaction({
-						data: {
-							transactionId: transaction.id,
-							month,
-							amountCents: next.amountCents,
-							assignment: next.assignment,
-							note: next.note ?? undefined,
-							forMemberIds: next.forMemberIds,
-						},
-					})
-				: deleteTransaction({ data: { transactionId: transaction.id, month } });
-		},
-		onMutate: async (variables) => {
-			const month = monthOfTransaction(variables.transaction);
-			const monthKey = monthQuery(month).queryKey;
-			// Also cancels the month's lists, which live under its key.
-			await queryClient.cancelQueries({ queryKey: monthKey });
-			const previousMonth = queryClient.getQueryData(monthKey);
-			if (previousMonth) {
-				queryClient.setQueryData(monthKey, withTransactionChange(previousMonth, variables));
-			}
-			const previousLists = queryClient.getQueriesData<InfiniteData<TransactionsPage>>({
-				queryKey: transactionsKey(month),
-			});
-			for (const [queryKey, list] of previousLists) {
-				if (list) queryClient.setQueryData(queryKey, withRowChange(list, variables));
-			}
-			return { monthKey, previousMonth, previousLists };
-		},
+		mutationFn: saveTransactionChange,
+		onMutate: async (variables) => ({
+			rollback: await applyTransactionChange(queryClient, variables),
+		}),
 		onError: (_error, variables, context) => {
-			if (context?.previousMonth) {
-				queryClient.setQueryData(context.monthKey, context.previousMonth);
-			}
-			for (const [queryKey, list] of context?.previousLists ?? ([] as [QueryKey, unknown][])) {
-				queryClient.setQueryData(queryKey, list);
-			}
+			context?.rollback();
 			toast(
 				variables.next
 					? `Couldn’t save your change to ${variables.label}, so it’s been undone.`
@@ -239,16 +262,7 @@ export function useTransactionChange() {
 		onSuccess: (_data, variables) => {
 			toast(variables.next ? `${variables.label} saved` : `${variables.label} deleted`);
 		},
-		onSettled: () => {
-			// Refetching while another change is in flight would briefly undo it on screen.
-			if (queryClient.isMutating({ mutationKey: monthChangeKey }) === 1) {
-				return Promise.all([
-					queryClient.invalidateQueries({ queryKey: monthsKey }),
-					queryClient.invalidateQueries({ queryKey: forTotalsEarlierKey }),
-					queryClient.invalidateQueries({ queryKey: bucketUsesQuery().queryKey }),
-				]);
-			}
-		},
+		onSettled: () => refetchAfterChange(queryClient),
 	});
 	return change;
 }

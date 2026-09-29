@@ -27,7 +27,13 @@ type NavItem = {
 	desktopOnly?: boolean;
 	/** Other paths this destination shows as current on in the tab bar. */
 	alsoFor?: string[];
+	/** Paths inside this destination, though not under its own: current there everywhere. */
+	within?: string[];
 };
+
+/** Whether `item` is current at `pathname` through one of the paths `within` it. */
+const currentWithin = (item: NavItem, pathname: string) =>
+	item.within?.some((path) => pathname.startsWith(path)) ?? false;
 
 // Every top-level destination, in order. The sidebar (desktop) and tab bar (phone) both render it,
 // though the tab bar has room for four: the Plan is reached from This Month there (its Month and
@@ -36,7 +42,13 @@ type NavItem = {
 const nav: NavItem[] = [
 	{ to: "/month", label: "This Month", short: "Month", icon: CalendarDays, alsoFor: ["/plan"] },
 	{ to: "/plan", label: "Plan", short: "Plan", icon: SlidersHorizontal, desktopOnly: true },
-	{ to: "/transactions", label: "Transactions", short: "Transactions", icon: List },
+	{
+		to: "/transactions",
+		label: "Transactions",
+		short: "Transactions",
+		icon: List,
+		within: ["/review"],
+	},
 	{ to: "/goals", label: "Goals", short: "Goals", icon: Target, alsoFor: ["/explore"] },
 	{ to: "/explore", label: "Explore", short: "Explore", icon: Telescope, desktopOnly: true },
 	{ to: "/reports", label: "Reports", short: "Reports", icon: ChartColumn, desktopOnly: true },
@@ -71,6 +83,7 @@ export function AppShell({
 }
 
 function Sidebar({ householdName }: { householdName: string }) {
+	const pathname = useRouterState({ select: (state) => state.location.pathname });
 	return (
 		<aside className="sticky top-0 hidden h-dvh flex-col gap-6 border-e bg-card/55 px-3 py-5 lg:flex">
 			<Link to="/month" className="rounded-lg px-3 py-1" aria-label="Noodle, This Month">
@@ -96,6 +109,8 @@ function Sidebar({ householdName }: { householdName: string }) {
 							"flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium text-muted-foreground",
 							"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2 hover:text-foreground",
 							"data-[status=active]:bg-card data-[status=active]:text-foreground data-[status=active]:shadow-card data-[status=active]:ring-1 data-[status=active]:ring-border",
+							currentWithin(item, pathname) &&
+								"bg-card text-foreground shadow-card ring-1 ring-border",
 						)}
 					>
 						<item.icon className="size-4.5" strokeWidth={1.75} aria-hidden="true" />
@@ -173,7 +188,9 @@ function TabGroup({ items }: { items: NavItem[] }) {
 					className={cn(
 						"grid h-(--tabbar-height) min-w-0 place-content-center justify-items-center gap-1 rounded-lg text-[11px] font-medium text-subtle-foreground",
 						"transition-colors duration-(--duration-fast) ease-standard data-[status=active]:text-foreground",
-						item.alsoFor?.some((path) => pathname.startsWith(path)) && "text-foreground",
+						(item.alsoFor?.some((path) => pathname.startsWith(path)) ||
+							currentWithin(item, pathname)) &&
+							"text-foreground",
 					)}
 				>
 					<item.icon className="size-5.5" strokeWidth={1.75} aria-hidden="true" />

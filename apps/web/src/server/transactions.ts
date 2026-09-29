@@ -195,6 +195,8 @@ export const splitTransaction = createServerFn({ method: "POST" })
 					: "A Split isn’t in the Plan for this Transaction’s month.",
 			);
 		}
+		// Decided by a Parent: it leaves categorization, and Review.
+		await afterAssignment(viewerOf(context), data.transactionId);
 		await notifyHousehold(context.household.id, [
 			// Every month: what's left can roll into later ones.
 			"months",

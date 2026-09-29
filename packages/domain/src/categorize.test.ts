@@ -38,6 +38,19 @@ describe("ruleFor: the Rule matching a merchant", () => {
 		expect(ruleFor(rules, "costco gas kirkland")?.bucketId).toBe("gas");
 		expect(ruleFor(rules, "seashells by the shore")).toBeUndefined();
 	});
+
+	it("prefers a Parent's private Rule over the Household's for the same pattern", () => {
+		const both = [
+			{ pattern: "amazon", bucketId: "shopping" },
+			{ pattern: "amazon", bucketId: "alex-pa", private: true },
+		];
+		expect(ruleFor(both, "amazon mktp")?.bucketId).toBe("alex-pa");
+		expect(ruleFor([...both].reverse(), "amazon mktp")?.bucketId).toBe("alex-pa");
+		// A longer pattern still wins.
+		expect(
+			ruleFor([...both, { pattern: "amazon mktp", bucketId: "home" }], "amazon mktp")?.bucketId,
+		).toBe("home");
+	});
 });
 
 describe("decideCategorization: Rules, then similar merchants, then the model", () => {
@@ -50,7 +63,13 @@ describe("decideCategorization: Rules, then similar merchants, then the model", 
 				similar: { bucketId: "fun", score: 0.99 },
 				model: { bucketId: "gas", confidence: 0.99 },
 			}),
-		).toEqual({ outcome: "filed", method: "rule", bucketId: "groceries", confidence: 1 });
+		).toEqual({ outcome: "filed", method: "rule", bucketId: "groceries", confidence: 1, for: [] });
+	});
+
+	it("files by a Rule For whoever it says", () => {
+		expect(
+			decideCategorization({ rule: { pattern: "lego", bucketId: "fun", for: ["maya", "theo"] } }),
+		).toMatchObject({ outcome: "filed", method: "rule", bucketId: "fun", for: ["maya", "theo"] });
 	});
 
 	it("files by a similar merchant over the model, only when alike enough", () => {

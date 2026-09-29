@@ -8,6 +8,7 @@ import { getForTotalsEarlierInYear, getMembers } from "./server/members";
 import { getMonth, type MonthData } from "./server/month";
 import { getNudgeSettings } from "./server/nudges";
 import { getReport, type ReportRequest } from "./server/reports";
+import { getReview, getRules } from "./server/review";
 import { getPlanAhead, getScenarios } from "./server/scenarios";
 import { getViewer } from "./server/session";
 import { getBucketUses } from "./server/transactions";
@@ -81,6 +82,23 @@ export const planAheadQuery = () =>
 	queryOptions({
 		queryKey: [...monthsKey, "ahead"],
 		queryFn: () => getPlanAhead(),
+	});
+
+/**
+ * What waits in Review. Under every month's key, since any change to spending (an Import, an
+ * edit, the other Parent clearing a card) can change it.
+ */
+export const reviewQuery = () =>
+	queryOptions({
+		queryKey: [...monthsKey, "review"],
+		queryFn: () => getReview(),
+	});
+
+/** The Rules this Parent may see. */
+export const rulesQuery = () =>
+	queryOptions({
+		queryKey: ["rules"],
+		queryFn: () => getRules(),
 	});
 
 /** The Household's Scenarios, most recently changed first. */

@@ -21,12 +21,24 @@ export type CategorizationMethod = "rule" | "similar" | "model";
 
 /** What categorization decided for one imported Transaction. */
 export type Categorization =
-	| { outcome: "filed"; method: CategorizationMethod; bucketId: string; confidence: number }
+	| {
+			outcome: "filed";
+			method: CategorizationMethod;
+			bucketId: string;
+			confidence: number;
+			/** Who it was For, when a Rule that says so filed it; otherwise it's left as it is. */
+			for?: string[];
+	  }
 	/** Left unassigned for Review, with the best guess if there was one. */
 	| { outcome: "review"; bucketId: string | null; confidence: number | null };
 
-/** A stated mapping from a merchant pattern (a merchantKey, matched as whole words) to a Bucket. */
-export type Rule = { pattern: string; bucketId: string };
+/**
+ * A stated mapping from a merchant pattern (a merchantKey, matched as whole words) to a Bucket
+ * and, optionally, who it's For (Member IDs; none means the whole Household). A private Rule is
+ * one into a Parent's own Personal Allowance: only that Parent sees it, and only their Imports
+ * use it.
+ */
+export type Rule = { pattern: string; bucketId: string; for?: string[]; private?: boolean };
 
 /** Words statements put around a merchant's name that say nothing about it. */
 const NOISE =
@@ -62,12 +74,20 @@ export function merchantKey(description: string): string {
 	return key || description.trim().toLowerCase().slice(0, 64);
 }
 
-/** The Rule for a merchant: the one whose pattern appears in it as whole words, longest first. */
-export function ruleFor(rules: Rule[], merchant: string): Rule | undefined {
+/**
+ * The Rule for a merchant: the one whose pattern appears in it as whole words, longest first.
+ * Between a Household Rule and a Parent's private one for the same pattern, theirs wins: they
+ * stated it for themselves.
+ */
+export function ruleFor<R extends Rule>(rules: R[], merchant: string): R | undefined {
 	const padded = ` ${merchant} `;
 	return rules
 		.filter((rule) => rule.pattern.trim() && padded.includes(` ${rule.pattern.trim()} `))
-		.sort((a, b) => b.pattern.length - a.pattern.length)[0];
+		.sort(
+			(a, b) =>
+				b.pattern.trim().length - a.pattern.trim().length ||
+				Number(b.private ?? false) - Number(a.private ?? false),
+		)[0];
 }
 
 /**
@@ -82,7 +102,13 @@ export function decideCategorization(said: {
 	model?: { bucketId: string | null; confidence: number };
 }): Categorization {
 	if (said.rule) {
-		return { outcome: "filed", method: "rule", bucketId: said.rule.bucketId, confidence: 1 };
+		return {
+			outcome: "filed",
+			method: "rule",
+			bucketId: said.rule.bucketId,
+			confidence: 1,
+			for: said.rule.for ?? [],
+		};
 	}
 	if (said.similar && said.similar.score >= SIMILAR_MERCHANT_SCORE) {
 		return {

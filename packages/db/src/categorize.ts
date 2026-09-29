@@ -1,9 +1,18 @@
-import { type Categorization, type DayKey, merchantKey, type Rule } from "@noodle/domain";
+import { type Categorization, type DayKey, merchantKey } from "@noodle/domain";
 import { and, asc, eq, gt, isNull, lte, or, type SQL, sql } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import { counts } from "./counting";
 import type { Db } from "./index";
 import { assignableBy, changeableBy, type Viewer } from "./privacy";
-import { buckets, categorizations, rules, splits, transactions } from "./schema";
+import {
+	buckets,
+	categorizations,
+	members,
+	rules,
+	splits,
+	transactionFor,
+	transactions,
+} from "./schema";
 
 // Categorization's reads and writes. Everything is read for the Parent who imported (the Viewer),
 // so the Buckets categorization chooses among are theirs to assign: Household Buckets and their
@@ -91,68 +100,22 @@ export async function loadCategorizableBuckets(
 	return rows.map(({ owner, ...bucket }) => ({ ...bucket, personal: owner !== null }));
 }
 
-/** The Household's Rules. */
-export async function loadRules(db: Db, householdId: string): Promise<Rule[]> {
-	return db
-		.select({ pattern: rules.pattern, bucketId: rules.bucketId })
-		.from(rules)
-		.where(eq(rules.householdId, householdId));
-}
-
-/**
- * States a Rule: statement lines whose merchant contains `pattern` (made a merchantKey) go to
- * `bucketId`, a Bucket of the Household `memberId` may assign to. Replaces the Household's Rule
- * for the same pattern.
- */
-export async function saveRule(
-	db: Db,
-	input: { id: string; householdId: string; memberId: string; pattern: string; bucketId: string },
-): Promise<{ ok: boolean }> {
-	const pattern = merchantKey(input.pattern);
-	const assignable = sql`exists (select 1 from ${buckets} where ${and(
-		eq(buckets.id, input.bucketId),
-		eq(buckets.householdId, input.householdId),
-		assignableBy(input.memberId),
-	)})`;
-	await db
-		.insert(rules)
-		.select(
-			db
-				.select({
-					id: sql<string>`${input.id}`.as("id"),
-					householdId: sql<string>`${input.householdId}`.as("household_id"),
-					pattern: sql<string>`${pattern}`.as("pattern"),
-					bucketId: sql<string>`${input.bucketId}`.as("bucket_id"),
-					createdByMemberId: sql<string>`${input.memberId}`.as("created_by_member_id"),
-					createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
-				})
-				.from(sql`(select 1)`)
-				.where(assignable),
-		)
-		.onConflictDoUpdate({
-			target: [rules.householdId, rules.pattern],
-			set: { bucketId: input.bucketId, createdByMemberId: input.memberId },
-		});
-	const [saved] = await db
-		.select({ bucketId: rules.bucketId })
-		.from(rules)
-		.where(and(eq(rules.householdId, input.householdId), eq(rules.pattern, pattern)));
-	return { ok: saved?.bucketId === input.bucketId };
-}
-
 /** What categorization decided for one Transaction, and the merchant it decided it for. */
 export type CategorizationDecision = {
 	transactionId: string;
 	merchant: string;
 	categorization: Categorization;
+	/** The Rule that filed it, if one did: it counts the Transaction as one it matched. */
+	ruleId?: string;
 };
 
 /**
  * Files the Transactions categorization was sure of and flags the rest for Review, in one atomic
  * batch, for `viewer` (the Parent who imported). A Transaction is only filed while it is still
  * unassigned and unsplit, and into a Bucket in the Plan for its month that `viewer` may assign
- * to; one that can't be is flagged for Review instead. Idempotent: a Transaction is categorized
- * once.
+ * to; one that can't be is flagged for Review instead. A Rule's For lands with it, unless it's
+ * already For someone. Idempotent: a Transaction is categorized once, though one waiting in
+ * Review can still be filed (a Rule applied to what's unassigned).
  */
 export async function fileCategorizations(
 	db: Db,
@@ -163,13 +126,15 @@ export async function fileCategorizations(
 	const { householdId, memberId } = viewer;
 	// One JSON parameter for all of them: D1 caps a statement's bound parameters at 100.
 	const rows = JSON.stringify(
-		decisions.map(({ transactionId, merchant, categorization }) => ({
+		decisions.map(({ transactionId, merchant, categorization, ruleId }) => ({
 			id: transactionId,
 			merchant,
 			outcome: categorization.outcome,
 			method: categorization.outcome === "filed" ? categorization.method : null,
 			bucketId: categorization.bucketId,
 			confidence: categorization.confidence,
+			for: categorization.outcome === "filed" ? (categorization.for ?? []) : [],
+			rule: ruleId ?? null,
 		})),
 	);
 	const field = (name: string) => sql`json_extract(value, ${`$.${name}`})`;
@@ -185,7 +150,16 @@ export async function fileCategorizations(
 	)})`;
 	const filedAsDecided = sql`exists (select 1 from ${transactions} where ${transactions.id} = ${field("id")}
 		and ${transactions.bucketId} = ${field("bucketId")})`;
-	await db.batch([
+	// Filed by this batch: in its Bucket now, and not categorized as filed before.
+	const newlyFiled = (id: SQL, bucketId: SQL) => sql`exists (select 1 from ${transactions}
+		where ${transactions.id} = ${id} and ${transactions.bucketId} = ${bucketId})
+		and not exists (select 1 from ${categorizations} where ${categorizations.transactionId} = ${id}
+		and ${categorizations.outcome} = 'filed')`;
+	const byRule = decisions.some((decision) => decision.ruleId);
+	const withFor = decisions.some(
+		({ categorization }) => categorization.outcome === "filed" && categorization.for?.length,
+	);
+	const batch: BatchItem<"sqlite">[] = [
 		db
 			.update(transactions)
 			.set({ bucketId: chosen })
@@ -199,6 +173,50 @@ export async function fileCategorizations(
 					intoBucket,
 				),
 			),
+	];
+	if (withFor) {
+		// A Rule's For, for what it just filed that isn't For anyone yet (ADR-0011).
+		const id = sql`json_extract(r.value, '$.id')`;
+		batch.push(
+			db
+				.insert(transactionFor)
+				.select(
+					db
+						.select({
+							transactionId: sql<string>`${id}`.as("transaction_id"),
+							memberId: sql<string>`f.value`.as("member_id"),
+							householdId: sql<string>`${householdId}`.as("household_id"),
+						})
+						.from(sql`json_each(${rows}) r, json_each(r.value, '$.for') f`)
+						.where(
+							sql`json_extract(r.value, '$.outcome') = 'filed'
+								and ${newlyFiled(id, sql`json_extract(r.value, '$.bucketId')`)}
+								and not exists (select 1 from ${transactionFor} x where x.transaction_id = ${id})
+								and exists (select 1 from ${members} where ${members.id} = f.value
+									and ${members.householdId} = ${householdId})`,
+						),
+				)
+				.onConflictDoNothing(),
+		);
+	}
+	if (byRule) {
+		batch.push(
+			db
+				.update(rules)
+				.set({
+					matchedCount: sql`${rules.matchedCount} + (select count(*) from json_each(${rows})
+						where ${field("rule")} = ${rules.id} and ${field("outcome")} = 'filed'
+						and ${newlyFiled(field("id"), field("bucketId"))})`,
+				})
+				.where(
+					and(
+						eq(rules.householdId, householdId),
+						sql`${rules.id} in (select ${field("rule")} from json_each(${rows}))`,
+					),
+				),
+		);
+	}
+	batch.push(
 		db
 			.insert(categorizations)
 			.select(
@@ -224,8 +242,20 @@ export async function fileCategorizations(
 							and ${transactions.householdId} = ${householdId})`,
 					),
 			)
-			.onConflictDoNothing(),
-	]);
+			.onConflictDoUpdate({
+				target: categorizations.transactionId,
+				// Only filing one that waits in Review; anything else was categorized once already.
+				set: {
+					memberId: sql`excluded.member_id`,
+					outcome: sql`excluded.outcome`,
+					method: sql`excluded.method`,
+					bucketId: sql`excluded.bucket_id`,
+					confidence: sql`excluded.confidence`,
+				},
+				setWhere: sql`${categorizations.outcome} = 'review' and excluded.outcome = 'filed'`,
+			}),
+	);
+	await db.batch(batch as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
 }
 
 /**

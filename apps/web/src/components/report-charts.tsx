@@ -19,7 +19,6 @@ import {
 	useId,
 	useRef,
 	useState,
-	useSyncExternalStore,
 } from "react";
 import {
 	Bar,
@@ -36,6 +35,7 @@ import {
 	YAxis,
 } from "recharts";
 import { formatMoney, shortDay } from "../format";
+import { useReducedMotion } from "../motion";
 import { formatCell, formatCompact, type ReportTable } from "../reports";
 
 // Reports' charts (ADR-0013): Recharts through the shadcn wrapper in @noodle/ui, and plain
@@ -43,21 +43,6 @@ import { formatCell, formatCompact, type ReportTable } from "../reports";
 // system: ink for spending, the brand for income, a ghost tone for comparison, Bucket colours only
 // for Buckets. Every mark drills down; on touch the first tap reveals its tooltip, the second
 // drills. Each chart sits in a ChartCard whose table view is its text alternative.
-
-const reducedMotionQuery = "(prefers-reduced-motion: reduce)";
-
-/** Whether the Parent asked for less motion; charts then draw without animating. */
-export function useReducedMotion() {
-	return useSyncExternalStore(
-		(onChange) => {
-			const query = window.matchMedia(reducedMotionQuery);
-			query.addEventListener("change", onChange);
-			return () => query.removeEventListener("change", onChange);
-		},
-		() => window.matchMedia(reducedMotionQuery).matches,
-		() => true,
-	);
-}
 
 /** Motion props for a Recharts series: a quick ease-out draw, or none. */
 function useAnimation() {

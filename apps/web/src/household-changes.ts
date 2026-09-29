@@ -9,6 +9,7 @@ import {
 	monthQuery,
 	monthsKey,
 	reportsKey,
+	rulesQuery,
 	scenariosQuery,
 	viewerQuery,
 } from "./queries";
@@ -39,6 +40,8 @@ const changedQueries = {
 	scenarios: scenariosQuery().queryKey,
 	/** The Household itself, as each screen's viewer sees it. */
 	viewer: viewerQuery().queryKey,
+	/** The Rules a Parent sees. */
+	rules: rulesQuery().queryKey,
 	/** Every Report; also refetched for any change to what Reports sum (see `queryKeysFor`). */
 	reports: reportsKey,
 } satisfies Record<string, QueryKey>;
