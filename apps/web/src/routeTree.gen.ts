@@ -17,6 +17,7 @@ import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
 import { Route as AuthedHouseholdAskRouteImport } from './routes/_authed/_household/ask'
 import { Route as AuthedHouseholdExploreRouteImport } from './routes/_authed/_household/explore'
 import { Route as AuthedHouseholdHouseholdRouteImport } from './routes/_authed/_household/household'
+import { Route as AuthedHouseholdInsightsRouteImport } from './routes/_authed/_household/insights'
 import { Route as AuthedHouseholdReportsRouteImport } from './routes/_authed/_household/reports'
 import { Route as AuthedHouseholdExploreAffordRouteImport } from './routes/_authed/_household/explore_.afford'
 import { Route as AuthedHouseholdGoalsIndexRouteImport } from './routes/_authed/_household/goals.index'
@@ -79,6 +80,11 @@ const AuthedHouseholdHouseholdRoute =
     path: '/household',
     getParentRoute: () => AuthedHouseholdRoute,
   } as any)
+const AuthedHouseholdInsightsRoute = AuthedHouseholdInsightsRouteImport.update({
+  id: '/insights',
+  path: '/insights',
+  getParentRoute: () => AuthedHouseholdRoute,
+} as any)
 const AuthedHouseholdReportsRoute = AuthedHouseholdReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
@@ -218,6 +224,7 @@ export interface FileRoutesByFullPath {
   '/ask': typeof AuthedHouseholdAskRoute
   '/explore': typeof AuthedHouseholdExploreRoute
   '/household': typeof AuthedHouseholdHouseholdRoute
+  '/insights': typeof AuthedHouseholdInsightsRoute
   '/reports': typeof AuthedHouseholdReportsRoute
   '/explore/afford': typeof AuthedHouseholdExploreAffordRoute
   '/goals/$goalId': typeof AuthedHouseholdGoalsGoalIdRoute
@@ -248,6 +255,7 @@ export interface FileRoutesByTo {
   '/ask': typeof AuthedHouseholdAskRoute
   '/explore': typeof AuthedHouseholdExploreRoute
   '/household': typeof AuthedHouseholdHouseholdRoute
+  '/insights': typeof AuthedHouseholdInsightsRoute
   '/reports': typeof AuthedHouseholdReportsRoute
   '/explore/afford': typeof AuthedHouseholdExploreAffordRoute
   '/goals/$goalId': typeof AuthedHouseholdGoalsGoalIdRoute
@@ -279,6 +287,7 @@ export interface FileRoutesById {
   '/_authed/_household/ask': typeof AuthedHouseholdAskRoute
   '/_authed/_household/explore': typeof AuthedHouseholdExploreRoute
   '/_authed/_household/household': typeof AuthedHouseholdHouseholdRoute
+  '/_authed/_household/insights': typeof AuthedHouseholdInsightsRoute
   '/_authed/_household/reports': typeof AuthedHouseholdReportsRoute
   '/_authed/_household/explore_/afford': typeof AuthedHouseholdExploreAffordRoute
   '/_authed/_household/goals/$goalId': typeof AuthedHouseholdGoalsGoalIdRoute
@@ -311,6 +320,7 @@ export interface FileRouteTypes {
     | '/ask'
     | '/explore'
     | '/household'
+    | '/insights'
     | '/reports'
     | '/explore/afford'
     | '/goals/$goalId'
@@ -341,6 +351,7 @@ export interface FileRouteTypes {
     | '/ask'
     | '/explore'
     | '/household'
+    | '/insights'
     | '/reports'
     | '/explore/afford'
     | '/goals/$goalId'
@@ -371,6 +382,7 @@ export interface FileRouteTypes {
     | '/_authed/_household/ask'
     | '/_authed/_household/explore'
     | '/_authed/_household/household'
+    | '/_authed/_household/insights'
     | '/_authed/_household/reports'
     | '/_authed/_household/explore_/afford'
     | '/_authed/_household/goals/$goalId'
@@ -457,6 +469,13 @@ declare module '@tanstack/react-router' {
       path: '/household'
       fullPath: '/household'
       preLoaderRoute: typeof AuthedHouseholdHouseholdRouteImport
+      parentRoute: typeof AuthedHouseholdRoute
+    }
+    '/_authed/_household/insights': {
+      id: '/_authed/_household/insights'
+      path: '/insights'
+      fullPath: '/insights'
+      preLoaderRoute: typeof AuthedHouseholdInsightsRouteImport
       parentRoute: typeof AuthedHouseholdRoute
     }
     '/_authed/_household/reports': {
@@ -659,6 +678,7 @@ interface AuthedHouseholdRouteChildren {
   AuthedHouseholdAskRoute: typeof AuthedHouseholdAskRoute
   AuthedHouseholdExploreRoute: typeof AuthedHouseholdExploreRoute
   AuthedHouseholdHouseholdRoute: typeof AuthedHouseholdHouseholdRoute
+  AuthedHouseholdInsightsRoute: typeof AuthedHouseholdInsightsRoute
   AuthedHouseholdReportsRoute: typeof AuthedHouseholdReportsRoute
   AuthedHouseholdExploreAffordRoute: typeof AuthedHouseholdExploreAffordRoute
   AuthedHouseholdGoalsGoalIdRoute: typeof AuthedHouseholdGoalsGoalIdRoute
@@ -680,6 +700,7 @@ const AuthedHouseholdRouteChildren: AuthedHouseholdRouteChildren = {
   AuthedHouseholdAskRoute: AuthedHouseholdAskRoute,
   AuthedHouseholdExploreRoute: AuthedHouseholdExploreRoute,
   AuthedHouseholdHouseholdRoute: AuthedHouseholdHouseholdRoute,
+  AuthedHouseholdInsightsRoute: AuthedHouseholdInsightsRoute,
   AuthedHouseholdReportsRoute: AuthedHouseholdReportsRoute,
   AuthedHouseholdExploreAffordRoute: AuthedHouseholdExploreAffordRoute,
   AuthedHouseholdGoalsGoalIdRoute: AuthedHouseholdGoalsGoalIdRoute,

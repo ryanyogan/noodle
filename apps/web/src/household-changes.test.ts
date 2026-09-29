@@ -63,6 +63,7 @@ describe("queryKeysFor", () => {
 			["scenarios"],
 			["viewer"],
 			["rules"],
+			["insights"],
 			["reports"],
 		]);
 	});

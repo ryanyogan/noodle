@@ -1,5 +1,6 @@
 import {
 	type CsvMapping,
+	INSIGHT_KINDS,
 	type LeverV1,
 	PLAN_CHANGE_KINDS,
 	type PlanChangeValue,
@@ -831,4 +832,36 @@ export const captureTokens = sqliteTable(
 		revokedAt: integer("revoked_at", { mode: "timestamp_ms" }),
 	},
 	(t) => [uniqueIndex("capture_tokens_live_idx").on(t.memberId).where(sql`${t.revokedAt} is null`)],
+);
+
+// An Insight: a suggested change found by the nightly job (or a Parent's "Look for Insights now"),
+// backed by the Transactions and Commitments it names and a yearly impact that domain code
+// computed; a model only wrote its title and body. `owner_member_id` is set when it rests on a
+// Parent's own Personal Allowance, so only they ever read it (ADR-0003). `fingerprint` names the
+// finding (with its owner): one row per Household and fingerprint, so a dismissed Insight never
+// returns. Nothing here changes money or the Plan: a Parent acts on it.
+export const insights = sqliteTable(
+	"insights",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		ownerMemberId: text("owner_member_id").references(() => members.id),
+		kind: text("kind", { enum: INSIGHT_KINDS }).notNull(),
+		title: text("title").notNull(),
+		body: text("body").notNull(),
+		yearlyImpactCents: integer("yearly_impact_cents").notNull(),
+		transactionIds: text("transaction_ids", { mode: "json" }).$type<string[]>().notNull(),
+		commitmentIds: text("commitment_ids", { mode: "json" }).$type<string[]>().notNull(),
+		status: text("status", { enum: ["new", "accepted", "dismissed"] })
+			.notNull()
+			.default("new"),
+		fingerprint: text("fingerprint").notNull(),
+		decidedByMemberId: text("decided_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [uniqueIndex("insights_household_fingerprint_idx").on(t.householdId, t.fingerprint)],
 );

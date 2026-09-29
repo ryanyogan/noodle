@@ -7,6 +7,7 @@ import {
 	forTotalsEarlierKey,
 	goalsQuery,
 	householdParentsQuery,
+	insightsQuery,
 	membersQuery,
 	monthQuery,
 	monthsKey,
@@ -44,6 +45,8 @@ const changedQueries = {
 	viewer: viewerQuery().queryKey,
 	/** The Rules a Parent sees. */
 	rules: rulesQuery().queryKey,
+	/** The Insights a Parent sees. */
+	insights: insightsQuery().queryKey,
 	/** Every Report; also refetched for any change to what Reports sum (see `queryKeysFor`). */
 	reports: reportsKey,
 } satisfies Record<string, QueryKey>;

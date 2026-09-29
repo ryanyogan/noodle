@@ -16,7 +16,7 @@ import { Skeleton } from "@noodle/ui/components/skeleton";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ChevronRight, Download, ListFilter, X } from "lucide-react";
+import { ChevronRight, Download, Lightbulb, ListFilter, X } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 import { NativeSelect } from "../../../components/native-select";
 import { ReportBody, type ReportNav, tablesFor } from "../../../components/report-views";
@@ -97,16 +97,24 @@ function ReportsPage() {
 				eyebrow="Reports"
 				title={title}
 				actions={
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() =>
-							download(csvName(report, request.view), tablesCsv(Object.values(tables)))
-						}
-					>
-						<Download />
-						<span className="max-sm:sr-only">Export CSV</span>
-					</Button>
+					<>
+						<Button variant="ghost" size="sm" asChild>
+							<Link to="/insights">
+								<Lightbulb />
+								<span className="max-sm:sr-only">Insights</span>
+							</Link>
+						</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() =>
+								download(csvName(report, request.view), tablesCsv(Object.values(tables)))
+							}
+						>
+							<Download />
+							<span className="max-sm:sr-only">Export CSV</span>
+						</Button>
+					</>
 				}
 			/>
 			<ViewTabs current={request.view} />

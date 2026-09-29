@@ -329,6 +329,16 @@ export {
 	loadImports,
 } from "./imports";
 export {
+	decideInsight,
+	type InsightItem,
+	insightFingerprint,
+	knownFingerprints,
+	loadInsightSpends,
+	loadInsights,
+	type NewInsight,
+	recordInsights,
+} from "./insights";
+export {
 	loadMatch,
 	type MatchPeer,
 	type MatchResult,

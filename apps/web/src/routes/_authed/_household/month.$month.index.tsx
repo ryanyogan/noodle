@@ -28,7 +28,7 @@ import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarDays, ChevronRight, History, ListChecks } from "lucide-react";
+import { CalendarDays, ChevronRight, History, Lightbulb, ListChecks } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, availableParts, monogram } from "../../../buckets";
@@ -43,7 +43,13 @@ import { type CoverVariables, useCovers } from "../../../covers";
 import { formatMoney, shortDay } from "../../../format";
 import { type GoalView, useGoals } from "../../../goals";
 import { closingWeek, useCloseMonth } from "../../../month-close";
-import { commitmentsQuery, planHistoryQuery, reviewQuery, useMonthState } from "../../../queries";
+import {
+	commitmentsQuery,
+	insightsQuery,
+	planHistoryQuery,
+	reviewQuery,
+	useMonthState,
+} from "../../../queries";
 import { useIncome, useWindfalls } from "../../../windfalls";
 
 export const Route = createFileRoute("/_authed/_household/month/$month/")({
@@ -295,15 +301,16 @@ function ThisMonth() {
 
 /**
  * Chips above Free to Spend: "3 to review", when imported Transactions wait in Review, and in the
- * month's first week "2 Plan changes this month", linking to the Plan's What changed. Nothing
- * when neither applies.
+ * month's first week "2 Plan changes this month", linking to the Plan's What changed, and
+ * "2 new Insights" when the nightly look found some. Nothing when none applies.
  */
 function Chips({ month, asOf }: { month: MonthKey; asOf: DayKey }) {
 	const waiting = useQuery(reviewQuery()).data?.total ?? 0;
 	const firstWeek = Number(asOf.slice(8)) <= 7;
 	const history = useQuery({ ...planHistoryQuery(month), enabled: firstWeek }).data;
 	const changes = firstWeek && history ? whatChanged(history.changes, month).length : 0;
-	if (waiting === 0 && changes === 0) return null;
+	const insights = useQuery(insightsQuery()).data?.filter((i) => i.status === "new").length ?? 0;
+	if (waiting === 0 && changes === 0 && insights === 0) return null;
 	return (
 		<div className="-mb-3 flex flex-wrap gap-2">
 			{waiting > 0 ? (
@@ -314,6 +321,11 @@ function Chips({ month, asOf }: { month: MonthKey; asOf: DayKey }) {
 			{changes > 0 ? (
 				<Chip to="/plan/$month" params={{ month }} hash="what-changed" icon={History}>
 					{changes === 1 ? "1 Plan change" : `${changes} Plan changes`} this month
+				</Chip>
+			) : null}
+			{insights > 0 ? (
+				<Chip to="/insights" icon={Lightbulb}>
+					{insights === 1 ? "1 new Insight" : `${insights} new Insights`}
 				</Chip>
 			) : null}
 		</div>
@@ -328,7 +340,7 @@ function Chip({
 	icon: typeof History;
 	children: ReactNode;
 } & (
-	| { to: "/review"; params?: undefined; hash?: undefined }
+	| { to: "/review" | "/insights"; params?: undefined; hash?: undefined }
 	| { to: "/plan/$month"; params: { month: MonthKey }; hash: string }
 )) {
 	return (

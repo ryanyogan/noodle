@@ -91,6 +91,18 @@ export {
 	type WithdrawalAttribution,
 } from "./goals";
 export {
+	findInsights,
+	INSIGHT_KINDS,
+	type InsightCandidate,
+	type InsightInputs,
+	type InsightKind,
+	type InsightSpend,
+	isOverlap,
+	RECURRING_DAYS,
+	type Service,
+	services,
+} from "./insights";
+export {
 	activeLevers,
 	addedTerms,
 	addedUntil,

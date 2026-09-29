@@ -162,6 +162,13 @@
       "when": 1790650756670,
       "tag": "0022_plan_changes",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1790652737740,
+      "tag": "0023_insights",
+      "breakpoints": true
     }
   ]
 }

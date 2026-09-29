@@ -5,6 +5,7 @@ import { getCaptureToken } from "./server/capture-tokens";
 import { getCommitments } from "./server/commitments";
 import { getGoals } from "./server/goals";
 import { getAccountImports } from "./server/imports";
+import { getInsights } from "./server/insights";
 import { getHouseholdParents } from "./server/invites";
 import { getForTotalsEarlierInYear, getMembers } from "./server/members";
 import { getMonth, type MonthData } from "./server/month";
@@ -128,6 +129,13 @@ export const reviewQuery = () =>
 	queryOptions({
 		queryKey: [...monthsKey, "review"],
 		queryFn: () => getReview(),
+	});
+
+/** The Insights the Parent may read that weren't dismissed, new ones first. */
+export const insightsQuery = () =>
+	queryOptions({
+		queryKey: ["insights"],
+		queryFn: () => getInsights(),
 	});
 
 /** The Rules this Parent may see. */
