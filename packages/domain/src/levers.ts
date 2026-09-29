@@ -1,6 +1,6 @@
 import type { Cadence, CommitmentTerms } from "./commitments";
 import type { Cents } from "./money";
-import { addMonths, type DayKey, daysInMonth, type MonthKey } from "./month";
+import { addMonths, type DayKey, daysInMonth, lastDayOf, type MonthKey } from "./month";
 
 // Levers: the changes a Scenario makes to the Plan (see scenario.ts for how they're projected).
 //
@@ -289,4 +289,32 @@ export function whyNotApplicable(lever: Lever, month: MonthKey): string | null {
 		default:
 			return null;
 	}
+}
+
+/**
+ * Whether a Lever is an assumption about the future rather than a change to the Plan: a one-off
+ * or growth. Applying a Scenario leaves these out; the Plan has nowhere to store them.
+ */
+export const isAssumption = (lever: Lever): lever is LeverOf<"one-off" | "growth"> =>
+	lever.kind === "one-off" || lever.kind === "growth";
+
+/**
+ * A one-off expense as a Goal to save for it instead ("Make it a Goal"), which applying can make
+ * part of the Plan: a new Goal of its amount, funded from `month` (the Household's current
+ * month) and due on the first of the one-off's month, or at the end of this one if that's now.
+ */
+export function oneOffAsGoal(
+	lever: LeverOf<"one-off">,
+	input: { goalId: string; month: MonthKey; accountId?: string },
+): LeverOf<"add-goal"> {
+	return {
+		kind: "add-goal",
+		goalId: input.goalId,
+		name: lever.name,
+		target: lever.amount,
+		targetDate: lever.fromMonth > input.month ? `${lever.fromMonth}-01` : lastDayOf(input.month),
+		fromMonth: input.month,
+		...(input.accountId === undefined ? {} : { accountId: input.accountId }),
+		...(lever.muted ? { muted: true } : {}),
+	};
 }

@@ -329,6 +329,22 @@ describe("Plan changes", () => {
 			{ kind: "commitment-end", month: "2027-06", scope: "from-on" },
 		]);
 		expect(applied.every((c) => c.scenarioId === "tighter" && c.memberName === "Sam")).toBe(true);
+		// Never saved, so it has no name.
+		expect(applied.every((c) => c.scenarioName === null)).toBe(true);
+	});
+
+	it("names the Scenario a change was applied from", async () => {
+		const levers = [{ kind: "baseline", amount: 1_000_000, fromMonth: month }] as const;
+		await applyLevers(db, {
+			...sam,
+			scenarioId: "raise",
+			scenario: { name: "Raise", levers: [...levers] },
+			month,
+			levers,
+		});
+		expect((await history()).filter((c) => c.source === "scenario")).toMatchObject([
+			{ kind: "baseline", scenarioName: "Raise" },
+		]);
 	});
 
 	it("logs a retried or unchanged write once", async () => {

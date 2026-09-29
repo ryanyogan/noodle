@@ -90,14 +90,29 @@ export function projectionGoals(data: GoalsData): (ProjectionGoal & { name: stri
 
 export type SaveScenarioVariables = { scenarioId: string; name: string; levers: Lever[] };
 
-/** The Scenarios with this one saved, first as the most recently changed. */
+/**
+ * The Scenarios with this one saved, first as the most recently changed. It keeps who made it
+ * and when it was applied, if it was saved before.
+ */
 export const withScenario = (
 	scenarios: ScenarioRecord[],
 	{ scenarioId, name, levers }: SaveScenarioVariables,
-): ScenarioRecord[] => [
-	{ id: scenarioId, name, levers, updatedAt: Date.now() },
-	...scenarios.filter((s) => s.id !== scenarioId),
-];
+): ScenarioRecord[] => {
+	const was = scenarios.find((s) => s.id === scenarioId);
+	return [
+		{
+			createdBy: null,
+			appliedAt: null,
+			appliedBy: null,
+			...was,
+			id: scenarioId,
+			name,
+			levers,
+			updatedAt: Date.now(),
+		},
+		...scenarios.filter((s) => s.id !== scenarioId),
+	];
+};
 
 async function editScenarios(
 	queryClient: QueryClient,
@@ -155,17 +170,20 @@ export const useDeleteScenario = () =>
 	});
 
 /**
- * Makes a Scenario's Levers the real Plan from this month on. The server writes them all at
- * once; every month and the Goals are refetched after, since the change carries forward.
+ * Makes a Scenario's Levers the real Plan from this month on, saving the Scenario as applied.
+ * The server writes them all at once; every month, the Goals and the Scenarios are refetched
+ * after, since the change carries forward.
  */
 export function useApplyScenario() {
 	const queryClient = useQueryClient();
 	const apply = useMutation({
 		// Shares the key of every change to a month, so their refetches don't undo one another.
 		mutationKey: monthChangeKey,
-		mutationFn: ({ levers, scenarioId }: { name: string; levers: Lever[]; scenarioId?: string }) =>
-			applyScenario({ data: { levers, scenarioId } }),
-		onError: (_error, variables) => {
+		mutationFn: (data: SaveScenarioVariables) => applyScenario({ data }),
+		// It's saved as it's applied.
+		onMutate: (variables) => editScenarios(queryClient, (s) => withScenario(s, variables)),
+		onError: (_error, variables, context) => {
+			if (context?.previous) queryClient.setQueryData(scenariosQuery().queryKey, context.previous);
 			toast(`Couldn’t apply “${variables.name}”. The Plan hasn’t changed.`, {
 				tone: "error",
 				action: { label: "Retry", onClick: () => apply.mutate(variables) },
@@ -175,6 +193,7 @@ export function useApplyScenario() {
 		onSettled: () =>
 			Promise.all([
 				queryClient.invalidateQueries({ queryKey: goalsQuery().queryKey }),
+				queryClient.invalidateQueries({ queryKey: scenariosQuery().queryKey }),
 				queryClient.isMutating({ mutationKey: monthChangeKey }) === 1
 					? queryClient.invalidateQueries({ queryKey: monthsKey })
 					: undefined,

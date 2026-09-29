@@ -89,7 +89,7 @@ function CommitmentPage() {
 							<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t px-(--card-pad) py-2.5 text-[13px] text-muted-foreground">
 								<p className="py-1">See what ending it would free up.</p>
 								<Button variant="outline" size="sm" asChild>
-									<Link to="/explore" search={{ end: id }}>
+									<Link to="/explore" search={{ lever: `end-commitment:${id}` }}>
 										Try ending this
 									</Link>
 								</Button>

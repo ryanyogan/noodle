@@ -80,7 +80,7 @@ function useTapToReveal<T>(onSelect: ((key: T) => void) | undefined) {
 }
 
 /** A tooltip: the mark's label, then each series' value with its swatch. */
-function MoneyTooltip({
+export function MoneyTooltip({
 	active,
 	payload,
 	label,

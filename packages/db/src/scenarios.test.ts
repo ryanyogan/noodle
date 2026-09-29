@@ -447,19 +447,79 @@ describe("applyLevers: v2 Levers", () => {
 			apply([
 				{ kind: "baseline", amount: 1, fromMonth: month },
 				{
-					kind: "one-off",
-					oneOffId: "roof",
-					name: "Roof",
-					amount: 300_000,
-					flow: "expense",
-					fromMonth: "2026-11",
+					kind: "end-commitment",
+					commitmentId: "streaming",
+					fromMonth: "2026-10",
+					untilMonth: "2026-12",
 				},
 			]),
 		).rejects.toBeInstanceOf(LeverNotApplicable);
-		await expect(
-			apply([{ kind: "growth", incomePct: 3, costsPct: 2, fromMonth: month }]),
-		).rejects.toThrow(/assumption/);
 		expect((await planIn(month)).baseline).toBe(900_000);
+	});
+
+	it("leaves out muted Levers and assumptions (one-offs, growth), applying the rest", async () => {
+		await apply([
+			{ kind: "baseline", amount: 800_000, fromMonth: month },
+			{ kind: "allowance", bucketId: "groceries", amount: 1, fromMonth: month, muted: true },
+			{
+				kind: "one-off",
+				oneOffId: "roof",
+				name: "Roof",
+				amount: 300_000,
+				flow: "expense",
+				fromMonth: "2026-11",
+			},
+			{ kind: "growth", incomePct: 3, costsPct: 2, fromMonth: month },
+		]);
+		const plan = await planIn(month);
+		expect(plan.baseline).toBe(800_000);
+		expect(plan.buckets[0]?.allowance).toBe(120_000);
+	});
+
+	it("records who applied a Scenario and when, saving it as applied in the same batch", async () => {
+		await save("s1", "Tighter groceries");
+		const [saved] = await loadScenarios(db, householdId, month);
+		expect(saved).toMatchObject({ createdBy: parentId, appliedAt: null, appliedBy: null });
+		await db.update(scenarios).set({ updatedAt: new Date(0) });
+
+		const levers: Lever[] = [
+			{ kind: "allowance", bucketId: "groceries", amount: 100_000, fromMonth: month },
+		];
+		await applyLevers(db, {
+			householdId,
+			memberId: parentId,
+			scenarioId: "s1",
+			scenario: { name: "Tighter groceries", levers },
+			month,
+			levers,
+		});
+		const [applied] = await loadScenarios(db, householdId, month);
+		expect(applied?.appliedBy).toBe(parentId);
+		expect(applied?.appliedAt).toBeGreaterThan(0);
+		// Unchanged, so it doesn't count as changed.
+		expect(applied?.updatedAt).toBe(0);
+		expect((await planIn(month)).buckets[0]?.allowance).toBe(100_000);
+	});
+
+	it("saves an unsaved Scenario as it applies it, and not another Household's", async () => {
+		await save("s1", "Theirs", "other-household");
+		const levers: Lever[] = [{ kind: "baseline", amount: 800_000, fromMonth: month }];
+		for (const scenarioId of ["s1", "s2"]) {
+			await applyLevers(db, {
+				householdId,
+				memberId: parentId,
+				scenarioId,
+				scenario: { name: "Raise", levers },
+				month,
+				levers,
+			});
+		}
+		expect(await loadScenarios(db, householdId, month)).toMatchObject([
+			{ id: "s2", name: "Raise", createdBy: parentId, appliedBy: parentId },
+		]);
+		expect(await loadScenarios(db, "other-household", month)).toMatchObject([
+			{ id: "s1", name: "Theirs", appliedAt: null },
+		]);
 	});
 
 	it("skips a Lever whose range is over", async () => {

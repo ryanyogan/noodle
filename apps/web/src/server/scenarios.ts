@@ -11,6 +11,7 @@ import {
 	addMonths,
 	CADENCES,
 	dayKeyAt,
+	isAssumption,
 	type Lever,
 	type LeverV1,
 	MAX_CENTS,
@@ -194,20 +195,25 @@ export const deleteScenario = createServerFn({ method: "POST" })
 		await notifyHousehold(context.household.id, ["scenarios"]);
 	});
 
-/** Makes a Scenario's Levers the real Plan from this month on, all at once; muted ones aren't. */
+/**
+ * Makes a Scenario's Levers the real Plan from this month on, all at once, and records who
+ * applied it and when; muted Levers and assumptions (one-offs, growth) aren't applied. The
+ * Scenario is saved as it's applied, with all its Levers.
+ */
 export const applyScenario = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
-	.validator(z.object({ levers: leversSchema, scenarioId: ulidSchema.optional() }))
+	.validator(z.object({ scenarioId: ulidSchema, name: scenarioNameSchema, levers: leversSchema }))
 	.handler(async ({ data, context }) => {
 		const today = dayKeyAt(new Date(), context.household.timeZone);
 		const month = monthOfDay(today);
-		const levers = activeLevers(upgradeLevers(data.levers, month));
-		for (const lever of levers) {
+		const levers = upgradeLevers(data.levers, month);
+		const applied = activeLevers(levers).filter((l) => !isAssumption(l));
+		for (const lever of applied) {
 			const why = whyNotApplicable(lever, month);
 			if (why !== null) throw new Error(why);
 		}
 		if (
-			levers.some(
+			applied.some(
 				(l) =>
 					(l.kind === "goal" || l.kind === "add-goal") &&
 					l.targetDate !== null &&
@@ -219,9 +225,10 @@ export const applyScenario = createServerFn({ method: "POST" })
 		await applyLevers(getDb(), {
 			householdId: context.household.id,
 			memberId: context.parent.id,
-			scenarioId: data.scenarioId ?? null,
+			scenarioId: data.scenarioId,
+			scenario: { name: data.name, levers },
 			month,
-			levers,
+			levers: applied,
 		});
-		await notifyHousehold(context.household.id, ["months", "goals"]);
+		await notifyHousehold(context.household.id, ["months", "goals", "scenarios"]);
 	});

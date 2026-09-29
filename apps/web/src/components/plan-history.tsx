@@ -106,12 +106,20 @@ export const groupTitle = (group: Pick<PlanChangeGroup, "kind" | "targetName">) 
 
 const people = new Intl.ListFormat("en-US", { style: "long", type: "conjunction" });
 
-/** "Alex and Sam · Oct 2 · from a Scenario": who made a group's changes, and when last. */
+/** "from “Tighter groceries”" for a change applied from a Scenario, else null. */
+const fromScenario = (change: Pick<PlanChange, "source" | "scenarioName">) =>
+	change.source !== "scenario"
+		? null
+		: change.scenarioName === null
+			? "from a Scenario"
+			: `from “${change.scenarioName}”`;
+
+/** "Alex and Sam · Oct 2 · from “Tighter groceries”": who made a group's changes, and when last. */
 export function groupMeta(group: PlanChangeGroup<DatedPlanChange>): string {
 	const names = people.format([...new Set(group.changes.map((c) => c.memberName))]);
 	const latest = group.changes[0];
-	const scenario = group.changes.some((c) => c.source === "scenario") ? " · from a Scenario" : "";
-	return `${names}${latest ? ` · ${shortDay(latest.day)}` : ""}${scenario}`;
+	const scenario = group.changes.map(fromScenario).find((s) => s !== null);
+	return `${names}${latest ? ` · ${shortDay(latest.day)}` : ""}${scenario ? ` · ${scenario}` : ""}`;
 }
 
 /** "History starts Sep 30": no Plan changes were kept before the first one logged. */
@@ -145,7 +153,7 @@ export function PlanHistoryList({ month, targetId }: { month: MonthKey; targetId
 							<p className="text-sm">{describeChange(change)}</p>
 							<p className="text-[13px] text-muted-foreground">
 								{scopeText(change)} · {change.memberName} · {shortDay(change.day)}
-								{change.source === "scenario" ? " · from a Scenario" : ""}
+								{change.source === "scenario" ? ` · ${fromScenario(change)}` : ""}
 							</p>
 						</li>
 					))}

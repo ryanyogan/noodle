@@ -19,17 +19,17 @@ export const insightLabel = (insight: Pick<InsightItem, "kind">) =>
 			: "Not charged lately";
 
 /**
- * Where to try an Insight in Explore, if anywhere: for now, ending the one Commitment it's about
- * (`/explore?end=`). The seam for "Try in Explore" (#37): more Insights become Levers there.
+ * Where to try an Insight in Explore, if anywhere: for now, ending the one Commitment it's about,
+ * as a Lever preset (`/explore?lever=end-commitment:<id>`). The seam for "Try in Explore" (#37): more Insights become Levers there.
  */
 export function exploreLinkFor(
 	insight: Pick<InsightItem, "kind" | "commitments">,
 	commitmentId?: string,
-): { to: "/explore"; search: { end: string } } | null {
+): { to: "/explore"; search: { lever: string } } | null {
 	const live = insight.commitments.filter((c) => c.endedFromMonth === null);
 	const target = commitmentId ? live.find((c) => c.id === commitmentId) : live[0];
 	if (!target || insight.kind === "duplicate-charge") return null;
-	return { to: "/explore", search: { end: target.id } };
+	return { to: "/explore", search: { lever: `end-commitment:${target.id}` } };
 }
 
 type Decision = { insight: InsightItem; status: "accepted" | "dismissed" };

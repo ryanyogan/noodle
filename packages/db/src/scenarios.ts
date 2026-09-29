@@ -4,6 +4,7 @@ import {
 	type CommitmentTerms,
 	changedTerms,
 	dueDateFrom,
+	isAssumption,
 	type Lever,
 	type LeverOf,
 	type LeverV1,
@@ -17,6 +18,7 @@ import {
 } from "@noodle/domain";
 import { and, desc, eq, inArray, isNull, lte, type SQL, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
+import { alias } from "drizzle-orm/sqlite-core";
 import { commitmentAdd, commitmentEnd, inPlanFor, ownCommitment, termsLog } from "./commitments";
 import { goalInsert, goalLog } from "./goals";
 import type { Db } from "./index";
@@ -36,15 +38,27 @@ import {
 	commitments,
 	commitmentTerms,
 	goals,
+	members,
 	scenarios,
 } from "./schema";
 
 // A Household's Scenarios: named sets of Levers explored against the Plan. Every query is scoped
 // by household_id; Scenario IDs from the client are only ever used together with it. Saving is
 // idempotent per the client's ULID, so a retried save lands once. Levers are saved as versioned
-// JSON ({ version: 2, levers }); v1 Scenarios (a bare array) are upgraded as they load.
+// JSON ({ version: 2, levers }); v1 Scenarios (a bare array) are upgraded as they load. Applying
+// one records when, and by which Parent, on the Scenario.
 
-export type ScenarioRecord = { id: string; name: string; levers: Lever[]; updatedAt: number };
+export type ScenarioRecord = {
+	id: string;
+	name: string;
+	levers: Lever[];
+	updatedAt: number;
+	/** The Parent who made it, by name; null if they've left the Household. */
+	createdBy: string | null;
+	/** When it was last applied to the Plan, and by which Parent; null until it is. */
+	appliedAt: number | null;
+	appliedBy: string | null;
+};
 
 /**
  * The Household's Scenarios, most recently changed first. `month` is the Household's current
@@ -55,39 +69,49 @@ export async function loadScenarios(
 	householdId: string,
 	month: MonthKey,
 ): Promise<ScenarioRecord[]> {
+	const creator = alias(members, "creator");
+	const applier = alias(members, "applier");
 	const rows = await db
 		.select({
 			id: scenarios.id,
 			name: scenarios.name,
 			levers: scenarios.levers,
 			updatedAt: scenarios.updatedAt,
+			createdBy: creator.name,
+			appliedAt: scenarios.appliedAt,
+			appliedBy: applier.name,
 		})
 		.from(scenarios)
+		.leftJoin(creator, eq(creator.id, scenarios.createdByMemberId))
+		.leftJoin(applier, eq(applier.id, scenarios.appliedByMemberId))
 		.where(eq(scenarios.householdId, householdId))
 		.orderBy(desc(scenarios.updatedAt), desc(scenarios.id));
 	return rows.map((row) => ({
 		...row,
 		levers: readScenarioLevers(row.levers, month),
 		updatedAt: row.updatedAt.getTime(),
+		appliedAt: row.appliedAt?.getTime() ?? null,
 	}));
 }
 
+type ScenarioInput = {
+	householdId: string;
+	memberId: string;
+	scenarioId: string;
+	name: string;
+	levers: Lever[];
+};
+
 /**
- * Creates a Scenario, or renames it and replaces its Levers. Saving another Household's
- * Scenario ID changes nothing.
+ * Creates a Scenario, or renames it and replaces its Levers; it counts as changed only if its
+ * name or Levers did. `applied` also records that `memberId` applied it now. Another
+ * Household's Scenario ID changes nothing.
  */
-export async function saveScenario(
-	db: Db,
-	input: {
-		householdId: string;
-		memberId: string;
-		scenarioId: string;
-		name: string;
-		levers: Lever[];
-	},
-): Promise<void> {
+function scenarioWrite(db: Db, input: ScenarioInput, applied: boolean) {
 	const levers = { version: SCENARIO_VERSION, levers: input.levers } as const;
-	await db
+	const now = sql`(unixepoch() * 1000)`;
+	const appliedBy = applied ? { appliedAt: now, appliedByMemberId: input.memberId } : {};
+	return db
 		.insert(scenarios)
 		.values({
 			id: input.scenarioId,
@@ -95,12 +119,26 @@ export async function saveScenario(
 			name: input.name,
 			levers,
 			createdByMemberId: input.memberId,
+			...appliedBy,
 		})
 		.onConflictDoUpdate({
 			target: scenarios.id,
-			set: { name: input.name, levers, updatedAt: sql`(unixepoch() * 1000)` },
+			set: {
+				name: input.name,
+				levers,
+				updatedAt: sql`case when ${scenarios.name} is excluded.name and ${scenarios.levers} is excluded.levers then ${scenarios.updatedAt} else ${now} end`,
+				...appliedBy,
+			},
 			setWhere: eq(scenarios.householdId, input.householdId),
 		});
+}
+
+/**
+ * Creates a Scenario, or renames it and replaces its Levers. Saving another Household's
+ * Scenario ID changes nothing.
+ */
+export async function saveScenario(db: Db, input: ScenarioInput): Promise<void> {
+	await scenarioWrite(db, input, false);
 }
 
 export async function deleteScenario(
@@ -122,11 +160,13 @@ type Batch = BatchItem<"sqlite">[];
  * not at all, as effective-dated writes (ADR-0009). Each Lever's range starts no earlier than
  * `month`. A value (the Baseline, an allowance, a Commitment's terms) is written at the range's
  * first month, and when the range ends, the Plan's value at its end is written back there first.
- * Commitments and Buckets are added and ended or archived; Goals are changed or added. A Lever
- * whose range is over is skipped, and any Lever that can't be applied (whyNotApplicable: a
- * one-off, growth, …) refuses the lot. Every write is the Plan's own, guarded to the Household
- * and the Parent `memberId` (only its Parent sets a Personal Allowance), and idempotent, so
- * applying again changes nothing. v1 Levers are upgraded first.
+ * Commitments and Buckets are added and ended or archived; Goals are changed or added. Muted
+ * Levers and assumptions (a one-off, growth) are left out, a Lever whose range is over is
+ * skipped, and any other Lever that can't be applied (whyNotApplicable) refuses the lot. Every
+ * write is the Plan's own, guarded to the Household and the Parent `memberId` (only its Parent
+ * sets a Personal Allowance), and idempotent, so applying again changes nothing. v1 Levers are
+ * upgraded first. With `scenario`, the Scenario `scenarioId` is saved as it is and marked
+ * applied by `memberId` in the same batch.
  */
 export async function applyLevers(
 	db: Db,
@@ -135,13 +175,15 @@ export async function applyLevers(
 		memberId: string;
 		/** The Scenario applied, if it was saved; its Plan changes name it. */
 		scenarioId?: string | null;
+		/** The Scenario as it's applied (all its Levers, muted too), to save with it. */
+		scenario?: { name: string; levers: Lever[] };
 		month: MonthKey;
 		levers: readonly (Lever | LeverV1)[];
 	},
 ): Promise<void> {
-	const { householdId, memberId, month } = input;
-	const author: Author = { memberId, source: "scenario", scenarioId: input.scenarioId ?? null };
-	const levers = upgradeLevers(input.levers, month);
+	const { householdId, memberId, month, scenarioId, scenario } = input;
+	const author: Author = { memberId, source: "scenario", scenarioId: scenarioId ?? null };
+	const levers = upgradeLevers(input.levers, month).filter((l) => !l.muted && !isAssumption(l));
 	for (const lever of levers) {
 		const why = whyNotApplicable(lever, month);
 		if (why !== null) throw new LeverNotApplicable(why);
@@ -175,6 +217,9 @@ export async function applyLevers(
 					);
 
 	const writes: Batch = [];
+	if (scenarioId && scenario) {
+		writes.push(scenarioWrite(db, { householdId, memberId, scenarioId, ...scenario }, true));
+	}
 	for (const lever of levers) {
 		const range = rangeFrom(lever, month);
 		if (range === null) continue;
@@ -319,7 +364,7 @@ export async function applyLevers(
 				break;
 			case "one-off":
 			case "growth":
-				// Refused above.
+				// Left out above.
 				break;
 		}
 	}

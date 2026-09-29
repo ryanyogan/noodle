@@ -42,7 +42,7 @@ import {
 import { formatMoney, monthName, shortMonth } from "../format";
 import { useReducedMotion } from "../motion";
 import { formatCompact, type ReportTable } from "../reports";
-import { ChartCard } from "./report-charts";
+import { ChartCard, MoneyTooltip } from "./report-charts";
 
 // Explore's outcome charts (ADR-0013): the Plan against the Scenario, on #40's chart wrapper.
 // The Plan is always the quiet reference (ghost bars, dashed lines), the Scenario the one solid
@@ -976,5 +976,106 @@ export function FreeToSpendOutcome({ outcome, title }: { outcome: Outcome; title
 		<OutcomeProvider value={outcome}>
 			<FreeToSpendChart title={title} />
 		</OutcomeProvider>
+	);
+}
+
+/** Compare's series, in turn: the brand, the neutral, then a lighter brand drawn dashed. */
+const COMPARED = [
+	{ color: "var(--chart-income)", dashed: false },
+	{ color: "var(--chart-spend)", dashed: false },
+	{ color: "var(--chart-seq-3)", dashed: true },
+] as const;
+
+/**
+ * Up to three Scenarios month by month against the Plan, one line each (Compare): the Plan is the
+ * quiet dashed reference, as on Explore's charts.
+ */
+export function CompareChart({
+	title,
+	description,
+	months,
+	plan,
+	scenarios,
+}: {
+	title: string;
+	description: string;
+	months: readonly MonthKey[];
+	plan: readonly Cents[];
+	scenarios: readonly { id: string; name: string; values: readonly Cents[] }[];
+}) {
+	const animation = useAnimation();
+	const shown = scenarios.slice(0, COMPARED.length);
+	const rows = months.map((month, i) => ({
+		month,
+		plan: plan[i] ?? 0,
+		...Object.fromEntries(shown.map((s, n) => [`s${n}`, s.values[i] ?? 0])),
+	}));
+	const values = [...plan, ...shown.flatMap((s) => s.values)];
+	const y = moneyAxis(Math.min(...values), Math.max(...values));
+	const config: ChartConfig = {
+		plan: { label: "Plan", color: "var(--subtle-foreground)", icon: PlanKey },
+		...Object.fromEntries(
+			shown.map((s, n) => {
+				const { color, dashed } = COMPARED[n] ?? COMPARED[0];
+				return [`s${n}`, { label: s.name, color, icon: lineKey(color, dashed) }];
+			}),
+		),
+	};
+	const table = monthTable(
+		title,
+		["Plan", ...shown.map((s) => s.name)],
+		rows.map((r, i) => [shortMonth(r.month), r.plan, ...shown.map((s) => s.values[i] ?? 0)]),
+	);
+	return (
+		<ChartCard title={title} description={description} table={table} className="overflow-visible">
+			<ChartContainer config={config} className="aspect-auto h-56 w-full">
+				<ComposedChart data={rows} accessibilityLayer>
+					<CartesianGrid vertical={false} stroke="var(--chart-grid)" />
+					<XAxis
+						dataKey="month"
+						tickFormatter={tickMonth(rows.length)}
+						minTickGap={18}
+						{...axisProps}
+					/>
+					<YAxis
+						tickFormatter={formatCompact}
+						width={52}
+						domain={y.domain}
+						ticks={y.ticks}
+						{...axisProps}
+					/>
+					<ChartTooltip
+						content={<MoneyTooltip labelOf={(month) => monthLong(month as MonthKey)} />}
+						{...tooltipProps}
+					/>
+					<ChartLegend content={<ChartLegendContent />} />
+					{values.some((v) => v < 0) ? <ReferenceLine y={0} stroke="var(--border-strong)" /> : null}
+					<Line
+						dataKey="plan"
+						name="Plan"
+						type="linear"
+						stroke="var(--color-plan)"
+						strokeWidth={1.5}
+						strokeDasharray="4 3"
+						dot={false}
+						{...animation}
+					/>
+					{shown.map((s, n) => (
+						<Line
+							key={s.id}
+							dataKey={`s${n}`}
+							name={s.name}
+							type="linear"
+							stroke={`var(--color-s${n})`}
+							strokeWidth={2}
+							strokeDasharray={COMPARED[n]?.dashed ? "6 3" : undefined}
+							dot={false}
+							activeDot={{ r: 4, fill: `var(--color-s${n})`, stroke: "var(--card)" }}
+							{...animation}
+						/>
+					))}
+				</ComposedChart>
+			</ChartContainer>
+		</ChartCard>
 	);
 }

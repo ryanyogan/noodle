@@ -10,7 +10,7 @@ import { type AnyColumn, and, desc, eq, is, SQL, sql } from "drizzle-orm";
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 import type { Db } from "./index";
 import type { Viewer } from "./privacy";
-import { buckets, commitments, goals, members, planChanges } from "./schema";
+import { buckets, commitments, goals, members, planChanges, scenarios } from "./schema";
 
 // The Plan's history (ADR-0014). Each Plan write appends a row here in the same db.batch, as an
 // `insert … select … where` carrying the write's own guard, placed before the write: a refused
@@ -123,6 +123,9 @@ export async function loadPlanChanges(
 				scope: planChanges.scope,
 				source: planChanges.source,
 				scenarioId: planChanges.scenarioId,
+				// Aliased: D1 keys batch rows by column name, and a second bare `name` would collide with
+				// members.name and shift the columns after it.
+				scenarioName: sql<string | null>`${scenarios.name}`.as("scenario_name"),
 				before: sql<string | null>`case when ${hidden} then null else ${planChanges.before} end`,
 				after: sql<string | null>`case when ${hidden} then null else ${planChanges.after} end`,
 			})
@@ -131,6 +134,13 @@ export async function loadPlanChanges(
 			.leftJoin(buckets, ownTarget(buckets))
 			.leftJoin(commitments, ownTarget(commitments))
 			.leftJoin(goals, ownTarget(goals))
+			.leftJoin(
+				scenarios,
+				and(
+					eq(scenarios.id, planChanges.scenarioId),
+					eq(scenarios.householdId, planChanges.householdId),
+				),
+			)
 			.where(
 				and(
 					eq(planChanges.householdId, viewer.householdId),

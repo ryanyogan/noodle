@@ -1,21 +1,27 @@
 import {
-	activeLevers,
+	type AccountKind,
+	applyPreview,
 	describeLever,
+	holdsMoney,
 	type Lever,
 	type LeverImpact,
 	type LeverSubjects,
 	leverImpacts,
 	leverName,
 	MAX_PROJECTION_MONTHS,
+	type MonthKey,
 	moneyFreed,
 	type OutcomeWarning,
+	oneOffAsGoal,
 	outcomeWarnings,
+	type Plan,
+	type PlanRecords,
 	type Projection,
+	parseLeverPreset,
 	planAhead,
 	planForMonth,
 	project,
 	projectionAssumptions,
-	whyNotApplicable,
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card, CardContent } from "@noodle/ui/components/card";
@@ -25,9 +31,9 @@ import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { cn } from "@noodle/ui/lib/utils";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useMutationState, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Calculator, ChevronLeft, TriangleAlert } from "lucide-react";
+import { Calculator, ChevronLeft, Layers, TriangleAlert } from "lucide-react";
 import {
 	lazy,
 	memo,
@@ -45,16 +51,18 @@ import { Confirm } from "../../../components/plan-editing";
 import { changeId, ScenarioChanges, useDebounced } from "../../../components/scenario-changes";
 import type { Outcome } from "../../../components/scenario-outcomes";
 import { ScenarioOutcome, ScenarioOutline } from "../../../components/scenario-outline";
-import { formatMoney, shortMonth } from "../../../format";
+import { formatMoney, shortDayAt, shortMonth } from "../../../format";
 import { useReducedMotion } from "../../../motion";
 import { goalsQuery, planAheadQuery, scenariosQuery } from "../../../queries";
 import {
 	leverTarget,
 	projectionGoals,
+	type SaveScenarioVariables,
 	type ScenarioRecord,
 	useApplyScenario,
 	useDeleteScenario,
 	useSaveScenario,
+	withLever,
 } from "../../../scenarios";
 
 // Explore: Scenarios projected against the Plan. The loader fetches the data on the server;
@@ -67,8 +75,17 @@ const FreeToSpendOutcome = lazy(() =>
 
 export const Route = createFileRoute("/_authed/_household/explore")({
 	ssr: "data-only",
-	// `end`: open a new Scenario that ends this Commitment (a Commitment page's "Try ending this").
-	validateSearch: z.object({ end: z.string().optional().catch(undefined) }),
+	// `scenario`: open this saved Scenario. `lever`: open a new Scenario with these changes made
+	// (see parseLeverPreset), e.g. from Insights, Ask or Affordability. `end`: the same, ending a
+	// Commitment (as `lever=end-commitment:<id>` does), for links made before presets.
+	validateSearch: z.object({
+		scenario: z.string().optional().catch(undefined),
+		lever: z
+			.union([z.string(), z.array(z.string())])
+			.optional()
+			.catch(undefined),
+		end: z.string().optional().catch(undefined),
+	}),
 	loader: ({ context }) =>
 		Promise.all([
 			context.queryClient.ensureQueryData(planAheadQuery()),
@@ -96,7 +113,52 @@ const freshDraft = (scenarios: ScenarioRecord[]): Draft => ({
 
 const sameLevers = (a: Lever[], b: Lever[]) => JSON.stringify(a) === JSON.stringify(b);
 
+type ExploreSearch = { scenario?: string; lever?: string | string[]; end?: string };
+
+/**
+ * The Levers a link's presets make, keeping only those on what's in the Plan: a Bucket,
+ * Commitment or Goal that's gone, or the other Parent's Personal Allowance, is dropped.
+ */
+function presetLevers(
+	search: ExploreSearch,
+	input: { month: MonthKey; plan: Plan; goals: readonly { id: string }[]; parentId: string },
+): Lever[] {
+	const { month, plan, goals, parentId } = input;
+	const presets = [
+		...(search.end ? [`end-commitment:${search.end}`] : []),
+		...(search.lever === undefined ? [] : [search.lever].flat()),
+	];
+	const bucket = (id: string) => plan.buckets.find((b) => b.id === id);
+	const inPlan = (lever: Lever) => {
+		switch (lever.kind) {
+			case "allowance": {
+				const owner = bucket(lever.bucketId)?.owner;
+				return bucket(lever.bucketId) !== undefined && (owner === undefined || owner === parentId);
+			}
+			case "archive-bucket":
+				return bucket(lever.bucketId) !== undefined;
+			case "commitment-terms":
+			case "end-commitment":
+				return plan.commitments.some((c) => c.id === lever.commitmentId);
+			case "goal":
+				return goals.some((g) => g.id === lever.goalId);
+			default:
+				return true;
+		}
+	};
+	return presets
+		.flatMap((preset) => parseLeverPreset(preset, month) ?? [])
+		.filter(inPlan)
+		.reduce<Lever[]>(withLever, []);
+}
+
 function ExplorePage() {
+	const { scenario, lever, end } = Route.useSearch();
+	// A new link opens its own Scenario, so the page starts over with it.
+	return <Explore key={JSON.stringify([scenario, lever, end])} search={{ scenario, lever, end }} />;
+}
+
+function Explore({ search }: { search: ExploreSearch }) {
 	const { parentId } = Route.useRouteContext();
 	const { month, records } = useSuspenseQuery(planAheadQuery()).data;
 	const goalsData = useSuspenseQuery(goalsQuery()).data;
@@ -110,16 +172,32 @@ function ExplorePage() {
 		[records, goals, month, horizon],
 	);
 
-	// A new Scenario ending the Commitment asked for, else the most recently changed Scenario, or a
-	// new one from the Plan as it stands.
-	const { end } = Route.useSearch();
+	// A Scenario saved just before opening here (Affordability's "Explore as a Scenario") may not
+	// be in the list yet: its save is still on its way.
+	const saving = useMutationState({
+		filters: { mutationKey: ["scenario-change"], status: "pending" },
+		select: (mutation) => mutation.state.variables as Partial<SaveScenarioVariables> | undefined,
+	});
+	// The Scenario asked for, else a new one with the changes asked for, else the most recently
+	// changed Scenario, or a new one from the Plan as it stands.
 	const [draft, setDraft] = useState<Draft>(() => {
-		const ending = plan.commitments.find((c) => c.id === end);
-		if (ending) {
+		const kept = scenarios.find((s) => s.id === search.scenario);
+		if (kept) return { id: kept.id, name: kept.name, levers: kept.levers };
+		const pending = saving.find((v) => v?.scenarioId === search.scenario);
+		if (search.scenario && pending?.name && pending.levers) {
+			return { id: search.scenario, name: pending.name, levers: pending.levers };
+		}
+		const levers = presetLevers(search, { month, plan, goals, parentId });
+		if (levers.length > 0) {
+			const [only] = levers;
+			const ending =
+				levers.length === 1 && only?.kind === "end-commitment"
+					? plan.commitments.find((c) => c.id === only.commitmentId)
+					: undefined;
 			return {
-				id: ulid(),
-				name: `Without ${ending.name}`.slice(0, 40),
-				levers: [{ kind: "end-commitment", commitmentId: ending.id, fromMonth: month }],
+				...freshDraft(scenarios),
+				...(ending ? { name: `Without ${ending.name}`.slice(0, 40) } : {}),
+				levers,
 			};
 		}
 		const [latest] = scenarios;
@@ -152,8 +230,9 @@ function ExplorePage() {
 			buckets: plan.buckets,
 			commitments: plan.commitments,
 			goals,
+			viewer: parentId,
 		}),
-		[month, plan, goals],
+		[month, plan, goals, parentId],
 	);
 	const goalNames = useMemo(
 		() =>
@@ -223,21 +302,31 @@ function ExplorePage() {
 					</Button>
 				}
 				actions={
-					<Button variant="outline" size="sm" asChild>
-						<Link to="/explore/afford">
-							<Calculator />
-							Can we afford it?
-						</Link>
-					</Button>
+					<>
+						<Button variant="ghost" size="sm" asChild>
+							<Link to="/explore/scenarios">
+								<Layers />
+								<span className="max-sm:sr-only">Scenarios</span>
+							</Link>
+						</Button>
+						<Button variant="outline" size="sm" asChild>
+							<Link to="/explore/afford">
+								<Calculator />
+								Can we afford it?
+							</Link>
+						</Button>
+					</>
 				}
 			/>
 			<div className="grid gap-8">
 				<ScenarioBar
 					draft={draft}
 					scenarios={scenarios}
-					saved={saved !== undefined}
+					saved={saved}
 					dirty={dirty}
 					subjects={subjects}
+					records={records}
+					accounts={accounts}
 					onDraft={setDraft}
 				/>
 				<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(340px,440px)] lg:items-start">
@@ -351,13 +440,17 @@ function ScenarioBar({
 	saved,
 	dirty,
 	subjects,
+	records,
+	accounts,
 	onDraft,
 }: {
 	draft: Draft;
 	scenarios: ScenarioRecord[];
-	saved: boolean;
+	saved: ScenarioRecord | undefined;
 	dirty: boolean;
 	subjects: LeverSubjects;
+	records: PlanRecords;
+	accounts: readonly { id: string; name: string; kind: AccountKind }[];
 	onDraft: (draft: Draft) => void;
 }) {
 	const save = useSaveScenario();
@@ -366,14 +459,37 @@ function ScenarioBar({
 	const [confirming, setConfirming] = useState<"apply" | "delete" | null>(null);
 	const id = useId();
 	const name = draft.name.trim();
-	const active = activeLevers(draft.levers);
-	const muted = draft.levers.length - active.length;
-	// What applying writes, in words; and what can't be applied yet, and why.
-	const changes = active.flatMap((lever) => {
-		const { text, gone } = describeLever(lever, subjects, active);
-		return gone ? [] : [text];
-	});
-	const blocked = [...new Set(active.flatMap((l) => whyNotApplicable(l, subjects.month) ?? []))];
+	const muted = draft.levers.filter((l) => l.muted).length;
+	// Exactly what applying writes to the Plan, what it leaves out, and what must change first.
+	const preview = useMemo(
+		() =>
+			confirming === "apply"
+				? applyPreview({
+						records,
+						month: subjects.month,
+						levers: draft.levers,
+						viewer: subjects.viewer ?? "",
+						goals: subjects.goals,
+						accounts,
+					})
+				: null,
+		[confirming, records, subjects, draft.levers, accounts],
+	);
+	// A one-off expense made a Goal is saved for in the first Account that can hold it.
+	const goalAccount = accounts.find((a) => holdsMoney(a.kind));
+	const asGoal = (index: number) =>
+		onDraft({
+			...draft,
+			levers: draft.levers.map((lever, i) =>
+				i === index && lever.kind === "one-off"
+					? oneOffAsGoal(lever, {
+							goalId: ulid(),
+							month: subjects.month,
+							accountId: goalAccount?.id,
+						})
+					: lever,
+			),
+		});
 
 	return (
 		<Card>
@@ -419,20 +535,64 @@ function ScenarioBar({
 						? `${draft.levers.length} ${draft.levers.length === 1 ? "change" : "changes"}${muted > 0 ? ` (${muted} muted)` : ""} to the Plan`
 						: "The Plan as it stands. Change anything below to see what it does."}
 					{dirty && saved ? " · not saved" : null}
+					{saved?.appliedAt
+						? ` · Applied ${shortDayAt(saved.appliedAt)}${saved.appliedBy ? ` by ${saved.appliedBy}` : ""}`
+						: null}
 				</p>
-				{confirming === "apply" ? (
+				{preview ? (
 					<div
 						role="alertdialog"
 						aria-label="Apply to the Plan"
 						className="grid gap-3 rounded-xl bg-surface-2 p-3"
 					>
 						<p className="text-sm">
-							Make “{name || "this Scenario"}” the Plan from {shortMonth(subjects.month)} on?{" "}
-							{changes.join(" · ")}.
+							{preview.changes.length > 0
+								? `Make “${name || "this Scenario"}” the Plan from ${shortMonth(subjects.month)} on? This changes:`
+								: "Nothing here changes the Plan yet."}
 						</p>
-						{blocked.length > 0 ? (
+						{preview.changes.length > 0 ? (
+							<ul
+								aria-label="What changes in the Plan"
+								className="grid list-disc gap-1 ps-5 text-sm"
+							>
+								{preview.changes.flatMap((change) =>
+									change.lines.map((line) => <li key={`${change.lever}-${line}`}>{line}</li>),
+								)}
+							</ul>
+						) : null}
+						{preview.leftOut.length > 0 ? (
+							<div className="grid gap-1.5">
+								<p className="text-[13px] font-medium">Not applied</p>
+								<ul aria-label="Not applied" className="grid gap-1.5 text-[13px]">
+									{preview.leftOut.map((item) => (
+										<li key={item.lever} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+											<span>
+												{item.text}{" "}
+												<span className="text-muted-foreground">
+													{item.reason}
+													{item.asGoal && !goalAccount
+														? " A Goal needs a checking or savings Account: add one on Goals first."
+														: null}
+												</span>
+											</span>
+											{item.asGoal && goalAccount ? (
+												<Button
+													type="button"
+													size="sm"
+													variant="outline"
+													onClick={() => asGoal(item.lever)}
+												>
+													Make it a Goal
+												</Button>
+											) : null}
+										</li>
+									))}
+								</ul>
+							</div>
+						) : null}
+						{preview.blocked.length > 0 ? (
 							<ul className="grid gap-1 text-[13px] text-over">
-								{blocked.map((reason) => (
+								{[...new Set(preview.blocked.map((b) => b.reason))].map((reason) => (
 									<li key={reason}>{reason}</li>
 								))}
 							</ul>
@@ -444,14 +604,12 @@ function ScenarioBar({
 							<Button
 								type="button"
 								size="sm"
-								disabled={blocked.length > 0}
+								disabled={preview.blocked.length > 0 || preview.changes.length === 0}
 								onClick={() => {
 									setConfirming(null);
-									apply.mutate({
-										name: name || "Scenario",
-										levers: active,
-										scenarioId: saved ? draft.id : undefined,
-									});
+									const kept = name || "Scenario";
+									apply.mutate({ scenarioId: draft.id, name: kept, levers: draft.levers });
+									onDraft({ ...draft, name: kept });
 								}}
 							>
 								Apply to Plan
@@ -487,7 +645,7 @@ function ScenarioBar({
 							type="button"
 							size="sm"
 							variant="outline"
-							disabled={changes.length === 0 || apply.isPending}
+							disabled={draft.levers.length === 0 || apply.isPending}
 							onClick={() => setConfirming("apply")}
 						>
 							Apply to Plan

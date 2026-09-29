@@ -59,6 +59,8 @@ export type PlanChange = {
 	scope: PlanScope;
 	source: PlanChangeSource;
 	scenarioId: string | null;
+	/** The Scenario's name now; null if it wasn't from one, or the Scenario was deleted. */
+	scenarioName: string | null;
 	before: PlanChangeValue | null;
 	after: PlanChangeValue | null;
 };

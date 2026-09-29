@@ -13,6 +13,7 @@ const change = (fields: Partial<PlanChange> & Pick<PlanChange, "kind">): PlanCha
 	scope: "from-on",
 	source: "plan",
 	scenarioId: null,
+	scenarioName: null,
 	before: null,
 	after: null,
 	...fields,

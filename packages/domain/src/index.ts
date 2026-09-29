@@ -24,6 +24,7 @@ export {
 	type Verdict,
 	type Verdicted,
 } from "./affordability";
+export { type ApplyPreview, type ApplyPreviewInput, applyPreview } from "./apply-preview";
 export { parseCapturedAmount } from "./capture";
 export {
 	AUTO_FILE_CONFIDENCE,
@@ -102,6 +103,7 @@ export {
 	type Service,
 	services,
 } from "./insights";
+export { leverPreset, parseLeverPreset } from "./lever-presets";
 export {
 	activeLevers,
 	addedTerms,
@@ -109,6 +111,7 @@ export {
 	changedTerms,
 	dueDateFrom,
 	holdsIn,
+	isAssumption,
 	type Lever,
 	type LeverKind,
 	type LeverMute,
@@ -116,6 +119,7 @@ export {
 	type LeverRange,
 	type LeverV1,
 	type OneOffFlow,
+	oneOffAsGoal,
 	rangeFrom,
 	readScenarioLevers,
 	SCENARIO_VERSION,

@@ -638,6 +638,9 @@ export const scenarios = sqliteTable(
 		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
 			.notNull()
 			.default(sql`(unixepoch() * 1000)`),
+		/** When it was last applied to the Plan, and by which Parent; null until it is. */
+		appliedAt: integer("applied_at", { mode: "timestamp_ms" }),
+		appliedByMemberId: text("applied_by_member_id").references(() => members.id),
 	},
 	(t) => [index("scenarios_household_idx").on(t.householdId)],
 );

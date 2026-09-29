@@ -185,12 +185,16 @@ _Avoid_: Benefit, reward, feature
 ### Exploring
 
 **Scenario**:
-A hypothetical copy of the Plan, changed by Levers, projected forward in time to compare against the real Plan. Can be applied to become the real Plan.
+A hypothetical copy of the Plan, changed by Levers, projected forward in time to compare against the real Plan. Can be applied to become the real Plan: applying shows exactly what will change in the Plan first, then records on the Scenario who applied it and when, and each Plan change it makes names it ("from Scenario X"). Muted Levers and assumptions aren't applied; a one-off expense can be made a Goal instead. A Household's saved Scenarios are listed in the Scenarios overview (each with its headline outcome, who made it, when it last changed, and whether it was applied), where up to three can be compared side by side, as charts and key numbers.
 _Avoid_: Simulation, what-if, forecast
 
 **Lever**:
 A single adjustable quantity in a Scenario: the Baseline, a Bucket allowance, a Commitment's terms, a Commitment ended or added, a one-off expense or income, a Bucket added or archived, a Goal changed or added, or yearly growth in income and costs (an Insight accepted becomes one). Each holds for a range of months, from its first month up to, but not including, the month it ends, or for good. Only what the Plan stores can be applied: a one-off or growth is an assumption. A Lever can be muted: it stays in the Scenario, but is left out of the projection and isn't applied, to see the outcome without it. A Lever whose Bucket, Commitment or Goal is no longer in the Plan changes nothing and is flagged "No longer in the Plan" until removed.
 _Avoid_: Slider, knob, variable
+
+**Lever preset**:
+A Lever written into a link, so Explore opens with the change already made: its kind, then its fields, colon-separated, with amounts in cents and an optional range last (`end-commitment:<id>:2027-03`). A Commitment's "Try ending this", an Affordability Check, Insights and Ask open Explore this way. A preset only says what to change; one whose Bucket, Commitment or Goal isn't in the Plan, or that touches the other Parent's Personal Allowance, is dropped.
+_Avoid_: Deep link, query Lever
 
 **Cushion**:
 The money a Scenario projects the Household to have month by month: a starting balance (from Accounts, later) plus each month's Free to Spend and one-offs, carried forward. Its lowest point, and the first month it goes below zero, show whether a Scenario holds up.

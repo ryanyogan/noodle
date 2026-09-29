@@ -304,8 +304,9 @@ function CheckActions({
 						variant="outline"
 						disabled={costs.length === 0}
 						onClick={() => {
+							const scenarioId = ulid();
 							save.mutate({
-								scenarioId: ulid(),
+								scenarioId,
 								name: scenario.name,
 								levers: purchaseLevers({
 									from,
@@ -313,7 +314,8 @@ function CheckActions({
 									replaced: scenario.replaced,
 								}),
 							});
-							navigate({ to: "/explore" });
+							// Opens this Scenario, even before its save lands.
+							navigate({ to: "/explore", search: { scenario: scenarioId } });
 						}}
 					>
 						Explore as a Scenario

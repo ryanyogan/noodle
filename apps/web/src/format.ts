@@ -36,6 +36,11 @@ export function shortDay(key: string): string {
 	});
 }
 
+/** "Sep 30" for a moment (ms since the epoch), on this device's calendar. */
+export function shortDayAt(at: number): string {
+	return new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 /** "Jun 15, 2027" for a "YYYY-MM-DD" day key. */
 export function fullDay(key: string): string {
 	const [year, month, day] = key.split("-").map(Number);

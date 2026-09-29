@@ -11,9 +11,28 @@ export type LeverSubjects = {
 	/** The Household's current month: a Lever from then (or earlier) needs no "from". */
 	month: MonthKey;
 	baseline: Cents | null;
-	buckets: readonly { id: string; name: string; allowance: Cents }[];
+	/** `owner`: set for a Personal Allowance, the Parent it belongs to. */
+	buckets: readonly { id: string; name: string; allowance: Cents; owner?: string }[];
 	commitments: readonly { id: string; name: string; amount: Cents; cadence: Cadence }[];
 	goals: readonly { id: string; name: string; target: Cents; targetDate: DayKey | null }[];
+	/**
+	 * The Parent reading: a Lever on the other Parent's Personal Allowance reads only as
+	 * "Personal Allowance changed", with no amounts or months (ADR-0003). Unset: no one's is hidden.
+	 */
+	viewer?: string;
+};
+
+/** What the other Parent's Personal Allowance reads as, wherever a Lever changes it. */
+export const OTHER_PERSONAL_ALLOWANCE = "Personal Allowance";
+
+/** The Bucket a Lever changes, if it's the other Parent's Personal Allowance. */
+const othersAllowance = (subjects: LeverSubjects, bucketId: string) => {
+	const bucket = subjects.buckets.find((b) => b.id === bucketId);
+	return bucket?.owner !== undefined &&
+		subjects.viewer !== undefined &&
+		bucket.owner !== subjects.viewer
+		? bucket
+		: undefined;
 };
 
 export type LeverDescription = {
@@ -44,14 +63,14 @@ export function money(cents: Cents): string {
 	return cents < 0 ? `−${text}` : text;
 }
 
-const cadenceWords: Record<Cadence, string> = {
+export const cadenceWords: Record<Cadence, string> = {
 	monthly: "a month",
 	biweekly: "every two weeks",
 	annual: "a year",
 };
 
 /** "1st", "12th", "22nd" for a day of the month. */
-const ordinal = (day: number) =>
+export const ordinal = (day: number) =>
 	day >= 11 && day <= 13 ? `${day}th` : `${day}${["th", "st", "nd", "rd"][day % 10] ?? "th"}`;
 
 /** " from Mar 2027 until Aug 2028", " until Aug 2028" (from now), or "" (from now, for good). */
@@ -61,7 +80,7 @@ function rangeWords(lever: Lever, month: MonthKey): string {
 	return `${from}${until}`;
 }
 
-const goalWords = (target: Cents, targetDate: DayKey | null) =>
+export const goalWords = (target: Cents, targetDate: DayKey | null) =>
 	`${money(target)} ${targetDate ? `by ${shortMonthName(monthOfDay(targetDate))}` : "with no date"}`;
 
 /** The name of a Commitment a Lever adds, if one does. */
@@ -84,6 +103,12 @@ export function describeLever(
 ): LeverDescription {
 	const range = rangeWords(lever, subjects.month);
 	const described = (text: string, gone = false): LeverDescription => ({ text, gone });
+	if (
+		(lever.kind === "allowance" || lever.kind === "archive-bucket") &&
+		othersAllowance(subjects, lever.bucketId)
+	) {
+		return described(`${OTHER_PERSONAL_ALLOWANCE} changed`);
+	}
 
 	switch (lever.kind) {
 		case "baseline":
@@ -178,6 +203,7 @@ export function leverName(
 			return "Income";
 		case "allowance":
 		case "archive-bucket":
+			if (othersAllowance(subjects, lever.bucketId)) return OTHER_PERSONAL_ALLOWANCE;
 			return (
 				subjects.buckets.find((b) => b.id === lever.bucketId)?.name ??
 				addedBucket(levers, lever.bucketId)?.name ??
