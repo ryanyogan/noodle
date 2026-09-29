@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeLever, type Lever, type LeverSubjects } from "./index";
+import { describeLever, type Lever, type LeverSubjects, leverName } from "./index";
 
 const subjects: LeverSubjects = {
 	month: "2026-09",
@@ -16,6 +16,46 @@ const subjects: LeverSubjects = {
 };
 
 const text = (lever: Lever, levers: Lever[] = []) => describeLever(lever, subjects, levers).text;
+
+describe("leverName", () => {
+	it("names what a Lever changes in a word or two, for warnings to point at", () => {
+		const name = (lever: Lever, levers: Lever[] = []) => leverName(lever, subjects, levers);
+		expect(name({ kind: "end-commitment", commitmentId: "daycare", fromMonth: "2027-09" })).toBe(
+			"Daycare",
+		);
+		expect(name({ kind: "allowance", bucketId: "hockey", amount: 0, fromMonth: "2026-09" })).toBe(
+			"Hockey",
+		);
+		expect(name({ kind: "baseline", amount: 1, fromMonth: "2026-09" })).toBe("Income");
+		expect(
+			name({
+				kind: "one-off",
+				oneOffId: "roof",
+				name: "New roof",
+				amount: 300_000,
+				flow: "expense",
+				fromMonth: "2027-05",
+			}),
+		).toBe("New roof");
+		// A Lever on a Goal another Lever adds takes that Goal's name.
+		const boat: Lever = {
+			kind: "add-goal",
+			goalId: "boat",
+			name: "Boat",
+			target: 1,
+			targetDate: null,
+			fromMonth: "2026-09",
+		};
+		expect(
+			name({ kind: "goal", goalId: "boat", target: 2, targetDate: null, fromMonth: "2026-09" }, [
+				boat,
+			]),
+		).toBe("Boat");
+		expect(name({ kind: "growth", incomePct: 3, costsPct: 2, fromMonth: "2026-09" })).toBe(
+			"Growth",
+		);
+	});
+});
 
 describe("describeLever", () => {
 	it("says what the Plan has, what the Scenario makes it, and when", () => {

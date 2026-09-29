@@ -2,13 +2,19 @@ import {
 	activeLevers,
 	describeLever,
 	type Lever,
+	type LeverImpact,
 	type LeverSubjects,
+	leverImpacts,
+	leverName,
 	MAX_PROJECTION_MONTHS,
 	moneyFreed,
+	type OutcomeWarning,
+	outcomeWarnings,
 	type Projection,
 	planAhead,
 	planForMonth,
 	project,
+	projectionAssumptions,
 	whyNotApplicable,
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
@@ -21,17 +27,29 @@ import { Skeleton } from "@noodle/ui/components/skeleton";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Calculator, ChevronLeft } from "lucide-react";
-import { lazy, memo, Suspense, useDeferredValue, useId, useMemo, useState } from "react";
+import { Calculator, ChevronLeft, TriangleAlert } from "lucide-react";
+import {
+	lazy,
+	memo,
+	Suspense,
+	useCallback,
+	useDeferredValue,
+	useId,
+	useMemo,
+	useState,
+} from "react";
 import { ulid } from "ulid";
 import { z } from "zod";
 import { NativeSelect } from "../../../components/native-select";
 import { Confirm } from "../../../components/plan-editing";
-import { ScenarioChanges } from "../../../components/scenario-changes";
+import { changeId, ScenarioChanges, useDebounced } from "../../../components/scenario-changes";
+import type { Outcome } from "../../../components/scenario-outcomes";
 import { ScenarioOutcome, ScenarioOutline } from "../../../components/scenario-outline";
 import { formatMoney, shortMonth } from "../../../format";
+import { useReducedMotion } from "../../../motion";
 import { goalsQuery, planAheadQuery, scenariosQuery } from "../../../queries";
 import {
+	leverTarget,
 	projectionGoals,
 	type ScenarioRecord,
 	useApplyScenario,
@@ -40,9 +58,12 @@ import {
 } from "../../../scenarios";
 
 // Explore: Scenarios projected against the Plan. The loader fetches the data on the server;
-// the page itself renders only in the browser (data-only SSR), and its chart loads lazily.
+// the page itself renders only in the browser (data-only SSR), and its charts load lazily.
 
-const ScenarioChart = lazy(() => import("../../../components/scenario-chart"));
+const ScenarioOutcomes = lazy(() => import("../../../components/scenario-outcomes"));
+const FreeToSpendOutcome = lazy(() =>
+	import("../../../components/scenario-outcomes").then((m) => ({ default: m.FreeToSpendOutcome })),
+);
 
 export const Route = createFileRoute("/_authed/_household/explore")({
 	ssr: "data-only",
@@ -146,6 +167,50 @@ function ExplorePage() {
 	);
 	const accounts = goalsData.accounts;
 
+	// The outcome charts, warnings and each change's impact follow the Levers once they settle:
+	// one projection per Lever is too much for every slider step, and the charts animate calmer.
+	const settled = useDebounced(draft.levers, 250);
+	const outcome = useMemo<Outcome>(() => {
+		const impacts = leverImpacts(ahead, settled);
+		return {
+			plan: planProjection,
+			scenario: project(ahead, settled),
+			levers: settled,
+			impacts,
+			describe: (index) => {
+				const lever = settled[index];
+				return lever ? describeLever(lever, subjects, settled).text : "";
+			},
+		};
+	}, [ahead, settled, planProjection, subjects]);
+	const impacts = useMemo(
+		() =>
+			new Map(
+				outcome.levers.map((lever, i) => [leverTarget(lever), outcome.impacts[i] as LeverImpact]),
+			),
+		[outcome],
+	);
+	const warnings = useMemo(
+		() =>
+			outcomeWarnings({
+				...outcome,
+				goalName: (id) => goalNames.get(id) ?? "Goal",
+			}).map((warning) => {
+				const lever = warning.lever === null ? undefined : outcome.levers[warning.lever];
+				return {
+					...warning,
+					change: lever
+						? { target: leverTarget(lever), name: leverName(lever, subjects, outcome.levers) }
+						: null,
+				};
+			}),
+		[outcome, goalNames, subjects],
+	);
+	const assumptions = useMemo(
+		() => projectionAssumptions(outcome.levers, outcome.scenario.startingCushion),
+		[outcome],
+	);
+
 	return (
 		<>
 			<PageHeader
@@ -176,7 +241,9 @@ function ExplorePage() {
 					onDraft={setDraft}
 				/>
 				<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(340px,440px)] lg:items-start">
-					<div className="grid gap-4 lg:sticky lg:top-6">
+					{/* It stays beside the Levers only where it fits on screen: stuck, anything below
+					    the fold couldn't be reached until the Levers ran out. */}
+					<div className="grid gap-4 lg:[@media(min-height:48rem)]:sticky lg:top-6">
 						<fieldset className="flex flex-wrap items-center gap-1">
 							<legend className="sr-only">Look ahead</legend>
 							{HORIZONS.map((h) => (
@@ -199,12 +266,15 @@ function ExplorePage() {
 								</label>
 							))}
 						</fieldset>
-						<Results
+						<Summary
 							plan={planProjection}
 							scenario={scenarioProjection}
-							goals={goals}
 							horizonLabel={horizonLabel}
+							warnings={warnings}
 						/>
+						<Suspense fallback={<Skeleton className="h-[340px] w-full rounded-xl" />}>
+							<FreeToSpendOutcome outcome={outcome} title="Free to Spend each month" />
+						</Suspense>
 					</div>
 					<div className="grid gap-3">
 						<Freed
@@ -214,7 +284,7 @@ function ExplorePage() {
 							className="sticky top-[env(safe-area-inset-top)] z-10 -mx-(--gutter) bg-background/85 px-(--gutter) py-2 text-lg backdrop-blur-xl lg:hidden"
 						/>
 						<ScenarioChanges
-							ahead={ahead}
+							impacts={impacts}
 							levers={draft.levers}
 							subjects={subjects}
 							goalNames={goalNames}
@@ -243,6 +313,32 @@ function ExplorePage() {
 						</ScenarioOutcome>
 					</div>
 				</div>
+				<Section aria-labelledby="outcomes">
+					<SectionHeader id="outcomes" title="How it plays out" />
+					<div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+						<Suspense
+							fallback={
+								<>
+									<Skeleton className="h-[340px] w-full rounded-xl" />
+									<Skeleton className="h-[340px] w-full rounded-xl" />
+								</>
+							}
+						>
+							<ScenarioOutcomes outcome={outcome} goalNames={goalNames} />
+						</Suspense>
+						<Totals
+							plan={planProjection}
+							scenario={scenarioProjection}
+							horizonLabel={horizonLabel}
+						/>
+						{goals.length > 0 ? (
+							<GoalsReached plan={planProjection} scenario={scenarioProjection} goals={goals} />
+						) : null}
+					</div>
+					<p className="max-w-prose text-xs text-muted-foreground">
+						<span className="font-medium">Assumptions.</span> {assumptions.join(" ")}
+					</p>
+				</Section>
 			</div>
 		</>
 	);
@@ -424,77 +520,112 @@ function ScenarioBar({
 	);
 }
 
+type Warning = OutcomeWarning & { change: { target: string; name: string } | null };
+
 /**
- * The Scenario against the Plan: what it frees, Free to Spend each month on one chart, the
- * totals, and when each Goal is reached. Memoised, so it re-renders only when the deferred
- * Levers or the horizon change, never in the urgent render of a slider move.
+ * The Scenario against the Plan at a glance: what it frees, the Cushion at its lowest, and where
+ * it stops holding up. Memoised, so it re-renders only when the deferred Levers, the horizon or
+ * the warnings change, never in the urgent render of a slider move.
  */
-const Results = memo(function Results({
+const Summary = memo(function Summary({
 	plan,
 	scenario,
-	goals,
 	horizonLabel,
+	warnings,
 }: {
 	plan: Projection;
 	scenario: Projection;
-	goals: { id: string; name: string }[];
 	horizonLabel: string;
+	warnings: Warning[];
 }) {
-	const rows = scenario.months.map((m, i) => ({
-		month: m.month,
-		plan: plan.months[i]?.freeToSpend ?? 0,
-		scenario: m.freeToSpend,
-	}));
-
 	return (
-		<>
-			<Card>
-				<CardContent className="grid gap-4">
-					<div className="grid gap-0.5">
-						<h2 className="text-sm font-medium text-muted-foreground">Free to Spend each month</h2>
-						<Freed
-							plan={plan}
-							scenario={scenario}
-							horizonLabel={horizonLabel}
-							className="text-2xl"
-						/>
-						<Cushion scenario={scenario} />
-					</div>
-					<Suspense fallback={<Skeleton className="h-[252px] w-full rounded-xl" />}>
-						<ScenarioChart rows={rows} />
-					</Suspense>
-				</CardContent>
-			</Card>
-			<Totals plan={plan} scenario={scenario} horizonLabel={horizonLabel} />
-			{goals.length > 0 ? <GoalsReached plan={plan} scenario={scenario} goals={goals} /> : null}
-			<details className="group text-sm">
-				<summary className="cursor-pointer text-[13px] font-medium text-muted-foreground">
-					Each month
-				</summary>
-				<Card className="mt-3">
-					<table className="w-full text-[13px] tabular-nums">
-						<thead className="text-muted-foreground">
-							<tr className="[&>th]:px-(--card-pad) [&>th]:py-2 [&>th]:font-medium">
-								<th className="text-start">Month</th>
-								<th className="text-end">Plan</th>
-								<th className="text-end">Scenario</th>
-							</tr>
-						</thead>
-						<tbody>
-							{rows.map((r) => (
-								<tr key={r.month} className="border-t [&>td]:px-(--card-pad) [&>td]:py-1.5">
-									<td>{shortMonth(r.month)}</td>
-									<td className="text-end">{formatMoney(r.plan)}</td>
-									<td className="text-end">{formatMoney(r.scenario)}</td>
-								</tr>
-							))}
-						</tbody>
-					</table>
-				</Card>
-			</details>
-		</>
+		<Card>
+			<CardContent className="grid gap-3">
+				<div className="grid gap-0.5">
+					<h2 className="text-sm font-medium text-muted-foreground">Against the Plan</h2>
+					<Freed plan={plan} scenario={scenario} horizonLabel={horizonLabel} className="text-2xl" />
+					<Cushion scenario={scenario} />
+				</div>
+				{warnings.length > 0 ? <Warnings warnings={warnings} /> : null}
+			</CardContent>
+		</Card>
 	);
 });
+
+/** Where the Scenario stops holding up, each linking to the change most responsible. */
+/** Warnings shown before the rest fold behind "more": the summary stays short beside the Levers. */
+const WARNINGS_SHOWN = 2;
+
+function Warnings({ warnings }: { warnings: Warning[] }) {
+	const reduced = useReducedMotion();
+	const [all, setAll] = useState(false);
+	const hidden = all ? 0 : Math.max(0, warnings.length - WARNINGS_SHOWN);
+	const land = useCallback(
+		(target: string) => {
+			const change = document.getElementById(changeId(target));
+			if (!change) return;
+			change.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
+			change.focus({ preventScroll: true });
+		},
+		[reduced],
+	);
+	return (
+		<div className="grid gap-1.5">
+			<ul aria-label="Warnings" className="grid gap-1.5">
+				{warnings.slice(0, warnings.length - hidden).map((warning) => {
+					const body = (
+						<>
+							<TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-over" />
+							<span className="grid gap-0.5">
+								<span className="font-medium text-foreground">{warning.text}</span>
+								{warning.change ? (
+									<span className="text-[13px] text-muted-foreground">
+										Mostly from your change to {warning.change.name}
+									</span>
+								) : null}
+							</span>
+						</>
+					);
+					const className = "flex items-start gap-2 rounded-lg bg-over-soft px-2.5 py-2 text-sm";
+					const { change } = warning;
+					return (
+						<li key={`${warning.kind}:${warning.goalId ?? ""}`}>
+							{change ? (
+								<a
+									href={`#${changeId(change.target)}`}
+									className={cn(
+										className,
+										"hover:bg-over-soft/70 focus-visible:outline-2 focus-visible:outline-ring",
+									)}
+									onClick={(event) => {
+										event.preventDefault();
+										land(change.target);
+									}}
+								>
+									{body}
+								</a>
+							) : (
+								<div className={className}>{body}</div>
+							)}
+						</li>
+					);
+				})}
+			</ul>
+			{warnings.length > WARNINGS_SHOWN ? (
+				<Button
+					type="button"
+					variant="ghost"
+					size="sm"
+					className="justify-self-start text-muted-foreground"
+					aria-expanded={all}
+					onClick={() => setAll((a) => !a)}
+				>
+					{all ? "Fewer warnings" : `${hidden} more ${hidden === 1 ? "warning" : "warnings"}`}
+				</Button>
+			) : null}
+		</div>
+	);
+}
 
 /** What the Scenario frees (or costs) against the Plan over the months projected. */
 const Freed = memo(function Freed({

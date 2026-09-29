@@ -39,7 +39,7 @@ const dollarsAndCents = new Intl.NumberFormat("en-US", {
 });
 
 /** "$1,400" or "$12.50"; negatives use a true minus sign. */
-function money(cents: Cents): string {
+export function money(cents: Cents): string {
 	const text = dollarsAndCents.format(Math.abs(cents) / 100).replace(/\.(\d)$/, ".$10");
 	return cents < 0 ? `−${text}` : text;
 }
@@ -161,5 +161,49 @@ export function describeLever(
 			return described(
 				`Raises ${lever.incomePct}% and inflation ${lever.costsPct}% a year${range}`,
 			);
+	}
+}
+
+/**
+ * What a Lever changes, in a word or two: "Daycare", "Income", "New roof", "Growth". Warnings
+ * name the change responsible by it.
+ */
+export function leverName(
+	lever: Lever,
+	subjects: LeverSubjects,
+	levers: readonly Lever[] = [],
+): string {
+	switch (lever.kind) {
+		case "baseline":
+			return "Income";
+		case "allowance":
+		case "archive-bucket":
+			return (
+				subjects.buckets.find((b) => b.id === lever.bucketId)?.name ??
+				addedBucket(levers, lever.bucketId)?.name ??
+				"A Bucket"
+			);
+		case "commitment-terms":
+		case "end-commitment":
+			return (
+				subjects.commitments.find((c) => c.id === lever.commitmentId)?.name ??
+				addedCommitment(levers, lever.commitmentId)?.name ??
+				"A Commitment"
+			);
+		case "goal":
+			return (
+				subjects.goals.find((g) => g.id === lever.goalId)?.name ??
+				levers.find(
+					(l): l is LeverOf<"add-goal"> => l.kind === "add-goal" && l.goalId === lever.goalId,
+				)?.name ??
+				"A Goal"
+			);
+		case "add-commitment":
+		case "one-off":
+		case "add-bucket":
+		case "add-goal":
+			return lever.name;
+		case "growth":
+			return "Growth";
 	}
 }

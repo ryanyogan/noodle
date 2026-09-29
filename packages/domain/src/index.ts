@@ -62,6 +62,7 @@ export {
 	describeLever,
 	type LeverDescription,
 	type LeverSubjects,
+	leverName,
 	shortMonthName,
 } from "./describe-levers";
 export {
@@ -170,6 +171,14 @@ export {
 	wantsNudge,
 } from "./nudges";
 export { readOfxStatement } from "./ofx";
+export {
+	leverHoldsIn,
+	type MonthBreakdown,
+	monthBreakdown,
+	type OutcomeWarning,
+	outcomeWarnings,
+	projectionAssumptions,
+} from "./outcomes";
 export {
 	type BucketRecord,
 	type CommitmentRecord,

@@ -18,9 +18,9 @@ const totals = (page: Page, row: string | RegExp) => {
 	const cells = page.getByRole("row", { name: row }).getByRole("cell");
 	return { plan: cells.nth(0), scenario: cells.nth(1) };
 };
-/** The chart, read out a month at a time. */
-const chart = (page: Page) =>
-	page.getByRole("slider", { name: "Free to Spend each month, the Plan and this Scenario" });
+/** The first month of the Free to Spend chart's table view: month, Plan, Scenario, difference. */
+const firstMonth = (page: Page) =>
+	page.getByRole("table", { name: "Free to Spend each month" }).getByRole("row").nth(1);
 
 test("moving a Lever changes the projection, and applying the Scenario changes the Plan", async ({
 	browser,
@@ -44,7 +44,8 @@ test("moving a Lever changes the projection, and applying the Scenario changes t
 	await expect(overTwoYears.plan).toHaveText("$81,600");
 	await expect(overTwoYears.scenario).toHaveText("$81,600");
 	await expect(page.locator("p:visible", { hasText: "Same as the Plan" })).toBeVisible();
-	await expect(chart(page)).toHaveAttribute("aria-valuetext", /Scenario \$3,400, Plan \$3,400$/);
+	await page.getByRole("button", { name: "Show Free to Spend each month as a table" }).click();
+	await expect(firstMonth(page)).toContainText(/\$3,400\s*\$3,400\s*\$0$/);
 
 	// Hockey down to nothing frees $400 a month.
 	const hockey = page.getByRole("slider", { name: "Hockey allowance" });
@@ -54,7 +55,7 @@ test("moving a Lever changes the projection, and applying the Scenario changes t
 	await expect(overTwoYears.scenario).toHaveText("$91,200");
 	await expect(overTwoYears.plan).toHaveText("$81,600");
 	await expect(page.locator("p:visible", { hasText: "Frees $9,600" })).toBeVisible();
-	await expect(chart(page)).toHaveAttribute("aria-valuetext", /Scenario \$3,800, Plan \$3,400$/);
+	await expect(firstMonth(page)).toContainText(/\$3,400\s*\$3,800\s*\$400$/);
 
 	// Looking five years ahead.
 	await page.getByText("5 years", { exact: true }).click();
@@ -63,7 +64,7 @@ test("moving a Lever changes the projection, and applying the Scenario changes t
 	// Saved, it's there to come back to.
 	await page.getByLabel("Name").fill("No hockey");
 	await page.getByRole("button", { name: "Save Scenario" }).click();
-	await expect(page.getByLabel("Scenario", { exact: true })).toHaveValue(/.+/);
+	await expect(page.getByRole("combobox", { name: "Scenario" })).toHaveValue(/.+/);
 	await expect(page.getByRole("option", { name: "No hockey" })).toBeAttached();
 
 	// Applied, it becomes the Plan from this month on.

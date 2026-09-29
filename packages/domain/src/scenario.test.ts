@@ -876,6 +876,7 @@ describe("leverImpacts: each Lever left out in turn", () => {
 			cushion: 0,
 			lowest: 0,
 			firstChange: null,
+			byMonth: Array.from({ length: 24 }, () => ({ freeToSpend: 0, oneOffs: 0 })),
 			goals: [],
 		});
 	});

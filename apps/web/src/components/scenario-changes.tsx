@@ -1,11 +1,4 @@
-import {
-	describeLever,
-	type Lever,
-	type LeverImpact,
-	type LeverSubjects,
-	leverImpacts,
-	type PlanAhead,
-} from "@noodle/domain";
+import { describeLever, type Lever, type LeverImpact, type LeverSubjects } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
@@ -13,7 +6,7 @@ import { List } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { cn } from "@noodle/ui/lib/utils";
 import { Eye, EyeOff, X } from "lucide-react";
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { formatMoney, shortMonth } from "../format";
 import { leverTarget, withMuted, withoutLever } from "../scenarios";
 
@@ -22,7 +15,7 @@ import { leverTarget, withMuted, withoutLever } from "../scenarios";
 // moment behind rather than on every slider step.
 
 /** `value`, once it has stopped changing for `ms`. */
-function useDebounced<T>(value: T, ms: number): T {
+export function useDebounced<T>(value: T, ms: number): T {
 	const [settled, setSettled] = useState(value);
 	useEffect(() => {
 		const timer = setTimeout(() => setSettled(value), ms);
@@ -32,14 +25,15 @@ function useDebounced<T>(value: T, ms: number): T {
 }
 
 export const ScenarioChanges = memo(function ScenarioChanges({
-	ahead,
+	impacts,
 	levers,
 	subjects,
 	goalNames,
 	horizonLabel,
 	onChange,
 }: {
-	ahead: PlanAhead;
+	/** Each Lever's impact by its target, a moment behind the Levers (see useDebounced). */
+	impacts: ReadonlyMap<string, LeverImpact>;
 	levers: Lever[];
 	subjects: LeverSubjects;
 	/** Every Goal a Lever can move, Plan's and added, by id. */
@@ -47,12 +41,6 @@ export const ScenarioChanges = memo(function ScenarioChanges({
 	horizonLabel: string;
 	onChange: (change: (levers: Lever[]) => Lever[]) => void;
 }) {
-	const settled = useDebounced(levers, 250);
-	const impacts = useMemo(() => {
-		const all = leverImpacts(ahead, settled);
-		return new Map(settled.map((lever, i) => [leverTarget(lever), all[i] as LeverImpact]));
-	}, [ahead, settled]);
-
 	return (
 		<Section aria-labelledby="your-changes">
 			<SectionHeader id="your-changes" title="Your changes" count={levers.length || undefined} />
@@ -69,6 +57,7 @@ export const ScenarioChanges = memo(function ScenarioChanges({
 							return (
 								<Change
 									key={target}
+									id={changeId(target)}
 									text={text}
 									gone={gone}
 									muted={lever.muted === true}
@@ -87,7 +76,11 @@ export const ScenarioChanges = memo(function ScenarioChanges({
 	);
 });
 
+/** The id of a change in the list, for a warning to link to. */
+export const changeId = (target: string) => `change-${target}`;
+
 function Change({
+	id,
 	text,
 	gone,
 	muted,
@@ -97,6 +90,7 @@ function Change({
 	onMute,
 	onRemove,
 }: {
+	id: string;
 	text: string;
 	gone: boolean;
 	muted: boolean;
@@ -109,8 +103,11 @@ function Change({
 }) {
 	return (
 		<li
+			id={id}
 			aria-label={text}
-			className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 px-(--card-pad) py-3"
+			// A warning's link lands here: focused, and briefly shaded.
+			tabIndex={-1}
+			className="grid scroll-mt-24 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 px-(--card-pad) py-3 outline-none transition-colors duration-700 focus:bg-surface-2"
 		>
 			<div className="grid min-w-0 gap-0.5">
 				<p

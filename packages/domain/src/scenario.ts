@@ -426,6 +426,8 @@ export type LeverImpact = {
 	 * $1,400/mo from March". Null when it changes nothing (say, its target is gone).
 	 */
 	firstChange: { month: MonthKey; amount: Cents } | null;
+	/** What it changes each month projected: Free to Spend and one-offs (the month breakdown). */
+	byMonth: { freeToSpend: Cents; oneOffs: Cents }[];
 	/**
 	 * Goals the Lever moves: when each is reached with it and without it, and `months` later with
 	 * it (negative: sooner; null when either isn't reached within the months projected). A Goal
@@ -469,14 +471,16 @@ export function leverImpacts(
 					),
 				];
 		let firstChange: LeverImpact["firstChange"] = null;
-		for (const [i, m] of all.months.entries()) {
+		const byMonth = all.months.map((m, i) => {
 			const other = without.months[i];
-			const amount = m.freeToSpend + m.oneOffs - (other ? other.freeToSpend + other.oneOffs : 0);
-			if (amount !== 0) {
-				firstChange = { month: m.month, amount };
-				break;
-			}
-		}
+			const change = {
+				freeToSpend: m.freeToSpend - (other?.freeToSpend ?? 0),
+				oneOffs: m.oneOffs - (other?.oneOffs ?? 0),
+			};
+			const amount = change.freeToSpend + change.oneOffs;
+			if (amount !== 0 && firstChange === null) firstChange = { month: m.month, amount };
+			return change;
+		});
 		const goals: LeverImpact["goals"] = [];
 		for (const goal of all.goals) {
 			const other = without.goals.find((g) => g.goalId === goal.goalId);
@@ -497,6 +501,7 @@ export function leverImpacts(
 			cushion: last(all) - last(without),
 			lowest: (all.lowest?.amount ?? 0) - (without.lowest?.amount ?? 0),
 			firstChange,
+			byMonth,
 			goals,
 		};
 	});
