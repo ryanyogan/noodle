@@ -14,13 +14,14 @@ import { List } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { cn } from "@noodle/ui/lib/utils";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { Check, ChevronRight } from "lucide-react";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { ComingUp, LumpCallout } from "../../../components/coming-up";
 import { AmountInput } from "../../../components/goals";
 import { MonthLinks, MonthTopRow, monthTitle, useMonthSwipe } from "../../../components/month-nav";
+import { PlanDraftSection } from "../../../components/plan-draft";
 import { SaveFailed } from "../../../components/plan-editing";
 import { PlanHealth } from "../../../components/plan-health";
 import {
@@ -36,6 +37,7 @@ import { usePlanChange, withBaseline } from "../../../plan-changes";
 import {
 	commitmentsQuery,
 	goalsQuery,
+	planDraftQuery,
 	planHealthQuery,
 	planHistoryQuery,
 	useMonthState,
@@ -75,7 +77,8 @@ function PlanOverview() {
 			/>
 			<div className="grid max-w-2xl gap-8">
 				{state.editable ? null : <PlanEnded />}
-				{settingUp ? <SetUp state={state} /> : null}
+				{state.editable && month === current ? <PlanDraftSection /> : null}
+				{settingUp ? <SetUp state={state} current={month === current} /> : null}
 				{month === current ? <PlanHealth /> : null}
 				<div className="grid gap-3">
 					<Waterfall state={state} current={month === current} />
@@ -111,8 +114,10 @@ function YearLink({ month }: { month: MonthKey }) {
  * Setting up a month's Plan, step by step: the Baseline right here, then Commitments, Buckets and
  * Goals on their own pages. Each step says when it's done.
  */
-function SetUp({ state }: { state: PlanState }) {
+function SetUp({ state, current }: { state: PlanState; current: boolean }) {
 	const { month } = state;
+	// With no draft yet, statements are the quickest start: the Plan is drafted from them.
+	const { data: draft } = useQuery({ ...planDraftQuery(), enabled: current });
 	const { goals } = useGoals();
 	const buckets = state.buckets.filter((b) => b.owner === undefined);
 	const activeGoals = goals.filter((g) => g.state === "active");
@@ -174,6 +179,15 @@ function SetUp({ state }: { state: PlanState }) {
 					/>
 				</ol>
 			</Card>
+			{current && draft === null ? (
+				<p className="text-[13px] text-muted-foreground">
+					Have bank or card statements? Upload about three months of them to{" "}
+					<Link to="/goals" className="font-medium text-foreground underline underline-offset-2">
+						an Account
+					</Link>{" "}
+					and the Plan is drafted from them.
+				</p>
+			) : null}
 		</Section>
 	);
 }

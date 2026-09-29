@@ -377,7 +377,7 @@ const scopeOf = (from: MonthKey, until: MonthKey | null): PlanScope =>
 	until === addMonths(from, 1) ? "just" : "from-on";
 
 /** The next Bucket colour in turn (1–8) for the Household. */
-const nextColor = (householdId: string): SQL =>
+export const nextColor = (householdId: string): SQL =>
 	sql`(select count(*) % 8 + 1 from ${buckets} where ${buckets.householdId} = ${householdId})`;
 
 /** Writes the Baseline in force at `until` back at `until`, unless a month set there already. */

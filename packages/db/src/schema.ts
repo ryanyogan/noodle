@@ -1,6 +1,7 @@
 import {
 	type CsvMapping,
 	DEFAULT_CHECK_IN_DAY,
+	type DraftLabels,
 	INSIGHT_KINDS,
 	type LeverV1,
 	PERK_KINDS,
@@ -1007,4 +1008,42 @@ export const receipts = sqliteTable(
 		index("receipts_household_idx").on(t.householdId),
 		uniqueIndex("receipts_transaction_idx").on(t.transactionId),
 	],
+);
+
+// The first Plan's draft, made once a Household setting up its Plan has history (its first
+// Import). The draft itself is computed from the history each time it's read (draftPlan in
+// @noodle/domain); only what a model said is kept here: which Bucket name each merchant goes
+// in, and readable names for statement lines. `finished_at` is set when a Parent is done with
+// it, so it no longer shows.
+export const planDrafts = sqliteTable("plan_drafts", {
+	householdId: text("household_id")
+		.primaryKey()
+		.references(() => households.id),
+	labels: text("labels", { mode: "json" }).$type<DraftLabels>().notNull(),
+	createdAt: integer("created_at", { mode: "timestamp_ms" })
+		.notNull()
+		.default(sql`(unixepoch() * 1000)`),
+	finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+	finishedByMemberId: text("finished_by_member_id").references(() => members.id),
+});
+
+// A Parent's decision on one of the draft's suggestions, by its key ("baseline",
+// "commitment:<merchant>", "bucket:<name>"): added to the Plan (as suggested or changed), or
+// skipped. One per Household and key: the first decision stands.
+export const planDraftDecisions = sqliteTable(
+	"plan_draft_decisions",
+	{
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		key: text("key").notNull(),
+		decision: text("decision", { enum: ["added", "skipped"] }).notNull(),
+		memberId: text("member_id")
+			.notNull()
+			.references(() => members.id),
+		decidedAt: integer("decided_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [primaryKey({ columns: [t.householdId, t.key] })],
 );

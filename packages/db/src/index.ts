@@ -422,6 +422,15 @@ export {
 	setRolling,
 	updateBucket,
 } from "./plan";
+export {
+	type DraftBucketToAdd,
+	type DraftCommitmentToAdd,
+	decideDraft,
+	finishDraft,
+	loadPlanDraft,
+	type PlanDraftState,
+	saveDraftLabels,
+} from "./plan-draft";
 export { type Author, loadPlanChanges, type PlanHistory } from "./plan-log";
 export { privateTotalId, type Viewer } from "./privacy";
 export {

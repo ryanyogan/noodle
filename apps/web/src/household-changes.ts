@@ -13,6 +13,7 @@ import {
 	monthQuery,
 	monthsKey,
 	perkSourcesQuery,
+	planDraftQuery,
 	planOutlookKey,
 	receiptAddressQuery,
 	reportsKey,
@@ -57,6 +58,8 @@ const changedQueries = {
 	"check-in": checkInQuery().queryKey,
 	/** The Household's Receipt address. */
 	"receipt-address": receiptAddressQuery().queryKey,
+	/** What's left of the first Plan's draft. */
+	"plan-draft": planDraftQuery().queryKey,
 	/** Every Report; also refetched for any change to what Reports sum (see `queryKeysFor`). */
 	reports: reportsKey,
 } satisfies Record<string, QueryKey>;

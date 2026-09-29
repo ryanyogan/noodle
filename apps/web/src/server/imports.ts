@@ -9,6 +9,7 @@ import { categorizeAfterImport } from "./categorize";
 import { getDb } from "./db";
 import { householdMiddleware } from "./household";
 import { notifyHousehold } from "./notify";
+import { draftPlanAfterImport } from "./plan-draft-after-import";
 import { ulidSchema } from "./schemas";
 
 // Statement uploads: a Parent brings a CSV or OFX statement into a hand-entered Account. The file
@@ -103,9 +104,9 @@ export const uploadStatement = createServerFn({ method: "POST" })
 			...result.months.map((month) => `month:${month}` as HouseholdChange),
 		];
 		await notifyHousehold(household.id, changes);
-		categorizeAfterImport(
-			{ householdId: household.id, memberId: context.parent.id },
-			data.importId,
-		);
+		// New history, wherever it came from, is categorized and may draft the first Plan.
+		const viewer = { householdId: household.id, memberId: context.parent.id };
+		categorizeAfterImport(viewer, data.importId);
+		draftPlanAfterImport(viewer, household.timeZone);
 		return { ok: true, import: result.import };
 	});

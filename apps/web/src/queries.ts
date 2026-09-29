@@ -13,6 +13,7 @@ import { getMonth, type MonthData } from "./server/month";
 import { getNudgeSettings } from "./server/nudges";
 import { getPerkSources } from "./server/perks";
 import { getPlanHistory } from "./server/plan";
+import { getPlanDraft } from "./server/plan-draft";
 import { getReceiptAddress } from "./server/receipts";
 import { getReport, type ReportRequest } from "./server/reports";
 import { getReview, getRules } from "./server/review";
@@ -168,6 +169,16 @@ export const checkInQuery = () =>
 		queryKey: [...monthsKey, "check-in"],
 		queryFn: () => getCheckIn(),
 		staleTime: 0,
+	});
+
+/**
+ * What's left of the first Plan's draft, or null. Under every month's key: adding to the Plan by
+ * hand also takes a suggestion out of it.
+ */
+export const planDraftQuery = () =>
+	queryOptions({
+		queryKey: [...monthsKey, "plan-draft"],
+		queryFn: () => getPlanDraft(),
 	});
 
 /** The Insights the Parent may read that weren't dismissed, new ones first. */
