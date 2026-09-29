@@ -54,7 +54,10 @@ test("moving a Lever changes the projection, and applying the Scenario changes t
 	await expect(hockey).toHaveAttribute("aria-valuetext", "$0");
 	await expect(overTwoYears.scenario).toHaveText("$91,200");
 	await expect(overTwoYears.plan).toHaveText("$81,600");
-	await expect(page.locator("p:visible", { hasText: "Frees $9,600" })).toBeVisible();
+	await expect(page.locator("p:visible", { hasText: "Frees $9,600" }).first()).toBeVisible();
+	await expect(page.getByRole("listitem", { name: "Hockey $400 → $0 a month" })).toContainText(
+		"Frees $9,600 over 2 years",
+	);
 	await expect(firstMonth(page)).toContainText(/\$3,400\s*\$3,800\s*\$400$/);
 
 	// Looking five years ahead.
