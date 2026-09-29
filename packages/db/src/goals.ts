@@ -10,6 +10,7 @@ import {
 	monthOfDay,
 } from "@noodle/domain";
 import { and, asc, eq, inArray, isNotNull, isNull, type SQL, sql } from "drizzle-orm";
+import { counts, countsRaw } from "./counting";
 import type { Db } from "./index";
 import { freeToSpendSql } from "./moves";
 import { partlyPrivate, type Viewer, visibleSplit, visibleTo } from "./privacy";
@@ -57,9 +58,10 @@ export function earmarkSql(householdId: string, goalId: string | SQL): SQL {
 		+ coalesce((select sum(m.amount_cents) from moves m
 			where m.household_id = ${householdId} and m.to_goal_id = ${goalId}), 0)
 		- coalesce((select sum(t.amount_cents) from transactions t
-			where t.household_id = ${householdId} and t.goal_id = ${goalId}), 0)
+			where t.household_id = ${householdId} and t.goal_id = ${goalId} and ${sql.raw(countsRaw("t.id"))}), 0)
 		- coalesce((select sum(s.amount_cents) from splits s
-			where s.household_id = ${householdId} and s.goal_id = ${goalId}), 0))`;
+			where s.household_id = ${householdId} and s.goal_id = ${goalId}
+			and ${sql.raw(countsRaw("s.transaction_id"))}), 0))`;
 }
 
 /** Appends a balance for one of the Household's Accounts; the latest one is its balance. */
@@ -575,7 +577,7 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 				at: transactions.createdAt,
 			})
 			.from(transactions)
-			.where(and(visibleTo(viewer), isNotNull(transactions.goalId))),
+			.where(and(visibleTo(viewer), counts(), isNotNull(transactions.goalId))),
 		db
 			.select({
 				id: splits.id,
@@ -591,7 +593,7 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 			.from(splits)
 			.innerJoin(transactions, eq(transactions.id, splits.transactionId))
 			.innerJoin(goals, eq(goals.id, splits.goalId))
-			.where(and(visibleSplit(viewer), visibleTo(viewer), isNotNull(splits.goalId))),
+			.where(and(visibleSplit(viewer), visibleTo(viewer), counts(), isNotNull(splits.goalId))),
 		db
 			.select({ emergencyGoalId: households.emergencyGoalId })
 			.from(households)

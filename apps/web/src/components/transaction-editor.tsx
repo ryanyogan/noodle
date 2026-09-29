@@ -19,6 +19,7 @@ import type {
 	TransactionRow,
 } from "../transactions";
 import { ForPicker } from "./for-picker";
+import { MatchSection } from "./match-section";
 import { NativeSelect } from "./native-select";
 import { Confirm } from "./plan-editing";
 
@@ -102,6 +103,7 @@ export function TransactionEditor({
 							plan={plan}
 							members={members}
 							onChange={onChange}
+							onClose={onClose}
 						/>
 					</>
 				) : null}
@@ -162,11 +164,13 @@ function EditForm({
 	plan,
 	members,
 	onChange,
+	onClose,
 }: {
 	transaction: TransactionRow;
 	plan: Pick<Plan, "buckets" | "commitments">;
 	members: MemberSummary[];
 	onChange: (next: TransactionChange["next"]) => void;
+	onClose: () => void;
 }) {
 	const hydrated = useHydrated();
 	const [amount, setAmount] = useState(formatMoneyInput(transaction.amountCents));
@@ -376,6 +380,7 @@ function EditForm({
 					defaultValue={transaction.note ?? ""}
 				/>
 			</Field>
+			<MatchSection transaction={transaction} onDone={onClose} />
 			{confirmDelete ? (
 				<Confirm
 					confirmLabel="Delete Transaction"

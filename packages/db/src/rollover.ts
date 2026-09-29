@@ -7,6 +7,7 @@ import {
 	rolloverSince,
 } from "@noodle/domain";
 import { and, eq, gte, isNotNull, lt, sql } from "drizzle-orm";
+import { counts } from "./counting";
 import type { Db } from "./index";
 import { loadMovesBetween } from "./moves";
 import { splits, transactions } from "./schema";
@@ -29,6 +30,7 @@ export async function loadRolledOver(
 		eq(transactions.householdId, householdId),
 		gte(transactions.date, `${since}-01`),
 		lt(transactions.date, `${month}-01`),
+		counts(),
 	);
 	const [spent, splitSpent, moves] = await Promise.all([
 		db

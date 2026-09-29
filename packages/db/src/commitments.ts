@@ -1,5 +1,6 @@
 import type { Cadence, Cents, Charge, DayKey, MonthKey } from "@noodle/domain";
 import { and, eq, gt, gte, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
+import { counts } from "./counting";
 import type { Db } from "./index";
 import { type Viewer, visibleTo } from "./privacy";
 import { commitments, commitmentTerms, splits, transactions } from "./schema";
@@ -138,6 +139,7 @@ export async function loadCharges(
 ): Promise<CommitmentCharge[]> {
 	const inMonth = and(
 		visibleTo(viewer),
+		counts(),
 		gte(transactions.date, `${month}-01`),
 		lte(transactions.date, `${month}-31`),
 	);

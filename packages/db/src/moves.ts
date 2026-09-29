@@ -1,5 +1,6 @@
 import { addMonths, type Cents, daysInMonth, type MonthKey, type Move } from "@noodle/domain";
 import { and, eq, gt, gte, isNotNull, isNull, lt, lte, or, type SQL, sql } from "drizzle-orm";
+import { countsRaw } from "./counting";
 import type { Db } from "./index";
 import { assignableBy, othersAllowance } from "./privacy";
 import { buckets, moves } from "./schema";
@@ -94,11 +95,11 @@ export function bucketLeftSql(
 		- ${movedSql(householdId, month, "from_bucket_id", id)}
 		- coalesce((select sum(t.amount_cents) from transactions t
 			where t.household_id = ${householdId} and t.bucket_id = s.id
-			and t.date >= ${`${month}-01`} and t.date <= ${`${month}-31`}), 0)
+			and t.date >= ${`${month}-01`} and t.date <= ${`${month}-31`} and ${sql.raw(countsRaw("t.id"))}), 0)
 		- coalesce((select sum(p.amount_cents) from splits p
 			join transactions t on t.id = p.transaction_id
 			where p.household_id = ${householdId} and p.bucket_id = s.id
-			and t.date >= ${`${month}-01`} and t.date <= ${`${month}-31`}), 0)
+			and t.date >= ${`${month}-01`} and t.date <= ${`${month}-31`} and ${sql.raw(countsRaw("t.id"))}), 0)
 		from buckets s
 		where s.id = ${bucketId} and s.household_id = ${householdId} and ${inPlanSql("s", month)})`;
 }

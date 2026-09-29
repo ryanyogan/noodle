@@ -18,19 +18,23 @@ export type UploadVariables = {
 const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /**
- * What an Import brought in, as a phrase: "5 Transactions and 1 deposit as income; 6 already
- * imported".
+ * What an Import brought in, as a phrase: "5 Transactions and 1 deposit as income; 1 Matched to a
+ * Quick Add; 6 already imported".
  */
 export function importSummary(
-	record: Pick<ImportRecord, "transactionCount" | "incomeCount" | "duplicateCount">,
+	record: Pick<ImportRecord, "transactionCount" | "incomeCount" | "duplicateCount"> &
+		Partial<Pick<ImportRecord, "matchedCount">>,
 ): string {
 	const added = [
 		record.transactionCount > 0 ? count(record.transactionCount, "Transaction") : null,
 		record.incomeCount > 0 ? `${count(record.incomeCount, "deposit")} as income` : null,
 	].filter(Boolean);
+	const matched = record.matchedCount
+		? `${record.matchedCount} Matched to ${record.matchedCount === 1 ? "a Quick Add" : "Quick Adds"}`
+		: null;
 	const already = record.duplicateCount > 0 ? `${record.duplicateCount} already imported` : null;
 	if (added.length === 0) return already ? `Nothing new; ${already}` : "Nothing new";
-	return [added.join(" and "), already].filter(Boolean).join("; ");
+	return [added.join(" and "), matched, already].filter(Boolean).join("; ");
 }
 
 /**

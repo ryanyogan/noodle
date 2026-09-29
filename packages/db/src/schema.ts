@@ -442,6 +442,38 @@ export const splitFor = sqliteTable(
 	],
 );
 
+// A Match: a Quick Add and the imported Transaction that is its bank copy, so the spend counts
+// once. The Quick Add is what counts (its amount, assignment, Splits and For); the imported copy
+// counts nowhere and is shown only through it (counting.ts). Appended by an Import (no
+// `created_by_member_id`) or a Parent; unmatching sets `removed_at`, and a pair once unmatched is
+// never Matched again automatically. Each Transaction is in at most one Match at a time.
+export const matches = sqliteTable(
+	"matches",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		quickAddId: text("quick_add_id")
+			.notNull()
+			.references(() => transactions.id),
+		importedId: text("imported_id")
+			.notNull()
+			.references(() => transactions.id),
+		createdByMemberId: text("created_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+		removedAt: integer("removed_at", { mode: "timestamp_ms" }),
+		removedByMemberId: text("removed_by_member_id").references(() => members.id),
+	},
+	(t) => [
+		index("matches_household_idx").on(t.householdId),
+		uniqueIndex("matches_one_per_quick_add").on(t.quickAddId).where(sql`${t.removedAt} is null`),
+		uniqueIndex("matches_one_per_imported").on(t.importedId).where(sql`${t.removedAt} is null`),
+	],
+);
+
 // A Move of planned money within one month's Plan (no real money moves): from a Bucket, or from
 // Free to Spend when `from_bucket_id` is null, to a Bucket (a Cover) or, for Goal funding, from
 // Free to Spend to a Goal's Earmark (`to_goal_id`, with `to_bucket_id` null). A `windfall` Move

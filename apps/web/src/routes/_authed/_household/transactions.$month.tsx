@@ -409,8 +409,17 @@ function TransactionItem({
 					: "Quick Add");
 	const who = forLabel(members, transaction.for);
 	const amount = formatMoney(transaction.amountCents);
-	// Where an imported Transaction came from, after what it's assigned to.
-	const from = transaction.importedFrom ? ` · ${transaction.importedFrom}` : "";
+	// Where an imported Transaction came from, or a Quick Add's bank copy, after what it's assigned to.
+	const from = transaction.importedFrom
+		? ` · ${transaction.importedFrom}`
+		: transaction.matchedIn
+			? ` · Matched in ${transaction.matchedIn}`
+			: "";
+	const spokenFrom = transaction.importedFrom
+		? `, from ${transaction.importedFrom}`
+		: transaction.matchedIn
+			? `, Matched in ${transaction.matchedIn}`
+			: "";
 	// Money back onto a card or loan (a payment or a Refund) counts nowhere, and waits for
 	// Transfers and Refunds to claim it; there's nothing to edit yet.
 	const moneyBack = transaction.amountCents < 0;
@@ -465,9 +474,7 @@ function TransactionItem({
 					aria-label={
 						split
 							? `${title}, ${amount}, ${detail.replace(" · ", ": ")}`
-							: `${title}, ${amount}, ${assignment.name}, For ${who}${
-									transaction.importedFrom ? `, from ${transaction.importedFrom}` : ""
-								}`
+							: `${title}, ${amount}, ${assignment.name}, For ${who}${spokenFrom}`
 					}
 					onClick={() => onEdit(transaction)}
 					className={rowClassName}

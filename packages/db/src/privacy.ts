@@ -11,6 +11,7 @@ import {
 	type SQL,
 	sql,
 } from "drizzle-orm";
+import { counts, matchedCopy } from "./counting";
 import type { Db } from "./index";
 import { buckets, splits, transactions } from "./schema";
 import type { BucketSpend } from "./transactions";
@@ -57,11 +58,13 @@ export const visibleSplitsSum = (viewer: Viewer) =>
 
 /**
  * The Household's Transactions `viewer` may read one by one: all but those in another Parent's
- * Personal Allowance, whole or through every one of their Splits.
+ * Personal Allowance, whole or through every one of their Splits. Nobody reads the imported copy
+ * in a Match one by one: it's shown only through its Quick Add (loadMatch).
  */
 export const visibleTo = (viewer: Viewer) =>
 	and(
 		eq(transactions.householdId, viewer.householdId),
+		sql`not ${matchedCopy()}`,
 		sql`not ${othersAllowance(viewer.memberId, transactions.bucketId)}`,
 		sql`(not ${partlyPrivate(viewer)} or exists (select 1 from ${splits} where ${splits.transactionId} = ${transactions.id} and ${visibleSplit(viewer)}))`,
 	) as SQL;
@@ -73,6 +76,7 @@ export const visibleTo = (viewer: Viewer) =>
 export const changeableBy = (viewer: Viewer) =>
 	and(
 		eq(transactions.householdId, viewer.householdId),
+		sql`not ${matchedCopy()}`,
 		sql`not ${othersAllowance(viewer.memberId, transactions.bucketId)}`,
 		sql`not ${partlyPrivate(viewer)}`,
 	) as SQL;
@@ -83,6 +87,7 @@ const hiddenFrom = (viewer: Viewer) =>
 		eq(transactions.householdId, viewer.householdId),
 		isNotNull(transactions.bucketId),
 		othersAllowance(viewer.memberId, transactions.bucketId),
+		counts(),
 	) as SQL;
 
 /** The ID a private total goes by: its Bucket's and month's, never any Transaction's. */
@@ -120,6 +125,7 @@ export function privateTotals(db: Db, viewer: Viewer, from: DayKey, until: DayKe
 					eq(splits.householdId, viewer.householdId),
 					eq(transactions.householdId, viewer.householdId),
 					privateSplit(viewer),
+					counts(),
 					inRange,
 				),
 			)

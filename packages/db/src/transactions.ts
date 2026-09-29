@@ -22,6 +22,7 @@ import {
 	type SQL,
 	sql,
 } from "drizzle-orm";
+import { counts } from "./counting";
 import { earmarkSql } from "./goals";
 import type { Db } from "./index";
 import {
@@ -40,6 +41,7 @@ import {
 	buckets,
 	commitments,
 	goals,
+	matches,
 	members,
 	splitFor,
 	splits,
@@ -73,6 +75,7 @@ export async function loadSpendingBetween(
 ): Promise<BucketSpend[]> {
 	const inRange = and(
 		visibleTo(viewer),
+		counts(),
 		gte(transactions.date, from),
 		lt(transactions.date, until),
 		isNotNull(transactions.bucketId),
@@ -80,6 +83,7 @@ export async function loadSpendingBetween(
 	const splitsInRange = and(
 		visibleSplit(viewer),
 		eq(transactions.householdId, viewer.householdId),
+		counts(),
 		gte(transactions.date, from),
 		lt(transactions.date, until),
 		isNotNull(splits.bucketId),
@@ -209,7 +213,7 @@ const USES_LIMIT = 500;
  * likelyBucketOrder: whole Transactions and Splits.
  */
 export async function loadBucketUses(db: Db, viewer: Viewer, since: DayKey): Promise<BucketUse[]> {
-	const recent = and(visibleTo(viewer), gte(transactions.date, since));
+	const recent = and(visibleTo(viewer), counts(), gte(transactions.date, since));
 	const [whole, split] = await db.batch([
 		db
 			.select({ bucketId: transactions.bucketId, date: transactions.date })
@@ -374,6 +378,8 @@ export type TransactionRow = {
 	note: string | null;
 	/** The name of the Account it was imported from; null unless it came in through an Import. */
 	importedFrom: string | null;
+	/** For a Quick Add Matched to its bank copy: the Account the copy was imported into. */
+	matchedIn: string | null;
 	for: string[];
 	/** Its Splits in the order they were entered, those the Viewer may see; none unless it's split. */
 	splits: SplitRow[];
@@ -463,6 +469,9 @@ export async function loadTransactionsPage(
 			importedFrom: sql<
 				string | null
 			>`case when ${transactions.source} = 'import' then ${accounts.name} end`,
+			matchedIn: sql<string | null>`(select a.name from matches m
+				join transactions c on c.id = m.imported_id join accounts a on a.id = c.account_id
+				where m.quick_add_id = ${transactions.id} and m.removed_at is null)`,
 		})
 		.from(transactions)
 		.leftJoin(goals, eq(goals.id, transactions.goalId))
@@ -910,6 +919,19 @@ export async function deleteTransaction(
 				and(
 					eq(transactionFor.transactionId, input.transactionId),
 					eq(transactionFor.householdId, input.householdId),
+					deletable,
+				),
+			),
+		// A deleted Quick Add's bank copy counts again; its Match history goes with it.
+		db
+			.delete(matches)
+			.where(
+				and(
+					eq(matches.householdId, input.householdId),
+					or(
+						eq(matches.quickAddId, input.transactionId),
+						eq(matches.importedId, input.transactionId),
+					),
 					deletable,
 				),
 			),

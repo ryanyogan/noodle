@@ -308,6 +308,15 @@ export {
 	loadImports,
 } from "./imports";
 export {
+	loadMatch,
+	type MatchPeer,
+	type MatchResult,
+	type MatchView,
+	matchImported,
+	matchTransactions,
+	unmatch,
+} from "./matches";
+export {
 	addChild,
 	listMembers,
 	type MemberSummary,

@@ -59,8 +59,18 @@ export {
 	type WithdrawalAttribution,
 } from "./goals";
 export { type BucketUse, likelyBucketOrder } from "./likely";
+export {
+	autoMatches,
+	clearPairs,
+	MATCH_WINDOW,
+	type MatchSide,
+	merchantSimilarity,
+	possibleMatches,
+	withinMatchWindow,
+} from "./matching";
 export { type Cents, MAX_CENTS, parseDollars } from "./money";
 export {
+	addDays,
 	addMonths,
 	type DayKey,
 	dayKeyAt,
