@@ -1,9 +1,11 @@
 import { DurableObject, env } from "cloudflare:workers";
 import { clerkClient } from "@clerk/tanstack-react-start/server";
 import { findMembershipByClerkUser } from "@noodle/db";
+import type { DayKey } from "@noodle/domain";
 import { type HouseholdChange, householdChangesMessage } from "../household-changes";
 import { getDb } from "./db";
 import { type HouseholdEvent, HouseholdNudges } from "./nudge-agent";
+import type { ScheduledNudge } from "./nudge-content";
 
 /**
  * The Household Agent (ADR-0007): one per Household, named by its ID. Both Parents' open screens
@@ -48,6 +50,11 @@ export class HouseholdAgent extends DurableObject<Env> {
 			}
 		}
 		await this.nudges.raise(householdId, changes, events);
+	}
+
+	/** Holds a week's Check-in Nudges until they're due; false when that week's were already taken. */
+	async checkIn(householdId: string, week: DayKey, nudges: ScheduledNudge[]): Promise<boolean> {
+		return this.nudges.checkIn(householdId, week, nudges);
 	}
 
 	/** Decides and sends Nudges; retried by the runtime if it throws. */

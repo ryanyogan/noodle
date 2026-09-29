@@ -291,6 +291,13 @@ export {
 	type Uncategorized,
 } from "./categorize";
 export {
+	type CheckInParent,
+	completeCheckIn,
+	listCheckInHouseholds,
+	loadCheckIns,
+	setCheckInDay,
+} from "./check-ins";
+export {
 	addCommitment,
 	addCommitmentPayment,
 	type CommitmentCharge,

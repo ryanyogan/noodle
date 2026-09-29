@@ -15,6 +15,7 @@ import { Route as AuthedHouseholdRouteImport } from './routes/_authed/_household
 import { Route as AuthedWelcomeRouteImport } from './routes/_authed/welcome'
 import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
 import { Route as AuthedHouseholdAskRouteImport } from './routes/_authed/_household/ask'
+import { Route as AuthedHouseholdCheckInRouteImport } from './routes/_authed/_household/check-in'
 import { Route as AuthedHouseholdExploreRouteImport } from './routes/_authed/_household/explore'
 import { Route as AuthedHouseholdHouseholdRouteImport } from './routes/_authed/_household/household'
 import { Route as AuthedHouseholdInsightsRouteImport } from './routes/_authed/_household/insights'
@@ -69,6 +70,11 @@ const SignInSplatRoute = SignInSplatRouteImport.update({
 const AuthedHouseholdAskRoute = AuthedHouseholdAskRouteImport.update({
   id: '/ask',
   path: '/ask',
+  getParentRoute: () => AuthedHouseholdRoute,
+} as any)
+const AuthedHouseholdCheckInRoute = AuthedHouseholdCheckInRouteImport.update({
+  id: '/check-in',
+  path: '/check-in',
   getParentRoute: () => AuthedHouseholdRoute,
 } as any)
 const AuthedHouseholdExploreRoute = AuthedHouseholdExploreRouteImport.update({
@@ -236,6 +242,7 @@ export interface FileRoutesByFullPath {
   '/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/ask': typeof AuthedHouseholdAskRoute
+  '/check-in': typeof AuthedHouseholdCheckInRoute
   '/explore': typeof AuthedHouseholdExploreRoute
   '/household': typeof AuthedHouseholdHouseholdRoute
   '/insights': typeof AuthedHouseholdInsightsRoute
@@ -269,6 +276,7 @@ export interface FileRoutesByTo {
   '/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/ask': typeof AuthedHouseholdAskRoute
+  '/check-in': typeof AuthedHouseholdCheckInRoute
   '/explore': typeof AuthedHouseholdExploreRoute
   '/household': typeof AuthedHouseholdHouseholdRoute
   '/insights': typeof AuthedHouseholdInsightsRoute
@@ -303,6 +311,7 @@ export interface FileRoutesById {
   '/_authed/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/_authed/_household/ask': typeof AuthedHouseholdAskRoute
+  '/_authed/_household/check-in': typeof AuthedHouseholdCheckInRoute
   '/_authed/_household/explore': typeof AuthedHouseholdExploreRoute
   '/_authed/_household/household': typeof AuthedHouseholdHouseholdRoute
   '/_authed/_household/insights': typeof AuthedHouseholdInsightsRoute
@@ -338,6 +347,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/sign-in/$'
     | '/ask'
+    | '/check-in'
     | '/explore'
     | '/household'
     | '/insights'
@@ -371,6 +381,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/sign-in/$'
     | '/ask'
+    | '/check-in'
     | '/explore'
     | '/household'
     | '/insights'
@@ -404,6 +415,7 @@ export interface FileRouteTypes {
     | '/_authed/welcome'
     | '/sign-in/$'
     | '/_authed/_household/ask'
+    | '/_authed/_household/check-in'
     | '/_authed/_household/explore'
     | '/_authed/_household/household'
     | '/_authed/_household/insights'
@@ -481,6 +493,13 @@ declare module '@tanstack/react-router' {
       path: '/ask'
       fullPath: '/ask'
       preLoaderRoute: typeof AuthedHouseholdAskRouteImport
+      parentRoute: typeof AuthedHouseholdRoute
+    }
+    '/_authed/_household/check-in': {
+      id: '/_authed/_household/check-in'
+      path: '/check-in'
+      fullPath: '/check-in'
+      preLoaderRoute: typeof AuthedHouseholdCheckInRouteImport
       parentRoute: typeof AuthedHouseholdRoute
     }
     '/_authed/_household/explore': {
@@ -716,6 +735,7 @@ const AuthedHouseholdPlanMonthRouteWithChildren =
 
 interface AuthedHouseholdRouteChildren {
   AuthedHouseholdAskRoute: typeof AuthedHouseholdAskRoute
+  AuthedHouseholdCheckInRoute: typeof AuthedHouseholdCheckInRoute
   AuthedHouseholdExploreRoute: typeof AuthedHouseholdExploreRoute
   AuthedHouseholdHouseholdRoute: typeof AuthedHouseholdHouseholdRoute
   AuthedHouseholdInsightsRoute: typeof AuthedHouseholdInsightsRoute
@@ -740,6 +760,7 @@ interface AuthedHouseholdRouteChildren {
 
 const AuthedHouseholdRouteChildren: AuthedHouseholdRouteChildren = {
   AuthedHouseholdAskRoute: AuthedHouseholdAskRoute,
+  AuthedHouseholdCheckInRoute: AuthedHouseholdCheckInRoute,
   AuthedHouseholdExploreRoute: AuthedHouseholdExploreRoute,
   AuthedHouseholdHouseholdRoute: AuthedHouseholdHouseholdRoute,
   AuthedHouseholdInsightsRoute: AuthedHouseholdInsightsRoute,

@@ -3,6 +3,7 @@ import type { QueryKey } from "@tanstack/react-query";
 import {
 	bucketPagesKey,
 	bucketUsesQuery,
+	checkInQuery,
 	commitmentsQuery,
 	forTotalsEarlierKey,
 	goalsQuery,
@@ -48,6 +49,8 @@ const changedQueries = {
 	rules: rulesQuery().queryKey,
 	/** The Insights a Parent sees. */
 	insights: insightsQuery().queryKey,
+	/** The Check-in day, and who has finished this week's Check-in. */
+	"check-in": checkInQuery().queryKey,
 	/** Every Report; also refetched for any change to what Reports sum (see `queryKeysFor`). */
 	reports: reportsKey,
 } satisfies Record<string, QueryKey>;

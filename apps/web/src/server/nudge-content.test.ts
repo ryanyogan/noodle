@@ -1,9 +1,17 @@
 import type { NudgeRecipient, QuickAddForNudge } from "@noodle/db";
-import { type BucketState, type DayKey, defaultNudgePreferences } from "@noodle/domain";
+import {
+	type BucketState,
+	type CheckInCard,
+	type DayKey,
+	defaultNudgePreferences,
+	type MonthKey,
+} from "@noodle/domain";
 import { describe, expect, it } from "vitest";
 import {
 	bucketPaceNudge,
+	checkInNudge,
 	quickAddNudge,
+	scheduleCheckInNudges,
 	scheduleNudges,
 	type VisibleQuickAdd,
 	type WindfallArrived,
@@ -210,6 +218,85 @@ describe("Windfall Nudges", () => {
 		);
 		expect(scheduled.map(({ deliverAt }) => new Date(deliverAt))).toEqual([
 			new Date("2026-09-11T12:00:00Z"),
+		]);
+	});
+});
+
+describe("Check-in", () => {
+	const week = "2026-09-27" as DayKey;
+	const cards: CheckInCard[] = [
+		{ kind: "review", count: 3 },
+		{ kind: "insights", titles: ["Two streaming services"] },
+		{
+			kind: "windfalls",
+			windfalls: [{ month: "2026-09" as MonthKey, amount: 25_000 }],
+			total: 25_000,
+		},
+	];
+
+	it("says what waits for the Parent, and opens the Check-in", () => {
+		expect(checkInNudge(cards, week)).toEqual({
+			kind: "check-in",
+			title: "Time for your Check-in",
+			body: "3 Transactions in Review, 1 new Insight, a $250 Windfall to decide.",
+			tag: "check-in:2026-09-27",
+			url: "/check-in",
+		});
+	});
+
+	it("still comes on a quiet week", () => {
+		expect(checkInNudge([], week).body).toBe(
+			"Nothing needs you this week. A quick look and you’re done.",
+		);
+	});
+
+	// 9 AM on the Check-in day in Chicago (CDT, UTC−5).
+	const nine = new Date("2026-09-27T14:00:00Z");
+
+	it("goes to each Parent with their own cards, at 9 AM", () => {
+		const scheduled = scheduleCheckInNudges(
+			[recipient(alex), recipient(sam)],
+			new Map([
+				[alex, cards],
+				[sam, []],
+			]),
+			week,
+			nine,
+		);
+		expect(scheduled).toEqual([
+			{ memberId: alex, nudge: checkInNudge(cards, week), deliverAt: nine.getTime() },
+			{ memberId: sam, nudge: checkInNudge([], week), deliverAt: nine.getTime() },
+		]);
+	});
+
+	it("skips a Parent who has done this week's", () => {
+		const scheduled = scheduleCheckInNudges(
+			[recipient(alex), recipient(sam)],
+			new Map([[alex, cards]]),
+			week,
+			nine,
+		);
+		expect(scheduled.map(({ memberId }) => memberId)).toEqual([alex]);
+	});
+
+	it("waits out quiet hours, in the Parent's own time zone", () => {
+		// Quiet until 10:00: Alex's ends at 10:00 in Chicago; in London it's already 15:00.
+		const quiet = { start: 21 * 60, end: 10 * 60 };
+		const scheduled = scheduleCheckInNudges(
+			[
+				recipient(alex, { quietHours: quiet }),
+				recipient(sam, { quietHours: quiet, timeZone: "Europe/London" }),
+			],
+			new Map([
+				[alex, cards],
+				[sam, cards],
+			]),
+			week,
+			nine,
+		);
+		expect(scheduled.map(({ deliverAt }) => new Date(deliverAt))).toEqual([
+			new Date("2026-09-27T15:00:00Z"),
+			nine,
 		]);
 	});
 });

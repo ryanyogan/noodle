@@ -1,10 +1,12 @@
 import {
 	type CsvMapping,
+	DEFAULT_CHECK_IN_DAY,
 	INSIGHT_KINDS,
 	type LeverV1,
 	PLAN_CHANGE_KINDS,
 	type PlanChangeValue,
 	type ScenarioJson,
+	type Weekday,
 } from "@noodle/domain";
 import { sql } from "drizzle-orm";
 import {
@@ -33,6 +35,8 @@ export const households = sqliteTable("households", {
 	// The Goal the Household keeps for emergencies: suggested for Windfalls, and where Fresh-start
 	// leftovers are Swept when nobody decides at month-close.
 	emergencyGoalId: text("emergency_goal_id").references((): AnySQLiteColumn => goals.id),
+	// The day of the week the Household's Check-in falls on, 0 for Sunday to 6 for Saturday.
+	checkInDay: integer("check_in_day").$type<Weekday>().notNull().default(DEFAULT_CHECK_IN_DAY),
 });
 
 export const members = sqliteTable(
@@ -835,6 +839,28 @@ export const captureTokens = sqliteTable(
 		revokedAt: integer("revoked_at", { mode: "timestamp_ms" }),
 	},
 	(t) => [uniqueIndex("capture_tokens_live_idx").on(t.memberId).where(sql`${t.revokedAt} is null`)],
+);
+
+// A Parent finishing a week's Check-in. `week` is the Check-in day that starts the week (see
+// checkInWeek in @noodle/domain); one per Parent and week, so finishing again changes nothing.
+export const checkIns = sqliteTable(
+	"check_ins",
+	{
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		memberId: text("member_id")
+			.notNull()
+			.references(() => members.id),
+		week: text("week").notNull(),
+		completedAt: integer("completed_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [
+		primaryKey({ columns: [t.memberId, t.week] }),
+		index("check_ins_household_week_idx").on(t.householdId, t.week),
+	],
 );
 
 // An Insight: a suggested change found by the nightly job (or a Parent's "Look for Insights now"),

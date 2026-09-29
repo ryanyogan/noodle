@@ -3,8 +3,11 @@ import type { BucketState, MonthState } from "./month-state";
 // When a Nudge is worth sending, and when it may reach a Parent. The Household Agent decides
 // with these; nothing here knows how a Nudge is delivered.
 
-/** What a Nudge is about. `test` is one a Parent sends themselves to check a device. */
-export type NudgeKind = "bucket-pace" | "quick-add" | "windfall" | "test";
+/**
+ * What a Nudge is about. `check-in` is the weekly Check-in's; `test` is one a Parent sends
+ * themselves to check a device.
+ */
+export type NudgeKind = "bucket-pace" | "quick-add" | "windfall" | "check-in" | "test";
 
 /**
  * A daily window when a Parent gets no Nudges, as minutes after local midnight (0–1439). It
@@ -34,7 +37,10 @@ export const defaultNudgePreferences = (timeZone: string): NudgePreferences => (
 	timeZone,
 });
 
-/** Whether a Parent wants this kind of Nudge at all; a test is always wanted. */
+/**
+ * Whether a Parent wants this kind of Nudge at all. The Check-in's is always wanted: it's the one
+ * time a week the app asks for attention. So is a test.
+ */
 export function wantsNudge(preferences: NudgePreferences, kind: NudgeKind): boolean {
 	switch (kind) {
 		case "bucket-pace":
@@ -43,6 +49,7 @@ export function wantsNudge(preferences: NudgePreferences, kind: NudgeKind): bool
 			return preferences.otherParentQuickAdds;
 		case "windfall":
 			return preferences.windfalls;
+		case "check-in":
 		case "test":
 			return true;
 	}

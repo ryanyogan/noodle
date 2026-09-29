@@ -16,6 +16,7 @@ import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram, nextBucketColor } from "../../../buckets";
 import { CaptureSettings } from "../../../components/capture-settings";
+import { CheckInSettings } from "../../../components/check-in-settings";
 import { ColourPicker } from "../../../components/colour-picker";
 import { NudgeSettings } from "../../../components/nudge-settings";
 import { Confirm, SaveFailed } from "../../../components/plan-editing";
@@ -31,6 +32,7 @@ import {
 } from "../../../members";
 import {
 	captureTokenQuery,
+	checkInQuery,
 	forTotalsEarlierQuery,
 	householdParentsQuery,
 	membersQuery,
@@ -50,6 +52,7 @@ export const Route = createFileRoute("/_authed/_household/household")({
 			context.queryClient.ensureQueryData(monthQuery(month)),
 			context.queryClient.ensureQueryData(forTotalsEarlierQuery(month)),
 			context.queryClient.ensureQueryData(nudgeSettingsQuery()),
+			context.queryClient.ensureQueryData(checkInQuery()),
 			context.queryClient.ensureQueryData(captureTokenQuery()),
 		]);
 		return { month };
@@ -113,6 +116,7 @@ function HouseholdPage() {
 						<InviteOtherParent invitedEmail={data.invitedEmail} />
 					)}
 				</Section>
+				<CheckInSettings />
 				<NudgeSettings />
 				<CaptureSettings />
 				<Section aria-labelledby="account" className="lg:hidden">

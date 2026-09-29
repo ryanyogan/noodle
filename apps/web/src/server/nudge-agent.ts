@@ -3,6 +3,7 @@ import { loadNudgeRecipients, loadQuickAddForNudge } from "@noodle/db";
 import {
 	bucketsPassingPace,
 	type Cents,
+	type DayKey,
 	type MonthKey,
 	monthKeyAt,
 	monthState,
@@ -29,21 +30,24 @@ export type HouseholdEvent =
 /** Writes that land within this long of each other are looked at together. */
 const SETTLE_MS = 3_000;
 
-type Pending = { checkPace: boolean; events: HouseholdEvent[] };
+/** What's still to look at, and a week's Check-in Nudges still to be held. */
+type Pending = { checkPace: boolean; events: HouseholdEvent[]; checkIns: ScheduledNudge[] };
 
 const HOUSEHOLD_KEY = "household-id";
 const PENDING_KEY = "nudges:pending";
 const SCHEDULED_KEY = "nudges:scheduled";
 const PAST_PACE_PREFIX = "nudges:past-pace:";
 const WINDFALL_PREFIX = "nudges:windfall:";
+const CHECK_IN_KEY = "nudges:check-in-week";
 
 /**
  * The Household Agent's Nudges (ADR-0007). After a write, it looks at what changed a moment
  * later (so a burst of writes is looked at once), decides which Parents to Nudge, holds each
  * until that Parent's quiet hours end, and hands them to the Nudge Queue to deliver. It keeps
  * what it needs in the Agent's own storage: what's still to look at, the Nudges it's holding,
- * which Buckets were past Pace last time, so a Bucket nudges once per crossing, and the most
- * each month's Windfall was Nudged at, so it nudges once per increase.
+ * which Buckets were past Pace last time, so a Bucket nudges once per crossing, the most each
+ * month's Windfall was Nudged at, so it nudges once per increase, and the last week it took
+ * Check-in Nudges for, so each week's go out once.
  */
 export class HouseholdNudges {
 	constructor(private readonly storage: DurableObjectStorage) {}
@@ -53,7 +57,12 @@ export class HouseholdNudges {
 	}
 
 	private pending(): Pending {
-		return this.kv.get<Pending>(PENDING_KEY) ?? { checkPace: false, events: [] };
+		const pending = this.kv.get<Partial<Pending>>(PENDING_KEY);
+		return {
+			checkPace: pending?.checkPace ?? false,
+			events: pending?.events ?? [],
+			checkIns: pending?.checkIns ?? [],
+		};
 	}
 
 	private addPending(more: Pending) {
@@ -65,7 +74,12 @@ export class HouseholdNudges {
 		this.kv.put(PENDING_KEY, {
 			checkPace: pending.checkPace || more.checkPace,
 			events: [...events.values()],
-		});
+			checkIns: [...pending.checkIns, ...more.checkIns],
+		} satisfies Pending);
+	}
+
+	private hasPending({ checkPace, events, checkIns }: Pending) {
+		return checkPace || events.length > 0 || checkIns.length > 0;
 	}
 
 	private async wakeBy(time: number) {
@@ -78,8 +92,22 @@ export class HouseholdNudges {
 		const checkPace = changes.some((change) => change === "months" || change.startsWith("month:"));
 		if (!checkPace && events.length === 0) return;
 		this.kv.put(HOUSEHOLD_KEY, householdId);
-		this.addPending({ checkPace, events });
+		this.addPending({ checkPace, events, checkIns: [] });
 		await this.wakeBy(Date.now() + SETTLE_MS);
+	}
+
+	/**
+	 * Holds a week's Check-in Nudges until they're due, once per week however often it's asked
+	 * (a nightly run may be retried). Returns whether this call took them.
+	 */
+	async checkIn(householdId: string, week: DayKey, nudges: ScheduledNudge[]): Promise<boolean> {
+		if (this.kv.get<DayKey>(CHECK_IN_KEY) === week) return false;
+		this.kv.put(CHECK_IN_KEY, week);
+		this.kv.put(HOUSEHOLD_KEY, householdId);
+		// Handed to the alarm, the only thing that changes what's held.
+		this.addPending({ checkPace: false, events: [], checkIns: nudges });
+		await this.wakeBy(Date.now());
+		return true;
 	}
 
 	/** Runs on the Agent's alarm: decides on anything pending, then sends what's due. */
@@ -101,6 +129,9 @@ export class HouseholdNudges {
 				for (const { month, windfall } of decided.windfalls) this.rememberWindfall(month, windfall);
 				this.kv.put(SCHEDULED_KEY, [...this.scheduled(), ...decided.scheduled]);
 			}
+			if (pending.checkIns.length > 0) {
+				this.kv.put(SCHEDULED_KEY, [...this.scheduled(), ...pending.checkIns]);
+			}
 		} catch (error) {
 			// The alarm retries; decide again then.
 			this.addPending(pending);
@@ -120,11 +151,9 @@ export class HouseholdNudges {
 		const held = scheduled.filter((nudge) => !isDue(nudge));
 		this.kv.put(SCHEDULED_KEY, held);
 
-		const { checkPace, events } = this.pending();
-		const next =
-			checkPace || events.length > 0
-				? Date.now() + SETTLE_MS
-				: Math.min(...held.map((nudge) => nudge.deliverAt));
+		const next = this.hasPending(this.pending())
+			? Date.now() + SETTLE_MS
+			: Math.min(...held.map((nudge) => nudge.deliverAt));
 		if (Number.isFinite(next)) await this.storage.setAlarm(next);
 	}
 

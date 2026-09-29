@@ -140,6 +140,7 @@ _Avoid_: Dedupe, merge, reconcile
 
 **Check-in**:
 The weekly, few-minute ritual where the Parents clear Review, act on Insights, and decide Sweeps and Windfalls. The only time the app asks for attention.
+It falls on the Household's chosen Check-in day; its week runs from that day. At 9 AM that day (or when their quiet hours end) each Parent who hasn't done it gets one Nudge and an email summary, both read for them alone. It opens as a short card stack (Review, Insights, Sweeps, Windfalls, skipping any with nothing in it) that ends on a done state, even when nothing needed them. Each Parent does their own; each sees whether the other has done this week's.
 _Avoid_: Review session, weekly budget, reconciliation
 
 **Pace**:

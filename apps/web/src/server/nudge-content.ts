@@ -2,12 +2,15 @@ import type { NudgeRecipient, QuickAddForNudge } from "@noodle/db";
 import {
 	type BucketState,
 	type Cents,
+	type CheckInCard,
+	type DayKey,
 	type MonthKey,
 	monthOfDay,
 	type NudgeKind,
 	nudgeDeliveryTime,
 	wantsNudge,
 } from "@noodle/domain";
+import { checkInSummary } from "../check-in";
 import { formatMoney, monthName } from "../format";
 
 // What each Nudge says, and who it goes to when. Pure, so the Household Agent's decisions are
@@ -99,6 +102,38 @@ export function windfallNudge(windfall: WindfallArrived): NudgeMessage {
 		tag: `windfall:${windfall.month}`,
 		url: `/month/${windfall.month}`,
 	};
+}
+
+/** A Parent's weekly Check-in: what waits for them, read for them alone. */
+export function checkInNudge(cards: readonly CheckInCard[], week: DayKey): NudgeMessage {
+	return {
+		kind: "check-in",
+		title: "Time for your Check-in",
+		body:
+			cards.length === 0
+				? "Nothing needs you this week. A quick look and you’re done."
+				: checkInSummary(cards),
+		tag: `check-in:${week}`,
+		url: "/check-in",
+	};
+}
+
+/**
+ * One Check-in Nudge for each Parent who could get one and hasn't done this week's (`cards` has
+ * only theirs), at `at` (9 AM on the Check-in day) or when their quiet hours end.
+ */
+export function scheduleCheckInNudges(
+	recipients: readonly NudgeRecipient[],
+	cards: ReadonlyMap<string, readonly CheckInCard[]>,
+	week: DayKey,
+	at: Date,
+): ScheduledNudge[] {
+	return recipients.flatMap(({ memberId, preferences }) => {
+		const theirs = cards.get(memberId);
+		if (!theirs) return [];
+		const deliverAt = nudgeDeliveryTime(at, preferences.quietHours, preferences.timeZone);
+		return [{ memberId, nudge: checkInNudge(theirs, week), deliverAt: deliverAt.getTime() }];
+	});
 }
 
 /** What a Parent sees when they send themselves a test. */

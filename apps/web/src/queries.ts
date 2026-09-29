@@ -2,6 +2,7 @@ import { type MonthKey, type MonthState, monthState } from "@noodle/domain";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { getBucket } from "./server/buckets";
 import { getCaptureToken } from "./server/capture-tokens";
+import { getCheckIn } from "./server/check-in";
 import { getCommitments } from "./server/commitments";
 import { getGoals } from "./server/goals";
 import { getAccountImports } from "./server/imports";
@@ -151,6 +152,18 @@ export const reviewQuery = () =>
 	queryOptions({
 		queryKey: [...monthsKey, "review"],
 		queryFn: () => getReview(),
+	});
+
+/**
+ * This week's Check-in: its cards and who has finished it. Under every month's key, since
+ * spending, income and the Plan change what waits; always refetched on opening it, since
+ * deciding an Insight elsewhere changes it too.
+ */
+export const checkInQuery = () =>
+	queryOptions({
+		queryKey: [...monthsKey, "check-in"],
+		queryFn: () => getCheckIn(),
+		staleTime: 0,
 	});
 
 /** The Insights the Parent may read that weren't dismissed, new ones first. */

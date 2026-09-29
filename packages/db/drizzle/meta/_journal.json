@@ -176,6 +176,13 @@
       "when": 1790686728960,
       "tag": "0024_scenarios_applied",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1790687496292,
+      "tag": "0025_check_ins",
+      "breakpoints": true
     }
   ]
 }

@@ -37,6 +37,25 @@ export {
 	SIMILAR_MERCHANT_SCORE,
 } from "./categorize";
 export {
+	CHECK_IN_MINUTE,
+	type CheckInCard,
+	type CheckInCardKind,
+	type CheckInStep,
+	type CheckInWaiting,
+	checkInCards,
+	checkInCount,
+	checkInNudgeTime,
+	checkInStep,
+	checkInWeek,
+	DEFAULT_CHECK_IN_DAY,
+	isCheckInDay,
+	isWeekday,
+	type PendingWindfall,
+	WEEKDAYS,
+	type Weekday,
+	weekdayOf,
+} from "./check-in";
+export {
 	comingUp,
 	type Due,
 	type DueStatus,
