@@ -17,18 +17,22 @@ import { shortDayAt } from "../format";
 import { bankConnectionsQuery, goalsQuery } from "../queries";
 import {
 	type BankConnectionSummary,
+	type BankConnectionsData,
 	type ConnectBankResult,
 	type ConnectSimplefinResult,
 	connectBank,
 	connectSimplefin,
+	finishBankReconnect,
 	startBankLink,
+	startBankReconnect,
 } from "../server/bank-connections";
 
 // Bank Connections on the Goals page: a Parent connects a bank or card through Plaid Link, or by
 // pasting a setup token from their SimpleFIN Bridge, and its Accounts appear here and among the
 // Household's Accounts while the Import Workflow brings in their recent Transactions. Link runs in
 // Plaid's own frame; the page only ever sees Link's one-time public token, or the setup token the
-// Parent pasted, which the Worker exchanges.
+// Parent pasted, which the Worker exchanges. When a Plaid bank wants the Parent to log in again,
+// its row says so, and Reconnect opens Link for that same login (update mode).
 
 /** What Plaid Link hands back when a Parent finishes linking (the fields read here). */
 type LinkSuccess = { publicToken: string; institution: string | null };
@@ -95,6 +99,10 @@ const linkWithFake = async (token: string): Promise<LinkSuccess> => ({
 	institution: "First Platypus Bank",
 });
 
+/** Opens Link, or E2E's stand-in for it, with the link token. */
+const openLink = (setUp: BankConnectionsData["setUp"], token: string) =>
+	setUp === "fake" ? linkWithFake(token) : linkWithPlaid(token);
+
 type Connected = ConnectBankResult | { ok: false; reason: "closed" };
 
 export function BankConnections() {
@@ -109,10 +117,7 @@ export function BankConnections() {
 		mutationFn: async (): Promise<Connected> => {
 			const started = await startBankLink();
 			if (!started.ok) return started;
-			const linked =
-				setUp === "fake"
-					? await linkWithFake(started.linkToken)
-					: await linkWithPlaid(started.linkToken);
+			const linked = await openLink(setUp, started.linkToken);
 			if (!linked) return { ok: false, reason: "closed" };
 			return connectBank({ data: { connectionId: ulid(), ...linked } });
 		},
@@ -174,7 +179,7 @@ export function BankConnections() {
 				<>
 					<List aria-label="Bank Connections">
 						{connections.map((connection) => (
-							<ConnectionRow key={connection.id} connection={connection} />
+							<ConnectionRow key={connection.id} connection={connection} setUp={setUp} />
 						))}
 					</List>
 					{/* Under the list, not in the header: two ways to connect don't fit beside the title on a phone. */}
@@ -300,6 +305,8 @@ const statusText = (connection: BankConnectionSummary): { text: string; failed: 
 			return { text: "Bringing in Transactions…", failed: false };
 		case "failed":
 			return { text: "Couldn’t bring in Transactions. Noodle will try again.", failed: true };
+		case "reconnect":
+			return { text: "The bank wants you to log in again.", failed: true };
 		default:
 			return {
 				text: connection.lastImportedAt
@@ -310,9 +317,40 @@ const statusText = (connection: BankConnectionSummary): { text: string; failed: 
 	}
 };
 
-function ConnectionRow({ connection }: { connection: BankConnectionSummary }) {
+function ConnectionRow({
+	connection,
+	setUp,
+}: {
+	connection: BankConnectionSummary;
+	setUp: BankConnectionsData["setUp"];
+}) {
+	const queryClient = useQueryClient();
+	const hydrated = useHydrated();
 	const status = statusText(connection);
 	const count = connection.accounts.length;
+
+	const reconnect = useMutation({
+		mutationFn: async (): Promise<"done" | "closed" | "gone"> => {
+			const started = await startBankReconnect({ data: { connectionId: connection.id } });
+			if (!started.ok) return "gone";
+			// Update mode: Link logs in to the same Item, so there's nothing to exchange.
+			if (!(await openLink(setUp, started.linkToken))) return "closed";
+			const finished = await finishBankReconnect({ data: { connectionId: connection.id } });
+			return finished.ok ? "done" : "gone";
+		},
+		onSuccess: (result) => {
+			if (result === "done") toast("Reconnected. Bringing in new Transactions.");
+			if (result !== "closed") {
+				void queryClient.invalidateQueries({ queryKey: bankConnectionsQuery().queryKey });
+			}
+		},
+		onError: () =>
+			toast("Couldn’t reconnect the bank.", {
+				tone: "error",
+				action: { label: "Retry", onClick: () => reconnect.mutate() },
+			}),
+	});
+
 	return (
 		<ListRow
 			leading={
@@ -338,6 +376,21 @@ function ConnectionRow({ connection }: { connection: BankConnectionSummary }) {
 						</span>
 					) : null}
 				</>
+			}
+			trailing={
+				// Only Plaid's logins lapse; a SimpleFIN Bridge is fixed at the Bridge (its notice says how).
+				connection.status === "reconnect" && connection.provider === "plaid" && setUp ? (
+					<Button
+						type="button"
+						size="sm"
+						variant="outline"
+						disabled={!hydrated || reconnect.isPending}
+						onClick={() => reconnect.mutate()}
+						aria-label={`Reconnect ${connection.institution ?? "the bank"}`}
+					>
+						Reconnect
+					</Button>
+				) : null
 			}
 		/>
 	);

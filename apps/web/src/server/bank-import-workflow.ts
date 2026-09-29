@@ -1,5 +1,5 @@
 import { env, WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
-import { createDb, type Db } from "@noodle/db";
+import { createDb, type Db, loadBankConnectionsToSync } from "@noodle/db";
 import { ulid } from "ulid";
 import { openCredential } from "./bank-credential";
 import {
@@ -15,8 +15,9 @@ import { getDb } from "./db";
 import { notifyHousehold } from "./notify";
 import { draftPlan } from "./plan-draft-after-import";
 
-// The Import Workflow's Worker side: the class the Worker exports, and starting a run when the
-// ingest Queue says a Bank Connection has something to read. The logic is runBankImport.
+// The Import Workflow's Worker side: the class the Worker exports, starting a run when the ingest
+// Queue says a Bank Connection has something to read, and the daily sync that puts each one
+// there. The logic is runBankImport.
 
 /** A Bank Connection to read, waiting on the ingest Queue. */
 export type BankImportMessage = { kind: "bank-import" } & BankImportParams;
@@ -65,4 +66,22 @@ export async function startBankImport({ kind: _, ...params }: BankImportMessage)
 	await env.IMPORT.createBatch([
 		{ id: bankImportInstanceId(params.connectionId, params.runId), params },
 	]);
+}
+
+/**
+ * The daily sync: every Bank Connection not waiting on a reconnect goes on the ingest Queue, so
+ * Accounts stay current even when no webhook came. One run per Bank Connection per day, however
+ * often the cron fires.
+ */
+export async function startBankSyncs(now: Date): Promise<void> {
+	if (!bankSetup()) return;
+	const runId = `daily-${now.toISOString().slice(0, 10)}`;
+	const messages = (await loadBankConnectionsToSync(getDb())).map(
+		({ householdId, connectionId, timeZone }) => ({
+			body: { kind: "bank-import", householdId, connectionId, timeZone, runId } as const,
+		}),
+	);
+	for (let i = 0; i < messages.length; i += 100) {
+		await env.INGEST_QUEUE.sendBatch(messages.slice(i, i + 100));
+	}
 }

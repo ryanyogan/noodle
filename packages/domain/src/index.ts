@@ -37,6 +37,14 @@ export {
 	plaidBankAccount,
 	plaidLine,
 } from "./bank-connections";
+export {
+	type BankRow,
+	type BankRowChange,
+	type BankSyncPlan,
+	bankLineKey,
+	planBankSync,
+	resplit,
+} from "./bank-sync";
 export { parseCapturedAmount } from "./capture";
 export {
 	AUTO_FILE_CONFIDENCE,

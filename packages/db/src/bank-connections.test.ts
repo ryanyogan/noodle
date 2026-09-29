@@ -3,11 +3,16 @@ import {
 	addBankConnection,
 	createHouseholdForParent,
 	type Db,
+	findBankConnectionsByExternal,
 	loadBankConnections,
+	loadBankConnectionsToSync,
 	loadBankConnectionToImport,
 	loadGoals,
 	loadImports,
+	markBankConnectionReconnect,
+	markBankConnectionReconnected,
 	markBankImportFailed,
+	refreshBankBalances,
 	saveBankImport,
 	saveBankNotice,
 } from "./index";
@@ -184,5 +189,66 @@ describe("an Import from a Bank Connection", () => {
 			institution: "First Platypus Bank",
 			transactionCount: 1,
 		});
+	});
+});
+
+describe("refreshBankBalances", () => {
+	it("records a balance only when it differs from the latest", async () => {
+		await connect();
+		const refresh = (balanceId: string, checking: number, card: number) =>
+			refreshBankBalances(db, {
+				householdId,
+				connectionId: "conn-1",
+				balances: [
+					{ accountId: "conn-1-1", balanceId: `${balanceId}-1`, amountCents: checking },
+					{ accountId: "conn-1-2", balanceId: `${balanceId}-2`, amountCents: card },
+				],
+			});
+		await refresh("r1", 110_00, 42_00);
+		let { accounts } = await loadGoals(db, { householdId, memberId: parentId });
+		expect(accounts.map((a) => a.latestBalance?.amount ?? null)).toEqual([110_00, 42_00]);
+		await refresh("r2", 95_50, 42_00);
+		({ accounts } = await loadGoals(db, { householdId, memberId: parentId }));
+		expect(accounts.map((a) => a.latestBalance?.amount ?? null)).toEqual([95_50, 42_00]);
+		const { accountBalances } = await import("./schema");
+		const rows = await db.select({ id: accountBalances.id }).from(accountBalances);
+		// The first balance, the card's first, and checking's change: nothing repeated.
+		expect(rows.map((r) => r.id).sort()).toEqual(["conn-1-b1", "r1-2", "r2-1"]);
+	});
+
+	it("never writes to another Bank Connection's Accounts", async () => {
+		await connect();
+		await refreshBankBalances(db, {
+			householdId,
+			connectionId: "conn-other",
+			balances: [{ accountId: "conn-1-1", balanceId: "x", amountCents: 1 }],
+		});
+		const { accounts } = await loadGoals(db, { householdId, memberId: parentId });
+		expect(accounts[0]?.latestBalance?.amount).toBe(110_00);
+	});
+});
+
+describe("reconnecting a Bank Connection", () => {
+	it("waits on the Parent, then is ready again, and syncs skip it meanwhile", async () => {
+		await connect();
+		expect(await loadBankConnectionsToSync(db)).toEqual([
+			{ householdId, connectionId: "conn-1", timeZone: "America/Chicago", status: "importing" },
+		]);
+		expect(await markBankConnectionReconnect(db, householdId, "conn-1")).toBe(true);
+		expect(await markBankConnectionReconnect(db, householdId, "conn-1")).toBe(false);
+		expect((await loadBankConnections(db, householdId))[0]?.status).toBe("reconnect");
+		expect(await loadBankConnectionsToSync(db)).toEqual([]);
+		expect(await markBankConnectionReconnected(db, "other", "conn-1")).toBe(false);
+		expect(await markBankConnectionReconnected(db, householdId, "conn-1")).toBe(true);
+		expect(await markBankConnectionReconnected(db, householdId, "conn-1")).toBe(false);
+		expect((await loadBankConnections(db, householdId))[0]?.status).toBe("ready");
+	});
+
+	it("finds a Bank Connection by the provider's ID for its link", async () => {
+		await connect();
+		expect(await findBankConnectionsByExternal(db, "plaid", "item-1")).toMatchObject([
+			{ householdId, connectionId: "conn-1", timeZone: "America/Chicago" },
+		]);
+		expect(await findBankConnectionsByExternal(db, "plaid", "item-2")).toEqual([]);
 	});
 });

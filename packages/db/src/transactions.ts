@@ -339,6 +339,7 @@ export async function addQuickAdd(
 					importId: sql<string | null>`null`.as("import_id"),
 					externalId: sql<string | null>`null`.as("external_id"),
 					capturedVia: sql<string | null>`null`.as("captured_via"),
+					pending: sql<boolean>`0`.as("pending"),
 				})
 				.from(buckets)
 				.where(
@@ -426,6 +427,8 @@ export type TransactionRow = {
 	note: string | null;
 	/** The name of the Account it was imported from; null unless it came in through an Import. */
 	importedFrom: string | null;
+	/** Reported by the bank but not yet posted: it may change, or go, until its posted copy lands. */
+	pending: boolean;
 	/** For a Quick Add Matched to its bank copy: the Account the copy was imported into. */
 	matchedIn: string | null;
 	/**
@@ -526,6 +529,7 @@ export async function loadTransactionsPage(
 			goalName: goals.name,
 			note: sql<string | null>`case when ${partly} then null else ${transactions.note} end`,
 			partlyPrivate: sql<boolean>`${partly}`.mapWith(Boolean),
+			pending: transactions.pending,
 			importedFrom: sql<
 				string | null
 			>`case when ${transactions.source} = 'import' then ${accounts.name} end`,
@@ -743,7 +747,7 @@ export const stillUndecided = (theTransaction: SQL | undefined, ours: string[] =
 	)})`;
 
 /** Deletes a Transaction's Splits and their For, only while `when` holds (in the same batch). */
-function clearSplits(db: Db, householdId: string, transactionId: string, when?: SQL) {
+export function clearSplits(db: Db, householdId: string, transactionId: string, when?: SQL) {
 	const ofTheTransaction = and(
 		eq(splits.transactionId, transactionId),
 		eq(splits.householdId, householdId),
@@ -1032,9 +1036,27 @@ export async function deleteTransaction(
 	const theTransaction = and(
 		eq(transactions.id, input.transactionId),
 		editableBy(input.householdId, input.memberId),
+	) as SQL;
+	await db.batch(
+		transactionDeletes(db, { ...input, theTransaction }) as [
+			BatchItem<"sqlite">,
+			...BatchItem<"sqlite">[],
+		],
 	);
+}
+
+/**
+ * The writes that delete the Transaction `transactionId` while it's `theTransaction` (a guard on
+ * the transactions table, which should name it and its Household): its For, its Splits, its
+ * Refunds and Transfers (money back linked as its Refund is unassigned again), and its Matches.
+ */
+export function transactionDeletes(
+	db: Db,
+	input: { householdId: string; transactionId: string; theTransaction: SQL },
+): BatchItem<"sqlite">[] {
+	const { theTransaction } = input;
 	const deletable = sql`exists (select 1 from ${transactions} where ${theTransaction})`;
-	await db.batch([
+	return [
 		...clearSplits(db, input.householdId, input.transactionId, deletable),
 		db
 			.delete(transactionFor)
@@ -1103,5 +1125,5 @@ export async function deleteTransaction(
 				),
 			),
 		db.delete(transactions).where(theTransaction),
-	]);
+	];
 }

@@ -54,6 +54,7 @@ const skates: TransactionRow = {
 	splits: [],
 	partlyPrivate: false,
 	importedFrom: null,
+	pending: false,
 	matchedIn: null,
 	transfer: null,
 	refundOf: null,

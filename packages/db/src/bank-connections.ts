@@ -1,13 +1,15 @@
 import type { AccountKind, BankAccount, Cents } from "@noodle/domain";
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import type { Db } from "./index";
-import { accountBalances, accounts, bankConnections } from "./schema";
+import { accountBalances, accounts, bankConnections, households } from "./schema";
 
 // Bank Connections: a Household's authorized links to its financial institutions (through Plaid
 // or SimpleFIN). Connecting one creates its Accounts, each with the balance the institution reports, in
 // one atomic batch; its Imports are then read by the Import Workflow, which keeps the provider's
-// cursor here so each read picks up where the last left off. The credential stays in the Worker:
-// nothing here that a screen reads includes it.
+// cursor here so each read picks up where the last left off, and records each Account's balance
+// anew when the institution's has changed. The credential stays in the Worker: nothing here that
+// a screen reads includes it.
 
 export type BankProvider = (typeof bankConnections.$inferSelect)["provider"];
 export type BankConnectionStatus = (typeof bankConnections.$inferSelect)["status"];
@@ -282,4 +284,132 @@ export async function markBankImportFailed(
 		.update(bankConnections)
 		.set({ status: "failed" })
 		.where(and(eq(bankConnections.id, connectionId), eq(bankConnections.householdId, householdId)));
+}
+
+/**
+ * Records each Account's balance as its Bank Connection now reports it, only where that differs
+ * from the latest one (or there's none yet), and only for the Bank Connection's own Accounts. A
+ * balance from the bank is no one's: it has no creator.
+ */
+export async function refreshBankBalances(
+	db: Db,
+	input: {
+		householdId: string;
+		connectionId: string;
+		balances: { accountId: string; balanceId: string; amountCents: Cents }[];
+	},
+): Promise<void> {
+	const writes: BatchItem<"sqlite">[] = input.balances.map(
+		({ accountId, balanceId, amountCents }) =>
+			db
+				.insert(accountBalances)
+				.select(
+					db
+						.select({
+							id: sql<string>`${balanceId}`.as("id"),
+							householdId: accounts.householdId,
+							accountId: accounts.id,
+							amountCents: sql<number>`${amountCents}`.as("amount_cents"),
+							createdByMemberId: sql<string | null>`null`.as("created_by_member_id"),
+							createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
+						})
+						.from(accounts)
+						.where(
+							and(
+								eq(accounts.id, accountId),
+								eq(accounts.householdId, input.householdId),
+								eq(accounts.bankConnectionId, input.connectionId),
+								// The latest balance, if any, isn't this one already.
+								sql`(select ${accountBalances.amountCents} from ${accountBalances}
+								where ${accountBalances.accountId} = ${accounts.id}
+								order by ${accountBalances.createdAt} desc, ${accountBalances.id} desc
+								limit 1) is not ${amountCents}`,
+							),
+						),
+				)
+				.onConflictDoNothing(),
+	);
+	if (writes.length === 0) return;
+	await db.batch(writes as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+}
+
+/** A Bank Connection to sync, with its Household's time zone. */
+export type BankConnectionToSync = {
+	householdId: string;
+	connectionId: string;
+	timeZone: string;
+	status: BankConnectionStatus;
+};
+
+const toSync = {
+	householdId: bankConnections.householdId,
+	connectionId: bankConnections.id,
+	timeZone: households.timeZone,
+	status: bankConnections.status,
+};
+
+/** Every Household's Bank Connections the daily sync reads: not those waiting on a reconnect. */
+export async function loadBankConnectionsToSync(db: Db): Promise<BankConnectionToSync[]> {
+	return db
+		.select(toSync)
+		.from(bankConnections)
+		.innerJoin(households, eq(households.id, bankConnections.householdId))
+		.where(ne(bankConnections.status, "reconnect"))
+		.orderBy(asc(bankConnections.createdAt), asc(bankConnections.id));
+}
+
+/** The Bank Connections for a provider's link (a Plaid Item), as its webhooks name it. */
+export async function findBankConnectionsByExternal(
+	db: Db,
+	provider: BankProvider,
+	externalId: string,
+): Promise<BankConnectionToSync[]> {
+	return db
+		.select(toSync)
+		.from(bankConnections)
+		.innerJoin(households, eq(households.id, bankConnections.householdId))
+		.where(and(eq(bankConnections.provider, provider), eq(bankConnections.externalId, externalId)));
+}
+
+/**
+ * Records that a Bank Connection's credential no longer works: the institution wants the Parent
+ * to log in again. Syncs skip it until they do. False when it's gone, or waiting already.
+ */
+export async function markBankConnectionReconnect(
+	db: Db,
+	householdId: string,
+	connectionId: string,
+): Promise<boolean> {
+	const written = await db
+		.update(bankConnections)
+		.set({ status: "reconnect" })
+		.where(
+			and(
+				eq(bankConnections.id, connectionId),
+				eq(bankConnections.householdId, householdId),
+				ne(bankConnections.status, "reconnect"),
+			),
+		)
+		.returning({ id: bankConnections.id });
+	return written.length > 0;
+}
+
+/** Records that a Parent logged in again: a Bank Connection waiting on it is ready to sync. */
+export async function markBankConnectionReconnected(
+	db: Db,
+	householdId: string,
+	connectionId: string,
+): Promise<boolean> {
+	const written = await db
+		.update(bankConnections)
+		.set({ status: "ready" })
+		.where(
+			and(
+				eq(bankConnections.id, connectionId),
+				eq(bankConnections.householdId, householdId),
+				eq(bankConnections.status, "reconnect"),
+			),
+		)
+		.returning({ id: bankConnections.id });
+	return written.length > 0;
 }

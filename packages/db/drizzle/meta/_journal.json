@@ -218,6 +218,13 @@
       "when": 1790723186411,
       "tag": "0030_bank_connection_notice",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1790723744089,
+      "tag": "0031_pending_transactions",
+      "breakpoints": true
     }
   ]
 }

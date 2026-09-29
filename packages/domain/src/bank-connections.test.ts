@@ -105,6 +105,24 @@ describe("plaidLine", () => {
 			date: "2026-09-11",
 			amount: -2834,
 			description: "Burger King",
+			pending: false,
+			replaces: null,
+		});
+	});
+
+	it("marks a pending line, and a posted one with the pending line it replaces", () => {
+		expect(plaidLine(transaction({ pending: true }))).toMatchObject({
+			pending: true,
+			replaces: null,
+		});
+		const posted = plaidLine(
+			transaction({ transaction_id: "tx-2", pending_transaction_id: "tx-1", amount: 31.5 }),
+		);
+		expect(posted).toMatchObject({
+			bankId: "tx-2",
+			pending: false,
+			replaces: "tx-1",
+			amount: -3150,
 		});
 	});
 
@@ -117,8 +135,7 @@ describe("plaidLine", () => {
 		expect(plaidLine(transaction({ authorized_date: null }))?.date).toBe("2026-09-12");
 	});
 
-	it("skips pending lines, other currencies, and nothing at all", () => {
-		expect(plaidLine(transaction({ pending: true }))).toBeNull();
+	it("skips other currencies, and nothing at all", () => {
 		expect(plaidLine(transaction({ iso_currency_code: "CAD" }))).toBeNull();
 		expect(plaidLine(transaction({ amount: 0 }))).toBeNull();
 		expect(plaidLine(transaction({ date: "soon", authorized_date: null }))).toBeNull();

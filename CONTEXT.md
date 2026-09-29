@@ -134,8 +134,12 @@ A batch of Transactions brought in from an Account, whether from a statement fil
 _Avoid_: Sync, upload, feed
 
 **Bank Connection**:
-An ongoing authorized link to a financial institution that produces Imports automatically.
+An ongoing authorized link to a financial institution that produces Imports automatically: when the institution says there's news, and at least daily. When its login lapses it waits for a Parent to reconnect (log in again) and brings in nothing meanwhile.
 _Avoid_: Integration, link, Plaid (as a domain term)
+
+**Pending**:
+An imported Transaction the bank has reported but not yet posted. It counts like any other, but may still change or disappear; when it posts, the posted Transaction takes its place (keeping its assignment, For, Splits and note), so it never counts twice.
+_Avoid_: Authorization, hold, uncleared
 
 **Match**:
 The pairing of a Quick Add with the imported Transaction that represents the same real-world spend, so it counts once.

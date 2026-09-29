@@ -436,6 +436,8 @@ function TransactionItem({
 					: "Quick Add");
 	const who = forLabel(members, transaction.for);
 	const amount = formatMoney(transaction.amountCents);
+	// A pending charge may still change, or go, until the bank posts it (and its copy takes its place).
+	const spokenTitle = transaction.pending ? `${title} (pending)` : title;
 	// Where an imported Transaction came from, or a Quick Add's bank copy, after what it's assigned to.
 	const from = transaction.importedFrom
 		? ` · ${transaction.importedFrom}`
@@ -490,6 +492,11 @@ function TransactionItem({
 			<span className="grid min-w-0 gap-0.5">
 				<span className="flex min-w-0 items-center gap-1.5">
 					<span className="truncate text-sm font-medium">{title}</span>
+					{transaction.pending ? (
+						<Badge aria-hidden="true" dot className="h-4.5 px-1.5 text-[11px]">
+							Pending
+						</Badge>
+					) : null}
 					{autoFiled ? (
 						<Badge aria-hidden="true" className="h-4.5 px-1.5 text-[11px]">
 							<Sparkles />
@@ -508,7 +515,7 @@ function TransactionItem({
 				<Link
 					to="/goals/$goalId"
 					params={{ goalId: transaction.goal.id }}
-					aria-label={`${title}, ${amount}, from the ${assignment.name} Goal`}
+					aria-label={`${spokenTitle}, ${amount}, from the ${assignment.name} Goal`}
 					className={rowClassName}
 				>
 					{content}
@@ -518,14 +525,14 @@ function TransactionItem({
 					type="button"
 					aria-label={
 						transfer
-							? `${title}, ${amount}, ${detail.replace(" · ", ", ").replace(" → ", " to ")}`
+							? `${spokenTitle}, ${amount}, ${detail.replace(" · ", ", ").replace(" → ", " to ")}`
 							: refund
-								? `${title}, ${amount}, Refund, ${assignment.name}${spokenFrom}`
+								? `${spokenTitle}, ${amount}, Refund, ${assignment.name}${spokenFrom}`
 								: moneyBack
-									? `${title}, ${amount}, Money back${spokenFrom}`
+									? `${spokenTitle}, ${amount}, Money back${spokenFrom}`
 									: split
-										? `${title}, ${amount}, ${detail.replace(" · ", ": ")}`
-										: `${title}, ${amount}, ${assignment.name}${autoFiled ? " (filed automatically)" : ""}, For ${who}${spokenFrom}`
+										? `${spokenTitle}, ${amount}, ${detail.replace(" · ", ": ")}`
+										: `${spokenTitle}, ${amount}, ${assignment.name}${autoFiled ? " (filed automatically)" : ""}, For ${who}${spokenFrom}`
 					}
 					onClick={() => onEdit(transaction)}
 					className={rowClassName}

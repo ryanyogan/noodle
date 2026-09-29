@@ -228,8 +228,10 @@ export const commitmentTerms = sqliteTable(
 // provider needs to read it (Plaid's access token, SimpleFIN's Access URL), encrypted by the
 // Worker before it's stored (bank-credential.ts) and never sent to a browser.
 // `cursor` is where the provider's changes were last read up to; `status` is "importing" until the
-// institution's history has all come in. `notice` is what the provider last asked the Parent to
-// read about the link (SimpleFIN's errors), as plain text; null when its last read said nothing.
+// institution's history has all come in, "failed" while its reads keep failing (the next sync
+// tries again), and "reconnect" once the institution wants the Parent to sign in again: nothing
+// is read until they do. `notice` is what the provider last asked the Parent to read about the
+// link (SimpleFIN's errors), as plain text; null when its last read said nothing.
 export const bankConnections = sqliteTable(
 	"bank_connections",
 	{
@@ -242,7 +244,7 @@ export const bankConnections = sqliteTable(
 		institution: text("institution"),
 		credential: text("credential").notNull(),
 		cursor: text("cursor"),
-		status: text("status", { enum: ["importing", "ready", "failed"] })
+		status: text("status", { enum: ["importing", "ready", "failed", "reconnect"] })
 			.notNull()
 			.default("importing"),
 		lastImportedAt: integer("last_imported_at", { mode: "timestamp_ms" }),
@@ -436,6 +438,10 @@ export const transactions = sqliteTable(
 		// Shortcut captured at the tap (see capture_tokens), "receipt" for one a Receipt made when
 		// no Transaction was there for it yet. Still a Quick Add, Matched the same way.
 		capturedVia: text("captured_via", { enum: ["shortcut", "receipt"] }),
+		// An imported Transaction the bank has reported but not yet posted. It counts like any
+		// other; when it posts, its posted copy takes over this row (bank-sync.ts), so the two
+		// never both count and what a Parent did to it stays.
+		pending: integer("pending", { mode: "boolean" }).notNull().default(false),
 	},
 	(t) => [
 		index("transactions_household_date_idx").on(t.householdId, t.date),

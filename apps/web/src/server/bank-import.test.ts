@@ -10,7 +10,7 @@ import { testDb } from "@noodle/db/test-db";
 import type { DayKey } from "@noodle/domain";
 import { beforeEach, describe, expect, it } from "vitest";
 import { connectInstitution } from "./bank-connect";
-import type { BankConnectionProvider } from "./bank-connection";
+import { type BankConnectionProvider, BankProviderError } from "./bank-connection";
 import { credentialKey, openCredential, TEST_CREDENTIAL_KEY } from "./bank-credential";
 import {
 	type BankImportDeps,
@@ -98,14 +98,32 @@ const landed = async () => ({
 	income: (await db.select().from(income)).map((i) => i.note).sort(),
 });
 
-const POSTED_SPENDING = [
+/** What the first read brings in: the posted spending, and Netflix, still pending. */
+const FIRST_SPENDING = [
 	"Auto Loan Payment",
 	"Chipotle",
 	"Costco",
 	"Evergreen Property Rent",
 	"Kroger",
+	"Netflix",
 	"Shell",
 ];
+
+/** After a later sync (fakeLaterChanges): Chipotle dropped, Target new and pending. */
+const LATER_SPENDING = [
+	"Auto Loan Payment",
+	"Costco",
+	"Evergreen Property Rent",
+	"Kroger",
+	"Netflix",
+	"Shell",
+	"Target",
+];
+
+const row = async (note: string) => {
+	const found = (await db.select().from(transactions)).find((t) => t.note === note);
+	return found && { id: found.id, amountCents: found.amountCents, pending: found.pending };
+};
 
 describe("connecting a Bank Connection", () => {
 	it("creates an Account for each checking, savings, card and loan account, with its balance", async () => {
@@ -150,9 +168,9 @@ describe("the Import Workflow", () => {
 		const { importDeps, categorized, drafted, notified } = deps();
 		expect(await runBankImport(params, inlineStep, importDeps)).toBe("done");
 
-		// Pending and investment lines aren't brought in; money in to checking or savings is income.
+		// Investment lines aren't brought in; money in to checking or savings is income.
 		expect(await landed()).toEqual({
-			transactions: POSTED_SPENDING,
+			transactions: FIRST_SPENDING,
 			income: ["Acme Payroll", "Interest Paid"],
 		});
 		const [summary] = await loadBankConnections(db, householdId);
@@ -162,22 +180,86 @@ describe("the Import Workflow", () => {
 		expect(categorized).toHaveLength(4);
 		expect(drafted).toEqual([parentId]);
 		expect(notified[0]).toEqual(expect.arrayContaining(["bank-connections", "imports"]));
+		// A pending charge comes in marked as one.
+		expect(await row("Netflix")).toMatchObject({ pending: true });
+		expect(await row("Kroger")).toMatchObject({ pending: false });
 	});
 
-	it("brings in one set of Transactions when the same queue message runs twice", async () => {
+	it("syncs on from the cursor: a pending charge posts in place, and changed and dropped lines follow", async () => {
 		await connect();
-		// The same message is the same Workflow instance; inline, it simply runs again.
+		// The same message is the same Workflow instance; each sync is a new one.
 		expect(bankImportInstanceId(connectionId, "run-1")).toBe(
 			bankImportInstanceId(params.connectionId, params.runId),
 		);
 		await runBankImport(params, inlineStep, deps().importDeps);
-		const again = deps();
-		expect(await runBankImport(params, inlineStep, again.importDeps)).toBe("done");
+		const pending = await row("Netflix");
+		const kroger = await row("Kroger");
 
-		expect((await landed()).transactions).toEqual(POSTED_SPENDING);
-		// The second read started from the saved cursor and found nothing new.
+		const later = deps();
+		expect(await runBankImport({ ...params, runId: "run-2" }, inlineStep, later.importDeps)).toBe(
+			"done",
+		);
+		expect((await landed()).transactions).toEqual(LATER_SPENDING);
+		// Netflix posted for a little more, in the pending row's place: it counts once.
+		expect(await row("Netflix")).toEqual({
+			id: pending?.id,
+			amountCents: 10_49 * Math.sign(pending?.amountCents ?? 0),
+			pending: false,
+		});
+		expect(await row("Kroger")).toMatchObject({
+			id: kroger?.id,
+			amountCents: 68_40 * Math.sign(kroger?.amountCents ?? 0),
+		});
+		expect(await row("Target")).toMatchObject({ pending: true });
+		// Only the new line is an Import to categorize.
+		expect(later.categorized).toHaveLength(1);
+
+		// A sync after that finds nothing new.
+		const again = deps();
+		expect(await runBankImport({ ...params, runId: "run-3" }, inlineStep, again.importDeps)).toBe(
+			"done",
+		);
+		expect((await landed()).transactions).toEqual(LATER_SPENDING);
 		expect(again.categorized).toEqual([]);
 		expect(again.drafted).toEqual([]);
+	});
+
+	it("records each Account's balance anew when the institution's has changed", async () => {
+		await connect();
+		const base = plaid();
+		const moved: BankConnectionProvider = {
+			...base,
+			accounts: async (credential) =>
+				(await base.accounts(credential)).map((account) =>
+					account.kind === "credit-card" ? { ...account, balance: 455_74 } : account,
+				),
+		};
+		const { importDeps, notified } = deps(moved);
+		await runBankImport(params, inlineStep, importDeps);
+		const { accounts } = await loadGoals(db, { householdId, memberId: parentId });
+		expect(accounts.map((a) => a.latestBalance?.amount)).toEqual([
+			1_250_40, 8_200_00, 455_74, 12_480_00,
+		]);
+		expect(notified.at(-1)).toContain("goals");
+	});
+
+	it("waits for a Parent to reconnect when the institution wants them to log in again", async () => {
+		await connect();
+		let reads = 0;
+		const lapsed: BankConnectionProvider = {
+			...plaid(),
+			changes: async () => {
+				reads++;
+				throw new BankProviderError("login required", "ITEM_LOGIN_REQUIRED", null, true);
+			},
+		};
+		const { importDeps, notified } = deps(lapsed);
+		expect(await runBankImport(params, inlineStep, importDeps)).toBe("reconnect");
+		// Not retried: only the Parent can fix it.
+		expect(reads).toBe(1);
+		const [summary] = await loadBankConnections(db, householdId);
+		expect(summary?.status).toBe("reconnect");
+		expect(notified).toEqual([["bank-connections"]]);
 	});
 
 	it("brings in one set of Transactions when the provider sends the same lines twice", async () => {
@@ -192,7 +274,7 @@ describe("the Import Workflow", () => {
 		await runBankImport({ ...params, runId: "run-2" }, inlineStep, deps(forgetful).importDeps);
 
 		expect(await landed()).toEqual({
-			transactions: POSTED_SPENDING,
+			transactions: FIRST_SPENDING,
 			income: ["Acme Payroll", "Interest Paid"],
 		});
 	});
@@ -215,7 +297,8 @@ describe("the Import Workflow", () => {
 			"done",
 		);
 		expect(slept).toEqual(["wait 1", "wait 2"]);
-		expect((await landed()).transactions).toEqual(POSTED_SPENDING);
+		// The second read went on to the later changes.
+		expect((await landed()).transactions).toEqual(LATER_SPENDING);
 	});
 
 	it("marks the Bank Connection failed when its reads keep failing", async () => {

@@ -63,7 +63,8 @@ export async function importStatement(
 		fileKey: string | null;
 		/** The Bank Connection it was read from, for source "bank". */
 		bankConnectionId?: string | null;
-		lines: StatementLine[];
+		/** A Bank Connection's may be pending (bank-sync.ts); a statement's never are. */
+		lines: (StatementLine & { pending?: boolean })[];
 		closingBalance: ClosingBalance | null;
 		/** The CSV mapping to remember for the Account. */
 		csvMapping: CsvMapping | null;
@@ -89,6 +90,7 @@ export async function importStatement(
 			date: line.date,
 			note: line.description || null,
 			externalId: ids[i] as string,
+			pending: line.pending === true,
 		};
 		if (line.amount > 0 && toIncome) received.push({ ...row, amount: line.amount });
 		// Transactions hold money spent, so money out is positive and money back negative.
@@ -141,6 +143,7 @@ export async function importStatement(
 						importId: sql<string>`${importId}`.as("import_id"),
 						externalId: sql<string>`${lineField("externalId")}`.as("external_id"),
 						capturedVia: sql<string | null>`null`.as("captured_via"),
+						pending: sql<boolean>`${lineField("pending")}`.as("pending"),
 					})
 					.from(sql`json_each(${JSON.stringify(spending)})`)
 					.where(theImport),
@@ -213,6 +216,7 @@ type ImportRow = {
 	amount: number;
 	note: string | null;
 	externalId: string;
+	pending: boolean;
 };
 
 /** An Account's Imports, newest first; or just one of them. */

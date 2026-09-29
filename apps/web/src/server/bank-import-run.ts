@@ -3,24 +3,29 @@ import {
 	type BankConnectionToImport,
 	type BankProvider,
 	type Db,
-	importStatement,
 	loadBankConnectionToImport,
+	markBankConnectionReconnect,
 	markBankImportFailed,
+	refreshBankBalances,
 	saveBankImport,
 	saveBankNotice,
+	syncBankLines,
 	type Viewer,
 } from "@noodle/db";
-import type { StatementLine } from "@noodle/domain";
+import type { BankLine, Cents } from "@noodle/domain";
 import type { HouseholdChange } from "../household-changes";
 import { type BankConnectionProvider, BankProviderError } from "./bank-connection";
 
-// The Import Workflow, one instance per Bank Connection and run: when a Parent connects one today
-// (and on each sync, #17). Each round reads what the provider has posted since the Bank
-// Connection's cursor, brings it in as one Import per Account (importStatement, source "bank",
-// keyed by the bank's ID for each line, so nothing lands twice), then moves the cursor on. While
-// the provider is still gathering history it waits a minute and reads again. Once it has all, each
-// Import is categorized and the first Plan drafted, as after a statement upload. Every step is
-// retried on its own; a Bank Connection whose reads keep failing is marked failed.
+// The Import Workflow, one instance per Bank Connection and run: when a Parent connects one, when
+// its provider says it has news (a webhook), and daily. Each round reads what the provider has
+// since the Bank Connection's cursor and syncs each Account with it (syncBankLines): new lines
+// come in as one Import per Account (source "bank", keyed by the bank's ID for each line, so
+// nothing lands twice), changed ones are changed in place (a pending charge's posted copy takes
+// over its row), and dropped ones go. Then the cursor moves on. While the provider is still
+// gathering history it waits a minute and reads again; once it has all, each Account's balance is
+// refreshed, and each Import is categorized and the first Plan drafted, as after a statement
+// upload. Every step is retried on its own, with backoff; a Bank Connection whose reads keep
+// failing is marked failed, and one whose credential has lapsed waits for a Parent to reconnect.
 
 export type BankImportParams = {
 	householdId: string;
@@ -64,17 +69,21 @@ const WRITE_STEP: WorkflowStepConfig = {
 /** How many reads a run makes while the provider gathers history, a minute apart. */
 export const MAX_ROUNDS = 10;
 
-/** One round's read: the lines for each of the Bank Connection's Accounts, with their Import's ID. */
+/**
+ * One round's read: for each of the Bank Connection's Accounts, its lines and those dropped, with
+ * the ID for an Import of any new ones; and, from the last round, each Account's balance.
+ */
 type Read = {
 	from: string | null;
 	to: string | null;
 	complete: boolean;
 	notice: string | null;
 	createdByMemberId: string;
-	imports: { importId: string; accountId: string; lines: StatementLine[] }[];
+	imports: { importId: string; accountId: string; lines: BankLine[]; removed: string[] }[];
+	balances: { accountId: string; balanceId: string; amountCents: Cents }[];
 };
 
-export type BankImportResult = "done" | "gone" | "overtaken" | "failed";
+export type BankImportResult = "done" | "gone" | "overtaken" | "failed" | "reconnect";
 
 export async function runBankImport(
 	params: BankImportParams,
@@ -88,64 +97,58 @@ export async function runBankImport(
 	try {
 		for (let round = 1; round <= MAX_ROUNDS; round++) {
 			// Import IDs are made inside the step, so a replayed run writes the same Imports.
-			const read = await step.do(`read ${round}`, READ_STEP, async (): Promise<Read | null> => {
-				const connection = await loadBankConnectionToImport(db, householdId, connectionId);
-				if (!connection) return null;
-				const credential = await deps.openCredential(connection);
-				const provider = deps.providerFor(connection.provider);
-				const changes = await provider
-					.changes(credential, connection.cursor)
-					.catch(async (error) => {
+			const read = await step.do(
+				`read ${round}`,
+				READ_STEP,
+				async (): Promise<Read | "reconnect" | null> => {
+					const connection = await loadBankConnectionToImport(db, householdId, connectionId);
+					if (!connection) return null;
+					const credential = await deps.openCredential(connection);
+					const provider = deps.providerFor(connection.provider);
+					try {
+						return await readRound(deps, provider, connection, credential, round);
+					} catch (error) {
+						if (!(error instanceof BankProviderError)) throw error;
 						// A refusal the provider explained: the Parent sees why, whether or not a retry works.
-						if (error instanceof BankProviderError && error.notice) {
-							await saveBankNotice(db, householdId, connectionId, error.notice);
-						}
+						if (error.notice) await saveBankNotice(db, householdId, connectionId, error.notice);
+						// No retries: only a Parent logging in again fixes it.
+						if (error.reconnect) return "reconnect";
 						throw error;
-					});
-				return {
-					from: connection.cursor,
-					to: changes.cursor,
-					complete: changes.complete,
-					notice: changes.notice ?? null,
-					createdByMemberId: connection.createdByMemberId,
-					imports: connection.accounts.flatMap(({ id, externalId }) => {
-						const lines = changes.lines
-							.filter((line) => line.accountExternalId === externalId)
-							.map(({ date, amount, description, bankId }) => ({
-								date,
-								amount,
-								description,
-								bankId,
-							}));
-						return lines.length > 0 ? [{ importId: deps.newId(), accountId: id, lines }] : [];
-					}),
-				};
-			});
+					}
+				},
+			);
 			if (!read) return "gone";
+			if (read === "reconnect") {
+				await step.do("mark reconnect", WRITE_STEP, () =>
+					markBankConnectionReconnect(db, householdId, connectionId),
+				);
+				await deps.notify(householdId, ["bank-connections"]);
+				return "reconnect";
+			}
 			viewer = { householdId, memberId: read.createdByMemberId };
 
 			const months = new Set<string>();
-			for (const { importId, accountId, lines } of read.imports) {
-				const result = await step.do(`import ${round} ${accountId}`, WRITE_STEP, async () => {
-					const written = await importStatement(db, {
+			for (const { importId, accountId, lines, removed } of read.imports) {
+				const result = await step.do(`import ${round} ${accountId}`, WRITE_STEP, () =>
+					syncBankLines(db, {
 						householdId,
-						importId,
+						connectionId,
 						accountId,
-						source: "bank",
-						fileName: null,
-						fileKey: null,
-						bankConnectionId: connectionId,
+						importId,
 						lines,
-						closingBalance: null,
-						csvMapping: null,
+						removed,
 						createdByMemberId: read.createdByMemberId,
 						newId: deps.newId,
-					});
-					return written.ok ? { months: written.months } : null;
-				});
+					}),
+				);
 				if (!result) continue;
-				imported.push(importId);
+				if (result.importId) imported.push(result.importId);
 				for (const month of result.months) months.add(month);
+			}
+			if (read.balances.length > 0) {
+				await step.do(`balances ${round}`, WRITE_STEP, () =>
+					refreshBankBalances(db, { householdId, connectionId, balances: read.balances }),
+				);
 			}
 
 			// Ready after the last round even if the provider isn't: the next sync reads the rest.
@@ -163,6 +166,7 @@ export async function runBankImport(
 			await deps.notify(householdId, [
 				"bank-connections",
 				"imports",
+				...(read.balances.length > 0 ? (["goals"] as const) : []),
 				...[...months].map((month) => `month:${month}` as HouseholdChange),
 			]);
 			// Another run moved the cursor first: it reads on from there.
@@ -189,6 +193,42 @@ export async function runBankImport(
 		await step.do("draft Plan", () => deps.draftPlan(who, params.timeZone));
 	}
 	return "done";
+}
+
+/** One round's read from the provider, sorted by Account; balances once it has all. */
+async function readRound(
+	deps: BankImportDeps,
+	provider: BankConnectionProvider,
+	connection: BankConnectionToImport,
+	credential: string,
+	round: number,
+): Promise<Read> {
+	const changes = await provider.changes(credential, connection.cursor);
+	const last = changes.complete || round === MAX_ROUNDS;
+	const reported = last ? await provider.accounts(credential) : [];
+	return {
+		from: connection.cursor,
+		to: changes.cursor,
+		complete: changes.complete,
+		notice: changes.notice ?? null,
+		createdByMemberId: connection.createdByMemberId,
+		imports: connection.accounts.flatMap(({ id, externalId }) => {
+			const lines = changes.lines.filter((line) => line.accountExternalId === externalId);
+			// A dropped line the provider didn't place could be any Account's.
+			const removed = (changes.removed ?? [])
+				.filter((line) => line.accountExternalId === externalId || line.accountExternalId === "")
+				.map((line) => line.bankId);
+			return lines.length > 0 || removed.length > 0
+				? [{ importId: deps.newId(), accountId: id, lines, removed }]
+				: [];
+		}),
+		balances: connection.accounts.flatMap(({ id, externalId }) => {
+			const balance = reported.find((account) => account.externalId === externalId)?.balance;
+			return balance == null
+				? []
+				: [{ accountId: id, balanceId: deps.newId(), amountCents: balance }];
+		}),
+	};
 }
 
 /** A step that runs each callback at once, once, and doesn't wait: an Import inline, for E2E's fakes. */

@@ -4,9 +4,12 @@ import {
 	type BankProvider,
 	type Household,
 	loadBankConnections,
+	loadBankConnectionToImport,
 	type Member,
+	markBankConnectionReconnected,
 } from "@noodle/db";
 import { createServerFn } from "@tanstack/react-start";
+import { getRequestUrl } from "@tanstack/react-start/server";
 import { monotonicFactory, ulid } from "ulid";
 import { z } from "zod";
 import { type ConnectInstitutionResult, connectInstitution } from "./bank-connect";
@@ -15,11 +18,13 @@ import {
 	type BankHandoff,
 	BankProviderError,
 } from "./bank-connection";
+import { openCredential } from "./bank-credential";
 import type { BankImportMessage } from "./bank-import-workflow";
 import { type BankSetup, bankSetup, setUpProviders } from "./bank-setup";
 import { getDb } from "./db";
 import { householdMiddleware } from "./household";
 import { notifyHousehold } from "./notify";
+import { PLAID_WEBHOOK_PATH } from "./plaid-webhook";
 import { ulidSchema } from "./schemas";
 import { INVALID_SETUP_TOKEN, SETUP_TOKEN_CLAIMED } from "./simplefin";
 
@@ -27,8 +32,11 @@ import { INVALID_SETUP_TOKEN, SETUP_TOKEN_CLAIMED } from "./simplefin";
 // token made here, and hands back Link's public token; or pastes a setup token from their
 // SimpleFIN Bridge. The Worker exchanges either for the credential (sealed before it's stored),
 // creates an Account for each checking, savings, card and loan account there, and puts the Bank
-// Connection on the ingest Queue for the Import Workflow to bring in its Transactions. Plaid's
-// secrets and the credential never leave the Worker.
+// Connection on the ingest Queue for the Import Workflow to bring in its Transactions. Each Plaid
+// link token names the app's webhook, so Plaid says when there's more. A Plaid Bank Connection
+// whose login lapsed is reconnected in Link's update mode, for the same Item: nothing to
+// exchange, it's simply ready again and synced. Plaid's secrets and the credential never leave
+// the Worker.
 
 export type { BankConnectionSummary };
 
@@ -56,13 +64,70 @@ export type StartBankLinkResult =
 	| { ok: true; linkToken: string }
 	| { ok: false; reason: "not-set-up" };
 
+/**
+ * Where Plaid posts an Item's webhooks: the app's own address (APP_ORIGIN), or this request's.
+ * None over plain HTTP (a local copy), which Plaid couldn't reach anyway.
+ */
+function webhookUrl(): string | null {
+	const origin = (env as unknown as { APP_ORIGIN?: string }).APP_ORIGIN ?? getRequestUrl().origin;
+	return origin.startsWith("https://") ? `${origin}${PLAID_WEBHOOK_PATH}` : null;
+}
+
 /** A link token for Plaid Link, for this Household. */
 export const startBankLink = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.handler(async ({ context }): Promise<StartBankLinkResult> => {
 		const plaid = bankSetup()?.plaid;
 		if (!plaid) return { ok: false, reason: "not-set-up" };
-		return { ok: true, linkToken: await plaid.linkToken(context.household.id) };
+		return {
+			ok: true,
+			linkToken: await plaid.linkToken(context.household.id, { webhook: webhookUrl() }),
+		};
+	});
+
+export type StartBankReconnectResult =
+	| { ok: true; linkToken: string }
+	| { ok: false; reason: "not-set-up" | "not-found" };
+
+/** A link token for Plaid Link in update mode: a Parent logs in to a Bank Connection's Item again. */
+export const startBankReconnect = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ connectionId: ulidSchema }))
+	.handler(async ({ data, context }): Promise<StartBankReconnectResult> => {
+		const setup = bankSetup();
+		if (!setup?.plaid) return { ok: false, reason: "not-set-up" };
+		const householdId = context.household.id;
+		const connection = await loadBankConnectionToImport(getDb(), householdId, data.connectionId);
+		// Only Plaid's logins lapse this way; SimpleFIN's are fixed at the Bridge.
+		if (connection?.provider !== "plaid") return { ok: false, reason: "not-found" };
+		const accessToken = await openCredential(await setup.key(), connection.credential, {
+			householdId,
+			connectionId: connection.id,
+		});
+		return {
+			ok: true,
+			linkToken: await setup.plaid.linkToken(householdId, { webhook: webhookUrl(), accessToken }),
+		};
+	});
+
+/** A Parent logged in again: the Bank Connection is ready, and syncs at once. */
+export const finishBankReconnect = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ connectionId: ulidSchema }))
+	.handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+		const { household } = context;
+		const ready = await markBankConnectionReconnected(getDb(), household.id, data.connectionId);
+		if (!ready) return { ok: false };
+		await notifyHousehold(household.id, ["bank-connections"]);
+		const message: BankImportMessage = {
+			kind: "bank-import",
+			householdId: household.id,
+			connectionId: data.connectionId,
+			timeZone: household.timeZone,
+			runId: ulid(),
+		};
+		await env.INGEST_QUEUE.send(message);
+		return { ok: true };
 	});
 
 export type ConnectBankResult = ConnectInstitutionResult | { ok: false; reason: "not-set-up" };

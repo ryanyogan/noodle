@@ -353,6 +353,7 @@ describe("Personal Allowance privacy: Splits", () => {
 			goal: null,
 			note: null,
 			importedFrom: null,
+			pending: false,
 			matchedIn: null,
 			transfer: null,
 			refundOf: null,

@@ -3,7 +3,14 @@ import type { BankProvider } from "@noodle/db";
 import { dayKeyAt } from "@noodle/domain";
 import type { BankConnectionProvider } from "./bank-connection";
 import { credentialKey, TEST_CREDENTIAL_KEY } from "./bank-credential";
-import { createLinkToken, type PlaidTransport, plaidProvider, plaidTransport } from "./plaid";
+import {
+	createLinkToken,
+	type LinkTokenOptions,
+	type PlaidTransport,
+	plaidProvider,
+	plaidTransport,
+	webhookVerificationKey,
+} from "./plaid";
 import { fakePlaidTransport } from "./plaid-fake";
 import { simplefinProvider, simplefinTransport } from "./simplefin";
 import { fakeSimplefinTransport } from "./simplefin-fake";
@@ -29,7 +36,10 @@ export type BankSetup = {
 	/** Plaid, with a Plaid Link token for a Household; null without Plaid's secrets. */
 	plaid: {
 		provider: BankConnectionProvider;
-		linkToken: (householdId: string) => Promise<string>;
+		/** A Plaid Link token for the Household: to link an institution, or log in to one again. */
+		linkToken: (householdId: string, options?: LinkTokenOptions) => Promise<string>;
+		/** The public key Plaid signed a webhook with, by its ID; null when Plaid doesn't know it. */
+		webhookKey: (keyId: string) => Promise<JsonWebKey | null>;
 	} | null;
 	simplefin: BankConnectionProvider;
 	/** The key each credential is sealed with. */
@@ -68,7 +78,8 @@ export function bankSetup(): BankSetup | null {
 
 const plaidSetup = (transport: PlaidTransport): NonNullable<BankSetup["plaid"]> => ({
 	provider: plaidProvider(transport),
-	linkToken: (householdId) => createLinkToken(transport, householdId),
+	linkToken: (householdId, options) => createLinkToken(transport, householdId, options),
+	webhookKey: (keyId) => webhookVerificationKey(transport, keyId),
 });
 
 /** The providers a Parent can connect through here. */

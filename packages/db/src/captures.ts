@@ -154,6 +154,7 @@ export async function addCapture(
 					importId: sql<string | null>`null`.as("import_id"),
 					externalId: sql<string | null>`null`.as("external_id"),
 					capturedVia: sql<"shortcut">`'shortcut'`.as("captured_via"),
+					pending: sql<boolean>`0`.as("pending"),
 				})
 				.from(captureTokens)
 				.where(

@@ -366,6 +366,7 @@ function TransactionLine({
 		: transaction.amountCents;
 	const title = transaction.note || (transaction.importedFrom ? "Imported" : "Quick Add");
 	const meta = [
+		transaction.pending ? "Pending" : null,
 		split ? `Part of ${formatMoney(transaction.amountCents)}` : null,
 		transaction.importedFrom,
 	]
@@ -373,7 +374,7 @@ function TransactionLine({
 		.join(" · ");
 	return (
 		<ListRow
-			aria-label={`${title}, ${fullDay(transaction.date)}, ${formatMoney(amount)}`}
+			aria-label={`${title}${transaction.pending ? " (pending)" : ""}, ${fullDay(transaction.date)}, ${formatMoney(amount)}`}
 			leading={<DateTile date={transaction.date} />}
 			title={title}
 			meta={meta || undefined}

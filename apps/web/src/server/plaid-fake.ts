@@ -1,18 +1,22 @@
 import { addDays, type DayKey, type PlaidAccount, type PlaidTransaction } from "@noodle/domain";
 import { BankProviderError } from "./bank-connection";
 import type { PlaidTransport } from "./plaid";
+import { FAKE_WEBHOOK_KEY_ID, FAKE_WEBHOOK_PRIVATE_KEY } from "./plaid-fake-webhook-key";
 
 // A stand-in for Plaid's API, for tests and E2E (AI_MODEL=stub): answers the calls plaid.ts makes,
 // the same way every time. Its Item has a checking, savings, credit card and loan account, plus an
 // investment account the app doesn't track. Its transactions come in two pages (has_more), dated
-// back from `today` so they land in recent months, with a pending one Plaid would later post; a
-// read from the last cursor finds nothing new. The browser's side of Link is faked too
-// (bank-connections.tsx): a fake link token turns straight into its public token.
+// back from `today` so they land in recent months, with a pending one. A read on from there finds
+// what a later sync would (fakeLaterChanges): that charge posted, one changed, one dropped and a
+// new pending one; a read after that finds nothing new. The browser's side of Link is faked too
+// (bank-connections.tsx): a fake link token turns straight into its public token. Its webhook key
+// is plaid-fake-webhook-key.ts's.
 
 const FAKE_LINK_TOKEN_PREFIX = "link-fake-";
 
 const FIRST_CURSOR = "fake-cursor-1";
-const LAST_CURSOR = "fake-cursor-2";
+const SECOND_CURSOR = "fake-cursor-2";
+const LAST_CURSOR = "fake-cursor-3";
 
 const account = (
 	id: string,
@@ -46,6 +50,7 @@ const transaction = (
 	amount: number,
 	name: string,
 	pending = false,
+	pendingId: string | null = null,
 ): PlaidTransaction => ({
 	transaction_id: id,
 	account_id: accountId,
@@ -56,6 +61,7 @@ const transaction = (
 	name,
 	merchant_name: name,
 	pending,
+	pending_transaction_id: pendingId,
 });
 
 /** The fake Item's transactions, as two /transactions/sync pages. Plaid's money out is positive. */
@@ -80,14 +86,38 @@ export function fakeTransactions(today: DayKey): [PlaidTransaction[], PlaidTrans
 	];
 }
 
+/**
+ * What a later sync finds: Netflix (fake-t5) posted, for a little more; Kroger (fake-t1) changed;
+ * Chipotle (fake-t9) dropped; and a new pending charge.
+ */
+export function fakeLaterChanges(today: DayKey) {
+	return {
+		added: [
+			transaction("fake-t11", "fake-card", 0, today, 10.49, "Netflix", false, "fake-t5"),
+			transaction("fake-t12", "fake-card", 0, today, 45, "Target", true),
+		],
+		modified: [transaction("fake-t1", "fake-checking", 1, today, 68.4, "Kroger")],
+		removed: [
+			{ transaction_id: "fake-t5", account_id: "fake-card" },
+			{ transaction_id: "fake-t9", account_id: "fake-card" },
+		],
+	};
+}
+
 /** The fake Plaid API, dated from `today`. */
 export function fakePlaidTransport(today: DayKey): PlaidTransport {
 	const [firstPage, lastPage] = fakeTransactions(today);
+	const later = fakeLaterChanges(today);
 	return async (path, body) => {
 		switch (path) {
 			case "/link/token/create": {
 				const user = body.user as { client_user_id: string };
-				return { link_token: `${FAKE_LINK_TOKEN_PREFIX}${user.client_user_id}`, expiration: "" };
+				// Update mode (a reconnect) names the Item's access token.
+				const mode = body.access_token ? "update-" : "";
+				return {
+					link_token: `${FAKE_LINK_TOKEN_PREFIX}${mode}${user.client_user_id}`,
+					expiration: "",
+				};
 			}
 			case "/item/public_token/exchange": {
 				const token = String(body.public_token);
@@ -102,17 +132,24 @@ export function fakePlaidTransport(today: DayKey): PlaidTransport {
 				return { accounts: FAKE_ACCOUNTS };
 			case "/transactions/sync": {
 				const cursor = body.cursor ?? null;
+				const none = { added: [], modified: [], removed: [] };
 				const page =
 					cursor === null
-						? { added: firstPage, next_cursor: FIRST_CURSOR, has_more: true }
+						? { ...none, added: firstPage, next_cursor: FIRST_CURSOR, has_more: true }
 						: cursor === FIRST_CURSOR
-							? { added: lastPage, next_cursor: LAST_CURSOR, has_more: false }
-							: { added: [], next_cursor: LAST_CURSOR, has_more: false };
+							? { ...none, added: lastPage, next_cursor: SECOND_CURSOR, has_more: false }
+							: cursor === SECOND_CURSOR
+								? { ...later, next_cursor: LAST_CURSOR, has_more: false }
+								: { ...none, next_cursor: LAST_CURSOR, has_more: false };
+				return { ...page, transactions_update_status: "HISTORICAL_UPDATE_COMPLETE" };
+			}
+			case "/webhook_verification_key/get": {
+				if (body.key_id !== FAKE_WEBHOOK_KEY_ID) {
+					throw new BankProviderError("Plaid: no such key", "INVALID_WEBHOOK_VERIFICATION_KEY_ID");
+				}
+				const { d: _, ...key } = FAKE_WEBHOOK_PRIVATE_KEY;
 				return {
-					...page,
-					modified: [],
-					removed: [],
-					transactions_update_status: "HISTORICAL_UPDATE_COMPLETE",
+					key: { ...key, alg: "ES256", use: "sig", kid: FAKE_WEBHOOK_KEY_ID, expired_at: null },
 				};
 			}
 			default:

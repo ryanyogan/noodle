@@ -512,6 +512,7 @@ export async function spendGoal(
 					importId: sql<string | null>`null`.as("import_id"),
 					externalId: sql<string | null>`null`.as("external_id"),
 					capturedVia: sql<string | null>`null`.as("captured_via"),
+					pending: sql<boolean>`0`.as("pending"),
 				})
 				.from(goals)
 				.where(

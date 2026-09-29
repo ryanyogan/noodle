@@ -4,10 +4,11 @@ import type { DayKey } from "./month";
 import type { StatementLine } from "./statements";
 
 // Bank Connections: what a financial institution reports, read into the app's terms. Each
-// provider (Plaid today, SimpleFIN later) hands over its Accounts and their posted lines in its own
+// provider (Plaid today, SimpleFIN later) hands over its Accounts and their lines in its own
 // shape; these turn them into Accounts to create and statement lines to import, so a Bank
 // Connection's Import lands exactly as a statement's would, keyed by the bank's own ID for each
-// line. Plaid reports amounts as decimal dollars, positive for money out (its /transactions/sync
+// line. A line may be pending (reported, not yet posted) until its posted copy replaces it
+// (bank-sync.ts). Plaid reports amounts as decimal dollars, positive for money out (its /transactions/sync
 // docs); a statement line is cents, positive for money in.
 
 /** An account at the institution, as the app will hold it. `kind` null: not one the app tracks. */
@@ -23,8 +24,15 @@ export type BankAccount = {
 	balance: Cents | null;
 };
 
-/** A posted line, for one of the Bank Connection's accounts. `bankId` is the provider's ID. */
-export type BankLine = StatementLine & { accountExternalId: string; bankId: string };
+/** A line for one of the Bank Connection's accounts. `bankId` is the provider's ID. */
+export type BankLine = StatementLine & {
+	accountExternalId: string;
+	bankId: string;
+	/** Reported but not yet posted: it may still change, or go. */
+	pending?: boolean;
+	/** For a posted line, the `bankId` of the pending line it posts, when the provider says. */
+	replaces?: string | null;
+};
 
 /** An Account's name, at most this long (as a Parent's are). */
 export const ACCOUNT_NAME_MAX = 40;
@@ -99,18 +107,20 @@ export type PlaidTransaction = {
 	name: string;
 	merchant_name?: string | null;
 	pending: boolean;
+	/** For a posted transaction, the pending one it replaces, when Plaid could pair them. */
+	pending_transaction_id?: string | null;
 };
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * A Plaid transaction as a line to import, or null for one that isn't one yet or ever: pending
- * (its posted copy comes later with an ID of its own), or not in US dollars. It's dated when the
- * spending happened (authorized) where Plaid knows it, as a Quick Add is, so the two Match, and
- * described by its merchant where Plaid has cleaned one up, else by the bank's words.
+ * A Plaid transaction as a line to import, or null for one that isn't one: not in US dollars, or
+ * of nothing. A pending one is marked so; its posted copy comes later with an ID of its own, and
+ * names it (`pending_transaction_id`). It's dated when the spending happened (authorized) where
+ * Plaid knows it, as a Quick Add is, so the two Match, and described by its merchant where Plaid
+ * has cleaned one up, else by the bank's words.
  */
 export function plaidLine(transaction: PlaidTransaction): BankLine | null {
-	if (transaction.pending) return null;
 	if ((transaction.iso_currency_code ?? "USD") !== "USD") return null;
 	const date = [transaction.authorized_date, transaction.date].find(
 		(day): day is string => typeof day === "string" && DAY.test(day),
@@ -124,5 +134,7 @@ export function plaidLine(transaction: PlaidTransaction): BankLine | null {
 		// Plaid's money out is positive; a statement line's money in is.
 		amount: -cents,
 		description: (transaction.merchant_name || transaction.name || "").trim(),
+		pending: transaction.pending,
+		replaces: transaction.pending ? null : (transaction.pending_transaction_id ?? null),
 	};
 }

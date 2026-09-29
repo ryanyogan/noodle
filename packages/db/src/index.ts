@@ -276,13 +276,20 @@ export {
 	type BankConnectionStatus,
 	type BankConnectionSummary,
 	type BankConnectionToImport,
+	type BankConnectionToSync,
 	type BankProvider,
+	findBankConnectionsByExternal,
 	loadBankConnections,
+	loadBankConnectionsToSync,
 	loadBankConnectionToImport,
+	markBankConnectionReconnect,
+	markBankConnectionReconnected,
 	markBankImportFailed,
+	refreshBankBalances,
 	saveBankImport,
 	saveBankNotice,
 } from "./bank-connections";
+export { type BankSyncResult, syncBankLines } from "./bank-sync";
 export {
 	addCapture,
 	type CaptureResult,
