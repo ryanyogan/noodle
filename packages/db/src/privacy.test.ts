@@ -346,6 +346,7 @@ describe("Personal Allowance privacy: Splits", () => {
 			amountCents: 7_000,
 			bucketId: null,
 			commitmentId: null,
+			goal: null,
 			note: null,
 			for: [],
 			splits: [
@@ -354,6 +355,7 @@ describe("Personal Allowance privacy: Splits", () => {
 					amountCents: 7_000,
 					bucketId: "groceries",
 					commitmentId: null,
+					goal: null,
 					for: ["sam"],
 				},
 			],

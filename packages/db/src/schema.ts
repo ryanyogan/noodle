@@ -198,6 +198,94 @@ export const commitmentTerms = sqliteTable(
 	],
 );
 
+// A real-world place money lives or is owed, entered by hand. For credit cards and loans the
+// balance is what's owed. `kind` is ACCOUNT_KINDS in @noodle/domain.
+export const accounts = sqliteTable(
+	"accounts",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		name: text("name").notNull(),
+		kind: text("kind", { enum: ["checking", "savings", "credit-card", "loan"] }).notNull(),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [index("accounts_household_idx").on(t.householdId)],
+);
+
+// A balance a Parent entered for an Account. Appended, never updated: the latest one is the
+// balance, less Goal spending recorded after it (see accountBalance in @noodle/domain).
+export const accountBalances = sqliteTable(
+	"account_balances",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		accountId: text("account_id")
+			.notNull()
+			.references(() => accounts.id),
+		amountCents: integer("amount_cents").notNull(),
+		createdByMemberId: text("created_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [index("account_balances_account_idx").on(t.accountId)],
+);
+
+// A target the Household funds over time, held as an Earmark on one checking or savings Account
+// (ADR-0002). `target_date` is optional ("YYYY-MM-DD"); `from_month` is the month it was added.
+// A completed Goal keeps its Earmark; an archived one claims nothing.
+export const goals = sqliteTable(
+	"goals",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		accountId: text("account_id")
+			.notNull()
+			.references(() => accounts.id),
+		name: text("name").notNull(),
+		targetCents: integer("target_cents").notNull(),
+		targetDate: text("target_date"),
+		fromMonth: text("from_month").notNull(),
+		completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+		archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [index("goals_household_idx").on(t.householdId)],
+);
+
+// Unclaimed Account money set aside for a Goal, or released back to Unclaimed (negative). Not a
+// Move: the Plan is untouched. A Goal's Earmark is these, plus its Goal funding Moves, less the
+// Transactions assigned to it.
+export const earmarkClaims = sqliteTable(
+	"earmark_claims",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		goalId: text("goal_id")
+			.notNull()
+			.references(() => goals.id),
+		month: text("month").notNull(),
+		amountCents: integer("amount_cents").notNull(),
+		createdByMemberId: text("created_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [index("earmark_claims_goal_idx").on(t.goalId)],
+);
+
 // Real money in or out. `date` is the day it happened in the Household's time zone ("YYYY-MM-DD");
 // `amount_cents` is money spent, so spending is positive. A Quick Add has no Account until it is
 // Matched to an imported Transaction.
@@ -221,6 +309,10 @@ export const transactions = sqliteTable(
 			.default(sql`(unixepoch() * 1000)`),
 		// The Commitment it pays, as a whole, when it isn't assigned to a Bucket.
 		commitmentId: text("commitment_id").references(() => commitments.id),
+		// The Account it left; for Goal spending, the Goal's Account.
+		accountId: text("account_id").references(() => accounts.id),
+		// The Goal it's spent from, out of its Earmark (never a Bucket or Free to Spend).
+		goalId: text("goal_id").references(() => goals.id),
 	},
 	(t) => [index("transactions_household_date_idx").on(t.householdId, t.date)],
 );
@@ -248,8 +340,8 @@ export const transactionFor = sqliteTable(
 
 // A portion of one Transaction with its own amount, assignment, and For. A split Transaction is
 // assigned only through its Splits (its own bucket_id, commitment_id, and For are empty), and its
-// Splits' amounts add up to its amount. Each Split is assigned to a Bucket or a Commitment; a Goal
-// will be one more nullable column. `position` keeps the order they were entered in.
+// Splits' amounts add up to its amount. Each Split is assigned to a Bucket, a Commitment, or a
+// Goal (Goal spending, out of its Earmark). `position` keeps the order they were entered in.
 export const splits = sqliteTable(
 	"splits",
 	{
@@ -264,6 +356,7 @@ export const splits = sqliteTable(
 		amountCents: integer("amount_cents").notNull(),
 		bucketId: text("bucket_id").references(() => buckets.id),
 		commitmentId: text("commitment_id").references(() => commitments.id),
+		goalId: text("goal_id").references(() => goals.id),
 	},
 	(t) => [index("splits_household_transaction_idx").on(t.householdId, t.transactionId)],
 );
@@ -289,8 +382,9 @@ export const splitFor = sqliteTable(
 );
 
 // A Move of planned money within one month's Plan (no real money moves): from a Bucket, or from
-// Free to Spend when `from_bucket_id` is null, to a Bucket. Balances are derived from these rows
-// (ADR-0004); undoing a Move deletes its row.
+// Free to Spend when `from_bucket_id` is null, to a Bucket (a Cover) or, for Goal funding, from
+// Free to Spend to a Goal's Earmark (`to_goal_id`, with `to_bucket_id` null). Balances are
+// derived from these rows (ADR-0004); undoing a Move deletes its row.
 export const moves = sqliteTable(
 	"moves",
 	{
@@ -298,17 +392,16 @@ export const moves = sqliteTable(
 		householdId: text("household_id")
 			.notNull()
 			.references(() => households.id),
-		kind: text("kind", { enum: ["cover"] }).notNull(),
+		kind: text("kind", { enum: ["cover", "goal-funding"] }).notNull(),
 		month: text("month").notNull(),
 		fromBucketId: text("from_bucket_id").references(() => buckets.id),
-		toBucketId: text("to_bucket_id")
-			.notNull()
-			.references(() => buckets.id),
+		toBucketId: text("to_bucket_id").references(() => buckets.id),
 		amountCents: integer("amount_cents").notNull(),
 		createdByMemberId: text("created_by_member_id").references(() => members.id),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()
 			.default(sql`(unixepoch() * 1000)`),
+		toGoalId: text("to_goal_id").references(() => goals.id),
 	},
 	(t) => [index("moves_household_month_idx").on(t.householdId, t.month)],
 );

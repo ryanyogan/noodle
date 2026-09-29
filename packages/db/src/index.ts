@@ -280,6 +280,26 @@ export {
 	updateCommitment,
 } from "./commitments";
 export {
+	type AccountRecord,
+	addAccount,
+	addGoal,
+	archiveGoal,
+	claimForGoal,
+	completeGoal,
+	fundGoal,
+	type GoalChange,
+	type GoalRecord,
+	type GoalRecords,
+	type GoalWriteResult,
+	loadGoalFunding,
+	loadGoals,
+	renameAccount,
+	spendGoal,
+	undoGoalFunding,
+	updateAccountBalance,
+	updateGoal,
+} from "./goals";
+export {
 	addChild,
 	listMembers,
 	type MemberSummary,

@@ -1,0 +1,170 @@
+import type { Cents } from "./money";
+import { type DayKey, type MonthKey, monthOfDay, monthsBetween } from "./month";
+
+export const ACCOUNT_KINDS = ["checking", "savings", "credit-card", "loan"] as const;
+
+/**
+ * Checking and savings Accounts hold money; for credit cards and loans the balance is what's
+ * owed.
+ */
+export type AccountKind = (typeof ACCOUNT_KINDS)[number];
+
+/** Only Accounts that hold money can back a Goal's Earmark. */
+export const holdsMoney = (kind: AccountKind) => kind === "checking" || kind === "savings";
+
+/** A balance a Parent entered for an Account, and when it was recorded (ms). */
+export type BalanceUpdate = { amount: Cents; at: number };
+
+/** Money out recorded against an Account (Goal spending), and when it was recorded (ms). */
+export type AccountWithdrawal = { amount: Cents; at: number };
+
+/**
+ * An Account's balance: the latest balance a Parent entered, less the withdrawals recorded
+ * after it (those before it are already in it; one recorded the same millisecond is taken as
+ * after). Null until a balance is entered.
+ */
+export function accountBalance(
+	latest: BalanceUpdate | null,
+	withdrawals: AccountWithdrawal[],
+): Cents | null {
+	if (latest === null) return null;
+	return withdrawals.reduce(
+		(balance, w) => (w.at >= latest.at ? balance - w.amount : balance),
+		latest.amount,
+	);
+}
+
+/**
+ * One change to a Goal's Earmark, signed. `claim`: Unclaimed money set aside for the Goal (or
+ * released back, negative); `funding`: Goal funding, a Move from Free to Spend in `month`'s
+ * Plan; `spending`: a Transaction assigned to the Goal (negative).
+ */
+export type EarmarkChange = {
+	goalId: string;
+	kind: "claim" | "funding" | "spending";
+	amount: Cents;
+	month: MonthKey;
+};
+
+/** A Goal's Earmark: every change to it, summed. */
+export function earmarkOf(goalId: string, changes: EarmarkChange[]): Cents {
+	return changes.reduce((sum, c) => (c.goalId === goalId ? sum + c.amount : sum), 0);
+}
+
+/**
+ * How an Account's balance splits between its Goals' Earmarks and Unclaimed money. Archived
+ * Goals claim nothing. Unclaimed is null until the Account has a balance, and negative when
+ * the Earmarks add up to more than the balance, by `overClaimedBy`.
+ */
+export function splitAccount({
+	balance,
+	goals,
+	changes,
+}: {
+	balance: Cents | null;
+	/** This Account's Goals. */
+	goals: { id: string; archived: boolean }[];
+	changes: EarmarkChange[];
+}): {
+	earmarks: { goalId: string; amount: Cents }[];
+	earmarked: Cents;
+	unclaimed: Cents | null;
+	overClaimedBy: Cents;
+} {
+	const earmarks = goals
+		.filter((g) => !g.archived)
+		.map((g) => ({ goalId: g.id, amount: earmarkOf(g.id, changes) }));
+	const earmarked = earmarks.reduce((sum, e) => sum + e.amount, 0);
+	const unclaimed = balance === null ? null : balance - earmarked;
+	return { earmarks, earmarked, unclaimed, overClaimedBy: Math.max(0, -(unclaimed ?? 0)) };
+}
+
+/**
+ * `reached`: saved the target.
+ * `saving`: no target date, so no schedule to keep.
+ * `past-due`: the target date's month has passed without reaching it.
+ * `behind`: saved less than an even schedule from the Goal's first month expects by now.
+ * `on-track`: otherwise.
+ */
+export type GoalStatus = "reached" | "on-track" | "behind" | "past-due" | "saving";
+
+export type GoalProgress = {
+	/** The Goal's Earmark. */
+	saved: Cents;
+	/** Still to save to reach the target. */
+	remaining: Cents;
+	/** Saved as a share of the target, 0–1. */
+	share: number;
+	/** Months to the target date, counting this one and the target's. Null when undated. */
+	monthsLeft: number | null;
+	/**
+	 * What to fund each month from this one on to reach the target in time. Set from what
+	 * is saved apart from this month's Goal funding, so it holds steady as the month is
+	 * funded (money set aside from Unclaimed this month counts as saved). Null when undated
+	 * or past due.
+	 */
+	monthly: Cents | null;
+	/** What's still to fund this month. Null when undated or past due. */
+	leftThisMonth: Cents | null;
+	status: GoalStatus;
+};
+
+/** How a Goal is doing in `month` (the Household's current month). */
+export function goalProgress(
+	goal: { id: string; target: Cents; targetDate: DayKey | null; fromMonth: MonthKey },
+	changes: EarmarkChange[],
+	month: MonthKey,
+): GoalProgress {
+	const own = changes.filter((c) => c.goalId === goal.id);
+	const saved = earmarkOf(goal.id, own);
+	const fundedThisMonth = earmarkOf(
+		goal.id,
+		own.filter((c) => c.kind === "funding" && c.month === month),
+	);
+	const savedApartFromFunding = saved - fundedThisMonth;
+	const remaining = Math.max(0, goal.target - saved);
+	const share = goal.target > 0 ? Math.min(1, Math.max(0, saved / goal.target)) : 1;
+	const base = { saved, remaining, share };
+	if (goal.targetDate === null) {
+		const status = saved >= goal.target ? "reached" : "saving";
+		return { ...base, monthsLeft: null, monthly: null, leftThisMonth: null, status };
+	}
+	const targetMonth = monthOfDay(goal.targetDate);
+	// The target's month counts: a Goal due this month has one month left.
+	const monthsLeft = Math.max(0, monthsBetween(month, targetMonth) + 1);
+	if (saved >= goal.target) {
+		return { ...base, monthsLeft, monthly: 0, leftThisMonth: 0, status: "reached" };
+	}
+	if (monthsLeft === 0) {
+		return { ...base, monthsLeft, monthly: null, leftThisMonth: null, status: "past-due" };
+	}
+	const monthly = Math.ceil(Math.max(0, goal.target - savedApartFromFunding) / monthsLeft);
+	const leftThisMonth = Math.max(0, monthly - fundedThisMonth);
+	// An even schedule from the Goal's first month: behind once earlier months' shares were
+	// missed and haven't been made up yet.
+	const total = Math.max(1, monthsBetween(goal.fromMonth, targetMonth) + 1);
+	const elapsed = Math.min(total, Math.max(0, monthsBetween(goal.fromMonth, month)));
+	const expectedByStart = Math.floor((goal.target * elapsed) / total);
+	const status = saved < expectedByStart ? "behind" : "on-track";
+	return { ...base, monthsLeft, monthly, leftThisMonth, status };
+}
+
+/**
+ * Where a withdrawal from an Account comes from (ADR-0002): the Goal it's assigned to;
+ * Unclaimed money when that covers it (or nothing is earmarked); otherwise it dips into
+ * Earmarks by `fromEarmarks`, and a Parent decides which Goals in Review.
+ */
+export type WithdrawalAttribution =
+	| { kind: "goal"; goalId: string }
+	| { kind: "unclaimed" }
+	| { kind: "review"; fromEarmarks: Cents };
+
+export function attributeWithdrawal(
+	withdrawal: { amount: Cents; goalId: string | null },
+	account: { balanceBefore: Cents; earmarked: Cents },
+): WithdrawalAttribution {
+	if (withdrawal.goalId !== null) return { kind: "goal", goalId: withdrawal.goalId };
+	const unclaimed = Math.max(0, account.balanceBefore - account.earmarked);
+	if (account.earmarked <= 0 || withdrawal.amount <= unclaimed) return { kind: "unclaimed" };
+	return { kind: "review", fromEarmarks: withdrawal.amount - unclaimed };
+}

@@ -81,6 +81,7 @@ describe("assignedParts: what a Transaction adds to its month", () => {
 		expect(assignedParts({ ...costco([]), for: ["leo"] })).toEqual({
 			spending: [{ bucketId: "groceries", amount: 25_000, date: "2026-09-12", for: ["leo"] }],
 			charges: [],
+			goalSpending: [],
 		});
 	});
 
@@ -115,7 +116,30 @@ describe("assignedParts: what a Transaction adds to its month", () => {
 		expect(assignedParts({ ...costco([]), assignment: null })).toEqual({
 			spending: [],
 			charges: [],
+			goalSpending: [],
 		});
+	});
+
+	it("takes a Split assigned to a Goal from its Earmark, never a Bucket or the month", () => {
+		const parts = assignedParts(
+			costco([
+				split({ bucketId: "groceries" }, 15_000),
+				split({ goalId: "vacation" }, 6_000, "leo"),
+				split({ goalId: "vacation" }, 4_000),
+			]),
+		);
+		expect(parts.spending).toEqual([
+			{ bucketId: "groceries", amount: 15_000, date: "2026-09-12", for: [] },
+		]);
+		expect(parts.charges).toEqual([]);
+		expect(parts.goalSpending).toEqual([
+			{ goalId: "vacation", amount: 6_000, date: "2026-09-12" },
+			{ goalId: "vacation", amount: 4_000, date: "2026-09-12" },
+		]);
+		const state = monthState({ plan, spending: parts.spending, asOf: "2026-09-15" });
+		const without = monthState({ plan, spending: [], asOf: "2026-09-15" });
+		expect(state.freeToSpend).toBe(without.freeToSpend);
+		expect(state.leftInBuckets).toBe(without.leftInBuckets - 15_000);
 	});
 });
 

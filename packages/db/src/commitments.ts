@@ -183,6 +183,8 @@ export async function addCommitmentPayment(
 					createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
 					// Selected in the table's column order: insert … select is positional.
 					commitmentId: commitments.id,
+					accountId: sql<string | null>`null`.as("account_id"),
+					goalId: sql<string | null>`null`.as("goal_id"),
 				})
 				.from(commitments)
 				.where(

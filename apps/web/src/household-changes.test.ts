@@ -13,6 +13,7 @@ describe("queryKeysFor", () => {
 		expect(queryKeysFor(["bucket-uses"])).toEqual([["bucket-uses"]]);
 		expect(queryKeysFor(["parents"])).toEqual([["household", "parents"]]);
 		expect(queryKeysFor(["viewer"])).toEqual([["viewer"]]);
+		expect(queryKeysFor(["goals"])).toEqual([["goals"]]);
 	});
 
 	test("every month covers any one month", () => {
@@ -38,6 +39,7 @@ describe("queryKeysFor", () => {
 			["household", "parents"],
 			["household", "members"],
 			["for-earlier"],
+			["goals"],
 			["viewer"],
 		]);
 	});

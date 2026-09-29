@@ -191,6 +191,7 @@ test("on a phone, Transactions is in the tab bar either side of Quick Add", asyn
 		"Month",
 		"Transactions",
 		"Quick Add",
+		"Goals",
 		"Household",
 	]);
 	await nav(page).getByRole("link", { name: "Transactions" }).tap();

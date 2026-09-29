@@ -3,7 +3,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Logo } from "@noodle/ui/components/logo";
 import { cn } from "@noodle/ui/lib/utils";
 import { Link, type LinkProps } from "@tanstack/react-router";
-import { CalendarDays, List, type LucideIcon, Plus, UsersRound } from "lucide-react";
+import { CalendarDays, List, type LucideIcon, Plus, Target, UsersRound } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 import { markQuickAddOpened, quickAddSearch } from "./quick-add";
 
@@ -13,6 +13,7 @@ type NavItem = { to: LinkProps["to"]; label: string; short: string; icon: Lucide
 const nav: NavItem[] = [
 	{ to: "/month", label: "This Month", short: "Month", icon: CalendarDays },
 	{ to: "/transactions", label: "Transactions", short: "Transactions", icon: List },
+	{ to: "/goals", label: "Goals", short: "Goals", icon: Target },
 	{ to: "/household", label: "Household", short: "Household", icon: UsersRound },
 ];
 

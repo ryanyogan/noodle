@@ -1,5 +1,6 @@
 import { type MonthKey, type MonthState, monthState } from "@noodle/domain";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
+import { getGoals } from "./server/goals";
 import { getHouseholdParents } from "./server/invites";
 import { getForTotalsEarlierInYear, getMembers } from "./server/members";
 import { getMonth, type MonthData } from "./server/month";
@@ -22,10 +23,13 @@ export const monthQuery = (month: MonthKey) =>
 		queryFn: () => getMonth({ data: { month } }),
 	});
 
-const toMonthState = (data: MonthData): MonthState & Pick<MonthData, "editable" | "moves"> => ({
+const toMonthState = (
+	data: MonthData,
+): MonthState & Pick<MonthData, "editable" | "moves" | "goalFunding"> => ({
 	...monthState(data),
 	editable: data.editable,
 	moves: data.moves,
+	goalFunding: data.goalFunding,
 });
 
 /** A month's state, derived from its cached inputs, so optimistic edits show up everywhere. */
@@ -60,4 +64,11 @@ export const forTotalsEarlierQuery = (month: MonthKey) =>
 	queryOptions({
 		queryKey: [...forTotalsEarlierKey, month],
 		queryFn: () => getForTotalsEarlierInYear({ data: { month } }),
+	});
+
+/** Every Account, Goal and Earmark change, with the Household's current month. */
+export const goalsQuery = () =>
+	queryOptions({
+		queryKey: ["goals"],
+		queryFn: () => getGoals(),
 	});

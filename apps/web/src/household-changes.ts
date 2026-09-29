@@ -3,6 +3,7 @@ import type { QueryKey } from "@tanstack/react-query";
 import {
 	bucketUsesQuery,
 	forTotalsEarlierKey,
+	goalsQuery,
 	householdParentsQuery,
 	membersQuery,
 	monthQuery,
@@ -28,6 +29,8 @@ const changedQueries = {
 	members: membersQuery().queryKey,
 	/** What each Member cost earlier in the year: only edits to past spending change it. */
 	"for-earlier": forTotalsEarlierKey,
+	/** Accounts, Goals and their Earmarks. */
+	goals: goalsQuery().queryKey,
 	/** The Household itself, as each screen's viewer sees it. */
 	viewer: viewerQuery().queryKey,
 } satisfies Record<string, QueryKey>;

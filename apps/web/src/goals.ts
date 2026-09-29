@@ -1,0 +1,624 @@
+import type { AccountRecord, GoalChange, GoalRecord } from "@noodle/db";
+import {
+	type AccountKind,
+	accountBalance,
+	type Cents,
+	type DayKey,
+	type GoalProgress,
+	goalProgress,
+	holdsMoney,
+	type MonthKey,
+	splitAccount,
+} from "@noodle/domain";
+import { toast } from "@noodle/ui/components/toast";
+import {
+	type Mutation,
+	type QueryClient,
+	useMutation,
+	useQueryClient,
+	useSuspenseQuery,
+} from "@tanstack/react-query";
+import { formatMoney } from "./format";
+import { monthChangeKey } from "./plan-changes";
+import { goalsQuery, monthQuery, monthsKey } from "./queries";
+import {
+	addAccount,
+	addGoal,
+	archiveGoal,
+	claimForGoal,
+	completeGoal,
+	fundGoal,
+	type GoalsData,
+	renameAccount,
+	spendGoal,
+	undoGoalFunding,
+	updateAccountBalance,
+	updateGoal,
+} from "./server/goals";
+import type { MonthData } from "./server/month";
+
+export type { AccountRecord, GoalChange, GoalRecord, GoalsData };
+
+// ---------------------------------------------------------------------------------------------
+// Views: what the Goal and Account screens show, derived from the cached records with
+// @noodle/domain, so an optimistic change moves every number at once (ADR-0006).
+
+export type GoalState = "active" | "completed" | "archived";
+
+export type AccountView = AccountRecord & {
+	/** Checking and savings hold money and can back Goals; for the others the balance is owed. */
+	holdsMoney: boolean;
+	/** The latest balance entered, less Goal spending since. Null until one is entered. */
+	balance: Cents | null;
+	/** Each non-archived Goal's Earmark on this Account. */
+	earmarks: { goal: GoalRecord; amount: Cents }[];
+	earmarked: Cents;
+	/** Null until the Account has a balance; negative when over-claimed. */
+	unclaimed: Cents | null;
+	/** How much more the Earmarks are than the balance, or 0. */
+	overClaimedBy: Cents;
+};
+
+export type GoalView = GoalRecord & {
+	state: GoalState;
+	account: AccountRecord | null;
+	progress: GoalProgress;
+	/** Every change to its Earmark, newest first. */
+	changes: GoalChange[];
+};
+
+export type GoalsView = {
+	/** The Household's current month and today. */
+	month: MonthKey;
+	asOf: DayKey;
+	accounts: AccountView[];
+	/** In the order they were added. */
+	goals: GoalView[];
+};
+
+export const goalState = (goal: Pick<GoalRecord, "completed" | "archived">): GoalState =>
+	goal.archived ? "archived" : goal.completed ? "completed" : "active";
+
+export function accountView(data: GoalsData, account: AccountRecord): AccountView {
+	const balance = accountBalance(
+		account.latestBalance,
+		data.withdrawals.filter((w) => w.accountId === account.id),
+	);
+	const goals = data.goals.filter((g) => g.accountId === account.id);
+	const split = splitAccount({ balance, goals, changes: data.changes });
+	return {
+		...account,
+		holdsMoney: holdsMoney(account.kind),
+		balance,
+		earmarks: split.earmarks.flatMap(({ goalId, amount }) => {
+			const goal = goals.find((g) => g.id === goalId);
+			return goal ? [{ goal, amount }] : [];
+		}),
+		earmarked: split.earmarked,
+		unclaimed: split.unclaimed,
+		overClaimedBy: split.overClaimedBy,
+	};
+}
+
+export function goalView(data: GoalsData, goal: GoalRecord): GoalView {
+	return {
+		...goal,
+		state: goalState(goal),
+		account: data.accounts.find((a) => a.id === goal.accountId) ?? null,
+		progress: goalProgress(goal, data.changes, data.month),
+		changes: data.changes.filter((c) => c.goalId === goal.id).reverse(),
+	};
+}
+
+export const goalsView = (data: GoalsData): GoalsView => ({
+	month: data.month,
+	asOf: data.asOf,
+	accounts: data.accounts.map((account) => accountView(data, account)),
+	goals: data.goals.map((goal) => goalView(data, goal)),
+});
+
+/** Every Account and Goal, derived from the cached records. */
+export const useGoals = () => useSuspenseQuery({ ...goalsQuery(), select: goalsView }).data;
+
+/** What an Account's kind is called. */
+export const accountKindName: Record<AccountKind, string> = {
+	checking: "Checking",
+	savings: "Savings",
+	"credit-card": "Credit card",
+	loan: "Loan",
+};
+
+/** "On track", "Behind", … */
+export const goalStatusName: Record<GoalProgress["status"], string> = {
+	reached: "Reached",
+	"on-track": "On track",
+	behind: "Behind",
+	"past-due": "Past due",
+	saving: "Saving",
+};
+
+// ---------------------------------------------------------------------------------------------
+// Changes. Each is applied to the cached records at once and rolled back if the server fails
+// or refuses it.
+
+/** Changes to Accounts and Goals alone; Goal funding and spending share `monthChangeKey`. */
+export const goalChangeKey = ["goal-change"] as const;
+
+/** Every in-flight change that edits the cached Goals records carries this in its `meta`. */
+const touchesGoals = { goals: true } as const;
+const isGoalsChange = (mutation: Mutation<unknown, Error, unknown, unknown>) =>
+	mutation.options.meta?.goals === true;
+
+/** The server's guard refused the change (e.g. more than the Earmark); retrying won't help. */
+export class GoalRefused extends Error {
+	constructor(message = "Refused") {
+		super(message);
+	}
+}
+
+const refuseUnlessOk = async (result: Promise<{ ok: boolean }>) => {
+	if (!(await result).ok) throw new GoalRefused();
+};
+
+/** Refetches the Goals records once no other change to them is in flight. */
+function refetchGoalsOnceSettled(queryClient: QueryClient) {
+	// Refetching while another change is in flight would briefly undo it on screen.
+	if (queryClient.isMutating({ predicate: isGoalsChange }) === 1) {
+		return queryClient.invalidateQueries({ queryKey: goalsQuery().queryKey });
+	}
+}
+
+/** Refetches every month once no other change to a month is in flight. */
+function refetchMonthsOnceSettled(queryClient: QueryClient) {
+	if (queryClient.isMutating({ mutationKey: monthChangeKey }) === 1) {
+		return queryClient.invalidateQueries({ queryKey: monthsKey });
+	}
+}
+
+/** Applies an edit to a cached query, returning what to roll back to. */
+async function editCache<T>(
+	queryClient: QueryClient,
+	queryKey: readonly unknown[],
+	change: (data: T) => T,
+) {
+	await queryClient.cancelQueries({ queryKey });
+	const previous = queryClient.getQueryData<T>(queryKey);
+	if (previous) queryClient.setQueryData(queryKey, change(previous));
+	return { queryKey, previous };
+}
+
+type Rollback = { queryKey: readonly unknown[]; previous: unknown }[];
+
+const rollBack = (queryClient: QueryClient, rollback: Rollback | undefined) => {
+	for (const { queryKey, previous } of rollback ?? []) {
+		if (previous) queryClient.setQueryData(queryKey, previous);
+	}
+};
+
+/**
+ * A change to Accounts or Goals, applied to the cached records at once and rolled back if it
+ * fails or is refused (the error is then a `GoalRefused`); the returned mutation's `isError`,
+ * `error` and `variables` let the caller explain it and offer a retry (`SaveFailed`).
+ */
+export function useGoalChange<TVariables>({
+	save,
+	apply,
+}: {
+	save: (variables: TVariables) => Promise<unknown>;
+	apply: (data: GoalsData, variables: TVariables) => GoalsData;
+}) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationKey: goalChangeKey,
+		meta: touchesGoals,
+		mutationFn: save,
+		onMutate: async (variables): Promise<Rollback> => [
+			await editCache<GoalsData>(queryClient, goalsQuery().queryKey, (data) =>
+				apply(data, variables),
+			),
+		],
+		onError: (_error, _variables, rollback) => rollBack(queryClient, rollback),
+		onSettled: () => refetchGoalsOnceSettled(queryClient),
+	});
+}
+
+// The optimistic edits, mirroring what each server function records. `at` stands in for the
+// server's time until the refetch.
+
+export type AddAccountVariables = {
+	accountId: string;
+	name: string;
+	kind: AccountKind;
+	balanceCents: Cents | null;
+	balanceId: string;
+};
+
+export const withAccount = (data: GoalsData, v: AddAccountVariables): GoalsData =>
+	data.accounts.some((a) => a.id === v.accountId)
+		? data
+		: {
+				...data,
+				accounts: [
+					...data.accounts,
+					{
+						id: v.accountId,
+						name: v.name,
+						kind: v.kind,
+						latestBalance:
+							v.balanceCents === null ? null : { amount: v.balanceCents, at: Date.now() },
+					},
+				],
+			};
+
+export const withAccountName = (
+	data: GoalsData,
+	{ accountId, name }: { accountId: string; name: string },
+): GoalsData => ({
+	...data,
+	accounts: data.accounts.map((a) => (a.id === accountId ? { ...a, name } : a)),
+});
+
+export type BalanceVariables = { balanceId: string; accountId: string; amountCents: Cents };
+
+export const withBalance = (data: GoalsData, v: BalanceVariables): GoalsData => ({
+	...data,
+	accounts: data.accounts.map((a) =>
+		a.id === v.accountId ? { ...a, latestBalance: { amount: v.amountCents, at: Date.now() } } : a,
+	),
+});
+
+export type AddGoalVariables = {
+	goalId: string;
+	accountId: string;
+	name: string;
+	targetCents: Cents;
+	targetDate: DayKey | null;
+	claimId: string;
+	/** Unclaimed money already set aside for it; 0 for none. */
+	claimCents: Cents;
+};
+
+export const withGoal = (data: GoalsData, v: AddGoalVariables): GoalsData =>
+	data.goals.some((g) => g.id === v.goalId)
+		? data
+		: {
+				...data,
+				goals: [
+					...data.goals,
+					{
+						id: v.goalId,
+						accountId: v.accountId,
+						name: v.name,
+						target: v.targetCents,
+						targetDate: v.targetDate,
+						fromMonth: data.month,
+						completed: false,
+						archived: false,
+					},
+				],
+				changes:
+					v.claimCents > 0
+						? [
+								...data.changes,
+								{
+									id: v.claimId,
+									goalId: v.goalId,
+									kind: "claim",
+									amount: v.claimCents,
+									month: data.month,
+								},
+							]
+						: data.changes,
+			};
+
+export type UpdateGoalVariables = {
+	goalId: string;
+	name: string;
+	targetCents: Cents;
+	targetDate: DayKey | null;
+};
+
+const mapGoal = (data: GoalsData, goalId: string, change: (g: GoalRecord) => GoalRecord) => ({
+	...data,
+	goals: data.goals.map((g) => (g.id === goalId ? change(g) : g)),
+});
+
+export const withGoalDetails = (data: GoalsData, v: UpdateGoalVariables): GoalsData =>
+	mapGoal(data, v.goalId, (g) => ({
+		...g,
+		name: v.name,
+		target: v.targetCents,
+		targetDate: v.targetDate,
+	}));
+
+export const withGoalCompleted = (data: GoalsData, { goalId }: { goalId: string }) =>
+	mapGoal(data, goalId, (g) => (g.archived ? g : { ...g, completed: true }));
+
+export const withGoalArchived = (data: GoalsData, { goalId }: { goalId: string }) =>
+	mapGoal(data, goalId, (g) => ({ ...g, archived: true }));
+
+/** Appends an Earmark change; the same one twice changes nothing. */
+const withChange = (data: GoalsData, change: GoalChange): GoalsData =>
+	data.changes.some((c) => c.id === change.id)
+		? data
+		: { ...data, changes: [...data.changes, change] };
+
+const withoutChange = (data: GoalsData, id: string): GoalsData => ({
+	...data,
+	changes: data.changes.filter((c) => c.id !== id),
+});
+
+export type ClaimVariables = {
+	claimId: string;
+	goalId: string;
+	/** Positive sets Unclaimed money aside; negative releases some of the Earmark. */
+	amountCents: Cents;
+};
+
+export const withClaim = (data: GoalsData, v: ClaimVariables) =>
+	withChange(data, {
+		id: v.claimId,
+		goalId: v.goalId,
+		kind: "claim",
+		amount: v.amountCents,
+		month: data.month,
+	});
+
+// Account and Goal changes, one hook each, for forms that show `SaveFailed`.
+
+export const useAddAccount = () =>
+	useGoalChange({
+		save: (data: AddAccountVariables) => addAccount({ data }),
+		apply: withAccount,
+	});
+
+export const useRenameAccount = () =>
+	useGoalChange({
+		save: (data: { accountId: string; name: string }) => renameAccount({ data }),
+		apply: withAccountName,
+	});
+
+export const useUpdateAccountBalance = () =>
+	useGoalChange({
+		save: (data: BalanceVariables) => refuseUnlessOk(updateAccountBalance({ data })),
+		apply: withBalance,
+	});
+
+export const useAddGoal = () =>
+	useGoalChange({
+		save: (data: AddGoalVariables) => refuseUnlessOk(addGoal({ data })),
+		apply: withGoal,
+	});
+
+export const useUpdateGoal = () =>
+	useGoalChange({
+		save: (data: UpdateGoalVariables) => updateGoal({ data }),
+		apply: withGoalDetails,
+	});
+
+export const useCompleteGoal = () =>
+	useGoalChange({
+		save: (data: { goalId: string }) => completeGoal({ data }),
+		apply: withGoalCompleted,
+	});
+
+export const useArchiveGoal = () =>
+	useGoalChange({
+		save: (data: { goalId: string }) => archiveGoal({ data }),
+		apply: withGoalArchived,
+	});
+
+/** Sets Unclaimed money aside for a Goal, or releases some back; refused beyond its Earmark. */
+export const useClaimForGoal = () =>
+	useGoalChange({
+		save: (data: ClaimVariables) => refuseUnlessOk(claimForGoal({ data })),
+		apply: withClaim,
+	});
+
+// ---------------------------------------------------------------------------------------------
+// Goal funding and Goal spending: these change a month too, so they share `monthChangeKey`,
+// and say how they went in a toast (their sheets have closed by then).
+
+export type FundGoalVariables = {
+	/** A client ULID: retrying the same funding records it once. */
+	moveId: string;
+	goalId: string;
+	goalName: string;
+	/** The Household's current month, whose Free to Spend it comes out of. */
+	month: MonthKey;
+	amountCents: Cents;
+};
+
+export type UndoFundingVariables = Pick<FundGoalVariables, "moveId" | "goalName" | "month">;
+
+export type SpendGoalVariables = {
+	/** A client ULID: retrying the same spending records it once. */
+	transactionId: string;
+	goalId: string;
+	goalName: string;
+	accountId: string;
+	/** The Household's current month and today, where the Transaction lands. */
+	month: MonthKey;
+	date: DayKey;
+	amountCents: Cents;
+	note: string | null;
+};
+
+/** Refused funding: Free to Spend had less than the amount, or the Goal isn't active now. */
+class FundingRefused extends GoalRefused {
+	constructor(readonly freeToSpend: Cents) {
+		super("Not enough Free to Spend");
+	}
+}
+
+export const withFunding = (data: GoalsData, v: FundGoalVariables) =>
+	withChange(data, {
+		id: v.moveId,
+		goalId: v.goalId,
+		kind: "funding",
+		amount: v.amountCents,
+		month: v.month,
+	});
+
+/** A month's inputs with Goal funding in them, so its Free to Spend drops at once. */
+export const withMonthFunding = (data: MonthData, v: FundGoalVariables): MonthData =>
+	data.goalFunding.some((f) => f.id === v.moveId)
+		? data
+		: {
+				...data,
+				goalFunding: [
+					...data.goalFunding,
+					{ id: v.moveId, goalId: v.goalId, amount: v.amountCents, month: v.month },
+				],
+			};
+
+export const withoutMonthFunding = (data: MonthData, { moveId }: { moveId: string }) => ({
+	...data,
+	goalFunding: data.goalFunding.filter((f) => f.id !== moveId),
+});
+
+export const withSpending = (data: GoalsData, v: SpendGoalVariables): GoalsData => {
+	if (data.changes.some((c) => c.id === v.transactionId)) return data;
+	return {
+		...withChange(data, {
+			id: v.transactionId,
+			goalId: v.goalId,
+			kind: "spending",
+			amount: -v.amountCents,
+			month: v.month,
+			date: v.date,
+			note: v.note,
+		}),
+		withdrawals: [
+			...data.withdrawals,
+			{ accountId: v.accountId, amount: v.amountCents, at: Date.now() },
+		],
+	};
+};
+
+/**
+ * Goal funding (a Move from this month's Free to Spend into a Goal's Earmark), undoing it, and
+ * Goal spending (a Transaction out of the Earmark, never a Bucket). Each lands in the cached
+ * Goals records, and funding in the month's inputs too, at once; each rolls back if the server
+ * fails or refuses it. Funding's toast offers Undo; a failure's offers Retry.
+ */
+export function useGoalMoney() {
+	const queryClient = useQueryClient();
+
+	function onSettled() {
+		return Promise.all([
+			refetchGoalsOnceSettled(queryClient),
+			refetchMonthsOnceSettled(queryClient),
+		]);
+	}
+
+	const undo = useMutation({
+		mutationKey: monthChangeKey,
+		meta: touchesGoals,
+		mutationFn: async ({ moveId, month }: UndoFundingVariables) => {
+			const result = await undoGoalFunding({ data: { moveId, month } });
+			if (!result.ok) throw new GoalRefused();
+		},
+		onMutate: async (v): Promise<Rollback> => [
+			await editCache<GoalsData>(queryClient, goalsQuery().queryKey, (data) =>
+				withoutChange(data, v.moveId),
+			),
+			await editCache<MonthData>(queryClient, monthQuery(v.month).queryKey, (data) =>
+				withoutMonthFunding(data, v),
+			),
+		],
+		onError: (error, v, rollback) => {
+			rollBack(queryClient, rollback);
+			if (error instanceof GoalRefused) {
+				toast(
+					`Some of ${v.goalName}’s Earmark is already spent or released, so it can’t be undone.`,
+					{
+						tone: "error",
+					},
+				);
+			} else {
+				toast(`Couldn’t undo funding ${v.goalName}, so it’s still funded.`, {
+					tone: "error",
+					action: { label: "Retry", onClick: () => undo.mutate(v) },
+				});
+			}
+		},
+		onSuccess: () => toast("Undone: the money is back in Free to Spend"),
+		onSettled,
+	});
+
+	const fund = useMutation({
+		mutationKey: monthChangeKey,
+		meta: touchesGoals,
+		mutationFn: async ({ moveId, goalId, month, amountCents }: FundGoalVariables) => {
+			const outcome = await fundGoal({ data: { moveId, goalId, month, amountCents } });
+			if (!outcome.ok) throw new FundingRefused(outcome.freeToSpend);
+		},
+		onMutate: async (v): Promise<Rollback> => [
+			await editCache<GoalsData>(queryClient, goalsQuery().queryKey, (data) =>
+				withFunding(data, v),
+			),
+			await editCache<MonthData>(queryClient, monthQuery(v.month).queryKey, (data) =>
+				withMonthFunding(data, v),
+			),
+		],
+		onError: (error, v, rollback) => {
+			rollBack(queryClient, rollback);
+			if (error instanceof FundingRefused) {
+				toast(
+					error.freeToSpend < v.amountCents
+						? `Free to Spend has only ${formatMoney(error.freeToSpend)} left, so ${v.goalName} wasn’t funded.`
+						: `${v.goalName} can’t be funded now.`,
+					{ tone: "error" },
+				);
+			} else {
+				toast(`Couldn’t fund ${v.goalName}, so it’s been undone.`, {
+					tone: "error",
+					action: { label: "Retry", onClick: () => fund.mutate(v) },
+				});
+			}
+		},
+		onSuccess: (_data, v) => {
+			toast(`${formatMoney(v.amountCents)} from Free to Spend to ${v.goalName}`, {
+				tone: "success",
+				action: { label: "Undo", onClick: () => undo.mutate(v) },
+			});
+		},
+		onSettled,
+	});
+
+	const spend = useMutation({
+		mutationKey: monthChangeKey,
+		meta: touchesGoals,
+		mutationFn: async ({ transactionId, goalId, amountCents, note }: SpendGoalVariables) => {
+			const result = await spendGoal({
+				data: { transactionId, goalId, amountCents, note: note ?? undefined },
+			});
+			if (!result.ok) throw new GoalRefused();
+		},
+		onMutate: async (v): Promise<Rollback> => [
+			await editCache<GoalsData>(queryClient, goalsQuery().queryKey, (data) =>
+				withSpending(data, v),
+			),
+		],
+		onError: (error, v, rollback) => {
+			rollBack(queryClient, rollback);
+			if (error instanceof GoalRefused) {
+				toast(`That’s more than ${v.goalName} has saved, so it wasn’t recorded.`, {
+					tone: "error",
+				});
+			} else {
+				toast(`Couldn’t record spending from ${v.goalName}, so it’s been undone.`, {
+					tone: "error",
+					action: { label: "Retry", onClick: () => spend.mutate(v) },
+				});
+			}
+		},
+		onSuccess: (_data, v) => {
+			toast(`${formatMoney(v.amountCents)} spent from ${v.goalName}`, { tone: "success" });
+		},
+		onSettled,
+	});
+
+	return { fund, undo, spend };
+}

@@ -3,11 +3,15 @@ import { type SQL, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { loadCharges } from "./commitments";
 import {
+	addAccount,
 	addBucket,
 	addCommitment,
+	addGoal,
 	addQuickAdd,
 	createHouseholdForParent,
 	type Db,
+	fundGoal,
+	loadGoalFunding,
 	loadPlanRecords,
 	loadRolledOver,
 	loadSpending,
@@ -104,22 +108,57 @@ const cover = (
 		createdByMemberId: parentId,
 	});
 
+/** Goal funding of `amountCents` from September's Free to Spend into a Braces Goal. */
+async function fundBraces(moveId: string, amountCents: number) {
+	await addAccount(db, {
+		householdId,
+		accountId: "savings",
+		name: "Savings",
+		kind: "savings",
+		balanceCents: 1_000_000,
+		balanceId: "balance",
+		createdByMemberId: parentId,
+	});
+	await addGoal(db, {
+		householdId,
+		goalId: "braces",
+		accountId: "savings",
+		name: "Braces",
+		targetCents: 600_000,
+		targetDate: null,
+		fromMonth: "2026-09",
+		claimId: "claim",
+		claimCents: 0,
+		createdByMemberId: parentId,
+	});
+	return fundGoal(db, {
+		householdId,
+		moveId,
+		goalId: "braces",
+		month: "2026-09",
+		amountCents,
+		createdByMemberId: parentId,
+	});
+}
+
 const evaluate = async (expression: SQL) =>
 	(await db.values<[number | null]>(sql`select ${expression}`))[0]?.[0];
 
 /** The month's state as the app computes it, from the same rows. */
 async function domainState(month: MonthKey) {
-	const [records, spending, charges, moves] = await Promise.all([
+	const [records, spending, charges, moves, goalFunding] = await Promise.all([
 		loadPlanRecords(db, householdId, month),
 		loadSpending(db, { householdId, memberId: parentId }, month),
 		loadCharges(db, { householdId, memberId: parentId }, month),
 		loadMoves(db, householdId, month),
+		loadGoalFunding(db, householdId, month),
 	]);
 	return monthState({
 		plan: planForMonth(records, month),
 		spending,
 		charges,
 		moves,
+		goalFunding,
 		asOf: `${month}-15`,
 	});
 }
@@ -155,6 +194,7 @@ describe("the Cover guard's SQL agrees with @noodle/domain", () => {
 		await quickAdd("t4", "fun", 1_000, "2026-10-31");
 		await cover("m1", "groceries", "hockey", 5_000);
 		await cover("m2", null, "fun", 2_000);
+		await fundBraces("m3", 30_000);
 	});
 
 	it.each([
@@ -220,6 +260,12 @@ describe("addCover", () => {
 		expect(await cover("m4", null, "hockey", 5_000)).toEqual({ ok: true });
 	});
 
+	it("counts Goal funding against Free to Spend", async () => {
+		expect(await fundBraces("m1", 300_000)).toEqual({ ok: true });
+		expect(await cover("m2", null, "hockey", 45_001)).toEqual({ ok: false, reason: "refused" });
+		expect(await cover("m3", null, "hockey", 45_000)).toEqual({ ok: true });
+	});
+
 	it("counts spending that lands after an earlier Cover", async () => {
 		await cover("m1", "groceries", "hockey", 5_000);
 		await quickAdd("t3", "groceries", 110_000);
@@ -274,6 +320,12 @@ describe("undoMove", () => {
 		await cover("m1", null, "hockey", 1_000);
 		await undoMove(db, { householdId: "another-household", moveId: "m1", month: "2026-09" });
 		expect(await loadMoves(db, householdId, "2026-09")).toHaveLength(1);
+	});
+
+	it("leaves Goal funding alone (undoGoalFunding guards the Earmark)", async () => {
+		await fundBraces("m1", 1_000);
+		await undoMove(db, { householdId, moveId: "m1", month: "2026-09" });
+		expect(await loadGoalFunding(db, householdId, "2026-09")).toHaveLength(1);
 	});
 });
 

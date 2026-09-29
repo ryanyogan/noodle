@@ -28,6 +28,12 @@ export type Move = {
 };
 
 /**
+ * Goal funding: a Move of planned money from Free to Spend in one month's Plan into a Goal's
+ * Earmark. Like any Move, no real money moves; the Goal's Account already holds it.
+ */
+export type GoalFunding = { goalId: string; amount: Cents; month: MonthKey };
+
+/**
  * `ahead`: spent faster than Pace allows (by more than a small tolerance).
  * `over`: spent more than the allowance.
  */
@@ -89,6 +95,8 @@ export type MonthState = Omit<Plan, "buckets" | "commitments"> & {
 	committed: Cents;
 	/** Moved from Free to Spend into Buckets this month. */
 	movedToBuckets: Cents;
+	/** Moved from Free to Spend into Goals this month (Goal funding). */
+	fundedGoals: Cents;
 	/** Negative when the Plan assigns more than the Baseline. */
 	freeToSpend: Cents;
 	/** What's left across Buckets, not counting any Bucket's overspending. */
@@ -103,8 +111,9 @@ const PACE_TOLERANCE = 0.03;
 /**
  * The state of a month: each Bucket's allowance, spent, left, Pace, and status, each
  * Commitment's expected and actual amounts, and Free to Spend, as of the end of a given day.
- * Moves shift money between Buckets and Free to Spend; what rolled over from last month (see
- * `rolledOver`) adds to a Bucket without touching Free to Spend. Spending, charges, and Moves outside the
+ * Moves shift money between Buckets and Free to Spend; Goal funding takes it out of Free to
+ * Spend; what rolled over from last month (see `rolledOver`) adds to a Bucket without touching
+ * Free to Spend. Spending, charges, and Moves outside the
  * month, or involving a Bucket or Commitment not in the Plan, are ignored. The server and the client's optimistic updates both call this, so the numbers a
  * Parent sees before and after a save are the same.
  */
@@ -114,6 +123,7 @@ export function monthState({
 	charges = [],
 	moves = [],
 	rolledOver = {},
+	goalFunding = [],
 	asOf,
 }: {
 	plan: Plan;
@@ -122,6 +132,7 @@ export function monthState({
 	moves?: Move[];
 	/** Per Bucket ID, what carried in from last month. */
 	rolledOver?: Record<string, Cents>;
+	goalFunding?: GoalFunding[];
 	asOf: DayKey;
 }): MonthState {
 	const days = daysInMonth(plan.month);
@@ -140,6 +151,9 @@ export function monthState({
 		if (from === null) movedToBuckets += amount;
 		else movedByBucket.set(from, (movedByBucket.get(from) ?? 0) - amount);
 	}
+	const fundedGoals = goalFunding
+		.filter((funding) => funding.month === plan.month)
+		.reduce((sum, funding) => sum + funding.amount, 0);
 	const buckets = plan.buckets.map((bucket): BucketState => {
 		const moved = movedByBucket.get(bucket.id) ?? 0;
 		const carried = rolledOver[bucket.id] ?? 0;
@@ -200,7 +214,8 @@ export function monthState({
 		planned: totalAllowances(plan),
 		committed: totalCommitments(plan),
 		movedToBuckets,
-		freeToSpend: freeToSpend(plan) - movedToBuckets,
+		fundedGoals,
+		freeToSpend: freeToSpend(plan) - movedToBuckets - fundedGoals,
 		leftInBuckets: buckets.reduce((sum, b) => sum + Math.max(0, b.left), 0),
 		commitments,
 		buckets,

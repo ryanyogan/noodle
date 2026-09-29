@@ -4,6 +4,7 @@ import {
 	type Charge,
 	type DayKey,
 	dueDatesIn,
+	type GoalFunding,
 	type MonthKey,
 	monthState,
 	type Plan,
@@ -97,6 +98,49 @@ describe("monthState: Free to Spend", () => {
 			spending: [],
 		});
 		expect(state.freeToSpend).toBe(-50_000);
+	});
+});
+
+describe("monthState: Goal funding", () => {
+	const plan = planOf("2026-09", { groceries: 120_000, hockey: 40_000 }, 500_000);
+	const funding = (goalId: string, amount: number, month: MonthKey = "2026-09"): GoalFunding => ({
+		goalId,
+		amount,
+		month,
+	});
+
+	it("comes out of Free to Spend, leaving every Bucket alone", () => {
+		const state = monthState({
+			plan,
+			asOf: "2026-09-15",
+			spending: [],
+			goalFunding: [funding("braces", 25_000), funding("vacation", 10_000)],
+		});
+		expect(state.fundedGoals).toBe(35_000);
+		expect(state.freeToSpend).toBe(340_000 - 35_000);
+		expect(state.buckets.map((b) => b.left)).toEqual([120_000, 40_000]);
+		expect(state.leftInBuckets).toBe(160_000);
+	});
+
+	it("ignores Goal funding in other months", () => {
+		const state = monthState({
+			plan,
+			asOf: "2026-09-15",
+			spending: [],
+			goalFunding: [funding("braces", 25_000, "2026-08"), funding("braces", 25_000, "2026-10")],
+		});
+		expect(state.fundedGoals).toBe(0);
+		expect(state.freeToSpend).toBe(340_000);
+	});
+
+	it("can take Free to Spend negative, like any other assignment beyond the Baseline", () => {
+		const state = monthState({
+			plan,
+			asOf: "2026-09-15",
+			spending: [],
+			goalFunding: [funding("braces", 400_000)],
+		});
+		expect(state.freeToSpend).toBe(-60_000);
 	});
 });
 

@@ -17,6 +17,22 @@ export {
 	type SpendTotal,
 	shares,
 } from "./for";
+export {
+	ACCOUNT_KINDS,
+	type AccountKind,
+	type AccountWithdrawal,
+	accountBalance,
+	attributeWithdrawal,
+	type BalanceUpdate,
+	type EarmarkChange,
+	earmarkOf,
+	type GoalProgress,
+	type GoalStatus,
+	goalProgress,
+	holdsMoney,
+	splitAccount,
+	type WithdrawalAttribution,
+} from "./goals";
 export { type BucketUse, likelyBucketOrder } from "./likely";
 export { type Cents, MAX_CENTS, parseDollars } from "./money";
 export {
@@ -29,6 +45,7 @@ export {
 	type MonthKey,
 	monthKeyAt,
 	monthOfDay,
+	monthsBetween,
 } from "./month";
 export {
 	type BucketState,
@@ -36,6 +53,7 @@ export {
 	type Charge,
 	type CommitmentState,
 	type CommitmentStatus,
+	type GoalFunding,
 	type MonthState,
 	type Move,
 	monthState,
@@ -59,7 +77,9 @@ export {
 	type AssignedTransaction,
 	type Assignment,
 	assignedParts,
+	type GoalSpend,
 	type Split,
+	type SplitAssignment,
 	splitRemainder,
 	splitsBalance,
 } from "./splits";

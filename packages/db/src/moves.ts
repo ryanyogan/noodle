@@ -1,5 +1,5 @@
 import { addMonths, type Cents, daysInMonth, type MonthKey, type Move } from "@noodle/domain";
-import { and, eq, gt, gte, isNull, lt, lte, or, type SQL, sql } from "drizzle-orm";
+import { and, eq, gt, gte, isNotNull, isNull, lt, lte, or, type SQL, sql } from "drizzle-orm";
 import type { Db } from "./index";
 import { assignableBy, othersAllowance } from "./privacy";
 import { buckets, moves } from "./schema";
@@ -11,12 +11,12 @@ import { buckets, moves } from "./schema";
 /** A Move with its ID. */
 export type PlanMove = Move & { id: string };
 
-/** The month's Moves, oldest first. */
+/** The month's Moves between Buckets and Free to Spend, oldest first (Goal funding is apart). */
 export function loadMoves(db: Db, householdId: string, month: MonthKey): Promise<PlanMove[]> {
 	return loadMovesBetween(db, householdId, month, addMonths(month, 1));
 }
 
-/** Moves in months from `from` up to, not including, `until`, oldest first. */
+/** Moves between Buckets and Free to Spend in months from `from` up to, not including, `until`. */
 export async function loadMovesBetween(
 	db: Db,
 	householdId: string,
@@ -32,9 +32,16 @@ export async function loadMovesBetween(
 			month: moves.month,
 		})
 		.from(moves)
-		.where(and(eq(moves.householdId, householdId), gte(moves.month, from), lt(moves.month, until)))
+		.where(
+			and(
+				eq(moves.householdId, householdId),
+				gte(moves.month, from),
+				lt(moves.month, until),
+				isNotNull(moves.toBucketId),
+			),
+		)
 		.orderBy(moves.id);
-	// Months are always written as MonthKeys.
+	// to_bucket_id is filtered to non-null, and months are always written as MonthKeys.
 	return rows as PlanMove[];
 }
 
@@ -173,6 +180,8 @@ export async function addCover(
 					amountCents: sql<number>`${input.amountCents}`.as("amount_cents"),
 					createdByMemberId: sql<string>`${input.createdByMemberId}`.as("created_by_member_id"),
 					createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
+					// Selected in the table's column order: insert … select is positional.
+					toGoalId: sql<string | null>`null`.as("to_goal_id"),
 				})
 				.from(buckets)
 				.where(
@@ -196,7 +205,10 @@ export async function addCover(
 	return written ? { ok: true } : { ok: false, reason: "refused" };
 }
 
-/** Undoes a Move in `month` by removing it. Undoing one already undone changes nothing. */
+/**
+ * Undoes a Move to a Bucket in `month` by removing it. Undoing one already undone changes
+ * nothing. Goal funding is undone with undoGoalFunding, which guards the Goal's Earmark.
+ */
 export async function undoMove(
 	db: Db,
 	input: { householdId: string; moveId: string; month: MonthKey },
@@ -208,6 +220,7 @@ export async function undoMove(
 				eq(moves.id, input.moveId),
 				eq(moves.householdId, input.householdId),
 				eq(moves.month, input.month),
+				isNotNull(moves.toBucketId),
 			),
 		);
 }

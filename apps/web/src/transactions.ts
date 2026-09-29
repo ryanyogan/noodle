@@ -130,6 +130,8 @@ function editedRow(row: TransactionRow, next: TransactionEdit): TransactionRow {
 					amountCents: split.amountCents,
 					bucketId: "bucketId" in split.assignment ? split.assignment.bucketId : null,
 					commitmentId: "commitmentId" in split.assignment ? split.assignment.commitmentId : null,
+					// The editor only assigns Splits to Buckets and Commitments.
+					goal: null,
 					for: split.forMemberIds,
 				}),
 			),

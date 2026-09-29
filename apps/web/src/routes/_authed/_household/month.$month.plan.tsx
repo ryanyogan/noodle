@@ -1,4 +1,10 @@
-import { type MonthKey, type MonthState, type PlanBucket, parseDollars } from "@noodle/domain";
+import {
+	type MonthKey,
+	type MonthState,
+	monthKeyAt,
+	type PlanBucket,
+	parseDollars,
+} from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field, FormError } from "@noodle/ui/components/field";
@@ -16,9 +22,11 @@ import { ulid } from "ulid";
 import { asBucketColor, bucketColors, monogram, nextBucketColor } from "../../../buckets";
 import { withoutCommitment } from "../../../commitments";
 import { AddCommitment, CommitmentEditor } from "../../../components/commitment-editor";
+import { FundGoalSheet } from "../../../components/goals";
 import { MoneyInput } from "../../../components/money-input";
 import { Confirm, SaveFailed } from "../../../components/plan-editing";
 import { formatMoney, monthName } from "../../../format";
+import { type GoalView, useGoalMoney, useGoals } from "../../../goals";
 import {
 	usePlanChange,
 	withAllowance,
@@ -30,7 +38,7 @@ import {
 	withoutBucket,
 	withRolling,
 } from "../../../plan-changes";
-import { membersQuery, useMonthState } from "../../../queries";
+import { goalsQuery, membersQuery, useMonthState } from "../../../queries";
 import { endCommitment } from "../../../server/commitments";
 import {
 	addBucket,
@@ -44,11 +52,18 @@ import {
 } from "../../../server/plan";
 
 export const Route = createFileRoute("/_authed/_household/month/$month/plan")({
+	// This month's Plan lists the Goals, to fund them from its Free to Spend.
+	loader: ({ context }) =>
+		context.month === monthKeyAt(new Date(), context.household.timeZone)
+			? context.queryClient.ensureQueryData(goalsQuery())
+			: undefined,
 	component: PlanPage,
 });
 
 function PlanPage() {
-	const { month, parentId } = Route.useRouteContext();
+	const { month, parentId, household } = Route.useRouteContext();
+	// Goal funding comes out of the current month's Free to Spend only.
+	const current = month === monthKeyAt(new Date(), household.timeZone);
 	const state = useMonthState(month);
 	const buckets = state.buckets.filter((b) => b.owner === undefined);
 	const allowances = state.buckets.filter((b) => b.owner !== undefined);
@@ -150,6 +165,7 @@ function PlanPage() {
 						<AddPersonalAllowance month={month} parentId={parentId} buckets={state.buckets} />
 					) : null}
 				</Section>
+				{current && state.editable ? <PlanGoals state={state} /> : null}
 			</div>
 		</>
 	);
@@ -198,6 +214,9 @@ function Summary({ state }: { state: MonthState & { editable: boolean } }) {
 					{state.movedToBuckets > 0 ? (
 						<SummaryRow label="Covers" value={`−${formatMoney(state.movedToBuckets)}`} />
 					) : null}
+					{state.fundedGoals > 0 ? (
+						<SummaryRow label="Goal funding" value={`−${formatMoney(state.fundedGoals)}`} />
+					) : null}
 					<SummaryRow
 						label="Free to Spend"
 						value={formatMoney(state.freeToSpend)}
@@ -217,6 +236,87 @@ function Summary({ state }: { state: MonthState & { editable: boolean } }) {
 			</Card>
 		</Section>
 	);
+}
+
+/** This month's active Goals, what each still needs this month, and a way to fund it. */
+function PlanGoals({ state }: { state: MonthState }) {
+	const hydrated = useHydrated();
+	const { goals } = useGoals();
+	const { fund } = useGoalMoney();
+	const [funding, setFunding] = useState<GoalView | null>(null);
+	const active = goals.filter((g) => g.state === "active");
+	return (
+		<Section aria-labelledby="plan-goals">
+			<SectionHeader id="plan-goals" title="Goals" count={active.length} />
+			{active.length > 0 ? (
+				<List>
+					{active.map((goal) => (
+						<ListRow
+							key={goal.id}
+							aria-label={goal.name}
+							title={
+								<Link
+									to="/goals/$goalId"
+									params={{ goalId: goal.id }}
+									className="underline-offset-4 hover:underline"
+								>
+									{goal.name}
+								</Link>
+							}
+							meta={goalThisMonth(goal)}
+							trailing={
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									disabled={!hydrated}
+									aria-label={`Fund ${goal.name}`}
+									onClick={() => setFunding(goal)}
+								>
+									Fund
+								</Button>
+							}
+						/>
+					))}
+				</List>
+			) : (
+				<Card className="flex items-center justify-between gap-4 p-(--card-pad) text-sm text-muted-foreground">
+					Goals set money aside for something ahead, funded from Free to Spend.
+					<Button variant="outline" size="sm" asChild>
+						<Link to="/goals">Goals</Link>
+					</Button>
+				</Card>
+			)}
+			<FundGoalSheet
+				goal={funding}
+				freeToSpend={state.freeToSpend}
+				onOpenChange={(open) => {
+					if (!open) setFunding(null);
+				}}
+				onFund={(goal, amountCents) => {
+					setFunding(null);
+					fund.mutate({
+						moveId: ulid(),
+						goalId: goal.id,
+						goalName: goal.name,
+						month: state.month,
+						amountCents,
+					});
+				}}
+			/>
+		</Section>
+	);
+}
+
+/** What a Goal still needs this month, in words. */
+function goalThisMonth({ progress, target }: GoalView): string {
+	if (progress.status === "reached") return "Reached";
+	if (progress.leftThisMonth === null) {
+		return `${formatMoney(progress.saved)} of ${formatMoney(target)} set aside`;
+	}
+	return progress.leftThisMonth > 0
+		? `${formatMoney(progress.leftThisMonth)} left to fund this month`
+		: "Funded for this month";
 }
 
 function SummaryRow({

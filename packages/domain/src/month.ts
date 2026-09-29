@@ -32,6 +32,13 @@ export function monthOfDay(day: DayKey): MonthKey {
 	return day.slice(0, 7) as MonthKey;
 }
 
+/** Whole months from `from` to `to`: 1 from one month to the next, negative going back. */
+export function monthsBetween(from: MonthKey, to: MonthKey): number {
+	const [fromYear, fromMonth] = from.split("-").map(Number);
+	const [toYear, toMonth] = to.split("-").map(Number);
+	return ((toYear ?? 0) - (fromYear ?? 0)) * 12 + ((toMonth ?? 0) - (fromMonth ?? 0));
+}
+
 const utcOf = (day: DayKey) => {
 	const [year, month, date] = day.split("-").map(Number);
 	return Date.UTC(year ?? 1970, (month ?? 1) - 1, date ?? 1);

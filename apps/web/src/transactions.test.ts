@@ -33,6 +33,7 @@ const month: MonthData = {
 	charges: [],
 	moves: [],
 	rolledOver: {},
+	goalFunding: [],
 	asOf: "2026-09-15",
 	editable: true,
 };
@@ -43,6 +44,7 @@ const skates: TransactionRow = {
 	amountCents: 6_499,
 	bucketId: "groceries",
 	commitmentId: null,
+	goal: null,
 	note: "Pro Hockey Life",
 	for: [],
 	splits: [],
@@ -231,8 +233,22 @@ describe("withRowChange: the list shows the change", () => {
 			bucketId: null,
 			for: [],
 			splits: [
-				{ id: "s1", amountCents: 4_499, bucketId: "hockey", commitmentId: null, for: ["leo"] },
-				{ id: "s2", amountCents: 2_000, bucketId: null, commitmentId: "mortgage", for: [] },
+				{
+					id: "s1",
+					amountCents: 4_499,
+					bucketId: "hockey",
+					commitmentId: null,
+					goal: null,
+					for: ["leo"],
+				},
+				{
+					id: "s2",
+					amountCents: 2_000,
+					bucketId: null,
+					commitmentId: "mortgage",
+					goal: null,
+					for: [],
+				},
 			],
 		});
 	});

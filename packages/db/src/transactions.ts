@@ -5,6 +5,7 @@ import {
 	type Cents,
 	type DayKey,
 	type MonthKey,
+	type SplitAssignment,
 	splitsBalance,
 } from "@noodle/domain";
 import {
@@ -21,6 +22,7 @@ import {
 	type SQL,
 	sql,
 } from "drizzle-orm";
+import { earmarkSql } from "./goals";
 import type { Db } from "./index";
 import {
 	asPrivateSpending,
@@ -36,6 +38,7 @@ import {
 import {
 	buckets,
 	commitments,
+	goals,
 	members,
 	splitFor,
 	splits,
@@ -43,7 +46,7 @@ import {
 	transactions,
 } from "./schema";
 
-export type { Assignment };
+export type { Assignment, SplitAssignment };
 
 // Transactions for a Household. Every query is scoped by household_id; IDs from the client are
 // only ever used together with it (ADR-0004: rows are appended, never read-modify-written).
@@ -275,6 +278,8 @@ export async function addQuickAdd(
 					createdByMemberId: sql<string>`${input.createdByMemberId}`.as("created_by_member_id"),
 					createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
 					commitmentId: sql<string | null>`null`.as("commitment_id"),
+					accountId: sql<string | null>`null`.as("account_id"),
+					goalId: sql<string | null>`null`.as("goal_id"),
 				})
 				.from(buckets)
 				.where(
@@ -307,9 +312,10 @@ export async function addQuickAdd(
 export type SplitRow = {
 	id: string;
 	amountCents: Cents;
-	/** What it's assigned to: a Bucket or a Commitment. */
+	/** What it's assigned to: a Bucket, a Commitment, or a Goal (Goal spending). */
 	bucketId: string | null;
 	commitmentId: string | null;
+	goal: { id: string; name: string } | null;
 	for: string[];
 };
 
@@ -325,6 +331,11 @@ export type TransactionRow = {
 	 */
 	bucketId: string | null;
 	commitmentId: string | null;
+	/**
+	 * The Goal it was spent from, when it's Goal spending: then it's neither a Bucket's nor a
+	 * Commitment's, and only changes through the Goal.
+	 */
+	goal: { id: string; name: string } | null;
 	/** Its note; none shown when some of its Splits are in the other Parent's Personal Allowance. */
 	note: string | null;
 	for: string[];
@@ -404,9 +415,12 @@ export async function loadTransactionsPage(
 			amountCents: sql<number>`case when ${partly} then ${visibleSplitsSum(viewer)} else ${transactions.amountCents} end`,
 			bucketId: transactions.bucketId,
 			commitmentId: transactions.commitmentId,
+			goalId: transactions.goalId,
+			goalName: goals.name,
 			note: sql<string | null>`case when ${partly} then null else ${transactions.note} end`,
 		})
 		.from(transactions)
+		.leftJoin(goals, eq(goals.id, transactions.goalId))
 		.where(
 			and(
 				visibleTo(viewer),
@@ -449,8 +463,11 @@ export async function loadTransactionsPage(
 							amountCents: splits.amountCents,
 							bucketId: splits.bucketId,
 							commitmentId: splits.commitmentId,
+							goalId: splits.goalId,
+							goalName: goals.name,
 						})
 						.from(splits)
+						.leftJoin(goals, eq(goals.id, splits.goalId))
 						.where(and(visibleSplit(viewer), inArray(splits.transactionId, ids)))
 						.orderBy(splits.transactionId, splits.position),
 					db
@@ -468,19 +485,24 @@ export async function loadTransactionsPage(
 	const forOf = groupFor(forRows);
 	const splitForOf = groupFor(splitForRows);
 	const splitsOf = new Map<string, SplitRow[]>();
-	for (const { transactionId, ...split } of splitRows) {
+	for (const { transactionId, goalId, goalName, ...split } of splitRows) {
 		splitsOf.set(transactionId, [
 			...(splitsOf.get(transactionId) ?? []),
-			{ ...split, for: splitForOf.get(split.id) ?? [] },
+			{
+				...split,
+				goal: goalId ? { id: goalId, name: goalName ?? "A Goal" } : null,
+				for: splitForOf.get(split.id) ?? [],
+			},
 		]);
 	}
 	const last = page.at(-1);
 	return {
 		// Dates are always written as DayKeys.
 		transactions: page.map(
-			(row) =>
+			({ goalId, goalName, ...row }) =>
 				({
 					...row,
+					goal: goalId ? { id: goalId, name: goalName ?? "A Goal" } : null,
 					for: forOf.get(row.id) ?? [],
 					splits: splitsOf.get(row.id) ?? [],
 				}) as TransactionRow,
@@ -494,21 +516,72 @@ export type TransactionEditResult =
 	| { ok: false; reason: "not-in-plan" | "splits-unbalanced" };
 
 /**
- * What `assignment` names is the Household's and in the Plan for `month` (a SQL expression), and,
- * if a Bucket, one the Parent `memberId` can assign to (not the other Parent's Personal Allowance).
+ * What `assignment` names is the Household's and, for a Bucket or Commitment, in the Plan for
+ * `month` (a SQL expression), and, if a Bucket, one the Parent `memberId` can assign to (not the
+ * other Parent's Personal Allowance). A Goal only needs to be one that isn't archived; its
+ * Earmark is checked for all of a Transaction's Splits together (goalPartsFit).
  */
-const assignable = (householdId: string, memberId: string, assignment: Assignment, month: SQL) =>
+const assignable = (
+	householdId: string,
+	memberId: string,
+	assignment: SplitAssignment,
+	month: SQL,
+) =>
 	"bucketId" in assignment
 		? sql`exists (select 1 from ${buckets} where ${and(
 				bucketInPlan(householdId, assignment.bucketId, month),
 				assignableBy(memberId),
 			)})`
-		: sql`exists (select 1 from ${commitments} where ${and(
-				eq(commitments.id, assignment.commitmentId),
-				eq(commitments.householdId, householdId),
-				lte(commitments.fromMonth, month),
-				or(isNull(commitments.endedFromMonth), sql`${commitments.endedFromMonth} > ${month}`),
-			)})`;
+		: "goalId" in assignment
+			? sql`exists (select 1 from ${goals} where ${and(
+					eq(goals.id, assignment.goalId),
+					eq(goals.householdId, householdId),
+					isNull(goals.archivedAt),
+				)})`
+			: sql`exists (select 1 from ${commitments} where ${and(
+					eq(commitments.id, assignment.commitmentId),
+					eq(commitments.householdId, householdId),
+					lte(commitments.fromMonth, month),
+					or(isNull(commitments.endedFromMonth), sql`${commitments.endedFromMonth} > ${month}`),
+				)})`;
+
+/** The columns a Split's assignment is written to. */
+const assignmentColumns = (assignment: SplitAssignment) => ({
+	bucketId: "bucketId" in assignment ? assignment.bucketId : null,
+	commitmentId: "commitmentId" in assignment ? assignment.commitmentId : null,
+	goalId: "goalId" in assignment ? assignment.goalId : null,
+});
+
+/**
+ * Every Goal the Splits take from has the Earmark for them, counting what the Transaction's
+ * current Splits already take from it (they're replaced), so a retry or a re-split isn't refused
+ * for its own earlier Goal spending.
+ */
+function goalPartsFit(householdId: string, transactionId: string, parts: SplitInput[]) {
+	const perGoal = new Map<string, Cents>();
+	for (const part of parts) {
+		if ("goalId" in part.assignment) {
+			const { goalId } = part.assignment;
+			perGoal.set(goalId, (perGoal.get(goalId) ?? 0) + part.amountCents);
+		}
+	}
+	return and(
+		...[...perGoal].map(
+			([goalId, amount]) =>
+				sql`${earmarkSql(householdId, goalId)} + coalesce((select sum(s.amount_cents) from splits s
+					where s.household_id = ${householdId} and s.transaction_id = ${transactionId}
+					and s.goal_id = ${goalId}), 0) >= ${amount}`,
+		),
+	);
+}
+
+/**
+ * The Transaction is the Household's and the Parent `memberId`'s to change here: not in the other
+ * Parent's Personal Allowance (privacy.ts), and not Goal spending, which changes only through its
+ * Goal.
+ */
+const editableBy = (householdId: string, memberId: string) =>
+	and(changeableBy({ householdId, memberId }), isNull(transactions.goalId)) as SQL;
 
 /** Deletes a Transaction's Splits and their For, only while `when` holds (in the same batch). */
 function clearSplits(db: Db, householdId: string, transactionId: string, when?: SQL) {
@@ -537,9 +610,10 @@ function clearSplits(db: Db, householdId: string, transactionId: string, when?: 
  * Changes a Transaction's amount, assignment, note, and For, all at once, assigning it as a whole
  * (so any Splits it had are removed), for the Parent `memberId`. Idempotent: it sets values, so a
  * retry lands the same. The Transaction only changes if, at write time, it is the Household's and
- * theirs to change (no spending in the other Parent's Personal Allowance, even through a Split),
- * and what it's assigned to is in the Plan for its month and, if a Bucket, one they can assign
- * to. Its For and Splits only change together with it, in the same batch.
+ * theirs to change (no spending in the other Parent's Personal Allowance, even through a Split,
+ * and not Goal spending), and what it's assigned to is in the Plan for its month and, if a
+ * Bucket, one they can assign to. Its For and Splits only change together with it, in the same
+ * batch.
  */
 export async function updateTransaction(
 	db: Db,
@@ -559,7 +633,7 @@ export async function updateTransaction(
 	const month = sql`substr(${transactions.date}, 1, 7)`;
 	const theTransaction = and(
 		eq(transactions.id, input.transactionId),
-		changeableBy({ householdId: input.householdId, memberId: input.memberId }),
+		editableBy(input.householdId, input.memberId),
 	);
 	// True once the Transaction holds the new values: the update landed, now or on an earlier try.
 	const edited = sql`exists (select 1 from ${transactions} where ${and(
@@ -620,7 +694,7 @@ export async function updateTransaction(
 export type SplitInput = {
 	id: string;
 	amountCents: Cents;
-	assignment: Assignment;
+	assignment: SplitAssignment;
 	forMemberIds: string[];
 };
 
@@ -631,7 +705,8 @@ export type SplitInput = {
  * write time, the Transaction is the Household's and the Parent `memberId`'s to change (no
  * spending in the other Parent's Personal Allowance), and every Split's Bucket or Commitment is in
  * the Plan for its month and, if a Bucket, one they can assign to (so never the other Parent's
- * Personal Allowance); Splits and their For are only written onto that Transaction.
+ * Personal Allowance), and every Split assigned to a Goal fits in its Earmark (a Goal that isn't
+ * archived); Splits and their For are only written onto that Transaction.
  */
 export async function splitTransaction(
 	db: Db,
@@ -653,13 +728,11 @@ export async function splitTransaction(
 	) {
 		return { ok: false, reason: "splits-unbalanced" };
 	}
-	const theTransaction = and(
-		eq(transactions.id, transactionId),
-		changeableBy({ householdId, memberId }),
-	);
+	const theTransaction = and(eq(transactions.id, transactionId), editableBy(householdId, memberId));
 	const month = sql`(select substr(${transactions.date}, 1, 7) from ${transactions} where ${theTransaction})`;
 	const allAssignable = and(
 		...input.splits.map((split) => assignable(householdId, memberId, split.assignment, month)),
+		goalPartsFit(householdId, transactionId, input.splits),
 	);
 	// True once the Transaction holds the new values as a split one, now or on an earlier try.
 	const edited = sql`exists (select 1 from ${transactions} where ${and(
@@ -696,12 +769,13 @@ export async function splitTransaction(
 						transactionId: transactions.id,
 						position: sql<number>`${position}`.as("position"),
 						amountCents: sql<number>`${split.amountCents}`.as("amount_cents"),
-						bucketId: sql<
+						bucketId: sql<string | null>`${assignmentColumns(split.assignment).bucketId}`.as(
+							"bucket_id",
+						),
+						commitmentId: sql<
 							string | null
-						>`${"bucketId" in split.assignment ? split.assignment.bucketId : null}`.as("bucket_id"),
-						commitmentId: sql<string | null>`${
-							"commitmentId" in split.assignment ? split.assignment.commitmentId : null
-						}`.as("commitment_id"),
+						>`${assignmentColumns(split.assignment).commitmentId}`.as("commitment_id"),
+						goalId: sql<string | null>`${assignmentColumns(split.assignment).goalId}`.as("goal_id"),
 					})
 					.from(transactions)
 					.where(and(theTransaction, splitNow)),
@@ -745,6 +819,7 @@ export async function splitTransaction(
 			amountCents: splits.amountCents,
 			bucketId: splits.bucketId,
 			commitmentId: splits.commitmentId,
+			goalId: splits.goalId,
 		})
 		.from(splits)
 		.where(
@@ -753,23 +828,24 @@ export async function splitTransaction(
 	// Landed if the Transaction holds exactly these Splits, now or from an earlier try.
 	const landed =
 		written.length === input.splits.length &&
-		input.splits.every((split) =>
-			written.some(
+		input.splits.every((split) => {
+			const columns = assignmentColumns(split.assignment);
+			return written.some(
 				(row) =>
 					row.id === split.id &&
 					row.amountCents === split.amountCents &&
-					row.bucketId === ("bucketId" in split.assignment ? split.assignment.bucketId : null) &&
-					row.commitmentId ===
-						("commitmentId" in split.assignment ? split.assignment.commitmentId : null),
-			),
-		);
+					row.bucketId === columns.bucketId &&
+					row.commitmentId === columns.commitmentId &&
+					row.goalId === columns.goalId,
+			);
+		});
 	return landed ? { ok: true } : { ok: false, reason: "not-in-plan" };
 }
 
 /**
  * Deletes a Transaction, its For, and its Splits, for the Parent `memberId`: never one with
- * spending in the other Parent's Personal Allowance, even through a Split. Idempotent: deleting it
- * again changes nothing.
+ * spending in the other Parent's Personal Allowance, even through a Split, and never Goal spending
+ * (that changes only through its Goal). Idempotent: deleting it again changes nothing.
  */
 export async function deleteTransaction(
 	db: Db,
@@ -777,7 +853,7 @@ export async function deleteTransaction(
 ): Promise<void> {
 	const theTransaction = and(
 		eq(transactions.id, input.transactionId),
-		changeableBy({ householdId: input.householdId, memberId: input.memberId }),
+		editableBy(input.householdId, input.memberId),
 	);
 	const deletable = sql`exists (select 1 from ${transactions} where ${theTransaction})`;
 	await db.batch([

@@ -4,7 +4,7 @@ import {
 	endCommitment as endCommitmentInDb,
 	updateCommitment as updateCommitmentInDb,
 } from "@noodle/db";
-import { CADENCES, type DayKey, dayKeyAt, MAX_CENTS } from "@noodle/domain";
+import { CADENCES, dayKeyAt, MAX_CENTS } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getDb } from "./db";
@@ -12,19 +12,12 @@ import { householdMiddleware } from "./household";
 import { monthKeySchema } from "./month";
 import { notifyHousehold } from "./notify";
 import { assertEditable, centsSchema } from "./plan";
-import { ulidSchema } from "./schemas";
+import { dayKeySchema, ulidSchema } from "./schemas";
 
 // Commitments in the Plan, and payments against them. Each change is idempotent, so the client
 // can retry any of them safely, and tells both Parents' screens that every month changed.
 
 export const commitmentNameSchema = z.string().trim().min(1).max(40);
-
-/** A real calendar day as "YYYY-MM-DD". */
-const dayKeySchema = z
-	.string()
-	.regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
-	.refine((day) => new Date(`${day}T00:00:00Z`).toISOString().startsWith(day), "Not a real day")
-	.transform((day) => day as DayKey);
 
 const commitmentSchema = z.object({
 	commitmentId: ulidSchema,

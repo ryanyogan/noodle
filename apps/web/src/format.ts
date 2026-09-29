@@ -36,6 +36,17 @@ export function shortDay(key: string): string {
 	});
 }
 
+/** "Jun 15, 2027" for a "YYYY-MM-DD" day key. */
+export function fullDay(key: string): string {
+	const [year, month, day] = key.split("-").map(Number);
+	return new Date(Date.UTC(year ?? 1970, (month ?? 1) - 1, day ?? 1)).toLocaleDateString("en-US", {
+		month: "short",
+		day: "numeric",
+		year: "numeric",
+		timeZone: "UTC",
+	});
+}
+
 /** "Sat, Sep 12" for a "YYYY-MM-DD" day key; "Today" and "Yesterday" relative to `today`. */
 export function dayName(key: string, today: string): string {
 	const [year, month, day] = key.split("-").map(Number);

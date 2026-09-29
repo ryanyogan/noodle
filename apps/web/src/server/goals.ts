@@ -1,0 +1,305 @@
+import {
+	addAccount as addAccountInDb,
+	addGoal as addGoalInDb,
+	archiveGoal as archiveGoalInDb,
+	claimForGoal as claimForGoalInDb,
+	completeGoal as completeGoalInDb,
+	fundGoal as fundGoalInDb,
+	type GoalRecords,
+	type GoalWriteResult,
+	loadGoals,
+	renameAccount as renameAccountInDb,
+	spendGoal as spendGoalInDb,
+	undoGoalFunding as undoGoalFundingInDb,
+	updateAccountBalance as updateAccountBalanceInDb,
+	updateGoal as updateGoalInDb,
+} from "@noodle/db";
+import {
+	ACCOUNT_KINDS,
+	type Cents,
+	type DayKey,
+	dayKeyAt,
+	MAX_CENTS,
+	type MonthKey,
+	monthKeyAt,
+	monthState,
+} from "@noodle/domain";
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { getDb } from "./db";
+import { type HouseholdSummary, householdMiddleware, viewerOf } from "./household";
+import { loadMonth, monthKeySchema } from "./month";
+import { notifyHousehold } from "./notify";
+import { dayKeySchema, ulidSchema } from "./schemas";
+
+// Accounts, Goals and their Earmarks. Each write is idempotent per its client ULID, so the client
+// can retry it safely; a write the database guard refuses comes back as `{ ok: false }` rather
+// than an error. The month and day are always the Household's, worked out here.
+
+/**
+ * Every Account, Goal and Earmark change, with the Household's current month and today:
+ * components derive balances, Unclaimed and progress from these with @noodle/domain, so an
+ * optimistic edit updates every number the same way the server would.
+ */
+export type GoalsData = GoalRecords & { month: MonthKey; asOf: DayKey };
+
+export type { GoalWriteResult };
+
+/** Refused Goal funding says what Free to Spend had left, to explain why. */
+export type FundGoalOutcome = { ok: true } | { ok: false; freeToSpend: Cents };
+
+export const goalNameSchema = z.string().trim().min(1).max(40);
+const amountSchema = z.number().int().min(1).max(MAX_CENTS);
+const balanceSchema = z.number().int().min(0).max(MAX_CENTS);
+
+const today = (household: Pick<HouseholdSummary, "timeZone">) =>
+	dayKeyAt(new Date(), household.timeZone);
+
+const currentMonth = (household: Pick<HouseholdSummary, "timeZone">) =>
+	monthKeyAt(new Date(), household.timeZone);
+
+/** Goal funding happens within the current month: earlier months are closed, later ones haven't begun. */
+function assertCurrentMonth(household: Pick<HouseholdSummary, "timeZone">, month: MonthKey) {
+	if (month !== currentMonth(household)) {
+		throw new Error("Only this month’s Plan can fund a Goal.");
+	}
+}
+
+function assertNotPast(household: Pick<HouseholdSummary, "timeZone">, targetDate: DayKey | null) {
+	if (targetDate !== null && targetDate < today(household)) {
+		throw new Error("A Goal’s target date can’t be in the past.");
+	}
+}
+
+export const getGoals = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.handler(async ({ context }): Promise<GoalsData> => {
+		const records = await loadGoals(getDb(), viewerOf(context));
+		return { ...records, month: currentMonth(context.household), asOf: today(context.household) };
+	});
+
+/** Adds an Account, with its balance now if the Parent knows it. */
+export const addAccount = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			accountId: ulidSchema,
+			name: goalNameSchema,
+			kind: z.enum(ACCOUNT_KINDS),
+			/** For a credit card or loan, what's owed. */
+			balanceCents: balanceSchema.nullable(),
+			balanceId: ulidSchema,
+		}),
+	)
+	.handler(async ({ data, context }) => {
+		await addAccountInDb(getDb(), {
+			householdId: context.household.id,
+			createdByMemberId: context.parent.id,
+			...data,
+		});
+		await notifyHousehold(context.household.id, ["goals"]);
+	});
+
+export const renameAccount = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ accountId: ulidSchema, name: goalNameSchema }))
+	.handler(async ({ data, context }) => {
+		await renameAccountInDb(getDb(), { householdId: context.household.id, ...data });
+		await notifyHousehold(context.household.id, ["goals"]);
+	});
+
+/** Records an Account's balance as it is now. */
+export const updateAccountBalance = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ balanceId: ulidSchema, accountId: ulidSchema, amountCents: balanceSchema }))
+	.handler(async ({ data, context }): Promise<GoalWriteResult> => {
+		const result = await updateAccountBalanceInDb(getDb(), {
+			householdId: context.household.id,
+			createdByMemberId: context.parent.id,
+			...data,
+		});
+		if (result.ok) await notifyHousehold(context.household.id, ["goals"]);
+		return result;
+	});
+
+/**
+ * Adds a Goal backed by a checking or savings Account, from this month, with `claimCents` of
+ * the Account's Unclaimed money already set aside for it (0 for none).
+ */
+export const addGoal = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			goalId: ulidSchema,
+			accountId: ulidSchema,
+			name: goalNameSchema,
+			targetCents: amountSchema,
+			targetDate: dayKeySchema.nullable(),
+			claimId: ulidSchema,
+			claimCents: balanceSchema,
+		}),
+	)
+	.handler(async ({ data, context }): Promise<GoalWriteResult> => {
+		const { household } = context;
+		assertNotPast(household, data.targetDate);
+		const result = await addGoalInDb(getDb(), {
+			householdId: household.id,
+			fromMonth: currentMonth(household),
+			createdByMemberId: context.parent.id,
+			...data,
+		});
+		if (result.ok) await notifyHousehold(household.id, ["goals"]);
+		return result;
+	});
+
+/** Changes a Goal's name, target and target date. A past target date may only be kept, not set. */
+export const updateGoal = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			goalId: ulidSchema,
+			name: goalNameSchema,
+			targetCents: amountSchema,
+			targetDate: dayKeySchema.nullable(),
+		}),
+	)
+	.handler(async ({ data, context }) => {
+		const { household } = context;
+		const db = getDb();
+		if (data.targetDate !== null && data.targetDate < today(household)) {
+			const { goals } = await loadGoals(db, viewerOf(context));
+			const goal = goals.find((g) => g.id === data.goalId);
+			if (goal?.targetDate !== data.targetDate) assertNotPast(household, data.targetDate);
+		}
+		await updateGoalInDb(db, { householdId: household.id, ...data });
+		await notifyHousehold(household.id, ["goals"]);
+	});
+
+/** Marks a Goal completed; it keeps its Earmark. */
+export const completeGoal = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ goalId: ulidSchema }))
+	.handler(async ({ data, context }) => {
+		await completeGoalInDb(getDb(), { householdId: context.household.id, ...data });
+		await notifyHousehold(context.household.id, ["goals"]);
+	});
+
+/** Archives a Goal, releasing its Earmark to its Account's Unclaimed money. */
+export const archiveGoal = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ goalId: ulidSchema }))
+	.handler(async ({ data, context }) => {
+		await archiveGoalInDb(getDb(), { householdId: context.household.id, ...data });
+		await notifyHousehold(context.household.id, ["goals"]);
+	});
+
+/**
+ * Sets Unclaimed money aside for a Goal, or releases some of its Earmark back (a negative
+ * amount). Refused when releasing more than the Earmark, or when the Goal is archived.
+ */
+export const claimForGoal = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			claimId: ulidSchema,
+			goalId: ulidSchema,
+			amountCents: z
+				.number()
+				.int()
+				.min(-MAX_CENTS)
+				.max(MAX_CENTS)
+				.refine((amount) => amount !== 0, "Expected an amount"),
+		}),
+	)
+	.handler(async ({ data, context }): Promise<GoalWriteResult> => {
+		const { household } = context;
+		const result = await claimForGoalInDb(getDb(), {
+			householdId: household.id,
+			month: currentMonth(household),
+			createdByMemberId: context.parent.id,
+			...data,
+		});
+		if (result.ok) await notifyHousehold(household.id, ["goals"]);
+		return result;
+	});
+
+/**
+ * Goal funding: Moves `amountCents` from this month's Free to Spend into a Goal's Earmark.
+ * Refused unless Free to Spend has that much and the Goal is active.
+ */
+export const fundGoal = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			moveId: ulidSchema,
+			goalId: ulidSchema,
+			month: monthKeySchema,
+			amountCents: amountSchema,
+		}),
+	)
+	.handler(async ({ data, context }): Promise<FundGoalOutcome> => {
+		const { household } = context;
+		assertCurrentMonth(household, data.month);
+		const db = getDb();
+		const result = await fundGoalInDb(db, {
+			householdId: household.id,
+			createdByMemberId: context.parent.id,
+			...data,
+		});
+		if (!result.ok) {
+			const { freeToSpend } = monthState(
+				await loadMonth(db, household, context.parent.id, data.month),
+			);
+			return { ok: false, freeToSpend: Math.max(0, freeToSpend) };
+		}
+		await notifyHousehold(household.id, ["goals", `month:${data.month}`]);
+		return { ok: true };
+	});
+
+/**
+ * Undoes Goal funding, putting the money back in Free to Spend. Refused once the Goal's
+ * Earmark is less than the funding (some of it was spent or released).
+ */
+export const undoGoalFunding = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ moveId: ulidSchema, month: monthKeySchema }))
+	.handler(async ({ data, context }): Promise<GoalWriteResult> => {
+		const { household } = context;
+		assertCurrentMonth(household, data.month);
+		const result = await undoGoalFundingInDb(getDb(), { householdId: household.id, ...data });
+		if (result.ok) await notifyHousehold(household.id, ["goals", `month:${data.month}`]);
+		return result;
+	});
+
+/**
+ * Records Goal spending today: a Transaction out of the Goal's Earmark and its Account, never a
+ * Bucket or Free to Spend. Refused when it's more than the Earmark or the Goal is archived.
+ */
+export const spendGoal = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			transactionId: ulidSchema,
+			goalId: ulidSchema,
+			amountCents: amountSchema,
+			note: z.string().trim().max(80).optional(),
+		}),
+	)
+	.handler(async ({ data, context }): Promise<GoalWriteResult> => {
+		const { household } = context;
+		const date = today(household);
+		const result = await spendGoalInDb(getDb(), {
+			householdId: household.id,
+			transactionId: data.transactionId,
+			goalId: data.goalId,
+			date,
+			amountCents: data.amountCents,
+			note: data.note || null,
+			createdByMemberId: context.parent.id,
+		});
+		// The month's Transactions list shows it.
+		if (result.ok) {
+			await notifyHousehold(household.id, ["goals", `month:${currentMonth(household)}`]);
+		}
+		return result;
+	});
