@@ -99,16 +99,35 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 		);
 		await expect(list(alex).getByRole("button", { name: /^Birthday gift for Sam,/ })).toBeVisible();
 
+		// A Target run: $70 of groceries, $30 of it a gift from his Personal Allowance.
+		await nav(alex).getByRole("link", { name: "This Month" }).click();
+		await quickAdd(alex, "100", "Groceries", "Target run");
+		await openTransactions(alex);
+		await list(alex)
+			.getByRole("button", { name: /^Target run,/ })
+			.click();
+		await editSheet(alex).getByRole("button", { name: "Split", exact: true }).click();
+		const split = (n: number) =>
+			editSheet(alex).getByRole("group", { name: `Split ${n}`, exact: true });
+		await split(1).getByLabel("Amount").fill("70");
+		await split(2).getByLabel("Assigned to").selectOption({ label: ALEX_PA });
+		await split(2).getByLabel("Amount").fill("30");
+		await editSheet(alex).getByRole("button", { name: "Save" }).click();
+		await expect(editSheet(alex)).toBeHidden();
+		await expect(list(alex).getByRole("button", { name: /^Target run,/ })).toHaveAccessibleName(
+			`Target run, $100, Split across 2: Groceries, ${ALEX_PA}`,
+		);
+
 		// Sam sees both Personal Allowances' totals, and only his own drills into Transactions.
 		await nav(sam).getByRole("link", { name: "This Month" }).click();
 		await expect(bucketRow(sam, ALEX_PA)).toHaveAccessibleName(
-			`${ALEX_PA}: $88 left of $150, private`,
+			`${ALEX_PA}: $58 left of $150, private`,
 		);
-		await expect(bucketRow(sam, ALEX_PA)).toContainText("$62 spent");
+		await expect(bucketRow(sam, ALEX_PA)).toContainText("$92 spent");
 		await expect(bucketRow(sam, ALEX_PA).getByRole("link")).toHaveCount(0);
 		await expect(bucketRow(sam, SAM_PA)).toHaveAccessibleName(`${SAM_PA}: $100 left of $100`);
 		await expect(bucketRow(sam, SAM_PA).getByRole("link", { name: SAM_PA })).toBeVisible();
-		await expect(bucketRow(sam, "Groceries")).toContainText("$10 spent");
+		await expect(bucketRow(sam, "Groceries")).toContainText("$80 spent");
 
 		// Sam's Quick Add offers his own Personal Allowance, never Alex's.
 		await sam.getByRole("link", { name: "Quick Add" }).click();
@@ -119,12 +138,26 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 		await sam.keyboard.press("Escape");
 		await expect(quickAddSheet(sam)).toBeHidden();
 
-		// Sam's Transactions: Alex's Groceries purchase, nothing from Alex's Personal Allowance.
+		// Sam's Transactions: Alex's Groceries purchases, nothing from Alex's Personal Allowance.
 		await openTransactions(sam);
-		await expect(list(sam).getByRole("button")).toHaveCount(1);
-		await expect(list(sam).getByRole("button")).toHaveAccessibleName(
+		await expect(list(sam).getByRole("button")).toHaveCount(2);
+		await expect(list(sam).getByRole("button", { name: /^Milk,/ })).toHaveAccessibleName(
 			"Milk, $10, Groceries, For Everyone",
 		);
+		// The Target run as only its Groceries Split, without its note; Sam can't change it.
+		const targetRun = list(sam).getByRole("button", { name: /^Quick Add,/ });
+		await expect(targetRun).toHaveAccessibleName("Quick Add, $70, Split across 1: Groceries");
+		await targetRun.click();
+		const shown = sam.getByRole("dialog", { name: "Transaction", exact: true });
+		await expect(
+			shown.getByText("Part of this is in Alex’s Personal Allowance, so only Alex can change it."),
+		).toBeVisible();
+		await expect(shown).toContainText("$70");
+		await expect(shown).not.toContainText("$30");
+		await expect(shown.getByRole("button", { name: /Save|Delete|Split/ })).toHaveCount(0);
+		await expect(shown.getByRole("textbox")).toHaveCount(0);
+		await sam.keyboard.press("Escape");
+		await expect(shown).toBeHidden();
 		await expect(sam.getByLabel("Bucket").locator("option")).toHaveText([
 			"All Buckets",
 			"Groceries",
@@ -144,6 +177,7 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 		for (const body of sent) {
 			expect(body).not.toContain("Birthday gift");
 			expect(body).not.toContain("Flowers");
+			expect(body).not.toContain("Target run");
 		}
 		// The gift's Quick Add named two IDs: its Personal Allowance, which Sam's Plan does name,
 		// and the Transaction's own, which nothing sent to Sam does.

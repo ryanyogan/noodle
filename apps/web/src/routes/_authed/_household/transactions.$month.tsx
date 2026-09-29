@@ -134,6 +134,7 @@ function TransactionsPage() {
 				today={asOf}
 				plan={plan}
 				members={members}
+				parentId={parentId}
 				onClose={() => setEditing(null)}
 				onChange={(next) => {
 					if (!editing) return;

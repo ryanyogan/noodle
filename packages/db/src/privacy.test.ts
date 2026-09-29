@@ -359,6 +359,8 @@ describe("Personal Allowance privacy: Splits", () => {
 					for: ["sam"],
 				},
 			],
+			// Only so Sam's edit sheet doesn't offer changes Sam can't make; nothing of the private part.
+			partlyPrivate: true,
 		});
 		expect(JSON.stringify(await page(sam))).not.toContain("gift");
 		expect(await transactionIds(sam, "alex-pa")).toEqual([]);
@@ -367,6 +369,9 @@ describe("Personal Allowance privacy: Splits", () => {
 		expect(own?.amountCents).toBe(10_000);
 		expect(own?.note).toBe("Target: gift for Sam");
 		expect(own?.splits.map((s) => s.id)).toEqual(["target-gift", "target-food"]);
+		// Alex's own Personal Allowance isn't private from Alex.
+		expect(own?.partlyPrivate).toBe(false);
+		expect((await page(sam)).filter((t) => t.partlyPrivate).map((t) => t.id)).toEqual(["target"]);
 		expect(await transactionIds(alex, "alex-pa")).toContain("target");
 	});
 
@@ -418,6 +423,9 @@ describe("Personal Allowance privacy: Splits", () => {
 		const own = (await page(alex)).find((t) => t.id === "target");
 		expect(own?.amountCents).toBe(10_000);
 		expect(own?.splits.map((s) => s.id)).toEqual(["target-gift", "target-food"]);
+		// Alex's own Personal Allowance isn't private from Alex.
+		expect(own?.partlyPrivate).toBe(false);
+		expect((await page(sam)).filter((t) => t.partlyPrivate).map((t) => t.id)).toEqual(["target"]);
 		// Its owner still can.
 		await deleteTransaction(db, { householdId, memberId: "alex", transactionId: "target" });
 		expect((await page(alex)).map((t) => t.id)).not.toContain("target");

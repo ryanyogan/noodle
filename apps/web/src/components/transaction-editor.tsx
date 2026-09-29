@@ -2,6 +2,7 @@ import { type For, type Plan, parseDollars, splitRemainder } from "@noodle/domai
 import { Button } from "@noodle/ui/components/button";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
+import { List, ListRow } from "@noodle/ui/components/list";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { cn } from "@noodle/ui/lib/utils";
 import { useHydrated } from "@tanstack/react-router";
@@ -9,7 +10,7 @@ import { Plus, Split as SplitIcon, Trash2, X } from "lucide-react";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { ulid } from "ulid";
 import { dayName, formatMoney, formatMoneyInput } from "../format";
-import type { MemberSummary } from "../members";
+import { forLabel, type MemberSummary } from "../members";
 import type {
 	Assignment,
 	SplitEdit,
@@ -56,13 +57,15 @@ const blankSplit = (amount = ""): DraftSplit => ({
  * Edits a Transaction's amount, what it's assigned to, who it was For, and its note, or deletes
  * it. It can instead be split into Splits, each with its own amount, assignment, and For, which
  * must add up to the amount before it saves. Saving or deleting closes the sheet at once; the
- * change itself is applied optimistically by the caller.
+ * change itself is applied optimistically by the caller. One partly in the other Parent's
+ * Personal Allowance is theirs alone to change (ADR-0003), so it's only shown.
  */
 export function TransactionEditor({
 	transaction,
 	today,
 	plan,
 	members,
+	parentId,
 	onChange,
 	onClose,
 }: {
@@ -71,13 +74,25 @@ export function TransactionEditor({
 	today: string;
 	plan: Pick<Plan, "buckets" | "commitments">;
 	members: MemberSummary[];
+	/** The Parent looking. */
+	parentId: string;
 	onChange: (next: TransactionChange["next"]) => void;
 	onClose: () => void;
 }) {
 	return (
 		<Sheet open={transaction !== null} onOpenChange={(open) => (open ? undefined : onClose())}>
 			<SheetContent>
-				{transaction ? (
+				{transaction?.partlyPrivate ? (
+					<>
+						<SheetHeader title="Transaction" description={dayName(transaction.date, today)} />
+						<PartlyPrivate
+							transaction={transaction}
+							plan={plan}
+							members={members}
+							parentId={parentId}
+						/>
+					</>
+				) : transaction ? (
 					<>
 						<SheetHeader title="Edit Transaction" description={dayName(transaction.date, today)} />
 						<EditForm
@@ -92,6 +107,53 @@ export function TransactionEditor({
 				) : null}
 			</SheetContent>
 		</Sheet>
+	);
+}
+
+/**
+ * A Transaction partly in the other Parent's Personal Allowance: the Splits this Parent may see,
+ * and why they can't change it. Nothing about the private part, which never reached this client.
+ */
+function PartlyPrivate({
+	transaction,
+	plan,
+	members,
+	parentId,
+}: {
+	transaction: TransactionRow;
+	plan: Pick<Plan, "buckets" | "commitments">;
+	members: MemberSummary[];
+	parentId: string;
+}) {
+	const owner =
+		members.find((member) => member.kind === "parent" && member.id !== parentId)?.name ??
+		"the other Parent";
+	const assignedTo = (split: SplitRow) =>
+		(split.bucketId && plan.buckets.find((bucket) => bucket.id === split.bucketId)?.name) ||
+		(split.commitmentId &&
+			plan.commitments.find((commitment) => commitment.id === split.commitmentId)?.name) ||
+		split.goal?.name ||
+		"Unassigned";
+	return (
+		<div className="grid gap-4">
+			<p className="text-sm text-muted-foreground">
+				Part of this is in {owner}’s Personal Allowance, so only {owner} can change it.
+			</p>
+			<List>
+				{transaction.splits.map((split) => (
+					<ListRow
+						key={split.id}
+						title={assignedTo(split)}
+						meta={`For ${forLabel(members, split.for)}`}
+						trailing={
+							<span className="text-sm font-semibold tabular-nums">
+								{formatMoney(split.amountCents)}
+							</span>
+						}
+					/>
+				))}
+			</List>
+		</div>
 	);
 }
 

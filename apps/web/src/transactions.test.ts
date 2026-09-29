@@ -51,6 +51,7 @@ const skates: TransactionRow = {
 	note: "Pro Hockey Life",
 	for: [],
 	splits: [],
+	partlyPrivate: false,
 };
 
 const change = (next: TransactionChange["next"]): TransactionChange => ({

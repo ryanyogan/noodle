@@ -277,11 +277,13 @@ function AccountFields({
 						maxLength={40}
 						autoComplete="off"
 						placeholder="e.g. Ally savings"
+						disabled={!hydrated}
 					/>
 				</Field>
 				<Field label="Kind" htmlFor={`${id}-kind`}>
 					<NativeSelect
 						id={`${id}-kind`}
+						disabled={!hydrated}
 						value={kind}
 						onChange={(event) => setKind(event.currentTarget.value as AccountKind)}
 					>
@@ -304,6 +306,7 @@ function AccountFields({
 			>
 				<AmountInput
 					id={`${id}-balance`}
+					disabled={!hydrated}
 					value={balance}
 					placeholder="0"
 					aria-invalid={balanceInvalid || undefined}

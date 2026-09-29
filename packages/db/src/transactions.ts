@@ -341,6 +341,11 @@ export type TransactionRow = {
 	for: string[];
 	/** Its Splits in the order they were entered, those the Viewer may see; none unless it's split. */
 	splits: SplitRow[];
+	/**
+	 * Some of its Splits are in the other Parent's Personal Allowance, so it's theirs alone to
+	 * change (changeableBy). Says nothing about that part: not its amount, Bucket, or how many.
+	 */
+	partlyPrivate: boolean;
 };
 
 /** Where a page of the list starts: after this Transaction, going back in time. */
@@ -418,6 +423,7 @@ export async function loadTransactionsPage(
 			goalId: transactions.goalId,
 			goalName: goals.name,
 			note: sql<string | null>`case when ${partly} then null else ${transactions.note} end`,
+			partlyPrivate: sql<boolean>`${partly}`.mapWith(Boolean),
 		})
 		.from(transactions)
 		.leftJoin(goals, eq(goals.id, transactions.goalId))

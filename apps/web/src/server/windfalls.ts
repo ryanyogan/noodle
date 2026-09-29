@@ -11,6 +11,7 @@ import {
 	MAX_CENTS,
 	type MonthKey,
 	monthKeyAt,
+	monthOfDay,
 	monthState,
 } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
@@ -57,7 +58,12 @@ export const recordIncome = createServerFn({ method: "POST" })
 			note: data.note || null,
 			createdByMemberId: context.parent.id,
 		});
-		await notifyHousehold(household.id, [`month:${currentMonth(household)}`]);
+		const month = monthOfDay(date);
+		await notifyHousehold(
+			household.id,
+			[`month:${month}`],
+			[{ type: "income", month, recordedBy: context.parent.id }],
+		);
 	});
 
 /**

@@ -60,15 +60,43 @@ export function quickAddNudge({ transaction }: VisibleQuickAdd): NudgeMessage {
 	};
 }
 
-/** A Windfall arriving. Windfalls (#29) aren't recorded yet, so nothing raises one. */
-export type WindfallArrived = { windfallId: string; amount: Cents; month: MonthKey };
+/** A month's Windfall that started or grew, and the Parents whose income made it grow. */
+export type WindfallArrived = {
+	month: MonthKey;
+	/** How much it grew by since it was last Nudged. */
+	grew: Cents;
+	/** The month's whole Windfall now. */
+	windfall: Cents;
+	recordedBy: readonly string[];
+};
 
+/**
+ * Whether income recorded in a month makes its Windfall worth a Nudge: only when the Windfall is
+ * now more than the most it was Nudged at, so each increase Nudges once. A retried write, income
+ * that stays within the Baseline, or income removed and recorded again changes nothing.
+ */
+export function windfallArrived(
+	month: MonthKey,
+	windfall: Cents,
+	nudgedAt: Cents,
+	recordedBy: readonly string[],
+): WindfallArrived | null {
+	return windfall > nudgedAt ? { month, grew: windfall - nudgedAt, windfall, recordedBy } : null;
+}
+
+/** A month's Windfall starting or growing: only Household totals, never who was paid what. */
 export function windfallNudge(windfall: WindfallArrived): NudgeMessage {
+	const started = windfall.grew === windfall.windfall;
 	return {
 		kind: "windfall",
-		title: `A ${formatMoney(windfall.amount)} Windfall arrived`,
-		body: "Decide where it goes at your next Check-in.",
-		tag: `windfall:${windfall.windfallId}`,
+		title: started
+			? `A ${formatMoney(windfall.windfall)} Windfall arrived`
+			: `${monthName(windfall.month)}’s Windfall grew by ${formatMoney(windfall.grew)}`,
+		body: started
+			? "Decide where it goes at your next Check-in."
+			: `It’s ${formatMoney(windfall.windfall)} now. Decide where it goes at your next Check-in.`,
+		// One per month: a later increase replaces the earlier Nudge on a device rather than stacking.
+		tag: `windfall:${windfall.month}`,
 		url: `/month/${windfall.month}`,
 	};
 }
@@ -91,6 +119,8 @@ export type RaisedNudges = {
 	pace: PaceNudge[];
 	/** Quick Adds, each read for a Parent who may get a Nudge about it. */
 	quickAdds: VisibleQuickAdd[];
+	/** Months whose Windfall started or grew. */
+	windfalls: WindfallArrived[];
 };
 
 /** A Nudge for one Parent, and when it may reach them (epoch ms). */
@@ -98,7 +128,8 @@ export type ScheduledNudge = { memberId: string; nudge: NudgeMessage; deliverAt:
 
 /**
  * Who gets which Nudges, and when: each Parent only the kinds they want, never their own Quick
- * Adds, only what was read for them, nobody else's Personal Allowance, and after their quiet hours.
+ * Adds or a Windfall grown only by their own income, only what was read for them, nobody else's
+ * Personal Allowance, and after their quiet hours.
  */
 export function scheduleNudges(
 	raised: RaisedNudges,
@@ -118,6 +149,13 @@ export function scheduleNudges(
 				if (quickAdd.recipientId !== memberId) continue;
 				if (quickAdd.transaction.createdBy.memberId === memberId) continue;
 				nudges.push(quickAddNudge(quickAdd));
+			}
+		}
+		if (wantsNudge(preferences, "windfall")) {
+			for (const windfall of raised.windfalls) {
+				// They saw the Windfall grow as they recorded the income.
+				if (windfall.recordedBy.every((id) => id === memberId)) continue;
+				nudges.push(windfallNudge(windfall));
 			}
 		}
 		const deliverAt = nudgeDeliveryTime(
