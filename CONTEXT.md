@@ -130,6 +130,10 @@ _Avoid_: Filter, auto-categorization
 A suggested change to the Plan or to spending, backed by the specific Transactions that justify it and its estimated yearly impact. Never applied without a Parent's action.
 _Avoid_: Tip, recommendation, alert
 
+**Ask**:
+A plain-language question from a Parent about the Household's money, answered from its real figures (as that Parent may see them) with links to the screens that show more. Nothing asked is kept.
+_Avoid_: Chat, assistant, bot
+
 **Overlap**:
 Paying twice for the same benefit: two services that serve the same need, a service already included by a Perk, or the same charge appearing twice.
 _Avoid_: Double spending, duplicate

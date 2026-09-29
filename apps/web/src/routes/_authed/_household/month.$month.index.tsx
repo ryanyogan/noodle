@@ -24,7 +24,13 @@ import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { CalendarDays, ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react";
+import {
+	CalendarDays,
+	ChevronLeft,
+	ChevronRight,
+	MessageCircleQuestionMark,
+	SlidersHorizontal,
+} from "lucide-react";
 import { type ReactNode, type TouchEvent, useRef, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../../../buckets";
@@ -156,6 +162,12 @@ function ThisMonth() {
 								</Link>
 							</Button>
 						) : null}
+						{/* Phones reach Ask from here; the sidebar has it on larger screens. */}
+						<Button variant="ghost" size="icon" className="lg:hidden" asChild>
+							<Link to="/ask" aria-label="Ask">
+								<MessageCircleQuestionMark className="size-5" />
+							</Link>
+						</Button>
 						<MonthLink month={addMonths(month, -1)} label="Previous month" />
 						<MonthLink month={addMonths(month, 1)} label="Next month" />
 					</div>

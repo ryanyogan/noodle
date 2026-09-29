@@ -17,6 +17,7 @@
 	},
 	"dependencies": {
 		"@clerk/tanstack-react-start": "1.6.1",
+		"@noodle/ai": "workspace:*",
 		"@noodle/db": "workspace:*",
 		"@noodle/domain": "workspace:*",
 		"@noodle/ui": "workspace:*",

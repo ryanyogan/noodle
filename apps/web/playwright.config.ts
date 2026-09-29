@@ -31,6 +31,8 @@ export default defineConfig({
 	],
 	webServer: {
 		command: "bun run db:migrate:local && bun run dev",
+		// Ask answers with its deterministic fake, never the live model (see vite.config.ts).
+		env: { ASK_MODEL: "stub" },
 		url: `http://localhost:${port}`,
 		reuseExistingServer: !process.env.CI,
 		timeout: 120_000,

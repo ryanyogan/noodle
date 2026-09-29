@@ -14,6 +14,7 @@ import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as AuthedHouseholdRouteImport } from './routes/_authed/_household'
 import { Route as AuthedWelcomeRouteImport } from './routes/_authed/welcome'
 import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
+import { Route as AuthedHouseholdAskRouteImport } from './routes/_authed/_household/ask'
 import { Route as AuthedHouseholdExploreRouteImport } from './routes/_authed/_household/explore'
 import { Route as AuthedHouseholdHouseholdRouteImport } from './routes/_authed/_household/household'
 import { Route as AuthedHouseholdExploreAffordRouteImport } from './routes/_authed/_household/explore_.afford'
@@ -49,6 +50,11 @@ const SignInSplatRoute = SignInSplatRouteImport.update({
   id: '/sign-in/$',
   path: '/sign-in/$',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthedHouseholdAskRoute = AuthedHouseholdAskRouteImport.update({
+  id: '/ask',
+  path: '/ask',
+  getParentRoute: () => AuthedHouseholdRoute,
 } as any)
 const AuthedHouseholdExploreRoute = AuthedHouseholdExploreRouteImport.update({
   id: '/explore',
@@ -126,6 +132,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
+  '/ask': typeof AuthedHouseholdAskRoute
   '/explore': typeof AuthedHouseholdExploreRoute
   '/household': typeof AuthedHouseholdHouseholdRoute
   '/explore/afford': typeof AuthedHouseholdExploreAffordRoute
@@ -143,6 +150,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
+  '/ask': typeof AuthedHouseholdAskRoute
   '/explore': typeof AuthedHouseholdExploreRoute
   '/household': typeof AuthedHouseholdHouseholdRoute
   '/explore/afford': typeof AuthedHouseholdExploreAffordRoute
@@ -162,6 +170,7 @@ export interface FileRoutesById {
   '/_authed/_household': typeof AuthedHouseholdRouteWithChildren
   '/_authed/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
+  '/_authed/_household/ask': typeof AuthedHouseholdAskRoute
   '/_authed/_household/explore': typeof AuthedHouseholdExploreRoute
   '/_authed/_household/household': typeof AuthedHouseholdHouseholdRoute
   '/_authed/_household/explore_/afford': typeof AuthedHouseholdExploreAffordRoute
@@ -181,6 +190,7 @@ export interface FileRouteTypes {
     | '/'
     | '/welcome'
     | '/sign-in/$'
+    | '/ask'
     | '/explore'
     | '/household'
     | '/explore/afford'
@@ -198,6 +208,7 @@ export interface FileRouteTypes {
     | '/'
     | '/welcome'
     | '/sign-in/$'
+    | '/ask'
     | '/explore'
     | '/household'
     | '/explore/afford'
@@ -216,6 +227,7 @@ export interface FileRouteTypes {
     | '/_authed/_household'
     | '/_authed/welcome'
     | '/sign-in/$'
+    | '/_authed/_household/ask'
     | '/_authed/_household/explore'
     | '/_authed/_household/household'
     | '/_authed/_household/explore_/afford'
@@ -272,6 +284,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/sign-in/$'
       preLoaderRoute: typeof SignInSplatRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authed/_household/ask': {
+      id: '/_authed/_household/ask'
+      path: '/ask'
+      fullPath: '/ask'
+      preLoaderRoute: typeof AuthedHouseholdAskRouteImport
+      parentRoute: typeof AuthedHouseholdRoute
     }
     '/_authed/_household/explore': {
       id: '/_authed/_household/explore'
@@ -377,6 +396,7 @@ const AuthedHouseholdMonthMonthRouteWithChildren =
   )
 
 interface AuthedHouseholdRouteChildren {
+  AuthedHouseholdAskRoute: typeof AuthedHouseholdAskRoute
   AuthedHouseholdExploreRoute: typeof AuthedHouseholdExploreRoute
   AuthedHouseholdHouseholdRoute: typeof AuthedHouseholdHouseholdRoute
   AuthedHouseholdExploreAffordRoute: typeof AuthedHouseholdExploreAffordRoute
@@ -390,6 +410,7 @@ interface AuthedHouseholdRouteChildren {
 }
 
 const AuthedHouseholdRouteChildren: AuthedHouseholdRouteChildren = {
+  AuthedHouseholdAskRoute: AuthedHouseholdAskRoute,
   AuthedHouseholdExploreRoute: AuthedHouseholdExploreRoute,
   AuthedHouseholdHouseholdRoute: AuthedHouseholdHouseholdRoute,
   AuthedHouseholdExploreAffordRoute: AuthedHouseholdExploreAffordRoute,

@@ -69,7 +69,12 @@ type Kind = (typeof kinds)[number];
 
 export const Route = createFileRoute("/_authed/_household/explore_/afford")({
 	ssr: "data-only",
-	validateSearch: z.object({ kind: z.enum(kinds).optional().catch(undefined) }),
+	validateSearch: z.object({
+		kind: z.enum(kinds).optional().catch(undefined),
+		// What Ask was asked about: an Anything Check starts with its name and price.
+		name: z.string().max(40).optional().catch(undefined),
+		price: z.number().int().positive().max(10_000_000_000).optional().catch(undefined),
+	}),
 	loader: ({ context }) =>
 		Promise.all([
 			context.queryClient.ensureQueryData(planAheadQuery()),
@@ -93,7 +98,7 @@ type Context = {
 };
 
 function AffordPage() {
-	const { kind = "home" } = Route.useSearch();
+	const { kind = "home", name, price } = Route.useSearch();
 	const { month, records } = useSuspenseQuery(planAheadQuery()).data;
 	const goalsData = useSuspenseQuery(goalsQuery()).data;
 	const context = useMemo((): Context => {
@@ -124,6 +129,8 @@ function AffordPage() {
 	const [car, setCar] = useState(() => initialCar(context));
 	const [anything, setAnything] = useState<AnythingForm>(() => ({
 		...ANYTHING_DEFAULTS,
+		...(name ? { name } : {}),
+		...(price ? { price: price as Cents } : {}),
 		goals: [],
 		otherCash: 0,
 		monthly: null,

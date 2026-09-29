@@ -7,8 +7,13 @@
 	"main": "src/server.ts",
 	"observability": { "enabled": true },
 	"vars": {
-		"CLERK_SIGN_IN_URL": "/sign-in"
+		"CLERK_SIGN_IN_URL": "/sign-in",
+		// Ask's model calls go through this AI Gateway (ADR-0012); "default" is auto-created on first use.
+		"AI_GATEWAY_ID": "default"
 	},
+	// Workers AI, for Ask (ADR-0012). It has no local simulator: `vite dev` calls the real service
+	// with the logged-in account, unless ASK_MODEL=stub (as E2E runs) swaps in a deterministic fake.
+	"ai": { "binding": "AI", "remote": true },
 	"d1_databases": [
 		{
 			"binding": "DB",

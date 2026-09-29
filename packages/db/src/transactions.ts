@@ -65,7 +65,7 @@ export type BucketSpend = AttributedSpend & { id: string };
  * Transactions, and the Splits of split ones, as `viewer` may see them: another Parent's
  * Personal Allowance only as its monthly totals.
  */
-async function loadSpendingBetween(
+export async function loadSpendingBetween(
 	db: Db,
 	viewer: Viewer,
 	from: DayKey,
@@ -129,6 +129,37 @@ async function loadSpendingBetween(
 		),
 		...asPrivateSpending(hiddenWhole, hiddenSplits),
 	];
+}
+
+/**
+ * Money out on days from `from` up to, not including, `until` that isn't assigned yet: imported
+ * Transactions in no Bucket, Commitment or Goal and not split, so no spending total counts them.
+ */
+export async function loadUnassignedBetween(
+	db: Db,
+	viewer: Viewer,
+	from: DayKey,
+	until: DayKey,
+): Promise<{ count: number; amount: Cents }> {
+	const [row] = await db
+		.select({
+			count: sql<number>`count(*)`,
+			amount: sql<number>`coalesce(sum(${transactions.amountCents}), 0)`,
+		})
+		.from(transactions)
+		.where(
+			and(
+				visibleTo(viewer),
+				gte(transactions.date, from),
+				lt(transactions.date, until),
+				sql`${transactions.amountCents} > 0`,
+				isNull(transactions.bucketId),
+				isNull(transactions.commitmentId),
+				isNull(transactions.goalId),
+				sql`not exists (select 1 from ${splits} where ${splits.transactionId} = ${transactions.id})`,
+			),
+		);
+	return { count: row?.count ?? 0, amount: (row?.amount ?? 0) as Cents };
 }
 
 /** Member IDs by Transaction ID, sorted so the same For always reads the same. */
