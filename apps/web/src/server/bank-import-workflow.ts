@@ -9,7 +9,7 @@ import {
 	inlineStep,
 	runBankImport,
 } from "./bank-import-run";
-import { type BankSetup, bankSetup } from "./bank-setup";
+import { type BankSetup, bankSetup, providerFor } from "./bank-setup";
 import { categorizeImported } from "./categorize";
 import { getDb } from "./db";
 import { notifyHousehold } from "./notify";
@@ -24,7 +24,11 @@ export type BankImportMessage = { kind: "bank-import" } & BankImportParams;
 function importDeps(db: Db, setup: BankSetup): BankImportDeps {
 	return {
 		db,
-		provider: setup.provider,
+		providerFor: (provider) => {
+			const found = providerFor(setup, provider);
+			if (!found) throw new Error(`Bank Connections through ${provider} aren’t set up`);
+			return found;
+		},
 		openCredential: async ({ householdId, id, credential }) =>
 			openCredential(await setup.key(), credential, { householdId, connectionId: id }),
 		categorize: categorizeImported,
@@ -38,7 +42,7 @@ export class ImportWorkflow extends WorkflowEntrypoint<Env, BankImportParams> {
 	override async run(event: Readonly<WorkflowEvent<BankImportParams>>, step: WorkflowStep) {
 		const setup = bankSetup();
 		if (!setup) {
-			console.error("Bank Connections aren’t set up: no PLAID_* or BANK_CONNECTION_KEY secrets");
+			console.error("Bank Connections aren’t set up: no BANK_CONNECTION_KEY secret");
 			return;
 		}
 		await runBankImport(event.payload, step, importDeps(createDb(this.env.DB), setup));

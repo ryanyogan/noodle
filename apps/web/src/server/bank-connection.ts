@@ -30,6 +30,8 @@ export type BankChanges = {
 	cursor: string | null;
 	/** False while the provider is still gathering history, or has more to hand over. */
 	complete: boolean;
+	/** What the provider asked the Parent to read about the link, as plain text (SimpleFIN's errors). */
+	notice?: string | null;
 };
 
 export interface BankConnectionProvider {
@@ -45,6 +47,8 @@ export class BankProviderError extends Error {
 		message: string,
 		/** The provider's code for it, when it gave one (Plaid's `error_code`). */
 		readonly code: string | null = null,
+		/** What the provider asked the Parent to read about it, as plain text. */
+		readonly notice: string | null = null,
 	) {
 		super(message);
 		this.name = "BankProviderError";

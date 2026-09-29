@@ -281,6 +281,7 @@ export {
 	loadBankConnectionToImport,
 	markBankImportFailed,
 	saveBankImport,
+	saveBankNotice,
 } from "./bank-connections";
 export {
 	addCapture,

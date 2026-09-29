@@ -1,16 +1,18 @@
 import type { WorkflowStep, WorkflowStepConfig } from "cloudflare:workers";
 import {
 	type BankConnectionToImport,
+	type BankProvider,
 	type Db,
 	importStatement,
 	loadBankConnectionToImport,
 	markBankImportFailed,
 	saveBankImport,
+	saveBankNotice,
 	type Viewer,
 } from "@noodle/db";
 import type { StatementLine } from "@noodle/domain";
 import type { HouseholdChange } from "../household-changes";
-import type { BankConnectionProvider } from "./bank-connection";
+import { type BankConnectionProvider, BankProviderError } from "./bank-connection";
 
 // The Import Workflow, one instance per Bank Connection and run: when a Parent connects one today
 // (and on each sync, #17). Each round reads what the provider has posted since the Bank
@@ -34,7 +36,8 @@ export const bankImportInstanceId = (connectionId: string, runId: string) =>
 
 export type BankImportDeps = {
 	db: Db;
-	provider: BankConnectionProvider;
+	/** The provider a Bank Connection reads through (Plaid or SimpleFIN); throws if it's not set up. */
+	providerFor: (provider: BankProvider) => BankConnectionProvider;
 	/** The Bank Connection's credential, in the clear. */
 	openCredential: (connection: BankConnectionToImport) => Promise<string>;
 	/** Files an Import's Transactions for the Parent who connected; never throws. */
@@ -66,6 +69,7 @@ type Read = {
 	from: string | null;
 	to: string | null;
 	complete: boolean;
+	notice: string | null;
 	createdByMemberId: string;
 	imports: { importId: string; accountId: string; lines: StatementLine[] }[];
 };
@@ -88,11 +92,21 @@ export async function runBankImport(
 				const connection = await loadBankConnectionToImport(db, householdId, connectionId);
 				if (!connection) return null;
 				const credential = await deps.openCredential(connection);
-				const changes = await deps.provider.changes(credential, connection.cursor);
+				const provider = deps.providerFor(connection.provider);
+				const changes = await provider
+					.changes(credential, connection.cursor)
+					.catch(async (error) => {
+						// A refusal the provider explained: the Parent sees why, whether or not a retry works.
+						if (error instanceof BankProviderError && error.notice) {
+							await saveBankNotice(db, householdId, connectionId, error.notice);
+						}
+						throw error;
+					});
 				return {
 					from: connection.cursor,
 					to: changes.cursor,
 					complete: changes.complete,
+					notice: changes.notice ?? null,
 					createdByMemberId: connection.createdByMemberId,
 					imports: connection.accounts.flatMap(({ id, externalId }) => {
 						const lines = changes.lines
@@ -143,6 +157,7 @@ export async function runBankImport(
 					from: read.from,
 					to: read.to,
 					status: last ? "ready" : "importing",
+					notice: read.notice,
 				}),
 			);
 			await deps.notify(householdId, [

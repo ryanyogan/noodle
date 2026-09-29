@@ -223,11 +223,13 @@ export const commitmentTerms = sqliteTable(
 );
 
 // A Bank Connection: an ongoing authorized link to a financial institution, through a provider
-// (Plaid today), that produces Imports automatically. `external_id` is the provider's ID for the
-// link (Plaid's Item). `credential` is what the provider needs to read it (Plaid's access token),
-// encrypted by the Worker before it's stored (bank-credential.ts) and never sent to a browser.
+// (Plaid or SimpleFIN), that produces Imports automatically. `external_id` is the provider's ID
+// for the link (Plaid's Item; a digest of SimpleFIN's Access URL). `credential` is what the
+// provider needs to read it (Plaid's access token, SimpleFIN's Access URL), encrypted by the
+// Worker before it's stored (bank-credential.ts) and never sent to a browser.
 // `cursor` is where the provider's changes were last read up to; `status` is "importing" until the
-// institution's history has all come in.
+// institution's history has all come in. `notice` is what the provider last asked the Parent to
+// read about the link (SimpleFIN's errors), as plain text; null when its last read said nothing.
 export const bankConnections = sqliteTable(
 	"bank_connections",
 	{
@@ -235,7 +237,7 @@ export const bankConnections = sqliteTable(
 		householdId: text("household_id")
 			.notNull()
 			.references(() => households.id),
-		provider: text("provider", { enum: ["plaid"] }).notNull(),
+		provider: text("provider", { enum: ["plaid", "simplefin"] }).notNull(),
 		externalId: text("external_id").notNull(),
 		institution: text("institution"),
 		credential: text("credential").notNull(),
@@ -244,6 +246,7 @@ export const bankConnections = sqliteTable(
 			.notNull()
 			.default("importing"),
 		lastImportedAt: integer("last_imported_at", { mode: "timestamp_ms" }),
+		notice: text("notice"),
 		createdByMemberId: text("created_by_member_id")
 			.notNull()
 			.references(() => members.id),

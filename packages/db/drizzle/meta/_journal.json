@@ -211,6 +211,13 @@
       "when": 1790720771603,
       "tag": "0029_bank_connections",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1790723186411,
+      "tag": "0030_bank_connection_notice",
+      "breakpoints": true
     }
   ]
 }

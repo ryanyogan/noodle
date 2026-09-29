@@ -1,0 +1,1 @@
+ALTER TABLE `bank_connections` ADD `notice` text;

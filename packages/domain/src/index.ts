@@ -397,6 +397,19 @@ export {
 	project,
 } from "./scenario";
 export {
+	type SimplefinAccount,
+	type SimplefinAccountSet,
+	type SimplefinError,
+	type SimplefinTransaction,
+	simplefinAccountKind,
+	simplefinBankAccount,
+	simplefinCents,
+	simplefinErrors,
+	simplefinInstitution,
+	simplefinLine,
+	simplefinMissedLines,
+} from "./simplefin";
+export {
 	type AssignedTransaction,
 	type Assignment,
 	assignedParts,

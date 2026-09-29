@@ -1,27 +1,34 @@
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import { Field, FormError } from "@noodle/ui/components/field";
+import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
 import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useHydrated } from "@tanstack/react-router";
 import { Landmark, Plus } from "lucide-react";
+import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
 import { shortDayAt } from "../format";
 import { bankConnectionsQuery, goalsQuery } from "../queries";
 import {
 	type BankConnectionSummary,
 	type ConnectBankResult,
+	type ConnectSimplefinResult,
 	connectBank,
+	connectSimplefin,
 	startBankLink,
 } from "../server/bank-connections";
 
-// Bank Connections on the Goals page: a Parent connects a bank or card through Plaid Link, and
-// its Accounts appear here and among the Household's Accounts while the Import Workflow brings in
-// their recent Transactions. Link runs in Plaid's own frame; the page only ever sees Link's
-// one-time public token, which the Worker exchanges.
+// Bank Connections on the Goals page: a Parent connects a bank or card through Plaid Link, or by
+// pasting a setup token from their SimpleFIN Bridge, and its Accounts appear here and among the
+// Household's Accounts while the Import Workflow brings in their recent Transactions. Link runs in
+// Plaid's own frame; the page only ever sees Link's one-time public token, or the setup token the
+// Parent pasted, which the Worker exchanges.
 
 /** What Plaid Link hands back when a Parent finishes linking (the fields read here). */
 type LinkSuccess = { publicToken: string; institution: string | null };
@@ -93,7 +100,10 @@ type Connected = ConnectBankResult | { ok: false; reason: "closed" };
 export function BankConnections() {
 	const queryClient = useQueryClient();
 	const hydrated = useHydrated();
-	const { setUp, connections } = useSuspenseQuery(bankConnectionsQuery()).data;
+	const { setUp, providers, connections } = useSuspenseQuery(bankConnectionsQuery()).data;
+	const [simplefinOpen, setSimplefinOpen] = useState(false);
+	const plaid = providers.includes("plaid");
+	const simplefin = providers.includes("simplefin");
 
 	const connect = useMutation({
 		mutationFn: async (): Promise<Connected> => {
@@ -128,33 +138,48 @@ export function BankConnections() {
 			}),
 	});
 
-	const connectButton = (label: string, quiet = false) => (
-		<Button
-			type="button"
-			size="sm"
-			variant={quiet ? "ghost" : "default"}
-			disabled={!hydrated || connect.isPending}
-			onClick={() => connect.mutate()}
-		>
-			{quiet ? <Plus /> : null}
-			{label}
-		</Button>
+	const connectButtons = (quiet: boolean) => (
+		<div className={quiet ? "flex flex-wrap gap-1" : "grid gap-2 sm:flex"}>
+			{plaid ? (
+				<Button
+					type="button"
+					size="sm"
+					variant={quiet ? "ghost" : "default"}
+					disabled={!hydrated || connect.isPending}
+					onClick={() => connect.mutate()}
+				>
+					{quiet ? <Plus /> : null}
+					Connect a bank
+				</Button>
+			) : null}
+			{simplefin ? (
+				<Button
+					type="button"
+					size="sm"
+					variant={quiet ? "ghost" : plaid ? "outline" : "default"}
+					disabled={!hydrated}
+					onClick={() => setSimplefinOpen(true)}
+				>
+					{quiet ? <Plus /> : null}
+					Connect with SimpleFIN
+				</Button>
+			) : null}
+		</div>
 	);
 
 	return (
 		<Section aria-labelledby="bank-connections">
-			<SectionHeader
-				id="bank-connections"
-				title="Bank Connections"
-				count={connections.length}
-				action={setUp && connections.length > 0 ? connectButton("Connect a bank", true) : null}
-			/>
+			<SectionHeader id="bank-connections" title="Bank Connections" count={connections.length} />
 			{connections.length > 0 ? (
-				<List aria-label="Bank Connections">
-					{connections.map((connection) => (
-						<ConnectionRow key={connection.id} connection={connection} />
-					))}
-				</List>
+				<>
+					<List aria-label="Bank Connections">
+						{connections.map((connection) => (
+							<ConnectionRow key={connection.id} connection={connection} />
+						))}
+					</List>
+					{/* Under the list, not in the header: two ways to connect don't fit beside the title on a phone. */}
+					{setUp ? connectButtons(true) : null}
+				</>
 			) : (
 				<Card className="grid gap-3 p-(--card-pad) sm:flex sm:items-center">
 					<div className="flex flex-1 items-center gap-3 text-sm">
@@ -167,10 +192,105 @@ export function BankConnections() {
 								: "Bank Connections aren’t set up for this copy of Noodle yet."}
 						</p>
 					</div>
-					{setUp ? connectButton("Connect a bank") : null}
+					{setUp ? connectButtons(false) : null}
 				</Card>
 			)}
+			<Sheet open={simplefinOpen} onOpenChange={setSimplefinOpen}>
+				{simplefinOpen ? (
+					<SheetContent>
+						<SheetHeader
+							title="Connect with SimpleFIN"
+							description="Make a setup token at your SimpleFIN Bridge and paste it here. Noodle adds the Accounts it reaches and brings in their recent Transactions."
+						/>
+						<SimplefinForm onDone={() => setSimplefinOpen(false)} />
+					</SheetContent>
+				) : null}
+			</Sheet>
 		</Section>
+	);
+}
+
+/** Why a setup token didn't connect, for the Parent to act on. */
+const simplefinProblem = (result: Exclude<ConnectSimplefinResult, { ok: true }>): string | null => {
+	switch (result.reason) {
+		case "invalid-token":
+			return "That isn’t a SimpleFIN setup token. Copy the whole token from SimpleFIN Bridge.";
+		case "claimed":
+			return "That setup token was used already, and each one connects only once. Make a new one at SimpleFIN Bridge. If you didn’t use it, revoke it there.";
+		case "connected-already":
+			return "Those Accounts are connected already.";
+		case "no-accounts":
+			return "There’s no checking, savings, card or loan account there to connect. Add one at SimpleFIN Bridge, then make a new setup token.";
+		default:
+			return null;
+	}
+};
+
+/** The setup token a Parent pastes from SimpleFIN Bridge; the Worker claims it. */
+function SimplefinForm({ onDone }: { onDone: () => void }) {
+	const queryClient = useQueryClient();
+	const hydrated = useHydrated();
+	const id = useId();
+	const [token, setToken] = useState("");
+	const [problem, setProblem] = useState<string | null>(null);
+
+	const connect = useMutation({
+		mutationFn: (setupToken: string) =>
+			connectSimplefin({ data: { connectionId: ulid(), setupToken } }),
+		onSuccess: (result) => {
+			if (result.ok) {
+				onDone();
+				toast(
+					`Connected ${result.accounts === 1 ? "1 Account" : `${result.accounts} Accounts`}. Bringing in their Transactions.`,
+				);
+				void queryClient.invalidateQueries({ queryKey: bankConnectionsQuery().queryKey });
+				void queryClient.invalidateQueries({ queryKey: goalsQuery().queryKey });
+				return;
+			}
+			if (result.reason === "not-set-up") {
+				onDone();
+				void queryClient.invalidateQueries({ queryKey: bankConnectionsQuery().queryKey });
+				return;
+			}
+			setProblem(simplefinProblem(result));
+		},
+		onError: () => setProblem("Couldn’t reach SimpleFIN Bridge. Try again in a minute."),
+	});
+
+	function onSubmit(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		if (token.trim() === "" || connect.isPending) return;
+		setProblem(null);
+		connect.mutate(token.trim());
+	}
+
+	return (
+		<form onSubmit={onSubmit} className="grid gap-4">
+			<Field
+				label="Setup token"
+				htmlFor={`${id}-token`}
+				hint="Each setup token can be claimed only once. The access it gives stays sealed on Noodle’s server."
+			>
+				<Input
+					id={`${id}-token`}
+					value={token}
+					autoComplete="off"
+					autoCapitalize="off"
+					spellCheck={false}
+					enterKeyHint="go"
+					disabled={!hydrated}
+					aria-invalid={problem ? true : undefined}
+					onChange={(event) => {
+						setToken(event.currentTarget.value);
+						setProblem(null);
+					}}
+				/>
+			</Field>
+			{problem ? <FormError>{problem}</FormError> : null}
+			<Button type="submit" disabled={!hydrated || token.trim() === "" || connect.isPending}>
+				{connect.isPending ? "Connecting…" : "Connect"}
+			</Button>
+		</form>
 	);
 }
 
@@ -200,13 +320,24 @@ function ConnectionRow({ connection }: { connection: BankConnectionSummary }) {
 					<Landmark />
 				</Tile>
 			}
-			title={connection.institution ?? "Bank"}
+			title={
+				connection.institution ??
+				(connection.provider === "simplefin" ? "SimpleFIN Bridge" : "Bank")
+			}
 			meta={
-				<span>
-					{count === 1 ? "1 Account" : `${count} Accounts`}
-					{" · "}
-					<span className={cn(status.failed && "text-over")}>{status.text}</span>
-				</span>
+				<>
+					<span>
+						{count === 1 ? "1 Account" : `${count} Accounts`}
+						{" · "}
+						<span className={cn(status.failed && "text-over")}>{status.text}</span>
+					</span>
+					{/* What the provider asked the Parent to read (SimpleFIN's errors), as plain text. */}
+					{connection.notice ? (
+						<span className="basis-full whitespace-pre-line break-words text-foreground">
+							{connection.notice}
+						</span>
+					) : null}
+				</>
 			}
 		/>
 	);

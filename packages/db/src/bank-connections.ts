@@ -4,7 +4,7 @@ import type { Db } from "./index";
 import { accountBalances, accounts, bankConnections } from "./schema";
 
 // Bank Connections: a Household's authorized links to its financial institutions (through Plaid
-// today). Connecting one creates its Accounts, each with the balance the institution reports, in
+// or SimpleFIN). Connecting one creates its Accounts, each with the balance the institution reports, in
 // one atomic batch; its Imports are then read by the Import Workflow, which keeps the provider's
 // cursor here so each read picks up where the last left off. The credential stays in the Worker:
 // nothing here that a screen reads includes it.
@@ -19,6 +19,8 @@ export type BankConnectionSummary = {
 	institution: string | null;
 	status: BankConnectionStatus;
 	lastImportedAt: Date | null;
+	/** What the provider last asked the Parent to read about the link, as plain text. */
+	notice: string | null;
 	accounts: { id: string; name: string; kind: AccountKind }[];
 };
 
@@ -161,6 +163,7 @@ export async function loadBankConnections(
 				institution: bankConnections.institution,
 				status: bankConnections.status,
 				lastImportedAt: bankConnections.lastImportedAt,
+				notice: bankConnections.notice,
 			})
 			.from(bankConnections)
 			.where(eq(bankConnections.householdId, householdId))
@@ -220,8 +223,8 @@ export async function loadBankConnectionToImport(
 }
 
 /**
- * Moves a Bank Connection's cursor on, from where this read began, and records how it stands.
- * False when another read moved it first: that read's lines are in too (each only once), so this
+ * Moves a Bank Connection's cursor on, from where this read began, and records how it stands and
+ * what the provider said with the read. False when another read moved it first: that read's lines are in too (each only once), so this
  * one's cursor is simply dropped.
  */
 export async function saveBankImport(
@@ -232,11 +235,17 @@ export async function saveBankImport(
 		from: string | null;
 		to: string | null;
 		status: BankConnectionStatus;
+		notice: string | null;
 	},
 ): Promise<boolean> {
 	const written = await db
 		.update(bankConnections)
-		.set({ cursor: input.to, status: input.status, lastImportedAt: sql`(unixepoch() * 1000)` })
+		.set({
+			cursor: input.to,
+			status: input.status,
+			notice: input.notice,
+			lastImportedAt: sql`(unixepoch() * 1000)`,
+		})
 		.where(
 			and(
 				eq(bankConnections.id, input.connectionId),
@@ -248,6 +257,19 @@ export async function saveBankImport(
 		)
 		.returning({ id: bankConnections.id });
 	return written.length > 0;
+}
+
+/** Records what the provider said when it refused a read, for the Parent to see. */
+export async function saveBankNotice(
+	db: Db,
+	householdId: string,
+	connectionId: string,
+	notice: string,
+): Promise<void> {
+	await db
+		.update(bankConnections)
+		.set({ notice })
+		.where(and(eq(bankConnections.id, connectionId), eq(bankConnections.householdId, householdId)));
 }
 
 /** Records that a Bank Connection's Import gave up; the next read tries again. */

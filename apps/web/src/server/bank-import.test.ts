@@ -76,7 +76,7 @@ function deps(provider: BankConnectionProvider = plaid()) {
 	const notified: string[][] = [];
 	const importDeps: BankImportDeps = {
 		db,
-		provider,
+		providerFor: () => provider,
 		openCredential: ({ householdId, id, credential }) =>
 			openCredential(key, credential, { householdId, connectionId: id }),
 		categorize: async (_viewer, importId) => {

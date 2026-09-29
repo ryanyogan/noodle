@@ -7,7 +7,9 @@ import {
 	loadBankConnectionToImport,
 	loadGoals,
 	loadImports,
+	markBankImportFailed,
 	saveBankImport,
+	saveBankNotice,
 } from "./index";
 import { testDb } from "./test-db";
 
@@ -100,7 +102,14 @@ describe("saveBankImport", () => {
 	it("moves the cursor on only from where the read began", async () => {
 		await connect();
 		const save = (from: string | null, to: string) =>
-			saveBankImport(db, { householdId, connectionId: "conn-1", from, to, status: "ready" });
+			saveBankImport(db, {
+				householdId,
+				connectionId: "conn-1",
+				from,
+				to,
+				status: "ready",
+				notice: null,
+			});
 		expect(await save(null, "c1")).toBe(true);
 		// A read that began before c1 was saved lost the race.
 		expect(await save(null, "c1-late")).toBe(false);
@@ -118,6 +127,36 @@ describe("saveBankImport", () => {
 		const [summary] = await loadBankConnections(db, householdId);
 		expect(summary?.status).toBe("ready");
 		expect(summary?.lastImportedAt).toBeInstanceOf(Date);
+	});
+
+	it("keeps what the provider said with the last read, and nothing once it says nothing", async () => {
+		await connect();
+		const notice = async () => (await loadBankConnections(db, householdId))[0]?.notice;
+		expect(await notice()).toBeNull();
+		const save = (from: string | null, to: string, said: string | null) =>
+			saveBankImport(db, {
+				householdId,
+				connectionId: "conn-1",
+				from,
+				to,
+				status: "ready",
+				notice: said,
+			});
+		await save(null, "c1", "Sign in again at the Bridge");
+		expect(await notice()).toBe("Sign in again at the Bridge");
+		await save("c1", "c2", null);
+		expect(await notice()).toBeNull();
+	});
+});
+
+describe("saveBankNotice", () => {
+	it("keeps a refused read's notice through the failure, in its own Household only", async () => {
+		await connect();
+		await saveBankNotice(db, "someone-else", "conn-1", "Not theirs");
+		await saveBankNotice(db, householdId, "conn-1", "Sign in again at the Bridge");
+		await markBankImportFailed(db, householdId, "conn-1");
+		const [summary] = await loadBankConnections(db, householdId);
+		expect(summary).toMatchObject({ status: "failed", notice: "Sign in again at the Bridge" });
 	});
 });
 
