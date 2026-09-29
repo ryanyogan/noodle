@@ -16,6 +16,7 @@ import { Route as AuthedWelcomeRouteImport } from './routes/_authed/welcome'
 import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
 import { Route as AuthedHouseholdExploreRouteImport } from './routes/_authed/_household/explore'
 import { Route as AuthedHouseholdHouseholdRouteImport } from './routes/_authed/_household/household'
+import { Route as AuthedHouseholdExploreAffordRouteImport } from './routes/_authed/_household/explore_.afford'
 import { Route as AuthedHouseholdGoalsIndexRouteImport } from './routes/_authed/_household/goals.index'
 import { Route as AuthedHouseholdGoalsGoalIdRouteImport } from './routes/_authed/_household/goals.$goalId'
 import { Route as AuthedHouseholdMonthIndexRouteImport } from './routes/_authed/_household/month.index'
@@ -58,6 +59,12 @@ const AuthedHouseholdHouseholdRoute =
   AuthedHouseholdHouseholdRouteImport.update({
     id: '/household',
     path: '/household',
+    getParentRoute: () => AuthedHouseholdRoute,
+  } as any)
+const AuthedHouseholdExploreAffordRoute =
+  AuthedHouseholdExploreAffordRouteImport.update({
+    id: '/explore_/afford',
+    path: '/explore/afford',
     getParentRoute: () => AuthedHouseholdRoute,
   } as any)
 const AuthedHouseholdGoalsIndexRoute =
@@ -121,6 +128,7 @@ export interface FileRoutesByFullPath {
   '/sign-in/$': typeof SignInSplatRoute
   '/explore': typeof AuthedHouseholdExploreRoute
   '/household': typeof AuthedHouseholdHouseholdRoute
+  '/explore/afford': typeof AuthedHouseholdExploreAffordRoute
   '/goals/$goalId': typeof AuthedHouseholdGoalsGoalIdRoute
   '/month/$month': typeof AuthedHouseholdMonthMonthRouteWithChildren
   '/transactions/$month': typeof AuthedHouseholdTransactionsMonthRoute
@@ -137,6 +145,7 @@ export interface FileRoutesByTo {
   '/sign-in/$': typeof SignInSplatRoute
   '/explore': typeof AuthedHouseholdExploreRoute
   '/household': typeof AuthedHouseholdHouseholdRoute
+  '/explore/afford': typeof AuthedHouseholdExploreAffordRoute
   '/goals/$goalId': typeof AuthedHouseholdGoalsGoalIdRoute
   '/transactions/$month': typeof AuthedHouseholdTransactionsMonthRoute
   '/goals': typeof AuthedHouseholdGoalsIndexRoute
@@ -155,6 +164,7 @@ export interface FileRoutesById {
   '/sign-in/$': typeof SignInSplatRoute
   '/_authed/_household/explore': typeof AuthedHouseholdExploreRoute
   '/_authed/_household/household': typeof AuthedHouseholdHouseholdRoute
+  '/_authed/_household/explore_/afford': typeof AuthedHouseholdExploreAffordRoute
   '/_authed/_household/goals/$goalId': typeof AuthedHouseholdGoalsGoalIdRoute
   '/_authed/_household/month/$month': typeof AuthedHouseholdMonthMonthRouteWithChildren
   '/_authed/_household/transactions/$month': typeof AuthedHouseholdTransactionsMonthRoute
@@ -173,6 +183,7 @@ export interface FileRouteTypes {
     | '/sign-in/$'
     | '/explore'
     | '/household'
+    | '/explore/afford'
     | '/goals/$goalId'
     | '/month/$month'
     | '/transactions/$month'
@@ -189,6 +200,7 @@ export interface FileRouteTypes {
     | '/sign-in/$'
     | '/explore'
     | '/household'
+    | '/explore/afford'
     | '/goals/$goalId'
     | '/transactions/$month'
     | '/goals'
@@ -206,6 +218,7 @@ export interface FileRouteTypes {
     | '/sign-in/$'
     | '/_authed/_household/explore'
     | '/_authed/_household/household'
+    | '/_authed/_household/explore_/afford'
     | '/_authed/_household/goals/$goalId'
     | '/_authed/_household/month/$month'
     | '/_authed/_household/transactions/$month'
@@ -272,6 +285,13 @@ declare module '@tanstack/react-router' {
       path: '/household'
       fullPath: '/household'
       preLoaderRoute: typeof AuthedHouseholdHouseholdRouteImport
+      parentRoute: typeof AuthedHouseholdRoute
+    }
+    '/_authed/_household/explore_/afford': {
+      id: '/_authed/_household/explore_/afford'
+      path: '/explore/afford'
+      fullPath: '/explore/afford'
+      preLoaderRoute: typeof AuthedHouseholdExploreAffordRouteImport
       parentRoute: typeof AuthedHouseholdRoute
     }
     '/_authed/_household/goals/': {
@@ -359,6 +379,7 @@ const AuthedHouseholdMonthMonthRouteWithChildren =
 interface AuthedHouseholdRouteChildren {
   AuthedHouseholdExploreRoute: typeof AuthedHouseholdExploreRoute
   AuthedHouseholdHouseholdRoute: typeof AuthedHouseholdHouseholdRoute
+  AuthedHouseholdExploreAffordRoute: typeof AuthedHouseholdExploreAffordRoute
   AuthedHouseholdGoalsGoalIdRoute: typeof AuthedHouseholdGoalsGoalIdRoute
   AuthedHouseholdMonthMonthRoute: typeof AuthedHouseholdMonthMonthRouteWithChildren
   AuthedHouseholdTransactionsMonthRoute: typeof AuthedHouseholdTransactionsMonthRoute
@@ -371,6 +392,7 @@ interface AuthedHouseholdRouteChildren {
 const AuthedHouseholdRouteChildren: AuthedHouseholdRouteChildren = {
   AuthedHouseholdExploreRoute: AuthedHouseholdExploreRoute,
   AuthedHouseholdHouseholdRoute: AuthedHouseholdHouseholdRoute,
+  AuthedHouseholdExploreAffordRoute: AuthedHouseholdExploreAffordRoute,
   AuthedHouseholdGoalsGoalIdRoute: AuthedHouseholdGoalsGoalIdRoute,
   AuthedHouseholdMonthMonthRoute: AuthedHouseholdMonthMonthRouteWithChildren,
   AuthedHouseholdTransactionsMonthRoute: AuthedHouseholdTransactionsMonthRoute,

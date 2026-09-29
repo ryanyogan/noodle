@@ -12,6 +12,7 @@ import {
 	type Plan,
 	type ProjectionGoal,
 } from "@noodle/domain";
+import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
@@ -24,8 +25,8 @@ import { leverTarget, withLever, withoutLever } from "../scenarios";
 import { MoneyInput } from "./money-input";
 import { NativeSelect } from "./native-select";
 
-// The Levers of a Scenario: each Bucket's allowance, each Commitment cancelled or not, and each
-// Goal's date and target. Every control changes the Scenario's Levers at once; the projection
+// The Levers of a Scenario: each Bucket's allowance, each Commitment cancelled or not, each
+// Goal's date and target, and any new Commitment (from an Affordability Check). Every control changes the Scenario's Levers at once; the projection
 // catches up in a deferred render, so a slider never waits for the chart.
 
 const cadenceName = { monthly: "a month", biweekly: "every two weeks", annual: "a year" } as const;
@@ -55,6 +56,7 @@ export const ScenarioLevers = memo(function ScenarioLevers({
 	onChange: (change: (levers: Lever[]) => Lever[]) => void;
 }) {
 	const byTarget = new Map(levers.map((l) => [leverTarget(l), l]));
+	const added = levers.filter((l) => l.kind === "add-commitment");
 
 	return (
 		<div className="grid gap-8">
@@ -111,8 +113,27 @@ export const ScenarioLevers = memo(function ScenarioLevers({
 
 			<Section aria-labelledby="lever-commitments">
 				<SectionHeader id="lever-commitments" title="Commitments" />
-				{plan.commitments.length > 0 ? (
+				{plan.commitments.length > 0 || added.length > 0 ? (
 					<List>
+						{added.map((lever) => (
+							<ListRow
+								key={lever.commitmentId}
+								title={lever.name}
+								meta={`New: ${formatMoney(lever.amount)} a month from ${shortMonth(lever.fromMonth)}${
+									lever.months === null ? "" : ` for ${lever.months} months`
+								}`}
+								trailing={
+									<Button
+										variant="ghost"
+										size="sm"
+										aria-label={`Remove ${lever.name}`}
+										onClick={() => onChange((current) => withoutLever(current, leverTarget(lever)))}
+									>
+										Remove
+									</Button>
+								}
+							/>
+						))}
 						{plan.commitments.map((commitment) => {
 							const target = `commitment:${commitment.id}`;
 							const lever = byTarget.get(target);

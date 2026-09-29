@@ -1,6 +1,7 @@
-import type { Lever, MonthKey } from "@noodle/domain";
+import { addMonths, type DayKey, type Lever, type MonthKey } from "@noodle/domain";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
-import { commitmentEnd } from "./commitments";
+import type { BatchItem } from "drizzle-orm/batch";
+import { commitmentAdd, commitmentEnd } from "./commitments";
 import type { Db } from "./index";
 import { allowanceWrite } from "./plan";
 import { goals, scenarios } from "./schema";
@@ -68,43 +69,59 @@ export async function deleteScenario(
 /**
  * Makes Levers the real Plan from `month` (the Household's current month) on, all at once or
  * not at all: each allowance is set from `month`, each Commitment ended from its month (never
- * earlier than `month`), and each Goal given its target and date. Every write is the Plan's own,
- * guarded to the Household and the Parent `memberId` (only its Parent sets a Personal
- * Allowance), and idempotent, so applying again changes nothing.
+ * earlier than `month`), each Goal given its target and date, and each new Commitment added
+ * from its month (never earlier than `month`), due monthly on the 1st, ending after its term.
+ * Every write is the Plan's own, guarded to the Household and the Parent `memberId` (only its
+ * Parent sets a Personal Allowance), and idempotent, so applying again changes nothing.
  */
 export async function applyLevers(
 	db: Db,
 	input: { householdId: string; memberId: string; month: MonthKey; levers: Lever[] },
 ): Promise<void> {
 	const { householdId, memberId, month } = input;
-	const writes = input.levers.map((lever) => {
-		if (lever.kind === "allowance") {
-			return allowanceWrite(db, {
-				householdId,
-				memberId,
-				bucketId: lever.bucketId,
-				month,
-				amountCents: lever.amount,
-			});
-		}
-		if (lever.kind === "end-commitment") {
-			return commitmentEnd(db, {
-				householdId,
-				commitmentId: lever.commitmentId,
-				month: lever.fromMonth < month ? month : lever.fromMonth,
-			});
-		}
-		return db
-			.update(goals)
-			.set({ targetCents: lever.target, targetDate: lever.targetDate })
-			.where(
-				and(
-					eq(goals.id, lever.goalId),
-					eq(goals.householdId, householdId),
-					isNull(goals.archivedAt),
-				),
-			);
-	});
+	const writes = input.levers.flatMap(
+		(lever): BatchItem<"sqlite"> | readonly BatchItem<"sqlite">[] => {
+			if (lever.kind === "add-commitment") {
+				const from = lever.fromMonth < month ? month : lever.fromMonth;
+				return commitmentAdd(db, {
+					householdId,
+					commitmentId: lever.commitmentId,
+					name: lever.name,
+					month: from,
+					endedFromMonth: lever.months === null ? null : addMonths(from, lever.months),
+					amountCents: lever.amount,
+					cadence: "monthly",
+					dueDate: `${from}-01` as DayKey,
+				});
+			}
+			if (lever.kind === "allowance") {
+				return allowanceWrite(db, {
+					householdId,
+					memberId,
+					bucketId: lever.bucketId,
+					month,
+					amountCents: lever.amount,
+				});
+			}
+			if (lever.kind === "end-commitment") {
+				return commitmentEnd(db, {
+					householdId,
+					commitmentId: lever.commitmentId,
+					month: lever.fromMonth < month ? month : lever.fromMonth,
+				});
+			}
+			return db
+				.update(goals)
+				.set({ targetCents: lever.target, targetDate: lever.targetDate })
+				.where(
+					and(
+						eq(goals.id, lever.goalId),
+						eq(goals.householdId, householdId),
+						isNull(goals.archivedAt),
+					),
+				);
+		},
+	);
 	const [first, ...rest] = writes;
 	if (first) await db.batch([first, ...rest]);
 }

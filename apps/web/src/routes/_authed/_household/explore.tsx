@@ -19,7 +19,7 @@ import { Skeleton } from "@noodle/ui/components/skeleton";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ChevronLeft } from "lucide-react";
+import { Calculator, ChevronLeft } from "lucide-react";
 import { lazy, memo, Suspense, useDeferredValue, useId, useMemo, useState } from "react";
 import { ulid } from "ulid";
 import { NativeSelect } from "../../../components/native-select";
@@ -115,6 +115,14 @@ function ExplorePage() {
 					<Button variant="ghost" size="icon" asChild className="lg:hidden">
 						<Link to="/goals" aria-label="Back to Goals">
 							<ChevronLeft className="size-5" />
+						</Link>
+					</Button>
+				}
+				actions={
+					<Button variant="outline" size="sm" asChild>
+						<Link to="/explore/afford">
+							<Calculator />
+							Can we afford it?
 						</Link>
 					</Button>
 				}
@@ -352,6 +360,11 @@ function describeLevers(levers: Lever[], plan: Plan, goals: { id: string; name: 
 		if (lever.kind === "end-commitment") {
 			const commitment = plan.commitments.find((c) => c.id === lever.commitmentId);
 			return commitment ? [`${commitment.name} cancelled from ${shortMonth(lever.fromMonth)}`] : [];
+		}
+		if (lever.kind === "add-commitment") {
+			return [
+				`${lever.name} ${formatMoney(lever.amount)} a month from ${shortMonth(lever.fromMonth)}`,
+			];
 		}
 		const goal = goals.find((g) => g.id === lever.goalId);
 		if (!goal) return [];

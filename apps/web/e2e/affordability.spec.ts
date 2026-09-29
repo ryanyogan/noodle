@@ -1,0 +1,119 @@
+import { expect, type Page, test } from "@playwright/test";
+import { createTestParent } from "./parents";
+import { createPlannedHousehold, signedInPage } from "./session";
+
+let parent: Awaited<ReturnType<typeof createTestParent>>;
+
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
+});
+
+const verdict = (page: Page) => page.getByTestId("affordability-verdict");
+const reasons = (page: Page) => verdict(page).getByRole("list", { name: "Reasons" });
+
+test("a home is checked against the Plan, then made a Goal and explored as a Scenario", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	// $10,000 − $1,200 − $400: $8,400 Free to Spend a month.
+	await createPlannedHousehold(page, {
+		baseline: "10,000",
+		buckets: [
+			["Groceries", "1,200"],
+			["Hockey", "400"],
+		],
+	});
+
+	// A savings Account to back a Goal.
+	await page.getByRole("link", { name: "Goals", exact: true }).click();
+	await page.getByLabel("Name").fill("Ally savings");
+	await page.getByLabel("Kind").selectOption("savings");
+	await page.getByLabel("Balance now").fill("100,000");
+	await page.getByRole("button", { name: "Add Account" }).click();
+	await expect(page.getByRole("link", { name: /^Ally savings, Savings/ })).toBeVisible();
+
+	await page.getByRole("link", { name: "Explore", exact: true }).click();
+	await page.getByRole("link", { name: "Can we afford it?" }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Can we afford it?");
+
+	// The defaults: a $400,000 home, 20% down, 6.5% over 30 years, against gross income
+	// estimated from the Baseline ($10,000 is 75% of $13,333). Nothing is set aside yet.
+	await expect(verdict(page)).toContainText("A $400,000 home");
+	await expect(verdict(page).getByRole("heading", { level: 2 })).toHaveText("Not yet");
+	await expect(reasons(page)).toContainText(
+		"You have $0 set aside for the $80,000 down payment and about $12,000 in closing costs, $92,000 short. Setting aside all $8,400 of Free to Spend each month, that’s 11 months",
+	);
+	await expect(reasons(page)).toContainText(
+		"Housing would be $2,589 a month, 19.4% of gross income, within the usual 28%.",
+	);
+	await expect(reasons(page)).toContainText(
+		"Housing of $2,589 a month would take Free to Spend from $8,400 to $5,811 a month.",
+	);
+	await expect(verdict(page).getByRole("row", { name: /^Housing/ })).toContainText("$2,589.29");
+
+	// With the cash set aside, it's Comfortable.
+	const otherCash = page.getByLabel("Other cash");
+	await otherCash.fill("95,000");
+	await otherCash.press("Enter");
+	await expect(verdict(page).getByRole("heading", { level: 2 })).toHaveText("Comfortable");
+	await expect(reasons(page)).toContainText(
+		"You have $95,000 set aside for the $80,000 down payment",
+	);
+
+	// A lower income makes it a Stretch.
+	const gross = page.getByLabel("Gross income a month");
+	await gross.fill("8,800");
+	await gross.press("Enter");
+	await expect(verdict(page).getByRole("heading", { level: 2 })).toHaveText("Stretch");
+	await expect(reasons(page)).toContainText("29.4% of gross income: above the usual 28%");
+
+	// One tap makes it a Goal.
+	await verdict(page).getByRole("button", { name: "Make it a Goal" }).click();
+	await expect(page.getByText("“Home down payment” is now a Goal")).toBeVisible();
+
+	// And one tap explores it as a Scenario.
+	await verdict(page).getByRole("button", { name: "Explore as a Scenario" }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Explore");
+	await expect(page.getByLabel("Name", { exact: true })).toHaveValue("$400,000 home");
+	await expect(page.getByText(/New home \$2,589\.29 a month from/)).toBeVisible();
+	// It's saved: still there after a reload.
+	await page.reload();
+	await expect(page.getByLabel("Name", { exact: true })).toHaveValue("$400,000 home");
+
+	// The Goal is there to fund, undated as the cash is ready now.
+	await page.getByRole("link", { name: "Goals", exact: true }).click();
+	await expect(
+		page.getByRole("link", { name: /^Home down payment, \$0 of \$92,000/ }),
+	).toBeVisible();
+});
+
+test("a car compares cash, a loan and a lease; anything counts the months to save", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "10,000", buckets: [["Groceries", "1,600"]] });
+	await page.goto("/explore/afford?kind=car");
+
+	await expect(verdict(page)).toContainText("A $35,000 car, with a loan");
+	const monthly = verdict(page).getByRole("row", { name: /^A month/ });
+	// Cash, then $30,000 at 7% over 60 months, then the lease.
+	await expect(monthly).toHaveText("A month$0$594.04$450");
+
+	await page.getByLabel("Pay by").selectOption("lease");
+	await expect(verdict(page)).toContainText("A $35,000 car, leased");
+
+	await page.getByRole("link", { name: "Anything" }).click();
+	await page.getByLabel("Name", { exact: true }).fill("New sofa");
+	const price = page.getByLabel("Price");
+	await price.fill("20,000");
+	await price.press("Enter");
+	// $8,400 a month: 3 months of saving.
+	await expect(verdict(page)).toContainText("New sofa, $20,000");
+	await expect(verdict(page).getByRole("heading", { level: 2 })).toHaveText("Stretch");
+	await expect(verdict(page).getByRole("row", { name: /^Still to save/ })).toContainText("$20,000");
+	await expect(verdict(page).getByRole("button", { name: "Explore as a Scenario" })).toHaveCount(0);
+});

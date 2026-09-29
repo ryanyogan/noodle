@@ -18,6 +18,7 @@ import {
 } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { commitmentNameSchema } from "./commitments";
 import { getDb } from "./db";
 import { householdMiddleware } from "./household";
 import { monthKeySchema } from "./month";
@@ -51,6 +52,14 @@ const leverSchema: z.ZodType<Lever> = z.discriminatedUnion("kind", [
 		goalId: ulidSchema,
 		target: z.number().int().min(1).max(MAX_CENTS),
 		targetDate: dayKeySchema.nullable(),
+	}),
+	z.object({
+		kind: z.literal("add-commitment"),
+		commitmentId: ulidSchema,
+		name: commitmentNameSchema,
+		amount: z.number().int().min(1).max(MAX_CENTS),
+		fromMonth: monthKeySchema,
+		months: z.number().int().min(1).max(600).nullable(),
 	}),
 ]);
 

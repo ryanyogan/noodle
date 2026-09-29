@@ -1,5 +1,30 @@
-// Pure money math for the Plan (no I/O). Affordability entry points land here as their ticket
-// arrives.
+// Pure money math for the Plan (no I/O).
+export {
+	AFFORDABILITY_LIMITS,
+	type AnythingCheck,
+	type AnythingInput,
+	anythingCheck,
+	type CarCheck,
+	type CarInput,
+	type CarOption,
+	type CarWay,
+	carCheck,
+	dollars,
+	estimateGrossIncome,
+	type HomeCheck,
+	type HomeInput,
+	homeCheck,
+	loanBalance,
+	monthlyEquivalent,
+	monthlyPayment,
+	monthsToSave,
+	type PlanNow,
+	type Reason,
+	TAKE_HOME_SHARE,
+	typicalFreeToSpend,
+	type Verdict,
+	type Verdicted,
+} from "./affordability";
 export {
 	CADENCES,
 	type Cadence,

@@ -48,7 +48,24 @@ export async function addCommitment(
 	db: Db,
 	input: { householdId: string; commitmentId: string; name: string; month: MonthKey } & Terms,
 ): Promise<void> {
-	await db.batch([
+	await db.batch(commitmentAdd(db, input));
+}
+
+/**
+ * addCommitment as statements, for writing them in a batch with others; `endedFromMonth` also
+ * sets when it ends (a loan's last month + 1), null for good.
+ */
+export const commitmentAdd = (
+	db: Db,
+	input: {
+		householdId: string;
+		commitmentId: string;
+		name: string;
+		month: MonthKey;
+		endedFromMonth?: MonthKey | null;
+	} & Terms,
+) =>
+	[
 		db
 			.insert(commitments)
 			.values({
@@ -56,13 +73,13 @@ export async function addCommitment(
 				householdId: input.householdId,
 				name: input.name,
 				fromMonth: input.month,
+				endedFromMonth: input.endedFromMonth ?? null,
 			})
 			.onConflictDoNothing({ target: commitments.id }),
 		termsFor(db, input).onConflictDoNothing({
 			target: [commitmentTerms.commitmentId, commitmentTerms.month],
 		}),
-	]);
-}
+	] as const;
 
 /**
  * Renames a Commitment (in every month) and sets its terms from `month` onward. Setting them

@@ -206,10 +206,12 @@ export const rollBack = (queryClient: QueryClient, rollback: Rollback | undefine
 export function useGoalChange<TVariables>({
 	save,
 	apply,
+	onSuccess,
+	onError,
 }: {
 	save: (variables: TVariables) => Promise<unknown>;
 	apply: (data: GoalsData, variables: TVariables) => GoalsData;
-}) {
+} & ChangeCallbacks<TVariables>) {
 	const queryClient = useQueryClient();
 	return useMutation({
 		mutationKey: goalChangeKey,
@@ -220,10 +222,20 @@ export function useGoalChange<TVariables>({
 				apply(data, variables),
 			),
 		],
-		onError: (_error, _variables, rollback) => rollBack(queryClient, rollback),
+		onError: (error, variables, rollback) => {
+			rollBack(queryClient, rollback);
+			onError?.(error, variables);
+		},
+		onSuccess: (_data, variables) => onSuccess?.(variables),
 		onSettled: () => refetchGoalsOnceSettled(queryClient),
 	});
 }
+
+/** Called once a change is saved, or has failed, even if its caller has since unmounted. */
+export type ChangeCallbacks<TVariables> = {
+	onSuccess?: (variables: TVariables) => void;
+	onError?: (error: Error, variables: TVariables) => void;
+};
 
 // The optimistic edits, mirroring what each server function records. `at` stands in for the
 // server's time until the refetch.
@@ -387,10 +399,11 @@ export const useUpdateAccountBalance = () =>
 		apply: withBalance,
 	});
 
-export const useAddGoal = () =>
+export const useAddGoal = (callbacks: ChangeCallbacks<AddGoalVariables> = {}) =>
 	useGoalChange({
 		save: (data: AddGoalVariables) => refuseUnlessOk(addGoal({ data })),
 		apply: withGoal,
+		...callbacks,
 	});
 
 export const useUpdateGoal = () =>

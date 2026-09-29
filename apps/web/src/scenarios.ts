@@ -16,13 +16,15 @@ export type { ScenarioRecord };
 // ---------------------------------------------------------------------------------------------
 // Levers. A Scenario holds at most one Lever per Bucket, Commitment or Goal.
 
-/** What a Lever adjusts: one per Bucket, Commitment or Goal. */
+/** What a Lever adjusts: one per Bucket, Commitment, Goal or new Commitment. */
 export const leverTarget = (lever: Lever) =>
 	lever.kind === "allowance"
 		? `bucket:${lever.bucketId}`
 		: lever.kind === "end-commitment"
 			? `commitment:${lever.commitmentId}`
-			: `goal:${lever.goalId}`;
+			: lever.kind === "goal"
+				? `goal:${lever.goalId}`
+				: `new-commitment:${lever.commitmentId}`;
 
 /** The Levers with `lever` in place of any other on the same thing. */
 export const withLever = (levers: readonly Lever[], lever: Lever): Lever[] => [

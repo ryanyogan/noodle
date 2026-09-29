@@ -15,13 +15,26 @@ import { type PlanRecords, planForMonth } from "./plan";
 // - Covers, Windfalls, Sweeps and spending don't change the Plan, so they aren't projected.
 // - Levers mirror the writes that apply a Scenario: an allowance Lever sets the allowance from
 //   the first month on (a later month set on its own keeps its own), ending a Commitment takes it
-//   out from its month on, and a Goal Lever changes its target and date.
+//   out from its month on, a Goal Lever changes its target and date, and a new Commitment (say
+//   the payment on a home or car an Affordability Check found) takes its amount every month from
+//   its month on, for as many months as it runs (a loan's or lease's term) or for good.
 
 /** A single adjustable quantity in a Scenario. */
 export type Lever =
 	| { kind: "allowance"; bucketId: string; amount: Cents }
 	| { kind: "end-commitment"; commitmentId: string; fromMonth: MonthKey }
-	| { kind: "goal"; goalId: string; target: Cents; targetDate: DayKey | null };
+	| { kind: "goal"; goalId: string; target: Cents; targetDate: DayKey | null }
+	| {
+			kind: "add-commitment";
+			/** The new Commitment's ID once applied, so applying again adds it only once. */
+			commitmentId: string;
+			name: string;
+			/** Taken every month (a monthly cadence). */
+			amount: Cents;
+			fromMonth: MonthKey;
+			/** How many months it runs (a loan's term); null for good. */
+			months: number | null;
+	  };
 
 /** An active Goal as it stands this month. */
 export type ProjectionGoal = {
@@ -122,10 +135,18 @@ export function project(ahead: PlanAhead, levers: readonly Lever[] = []): Projec
 	const allowances = new Map<string, Cents>();
 	const ended = new Map<string, MonthKey>();
 	const goalLevers = new Map<string, Extract<Lever, { kind: "goal" }>>();
+	const added: { amount: Cents; from: MonthKey; until: MonthKey | null }[] = [];
 	for (const lever of levers) {
 		if (lever.kind === "allowance") allowances.set(lever.bucketId, lever.amount);
 		else if (lever.kind === "end-commitment") ended.set(lever.commitmentId, lever.fromMonth);
-		else goalLevers.set(lever.goalId, lever);
+		else if (lever.kind === "goal") goalLevers.set(lever.goalId, lever);
+		else {
+			added.push({
+				amount: lever.amount,
+				from: lever.fromMonth,
+				until: lever.months === null ? null : addMonths(lever.fromMonth, lever.months),
+			});
+		}
 	}
 
 	const start = ahead.months[0]?.month;
@@ -152,6 +173,9 @@ export function project(ahead: PlanAhead, levers: readonly Lever[] = []): Projec
 		for (const c of m.commitments) {
 			const from = ended.get(c.id);
 			if (from === undefined || m.month < from) commitments += c.expected;
+		}
+		for (const a of added) {
+			if (m.month >= a.from && (a.until === null || m.month < a.until)) commitments += a.amount;
 		}
 		let allowanceTotal = 0;
 		for (const b of m.buckets) {

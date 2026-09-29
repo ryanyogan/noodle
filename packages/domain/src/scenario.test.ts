@@ -147,6 +147,44 @@ describe("project: Levers", () => {
 		expect(scenario.freeToSpend - plan.freeToSpend).toBe(12_000);
 	});
 
+	it("a new Commitment takes its amount every month from its month, for its term", () => {
+		// A $450 car loan from November for 3 months: November, December and January.
+		const scenario = project(ahead(), [
+			{
+				kind: "add-commitment",
+				commitmentId: "car",
+				name: "Car loan",
+				amount: 45_000,
+				fromMonth: "2026-11",
+				months: 3,
+			},
+		]);
+		expect(month("2026-10", scenario)?.commitments).toBe(302_000);
+		expect(month("2026-11", scenario)?.commitments).toBe(422_000 + 45_000);
+		expect(month("2027-01", scenario)?.commitments).toBe(302_000 + 45_000);
+		expect(month("2027-02", scenario)?.commitments).toBe(302_000);
+		expect(scenario.freeToSpend).toBe(plan.freeToSpend - 3 * 45_000);
+	});
+
+	it("a new Commitment with no term runs for good, alongside ending the one it replaces", () => {
+		// A $3,400 mortgage replacing the $3,000 one from October.
+		const scenario = project(ahead(), [
+			{ kind: "end-commitment", commitmentId: "mortgage", fromMonth: "2026-10" },
+			{
+				kind: "add-commitment",
+				commitmentId: "home",
+				name: "New home",
+				amount: 340_000,
+				fromMonth: "2026-10",
+				months: null,
+			},
+		]);
+		expect(month("2026-09", scenario)?.commitments).toBe(302_000);
+		expect(month("2026-10", scenario)?.commitments).toBe(342_000);
+		expect(month("2027-08", scenario)?.commitments).toBe(340_000);
+		expect(moneyFreed(plan, scenario)[11]).toBe(-11 * 40_000);
+	});
+
 	it("ignores Levers on Buckets, Commitments or Goals no longer in the Plan", () => {
 		const scenario = project(ahead(), [
 			{ kind: "allowance", bucketId: "gone", amount: 1 },

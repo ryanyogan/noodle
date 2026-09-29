@@ -149,6 +149,68 @@ describe("applyLevers: a Scenario becomes the real Plan", () => {
 		expect(goals[0]).toMatchObject({ target: 1_500_000, targetDate: "2028-08-31" });
 	});
 
+	it("adds a new Commitment from its month for its term, once however often it's applied", async () => {
+		const loan = {
+			kind: "add-commitment",
+			commitmentId: "car-loan",
+			name: "Car loan",
+			amount: 59_404,
+			fromMonth: "2026-11",
+			months: 3,
+		} as const;
+		const home = {
+			kind: "add-commitment",
+			commitmentId: "home",
+			name: "Home",
+			amount: 253_929,
+			// A month already past starts from this month instead.
+			fromMonth: "2026-08",
+			months: null,
+		} as const;
+		for (let i = 0; i < 2; i++) {
+			await applyLevers(db, { householdId, memberId: parentId, month, levers: [loan, home] });
+		}
+		const records = await loadPlanRecords(db, householdId, "2027-03");
+		const ids = (m: MonthKey) =>
+			planForMonth(records, m)
+				.commitments.map((c) => c.id)
+				.sort();
+		expect(ids(month)).toEqual(["home", "streaming"]);
+		expect(ids("2026-11")).toEqual(["car-loan", "home", "streaming"]);
+		expect(ids("2027-01")).toEqual(["car-loan", "home", "streaming"]);
+		expect(ids("2027-02")).toEqual(["home", "streaming"]);
+		expect(planForMonth(records, "2026-11").commitments).toContainEqual(
+			expect.objectContaining({
+				id: "car-loan",
+				name: "Car loan",
+				amount: 59_404,
+				cadence: "monthly",
+				dueDate: "2026-11-01",
+			}),
+		);
+	});
+
+	it("changes nothing of another Household's Commitment with the same ID", async () => {
+		const before = planForMonth(await loadPlanRecords(db, householdId, "2026-12"), "2026-12");
+		await applyLevers(db, {
+			householdId: "other-household",
+			memberId: "other-parent",
+			month,
+			levers: [
+				{
+					kind: "add-commitment",
+					commitmentId: "streaming",
+					name: "Sneaky",
+					amount: 1,
+					fromMonth: "2026-12",
+					months: null,
+				},
+			],
+		});
+		const after = planForMonth(await loadPlanRecords(db, householdId, "2026-12"), "2026-12");
+		expect(after.commitments).toEqual(before.commitments);
+	});
+
 	it("keeps a later month's allowance set on its own", async () => {
 		await setAllowance(db, {
 			householdId,
