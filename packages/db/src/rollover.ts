@@ -1,4 +1,7 @@
 import {
+	addMonths,
+	type BucketMonth,
+	bucketMonths,
 	type Cents,
 	type MonthKey,
 	type MonthlySpend,
@@ -10,6 +13,8 @@ import { and, eq, gte, isNotNull, lt, sql } from "drizzle-orm";
 import { counts } from "./counting";
 import type { Db } from "./index";
 import { loadMovesBetween } from "./moves";
+import type { Viewer } from "./privacy";
+import { loadBucketMonths } from "./reports";
 import { splits, transactions } from "./schema";
 
 /**
@@ -57,4 +62,26 @@ export async function loadRolledOver(
 	]);
 	// bucket_id is filtered to non-null, and dates are always written as DayKeys.
 	return rolledOver({ records, spent: [...spent, ...splitSpent] as MonthlySpend[], moves, month });
+}
+
+/**
+ * A Bucket month by month from `from` through `to` (see bucketMonths in @noodle/domain): its
+ * allowance, spending, Moves and balance. Spending is read as `viewer` may see it, which for the
+ * other Parent's Personal Allowance is only its monthly totals (ADR-0003). Reads back as far as
+ * rollover reaches. `records` must include every Plan record through `to`.
+ */
+export async function loadBucketHistory(
+	db: Db,
+	viewer: Viewer,
+	records: PlanRecords,
+	query: { bucketId: string; from: MonthKey; to: MonthKey },
+): Promise<BucketMonth[]> {
+	const rolling = rolloverSince(records, query.to);
+	const since = rolling !== null && rolling < query.from ? rolling : query.from;
+	const until = addMonths(query.to, 1);
+	const [spent, moves] = await Promise.all([
+		loadBucketMonths(db, viewer, since, until, [query.bucketId]),
+		loadMovesBetween(db, viewer.householdId, since, until),
+	]);
+	return bucketMonths({ records, spent, moves, ...query });
 }

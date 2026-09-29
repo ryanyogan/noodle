@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	type BucketRecord,
+	bucketMonths,
 	type MonthKey,
 	type MonthlySpend,
 	type Move,
@@ -145,5 +146,100 @@ describe("monthState with what rolled over", () => {
 		});
 		expect(state.buckets[0]).toMatchObject({ rolledOver: -5_000, available: 35_000, left: 35_000 });
 		expect(state.freeToSpend).toBe(460_000);
+	});
+});
+
+describe("bucketMonths: a Bucket month by month", () => {
+	it("gives each month's allowance, spending and balance, carrying a Rolling Bucket's", () => {
+		const plan = records([{ bucketId: "hockey", month: "2026-06", rolling: true }]);
+		const months = bucketMonths({
+			records: plan,
+			spent: [spent("2026-06", 30_000), spent("2026-07", 55_000), spent("2026-08", 10_000)],
+			moves: [cover("2026-07", 2_000)],
+			bucketId: "hockey",
+			from: "2026-06",
+			to: "2026-08",
+		});
+		expect(months).toEqual([
+			{
+				month: "2026-06",
+				inPlan: true,
+				rolling: true,
+				allowance: 40_000,
+				rolledOver: 0,
+				moved: 0,
+				spent: 30_000,
+				left: 10_000,
+			},
+			{
+				month: "2026-07",
+				inPlan: true,
+				rolling: true,
+				allowance: 40_000,
+				rolledOver: 10_000,
+				moved: 2_000,
+				spent: 55_000,
+				left: -3_000,
+			},
+			{
+				month: "2026-08",
+				inPlan: true,
+				rolling: true,
+				allowance: 40_000,
+				rolledOver: -3_000,
+				moved: 0,
+				spent: 10_000,
+				left: 27_000,
+			},
+		]);
+	});
+
+	it("carries what rolled in before the first month shown, as rolledOver does", () => {
+		const plan = records([{ bucketId: "hockey", month: "2026-06", rolling: true }]);
+		const history = [spent("2026-06", 30_000), spent("2026-07", 35_000)];
+		const [august] = bucketMonths({
+			records: plan,
+			spent: history,
+			moves: [],
+			bucketId: "hockey",
+			from: "2026-08",
+			to: "2026-08",
+		});
+		expect(august?.rolledOver).toBe(
+			rolledOver({ records: plan, spent: history, moves: [], month: "2026-08" }).hockey,
+		);
+		expect(august).toMatchObject({ rolledOver: 15_000, left: 55_000 });
+	});
+
+	it("leaves a Fresh-start Bucket's leftover behind each month", () => {
+		const months = bucketMonths({
+			records: records([]),
+			spent: [spent("2026-06", 30_000)],
+			moves: [],
+			bucketId: "hockey",
+			from: "2026-06",
+			to: "2026-07",
+		});
+		expect(months.map((m) => [m.rolling, m.rolledOver, m.left])).toEqual([
+			[false, 0, 10_000],
+			[false, 0, 40_000],
+		]);
+	});
+
+	it("marks months the Bucket wasn't in the Plan, before it started or once archived", () => {
+		const plan = records([], [bucket("hockey", { archivedFromMonth: "2026-07" })]);
+		const months = bucketMonths({
+			records: plan,
+			spent: [],
+			moves: [],
+			bucketId: "hockey",
+			from: "2026-05",
+			to: "2026-07",
+		});
+		expect(months.map((m) => [m.month, m.inPlan, m.allowance])).toEqual([
+			["2026-05", false, 0],
+			["2026-06", true, 40_000],
+			["2026-07", false, 0],
+		]);
 	});
 });

@@ -58,6 +58,10 @@ _Avoid_: Resetting, use-it-or-lose-it
 A Bucket belonging to one Parent whose individual Transactions are private to that Parent; the other Parent sees only its totals.
 _Avoid_: Fun money, private bucket, hidden spending
 
+**Available**:
+What a Bucket has to spend this month: its allowance ("planned"), plus what rolled over from last month (less, if a Rolling Bucket was overspent), plus or minus what was Moved in or out. "Left" is Available less what's been spent; a Rolling Bucket's month-end Left is its balance, carried into the next month.
+_Avoid_: Budget, total, remaining
+
 **Goal**:
 A target amount (optionally with a target date) the Household funds over time, either to keep (savings) or to spend on a known future big expense. Its money is held as an Earmark.
 _Avoid_: Sinking fund, savings bucket, pot

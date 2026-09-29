@@ -47,6 +47,20 @@ async function addBucket(page: Page, name: string, amount: string) {
 	await expect(page.getByRole("button", { name: `Edit ${name}` })).toBeVisible();
 }
 
+/** Opens a Bucket's page from the Plan's Buckets. */
+async function openBucket(page: Page, bucket: string) {
+	await page.getByRole("link", { name: bucket, exact: true }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toContainText(bucket);
+}
+
+/** Opens the Edit sheet on a Bucket's page. */
+async function editBucket(page: Page, bucket: string) {
+	await page.getByRole("button", { name: "Edit", exact: true }).click();
+	const sheet = page.getByRole("dialog", { name: bucket });
+	await expect(sheet).toBeVisible();
+	return sheet;
+}
+
 /** Sets a Bucket's allowance from its sheet, from this month on. */
 async function setAllowance(page: Page, bucket: string, amount: string) {
 	await page.getByRole("button", { name: `Edit ${bucket}` }).click();
@@ -86,24 +100,29 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 	await expect(freeToSpend(page)).toHaveText("Free to Spend$7,349.50");
 	await expect(waterfall(page)).not.toContainText("more than your Baseline");
 
-	// Rename, recolour, and reorder Hockey.
+	// Rename, recolour, and reorder Hockey, on its page.
 	await openStep(page, "Buckets");
-	await page.getByRole("button", { name: "Edit Hockey" }).click();
-	await page.getByLabel("Name").fill("Kids’ hockey");
-	await page.getByRole("button", { name: "Rename" }).click();
+	await openBucket(page, "Hockey");
+	const details = await editBucket(page, "Hockey");
+	await details.getByLabel("Name").fill("Kids’ hockey");
+	await details.getByRole("button", { name: "Rename" }).click();
 	await expect(page.getByRole("dialog", { name: "Kids’ hockey" })).toBeVisible();
 	await page.getByRole("radio", { name: "Green" }).check();
 	await page.getByRole("button", { name: "Move up" }).click();
 	await page.keyboard.press("Escape");
+	await expect(page.getByRole("heading", { level: 1 })).toContainText("Kids’ hockey");
+	await page.getByRole("link", { name: "Back to Buckets" }).click();
 	await expect(page.getByRole("listitem").first()).toContainText("Kids’ hockey");
 
 	// Everything above was saved, not just shown.
 	await page.reload();
 	await expect(page.getByRole("listitem").first()).toContainText("Kids’ hockey");
 	await expect(bucketRow(page, "Groceries")).toContainText("$1,250.50");
-	await page.getByRole("button", { name: "Edit Kids’ hockey" }).click();
+	await openBucket(page, "Kids’ hockey");
+	await editBucket(page, "Kids’ hockey");
 	await expect(page.getByRole("radio", { name: "Green" })).toBeChecked();
 	await page.keyboard.press("Escape");
+	await page.getByRole("link", { name: "Back to Buckets" }).click();
 	await backToPlan(page);
 	await expect(freeToSpend(page)).toHaveText("Free to Spend$7,349.50");
 
@@ -121,9 +140,12 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 	// Archiving takes a Bucket out of this month's Plan.
 	await switchTo(page, "Plan");
 	await openStep(page, "Buckets");
-	await page.getByRole("button", { name: "Edit Groceries" }).click();
+	await openBucket(page, "Groceries");
+	await editBucket(page, "Groceries");
 	await page.getByRole("button", { name: "Archive", exact: true }).click();
 	await page.getByRole("button", { name: "Archive Groceries" }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toContainText("Archived Bucket");
+	await page.getByRole("link", { name: "Back to Buckets" }).click();
 	await expect(page.getByRole("button", { name: "Edit Groceries" })).toHaveCount(0);
 	await backToPlan(page);
 	await expect(freeToSpend(page)).toHaveText("Free to Spend$8,600");

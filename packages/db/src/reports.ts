@@ -495,19 +495,23 @@ export async function loadIncomeCells(
 	}[];
 }
 
-/** Monthly spending per Bucket over whole months, private totals included (Plan vs actual, rollover). */
+/**
+ * Monthly spending per Bucket over whole months, private totals included (Plan vs actual,
+ * rollover), optionally only in `bucketIds`.
+ */
 export async function loadBucketMonths(
 	db: Db,
 	viewer: Viewer,
 	from: MonthKey,
 	until: MonthKey,
+	bucketIds?: string[],
 ): Promise<{ bucketId: string; month: MonthKey; amount: Cents }[]> {
 	const { cells, privateMonths } = await loadSpendCells(
 		db,
 		{
 			viewer,
 			range: { from: `${from}-01` as DayKey, until: `${until}-01` as DayKey },
-			filters: {},
+			filters: bucketIds ? { targets: bucketIds.map((id) => `bucket:${id}`) } : {},
 		},
 		"month",
 	);

@@ -1,4 +1,6 @@
+import type { BucketState } from "@noodle/domain";
 import type { BucketColor } from "@noodle/ui/components/tile";
+import { formatMoney } from "./format";
 
 /** The Bucket colours in their fixed, colour-blind-validated order (ADR-0008). */
 export const bucketColors: { value: BucketColor; name: string }[] = [
@@ -23,3 +25,20 @@ export function nextBucketColor(used: number[]): BucketColor {
 
 /** The letter shown in a Bucket's tile. */
 export const monogram = (name: string) => name.trim().charAt(0).toUpperCase() || "·";
+
+/**
+ * What a Bucket has this month, part by part: "$400 planned + $35 rolled over − $20 moved out".
+ * Null when its allowance is all there is.
+ */
+export function availableParts(
+	bucket: Pick<BucketState, "allowance" | "rolledOver" | "moved">,
+): string | null {
+	if (bucket.rolledOver === 0 && bucket.moved === 0) return null;
+	const part = (amount: number, gained: string, lost: string) =>
+		amount > 0
+			? ` + ${formatMoney(amount)} ${gained}`
+			: amount < 0
+				? ` − ${formatMoney(-amount)} ${lost}`
+				: "";
+	return `${formatMoney(bucket.allowance)} planned${part(bucket.rolledOver, "rolled over", "overspent last month")}${part(bucket.moved, "moved in", "moved out")}`;
+}

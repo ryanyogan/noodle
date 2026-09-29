@@ -1,4 +1,4 @@
-import { type DayKey, mergeCells } from "@noodle/domain";
+import { type DayKey, type MonthKey, mergeCells } from "@noodle/domain";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	addBucket,
@@ -10,13 +10,16 @@ import {
 	createHouseholdForParent,
 	type Db,
 	loadAmountBands,
+	loadBucketHistory,
 	loadForCells,
 	loadIncomeCells,
 	loadMerchants,
+	loadPlanRecords,
 	loadReportItems,
 	loadSpendCells,
 	type ReportScope,
 	setBaseline,
+	setRolling,
 	splitTransaction,
 	type Viewer,
 } from "./index";
@@ -270,5 +273,41 @@ describe("Transfers", () => {
 		const bands = await loadAmountBands(db, scope(alex));
 		expect(bands.find((b) => b.floor === 250_00)?.amount).toBe(30_000);
 		expect(await loadIncomeCells(db, householdId, range, "month")).toEqual([]);
+	});
+});
+
+describe("loadBucketHistory", () => {
+	const history = async (viewer: Viewer, bucketId: string, from: MonthKey, to: MonthKey) =>
+		loadBucketHistory(db, viewer, await loadPlanRecords(db, householdId, to), {
+			bucketId,
+			from,
+			to,
+		});
+
+	it("gives a Bucket's spending and balance month by month, whole and split, carried while Rolling", async () => {
+		await setRolling(db, {
+			householdId,
+			memberId: "alex",
+			bucketId: "groceries",
+			month: "2026-08",
+			rolling: true,
+		});
+		const months = await history(sam, "groceries", "2026-08", "2026-09");
+		expect(months.map((m) => [m.month, m.allowance, m.rolledOver, m.spent, m.left])).toEqual([
+			["2026-08", 120_000, 0, 650, 119_350],
+			["2026-09", 120_000, 119_350, 37_000, 202_350],
+		]);
+		// Starting later still carries what rolled in from before.
+		expect((await history(sam, "groceries", "2026-09", "2026-09"))[0]?.rolledOver).toBe(119_350);
+	});
+
+	it("gives the other Parent a Personal Allowance's monthly totals, the same as its owner sees", async () => {
+		const theirs = await history(sam, "alex-pa", "2026-07", "2026-09");
+		expect(theirs.map((m) => [m.month, m.inPlan, m.spent])).toEqual([
+			["2026-07", false, 0],
+			["2026-08", true, 0],
+			["2026-09", true, 7_200],
+		]);
+		expect(await history(alex, "alex-pa", "2026-07", "2026-09")).toEqual(theirs);
 	});
 });

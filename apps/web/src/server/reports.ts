@@ -494,10 +494,13 @@ async function viewData(
 				loadBucketMonths(db, viewer, since < first ? since : first, addMonths(last, 1)),
 				loadMovesBetween(db, householdId, since < first ? since : first, addMonths(last, 1)),
 			]);
-			const variances = planVsActual(records, spent, months);
+			// Narrowed to some Buckets (as a Bucket's page links here), only theirs.
+			const shown = (bucketId: string) =>
+				!request.buckets?.length || request.buckets.includes(bucketId);
+			const variances = planVsActual(records, spent, months).filter((v) => shown(v.bucketId));
 			const rollingIds = [
 				...new Set(records.rolling.filter((r) => r.rolling).map((r) => r.bucketId)),
-			];
+			].filter(shown);
 			return {
 				kind: "plan",
 				months,

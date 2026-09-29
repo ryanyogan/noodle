@@ -250,7 +250,13 @@ export {
 	totalsBy,
 	type Variance,
 } from "./reports";
-export { type MonthlySpend, rolledOver, rolloverSince } from "./rollover";
+export {
+	type BucketMonth,
+	bucketMonths,
+	type MonthlySpend,
+	rolledOver,
+	rolloverSince,
+} from "./rollover";
 export {
 	type LeverImpact,
 	leverImpacts,

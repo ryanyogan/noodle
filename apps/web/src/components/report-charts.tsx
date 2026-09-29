@@ -412,6 +412,58 @@ export function PeriodBars({
 	);
 }
 
+/**
+ * A Bucket's months: its allowance as a ghost bar and what was spent in ink beside it, in the
+ * over colour for a month that spent past what the Bucket had.
+ */
+export function AllowanceBars({
+	rows,
+	labelOf,
+	className,
+}: {
+	rows: { period: string; allowance: Cents; spent: Cents; over: boolean }[];
+	labelOf: (period: string, style?: "short" | "long") => string;
+	className?: string;
+}) {
+	const animation = useAnimation();
+	const config: ChartConfig = {
+		allowance: { label: "Allowance", color: "var(--chart-compare)" },
+		spent: { label: "Spent", color: "var(--chart-spend)" },
+	};
+	return (
+		<ChartContainer config={config} className={cn("aspect-auto h-52 w-full", className)}>
+			<BarChart data={rows} barGap={2} barCategoryGap="20%" accessibilityLayer>
+				<CartesianGrid vertical={false} stroke="var(--chart-grid)" />
+				<XAxis dataKey="period" tickFormatter={(p) => labelOf(p)} {...axisProps} minTickGap={4} />
+				<YAxis tickFormatter={formatCompact} width={52} {...axisProps} />
+				<ChartTooltip
+					cursor={{ fill: "var(--surface-2)" }}
+					content={<MoneyTooltip labelOf={(p) => labelOf(p, "long")} />}
+				/>
+				<ChartLegend content={<ChartLegendContent />} />
+				<Bar
+					dataKey="allowance"
+					name="Allowance"
+					fill="var(--color-allowance)"
+					radius={[3, 3, 0, 0]}
+					{...animation}
+				/>
+				<Bar
+					dataKey="spent"
+					name="Spent"
+					fill="var(--color-spent)"
+					radius={[3, 3, 0, 0]}
+					{...animation}
+				>
+					{rows.map((row) => (
+						<Cell key={row.period} fill={row.over ? "var(--over)" : "var(--color-spent)"} />
+					))}
+				</Bar>
+			</BarChart>
+		</ChartContainer>
+	);
+}
+
 /** A small trend line with a soft fill, for a row or a small multiple; decorative (the row has the numbers). */
 export function Sparkline({
 	values,

@@ -1,6 +1,7 @@
 import type { MonthKey } from "@noodle/domain";
 import type { QueryKey } from "@tanstack/react-query";
 import {
+	bucketPagesKey,
 	bucketUsesQuery,
 	commitmentsQuery,
 	forTotalsEarlierKey,
@@ -83,7 +84,7 @@ const changesReports = (change: HouseholdChange) =>
 
 /**
  * The Query keys to refetch for some changes, each once; every month covers any one month, and
- * any one month's change also refetches the Commitments' charges.
+ * any one month's change also refetches the Commitments' charges and Bucket pages' months.
  * Reports refetch after any of their inputs change, so an open Report stays live.
  */
 export function queryKeysFor(changes: readonly HouseholdChange[]): QueryKey[] {
@@ -97,10 +98,12 @@ export function queryKeysFor(changes: readonly HouseholdChange[]): QueryKey[] {
 			: changedQueries[change as keyof typeof changedQueries];
 		keys.set(JSON.stringify(key), key);
 	}
-	// A change to one month's spending can be a Commitment's charge, which Coming up counts.
+	// A change to one month's spending can be a Commitment's charge, which Coming up counts, or a
+	// Bucket's, which its page shows month by month.
 	if (!everyMonth && changes.some((change) => monthChange.test(change))) {
-		const { queryKey } = commitmentsQuery();
-		keys.set(JSON.stringify(queryKey), queryKey);
+		for (const key of [commitmentsQuery().queryKey, bucketPagesKey]) {
+			keys.set(JSON.stringify(key), key);
+		}
 	}
 	if (changes.some(changesReports)) keys.set(JSON.stringify(reportsKey), reportsKey);
 	return [...keys.values()];

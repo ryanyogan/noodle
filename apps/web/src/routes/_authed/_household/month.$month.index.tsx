@@ -31,7 +31,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarDays, ChevronRight, History, ListChecks } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { ulid } from "ulid";
-import { asBucketColor, monogram } from "../../../buckets";
+import { asBucketColor, availableParts, monogram } from "../../../buckets";
 import { ComingUp, LumpCallout } from "../../../components/coming-up";
 import { Commitments } from "../../../components/commitment-list";
 import { ALittleOver, CoverSheet, CoversInto, sourceName } from "../../../components/cover";
@@ -82,7 +82,6 @@ function ThisMonth() {
 		return (
 			<BucketRow
 				key={bucket.id}
-				month={month}
 				bucket={bucket}
 				// Only the other Parent's Personal Allowance is private; its totals are all there is.
 				private={!mine}
@@ -465,20 +464,19 @@ function PlanLink({ month, children }: { month: MonthState["month"]; children: s
  * its Pace tick. `covers` lists Covers into it.
  */
 function BucketRow({
-	month,
 	bucket,
 	covers,
 	private: isPrivate = false,
 }: {
-	month: MonthKey;
 	bucket: BucketState;
 	covers?: ReactNode;
-	/** The other Parent's Personal Allowance: its totals only, with nothing to drill into. */
+	/** The other Parent's Personal Allowance: its totals only (its page shows no more). */
 	private?: boolean;
 }) {
 	const color = asBucketColor(bucket.color);
 	const share = (cents: number) => (bucket.available > 0 ? cents / bucket.available : 0);
 	const left = Math.max(0, bucket.left);
+	const parts = availableParts(bucket);
 	return (
 		<ListRow
 			aria-label={`${bucket.name}: ${formatMoney(left)} left of ${formatMoney(bucket.available)}${
@@ -490,19 +488,9 @@ function BucketRow({
 			}${isPrivate ? ", private" : ""}`}
 			leading={<Tile bucket={color}>{monogram(bucket.name)}</Tile>}
 			title={
-				bucket.owner && !isPrivate ? (
-					// Your own Personal Allowance's Transactions are yours to see.
-					<Link
-						to="/transactions/$month"
-						params={{ month }}
-						search={{ bucket: bucket.id }}
-						className="hover:underline"
-					>
-						{bucket.name}
-					</Link>
-				) : (
-					bucket.name
-				)
+				<Link to="/plan/buckets/$id" params={{ id: bucket.id }} className="hover:underline">
+					{bucket.name}
+				</Link>
 			}
 			badge={
 				bucket.status === "over" ? (
@@ -515,15 +503,14 @@ function BucketRow({
 					</Badge>
 				) : null
 			}
-			meta={[
-				`${formatMoney(bucket.spent)} spent`,
-				isPrivate ? "Private" : null,
-				bucket.rolledOver > 0 ? `${formatMoney(bucket.rolledOver)} rolled over` : null,
-				bucket.rolledOver < 0 ? `${formatMoney(-bucket.rolledOver)} overspent last month` : null,
-				bucket.moved < 0 ? `${formatMoney(-bucket.moved)} moved out` : null,
-			]
-				.filter(Boolean)
-				.join(" · ")}
+			meta={
+				<>
+					<Badge>{bucket.rolling ? "Rolling" : "Fresh-start"}</Badge>
+					<span>
+						{formatMoney(bucket.spent)} spent{isPrivate ? " · Private" : ""}
+					</span>
+				</>
+			}
 			trailing={
 				<>
 					<span className="text-sm font-semibold tabular-nums">{formatMoney(left)}</span>
@@ -540,6 +527,7 @@ function BucketRow({
 						paceLeft={bucket.pace.leftShare}
 						over={bucket.status === "over"}
 					/>
+					{parts ? <p className="text-xs text-muted-foreground tabular-nums">{parts}</p> : null}
 					{covers}
 				</div>
 			}

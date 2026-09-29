@@ -407,7 +407,7 @@ export {
 	type ReportScope,
 } from "./reports";
 export { loadReview, type ReviewItem, type ReviewQueue, returnToReview } from "./review";
-export { loadRolledOver } from "./rollover";
+export { loadBucketHistory, loadRolledOver } from "./rollover";
 export {
 	applyRule,
 	deleteRule,

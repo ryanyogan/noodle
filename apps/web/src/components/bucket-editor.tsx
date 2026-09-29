@@ -8,7 +8,7 @@ import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { useHydrated } from "@tanstack/react-router";
+import { Link, useHydrated } from "@tanstack/react-router";
 import { Archive, ArrowDown, ArrowUp, Pencil, Plus } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
@@ -37,25 +37,20 @@ import { PlanHistoryDisclosure } from "./plan-history";
 import { ChangedNote, PlanAmountForm } from "./plan-scope-field";
 
 /**
- * A Bucket (or Personal Allowance) in the Plan: its allowance, and an Edit sheet to change it and
- * the rest of the Bucket. `was` is its allowance the month before, when this month changed it.
+ * A Bucket (or Personal Allowance) in the Plan: its allowance, and an Edit sheet to change it. The
+ * rest of the Bucket (name, colour, Rolling, order, archiving) changes on its page, which the name
+ * links to. `was` is its allowance the month before, when this month changed it.
  */
 export function BucketEditor({
 	month,
 	bucket,
-	order,
-	index,
 	editable,
 	was,
-	onArchive,
 }: {
 	month: MonthKey;
 	bucket: PlanBucket;
-	order: string[];
-	index: number;
 	editable: boolean;
 	was?: number;
-	onArchive: (bucketId: string) => void;
 }) {
 	const hydrated = useHydrated();
 	const [open, setOpen] = useState(false);
@@ -68,7 +63,11 @@ export function BucketEditor({
 	return (
 		<ListRow
 			leading={<Tile bucket={color}>{monogram(bucket.name)}</Tile>}
-			title={bucket.name}
+			title={
+				<Link to="/plan/buckets/$id" params={{ id: bucket.id }} className="hover:underline">
+					{bucket.name}
+				</Link>
+			}
 			meta={
 				<>
 					<span>{bucket.rolling ? "Rolling" : "Fresh-start"}</span>
@@ -108,17 +107,19 @@ export function BucketEditor({
 										}
 									}}
 								/>
-								<BucketDetails
-									month={month}
-									bucket={bucket}
-									order={order}
-									index={index}
-									onArchive={(bucketId) => {
-										setOpen(false);
-										onArchive(bucketId);
-									}}
-								/>
 								<PlanHistoryDisclosure month={month} targetId={bucket.id} />
+								<p className="text-[13px] text-muted-foreground">
+									Rename it, change its colour, make it Rolling or Fresh-start, move or archive it
+									on{" "}
+									<Link
+										to="/plan/buckets/$id"
+										params={{ id: bucket.id }}
+										className="font-medium text-foreground underline underline-offset-2"
+									>
+										its page
+									</Link>
+									.
+								</p>
 							</SheetContent>
 						) : null}
 					</Sheet>
@@ -129,8 +130,11 @@ export function BucketEditor({
 	);
 }
 
-/** Rename, recolour, set Rolling or Fresh-start, move, or archive a Bucket. */
-function BucketDetails({
+/**
+ * Rename, recolour, set Rolling or Fresh-start from `month` on, move, or archive a Bucket: on its
+ * page, in its Edit sheet.
+ */
+export function BucketDetails({
 	month,
 	bucket,
 	order,

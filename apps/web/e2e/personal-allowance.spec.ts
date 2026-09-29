@@ -128,16 +128,26 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 			`Target run, $100, Split across 2: Groceries, ${ALEX_PA}`,
 		);
 
-		// Sam sees both Personal Allowances' totals, and only his own drills into Transactions.
+		// Sam sees both Personal Allowances' totals.
 		await nav(sam).getByRole("link", { name: "This Month" }).click();
 		await expect(bucketRow(sam, ALEX_PA)).toHaveAccessibleName(
 			`${ALEX_PA}: $58 left of $150, private`,
 		);
 		await expect(bucketRow(sam, ALEX_PA)).toContainText("$92 spent");
-		await expect(bucketRow(sam, ALEX_PA).getByRole("link")).toHaveCount(0);
 		await expect(bucketRow(sam, SAM_PA)).toHaveAccessibleName(`${SAM_PA}: $100 left of $100`);
 		await expect(bucketRow(sam, SAM_PA).getByRole("link", { name: SAM_PA })).toBeVisible();
 		await expect(bucketRow(sam, "Groceries")).toContainText("$80 spent");
+
+		// Alex's Personal Allowance has a page for Sam too: its totals, and nothing spent from it.
+		await bucketRow(sam, ALEX_PA).getByRole("link", { name: ALEX_PA }).click();
+		await expect(sam.getByRole("heading", { level: 1 })).toContainText(ALEX_PA);
+		const thisMonth = sam.getByRole("region", { name: "Left this month" });
+		await expect(thisMonth).toContainText("$58");
+		await expect(thisMonth).toContainText("$92");
+		await expect(sam.getByText("only its Parent sees what’s spent from it")).toBeVisible();
+		await expect(sam.getByRole("main")).not.toContainText("Target run");
+		await expect(sam.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
+		await nav(sam).getByRole("link", { name: "This Month" }).click();
 
 		// Sam's Quick Add offers his own Personal Allowance, never Alex's.
 		await sam.getByRole("link", { name: "Quick Add" }).click();

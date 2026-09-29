@@ -1,5 +1,6 @@
 import { type MonthKey, type MonthState, monthState } from "@noodle/domain";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
+import { getBucket } from "./server/buckets";
 import { getCaptureToken } from "./server/capture-tokens";
 import { getCommitments } from "./server/commitments";
 import { getGoals } from "./server/goals";
@@ -104,6 +105,19 @@ export const commitmentsQuery = () =>
 	queryOptions({
 		queryKey: [...monthsKey, "commitments"],
 		queryFn: () => getCommitments(),
+	});
+
+/**
+ * Every Bucket's page data. Under every month's key, as any Plan change can change it; a change
+ * to any one month's spending refetches it too (see household-changes).
+ */
+export const bucketPagesKey = [...monthsKey, "buckets"] as const;
+
+/** A Bucket over the last year, month by month, for its page. */
+export const bucketQuery = (bucketId: string) =>
+	queryOptions({
+		queryKey: [...bucketPagesKey, bucketId],
+		queryFn: () => getBucket({ data: { bucketId } }),
 	});
 
 /**
