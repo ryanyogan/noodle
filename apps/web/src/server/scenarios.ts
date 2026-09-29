@@ -197,7 +197,7 @@ export const deleteScenario = createServerFn({ method: "POST" })
 /** Makes a Scenario's Levers the real Plan from this month on, all at once; muted ones aren't. */
 export const applyScenario = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
-	.validator(z.object({ levers: leversSchema }))
+	.validator(z.object({ levers: leversSchema, scenarioId: ulidSchema.optional() }))
 	.handler(async ({ data, context }) => {
 		const today = dayKeyAt(new Date(), context.household.timeZone);
 		const month = monthOfDay(today);
@@ -219,6 +219,7 @@ export const applyScenario = createServerFn({ method: "POST" })
 		await applyLevers(getDb(), {
 			householdId: context.household.id,
 			memberId: context.parent.id,
+			scenarioId: data.scenarioId ?? null,
 			month,
 			levers,
 		});

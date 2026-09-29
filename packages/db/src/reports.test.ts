@@ -69,9 +69,10 @@ beforeEach(async () => {
 		{ id: "sam", householdId, kind: "parent", name: "Sam", clerkUserId: "clerk-sam" },
 		{ id: "kid", householdId, kind: "child", name: "Kid" },
 	]);
-	await setBaseline(db, { householdId, month: "2026-08", amountCents: 900_000 });
+	await setBaseline(db, { householdId, memberId: "alex", month: "2026-08", amountCents: 900_000 });
 	await addBucket(db, {
 		householdId,
+		memberId: "alex",
 		bucketId: "groceries",
 		name: "Groceries",
 		color: 1,
@@ -174,6 +175,7 @@ describe("items and merchants", () => {
 	it("leaves Commitment payments out of one-off spending", async () => {
 		await addCommitment(db, {
 			householdId,
+			memberId: "alex",
 			commitmentId: "mortgage",
 			name: "Mortgage",
 			month: "2026-08",

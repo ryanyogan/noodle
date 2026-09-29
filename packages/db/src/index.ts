@@ -387,6 +387,7 @@ export {
 	setRolling,
 	updateBucket,
 } from "./plan";
+export { type Author, loadPlanChanges, type PlanHistory } from "./plan-log";
 export { privateTotalId, type Viewer } from "./privacy";
 export {
 	loadAmountBands,

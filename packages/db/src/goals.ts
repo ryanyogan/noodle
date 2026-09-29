@@ -9,10 +9,11 @@ import {
 	type MonthKey,
 	monthOfDay,
 } from "@noodle/domain";
-import { and, asc, eq, inArray, isNotNull, isNull, type SQL, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, notExists, type SQL, sql } from "drizzle-orm";
 import { counts, countsRaw } from "./counting";
 import type { Db } from "./index";
 import { freeToSpendSql } from "./moves";
+import { type Author, logChange } from "./plan-log";
 import { partlyPrivate, type Viewer, visibleSplit, visibleTo } from "./privacy";
 import {
 	accountBalances,
@@ -255,11 +256,31 @@ export async function addGoal(
 		createdByMemberId: string;
 	},
 ): Promise<GoalWriteResult> {
+	// The Plan change, under the insert's own guard and only while the Goal isn't there yet.
+	const log = logChange(
+		db,
+		accounts,
+		and(
+			ownAccount(input.householdId, input.accountId),
+			inArray(accounts.kind, ["checking", "savings"]),
+			notExists(db.select({ id: goals.id }).from(goals).where(eq(goals.id, input.goalId))),
+		),
+		{
+			householdId: input.householdId,
+			memberId: input.createdByMemberId,
+			kind: "goal-add",
+			targetId: input.goalId,
+			month: input.fromMonth,
+			before: null,
+			after: { name: input.name, target: input.targetCents, targetDate: input.targetDate },
+		},
+	);
 	const insertGoal = goalInsert(db, input);
 	if (input.claimCents === 0) {
-		await insertGoal;
+		await db.batch([log, insertGoal]);
 	} else {
 		await db.batch([
+			log,
 			insertGoal,
 			insertClaim(db, { ...input, month: input.fromMonth, amountCents: input.claimCents }),
 		]);
@@ -272,20 +293,45 @@ export async function addGoal(
 	return written ? { ok: true } : { ok: false, reason: "refused" };
 }
 
-export async function updateGoal(
-	db: Db,
-	input: {
-		householdId: string;
-		goalId: string;
-		name: string;
-		targetCents: Cents;
-		targetDate: DayKey | null;
-	},
-): Promise<void> {
-	await db
-		.update(goals)
-		.set({ name: input.name, targetCents: input.targetCents, targetDate: input.targetDate })
-		.where(ownGoal(input.householdId, input.goalId));
+type GoalTargetInput = Author & {
+	householdId: string;
+	goalId: string;
+	/** When the Plan change takes effect: the Household's current month, or a Scenario's. */
+	month: MonthKey;
+	targetCents: Cents;
+	targetDate: DayKey | null;
+};
+
+/**
+ * The Plan change for setting a Goal's target and date, written before them: only if the Goal
+ * is the Household's (and matches `where`) and either differs.
+ */
+export const goalLog = (db: Db, input: GoalTargetInput, where?: SQL) =>
+	logChange(
+		db,
+		goals,
+		and(
+			ownGoal(input.householdId, input.goalId),
+			where,
+			sql`(${goals.targetCents} is not ${input.targetCents} or ${goals.targetDate} is not ${input.targetDate})`,
+		),
+		{
+			...input,
+			kind: "goal",
+			targetId: input.goalId,
+			before: sql`json_object('target', ${goals.targetCents}, 'targetDate', ${goals.targetDate})`,
+			after: { target: input.targetCents, targetDate: input.targetDate },
+		},
+	);
+
+export async function updateGoal(db: Db, input: GoalTargetInput & { name: string }): Promise<void> {
+	await db.batch([
+		goalLog(db, input),
+		db
+			.update(goals)
+			.set({ name: input.name, targetCents: input.targetCents, targetDate: input.targetDate })
+			.where(ownGoal(input.householdId, input.goalId)),
+	]);
 }
 
 /** Marks a Goal completed. It keeps its Earmark. Completing it again changes nothing. */

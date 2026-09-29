@@ -42,15 +42,24 @@ beforeEach(async () => {
 		parentId,
 		parentName: "Alex",
 	});
-	await setBaseline(db, { householdId, month, amountCents: 900_000 });
+	await setBaseline(db, { householdId, memberId: parentId, month, amountCents: 900_000 });
 	for (const [bucketId, color, allowanceCents] of [
 		["groceries", 1, 120_000],
 		["hockey", 2, 40_000],
 	] as const) {
-		await addBucket(db, { householdId, bucketId, name: bucketId, color, month, allowanceCents });
+		await addBucket(db, {
+			householdId,
+			memberId: parentId,
+			bucketId,
+			name: bucketId,
+			color,
+			month,
+			allowanceCents,
+		});
 	}
 	await addCommitment(db, {
 		householdId,
+		memberId: parentId,
 		commitmentId: "daycare",
 		name: "Daycare",
 		month,
@@ -177,6 +186,7 @@ describe("splitting a Transaction", () => {
 	it("changes nothing when any Split's Bucket isn't in the Plan", async () => {
 		await addBucket(db, {
 			householdId,
+			memberId: parentId,
 			bucketId: "later",
 			name: "Later",
 			color: 5,
@@ -214,6 +224,7 @@ describe("splitting a Transaction", () => {
 		expect(fromOther.ok).toBe(false);
 		await addBucket(db, {
 			householdId: "other",
+			memberId: parentId,
 			bucketId: "theirs",
 			name: "Theirs",
 			color: 1,

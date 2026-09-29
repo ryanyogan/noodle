@@ -1,26 +1,44 @@
-import { type MonthKey, type MonthState, monthOfDay, parseDollars } from "@noodle/domain";
+import {
+	addMonths,
+	type MonthKey,
+	type MonthState,
+	monthOfDay,
+	parseDollars,
+	whatChanged,
+} from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { List } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { cn } from "@noodle/ui/lib/utils";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { Check, ChevronRight } from "lucide-react";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { AmountInput } from "../../../components/goals";
 import { MonthLinks, MonthTopRow, monthTitle, useMonthSwipe } from "../../../components/month-nav";
 import { SaveFailed } from "../../../components/plan-editing";
+import {
+	describeGroup,
+	groupMeta,
+	groupTitle,
+	HistoryStart,
+} from "../../../components/plan-history";
 import { PlanEnded } from "../../../components/plan-page";
-import { formatMoney } from "../../../format";
+import { formatMoney, monthName } from "../../../format";
 import { useGoals } from "../../../goals";
 import { usePlanChange, withBaseline } from "../../../plan-changes";
-import { goalsQuery, useMonthState } from "../../../queries";
+import { goalsQuery, planHistoryQuery, useMonthState } from "../../../queries";
 import { setBaseline } from "../../../server/plan";
 
 export const Route = createFileRoute("/_authed/_household/plan/$month/")({
-	// Setting up the Plan ticks off its Goals step once there are Goals.
-	loader: ({ context }) => context.queryClient.ensureQueryData(goalsQuery()),
+	loader: ({ context }) =>
+		Promise.all([
+			// Setting up the Plan ticks off its Goals step once there are Goals.
+			context.queryClient.ensureQueryData(goalsQuery()),
+			context.queryClient.ensureQueryData(planHistoryQuery(context.month)),
+		]),
 	component: PlanOverview,
 });
 
@@ -46,6 +64,7 @@ function PlanOverview() {
 				{state.editable ? null : <PlanEnded />}
 				{settingUp ? <SetUp state={state} /> : null}
 				<Waterfall state={state} current={month === current} />
+				<WhatChanged month={month} />
 			</div>
 		</div>
 	);
@@ -392,3 +411,35 @@ function Bar({ bar, tone }: { bar: BarSpan; tone: "step" | "total" | "over" }) {
 }
 
 const pct = (share: number) => `${(Math.min(1, Math.max(0, share)) * 100).toFixed(2)}%`;
+
+/**
+ * What changed in this month's Plan since the month before, item by item, and who changed it.
+ * This Month's first week links here.
+ */
+function WhatChanged({ month }: { month: MonthKey }) {
+	const { data } = useSuspenseQuery(planHistoryQuery(month));
+	const groups = whatChanged(data.changes, month);
+	return (
+		<Section aria-labelledby="what-changed">
+			<SectionHeader id="what-changed" title="What changed" count={groups.length || undefined} />
+			{groups.length === 0 ? (
+				<p className="rounded-xl border border-dashed px-(--card-pad) py-4 text-[13px] text-muted-foreground">
+					No Plan changes since {monthName(addMonths(month, -1))}.
+				</p>
+			) : (
+				<List>
+					{groups.map((group) => (
+						<li key={group.key} className="grid gap-0.5 px-(--card-pad) py-3">
+							<p className="text-sm font-medium">{groupTitle(group)}</p>
+							{group.kind === "personal-allowance" ? null : (
+								<p className="text-sm">{describeGroup(group)}</p>
+							)}
+							<p className="text-[13px] text-muted-foreground">{groupMeta(group)}</p>
+						</li>
+					))}
+				</List>
+			)}
+			<HistoryStart day={data.historyStart} />
+		</Section>
+	);
+}

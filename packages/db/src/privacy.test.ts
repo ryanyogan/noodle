@@ -68,9 +68,10 @@ beforeEach(async () => {
 		name: "Sam",
 		clerkUserId: "clerk-sam",
 	});
-	await setBaseline(db, { householdId, month, amountCents: 900_000 });
+	await setBaseline(db, { householdId, memberId: "alex", month, amountCents: 900_000 });
 	await addBucket(db, {
 		householdId,
+		memberId: "alex",
 		bucketId: "groceries",
 		name: "Groceries",
 		color: 1,
@@ -242,7 +243,7 @@ describe("Personal Allowance privacy: writes", () => {
 			month,
 			amountCents: 0,
 		});
-		await archiveBucket(db, { householdId, bucketId: "alex-pa", month });
+		await archiveBucket(db, { householdId, memberId: "alex", bucketId: "alex-pa", month });
 		await setAllowance(db, {
 			householdId,
 			memberId: "alex",

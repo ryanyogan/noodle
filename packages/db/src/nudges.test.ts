@@ -62,6 +62,7 @@ beforeEach(async () => {
 	});
 	await addBucket(db, {
 		householdId,
+		memberId: "alex",
 		bucketId: "groceries",
 		name: "Groceries",
 		color: 1,

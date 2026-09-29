@@ -46,9 +46,10 @@ beforeEach(async () => {
 		name: "Sam",
 		clerkUserId: "clerk-sam",
 	});
-	await setBaseline(db, { householdId, month, amountCents: 900_000 });
+	await setBaseline(db, { householdId, memberId: "alex", month, amountCents: 900_000 });
 	await addBucket(db, {
 		householdId,
+		memberId: "alex",
 		bucketId: "groceries",
 		name: "Groceries",
 		color: 1,
@@ -66,6 +67,7 @@ beforeEach(async () => {
 	});
 	await addCommitment(db, {
 		householdId,
+		memberId: "alex",
 		commitmentId: "daycare",
 		name: "Daycare",
 		month,
@@ -128,7 +130,13 @@ describe("Just <Month>: a change to the Plan for one month", () => {
 	});
 
 	it("puts the next month back to the Baseline in force before", async () => {
-		await setBaseline(db, { householdId, month: "2026-10", amountCents: 1_000_000, scope: "just" });
+		await setBaseline(db, {
+			householdId,
+			memberId: "alex",
+			month: "2026-10",
+			amountCents: 1_000_000,
+			scope: "just",
+		});
 		expect(
 			await Promise.all(
 				(["2026-10", "2026-11"] as const).map(async (m) => (await planFor(m)).baseline),
@@ -139,6 +147,7 @@ describe("Just <Month>: a change to the Plan for one month", () => {
 	it("puts the next month back to a Commitment's terms in force before", async () => {
 		await updateCommitment(db, {
 			householdId,
+			memberId: "alex",
 			commitmentId: "daycare",
 			name: "Daycare and camp",
 			month: "2026-10",
@@ -173,6 +182,7 @@ describe("Just <Month>: a change to the Plan for one month", () => {
 	it("refuses another Household's Commitment", async () => {
 		await updateCommitment(db, {
 			householdId: "elsewhere",
+			memberId: "alex",
 			commitmentId: "daycare",
 			name: "Taken",
 			month: "2026-10",

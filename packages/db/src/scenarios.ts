@@ -1,5 +1,6 @@
 import {
 	addedUntil,
+	addMonths,
 	type CommitmentTerms,
 	changedTerms,
 	dueDateFrom,
@@ -7,6 +8,7 @@ import {
 	type LeverOf,
 	type LeverV1,
 	type MonthKey,
+	type PlanScope,
 	rangeFrom,
 	readScenarioLevers,
 	SCENARIO_VERSION,
@@ -15,14 +17,21 @@ import {
 } from "@noodle/domain";
 import { and, desc, eq, inArray, isNull, lte, type SQL, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
-import { commitmentAdd, commitmentEnd, inPlanFor, ownCommitment } from "./commitments";
-import { goalInsert } from "./goals";
+import { commitmentAdd, commitmentEnd, inPlanFor, ownCommitment, termsLog } from "./commitments";
+import { goalInsert, goalLog } from "./goals";
 import type { Db } from "./index";
-import { allowanceWrite, bucketAdd, bucketArchive, changeableBucket } from "./plan";
+import {
+	allowanceLog,
+	allowanceWrite,
+	baselineLog,
+	bucketAdd,
+	bucketArchive,
+	changeableBucket,
+} from "./plan";
+import type { Author } from "./plan-log";
 import {
 	baselines,
 	bucketAllowances,
-	bucketRolling,
 	buckets,
 	commitments,
 	commitmentTerms,
@@ -124,11 +133,14 @@ export async function applyLevers(
 	input: {
 		householdId: string;
 		memberId: string;
+		/** The Scenario applied, if it was saved; its Plan changes name it. */
+		scenarioId?: string | null;
 		month: MonthKey;
 		levers: readonly (Lever | LeverV1)[];
 	},
 ): Promise<void> {
 	const { householdId, memberId, month } = input;
+	const author: Author = { memberId, source: "scenario", scenarioId: input.scenarioId ?? null };
 	const levers = upgradeLevers(input.levers, month);
 	for (const lever of levers) {
 		const why = whyNotApplicable(lever, month);
@@ -167,8 +179,11 @@ export async function applyLevers(
 		const range = rangeFrom(lever, month);
 		if (range === null) continue;
 		const { from, until } = range;
+		// Each Plan change goes in the batch just before its write.
+		const logged = { ...author, householdId, month: from, scope: scopeOf(from, until), until };
 		switch (lever.kind) {
 			case "baseline":
+				writes.push(baselineLog(db, { ...logged, amountCents: lever.amount }));
 				if (until !== null) writes.push(baselineBack(db, householdId, until));
 				writes.push(
 					db
@@ -182,6 +197,9 @@ export async function applyLevers(
 				break;
 			case "allowance": {
 				const bucket = { householdId, memberId, bucketId: lever.bucketId };
+				writes.push(
+					allowanceLog(db, { ...logged, bucketId: lever.bucketId, amountCents: lever.amount }),
+				);
 				if (until !== null) writes.push(allowanceBack(db, bucket, until));
 				writes.push(allowanceWrite(db, { ...bucket, month: from, amountCents: lever.amount }));
 				break;
@@ -195,15 +213,34 @@ export async function applyLevers(
 				if (!read) break;
 				const was = read as { month: string } & CommitmentTerms;
 				const terms = changedTerms(was, lever, from);
+				const guard = termsGuard({ from, read: was });
+				writes.push(
+					termsLog(
+						db,
+						{
+							...logged,
+							commitmentId: lever.commitmentId,
+							amountCents: terms.amount,
+							cadence: terms.cadence,
+							dueDate: terms.dueDate,
+						},
+						guard,
+					),
+				);
 				if (until !== null) writes.push(termsBack(db, householdId, lever.commitmentId, until));
 				writes.push(
-					termsWrite(db, { householdId, commitmentId: lever.commitmentId, from, read: was, terms }),
+					termsWrite(db, { householdId, commitmentId: lever.commitmentId, from, guard, terms }),
 				);
 				break;
 			}
 			case "end-commitment":
 				writes.push(
-					commitmentEnd(db, { householdId, commitmentId: lever.commitmentId, month: from }),
+					...commitmentEnd(db, {
+						...author,
+						householdId,
+						commitmentId: lever.commitmentId,
+						month: from,
+					}),
 				);
 				break;
 			case "add-commitment": {
@@ -211,6 +248,7 @@ export async function applyLevers(
 				const termEnd = addedUntil({ ...lever, fromMonth: from });
 				writes.push(
 					...commitmentAdd(db, {
+						...author,
 						householdId,
 						commitmentId: lever.commitmentId,
 						name: lever.name,
@@ -226,6 +264,7 @@ export async function applyLevers(
 			case "add-bucket":
 				writes.push(
 					...bucketAdd(db, {
+						...author,
 						householdId,
 						bucketId: lever.bucketId,
 						name: lever.name,
@@ -233,32 +272,24 @@ export async function applyLevers(
 						month: from,
 						archivedFromMonth: until,
 						allowanceCents: lever.amount,
+						rolling: lever.rolling,
 					}),
 				);
-				if (lever.rolling) {
-					writes.push(
-						db
-							.insert(bucketRolling)
-							.select(
-								db
-									.select({
-										householdId: buckets.householdId,
-										bucketId: buckets.id,
-										month: sql<string>`${from}`.as("month"),
-										rolling: sql<boolean>`1`.as("rolling"),
-									})
-									.from(buckets)
-									.where(and(eq(buckets.id, lever.bucketId), eq(buckets.householdId, householdId))),
-							)
-							.onConflictDoNothing({ target: [bucketRolling.bucketId, bucketRolling.month] }),
-					);
-				}
 				break;
 			case "archive-bucket":
-				writes.push(bucketArchive(db, { householdId, bucketId: lever.bucketId, month: from }));
-				break;
-			case "goal":
 				writes.push(
+					...bucketArchive(db, { ...author, householdId, bucketId: lever.bucketId, month: from }),
+				);
+				break;
+			case "goal": {
+				const target = {
+					...logged,
+					goalId: lever.goalId,
+					targetCents: lever.target,
+					targetDate: lever.targetDate,
+				};
+				writes.push(
+					goalLog(db, target, isNull(goals.archivedAt)),
 					db
 						.update(goals)
 						.set({ targetCents: lever.target, targetDate: lever.targetDate })
@@ -271,6 +302,7 @@ export async function applyLevers(
 						),
 				);
 				break;
+			}
 			case "add-goal":
 				if (lever.accountId === undefined) break;
 				writes.push(
@@ -294,6 +326,10 @@ export async function applyLevers(
 	const [first, ...rest] = writes;
 	if (first) await db.batch([first, ...rest]);
 }
+
+/** A Lever's range as a Plan change's scope: one month is "just" it; its end goes in `until`. */
+const scopeOf = (from: MonthKey, until: MonthKey | null): PlanScope =>
+	until === addMonths(from, 1) ? "just" : "from-on";
 
 /** The next Bucket colour in turn (1–8) for the Household. */
 const nextColor = (householdId: string): SQL =>
@@ -369,22 +405,28 @@ const termsBack = (db: Db, householdId: string, commitmentId: string, until: Mon
 		.onConflictDoNothing({ target: [commitmentTerms.commitmentId, commitmentTerms.month] });
 
 /**
- * Sets a Commitment's terms from `from`, if it's in the Plan then and its terms in force are
- * still the ones `read` (no one changed them since).
+ * Guards new terms from `from` to land only if the Commitment is in the Plan then and its terms
+ * in force are still the ones `read` (no one changed them since).
  */
+const termsGuard = (input: { from: MonthKey; read: { month: string } & CommitmentTerms }) => {
+	const { read, from } = input;
+	const unchanged = sql`exists (select 1 from ${commitmentTerms} where ${commitmentTerms.commitmentId} = ${commitments.id} and ${commitmentTerms.month} = ${read.month} and ${commitmentTerms.amountCents} = ${read.amount} and ${commitmentTerms.cadence} = ${read.cadence} and ${commitmentTerms.dueDate} = ${read.dueDate})
+		and not exists (select 1 from ${commitmentTerms} where ${commitmentTerms.commitmentId} = ${commitments.id} and ${commitmentTerms.month} > ${read.month} and ${commitmentTerms.month} <= ${from})`;
+	return and(inPlanFor(from), unchanged);
+};
+
+/** Sets a Commitment's terms from `from`, as termsGuard allows. */
 const termsWrite = (
 	db: Db,
 	input: {
 		householdId: string;
 		commitmentId: string;
 		from: MonthKey;
-		read: { month: string } & CommitmentTerms;
+		guard: SQL | undefined;
 		terms: CommitmentTerms;
 	},
 ) => {
-	const { read, terms, from } = input;
-	const unchanged = sql`exists (select 1 from ${commitmentTerms} where ${commitmentTerms.commitmentId} = ${commitments.id} and ${commitmentTerms.month} = ${read.month} and ${commitmentTerms.amountCents} = ${read.amount} and ${commitmentTerms.cadence} = ${read.cadence} and ${commitmentTerms.dueDate} = ${read.dueDate})
-		and not exists (select 1 from ${commitmentTerms} where ${commitmentTerms.commitmentId} = ${commitments.id} and ${commitmentTerms.month} > ${read.month} and ${commitmentTerms.month} <= ${from})`;
+	const { terms, from } = input;
 	return db
 		.insert(commitmentTerms)
 		.select(
@@ -398,9 +440,7 @@ const termsWrite = (
 					dueDate: sql<string>`${terms.dueDate}`.as("due_date"),
 				})
 				.from(commitments)
-				.where(
-					and(ownCommitment(input.householdId, input.commitmentId), inPlanFor(from), unchanged),
-				),
+				.where(and(ownCommitment(input.householdId, input.commitmentId), input.guard)),
 		)
 		.onConflictDoUpdate({
 			target: [commitmentTerms.commitmentId, commitmentTerms.month],

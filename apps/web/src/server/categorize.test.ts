@@ -131,13 +131,21 @@ beforeEach(async () => {
 	await db
 		.insert(members)
 		.values({ id: "sam", householdId, kind: "parent", name: "Sam", clerkUserId: "clerk-sam" });
-	await setBaseline(db, { householdId, month, amountCents: 900_000 });
+	await setBaseline(db, { householdId, memberId: "alex", month, amountCents: 900_000 });
 	for (const [bucketId, name] of [
 		["groceries", "Groceries"],
 		["gas", "Gas"],
 		["fun", "Fun"],
 	] as const) {
-		await addBucket(db, { householdId, bucketId, name, color: 1, month, allowanceCents: 50_000 });
+		await addBucket(db, {
+			householdId,
+			memberId: "alex",
+			bucketId,
+			name,
+			color: 1,
+			month,
+			allowanceCents: 50_000,
+		});
 	}
 	for (const memberId of ["alex", "sam"]) {
 		await addPersonalAllowance(db, {

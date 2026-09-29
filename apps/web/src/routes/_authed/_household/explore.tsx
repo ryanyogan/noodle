@@ -338,7 +338,11 @@ function ScenarioBar({
 								disabled={blocked.length > 0}
 								onClick={() => {
 									setConfirming(null);
-									apply.mutate({ name: name || "Scenario", levers: active });
+									apply.mutate({
+										name: name || "Scenario",
+										levers: active,
+										scenarioId: saved ? draft.id : undefined,
+									});
 								}}
 							>
 								Apply to Plan

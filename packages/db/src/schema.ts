@@ -1,4 +1,10 @@
-import type { CsvMapping, LeverV1, ScenarioJson } from "@noodle/domain";
+import {
+	type CsvMapping,
+	type LeverV1,
+	PLAN_CHANGE_KINDS,
+	type PlanChangeValue,
+	type ScenarioJson,
+} from "@noodle/domain";
 import { sql } from "drizzle-orm";
 import {
 	type AnySQLiteColumn,
@@ -633,6 +639,41 @@ export const scenarios = sqliteTable(
 			.default(sql`(unixepoch() * 1000)`),
 	},
 	(t) => [index("scenarios_household_idx").on(t.householdId)],
+);
+
+// The Plan's history: one row appended per Plan change (ADR-0014), in the same batch as the
+// write it describes, and never updated or deleted. `before`/`after` hold only the values the
+// kind has (PlanChangeValue in @noodle/domain); `owner_member_id` is set when the change is to
+// a Personal Allowance, so reads can hide it from the other Parent (ADR-0003).
+export const planChanges = sqliteTable(
+	"plan_changes",
+	{
+		id: integer("id").primaryKey({ autoIncrement: true }),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		memberId: text("member_id")
+			.notNull()
+			.references(() => members.id),
+		kind: text("kind", { enum: PLAN_CHANGE_KINDS }).notNull(),
+		/** The Bucket, Commitment or Goal; null for the Baseline. */
+		targetId: text("target_id"),
+		/** The first month it takes effect. */
+		month: text("month").notNull(),
+		scope: text("scope", { enum: ["from-on", "just"] }).notNull(),
+		before: text("before", { mode: "json" }).$type<PlanChangeValue>(),
+		after: text("after", { mode: "json" }).$type<PlanChangeValue>(),
+		ownerMemberId: text("owner_member_id").references(() => members.id),
+		source: text("source", { enum: ["plan", "scenario"] }).notNull(),
+		scenarioId: text("scenario_id"),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [
+		index("plan_changes_household_month_idx").on(t.householdId, t.month),
+		index("plan_changes_household_target_idx").on(t.householdId, t.targetId),
+	],
 );
 
 // Income received: money in that isn't a Refund of a purchase (a paycheck, a bonus, a tax

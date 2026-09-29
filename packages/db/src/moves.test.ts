@@ -38,16 +38,25 @@ async function seed(db: Db) {
 		parentName: "Alex",
 	});
 	const month = "2026-09";
-	await setBaseline(db, { householdId, month, amountCents: 900_000 });
+	await setBaseline(db, { householdId, memberId: parentId, month, amountCents: 900_000 });
 	for (const [bucketId, color, allowanceCents] of [
 		["groceries", 1, 120_000],
 		["hockey", 2, 40_000],
 		["fun", 3, 25_000],
 	] as const) {
-		await addBucket(db, { householdId, bucketId, name: bucketId, color, month, allowanceCents });
+		await addBucket(db, {
+			householdId,
+			memberId: parentId,
+			bucketId,
+			name: bucketId,
+			color,
+			month,
+			allowanceCents,
+		});
 	}
 	await addCommitment(db, {
 		householdId,
+		memberId: parentId,
 		commitmentId: "mortgage",
 		name: "Mortgage",
 		month,
@@ -57,6 +66,7 @@ async function seed(db: Db) {
 	});
 	await addCommitment(db, {
 		householdId,
+		memberId: parentId,
 		commitmentId: "daycare",
 		name: "Daycare",
 		month,
@@ -66,6 +76,7 @@ async function seed(db: Db) {
 	});
 	await addCommitment(db, {
 		householdId,
+		memberId: parentId,
 		commitmentId: "insurance",
 		name: "Insurance",
 		month,
@@ -177,10 +188,16 @@ describe("the Cover guard's SQL agrees with @noodle/domain", () => {
 			month: "2026-10",
 			amountCents: 100_000,
 		});
-		await setBaseline(db, { householdId, month: "2026-12", amountCents: 950_000 });
+		await setBaseline(db, {
+			householdId,
+			memberId: parentId,
+			month: "2026-12",
+			amountCents: 950_000,
+		});
 		// From November, Daycare is due every other Monday, the first on the month's last day.
 		await updateCommitment(db, {
 			householdId,
+			memberId: parentId,
 			commitmentId: "daycare",
 			name: "Daycare",
 			month: "2026-11",
@@ -282,6 +299,7 @@ describe("addCover", () => {
 	it("refuses Buckets that aren't the Household's or aren't in the Plan", async () => {
 		await addBucket(db, {
 			householdId,
+			memberId: parentId,
 			bucketId: "later",
 			name: "Later",
 			color: 4,

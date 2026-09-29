@@ -32,6 +32,7 @@ import { usePlanChange } from "../plan-changes";
 import { addCommitment, updateCommitment } from "../server/commitments";
 import { AmountInput } from "./goals";
 import { Confirm, SaveFailed } from "./plan-editing";
+import { PlanHistoryDisclosure } from "./plan-history";
 import { ChangedNote, PlanScopeField } from "./plan-scope-field";
 
 const isCadence = (value: unknown): value is Cadence => CADENCES.includes(value as Cadence);
@@ -107,6 +108,7 @@ export function CommitmentEditor({
 										onEnd(commitmentId);
 									}}
 								/>
+								<PlanHistoryDisclosure month={month} targetId={commitment.id} />
 							</SheetContent>
 						) : null}
 					</Sheet>

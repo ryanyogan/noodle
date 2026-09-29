@@ -53,9 +53,10 @@ beforeEach(async () => {
 		parentId,
 		parentName: "Alex",
 	});
-	await setBaseline(db, { householdId, month, amountCents: 600_000 });
+	await setBaseline(db, { householdId, memberId: parentId, month, amountCents: 600_000 });
 	await addBucket(db, {
 		householdId,
+		memberId: parentId,
 		bucketId: "groceries",
 		name: "Groceries",
 		color: 1,

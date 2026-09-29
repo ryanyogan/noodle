@@ -33,7 +33,11 @@ export const addCommitment = createServerFn({ method: "POST" })
 	.validator(commitmentSchema)
 	.handler(async ({ data, context }) => {
 		assertEditable(context.household, data.month);
-		await addCommitmentInDb(getDb(), { householdId: context.household.id, ...data });
+		await addCommitmentInDb(getDb(), {
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			...data,
+		});
 		await notifyHousehold(context.household.id, ["months"]);
 	});
 
@@ -43,7 +47,11 @@ export const updateCommitment = createServerFn({ method: "POST" })
 	.validator(commitmentSchema.extend({ scope: planScopeSchema }))
 	.handler(async ({ data, context }) => {
 		assertEditable(context.household, data.month);
-		await updateCommitmentInDb(getDb(), { householdId: context.household.id, ...data });
+		await updateCommitmentInDb(getDb(), {
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			...data,
+		});
 		await notifyHousehold(context.household.id, ["months"]);
 	});
 
@@ -52,7 +60,11 @@ export const endCommitment = createServerFn({ method: "POST" })
 	.validator(z.object({ commitmentId: ulidSchema, month: monthKeySchema }))
 	.handler(async ({ data, context }) => {
 		assertEditable(context.household, data.month);
-		await endCommitmentInDb(getDb(), { householdId: context.household.id, ...data });
+		await endCommitmentInDb(getDb(), {
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			...data,
+		});
 		await notifyHousehold(context.household.id, ["months"]);
 	});
 

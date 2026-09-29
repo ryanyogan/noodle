@@ -7,6 +7,7 @@ import { getHouseholdParents } from "./server/invites";
 import { getForTotalsEarlierInYear, getMembers } from "./server/members";
 import { getMonth, type MonthData } from "./server/month";
 import { getNudgeSettings } from "./server/nudges";
+import { getPlanHistory } from "./server/plan";
 import { getReport, type ReportRequest } from "./server/reports";
 import { getReview, getRules } from "./server/review";
 import { getPlanAhead, getScenarios } from "./server/scenarios";
@@ -82,6 +83,16 @@ export const planAheadQuery = () =>
 	queryOptions({
 		queryKey: [...monthsKey, "ahead"],
 		queryFn: () => getPlanAhead(),
+	});
+
+/**
+ * The Plan changes that take effect in `month` or, with `targetId`, every one to that Bucket or
+ * Commitment. Under the month's key, so whatever refetches the month refetches them too.
+ */
+export const planHistoryQuery = (month: MonthKey, targetId?: string) =>
+	queryOptions({
+		queryKey: [...monthsKey, month, "plan-history", targetId ?? null],
+		queryFn: () => getPlanHistory({ data: targetId === undefined ? { month } : { targetId } }),
 	});
 
 /**

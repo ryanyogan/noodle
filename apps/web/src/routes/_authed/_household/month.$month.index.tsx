@@ -3,6 +3,7 @@ import {
 	type BucketState,
 	type CoverSource,
 	canAssign,
+	type DayKey,
 	type IncomeCheck,
 	incomeCheck,
 	lastDayOf,
@@ -11,6 +12,7 @@ import {
 	monthCloseProposal,
 	monthOfDay,
 	nothingToClose,
+	whatChanged,
 	windfallSuggestions,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
@@ -25,7 +27,7 @@ import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarDays, ChevronRight, ListChecks } from "lucide-react";
+import { CalendarDays, ChevronRight, History, ListChecks } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../../../buckets";
@@ -39,7 +41,7 @@ import { type CoverVariables, useCovers } from "../../../covers";
 import { formatMoney, shortDay } from "../../../format";
 import { type GoalView, useGoals } from "../../../goals";
 import { closingWeek, useCloseMonth } from "../../../month-close";
-import { reviewQuery, useMonthState } from "../../../queries";
+import { planHistoryQuery, reviewQuery, useMonthState } from "../../../queries";
 import { useIncome, useWindfalls } from "../../../windfalls";
 
 export const Route = createFileRoute("/_authed/_household/month/$month/")({
@@ -157,7 +159,7 @@ function ThisMonth() {
 							emergencyGoalId={goals.emergencyGoalId}
 						/>
 					) : null}
-					{month === current ? <ReviewChip /> : null}
+					{month === current ? <Chips month={month} asOf={state.asOf} /> : null}
 					<FreeToSpend state={state} check={check} />
 					{state.windfallLeft > 0 && month <= current ? (
 						<WindfallSection
@@ -278,20 +280,54 @@ function ThisMonth() {
 	);
 }
 
-/** "3 to review", when imported Transactions wait in Review; nothing otherwise. */
-function ReviewChip() {
+/**
+ * Chips above Free to Spend: "3 to review", when imported Transactions wait in Review, and in the
+ * month's first week "2 Plan changes this month", linking to the Plan's What changed. Nothing
+ * when neither applies.
+ */
+function Chips({ month, asOf }: { month: MonthKey; asOf: DayKey }) {
 	const waiting = useQuery(reviewQuery()).data?.total ?? 0;
-	if (waiting === 0) return null;
+	const firstWeek = Number(asOf.slice(8)) <= 7;
+	const history = useQuery({ ...planHistoryQuery(month), enabled: firstWeek }).data;
+	const changes = firstWeek && history ? whatChanged(history.changes, month).length : 0;
+	if (waiting === 0 && changes === 0) return null;
+	return (
+		<div className="-mb-3 flex flex-wrap gap-2">
+			{waiting > 0 ? (
+				<Chip to="/review" icon={ListChecks}>
+					{waiting} to review
+				</Chip>
+			) : null}
+			{changes > 0 ? (
+				<Chip to="/plan/$month" params={{ month }} hash="what-changed" icon={History}>
+					{changes === 1 ? "1 Plan change" : `${changes} Plan changes`} this month
+				</Chip>
+			) : null}
+		</div>
+	);
+}
+
+function Chip({
+	icon: Icon,
+	children,
+	...link
+}: {
+	icon: typeof History;
+	children: ReactNode;
+} & (
+	| { to: "/review"; params?: undefined; hash?: undefined }
+	| { to: "/plan/$month"; params: { month: MonthKey }; hash: string }
+)) {
 	return (
 		<Link
-			to="/review"
+			{...link}
 			className={cn(
-				"-mb-3 inline-flex w-fit items-center gap-2 rounded-full bg-card py-1.5 ps-3 pe-2 text-sm font-medium shadow-card ring-1 ring-border",
+				"inline-flex w-fit items-center gap-2 rounded-full bg-card py-1.5 ps-3 pe-2 text-sm font-medium shadow-card ring-1 ring-border",
 				"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2",
 			)}
 		>
-			<ListChecks className="size-4 text-muted-foreground" aria-hidden="true" />
-			{waiting} to review
+			<Icon className="size-4 text-muted-foreground" aria-hidden="true" />
+			{children}
 			<ChevronRight className="size-4 text-muted-foreground" aria-hidden="true" />
 		</Link>
 	);

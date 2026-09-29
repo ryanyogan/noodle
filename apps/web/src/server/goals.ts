@@ -143,13 +143,15 @@ export const addGoal = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }): Promise<GoalWriteResult> => {
 		const { household } = context;
 		assertNotPast(household, data.targetDate);
+		const month = currentMonth(household);
 		const result = await addGoalInDb(getDb(), {
 			householdId: household.id,
-			fromMonth: currentMonth(household),
+			fromMonth: month,
 			createdByMemberId: context.parent.id,
 			...data,
 		});
-		if (result.ok) await notifyHousehold(household.id, ["goals"]);
+		// The month's Plan history has the new Goal.
+		if (result.ok) await notifyHousehold(household.id, ["goals", `month:${month}`]);
 		return result;
 	});
 
@@ -172,8 +174,15 @@ export const updateGoal = createServerFn({ method: "POST" })
 			const goal = goals.find((g) => g.id === data.goalId);
 			if (goal?.targetDate !== data.targetDate) assertNotPast(household, data.targetDate);
 		}
-		await updateGoalInDb(db, { householdId: household.id, ...data });
-		await notifyHousehold(household.id, ["goals"]);
+		const month = currentMonth(household);
+		await updateGoalInDb(db, {
+			householdId: household.id,
+			memberId: context.parent.id,
+			month,
+			...data,
+		});
+		// Its Plan change shows in this month's history.
+		await notifyHousehold(household.id, ["goals", `month:${month}`]);
 	});
 
 /** Marks a Goal completed; it keeps its Earmark. */

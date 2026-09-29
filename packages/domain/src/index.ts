@@ -169,6 +169,15 @@ export {
 	totalAllowances,
 	totalCommitments,
 } from "./plan";
+export {
+	PLAN_CHANGE_KINDS,
+	type PlanChange,
+	type PlanChangeGroup,
+	type PlanChangeKind,
+	type PlanChangeSource,
+	type PlanChangeValue,
+	whatChanged,
+} from "./plan-history";
 export { type PlanChanges, type PlanScope, planChanges, restoreAfterJust } from "./plan-scope";
 export {
 	type AmountBand,

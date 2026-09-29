@@ -8,11 +8,12 @@ import {
 	type PlanScope,
 	restoreAfterJust,
 } from "@noodle/domain";
-import { and, eq, gt, gte, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
+import { and, eq, gt, gte, isNotNull, isNull, lte, or, type SQL, sql } from "drizzle-orm";
 import { counts } from "./counting";
 import type { Db } from "./index";
+import { type Author, inForce, logChange } from "./plan-log";
 import { type Viewer, visibleTo } from "./privacy";
-import { commitments, commitmentTerms, splits, transactions } from "./schema";
+import { commitments, commitmentTerms, households, splits, transactions } from "./schema";
 
 // A Household's Commitments and the payments recorded against them. Every query is scoped by
 // household_id; Commitment IDs from the client are only ever used together with it. Writes are
@@ -51,12 +52,64 @@ const termsFor = (
 	);
 
 /**
+ * The Plan change for setting a Commitment's terms from `month`, written before them: only if
+ * it's the Household's (and matches `where`) and they differ from the terms in force at `month`.
+ */
+export const termsLog = (
+	db: Db,
+	input: Author & {
+		householdId: string;
+		commitmentId: string;
+		month: MonthKey;
+		scope?: PlanScope;
+		until?: MonthKey | null;
+	} & Terms,
+	where?: SQL,
+) => {
+	const termsInForce = (column: SQL) =>
+		inForce(
+			commitmentTerms,
+			column,
+			commitmentTerms.month,
+			eq(commitmentTerms.commitmentId, commitments.id),
+			input.month,
+		);
+	const same = termsInForce(
+		sql`${commitmentTerms.amountCents} = ${input.amountCents} and ${commitmentTerms.cadence} = ${input.cadence} and ${commitmentTerms.dueDate} = ${input.dueDate}`,
+	);
+	return logChange(
+		db,
+		commitments,
+		and(ownCommitment(input.householdId, input.commitmentId), where, sql`${same} is not 1`),
+		{
+			...input,
+			kind: "commitment-terms",
+			targetId: input.commitmentId,
+			before: termsInForce(
+				sql`json_object('amount', ${commitmentTerms.amountCents}, 'cadence', ${commitmentTerms.cadence}, 'dueDate', ${commitmentTerms.dueDate})`,
+			),
+			after: {
+				amount: input.amountCents,
+				cadence: input.cadence,
+				dueDate: input.dueDate,
+				...(input.until ? { until: input.until } : {}),
+			},
+		},
+	);
+};
+
+/**
  * Adds a Commitment to the Plan from `month` onward on its first terms. Idempotent per
  * `commitmentId`: a retry leaves the first attempt's Commitment as it was.
  */
 export async function addCommitment(
 	db: Db,
-	input: { householdId: string; commitmentId: string; name: string; month: MonthKey } & Terms,
+	input: Author & {
+		householdId: string;
+		commitmentId: string;
+		name: string;
+		month: MonthKey;
+	} & Terms,
 ): Promise<void> {
 	await db.batch(commitmentAdd(db, input));
 }
@@ -67,7 +120,7 @@ export async function addCommitment(
  */
 export const commitmentAdd = (
 	db: Db,
-	input: {
+	input: Author & {
 		householdId: string;
 		commitmentId: string;
 		name: string;
@@ -76,6 +129,27 @@ export const commitmentAdd = (
 	} & Terms,
 ) =>
 	[
+		logChange(
+			db,
+			households,
+			and(
+				eq(households.id, input.householdId),
+				sql`not exists (select 1 from ${commitments} where ${commitments.id} = ${input.commitmentId})`,
+			),
+			{
+				...input,
+				kind: "commitment-add",
+				targetId: input.commitmentId,
+				before: null,
+				after: {
+					name: input.name,
+					amount: input.amountCents,
+					cadence: input.cadence,
+					dueDate: input.dueDate,
+					...(input.endedFromMonth ? { until: input.endedFromMonth } : {}),
+				},
+			},
+		),
 		db
 			.insert(commitments)
 			.values({
@@ -98,7 +172,7 @@ export const commitmentAdd = (
  */
 export async function updateCommitment(
 	db: Db,
-	input: {
+	input: Author & {
 		householdId: string;
 		commitmentId: string;
 		name: string;
@@ -106,10 +180,21 @@ export async function updateCommitment(
 		scope?: PlanScope;
 	} & Terms,
 ): Promise<void> {
-	const rename = db
-		.update(commitments)
-		.set({ name: input.name })
-		.where(ownCommitment(input.householdId, input.commitmentId));
+	const own = ownCommitment(input.householdId, input.commitmentId);
+	const renameLog = logChange(
+		db,
+		commitments,
+		and(own, sql`${commitments.name} is not ${input.name}`),
+		{
+			...input,
+			kind: "commitment-rename",
+			targetId: input.commitmentId,
+			before: sql`json_object('name', ${commitments.name})`,
+			after: { name: input.name },
+		},
+	);
+	const rename = db.update(commitments).set({ name: input.name }).where(own);
+	const log = termsLog(db, input);
 	const write = termsFor(db, input).onConflictDoUpdate({
 		target: [commitmentTerms.commitmentId, commitmentTerms.month],
 		set: { amountCents: input.amountCents, cadence: input.cadence, dueDate: input.dueDate },
@@ -134,11 +219,13 @@ export async function updateCommitment(
 			: [];
 	const restore = restoreAfterJust(series as ({ month: MonthKey } & Terms)[], input.month);
 	if (!restore) {
-		await db.batch([rename, write]);
+		await db.batch([renameLog, rename, log, write]);
 		return;
 	}
 	await db.batch([
+		renameLog,
 		rename,
+		log,
 		// Guarded like the change itself; the next month's own terms always win, even ones
 		// written since the read above.
 		termsFor(db, { ...input, ...restore }).onConflictDoNothing({
@@ -153,22 +240,28 @@ export async function updateCommitment(
  * from a later month than it already was is a no-op.
  */
 export async function endCommitment(db: Db, input: EndCommitmentInput): Promise<void> {
-	await commitmentEnd(db, input);
+	await db.batch(commitmentEnd(db, input));
 }
 
-type EndCommitmentInput = { householdId: string; commitmentId: string; month: MonthKey };
+type EndCommitmentInput = Author & { householdId: string; commitmentId: string; month: MonthKey };
 
-/** endCommitment as a statement, for writing it in a batch with others. */
-export const commitmentEnd = (db: Db, input: EndCommitmentInput) =>
-	db
-		.update(commitments)
-		.set({ endedFromMonth: input.month })
-		.where(
-			and(
-				ownCommitment(input.householdId, input.commitmentId),
-				or(isNull(commitments.endedFromMonth), gt(commitments.endedFromMonth, input.month)),
-			),
-		);
+/** endCommitment as statements (its Plan change, then itself), for a batch with others. */
+export const commitmentEnd = (db: Db, input: EndCommitmentInput) => {
+	const endable = and(
+		ownCommitment(input.householdId, input.commitmentId),
+		or(isNull(commitments.endedFromMonth), gt(commitments.endedFromMonth, input.month)),
+	);
+	return [
+		logChange(db, commitments, endable, {
+			...input,
+			kind: "commitment-end",
+			targetId: input.commitmentId,
+			before: null,
+			after: null,
+		}),
+		db.update(commitments).set({ endedFromMonth: input.month }).where(endable),
+	] as const;
+};
 
 /** A payment recorded against a Commitment, with the Transaction's ID. */
 export type CommitmentCharge = Charge & { id: string };

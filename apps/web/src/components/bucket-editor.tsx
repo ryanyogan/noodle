@@ -33,6 +33,7 @@ import {
 	updateBucket,
 } from "../server/plan";
 import { Confirm, SaveFailed } from "./plan-editing";
+import { PlanHistoryDisclosure } from "./plan-history";
 import { ChangedNote, PlanAmountForm } from "./plan-scope-field";
 
 /**
@@ -117,6 +118,7 @@ export function BucketEditor({
 										onArchive(bucketId);
 									}}
 								/>
+								<PlanHistoryDisclosure month={month} targetId={bucket.id} />
 							</SheetContent>
 						) : null}
 					</Sheet>

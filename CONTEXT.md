@@ -22,6 +22,10 @@ _Avoid_: One-off, temporary, override, this month only
 An amount in a month's Plan that differs from the month before's, shown with what it was ("Changed this month · was $900").
 _Avoid_: Modified, edited, overridden
 
+**Plan change**:
+One change a Parent made to the Plan (the Baseline, an allowance, Rolling or Fresh-start, new Commitment terms, a Goal’s target; a Bucket, Commitment or Goal added; a Bucket or Commitment renamed, archived or ended), kept with who made it, when, the month it takes effect and what it was before. "What changed" on the Plan nets a month's Plan changes per item; the other Parent's Personal Allowance only ever reads as "Personal Allowance changed".
+_Avoid_: Edit, audit entry, revision
+
 **Commitment**:
 A recurring, predictable obligation (mortgage, insurance, daycare, subscriptions) that is expected every period.
 _Avoid_: Bill, fixed expense, recurring

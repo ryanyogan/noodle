@@ -43,9 +43,10 @@ beforeEach(async () => {
 			parentName: parent,
 		});
 	}
-	await setBaseline(db, { householdId, month, amountCents: 900_000 });
+	await setBaseline(db, { householdId, memberId: parentId, month, amountCents: 900_000 });
 	await addBucket(db, {
 		householdId,
+		memberId: parentId,
 		bucketId: "groceries",
 		name: "Groceries",
 		color: 1,
@@ -54,6 +55,7 @@ beforeEach(async () => {
 	});
 	await addCommitment(db, {
 		householdId,
+		memberId: parentId,
 		commitmentId: "streaming",
 		name: "Streaming",
 		month,
@@ -472,6 +474,7 @@ describe("applyLevers: v2 Levers", () => {
 		// Terms set for November after the Scenario was made: a December change starts from them.
 		await updateCommitment(db, {
 			householdId,
+			memberId: parentId,
 			commitmentId: "streaming",
 			name: "Streaming",
 			month: "2026-11",

@@ -61,9 +61,10 @@ async function seed(db: Db) {
 		});
 	}
 	// Free to Spend: $9,000 Baseline − $1,200 Groceries.
-	await setBaseline(db, { householdId, month, amountCents: 900_000 });
+	await setBaseline(db, { householdId, memberId: parentId, month, amountCents: 900_000 });
 	await addBucket(db, {
 		householdId,
+		memberId: parentId,
 		bucketId: "groceries",
 		name: "Groceries",
 		color: 1,
@@ -245,6 +246,8 @@ describe("addGoal", () => {
 		await goal("braces");
 		await updateGoal(db, {
 			householdId: "other-household",
+			memberId: parentId,
+			month: "2026-09",
 			goalId: "braces",
 			name: "Taken",
 			targetCents: 1,
@@ -252,6 +255,8 @@ describe("addGoal", () => {
 		});
 		await updateGoal(db, {
 			householdId,
+			memberId: parentId,
+			month: "2026-09",
 			goalId: "braces",
 			name: "Braces",
 			targetCents: 650_000,

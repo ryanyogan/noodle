@@ -8,6 +8,7 @@ import {
 } from "@noodle/domain";
 import { and, eq, gt, isNull, lte, or, type SQL, sql } from "drizzle-orm";
 import type { Db } from "./index";
+import { type Author, inForce, logChange } from "./plan-log";
 import { assignableBy } from "./privacy";
 import {
 	baselines,
@@ -16,6 +17,7 @@ import {
 	buckets,
 	commitments,
 	commitmentTerms,
+	households,
 } from "./schema";
 
 // The Plan's records for a Household (ADR-0004: effective-dated rows, written idempotently so a
@@ -97,6 +99,36 @@ export async function loadPlanRecords(
 	};
 }
 
+/** `until`: the month a Scenario's change over a range stops, for its Plan change. */
+type Ranged = { scope?: PlanScope; until?: MonthKey | null };
+
+const untilOf = (input: Ranged) => (input.until ? { until: input.until } : {});
+
+type BaselineInput = Author & { householdId: string; month: MonthKey; amountCents: Cents };
+
+/** The Plan change for setting the Baseline, written before it. */
+export const baselineLog = (db: Db, input: BaselineInput & Ranged) => {
+	const was = inForce(
+		baselines,
+		baselines.amountCents,
+		baselines.month,
+		eq(baselines.householdId, input.householdId),
+		input.month,
+	);
+	return logChange(
+		db,
+		households,
+		and(eq(households.id, input.householdId), sql`${was} is not ${input.amountCents}`),
+		{
+			...input,
+			kind: "baseline",
+			targetId: null,
+			before: sql`json_object('amount', ${was})`,
+			after: { amount: input.amountCents, ...untilOf(input) },
+		},
+	);
+};
+
 /**
  * Sets the Baseline from `month` onward, or for `scope` "just" that month only: the next month
  * goes back to the Baseline in force before, unless it has its own. Setting it again for the same
@@ -104,9 +136,10 @@ export async function loadPlanRecords(
  */
 export async function setBaseline(
 	db: Db,
-	input: { householdId: string; month: MonthKey; amountCents: Cents; scope?: PlanScope },
+	input: BaselineInput & { scope?: PlanScope },
 ): Promise<void> {
 	const { householdId, month, amountCents } = input;
+	const log = baselineLog(db, input);
 	const write = db
 		.insert(baselines)
 		.values({ householdId, month, amountCents })
@@ -115,7 +148,7 @@ export async function setBaseline(
 			set: { amountCents },
 		});
 	if (input.scope !== "just") {
-		await write;
+		await db.batch([log, write]);
 		return;
 	}
 	const series = await db
@@ -124,10 +157,11 @@ export async function setBaseline(
 		.where(and(eq(baselines.householdId, householdId), lte(baselines.month, addMonths(month, 1))));
 	const restore = restoreAfterJust(series as { month: MonthKey; amountCents: Cents }[], month);
 	if (!restore) {
-		await write;
+		await db.batch([log, write]);
 		return;
 	}
 	await db.batch([
+		log,
 		// The next month's own Baseline always wins, even one written since the read above.
 		db
 			.insert(baselines)
@@ -157,7 +191,7 @@ export const changeableBucket = (input: {
  */
 export async function addBucket(
 	db: Db,
-	input: {
+	input: Author & {
 		householdId: string;
 		bucketId: string;
 		name: string;
@@ -171,11 +205,12 @@ export async function addBucket(
 
 /**
  * addBucket as statements, for writing them in a batch with others; `color` may be SQL (say,
- * the next colour in turn), and `archivedFromMonth` also sets when it leaves the Plan.
+ * the next colour in turn), `archivedFromMonth` also sets when it leaves the Plan, and `rolling`
+ * makes it Rolling from the start.
  */
 export const bucketAdd = (
 	db: Db,
-	input: {
+	input: Author & {
 		householdId: string;
 		bucketId: string;
 		name: string;
@@ -183,9 +218,30 @@ export const bucketAdd = (
 		month: MonthKey;
 		archivedFromMonth?: MonthKey | null;
 		allowanceCents: Cents;
+		rolling?: boolean;
 	},
 ) =>
 	[
+		logChange(
+			db,
+			households,
+			and(
+				eq(households.id, input.householdId),
+				sql`not exists (select 1 from ${buckets} where ${buckets.id} = ${input.bucketId})`,
+			),
+			{
+				...input,
+				kind: "bucket-add",
+				targetId: input.bucketId,
+				before: null,
+				after: {
+					name: input.name,
+					amount: input.allowanceCents,
+					...(input.rolling ? { rolling: true } : {}),
+					...untilOf({ until: input.archivedFromMonth }),
+				},
+			},
+		),
 		db
 			.insert(buckets)
 			.values({
@@ -212,6 +268,24 @@ export const bucketAdd = (
 					.where(ownBucket(input.householdId, input.bucketId)),
 			)
 			.onConflictDoNothing({ target: [bucketAllowances.bucketId, bucketAllowances.month] }),
+		...(input.rolling
+			? [
+					db
+						.insert(bucketRolling)
+						.select(
+							db
+								.select({
+									householdId: buckets.householdId,
+									bucketId: buckets.id,
+									month: sql<string>`${input.month}`.as("month"),
+									rolling: sql<boolean>`1`.as("rolling"),
+								})
+								.from(buckets)
+								.where(ownBucket(input.householdId, input.bucketId)),
+						)
+						.onConflictDoNothing({ target: [bucketRolling.bucketId, bucketRolling.month] }),
+				]
+			: []),
 	] as const;
 
 /**
@@ -232,6 +306,22 @@ export async function addPersonalAllowance(
 	},
 ): Promise<void> {
 	await db.batch([
+		logChange(
+			db,
+			households,
+			and(
+				eq(households.id, input.householdId),
+				sql`not exists (select 1 from ${buckets} where ${buckets.id} = ${input.bucketId} or ${buckets.ownerMemberId} = ${input.memberId})`,
+			),
+			{
+				...input,
+				kind: "bucket-add",
+				targetId: input.bucketId,
+				before: null,
+				after: { name: input.name, amount: input.allowanceCents },
+				owner: input.memberId,
+			},
+		),
 		db
 			.insert(buckets)
 			.values({
@@ -267,14 +357,39 @@ export async function addPersonalAllowance(
 	]);
 }
 
-/** Renames or recolours a Bucket (in every month), for the Parent `memberId`. */
+/**
+ * Renames or recolours a Bucket (in every month), for the Parent `memberId`; `month` (the
+ * Household's current one) is when its Plan change says a rename happened.
+ */
 export async function updateBucket(
 	db: Db,
-	input: { householdId: string; memberId: string; bucketId: string; name?: string; color?: number },
+	input: {
+		householdId: string;
+		memberId: string;
+		bucketId: string;
+		month: MonthKey;
+		name?: string;
+		color?: number;
+	},
 ): Promise<void> {
 	const { name, color } = input;
 	if (name === undefined && color === undefined) return;
-	await db.update(buckets).set({ name, color }).where(changeableBucket(input));
+	const write = db.update(buckets).set({ name, color }).where(changeableBucket(input));
+	if (name === undefined) {
+		await write;
+		return;
+	}
+	await db.batch([
+		logChange(db, buckets, and(changeableBucket(input), sql`${buckets.name} is not ${name}`), {
+			...input,
+			kind: "bucket-rename",
+			targetId: input.bucketId,
+			before: sql`json_object('name', ${buckets.name})`,
+			after: { name },
+			owner: buckets.ownerMemberId,
+		}),
+		write,
+	]);
 }
 
 /**
@@ -286,8 +401,9 @@ export async function setAllowance(
 	db: Db,
 	input: AllowanceInput & { scope?: PlanScope },
 ): Promise<void> {
+	const log = allowanceLog(db, input);
 	if (input.scope !== "just") {
-		await allowanceWrite(db, input);
+		await db.batch([log, allowanceWrite(db, input)]);
 		return;
 	}
 	const series = await db
@@ -305,10 +421,11 @@ export async function setAllowance(
 		input.month,
 	);
 	if (!restore) {
-		await allowanceWrite(db, input);
+		await db.batch([log, allowanceWrite(db, input)]);
 		return;
 	}
 	await db.batch([
+		log,
 		// Guarded like the change itself; the next month's own allowance always wins, even one
 		// written since the read above.
 		allowanceInsert(db, { ...input, ...restore }).onConflictDoNothing({
@@ -318,12 +435,35 @@ export async function setAllowance(
 	]);
 }
 
-type AllowanceInput = {
+type AllowanceInput = Author & {
 	householdId: string;
-	memberId: string;
 	bucketId: string;
 	month: MonthKey;
 	amountCents: Cents;
+};
+
+/** The Plan change for setting a Bucket's allowance, written before it with the same guard. */
+export const allowanceLog = (db: Db, input: AllowanceInput & Ranged) => {
+	const was = inForce(
+		bucketAllowances,
+		bucketAllowances.amountCents,
+		bucketAllowances.month,
+		eq(bucketAllowances.bucketId, buckets.id),
+		input.month,
+	);
+	return logChange(
+		db,
+		buckets,
+		and(changeableBucket(input), sql`${was} is not ${input.amountCents}`),
+		{
+			...input,
+			kind: "allowance",
+			targetId: input.bucketId,
+			before: sql`json_object('amount', ${was})`,
+			after: { amount: input.amountCents, ...untilOf(input) },
+			owner: buckets.ownerMemberId,
+		},
+	);
 };
 
 /** insert into bucket_allowances select … from buckets where <the Parent may change it> */
@@ -361,7 +501,27 @@ export async function setRolling(
 		rolling: boolean;
 	},
 ): Promise<void> {
-	await db
+	const was = inForce(
+		bucketRolling,
+		bucketRolling.rolling,
+		bucketRolling.month,
+		eq(bucketRolling.bucketId, buckets.id),
+		input.month,
+	);
+	const log = logChange(
+		db,
+		buckets,
+		and(changeableBucket(input), sql`coalesce(${was}, 0) is not ${input.rolling ? 1 : 0}`),
+		{
+			...input,
+			kind: "rolling",
+			targetId: input.bucketId,
+			before: { rolling: !input.rolling },
+			after: { rolling: input.rolling },
+			owner: buckets.ownerMemberId,
+		},
+	);
+	const write = db
 		.insert(bucketRolling)
 		.select(
 			db
@@ -378,6 +538,7 @@ export async function setRolling(
 			target: [bucketRolling.bucketId, bucketRolling.month],
 			set: { rolling: input.rolling },
 		});
+	await db.batch([log, write]);
 }
 
 /** Puts the Household's Buckets in the given order. IDs of other Households' Buckets are ignored. */
@@ -400,20 +561,26 @@ export async function reorderBuckets(
  * allowance to zero instead.
  */
 export async function archiveBucket(db: Db, input: ArchiveBucketInput): Promise<void> {
-	await bucketArchive(db, input);
+	await db.batch(bucketArchive(db, input));
 }
 
-type ArchiveBucketInput = { householdId: string; bucketId: string; month: MonthKey };
+type ArchiveBucketInput = Author & { householdId: string; bucketId: string; month: MonthKey };
 
-/** archiveBucket as a statement, for writing it in a batch with others. */
-export const bucketArchive = (db: Db, input: ArchiveBucketInput) =>
-	db
-		.update(buckets)
-		.set({ archivedFromMonth: input.month })
-		.where(
-			and(
-				ownBucket(input.householdId, input.bucketId),
-				isNull(buckets.ownerMemberId),
-				or(isNull(buckets.archivedFromMonth), gt(buckets.archivedFromMonth, input.month)),
-			),
-		);
+/** archiveBucket as statements (its Plan change, then itself), for a batch with others. */
+export const bucketArchive = (db: Db, input: ArchiveBucketInput) => {
+	const archivable = and(
+		ownBucket(input.householdId, input.bucketId),
+		isNull(buckets.ownerMemberId),
+		or(isNull(buckets.archivedFromMonth), gt(buckets.archivedFromMonth, input.month)),
+	);
+	return [
+		logChange(db, buckets, archivable, {
+			...input,
+			kind: "bucket-archive",
+			targetId: input.bucketId,
+			before: null,
+			after: null,
+		}),
+		db.update(buckets).set({ archivedFromMonth: input.month }).where(archivable),
+	] as const;
+};

@@ -163,8 +163,8 @@ export function useApplyScenario() {
 	const apply = useMutation({
 		// Shares the key of every change to a month, so their refetches don't undo one another.
 		mutationKey: monthChangeKey,
-		mutationFn: ({ levers }: { name: string; levers: Lever[] }) =>
-			applyScenario({ data: { levers } }),
+		mutationFn: ({ levers, scenarioId }: { name: string; levers: Lever[]; scenarioId?: string }) =>
+			applyScenario({ data: { levers, scenarioId } }),
 		onError: (_error, variables) => {
 			toast(`Couldn’t apply “${variables.name}”. The Plan hasn’t changed.`, {
 				tone: "error",

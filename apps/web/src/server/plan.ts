@@ -2,13 +2,21 @@ import {
 	addBucket as addBucketInDb,
 	addPersonalAllowance as addPersonalAllowanceInDb,
 	archiveBucket as archiveBucketInDb,
+	loadPlanChanges,
 	reorderBuckets as reorderBucketsInDb,
 	setAllowance as setAllowanceInDb,
 	setBaseline as setBaselineInDb,
 	setRolling as setRollingInDb,
 	updateBucket as updateBucketInDb,
 } from "@noodle/db";
-import { MAX_CENTS, type MonthKey, monthKeyAt } from "@noodle/domain";
+import {
+	type DayKey,
+	dayKeyAt,
+	MAX_CENTS,
+	type MonthKey,
+	monthKeyAt,
+	type PlanChange,
+} from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getDb } from "./db";
@@ -39,7 +47,11 @@ export const setBaseline = createServerFn({ method: "POST" })
 	.validator(z.object({ month: monthKeySchema, amountCents: centsSchema, scope: planScopeSchema }))
 	.handler(async ({ data, context }) => {
 		assertEditable(context.household, data.month);
-		await setBaselineInDb(getDb(), { householdId: context.household.id, ...data });
+		await setBaselineInDb(getDb(), {
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			...data,
+		});
 		await notifyHousehold(context.household.id, ["months"]);
 	});
 
@@ -56,7 +68,11 @@ export const addBucket = createServerFn({ method: "POST" })
 	)
 	.handler(async ({ data, context }) => {
 		assertEditable(context.household, data.month);
-		await addBucketInDb(getDb(), { householdId: context.household.id, ...data });
+		await addBucketInDb(getDb(), {
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			...data,
+		});
 		await notifyHousehold(context.household.id, ["months"]);
 	});
 
@@ -73,6 +89,7 @@ export const updateBucket = createServerFn({ method: "POST" })
 		await updateBucketInDb(getDb(), {
 			householdId: context.household.id,
 			memberId: context.parent.id,
+			month: monthKeyAt(new Date(), context.household.timeZone),
 			...data,
 		});
 		await notifyHousehold(context.household.id, ["months"]);
@@ -148,6 +165,38 @@ export const archiveBucket = createServerFn({ method: "POST" })
 	.validator(z.object({ bucketId: ulidSchema, month: monthKeySchema }))
 	.handler(async ({ data, context }) => {
 		assertEditable(context.household, data.month);
-		await archiveBucketInDb(getDb(), { householdId: context.household.id, ...data });
+		await archiveBucketInDb(getDb(), {
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			...data,
+		});
 		await notifyHousehold(context.household.id, ["months"]);
+	});
+
+/** A Plan change with the day it was made, in the Household's time zone. */
+export type DatedPlanChange = PlanChange & { day: DayKey };
+
+/** Plan changes, newest first, and the day the Household's history starts (none before it). */
+export type PlanHistoryView = { changes: DatedPlanChange[]; historyStart: DayKey | null };
+
+/**
+ * The Plan changes that take effect in `month`, or, with `targetId`, every one to that Bucket,
+ * Commitment or Goal, as the signed-in Parent may see them (ADR-0003).
+ */
+export const getPlanHistory = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ month: monthKeySchema.optional(), targetId: ulidSchema.optional() }))
+	.handler(async ({ data, context }): Promise<PlanHistoryView> => {
+		const { household } = context;
+		const history = await loadPlanChanges(
+			getDb(),
+			{ householdId: household.id, memberId: context.parent.id },
+			data,
+		);
+		// Days in the Household's time zone, so server and browser render the same dates.
+		const day = (at: number) => dayKeyAt(new Date(at), household.timeZone);
+		return {
+			changes: history.changes.map((change) => ({ ...change, day: day(change.at) })),
+			historyStart: history.historyStart === null ? null : day(history.historyStart),
+		};
 	});
