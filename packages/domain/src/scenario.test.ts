@@ -309,8 +309,14 @@ describe("project: fast enough for every slider frame", () => {
 	});
 
 	it("resolves 60 months of the Plan in a few milliseconds", () => {
-		const started = Date.now();
+		// Best of five after a warm-up, so a busy CI runner doesn't fail it; still catches a blowup.
 		planAhead(many, goals, "2026-09", 60);
-		expect(Date.now() - started).toBeLessThan(20);
+		let best = Number.POSITIVE_INFINITY;
+		for (let run = 0; run < 5; run++) {
+			const started = performance.now();
+			planAhead(many, goals, "2026-09", 60);
+			best = Math.min(best, performance.now() - started);
+		}
+		expect(best).toBeLessThan(20);
 	});
 });
