@@ -1,7 +1,15 @@
-import type { MonthCloseProposal } from "@noodle/domain";
+import type { MemberSummary, MonthCloseRecord } from "@noodle/db";
+import {
+	addMonths,
+	type MonthCloseProposal,
+	type MonthEnd,
+	type MonthKey,
+	quietEnd,
+} from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import { cn } from "@noodle/ui/lib/utils";
 import { useHydrated } from "@tanstack/react-router";
 import { useState } from "react";
 import { formatMoney, monthName } from "../format";
@@ -112,5 +120,96 @@ export function MonthCloseSection({
 				</Button>
 			</div>
 		</Section>
+	);
+}
+
+/**
+ * How an ended month's money ended up, on that month: the leftovers Swept into Goals, the
+ * Windfall sent to Goals, what each Rolling Bucket carried into the next month, and who closed
+ * it (or that the defaults did). Nothing when the month closed with nothing to tell.
+ */
+export function MonthEndSection({
+	month,
+	end,
+	closed,
+	parentId,
+	goals,
+	members,
+}: {
+	month: MonthKey;
+	end: MonthEnd;
+	closed: MonthCloseRecord | null;
+	/** The Parent viewing. */
+	parentId: string;
+	/** Every Goal, active or not, to name where money went. */
+	goals: Pick<GoalView, "id" | "name">[];
+	members: Pick<MemberSummary, "id" | "name">[];
+}) {
+	if (quietEnd(end) && closed === null) return null;
+	const name = monthName(month);
+	const next = monthName(addMonths(month, 1));
+	const goalName = (id: string) => goals.find((g) => g.id === id)?.name ?? "a Goal";
+	const closedBy =
+		closed === null
+			? null
+			: closed.decidedBy === null
+				? "Closed by the defaults"
+				: closed.decidedBy === parentId
+					? "Closed by you"
+					: `Closed by ${members.find((m) => m.id === closed.decidedBy)?.name ?? "the other Parent"}`;
+	return (
+		<Section aria-labelledby="month-end">
+			<SectionHeader
+				id="month-end"
+				title={`How ${name} ended`}
+				action={
+					closedBy ? <span className="text-[13px] text-muted-foreground">{closedBy}</span> : null
+				}
+			/>
+			{quietEnd(end) ? (
+				<p className="rounded-xl border border-dashed px-(--card-pad) py-4 text-[13px] text-muted-foreground">
+					Nothing was Swept or rolled over.
+				</p>
+			) : (
+				<List aria-label={`How ${name} ended`}>
+					{end.sweeps.map((sweep) => (
+						<ListRow
+							key={`sweep:${sweep.bucketId}`}
+							title={`${sweep.name} leftover`}
+							meta={`Swept to ${goalName(sweep.goalId)}`}
+							trailing={<Amount cents={sweep.amount} />}
+						/>
+					))}
+					{end.windfall.map((windfall) => (
+						<ListRow
+							key={`windfall:${windfall.goalId}`}
+							title="Windfall"
+							meta={`Sent to ${goalName(windfall.goalId)}`}
+							trailing={<Amount cents={windfall.amount} />}
+						/>
+					))}
+					{end.rolledOver.map((rolled) => (
+						<ListRow
+							key={`rolled:${rolled.bucketId}`}
+							title={rolled.name}
+							meta={
+								rolled.amount > 0
+									? `Rolled over into ${next}`
+									: `Overspent, so ${next} starts short`
+							}
+							trailing={<Amount cents={rolled.amount} />}
+						/>
+					))}
+				</List>
+			)}
+		</Section>
+	);
+}
+
+function Amount({ cents }: { cents: number }) {
+	return (
+		<span className={cn("text-sm font-semibold tabular-nums", cents < 0 && "text-over")}>
+			{formatMoney(cents)}
+		</span>
 	);
 }

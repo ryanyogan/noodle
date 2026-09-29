@@ -95,6 +95,8 @@ export type GoalProgress = {
 	remaining: Cents;
 	/** Saved as a share of the target, 0–1. */
 	share: number;
+	/** Moved into it in this month's Plan: Goal funding, and any Windfall or Sweep sent to it. */
+	fundedThisMonth: Cents;
 	/** Months to the target date, counting this one and the target's. Null when undated. */
 	monthsLeft: number | null;
 	/**
@@ -124,7 +126,7 @@ export function goalProgress(
 	const savedApartFromFunding = saved - fundedThisMonth;
 	const remaining = Math.max(0, goal.target - saved);
 	const share = goal.target > 0 ? Math.min(1, Math.max(0, saved / goal.target)) : 1;
-	const base = { saved, remaining, share };
+	const base = { saved, remaining, share, fundedThisMonth };
 	if (goal.targetDate === null) {
 		const status = saved >= goal.target ? "reached" : "saving";
 		return { ...base, monthsLeft: null, monthly: null, leftThisMonth: null, status };

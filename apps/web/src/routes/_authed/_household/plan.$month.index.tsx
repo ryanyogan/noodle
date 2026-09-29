@@ -1,5 +1,6 @@
 import {
 	addMonths,
+	freeToSpendParts,
 	lumpsIn,
 	type MonthKey,
 	type MonthState,
@@ -28,7 +29,7 @@ import {
 	groupTitle,
 	HistoryStart,
 } from "../../../components/plan-history";
-import { PlanEnded } from "../../../components/plan-page";
+import { PlanEnded, planParts } from "../../../components/plan-page";
 import { formatMoney, monthName } from "../../../format";
 import { useGoals } from "../../../goals";
 import { usePlanChange, withBaseline } from "../../../plan-changes";
@@ -292,29 +293,10 @@ function BaselineForm({ month }: { month: MonthKey }) {
  */
 function Waterfall({ state, current }: { state: MonthState; current: boolean }) {
 	const baseline = state.baseline ?? 0;
-	const shared = state.buckets.filter((b) => b.owner === undefined);
-	const personal = state.buckets.filter((b) => b.owner !== undefined);
-	const sum = (buckets: typeof shared) => buckets.reduce((total, b) => total + b.allowance, 0);
-	const steps: { label: string; to: StepPath; hash?: string; amount: number }[] = [
-		{ label: "Commitments", to: "/plan/$month/commitments", amount: state.committed },
-		{ label: "Buckets", to: "/plan/$month/buckets", amount: sum(shared) },
-		...(personal.length > 0
-			? [
-					{
-						label: "Personal Allowances",
-						to: "/plan/$month/buckets" as const,
-						hash: "personal-allowances",
-						amount: sum(personal),
-					},
-				]
-			: []),
-		...(state.fundedGoals > 0 || current
-			? [{ label: "Goal funding", to: "/plan/$month/goals" as const, amount: state.fundedGoals }]
-			: []),
-		...(state.movedToBuckets > 0
-			? [{ label: "Covers", to: "/plan/$month/buckets" as const, amount: state.movedToBuckets }]
-			: []),
-	];
+	// Goal funding shows in the current month, where it can still happen, or once it did.
+	const steps = freeToSpendParts(state)
+		.filter(({ part, amount }) => part !== "goal-funding" || amount > 0 || current)
+		.map(({ part, amount }) => ({ ...planParts[part], amount }));
 	// One scale for every bar: from Free to Spend (when it's below zero) up to the Baseline.
 	const low = Math.min(0, state.freeToSpend);
 	const high = Math.max(0, baseline);

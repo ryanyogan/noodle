@@ -1,6 +1,6 @@
 import type { Cents } from "./money";
 import type { MonthKey } from "./month";
-import type { MonthState } from "./month-state";
+import type { GoalFunding, MonthState, Sweep } from "./month-state";
 
 // Closing a month, on the 1st of the next: what rolls over is already derived (see rolledOver),
 // so what's left to decide is where Fresh-start Buckets' leftovers are Swept and where the
@@ -78,3 +78,46 @@ export function fitsProposal(proposal: MonthCloseProposal, decision: MonthCloseD
 	const sent = decision.windfall.reduce((sum, w) => sum + w.amount, 0);
 	return decision.windfall.every((w) => w.amount > 0) && sent <= proposal.windfall;
 }
+
+/** What became of a month's money as it ended, shown on that month once it has. */
+export type MonthEnd = {
+	/** Fresh-start Buckets' leftovers Swept into Goals. */
+	sweeps: { bucketId: string; name: string; goalId: string; amount: Cents }[];
+	/** The month's Windfall sent to Goals, per Goal. */
+	windfall: { goalId: string; amount: Cents }[];
+	/** What each Rolling Bucket carries into the next month; negative when it was overspent. */
+	rolledOver: { bucketId: string; name: string; amount: Cents }[];
+};
+
+/**
+ * How `state`'s month ended: its Sweeps, the Windfall it sent to Goals, and what its Rolling
+ * Buckets carry into the next month (as rolledOver works it out). `state` is the month as of its
+ * last day. Sweeps and funding from other months, or Sweeps from Buckets not in the Plan, are
+ * left out.
+ */
+export function monthEnd(
+	state: MonthState,
+	{ sweeps, goalFunding }: { sweeps: Sweep[]; goalFunding: GoalFunding[] },
+): MonthEnd {
+	const windfall = new Map<string, Cents>();
+	for (const funding of goalFunding) {
+		if (!funding.windfall || funding.month !== state.month) continue;
+		windfall.set(funding.goalId, (windfall.get(funding.goalId) ?? 0) + funding.amount);
+	}
+	return {
+		sweeps: sweeps.flatMap((sweep) => {
+			const bucket = state.buckets.find((b) => b.id === sweep.bucketId);
+			return bucket && sweep.month === state.month
+				? [{ bucketId: bucket.id, name: bucket.name, goalId: sweep.goalId, amount: sweep.amount }]
+				: [];
+		}),
+		windfall: [...windfall].map(([goalId, amount]) => ({ goalId, amount })),
+		rolledOver: state.buckets
+			.filter((b) => b.rolling && b.left !== 0)
+			.map((b) => ({ bucketId: b.id, name: b.name, amount: b.left })),
+	};
+}
+
+/** Nothing became of the month's money: no Sweeps, no Windfall to Goals, nothing rolled over. */
+export const quietEnd = (end: MonthEnd) =>
+	end.sweeps.length === 0 && end.windfall.length === 0 && end.rolledOver.length === 0;

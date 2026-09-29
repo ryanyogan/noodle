@@ -1,4 +1,4 @@
-import type { MonthKey } from "@noodle/domain";
+import type { MonthKey, PlanPart } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { PageHeader } from "@noodle/ui/components/page-header";
@@ -51,6 +51,26 @@ export function PlanSubPage({
 		</>
 	);
 }
+
+/** Each part of the Plan on the way from the Baseline to Free to Spend: its name and its page. */
+export const planParts: Record<
+	PlanPart,
+	{
+		label: string;
+		to: "/plan/$month/commitments" | "/plan/$month/buckets" | "/plan/$month/goals";
+		hash?: string;
+	}
+> = {
+	commitments: { label: "Commitments", to: "/plan/$month/commitments" },
+	buckets: { label: "Buckets", to: "/plan/$month/buckets" },
+	"personal-allowances": {
+		label: "Personal Allowances",
+		to: "/plan/$month/buckets",
+		hash: "personal-allowances",
+	},
+	"goal-funding": { label: "Goal funding", to: "/plan/$month/goals" },
+	covers: { label: "Covers", to: "/plan/$month/buckets" },
+};
 
 /** A past month's Plan is closed. */
 export function PlanEnded() {

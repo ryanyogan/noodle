@@ -122,6 +122,7 @@ describe("goalProgress", () => {
 			saved: 40_000,
 			remaining: 80_000,
 			share: 1 / 3,
+			fundedThisMonth: 0,
 			monthsLeft: 4,
 			monthly: 20_000,
 			leftThisMonth: 20_000,
@@ -143,7 +144,12 @@ describe("goalProgress", () => {
 	it("keeps this month's amount steady as it's funded, and catching up puts it back on track", () => {
 		const earlier = [change("braces", "funding", 20_000, "2026-07")];
 		const part = goalProgress(braces, [...earlier, change("braces", "funding", 10_000)], "2026-09");
-		expect(part).toMatchObject({ monthly: 25_000, leftThisMonth: 15_000, status: "behind" });
+		expect(part).toMatchObject({
+			fundedThisMonth: 10_000,
+			monthly: 25_000,
+			leftThisMonth: 15_000,
+			status: "behind",
+		});
 		const all = goalProgress(
 			braces,
 			[...earlier, change("braces", "funding", 10_000), change("braces", "funding", 15_000)],
@@ -233,6 +239,7 @@ describe("goalProgress", () => {
 			saved: 30_000,
 			remaining: 90_000,
 			share: 0.25,
+			fundedThisMonth: 30_000,
 			monthsLeft: null,
 			monthly: null,
 			leftThisMonth: null,

@@ -98,6 +98,10 @@ _Avoid_: Rebalance, borrow
 A Move of a Fresh-start Bucket's month-end leftover into a Goal.
 _Avoid_: Rollover, save leftovers
 
+**Month-close**:
+Deciding, once a month has ended, where its Fresh-start Buckets' leftovers are Swept and where its pending Windfall goes: by a Parent in the next month's first week, or by the defaults when nobody does. The ended month then shows how it ended: its Sweeps, the Windfall it sent to Goals, what each Rolling Bucket carried into the next month, and who closed it.
+_Avoid_: Rollover, reconciliation, closing the books
+
 ### Money movement
 
 **Account**:

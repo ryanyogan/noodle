@@ -4,6 +4,7 @@ import {
 	type CoverSource,
 	canAssign,
 	type DayKey,
+	freeToSpendParts,
 	type IncomeCheck,
 	incomeCheck,
 	lastDayOf,
@@ -11,6 +12,7 @@ import {
 	type MonthKey,
 	type MonthState,
 	monthCloseProposal,
+	monthEnd,
 	monthOfDay,
 	nothingToClose,
 	whatChanged,
@@ -26,7 +28,7 @@ import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarDays, ChevronRight, History, Lightbulb, ListChecks } from "lucide-react";
 import { type ReactNode, useState } from "react";
@@ -36,8 +38,10 @@ import { ComingUp, LumpCallout } from "../../../components/coming-up";
 import { Commitments } from "../../../components/commitment-list";
 import { ALittleOver, CoverSheet, CoversInto, sourceName } from "../../../components/cover";
 import { AmountSheet } from "../../../components/goals";
-import { MonthCloseSection } from "../../../components/month-close";
+import { MonthCloseSection, MonthEndSection } from "../../../components/month-close";
 import { MonthLinks, MonthTopRow, monthTitle, useMonthSwipe } from "../../../components/month-nav";
+import { GoalsThisMonth } from "../../../components/plan-goals";
+import { planParts } from "../../../components/plan-page";
 import { IncomeSection, WindfallSection, WindfallSheet } from "../../../components/windfalls";
 import { type CoverVariables, useCovers } from "../../../covers";
 import { formatMoney, shortDay } from "../../../format";
@@ -46,6 +50,7 @@ import { closingWeek, useCloseMonth } from "../../../month-close";
 import {
 	commitmentsQuery,
 	insightsQuery,
+	membersQuery,
 	planHistoryQuery,
 	reviewQuery,
 	useMonthState,
@@ -53,8 +58,12 @@ import {
 import { useIncome, useWindfalls } from "../../../windfalls";
 
 export const Route = createFileRoute("/_authed/_household/month/$month/")({
-	// Coming up reads every Commitment's schedule and charges.
-	loader: ({ context }) => context.queryClient.ensureQueryData(commitmentsQuery()),
+	// Coming up reads every Commitment's schedule and charges; an ended month names who closed it.
+	loader: ({ context }) =>
+		Promise.all([
+			context.queryClient.ensureQueryData(commitmentsQuery()),
+			context.queryClient.ensureQueryData(membersQuery()),
+		]),
 	component: ThisMonth,
 });
 
@@ -69,6 +78,7 @@ function ThisMonth() {
 	const income = useIncome();
 	const windfalls = useWindfalls();
 	const goals = useGoals();
+	const members = useSuspenseQuery(membersQuery()).data;
 	const planned =
 		state.baseline !== null || state.buckets.length > 0 || state.commitments.length > 0;
 	// Commitments due this month, or paid anyway; the rest are collapsed under "Not this month".
@@ -174,6 +184,16 @@ function ThisMonth() {
 						<FreeToSpend state={state} check={check} />
 						<LumpCallout lumps={lumpsIn(state)} month={month} />
 					</div>
+					{month < current ? (
+						<MonthEndSection
+							month={month}
+							end={monthEnd(state, state)}
+							closed={state.closed}
+							parentId={parentId}
+							goals={goals.goals}
+							members={members}
+						/>
+					) : null}
 					{state.windfallLeft > 0 && month <= current ? (
 						<WindfallSection
 							left={state.windfallLeft}
@@ -209,6 +229,9 @@ function ThisMonth() {
 							/>
 							<List>{allowances.map(bucketRow)}</List>
 						</Section>
+					) : null}
+					{month === current && activeGoals.length > 0 ? (
+						<GoalsThisMonth month={month} goals={activeGoals} />
 					) : null}
 					{month === current ? <ComingUp /> : null}
 					{state.commitments.length > 0 ? (
@@ -441,12 +464,49 @@ function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck |
 					</p>
 				) : null}
 			</div>
+			{state.baseline === null ? null : <Breakdown state={state} baseline={state.baseline} />}
 			<dl className="grid grid-cols-3 border-t">
 				<Stat label="In Buckets" value={formatMoney(state.planned)} />
 				<Stat label="Left in Buckets" value={formatMoney(state.leftInBuckets)} />
 				<Stat label="Days left" value={String(state.daysLeft)} />
 			</dl>
 		</Card>
+	);
+}
+
+/**
+ * Free to Spend worked out in one line, "$6,000 Baseline − $2,100 Commitments − …", each part
+ * that takes something; it opens the Plan's waterfall.
+ */
+function Breakdown({ state, baseline }: { state: MonthState; baseline: number }) {
+	const parts = freeToSpendParts(state).filter((p) => p.amount > 0);
+	const term = (amount: string, label: string) => (
+		<>
+			<span className="font-medium text-foreground">{amount}</span> {label}
+		</>
+	);
+	return (
+		<Link
+			to="/plan/$month"
+			params={{ month: state.month }}
+			hash="plan-waterfall"
+			className={cn(
+				"flex items-center justify-between gap-3 border-t px-(--card-pad) py-3 text-[13px] text-muted-foreground",
+				"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60",
+			)}
+		>
+			<span className="flex flex-wrap gap-x-1.5 gap-y-0.5 tabular-nums">
+				<span className="whitespace-nowrap">{term(formatMoney(baseline), "Baseline")}</span>
+				{parts.map(({ part, amount }) => (
+					<span key={part} className="whitespace-nowrap">
+						<span aria-hidden="true">− </span>
+						<span className="sr-only">minus </span>
+						{term(formatMoney(amount), planParts[part].label)}
+					</span>
+				))}
+			</span>
+			<ChevronRight aria-hidden="true" className="size-4 shrink-0 text-subtle-foreground" />
+		</Link>
 	);
 }
 

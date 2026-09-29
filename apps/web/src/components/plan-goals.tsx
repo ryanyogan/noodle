@@ -1,4 +1,5 @@
-import type { MonthState } from "@noodle/domain";
+import type { MonthKey, MonthState } from "@noodle/domain";
+import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { List, ListRow } from "@noodle/ui/components/list";
@@ -7,7 +8,7 @@ import { Link, useHydrated } from "@tanstack/react-router";
 import { useState } from "react";
 import { ulid } from "ulid";
 import { formatMoney } from "../format";
-import { type GoalView, useGoalMoney, useGoals } from "../goals";
+import { type GoalView, goalStatusName, useGoalMoney, useGoals } from "../goals";
 import { FundGoalSheet } from "./goals";
 
 /** This month's active Goals, what each still needs this month, and a way to fund it. */
@@ -77,6 +78,108 @@ export function PlanGoals({ state, title = "Goals" }: { state: MonthState; title
 				}}
 			/>
 		</Section>
+	);
+}
+
+/**
+ * The Goals on This Month: each one's on track or behind, the months to its target date, and what
+ * it's been funded this month against what it needs. The Plan's Goals page funds them.
+ */
+export function GoalsThisMonth({ month, goals }: { month: MonthKey; goals: GoalView[] }) {
+	const needed = goals.reduce((sum, g) => sum + (g.progress.monthly ?? 0), 0);
+	const funded = goals.reduce(
+		(sum, g) => sum + Math.min(g.progress.fundedThisMonth, g.progress.monthly ?? 0),
+		0,
+	);
+	return (
+		<Section aria-labelledby="goals-this-month">
+			<SectionHeader
+				id="goals-this-month"
+				title="Goals"
+				count={goals.length}
+				action={
+					needed > 0 ? (
+						<span className="text-[13px] text-muted-foreground tabular-nums">
+							{formatMoney(funded)} of {formatMoney(needed)} funded
+						</span>
+					) : undefined
+				}
+			/>
+			<List>
+				{goals.map((goal) => (
+					<GoalThisMonthRow key={goal.id} goal={goal} />
+				))}
+			</List>
+			<Link
+				to="/plan/$month/goals"
+				params={{ month }}
+				className="justify-self-start px-1 text-[13px] font-medium text-muted-foreground underline decoration-border-strong underline-offset-3 hover:text-foreground hover:decoration-foreground"
+			>
+				Fund Goals in the Plan
+			</Link>
+		</Section>
+	);
+}
+
+function GoalThisMonthRow({ goal }: { goal: GoalView }) {
+	const { progress } = goal;
+	const status =
+		progress.status === "behind" ? (
+			<Badge variant="pace" dot>
+				{goalStatusName.behind}
+			</Badge>
+		) : progress.status === "past-due" ? (
+			<Badge variant="over" dot>
+				{goalStatusName["past-due"]}
+			</Badge>
+		) : null;
+	const meta = [
+		progress.status === "on-track" || progress.status === "reached"
+			? goalStatusName[progress.status]
+			: progress.status === "saving"
+				? "No target date"
+				: null,
+		// A past-due Goal has no months left, and a reached one needs none.
+		!progress.monthsLeft || progress.status === "reached"
+			? null
+			: progress.monthsLeft === 1
+				? "Due this month"
+				: `${progress.monthsLeft} months left`,
+	].filter((part) => part !== null);
+	return (
+		<ListRow
+			aria-label={goal.name}
+			title={
+				<Link
+					to="/goals/$goalId"
+					params={{ goalId: goal.id }}
+					className="underline-offset-4 hover:underline"
+				>
+					{goal.name}
+				</Link>
+			}
+			badge={status}
+			meta={meta.length > 0 ? meta.join(" · ") : undefined}
+			trailing={
+				progress.monthly !== null && progress.status !== "reached" ? (
+					<>
+						<span className="text-sm font-semibold tabular-nums">
+							{formatMoney(progress.fundedThisMonth)}
+						</span>
+						<span className="text-xs text-subtle-foreground tabular-nums">
+							of {formatMoney(progress.monthly)} this month
+						</span>
+					</>
+				) : progress.fundedThisMonth > 0 ? (
+					<>
+						<span className="text-sm font-semibold tabular-nums">
+							{formatMoney(progress.fundedThisMonth)}
+						</span>
+						<span className="text-xs text-subtle-foreground">funded this month</span>
+					</>
+				) : undefined
+			}
+		/>
 	);
 }
 

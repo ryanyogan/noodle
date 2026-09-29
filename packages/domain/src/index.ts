@@ -94,6 +94,7 @@ export {
 	type SpendTotal,
 	shares,
 } from "./for";
+export { freeToSpendParts, type PlanPart } from "./free-to-spend";
 export {
 	ACCOUNT_KINDS,
 	type AccountKind,
@@ -176,8 +177,11 @@ export {
 	type Leftover,
 	type MonthCloseDecision,
 	type MonthCloseProposal,
+	type MonthEnd,
 	monthCloseProposal,
+	monthEnd,
 	nothingToClose,
+	quietEnd,
 } from "./month-close";
 export {
 	type BucketState,

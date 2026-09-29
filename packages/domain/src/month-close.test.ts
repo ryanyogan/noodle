@@ -3,9 +3,11 @@ import {
 	defaultDecision,
 	fitsProposal,
 	monthCloseProposal,
+	monthEnd,
 	monthState,
 	nothingToClose,
 	type Plan,
+	quietEnd,
 } from "./index";
 
 const plan: Plan = {
@@ -111,5 +113,46 @@ describe("fitsProposal", () => {
 		expect(
 			fitsProposal(proposal, { sweeps: [], windfall: [{ goalId: "trip", amount: 50_001 }] }),
 		).toBe(false);
+	});
+});
+
+describe("monthEnd", () => {
+	it("tells the month's Sweeps, its Windfall to Goals and what rolls over", () => {
+		const end = monthEnd(closing, {
+			sweeps: [
+				{ bucketId: "gifts", goalId: "trip", amount: 4_000, month: "2026-09" },
+				// Another month's, and one from a Bucket no longer in the Plan.
+				{ bucketId: "groceries", goalId: "trip", amount: 9_000, month: "2026-08" },
+				{ bucketId: "gone", goalId: "trip", amount: 1_000, month: "2026-09" },
+			],
+			goalFunding: [
+				{ goalId: "trip", amount: 20_000, month: "2026-09", windfall: true },
+				{ goalId: "trip", amount: 10_000, month: "2026-09", windfall: true },
+				{ goalId: "roof", amount: 5_000, month: "2026-09" },
+			],
+		});
+		expect(end).toEqual({
+			sweeps: [{ bucketId: "gifts", name: "Gifts", goalId: "trip", amount: 4_000 }],
+			windfall: [{ goalId: "trip", amount: 30_000 }],
+			rolledOver: [{ bucketId: "hockey", name: "Hockey", amount: 40_000 }],
+		});
+		expect(quietEnd(end)).toBe(false);
+	});
+
+	it("carries an overspent Rolling Bucket's shortfall, and is quiet when nothing happened", () => {
+		const overspent = monthState({
+			plan: { ...plan, buckets: plan.buckets.filter((b) => b.id === "hockey") },
+			spending: [{ bucketId: "hockey", amount: 45_000, date: "2026-09-10" }],
+			asOf: "2026-09-30",
+		});
+		expect(monthEnd(overspent, { sweeps: [], goalFunding: [] }).rolledOver).toEqual([
+			{ bucketId: "hockey", name: "Hockey", amount: -5_000 },
+		]);
+		const quiet = monthState({
+			plan: { ...plan, buckets: plan.buckets.filter((b) => !b.rolling) },
+			spending: [],
+			asOf: "2026-09-30",
+		});
+		expect(quietEnd(monthEnd(quiet, { sweeps: [], goalFunding: [] }))).toBe(true);
 	});
 });
