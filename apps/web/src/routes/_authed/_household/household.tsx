@@ -15,6 +15,7 @@ import { Check, Mail, Pencil, Plus, UserRoundMinus } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram, nextBucketColor } from "../../../buckets";
+import { CaptureSettings } from "../../../components/capture-settings";
 import { ColourPicker } from "../../../components/colour-picker";
 import { NudgeSettings } from "../../../components/nudge-settings";
 import { Confirm, SaveFailed } from "../../../components/plan-editing";
@@ -29,6 +30,7 @@ import {
 	withoutChild,
 } from "../../../members";
 import {
+	captureTokenQuery,
 	forTotalsEarlierQuery,
 	householdParentsQuery,
 	membersQuery,
@@ -48,6 +50,7 @@ export const Route = createFileRoute("/_authed/_household/household")({
 			context.queryClient.ensureQueryData(monthQuery(month)),
 			context.queryClient.ensureQueryData(forTotalsEarlierQuery(month)),
 			context.queryClient.ensureQueryData(nudgeSettingsQuery()),
+			context.queryClient.ensureQueryData(captureTokenQuery()),
 		]);
 		return { month };
 	},
@@ -111,6 +114,7 @@ function HouseholdPage() {
 					)}
 				</Section>
 				<NudgeSettings />
+				<CaptureSettings />
 				<Section aria-labelledby="account" className="lg:hidden">
 					<SectionHeader id="account" title="Your account" />
 					<Card className="flex items-center gap-3 p-(--card-pad) text-sm text-muted-foreground">

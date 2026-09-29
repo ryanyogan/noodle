@@ -134,6 +134,7 @@ export async function importStatement(
 						goalId: sql<string | null>`null`.as("goal_id"),
 						importId: sql<string>`${importId}`.as("import_id"),
 						externalId: sql<string>`${lineField("externalId")}`.as("external_id"),
+						capturedVia: sql<string | null>`null`.as("captured_via"),
 					})
 					.from(sql`json_each(${JSON.stringify(spending)})`)
 					.where(theImport),

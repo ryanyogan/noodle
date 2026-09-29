@@ -38,9 +38,17 @@
 	},
 	// Nudges the Household Agent decides go out through this Queue, consumed by this Worker, which
 	// sends each as Web Push. Needs VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, and VAPID_SUBJECT secrets.
+	// Quick Adds the iPhone Shortcut captures at the tap (POST /api/capture) wait on the ingest
+	// Queue, which this Worker also consumes, so the Shortcut gets its answer at once.
 	"queues": {
-		"producers": [{ "binding": "NUDGE_QUEUE", "queue": "noodle-nudges" }],
-		"consumers": [{ "queue": "noodle-nudges", "max_batch_size": 10, "max_retries": 3 }]
+		"producers": [
+			{ "binding": "NUDGE_QUEUE", "queue": "noodle-nudges" },
+			{ "binding": "INGEST_QUEUE", "queue": "noodle-ingest" }
+		],
+		"consumers": [
+			{ "queue": "noodle-nudges", "max_batch_size": 10, "max_retries": 3 },
+			{ "queue": "noodle-ingest", "max_batch_size": 10, "max_batch_timeout": 1, "max_retries": 5 }
+		]
 	},
 	// Closing each Household's month: the hourly cron on the 1st to 3rd starts one Month-close
 	// Workflow per Household once its own 1st has begun; each waits up to a week for the Parents'

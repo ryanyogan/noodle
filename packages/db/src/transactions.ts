@@ -322,6 +322,7 @@ export async function addQuickAdd(
 					goalId: sql<string | null>`null`.as("goal_id"),
 					importId: sql<string | null>`null`.as("import_id"),
 					externalId: sql<string | null>`null`.as("external_id"),
+					capturedVia: sql<string | null>`null`.as("captured_via"),
 				})
 				.from(buckets)
 				.where(

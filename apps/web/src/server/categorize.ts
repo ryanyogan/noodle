@@ -6,7 +6,13 @@ import {
 	vectorizeMerchants,
 	workersAiClassifier,
 } from "./categorize-model";
-import { type CategorizeDeps, categorizeImport, settleAssignment } from "./categorize-run";
+import {
+	type CategorizeDeps,
+	type CategorizeResult,
+	categorizeCapture,
+	categorizeImport,
+	settleAssignment,
+} from "./categorize-run";
 import { getDb } from "./db";
 import { notifyHousehold } from "./notify";
 
@@ -47,6 +53,23 @@ export function categorizeAfterImport(viewer: Viewer, importId: string): void {
 			}
 		})(),
 	);
+}
+
+/**
+ * Categorizes a captured Quick Add for the Parent who captured it. The ingest Queue's consumer
+ * already runs apart from any response, so this is awaited, not deferred. Never throws: a capture
+ * it can't file stays unassigned, like one it isn't sure of.
+ */
+export async function categorizeCaptured(
+	viewer: Viewer,
+	transactionId: string,
+): Promise<CategorizeResult> {
+	try {
+		return await categorizeCapture(categorizeDeps(), viewer, transactionId);
+	} catch (error) {
+		console.error("Couldn’t categorize a captured Quick Add", error);
+		return { filed: 0, review: 0, months: [] };
+	}
 }
 
 /**

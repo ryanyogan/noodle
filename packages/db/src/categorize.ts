@@ -1,5 +1,5 @@
 import { type Categorization, type DayKey, merchantKey, type Rule } from "@noodle/domain";
-import { and, asc, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, isNull, lte, or, type SQL, sql } from "drizzle-orm";
 import { counts } from "./counting";
 import type { Db } from "./index";
 import { assignableBy, changeableBy, type Viewer } from "./privacy";
@@ -10,7 +10,7 @@ import { buckets, categorizations, rules, splits, transactions } from "./schema"
 // own Personal Allowance, never the other Parent's (ADR-0003). Filing is guarded in SQL the same
 // way a Parent's edit is, and never overwrites an assignment made in the meantime.
 
-/** An imported Transaction still waiting to be filed. */
+/** A Transaction (imported, or a captured Quick Add) still waiting to be filed. */
 export type Uncategorized = { id: string; date: DayKey; amountCents: number; note: string | null };
 
 /**
@@ -18,11 +18,24 @@ export type Uncategorized = { id: string; date: DayKey; amountCents: number; not
  * (money back is a payment or a Refund, which counts nowhere), counted (not a Quick Add's Matched
  * bank copy or a Transfer's side), and not categorized before.
  */
-export async function loadUncategorized(
+export function loadUncategorized(
 	db: Db,
 	householdId: string,
 	importId: string,
 ): Promise<Uncategorized[]> {
+	return uncategorized(db, householdId, eq(transactions.importId, importId));
+}
+
+/** One Transaction, by the same test: a single row when it's still waiting to be filed. */
+export function loadUncategorizedTransaction(
+	db: Db,
+	householdId: string,
+	transactionId: string,
+): Promise<Uncategorized[]> {
+	return uncategorized(db, householdId, eq(transactions.id, transactionId));
+}
+
+async function uncategorized(db: Db, householdId: string, which: SQL): Promise<Uncategorized[]> {
 	const rows = await db
 		.select({
 			id: transactions.id,
@@ -35,7 +48,7 @@ export async function loadUncategorized(
 		.where(
 			and(
 				eq(transactions.householdId, householdId),
-				eq(transactions.importId, importId),
+				which,
 				isNull(transactions.bucketId),
 				isNull(transactions.commitmentId),
 				isNull(transactions.goalId),

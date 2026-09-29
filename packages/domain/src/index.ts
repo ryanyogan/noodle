@@ -25,6 +25,7 @@ export {
 	type Verdict,
 	type Verdicted,
 } from "./affordability";
+export { parseCapturedAmount } from "./capture";
 export {
 	AUTO_FILE_CONFIDENCE,
 	type Categorization,

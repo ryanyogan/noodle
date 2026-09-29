@@ -1,5 +1,6 @@
 import { type MonthKey, type MonthState, monthState } from "@noodle/domain";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
+import { getCaptureToken } from "./server/capture-tokens";
 import { getGoals } from "./server/goals";
 import { getAccountImports } from "./server/imports";
 import { getHouseholdParents } from "./server/invites";
@@ -118,4 +119,11 @@ export const reportQuery = (request: ReportRequest) =>
 	queryOptions({
 		queryKey: [...reportsKey, request],
 		queryFn: () => getReport({ data: request }),
+	});
+
+/** When the viewer's own capture token for the iPhone Shortcut was made; null without one. */
+export const captureTokenQuery = () =>
+	queryOptions({
+		queryKey: ["capture-token"],
+		queryFn: () => getCaptureToken(),
 	});

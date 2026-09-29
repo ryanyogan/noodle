@@ -372,6 +372,9 @@ export const transactions = sqliteTable(
 		// The Import that brought it in, and its line's ID in the Account (see imports).
 		importId: text("import_id").references(() => imports.id),
 		externalId: text("external_id"),
+		// How a Quick Add came in when it wasn't typed into the app: "shortcut" for one the iPhone
+		// Shortcut captured at the tap (see capture_tokens). Still a Quick Add, Matched the same way.
+		capturedVia: text("captured_via", { enum: ["shortcut"] }),
 	},
 	(t) => [
 		index("transactions_household_date_idx").on(t.householdId, t.date),
@@ -736,3 +739,25 @@ export type Household = typeof households.$inferSelect;
 export type Member = typeof members.$inferSelect;
 export type Invite = typeof invites.$inferSelect;
 export type Bucket = typeof buckets.$inferSelect;
+
+// A Parent's capture token: the secret the iPhone Shortcut sends to record a Quick Add at the
+// tap, as that Parent. Only its SHA-256 is kept; the token is shown once, when it's made. Each
+// Parent has at most one live token: making a new one revokes the old, and revoking is for good.
+export const captureTokens = sqliteTable(
+	"capture_tokens",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		memberId: text("member_id")
+			.notNull()
+			.references(() => members.id),
+		tokenHash: text("token_hash").notNull().unique(),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+		revokedAt: integer("revoked_at", { mode: "timestamp_ms" }),
+	},
+	(t) => [uniqueIndex("capture_tokens_live_idx").on(t.memberId).where(sql`${t.revokedAt} is null`)],
+);

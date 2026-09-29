@@ -6,6 +6,7 @@ import {
 	loadCorrection,
 	loadRules,
 	loadUncategorized,
+	loadUncategorizedTransaction,
 	settleCategorization,
 	type Uncategorized,
 	type Viewer,
@@ -41,8 +42,29 @@ export async function categorizeImport(
 	viewer: Viewer,
 	importId: string,
 ): Promise<CategorizeResult> {
+	return categorize(deps, viewer, await loadUncategorized(deps.db, viewer.householdId, importId));
+}
+
+/**
+ * Files a captured Quick Add the same way, for the Parent who captured it (the Viewer): its note
+ * is the merchant Wallet named. Nothing to do once it's assigned or categorized, so a redelivered
+ * capture is categorized once.
+ */
+export async function categorizeCapture(
+	deps: CategorizeDeps,
+	viewer: Viewer,
+	transactionId: string,
+): Promise<CategorizeResult> {
+	const rows = await loadUncategorizedTransaction(deps.db, viewer.householdId, transactionId);
+	return categorize(deps, viewer, rows);
+}
+
+async function categorize(
+	deps: CategorizeDeps,
+	viewer: Viewer,
+	rows: Uncategorized[],
+): Promise<CategorizeResult> {
 	const { db } = deps;
-	const rows = await loadUncategorized(db, viewer.householdId, importId);
 	if (rows.length === 0) return { filed: 0, review: 0, months: [] };
 	const months = [...new Set(rows.map((row) => row.date.slice(0, 7)))].sort();
 	const [buckets, allRules] = await Promise.all([

@@ -1,7 +1,9 @@
 import {
 	addAccount,
 	addBucket,
+	addCapture,
 	addPersonalAllowance,
+	createCaptureToken,
 	createHouseholdForParent,
 	type Db,
 	importStatement,
@@ -12,7 +14,7 @@ import {
 } from "@noodle/db";
 import { categorizations, members, transactions } from "@noodle/db/schema";
 import { testDb } from "@noodle/db/test-db";
-import type { StatementLine } from "@noodle/domain";
+import { merchantKey, type StatementLine } from "@noodle/domain";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	type BucketChoice,
@@ -23,7 +25,12 @@ import {
 	memoryMerchants,
 	readAnswer,
 } from "./categorize-model";
-import { type CategorizeDeps, categorizeImport, settleAssignment } from "./categorize-run";
+import {
+	type CategorizeDeps,
+	categorizeCapture,
+	categorizeImport,
+	settleAssignment,
+} from "./categorize-run";
 
 const householdId = "household";
 const month = "2026-09";
@@ -383,5 +390,109 @@ describe("reading the model's answer", () => {
 		expect(classifyPrompt(buckets, toFile.slice(0, 1))).toBe(
 			"Buckets:\nb1: Groceries\nb2: Gas\n\nMerchants:\nm1: COSTCO ($1.00)",
 		);
+	});
+});
+
+describe("categorizing a captured Quick Add", () => {
+	beforeEach(async () => {
+		await createCaptureToken(db, { householdId, memberId: "alex", tokenId: "t", tokenHash: "h" });
+	});
+
+	/** Captures `merchant` as Alex's Quick Add through their Shortcut, returning its ID. */
+	async function capture(merchant: string, dollars: number) {
+		const transactionId = newId();
+		const result = await addCapture(db, {
+			tokenId: "t",
+			householdId,
+			memberId: "alex",
+			transactionId,
+			date: "2026-09-10",
+			amountCents: Math.round(dollars * 100),
+			merchant,
+			newId,
+		});
+		expect(result).toMatchObject({ ok: true, added: true });
+		return transactionId;
+	}
+
+	async function outcome(transactionId: string) {
+		const row = (await db.select().from(transactions)).find((t) => t.id === transactionId);
+		const decided = (await db.select().from(categorizations)).find(
+			(c) => c.transactionId === transactionId,
+		);
+		return {
+			bucketId: row?.bucketId ?? null,
+			outcome: decided?.outcome ?? null,
+			method: decided?.method ?? null,
+			suggestion: decided?.bucketId ?? null,
+		};
+	}
+
+	it("files by Rule, then a similar merchant, then the model when it's sure; else Review", async () => {
+		await saveRule(db, {
+			id: "rule-costco",
+			householdId,
+			memberId: "alex",
+			pattern: "Costco",
+			bucketId: "groceries",
+		});
+		await merchants.learn(householdId, merchantKey("Shell Oil"), "gas");
+		const model = fakeModel({
+			costco: { bucketId: "fun", confidence: 0.99 },
+			"blue bottle": { bucketId: "fun", confidence: 0.95 },
+			nopa: { bucketId: "fun", confidence: 0.5 },
+		});
+		const costco = await capture("Costco", 182.33);
+		const shell = await capture("Shell Oil", 40);
+		const coffee = await capture("Blue Bottle Coffee", 5.75);
+		const nopa = await capture("Nopa", 64);
+
+		for (const id of [costco, shell, coffee, nopa]) {
+			await categorizeCapture(deps(model.classifier), alex, id);
+		}
+		expect(await outcome(costco)).toMatchObject({ bucketId: "groceries", method: "rule" });
+		expect(await outcome(shell)).toMatchObject({ bucketId: "gas", method: "similar" });
+		expect(await outcome(coffee)).toMatchObject({
+			bucketId: "fun",
+			outcome: "filed",
+			method: "model",
+		});
+		expect(await outcome(nopa)).toEqual({
+			bucketId: null,
+			outcome: "review",
+			method: null,
+			suggestion: "fun",
+		});
+		expect(model.merchantsAsked()).toEqual([
+			merchantKey("Blue Bottle Coffee"),
+			merchantKey("Nopa"),
+		]);
+	});
+
+	it("categorizes a capture once, and leaves one a Parent already assigned", async () => {
+		const model = fakeModel({ "blue bottle": { bucketId: "fun", confidence: 0.95 } });
+		const coffee = await capture("Blue Bottle Coffee", 5.75);
+		expect(await categorizeCapture(deps(model.classifier), alex, coffee)).toMatchObject({
+			filed: 1,
+			months: [month],
+		});
+		expect(await categorizeCapture(deps(model.classifier), alex, coffee)).toEqual({
+			filed: 0,
+			review: 0,
+			months: [],
+		});
+		expect(model.asked).toHaveLength(1);
+	});
+
+	it("never files it into, or shows the model, the other Parent's Personal Allowance", async () => {
+		const model = fakeModel({ "blue bottle": { bucketId: "sam-pa", confidence: 0.99 } });
+		const coffee = await capture("Blue Bottle Coffee", 5.75);
+		await categorizeCapture(deps(model.classifier), alex, coffee);
+		expect(await outcome(coffee)).toMatchObject({
+			bucketId: null,
+			outcome: "review",
+			suggestion: null,
+		});
+		expect(model.asked[0]?.buckets.map((bucket) => bucket.id)).not.toContain("sam-pa");
 	});
 });

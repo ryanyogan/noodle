@@ -447,6 +447,7 @@ export async function spendGoal(
 					goalId: goals.id,
 					importId: sql<string | null>`null`.as("import_id"),
 					externalId: sql<string | null>`null`.as("external_id"),
+					capturedVia: sql<string | null>`null`.as("captured_via"),
 				})
 				.from(goals)
 				.where(

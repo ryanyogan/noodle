@@ -271,6 +271,15 @@ export async function acceptInvite(
 }
 
 export {
+	addCapture,
+	type CaptureResult,
+	type CaptureTokenSummary,
+	createCaptureToken,
+	findCaptureToken,
+	loadCaptureToken,
+	revokeCaptureToken,
+} from "./captures";
+export {
 	type CategorizableBucket,
 	type CategorizationDecision,
 	fileCategorizations,
@@ -278,6 +287,7 @@ export {
 	loadCorrection,
 	loadRules,
 	loadUncategorized,
+	loadUncategorizedTransaction,
 	saveRule,
 	settleCategorization,
 	type Uncategorized,

@@ -85,7 +85,7 @@ Money returned for a prior purchase; it restores the Bucket the purchase came fr
 _Avoid_: Credit, return, income
 
 **Quick Add**:
-A Transaction entered by hand at the moment of spending, before any bank data exists for it.
+A Transaction entered by hand at the moment of spending, before any bank data exists for it. One the Parent's iPhone Shortcut captures when they pay with Wallet (tap to capture) is a Quick Add too; it is filed the way imported Transactions are (by Rule, similar merchant, or the model), else goes to Review.
 _Avoid_: Manual entry, pending
 
 **Import**:
