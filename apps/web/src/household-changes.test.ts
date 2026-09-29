@@ -8,20 +8,24 @@ import {
 
 describe("queryKeysFor", () => {
 	test("maps each change to the Query key it invalidates", () => {
-		expect(queryKeysFor(["month:2026-09"])).toEqual([["month", "2026-09"]]);
-		expect(queryKeysFor(["months"])).toEqual([["month"]]);
+		expect(queryKeysFor(["month:2026-09"])).toEqual([["month", "2026-09"], ["reports"]]);
+		expect(queryKeysFor(["months"])).toEqual([["month"], ["reports"]]);
 		expect(queryKeysFor(["bucket-uses"])).toEqual([["bucket-uses"]]);
 		expect(queryKeysFor(["parents"])).toEqual([["household", "parents"]]);
 		expect(queryKeysFor(["viewer"])).toEqual([["viewer"]]);
-		expect(queryKeysFor(["goals"])).toEqual([["goals"]]);
+		expect(queryKeysFor(["goals"])).toEqual([["goals"], ["reports"]]);
 	});
 
 	test("every month covers any one month", () => {
-		expect(queryKeysFor(["month:2026-09", "months", "month:2026-10"])).toEqual([["month"]]);
+		expect(queryKeysFor(["month:2026-09", "months", "month:2026-10"])).toEqual([
+			["month"],
+			["reports"],
+		]);
 		expect(queryKeysFor(["month:2026-09", "bucket-uses", "month:2026-10"])).toEqual([
 			["month", "2026-09"],
 			["bucket-uses"],
 			["month", "2026-10"],
+			["reports"],
 		]);
 	});
 
@@ -29,7 +33,13 @@ describe("queryKeysFor", () => {
 		expect(queryKeysFor(["parents", "parents", "month:2026-09", "month:2026-09"])).toEqual([
 			["household", "parents"],
 			["month", "2026-09"],
+			["reports"],
 		]);
+	});
+
+	test("Reports refetch when what they sum changes", () => {
+		expect(queryKeysFor(["imports"])).toEqual([["imports"], ["reports"]]);
+		expect(queryKeysFor(["parents"])).toEqual([["household", "parents"]]);
 	});
 
 	test("catching up covers every Household query", () => {
@@ -43,6 +53,7 @@ describe("queryKeysFor", () => {
 			["imports"],
 			["scenarios"],
 			["viewer"],
+			["reports"],
 		]);
 	});
 });

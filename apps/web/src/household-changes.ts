@@ -8,6 +8,7 @@ import {
 	membersQuery,
 	monthQuery,
 	monthsKey,
+	reportsKey,
 	scenariosQuery,
 	viewerQuery,
 } from "./queries";
@@ -38,6 +39,8 @@ const changedQueries = {
 	scenarios: scenariosQuery().queryKey,
 	/** The Household itself, as each screen's viewer sees it. */
 	viewer: viewerQuery().queryKey,
+	/** Every Report; also refetched for any change to what Reports sum (see `queryKeysFor`). */
+	reports: reportsKey,
 } satisfies Record<string, QueryKey>;
 
 /**
@@ -70,7 +73,14 @@ export function parseHouseholdChanges(message: unknown): HouseholdChange[] {
 	}
 }
 
-/** The Query keys to refetch for some changes, each once; every month covers any one month. */
+/** Changes to what Reports sum: spending, income, the Plan, Goals, Members or Imports. */
+const changesReports = (change: HouseholdChange) =>
+	monthChange.test(change) || ["months", "goals", "members", "imports"].includes(change);
+
+/**
+ * The Query keys to refetch for some changes, each once; every month covers any one month.
+ * Reports refetch after any of their inputs change, so an open Report stays live.
+ */
 export function queryKeysFor(changes: readonly HouseholdChange[]): QueryKey[] {
 	const everyMonth = changes.includes("months");
 	const keys = new Map<string, QueryKey>();
@@ -82,5 +92,6 @@ export function queryKeysFor(changes: readonly HouseholdChange[]): QueryKey[] {
 			: changedQueries[change as keyof typeof changedQueries];
 		keys.set(JSON.stringify(key), key);
 	}
+	if (changes.some(changesReports)) keys.set(JSON.stringify(reportsKey), reportsKey);
 	return [...keys.values()];
 }

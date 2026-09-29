@@ -379,6 +379,22 @@ export {
 	updateBucket,
 } from "./plan";
 export { privateTotalId, type Viewer } from "./privacy";
+export {
+	loadAmountBands,
+	loadBucketMonths,
+	loadDailySpend,
+	loadForCells,
+	loadIncomeCells,
+	loadMerchants,
+	loadReportItems,
+	loadSpendCells,
+	loadTargetsByMerchant,
+	type MerchantTotal,
+	privateTotalsFit,
+	type ReportFilters,
+	type ReportItem,
+	type ReportScope,
+} from "./reports";
 export { loadRolledOver } from "./rollover";
 export {
 	applyLevers,

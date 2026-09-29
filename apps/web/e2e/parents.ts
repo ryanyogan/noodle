@@ -16,6 +16,7 @@ export async function createTestParent() {
 	});
 	return {
 		email,
+		userId: user.id,
 		remove: () => clerk.users.deleteUser(user.id),
 	};
 }

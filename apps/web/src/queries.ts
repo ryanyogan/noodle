@@ -6,6 +6,7 @@ import { getHouseholdParents } from "./server/invites";
 import { getForTotalsEarlierInYear, getMembers } from "./server/members";
 import { getMonth, type MonthData } from "./server/month";
 import { getNudgeSettings } from "./server/nudges";
+import { getReport, type ReportRequest } from "./server/reports";
 import { getPlanAhead, getScenarios } from "./server/scenarios";
 import { getViewer } from "./server/session";
 import { getBucketUses } from "./server/transactions";
@@ -107,4 +108,14 @@ export const nudgeSettingsQuery = () =>
 	queryOptions({
 		queryKey: ["nudges"],
 		queryFn: () => getNudgeSettings(),
+	});
+
+/** Every Report, whichever view, period and drill-down. */
+export const reportsKey = ["reports"] as const;
+
+/** One Report: a view, its options and how far it's drilled into. */
+export const reportQuery = (request: ReportRequest) =>
+	queryOptions({
+		queryKey: [...reportsKey, request],
+		queryFn: () => getReport({ data: request }),
 	});

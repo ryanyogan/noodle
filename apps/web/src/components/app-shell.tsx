@@ -5,6 +5,7 @@ import { cn } from "@noodle/ui/lib/utils";
 import { Link, type LinkProps, useRouterState } from "@tanstack/react-router";
 import {
 	CalendarDays,
+	ChartColumn,
 	List,
 	type LucideIcon,
 	MessageCircleQuestionMark,
@@ -29,12 +30,13 @@ type NavItem = {
 
 // Every top-level destination, in order. The sidebar (desktop) and tab bar (phone) both render it,
 // though the tab bar has room for four: Explore is reached from Goals there, which it plans ahead,
-// and Ask from This Month's header.
+// and Reports and Ask from This Month's header.
 const nav: NavItem[] = [
 	{ to: "/month", label: "This Month", short: "Month", icon: CalendarDays },
 	{ to: "/transactions", label: "Transactions", short: "Transactions", icon: List },
 	{ to: "/goals", label: "Goals", short: "Goals", icon: Target, alsoFor: ["/explore"] },
 	{ to: "/explore", label: "Explore", short: "Explore", icon: Telescope, desktopOnly: true },
+	{ to: "/reports", label: "Reports", short: "Reports", icon: ChartColumn, desktopOnly: true },
 	{ to: "/ask", label: "Ask", short: "Ask", icon: MessageCircleQuestionMark, desktopOnly: true },
 	{ to: "/household", label: "Household", short: "Household", icon: UsersRound },
 ];

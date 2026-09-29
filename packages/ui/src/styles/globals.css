@@ -77,6 +77,22 @@
 	--bucket-7: #9a5b2e;
 	--bucket-8: #e87ba4;
 
+	/*
+	 * Charts (Reports): neutral ink for spending, the brand for income, a ghost tone for the
+	 * comparison period. Sequential shading steps the brand into the card; diverging runs from
+	 * the brand (under Plan) through a grey midpoint to --over. Buckets keep their own colours.
+	 */
+	--chart-spend: #3a4659;
+	--chart-income: var(--brand);
+	--chart-compare: #c9d0da;
+	--chart-net: var(--foreground);
+	--chart-grid: var(--border);
+	--chart-mid: var(--surface-3);
+	--chart-seq-1: color-mix(in oklab, var(--brand) 14%, var(--card));
+	--chart-seq-2: color-mix(in oklab, var(--brand) 34%, var(--card));
+	--chart-seq-3: color-mix(in oklab, var(--brand) 60%, var(--card));
+	--chart-seq-4: var(--brand);
+
 	/* shadcn role names, mapped onto the tokens above */
 	--card-foreground: var(--foreground);
 	--popover: var(--card);
@@ -138,6 +154,8 @@
 		--bucket-6: #199e70;
 		--bucket-7: #c47a36;
 		--bucket-8: #d55181;
+		--chart-spend: #b9c2d0;
+		--chart-compare: #323b4d;
 	}
 }
 
@@ -180,6 +198,15 @@
 	--color-surface-2: var(--surface-2);
 	--color-surface-3: var(--surface-3);
 	--color-brand: var(--brand);
+	--color-chart-spend: var(--chart-spend);
+	--color-chart-income: var(--chart-income);
+	--color-chart-compare: var(--chart-compare);
+	--color-chart-net: var(--chart-net);
+	--color-chart-mid: var(--chart-mid);
+	--color-chart-seq-1: var(--chart-seq-1);
+	--color-chart-seq-2: var(--chart-seq-2);
+	--color-chart-seq-3: var(--chart-seq-3);
+	--color-chart-seq-4: var(--chart-seq-4);
 	--color-brand-soft: var(--brand-soft);
 	--color-pace: var(--pace);
 	--color-pace-soft: var(--pace-soft);
@@ -231,6 +258,11 @@
 		}
 	}
 
+	@keyframes bar-grow {
+		from {
+			transform: scaleX(0);
+		}
+	}
 	@keyframes enter {
 		from {
 			opacity: 0;

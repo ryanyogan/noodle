@@ -1,0 +1,9 @@
+# Reports aggregate in D1 and chart in the browser with shadcn Charts on Recharts
+
+Reports are drawn with shadcn/ui's Chart component on Recharts 3.8, wrapped once in `packages/ui/src/components/chart.tsx` so every view shares the same tooltip, legend and container. The wrapper sets series colours as `--color-<key>` custom properties on the container rather than shadcn's per-theme `THEMES` map and injected `<style>`: the values are our own tokens (`--chart-*` in `globals.css`, plus `--bucket-1..8` for Bucket identity), so dark mode follows the design system (ADR-0008) with no second palette to keep in step. Colour stays quiet: Bucket shares use the Bucket's own colour, everything else is neutral ink and grey, with the brand colour only for income and good changes.
+
+All Report arithmetic runs in D1 (`GROUP BY` in `packages/db/src/reports.ts`) and `@noodle/domain`, never in the browser: one server function (`getReport`) returns sums per period and Target, plus at most a page of items to drill into, so no Report ships a Household's Transactions in bulk and every read goes through the privacy rules (ADR-0003). Drilling in (a Bucket, a merchant, a month) turns into filters on the same query rather than a separate endpoint. Every option lives in the URL, so any view can be bookmarked.
+
+The route is `ssr: "data-only"`: the server loads the Report into the query cache but charts render only in the browser, where they can measure themselves; the page shows a skeleton until then. Every chart has a table alternative (and CSV export), which is also what screen readers get.
+
+Considered: hand-rolled SVG (full control, but every axis, tooltip and animation is ours to build and maintain) and aggregating in the browser from the Transactions list (simple, but ships every Transaction and duplicates the privacy rules on the client).

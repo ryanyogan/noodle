@@ -26,6 +26,7 @@ import { cn } from "@noodle/ui/lib/utils";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
 	CalendarDays,
+	ChartColumn,
 	ChevronLeft,
 	ChevronRight,
 	MessageCircleQuestionMark,
@@ -162,7 +163,12 @@ function ThisMonth() {
 								</Link>
 							</Button>
 						) : null}
-						{/* Phones reach Ask from here; the sidebar has it on larger screens. */}
+						{/* Phones reach Reports and Ask from here; the sidebar has them on larger screens. */}
+						<Button variant="ghost" size="icon" className="lg:hidden" asChild>
+							<Link to="/reports" aria-label="Reports">
+								<ChartColumn className="size-5" />
+							</Link>
+						</Button>
 						<Button variant="ghost" size="icon" className="lg:hidden" asChild>
 							<Link to="/ask" aria-label="Ask">
 								<MessageCircleQuestionMark className="size-5" />
