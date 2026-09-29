@@ -69,6 +69,25 @@ export {
 	splitAccount,
 	type WithdrawalAttribution,
 } from "./goals";
+export {
+	addedTerms,
+	addedUntil,
+	changedTerms,
+	dueDateFrom,
+	holdsIn,
+	type Lever,
+	type LeverKind,
+	type LeverOf,
+	type LeverRange,
+	type LeverV1,
+	type OneOffFlow,
+	rangeFrom,
+	readScenarioLevers,
+	SCENARIO_VERSION,
+	type ScenarioJson,
+	upgradeLevers,
+	whyNotApplicable,
+} from "./levers";
 export { type BucketUse, likelyBucketOrder } from "./likely";
 export {
 	autoMatches,
@@ -192,7 +211,8 @@ export {
 } from "./reports";
 export { type MonthlySpend, rolledOver, rolloverSince } from "./rollover";
 export {
-	type Lever,
+	type LeverImpact,
+	leverImpacts,
 	MAX_PROJECTION_MONTHS,
 	moneyFreed,
 	type PlanAhead,
@@ -200,6 +220,7 @@ export {
 	type ProjectedMonth,
 	type Projection,
 	type ProjectionGoal,
+	type ProjectOptions,
 	planAhead,
 	project,
 } from "./scenario";

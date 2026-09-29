@@ -72,7 +72,12 @@ export const ScenarioLevers = memo(function ScenarioLevers({
 								onChange((current) =>
 									value === bucket.allowance
 										? withoutLever(current, `bucket:${bucket.id}`)
-										: withLever(current, { kind: "allowance", bucketId: bucket.id, amount: value }),
+										: withLever(current, {
+												kind: "allowance",
+												bucketId: bucket.id,
+												amount: value,
+												fromMonth: month,
+											}),
 								);
 							return (
 								<ListRow
@@ -209,7 +214,12 @@ export const ScenarioLevers = memo(function ScenarioLevers({
 								onChange((levers) =>
 									next.target === goal.target && next.targetDate === goal.targetDate
 										? withoutLever(levers, target)
-										: withLever(levers, { kind: "goal", goalId: goal.id, ...next }),
+										: withLever(levers, {
+												kind: "goal",
+												goalId: goal.id,
+												...next,
+												fromMonth: month,
+											}),
 								);
 							const offset =
 								current.targetDate === null

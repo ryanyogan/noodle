@@ -44,6 +44,8 @@ describe("purchaseLevers", () => {
 				commitmentId: "loan",
 				name: "Car loan",
 				amount: 59_404,
+				cadence: "monthly",
+				dueDay: 1,
 				fromMonth: "2026-10",
 				months: 60,
 			},

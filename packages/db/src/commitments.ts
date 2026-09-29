@@ -12,11 +12,11 @@ import { commitments, commitmentTerms, splits, transactions } from "./schema";
 type Terms = { amountCents: Cents; cadence: Cadence; dueDate: DayKey };
 
 /** Guards a write to only land if the Commitment belongs to the Household. */
-const ownCommitment = (householdId: string, commitmentId: string) =>
+export const ownCommitment = (householdId: string, commitmentId: string) =>
 	and(eq(commitments.id, commitmentId), eq(commitments.householdId, householdId));
 
 /** Guards a write to only land if the Commitment is in the Plan for `month`. */
-const inPlanFor = (month: string) =>
+export const inPlanFor = (month: string) =>
 	and(
 		lte(commitments.fromMonth, month),
 		or(isNull(commitments.endedFromMonth), gt(commitments.endedFromMonth, month)),

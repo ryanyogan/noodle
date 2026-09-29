@@ -63,8 +63,8 @@ describe("the Plan's numbers a Check starts from", () => {
 	it("takes a typical month's Free to Spend as the projection's average, rounded down", () => {
 		const projection = project({
 			months: [
-				{ month: "2026-09", baseline: 100_000, buckets: [], commitments: [] },
-				{ month: "2026-10", baseline: 100_001, buckets: [], commitments: [] },
+				{ month: "2026-09", baseline: 100_000, baselineSetIn: null, buckets: [], commitments: [] },
+				{ month: "2026-10", baseline: 100_001, baselineSetIn: null, buckets: [], commitments: [] },
 			],
 			goals: [],
 		});

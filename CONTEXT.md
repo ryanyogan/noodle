@@ -157,8 +157,12 @@ A hypothetical copy of the Plan, changed by Levers, projected forward in time to
 _Avoid_: Simulation, what-if, forecast
 
 **Lever**:
-A single adjustable quantity in a Scenario (a Bucket allowance, a Commitment cancelled, a Goal date, an Insight accepted).
+A single adjustable quantity in a Scenario: the Baseline, a Bucket allowance, a Commitment's terms, a Commitment ended or added, a one-off expense or income, a Bucket added or archived, a Goal changed or added, or yearly growth in income and costs (an Insight accepted becomes one). Each holds for a range of months, from its first month up to, but not including, the month it ends, or for good. Only what the Plan stores can be applied: a one-off or growth is an assumption.
 _Avoid_: Slider, knob, variable
+
+**Cushion**:
+The money a Scenario projects the Household to have month by month: a starting balance (from Accounts, later) plus each month's Free to Spend and one-offs, carried forward. Its lowest point, and the first month it goes below zero, show whether a Scenario holds up.
+_Avoid_: Running balance, runway
 
 **Affordability Check**:
 An evaluation of whether the Household can take on a specific purchase (a home, a car, anything) given the Plan, Goals, and Earmarks, answered as Comfortable, Stretch, or Not Yet. Can be turned into a Scenario.

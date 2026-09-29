@@ -14,17 +14,34 @@ import {
 export type { ScenarioRecord };
 
 // ---------------------------------------------------------------------------------------------
-// Levers. A Scenario holds at most one Lever per Bucket, Commitment or Goal.
+// Levers. A Scenario holds at most one Lever per thing it adjusts (see leverTarget).
 
-/** What a Lever adjusts: one per Bucket, Commitment, Goal or new Commitment. */
-export const leverTarget = (lever: Lever) =>
-	lever.kind === "allowance"
-		? `bucket:${lever.bucketId}`
-		: lever.kind === "end-commitment"
-			? `commitment:${lever.commitmentId}`
-			: lever.kind === "goal"
-				? `goal:${lever.goalId}`
-				: `new-commitment:${lever.commitmentId}`;
+/** What a Lever adjusts: one per Bucket, Commitment, Goal, new one, one-off, or the Baseline. */
+export function leverTarget(lever: Lever): string {
+	switch (lever.kind) {
+		case "baseline":
+		case "growth":
+			return lever.kind;
+		case "allowance":
+			return `bucket:${lever.bucketId}`;
+		case "add-bucket":
+			return `new-bucket:${lever.bucketId}`;
+		case "archive-bucket":
+			return `archive-bucket:${lever.bucketId}`;
+		case "commitment-terms":
+			return `terms:${lever.commitmentId}`;
+		case "end-commitment":
+			return `commitment:${lever.commitmentId}`;
+		case "add-commitment":
+			return `new-commitment:${lever.commitmentId}`;
+		case "goal":
+			return `goal:${lever.goalId}`;
+		case "add-goal":
+			return `new-goal:${lever.goalId}`;
+		case "one-off":
+			return `one-off:${lever.oneOffId}`;
+	}
+}
 
 /** The Levers with `lever` in place of any other on the same thing. */
 export const withLever = (levers: readonly Lever[], lever: Lever): Lever[] => [

@@ -1,4 +1,4 @@
-import type { CsvMapping, Lever } from "@noodle/domain";
+import type { CsvMapping, LeverV1, ScenarioJson } from "@noodle/domain";
 import { sql } from "drizzle-orm";
 import {
 	type AnySQLiteColumn,
@@ -623,7 +623,7 @@ export const scenarios = sqliteTable(
 			.notNull()
 			.references(() => households.id),
 		name: text("name").notNull(),
-		levers: text("levers", { mode: "json" }).$type<Lever[]>().notNull(),
+		levers: text("levers", { mode: "json" }).$type<ScenarioJson | LeverV1[]>().notNull(),
 		createdByMemberId: text("created_by_member_id").references(() => members.id),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()

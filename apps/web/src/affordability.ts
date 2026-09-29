@@ -98,6 +98,8 @@ export function purchaseLevers({
 					commitmentId: c.commitmentId,
 					name: c.name,
 					amount: c.amount,
+					cadence: "monthly",
+					dueDay: 1,
 					fromMonth: from,
 					months: c.months,
 				}),

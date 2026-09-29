@@ -565,7 +565,7 @@ async function allowanceScenario(
 	}
 	const before = project(ahead);
 	const after = project(ahead, [
-		{ kind: "allowance", bucketId: bucket.id, amount: args.allowance },
+		{ kind: "allowance", bucketId: bucket.id, amount: args.allowance, fromMonth: month },
 	]);
 	const freed = moneyFreed(before, after);
 	const overYear = freed[freed.length - 1] ?? 0;

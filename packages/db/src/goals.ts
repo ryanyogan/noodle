@@ -193,12 +193,10 @@ const insertClaim = (
 		.onConflictDoNothing({ target: earmarkClaims.id });
 
 /**
- * Adds a Goal backed by one of the Household's checking or savings Accounts, from `fromMonth`
- * (the Household's current month), with `claimCents` of Unclaimed money already set aside for it
- * (0 for none). Idempotent per `goalId`: a retry leaves the first attempt's Goal as it was.
- * Refused unless, at write time, the Account is the Household's and holds money.
+ * addGoal's Goal as a statement (without a claim), for writing it in a batch with others:
+ * refused unless the Account is the Household's checking or savings one.
  */
-export async function addGoal(
+export const goalInsert = (
 	db: Db,
 	input: {
 		householdId: string;
@@ -208,12 +206,9 @@ export async function addGoal(
 		targetCents: Cents;
 		targetDate: DayKey | null;
 		fromMonth: MonthKey;
-		claimId: string;
-		claimCents: Cents;
-		createdByMemberId: string;
 	},
-): Promise<GoalWriteResult> {
-	const insertGoal = db
+) =>
+	db
 		.insert(goals)
 		.select(
 			db
@@ -238,6 +233,29 @@ export async function addGoal(
 				),
 		)
 		.onConflictDoNothing({ target: goals.id });
+
+/**
+ * Adds a Goal backed by one of the Household's checking or savings Accounts, from `fromMonth`
+ * (the Household's current month), with `claimCents` of Unclaimed money already set aside for it
+ * (0 for none). Idempotent per `goalId`: a retry leaves the first attempt's Goal as it was.
+ * Refused unless, at write time, the Account is the Household's and holds money.
+ */
+export async function addGoal(
+	db: Db,
+	input: {
+		householdId: string;
+		goalId: string;
+		accountId: string;
+		name: string;
+		targetCents: Cents;
+		targetDate: DayKey | null;
+		fromMonth: MonthKey;
+		claimId: string;
+		claimCents: Cents;
+		createdByMemberId: string;
+	},
+): Promise<GoalWriteResult> {
+	const insertGoal = goalInsert(db, input);
 	if (input.claimCents === 0) {
 		await insertGoal;
 	} else {

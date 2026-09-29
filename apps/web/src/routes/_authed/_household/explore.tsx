@@ -366,10 +366,14 @@ function describeLevers(levers: Lever[], plan: Plan, goals: { id: string; name: 
 				`${lever.name} ${formatMoney(lever.amount)} a month from ${shortMonth(lever.fromMonth)}`,
 			];
 		}
-		const goal = goals.find((g) => g.id === lever.goalId);
-		if (!goal) return [];
-		const when = lever.targetDate ? `by ${shortMonth(monthOfDay(lever.targetDate))}` : "no date";
-		return [`${goal.name} ${formatMoney(lever.target)} ${when}`];
+		if (lever.kind === "goal") {
+			const goal = goals.find((g) => g.id === lever.goalId);
+			if (!goal) return [];
+			const when = lever.targetDate ? `by ${shortMonth(monthOfDay(lever.targetDate))}` : "no date";
+			return [`${goal.name} ${formatMoney(lever.target)} ${when}`];
+		}
+		// The other kinds aren't set on this screen yet.
+		return [];
 	});
 }
 

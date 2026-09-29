@@ -1,5 +1,5 @@
 import type { Cents, MonthKey, PlanRecords } from "@noodle/domain";
-import { and, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, lte, or, type SQL, sql } from "drizzle-orm";
 import type { Db } from "./index";
 import { assignableBy } from "./privacy";
 import {
@@ -112,8 +112,11 @@ const ownBucket = (householdId: string, bucketId: string) =>
  * Guards a change to a Bucket to only land if it belongs to the Household and the Parent
  * `memberId` may change it: a Personal Allowance is set only by its own Parent.
  */
-const changeableBucket = (input: { householdId: string; bucketId: string; memberId: string }) =>
-	and(ownBucket(input.householdId, input.bucketId), assignableBy(input.memberId));
+export const changeableBucket = (input: {
+	householdId: string;
+	bucketId: string;
+	memberId: string;
+}) => and(ownBucket(input.householdId, input.bucketId), assignableBy(input.memberId));
 
 /**
  * Adds a Bucket to the Plan from `month` onward, placed last, with its first allowance.
@@ -130,7 +133,26 @@ export async function addBucket(
 		allowanceCents: Cents;
 	},
 ): Promise<void> {
-	await db.batch([
+	await db.batch(bucketAdd(db, input));
+}
+
+/**
+ * addBucket as statements, for writing them in a batch with others; `color` may be SQL (say,
+ * the next colour in turn), and `archivedFromMonth` also sets when it leaves the Plan.
+ */
+export const bucketAdd = (
+	db: Db,
+	input: {
+		householdId: string;
+		bucketId: string;
+		name: string;
+		color: number | SQL;
+		month: MonthKey;
+		archivedFromMonth?: MonthKey | null;
+		allowanceCents: Cents;
+	},
+) =>
+	[
 		db
 			.insert(buckets)
 			.values({
@@ -140,6 +162,7 @@ export async function addBucket(
 				color: input.color,
 				position: sql`(select coalesce(max(${buckets.position}), 0) + 1 from ${buckets} where ${buckets.householdId} = ${input.householdId})`,
 				fromMonth: input.month,
+				archivedFromMonth: input.archivedFromMonth ?? null,
 			})
 			.onConflictDoNothing({ target: buckets.id }),
 		db
@@ -156,8 +179,7 @@ export async function addBucket(
 					.where(ownBucket(input.householdId, input.bucketId)),
 			)
 			.onConflictDoNothing({ target: [bucketAllowances.bucketId, bucketAllowances.month] }),
-	]);
-}
+	] as const;
 
 /**
  * Adds the Parent `memberId`'s Personal Allowance to the Plan from `month` onward, placed last,
@@ -310,11 +332,15 @@ export async function reorderBuckets(
  * later month than it already was is a no-op. A Personal Allowance stays: its Parent sets its
  * allowance to zero instead.
  */
-export async function archiveBucket(
-	db: Db,
-	input: { householdId: string; bucketId: string; month: MonthKey },
-): Promise<void> {
-	await db
+export async function archiveBucket(db: Db, input: ArchiveBucketInput): Promise<void> {
+	await bucketArchive(db, input);
+}
+
+type ArchiveBucketInput = { householdId: string; bucketId: string; month: MonthKey };
+
+/** archiveBucket as a statement, for writing it in a batch with others. */
+export const bucketArchive = (db: Db, input: ArchiveBucketInput) =>
+	db
 		.update(buckets)
 		.set({ archivedFromMonth: input.month })
 		.where(
@@ -324,4 +350,3 @@ export async function archiveBucket(
 				or(isNull(buckets.archivedFromMonth), gt(buckets.archivedFromMonth, input.month)),
 			),
 		);
-}

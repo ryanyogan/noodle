@@ -381,6 +381,7 @@ export {
 	addBucket,
 	addPersonalAllowance,
 	archiveBucket,
+	bucketAdd,
 	loadPlanRecords,
 	reorderBuckets,
 	setAllowance,
@@ -409,6 +410,7 @@ export { loadRolledOver } from "./rollover";
 export {
 	applyLevers,
 	deleteScenario,
+	LeverNotApplicable,
 	loadScenarios,
 	type ScenarioRecord,
 	saveScenario,
