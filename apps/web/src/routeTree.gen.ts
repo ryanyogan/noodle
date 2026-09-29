@@ -41,6 +41,7 @@ import { Route as AuthedHouseholdPlanMonthGoalsRouteImport } from './routes/_aut
 import { Route as AuthedHouseholdPlanMonthIncomeRouteImport } from './routes/_authed/_household/plan.$month.income'
 import { Route as AuthedHouseholdPlanBucketsIdRouteImport } from './routes/_authed/_household/plan.buckets.$id'
 import { Route as AuthedHouseholdPlanCommitmentsIdRouteImport } from './routes/_authed/_household/plan.commitments.$id'
+import { Route as AuthedHouseholdPlanYearYearRouteImport } from './routes/_authed/_household/plan.year.$year'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -223,6 +224,12 @@ const AuthedHouseholdPlanCommitmentsIdRoute =
     path: '/plan/commitments/$id',
     getParentRoute: () => AuthedHouseholdRoute,
   } as any)
+const AuthedHouseholdPlanYearYearRoute =
+  AuthedHouseholdPlanYearYearRouteImport.update({
+    id: '/plan/year/$year',
+    path: '/plan/year/$year',
+    getParentRoute: () => AuthedHouseholdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -253,6 +260,7 @@ export interface FileRoutesByFullPath {
   '/plan/$month/income': typeof AuthedHouseholdPlanMonthIncomeRoute
   '/plan/buckets/$id': typeof AuthedHouseholdPlanBucketsIdRoute
   '/plan/commitments/$id': typeof AuthedHouseholdPlanCommitmentsIdRoute
+  '/plan/year/$year': typeof AuthedHouseholdPlanYearYearRoute
   '/month/$month/': typeof AuthedHouseholdMonthMonthIndexRoute
   '/plan/$month/': typeof AuthedHouseholdPlanMonthIndexRoute
 }
@@ -283,6 +291,7 @@ export interface FileRoutesByTo {
   '/plan/$month/income': typeof AuthedHouseholdPlanMonthIncomeRoute
   '/plan/buckets/$id': typeof AuthedHouseholdPlanBucketsIdRoute
   '/plan/commitments/$id': typeof AuthedHouseholdPlanCommitmentsIdRoute
+  '/plan/year/$year': typeof AuthedHouseholdPlanYearYearRoute
   '/month/$month': typeof AuthedHouseholdMonthMonthIndexRoute
   '/plan/$month': typeof AuthedHouseholdPlanMonthIndexRoute
 }
@@ -318,6 +327,7 @@ export interface FileRoutesById {
   '/_authed/_household/plan/$month/income': typeof AuthedHouseholdPlanMonthIncomeRoute
   '/_authed/_household/plan/buckets/$id': typeof AuthedHouseholdPlanBucketsIdRoute
   '/_authed/_household/plan/commitments/$id': typeof AuthedHouseholdPlanCommitmentsIdRoute
+  '/_authed/_household/plan/year/$year': typeof AuthedHouseholdPlanYearYearRoute
   '/_authed/_household/month/$month/': typeof AuthedHouseholdMonthMonthIndexRoute
   '/_authed/_household/plan/$month/': typeof AuthedHouseholdPlanMonthIndexRoute
 }
@@ -352,6 +362,7 @@ export interface FileRouteTypes {
     | '/plan/$month/income'
     | '/plan/buckets/$id'
     | '/plan/commitments/$id'
+    | '/plan/year/$year'
     | '/month/$month/'
     | '/plan/$month/'
   fileRoutesByTo: FileRoutesByTo
@@ -382,6 +393,7 @@ export interface FileRouteTypes {
     | '/plan/$month/income'
     | '/plan/buckets/$id'
     | '/plan/commitments/$id'
+    | '/plan/year/$year'
     | '/month/$month'
     | '/plan/$month'
   id:
@@ -416,6 +428,7 @@ export interface FileRouteTypes {
     | '/_authed/_household/plan/$month/income'
     | '/_authed/_household/plan/buckets/$id'
     | '/_authed/_household/plan/commitments/$id'
+    | '/_authed/_household/plan/year/$year'
     | '/_authed/_household/month/$month/'
     | '/_authed/_household/plan/$month/'
   fileRoutesById: FileRoutesById
@@ -652,6 +665,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedHouseholdPlanCommitmentsIdRouteImport
       parentRoute: typeof AuthedHouseholdRoute
     }
+    '/_authed/_household/plan/year/$year': {
+      id: '/_authed/_household/plan/year/$year'
+      path: '/plan/year/$year'
+      fullPath: '/plan/year/$year'
+      preLoaderRoute: typeof AuthedHouseholdPlanYearYearRouteImport
+      parentRoute: typeof AuthedHouseholdRoute
+    }
   }
 }
 
@@ -715,6 +735,7 @@ interface AuthedHouseholdRouteChildren {
   AuthedHouseholdGoalsAccountsAccountIdRoute: typeof AuthedHouseholdGoalsAccountsAccountIdRoute
   AuthedHouseholdPlanBucketsIdRoute: typeof AuthedHouseholdPlanBucketsIdRoute
   AuthedHouseholdPlanCommitmentsIdRoute: typeof AuthedHouseholdPlanCommitmentsIdRoute
+  AuthedHouseholdPlanYearYearRoute: typeof AuthedHouseholdPlanYearYearRoute
 }
 
 const AuthedHouseholdRouteChildren: AuthedHouseholdRouteChildren = {
@@ -739,6 +760,7 @@ const AuthedHouseholdRouteChildren: AuthedHouseholdRouteChildren = {
     AuthedHouseholdGoalsAccountsAccountIdRoute,
   AuthedHouseholdPlanBucketsIdRoute: AuthedHouseholdPlanBucketsIdRoute,
   AuthedHouseholdPlanCommitmentsIdRoute: AuthedHouseholdPlanCommitmentsIdRoute,
+  AuthedHouseholdPlanYearYearRoute: AuthedHouseholdPlanYearYearRoute,
 }
 
 const AuthedHouseholdRouteWithChildren = AuthedHouseholdRoute._addFileChildren(

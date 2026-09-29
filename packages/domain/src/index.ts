@@ -210,6 +210,13 @@ export {
 	totalCommitments,
 } from "./plan";
 export {
+	HEALTH_HABIT_MONTHS,
+	HEALTH_MONTHS_AHEAD,
+	type HealthGoal,
+	type PlanWarning,
+	planHealth,
+} from "./plan-health";
+export {
 	PLAN_CHANGE_KINDS,
 	type PlanChange,
 	type PlanChangeGroup,
@@ -335,3 +342,9 @@ export {
 	windfallOf,
 	windfallSuggestions,
 } from "./windfall";
+export {
+	type YearActuals,
+	type YearFigures,
+	type YearMonth,
+	yearGrid,
+} from "./year";

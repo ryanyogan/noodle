@@ -1,0 +1,136 @@
+import { describe, expect, it } from "vitest";
+import type { EarmarkChange, HealthGoal, MonthKey, PlanRecords } from "./index";
+import { planHealth } from "./index";
+
+const bucket = (id: string, owner?: string) => ({
+	id,
+	name: id,
+	color: 1,
+	position: 1,
+	fromMonth: "2026-01" as MonthKey,
+	archivedFromMonth: null,
+	...(owner ? { owner } : {}),
+});
+
+const healthy: PlanRecords = {
+	baselines: [{ month: "2026-01", amount: 500_000 }],
+	buckets: [bucket("groceries"), bucket("their-allowance", "p2"), bucket("my-allowance", "p1")],
+	allowances: [
+		{ bucketId: "groceries", month: "2026-01", amount: 100_000 },
+		{ bucketId: "their-allowance", month: "2026-01", amount: 100_000 },
+		{ bucketId: "my-allowance", month: "2026-01", amount: 100_000 },
+	],
+	commitments: [],
+	commitmentTerms: [],
+	rolling: [],
+};
+
+const pastMonths: MonthKey[] = ["2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08"];
+
+const funding = (goalId: string, amount: number): EarmarkChange[] =>
+	pastMonths.map((month) => ({ goalId, kind: "funding", amount, month }));
+
+const health = (overrides: Partial<Parameters<typeof planHealth>[0]> = {}) =>
+	planHealth({
+		asOf: "2026-09-20",
+		parentId: "p1",
+		records: healthy,
+		goals: [],
+		changes: [],
+		income: [
+			{ amount: 500_000, date: "2026-08-01" },
+			{ amount: 500_000, date: "2026-09-01" },
+		],
+		spent: [],
+		...overrides,
+	});
+
+describe("planHealth", () => {
+	it("finds nothing wrong with a healthy Plan", () => {
+		expect(health()).toEqual([]);
+	});
+
+	it("warns of the first month ahead whose Free to Spend goes below zero", () => {
+		const records: PlanRecords = {
+			...healthy,
+			allowances: [
+				...healthy.allowances,
+				// Just December: a big month for Groceries.
+				{ bucketId: "groceries", month: "2026-12", amount: 450_000 },
+				{ bucketId: "groceries", month: "2027-01", amount: 100_000 },
+			],
+		};
+		expect(health({ records })).toEqual([
+			{ kind: "negative-ahead", month: "2026-12", freeToSpend: -150_000, months: 1 },
+		]);
+	});
+
+	it("warns when this month's income is behind the Baseline", () => {
+		expect(
+			health({
+				income: [
+					{ amount: 500_000, date: "2026-08-01" },
+					{ amount: 200_000, date: "2026-09-01" },
+				],
+			}),
+		).toEqual([
+			{
+				kind: "income-behind",
+				month: "2026-09",
+				short: 300_000,
+				received: 200_000,
+				expected: 500_000,
+			},
+		]);
+	});
+
+	it("warns of a Bucket over its allowance most months, but never the other Parent's Personal Allowance", () => {
+		const spent = pastMonths.flatMap((month, i) => [
+			// Over in five of six months.
+			{ bucketId: "groceries", month, amount: i === 0 ? 100_000 : 150_000 },
+			{ bucketId: "their-allowance", month, amount: 200_000 },
+			{ bucketId: "my-allowance", month, amount: 100_000 },
+		]);
+		expect(health({ spent })).toEqual([
+			{
+				kind: "bucket-over",
+				bucketId: "groceries",
+				name: "groceries",
+				over: 5,
+				months: 6,
+				gap: 250_000,
+			},
+		]);
+	});
+
+	it("warns of a dated Goal that won't be reached by its date at its recent pace", () => {
+		const goals: HealthGoal[] = [
+			// 60,000 saved; 50,000 over the last six months is about 8,333 a month, so the 90,000
+			// to go takes until August 2027.
+			{ id: "late", name: "Trip", target: 150_000, targetDate: "2026-12-31", fromMonth: "2026-01" },
+			// 120,000 saved; at about 16,667 a month it reaches 200,000 by February 2027.
+			{ id: "fine", name: "Car", target: 200_000, targetDate: "2027-12-31", fromMonth: "2026-01" },
+			// Undated: no date to miss.
+			{ id: "someday", name: "Someday", target: 900_000, targetDate: null, fromMonth: "2026-01" },
+			// Added this month: no pace yet.
+			{ id: "new", name: "New", target: 50_000, targetDate: "2026-10-31", fromMonth: "2026-09" },
+		];
+		const changes = [...funding("late", 10_000), ...funding("fine", 20_000)];
+		expect(health({ goals, changes })).toEqual([
+			{
+				kind: "goal-late",
+				goalId: "late",
+				name: "Trip",
+				targetDate: "2026-12-31",
+				reachedIn: "2027-08",
+			},
+		]);
+	});
+
+	it("warns of a dated Goal that isn't growing at all", () => {
+		const goals: HealthGoal[] = [
+			{ id: "idle", name: "Idle", target: 100_000, targetDate: "2027-06-30", fromMonth: "2026-02" },
+		];
+		expect(health({ goals })).toMatchObject([{ kind: "goal-late", reachedIn: null }]);
+	});
+});

@@ -12,13 +12,14 @@ describe("queryKeysFor", () => {
 			["month", "2026-09"],
 			["month", "commitments"],
 			["month", "buckets"],
+			["month", "outlook"],
 			["reports"],
 		]);
 		expect(queryKeysFor(["months"])).toEqual([["month"], ["reports"]]);
 		expect(queryKeysFor(["bucket-uses"])).toEqual([["bucket-uses"]]);
 		expect(queryKeysFor(["parents"])).toEqual([["household", "parents"]]);
 		expect(queryKeysFor(["viewer"])).toEqual([["viewer"]]);
-		expect(queryKeysFor(["goals"])).toEqual([["goals"], ["reports"]]);
+		expect(queryKeysFor(["goals"])).toEqual([["goals"], ["month", "outlook"], ["reports"]]);
 	});
 
 	test("every month covers any one month", () => {
@@ -32,6 +33,7 @@ describe("queryKeysFor", () => {
 			["month", "2026-10"],
 			["month", "commitments"],
 			["month", "buckets"],
+			["month", "outlook"],
 			["reports"],
 		]);
 	});
@@ -42,6 +44,7 @@ describe("queryKeysFor", () => {
 			["month", "2026-09"],
 			["month", "commitments"],
 			["month", "buckets"],
+			["month", "outlook"],
 			["reports"],
 		]);
 	});

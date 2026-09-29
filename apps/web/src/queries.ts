@@ -16,6 +16,7 @@ import { getReview, getRules } from "./server/review";
 import { getPlanAhead, getScenarios } from "./server/scenarios";
 import { getViewer } from "./server/session";
 import { getBucketUses } from "./server/transactions";
+import { getPlanHealth, getYear } from "./server/year";
 
 /** Who is signed in and their Household; read by the route guards. */
 export const viewerQuery = () =>
@@ -119,6 +120,27 @@ export const bucketQuery = (bucketId: string) =>
 	queryOptions({
 		queryKey: [...bucketPagesKey, bucketId],
 		queryFn: () => getBucket({ data: { bucketId } }),
+	});
+
+/**
+ * What the year view and Plan health read: the Plan, every month's spending and income, and the
+ * Goals. Under every month's key, as any Plan change can change them; a change to any one month's
+ * spending, or to the Goals, refetches them too (see household-changes).
+ */
+export const planOutlookKey = [...monthsKey, "outlook"] as const;
+
+/** A year of the Plan month by month, with what actually happened in months under way or over. */
+export const yearQuery = (year: number) =>
+	queryOptions({
+		queryKey: [...planOutlookKey, "year", year],
+		queryFn: () => getYear({ data: { year } }),
+	});
+
+/** Plan health: what in the Plan needs attention now. */
+export const planHealthQuery = () =>
+	queryOptions({
+		queryKey: [...planOutlookKey, "health"],
+		queryFn: () => getPlanHealth(),
 	});
 
 /**

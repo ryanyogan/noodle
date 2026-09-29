@@ -21,6 +21,7 @@ import { ComingUp, LumpCallout } from "../../../components/coming-up";
 import { AmountInput } from "../../../components/goals";
 import { MonthLinks, MonthTopRow, monthTitle, useMonthSwipe } from "../../../components/month-nav";
 import { SaveFailed } from "../../../components/plan-editing";
+import { PlanHealth } from "../../../components/plan-health";
 import {
 	describeGroup,
 	groupMeta,
@@ -31,17 +32,24 @@ import { PlanEnded } from "../../../components/plan-page";
 import { formatMoney, monthName } from "../../../format";
 import { useGoals } from "../../../goals";
 import { usePlanChange, withBaseline } from "../../../plan-changes";
-import { commitmentsQuery, goalsQuery, planHistoryQuery, useMonthState } from "../../../queries";
+import {
+	commitmentsQuery,
+	goalsQuery,
+	planHealthQuery,
+	planHistoryQuery,
+	useMonthState,
+} from "../../../queries";
 import { setBaseline } from "../../../server/plan";
 
 export const Route = createFileRoute("/_authed/_household/plan/$month/")({
 	// Setting up the Plan ticks off its Goals step once there are Goals; Coming up reads every
-	// Commitment's schedule and charges.
+	// Commitment's schedule and charges; Plan health shows on this month's Plan.
 	loader: ({ context }) =>
 		Promise.all([
 			context.queryClient.ensureQueryData(goalsQuery()),
 			context.queryClient.ensureQueryData(commitmentsQuery()),
 			context.queryClient.ensureQueryData(planHistoryQuery(context.month)),
+			context.queryClient.ensureQueryData(planHealthQuery()),
 		]),
 	component: PlanOverview,
 });
@@ -67,14 +75,34 @@ function PlanOverview() {
 			<div className="grid max-w-2xl gap-8">
 				{state.editable ? null : <PlanEnded />}
 				{settingUp ? <SetUp state={state} /> : null}
+				{month === current ? <PlanHealth /> : null}
 				<div className="grid gap-3">
 					<Waterfall state={state} current={month === current} />
 					<LumpCallout lumps={lumpsIn(state)} month={month} />
+					<YearLink month={month} />
 				</div>
 				{month === current ? <ComingUp /> : null}
 				<WhatChanged month={month} />
 			</div>
 		</div>
+	);
+}
+
+/** Opens the year the month is in, month by month. */
+function YearLink({ month }: { month: MonthKey }) {
+	const year = month.slice(0, 4);
+	return (
+		<Link
+			to="/plan/year/$year"
+			params={{ year }}
+			className={cn(
+				"flex items-center justify-between gap-4 rounded-xl border px-(--card-pad) py-3 text-sm font-medium",
+				"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60",
+			)}
+		>
+			{year} at a glance
+			<ChevronRight aria-hidden="true" className="size-4 text-subtle-foreground" />
+		</Link>
 	);
 }
 

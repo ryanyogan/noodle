@@ -11,6 +11,7 @@ import {
 	membersQuery,
 	monthQuery,
 	monthsKey,
+	planOutlookKey,
 	reportsKey,
 	rulesQuery,
 	scenariosQuery,
@@ -102,11 +103,15 @@ export function queryKeysFor(changes: readonly HouseholdChange[]): QueryKey[] {
 		keys.set(JSON.stringify(key), key);
 	}
 	// A change to one month's spending can be a Commitment's charge, which Coming up counts, or a
-	// Bucket's, which its page shows month by month.
+	// Bucket's, which its page shows month by month; the year view and Plan health count both.
 	if (!everyMonth && changes.some((change) => monthChange.test(change))) {
-		for (const key of [commitmentsQuery().queryKey, bucketPagesKey]) {
+		for (const key of [commitmentsQuery().queryKey, bucketPagesKey, planOutlookKey]) {
 			keys.set(JSON.stringify(key), key);
 		}
+	}
+	// Goal funding and Earmarks feed the year view and Plan health too.
+	if (!everyMonth && changes.includes("goals")) {
+		keys.set(JSON.stringify(planOutlookKey), planOutlookKey);
 	}
 	if (changes.some(changesReports)) keys.set(JSON.stringify(reportsKey), reportsKey);
 	return [...keys.values()];

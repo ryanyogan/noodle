@@ -42,6 +42,10 @@ _Avoid_: Annual cost, annualized
 A month whose Free to Spend is lower because an annual Commitment is due in it, or a biweekly one is due three times.
 _Avoid_: Spike, expensive month
 
+**Plan health**:
+The warnings on the Plan overview about the Plan as it stands, each linking to its fix: a month ahead whose Free to Spend goes below zero, income running behind the Baseline, a Bucket over its allowance most months (never the other Parent's Personal Allowance), and a Goal that won't reach its target by its date at its current funding.
+_Avoid_: Alerts, budget score
+
 **Bucket**:
 A monthly allowance for discretionary, variable spending (Hockey, Fun, Life, Groceries), tracked as "amount left." Every Bucket is either Rolling or Fresh-start.
 _Avoid_: Envelope, category, budget line
