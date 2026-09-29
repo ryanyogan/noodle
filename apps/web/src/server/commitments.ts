@@ -1,14 +1,26 @@
 import {
 	addCommitment as addCommitmentInDb,
 	addCommitmentPayment as addCommitmentPaymentInDb,
+	type CommitmentCharge,
 	endCommitment as endCommitmentInDb,
+	loadChargesBetween,
+	loadPlanRecords,
 	updateCommitment as updateCommitmentInDb,
 } from "@noodle/db";
-import { CADENCES, dayKeyAt, MAX_CENTS } from "@noodle/domain";
+import {
+	addDays,
+	addMonths,
+	CADENCES,
+	type DayKey,
+	dayKeyAt,
+	MAX_CENTS,
+	monthOfDay,
+	type PlanRecords,
+} from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getDb } from "./db";
-import { householdMiddleware } from "./household";
+import { householdMiddleware, viewerOf } from "./household";
 import { monthKeySchema } from "./month";
 import { notifyHousehold } from "./notify";
 import { assertEditable, centsSchema, planScopeSchema } from "./plan";
@@ -90,4 +102,40 @@ export const addCommitmentPayment = createServerFn({ method: "POST" })
 		});
 		if (!result.ok) throw new Error("That Commitment isn’t in this month’s Plan.");
 		await notifyHousehold(context.household.id, ["months"]);
+	});
+
+/** How far back a Commitment's charges are read, and how far ahead its schedule is. */
+export const COMMITMENT_MONTHS = 12;
+
+/**
+ * Every Commitment, ended ones too, with its terms over time, and the charges against them over
+ * the last year and until the end of next month, as the Parent may see them (ADR-0003).
+ * Enough for Coming up, lumpy months, and each Commitment's page.
+ */
+export type CommitmentsData = Pick<PlanRecords, "commitments" | "commitmentTerms"> & {
+	charges: CommitmentCharge[];
+	asOf: DayKey;
+};
+
+export const getCommitments = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.handler(async ({ context }): Promise<CommitmentsData> => {
+		const db = getDb();
+		const asOf = dayKeyAt(new Date(), context.household.timeZone);
+		const month = monthOfDay(asOf);
+		const [records, charges] = await Promise.all([
+			loadPlanRecords(db, context.household.id, addMonths(month, COMMITMENT_MONTHS)),
+			loadChargesBetween(
+				db,
+				viewerOf(context),
+				`${addMonths(month, -COMMITMENT_MONTHS)}-01` as DayKey,
+				addDays(`${addMonths(month, 2)}-01` as DayKey, -1),
+			),
+		]);
+		return {
+			commitments: records.commitments,
+			commitmentTerms: records.commitmentTerms,
+			charges,
+			asOf,
+		};
 	});

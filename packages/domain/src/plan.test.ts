@@ -145,15 +145,17 @@ describe("planForMonth: Commitments", () => {
 	const ids = (month: `${number}-${number}`) =>
 		planForMonth(records, month).commitments.map((c) => c.id);
 
-	it("lists Commitments in the order they were added", () => {
+	it("lists Commitments in the order they're next due from the month's first day", () => {
 		expect(ids("2026-10")).toEqual(["01-mortgage", "02-daycare", "03-netflix"]);
+		// From November the mortgage is due on the 15th, after Netflix (12th) and Daycare (13th).
+		expect(ids("2026-11")).toEqual(["03-netflix", "02-daycare", "01-mortgage"]);
 	});
 
 	it("includes a Commitment from the month it was added until the month it ended", () => {
 		expect(ids("2026-08")).toEqual([]);
 		expect(ids("2026-09")).toEqual(["01-mortgage", "02-daycare"]);
 		expect(ids("2026-12")).toContain("02-daycare");
-		expect(ids("2027-01")).toEqual(["01-mortgage", "03-netflix"]);
+		expect(ids("2027-01")).toEqual(["03-netflix", "01-mortgage"]);
 	});
 
 	it("carries a Commitment's terms forward until they are set again", () => {

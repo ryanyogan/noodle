@@ -23,6 +23,7 @@ import { monogram } from "../buckets";
 import {
 	type CommitmentVariables,
 	cadenceNames,
+	costText,
 	schedule,
 	withCommitment,
 	withNewCommitment,
@@ -30,6 +31,7 @@ import {
 import { formatMoney, formatMoneyInput, monthName } from "../format";
 import { usePlanChange } from "../plan-changes";
 import { addCommitment, updateCommitment } from "../server/commitments";
+import { CommitmentLink } from "./commitment-list";
 import { AmountInput } from "./goals";
 import { Confirm, SaveFailed } from "./plan-editing";
 import { PlanHistoryDisclosure } from "./plan-history";
@@ -65,7 +67,7 @@ export function CommitmentEditor({
 	return (
 		<ListRow
 			leading={<Tile>{monogram(commitment.name)}</Tile>}
-			title={commitment.name}
+			title={<CommitmentLink commitment={commitment} />}
 			meta={
 				<>
 					<span>
@@ -75,6 +77,7 @@ export function CommitmentEditor({
 							: ""}
 					</span>
 					<ChangedNote was={was} />
+					<span className="basis-full text-subtle-foreground">{costText(commitment)}</span>
 				</>
 			}
 			trailing={

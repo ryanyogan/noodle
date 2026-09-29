@@ -8,7 +8,11 @@ import {
 
 describe("queryKeysFor", () => {
 	test("maps each change to the Query key it invalidates", () => {
-		expect(queryKeysFor(["month:2026-09"])).toEqual([["month", "2026-09"], ["reports"]]);
+		expect(queryKeysFor(["month:2026-09"])).toEqual([
+			["month", "2026-09"],
+			["month", "commitments"],
+			["reports"],
+		]);
 		expect(queryKeysFor(["months"])).toEqual([["month"], ["reports"]]);
 		expect(queryKeysFor(["bucket-uses"])).toEqual([["bucket-uses"]]);
 		expect(queryKeysFor(["parents"])).toEqual([["household", "parents"]]);
@@ -25,6 +29,7 @@ describe("queryKeysFor", () => {
 			["month", "2026-09"],
 			["bucket-uses"],
 			["month", "2026-10"],
+			["month", "commitments"],
 			["reports"],
 		]);
 	});
@@ -33,6 +38,7 @@ describe("queryKeysFor", () => {
 		expect(queryKeysFor(["parents", "parents", "month:2026-09", "month:2026-09"])).toEqual([
 			["household", "parents"],
 			["month", "2026-09"],
+			["month", "commitments"],
 			["reports"],
 		]);
 	});

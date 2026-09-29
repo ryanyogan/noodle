@@ -1,4 +1,3 @@
-import type { CommitmentTerms } from "./commitments";
 import type { Cents } from "./money";
 import { addMonths, type MonthKey } from "./month";
 import type { Projection } from "./scenario";
@@ -81,18 +80,6 @@ export const typicalFreeToSpend = (projection: Projection): Cents =>
 	projection.months.length === 0
 		? 0
 		: Math.floor(projection.freeToSpend / projection.months.length);
-
-/** What a Commitment on these terms takes in an average month. */
-export function monthlyEquivalent(terms: Pick<CommitmentTerms, "amount" | "cadence">): Cents {
-	switch (terms.cadence) {
-		case "monthly":
-			return terms.amount;
-		case "biweekly":
-			return Math.round((terms.amount * 26) / 12);
-		case "annual":
-			return Math.round(terms.amount / 12);
-	}
-}
 
 /** The fixed monthly payment that pays off `principal` over `months` at `rate`% a year. */
 export function monthlyPayment(principal: Cents, rate: number, months: number): Cents {

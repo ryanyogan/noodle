@@ -1,18 +1,22 @@
 import type { CommitmentCharge } from "@noodle/db";
 import {
+	byNextDue,
 	type Cadence,
 	type CommitmentState,
+	type CommitmentTerms,
 	type DayKey,
 	type MonthKey,
+	monthlyEquivalent,
 	monthOfDay,
 	type PlanCommitment,
 	type PlanScope,
+	yearlyCost,
 } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatMoney, monthName, shortDay } from "./format";
 import { monthChangeKey } from "./plan-changes";
-import { monthQuery, monthsKey } from "./queries";
+import { commitmentsQuery, monthQuery, monthsKey } from "./queries";
 import { addCommitmentPayment } from "./server/commitments";
 import type { MonthData } from "./server/month";
 
@@ -34,6 +38,38 @@ export function schedule(
 	if (!first) return `${cadence} · due ${shortDay(commitment.dueDate)}, not in ${monthName(month)}`;
 	const days = [shortDay(first), ...rest.map((day) => String(Number(day.slice(8, 10))))];
 	return `${cadence} · due ${list.format(days)}`;
+}
+
+/** "$1,140 a year · $95 a month"; a monthly Commitment's month is its amount, so just "$30,000 a year". */
+export function costText(terms: Pick<CommitmentTerms, "amount" | "cadence">): string {
+	const year = `${formatMoney(yearlyCost(terms))} a year`;
+	return terms.cadence === "monthly"
+		? year
+		: `${year} · ${formatMoney(monthlyEquivalent(terms))} a month`;
+}
+
+const ordinal = (day: number) => {
+	const suffix =
+		day % 10 === 1 && day !== 11
+			? "st"
+			: day % 10 === 2 && day !== 12
+				? "nd"
+				: day % 10 === 3 && day !== 13
+					? "rd"
+					: "th";
+	return `${day}${suffix}`;
+};
+
+/** "Monthly, due on the 1st", "Every two weeks from Sep 4", "Yearly, due Mar 15". */
+export function termsSchedule(terms: Pick<CommitmentTerms, "cadence" | "dueDate">): string {
+	switch (terms.cadence) {
+		case "monthly":
+			return `Monthly, due on the ${ordinal(Number(terms.dueDate.slice(8, 10)))}`;
+		case "biweekly":
+			return `Every two weeks from ${shortDay(terms.dueDate)}`;
+		case "annual":
+			return `Yearly, due ${shortDay(terms.dueDate)}`;
+	}
 }
 
 /** What a Parent enters for a Commitment; a Commitment's terms are set from `month` onward. */
@@ -61,7 +97,11 @@ const toPlanCommitment = (v: CommitmentVariables): PlanCommitment => ({
 
 const mapCommitments = (data: MonthData, change: (c: PlanCommitment[]) => PlanCommitment[]) => ({
 	...data,
-	plan: { ...data.plan, commitments: change(data.plan.commitments) },
+	// Kept in the order they're next due, as the server lists them.
+	plan: {
+		...data.plan,
+		commitments: byNextDue(change(data.plan.commitments), `${data.plan.month}-01`),
+	},
 });
 
 export const withNewCommitment = (data: MonthData, variables: CommitmentVariables) =>
@@ -89,8 +129,11 @@ export type PaymentVariables = {
 	date: DayKey;
 };
 
-/** A month's inputs with a Commitment payment in them; adding the same one twice changes nothing. */
-export function withPayment(data: MonthData, variables: PaymentVariables): MonthData {
+/** Charges with a Commitment payment in them; adding the same one twice changes nothing. */
+export function withPayment<T extends Pick<MonthData, "charges">>(
+	data: T,
+	variables: PaymentVariables,
+): T {
 	if (data.charges.some((charge) => charge.id === variables.transactionId)) return data;
 	const charge: CommitmentCharge = {
 		id: variables.transactionId,
@@ -114,13 +157,23 @@ export function useCommitmentPayment() {
 			addCommitmentPayment({ data: { transactionId, commitmentId, amountCents } }),
 		onMutate: async (variables) => {
 			const { queryKey } = monthQuery(monthOfDay(variables.date));
-			await queryClient.cancelQueries({ queryKey });
+			const all = commitmentsQuery().queryKey;
+			await Promise.all([
+				queryClient.cancelQueries({ queryKey }),
+				queryClient.cancelQueries({ queryKey: all }),
+			]);
 			const previous = queryClient.getQueryData(queryKey);
 			if (previous) queryClient.setQueryData(queryKey, withPayment(previous, variables));
-			return { previous, queryKey };
+			// Coming up counts the payment at once too.
+			const previousAll = queryClient.getQueryData(all);
+			if (previousAll) queryClient.setQueryData(all, withPayment(previousAll, variables));
+			return { previous, queryKey, previousAll };
 		},
 		onError: (_error, variables, context) => {
 			if (context?.previous) queryClient.setQueryData(context.queryKey, context.previous);
+			if (context?.previousAll) {
+				queryClient.setQueryData(commitmentsQuery().queryKey, context.previousAll);
+			}
 			toast(
 				`Couldn’t record ${formatMoney(variables.amountCents)} paid to ${variables.commitmentName}, so it’s been undone.`,
 				{ tone: "error", action: { label: "Retry", onClick: () => payment.mutate(variables) } },

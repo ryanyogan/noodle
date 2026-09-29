@@ -23,7 +23,6 @@ import {
 	type AmountBand,
 	addDays,
 	addMonths,
-	annualCost,
 	type Cadence,
 	type Cents,
 	COMPARISONS,
@@ -63,6 +62,7 @@ import {
 	type Target,
 	totalsBy,
 	type Variance,
+	yearlyCost,
 } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -455,7 +455,7 @@ async function viewData(
 						name: c.name,
 						amount: c.amount,
 						cadence: c.cadence,
-						annual: annualCost(c),
+						annual: yearlyCost(c),
 						spent: spentOn.get(`commitment:${c.id}`) ?? 0,
 					}))
 					.sort((a, b) => b.annual - a.annual),

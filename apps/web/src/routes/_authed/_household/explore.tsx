@@ -24,6 +24,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Calculator, ChevronLeft } from "lucide-react";
 import { lazy, memo, Suspense, useDeferredValue, useId, useMemo, useState } from "react";
 import { ulid } from "ulid";
+import { z } from "zod";
 import { NativeSelect } from "../../../components/native-select";
 import { Confirm } from "../../../components/plan-editing";
 import { ScenarioChanges } from "../../../components/scenario-changes";
@@ -45,6 +46,8 @@ const ScenarioChart = lazy(() => import("../../../components/scenario-chart"));
 
 export const Route = createFileRoute("/_authed/_household/explore")({
 	ssr: "data-only",
+	// `end`: open a new Scenario that ends this Commitment (a Commitment page's "Try ending this").
+	validateSearch: z.object({ end: z.string().optional().catch(undefined) }),
 	loader: ({ context }) =>
 		Promise.all([
 			context.queryClient.ensureQueryData(planAheadQuery()),
@@ -86,8 +89,18 @@ function ExplorePage() {
 		[records, goals, month, horizon],
 	);
 
-	// The most recently changed Scenario, or a new one from the Plan as it stands.
+	// A new Scenario ending the Commitment asked for, else the most recently changed Scenario, or a
+	// new one from the Plan as it stands.
+	const { end } = Route.useSearch();
 	const [draft, setDraft] = useState<Draft>(() => {
+		const ending = plan.commitments.find((c) => c.id === end);
+		if (ending) {
+			return {
+				id: ulid(),
+				name: `Without ${ending.name}`.slice(0, 40),
+				levers: [{ kind: "end-commitment", commitmentId: ending.id, fromMonth: month }],
+			};
+		}
 		const [latest] = scenarios;
 		return latest
 			? { id: latest.id, name: latest.name, levers: latest.levers }

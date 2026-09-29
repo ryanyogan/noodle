@@ -30,6 +30,18 @@ _Avoid_: Edit, audit entry, revision
 A recurring, predictable obligation (mortgage, insurance, daycare, subscriptions) that is expected every period.
 _Avoid_: Bill, fixed expense, recurring
 
+**Coming up**:
+The Commitments due from today through the next 30 days, by due date, each paid, partly paid, or due from the charges recorded against it in its month.
+_Avoid_: Upcoming bills, schedule
+
+**Yearly cost**:
+What a Commitment takes in a year at its current terms (12 monthly, 26 biweekly, or 1 annual payment); its monthly equivalent is a twelfth of that.
+_Avoid_: Annual cost, annualized
+
+**Lumpy month**:
+A month whose Free to Spend is lower because an annual Commitment is due in it, or a biweekly one is due three times.
+_Avoid_: Spike, expensive month
+
 **Bucket**:
 A monthly allowance for discretionary, variable spending (Hockey, Fun, Life, Groceries), tracked as "amount left." Every Bucket is either Rolling or Fresh-start.
 _Avoid_: Envelope, category, budget line

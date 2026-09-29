@@ -7,6 +7,7 @@ import {
 	type IncomeCheck,
 	incomeCheck,
 	lastDayOf,
+	lumpsIn,
 	type MonthKey,
 	type MonthState,
 	monthCloseProposal,
@@ -31,6 +32,7 @@ import { CalendarDays, ChevronRight, History, ListChecks } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../../../buckets";
+import { ComingUp, LumpCallout } from "../../../components/coming-up";
 import { Commitments } from "../../../components/commitment-list";
 import { ALittleOver, CoverSheet, CoversInto, sourceName } from "../../../components/cover";
 import { AmountSheet } from "../../../components/goals";
@@ -41,10 +43,12 @@ import { type CoverVariables, useCovers } from "../../../covers";
 import { formatMoney, shortDay } from "../../../format";
 import { type GoalView, useGoals } from "../../../goals";
 import { closingWeek, useCloseMonth } from "../../../month-close";
-import { planHistoryQuery, reviewQuery, useMonthState } from "../../../queries";
+import { commitmentsQuery, planHistoryQuery, reviewQuery, useMonthState } from "../../../queries";
 import { useIncome, useWindfalls } from "../../../windfalls";
 
 export const Route = createFileRoute("/_authed/_household/month/$month/")({
+	// Coming up reads every Commitment's schedule and charges.
+	loader: ({ context }) => context.queryClient.ensureQueryData(commitmentsQuery()),
 	component: ThisMonth,
 });
 
@@ -61,8 +65,9 @@ function ThisMonth() {
 	const goals = useGoals();
 	const planned =
 		state.baseline !== null || state.buckets.length > 0 || state.commitments.length > 0;
-	// Commitments due this month, or paid anyway.
+	// Commitments due this month, or paid anyway; the rest are collapsed under "Not this month".
 	const commitments = state.commitments.filter((c) => c.status !== "not-due");
+	const notDue = state.commitments.filter((c) => c.status === "not-due");
 	// Covers happen within the current month; earlier months are closed.
 	const canCover = monthOfDay(state.asOf) === month;
 	// The other Parent's Personal Allowance is theirs to Cover, and to Cover from.
@@ -160,7 +165,10 @@ function ThisMonth() {
 						/>
 					) : null}
 					{month === current ? <Chips month={month} asOf={state.asOf} /> : null}
-					<FreeToSpend state={state} check={check} />
+					<div className="grid gap-3">
+						<FreeToSpend state={state} check={check} />
+						<LumpCallout lumps={lumpsIn(state)} month={month} />
+					</div>
 					{state.windfallLeft > 0 && month <= current ? (
 						<WindfallSection
 							left={state.windfallLeft}
@@ -197,8 +205,14 @@ function ThisMonth() {
 							<List>{allowances.map(bucketRow)}</List>
 						</Section>
 					) : null}
-					{commitments.length > 0 ? (
-						<Commitments month={month} asOf={state.asOf} commitments={commitments} />
+					{month === current ? <ComingUp /> : null}
+					{state.commitments.length > 0 ? (
+						<Commitments
+							month={month}
+							asOf={state.asOf}
+							commitments={commitments}
+							notDue={notDue}
+						/>
 					) : null}
 					{state.baseline !== null && (month === current || monthIncome.length > 0) ? (
 						<IncomeSection

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-	annualCost,
 	cashFlow,
 	changeOf,
 	comparisonRange,
@@ -28,6 +27,7 @@ import {
 	toCsv,
 	topWithOther,
 	totalsBy,
+	yearlyCost,
 } from "./index";
 
 const asOf = "2026-09-28" as DayKey;
@@ -230,9 +230,9 @@ describe("headlines", () => {
 
 describe("big expenses", () => {
 	it("annualizes a Commitment by its cadence", () => {
-		expect(annualCost({ amount: 10_000, cadence: "monthly" })).toBe(120_000);
-		expect(annualCost({ amount: 10_000, cadence: "biweekly" })).toBe(260_000);
-		expect(annualCost({ amount: 10_000, cadence: "annual" })).toBe(10_000);
+		expect(yearlyCost({ amount: 10_000, cadence: "monthly" })).toBe(120_000);
+		expect(yearlyCost({ amount: 10_000, cadence: "biweekly" })).toBe(260_000);
+		expect(yearlyCost({ amount: 10_000, cadence: "annual" })).toBe(10_000);
 	});
 
 	it("counts Transactions at or over a threshold from the bands", () => {

@@ -2,6 +2,7 @@ import type { MonthKey } from "@noodle/domain";
 import type { QueryKey } from "@tanstack/react-query";
 import {
 	bucketUsesQuery,
+	commitmentsQuery,
 	forTotalsEarlierKey,
 	goalsQuery,
 	householdParentsQuery,
@@ -81,7 +82,8 @@ const changesReports = (change: HouseholdChange) =>
 	monthChange.test(change) || ["months", "goals", "members", "imports"].includes(change);
 
 /**
- * The Query keys to refetch for some changes, each once; every month covers any one month.
+ * The Query keys to refetch for some changes, each once; every month covers any one month, and
+ * any one month's change also refetches the Commitments' charges.
  * Reports refetch after any of their inputs change, so an open Report stays live.
  */
 export function queryKeysFor(changes: readonly HouseholdChange[]): QueryKey[] {
@@ -94,6 +96,11 @@ export function queryKeysFor(changes: readonly HouseholdChange[]): QueryKey[] {
 			? monthQuery(month).queryKey
 			: changedQueries[change as keyof typeof changedQueries];
 		keys.set(JSON.stringify(key), key);
+	}
+	// A change to one month's spending can be a Commitment's charge, which Coming up counts.
+	if (!everyMonth && changes.some((change) => monthChange.test(change))) {
+		const { queryKey } = commitmentsQuery();
+		keys.set(JSON.stringify(queryKey), queryKey);
 	}
 	if (changes.some(changesReports)) keys.set(JSON.stringify(reportsKey), reportsKey);
 	return [...keys.values()];

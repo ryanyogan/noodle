@@ -1,4 +1,4 @@
-import { type Cadence, expectedIn } from "./commitments";
+import { expectedIn } from "./commitments";
 import { shares } from "./for";
 import { type EarmarkChange, earmarkOf } from "./goals";
 import type { Cents } from "./money";
@@ -285,12 +285,6 @@ export function freeToSpendOver(records: PlanRecords, months: readonly MonthKey[
 		const allowances = plan.buckets.reduce((s, b) => s + b.allowance, 0);
 		return sum + (plan.baseline ?? 0) - commitments - allowances;
 	}, 0);
-}
-
-/** What a Commitment costs a year, from its cadence. */
-export function annualCost(terms: { amount: Cents; cadence: Cadence }): Cents {
-	const perYear = { monthly: 12, biweekly: 26, annual: 1 }[terms.cadence];
-	return terms.amount * perYear;
 }
 
 /** The amounts Big expenses' threshold snaps to; D1 counts Transactions in bands between them. */

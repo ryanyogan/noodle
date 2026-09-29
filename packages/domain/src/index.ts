@@ -15,7 +15,6 @@ export {
 	type HomeInput,
 	homeCheck,
 	loanBalance,
-	monthlyEquivalent,
 	monthlyPayment,
 	monthsToSave,
 	type PlanNow,
@@ -37,11 +36,26 @@ export {
 	SIMILAR_MERCHANT_SCORE,
 } from "./categorize";
 export {
+	comingUp,
+	type Due,
+	type DueStatus,
+	duesBetween,
+	type Lump,
+	lumpsIn,
+	lumpyMonths,
+	type MatchedCharge,
+	matchCharges,
+} from "./coming-up";
+export {
+	byNextDue,
 	CADENCES,
 	type Cadence,
 	type CommitmentTerms,
 	dueDatesIn,
 	expectedIn,
+	monthlyEquivalent,
+	nextDueDate,
+	yearlyCost,
 } from "./commitments";
 export { type CoverSource, coverSources, leftToMove } from "./cover";
 export {
@@ -160,6 +174,7 @@ export {
 	type BucketRecord,
 	type CommitmentRecord,
 	canAssign,
+	commitmentsIn,
 	freeToSpend,
 	type Plan,
 	type PlanBucket,
@@ -182,7 +197,6 @@ export { type PlanChanges, type PlanScope, planChanges, restoreAfterJust } from 
 export {
 	type AmountBand,
 	addMonthsToDay,
-	annualCost,
 	COMPARISONS,
 	type Comparison,
 	cashFlow,

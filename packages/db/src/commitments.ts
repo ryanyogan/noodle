@@ -271,16 +271,21 @@ export type CommitmentCharge = Charge & { id: string };
  * them. A split Transaction's Splits paying the same Commitment are one charge of it (see
  * assignedParts in @noodle/domain).
  */
-export async function loadCharges(
+export const loadCharges = (db: Db, viewer: Viewer, month: MonthKey) =>
+	loadChargesBetween(db, viewer, `${month}-01` as DayKey, `${month}-31` as DayKey);
+
+/** Like loadCharges, for the days from `from` to `to` (inclusive), by date. */
+export async function loadChargesBetween(
 	db: Db,
 	viewer: Viewer,
-	month: MonthKey,
+	from: DayKey,
+	to: DayKey,
 ): Promise<CommitmentCharge[]> {
-	const inMonth = and(
+	const inRange = and(
 		visibleTo(viewer),
 		counts(),
-		gte(transactions.date, `${month}-01`),
-		lte(transactions.date, `${month}-31`),
+		gte(transactions.date, from),
+		lte(transactions.date, to),
 	);
 	const [whole, split] = await db.batch([
 		db
@@ -291,7 +296,7 @@ export async function loadCharges(
 				date: transactions.date,
 			})
 			.from(transactions)
-			.where(and(inMonth, isNotNull(transactions.commitmentId))),
+			.where(and(inRange, isNotNull(transactions.commitmentId))),
 		db
 			.select({
 				id: splits.transactionId,
@@ -302,12 +307,14 @@ export async function loadCharges(
 			.from(splits)
 			.innerJoin(transactions, eq(transactions.id, splits.transactionId))
 			.where(
-				and(inMonth, eq(splits.householdId, viewer.householdId), isNotNull(splits.commitmentId)),
+				and(inRange, eq(splits.householdId, viewer.householdId), isNotNull(splits.commitmentId)),
 			)
 			.groupBy(splits.transactionId, splits.commitmentId),
 	]);
 	// commitment_id is filtered to non-null, and dates are always written as DayKeys.
-	return [...whole, ...split] as CommitmentCharge[];
+	return ([...whole, ...split] as CommitmentCharge[]).sort((a, b) =>
+		a.date < b.date ? -1 : a.date > b.date ? 1 : 0,
+	);
 }
 
 export type CommitmentPaymentResult = { ok: true } | { ok: false; reason: "not-in-plan" };

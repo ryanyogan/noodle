@@ -1,5 +1,6 @@
 import {
 	addMonths,
+	lumpsIn,
 	type MonthKey,
 	type MonthState,
 	monthOfDay,
@@ -16,6 +17,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { Check, ChevronRight } from "lucide-react";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
+import { ComingUp, LumpCallout } from "../../../components/coming-up";
 import { AmountInput } from "../../../components/goals";
 import { MonthLinks, MonthTopRow, monthTitle, useMonthSwipe } from "../../../components/month-nav";
 import { SaveFailed } from "../../../components/plan-editing";
@@ -29,14 +31,16 @@ import { PlanEnded } from "../../../components/plan-page";
 import { formatMoney, monthName } from "../../../format";
 import { useGoals } from "../../../goals";
 import { usePlanChange, withBaseline } from "../../../plan-changes";
-import { goalsQuery, planHistoryQuery, useMonthState } from "../../../queries";
+import { commitmentsQuery, goalsQuery, planHistoryQuery, useMonthState } from "../../../queries";
 import { setBaseline } from "../../../server/plan";
 
 export const Route = createFileRoute("/_authed/_household/plan/$month/")({
+	// Setting up the Plan ticks off its Goals step once there are Goals; Coming up reads every
+	// Commitment's schedule and charges.
 	loader: ({ context }) =>
 		Promise.all([
-			// Setting up the Plan ticks off its Goals step once there are Goals.
 			context.queryClient.ensureQueryData(goalsQuery()),
+			context.queryClient.ensureQueryData(commitmentsQuery()),
 			context.queryClient.ensureQueryData(planHistoryQuery(context.month)),
 		]),
 	component: PlanOverview,
@@ -63,7 +67,11 @@ function PlanOverview() {
 			<div className="grid max-w-2xl gap-8">
 				{state.editable ? null : <PlanEnded />}
 				{settingUp ? <SetUp state={state} /> : null}
-				<Waterfall state={state} current={month === current} />
+				<div className="grid gap-3">
+					<Waterfall state={state} current={month === current} />
+					<LumpCallout lumps={lumpsIn(state)} month={month} />
+				</div>
+				{month === current ? <ComingUp /> : null}
 				<WhatChanged month={month} />
 			</div>
 		</div>

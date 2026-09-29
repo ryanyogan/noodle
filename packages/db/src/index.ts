@@ -297,6 +297,7 @@ export {
 	type CommitmentPaymentResult,
 	endCommitment,
 	loadCharges,
+	loadChargesBetween,
 	updateCommitment,
 } from "./commitments";
 export {

@@ -3,6 +3,7 @@ import {
 	type DayKey,
 	type MonthKey,
 	monthOfDay,
+	nextDueDate,
 	parseDollars,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
@@ -11,12 +12,13 @@ import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Tile } from "@noodle/ui/components/tile";
-import { useHydrated } from "@tanstack/react-router";
+import { Link, useHydrated } from "@tanstack/react-router";
+import { ChevronRight } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
 import { monogram } from "../buckets";
-import { type PaymentVariables, useCommitmentPayment } from "../commitments";
-import { formatMoney, formatMoneyInput, shortDay } from "../format";
+import { cadenceNames, type PaymentVariables, useCommitmentPayment } from "../commitments";
+import { formatMoney, formatMoneyInput, fullDay, shortDay } from "../format";
 
 const list = new Intl.ListFormat("en-US", { style: "long", type: "conjunction" });
 
@@ -38,16 +40,20 @@ function progress({ dueDates, charges }: CommitmentState) {
 /**
  * The month's Commitments, each with what's been paid against what's expected. A charge that
  * differs from the expected amount is flagged. In the current month, a payment can be recorded.
+ * Those not due this month are collapsed under "Not this month".
  */
 export function Commitments({
 	month,
 	asOf,
 	commitments,
+	notDue,
 }: {
 	month: MonthKey;
 	/** Today; payments are recorded today, so only this month's can be. */
 	asOf: DayKey;
+	/** Due this month, or paid anyway. */
 	commitments: CommitmentState[];
+	notDue: CommitmentState[];
 }) {
 	// Owned here, not by a row, so a failed payment's Retry outlives the row's form.
 	const payment = useCommitmentPayment();
@@ -61,32 +67,79 @@ export function Commitments({
 				title="Commitments"
 				count={commitments.length}
 				action={
-					<span className="text-[13px] text-muted-foreground tabular-nums">
-						{formatMoney(paid)} of {formatMoney(expected)} paid
-					</span>
+					commitments.length > 0 ? (
+						<span className="text-[13px] text-muted-foreground tabular-nums">
+							{formatMoney(paid)} of {formatMoney(expected)} paid
+						</span>
+					) : undefined
 				}
 			/>
+			{commitments.length > 0 ? (
+				<List>
+					{commitments.map((commitment) => (
+						<CommitmentRow
+							key={commitment.id}
+							commitment={commitment}
+							onPay={
+								canPay && commitment.charges < commitment.dueDates.length
+									? (amountCents) =>
+											payment.mutate({
+												transactionId: ulid(),
+												commitmentId: commitment.id,
+												commitmentName: commitment.name,
+												amountCents,
+												date: asOf,
+											} satisfies PaymentVariables)
+									: undefined
+							}
+						/>
+					))}
+				</List>
+			) : null}
+			{notDue.length > 0 ? <NotThisMonth month={month} commitments={notDue} /> : null}
+		</Section>
+	);
+}
+
+/** Commitments in the Plan but not due this month, collapsed, each with when it's next due. */
+function NotThisMonth({ month, commitments }: { month: MonthKey; commitments: CommitmentState[] }) {
+	return (
+		<details className="group">
+			<summary className="flex min-h-9 cursor-pointer list-none items-center gap-1.5 px-1 text-[13px] text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+				<ChevronRight
+					aria-hidden="true"
+					className="size-4 transition-transform group-open:rotate-90"
+				/>
+				Not this month
+				<Badge variant="count">{commitments.length}</Badge>
+			</summary>
 			<List>
 				{commitments.map((commitment) => (
-					<CommitmentRow
+					<ListRow
 						key={commitment.id}
-						commitment={commitment}
-						onPay={
-							canPay && commitment.charges < commitment.dueDates.length
-								? (amountCents) =>
-										payment.mutate({
-											transactionId: ulid(),
-											commitmentId: commitment.id,
-											commitmentName: commitment.name,
-											amountCents,
-											date: asOf,
-										} satisfies PaymentVariables)
-								: undefined
+						leading={<Tile>{monogram(commitment.name)}</Tile>}
+						title={<CommitmentLink commitment={commitment} />}
+						meta={`${cadenceNames[commitment.cadence]} · next due ${fullDay(
+							nextDueDate(commitment, `${month}-01`),
+						)}`}
+						trailing={
+							<span className="text-sm font-medium tabular-nums">
+								{formatMoney(commitment.amount)}
+							</span>
 						}
 					/>
 				))}
 			</List>
-		</Section>
+		</details>
+	);
+}
+
+/** A Commitment's name, linking to its page. */
+export function CommitmentLink({ commitment }: { commitment: { id: string; name: string } }) {
+	return (
+		<Link to="/plan/commitments/$id" params={{ id: commitment.id }} className="hover:underline">
+			{commitment.name}
+		</Link>
 	);
 }
 
@@ -104,7 +157,7 @@ function CommitmentRow({
 				commitment.expected,
 			)} expected${differs ? `, ${differs}` : ""}`}
 			leading={<Tile>{monogram(commitment.name)}</Tile>}
-			title={commitment.name}
+			title={<CommitmentLink commitment={commitment} />}
 			meta={
 				<>
 					{progress(commitment)}

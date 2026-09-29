@@ -1,4 +1,4 @@
-import { type CommitmentTerms, expectedIn } from "./commitments";
+import { byNextDue, type CommitmentTerms, expectedIn } from "./commitments";
 import type { Cents } from "./money";
 import type { MonthKey } from "./month";
 
@@ -85,13 +85,15 @@ const inPlan = (month: MonthKey, from: MonthKey, until: MonthKey | null) =>
 	from <= month && (until === null || month < until);
 
 /**
- * The Plan in force for `month`: its Baseline, its Commitments with their terms (in the order
- * they were added, as their IDs are ULIDs), and its Buckets in order with their allowances.
+ * The Commitments in the Plan for `month`, with the terms in force then, in the order they're
+ * next due from the month's first day (see byNextDue).
  */
-export function planForMonth(records: PlanRecords, month: MonthKey): Plan {
+export function commitmentsIn(
+	records: Pick<PlanRecords, "commitments" | "commitmentTerms">,
+	month: MonthKey,
+): PlanCommitment[] {
 	const commitments = records.commitments
 		.filter((c) => inPlan(month, c.fromMonth, c.endedFromMonth))
-		.sort((a, b) => (a.id < b.id ? -1 : 1))
 		.flatMap(({ id, name }): PlanCommitment[] => {
 			const terms = effective(
 				records.commitmentTerms.filter((t) => t.commitmentId === id),
@@ -101,6 +103,15 @@ export function planForMonth(records: PlanRecords, month: MonthKey): Plan {
 			const { amount, cadence, dueDate } = terms;
 			return [{ id, name, amount, cadence, dueDate }];
 		});
+	return byNextDue(commitments, `${month}-01`);
+}
+
+/**
+ * The Plan in force for `month`: its Baseline, its Commitments with their terms (in the order
+ * they're next due), and its Buckets in order with their allowances.
+ */
+export function planForMonth(records: PlanRecords, month: MonthKey): Plan {
+	const commitments = commitmentsIn(records, month);
 	const buckets = records.buckets
 		.filter((b) => inPlan(month, b.fromMonth, b.archivedFromMonth))
 		.sort((a, b) => a.position - b.position || (a.id < b.id ? -1 : 1))

@@ -1,5 +1,13 @@
 import type { Cents } from "./money";
-import { addDays, type DayKey, daysBetween, daysInMonth, type MonthKey } from "./month";
+import {
+	addDays,
+	addMonths,
+	type DayKey,
+	daysBetween,
+	daysInMonth,
+	type MonthKey,
+	monthOfDay,
+} from "./month";
 
 /** How often a Commitment is due. */
 export type Cadence = "monthly" | "biweekly" | "annual";
@@ -44,4 +52,52 @@ export function dueDatesIn(
 /** What a Commitment on these terms is expected to take in `month`. */
 export function expectedIn(terms: CommitmentTerms, month: MonthKey): Cents {
 	return terms.amount * dueDatesIn(terms, month).length;
+}
+
+/** What a Commitment on these terms takes in a year: 12 monthly, 26 biweekly, or 1 annual payment. */
+export function yearlyCost(terms: Pick<CommitmentTerms, "amount" | "cadence">): Cents {
+	switch (terms.cadence) {
+		case "monthly":
+			return terms.amount * 12;
+		case "biweekly":
+			return terms.amount * 26;
+		case "annual":
+			return terms.amount;
+	}
+}
+
+/** What a Commitment on these terms takes in an average month: its yearly cost over 12. */
+export function monthlyEquivalent(terms: Pick<CommitmentTerms, "amount" | "cadence">): Cents {
+	return Math.round(yearlyCost(terms) / 12);
+}
+
+/** The first day on or after `from` a Commitment on these terms is due. */
+export function nextDueDate(
+	terms: Pick<CommitmentTerms, "cadence" | "dueDate">,
+	from: DayKey,
+): DayKey {
+	const start = monthOfDay(from);
+	// Every cadence is due at least once in any 12 months, so the 13th is never reached.
+	for (let i = 0; ; i++) {
+		const due = dueDatesIn(terms, addMonths(start, i)).find((day) => day >= from);
+		if (due) return due;
+	}
+}
+
+/**
+ * Commitments in the order they're next due on or after `from`, the earliest first; ties in the
+ * order they were added (their IDs are ULIDs).
+ */
+export function byNextDue<T extends { id: string } & Pick<CommitmentTerms, "cadence" | "dueDate">>(
+	commitments: readonly T[],
+	from: DayKey,
+): T[] {
+	return commitments
+		.map((commitment) => ({ commitment, next: nextDueDate(commitment, from) }))
+		.sort(
+			(a, b) =>
+				(a.next < b.next ? -1 : a.next > b.next ? 1 : 0) ||
+				(a.commitment.id < b.commitment.id ? -1 : 1),
+		)
+		.map(({ commitment }) => commitment);
 }

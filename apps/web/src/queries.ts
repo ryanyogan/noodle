@@ -1,6 +1,7 @@
 import { type MonthKey, type MonthState, monthState } from "@noodle/domain";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { getCaptureToken } from "./server/capture-tokens";
+import { getCommitments } from "./server/commitments";
 import { getGoals } from "./server/goals";
 import { getAccountImports } from "./server/imports";
 import { getHouseholdParents } from "./server/invites";
@@ -93,6 +94,16 @@ export const planHistoryQuery = (month: MonthKey, targetId?: string) =>
 	queryOptions({
 		queryKey: [...monthsKey, month, "plan-history", targetId ?? null],
 		queryFn: () => getPlanHistory({ data: targetId === undefined ? { month } : { targetId } }),
+	});
+
+/**
+ * Every Commitment with its terms over time and the charges against them: Coming up, lumpy months,
+ * and each Commitment's page. Under every month's key, as any Plan change or payment can change it.
+ */
+export const commitmentsQuery = () =>
+	queryOptions({
+		queryKey: [...monthsKey, "commitments"],
+		queryFn: () => getCommitments(),
 	});
 
 /**
