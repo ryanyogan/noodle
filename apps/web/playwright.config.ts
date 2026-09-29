@@ -12,6 +12,8 @@ export default defineConfig({
 	fullyParallel: true,
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 1 : 0,
+	// A CI runner is several times slower than a laptop; specs with two Parents ran past 30 s there.
+	timeout: process.env.CI ? 60_000 : 30_000,
 	reporter: process.env.CI ? "github" : "list",
 	use: {
 		baseURL: `http://localhost:${port}`,
