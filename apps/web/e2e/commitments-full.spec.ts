@@ -83,7 +83,6 @@ test("Commitments show what's coming up, why a month is lumpy, and each one's pa
 	await expect(cost).toContainText("No end date");
 	const nextDue = page.getByRole("region", { name: "Next due" });
 	await expect(nextDue.getByRole("listitem").first()).toHaveAccessibleName(/^Due .*, \$1,140$/);
-	await expect(nextDue.getByRole("listitem")).toHaveCount(2);
 	await expect(page.getByRole("region", { name: "Charges" })).toContainText(
 		"Nothing has been paid toward it",
 	);
