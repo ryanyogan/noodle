@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	activeLevers,
 	type BucketRecord,
 	type DayKey,
 	type Lever,
@@ -877,5 +878,41 @@ describe("leverImpacts: each Lever left out in turn", () => {
 			firstChange: null,
 			goals: [],
 		});
+	});
+});
+
+describe("muted Levers", () => {
+	const end: Lever = { kind: "end-commitment", commitmentId: "streaming", fromMonth: "2026-09" };
+	const roof: Lever = {
+		kind: "one-off",
+		oneOffId: "roof",
+		name: "Roof",
+		amount: 300_000,
+		flow: "expense",
+		fromMonth: "2026-11",
+	};
+
+	it("are kept but left out of the projection", () => {
+		const a = ahead();
+		expect(project(a, [end, { ...roof, muted: true }])).toEqual(project(a, [end]));
+		expect(project(a, [{ ...end, muted: true }])).toEqual(project(a));
+		// Unmuted, a Lever counts again.
+		expect(project(a, [{ ...end, muted: false }])).toEqual(project(a, [end]));
+	});
+
+	it("are left out of what applying sees", () => {
+		expect(activeLevers([end, { ...roof, muted: true }])).toEqual([end]);
+	});
+
+	it("show what they'd do turned back on, with the other Levers as they are", () => {
+		const [ended, muted] = leverImpacts(ahead([], 24), [end, { ...roof, muted: true }]);
+		expect(ended?.freeToSpend).toBe(12_000);
+		expect(muted).toMatchObject({
+			freeToSpend: 0,
+			cushion: -300_000,
+			firstChange: { month: "2026-11", amount: -300_000 },
+		});
+		const [endMuted] = leverImpacts(ahead([], 24), [{ ...end, muted: true }, roof]);
+		expect(endMuted).toMatchObject({ freeToSpend: 12_000, cushion: 12_000 });
 	});
 });

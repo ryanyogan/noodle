@@ -61,3 +61,6 @@ export function dayName(key: string, today: string): string {
 		timeZone: "UTC",
 	});
 }
+
+/** "Aug 2027" for a "YYYY-MM" month key. */
+export { shortMonthName as shortMonth } from "@noodle/domain";

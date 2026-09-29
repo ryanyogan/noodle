@@ -1,5 +1,6 @@
 import { type CommitmentTerms, expectedIn } from "./commitments";
 import {
+	activeLevers,
 	addedTerms,
 	addedUntil,
 	changedTerms,
@@ -30,7 +31,7 @@ import { type PlanRecords, planForMonth } from "./plan";
 //   one that changes the Baseline, an allowance or a Commitment's terms from a month holds until
 //   a later month the Plan set on its own, and the Plan's own value comes back at its end.
 //   Growth compounds yearly in steps from its first month, and isn't applied to Goal funding or
-//   one-offs.
+//   one-offs. A muted Lever is left out altogether.
 
 export type { Lever } from "./levers";
 
@@ -204,15 +205,16 @@ function holding<T extends LeverRange>(
 
 type GoalParams = { target: Cents; targetDate: DayKey | null };
 
-/** Projects the Plan ahead with Levers applied (none: the Plan as it stands). */
+/** Projects the Plan ahead with Levers applied (none: the Plan as it stands); muted ones don't count. */
 export function project(
 	ahead: PlanAhead,
 	levers: readonly Lever[] = [],
 	options: ProjectOptions = {},
 ): Projection {
 	const start = ahead.months[0]?.month ?? ("0000-01" as MonthKey);
+	const active = activeLevers(levers);
 	const of = <K extends Lever["kind"]>(kind: K) =>
-		levers.filter((l): l is LeverOf<K> => l.kind === kind);
+		active.filter((l): l is LeverOf<K> => l.kind === kind);
 
 	const baselines = of("baseline");
 	const growth = of("growth");
@@ -439,20 +441,33 @@ export type LeverImpact = {
 
 /**
  * Each Lever's impact, leaving it out of the Scenario one at a time (one projection each, plus
- * one with them all).
+ * one with them all). A muted Lever's is what it would do turned back on: the Scenario with it
+ * unmuted, less the Scenario as it is.
  */
 export function leverImpacts(
 	ahead: PlanAhead,
 	levers: readonly Lever[],
 	options: ProjectOptions = {},
 ): LeverImpact[] {
-	const all = project(ahead, levers, options);
-	return levers.map((_, index): LeverImpact => {
-		const without = project(
-			ahead,
-			levers.filter((_, i) => i !== index),
-			options,
-		);
+	const scenario = project(ahead, levers, options);
+	return levers.map((lever, index): LeverImpact => {
+		const [all, without] = lever.muted
+			? [
+					project(
+						ahead,
+						levers.map((l, i) => (i === index ? { ...l, muted: false } : l)),
+						options,
+					),
+					scenario,
+				]
+			: [
+					scenario,
+					project(
+						ahead,
+						levers.filter((_, i) => i !== index),
+						options,
+					),
+				];
 		let firstChange: LeverImpact["firstChange"] = null;
 		for (const [i, m] of all.months.entries()) {
 			const other = without.months[i];

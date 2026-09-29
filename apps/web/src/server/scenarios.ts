@@ -7,6 +7,7 @@ import {
 	saveScenario as saveScenarioInDb,
 } from "@noodle/db";
 import {
+	activeLevers,
 	addMonths,
 	CADENCES,
 	dayKeyAt,
@@ -48,9 +49,14 @@ const positiveCentsSchema = z.number().int().min(1).max(MAX_CENTS);
 const dueDaySchema = z.number().int().min(1).max(31);
 const pctSchema = z.number().min(-50).max(50);
 
-/** A v2 Lever's fields plus its range of months. */
+/** A v2 Lever's fields plus its range of months, and whether it's muted. */
 const ranged = <S extends z.ZodRawShape>(shape: S) =>
-	z.object({ ...shape, fromMonth: monthKeySchema, untilMonth: monthKeySchema.optional() });
+	z.object({
+		...shape,
+		fromMonth: monthKeySchema,
+		untilMonth: monthKeySchema.optional(),
+		muted: z.boolean().optional(),
+	});
 
 const leverV2Schema = z.discriminatedUnion("kind", [
 	ranged({ kind: z.literal("baseline"), amount: centsSchema }),
@@ -80,6 +86,7 @@ const leverV2Schema = z.discriminatedUnion("kind", [
 		amount: positiveCentsSchema,
 		flow: z.enum(["expense", "income"]),
 		fromMonth: monthKeySchema,
+		muted: z.boolean().optional(),
 	}),
 	ranged({
 		kind: z.literal("add-bucket"),
@@ -187,14 +194,14 @@ export const deleteScenario = createServerFn({ method: "POST" })
 		await notifyHousehold(context.household.id, ["scenarios"]);
 	});
 
-/** Makes a Scenario's Levers the real Plan from this month on, all at once. */
+/** Makes a Scenario's Levers the real Plan from this month on, all at once; muted ones aren't. */
 export const applyScenario = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ levers: leversSchema }))
 	.handler(async ({ data, context }) => {
 		const today = dayKeyAt(new Date(), context.household.timeZone);
 		const month = monthOfDay(today);
-		const levers = upgradeLevers(data.levers, month);
+		const levers = activeLevers(upgradeLevers(data.levers, month));
 		for (const lever of levers) {
 			const why = whyNotApplicable(lever, month);
 			if (why !== null) throw new Error(why);

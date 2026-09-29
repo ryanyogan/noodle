@@ -18,11 +18,18 @@ export type LeverRange = {
 	untilMonth?: MonthKey;
 };
 
+/**
+ * A Lever muted in the sandbox: kept in the Scenario (and saved with it) but left out of its
+ * projection and never applied, to see the outcome without it. Unset: it counts.
+ */
+export type LeverMute = { muted?: boolean };
+
 /** Whether a one-off takes money out (a roof repair) or brings it in (a bonus). */
 export type OneOffFlow = "expense" | "income";
 
 /** A single adjustable quantity in a Scenario (v2: every Lever has a range). */
 export type Lever = LeverRange &
+	LeverMute &
 	(
 		| {
 				/** Income from `fromMonth`: a raise, a job change, parental leave. */
@@ -166,6 +173,9 @@ export function readScenarioLevers(
 ): Lever[] {
 	return upgradeLevers(Array.isArray(stored) ? stored : (stored as ScenarioJson).levers, start);
 }
+
+/** The Levers that count: every one not muted. Projecting and applying see only these. */
+export const activeLevers = (levers: readonly Lever[]): Lever[] => levers.filter((l) => !l.muted);
 
 /** Whether a Lever holds in `month`. */
 export const holdsIn = (lever: LeverRange, month: MonthKey) =>

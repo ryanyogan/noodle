@@ -1,13 +1,15 @@
 import {
+	activeLevers,
+	describeLever,
 	type Lever,
+	type LeverSubjects,
 	MAX_PROJECTION_MONTHS,
 	moneyFreed,
-	monthOfDay,
-	type Plan,
 	type Projection,
 	planAhead,
 	planForMonth,
 	project,
+	whyNotApplicable,
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card, CardContent } from "@noodle/ui/components/card";
@@ -24,8 +26,9 @@ import { lazy, memo, Suspense, useDeferredValue, useId, useMemo, useState } from
 import { ulid } from "ulid";
 import { NativeSelect } from "../../../components/native-select";
 import { Confirm } from "../../../components/plan-editing";
-import { ScenarioLevers, shortMonth } from "../../../components/scenario-levers";
-import { formatMoney } from "../../../format";
+import { ScenarioChanges } from "../../../components/scenario-changes";
+import { ScenarioOutcome, ScenarioOutline } from "../../../components/scenario-outline";
+import { formatMoney, shortMonth } from "../../../format";
 import { goalsQuery, planAheadQuery, scenariosQuery } from "../../../queries";
 import {
 	projectionGoals,
@@ -107,6 +110,29 @@ function ExplorePage() {
 	const planProjection = useMemo(() => project(ahead), [ahead]);
 	const scenarioProjection = useMemo(() => project(ahead, levers), [ahead, levers]);
 
+	// What Levers change, as the Plan has them now: "Your changes" and Apply describe Levers by it.
+	const subjects = useMemo<LeverSubjects>(
+		() => ({
+			month,
+			baseline: plan.baseline,
+			buckets: plan.buckets,
+			commitments: plan.commitments,
+			goals,
+		}),
+		[month, plan, goals],
+	);
+	const goalNames = useMemo(
+		() =>
+			new Map([
+				...goals.map((g) => [g.id, g.name] as const),
+				...draft.levers.flatMap((l) =>
+					l.kind === "add-goal" ? [[l.goalId, l.name] as const] : [],
+				),
+			]),
+		[goals, draft.levers],
+	);
+	const accounts = goalsData.accounts;
+
 	return (
 		<>
 			<PageHeader
@@ -133,11 +159,10 @@ function ExplorePage() {
 					scenarios={scenarios}
 					saved={saved !== undefined}
 					dirty={dirty}
-					plan={plan}
-					goals={goals}
+					subjects={subjects}
 					onDraft={setDraft}
 				/>
-				<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)] lg:items-start">
+				<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(340px,440px)] lg:items-start">
 					<div className="grid gap-4 lg:sticky lg:top-6">
 						<fieldset className="flex flex-wrap items-center gap-1">
 							<legend className="sr-only">Look ahead</legend>
@@ -175,14 +200,34 @@ function ExplorePage() {
 							horizonLabel={horizonLabel}
 							className="sticky top-[env(safe-area-inset-top)] z-10 -mx-(--gutter) bg-background/85 px-(--gutter) py-2 text-lg backdrop-blur-xl lg:hidden"
 						/>
-						<ScenarioLevers
-							month={month}
-							plan={plan}
-							goals={goals}
+						<ScenarioChanges
+							ahead={ahead}
 							levers={draft.levers}
-							parentId={parentId}
+							subjects={subjects}
+							goalNames={goalNames}
+							horizonLabel={horizonLabel}
 							onChange={onLeversChange}
 						/>
+						<ScenarioOutcome
+							value={
+								<Freed
+									plan={planProjection}
+									scenario={scenarioProjection}
+									horizonLabel={horizonLabel}
+									className="text-base"
+								/>
+							}
+						>
+							<ScenarioOutline
+								month={month}
+								plan={plan}
+								goals={goals}
+								accounts={accounts}
+								levers={draft.levers}
+								parentId={parentId}
+								onChange={onLeversChange}
+							/>
+						</ScenarioOutcome>
 					</div>
 				</div>
 			</div>
@@ -196,16 +241,14 @@ function ScenarioBar({
 	scenarios,
 	saved,
 	dirty,
-	plan,
-	goals,
+	subjects,
 	onDraft,
 }: {
 	draft: Draft;
 	scenarios: ScenarioRecord[];
 	saved: boolean;
 	dirty: boolean;
-	plan: Plan;
-	goals: { id: string; name: string }[];
+	subjects: LeverSubjects;
 	onDraft: (draft: Draft) => void;
 }) {
 	const save = useSaveScenario();
@@ -214,7 +257,14 @@ function ScenarioBar({
 	const [confirming, setConfirming] = useState<"apply" | "delete" | null>(null);
 	const id = useId();
 	const name = draft.name.trim();
-	const changes = describeLevers(draft.levers, plan, goals);
+	const active = activeLevers(draft.levers);
+	const muted = draft.levers.length - active.length;
+	// What applying writes, in words; and what can't be applied yet, and why.
+	const changes = active.flatMap((lever) => {
+		const { text, gone } = describeLever(lever, subjects, active);
+		return gone ? [] : [text];
+	});
+	const blocked = [...new Set(active.flatMap((l) => whyNotApplicable(l, subjects.month) ?? []))];
 
 	return (
 		<Card>
@@ -256,9 +306,10 @@ function ScenarioBar({
 					</Field>
 				</div>
 				<p className="text-[13px] text-muted-foreground">
-					{changes.length > 0
-						? changes.join(" · ")
-						: "The Plan as it stands. Move a Lever below to see what it does."}
+					{draft.levers.length > 0
+						? `${draft.levers.length} ${draft.levers.length === 1 ? "change" : "changes"}${muted > 0 ? ` (${muted} muted)` : ""} to the Plan`
+						: "The Plan as it stands. Change anything below to see what it does."}
+					{dirty && saved ? " · not saved" : null}
 				</p>
 				{confirming === "apply" ? (
 					<div
@@ -267,9 +318,16 @@ function ScenarioBar({
 						className="grid gap-3 rounded-xl bg-surface-2 p-3"
 					>
 						<p className="text-sm">
-							Make “{name || "this Scenario"}” the Plan from {shortMonth(plan.month)} on?{" "}
+							Make “{name || "this Scenario"}” the Plan from {shortMonth(subjects.month)} on?{" "}
 							{changes.join(" · ")}.
 						</p>
+						{blocked.length > 0 ? (
+							<ul className="grid gap-1 text-[13px] text-over">
+								{blocked.map((reason) => (
+									<li key={reason}>{reason}</li>
+								))}
+							</ul>
+						) : null}
 						<div className="flex justify-end gap-2">
 							<Button type="button" variant="ghost" size="sm" onClick={() => setConfirming(null)}>
 								Cancel
@@ -277,9 +335,10 @@ function ScenarioBar({
 							<Button
 								type="button"
 								size="sm"
+								disabled={blocked.length > 0}
 								onClick={() => {
 									setConfirming(null);
-									apply.mutate({ name: name || "Scenario", levers: draft.levers });
+									apply.mutate({ name: name || "Scenario", levers: active });
 								}}
 							>
 								Apply to Plan
@@ -327,7 +386,7 @@ function ScenarioBar({
 								variant="ghost"
 								onClick={() => onDraft({ ...draft, levers: [] })}
 							>
-								Reset Levers
+								Reset<span className="sr-only"> all changes</span>
 							</Button>
 						) : null}
 						{saved ? (
@@ -346,35 +405,6 @@ function ScenarioBar({
 			</CardContent>
 		</Card>
 	);
-}
-
-/** Each Lever in words, e.g. "Groceries $900 a month". Levers on things since gone are skipped. */
-function describeLevers(levers: Lever[], plan: Plan, goals: { id: string; name: string }[]) {
-	return levers.flatMap((lever) => {
-		if (lever.kind === "allowance") {
-			const bucket = plan.buckets.find((b) => b.id === lever.bucketId);
-			return bucket && bucket.allowance !== lever.amount
-				? [`${bucket.name} ${formatMoney(lever.amount)} a month`]
-				: [];
-		}
-		if (lever.kind === "end-commitment") {
-			const commitment = plan.commitments.find((c) => c.id === lever.commitmentId);
-			return commitment ? [`${commitment.name} cancelled from ${shortMonth(lever.fromMonth)}`] : [];
-		}
-		if (lever.kind === "add-commitment") {
-			return [
-				`${lever.name} ${formatMoney(lever.amount)} a month from ${shortMonth(lever.fromMonth)}`,
-			];
-		}
-		if (lever.kind === "goal") {
-			const goal = goals.find((g) => g.id === lever.goalId);
-			if (!goal) return [];
-			const when = lever.targetDate ? `by ${shortMonth(monthOfDay(lever.targetDate))}` : "no date";
-			return [`${goal.name} ${formatMoney(lever.target)} ${when}`];
-		}
-		// The other kinds aren't set on this screen yet.
-		return [];
-	});
 }
 
 /**
@@ -411,6 +441,7 @@ const Results = memo(function Results({
 							horizonLabel={horizonLabel}
 							className="text-2xl"
 						/>
+						<Cushion scenario={scenario} />
 					</div>
 					<Suspense fallback={<Skeleton className="h-[252px] w-full rounded-xl" />}>
 						<ScenarioChart rows={rows} />
@@ -464,7 +495,9 @@ const Freed = memo(function Freed({
 	return (
 		<p className={cn("font-semibold tracking-[-0.02em]", className)}>
 			{freed === 0
-				? "Same as the Plan"
+				? scenario.oneOffs === plan.oneOffs
+					? "Same as the Plan"
+					: "Same Free to Spend"
 				: freed > 0
 					? `Frees ${formatMoney(freed)}`
 					: `Costs ${formatMoney(-freed)}`}
@@ -472,6 +505,24 @@ const Freed = memo(function Freed({
 		</p>
 	);
 });
+
+/** The Scenario's Cushion at its lowest, and the month it first goes below zero. */
+function Cushion({ scenario }: { scenario: Projection }) {
+	const { lowest, firstNegative } = scenario;
+	if (!lowest) return null;
+	return (
+		<p className="text-[13px] text-muted-foreground tabular-nums">
+			Cushion lowest{" "}
+			<span className={cn("font-medium text-foreground", lowest.amount < 0 && "text-over")}>
+				{formatMoney(lowest.amount)}
+			</span>{" "}
+			in {shortMonth(lowest.month)}
+			{firstNegative ? (
+				<span className="text-over"> · below zero from {shortMonth(firstNegative)}</span>
+			) : null}
+		</p>
+	);
+}
 
 function Totals({
 	plan,

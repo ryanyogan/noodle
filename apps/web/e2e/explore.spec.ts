@@ -69,7 +69,7 @@ test("moving a Lever changes the projection, and applying the Scenario changes t
 	// Applied, it becomes the Plan from this month on.
 	await page.getByRole("button", { name: "Apply to Plan" }).click();
 	const confirm = page.getByRole("alertdialog", { name: "Apply to the Plan" });
-	await expect(confirm).toContainText("Hockey $0 a month");
+	await expect(confirm).toContainText("Hockey $400 → $0 a month");
 	await confirm.getByRole("button", { name: "Apply to Plan" }).click();
 	await expect(page.getByRole("status").filter({ hasText: "No hockey" })).toContainText(
 		"is now the Plan",

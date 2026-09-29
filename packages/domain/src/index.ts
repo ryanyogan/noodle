@@ -45,6 +45,12 @@ export {
 } from "./commitments";
 export { type CoverSource, coverSources, leftToMove } from "./cover";
 export {
+	describeLever,
+	type LeverDescription,
+	type LeverSubjects,
+	shortMonthName,
+} from "./describe-levers";
+export {
 	type AttributedSpend,
 	type For,
 	type ForTotals,
@@ -70,6 +76,7 @@ export {
 	type WithdrawalAttribution,
 } from "./goals";
 export {
+	activeLevers,
 	addedTerms,
 	addedUntil,
 	changedTerms,
@@ -77,6 +84,7 @@ export {
 	holdsIn,
 	type Lever,
 	type LeverKind,
+	type LeverMute,
 	type LeverOf,
 	type LeverRange,
 	type LeverV1,

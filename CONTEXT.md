@@ -169,7 +169,7 @@ A hypothetical copy of the Plan, changed by Levers, projected forward in time to
 _Avoid_: Simulation, what-if, forecast
 
 **Lever**:
-A single adjustable quantity in a Scenario: the Baseline, a Bucket allowance, a Commitment's terms, a Commitment ended or added, a one-off expense or income, a Bucket added or archived, a Goal changed or added, or yearly growth in income and costs (an Insight accepted becomes one). Each holds for a range of months, from its first month up to, but not including, the month it ends, or for good. Only what the Plan stores can be applied: a one-off or growth is an assumption.
+A single adjustable quantity in a Scenario: the Baseline, a Bucket allowance, a Commitment's terms, a Commitment ended or added, a one-off expense or income, a Bucket added or archived, a Goal changed or added, or yearly growth in income and costs (an Insight accepted becomes one). Each holds for a range of months, from its first month up to, but not including, the month it ends, or for good. Only what the Plan stores can be applied: a one-off or growth is an assumption. A Lever can be muted: it stays in the Scenario, but is left out of the projection and isn't applied, to see the outcome without it. A Lever whose Bucket, Commitment or Goal is no longer in the Plan changes nothing and is flagged "No longer in the Plan" until removed.
 _Avoid_: Slider, knob, variable
 
 **Cushion**:

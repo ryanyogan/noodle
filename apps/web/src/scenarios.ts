@@ -43,15 +43,27 @@ export function leverTarget(lever: Lever): string {
 	}
 }
 
-/** The Levers with `lever` in place of any other on the same thing. */
-export const withLever = (levers: readonly Lever[], lever: Lever): Lever[] => [
-	...levers.filter((l) => leverTarget(l) !== leverTarget(lever)),
-	lever,
-];
+/**
+ * The Levers with `lever` in place of the one on the same thing (where it was, so "Your changes"
+ * keeps its order), or added last.
+ */
+export function withLever(levers: readonly Lever[], lever: Lever): Lever[] {
+	const target = leverTarget(lever);
+	const index = levers.findIndex((l) => leverTarget(l) === target);
+	return index === -1 ? [...levers, lever] : levers.map((l, i) => (i === index ? lever : l));
+}
 
 /** The Levers without any on `target` (see leverTarget). */
 export const withoutLever = (levers: readonly Lever[], target: string): Lever[] =>
 	levers.filter((l) => leverTarget(l) !== target);
+
+/** The Levers with the one on `target` muted (left out of the projection) or counted again. */
+export const withMuted = (levers: readonly Lever[], target: string, muted: boolean): Lever[] =>
+	levers.map((l) => {
+		if (leverTarget(l) !== target) return l;
+		const { muted: _, ...counted } = l;
+		return muted ? { ...counted, muted: true } : (counted as Lever);
+	});
 
 /**
  * The Household's active Goals as a projection starts from them: their Earmarks now and what
