@@ -19,6 +19,7 @@ import {
 	isNull,
 	lt,
 	lte,
+	notInArray,
 	or,
 	type SQL,
 	sql,
@@ -677,6 +678,28 @@ function goalPartsFit(householdId: string, transactionId: string, parts: SplitIn
 const editableBy = (householdId: string, memberId: string) =>
 	and(changeableBy({ householdId, memberId }), isNull(transactions.goalId)) as SQL;
 
+/**
+ * The Transaction `transactionId`, `theTransaction`, is one nobody has decided the assignment of:
+ * no Splits (but `ours`, left by an earlier try of the same write), and unassigned or only as
+ * categorization filed it. What a Receipt applies on its own is guarded by this.
+ */
+export const stillUndecided = (theTransaction: SQL | undefined, ours: string[] = []) =>
+	sql`exists (select 1 from ${transactions} where ${and(
+		theTransaction,
+		sql`not exists (select 1 from ${splits} where ${and(
+			sql`${splits.transactionId} = ${transactions.id}`,
+			ours.length > 0 ? notInArray(splits.id, ours) : undefined,
+		)})`,
+		or(
+			and(
+				isNull(transactions.bucketId),
+				isNull(transactions.commitmentId),
+				isNull(transactions.goalId),
+			),
+			sql`exists (select 1 from ${categorizations} where ${categorizations.transactionId} = ${transactions.id})`,
+		),
+	)})`;
+
 /** Deletes a Transaction's Splits and their For, only while `when` holds (in the same batch). */
 function clearSplits(db: Db, householdId: string, transactionId: string, when?: SQL) {
 	const ofTheTransaction = and(
@@ -719,6 +742,8 @@ export async function updateTransaction(
 		assignment: Assignment;
 		note: string | null;
 		forMemberIds: string[];
+		/** Only while nobody has decided its assignment (a Receipt applying itself). */
+		undecided?: boolean;
 	},
 ): Promise<TransactionEditResult> {
 	const bucketId = "bucketId" in input.assignment ? input.assignment.bucketId : null;
@@ -741,7 +766,11 @@ export async function updateTransaction(
 		.update(transactions)
 		.set({ amountCents: input.amountCents, bucketId, commitmentId, note: input.note })
 		.where(
-			and(theTransaction, assignable(input.householdId, input.memberId, input.assignment, month)),
+			and(
+				theTransaction,
+				assignable(input.householdId, input.memberId, input.assignment, month),
+				input.undecided ? stillUndecided(theTransaction) : undefined,
+			),
 		);
 	const clearFor = db
 		.delete(transactionFor)
@@ -811,6 +840,8 @@ export async function splitTransaction(
 		amountCents: Cents;
 		note: string | null;
 		splits: SplitInput[];
+		/** Only while nobody has decided its assignment (a Receipt applying itself). */
+		undecided?: boolean;
 	},
 ): Promise<TransactionEditResult> {
 	const { householdId, memberId, transactionId } = input;
@@ -836,12 +867,18 @@ export async function splitTransaction(
 		isNull(transactions.commitmentId),
 		sql`${transactions.note} is ${input.note}`,
 	)})`;
+	const undecided = input.undecided
+		? stillUndecided(
+				theTransaction,
+				input.splits.map((split) => split.id),
+			)
+		: undefined;
 	// Splits are only replaced while every one of them can be assigned.
-	const splitNow = and(edited, allAssignable) as SQL;
+	const splitNow = and(edited, allAssignable, undecided) as SQL;
 	const update = db
 		.update(transactions)
 		.set({ amountCents: input.amountCents, bucketId: null, commitmentId: null, note: input.note })
-		.where(and(theTransaction, allAssignable));
+		.where(and(theTransaction, allAssignable, undecided));
 	const clearFor = db
 		.delete(transactionFor)
 		.where(

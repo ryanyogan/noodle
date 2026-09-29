@@ -1,0 +1,22 @@
+From: alex@example.com
+To: receipts+KEYKEY@receipts.test
+Subject: Fwd: Target receipt
+Message-ID: <target-1@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="b1"
+
+--b1
+Content-Type: text/plain; charset=utf-8
+
+Target
+2026-09-09
+LEGO CITY SET FOR MAYA 29.99
+HOCKEY STICK TAPE 5.49
+CRAYONS 3.99
+TAX 2.52
+TOTAL 41.99
+--b1
+Content-Type: text/html; charset=utf-8
+
+<p>Target</p>
+--b1--

@@ -153,7 +153,12 @@ _Avoid_: Burn rate, target, on track
 
 **Receipt**:
 An itemized record of a purchase (photo or forwarded email) attached to a Transaction, used to fill in its Splits.
+A Parent forwards one to the Receipt address; it's attached to the Transaction with its total to the cent (a Quick Add is made when there's none yet). Its lines must add up to its total, each discount staying with its item and tax shared out; when the model was sure of every item and nobody has decided the Transaction's assignment, its Splits are applied on their own, otherwise a Parent applies them from the Transaction's detail.
 _Avoid_: Proof, attachment, invoice
+
+**Receipt address**:
+The Household's one email address for forwarding Receipts (`receipts+<key>@…`). Only mail from a Parent's verified address is accepted; making a new one stops the old one working.
+_Avoid_: Inbox, drop box
 
 **Nudge**:
 A notification the app sends on its own because something changed that a Parent would want to know now (a Bucket passing Pace, a Windfall arriving, the other Parent's Quick Add).

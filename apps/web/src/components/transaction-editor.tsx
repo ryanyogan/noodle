@@ -23,6 +23,7 @@ import { MatchSection } from "./match-section";
 import { MoneyDetail, TransferSection } from "./money-sections";
 import { NativeSelect } from "./native-select";
 import { Confirm } from "./plan-editing";
+import { ReceiptSection } from "./receipt-section";
 
 /** Why an imported Transaction is in its Bucket, when categorization put it there. */
 const AUTO_FILED: Record<NonNullable<TransactionRow["autoFiled"]>, string> = {
@@ -408,6 +409,7 @@ function EditForm({
 					defaultValue={transaction.note ?? ""}
 				/>
 			</Field>
+			<ReceiptSection transaction={transaction} plan={plan} members={members} onChange={onChange} />
 			<MatchSection transaction={transaction} onDone={onClose} />
 			{transaction.importedFrom ? (
 				<TransferSection transaction={transaction} onDone={onClose} />

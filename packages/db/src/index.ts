@@ -425,6 +425,16 @@ export {
 export { type Author, loadPlanChanges, type PlanHistory } from "./plan-log";
 export { privateTotalId, type Viewer } from "./privacy";
 export {
+	type AddReceiptResult,
+	addReceipt,
+	findReceiptAddress,
+	loadReceipt,
+	loadReceiptAddress,
+	loadReceiptCandidates,
+	type ReceiptView,
+	setReceiptAddress,
+} from "./receipts";
+export {
 	loadAmountBands,
 	loadBucketMonths,
 	loadDailySpend,

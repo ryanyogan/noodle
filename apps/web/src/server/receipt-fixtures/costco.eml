@@ -1,0 +1,22 @@
+From: Alex Rink <Alex@Example.com>
+To: receipts+KEYKEY@receipts.test
+Subject: Fwd: Your Costco receipt
+Message-ID: <costco-1@example.com>
+Date: Tue, 08 Sep 2026 19:02:00 -0500
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+---------- Forwarded message ---------
+From: Costco <receipts@costco.example>
+
+COSTCO WHOLESALE
+Date: 09/08/2026
+E 1234 KS MILK 2GAL 7.49
+E 55 BANANAS 1.99
+1122 KS PAPER TOWEL 22.99
+0000 COUPON 4.00-
+3344 DETERGENT 17.99
+SUBTOTAL 46.46
+TAX 3.25
+TOTAL 49.71
+VISA 49.71

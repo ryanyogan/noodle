@@ -1,20 +1,22 @@
 import handler from "@tanstack/react-start/server-entry";
 import { CAPTURE_PATH } from "./capture-path";
 import { HOUSEHOLD_AGENT_PATH } from "./household-changes";
-import { type CaptureMessage, consumeIngest, handleCapture } from "./server/capture";
+import { consumeIngest, handleCapture, type IngestMessage } from "./server/capture";
 import { startCheckIns } from "./server/check-in-weekly";
 import { connectToHouseholdAgent } from "./server/household-agent";
 import { startInsights } from "./server/insights-nightly";
 import { startMonthCloses } from "./server/month-close-workflow";
 import { consumeNudges, type NudgeDelivery } from "./server/nudge-delivery";
 import { startPerkRechecks } from "./server/perk-research-workflow";
+import { handleReceiptEmail } from "./server/receipt-worker";
 
 // The Worker's entry: TanStack Start serves the app, and screens' WebSockets go to their
 // Household Agent, which the Worker must export. It also consumes the Nudge Queue, and its cron
 // starts each Household's Month-close Workflow (also exported); a nightly one looks for Insights,
 // re-checks Perks a month old (the Perk research Workflow, also exported), then starts the weekly
-// Check-in wherever it's Check-in day. The iPhone Shortcut's captures
-// arrive at their own endpoint and wait on the ingest Queue, which this Worker consumes too.
+// Check-in wherever it's Check-in day. The iPhone Shortcut's captures arrive at their own
+// endpoint and wait on the ingest Queue, which this Worker consumes too; Receipts forwarded to a
+// Household's Receipt address arrive by email and wait there as well.
 export { HouseholdAgent } from "./server/household-agent";
 export { MonthCloseWorkflow } from "./server/month-close-workflow";
 export { PerkResearchWorkflow } from "./server/perk-research-workflow";
@@ -31,9 +33,12 @@ export default {
 	},
 	queue(batch) {
 		if (batch.queue === "noodle-ingest") {
-			return consumeIngest(batch as MessageBatch<CaptureMessage>);
+			return consumeIngest(batch as MessageBatch<IngestMessage>);
 		}
 		return consumeNudges(batch as MessageBatch<NudgeDelivery>);
+	},
+	email(message) {
+		return handleReceiptEmail(message);
 	},
 	async scheduled(controller) {
 		const now = new Date(controller.scheduledTime);
@@ -47,4 +52,4 @@ export default {
 		}
 		return startMonthCloses(now);
 	},
-} satisfies ExportedHandler<Env, NudgeDelivery | CaptureMessage>;
+} satisfies ExportedHandler<Env, NudgeDelivery | IngestMessage>;

@@ -27,8 +27,11 @@
 			"migrations_dir": "../../packages/db/drizzle"
 		}
 	],
-	// Statement files Parents upload for their Accounts, one object per Import (ADR-0005).
+	// Statement files Parents upload for their Accounts, one object per Import (ADR-0005), and each
+	// forwarded Receipt's email, under receipts/ (ADR-0016).
 	"r2_buckets": [{ "binding": "STATEMENTS", "bucket_name": "noodle-statements" }],
+	// Image transformations, for a photographed Receipt's thumbnail (ADR-0016).
+	"images": { "binding": "IMAGES" },
 	// One Household Agent per Household: the real-time hub both Parents' screens connect to (ADR-0007).
 	"durable_objects": {
 		"bindings": [{ "name": "HOUSEHOLD_AGENT", "class_name": "HouseholdAgent" }]
@@ -70,4 +73,7 @@
 	// of CHECK_IN_EMAIL_FROM must be onboarded to Email Service first.
 	// "send_email": [{ "name": "EMAIL" }],
 	// and in "vars": "CHECK_IN_EMAIL_FROM": "checkin@<domain>", "APP_ORIGIN": "https://<app>"
+	// Forwarded Receipts arrive by Email Routing (ADR-0016): route receipts@<domain>, with
+	// subaddressing on, to this Worker, and add to "vars": "RECEIPTS_EMAIL_DOMAIN": "<domain>".
+	// Without it the Household page says forwarding isn't set up.
 }

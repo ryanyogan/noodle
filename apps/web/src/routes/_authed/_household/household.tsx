@@ -20,6 +20,7 @@ import { CheckInSettings } from "../../../components/check-in-settings";
 import { ColourPicker } from "../../../components/colour-picker";
 import { NudgeSettings } from "../../../components/nudge-settings";
 import { Confirm, SaveFailed } from "../../../components/plan-editing";
+import { ReceiptSettings } from "../../../components/receipt-settings";
 import { formatMoney, monthName } from "../../../format";
 import {
 	childrenOf,
@@ -38,6 +39,7 @@ import {
 	membersQuery,
 	monthQuery,
 	nudgeSettingsQuery,
+	receiptAddressQuery,
 } from "../../../queries";
 import { inviteParent } from "../../../server/invites";
 import { addChild, removeChild, updateChild } from "../../../server/members";
@@ -54,6 +56,7 @@ export const Route = createFileRoute("/_authed/_household/household")({
 			context.queryClient.ensureQueryData(nudgeSettingsQuery()),
 			context.queryClient.ensureQueryData(checkInQuery()),
 			context.queryClient.ensureQueryData(captureTokenQuery()),
+			context.queryClient.ensureQueryData(receiptAddressQuery()),
 		]);
 		return { month };
 	},
@@ -119,6 +122,7 @@ function HouseholdPage() {
 				<CheckInSettings />
 				<NudgeSettings />
 				<CaptureSettings />
+				<ReceiptSettings />
 				<Section aria-labelledby="account" className="lg:hidden">
 					<SectionHeader id="account" title="Your account" />
 					<Card className="flex items-center gap-3 p-(--card-pad) text-sm text-muted-foreground">

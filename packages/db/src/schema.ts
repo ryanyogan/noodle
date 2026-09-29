@@ -7,6 +7,7 @@ import {
 	PERK_SOURCE_KINDS,
 	PLAN_CHANGE_KINDS,
 	type PlanChangeValue,
+	type ReceiptLine,
 	type ScenarioJson,
 	type Weekday,
 } from "@noodle/domain";
@@ -39,6 +40,9 @@ export const households = sqliteTable("households", {
 	emergencyGoalId: text("emergency_goal_id").references((): AnySQLiteColumn => goals.id),
 	// The day of the week the Household's Check-in falls on, 0 for Sunday to 6 for Saturday.
 	checkInDay: integer("check_in_day").$type<Weekday>().notNull().default(DEFAULT_CHECK_IN_DAY),
+	// What goes after the + of the Household's Receipt address (`receipts+<this>@…`): random, so
+	// the address can't be guessed; made the first time a Parent asks for it.
+	receiptAddress: text("receipt_address").unique(),
 });
 
 export const members = sqliteTable(
@@ -386,8 +390,9 @@ export const transactions = sqliteTable(
 		importId: text("import_id").references(() => imports.id),
 		externalId: text("external_id"),
 		// How a Quick Add came in when it wasn't typed into the app: "shortcut" for one the iPhone
-		// Shortcut captured at the tap (see capture_tokens). Still a Quick Add, Matched the same way.
-		capturedVia: text("captured_via", { enum: ["shortcut"] }),
+		// Shortcut captured at the tap (see capture_tokens), "receipt" for one a Receipt made when
+		// no Transaction was there for it yet. Still a Quick Add, Matched the same way.
+		capturedVia: text("captured_via", { enum: ["shortcut", "receipt"] }),
 	},
 	(t) => [
 		index("transactions_household_date_idx").on(t.householdId, t.date),
@@ -965,4 +970,41 @@ export const perks = sqliteTable(
 		checkedAt: integer("checked_at", { mode: "timestamp_ms" }).notNull(),
 	},
 	(t) => [uniqueIndex("perks_source_key_idx").on(t.perkSourceId, t.key)],
+);
+
+// A Receipt: an itemized record of a purchase a Parent sent in (a forwarded email; later a
+// photo), kept in R2 (`file_key`, with a small image of it at `thumbnail_key` when it's a
+// picture) and read by a model into `lines` (ReceiptLine from @noodle/domain, as JSON). It's
+// attached to the Transaction it's for, one Receipt per Transaction; the Splits it proposes are
+// worked out from its lines and total by domain code whenever it's read. One whose total couldn't
+// be read stays unattached. `member_id` is the Parent who sent it.
+export const receipts = sqliteTable(
+	"receipts",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		memberId: text("member_id")
+			.notNull()
+			.references(() => members.id),
+		source: text("source", { enum: ["email", "photo"] }).notNull(),
+		// Deleting its Transaction leaves the Receipt unattached, not refused.
+		transactionId: text("transaction_id").references(() => transactions.id, {
+			onDelete: "set null",
+		}),
+		fileKey: text("file_key").notNull(),
+		thumbnailKey: text("thumbnail_key"),
+		merchant: text("merchant"),
+		date: text("date"),
+		totalCents: integer("total_cents"),
+		lines: text("lines", { mode: "json" }).$type<ReceiptLine[]>().notNull(),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [
+		index("receipts_household_idx").on(t.householdId),
+		uniqueIndex("receipts_transaction_idx").on(t.transactionId),
+	],
 );

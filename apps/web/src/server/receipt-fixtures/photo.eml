@@ -1,0 +1,29 @@
+From: alex@example.com
+To: receipts+KEYKEY@receipts.test
+Subject: Fwd: receipt
+Message-ID: <photo-1@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="b2"
+
+--b2
+Content-Type: multipart/related; boundary="b3"
+
+--b3
+Content-Type: text/html; charset=utf-8
+
+<p>Here it is <img src="cid:logo"></p>
+--b3
+Content-Type: image/png
+Content-ID: <logo>
+Content-Disposition: inline; filename="logo.png"
+Content-Transfer-Encoding: base64
+
+bG9nbw==
+--b3--
+--b2
+Content-Type: image/jpeg; name="receipt.jpg"
+Content-Disposition: attachment; filename="receipt.jpg"
+Content-Transfer-Encoding: base64
+
+cmVjZWlwdA==
+--b2--

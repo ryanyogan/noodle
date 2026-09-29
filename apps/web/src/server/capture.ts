@@ -6,6 +6,9 @@ import { z } from "zod";
 import { categorizeCaptured } from "./categorize";
 import { getDb } from "./db";
 import { notifyHousehold } from "./notify";
+import type { ReceiptMessage } from "./receipt-email";
+import { consumeReceipt } from "./receipt-worker";
+import { idFor } from "./stable-id";
 
 // Tap to capture: the iPhone Shortcut a Parent sets up runs when they pay with Wallet and POSTs
 // the payment's merchant and amount to CAPTURE_PATH (/api/capture) with their capture token. The Worker checks
@@ -37,22 +40,6 @@ export function newCaptureToken(): string {
 	const bytes = crypto.getRandomValues(new Uint8Array(32));
 	const base64 = btoa(String.fromCharCode(...bytes));
 	return `noodle_${base64.replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "")}`;
-}
-
-const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-
-/**
- * A ULID-shaped ID that is always the same for the same `key`, so a capture the Shortcut retries
- * becomes the same Transaction and is written once.
- */
-async function idFor(key: string): Promise<string> {
-	const digest = new Uint8Array(
-		await crypto.subtle.digest("SHA-256", new TextEncoder().encode(key)),
-	);
-	// A ULID's first character is at most 7; the rest are any of the 32.
-	return [...digest.slice(0, 26)]
-		.map((byte, i) => CROCKFORD[i === 0 ? byte % 8 : byte % 32])
-		.join("");
 }
 
 const captureSchema = z.object({
@@ -136,13 +123,27 @@ export function handleCapture(request: Request): Promise<Response> {
 	});
 }
 
+/** What waits on the ingest Queue: a capture, or a forwarded Receipt (receipt-email.ts). */
+export type IngestMessage = CaptureMessage | ReceiptMessage;
+
 /**
- * The ingest Queue's consumer: writes each capture as its Parent's Quick Add, retrying (with
- * backoff) only what failed. One whose token was revoked in the meantime is dropped.
+ * The ingest Queue's consumer: writes each capture as its Parent's Quick Add and files each
+ * forwarded Receipt, retrying (with backoff) only what failed. A capture whose token was revoked
+ * in the meantime is dropped.
  */
-export async function consumeIngest(batch: MessageBatch<CaptureMessage>): Promise<void> {
+export async function consumeIngest(batch: MessageBatch<IngestMessage>): Promise<void> {
 	const db = getDb();
 	for (const message of batch.messages) {
+		if (message.body.kind === "receipt") {
+			try {
+				await consumeReceipt(message.body);
+				message.ack();
+			} catch (error) {
+				console.error("Couldn’t file a forwarded Receipt", error);
+				message.retry({ delaySeconds: 30 });
+			}
+			continue;
+		}
 		try {
 			const { householdId, memberId, transactionId } = message.body;
 			const result = await addCapture(db, { ...message.body, newId: ulid });

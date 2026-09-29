@@ -1,0 +1,16 @@
+From: alex@example.com
+To: receipts+KEYKEY@receipts.test
+Subject: Fwd: Your Amazon.com order
+Message-ID: <amazon-1@example.com>
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+
+<html><head><style>td { padding: 4px }</style></head><body>
+<table>
+<tr><td>Amazon.com order</td></tr>
+<tr><td>Echo Dot</td><td>$49.99</td></tr>
+<tr><td>Alex&#39;s Secret Stash gift card</td><td>$10.00</td></tr>
+<tr><td>Estimated tax</td><td>$3.50</td></tr>
+<tr><td>Order Total:</td><td>$63.49</td></tr>
+</table>
+</body></html>

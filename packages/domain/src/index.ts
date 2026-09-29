@@ -273,6 +273,21 @@ export {
 } from "./plan-history";
 export { type PlanChanges, type PlanScope, planChanges, restoreAfterJust } from "./plan-scope";
 export {
+	canApply,
+	parseReceiptAmount,
+	proposeSplits,
+	RECEIPT_DATE_WINDOW_DAYS,
+	type ReceiptLine,
+	type ReceiptLineKind,
+	type ReceiptPart,
+	type ReceiptProposal,
+	receiptDate,
+	receiptDifference,
+	receiptLine,
+	receiptTransaction,
+	shareOut,
+} from "./receipts";
+export {
 	type AmountBand,
 	addMonthsToDay,
 	COMPARISONS,

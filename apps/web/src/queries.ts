@@ -13,6 +13,7 @@ import { getMonth, type MonthData } from "./server/month";
 import { getNudgeSettings } from "./server/nudges";
 import { getPerkSources } from "./server/perks";
 import { getPlanHistory } from "./server/plan";
+import { getReceiptAddress } from "./server/receipts";
 import { getReport, type ReportRequest } from "./server/reports";
 import { getReview, getRules } from "./server/review";
 import { getPlanAhead, getScenarios } from "./server/scenarios";
@@ -233,4 +234,11 @@ export const captureTokenQuery = () =>
 	queryOptions({
 		queryKey: ["capture-token"],
 		queryFn: () => getCaptureToken(),
+	});
+
+/** The Household's Receipt address, for forwarding Receipts; null until a Parent makes one. */
+export const receiptAddressQuery = () =>
+	queryOptions({
+		queryKey: ["receipt-address"],
+		queryFn: () => getReceiptAddress(),
 	});

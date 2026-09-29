@@ -153,7 +153,15 @@ function Connection({
 	);
 }
 
-function CopyRow({ label, value, copyLabel }: { label: string; value: string; copyLabel: string }) {
+export function CopyRow({
+	label,
+	value,
+	copyLabel,
+}: {
+	label: string;
+	value: string;
+	copyLabel: string;
+}) {
 	async function copy() {
 		try {
 			await navigator.clipboard.writeText(value);

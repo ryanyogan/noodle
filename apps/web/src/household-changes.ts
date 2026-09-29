@@ -14,6 +14,7 @@ import {
 	monthsKey,
 	perkSourcesQuery,
 	planOutlookKey,
+	receiptAddressQuery,
 	reportsKey,
 	rulesQuery,
 	scenariosQuery,
@@ -54,6 +55,8 @@ const changedQueries = {
 	perks: perkSourcesQuery().queryKey,
 	/** The Check-in day, and who has finished this week's Check-in. */
 	"check-in": checkInQuery().queryKey,
+	/** The Household's Receipt address. */
+	"receipt-address": receiptAddressQuery().queryKey,
 	/** Every Report; also refetched for any change to what Reports sum (see `queryKeysFor`). */
 	reports: reportsKey,
 } satisfies Record<string, QueryKey>;
