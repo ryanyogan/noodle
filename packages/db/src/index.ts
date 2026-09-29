@@ -308,6 +308,17 @@ export {
 	updateChild,
 } from "./members";
 export {
+	type CloseMonthInput,
+	closeMonth,
+	listHouseholds,
+	loadEmergencyGoalId,
+	loadMonthClose,
+	loadSweeps,
+	type MonthCloseRecord,
+	type MonthCloseResult,
+	type PlanSweep,
+} from "./month-close";
+export {
 	addCover,
 	type CoverResult,
 	loadMoves,

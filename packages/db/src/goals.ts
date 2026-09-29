@@ -488,8 +488,8 @@ export type GoalChange = EarmarkChange & {
 	id: string;
 	date?: DayKey;
 	note?: string | null;
-	/** Funding that came from a Windfall rather than Free to Spend. */
-	from?: "windfall";
+	/** Funding that came from a Windfall, or was Swept from a Bucket, rather than Free to Spend. */
+	from?: "windfall" | "sweep";
 };
 
 /** Everything the Goals and Accounts views derive their numbers from (see @noodle/domain). */
@@ -614,7 +614,7 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 				({
 					...row,
 					kind: "funding" as const,
-					...(moveKind === "windfall" ? { from: moveKind } : {}),
+					...(moveKind === "windfall" || moveKind === "sweep" ? { from: moveKind } : {}),
 				}) as GoalChange,
 		),
 		...spendingRows.map(

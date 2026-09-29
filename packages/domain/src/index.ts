@@ -48,6 +48,15 @@ export {
 	monthsBetween,
 } from "./month";
 export {
+	defaultDecision,
+	fitsProposal,
+	type Leftover,
+	type MonthCloseDecision,
+	type MonthCloseProposal,
+	monthCloseProposal,
+	nothingToClose,
+} from "./month-close";
+export {
 	type BucketState,
 	type BucketStatus,
 	type Charge,

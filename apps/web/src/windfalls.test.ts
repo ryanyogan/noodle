@@ -15,6 +15,8 @@ const month: MonthData = {
 	moves: [],
 	rolledOver: {},
 	goalFunding: [],
+	sweeps: [],
+	closed: null,
 	income: [{ id: "pay", amount: 500_000, date: "2026-09-01", note: "Paycheck" }],
 	asOf: "2026-09-15",
 	editable: true,

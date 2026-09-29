@@ -6,11 +6,15 @@ import {
 	loadCharges,
 	loadGoalFunding,
 	loadIncome,
+	loadMonthClose,
 	loadMoves,
 	loadPlanRecords,
 	loadRolledOver,
 	loadSpending,
+	loadSweeps,
+	type MonthCloseRecord,
 	type PlanMove,
+	type PlanSweep,
 } from "@noodle/db";
 import {
 	addMonths,
@@ -51,6 +55,10 @@ export type MonthData = {
 	rolledOver: Record<string, Cents>;
 	/** Moves from Free to Spend into Goals' Earmarks. */
 	goalFunding: (GoalFunding & { id: string })[];
+	/** Fresh-start Buckets' leftovers Swept into Goals as the month closed. */
+	sweeps: PlanSweep[];
+	/** How the month was closed (see month-close), or null while it hasn't been. */
+	closed: MonthCloseRecord | null;
 	/** Income received this month and last (last month's sets what's expected by now). */
 	income: IncomeRecord[];
 	asOf: DayKey;
@@ -69,14 +77,17 @@ export async function loadMonth(
 	month: MonthKey,
 ): Promise<MonthData> {
 	const viewer = viewerOf({ household, parent: { id: parentId } });
-	const [records, spending, charges, moves, goalFunding, income] = await Promise.all([
-		loadPlanRecords(db, household.id, month),
-		loadSpending(db, viewer, month),
-		loadCharges(db, viewer, month),
-		loadMoves(db, household.id, month),
-		loadGoalFunding(db, household.id, month),
-		loadIncome(db, household.id, addMonths(month, -1), addMonths(month, 1)),
-	]);
+	const [records, spending, charges, moves, goalFunding, sweeps, closed, income] =
+		await Promise.all([
+			loadPlanRecords(db, household.id, month),
+			loadSpending(db, viewer, month),
+			loadCharges(db, viewer, month),
+			loadMoves(db, household.id, month),
+			loadGoalFunding(db, household.id, month),
+			loadSweeps(db, household.id, month),
+			loadMonthClose(db, household.id, month),
+			loadIncome(db, household.id, addMonths(month, -1), addMonths(month, 1)),
+		]);
 	const rolledOver = await loadRolledOver(db, household.id, records, month);
 	const now = new Date();
 	return {
@@ -86,6 +97,8 @@ export async function loadMonth(
 		moves,
 		rolledOver,
 		goalFunding,
+		sweeps,
+		closed,
 		income,
 		asOf: dayKeyAt(now, household.timeZone),
 		editable: month >= monthKeyAt(now, household.timeZone),

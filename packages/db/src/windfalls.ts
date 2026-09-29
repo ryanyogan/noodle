@@ -124,15 +124,28 @@ export async function removeIncome(
  */
 export async function decideWindfall(
 	db: Db,
-	input: {
-		householdId: string;
-		moveId: string;
-		month: MonthKey;
-		to: WindfallDestination;
-		amountCents: Cents;
-		createdByMemberId: string;
-	},
+	input: WindfallMoveInput & { createdByMemberId: string },
 ): Promise<IncomeWriteResult> {
+	await insertWindfallMove(db, input);
+	const [written] = await db
+		.select({ id: moves.id })
+		.from(moves)
+		.where(and(eq(moves.id, input.moveId), eq(moves.householdId, input.householdId)));
+	return written ? { ok: true } : { ok: false, reason: "refused" };
+}
+
+type WindfallMoveInput = {
+	householdId: string;
+	moveId: string;
+	month: MonthKey;
+	to: WindfallDestination;
+	amountCents: Cents;
+	/** Null when month-close applies it; then only Household Buckets can take it. */
+	createdByMemberId: string | null;
+};
+
+/** A Windfall Move's guarded insert (see decideWindfall), also landing only if `guard` holds. */
+export function insertWindfallMove(db: Db, input: WindfallMoveInput, guard?: SQL) {
 	const { householdId, month, to } = input;
 	// Selected in the table's column order: insert … select is positional.
 	const row = <H, B, G>(owner: H, toBucketId: B, toGoalId: G) => ({
@@ -143,7 +156,7 @@ export async function decideWindfall(
 		fromBucketId: sql<string | null>`null`.as("from_bucket_id"),
 		toBucketId,
 		amountCents: sql<number>`${input.amountCents}`.as("amount_cents"),
-		createdByMemberId: sql<string>`${input.createdByMemberId}`.as("created_by_member_id"),
+		createdByMemberId: sql<string | null>`${input.createdByMemberId}`.as("created_by_member_id"),
 		createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
 		toGoalId,
 	});
@@ -160,6 +173,7 @@ export async function decideWindfall(
 							isNull(goals.completedAt),
 							isNull(goals.archivedAt),
 							enough,
+							guard,
 						),
 					)
 			: db
@@ -168,16 +182,12 @@ export async function decideWindfall(
 					.where(
 						and(
 							bucketInPlan(householdId, to.bucketId, month),
-							assignableBy(input.createdByMemberId),
+							assignableBy(input.createdByMemberId ?? ""),
 							enough,
+							guard,
 						),
 					);
-	await db.insert(moves).select(select).onConflictDoNothing({ target: moves.id });
-	const [written] = await db
-		.select({ id: moves.id })
-		.from(moves)
-		.where(and(eq(moves.id, input.moveId), eq(moves.householdId, householdId)));
-	return written ? { ok: true } : { ok: false, reason: "refused" };
+	return db.insert(moves).select(select).onConflictDoNothing({ target: moves.id });
 }
 
 /**

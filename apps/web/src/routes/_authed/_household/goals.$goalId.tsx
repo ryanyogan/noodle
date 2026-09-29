@@ -497,7 +497,9 @@ const changeTitle = (change: GoalChange) =>
 	change.kind === "funding"
 		? change.from === "windfall"
 			? "From a Windfall"
-			: "Funded from Free to Spend"
+			: change.from === "sweep"
+				? "Swept from a Bucket"
+				: "Funded from Free to Spend"
 		: change.kind === "spending"
 			? "Spent"
 			: change.amount >= 0

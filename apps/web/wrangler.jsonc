@@ -29,5 +29,12 @@
 	"queues": {
 		"producers": [{ "binding": "NUDGE_QUEUE", "queue": "noodle-nudges" }],
 		"consumers": [{ "queue": "noodle-nudges", "max_batch_size": 10, "max_retries": 3 }]
-	}
+	},
+	// Closing each Household's month: the hourly cron on the 1st to 3rd starts one Month-close
+	// Workflow per Household once its own 1st has begun; each waits up to a week for the Parents'
+	// decision, then applies the defaults.
+	"workflows": [
+		{ "name": "noodle-month-close", "binding": "MONTH_CLOSE", "class_name": "MonthCloseWorkflow" }
+	],
+	"triggers": { "crons": ["0 * 1-3 * *"] }
 }

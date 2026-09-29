@@ -8,7 +8,9 @@ import {
 	lastDayOf,
 	type MonthKey,
 	type MonthState,
+	monthCloseProposal,
 	monthOfDay,
+	nothingToClose,
 	windfallSuggestions,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
@@ -29,10 +31,12 @@ import { asBucketColor, monogram } from "../../../buckets";
 import { Commitments } from "../../../components/commitment-list";
 import { ALittleOver, CoverSheet, CoversInto, sourceName } from "../../../components/cover";
 import { AmountSheet } from "../../../components/goals";
+import { MonthCloseSection } from "../../../components/month-close";
 import { IncomeSection, WindfallSection, WindfallSheet } from "../../../components/windfalls";
 import { type CoverVariables, useCovers } from "../../../covers";
 import { formatMoney, monthName, shortDay } from "../../../format";
-import { useGoals } from "../../../goals";
+import { type GoalView, useGoals } from "../../../goals";
+import { closingWeek, useCloseMonth } from "../../../month-close";
 import { useMonthState } from "../../../queries";
 import { useIncome, useWindfalls } from "../../../windfalls";
 
@@ -159,6 +163,14 @@ function ThisMonth() {
 			/>
 			{planned ? (
 				<div className="grid max-w-2xl gap-8">
+					{closingWeek(month, state.asOf) ? (
+						<ClosePreviousMonth
+							month={addMonths(month, -1)}
+							parentId={parentId}
+							goals={activeGoals}
+							emergencyGoalId={goals.emergencyGoalId}
+						/>
+					) : null}
 					<FreeToSpend state={state} check={check} />
 					{state.windfallLeft > 0 && month <= current ? (
 						<WindfallSection
@@ -326,6 +338,46 @@ function useMonthSwipe(month: MonthKey) {
 			navigate({ to: "/month/$month", params: { month: to } });
 		},
 	};
+}
+
+/** The month before, while it waits to be closed and has something to decide. */
+function ClosePreviousMonth({
+	month,
+	parentId,
+	goals,
+	emergencyGoalId,
+}: {
+	month: MonthKey;
+	parentId: string;
+	goals: GoalView[];
+	emergencyGoalId: string | null;
+}) {
+	const state = useMonthState(month);
+	const close = useCloseMonth();
+	const proposal = monthCloseProposal(state);
+	if (state.closed || nothingToClose(proposal)) return null;
+	return (
+		<MonthCloseSection
+			proposal={proposal}
+			goals={goals}
+			emergencyGoalId={emergencyGoalId}
+			pending={close.isPending}
+			onClose={(choice) =>
+				close.mutate({
+					closeId: ulid(),
+					month,
+					parentId,
+					sweeps: proposal.leftovers.flatMap((l) => {
+						const goalId = choice.sweeps[l.bucketId];
+						return goalId ? [{ bucketId: l.bucketId, goalId, amountCents: l.amount }] : [];
+					}),
+					windfall: choice.windfallGoalId
+						? [{ moveId: ulid(), goalId: choice.windfallGoalId, amountCents: proposal.windfall }]
+						: [],
+				})
+			}
+		/>
+	);
 }
 
 /**

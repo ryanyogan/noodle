@@ -390,7 +390,9 @@ export const splitFor = sqliteTable(
 // Free to Spend when `from_bucket_id` is null, to a Bucket (a Cover) or, for Goal funding, from
 // Free to Spend to a Goal's Earmark (`to_goal_id`, with `to_bucket_id` null). A `windfall` Move
 // comes from the month's Windfall (`from_bucket_id` null) to a Bucket or a Goal, never out of
-// Free to Spend. Balances are derived from these rows (ADR-0004); undoing a Move deletes its row.
+// Free to Spend. A `sweep` is a Fresh-start Bucket's leftover at the end of `month` (`from_bucket_id`)
+// into a Goal's Earmark (`to_goal_id`). Balances are derived from these rows (ADR-0004); undoing a
+// Move deletes its row.
 export const moves = sqliteTable(
 	"moves",
 	{
@@ -398,7 +400,7 @@ export const moves = sqliteTable(
 		householdId: text("household_id")
 			.notNull()
 			.references(() => households.id),
-		kind: text("kind", { enum: ["cover", "goal-funding", "windfall"] }).notNull(),
+		kind: text("kind", { enum: ["cover", "goal-funding", "windfall", "sweep"] }).notNull(),
 		month: text("month").notNull(),
 		fromBucketId: text("from_bucket_id").references(() => buckets.id),
 		toBucketId: text("to_bucket_id").references(() => buckets.id),
@@ -500,6 +502,25 @@ export const income = sqliteTable(
 			.default(sql`(unixepoch() * 1000)`),
 	},
 	(t) => [index("income_household_date_idx").on(t.householdId, t.date)],
+);
+
+// A month closed: the Parents decided its Sweeps and Windfall at month-close, or nobody did in time
+// and the defaults were applied (`decided_by_member_id` null). One per Household and month; the
+// Moves it decided are written in the same batch, only while there is none yet.
+export const monthCloses = sqliteTable(
+	"month_closes",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		month: text("month").notNull(),
+		decidedByMemberId: text("decided_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [uniqueIndex("month_closes_household_month_idx").on(t.householdId, t.month)],
 );
 
 export type Household = typeof households.$inferSelect;

@@ -27,12 +27,13 @@ export const monthQuery = (month: MonthKey) =>
 
 const toMonthState = (
 	data: MonthData,
-): MonthState & Pick<MonthData, "editable" | "moves" | "goalFunding" | "income"> => ({
+): MonthState & Pick<MonthData, "editable" | "moves" | "goalFunding" | "income" | "closed"> => ({
 	...monthState(data),
 	editable: data.editable,
 	moves: data.moves,
 	goalFunding: data.goalFunding,
 	income: data.income,
+	closed: data.closed,
 });
 
 /** A month's state, derived from its cached inputs, so optimistic edits show up everywhere. */
