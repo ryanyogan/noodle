@@ -301,6 +301,13 @@ export {
 	updateGoal,
 } from "./goals";
 export {
+	type ImportRecord,
+	type ImportResult,
+	importStatement,
+	loadCsvMapping,
+	loadImports,
+} from "./imports";
+export {
 	addChild,
 	listMembers,
 	type MemberSummary,

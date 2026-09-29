@@ -13,6 +13,7 @@ import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
 import { AmountSheet, BackToGoals, LinkRow } from "../../../components/goals";
 import { SaveFailed } from "../../../components/plan-editing";
+import { StatementBalanceNote, StatementsSection } from "../../../components/statements";
 import { formatMoney } from "../../../format";
 import {
 	type AccountView,
@@ -21,11 +22,14 @@ import {
 	useRenameAccount,
 	useUpdateAccountBalance,
 } from "../../../goals";
-import { goalsQuery } from "../../../queries";
+import { accountImportsQuery, goalsQuery } from "../../../queries";
 
 export const Route = createFileRoute("/_authed/_household/goals/accounts/$accountId")({
 	loader: async ({ context, params }) => {
-		const data = await context.queryClient.ensureQueryData(goalsQuery());
+		const [data] = await Promise.all([
+			context.queryClient.ensureQueryData(goalsQuery()),
+			context.queryClient.ensureQueryData(accountImportsQuery(params.accountId)),
+		]);
 		if (!data.accounts.some((a) => a.id === params.accountId)) throw notFound();
 	},
 	component: AccountPage,
@@ -111,6 +115,7 @@ function AccountDetails({ account }: { account: AccountView }) {
 								already taken off.
 							</p>
 						) : null}
+						<StatementBalanceNote account={account} />
 						{account.holdsMoney && account.balance !== null ? <SplitBar account={account} /> : null}
 					</div>
 					{account.overClaimedBy > 0 ? (
@@ -174,6 +179,7 @@ function AccountDetails({ account }: { account: AccountView }) {
 						are set aside in a checking or savings Account.
 					</Card>
 				)}
+				<StatementsSection account={account} />
 			</div>
 
 			<AmountSheet

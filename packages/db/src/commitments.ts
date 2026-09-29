@@ -205,6 +205,8 @@ export async function addCommitmentPayment(
 					commitmentId: commitments.id,
 					accountId: sql<string | null>`null`.as("account_id"),
 					goalId: sql<string | null>`null`.as("goal_id"),
+					importId: sql<string | null>`null`.as("import_id"),
+					externalId: sql<string | null>`null`.as("external_id"),
 				})
 				.from(commitments)
 				.where(

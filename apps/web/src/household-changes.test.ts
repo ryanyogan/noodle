@@ -40,6 +40,7 @@ describe("queryKeysFor", () => {
 			["household", "members"],
 			["for-earlier"],
 			["goals"],
+			["imports"],
 			["scenarios"],
 			["viewer"],
 		]);

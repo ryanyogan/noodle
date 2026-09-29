@@ -69,6 +69,7 @@
       "name": "@noodle/domain",
       "version": "0.0.0",
       "devDependencies": {
+        "@types/node": "26.6.3",
         "vitest": "5.0.2",
       },
     },

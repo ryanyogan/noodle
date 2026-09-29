@@ -1,6 +1,7 @@
 import { type MonthKey, type MonthState, monthState } from "@noodle/domain";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { getGoals } from "./server/goals";
+import { getAccountImports } from "./server/imports";
 import { getHouseholdParents } from "./server/invites";
 import { getForTotalsEarlierInYear, getMembers } from "./server/members";
 import { getMonth, type MonthData } from "./server/month";
@@ -92,6 +93,13 @@ export const goalsQuery = () =>
 	queryOptions({
 		queryKey: ["goals"],
 		queryFn: () => getGoals(),
+	});
+
+/** An Account's Imports and the CSV mapping it remembers. */
+export const accountImportsQuery = (accountId: string) =>
+	queryOptions({
+		queryKey: ["imports", accountId],
+		queryFn: () => getAccountImports({ data: { accountId } }),
 	});
 
 /** The viewer's own Nudge preferences, and the key a device subscribes with. Never shared. */

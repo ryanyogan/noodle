@@ -107,6 +107,7 @@ export {
 	type QuietHours,
 	wantsNudge,
 } from "./nudges";
+export { readOfxStatement } from "./ofx";
 export {
 	type BucketRecord,
 	type CommitmentRecord,
@@ -143,6 +144,25 @@ export {
 	splitRemainder,
 	splitsBalance,
 } from "./splits";
+export { readStatement } from "./statement-file";
+export {
+	type ClosingBalance,
+	type CsvMapping,
+	DATE_FORMATS,
+	type DateFormat,
+	guessCsvMapping,
+	guessDateFormat,
+	normalizeDescription,
+	parseCsv,
+	parseStatementAmount,
+	parseStatementDate,
+	readCsvStatement,
+	type Statement,
+	type StatementFormat,
+	type StatementLine,
+	statementFormat,
+	statementLineIds,
+} from "./statements";
 export {
 	INCOME_WARNING_FROM_DAY,
 	type Income,

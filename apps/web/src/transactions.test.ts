@@ -52,6 +52,7 @@ const skates: TransactionRow = {
 	for: [],
 	splits: [],
 	partlyPrivate: false,
+	importedFrom: null,
 };
 
 const change = (next: TransactionChange["next"]): TransactionChange => ({

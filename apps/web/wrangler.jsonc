@@ -17,6 +17,8 @@
 			"migrations_dir": "../../packages/db/drizzle"
 		}
 	],
+	// Statement files Parents upload for their Accounts, one object per Import (ADR-0005).
+	"r2_buckets": [{ "binding": "STATEMENTS", "bucket_name": "noodle-statements" }],
 	// One Household Agent per Household: the real-time hub both Parents' screens connect to (ADR-0007).
 	"durable_objects": {
 		"bindings": [{ "name": "HOUSEHOLD_AGENT", "class_name": "HouseholdAgent" }]

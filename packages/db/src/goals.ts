@@ -443,6 +443,8 @@ export async function spendGoal(
 					commitmentId: sql<string | null>`null`.as("commitment_id"),
 					accountId: goals.accountId,
 					goalId: goals.id,
+					importId: sql<string | null>`null`.as("import_id"),
+					externalId: sql<string | null>`null`.as("external_id"),
 				})
 				.from(goals)
 				.where(

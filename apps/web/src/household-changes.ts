@@ -32,6 +32,8 @@ const changedQueries = {
 	"for-earlier": forTotalsEarlierKey,
 	/** Accounts, Goals and their Earmarks. */
 	goals: goalsQuery().queryKey,
+	/** Every Account's Imports. */
+	imports: ["imports"],
 	/** Scenarios and their Levers. */
 	scenarios: scenariosQuery().queryKey,
 	/** The Household itself, as each screen's viewer sees it. */

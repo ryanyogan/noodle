@@ -36,6 +36,7 @@ import {
 	visibleTo,
 } from "./privacy";
 import {
+	accounts,
 	buckets,
 	commitments,
 	goals,
@@ -280,6 +281,8 @@ export async function addQuickAdd(
 					commitmentId: sql<string | null>`null`.as("commitment_id"),
 					accountId: sql<string | null>`null`.as("account_id"),
 					goalId: sql<string | null>`null`.as("goal_id"),
+					importId: sql<string | null>`null`.as("import_id"),
+					externalId: sql<string | null>`null`.as("external_id"),
 				})
 				.from(buckets)
 				.where(
@@ -338,6 +341,8 @@ export type TransactionRow = {
 	goal: { id: string; name: string } | null;
 	/** Its note; none shown when some of its Splits are in the other Parent's Personal Allowance. */
 	note: string | null;
+	/** The name of the Account it was imported from; null unless it came in through an Import. */
+	importedFrom: string | null;
 	for: string[];
 	/** Its Splits in the order they were entered, those the Viewer may see; none unless it's split. */
 	splits: SplitRow[];
@@ -424,9 +429,13 @@ export async function loadTransactionsPage(
 			goalName: goals.name,
 			note: sql<string | null>`case when ${partly} then null else ${transactions.note} end`,
 			partlyPrivate: sql<boolean>`${partly}`.mapWith(Boolean),
+			importedFrom: sql<
+				string | null
+			>`case when ${transactions.source} = 'import' then ${accounts.name} end`,
 		})
 		.from(transactions)
 		.leftJoin(goals, eq(goals.id, transactions.goalId))
+		.leftJoin(accounts, eq(accounts.id, transactions.accountId))
 		.where(
 			and(
 				visibleTo(viewer),

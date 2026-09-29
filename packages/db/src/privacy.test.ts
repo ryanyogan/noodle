@@ -348,6 +348,7 @@ describe("Personal Allowance privacy: Splits", () => {
 			commitmentId: null,
 			goal: null,
 			note: null,
+			importedFrom: null,
 			for: [],
 			splits: [
 				{

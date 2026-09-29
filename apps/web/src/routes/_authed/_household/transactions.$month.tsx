@@ -400,16 +400,29 @@ function TransactionItem({
 	const assignment = assignmentOf(transaction, plan);
 	const title =
 		transaction.note ||
-		(transaction.goal ? "Goal spending" : transaction.commitmentId ? "Payment" : "Quick Add");
+		(transaction.goal
+			? "Goal spending"
+			: transaction.commitmentId
+				? "Payment"
+				: transaction.importedFrom
+					? "Imported"
+					: "Quick Add");
 	const who = forLabel(members, transaction.for);
 	const amount = formatMoney(transaction.amountCents);
+	// Where an imported Transaction came from, after what it's assigned to.
+	const from = transaction.importedFrom ? ` · ${transaction.importedFrom}` : "";
+	// Money back onto a card or loan (a payment or a Refund) counts nowhere, and waits for
+	// Transfers and Refunds to claim it; there's nothing to edit yet.
+	const moneyBack = transaction.amountCents < 0;
 	const detail = transaction.goal
 		? `From the ${assignment.name} Goal`
-		: split
-			? `Split across ${transaction.splits.length} · ${[
-					...new Set(transaction.splits.map((s) => assignmentOf(s, plan).name)),
-				].join(", ")}`
-			: `${assignment.name} · ${who}`;
+		: moneyBack
+			? `Money back${from}`
+			: split
+				? `Split across ${transaction.splits.length} · ${[
+						...new Set(transaction.splits.map((s) => assignmentOf(s, plan).name)),
+					].join(", ")}${from}`
+				: `${assignment.name} · ${who}${from}`;
 	const rowClassName = cn(
 		"grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-(--card-pad) py-3.5 text-start",
 		"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60",
@@ -444,13 +457,17 @@ function TransactionItem({
 				>
 					{content}
 				</Link>
+			) : moneyBack ? (
+				<div className={cn(rowClassName, "hover:bg-transparent")}>{content}</div>
 			) : (
 				<button
 					type="button"
 					aria-label={
 						split
 							? `${title}, ${amount}, ${detail.replace(" · ", ": ")}`
-							: `${title}, ${amount}, ${assignment.name}, For ${who}`
+							: `${title}, ${amount}, ${assignment.name}, For ${who}${
+									transaction.importedFrom ? `, from ${transaction.importedFrom}` : ""
+								}`
 					}
 					onClick={() => onEdit(transaction)}
 					className={rowClassName}

@@ -1,4 +1,4 @@
-import type { Lever } from "@noodle/domain";
+import type { CsvMapping, Lever } from "@noodle/domain";
 import { sql } from "drizzle-orm";
 import {
 	type AnySQLiteColumn,
@@ -242,6 +242,56 @@ export const accountBalances = sqliteTable(
 	(t) => [index("account_balances_account_idx").on(t.accountId)],
 );
 
+// A batch of Transactions brought in from an Account: today from a statement file a Parent
+// uploaded (kept in R2 under `file_key`), later from a Bank Connection too. Its lines land as
+// Transactions (money out, and money back on a card or loan) and income (money into a checking or
+// savings Account), each keyed by its line's ID in the Account, so an overlapping Import adds
+// nothing twice. The counts are of lines this Import added; `duplicate_count` were already in.
+export const imports = sqliteTable(
+	"imports",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		accountId: text("account_id")
+			.notNull()
+			.references(() => accounts.id),
+		source: text("source", { enum: ["csv", "ofx"] }).notNull(),
+		fileName: text("file_name"),
+		fileKey: text("file_key"),
+		status: text("status", { enum: ["processing", "imported"] }).notNull(),
+		transactionCount: integer("transaction_count").notNull().default(0),
+		incomeCount: integer("income_count").notNull().default(0),
+		duplicateCount: integer("duplicate_count").notNull().default(0),
+		// The statement's first and last days, and the balance it says the Account ended at.
+		firstDate: text("first_date"),
+		lastDate: text("last_date"),
+		closingBalanceCents: integer("closing_balance_cents"),
+		closingBalanceDate: text("closing_balance_date"),
+		createdByMemberId: text("created_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [index("imports_account_idx").on(t.accountId)],
+);
+
+// How an Account's CSV statements are laid out (a CsvMapping from @noodle/domain, as JSON),
+// remembered from its last CSV Import.
+export const csvMappings = sqliteTable("csv_mappings", {
+	accountId: text("account_id")
+		.primaryKey()
+		.references(() => accounts.id),
+	householdId: text("household_id")
+		.notNull()
+		.references(() => households.id),
+	mapping: text("mapping", { mode: "json" }).$type<CsvMapping>().notNull(),
+	updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+		.notNull()
+		.default(sql`(unixepoch() * 1000)`),
+});
+
 // A target the Household funds over time, held as an Earmark on one checking or savings Account
 // (ADR-0002). `target_date` is optional ("YYYY-MM-DD"); `from_month` is the month it was added.
 // A completed Goal keeps its Earmark; an archived one claims nothing.
@@ -301,7 +351,7 @@ export const transactions = sqliteTable(
 		householdId: text("household_id")
 			.notNull()
 			.references(() => households.id),
-		source: text("source", { enum: ["quick-add"] }).notNull(),
+		source: text("source", { enum: ["quick-add", "import"] }).notNull(),
 		date: text("date").notNull(),
 		amountCents: integer("amount_cents").notNull(),
 		// The Bucket it is assigned to as a whole; null while unassigned.
@@ -318,8 +368,14 @@ export const transactions = sqliteTable(
 		accountId: text("account_id").references(() => accounts.id),
 		// The Goal it's spent from, out of its Earmark (never a Bucket or Free to Spend).
 		goalId: text("goal_id").references(() => goals.id),
+		// The Import that brought it in, and its line's ID in the Account (see imports).
+		importId: text("import_id").references(() => imports.id),
+		externalId: text("external_id"),
 	},
-	(t) => [index("transactions_household_date_idx").on(t.householdId, t.date)],
+	(t) => [
+		index("transactions_household_date_idx").on(t.householdId, t.date),
+		uniqueIndex("transactions_account_external_idx").on(t.accountId, t.externalId),
+	],
 );
 
 // Who a Transaction was For: one row per Member it was spent on. No rows means the whole
@@ -500,8 +556,15 @@ export const income = sqliteTable(
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()
 			.default(sql`(unixepoch() * 1000)`),
+		// For imported income: the Account it came into, the Import, and its line's ID there.
+		accountId: text("account_id").references(() => accounts.id),
+		importId: text("import_id").references(() => imports.id),
+		externalId: text("external_id"),
 	},
-	(t) => [index("income_household_date_idx").on(t.householdId, t.date)],
+	(t) => [
+		index("income_household_date_idx").on(t.householdId, t.date),
+		uniqueIndex("income_account_external_idx").on(t.accountId, t.externalId),
+	],
 );
 
 // A month closed: the Parents decided its Sweeps and Windfall at month-close, or nobody did in time
