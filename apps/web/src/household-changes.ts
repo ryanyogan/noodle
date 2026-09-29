@@ -1,6 +1,7 @@
 import type { MonthKey } from "@noodle/domain";
 import type { QueryKey } from "@tanstack/react-query";
 import {
+	bankConnectionsQuery,
 	bucketPagesKey,
 	bucketUsesQuery,
 	checkInQuery,
@@ -44,6 +45,8 @@ const changedQueries = {
 	goals: goalsQuery().queryKey,
 	/** Every Account's Imports. */
 	imports: ["imports"],
+	/** Bank Connections and how each one's Import stands. */
+	"bank-connections": bankConnectionsQuery().queryKey,
 	/** Scenarios and their Levers. */
 	scenarios: scenariosQuery().queryKey,
 	/** The Household itself, as each screen's viewer sees it. */

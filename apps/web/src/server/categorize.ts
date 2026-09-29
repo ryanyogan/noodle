@@ -20,7 +20,8 @@ import { notifyHousehold } from "./notify";
 // the Import has already landed and the Parent sees its Transactions at once, while embedding,
 // Vectorize, and the model take a few seconds for a statement. When it's done, the Household's
 // screens are told to refetch, so filed Transactions appear with their marker. A statement's
-// merchants go to the model in parallel prompts of ten, inside waitUntil's 30 seconds.
+// merchants go to the model in parallel prompts of ten, inside waitUntil's 30 seconds. A Bank
+// Connection's Imports are categorized in the Import Workflow, which awaits it.
 
 /** The fake merchant index for AI_MODEL=stub, kept for as long as the dev server runs. */
 const stubMerchants = memoryMerchants();
@@ -37,22 +38,27 @@ function categorizeDeps(): CategorizeDeps {
 
 /** Categorizes an Import for the Parent who brought it in, after the response has gone. */
 export function categorizeAfterImport(viewer: Viewer, importId: string): void {
-	waitUntil(
-		(async () => {
-			try {
-				const started = Date.now();
-				const result = await categorizeImport(categorizeDeps(), viewer, importId);
-				console.log(
-					`Categorized Import ${importId}: ${result.filed} filed, ${result.review} for Review, ${Date.now() - started} ms`,
-				);
-				if (result.filed + result.review === 0) return;
-				// Filing changes spending, which carries into later months.
-				await notifyHousehold(viewer.householdId, ["months", "for-earlier", "bucket-uses"]);
-			} catch (error) {
-				console.error("Couldn’t categorize an Import", error);
-			}
-		})(),
-	);
+	waitUntil(categorizeImported(viewer, importId));
+}
+
+/**
+ * Categorizes an Import for the Parent who brought it in, and tells the Household once it's done.
+ * Awaited where nothing is waiting on a response (the Import Workflow). Never throws: what it
+ * can't file stays unassigned.
+ */
+export async function categorizeImported(viewer: Viewer, importId: string): Promise<void> {
+	try {
+		const started = Date.now();
+		const result = await categorizeImport(categorizeDeps(), viewer, importId);
+		console.log(
+			`Categorized Import ${importId}: ${result.filed} filed, ${result.review} for Review, ${Date.now() - started} ms`,
+		);
+		if (result.filed + result.review === 0) return;
+		// Filing changes spending, which carries into later months.
+		await notifyHousehold(viewer.householdId, ["months", "for-earlier", "bucket-uses"]);
+	} catch (error) {
+		console.error("Couldn’t categorize an Import", error);
+	}
 }
 
 /**

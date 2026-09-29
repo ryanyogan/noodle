@@ -63,6 +63,7 @@ describe("queryKeysFor", () => {
 			["for-earlier"],
 			["goals"],
 			["imports"],
+			["bank-connections"],
 			["scenarios"],
 			["viewer"],
 			["rules"],

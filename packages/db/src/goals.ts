@@ -538,6 +538,8 @@ export type AccountRecord = {
 	kind: AccountKind;
 	/** The latest balance a Parent entered; null until one is. */
 	latestBalance: BalanceUpdate | null;
+	/** The Bank Connection that brought it in; null for one entered by hand. */
+	bankConnectionId: string | null;
 };
 
 export type GoalRecord = {
@@ -594,7 +596,12 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 		householdRows,
 	] = await db.batch([
 		db
-			.select({ id: accounts.id, name: accounts.name, kind: accounts.kind })
+			.select({
+				id: accounts.id,
+				name: accounts.name,
+				kind: accounts.kind,
+				bankConnectionId: accounts.bankConnectionId,
+			})
 			.from(accounts)
 			.where(eq(accounts.householdId, householdId))
 			.orderBy(asc(accounts.createdAt), asc(accounts.id)),

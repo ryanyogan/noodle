@@ -3,6 +3,7 @@ import { addCapture, findCaptureToken } from "@noodle/db";
 import { type DayKey, dayKeyAt, parseCapturedAmount } from "@noodle/domain";
 import { ulid } from "ulid";
 import { z } from "zod";
+import { type BankImportMessage, startBankImport } from "./bank-import-workflow";
 import { categorizeCaptured } from "./categorize";
 import { getDb } from "./db";
 import { notifyHousehold } from "./notify";
@@ -123,13 +124,16 @@ export function handleCapture(request: Request): Promise<Response> {
 	});
 }
 
-/** What waits on the ingest Queue: a capture, or a forwarded Receipt (receipt-email.ts). */
-export type IngestMessage = CaptureMessage | ReceiptMessage;
+/**
+ * What waits on the ingest Queue: a capture, a forwarded Receipt (receipt-email.ts), or a Bank
+ * Connection to read (bank-import-workflow.ts).
+ */
+export type IngestMessage = CaptureMessage | ReceiptMessage | BankImportMessage;
 
 /**
- * The ingest Queue's consumer: writes each capture as its Parent's Quick Add and files each
- * forwarded Receipt, retrying (with backoff) only what failed. A capture whose token was revoked
- * in the meantime is dropped.
+ * The ingest Queue's consumer: writes each capture as its Parent's Quick Add, files each
+ * forwarded Receipt, and starts the Import Workflow for each Bank Connection to read, retrying
+ * (with backoff) only what failed. A capture whose token was revoked in the meantime is dropped.
  */
 export async function consumeIngest(batch: MessageBatch<IngestMessage>): Promise<void> {
 	const db = getDb();
@@ -140,6 +144,16 @@ export async function consumeIngest(batch: MessageBatch<IngestMessage>): Promise
 				message.ack();
 			} catch (error) {
 				console.error("Couldn’t file a forwarded Receipt", error);
+				message.retry({ delaySeconds: 30 });
+			}
+			continue;
+		}
+		if (message.body.kind === "bank-import") {
+			try {
+				await startBankImport(message.body);
+				message.ack();
+			} catch (error) {
+				console.error("Couldn’t start a Bank Connection’s Import", error);
 				message.retry({ delaySeconds: 30 });
 			}
 			continue;

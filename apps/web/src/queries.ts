@@ -1,5 +1,6 @@
 import { type MonthKey, type MonthState, monthState } from "@noodle/domain";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
+import { getBankConnections } from "./server/bank-connections";
 import { getBucket } from "./server/buckets";
 import { getCaptureToken } from "./server/capture-tokens";
 import { getCheckIn } from "./server/check-in";
@@ -186,6 +187,13 @@ export const insightsQuery = () =>
 	queryOptions({
 		queryKey: ["insights"],
 		queryFn: () => getInsights(),
+	});
+
+/** The Household's Bank Connections with their Accounts, and whether one can be connected. */
+export const bankConnectionsQuery = () =>
+	queryOptions({
+		queryKey: ["bank-connections"],
+		queryFn: () => getBankConnections(),
 	});
 
 /** The Perk Sources the Parent may read that weren't dismissed, suggestions first, with their Perks. */

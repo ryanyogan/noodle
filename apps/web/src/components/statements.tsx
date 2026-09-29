@@ -98,7 +98,11 @@ export function StatementsSection({ account }: { account: AccountView }) {
 					{imports.map((record) => (
 						<ListRow
 							key={record.id}
-							title={record.fileName ?? "Statement"}
+							title={
+								record.source === "bank"
+									? `From ${record.institution ?? "the bank"}`
+									: (record.fileName ?? "Statement")
+							}
 							meta={[
 								record.firstDate && record.lastDate
 									? `${shortDay(record.firstDate)} – ${shortDay(record.lastDate)}`

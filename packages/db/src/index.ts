@@ -271,6 +271,18 @@ export async function acceptInvite(
 }
 
 export {
+	type AddBankConnectionResult,
+	addBankConnection,
+	type BankConnectionStatus,
+	type BankConnectionSummary,
+	type BankConnectionToImport,
+	type BankProvider,
+	loadBankConnections,
+	loadBankConnectionToImport,
+	markBankImportFailed,
+	saveBankImport,
+} from "./bank-connections";
+export {
 	addCapture,
 	type CaptureResult,
 	type CaptureTokenSummary,

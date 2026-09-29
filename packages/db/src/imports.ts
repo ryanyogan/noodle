@@ -9,10 +9,11 @@ import {
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
-import { accounts, csvMappings, imports, income, transactions } from "./schema";
+import { accounts, bankConnections, csvMappings, imports, income, transactions } from "./schema";
 import { detectTransfers } from "./transfers";
 
-// Imports: a statement's lines brought into one of the Household's Accounts. Money out becomes
+// Imports: a statement's lines brought into one of the Household's Accounts, from a file a Parent
+// uploaded or read from the Account's Bank Connection (bank-connections.ts). Money out becomes
 // unassigned Transactions (in no Bucket until a Parent or, later, categorization assigns them);
 // money into a checking or savings Account becomes income; money back onto a card or loan (a
 // payment or a Refund) is a Transaction with a negative amount, unassigned, so it counts nowhere
@@ -26,8 +27,10 @@ import { detectTransfers } from "./transfers";
 /** An Import, as its Account's history shows it. */
 export type ImportRecord = {
 	id: string;
-	source: "csv" | "ofx";
+	source: "csv" | "ofx" | "bank";
 	fileName: string | null;
+	/** For an Import from a Bank Connection, the institution it's with, when known. */
+	institution: string | null;
 	transactionCount: number;
 	incomeCount: number;
 	duplicateCount: number;
@@ -55,9 +58,11 @@ export async function importStatement(
 		householdId: string;
 		importId: string;
 		accountId: string;
-		source: "csv" | "ofx";
+		source: "csv" | "ofx" | "bank";
 		fileName: string | null;
 		fileKey: string | null;
+		/** The Bank Connection it was read from, for source "bank". */
+		bankConnectionId?: string | null;
 		lines: StatementLine[];
 		closingBalance: ClosingBalance | null;
 		/** The CSV mapping to remember for the Account. */
@@ -112,6 +117,7 @@ export async function importStatement(
 				closingBalanceCents: input.closingBalance?.amount ?? null,
 				closingBalanceDate: input.closingBalance?.date ?? null,
 				createdByMemberId: input.createdByMemberId,
+				bankConnectionId: input.bankConnectionId ?? null,
 			})
 			.onConflictDoNothing({ target: imports.id }),
 		db
@@ -219,6 +225,7 @@ export async function loadImports(
 	const rows = await db
 		.select({
 			row: imports,
+			institution: bankConnections.institution,
 			matchedCount: sql<number>`(select count(*) from matches m join transactions t
 				on t.id = m.imported_id where t.import_id = imports.id and m.removed_at is null)`,
 			transferCount: sql<number>`(select count(*) from transfers x where x.removed_at is null and (
@@ -227,6 +234,7 @@ export async function loadImports(
 				or exists (select 1 from income i where i.import_id = imports.id and i.id = x.in_income_id)))`,
 		})
 		.from(imports)
+		.leftJoin(bankConnections, eq(bankConnections.id, imports.bankConnectionId))
 		.where(
 			and(
 				eq(imports.householdId, householdId),
@@ -236,10 +244,11 @@ export async function loadImports(
 		)
 		.orderBy(desc(imports.createdAt), desc(imports.id));
 	// Dates are always written as DayKeys.
-	return rows.map(({ row, matchedCount, transferCount }) => ({
+	return rows.map(({ row, institution, matchedCount, transferCount }) => ({
 		id: row.id,
 		source: row.source,
 		fileName: row.fileName,
+		institution,
 		transactionCount: row.transactionCount,
 		incomeCount: row.incomeCount,
 		duplicateCount: row.duplicateCount,

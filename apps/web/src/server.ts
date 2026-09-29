@@ -16,7 +16,9 @@ import { handleReceiptEmail } from "./server/receipt-worker";
 // re-checks Perks a month old (the Perk research Workflow, also exported), then starts the weekly
 // Check-in wherever it's Check-in day. The iPhone Shortcut's captures arrive at their own
 // endpoint and wait on the ingest Queue, which this Worker consumes too; Receipts forwarded to a
-// Household's Receipt address arrive by email and wait there as well.
+// Household's Receipt address arrive by email and wait there as well, as does each Bank
+// Connection to read, which the Import Workflow (also exported) brings in.
+export { ImportWorkflow } from "./server/bank-import-workflow";
 export { HouseholdAgent } from "./server/household-agent";
 export { MonthCloseWorkflow } from "./server/month-close-workflow";
 export { PerkResearchWorkflow } from "./server/perk-research-workflow";

@@ -9,6 +9,7 @@ import { cn } from "@noodle/ui/lib/utils";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { Plus, Target, Telescope } from "lucide-react";
 import { useState } from "react";
+import { BankConnections } from "../../../components/bank-connections";
 import {
 	AddAccountForm,
 	AddAccountSheet,
@@ -30,10 +31,14 @@ import {
 	useAddGoal,
 	useGoals,
 } from "../../../goals";
-import { goalsQuery } from "../../../queries";
+import { bankConnectionsQuery, goalsQuery } from "../../../queries";
 
 export const Route = createFileRoute("/_authed/_household/goals/")({
-	loader: ({ context }) => context.queryClient.ensureQueryData(goalsQuery()),
+	loader: ({ context }) =>
+		Promise.all([
+			context.queryClient.ensureQueryData(goalsQuery()),
+			context.queryClient.ensureQueryData(bankConnectionsQuery()),
+		]),
 	component: GoalsPage,
 });
 
@@ -68,6 +73,7 @@ function GoalsPage() {
 					/>
 					<AddAccountForm onAdd={(account) => addAccount.mutate(account)} />
 					<SaveFailed change={addAccount} />
+					<BankConnections />
 				</div>
 			</>
 		);
@@ -133,6 +139,7 @@ function GoalsPage() {
 						))}
 					</List>
 				</Section>
+				<BankConnections />
 				{completed.length > 0 ? (
 					<Section aria-labelledby="completed-goals">
 						<SectionHeader id="completed-goals" title="Completed" count={completed.length} />

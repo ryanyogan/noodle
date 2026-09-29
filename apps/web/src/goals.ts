@@ -259,6 +259,7 @@ export const withAccount = (data: GoalsData, v: AddAccountVariables): GoalsData 
 						id: v.accountId,
 						name: v.name,
 						kind: v.kind,
+						bankConnectionId: null,
 						latestBalance:
 							v.balanceCents === null ? null : { amount: v.balanceCents, at: Date.now() },
 					},

@@ -222,8 +222,41 @@ export const commitmentTerms = sqliteTable(
 	],
 );
 
-// A real-world place money lives or is owed, entered by hand. For credit cards and loans the
-// balance is what's owed. `kind` is ACCOUNT_KINDS in @noodle/domain.
+// A Bank Connection: an ongoing authorized link to a financial institution, through a provider
+// (Plaid today), that produces Imports automatically. `external_id` is the provider's ID for the
+// link (Plaid's Item). `credential` is what the provider needs to read it (Plaid's access token),
+// encrypted by the Worker before it's stored (bank-credential.ts) and never sent to a browser.
+// `cursor` is where the provider's changes were last read up to; `status` is "importing" until the
+// institution's history has all come in.
+export const bankConnections = sqliteTable(
+	"bank_connections",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		provider: text("provider", { enum: ["plaid"] }).notNull(),
+		externalId: text("external_id").notNull(),
+		institution: text("institution"),
+		credential: text("credential").notNull(),
+		cursor: text("cursor"),
+		status: text("status", { enum: ["importing", "ready", "failed"] })
+			.notNull()
+			.default("importing"),
+		lastImportedAt: integer("last_imported_at", { mode: "timestamp_ms" }),
+		createdByMemberId: text("created_by_member_id")
+			.notNull()
+			.references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [uniqueIndex("bank_connections_external_idx").on(t.householdId, t.provider, t.externalId)],
+);
+
+// A real-world place money lives or is owed, entered by hand or brought in by a Bank Connection
+// (with the provider's ID for it). For credit cards and loans the balance is what's owed. `kind`
+// is ACCOUNT_KINDS in @noodle/domain.
 export const accounts = sqliteTable(
 	"accounts",
 	{
@@ -236,8 +269,13 @@ export const accounts = sqliteTable(
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()
 			.default(sql`(unixepoch() * 1000)`),
+		bankConnectionId: text("bank_connection_id").references(() => bankConnections.id),
+		externalId: text("external_id"),
 	},
-	(t) => [index("accounts_household_idx").on(t.householdId)],
+	(t) => [
+		index("accounts_household_idx").on(t.householdId),
+		uniqueIndex("accounts_bank_external_idx").on(t.bankConnectionId, t.externalId),
+	],
 );
 
 // A balance a Parent entered for an Account. Appended, never updated: the latest one is the
@@ -261,8 +299,8 @@ export const accountBalances = sqliteTable(
 	(t) => [index("account_balances_account_idx").on(t.accountId)],
 );
 
-// A batch of Transactions brought in from an Account: today from a statement file a Parent
-// uploaded (kept in R2 under `file_key`), later from a Bank Connection too. Its lines land as
+// A batch of Transactions brought in from an Account: from a statement file a Parent uploaded
+// (kept in R2 under `file_key`), or read from its Bank Connection ("bank"). Its lines land as
 // Transactions (money out, and money back on a card or loan) and income (money into a checking or
 // savings Account), each keyed by its line's ID in the Account, so an overlapping Import adds
 // nothing twice. The counts are of lines this Import added; `duplicate_count` were already in.
@@ -276,7 +314,7 @@ export const imports = sqliteTable(
 		accountId: text("account_id")
 			.notNull()
 			.references(() => accounts.id),
-		source: text("source", { enum: ["csv", "ofx"] }).notNull(),
+		source: text("source", { enum: ["csv", "ofx", "bank"] }).notNull(),
 		fileName: text("file_name"),
 		fileKey: text("file_key"),
 		status: text("status", { enum: ["processing", "imported"] }).notNull(),
@@ -292,6 +330,7 @@ export const imports = sqliteTable(
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()
 			.default(sql`(unixepoch() * 1000)`),
+		bankConnectionId: text("bank_connection_id").references(() => bankConnections.id),
 	},
 	(t) => [index("imports_account_idx").on(t.accountId)],
 );

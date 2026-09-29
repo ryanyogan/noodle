@@ -25,6 +25,18 @@ export {
 	type Verdicted,
 } from "./affordability";
 export { type ApplyPreview, type ApplyPreviewInput, applyPreview } from "./apply-preview";
+export {
+	ACCOUNT_NAME_MAX,
+	type BankAccount,
+	type BankLine,
+	bankAccountName,
+	dollarsToCents,
+	type PlaidAccount,
+	type PlaidTransaction,
+	plaidAccountKind,
+	plaidBankAccount,
+	plaidLine,
+} from "./bank-connections";
 export { parseCapturedAmount } from "./capture";
 export {
 	AUTO_FILE_CONFIDENCE,
