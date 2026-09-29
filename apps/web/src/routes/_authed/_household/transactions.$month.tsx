@@ -6,6 +6,7 @@ import {
 	monthKeyAt,
 	type Plan,
 } from "@noodle/domain";
+import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { List, ListGroupLabel } from "@noodle/ui/components/list";
@@ -21,6 +22,7 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	ReceiptText,
+	Sparkles,
 	Split as SplitIcon,
 	Target,
 } from "lucide-react";
@@ -433,6 +435,8 @@ function TransactionItem({
 	const { transfer } = transaction;
 	const moneyBack = transaction.amountCents < 0;
 	const refund = transaction.refundOf !== null;
+	// Filed by categorization and not yet looked at: marked, so a Parent can tap to check it.
+	const autoFiled = transaction.autoFiled !== null && !split && !transfer && !refund && !moneyBack;
 	const detail = transaction.goal
 		? `From the ${assignment.name} Goal`
 		: transfer
@@ -467,7 +471,15 @@ function TransactionItem({
 				</Tile>
 			)}
 			<span className="grid min-w-0 gap-0.5">
-				<span className="truncate text-sm font-medium">{title}</span>
+				<span className="flex min-w-0 items-center gap-1.5">
+					<span className="truncate text-sm font-medium">{title}</span>
+					{autoFiled ? (
+						<Badge aria-hidden="true" className="h-4.5 px-1.5 text-[11px]">
+							<Sparkles />
+							Auto
+						</Badge>
+					) : null}
+				</span>
 				<span className="truncate text-[13px] text-muted-foreground">{detail}</span>
 			</span>
 			<span className="text-sm font-semibold tabular-nums">{amount}</span>
@@ -496,7 +508,7 @@ function TransactionItem({
 									? `${title}, ${amount}, Money back${spokenFrom}`
 									: split
 										? `${title}, ${amount}, ${detail.replace(" · ", ": ")}`
-										: `${title}, ${amount}, ${assignment.name}, For ${who}${spokenFrom}`
+										: `${title}, ${amount}, ${assignment.name}${autoFiled ? " (filed automatically)" : ""}, For ${who}${spokenFrom}`
 					}
 					onClick={() => onEdit(transaction)}
 					className={rowClassName}

@@ -2,7 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { createPlannedHousehold, serverFn, signedInPage } from "./session";
 
-// Ask runs against its deterministic fake model here (ASK_MODEL=stub in playwright.config.ts):
+// Ask runs against its deterministic fake model here (AI_MODEL=stub in playwright.config.ts):
 // it picks a tool from the question's keywords and answers with the tool's own sentence, so these
 // tests check the real tools, streaming, figures and links, never a live model.
 

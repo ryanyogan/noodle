@@ -11,9 +11,14 @@
 		// Ask's model calls go through this AI Gateway (ADR-0012); "default" is auto-created on first use.
 		"AI_GATEWAY_ID": "default"
 	},
-	// Workers AI, for Ask (ADR-0012). It has no local simulator: `vite dev` calls the real service
-	// with the logged-in account, unless ASK_MODEL=stub (as E2E runs) swaps in a deterministic fake.
+	// Workers AI, for Ask and categorization (ADR-0012). It has no local simulator: `vite dev` calls
+	// the real service with the logged-in account, unless AI_MODEL=stub (as E2E runs) swaps in
+	// deterministic fakes.
 	"ai": { "binding": "AI", "remote": true },
+	// Merchants the Household has filed, as embeddings (AI_MODELS.embed, 1024 dimensions, cosine),
+	// with `householdId` metadata indexed: every query is filtered to one Household. Remote in dev
+	// too (no local simulator); AI_MODEL=stub uses an in-memory fake instead.
+	"vectorize": [{ "binding": "MERCHANTS", "index_name": "noodle-merchants", "remote": true }],
 	"d1_databases": [
 		{
 			"binding": "DB",

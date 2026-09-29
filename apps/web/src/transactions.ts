@@ -124,6 +124,7 @@ function editedRow(row: TransactionRow, next: TransactionEdit): TransactionRow {
 			bucketId: null,
 			commitmentId: null,
 			for: [],
+			autoFiled: null,
 			splits: next.splits.map(
 				(split): SplitRow => ({
 					id: split.id,
@@ -145,6 +146,8 @@ function editedRow(row: TransactionRow, next: TransactionEdit): TransactionRow {
 		note: next.note,
 		for: next.forMemberIds,
 		splits: [],
+		// A Parent has changed or confirmed it: it's no longer categorization's.
+		autoFiled: null,
 	};
 }
 

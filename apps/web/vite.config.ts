@@ -4,19 +4,19 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
-// ASK_MODEL=stub answers Ask with a deterministic fake instead of Workers AI (E2E runs set it).
-// Workers AI is the Worker's only remote binding, so the dev server then needs no Cloudflare
-// account at all. Production builds never set it.
-const askStub = process.env.ASK_MODEL === "stub";
+// AI_MODEL=stub runs Ask and categorization on deterministic fakes instead of Workers AI and
+// Vectorize (E2E runs set it). Those are the Worker's only remote bindings, so the dev server then
+// needs no Cloudflare account at all. Production builds never set it.
+const aiStub = process.env.AI_MODEL === "stub";
 
 export default defineConfig({
 	// PORT lets several checkouts (git worktrees) run the app and its E2E side by side.
 	server: { port: Number(process.env.PORT ?? 5173), strictPort: true },
-	define: { __ASK_STUB__: JSON.stringify(askStub) },
+	define: { __AI_STUB__: JSON.stringify(aiStub) },
 	plugins: [
 		cloudflare({
 			viteEnvironment: { name: "ssr" },
-			remoteBindings: !askStub,
+			remoteBindings: !aiStub,
 			// Every dev server wants the Workers inspector on 9229; a checkout on its own PORT
 			// (a parallel worktree) goes without it so it can start alongside the others.
 			inspectorPort: process.env.PORT ? false : undefined,

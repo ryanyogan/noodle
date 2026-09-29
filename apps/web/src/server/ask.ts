@@ -27,7 +27,7 @@ export const askHousehold = createServerFn({ method: "POST" })
 				parentId: context.parent.id,
 				now: new Date(),
 			},
-			model: __ASK_STUB__ ? stubModel : workersAiModel(env.AI, env.AI_GATEWAY_ID),
+			model: __AI_STUB__ ? stubModel : workersAiModel(env.AI, env.AI_GATEWAY_ID),
 			question: data.question,
 			history: data.history,
 		});

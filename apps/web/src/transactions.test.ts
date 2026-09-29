@@ -56,6 +56,7 @@ const skates: TransactionRow = {
 	matchedIn: null,
 	transfer: null,
 	refundOf: null,
+	autoFiled: null,
 };
 
 const change = (next: TransactionChange["next"]): TransactionChange => ({

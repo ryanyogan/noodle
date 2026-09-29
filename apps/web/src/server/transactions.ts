@@ -11,6 +11,7 @@ import {
 import { type BucketUse, type DayKey, dayKeyAt, MAX_CENTS, splitsBalance } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { afterAssignment } from "./categorize";
 import { getDb } from "./db";
 import { householdMiddleware, viewerOf } from "./household";
 import { monthKeySchema } from "./month";
@@ -130,6 +131,8 @@ export const updateTransaction = createServerFn({ method: "POST" })
 			forMemberIds: data.forMemberIds,
 		});
 		if (!result.ok) throw new Error("That isn’t in the Plan for this Transaction’s month.");
+		// Changed or confirmed: categorization's marker goes, and its merchant is learned.
+		await afterAssignment(viewerOf(context), data.transactionId);
 		await notifyHousehold(context.household.id, [
 			// Every month: what's left can roll into later ones.
 			"months",

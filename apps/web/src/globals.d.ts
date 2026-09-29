@@ -1,2 +1,5 @@
-/** Set by vite.config.ts: true when ASK_MODEL=stub, so Ask answers with its deterministic fake. */
-declare const __ASK_STUB__: boolean;
+/**
+ * Set by vite.config.ts: true when AI_MODEL=stub, so Ask and categorization run on deterministic
+ * fakes instead of Workers AI and Vectorize.
+ */
+declare const __AI_STUB__: boolean;

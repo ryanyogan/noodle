@@ -16,6 +16,7 @@ import {
 	loadSpending,
 	loadTransactionsPage,
 	loadTransfer,
+	loadUncategorized,
 	markTransfer,
 	setBaseline,
 	unlinkRefund,
@@ -146,6 +147,16 @@ describe("Transfers on Import", () => {
 		await assignToGear(await idOf("AUTOPAY VISA"));
 		await assignToGear(await idOf("REI"));
 		expect(await gearSpent()).toBe(3_000);
+	});
+
+	it("never offers a Transfer's side to categorization", async () => {
+		await importInto("card", "i-1", [line("2026-09-11", 50_000, "PAYMENT THANK YOU")]);
+		await importInto("checking", "i-2", [
+			line("2026-09-09", -50_000, "AUTOPAY VISA"),
+			line("2026-09-10", -4_200, "COSTCO WHSE #123"),
+		]);
+		const waiting = await loadUncategorized(db, householdId, "i-2");
+		expect(waiting.map((row) => row.note)).toEqual(["COSTCO WHSE #123"]);
 	});
 
 	it("pairs savings into checking, and the deposit isn't income", async () => {

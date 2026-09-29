@@ -271,6 +271,18 @@ export async function acceptInvite(
 }
 
 export {
+	type CategorizableBucket,
+	type CategorizationDecision,
+	fileCategorizations,
+	loadCategorizableBuckets,
+	loadCorrection,
+	loadRules,
+	loadUncategorized,
+	saveRule,
+	settleCategorization,
+	type Uncategorized,
+} from "./categorize";
+export {
 	addCommitment,
 	addCommitmentPayment,
 	type CommitmentCharge,

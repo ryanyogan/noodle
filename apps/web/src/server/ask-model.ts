@@ -134,7 +134,7 @@ function textOfEvent(data: string): string {
 // The fake
 
 /**
- * A deterministic stand-in for the model, for E2E and unit tests (ASK_MODEL=stub): it picks a
+ * A deterministic stand-in for the model, for E2E and unit tests (AI_MODEL=stub): it picks a
  * tool from keywords in the question, and answers with the tools' own summaries.
  */
 export const stubModel: AskModel = {

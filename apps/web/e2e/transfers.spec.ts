@@ -80,7 +80,8 @@ test("paying the card from checking is one Transfer, which counts nowhere", asyn
 		[
 			"Details,Posting Date,Description,Amount,Type,Balance,Check or Slip #",
 			`DEBIT,${day},"VISA ONLINE PAYMENT",-500.00,ACH_DEBIT,2000.00,`,
-			`DEBIT,${day},"SAFEWAY #1",-30.00,DEBIT_CARD,1970.00,`,
+			// A merchant categorization doesn't know (AI_MODEL=stub), so it stays unassigned.
+			`DEBIT,${day},"CORNER STORE #1",-30.00,DEBIT_CARD,1970.00,`,
 		],
 	);
 	await expect(toast(page, "checking.csv: 2 Transactions")).toBeVisible();

@@ -6,7 +6,7 @@ import { List, ListRow } from "@noodle/ui/components/list";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { cn } from "@noodle/ui/lib/utils";
 import { useHydrated } from "@tanstack/react-router";
-import { Plus, Split as SplitIcon, Trash2, X } from "lucide-react";
+import { Plus, Sparkles, Split as SplitIcon, Trash2, X } from "lucide-react";
 import { type FormEvent, type ReactNode, useState } from "react";
 import { ulid } from "ulid";
 import { dayName, formatMoney, formatMoneyInput } from "../format";
@@ -23,6 +23,13 @@ import { MatchSection } from "./match-section";
 import { MoneyDetail, TransferSection } from "./money-sections";
 import { NativeSelect } from "./native-select";
 import { Confirm } from "./plan-editing";
+
+/** Why an imported Transaction is in its Bucket, when categorization put it there. */
+const AUTO_FILED: Record<NonNullable<TransactionRow["autoFiled"]>, string> = {
+	rule: "Filed automatically by a Rule.",
+	similar: "Filed automatically, like this merchant before.",
+	model: "Filed automatically, as a best guess.",
+};
 
 /** An assignment as a select's value: "bucket:ID" or "commitment:ID". */
 const assignmentValue = (row: Pick<SplitRow, "bucketId" | "commitmentId">) =>
@@ -289,7 +296,18 @@ function EditForm({
 					/>
 				</Field>
 				{splits ? null : (
-					<Field label="Assigned to" htmlFor="transaction-assignment">
+					<Field
+						label="Assigned to"
+						htmlFor="transaction-assignment"
+						hint={
+							transaction.autoFiled && assignment === assignmentValue(transaction) ? (
+								<span className="inline-flex items-center gap-1" data-testid="auto-filed-hint">
+									<Sparkles aria-hidden="true" className="size-3 shrink-0" />
+									{AUTO_FILED[transaction.autoFiled]} Change it if it’s wrong.
+								</span>
+							) : undefined
+						}
+					>
 						<NativeSelect
 							id="transaction-assignment"
 							name="assignment"

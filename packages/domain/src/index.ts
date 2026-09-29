@@ -26,6 +26,16 @@ export {
 	type Verdicted,
 } from "./affordability";
 export {
+	AUTO_FILE_CONFIDENCE,
+	type Categorization,
+	type CategorizationMethod,
+	decideCategorization,
+	merchantKey,
+	type Rule,
+	ruleFor,
+	SIMILAR_MERCHANT_SCORE,
+} from "./categorize";
+export {
 	CADENCES,
 	type Cadence,
 	type CommitmentTerms,

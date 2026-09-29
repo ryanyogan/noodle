@@ -5,6 +5,7 @@ import {
 	index,
 	integer,
 	primaryKey,
+	real,
 	sqliteTable,
 	text,
 	uniqueIndex,
@@ -679,6 +680,56 @@ export const monthCloses = sqliteTable(
 			.default(sql`(unixepoch() * 1000)`),
 	},
 	(t) => [uniqueIndex("month_closes_household_month_idx").on(t.householdId, t.month)],
+);
+
+// A Rule: a stated mapping from a merchant pattern (a merchantKey from @noodle/domain, matched as
+// whole words) to a Bucket. Categorization tries Rules before anything learned or modelled, and a
+// Rule always wins. One per Household and pattern.
+export const rules = sqliteTable(
+	"rules",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		pattern: text("pattern").notNull(),
+		bucketId: text("bucket_id")
+			.notNull()
+			.references(() => buckets.id),
+		createdByMemberId: text("created_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [uniqueIndex("rules_household_pattern_idx").on(t.householdId, t.pattern)],
+);
+
+// What categorization decided for an imported Transaction, made for the Parent who imported it
+// (`member_id`), so only Buckets they may see were considered (ADR-0003). `filed`: it was assigned
+// to `bucket_id`, and shows an "auto" marker while it still is; `review`: it was left unassigned
+// for Review, with `bucket_id` the best guess (never a Personal Allowance) or none. `merchant` is
+// the merchantKey of its statement line, so a Parent's correction teaches the right merchant even
+// once its note is edited. Deleted with its Transaction.
+export const categorizations = sqliteTable(
+	"categorizations",
+	{
+		transactionId: text("transaction_id")
+			.primaryKey()
+			.references(() => transactions.id, { onDelete: "cascade" }),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		memberId: text("member_id").references(() => members.id),
+		outcome: text("outcome", { enum: ["filed", "review"] }).notNull(),
+		method: text("method", { enum: ["rule", "similar", "model"] }),
+		bucketId: text("bucket_id").references(() => buckets.id),
+		confidence: real("confidence"),
+		merchant: text("merchant").notNull(),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [index("categorizations_household_idx").on(t.householdId, t.outcome)],
 );
 
 export type Household = typeof households.$inferSelect;

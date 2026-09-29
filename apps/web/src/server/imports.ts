@@ -5,6 +5,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { ulid } from "ulid";
 import { z } from "zod";
 import type { HouseholdChange } from "../household-changes";
+import { categorizeAfterImport } from "./categorize";
 import { getDb } from "./db";
 import { householdMiddleware } from "./household";
 import { notifyHousehold } from "./notify";
@@ -102,5 +103,9 @@ export const uploadStatement = createServerFn({ method: "POST" })
 			...result.months.map((month) => `month:${month}` as HouseholdChange),
 		];
 		await notifyHousehold(household.id, changes);
+		categorizeAfterImport(
+			{ householdId: household.id, memberId: context.parent.id },
+			data.importId,
+		);
 		return { ok: true, import: result.import };
 	});

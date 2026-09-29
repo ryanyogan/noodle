@@ -2,6 +2,7 @@ import {
 	type Assignment,
 	type AttributedSpend,
 	type BucketUse,
+	type CategorizationMethod,
 	type Cents,
 	type DayKey,
 	type MonthKey,
@@ -39,6 +40,7 @@ import {
 import {
 	accounts,
 	buckets,
+	categorizations,
 	commitments,
 	goals,
 	matches,
@@ -397,6 +399,11 @@ export type TransactionRow = {
 	 * change (changeableBy). Says nothing about that part: not its amount, Bucket, or how many.
 	 */
 	partlyPrivate: boolean;
+	/**
+	 * How categorization filed it into its Bucket, while it's still there and no Parent has
+	 * changed or confirmed it; null otherwise. The list marks it so a Parent can check it.
+	 */
+	autoFiled: CategorizationMethod | null;
 };
 
 /** Where a page of the list starts: after this Transaction, going back in time. */
@@ -493,10 +500,19 @@ export async function loadTransactionsPage(
 			refundOf: sql<string | null>`(select coalesce(o.note, '') from refunds r
 				join transactions o on o.id = r.original_transaction_id
 				where r.refund_transaction_id = ${transactions.id} and r.removed_at is null)`,
+			autoFiled: categorizations.method,
 		})
 		.from(transactions)
 		.leftJoin(goals, eq(goals.id, transactions.goalId))
 		.leftJoin(accounts, eq(accounts.id, transactions.accountId))
+		.leftJoin(
+			categorizations,
+			and(
+				eq(categorizations.transactionId, transactions.id),
+				eq(categorizations.outcome, "filed"),
+				eq(categorizations.bucketId, transactions.bucketId),
+			),
+		)
 		.where(
 			and(
 				visibleTo(viewer),

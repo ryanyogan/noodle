@@ -14,6 +14,7 @@ import {
 	loadMatch,
 	loadSpending,
 	loadTransactionsPage,
+	loadUncategorized,
 	matchTransactions,
 	setBaseline,
 	unmatch,
@@ -137,6 +138,16 @@ describe("Match on Import", () => {
 		});
 		// The bank copy is no bucket use of its own either.
 		expect(await loadBucketUses(db, viewer, "2026-09-01")).toHaveLength(1);
+	});
+
+	it("never offers a Quick Add's bank copy to categorization, only the unmatched lines", async () => {
+		await quickAdd("dinner", "2026-09-10", 4_250, "Nopa");
+		await importLines("import-1", [
+			spent("2026-09-12", 4_250, "NOPA SAN FRANCISCO"),
+			spent("2026-09-13", 6_100, "COSTCO WHSE #123"),
+		]);
+		const waiting = await loadUncategorized(db, householdId, "import-1");
+		expect(waiting.map((row) => row.note)).toEqual(["COSTCO WHSE #123"]);
 	});
 
 	it("leaves a near miss alone: an amount off by a cent, or a date outside the window", async () => {
