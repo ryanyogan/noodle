@@ -8,6 +8,7 @@ import {
 	possibleMatches,
 } from "@noodle/domain";
 import { and, eq, gte, inArray, isNotNull, isNull, lte, or, type SQL, sql } from "drizzle-orm";
+import { inTransfer } from "./counting";
 import type { Db } from "./index";
 import { changeableBy, type Viewer, visibleTo } from "./privacy";
 import { accounts, matches, splits, transactions } from "./schema";
@@ -34,11 +35,15 @@ export type MatchView =
 	| { kind: "unmatched"; possible: MatchPeer[] }
 	| { kind: "none" };
 
-/** A Quick Add or an imported Transaction still unmatched and whole, as matching reads it. */
+/**
+ * A Quick Add or an imported Transaction still unmatched and whole, as matching reads it; never a
+ * Transfer's side, which isn't spending at all.
+ */
 const unmatchedSide = (source: "quick-add" | "import") =>
 	and(
 		eq(transactions.source, source),
 		sql`${transactions.amountCents} > 0`,
+		sql`not ${inTransfer()}`,
 		sql`not exists (select 1 from ${matches} where (${matches.quickAddId} = ${transactions.id} or ${matches.importedId} = ${transactions.id}) and ${matches.removedAt} is null)`,
 	) as SQL;
 

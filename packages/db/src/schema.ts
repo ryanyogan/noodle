@@ -474,6 +474,69 @@ export const matches = sqliteTable(
 	],
 );
 
+// A Transfer: money moving between two of the Household's own Accounts, so neither side counts as
+// spending or income (counting.ts). The side leaving an Account is a Transaction (money out); the
+// side arriving is money back onto a card or loan (a negative Transaction) or income. Either side
+// may be missing: a Parent can mark one side alone, when the other Account isn't imported.
+// Appended by an Import (no created_by) or a Parent; unmarking sets removed_at, and a removed pair
+// is never marked again automatically. Each Transaction or income row is in one Transfer at a time.
+export const transfers = sqliteTable(
+	"transfers",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		outTransactionId: text("out_transaction_id").references(() => transactions.id),
+		inTransactionId: text("in_transaction_id").references(() => transactions.id),
+		inIncomeId: text("in_income_id").references(() => income.id),
+		createdByMemberId: text("created_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+		removedAt: integer("removed_at", { mode: "timestamp_ms" }),
+		removedByMemberId: text("removed_by_member_id").references(() => members.id),
+	},
+	(t) => [
+		index("transfers_household_idx").on(t.householdId),
+		uniqueIndex("transfers_one_per_out").on(t.outTransactionId).where(sql`${t.removedAt} is null`),
+		uniqueIndex("transfers_one_per_in").on(t.inTransactionId).where(sql`${t.removedAt} is null`),
+		uniqueIndex("transfers_one_per_income").on(t.inIncomeId).where(sql`${t.removedAt} is null`),
+	],
+);
+
+// A Refund: money back (a negative Transaction) linked to the purchase it's for. While linked, the
+// money back carries the purchase's assignment and For, so it restores that Bucket (or Commitment,
+// or Goal) in the month it lands. Unlinking sets removed_at and clears that assignment again.
+export const refunds = sqliteTable(
+	"refunds",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		refundTransactionId: text("refund_transaction_id")
+			.notNull()
+			.references(() => transactions.id),
+		originalTransactionId: text("original_transaction_id")
+			.notNull()
+			.references(() => transactions.id),
+		createdByMemberId: text("created_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+		removedAt: integer("removed_at", { mode: "timestamp_ms" }),
+		removedByMemberId: text("removed_by_member_id").references(() => members.id),
+	},
+	(t) => [
+		index("refunds_household_idx").on(t.householdId),
+		index("refunds_original_idx").on(t.originalTransactionId),
+		uniqueIndex("refunds_one_per_refund")
+			.on(t.refundTransactionId)
+			.where(sql`${t.removedAt} is null`),
+	],
+);
+
 // A Move of planned money within one month's Plan (no real money moves): from a Bucket, or from
 // Free to Spend when `from_bucket_id` is null, to a Bucket (a Cover) or, for Goal funding, from
 // Free to Spend to a Goal's Earmark (`to_goal_id`, with `to_bucket_id` null). A `windfall` Move

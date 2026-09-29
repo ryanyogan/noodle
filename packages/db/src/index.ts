@@ -396,6 +396,19 @@ export {
 	updateTransaction,
 } from "./transactions";
 export {
+	detectTransfers,
+	linkRefund,
+	loadRefund,
+	loadTransfer,
+	type MoneyPeer,
+	type MoneyResult,
+	markTransfer,
+	type RefundView,
+	type TransferView,
+	unlinkRefund,
+	unmarkTransfer,
+} from "./transfers";
+export {
 	addIncome,
 	decideWindfall,
 	type IncomeRecord,

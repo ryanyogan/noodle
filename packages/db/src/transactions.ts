@@ -43,10 +43,12 @@ import {
 	goals,
 	matches,
 	members,
+	refunds,
 	splitFor,
 	splits,
 	transactionFor,
 	transactions,
+	transfers,
 } from "./schema";
 
 export type { Assignment, SplitAssignment };
@@ -380,6 +382,13 @@ export type TransactionRow = {
 	importedFrom: string | null;
 	/** For a Quick Add Matched to its bank copy: the Account the copy was imported into. */
 	matchedIn: string | null;
+	/**
+	 * For a side of a Transfer (which counts nowhere): the Accounts the money left and arrived in,
+	 * each null when that side isn't imported.
+	 */
+	transfer: { from: string | null; to: string | null } | null;
+	/** For money back linked as a Refund: the purchase's note, or "" when it has none. */
+	refundOf: string | null;
 	for: string[];
 	/** Its Splits in the order they were entered, those the Viewer may see; none unless it's split. */
 	splits: SplitRow[];
@@ -472,6 +481,18 @@ export async function loadTransactionsPage(
 			matchedIn: sql<string | null>`(select a.name from matches m
 				join transactions c on c.id = m.imported_id join accounts a on a.id = c.account_id
 				where m.quick_add_id = ${transactions.id} and m.removed_at is null)`,
+			transfer: sql<
+				string | null
+			>`(select json_object('from', ao.name, 'to', coalesce(ai.name, ic.name))
+				from transfers x
+				left join transactions o on o.id = x.out_transaction_id left join accounts ao on ao.id = o.account_id
+				left join transactions n on n.id = x.in_transaction_id left join accounts ai on ai.id = n.account_id
+				left join income i on i.id = x.in_income_id left join accounts ic on ic.id = i.account_id
+				where (x.out_transaction_id = ${transactions.id} or x.in_transaction_id = ${transactions.id})
+				and x.removed_at is null)`,
+			refundOf: sql<string | null>`(select coalesce(o.note, '') from refunds r
+				join transactions o on o.id = r.original_transaction_id
+				where r.refund_transaction_id = ${transactions.id} and r.removed_at is null)`,
 		})
 		.from(transactions)
 		.leftJoin(goals, eq(goals.id, transactions.goalId))
@@ -554,9 +575,10 @@ export async function loadTransactionsPage(
 	return {
 		// Dates are always written as DayKeys.
 		transactions: page.map(
-			({ goalId, goalName, ...row }) =>
+			({ goalId, goalName, transfer, ...row }) =>
 				({
 					...row,
+					transfer: transfer ? JSON.parse(transfer) : null,
 					goal: goalId ? { id: goalId, name: goalName ?? "A Goal" } : null,
 					for: forOf.get(row.id) ?? [],
 					splits: splitsOf.get(row.id) ?? [],
@@ -897,6 +919,11 @@ export async function splitTransaction(
 	return landed ? { ok: true } : { ok: false, reason: "not-in-plan" };
 }
 
+/** Raw SQL: the IDs of money back linked as a Refund of the Transaction `id`. */
+const refundedBy = (id: string) =>
+	sql`(select r.refund_transaction_id from refunds r where r.original_transaction_id = ${id}
+		and r.removed_at is null)`;
+
 /**
  * Deletes a Transaction, its For, and its Splits, for the Parent `memberId`: never one with
  * spending in the other Parent's Personal Allowance, even through a Split, and never Goal spending
@@ -919,6 +946,50 @@ export async function deleteTransaction(
 				and(
 					eq(transactionFor.transactionId, input.transactionId),
 					eq(transactionFor.householdId, input.householdId),
+					deletable,
+				),
+			),
+		// Money back linked to it as a Refund is unassigned again, and its Refunds and Transfers go.
+		db
+			.delete(transactionFor)
+			.where(
+				and(
+					eq(transactionFor.householdId, input.householdId),
+					inArray(transactionFor.transactionId, refundedBy(input.transactionId)),
+					deletable,
+				),
+			),
+		db
+			.update(transactions)
+			.set({ bucketId: null, commitmentId: null, goalId: null })
+			.where(
+				and(
+					eq(transactions.householdId, input.householdId),
+					inArray(transactions.id, refundedBy(input.transactionId)),
+					deletable,
+				),
+			),
+		db
+			.delete(refunds)
+			.where(
+				and(
+					eq(refunds.householdId, input.householdId),
+					or(
+						eq(refunds.originalTransactionId, input.transactionId),
+						eq(refunds.refundTransactionId, input.transactionId),
+					),
+					deletable,
+				),
+			),
+		db
+			.delete(transfers)
+			.where(
+				and(
+					eq(transfers.householdId, input.householdId),
+					or(
+						eq(transfers.outTransactionId, input.transactionId),
+						eq(transfers.inTransactionId, input.transactionId),
+					),
 					deletable,
 				),
 			),

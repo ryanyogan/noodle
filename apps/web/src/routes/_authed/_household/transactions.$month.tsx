@@ -16,7 +16,14 @@ import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound, useHydrated, useNavigate } from "@tanstack/react-router";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { ChevronLeft, ChevronRight, ReceiptText, Split as SplitIcon, Target } from "lucide-react";
+import {
+	ArrowLeftRight,
+	ChevronLeft,
+	ChevronRight,
+	ReceiptText,
+	Split as SplitIcon,
+	Target,
+} from "lucide-react";
 import { type ComponentProps, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { asBucketColor, monogram } from "../../../buckets";
@@ -34,6 +41,7 @@ import {
 	transactionsQuery,
 	useTransactionChange,
 } from "../../../transactions";
+import { transferDetail } from "../../../transfers";
 
 export const Route = createFileRoute("/_authed/_household/transactions/$month")({
 	validateSearch: z.object({
@@ -420,18 +428,24 @@ function TransactionItem({
 		: transaction.matchedIn
 			? `, Matched in ${transaction.matchedIn}`
 			: "";
-	// Money back onto a card or loan (a payment or a Refund) counts nowhere, and waits for
-	// Transfers and Refunds to claim it; there's nothing to edit yet.
+	// A side of a Transfer counts nowhere; so does money back onto a card or loan until it's
+	// linked as a Refund. Either opens its Transfer and Refund link instead of the editor.
+	const { transfer } = transaction;
 	const moneyBack = transaction.amountCents < 0;
+	const refund = transaction.refundOf !== null;
 	const detail = transaction.goal
 		? `From the ${assignment.name} Goal`
-		: moneyBack
-			? `Money back${from}`
-			: split
-				? `Split across ${transaction.splits.length} · ${[
-						...new Set(transaction.splits.map((s) => assignmentOf(s, plan).name)),
-					].join(", ")}${from}`
-				: `${assignment.name} · ${who}${from}`;
+		: transfer
+			? transferDetail(transfer)
+			: refund
+				? `Refund · ${assignment.name}${from}`
+				: moneyBack
+					? `Money back${from}`
+					: split
+						? `Split across ${transaction.splits.length} · ${[
+								...new Set(transaction.splits.map((s) => assignmentOf(s, plan).name)),
+							].join(", ")}${from}`
+						: `${assignment.name} · ${who}${from}`;
 	const rowClassName = cn(
 		"grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-(--card-pad) py-3.5 text-start",
 		"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60",
@@ -439,7 +453,11 @@ function TransactionItem({
 	);
 	const content = (
 		<>
-			{split ? (
+			{transfer ? (
+				<Tile aria-hidden="true">
+					<ArrowLeftRight className="size-4" />
+				</Tile>
+			) : split ? (
 				<Tile aria-hidden="true">
 					<SplitIcon className="size-4" />
 				</Tile>
@@ -466,15 +484,19 @@ function TransactionItem({
 				>
 					{content}
 				</Link>
-			) : moneyBack ? (
-				<div className={cn(rowClassName, "hover:bg-transparent")}>{content}</div>
 			) : (
 				<button
 					type="button"
 					aria-label={
-						split
-							? `${title}, ${amount}, ${detail.replace(" · ", ": ")}`
-							: `${title}, ${amount}, ${assignment.name}, For ${who}${spokenFrom}`
+						transfer
+							? `${title}, ${amount}, ${detail.replace(" · ", ", ").replace(" → ", " to ")}`
+							: refund
+								? `${title}, ${amount}, Refund, ${assignment.name}${spokenFrom}`
+								: moneyBack
+									? `${title}, ${amount}, Money back${spokenFrom}`
+									: split
+										? `${title}, ${amount}, ${detail.replace(" · ", ": ")}`
+										: `${title}, ${amount}, ${assignment.name}, For ${who}${spokenFrom}`
 					}
 					onClick={() => onEdit(transaction)}
 					className={rowClassName}

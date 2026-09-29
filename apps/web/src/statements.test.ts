@@ -21,6 +21,14 @@ describe("importSummary", () => {
 		);
 	});
 
+	test("says how many were Transfers", () => {
+		const record = { transactionCount: 4, incomeCount: 0, duplicateCount: 0 };
+		expect(importSummary({ ...record, transferCount: 1 })).toBe("4 Transactions; 1 Transfer");
+		expect(importSummary({ ...record, matchedCount: 1, transferCount: 2 })).toBe(
+			"4 Transactions; 1 Matched to a Quick Add; 2 Transfers",
+		);
+	});
+
 	test("says when nothing was new", () => {
 		expect(summary(0, 0, 6)).toBe("Nothing new; 6 already imported");
 		expect(summary(0, 0, 0)).toBe("Nothing new");

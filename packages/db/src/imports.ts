@@ -10,6 +10,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
 import { accounts, csvMappings, imports, income, transactions } from "./schema";
+import { detectTransfers } from "./transfers";
 
 // Imports: a statement's lines brought into one of the Household's Accounts. Money out becomes
 // unassigned Transactions (in no Bucket until a Parent or, later, categorization assigns them);
@@ -19,7 +20,8 @@ import { accounts, csvMappings, imports, income, transactions } from "./schema";
 // own, or a fingerprint; statementLineIds in @noodle/domain) behind a unique index, so bringing in
 // the same or an overlapping statement again adds nothing twice, and a retried Import is a no-op.
 // After the lines land, the statement's days are Matched with Quick Adds (matchImported), so a
-// Quick Add's bank copy counts once; a retry Matches nothing twice.
+// Quick Add's bank copy counts once; a retry Matches nothing twice. Then clear Transfers between
+// the Household's Accounts are marked (detectTransfers), so paying the card counts nowhere.
 
 /** An Import, as its Account's history shows it. */
 export type ImportRecord = {
@@ -31,6 +33,8 @@ export type ImportRecord = {
 	duplicateCount: number;
 	/** How many of its Transactions are Matched to Quick Adds now. */
 	matchedCount: number;
+	/** How many of its lines (Transactions or income) are sides of Transfers now. */
+	transferCount: number;
 	firstDate: DayKey | null;
 	lastDate: DayKey | null;
 	closingBalance: ClosingBalance | null;
@@ -38,7 +42,7 @@ export type ImportRecord = {
 };
 
 export type ImportResult =
-	| { ok: true; import: ImportRecord; months: string[]; matched: number }
+	| { ok: true; import: ImportRecord; months: string[]; matched: number; transfers: number }
 	| { ok: false; reason: "no-account" | "nothing-to-import" };
 
 /**
@@ -182,13 +186,17 @@ export async function importStatement(
 	const first = dates[0] as DayKey;
 	const last = dates.at(-1) as DayKey;
 	const matched = await matchImported(db, householdId, first, last, input.newId);
+	const moved = await detectTransfers(db, householdId, first, last, input.newId);
 	const [written] = await loadImports(db, householdId, accountId, importId);
 	if (!written) return { ok: false, reason: "no-account" };
 	return {
 		ok: true,
 		import: written,
-		months: [...new Set([...dates.map((date) => date.slice(0, 7)), ...matched.months])],
+		months: [
+			...new Set([...dates.map((date) => date.slice(0, 7)), ...matched.months, ...moved.months]),
+		],
 		matched: matched.matched,
+		transfers: moved.marked,
 	};
 }
 
@@ -212,6 +220,10 @@ export async function loadImports(
 			row: imports,
 			matchedCount: sql<number>`(select count(*) from matches m join transactions t
 				on t.id = m.imported_id where t.import_id = imports.id and m.removed_at is null)`,
+			transferCount: sql<number>`(select count(*) from transfers x where x.removed_at is null and (
+				exists (select 1 from transactions t where t.import_id = imports.id
+					and t.id in (x.out_transaction_id, x.in_transaction_id))
+				or exists (select 1 from income i where i.import_id = imports.id and i.id = x.in_income_id)))`,
 		})
 		.from(imports)
 		.where(
@@ -223,7 +235,7 @@ export async function loadImports(
 		)
 		.orderBy(desc(imports.createdAt), desc(imports.id));
 	// Dates are always written as DayKeys.
-	return rows.map(({ row, matchedCount }) => ({
+	return rows.map(({ row, matchedCount, transferCount }) => ({
 		id: row.id,
 		source: row.source,
 		fileName: row.fileName,
@@ -231,6 +243,7 @@ export async function loadImports(
 		incomeCount: row.incomeCount,
 		duplicateCount: row.duplicateCount,
 		matchedCount,
+		transferCount,
 		firstDate: row.firstDate as DayKey | null,
 		lastDate: row.lastDate as DayKey | null,
 		closingBalance:

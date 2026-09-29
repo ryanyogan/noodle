@@ -104,8 +104,10 @@ test("money back onto a card is listed but counts nowhere", async ({ browser }) 
 	const refund = page.getByRole("listitem").filter({ hasText: "REI #11 RETURN" });
 	await expect(refund).toContainText("Money back · Visa");
 	await expect(refund).toContainText("−$24.99");
-	// Nothing to edit until Transfers and Refunds can claim it.
-	await expect(refund.getByRole("button")).toHaveCount(0);
+	// It opens its Transfer and Refund link, not the editor.
+	await expect(refund.getByRole("button")).toHaveAccessibleName(
+		"REI #11 RETURN, −$24.99, Money back, from Visa",
+	);
 	await expect(
 		page.getByRole("button", { name: "NETFLIX.COM, $15.49, Unassigned, For Everyone, from Visa" }),
 	).toBeVisible();

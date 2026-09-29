@@ -23,7 +23,7 @@ const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? on
  */
 export function importSummary(
 	record: Pick<ImportRecord, "transactionCount" | "incomeCount" | "duplicateCount"> &
-		Partial<Pick<ImportRecord, "matchedCount">>,
+		Partial<Pick<ImportRecord, "matchedCount" | "transferCount">>,
 ): string {
 	const added = [
 		record.transactionCount > 0 ? count(record.transactionCount, "Transaction") : null,
@@ -32,9 +32,10 @@ export function importSummary(
 	const matched = record.matchedCount
 		? `${record.matchedCount} Matched to ${record.matchedCount === 1 ? "a Quick Add" : "Quick Adds"}`
 		: null;
+	const transfers = record.transferCount ? count(record.transferCount, "Transfer") : null;
 	const already = record.duplicateCount > 0 ? `${record.duplicateCount} already imported` : null;
 	if (added.length === 0) return already ? `Nothing new; ${already}` : "Nothing new";
-	return [added.join(" and "), matched, already].filter(Boolean).join("; ");
+	return [added.join(" and "), matched, transfers, already].filter(Boolean).join("; ");
 }
 
 /**

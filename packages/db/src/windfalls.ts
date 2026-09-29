@@ -1,11 +1,12 @@
 import type { Cents, DayKey, MonthKey, WindfallDestination } from "@noodle/domain";
 import { addMonths } from "@noodle/domain";
-import { and, eq, gte, isNull, lt, type SQL, sql } from "drizzle-orm";
+import { and, eq, gte, isNotNull, isNull, lt, type SQL, sql } from "drizzle-orm";
+import { incomeCounts, incomeCountsRaw } from "./counting";
 import { earmarkSql } from "./goals";
 import type { Db } from "./index";
 import { bucketInPlan } from "./moves";
 import { assignableBy } from "./privacy";
-import { buckets, goals, income, moves } from "./schema";
+import { buckets, goals, income, moves, transfers } from "./schema";
 
 // Income, and Windfall Moves: income beyond a month's Baseline Moved deliberately to a Goal or a
 // Bucket (ADR-0001), never silently into Free to Spend. Every query is scoped by household_id.
@@ -13,7 +14,10 @@ import { buckets, goals, income, moves } from "./schema";
 /** Income with its ID and note. */
 export type IncomeRecord = { id: string; amount: Cents; date: DayKey; note: string | null };
 
-/** Income received in months from `from` up to, not including, `until`, oldest first. */
+/**
+ * Income received in months from `from` up to, not including, `until`, oldest first: never money
+ * that arrived by Transfer from another of the Household's Accounts.
+ */
 export async function loadIncome(
 	db: Db,
 	householdId: string,
@@ -28,6 +32,7 @@ export async function loadIncome(
 				eq(income.householdId, householdId),
 				gte(income.date, `${from}-01`),
 				lt(income.date, `${until}-01`),
+				incomeCounts(),
 			),
 		)
 		.orderBy(income.date, income.id);
@@ -67,7 +72,8 @@ export async function addIncome(
 const receivedSql = (householdId: string, month: MonthKey) =>
 	sql`coalesce((select sum(i.amount_cents) from income i
 		where i.household_id = ${householdId}
-		and i.date >= ${`${month}-01`} and i.date < ${`${addMonths(month, 1)}-01`}), 0)`;
+		and i.date >= ${`${month}-01`} and i.date < ${`${addMonths(month, 1)}-01`}
+		and ${sql.raw(incomeCountsRaw("i.id"))}), 0)`;
 
 const baselineSql = (householdId: string, month: MonthKey) =>
 	sql`(select b.amount_cents from baselines b
@@ -104,14 +110,25 @@ export async function removeIncome(
 		gte(income.date, `${month}-01`),
 		lt(income.date, `${addMonths(month, 1)}-01`),
 	);
-	await db
-		.delete(income)
-		.where(
-			and(
-				own,
-				sql`${windfallSql(householdId, month, sql.raw("income.amount_cents"))} >= ${decidedSql(householdId, month)}`,
+	// Income that arrived by Transfer isn't listed as income; a Transfer once unmarked goes with it.
+	const removable = and(
+		own,
+		sql.raw(incomeCountsRaw("income.id")),
+		sql`${windfallSql(householdId, month, sql.raw("income.amount_cents"))} >= ${decidedSql(householdId, month)}`,
+	);
+	await db.batch([
+		db
+			.delete(transfers)
+			.where(
+				and(
+					eq(transfers.householdId, householdId),
+					eq(transfers.inIncomeId, input.incomeId),
+					isNotNull(transfers.removedAt),
+					sql`exists (select 1 from ${income} where ${removable})`,
+				),
 			),
-		);
+		db.delete(income).where(removable),
+	]);
 	const [left] = await db.select({ id: income.id }).from(income).where(own);
 	return left ? { ok: false, reason: "refused" } : { ok: true };
 }

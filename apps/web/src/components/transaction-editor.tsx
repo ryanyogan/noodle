@@ -20,6 +20,7 @@ import type {
 } from "../transactions";
 import { ForPicker } from "./for-picker";
 import { MatchSection } from "./match-section";
+import { MoneyDetail, TransferSection } from "./money-sections";
 import { NativeSelect } from "./native-select";
 import { Confirm } from "./plan-editing";
 
@@ -59,7 +60,8 @@ const blankSplit = (amount = ""): DraftSplit => ({
  * it. It can instead be split into Splits, each with its own amount, assignment, and For, which
  * must add up to the amount before it saves. Saving or deleting closes the sheet at once; the
  * change itself is applied optimistically by the caller. One partly in the other Parent's
- * Personal Allowance is theirs alone to change (ADR-0003), so it's only shown.
+ * Personal Allowance is theirs alone to change (ADR-0003), so it's only shown. A side of a
+ * Transfer, or money back, shows its Transfer and Refund link instead.
  */
 export function TransactionEditor({
 	transaction,
@@ -92,6 +94,14 @@ export function TransactionEditor({
 							members={members}
 							parentId={parentId}
 						/>
+					</>
+				) : transaction && (transaction.transfer || transaction.amountCents < 0) ? (
+					<>
+						<SheetHeader
+							title={transaction.transfer ? "Transfer" : "Money back"}
+							description={dayName(transaction.date, today)}
+						/>
+						<MoneyDetail key={transaction.id} transaction={transaction} onDone={onClose} />
 					</>
 				) : transaction ? (
 					<>
@@ -381,6 +391,9 @@ function EditForm({
 				/>
 			</Field>
 			<MatchSection transaction={transaction} onDone={onClose} />
+			{transaction.importedFrom ? (
+				<TransferSection transaction={transaction} onDone={onClose} />
+			) : null}
 			{confirmDelete ? (
 				<Confirm
 					confirmLabel="Delete Transaction"
