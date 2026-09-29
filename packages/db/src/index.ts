@@ -294,6 +294,7 @@ export {
 	loadGoalFunding,
 	loadGoals,
 	renameAccount,
+	setEmergencyGoal,
 	spendGoal,
 	undoGoalFunding,
 	updateAccountBalance,
@@ -365,3 +366,12 @@ export {
 	type TransactionRow,
 	updateTransaction,
 } from "./transactions";
+export {
+	addIncome,
+	decideWindfall,
+	type IncomeRecord,
+	type IncomeWriteResult,
+	loadIncome,
+	removeIncome,
+	undoWindfall,
+} from "./windfalls";

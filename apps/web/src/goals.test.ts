@@ -12,6 +12,7 @@ import {
 import type { MonthData } from "./server/month";
 
 const goals: GoalsData = {
+	emergencyGoalId: null,
 	month: "2026-09",
 	asOf: "2026-09-15",
 	accounts: [
@@ -77,6 +78,7 @@ describe("the optimistic Goal edits", () => {
 			moves: [],
 			rolledOver: {},
 			goalFunding: [],
+			income: [],
 			asOf: "2026-09-15",
 			editable: true,
 		};

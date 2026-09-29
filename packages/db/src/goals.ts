@@ -18,6 +18,7 @@ import {
 	accounts,
 	earmarkClaims,
 	goals,
+	households,
 	moves,
 	splits,
 	transactions,
@@ -483,7 +484,13 @@ export type GoalRecord = {
 };
 
 /** A change to a Goal's Earmark with its row's ID; Goal spending also has its day and note. */
-export type GoalChange = EarmarkChange & { id: string; date?: DayKey; note?: string | null };
+export type GoalChange = EarmarkChange & {
+	id: string;
+	date?: DayKey;
+	note?: string | null;
+	/** Funding that came from a Windfall rather than Free to Spend. */
+	from?: "windfall";
+};
 
 /** Everything the Goals and Accounts views derive their numbers from (see @noodle/domain). */
 export type GoalRecords = {
@@ -496,6 +503,8 @@ export type GoalRecords = {
 	goals: GoalRecord[];
 	/** Every Goal's claims, funding, and spending, oldest first. */
 	changes: GoalChange[];
+	/** The Goal the Household keeps for emergencies, if it has marked one. */
+	emergencyGoalId: string | null;
 };
 
 /**
@@ -505,74 +514,87 @@ export type GoalRecords = {
  */
 export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 	const { householdId } = viewer;
-	const [accountRows, balanceRows, goalRows, claimRows, fundingRows, wholeRows, splitRows] =
-		await db.batch([
-			db
-				.select({ id: accounts.id, name: accounts.name, kind: accounts.kind })
-				.from(accounts)
-				.where(eq(accounts.householdId, householdId))
-				.orderBy(asc(accounts.createdAt), asc(accounts.id)),
-			db
-				.select({
-					accountId: accountBalances.accountId,
-					amount: accountBalances.amountCents,
-					at: accountBalances.createdAt,
-				})
-				.from(accountBalances)
-				.where(eq(accountBalances.householdId, householdId))
-				.orderBy(asc(accountBalances.createdAt), asc(accountBalances.id)),
-			db
-				.select()
-				.from(goals)
-				.where(eq(goals.householdId, householdId))
-				.orderBy(asc(goals.createdAt), asc(goals.id)),
-			db
-				.select({
-					id: earmarkClaims.id,
-					goalId: earmarkClaims.goalId,
-					amount: earmarkClaims.amountCents,
-					month: earmarkClaims.month,
-				})
-				.from(earmarkClaims)
-				.where(eq(earmarkClaims.householdId, householdId)),
-			db
-				.select({
-					id: moves.id,
-					goalId: moves.toGoalId,
-					amount: moves.amountCents,
-					month: moves.month,
-				})
-				.from(moves)
-				.where(and(eq(moves.householdId, householdId), isNotNull(moves.toGoalId))),
-			db
-				.select({
-					id: transactions.id,
-					goalId: transactions.goalId,
-					accountId: transactions.accountId,
-					amount: transactions.amountCents,
-					date: transactions.date,
-					note: transactions.note,
-					at: transactions.createdAt,
-				})
-				.from(transactions)
-				.where(and(visibleTo(viewer), isNotNull(transactions.goalId))),
-			db
-				.select({
-					id: splits.id,
-					goalId: splits.goalId,
-					accountId: goals.accountId,
-					amount: splits.amountCents,
-					date: transactions.date,
-					note: sql<
-						string | null
-					>`case when ${partlyPrivate(viewer)} then null else ${transactions.note} end`,
-					at: transactions.createdAt,
-				})
-				.from(splits)
-				.innerJoin(transactions, eq(transactions.id, splits.transactionId))
-				.innerJoin(goals, eq(goals.id, splits.goalId))
-				.where(and(visibleSplit(viewer), visibleTo(viewer), isNotNull(splits.goalId))),
-		]);
+	const [
+		accountRows,
+		balanceRows,
+		goalRows,
+		claimRows,
+		fundingRows,
+		wholeRows,
+		splitRows,
+		householdRows,
+	] = await db.batch([
+		db
+			.select({ id: accounts.id, name: accounts.name, kind: accounts.kind })
+			.from(accounts)
+			.where(eq(accounts.householdId, householdId))
+			.orderBy(asc(accounts.createdAt), asc(accounts.id)),
+		db
+			.select({
+				accountId: accountBalances.accountId,
+				amount: accountBalances.amountCents,
+				at: accountBalances.createdAt,
+			})
+			.from(accountBalances)
+			.where(eq(accountBalances.householdId, householdId))
+			.orderBy(asc(accountBalances.createdAt), asc(accountBalances.id)),
+		db
+			.select()
+			.from(goals)
+			.where(eq(goals.householdId, householdId))
+			.orderBy(asc(goals.createdAt), asc(goals.id)),
+		db
+			.select({
+				id: earmarkClaims.id,
+				goalId: earmarkClaims.goalId,
+				amount: earmarkClaims.amountCents,
+				month: earmarkClaims.month,
+			})
+			.from(earmarkClaims)
+			.where(eq(earmarkClaims.householdId, householdId)),
+		db
+			.select({
+				id: moves.id,
+				goalId: moves.toGoalId,
+				amount: moves.amountCents,
+				month: moves.month,
+				moveKind: moves.kind,
+			})
+			.from(moves)
+			.where(and(eq(moves.householdId, householdId), isNotNull(moves.toGoalId))),
+		db
+			.select({
+				id: transactions.id,
+				goalId: transactions.goalId,
+				accountId: transactions.accountId,
+				amount: transactions.amountCents,
+				date: transactions.date,
+				note: transactions.note,
+				at: transactions.createdAt,
+			})
+			.from(transactions)
+			.where(and(visibleTo(viewer), isNotNull(transactions.goalId))),
+		db
+			.select({
+				id: splits.id,
+				goalId: splits.goalId,
+				accountId: goals.accountId,
+				amount: splits.amountCents,
+				date: transactions.date,
+				note: sql<
+					string | null
+				>`case when ${partlyPrivate(viewer)} then null else ${transactions.note} end`,
+				at: transactions.createdAt,
+			})
+			.from(splits)
+			.innerJoin(transactions, eq(transactions.id, splits.transactionId))
+			.innerJoin(goals, eq(goals.id, splits.goalId))
+			.where(and(visibleSplit(viewer), visibleTo(viewer), isNotNull(splits.goalId))),
+		db
+			.select({ emergencyGoalId: households.emergencyGoalId })
+			.from(households)
+			.where(eq(households.id, householdId)),
+	]);
 	const spendingRows = [
 		...wholeRows,
 		// Transactions are recorded to the second: a Split counts as after a balance entered in
@@ -587,7 +609,14 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 	// Goal IDs are filtered to non-null; months and days are always written as Month/DayKeys.
 	const changes: GoalChange[] = [
 		...claimRows.map((row) => ({ ...row, kind: "claim" as const }) as GoalChange),
-		...fundingRows.map((row) => ({ ...row, kind: "funding" as const }) as GoalChange),
+		...fundingRows.map(
+			({ moveKind, ...row }) =>
+				({
+					...row,
+					kind: "funding" as const,
+					...(moveKind === "windfall" ? { from: moveKind } : {}),
+				}) as GoalChange,
+		),
 		...spendingRows.map(
 			({ id, goalId, amount, date, note }) =>
 				({
@@ -621,22 +650,73 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 			archived: row.archivedAt !== null,
 		})),
 		changes,
+		emergencyGoalId: householdRows[0]?.emergencyGoalId ?? null,
 	};
 }
 
-/** Goal funding in the Household's `month`, oldest first. */
+/**
+ * Goal funding in the Household's `month`, oldest first: from Free to Spend, or from the
+ * Windfall (`windfall`).
+ */
 export async function loadGoalFunding(
 	db: Db,
 	householdId: string,
 	month: MonthKey,
 ): Promise<(GoalFunding & { id: string })[]> {
 	const rows = await db
-		.select({ id: moves.id, goalId: moves.toGoalId, amount: moves.amountCents, month: moves.month })
+		.select({
+			id: moves.id,
+			goalId: moves.toGoalId,
+			amount: moves.amountCents,
+			month: moves.month,
+			kind: moves.kind,
+		})
 		.from(moves)
 		.where(
-			and(eq(moves.householdId, householdId), eq(moves.month, month), isNotNull(moves.toGoalId)),
+			and(
+				eq(moves.householdId, householdId),
+				eq(moves.month, month),
+				isNotNull(moves.toGoalId),
+				inArray(moves.kind, ["goal-funding", "windfall"]),
+			),
 		)
 		.orderBy(moves.id);
 	// to_goal_id is filtered to non-null, and months are always written as MonthKeys.
-	return rows as (GoalFunding & { id: string })[];
+	return rows.map(({ kind, ...funding }) =>
+		kind === "windfall" ? { ...funding, windfall: true } : funding,
+	) as (GoalFunding & { id: string })[];
+}
+
+/**
+ * Marks one of the Household's Goals as its emergency Goal, or clears it with null. Refused
+ * (nothing changes) when the Goal isn't the Household's or is archived.
+ */
+export async function setEmergencyGoal(
+	db: Db,
+	input: { householdId: string; goalId: string | null },
+): Promise<GoalWriteResult> {
+	const { householdId, goalId } = input;
+	if (goalId === null) {
+		await db
+			.update(households)
+			.set({ emergencyGoalId: null })
+			.where(eq(households.id, householdId));
+		return { ok: true };
+	}
+	await db
+		.update(households)
+		.set({
+			emergencyGoalId: sql`(select ${goals.id} from ${goals} where ${and(ownGoal(householdId, goalId), isNull(goals.archivedAt))})`,
+		})
+		.where(
+			and(
+				eq(households.id, householdId),
+				sql`exists (select 1 from ${goals} where ${and(ownGoal(householdId, goalId), isNull(goals.archivedAt))})`,
+			),
+		);
+	const [row] = await db
+		.select({ id: households.emergencyGoalId })
+		.from(households)
+		.where(eq(households.id, householdId));
+	return row?.id === goalId ? { ok: true } : { ok: false, reason: "refused" };
 }

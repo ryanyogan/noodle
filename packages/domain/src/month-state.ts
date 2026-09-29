@@ -9,6 +9,7 @@ import {
 	totalAllowances,
 	totalCommitments,
 } from "./plan";
+import { type Income, receivedIn, windfallOf } from "./windfall";
 
 /** Spending recorded against a Bucket on a day (a Transaction or one of its Splits). */
 export type Spend = { bucketId: string; amount: Cents; date: DayKey };
@@ -18,20 +19,26 @@ export type Charge = { commitmentId: string; amount: Cents; date: DayKey };
 
 /**
  * A Move of planned money within one month's Plan, from a Bucket (or from Free to Spend, when
- * `fromBucketId` is null) to a Bucket. No real money moves. A Cover is one.
+ * `fromBucketId` is null) to a Bucket. No real money moves. A Cover is one. With `windfall`, it
+ * comes from the month's Windfall instead, so Free to Spend is untouched.
  */
 export type Move = {
 	fromBucketId: string | null;
 	toBucketId: string;
 	amount: Cents;
 	month: MonthKey;
+	windfall?: boolean;
 };
 
 /**
  * Goal funding: a Move of planned money from Free to Spend in one month's Plan into a Goal's
- * Earmark. Like any Move, no real money moves; the Goal's Account already holds it.
+ * Earmark. Like any Move, no real money moves; the Goal's Account already holds it. With
+ * `windfall`, it comes from the month's Windfall instead, so Free to Spend is untouched.
  */
-export type GoalFunding = { goalId: string; amount: Cents; month: MonthKey };
+export type GoalFunding = { goalId: string; amount: Cents; month: MonthKey; windfall?: boolean };
+
+/** A Sweep: a Move of a Fresh-start Bucket's leftover at the end of `month` into a Goal. */
+export type Sweep = { bucketId: string; goalId: string; amount: Cents; month: MonthKey };
 
 /**
  * `ahead`: spent faster than Pace allows (by more than a small tolerance).
@@ -42,7 +49,7 @@ export type BucketStatus = "on-pace" | "ahead" | "over";
 export type BucketState = PlanBucket & {
 	/** Carried in from last month, when the Bucket was Rolling then; negative if it was overspent. */
 	rolledOver: Cents;
-	/** Moved into the Bucket this month, less what was moved out of it. */
+	/** Moved into the Bucket this month, less what was moved out of it (Swept included). */
 	moved: Cents;
 	/** What the Bucket has to spend this month: its allowance, what rolled over, and what was moved into it. */
 	available: Cents;
@@ -99,6 +106,12 @@ export type MonthState = Omit<Plan, "buckets" | "commitments"> & {
 	fundedGoals: Cents;
 	/** Negative when the Plan assigns more than the Baseline. */
 	freeToSpend: Cents;
+	/** Income received this month. */
+	received: Cents;
+	/** Income received this month beyond the Baseline. */
+	windfall: Cents;
+	/** The Windfall not yet Moved to a Goal or Bucket, awaiting a decision. */
+	windfallLeft: Cents;
 	/** What's left across Buckets, not counting any Bucket's overspending. */
 	leftInBuckets: Cents;
 	commitments: CommitmentState[];
@@ -112,7 +125,8 @@ const PACE_TOLERANCE = 0.03;
  * The state of a month: each Bucket's allowance, spent, left, Pace, and status, each
  * Commitment's expected and actual amounts, and Free to Spend, as of the end of a given day.
  * Moves shift money between Buckets and Free to Spend; Goal funding takes it out of Free to
- * Spend; what rolled over from last month (see `rolledOver`) adds to a Bucket without touching
+ * Spend; a Sweep takes a Bucket's leftover into a Goal; income beyond the Baseline is the
+ * Windfall, and Moves from it add to Buckets and Goals without touching Free to Spend; what rolled over from last month (see `rolledOver`) adds to a Bucket without touching
  * Free to Spend. Spending, charges, and Moves outside the
  * month, or involving a Bucket or Commitment not in the Plan, are ignored. The server and the client's optimistic updates both call this, so the numbers a
  * Parent sees before and after a save are the same.
@@ -124,6 +138,8 @@ export function monthState({
 	moves = [],
 	rolledOver = {},
 	goalFunding = [],
+	sweeps = [],
+	income = [],
 	asOf,
 }: {
 	plan: Plan;
@@ -133,6 +149,9 @@ export function monthState({
 	/** Per Bucket ID, what carried in from last month. */
 	rolledOver?: Record<string, Cents>;
 	goalFunding?: GoalFunding[];
+	sweeps?: Sweep[];
+	/** Income received; only this month's counts. */
+	income?: Income[];
 	asOf: DayKey;
 }): MonthState {
 	const days = daysInMonth(plan.month);
@@ -145,15 +164,30 @@ export function monthState({
 	const inPlan = new Set(plan.buckets.map((b) => b.id));
 	const movedByBucket = new Map<string, Cents>();
 	let movedToBuckets = 0;
-	for (const { fromBucketId: from, toBucketId: to, amount, month } of moves) {
+	let windfallDecided = 0;
+	for (const { fromBucketId: from, toBucketId: to, amount, month, windfall } of moves) {
 		if (month !== plan.month || !inPlan.has(to) || (from !== null && !inPlan.has(from))) continue;
 		movedByBucket.set(to, (movedByBucket.get(to) ?? 0) + amount);
-		if (from === null) movedToBuckets += amount;
+		if (windfall) windfallDecided += amount;
+		else if (from === null) movedToBuckets += amount;
 		else movedByBucket.set(from, (movedByBucket.get(from) ?? 0) - amount);
 	}
-	const fundedGoals = goalFunding
-		.filter((funding) => funding.month === plan.month)
-		.reduce((sum, funding) => sum + funding.amount, 0);
+	for (const sweep of sweeps) {
+		if (sweep.month !== plan.month || !inPlan.has(sweep.bucketId)) continue;
+		movedByBucket.set(sweep.bucketId, (movedByBucket.get(sweep.bucketId) ?? 0) - sweep.amount);
+	}
+	let fundedGoals = 0;
+	for (const funding of goalFunding) {
+		if (funding.month !== plan.month) continue;
+		if (funding.windfall) windfallDecided += funding.amount;
+		else fundedGoals += funding.amount;
+	}
+	const received = receivedIn(income, plan.month);
+	const { windfall, pending } = windfallOf({
+		baseline: plan.baseline,
+		received,
+		decided: windfallDecided,
+	});
 	const buckets = plan.buckets.map((bucket): BucketState => {
 		const moved = movedByBucket.get(bucket.id) ?? 0;
 		const carried = rolledOver[bucket.id] ?? 0;
@@ -216,6 +250,9 @@ export function monthState({
 		movedToBuckets,
 		fundedGoals,
 		freeToSpend: freeToSpend(plan) - movedToBuckets - fundedGoals,
+		received,
+		windfall,
+		windfallLeft: pending,
 		leftInBuckets: buckets.reduce((sum, b) => sum + Math.max(0, b.left), 0),
 		commitments,
 		buckets,

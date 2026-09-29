@@ -9,6 +9,7 @@ import {
 	type GoalWriteResult,
 	loadGoals,
 	renameAccount as renameAccountInDb,
+	setEmergencyGoal as setEmergencyGoalInDb,
 	spendGoal as spendGoalInDb,
 	undoGoalFunding as undoGoalFundingInDb,
 	updateAccountBalance as updateAccountBalanceInDb,
@@ -268,6 +269,20 @@ export const undoGoalFunding = createServerFn({ method: "POST" })
 		assertCurrentMonth(household, data.month);
 		const result = await undoGoalFundingInDb(getDb(), { householdId: household.id, ...data });
 		if (result.ok) await notifyHousehold(household.id, ["goals", `month:${data.month}`]);
+		return result;
+	});
+
+/**
+ * Marks a Goal as the Household's emergency Goal (null clears it): suggested for Windfalls, and
+ * where Fresh-start leftovers are Swept when nobody decides at month-close.
+ */
+export const setEmergencyGoal = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ goalId: ulidSchema.nullable() }))
+	.handler(async ({ data, context }): Promise<GoalWriteResult> => {
+		const { household } = context;
+		const result = await setEmergencyGoalInDb(getDb(), { householdId: household.id, ...data });
+		if (result.ok) await notifyHousehold(household.id, ["goals"]);
 		return result;
 	});
 

@@ -58,6 +58,7 @@ export {
 	type Move,
 	monthState,
 	type Spend,
+	type Sweep,
 } from "./month-state";
 export {
 	bucketsPassingPace,
@@ -108,3 +109,14 @@ export {
 	splitRemainder,
 	splitsBalance,
 } from "./splits";
+export {
+	INCOME_WARNING_FROM_DAY,
+	type Income,
+	type IncomeCheck,
+	incomeCheck,
+	receivedIn,
+	type WindfallDestination,
+	type WindfallSuggestion,
+	windfallOf,
+	windfallSuggestions,
+} from "./windfall";

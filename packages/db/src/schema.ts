@@ -1,6 +1,7 @@
 import type { Lever } from "@noodle/domain";
 import { sql } from "drizzle-orm";
 import {
+	type AnySQLiteColumn,
 	index,
 	integer,
 	primaryKey,
@@ -21,6 +22,9 @@ export const households = sqliteTable("households", {
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.notNull()
 		.default(sql`(unixepoch() * 1000)`),
+	// The Goal the Household keeps for emergencies: suggested for Windfalls, and where Fresh-start
+	// leftovers are Swept when nobody decides at month-close.
+	emergencyGoalId: text("emergency_goal_id").references((): AnySQLiteColumn => goals.id),
 });
 
 export const members = sqliteTable(
@@ -384,8 +388,9 @@ export const splitFor = sqliteTable(
 
 // A Move of planned money within one month's Plan (no real money moves): from a Bucket, or from
 // Free to Spend when `from_bucket_id` is null, to a Bucket (a Cover) or, for Goal funding, from
-// Free to Spend to a Goal's Earmark (`to_goal_id`, with `to_bucket_id` null). Balances are
-// derived from these rows (ADR-0004); undoing a Move deletes its row.
+// Free to Spend to a Goal's Earmark (`to_goal_id`, with `to_bucket_id` null). A `windfall` Move
+// comes from the month's Windfall (`from_bucket_id` null) to a Bucket or a Goal, never out of
+// Free to Spend. Balances are derived from these rows (ADR-0004); undoing a Move deletes its row.
 export const moves = sqliteTable(
 	"moves",
 	{
@@ -393,7 +398,7 @@ export const moves = sqliteTable(
 		householdId: text("household_id")
 			.notNull()
 			.references(() => households.id),
-		kind: text("kind", { enum: ["cover", "goal-funding"] }).notNull(),
+		kind: text("kind", { enum: ["cover", "goal-funding", "windfall"] }).notNull(),
 		month: text("month").notNull(),
 		fromBucketId: text("from_bucket_id").references(() => buckets.id),
 		toBucketId: text("to_bucket_id").references(() => buckets.id),
@@ -471,6 +476,30 @@ export const scenarios = sqliteTable(
 			.default(sql`(unixepoch() * 1000)`),
 	},
 	(t) => [index("scenarios_household_idx").on(t.householdId)],
+);
+
+// Income received: money in that isn't a Refund of a purchase (a paycheck, a bonus, a tax
+// refund). `date` is the day it came in, in the Household's time zone; `amount_cents` is what
+// came in, so it's positive. Kept apart from Transactions, whose amounts are money spent, so no
+// spending total can ever count it; Imports will write deposits here too. Income beyond the
+// month's Baseline is its Windfall.
+export const income = sqliteTable(
+	"income",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		date: text("date").notNull(),
+		amountCents: integer("amount_cents").notNull(),
+		note: text("note"),
+		// The Parent who recorded it; null for imported income.
+		createdByMemberId: text("created_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [index("income_household_date_idx").on(t.householdId, t.date)],
 );
 
 export type Household = typeof households.$inferSelect;

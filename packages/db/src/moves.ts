@@ -11,12 +11,15 @@ import { buckets, moves } from "./schema";
 /** A Move with its ID. */
 export type PlanMove = Move & { id: string };
 
-/** The month's Moves between Buckets and Free to Spend, oldest first (Goal funding is apart). */
+/** The month's Moves into Buckets, oldest first (Goal funding and Sweeps are apart). */
 export function loadMoves(db: Db, householdId: string, month: MonthKey): Promise<PlanMove[]> {
 	return loadMovesBetween(db, householdId, month, addMonths(month, 1));
 }
 
-/** Moves between Buckets and Free to Spend in months from `from` up to, not including, `until`. */
+/**
+ * Moves into Buckets (from Buckets, Free to Spend, or the Windfall) in months from `from` up to,
+ * not including, `until`.
+ */
 export async function loadMovesBetween(
 	db: Db,
 	householdId: string,
@@ -30,6 +33,7 @@ export async function loadMovesBetween(
 			toBucketId: moves.toBucketId,
 			amount: moves.amountCents,
 			month: moves.month,
+			kind: moves.kind,
 		})
 		.from(moves)
 		.where(
@@ -42,7 +46,9 @@ export async function loadMovesBetween(
 		)
 		.orderBy(moves.id);
 	// to_bucket_id is filtered to non-null, and months are always written as MonthKeys.
-	return rows as PlanMove[];
+	return rows.map(({ kind, ...move }) =>
+		kind === "windfall" ? { ...move, windfall: true } : move,
+	) as PlanMove[];
 }
 
 // What a Move's source has left this month, computed from the rows inside the write that
@@ -117,7 +123,10 @@ function committedSql(householdId: string, month: MonthKey): SQL {
 		and (c.ended_from_month is null or c.ended_from_month > ${month})), 0)`;
 }
 
-/** Free to Spend this month: the Baseline less Commitments, allowances, and Moves out of it. */
+/**
+ * Free to Spend this month: the Baseline less Commitments, allowances, and Moves out of it (a
+ * Windfall Move comes from the Windfall, not from it).
+ */
 export function freeToSpendSql(householdId: string, month: MonthKey): SQL {
 	return sql`(coalesce((select b.amount_cents from baselines b
 			where b.household_id = ${householdId} and b.month <= ${month}
@@ -127,11 +136,11 @@ export function freeToSpendSql(householdId: string, month: MonthKey): SQL {
 			where p.household_id = ${householdId} and ${inPlanSql("p", month)}), 0)
 		- coalesce((select sum(m.amount_cents) from moves m
 			where m.household_id = ${householdId} and m.month = ${month}
-			and m.from_bucket_id is null), 0))`;
+			and m.from_bucket_id is null and m.kind <> 'windfall'), 0))`;
 }
 
 /** Guards a write to only land if the Bucket belongs to the Household and is in `month`'s Plan. */
-const bucketInPlan = (householdId: string, bucketId: string, month: MonthKey) =>
+export const bucketInPlan = (householdId: string, bucketId: string, month: MonthKey) =>
 	and(
 		eq(buckets.id, bucketId),
 		eq(buckets.householdId, householdId),

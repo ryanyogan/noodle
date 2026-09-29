@@ -33,6 +33,7 @@ import {
 	useCompleteGoal,
 	useGoalMoney,
 	useGoals,
+	useSetEmergencyGoal,
 	useUpdateGoal,
 } from "../../../goals";
 import { goalsQuery, monthQuery, useMonthState } from "../../../queries";
@@ -51,12 +52,20 @@ type OpenSheet = "fund" | "spend" | "claim" | "release" | "edit" | null;
 
 function GoalPage() {
 	const { goalId } = Route.useParams();
-	const { goals, accounts, month, asOf } = useGoals();
+	const { goals, accounts, month, asOf, emergencyGoalId } = useGoals();
 	const goal = goals.find((g) => g.id === goalId);
 	const account = accounts.find((a) => a.id === goal?.accountId);
 	// A Goal only goes away if another Parent's change removes it; the loader 404s on reload.
 	if (!goal) return <PageHeader eyebrow="Goal" title="Goal" leading={<BackToGoals />} />;
-	return <GoalDetails goal={goal} account={account} month={month} today={asOf} />;
+	return (
+		<GoalDetails
+			goal={goal}
+			account={account}
+			month={month}
+			today={asOf}
+			emergency={emergencyGoalId === goal.id}
+		/>
+	);
 }
 
 function GoalDetails({
@@ -64,11 +73,14 @@ function GoalDetails({
 	account,
 	month,
 	today,
+	emergency,
 }: {
 	goal: GoalView;
 	account: AccountView | undefined;
 	month: MonthKey;
 	today: DayKey;
+	/** It's the Household's emergency Goal. */
+	emergency: boolean;
 }) {
 	const hydrated = useHydrated();
 	const { freeToSpend } = useMonthState(month);
@@ -77,6 +89,7 @@ function GoalDetails({
 	const update = useUpdateGoal();
 	const complete = useCompleteGoal();
 	const archive = useArchiveGoal();
+	const setEmergency = useSetEmergencyGoal();
 	const [sheet, setSheet] = useState<OpenSheet>(null);
 	const [archiving, setArchiving] = useState(false);
 	const { progress } = goal;
@@ -222,7 +235,10 @@ function GoalDetails({
 									change={change}
 									today={today}
 									onUndo={
-										active && change.kind === "funding" && change.month === month
+										active &&
+										change.kind === "funding" &&
+										change.from === undefined &&
+										change.month === month
 											? () =>
 													undo.mutate({
 														moveId: change.id,
@@ -241,6 +257,33 @@ function GoalDetails({
 						</Card>
 					)}
 				</Section>
+
+				{active ? (
+					<Section aria-labelledby="goal-emergency">
+						<SectionHeader id="goal-emergency" title="Emergencies" />
+						<Card className="grid gap-3 p-(--card-pad)">
+							<FinishRow
+								text={
+									emergency
+										? "This is your emergency Goal: Windfalls suggest it, and Fresh-start leftovers are Swept into it when nobody decides at month-close."
+										: "Keeping this for emergencies? Windfalls will suggest it, and Fresh-start leftovers are Swept into it when nobody decides at month-close."
+								}
+								action={
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										disabled={!hydrated}
+										onClick={() => setEmergency.mutate({ goalId: emergency ? null : goal.id })}
+									>
+										{emergency ? "Stop using" : "Use for emergencies"}
+									</Button>
+								}
+							/>
+							<SaveFailed change={setEmergency} />
+						</Card>
+					</Section>
+				) : null}
 
 				{archived ? null : (
 					<Section aria-labelledby="goal-finish">
@@ -452,7 +495,9 @@ function FinishRow({ text, action }: { text: string; action: ReactNode }) {
 
 const changeTitle = (change: GoalChange) =>
 	change.kind === "funding"
-		? "Funded from Free to Spend"
+		? change.from === "windfall"
+			? "From a Windfall"
+			: "Funded from Free to Spend"
 		: change.kind === "spending"
 			? "Spent"
 			: change.amount >= 0

@@ -34,6 +34,7 @@ const month: MonthData = {
 	moves: [],
 	rolledOver: {},
 	goalFunding: [],
+	income: [],
 	asOf: "2026-09-15",
 	editable: true,
 };

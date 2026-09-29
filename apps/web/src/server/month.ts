@@ -2,8 +2,10 @@ import {
 	type BucketSpend,
 	type CommitmentCharge,
 	type Db,
+	type IncomeRecord,
 	loadCharges,
 	loadGoalFunding,
+	loadIncome,
 	loadMoves,
 	loadPlanRecords,
 	loadRolledOver,
@@ -11,6 +13,7 @@ import {
 	type PlanMove,
 } from "@noodle/db";
 import {
+	addMonths,
 	type Cents,
 	type DayKey,
 	dayKeyAt,
@@ -31,9 +34,9 @@ export const monthKeySchema = z
 	.transform((month) => month as MonthKey);
 
 /**
- * The inputs to a month's state: its Plan, the spending, Commitment payments, Moves, and Goal
- * funding recorded in it, what each Bucket carried in from earlier months, and today in the
- * Household's time zone. Components derive the state with `monthState` from @noodle/domain, so
+ * The inputs to a month's state: its Plan, the spending, Commitment payments, Moves, Goal
+ * funding, and income recorded in it, what each Bucket carried in from earlier months, and today
+ * in the Household's time zone. Components derive the state with `monthState` from @noodle/domain, so
  * an optimistic edit to these inputs updates every number the same way the server would.
  */
 export type MonthData = {
@@ -48,6 +51,8 @@ export type MonthData = {
 	rolledOver: Record<string, Cents>;
 	/** Moves from Free to Spend into Goals' Earmarks. */
 	goalFunding: (GoalFunding & { id: string })[];
+	/** Income received this month and last (last month's sets what's expected by now). */
+	income: IncomeRecord[];
 	asOf: DayKey;
 	/** Past months' Plans are closed; this month and later can be changed. */
 	editable: boolean;
@@ -64,12 +69,13 @@ export async function loadMonth(
 	month: MonthKey,
 ): Promise<MonthData> {
 	const viewer = viewerOf({ household, parent: { id: parentId } });
-	const [records, spending, charges, moves, goalFunding] = await Promise.all([
+	const [records, spending, charges, moves, goalFunding, income] = await Promise.all([
 		loadPlanRecords(db, household.id, month),
 		loadSpending(db, viewer, month),
 		loadCharges(db, viewer, month),
 		loadMoves(db, household.id, month),
 		loadGoalFunding(db, household.id, month),
+		loadIncome(db, household.id, addMonths(month, -1), addMonths(month, 1)),
 	]);
 	const rolledOver = await loadRolledOver(db, household.id, records, month);
 	const now = new Date();
@@ -80,6 +86,7 @@ export async function loadMonth(
 		moves,
 		rolledOver,
 		goalFunding,
+		income,
 		asOf: dayKeyAt(now, household.timeZone),
 		editable: month >= monthKeyAt(now, household.timeZone),
 	};

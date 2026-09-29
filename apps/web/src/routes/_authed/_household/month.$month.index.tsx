@@ -3,10 +3,13 @@ import {
 	type BucketState,
 	type CoverSource,
 	canAssign,
+	type IncomeCheck,
+	incomeCheck,
 	lastDayOf,
 	type MonthKey,
 	type MonthState,
 	monthOfDay,
+	windfallSuggestions,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
@@ -25,9 +28,13 @@ import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../../../buckets";
 import { Commitments } from "../../../components/commitment-list";
 import { ALittleOver, CoverSheet, CoversInto, sourceName } from "../../../components/cover";
+import { AmountSheet } from "../../../components/goals";
+import { IncomeSection, WindfallSection, WindfallSheet } from "../../../components/windfalls";
 import { type CoverVariables, useCovers } from "../../../covers";
 import { formatMoney, monthName, shortDay } from "../../../format";
+import { useGoals } from "../../../goals";
 import { useMonthState } from "../../../queries";
+import { useIncome, useWindfalls } from "../../../windfalls";
 
 export const Route = createFileRoute("/_authed/_household/month/$month/")({
 	component: ThisMonth,
@@ -39,6 +46,11 @@ function ThisMonth() {
 	const { cover, undo } = useCovers();
 	// The overspent Bucket being covered, by ID, so the sheet follows its latest state.
 	const [covering, setCovering] = useState<string | null>(null);
+	const [addingIncome, setAddingIncome] = useState(false);
+	const [choosingWindfall, setChoosingWindfall] = useState(false);
+	const income = useIncome();
+	const windfalls = useWindfalls();
+	const goals = useGoals();
 	const planned =
 		state.baseline !== null || state.buckets.length > 0 || state.commitments.length > 0;
 	// Commitments due this month, or paid anyway.
@@ -95,6 +107,31 @@ function ThisMonth() {
 		}) satisfies CoverVariables;
 	const current = monthOfDay(state.asOf);
 	const swipe = useMonthSwipe(month);
+	const monthIncome = state.income.filter((i) => monthOfDay(i.date) === month);
+	const check = incomeCheck({
+		baseline: state.baseline,
+		income: state.income,
+		month,
+		asOf: state.asOf,
+	});
+	const activeGoals = goals.goals.filter((g) => g.state === "active");
+	// This month's Windfall can go to its Buckets too; an ended month's only to Goals.
+	const windfallPlaces = {
+		goals: activeGoals,
+		buckets: month === current ? state.buckets.filter((b) => canAssign(b, parentId)) : [],
+	};
+	const suggestions = windfallSuggestions({
+		pending: state.windfallLeft,
+		goals: activeGoals.map((g) => ({
+			id: g.id,
+			name: g.name,
+			targetDate: g.targetDate,
+			status: g.progress.status,
+			remaining: g.progress.remaining,
+		})),
+		emergencyGoalId: goals.emergencyGoalId,
+		buckets: windfallPlaces.buckets,
+	});
 	return (
 		<div {...swipe}>
 			<PageHeader
@@ -122,7 +159,24 @@ function ThisMonth() {
 			/>
 			{planned ? (
 				<div className="grid max-w-2xl gap-8">
-					<FreeToSpend state={state} />
+					<FreeToSpend state={state} check={check} />
+					{state.windfallLeft > 0 && month <= current ? (
+						<WindfallSection
+							left={state.windfallLeft}
+							suggestions={suggestions}
+							goals={activeGoals}
+							onChoose={() => setChoosingWindfall(true)}
+							onSend={(s) =>
+								windfalls.decide.mutate({
+									moveId: ulid(),
+									month,
+									to: s.to,
+									toName: s.name,
+									amountCents: s.amount,
+								})
+							}
+						/>
+					) : null}
 					{over.length > 0 ? (
 						<ALittleOver buckets={over} onCover={(bucket) => setCovering(bucket.id)} />
 					) : null}
@@ -144,6 +198,23 @@ function ThisMonth() {
 					) : null}
 					{commitments.length > 0 ? (
 						<Commitments month={month} asOf={state.asOf} commitments={commitments} />
+					) : null}
+					{state.baseline !== null && (month === current || monthIncome.length > 0) ? (
+						<IncomeSection
+							baseline={state.baseline}
+							income={monthIncome}
+							canRecord={month === current}
+							onAdd={() => setAddingIncome(true)}
+							onRemove={(entry) =>
+								income.remove.mutate({
+									incomeId: entry.id,
+									month,
+									date: entry.date,
+									amountCents: entry.amount,
+									note: entry.note,
+								})
+							}
+						/>
 					) : null}
 				</div>
 			) : (
@@ -170,6 +241,38 @@ function ThisMonth() {
 					const bucket = over.find((b) => b.id === covering);
 					setCovering(null);
 					if (bucket) cover.mutate(coverVariables(bucket, source, amountCents));
+				}}
+			/>
+			<AmountSheet
+				open={addingIncome}
+				onOpenChange={setAddingIncome}
+				title="Add income"
+				description="Money in today: a paycheck, a bonus, a tax refund. A Refund of a purchase goes back to its Bucket instead."
+				withNote
+				notePlaceholder="e.g. Paycheck"
+				submitLabel="Add income"
+				check={() => ({
+					hint: "Whatever comes in beyond the Baseline is a Windfall to decide on.",
+				})}
+				onSave={(amountCents, note) => {
+					setAddingIncome(false);
+					income.record.mutate({
+						incomeId: ulid(),
+						month,
+						date: state.asOf,
+						amountCents,
+						note,
+					});
+				}}
+			/>
+			<WindfallSheet
+				open={choosingWindfall}
+				onOpenChange={setChoosingWindfall}
+				left={state.windfallLeft}
+				places={windfallPlaces}
+				onSend={(to, toName, amountCents) => {
+					setChoosingWindfall(false);
+					windfalls.decide.mutate({ moveId: ulid(), month, to, toName, amountCents });
 				}}
 			/>
 		</div>
@@ -225,8 +328,11 @@ function useMonthSwipe(month: MonthKey) {
 	};
 }
 
-/** Free to Spend, said plainly, with where the rest of the month stands beneath it. */
-function FreeToSpend({ state }: { state: MonthState }) {
+/**
+ * Free to Spend, said plainly, with where the rest of the month stands beneath it, and a calm
+ * word when income is tracking below what's usual by now.
+ */
+function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck | null }) {
 	const overPlanned = state.freeToSpend < 0;
 	return (
 		<Card role="region" aria-labelledby="free-to-spend">
@@ -258,6 +364,12 @@ function FreeToSpend({ state }: { state: MonthState }) {
 						<>Not planned for anything yet · yours until {shortDay(lastDayOf(state.month))}</>
 					)}
 				</p>
+				{check?.below ? (
+					<p role="note" className="mt-2 rounded-xl bg-surface-2 px-3 py-2.5 text-sm">
+						Income is {formatMoney(check.short)} behind where it usually is by now. Worth a look
+						before planning more spending.
+					</p>
+				) : null}
 			</div>
 			<dl className="grid grid-cols-3 border-t">
 				<Stat label="In Buckets" value={formatMoney(state.planned)} />

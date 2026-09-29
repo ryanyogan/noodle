@@ -30,6 +30,7 @@ import {
 	fundGoal,
 	type GoalsData,
 	renameAccount,
+	setEmergencyGoal,
 	spendGoal,
 	undoGoalFunding,
 	updateAccountBalance,
@@ -68,6 +69,7 @@ export type GoalView = GoalRecord & {
 };
 
 export type GoalsView = {
+	emergencyGoalId: string | null;
 	/** The Household's current month and today. */
 	month: MonthKey;
 	asOf: DayKey;
@@ -111,6 +113,7 @@ export function goalView(data: GoalsData, goal: GoalRecord): GoalView {
 }
 
 export const goalsView = (data: GoalsData): GoalsView => ({
+	emergencyGoalId: data.emergencyGoalId,
 	month: data.month,
 	asOf: data.asOf,
 	accounts: data.accounts.map((account) => accountView(data, account)),
@@ -145,7 +148,7 @@ export const goalStatusName: Record<GoalProgress["status"], string> = {
 export const goalChangeKey = ["goal-change"] as const;
 
 /** Every in-flight change that edits the cached Goals records carries this in its `meta`. */
-const touchesGoals = { goals: true } as const;
+export const touchesGoals = { goals: true } as const;
 const isGoalsChange = (mutation: Mutation<unknown, Error, unknown, unknown>) =>
 	mutation.options.meta?.goals === true;
 
@@ -161,7 +164,7 @@ const refuseUnlessOk = async (result: Promise<{ ok: boolean }>) => {
 };
 
 /** Refetches the Goals records once no other change to them is in flight. */
-function refetchGoalsOnceSettled(queryClient: QueryClient) {
+export function refetchGoalsOnceSettled(queryClient: QueryClient) {
 	// Refetching while another change is in flight would briefly undo it on screen.
 	if (queryClient.isMutating({ predicate: isGoalsChange }) === 1) {
 		return queryClient.invalidateQueries({ queryKey: goalsQuery().queryKey });
@@ -169,14 +172,14 @@ function refetchGoalsOnceSettled(queryClient: QueryClient) {
 }
 
 /** Refetches every month once no other change to a month is in flight. */
-function refetchMonthsOnceSettled(queryClient: QueryClient) {
+export function refetchMonthsOnceSettled(queryClient: QueryClient) {
 	if (queryClient.isMutating({ mutationKey: monthChangeKey }) === 1) {
 		return queryClient.invalidateQueries({ queryKey: monthsKey });
 	}
 }
 
 /** Applies an edit to a cached query, returning what to roll back to. */
-async function editCache<T>(
+export async function editCache<T>(
 	queryClient: QueryClient,
 	queryKey: readonly unknown[],
 	change: (data: T) => T,
@@ -187,9 +190,9 @@ async function editCache<T>(
 	return { queryKey, previous };
 }
 
-type Rollback = { queryKey: readonly unknown[]; previous: unknown }[];
+export type Rollback = { queryKey: readonly unknown[]; previous: unknown }[];
 
-const rollBack = (queryClient: QueryClient, rollback: Rollback | undefined) => {
+export const rollBack = (queryClient: QueryClient, rollback: Rollback | undefined) => {
 	for (const { queryKey, previous } of rollback ?? []) {
 		if (previous) queryClient.setQueryData(queryKey, previous);
 	}
@@ -338,12 +341,12 @@ export const withGoalArchived = (data: GoalsData, { goalId }: { goalId: string }
 	mapGoal(data, goalId, (g) => ({ ...g, archived: true }));
 
 /** Appends an Earmark change; the same one twice changes nothing. */
-const withChange = (data: GoalsData, change: GoalChange): GoalsData =>
+export const withChange = (data: GoalsData, change: GoalChange): GoalsData =>
 	data.changes.some((c) => c.id === change.id)
 		? data
 		: { ...data, changes: [...data.changes, change] };
 
-const withoutChange = (data: GoalsData, id: string): GoalsData => ({
+export const withoutChange = (data: GoalsData, id: string): GoalsData => ({
 	...data,
 	changes: data.changes.filter((c) => c.id !== id),
 });
@@ -406,6 +409,13 @@ export const useArchiveGoal = () =>
 	useGoalChange({
 		save: (data: { goalId: string }) => archiveGoal({ data }),
 		apply: withGoalArchived,
+	});
+
+/** Marks a Goal as the Household's emergency Goal, or clears it (null). */
+export const useSetEmergencyGoal = () =>
+	useGoalChange({
+		save: (data: { goalId: string | null }) => refuseUnlessOk(setEmergencyGoal({ data })),
+		apply: (data, { goalId }): GoalsData => ({ ...data, emergencyGoalId: goalId }),
 	});
 
 /** Sets Unclaimed money aside for a Goal, or releases some back; refused beyond its Earmark. */

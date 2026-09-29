@@ -498,6 +498,7 @@ export function AmountSheet({
 	initialCents,
 	allowZero = false,
 	withNote = false,
+	notePlaceholder,
 	submitLabel,
 	check,
 	onSave,
@@ -511,6 +512,7 @@ export function AmountSheet({
 	initialCents?: Cents | null;
 	allowZero?: boolean;
 	withNote?: boolean;
+	notePlaceholder?: string;
 	submitLabel: string;
 	check: (cents: Cents | null) => AmountCheck;
 	onSave: (cents: Cents, note: string | null) => void;
@@ -525,6 +527,7 @@ export function AmountSheet({
 						initialCents={initialCents}
 						allowZero={allowZero}
 						withNote={withNote}
+						notePlaceholder={notePlaceholder}
 						submitLabel={submitLabel}
 						check={check}
 						onSave={onSave}
@@ -540,6 +543,7 @@ function AmountForm({
 	initialCents,
 	allowZero,
 	withNote,
+	notePlaceholder = "e.g. First payment",
 	submitLabel,
 	check,
 	onSave,
@@ -548,6 +552,7 @@ function AmountForm({
 	initialCents?: Cents | null;
 	allowZero: boolean;
 	withNote: boolean;
+	notePlaceholder?: string;
 	submitLabel: string;
 	check: (cents: Cents | null) => AmountCheck;
 	onSave: (cents: Cents, note: string | null) => void;
@@ -589,7 +594,7 @@ function AmountForm({
 						id={`${id}-note`}
 						maxLength={80}
 						autoComplete="off"
-						placeholder="e.g. First payment"
+						placeholder={notePlaceholder}
 						value={note}
 						onChange={(event) => setNote(event.currentTarget.value)}
 					/>
