@@ -3,7 +3,7 @@ import { isOverlap, type Lever, leverPreset, type MonthKey } from "@noodle/domai
 import { toast } from "@noodle/ui/components/toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatMoney } from "./format";
-import { insightsQuery } from "./queries";
+import { insightsQuery, perkSourcesQuery } from "./queries";
 import type { ExploreTry } from "./scenarios";
 import { decideInsight, lookForInsightsNow } from "./server/insights";
 
@@ -24,7 +24,8 @@ export const insightLabel = (insight: Pick<InsightItem, "kind">) =>
  * What an Insight can be tried as in Explore, a Lever preset each: ending a Commitment it's about
  * (an Overlap, or one not charged lately), or a price increase as its Commitment's new terms, to
  * see what the new price costs. An Overlap offers ending each of its Commitments still in the
- * Plan. The same charge twice, or a merchant's price increase, has no Lever to try.
+ * Plan. The same charge twice, a cost a Perk covers, or a merchant's price increase, has no
+ * Lever to try.
  */
 export function exploreTriesFor(
 	insight: Pick<InsightItem, "kind" | "commitments" | "transactions">,
@@ -39,6 +40,7 @@ export function exploreTriesFor(
 	};
 	switch (insight.kind) {
 		case "duplicate-charge":
+		case "perk-cost":
 			return [];
 		case "price-increase": {
 			// Its latest charge (Transactions are newest first) is the new price.
@@ -110,6 +112,10 @@ export function useLookForInsights() {
 			);
 		},
 		onError: () => toast("Couldn’t look for Insights. Try again later.", { tone: "error" }),
-		onSettled: () => queryClient.invalidateQueries({ queryKey: insightsQuery().queryKey }),
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: insightsQuery().queryKey });
+			// It may also have spotted Perk Sources to confirm.
+			queryClient.invalidateQueries({ queryKey: perkSourcesQuery().queryKey });
+		},
 	});
 }

@@ -3,15 +3,19 @@ import {
 	insightFingerprint,
 	knownFingerprints,
 	listParents,
+	loadAccountNames,
+	loadInsightPerks,
 	loadInsightSpends,
 	loadPlanRecords,
 	type NewInsight,
 	recordInsights,
+	recordPerkSourceSuggestions,
 	type Viewer,
 } from "@noodle/db";
 import {
 	addDays,
 	type DayKey,
+	detectPerkSources,
 	findInsights,
 	type InsightCandidate,
 	monthOfDay,
@@ -27,6 +31,8 @@ import { type InsightModel, type InsightToWord, MAX_NAMES } from "./insights-mod
 // a call of its own, apart from the Household's, so private names can't leak into shared wording.
 // Findings the Household already has (new, accepted, or dismissed) are skipped before the model
 // sees them, which keeps a nightly run to a few calls: one to group names, one or two to word.
+// A run also spots likely Perk Sources for the Parents to confirm, and finds Perk Overlaps with
+// the Perks already researched.
 
 export type InsightDeps = { db: Db; model: InsightModel; newId: () => string };
 
@@ -43,11 +49,21 @@ export async function lookForInsights(
 ): Promise<number> {
 	const { db, model } = deps;
 	const month = monthOfDay(asOf);
-	const [spends, records] = await Promise.all([
+	const [spends, records, perks, accounts] = await Promise.all([
 		loadInsightSpends(db, viewer, addDays(asOf, -LOOK_BACK_DAYS)),
 		loadPlanRecords(db, viewer.householdId, month),
+		loadInsightPerks(db, viewer),
+		loadAccountNames(db, viewer.householdId),
 	]);
-	const inputs = { spends, commitments: planForMonth(records, month).commitments, asOf };
+	const inputs = { spends, commitments: planForMonth(records, month).commitments, asOf, perks };
+
+	// Plain code spots the catalog's products; a Parent confirms each (on the Perks page).
+	await recordPerkSourceSuggestions(
+		db,
+		viewer,
+		detectPerkSources({ spends, accounts, commitments: inputs.commitments, asOf }),
+		deps.newId,
+	);
 
 	// The model groups the priciest services' names, by code.
 	const named = services(inputs)
@@ -106,6 +122,7 @@ export async function lookForInsights(
 				yearlyImpactCents: c.yearlyImpact,
 				transactionIds: c.transactionIds,
 				commitmentIds: c.commitmentIds,
+				perkIds: c.perkIds,
 				fingerprint: c.fingerprint,
 			}),
 		),

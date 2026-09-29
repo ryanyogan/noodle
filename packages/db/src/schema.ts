@@ -3,6 +3,8 @@ import {
 	DEFAULT_CHECK_IN_DAY,
 	INSIGHT_KINDS,
 	type LeverV1,
+	PERK_KINDS,
+	PERK_SOURCE_KINDS,
 	PLAN_CHANGE_KINDS,
 	type PlanChangeValue,
 	type ScenarioJson,
@@ -883,6 +885,8 @@ export const insights = sqliteTable(
 		yearlyImpactCents: integer("yearly_impact_cents").notNull(),
 		transactionIds: text("transaction_ids", { mode: "json" }).$type<string[]>().notNull(),
 		commitmentIds: text("commitment_ids", { mode: "json" }).$type<string[]>().notNull(),
+		// The Perks a Perk Overlap rests on.
+		perkIds: text("perk_ids", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
 		status: text("status", { enum: ["new", "accepted", "dismissed"] })
 			.notNull()
 			.default("new"),
@@ -893,4 +897,72 @@ export const insights = sqliteTable(
 			.default(sql`(unixepoch() * 1000)`),
 	},
 	(t) => [uniqueIndex("insights_household_fingerprint_idx").on(t.householdId, t.fingerprint)],
+);
+
+// A Perk Source: a product the Household holds that bundles benefits (a phone plan, card,
+// membership, insurance policy). The nightly look for Insights suggests the catalog's products it
+// sees in spending or Accounts (`suggested`); a Parent confirms one, or adds their own. Dismissed
+// or removed ones stay, so they aren't suggested again: `fingerprint` names the product, with its
+// owner (one row per Household and fingerprint). `owner_member_id` is set for one seen only in a
+// Parent's own Personal Allowance: only they ever read it (ADR-0003). `research` is where reading
+// its Perks stands: `researching`, `done`, `needs-plan` (its page's Perks depend on a plan tier
+// the Parent picks from `plan_options`), `needs-link` (no page to read), or `unreadable`.
+export const perkSources = sqliteTable(
+	"perk_sources",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		ownerMemberId: text("owner_member_id").references(() => members.id),
+		name: text("name").notNull(),
+		kind: text("kind", { enum: PERK_SOURCE_KINDS }).notNull(),
+		catalogKey: text("catalog_key"),
+		/** Its plan tier, once a Parent said which. */
+		plan: text("plan"),
+		planOptions: text("plan_options", { mode: "json" }).$type<string[]>(),
+		/** The page its Perks are read from. */
+		pageUrl: text("page_url"),
+		/** What a suggestion was seen in: a statement line, or an Account's name. */
+		seenIn: text("seen_in"),
+		status: text("status", { enum: ["suggested", "confirmed", "dismissed"] }).notNull(),
+		research: text("research", {
+			enum: ["idle", "researching", "done", "needs-plan", "needs-link", "unreadable"],
+		})
+			.notNull()
+			.default("idle"),
+		/** When its page was last read for Perks, whatever came of it. */
+		checkedAt: integer("checked_at", { mode: "timestamp_ms" }),
+		fingerprint: text("fingerprint").notNull(),
+		decidedByMemberId: text("decided_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [uniqueIndex("perk_sources_household_fingerprint_idx").on(t.householdId, t.fingerprint)],
+);
+
+// A Perk: one benefit a Perk Source includes, as its page said on the date it was checked, with
+// that page's link and the page's own words. `key` (its kind and the name it would have on a
+// statement, perkKey in @noodle/domain) keeps it the same Perk across re-checks, so the Insights
+// resting on it keep it.
+export const perks = sqliteTable(
+	"perks",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		perkSourceId: text("perk_source_id")
+			.notNull()
+			.references(() => perkSources.id),
+		key: text("key").notNull(),
+		name: text("name").notNull(),
+		kind: text("kind", { enum: PERK_KINDS }).notNull(),
+		matches: text("matches").notNull(),
+		quote: text("quote").notNull(),
+		sourceUrl: text("source_url").notNull(),
+		checkedAt: integer("checked_at", { mode: "timestamp_ms" }).notNull(),
+	},
+	(t) => [uniqueIndex("perks_source_key_idx").on(t.perkSourceId, t.key)],
 );

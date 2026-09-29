@@ -2,6 +2,7 @@ import type { DayKey, InsightKind, InsightSpend } from "@noodle/domain";
 import { and, desc, eq, gt, gte, inArray, isNull, ne, or, type SQL, sql } from "drizzle-orm";
 import { counts } from "./counting";
 import type { Db } from "./index";
+import { loadPerksById } from "./perks";
 import { partlyPrivate, type Viewer, visibleTo } from "./privacy";
 import { commitments, insights, transactions } from "./schema";
 
@@ -59,6 +60,7 @@ export type NewInsight = {
 	yearlyImpactCents: number;
 	transactionIds: string[];
 	commitmentIds: string[];
+	perkIds: string[];
 	/** The finding's fingerprint (from @noodle/domain); stored with its owner, see insightFingerprint. */
 	fingerprint: string;
 };
@@ -123,6 +125,8 @@ export type InsightItem = {
 	transactions: { id: string; date: DayKey; amount: number; note: string | null }[];
 	/** Its Commitments, `ended` when no longer in the Plan. */
 	commitments: { id: string; name: string; endedFromMonth: string | null }[];
+	/** Its Perks, each with the page it was read from and when (one gone since a re-check is left out). */
+	perks: { id: string; name: string; sourceName: string; sourceUrl: string; checkedAt: number }[];
 };
 
 /**
@@ -142,7 +146,8 @@ export async function loadInsights(db: Db, viewer: Viewer): Promise<InsightItem[
 		);
 	const transactionIds = [...new Set(rows.flatMap((row) => row.transactionIds))];
 	const commitmentIds = [...new Set(rows.flatMap((row) => row.commitmentIds))];
-	const [spends, named] = await Promise.all([
+	const perkIds = [...new Set(rows.flatMap((row) => row.perkIds))];
+	const [spends, named, perks] = await Promise.all([
 		transactionIds.length === 0
 			? []
 			: db
@@ -175,12 +180,16 @@ export async function loadInsights(db: Db, viewer: Viewer): Promise<InsightItem[
 							inArray(commitments.id, commitmentIds),
 						),
 					),
+		loadPerksById(db, viewer, perkIds),
 	]);
+	const perkById = new Map(perks.map((p) => [p.id, p]));
 	const spendById = new Map(spends.map((s) => [s.id, { ...s, date: s.date as DayKey }]));
 	const commitmentById = new Map(named.map((c) => [c.id, c]));
 	return rows.flatMap((row): InsightItem[] => {
 		const own = row.transactionIds.map((id) => spendById.get(id));
 		if (own.some((s) => s === undefined)) return [];
+		// A Perk Overlap goes with its Perk: its Perk Source removed, or a re-check that dropped it.
+		if (row.perkIds.some((id) => !perkById.has(id))) return [];
 		return [
 			{
 				id: row.id,
@@ -197,6 +206,12 @@ export async function loadInsights(db: Db, viewer: Viewer): Promise<InsightItem[
 				commitments: row.commitmentIds.flatMap((id) => {
 					const commitment = commitmentById.get(id);
 					return commitment ? [commitment] : [];
+				}),
+				perks: row.perkIds.flatMap((id) => {
+					const perk = perkById.get(id);
+					if (!perk) return [];
+					const { sourceName, sourceUrl, checkedAt } = perk;
+					return [{ id, name: perk.name, sourceName, sourceUrl, checkedAt }];
 				}),
 			},
 		];

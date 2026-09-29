@@ -1,4 +1,4 @@
-import { type MonthKey, monthKeyAt, monthOfDay } from "@noodle/domain";
+import { isOnce, type MonthKey, monthKeyAt, monthOfDay } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
@@ -6,13 +6,14 @@ import { EmptyState } from "@noodle/ui/components/empty-state";
 import { ListRow } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { toast } from "@noodle/ui/components/toast";
+import { cn } from "@noodle/ui/lib/utils";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
-import { Check, ChevronRight, Lightbulb, Lock, RefreshCw, Telescope } from "lucide-react";
+import { Check, ChevronRight, Gift, Lightbulb, Lock, RefreshCw, Telescope } from "lucide-react";
 import { useState } from "react";
 import { withoutCommitment } from "../../../commitments";
 import { Confirm, SaveFailed } from "../../../components/plan-editing";
-import { formatMoney, monthName, shortDay } from "../../../format";
+import { formatMoney, monthName, shortDay, shortDayAt } from "../../../format";
 import {
 	exploreTriesFor,
 	type InsightItem,
@@ -21,7 +22,7 @@ import {
 	useLookForInsights,
 } from "../../../insights";
 import { usePlanChange } from "../../../plan-changes";
-import { insightsQuery } from "../../../queries";
+import { insightsQuery, perkSourcesQuery } from "../../../queries";
 import { useTryInExplore } from "../../../scenarios";
 import { endCommitment } from "../../../server/commitments";
 
@@ -29,7 +30,11 @@ export const Route = createFileRoute("/_authed/_household/insights")({
 	beforeLoad: ({ context }) => ({
 		current: monthKeyAt(new Date(), context.household.timeZone),
 	}),
-	loader: ({ context }) => context.queryClient.ensureQueryData(insightsQuery()),
+	loader: ({ context }) =>
+		Promise.all([
+			context.queryClient.ensureQueryData(insightsQuery()),
+			context.queryClient.ensureQueryData(perkSourcesQuery()),
+		]),
 	component: InsightsPage,
 });
 
@@ -38,11 +43,15 @@ export const Route = createFileRoute("/_authed/_household/insights")({
  * the Transactions and Commitments behind it and its yearly impact. A Parent accepts or dismisses
  * each; accepting an Overlap offers to end one of its Commitments, which, like everything here,
  * only happens when they confirm. "Try in Explore" saves a Scenario with the change it suggests
- * and opens it there, leaving the Plan as it is.
+ * and opens it there, leaving the Plan as it is. Perk Overlaps rest on the Perk Sources Parents
+ * confirm on the Perks page, which this one links to (with how many wait to be confirmed).
  */
 function InsightsPage() {
 	const { current } = Route.useRouteContext();
 	const insights = useSuspenseQuery(insightsQuery()).data;
+	const toConfirm = useSuspenseQuery(perkSourcesQuery()).data.filter(
+		(source) => source.status === "suggested",
+	).length;
 	const look = useLookForInsights();
 	const queryClient = useQueryClient();
 	const hydrated = useHydrated();
@@ -67,6 +76,7 @@ function InsightsPage() {
 			<PageHeader title="Insights" actions={insights.length > 0 ? lookNow : undefined} />
 			<div className="grid max-w-2xl gap-4">
 				<SaveFailed change={end} />
+				<PerksLink toConfirm={toConfirm} />
 				{insights.length === 0 ? (
 					<EmptyState
 						icon={<Lightbulb />}
@@ -99,6 +109,30 @@ function InsightsPage() {
 	);
 }
 
+/** Opens the Perks page, saying how many Perk Sources wait to be confirmed. */
+function PerksLink({ toConfirm }: { toConfirm: number }) {
+	return (
+		<Link
+			to="/perks"
+			className={cn(
+				"flex items-center gap-3 rounded-xl border px-(--card-pad) py-3 text-sm",
+				"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60",
+			)}
+		>
+			<Gift aria-hidden="true" className="size-4 text-subtle-foreground" />
+			<span className="grid min-w-0 flex-1 gap-0.5">
+				<span className="font-medium">Perks</span>
+				<span className="text-[13px] text-muted-foreground">
+					{toConfirm > 0
+						? `${toConfirm} Perk ${toConfirm === 1 ? "Source" : "Sources"} to confirm`
+						: "What your phone plan, cards and memberships include"}
+				</span>
+			</span>
+			<ChevronRight aria-hidden="true" className="size-4 text-subtle-foreground" />
+		</Link>
+	);
+}
+
 type InsightCommitment = InsightItem["commitments"][number];
 
 function InsightCard({
@@ -119,9 +153,8 @@ function InsightCard({
 	const live = insight.commitments.filter(
 		(c) => c.endedFromMonth === null || c.endedFromMonth > current,
 	);
-	const offersEnding =
-		insight.status === "accepted" && insight.kind !== "duplicate-charge" && live.length > 0;
-	const evidence = insight.commitments.length + insight.transactions.length;
+	const offersEnding = insight.status === "accepted" && !isOnce(insight.kind) && live.length > 0;
+	const evidence = insight.commitments.length + insight.transactions.length + insight.perks.length;
 	return (
 		<Card role="article" aria-labelledby={titleId}>
 			<div className="grid gap-3 p-(--card-pad)">
@@ -152,7 +185,7 @@ function InsightCard({
 							{formatMoney(insight.yearlyImpact)}
 						</span>
 						<span className="text-[13px] text-muted-foreground">
-							{insight.kind === "duplicate-charge" ? "once" : "a year"}
+							{isOnce(insight.kind) ? "once" : "a year"}
 						</span>
 					</p>
 				</div>
@@ -180,6 +213,22 @@ function InsightCard({
 								meta={
 									live.includes(commitment) ? "Commitment" : "Commitment, no longer in the Plan"
 								}
+							/>
+						))}
+						{insight.perks.map((perk) => (
+							<ListRow
+								key={perk.id}
+								title={
+									<a
+										href={perk.sourceUrl}
+										target="_blank"
+										rel="noreferrer"
+										className="underline-offset-4 hover:underline"
+									>
+										{perk.name}
+									</a>
+								}
+								meta={`Perk of ${perk.sourceName} · Checked ${shortDayAt(perk.checkedAt)}`}
 							/>
 						))}
 						{insight.transactions.map((transaction) => (

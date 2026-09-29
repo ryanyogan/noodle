@@ -54,9 +54,15 @@
 	// Workflow per Household once its own 1st has begun; each waits up to a week for the Parents'
 	// decision, then applies the defaults. Every night at 09:00 UTC (early morning across the US),
 	// another cron looks for Insights in every Household, then starts the weekly Check-in wherever
-	// it's Check-in day (server.ts dispatches by cron).
+	// it's Check-in day (server.ts dispatches by cron), and re-checks Perks a month old. The Perk
+	// research Workflow reads a Perk Source's benefits page when a Parent confirms or adds one.
 	"workflows": [
-		{ "name": "noodle-month-close", "binding": "MONTH_CLOSE", "class_name": "MonthCloseWorkflow" }
+		{ "name": "noodle-month-close", "binding": "MONTH_CLOSE", "class_name": "MonthCloseWorkflow" },
+		{
+			"name": "noodle-perk-research",
+			"binding": "PERK_RESEARCH",
+			"class_name": "PerkResearchWorkflow"
+		}
 	],
 	"triggers": { "crons": ["0 * 1-3 * *", "0 9 * * *"] }
 	// The Check-in's email summary goes out through Cloudflare Email Service once these are added

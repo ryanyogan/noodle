@@ -109,6 +109,8 @@ const KIND_TEXT: Record<InsightKind, string> = {
 	"duplicate-charge": "The same amount charged twice at the same place a day or two apart",
 	"price-increase": "A regular charge that went up",
 	unused: "A Commitment in the Plan with no charges for a while",
+	"perk-service": "A service they pay for that one of their plans, cards or memberships includes",
+	"perk-cost": "A cost they paid that one of their cards or memberships covers or credits",
 };
 
 export function groupPrompt(names: NameToGroup[]): string {

@@ -10,7 +10,7 @@ import { notifyHousehold } from "./notify";
 import { ulidSchema } from "./schemas";
 
 // Insights for the screen: a Parent can ask for the nightly look now (for local dev and E2E, or
-// after a big Import). Parents read the ones they may see and accept or dismiss them; neither
+// after a big Import), which also spots Perk Sources to confirm. Parents read the ones they may see and accept or dismiss them; neither
 // changes money or the Plan. Accepting an Overlap only offers the usual end-Commitment flow.
 
 /** The Insights the Parent may read that weren't dismissed, new ones first. */
@@ -27,7 +27,8 @@ export const lookForInsightsNow = createServerFn({ method: "POST" })
 			context.household.id,
 			dayKeyAt(new Date(), context.household.timeZone),
 		);
-		if (added > 0) await notifyHousehold(context.household.id, ["insights"]);
+		// It may also have spotted Perk Sources to confirm.
+		await notifyHousehold(context.household.id, added > 0 ? ["insights", "perks"] : ["perks"]);
 		return added;
 	});
 

@@ -48,6 +48,7 @@ const insight = (fields: Partial<NewInsight> = {}): NewInsight => ({
 	yearlyImpactCents: 16_788,
 	transactionIds: ["hulu"],
 	commitmentIds: [],
+	perkIds: [],
 	fingerprint: "duplicate-service:m:disney,m:hulu",
 	...fields,
 });

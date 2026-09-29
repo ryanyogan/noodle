@@ -33,7 +33,8 @@ export async function startInsights(now: Date): Promise<void> {
 				dayKeyAt(now, household.timeZone),
 			);
 			console.log(`Insights for ${household.id}: ${added} new, ${Date.now() - started} ms`);
-			if (added > 0) await notifyHousehold(household.id, ["insights"]);
+			// Perk Sources it spotted show when a screen next catches up.
+			if (added > 0) await notifyHousehold(household.id, ["insights", "perks"]);
 		} catch (error) {
 			console.error(`Couldn’t look for Insights for ${household.id}`, error);
 		}

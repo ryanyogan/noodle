@@ -394,6 +394,23 @@ export {
 	savePushSubscription,
 } from "./nudges";
 export {
+	addPerkSource,
+	decidePerkSource,
+	loadAccountNames,
+	loadInsightPerks,
+	loadPerkSources,
+	loadPerkSourceToResearch,
+	type PerkItem,
+	type PerkResearch,
+	type PerkResearchOutcome,
+	type PerkSourceItem,
+	type PerkSourceToResearch,
+	perkSourcesToRecheck,
+	recordPerkSourceSuggestions,
+	saveResearch,
+	updatePerkSource,
+} from "./perks";
+export {
 	addBucket,
 	addPersonalAllowance,
 	archiveBucket,

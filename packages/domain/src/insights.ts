@@ -2,6 +2,7 @@ import { merchantKey } from "./categorize";
 import { type Cadence, yearlyCost } from "./commitments";
 import type { Cents } from "./money";
 import { addDays, type DayKey, daysBetween, monthOfDay } from "./month";
+import { mentions, type PerkKind } from "./perks";
 import type { PlanCommitment } from "./plan";
 
 // Insights: suggested changes found in a Household's spending and Commitments, each backed by the
@@ -14,12 +15,19 @@ export const INSIGHT_KINDS = [
 	"duplicate-charge",
 	"price-increase",
 	"unused",
+	"perk-service",
+	"perk-cost",
 ] as const;
 export type InsightKind = (typeof INSIGHT_KINDS)[number];
 
-/** Overlaps: paying twice for the same benefit, as two services or as the same charge twice. */
-export const isOverlap = (kind: InsightKind) =>
-	kind === "duplicate-service" || kind === "duplicate-charge";
+/**
+ * Overlaps: paying twice for the same benefit, as two services, the same charge twice, a service
+ * a Perk already includes, or a cost a Perk covers.
+ */
+export const isOverlap = (kind: InsightKind) => kind !== "price-increase" && kind !== "unused";
+
+/** Insights about money paid once (a charge twice, a covered cost), not every year. */
+export const isOnce = (kind: InsightKind) => kind === "duplicate-charge" || kind === "perk-cost";
 
 /** A Transaction an Insight may rest on, as the Viewer sees it. `amount` is money spent. */
 export type InsightSpend = {
@@ -55,7 +63,9 @@ export type InsightCandidate = {
 	yearlyImpact: Cents;
 	transactionIds: string[];
 	commitmentIds: string[];
-	/** Rests on the Viewer's own Personal Allowance: theirs alone. */
+	/** The Perks it rests on. */
+	perkIds: string[];
+	/** Rests on the Viewer's own Personal Allowance (or their own Perk Source): theirs alone. */
 	private: boolean;
 	/** The names it's about. */
 	subjects: string[];
@@ -70,6 +80,23 @@ export type InsightInputs = {
 	commitments: PlanCommitment[];
 	/** Today, in the Household's time zone. */
 	asOf: DayKey;
+	/** The Perks of the Perk Sources the Viewer may see. */
+	perks?: InsightPerk[];
+};
+
+/** A Perk an Insight may rest on. */
+export type InsightPerk = {
+	id: string;
+	sourceId: string;
+	sourceName: string;
+	/** Its identity within its Perk Source (perkKey), stable across re-checks. */
+	key: string;
+	name: string;
+	kind: PerkKind;
+	/** The service or cost as it would read on a statement. */
+	matches: string;
+	/** Its Perk Source is the Viewer's alone. */
+	private: boolean;
 };
 
 /** How far back a merchant's charges make it a monthly service. */
@@ -82,6 +109,8 @@ const DUPLICATE_GAP_DAYS = 2;
 const DUPLICATE_MIN: Cents = 1000;
 /** How recent a higher charge must be to report it as a price increase. */
 const INCREASE_DAYS = 45;
+/** How far back a cost a Perk covers is worth mentioning. */
+const COVERED_COST_DAYS = 365;
 /** How many Transactions an Insight lists at most. */
 const MAX_TRANSACTIONS = 12;
 
@@ -195,14 +224,18 @@ const names = (list: string[]) =>
 		: `${list.slice(0, -1).join(", ")}, and ${list.at(-1) as string}`;
 
 const candidate = (
-	fields: Omit<InsightCandidate, "private" | "transactionIds"> & { charges: InsightSpend[] },
+	fields: Omit<InsightCandidate, "private" | "transactionIds" | "perkIds"> & {
+		charges: InsightSpend[];
+		perks?: InsightPerk[];
+	},
 ): InsightCandidate => {
-	const { charges, ...rest } = fields;
+	const { charges, perks = [], ...rest } = fields;
 	const latest = [...charges].sort(byDate).slice(-MAX_TRANSACTIONS);
 	return {
 		...rest,
 		transactionIds: [...new Set(latest.map((c) => c.id))],
-		private: latest.some((c) => c.private),
+		perkIds: perks.map((p) => p.id),
+		private: latest.some((c) => c.private) || perks.some((p) => p.private),
 	};
 };
 
@@ -336,6 +369,76 @@ function unusedCommitments({ spends, commitments, asOf }: InsightInputs): Insigh
 }
 
 /**
+ * A service the Household pays for that one of its Perks already includes (Netflix, paid for
+ * and included with the phone plan): an Overlap. Ending it saves what it costs a year, if the
+ * Perk covers what's used; the Perk Source itself (its own bill) never counts.
+ */
+function includedServices(all: Service[], perks: InsightPerk[]): InsightCandidate[] {
+	const found: InsightCandidate[] = [];
+	for (const perk of perks.filter((p) => p.kind === "service")) {
+		for (const service of all) {
+			if (!mentions(service.name, perk.matches) || mentions(service.name, perk.sourceName)) {
+				continue;
+			}
+			found.push(
+				candidate({
+					kind: "perk-service",
+					fingerprint: `perk-service:${perk.sourceId}:${perk.key}:${service.key}`,
+					yearlyImpact: service.yearly,
+					commitmentIds: service.commitmentId ? [service.commitmentId] : [],
+					charges: service.charges,
+					perks: [perk],
+					subjects: [service.name, perk.sourceName],
+					title: `${service.name} may come with ${perk.sourceName}`,
+					body: `${perk.sourceName} includes ${perk.name}. If that covers what you use, ending ${service.name} would save what it costs.`,
+				}),
+			);
+		}
+	}
+	return found;
+}
+
+/**
+ * Charges in the last year for a cost one of its Perks covers (a TSA PreCheck fee, with a card
+ * that credits it): an Overlap, once. Each new charge makes it a new finding.
+ */
+function coveredCosts({ spends, asOf, perks = [] }: InsightInputs): InsightCandidate[] {
+	const since = addDays(asOf, -COVERED_COST_DAYS);
+	const found: InsightCandidate[] = [];
+	for (const perk of perks.filter((p) => p.kind === "cost")) {
+		const paid = spends
+			.filter(
+				(s) =>
+					s.date > since &&
+					s.date <= asOf &&
+					mentions(s.note, perk.matches) &&
+					!mentions(s.note, perk.sourceName),
+			)
+			.sort(byDate);
+		if (paid.length === 0) continue;
+		const name = (paid.at(-1) as InsightSpend).note.trim();
+		found.push(
+			candidate({
+				kind: "perk-cost",
+				fingerprint: `perk-cost:${perk.sourceId}:${perk.key}:${paid
+					.map((s) => s.id)
+					.sort()
+					.join(",")}`,
+				// What was paid for it: the most the Perk could have saved.
+				yearlyImpact: paid.reduce((sum, s) => sum + s.amount, 0),
+				commitmentIds: [...new Set(paid.flatMap((s) => (s.commitmentId ? [s.commitmentId] : [])))],
+				charges: paid,
+				perks: [perk],
+				subjects: [name, perk.sourceName],
+				title: `${perk.sourceName} may cover ${perk.matches}`,
+				body: `${perk.sourceName} includes ${perk.name}. If you paid some other way, or the credit wasn’t applied, you may be able to get it back or use it next time.`,
+			}),
+		);
+	}
+	return found;
+}
+
+/**
  * Every Insight in what the Viewer may see, largest yearly impact first. `sameService` lists
  * service keys (see `services`) a model says are one service or overlap; unknown keys are ignored.
  */
@@ -349,5 +452,7 @@ export function findInsights(
 		...duplicateCharges(inputs),
 		...priceIncreases(all, inputs),
 		...unusedCommitments(inputs),
+		...includedServices(all, inputs.perks ?? []),
+		...coveredCosts(inputs),
 	].sort((a, b) => b.yearlyImpact - a.yearlyImpact || (a.fingerprint < b.fingerprint ? -1 : 1));
 }

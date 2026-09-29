@@ -19,6 +19,7 @@ import { Route as AuthedHouseholdCheckInRouteImport } from './routes/_authed/_ho
 import { Route as AuthedHouseholdExploreRouteImport } from './routes/_authed/_household/explore'
 import { Route as AuthedHouseholdHouseholdRouteImport } from './routes/_authed/_household/household'
 import { Route as AuthedHouseholdInsightsRouteImport } from './routes/_authed/_household/insights'
+import { Route as AuthedHouseholdPerksRouteImport } from './routes/_authed/_household/perks'
 import { Route as AuthedHouseholdReportsRouteImport } from './routes/_authed/_household/reports'
 import { Route as AuthedHouseholdExploreAffordRouteImport } from './routes/_authed/_household/explore_.afford'
 import { Route as AuthedHouseholdExploreScenariosRouteImport } from './routes/_authed/_household/explore_.scenarios'
@@ -91,6 +92,11 @@ const AuthedHouseholdHouseholdRoute =
 const AuthedHouseholdInsightsRoute = AuthedHouseholdInsightsRouteImport.update({
   id: '/insights',
   path: '/insights',
+  getParentRoute: () => AuthedHouseholdRoute,
+} as any)
+const AuthedHouseholdPerksRoute = AuthedHouseholdPerksRouteImport.update({
+  id: '/perks',
+  path: '/perks',
   getParentRoute: () => AuthedHouseholdRoute,
 } as any)
 const AuthedHouseholdReportsRoute = AuthedHouseholdReportsRouteImport.update({
@@ -246,6 +252,7 @@ export interface FileRoutesByFullPath {
   '/explore': typeof AuthedHouseholdExploreRoute
   '/household': typeof AuthedHouseholdHouseholdRoute
   '/insights': typeof AuthedHouseholdInsightsRoute
+  '/perks': typeof AuthedHouseholdPerksRoute
   '/reports': typeof AuthedHouseholdReportsRoute
   '/explore/afford': typeof AuthedHouseholdExploreAffordRoute
   '/explore/scenarios': typeof AuthedHouseholdExploreScenariosRoute
@@ -280,6 +287,7 @@ export interface FileRoutesByTo {
   '/explore': typeof AuthedHouseholdExploreRoute
   '/household': typeof AuthedHouseholdHouseholdRoute
   '/insights': typeof AuthedHouseholdInsightsRoute
+  '/perks': typeof AuthedHouseholdPerksRoute
   '/reports': typeof AuthedHouseholdReportsRoute
   '/explore/afford': typeof AuthedHouseholdExploreAffordRoute
   '/explore/scenarios': typeof AuthedHouseholdExploreScenariosRoute
@@ -315,6 +323,7 @@ export interface FileRoutesById {
   '/_authed/_household/explore': typeof AuthedHouseholdExploreRoute
   '/_authed/_household/household': typeof AuthedHouseholdHouseholdRoute
   '/_authed/_household/insights': typeof AuthedHouseholdInsightsRoute
+  '/_authed/_household/perks': typeof AuthedHouseholdPerksRoute
   '/_authed/_household/reports': typeof AuthedHouseholdReportsRoute
   '/_authed/_household/explore_/afford': typeof AuthedHouseholdExploreAffordRoute
   '/_authed/_household/explore_/scenarios': typeof AuthedHouseholdExploreScenariosRoute
@@ -351,6 +360,7 @@ export interface FileRouteTypes {
     | '/explore'
     | '/household'
     | '/insights'
+    | '/perks'
     | '/reports'
     | '/explore/afford'
     | '/explore/scenarios'
@@ -385,6 +395,7 @@ export interface FileRouteTypes {
     | '/explore'
     | '/household'
     | '/insights'
+    | '/perks'
     | '/reports'
     | '/explore/afford'
     | '/explore/scenarios'
@@ -419,6 +430,7 @@ export interface FileRouteTypes {
     | '/_authed/_household/explore'
     | '/_authed/_household/household'
     | '/_authed/_household/insights'
+    | '/_authed/_household/perks'
     | '/_authed/_household/reports'
     | '/_authed/_household/explore_/afford'
     | '/_authed/_household/explore_/scenarios'
@@ -521,6 +533,13 @@ declare module '@tanstack/react-router' {
       path: '/insights'
       fullPath: '/insights'
       preLoaderRoute: typeof AuthedHouseholdInsightsRouteImport
+      parentRoute: typeof AuthedHouseholdRoute
+    }
+    '/_authed/_household/perks': {
+      id: '/_authed/_household/perks'
+      path: '/perks'
+      fullPath: '/perks'
+      preLoaderRoute: typeof AuthedHouseholdPerksRouteImport
       parentRoute: typeof AuthedHouseholdRoute
     }
     '/_authed/_household/reports': {
@@ -739,6 +758,7 @@ interface AuthedHouseholdRouteChildren {
   AuthedHouseholdExploreRoute: typeof AuthedHouseholdExploreRoute
   AuthedHouseholdHouseholdRoute: typeof AuthedHouseholdHouseholdRoute
   AuthedHouseholdInsightsRoute: typeof AuthedHouseholdInsightsRoute
+  AuthedHouseholdPerksRoute: typeof AuthedHouseholdPerksRoute
   AuthedHouseholdReportsRoute: typeof AuthedHouseholdReportsRoute
   AuthedHouseholdExploreAffordRoute: typeof AuthedHouseholdExploreAffordRoute
   AuthedHouseholdExploreScenariosRoute: typeof AuthedHouseholdExploreScenariosRoute
@@ -764,6 +784,7 @@ const AuthedHouseholdRouteChildren: AuthedHouseholdRouteChildren = {
   AuthedHouseholdExploreRoute: AuthedHouseholdExploreRoute,
   AuthedHouseholdHouseholdRoute: AuthedHouseholdHouseholdRoute,
   AuthedHouseholdInsightsRoute: AuthedHouseholdInsightsRoute,
+  AuthedHouseholdPerksRoute: AuthedHouseholdPerksRoute,
   AuthedHouseholdReportsRoute: AuthedHouseholdReportsRoute,
   AuthedHouseholdExploreAffordRoute: AuthedHouseholdExploreAffordRoute,
   AuthedHouseholdExploreScenariosRoute: AuthedHouseholdExploreScenariosRoute,

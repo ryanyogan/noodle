@@ -11,6 +11,7 @@ import { getHouseholdParents } from "./server/invites";
 import { getForTotalsEarlierInYear, getMembers } from "./server/members";
 import { getMonth, type MonthData } from "./server/month";
 import { getNudgeSettings } from "./server/nudges";
+import { getPerkSources } from "./server/perks";
 import { getPlanHistory } from "./server/plan";
 import { getReport, type ReportRequest } from "./server/reports";
 import { getReview, getRules } from "./server/review";
@@ -173,6 +174,13 @@ export const insightsQuery = () =>
 	queryOptions({
 		queryKey: ["insights"],
 		queryFn: () => getInsights(),
+	});
+
+/** The Perk Sources the Parent may read that weren't dismissed, suggestions first, with their Perks. */
+export const perkSourcesQuery = () =>
+	queryOptions({
+		queryKey: ["perks"],
+		queryFn: () => getPerkSources(),
 	});
 
 /** The Rules this Parent may see. */

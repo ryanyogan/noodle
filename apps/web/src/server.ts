@@ -7,16 +7,19 @@ import { connectToHouseholdAgent } from "./server/household-agent";
 import { startInsights } from "./server/insights-nightly";
 import { startMonthCloses } from "./server/month-close-workflow";
 import { consumeNudges, type NudgeDelivery } from "./server/nudge-delivery";
+import { startPerkRechecks } from "./server/perk-research-workflow";
 
 // The Worker's entry: TanStack Start serves the app, and screens' WebSockets go to their
 // Household Agent, which the Worker must export. It also consumes the Nudge Queue, and its cron
 // starts each Household's Month-close Workflow (also exported); a nightly one looks for Insights,
-// then starts the weekly Check-in wherever it's Check-in day. The iPhone Shortcut's captures
+// re-checks Perks a month old (the Perk research Workflow, also exported), then starts the weekly
+// Check-in wherever it's Check-in day. The iPhone Shortcut's captures
 // arrive at their own endpoint and wait on the ingest Queue, which this Worker consumes too.
 export { HouseholdAgent } from "./server/household-agent";
 export { MonthCloseWorkflow } from "./server/month-close-workflow";
+export { PerkResearchWorkflow } from "./server/perk-research-workflow";
 
-/** The nightly cron: Insights, then Check-ins (wrangler.jsonc); the other is Month-close's. */
+/** The nightly cron: Insights, Perk re-checks, then Check-ins (wrangler.jsonc); the other is Month-close's. */
 const NIGHTLY_CRON = "0 9 * * *";
 
 export default {
@@ -37,6 +40,9 @@ export default {
 		if (controller.cron === NIGHTLY_CRON) {
 			// Insights first, so the Check-in counts what they found.
 			await startInsights(now).catch((error) => console.error("Couldn’t look for Insights", error));
+			await startPerkRechecks(now).catch((error) =>
+				console.error("Couldn’t start Perk re-checks", error),
+			);
 			return startCheckIns(now);
 		}
 		return startMonthCloses(now);

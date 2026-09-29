@@ -6,7 +6,10 @@ import {
 	createHouseholdForParent,
 	type Db,
 	decideInsight,
+	decidePerkSource,
 	loadInsights,
+	loadPerkSources,
+	saveResearch,
 	type Viewer,
 } from "@noodle/db";
 import { members } from "@noodle/db/schema";
@@ -176,6 +179,67 @@ describe("looking for Insights", () => {
 		expect((await loadInsights(db, sam)).map((i) => i.title)).toEqual([
 			"Disney+ and Hulu bundle may overlap",
 		]);
+	});
+});
+
+describe("Perk Sources and Perk Overlaps", () => {
+	it("spots a Perk Source among the Commitments, then finds a service it includes", async () => {
+		for (const [commitmentId, name, amountCents] of [
+			["t-mobile", "T-Mobile", 14_000],
+			["netflix", "Netflix", 1_799],
+		] as const) {
+			await addCommitment(db, {
+				householdId,
+				memberId: "alex",
+				commitmentId,
+				name,
+				month,
+				amountCents,
+				cadence: "monthly",
+				dueDate: "2026-09-05" as DayKey,
+			});
+		}
+		const { model } = recordingModel();
+		await lookForInsights(deps(model), sam, asOf);
+		const [suggestion] = await loadPerkSources(db, sam);
+		expect(suggestion).toMatchObject({ name: "T-Mobile", status: "suggested", seenIn: "T-Mobile" });
+		if (!suggestion) return;
+
+		// Not until it's confirmed and researched.
+		expect((await loadInsights(db, sam)).map((i) => i.kind)).not.toContain("perk-service");
+		await decidePerkSource(db, sam, { id: suggestion.id, status: "confirmed" });
+		await saveResearch(db, {
+			householdId,
+			perkSourceId: suggestion.id,
+			checkedAt: new Date("2026-09-28T12:00:00Z"),
+			newId,
+			outcome: {
+				research: "done",
+				sourceUrl: "https://www.t-mobile.com/cell-phone-plans",
+				perks: [
+					{
+						name: "Netflix Standard with ads",
+						kind: "service",
+						matches: "Netflix",
+						tiers: [],
+						quote: "Netflix Standard with ads is on us",
+					},
+				],
+			},
+		});
+		await lookForInsights(deps(model), sam, asOf);
+		expect((await loadInsights(db, alex)).find((i) => i.kind === "perk-service")).toMatchObject({
+			title: "Netflix may come with T-Mobile (stub)",
+			yearlyImpact: 1_799 * 12,
+			commitments: [{ id: "netflix" }],
+			perks: [
+				{
+					name: "Netflix Standard with ads",
+					sourceName: "T-Mobile",
+					sourceUrl: "https://www.t-mobile.com/cell-phone-plans",
+				},
+			],
+		});
 	});
 });
 

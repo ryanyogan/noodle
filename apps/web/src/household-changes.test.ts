@@ -67,6 +67,7 @@ describe("queryKeysFor", () => {
 			["viewer"],
 			["rules"],
 			["insights"],
+			["perks"],
 			["month", "check-in"],
 			["reports"],
 		]);
