@@ -45,6 +45,8 @@ export const monthKeySchema = z
  */
 export type MonthData = {
 	plan: Plan;
+	/** The Plan in force the month before, to show what this month's Plan changed. */
+	planBefore: Plan;
 	spending: BucketSpend[];
 	charges: CommitmentCharge[];
 	moves: PlanMove[];
@@ -92,6 +94,7 @@ export async function loadMonth(
 	const now = new Date();
 	return {
 		plan: planForMonth(records, month),
+		planBefore: planForMonth(records, addMonths(month, -1)),
 		spending,
 		charges,
 		moves,

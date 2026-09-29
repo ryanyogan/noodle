@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, serverFn, signedInPage } from "./session";
+import { createPlannedHousehold, serverFn, signedInPage, switchTo } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -86,8 +86,9 @@ test("Quick Add opens over any screen, and Back closes it without reloading the 
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, plan);
 
-	// A half-typed Bucket name in the Plan editor survives opening and closing Quick Add.
-	await page.getByRole("link", { name: "Edit Plan" }).click();
+	// A half-typed Bucket name in the Plan survives opening and closing Quick Add.
+	await switchTo(page, "Plan");
+	await page.getByRole("link", { name: "Buckets", exact: true }).click();
 	await page.getByLabel("New Bucket").fill("Gifts");
 	await page.getByRole("link", { name: "Quick Add" }).click();
 	await expect(sheet(page)).toBeVisible();

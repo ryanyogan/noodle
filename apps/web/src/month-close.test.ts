@@ -15,6 +15,7 @@ const month: MonthData = {
 			{ id: "fun", name: "Fun", color: 2, allowance: 30_000, rolling: false },
 		],
 	},
+	planBefore: { month: "2026-07", baseline: 500_000, commitments: [], buckets: [] },
 	spending: [],
 	charges: [],
 	moves: [],

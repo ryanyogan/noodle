@@ -26,6 +26,7 @@ const month: MonthData = {
 			{ id: "hockey", name: "Hockey", color: 2, allowance: 40_000, rolling: false },
 		],
 	},
+	planBefore: { month: "2026-08", baseline: 500_000, commitments: [], buckets: [] },
 	spending: [
 		{ id: "costco", bucketId: "groceries", amount: 18_642, date: "2026-09-13", for: [] },
 		{ id: "skates", bucketId: "groceries", amount: 6_499, date: "2026-09-12", for: [] },

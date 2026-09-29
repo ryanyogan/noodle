@@ -11,7 +11,7 @@ import { getDb } from "./db";
 import { householdMiddleware } from "./household";
 import { monthKeySchema } from "./month";
 import { notifyHousehold } from "./notify";
-import { assertEditable, centsSchema } from "./plan";
+import { assertEditable, centsSchema, planScopeSchema } from "./plan";
 import { dayKeySchema, ulidSchema } from "./schemas";
 
 // Commitments in the Plan, and payments against them. Each change is idempotent, so the client
@@ -37,10 +37,10 @@ export const addCommitment = createServerFn({ method: "POST" })
 		await notifyHousehold(context.household.id, ["months"]);
 	});
 
-/** Renames a Commitment, and sets what it expects from `month` onward. */
+/** Renames a Commitment, and sets what it expects from `month` onward, or just for `month`. */
 export const updateCommitment = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
-	.validator(commitmentSchema)
+	.validator(commitmentSchema.extend({ scope: planScopeSchema }))
 	.handler(async ({ data, context }) => {
 		assertEditable(context.household, data.month);
 		await updateCommitmentInDb(getDb(), { householdId: context.household.id, ...data });

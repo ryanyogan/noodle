@@ -10,6 +10,7 @@ const month: MonthData = {
 		commitments: [],
 		buckets: [{ id: "fun", name: "Fun", color: 1, allowance: 40_000, rolling: false }],
 	},
+	planBefore: { month: "2026-08", baseline: 500_000, commitments: [], buckets: [] },
 	spending: [],
 	charges: [],
 	moves: [],

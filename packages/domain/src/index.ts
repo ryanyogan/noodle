@@ -161,6 +161,7 @@ export {
 	totalAllowances,
 	totalCommitments,
 } from "./plan";
+export { type PlanChanges, type PlanScope, planChanges, restoreAfterJust } from "./plan-scope";
 export {
 	type AmountBand,
 	addMonthsToDay,

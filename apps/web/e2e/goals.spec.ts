@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { createPlannedHousehold, signedInPage, switchTo } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -84,12 +84,12 @@ test("a Goal is funded from Free to Spend and spent from its Earmark, never a Bu
 	// Free to Spend drops by exactly the funding, on the Plan and on This Month.
 	await page.goto(thisMonth);
 	await expect(freeToSpend(page).getByText("$3,150", { exact: true })).toBeVisible();
-	await page.getByRole("link", { name: "Edit Plan" }).click();
-	const summary = freeToSpend(page);
-	await expect(summary.getByText("Goal funding")).toBeVisible();
-	await expect(summary).toContainText("Goal funding−$250");
-	await expect(summary).toContainText("Free to Spend$3,150");
-	await expect(page.getByRole("region", { name: /^Goals/ })).toContainText("Braces");
+	await switchTo(page, "Plan");
+	const waterfall = page.getByRole("region", { name: "Baseline to Free to Spend" });
+	await expect(waterfall).toContainText("Goal funding−$250");
+	await expect(waterfall).toContainText("Free to Spend$3,150");
+	await waterfall.getByRole("link", { name: "Goal funding" }).click();
+	await expect(page.getByRole("region", { name: /^To fund this month/ })).toContainText("Braces");
 
 	// Spending comes out of the Earmark, and no more than it.
 	await openGoals(page);

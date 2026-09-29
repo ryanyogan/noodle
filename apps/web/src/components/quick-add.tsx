@@ -224,7 +224,7 @@ function QuickAddForm({
 					Quick Add files spending into a Bucket. Add one to your Plan first.
 				</p>
 				<Button variant="outline" asChild>
-					<Link to="/month/$month/plan" params={{ month: entry.month }}>
+					<Link to="/plan/$month" params={{ month: entry.month }}>
 						Set up the Plan
 					</Link>
 				</Button>

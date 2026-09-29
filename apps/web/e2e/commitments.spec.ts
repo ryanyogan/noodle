@@ -1,6 +1,6 @@
 import { expect, type Page, type Route, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, serverFn, signedInPage } from "./session";
+import { createPlannedHousehold, serverFn, signedInPage, switchTo } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -12,22 +12,50 @@ test.afterEach(async () => {
 	await parent?.remove();
 });
 
-const summary = (page: Page) => page.getByRole("region", { name: "Free to Spend" });
-const freeToSpend = (page: Page) => summary(page).getByRole("definition").last();
-const amount = (page: Page, commitment: string) =>
-	page.getByLabel(`${commitment} amount`, { exact: true });
+const waterfall = (page: Page) => page.getByRole("region", { name: "Baseline to Free to Spend" });
+const freeToSpend = (page: Page) => waterfall(page).getByRole("listitem").last();
+const expected = (page: Page, total: string) => page.getByText(`${total} expected this month`);
+const edit = (page: Page, commitment: string) =>
+	page.getByRole("button", { name: `Edit ${commitment}` });
+const planRow = (page: Page, commitment: string) =>
+	page.getByRole("listitem").filter({ has: edit(page, commitment) });
 const addForm = (page: Page) => page.getByRole("form", { name: "Add a Commitment" });
 const commitmentRow = (page: Page, name: string) =>
 	page.getByRole("listitem", { name: new RegExp(`^${name}: `) });
 
-/** Plans $9,000 with a $1,200 Groceries Bucket, opens the Plan editor, and returns its month. */
+/** Plans $9,000 with a $1,200 Groceries Bucket, opens the Plan's Commitments, and returns its month. */
 async function openPlan(page: Page) {
 	await createPlannedHousehold(page, { baseline: "9,000", buckets: [["Groceries", "1,200"]] });
-	await page.getByRole("link", { name: "Edit Plan" }).click();
-	await expect(freeToSpend(page)).toHaveText("$7,800");
-	const month = /\/month\/(\d{4}-\d{2})\//.exec(page.url())?.[1];
+	await switchTo(page, "Plan");
+	await expect(freeToSpend(page)).toHaveText("Free to Spend$7,800");
+	await openCommitments(page);
+	const month = /\/plan\/(\d{4}-\d{2})\//.exec(page.url())?.[1];
 	if (!month) throw new Error(`No month in ${page.url()}`);
 	return month;
+}
+
+async function openCommitments(page: Page) {
+	await waterfall(page).getByRole("link", { name: "Commitments", exact: true }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toContainText("Commitments");
+}
+
+async function backToPlan(page: Page) {
+	await page.getByRole("link", { name: "Back to Plan" }).click();
+	await expect(waterfall(page)).toBeVisible();
+}
+
+/** Opens a Commitment's sheet, changes it, and saves it from this month on. */
+async function editCommitment(
+	page: Page,
+	name: string,
+	change: { amount?: string; dueDate?: string },
+) {
+	await edit(page, name).click();
+	const sheet = page.getByRole("dialog", { name });
+	if (change.amount) await sheet.getByLabel("Amount", { exact: true }).fill(change.amount);
+	if (change.dueDate) await sheet.getByLabel("Due on", { exact: true }).fill(change.dueDate);
+	await sheet.getByRole("button", { name: "Save", exact: true }).click();
+	await expect(sheet).toBeHidden();
 }
 
 function nextMonth(month: string) {
@@ -50,7 +78,7 @@ async function addCommitment(
 	if (cadence) await form.getByLabel("How often").selectOption({ label: cadence });
 	if (dueDate) await form.getByLabel("Due on").fill(dueDate);
 	await form.getByRole("button", { name: "Add Commitment" }).click();
-	await expect(amount(page, name)).toBeVisible();
+	await expect(edit(page, name)).toBeVisible();
 }
 
 test("a Parent adds, edits, and ends Commitments, and Free to Spend follows", async ({
@@ -63,8 +91,7 @@ test("a Parent adds, edits, and ends Commitments, and Free to Spend follows", as
 
 	// Monthly, due on the 1st by default.
 	await addCommitment(page, { name: "Mortgage", due: "2,500" });
-	await expect(freeToSpend(page)).toHaveText("$5,300");
-	await expect(summary(page)).toContainText("Commitments−$2,500");
+	await expect(expected(page, "$2,500")).toBeVisible();
 
 	// Yearly, due this month: the whole amount comes out of this month.
 	await addCommitment(page, {
@@ -73,7 +100,7 @@ test("a Parent adds, edits, and ends Commitments, and Free to Spend follows", as
 		cadence: "Yearly",
 		dueDate: `${year + 1}-${month.slice(5)}-15`,
 	});
-	await expect(freeToSpend(page)).toHaveText("$4,400");
+	await expect(expected(page, "$3,400")).toBeVisible();
 
 	// Every two weeks from the 1st: due on the 1st, 15th, and (most months) the 29th.
 	const daycareCharges = daysInMonth >= 29 ? 3 : 2;
@@ -83,39 +110,34 @@ test("a Parent adds, edits, and ends Commitments, and Free to Spend follows", as
 		cadence: "Every two weeks",
 		dueDate: `${month}-01`,
 	});
-	await expect(freeToSpend(page)).toHaveText(
-		`$${(4_400 - 500 * daycareCharges).toLocaleString("en-US")}`,
-	);
-	await expect(page.getByRole("listitem").filter({ hasText: "Daycare" })).toContainText(
+	await expect(planRow(page, "Daycare")).toContainText(
 		`$${(500 * daycareCharges).toLocaleString("en-US")} this month`,
 	);
-
-	// Edit the amount inline, and move the insurance to next month.
-	await amount(page, "Mortgage").fill("2,600");
-	await amount(page, "Mortgage").press("Enter");
-	await page.getByRole("button", { name: "Edit Car insurance" }).click();
-	await page
-		.getByLabel("Due on", { exact: true })
-		.first()
-		.fill(`${nextMonth(month)}-15`);
-	await page.getByRole("button", { name: "Save", exact: true }).click();
-	await expect(page.getByRole("listitem").filter({ hasText: "Car insurance" })).toContainText(
-		"not in",
+	await backToPlan(page);
+	await expect(freeToSpend(page)).toHaveText(
+		`Free to Spend$${(4_400 - 500 * daycareCharges).toLocaleString("en-US")}`,
 	);
+
+	// Change the amount, and move the insurance to next month.
+	await openCommitments(page);
+	await editCommitment(page, "Mortgage", { amount: "2,600" });
+	await expect(planRow(page, "Mortgage")).toContainText("$2,600");
+	await editCommitment(page, "Car insurance", { dueDate: `${nextMonth(month)}-15` });
+	await expect(planRow(page, "Car insurance")).toContainText("not in");
 	const afterEdits = 9_000 - 1_200 - 2_600 - 500 * daycareCharges;
-	await expect(freeToSpend(page)).toHaveText(`$${afterEdits.toLocaleString("en-US")}`);
+	await backToPlan(page);
+	await expect(freeToSpend(page)).toHaveText(`Free to Spend$${afterEdits.toLocaleString("en-US")}`);
 
 	// Everything above was saved, not just shown.
 	await page.reload();
-	await expect(freeToSpend(page)).toHaveText(`$${afterEdits.toLocaleString("en-US")}`);
-	await expect(amount(page, "Mortgage")).toHaveValue("2,600");
-	await expect(page.getByRole("listitem").filter({ hasText: "Car insurance" })).toContainText(
-		"Yearly · due",
-	);
+	await expect(freeToSpend(page)).toHaveText(`Free to Spend$${afterEdits.toLocaleString("en-US")}`);
+	await openCommitments(page);
+	await expect(planRow(page, "Mortgage")).toContainText("$2,600");
+	await expect(planRow(page, "Car insurance")).toContainText("Yearly · due");
 
 	// This Month shows what's expected against what's been paid.
-	await page.getByRole("link", { name: "Back to This Month" }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toContainText("This Month");
+	await backToPlan(page);
+	await switchTo(page, "Month");
 	const hero = page.getByRole("region", { name: "Free to Spend" });
 	await expect(hero).toContainText(`$${afterEdits.toLocaleString("en-US")}`);
 	await expect(commitmentRow(page, "Mortgage")).toHaveAccessibleName(
@@ -124,16 +146,19 @@ test("a Parent adds, edits, and ends Commitments, and Free to Spend follows", as
 	await expect(commitmentRow(page, "Car insurance")).toHaveCount(0);
 
 	// Ending a Commitment takes it out of this month's Plan.
-	await page.getByRole("link", { name: "Edit Plan" }).click();
-	await page.getByRole("button", { name: "Edit Mortgage" }).click();
+	await switchTo(page, "Plan");
+	await openCommitments(page);
+	await edit(page, "Mortgage").click();
 	await page.getByRole("button", { name: "End", exact: true }).click();
 	await page.getByRole("button", { name: "End Mortgage" }).click();
-	await expect(amount(page, "Mortgage")).toHaveCount(0);
+	await expect(edit(page, "Mortgage")).toHaveCount(0);
 	const afterEnd = afterEdits + 2_600;
-	await expect(freeToSpend(page)).toHaveText(`$${afterEnd.toLocaleString("en-US")}`);
+	await backToPlan(page);
+	await expect(freeToSpend(page)).toHaveText(`Free to Spend$${afterEnd.toLocaleString("en-US")}`);
 	await page.reload();
-	await expect(amount(page, "Mortgage")).toHaveCount(0);
-	await expect(freeToSpend(page)).toHaveText(`$${afterEnd.toLocaleString("en-US")}`);
+	await expect(freeToSpend(page)).toHaveText(`Free to Spend$${afterEnd.toLocaleString("en-US")}`);
+	await openCommitments(page);
+	await expect(edit(page, "Mortgage")).toHaveCount(0);
 	await page.context().close();
 });
 
@@ -142,7 +167,8 @@ test("a payment that differs from what's expected is flagged", async ({ browser 
 	await openPlan(page);
 	await addCommitment(page, { name: "Mortgage", due: "2,500" });
 	await addCommitment(page, { name: "Phone", due: "80" });
-	await page.getByRole("link", { name: "Back to This Month" }).click();
+	await backToPlan(page);
+	await switchTo(page, "Month");
 
 	const mortgage = commitmentRow(page, "Mortgage");
 	await mortgage.getByRole("button", { name: "Record payment" }).click();
@@ -184,30 +210,31 @@ test("a failed save is undone and can be retried", async ({ browser }) => {
 	await form.getByLabel("Amount due").fill("15.99");
 	await form.getByRole("button", { name: "Add Commitment" }).click();
 	await expect(form.getByRole("alert")).toContainText("We couldn’t save that change");
-	await expect(amount(page, "Netflix")).toHaveCount(0);
-	await expect(freeToSpend(page)).toHaveText("$7,800");
+	await expect(edit(page, "Netflix")).toHaveCount(0);
+	await expect(page.getByText(/expected this month/)).toHaveCount(0);
 
 	await page.unroute(add);
 	await form.getByRole("button", { name: "Try again" }).click();
-	await expect(amount(page, "Netflix")).toHaveValue("15.99");
-	await expect(freeToSpend(page)).toHaveText("$7,784.01");
+	await expect(planRow(page, "Netflix")).toContainText("$15.99");
+	await expect(expected(page, "$15.99")).toBeVisible();
 	await expect(page.getByRole("alert")).toHaveCount(0);
 
 	// An edit that fails rolls back too.
 	const update = serverFn("updateCommitment");
 	await page.route(update, (route) => route.fulfill({ status: 500, body: "Server error" }));
-	await amount(page, "Netflix").fill("22.99");
-	await amount(page, "Netflix").press("Enter");
+	await editCommitment(page, "Netflix", { amount: "22.99" });
 	await expect(page.getByRole("alert")).toContainText("We couldn’t save that change");
-	await expect(amount(page, "Netflix")).toHaveValue("15.99");
-	await expect(freeToSpend(page)).toHaveText("$7,784.01");
+	await expect(planRow(page, "Netflix")).toContainText("$15.99");
+	await expect(expected(page, "$15.99")).toBeVisible();
 	await page.unroute(update);
 	await page.getByRole("button", { name: "Try again" }).click();
-	await expect(freeToSpend(page)).toHaveText("$7,777.01");
+	await expect(expected(page, "$22.99")).toBeVisible();
 
 	await page.reload();
-	await expect(amount(page, "Netflix")).toHaveCount(1);
-	await expect(amount(page, "Netflix")).toHaveValue("22.99");
+	await expect(edit(page, "Netflix")).toHaveCount(1);
+	await expect(planRow(page, "Netflix")).toContainText("$22.99");
+	await backToPlan(page);
+	await expect(freeToSpend(page)).toHaveText("Free to Spend$7,777.01");
 	await page.context().close();
 });
 
@@ -226,11 +253,13 @@ test("a Commitment or payment delivered twice is recorded once", async ({ browse
 	await addCommitment(page, { name: "Rent", due: "2,000" });
 	await saved;
 	await page.reload();
-	await expect(amount(page, "Rent")).toHaveCount(1);
-	await expect(freeToSpend(page)).toHaveText("$5,800");
+	await expect(edit(page, "Rent")).toHaveCount(1);
+	await expect(expected(page, "$2,000")).toBeVisible();
+	await backToPlan(page);
+	await expect(freeToSpend(page)).toHaveText("Free to Spend$5,800");
 
 	await page.route(serverFn("addCommitmentPayment"), twice);
-	await page.getByRole("link", { name: "Back to This Month" }).click();
+	await switchTo(page, "Month");
 	const rent = commitmentRow(page, "Rent");
 	await rent.getByRole("button", { name: "Record payment" }).click();
 	await rent.getByRole("button", { name: "Record", exact: true }).click();

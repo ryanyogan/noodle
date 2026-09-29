@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, serverFn, signedInPage } from "./session";
+import { createPlannedHousehold, serverFn, signedInPage, switchTo } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -57,13 +57,16 @@ async function quickAdd(page: Page, amount: string, bucket: string) {
 
 /** Sets a Bucket Rolling in this month's Plan, then returns to This Month. */
 async function setRolling(page: Page, bucket: string) {
-	await page.getByRole("link", { name: "Edit Plan" }).click();
+	await switchTo(page, "Plan");
+	await page.getByRole("link", { name: "Buckets", exact: true }).click();
 	await page.getByRole("button", { name: `Edit ${bucket}` }).click();
 	const saved = page.waitForResponse((response) => serverFn("setRolling")(new URL(response.url())));
 	await page.getByRole("radio", { name: /^Rolling/ }).check();
 	expect((await saved).ok()).toBe(true);
+	await page.keyboard.press("Escape");
 	await expect(page.getByRole("listitem").filter({ hasText: bucket })).toContainText("Rolling");
-	await page.getByRole("link", { name: "Back to This Month" }).click();
+	await page.getByRole("link", { name: "Back to Plan" }).click();
+	await switchTo(page, "Month");
 }
 
 /** Swipes across the page on a touch screen: negative `dx` is leftward. */

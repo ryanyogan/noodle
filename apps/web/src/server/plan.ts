@@ -23,6 +23,8 @@ import { ulidSchema } from "./schemas";
 export const centsSchema = z.number().int().min(0).max(MAX_CENTS);
 export const bucketNameSchema = z.string().trim().min(1).max(40);
 const colorSchema = z.number().int().min(1).max(8);
+/** How far a change reaches: from its month onward (the default), or just that month. */
+export const planScopeSchema = z.enum(["from-on", "just"]).optional();
 
 /** Past months' Plans are closed; only this month and later can change. */
 export function assertEditable(household: Pick<HouseholdSummary, "timeZone">, month: MonthKey) {
@@ -31,9 +33,10 @@ export function assertEditable(household: Pick<HouseholdSummary, "timeZone">, mo
 	}
 }
 
+/** Sets the Baseline from `month` onward, or just for `month`. */
 export const setBaseline = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
-	.validator(z.object({ month: monthKeySchema, amountCents: centsSchema }))
+	.validator(z.object({ month: monthKeySchema, amountCents: centsSchema, scope: planScopeSchema }))
 	.handler(async ({ data, context }) => {
 		assertEditable(context.household, data.month);
 		await setBaselineInDb(getDb(), { householdId: context.household.id, ...data });
@@ -97,9 +100,17 @@ export const addPersonalAllowance = createServerFn({ method: "POST" })
 		await notifyHousehold(context.household.id, ["months"]);
 	});
 
+/** Sets a Bucket's allowance from `month` onward, or just for `month`. */
 export const setAllowance = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
-	.validator(z.object({ bucketId: ulidSchema, month: monthKeySchema, amountCents: centsSchema }))
+	.validator(
+		z.object({
+			bucketId: ulidSchema,
+			month: monthKeySchema,
+			amountCents: centsSchema,
+			scope: planScopeSchema,
+		}),
+	)
 	.handler(async ({ data, context }) => {
 		assertEditable(context.household, data.month);
 		await setAllowanceInDb(getDb(), {

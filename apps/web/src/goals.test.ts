@@ -73,6 +73,7 @@ describe("the optimistic Goal edits", () => {
 	test("Goal funding drops the month's Free to Spend at once, and undoing it puts it back", () => {
 		const month: MonthData = {
 			plan: { month: "2026-09", baseline: 500_000, commitments: [], buckets: [] },
+			planBefore: { month: "2026-08", baseline: 500_000, commitments: [], buckets: [] },
 			spending: [],
 			charges: [],
 			moves: [],

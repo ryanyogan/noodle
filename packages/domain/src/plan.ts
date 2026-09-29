@@ -70,7 +70,10 @@ export type Plan = {
 };
 
 /** The latest record at or before `month`. */
-function effective<T extends { month: MonthKey }>(records: T[], month: MonthKey): T | undefined {
+export function effective<T extends { month: MonthKey }>(
+	records: T[],
+	month: MonthKey,
+): T | undefined {
 	let found: T | undefined;
 	for (const record of records) {
 		if (record.month <= month && (!found || record.month > found.month)) found = record;

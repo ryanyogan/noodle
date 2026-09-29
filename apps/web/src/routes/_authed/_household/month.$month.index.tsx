@@ -23,25 +23,19 @@ import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import {
-	CalendarDays,
-	ChartColumn,
-	ChevronLeft,
-	ChevronRight,
-	MessageCircleQuestionMark,
-	SlidersHorizontal,
-} from "lucide-react";
-import { type ReactNode, type TouchEvent, useRef, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { CalendarDays } from "lucide-react";
+import { type ReactNode, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../../../buckets";
 import { Commitments } from "../../../components/commitment-list";
 import { ALittleOver, CoverSheet, CoversInto, sourceName } from "../../../components/cover";
 import { AmountSheet } from "../../../components/goals";
 import { MonthCloseSection } from "../../../components/month-close";
+import { MonthLinks, MonthTopRow, monthTitle, useMonthSwipe } from "../../../components/month-nav";
 import { IncomeSection, WindfallSection, WindfallSheet } from "../../../components/windfalls";
 import { type CoverVariables, useCovers } from "../../../covers";
-import { formatMoney, monthName, shortDay } from "../../../format";
+import { formatMoney, shortDay } from "../../../format";
 import { type GoalView, useGoals } from "../../../goals";
 import { closingWeek, useCloseMonth } from "../../../month-close";
 import { useMonthState } from "../../../queries";
@@ -117,7 +111,7 @@ function ThisMonth() {
 			amountCents,
 		}) satisfies CoverVariables;
 	const current = monthOfDay(state.asOf);
-	const swipe = useMonthSwipe(month);
+	const swipe = useMonthSwipe("/month/$month", month);
 	const monthIncome = state.income.filter((i) => monthOfDay(i.date) === month);
 	const check = incomeCheck({
 		baseline: state.baseline,
@@ -145,39 +139,12 @@ function ThisMonth() {
 	});
 	return (
 		<div {...swipe}>
+			<MonthTopRow month={month} current="month" />
 			<PageHeader
 				className="max-w-2xl"
 				eyebrow={month === current ? "This Month" : "Month"}
-				title={
-					month.slice(0, 4) === current.slice(0, 4)
-						? monthName(month)
-						: `${monthName(month)} ${month.slice(0, 4)}`
-				}
-				actions={
-					<div className="flex items-center gap-1">
-						{planned ? (
-							<Button variant="outline" size="sm" className="me-2" asChild>
-								<Link to="/month/$month/plan" params={{ month }}>
-									<SlidersHorizontal />
-									Edit Plan
-								</Link>
-							</Button>
-						) : null}
-						{/* Phones reach Reports and Ask from here; the sidebar has them on larger screens. */}
-						<Button variant="ghost" size="icon" className="lg:hidden" asChild>
-							<Link to="/reports" aria-label="Reports">
-								<ChartColumn className="size-5" />
-							</Link>
-						</Button>
-						<Button variant="ghost" size="icon" className="lg:hidden" asChild>
-							<Link to="/ask" aria-label="Ask">
-								<MessageCircleQuestionMark className="size-5" />
-							</Link>
-						</Button>
-						<MonthLink month={addMonths(month, -1)} label="Previous month" />
-						<MonthLink month={addMonths(month, 1)} label="Next month" />
-					</div>
-				}
+				title={monthTitle(month, current)}
+				actions={<MonthLinks to="/month/$month" month={month} />}
 			/>
 			{planned ? (
 				<div className="grid max-w-2xl gap-8">
@@ -254,7 +221,7 @@ function ThisMonth() {
 					description="Set your Baseline and add Buckets to start this month’s Plan."
 					action={
 						<Button asChild>
-							<Link to="/month/$month/plan" params={{ month }}>
+							<Link to="/plan/$month" params={{ month }}>
 								Set up the Plan
 							</Link>
 						</Button>
@@ -307,55 +274,6 @@ function ThisMonth() {
 			/>
 		</div>
 	);
-}
-
-/**
- * A chevron to an adjacent month, as on Transactions; its data preloads on hover or touch (the
- * router's default). Later months are open for planning ahead.
- */
-function MonthLink({ month, label }: { month: MonthKey; label: string }) {
-	return (
-		<Button variant="ghost" size="icon" asChild>
-			<Link to="/month/$month" params={{ month }} aria-label={label}>
-				{label === "Next month" ? (
-					<ChevronRight className="size-5" />
-				) : (
-					<ChevronLeft className="size-5" />
-				)}
-			</Link>
-		</Button>
-	);
-}
-
-/** A mostly sideways swipe this far moves to the adjacent month. */
-const SWIPE_DISTANCE = 64;
-
-/** Touch handlers for swiping between months on phones: left for the next, right for the previous. */
-function useMonthSwipe(month: MonthKey) {
-	const navigate = useNavigate();
-	const start = useRef<{ x: number; y: number } | null>(null);
-	return {
-		onTouchStart: (event: TouchEvent) => {
-			const touch = event.touches[0];
-			// Leave form fields and sheets' own gestures alone.
-			const inField = (event.target as Element).closest("input, textarea, [role=dialog]");
-			start.current =
-				touch && event.touches.length === 1 && !inField
-					? { x: touch.clientX, y: touch.clientY }
-					: null;
-		},
-		onTouchEnd: (event: TouchEvent) => {
-			const touch = event.changedTouches[0];
-			const from = start.current;
-			start.current = null;
-			if (!touch || !from) return;
-			const dx = touch.clientX - from.x;
-			const dy = touch.clientY - from.y;
-			if (Math.abs(dx) < SWIPE_DISTANCE || Math.abs(dx) < Math.abs(dy) * 2) return;
-			const to = addMonths(month, dx < 0 ? 1 : -1);
-			navigate({ to: "/month/$month", params: { month: to } });
-		},
-	};
 }
 
 /** The month before, while it waits to be closed and has something to decide. */
@@ -462,7 +380,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 function PlanLink({ month, children }: { month: MonthState["month"]; children: string }) {
 	return (
 		<Link
-			to="/month/$month/plan"
+			to="/plan/$month"
 			params={{ month }}
 			className="font-medium text-foreground underline decoration-border-strong underline-offset-3 hover:decoration-foreground"
 		>

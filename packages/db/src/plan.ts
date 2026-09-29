@@ -1,4 +1,11 @@
-import type { Cents, MonthKey, PlanRecords } from "@noodle/domain";
+import {
+	addMonths,
+	type Cents,
+	type MonthKey,
+	type PlanRecords,
+	type PlanScope,
+	restoreAfterJust,
+} from "@noodle/domain";
 import { and, eq, gt, isNull, lte, or, type SQL, sql } from "drizzle-orm";
 import type { Db } from "./index";
 import { assignableBy } from "./privacy";
@@ -90,18 +97,44 @@ export async function loadPlanRecords(
 	};
 }
 
-/** Sets the Baseline from `month` onward. Setting it again for the same month replaces it. */
+/**
+ * Sets the Baseline from `month` onward, or for `scope` "just" that month only: the next month
+ * goes back to the Baseline in force before, unless it has its own. Setting it again for the same
+ * month replaces it.
+ */
 export async function setBaseline(
 	db: Db,
-	input: { householdId: string; month: MonthKey; amountCents: Cents },
+	input: { householdId: string; month: MonthKey; amountCents: Cents; scope?: PlanScope },
 ): Promise<void> {
-	await db
+	const { householdId, month, amountCents } = input;
+	const write = db
 		.insert(baselines)
-		.values(input)
+		.values({ householdId, month, amountCents })
 		.onConflictDoUpdate({
 			target: [baselines.householdId, baselines.month],
-			set: { amountCents: input.amountCents },
+			set: { amountCents },
 		});
+	if (input.scope !== "just") {
+		await write;
+		return;
+	}
+	const series = await db
+		.select({ month: baselines.month, amountCents: baselines.amountCents })
+		.from(baselines)
+		.where(and(eq(baselines.householdId, householdId), lte(baselines.month, addMonths(month, 1))));
+	const restore = restoreAfterJust(series as { month: MonthKey; amountCents: Cents }[], month);
+	if (!restore) {
+		await write;
+		return;
+	}
+	await db.batch([
+		// The next month's own Baseline always wins, even one written since the read above.
+		db
+			.insert(baselines)
+			.values({ householdId, ...restore })
+			.onConflictDoNothing({ target: [baselines.householdId, baselines.month] }),
+		write,
+	]);
 }
 
 /** Guards a write to only land if the Bucket belongs to the Household. */
@@ -245,11 +278,44 @@ export async function updateBucket(
 }
 
 /**
- * Sets a Bucket's allowance from `month` onward, for the Parent `memberId`. Setting it again for
- * the same month replaces it.
+ * Sets a Bucket's allowance from `month` onward, for the Parent `memberId`, or for `scope` "just"
+ * that month only: the next month goes back to the allowance in force before, unless it has its
+ * own. Setting it again for the same month replaces it.
  */
-export async function setAllowance(db: Db, input: AllowanceInput): Promise<void> {
-	await allowanceWrite(db, input);
+export async function setAllowance(
+	db: Db,
+	input: AllowanceInput & { scope?: PlanScope },
+): Promise<void> {
+	if (input.scope !== "just") {
+		await allowanceWrite(db, input);
+		return;
+	}
+	const series = await db
+		.select({ month: bucketAllowances.month, amountCents: bucketAllowances.amountCents })
+		.from(bucketAllowances)
+		.where(
+			and(
+				eq(bucketAllowances.householdId, input.householdId),
+				eq(bucketAllowances.bucketId, input.bucketId),
+				lte(bucketAllowances.month, addMonths(input.month, 1)),
+			),
+		);
+	const restore = restoreAfterJust(
+		series as { month: MonthKey; amountCents: Cents }[],
+		input.month,
+	);
+	if (!restore) {
+		await allowanceWrite(db, input);
+		return;
+	}
+	await db.batch([
+		// Guarded like the change itself; the next month's own allowance always wins, even one
+		// written since the read above.
+		allowanceInsert(db, { ...input, ...restore }).onConflictDoNothing({
+			target: [bucketAllowances.bucketId, bucketAllowances.month],
+		}),
+		allowanceWrite(db, input),
+	]);
 }
 
 type AllowanceInput = {
@@ -260,25 +326,26 @@ type AllowanceInput = {
 	amountCents: Cents;
 };
 
-/** setAllowance as a statement, for writing it in a batch with others. */
+/** insert into bucket_allowances select … from buckets where <the Parent may change it> */
+const allowanceInsert = (db: Db, input: AllowanceInput) =>
+	db.insert(bucketAllowances).select(
+		db
+			.select({
+				householdId: buckets.householdId,
+				bucketId: buckets.id,
+				month: sql<string>`${input.month}`.as("month"),
+				amountCents: sql<number>`${input.amountCents}`.as("amount_cents"),
+			})
+			.from(buckets)
+			.where(changeableBucket(input)),
+	);
+
+/** setAllowance from `month` onward as a statement, for writing it in a batch with others. */
 export const allowanceWrite = (db: Db, input: AllowanceInput) =>
-	db
-		.insert(bucketAllowances)
-		.select(
-			db
-				.select({
-					householdId: buckets.householdId,
-					bucketId: buckets.id,
-					month: sql<string>`${input.month}`.as("month"),
-					amountCents: sql<number>`${input.amountCents}`.as("amount_cents"),
-				})
-				.from(buckets)
-				.where(changeableBucket(input)),
-		)
-		.onConflictDoUpdate({
-			target: [bucketAllowances.bucketId, bucketAllowances.month],
-			set: { amountCents: input.amountCents },
-		});
+	allowanceInsert(db, input).onConflictDoUpdate({
+		target: [bucketAllowances.bucketId, bucketAllowances.month],
+		set: { amountCents: input.amountCents },
+	});
 
 /**
  * Sets a Bucket Rolling or Fresh-start from `month` onward, for the Parent `memberId`. Setting it

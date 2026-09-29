@@ -10,6 +10,7 @@ import {
 	type LucideIcon,
 	MessageCircleQuestionMark,
 	Plus,
+	SlidersHorizontal,
 	Target,
 	Telescope,
 	UsersRound,
@@ -29,10 +30,12 @@ type NavItem = {
 };
 
 // Every top-level destination, in order. The sidebar (desktop) and tab bar (phone) both render it,
-// though the tab bar has room for four: Explore is reached from Goals there, which it plans ahead,
-// and Reports and Ask from This Month's header.
+// though the tab bar has room for four: the Plan is reached from This Month there (its Month and
+// Plan switch), Explore from Goals, which it plans ahead, and Reports and Ask from the row above
+// This Month's header.
 const nav: NavItem[] = [
-	{ to: "/month", label: "This Month", short: "Month", icon: CalendarDays },
+	{ to: "/month", label: "This Month", short: "Month", icon: CalendarDays, alsoFor: ["/plan"] },
+	{ to: "/plan", label: "Plan", short: "Plan", icon: SlidersHorizontal, desktopOnly: true },
 	{ to: "/transactions", label: "Transactions", short: "Transactions", icon: List },
 	{ to: "/goals", label: "Goals", short: "Goals", icon: Target, alsoFor: ["/explore"] },
 	{ to: "/explore", label: "Explore", short: "Explore", icon: Telescope, desktopOnly: true },

@@ -169,7 +169,7 @@ function AffordPage() {
 					<p className="text-sm text-muted-foreground">
 						The Plan has no Baseline yet, so there’s no income to check against.{" "}
 						<Link
-							to="/month/$month/plan"
+							to="/plan/$month/income"
 							params={{ month: context.month }}
 							className="underline underline-offset-2"
 						>

@@ -1,4 +1,13 @@
-import type { Cadence, Cents, Charge, DayKey, MonthKey } from "@noodle/domain";
+import {
+	addMonths,
+	type Cadence,
+	type Cents,
+	type Charge,
+	type DayKey,
+	type MonthKey,
+	type PlanScope,
+	restoreAfterJust,
+} from "@noodle/domain";
 import { and, eq, gt, gte, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { counts } from "./counting";
 import type { Db } from "./index";
@@ -83,22 +92,59 @@ export const commitmentAdd = (
 	] as const;
 
 /**
- * Renames a Commitment (in every month) and sets its terms from `month` onward. Setting them
- * again for the same month replaces them.
+ * Renames a Commitment (in every month) and sets its terms from `month` onward, or for `scope`
+ * "just" that month only: the next month goes back to the terms in force before, unless it has
+ * its own. Setting them again for the same month replaces them.
  */
 export async function updateCommitment(
 	db: Db,
-	input: { householdId: string; commitmentId: string; name: string; month: MonthKey } & Terms,
+	input: {
+		householdId: string;
+		commitmentId: string;
+		name: string;
+		month: MonthKey;
+		scope?: PlanScope;
+	} & Terms,
 ): Promise<void> {
+	const rename = db
+		.update(commitments)
+		.set({ name: input.name })
+		.where(ownCommitment(input.householdId, input.commitmentId));
+	const write = termsFor(db, input).onConflictDoUpdate({
+		target: [commitmentTerms.commitmentId, commitmentTerms.month],
+		set: { amountCents: input.amountCents, cadence: input.cadence, dueDate: input.dueDate },
+	});
+	const series =
+		input.scope === "just"
+			? await db
+					.select({
+						month: commitmentTerms.month,
+						amountCents: commitmentTerms.amountCents,
+						cadence: commitmentTerms.cadence,
+						dueDate: commitmentTerms.dueDate,
+					})
+					.from(commitmentTerms)
+					.where(
+						and(
+							eq(commitmentTerms.householdId, input.householdId),
+							eq(commitmentTerms.commitmentId, input.commitmentId),
+							lte(commitmentTerms.month, addMonths(input.month, 1)),
+						),
+					)
+			: [];
+	const restore = restoreAfterJust(series as ({ month: MonthKey } & Terms)[], input.month);
+	if (!restore) {
+		await db.batch([rename, write]);
+		return;
+	}
 	await db.batch([
-		db
-			.update(commitments)
-			.set({ name: input.name })
-			.where(ownCommitment(input.householdId, input.commitmentId)),
-		termsFor(db, input).onConflictDoUpdate({
+		rename,
+		// Guarded like the change itself; the next month's own terms always win, even ones
+		// written since the read above.
+		termsFor(db, { ...input, ...restore }).onConflictDoNothing({
 			target: [commitmentTerms.commitmentId, commitmentTerms.month],
-			set: { amountCents: input.amountCents, cadence: input.cadence, dueDate: input.dueDate },
 		}),
+		write,
 	]);
 }
 

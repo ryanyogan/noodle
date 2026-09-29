@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { createPlannedHousehold, signedInPage, switchTo } from "./session";
 
 const bucketRow = (page: Page, name: string) =>
 	page.getByRole("listitem", { name: new RegExp(`^${name}: `) });
@@ -114,10 +114,12 @@ test("each Parent's screen shows the other's changes without a reload", async ({
 		);
 
 		// Sam raises Hockey's allowance, and Alex's This Month follows.
-		await sam.getByRole("link", { name: "Edit Plan" }).click();
-		const hockey = sam.getByLabel("Hockey allowance");
-		await hockey.fill("500");
-		await hockey.press("Enter");
+		await switchTo(sam, "Plan");
+		await sam.getByRole("link", { name: "Buckets", exact: true }).click();
+		await sam.getByRole("button", { name: "Edit Hockey" }).click();
+		const hockey = sam.getByRole("dialog", { name: "Hockey" });
+		await hockey.getByRole("textbox", { name: "Allowance", exact: true }).fill("500");
+		await hockey.getByRole("button", { name: "Save", exact: true }).click();
 		await expect(bucketRow(alex, "Hockey")).toHaveAccessibleName(/^Hockey: \$500 left of \$500/);
 		await expect(bucketRow(alex, "Groceries")).toHaveAccessibleName(
 			/^Groceries: \$1,114\.50 left of \$1,200/,

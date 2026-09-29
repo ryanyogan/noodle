@@ -168,7 +168,7 @@ function CoverForm({
 					Nothing else has money left this month. Raising {bucket.name}’s allowance in the Plan
 					would bring it back to zero.
 					<Button variant="outline" size="sm" asChild>
-						<Link to="/month/$month/plan" params={{ month: state.month }}>
+						<Link to="/plan/$month/buckets" params={{ month: state.month }}>
 							Edit Plan
 						</Link>
 					</Button>

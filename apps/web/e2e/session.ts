@@ -31,9 +31,24 @@ export const serverFn = (name: string) => (url: URL) => {
 	return !!id && Buffer.from(id, "base64url").toString().includes(`"${name}_`);
 };
 
+/** Waits for the next response from the named server function. */
+export const savedBy = (page: Page, name: string) =>
+	page.waitForResponse((response) => serverFn(name)(new URL(response.url())));
+
+/** Switches between a month's This Month and its Plan, from either one's overview. */
+export async function switchTo(page: Page, view: "Month" | "Plan") {
+	await page
+		.getByRole("navigation", { name: "Month and Plan" })
+		.getByRole("link", { name: view })
+		.click();
+	await expect(page.getByRole("heading", { level: 1 })).toContainText(
+		view === "Month" ? "This Month" : "Plan",
+	);
+}
+
 /**
- * Creates a Household and plans this month from the Plan editor: a Baseline and Buckets with
- * allowances ("1,200"), in order. Ends on This Month.
+ * Creates a Household and plans this month from setting up the Plan: a Baseline and Buckets
+ * with allowances ("1,200"), in order. Ends on This Month.
  */
 export async function createPlannedHousehold(
 	page: Page,
@@ -41,19 +56,21 @@ export async function createPlannedHousehold(
 ) {
 	await createHousehold(page, "The Rinks", "Alex");
 	await page.getByRole("link", { name: "Set up the Plan" }).click();
-	const baselineInput = page.getByLabel("Baseline", { exact: true });
-	await baselineInput.fill(baseline);
-	await baselineInput.press("Enter");
+	await page.getByRole("textbox", { name: "Baseline" }).fill(baseline);
+	const baselineSaved = savedBy(page, "setBaseline");
+	await page.getByRole("button", { name: "Set Baseline" }).click();
+	await baselineSaved;
+	await page.getByRole("link", { name: "Add Buckets" }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toContainText("Buckets");
 	for (const [name, allowance] of buckets) {
 		await page.getByLabel("New Bucket").fill(name);
 		await page.getByLabel("Monthly allowance").fill(allowance);
+		// Let each save land before leaving the Plan.
+		const saved = savedBy(page, "addBucket");
 		await page.getByRole("button", { name: "Add Bucket" }).click();
-		await expect(page.getByLabel(`${name} allowance`)).toBeVisible();
+		await expect(page.getByRole("button", { name: `Edit ${name}` })).toBeVisible();
+		await saved;
 	}
-	// Let the Plan's saves land before leaving the editor.
-	await expect(page.getByLabel(`${buckets.at(-1)?.[0]} allowance`)).toHaveValue(
-		buckets.at(-1)?.[1] ?? "",
-	);
-	await page.getByRole("link", { name: "Back to This Month" }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toContainText("This Month");
+	await page.getByRole("link", { name: "Back to Plan" }).click();
+	await switchTo(page, "Month");
 }

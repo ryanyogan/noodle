@@ -10,6 +10,18 @@ A household budgeting tool for a family (two parents, two kids) that layers a si
 The Household's allocation of one month's Baseline across Commitments, Buckets, and Goals. Each month's Plan starts as a copy of the previous one.
 _Avoid_: Budget (as a noun for the whole thing), spending plan
 
+**From <Month> on**:
+How far a change to an amount in the Plan (the Baseline, a Bucket's allowance, a Commitment's amount) reaches by default: that month and every later month, unless a later month has its own amount.
+_Avoid_: Permanently, going forward, default
+
+**Just <Month>**:
+A change to an amount in the Plan for that one month: the month after goes back to the amount before the change, unless it has its own.
+_Avoid_: One-off, temporary, override, this month only
+
+**Changed this month**:
+An amount in a month's Plan that differs from the month before's, shown with what it was ("Changed this month · was $900").
+_Avoid_: Modified, edited, overridden
+
 **Commitment**:
 A recurring, predictable obligation (mortgage, insurance, daycare, subscriptions) that is expected every period.
 _Avoid_: Bill, fixed expense, recurring

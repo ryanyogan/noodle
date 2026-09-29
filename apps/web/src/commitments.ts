@@ -6,6 +6,7 @@ import {
 	type MonthKey,
 	monthOfDay,
 	type PlanCommitment,
+	type PlanScope,
 } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -44,6 +45,8 @@ export type CommitmentVariables = {
 	amountCents: number;
 	cadence: Cadence;
 	dueDate: DayKey;
+	/** How far a change to its terms reaches; from `month` on when left out. */
+	scope?: PlanScope;
 };
 
 const toPlanCommitment = (v: CommitmentVariables): PlanCommitment => ({

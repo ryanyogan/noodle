@@ -1,5 +1,5 @@
-import type { MonthKey, PlanBucket } from "@noodle/domain";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { type MonthKey, type PlanBucket, planChanges } from "@noodle/domain";
+import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { monthQuery, monthsKey } from "./queries";
 import type { MonthData } from "./server/month";
 
@@ -48,6 +48,16 @@ export function usePlanChange<TVariables>(
 		},
 	});
 }
+
+/**
+ * What each value in a month's Plan was the month before, for the values that month changed
+ * ("Changed this month · was $X"). Follows optimistic edits, like useMonthState.
+ */
+export const usePlanChanges = (month: MonthKey) =>
+	useSuspenseQuery({
+		...monthQuery(month),
+		select: (data) => planChanges(data.plan, data.planBefore),
+	}).data;
 
 // The optimistic edits, mirroring what each server function records.
 

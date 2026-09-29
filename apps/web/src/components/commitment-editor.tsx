@@ -4,6 +4,7 @@ import {
 	type CommitmentState,
 	type DayKey,
 	type MonthKey,
+	type PlanScope,
 	parseDollars,
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
@@ -12,6 +13,7 @@ import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { ListRow } from "@noodle/ui/components/list";
 import { NativeSelect } from "@noodle/ui/components/native-select";
+import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
 import { useHydrated } from "@tanstack/react-router";
 import { Pencil, Plus, X } from "lucide-react";
@@ -25,61 +27,58 @@ import {
 	withCommitment,
 	withNewCommitment,
 } from "../commitments";
-import { formatMoney, monthName } from "../format";
+import { formatMoney, formatMoneyInput, monthName } from "../format";
 import { usePlanChange } from "../plan-changes";
 import { addCommitment, updateCommitment } from "../server/commitments";
-import { MoneyInput } from "./money-input";
+import { AmountInput } from "./goals";
 import { Confirm, SaveFailed } from "./plan-editing";
+import { ChangedNote, PlanScopeField } from "./plan-scope-field";
 
 const isCadence = (value: unknown): value is Cadence => CADENCES.includes(value as Cadence);
 const isDay = (value: unknown): value is DayKey =>
 	typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
-/** A Commitment in the Plan editor: its amount inline, the rest behind Edit. */
+/**
+ * A Commitment in the Plan: its amount, and an Edit sheet to change its terms or end it. `was`
+ * is its amount the month before, when this month changed it.
+ */
 export function CommitmentEditor({
 	month,
 	commitment,
 	editable,
+	was,
 	onEnd,
 }: {
 	month: MonthKey;
 	commitment: CommitmentState;
 	editable: boolean;
+	was?: number;
 	onEnd: (commitmentId: string) => void;
 }) {
 	const hydrated = useHydrated();
 	const [open, setOpen] = useState(false);
-	const detailsId = useId();
 	const change = usePlanChange(month, {
 		save: (data: CommitmentVariables) => updateCommitment({ data }),
 		apply: withCommitment,
 	});
-	const update = (terms: Partial<CommitmentVariables>) =>
-		change.mutate({
-			commitmentId: commitment.id,
-			month,
-			name: commitment.name,
-			amountCents: commitment.amount,
-			cadence: commitment.cadence,
-			dueDate: commitment.dueDate,
-			...terms,
-		});
 	return (
 		<ListRow
 			leading={<Tile>{monogram(commitment.name)}</Tile>}
 			title={commitment.name}
-			meta={`${schedule(commitment, month)}${
-				commitment.dueDates.length > 1 ? ` · ${formatMoney(commitment.expected)} this month` : ""
-			}`}
+			meta={
+				<>
+					<span>
+						{schedule(commitment, month)}
+						{commitment.dueDates.length > 1
+							? ` · ${formatMoney(commitment.expected)} this month`
+							: ""}
+					</span>
+					<ChangedNote was={was} />
+				</>
+			}
 			trailing={
-				<div className="flex items-center gap-1.5">
-					<MoneyInput
-						className="w-32"
-						aria-label={`${commitment.name} amount`}
-						value={commitment.amount}
-						readOnly={!hydrated || !editable}
-						onCommit={(amountCents) => update({ amountCents })}
-					/>
+				<div className="flex items-center gap-1">
+					<span className="text-sm font-medium tabular-nums">{formatMoney(commitment.amount)}</span>
 					{editable ? (
 						<Button
 							variant="ghost"
@@ -87,38 +86,38 @@ export function CommitmentEditor({
 							type="button"
 							disabled={!hydrated}
 							aria-label={`Edit ${commitment.name}`}
-							aria-expanded={open}
-							aria-controls={detailsId}
-							onClick={() => setOpen(!open)}
+							onClick={() => setOpen(true)}
 						>
 							<Pencil />
 						</Button>
 					) : null}
+					<Sheet open={open} onOpenChange={setOpen}>
+						{open ? (
+							<SheetContent>
+								<SheetHeader title={commitment.name} description="Commitment" />
+								<CommitmentDetails
+									month={month}
+									commitment={commitment}
+									onSave={(terms) => {
+										setOpen(false);
+										change.mutate({ commitmentId: commitment.id, month, ...terms });
+									}}
+									onEnd={(commitmentId) => {
+										setOpen(false);
+										onEnd(commitmentId);
+									}}
+								/>
+							</SheetContent>
+						) : null}
+					</Sheet>
 				</div>
 			}
-			below={
-				change.isError || open ? (
-					<div id={detailsId} className="grid gap-3">
-						<SaveFailed change={change} />
-						{open ? (
-							<CommitmentDetails
-								month={month}
-								commitment={commitment}
-								onSave={(terms) => {
-									update(terms);
-									setOpen(false);
-								}}
-								onEnd={onEnd}
-							/>
-						) : null}
-					</div>
-				) : undefined
-			}
+			below={change.isError ? <SaveFailed change={change} /> : undefined}
 		/>
 	);
 }
 
-/** Rename a Commitment, change when it's due, or end it. */
+/** Change a Commitment's amount, name, or when it's due, from this month on or just this month; or end it. */
 function CommitmentDetails({
 	month,
 	commitment,
@@ -127,24 +126,43 @@ function CommitmentDetails({
 }: {
 	month: MonthKey;
 	commitment: CommitmentState;
-	onSave: (terms: Pick<CommitmentVariables, "name" | "cadence" | "dueDate">) => void;
+	onSave: (terms: Omit<CommitmentVariables, "commitmentId" | "month">) => void;
 	onEnd: (commitmentId: string) => void;
 }) {
+	const hydrated = useHydrated();
 	const id = useId();
 	const [confirmEnd, setConfirmEnd] = useState(false);
+	const [scope, setScope] = useState<PlanScope>("from-on");
+	const [invalidAmount, setInvalidAmount] = useState(false);
 
 	function save(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		const values = new FormData(event.currentTarget);
 		const name = String(values.get("name") ?? "").trim();
+		const amountCents = parseDollars(String(values.get("amount") ?? ""));
 		const cadence = values.get("cadence");
 		const dueDate = values.get("dueDate");
-		if (name && isCadence(cadence) && isDay(dueDate)) onSave({ name, cadence, dueDate });
+		setInvalidAmount(amountCents === null);
+		if (!name || amountCents === null || !isCadence(cadence) || !isDay(dueDate)) return;
+		onSave({ name, amountCents, cadence, dueDate, scope });
 	}
 
 	return (
-		<div className="grid gap-4 rounded-xl bg-surface-2 p-3">
-			<form onSubmit={save} className="grid gap-3">
+		<div className="grid gap-4">
+			<form onSubmit={save} className="grid gap-4">
+				<Field label="Amount" htmlFor={`${id}-amount`}>
+					<AmountInput
+						id={`${id}-amount`}
+						name="amount"
+						required
+						placeholder="0"
+						defaultValue={formatMoneyInput(commitment.amount)}
+						aria-invalid={invalidAmount || undefined}
+					/>
+				</Field>
+				{invalidAmount ? (
+					<FormError>Enter the amount as a dollar amount, like 1,800 or 15.99.</FormError>
+				) : null}
 				<Field label="Name" htmlFor={`${id}-name`}>
 					<Input
 						id={`${id}-name`}
@@ -152,22 +170,29 @@ function CommitmentDetails({
 						required
 						maxLength={40}
 						defaultValue={commitment.name}
-						className="bg-card"
 					/>
 				</Field>
-				<ScheduleFields id={id} cadence={commitment.cadence} dueDate={commitment.dueDate} />
-				<p className="text-[13px] text-muted-foreground">
-					Changes apply from {monthName(month)} on. Earlier months keep what they had.
-				</p>
+				<ScheduleFields
+					id={id}
+					cadence={commitment.cadence}
+					dueDate={commitment.dueDate}
+					inCard={false}
+				/>
+				<PlanScopeField
+					month={month}
+					current={commitment.amount}
+					scope={scope}
+					onScopeChange={setScope}
+				/>
 				<div className="flex flex-wrap items-center gap-2">
-					<Button type="submit" variant="outline" size="sm">
+					<Button type="submit" disabled={!hydrated}>
 						Save
 					</Button>
 					<Button
 						type="button"
 						variant="ghost"
-						size="sm"
 						className="ms-auto"
+						disabled={!hydrated}
 						onClick={() => setConfirmEnd(true)}
 					>
 						<X />

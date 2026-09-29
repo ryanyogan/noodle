@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, serverFn, signedInPage } from "./session";
+import { createPlannedHousehold, serverFn, signedInPage, switchTo } from "./session";
 
 const nav = (page: Page) => page.getByRole("navigation", { name: "Main" });
 const quickAddSheet = (page: Page) => page.getByRole("dialog", { name: "Quick Add" });
@@ -24,16 +24,27 @@ async function quickAdd(page: Page, amount: string, bucket: string, note: string
 	await expect(quickAddSheet(page)).toBeHidden();
 }
 
-/** Sets up the signed-in Parent's Personal Allowance from the Plan editor; ends on This Month. */
+/** Opens this month's Buckets in the Plan, from This Month. */
+async function openPlanBuckets(page: Page) {
+	await switchTo(page, "Plan");
+	await page.getByRole("link", { name: "Buckets", exact: true }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toContainText("Buckets");
+}
+
+/** A Bucket's row in the Plan. */
+const planRow = (page: Page, name: string) => page.getByRole("listitem").filter({ hasText: name });
+
+/** Sets up the signed-in Parent's Personal Allowance from the Plan; ends on This Month. */
 async function setUpPersonalAllowance(page: Page, amount: string, name: string) {
 	await nav(page).getByRole("link", { name: "This Month" }).click();
-	await page.getByRole("link", { name: "Edit Plan" }).click();
+	await openPlanBuckets(page);
 	await page.getByLabel("Your Personal Allowance").fill(amount);
 	await page.getByRole("button", { name: "Set up Personal Allowance" }).click();
-	await expect(page.getByLabel(`${name} allowance`)).toHaveValue(amount);
+	await expect(page.getByRole("button", { name: `Edit ${name}` })).toBeVisible();
+	await expect(planRow(page, name)).toContainText(`$${amount}`);
 	await expect(page.getByRole("button", { name: "Set up Personal Allowance" })).toHaveCount(0);
-	await page.getByRole("link", { name: "Back to This Month" }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toContainText("This Month");
+	await page.getByRole("link", { name: "Back to Plan" }).click();
+	await switchTo(page, "Month");
 }
 
 async function openTransactions(page: Page) {
@@ -70,9 +81,8 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 
 		// Each Parent sets their own; each sees the other's amount but can't change it.
 		await setUpPersonalAllowance(alex, "150", ALEX_PA);
-		await sam.getByRole("link", { name: "Edit Plan" }).click();
-		await expect(sam.getByLabel(`${ALEX_PA} allowance`)).toHaveValue("150");
-		await expect(sam.getByLabel(`${ALEX_PA} allowance`)).toHaveAttribute("readonly", "");
+		await openPlanBuckets(sam);
+		await expect(planRow(sam, ALEX_PA)).toContainText("$150");
 		await expect(sam.getByRole("button", { name: `Edit ${ALEX_PA}` })).toHaveCount(0);
 		await setUpPersonalAllowance(sam, "100", SAM_PA);
 
