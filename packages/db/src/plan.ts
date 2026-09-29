@@ -226,17 +226,21 @@ export async function updateBucket(
  * Sets a Bucket's allowance from `month` onward, for the Parent `memberId`. Setting it again for
  * the same month replaces it.
  */
-export async function setAllowance(
-	db: Db,
-	input: {
-		householdId: string;
-		memberId: string;
-		bucketId: string;
-		month: MonthKey;
-		amountCents: Cents;
-	},
-): Promise<void> {
-	await db
+export async function setAllowance(db: Db, input: AllowanceInput): Promise<void> {
+	await allowanceWrite(db, input);
+}
+
+type AllowanceInput = {
+	householdId: string;
+	memberId: string;
+	bucketId: string;
+	month: MonthKey;
+	amountCents: Cents;
+};
+
+/** setAllowance as a statement, for writing it in a batch with others. */
+export const allowanceWrite = (db: Db, input: AllowanceInput) =>
+	db
 		.insert(bucketAllowances)
 		.select(
 			db
@@ -253,7 +257,6 @@ export async function setAllowance(
 			target: [bucketAllowances.bucketId, bucketAllowances.month],
 			set: { amountCents: input.amountCents },
 		});
-}
 
 /**
  * Sets a Bucket Rolling or Fresh-start from `month` onward, for the Parent `memberId`. Setting it

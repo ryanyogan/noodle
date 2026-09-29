@@ -8,6 +8,7 @@ import {
 	membersQuery,
 	monthQuery,
 	monthsKey,
+	scenariosQuery,
 	viewerQuery,
 } from "./queries";
 
@@ -31,6 +32,8 @@ const changedQueries = {
 	"for-earlier": forTotalsEarlierKey,
 	/** Accounts, Goals and their Earmarks. */
 	goals: goalsQuery().queryKey,
+	/** Scenarios and their Levers. */
+	scenarios: scenariosQuery().queryKey,
 	/** The Household itself, as each screen's viewer sees it. */
 	viewer: viewerQuery().queryKey,
 } satisfies Record<string, QueryKey>;

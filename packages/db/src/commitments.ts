@@ -88,11 +88,15 @@ export async function updateCommitment(
  * Takes a Commitment out of the Plan from `month` onward; earlier months keep it. Ending it
  * from a later month than it already was is a no-op.
  */
-export async function endCommitment(
-	db: Db,
-	input: { householdId: string; commitmentId: string; month: MonthKey },
-): Promise<void> {
-	await db
+export async function endCommitment(db: Db, input: EndCommitmentInput): Promise<void> {
+	await commitmentEnd(db, input);
+}
+
+type EndCommitmentInput = { householdId: string; commitmentId: string; month: MonthKey };
+
+/** endCommitment as a statement, for writing it in a batch with others. */
+export const commitmentEnd = (db: Db, input: EndCommitmentInput) =>
+	db
 		.update(commitments)
 		.set({ endedFromMonth: input.month })
 		.where(
@@ -101,7 +105,6 @@ export async function endCommitment(
 				or(isNull(commitments.endedFromMonth), gt(commitments.endedFromMonth, input.month)),
 			),
 		);
-}
 
 /** A payment recorded against a Commitment, with the Transaction's ID. */
 export type CommitmentCharge = Charge & { id: string };

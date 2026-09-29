@@ -1,3 +1,4 @@
+import type { Lever } from "@noodle/domain";
 import { sql } from "drizzle-orm";
 import {
 	index,
@@ -449,6 +450,28 @@ export const nudgePreferences = sqliteTable("nudge_preferences", {
 		.notNull()
 		.default(sql`(unixepoch() * 1000)`),
 });
+
+// A Scenario: a named set of Levers (JSON, see Lever in @noodle/domain) on the Plan, explored
+// against it and never part of it until a Parent applies it.
+export const scenarios = sqliteTable(
+	"scenarios",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		name: text("name").notNull(),
+		levers: text("levers", { mode: "json" }).$type<Lever[]>().notNull(),
+		createdByMemberId: text("created_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [index("scenarios_household_idx").on(t.householdId)],
+);
 
 export type Household = typeof households.$inferSelect;
 export type Member = typeof members.$inferSelect;

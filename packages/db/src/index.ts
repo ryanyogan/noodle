@@ -341,6 +341,13 @@ export {
 export { privateTotalId, type Viewer } from "./privacy";
 export { loadRolledOver } from "./rollover";
 export {
+	applyLevers,
+	deleteScenario,
+	loadScenarios,
+	type ScenarioRecord,
+	saveScenario,
+} from "./scenarios";
+export {
 	type Assignment,
 	addQuickAdd,
 	type BucketSpend,

@@ -14,6 +14,7 @@ import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as AuthedHouseholdRouteImport } from './routes/_authed/_household'
 import { Route as AuthedWelcomeRouteImport } from './routes/_authed/welcome'
 import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
+import { Route as AuthedHouseholdExploreRouteImport } from './routes/_authed/_household/explore'
 import { Route as AuthedHouseholdHouseholdRouteImport } from './routes/_authed/_household/household'
 import { Route as AuthedHouseholdGoalsIndexRouteImport } from './routes/_authed/_household/goals.index'
 import { Route as AuthedHouseholdGoalsGoalIdRouteImport } from './routes/_authed/_household/goals.$goalId'
@@ -47,6 +48,11 @@ const SignInSplatRoute = SignInSplatRouteImport.update({
   id: '/sign-in/$',
   path: '/sign-in/$',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthedHouseholdExploreRoute = AuthedHouseholdExploreRouteImport.update({
+  id: '/explore',
+  path: '/explore',
+  getParentRoute: () => AuthedHouseholdRoute,
 } as any)
 const AuthedHouseholdHouseholdRoute =
   AuthedHouseholdHouseholdRouteImport.update({
@@ -113,6 +119,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
+  '/explore': typeof AuthedHouseholdExploreRoute
   '/household': typeof AuthedHouseholdHouseholdRoute
   '/goals/$goalId': typeof AuthedHouseholdGoalsGoalIdRoute
   '/month/$month': typeof AuthedHouseholdMonthMonthRouteWithChildren
@@ -128,6 +135,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
+  '/explore': typeof AuthedHouseholdExploreRoute
   '/household': typeof AuthedHouseholdHouseholdRoute
   '/goals/$goalId': typeof AuthedHouseholdGoalsGoalIdRoute
   '/transactions/$month': typeof AuthedHouseholdTransactionsMonthRoute
@@ -145,6 +153,7 @@ export interface FileRoutesById {
   '/_authed/_household': typeof AuthedHouseholdRouteWithChildren
   '/_authed/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
+  '/_authed/_household/explore': typeof AuthedHouseholdExploreRoute
   '/_authed/_household/household': typeof AuthedHouseholdHouseholdRoute
   '/_authed/_household/goals/$goalId': typeof AuthedHouseholdGoalsGoalIdRoute
   '/_authed/_household/month/$month': typeof AuthedHouseholdMonthMonthRouteWithChildren
@@ -162,6 +171,7 @@ export interface FileRouteTypes {
     | '/'
     | '/welcome'
     | '/sign-in/$'
+    | '/explore'
     | '/household'
     | '/goals/$goalId'
     | '/month/$month'
@@ -177,6 +187,7 @@ export interface FileRouteTypes {
     | '/'
     | '/welcome'
     | '/sign-in/$'
+    | '/explore'
     | '/household'
     | '/goals/$goalId'
     | '/transactions/$month'
@@ -193,6 +204,7 @@ export interface FileRouteTypes {
     | '/_authed/_household'
     | '/_authed/welcome'
     | '/sign-in/$'
+    | '/_authed/_household/explore'
     | '/_authed/_household/household'
     | '/_authed/_household/goals/$goalId'
     | '/_authed/_household/month/$month'
@@ -247,6 +259,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/sign-in/$'
       preLoaderRoute: typeof SignInSplatRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authed/_household/explore': {
+      id: '/_authed/_household/explore'
+      path: '/explore'
+      fullPath: '/explore'
+      preLoaderRoute: typeof AuthedHouseholdExploreRouteImport
+      parentRoute: typeof AuthedHouseholdRoute
     }
     '/_authed/_household/household': {
       id: '/_authed/_household/household'
@@ -338,6 +357,7 @@ const AuthedHouseholdMonthMonthRouteWithChildren =
   )
 
 interface AuthedHouseholdRouteChildren {
+  AuthedHouseholdExploreRoute: typeof AuthedHouseholdExploreRoute
   AuthedHouseholdHouseholdRoute: typeof AuthedHouseholdHouseholdRoute
   AuthedHouseholdGoalsGoalIdRoute: typeof AuthedHouseholdGoalsGoalIdRoute
   AuthedHouseholdMonthMonthRoute: typeof AuthedHouseholdMonthMonthRouteWithChildren
@@ -349,6 +369,7 @@ interface AuthedHouseholdRouteChildren {
 }
 
 const AuthedHouseholdRouteChildren: AuthedHouseholdRouteChildren = {
+  AuthedHouseholdExploreRoute: AuthedHouseholdExploreRoute,
   AuthedHouseholdHouseholdRoute: AuthedHouseholdHouseholdRoute,
   AuthedHouseholdGoalsGoalIdRoute: AuthedHouseholdGoalsGoalIdRoute,
   AuthedHouseholdMonthMonthRoute: AuthedHouseholdMonthMonthRouteWithChildren,

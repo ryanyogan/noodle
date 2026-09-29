@@ -7,7 +7,7 @@ import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
-import { Plus, Target } from "lucide-react";
+import { Plus, Target, Telescope } from "lucide-react";
 import { useState } from "react";
 import {
 	AddAccountForm,
@@ -75,7 +75,21 @@ function GoalsPage() {
 
 	return (
 		<>
-			<PageHeader title="Goals" actions={canAddGoal ? addGoalButton : undefined} />
+			<PageHeader
+				title="Goals"
+				actions={
+					<>
+						{/* On phones Explore lives here; the sidebar has its own link. */}
+						<Button variant="outline" size="sm" asChild className="lg:hidden">
+							<Link to="/explore">
+								<Telescope />
+								Explore
+							</Link>
+						</Button>
+						{canAddGoal ? addGoalButton : null}
+					</>
+				}
+			/>
 			<div className="grid max-w-2xl gap-8">
 				<Section aria-labelledby="active-goals">
 					<SectionHeader id="active-goals" title="Saving for" count={active.length} />

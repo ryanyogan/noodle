@@ -2,18 +2,37 @@ import { UserButton } from "@clerk/tanstack-react-start";
 import { Button } from "@noodle/ui/components/button";
 import { Logo } from "@noodle/ui/components/logo";
 import { cn } from "@noodle/ui/lib/utils";
-import { Link, type LinkProps } from "@tanstack/react-router";
-import { CalendarDays, List, type LucideIcon, Plus, Target, UsersRound } from "lucide-react";
+import { Link, type LinkProps, useRouterState } from "@tanstack/react-router";
+import {
+	CalendarDays,
+	List,
+	type LucideIcon,
+	Plus,
+	Target,
+	Telescope,
+	UsersRound,
+} from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 import { markQuickAddOpened, quickAddSearch } from "./quick-add";
 
-type NavItem = { to: LinkProps["to"]; label: string; short: string; icon: LucideIcon };
+type NavItem = {
+	to: LinkProps["to"];
+	label: string;
+	short: string;
+	icon: LucideIcon;
+	/** Left out of the phone tab bar, where it's reached from another destination instead. */
+	desktopOnly?: boolean;
+	/** Other paths this destination shows as current on in the tab bar. */
+	alsoFor?: string[];
+};
 
-// Every top-level destination, in order. The sidebar (desktop) and tab bar (phone) both render it.
+// Every top-level destination, in order. The sidebar (desktop) and tab bar (phone) both render it,
+// though the tab bar has room for four: Explore is reached from Goals there, which it plans ahead.
 const nav: NavItem[] = [
 	{ to: "/month", label: "This Month", short: "Month", icon: CalendarDays },
 	{ to: "/transactions", label: "Transactions", short: "Transactions", icon: List },
-	{ to: "/goals", label: "Goals", short: "Goals", icon: Target },
+	{ to: "/goals", label: "Goals", short: "Goals", icon: Target, alsoFor: ["/explore"] },
+	{ to: "/explore", label: "Explore", short: "Explore", icon: Telescope, desktopOnly: true },
 	{ to: "/household", label: "Household", short: "Household", icon: UsersRound },
 ];
 
@@ -109,7 +128,8 @@ function QuickAddLink(props: Omit<ComponentProps<"a">, "href">) {
 function TabBar() {
 	// Quick Add sits in the middle of the bar, in easy reach of either thumb, with the
 	// destinations split either side of it.
-	const half = Math.ceil(nav.length / 2);
+	const tabs = nav.filter((item) => !item.desktopOnly);
+	const half = Math.ceil(tabs.length / 2);
 	return (
 		<nav
 			aria-label="Main"
@@ -119,7 +139,7 @@ function TabBar() {
 				"px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+6px)]",
 			)}
 		>
-			<TabGroup items={nav.slice(0, half)} />
+			<TabGroup items={tabs.slice(0, half)} />
 			<QuickAddLink
 				className={cn(
 					"mx-2 grid h-10 w-12 place-items-center self-center rounded-[14px] bg-primary text-primary-foreground",
@@ -129,12 +149,13 @@ function TabBar() {
 				<Plus className="size-5.5" strokeWidth={2.2} aria-hidden="true" />
 				<span className="sr-only">Quick Add</span>
 			</QuickAddLink>
-			<TabGroup items={nav.slice(half)} />
+			<TabGroup items={tabs.slice(half)} />
 		</nav>
 	);
 }
 
 function TabGroup({ items }: { items: NavItem[] }) {
+	const pathname = useRouterState({ select: (state) => state.location.pathname });
 	return (
 		<div className="grid auto-cols-fr grid-flow-col">
 			{items.map((item) => (
@@ -144,6 +165,7 @@ function TabGroup({ items }: { items: NavItem[] }) {
 					className={cn(
 						"grid h-(--tabbar-height) min-w-0 place-content-center justify-items-center gap-1 rounded-lg text-[11px] font-medium text-subtle-foreground",
 						"transition-colors duration-(--duration-fast) ease-standard data-[status=active]:text-foreground",
+						item.alsoFor?.some((path) => pathname.startsWith(path)) && "text-foreground",
 					)}
 				>
 					<item.icon className="size-5.5" strokeWidth={1.75} aria-hidden="true" />

@@ -5,6 +5,7 @@ import { getHouseholdParents } from "./server/invites";
 import { getForTotalsEarlierInYear, getMembers } from "./server/members";
 import { getMonth, type MonthData } from "./server/month";
 import { getNudgeSettings } from "./server/nudges";
+import { getPlanAhead, getScenarios } from "./server/scenarios";
 import { getViewer } from "./server/session";
 import { getBucketUses } from "./server/transactions";
 
@@ -65,6 +66,23 @@ export const forTotalsEarlierQuery = (month: MonthKey) =>
 	queryOptions({
 		queryKey: [...forTotalsEarlierKey, month],
 		queryFn: () => getForTotalsEarlierInYear({ data: { month } }),
+	});
+
+/**
+ * The Plan's records as far ahead as a Scenario projects. Under every month's key, since any
+ * Plan change can change them.
+ */
+export const planAheadQuery = () =>
+	queryOptions({
+		queryKey: [...monthsKey, "ahead"],
+		queryFn: () => getPlanAhead(),
+	});
+
+/** The Household's Scenarios, most recently changed first. */
+export const scenariosQuery = () =>
+	queryOptions({
+		queryKey: ["scenarios"],
+		queryFn: () => getScenarios(),
 	});
 
 /** Every Account, Goal and Earmark change, with the Household's current month. */

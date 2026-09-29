@@ -1,5 +1,5 @@
-// Pure money math for the Plan (no I/O). Scenario projection and Affordability entry points
-// land here as their tickets arrive.
+// Pure money math for the Plan (no I/O). Affordability entry points land here as their ticket
+// arrives.
 export {
 	CADENCES,
 	type Cadence,
@@ -86,6 +86,18 @@ export {
 	totalCommitments,
 } from "./plan";
 export { type MonthlySpend, rolledOver, rolloverSince } from "./rollover";
+export {
+	type Lever,
+	MAX_PROJECTION_MONTHS,
+	moneyFreed,
+	type PlanAhead,
+	type ProjectedGoal,
+	type ProjectedMonth,
+	type Projection,
+	type ProjectionGoal,
+	planAhead,
+	project,
+} from "./scenario";
 export {
 	type AssignedTransaction,
 	type Assignment,
