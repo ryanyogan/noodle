@@ -1,6 +1,7 @@
 import {
 	addAccount,
 	addBucket,
+	addCommitment,
 	addGoal,
 	addPersonalAllowance,
 	addQuickAdd,
@@ -183,7 +184,99 @@ describe("Ask's tools", () => {
 		);
 		expect(factAmount(outcome, "In the Scenario")).toBe(100_000);
 		expect(outcome.data.freeToSpendChangeEachMonth).toBe("$200");
+		// "Try in Explore": the same change, as a Lever preset built here, never by the model.
+		expect(outcome.links).toEqual([
+			{ kind: "explore", name: "Groceries at $1,000", lever: "allowance:groceries:100000:2026-09" },
+		]);
+	});
+
+	it("offers no Scenario of the other Parent's Personal Allowance to try", async () => {
+		const outcome = await runTool(
+			"allowance_scenario",
+			{ bucket: "Alex's Fun", allowance: 100 },
+			as("sam"),
+		);
 		expect(outcome.links).toEqual([{ kind: "explore" }]);
+	});
+});
+
+describe("Ask's Commitment Scenarios", () => {
+	beforeEach(async () => {
+		await addCommitment(db, {
+			householdId,
+			memberId: "alex",
+			commitmentId: "netflix",
+			name: "Netflix",
+			month,
+			amountCents: 1_799,
+			cadence: "monthly",
+			dueDate: "2026-09-15",
+		});
+	});
+
+	it("projects ending a Commitment, to try in Explore", async () => {
+		const outcome = await runTool("commitment_scenario", { commitment: "netflix" }, as("alex"));
+		expect(factAmount(outcome, "Over the next 12 months")).toBe(12 * 1_799);
+		expect(outcome.summary).toBe("Ending Netflix frees $215.88 over the next 12 months.");
+		expect(outcome.links).toEqual([
+			{ kind: "explore", name: "Without Netflix", lever: "end-commitment:netflix:2026-09" },
+		]);
+	});
+
+	it("projects a Commitment at a new price, in cents worked out here", async () => {
+		const outcome = await runTool(
+			"commitment_scenario",
+			{ commitment: "Netflix", amount: "$19.99" },
+			as("alex"),
+		);
+		expect(factAmount(outcome, "In the Scenario")).toBe(1_999);
+		expect(factAmount(outcome, "Over the next 12 months")).toBe(-12 * 200);
+		expect(outcome.links).toEqual([
+			{
+				kind: "explore",
+				name: "Netflix at $19.99",
+				lever: "commitment-terms:netflix:1999:2026-09",
+			},
+		]);
+	});
+
+	it("tells the model which Commitments exist when one doesn't", async () => {
+		await expect(
+			runTool("commitment_scenario", { commitment: "Hulu" }, as("alex")),
+		).rejects.toThrow(/Commitments: Netflix/);
+	});
+
+	it("answers “what if we cancel” with a Scenario to try in Explore", async () => {
+		const events: AskEvent[] = [];
+		for await (const event of runAsk({
+			ctx: as("alex"),
+			model: stubModel,
+			question: "What if we cancel Netflix?",
+			history: [],
+		})) {
+			events.push(event);
+		}
+		expect(events[0]).toEqual({ type: "step", label: "Projecting a Scenario" });
+		const result = events.find((e) => e.type === "result");
+		expect(result?.type === "result" && result.links).toEqual([
+			{ kind: "explore", name: "Without Netflix", lever: "end-commitment:netflix:2026-09" },
+		]);
+	});
+
+	it("reads “what if” at a price as the Commitment's new terms", async () => {
+		const events: AskEvent[] = [];
+		for await (const event of runAsk({
+			ctx: as("alex"),
+			model: stubModel,
+			question: "What if Netflix was $20?",
+			history: [],
+		})) {
+			events.push(event);
+		}
+		const result = events.find((e) => e.type === "result");
+		expect(result?.type === "result" && result.links[0]).toMatchObject({
+			lever: "commitment-terms:netflix:2000:2026-09",
+		});
 	});
 });
 

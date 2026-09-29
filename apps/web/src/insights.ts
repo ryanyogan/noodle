@@ -1,8 +1,10 @@
 import type { InsightItem } from "@noodle/db";
-import { isOverlap } from "@noodle/domain";
+import { isOverlap, type Lever, leverPreset, type MonthKey } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { formatMoney } from "./format";
 import { insightsQuery } from "./queries";
+import type { ExploreTry } from "./scenarios";
 import { decideInsight, lookForInsightsNow } from "./server/insights";
 
 // Acting on Insights from the screen. Accepting or dismissing shows at once (the cached list is
@@ -19,17 +21,46 @@ export const insightLabel = (insight: Pick<InsightItem, "kind">) =>
 			: "Not charged lately";
 
 /**
- * Where to try an Insight in Explore, if anywhere: for now, ending the one Commitment it's about,
- * as a Lever preset (`/explore?lever=end-commitment:<id>`). The seam for "Try in Explore" (#37): more Insights become Levers there.
+ * What an Insight can be tried as in Explore, a Lever preset each: ending a Commitment it's about
+ * (an Overlap, or one not charged lately), or a price increase as its Commitment's new terms, to
+ * see what the new price costs. An Overlap offers ending each of its Commitments still in the
+ * Plan. The same charge twice, or a merchant's price increase, has no Lever to try.
  */
-export function exploreLinkFor(
-	insight: Pick<InsightItem, "kind" | "commitments">,
-	commitmentId?: string,
-): { to: "/explore"; search: { lever: string } } | null {
-	const live = insight.commitments.filter((c) => c.endedFromMonth === null);
-	const target = commitmentId ? live.find((c) => c.id === commitmentId) : live[0];
-	if (!target || insight.kind === "duplicate-charge") return null;
-	return { to: "/explore", search: { lever: `end-commitment:${target.id}` } };
+export function exploreTriesFor(
+	insight: Pick<InsightItem, "kind" | "commitments" | "transactions">,
+	current: MonthKey,
+): ExploreTry[] {
+	const live = insight.commitments.filter(
+		(c) => c.endedFromMonth === null || c.endedFromMonth > current,
+	);
+	const tryAs = (name: string, lever: Lever) => {
+		const preset = leverPreset(lever);
+		return preset ? [{ name, preset }] : [];
+	};
+	switch (insight.kind) {
+		case "duplicate-charge":
+			return [];
+		case "price-increase": {
+			// Its latest charge (Transactions are newest first) is the new price.
+			const [commitment] = live;
+			const amount = insight.transactions[0]?.amount;
+			if (!commitment || !amount) return [];
+			return tryAs(`${commitment.name} at ${formatMoney(amount)}`, {
+				kind: "commitment-terms",
+				commitmentId: commitment.id,
+				amount,
+				fromMonth: current,
+			});
+		}
+		default:
+			return live.flatMap((commitment) =>
+				tryAs(`Without ${commitment.name}`, {
+					kind: "end-commitment",
+					commitmentId: commitment.id,
+					fromMonth: current,
+				}),
+			);
+	}
 }
 
 type Decision = { insight: InsightItem; status: "accepted" | "dismissed" };

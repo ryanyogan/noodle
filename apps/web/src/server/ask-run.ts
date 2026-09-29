@@ -158,6 +158,7 @@ export function instructions(vocabulary: Awaited<ReturnType<typeof askVocabulary
 		"Rules:",
 		"- Get every figure from a tool. Quote amounts exactly as the tool gives them; never add, subtract or estimate yourself.",
 		"- For an Affordability Check you need a price. If the Parent didn't give one, ask for it and call no tool.",
+		"- For what ending or changing a Commitment, or changing a Bucket's allowance, would do, call a Scenario tool; the Parent can then try it in Explore.",
 		"- If a tool can't answer, say what you can't see rather than guessing.",
 		"- Another Parent's Personal Allowance is private: only its totals exist for you, never what was bought.",
 		"- Answer in 1 to 3 plain sentences, no lists, no headings, no markdown.",

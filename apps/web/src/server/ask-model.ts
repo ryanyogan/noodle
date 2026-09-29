@@ -178,11 +178,21 @@ function stubToolCall(question: string, system: string): Omit<ToolCall, "id"> | 
 		/what if (?:the |our |my )?(.+?)\s+(?:(?:was|were|is|went|goes)\s+)?(?:(?:to|at)\s+)?\$([\d,]+)/i.exec(
 			question,
 		);
+	const commitments = namesOn(system, "Commitments").filter(Boolean);
+	const isCommitment = (name: string) =>
+		commitments.some((c) => c.toLowerCase() === name.trim().toLowerCase());
 	if (whatIf?.[1] && whatIf[2]) {
-		return call("allowance_scenario", {
-			bucket: whatIf[1],
-			allowance: Number(whatIf[2].replace(/,/g, "")),
-		});
+		const amount = Number(whatIf[2].replace(/,/g, ""));
+		return isCommitment(whatIf[1])
+			? call("commitment_scenario", { commitment: whatIf[1], amount })
+			: call("allowance_scenario", { bucket: whatIf[1], allowance: amount });
+	}
+	const ending = /\b(?:cancel(?:led)?|end(?:ed)?|stop(?:ped)?|drop(?:ped)?)\s+(.+?)[?.!]*$/i.exec(
+		question,
+	);
+	if (ending?.[1]) {
+		const name = ending[1].replace(/^(?:the|our|my)\s+/i, "");
+		if (isCommitment(name)) return call("commitment_scenario", { commitment: name });
 	}
 	if (q.includes("afford")) {
 		const price = priceIn(question);

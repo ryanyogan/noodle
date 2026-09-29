@@ -8,13 +8,13 @@ import { PageHeader } from "@noodle/ui/components/page-header";
 import { toast } from "@noodle/ui/components/toast";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
-import { Check, ChevronRight, Lightbulb, Lock, RefreshCw } from "lucide-react";
+import { Check, ChevronRight, Lightbulb, Lock, RefreshCw, Telescope } from "lucide-react";
 import { useState } from "react";
 import { withoutCommitment } from "../../../commitments";
 import { Confirm, SaveFailed } from "../../../components/plan-editing";
 import { formatMoney, monthName, shortDay } from "../../../format";
 import {
-	exploreLinkFor,
+	exploreTriesFor,
 	type InsightItem,
 	insightLabel,
 	useDecideInsight,
@@ -22,6 +22,7 @@ import {
 } from "../../../insights";
 import { usePlanChange } from "../../../plan-changes";
 import { insightsQuery } from "../../../queries";
+import { useTryInExplore } from "../../../scenarios";
 import { endCommitment } from "../../../server/commitments";
 
 export const Route = createFileRoute("/_authed/_household/insights")({
@@ -36,7 +37,8 @@ export const Route = createFileRoute("/_authed/_household/insights")({
  * Insights: what the nightly look over the Household's spending and Commitments found, each with
  * the Transactions and Commitments behind it and its yearly impact. A Parent accepts or dismisses
  * each; accepting an Overlap offers to end one of its Commitments, which, like everything here,
- * only happens when they confirm.
+ * only happens when they confirm. "Try in Explore" saves a Scenario with the change it suggests
+ * and opens it there, leaving the Plan as it is.
  */
 function InsightsPage() {
 	const { current } = Route.useRouteContext();
@@ -110,6 +112,8 @@ function InsightCard({
 }) {
 	const decide = useDecideInsight();
 	const hydrated = useHydrated();
+	const tryInExplore = useTryInExplore(current);
+	const tries = exploreTriesFor(insight, current);
 	const [ending, setEnding] = useState<InsightCommitment | null>(null);
 	const titleId = `insight-${insight.id}`;
 	const live = insight.commitments.filter(
@@ -205,26 +209,19 @@ function InsightCard({
 						End {live.length > 1 ? "one of them" : "it"} in the Plan? Nothing changes until you
 						confirm.
 					</p>
-					{live.map((commitment) => {
-						const explore = exploreLinkFor(insight, commitment.id);
-						return (
-							<div key={commitment.id} className="flex flex-wrap items-center gap-2">
-								<Button
-									variant="outline"
-									size="sm"
-									disabled={!hydrated}
-									onClick={() => setEnding(commitment)}
-								>
-									End {commitment.name}…
-								</Button>
-								{explore ? (
-									<Button variant="ghost" size="sm" asChild>
-										<Link {...explore}>Try ending it in Explore</Link>
-									</Button>
-								) : null}
-							</div>
-						);
-					})}
+					<div className="flex flex-wrap items-center gap-2">
+						{live.map((commitment) => (
+							<Button
+								key={commitment.id}
+								variant="outline"
+								size="sm"
+								disabled={!hydrated}
+								onClick={() => setEnding(commitment)}
+							>
+								End {commitment.name}…
+							</Button>
+						))}
+					</div>
 					{ending ? (
 						<Confirm
 							confirmLabel={`End ${ending.name}`}
@@ -250,6 +247,18 @@ function InsightCard({
 						Accept
 					</Button>
 				) : null}
+				{tries.map((change) => (
+					<Button
+						key={change.preset}
+						variant="outline"
+						size="sm"
+						disabled={!hydrated}
+						onClick={() => tryInExplore(change)}
+					>
+						<Telescope />
+						{tries.length === 1 ? "Try in Explore" : `Try “${change.name}”`}
+					</Button>
+				))}
 				<Button
 					variant="ghost"
 					size="sm"

@@ -18,6 +18,8 @@ import {
 	dayKeyAt,
 	earmarkOf,
 	goalProgress,
+	type Lever,
+	leverPreset,
 	type MonthKey,
 	moneyFreed,
 	monthKeyAt,
@@ -58,7 +60,8 @@ export type AskLink =
 	| { kind: "month"; month: MonthKey }
 	| { kind: "transactions"; month: MonthKey }
 	| { kind: "goals" }
-	| { kind: "explore" }
+	/** Explore; with a change to try (see useTryInExplore), a Scenario of it, saved as it opens. */
+	| { kind: "explore"; name?: string; lever?: string }
 	| { kind: "afford"; name: string; price: Cents };
 
 export type ToolOutcome = {
@@ -151,6 +154,22 @@ export const TOOL_SPECS: ToolSpec[] = [
 			required: ["bucket", "allowance"],
 		},
 	},
+	{
+		name: "commitment_scenario",
+		description:
+			"A Scenario: what ending one Commitment, or changing what it costs, would free up (or cost) over the next year, and which Goals it would reach sooner or later.",
+		parameters: {
+			type: "object",
+			properties: {
+				commitment: { type: "string", description: "The Commitment's name." },
+				amount: {
+					type: "number",
+					description: "Its new amount due in dollars, each time it's due. Leave out to end it.",
+				},
+			},
+			required: ["commitment"],
+		},
+	},
 ];
 
 const argSchemas = {
@@ -175,6 +194,10 @@ const argSchemas = {
 			.pipe(z.number().min(0).max(100_000_000))
 			.transform((d) => Math.round(d * 100) as Cents),
 	}),
+	commitment_scenario: z.object({
+		commitment: z.string().trim().min(1).max(60),
+		amount: optional(dollarsArg),
+	}),
 } as const;
 
 export type ToolName = keyof typeof argSchemas;
@@ -188,6 +211,7 @@ export const toolStep: Record<ToolName, string> = {
 	goals: "Checking Goals",
 	affordability_check: "Running an Affordability Check",
 	allowance_scenario: "Projecting a Scenario",
+	commitment_scenario: "Projecting a Scenario",
 };
 
 /** Thrown for arguments a tool can't use; the model is told why and may try again. */
@@ -215,6 +239,8 @@ export async function runTool(
 			return affordabilityCheck(ctx, args);
 		case "allowance_scenario":
 			return allowanceScenario(ctx, args);
+		case "commitment_scenario":
+			return commitmentScenario(ctx, args);
 	}
 }
 
@@ -551,32 +577,27 @@ async function affordabilityCheck(
 	};
 }
 
-async function allowanceScenario(
-	ctx: AskContext,
-	args: { bucket: string; allowance: Cents },
-): Promise<ToolOutcome> {
-	const { month, records, ahead, goals } = await yearAhead(ctx);
-	const plan: Plan = planForMonth(records as PlanRecords, month);
-	const bucket = findByName(plan.buckets, args.bucket);
-	if (!bucket) {
-		throw new ToolArgumentError(
-			`No Bucket named "${args.bucket}". Buckets: ${plan.buckets.map((b) => b.name).join(", ")}.`,
-		);
-	}
+/**
+ * The next year with `lever` made, against the Plan as it stands: the money it frees over the
+ * year (negative when it costs), the Goals it reaches sooner or later, and a link to try it in
+ * Explore as a Scenario called `name`.
+ */
+function scenarioOutcome(
+	{ ahead, goals }: Awaited<ReturnType<typeof yearAhead>>,
+	lever: Lever,
+	name: string,
+) {
 	const before = project(ahead);
-	const after = project(ahead, [
-		{ kind: "allowance", bucketId: bucket.id, amount: args.allowance, fromMonth: month },
-	]);
+	const after = project(ahead, [lever]);
 	const freed = moneyFreed(before, after);
 	const overYear = freed[freed.length - 1] ?? 0;
-	const perMonth = bucket.allowance - args.allowance;
 	const goalChanges = after.goals.flatMap((g) => {
 		const was = before.goals.find((b) => b.goalId === g.goalId)?.reachedIn ?? null;
 		if (was === g.reachedIn) return [];
-		const name = goals.find((goal) => goal.id === g.goalId)?.name ?? "A Goal";
+		const goal = goals.find((goal) => goal.id === g.goalId)?.name ?? "A Goal";
 		return [
 			{
-				goal: name,
+				goal,
 				reachedBefore: was ? monthLabel(was) : "not within a year",
 				reachedAfter: g.reachedIn ? monthLabel(g.reachedIn) : "not within a year",
 			},
@@ -586,13 +607,37 @@ async function allowanceScenario(
 		overYear >= 0
 			? `frees ${money(overYear)} over the next 12 months`
 			: `costs ${money(-overYear)} over the next 12 months`;
+	const preset = leverPreset(lever);
+	const link: AskLink = preset ? { kind: "explore", name, lever: preset } : { kind: "explore" };
+	return { before, after, overYear, goalChanges, change, link };
+}
+
+async function allowanceScenario(
+	ctx: AskContext,
+	args: { bucket: string; allowance: Cents },
+): Promise<ToolOutcome> {
+	const year = await yearAhead(ctx);
+	const plan: Plan = planForMonth(year.records as PlanRecords, year.month);
+	const bucket = findByName(plan.buckets, args.bucket);
+	if (!bucket) {
+		throw new ToolArgumentError(
+			`No Bucket named "${args.bucket}". Buckets: ${plan.buckets.map((b) => b.name).join(", ")}.`,
+		);
+	}
+	const { before, after, overYear, goalChanges, change, link } = scenarioOutcome(
+		year,
+		{ kind: "allowance", bucketId: bucket.id, amount: args.allowance, fromMonth: year.month },
+		`${bucket.name} at ${money(args.allowance)}`,
+	);
+	// Another Parent's Personal Allowance is theirs to change: Explore wouldn't open it.
+	const theirs = bucket.owner !== undefined && bucket.owner !== ctx.parentId;
 	return {
 		summary: `${bucket.name} at ${money(args.allowance)} a month instead of ${money(bucket.allowance)} ${change}.`,
 		data: {
 			bucket: bucket.name,
 			allowanceNow: money(bucket.allowance),
 			allowanceInScenario: money(args.allowance),
-			freeToSpendChangeEachMonth: money(perMonth),
+			freeToSpendChangeEachMonth: money(bucket.allowance - args.allowance),
 			freeToSpendThisMonthNow: money(before.months[0]?.freeToSpend ?? 0),
 			freeToSpendThisMonthInScenario: money(after.months[0]?.freeToSpend ?? 0),
 			overNext12Months: money(overYear),
@@ -603,7 +648,59 @@ async function allowanceScenario(
 			{ label: "In the Scenario", amount: args.allowance },
 			{ label: "Over the next 12 months", amount: overYear },
 		],
-		links: [{ kind: "explore" }],
+		links: [theirs ? { kind: "explore" } : link],
+	};
+}
+
+async function commitmentScenario(
+	ctx: AskContext,
+	args: { commitment: string; amount?: Cents },
+): Promise<ToolOutcome> {
+	const year = await yearAhead(ctx);
+	const plan: Plan = planForMonth(year.records as PlanRecords, year.month);
+	const commitment = findByName(plan.commitments, args.commitment);
+	if (!commitment) {
+		throw new ToolArgumentError(
+			`No Commitment named "${args.commitment}". Commitments: ${plan.commitments.map((c) => c.name).join(", ")}.`,
+		);
+	}
+	const { amount } = args;
+	const { overYear, goalChanges, change, link } =
+		amount === undefined
+			? scenarioOutcome(
+					year,
+					{ kind: "end-commitment", commitmentId: commitment.id, fromMonth: year.month },
+					`Without ${commitment.name}`,
+				)
+			: scenarioOutcome(
+					year,
+					{
+						kind: "commitment-terms",
+						commitmentId: commitment.id,
+						amount,
+						fromMonth: year.month,
+					},
+					`${commitment.name} at ${money(amount)}`,
+				);
+	return {
+		summary:
+			amount === undefined
+				? `Ending ${commitment.name} ${change}.`
+				: `${commitment.name} at ${money(amount)} instead of ${money(commitment.amount)} ${change}.`,
+		data: {
+			commitment: commitment.name,
+			amountNow: money(commitment.amount),
+			cadence: commitment.cadence,
+			inScenario: amount === undefined ? "ended" : money(amount),
+			overNext12Months: money(overYear),
+			goalChanges,
+		},
+		facts: [
+			{ label: `${commitment.name} now`, amount: commitment.amount },
+			...(amount === undefined ? [] : [{ label: "In the Scenario", amount }]),
+			{ label: "Over the next 12 months", amount: overYear },
+		],
+		links: [link],
 	};
 }
 

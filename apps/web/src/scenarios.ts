@@ -1,6 +1,14 @@
-import { earmarkOf, type Lever, type ProjectionGoal } from "@noodle/domain";
+import {
+	earmarkOf,
+	type Lever,
+	type MonthKey,
+	type ProjectionGoal,
+	parseLeverPreset,
+} from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import { type QueryClient, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import { ulid } from "ulid";
 import type { GoalsData } from "./goals";
 import { monthChangeKey } from "./plan-changes";
 import { goalsQuery, monthsKey, scenariosQuery } from "./queries";
@@ -168,6 +176,27 @@ export const useDeleteScenario = () =>
 		apply: (scenarios, { scenarioId }) => scenarios.filter((s) => s.id !== scenarioId),
 		failed: ({ name }) => `Couldn’t delete “${name}”, so it’s back.`,
 	});
+
+/** A change to try in Explore: a Lever preset (see parseLeverPreset) and a name for its Scenario. */
+export type ExploreTry = { name: string; preset: string };
+
+/**
+ * "Try in Explore" from Insights and Ask: saves a new Scenario with the preset's Lever and opens
+ * it, as Affordability's "Explore as a Scenario" does. The Plan doesn't change unless the Scenario
+ * is applied. `month` is the Household's current month, where the Lever starts.
+ */
+export function useTryInExplore(month: MonthKey) {
+	const save = useSaveScenario();
+	const navigate = useNavigate();
+	return ({ name, preset }: ExploreTry) => {
+		const lever = parseLeverPreset(preset, month);
+		if (!lever) return;
+		const scenarioId = ulid();
+		save.mutate({ scenarioId, name: name.trim().slice(0, 40), levers: [lever] });
+		// Opens this Scenario, even before its save lands.
+		void navigate({ to: "/explore", search: { scenario: scenarioId } });
+	};
+}
 
 /**
  * Makes a Scenario's Levers the real Plan from this month on, saving the Scenario as applied.

@@ -1,3 +1,4 @@
+import { monthKeyAt } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
@@ -5,10 +6,11 @@ import { PageHeader } from "@noodle/ui/components/page-header";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { cn } from "@noodle/ui/lib/utils";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
-import { ArrowUp, LoaderCircle, RotateCcw } from "lucide-react";
+import { ArrowUp, LoaderCircle, RotateCcw, Telescope } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { type AskTurnState, useAsk } from "../../../ask";
 import { formatMoney, monthName } from "../../../format";
+import { type ExploreTry, useTryInExplore } from "../../../scenarios";
 import type { AskLink } from "../../../server/ask-tools";
 
 // Ask: plain-language questions about the Household's money, answered from its real numbers
@@ -185,7 +187,11 @@ function AskLinkButton({ link }: { link: AskLink }) {
 		case "goals":
 			return button(<Link to="/goals">Open Goals</Link>);
 		case "explore":
-			return button(<Link to="/explore">Open in Explore</Link>);
+			return link.lever ? (
+				<TryInExplore change={{ name: link.name ?? "Scenario", preset: link.lever }} />
+			) : (
+				button(<Link to="/explore">Open in Explore</Link>)
+			);
 		case "afford":
 			return button(
 				<Link
@@ -196,4 +202,17 @@ function AskLinkButton({ link }: { link: AskLink }) {
 				</Link>,
 			);
 	}
+}
+
+/** A Scenario of the change the answer is about, saved and opened in Explore; the Plan stays as it is. */
+function TryInExplore({ change }: { change: ExploreTry }) {
+	const { household } = Route.useRouteContext();
+	const hydrated = useHydrated();
+	const tryInExplore = useTryInExplore(monthKeyAt(new Date(), household.timeZone));
+	return (
+		<Button variant="outline" size="sm" disabled={!hydrated} onClick={() => tryInExplore(change)}>
+			<Telescope />
+			Try in Explore
+		</Button>
+	);
 }
