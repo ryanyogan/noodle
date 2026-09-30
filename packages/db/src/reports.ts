@@ -456,6 +456,26 @@ export async function loadReportItems(
 }
 
 /**
+ * The first day the Household has any spending or income recorded, or null when it has none: a
+ * Report's period and comparison can't reach usefully before it.
+ */
+export async function loadHistoryStart(db: Db, householdId: string): Promise<DayKey | null> {
+	const [spent, earned] = await Promise.all([
+		db
+			.select({ first: sql<string | null>`min(${transactions.date})` })
+			.from(transactions)
+			.where(and(eq(transactions.householdId, householdId), counts())),
+		db
+			.select({ first: sql<string | null>`min(${income.date})` })
+			.from(income)
+			.where(and(eq(income.householdId, householdId), incomeCounts())),
+	]);
+	const days = [spent[0]?.first, earned[0]?.first].filter((d): d is string => Boolean(d));
+	// Dates are always written as DayKeys.
+	return days.length > 0 ? ([...days].sort()[0] as DayKey) : null;
+}
+
+/**
  * Income per period and source (its note, lower-cased; "" for none), for a range. Income is the
  * Household's, never private; only an Account filter narrows it.
  */

@@ -4,6 +4,7 @@ import {
 	type DayKey,
 	GROUPINGS,
 	type MonthKey,
+	monthOfDay,
 	REPORT_PERIODS,
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
@@ -317,6 +318,13 @@ function Options({
 					) : null}
 				</Button>
 			</div>
+			{(search.compare ?? "previous") !== "none" && report.compared === null ? (
+				<p className="text-[13px] text-muted-foreground">
+					{report.historyFrom
+						? `Nothing earlier to compare with: your history starts in ${monthLabel(monthOfDay(report.historyFrom))}.`
+						: "Nothing to compare with yet."}
+				</p>
+			) : null}
 			{chips.length ? (
 				<ul className="flex flex-wrap gap-1.5" aria-label="Filters">
 					{chips.map((chip) => (

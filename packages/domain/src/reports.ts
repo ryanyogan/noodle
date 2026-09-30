@@ -120,6 +120,26 @@ export function comparisonRange(range: DayRange, comparison: Comparison): DayRan
 	return { from: addDays(range.from, -days), until: range.from };
 }
 
+/**
+ * A Report's period and comparison kept to the Household's history, which starts on
+ * `historyFrom` (its first spending or income; null when there's none). The period starts no
+ * earlier than that month, so charts don't open on empty months. A comparison reaching before it
+ * is dropped: against months with nothing in them, "226% more" says only that there was no
+ * history yet.
+ */
+export function withinHistory(
+	range: DayRange,
+	compared: DayRange | null,
+	historyFrom: DayKey | null,
+): { range: DayRange; compared: DayRange | null } {
+	if (historyFrom === null) return { range, compared: null };
+	const start = `${monthOfDay(historyFrom)}-01` as DayKey;
+	return {
+		range: range.from < start && start < range.until ? { ...range, from: start } : range,
+		compared: compared && compared.from >= start ? compared : null,
+	};
+}
+
 /** Grouping that suits a range when the Parent hasn't picked one: weeks for a month or two. */
 export const defaultGrouping = (range: DayRange): Grouping =>
 	daysBetween(range.from, range.until) <= 62 ? "week" : "month";

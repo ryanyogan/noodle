@@ -6,6 +6,7 @@ import {
 	loadDailySpend,
 	loadForCells,
 	loadGoals,
+	loadHistoryStart,
 	loadIncomeCells,
 	loadMerchants,
 	loadMovesBetween,
@@ -62,6 +63,7 @@ import {
 	type Target,
 	totalsBy,
 	type Variance,
+	withinHistory,
 	yearlyCost,
 } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
@@ -215,7 +217,10 @@ export type ReportData = {
 	asOf: DayKey;
 	/** The period's days; a drilled-into month narrows `view`'s items, not this. */
 	range: DayRange;
+	/** Null when not comparing, or when the comparison would reach before `historyFrom`. */
 	compared: DayRange | null;
+	/** The Household's first spending or income (withinHistory); null before there's any. */
+	historyFrom: DayKey | null;
 	grouping: Grouping;
 	periods: string[];
 	meta: ReportMeta;
@@ -278,9 +283,15 @@ export const getReport = createServerFn({ method: "GET" })
 		const householdId = context.household.id;
 		const asOf = dayKeyAt(new Date(), context.household.timeZone);
 		const custom = request.from && request.to ? { from: request.from, to: request.to } : undefined;
-		const range = periodRange(request.period, asOf, custom);
+		const historyFrom = await loadHistoryStart(db, householdId);
+		// Kept to the Household's history: no empty months before it, no comparison against them.
+		const asked = periodRange(request.period, asOf, custom);
+		const { range, compared } = withinHistory(
+			asked,
+			comparisonRange(asked, request.compare),
+			historyFrom,
+		);
 		const grouping = request.group ?? defaultGrouping(range);
-		const compared = comparisonRange(range, request.compare);
 		const periods = periodKeys(range, grouping);
 		const filters = filtersOf(request);
 		const scope: ReportScope = { viewer, range, filters };
@@ -309,7 +320,7 @@ export const getReport = createServerFn({ method: "GET" })
 			request.area || request.month
 				? await areaData(context_)
 				: await viewData(context_, goalRecords.changes, goalRecords.goals);
-		return { asOf, range, compared, grouping, periods, meta, data };
+		return { asOf, range, compared, historyFrom, grouping, periods, meta, data };
 	});
 
 type Context = {

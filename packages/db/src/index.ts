@@ -469,6 +469,7 @@ export {
 	loadBucketMonths,
 	loadDailySpend,
 	loadForCells,
+	loadHistoryStart,
 	loadIncomeCells,
 	loadMerchants,
 	loadReportItems,

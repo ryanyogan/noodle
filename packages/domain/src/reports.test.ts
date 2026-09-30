@@ -27,6 +27,7 @@ import {
 	toCsv,
 	topWithOther,
 	totalsBy,
+	withinHistory,
 	yearlyCost,
 } from "./index";
 
@@ -393,5 +394,35 @@ describe("toCsv", () => {
 				["=HYPERLINK()", null],
 			]),
 		).toBe('Note,Amount\r\n"Costco, ""bulk""",12.5\r\n\'=HYPERLINK(),\r\n');
+	});
+});
+
+describe("withinHistory: a Report kept to the Household's history", () => {
+	// Last 6 months as of Sep 30: Apr to Sep, compared to Oct to Mar. History starts Jan 29.
+	const range = { from: "2026-04-01" as DayKey, until: "2026-10-01" as DayKey };
+	const previous = comparisonRange(range, "previous");
+
+	it("drops a comparison that reaches before the first spending or income", () => {
+		// Oct–Dec had nothing: "226% more" would only say history hadn't started.
+		expect(withinHistory(range, previous, "2026-01-29")).toEqual({ range, compared: null });
+		expect(
+			withinHistory(range, comparisonRange(range, "last-year"), "2026-01-29").compared,
+		).toBeNull();
+	});
+
+	it("keeps one that's all within it", () => {
+		expect(withinHistory(range, previous, "2025-06-02")).toEqual({ range, compared: previous });
+	});
+
+	it("starts the period at the month history starts, not on empty months", () => {
+		const year = { from: "2025-10-01" as DayKey, until: "2026-10-01" as DayKey };
+		expect(withinHistory(year, null, "2026-01-29").range).toEqual({
+			from: "2026-01-01",
+			until: "2026-10-01",
+		});
+	});
+
+	it("has nothing to compare with before any history", () => {
+		expect(withinHistory(range, previous, null)).toEqual({ range, compared: null });
 	});
 });

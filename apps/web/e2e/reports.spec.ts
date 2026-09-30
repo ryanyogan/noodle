@@ -39,9 +39,16 @@ test("Reports: change the period, then drill from a Bucket to its Transactions",
 	await page.getByRole("link", { name: "Reports" }).click();
 	await expect(heading(page)).toContainText("Overview");
 	await expect(page.getByText("Income and spending")).toBeVisible();
+	// Six months of history: the six months before them had nothing, so no "226% more".
+	const nothingEarlier = page.getByText(
+		/^Nothing earlier to compare with: your history starts in /,
+	);
+	await expect(nothingEarlier).toBeVisible();
 
 	await page.getByLabel("Period").selectOption({ label: "Last 3 months" });
 	await expect(page).toHaveURL(/period=3m/);
+	// The three months before are within the history, so they're compared.
+	await expect(nothingEarlier).toHaveCount(0);
 	// Every option lives in the URL, so a reload keeps it.
 	await page.reload();
 	await expect(page.getByLabel("Period")).toHaveValue("3m", clientRendered);

@@ -384,6 +384,7 @@ export {
 	topWithOther,
 	totalsBy,
 	type Variance,
+	withinHistory,
 } from "./reports";
 export {
 	type BucketMonth,
