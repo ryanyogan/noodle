@@ -370,47 +370,44 @@ describe("project: fast enough for every slider frame", () => {
 		{ kind: "archive-bucket", bucketId: "b10", fromMonth: "2027-01", untilMonth: "2027-04" },
 	];
 
+	// A speed budget measures what the code can do, so each test takes the fastest of many runs
+	// after a warm-up: noise from a shared machine only ever adds time, never takes it away. CI's
+	// runner has 2 vCPUs shared by every package's tests at once (turbo runs them together), so it
+	// samples for up to a second and a half to catch a quiet moment, and allows half as much again
+	// there. A real blowup (a Lever that re-resolves the Plan, a quadratic loop) is many times
+	// the budget, so it still fails.
+	const fastest = (work: () => void): number => {
+		work();
+		work();
+		let best = Number.POSITIVE_INFINITY;
+		const sampling = performance.now();
+		for (let run = 0; run < 30 && (run < 5 || performance.now() - sampling < 1_500); run++) {
+			const started = performance.now();
+			work();
+			best = Math.min(best, performance.now() - started);
+		}
+		return best;
+	};
+	const budget = (ms: number) => (process.env.CI ? ms * 1.5 : ms);
+
 	it("projects 60 months with twenty Levers well within a slider frame", () => {
 		expect(twenty).toHaveLength(20);
 		const resolved = planAhead(many, goals, "2026-09", 60);
-		// Best of five batches of ten after a warm-up, so a busy CI runner doesn't fail it; still
-		// catches a blowup (a batch takes a few milliseconds here).
-		const batch = () => {
+		// Ten projections a run, a few milliseconds here.
+		const ten = () => {
 			for (let i = 0; i < 10; i++) project(resolved, twenty);
 		};
-		batch();
-		let best = Number.POSITIVE_INFINITY;
-		for (let run = 0; run < 5; run++) {
-			const started = performance.now();
-			batch();
-			best = Math.min(best, performance.now() - started);
-		}
-		expect(best).toBeLessThan(50);
+		expect(fastest(ten)).toBeLessThan(budget(50));
 	});
 
 	it("resolves the Plan and works out every Lever's impact in well under 100ms", () => {
-		// Best of five after a warm-up, so a busy CI runner doesn't fail it; still catches a blowup.
-		const once = () => leverImpacts(planAhead(many, goals, "2026-09", 60), twenty);
-		once();
-		let best = Number.POSITIVE_INFINITY;
-		for (let run = 0; run < 5; run++) {
-			const started = performance.now();
-			once();
-			best = Math.min(best, performance.now() - started);
-		}
-		expect(best).toBeLessThan(100);
+		expect(fastest(() => leverImpacts(planAhead(many, goals, "2026-09", 60), twenty))).toBeLessThan(
+			budget(100),
+		);
 	});
 
 	it("resolves 60 months of the Plan in a few milliseconds", () => {
-		// Best of five after a warm-up, so a busy CI runner doesn't fail it; still catches a blowup.
-		planAhead(many, goals, "2026-09", 60);
-		let best = Number.POSITIVE_INFINITY;
-		for (let run = 0; run < 5; run++) {
-			const started = performance.now();
-			planAhead(many, goals, "2026-09", 60);
-			best = Math.min(best, performance.now() - started);
-		}
-		expect(best).toBeLessThan(50);
+		expect(fastest(() => planAhead(many, goals, "2026-09", 60))).toBeLessThan(budget(50));
 	});
 });
 
