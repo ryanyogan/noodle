@@ -49,6 +49,7 @@ import {
 	EarmarkPicker,
 	FieldGroup,
 	MoneyField,
+	NoIncomeYet,
 	PercentField,
 	SelectField,
 	VerdictCard,
@@ -166,24 +167,28 @@ function AffordPage() {
 					))}
 				</nav>
 				{context.plan.baseline === 0 ? (
-					<p className="text-sm text-muted-foreground">
-						The Plan has no Baseline yet, so there’s no income to check against.{" "}
-						<Link
-							to="/plan/$month/income"
-							params={{ month: context.month }}
-							className="underline underline-offset-2"
-						>
-							Set the Plan
-						</Link>
-					</p>
+					<Card role="note" className="grid justify-items-start gap-2 p-(--card-pad) text-sm">
+						<p className="font-medium">Set up the Plan first</p>
+						<p className="text-muted-foreground">
+							A Check weighs a cost against your take-home pay and what’s free to spend each month.
+							The Plan has neither yet, so it can show the costs but not whether they fit.
+						</p>
+						<Button size="sm" asChild>
+							<Link to="/plan/$month" params={{ month: context.month }}>
+								Set up the Plan
+							</Link>
+						</Button>
+					</Card>
 				) : null}
-				{kind === "home" ? (
-					<HomeCheck context={context} form={home} onForm={setHome} />
-				) : kind === "car" ? (
-					<CarCheck context={context} form={car} onForm={setCar} />
-				) : (
-					<AnythingCheck context={context} form={anything} onForm={setAnything} />
-				)}
+				<NoIncomeYet value={context.plan.baseline === 0}>
+					{kind === "home" ? (
+						<HomeCheck context={context} form={home} onForm={setHome} />
+					) : kind === "car" ? (
+						<CarCheck context={context} form={car} onForm={setCar} />
+					) : (
+						<AnythingCheck context={context} form={anything} onForm={setAnything} />
+					)}
+				</NoIncomeYet>
 			</div>
 		</>
 	);

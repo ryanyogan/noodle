@@ -100,8 +100,12 @@ test("months are addressable, and the chevrons move between them", async ({ brow
 	await expect(bucketRow(page, "Hockey")).toHaveAccessibleName("Hockey: $400 left of $400");
 
 	await page.getByRole("link", { name: "Previous month" }).click();
-	await page.getByRole("link", { name: "Previous month" }).click();
-	await expect(page).toHaveURL(new RegExp(`/month/${previous.key}$`));
+	await expect(page).toHaveURL(new RegExp(`/month/${current.key}$`));
+	// Nothing was planned before this month, so there's no going back further.
+	await expect(page.getByRole("button", { name: "Previous month" })).toBeDisabled();
+	await expect(page.getByRole("link", { name: /^Previous month/ })).toHaveCount(0);
+	// Though an earlier month is still addressable.
+	await page.goto(`/month/${previous.key}`);
 	await expect(heading(page)).toHaveText(`Month${title(previous, current.year)}`);
 
 	await page.goto(`/month/${next.key}`);

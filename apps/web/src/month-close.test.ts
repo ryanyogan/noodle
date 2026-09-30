@@ -26,6 +26,7 @@ const month: MonthData = {
 	income: [{ id: "pay", amount: 600_000, date: "2026-08-15", note: "Bonus" }],
 	asOf: "2026-09-02",
 	editable: false,
+	firstMonth: "2026-01",
 };
 
 const decision: CloseMonthVariables = {

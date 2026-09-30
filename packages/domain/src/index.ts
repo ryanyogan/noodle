@@ -267,6 +267,7 @@ export {
 	type CommitmentRecord,
 	canAssign,
 	commitmentsIn,
+	firstPlanMonth,
 	freeToSpend,
 	type Plan,
 	type PlanBucket,

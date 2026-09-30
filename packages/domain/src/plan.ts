@@ -107,6 +107,20 @@ export function commitmentsIn(
 }
 
 /**
+ * The first month the Household had a Plan, or `current` if it's earlier (or nothing is planned
+ * yet): earlier months are before the Household planned anything, so there's nothing to go back
+ * to. `records` need only reach `current`.
+ */
+export function firstPlanMonth(records: PlanRecords, current: MonthKey): MonthKey {
+	const months = [
+		...records.baselines.map((b) => b.month),
+		...records.buckets.map((b) => b.fromMonth),
+		...records.commitments.map((c) => c.fromMonth),
+	];
+	return months.reduce((first, month) => (month < first ? month : first), current);
+}
+
+/**
  * The Plan in force for `month`: its Baseline, its Commitments with their terms (in the order
  * they're next due), and its Buckets in order with their allowances.
  */

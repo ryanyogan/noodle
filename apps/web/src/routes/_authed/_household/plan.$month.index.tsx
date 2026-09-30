@@ -63,7 +63,7 @@ function PlanOverview() {
 	const { month } = Route.useRouteContext();
 	const state = useMonthState(month);
 	const current = monthOfDay(state.asOf);
-	const swipe = useMonthSwipe("/plan/$month", month);
+	const swipe = useMonthSwipe("/plan/$month", month, state.firstMonth);
 	const buckets = state.buckets.filter((b) => b.owner === undefined);
 	const settingUp = state.editable && (state.baseline === null || buckets.length === 0);
 	return (
@@ -73,7 +73,7 @@ function PlanOverview() {
 				className="max-w-2xl"
 				eyebrow="Plan"
 				title={monthTitle(month, current)}
-				actions={<MonthLinks to="/plan/$month" month={month} />}
+				actions={<MonthLinks to="/plan/$month" month={month} first={state.firstMonth} />}
 			/>
 			<div className="grid max-w-2xl gap-8">
 				{state.editable ? null : <PlanEnded />}

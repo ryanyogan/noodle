@@ -68,35 +68,60 @@ export function MonthPlanSwitch({
 
 /**
  * A chevron to an adjacent month of the same view; its data preloads on hover or touch (the
- * router's default). Later months are open for planning ahead.
+ * router's default). Later months are open for planning ahead. Disabled where there's no month
+ * to go to (before the first month with a Plan).
  */
 export function MonthLink({
 	to,
 	month,
 	label,
+	disabled = false,
 }: {
 	to: MonthView;
 	month: MonthKey;
 	label: "Previous month" | "Next month";
+	disabled?: boolean;
 }) {
+	const icon =
+		label === "Next month" ? (
+			<ChevronRight className="size-5" />
+		) : (
+			<ChevronLeft className="size-5" />
+		);
+	if (disabled) {
+		return (
+			<Button variant="ghost" size="icon" disabled aria-label={label}>
+				{icon}
+			</Button>
+		);
+	}
 	return (
 		<Button variant="ghost" size="icon" asChild>
-			<Link to={to} params={{ month }} aria-label={label}>
-				{label === "Next month" ? (
-					<ChevronRight className="size-5" />
-				) : (
-					<ChevronLeft className="size-5" />
-				)}
+			<Link to={to} params={{ month }} aria-label={`${label}, ${monthName(month)}`}>
+				{icon}
 			</Link>
 		</Button>
 	);
 }
 
-/** Both chevrons, previous then next. */
-export function MonthLinks({ to, month }: { to: MonthView; month: MonthKey }) {
+/** Both chevrons, previous (none before `first`, the first month with a Plan) then next. */
+export function MonthLinks({
+	to,
+	month,
+	first,
+}: {
+	to: MonthView;
+	month: MonthKey;
+	first: MonthKey;
+}) {
 	return (
 		<div className="flex items-center gap-1">
-			<MonthLink to={to} month={addMonths(month, -1)} label="Previous month" />
+			<MonthLink
+				to={to}
+				month={addMonths(month, -1)}
+				label="Previous month"
+				disabled={month <= first}
+			/>
 			<MonthLink to={to} month={addMonths(month, 1)} label="Next month" />
 		</div>
 	);
@@ -109,7 +134,7 @@ const SWIPE_DISTANCE = 64;
  * Touch handlers for swiping between months of the same view on phones: left for the next, right
  * for the previous.
  */
-export function useMonthSwipe(to: MonthView, month: MonthKey) {
+export function useMonthSwipe(to: MonthView, month: MonthKey, first: MonthKey) {
 	const navigate = useNavigate();
 	const start = useRef<{ x: number; y: number } | null>(null);
 	return {
@@ -130,6 +155,7 @@ export function useMonthSwipe(to: MonthView, month: MonthKey) {
 			const dx = touch.clientX - from.x;
 			const dy = touch.clientY - from.y;
 			if (Math.abs(dx) < SWIPE_DISTANCE || Math.abs(dx) < Math.abs(dy) * 2) return;
+			if (dx > 0 && month <= first) return;
 			navigate({ to, params: { month: addMonths(month, dx < 0 ? 1 : -1) } });
 		},
 	};

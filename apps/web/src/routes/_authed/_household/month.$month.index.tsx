@@ -135,7 +135,7 @@ function ThisMonth() {
 			amountCents,
 		}) satisfies CoverVariables;
 	const current = monthOfDay(state.asOf);
-	const swipe = useMonthSwipe("/month/$month", month);
+	const swipe = useMonthSwipe("/month/$month", month, state.firstMonth);
 	const monthIncome = state.income.filter((i) => monthOfDay(i.date) === month);
 	const check = incomeCheck({
 		baseline: state.baseline,
@@ -168,7 +168,7 @@ function ThisMonth() {
 				className="max-w-2xl"
 				eyebrow={month === current ? "This Month" : "Month"}
 				title={monthTitle(month, current)}
-				actions={<MonthLinks to="/month/$month" month={month} />}
+				actions={<MonthLinks to="/month/$month" month={month} first={state.firstMonth} />}
 			/>
 			{planned ? (
 				<div className="grid max-w-2xl gap-8">

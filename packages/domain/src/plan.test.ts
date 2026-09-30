@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	type BucketRecord,
 	canAssign,
+	firstPlanMonth,
 	freeToSpend,
 	type PlanRecords,
 	planForMonth,
@@ -236,5 +237,40 @@ describe("Personal Allowances", () => {
 		expect(alex?.("parent-alex")).toBe(true);
 		expect(alex?.("parent-sam")).toBe(false);
 		expect(sam?.("parent-alex")).toBe(false);
+	});
+});
+
+describe("firstPlanMonth: where going back through months stops", () => {
+	const none: PlanRecords = {
+		baselines: [],
+		buckets: [],
+		allowances: [],
+		commitments: [],
+		commitmentTerms: [],
+		rolling: [],
+	};
+
+	it("is the earliest month anything was planned", () => {
+		const records: PlanRecords = {
+			...none,
+			baselines: [{ month: "2026-03", amount: 500_000 }],
+			buckets: [
+				{
+					id: "g",
+					name: "Groceries",
+					color: 1,
+					position: 1,
+					fromMonth: "2026-02",
+					archivedFromMonth: null,
+				},
+			],
+		};
+		expect(firstPlanMonth(records, "2026-09")).toBe("2026-02");
+	});
+
+	it("is the current month for a new Household, or one planning only ahead", () => {
+		expect(firstPlanMonth(none, "2026-09")).toBe("2026-09");
+		const ahead = { ...none, baselines: [{ month: "2026-10" as const, amount: 500_000 }] };
+		expect(firstPlanMonth(ahead, "2026-09")).toBe("2026-09");
 	});
 });

@@ -1,10 +1,11 @@
 import { type Cents, type MonthKey, type MonthState, stillToFund } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
-import { Card } from "@noodle/ui/components/card";
+import { EmptyState } from "@noodle/ui/components/empty-state";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Link, useHydrated } from "@tanstack/react-router";
+import { Target } from "lucide-react";
 import { useState } from "react";
 import { ulid } from "ulid";
 import { formatMoney } from "../format";
@@ -14,7 +15,8 @@ import { FundGoalSheet } from "./goals";
 /** This month's active Goals, what each still needs this month, and a way to fund it. */
 export function PlanGoals({ state, title = "Goals" }: { state: MonthState; title?: string }) {
 	const hydrated = useHydrated();
-	const { goals } = useGoals();
+	const { goals, accounts } = useGoals();
+	const canAddGoal = accounts.some((a) => a.holdsMoney);
 	const { fund } = useGoalMoney();
 	const [funding, setFunding] = useState<GoalView | null>(null);
 	const active = goals.filter((g) => g.state === "active");
@@ -53,12 +55,24 @@ export function PlanGoals({ state, title = "Goals" }: { state: MonthState; title
 					))}
 				</List>
 			) : (
-				<Card className="flex items-center justify-between gap-4 p-(--card-pad) text-sm text-muted-foreground">
-					Goals set money aside for something ahead, funded from Free to Spend.
-					<Button variant="outline" size="sm" asChild>
-						<Link to="/goals">Goals</Link>
-					</Button>
-				</Card>
+				<EmptyState
+					icon={<Target />}
+					title="No Goals yet"
+					description={
+						canAddGoal
+							? "A Goal sets money aside for something ahead, like braces or a trip, funded from Free to Spend a little each month."
+							: "A Goal sets money aside for something ahead, like braces or a trip. Its money is kept in a checking or savings Account, so add that Account first."
+					}
+					action={
+						<Button variant="outline" size="sm" asChild>
+							{canAddGoal ? (
+								<Link to="/goals">Add a Goal</Link>
+							) : (
+								<Link to="/accounts">Add an Account first</Link>
+							)}
+						</Button>
+					}
+				/>
 			)}
 			<FundGoalSheet
 				goal={funding}

@@ -25,6 +25,7 @@ import {
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card, CardContent } from "@noodle/ui/components/card";
+import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { PageHeader } from "@noodle/ui/components/page-header";
@@ -33,7 +34,7 @@ import { Skeleton } from "@noodle/ui/components/skeleton";
 import { cn } from "@noodle/ui/lib/utils";
 import { useMutationState, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Calculator, ChevronLeft, Layers, TriangleAlert } from "lucide-react";
+import { Calculator, ChevronLeft, Layers, Telescope, TriangleAlert } from "lucide-react";
 import {
 	lazy,
 	memo,
@@ -176,12 +177,53 @@ function ExplorePage() {
 			void queryClient.invalidateQueries({ queryKey: scenariosQuery().queryKey });
 		}
 	}, [queryClient, scenario, known]);
+	const { month, records } = useSuspenseQuery(planAheadQuery()).data;
+	const plan = planForMonth(records, month);
+	// Explore tries changes on the Plan: with nothing in it, there's nothing to try them on.
+	if (
+		plan.baseline === null &&
+		plan.buckets.length === 0 &&
+		plan.commitments.length === 0 &&
+		scenarios.length === 0
+	) {
+		return <NoPlanYet month={month} />;
+	}
 	// A new link opens its own Scenario, so the page starts over with it.
 	return (
 		<Explore
 			key={JSON.stringify([scenario, lever, end, known])}
 			search={{ scenario, lever, end }}
 		/>
+	);
+}
+
+/** Explore before there's a Plan: what it's for, and where to start. */
+function NoPlanYet({ month }: { month: MonthKey }) {
+	return (
+		<>
+			<PageHeader title="Explore" />
+			<EmptyState
+				className="max-w-2xl"
+				icon={<Telescope />}
+				title="Explore tries changes on your Plan"
+				description="What if you ended a subscription, or spent less eating out? Explore shows how changes like these play out over the coming months, without changing anything. Set up the Plan first, so there’s something to try them on."
+				action={
+					<div className="flex flex-wrap justify-center gap-2">
+						<Button size="sm" asChild>
+							<Link to="/plan/$month" params={{ month }}>
+								Set up the Plan
+							</Link>
+						</Button>
+						<Button variant="outline" size="sm" asChild>
+							<Link to="/explore/afford">
+								<Calculator />
+								Can we afford it?
+							</Link>
+						</Button>
+					</div>
+				}
+			/>
+		</>
 	);
 }
 

@@ -42,9 +42,13 @@ export const monthQuery = (month: MonthKey) =>
 const toMonthState = (
 	data: MonthData,
 ): MonthState &
-	Pick<MonthData, "editable" | "moves" | "goalFunding" | "sweeps" | "income" | "closed"> => ({
+	Pick<
+		MonthData,
+		"editable" | "moves" | "goalFunding" | "sweeps" | "income" | "closed" | "firstMonth"
+	> => ({
 	...monthState(data),
 	editable: data.editable,
+	firstMonth: data.firstMonth,
 	moves: data.moves,
 	goalFunding: data.goalFunding,
 	sweeps: data.sweeps,

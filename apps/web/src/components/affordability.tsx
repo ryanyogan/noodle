@@ -4,7 +4,14 @@ import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { cn } from "@noodle/ui/lib/utils";
 import { Check, Circle, Info, Minus } from "lucide-react";
-import { type ComponentProps, type ReactNode, useId, useState } from "react";
+import {
+	type ComponentProps,
+	createContext,
+	type ReactNode,
+	useContext,
+	useId,
+	useState,
+} from "react";
 import type { CommitmentRole } from "../affordability";
 import { formatMoney } from "../format";
 import { MoneyInput } from "./money-input";
@@ -25,8 +32,17 @@ const verdictDot: Record<Verdict, string> = {
 	"not-yet": "bg-muted-foreground",
 };
 
+/**
+ * The Plan has no Baseline, so a Check has no income or Free to Spend to weigh a cost against:
+ * its verdict would come from zeros. Checks then say they can't tell yet, and still show costs.
+ */
+export const NoIncomeYet = createContext(false);
+
 /** The verdict as a word with its dot. */
 export function VerdictLabel({ verdict, className }: { verdict: Verdict; className?: string }) {
+	if (useContext(NoIncomeYet)) {
+		return <span className={cn("inline-flex items-center gap-2", className)}>Can’t check yet</span>;
+	}
 	return (
 		<span className={cn("inline-flex items-center gap-2", className)}>
 			<span
@@ -59,6 +75,15 @@ export function VerdictCard({
 	reasons: Reason[];
 	children?: ReactNode;
 }) {
+	const noIncome = useContext(NoIncomeYet);
+	const shown: Reason[] = noIncome
+		? [
+				{
+					tone: "note",
+					text: "There’s no take-home pay in the Plan yet, so there’s nothing to weigh this against. The costs are below; set up the Plan to see whether it fits.",
+				},
+			]
+		: reasons;
 	return (
 		<Card className="grid gap-4 p-(--card-pad)" data-testid="affordability-verdict">
 			<div className="grid gap-0.5">
@@ -68,7 +93,7 @@ export function VerdictCard({
 				</h2>
 			</div>
 			<ul className="grid gap-2.5 text-sm" aria-label="Reasons">
-				{reasons.map((reason) => (
+				{shown.map((reason) => (
 					<li
 						key={reason.text}
 						className={cn(

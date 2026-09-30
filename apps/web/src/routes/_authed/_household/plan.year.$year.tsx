@@ -2,13 +2,14 @@ import type { YearFigures, YearMonth } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import { EmptyState } from "@noodle/ui/components/empty-state";
 import { List } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarRange, ChevronLeft, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { lumpText } from "../../../components/coming-up";
 import { formatMoney, monthName } from "../../../format";
@@ -49,6 +50,8 @@ function YearPage() {
 	const start = data.months.findIndex((m) => !isBlank(m));
 	const months = start > 0 ? data.months.slice(start) : data.months;
 	const lumpy = months.filter((m) => m.lumps.length > 0);
+	// A new Household: a table of "Not set" and $0 would say nothing.
+	const nothingPlanned = data.months.every(unplanned);
 	return (
 		<>
 			<PageHeader
@@ -64,37 +67,53 @@ function YearPage() {
 				}
 				actions={<YearLinks year={year} lastYear={lastYear} />}
 			/>
-			<div className="grid max-w-3xl gap-8">
-				<p className="text-[13px] text-muted-foreground">
-					Each month’s Plan, from the Baseline down to Free to Spend, as the Plan shows it. Months
-					over or under way show what actually happened beneath it: income received, spending, and
-					Goal funding. Beneath Free to Spend, that’s the income received less the spending and Goal
-					funding, so this month it’s only what’s come in so far. Later months are the Plan as it
-					stands, with each dated Goal funded what it needs.
-				</p>
-				{start > 0 && months[0] ? (
+			{nothingPlanned ? (
+				<EmptyState
+					className="max-w-3xl"
+					icon={<CalendarRange />}
+					title={`Your ${year} appears once the Plan is set up`}
+					description="Month by month, from what comes in to what’s free to spend, with the months that cost more picked out."
+					action={
+						<Button variant="outline" size="sm" asChild>
+							<Link to="/plan/$month" params={{ month: current }}>
+								Set up the Plan
+							</Link>
+						</Button>
+					}
+				/>
+			) : (
+				<div className="grid max-w-3xl gap-8">
 					<p className="text-[13px] text-muted-foreground">
-						Nothing was planned before {monthName(months[0].month)}.
+						Each month’s Plan, from the Baseline down to Free to Spend, as the Plan shows it. Months
+						over or under way show what actually happened beneath it: income received, spending, and
+						Goal funding. Beneath Free to Spend, that’s the income received less the spending and
+						Goal funding, so this month it’s only what’s come in so far. Later months are the Plan
+						as it stands, with each dated Goal funded what it needs.
 					</p>
-				) : null}
-				<YearTable months={months} />
-				<YearList months={months} />
-				{lumpy.length > 0 ? (
-					<Section aria-labelledby="year-lumpy">
-						<SectionHeader id="year-lumpy" title="Lumpy months" />
-						<List>
-							{lumpy.map(({ month, lumps }) => (
-								<li key={month} className="grid gap-0.5 px-(--card-pad) py-3">
-									<Link to="/plan/$month" params={{ month }} className="text-sm font-medium">
-										{monthName(month)}
-									</Link>
-									<p className="text-[13px] text-muted-foreground">{lumpText(lumps, month)}</p>
-								</li>
-							))}
-						</List>
-					</Section>
-				) : null}
-			</div>
+					{start > 0 && months[0] ? (
+						<p className="text-[13px] text-muted-foreground">
+							Nothing was planned before {monthName(months[0].month)}.
+						</p>
+					) : null}
+					<YearTable months={months} />
+					<YearList months={months} />
+					{lumpy.length > 0 ? (
+						<Section aria-labelledby="year-lumpy">
+							<SectionHeader id="year-lumpy" title="Lumpy months" />
+							<List>
+								{lumpy.map(({ month, lumps }) => (
+									<li key={month} className="grid gap-0.5 px-(--card-pad) py-3">
+										<Link to="/plan/$month" params={{ month }} className="text-sm font-medium">
+											{monthName(month)}
+										</Link>
+										<p className="text-[13px] text-muted-foreground">{lumpText(lumps, month)}</p>
+									</li>
+								))}
+							</List>
+						</Section>
+					) : null}
+				</div>
+			)}
 		</>
 	);
 }
@@ -117,12 +136,15 @@ function YearLinks({ year, lastYear }: { year: number; lastYear: number }) {
 	);
 }
 
+const empty = (figures: YearFigures | null) =>
+	figures === null || Object.values(figures).every((cents) => cents === 0);
+
+/** A month with no Baseline and nothing planned or spent. */
+const unplanned = (month: YearMonth) =>
+	month.noBaseline && empty(month.plan) && empty(month.actual);
+
 /** A past month with no Baseline and nothing planned or spent. */
-function isBlank(month: YearMonth) {
-	const empty = (figures: YearFigures | null) =>
-		figures === null || Object.values(figures).every((cents) => cents === 0);
-	return month.when === "past" && month.noBaseline && empty(month.plan) && empty(month.actual);
-}
+const isBlank = (month: YearMonth) => month.when === "past" && unplanned(month);
 
 /** "This month" for the month under way, "Lumpy" for a lumpy one. */
 function MonthBadges({ month }: { month: YearMonth }) {

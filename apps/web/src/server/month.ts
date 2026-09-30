@@ -21,6 +21,7 @@ import {
 	type Cents,
 	type DayKey,
 	dayKeyAt,
+	firstPlanMonth,
 	type GoalFunding,
 	type MonthKey,
 	monthKeyAt,
@@ -66,6 +67,8 @@ export type MonthData = {
 	asOf: DayKey;
 	/** Past months' Plans are closed; this month and later can be changed. */
 	editable: boolean;
+	/** The first month with a Plan (firstPlanMonth): months before it have nothing to show. */
+	firstMonth: MonthKey;
 };
 
 /**
@@ -92,6 +95,7 @@ export async function loadMonth(
 		]);
 	const rolledOver = await loadRolledOver(db, household.id, records, month);
 	const now = new Date();
+	const current = monthKeyAt(now, household.timeZone);
 	return {
 		plan: planForMonth(records, month),
 		planBefore: planForMonth(records, addMonths(month, -1)),
@@ -104,7 +108,8 @@ export async function loadMonth(
 		closed,
 		income,
 		asOf: dayKeyAt(now, household.timeZone),
-		editable: month >= monthKeyAt(now, household.timeZone),
+		editable: month >= current,
+		firstMonth: firstPlanMonth(records, current),
 	};
 }
 

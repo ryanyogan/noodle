@@ -91,6 +91,7 @@ describe("the optimistic Goal edits", () => {
 			income: [],
 			asOf: "2026-09-15",
 			editable: true,
+			firstMonth: "2026-01",
 		};
 		const funding: FundGoalVariables = {
 			moveId: "m1",

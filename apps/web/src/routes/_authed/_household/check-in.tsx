@@ -203,7 +203,9 @@ function Done({ view, empty }: { view: CheckInView; empty: boolean }) {
 			title="You’re done for this week"
 			description={
 				<>
-					{empty ? "Nothing needed you this week. " : null}
+					{empty
+						? "Nothing needed you this week. Once a week, the Check-in takes a few minutes: confirm spending Noodle wasn’t sure about, look at its suggestions, and decide what to do with last month’s leftovers. "
+						: null}
 					{other
 						? other.completedAt === null
 							? `${other.name} hasn’t done this week’s Check-in yet.`
