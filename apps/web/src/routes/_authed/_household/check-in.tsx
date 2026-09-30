@@ -8,13 +8,17 @@ import { toast } from "@noodle/ui/components/toast";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Check, ChevronRight } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { z } from "zod";
 import { checkInCardTitle, checkInLine } from "../../../check-in";
 import { formatMoney, fullDay, monthName } from "../../../format";
 import { checkInQuery } from "../../../queries";
 import { type CheckInView, completeCheckIn } from "../../../server/check-in";
 
 export const Route = createFileRoute("/_authed/_household/check-in")({
+	// `past`: the cards already passed, comma-separated, so leaving for Review or Insights and
+	// coming Back picks up at the same card.
+	validateSearch: z.object({ past: z.string().optional().catch(undefined) }),
 	// Read afresh on the way in: a cached empty stack would finish the Check-in before its cards
 	// arrived.
 	loader: ({ context }) => context.queryClient.fetchQuery(checkInQuery()),
@@ -29,7 +33,14 @@ export const Route = createFileRoute("/_authed/_household/check-in")({
  */
 function CheckInPage() {
 	const view = useSuspenseQuery(checkInQuery()).data;
-	const [past, setPast] = useState<CheckInCardKind[]>([]);
+	const search = Route.useSearch();
+	const navigate = Route.useNavigate();
+	const kinds = new Set(view.cards.map((c) => c.kind));
+	const past = (search.past?.split(",") ?? []).filter((k): k is CheckInCardKind =>
+		kinds.has(k as CheckInCardKind),
+	);
+	const setPast = (next: CheckInCardKind[]) =>
+		navigate({ search: { past: next.length > 0 ? next.join(",") : undefined } });
 	const step =
 		view.completedAt === null ? checkInStep(view.cards, past) : ({ kind: "done" } as const);
 	const complete = useCompleteCheckIn();
@@ -60,7 +71,7 @@ function CheckInPage() {
 						key={step.card.kind}
 						card={step.card}
 						last={step.last}
-						onNext={() => setPast((kinds) => [...kinds, step.card.kind])}
+						onNext={() => setPast([...past, step.card.kind])}
 					/>
 				) : (
 					<Done view={view} empty={view.cards.length === 0 && past.length === 0} />

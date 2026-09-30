@@ -86,6 +86,12 @@ test("a seeded Check-in walks Review, Insights and Windfalls to a done state", a
 	await expect(page.getByText("2 of 3")).toBeVisible();
 	await expect(page.getByRole("heading", { name: "1 new Insight" })).toBeVisible();
 	await expect(page.getByText("Internet went up $10")).toBeVisible();
+	// Leaving to look at the Insight and coming Back picks up at the same card.
+	await page.getByRole("link", { name: "Open Insights" }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toContainText("Insights");
+	await page.goBack();
+	await expect(page.getByText("2 of 3")).toBeVisible();
+	await expect(page.getByRole("heading", { name: "1 new Insight" })).toBeVisible();
 	await page.getByRole("button", { name: "Next" }).click();
 
 	await expect(page.getByText("3 of 3")).toBeVisible();
