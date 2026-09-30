@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { clientRendered, createPlannedHousehold, signedInPage } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -25,12 +25,9 @@ const plan = {
 
 const heading = (page: Page) => page.getByRole("heading", { level: 1 });
 
-// Reports render only in the browser (`ssr: "data-only"`, ADR-0013), so after a full page load
-// (goto, reload) the page is a skeleton until the dev server has served its whole module graph,
-// Recharts included: about 3s on a laptop, 4-6s or more on a 2-vCPU CI runner, which is past
-// expect's 5s. So the tests arrive the way a Parent does, by the Reports link from a running app,
-// and give the one full load they mean to test (a reload keeps the options) this budget.
-const fullLoad = { timeout: 20_000 };
+// Reports render only in the browser, so the tests arrive the way a Parent does, by the Reports
+// link from the running app; the one full load they mean (a reload keeps the options) waits on
+// clientRendered.
 
 test("Reports: change the period, then drill from a Bucket to its Transactions", async ({
 	browser,
@@ -47,7 +44,7 @@ test("Reports: change the period, then drill from a Bucket to its Transactions",
 	await expect(page).toHaveURL(/period=3m/);
 	// Every option lives in the URL, so a reload keeps it.
 	await page.reload();
-	await expect(page.getByLabel("Period")).toHaveValue("3m", fullLoad);
+	await expect(page.getByLabel("Period")).toHaveValue("3m", clientRendered);
 
 	await page.getByRole("link", { name: "Buckets", exact: true }).click();
 	await expect(heading(page)).toContainText("Buckets");

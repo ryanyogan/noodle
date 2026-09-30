@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { clientRendered, createPlannedHousehold, signedInPage } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -81,7 +81,7 @@ test("on a phone, tapping a month shows it in full under the chart", async ({ br
 		buckets: [["Groceries", "1,200"]],
 	});
 	await page.goto("/explore");
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Explore");
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Explore", clientRendered);
 	// On a phone a line opens in a sheet.
 	await page.getByRole("button", { name: "Edit Baseline" }).click();
 	await type(page, "Baseline", "4,000");

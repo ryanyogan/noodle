@@ -1,6 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, serverFn, signedInPage, switchTo } from "./session";
+import {
+	clientRendered,
+	createPlannedHousehold,
+	serverFn,
+	signedInPage,
+	switchTo,
+} from "./session";
 
 // "Try in Explore" from Insights and Ask, with their deterministic fake models (AI_MODEL=stub):
 // each saves a Scenario with the change it suggests and opens it, and the Plan stays as it was
@@ -103,7 +109,7 @@ test("an Insight and an Ask answer open as Scenarios in Explore, leaving the Pla
 	await expect(card).toBeVisible();
 	await expect(card.getByRole("button", { name: "Accept" })).toBeVisible();
 	await page.goto("/explore/scenarios");
-	await expect(saved(page, "Without Hulu")).toBeVisible();
+	await expect(saved(page, "Without Hulu")).toBeVisible(clientRendered);
 
 	// Ask offers the change it projected, built from its tool, not from the model's words.
 	await page.getByRole("link", { name: "Ask", exact: true }).click();
@@ -138,7 +144,7 @@ test("a link to a Scenario that doesn't exist opens a new one, reading the Scena
 		if (serverFn("getScenarios")(new URL(request.url()))) reads++;
 	});
 	await page.goto("/explore?scenario=01J0000000000000000000GONE");
-	await expect(scenarioName(page)).toHaveValue("Scenario 1");
+	await expect(scenarioName(page)).toHaveValue("Scenario 1", clientRendered);
 	// Settled: the page read the list for it once more at most, and doesn't keep asking.
 	await page.waitForTimeout(1500);
 	const settled = reads;

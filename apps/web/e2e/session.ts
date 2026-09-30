@@ -1,6 +1,15 @@
 import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
 import { type Browser, type BrowserContextOptions, expect, type Page } from "@playwright/test";
 
+/**
+ * The budget for the first expect after a full page load (goto, reload) of a route that renders
+ * only in the browser (`ssr: "data-only"`: Reports and Explore). Until the dev server has served
+ * the page's whole module graph (Recharts included) it is only a skeleton: about 3s on a laptop,
+ * 4-6s or more on a 2-vCPU CI runner, past expect's 5s. Arriving by a link from the running app
+ * needs none of it, so use it only where the full load is the point or there is no link.
+ */
+export const clientRendered = { timeout: 20_000 };
+
 /** A fresh browser context signed in as `email`. */
 export async function signedInPage(
 	browser: Browser,

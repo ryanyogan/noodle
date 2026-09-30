@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { clientRendered, createPlannedHousehold, signedInPage } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -82,7 +82,10 @@ test("a home is checked against the Plan, then made a Goal and explored as a Sce
 	await expect(page.getByText(/New home \$2,589\.29 a month from/)).toBeVisible();
 	// It's saved: still there after a reload.
 	await page.reload();
-	await expect(page.getByLabel("Name", { exact: true })).toHaveValue("$400,000 home");
+	await expect(page.getByLabel("Name", { exact: true })).toHaveValue(
+		"$400,000 home",
+		clientRendered,
+	);
 
 	// The Goal is there to fund, undated as the cash is ready now.
 	await page.getByRole("link", { name: "Goals", exact: true }).click();
@@ -98,7 +101,7 @@ test("a car compares cash, a loan and a lease; anything counts the months to sav
 	await createPlannedHousehold(page, { baseline: "10,000", buckets: [["Groceries", "1,600"]] });
 	await page.goto("/explore/afford?kind=car");
 
-	await expect(verdict(page)).toContainText("A $35,000 car, with a loan");
+	await expect(verdict(page)).toContainText("A $35,000 car, with a loan", clientRendered);
 	const monthly = verdict(page).getByRole("row", { name: /^A month/ });
 	// Cash, then $30,000 at 7% over 60 months, then the lease.
 	await expect(monthly).toHaveText("A month$0$594.04$450");
