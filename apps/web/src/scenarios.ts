@@ -147,6 +147,11 @@ function useScenarioChange<TVariables>({
 		mutationKey: ["scenario-change"],
 		mutationFn: save,
 		onMutate: (variables) => editScenarios(queryClient, (s) => apply(s, variables)),
+		// A list read since (none was cached to change at once) may not have it. Runs while the
+		// change is still pending, so Explore never sees it in neither place.
+		onSuccess: (_data, variables) => {
+			queryClient.setQueryData(scenariosQuery().queryKey, (s) => s && apply(s, variables));
+		},
 		onError: (_error, variables, context) => {
 			if (context?.previous) queryClient.setQueryData(scenariosQuery().queryKey, context.previous);
 			toast(failed(variables), {

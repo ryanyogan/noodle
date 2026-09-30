@@ -31,7 +31,7 @@ import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { cn } from "@noodle/ui/lib/utils";
-import { useMutationState, useSuspenseQuery } from "@tanstack/react-query";
+import { useMutationState, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Calculator, ChevronLeft, Layers, TriangleAlert } from "lucide-react";
 import {
@@ -40,6 +40,7 @@ import {
 	Suspense,
 	useCallback,
 	useDeferredValue,
+	useEffect,
 	useId,
 	useMemo,
 	useState,
@@ -154,8 +155,34 @@ function presetLevers(
 
 function ExplorePage() {
 	const { scenario, lever, end } = Route.useSearch();
+	const queryClient = useQueryClient();
+	const scenarios = useSuspenseQuery(scenariosQuery()).data;
+	const saving = useMutationState({
+		filters: { mutationKey: ["scenario-change"], status: "pending" },
+		select: (mutation) => (mutation.state.variables as Partial<SaveScenarioVariables>)?.scenarioId,
+	});
+	// Whether the Scenario asked for has been here to open. One whose save landed while Explore
+	// was reading the list is in neither the list nor the saves on their way, so read the list
+	// again, once; if it has it, start over with it. Once here it stays known, so deleting it, or
+	// its save failing, leaves the page as it is, and an id that never existed is read for once.
+	const [seen, setSeen] = useState<string>();
+	const here =
+		scenario !== undefined &&
+		(scenarios.some((s) => s.id === scenario) || saving.includes(scenario));
+	if (here && seen !== scenario) setSeen(scenario);
+	const known = here || (scenario !== undefined && seen === scenario);
+	useEffect(() => {
+		if (scenario !== undefined && !known) {
+			void queryClient.invalidateQueries({ queryKey: scenariosQuery().queryKey });
+		}
+	}, [queryClient, scenario, known]);
 	// A new link opens its own Scenario, so the page starts over with it.
-	return <Explore key={JSON.stringify([scenario, lever, end])} search={{ scenario, lever, end }} />;
+	return (
+		<Explore
+			key={JSON.stringify([scenario, lever, end, known])}
+			search={{ scenario, lever, end }}
+		/>
+	);
 }
 
 function Explore({ search }: { search: ExploreSearch }) {

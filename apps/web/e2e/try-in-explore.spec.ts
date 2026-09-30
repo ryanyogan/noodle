@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage, switchTo } from "./session";
+import { createPlannedHousehold, serverFn, signedInPage, switchTo } from "./session";
 
 // "Try in Explore" from Insights and Ask, with their deterministic fake models (AI_MODEL=stub):
 // each saves a Scenario with the change it suggests and opens it, and the Plan stays as it was
@@ -22,6 +22,34 @@ const scenarioName = (page: Page) => page.getByLabel("Name", { exact: true });
 const saved = (page: Page, name: string) =>
 	page.getByRole("listitem").filter({ has: page.getByRole("link", { name, exact: true }) });
 
+/**
+ * Makes the next Scenario save land after Explore has read the Scenarios without it, but before
+ * Explore shows: the list is read first, the save's answer arrives, then the list's.
+ */
+async function saveLandsBeforeExploreShows(page: Page) {
+	let listRead = () => {};
+	const listReadBefore = new Promise<void>((resolve) => {
+		listRead = resolve;
+	});
+	const saveAnswered = page.waitForResponse((r) => serverFn("saveScenario")(new URL(r.url())));
+	await page.route(serverFn("saveScenario"), async (route) => {
+		await listReadBefore;
+		await route.continue();
+	});
+	await page.route(serverFn("getScenarios"), async (route) => {
+		const response = await route.fetch();
+		listRead();
+		await saveAnswered;
+		// Long enough for the save to settle in the page before the list arrives.
+		await page.waitForTimeout(300);
+		await route.fulfill({ response });
+	});
+	return async () => {
+		await page.unroute(serverFn("saveScenario"));
+		await page.unroute(serverFn("getScenarios"));
+	};
+}
+
 async function addCommitment(page: Page, name: string, due: string) {
 	const form = page.getByRole("form", { name: "Add a Commitment" });
 	await form.getByLabel("New Commitment").fill(name);
@@ -42,6 +70,8 @@ async function recordPayment(page: Page, name: string) {
 test("an Insight and an Ask answer open as Scenarios in Explore, leaving the Plan as it was", async ({
 	browser,
 }) => {
+	// Two Commitments paid, Insights looked for, and Ask asked: close to 30 s even run alone.
+	test.slow();
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "9,000", buckets: [["Groceries", "1,200"]] });
 	await switchTo(page, "Plan");
@@ -60,9 +90,12 @@ test("an Insight and an Ask answer open as Scenarios in Explore, leaving the Pla
 	await page.getByRole("button", { name: "Look for Insights now" }).click();
 	const card = page.getByRole("article", { name: "Disney+ and Hulu may overlap (stub)" });
 	await expect(card.getByRole("button", { name: "Try “Without Disney+”" })).toBeVisible();
+	// It opens even when its save lands between Explore reading the Scenarios and showing.
+	const unroute = await saveLandsBeforeExploreShows(page);
 	await card.getByRole("button", { name: "Try “Without Hulu”" }).click();
 	await expect(page).toHaveURL(/\/explore\?scenario=/);
 	await expect(scenarioName(page)).toHaveValue("Without Hulu");
+	await unroute();
 	await expect(changes(page)).toContainText("Hulu");
 
 	// Back without applying: the Insight is as it was, and the Scenario is kept.
@@ -92,5 +125,26 @@ test("an Insight and an Ask answer open as Scenarios in Explore, leaving the Pla
 	await waterfall(page).getByRole("link", { name: "Commitments", exact: true }).click();
 	await expect(page.getByRole("button", { name: "Edit Disney+" })).toBeVisible();
 	await expect(page.getByRole("button", { name: "Edit Hulu" })).toBeVisible();
+	await page.context().close();
+});
+
+test("a link to a Scenario that doesn't exist opens a new one, reading the Scenarios again once", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "9,000", buckets: [["Groceries", "1,200"]] });
+	let reads = 0;
+	page.on("request", (request) => {
+		if (serverFn("getScenarios")(new URL(request.url()))) reads++;
+	});
+	await page.goto("/explore?scenario=01J0000000000000000000GONE");
+	await expect(scenarioName(page)).toHaveValue("Scenario 1");
+	// Settled: the page read the list for it once more at most, and doesn't keep asking.
+	await page.waitForTimeout(1500);
+	const settled = reads;
+	expect(settled).toBeLessThanOrEqual(2);
+	await page.waitForTimeout(1500);
+	expect(reads).toBe(settled);
+	await expect(scenarioName(page)).toHaveValue("Scenario 1");
 	await page.context().close();
 });
