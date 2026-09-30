@@ -31,6 +31,11 @@ function aYearAhead() {
 	return day.toISOString().slice(0, 10);
 }
 
+async function openAccounts(page: Page) {
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
+}
+
 async function openGoals(page: Page) {
 	await page.getByRole("link", { name: "Goals", exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Goals");
@@ -45,13 +50,14 @@ test("a Goal is funded from Free to Spend and spent from its Earmark, never a Bu
 	await expect(freeToSpend(page).getByText("$3,400", { exact: true })).toBeVisible();
 
 	// An Account with what's in it, then a dated Goal on it with some already set aside.
-	await openGoals(page);
+	await openAccounts(page);
 	await page.getByLabel("Name").fill("Ally savings");
 	await page.getByLabel("Kind").selectOption("savings");
 	await page.getByLabel("Balance now").fill("10,000");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await expect(page.getByRole("link", { name: /^Ally savings, Savings, \$10,000/ })).toBeVisible();
 
+	await openGoals(page);
 	await page.getByRole("button", { name: "Add Goal" }).click();
 	const addGoal = page.getByRole("dialog", { name: "Add a Goal" });
 	await addGoal.getByLabel("Name").fill("Braces");
@@ -61,7 +67,8 @@ test("a Goal is funded from Free to Spend and spent from its Earmark, never a Bu
 	await addGoal.getByRole("button", { name: "Add Goal" }).click();
 	await expect(addGoal).toBeHidden();
 
-	await page.getByRole("link", { name: /^Braces, \$1,000 of \$6,000/ }).click();
+	// Each Goal says which Account holds it.
+	await page.getByRole("link", { name: /^Braces, \$1,000 of \$6,000, in Ally savings$/ }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toContainText("Braces");
 	await expect(setAside(page)).toContainText("$1,000of $6,000");
 

@@ -29,8 +29,8 @@ const bankConnections = (page: Page) => page.getByRole("region", { name: "Bank C
 test("a Parent connects through SimpleFIN with a setup token", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email);
 	await createHousehold(page, "The Rinks", "Alex");
-	await page.getByRole("link", { name: "Goals", exact: true }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Goals");
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 
 	await bankConnections(page).getByRole("button", { name: "Connect with SimpleFIN" }).click();
 	const sheet = page.getByRole("dialog", { name: "Connect with SimpleFIN" });
@@ -76,7 +76,7 @@ test("a Parent connects through SimpleFIN with a setup token", async ({ browser 
 test("a Parent sees what the SimpleFIN Bridge asks them to read", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email);
 	await createHousehold(page, "The Rinks", "Alex");
-	await page.getByRole("link", { name: "Goals", exact: true }).click();
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await bankConnections(page).getByRole("button", { name: "Connect with SimpleFIN" }).click();
 	const sheet = page.getByRole("dialog", { name: "Connect with SimpleFIN" });
 	await sheet.getByLabel("Setup token").fill(setupToken("NOTICE-household"));

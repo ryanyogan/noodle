@@ -6,6 +6,7 @@ import { Link, type LinkProps, useRouterState } from "@tanstack/react-router";
 import {
 	CalendarDays,
 	ChartColumn,
+	Landmark,
 	List,
 	type LucideIcon,
 	MessageCircleQuestionMark,
@@ -37,8 +38,8 @@ const currentWithin = (item: NavItem, pathname: string) =>
 
 // Every top-level destination, in order. The sidebar (desktop) and tab bar (phone) both render it,
 // though the tab bar has room for four: the Plan is reached from This Month there (its Month and
-// Plan switch), Explore from Goals, which it plans ahead, and Reports and Ask from the row above
-// This Month's header.
+// Plan switch), Accounts from Transactions and Household, Explore from Goals, which it plans
+// ahead, and Reports and Ask from the row above This Month's header.
 const nav: NavItem[] = [
 	{ to: "/month", label: "This Month", short: "Month", icon: CalendarDays, alsoFor: ["/plan"] },
 	{ to: "/plan", label: "Plan", short: "Plan", icon: SlidersHorizontal, desktopOnly: true },
@@ -48,7 +49,9 @@ const nav: NavItem[] = [
 		short: "Transactions",
 		icon: List,
 		within: ["/review"],
+		alsoFor: ["/accounts"],
 	},
+	{ to: "/accounts", label: "Accounts", short: "Accounts", icon: Landmark, desktopOnly: true },
 	{ to: "/goals", label: "Goals", short: "Goals", icon: Target, alsoFor: ["/explore"] },
 	{ to: "/explore", label: "Explore", short: "Explore", icon: Telescope, desktopOnly: true },
 	{ to: "/reports", label: "Reports", short: "Reports", icon: ChartColumn, desktopOnly: true },

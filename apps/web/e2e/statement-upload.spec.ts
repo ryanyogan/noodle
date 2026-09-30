@@ -16,10 +16,10 @@ test.afterEach(async () => {
 const fixture = (name: string) =>
 	join(import.meta.dirname, "..", "..", "..", "packages", "domain", "fixtures", "statements", name);
 
-/** Adds an Account on the Goals page and opens it. */
+/** Adds an Account on the Accounts page and opens it. */
 async function addAccount(page: Page, name: string, kind: string, balance: string) {
-	await page.getByRole("link", { name: "Goals", exact: true }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Goals");
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	await page.getByLabel("Name").fill(name);
 	await page.getByLabel("Kind").selectOption(kind);
 	await page.getByLabel(kind === "credit-card" ? "Owed now" : "Balance now").fill(balance);
@@ -76,7 +76,7 @@ test("a bank statement comes in once, as Transactions to assign and income", asy
 	await expect(page.getByText("Your latest statement ends at $2,540.26 on Sep 20")).toBeVisible();
 
 	// Money out waits, unassigned, in the Transactions list; nothing is listed twice.
-	await page.goto(page.url().replace(/\/goals\/.*$/, "/transactions/2026-09"));
+	await page.goto(page.url().replace(/\/accounts\/.*$/, "/transactions/2026-09"));
 	const coffee = page.getByRole("button", {
 		name: "STUMPTOWN COFFEE, $4.50, Unassigned, For Everyone, from Everyday Checking",
 	});
@@ -100,7 +100,7 @@ test("money back onto a card is listed but counts nowhere", async ({ browser }) 
 	await sheet.getByRole("button", { name: "Import 4 lines" }).click();
 	await expect(toast(page, "card-debit-credit.csv: 4 Transactions")).toBeVisible();
 
-	await page.goto(page.url().replace(/\/goals\/.*$/, "/transactions/2026-09"));
+	await page.goto(page.url().replace(/\/accounts\/.*$/, "/transactions/2026-09"));
 	const refund = page.getByRole("listitem").filter({ hasText: "REI #11 RETURN" });
 	await expect(refund).toContainText("Money back · Visa");
 	await expect(refund).toContainText("−$24.99");

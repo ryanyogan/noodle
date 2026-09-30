@@ -37,11 +37,13 @@ test("income beyond the Baseline is a Windfall, sent to the emergency Goal", asy
 	await expect(freeToSpend(page).getByText("$3,800", { exact: true })).toBeVisible();
 
 	// A Goal kept for emergencies.
-	await page.getByRole("link", { name: "Goals", exact: true }).click();
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await page.getByLabel("Name").fill("Ally savings");
 	await page.getByLabel("Kind").selectOption("savings");
 	await page.getByLabel("Balance now").fill("10,000");
 	await page.getByRole("button", { name: "Add Account" }).click();
+	await expect(page.getByRole("link", { name: /^Ally savings, Savings/ })).toBeVisible();
+	await page.getByRole("link", { name: "Goals", exact: true }).click();
 	await page.getByRole("button", { name: "Add Goal" }).click();
 	const addGoal = page.getByRole("dialog", { name: "Add a Goal" });
 	await addGoal.getByLabel("Name").fill("Rainy day");

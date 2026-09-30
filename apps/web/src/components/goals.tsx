@@ -27,11 +27,22 @@ import {
 } from "../goals";
 import { NativeSelect } from "./native-select";
 
-/** The Goal and Account pages' way back to Goals. */
+/** A Goal page's way back to Goals. */
 export function BackToGoals() {
 	return (
 		<Button variant="ghost" size="icon" asChild>
 			<Link to="/goals" aria-label="Back to Goals">
+				<ChevronLeft className="size-5" />
+			</Link>
+		</Button>
+	);
+}
+
+/** An Account page's way back to Accounts. */
+export function BackToAccounts() {
+	return (
+		<Button variant="ghost" size="icon" asChild>
+			<Link to="/accounts" aria-label="Back to Accounts">
 				<ChevronLeft className="size-5" />
 			</Link>
 		</Button>

@@ -27,7 +27,7 @@ import {
 	startBankReconnect,
 } from "../server/bank-connections";
 
-// Bank Connections on the Goals page: a Parent connects a bank or card through Plaid Link, or by
+// Bank Connections on the Accounts page: a Parent connects a bank or card through Plaid Link, or by
 // pasting a setup token from their SimpleFIN Bridge, and its Accounts appear here and among the
 // Household's Accounts while the Import Workflow brings in their recent Transactions. Link runs in
 // Plaid's own frame; the page only ever sees Link's one-time public token, or the setup token the

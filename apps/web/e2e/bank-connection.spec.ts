@@ -52,8 +52,8 @@ async function plaidWebhook(page: Page, payload: Record<string, unknown>, signed
 test("a Parent connects a bank, and its Accounts and Transactions come in", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email);
 	await createHousehold(page, "The Rinks", "Alex");
-	await page.getByRole("link", { name: "Goals", exact: true }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Goals");
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 
 	await bankConnections(page).getByRole("button", { name: "Connect a bank" }).click();
 	await expect(toast(page, "Connected 4 Accounts")).toBeVisible();
@@ -81,7 +81,7 @@ test("a Parent connects a bank, and its Accounts and Transactions come in", asyn
 	await expect(imports).toContainText("2 Transactions and 1 deposit as income");
 
 	// The same login again is refused rather than doubled.
-	await page.getByRole("link", { name: "Goals", exact: true }).click();
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await bankConnections(page).getByRole("button", { name: "Connect a bank" }).click();
 	await expect(toast(page, "That bank is connected already.")).toBeVisible();
 	await expect(bankConnections(page).getByRole("listitem")).toHaveCount(1);
@@ -91,7 +91,7 @@ test("Plaid's webhooks sync the bank, and a lapsed login is reconnected", async 
 	test.slow();
 	const page = await signedInPage(browser, parent.email);
 	await createHousehold(page, "The Rinks", "Alex");
-	await page.getByRole("link", { name: "Goals", exact: true }).click();
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await bankConnections(page).getByRole("button", { name: "Connect a bank" }).click();
 	const connection = bankConnections(page).getByRole("listitem");
 	await expect(connection).toContainText("4 Accounts · Up to date");
@@ -128,7 +128,7 @@ test("Plaid's webhooks sync the bank, and a lapsed login is reconnected", async 
 		item_id: itemId,
 		error: { error_code: "ITEM_LOGIN_REQUIRED" },
 	});
-	await page.getByRole("link", { name: "Goals", exact: true }).click();
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await expect(connection).toContainText("The bank wants you to log in again.");
 	await connection.getByRole("button", { name: "Reconnect First Platypus Bank" }).click();
 	await expect(toast(page, "Reconnected.")).toBeVisible();

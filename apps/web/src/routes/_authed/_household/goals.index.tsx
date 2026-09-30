@@ -4,41 +4,18 @@ import { EmptyState } from "@noodle/ui/components/empty-state";
 import { List } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
-import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
-import { Plus, Target, Telescope } from "lucide-react";
+import { Landmark, Plus, Target, Telescope } from "lucide-react";
 import { useState } from "react";
-import { BankConnections } from "../../../components/bank-connections";
-import {
-	AddAccountForm,
-	AddAccountSheet,
-	AddGoalSheet,
-	accountIcons,
-	accountSplitText,
-	balanceLabel,
-	GoalProgressBar,
-	GoalSummary,
-	LinkRow,
-} from "../../../components/goals";
+import { AddGoalSheet, GoalProgressBar, GoalSummary, LinkRow } from "../../../components/goals";
 import { SaveFailed } from "../../../components/plan-editing";
 import { formatMoney } from "../../../format";
-import {
-	type AccountView,
-	accountKindName,
-	type GoalView,
-	useAddAccount,
-	useAddGoal,
-	useGoals,
-} from "../../../goals";
-import { bankConnectionsQuery, goalsQuery } from "../../../queries";
+import { type GoalView, useAddGoal, useGoals } from "../../../goals";
+import { goalsQuery } from "../../../queries";
 
 export const Route = createFileRoute("/_authed/_household/goals/")({
-	loader: ({ context }) =>
-		Promise.all([
-			context.queryClient.ensureQueryData(goalsQuery()),
-			context.queryClient.ensureQueryData(bankConnectionsQuery()),
-		]),
+	loader: ({ context }) => context.queryClient.ensureQueryData(goalsQuery()),
 	component: GoalsPage,
 });
 
@@ -46,9 +23,7 @@ function GoalsPage() {
 	const hydrated = useHydrated();
 	const { accounts, goals, asOf } = useGoals();
 	const [adding, setAdding] = useState(false);
-	const [addingAccount, setAddingAccount] = useState(false);
 	const addGoal = useAddGoal();
-	const addAccount = useAddAccount();
 	const canAddGoal = accounts.some((a) => a.holdsMoney);
 	const active = goals.filter((g) => g.state === "active");
 	const completed = goals.filter((g) => g.state === "completed");
@@ -61,7 +36,7 @@ function GoalsPage() {
 		</Button>
 	);
 
-	if (accounts.length === 0) {
+	if (goals.length === 0 && !canAddGoal) {
 		return (
 			<>
 				<PageHeader title="Goals" />
@@ -71,9 +46,7 @@ function GoalsPage() {
 						title="Goals are money set aside in an Account"
 						description="Each Goal is an Earmark on a checking or savings Account: money there that’s spoken for, like braces or a trip. Add the Account first, with what’s in it now."
 					/>
-					<AddAccountForm onAdd={(account) => addAccount.mutate(account)} />
-					<SaveFailed change={addAccount} />
-					<BankConnections />
+					<AccountsLink />
 				</div>
 			</>
 		);
@@ -106,40 +79,17 @@ function GoalsPage() {
 								<GoalItem key={goal.id} goal={goal} />
 							))}
 						</List>
-					) : (
+					) : canAddGoal ? (
 						<Card className="p-(--card-pad) text-sm text-muted-foreground">
-							{canAddGoal
-								? "No Goals yet. Add one to start setting money aside for it, a little each month."
-								: "Goals are set aside in a checking or savings Account. Add one below to start a Goal."}
+							No Goals yet. Add one to start setting money aside for it, a little each month.
+						</Card>
+					) : (
+						<Card className="grid justify-items-start gap-3 p-(--card-pad) text-sm text-muted-foreground">
+							Goals are set aside in a checking or savings Account. Add one to start a new Goal.
+							<AccountsLink />
 						</Card>
 					)}
 				</Section>
-				<Section aria-labelledby="accounts">
-					<SectionHeader
-						id="accounts"
-						title="Accounts"
-						count={accounts.length}
-						action={
-							<Button
-								type="button"
-								variant="ghost"
-								size="sm"
-								disabled={!hydrated}
-								onClick={() => setAddingAccount(true)}
-							>
-								<Plus />
-								Add Account
-							</Button>
-						}
-					/>
-					<SaveFailed change={addAccount} />
-					<List>
-						{accounts.map((account) => (
-							<AccountItem key={account.id} account={account} />
-						))}
-					</List>
-				</Section>
-				<BankConnections />
 				{completed.length > 0 ? (
 					<Section aria-labelledby="completed-goals">
 						<SectionHeader id="completed-goals" title="Completed" count={completed.length} />
@@ -171,14 +121,6 @@ function GoalsPage() {
 					setAdding(false);
 				}}
 			/>
-			<AddAccountSheet
-				open={addingAccount}
-				onOpenChange={setAddingAccount}
-				onAdd={(account) => {
-					addAccount.mutate(account);
-					setAddingAccount(false);
-				}}
-			/>
 		</>
 	);
 }
@@ -189,9 +131,18 @@ function GoalItem({ goal, quiet = false }: { goal: GoalView; quiet?: boolean }) 
 	return (
 		<LinkRow
 			link={(props) => <Link to="/goals/$goalId" params={{ goalId: goal.id }} {...props} />}
-			label={`${goal.name}, ${formatMoney(progress.saved)} of ${formatMoney(goal.target)}`}
+			label={`${goal.name}, ${formatMoney(progress.saved)} of ${formatMoney(goal.target)}${goal.account ? `, in ${goal.account.name}` : ""}`}
 			title={<span className={cn(quiet && "text-muted-foreground")}>{goal.name}</span>}
-			meta={<GoalSummary goal={goal} />}
+			meta={
+				<>
+					<GoalSummary goal={goal} />
+					{goal.account ? (
+						<span className="inline-flex items-center gap-1.5">
+							<span aria-hidden="true">·</span>in {goal.account.name}
+						</span>
+					) : null}
+				</>
+			}
 			trailing={
 				<>
 					<span className="text-sm font-semibold tabular-nums">{formatMoney(progress.saved)}</span>
@@ -205,44 +156,14 @@ function GoalItem({ goal, quiet = false }: { goal: GoalView; quiet?: boolean }) 
 	);
 }
 
-/** An Account: its kind and balance, and for money-holding ones how it splits. */
-function AccountItem({ account }: { account: AccountView }) {
-	const Icon = accountIcons[account.kind];
-	const split = accountSplitText(account);
+/** Where Accounts are added: Goals are set aside in one. */
+function AccountsLink() {
 	return (
-		<LinkRow
-			link={(props) => (
-				<Link to="/goals/accounts/$accountId" params={{ accountId: account.id }} {...props} />
-			)}
-			label={`${account.name}, ${accountKindName[account.kind]}, ${balanceLabel(account)}`}
-			leading={
-				<Tile aria-hidden="true">
-					<Icon />
-				</Tile>
-			}
-			title={account.name}
-			meta={
-				// One run of text, so it wraps like a sentence on a phone.
-				<span>
-					{accountKindName[account.kind]}
-					{split ? (
-						<>
-							{" · "}
-							<span className={cn(split.over && "text-over")}>{split.text}</span>
-						</>
-					) : null}
-				</span>
-			}
-			trailing={
-				<span
-					className={cn(
-						"text-sm tabular-nums",
-						account.balance === null ? "text-subtle-foreground" : "font-semibold",
-					)}
-				>
-					{balanceLabel(account)}
-				</span>
-			}
-		/>
+		<Button variant="outline" size="sm" asChild>
+			<Link to="/accounts">
+				<Landmark />
+				Go to Accounts
+			</Link>
+		</Button>
 	);
 }

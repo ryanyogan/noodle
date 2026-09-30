@@ -17,10 +17,10 @@ test.afterEach(async () => {
 
 const editSheet = (page: Page) => page.getByRole("dialog", { name: "Edit Transaction" });
 
-/** Adds a credit card Account on the Goals page and uploads a card statement to it. */
+/** Adds a credit card Account on the Accounts page and uploads a card statement to it. */
 async function uploadCardStatement(page: Page, lines: [string, string][]) {
-	await page.getByRole("link", { name: "Goals", exact: true }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Goals");
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	await page.getByLabel("Name").fill("Visa");
 	await page.getByLabel("Kind").selectOption("credit-card");
 	await page.getByLabel("Owed now").fill("800");

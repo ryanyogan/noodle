@@ -29,7 +29,7 @@ test("a home is checked against the Plan, then made a Goal and explored as a Sce
 	});
 
 	// A savings Account to back a Goal.
-	await page.getByRole("link", { name: "Goals", exact: true }).click();
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await page.getByLabel("Name").fill("Ally savings");
 	await page.getByLabel("Kind").selectOption("savings");
 	await page.getByLabel("Balance now").fill("100,000");

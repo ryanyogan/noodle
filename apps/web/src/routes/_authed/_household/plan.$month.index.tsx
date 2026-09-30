@@ -182,7 +182,7 @@ function SetUp({ state, current }: { state: PlanState; current: boolean }) {
 			{current && draft === null ? (
 				<p className="text-[13px] text-muted-foreground">
 					Have bank or card statements? Upload about three months of them to{" "}
-					<Link to="/goals" className="font-medium text-foreground underline underline-offset-2">
+					<Link to="/accounts" className="font-medium text-foreground underline underline-offset-2">
 						an Account
 					</Link>{" "}
 					and the Plan is drafted from them.

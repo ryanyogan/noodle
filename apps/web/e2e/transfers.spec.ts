@@ -22,15 +22,15 @@ const today = (page: Page) =>
 		new Date().toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" }),
 	);
 
-/** Adds an Account on the Goals page, opens it, and uploads a CSV statement to it. */
+/** Adds an Account on the Accounts page, opens it, and uploads a CSV statement to it. */
 async function uploadStatement(
 	page: Page,
 	account: { name: string; kind: "checking" | "credit-card"; balance: string },
 	file: string,
 	lines: string[],
 ) {
-	await page.getByRole("link", { name: "Goals", exact: true }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Goals");
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	// With an Account already there, the form waits behind Add Account.
 	if (await page.getByRole("heading", { name: /^Accounts \d/ }).isVisible()) {
 		await expect(async () => {

@@ -10,8 +10,8 @@ import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Tile } from "@noodle/ui/components/tile";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, useHydrated } from "@tanstack/react-router";
-import { Check, Mail, Pencil, Plus, UserRoundMinus } from "lucide-react";
+import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
+import { Check, Landmark, Mail, Pencil, Plus, UserRoundMinus } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram, nextBucketColor } from "../../../buckets";
@@ -74,7 +74,19 @@ function HouseholdPage() {
 	});
 	return (
 		<>
-			<PageHeader eyebrow="Household" title={household.name} />
+			<PageHeader
+				eyebrow="Household"
+				title={household.name}
+				actions={
+					// On phones Accounts lives here and on Transactions; the sidebar has its own link.
+					<Button variant="outline" size="sm" asChild className="lg:hidden">
+						<Link to="/accounts">
+							<Landmark />
+							Accounts
+						</Link>
+					</Button>
+				}
+			/>
 			<div className="grid max-w-2xl gap-8">
 				<Section aria-labelledby="parents">
 					<SectionHeader id="parents" title="Parents" count={data.parents.length} />

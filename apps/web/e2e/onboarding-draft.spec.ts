@@ -45,10 +45,10 @@ function history(): string {
 	return ["Transaction Date,Description,Debit,Credit", ...lines].join("\n");
 }
 
-/** Adds a checking Account on the Goals page and uploads its statement. */
+/** Adds a checking Account on the Accounts page and uploads its statement. */
 async function uploadHistory(page: Page) {
-	await page.getByRole("link", { name: "Goals", exact: true }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Goals");
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	await page.getByLabel("Name").fill("Checking");
 	await page.getByLabel("Kind").selectOption("checking");
 	await page.getByLabel("Balance now").fill("3,000");

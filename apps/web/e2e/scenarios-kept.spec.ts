@@ -32,7 +32,7 @@ test("a Scenario opened from a link is kept, applied with a preview, and compare
 		],
 	});
 	// A savings Account, for a one-off to be saved for as a Goal.
-	await page.getByRole("link", { name: "Goals", exact: true }).click();
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await page.getByLabel("Name").fill("Ally savings");
 	await page.getByLabel("Kind").selectOption("savings");
 	await page.getByLabel("Balance now").fill("1,000");

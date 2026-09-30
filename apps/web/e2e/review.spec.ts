@@ -20,8 +20,8 @@ const editSheet = (page: Page) => page.getByRole("dialog", { name: "Edit Transac
 
 /** Uploads a card statement to the Visa Account, adding the Account first if it's new. */
 async function uploadStatement(page: Page, lines: [string, string][], addAccount = false) {
-	await page.getByRole("link", { name: "Goals", exact: true }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Goals");
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	if (addAccount) {
 		await page.getByLabel("Name").fill("Visa");
 		await page.getByLabel("Kind").selectOption("credit-card");

@@ -181,7 +181,7 @@ function GoalDetails({
 							{archived ? "Was set aside in " : "Set aside in "}
 							{account ? (
 								<Link
-									to="/goals/accounts/$accountId"
+									to="/accounts/$accountId"
 									params={{ accountId: account.id }}
 									className="font-medium text-foreground underline-offset-4 hover:underline"
 								>
