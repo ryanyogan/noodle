@@ -61,10 +61,10 @@ test("the bank's copy of a Quick Add is Matched, so it counts once", async ({ br
 	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
 	const thisMonth = page.url();
 	await quickAdd(page, "42.17", "Groceries", "Trader Joe's");
-	await quickAdd(page, "12", "Groceries", "Lunch");
+	await quickAdd(page, "12", "Groceries", "Chipotle");
 	await expect(bucketRow(page, "Groceries")).toContainText("$54.17 spent");
 
-	// The same amount comes in on the card: Matched on the way in. Lunch plus a tip isn't.
+	// The same amount comes in on the card: Matched on the way in. Chipotle plus a tip isn't.
 	await uploadCardStatement(page, [
 		["TRADER JOE'S #552", "42.17"],
 		["CHIPOTLE 1234", "14.40"],
@@ -100,14 +100,16 @@ test("the bank's copy of a Quick Add is Matched, so it counts once", async ({ br
 		}),
 	).toBeVisible();
 
-	// Lunch is Matched by hand to the tipped charge.
-	await page.getByRole("button", { name: "Lunch, $12, Groceries, For Everyone" }).click();
+	// Chipotle is Matched by hand to the tipped charge: a different amount, the same merchant.
+	await page.getByRole("button", { name: "Chipotle, $12, Groceries, For Everyone" }).click();
 	const possible = editSheet(page).getByRole("region", { name: "Possible match" });
 	await possible.getByRole("button", { name: /^Match with CHIPOTLE 1234, \$14\.40/ }).click();
 	await expect(editSheet(page)).toBeHidden();
-	await expect(toast(page, "Lunch Matched")).toBeVisible();
+	await expect(toast(page, "Chipotle Matched")).toBeVisible();
 	await expect(
-		page.getByRole("button", { name: "Lunch, $12, Groceries, For Everyone, Matched in Visa" }),
+		page.getByRole("button", {
+			name: "Chipotle, $12, Groceries, For Everyone, Matched in Visa",
+		}),
 	).toBeVisible();
 	await expect(page.getByText("CHIPOTLE 1234")).toHaveCount(0);
 
@@ -115,5 +117,37 @@ test("the bank's copy of a Quick Add is Matched, so it counts once", async ({ br
 	await page.reload();
 	await expect(page.getByText("Matched in Visa")).toHaveCount(1);
 	await expect(page.getByText("TRADER JOE'S #552")).toHaveCount(1);
+	await page.context().close();
+});
+
+test("Review asks whether a tipped bank line is a Quick Add's copy, and Matches it", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
+	await quickAdd(page, "40", "Groceries", "Nopa");
+	await quickAdd(page, "45", "Groceries", "Target");
+	// Dinner plus a tip on the card, and something else of a similar size.
+	await uploadCardStatement(page, [
+		["NOPA SAN FRANCISCO", "48.00"],
+		["SHELL OIL 5744", "44.10"],
+	]);
+	await expect(toast(page, "visa.csv: 2 Transactions")).toBeVisible();
+
+	await page.goto("/review");
+	const card = page.getByTestId("review-card");
+	const offer = page.getByRole("region", { name: /^Is this your Quick Add/ });
+	// Shell is only a similar amount: nothing to Match it with. Skip to Nopa's line.
+	while (!(await card.textContent())?.includes("NOPA")) {
+		await expect(offer).toHaveCount(0);
+		await page.getByRole("button", { name: "Skip" }).click();
+	}
+	await expect(offer).toHaveAccessibleName(/^Is this your Quick Add “Nopa” \(\$40, /);
+	await expect(offer.getByRole("button", { name: /^Match with / })).toHaveCount(1);
+	await offer.getByRole("button", { name: /^Match with Nopa, \$40/ }).click();
+	await expect(toast(page, "Nopa Matched")).toBeVisible();
+	// Matched, it leaves Review, and the dinner counts once, as the Quick Add.
+	await expect(card).not.toContainText("NOPA");
+	await expect(page.getByRole("heading", { level: 1 })).toContainText("1");
 	await page.context().close();
 });

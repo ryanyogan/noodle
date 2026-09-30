@@ -133,25 +133,23 @@ export function autoMatches(
 
 /**
  * What a Parent might Match a Quick Add or imported Transaction (`of`) with, best first: those
- * within the Match window whose amount is equal or differs by up to 30% (a tip), equal amounts
- * first, then by merchant text, then by nearest day. `ofIsQuickAdd` says which side `of` is.
+ * within the Match window whose amount is equal, or differs by up to 30% (a tip) when the
+ * merchant text says it's the same place, equal amounts first, then by merchant text, then by
+ * nearest day, at most `limit`. `ofIsQuickAdd` says which side `of` is. A different amount at
+ * another merchant is only spending of a similar size, so it isn't offered.
  */
 export function possibleMatches(
 	of: MatchSide,
 	others: MatchSide[],
 	ofIsQuickAdd: boolean,
-	limit = 5,
+	limit = 3,
 ): MatchSide[] {
 	const close = (a: Cents, b: Cents) =>
 		Math.abs(a - b) <= Math.round(Math.max(a, b) * POSSIBLE_AMOUNT_SHARE);
 	const ranked = others
 		.filter((other) => {
 			const [quickAdd, bank] = ofIsQuickAdd ? [of, other] : [other, of];
-			return (
-				other.amount > 0 &&
-				close(of.amount, other.amount) &&
-				withinMatchWindow(quickAdd.date, bank.date)
-			);
+			return other.amount > 0 && withinMatchWindow(quickAdd.date, bank.date);
 		})
 		.map((other) => {
 			const [quickAdd, bank] = ofIsQuickAdd ? [of, other] : [other, of];
@@ -162,6 +160,10 @@ export function possibleMatches(
 				days: Math.abs(daysBetween(of.date, other.date)),
 			};
 		})
+		.filter(
+			({ other, equal, similarity }) =>
+				equal === 1 || (similarity > 0 && close(of.amount, other.amount)),
+		)
 		.sort((a, b) => b.equal - a.equal || b.similarity - a.similarity || a.days - b.days);
 	return ranked.slice(0, limit).map(({ other }) => other);
 }

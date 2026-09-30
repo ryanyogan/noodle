@@ -105,6 +105,25 @@ describe("possibleMatches: what a Parent might Match by hand", () => {
 		expect(possibleMatches(q, bank, true).map((s) => s.id)).toEqual(["same", "tip"]);
 	});
 
+	it("offers a different amount only at the same merchant, and at most three", () => {
+		// The Costco Quick Add from the desktop review: similar-sized spending elsewhere isn't it.
+		const q = side("q", "2026-09-29", 5653, "Costco");
+		const bank = [
+			side("heb", "2026-09-29", 6231, "H-E-B #512 AUSTIN TX"),
+			side("books", "2026-09-30", 4087, "BOOKPEOPLE AUSTIN"),
+			side("shell", "2026-09-29", 4410, "SHELL OIL 5744"),
+			side("kroger", "2026-09-30", 6412, "KROGER #221"),
+			side("costco", "2026-10-01", 6120, "COSTCO WHSE #1042"),
+		];
+		expect(possibleMatches(q, bank, true).map((s) => s.id)).toEqual(["costco"]);
+		// With no note, only an equal amount can be it.
+		expect(possibleMatches({ ...q, text: null }, bank, true)).toEqual([]);
+		const equal = ["a", "b", "c", "d"].map((id, i) =>
+			side(id, `2026-09-${29 + (i % 2)}` as DayKey, 5653, "PARKING"),
+		);
+		expect(possibleMatches(q, equal, true)).toHaveLength(3);
+	});
+
 	it("works from the imported side too", () => {
 		const bank = side("i", "2026-09-12", 4800, "NOPA SF");
 		const quickAdds = [

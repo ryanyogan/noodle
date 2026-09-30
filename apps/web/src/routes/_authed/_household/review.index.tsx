@@ -12,6 +12,7 @@ import { Check, CheckCheck, Lock, Pencil, SkipForward, Sparkles, WandSparkles } 
 import { type PointerEvent, Suspense, useEffect, useRef, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../../../buckets";
+import { ReviewMatchOffer } from "../../../components/match-section";
 import { TransactionEditor } from "../../../components/transaction-editor";
 import { dayName, formatMoney } from "../../../format";
 import { forLabel, type MemberSummary } from "../../../members";
@@ -207,6 +208,7 @@ function ReviewPage() {
 				) : null}
 				{top ? (
 					<>
+						<ReviewMatchOffer key={top.id} transaction={top} />
 						<div className="relative">
 							{/* The cards waiting behind this one, as edges. */}
 							{cards.length > 2 ? (

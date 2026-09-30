@@ -104,6 +104,63 @@ export function MatchSection({
 	);
 }
 
+/**
+ * On a Review card: the Quick Adds this bank line might be the copy of (possibleMatches), each
+ * with Match, so a copy whose amount differs (a tip) isn't filed as a second spend. Matching takes
+ * it out of Review. Shows nothing when there's none.
+ */
+export function ReviewMatchOffer({ transaction }: { transaction: { id: string; date: string } }) {
+	const hydrated = useHydrated();
+	const { data } = useQuery(matchQuery(transaction));
+	const change = useMatchChange();
+	if (data?.kind !== "unmatched" || data.possible.length === 0) return null;
+	const [only] = data.possible;
+	const name = (peer: MatchPeer) => (peer.note ? `“${peer.note}”` : "");
+	return (
+		<section
+			aria-labelledby="review-match-heading"
+			className="grid gap-2 rounded-2xl bg-surface-2 p-3 text-sm"
+		>
+			<h3 id="review-match-heading" className="font-medium">
+				{data.possible.length === 1 && only
+					? `Is this your Quick Add ${name(only)} (${formatMoney(only.amountCents)}, ${shortDay(only.date)})?`
+					: "Is this one of your Quick Adds?"}
+			</h3>
+			<p className="text-[13px] text-muted-foreground">
+				Matching counts it once, as the Quick Add, and takes it out of Review.
+			</p>
+			<List>
+				{data.possible.map((peer) => (
+					<PeerRow
+						key={peer.id}
+						peer={peer}
+						action={
+							<Button
+								type="button"
+								variant="secondary"
+								size="sm"
+								disabled={!hydrated || change.isPending}
+								aria-label={`Match with ${peer.note || "Quick Add"}, ${formatMoney(peer.amountCents)}, ${shortDay(peer.date)}`}
+								onClick={() =>
+									change.mutate({
+										kind: "match",
+										matchId: ulid(),
+										quickAddId: peer.id,
+										importedId: transaction.id,
+										label: peer.note || "Quick Add",
+									})
+								}
+							>
+								Match
+							</Button>
+						}
+					/>
+				))}
+			</List>
+		</section>
+	);
+}
+
 /** The other side of a Match: what it says, where and when, and its amount. */
 function PeerRow({ peer, action }: { peer: MatchPeer; action?: React.ReactNode }) {
 	return (
