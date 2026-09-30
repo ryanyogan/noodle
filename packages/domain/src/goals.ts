@@ -161,6 +161,34 @@ export function stillToFund(progress: readonly Pick<GoalProgress, "leftThisMonth
 }
 
 /**
+ * A Goal's history, newest first, in months: each month's changes latest first by their date
+ * (spending has one; claims and funding belong to the whole month, so they sit at its start),
+ * then by when they were made (`id`, a ULID), with the month's net. Not the order the changes
+ * were recorded: spending entered late, a statement brought in, or a month's Sweeps closed after
+ * the fact belong where they happened.
+ */
+export function goalHistory<C extends EarmarkChange & { id: string; date?: DayKey }>(
+	changes: readonly C[],
+): { month: MonthKey; net: Cents; changes: C[] }[] {
+	const day = (c: C) => c.date ?? `${c.month}-01`;
+	const sorted = [...changes].sort(
+		(a, b) =>
+			(a.month < b.month ? 1 : a.month > b.month ? -1 : 0) ||
+			(day(a) < day(b) ? 1 : day(a) > day(b) ? -1 : 0) ||
+			(a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+	);
+	const months: { month: MonthKey; net: Cents; changes: C[] }[] = [];
+	for (const change of sorted) {
+		const last = months.at(-1);
+		if (last?.month === change.month) {
+			last.changes.push(change);
+			last.net += change.amount;
+		} else months.push({ month: change.month, net: change.amount, changes: [change] });
+	}
+	return months;
+}
+
+/**
  * Where a withdrawal from an Account comes from (ADR-0002): the Goal it's assigned to;
  * Unclaimed money when that covers it (or nothing is earmarked); otherwise it dips into
  * Earmarks by `fromEarmarks`, and a Parent decides which Goals in Review.

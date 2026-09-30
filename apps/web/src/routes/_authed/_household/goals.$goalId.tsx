@@ -1,10 +1,10 @@
-import { type DayKey, type MonthKey, parseDollars } from "@noodle/domain";
+import { type DayKey, goalHistory, type MonthKey, parseDollars } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
-import { List, ListRow } from "@noodle/ui/components/list";
+import { List, ListGroupLabel, ListRow } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
@@ -229,26 +229,35 @@ function GoalDetails({
 					<SectionHeader id="goal-history" title="History" count={goal.changes.length} />
 					{goal.changes.length > 0 ? (
 						<List>
-							{goal.changes.map((change) => (
-								<HistoryRow
-									key={change.id}
-									change={change}
-									today={today}
-									onUndo={
-										active &&
-										change.kind === "funding" &&
-										change.from === undefined &&
-										change.month === month
-											? () =>
-													undo.mutate({
-														moveId: change.id,
-														goalName: goal.name,
-														month: change.month,
-													})
-											: undefined
-									}
-								/>
-							))}
+							{goalHistory(goal.changes).flatMap(({ month: changedIn, net, changes }) => [
+								<ListGroupLabel key={changedIn} className="flex justify-between gap-3">
+									<span>{monthLabel(changedIn, today)}</span>
+									<span className="tabular-nums">
+										{net >= 0 ? "+" : ""}
+										{formatMoney(net)}
+									</span>
+								</ListGroupLabel>,
+								...changes.map((change) => (
+									<HistoryRow
+										key={change.id}
+										change={change}
+										today={today}
+										onUndo={
+											active &&
+											change.kind === "funding" &&
+											change.from === undefined &&
+											change.month === month
+												? () =>
+														undo.mutate({
+															moveId: change.id,
+															goalName: goal.name,
+															month: change.month,
+														})
+												: undefined
+										}
+									/>
+								)),
+							])}
 						</List>
 					) : (
 						<Card className="p-(--card-pad) text-sm text-muted-foreground">
@@ -505,6 +514,12 @@ const changeTitle = (change: GoalChange) =>
 			: change.amount >= 0
 				? "Set aside from Unclaimed"
 				: "Released to Unclaimed";
+
+/** "September", or "September 2025" outside this year. */
+const monthLabel = (month: MonthKey, today: DayKey) =>
+	month.slice(0, 4) === today.slice(0, 4)
+		? monthName(month)
+		: `${monthName(month)} ${month.slice(0, 4)}`;
 
 /** One change to the Earmark: what it was, when, and how much it moved. */
 function HistoryRow({

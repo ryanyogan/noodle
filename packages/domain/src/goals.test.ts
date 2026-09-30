@@ -5,6 +5,7 @@ import {
 	type DayKey,
 	type EarmarkChange,
 	earmarkOf,
+	goalHistory,
 	goalProgress,
 	holdsMoney,
 	type MonthKey,
@@ -330,5 +331,38 @@ describe("stillToFund", () => {
 
 	it("needs nothing from reached, undated or past-due Goals", () => {
 		expect(stillToFund([{ leftThisMonth: null }, { leftThisMonth: 0 }])).toBe(0);
+	});
+});
+
+describe("goalHistory", () => {
+	it("lists changes by when they happened, newest month first, not by when they were recorded", () => {
+		const at = (
+			id: string,
+			kind: EarmarkChange["kind"],
+			amount: number,
+			month: MonthKey,
+			date?: DayKey,
+		) => ({
+			...change("fund", kind, amount, month),
+			id,
+			...(date ? { date } : {}),
+		});
+		// Recorded in this order: May's Sweep last, a July spend entered in September.
+		const changes = [
+			at("01", "funding", 50_000, "2026-09"),
+			at("02", "spending", -12_000, "2026-07", "2026-07-20"),
+			at("03", "funding", 30_000, "2026-07"),
+			at("04", "spending", -4_000, "2026-09", "2026-09-12"),
+			at("05", "funding", 8_000, "2026-05"),
+		];
+		const history = goalHistory(changes);
+		expect(history.map((m) => [m.month, m.net])).toEqual([
+			["2026-09", 46_000],
+			["2026-07", 18_000],
+			["2026-05", 8_000],
+		]);
+		// Within a month, the dated spending before the month's funding.
+		expect(history[0]?.changes.map((c) => c.id)).toEqual(["04", "01"]);
+		expect(history[1]?.changes.map((c) => c.id)).toEqual(["02", "03"]);
 	});
 });

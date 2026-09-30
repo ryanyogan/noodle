@@ -126,6 +126,7 @@ export {
 	earmarkOf,
 	type GoalProgress,
 	type GoalStatus,
+	goalHistory,
 	goalProgress,
 	holdsMoney,
 	splitAccount,
