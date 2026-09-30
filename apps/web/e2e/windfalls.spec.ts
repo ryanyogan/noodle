@@ -84,3 +84,22 @@ test("income beyond the Baseline is a Windfall, sent to the emergency Goal", asy
 		"$1,200",
 	);
 });
+
+test("income removed by mistake comes back with Undo", async ({ browser }) => {
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
+	await addIncome(page, "2,500", "Paycheck");
+	await expect(income(page)).toContainText("$2,500 received of the $5,000 Baseline");
+
+	await income(page).getByRole("button", { name: "Remove $2,500 of income" }).click();
+	await expect(income(page)).toContainText("$0 received");
+	const removed = page.getByRole("status").filter({ hasText: "$2,500 of income removed" });
+	await removed.getByRole("button", { name: "Undo" }).click();
+	await expect(income(page)).toContainText("$2,500 received of the $5,000 Baseline");
+	await expect(income(page).getByRole("listitem")).toContainText("Paycheck");
+
+	// It's back for good, not only on screen.
+	await page.reload();
+	await expect(income(page)).toContainText("$2,500 received of the $5,000 Baseline");
+	await page.context().close();
+});

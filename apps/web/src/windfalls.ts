@@ -123,14 +123,19 @@ export function useIncome() {
 				});
 			}
 		},
-		onSuccess: () => toast("Income removed"),
+		// Undo puts it back as it was: the same ID, day, amount and note.
+		onSuccess: (_data, v) =>
+			toast(`${formatMoney(v.amountCents)} of income removed`, {
+				tone: "success",
+				action: { label: "Undo", onClick: () => record.mutate(v) },
+			}),
 		onSettled: () => refetchMonthsOnceSettled(queryClient),
 	});
 
 	const record = useMutation({
 		mutationKey: monthChangeKey,
-		mutationFn: ({ incomeId, amountCents, note }: IncomeVariables) =>
-			recordIncome({ data: { incomeId, amountCents, note } }),
+		mutationFn: ({ incomeId, amountCents, note, date }: IncomeVariables) =>
+			recordIncome({ data: { incomeId, amountCents, note, date } }),
 		onMutate: async (v): Promise<Rollback> => [
 			await editCache<MonthData>(queryClient, monthQuery(v.month).queryKey, (data) =>
 				withIncome(data, v),

@@ -20,7 +20,7 @@ import { getDb } from "./db";
 import { type HouseholdSummary, householdMiddleware } from "./household";
 import { loadMonth, monthKeySchema } from "./month";
 import { notifyHousehold } from "./notify";
-import { ulidSchema } from "./schemas";
+import { dayKeySchema, ulidSchema } from "./schemas";
 
 // Income and Windfalls. Each write is idempotent per its client ULID; a write the database guard
 // refuses comes back as `{ ok: false }` rather than an error.
@@ -37,7 +37,10 @@ function assertNotFuture(household: Pick<HouseholdSummary, "timeZone">, month: M
 	if (month > currentMonth(household)) throw new Error("That month hasn’t begun.");
 }
 
-/** Records income received today, in the Household's time zone. */
+/**
+ * Records income received today, in the Household's time zone, or on `date`, an earlier day this
+ * month: putting back income just removed (its Undo) keeps the day it came in.
+ */
 export const recordIncome = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(
@@ -45,11 +48,16 @@ export const recordIncome = createServerFn({ method: "POST" })
 			incomeId: ulidSchema,
 			amountCents: amountSchema,
 			note: z.string().trim().max(80).nullable(),
+			date: dayKeySchema.optional(),
 		}),
 	)
 	.handler(async ({ data, context }) => {
 		const { household } = context;
-		const date = dayKeyAt(new Date(), household.timeZone);
+		const today = dayKeyAt(new Date(), household.timeZone);
+		const date = data.date ?? today;
+		if (date > today || monthOfDay(date) !== monthOfDay(today)) {
+			throw new Error("Income can only be recorded for a day this month so far.");
+		}
 		await addIncome(getDb(), {
 			householdId: household.id,
 			incomeId: data.incomeId,
