@@ -203,13 +203,13 @@ function CheckLayout({
 }) {
 	return (
 		<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)] lg:items-start">
-			<div className="grid gap-4 lg:sticky lg:top-6">{answer}</div>
-			<div className="grid gap-3">
+			<div className="grid min-w-0 gap-4 lg:sticky lg:top-6">{answer}</div>
+			<div className="grid min-w-0 gap-3">
 				<p className="sticky top-[env(safe-area-inset-top)] z-10 -mx-(--gutter) flex items-baseline justify-between gap-3 bg-background/85 px-(--gutter) py-2 backdrop-blur-xl lg:hidden">
 					<VerdictLabel verdict={verdict} className="font-semibold" />
 					<span className="truncate text-sm text-muted-foreground tabular-nums">{summary}</span>
 				</p>
-				<Card className="grid gap-7 p-(--card-pad)">{children}</Card>
+				<Card className="grid min-w-0 gap-7 p-(--card-pad)">{children}</Card>
 			</div>
 		</div>
 	);

@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { clientRendered, createPlannedHousehold, signedInPage } from "./session";
+import { clientRendered, createPlannedHousehold, signedInPage, switchTo } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -119,4 +119,41 @@ test("a car compares cash, a loan and a lease; anything counts the months to sav
 	await expect(verdict(page).getByRole("heading", { level: 2 })).toHaveText("Stretch");
 	await expect(verdict(page).getByRole("row", { name: /^Still to save/ })).toContainText("$20,000");
 	await expect(verdict(page).getByRole("button", { name: "Explore as a Scenario" })).toHaveCount(0);
+});
+
+test("a long Commitment name keeps every field of the form in its column", async ({ browser }) => {
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "10,000", buckets: [["Groceries", "1,200"]] });
+	// A Commitment with a name as long as a name may be.
+	const longName = "Maya’s braces — Dr. Patel’s orthodontics";
+	await switchTo(page, "Plan");
+	await page
+		.getByRole("region", { name: "Baseline to Free to Spend" })
+		.getByRole("link", { name: "Commitments", exact: true })
+		.click();
+	const addCommitment = page.getByRole("form", { name: "Add a Commitment" });
+	await addCommitment.getByLabel("New Commitment").fill(longName);
+	await addCommitment.getByLabel("Amount due").fill("210");
+	await addCommitment.getByRole("button", { name: "Add Commitment" }).click();
+	await expect(page.getByRole("button", { name: `Edit ${longName}` })).toBeVisible();
+
+	await page.getByRole("link", { name: "Explore", exact: true }).click();
+	await page.getByRole("link", { name: "Can we afford it?" }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Can we afford it?");
+	// Every field stays inside the form's card, at desktop and phone widths.
+	for (const width of [1280, 393]) {
+		await page.setViewportSize({ width, height: 900 });
+		await expect(page.getByLabel(`${longName} is`)).toBeVisible();
+		const clipped = await page.evaluate(
+			() =>
+				[...document.querySelectorAll("main input, main select")].filter((field) => {
+					const card = field.closest("[data-slot=card]");
+					return (
+						card && field.getBoundingClientRect().right > card.getBoundingClientRect().right + 1
+					);
+				}).length,
+		);
+		expect(clipped).toBe(0);
+	}
+	await page.context().close();
 });

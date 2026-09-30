@@ -269,7 +269,9 @@ export function FieldGroup({
 	...props
 }: ComponentProps<"fieldset"> & { legend: string }) {
 	return (
-		<fieldset className={cn("grid gap-4", className)} {...props}>
+		// A fieldset, and a grid's auto column, are as wide as their longest unbreakable content by
+		// default: min-w-0 and a minmax(0,1fr) column keep long names within the form's column.
+		<fieldset className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4", className)} {...props}>
 			<legend className="mb-3 text-[13px] font-medium text-muted-foreground">{legend}</legend>
 			{children}
 		</fieldset>
@@ -296,7 +298,7 @@ export function EarmarkPicker({
 	return (
 		<FieldGroup legend="Set aside for it">
 			{goals.length > 0 ? (
-				<div className="grid gap-2">
+				<div className="grid grid-cols-[minmax(0,1fr)] gap-2">
 					{goals.map((goal) => (
 						<label
 							key={goal.id}
@@ -318,7 +320,9 @@ export function EarmarkPicker({
 								}}
 							/>
 							<span className="min-w-0 flex-1 truncate">{goal.name}</span>
-							<span className="text-muted-foreground tabular-nums">{formatMoney(goal.saved)}</span>
+							<span className="shrink-0 text-muted-foreground tabular-nums">
+								{formatMoney(goal.saved)}
+							</span>
 						</label>
 					))}
 				</div>
@@ -359,7 +363,7 @@ export function CommitmentRoles({
 	return (
 		<FieldGroup legend="Commitments">
 			<p className="-mt-2 text-xs text-subtle-foreground">{hint}</p>
-			<div className="grid gap-2">
+			<div className="grid grid-cols-[minmax(0,1fr)] gap-2">
 				{commitments.map((c) => (
 					<div key={c.id} className="flex items-center gap-3 text-sm">
 						<span className="min-w-0 flex-1">
@@ -369,7 +373,7 @@ export function CommitmentRoles({
 							</span>
 						</span>
 						<NativeSelect
-							className="w-40"
+							className="w-40 shrink-0"
 							aria-label={`${c.name} is`}
 							value={roles[c.id] ?? "stays"}
 							onChange={(event) => onRole(c.id, event.currentTarget.value as CommitmentRole)}
