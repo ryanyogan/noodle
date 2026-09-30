@@ -670,7 +670,7 @@ export function RankedBars({
 }) {
 	const top = max ?? Math.max(1, ...rows.map((r) => r.amount));
 	return (
-		<ul className="grid gap-1">
+		<ul className="grid grid-cols-[minmax(0,1fr)] gap-1">
 			{rows.map((row, i) => (
 				<li key={row.key}>
 					{renderRow(

@@ -91,7 +91,9 @@ function ReportsPage() {
 			: VIEW_LABELS[request.view];
 
 	return (
-		<div className="grid gap-4 lg:gap-5">
+		// One minmax(0,1fr) column: the view tabs' w-max list scrolls in its own nav rather than
+		// widening the page (a grid's auto column is as wide as its widest content).
+		<div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:gap-5">
 			<PageHeader
 				className="mb-0 lg:mb-0"
 				eyebrow="Reports"

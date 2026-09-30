@@ -603,7 +603,7 @@ function OverviewView({ report, data, names, nav, tables }: ViewProps<"overview"
 									color={shareColor(names, top.target)}
 								/>
 								<span className="grid justify-items-end gap-0.5">
-									<span className="text-sm font-semibold tabular-nums">
+									<span className="shrink-0 text-sm font-semibold tabular-nums">
 										{formatMoney(top.amount)}
 									</span>
 									<Delta now={top.amount} before={top.previous} />
@@ -740,7 +740,7 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 									<span className="min-w-0 flex-1 truncate text-sm font-medium">
 										{item.note || names.label(item.target)}
 									</span>
-									<span className="text-sm font-semibold tabular-nums">
+									<span className="shrink-0 text-sm font-semibold tabular-nums">
 										{formatMoney(item.amount)}
 									</span>
 								</span>
@@ -772,12 +772,12 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 										onClick={() => nav.area(`commitment:${c.id}`)}
 										label={`${c.name}: ${formatMoney(c.annual)} a year`}
 									>
-										<span className="grid min-w-0 flex-1 gap-1.5">
+										<span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-1.5">
 											<span className="flex items-baseline gap-3">
 												<span className="min-w-0 flex-1 truncate text-sm font-medium">
 													{c.name}
 												</span>
-												<span className="text-sm font-semibold tabular-nums">
+												<span className="shrink-0 text-sm font-semibold tabular-nums">
 													{formatMoney(c.annual)}
 												</span>
 											</span>
@@ -876,7 +876,7 @@ function BucketsView({ data, names, search, nav, tables }: ViewProps<"buckets">)
 		>
 			<div
 				className={cn(
-					"grid gap-6",
+					"grid grid-cols-[minmax(0,1fr)] gap-6",
 					chart === "donut" &&
 						"lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] lg:items-center lg:gap-10",
 				)}
@@ -903,12 +903,12 @@ function BucketsView({ data, names, search, nav, tables }: ViewProps<"buckets">)
 								label={`${names.label(t.target)}: ${formatMoney(t.amount)}`}
 							>
 								<KeyTile names={names} target={t.target} className="size-8" />
-								<span className="grid min-w-0 flex-1 gap-1.5">
+								<span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-1.5">
 									<span className="flex items-baseline gap-3">
 										<span className="min-w-0 flex-1 truncate text-sm font-medium">
 											{names.label(t.target)}
 										</span>
-										<span className="text-sm font-semibold tabular-nums">
+										<span className="shrink-0 text-sm font-semibold tabular-nums">
 											{formatMoney(t.amount)}
 										</span>
 									</span>
@@ -1061,12 +1061,12 @@ function AreaView({ report, data, names, search, nav, tables }: ViewProps<"area"
 										onClick={() => nav.area(`merchant:${m.key}`)}
 										label={`${m.name || merchantName(m.key)}: ${formatMoney(m.amount)}`}
 									>
-										<span className="grid min-w-0 flex-1 gap-1.5">
+										<span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-1.5">
 											<span className="flex items-baseline gap-3">
 												<span className="min-w-0 flex-1 truncate text-sm font-medium">
 													{m.name || merchantName(m.key)}
 												</span>
-												<span className="text-sm font-semibold tabular-nums">
+												<span className="shrink-0 text-sm font-semibold tabular-nums">
 													{formatMoney(m.amount)}
 												</span>
 											</span>
@@ -1095,12 +1095,12 @@ function AreaView({ report, data, names, search, nav, tables }: ViewProps<"area"
 									onClick={() => nav.area(row.key)}
 									label={`${names.label(row.key)}: ${formatMoney(row.amount)}`}
 								>
-									<span className="grid min-w-0 flex-1 gap-1.5">
+									<span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-1.5">
 										<span className="flex items-baseline gap-3">
 											<span className="min-w-0 flex-1 truncate text-sm font-medium">
 												{names.label(row.key)}
 											</span>
-											<span className="text-sm font-semibold tabular-nums">
+											<span className="shrink-0 text-sm font-semibold tabular-nums">
 												{formatMoney(row.amount)}
 											</span>
 										</span>
@@ -1295,10 +1295,12 @@ function MerchantList({
 						onClick={() => nav.area(`merchant:${m.key}`)}
 						label={`${name}: ${formatMoney(m.amount)}, ${m.count} times`}
 					>
-						<span className="grid min-w-0 flex-1 gap-1.5">
+						<span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-1.5">
 							<span className="flex items-baseline gap-3">
-								<span className="min-w-0 flex-1 truncate text-sm font-medium">{name}</span>
-								<span className="text-sm font-semibold tabular-nums">
+								<span className="min-w-0 flex-1 truncate text-sm font-medium" title={name}>
+									{name}
+								</span>
+								<span className="shrink-0 text-sm font-semibold tabular-nums">
 									{by === "amount" ? formatMoney(m.amount) : `${m.count}×`}
 								</span>
 							</span>
@@ -1365,12 +1367,12 @@ function PeopleView({ report, data, names, nav, tables }: ViewProps<"people">) {
 							}
 							label={`${names.label(row.key)}: ${formatMoney(row.amount)}`}
 						>
-							<span className="grid min-w-0 flex-1 gap-1.5">
+							<span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-1.5">
 								<span className="flex items-baseline gap-3">
 									<span className="min-w-0 flex-1 truncate text-sm font-medium">
 										{names.label(row.key)}
 									</span>
-									<span className="text-sm font-semibold tabular-nums">
+									<span className="shrink-0 text-sm font-semibold tabular-nums">
 										{formatMoney(row.amount)}
 									</span>
 								</span>
@@ -1585,7 +1587,7 @@ function IncomeView({ data, nav, tables }: ViewProps<"income">) {
 								<span className="min-w-0 flex-1 truncate text-sm font-medium">
 									{bySource.find((s) => s.key === row.key)?.name}
 								</span>
-								<span className="text-sm font-semibold tabular-nums">
+								<span className="shrink-0 text-sm font-semibold tabular-nums">
 									{formatMoney(row.amount)}
 								</span>
 							</span>

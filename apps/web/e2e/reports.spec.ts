@@ -93,3 +93,50 @@ test("Phones reach Reports from This Month", async ({ browser }) => {
 	await page.getByRole("link", { name: "Reports" }).click();
 	await expect(heading(page)).toContainText("Overview");
 });
+
+test("no Report view is wider than a phone, and a long merchant name stays in its card", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, plan);
+	seedReportHistory(parent.userId, 12);
+	// A merchant as the bank writes it: one long unbroken line.
+	const longName = "SQ *EL CHILITO TACOS & BREAKFAST BAR ON MANOR ROAD AUSTIN TX 78722";
+	await page.getByRole("link", { name: "Quick Add" }).click();
+	const quickAdd = page.getByRole("dialog", { name: "Quick Add" });
+	await expect(quickAdd).toBeVisible();
+	await page.keyboard.type("3000");
+	await quickAdd.getByLabel("Note").fill(longName);
+	await quickAdd.getByRole("button", { name: /^Eating out/ }).click();
+	await expect(quickAdd).toBeHidden();
+
+	await page.getByRole("link", { name: "Reports" }).click();
+	await expect(heading(page)).toContainText("Overview");
+	await page.getByLabel("Period").selectOption({ label: "Last 12 months" });
+	await expect(page).toHaveURL(/period=12m/);
+
+	// Merchants on desktop: the amounts stay inside the card beside the long name.
+	await page.getByRole("link", { name: "Merchants", exact: true }).click();
+	await expect(heading(page)).toContainText("Merchants");
+	const visits = page.getByRole("group", { name: "By spending" });
+	const row = visits.getByRole("button", {
+		name: new RegExp(`^${longName.slice(0, 20).replace(/[*]/g, "\\*")}`),
+	});
+	await expect(row).toBeVisible();
+	const [card, button] = await Promise.all([visits.boundingBox(), row.boundingBox()]);
+	expect((button?.x ?? 0) + (button?.width ?? 0)).toBeLessThanOrEqual(
+		(card?.x ?? 0) + (card?.width ?? 0),
+	);
+
+	// On a phone, no view scrolls sideways.
+	await page.setViewportSize({ width: 393, height: 852 });
+	const views = page.getByRole("navigation", { name: "Report views" }).getByRole("link");
+	for (const name of await views.allInnerTexts()) {
+		await views.filter({ hasText: name }).first().click();
+		await expect(heading(page)).toContainText(name);
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+			`${name} scrolls sideways`,
+		).toBe(true);
+	}
+});
