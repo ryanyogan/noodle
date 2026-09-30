@@ -49,6 +49,26 @@ test("a sheet focuses its first field, and gives focus back to what opened it", 
 	await expect(sheet).toBeHidden();
 	await expect(edit).toBeFocused();
 
+	// Asking before archiving, on the Bucket's page: a modal alert dialog on top of the sheet,
+	// starting on Cancel, and Esc goes back to the Archive button in the sheet.
+	await page.getByRole("link", { name: "Groceries", exact: true }).click();
+	const editPage = page.getByRole("button", { name: "Edit", exact: true });
+	await editPage.click();
+	const archive = sheet.getByRole("button", { name: "Archive", exact: true });
+	await archive.click();
+	const ask = page.getByRole("alertdialog", { name: "Archive Groceries" });
+	await expect(ask.getByRole("button", { name: "Cancel" })).toBeFocused();
+	// Radix takes a frame to hand Esc to the new layer; until then Esc does nothing.
+	await expect(async () => {
+		await page.keyboard.press("Escape");
+		await expect(ask).toBeHidden({ timeout: 250 });
+	}).toPass();
+	await expect(sheet).toBeVisible();
+	await expect(archive).toBeFocused();
+	await page.keyboard.press("Escape");
+	await expect(sheet).toBeHidden();
+	await expect(editPage).toBeFocused();
+
 	// A sheet on another page, opened from the header.
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await page.getByLabel("Name").fill("Everyday Checking");

@@ -23,6 +23,16 @@ import {
 	project,
 	projectionAssumptions,
 } from "@noodle/domain";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@noodle/ui/components/alert-dialog";
 import { Button } from "@noodle/ui/components/button";
 import { Card, CardContent } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
@@ -609,83 +619,86 @@ function ScenarioBar({
 						: null}
 				</p>
 				{preview ? (
-					<div
-						role="alertdialog"
-						aria-label="Apply to the Plan"
-						className="grid gap-3 rounded-xl bg-surface-2 p-3"
+					<AlertDialog
+						open
+						onOpenChange={(open) => {
+							if (!open) setConfirming(null);
+						}}
 					>
-						<p className="text-sm">
-							{preview.changes.length > 0
-								? `Make “${name || "this Scenario"}” the Plan from ${shortMonth(subjects.month)} on? This changes:`
-								: "Nothing here changes the Plan yet."}
-						</p>
-						{preview.changes.length > 0 ? (
-							<ul
-								aria-label="What changes in the Plan"
-								className="grid list-disc gap-1 ps-5 text-sm"
-							>
-								{preview.changes.flatMap((change) =>
-									change.lines.map((line) => <li key={`${change.lever}-${line}`}>{line}</li>),
-								)}
-							</ul>
-						) : null}
-						{preview.leftOut.length > 0 ? (
-							<div className="grid gap-1.5">
-								<p className="text-[13px] font-medium">Not applied</p>
-								<ul aria-label="Not applied" className="grid gap-1.5 text-[13px]">
-									{preview.leftOut.map((item) => (
-										<li key={item.lever} className="flex flex-wrap items-center gap-x-2 gap-y-1">
-											<span>
-												{item.text}{" "}
-												<span className="text-muted-foreground">
-													{item.reason}
-													{item.asGoal && !goalAccount
-														? " A Goal needs a checking or savings Account: add one on Goals first."
-														: null}
+						<AlertDialogContent className="max-h-[calc(100dvh-48px)] max-w-lg overflow-y-auto">
+							<AlertDialogHeader>
+								<AlertDialogTitle>Apply to the Plan</AlertDialogTitle>
+								<AlertDialogDescription>
+									{preview.changes.length > 0
+										? `Make “${name || "this Scenario"}” the Plan from ${shortMonth(subjects.month)} on? This changes:`
+										: "Nothing here changes the Plan yet."}
+								</AlertDialogDescription>
+							</AlertDialogHeader>
+							{preview.changes.length > 0 ? (
+								<ul
+									aria-label="What changes in the Plan"
+									className="grid list-disc gap-1 ps-5 text-sm"
+								>
+									{preview.changes.flatMap((change) =>
+										change.lines.map((line) => <li key={`${change.lever}-${line}`}>{line}</li>),
+									)}
+								</ul>
+							) : null}
+							{preview.leftOut.length > 0 ? (
+								<div className="grid gap-1.5">
+									<p className="text-[13px] font-medium">Not applied</p>
+									<ul aria-label="Not applied" className="grid gap-1.5 text-[13px]">
+										{preview.leftOut.map((item) => (
+											<li key={item.lever} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+												<span>
+													{item.text}{" "}
+													<span className="text-muted-foreground">
+														{item.reason}
+														{item.asGoal && !goalAccount
+															? " A Goal needs a checking or savings Account: add one on Goals first."
+															: null}
+													</span>
 												</span>
-											</span>
-											{item.asGoal && goalAccount ? (
-												<Button
-													type="button"
-													size="sm"
-													variant="outline"
-													onClick={() => asGoal(item.lever)}
-												>
-													Make it a Goal
-												</Button>
-											) : null}
-										</li>
+												{item.asGoal && goalAccount ? (
+													<Button
+														type="button"
+														size="sm"
+														variant="outline"
+														onClick={() => asGoal(item.lever)}
+													>
+														Make it a Goal
+													</Button>
+												) : null}
+											</li>
+										))}
+									</ul>
+								</div>
+							) : null}
+							{preview.blocked.length > 0 ? (
+								<ul className="grid gap-1 text-[13px] text-over">
+									{[...new Set(preview.blocked.map((b) => b.reason))].map((reason) => (
+										<li key={reason}>{reason}</li>
 									))}
 								</ul>
-							</div>
-						) : null}
-						{preview.blocked.length > 0 ? (
-							<ul className="grid gap-1 text-[13px] text-over">
-								{[...new Set(preview.blocked.map((b) => b.reason))].map((reason) => (
-									<li key={reason}>{reason}</li>
-								))}
-							</ul>
-						) : null}
-						<div className="flex justify-end gap-2">
-							<Button type="button" variant="ghost" size="sm" onClick={() => setConfirming(null)}>
-								Cancel
-							</Button>
-							<Button
-								type="button"
-								size="sm"
-								disabled={preview.blocked.length > 0 || preview.changes.length === 0}
-								onClick={() => {
-									setConfirming(null);
-									const kept = name || "Scenario";
-									apply.mutate({ scenarioId: draft.id, name: kept, levers: draft.levers });
-									onDraft({ ...draft, name: kept });
-								}}
-							>
-								Apply to Plan
-							</Button>
-						</div>
-					</div>
-				) : confirming === "delete" ? (
+							) : null}
+							<AlertDialogFooter>
+								<AlertDialogCancel>Cancel</AlertDialogCancel>
+								<AlertDialogAction
+									variant="default"
+									disabled={preview.blocked.length > 0 || preview.changes.length === 0}
+									onClick={() => {
+										const kept = name || "Scenario";
+										apply.mutate({ scenarioId: draft.id, name: kept, levers: draft.levers });
+										onDraft({ ...draft, name: kept });
+									}}
+								>
+									Apply to Plan
+								</AlertDialogAction>
+							</AlertDialogFooter>
+						</AlertDialogContent>
+					</AlertDialog>
+				) : null}
+				{confirming === "delete" ? (
 					<Confirm
 						confirmLabel="Delete Scenario"
 						onCancel={() => setConfirming(null)}
@@ -697,51 +710,50 @@ function ScenarioBar({
 					>
 						Delete “{draft.name}”? The Plan doesn’t change.
 					</Confirm>
-				) : (
-					<div className="flex flex-wrap items-center gap-2">
+				) : null}
+				<div className="flex flex-wrap items-center gap-2">
+					<Button
+						type="button"
+						size="sm"
+						disabled={!dirty || name === ""}
+						onClick={() => {
+							save.mutate({ scenarioId: draft.id, name, levers: draft.levers });
+							onDraft({ ...draft, name });
+						}}
+					>
+						{saved ? "Save" : "Save Scenario"}
+					</Button>
+					<Button
+						type="button"
+						size="sm"
+						variant="outline"
+						disabled={draft.levers.length === 0 || apply.isPending}
+						onClick={() => setConfirming("apply")}
+					>
+						Apply to Plan
+					</Button>
+					{draft.levers.length > 0 ? (
 						<Button
 							type="button"
 							size="sm"
-							disabled={!dirty || name === ""}
-							onClick={() => {
-								save.mutate({ scenarioId: draft.id, name, levers: draft.levers });
-								onDraft({ ...draft, name });
-							}}
+							variant="ghost"
+							onClick={() => onDraft({ ...draft, levers: [] })}
 						>
-							{saved ? "Save" : "Save Scenario"}
+							Reset<span className="sr-only"> all changes</span>
 						</Button>
+					) : null}
+					{saved ? (
 						<Button
 							type="button"
 							size="sm"
-							variant="outline"
-							disabled={draft.levers.length === 0 || apply.isPending}
-							onClick={() => setConfirming("apply")}
+							variant="ghost"
+							className="ms-auto"
+							onClick={() => setConfirming("delete")}
 						>
-							Apply to Plan
+							Delete
 						</Button>
-						{draft.levers.length > 0 ? (
-							<Button
-								type="button"
-								size="sm"
-								variant="ghost"
-								onClick={() => onDraft({ ...draft, levers: [] })}
-							>
-								Reset<span className="sr-only"> all changes</span>
-							</Button>
-						) : null}
-						{saved ? (
-							<Button
-								type="button"
-								size="sm"
-								variant="ghost"
-								className="ms-auto"
-								onClick={() => setConfirming("delete")}
-							>
-								Delete
-							</Button>
-						) : null}
-					</div>
-				)}
+					) : null}
+				</div>
 			</CardContent>
 		</Card>
 	);

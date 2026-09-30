@@ -82,7 +82,10 @@ test("an Overlap between two streaming Commitments is found, accepted, and dismi
 	await expect(card).toContainText("Accepted");
 	await expect(card.getByRole("button", { name: "Try “Without Hulu”" })).toBeVisible();
 	await card.getByRole("button", { name: "End Hulu…" }).click();
-	await card.getByRole("button", { name: "End Hulu", exact: true }).click();
+	await page
+		.getByRole("alertdialog")
+		.getByRole("button", { name: "End Hulu", exact: true })
+		.click();
 	await expect(page.getByText(/^Hulu leaves the Plan from/)).toBeVisible();
 	await expect(card.getByRole("button", { name: "End Hulu…" })).toHaveCount(0);
 	await expect(card.getByRole("button", { name: "End Disney+…" })).toBeVisible();

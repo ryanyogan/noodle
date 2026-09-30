@@ -132,7 +132,7 @@ test("a failed edit or delete is undone and can be retried", async ({ browser })
 	await page.route(remove, (route) => route.fulfill({ status: 500, body: "Server error" }));
 	await row(page, "Costco").click();
 	await editSheet(page).getByRole("button", { name: "Delete" }).click();
-	await editSheet(page).getByRole("button", { name: "Delete Transaction" }).click();
+	await page.getByRole("alertdialog").getByRole("button", { name: "Delete Transaction" }).click();
 	const notDeleted = page.getByRole("status").filter({ hasText: "Couldn’t delete" });
 	await expect(notDeleted).toContainText("Couldn’t delete $85.50 (Costco), so it’s back.");
 	await expect(row(page, "Costco")).toBeVisible();

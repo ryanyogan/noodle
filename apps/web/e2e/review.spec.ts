@@ -177,6 +177,6 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	await rule.click();
 	const sheet = page.getByRole("dialog", { name: "Edit Rule" });
 	await sheet.getByRole("button", { name: "Delete Rule" }).click();
-	await sheet.getByRole("alertdialog").getByRole("button", { name: "Delete Rule" }).click();
+	await page.getByRole("alertdialog").getByRole("button", { name: "Delete Rule" }).click();
 	await expect(page.getByText("No Rules yet")).toBeVisible();
 });

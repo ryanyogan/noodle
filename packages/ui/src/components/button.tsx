@@ -19,7 +19,7 @@ const buttonVariants = cva(
 				outline: "border-border-strong bg-card text-foreground hover:bg-surface-2",
 				secondary: "border-transparent bg-surface-2 text-foreground hover:bg-surface-3",
 				ghost: "border-transparent text-muted-foreground hover:bg-surface-2 hover:text-foreground",
-				destructive: "border-transparent bg-over-soft text-over hover:bg-over/15",
+				destructive: "border-transparent bg-over-soft text-over-foreground hover:bg-over/15",
 				link: "border-transparent px-0 text-muted-foreground hover:text-foreground",
 			},
 			size: {

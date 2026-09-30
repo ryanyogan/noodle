@@ -135,7 +135,10 @@ test("a card added by hand covers a cost already paid; a page that can't be read
 	// Removing the card takes its Perks and the Overlap resting on them.
 	await page.goto("/perks");
 	await card.getByRole("button", { name: "Remove" }).click();
-	await card.getByRole("button", { name: "Remove Chase Sapphire" }).click();
+	await page
+		.getByRole("alertdialog")
+		.getByRole("button", { name: "Remove Chase Sapphire" })
+		.click();
 	await expect(card).toHaveCount(0);
 	await page.goto("/insights");
 	await expect(overlap).toHaveCount(0);

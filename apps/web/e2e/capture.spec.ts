@@ -88,7 +88,7 @@ test("a payment the Shortcut sends shows up as the Parent's Quick Add", async ({
 	// Revoked, the token no longer captures anything.
 	await page.goto("/household");
 	await capture.getByRole("button", { name: "Revoke" }).click();
-	await capture.getByRole("button", { name: "Revoke token" }).click();
+	await page.getByRole("alertdialog").getByRole("button", { name: "Revoke token" }).click();
 	await expect(capture.getByRole("button", { name: "Set up" })).toBeVisible();
 	const afterRevoke = await page.request.post(url ?? "", {
 		headers: { Authorization: `Bearer ${token}` },

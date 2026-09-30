@@ -1,3 +1,13 @@
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@noodle/ui/components/alert-dialog";
 import { Button } from "@noodle/ui/components/button";
 import { FormError } from "@noodle/ui/components/field";
 import type { ReactNode } from "react";
@@ -20,7 +30,11 @@ export function SaveFailed<V>({
 	);
 }
 
-/** Asks before a change that takes something out of the Plan. */
+/**
+ * Asks before a change that takes something out of the Plan, or can't be taken back: a modal
+ * alert dialog (shadcn AlertDialog) that's open while it's rendered. `onCancel` only hides it. Focus starts on Cancel and
+ * goes back to what opened it; Esc cancels.
+ */
 export function Confirm({
 	children,
 	confirmLabel,
@@ -32,17 +46,25 @@ export function Confirm({
 	onConfirm: () => void;
 	onCancel: () => void;
 }) {
+	// Confirming closes the dialog as well, so `onCancel` (which only hides it) runs after
+	// `onConfirm` too.
 	return (
-		<div role="alertdialog" aria-label={confirmLabel} className="grid gap-3 rounded-xl bg-card p-3">
-			<p className="text-sm">{children}</p>
-			<div className="flex justify-end gap-2">
-				<Button type="button" variant="ghost" size="sm" onClick={onCancel}>
-					Cancel
-				</Button>
-				<Button type="button" variant="destructive" size="sm" onClick={onConfirm}>
-					{confirmLabel}
-				</Button>
-			</div>
-		</div>
+		<AlertDialog
+			open
+			onOpenChange={(open) => {
+				if (!open) onCancel();
+			}}
+		>
+			<AlertDialogContent>
+				<AlertDialogHeader>
+					<AlertDialogTitle>{confirmLabel}</AlertDialogTitle>
+					<AlertDialogDescription>{children}</AlertDialogDescription>
+				</AlertDialogHeader>
+				<AlertDialogFooter>
+					<AlertDialogCancel>Cancel</AlertDialogCancel>
+					<AlertDialogAction onClick={onConfirm}>{confirmLabel}</AlertDialogAction>
+				</AlertDialogFooter>
+			</AlertDialogContent>
+		</AlertDialog>
 	);
 }
