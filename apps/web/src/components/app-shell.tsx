@@ -72,8 +72,10 @@ export function AppShell({
 			<Sidebar householdName={householdName} />
 			<main
 				id="main"
+				// Focus lands here when a sheet closes and the control that opened it is gone.
+				tabIndex={-1}
 				className={cn(
-					"mx-auto w-full max-w-[1200px] px-(--gutter)",
+					"mx-auto w-full max-w-[1200px] px-(--gutter) outline-none",
 					"pt-[calc(env(safe-area-inset-top)+16px)] pb-[calc(var(--tabbar-height)+env(safe-area-inset-bottom)+32px)]",
 					"lg:pt-6 lg:pb-12",
 				)}
