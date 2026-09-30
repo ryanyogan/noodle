@@ -20,6 +20,8 @@ const saved = (page: Page, name: string) =>
 test("a Scenario opened from a link is kept, applied with a preview, and compared", async ({
 	browser,
 }) => {
+	// Scenarios opened, saved, applied and compared: close to 30 s even run alone.
+	test.slow();
 	const page = await signedInPage(browser, parent.email);
 	// $5,000 − $1,200 − $400: $3,400 Free to Spend a month.
 	await createPlannedHousehold(page, {

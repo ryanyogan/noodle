@@ -55,6 +55,9 @@ async function openTransactions(page: Page) {
 test("a Personal Allowance's Transactions never reach the other Parent; its totals do", async ({
 	browser,
 }) => {
+	// Two Parents sign in and each set up a Personal Allowance before any spending: over 30 s even
+	// run alone.
+	test.slow();
 	const first = await createTestParent();
 	const second = await createTestParent();
 	try {

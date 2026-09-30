@@ -22,6 +22,8 @@ async function backToPlan(page: Page) {
 test("What changed shows each Plan change and who made it; the other Parent's Personal Allowance only as changed", async ({
 	browser,
 }) => {
+	// Two Parents sign in and change the Plan throughout: close to 30 s even run alone.
+	test.slow();
 	const first = await createTestParent();
 	const second = await createTestParent();
 	try {
