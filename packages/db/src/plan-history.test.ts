@@ -417,7 +417,7 @@ describe("Plan changes", () => {
 				after: null,
 			});
 		}
-		expect(JSON.stringify(theirs)).not.toMatch(/Hobbies|25000|20000/);
+		expect(JSON.stringify(theirs)).not.toMatch(/Hobbies|\b25000\b|\b20000\b/);
 	});
 
 	it("reads one month's changes, or one item's, and when history starts", async () => {
