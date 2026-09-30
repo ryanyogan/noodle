@@ -41,7 +41,7 @@ function SheetContent({
 	// Esc closes only the topmost layer. Radix hands Esc to a lower layer until it re-renders after
 	// a new one opens, so an Esc straight after an alert dialog opens over the sheet would close
 	// both: while one is open, the sheet leaves Esc to it.
-	const escape = (event: KeyboardEvent) => {
+	const leaveEscToAlert = (event: KeyboardEvent) => {
 		onEscapeKeyDown?.(event);
 		if (document.querySelector("[data-slot=alert-dialog-content]")) event.preventDefault();
 	};
@@ -68,7 +68,7 @@ function SheetContent({
 					className,
 				)}
 				{...focus}
-				onEscapeKeyDown={escape}
+				onEscapeKeyDown={leaveEscToAlert}
 				{...props}
 			>
 				<div
