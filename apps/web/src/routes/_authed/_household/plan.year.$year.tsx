@@ -66,9 +66,11 @@ function YearPage() {
 			/>
 			<div className="grid max-w-3xl gap-8">
 				<p className="text-[13px] text-muted-foreground">
-					Each month’s Plan, from the Baseline down to Free to Spend. Months over or under way show
-					what actually happened beneath it: income, spending, and Goal funding. Later months are
-					the Plan as it stands, with each dated Goal funded what it needs.
+					Each month’s Plan, from the Baseline down to Free to Spend, as the Plan shows it. Months
+					over or under way show what actually happened beneath it: income received, spending, and
+					Goal funding. Beneath Free to Spend, that’s the income received less the spending and Goal
+					funding, so this month it’s only what’s come in so far. Later months are the Plan as it
+					stands, with each dated Goal funded what it needs.
 				</p>
 				{start > 0 && months[0] ? (
 					<p className="text-[13px] text-muted-foreground">

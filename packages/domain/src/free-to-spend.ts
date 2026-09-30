@@ -17,19 +17,34 @@ export type PlanPart =
 export function freeToSpendParts(
 	state: Pick<MonthState, "buckets" | "committed" | "fundedGoals" | "movedToBuckets">,
 ): { part: PlanPart; amount: Cents }[] {
-	const allowances = (personal: boolean) =>
-		state.buckets
-			.filter((b) => (b.owner !== undefined) === personal)
-			.reduce((sum, b) => sum + b.allowance, 0);
+	const { buckets, personalAllowances } = allowancesByKind(state);
 	return [
 		{ part: "commitments", amount: state.committed },
-		{ part: "buckets", amount: allowances(false) },
-		...(state.buckets.some((b) => b.owner !== undefined)
-			? [{ part: "personal-allowances" as const, amount: allowances(true) }]
+		{ part: "buckets", amount: buckets },
+		...(personalAllowances !== null
+			? [{ part: "personal-allowances" as const, amount: personalAllowances }]
 			: []),
 		{ part: "goal-funding", amount: state.fundedGoals },
 		...(state.movedToBuckets > 0
 			? [{ part: "covers" as const, amount: state.movedToBuckets }]
 			: []),
 	];
+}
+
+/**
+ * A month's allowances split the way the Plan shows them: the shared Buckets', and the Personal
+ * Allowances' (null when there are none). Together they're MonthState.planned ("In Buckets"),
+ * since a Personal Allowance is a Bucket.
+ */
+export function allowancesByKind(state: Pick<MonthState, "buckets">): {
+	buckets: Cents;
+	personalAllowances: Cents | null;
+} {
+	let buckets = 0;
+	let personal: Cents | null = null;
+	for (const b of state.buckets) {
+		if (b.owner === undefined) buckets += b.allowance;
+		else personal = (personal ?? 0) + b.allowance;
+	}
+	return { buckets, personalAllowances: personal };
 }

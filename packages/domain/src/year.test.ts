@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MonthKey, PlanRecords, ProjectionGoal, SpendCell, YearActuals } from "./index";
-import { yearGrid } from "./index";
+import { monthState, planForMonth, yearGrid } from "./index";
 
 const records: PlanRecords = {
 	baselines: [{ month: "2026-02", amount: 800_000 }],
@@ -146,7 +146,7 @@ describe("yearGrid", () => {
 		expect(at("2026-10")?.actual).toBeNull();
 	});
 
-	it("projects this month and later from planAhead, funding dated Goals", () => {
+	it("projects later months from planAhead, funding dated Goals", () => {
 		const funded = grid(2026, [
 			{
 				id: "trip",
@@ -164,6 +164,36 @@ describe("yearGrid", () => {
 			goalFunding: 30_000,
 			freeToSpend: 350_000,
 		});
+	});
+
+	it("shows this month's Plan as This Month does: Goal funding so far, and Covers", () => {
+		const goalFunding = [{ month: "2026-09" as MonthKey, amount: 155_000 }];
+		const covers = [{ month: "2026-09" as MonthKey, amount: 5_000 }];
+		const sept = yearGrid({
+			year: 2026,
+			current: "2026-09",
+			records,
+			// A dated Goal still needing money this month: not counted until it's funded.
+			goals: [
+				{ id: "trip", target: 1_200_000, targetDate: "2026-12-31", saved: 0, fundedThisMonth: 0 },
+			],
+			actuals: { ...actuals, goalFunding, covers },
+		}).find((m) => m.month === "2026-09");
+		const state = monthState({
+			plan: planForMonth(records, "2026-09"),
+			spending: [],
+			moves: [{ fromBucketId: null, toBucketId: "groceries", amount: 5_000, month: "2026-09" }],
+			goalFunding: [{ goalId: "trip", amount: 155_000, month: "2026-09" }],
+			asOf: "2026-09-15",
+		});
+		expect(sept?.plan).toEqual({
+			baseline: 800_000,
+			commitments: 300_000,
+			allowances: 125_000,
+			goalFunding: 155_000,
+			freeToSpend: state.freeToSpend,
+		});
+		expect(state.freeToSpend).toBe(220_000);
 	});
 
 	it("projects a later year entirely ahead", () => {

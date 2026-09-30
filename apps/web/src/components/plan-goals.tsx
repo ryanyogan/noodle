@@ -1,4 +1,4 @@
-import type { MonthKey, MonthState } from "@noodle/domain";
+import { type Cents, type MonthKey, type MonthState, stillToFund } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
@@ -83,14 +83,25 @@ export function PlanGoals({ state, title = "Goals" }: { state: MonthState; title
 
 /**
  * The Goals on This Month: each one's on track or behind, the months to its target date, and what
- * it's been funded this month against what it needs. The Plan's Goals page funds them.
+ * it's been funded this month against what it needs. The header totals the month's Goal funding
+ * (`funded`, as the Free to Spend breakdown counts it) and what dated Goals still need. The Plan's
+ * Goals page funds them.
  */
-export function GoalsThisMonth({ month, goals }: { month: MonthKey; goals: GoalView[] }) {
-	const needed = goals.reduce((sum, g) => sum + (g.progress.monthly ?? 0), 0);
-	const funded = goals.reduce(
-		(sum, g) => sum + Math.min(g.progress.fundedThisMonth, g.progress.monthly ?? 0),
-		0,
-	);
+export function GoalsThisMonth({
+	month,
+	goals,
+	funded,
+}: {
+	month: MonthKey;
+	goals: GoalView[];
+	/** This month's Goal funding from Free to Spend, every Goal (MonthState.fundedGoals). */
+	funded: Cents;
+}) {
+	const needed = stillToFund(goals.map((g) => g.progress));
+	const summary = [
+		funded > 0 || needed === 0 ? `${formatMoney(funded)} funded` : null,
+		needed > 0 ? `${formatMoney(needed)} still needed` : null,
+	].filter((part) => part !== null);
 	return (
 		<Section aria-labelledby="goals-this-month">
 			<SectionHeader
@@ -98,9 +109,9 @@ export function GoalsThisMonth({ month, goals }: { month: MonthKey; goals: GoalV
 				title="Goals"
 				count={goals.length}
 				action={
-					needed > 0 ? (
+					funded > 0 || needed > 0 ? (
 						<span className="text-[13px] text-muted-foreground tabular-nums">
-							{formatMoney(funded)} of {formatMoney(needed)} funded
+							{summary.join(" · ")}
 						</span>
 					) : undefined
 				}

@@ -96,7 +96,7 @@ export type MonthState = Omit<Plan, "buckets" | "commitments"> & {
 	daysInMonth: number;
 	/** Days after the as-of day until the month ends. */
 	daysLeft: number;
-	/** Everything assigned to Buckets. */
+	/** Everything assigned to Buckets, Personal Allowances included (see allowancesByKind). */
 	planned: Cents;
 	/** Everything the Commitments are expected to take this month. */
 	committed: Cents;

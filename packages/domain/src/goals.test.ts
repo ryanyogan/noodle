@@ -8,7 +8,9 @@ import {
 	goalProgress,
 	holdsMoney,
 	type MonthKey,
+	monthState,
 	splitAccount,
+	stillToFund,
 } from "./index";
 
 const change = (
@@ -288,5 +290,45 @@ describe("attributeWithdrawal (ADR-0002)", () => {
 				{ balanceBefore: 600_000, earmarked: 700_000 },
 			),
 		).toEqual({ kind: "review", fromEarmarks: 50_000 });
+	});
+});
+
+describe("stillToFund", () => {
+	it("totals what dated Goals still need, while Goal funding counts every Goal", () => {
+		// Braces needs $300 this month ($1,200 over four months) and has $50 of it; the undated Rainy day took $1,300.
+		const braces = {
+			id: "braces",
+			target: 120_000,
+			targetDate: "2026-12-20" as DayKey,
+			fromMonth: "2026-09" as MonthKey,
+		};
+		const rainy = {
+			id: "rainy",
+			target: 3_000_000,
+			targetDate: null,
+			fromMonth: "2026-01" as MonthKey,
+		};
+		const changes = [
+			change("braces", "funding", 5_000),
+			change("rainy", "claim", 2_000_000, "2026-01"),
+			change("rainy", "funding", 130_000),
+		];
+		const progress = [braces, rainy].map((g) => goalProgress(g, changes, "2026-09"));
+		expect(stillToFund(progress)).toBe(30_000 - 5_000);
+		// The funded side is the month's Goal funding, as Free to Spend takes it: both Goals.
+		const state = monthState({
+			plan: { month: "2026-09", baseline: 600_000, commitments: [], buckets: [] },
+			spending: [],
+			goalFunding: [
+				{ goalId: "braces", amount: 5_000, month: "2026-09" },
+				{ goalId: "rainy", amount: 130_000, month: "2026-09" },
+			],
+			asOf: "2026-09-15",
+		});
+		expect(state.fundedGoals).toBe(135_000);
+	});
+
+	it("needs nothing from reached, undated or past-due Goals", () => {
+		expect(stillToFund([{ leftThisMonth: null }, { leftThisMonth: 0 }])).toBe(0);
 	});
 });

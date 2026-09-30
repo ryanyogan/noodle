@@ -114,7 +114,7 @@ export {
 	type SpendTotal,
 	shares,
 } from "./for";
-export { freeToSpendParts, type PlanPart } from "./free-to-spend";
+export { allowancesByKind, freeToSpendParts, type PlanPart } from "./free-to-spend";
 export {
 	ACCOUNT_KINDS,
 	type AccountKind,
@@ -129,6 +129,7 @@ export {
 	goalProgress,
 	holdsMoney,
 	splitAccount,
+	stillToFund,
 	type WithdrawalAttribution,
 } from "./goals";
 export {

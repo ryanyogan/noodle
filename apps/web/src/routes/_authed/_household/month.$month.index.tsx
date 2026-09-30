@@ -1,5 +1,6 @@
 import {
 	addMonths,
+	allowancesByKind,
 	type BucketState,
 	type CoverSource,
 	canAssign,
@@ -231,7 +232,7 @@ function ThisMonth() {
 						</Section>
 					) : null}
 					{month === current && activeGoals.length > 0 ? (
-						<GoalsThisMonth month={month} goals={activeGoals} />
+						<GoalsThisMonth month={month} goals={activeGoals} funded={state.fundedGoals} />
 					) : null}
 					{month === current ? <ComingUp /> : null}
 					{state.commitments.length > 0 ? (
@@ -427,6 +428,8 @@ function ClosePreviousMonth({
  */
 function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck | null }) {
 	const overPlanned = state.freeToSpend < 0;
+	// "In Buckets" counts Personal Allowances, which the breakdown above lists on their own.
+	const { personalAllowances } = allowancesByKind(state);
 	return (
 		<Card role="region" aria-labelledby="free-to-spend">
 			<div className="grid gap-1 p-(--card-pad)">
@@ -466,7 +469,15 @@ function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck |
 			</div>
 			{state.baseline === null ? null : <Breakdown state={state} baseline={state.baseline} />}
 			<dl className="grid grid-cols-3 border-t">
-				<Stat label="In Buckets" value={formatMoney(state.planned)} />
+				<Stat
+					label="In Buckets"
+					value={formatMoney(state.planned)}
+					note={
+						personalAllowances === null
+							? undefined
+							: `incl. ${formatMoney(personalAllowances)} Personal Allowances`
+					}
+				/>
 				<Stat label="Left in Buckets" value={formatMoney(state.leftInBuckets)} />
 				<Stat label="Days left" value={String(state.daysLeft)} />
 			</dl>
@@ -510,11 +521,12 @@ function Breakdown({ state, baseline }: { state: MonthState; baseline: number })
 	);
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
 	return (
-		<div className="grid gap-0.5 px-(--card-pad) py-3.5 [&+&]:border-s">
+		<div className="grid content-start gap-0.5 px-(--card-pad) py-3.5 [&+&]:border-s">
 			<dt className="text-xs font-medium text-muted-foreground">{label}</dt>
 			<dd className="text-base font-semibold tracking-[-0.01em] tabular-nums">{value}</dd>
+			{note ? <dd className="text-xs text-muted-foreground tabular-nums">{note}</dd> : null}
 		</div>
 	);
 }

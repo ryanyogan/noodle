@@ -14,10 +14,11 @@ import { type PlanAhead, type ProjectionGoal, planAhead, project } from "./scena
 // The year at a glance: each month's Plan, from the Baseline down to Free to Spend, with what
 // actually happened next to it once the month has begun.
 //
-// - Earlier months' Plans are as stored (ADR-0009). Their Goal funding is what was Moved from
-//   Free to Spend into Goals then, as the month's Plan shows it.
-// - This month and later come from `planAhead`, projected with no Levers: each dated Goal is
-//   funded what it needs each month (see scenario.ts).
+// - Earlier months' Plans, and this month's, are as stored (ADR-0009), as This Month and the
+//   Plan show them: their Goal funding is what has been Moved from Free to Spend into Goals, and
+//   Covers from Free to Spend count with the Buckets' allowances.
+// - Later months come from `planAhead`, projected with no Levers: each dated Goal is funded what
+//   it needs each month (see scenario.ts).
 // - Actual: income received, what was spent on Commitments and from Buckets (the other Parent's
 //   Personal Allowance only as its total), and the Goal funding. Actual Free to Spend is what was
 //   left: income less every Transaction not spent from a Goal's Earmark, less the Goal funding.
@@ -26,7 +27,10 @@ export type YearFigures = {
 	/** The Baseline in the Plan; income received, in the actual. */
 	baseline: Cents;
 	commitments: Cents;
-	/** Every Bucket's allowance, Personal Allowances included; what was spent from them, in the actual. */
+	/**
+	 * Every Bucket's allowance, Personal Allowances included, plus Covers from Free to Spend;
+	 * what was spent from them, in the actual.
+	 */
 	allowances: Cents;
 	goalFunding: Cents;
 	/** Negative when the Plan assigns more than the Baseline, or more was spent than came in. */
@@ -52,6 +56,8 @@ export type YearActuals = {
 	income: readonly { month: MonthKey; amount: Cents }[];
 	/** Moves from Free to Spend into Goals (not from a Windfall or a Sweep). */
 	goalFunding: readonly { month: MonthKey; amount: Cents }[];
+	/** Moves from Free to Spend into Buckets (Covers; not from a Windfall or another Bucket). */
+	covers?: readonly { month: MonthKey; amount: Cents }[];
 };
 
 const sumIn = (rows: readonly { month: MonthKey; amount: Cents }[], month: MonthKey) =>
@@ -109,9 +115,10 @@ export function yearGrid({
 		const when = month < current ? "past" : month === current ? "current" : "ahead";
 		const lumps = lumpsIn({ month, commitments: commitmentsIn(records, month) });
 		const actual = when === "ahead" ? null : actualIn(actuals, month);
-		if (when === "past") {
+		if (when !== "ahead") {
 			const plan = planForMonth(records, month);
 			const goalFunding = actual?.goalFunding ?? 0;
+			const covers = sumIn(actuals.covers ?? [], month);
 			return {
 				month,
 				when,
@@ -119,9 +126,9 @@ export function yearGrid({
 				plan: {
 					baseline: plan.baseline ?? 0,
 					commitments: totalCommitments(plan),
-					allowances: plan.buckets.reduce((sum, b) => sum + b.allowance, 0),
+					allowances: plan.buckets.reduce((sum, b) => sum + b.allowance, 0) + covers,
 					goalFunding,
-					freeToSpend: freeToSpend(plan) - goalFunding,
+					freeToSpend: freeToSpend(plan) - goalFunding - covers,
 				},
 				actual,
 				lumps,

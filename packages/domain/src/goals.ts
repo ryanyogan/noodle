@@ -152,6 +152,15 @@ export function goalProgress(
 }
 
 /**
+ * What Goals still need funded this month, together: each dated Goal's `leftThisMonth`. Undated,
+ * past-due and reached Goals need nothing. With the month's Goal funding (MonthState.fundedGoals,
+ * as Free to Spend counts it), it's the Goals' summary on This Month.
+ */
+export function stillToFund(progress: readonly Pick<GoalProgress, "leftThisMonth">[]): Cents {
+	return progress.reduce((sum, p) => sum + (p.leftThisMonth ?? 0), 0);
+}
+
+/**
  * Where a withdrawal from an Account comes from (ADR-0002): the Goal it's assigned to;
  * Unclaimed money when that covers it (or nothing is earmarked); otherwise it dips into
  * Earmarks by `fromEarmarks`, and a Parent decides which Goals in Review.

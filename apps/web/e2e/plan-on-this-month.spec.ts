@@ -34,17 +34,18 @@ const q = (value: string) => `'${value.replaceAll("'", "''")}'`;
  * Last month, closed by the Parent, written straight into the local D1: a Fresh-start Bucket, Fun,
  * whose $300 leftover was Swept into the Trip Goal, and a Rolling Bucket, Hockey, carrying $200
  * into this month. Both stay in the Plan this month. Trip ($1,200 by three months from now) has
- * $100 of Goal funding this month.
+ * $100 of Goal funding this month, and Rainy day (no target date) $50.
  */
 function seedLastMonth(clerkUserId: string, month: string) {
 	const household = `(select household_id from members where clerk_user_id = ${q(clerkUserId)})`;
 	const member = `(select id from members where clerk_user_id = ${q(clerkUserId)})`;
 	const last = addMonths(month, -1);
-	const [account, goal, fun, hockey] = [ulid(), ulid(), ulid(), ulid()];
+	const [account, goal, rainy, fun, hockey] = [ulid(), ulid(), ulid(), ulid(), ulid()];
 	const statements = [
 		`insert into baselines (household_id, month, amount_cents) values (${household}, ${q(last)}, 500000);`,
 		`insert into accounts (id, household_id, name, kind) values (${q(account)}, ${household}, 'Savings', 'savings');`,
 		`insert into goals (id, household_id, account_id, name, target_cents, target_date, from_month) values (${q(goal)}, ${household}, ${q(account)}, 'Trip', 120000, ${q(`${addMonths(month, 3)}-15`)}, ${q(month)});`,
+		`insert into goals (id, household_id, account_id, name, target_cents, from_month) values (${q(rainy)}, ${household}, ${q(account)}, 'Rainy day', 500000, ${q(month)});`,
 		`insert into buckets (id, household_id, name, color, position, from_month) values (${q(fun)}, ${household}, 'Fun', 2, 10, ${q(last)});`,
 		`insert into bucket_allowances (household_id, bucket_id, month, amount_cents) values (${household}, ${q(fun)}, ${q(last)}, 30000);`,
 		`insert into buckets (id, household_id, name, color, position, from_month) values (${q(hockey)}, ${household}, 'Hockey', 3, 11, ${q(last)});`,
@@ -52,6 +53,7 @@ function seedLastMonth(clerkUserId: string, month: string) {
 		`insert into bucket_rolling (household_id, bucket_id, month, rolling) values (${household}, ${q(hockey)}, ${q(last)}, 1);`,
 		`insert into moves (id, household_id, kind, month, from_bucket_id, amount_cents, created_by_member_id, to_goal_id) values (${q(ulid())}, ${household}, 'sweep', ${q(last)}, ${q(fun)}, 30000, ${member}, ${q(goal)});`,
 		`insert into moves (id, household_id, kind, month, amount_cents, created_by_member_id, to_goal_id) values (${q(ulid())}, ${household}, 'goal-funding', ${q(month)}, 10000, ${member}, ${q(goal)});`,
+		`insert into moves (id, household_id, kind, month, amount_cents, created_by_member_id, to_goal_id) values (${q(ulid())}, ${household}, 'goal-funding', ${q(month)}, 5000, ${member}, ${q(rainy)});`,
 		`insert into month_closes (id, household_id, month, decided_by_member_id) values (${q(ulid())}, ${household}, ${q(last)}, ${member});`,
 	];
 	const file = join(mkdtempSync(join(tmpdir(), "noodle-plan-on-month-")), "seed.sql");
@@ -75,15 +77,17 @@ test("This Month shows the Plan: Free to Spend worked out, the Goals, and how la
 
 	// Free to Spend, worked out part by part from the Baseline.
 	const freeToSpend = page.getByRole("region", { name: "Free to Spend" });
-	await expect(freeToSpend).toContainText("$3,200");
+	await expect(freeToSpend).toContainText("$3,150");
 	const breakdown = freeToSpend.getByRole("link", { name: /Baseline/ });
 	await expect(breakdown).toHaveAccessibleName(
-		"$5,000 Baseline minus $1,700 Buckets minus $100 Goal funding",
+		"$5,000 Baseline minus $1,700 Buckets minus $150 Goal funding",
 	);
 
-	// Each Goal: on track or behind, its months left, and funded against needed this month.
+	// Each Goal: on track or behind, its months left, and funded against needed this month. The
+	// header's funding is the breakdown's Goal funding, every Goal's; what's still needed is the
+	// dated Goals'.
 	const goals = page.getByRole("region", { name: /^Goals/ });
-	await expect(goals).toContainText("$100 of $225 funded");
+	await expect(goals).toContainText("$150 funded · $125 still needed");
 	const trip = goals.getByRole("listitem", { name: "Trip" });
 	await expect(trip).toContainText("On track");
 	await expect(trip).toContainText("4 months left");
