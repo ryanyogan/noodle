@@ -19,6 +19,14 @@ export function testDb(): Db {
 		.sort()) {
 		sqlite.exec(readFileSync(join(migrations, file), "utf8"));
 	}
+	return sqliteDb(sqlite);
+}
+
+/**
+ * The same Db over an open SQLite database: in-memory for tests, or the local D1's own file for
+ * the seed script (apps/web/scripts/seed.ts).
+ */
+export function sqliteDb(sqlite: DatabaseSync): Db {
 	const run = (query: string, params: unknown[], method: Method) => {
 		const statement = sqlite.prepare(query);
 		const values = params as SQLInputValue[];

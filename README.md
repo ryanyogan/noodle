@@ -20,6 +20,8 @@ clerk link && (cd apps/web && clerk env pull --file .dev.vars)   # or copy .dev.
 (cd apps/web && bun run db:migrate:local && bun run dev)          # http://localhost:5173
 ```
 
+Seed data: `cd apps/web && bun run seed <fresh|starter|busy>` replaces the local D1 with a just-created Household, one two weeks in, or eight months of heavy use, and prints the Parent logins. It never touches remote D1. See `docs/seed-data.md` for what each scenario holds and how to sign in.
+
 Checks: `bun run typecheck`, `bun run lint`, `bun run test` (unit), `cd apps/web && bun run e2e` (Playwright against a local Worker + local D1; creates and deletes a throwaway Clerk user per test). The E2E suite includes screenshot tests of the app shell; after an intentional visual change, run `bun run e2e --update-snapshots` and review the new images before committing.
 
 UI components: add shadcn components with `bunx shadcn@4.21.0 add <name> -c packages/ui`, then restyle them to the tokens. The CLI once resolved the `#lib/utils` alias to an npm package called `cn`, so check the imports it writes.
