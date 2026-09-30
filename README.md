@@ -33,6 +33,7 @@ The Worker is `noodle` (https://noodle.ryanyogan.workers.dev) with D1 database `
 One-time setup, not automated:
 
 - Worker secrets: `wrangler secret put CLERK_SECRET_KEY` and `wrangler secret put VITE_CLERK_PUBLISHABLE_KEY` (run in `apps/web`). Without them every request returns 500.
+- Bank Connections (Plaid, ADR-0017): `wrangler secret put` `PLAID_CLIENT_ID`, `PLAID_SECRET` and `BANK_CONNECTION_KEY` (`openssl rand -base64 32`). `PLAID_ENV` in `wrangler.jsonc` is `"sandbox"`, and `PLAID_SECRET` is the Sandbox secret. To move to Plaid's Trial plan (production), set `PLAID_ENV` to `"production"` and replace `PLAID_SECRET` with the production secret. Without the three secrets the Accounts page says Plaid isn't set up. Local development and E2E use Sandbox or the fake Plaid.
 - GitHub Actions secrets: `VITE_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` (Clerk dev instance, for E2E; `gh secret set -f apps/web/.dev.vars` sets both), `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` (for deploy).
 
 ## Verified versions (2026-09-28)

@@ -13,11 +13,7 @@ import { getRequestUrl } from "@tanstack/react-start/server";
 import { monotonicFactory, ulid } from "ulid";
 import { z } from "zod";
 import { type ConnectInstitutionResult, connectInstitution } from "./bank-connect";
-import {
-	type BankConnectionProvider,
-	type BankHandoff,
-	BankProviderError,
-} from "./bank-connection";
+import type { BankConnectionProvider, BankHandoff } from "./bank-connection";
 import { openCredential } from "./bank-credential";
 import type { BankImportMessage } from "./bank-import-workflow";
 import { type BankSetup, bankSetup, setUpProviders } from "./bank-setup";
@@ -26,22 +22,21 @@ import { householdMiddleware } from "./household";
 import { notifyHousehold } from "./notify";
 import { PLAID_WEBHOOK_PATH } from "./plaid-webhook";
 import { ulidSchema } from "./schemas";
-import { INVALID_SETUP_TOKEN, SETUP_TOKEN_CLAIMED } from "./simplefin";
 
 // Bank Connections for the screen: a Parent links their institution in Plaid Link, with a link
-// token made here, and hands back Link's public token; or pastes a setup token from their
-// SimpleFIN Bridge. The Worker exchanges either for the credential (sealed before it's stored),
-// creates an Account for each checking, savings, card and loan account there, and puts the Bank
-// Connection on the ingest Queue for the Import Workflow to bring in its Transactions. Each Plaid
-// link token names the app's webhook, so Plaid says when there's more. A Plaid Bank Connection
-// whose login lapsed is reconnected in Link's update mode, for the same Item: nothing to
-// exchange, it's simply ready again and synced. Plaid's secrets and the credential never leave
-// the Worker.
+// token made here, and hands back Link's public token. The Worker exchanges it for the Item's
+// access token, the credential (sealed before it's stored), creates an Account for each checking,
+// savings, card and loan account there, and puts the Bank Connection on the ingest Queue for the
+// Import Workflow to bring in its Transactions. Each link token names the app's webhook, so Plaid
+// says when there's more. A Bank Connection whose login lapsed is reconnected in Link's update
+// mode, for the same Item (a fresh Link would use another of the Trial plan's Items; ADR-0017):
+// nothing to exchange, it's simply ready again and synced. Plaid's secrets and the credential
+// never leave the Worker.
 
 export type { BankConnectionSummary };
 
 export type BankConnectionsData = {
-	/** How Bank Connections are set up here: null when the secrets aren't there. */
+	/** How Bank Connections are set up here: null when Plaid's secrets aren't there. */
 	setUp: BankSetup["mode"] | null;
 	/** The providers a Parent can connect through. */
 	providers: BankProvider[];
@@ -95,11 +90,10 @@ export const startBankReconnect = createServerFn({ method: "POST" })
 	.validator(z.object({ connectionId: ulidSchema }))
 	.handler(async ({ data, context }): Promise<StartBankReconnectResult> => {
 		const setup = bankSetup();
-		if (!setup?.plaid) return { ok: false, reason: "not-set-up" };
+		if (!setup) return { ok: false, reason: "not-set-up" };
 		const householdId = context.household.id;
 		const connection = await loadBankConnectionToImport(getDb(), householdId, data.connectionId);
-		// Only Plaid's logins lapse this way; SimpleFIN's are fixed at the Bridge.
-		if (connection?.provider !== "plaid") return { ok: false, reason: "not-found" };
+		if (!connection) return { ok: false, reason: "not-found" };
 		const accessToken = await openCredential(await setup.key(), connection.credential, {
 			householdId,
 			connectionId: connection.id,
@@ -144,36 +138,11 @@ export const connectBank = createServerFn({ method: "POST" })
 	)
 	.handler(async ({ data, context }): Promise<ConnectBankResult> => {
 		const setup = bankSetup();
-		if (!setup?.plaid) return { ok: false, reason: "not-set-up" };
+		if (!setup) return { ok: false, reason: "not-set-up" };
 		return connectAndImport(setup, setup.plaid.provider, context, data.connectionId, {
 			token: data.publicToken,
 			institution: data.institution,
 		});
-	});
-
-export type ConnectSimplefinResult =
-	| ConnectBankResult
-	/** Not a setup token, or one claimed already: a SimpleFIN setup token can be claimed only once. */
-	| { ok: false; reason: "invalid-token" | "claimed" };
-
-/** Claims a SimpleFIN setup token, creates the Accounts it reaches, and starts their Import. */
-export const connectSimplefin = createServerFn({ method: "POST" })
-	.middleware([householdMiddleware])
-	.validator(z.object({ connectionId: ulidSchema, setupToken: z.string().trim().min(1).max(2000) }))
-	.handler(async ({ data, context }): Promise<ConnectSimplefinResult> => {
-		const setup = bankSetup();
-		if (!setup) return { ok: false, reason: "not-set-up" };
-		try {
-			return await connectAndImport(setup, setup.simplefin, context, data.connectionId, {
-				token: data.setupToken,
-				institution: null,
-			});
-		} catch (error) {
-			if (!(error instanceof BankProviderError)) throw error;
-			if (error.code === INVALID_SETUP_TOKEN) return { ok: false, reason: "invalid-token" };
-			if (error.code === SETUP_TOKEN_CLAIMED) return { ok: false, reason: "claimed" };
-			throw error;
-		}
 	});
 
 /** Connects through the provider and, once its Accounts are made, puts its Import on the Queue. */

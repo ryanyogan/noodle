@@ -4,7 +4,7 @@ import type { DayKey } from "./month";
 import type { StatementLine } from "./statements";
 
 // Bank Connections: what a financial institution reports, read into the app's terms. Each
-// provider (Plaid today, SimpleFIN later) hands over its Accounts and their lines in its own
+// provider (Plaid, the only one) hands over its Accounts and their lines in its own
 // shape; these turn them into Accounts to create and statement lines to import, so a Bank
 // Connection's Import lands exactly as a statement's would, keyed by the bank's own ID for each
 // line. A line may be pending (reported, not yet posted) until its posted copy replaces it

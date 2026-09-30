@@ -135,6 +135,7 @@ _Avoid_: Sync, upload, feed
 
 **Bank Connection**:
 An ongoing authorized link to a financial institution that produces Imports automatically: when the institution says there's news, and at least daily. When its login lapses it waits for a Parent to reconnect (log in again) and brings in nothing meanwhile.
+Each is one login at one institution and covers every account under that login. Reconnecting keeps the same Bank Connection. It goes through Plaid (ADR-0017), which counts each one against a small allowance.
 _Avoid_: Integration, link, Plaid (as a domain term)
 
 **Pending**:

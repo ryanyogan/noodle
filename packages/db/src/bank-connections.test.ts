@@ -147,8 +147,8 @@ describe("saveBankImport", () => {
 				status: "ready",
 				notice: said,
 			});
-		await save(null, "c1", "Sign in again at the Bridge");
-		expect(await notice()).toBe("Sign in again at the Bridge");
+		await save(null, "c1", "This institution is not currently responding.");
+		expect(await notice()).toBe("This institution is not currently responding.");
 		await save("c1", "c2", null);
 		expect(await notice()).toBeNull();
 	});
@@ -158,10 +158,18 @@ describe("saveBankNotice", () => {
 	it("keeps a refused read's notice through the failure, in its own Household only", async () => {
 		await connect();
 		await saveBankNotice(db, "someone-else", "conn-1", "Not theirs");
-		await saveBankNotice(db, householdId, "conn-1", "Sign in again at the Bridge");
+		await saveBankNotice(
+			db,
+			householdId,
+			"conn-1",
+			"This institution is not currently responding.",
+		);
 		await markBankImportFailed(db, householdId, "conn-1");
 		const [summary] = await loadBankConnections(db, householdId);
-		expect(summary).toMatchObject({ status: "failed", notice: "Sign in again at the Bridge" });
+		expect(summary).toMatchObject({
+			status: "failed",
+			notice: "This institution is not currently responding.",
+		});
 	});
 });
 

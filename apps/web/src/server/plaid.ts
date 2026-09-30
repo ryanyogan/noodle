@@ -37,7 +37,10 @@ const PLAID_HOSTS: Record<PlaidEnvironment, string> = {
 /** Plaid's error codes that mean a Parent must log in at the institution again (Link update mode). */
 const RECONNECT_CODES = new Set(["ITEM_LOGIN_REQUIRED"]);
 
-/** Plaid's API over fetch. An error answer carries Plaid's `error_code` and `error_message`. */
+/**
+ * Plaid's API over fetch. An error answer carries Plaid's `error_code` and `error_message`, and
+ * sometimes a `display_message` written for the Parent, which the Bank Connection shows.
+ */
 export function plaidTransport(config: PlaidConfig, fetcher: typeof fetch = fetch): PlaidTransport {
 	return async (path, body) => {
 		const response = await fetcher(`${PLAID_HOSTS[config.environment]}${path}`, {
@@ -51,11 +54,15 @@ export function plaidTransport(config: PlaidConfig, fetcher: typeof fetch = fetc
 		});
 		const json: unknown = await response.json().catch(() => null);
 		if (!response.ok) {
-			const error = (json ?? {}) as { error_code?: string; error_message?: string };
+			const error = (json ?? {}) as {
+				error_code?: string;
+				error_message?: string;
+				display_message?: string | null;
+			};
 			throw new BankProviderError(
 				`Plaid ${path}: ${error.error_message ?? `HTTP ${response.status}`}`,
 				error.error_code ?? null,
-				null,
+				error.display_message?.trim() || null,
 				RECONNECT_CODES.has(error.error_code ?? ""),
 			);
 		}

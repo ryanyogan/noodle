@@ -262,6 +262,28 @@ describe("the Import Workflow", () => {
 		expect(notified).toEqual([["bank-connections"]]);
 	});
 
+	it("shows what the provider asked the Parent to read, until a read works", async () => {
+		await connect();
+		const down: BankConnectionProvider = {
+			...plaid(),
+			changes: async () => {
+				throw new BankProviderError(
+					"down",
+					"INSTITUTION_DOWN",
+					"This institution is not currently responding.",
+				);
+			},
+		};
+		expect(await runBankImport(params, inlineStep, deps(down).importDeps)).toBe("failed");
+		const notice = async () => (await loadBankConnections(db, householdId))[0]?.notice;
+		expect(await notice()).toBe("This institution is not currently responding.");
+
+		expect(await runBankImport({ ...params, runId: "run-2" }, inlineStep, deps().importDeps)).toBe(
+			"done",
+		);
+		expect(await notice()).toBeNull();
+	});
+
 	it("brings in one set of Transactions when the provider sends the same lines twice", async () => {
 		await connect();
 		// A provider that forgets the cursor: every read hands over everything again.

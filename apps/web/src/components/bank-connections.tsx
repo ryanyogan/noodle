@@ -1,17 +1,13 @@
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
-import { Field, FormError } from "@noodle/ui/components/field";
-import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
-import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
 import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useHydrated } from "@tanstack/react-router";
 import { Landmark, Plus } from "lucide-react";
-import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
 import { shortDayAt } from "../format";
 import { bankConnectionsQuery, goalsQuery } from "../queries";
@@ -19,20 +15,18 @@ import {
 	type BankConnectionSummary,
 	type BankConnectionsData,
 	type ConnectBankResult,
-	type ConnectSimplefinResult,
 	connectBank,
-	connectSimplefin,
 	finishBankReconnect,
 	startBankLink,
 	startBankReconnect,
 } from "../server/bank-connections";
 
-// Bank Connections on the Accounts page: a Parent connects a bank or card through Plaid Link, or by
-// pasting a setup token from their SimpleFIN Bridge, and its Accounts appear here and among the
-// Household's Accounts while the Import Workflow brings in their recent Transactions. Link runs in
-// Plaid's own frame; the page only ever sees Link's one-time public token, or the setup token the
-// Parent pasted, which the Worker exchanges. When a Plaid bank wants the Parent to log in again,
-// its row says so, and Reconnect opens Link for that same login (update mode).
+// Bank Connections on the Accounts page: a Parent connects a bank or card through Plaid Link, and
+// its Accounts appear here and among the Household's Accounts while the Import Workflow brings in
+// their recent Transactions. Link runs in Plaid's own frame; the page only ever sees Link's
+// one-time public token, which the Worker exchanges. When a bank wants the Parent to log in again,
+// its row says so, and Reconnect opens Link for that same login (update mode), so it stays the
+// same Item on Plaid's plan rather than using another (ADR-0017).
 
 /** What Plaid Link hands back when a Parent finishes linking (the fields read here). */
 type LinkSuccess = { publicToken: string; institution: string | null };
@@ -109,9 +103,7 @@ export function BankConnections() {
 	const queryClient = useQueryClient();
 	const hydrated = useHydrated();
 	const { setUp, providers, connections } = useSuspenseQuery(bankConnectionsQuery()).data;
-	const [simplefinOpen, setSimplefinOpen] = useState(false);
 	const plaid = providers.includes("plaid");
-	const simplefin = providers.includes("simplefin");
 
 	const connect = useMutation({
 		mutationFn: async (): Promise<Connected> => {
@@ -143,34 +135,19 @@ export function BankConnections() {
 			}),
 	});
 
-	const connectButtons = (quiet: boolean) => (
-		<div className={quiet ? "flex flex-wrap gap-1" : "grid gap-2 sm:flex"}>
-			{plaid ? (
-				<Button
-					type="button"
-					size="sm"
-					variant={quiet ? "ghost" : "default"}
-					disabled={!hydrated || connect.isPending}
-					onClick={() => connect.mutate()}
-				>
-					{quiet ? <Plus /> : null}
-					Connect a bank
-				</Button>
-			) : null}
-			{simplefin ? (
-				<Button
-					type="button"
-					size="sm"
-					variant={quiet ? "ghost" : plaid ? "outline" : "default"}
-					disabled={!hydrated}
-					onClick={() => setSimplefinOpen(true)}
-				>
-					{quiet ? <Plus /> : null}
-					Connect with SimpleFIN
-				</Button>
-			) : null}
-		</div>
-	);
+	const connectButton = (quiet: boolean) =>
+		plaid ? (
+			<Button
+				type="button"
+				size="sm"
+				variant={quiet ? "ghost" : "default"}
+				disabled={!hydrated || connect.isPending}
+				onClick={() => connect.mutate()}
+			>
+				{quiet ? <Plus /> : null}
+				Connect a bank
+			</Button>
+		) : null;
 
 	return (
 		<Section aria-labelledby="bank-connections">
@@ -182,8 +159,7 @@ export function BankConnections() {
 							<ConnectionRow key={connection.id} connection={connection} setUp={setUp} />
 						))}
 					</List>
-					{/* Under the list, not in the header: two ways to connect don't fit beside the title on a phone. */}
-					{setUp ? connectButtons(true) : null}
+					{plaid ? <div className="flex">{connectButton(true)}</div> : null}
 				</>
 			) : (
 				<Card className="grid gap-3 p-(--card-pad) sm:flex sm:items-center">
@@ -192,110 +168,15 @@ export function BankConnections() {
 							<Landmark />
 						</Tile>
 						<p className="text-muted-foreground">
-							{setUp
+							{plaid
 								? "Connect a bank or card, and Noodle adds its Accounts and brings in their recent Transactions."
-								: "Bank Connections aren’t set up for this copy of Noodle yet."}
+								: "Connecting a bank needs Plaid, which isn’t set up for this copy of Noodle yet."}
 						</p>
 					</div>
-					{setUp ? connectButtons(false) : null}
+					{connectButton(false)}
 				</Card>
 			)}
-			<Sheet open={simplefinOpen} onOpenChange={setSimplefinOpen}>
-				{simplefinOpen ? (
-					<SheetContent>
-						<SheetHeader
-							title="Connect with SimpleFIN"
-							description="Make a setup token at your SimpleFIN Bridge and paste it here. Noodle adds the Accounts it reaches and brings in their recent Transactions."
-						/>
-						<SimplefinForm onDone={() => setSimplefinOpen(false)} />
-					</SheetContent>
-				) : null}
-			</Sheet>
 		</Section>
-	);
-}
-
-/** Why a setup token didn't connect, for the Parent to act on. */
-const simplefinProblem = (result: Exclude<ConnectSimplefinResult, { ok: true }>): string | null => {
-	switch (result.reason) {
-		case "invalid-token":
-			return "That isn’t a SimpleFIN setup token. Copy the whole token from SimpleFIN Bridge.";
-		case "claimed":
-			return "That setup token was used already, and each one connects only once. Make a new one at SimpleFIN Bridge. If you didn’t use it, revoke it there.";
-		case "connected-already":
-			return "Those Accounts are connected already.";
-		case "no-accounts":
-			return "There’s no checking, savings, card or loan account there to connect. Add one at SimpleFIN Bridge, then make a new setup token.";
-		default:
-			return null;
-	}
-};
-
-/** The setup token a Parent pastes from SimpleFIN Bridge; the Worker claims it. */
-function SimplefinForm({ onDone }: { onDone: () => void }) {
-	const queryClient = useQueryClient();
-	const hydrated = useHydrated();
-	const id = useId();
-	const [token, setToken] = useState("");
-	const [problem, setProblem] = useState<string | null>(null);
-
-	const connect = useMutation({
-		mutationFn: (setupToken: string) =>
-			connectSimplefin({ data: { connectionId: ulid(), setupToken } }),
-		onSuccess: (result) => {
-			if (result.ok) {
-				onDone();
-				toast(
-					`Connected ${result.accounts === 1 ? "1 Account" : `${result.accounts} Accounts`}. Bringing in their Transactions.`,
-				);
-				void queryClient.invalidateQueries({ queryKey: bankConnectionsQuery().queryKey });
-				void queryClient.invalidateQueries({ queryKey: goalsQuery().queryKey });
-				return;
-			}
-			if (result.reason === "not-set-up") {
-				onDone();
-				void queryClient.invalidateQueries({ queryKey: bankConnectionsQuery().queryKey });
-				return;
-			}
-			setProblem(simplefinProblem(result));
-		},
-		onError: () => setProblem("Couldn’t reach SimpleFIN Bridge. Try again in a minute."),
-	});
-
-	function onSubmit(event: FormEvent<HTMLFormElement>) {
-		event.preventDefault();
-		if (token.trim() === "" || connect.isPending) return;
-		setProblem(null);
-		connect.mutate(token.trim());
-	}
-
-	return (
-		<form onSubmit={onSubmit} className="grid gap-4">
-			<Field
-				label="Setup token"
-				htmlFor={`${id}-token`}
-				hint="Each setup token can be claimed only once. The access it gives stays sealed on Noodle’s server."
-			>
-				<Input
-					id={`${id}-token`}
-					value={token}
-					autoComplete="off"
-					autoCapitalize="off"
-					spellCheck={false}
-					enterKeyHint="go"
-					disabled={!hydrated}
-					aria-invalid={problem ? true : undefined}
-					onChange={(event) => {
-						setToken(event.currentTarget.value);
-						setProblem(null);
-					}}
-				/>
-			</Field>
-			{problem ? <FormError>{problem}</FormError> : null}
-			<Button type="submit" disabled={!hydrated || token.trim() === "" || connect.isPending}>
-				{connect.isPending ? "Connecting…" : "Connect"}
-			</Button>
-		</form>
 	);
 }
 
@@ -358,10 +239,7 @@ function ConnectionRow({
 					<Landmark />
 				</Tile>
 			}
-			title={
-				connection.institution ??
-				(connection.provider === "simplefin" ? "SimpleFIN Bridge" : "Bank")
-			}
+			title={connection.institution ?? "Bank"}
 			meta={
 				<>
 					<span>
@@ -369,7 +247,7 @@ function ConnectionRow({
 						{" · "}
 						<span className={cn(status.failed && "text-over")}>{status.text}</span>
 					</span>
-					{/* What the provider asked the Parent to read (SimpleFIN's errors), as plain text. */}
+					{/* What the provider asked the Parent to read (Plaid's display_message), as plain text. */}
 					{connection.notice ? (
 						<span className="basis-full whitespace-pre-line break-words text-foreground">
 							{connection.notice}
@@ -378,8 +256,7 @@ function ConnectionRow({
 				</>
 			}
 			trailing={
-				// Only Plaid's logins lapse; a SimpleFIN Bridge is fixed at the Bridge (its notice says how).
-				connection.status === "reconnect" && connection.provider === "plaid" && setUp ? (
+				connection.status === "reconnect" && setUp ? (
 					<Button
 						type="button"
 						size="sm"

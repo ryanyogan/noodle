@@ -223,15 +223,16 @@ export const commitmentTerms = sqliteTable(
 );
 
 // A Bank Connection: an ongoing authorized link to a financial institution, through a provider
-// (Plaid or SimpleFIN), that produces Imports automatically. `external_id` is the provider's ID
-// for the link (Plaid's Item; a digest of SimpleFIN's Access URL). `credential` is what the
-// provider needs to read it (Plaid's access token, SimpleFIN's Access URL), encrypted by the
-// Worker before it's stored (bank-credential.ts) and never sent to a browser.
+// (Plaid, the only one: ADR-0017), that produces Imports automatically. `provider` is a plain
+// text column (the enum is Drizzle's alone), so narrowing it needed no migration. `external_id`
+// is the provider's ID for the link (Plaid's Item ID). `credential` is what the provider needs to
+// read it (the Item's access token), encrypted by the Worker before it's stored
+// (bank-credential.ts) and never sent to a browser.
 // `cursor` is where the provider's changes were last read up to; `status` is "importing" until the
 // institution's history has all come in, "failed" while its reads keep failing (the next sync
 // tries again), and "reconnect" once the institution wants the Parent to sign in again: nothing
 // is read until they do. `notice` is what the provider last asked the Parent to read about the
-// link (SimpleFIN's errors), as plain text; null when its last read said nothing.
+// link (the `display_message` on a Plaid error), as plain text; null once a read works again.
 export const bankConnections = sqliteTable(
 	"bank_connections",
 	{
@@ -239,7 +240,7 @@ export const bankConnections = sqliteTable(
 		householdId: text("household_id")
 			.notNull()
 			.references(() => households.id),
-		provider: text("provider", { enum: ["plaid", "simplefin"] }).notNull(),
+		provider: text("provider", { enum: ["plaid"] }).notNull(),
 		externalId: text("external_id").notNull(),
 		institution: text("institution"),
 		credential: text("credential").notNull(),

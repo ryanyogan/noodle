@@ -4,8 +4,8 @@ import type { BatchItem } from "drizzle-orm/batch";
 import type { Db } from "./index";
 import { accountBalances, accounts, bankConnections, households } from "./schema";
 
-// Bank Connections: a Household's authorized links to its financial institutions (through Plaid
-// or SimpleFIN). Connecting one creates its Accounts, each with the balance the institution reports, in
+// Bank Connections: a Household's authorized links to its financial institutions (through
+// Plaid). Connecting one creates its Accounts, each with the balance the institution reports, in
 // one atomic batch; its Imports are then read by the Import Workflow, which keeps the provider's
 // cursor here so each read picks up where the last left off, and records each Account's balance
 // anew when the institution's has changed. The credential stays in the Worker: nothing here that

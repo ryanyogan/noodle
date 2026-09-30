@@ -41,7 +41,7 @@ export const bankImportInstanceId = (connectionId: string, runId: string) =>
 
 export type BankImportDeps = {
 	db: Db;
-	/** The provider a Bank Connection reads through (Plaid or SimpleFIN); throws if it's not set up. */
+	/** The provider a Bank Connection reads through (Plaid); throws if it's not set up. */
 	providerFor: (provider: BankProvider) => BankConnectionProvider;
 	/** The Bank Connection's credential, in the clear. */
 	openCredential: (connection: BankConnectionToImport) => Promise<string>;
@@ -77,7 +77,6 @@ type Read = {
 	from: string | null;
 	to: string | null;
 	complete: boolean;
-	notice: string | null;
 	createdByMemberId: string;
 	imports: { importId: string; accountId: string; lines: BankLine[]; removed: string[] }[];
 	balances: { accountId: string; balanceId: string; amountCents: Cents }[];
@@ -160,7 +159,8 @@ export async function runBankImport(
 					from: read.from,
 					to: read.to,
 					status: last ? "ready" : "importing",
-					notice: read.notice,
+					// A read that worked: whatever the provider last asked the Parent to read is past.
+					notice: null,
 				}),
 			);
 			await deps.notify(householdId, [
@@ -210,7 +210,6 @@ async function readRound(
 		from: connection.cursor,
 		to: changes.cursor,
 		complete: changes.complete,
-		notice: changes.notice ?? null,
 		createdByMemberId: connection.createdByMemberId,
 		imports: connection.accounts.flatMap(({ id, externalId }) => {
 			const lines = changes.lines.filter((line) => line.accountExternalId === externalId);

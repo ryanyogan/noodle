@@ -2,8 +2,9 @@ import type { BankProvider } from "@noodle/db";
 import type { BankAccount, BankLine } from "@noodle/domain";
 
 // The Bank Connection seam: what the app needs from any provider that links a Household to its
-// financial institution (Plaid today; SimpleFIN next). Connecting turns what the Parent's browser
-// handed back into a credential kept in the Worker; after that the Import Workflow only ever asks
+// financial institution. Plaid is the only one (ADR-0017); the seam stays so the rest of the app
+// never speaks Plaid. Connecting turns what the Parent's browser handed back into a credential
+// kept in the Worker; after that the Import Workflow only ever asks
 // for the accounts and for what changed since its last cursor: lines new or changed (pending ones
 // too, where the provider reports them) and, where it says, lines it dropped. Everything past this
 // seam is in the app's terms (@noodle/domain's BankAccount and BankLine), so an Import from any
@@ -33,8 +34,6 @@ export type BankChanges = {
 	cursor: string | null;
 	/** False while the provider is still gathering history, or has more to hand over. */
 	complete: boolean;
-	/** What the provider asked the Parent to read about the link, as plain text (SimpleFIN's errors). */
-	notice?: string | null;
 };
 
 export interface BankConnectionProvider {
@@ -50,7 +49,7 @@ export class BankProviderError extends Error {
 		message: string,
 		/** The provider's code for it, when it gave one (Plaid's `error_code`). */
 		readonly code: string | null = null,
-		/** What the provider asked the Parent to read about it, as plain text. */
+		/** What the provider asked the Parent to read about it, as plain text (Plaid's `display_message`). */
 		readonly notice: string | null = null,
 		/** The credential no longer works: a Parent must log in at the institution again. */
 		readonly reconnect = false,

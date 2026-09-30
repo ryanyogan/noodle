@@ -10,9 +10,10 @@
 		"CLERK_SIGN_IN_URL": "/sign-in",
 		// Ask's model calls go through this AI Gateway (ADR-0012); "default" is auto-created on first use.
 		"AI_GATEWAY_ID": "default",
-		// Plaid's environment for Bank Connections: "sandbox" or "production". They also need the
-		// PLAID_CLIENT_ID, PLAID_SECRET and BANK_CONNECTION_KEY secrets (server/bank-setup.ts);
-		// without them the Goals page says Bank Connections aren't set up.
+		// Plaid's environment for Bank Connections: "sandbox" or "production" (ADR-0017). They also
+		// need the PLAID_CLIENT_ID, PLAID_SECRET and BANK_CONNECTION_KEY secrets (server/bank-setup.ts);
+		// without them the Accounts page says Plaid isn't set up. For production, set "production"
+		// and replace PLAID_SECRET with the production secret.
 		"PLAID_ENV": "sandbox"
 	},
 	// Workers AI, for Ask and categorization (ADR-0012). It has no local simulator: `vite dev` calls

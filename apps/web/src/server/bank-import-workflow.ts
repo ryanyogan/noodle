@@ -43,7 +43,7 @@ export class ImportWorkflow extends WorkflowEntrypoint<Env, BankImportParams> {
 	override async run(event: Readonly<WorkflowEvent<BankImportParams>>, step: WorkflowStep) {
 		const setup = bankSetup();
 		if (!setup) {
-			console.error("Bank Connections aren’t set up: no BANK_CONNECTION_KEY secret");
+			console.error("Bank Connections aren’t set up: Plaid’s secrets or BANK_CONNECTION_KEY are missing");
 			return;
 		}
 		await runBankImport(event.payload, step, importDeps(createDb(this.env.DB), setup));

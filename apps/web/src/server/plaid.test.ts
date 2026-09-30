@@ -50,6 +50,19 @@ describe("Plaid's API", () => {
 		expect(error).toMatchObject({ code: "INVALID_PUBLIC_TOKEN", reconnect: false });
 	});
 
+	it("keeps what Plaid wrote for the Parent to read, and nothing when it wrote nothing", async () => {
+		const answer = (display_message: string | null) =>
+			plaidTransport({ clientId: "client", secret: "secret", environment: "sandbox" }, (async () =>
+				Response.json(
+					{ error_code: "INSTITUTION_DOWN", error_message: "down", display_message },
+					{ status: 400 },
+				)) as unknown as typeof fetch)("/transactions/sync", {}).catch((e: unknown) => e);
+		expect(await answer("This institution is not currently responding.")).toMatchObject({
+			notice: "This institution is not currently responding.",
+		});
+		expect(await answer(null)).toMatchObject({ notice: null });
+	});
+
 	it("says when a Parent must log in again", async () => {
 		const fetcher = (async () =>
 			Response.json(
