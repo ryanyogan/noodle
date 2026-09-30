@@ -23,9 +23,6 @@ jobs:
       - run: bun run test
 
   e2e:
-    # E2E runs locally (`bun run e2e` in apps/web) every few tickets, not on push: the private repo's
-    # runner-minutes ran out. Run it here by hand with "Run workflow".
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     # Six runners at once, one worker each: a private repo's runner has 2 vCPUs, so one runner ran
     # every spec in series (12+ minutes), and two workers on one runner starved the dev server.
@@ -60,7 +57,7 @@ jobs:
 
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [check]
+    needs: [check, e2e]
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
