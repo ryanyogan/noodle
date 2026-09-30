@@ -420,6 +420,7 @@ export { readStatement } from "./statement-file";
 export {
 	type ClosingBalance,
 	type CsvMapping,
+	closingBalanceFor,
 	DATE_FORMATS,
 	type DateFormat,
 	guessCsvMapping,

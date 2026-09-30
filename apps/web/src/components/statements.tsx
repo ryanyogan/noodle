@@ -2,6 +2,7 @@ import type { ImportRecord } from "@noodle/db";
 import {
 	type ClosingBalance,
 	type CsvMapping,
+	closingBalanceFor,
 	DATE_FORMATS,
 	type DateFormat,
 	dayKeyAt,
@@ -45,17 +46,17 @@ export function latestClosingBalance(imports: ImportRecord[]): ClosingBalance | 
 }
 
 /**
- * "Your latest statement ends at $X on Sep 20." A card's or loan's statement reports what's owed as
- * a negative balance. The hand-entered balance is never changed from it.
+ * "Your latest statement ends at $X on Sep 20", or for a card or loan "ends owing $X"
+ * (closingBalanceFor). The hand-entered balance is never changed from it.
  */
 export function StatementBalanceNote({ account }: { account: AccountView }) {
 	const { imports } = useSuspenseQuery(accountImportsQuery(account.id)).data;
 	const closing = latestClosingBalance(imports);
 	if (!closing) return null;
-	const amount = account.holdsMoney ? closing.amount : -closing.amount;
+	const { owing, amount } = closingBalanceFor(closing, account.holdsMoney);
 	return (
 		<p className="text-sm text-muted-foreground">
-			Your latest statement ends {account.holdsMoney ? "at" : "owing"}{" "}
+			Your latest statement ends {owing ? "owing" : "at"}{" "}
 			<span className="font-medium text-foreground tabular-nums">{formatMoney(amount)}</span> on{" "}
 			<span className="whitespace-nowrap">{shortDay(closing.date)}.</span>
 		</p>

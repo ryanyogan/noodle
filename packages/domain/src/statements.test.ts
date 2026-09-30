@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
 	type CsvMapping,
+	closingBalanceFor,
 	guessCsvMapping,
 	parseCsv,
 	parseStatementAmount,
@@ -248,5 +249,20 @@ describe("statementLineIds", () => {
 			"id:X",
 			"id:X#2",
 		]);
+	});
+});
+
+describe("closingBalanceFor: a statement's closing balance in the Account's terms", () => {
+	const closing = (amount: number) => ({ amount, date: "2026-09-20" as const });
+
+	it("reads a card's balance as owed, whichever sign the bank used", () => {
+		// OFX: what's owed as a negative balance. A CSV-style export: positive.
+		expect(closingBalanceFor(closing(-61_240), false)).toEqual({ owing: true, amount: 61_240 });
+		expect(closingBalanceFor(closing(61_240), false)).toEqual({ owing: true, amount: 61_240 });
+	});
+
+	it("keeps a checking or savings balance as it is, overdrawn included", () => {
+		expect(closingBalanceFor(closing(310_000), true)).toEqual({ owing: false, amount: 310_000 });
+		expect(closingBalanceFor(closing(-2_500), true)).toEqual({ owing: false, amount: -2_500 });
 	});
 });

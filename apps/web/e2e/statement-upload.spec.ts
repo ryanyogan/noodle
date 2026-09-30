@@ -100,6 +100,12 @@ test("money back onto a card is listed but counts nowhere", async ({ browser }) 
 	await sheet.getByRole("button", { name: "Import 4 lines" }).click();
 	await expect(toast(page, "card-debit-credit.csv: 4 Transactions")).toBeVisible();
 
+	// A card's QFX reports what's owed as a negative balance: the note says what's owed.
+	const qfx = await chooseStatement(page, "card-v2.qfx");
+	await qfx.getByRole("button", { name: /^Import \d+ lines?$/ }).click();
+	await expect(toast(page, "card-v2.qfx:")).toBeVisible();
+	await expect(page.getByText("Your latest statement ends owing $812.33 on Sep 21")).toBeVisible();
+
 	await page.goto(page.url().replace(/\/accounts\/.*$/, "/transactions/2026-09"));
 	const refund = page.getByRole("listitem").filter({ hasText: "REI #11 RETURN" });
 	await expect(refund).toContainText("Money back · Visa");

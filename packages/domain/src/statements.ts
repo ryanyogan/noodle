@@ -16,6 +16,21 @@ export type StatementLine = {
 /** The balance a statement says the Account ended at, as the bank reports it. */
 export type ClosingBalance = { amount: Cents; date: DayKey };
 
+/**
+ * What a closing balance says in the Account's own terms: for checking or savings, the balance;
+ * for a card or loan, what's owed, positive. Banks report a card's or loan's balance either way
+ * round (OFX usually negative, as money the Household owes; many exports positive), so either
+ * sign reads as owing.
+ */
+export function closingBalanceFor(
+	closing: ClosingBalance,
+	holdsMoney: boolean,
+): { owing: boolean; amount: Cents } {
+	return holdsMoney
+		? { owing: false, amount: closing.amount }
+		: { owing: true, amount: Math.abs(closing.amount) };
+}
+
 /** A statement file read into lines, with the rows it couldn't read (1-based, as a Parent counts them). */
 export type Statement = {
 	lines: StatementLine[];
