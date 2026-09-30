@@ -120,6 +120,9 @@ test("a page that fails to load explains it and retries", async ({ browser }) =>
 		.getByRole("link", { name: "Household" })
 		.click();
 	await expect(page.getByRole("alert")).toContainText("This page didn’t load");
+	// In plain words, never the error's own text.
+	await expect(page.getByRole("alert")).toContainText("Something went wrong loading it");
+	await expect(page.getByRole("alert")).not.toContainText("Invariant");
 
 	await page.unroute(parents);
 	await page.getByRole("button", { name: "Try again" }).click();

@@ -4,7 +4,7 @@ import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { type ErrorComponentProps, Link, useRouter } from "@tanstack/react-router";
 import { RotateCw, SearchX, TriangleAlert } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * Shown only when a route is slow to load (router `defaultPendingMs`), and then for at least
@@ -50,14 +50,18 @@ export function PagePending() {
 export function PageError({ error }: ErrorComponentProps) {
 	const router = useRouter();
 	const [retrying, setRetrying] = useState(false);
-	const message =
-		error instanceof Error && error.message ? error.message : "Something unexpected happened.";
+	// What failed is for the console: the text a load fails with is the framework's or the
+	// program's ("Invariant failed: …", "(intermediate value) is not a function"), never words for
+	// a Parent.
+	useEffect(() => {
+		console.error(error);
+	}, [error]);
 	return (
 		<div role="alert" className="animate-enter">
 			<EmptyState
 				icon={<TriangleAlert />}
 				title="This page didn’t load"
-				description={<>{message} Check your connection, then try again.</>}
+				description="Something went wrong loading it, on our side or with the connection. Try again in a moment."
 				action={
 					<Button
 						variant="outline"
