@@ -361,7 +361,7 @@ function Waterfall({ state, current }: { state: MonthState; current: boolean }) 
 				</li>
 			</List>
 			{overBy > 0 ? (
-				<p className="rounded-xl bg-over-soft px-3 py-2.5 text-[13px] text-over">
+				<p className="rounded-xl bg-over-soft px-3 py-2.5 text-[13px] text-over-foreground">
 					{state.committed > 0
 						? `Your Commitments and Buckets add up to ${formatMoney(overBy)} more than your Baseline. Lower an amount or raise the Baseline.`
 						: `Your Buckets add up to ${formatMoney(overBy)} more than your Baseline. Lower an allowance or raise the Baseline.`}

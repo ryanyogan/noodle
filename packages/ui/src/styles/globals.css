@@ -47,7 +47,8 @@
 	/* Text */
 	--foreground: #0e1525;
 	--muted-foreground: #545e70;
-	--subtle-foreground: #8a93a4;
+	/* Hints and secondary figures: at least 4.5:1 (WCAG 1.4.3) on card, background, surface-2 and surface-3. */
+	--subtle-foreground: #616a7c;
 
 	/* The one accent, plus the two reserved state colours */
 	--brand: #3e63dd;
@@ -57,6 +58,8 @@
 	--pace-foreground: #8a5b06;
 	--over: #cc3d3d;
 	--over-soft: rgb(204 61 61 / 0.1);
+	/* Over as text on --over-soft (badges): at least 4.5:1. */
+	--over-foreground: #b42f2f;
 
 	/* Faint glows behind the page */
 	--glow-1: rgb(62 99 221 / 0.07);
@@ -132,7 +135,7 @@
 		--border-strong: #283041;
 		--foreground: #eceff4;
 		--muted-foreground: #a0a8b7;
-		--subtle-foreground: #6c7486;
+		--subtle-foreground: #838b9c;
 		--brand: #7c9bff;
 		--brand-soft: rgb(124 155 255 / 0.14);
 		--pace: #f5b23a;
@@ -140,6 +143,7 @@
 		--pace-foreground: #f5c46a;
 		--over: #f07171;
 		--over-soft: rgb(240 113 113 / 0.14);
+		--over-foreground: #f07171;
 		--glow-1: rgb(124 155 255 / 0.1);
 		--glow-2: rgb(245 178 58 / 0.05);
 		--scrim: rgb(0 0 0 / 0.6);
@@ -213,6 +217,7 @@
 	--color-pace-foreground: var(--pace-foreground);
 	--color-over: var(--over);
 	--color-over-soft: var(--over-soft);
+	--color-over-foreground: var(--over-foreground);
 	--color-scrim: var(--scrim);
 	--color-bucket-1: var(--bucket-1);
 	--color-bucket-2: var(--bucket-2);

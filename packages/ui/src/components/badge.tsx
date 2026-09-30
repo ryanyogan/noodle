@@ -11,7 +11,7 @@ const badgeVariants = cva(
 				default: "bg-surface-2 text-muted-foreground",
 				count: "bg-surface-3 px-1.75 font-semibold text-muted-foreground",
 				pace: "bg-pace-soft text-pace-foreground",
-				over: "bg-over-soft text-over",
+				over: "bg-over-soft text-over-foreground",
 				brand: "bg-brand-soft text-brand",
 			},
 			dot: {

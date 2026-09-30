@@ -122,7 +122,7 @@ function AccountDetails({ account }: { account: AccountView }) {
 					{account.overClaimedBy > 0 ? (
 						<p
 							role="status"
-							className="border-t bg-over-soft px-(--card-pad) py-3 text-[13px] text-over"
+							className="border-t bg-over-soft px-(--card-pad) py-3 text-[13px] text-over-foreground"
 						>
 							Earmarks are {formatMoney(account.overClaimedBy)} more than the balance. Update the
 							balance if it’s out of date, or release some of a Goal’s Earmark.
