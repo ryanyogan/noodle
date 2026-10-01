@@ -74,14 +74,22 @@ test("a seeded Check-in walks Review, Insights and Extra income to a done state"
 	await saved;
 
 	seedCheckIn(parent.userId, day);
-	await page.getByRole("link", { name: "Start", exact: true }).click();
+
+	// On the day, This Month says so, and the sidebar marks it until it's done.
+	await page.getByRole("link", { name: "This Month", exact: true }).click();
+	await expect(page.getByRole("heading", { name: "It’s Check-in day" })).toBeVisible();
+	const sidebarCheckIn = page
+		.getByRole("navigation", { name: "Main" })
+		.getByRole("link", { name: /^Check-in/ });
+	await expect(sidebarCheckIn).toHaveAccessibleName("Check-in not done this week");
+	await sidebarCheckIn.click();
 	await expect(page.getByRole("heading", { level: 1 })).toContainText("Check-in");
 
 	// Sweeps has nothing in it (last month had no Plan), so it's skipped.
 	await expect(page.getByText("1 of 3")).toBeVisible();
 	await expect(page.getByRole("heading", { name: "1 Transaction in Review" })).toBeVisible();
 	await expect(page.getByRole("link", { name: "Open Review" })).toBeVisible();
-	await page.getByRole("button", { name: "Next" }).click();
+	await page.getByRole("button", { name: "Skip for now" }).click();
 
 	await expect(page.getByText("2 of 3")).toBeVisible();
 	await expect(page.getByRole("heading", { name: "1 new Insight" })).toBeVisible();
@@ -92,19 +100,22 @@ test("a seeded Check-in walks Review, Insights and Extra income to a done state"
 	await page.goBack();
 	await expect(page.getByText("2 of 3")).toBeVisible();
 	await expect(page.getByRole("heading", { name: "1 new Insight" })).toBeVisible();
-	await page.getByRole("button", { name: "Next" }).click();
+	await page.getByRole("button", { name: "Skip for now" }).click();
 
 	await expect(page.getByText("3 of 3")).toBeVisible();
 	await expect(page.getByRole("heading", { name: "$250 of Extra income to decide" })).toBeVisible();
 	const finished = savedBy(page, "completeCheckIn");
-	await page.getByRole("button", { name: "Finish" }).click();
+	await page.getByRole("button", { name: "Skip and finish" }).click();
 	await finished;
 
 	await expect(page.getByText("You’re done for this week")).toBeVisible();
+	// What was skipped still waits, and the Check-in says so.
+	await expect(page.getByText(/Still waiting for you: 1 Transaction in Review/)).toBeVisible();
+	await expect(sidebarCheckIn).toHaveAccessibleName("Check-in");
 	await expect(page.getByText("Sam finished this week’s Check-in.")).toBeVisible();
 
 	// Finishing was recorded: it's still done after a reload.
 	await page.reload();
 	await expect(page.getByText("You’re done for this week")).toBeVisible();
-	await expect(page.getByRole("button", { name: "Next" })).toBeHidden();
+	await expect(page.getByRole("button", { name: "Skip for now" })).toBeHidden();
 });

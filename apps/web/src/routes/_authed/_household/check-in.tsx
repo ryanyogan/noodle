@@ -10,7 +10,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Check, ChevronRight } from "lucide-react";
 import { useEffect } from "react";
 import { z } from "zod";
-import { checkInCardTitle, checkInLine } from "../../../check-in";
+import { checkInCardTitle, checkInLine, checkInSummary } from "../../../check-in";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney, fullDay, monthName } from "../../../format";
 import { checkInQuery } from "../../../queries";
@@ -124,7 +124,10 @@ function CheckInCardView({
 			<CardDetails card={card} />
 			<CardFooter className="justify-between">
 				<CardLink card={card} />
-				<Button onClick={onNext}>{last ? "Finish" : "Next"}</Button>
+				{/* A card is only here while something on it waits: moving on leaves it for later. */}
+				<Button variant="ghost" onClick={onNext}>
+					{last ? "Skip and finish" : "Skip for now"}
+				</Button>
 			</CardFooter>
 		</Card>
 	);
@@ -222,12 +225,15 @@ function CardLink({ card }: { card: CheckInCard }) {
 
 function Done({ view, empty }: { view: CheckInView; empty: boolean }) {
 	const other = view.otherParent;
+	// The week is done, but what was skipped still waits: say so, rather than "all done".
+	const waiting = view.cards.length > 0 ? checkInSummary(view.cards) : null;
 	return (
 		<EmptyState
 			icon={<Check />}
 			title="You’re done for this week"
 			description={
 				<>
+					{waiting ? `Still waiting for you: ${waiting} ` : null}
 					{empty
 						? "Nothing needed you this week. Once a week, the Check-in takes a few minutes: confirm spending Noodle wasn’t sure about, look at its suggestions, and decide what to do with last month’s leftovers. "
 						: null}

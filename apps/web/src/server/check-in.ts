@@ -103,6 +103,27 @@ export const getCheckIn = createServerFn({ method: "GET" })
 		};
 	});
 
+/** Whether the signed-in Parent has done this week's Check-in, for the sidebar and This Month. */
+export type CheckInStatus = {
+	done: boolean;
+	/** Today is the Check-in day: the week's Check-in starts today. */
+	today: boolean;
+};
+
+/** This week's Check-in, as the app's frame shows it: only whether this Parent has done it. */
+export const getCheckInStatus = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.handler(async ({ context }): Promise<CheckInStatus> => {
+		const now = new Date();
+		const week = thisWeek(context, now);
+		const parents = await loadCheckIns(getDb(), context.household.id, week);
+		const me = parents.find((parent) => parent.memberId === context.parent.id);
+		return {
+			done: Boolean(me?.completedAt),
+			today: week === dayKeyAt(now, context.household.timeZone),
+		};
+	});
+
 /** Finishes this week's Check-in for the signed-in Parent. Idempotent. */
 export const completeCheckIn = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])

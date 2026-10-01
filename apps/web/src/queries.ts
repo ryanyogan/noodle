@@ -3,7 +3,7 @@ import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { getBankConnections } from "./server/bank-connections";
 import { getBucket } from "./server/buckets";
 import { getCaptureToken } from "./server/capture-tokens";
-import { getCheckIn } from "./server/check-in";
+import { getCheckIn, getCheckInStatus } from "./server/check-in";
 import { getCommitments } from "./server/commitments";
 import { getGoals } from "./server/goals";
 import { getAccountImports } from "./server/imports";
@@ -174,6 +174,16 @@ export const checkInQuery = () =>
 		queryKey: [...monthsKey, "check-in"],
 		queryFn: () => getCheckIn(),
 		staleTime: 0,
+	});
+
+/**
+ * Whether this Parent has done this week's Check-in (the sidebar's badge, This Month's card).
+ * Under the Check-in's key, so whatever refetches the Check-in refetches this too.
+ */
+export const checkInStatusQuery = () =>
+	queryOptions({
+		queryKey: [...monthsKey, "check-in", "status"],
+		queryFn: () => getCheckInStatus(),
 	});
 
 /**

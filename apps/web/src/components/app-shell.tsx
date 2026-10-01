@@ -1,9 +1,12 @@
 import { UserButton } from "@clerk/tanstack-react-start";
+import { monthKeyAt } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Logo } from "@noodle/ui/components/logo";
 import { cn } from "@noodle/ui/lib/utils";
-import { Link, type LinkProps, useRouterState } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { Link, type LinkProps, useRouteContext, useRouterState } from "@tanstack/react-router";
 import {
+	CalendarCheck,
 	CalendarDays,
 	ChartColumn,
 	Landmark,
@@ -17,6 +20,7 @@ import {
 	UsersRound,
 } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
+import { checkInStatusQuery } from "../queries";
 import { markQuickAddOpened, quickAddSearch } from "./quick-add";
 
 type NavItem = {
@@ -56,8 +60,43 @@ const nav: NavItem[] = [
 	{ to: "/explore", label: "Explore", short: "Explore", icon: Telescope, desktopOnly: true },
 	{ to: "/reports", label: "Reports", short: "Reports", icon: ChartColumn, desktopOnly: true },
 	{ to: "/ask", label: "Ask", short: "Ask", icon: MessageCircleQuestionMark, desktopOnly: true },
+	// Weekly, so in the sidebar; on a phone it's reached from This Month's card on the day, its
+	// Nudge and email, and Household.
+	{
+		to: "/check-in",
+		label: "Check-in",
+		short: "Check-in",
+		icon: CalendarCheck,
+		desktopOnly: true,
+	},
 	{ to: "/household", label: "Household", short: "Household", icon: UsersRound },
 ];
+
+/**
+ * Whether a destination is the current page. This Month is only this month's page: an earlier
+ * month's isn't "this month", so nothing in the sidebar is current there.
+ */
+function useIsCurrent() {
+	const pathname = useRouterState({ select: (state) => state.location.pathname });
+	const { household } = useRouteContext({ from: "/_authed/_household" });
+	const thisMonth = monthKeyAt(new Date(), household.timeZone);
+	return (item: NavItem) =>
+		item.to === "/month"
+			? pathname === "/month" || pathname.startsWith(`/month/${thisMonth}`)
+			: pathname.startsWith(item.to as string) || currentWithin(item, pathname);
+}
+
+/** A dot beside Check-in while this Parent hasn't done this week's. */
+function CheckInBadge() {
+	const status = useQuery(checkInStatusQuery()).data;
+	if (!status || status.done) return null;
+	return (
+		<span className="ms-auto flex items-center">
+			<span aria-hidden="true" className="size-2 rounded-full bg-brand" />
+			<span className="sr-only">not done this week</span>
+		</span>
+	);
+}
 
 /** The authenticated app frame: a sidebar on desktop, a bottom tab bar on phones. */
 export function AppShell({
@@ -88,7 +127,7 @@ export function AppShell({
 }
 
 function Sidebar({ householdName }: { householdName: string }) {
-	const pathname = useRouterState({ select: (state) => state.location.pathname });
+	const isCurrent = useIsCurrent();
 	return (
 		<aside className="sticky top-0 hidden h-dvh flex-col gap-6 border-e bg-card/55 px-3 py-5 lg:flex">
 			<Link to="/month" className="rounded-lg px-3 py-1" aria-label="Noodle, This Month">
@@ -110,16 +149,18 @@ function Sidebar({ householdName }: { householdName: string }) {
 					<Link
 						key={item.label}
 						to={item.to}
+						// Current is worked out here (useIsCurrent), not by the router's fuzzy match.
+						activeOptions={{ exact: true }}
+						aria-current={isCurrent(item) ? "page" : undefined}
 						className={cn(
 							"flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium text-muted-foreground",
 							"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2 hover:text-foreground",
-							"data-[status=active]:bg-card data-[status=active]:text-foreground data-[status=active]:shadow-card data-[status=active]:ring-1 data-[status=active]:ring-border",
-							currentWithin(item, pathname) &&
-								"bg-card text-foreground shadow-card ring-1 ring-border",
+							isCurrent(item) && "bg-card text-foreground shadow-card ring-1 ring-border",
 						)}
 					>
 						<item.icon className="size-4.5" strokeWidth={1.75} aria-hidden="true" />
 						{item.label}
+						{item.to === "/check-in" ? <CheckInBadge /> : null}
 					</Link>
 				))}
 			</nav>
@@ -184,17 +225,19 @@ function TabBar() {
 
 function TabGroup({ items }: { items: NavItem[] }) {
 	const pathname = useRouterState({ select: (state) => state.location.pathname });
+	const isCurrent = useIsCurrent();
 	return (
 		<div className="grid auto-cols-fr grid-flow-col">
 			{items.map((item) => (
 				<Link
 					key={item.label}
 					to={item.to}
+					activeOptions={{ exact: true }}
+					aria-current={isCurrent(item) ? "page" : undefined}
 					className={cn(
 						"grid h-(--tabbar-height) min-w-0 place-content-center justify-items-center gap-1 rounded-lg text-[11px] font-medium text-subtle-foreground",
-						"transition-colors duration-(--duration-fast) ease-standard data-[status=active]:text-foreground",
-						(item.alsoFor?.some((path) => pathname.startsWith(path)) ||
-							currentWithin(item, pathname)) &&
+						"transition-colors duration-(--duration-fast) ease-standard",
+						(isCurrent(item) || item.alsoFor?.some((path) => pathname.startsWith(path))) &&
 							"text-foreground",
 					)}
 				>
