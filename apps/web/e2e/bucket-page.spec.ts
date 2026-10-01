@@ -54,7 +54,7 @@ test("a Bucket's page shows its month, its year and its history, and changes it"
 	// A row opens the Transaction, as on Transactions.
 	await transactions.getByRole("button", { name: /^Skates, / }).click();
 	const edit = page.getByRole("dialog", { name: "Edit Transaction" });
-	await expect(edit.getByLabel("Assigned to")).toHaveValue(/^bucket:/);
+	await expect(edit.locator('input[name="assignment"]')).toHaveValue(/^bucket:/);
 	await edit.getByRole("button", { name: "Close" }).click();
 	await expect(edit).toBeHidden();
 	await transactions.getByRole("link", { name: "All in Transactions" }).click();

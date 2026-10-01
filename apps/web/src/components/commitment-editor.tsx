@@ -14,7 +14,7 @@ import { Card } from "@noodle/ui/components/card";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { ListRow } from "@noodle/ui/components/list";
-import { NativeSelect } from "@noodle/ui/components/native-select";
+import { OptionSelect } from "@noodle/ui/components/select";
 import {
 	Sheet,
 	SheetCancel,
@@ -352,18 +352,13 @@ function ScheduleFields({
 	return (
 		<div className="grid gap-3 sm:grid-cols-2">
 			<Field label="How often" htmlFor={`${id}-cadence`} className="content-start">
-				<NativeSelect
+				<OptionSelect
 					id={`${id}-cadence`}
 					name="cadence"
 					defaultValue={cadence}
-					className={inCard ? "[&>select]:bg-card" : undefined}
-				>
-					{CADENCES.map((value) => (
-						<option key={value} value={value}>
-							{cadenceNames[value]}
-						</option>
-					))}
-				</NativeSelect>
+					className={inCard ? "bg-card" : undefined}
+					choices={CADENCES.map((value) => ({ value, label: cadenceNames[value] }))}
+				/>
 			</Field>
 			<Field label={dueLabel} htmlFor={`${id}-due`} className="content-start" hint={dueHint}>
 				<Input

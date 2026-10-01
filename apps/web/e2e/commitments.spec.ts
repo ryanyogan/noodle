@@ -1,6 +1,6 @@
 import { expect, type Page, type Route, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, serverFn, signedInPage, switchTo } from "./session";
+import { choose, createPlannedHousehold, serverFn, signedInPage, switchTo } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -76,7 +76,7 @@ async function addCommitment(
 	const form = addForm(page);
 	await form.getByLabel("New Commitment").fill(name);
 	await form.getByLabel("Amount due").fill(due);
-	if (cadence) await form.getByLabel("How often").selectOption({ label: cadence });
+	if (cadence) await choose(form, "How often", cadence);
 	if (dueDate) await form.getByLabel("Due on").fill(dueDate);
 	await form.getByRole("button", { name: "Add Commitment" }).click();
 	await expect(edit(page, name)).toBeVisible();

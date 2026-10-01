@@ -8,8 +8,8 @@ import {
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { List, ListRow } from "@noodle/ui/components/list";
-import { NativeSelect } from "@noodle/ui/components/native-select";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import { OptionSelect } from "@noodle/ui/components/select";
 import { cn } from "@noodle/ui/lib/utils";
 import { useHydrated } from "@tanstack/react-router";
 import { useState } from "react";
@@ -49,11 +49,7 @@ export function MonthCloseSection({
 	);
 	const [extraIncomeGoalId, setExtraIncomeGoalId] = useState("");
 	const name = monthName(proposal.month);
-	const goalOptions = goals.map((g) => (
-		<option key={g.id} value={g.id}>
-			{g.name}
-		</option>
-	));
+	const goalChoices = goals.map((g) => ({ value: g.id, label: g.name }));
 	return (
 		<Section aria-labelledby="month-close">
 			<SectionHeader
@@ -81,19 +77,16 @@ export function MonthCloseSection({
 						title={leftover.name}
 						meta={`${formatMoney(leftover.amount)} left`}
 						trailing={
-							<NativeSelect
+							<OptionSelect
 								className="w-40"
 								aria-label={`Where ${leftover.name}’s leftover goes`}
 								value={sweeps[leftover.bucketId] ?? ""}
 								disabled={!hydrated || pending}
-								onChange={(event) => {
-									const goalId = event.currentTarget.value;
-									setSweeps((current) => ({ ...current, [leftover.bucketId]: goalId }));
-								}}
-							>
-								<option value="">Leave it</option>
-								{goalOptions}
-							</NativeSelect>
+								onValueChange={(goalId) =>
+									setSweeps((current) => ({ ...current, [leftover.bucketId]: goalId }))
+								}
+								choices={[{ value: "", label: "Leave it" }, ...goalChoices]}
+							/>
 						}
 					/>
 				))}
@@ -102,16 +95,14 @@ export function MonthCloseSection({
 						title="Extra income"
 						meta={`${formatMoney(proposal.windfall)} above your usual take-home pay`}
 						trailing={
-							<NativeSelect
+							<OptionSelect
 								className="w-40"
 								aria-label="Where the Extra income goes"
 								value={extraIncomeGoalId}
 								disabled={!hydrated || pending}
-								onChange={(event) => setExtraIncomeGoalId(event.currentTarget.value)}
-							>
-								<option value="">Decide later</option>
-								{goalOptions}
-							</NativeSelect>
+								onValueChange={setExtraIncomeGoalId}
+								choices={[{ value: "", label: "Decide later" }, ...goalChoices]}
+							/>
 						}
 					/>
 				) : null}

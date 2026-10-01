@@ -69,7 +69,9 @@ test("a Parent connects a bank, and its Accounts and Transactions come in", asyn
 
 	// Nothing's here yet, so each account there is added as a new Account.
 	await page.getByRole("button", { name: "Connect a bank" }).click();
-	await expect(chooseSheet(page).getByLabel("Plaid Checking ··0000")).toHaveValue("new");
+	await expect(chooseSheet(page).getByLabel("Plaid Checking ··0000")).toHaveText(
+		"Add as a new Account",
+	);
 	await chooseSheet(page).getByRole("button", { name: "Start bringing them in" }).click();
 	await expect(toast(page, "Bringing in 4 Accounts from First Platypus Bank.")).toBeVisible();
 

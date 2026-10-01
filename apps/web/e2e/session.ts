@@ -91,8 +91,8 @@ export async function createPlannedHousehold(
 }
 
 /**
- * Picks `option` from a shadcn Select (a combobox that opens a listbox) named `label`; native
- * selects take `selectOption` instead.
+ * Picks `option` from a shadcn Select or Combobox (a combobox that opens a listbox) named
+ * `label`.
  */
 export async function choose(scope: Page | Locator, label: string, option: string) {
 	const page = "page" in scope ? scope.page() : scope;
@@ -100,3 +100,13 @@ export async function choose(scope: Page | Locator, label: string, option: strin
 	await page.getByRole("listbox").getByRole("option", { name: option, exact: true }).click();
 	await expect(page.getByRole("listbox")).toBeHidden();
 }
+
+const accountKindLabels: Record<string, string> = {
+	checking: "Checking",
+	savings: "Savings",
+	"credit-card": "Credit card",
+	loan: "Loan",
+};
+
+/** An Account kind's name in the Kind select ("credit-card" → "Credit card"). */
+export const accountKindLabel = (kind: string) => accountKindLabels[kind] ?? kind;

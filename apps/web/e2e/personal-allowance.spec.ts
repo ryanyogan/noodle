@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, serverFn, signedInPage, switchTo } from "./session";
+import { choose, createPlannedHousehold, serverFn, signedInPage, switchTo } from "./session";
 
 const nav = (page: Page) => page.getByRole("navigation", { name: "Main" });
 const quickAddSheet = (page: Page) => page.getByRole("dialog", { name: "Quick Add" });
@@ -107,7 +107,7 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 		await list(alex)
 			.getByRole("button", { name: /^Flowers,/ })
 			.click();
-		await editSheet(alex).getByLabel("Assigned to").selectOption({ label: ALEX_PA });
+		await choose(editSheet(alex), "Assigned to", ALEX_PA);
 		await editSheet(alex).getByRole("button", { name: "Save" }).click();
 		await expect(editSheet(alex)).toBeHidden();
 		await expect(list(alex).getByRole("button", { name: /^Flowers,/ })).toHaveAccessibleName(
@@ -126,7 +126,7 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 		const split = (n: number) =>
 			editSheet(alex).getByRole("group", { name: `Split ${n}`, exact: true });
 		await split(1).getByLabel("Amount").fill("70");
-		await split(2).getByLabel("Assigned to").selectOption({ label: ALEX_PA });
+		await choose(split(2), "Assigned to", ALEX_PA);
 		await split(2).getByLabel("Amount").fill("30");
 		await editSheet(alex).getByRole("button", { name: "Save" }).click();
 		await expect(editSheet(alex)).toBeHidden();
@@ -195,9 +195,11 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 		await list(sam)
 			.getByRole("button", { name: /^Milk,/ })
 			.click();
-		await expect(
-			editSheet(sam).getByLabel("Assigned to").locator("option", { hasText: ALEX_PA }),
-		).toHaveCount(0);
+		await editSheet(sam).getByRole("combobox", { name: "Assigned to" }).click();
+		await expect(sam.getByRole("listbox").getByRole("option").first()).toBeVisible();
+		await expect(sam.getByRole("listbox").getByRole("option", { name: ALEX_PA })).toHaveCount(0);
+		await sam.keyboard.press("Escape");
+		await expect(sam.getByRole("listbox")).toBeHidden();
 		await sam.keyboard.press("Escape");
 
 		// Nor was any of it sent to Sam's browser: not a note, not a Transaction ID.

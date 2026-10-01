@@ -1,6 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { choose, createPlannedHousehold, serverFn, signedInPage } from "./session";
+import {
+	accountKindLabel,
+	choose,
+	createPlannedHousehold,
+	serverFn,
+	signedInPage,
+} from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -85,7 +91,7 @@ test("editing a Transaction reassigns its spending on This Month at once", async
 	await row(page, "Pro Hockey Life").click();
 	await expect(editSheet(page)).toBeVisible();
 	await editSheet(page).getByLabel("Amount").fill("70");
-	await editSheet(page).getByLabel("Assigned to").selectOption({ label: "Hockey" });
+	await choose(editSheet(page), "Assigned to", "Hockey");
 	await editSheet(page)
 		.getByRole("toolbar", { name: "For" })
 		.getByRole("button", { name: "Leo" })
@@ -121,7 +127,7 @@ test("a failed edit or delete is undone and can be retried", async ({ browser })
 	const update = serverFn("updateTransaction");
 	await page.route(update, (route) => route.fulfill({ status: 500, body: "Server error" }));
 	await row(page, "Costco").click();
-	await editSheet(page).getByLabel("Assigned to").selectOption({ label: "Hockey" });
+	await choose(editSheet(page), "Assigned to", "Hockey");
 	await editSheet(page).getByRole("button", { name: "Save" }).click();
 	const failed = page.getByRole("status").filter({ hasText: "Couldn’t save" });
 	await expect(failed).toContainText("Couldn’t save your change to $85.50 (Costco)");
@@ -223,7 +229,7 @@ test("an Account lists its Transactions, and Transactions filters by it", async 
 	// A card whose statement has Costco's bank copy, a tipped Chipotle, and Trader Joe's.
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await page.getByLabel("Name").fill("Visa");
-	await page.getByLabel("Kind").selectOption("credit-card");
+	await choose(page, "Kind", accountKindLabel("credit-card"));
 	await page.getByLabel("Owed now").fill("800");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: /^Visa, / }).click();

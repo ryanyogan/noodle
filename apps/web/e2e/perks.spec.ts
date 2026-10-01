@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage, switchTo } from "./session";
+import { choose, createPlannedHousehold, signedInPage, switchTo } from "./session";
 
 // Perk research runs inline with its fakes here (AI_MODEL=stub in playwright.config.ts): any
 // t-mobile.com page is a phone plan's whose Perks depend on the plan (Netflix with Go5G and Go5G
@@ -60,7 +60,7 @@ test("a phone plan among the Commitments is confirmed, asks for its plan, and fi
 	const card = sourceCard(page, "T-Mobile");
 	await expect(card).toContainText("Which plan is it?");
 	await expect(card.getByRole("listitem")).toHaveCount(0);
-	await card.getByLabel("Plan").selectOption("Go5G Plus");
+	await choose(card, "Plan", "Go5G Plus");
 	await card.getByRole("button", { name: "Save" }).click();
 
 	// Only what the page says, each linked to it with the day it was read.
@@ -106,7 +106,7 @@ test("a card added by hand covers a cost already paid; a page that can't be read
 	await expect(page.getByText("No Perk Sources yet")).toBeVisible();
 	const add = page.getByRole("region", { name: "Add a Perk Source" });
 	await add.getByLabel("Name").fill("Chase Sapphire");
-	await add.getByLabel("Kind").selectOption("Credit card");
+	await choose(add, "Kind", "Credit card");
 	await add.getByRole("button", { name: "Add" }).click();
 
 	// The catalog knows its page; its Perks are the same whichever card.

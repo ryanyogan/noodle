@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage, switchTo } from "./session";
+import { choose, createPlannedHousehold, signedInPage, switchTo } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -37,7 +37,7 @@ async function addYearly(page: Page, name: string, due: string, dueDate: string)
 	const form = addForm(page);
 	await form.getByLabel("New Commitment").fill(name);
 	await form.getByLabel("Amount due").fill(due);
-	await form.getByLabel("How often").selectOption({ label: "Yearly" });
+	await choose(form, "How often", "Yearly");
 	await form.getByLabel("Due on").fill(dueDate);
 	await form.getByRole("button", { name: "Add Commitment" }).click();
 	await expect(page.getByRole("button", { name: `Edit ${name}` })).toBeVisible();

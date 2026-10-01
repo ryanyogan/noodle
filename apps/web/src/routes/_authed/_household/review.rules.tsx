@@ -2,11 +2,11 @@ import { canAssign, type For, monthKeyAt, type PlanBucket } from "@noodle/domain
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import { Combobox } from "@noodle/ui/components/combobox";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { List } from "@noodle/ui/components/list";
-import { NativeSelect } from "@noodle/ui/components/native-select";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import {
 	Sheet,
@@ -328,18 +328,14 @@ function RuleForm({
 				/>
 			</Field>
 			<Field label="Bucket" htmlFor="rule-bucket">
-				<NativeSelect
+				<Combobox
 					id="rule-bucket"
 					value={bucketId}
-					onChange={(event) => setBucketId(event.target.value)}
+					onValueChange={setBucketId}
 					disabled={!hydrated}
-				>
-					{options.map((b) => (
-						<option key={b.id} value={b.id}>
-							{b.name}
-						</option>
-					))}
-				</NativeSelect>
+					searchPlaceholder="Find a Bucket"
+					choices={options.map((b) => ({ value: b.id, label: b.name }))}
+				/>
 			</Field>
 			<ForPicker members={members} value={forIds} onChange={setForIds} multiple />
 			<SheetFooter>

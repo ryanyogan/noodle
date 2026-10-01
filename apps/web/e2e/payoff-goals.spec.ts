@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, savedBy, signedInPage } from "./session";
+import { accountKindLabel, choose, createPlannedHousehold, savedBy, signedInPage } from "./session";
 
 // Paying off a credit card or loan with a payoff Goal (ADR-0019): its target is what's owed when
 // it's added, it's funded from Free to Spend like any Goal, and it's paid down as what's owed
@@ -31,7 +31,7 @@ async function addAccount(page: Page, name: string, kind: string, amount: string
 		? page.getByRole("main")
 		: page.getByRole("dialog", { name: "Add an Account" });
 	await form.getByLabel("Name").fill(name);
-	await form.getByLabel("Kind").selectOption(kind);
+	await choose(form, "Kind", accountKindLabel(kind));
 	await form.getByLabel(kind === "checking" ? "Balance now" : "Owed now").fill(amount);
 	const saved = savedBy(page, "addAccount");
 	await form.getByRole("button", { name: "Add Account" }).click();

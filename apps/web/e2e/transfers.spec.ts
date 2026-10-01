@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -39,7 +39,7 @@ async function uploadStatement(
 		}).toPass();
 	}
 	await page.getByLabel("Name").fill(account.name);
-	await page.getByLabel("Kind").selectOption(account.kind);
+	await choose(page, "Kind", accountKindLabel(account.kind));
 	await page
 		.getByLabel(account.kind === "credit-card" ? "Owed now" : "Balance now")
 		.fill(account.balance);

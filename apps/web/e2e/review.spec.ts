@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
 
 // Categorization runs with its deterministic fake (AI_MODEL=stub, see vite.config.ts): it knows
 // nothing about ACME, and guesses Gas, unsure, for a merchant with "gas" in its name.
@@ -24,7 +24,7 @@ async function uploadStatement(page: Page, lines: [string, string][], addAccount
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	if (addAccount) {
 		await page.getByLabel("Name").fill("Visa");
-		await page.getByLabel("Kind").selectOption("credit-card");
+		await choose(page, "Kind", accountKindLabel("credit-card"));
 		await page.getByLabel("Owed now").fill("800");
 		await page.getByRole("button", { name: "Add Account" }).click();
 	}
@@ -107,7 +107,7 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	// Swiped left (once it can be): the editor, where the Parent picks the Bucket.
 	await expect(page.getByRole("button", { name: "Change" })).toBeEnabled();
 	await swipe(page, -220);
-	await editSheet(page).getByLabel("Assigned to").selectOption({ label: "Fun" });
+	await choose(editSheet(page), "Assigned to", "Fun");
 	await editSheet(page).getByRole("button", { name: "Save" }).click();
 	await expect(editSheet(page)).toBeHidden();
 	await expect(
@@ -186,7 +186,7 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	await add.getByRole("button", { name: "Add Rule and file what matches" }).click();
 	await expect(add).toContainText("Type a word from the merchant’s name.");
 	await add.getByLabel("Merchant").fill("Corner Gas");
-	await add.getByLabel("Bucket").selectOption({ label: "Gas" });
+	await choose(add, "Bucket", "Gas");
 	await add.getByRole("button", { name: "Add Rule and file what matches" }).click();
 	await expect(add).toBeHidden();
 	await expect(page.getByText(/Rule saved: corner gas goes in Gas/i)).toBeVisible();
@@ -195,7 +195,7 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	await expect(
 		edit.getByRole("button", { name: "File what’s still unassigned now" }),
 	).toBeEnabled();
-	await edit.getByLabel("Bucket").selectOption({ label: "Fun" });
+	await choose(edit, "Bucket", "Fun");
 	await edit.getByRole("button", { name: "Save and file what’s still unassigned" }).click();
 	await expect(edit).toBeHidden();
 	await expect(page.getByText(/Nothing unassigned matches corner gas/i)).toBeVisible();

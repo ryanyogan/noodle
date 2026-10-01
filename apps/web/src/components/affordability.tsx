@@ -9,7 +9,7 @@ import {
 } from "@noodle/ui/components/collapsible";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
-import { NativeSelect } from "@noodle/ui/components/native-select";
+import { OptionSelect } from "@noodle/ui/components/select";
 import { Table, TableBody, TableCaption, TableCell, TableRow } from "@noodle/ui/components/table";
 import { cn } from "@noodle/ui/lib/utils";
 import {
@@ -288,20 +288,15 @@ export function SelectField<T extends string | number>({
 	const id = useId();
 	return (
 		<Field label={label} htmlFor={id} hint={hint}>
-			<NativeSelect
+			<OptionSelect
 				id={id}
 				value={String(value)}
-				onChange={(event) => {
-					const chosen = options.find((o) => String(o.value) === event.currentTarget.value);
+				onValueChange={(next) => {
+					const chosen = options.find((o) => String(o.value) === next);
 					if (chosen) onChange(chosen.value);
 				}}
-			>
-				{options.map((o) => (
-					<option key={String(o.value)} value={String(o.value)}>
-						{o.label}
-					</option>
-				))}
-			</NativeSelect>
+				choices={options.map((o) => ({ value: String(o.value), label: o.label }))}
+			/>
 		</Field>
 	);
 }
@@ -442,18 +437,13 @@ export function CommitmentRoles({
 									{formatMoney(c.monthly)} a month
 								</span>
 							</span>
-							<NativeSelect
+							<OptionSelect
 								className="w-40 shrink-0"
 								aria-label={`${c.name} is`}
 								value={roles[c.id] ?? "stays"}
-								onChange={(event) => onRole(c.id, event.currentTarget.value as CommitmentRole)}
-							>
-								{allowed.map((role) => (
-									<option key={role} value={role}>
-										{roleName[role]}
-									</option>
-								))}
-							</NativeSelect>
+								onValueChange={(value) => onRole(c.id, value as CommitmentRole)}
+								choices={allowed.map((role) => ({ value: role, label: roleName[role] }))}
+							/>
 						</div>
 					))}
 				</CollapsibleContent>

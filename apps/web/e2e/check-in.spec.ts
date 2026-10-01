@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { ulid } from "ulid";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, savedBy, signedInPage } from "./session";
+import { choose, createPlannedHousehold, savedBy, signedInPage } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -68,9 +68,9 @@ test("a seeded Check-in walks Review, Insights and Extra income to a done state"
 	const { day, weekday } = today();
 	await page.getByRole("link", { name: "Household", exact: true }).click();
 	const checkInDay = page.getByRole("combobox", { name: "Check-in day" });
-	await expect(checkInDay).toHaveValue("0");
+	await expect(checkInDay).toHaveText("Sunday");
 	const saved = savedBy(page, "setCheckInDay");
-	await checkInDay.selectOption(weekday);
+	await choose(page, "Check-in day", weekday);
 	await saved;
 
 	seedCheckIn(parent.userId, day);

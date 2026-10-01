@@ -1,14 +1,15 @@
 import { type For, type Plan, parseDollars, splitRemainder } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
+import { Combobox } from "@noodle/ui/components/combobox";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
-import { NativeSelect } from "@noodle/ui/components/native-select";
+import type { Choices } from "@noodle/ui/components/select";
 import { Sheet, SheetCancel, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { cn } from "@noodle/ui/lib/utils";
 import { useHydrated } from "@tanstack/react-router";
 import { Plus, Sparkles, Split as SplitIcon, Trash2, X } from "lucide-react";
-import { type FormEvent, type ReactNode, useRef, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 import { ulid } from "ulid";
 import { dayName, formatMoney, formatMoneyInput } from "../format";
 import { forLabel, type MemberSummary } from "../members";
@@ -316,26 +317,23 @@ function EditForm({
 		if (next) onChange(next);
 	}
 
-	const choices = (
-		<>
-			<optgroup label="Buckets">
-				{plan.buckets.map((bucket) => (
-					<option key={bucket.id} value={`bucket:${bucket.id}`}>
-						{bucket.name}
-					</option>
-				))}
-			</optgroup>
-			{plan.commitments.length > 0 ? (
-				<optgroup label="Commitments">
-					{plan.commitments.map((commitment) => (
-						<option key={commitment.id} value={`commitment:${commitment.id}`}>
-							{commitment.name}
-						</option>
-					))}
-				</optgroup>
-			) : null}
-		</>
-	);
+	const choices: Choices = [
+		{
+			label: "Buckets",
+			choices: plan.buckets.map((bucket) => ({ value: `bucket:${bucket.id}`, label: bucket.name })),
+		},
+		...(plan.commitments.length > 0
+			? [
+					{
+						label: "Commitments",
+						choices: plan.commitments.map((commitment) => ({
+							value: `commitment:${commitment.id}`,
+							label: commitment.name,
+						})),
+					},
+				]
+			: []),
+	];
 
 	return (
 		// Checked on Save, with what's wrong said beside it, rather than by the browser's own bubble.
@@ -365,22 +363,17 @@ function EditForm({
 							) : undefined
 						}
 					>
-						<NativeSelect
+						<Combobox
 							id="transaction-assignment"
 							name="assignment"
-							required
 							disabled={!hydrated}
 							value={assignment}
-							onChange={(event) => setAssignment(event.currentTarget.value)}
+							onValueChange={setAssignment}
+							placeholder="Choose a Bucket"
+							searchPlaceholder="Find a Bucket or Commitment"
 							aria-invalid={invalid === "assignment" || undefined}
-						>
-							{assignment === "" ? (
-								<option value="" disabled>
-									Choose a Bucket
-								</option>
-							) : null}
-							{choices}
-						</NativeSelect>
+							choices={choices}
+						/>
 					</Field>
 				)}
 			</div>
@@ -406,9 +399,8 @@ function EditForm({
 									? () => setSplits(splits.filter((_, i) => i !== index))
 									: undefined
 							}
-						>
-							{choices}
-						</SplitFields>
+							choices={choices}
+						/>
 					))}
 					<div className="flex flex-wrap items-center gap-2">
 						<Button
@@ -506,7 +498,7 @@ function SplitFields({
 	invalid,
 	onChange,
 	onRemove,
-	children,
+	choices,
 }: {
 	index: number;
 	split: DraftSplit;
@@ -518,7 +510,7 @@ function SplitFields({
 	/** Removes this Split; absent while there are only two. */
 	onRemove?: () => void;
 	/** The select's options. */
-	children: ReactNode;
+	choices: Choices;
 }) {
 	const id = `split-${split.id}`;
 	const name = `Split ${index + 1}`;
@@ -551,18 +543,15 @@ function SplitFields({
 					/>
 				</Field>
 				<Field label="Assigned to" htmlFor={`${id}-assignment`}>
-					<NativeSelect
+					<Combobox
 						id={`${id}-assignment`}
 						disabled={disabled}
 						value={split.assignment}
-						onChange={(event) => onChange({ assignment: event.currentTarget.value })}
+						onValueChange={(assignment) => onChange({ assignment })}
+						searchPlaceholder="Find a Bucket or Commitment"
 						aria-invalid={(invalid && !split.assignment) || undefined}
-					>
-						<option value="" disabled>
-							Choose…
-						</option>
-						{children}
-					</NativeSelect>
+						choices={choices}
+					/>
 				</Field>
 			</div>
 			<ForPicker

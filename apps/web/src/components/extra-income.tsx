@@ -10,6 +10,7 @@ import {
 	parseDollars,
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
+import { Combobox } from "@noodle/ui/components/combobox";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -18,7 +19,6 @@ import {
 } from "@noodle/ui/components/dropdown-menu";
 import { Field } from "@noodle/ui/components/field";
 import { List, ListRow } from "@noodle/ui/components/list";
-import { NativeSelect } from "@noodle/ui/components/native-select";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import {
 	Sheet,
@@ -319,31 +319,37 @@ function ExtraIncomeForm({
 	return (
 		<form onSubmit={onSubmit} className="grid gap-4">
 			<Field label="To" htmlFor={`${id}-to`}>
-				<NativeSelect
+				<Combobox
 					id={`${id}-to`}
 					value={destination}
 					disabled={!hydrated}
-					onChange={(event) => setDestination(event.currentTarget.value)}
-				>
-					{places.goals.length > 0 ? (
-						<optgroup label="Goals">
-							{places.goals.map((g) => (
-								<option key={g.id} value={destinationValue({ kind: "goal", goalId: g.id })}>
-									{g.name}
-								</option>
-							))}
-						</optgroup>
-					) : null}
-					{places.buckets.length > 0 ? (
-						<optgroup label="Buckets">
-							{places.buckets.map((b) => (
-								<option key={b.id} value={destinationValue({ kind: "bucket", bucketId: b.id })}>
-									{b.name}
-								</option>
-							))}
-						</optgroup>
-					) : null}
-				</NativeSelect>
+					onValueChange={setDestination}
+					searchPlaceholder="Find a Goal or Bucket"
+					choices={[
+						...(places.goals.length > 0
+							? [
+									{
+										label: "Goals",
+										choices: places.goals.map((g) => ({
+											value: destinationValue({ kind: "goal", goalId: g.id }),
+											label: g.name,
+										})),
+									},
+								]
+							: []),
+						...(places.buckets.length > 0
+							? [
+									{
+										label: "Buckets",
+										choices: places.buckets.map((b) => ({
+											value: destinationValue({ kind: "bucket", bucketId: b.id }),
+											label: b.name,
+										})),
+									},
+								]
+							: []),
+					]}
+				/>
 			</Field>
 			<Field
 				label="Amount"

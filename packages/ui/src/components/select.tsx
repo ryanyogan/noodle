@@ -1,14 +1,15 @@
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { Select as SelectPrimitive } from "radix-ui";
-import type * as React from "react";
+import * as React from "react";
+import { useHydrated } from "#lib/hydrated";
 import { cn } from "#lib/utils";
 
 // shadcn/ui's Select (https://ui.shadcn.com/docs/components/select), radix-nova, on this design
-// system's tokens: the trigger matches Input and NativeSelect, the list matches Popover.
+// system's tokens: the trigger matches Input, the list matches Popover.
 //
 // Which select where (packages/ui/COMPONENTS.md): Select for a choice that changes what a page
 // shows or sits inline as a chip (Reports' options, Transactions' filters, Explore's chips);
-// NativeSelect for a labelled field in a form, where a phone's own picker is the better control.
+// OptionSelect for a labelled field in a form (a short list); Combobox for a long or grouped list.
 
 function Select(props: React.ComponentProps<typeof SelectPrimitive.Root>) {
 	return <SelectPrimitive.Root data-slot="select" {...props} />;
@@ -28,6 +29,21 @@ function SelectValue(props: React.ComponentProps<typeof SelectPrimitive.Value>) 
 	return <SelectPrimitive.Value data-slot="select-value" {...props} />;
 }
 
+/** The trigger look, shared with Combobox so both read as one kind of field. */
+const selectTriggerClass = [
+	"flex w-full min-w-0 items-center justify-between gap-1.5 border border-border bg-surface-2 text-start whitespace-nowrap text-foreground select-none",
+	"transition-[border-color,background-color,box-shadow] duration-(--duration-fast) ease-standard",
+	"hover:border-border-strong focus-visible:border-ring focus-visible:bg-card focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-brand-soft",
+	"disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-over aria-invalid:ring-3 aria-invalid:ring-over-soft",
+	"data-placeholder:text-subtle-foreground",
+	// 16px on phones so iOS Safari doesn't zoom, as Input.
+	"data-[size=default]:h-10 data-[size=default]:rounded-xl data-[size=default]:ps-3 data-[size=default]:pe-2.5 data-[size=default]:text-base md:data-[size=default]:text-sm",
+	"data-[size=sm]:h-8 data-[size=sm]:rounded-lg data-[size=sm]:ps-2.5 data-[size=sm]:pe-2 data-[size=sm]:text-[13px]",
+	"data-[size=pill]:h-8 data-[size=pill]:w-auto data-[size=pill]:rounded-full data-[size=pill]:ps-3 data-[size=pill]:pe-2 data-[size=pill]:text-[13px] data-[size=pill]:font-medium lg:data-[size=pill]:h-7",
+	"*:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5",
+	"[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+].join(" ");
+
 function SelectTrigger({
 	className,
 	size = "default",
@@ -41,20 +57,7 @@ function SelectTrigger({
 		<SelectPrimitive.Trigger
 			data-slot="select-trigger"
 			data-size={size}
-			className={cn(
-				"flex w-full min-w-0 items-center justify-between gap-1.5 border border-border bg-surface-2 text-start whitespace-nowrap text-foreground select-none",
-				"transition-[border-color,background-color,box-shadow] duration-(--duration-fast) ease-standard",
-				"hover:border-border-strong focus-visible:border-ring focus-visible:bg-card focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-brand-soft",
-				"disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-over aria-invalid:ring-3 aria-invalid:ring-over-soft",
-				"data-placeholder:text-subtle-foreground",
-				// 16px on phones so iOS Safari doesn't zoom, as Input.
-				"data-[size=default]:h-10 data-[size=default]:rounded-xl data-[size=default]:ps-3 data-[size=default]:pe-2.5 data-[size=default]:text-base md:data-[size=default]:text-sm",
-				"data-[size=sm]:h-8 data-[size=sm]:rounded-lg data-[size=sm]:ps-2.5 data-[size=sm]:pe-2 data-[size=sm]:text-[13px]",
-				"data-[size=pill]:h-8 data-[size=pill]:w-auto data-[size=pill]:rounded-full data-[size=pill]:ps-3 data-[size=pill]:pe-2 data-[size=pill]:text-[13px] data-[size=pill]:font-medium lg:data-[size=pill]:h-7",
-				"*:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5",
-				"[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-				className,
-			)}
+			className={cn(selectTriggerClass, className)}
 			{...props}
 		>
 			{children}
@@ -183,7 +186,110 @@ function SelectScrollDownButton({
 	);
 }
 
+type Choice = {
+	value: string;
+	label: React.ReactNode;
+	/** Plain text for search and the trigger, when `label` isn't a string. */
+	text?: string;
+	disabled?: boolean;
+};
+type ChoiceGroup = { label: string; choices: Choice[] };
+type Choices = (Choice | ChoiceGroup)[];
+
+const isGroup = (c: Choice | ChoiceGroup): c is ChoiceGroup => "choices" in c;
+const flatChoices = (choices: Choices) => choices.flatMap((c) => (isGroup(c) ? c.choices : [c]));
+
+/** A form field's choice, controlled (`value`) or not (`defaultValue`); `name` submits it. */
+type ChoiceFieldProps = {
+	id?: string;
+	name?: string;
+	value?: string;
+	defaultValue?: string;
+	onValueChange?: (value: string) => void;
+	choices: Choices;
+	/** Shown while nothing is chosen (in place of a disabled first option). */
+	placeholder?: string;
+	disabled?: boolean;
+	size?: "sm" | "default" | "pill";
+	className?: string;
+	"aria-label"?: string;
+	"aria-invalid"?: boolean;
+	"aria-describedby"?: string;
+};
+
+function useChoice({ value, defaultValue, onValueChange }: ChoiceFieldProps) {
+	const [inner, setInner] = React.useState(defaultValue ?? "");
+	const current = value ?? inner;
+	const set = (next: string) => {
+		if (value === undefined) setInner(next);
+		onValueChange?.(next);
+	};
+	return [current, set] as const;
+}
+
+// Radix Select keeps "" for "nothing chosen", so a real "" choice ("Anyone", "Leave it") rides
+// under this stand-in.
+const EMPTY = "\u0000empty";
+
+/**
+ * shadcn's Select as a form field: the choices as data, groups kept, "" allowed as a choice, and
+ * a hidden input under `name` so a plain form submits it.
+ */
+function OptionSelect(props: ChoiceFieldProps) {
+	const { id, name, choices, placeholder, disabled, size, className } = props;
+	const [current, set] = useChoice(props);
+	// A Radix trigger does nothing before hydration, so it waits (lib/hydrated.ts).
+	const hydrated = useHydrated();
+	const hasEmpty = flatChoices(choices).some((c) => c.value === "");
+	const toRadix = (v: string) => (v === "" && hasEmpty ? EMPTY : v);
+	const item = (c: Choice) => (
+		<SelectItem key={c.value} value={toRadix(c.value)} disabled={c.disabled}>
+			{c.label}
+		</SelectItem>
+	);
+	return (
+		<>
+			<Select
+				value={toRadix(current)}
+				onValueChange={(v) => set(v === EMPTY ? "" : v)}
+				disabled={disabled || !hydrated}
+			>
+				<SelectTrigger
+					id={id}
+					size={size}
+					className={className}
+					aria-label={props["aria-label"]}
+					aria-invalid={props["aria-invalid"]}
+					aria-describedby={props["aria-describedby"]}
+				>
+					<SelectValue placeholder={placeholder} />
+				</SelectTrigger>
+				<SelectContent>
+					{choices.map((c) =>
+						isGroup(c) ? (
+							<SelectGroup key={c.label}>
+								<SelectLabel>{c.label}</SelectLabel>
+								{c.choices.map(item)}
+							</SelectGroup>
+						) : (
+							item(c)
+						),
+					)}
+				</SelectContent>
+			</Select>
+			{name ? <input type="hidden" name={name} value={current} /> : null}
+		</>
+	);
+}
+
 export {
+	type Choice,
+	type ChoiceFieldProps,
+	type ChoiceGroup,
+	type Choices,
+	flatChoices,
+	isGroup,
+	OptionSelect,
 	Select,
 	SelectContent,
 	SelectGroup,
@@ -194,4 +300,6 @@ export {
 	SelectSeparator,
 	SelectTrigger,
 	SelectValue,
+	selectTriggerClass,
+	useChoice,
 };

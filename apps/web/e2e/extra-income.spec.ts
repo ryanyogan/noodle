@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -39,7 +39,7 @@ test("income beyond take-home pay is Extra income, sent to the emergency Goal", 
 	// A Goal kept for emergencies.
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await page.getByLabel("Name").fill("Ally savings");
-	await page.getByLabel("Kind").selectOption("savings");
+	await choose(page, "Kind", accountKindLabel("savings"));
 	await page.getByLabel("Balance now").fill("10,000");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await expect(page.getByRole("link", { name: /^Ally savings, Savings/ })).toBeVisible();

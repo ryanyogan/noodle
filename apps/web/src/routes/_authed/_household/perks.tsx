@@ -6,9 +6,9 @@ import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
-import { NativeSelect } from "@noodle/ui/components/native-select";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import { OptionSelect } from "@noodle/ui/components/select";
 import { Spinner } from "@noodle/ui/components/spinner";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
@@ -296,21 +296,14 @@ function PlanPicker({ source, disabled }: { source: PerkSourceItem; disabled: bo
 		<form onSubmit={save} className="grid gap-2 rounded-xl bg-surface-2 p-3">
 			<Field label="Plan" htmlFor={id}>
 				<div className="flex gap-2">
-					<NativeSelect
+					<OptionSelect
 						id={id}
 						className="flex-1"
 						value={plan}
-						onChange={(event) => setPlan(event.target.value)}
-					>
-						<option value="" disabled>
-							Choose a plan
-						</option>
-						{source.planOptions.map((option) => (
-							<option key={option} value={option}>
-								{option}
-							</option>
-						))}
-					</NativeSelect>
+						onValueChange={setPlan}
+						placeholder="Choose a plan"
+						choices={source.planOptions.map((option) => ({ value: option, label: option }))}
+					/>
 					<Button type="submit" variant="outline" disabled={disabled || !plan}>
 						Save
 					</Button>
@@ -390,17 +383,15 @@ function AddPerkSource() {
 							/>
 						</Field>
 						<Field label="Kind" htmlFor={`${id}-kind`}>
-							<NativeSelect
+							<OptionSelect
 								id={`${id}-kind`}
 								value={kind}
-								onChange={(event) => setKind(event.target.value as PerkSourceKind)}
-							>
-								{PERK_SOURCE_KINDS.map((k) => (
-									<option key={k} value={k}>
-										{perkSourceKindLabel[k]}
-									</option>
-								))}
-							</NativeSelect>
+								onValueChange={(value) => setKind(value as PerkSourceKind)}
+								choices={PERK_SOURCE_KINDS.map((k) => ({
+									value: k,
+									label: perkSourceKindLabel[k],
+								}))}
+							/>
 						</Field>
 						<Field label="Plan (optional)" htmlFor={`${id}-plan`}>
 							<Input id={`${id}-plan`} name="plan" maxLength={80} placeholder="e.g. Preferred" />

@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
 
 // Categorization runs with its deterministic fake (AI_MODEL=stub, see vite.config.ts): it knows
 // Costco is groceries and Shell is gas, and nothing about ACME.
@@ -22,7 +22,7 @@ async function uploadCardStatement(page: Page, lines: [string, string][]) {
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	await page.getByLabel("Name").fill("Visa");
-	await page.getByLabel("Kind").selectOption("credit-card");
+	await choose(page, "Kind", accountKindLabel("credit-card"));
 	await page.getByLabel("Owed now").fill("800");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: /^Visa, / }).click();
@@ -86,7 +86,7 @@ test("imported Transactions are filed automatically, marked, and a Parent can ch
 	await expect(editSheet(page).getByTestId("auto-filed-hint")).toContainText(
 		"Filed automatically, as a best guess.",
 	);
-	await editSheet(page).getByLabel("Assigned to").selectOption({ label: "Gas" });
+	await choose(editSheet(page), "Assigned to", "Gas");
 	await expect(editSheet(page).getByTestId("auto-filed-hint")).toHaveCount(0);
 	await editSheet(page).getByRole("button", { name: "Save" }).click();
 	await expect(editSheet(page)).toBeHidden();

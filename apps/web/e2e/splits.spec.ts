@@ -58,9 +58,9 @@ async function openCostco(page: Page) {
 /** Splits Costco: $180 of Groceries For everyone, $70 of Hockey For Leo. */
 async function splitCostco(page: Page) {
 	await editSheet(page).getByRole("button", { name: "Split", exact: true }).click();
-	await expect(splitFields(page, 1).getByLabel("Assigned to")).toHaveValue(/^bucket:/);
+	await expect(splitFields(page, 1).getByLabel("Assigned to")).not.toHaveText("Choose…");
 	await splitFields(page, 1).getByLabel("Amount").fill("180");
-	await splitFields(page, 2).getByLabel("Assigned to").selectOption({ label: "Hockey" });
+	await choose(splitFields(page, 2), "Assigned to", "Hockey");
 	await splitFields(page, 2)
 		.getByRole("toolbar", { name: "For" })
 		.getByRole("button", { name: "Leo" })
@@ -89,7 +89,7 @@ test("splitting a Quick Add spends each Split from its own Bucket, For its own M
 	await expect(save(page)).toBeDisabled();
 	await splitFields(page, 2).getByLabel("Amount").fill("70");
 	await expect(remainder(page)).toHaveText("All assigned");
-	await splitFields(page, 2).getByLabel("Assigned to").selectOption({ label: "Hockey" });
+	await choose(splitFields(page, 2), "Assigned to", "Hockey");
 	await splitFields(page, 2)
 		.getByRole("toolbar", { name: "For" })
 		.getByRole("button", { name: "Leo" })
@@ -135,7 +135,7 @@ test("removing Splits returns the Transaction to one assignment", async ({ brows
 	await expect(splitFields(page, 2).getByLabel("Amount")).toHaveValue("70");
 	await editSheet(page).getByRole("button", { name: "Remove Splits" }).click();
 	await expect(splitFields(page, 1)).toBeHidden();
-	await editSheet(page).getByLabel("Assigned to").selectOption({ label: "Hockey" });
+	await choose(editSheet(page), "Assigned to", "Hockey");
 	await save(page).click();
 	await expect(costco(page)).toHaveAccessibleName("Costco, $250, Hockey, For Everyone");
 

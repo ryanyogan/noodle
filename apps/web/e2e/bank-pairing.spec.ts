@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { expect, type Page, test } from "@playwright/test";
 import { signFakeWebhook } from "../src/server/plaid-fake-webhook-key";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
 
 // Connecting a bank pairs with the Accounts already there (ADR-0020), against the fake Plaid API
 // (AI_MODEL=stub). A card kept with a statement and a Quick Add is chosen as the bank's card: it
@@ -75,7 +75,7 @@ test("connecting pairs with the card already there, and counts nothing twice", a
 	// The Costco card, added by hand and kept with a statement that has Shell on it.
 	await accountsLink(page).click();
 	await page.getByLabel("Name").fill("Costco Anywhere Visa");
-	await page.getByLabel("Kind").selectOption("credit-card");
+	await choose(page, "Kind", accountKindLabel("credit-card"));
 	await page.getByLabel("Owed now").fill("300");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: /^Costco Anywhere Visa, / }).click();
@@ -98,17 +98,20 @@ test("connecting pairs with the card already there, and counts nothing twice", a
 	// Connecting asks which of the bank's accounts the Household has: the card is suggested.
 	await accountsLink(page).click();
 	await bankConnections(page).getByRole("button", { name: "Connect a bank" }).click();
-	const choose = chooseSheet(page);
-	const card = choose.getByLabel("Costco Anywhere Visa ··3333");
-	await expect(card.locator("option:checked")).toHaveText("Same as Costco Anywhere Visa");
-	await expect(choose.getByLabel("Plaid Checking ··0000")).toHaveValue("new");
+	const picks = chooseSheet(page);
+	const card = picks.getByLabel("Costco Anywhere Visa ··3333");
+	await expect(card).toHaveText("Same as Costco Anywhere Visa");
+	await expect(picks.getByLabel("Plaid Checking ··0000")).toHaveText("Add as a new Account");
 	// A checking account can't be the card.
-	await expect(choose.getByLabel("Plaid Checking ··0000").locator("option")).toHaveText([
+	await picks.getByLabel("Plaid Checking ··0000").click();
+	await expect(page.getByRole("listbox").getByRole("option")).toHaveText([
 		"Add as a new Account",
 		"Leave it out",
 	]);
-	await choose.getByLabel("Plaid Auto Loan ··4444").selectOption("leave-out");
-	await choose.getByRole("button", { name: "Start bringing them in" }).click();
+	await page.keyboard.press("Escape");
+	await expect(page.getByRole("listbox")).toBeHidden();
+	await choose(picks, "Plaid Auto Loan ··4444", "Leave it out");
+	await picks.getByRole("button", { name: "Start bringing them in" }).click();
 	await expect(toast(page, "Bringing in 3 Accounts from First Platypus Bank.")).toBeVisible();
 
 	// The card stays one Account, now connected; the loan was left out.

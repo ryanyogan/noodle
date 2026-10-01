@@ -12,8 +12,8 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
-import { NativeSelect } from "@noodle/ui/components/native-select";
 import { Progress } from "@noodle/ui/components/progress";
+import { OptionSelect } from "@noodle/ui/components/select";
 import {
 	Sheet,
 	SheetCancel,
@@ -339,18 +339,13 @@ function AccountFields({
 					/>
 				</Field>
 				<Field label="Kind" htmlFor={`${id}-kind`}>
-					<NativeSelect
+					<OptionSelect
 						id={`${id}-kind`}
 						disabled={!hydrated}
 						value={kind}
-						onChange={(event) => setKind(event.currentTarget.value as AccountKind)}
-					>
-						{ACCOUNT_KINDS.map((k) => (
-							<option key={k} value={k}>
-								{accountKindName[k]}
-							</option>
-						))}
-					</NativeSelect>
+						onValueChange={(value) => setKind(value as AccountKind)}
+						choices={ACCOUNT_KINDS.map((k) => ({ value: k, label: accountKindName[k] }))}
+					/>
 				</Field>
 			</div>
 			<Field
@@ -613,18 +608,13 @@ function PayoffGoalForm({
 					) : undefined
 				}
 			>
-				<NativeSelect
+				<OptionSelect
 					id={`${id}-account`}
 					disabled={!hydrated}
 					value={accountId}
-					onChange={(event) => setAccountId(event.currentTarget.value)}
-				>
-					{owing.map((a) => (
-						<option key={a.id} value={a.id}>
-							{a.name}
-						</option>
-					))}
-				</NativeSelect>
+					onValueChange={setAccountId}
+					choices={owing.map((a) => ({ value: a.id, label: a.name }))}
+				/>
 			</Field>
 			<div className="grid gap-4 sm:grid-cols-2">
 				<Field label="Name" htmlFor={`${id}-name`}>
@@ -760,18 +750,15 @@ function AddGoalForm({
 				htmlFor={`${id}-account`}
 				hint="Where the money is set aside: a checking or savings Account."
 			>
-				<NativeSelect
+				<OptionSelect
 					id={`${id}-account`}
 					value={accountId}
-					onChange={(event) => setAccountId(event.currentTarget.value)}
-				>
-					{accounts.map((a) => (
-						<option key={a.id} value={a.id}>
-							{a.name}
-							{a.unclaimed === null ? "" : ` · ${formatMoney(a.unclaimed)} not set aside`}
-						</option>
-					))}
-				</NativeSelect>
+					onValueChange={setAccountId}
+					choices={accounts.map((a) => ({
+						value: a.id,
+						label: `${a.name}${a.unclaimed === null ? "" : ` · ${formatMoney(a.unclaimed)} not set aside`}`,
+					}))}
+				/>
 			</Field>
 			<Field label="Already set aside" htmlFor={`${id}-claim`} hint={notSetAsideHint}>
 				<AmountInput

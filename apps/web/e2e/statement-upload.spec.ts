@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -21,7 +21,7 @@ async function addAccount(page: Page, name: string, kind: string, balance: strin
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	await page.getByLabel("Name").fill(name);
-	await page.getByLabel("Kind").selectOption(kind);
+	await choose(page, "Kind", accountKindLabel(kind));
 	await page.getByLabel(kind === "credit-card" ? "Owed now" : "Balance now").fill(balance);
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: new RegExp(`^${name}, `) }).click();
@@ -48,9 +48,9 @@ test("a bank statement comes in once, as Transactions to assign and income", asy
 
 	// A CSV: its columns are guessed, and the preview says what it will bring in.
 	let sheet = await chooseStatement(page, "checking.csv");
-	await expect(sheet.getByLabel("Date", { exact: true })).toHaveValue("1");
-	await expect(sheet.getByLabel("Description")).toHaveValue("2");
-	await expect(sheet.getByLabel("Amounts")).toHaveValue("negative");
+	await expect(sheet.getByLabel("Date", { exact: true })).toHaveText(/^Posting Date /);
+	await expect(sheet.getByLabel("Description")).toHaveText(/^Description /);
+	await expect(sheet.getByLabel("Amounts")).toHaveText("One column, money out is negative");
 	const preview = sheet.getByRole("region", { name: "Preview" });
 	await expect(preview).toContainText("6 lines from Sep 2 to Sep 10");
 	await expect(preview).toContainText("money in $3,200");
@@ -103,7 +103,7 @@ test("money back onto a card is listed but counts nowhere", async ({ browser }) 
 	await addAccount(page, "Visa", "credit-card", "800");
 
 	const sheet = await chooseStatement(page, "card-debit-credit.csv");
-	await expect(sheet.getByLabel("Amounts")).toHaveValue("debit-credit");
+	await expect(sheet.getByLabel("Amounts")).toHaveText("Two columns: money out, money in");
 	await expect(sheet.getByRole("region", { name: "Preview" })).toContainText(
 		"1 row can’t be read and will be skipped (row 6)",
 	);

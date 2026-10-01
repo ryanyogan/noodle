@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage, switchTo } from "./session";
+import {
+	accountKindLabel,
+	choose,
+	createPlannedHousehold,
+	signedInPage,
+	switchTo,
+} from "./session";
 
 // Every sheet shares packages/ui's Sheet, so one Plan sheet and one Accounts sheet stand for all:
 // on desktop the first field takes focus when a sheet opens, and closing it (Esc, Close, or
@@ -72,7 +78,7 @@ test("a sheet focuses its first field, and gives focus back to what opened it", 
 	// A sheet on another page, opened from the header.
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await page.getByLabel("Name").fill("Everyday Checking");
-	await page.getByLabel("Kind").selectOption("checking");
+	await choose(page, "Kind", accountKindLabel("checking"));
 	await page.getByLabel("Balance now").fill("2,500");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: /^Everyday Checking, / }).click();

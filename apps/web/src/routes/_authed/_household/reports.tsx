@@ -20,8 +20,8 @@ import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
-import { NativeSelect } from "@noodle/ui/components/native-select";
 import { PageHeader } from "@noodle/ui/components/page-header";
+import { OptionSelect } from "@noodle/ui/components/select";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { LinkTab, LinkTabs, LinkTabsSeparator } from "@noodle/ui/components/tabs";
@@ -474,33 +474,27 @@ function Filters({
 			</div>
 			<div className="grid gap-4 sm:grid-cols-2">
 				<Field label="For" htmlFor={`${id}-member`}>
-					<NativeSelect
+					<OptionSelect
 						id={`${id}-member`}
 						value={member}
-						onChange={(e) => setMember(e.target.value)}
-					>
-						<option value="">Anyone</option>
-						<option value="everyone">The whole Household</option>
-						{meta.members.map((m) => (
-							<option key={m.id} value={m.id}>
-								{m.name}
-							</option>
-						))}
-					</NativeSelect>
+						onValueChange={setMember}
+						choices={[
+							{ value: "", label: "Anyone" },
+							{ value: "everyone", label: "The whole Household" },
+							...meta.members.map((m) => ({ value: m.id, label: m.name })),
+						]}
+					/>
 				</Field>
 				<Field label="Account" htmlFor={`${id}-account`}>
-					<NativeSelect
+					<OptionSelect
 						id={`${id}-account`}
 						value={account}
-						onChange={(e) => setAccount(e.target.value)}
-					>
-						<option value="">Any Account</option>
-						{meta.accounts.map((a) => (
-							<option key={a.id} value={a.id}>
-								{a.name}
-							</option>
-						))}
-					</NativeSelect>
+						onValueChange={setAccount}
+						choices={[
+							{ value: "", label: "Any Account" },
+							...meta.accounts.map((a) => ({ value: a.id, label: a.name })),
+						]}
+					/>
 				</Field>
 				<Field label="Merchant" htmlFor={`${id}-merchant`} hint="A Transaction's note, exactly">
 					<Input

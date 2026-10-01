@@ -2,8 +2,8 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { List, ListRow } from "@noodle/ui/components/list";
-import { NativeSelect } from "@noodle/ui/components/native-select";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import { OptionSelect } from "@noodle/ui/components/select";
 import {
 	Sheet,
 	SheetCancel,
@@ -502,22 +502,22 @@ function ChooseAccountsForm({
 					label={account.name}
 					hint={`${accountKindName[account.kind]}${account.balance === null ? "" : ` · ${account.kind === "credit-card" || account.kind === "loan" ? "owes " : ""}${formatMoney(account.balance)} at the bank`}${account.suggested ? ` · looks like your ${account.options.find((o) => o.id === account.suggested)?.name ?? "Account"}` : ""}`}
 				>
-					<NativeSelect
+					<OptionSelect
 						id={`${id}-${account.externalId}`}
 						value={pickOf(account)}
 						aria-invalid={duplicate || undefined}
-						onChange={(event) =>
-							setPicks((was) => ({ ...was, [account.externalId]: event.target.value as Pick }))
+						onValueChange={(value) =>
+							setPicks((was) => ({ ...was, [account.externalId]: value as Pick }))
 						}
-					>
-						{account.options.map((option) => (
-							<option key={option.id} value={`pair:${option.id}`}>
-								Same as {option.name}
-							</option>
-						))}
-						<option value="new">Add as a new Account</option>
-						<option value="leave-out">Leave it out</option>
-					</NativeSelect>
+						choices={[
+							...account.options.map((option) => ({
+								value: `pair:${option.id}`,
+								label: `Same as ${option.name}`,
+							})),
+							{ value: "new", label: "Add as a new Account" },
+							{ value: "leave-out", label: "Leave it out" },
+						]}
+					/>
 				</Field>
 			))}
 			{paired.length > 0 ? (

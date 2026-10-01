@@ -23,8 +23,8 @@ import {
 } from "@noodle/ui/components/collapsible";
 import { Field } from "@noodle/ui/components/field";
 import { List, ListRow } from "@noodle/ui/components/list";
-import { NativeSelect } from "@noodle/ui/components/native-select";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import { OptionSelect } from "@noodle/ui/components/select";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -533,18 +533,13 @@ function CsvMappingFields({
 		set: (value: number) => void,
 	) => (
 		<Field label={label} htmlFor={`${id}-${key}`}>
-			<NativeSelect
+			<OptionSelect
 				id={`${id}-${key}`}
-				value={value}
+				value={String(value)}
 				disabled={!hydrated}
-				onChange={(event) => set(Number(event.currentTarget.value))}
-			>
-				{options.map((option) => (
-					<option key={option.value} value={option.value}>
-						{option.label}
-					</option>
-				))}
-			</NativeSelect>
+				onValueChange={(next) => set(Number(next))}
+				choices={options.map((option) => ({ value: String(option.value), label: option.label }))}
+			/>
 		</Field>
 	);
 
@@ -567,36 +562,30 @@ function CsvMappingFields({
 					onChange({ ...mapping, dateColumn }),
 				)}
 				<Field label="Date format" htmlFor={`${id}-date-format`}>
-					<NativeSelect
+					<OptionSelect
 						id={`${id}-date-format`}
 						value={mapping.dateFormat}
 						disabled={!hydrated}
-						onChange={(event) =>
-							onChange({ ...mapping, dateFormat: event.currentTarget.value as DateFormat })
-						}
-					>
-						{Object.entries(DATE_FORMATS).map(([value, label]) => (
-							<option key={value} value={value}>
-								{label}
-							</option>
-						))}
-					</NativeSelect>
+						onValueChange={(value) => onChange({ ...mapping, dateFormat: value as DateFormat })}
+						choices={Object.entries(DATE_FORMATS).map(([value, label]) => ({ value, label }))}
+					/>
 				</Field>
 			</div>
 			{columnSelect("Description", "description", mapping.descriptionColumn, (descriptionColumn) =>
 				onChange({ ...mapping, descriptionColumn }),
 			)}
 			<Field label="Amounts" htmlFor={`${id}-layout`}>
-				<NativeSelect
+				<OptionSelect
 					id={`${id}-layout`}
 					value={layout}
 					disabled={!hydrated}
-					onChange={(event) => setLayout(event.currentTarget.value as AmountLayout)}
-				>
-					<option value="negative">One column, money out is negative</option>
-					<option value="positive">One column, money out is positive</option>
-					<option value="debit-credit">Two columns: money out, money in</option>
-				</NativeSelect>
+					onValueChange={(value) => setLayout(value as AmountLayout)}
+					choices={[
+						{ value: "negative", label: "One column, money out is negative" },
+						{ value: "positive", label: "One column, money out is positive" },
+						{ value: "debit-credit", label: "Two columns: money out, money in" },
+					]}
+				/>
 			</Field>
 			{mapping.amount.kind === "signed" ? (
 				columnSelect("Amount", "amount", mapping.amount.column, (column) =>

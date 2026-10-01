@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createHousehold, signedInPage, switchTo } from "./session";
+import { accountKindLabel, choose, createHousehold, signedInPage, switchTo } from "./session";
 
 // The first Plan, drafted from a new Household's first statement. The draft's model runs with its
 // deterministic fake (AI_MODEL=stub, see vite.config.ts): it knows Costco is groceries, Chipotle
@@ -50,7 +50,7 @@ async function uploadHistory(page: Page) {
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	await page.getByLabel("Name").fill("Checking");
-	await page.getByLabel("Kind").selectOption("checking");
+	await choose(page, "Kind", accountKindLabel("checking"));
 	await page.getByLabel("Balance now").fill("3,000");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: /^Checking, / }).click();

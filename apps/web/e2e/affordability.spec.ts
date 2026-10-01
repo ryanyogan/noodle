@@ -1,6 +1,13 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { clientRendered, createPlannedHousehold, signedInPage, switchTo } from "./session";
+import {
+	accountKindLabel,
+	choose,
+	clientRendered,
+	createPlannedHousehold,
+	signedInPage,
+	switchTo,
+} from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -31,7 +38,7 @@ test("a home is checked against the Plan, then made a Goal and explored as a Sce
 	// A savings Account to back a Goal.
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await page.getByLabel("Name").fill("Ally savings");
-	await page.getByLabel("Kind").selectOption("savings");
+	await choose(page, "Kind", accountKindLabel("savings"));
 	await page.getByLabel("Balance now").fill("100,000");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await expect(page.getByRole("link", { name: /^Ally savings, Savings/ })).toBeVisible();
@@ -106,7 +113,7 @@ test("a car compares cash, a loan and a lease; anything counts the months to sav
 	// Cash, then $30,000 at 7% over 60 months, then the lease.
 	await expect(monthly).toHaveText("A month$0$594.04$450");
 
-	await page.getByLabel("Pay by").selectOption("lease");
+	await choose(page, "Pay by", "Lease");
 	await expect(verdict(page)).toContainText("A $35,000 car, leased");
 
 	await page.getByRole("link", { name: "Anything" }).click();

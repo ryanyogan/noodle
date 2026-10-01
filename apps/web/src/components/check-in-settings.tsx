@@ -1,8 +1,8 @@
 import { isWeekday, type Weekday } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
-import { NativeSelect } from "@noodle/ui/components/native-select";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import { OptionSelect } from "@noodle/ui/components/select";
 import { Tile } from "@noodle/ui/components/tile";
 import { toast } from "@noodle/ui/components/toast";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
@@ -38,22 +38,17 @@ export function CheckInSettings() {
 					</p>
 				</div>
 				<div className="flex gap-2">
-					<NativeSelect
+					<OptionSelect
 						className="flex-1 sm:w-36"
 						aria-label="Check-in day"
 						value={String(day)}
 						disabled={!hydrated}
-						onChange={(event) => {
-							const chosen = Number(event.currentTarget.value);
+						onValueChange={(value) => {
+							const chosen = Number(value);
 							if (isWeekday(chosen)) change.mutate(chosen);
 						}}
-					>
-						{weekdayNames.map((name, index) => (
-							<option key={name} value={index}>
-								{name}
-							</option>
-						))}
-					</NativeSelect>
+						choices={weekdayNames.map((name, index) => ({ value: String(index), label: name }))}
+					/>
 					<Button asChild variant="outline">
 						<Link to="/check-in">Start</Link>
 					</Button>
