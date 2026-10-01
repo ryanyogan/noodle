@@ -6,6 +6,7 @@ import { cn } from "@noodle/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Link, type LinkProps, useRouteContext, useRouterState } from "@tanstack/react-router";
 import {
+	BookOpen,
 	CalendarCheck,
 	CalendarDays,
 	ChartColumn,
@@ -43,7 +44,8 @@ const currentWithin = (item: NavItem, pathname: string) =>
 // Every top-level destination, in order. The sidebar (desktop) and tab bar (phone) both render it,
 // though the tab bar has room for four: the Plan is reached from This Month there (its Month and
 // Plan switch), Accounts from Transactions and Household, Explore from Goals, which it plans
-// ahead, and Reports and Ask from the row above This Month's header.
+// ahead, Reports and Ask from the row above This Month's header, and the Glossary from Household
+// and every help popover.
 const nav: NavItem[] = [
 	{ to: "/month", label: "This Month", short: "Month", icon: CalendarDays, alsoFor: ["/plan"] },
 	{ to: "/plan", label: "Plan", short: "Plan", icon: SlidersHorizontal, desktopOnly: true },
@@ -69,6 +71,9 @@ const nav: NavItem[] = [
 		icon: CalendarCheck,
 		desktopOnly: true,
 	},
+	// What each word means, for a Parent new to budgeting; on a phone, from Household and the help
+	// popovers.
+	{ to: "/glossary", label: "Glossary", short: "Glossary", icon: BookOpen, desktopOnly: true },
 	{ to: "/household", label: "Household", short: "Household", icon: UsersRound },
 ];
 

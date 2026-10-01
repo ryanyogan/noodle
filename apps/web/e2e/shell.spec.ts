@@ -44,6 +44,8 @@ const dynamic = (page: Page) => [
 			/^(January|February|March|April|May|June|July|August|September|October|November|December)$/,
 		),
 	page.locator(".cl-userButtonTrigger"),
+	// Each run's test Parent has a new email, shown on the Household page.
+	page.getByText(/@example\.com/),
 ];
 
 for (const [screen, device] of Object.entries(screens)) {

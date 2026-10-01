@@ -47,6 +47,15 @@ test("a term's help explains it in place and leads to the Glossary", async ({ br
 	await expect(terms.filter({ hasText: "Take-home pay" })).toBeVisible();
 	await expect(page.getByText("Used to be called “Baseline”.")).toBeVisible();
 
+	// The sidebar links to it, as the page you're on.
+	await page.goBack();
+	const glossaryLink = page
+		.getByRole("navigation", { name: "Main" })
+		.getByRole("link", { name: "Glossary" });
+	await glossaryLink.click();
+	await expect(heading(page)).toHaveText("HouseholdGlossary");
+	await expect(glossaryLink).toHaveAttribute("aria-current", "page");
+
 	// The Household page links to it too.
 	await page
 		.getByRole("navigation", { name: "Main" })
