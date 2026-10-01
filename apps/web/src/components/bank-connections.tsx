@@ -308,6 +308,9 @@ function ConnectionRow({
 						{" · "}
 						<span className={cn(status.failed && "text-over")}>{status.text}</span>
 					</span>
+					{count > 0 ? (
+						<span className="basis-full">{connection.accounts.map((a) => a.name).join(", ")}</span>
+					) : null}
 					{connection.brought.transactions > 0 ? (
 						<span className="basis-full">
 							Brought in{" "}

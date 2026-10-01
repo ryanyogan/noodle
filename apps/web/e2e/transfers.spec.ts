@@ -32,7 +32,7 @@ async function uploadStatement(
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	// With an Account already there, the form waits behind Add Account.
-	if (await page.getByRole("heading", { name: /^Accounts \d/ }).isVisible()) {
+	if (await page.getByRole("region", { name: "Totals" }).isVisible()) {
 		await expect(async () => {
 			await page.getByRole("button", { name: "Add Account" }).click();
 			await expect(page.getByLabel("Name")).toBeVisible({ timeout: 1000 });

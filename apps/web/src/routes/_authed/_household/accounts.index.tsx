@@ -1,4 +1,5 @@
 import { Button } from "@noodle/ui/components/button";
+import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { List } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
@@ -25,6 +26,7 @@ import {
 	LinkRow,
 } from "../../../components/goals";
 import { SaveFailed } from "../../../components/plan-editing";
+import { formatMoney } from "../../../format";
 import { type AccountView, accountKindName, useAddAccount, useGoals } from "../../../goals";
 import { bankConnectionsQuery, goalsQuery } from "../../../queries";
 
@@ -43,6 +45,8 @@ function AccountsPage() {
 	const [adding, setAdding] = useState(false);
 	const addAccount = useAddAccount();
 	const bank = useConnectBank();
+	const cash = accounts.filter((a) => a.holdsMoney);
+	const owing = accounts.filter((a) => !a.holdsMoney);
 
 	if (accounts.length === 0) {
 		return (
@@ -74,17 +78,18 @@ function AccountsPage() {
 					</Button>
 				}
 			/>
-			<div className="grid max-w-2xl gap-8">
-				<Section aria-labelledby="accounts">
-					<SectionHeader id="accounts" title="Accounts" count={accounts.length} />
+			{/* lg: the Accounts on the left; totals and Bank Connections in a rail that stays put (#47). */}
+			<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start xl:grid-cols-[minmax(0,1fr)_380px]">
+				<div className="grid min-w-0 gap-8">
 					<SaveFailed change={addAccount} />
-					<List>
-						{accounts.map((account) => (
-							<AccountItem key={account.id} account={account} />
-						))}
-					</List>
-				</Section>
-				<BankConnections bank={bank} />
+					<AccountGroup id="accounts-cash" title="Cash" accounts={cash} />
+					<AccountGroup id="accounts-owed" title="Cards and loans" accounts={owing} />
+				</div>
+				{/* On phones the totals come first and the Bank Connections last. */}
+				<div className="max-lg:contents lg:sticky lg:top-6 lg:grid lg:gap-8">
+					<AccountTotals accounts={accounts} />
+					<BankConnections bank={bank} />
+				</div>
 			</div>
 			<AddAccountSheet
 				open={adding}
@@ -103,6 +108,76 @@ function AccountsPage() {
 				}}
 			/>
 		</>
+	);
+}
+
+/** One kind of Account (Cash, or Cards and loans), listed; nothing when there are none. */
+function AccountGroup({
+	id,
+	title,
+	accounts,
+}: {
+	id: string;
+	title: string;
+	accounts: AccountView[];
+}) {
+	if (accounts.length === 0) return null;
+	return (
+		<Section aria-labelledby={id}>
+			<SectionHeader id={id} title={title} count={accounts.length} />
+			<List>
+				{accounts.map((account) => (
+					<AccountItem key={account.id} account={account} />
+				))}
+			</List>
+		</Section>
+	);
+}
+
+/**
+ * What the Accounts add up to: the cash in them, what's owed on cards and loans, and how much of
+ * the cash Goals have set aside. Accounts without a balance yet count for nothing, and say so.
+ */
+function AccountTotals({ accounts }: { accounts: AccountView[] }) {
+	const sum = (values: (number | null)[]) => values.reduce<number>((t, v) => t + (v ?? 0), 0);
+	const cash = accounts.filter((a) => a.holdsMoney);
+	const owing = accounts.filter((a) => !a.holdsMoney);
+	const notSetAside = sum(cash.map((a) => a.unclaimed));
+	const missing = accounts.filter((a) => a.balance === null).length;
+	const rows = [
+		{ label: "Cash", value: sum(cash.map((a) => a.balance)), show: cash.length > 0 },
+		{ label: "Owed", value: sum(owing.map((a) => a.balance)), show: owing.length > 0 },
+		{
+			label: "Set aside for Goals",
+			value: sum(cash.map((a) => a.earmarked)),
+			show: cash.length > 0,
+		},
+		{ label: "Not set aside", value: notSetAside, show: cash.length > 0, over: notSetAside < 0 },
+	].filter((row) => row.show);
+	return (
+		<Card role="region" aria-labelledby="account-totals" className="max-lg:order-first">
+			<div className="grid gap-3 p-(--card-pad)">
+				<h2 id="account-totals" className="text-[13px] font-medium text-muted-foreground">
+					Totals
+				</h2>
+				<dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+					{rows.map((row) => (
+						<div key={row.label} className="grid gap-0.5">
+							<dt className="text-[13px] text-muted-foreground">{row.label}</dt>
+							<dd className={cn("text-lg font-semibold tabular-nums", row.over && "text-over")}>
+								{formatMoney(row.value)}
+							</dd>
+						</div>
+					))}
+				</dl>
+				{missing > 0 ? (
+					<p className="text-[13px] text-muted-foreground">
+						{missing === 1 ? "1 Account has" : `${missing} Accounts have`} no balance yet, so
+						{missing === 1 ? " it isn’t" : " they aren’t"} counted.
+					</p>
+				) : null}
+			</div>
+		</Card>
 	);
 }
 

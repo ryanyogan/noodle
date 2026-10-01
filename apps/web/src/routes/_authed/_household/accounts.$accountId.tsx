@@ -140,7 +140,6 @@ function AccountDetails({ account }: { account: AccountView }) {
 	return (
 		<>
 			<PageHeader
-				className="max-w-2xl"
 				eyebrow={`${accountKindName[account.kind]} Account`}
 				title={account.name}
 				leading={<BackToAccounts />}
@@ -200,155 +199,169 @@ function AccountDetails({ account }: { account: AccountView }) {
 					choose it again from the Bank Connection on Accounts.
 				</Confirm>
 			) : null}
-			<div className="grid max-w-2xl gap-8">
-				<Card role="region" aria-labelledby="account-balance">
-					<div className="grid gap-3 p-(--card-pad)">
-						<div className="flex items-start justify-between gap-4">
-							<div className="grid gap-1">
-								<h2 id="account-balance" className="text-[13px] font-medium text-muted-foreground">
-									{owes ? "Owed" : "Balance"}
-								</h2>
-								<p
-									className={cn(
-										"text-[2.25rem] font-[650] leading-[1.05] tracking-[-0.035em] tabular-nums",
-										account.balance === null && "text-subtle-foreground",
-									)}
-								>
-									{account.balance === null ? "—" : formatMoney(account.balance)}
-								</p>
+			{/* lg: Transactions and statements on the left; the balance, what's set aside and the
+			    payoff plan in a rail on the right that stays put (#47). Phones keep the rail first. */}
+			<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start xl:grid-cols-[minmax(0,1fr)_400px]">
+				<div className="grid min-w-0 gap-8 lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1">
+					<Card role="region" aria-labelledby="account-balance">
+						<div className="grid gap-3 p-(--card-pad)">
+							<div className="flex items-start justify-between gap-4">
+								<div className="grid gap-1">
+									<h2
+										id="account-balance"
+										className="text-[13px] font-medium text-muted-foreground"
+									>
+										{owes ? "Owed" : "Balance"}
+									</h2>
+									<p
+										className={cn(
+											"text-[2.25rem] font-[650] leading-[1.05] tracking-[-0.035em] tabular-nums",
+											account.balance === null && "text-subtle-foreground",
+										)}
+									>
+										{account.balance === null ? "—" : formatMoney(account.balance)}
+									</p>
+								</div>
+								{typesBalance ? (
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										disabled={!hydrated}
+										onClick={() => setSheet("balance")}
+									>
+										{account.balance === null
+											? owes
+												? "Add what’s owed"
+												: "Add balance"
+											: owes
+												? "Update what’s owed"
+												: "Update balance"}
+									</Button>
+								) : null}
 							</div>
-							{typesBalance ? (
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									disabled={!hydrated}
-									onClick={() => setSheet("balance")}
-								>
-									{account.balance === null
-										? owes
-											? "Add what’s owed"
-											: "Add balance"
-										: owes
-											? "Update what’s owed"
-											: "Update balance"}
-								</Button>
+							<p className="text-sm text-muted-foreground">
+								{accountSourceText(source)}
+								{/* One balance with where and when it's from (#47), not three numbers apart. */}
+								{!connected && account.latestBalance ? (
+									<>
+										{" · "}
+										{owes ? "owed" : "balance"} as of{" "}
+										{shortDay(dayKeyAt(new Date(account.latestBalance.at), timeZone))}
+										{spentSince > 0
+											? `, less ${formatMoney(spentSince)} spent from Goals since`
+											: ""}
+									</>
+								) : null}
+								{connected?.needsLogin ? (
+									<>
+										{" · "}
+										<Link to="/accounts" className="font-medium text-foreground underline">
+											Reconnect on Accounts
+										</Link>
+									</>
+								) : null}
+							</p>
+							{account.balance === null ? (
+								<p className="text-sm text-muted-foreground">
+									{owes
+										? "Add what’s owed on it today."
+										: "Add what’s in it today, from your bank, to see what’s not set aside."}
+								</p>
+							) : connected && spentSince > 0 ? (
+								<p className="text-sm text-muted-foreground">
+									Less {formatMoney(spentSince)} spent from Goals since the bank last said.
+								</p>
+							) : null}
+							<StatementBalanceNote
+								account={account}
+								onUse={(amountCents) =>
+									updateBalance.mutate({ balanceId: ulid(), accountId: account.id, amountCents })
+								}
+							/>
+							{account.holdsMoney && account.balance !== null ? (
+								<SplitBar account={account} />
 							) : null}
 						</div>
-						<p className="text-sm text-muted-foreground">
-							{accountSourceText(source)}
-							{/* One balance with where and when it's from (#47), not three numbers apart. */}
-							{!connected && account.latestBalance ? (
-								<>
-									{" · "}
-									{owes ? "owed" : "balance"} as of{" "}
-									{shortDay(dayKeyAt(new Date(account.latestBalance.at), timeZone))}
-									{spentSince > 0 ? `, less ${formatMoney(spentSince)} spent from Goals since` : ""}
-								</>
-							) : null}
-							{connected?.needsLogin ? (
-								<>
-									{" · "}
-									<Link to="/accounts" className="font-medium text-foreground underline">
-										Reconnect on Accounts
-									</Link>
-								</>
-							) : null}
-						</p>
-						{account.balance === null ? (
-							<p className="text-sm text-muted-foreground">
-								{owes
-									? "Add what’s owed on it today."
-									: "Add what’s in it today, from your bank, to see what’s not set aside."}
-							</p>
-						) : connected && spentSince > 0 ? (
-							<p className="text-sm text-muted-foreground">
-								Less {formatMoney(spentSince)} spent from Goals since the bank last said.
+						{account.overClaimedBy > 0 ? (
+							<p
+								role="status"
+								className="border-t bg-over-soft px-(--card-pad) py-3 text-[13px] text-over-foreground"
+							>
+								Goals have set aside {formatMoney(account.overClaimedBy)} more than the balance.
+								Update the balance if it’s out of date, or release some of what a Goal has set
+								aside.
 							</p>
 						) : null}
-						<StatementBalanceNote
-							account={account}
-							onUse={(amountCents) =>
-								updateBalance.mutate({ balanceId: ulid(), accountId: account.id, amountCents })
-							}
-						/>
-						{account.holdsMoney && account.balance !== null ? <SplitBar account={account} /> : null}
-					</div>
-					{account.overClaimedBy > 0 ? (
-						<p
-							role="status"
-							className="border-t bg-over-soft px-(--card-pad) py-3 text-[13px] text-over-foreground"
-						>
-							Goals have set aside {formatMoney(account.overClaimedBy)} more than the balance.
-							Update the balance if it’s out of date, or release some of what a Goal has set aside.
-						</p>
-					) : null}
-				</Card>
-				<SaveFailed change={updateBalance} />
-				<SaveFailed change={rename} />
+					</Card>
+					<SaveFailed change={updateBalance} />
+					<SaveFailed change={rename} />
 
-				{account.holdsMoney ? (
-					<Section aria-labelledby="account-set-aside">
-						<SectionHeader
-							id="account-set-aside"
-							title="Set aside for Goals"
-							count={account.earmarks.length}
-							help={<TermHelp term="set-aside" />}
-						/>
-						<List>
-							{account.earmarks.map(({ goal, amount }) => (
-								<LinkRow
-									key={goal.id}
-									link={(props) => (
-										<Link to="/goals/$goalId" params={{ goalId: goal.id }} {...props} />
-									)}
-									label={`${goal.name}, ${formatMoney(amount)} set aside`}
-									title={goal.name}
-									meta={`${goal.completed ? "Completed · " : ""}Goal of ${formatMoney(goal.target)}`}
+					{account.holdsMoney ? (
+						<Section aria-labelledby="account-set-aside">
+							<SectionHeader
+								id="account-set-aside"
+								title="Set aside for Goals"
+								count={account.earmarks.length}
+								help={<TermHelp term="set-aside" />}
+							/>
+							<List>
+								{account.earmarks.map(({ goal, amount }) => (
+									<LinkRow
+										key={goal.id}
+										link={(props) => (
+											<Link to="/goals/$goalId" params={{ goalId: goal.id }} {...props} />
+										)}
+										label={`${goal.name}, ${formatMoney(amount)} set aside`}
+										title={goal.name}
+										meta={`${goal.completed ? "Completed · " : ""}Goal of ${formatMoney(goal.target)}`}
+										trailing={
+											<span className="text-sm font-semibold tabular-nums">
+												{formatMoney(amount)}
+											</span>
+										}
+									/>
+								))}
+								<ListRow
+									aria-label={
+										account.unclaimed === null
+											? "Not set aside, unknown until the balance is added"
+											: `Not set aside, ${formatMoney(account.unclaimed)}`
+									}
+									title="Not set aside"
+									meta="Free for new Goals"
 									trailing={
-										<span className="text-sm font-semibold tabular-nums">
-											{formatMoney(amount)}
+										<span
+											className={cn(
+												"text-sm font-semibold tabular-nums",
+												account.unclaimed === null && "font-normal text-subtle-foreground",
+												account.overClaimedBy > 0 && "text-over",
+											)}
+										>
+											{account.unclaimed === null ? "—" : formatMoney(account.unclaimed)}
 										</span>
 									}
 								/>
-							))}
-							<ListRow
-								aria-label={
-									account.unclaimed === null
-										? "Not set aside, unknown until the balance is added"
-										: `Not set aside, ${formatMoney(account.unclaimed)}`
-								}
-								title="Not set aside"
-								meta="Free for new Goals"
-								trailing={
-									<span
-										className={cn(
-											"text-sm font-semibold tabular-nums",
-											account.unclaimed === null && "font-normal text-subtle-foreground",
-											account.overClaimedBy > 0 && "text-over",
-										)}
-									>
-										{account.unclaimed === null ? "—" : formatMoney(account.unclaimed)}
-									</span>
-								}
-							/>
-						</List>
-					</Section>
-				) : (
-					<PayOffSection account={account} />
-				)}
-				<AccountTransactions account={account} />
-				<StatementsSection
-					account={account}
-					connected={
-						connected
-							? {
-									institution: connected.connection.institution,
-									needsLogin: connected.needsLogin,
-								}
-							: null
-					}
-				/>
+							</List>
+						</Section>
+					) : (
+						<PayOffSection account={account} />
+					)}
+				</div>
+				<div className="grid min-w-0 gap-8 lg:col-start-1 lg:row-start-1">
+					<AccountTransactions account={account} />
+					<StatementsSection
+						account={account}
+						connected={
+							connected
+								? {
+										institution: connected.connection.institution,
+										needsLogin: connected.needsLogin,
+									}
+								: null
+						}
+					/>
+				</div>
 			</div>
 
 			<AmountSheet
