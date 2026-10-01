@@ -74,7 +74,7 @@ test("a card is paid off with a payoff Goal: added from what's owed, funded, pai
 	const payingOff = page.getByRole("region", { name: /^Paying it off/ });
 	await payingOff.getByRole("button", { name: "Plan to pay this off" }).click();
 	const add = page.getByRole("dialog", { name: "Pay off a card or loan" });
-	await expect(add.getByLabel("Card or loan", { exact: true })).toHaveValue(/.+/);
+	await expect(add.getByLabel("Card or loan", { exact: true })).toContainText("Visa");
 	await expect(add).toContainText("$1,200 owed today. That’s the target");
 	await expect(add.getByLabel("Name")).toHaveValue("Pay off Visa");
 	const added = savedBy(page, "addGoal");
