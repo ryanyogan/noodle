@@ -12,6 +12,7 @@ import type { BatchItem } from "drizzle-orm/batch";
 import { importStatement } from "./imports";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
+import { bankLinesNotHere } from "./same-lines";
 import { accounts, income, splits, transactions, transfers } from "./schema";
 import { clearSplits, transactionDeletes } from "./transactions";
 import { detectTransfers } from "./transfers";
@@ -21,7 +22,8 @@ import { detectTransfers } from "./transfers";
 // already in are changed where they are, in one batch, each only if it's still as it was read (a
 // sync overtaken by another changes nothing twice); a pending Transaction's posted copy takes
 // over its row, so its assignment, Splits, For, Receipt and any Match stay with it. Rows the bank
-// dropped are deleted with what hangs off them. New lines then come in as an Import. The rows
+// dropped are deleted with what hangs off them. New lines then come in as an Import, less those
+// already in the Account from a statement (bankLinesNotHere, ADR-0020). The rows
 // compared are read by their IDs as one JSON parameter: D1 caps a statement's at 100.
 
 export type BankSyncResult = {
@@ -95,8 +97,19 @@ export async function syncBankLines(
 		for (const month of [...matched.months, ...moved.months]) months.add(month);
 	}
 
+	// Lines a statement already brought in (or an earlier Bank Connection) aren't brought in again.
+	const notHere = await bankLinesNotHere(db, {
+		householdId,
+		accountId,
+		connectionId: input.connectionId,
+		lines: plan.add,
+	});
+	if (notHere.writes.length > 0) {
+		await db.batch(notHere.writes as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+	}
+
 	let importId: string | null = null;
-	if (plan.add.length > 0) {
+	if (notHere.add.length > 0) {
 		const imported = await importStatement(db, {
 			householdId,
 			importId: input.importId,
@@ -105,7 +118,7 @@ export async function syncBankLines(
 			fileName: null,
 			fileKey: null,
 			bankConnectionId: input.connectionId,
-			lines: plan.add.map(({ date, amount, description, bankId, pending }) => ({
+			lines: notHere.add.map(({ date, amount, description, bankId, pending }) => ({
 				date,
 				amount,
 				description,
@@ -114,6 +127,7 @@ export async function syncBankLines(
 			})),
 			closingBalance: null,
 			csvMapping: null,
+			alreadyHere: notHere.paired,
 			createdByMemberId: input.createdByMemberId,
 			newId: input.newId,
 		});

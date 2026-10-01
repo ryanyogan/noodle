@@ -245,7 +245,9 @@ export const bankConnections = sqliteTable(
 		institution: text("institution"),
 		credential: text("credential").notNull(),
 		cursor: text("cursor"),
-		status: text("status", { enum: ["importing", "ready", "failed", "reconnect"] })
+		// "choosing" until a Parent has said which Accounts its accounts are (ADR-0020): nothing is
+		// read from it meanwhile, so no history is lost.
+		status: text("status", { enum: ["choosing", "importing", "ready", "failed", "reconnect"] })
 			.notNull()
 			.default("importing"),
 		lastImportedAt: integer("last_imported_at", { mode: "timestamp_ms" }),
@@ -303,6 +305,32 @@ export const accountBalances = sqliteTable(
 			.default(sql`(unixepoch() * 1000)`),
 	},
 	(t) => [index("account_balances_account_idx").on(t.accountId)],
+);
+
+// A bank line that is a line already in its Account from elsewhere (a statement, or an earlier
+// Bank Connection), so it wasn't brought in again (ADR-0020): the bank's key for it (`id:<bank
+// ID>`, as bankLineKey makes it) and the Transaction or income row it is. Later reads of the same
+// line skip it, and each row stands for at most one bank line.
+export const bankLinePairs = sqliteTable(
+	"bank_line_pairs",
+	{
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		accountId: text("account_id")
+			.notNull()
+			.references(() => accounts.id),
+		bankKey: text("bank_key").notNull(),
+		// A Transaction's or an income row's ID; no reference, as it may be either.
+		rowId: text("row_id").notNull(),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [
+		primaryKey({ columns: [t.accountId, t.bankKey] }),
+		uniqueIndex("bank_line_pairs_row_idx").on(t.rowId),
+	],
 );
 
 // A batch of Transactions brought in from an Account: from a statement file a Parent uploaded

@@ -26,7 +26,7 @@ import { FileUp } from "lucide-react";
 import { type FormEvent, useId, useMemo, useRef, useState } from "react";
 import { ulid } from "ulid";
 import { formatMoney, shortDay } from "../format";
-import type { AccountView } from "../goals";
+import { type AccountView, useUpdateAccountBalance } from "../goals";
 import { accountImportsQuery } from "../queries";
 import { MAX_STATEMENT_CHARS } from "../server/imports";
 import { importSummary, StatementRefused, useUploadStatement } from "../statements";
@@ -90,36 +90,68 @@ export function StatementBalanceNote({
 	);
 }
 
-export function StatementsSection({ account }: { account: AccountView }) {
+/** A statement chosen in the upload sheet, kept while the sheet is closed by accident. */
+type Draft = { file: ChosenFile | null; mapping: CsvMapping | null };
+const NO_DRAFT: Draft = { file: null, mapping: null };
+
+/**
+ * An Account's Imports, and its upload sheet. A connected Account's lines come from its bank
+ * (ADR-0020), so it offers no upload unless the bank needs a login again, when a statement is the
+ * stop-gap; lines the bank brings in later that a statement already had aren't doubled.
+ */
+export function StatementsSection({
+	account,
+	connected,
+}: {
+	account: AccountView;
+	/** The Account's Bank Connection, when it has one: its name, and whether it needs a login. */
+	connected?: { institution: string | null; needsLogin: boolean } | null;
+}) {
 	const hydrated = useHydrated();
 	const { imports } = useSuspenseQuery(accountImportsQuery(account.id)).data;
 	// Upload days in the Household's time zone, so the server and the browser agree.
 	const { timeZone } = useRouteContext({ from: "/_authed/_household" }).household;
 	const [open, setOpen] = useState(false);
+	const [draft, setDraft] = useState<Draft>(NO_DRAFT);
+	const [imported, setImported] = useState<ImportRecord | null>(null);
+	const bank = connected?.institution ?? "the bank";
+	const canUpload = !connected || connected.needsLogin;
 
 	return (
 		<Section aria-labelledby="account-statements">
 			<SectionHeader
 				id="account-statements"
-				title="Statements"
+				title={connected ? `Brought in from ${bank}` : "Statements"}
 				count={imports.length}
 				action={
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						disabled={!hydrated}
-						onClick={() => setOpen(true)}
-					>
-						<FileUp />
-						Upload statement
-					</Button>
+					canUpload ? (
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							disabled={!hydrated}
+							onClick={() => {
+								setImported(null);
+								setOpen(true);
+							}}
+						>
+							<FileUp />
+							Upload statement
+						</Button>
+					) : undefined
 				}
 			/>
+			{connected?.needsLogin ? (
+				<Card className="p-(--card-pad) text-sm text-muted-foreground">
+					{bank} needs you to log in again before it brings in more. Reconnect it on Accounts, or
+					upload a statement for now: what the bank brings in later isn’t added twice.
+				</Card>
+			) : null}
 			{imports.length === 0 ? (
 				<Card className="p-(--card-pad) text-sm text-muted-foreground">
-					Upload a CSV or OFX statement from your bank to bring in this Account’s Transactions.
-					Uploading one again, or one that overlaps, adds nothing twice.
+					{connected
+						? `${bank} brings in this Account’s Transactions on its own, every day.`
+						: "Upload a CSV or OFX statement from your bank to bring in this Account’s Transactions. Uploading one again, or one that overlaps, adds nothing twice."}
 				</Card>
 			) : (
 				<List aria-label="Imported statements">
@@ -155,11 +187,106 @@ export function StatementsSection({ account }: { account: AccountView }) {
 							title="Upload a statement"
 							description={`A CSV, OFX or QFX file from your bank for ${account.name}.`}
 						/>
-						<UploadForm account={account} onImported={() => setOpen(false)} />
+						{imported ? (
+							<ImportedBalance
+								account={account}
+								record={imported}
+								onDone={() => {
+									setImported(null);
+									setOpen(false);
+								}}
+							/>
+						) : (
+							<UploadForm
+								account={account}
+								draft={draft}
+								onDraft={setDraft}
+								onImported={(record) => {
+									setDraft(NO_DRAFT);
+									// Offer the statement's balance at once, when it has a newer one.
+									if (balanceOffer(account, record.closingBalance, timeZone)) setImported(record);
+									else setOpen(false);
+								}}
+							/>
+						)}
 					</SheetContent>
 				) : null}
 			</Sheet>
 		</Section>
+	);
+}
+
+/**
+ * The balance a statement's closing balance offers: when it's from the day the balance was entered
+ * or later, and says something else. Null when there's nothing to offer.
+ */
+function balanceOffer(
+	account: AccountView,
+	closing: ClosingBalance | null,
+	timeZone: string,
+): { owing: boolean; amount: Cents } | null {
+	if (!closing) return null;
+	const { owing, amount } = closingBalanceFor(closing, account.holdsMoney);
+	const newer =
+		account.latestBalance === null ||
+		closing.date >= dayKeyAt(new Date(account.latestBalance.at), timeZone);
+	return newer && amount >= 0 && amount !== account.balance ? { owing, amount } : null;
+}
+
+/** Right after an import: the statement's closing balance, offered as the Account's. */
+function ImportedBalance({
+	account,
+	record,
+	onDone,
+}: {
+	account: AccountView;
+	record: ImportRecord;
+	onDone: () => void;
+}) {
+	const hydrated = useHydrated();
+	const { timeZone } = useRouteContext({ from: "/_authed/_household" }).household;
+	const updateBalance = useUpdateAccountBalance();
+	const offer = balanceOffer(account, record.closingBalance, timeZone);
+	const closing = record.closingBalance;
+	return (
+		<div className="grid gap-4">
+			<p role="status" className="text-sm">
+				Imported: {importSummary(record)}.
+			</p>
+			{offer && closing ? (
+				<p className="text-sm text-muted-foreground">
+					This statement ends {offer.owing ? "owing" : "at"}{" "}
+					<span className="font-medium text-foreground tabular-nums">
+						{formatMoney(offer.amount)}
+					</span>{" "}
+					on {shortDay(closing.date)}.{" "}
+					{account.balance === null
+						? `${account.name} has no ${account.holdsMoney ? "balance" : "amount owed"} yet.`
+						: `Noodle has ${formatMoney(account.balance)}${account.holdsMoney ? "" : " owed"}.`}
+				</p>
+			) : null}
+			<div className="grid gap-2 sm:grid-flow-col sm:justify-start">
+				{offer ? (
+					<Button
+						type="button"
+						disabled={!hydrated}
+						onClick={() => {
+							updateBalance.mutate({
+								balanceId: ulid(),
+								accountId: account.id,
+								amountCents: offer.amount,
+							});
+							onDone();
+						}}
+					>
+						Use {formatMoney(offer.amount)} {offer.owing ? "as what’s owed" : "as the balance"}
+					</Button>
+				) : null}
+				<Button type="button" variant="outline" disabled={!hydrated} onClick={onDone}>
+					{offer && account.balance !== null ? `Keep ${formatMoney(account.balance)}` : "Done"}
+				</Button>
+			</div>
+		</div>
 	);
 }
 
@@ -184,13 +311,25 @@ const fits = (mapping: CsvMapping, rows: string[][]) => {
 	return columns.every((c) => c < width);
 };
 
-function UploadForm({ account, onImported }: { account: AccountView; onImported: () => void }) {
+function UploadForm({
+	account,
+	draft,
+	onDraft,
+	onImported,
+}: {
+	account: AccountView;
+	draft: Draft;
+	onDraft: (draft: Draft) => void;
+	onImported: (record: ImportRecord) => void;
+}) {
 	const hydrated = useHydrated();
 	const id = useId();
 	const input = useRef<HTMLInputElement>(null);
 	const { csvMapping: remembered } = useSuspenseQuery(accountImportsQuery(account.id)).data;
-	const [file, setFile] = useState<ChosenFile | null>(null);
-	const [mapping, setMapping] = useState<CsvMapping | null>(null);
+	// Kept above the sheet, so closing it by accident loses neither the file nor the columns.
+	const { file, mapping } = draft;
+	const setFile = (next: ChosenFile | null) => onDraft({ file: next, mapping: null });
+	const setMapping = (next: CsvMapping | null) => onDraft({ file, mapping: next });
 	const [fileError, setFileError] = useState<string | null>(null);
 	const upload = useUploadStatement(onImported);
 	const format = file ? statementFormat(file.content) : null;
@@ -209,18 +348,19 @@ function UploadForm({ account, onImported }: { account: AccountView; onImported:
 			return setFileError("That file is too large to be a statement.");
 		}
 		const rows = statementFormat(content) === "csv" ? parseCsv(content) : [];
-		setFile({ name: chosen.name, content, importId: ulid(), rows });
 		// The Account's last mapping, unless this file is laid out differently (a different export,
 		// or another Account's file): then its columns are guessed afresh.
-		setMapping(
-			rows.length === 0
-				? null
-				: remembered &&
-						fits(remembered, rows) &&
-						readStatement(content, remembered).statement.lines.length > 0
-					? remembered
-					: guessCsvMapping(rows),
-		);
+		onDraft({
+			file: { name: chosen.name, content, importId: ulid(), rows },
+			mapping:
+				rows.length === 0
+					? null
+					: remembered &&
+							fits(remembered, rows) &&
+							readStatement(content, remembered).statement.lines.length > 0
+						? remembered
+						: guessCsvMapping(rows),
+		});
 	}
 
 	function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -259,6 +399,20 @@ function UploadForm({ account, onImported }: { account: AccountView; onImported:
 					{file ? "Choose another file" : "Choose a file"}
 				</Button>
 				{file ? <span className="min-w-0 truncate text-sm font-medium">{file.name}</span> : null}
+				{file ? (
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						disabled={upload.isPending}
+						onClick={() => {
+							upload.reset();
+							setFile(null);
+						}}
+					>
+						Clear
+					</Button>
+				) : null}
 			</div>
 			{fileError ? (
 				<p role="alert" className="text-sm text-over">
@@ -267,7 +421,15 @@ function UploadForm({ account, onImported }: { account: AccountView; onImported:
 			) : null}
 
 			{file && format === "csv" && mapping ? (
-				<CsvMappingFields rows={file.rows} mapping={mapping} onChange={setMapping} />
+				// The guess is usually right: the columns stay folded away unless nothing reads.
+				<details open={lines === 0} className="group grid gap-3">
+					<summary className="cursor-pointer text-sm font-medium text-muted-foreground underline-offset-4 hover:underline">
+						Columns look wrong?
+					</summary>
+					<div className="pt-3">
+						<CsvMappingFields rows={file.rows} mapping={mapping} onChange={setMapping} />
+					</div>
+				</details>
 			) : null}
 
 			{file && statement ? (
@@ -496,7 +658,7 @@ function StatementPreview({
 				{account.holdsMoney
 					? "Money in is recorded as income."
 					: "Payments to the card and refunds are brought in, but don’t count as spending."}{" "}
-				The balance you entered stays as it is.
+				If it ends with a balance, you can use it once it’s in.
 			</p>
 			{unreadable.length > 0 ? (
 				<p className="text-[13px] text-muted-foreground">

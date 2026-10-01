@@ -273,21 +273,26 @@ export async function acceptInvite(
 export {
 	type AddBankConnectionResult,
 	addBankConnection,
+	type BankAccountChoice,
 	type BankConnectionStatus,
 	type BankConnectionSummary,
 	type BankConnectionToImport,
 	type BankConnectionToSync,
 	type BankProvider,
+	type ChooseBankAccountsResult,
+	chooseBankAccounts,
 	findBankConnectionsByExternal,
 	loadBankConnections,
 	loadBankConnectionsToSync,
 	loadBankConnectionToImport,
+	loadPairableAccounts,
 	markBankConnectionReconnect,
 	markBankConnectionReconnected,
 	markBankImportFailed,
 	refreshBankBalances,
 	saveBankImport,
 	saveBankNotice,
+	unpairAccount,
 } from "./bank-connections";
 export { type BankSyncResult, syncBankLines } from "./bank-sync";
 export {

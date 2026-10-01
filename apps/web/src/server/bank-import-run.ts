@@ -82,7 +82,14 @@ type Read = {
 	balances: { accountId: string; balanceId: string; amountCents: Cents }[];
 };
 
-export type BankImportResult = "done" | "gone" | "overtaken" | "failed" | "reconnect";
+export type BankImportResult =
+	| "done"
+	| "gone"
+	| "overtaken"
+	| "failed"
+	| "reconnect"
+	/** Its Parent hasn't chosen its Accounts yet (ADR-0020): nothing is read, so nothing is lost. */
+	| "choosing";
 
 export async function runBankImport(
 	params: BankImportParams,
@@ -99,9 +106,10 @@ export async function runBankImport(
 			const read = await step.do(
 				`read ${round}`,
 				READ_STEP,
-				async (): Promise<Read | "reconnect" | null> => {
+				async (): Promise<Read | "reconnect" | "choosing" | null> => {
 					const connection = await loadBankConnectionToImport(db, householdId, connectionId);
 					if (!connection) return null;
+					if (connection.status === "choosing") return "choosing";
 					const credential = await deps.openCredential(connection);
 					const provider = deps.providerFor(connection.provider);
 					try {
@@ -117,6 +125,7 @@ export async function runBankImport(
 				},
 			);
 			if (!read) return "gone";
+			if (read === "choosing") return "choosing";
 			if (read === "reconnect") {
 				await step.do("mark reconnect", WRITE_STEP, () =>
 					markBankConnectionReconnect(db, householdId, connectionId),

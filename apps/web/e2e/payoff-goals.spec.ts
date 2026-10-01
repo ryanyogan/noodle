@@ -126,9 +126,12 @@ test("a card is paid off with a payoff Goal: added from what's owed, funded, pai
 	});
 	await upload.getByRole("button", { name: /^Import \d+ lines?$/ }).click();
 	await expect(page.getByRole("status").filter({ hasText: "visa.qfx:" })).toBeVisible();
+	// Right after the import, the sheet offers what the statement ends owing.
+	await expect(upload).toContainText("This statement ends owing $600");
+	await upload.getByRole("button", { name: "Use $600 as what’s owed" }).click();
+	await expect(upload).toBeHidden();
 	await payingOff.getByRole("link", { name: /^Pay off Visa, / }).click();
 	await expect(owedCard(page)).toContainText("Your latest statement ends owing $600");
-	await owedCard(page).getByRole("button", { name: "Use $600 as what’s owed" }).click();
 	await expect(owedCard(page)).toContainText("Paid down $600 of $1,200");
 	await expect(owedCard(page).getByRole("button", { name: /^Use / })).toHaveCount(0);
 	await expect(page.getByRole("listitem").filter({ hasText: "What’s owed" }).first()).toContainText(

@@ -266,6 +266,16 @@ export {
 	projectionAssumptions,
 } from "./outcomes";
 export {
+	canPair,
+	type LineToPair,
+	type PairableAccount,
+	pairableFor,
+	pairingScore,
+	pairSameLines,
+	SAME_LINE_DAYS,
+	suggestPairings,
+} from "./pairing";
+export {
 	type CatalogEntry,
 	catalogEntryFor,
 	detectPerkSources,

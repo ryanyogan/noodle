@@ -1,12 +1,19 @@
-import type { AccountKind, BankAccount, Cents } from "@noodle/domain";
-import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
+import {
+	type AccountKind,
+	type BankAccount,
+	type Cents,
+	holdsMoney,
+	type PairableAccount,
+} from "@noodle/domain";
+import { and, asc, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import type { Db } from "./index";
 import { accountBalances, accounts, bankConnections, households } from "./schema";
 
 // Bank Connections: a Household's authorized links to its financial institutions (through
-// Plaid). Connecting one creates its Accounts, each with the balance the institution reports, in
-// one atomic batch; its Imports are then read by the Import Workflow, which keeps the provider's
+// Plaid). Connecting one records it, "choosing" until a Parent says which of the Household's
+// Accounts each of its accounts is, or adds it as a new one (ADR-0020); that choice is written,
+// with the balance the institution reports for each, in one atomic batch. Its Imports are then read by the Import Workflow, which keeps the provider's
 // cursor here so each read picks up where the last left off, and records each Account's balance
 // anew when the institution's has changed. The credential stays in the Worker: nothing here that
 // a screen reads includes it.
@@ -35,19 +42,20 @@ export type BankConnectionToImport = {
 	cursor: string | null;
 	/** The Parent who connected it: Imports are theirs, as a statement's is its uploader's. */
 	createdByMemberId: string;
+	status: BankConnectionStatus;
 	/** Its Accounts, by the provider's ID for each. */
 	accounts: { id: string; externalId: string }[];
 };
 
 export type AddBankConnectionResult =
-	| { ok: true; accounts: number }
+	| { ok: true }
 	/** The same link at the institution is already one of the Household's Bank Connections. */
 	| { ok: false; reason: "connected-already" };
 
 /**
- * Records a Bank Connection and creates an Account for each of its accounts the app tracks, with
- * the balance the institution reports (what's owed, for a card or loan). Idempotent per
- * `connectionId`; each Account and balance is written only if the connection is.
+ * Records a Bank Connection, "choosing" until a Parent says which Accounts its accounts are
+ * (chooseBankAccounts, ADR-0020): nothing is read from it meanwhile. Idempotent per
+ * `connectionId`.
  */
 export async function addBankConnection(
 	db: Db,
@@ -59,75 +67,209 @@ export async function addBankConnection(
 		institution: string | null;
 		credential: string;
 		createdByMemberId: string;
-		accounts: {
-			accountId: string;
-			balanceId: string;
-			account: BankAccount & { kind: AccountKind };
-		}[];
 	},
 ): Promise<AddBankConnectionResult> {
+	const { householdId, connectionId } = input;
+	await db
+		.insert(bankConnections)
+		.values({
+			id: connectionId,
+			householdId,
+			provider: input.provider,
+			externalId: input.externalId,
+			institution: input.institution,
+			credential: input.credential,
+			createdByMemberId: input.createdByMemberId,
+			status: "choosing",
+		})
+		// Its ID, or the same link already connected.
+		.onConflictDoNothing();
+	const [written] = await db
+		.select({ id: bankConnections.id })
+		.from(bankConnections)
+		.where(and(eq(bankConnections.id, connectionId), eq(bankConnections.householdId, householdId)));
+	return written ? { ok: true } : { ok: false, reason: "connected-already" };
+}
+
+/** What a Parent chose for one of a Bank Connection's accounts (ADR-0020). */
+export type BankAccountChoice = {
+	/** The account as the institution reports it now. */
+	account: BankAccount & { kind: AccountKind };
+	/** The ID for the balance written with it. */
+	balanceId: string;
+	choice:
+		| { kind: "pair"; accountId: string }
+		| { kind: "add"; accountId: string }
+		| { kind: "leave-out" };
+};
+
+export type ChooseBankAccountsResult =
+	| {
+			ok: true;
+			/** How many Accounts the Bank Connection brings in for now. */
+			accounts: number;
+			/** Whether this was its first choice, so its first Import starts now. */
+			first: boolean;
+			/** Bank accounts whose pairing didn't take: the Account was paired meanwhile, or gone. */
+			refused: string[];
+	  }
+	| { ok: false; reason: "not-found" };
+
+/**
+ * Pairs each of a Bank Connection's accounts with the Account a Parent chose, adds it as a new
+ * Account, or leaves it out, in one batch, with the balance the institution reports. A pairing
+ * only takes while the Account is of a compatible kind and paired with no Bank Connection; an
+ * Account keeps its name, kind and everything on it. A Bank Connection still choosing is then
+ * ready for its first Import. Bank accounts paired already are left as they are.
+ */
+export async function chooseBankAccounts(
+	db: Db,
+	input: {
+		householdId: string;
+		connectionId: string;
+		createdByMemberId: string;
+		choices: BankAccountChoice[];
+	},
+): Promise<ChooseBankAccountsResult> {
 	const { householdId, connectionId } = input;
 	const theConnection = and(
 		eq(bankConnections.id, connectionId),
 		eq(bankConnections.householdId, householdId),
 	);
-	const writes = input.accounts.flatMap(({ accountId, balanceId, account }) => {
-		const insertAccount = db
-			.insert(accounts)
-			.select(
-				db
-					.select({
-						// Selected in the table's column order: insert … select is positional.
-						id: sql<string>`${accountId}`.as("id"),
-						householdId: bankConnections.householdId,
-						name: sql<string>`${account.name}`.as("name"),
-						kind: sql<AccountKind>`${account.kind}`.as("kind"),
-						createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
-						bankConnectionId: bankConnections.id,
-						externalId: sql<string>`${account.externalId}`.as("external_id"),
-					})
-					.from(bankConnections)
-					.where(theConnection),
-			)
-			.onConflictDoNothing();
-		if (account.balance === null) return [insertAccount];
-		return [insertAccount, insertBalance(db, input, accountId, balanceId, account.balance)];
-	});
-	await db.batch([
-		db
-			.insert(bankConnections)
-			.values({
-				id: connectionId,
-				householdId,
-				provider: input.provider,
-				externalId: input.externalId,
-				institution: input.institution,
-				credential: input.credential,
-				createdByMemberId: input.createdByMemberId,
-			})
-			// Its ID, or the same link already connected.
-			.onConflictDoNothing(),
-		...writes,
-	]);
-	const [written] = await db
-		.select({ id: bankConnections.id })
+	const [connection] = await db
+		.select({ status: bankConnections.status })
 		.from(bankConnections)
 		.where(theConnection);
-	if (!written) return { ok: false, reason: "connected-already" };
-	const [{ count } = { count: 0 }] = await db
-		.select({ count: sql<number>`count(*)` })
+	if (!connection) return { ok: false, reason: "not-found" };
+	const writes: BatchItem<"sqlite">[] = [];
+	for (const { account, balanceId, choice } of input.choices) {
+		// A bank account paired already (by an earlier choice, or another Parent's) stays as it is.
+		const notYetPaired = sql`not exists (select 1 from ${accounts} as already
+			where already.bank_connection_id = ${connectionId} and already.external_id = ${account.externalId})`;
+		if (choice.kind === "add") {
+			writes.push(
+				db
+					.insert(accounts)
+					.select(
+						db
+							.select({
+								// Selected in the table's column order: insert … select is positional.
+								id: sql<string>`${choice.accountId}`.as("id"),
+								householdId: bankConnections.householdId,
+								name: sql<string>`${account.name}`.as("name"),
+								kind: sql<AccountKind>`${account.kind}`.as("kind"),
+								createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
+								bankConnectionId: bankConnections.id,
+								externalId: sql<string>`${account.externalId}`.as("external_id"),
+							})
+							.from(bankConnections)
+							.where(and(theConnection, notYetPaired)),
+					)
+					.onConflictDoNothing(),
+			);
+		} else if (choice.kind === "pair") {
+			const sameSide = holdsMoney(account.kind)
+				? inArray(accounts.kind, ["checking", "savings"])
+				: inArray(accounts.kind, ["credit-card", "loan"]);
+			writes.push(
+				db
+					.update(accounts)
+					.set({ bankConnectionId: connectionId, externalId: account.externalId })
+					.where(
+						and(
+							eq(accounts.id, choice.accountId),
+							eq(accounts.householdId, householdId),
+							isNull(accounts.bankConnectionId),
+							sameSide,
+							notYetPaired,
+							sql`exists (select 1 from ${bankConnections} where ${theConnection})`,
+						),
+					),
+			);
+		} else continue;
+		if (account.balance !== null) {
+			writes.push(
+				insertBalance(
+					db,
+					{ householdId, connectionId, createdByMemberId: input.createdByMemberId },
+					choice.accountId,
+					balanceId,
+					account.balance,
+					account.externalId,
+				),
+			);
+		}
+	}
+	writes.push(
+		db
+			.update(bankConnections)
+			.set({ status: "importing" })
+			.where(and(theConnection, eq(bankConnections.status, "choosing"))),
+	);
+	await db.batch(writes as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+	const now = await db
+		.select({ id: accounts.id, externalId: accounts.externalId })
 		.from(accounts)
 		.where(and(eq(accounts.bankConnectionId, connectionId), eq(accounts.householdId, householdId)));
-	return { ok: true, accounts: count };
+	const refused = input.choices
+		.filter(
+			({ account, choice }) =>
+				choice.kind !== "leave-out" &&
+				!now.some((row) => row.id === choice.accountId && row.externalId === account.externalId),
+		)
+		.map(({ account }) => account.externalId);
+	return { ok: true, accounts: now.length, first: connection.status === "choosing", refused };
 }
 
-/** A new Account's first balance, as its Bank Connection reported it; only for that Account. */
+/**
+ * Stops bringing an Account in from its Bank Connection (ADR-0020): the Account and everything on
+ * it stay, kept by hand or by statements again. False when it wasn't connected.
+ */
+export async function unpairAccount(
+	db: Db,
+	householdId: string,
+	accountId: string,
+): Promise<boolean> {
+	const written = await db
+		.update(accounts)
+		.set({ bankConnectionId: null, externalId: null })
+		.where(
+			and(
+				eq(accounts.id, accountId),
+				eq(accounts.householdId, householdId),
+				isNotNull(accounts.bankConnectionId),
+			),
+		)
+		.returning({ id: accounts.id });
+	return written.length > 0;
+}
+
+/** The Household's Accounts as pairing reads them, oldest first. */
+export async function loadPairableAccounts(
+	db: Db,
+	householdId: string,
+): Promise<PairableAccount[]> {
+	return db
+		.select({
+			id: accounts.id,
+			name: accounts.name,
+			kind: accounts.kind,
+			bankConnectionId: accounts.bankConnectionId,
+			externalId: accounts.externalId,
+		})
+		.from(accounts)
+		.where(eq(accounts.householdId, householdId))
+		.orderBy(asc(accounts.createdAt), asc(accounts.id));
+}
+
+/** A chosen Account's balance, as its Bank Connection reported it; only once it's paired with it. */
 const insertBalance = (
 	db: Db,
 	input: { householdId: string; connectionId: string; createdByMemberId: string },
 	accountId: string,
 	balanceId: string,
 	amountCents: Cents,
+	externalId: string,
 ) =>
 	db
 		.insert(accountBalances)
@@ -139,7 +281,8 @@ const insertBalance = (
 					accountId: accounts.id,
 					amountCents: sql<number>`${amountCents}`.as("amount_cents"),
 					createdByMemberId: sql<string>`${input.createdByMemberId}`.as("created_by_member_id"),
-					createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
+					// To the millisecond, as a Parent's balances are: it's newer than one entered a moment ago.
+					createdAt: sql<Date>`${Date.now()}`.as("created_at"),
 				})
 				.from(accounts)
 				.where(
@@ -147,6 +290,7 @@ const insertBalance = (
 						eq(accounts.id, accountId),
 						eq(accounts.householdId, input.householdId),
 						eq(accounts.bankConnectionId, input.connectionId),
+						eq(accounts.externalId, externalId),
 					),
 				),
 		)
@@ -204,6 +348,7 @@ export async function loadBankConnectionToImport(
 				credential: bankConnections.credential,
 				cursor: bankConnections.cursor,
 				createdByMemberId: bankConnections.createdByMemberId,
+				status: bankConnections.status,
 			})
 			.from(bankConnections)
 			.where(
@@ -311,7 +456,7 @@ export async function refreshBankBalances(
 							accountId: accounts.id,
 							amountCents: sql<number>`${amountCents}`.as("amount_cents"),
 							createdByMemberId: sql<string | null>`null`.as("created_by_member_id"),
-							createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
+							createdAt: sql<Date>`${Date.now()}`.as("created_at"),
 						})
 						.from(accounts)
 						.where(
@@ -348,13 +493,16 @@ const toSync = {
 	status: bankConnections.status,
 };
 
-/** Every Household's Bank Connections the daily sync reads: not those waiting on a reconnect. */
+/**
+ * Every Household's Bank Connections the daily sync reads: not those waiting on a reconnect, or
+ * on a Parent choosing their Accounts.
+ */
 export async function loadBankConnectionsToSync(db: Db): Promise<BankConnectionToSync[]> {
 	return db
 		.select(toSync)
 		.from(bankConnections)
 		.innerJoin(households, eq(households.id, bankConnections.householdId))
-		.where(ne(bankConnections.status, "reconnect"))
+		.where(notInArray(bankConnections.status, ["reconnect", "choosing"]))
 		.orderBy(asc(bankConnections.createdAt), asc(bankConnections.id));
 }
 
@@ -387,7 +535,8 @@ export async function markBankConnectionReconnect(
 			and(
 				eq(bankConnections.id, connectionId),
 				eq(bankConnections.householdId, householdId),
-				ne(bankConnections.status, "reconnect"),
+				// One still choosing hasn't read anything yet: its choice comes first.
+				notInArray(bankConnections.status, ["reconnect", "choosing"]),
 			),
 		)
 		.returning({ id: bankConnections.id });

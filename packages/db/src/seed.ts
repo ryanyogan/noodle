@@ -61,6 +61,7 @@ const TABLES = {
 	earmarkClaims: s.earmarkClaims,
 	income: s.income,
 	transactions: s.transactions,
+	bankLinePairs: s.bankLinePairs,
 	transactionFor: s.transactionFor,
 	splits: s.splits,
 	splitFor: s.splitFor,

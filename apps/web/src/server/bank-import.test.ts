@@ -1,6 +1,8 @@
 import {
+	addAccount,
 	createHouseholdForParent,
 	type Db,
+	importStatement,
 	loadBankConnections,
 	loadBankConnectionToImport,
 	loadGoals,
@@ -9,7 +11,7 @@ import { bankConnections, income, transactions } from "@noodle/db/schema";
 import { testDb } from "@noodle/db/test-db";
 import type { DayKey } from "@noodle/domain";
 import { beforeEach, describe, expect, it } from "vitest";
-import { connectInstitution } from "./bank-connect";
+import { applyBankChoices, bankChoices, connectInstitution } from "./bank-connect";
 import { type BankConnectionProvider, BankProviderError } from "./bank-connection";
 import { credentialKey, openCredential, TEST_CREDENTIAL_KEY } from "./bank-credential";
 import {
@@ -52,9 +54,10 @@ beforeEach(async () => {
 
 const plaid = () => plaidProvider(fakePlaidTransport(today));
 
-const connect = (provider: BankConnectionProvider = plaid(), id = connectionId) =>
-	connectInstitution(
-		{ db, provider, key, newId },
+/** Connects the fake Item and adds every account there as a new Account, as a Parent might. */
+async function connect(provider: BankConnectionProvider = plaid(), id = connectionId) {
+	const connected = await connectInstitution(
+		{ db, provider, key },
 		{
 			householdId,
 			memberId: parentId,
@@ -62,6 +65,22 @@ const connect = (provider: BankConnectionProvider = plaid(), id = connectionId) 
 			handoff: { token: "public-fake-household", institution: "First Platypus Bank" },
 		},
 	);
+	if (!connected.ok) return connected;
+	const choices = await bankChoices(
+		{ db, provider, key },
+		{ householdId, connectionId: id, institution: "First Platypus Bank" },
+	);
+	const chosen = await applyBankChoices(
+		{ db, provider, key, newId },
+		{
+			householdId,
+			memberId: parentId,
+			connectionId: id,
+			choices: (choices?.accounts ?? []).map((a) => ({ externalId: a.externalId, choice: "new" })),
+		},
+	);
+	return chosen.ok ? { ok: true, accounts: chosen.accounts } : chosen;
+}
 
 const params: BankImportParams = {
 	householdId,
@@ -131,8 +150,8 @@ describe("connecting a Bank Connection", () => {
 		const { accounts } = await loadGoals(db, { householdId, memberId: parentId });
 		expect(accounts.map((a) => [a.name, a.kind, a.latestBalance?.amount])).toEqual([
 			["Plaid Checking ··0000", "checking", 1_250_40],
-			["Plaid Saving ··1111", "savings", 8_200_00],
-			["Plaid Credit Card ··3333", "credit-card", 410_25],
+			["Kids Savings ··1111", "savings", 8_200_00],
+			["Costco Anywhere Visa ··3333", "credit-card", 410_25],
 			["Plaid Auto Loan ··4444", "loan", 12_480_00],
 		]);
 	});
@@ -159,6 +178,98 @@ describe("connecting a Bank Connection", () => {
 			reason: "connected-already",
 		});
 		expect(await loadBankConnections(db, householdId)).toHaveLength(1);
+	});
+});
+
+describe("pairing with the Accounts already there (ADR-0020)", () => {
+	const handCard = "01J00000000000000000000001";
+	beforeEach(async () => {
+		await addAccount(db, {
+			householdId,
+			accountId: handCard,
+			name: "Costco Anywhere Visa",
+			kind: "credit-card",
+			balanceCents: 300_00,
+			balanceId: "hand-balance",
+			createdByMemberId: parentId,
+		});
+		// A statement brought in Shell (2 days before the fake's today) and Costco (5 days before).
+		await importStatement(db, {
+			householdId,
+			importId: "statement",
+			accountId: handCard,
+			source: "csv",
+			fileName: "costco.csv",
+			fileKey: null,
+			lines: [
+				{ date: "2026-09-18", amount: -38_50, description: "SHELL OIL 5741", bankId: null },
+				{ date: "2026-09-15", amount: -112_30, description: "COSTCO WHSE #1042", bankId: null },
+			],
+			closingBalance: null,
+			csvMapping: null,
+			createdByMemberId: parentId,
+			newId,
+		});
+	});
+
+	it("waits while choosing, suggests the card, and pairs it without doubling its lines", async () => {
+		await connectInstitution(
+			{ db, provider: plaid(), key },
+			{
+				householdId,
+				memberId: parentId,
+				connectionId,
+				handoff: { token: "public-fake-household", institution: "First Platypus Bank" },
+			},
+		);
+		// Nothing is read until the Parent has chosen.
+		expect(await runBankImport(params, inlineStep, deps().importDeps)).toBe("choosing");
+		expect(await landed()).toEqual({
+			transactions: ["COSTCO WHSE #1042", "SHELL OIL 5741"],
+			income: [],
+		});
+
+		const choices = await bankChoices(
+			{ db, provider: plaid(), key },
+			{ householdId, connectionId, institution: "First Platypus Bank" },
+		);
+		const card = choices?.accounts.find((a) => a.kind === "credit-card");
+		expect(card).toMatchObject({ name: "Costco Anywhere Visa ··3333", suggested: handCard });
+		expect(choices?.accounts.filter((a) => a.suggested !== null)).toHaveLength(1);
+		expect(card?.options.map((o) => o.id)).toEqual([handCard]);
+
+		const chosen = await applyBankChoices(
+			{ db, provider: plaid(), key, newId },
+			{
+				householdId,
+				memberId: parentId,
+				connectionId,
+				choices: (choices?.accounts ?? []).map((a) => ({
+					externalId: a.externalId,
+					choice: a.suggested ? { pair: a.suggested } : "new",
+				})),
+			},
+		);
+		expect(chosen).toMatchObject({ ok: true, accounts: 4, first: true, refused: [] });
+		expect(await runBankImport(params, inlineStep, deps().importDeps)).toBe("done");
+
+		// The card is the same Account, and its statement's Shell and Costco aren't doubled.
+		const { accounts } = await loadGoals(db, { householdId, memberId: parentId });
+		expect(accounts.filter((a) => a.kind === "credit-card")).toMatchObject([
+			{ id: handCard, name: "Costco Anywhere Visa", bankConnectionId: connectionId },
+		]);
+		const notes = (await landed()).transactions;
+		expect(notes.filter((n) => /shell/i.test(n ?? ""))).toEqual(["SHELL OIL 5741"]);
+		expect(notes.filter((n) => /costco/i.test(n ?? ""))).toEqual(["COSTCO WHSE #1042"]);
+		expect(notes).toEqual(expect.arrayContaining(["Chipotle", "Netflix"]));
+
+		// Choosing again later offers the card as paired.
+		const again = await bankChoices(
+			{ db, provider: plaid(), key },
+			{ householdId, connectionId, institution: "First Platypus Bank" },
+		);
+		expect(again?.accounts.find((a) => a.kind === "credit-card")?.pairedWith).toBe(handCard);
+		expect(again?.gone).toEqual([]);
 	});
 });
 

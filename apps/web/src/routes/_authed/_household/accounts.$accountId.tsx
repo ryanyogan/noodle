@@ -6,11 +6,14 @@ import { List, ListRow } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
+import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
+import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound, useHydrated } from "@tanstack/react-router";
-import { Pencil } from "lucide-react";
+import { Pencil, Unplug } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
+import { accountSource, accountSourceText } from "../../../account-source";
 import {
 	AddGoalSheet,
 	AmountSheet,
@@ -18,7 +21,7 @@ import {
 	GoalProgressBar,
 	LinkRow,
 } from "../../../components/goals";
-import { SaveFailed } from "../../../components/plan-editing";
+import { Confirm, SaveFailed } from "../../../components/plan-editing";
 import { StatementBalanceNote, StatementsSection } from "../../../components/statements";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney } from "../../../format";
@@ -30,13 +33,15 @@ import {
 	useRenameAccount,
 	useUpdateAccountBalance,
 } from "../../../goals";
-import { accountImportsQuery, goalsQuery } from "../../../queries";
+import { accountImportsQuery, bankConnectionsQuery, goalsQuery } from "../../../queries";
+import { unpairBankAccount } from "../../../server/bank-connections";
 
 export const Route = createFileRoute("/_authed/_household/accounts/$accountId")({
 	loader: async ({ context, params }) => {
 		const [data] = await Promise.all([
 			context.queryClient.ensureQueryData(goalsQuery()),
 			context.queryClient.ensureQueryData(accountImportsQuery(params.accountId)),
+			context.queryClient.ensureQueryData(bankConnectionsQuery()),
 		]);
 		if (!data.accounts.some((a) => a.id === params.accountId)) throw notFound();
 	},
@@ -55,7 +60,22 @@ function AccountDetails({ account }: { account: AccountView }) {
 	const hydrated = useHydrated();
 	const rename = useRenameAccount();
 	const updateBalance = useUpdateAccountBalance();
-	const [sheet, setSheet] = useState<"balance" | "rename" | null>(null);
+	const [sheet, setSheet] = useState<"balance" | "rename" | "unpair" | null>(null);
+	const { connections } = useSuspenseQuery(bankConnectionsQuery()).data;
+	const source = accountSource(account, connections);
+	const connected = source.kind === "connected" ? source : null;
+	// A live bank balance isn't typed over, unless the bank has stopped bringing it in.
+	const typesBalance = !connected || connected.needsLogin || account.balance === null;
+	const queryClient = useQueryClient();
+	const unpair = useMutation({
+		mutationFn: () => unpairBankAccount({ data: { accountId: account.id } }),
+		onSuccess: () => {
+			toast(`${account.name} is kept by hand or by statements now.`);
+			void queryClient.invalidateQueries({ queryKey: goalsQuery().queryKey });
+			void queryClient.invalidateQueries({ queryKey: bankConnectionsQuery().queryKey });
+		},
+		onError: () => toast("Couldn’t stop bringing it in. Try again.", { tone: "error" }),
+	});
 	const close = (open: boolean) => {
 		if (!open) setSheet(null);
 	};
@@ -73,18 +93,43 @@ function AccountDetails({ account }: { account: AccountView }) {
 				title={account.name}
 				leading={<BackToAccounts />}
 				actions={
-					<Button
-						type="button"
-						variant="ghost"
-						size="sm"
-						disabled={!hydrated}
-						onClick={() => setSheet("rename")}
-					>
-						<Pencil />
-						Rename
-					</Button>
+					<>
+						{connected ? (
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								disabled={!hydrated || unpair.isPending}
+								onClick={() => setSheet("unpair")}
+							>
+								<Unplug />
+								Stop bringing in
+							</Button>
+						) : null}
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							disabled={!hydrated}
+							onClick={() => setSheet("rename")}
+						>
+							<Pencil />
+							Rename
+						</Button>
+					</>
 				}
 			/>
+			{sheet === "unpair" && connected ? (
+				<Confirm
+					confirmLabel={`Stop bringing in from ${connected.connection.institution ?? "the bank"}`}
+					onConfirm={() => unpair.mutate()}
+					onCancel={() => setSheet(null)}
+				>
+					{account.name} stays, with its Goals, balance and Transactions. Noodle stops bringing in
+					its new Transactions and balance; you can upload statements or update it by hand, or
+					choose it again from the Bank Connection on Accounts.
+				</Confirm>
+			) : null}
 			<div className="grid max-w-2xl gap-8">
 				<Card role="region" aria-labelledby="account-balance">
 					<div className="grid gap-3 p-(--card-pad)">
@@ -102,16 +147,35 @@ function AccountDetails({ account }: { account: AccountView }) {
 									{account.balance === null ? "—" : formatMoney(account.balance)}
 								</p>
 							</div>
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								disabled={!hydrated}
-								onClick={() => setSheet("balance")}
-							>
-								{account.balance === null ? "Add balance" : "Update balance"}
-							</Button>
+							{typesBalance ? (
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									disabled={!hydrated}
+									onClick={() => setSheet("balance")}
+								>
+									{account.balance === null
+										? owes
+											? "Add what’s owed"
+											: "Add balance"
+										: owes
+											? "Update what’s owed"
+											: "Update balance"}
+								</Button>
+							) : null}
 						</div>
+						<p className="text-sm text-muted-foreground">
+							{accountSourceText(source)}
+							{connected?.needsLogin ? (
+								<>
+									{" · "}
+									<Link to="/accounts" className="font-medium text-foreground underline">
+										Reconnect on Accounts
+									</Link>
+								</>
+							) : null}
+						</p>
 						{account.balance === null ? (
 							<p className="text-sm text-muted-foreground">
 								{owes
@@ -195,7 +259,17 @@ function AccountDetails({ account }: { account: AccountView }) {
 				) : (
 					<PayOffSection account={account} />
 				)}
-				<StatementsSection account={account} />
+				<StatementsSection
+					account={account}
+					connected={
+						connected
+							? {
+									institution: connected.connection.institution,
+									needsLogin: connected.needsLogin,
+								}
+							: null
+					}
+				/>
 			</div>
 
 			<AmountSheet

@@ -23,6 +23,7 @@ const goals: GoalsData = {
 			name: "Savings",
 			kind: "savings",
 			bankConnectionId: null,
+			lastStatementDate: null,
 			latestBalance: { amount: 1_000_000, at: 1 },
 		},
 		{
@@ -30,6 +31,7 @@ const goals: GoalsData = {
 			name: "Visa",
 			kind: "credit-card",
 			bankConnectionId: null,
+			lastStatementDate: null,
 			latestBalance: { amount: 50_000, at: 1 },
 		},
 	],

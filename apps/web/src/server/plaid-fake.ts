@@ -5,7 +5,8 @@ import { FAKE_WEBHOOK_KEY_ID, FAKE_WEBHOOK_PRIVATE_KEY } from "./plaid-fake-webh
 
 // A stand-in for Plaid's API, for tests and E2E (AI_MODEL=stub): answers the calls plaid.ts makes,
 // the same way every time. Its Item has a checking, savings, credit card and loan account, plus an
-// investment account the app doesn't track. Its transactions come in two pages (has_more), dated
+// investment account the app doesn't track. The savings and the card are named as `busy`'s Kids'
+// Savings and Costco card are, so connecting there offers to pair them (ADR-0020). Its transactions come in two pages (has_more), dated
 // back from `today` so they land in recent months, with a pending one. A read on from there finds
 // what a later sync would (fakeLaterChanges): that charge posted, one changed, one dropped and a
 // new pending one; a read after that finds nothing new. The browser's side of Link is faked too
@@ -36,8 +37,8 @@ const account = (
 
 export const FAKE_ACCOUNTS: PlaidAccount[] = [
 	account("fake-checking", "Plaid Checking", "0000", "depository", "checking", 1_250.4),
-	account("fake-savings", "Plaid Saving", "1111", "depository", "savings", 8_200),
-	account("fake-card", "Plaid Credit Card", "3333", "credit", "credit card", 410.25),
+	account("fake-savings", "Kids Savings", "1111", "depository", "savings", 8_200),
+	account("fake-card", "Costco Anywhere Visa", "3333", "credit", "credit card", 410.25),
 	account("fake-loan", "Plaid Auto Loan", "4444", "loan", "auto", 12_480),
 	account("fake-brokerage", "Plaid Brokerage", "5555", "investment", "brokerage", 23_631.98),
 ];

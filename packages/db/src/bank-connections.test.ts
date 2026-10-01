@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	addBankConnection,
+	chooseBankAccounts,
 	createHouseholdForParent,
 	type Db,
 	findBankConnectionsByExternal,
@@ -35,8 +36,9 @@ beforeEach(async () => {
 	});
 });
 
-const connect = (connectionId = "conn-1", externalId = "item-1") =>
-	addBankConnection(db, {
+/** Connects a Bank Connection, and adds both its accounts as new Accounts. */
+async function connect(connectionId = "conn-1", externalId = "item-1") {
+	const added = await addBankConnection(db, {
 		householdId,
 		connectionId,
 		provider: "plaid",
@@ -44,24 +46,39 @@ const connect = (connectionId = "conn-1", externalId = "item-1") =>
 		institution: "First Platypus Bank",
 		credential: "v1:sealed",
 		createdByMemberId: parentId,
-		accounts: [
+	});
+	if (!added.ok) return added;
+	const chosen = await chooseBankAccounts(db, {
+		householdId,
+		connectionId,
+		createdByMemberId: parentId,
+		choices: [
 			{
-				accountId: `${connectionId}-1`,
 				balanceId: `${connectionId}-b1`,
 				account: {
 					externalId: "acc-chk",
 					name: "Checking ··0000",
+					mask: "0000",
 					kind: "checking",
 					balance: 110_00,
 				},
+				choice: { kind: "add", accountId: `${connectionId}-1` },
 			},
 			{
-				accountId: `${connectionId}-2`,
 				balanceId: `${connectionId}-b2`,
-				account: { externalId: "acc-cc", name: "Card ··3333", kind: "credit-card", balance: null },
+				account: {
+					externalId: "acc-cc",
+					name: "Card ··3333",
+					mask: "3333",
+					kind: "credit-card",
+					balance: null,
+				},
+				choice: { kind: "add", accountId: `${connectionId}-2` },
 			},
 		],
 	});
+	return chosen.ok ? { ok: true, accounts: chosen.accounts } : chosen;
+}
 
 describe("addBankConnection", () => {
 	it("creates its Accounts with the balances the institution reports", async () => {

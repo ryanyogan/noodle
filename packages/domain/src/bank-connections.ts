@@ -16,6 +16,8 @@ export type BankAccount = {
 	/** The provider's ID for it, stable for as long as the Bank Connection lasts. */
 	externalId: string;
 	name: string;
+	/** The last digits the institution shows for it, when it does. */
+	mask: string | null;
 	kind: AccountKind | null;
 	/**
 	 * What's in it, or for a card or loan what's owed, as the institution reports it now; null when
@@ -91,6 +93,7 @@ export function plaidBankAccount(account: PlaidAccount): BankAccount {
 	return {
 		externalId: account.account_id,
 		name: bankAccountName(account.name, account.mask),
+		mask: account.mask,
 		kind: plaidAccountKind(account.type, account.subtype),
 		balance: usd && current !== null ? dollarsToCents(current) : null,
 	};

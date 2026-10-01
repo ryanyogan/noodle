@@ -9,6 +9,7 @@ import {
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
+import { statementLinesBanked } from "./same-lines";
 import { accounts, bankConnections, csvMappings, imports, income, transactions } from "./schema";
 import { detectTransfers } from "./transfers";
 
@@ -68,6 +69,8 @@ export async function importStatement(
 		closingBalance: ClosingBalance | null;
 		/** The CSV mapping to remember for the Account. */
 		csvMapping: CsvMapping | null;
+		/** A Bank Connection's lines left out as already in the Account (ADR-0020), to count. */
+		alreadyHere?: number;
 		createdByMemberId: string;
 		newId: () => string;
 	},
@@ -81,10 +84,25 @@ export async function importStatement(
 	if (!account) return { ok: false, reason: "no-account" };
 
 	const ids = statementLineIds(input.lines);
+	// A statement's lines the Account's Bank Connection brought in already stay out (ADR-0020).
+	const banked =
+		input.source === "bank"
+			? new Set<number>()
+			: await statementLinesBanked(db, {
+					householdId,
+					accountId,
+					lines: input.lines.map(({ date, amount, description }) => ({
+						date,
+						amount,
+						description,
+					})),
+					ids,
+				});
 	const toIncome = holdsMoney(account.kind);
 	const spending: ImportRow[] = [];
 	const received: ImportRow[] = [];
 	input.lines.forEach((line, i) => {
+		if (banked.has(i)) return;
 		const row = {
 			id: input.newId(),
 			date: line.date,
@@ -175,7 +193,7 @@ export async function importStatement(
 			.set({
 				transactionCount: sql`(select count(*) from ${transactions} where ${transactions.importId} = ${importId})`,
 				incomeCount: sql`(select count(*) from ${income} where ${income.importId} = ${importId})`,
-				duplicateCount: sql`${input.lines.length}
+				duplicateCount: sql`${input.lines.length + (input.alreadyHere ?? 0)}
 					- (select count(*) from ${transactions} where ${transactions.importId} = ${importId})
 					- (select count(*) from ${income} where ${income.importId} = ${importId})`,
 			})

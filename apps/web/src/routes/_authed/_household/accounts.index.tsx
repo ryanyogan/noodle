@@ -5,9 +5,11 @@ import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { Landmark, Plus } from "lucide-react";
 import { useState } from "react";
+import { accountSource, accountSourceText } from "../../../account-source";
 import { BankConnections } from "../../../components/bank-connections";
 import {
 	AddAccountForm,
@@ -93,6 +95,9 @@ function AccountsPage() {
 function AccountItem({ account }: { account: AccountView }) {
 	const Icon = accountIcons[account.kind];
 	const split = accountSplitText(account);
+	const { connections } = useSuspenseQuery(bankConnectionsQuery()).data;
+	const source = accountSource(account, connections);
+	const needsLogin = source.kind === "connected" && source.needsLogin;
 	return (
 		<LinkRow
 			link={(props) => (
@@ -115,6 +120,9 @@ function AccountItem({ account }: { account: AccountView }) {
 							<span className={cn(split.over && "text-over")}>{split.text}</span>
 						</>
 					) : null}
+					<span className={cn("block", needsLogin && "text-over")}>
+						{accountSourceText(source, true)}
+					</span>
 				</span>
 			}
 			trailing={

@@ -1,7 +1,13 @@
 import type { BankLine } from "@noodle/domain";
 import { asc, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
-import { addBankConnection, createHouseholdForParent, type Db, syncBankLines } from "./index";
+import {
+	addBankConnection,
+	chooseBankAccounts,
+	createHouseholdForParent,
+	type Db,
+	syncBankLines,
+} from "./index";
 import { transactions } from "./schema";
 import { testDb } from "./test-db";
 
@@ -30,11 +36,22 @@ beforeEach(async () => {
 		institution: "First Platypus Bank",
 		credential: "v1:sealed",
 		createdByMemberId: parentId,
-		accounts: [
+	});
+	await chooseBankAccounts(db, {
+		householdId,
+		connectionId: "conn-1",
+		createdByMemberId: parentId,
+		choices: [
 			{
-				accountId: "card",
 				balanceId: "card-b",
-				account: { externalId: "acc-cc", name: "Card", kind: "credit-card", balance: null },
+				account: {
+					externalId: "acc-cc",
+					name: "Card",
+					mask: null,
+					kind: "credit-card",
+					balance: null,
+				},
+				choice: { kind: "add", accountId: "card" },
 			},
 		],
 	});

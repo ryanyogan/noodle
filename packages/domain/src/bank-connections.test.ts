@@ -82,6 +82,7 @@ describe("plaidBankAccount", () => {
 		expect(card).toEqual({
 			externalId: "a",
 			name: "Plaid Credit Card ··3333",
+			mask: "3333",
 			kind: "credit-card",
 			balance: 41_000,
 		});

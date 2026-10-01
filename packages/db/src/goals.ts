@@ -738,6 +738,8 @@ export type AccountRecord = {
 	latestBalance: BalanceUpdate | null;
 	/** The Bank Connection that brought it in; null for one entered by hand. */
 	bankConnectionId: string | null;
+	/** The last day a statement uploaded to it covers; null when none was. */
+	lastStatementDate: DayKey | null;
 };
 
 export type GoalRecord = {
@@ -804,6 +806,9 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 				name: accounts.name,
 				kind: accounts.kind,
 				bankConnectionId: accounts.bankConnectionId,
+				// Spelled out: inside a select's fields Drizzle leaves column names unqualified.
+				lastStatementDate: sql<string | null>`(select max(i.last_date) from imports i
+					where i.account_id = "accounts"."id" and i.source <> 'bank')`,
 			})
 			.from(accounts)
 			.where(eq(accounts.householdId, householdId))
@@ -910,7 +915,11 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 		),
 	].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 	return {
-		accounts: accountRows.map((row) => ({ ...row, latestBalance: latest.get(row.id) ?? null })),
+		accounts: accountRows.map((row) => ({
+			...row,
+			lastStatementDate: row.lastStatementDate as DayKey | null,
+			latestBalance: latest.get(row.id) ?? null,
+		})),
 		withdrawals: spendingRows
 			.filter((row) => row.accountId !== null)
 			.map((row) => ({

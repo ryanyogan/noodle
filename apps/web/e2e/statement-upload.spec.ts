@@ -65,7 +65,7 @@ test("a bank statement comes in once, as Transactions to assign and income", asy
 	// The same statement again adds nothing twice.
 	sheet = await chooseStatement(page, "checking.csv");
 	await sheet.getByRole("button", { name: "Import 6 lines" }).click();
-	await expect(toast(page, "checking.csv: Nothing new; 6 already imported")).toBeVisible();
+	await expect(toast(page, "checking.csv: Nothing new; 6 already in Noodle")).toBeVisible();
 	await expect(statements.getByRole("listitem")).toHaveCount(2);
 
 	// An OFX statement brings its closing balance, shown beside the one entered by hand.

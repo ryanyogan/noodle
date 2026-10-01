@@ -22,6 +22,18 @@ test.afterEach(async () => {
 const toast = (page: Page, text: string) => page.getByRole("status").filter({ hasText: text });
 const bankConnections = (page: Page) => page.getByRole("region", { name: "Bank Connections" });
 const nav = (page: Page) => page.getByRole("navigation", { name: "Main" });
+const chooseSheet = (page: Page) =>
+	page.getByRole("dialog", { name: "Which of these do you have already?" });
+
+/** Connects the fake bank, keeping Noodle's suggestion for each of its accounts. */
+async function connectBank(page: Page, accounts = 4) {
+	await bankConnections(page).getByRole("button", { name: "Connect a bank" }).click();
+	await chooseSheet(page).getByRole("button", { name: "Start bringing them in" }).click();
+	await expect(
+		toast(page, `Bringing in ${accounts} Accounts from First Platypus Bank.`),
+	).toBeVisible();
+	await expect(chooseSheet(page)).toBeHidden();
+}
 
 /** The fake Plaid Item behind the Parent's Bank Connection. */
 function itemIdOf(clerkUserId: string): string {
@@ -55,15 +67,18 @@ test("a Parent connects a bank, and its Accounts and Transactions come in", asyn
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 
+	// Nothing's here yet, so each account there is added as a new Account.
 	await bankConnections(page).getByRole("button", { name: "Connect a bank" }).click();
-	await expect(toast(page, "Connected 4 Accounts")).toBeVisible();
+	await expect(chooseSheet(page).getByLabel("Plaid Checking ··0000")).toHaveValue("new");
+	await chooseSheet(page).getByRole("button", { name: "Start bringing them in" }).click();
+	await expect(toast(page, "Bringing in 4 Accounts from First Platypus Bank.")).toBeVisible();
 
 	// Checking, savings, card and loan become Accounts with their balances; the brokerage doesn't.
 	await expect(
 		page.getByRole("link", { name: "Plaid Checking ··0000, Checking, $1,250.40" }),
 	).toBeVisible();
-	await expect(page.getByRole("link", { name: /^Plaid Saving ··1111, Savings, / })).toBeVisible();
-	await expect(page.getByRole("link", { name: /^Plaid Credit Card ··3333, / })).toBeVisible();
+	await expect(page.getByRole("link", { name: /^Kids Savings ··1111, Savings, / })).toBeVisible();
+	await expect(page.getByRole("link", { name: /^Costco Anywhere Visa ··3333, / })).toBeVisible();
 	await expect(page.getByRole("link", { name: /^Plaid Auto Loan ··4444, / })).toBeVisible();
 	await expect(page.getByRole("link", { name: /Brokerage/ })).toHaveCount(0);
 
@@ -92,7 +107,7 @@ test("Plaid's webhooks sync the bank, and a lapsed login is reconnected", async 
 	const page = await signedInPage(browser, parent.email);
 	await createHousehold(page, "The Rinks", "Alex");
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
-	await bankConnections(page).getByRole("button", { name: "Connect a bank" }).click();
+	await connectBank(page);
 	const connection = bankConnections(page).getByRole("listitem");
 	await expect(connection).toContainText("4 Accounts · Up to date");
 	const itemId = itemIdOf(parent.userId);
