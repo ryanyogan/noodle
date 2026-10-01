@@ -108,7 +108,7 @@ test("an Insight and an Ask answer open as Scenarios in Explore, leaving the Pla
 	// Back without applying: the Insight is as it was, and the Scenario is kept.
 	await page.goBack();
 	await expect(card).toBeVisible();
-	await expect(card.getByRole("button", { name: "Accept" })).toBeVisible();
+	await expect(card.getByRole("button", { name: "Got it" })).toBeVisible();
 	await page.goto("/explore/scenarios");
 	await expect(saved(page, "Without Hulu")).toBeVisible(clientRendered);
 

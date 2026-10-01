@@ -153,8 +153,22 @@ function InsightCard({
 	const live = insight.commitments.filter(
 		(c) => c.endedFromMonth === null || c.endedFromMonth > current,
 	);
-	const offersEnding = insight.status === "accepted" && !isOnce(insight.kind) && live.length > 0;
+	// A recurring Insight's action is ending a Commitment in the Plan; a one-off's is acknowledging
+	// it (for a charge taken twice, by asking for the money back).
+	const offersEnding = !isOnce(insight.kind) && live.length > 0;
+	const acknowledge = insight.kind === "duplicate-charge" ? "I asked for a refund" : "Got it";
 	const evidence = insight.commitments.length + insight.transactions.length + insight.perks.length;
+	const endButtons = live.map((commitment) => (
+		<Button
+			key={commitment.id}
+			variant={insight.status === "new" && live.length === 1 ? "default" : "outline"}
+			size="sm"
+			disabled={!hydrated}
+			onClick={() => setEnding(commitment)}
+		>
+			End {commitment.name} in the Plan…
+		</Button>
+	));
 	return (
 		<Card role="article" aria-labelledby={titleId}>
 			<div className="grid gap-3 p-(--card-pad)">
@@ -163,7 +177,7 @@ function InsightCard({
 					{insight.status === "accepted" ? (
 						<Badge variant="brand">
 							<Check />
-							Accepted
+							{insight.kind === "duplicate-charge" ? "Refund asked for" : "Seen"}
 						</Badge>
 					) : null}
 					{insight.private ? (
@@ -252,48 +266,39 @@ function InsightCard({
 					</ul>
 				</details>
 			) : null}
-			{offersEnding ? (
+			{offersEnding && insight.status === "accepted" ? (
 				<div className="grid gap-2 border-t px-(--card-pad) py-3">
 					<p className="text-[13px] text-muted-foreground">
 						End {live.length > 1 ? "one of them" : "it"} in the Plan? Nothing changes until you
 						confirm.
 					</p>
-					<div className="flex flex-wrap items-center gap-2">
-						{live.map((commitment) => (
-							<Button
-								key={commitment.id}
-								variant="outline"
-								size="sm"
-								disabled={!hydrated}
-								onClick={() => setEnding(commitment)}
-							>
-								End {commitment.name}…
-							</Button>
-						))}
-					</div>
-					{ending ? (
-						<Confirm
-							confirmLabel={`End ${ending.name}`}
-							onCancel={() => setEnding(null)}
-							onConfirm={() => {
-								onEnd(ending);
-								setEnding(null);
-							}}
-						>
-							{ending.name} leaves the Plan from {monthName(current)} on. Earlier months keep it.
-						</Confirm>
-					) : null}
+					<div className="flex flex-wrap items-center gap-2">{endButtons}</div>
 				</div>
 			) : null}
+			{ending ? (
+				<Confirm
+					confirmLabel={`End ${ending.name}`}
+					onCancel={() => setEnding(null)}
+					onConfirm={() => {
+						if (insight.status === "new") decide.mutate({ insight, status: "accepted" });
+						onEnd(ending);
+						setEnding(null);
+					}}
+				>
+					{ending.name} leaves the Plan from {monthName(current)} on. Earlier months keep it.
+				</Confirm>
+			) : null}
 			<div className="flex flex-wrap items-center gap-2 border-t px-(--card-pad) py-2.5">
+				{insight.status === "new" && offersEnding ? endButtons : null}
 				{insight.status === "new" ? (
 					<Button
 						size="sm"
+						variant={offersEnding ? "outline" : "default"}
 						disabled={!hydrated}
 						onClick={() => decide.mutate({ insight, status: "accepted" })}
 					>
 						<Check />
-						Accept
+						{acknowledge}
 					</Button>
 				) : null}
 				{tries.map((change) => (
@@ -315,7 +320,7 @@ function InsightCard({
 					disabled={!hydrated}
 					onClick={() => decide.mutate({ insight, status: "dismissed" })}
 				>
-					Dismiss
+					Not useful
 				</Button>
 			</div>
 		</Card>

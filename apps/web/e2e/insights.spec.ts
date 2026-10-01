@@ -40,6 +40,7 @@ async function recordPayment(page: Page, name: string) {
 test("an Overlap between two streaming Commitments is found, accepted, and dismissed for good", async ({
 	browser,
 }) => {
+	test.slow();
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "9,000", buckets: [["Groceries", "1,200"]] });
 	await switchTo(page, "Plan");
@@ -78,21 +79,20 @@ test("an Overlap between two streaming Commitments is found, accepted, and dismi
 	await page.getByRole("link", { name: "1 new Insight" }).click();
 	await expect(card).toBeVisible();
 
-	// Accepting records it and offers to end one, never ending anything by itself.
-	await card.getByRole("button", { name: "Accept" }).click();
-	await expect(card).toContainText("Accepted");
+	// Its action says what it does: ending one in the Plan, asked first, never by itself.
 	await expect(card.getByRole("button", { name: "Try “Without Hulu”" })).toBeVisible();
-	await card.getByRole("button", { name: "End Hulu…" }).click();
+	await card.getByRole("button", { name: "End Hulu in the Plan…" }).click();
 	await page
 		.getByRole("alertdialog")
 		.getByRole("button", { name: "End Hulu", exact: true })
 		.click();
 	await expect(page.getByText(/^Hulu leaves the Plan from/)).toBeVisible();
-	await expect(card.getByRole("button", { name: "End Hulu…" })).toHaveCount(0);
-	await expect(card.getByRole("button", { name: "End Disney+…" })).toBeVisible();
+	await expect(card).toContainText("Seen");
+	await expect(card.getByRole("button", { name: "End Hulu in the Plan…" })).toHaveCount(0);
+	await expect(card.getByRole("button", { name: "End Disney+ in the Plan…" })).toBeVisible();
 
-	// Dismissed, it's gone, and looking again doesn't bring it back.
-	await card.getByRole("button", { name: "Dismiss" }).click();
+	// Not useful: it's gone, and looking again doesn't bring it back.
+	await card.getByRole("button", { name: "Not useful" }).click();
 	await expect(card).toHaveCount(0);
 	await expect(page.getByText("No Insights right now")).toBeVisible();
 	await page.getByRole("button", { name: "Look for Insights now" }).click();
