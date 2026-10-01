@@ -31,7 +31,7 @@ test("a change that empties the Projected balance is flagged, and the warning le
 	});
 	await page.getByRole("link", { name: "Explore", exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Explore");
-	const warnings = page.getByRole("list", { name: "Warnings" });
+	const warnings = page.getByRole("list", { name: "Caused by this Scenario" });
 	await expect(page.getByRole("heading", { name: "Projected balance" })).toBeVisible();
 	await expect(warnings).toHaveCount(0);
 	await expect(

@@ -17,6 +17,8 @@ export type OutcomeWarning = {
 	goalId: string | null;
 	/** The index in `levers` of the change most responsible; null when none is (the Plan does it too). */
 	lever: number | null;
+	/** No Change caused it: the Plan as it stands does the same. */
+	inPlan: boolean;
 };
 
 /**
@@ -61,10 +63,11 @@ export function outcomeWarnings({
 		const inPlan = (plan.months[negative]?.freeToSpend ?? 0) < 0;
 		warnings.push({
 			kind: "free-to-spend-negative",
-			text: `Free to Spend goes negative in ${shortMonthName(negativeMonth.month)}${scenarioChange === null && inPlan ? ", as in the Plan" : ""}`,
+			text: `Free to Spend goes negative in ${shortMonthName(negativeMonth.month)}`,
 			month: negativeMonth.month,
 			goalId: null,
 			lever: scenarioChange,
+			inPlan: scenarioChange === null && inPlan,
 		});
 	}
 
@@ -78,10 +81,11 @@ export function outcomeWarnings({
 		const inPlan = plan.firstNegative !== null && plan.firstNegative <= firstNegative;
 		warnings.push({
 			kind: "cushion-negative",
-			text: `The projected balance dips below zero from ${shortMonthName(firstNegative)}${scenarioChange === null && inPlan ? ", as in the Plan" : ""}`,
+			text: `The projected balance dips below zero from ${shortMonthName(firstNegative)}`,
 			month: firstNegative,
 			goalId: null,
 			lever: scenarioChange,
+			inPlan: scenarioChange === null && inPlan,
 		});
 	}
 
@@ -103,6 +107,7 @@ export function outcomeWarnings({
 				month: null,
 				goalId: goal.goalId,
 				lever: scenarioChange,
+				inPlan: false,
 			});
 		} else {
 			const months = monthsBetween(before, goal.reachedIn);
@@ -112,6 +117,7 @@ export function outcomeWarnings({
 				month: goal.reachedIn,
 				goalId: goal.goalId,
 				lever: scenarioChange,
+				inPlan: false,
 			});
 		}
 	}

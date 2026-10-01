@@ -44,7 +44,7 @@ import { Skeleton } from "@noodle/ui/components/skeleton";
 import { cn } from "@noodle/ui/lib/utils";
 import { useMutationState, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Calculator, ChevronLeft, Layers, Telescope, TriangleAlert } from "lucide-react";
+import { Calculator, ChevronLeft, Info, Layers, Telescope, TriangleAlert } from "lucide-react";
 import {
 	lazy,
 	memo,
@@ -805,14 +805,20 @@ const Summary = memo(function Summary({
 	);
 });
 
-/** Where the Scenario stops holding up, each linking to the change most responsible. */
 /** Warnings shown before the rest fold behind "more": the summary stays short beside the Changes. */
 const WARNINGS_SHOWN = 2;
 
+/**
+ * Where the Scenario stops holding up, in two kinds: what this Scenario causes (red, each linking
+ * to the change most responsible), and what's already so in the Plan (neutral, linking to it),
+ * so a problem the Plan has isn't blamed on the Scenario.
+ */
 function Warnings({ warnings }: { warnings: Warning[] }) {
 	const reduced = useReducedMotion();
 	const [all, setAll] = useState(false);
-	const hidden = all ? 0 : Math.max(0, warnings.length - WARNINGS_SHOWN);
+	const caused = warnings.filter((w) => !w.inPlan);
+	const already = warnings.filter((w) => w.inPlan);
+	const hidden = all ? 0 : Math.max(0, caused.length - WARNINGS_SHOWN);
 	const land = useCallback(
 		(target: string) => {
 			const change = document.getElementById(changeId(target));
@@ -823,58 +829,85 @@ function Warnings({ warnings }: { warnings: Warning[] }) {
 		[reduced],
 	);
 	return (
-		<div className="grid gap-1.5">
-			<ul aria-label="Warnings" className="grid gap-1.5">
-				{warnings.slice(0, warnings.length - hidden).map((warning) => {
-					const body = (
-						<>
-							<TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-over" />
-							<span className="grid gap-0.5">
-								<span className="font-medium text-foreground">{warning.text}</span>
-								{warning.change ? (
-									<span className="text-[13px] text-muted-foreground">
-										Mostly from your change to {warning.change.name}
+		<div className="grid gap-3">
+			{caused.length > 0 ? (
+				<div className="grid gap-1.5">
+					<h3 className="text-[13px] font-medium text-muted-foreground">Caused by this Scenario</h3>
+					<ul aria-label="Caused by this Scenario" className="grid gap-1.5">
+						{caused.slice(0, caused.length - hidden).map((warning) => {
+							const body = (
+								<>
+									<TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-over" />
+									<span className="grid gap-0.5">
+										<span className="font-medium text-foreground">{warning.text}</span>
+										{warning.change ? (
+											<span className="text-[13px] text-muted-foreground">
+												Mostly from your change to {warning.change.name}
+											</span>
+										) : null}
 									</span>
-								) : null}
-							</span>
-						</>
-					);
-					const className = "flex items-start gap-2 rounded-lg bg-over-soft px-2.5 py-2 text-sm";
-					const { change } = warning;
-					return (
-						<li key={`${warning.kind}:${warning.goalId ?? ""}`}>
-							{change ? (
-								<a
-									href={`#${changeId(change.target)}`}
-									className={cn(
-										className,
-										"hover:bg-over-soft/70 focus-visible:outline-2 focus-visible:outline-ring",
+								</>
+							);
+							const className =
+								"flex items-start gap-2 rounded-lg bg-over-soft px-2.5 py-2 text-sm";
+							const { change } = warning;
+							return (
+								<li key={`${warning.kind}:${warning.goalId ?? ""}`}>
+									{change ? (
+										<a
+											href={`#${changeId(change.target)}`}
+											className={cn(
+												className,
+												"hover:bg-over-soft/70 focus-visible:outline-2 focus-visible:outline-ring",
+											)}
+											onClick={(event) => {
+												event.preventDefault();
+												land(change.target);
+											}}
+										>
+											{body}
+										</a>
+									) : (
+										<div className={className}>{body}</div>
 									)}
-									onClick={(event) => {
-										event.preventDefault();
-										land(change.target);
-									}}
-								>
-									{body}
-								</a>
-							) : (
-								<div className={className}>{body}</div>
-							)}
-						</li>
-					);
-				})}
-			</ul>
-			{warnings.length > WARNINGS_SHOWN ? (
-				<Button
-					type="button"
-					variant="ghost"
-					size="sm"
-					className="justify-self-start text-muted-foreground"
-					aria-expanded={all}
-					onClick={() => setAll((a) => !a)}
-				>
-					{all ? "Fewer warnings" : `${hidden} more ${hidden === 1 ? "warning" : "warnings"}`}
-				</Button>
+								</li>
+							);
+						})}
+					</ul>
+					{caused.length > WARNINGS_SHOWN ? (
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="justify-self-start text-muted-foreground"
+							aria-expanded={all}
+							onClick={() => setAll((a) => !a)}
+						>
+							{all ? "Fewer warnings" : `${hidden} more ${hidden === 1 ? "warning" : "warnings"}`}
+						</Button>
+					) : null}
+				</div>
+			) : null}
+			{already.length > 0 ? (
+				<div className="grid gap-1.5">
+					<h3 className="text-[13px] font-medium text-muted-foreground">Already in the Plan</h3>
+					<ul aria-label="Already in the Plan" className="grid gap-1 text-sm">
+						{already.map((warning) => (
+							<li
+								key={`${warning.kind}:${warning.goalId ?? ""}`}
+								className="flex items-start gap-2 rounded-lg bg-surface-2 px-2.5 py-2"
+							>
+								<Info aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+								<span>
+									{warning.text}.{" "}
+									<Link to="/plan" className="font-medium underline-offset-4 hover:underline">
+										See the Plan
+									</Link>
+								</span>
+							</li>
+						))}
+					</ul>
+				</div>
 			) : null}
 		</div>
 	);
@@ -909,7 +942,7 @@ const Freed = memo(function Freed({
 
 /** The Scenario's Projected balance at its lowest, and the month it first goes below zero. */
 function ProjectedBalance({ scenario }: { scenario: Projection }) {
-	const { lowest, firstNegative } = scenario;
+	const { lowest } = scenario;
 	if (!lowest) return null;
 	return (
 		<div className="flex items-center gap-1">
@@ -919,9 +952,6 @@ function ProjectedBalance({ scenario }: { scenario: Projection }) {
 					{formatMoney(lowest.amount)}
 				</span>{" "}
 				in {shortMonth(lowest.month)}
-				{firstNegative ? (
-					<span className="text-over"> · below zero from {shortMonth(firstNegative)}</span>
-				) : null}
 			</p>
 			<TermHelp term="projected-balance" />
 		</div>
@@ -955,8 +985,13 @@ function Totals({
 	];
 	return (
 		<Card>
-			<table className="w-full text-sm tabular-nums">
-				<caption className="sr-only">Free to Spend, the Plan against this Scenario</caption>
+			<h3 className="px-(--card-pad) pt-(--card-pad) text-sm font-semibold">
+				Free to Spend, the Plan against this Scenario
+			</h3>
+			<table
+				aria-label="Free to Spend, the Plan against this Scenario"
+				className="w-full text-sm tabular-nums"
+			>
 				<thead className="text-[13px] text-muted-foreground">
 					<tr className="[&>th]:px-(--card-pad) [&>th]:pt-3 [&>th]:pb-2 [&>th]:font-medium">
 						<th className="text-start">
@@ -964,31 +999,22 @@ function Totals({
 						</th>
 						<th className="text-end">Plan</th>
 						<th className="text-end">Scenario</th>
-						<th className="hidden text-end sm:table-cell">Difference</th>
 					</tr>
 				</thead>
 				<tbody>
-					{rows.map((row) => {
-						const difference = row.scenario - row.plan;
-						return (
-							<tr key={row.label} className="border-t [&>*]:px-(--card-pad) [&>*]:py-2.5">
-								<th scope="row" className="text-start font-normal text-muted-foreground">
-									{row.label}
-								</th>
-								<td className={cn("text-end", row.plan < 0 && "text-over")}>
-									{formatMoney(row.plan)}
-								</td>
-								<td className={cn("text-end font-semibold", row.scenario < 0 && "text-over")}>
-									{formatMoney(row.scenario)}
-								</td>
-								<td className="hidden text-end text-muted-foreground sm:table-cell">
-									{difference === 0
-										? "—"
-										: `${difference > 0 ? "+" : ""}${formatMoney(difference)}`}
-								</td>
-							</tr>
-						);
-					})}
+					{rows.map((row) => (
+						<tr key={row.label} className="border-t [&>*]:px-(--card-pad) [&>*]:py-2.5">
+							<th scope="row" className="text-start font-normal text-muted-foreground">
+								{row.label}
+							</th>
+							<td className={cn("text-end", row.plan < 0 && "text-over")}>
+								{formatMoney(row.plan)}
+							</td>
+							<td className={cn("text-end font-semibold", row.scenario < 0 && "text-over")}>
+								{formatMoney(row.scenario)}
+							</td>
+						</tr>
+					))}
 				</tbody>
 			</table>
 		</Card>

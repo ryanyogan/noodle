@@ -92,6 +92,7 @@ describe("outcomeWarnings", () => {
 				month: "2026-11",
 				goalId: null,
 				lever: 1,
+				inPlan: false,
 			},
 			{
 				kind: "cushion-negative",
@@ -99,6 +100,7 @@ describe("outcomeWarnings", () => {
 				month: "2027-05",
 				goalId: null,
 				lever: 1,
+				inPlan: false,
 			},
 		]);
 	});
@@ -127,9 +129,9 @@ describe("outcomeWarnings", () => {
 	it("names no change when the Plan does it too", () => {
 		// Groceries at $4,000 in the Plan itself: −$1,200 every month.
 		const { warnings } = outcome([], { plan: records(400_000) });
-		expect(warnings.map((w) => [w.text, w.lever])).toEqual([
-			["Free to Spend goes negative in Sep 2026, as in the Plan", null],
-			["The projected balance dips below zero from Sep 2026, as in the Plan", null],
+		expect(warnings.map((w) => [w.text, w.lever, w.inPlan])).toEqual([
+			["Free to Spend goes negative in Sep 2026", null, true],
+			["The projected balance dips below zero from Sep 2026", null, true],
 		]);
 	});
 
@@ -155,6 +157,7 @@ describe("outcomeWarnings", () => {
 				month: "2028-04",
 				goalId: "college",
 				lever: 1,
+				inPlan: false,
 			},
 		]);
 		// Out of sight of a year's projection, it's no longer reached at all.
