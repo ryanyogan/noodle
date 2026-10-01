@@ -14,6 +14,16 @@ import {
 // ---------------------------------------------------------------------------------------------
 // Defaults: typical US numbers, shown as editable assumptions (never fetched live).
 
+/** The Goals a Check guesses are saving for it, by name: a home's, or a car's. */
+export const GOALS_FOR = {
+	home: /\b(home|house|down ?payment)\b/i,
+	car: /\b(car|vehicle|auto)\b/i,
+} as const;
+
+/** What a purchase is, from what it's called, when it's a home or a car. */
+export const purchaseOf = (name: string | undefined): keyof typeof GOALS_FOR | null =>
+	!name ? null : GOALS_FOR.home.test(name) ? "home" : GOALS_FOR.car.test(name) ? "car" : null;
+
 export const HOME_DEFAULTS = {
 	price: 40_000_000,
 	downPayment: 8_000_000,

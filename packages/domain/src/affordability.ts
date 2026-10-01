@@ -189,7 +189,7 @@ export function homeCheck(input: HomeInput): HomeCheck {
 	if (gross <= 0) {
 		reasons.push({ tone: "not-yet", text: "Enter gross monthly income to compare against it." });
 	} else {
-		const housingShare = `Housing would be ${dollars(housing)} a month, ${percent(housing, gross)} of gross income`;
+		const housingShare = `Housing would be ${dollars(housing)} a month, ${percent(housing, gross)} of your pay before tax`;
 		reasons.push(
 			within(housing, gross, front.comfortable)
 				? { tone: "comfortable", text: `${housingShare}, within the usual ${front.comfortable}%.` }
@@ -203,7 +203,7 @@ export function homeCheck(input: HomeInput): HomeCheck {
 							text: `${housingShare}, above the ${front.stretch}% even FHA loans allow.`,
 						},
 		);
-		const debtShare = `${input.otherDebts > 0 ? `With ${dollars(input.otherDebts)} a month in other debts, all` : "All"} debt payments would be ${dollars(debts)} a month, ${percent(debts, gross)} of gross income`;
+		const debtShare = `${input.otherDebts > 0 ? `With ${dollars(input.otherDebts)} a month in other debts, all` : "All"} debt payments would be ${dollars(debts)} a month, ${percent(debts, gross)} of your pay before tax`;
 		reasons.push(
 			within(debts, gross, back.comfortable)
 				? { tone: "comfortable", text: `${debtShare}, within the usual ${back.comfortable}%.` }

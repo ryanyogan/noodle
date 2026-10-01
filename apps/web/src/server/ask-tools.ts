@@ -37,6 +37,7 @@ import {
 	withOwed,
 } from "@noodle/domain";
 import { z } from "zod";
+import { GOALS_FOR, purchaseOf } from "../affordability";
 import { formatMoney, monthName } from "../format";
 import { loadMonth } from "./month";
 
@@ -564,13 +565,17 @@ async function affordabilityCheck(
 ): Promise<ToolOutcome> {
 	const { month, ahead, goals } = await yearAhead(ctx);
 	// A payoff Goal holds no money to spend (ADR-0019).
-	const goal = args.goal
-		? findByName(
-				goals.filter((g) => g.kind === "save"),
-				args.goal,
-			)
-		: undefined;
-	const saved = goal?.saved ?? 0;
+	const saving = goals.filter((g) => g.kind === "save");
+	const named = args.goal ? findByName(saving, args.goal) : undefined;
+	// With none named, the Goals Can we afford it? would guess for a home or a car, as it does.
+	const purchase = purchaseOf(args.name);
+	const guessed = named
+		? [named]
+		: purchase
+			? saving.filter((g) => GOALS_FOR[purchase].test(g.name))
+			: [];
+	const goal = guessed.length > 0 ? { name: guessed.map((g) => g.name).join(" and ") } : undefined;
+	const saved = guessed.reduce((sum, g) => sum + g.saved, 0);
 	const monthly = Math.max(0, typicalFreeToSpend(project(ahead)));
 	const check = anythingCheck({ price: args.price, saved, monthly, month });
 	const name = args.name ? args.name.charAt(0).toUpperCase() + args.name.slice(1) : "It";

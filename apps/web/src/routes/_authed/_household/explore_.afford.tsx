@@ -34,6 +34,7 @@ import {
 	ANYTHING_DEFAULTS,
 	CAR_DEFAULTS,
 	type CommitmentRole,
+	GOALS_FOR,
 	goalAccount,
 	goalDate,
 	guessRole,
@@ -377,7 +378,7 @@ type HomeForm = {
 const initialHome = (context: Context): HomeForm => ({
 	...HOME_DEFAULTS,
 	gross: null,
-	goals: guessGoals(context, /\b(home|house|down ?payment)\b/i),
+	goals: guessGoals(context, GOALS_FOR.home),
 	otherCash: 0,
 	roles: Object.fromEntries(context.commitments.map((c) => [c.id, guessRole(c.name, "home")])),
 });
@@ -449,7 +450,7 @@ function HomeCheck({ context, form, onForm }: FormProps<HomeForm>) {
 					<Assumptions
 						lines={[
 							`The mortgage is paid off in equal monthly payments over ${form.termYears} years at ${form.rate}% a year.`,
-							`Lenders compare housing with gross income: up to ${AFFORDABILITY_LIMITS.frontEnd.comfortable}% is usual and ${AFFORDABILITY_LIMITS.frontEnd.stretch}% the FHA limit; all debt payments up to ${AFFORDABILITY_LIMITS.backEnd.comfortable}%, and ${AFFORDABILITY_LIMITS.backEnd.stretch}% at most.`,
+							`Lenders compare housing with your pay before tax (gross income): up to ${AFFORDABILITY_LIMITS.frontEnd.comfortable}% is usual and ${AFFORDABILITY_LIMITS.frontEnd.stretch}% the FHA limit; all debt payments up to ${AFFORDABILITY_LIMITS.backEnd.comfortable}%, and ${AFFORDABILITY_LIMITS.backEnd.stretch}% at most.`,
 							`PMI is counted while the down payment is under ${AFFORDABILITY_LIMITS.pmiBelow}% of the price.`,
 							typicalLine(context.plan),
 						]}
@@ -575,7 +576,7 @@ const initialCar = (context: Context): CarForm => ({
 	...CAR_DEFAULTS,
 	loan: { ...CAR_DEFAULTS.loan },
 	lease: { ...CAR_DEFAULTS.lease },
-	goals: guessGoals(context, /\b(car|vehicle|auto)\b/i),
+	goals: guessGoals(context, GOALS_FOR.car),
 	otherCash: 0,
 	roles: Object.fromEntries(context.commitments.map((c) => [c.id, guessRole(c.name, "car")])),
 });

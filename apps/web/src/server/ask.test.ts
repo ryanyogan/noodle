@@ -176,6 +176,31 @@ describe("Ask's tools", () => {
 		expect(outcome.links).toEqual([{ kind: "afford", name: "Disney trip", price: 400_000 }]);
 	});
 
+	it("counts a car's Goal toward a car, as Can we afford it? guesses it", async () => {
+		await addGoal(db, {
+			householdId,
+			goalId: "new-car",
+			accountId: "savings",
+			name: "New car fund",
+			targetCents: 1_000_000,
+			targetDate: null,
+			fromMonth: month,
+			claimId: "claim-car",
+			claimCents: 300_000,
+			createdByMemberId: "alex",
+		});
+		const outcome = await runTool(
+			"affordability_check",
+			{ price: 20_000, name: "car" },
+			as("alex"),
+		);
+		expect(factAmount(outcome, "Set aside")).toBe(300_000);
+		expect(outcome.data.fromGoal).toBe("New car fund");
+		// Nothing's guessed for something that isn't a home or a car.
+		const trip = await runTool("affordability_check", { price: 2_000, name: "trip" }, as("alex"));
+		expect(factAmount(trip, "Set aside")).toBe(0);
+	});
+
 	it("projects an allowance Scenario", async () => {
 		const outcome = await runTool(
 			"allowance_scenario",

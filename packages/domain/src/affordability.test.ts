@@ -138,8 +138,8 @@ describe("homeCheck: a worked example", () => {
 		expect(check.verdict).toBe("comfortable");
 		expect(check.reasons.map((r) => r.text)).toEqual([
 			"You have $100,000 set aside for the $80,000 down payment and about $12,000 in closing costs.",
-			"Housing would be $2,539 a month, 21.2% of gross income, within the usual 28%.",
-			"With $500 a month in other debts, all debt payments would be $3,039 a month, 25.3% of gross income, within the usual 36%.",
+			"Housing would be $2,539 a month, 21.2% of your pay before tax, within the usual 28%.",
+			"With $500 a month in other debts, all debt payments would be $3,039 a month, 25.3% of your pay before tax, within the usual 36%.",
 			"Housing of $2,539 a month in place of $2,500 in Commitments would take Free to Spend from $1,500 to $1,461 a month.",
 		]);
 	});

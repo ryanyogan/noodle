@@ -48,7 +48,7 @@ test("a home is checked against the Plan, then made a Goal and explored as a Sce
 		"You have $0 set aside for the $80,000 down payment and about $12,000 in closing costs, $92,000 short. Setting aside all $8,400 of Free to Spend each month, that’s 11 months",
 	);
 	await expect(reasons(page)).toContainText(
-		"Housing would be $2,589 a month, 19.4% of gross income, within the usual 28%.",
+		"Housing would be $2,589 a month, 19.4% of your pay before tax, within the usual 28%.",
 	);
 	await expect(reasons(page)).toContainText(
 		"Housing of $2,589 a month would take Free to Spend from $8,400 to $5,811 a month.",
@@ -69,7 +69,7 @@ test("a home is checked against the Plan, then made a Goal and explored as a Sce
 	await gross.fill("8,800");
 	await gross.press("Enter");
 	await expect(verdict(page).getByRole("heading", { level: 2 })).toHaveText("Stretch");
-	await expect(reasons(page)).toContainText("29.4% of gross income: above the usual 28%");
+	await expect(reasons(page)).toContainText("29.4% of your pay before tax: above the usual 28%");
 
 	// One tap makes it a Goal.
 	await verdict(page).getByRole("button", { name: "Make it a Goal" }).click();
