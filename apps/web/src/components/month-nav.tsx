@@ -5,13 +5,14 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { ChartColumn, ChevronLeft, ChevronRight, MessageCircleQuestionMark } from "lucide-react";
 import { type TouchEvent, useRef } from "react";
 import { monthName } from "../format";
+import { GlossaryButton } from "./glossary";
 
 /** The two views of a month: what's happening in it, and its Plan. */
 type MonthView = "/month/$month" | "/plan/$month";
 
 /**
  * The row above a month's page header: a switch between the month and its Plan, and on phones
- * Reports and Ask, which the sidebar has on larger screens.
+ * Reports, Ask and the Glossary, which the sidebar has on larger screens.
  */
 export function MonthTopRow({ month, current }: { month: MonthKey; current: "month" | "plan" }) {
 	return (
@@ -28,6 +29,7 @@ export function MonthTopRow({ month, current }: { month: MonthKey; current: "mon
 						<MessageCircleQuestionMark className="size-5" />
 					</Link>
 				</Button>
+				<GlossaryButton />
 			</div>
 		</div>
 	);

@@ -80,7 +80,12 @@ export function QuickAdd({ timeZone, parentId }: { timeZone: string; parentId: s
 		function onKeyDown(event: KeyboardEvent) {
 			if (open || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return;
 			if (event.key !== "q" && event.key !== "Q") return;
-			if ((event.target as HTMLElement).closest("input, textarea, select, [contenteditable]"))
+			// Not while typing, nor from inside another dialog (the Glossary, a sheet).
+			if (
+				(event.target as HTMLElement).closest(
+					"input, textarea, select, [contenteditable], [role=dialog], [role=alertdialog]",
+				)
+			)
 				return;
 			event.preventDefault();
 			markQuickAddOpened();

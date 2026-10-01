@@ -4,7 +4,7 @@ A household budgeting tool for a family (two parents, two kids) that layers a si
 
 ## Language
 
-The Parents are new to budgeting, so these words are plain ones (ADR-0018). Where a kept term first appears in the app, a help popover explains it in a sentence and links to the Glossary page, which explains every term below that a Parent sees.
+The Parents are new to budgeting, so these words are plain ones (ADR-0018). Where a kept term first appears in the app, a help popover explains it in a sentence and opens the Glossary, which explains every term below that a Parent sees. The Glossary opens over any page from a help icon, and is also a page of its own.
 
 ### The Plan
 

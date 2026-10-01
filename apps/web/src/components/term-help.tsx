@@ -2,20 +2,25 @@ import { Popover, PopoverContent, PopoverTrigger } from "@noodle/ui/components/p
 import { cn } from "@noodle/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { CircleHelp } from "lucide-react";
+import { useRef, useState } from "react";
 import { type GlossaryId, glossary } from "../glossary";
+import { openGlossary } from "./glossary";
 
 /**
  * A small "?" beside a term where it first appears: it opens a sentence about the term and a link
- * to the Glossary (ADR-0018). A Popover, not a Tooltip, so it opens by tap and by keyboard too, and
+ * to the Glossary, which opens over the page at this term (ADR-0018). A Popover, not a Tooltip, so it opens by tap and by keyboard too, and
  * stays open until dismissed (WCAG 1.4.13). Put it beside a heading, not inside it, so the
  * heading's name stays the term.
  */
 export function TermHelp({ term, className }: { term: GlossaryId; className?: string }) {
 	const entry = glossary[term];
+	const [open, setOpen] = useState(false);
+	const trigger = useRef<HTMLButtonElement>(null);
 	return (
-		<Popover>
+		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
 				<button
+					ref={trigger}
 					type="button"
 					aria-label={`What’s “${entry.term}”?`}
 					className={cn(
@@ -39,7 +44,16 @@ export function TermHelp({ term, className }: { term: GlossaryId; className?: st
 				<Link
 					to="/glossary"
 					hash={term}
+					aria-haspopup="dialog"
 					className="mt-1 self-start font-medium text-foreground underline underline-offset-2"
+					onClick={(event) => {
+						// A modified click opens the Glossary page in a new tab; a plain one opens it over
+						// this page, at this term, and focus comes back to the "?" when it closes.
+						if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+						event.preventDefault();
+						setOpen(false);
+						openGlossary(term, trigger.current);
+					}}
 				>
 					More in the Glossary
 				</Link>
