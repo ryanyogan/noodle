@@ -30,6 +30,7 @@ Never let the CLI overwrite a file here.
 | RadioGroup | shadcn, by hand (#47) | Plus `RadioGroupCard` (a whole row as the target) and `RadioGroupPrimitiveItem` (unstyled, for swatches). |
 | Select | shadcn, by hand (#47) | Trigger sizes `default`, `sm`, `pill`. `OptionSelect` is the form field: choices as data, groups, a hidden input under `name`. |
 | Command, Combobox | shadcn, by hand (#47) | cmdk 1.1.1. Combobox = Popover + Command with OptionSelect's props, for long or grouped lists. |
+| Calendar, DatePicker | shadcn, by hand (#47) | react-day-picker 10.0.2 (exact). DatePicker = Popover + Calendar in place of `<input type="date">`: a field-sized trigger reading "Oct 1, 2026", month and year dropdowns, `min`/`max`, Clear unless `required`, values stay yyyy-mm-dd (hidden input when `name`). Day buttons carry `data-day` (yyyy-mm-dd); specs use `pickDate()`. |
 | Sheet | Noodle's own, on Radix Dialog | A bottom sheet on phones and a centred dialog on desktop. It plays the part of shadcn's Dialog. |
 | Slider | shadcn, by hand (#47) | One thumb, named, with its value in words. |
 | Spinner | shadcn, by hand (#47) | Decorative unless given a `label`. |
@@ -46,10 +47,10 @@ Never let the CLI overwrite a file here.
 - **Select**: a choice that changes what a page shows, or sits inline as a chip. For example Reports' Period, Transactions' filters, and Explore's Scenario and chips.
 - **OptionSelect**: a labelled field in a form with a short list (Kind, How often, a role). The user chose shadcn's look over the platform's own picker (2026-10-01), so there is no native select in the app.
 - **Combobox**: a long or grouped list, searchable: a Transaction's and a Split's "Assigned to", Extra income's "To", a Rule's Bucket. Groups keep their headings.
+- **DatePicker**: every date a person picks: a Goal's date, a Commitment's due date, a Report's custom range (two pickers, From and To). Times (quiet hours) stay `Input type="time"` with the browser's clock icon hidden, as shadcn's date-time example does; shadcn has no time picker.
 
 ## Not added, and why
 
-- **Calendar / Date Picker**: the dates people pick (a Goal's date, a Commitment's next due date, a Report's custom range) use `<input type="date">`. It already opens the platform's calendar on desktop and phones, and types well. A Calendar would add `react-day-picker` and `date-fns` for a worse control on phones.
 - **Pagination**: long lists are virtualized (Transactions) or show the latest, with a "Show N older" button (a Goal's History).
 - **Accordion**: Collapsible covers the single disclosures the app has.
 - **Drawer**: phones get the bottom Sheet today. #48 (mobile) may move some menus and selects into a Drawer. Select, DropdownMenu and Popover are plain Radix parts, so a phone variant can wrap them without changing the app's calls.

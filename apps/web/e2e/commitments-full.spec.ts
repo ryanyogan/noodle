@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { choose, createPlannedHousehold, signedInPage, switchTo } from "./session";
+import { choose, createPlannedHousehold, pickDate, signedInPage, switchTo } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -38,7 +38,7 @@ async function addYearly(page: Page, name: string, due: string, dueDate: string)
 	await form.getByLabel("New Commitment").fill(name);
 	await form.getByLabel("Amount due").fill(due);
 	await choose(form, "How often", "Yearly");
-	await form.getByLabel("Due on").fill(dueDate);
+	await pickDate(form, "Due on", dueDate);
 	await form.getByRole("button", { name: "Add Commitment" }).click();
 	await expect(page.getByRole("button", { name: `Edit ${name}` })).toBeVisible();
 }
@@ -102,7 +102,7 @@ test("Commitments show what's coming up, why a month is lumpy, and each one's pa
 	// It's changed from its own page, in the same sheet as on the Plan.
 	await page.getByRole("button", { name: "Edit", exact: true }).click();
 	const sheet = page.getByRole("dialog", { name: "Car insurance" });
-	await expect(sheet.getByLabel("Next due")).toHaveValue(`${month}-${day}`);
+	await expect(sheet.getByLabel("Next due")).toHaveAttribute("data-value", `${month}-${day}`);
 	await sheet.getByLabel("Amount", { exact: true }).fill("");
 	await sheet.getByRole("button", { name: "Save", exact: true }).click();
 	await expect(sheet.getByRole("alert")).toContainText("Enter the amount");

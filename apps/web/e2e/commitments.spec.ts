@@ -1,6 +1,13 @@
 import { expect, type Page, type Route, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { choose, createPlannedHousehold, serverFn, signedInPage, switchTo } from "./session";
+import {
+	choose,
+	createPlannedHousehold,
+	pickDate,
+	serverFn,
+	signedInPage,
+	switchTo,
+} from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -54,7 +61,7 @@ async function editCommitment(
 	await edit(page, name).click();
 	const sheet = page.getByRole("dialog", { name });
 	if (change.amount) await sheet.getByLabel("Amount", { exact: true }).fill(change.amount);
-	if (change.dueDate) await sheet.getByLabel("Next due", { exact: true }).fill(change.dueDate);
+	if (change.dueDate) await pickDate(sheet, "Next due", change.dueDate);
 	await sheet.getByRole("button", { name: "Save", exact: true }).click();
 	await expect(sheet).toBeHidden();
 }
@@ -77,7 +84,7 @@ async function addCommitment(
 	await form.getByLabel("New Commitment").fill(name);
 	await form.getByLabel("Amount due").fill(due);
 	if (cadence) await choose(form, "How often", cadence);
-	if (dueDate) await form.getByLabel("Due on").fill(dueDate);
+	if (dueDate) await pickDate(form, "Due on", dueDate);
 	await form.getByRole("button", { name: "Add Commitment" }).click();
 	await expect(edit(page, name)).toBeVisible();
 }

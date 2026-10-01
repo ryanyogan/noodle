@@ -11,6 +11,7 @@ import {
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import { DatePicker } from "@noodle/ui/components/date-picker";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { ListRow } from "@noodle/ui/components/list";
@@ -361,10 +362,10 @@ function ScheduleFields({
 				/>
 			</Field>
 			<Field label={dueLabel} htmlFor={`${id}-due`} className="content-start" hint={dueHint}>
-				<Input
+				<DatePicker
+					required
 					id={`${id}-due`}
 					name="dueDate"
-					type="date"
 					defaultValue={dueDate}
 					className={inCard ? "bg-card" : undefined}
 					aria-invalid={invalid || undefined}

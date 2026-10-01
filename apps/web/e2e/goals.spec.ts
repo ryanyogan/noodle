@@ -4,6 +4,7 @@ import {
 	accountKindLabel,
 	choose,
 	createPlannedHousehold,
+	pickDate,
 	signedInPage,
 	switchTo,
 } from "./session";
@@ -69,7 +70,7 @@ test("a Goal is funded from Free to Spend and spent from what it has set aside, 
 	const addGoal = page.getByRole("dialog", { name: "Add a Goal" });
 	await addGoal.getByLabel("Name").fill("Braces");
 	await addGoal.getByLabel("Target", { exact: true }).fill("6,000");
-	await addGoal.getByLabel("Target date").fill(aYearAhead());
+	await pickDate(addGoal, "Target date", aYearAhead());
 	await addGoal.getByLabel("Already set aside").fill("1,000");
 	await addGoal.getByRole("button", { name: "Add Goal" }).click();
 	await expect(addGoal).toBeHidden();

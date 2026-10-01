@@ -17,6 +17,7 @@ import {
 } from "@noodle/ui/components/breadcrumb";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import { DatePicker } from "@noodle/ui/components/date-picker";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
@@ -311,25 +312,21 @@ function Options({
 				/>
 				{period === "custom" ? (
 					<>
-						<Input
-							type="date"
+						<DatePicker
+							required
 							aria-label="From"
 							value={search.from ?? report.range.from}
 							max={search.to}
-							onChange={(event) =>
-								event.target.value && nav.set({ from: event.target.value as DayKey })
-							}
-							className="w-40"
+							onChange={(day) => day && nav.set({ from: day as DayKey })}
+							className="max-sm:w-[calc(50%-0.25rem)] sm:w-40"
 						/>
-						<Input
-							type="date"
+						<DatePicker
+							required
 							aria-label="To"
 							value={search.to ?? report.asOf}
 							min={search.from}
-							onChange={(event) =>
-								event.target.value && nav.set({ to: event.target.value as DayKey })
-							}
-							className="w-40"
+							onChange={(day) => day && nav.set({ to: day as DayKey })}
+							className="max-sm:w-[calc(50%-0.25rem)] sm:w-40"
 						/>
 					</>
 				) : null}

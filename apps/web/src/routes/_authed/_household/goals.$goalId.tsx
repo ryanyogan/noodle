@@ -14,6 +14,7 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "@noodle/ui/components/collapsible";
+import { DatePicker } from "@noodle/ui/components/date-picker";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListGroupLabel, ListRow } from "@noodle/ui/components/list";
@@ -867,13 +868,12 @@ function EditGoalForm({
 					htmlFor={`${id}-date`}
 					hint={dateInvalid ? "Pick today or a day ahead." : "Optional."}
 				>
-					<Input
+					<DatePicker
 						id={`${id}-date`}
-						type="date"
 						min={goal.targetDate && goal.targetDate < today ? goal.targetDate : today}
 						value={targetDate}
 						aria-invalid={dateInvalid || undefined}
-						onChange={(event) => setTargetDate(event.currentTarget.value)}
+						onChange={setTargetDate}
 					/>
 				</Field>
 			</div>

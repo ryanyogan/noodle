@@ -101,6 +101,21 @@ export async function choose(scope: Page | Locator, label: string, option: strin
 	await expect(page.getByRole("listbox")).toBeHidden();
 }
 
+/**
+ * Picks a day (yyyy-mm-dd) in a DatePicker: opens it by its label, sets the calendar's year and
+ * month dropdowns, then clicks the day. No typing, as a person would.
+ */
+export async function pickDate(scope: Page | Locator, label: string, iso: string) {
+	const page = "page" in scope ? scope.page() : scope;
+	const [year, month] = iso.split("-").map(Number);
+	await scope.getByLabel(label, { exact: true }).click();
+	const calendar = page.locator('[data-slot="date-picker-content"]');
+	await calendar.getByLabel("Choose the Year").selectOption(String(year));
+	await calendar.getByLabel("Choose the Month").selectOption(String((month ?? 1) - 1));
+	await calendar.locator(`button[data-day="${iso}"]`).click();
+	await expect(calendar).toBeHidden();
+}
+
 const accountKindLabels: Record<string, string> = {
 	checking: "Checking",
 	savings: "Savings",

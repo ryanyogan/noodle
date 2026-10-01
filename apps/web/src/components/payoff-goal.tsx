@@ -2,6 +2,7 @@ import { type Cents, type DayKey, dayKeyAt, type MonthKey } from "@noodle/domain
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import { DatePicker } from "@noodle/ui/components/date-picker";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
@@ -538,13 +539,12 @@ function PayoffEditForm({
 					htmlFor={`${id}-date`}
 					hint={dateInvalid ? "Pick today or a day ahead." : "Optional."}
 				>
-					<Input
+					<DatePicker
 						id={`${id}-date`}
-						type="date"
 						min={goal.targetDate && goal.targetDate < today ? goal.targetDate : today}
 						value={targetDate}
 						aria-invalid={dateInvalid || undefined}
-						onChange={(event) => setTargetDate(event.currentTarget.value)}
+						onChange={setTargetDate}
 					/>
 				</Field>
 			</div>

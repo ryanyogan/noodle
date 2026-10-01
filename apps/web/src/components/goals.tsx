@@ -10,6 +10,7 @@ import {
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import { DatePicker } from "@noodle/ui/components/date-picker";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { Progress } from "@noodle/ui/components/progress";
@@ -632,13 +633,12 @@ function PayoffGoalForm({
 					htmlFor={`${id}-date`}
 					hint={dateInvalid ? "Pick today or a day ahead." : "Optional."}
 				>
-					<Input
+					<DatePicker
 						id={`${id}-date`}
-						type="date"
 						min={today}
 						value={targetDate}
 						aria-invalid={dateInvalid || undefined}
-						onChange={(event) => setTargetDate(event.currentTarget.value)}
+						onChange={setTargetDate}
 					/>
 				</Field>
 			</div>
@@ -735,13 +735,12 @@ function AddGoalForm({
 					htmlFor={`${id}-date`}
 					hint={dateInvalid ? "Pick today or a day ahead." : "Optional."}
 				>
-					<Input
+					<DatePicker
 						id={`${id}-date`}
-						type="date"
 						min={today}
 						value={targetDate}
 						aria-invalid={dateInvalid || undefined}
-						onChange={(event) => setTargetDate(event.currentTarget.value)}
+						onChange={setTargetDate}
 					/>
 				</Field>
 			</div>

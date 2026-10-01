@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { choose, createPlannedHousehold, signedInPage, switchTo } from "./session";
+import { choose, createPlannedHousehold, pickDate, signedInPage, switchTo } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -45,7 +45,7 @@ test("the year at a glance, and Plan health pointing at the fix", async ({ brows
 	await form.getByLabel("New Commitment").fill("Roof");
 	await form.getByLabel("Amount due").fill("12,000");
 	await choose(form, "How often", "Yearly");
-	await form.getByLabel("Due on").fill(`${lumpy}-10`);
+	await pickDate(form, "Due on", `${lumpy}-10`);
 	await form.getByRole("button", { name: "Add Commitment" }).click();
 	await expect(page.getByRole("button", { name: "Edit Roof" })).toBeVisible();
 	await page.getByRole("link", { name: "Back to Plan" }).click();
