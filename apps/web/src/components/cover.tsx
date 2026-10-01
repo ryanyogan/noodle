@@ -7,12 +7,17 @@ import {
 	parseDollars,
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@noodle/ui/components/collapsible";
 import { Input } from "@noodle/ui/components/input";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { Link, useHydrated } from "@tanstack/react-router";
-import { Wallet } from "lucide-react";
+import { ChevronRight, Wallet } from "lucide-react";
 import { type CSSProperties, useId, useState } from "react";
 import { asBucketColor, monogram } from "../buckets";
 import { formatMoney, formatMoneyInput } from "../format";
@@ -68,6 +73,13 @@ function CoverForm({
 	const cents = parseDollars(amount);
 	const valid = cents !== null && cents > 0 && cents <= overBy;
 	const sources = coverSources(state, bucket.id);
+	// With an amount typed, the places that have that much left come first; the rest fold away.
+	const enough = (source: CoverSource) => !valid || cents === null || source.left >= cents;
+	const canCover = sources.filter(enough);
+	const cannot = sources.filter((source) => !enough(source));
+	const pick = (source: CoverSource) => {
+		if (valid && cents !== null && source.left >= cents) onCover(source, cents);
+	};
 	return (
 		<>
 			<div className="grid gap-2">
@@ -106,19 +118,32 @@ function CoverForm({
 					<p className="text-xs font-medium text-muted-foreground" id={`${amountId}-from`}>
 						Cover from
 					</p>
-					<ul aria-labelledby={`${amountId}-from`} className="grid gap-2">
-						{sources.map((source) => (
-							<li key={source.bucket?.id ?? "free-to-spend"} className="grid">
-								<SourcePick
-									source={source}
-									ready={valid && source.left >= (cents ?? 0)}
-									onPick={() => {
-										if (valid && cents !== null && source.left >= cents) onCover(source, cents);
-									}}
+					<SourceList
+						labelledBy={`${amountId}-from`}
+						sources={canCover}
+						ready={(source) => valid && source.left >= (cents ?? 0)}
+						onPick={pick}
+					/>
+					{cannot.length > 0 ? (
+						// Places without enough left can't be picked: folded away so the list is what can.
+						<Collapsible className="group grid gap-2">
+							<CollapsibleTrigger className="flex min-h-8 items-center gap-1.5 justify-self-start text-[13px] text-muted-foreground hover:text-foreground">
+								<ChevronRight
+									aria-hidden="true"
+									className="size-4 transition-transform group-data-[state=open]:rotate-90"
 								/>
-							</li>
-						))}
-					</ul>
+								{cannot.length} without {cents === null ? "enough" : formatMoney(cents)} left
+							</CollapsibleTrigger>
+							<CollapsibleContent>
+								<SourceList
+									labelledBy={`${amountId}-from`}
+									sources={cannot}
+									ready={() => false}
+									onPick={pick}
+								/>
+							</CollapsibleContent>
+						</Collapsible>
+					) : null}
 				</div>
 			) : (
 				<div className="grid justify-items-start gap-3 rounded-xl bg-surface-2 p-3 text-sm text-muted-foreground">
@@ -132,6 +157,29 @@ function CoverForm({
 				</div>
 			)}
 		</>
+	);
+}
+
+/** Places to Cover from, each picked with one tap. */
+function SourceList({
+	labelledBy,
+	sources,
+	ready,
+	onPick,
+}: {
+	labelledBy: string;
+	sources: CoverSource[];
+	ready: (source: CoverSource) => boolean;
+	onPick: (source: CoverSource) => void;
+}) {
+	return (
+		<ul aria-labelledby={labelledBy} className="grid gap-2">
+			{sources.map((source) => (
+				<li key={source.bucket?.id ?? "free-to-spend"} className="grid">
+					<SourcePick source={source} ready={ready(source)} onPick={() => onPick(source)} />
+				</li>
+			))}
+		</ul>
 	);
 }
 

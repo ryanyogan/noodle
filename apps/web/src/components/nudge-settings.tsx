@@ -4,6 +4,7 @@ import { Card } from "@noodle/ui/components/card";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import { Switch as SwitchControl } from "@noodle/ui/components/switch";
 import { Tile } from "@noodle/ui/components/tile";
 import { toast } from "@noodle/ui/components/toast";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
@@ -232,7 +233,10 @@ function Switch({
 	const id = useId();
 	// Named by the label alone; the hint describes it.
 	return (
-		<label className="flex cursor-pointer items-center justify-between gap-4 px-(--card-pad) py-3.5">
+		<label
+			htmlFor={id}
+			className="flex cursor-pointer items-center justify-between gap-4 px-(--card-pad) py-3.5"
+		>
 			<span className="grid gap-0.5">
 				<span id={`${id}-label`} className="text-sm font-medium">
 					{label}
@@ -241,22 +245,13 @@ function Switch({
 					{hint}
 				</span>
 			</span>
-			<span className="relative inline-flex shrink-0">
-				<input
-					type="checkbox"
-					role="switch"
-					aria-labelledby={`${id}-label`}
-					aria-describedby={`${id}-hint`}
-					aria-checked={checked}
-					checked={checked}
-					onChange={(event) => onChange(event.target.checked)}
-					className="peer h-6 w-10 cursor-pointer appearance-none rounded-full border border-border-strong bg-surface-3 transition-colors checked:border-transparent duration-(--duration-fast) checked:bg-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50"
-				/>
-				<span
-					aria-hidden="true"
-					className="pointer-events-none absolute top-0.5 left-0.5 size-5 rounded-full border border-border-strong bg-card shadow-sm transition-transform duration-(--duration-fast) peer-checked:translate-x-4"
-				/>
-			</span>
+			<SwitchControl
+				id={id}
+				aria-labelledby={`${id}-label`}
+				aria-describedby={`${id}-hint`}
+				checked={checked}
+				onCheckedChange={onChange}
+			/>
 		</label>
 	);
 }

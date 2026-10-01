@@ -10,6 +10,7 @@ import {
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card, CardContent } from "@noodle/ui/components/card";
+import { Checkbox } from "@noodle/ui/components/checkbox";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
@@ -150,13 +151,11 @@ function ScenariosPage() {
 									<ListRow
 										key={scenario.id}
 										leading={
-											<input
-												type="checkbox"
-												className="size-4 accent-(--brand)"
+											<Checkbox
 												aria-label={`Compare “${scenario.name}”`}
 												checked={picked}
 												disabled={!picked && compared.length >= MAX_COMPARED}
-												onChange={() => toggle(scenario.id)}
+												onCheckedChange={() => toggle(scenario.id)}
 											/>
 										}
 										title={

@@ -1,6 +1,7 @@
 import type { Cents, Reason, Verdict } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import { Checkbox } from "@noodle/ui/components/checkbox";
 import {
 	Collapsible,
 	CollapsibleContent,
@@ -348,12 +349,10 @@ export function SetAsidePicker({
 							key={goal.id}
 							className="flex cursor-pointer items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5 text-sm"
 						>
-							<input
-								type="checkbox"
-								className="size-4 accent-(--brand)"
+							<Checkbox
 								checked={chosen.includes(goal.id)}
-								onChange={(event) => {
-									const on = event.currentTarget.checked;
+								onCheckedChange={(checked) => {
+									const on = checked === true;
 									onChosen(
 										on
 											? single

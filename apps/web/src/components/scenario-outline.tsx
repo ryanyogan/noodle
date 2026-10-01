@@ -30,6 +30,7 @@ import {
 	SelectValue,
 } from "@noodle/ui/components/select";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
+import { Switch } from "@noodle/ui/components/switch";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { ChevronRight, Plus } from "lucide-react";
@@ -973,16 +974,16 @@ function GrowthLine({ lever, edit }: { lever: ScenarioChange | undefined; edit: 
 			wide={edit.wide}
 			editor={
 				<div className="grid gap-2.5">
-					<label className="flex items-center justify-between gap-3 text-sm">
+					<label
+						htmlFor="raises-and-inflation"
+						className="flex items-center justify-between gap-3 text-sm"
+					>
 						Model raises and inflation
-						<input
-							type="checkbox"
-							role="switch"
-							aria-checked={growth !== null}
-							className="size-4 accent-(--brand)"
+						<Switch
+							id="raises-and-inflation"
 							checked={growth !== null}
-							onChange={(event) =>
-								event.currentTarget.checked
+							onCheckedChange={(on) =>
+								on
 									? edit.set({ kind: "growth", incomePct: 3, costsPct: 3, fromMonth: edit.month })
 									: edit.unset("growth")
 							}

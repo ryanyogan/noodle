@@ -1,43 +1,47 @@
+import { RadioGroup, RadioGroupPrimitiveItem } from "@noodle/ui/components/radio-group";
 import { cn } from "@noodle/ui/lib/utils";
+import { useId } from "react";
 import { bucketColors } from "../buckets";
 
-/** Picks one of the eight identity colours, as radio buttons. */
+/**
+ * Picks one of the eight identity colours: a shadcn RadioGroup drawn as swatches, each named by its
+ * colour. Arrow keys move and choose.
+ */
 export function ColourPicker({
-	name,
 	value,
 	onChange,
+	className,
 }: {
-	/** Groups the radios; unique per picker on the page. */
-	name: string;
 	value: number;
 	onChange: (color: number) => void;
+	className?: string;
 }) {
+	const labelId = useId();
 	return (
-		<fieldset className="grid gap-2">
-			<legend className="mb-2 text-sm font-medium">Colour</legend>
-			<div className="flex flex-wrap gap-2">
+		<div className={cn("grid gap-2", className)}>
+			<p id={labelId} className="mb-2 text-sm font-medium">
+				Colour
+			</p>
+			<RadioGroup
+				aria-labelledby={labelId}
+				value={String(value)}
+				onValueChange={(next) => onChange(Number(next))}
+				className="flex flex-wrap gap-2"
+			>
 				{bucketColors.map((option) => (
-					<label key={option.value} className="relative">
-						<input
-							type="radio"
-							name={name}
-							value={option.value}
-							checked={value === option.value}
-							onChange={() => onChange(option.value)}
-							className="peer absolute inset-0 z-10 size-full cursor-pointer appearance-none rounded-full opacity-0"
-						/>
-						<span className="sr-only">{option.name}</span>
-						<span
-							aria-hidden="true"
-							className={cn(
-								"block size-8 rounded-full ring-offset-2 ring-offset-surface-2 transition-shadow duration-(--duration-fast)",
-								"peer-checked:ring-2 peer-checked:ring-foreground peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4 peer-focus-visible:outline-ring",
-							)}
-							style={{ background: `var(--bucket-${option.value})` }}
-						/>
-					</label>
+					<RadioGroupPrimitiveItem
+						key={option.value}
+						value={String(option.value)}
+						aria-label={option.name}
+						className={cn(
+							"block size-8 rounded-full ring-offset-2 ring-offset-card transition-shadow duration-(--duration-fast)",
+							"data-[state=checked]:ring-2 data-[state=checked]:ring-foreground",
+							"focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring",
+						)}
+						style={{ background: `var(--bucket-${option.value})` }}
+					/>
 				))}
-			</div>
-		</fieldset>
+			</RadioGroup>
+		</div>
 	);
 }

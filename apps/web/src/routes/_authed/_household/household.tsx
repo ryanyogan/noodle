@@ -252,7 +252,6 @@ function ChildDetails({
 				</Field>
 			</form>
 			<ColourPicker
-				name={`color-${child.id}`}
 				value={pickedColor ?? child.color ?? 1}
 				onChange={(color) => {
 					setPickedColor(color);

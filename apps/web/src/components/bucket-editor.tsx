@@ -4,6 +4,7 @@ import { Card } from "@noodle/ui/components/card";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { ListRow } from "@noodle/ui/components/list";
+import { RadioGroup, RadioGroupCard } from "@noodle/ui/components/radio-group";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
@@ -34,6 +35,7 @@ import {
 	setCarriesOver,
 	updateBucket,
 } from "../server/plan";
+import { ColourPicker } from "./colour-picker";
 import { AmountInput } from "./goals";
 import { Confirm, SaveFailed } from "./plan-editing";
 import { PlanHistoryDisclosure } from "./plan-history";
@@ -308,32 +310,7 @@ function BucketForm({
 					onChange={(event) => setName(event.currentTarget.value)}
 				/>
 			</Field>
-			<fieldset className="grid gap-2">
-				<legend className="mb-2 text-sm font-medium">Colour</legend>
-				<div className="flex flex-wrap gap-2">
-					{bucketColors.map((option) => (
-						<label key={option.value} className="relative">
-							<input
-								type="radio"
-								name={`${id}-color`}
-								value={option.value}
-								checked={color === option.value}
-								onChange={() => setColor(option.value)}
-								className="peer absolute inset-0 z-10 size-full cursor-pointer appearance-none rounded-full opacity-0"
-							/>
-							<span className="sr-only">{option.name}</span>
-							<span
-								aria-hidden="true"
-								className={cn(
-									"block size-8 rounded-full ring-offset-2 ring-offset-card transition-shadow duration-(--duration-fast)",
-									"peer-checked:ring-2 peer-checked:ring-foreground peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4 peer-focus-visible:outline-ring",
-								)}
-								style={{ background: `var(--bucket-${option.value})` }}
-							/>
-						</label>
-					))}
-				</div>
-			</fieldset>
+			<ColourPicker value={color} onChange={setColor} />
 			<CarriesOverField
 				name={`${id}-rolling`}
 				rolling={rolling}
@@ -368,29 +345,30 @@ export function CarriesOverField({
 	onChange: (rolling: boolean) => void;
 	hint?: string;
 }) {
+	const labelId = useId();
 	return (
-		<fieldset className="grid gap-2">
-			<legend className="mb-2 text-sm font-medium">At the end of the month</legend>
-			{carriesOverOptions.map((option) => (
-				<label
-					key={option.label}
-					className="flex cursor-pointer items-start gap-3 rounded-lg bg-surface-2 px-3 py-2.5"
-				>
-					<input
-						type="radio"
-						name={name}
-						checked={rolling === option.rolling}
-						onChange={() => onChange(option.rolling)}
-						className="mt-0.5 size-4 shrink-0 accent-foreground"
+		<div className="grid gap-2">
+			<p id={labelId} className="mb-2 text-sm font-medium">
+				At the end of the month
+			</p>
+			<RadioGroup
+				aria-labelledby={labelId}
+				value={rolling ? "carries-over" : "resets"}
+				onValueChange={(value) => onChange(value === "carries-over")}
+			>
+				{carriesOverOptions.map((option) => (
+					<RadioGroupCard
+						key={option.label}
+						id={`${name}-${option.rolling ? "carries-over" : "resets"}`}
+						value={option.rolling ? "carries-over" : "resets"}
+						label={option.label}
+						description={option.description}
+						className="border-transparent bg-surface-2 has-data-[state=checked]:bg-surface-2"
 					/>
-					<span className="grid gap-0.5">
-						<span className="text-sm font-medium">{option.label}</span>
-						<span className="text-[13px] text-muted-foreground">{option.description}</span>
-					</span>
-				</label>
-			))}
+				))}
+			</RadioGroup>
 			{hint ? <p className="text-xs text-subtle-foreground">{hint}</p> : null}
-		</fieldset>
+		</div>
 	);
 }
 

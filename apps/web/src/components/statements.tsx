@@ -15,6 +15,7 @@ import {
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import { Checkbox } from "@noodle/ui/components/checkbox";
 import {
 	Collapsible,
 	CollapsibleContent,
@@ -553,12 +554,10 @@ function CsvMappingFields({
 				Which columns are which
 			</legend>
 			<label className="flex items-center gap-2 text-sm">
-				<input
-					type="checkbox"
-					className="size-4 accent-primary"
+				<Checkbox
 					checked={mapping.hasHeader}
 					disabled={!hydrated}
-					onChange={(event) => onChange({ ...mapping, hasHeader: event.currentTarget.checked })}
+					onCheckedChange={(checked) => onChange({ ...mapping, hasHeader: checked === true })}
 				/>
 				The first row names the columns
 			</label>
