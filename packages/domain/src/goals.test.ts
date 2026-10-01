@@ -493,6 +493,7 @@ describe("payoff Goals (ADR-0019)", () => {
 				targetDate: null,
 				saved: 15_000,
 				fundedThisMonth: 5_000,
+				fundedElsewhereThisMonth: 0,
 			});
 		});
 
@@ -506,6 +507,7 @@ describe("payoff Goals (ADR-0019)", () => {
 				targetDate: "2027-02-28",
 				saved: 200_000,
 				fundedThisMonth: 50_000,
+				fundedElsewhereThisMonth: 0,
 			});
 		});
 	});

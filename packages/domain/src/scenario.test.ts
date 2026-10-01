@@ -11,6 +11,7 @@ import {
 	type ProjectionGoal,
 	planAhead,
 	project,
+	projectionGoalOf,
 	readScenarioChanges,
 	type ScenarioChange,
 	type ScenarioChangeV1,
@@ -238,6 +239,24 @@ describe("project: Goals", () => {
 		expect(projection.goals[0]?.monthly).toBe(100_000);
 		expect(projection.goals[0]?.earmarks[0]).toBe(100_000);
 		expect(month("2026-09", projection)?.goalFunding).toBe(100_000);
+	});
+
+	it("leaves Extra income and Sweeps sent to a Goal this month out of Free to Spend", () => {
+		// $640 of Extra income went to the Goal this month: it covers part of this month's $1,000,
+		// but it never came out of Free to Spend, so only the $360 still due does.
+		const goal = projectionGoalOf(
+			{ id: "car", target: 1_200_000, targetDate: "2027-08-31", fromMonth: "2026-09" },
+			[
+				{ goalId: "car", kind: "funding", amount: 64_000, month: "2026-09", from: "windfall" },
+				{ goalId: "car", kind: "funding", amount: 10_000, month: "2026-09", from: "sweep" },
+				{ goalId: "car", kind: "funding", amount: 6_000, month: "2026-09" },
+			],
+			"2026-09",
+		);
+		const projection = projectV1(ahead([goal]));
+		expect(projection.goals[0]?.earmarks[0]).toBe(100_000);
+		expect(month("2026-09", projection)?.goalFunding).toBe(6_000 + 20_000);
+		expect(month("2026-09", projection)?.freeToSpend).toBe(418_000 - 26_000);
 	});
 
 	it("stops funding once the target is reached, never over it", () => {

@@ -79,6 +79,8 @@ export type SetAsideChange = {
 	kind: "claim" | "funding" | "spending";
 	amount: Cents;
 	month: MonthKey;
+	/** Funding that came from Extra income, or was Swept from a Bucket, rather than Free to Spend. */
+	from?: "windfall" | "sweep";
 };
 
 /** A Goal's set-aside money: every change to it, summed. */
@@ -262,16 +264,34 @@ export function projectionGoalOf(
 	goal: ProgressGoal,
 	changes: readonly SetAsideChange[],
 	month: MonthKey,
-): { id: string; target: Cents; targetDate: DayKey | null; saved: Cents; fundedThisMonth: Cents } {
-	const fundedThisMonth = setAsideOf(
+): {
+	id: string;
+	target: Cents;
+	targetDate: DayKey | null;
+	saved: Cents;
+	fundedThisMonth: Cents;
+	fundedElsewhereThisMonth: Cents;
+} {
+	const thisMonth = changes.filter(
+		(c) => c.goalId === goal.id && c.kind === "funding" && c.month === month,
+	);
+	const fundedThisMonth = setAsideOf(goal.id, thisMonth);
+	const fundedElsewhereThisMonth = setAsideOf(
 		goal.id,
-		changes.filter((c) => c.goalId === goal.id && c.kind === "funding" && c.month === month),
+		thisMonth.filter((c) => c.from !== undefined),
 	);
 	const saved =
 		goal.kind === "payoff"
 			? paidDownOf(goal.target, goal.owed ?? null) + fundedThisMonth
 			: setAsideOf(goal.id, changes as SetAsideChange[]);
-	return { id: goal.id, target: goal.target, targetDate: goal.targetDate, saved, fundedThisMonth };
+	return {
+		id: goal.id,
+		target: goal.target,
+		targetDate: goal.targetDate,
+		saved,
+		fundedThisMonth,
+		fundedElsewhereThisMonth,
+	};
 }
 
 /**

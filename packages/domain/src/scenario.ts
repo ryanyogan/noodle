@@ -44,6 +44,11 @@ export type ProjectionGoal = {
 	saved: Cents;
 	/** Goal funding already Moved into it this month (part of `saved`). */
 	fundedThisMonth: Cents;
+	/**
+	 * The part of `fundedThisMonth` that came from Extra income or a Sweep: it counts towards
+	 * what's due this month, but never came out of Free to Spend.
+	 */
+	fundedElsewhereThisMonth?: Cents;
 };
 
 /** The Plan resolved for each month ahead, ready to project many times over. */
@@ -255,6 +260,7 @@ export function project(
 			added: false,
 			saved: goal.saved,
 			fundedThisMonth: goal.fundedThisMonth,
+			fundedElsewhereThisMonth: goal.fundedElsewhereThisMonth ?? 0,
 			paramsIn: (month: MonthKey): GoalParams | null =>
 				holding(goalChanges.get(goal.id), month, start) ?? goal,
 			fallback: goal as GoalParams,
@@ -266,6 +272,7 @@ export function project(
 				added: true,
 				saved: 0,
 				fundedThisMonth: 0,
+				fundedElsewhereThisMonth: 0,
 				paramsIn: (month: MonthKey): GoalParams | null =>
 					holdsIn(scenarioChange, month)
 						? (holding(goalChanges.get(scenarioChange.goalId), month, start) ?? scenarioChange)
@@ -351,13 +358,15 @@ export function project(
 				g.params = params;
 				if (params !== null && g.first === null) g.first = { params, monthly: g.monthly };
 			}
-			// This month's funding so far is already in what's set aside, and still comes out of it.
+			// This month's funding so far is already in what's set aside. What came from Free to Spend
+			// still comes out of it; Extra income and Sweeps sent to the Goal never did.
 			const already = i === 0 ? g.fundedThisMonth : 0;
+			const fromFree = i === 0 ? g.fundedThisMonth - g.fundedElsewhereThisMonth : 0;
 			const due = g.monthly === null ? 0 : Math.max(0, g.monthly - already);
 			const funding = params === null ? 0 : Math.min(due, Math.max(0, params.target - g.earmark));
 			g.earmark += funding;
 			g.earmarks.push(g.earmark);
-			goalFunding += already + funding;
+			goalFunding += fromFree + funding;
 			if (params !== null && g.earmark >= params.target && g.reachedIn === null) {
 				g.reachedIn = month;
 			}

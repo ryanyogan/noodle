@@ -759,8 +759,6 @@ export type GoalChange = SetAsideChange & {
 	id: string;
 	date?: DayKey;
 	note?: string | null;
-	/** Funding that came from Extra income, or was Swept from a Bucket, rather than Free to Spend. */
-	from?: "windfall" | "sweep";
 };
 
 /** Everything the Goals and Accounts views derive their numbers from (see @noodle/domain). */
