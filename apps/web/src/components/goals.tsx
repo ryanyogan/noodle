@@ -13,6 +13,7 @@ import { Card } from "@noodle/ui/components/card";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
+import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { cn } from "@noodle/ui/lib/utils";
 import { Link, useHydrated } from "@tanstack/react-router";
 import { ChevronLeft, CreditCard, HandCoins, Landmark, PiggyBank, Plus } from "lucide-react";
@@ -491,42 +492,37 @@ function GoalKindField({
 	onKindChange: (kind: GoalKind) => void;
 }) {
 	const hydrated = useHydrated();
-	const name = useId();
+	const labelId = useId();
 	const options = [
 		{ kind: "save", label: "Save up" },
 		{ kind: "payoff", label: "Pay off a card or loan" },
 	] as const;
 	return (
-		<fieldset className="grid gap-1.5">
-			<legend className="mb-1.5 flex items-center gap-1 text-sm font-medium">
-				What’s it for?
+		<div className="grid gap-1.5">
+			<p className="mb-1.5 flex items-center gap-1 text-sm font-medium">
+				<span id={labelId}>What’s it for?</span>
 				<TermHelp term="payoff-goal" />
-			</legend>
-			<div className="grid grid-cols-2 gap-1 rounded-lg bg-surface-2 p-0.5">
+			</p>
+			<ToggleGroup
+				type="single"
+				variant="segmented"
+				aria-labelledby={labelId}
+				value={kind}
+				disabled={!hydrated}
+				onValueChange={(value) => onKindChange(value as GoalKind)}
+				className="grid w-full grid-cols-2"
+			>
 				{options.map((option) => (
-					<label
+					<ToggleGroupItem
 						key={option.kind}
-						className={cn(
-							"relative grid min-h-9 cursor-pointer place-items-center rounded-md px-2 py-1 text-center text-[13px] font-medium text-muted-foreground",
-							"transition-colors duration-(--duration-fast) ease-standard",
-							"has-checked:bg-card has-checked:text-foreground has-checked:shadow-card",
-							"has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ring",
-						)}
+						value={option.kind}
+						className="h-auto min-h-9 py-1 whitespace-normal"
 					>
-						<input
-							type="radio"
-							name={name}
-							value={option.kind}
-							checked={kind === option.kind}
-							disabled={!hydrated}
-							onChange={() => onKindChange(option.kind)}
-							className="absolute inset-0 size-full cursor-pointer appearance-none opacity-0"
-						/>
-						<span>{option.label}</span>
-					</label>
+						{option.label}
+					</ToggleGroupItem>
 				))}
-			</div>
-		</fieldset>
+			</ToggleGroup>
+		</div>
 	);
 }
 

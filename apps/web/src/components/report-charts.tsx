@@ -1,6 +1,5 @@
 import type { Cents, DayKey } from "@noodle/domain";
 import { levelOf } from "@noodle/domain";
-import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import {
 	type ChartConfig,
@@ -9,8 +8,9 @@ import {
 	ChartLegendContent,
 	ChartTooltip,
 } from "@noodle/ui/components/chart";
+import { Toggle } from "@noodle/ui/components/toggle";
 import { cn } from "@noodle/ui/lib/utils";
-import { ChartColumn, Table2 } from "lucide-react";
+import { Table2 } from "lucide-react";
 import {
 	type ReactNode,
 	type PointerEvent as ReactPointerEvent,
@@ -155,15 +155,14 @@ export function ChartCard({
 				<div className="flex shrink-0 items-center gap-1">
 					{actions}
 					{table ? (
-						<Button
-							variant="ghost"
-							size="icon-sm"
-							aria-pressed={asTable}
-							aria-label={asTable ? `Show ${title} as a chart` : `Show ${title} as a table`}
-							onClick={() => setAsTable((t) => !t)}
+						<Toggle
+							size="sm"
+							aria-label={`Show ${title} as a table`}
+							pressed={asTable}
+							onPressedChange={setAsTable}
 						>
-							{asTable ? <ChartColumn /> : <Table2 />}
-						</Button>
+							<Table2 />
+						</Toggle>
 					) : null}
 				</div>
 			</div>

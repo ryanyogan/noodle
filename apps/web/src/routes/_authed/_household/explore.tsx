@@ -41,6 +41,7 @@ import { Input } from "@noodle/ui/components/input";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Skeleton } from "@noodle/ui/components/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { cn } from "@noodle/ui/lib/utils";
 import { useMutationState, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -300,7 +301,6 @@ function Explore({ search }: { search: ExploreSearch }) {
 		[],
 	);
 
-	const horizonId = useId();
 	const horizonLabel = HORIZONS.find((h) => h.months === horizon)?.label ?? "";
 	// Recomputed only when the deferred Changes (or the horizon) change.
 	const planProjection = useMemo(() => project(ahead), [ahead]);
@@ -426,28 +426,23 @@ function Explore({ search }: { search: ExploreSearch }) {
 					{/* It stays beside the Changes only where it fits on screen: stuck, anything below
 					    the fold couldn't be reached until the Changes ran out. */}
 					<div className="grid gap-4 lg:[@media(min-height:48rem)]:sticky lg:top-6">
-						<fieldset className="flex flex-wrap items-center gap-1">
-							<legend className="sr-only">Look ahead</legend>
+						<ToggleGroup
+							type="single"
+							aria-label="Look ahead"
+							value={String(horizon)}
+							onValueChange={(value) => setHorizon(Number(value))}
+							className="flex-wrap"
+						>
 							{HORIZONS.map((h) => (
-								<label
+								<ToggleGroupItem
 									key={h.months}
-									className={cn(
-										"cursor-pointer rounded-lg px-2.5 py-1 text-[13px] font-medium text-muted-foreground",
-										"has-checked:bg-card has-checked:text-foreground has-checked:shadow-card has-checked:ring-1 has-checked:ring-border",
-										"has-focus-visible:outline-2 has-focus-visible:outline-ring",
-									)}
+									value={String(h.months)}
+									className="data-[state=on]:bg-card data-[state=on]:shadow-card data-[state=on]:ring-1 data-[state=on]:ring-border"
 								>
-									<input
-										type="radio"
-										name={horizonId}
-										className="sr-only"
-										checked={horizon === h.months}
-										onChange={() => setHorizon(h.months)}
-									/>
 									{h.label}
-								</label>
+								</ToggleGroupItem>
 							))}
-						</fieldset>
+						</ToggleGroup>
 						<Summary
 							plan={planProjection}
 							scenario={scenarioProjection}

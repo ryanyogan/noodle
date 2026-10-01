@@ -15,6 +15,7 @@ import {
 	ChartLegendContent,
 	ChartTooltip,
 } from "@noodle/ui/components/chart";
+import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { cn } from "@noodle/ui/lib/utils";
 import { X } from "lucide-react";
 import {
@@ -625,7 +626,6 @@ export function CompositionChart() {
 	const animation = useAnimation();
 	const reveal = useMonthReveal();
 	const [which, setWhich] = useState<"scenario" | "plan">("scenario");
-	const name = useId();
 	const projection = which === "plan" ? plan : scenario;
 	const stacked = (m: (typeof projection.months)[number]) =>
 		m.commitments + m.allowances + m.goalFunding + Math.max(0, m.freeToSpend);
@@ -667,28 +667,17 @@ export function CompositionChart() {
 			table={table}
 			className="overflow-visible"
 			actions={
-				<fieldset className="flex rounded-lg bg-surface-2 p-0.5">
-					<legend className="sr-only">Show</legend>
-					{(["plan", "scenario"] as const).map((value) => (
-						<label
-							key={value}
-							className={cn(
-								"cursor-pointer rounded-md px-2 py-0.5 text-xs font-medium text-muted-foreground",
-								"has-checked:bg-card has-checked:text-foreground has-checked:shadow-card",
-								"has-focus-visible:outline-2 has-focus-visible:outline-ring",
-							)}
-						>
-							<input
-								type="radio"
-								name={name}
-								className="sr-only"
-								checked={which === value}
-								onChange={() => setWhich(value)}
-							/>
-							{value === "plan" ? "Plan" : "Scenario"}
-						</label>
-					))}
-				</fieldset>
+				<ToggleGroup
+					type="single"
+					variant="segmented"
+					size="sm"
+					aria-label="Show"
+					value={which}
+					onValueChange={(value) => setWhich(value as typeof which)}
+				>
+					<ToggleGroupItem value="plan">Plan</ToggleGroupItem>
+					<ToggleGroupItem value="scenario">Scenario</ToggleGroupItem>
+				</ToggleGroup>
 			}
 		>
 			<ChartContainer

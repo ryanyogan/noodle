@@ -80,10 +80,12 @@ test("Big expenses are the one-offs over a threshold the Parent picks", async ({
 	await expect(largest.getByText("Mortgage")).toHaveCount(0);
 	await expect(page.getByText("Commitments, by the year")).toBeVisible();
 
-	const slider = page.getByLabel("What did we spend over…");
-	await slider.focus();
-	await slider.press("ArrowRight");
-	await slider.press("ArrowRight");
+	// The thresholds are a radio group: the arrow keys choose, as on a slider.
+	const over = page.getByRole("radiogroup", { name: "What did we spend over…" });
+	await over.getByRole("radio", { checked: true }).focus();
+	await page.keyboard.press("ArrowRight");
+	await expect(page).toHaveURL(/over=500/);
+	await page.keyboard.press("ArrowRight");
 	await expect(page).toHaveURL(/over=1000/);
 	await expect(page.getByText("One-offs over $1,000", { exact: true })).toBeVisible();
 	await expect(largest.getByText("Car repair")).toBeVisible();

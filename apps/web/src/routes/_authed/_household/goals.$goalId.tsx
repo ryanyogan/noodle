@@ -15,6 +15,7 @@ import { List, ListGroupLabel, ListRow } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
+import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { cn } from "@noodle/ui/lib/utils";
 import { createFileRoute, Link, notFound, useHydrated } from "@tanstack/react-router";
 import { ChevronDown, Pencil } from "lucide-react";
@@ -710,33 +711,30 @@ function AddMoneySheet({
 			}
 			above={
 				options.length > 1 ? (
-					<fieldset className="grid gap-1.5">
-						<legend className="mb-1.5 text-sm font-medium">Where’s it from?</legend>
-						<div className="grid grid-cols-2 gap-1 rounded-lg bg-surface-2 p-0.5">
+					<div className="grid gap-1.5">
+						<p id={name} className="mb-1.5 text-sm font-medium">
+							Where’s it from?
+						</p>
+						<ToggleGroup
+							type="single"
+							variant="segmented"
+							aria-labelledby={name}
+							value={from}
+							disabled={!hydrated}
+							onValueChange={(value) => onFromChange(value as typeof from)}
+							className="grid w-full grid-cols-2"
+						>
 							{options.map((option) => (
-								<label
+								<ToggleGroupItem
 									key={option.from}
-									className={cn(
-										"relative grid min-h-9 cursor-pointer place-items-center rounded-md px-2 py-1 text-center text-[13px] font-medium text-muted-foreground",
-										"transition-colors duration-(--duration-fast) ease-standard",
-										"has-checked:bg-card has-checked:text-foreground has-checked:shadow-card",
-										"has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ring",
-									)}
+									value={option.from}
+									className="h-auto min-h-9 py-1 whitespace-normal"
 								>
-									<input
-										type="radio"
-										name={name}
-										value={option.from}
-										checked={from === option.from}
-										disabled={!hydrated}
-										onChange={() => onFromChange(option.from)}
-										className="absolute inset-0 size-full cursor-pointer appearance-none opacity-0"
-									/>
-									<span>{option.label}</span>
-								</label>
+									{option.label}
+								</ToggleGroupItem>
 							))}
-						</div>
-					</fieldset>
+						</ToggleGroup>
+					</div>
 				) : null
 			}
 			initialCents={from === "plan" ? left : null}

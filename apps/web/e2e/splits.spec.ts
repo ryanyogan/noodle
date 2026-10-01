@@ -62,7 +62,7 @@ async function splitCostco(page: Page) {
 	await splitFields(page, 1).getByLabel("Amount").fill("180");
 	await splitFields(page, 2).getByLabel("Assigned to").selectOption({ label: "Hockey" });
 	await splitFields(page, 2)
-		.getByRole("group", { name: "For" })
+		.getByRole("toolbar", { name: "For" })
 		.getByRole("button", { name: "Leo" })
 		.click();
 	await splitFields(page, 2).getByLabel("Amount").fill("70");
@@ -91,7 +91,7 @@ test("splitting a Quick Add spends each Split from its own Bucket, For its own M
 	await expect(remainder(page)).toHaveText("All assigned");
 	await splitFields(page, 2).getByLabel("Assigned to").selectOption({ label: "Hockey" });
 	await splitFields(page, 2)
-		.getByRole("group", { name: "For" })
+		.getByRole("toolbar", { name: "For" })
 		.getByRole("button", { name: "Leo" })
 		.click();
 	await save(page).click();

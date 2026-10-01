@@ -15,6 +15,7 @@ import { Input } from "@noodle/ui/components/input";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -471,36 +472,32 @@ function Filters({
 				});
 			}}
 		>
-			<fieldset className="grid gap-2">
-				<legend className="mb-2 text-sm font-medium">Buckets</legend>
-				<div className="flex flex-wrap gap-1.5">
-					{meta.buckets.map((b) => {
-						const on = buckets.includes(b.id);
-						return (
-							<button
-								key={b.id}
-								type="button"
-								aria-pressed={on}
-								onClick={() =>
-									setBuckets((list) => (on ? list.filter((x) => x !== b.id) : [...list, b.id]))
-								}
-								className={cn(
-									"inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors",
-									on
-										? "border-transparent bg-foreground text-background"
-										: "bg-card hover:bg-surface-2",
-								)}
-							>
-								<span
-									className="size-2 rounded-full"
-									style={{ background: `var(--bucket-${b.color})` }}
-								/>
-								{b.name}
-							</button>
-						);
-					})}
-				</div>
-			</fieldset>
+			<div className="grid gap-2">
+				<p id={`${id}-buckets`} className="mb-2 text-sm font-medium">
+					Buckets
+				</p>
+				<ToggleGroup
+					type="multiple"
+					aria-labelledby={`${id}-buckets`}
+					value={buckets}
+					onValueChange={setBuckets}
+					className="w-full flex-wrap gap-1.5"
+				>
+					{meta.buckets.map((b) => (
+						<ToggleGroupItem
+							key={b.id}
+							value={b.id}
+							className="rounded-full border border-border bg-card text-foreground hover:bg-surface-2 data-[state=on]:border-transparent data-[state=on]:bg-foreground data-[state=on]:text-background"
+						>
+							<span
+								className="size-2 rounded-full"
+								style={{ background: `var(--bucket-${b.color})` }}
+							/>
+							{b.name}
+						</ToggleGroupItem>
+					))}
+				</ToggleGroup>
+			</div>
 			<div className="grid gap-4 sm:grid-cols-2">
 				<Field label="For" htmlFor={`${id}-member`}>
 					<NativeSelect

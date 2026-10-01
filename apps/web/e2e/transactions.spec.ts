@@ -55,8 +55,8 @@ async function quickAdd(
 	await quickAddSheet(page).getByLabel("Note").fill(note);
 	if (forName) {
 		await quickAddSheet(page)
-			.getByRole("group", { name: "For" })
-			.getByRole("button", { name: forName })
+			.getByRole("radiogroup", { name: "For" })
+			.getByRole("radio", { name: forName })
 			.click();
 	}
 	await quickAddSheet(page)
@@ -87,7 +87,7 @@ test("editing a Transaction reassigns its spending on This Month at once", async
 	await editSheet(page).getByLabel("Amount").fill("70");
 	await editSheet(page).getByLabel("Assigned to").selectOption({ label: "Hockey" });
 	await editSheet(page)
-		.getByRole("group", { name: "For" })
+		.getByRole("toolbar", { name: "For" })
 		.getByRole("button", { name: "Leo" })
 		.click();
 	await editSheet(page).getByLabel("Note").fill("Skates");

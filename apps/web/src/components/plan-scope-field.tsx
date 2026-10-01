@@ -1,7 +1,7 @@
 import { addMonths, type Cents, type MonthKey, type PlanScope, parseDollars } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Field } from "@noodle/ui/components/field";
-import { cn } from "@noodle/ui/lib/utils";
+import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { useHydrated } from "@tanstack/react-router";
 import { type FormEvent, useId, useState } from "react";
 import { formatMoney, formatMoneyInput, monthName } from "../format";
@@ -24,44 +24,33 @@ export function PlanScopeField({
 	onScopeChange: (scope: PlanScope) => void;
 }) {
 	const hydrated = useHydrated();
-	const name = useId();
 	const options = [
 		{ scope: "from-on", label: `From ${monthName(month)} on` },
 		{ scope: "just", label: `Just ${monthName(month)}` },
 	] as const;
 	return (
-		<fieldset className="grid gap-2">
-			<legend className="sr-only">Applies to</legend>
-			<div className="grid grid-cols-2 gap-1 rounded-lg bg-surface-2 p-0.5">
+		<div className="grid gap-2">
+			<ToggleGroup
+				type="single"
+				variant="segmented"
+				aria-label="Applies to"
+				value={scope}
+				disabled={!hydrated}
+				onValueChange={(value) => onScopeChange(value as PlanScope)}
+				className="grid w-full grid-cols-2"
+			>
 				{options.map((option) => (
-					<label
-						key={option.scope}
-						className={cn(
-							"relative grid h-8 cursor-pointer place-items-center rounded-md px-2 text-[13px] font-medium text-muted-foreground",
-							"transition-colors duration-(--duration-fast) ease-standard",
-							"has-checked:bg-card has-checked:text-foreground has-checked:shadow-card",
-							"has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ring",
-						)}
-					>
-						<input
-							type="radio"
-							name={name}
-							value={option.scope}
-							checked={scope === option.scope}
-							disabled={!hydrated}
-							onChange={() => onScopeChange(option.scope)}
-							className="absolute inset-0 size-full cursor-pointer appearance-none opacity-0"
-						/>
+					<ToggleGroupItem key={option.scope} value={option.scope} className="min-w-0">
 						<span className="truncate">{option.label}</span>
-					</label>
+					</ToggleGroupItem>
 				))}
-			</div>
+			</ToggleGroup>
 			<p className="text-xs text-subtle-foreground">
 				{scope === "just"
 					? `${monthName(addMonths(month, 1))} goes back to ${formatMoney(current)}.`
 					: "Later months follow, unless they have their own amount."}
 			</p>
-		</fieldset>
+		</div>
 	);
 }
 

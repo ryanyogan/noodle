@@ -11,6 +11,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Tile } from "@noodle/ui/components/tile";
+import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { cn } from "@noodle/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import {
@@ -622,6 +623,11 @@ function OverviewView({ report, data, names, nav, tables }: ViewProps<"overview"
 	);
 }
 
+/** A threshold as a short label: $0, $25, $250, $1k. */
+function stopLabel(s: number) {
+	return s === 0 ? "$0" : s >= 1_000_00 ? `$${s / 1_000_00}k` : `$${s / 100}`;
+}
+
 function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">) {
 	const stops = THRESHOLD_STOPS;
 	const wanted = (search.over ?? 250) * 100;
@@ -634,14 +640,14 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 	}
 	const threshold = stops[index] ?? 0;
 	const over = overThreshold(data.bands, threshold);
-	const sliderId = useId();
+	const pickerId = useId();
 	const shown = data.items.filter((item) => item.amount >= threshold);
 	const maxItem = Math.max(1, ...data.items.map((i) => i.amount));
 	const bandMax = Math.max(1, ...data.bands.map((b) => b.amount));
 	if (data.spent === 0 && data.items.length === 0 && data.commitments.length === 0)
 		return <NothingYet />;
 	return (
-		<div className="grid gap-4 lg:grid-cols-5 lg:gap-6">
+		<div className="grid gap-4 lg:grid-cols-5 lg:items-start lg:gap-6">
 			<Card className="grid gap-5 p-(--card-pad) lg:col-span-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] lg:items-center lg:gap-10 lg:py-6">
 				<div className="grid gap-1">
 					<span className="text-[13px] text-muted-foreground">
@@ -661,55 +667,54 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 					</span>
 				</div>
 				<div className="grid gap-2">
-					<label htmlFor={sliderId} className="text-[13px] font-medium">
+					<p id={pickerId} className="text-[13px] font-medium">
 						What did we spend over…
-					</label>
-					<div className="flex h-14 items-end justify-between" aria-hidden="true">
-						{stops.map((s) => {
+					</p>
+					{/* One option per threshold: its bar is what was spent from there up to the next. */}
+					<ToggleGroup
+						type="single"
+						aria-labelledby={pickerId}
+						value={String(threshold)}
+						onValueChange={(value) => nav.set({ over: Number(value) / 100 })}
+						className="grid w-full grid-cols-10 gap-0.5"
+					>
+						{stops.map((s, i) => {
 							const band = data.bands.find((b) => b.floor === s);
 							const amount = band?.amount ?? 0;
+							const count = band?.count ?? 0;
+							const label = stopLabel(s);
 							return (
-								<span
+								<ToggleGroupItem
 									key={s}
-									title={band ? `${formatMoney(amount)} in ${band.count}` : undefined}
-									className={cn(
-										"w-4 rounded-t-[3px] transition-[height,background-color] duration-300",
-										s >= threshold ? "bg-(--chart-spend)" : "bg-(--chart-mid)",
-									)}
-									style={{
-										height: amount > 0 ? `${Math.max(6, (amount / bandMax) * 100)}%` : "2px",
-									}}
-								/>
+									value={String(s)}
+									aria-label={`${label}: ${formatMoney(amount)} in ${count} ${count === 1 ? "Transaction" : "Transactions"}`}
+									title={`${formatMoney(amount)} in ${count}`}
+									className="group/stop h-auto min-w-0 flex-col items-stretch gap-1 rounded-md px-0 pt-1 pb-0.5 hover:bg-surface-2 data-[state=on]:bg-transparent"
+								>
+									<span className="flex h-14 items-end justify-center" aria-hidden="true">
+										<span
+											className={cn(
+												"w-4 max-w-full rounded-t-[3px] transition-[height,background-color] duration-300",
+												s >= threshold ? "bg-(--chart-spend)" : "bg-(--chart-mid)",
+											)}
+											style={{
+												height: amount > 0 ? `${Math.max(6, (amount / bandMax) * 100)}%` : "2px",
+											}}
+										/>
+									</span>
+									<span
+										className={cn(
+											"text-center text-[11px] font-normal text-muted-foreground tabular-nums",
+											"group-data-[state=on]/stop:font-semibold group-data-[state=on]/stop:text-foreground",
+											i % 2 === 1 && "max-sm:invisible",
+										)}
+									>
+										{label}
+									</span>
+								</ToggleGroupItem>
 							);
 						})}
-					</div>
-					<input
-						id={sliderId}
-						type="range"
-						min={0}
-						max={stops.length - 1}
-						step={1}
-						value={index}
-						aria-valuetext={formatMoney(threshold)}
-						onChange={(event) => nav.set({ over: (stops[Number(event.target.value)] ?? 0) / 100 })}
-						className="h-2 w-full cursor-pointer accent-(--foreground)"
-					/>
-					<div
-						className="flex justify-between text-[11px] text-subtle-foreground tabular-nums"
-						aria-hidden="true"
-					>
-						{stops.map((s, i) => (
-							<span
-								key={s}
-								className={cn(
-									i === index && "font-semibold text-foreground",
-									i % 2 === 1 && "max-sm:hidden",
-								)}
-							>
-								{s === 0 ? "$0" : s >= 1_000_00 ? `$${s / 1_000_00}k` : `$${s / 100}`}
-							</span>
-						))}
-					</div>
+					</ToggleGroup>
 				</div>
 			</Card>
 			<ChartCard
@@ -869,22 +874,22 @@ function BucketsView({ data, names, search, nav, tables }: ViewProps<"buckets">)
 			description="Pick a Bucket to see its trend, merchants and Transactions"
 			table={tables.shares}
 			actions={
-				<fieldset className="flex items-center rounded-lg bg-surface-2 p-0.5">
-					<legend className="sr-only">Chart type</legend>
+				<ToggleGroup
+					type="single"
+					variant="segmented"
+					size="sm"
+					aria-label="Chart type"
+					value={chart}
+					onValueChange={(kind) =>
+						nav.set({ chart: kind === "donut" ? undefined : (kind as typeof chart) })
+					}
+				>
 					{kinds.map(({ kind, label, icon: Icon }) => (
-						<Button
-							key={kind}
-							variant="ghost"
-							size="icon-sm"
-							aria-label={label}
-							aria-pressed={chart === kind}
-							onClick={() => nav.set({ chart: kind === "donut" ? undefined : kind })}
-							className={cn(chart === kind && "bg-card text-foreground shadow-card hover:bg-card")}
-						>
+						<ToggleGroupItem key={kind} value={kind} aria-label={label} className="px-0">
 							<Icon />
-						</Button>
+						</ToggleGroupItem>
 					))}
-				</fieldset>
+				</ToggleGroup>
 			}
 		>
 			<div

@@ -35,8 +35,8 @@ async function quickAdd(page: Page, amount: string, bucket: string, forName?: st
 	await page.keyboard.type(amount);
 	if (forName) {
 		await sheet(page)
-			.getByRole("group", { name: "For" })
-			.getByRole("button", { name: forName })
+			.getByRole("radiogroup", { name: "For" })
+			.getByRole("radio", { name: forName })
 			.click();
 	}
 	await sheet(page)
@@ -80,9 +80,9 @@ test("a Parent adds, renames, recolours, and removes Children", async ({ browser
 
 	// A removed Child can't be picked for new spending.
 	await page.getByRole("link", { name: "Quick Add" }).click();
-	const forPicker = sheet(page).getByRole("group", { name: "For" });
-	await expect(forPicker.getByRole("button", { name: "Leon" })).toBeVisible();
-	await expect(forPicker.getByRole("button", { name: "Maya" })).toHaveCount(0);
+	const forPicker = sheet(page).getByRole("radiogroup", { name: "For" });
+	await expect(forPicker.getByRole("radio", { name: "Leon" })).toBeVisible();
+	await expect(forPicker.getByRole("radio", { name: "Maya" })).toHaveCount(0);
 	await page.context().close();
 });
 
@@ -104,10 +104,10 @@ test("Quick Add is For Everyone unless a Child is picked, and each Child's cost 
 
 	// Everyone, then each Child, then each Parent; Everyone is picked to start with.
 	await page.keyboard.press("q");
-	const forPicker = sheet(page).getByRole("group", { name: "For" });
-	await expect(forPicker.getByRole("button")).toHaveText(["Everyone", "Maya", "Leo", "Alex"]);
-	await expect(forPicker.getByRole("button", { name: "Everyone" })).toHaveAttribute(
-		"aria-pressed",
+	const forPicker = sheet(page).getByRole("radiogroup", { name: "For" });
+	await expect(forPicker.getByRole("radio")).toHaveText(["Everyone", "Maya", "Leo", "Alex"]);
+	await expect(forPicker.getByRole("radio", { name: "Everyone" })).toHaveAttribute(
+		"aria-checked",
 		"true",
 	);
 	await page.keyboard.press("Escape");
