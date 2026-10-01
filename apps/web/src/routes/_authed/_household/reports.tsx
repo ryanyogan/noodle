@@ -9,6 +9,7 @@ import {
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { PageHeader } from "@noodle/ui/components/page-header";
@@ -17,9 +18,19 @@ import { Skeleton } from "@noodle/ui/components/skeleton";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ChevronRight, Download, Lightbulb, ListFilter, X } from "lucide-react";
+import {
+	ChartPie,
+	ChevronRight,
+	Download,
+	Landmark,
+	Lightbulb,
+	ListFilter,
+	Plus,
+	X,
+} from "lucide-react";
 import { useId, useMemo, useState } from "react";
 import { NativeSelect } from "../../../components/native-select";
+import { quickAddSearch } from "../../../components/quick-add";
 import { ReportBody, type ReportNav, tablesFor } from "../../../components/report-views";
 import { reportQuery } from "../../../queries";
 import {
@@ -36,7 +47,7 @@ import {
 	tablesCsv,
 	VIEW_LABELS,
 } from "../../../reports";
-import type { ReportData } from "../../../server/reports";
+import type { ReportData, ReportView } from "../../../server/reports";
 
 // Reports: where the money goes, from the whole Household down to the Transactions behind any
 // number. Every option lives in the URL, so any view (drill-down included) can be bookmarked or
@@ -77,6 +88,26 @@ function useReportNav(): ReportNav & { go: (patch: Partial<ReportSearch>) => voi
 	}, [navigate]);
 }
 
+/**
+ * The options each view reads: only these are offered, so none sits there doing nothing. A view
+ * drilled into an area always compares.
+ */
+const VIEW_OPTIONS: Record<
+	ReportView,
+	{ period: boolean; compare: boolean; group: boolean; filters: boolean }
+> = {
+	overview: { period: true, compare: true, group: true, filters: true },
+	big: { period: true, compare: false, group: false, filters: true },
+	buckets: { period: true, compare: true, group: false, filters: true },
+	plan: { period: true, compare: false, group: false, filters: false },
+	trends: { period: true, compare: true, group: true, filters: true },
+	merchants: { period: true, compare: false, group: false, filters: true },
+	people: { period: true, compare: false, group: true, filters: true },
+	"cash-flow": { period: true, compare: false, group: false, filters: false },
+	goals: { period: true, compare: false, group: false, filters: false },
+	income: { period: true, compare: false, group: false, filters: false },
+};
+
 function ReportsPage() {
 	const search = Route.useSearch();
 	const request = requestOf(search);
@@ -90,6 +121,9 @@ function ReportsPage() {
 		: search.month
 			? monthLabel(search.month)
 			: VIEW_LABELS[request.view];
+
+	// A Household with no Transactions or income yet has nothing to report, whatever the options.
+	const empty = report.historyFrom === null;
 
 	return (
 		// One minmax(0,1fr) column: the view tabs' w-max list scrolls in its own nav rather than
@@ -110,6 +144,7 @@ function ReportsPage() {
 						<Button
 							variant="outline"
 							size="sm"
+							disabled={empty}
 							onClick={() =>
 								download(csvName(report, request.view), tablesCsv(Object.values(tables)))
 							}
@@ -120,12 +155,49 @@ function ReportsPage() {
 					</>
 				}
 			/>
-			<ViewTabs current={request.view} />
-			<Options search={search} report={report} nav={nav} />
-			{drilled ? <Breadcrumb search={search} view={request.view} label={names.label} /> : null}
-			<div key={`${request.view}|${search.area ?? ""}`} className="animate-enter">
-				<ReportBody report={report} names={names} search={search} nav={nav} tables={tables} />
-			</div>
+			{empty ? (
+				<Card className="p-0">
+					<EmptyState
+						icon={<ChartPie />}
+						title="Reports fill in once you have Transactions"
+						description="Quick Add what you spend, or bring in your bank’s, and Reports show where the money went, month by month."
+						action={
+							<div className="flex flex-wrap justify-center gap-2">
+								<Button size="sm" asChild>
+									<Link to="." search={(prev) => ({ ...prev, ...quickAddSearch })}>
+										<Plus />
+										Quick Add
+									</Link>
+								</Button>
+								<Button size="sm" variant="outline" asChild>
+									<Link to="/accounts">
+										<Landmark />
+										Connect a bank or add an Account
+									</Link>
+								</Button>
+							</div>
+						}
+					/>
+				</Card>
+			) : (
+				<>
+					<ViewTabs current={request.view} />
+					<Options
+						search={search}
+						report={report}
+						nav={nav}
+						offered={
+							search.area
+								? { ...VIEW_OPTIONS[request.view], compare: true }
+								: VIEW_OPTIONS[request.view]
+						}
+					/>
+					{drilled ? <Breadcrumb search={search} view={request.view} label={names.label} /> : null}
+					<div key={`${request.view}|${search.area ?? ""}`} className="animate-enter">
+						<ReportBody report={report} names={names} search={search} nav={nav} tables={tables} />
+					</div>
+				</>
+			)}
 		</div>
 	);
 }
@@ -173,10 +245,13 @@ function Options({
 	search,
 	report,
 	nav,
+	offered,
 }: {
 	search: ReportSearch;
 	report: ReportData;
 	nav: ReturnType<typeof useReportNav>;
+	/** The options this view reads. */
+	offered: (typeof VIEW_OPTIONS)[ReportView];
 }) {
 	const id = useId();
 	const [filtersOpen, setFiltersOpen] = useState(false);
@@ -215,7 +290,7 @@ function Options({
 		<div className="grid gap-3">
 			<div className="flex flex-wrap items-end gap-2">
 				<label className="grid gap-1 max-sm:w-[calc(50%-0.25rem)]" htmlFor={`${id}-period`}>
-					<span className="sr-only">Period</span>
+					<span className="text-[13px] font-medium text-muted-foreground">Period</span>
 					<NativeSelect
 						id={`${id}-period`}
 						value={period}
@@ -264,61 +339,67 @@ function Options({
 						/>
 					</>
 				) : null}
-				<label className="grid max-sm:w-[calc(50%-0.25rem)]" htmlFor={`${id}-compare`}>
-					<span className="sr-only">Compare to</span>
-					<NativeSelect
-						id={`${id}-compare`}
-						value={search.compare ?? "previous"}
-						onChange={(event) =>
-							nav.set({
-								compare:
-									event.target.value === "previous"
-										? undefined
-										: (event.target.value as Comparison),
-							})
-						}
-						className="sm:w-52"
+				{offered.compare ? (
+					<label className="grid gap-1 max-sm:w-[calc(50%-0.25rem)]" htmlFor={`${id}-compare`}>
+						<span className="text-[13px] font-medium text-muted-foreground">Compare with</span>
+						<NativeSelect
+							id={`${id}-compare`}
+							value={search.compare ?? "previous"}
+							onChange={(event) =>
+								nav.set({
+									compare:
+										event.target.value === "previous"
+											? undefined
+											: (event.target.value as Comparison),
+								})
+							}
+							className="sm:w-52"
+						>
+							{COMPARISONS.map((c) => (
+								<option key={c} value={c}>
+									{COMPARE_LABELS[c]}
+								</option>
+							))}
+						</NativeSelect>
+					</label>
+				) : null}
+				{offered.group ? (
+					<label className="grid gap-1 max-sm:w-[calc(50%-0.25rem)]" htmlFor={`${id}-group`}>
+						<span className="text-[13px] font-medium text-muted-foreground">Group by</span>
+						<NativeSelect
+							id={`${id}-group`}
+							value={search.group ?? ""}
+							onChange={(event) =>
+								nav.set({ group: (event.target.value || undefined) as ReportSearch["group"] })
+							}
+							className="sm:w-44"
+						>
+							<option value="">By {report.grouping} (auto)</option>
+							{GROUPINGS.map((g) => (
+								<option key={g} value={g}>
+									By {g}
+								</option>
+							))}
+						</NativeSelect>
+					</label>
+				) : null}
+				{offered.filters ? (
+					<Button
+						variant="outline"
+						onClick={() => setFiltersOpen(true)}
+						className="h-10 max-sm:w-[calc(50%-0.25rem)]"
 					>
-						{COMPARISONS.map((c) => (
-							<option key={c} value={c}>
-								{COMPARE_LABELS[c]}
-							</option>
-						))}
-					</NativeSelect>
-				</label>
-				<label className="grid max-sm:w-[calc(50%-0.25rem)]" htmlFor={`${id}-group`}>
-					<span className="sr-only">Group by</span>
-					<NativeSelect
-						id={`${id}-group`}
-						value={search.group ?? ""}
-						onChange={(event) =>
-							nav.set({ group: (event.target.value || undefined) as ReportSearch["group"] })
-						}
-						className="sm:w-44"
-					>
-						<option value="">By {report.grouping} (auto)</option>
-						{GROUPINGS.map((g) => (
-							<option key={g} value={g}>
-								By {g}
-							</option>
-						))}
-					</NativeSelect>
-				</label>
-				<Button
-					variant="outline"
-					onClick={() => setFiltersOpen(true)}
-					className="h-10 max-sm:w-[calc(50%-0.25rem)]"
-				>
-					<ListFilter />
-					Filters
-					{chips.length ? (
-						<span className="rounded-full bg-foreground px-1.5 text-[11px] text-background tabular-nums">
-							{chips.length}
-						</span>
-					) : null}
-				</Button>
+						<ListFilter />
+						Filters
+						{chips.length ? (
+							<span className="rounded-full bg-foreground px-1.5 text-[11px] text-background tabular-nums">
+								{chips.length}
+							</span>
+						) : null}
+					</Button>
+				) : null}
 			</div>
-			{(search.compare ?? "previous") !== "none" && report.compared === null ? (
+			{offered.compare && (search.compare ?? "previous") !== "none" && report.compared === null ? (
 				<p className="text-[13px] text-muted-foreground">
 					{report.historyFrom
 						? `Nothing earlier to compare with: your history starts in ${monthLabel(monthOfDay(report.historyFrom))}.`

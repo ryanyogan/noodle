@@ -52,6 +52,15 @@ test("a new Household's pages say where to start", async ({ browser }) => {
 	await expect(page.getByRole("table")).toHaveCount(0);
 	await expect(page.getByRole("link", { name: "Set up the Plan" })).toBeVisible();
 
+	// Reports: they fill in once there's spending, with where to start; nothing to export.
+	await page.goto("/reports");
+	await expect(page.getByText("Reports fill in once you have Transactions")).toBeVisible(
+		clientRendered,
+	);
+	await expect(page.getByRole("link", { name: "Quick Add" }).last()).toBeVisible();
+	await expect(page.getByRole("button", { name: "Export CSV" })).toBeDisabled();
+	await expect(page.getByLabel("Period")).toHaveCount(0);
+
 	// Explore: what it's for, and that a Plan comes first.
 	await page.goto("/explore");
 	await expect(page.getByText("Explore tries changes on your Plan")).toBeVisible(clientRendered);

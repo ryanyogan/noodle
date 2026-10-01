@@ -831,6 +831,14 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 	);
 }
 
+/** What a share of spending is, said on its row: the list mixes all four. */
+const SHARE_KIND: Record<string, string> = {
+	bucket: "Bucket",
+	commitment: "Commitment",
+	goal: "Goal spending",
+	unassigned: "Not in a Bucket",
+};
+
 function BucketsView({ data, names, search, nav, tables }: ViewProps<"buckets">) {
 	const chart: ChartKind = search.chart ?? "donut";
 	const shares: Share[] = useMemo(
@@ -919,6 +927,8 @@ function BucketsView({ data, names, search, nav, tables }: ViewProps<"buckets">)
 									</span>
 									{chart === "bar" ? bar : null}
 									<span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+										<span>{SHARE_KIND[names.kindOf(t.target)] ?? ""}</span>
+										<span aria-hidden="true">·</span>
 										<span className="tabular-nums">
 											{data.spent > 0 ? formatPercent(t.amount / data.spent) : "—"}
 										</span>
@@ -1330,7 +1340,7 @@ function MerchantsView({ data, nav, tables }: ViewProps<"merchants">) {
 		<div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
 			<ChartCard
 				title="By spending"
-				description="Merchants are grouped by each Transaction's note"
+				description="Grouped by merchant, from each Transaction’s note"
 				table={tables.byAmount}
 			>
 				<MerchantList merchants={data.byAmount.slice(0, 15)} nav={nav} by="amount" />
