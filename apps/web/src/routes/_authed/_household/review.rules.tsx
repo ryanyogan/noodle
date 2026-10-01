@@ -12,15 +12,22 @@ import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
-import { ChevronLeft, Lock, WandSparkles } from "lucide-react";
+import { ChevronLeft, Lock, Plus, WandSparkles } from "lucide-react";
 import { type FormEvent, useState } from "react";
+import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../../../buckets";
 import { ForPicker } from "../../../components/for-picker";
 import { NativeSelect } from "../../../components/native-select";
 import { Confirm } from "../../../components/plan-editing";
 import { forLabel, type MemberSummary } from "../../../members";
 import { membersQuery, monthQuery, rulesQuery } from "../../../queries";
-import { type RuleRow, useApplyRule, useDeleteRule, useEditRule } from "../../../review";
+import {
+	type RuleRow,
+	useApplyRule,
+	useDeleteRule,
+	useEditRule,
+	useSaveRule,
+} from "../../../review";
 
 export const Route = createFileRoute("/_authed/_household/review/rules")({
 	beforeLoad: ({ context }) => ({
@@ -48,8 +55,11 @@ function RulesPage() {
 	const buckets = useSuspenseQuery(monthQuery(current)).data.plan.buckets.filter((b) =>
 		canAssign(b, parentId),
 	);
+	const hydrated = useHydrated();
+	// A Rule's ID while it's edited, or "new" while one is added.
 	const [editing, setEditing] = useState<string | null>(null);
 	const open = rules.find((rule) => rule.id === editing) ?? null;
+	const adding = editing === "new";
 
 	return (
 		<>
@@ -58,12 +68,22 @@ function RulesPage() {
 				eyebrow="Review"
 				title="Rules"
 				actions={
-					<Button variant="outline" size="sm" asChild>
-						<Link to="/review">
-							<ChevronLeft />
-							Review
-						</Link>
-					</Button>
+					<>
+						<Button variant="outline" size="sm" asChild>
+							<Link to="/review">
+								<ChevronLeft />
+								Review
+							</Link>
+						</Button>
+						<Button
+							size="sm"
+							disabled={!hydrated || buckets.length === 0}
+							onClick={() => setEditing("new")}
+						>
+							<Plus />
+							Add Rule
+						</Button>
+					</>
 				}
 			/>
 			<div className="grid max-w-2xl gap-4">
@@ -72,7 +92,7 @@ function RulesPage() {
 						<EmptyState
 							icon={<WandSparkles />}
 							title="No Rules yet"
-							description="When you confirm or change a card in Review, you can have Noodle always file that merchant the same way."
+							description="Add one for a merchant you always file the same way, or have Noodle make one when you confirm or change a card in Review."
 						/>
 					</Card>
 				) : (
@@ -95,9 +115,26 @@ function RulesPage() {
 					stays put when you change or delete it.
 				</p>
 			</div>
-			<Sheet open={open !== null} onOpenChange={(next) => (next ? undefined : setEditing(null))}>
+			<Sheet
+				open={open !== null || adding}
+				onOpenChange={(next) => (next ? undefined : setEditing(null))}
+			>
 				<SheetContent>
-					{open ? (
+					{adding ? (
+						<>
+							<SheetHeader
+								title="Add a Rule"
+								description="New statement lines whose merchant contains these words are filed on their own."
+							/>
+							<RuleForm
+								key="new"
+								rule={null}
+								buckets={buckets}
+								members={members}
+								onDone={() => setEditing(null)}
+							/>
+						</>
+					) : open ? (
 						<>
 							<SheetHeader
 								title="Edit Rule"
@@ -171,14 +208,17 @@ function RuleListRow({
 	);
 }
 
-/** Changes a Rule's merchant words, Bucket and For; files what it matches; or deletes it. */
+/**
+ * Adds a Rule (`rule` null), or changes one's merchant words, Bucket and For; files what it
+ * matches (saving any change first); or deletes it.
+ */
 function RuleForm({
 	rule,
 	buckets,
 	members,
 	onDone,
 }: {
-	rule: RuleRow;
+	rule: RuleRow | null;
 	buckets: PlanBucket[];
 	members: MemberSummary[];
 	onDone: () => void;
@@ -187,44 +227,97 @@ function RuleForm({
 	const edit = useEditRule();
 	const remove = useDeleteRule();
 	const apply = useApplyRule();
-	const [pattern, setPattern] = useState(rule.pattern);
-	const [bucketId, setBucketId] = useState(rule.bucketId);
-	const [forIds, setForIds] = useState<For>(rule.for);
+	const add = useSaveRule();
+	const [pattern, setPattern] = useState(rule?.pattern ?? "");
+	const [bucketId, setBucketId] = useState(rule?.bucketId ?? buckets[0]?.id ?? "");
+	const [forIds, setForIds] = useState<For>(rule?.for ?? []);
 	const [deleting, setDeleting] = useState(false);
+	const [missing, setMissing] = useState(false);
 	// Its Bucket stays pickable after leaving the Plan.
-	const options = buckets.some((b) => b.id === rule.bucketId)
-		? buckets
-		: [...buckets, { id: rule.bucketId, name: rule.bucketName }];
+	const options =
+		!rule || buckets.some((b) => b.id === rule.bucketId)
+			? buckets
+			: [...buckets, { id: rule.bucketId, name: rule.bucketName }];
+	const bucketName = options.find((b) => b.id === bucketId)?.name ?? rule?.bucketName ?? "";
 	const unchanged =
+		rule !== null &&
 		pattern.trim() === rule.pattern &&
 		bucketId === rule.bucketId &&
 		forIds.join() === rule.for.join();
 
 	function save(event: FormEvent) {
 		event.preventDefault();
-		if (!pattern.trim()) return;
-		if (!unchanged) {
+		if (!pattern.trim()) {
+			setMissing(true);
+			return;
+		}
+		if (!rule) {
+			// A new Rule also files what's still unassigned that it matches, as Review's does.
+			add.mutate({
+				ruleId: ulid(),
+				pattern: pattern.trim(),
+				bucketId,
+				bucketName,
+				forMemberIds: forIds,
+			});
+		} else if (!unchanged) {
 			edit.mutate({
 				ruleId: rule.id,
 				pattern: pattern.trim(),
 				bucketId,
-				bucketName: options.find((b) => b.id === bucketId)?.name ?? rule.bucketName,
+				bucketName,
 				forMemberIds: forIds,
 			});
 		}
 		onDone();
 	}
 
+	/** Files what the Rule matches, saving any change to it first. */
+	function fileNow() {
+		if (!rule) return;
+		if (!pattern.trim()) {
+			setMissing(true);
+			return;
+		}
+		const edited = { ...rule, pattern: pattern.trim(), bucketId, bucketName, for: forIds };
+		if (unchanged) apply.mutate(rule);
+		else {
+			// The sheet closes at once, so this goes on after it's gone: by the promise, not by
+			// mutate's own callbacks, which an unmounted form never hears.
+			edit
+				.mutateAsync({
+					ruleId: rule.id,
+					pattern: edited.pattern,
+					bucketId,
+					bucketName,
+					forMemberIds: forIds,
+				})
+				.then(() => apply.mutate(edited))
+				.catch(() => {});
+		}
+		onDone();
+	}
+
 	return (
-		<form onSubmit={save} className="grid gap-4">
-			<Field label="Merchant" htmlFor="rule-pattern" hint="Statement lines containing these words">
+		<form onSubmit={save} noValidate className="grid gap-4">
+			<Field
+				label="Merchant"
+				htmlFor="rule-pattern"
+				hint={
+					missing && !pattern.trim() ? (
+						<span className="text-over">Type a word from the merchant’s name.</span>
+					) : (
+						"Statement lines containing these words"
+					)
+				}
+			>
 				<Input
 					id="rule-pattern"
 					value={pattern}
 					onChange={(event) => setPattern(event.target.value)}
 					maxLength={64}
 					autoComplete="off"
-					required
+					aria-invalid={(missing && !pattern.trim()) || undefined}
 					disabled={!hydrated}
 				/>
 			</Field>
@@ -243,21 +336,15 @@ function RuleForm({
 				</NativeSelect>
 			</Field>
 			<ForPicker members={members} value={forIds} onChange={setForIds} multiple />
-			<Button type="submit" disabled={!hydrated || !pattern.trim()}>
-				Save
+			<Button type="submit" disabled={!hydrated}>
+				{rule ? "Save" : "Add Rule and file what matches"}
 			</Button>
-			<Button
-				type="button"
-				variant="outline"
-				disabled={!hydrated || !unchanged}
-				onClick={() => {
-					apply.mutate(rule);
-					onDone();
-				}}
-			>
-				File what’s still unassigned now
-			</Button>
-			{deleting ? (
+			{rule ? (
+				<Button type="button" variant="outline" disabled={!hydrated} onClick={fileNow}>
+					{unchanged ? "File what’s still unassigned now" : "Save and file what’s still unassigned"}
+				</Button>
+			) : null}
+			{!rule ? null : deleting ? (
 				<Confirm
 					confirmLabel="Delete Rule"
 					onConfirm={() => {

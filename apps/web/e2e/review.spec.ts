@@ -179,4 +179,25 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	await sheet.getByRole("button", { name: "Delete Rule" }).click();
 	await page.getByRole("alertdialog").getByRole("button", { name: "Delete Rule" }).click();
 	await expect(page.getByText("No Rules yet")).toBeVisible();
+
+	// A Rule can be added directly, and an edited one saved and used at once.
+	await page.getByRole("button", { name: "Add Rule" }).click();
+	const add = page.getByRole("dialog", { name: "Add a Rule" });
+	await add.getByRole("button", { name: "Add Rule and file what matches" }).click();
+	await expect(add).toContainText("Type a word from the merchant’s name.");
+	await add.getByLabel("Merchant").fill("Corner Gas");
+	await add.getByLabel("Bucket").selectOption({ label: "Gas" });
+	await add.getByRole("button", { name: "Add Rule and file what matches" }).click();
+	await expect(add).toBeHidden();
+	await expect(page.getByText(/Rule saved: corner gas goes in Gas/i)).toBeVisible();
+	await page.getByRole("button", { name: /^corner gas, Gas, / }).click();
+	const edit = page.getByRole("dialog", { name: "Edit Rule" });
+	await expect(
+		edit.getByRole("button", { name: "File what’s still unassigned now" }),
+	).toBeEnabled();
+	await edit.getByLabel("Bucket").selectOption({ label: "Fun" });
+	await edit.getByRole("button", { name: "Save and file what’s still unassigned" }).click();
+	await expect(edit).toBeHidden();
+	await expect(page.getByText(/Nothing unassigned matches corner gas/i)).toBeVisible();
+	await expect(page.getByRole("button", { name: /^corner gas, Fun, / })).toBeVisible();
 });

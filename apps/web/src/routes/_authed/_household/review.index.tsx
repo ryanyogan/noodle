@@ -146,8 +146,10 @@ function ReviewPage() {
 			if (target?.closest("input, select, textarea, [role=dialog], [contenteditable=true]")) {
 				return;
 			}
-			// A focused button answers Enter itself.
-			if (event.key === "Enter" && target?.closest("button, a")) return;
+			// A focused button or link answers keys itself: Enter on Skip or the Rules link mustn't
+			// also confirm the card, nor an arrow move it on.
+			// The sidebar's links don't count: arriving from one, the keys work at once.
+			if (target?.closest("main") && target.closest("button, a, summary, [role=button]")) return;
 			const act =
 				event.key === "ArrowRight" || event.key === "Enter"
 					? confirm
