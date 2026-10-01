@@ -114,6 +114,8 @@ test("connecting pairs with the card already there, and counts nothing twice", a
 	// The card stays one Account, now connected; the loan was left out.
 	const connection = bankConnections(page).getByRole("listitem");
 	await expect(connection).toContainText("3 Accounts · Up to date");
+	// What it brought in: the card's three and checking's two, one of them Matched.
+	await expect(connection).toContainText("Brought in 5 Transactions · 1 Matched to Quick Adds");
 	await expect(page.getByRole("link", { name: /^Costco Anywhere Visa, / })).toHaveCount(1);
 	await expect(page.getByRole("link", { name: /··3333/ })).toHaveCount(0);
 	await expect(page.getByRole("link", { name: /Auto Loan/ })).toHaveCount(0);

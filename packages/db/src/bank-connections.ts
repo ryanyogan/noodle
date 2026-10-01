@@ -8,7 +8,14 @@ import {
 import { and, asc, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import type { Db } from "./index";
-import { accountBalances, accounts, bankConnections, households } from "./schema";
+import {
+	accountBalances,
+	accounts,
+	bankConnections,
+	households,
+	imports,
+	transactions,
+} from "./schema";
 
 // Bank Connections: a Household's authorized links to its financial institutions (through
 // Plaid). Connecting one records it, "choosing" until a Parent says which of the Household's
@@ -31,6 +38,11 @@ export type BankConnectionSummary = {
 	/** What the provider last asked the Parent to read about the link, as plain text. */
 	notice: string | null;
 	accounts: { id: string; name: string; kind: AccountKind }[];
+	/**
+	 * What it has brought in so far: Transactions, how many of those are Matched to Quick Adds,
+	 * and how many wait in Review.
+	 */
+	brought: { transactions: number; matched: number; inReview: number };
 };
 
 /** A Bank Connection as the Import Workflow reads it: with its credential, still encrypted. */
@@ -305,7 +317,7 @@ export async function loadBankConnections(
 	db: Db,
 	householdId: string,
 ): Promise<BankConnectionSummary[]> {
-	const [rows, accountRows] = await db.batch([
+	const [rows, accountRows, broughtRows] = await db.batch([
 		db
 			.select({
 				id: bankConnections.id,
@@ -328,13 +340,39 @@ export async function loadBankConnections(
 			.from(accounts)
 			.where(eq(accounts.householdId, householdId))
 			.orderBy(asc(accounts.createdAt), asc(accounts.id)),
+		// Spelled out: inside a select's fields Drizzle leaves column names unqualified.
+		db
+			.select({
+				connectionId: imports.bankConnectionId,
+				transactions: sql<number>`count(*)`,
+				matched: sql<number>`coalesce(sum(exists (select 1 from matches m
+					where m.imported_id = "transactions"."id" and m.removed_at is null)), 0)`,
+				inReview: sql<number>`coalesce(sum("transactions"."bucket_id" is null
+					and "transactions"."commitment_id" is null and "transactions"."goal_id" is null
+					and exists (select 1 from categorizations c where c.transaction_id = "transactions"."id"
+						and c.outcome = 'review')
+					and not exists (select 1 from matches m where m.imported_id = "transactions"."id"
+						and m.removed_at is null)), 0)`,
+			})
+			.from(imports)
+			.innerJoin(transactions, eq(transactions.importId, imports.id))
+			.where(and(eq(imports.householdId, householdId), isNotNull(imports.bankConnectionId)))
+			.groupBy(imports.bankConnectionId),
 	]);
-	return rows.map((row) => ({
-		...row,
-		accounts: accountRows
-			.filter((account) => account.bankConnectionId === row.id)
-			.map(({ id, name, kind }) => ({ id, name, kind })),
-	}));
+	return rows.map((row) => {
+		const brought = broughtRows.find((b) => b.connectionId === row.id);
+		return {
+			...row,
+			accounts: accountRows
+				.filter((account) => account.bankConnectionId === row.id)
+				.map(({ id, name, kind }) => ({ id, name, kind })),
+			brought: {
+				transactions: Number(brought?.transactions ?? 0),
+				matched: Number(brought?.matched ?? 0),
+				inReview: Number(brought?.inReview ?? 0),
+			},
+		};
+	});
 }
 
 /** One of the Household's Bank Connections, for the Import Workflow; null once it's gone. */

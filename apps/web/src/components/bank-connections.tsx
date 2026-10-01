@@ -9,7 +9,7 @@ import { Tile } from "@noodle/ui/components/tile";
 import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { useHydrated } from "@tanstack/react-router";
+import { Link, useHydrated } from "@tanstack/react-router";
 import { Landmark, Plus } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
@@ -302,6 +302,25 @@ function ConnectionRow({
 						{" · "}
 						<span className={cn(status.failed && "text-over")}>{status.text}</span>
 					</span>
+					{connection.brought.transactions > 0 ? (
+						<span className="basis-full">
+							Brought in{" "}
+							{connection.brought.transactions === 1
+								? "1 Transaction"
+								: `${connection.brought.transactions} Transactions`}
+							{connection.brought.matched > 0
+								? ` · ${connection.brought.matched} Matched to Quick Adds`
+								: ""}
+							{connection.brought.inReview > 0 ? (
+								<>
+									{" · "}
+									<Link to="/review" className="font-medium text-foreground underline">
+										{connection.brought.inReview} waiting in Review
+									</Link>
+								</>
+							) : null}
+						</span>
+					) : null}
 					{failed ? (
 						<span role="alert" className="basis-full text-over">
 							{connection.institution ?? "The bank"} didn’t take the login. Try again, or upload a

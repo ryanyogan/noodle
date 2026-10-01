@@ -9,6 +9,7 @@ import {
 	createHouseholdForParent,
 	type Db,
 	importStatement,
+	loadBankConnections,
 	loadBankConnectionsToSync,
 	loadGoals,
 	loadImports,
@@ -246,6 +247,8 @@ describe("the bank's lines and a statement's (ADR-0020)", () => {
 		]);
 		const [bankImport] = await loadImports(db, householdId, "costco", result?.importId ?? "");
 		expect(bankImport).toMatchObject({ transactionCount: 2, duplicateCount: 2 });
+		const [summary] = await loadBankConnections(db, householdId);
+		expect(summary?.brought).toEqual({ transactions: 2, matched: 0, inReview: 0 });
 
 		// The bank sends the same line again (changed, say): it's still the statement's.
 		await sync("costco", [bankLine("acc-cc", "t-shell", "2026-09-28", -3_850, "SHELL")]);
