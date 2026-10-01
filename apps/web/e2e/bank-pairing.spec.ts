@@ -100,9 +100,7 @@ test("connecting pairs with the card already there, and counts nothing twice", a
 	await bankConnections(page).getByRole("button", { name: "Connect a bank" }).click();
 	const choose = chooseSheet(page);
 	const card = choose.getByLabel("Costco Anywhere Visa ··3333");
-	await expect(card.locator("option:checked")).toHaveText(
-		"Same as Costco Anywhere Visa",
-	);
+	await expect(card.locator("option:checked")).toHaveText("Same as Costco Anywhere Visa");
 	await expect(choose.getByLabel("Plaid Checking ··0000")).toHaveValue("new");
 	// A checking account can't be the card.
 	await expect(choose.getByLabel("Plaid Checking ··0000").locator("option")).toHaveText([

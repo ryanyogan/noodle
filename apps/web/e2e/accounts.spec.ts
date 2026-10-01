@@ -31,11 +31,15 @@ test("Accounts are their own area, and each Goal names the Account holding it", 
 	await expect(page.getByLabel("Balance now")).toHaveCount(0);
 	await page.getByRole("link", { name: "Go to Accounts" }).click();
 
-	// The empty state names the three ways in; Bank Connections sit here too.
+	// The empty state names the three ways in, connecting first; adding one by hand is below.
 	await expect(heading(page)).toHaveText("Accounts");
 	await expect(page.getByText("Accounts are where the money is")).toBeVisible();
-	await expect(page.getByText(/Connect a bank.*upload its statements.*by hand/)).toBeVisible();
-	await expect(page.getByRole("region", { name: "Bank Connections" })).toBeVisible();
+	const ways = page.getByRole("list", { name: "Ways to add an Account" }).getByRole("listitem");
+	await expect(ways).toHaveCount(3);
+	await expect(ways.nth(0)).toContainText("Connect your bank");
+	await expect(ways.nth(0).getByRole("button", { name: "Connect a bank" })).toBeVisible();
+	await expect(ways.nth(1)).toContainText("Upload statements");
+	await expect(ways.nth(2)).toContainText("Type in a balance");
 
 	await page.getByLabel("Name").fill("Joint Savings");
 	await page.getByLabel("Kind").selectOption("savings");

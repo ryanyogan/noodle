@@ -278,7 +278,7 @@ function AccountDetails({ account }: { account: AccountView }) {
 				title={owes ? "Update what’s owed" : "Update balance"}
 				description={
 					owes
-						? `What’s owed on ${account.name} today.`
+						? `What’s owed on ${account.name} today: the current balance on its site or app, pending charges included.`
 						: `What’s in ${account.name} today, from your bank.`
 				}
 				label={owes ? "Owed now" : "Balance now"}
@@ -430,26 +430,34 @@ function RenameForm({ name, onSave }: { name: string; onSave: (name: string) => 
 	const hydrated = useHydrated();
 	const id = useId();
 	const [value, setValue] = useState(name);
-	const valid = value.trim() !== "";
+	const [tried, setTried] = useState(false);
+	const missing = tried && value.trim() === "";
 
 	function onSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		if (valid) onSave(value.trim());
+		setTried(true);
+		if (value.trim() !== "") onSave(value.trim());
 	}
 
 	return (
-		<form onSubmit={onSubmit} className="grid gap-4">
-			<Field label="Name" htmlFor={`${id}-name`}>
+		<form onSubmit={onSubmit} noValidate className="grid gap-4">
+			<Field
+				label="Name"
+				htmlFor={`${id}-name`}
+				error={missing ? "Give the Account a name." : null}
+			>
 				<Input
 					id={`${id}-name`}
 					required
+					aria-invalid={missing || undefined}
+					aria-describedby={missing ? `${id}-name-error` : undefined}
 					maxLength={40}
 					autoComplete="off"
 					value={value}
 					onChange={(event) => setValue(event.currentTarget.value)}
 				/>
 			</Field>
-			<Button type="submit" disabled={!hydrated || !valid}>
+			<Button type="submit" disabled={!hydrated}>
 				Save
 			</Button>
 		</form>

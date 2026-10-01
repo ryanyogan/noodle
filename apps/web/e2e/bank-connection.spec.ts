@@ -27,7 +27,7 @@ const chooseSheet = (page: Page) =>
 
 /** Connects the fake bank, keeping Noodle's suggestion for each of its accounts. */
 async function connectBank(page: Page, accounts = 4) {
-	await bankConnections(page).getByRole("button", { name: "Connect a bank" }).click();
+	await page.getByRole("button", { name: "Connect a bank" }).click();
 	await chooseSheet(page).getByRole("button", { name: "Start bringing them in" }).click();
 	await expect(
 		toast(page, `Bringing in ${accounts} Accounts from First Platypus Bank.`),
@@ -68,7 +68,7 @@ test("a Parent connects a bank, and its Accounts and Transactions come in", asyn
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 
 	// Nothing's here yet, so each account there is added as a new Account.
-	await bankConnections(page).getByRole("button", { name: "Connect a bank" }).click();
+	await page.getByRole("button", { name: "Connect a bank" }).click();
 	await expect(chooseSheet(page).getByLabel("Plaid Checking ··0000")).toHaveValue("new");
 	await chooseSheet(page).getByRole("button", { name: "Start bringing them in" }).click();
 	await expect(toast(page, "Bringing in 4 Accounts from First Platypus Bank.")).toBeVisible();

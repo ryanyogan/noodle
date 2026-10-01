@@ -110,9 +110,12 @@ const openLink = (setUp: BankConnectionsData["setUp"], token: string) =>
 
 type Connected = ConnectBankResult | { ok: false; reason: "closed" };
 
-export function BankConnections() {
+/**
+ * Connecting a bank from anywhere on the Accounts page: Plaid Link, then Choose Accounts. One per
+ * page, shared by Bank Connections and the ways to add an Account.
+ */
+export function useConnectBank() {
 	const queryClient = useQueryClient();
-	const hydrated = useHydrated();
 	const { setUp, providers, connections } = useSuspenseQuery(bankConnectionsQuery()).data;
 	const plaid = providers.includes("plaid");
 
@@ -146,6 +149,33 @@ export function BankConnections() {
 			}),
 	});
 
+	return {
+		plaid,
+		setUp,
+		connections,
+		start: () => connect.mutate(),
+		pending: connect.isPending,
+		choose: setChoosing,
+		chooseSheet: (
+			<ChooseAccountsSheet
+				connection={connections.find((c) => c.id === choosing) ?? null}
+				onClose={() => setChoosing(null)}
+			/>
+		),
+	};
+}
+
+export type ConnectBank = ReturnType<typeof useConnectBank>;
+
+/** What connecting does, in a sentence or two: said before a Parent connects. */
+export const CONNECT_EXPLAINED =
+	"Noodle reads balances and about 90 days of Transactions, then new ones every day; it can’t move money. You say which Accounts you have already, so nothing counts twice, and Quick Adds are Matched with the bank’s copies. Each bank login you connect uses one of Noodle’s 10 Plaid connections.";
+
+export function BankConnections({ bank }: { bank: ConnectBank }) {
+	const hydrated = useHydrated();
+	const { setUp, plaid, connections } = bank;
+	const connect = { isPending: bank.pending, mutate: bank.start };
+
 	const connectButton = (quiet: boolean) =>
 		plaid ? (
 			<Button
@@ -176,7 +206,7 @@ export function BankConnections() {
 								key={connection.id}
 								connection={connection}
 								setUp={setUp}
-								onChoose={() => setChoosing(connection.id)}
+								onChoose={() => bank.choose(connection.id)}
 							/>
 						))}
 					</List>
@@ -190,17 +220,14 @@ export function BankConnections() {
 						</Tile>
 						<p className="text-muted-foreground">
 							{plaid
-								? "Connect a bank or card, and Noodle brings in its accounts’ balances and about 90 days of Transactions, then new ones every day. You say which Accounts you have already, so nothing counts twice, and Quick Adds are Matched with the bank’s copies."
+								? CONNECT_EXPLAINED
 								: "Connecting a bank needs Plaid, which isn’t set up for this copy of Noodle yet."}
 						</p>
 					</div>
 					{connectButton(false)}
 				</Card>
 			)}
-			<ChooseAccountsSheet
-				connection={connections.find((c) => c.id === choosing) ?? null}
-				onClose={() => setChoosing(null)}
-			/>
+			{bank.chooseSheet}
 		</Section>
 	);
 }
@@ -238,6 +265,7 @@ function ConnectionRow({
 	const hydrated = useHydrated();
 	const status = statusText(connection);
 	const count = connection.accounts.length;
+	const [failed, setFailed] = useState(false);
 
 	const reconnect = useMutation({
 		mutationFn: async (): Promise<"done" | "closed" | "gone"> => {
@@ -254,11 +282,9 @@ function ConnectionRow({
 				void queryClient.invalidateQueries({ queryKey: bankConnectionsQuery().queryKey });
 			}
 		},
-		onError: () =>
-			toast("Couldn’t reconnect the bank.", {
-				tone: "error",
-				action: { label: "Retry", onClick: () => reconnect.mutate() },
-			}),
+		// Said in the row, with what to do meanwhile: a toast went before the Parent could read it.
+		onError: () => setFailed(true),
+		onMutate: () => setFailed(false),
 	});
 
 	return (
@@ -276,6 +302,14 @@ function ConnectionRow({
 						{" · "}
 						<span className={cn(status.failed && "text-over")}>{status.text}</span>
 					</span>
+					{failed ? (
+						<span role="alert" className="basis-full text-over">
+							{connection.institution ?? "The bank"} didn’t take the login. Try again, or upload a
+							statement on{" "}
+							{connection.accounts.length === 1 ? "its Account’s page" : "each Account’s page"} for
+							now: what the bank brings in later isn’t added twice.
+						</span>
+					) : null}
 					{/* What the provider asked the Parent to read (Plaid's display_message), as plain text. */}
 					{connection.notice ? (
 						<span className="basis-full whitespace-pre-line break-words text-foreground">

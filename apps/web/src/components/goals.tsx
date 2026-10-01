@@ -235,10 +235,13 @@ export function AddAccountSheet({
 	open,
 	onOpenChange,
 	onAdd,
+	onConnect,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	onAdd: (account: AddAccountVariables) => void;
+	/** Connects a bank instead: offered first, as the way that keeps itself up to date. */
+	onConnect?: () => void;
 }) {
 	return (
 		<Sheet open={open} onOpenChange={onOpenChange}>
@@ -246,8 +249,26 @@ export function AddAccountSheet({
 				<SheetContent>
 					<SheetHeader
 						title="Add an Account"
-						description="A checking or savings Account can hold Goals; a credit card or loan is tracked by what’s owed."
+						description="Add one yourself, then upload its statements or keep its balance up to date. A checking or savings Account can hold Goals; a credit card or loan is tracked by what’s owed."
 					/>
+					{onConnect ? (
+						<div className="grid gap-2 rounded-2xl bg-surface-2 p-3 text-[13px] text-muted-foreground">
+							<p>
+								<span className="font-semibold text-foreground">Or connect your bank:</span> it
+								brings in balances and spending on its own, every day, and pairs with Accounts you
+								have already.
+							</p>
+							<Button
+								type="button"
+								size="sm"
+								variant="outline"
+								className="justify-self-start"
+								onClick={onConnect}
+							>
+								Connect a bank
+							</Button>
+						</div>
+					) : null}
 					<AccountFields onAdd={onAdd} submit="default" />
 				</SheetContent>
 			) : null}
@@ -269,12 +290,18 @@ function AccountFields({
 	const [balance, setBalance] = useState("");
 	const balanceCents = balance.trim() === "" ? null : parseDollars(balance);
 	const balanceInvalid = balance.trim() !== "" && balanceCents === null;
+	const [nameMissing, setNameMissing] = useState(false);
 
 	function onSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		const form = event.currentTarget;
 		const name = String(new FormData(form).get("name") ?? "").trim();
-		if (!name || balanceInvalid) return;
+		setNameMissing(!name);
+		if (!name) {
+			form.querySelector<HTMLInputElement>("[name=name]")?.focus();
+			return;
+		}
+		if (balanceInvalid) return;
 		onAdd({ accountId: ulid(), name, kind, balanceCents, balanceId: ulid() });
 		form.reset();
 		setBalance("");
@@ -282,13 +309,20 @@ function AccountFields({
 
 	const owes = kind === "credit-card" || kind === "loan";
 	return (
-		<form onSubmit={onSubmit} className="grid gap-3">
+		<form onSubmit={onSubmit} noValidate className="grid gap-3">
 			<div className="grid gap-3 sm:grid-cols-2">
-				<Field label="Name" htmlFor={`${id}-name`}>
+				<Field
+					label="Name"
+					htmlFor={`${id}-name`}
+					error={nameMissing ? "Give the Account a name." : null}
+				>
 					<Input
 						id={`${id}-name`}
 						name="name"
 						required
+						aria-invalid={nameMissing || undefined}
+						aria-describedby={nameMissing ? `${id}-name-error` : undefined}
+						onChange={() => setNameMissing(false)}
 						maxLength={40}
 						autoComplete="off"
 						placeholder="e.g. Ally savings"
