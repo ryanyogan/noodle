@@ -114,6 +114,13 @@ export const glossary = {
 		term: "Match",
 		short:
 			"When the bank’s copy of something you Quick Added arrives, Noodle pairs them so it counts once.",
+		more: "Lines a statement already brought in aren’t added again when your bank brings them in.",
+	},
+	"bank-connection": {
+		term: "Bank Connection",
+		short:
+			"A login to your bank, through Plaid, that brings in balances and spending on its own every day. It only reads; it can’t move money.",
+		more: "When you connect, you say which of your Accounts each bank account is, so it keeps its Goals and history and nothing counts twice.",
 	},
 	pending: {
 		term: "Pending",

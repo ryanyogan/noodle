@@ -151,6 +151,7 @@ _Avoid_: Sync, upload, feed
 **Bank Connection**:
 An ongoing authorized link to a financial institution that produces Imports automatically: when the institution says there's news, and at least daily. When its login lapses it waits for a Parent to reconnect (log in again) and brings in nothing meanwhile.
 Each is one login at one institution and covers every account under that login. Reconnecting keeps the same Bank Connection. It goes through Plaid (ADR-0017), which counts each one against a small allowance.
+Connecting asks, for each account there, which Account the Household already has it as (Noodle suggests one by name, kind and last digits), or adds it as a new Account, or leaves it out (ADR-0020). An Account paired this way keeps everything on it; its bank's lines that a statement already brought in aren't added again. Stopping keeps the Account, kept by hand or by statements again.
 _Avoid_: Integration, link, Plaid (as a domain term)
 
 **Pending**:
@@ -158,7 +159,7 @@ An imported Transaction the bank has reported but not yet posted. It counts like
 _Avoid_: Authorization, hold, uncleared
 
 **Match**:
-The pairing of a Quick Add with the imported Transaction that represents the same real-world spend, so it counts once.
+The pairing of a Quick Add with the imported Transaction that represents the same real-world spend, so it counts once. A bank's line for a line a statement already brought in isn't Matched but left out: the statement's stays (ADR-0020).
 _Avoid_: Dedupe, merge, reconcile
 
 ### Assistance
@@ -265,6 +266,7 @@ _Avoid_: Tag, assignee, owner
 
 - A **Household** has one **Plan** per month, two **Parents**, and any number of **Children**.
 - A **Plan** contains **Commitments**, **Buckets**, and **Goals**; whatever remains is **Free to Spend**.
+- An **Account** is paired with at most one account at one **Bank Connection**.
 - A **Transaction** belongs to one **Account** and is assigned whole or via **Splits**; each carries a **For**.
 - A **Goal**'s money is **Set aside** on exactly one **Account**.
 - A **Payoff Goal** belongs to exactly one credit card or loan **Account**, which has at most one active one.
