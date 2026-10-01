@@ -2,6 +2,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Skeleton } from "@noodle/ui/components/skeleton";
+import { Spinner } from "@noodle/ui/components/spinner";
 import { type ErrorComponentProps, Link, useRouter } from "@tanstack/react-router";
 import { RotateCw, SearchX, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -75,7 +76,7 @@ export function PageError({ error }: ErrorComponentProps) {
 							}
 						}}
 					>
-						<RotateCw className={retrying ? "animate-spin" : undefined} />
+						{retrying ? <Spinner /> : <RotateCw />}
 						Try again
 					</Button>
 				}

@@ -7,6 +7,14 @@ import {
 	monthOfDay,
 	REPORT_PERIODS,
 } from "@noodle/domain";
+import {
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbLink,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+} from "@noodle/ui/components/breadcrumb";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
@@ -20,16 +28,7 @@ import { LinkTab, LinkTabs, LinkTabsSeparator } from "@noodle/ui/components/tabs
 import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import {
-	ChartPie,
-	ChevronRight,
-	Download,
-	Landmark,
-	Lightbulb,
-	ListFilter,
-	Plus,
-	X,
-} from "lucide-react";
+import { ChartPie, Download, Landmark, Lightbulb, ListFilter, Plus, X } from "lucide-react";
 import { Fragment, useId, useMemo, useState } from "react";
 import { FilterSelect } from "../../../components/filter-select";
 import { quickAddSearch } from "../../../components/quick-add";
@@ -131,9 +130,13 @@ function ReportsPage() {
 		// One minmax(0,1fr) column: the view tabs' w-max list scrolls in its own nav rather than
 		// widening the page (a grid's auto column is as wide as its widest content).
 		<div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:gap-5">
+			{drilled && !empty ? (
+				<ReportCrumbs search={search} view={request.view} label={names.label} />
+			) : null}
 			<PageHeader
 				className="mb-0 lg:mb-0"
-				eyebrow="Reports"
+				// Drilled in, the breadcrumb above says where; otherwise the eyebrow does.
+				eyebrow={drilled && !empty ? undefined : "Reports"}
 				title={title}
 				actions={
 					<>
@@ -194,7 +197,6 @@ function ReportsPage() {
 								: VIEW_OPTIONS[request.view]
 						}
 					/>
-					{drilled ? <Breadcrumb search={search} view={request.view} label={names.label} /> : null}
 					<div key={`${request.view}|${search.area ?? ""}`} className="animate-enter">
 						<ReportBody report={report} names={names} search={search} nav={nav} tables={tables} />
 					</div>
@@ -540,7 +542,8 @@ function Filters({
 	);
 }
 
-function Breadcrumb({
+/** Where a drilled-in Report sits: Reports › its view › what was drilled into (› a month). */
+function ReportCrumbs({
 	search,
 	view,
 	label,
@@ -550,6 +553,16 @@ function Breadcrumb({
 	label: (key: string) => string;
 }) {
 	const steps: { label: string; search?: Partial<ReportSearch> }[] = [
+		{
+			label: "Reports",
+			search: {
+				view: undefined,
+				area: undefined,
+				month: undefined,
+				chart: undefined,
+				over: undefined,
+			},
+		},
 		{ label: VIEW_LABELS[view], search: { area: undefined, month: undefined } },
 		...(search.area
 			? [{ label: label(search.area), search: search.month ? { month: undefined } : undefined }]
@@ -557,31 +570,30 @@ function Breadcrumb({
 		...(search.month ? [{ label: monthLabel(search.month as MonthKey) }] : []),
 	];
 	return (
-		<nav aria-label="Breadcrumb" className="animate-enter">
-			<ol className="flex flex-wrap items-center gap-1 text-[13px]">
+		<Breadcrumb className="animate-enter">
+			<BreadcrumbList>
 				{steps.map((step, i) => (
-					<li key={step.label} className="flex items-center gap-1">
-						{i > 0 ? (
-							<ChevronRight aria-hidden="true" className="size-3.5 text-subtle-foreground" />
-						) : null}
-						{step.search ? (
-							<Link
-								from={Route.fullPath}
-								search={(prev) => ({ ...prev, ...step.search })}
-								resetScroll={false}
-								className="rounded-md px-1 py-0.5 text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
-							>
-								{step.label}
-							</Link>
-						) : (
-							<span aria-current="page" className="px-1 py-0.5 font-medium">
-								{step.label}
-							</span>
-						)}
-					</li>
+					<Fragment key={step.label}>
+						{i > 0 ? <BreadcrumbSeparator /> : null}
+						<BreadcrumbItem>
+							{step.search ? (
+								<BreadcrumbLink asChild>
+									<Link
+										from={Route.fullPath}
+										search={(prev) => ({ ...prev, ...step.search })}
+										resetScroll={false}
+									>
+										{step.label}
+									</Link>
+								</BreadcrumbLink>
+							) : (
+								<BreadcrumbPage>{step.label}</BreadcrumbPage>
+							)}
+						</BreadcrumbItem>
+					</Fragment>
 				))}
-			</ol>
-		</nav>
+			</BreadcrumbList>
+		</Breadcrumb>
 	);
 }
 

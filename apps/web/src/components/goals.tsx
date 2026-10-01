@@ -13,6 +13,7 @@ import { Card } from "@noodle/ui/components/card";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { NativeSelect } from "@noodle/ui/components/native-select";
+import { Progress } from "@noodle/ui/components/progress";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { cn } from "@noodle/ui/lib/utils";
@@ -135,17 +136,12 @@ export function AmountInput({ className, ...props }: Omit<ComponentProps<"input"
 	);
 }
 
-/** How much of a Goal's target is saved: a quiet bar, no colour. */
+/**
+ * How much of a Goal's target is saved: a quiet bar, no colour. Decorative: the row beside it says
+ * the same in words, and it often sits inside a link, where a progressbar can't.
+ */
 export function GoalProgressBar({ share, className }: { share: number; className?: string }) {
-	const pct = `${(Math.min(1, Math.max(0, share)) * 100).toFixed(2)}%`;
-	return (
-		<div aria-hidden="true" className={cn("relative h-1.5 rounded-full bg-surface-3", className)}>
-			<div
-				className="absolute inset-y-0 left-0 rounded-full bg-muted-foreground transition-[width] duration-(--duration-meter) ease-spring"
-				style={{ width: pct }}
-			/>
-		</div>
-	);
+	return <Progress aria-hidden="true" value={share * 100} className={className} />;
 }
 
 /**

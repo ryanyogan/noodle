@@ -18,6 +18,7 @@ import {
 	TableRow,
 } from "@noodle/ui/components/table";
 import { Toggle } from "@noodle/ui/components/toggle";
+import { WithTooltip } from "@noodle/ui/components/tooltip";
 import { cn } from "@noodle/ui/lib/utils";
 import { Table2 } from "lucide-react";
 import {
@@ -768,34 +769,37 @@ export function VarianceHeatmap({
 								const deep = off > 0.75;
 								return (
 									<td key={month} className="p-0">
-										<button
-											type="button"
-											disabled={!onSelect || !cell}
-											onClick={() => onSelect?.(row.key, month)}
-											title={
+										<WithTooltip
+											label={
 												cell
 													? `${formatMoney(cell.spent)} of ${formatMoney(cell.planned)}`
-													: undefined
+													: "Not in the Plan"
 											}
-											aria-label={
-												cell
-													? `${monthLabel(month)}: ${formatMoney(cell.spent)} spent of ${formatMoney(cell.planned)} planned`
-													: `${monthLabel(month)}: not in the Plan`
-											}
-											className={cn(
-												"h-9 w-full min-w-12 rounded-md text-center tabular-nums transition-[transform,box-shadow] duration-(--duration-fast)",
-												"enabled:hover:scale-[1.04] enabled:hover:shadow-card focus-visible:outline-2 focus-visible:outline-ring",
-												deep
-													? "font-semibold text-white"
-													: strong
-														? "font-semibold text-foreground"
-														: "text-muted-foreground",
-												!cell && "bg-surface-2/40",
-											)}
-											style={{ background: cell ? tone(cell.ratio) : undefined }}
 										>
-											{text}
-										</button>
+											<button
+												type="button"
+												disabled={!onSelect || !cell}
+												onClick={() => onSelect?.(row.key, month)}
+												aria-label={
+													cell
+														? `${monthLabel(month)}: ${formatMoney(cell.spent)} spent of ${formatMoney(cell.planned)} planned`
+														: `${monthLabel(month)}: not in the Plan`
+												}
+												className={cn(
+													"h-9 w-full min-w-12 rounded-md text-center tabular-nums transition-[transform,box-shadow] duration-(--duration-fast)",
+													"enabled:hover:scale-[1.04] enabled:hover:shadow-card focus-visible:outline-2 focus-visible:outline-ring",
+													deep
+														? "font-semibold text-white"
+														: strong
+															? "font-semibold text-foreground"
+															: "text-muted-foreground",
+													!cell && "bg-surface-2/40",
+												)}
+												style={{ background: cell ? tone(cell.ratio) : undefined }}
+											>
+												{text}
+											</button>
+										</WithTooltip>
 									</td>
 								);
 							})}
@@ -852,16 +856,16 @@ export function CalendarHeatmap({
 						const amount = byDay.get(day) ?? 0;
 						const level = levelOf(amount, max);
 						return inRange ? (
-							<button
-								key={day}
-								type="button"
-								disabled={!onSelect}
-								onClick={() => onSelect?.(day)}
-								aria-label={`${shortDay(day)}: ${formatMoney(amount)}`}
-								title={`${shortDay(day)}: ${formatMoney(amount)}`}
-								className="size-3.5 rounded-[3px] transition-transform duration-(--duration-fast) enabled:hover:scale-125 focus-visible:outline-2 focus-visible:outline-ring lg:size-4"
-								style={{ background: fills[level] }}
-							/>
+							<WithTooltip key={day} label={`${shortDay(day)}: ${formatMoney(amount)}`}>
+								<button
+									type="button"
+									disabled={!onSelect}
+									onClick={() => onSelect?.(day)}
+									aria-label={`${shortDay(day)}: ${formatMoney(amount)}`}
+									className="size-3.5 rounded-[3px] transition-transform duration-(--duration-fast) enabled:hover:scale-125 focus-visible:outline-2 focus-visible:outline-ring lg:size-4"
+									style={{ background: fills[level] }}
+								/>
+							</WithTooltip>
 						) : (
 							<span key={day} className="size-3.5 lg:size-4" />
 						);

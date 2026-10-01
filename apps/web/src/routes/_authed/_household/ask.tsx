@@ -3,6 +3,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Input } from "@noodle/ui/components/input";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Skeleton } from "@noodle/ui/components/skeleton";
+import { Spinner } from "@noodle/ui/components/spinner";
 import {
 	Table,
 	TableBody,
@@ -14,7 +15,7 @@ import {
 } from "@noodle/ui/components/table";
 import { cn } from "@noodle/ui/lib/utils";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
-import { ArrowUp, LoaderCircle, RotateCcw, Telescope } from "lucide-react";
+import { ArrowUp, RotateCcw, Telescope } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { type AskTurnState, useAsk } from "../../../ask";
 import { formatMoney, monthName } from "../../../format";
@@ -135,7 +136,7 @@ function Turn({ turn, onRetry }: { turn: AskTurnState; onRetry: () => void }) {
 					{waiting ? (
 						<div className="grid gap-2">
 							<p className="flex items-center gap-2 text-[13px] text-muted-foreground">
-								<LoaderCircle className="size-3.5 animate-spin" aria-hidden />
+								<Spinner className="size-3.5" />
 								{turn.steps.at(-1) ?? "Thinking"}
 							</p>
 							<Skeleton className="h-4 w-4/5" />

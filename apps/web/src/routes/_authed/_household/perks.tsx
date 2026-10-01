@@ -9,6 +9,7 @@ import { List, ListRow } from "@noodle/ui/components/list";
 import { NativeSelect } from "@noodle/ui/components/native-select";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import { Spinner } from "@noodle/ui/components/spinner";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { Check, ChevronLeft, ExternalLink, Gift, Lock, RefreshCw } from "lucide-react";
@@ -252,9 +253,7 @@ function PerkSourceCard({ source }: { source: PerkSourceItem }) {
 						disabled={busy || source.research === "researching"}
 						onClick={() => update.mutate({ id: source.id })}
 					>
-						<RefreshCw
-							className={update.isPending ? "animate-spin motion-reduce:animate-none" : ""}
-						/>
+						{update.isPending ? <Spinner /> : <RefreshCw />}
 						Check again
 					</Button>
 					<Button

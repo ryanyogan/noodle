@@ -10,6 +10,7 @@ import {
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { ListRow } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
+import { Spinner } from "@noodle/ui/components/spinner";
 import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
@@ -72,7 +73,7 @@ function InsightsPage() {
 			disabled={!hydrated || look.isPending}
 			onClick={() => look.mutate()}
 		>
-			<RefreshCw className={look.isPending ? "animate-spin motion-reduce:animate-none" : ""} />
+			{look.isPending ? <Spinner /> : <RefreshCw />}
 			Look for Insights now
 		</Button>
 	);

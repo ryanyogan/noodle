@@ -100,20 +100,20 @@ test("a Parent tweaks the Plan in a sandbox: amounts, new things, date ranges an
 	await expect(takeHomePay).toContainText("Costs $6,000 over 2 years");
 	await expect(scenarioTotal(page)).toHaveText("$142,800");
 
-	// Muting the Daycare change leaves it out, and says what it would do.
+	// Leaving the Daycare change out says what it would do; its button says what it does.
 	const daycare = change(page, "Daycare $1,400 → $1,000 a month");
-	await daycare.getByRole("button", { name: "Mute" }).click();
-	await expect(daycare.getByRole("button", { name: "Mute" })).toHaveAttribute(
-		"aria-pressed",
-		"true",
-	);
+	const leaveOut = daycare.getByRole("button", { name: "Leave out" });
+	await leaveOut.hover();
+	await expect(page.getByRole("tooltip", { name: "Leave it out" })).toBeVisible();
+	await leaveOut.click();
+	await expect(leaveOut).toHaveAttribute("aria-pressed", "true");
 	await expect(daycare).toContainText("Would free $9,600 over 2 years");
 	await expect(scenarioTotal(page)).toHaveText("$133,200");
 	await expect(page.getByText(/^Projected balance at its lowest \$2,800 in /)).toBeVisible();
-	await expect(page.getByText("4 changes (1 muted) to the Plan")).toBeVisible();
+	await expect(page.getByText("4 changes (1 left out) to the Plan")).toBeVisible();
 
-	// Unmuted, then removed from the list: back to the Plan's Daycare.
-	await daycare.getByRole("button", { name: "Mute" }).click();
+	// Counted again, then removed from the list: back to the Plan's Daycare.
+	await leaveOut.click();
 	await expect(scenarioTotal(page)).toHaveText("$142,800");
 	await daycare.getByRole("button", { name: "Remove" }).click();
 	await expect(daycare).toHaveCount(0);

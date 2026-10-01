@@ -659,7 +659,7 @@ function ScenarioBar({
 				</div>
 				<p className="text-[13px] text-muted-foreground">
 					{draft.levers.length > 0
-						? `${draft.levers.length} ${draft.levers.length === 1 ? "change" : "changes"}${muted > 0 ? ` (${muted} muted)` : ""} to the Plan`
+						? `${draft.levers.length} ${draft.levers.length === 1 ? "change" : "changes"}${muted > 0 ? ` (${muted} left out)` : ""} to the Plan`
 						: "The Plan as it stands. Change anything below to see what it does."}
 					{dirty && saved ? " · not saved" : null}
 					{saved?.appliedAt

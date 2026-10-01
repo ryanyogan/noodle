@@ -3,6 +3,7 @@ import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
+import { Kbd } from "@noodle/ui/components/kbd";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
@@ -251,10 +252,10 @@ function ReviewPage() {
 								{top.guess ? "Confirm" : "Choose"}
 							</Button>
 						</div>
-						<p className="text-center text-xs text-subtle-foreground">
+						<p className="text-center text-xs text-muted-foreground">
 							<span className="hidden lg:inline">
-								<Key>→</Key> or <Key>Enter</Key> to confirm, <Key>←</Key> to change, <Key>↓</Key> to
-								skip
+								<Key name="Right arrow">→</Key> or <Key>Enter</Key> to confirm,{" "}
+								<Key name="Left arrow">←</Key> to change, <Key name="Down arrow">↓</Key> to skip
 							</span>
 							{reduced ? null : (
 								<span className="lg:hidden">Swipe right to confirm, left to change</span>
@@ -292,11 +293,19 @@ function ReviewPage() {
 	);
 }
 
-function Key({ children }: { children: string }) {
+/** A key in the hint, with words for a screen reader where it's a symbol. */
+function Key({ children, name }: { children: string; name?: string }) {
 	return (
-		<span aria-hidden="true">
-			<kbd className="rounded-sm border border-current/40 px-1 font-sans leading-4">{children}</kbd>
-		</span>
+		<Kbd>
+			{name ? (
+				<>
+					<span aria-hidden="true">{children}</span>
+					<span className="sr-only">{name}</span>
+				</>
+			) : (
+				children
+			)}
+		</Kbd>
 	);
 }
 

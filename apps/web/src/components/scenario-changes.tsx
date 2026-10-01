@@ -9,6 +9,8 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { List } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import { Toggle } from "@noodle/ui/components/toggle";
+import { WithTooltip } from "@noodle/ui/components/tooltip";
 import { cn } from "@noodle/ui/lib/utils";
 import { Eye, EyeOff, X } from "lucide-react";
 import { memo, useEffect, useState } from "react";
@@ -138,30 +140,30 @@ function Change({
 			</div>
 			<div className="-me-1.5 flex items-center">
 				{gone ? null : (
+					<WithTooltip label={muted ? "Left out: count it again" : "Leave it out"}>
+						<Toggle
+							size="sm"
+							aria-label="Leave out"
+							pressed={muted}
+							onPressedChange={onMute}
+							className="text-muted-foreground data-[state=on]:bg-transparent data-[state=on]:text-foreground"
+						>
+							{muted ? <EyeOff /> : <Eye />}
+						</Toggle>
+					</WithTooltip>
+				)}
+				<WithTooltip label="Remove">
 					<Button
 						type="button"
 						variant="ghost"
 						size="icon-sm"
-						aria-pressed={muted}
-						title={muted ? "Count it again" : "Leave it out"}
-						className="text-muted-foreground aria-pressed:text-foreground"
-						onClick={() => onMute(!muted)}
+						aria-label="Remove"
+						className="text-muted-foreground"
+						onClick={onRemove}
 					>
-						{muted ? <EyeOff /> : <Eye />}
-						<span className="sr-only">Mute</span>
+						<X />
 					</Button>
-				)}
-				<Button
-					type="button"
-					variant="ghost"
-					size="icon-sm"
-					title="Remove"
-					className="text-muted-foreground"
-					onClick={onRemove}
-				>
-					<X />
-					<span className="sr-only">Remove</span>
-				</Button>
+				</WithTooltip>
 			</div>
 		</li>
 	);

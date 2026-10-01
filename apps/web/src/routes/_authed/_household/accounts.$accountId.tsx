@@ -11,6 +11,7 @@ import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
+import { Progress } from "@noodle/ui/components/progress";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { toast } from "@noodle/ui/components/toast";
@@ -471,15 +472,17 @@ function SplitBar({ account }: { account: AccountView }) {
 	const share = over ? 1 : balance > 0 ? Math.min(1, Math.max(0, account.earmarked / balance)) : 0;
 	return (
 		<div className="grid gap-2">
-			<div aria-hidden="true" className="relative h-2 overflow-hidden rounded-full bg-surface-3">
-				<div
-					className={cn(
-						"absolute inset-y-0 left-0 rounded-full transition-[width] duration-(--duration-meter) ease-spring",
-						over ? "bg-over" : "bg-muted-foreground",
-					)}
-					style={{ width: `${(share * 100).toFixed(2)}%` }}
-				/>
-			</div>
+			<Progress
+				aria-label="Set aside for Goals"
+				value={share * 100}
+				getValueLabel={() =>
+					over
+						? `${formatMoney(account.overClaimedBy)} more set aside than is in it`
+						: `${formatMoney(account.earmarked)} of ${formatMoney(balance)}`
+				}
+				className="h-2"
+				indicatorClassName={over ? "bg-over" : undefined}
+			/>
 			<p className="flex flex-wrap justify-between gap-x-4 text-[13px] text-muted-foreground tabular-nums">
 				<span>Set aside {formatMoney(account.earmarked)}</span>
 				<span className={cn(over && "text-over")}>

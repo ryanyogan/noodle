@@ -12,6 +12,7 @@ import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Tile } from "@noodle/ui/components/tile";
 import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
+import { WithTooltip } from "@noodle/ui/components/tooltip";
 import { cn } from "@noodle/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import {
@@ -684,34 +685,37 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 							const count = band?.count ?? 0;
 							const label = stopLabel(s);
 							return (
-								<ToggleGroupItem
+								<WithTooltip
 									key={s}
-									value={String(s)}
-									aria-label={`${label}: ${formatMoney(amount)} in ${count} ${count === 1 ? "Transaction" : "Transactions"}`}
-									title={`${formatMoney(amount)} in ${count}`}
-									className="group/stop h-auto min-w-0 flex-col items-stretch gap-1 rounded-md px-0 pt-1 pb-0.5 hover:bg-surface-2 data-[state=on]:bg-transparent"
+									label={`Over ${label}: ${formatMoney(amount)} in ${count} ${count === 1 ? "Transaction" : "Transactions"}`}
 								>
-									<span className="flex h-14 items-end justify-center" aria-hidden="true">
+									<ToggleGroupItem
+										value={String(s)}
+										aria-label={`${label}: ${formatMoney(amount)} in ${count} ${count === 1 ? "Transaction" : "Transactions"}`}
+										className="group/stop h-auto min-w-0 flex-col items-stretch gap-1 rounded-md px-0 pt-1 pb-0.5 hover:bg-surface-2 data-[state=on]:bg-transparent"
+									>
+										<span className="flex h-14 items-end justify-center" aria-hidden="true">
+											<span
+												className={cn(
+													"w-4 max-w-full rounded-t-[3px] transition-[height,background-color] duration-300",
+													s >= threshold ? "bg-(--chart-spend)" : "bg-(--chart-mid)",
+												)}
+												style={{
+													height: amount > 0 ? `${Math.max(6, (amount / bandMax) * 100)}%` : "2px",
+												}}
+											/>
+										</span>
 										<span
 											className={cn(
-												"w-4 max-w-full rounded-t-[3px] transition-[height,background-color] duration-300",
-												s >= threshold ? "bg-(--chart-spend)" : "bg-(--chart-mid)",
+												"text-center text-[11px] font-normal text-muted-foreground tabular-nums",
+												"group-data-[state=on]/stop:font-semibold group-data-[state=on]/stop:text-foreground",
+												i % 2 === 1 && "max-sm:invisible",
 											)}
-											style={{
-												height: amount > 0 ? `${Math.max(6, (amount / bandMax) * 100)}%` : "2px",
-											}}
-										/>
-									</span>
-									<span
-										className={cn(
-											"text-center text-[11px] font-normal text-muted-foreground tabular-nums",
-											"group-data-[state=on]/stop:font-semibold group-data-[state=on]/stop:text-foreground",
-											i % 2 === 1 && "max-sm:invisible",
-										)}
-									>
-										{label}
-									</span>
-								</ToggleGroupItem>
+										>
+											{label}
+										</span>
+									</ToggleGroupItem>
+								</WithTooltip>
 							);
 						})}
 					</ToggleGroup>

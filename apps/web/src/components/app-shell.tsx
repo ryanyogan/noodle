@@ -1,6 +1,7 @@
 import { UserButton } from "@clerk/tanstack-react-start";
 import { monthKeyAt } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
+import { Kbd } from "@noodle/ui/components/kbd";
 import { Logo } from "@noodle/ui/components/logo";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
@@ -141,9 +142,7 @@ function Sidebar({ householdName }: { householdName: string }) {
 					<Plus />
 					Quick Add
 					<span aria-hidden="true" className="ms-auto">
-						<kbd className="rounded-sm border border-current/40 px-1 font-sans text-xs leading-4 opacity-60">
-							Q
-						</kbd>
+						<Kbd className="border-current/40 bg-transparent text-current opacity-70">Q</Kbd>
 					</span>
 				</QuickAddLink>
 			</Button>
