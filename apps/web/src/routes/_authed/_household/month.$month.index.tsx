@@ -182,111 +182,138 @@ function ThisMonth() {
 		<div {...swipe}>
 			<MonthTopRow month={month} current="month" />
 			<PageHeader
-				className="max-w-2xl"
 				eyebrow={month === current ? "This Month" : "Month"}
 				title={monthTitle(month, current)}
 				actions={<MonthLinks to="/month/$month" month={month} first={state.firstMonth} />}
 			/>
 			{planned ? (
-				<div className="grid max-w-2xl gap-8">
-					{closingWeek(month, state.asOf) ? (
-						<ClosePreviousMonth
-							month={addMonths(month, -1)}
-							parentId={parentId}
-							goals={activeGoals}
-							emergencyGoalId={goals.emergencyGoalId}
-						/>
-					) : null}
-					{month === current ? <GetStarted state={state} /> : null}
-					{month === current ? <CheckInToday /> : null}
-					{month === current ? <Chips month={month} asOf={state.asOf} /> : null}
-					<div className="grid gap-3">
-						<FreeToSpend state={state} check={check} />
-						<LumpCallout lumps={lumpsIn(state)} month={month} />
+				// One column on phones, in reading order; from lg the money at a glance sits in a
+				// right rail. The columns are `contents` on phones so `order` interleaves them.
+				<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start xl:grid-cols-[minmax(0,1fr)_400px]">
+					<div className="contents lg:grid lg:gap-8">
+						<div className="order-1 grid gap-3 empty:hidden lg:order-none">
+							{closingWeek(month, state.asOf) ? (
+								<ClosePreviousMonth
+									month={addMonths(month, -1)}
+									parentId={parentId}
+									goals={activeGoals}
+									emergencyGoalId={goals.emergencyGoalId}
+								/>
+							) : null}
+						</div>
+						<div className="order-2 grid gap-3 empty:hidden lg:order-none">
+							{month === current ? <GetStarted state={state} /> : null}
+						</div>
+						<div className="order-3 grid gap-3 empty:hidden lg:order-none">
+							{month === current ? <CheckInToday /> : null}
+						</div>
+						<div className="order-4 grid gap-3 empty:hidden lg:order-none">
+							{month === current ? <Chips month={month} asOf={state.asOf} /> : null}
+						</div>
+						<div className="order-6 grid gap-3 empty:hidden lg:order-none">
+							{month < current ? (
+								<MonthEndSection
+									month={month}
+									end={monthEnd(state, state)}
+									closed={state.closed}
+									parentId={parentId}
+									goals={goals.goals}
+									members={members}
+								/>
+							) : null}
+						</div>
+						<div className="order-7 grid gap-3 empty:hidden lg:order-none">
+							{state.windfallLeft > 0 && month <= current ? (
+								<ExtraIncomeSection
+									left={state.windfallLeft}
+									suggestions={suggestions}
+									goals={activeGoals}
+									onChoose={() => setChoosingExtraIncome(true)}
+									onSend={(s) =>
+										extraIncomes.decide.mutate({
+											moveId: ulid(),
+											month,
+											to: s.to,
+											toName: s.name,
+											amountCents: s.amount,
+										})
+									}
+								/>
+							) : null}
+						</div>
+						<div className="order-8 grid gap-3 empty:hidden lg:order-none">
+							{buckets.length > 0 ? (
+								<Section aria-labelledby="buckets">
+									<SectionHeader
+										id="buckets"
+										title="Buckets"
+										count={buckets.length}
+										help={<TermHelp term="bucket" />}
+									/>
+									<p className="-mt-1 flex flex-wrap items-center gap-x-1 px-1 text-[13px] text-muted-foreground">
+										<span>
+											Each bar is what’s left. The line marks where you’d be if you spent evenly
+											across the month: its Pace.
+										</span>
+										<TermHelp term="pace" />
+									</p>
+									<List>{buckets.map(bucketRow)}</List>
+								</Section>
+							) : null}
+						</div>
+						<div className="order-9 grid gap-3 empty:hidden lg:order-none">
+							{allowances.length > 0 ? (
+								<Section aria-labelledby="personal-allowances">
+									<SectionHeader
+										id="personal-allowances"
+										title="Personal Allowances"
+										count={allowances.length}
+									/>
+									<List>{allowances.map(bucketRow)}</List>
+								</Section>
+							) : null}
+						</div>
+						<div className="order-11 grid gap-3 empty:hidden lg:order-none">
+							{state.commitments.length > 0 ? (
+								<Bills
+									month={month}
+									asOf={state.asOf}
+									current={month === current}
+									commitments={commitments}
+									notDue={notDue}
+								/>
+							) : null}
+						</div>
 					</div>
-					{month < current ? (
-						<MonthEndSection
-							month={month}
-							end={monthEnd(state, state)}
-							closed={state.closed}
-							parentId={parentId}
-							goals={goals.goals}
-							members={members}
-						/>
-					) : null}
-					{state.windfallLeft > 0 && month <= current ? (
-						<ExtraIncomeSection
-							left={state.windfallLeft}
-							suggestions={suggestions}
-							goals={activeGoals}
-							onChoose={() => setChoosingExtraIncome(true)}
-							onSend={(s) =>
-								extraIncomes.decide.mutate({
-									moveId: ulid(),
-									month,
-									to: s.to,
-									toName: s.name,
-									amountCents: s.amount,
-								})
-							}
-						/>
-					) : null}
-					{buckets.length > 0 ? (
-						<Section aria-labelledby="buckets">
-							<SectionHeader
-								id="buckets"
-								title="Buckets"
-								count={buckets.length}
-								help={<TermHelp term="bucket" />}
-							/>
-							<p className="-mt-1 flex flex-wrap items-center gap-x-1 px-1 text-[13px] text-muted-foreground">
-								<span>
-									Each bar is what’s left. The line marks where you’d be if you spent evenly across
-									the month: its Pace.
-								</span>
-								<TermHelp term="pace" />
-							</p>
-							<List>{buckets.map(bucketRow)}</List>
-						</Section>
-					) : null}
-					{allowances.length > 0 ? (
-						<Section aria-labelledby="personal-allowances">
-							<SectionHeader
-								id="personal-allowances"
-								title="Personal Allowances"
-								count={allowances.length}
-							/>
-							<List>{allowances.map(bucketRow)}</List>
-						</Section>
-					) : null}
-					{month === current && activeGoals.length > 0 ? (
-						<GoalsThisMonth
-							month={month}
-							goals={activeGoals}
-							funded={state.fundedGoals}
-							freeToSpend={state.freeToSpend}
-						/>
-					) : null}
-					{state.commitments.length > 0 ? (
-						<Bills
-							month={month}
-							asOf={state.asOf}
-							current={month === current}
-							commitments={commitments}
-							notDue={notDue}
-						/>
-					) : null}
-					{state.baseline !== null && (month === current || monthIncome.length > 0) ? (
-						<MonthIncome
-							month={month}
-							asOf={state.asOf}
-							baseline={state.baseline}
-							income={monthIncome}
-						/>
-					) : null}
+					<div className="contents lg:grid lg:gap-8">
+						<div className="order-5 grid gap-3 lg:order-none">
+							<FreeToSpend state={state} check={check} />
+							<LumpCallout lumps={lumpsIn(state)} month={month} />
+						</div>
+						<div className="order-10 grid gap-3 empty:hidden lg:order-none">
+							{month === current && activeGoals.length > 0 ? (
+								<GoalsThisMonth
+									month={month}
+									goals={activeGoals}
+									funded={state.fundedGoals}
+									freeToSpend={state.freeToSpend}
+								/>
+							) : null}
+						</div>
+						<div className="order-12 grid gap-3 empty:hidden lg:order-none">
+							{state.baseline !== null && (month === current || monthIncome.length > 0) ? (
+								<MonthIncome
+									month={month}
+									asOf={state.asOf}
+									baseline={state.baseline}
+									income={monthIncome}
+								/>
+							) : null}
+						</div>
+					</div>
 				</div>
 			) : month === current ? (
-				<div className="grid max-w-2xl gap-8">
+				<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
 					<GetStarted state={state} />
 				</div>
 			) : (
@@ -344,7 +371,7 @@ function Chips({ month, asOf }: { month: MonthKey; asOf: DayKey }) {
 	const health = useQuery(planHealthQuery()).data?.warnings.length ?? 0;
 	if (waiting === 0 && changes === 0 && insights === 0 && health === 0) return null;
 	return (
-		<div className="-mb-3 flex flex-wrap gap-2">
+		<div className="flex flex-wrap gap-2">
 			{waiting > 0 ? (
 				<Chip to="/review" icon={ListChecks}>
 					{waiting} to review
@@ -499,40 +526,47 @@ function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck |
 					}
 				/>
 				<Stat label="Left in Buckets" value={formatMoney(state.leftInBuckets)} />
-				{ended ? null : <Stat label="Days left" value={String(state.daysLeft)} />}
+				{ended ? null : (
+					<Stat
+						label="Days left"
+						value={state.daysLeft === 0 ? "Last day" : String(state.daysLeft)}
+					/>
+				)}
 			</dl>
 		</Card>
 	);
 }
 
 /**
- * Free to Spend worked out in one line, "$6,000 take-home pay − $2,100 Commitments − …", each part
- * that takes something; it opens the Plan's waterfall.
+ * Free to Spend worked out as a short list, take-home pay then "− $2,100 Commitments" and each
+ * other part that takes something; it opens the Plan's waterfall.
  */
 function Breakdown({ state, baseline }: { state: MonthState; baseline: number }) {
 	const parts = freeToSpendParts(state).filter((p) => p.amount > 0);
-	const term = (amount: string, label: string) => (
-		<>
-			<span className="font-medium text-foreground">{amount}</span> {label}
-		</>
-	);
+	const label = [
+		`${formatMoney(baseline)} take-home pay`,
+		...parts.map(({ part, amount }) => `minus ${formatMoney(amount)} ${planParts[part].label}`),
+	].join(" ");
 	return (
 		<Link
 			to="/plan/$month"
 			params={{ month: state.month }}
 			hash="plan-waterfall"
+			aria-label={label}
 			className={cn(
-				"flex items-center justify-between gap-3 border-t px-(--card-pad) py-3 text-[13px] text-muted-foreground",
+				"flex items-center gap-3 border-t px-(--card-pad) py-3 text-[13px] text-muted-foreground",
 				"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60",
 			)}
 		>
-			<span className="flex flex-wrap gap-x-1.5 gap-y-0.5 tabular-nums">
-				<span className="whitespace-nowrap">{term(formatMoney(baseline), "take-home pay")}</span>
+			<span className="grid flex-1 gap-1 tabular-nums">
+				<span className="flex justify-between gap-3">
+					<span>Take-home pay</span>
+					<span className="font-medium text-foreground">{formatMoney(baseline)}</span>
+				</span>
 				{parts.map(({ part, amount }) => (
-					<span key={part} className="whitespace-nowrap">
-						<span aria-hidden="true">− </span>
-						<span className="sr-only">minus </span>
-						{term(formatMoney(amount), planParts[part].label)}
+					<span key={part} className="flex justify-between gap-3">
+						<span>{planParts[part].label}</span>
+						<span className="font-medium text-foreground">− {formatMoney(amount)}</span>
 					</span>
 				))}
 			</span>
@@ -593,9 +627,18 @@ function BucketRow({
 						? ", ahead of pace"
 						: ""
 			}${isPrivate ? ", private" : ""}`}
+			// The whole row opens the Bucket (the link's ::after covers it); its buttons sit above.
+			className={cn(
+				"relative transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60",
+				"has-focus-visible:outline-2 has-focus-visible:-outline-offset-2 has-focus-visible:outline-ring",
+			)}
 			leading={<Tile bucket={color}>{monogram(bucket.name)}</Tile>}
 			title={
-				<Link to="/plan/buckets/$id" params={{ id: bucket.id }} className="hover:underline">
+				<Link
+					to="/plan/buckets/$id"
+					params={{ id: bucket.id }}
+					className="outline-none after:absolute after:inset-0"
+				>
 					{bucket.name}
 				</Link>
 			}
@@ -619,15 +662,21 @@ function BucketRow({
 				</>
 			}
 			trailing={
-				<>
-					<span className="text-sm font-semibold tabular-nums">{formatMoney(left)}</span>
-					{/* Below zero, "of −$1,035" says nothing: its parts beneath explain it instead. */}
-					{bucket.available >= 0 ? (
-						<span className="text-xs text-subtle-foreground tabular-nums">
-							of {formatMoney(bucket.available)}
-						</span>
-					) : null}
-				</>
+				<span className="flex items-center gap-2">
+					<span className="grid justify-items-end gap-0.5">
+						<span className="text-sm font-semibold tabular-nums">{formatMoney(left)}</span>
+						{/* Below zero, "of −$1,035" says nothing: its parts beneath explain it instead. */}
+						{bucket.available >= 0 ? (
+							<span className="text-xs text-subtle-foreground tabular-nums">
+								of {formatMoney(bucket.available)}
+							</span>
+						) : null}
+					</span>
+					<ChevronRight
+						aria-hidden="true"
+						className="hidden size-4 text-subtle-foreground lg:block"
+					/>
+				</span>
 			}
 			below={
 				<div className="grid gap-1.5">
@@ -638,8 +687,12 @@ function BucketRow({
 						over={bucket.status === "over"}
 					/>
 					{parts ? <p className="text-xs text-muted-foreground tabular-nums">{parts}</p> : null}
-					{covers}
-					{onCover ? <CoverButton name={bucket.name} onCover={onCover} /> : null}
+					{covers ? <div className="relative z-10">{covers}</div> : null}
+					{onCover ? (
+						<div className="relative z-10">
+							<CoverButton name={bucket.name} onCover={onCover} />
+						</div>
+					) : null}
 				</div>
 			}
 		/>

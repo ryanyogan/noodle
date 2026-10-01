@@ -1,6 +1,7 @@
 import { addMonths, type MonthKey } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { LinkTab, LinkTabs } from "@noodle/ui/components/tabs";
+import { WithTooltip } from "@noodle/ui/components/tooltip";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ChartColumn, ChevronLeft, ChevronRight, MessageCircleQuestionMark } from "lucide-react";
 import { type TouchEvent, useRef } from "react";
@@ -94,12 +95,22 @@ export function MonthLink({
 			</Button>
 		);
 	}
+	// On larger screens the chevron says which month it goes to: "‹ Aug", "Oct ›".
+	const short = (
+		<span className="hidden text-sm lg:inline">
+			{new Date(`${month}-01T12:00:00`).toLocaleString("en-US", { month: "short" })}
+		</span>
+	);
 	return (
-		<Button variant="ghost" size="icon" asChild>
-			<Link to={to} params={{ month }} aria-label={`${label}, ${monthName(month)}`}>
-				{icon}
-			</Link>
-		</Button>
+		<WithTooltip label={monthName(month)}>
+			<Button variant="ghost" size="icon" className="lg:w-auto lg:gap-1 lg:px-2" asChild>
+				<Link to={to} params={{ month }} aria-label={`${label}, ${monthName(month)}`}>
+					{label === "Next month" ? short : null}
+					{icon}
+					{label === "Next month" ? null : short}
+				</Link>
+			</Button>
+		</WithTooltip>
 	);
 }
 
