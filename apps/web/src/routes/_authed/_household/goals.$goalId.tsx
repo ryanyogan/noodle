@@ -84,6 +84,9 @@ function GoalPage() {
 	);
 }
 
+/** How many months of a Goal's History show before "Show older". */
+const HISTORY_MONTHS = 12;
+
 function GoalDetails({
 	goal,
 	account,
@@ -108,6 +111,9 @@ function GoalDetails({
 	const setEmergency = useSetEmergencyGoal();
 	const [sheet, setSheet] = useState<OpenSheet>(null);
 	const [addFrom, setAddFrom] = useState<AddFrom>("plan");
+	// The latest year of History at first; a long-lived Goal's older months on request.
+	const history = goalHistory(goal.changes);
+	const [showAll, setShowAll] = useState(false);
 	const [archiving, setArchiving] = useState(false);
 	const { progress } = goal;
 	const active = goal.state === "active";
@@ -255,41 +261,56 @@ function GoalDetails({
 					<SectionHeader id="goal-history" title="History" count={goal.changes.length} />
 					{goal.changes.length > 0 ? (
 						<List>
-							{goalHistory(goal.changes).flatMap(({ month: changedIn, net, changes }) => [
-								<ListGroupLabel key={changedIn} className="flex justify-between gap-3">
-									<span>{monthLabel(changedIn, today)}</span>
-									<span className="tabular-nums">
-										{net >= 0 ? "+" : ""}
-										{formatMoney(net)}
-									</span>
-								</ListGroupLabel>,
-								...groupSweeps(changes).map((change) =>
-									Array.isArray(change) ? (
-										<SweepsRow key={change[0]?.id} sweeps={change} />
-									) : (
-										<HistoryRow
-											key={change.id}
-											change={change}
-											today={today}
-											onUndo={
-												active &&
-												change.kind === "funding" &&
-												change.from === undefined &&
-												change.month === month
-													? () =>
-															undo.mutate({
-																moveId: change.id,
-																goalName: goal.name,
-																month: change.month,
-															})
-													: undefined
-											}
-										/>
+							{history
+								.slice(0, showAll ? undefined : HISTORY_MONTHS)
+								.flatMap(({ month: changedIn, net, changes }) => [
+									<ListGroupLabel key={changedIn} className="flex justify-between gap-3">
+										<span>{monthLabel(changedIn, today)}</span>
+										<span className="tabular-nums">
+											{net >= 0 ? "+" : ""}
+											{formatMoney(net)}
+										</span>
+									</ListGroupLabel>,
+									...groupSweeps(changes).map((change) =>
+										Array.isArray(change) ? (
+											<SweepsRow key={change[0]?.id} sweeps={change} />
+										) : (
+											<HistoryRow
+												key={change.id}
+												change={change}
+												today={today}
+												onUndo={
+													active &&
+													change.kind === "funding" &&
+													change.from === undefined &&
+													change.month === month
+														? () =>
+																undo.mutate({
+																	moveId: change.id,
+																	goalName: goal.name,
+																	month: change.month,
+																})
+														: undefined
+												}
+											/>
+										),
 									),
-								),
-							])}
+								])}
 						</List>
-					) : (
+					) : null}
+					{history.length > HISTORY_MONTHS && !showAll ? (
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="justify-self-start"
+							onClick={() => setShowAll(true)}
+						>
+							Show {history.length - HISTORY_MONTHS} older{" "}
+							{history.length - HISTORY_MONTHS === 1 ? "month" : "months"}
+						</Button>
+					) : null}
+					{goal.changes.length > 0 ? null : (
 						<Card className="p-(--card-pad) text-sm text-muted-foreground">
 							Nothing set aside yet. Add money from this month’s plan, or money already in{" "}
 							{accountName}.
