@@ -5,6 +5,7 @@ import {
 	attributeWithdrawal,
 	canPayOff,
 	type DayKey,
+	goalBehindBy,
 	goalHistory,
 	goalProgress,
 	holdsMoney,
@@ -256,6 +257,32 @@ describe("goalProgress", () => {
 		expect(goalProgress(undated, [change("braces", "claim", 120_000)], "2026-09").status).toBe(
 			"reached",
 		);
+	});
+});
+
+describe("goalBehindBy", () => {
+	const braces = {
+		target: 120_000,
+		targetDate: "2026-12-20" as DayKey,
+		fromMonth: "2026-07" as MonthKey,
+	};
+
+	it("is how far short of the even schedule a Goal is, as goalProgress judges behind", () => {
+		// Two months in, $400 should be saved; $150 is.
+		expect(goalBehindBy(braces, 15_000, "2026-09")).toBe(25_000);
+		expect(
+			goalProgress(
+				{ id: "braces", ...braces },
+				[change("braces", "funding", 15_000, "2026-08")].map((c) => ({ ...c, goalId: "braces" })),
+				"2026-09",
+			).status,
+		).toBe("behind");
+	});
+
+	it("is nothing when on schedule, ahead, or undated", () => {
+		expect(goalBehindBy(braces, 40_000, "2026-09")).toBe(0);
+		expect(goalBehindBy(braces, 90_000, "2026-09")).toBe(0);
+		expect(goalBehindBy({ ...braces, targetDate: null }, 0, "2026-09")).toBe(0);
 	});
 });
 

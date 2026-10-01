@@ -1,4 +1,11 @@
-import { type DayKey, goalHistory, type MonthKey, parseDollars } from "@noodle/domain";
+import {
+	type Cents,
+	type DayKey,
+	goalBehindBy,
+	goalHistory,
+	type MonthKey,
+	parseDollars,
+} from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
@@ -10,16 +17,10 @@ import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { cn } from "@noodle/ui/lib/utils";
 import { createFileRoute, Link, notFound, useHydrated } from "@tanstack/react-router";
-import { Pencil } from "lucide-react";
+import { ChevronDown, Pencil } from "lucide-react";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { ulid } from "ulid";
-import {
-	AmountInput,
-	AmountSheet,
-	BackToGoals,
-	FundGoalSheet,
-	GoalProgressBar,
-} from "../../../components/goals";
+import { AmountInput, AmountSheet, BackToGoals, GoalProgressBar } from "../../../components/goals";
 import { PayoffGoalDetails } from "../../../components/payoff-goal";
 import { Confirm, SaveFailed } from "../../../components/plan-editing";
 import { TermHelp } from "../../../components/term-help";
@@ -57,7 +58,10 @@ export const Route = createFileRoute("/_authed/_household/goals/$goalId")({
 	component: GoalPage,
 });
 
-type OpenSheet = "fund" | "spend" | "claim" | "release" | "edit" | null;
+type OpenSheet = "add" | "spend" | "release" | "edit" | null;
+
+/** Where money added to a Goal comes from: this month's Free to Spend, or already in its Account. */
+type AddFrom = "plan" | "account";
 
 function GoalPage() {
 	const { goalId } = Route.useParams();
@@ -103,6 +107,7 @@ function GoalDetails({
 	const archive = useArchiveGoal();
 	const setEmergency = useSetEmergencyGoal();
 	const [sheet, setSheet] = useState<OpenSheet>(null);
+	const [addFrom, setAddFrom] = useState<AddFrom>("plan");
 	const [archiving, setArchiving] = useState(false);
 	const { progress } = goal;
 	const active = goal.state === "active";
@@ -111,6 +116,11 @@ function GoalDetails({
 	const close = (open: boolean) => {
 		if (!open) setSheet(null);
 	};
+	const addMoney = (from: AddFrom) => {
+		setAddFrom(from);
+		setSheet("add");
+	};
+	const completed = goal.state === "completed";
 
 	return (
 		<>
@@ -149,35 +159,48 @@ function GoalDetails({
 								</span>
 							</p>
 						</div>
-						{archived ? null : <GoalProgressBar share={progress.share} />}
+						{archived || completed ? null : <GoalProgressBar share={progress.share} />}
 						<p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-muted-foreground">
-							<GoalStatus goal={goal} />
+							<GoalStatus goal={goal} month={month} />
 						</p>
 					</div>
 					{active && progress.monthly !== null && progress.leftThisMonth !== null ? (
-						<dl className="grid grid-cols-[repeat(2,minmax(0,1fr))_auto] border-t">
-							<Stat label="A month" value={formatMoney(progress.monthly)} />
-							<Stat
-								label="This month"
-								value={
-									progress.leftThisMonth > 0
-										? `${formatMoney(progress.leftThisMonth)} left`
-										: "Funded"
-								}
-							/>
-							<Stat
-								label="Target date"
-								value={goal.targetDate ? fullDay(goal.targetDate) : "None"}
-							/>
-						</dl>
+						<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t px-(--card-pad) py-3 text-sm">
+							<p className="text-muted-foreground">
+								To reach {formatMoney(goal.target)}
+								{goal.targetDate ? ` by ${fullDay(goal.targetDate)}` : ""} you need{" "}
+								<span className="font-medium text-foreground tabular-nums">
+									{formatMoney(progress.monthly)} a month
+								</span>
+								.{" "}
+								{progress.leftThisMonth === 0
+									? "This month’s is funded."
+									: progress.fundedThisMonth > 0
+										? `${formatMoney(progress.fundedThisMonth)} funded this month.`
+										: "Nothing funded this month yet."}
+							</p>
+							{progress.leftThisMonth > 0 ? (
+								<Button
+									type="button"
+									size="sm"
+									variant="outline"
+									disabled={!hydrated}
+									onClick={() => addMoney("plan")}
+								>
+									Fund {formatMoney(progress.leftThisMonth)}
+								</Button>
+							) : null}
+						</div>
 					) : null}
 					{archived ? null : (
 						<div className="flex flex-wrap gap-2 border-t p-(--card-pad)">
-							{active ? (
-								<Button type="button" disabled={!hydrated} onClick={() => setSheet("fund")}>
-									Fund
-								</Button>
-							) : null}
+							<Button
+								type="button"
+								disabled={!hydrated}
+								onClick={() => addMoney(active ? "plan" : "account")}
+							>
+								Add money
+							</Button>
 							<Button
 								type="button"
 								variant="outline"
@@ -206,26 +229,16 @@ function GoalDetails({
 							<TermHelp term="set-aside" />
 						</p>
 						{archived ? null : (
-							<div className="-me-2.5 flex gap-1">
-								<Button
-									type="button"
-									variant="ghost"
-									size="sm"
-									disabled={!hydrated}
-									onClick={() => setSheet("claim")}
-								>
-									Set aside
-								</Button>
-								<Button
-									type="button"
-									variant="ghost"
-									size="sm"
-									disabled={!hydrated || progress.saved <= 0}
-									onClick={() => setSheet("release")}
-								>
-									Release
-								</Button>
-							</div>
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								className="-me-2.5"
+								disabled={!hydrated || progress.saved <= 0}
+								onClick={() => setSheet("release")}
+							>
+								Take money back
+							</Button>
 						)}
 					</div>
 				</Card>
@@ -250,31 +263,35 @@ function GoalDetails({
 										{formatMoney(net)}
 									</span>
 								</ListGroupLabel>,
-								...changes.map((change) => (
-									<HistoryRow
-										key={change.id}
-										change={change}
-										today={today}
-										onUndo={
-											active &&
-											change.kind === "funding" &&
-											change.from === undefined &&
-											change.month === month
-												? () =>
-														undo.mutate({
-															moveId: change.id,
-															goalName: goal.name,
-															month: change.month,
-														})
-												: undefined
-										}
-									/>
-								)),
+								...groupSweeps(changes).map((change) =>
+									Array.isArray(change) ? (
+										<SweepsRow key={change[0]?.id} sweeps={change} />
+									) : (
+										<HistoryRow
+											key={change.id}
+											change={change}
+											today={today}
+											onUndo={
+												active &&
+												change.kind === "funding" &&
+												change.from === undefined &&
+												change.month === month
+													? () =>
+															undo.mutate({
+																moveId: change.id,
+																goalName: goal.name,
+																month: change.month,
+															})
+													: undefined
+											}
+										/>
+									),
+								),
 							])}
 						</List>
 					) : (
 						<Card className="p-(--card-pad) text-sm text-muted-foreground">
-							Nothing set aside yet. Fund it from Free to Spend, or set aside money already in{" "}
+							Nothing set aside yet. Add money from this month’s plan, or money already in{" "}
 							{accountName}.
 						</Card>
 					)}
@@ -371,13 +388,21 @@ function GoalDetails({
 				)}
 			</div>
 
-			<FundGoalSheet
-				goal={sheet === "fund" ? goal : null}
-				freeToSpend={freeToSpend}
+			<AddMoneySheet
+				open={sheet === "add"}
 				onOpenChange={close}
-				onFund={(g, amountCents) => {
+				goal={goal}
+				account={account}
+				from={addFrom}
+				onFromChange={setAddFrom}
+				freeToSpend={freeToSpend}
+				onFund={(amountCents) => {
 					setSheet(null);
-					fund.mutate({ moveId: ulid(), goalId: g.id, goalName: g.name, month, amountCents });
+					fund.mutate({ moveId: ulid(), goalId: goal.id, goalName: goal.name, month, amountCents });
+				}}
+				onSetAside={(amountCents) => {
+					setSheet(null);
+					claim.mutate({ claimId: ulid(), goalId: goal.id, amountCents });
 				}}
 			/>
 			<AmountSheet
@@ -410,38 +435,12 @@ function GoalDetails({
 				}}
 			/>
 			<AmountSheet
-				open={sheet === "claim"}
-				onOpenChange={close}
-				title={`Set aside for ${goal.name}`}
-				description={`Sets aside money already in ${accountName} for this Goal. It doesn’t change the Plan.`}
-				submitLabel="Set aside"
-				check={(cents) => {
-					const notSetAside = account?.unclaimed ?? null;
-					if (notSetAside === null) {
-						return {
-							hint: `${accountName} has no balance yet, so there’s nothing to set aside from.`,
-						};
-					}
-					if (cents !== null && cents > notSetAside) {
-						return {
-							hint: `Only ${formatMoney(Math.max(0, notSetAside))} in ${accountName} isn’t set aside yet. Update its balance if there’s more.`,
-							refused: true,
-						};
-					}
-					return { hint: `${formatMoney(notSetAside)} in ${accountName} isn’t set aside yet.` };
-				}}
-				onSave={(amountCents) => {
-					setSheet(null);
-					claim.mutate({ claimId: ulid(), goalId: goal.id, amountCents });
-				}}
-			/>
-			<AmountSheet
 				open={sheet === "release"}
 				onOpenChange={close}
-				title={`Release from ${goal.name}`}
-				description={`Stops keeping some of it for this Goal. It stays in ${accountName}, no longer set aside.`}
+				title={`Take money back from ${goal.name}`}
+				description={`Stops keeping some of it for this Goal. It stays in ${accountName}, no longer set aside, free for other Goals.`}
 				initialCents={progress.saved}
-				submitLabel="Release"
+				submitLabel="Take it back"
 				check={(cents) =>
 					cents !== null && cents > progress.saved
 						? {
@@ -473,19 +472,28 @@ function GoalDetails({
  * How the Goal is doing, in words: on track, behind (Pace) or past due (over), and what's still
  * to go. The numbers beneath say the rest.
  */
-function GoalStatus({ goal }: { goal: GoalView }) {
+function GoalStatus({ goal, month }: { goal: GoalView; month: MonthKey }) {
 	const { progress } = goal;
 	const parts: ReactNode[] = [];
 	if (goal.state === "archived") parts.push("Archived");
-	else if (goal.state === "completed") parts.push("Completed");
-	else if (progress.status === "behind") {
-		parts.push(<Badge variant="pace">{goalStatusName.behind}</Badge>);
+	else if (goal.state === "completed") {
+		// Done: what it was spent on, not what it never reached.
+		parts.push("Completed");
+		const spent = spentFrom(goal);
+		if (spent > 0) parts.push(`spent ${formatMoney(spent)}`);
+		parts.push(`${formatMoney(progress.saved)} still set aside`);
+	} else if (progress.status === "behind") {
+		parts.push(
+			<Badge variant="pace">
+				{goalStatusName.behind} by {formatMoney(goalBehindBy(goal, progress.saved, month))}
+			</Badge>,
+		);
 	} else if (progress.status === "past-due") {
 		parts.push(<Badge variant="over">{goalStatusName["past-due"]}</Badge>);
 	} else {
 		parts.push(goalStatusName[progress.status]);
 	}
-	if (goal.state !== "archived" && progress.remaining > 0) {
+	if (goal.state === "active" && progress.remaining > 0) {
 		parts.push(`${formatMoney(progress.remaining)} to go`);
 	}
 	if (goal.state === "active" && !goal.targetDate) parts.push("No target date");
@@ -503,15 +511,6 @@ function GoalStatus({ goal }: { goal: GoalView }) {
 	);
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-	return (
-		<div className="grid gap-0.5 border-l px-(--card-pad) py-3 first:border-l-0">
-			<dt className="text-xs text-muted-foreground">{label}</dt>
-			<dd className="text-sm font-semibold whitespace-nowrap tabular-nums">{value}</dd>
-		</div>
-	);
-}
-
 function FinishRow({ text, action }: { text: string; action: ReactNode }) {
 	return (
 		<div className="flex items-center justify-between gap-4">
@@ -526,7 +525,9 @@ const changeTitle = (change: GoalChange) =>
 		? change.from === "windfall"
 			? "From Extra income"
 			: change.from === "sweep"
-				? "Swept from a Bucket"
+				? change.fromBucket
+					? `Leftover from ${change.fromBucket}`
+					: "Leftover from a Bucket"
 				: "Funded from Free to Spend"
 		: change.kind === "spending"
 			? "Spent"
@@ -587,6 +588,168 @@ function HistoryRow({
 					) : null}
 				</span>
 			}
+		/>
+	);
+}
+
+/** What's been spent from a Goal over its life. */
+const spentFrom = (goal: GoalView) =>
+	-goal.changes.filter((c) => c.kind === "spending").reduce((sum, c) => sum + c.amount, 0);
+
+/** A month's changes, with two or more Sweeps gathered into one entry where the first was. */
+function groupSweeps(changes: GoalChange[]): (GoalChange | GoalChange[])[] {
+	const sweeps = changes.filter((c) => c.kind === "funding" && c.from === "sweep");
+	if (sweeps.length < 2) return changes;
+	const out: (GoalChange | GoalChange[])[] = [];
+	for (const change of changes) {
+		if (change === sweeps[0]) out.push(sweeps);
+		else if (!sweeps.includes(change)) out.push(change);
+	}
+	return out;
+}
+
+/** A month's Sweeps as one row: their total, opening to each Bucket's leftover. */
+function SweepsRow({ sweeps }: { sweeps: GoalChange[] }) {
+	const total = sweeps.reduce((sum, c) => sum + c.amount, 0);
+	return (
+		<li className="px-(--card-pad) py-3">
+			<details className="group">
+				<summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+					<span className="grid gap-0.5">
+						<span className="text-sm font-medium">
+							Leftovers from {sweeps.length} Buckets
+							<ChevronDown
+								aria-hidden="true"
+								className="ms-1 inline size-4 text-muted-foreground transition-transform group-open:rotate-180"
+							/>
+						</span>
+						<span className="text-[13px] text-muted-foreground">
+							{monthName(sweeps[0]?.month ?? "")} · Swept when the month closed
+						</span>
+					</span>
+					<span className="text-sm font-semibold tabular-nums">+{formatMoney(total)}</span>
+				</summary>
+				<ul className="mt-2 grid gap-1 border-t pt-2 text-[13px] text-muted-foreground">
+					{sweeps.map((sweep) => (
+						<li key={sweep.id} className="flex justify-between gap-3">
+							<span>{changeTitle(sweep)}</span>
+							<span className="tabular-nums">+{formatMoney(sweep.amount)}</span>
+						</li>
+					))}
+				</ul>
+			</details>
+		</li>
+	);
+}
+
+/**
+ * Adding money to a Goal, one sheet for both ways: from this month's plan (Goal funding, out of
+ * Free to Spend), or money already in its Account (set aside, which changes nothing in the Plan).
+ * A completed Goal only takes money already there.
+ */
+function AddMoneySheet({
+	open,
+	onOpenChange,
+	goal,
+	account,
+	from,
+	onFromChange,
+	freeToSpend,
+	onFund,
+	onSetAside,
+}: {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	goal: GoalView;
+	account: AccountView | undefined;
+	from: AddFrom;
+	onFromChange: (from: AddFrom) => void;
+	freeToSpend: Cents;
+	onFund: (cents: Cents) => void;
+	onSetAside: (cents: Cents) => void;
+}) {
+	const hydrated = useHydrated();
+	const name = useId();
+	const accountName = account?.name ?? "its Account";
+	const active = goal.state === "active";
+	const left = goal.progress.leftThisMonth ?? 0;
+	const options = [
+		...(active ? [{ from: "plan" as const, label: "From this month’s plan" }] : []),
+		{ from: "account" as const, label: `Already in ${accountName}` },
+	];
+	return (
+		<AmountSheet
+			open={open}
+			onOpenChange={onOpenChange}
+			title={`Add money to ${goal.name}`}
+			description={
+				from === "plan"
+					? "Plans some of this month’s Free to Spend for it, and sets it aside."
+					: `Sets aside money that’s already in ${accountName}. It doesn’t change the Plan.`
+			}
+			above={
+				options.length > 1 ? (
+					<fieldset className="grid gap-1.5">
+						<legend className="mb-1.5 text-sm font-medium">Where’s it from?</legend>
+						<div className="grid grid-cols-2 gap-1 rounded-lg bg-surface-2 p-0.5">
+							{options.map((option) => (
+								<label
+									key={option.from}
+									className={cn(
+										"relative grid min-h-9 cursor-pointer place-items-center rounded-md px-2 py-1 text-center text-[13px] font-medium text-muted-foreground",
+										"transition-colors duration-(--duration-fast) ease-standard",
+										"has-checked:bg-card has-checked:text-foreground has-checked:shadow-card",
+										"has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ring",
+									)}
+								>
+									<input
+										type="radio"
+										name={name}
+										value={option.from}
+										checked={from === option.from}
+										disabled={!hydrated}
+										onChange={() => onFromChange(option.from)}
+										className="absolute inset-0 size-full cursor-pointer appearance-none opacity-0"
+									/>
+									<span>{option.label}</span>
+								</label>
+							))}
+						</div>
+					</fieldset>
+				) : null
+			}
+			initialCents={from === "plan" ? left : null}
+			submitLabel={from === "plan" ? "Fund" : "Set aside"}
+			check={(cents) => {
+				if (from === "plan") {
+					if (cents !== null && cents > freeToSpend) {
+						return {
+							hint: `Free to Spend has only ${formatMoney(Math.max(0, freeToSpend))} this month.`,
+							refused: true,
+						};
+					}
+					return {
+						hint:
+							left > 0
+								? `${goal.name} needs ${formatMoney(left)} more this month. Free to Spend has ${formatMoney(freeToSpend)}.`
+								: `Free to Spend has ${formatMoney(freeToSpend)} this month.`,
+					};
+				}
+				const notSetAside = account?.unclaimed ?? null;
+				if (notSetAside === null) {
+					return {
+						hint: `${accountName} has no balance yet, so there’s nothing to set aside from.`,
+					};
+				}
+				if (cents !== null && cents > notSetAside) {
+					return {
+						hint: `Only ${formatMoney(Math.max(0, notSetAside))} in ${accountName} isn’t set aside yet. Update its balance if there’s more.`,
+						refused: true,
+					};
+				}
+				return { hint: `${formatMoney(notSetAside)} in ${accountName} isn’t set aside yet.` };
+			}}
+			onSave={(cents) => (from === "plan" ? onFund(cents) : onSetAside(cents))}
 		/>
 	);
 }

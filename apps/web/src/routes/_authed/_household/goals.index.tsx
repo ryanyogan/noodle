@@ -196,7 +196,7 @@ function GoalItem({ goal, quiet = false }: { goal: GoalView; quiet?: boolean }) 
 					</span>
 				</>
 			}
-			below={goal.state === "archived" ? undefined : <GoalProgressBar share={progress.share} />}
+			below={goal.state === "active" ? <GoalProgressBar share={progress.share} /> : undefined}
 		/>
 	);
 }

@@ -165,6 +165,7 @@ export {
 	type GoalKind,
 	type GoalProgress,
 	type GoalStatus,
+	goalBehindBy,
 	goalHistory,
 	goalProgress,
 	holdsMoney,

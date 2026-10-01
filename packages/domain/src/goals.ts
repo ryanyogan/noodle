@@ -214,6 +214,22 @@ export function goalProgress(
 }
 
 /**
+ * How far a dated Goal is behind its even schedule from its first month, as goalProgress judges
+ * "behind" (for a payoff Goal, in what it has paid down): 0 when it isn't.
+ */
+export function goalBehindBy(
+	goal: Pick<ProgressGoal, "target" | "targetDate" | "fromMonth">,
+	saved: Cents,
+	month: MonthKey,
+): Cents {
+	if (goal.targetDate === null) return 0;
+	const targetMonth = monthOfDay(goal.targetDate);
+	const total = Math.max(1, monthsBetween(goal.fromMonth, targetMonth) + 1);
+	const elapsed = Math.min(total, Math.max(0, monthsBetween(goal.fromMonth, month)));
+	return Math.max(0, Math.floor((goal.target * elapsed) / total) - saved);
+}
+
+/**
  * How a payoff Goal is doing in `month` (ADR-0019). Saved is what it has paid down, remaining
  * what's still owed. It's reached ("Paid off") once nothing is owed. A month is what's still owed
  * spread over the months to its target date, this one included, so a payment made this month

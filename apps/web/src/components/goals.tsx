@@ -159,7 +159,13 @@ export function GoalSummary({ goal }: { goal: GoalView }) {
 	} else if (progress.status === "reached") {
 		parts.push(statusNameOf(goal, "reached"));
 	} else if (goal.state === "completed") {
+		// Done: what it was spent on and what's left, not what it never reached.
+		const spent = -goal.changes
+			.filter((c) => c.kind === "spending")
+			.reduce((sum, c) => sum + c.amount, 0);
 		parts.push("Completed");
+		if (spent > 0) parts.push(`spent ${formatMoney(spent)}`);
+		parts.push(`${formatMoney(progress.saved)} still set aside`);
 	} else {
 		if (progress.monthly !== null) parts.push(`${formatMoney(progress.monthly)} a month`);
 		if (progress.status === "behind") {
@@ -170,7 +176,7 @@ export function GoalSummary({ goal }: { goal: GoalView }) {
 			parts.push(goalStatusName["on-track"]);
 		}
 	}
-	if (goal.state !== "archived") {
+	if (goal.state === "active" || progress.status === "reached") {
 		parts.push(targetDate ? `by ${fullDay(targetDate)}` : "No target date");
 	}
 	return (
@@ -761,6 +767,7 @@ function AddGoalForm({
 					{accounts.map((a) => (
 						<option key={a.id} value={a.id}>
 							{a.name}
+							{a.unclaimed === null ? "" : ` · ${formatMoney(a.unclaimed)} not set aside`}
 						</option>
 					))}
 				</NativeSelect>
@@ -802,11 +809,14 @@ export function AmountSheet({
 	submitLabel,
 	check,
 	onSave,
+	above,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	title: string;
 	description?: ReactNode;
+	/** Fields above the amount, such as where the money comes from. */
+	above?: ReactNode;
 	label?: string;
 	/** Prefilled amount, if any. */
 	initialCents?: Cents | null;
@@ -822,6 +832,7 @@ export function AmountSheet({
 			{open ? (
 				<SheetContent>
 					<SheetHeader title={title} description={description} />
+					{above}
 					<AmountForm
 						label={label}
 						initialCents={initialCents}

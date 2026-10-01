@@ -31,6 +31,7 @@ import { partlyPrivate, type Viewer, visibleSplit, visibleTo } from "./privacy";
 import {
 	accountBalances,
 	accounts,
+	buckets,
 	earmarkClaims,
 	goals,
 	households,
@@ -761,6 +762,8 @@ export type GoalChange = SetAsideChange & {
 	id: string;
 	date?: DayKey;
 	note?: string | null;
+	/** For a Sweep, the Bucket whose leftover it was. */
+	fromBucket?: string;
 };
 
 /** Everything the Goals and Accounts views derive their numbers from (see @noodle/domain). */
@@ -843,8 +846,10 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 				amount: moves.amountCents,
 				month: moves.month,
 				moveKind: moves.kind,
+				fromBucket: buckets.name,
 			})
 			.from(moves)
+			.leftJoin(buckets, eq(buckets.id, moves.fromBucketId))
 			.where(and(eq(moves.householdId, householdId), isNotNull(moves.toGoalId))),
 		db
 			.select({
@@ -894,11 +899,12 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 	const changes: GoalChange[] = [
 		...claimRows.map((row) => ({ ...row, kind: "claim" as const }) as GoalChange),
 		...fundingRows.map(
-			({ moveKind, ...row }) =>
+			({ moveKind, fromBucket, ...row }) =>
 				({
 					...row,
 					kind: "funding" as const,
 					...(moveKind === "windfall" || moveKind === "sweep" ? { from: moveKind } : {}),
+					...(moveKind === "sweep" && fromBucket ? { fromBucket } : {}),
 				}) as GoalChange,
 		),
 		...spendingRows.map(

@@ -44,6 +44,7 @@ async function openGoals(page: Page) {
 test("a Goal is funded from Free to Spend and spent from what it has set aside, never a Bucket", async ({
 	browser,
 }) => {
+	test.slow();
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, plan);
 	const thisMonth = page.url();
@@ -72,9 +73,14 @@ test("a Goal is funded from Free to Spend and spent from what it has set aside, 
 	await expect(page.getByRole("heading", { level: 1 })).toContainText("Braces");
 	await expect(setAside(page)).toContainText("$1,000of $6,000");
 
-	// Funding more than Free to Spend has can't be sent, and says how much there is.
-	await setAside(page).getByRole("button", { name: "Fund" }).click();
-	const fund = page.getByRole("dialog", { name: "Fund Braces" });
+	// The plan in words: what it needs a month to reach its target.
+	await expect(setAside(page)).toContainText(/To reach \$6,000 by .+ you need \$[\d,.]+ a month/);
+
+	// Adding money: from this month's plan by default. More than Free to Spend has can't be
+	// sent, and it says how much there is.
+	await setAside(page).getByRole("button", { name: "Add money" }).click();
+	const fund = page.getByRole("dialog", { name: "Add money to Braces" });
+	await expect(fund.getByRole("radio", { name: "From this month’s plan" })).toBeChecked();
 	await expect(fund.getByLabel("Amount")).not.toHaveValue("");
 	await fund.getByLabel("Amount").fill("5,000");
 	await expect(fund).toContainText("Free to Spend has only $3,400 this month.");
@@ -87,6 +93,24 @@ test("a Goal is funded from Free to Spend and spent from what it has set aside, 
 	);
 	await expect(setAside(page)).toContainText("$1,250of $6,000");
 	await expect(page.getByRole("list").getByText("Funded from Free to Spend")).toBeVisible();
+
+	// Or money already in the Account: set aside, with the Plan untouched.
+	await setAside(page).getByRole("button", { name: "Add money" }).click();
+	const add = page.getByRole("dialog", { name: "Add money to Braces" });
+	await add.getByRole("radio", { name: "Already in Ally savings" }).check();
+	await expect(add).toContainText("$8,750 in Ally savings isn’t set aside yet.");
+	await add.getByLabel("Amount").fill("100");
+	await add.getByRole("button", { name: "Set aside" }).click();
+	await expect(add).toBeHidden();
+	await expect(setAside(page)).toContainText("$1,350of $6,000");
+
+	// Taking money back leaves it in the Account, free for other Goals.
+	await setAside(page).getByRole("button", { name: "Take money back" }).click();
+	const back = page.getByRole("dialog", { name: "Take money back from Braces" });
+	await back.getByLabel("Amount").fill("100");
+	await back.getByRole("button", { name: "Take it back" }).click();
+	await expect(back).toBeHidden();
+	await expect(setAside(page)).toContainText("$1,250of $6,000");
 
 	// Free to Spend drops by exactly the funding, on the Plan and on This Month.
 	await page.goto(thisMonth);
