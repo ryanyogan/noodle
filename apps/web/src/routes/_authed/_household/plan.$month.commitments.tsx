@@ -1,25 +1,22 @@
-import {
-	lumpyMonths,
-	type MonthKey,
-	monthlyEquivalent,
-	monthOfDay,
-	yearlyCost,
-} from "@noodle/domain";
+import { lumpyMonths, monthlyEquivalent, monthOfDay } from "@noodle/domain";
+import { Badge } from "@noodle/ui/components/badge";
 import { Card } from "@noodle/ui/components/card";
-import { List, ListRow } from "@noodle/ui/components/list";
+import { List } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { withoutCommitment } from "../../../commitments";
-import { lumpText } from "../../../components/coming-up";
-import { AddCommitment, CommitmentEditor } from "../../../components/commitment-editor";
-import { SaveFailed } from "../../../components/plan-editing";
+import { ChevronRight } from "lucide-react";
+import { useState } from "react";
+import {
+	AddCommitment,
+	CommitmentEditor,
+	useCommitmentChanges,
+} from "../../../components/commitment-editor";
 import { PlanSubPage } from "../../../components/plan-page";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney, monthName } from "../../../format";
-import { usePlanChange, usePlanChanges } from "../../../plan-changes";
+import { usePlanChanges } from "../../../plan-changes";
 import { commitmentsQuery, useMonthState } from "../../../queries";
-import { endCommitment } from "../../../server/commitments";
 
 export const Route = createFileRoute("/_authed/_household/plan/$month/commitments")({
 	// Lumpy months ahead read every Commitment's schedule.
@@ -33,14 +30,32 @@ function PlanCommitments() {
 	const changes = usePlanChanges(month);
 	const all = useSuspenseQuery(commitmentsQuery()).data;
 	const lumpy = lumpyMonths(all, month, 12);
-	const yearly = state.commitments.reduce((sum, c) => sum + yearlyCost(c), 0);
 	// Owned here: ending a Commitment removes its row, which must not take the error with it.
-	const end = usePlanChange(month, {
-		save: (data: { commitmentId: string; month: MonthKey }) => endCommitment({ data }),
-		apply: withoutCommitment,
-	});
+	const writes = useCommitmentChanges(month);
+	// Due this month first; the rest (a yearly bill due in spring, say) folded away below.
+	const due = state.commitments.filter((c) => c.dueDates.length > 0);
+	const notDue = state.commitments.filter((c) => c.dueDates.length === 0);
+	const average = state.commitments.reduce((sum, c) => sum + monthlyEquivalent(c), 0);
+	// Folded unless nothing's due this month; one just added or moved there opens it, so it shows.
+	const [showNotDue, setShowNotDue] = useState(due.length === 0);
+	const [notDueCount, setNotDueCount] = useState(notDue.length);
+	if (notDue.length !== notDueCount) {
+		setNotDueCount(notDue.length);
+		if (notDue.length > notDueCount) setShowNotDue(true);
+	}
+	const row = (commitment: (typeof state.commitments)[number]) => (
+		<CommitmentEditor
+			key={commitment.id}
+			month={month}
+			commitment={commitment}
+			editable={state.editable}
+			was={changes.commitments[commitment.id]}
+			changes={writes}
+		/>
+	);
 	return (
 		<PlanSubPage
+			page="commitments"
 			month={month}
 			current={monthOfDay(state.asOf)}
 			editable={state.editable}
@@ -52,29 +67,43 @@ function PlanCommitments() {
 			}
 		>
 			<div className="grid gap-3">
-				<SaveFailed change={end} />
+				{writes.failed}
 				{state.commitments.length > 0 ? (
 					<>
-						<List>
-							{state.commitments.map((commitment) => (
-								<CommitmentEditor
-									key={commitment.id}
-									month={month}
-									commitment={commitment}
-									editable={state.editable}
-									was={changes.commitments[commitment.id]}
-									onEnd={(commitmentId) => end.mutate({ commitmentId, month })}
-								/>
-							))}
-						</List>
+						{due.length > 0 ? (
+							<Section aria-labelledby="commitments-due">
+								<SectionHeader id="commitments-due" title="Due this month" count={due.length} />
+								<List>{due.map(row)}</List>
+							</Section>
+						) : null}
+						{notDue.length > 0 ? (
+							<details
+								className="group"
+								open={showNotDue}
+								onToggle={(event) => setShowNotDue(event.currentTarget.open)}
+							>
+								<summary className="flex min-h-9 cursor-pointer list-none items-center gap-1.5 px-1 text-[13px] text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+									<ChevronRight
+										aria-hidden="true"
+										className="size-4 transition-transform group-open:rotate-90"
+									/>
+									Not this month
+									<Badge variant="count">{notDue.length}</Badge>
+								</summary>
+								<List>{notDue.map(row)}</List>
+							</details>
+						) : null}
 						<p className="px-1 text-sm text-muted-foreground">
-							All Commitments:{" "}
+							Across a year these average{" "}
 							<span className="font-medium text-foreground tabular-nums">
-								{formatMoney(yearly)} a year
-							</span>
-							, about{" "}
-							{formatMoney(state.commitments.reduce((sum, c) => sum + monthlyEquivalent(c), 0))} a
-							month.
+								{formatMoney(average)} a month
+							</span>{" "}
+							({formatMoney(average * 12)} a year).{" "}
+							{average > state.committed
+								? `That’s more than this month’s ${formatMoney(state.committed)}, because some are due only in certain months.`
+								: average < state.committed
+									? `This month’s ${formatMoney(state.committed)} is more, because some fall due in it.`
+									: null}
 						</p>
 						<p className="px-1 text-[13px] text-muted-foreground">
 							Paying off a card or loan faster? Its regular payment stays here; a{" "}
@@ -102,28 +131,28 @@ function PlanCommitments() {
 				{state.editable ? <AddCommitment month={month} /> : null}
 			</div>
 			{lumpy.length > 0 ? (
-				<Section aria-labelledby="lumpy-months">
-					<SectionHeader
-						id="lumpy-months"
-						title="Lumpy months ahead"
-						help={<TermHelp term="lumpy-month" />}
-					/>
-					<List>
-						{lumpy.map(({ month: lumpyMonth, lumps }) => (
-							<ListRow
-								key={lumpyMonth}
-								title={monthName(lumpyMonth)}
-								meta={lumpText(lumps, lumpyMonth)}
-								trailing={
-									<span className="text-sm font-medium tabular-nums">
-										+{formatMoney(lumps.reduce((sum, l) => sum + l.extra, 0))}
-									</span>
-								}
-							/>
-						))}
-					</List>
-				</Section>
+				// The year view keeps the one list of lumpy months; this says how many and leads there.
+				<Link
+					to="/plan/year/$year"
+					params={{ year: month.slice(0, 4) }}
+					className="flex items-center justify-between gap-4 rounded-xl border px-(--card-pad) py-3 text-sm transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60"
+				>
+					<span>
+						<span className="font-medium">
+							{lumpy.length === 1 ? "1 lumpy month" : `${lumpy.length} lumpy months`} ahead
+						</span>
+						<span className="block text-[13px] text-muted-foreground">
+							Next: {monthYear(lumpy[0]?.month ?? month)},{" "}
+							{formatMoney((lumpy[0]?.lumps ?? []).reduce((sum, l) => sum + l.extra, 0))} extra. See
+							them on the year.
+						</span>
+					</span>
+					<ChevronRight aria-hidden="true" className="size-4 shrink-0 text-subtle-foreground" />
+				</Link>
 			) : null}
 		</PlanSubPage>
 	);
 }
+
+/** "January 2027". */
+const monthYear = (month: string) => `${monthName(month)} ${month.slice(0, 4)}`;

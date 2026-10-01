@@ -30,7 +30,7 @@ import {
 	groupTitle,
 	HistoryStart,
 } from "../../../components/plan-history";
-import { PlanEnded, planParts } from "../../../components/plan-page";
+import { PlanEnded, PlanNav, planParts } from "../../../components/plan-page";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney, monthName } from "../../../format";
 import { useGoals } from "../../../goals";
@@ -76,18 +76,24 @@ function PlanOverview() {
 				title={monthTitle(month, current)}
 				actions={<MonthLinks to="/plan/$month" month={month} first={state.firstMonth} />}
 			/>
+			<PlanNav month={month} page="overview" />
 			<div className="grid max-w-2xl gap-8">
 				{state.editable ? null : <PlanEnded />}
 				{state.editable && month === current ? <PlanDraftSection /> : null}
 				{settingUp ? <SetUp state={state} current={month === current} /> : null}
 				{month === current ? <PlanHealth /> : null}
-				<div className="grid gap-3">
-					<Waterfall state={state} current={month === current} />
-					<LumpCallout lumps={lumpsIn(state)} month={month} />
-					<YearLink month={month} />
-				</div>
-				{month === current ? <ComingUpSummary /> : null}
-				<WhatChanged month={month} />
+				{/* Until take-home pay is set, the rest is all zeros: setting up comes first. */}
+				{settingUp && state.baseline === null ? null : (
+					<>
+						<div className="grid gap-3">
+							<Waterfall state={state} current={month === current} />
+							<LumpCallout lumps={lumpsIn(state)} month={month} />
+							<YearLink month={month} />
+						</div>
+						{month === current ? <ComingUpSummary /> : null}
+						<WhatChanged month={month} first={state.firstMonth} />
+					</>
+				)}
 			</div>
 		</div>
 	);
@@ -119,7 +125,7 @@ function SetUp({ state, current }: { state: PlanState; current: boolean }) {
 	const { month } = state;
 	// With no draft yet, statements are the quickest start: the Plan is drafted from them.
 	const { data: draft } = useQuery({ ...planDraftQuery(), enabled: current });
-	const { goals } = useGoals();
+	const { goals, accounts } = useGoals();
 	const buckets = state.buckets.filter((b) => b.owner === undefined);
 	const activeGoals = goals.filter((g) => g.state === "active");
 	return (
@@ -137,7 +143,21 @@ function SetUp({ state, current }: { state: PlanState; current: boolean }) {
 								: `${formatMoney(state.baseline)} a month`
 						}
 					>
-						{state.baseline === null ? <TakeHomePayForm month={month} /> : null}
+						{state.baseline === null ? (
+							<TakeHomePayForm month={month} />
+						) : (
+							<p className="text-[13px] text-muted-foreground">
+								Change it any time on{" "}
+								<Link
+									to="/plan/$month/income"
+									params={{ month }}
+									className="font-medium text-foreground underline underline-offset-2"
+								>
+									Income
+								</Link>
+								.
+							</p>
+						)}
 					</Step>
 					<Step
 						number={2}
@@ -176,7 +196,20 @@ function SetUp({ state, current }: { state: PlanState; current: boolean }) {
 								? count(activeGoals.length, "Goal")
 								: "Save for something ahead, or pay down a card or loan, funded from Free to Spend."
 						}
-						action={<StepLink to="/plan/$month/goals" month={month} label="Add Goals" />}
+						action={
+							// Goals are set aside in an Account, so one comes first.
+							accounts.length === 0 ? (
+								<Button variant="outline" size="sm" className="justify-self-start" asChild>
+									<Link to="/accounts">Add an Account first</Link>
+								</Button>
+							) : (
+								<Button variant="outline" size="sm" className="justify-self-start" asChild>
+									<Link to="/goals" search={{ add: "save" }}>
+										Add a Goal
+									</Link>
+								</Button>
+							)
+						}
 					/>
 				</ol>
 			</Card>
@@ -458,15 +491,19 @@ const pct = (share: number) => `${(Math.min(1, Math.max(0, share)) * 100).toFixe
  * What changed in this month's Plan since the month before, item by item, and who changed it.
  * This Month's first week links here.
  */
-function WhatChanged({ month }: { month: MonthKey }) {
+function WhatChanged({ month, first }: { month: MonthKey; first: MonthKey | null }) {
 	const { data } = useSuspenseQuery(planHistoryQuery(month));
 	const groups = whatChanged(data.changes, month);
+	// Nothing to compare with yet: the Household's first month, or no Plan changes at all.
+	const fresh = data.historyStart === null || first === null || month <= first;
 	return (
 		<Section aria-labelledby="what-changed">
 			<SectionHeader id="what-changed" title="What changed" count={groups.length || undefined} />
 			{groups.length === 0 ? (
 				<p className="rounded-xl border border-dashed px-(--card-pad) py-4 text-[13px] text-muted-foreground">
-					No Plan changes since {monthName(addMonths(month, -1))}.
+					{fresh
+						? "Changes to the Plan will show here."
+						: `No Plan changes since ${monthName(addMonths(month, -1))}.`}
 				</p>
 			) : (
 				<List>
@@ -481,7 +518,7 @@ function WhatChanged({ month }: { month: MonthKey }) {
 					))}
 				</List>
 			)}
-			<HistoryStart day={data.historyStart} />
+			{data.historyStart === null ? null : <HistoryStart day={data.historyStart} />}
 		</Section>
 	);
 }

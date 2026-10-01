@@ -88,7 +88,10 @@ test("Quick Add opens over any screen, and Back closes it without reloading the 
 
 	// A half-typed Bucket name in the Plan survives opening and closing Quick Add.
 	await switchTo(page, "Plan");
-	await page.getByRole("link", { name: "Buckets", exact: true }).click();
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Buckets", exact: true })
+		.click();
 	await page.getByLabel("New Bucket").fill("Gifts");
 	await page.getByRole("link", { name: "Quick Add" }).click();
 	await expect(sheet(page)).toBeVisible();

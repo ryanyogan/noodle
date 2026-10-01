@@ -201,7 +201,10 @@ test("adding a Bucket twice with the same ID creates one Bucket", async ({ brows
 	await saved;
 	await page.reload();
 	await expect(page.getByRole("button", { name: "Edit Life" })).toHaveCount(1);
-	await backToPlan(page);
-	await expect(freeToSpend(page)).toHaveText("Free to Spend−$250");
+	// No take-home pay yet, so the overview is still setting up: one Bucket, counted once.
+	await page.getByRole("link", { name: "Back to Plan" }).click();
+	await expect(page.getByRole("region", { name: "Set up the Plan" })).toContainText(
+		"1 Bucket · $250 a month",
+	);
 	await page.context().close();
 });

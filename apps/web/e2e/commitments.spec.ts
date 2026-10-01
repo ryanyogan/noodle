@@ -54,7 +54,7 @@ async function editCommitment(
 	await edit(page, name).click();
 	const sheet = page.getByRole("dialog", { name });
 	if (change.amount) await sheet.getByLabel("Amount", { exact: true }).fill(change.amount);
-	if (change.dueDate) await sheet.getByLabel("Due on", { exact: true }).fill(change.dueDate);
+	if (change.dueDate) await sheet.getByLabel("Next due", { exact: true }).fill(change.dueDate);
 	await sheet.getByRole("button", { name: "Save", exact: true }).click();
 	await expect(sheet).toBeHidden();
 }
@@ -124,7 +124,9 @@ test("a Parent adds, edits, and ends Commitments, and Free to Spend follows", as
 	await editCommitment(page, "Mortgage", { amount: "2,600" });
 	await expect(planRow(page, "Mortgage")).toContainText("$2,600");
 	await editCommitment(page, "Car insurance", { dueDate: `${nextMonth(month)}-15` });
-	await expect(planRow(page, "Car insurance")).toContainText("not in");
+	// Not due this month now: it shows what it takes a month, and when it's next due.
+	await expect(planRow(page, "Car insurance")).toContainText("$75/mo");
+	await expect(planRow(page, "Car insurance")).toContainText("yearly · next due");
 	const afterEdits = 9_000 - 1_200 - 2_600 - 500 * daycareCharges;
 	await backToPlan(page);
 	await expect(freeToSpend(page)).toHaveText(`Free to Spend$${afterEdits.toLocaleString("en-US")}`);
@@ -134,7 +136,8 @@ test("a Parent adds, edits, and ends Commitments, and Free to Spend follows", as
 	await expect(freeToSpend(page)).toHaveText(`Free to Spend$${afterEdits.toLocaleString("en-US")}`);
 	await openCommitments(page);
 	await expect(planRow(page, "Mortgage")).toContainText("$2,600");
-	await expect(planRow(page, "Car insurance")).toContainText("Yearly · due");
+	await page.getByText("Not this month").click();
+	await expect(planRow(page, "Car insurance")).toContainText("yearly · next due");
 
 	// This Month shows what's expected against what's been paid.
 	await backToPlan(page);

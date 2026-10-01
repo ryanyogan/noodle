@@ -12,6 +12,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { CalendarRange, ChevronLeft, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { lumpText } from "../../../components/coming-up";
+import { PlanNav } from "../../../components/plan-page";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney, monthName } from "../../../format";
 import { yearQuery } from "../../../queries";
@@ -68,6 +69,7 @@ function YearPage() {
 				}
 				actions={<YearLinks year={year} lastYear={lastYear} />}
 			/>
+			<PlanNav month={String(year) === current.slice(0, 4) ? current : `${year}-01`} page="year" />
 			{nothingPlanned ? (
 				<EmptyState
 					className="max-w-3xl"

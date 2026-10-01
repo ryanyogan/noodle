@@ -33,6 +33,17 @@ test("a new Household's pages say where to start", async ({ browser }) => {
 		"/accounts",
 	);
 
+	// The Plan: setting up comes first, not a waterfall of zeros; its Goals step leads somewhere.
+	await page.goto(`/plan/${month}`);
+	const waterfall = page.getByRole("region", { name: "From take-home pay to Free to Spend" });
+	await expect(page.getByRole("region", { name: "Set up the Plan" })).toBeVisible();
+	await expect(waterfall).toHaveCount(0);
+	await expect(page.getByRole("region", { name: "What changed" })).toHaveCount(0);
+	await expect(page.getByRole("link", { name: "Add an Account first" })).toHaveAttribute(
+		"href",
+		"/accounts",
+	);
+
 	// The year: an empty state, not a table of "Not set".
 	await page.goto(`/plan/year/${month.slice(0, 4)}`);
 	await expect(
@@ -58,5 +69,13 @@ test("a new Household's pages say where to start", async ({ browser }) => {
 	// Check-in: what it is, even with nothing to do.
 	await page.goto("/check-in");
 	await expect(page.getByText(/Once a week, the Check-in takes a few minutes/)).toBeVisible();
+
+	// Setting take-home pay inline says where to change it later, and the Plan fills in.
+	await page.goto(`/plan/${month}`);
+	await page.getByRole("textbox", { name: "Take-home pay" }).fill("5,000");
+	await page.getByRole("button", { name: "Set take-home pay" }).click();
+	await expect(page.getByText(/Change it any time on Income/)).toBeVisible();
+	await expect(waterfall).toBeVisible();
+	await expect(page.getByRole("navigation", { name: "Plan pages" })).toBeVisible();
 	await page.context().close();
 });

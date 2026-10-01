@@ -25,6 +25,7 @@ function PlanBuckets() {
 	const shared = buckets.reduce((sum, b) => sum + b.allowance, 0);
 	return (
 		<PlanSubPage
+			page="buckets"
 			month={month}
 			current={monthOfDay(state.asOf)}
 			editable={state.editable}

@@ -4,6 +4,8 @@ import {
 	type CommitmentState,
 	type DayKey,
 	type MonthKey,
+	monthlyEquivalent,
+	nextDueDate,
 	type PlanScope,
 	parseDollars,
 } from "@noodle/domain";
@@ -27,10 +29,11 @@ import {
 	schedule,
 	withCommitment,
 	withNewCommitment,
+	withoutCommitment,
 } from "../commitments";
-import { formatMoney, formatMoneyInput, monthName } from "../format";
+import { formatMoney, formatMoneyInput, fullDay, monthName } from "../format";
 import { usePlanChange } from "../plan-changes";
-import { addCommitment, updateCommitment } from "../server/commitments";
+import { addCommitment, endCommitment, updateCommitment } from "../server/commitments";
 import { CommitmentLink } from "./commitment-list";
 import { AmountInput } from "./goals";
 import { Confirm, SaveFailed } from "./plan-editing";
@@ -42,28 +45,27 @@ const isDay = (value: unknown): value is DayKey =>
 	typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
 /**
- * A Commitment in the Plan: its amount, and an Edit sheet to change its terms or end it. `was`
- * is its amount the month before, when this month changed it.
+ * A Commitment in the Plan: what it takes a month, and the Commitment sheet to change its terms
+ * or end it, the same one its page opens. One due less often than monthly shows its monthly share
+ * ("$566.67/mo"), so a yearly bill doesn't read as due now. `was` is its amount the month before,
+ * when this month changed it.
  */
 export function CommitmentEditor({
 	month,
 	commitment,
 	editable,
 	was,
-	onEnd,
+	changes,
 }: {
 	month: MonthKey;
 	commitment: CommitmentState;
 	editable: boolean;
 	was?: number;
-	onEnd: (commitmentId: string) => void;
+	changes: CommitmentChanges;
 }) {
 	const hydrated = useHydrated();
 	const [open, setOpen] = useState(false);
-	const change = usePlanChange(month, {
-		save: (data: CommitmentVariables) => updateCommitment({ data }),
-		apply: withCommitment,
-	});
+	const monthly = commitment.cadence === "monthly";
 	return (
 		<ListRow
 			leading={<Tile>{monogram(commitment.name)}</Tile>}
@@ -71,18 +73,30 @@ export function CommitmentEditor({
 			meta={
 				<>
 					<span>
-						{schedule(commitment, month)}
-						{commitment.dueDates.length > 1
+						{monthly
+							? schedule(commitment, month)
+							: `${formatMoney(commitment.amount)} ${cadenceNames[commitment.cadence].toLowerCase()} · ${
+									commitment.dueDates.length > 0
+										? `${formatMoney(commitment.expected)} this month`
+										: `next due ${fullDay(nextDueDate(commitment, `${month}-01`))}`
+								}`}
+						{monthly && commitment.dueDates.length > 1
 							? ` · ${formatMoney(commitment.expected)} this month`
 							: ""}
 					</span>
 					<ChangedNote was={was} />
-					<span className="basis-full text-subtle-foreground">{costText(commitment)}</span>
+					{monthly ? (
+						<span className="basis-full text-subtle-foreground">{costText(commitment)}</span>
+					) : null}
 				</>
 			}
 			trailing={
 				<div className="flex items-center gap-1">
-					<span className="text-sm font-medium tabular-nums">{formatMoney(commitment.amount)}</span>
+					<span className="text-sm font-medium tabular-nums">
+						{monthly
+							? formatMoney(commitment.amount)
+							: `${formatMoney(monthlyEquivalent(commitment))}/mo`}
+					</span>
 					{editable ? (
 						<Button
 							variant="ghost"
@@ -95,30 +109,113 @@ export function CommitmentEditor({
 							<Pencil />
 						</Button>
 					) : null}
-					<Sheet open={open} onOpenChange={setOpen}>
-						{open ? (
-							<SheetContent>
-								<SheetHeader title={commitment.name} description="Commitment" />
-								<CommitmentDetails
-									month={month}
-									commitment={commitment}
-									onSave={(terms) => {
-										setOpen(false);
-										change.mutate({ commitmentId: commitment.id, month, ...terms });
-									}}
-									onEnd={(commitmentId) => {
-										setOpen(false);
-										onEnd(commitmentId);
-									}}
-								/>
-								<PlanHistoryDisclosure month={month} targetId={commitment.id} />
-							</SheetContent>
-						) : null}
-					</Sheet>
+					<CommitmentSheet
+						month={month}
+						commitment={commitment}
+						open={open}
+						onOpenChange={setOpen}
+						changes={changes}
+					/>
 				</div>
 			}
-			below={change.isError ? <SaveFailed change={change} /> : undefined}
 		/>
+	);
+}
+
+/**
+ * The writes the Commitment sheet makes, kept by whatever opens it: ending a Commitment removes
+ * its row, which must not take a failure with it.
+ */
+export function useCommitmentChanges(month: MonthKey) {
+	const update = usePlanChange(month, {
+		save: (data: CommitmentVariables) => updateCommitment({ data }),
+		apply: withCommitment,
+	});
+	const end = usePlanChange(month, {
+		save: (data: { commitmentId: string; month: MonthKey }) => endCommitment({ data }),
+		apply: withoutCommitment,
+	});
+	const failed =
+		update.isError || end.isError ? (
+			<>
+				<SaveFailed change={update} />
+				<SaveFailed change={end} />
+			</>
+		) : null;
+	return { update, end, failed };
+}
+
+export type CommitmentChanges = ReturnType<typeof useCommitmentChanges>;
+
+/** The Commitment sheet: change its terms from this month on or just this month, or end it. */
+export function CommitmentSheet({
+	month,
+	commitment,
+	open,
+	onOpenChange,
+	changes,
+}: {
+	month: MonthKey;
+	commitment: Pick<CommitmentState, "id" | "name" | "amount" | "cadence" | "dueDate">;
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	changes: CommitmentChanges;
+}) {
+	return (
+		<Sheet open={open} onOpenChange={onOpenChange}>
+			{open ? (
+				<SheetContent>
+					<SheetHeader title={commitment.name} description="Commitment" />
+					<CommitmentDetails
+						month={month}
+						commitment={commitment}
+						onSave={(terms) => {
+							onOpenChange(false);
+							changes.update.mutate({ commitmentId: commitment.id, month, ...terms });
+						}}
+						onEnd={(commitmentId) => {
+							onOpenChange(false);
+							changes.end.mutate({ commitmentId, month });
+						}}
+					/>
+					<PlanHistoryDisclosure month={month} targetId={commitment.id} />
+				</SheetContent>
+			) : null}
+		</Sheet>
+	);
+}
+
+/** What's wrong with a Commitment's fields, each shown beside the form on submit. */
+type CommitmentErrors = { name?: boolean; amount?: boolean; dueDate?: boolean };
+
+/** The fields' values, checked; with the errors when any is missing or wrong. */
+function readCommitment(form: HTMLFormElement) {
+	const values = new FormData(form);
+	const name = String(values.get("name") ?? "").trim();
+	const amountCents = parseDollars(String(values.get("amount") ?? ""));
+	const cadence = values.get("cadence");
+	const dueDate = values.get("dueDate");
+	const errors: CommitmentErrors = {
+		name: name === "",
+		amount: amountCents === null,
+		dueDate: !isDay(dueDate),
+	};
+	const ok =
+		!errors.name && amountCents !== null && isCadence(cadence) && isDay(dueDate) && !errors.dueDate;
+	return ok
+		? { ok: true as const, errors, terms: { name, amountCents, cadence, dueDate } }
+		: { ok: false as const, errors };
+}
+
+function CommitmentFormErrors({ errors }: { errors: CommitmentErrors }) {
+	return (
+		<>
+			{errors.name ? <FormError>Give the Commitment a name, like Mortgage.</FormError> : null}
+			{errors.amount ? (
+				<FormError>Enter the amount as a dollar amount, like 1,800 or 15.99.</FormError>
+			) : null}
+			{errors.dueDate ? <FormError>Pick a day it’s due.</FormError> : null}
+		</>
 	);
 }
 
@@ -130,7 +227,7 @@ function CommitmentDetails({
 	onEnd,
 }: {
 	month: MonthKey;
-	commitment: CommitmentState;
+	commitment: Pick<CommitmentState, "id" | "name" | "amount" | "cadence" | "dueDate">;
 	onSave: (terms: Omit<CommitmentVariables, "commitmentId" | "month">) => void;
 	onEnd: (commitmentId: string) => void;
 }) {
@@ -138,50 +235,53 @@ function CommitmentDetails({
 	const id = useId();
 	const [confirmEnd, setConfirmEnd] = useState(false);
 	const [scope, setScope] = useState<PlanScope>("from-on");
-	const [invalidAmount, setInvalidAmount] = useState(false);
+	const [errors, setErrors] = useState<CommitmentErrors>({});
+	// Shown as the next day it's due, not the first ever: the schedule is the same either way.
+	const nextDue = nextDueDate(commitment, `${month}-01`);
 
 	function save(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		const values = new FormData(event.currentTarget);
-		const name = String(values.get("name") ?? "").trim();
-		const amountCents = parseDollars(String(values.get("amount") ?? ""));
-		const cadence = values.get("cadence");
-		const dueDate = values.get("dueDate");
-		setInvalidAmount(amountCents === null);
-		if (!name || amountCents === null || !isCadence(cadence) || !isDay(dueDate)) return;
-		onSave({ name, amountCents, cadence, dueDate, scope });
+		const read = readCommitment(event.currentTarget);
+		setErrors(read.errors);
+		if (!read.ok) return;
+		const { terms } = read;
+		// Left as the next due day, the schedule hasn't changed: keep the day it's kept by.
+		const dueDate =
+			terms.dueDate === nextDue && terms.cadence === commitment.cadence
+				? commitment.dueDate
+				: terms.dueDate;
+		onSave({ ...terms, dueDate, scope });
 	}
 
 	return (
 		<div className="grid gap-4">
-			<form onSubmit={save} className="grid gap-4">
+			<form onSubmit={save} noValidate className="grid gap-4">
 				<Field label="Amount" htmlFor={`${id}-amount`}>
 					<AmountInput
 						id={`${id}-amount`}
 						name="amount"
-						required
 						placeholder="0"
 						defaultValue={formatMoneyInput(commitment.amount)}
-						aria-invalid={invalidAmount || undefined}
+						aria-invalid={errors.amount || undefined}
 					/>
 				</Field>
-				{invalidAmount ? (
-					<FormError>Enter the amount as a dollar amount, like 1,800 or 15.99.</FormError>
-				) : null}
 				<Field label="Name" htmlFor={`${id}-name`}>
 					<Input
 						id={`${id}-name`}
 						name="name"
-						required
 						maxLength={40}
 						defaultValue={commitment.name}
+						aria-invalid={errors.name || undefined}
 					/>
 				</Field>
 				<ScheduleFields
 					id={id}
 					cadence={commitment.cadence}
-					dueDate={commitment.dueDate}
+					dueDate={nextDue}
 					inCard={false}
+					dueLabel="Next due"
+					dueHint="The rest follow from it."
+					invalid={errors.dueDate}
 				/>
 				<PlanScopeField
 					month={month}
@@ -189,6 +289,7 @@ function CommitmentDetails({
 					scope={scope}
 					onScopeChange={setScope}
 				/>
+				<CommitmentFormErrors errors={errors} />
 				<div className="flex flex-wrap items-center gap-2">
 					<Button type="submit" disabled={!hydrated}>
 						Save
@@ -224,11 +325,17 @@ function ScheduleFields({
 	cadence,
 	dueDate,
 	inCard = true,
+	dueLabel = "Due on",
+	dueHint = "Any day it’s due; the rest follow from it.",
+	invalid = false,
 }: {
 	id: string;
 	cadence: Cadence;
 	dueDate: DayKey;
 	inCard?: boolean;
+	dueLabel?: string;
+	dueHint?: string;
+	invalid?: boolean;
 }) {
 	return (
 		<div className="grid gap-3 sm:grid-cols-2">
@@ -246,19 +353,14 @@ function ScheduleFields({
 					))}
 				</NativeSelect>
 			</Field>
-			<Field
-				label="Due on"
-				htmlFor={`${id}-due`}
-				className="content-start"
-				hint="Any day it’s due; the rest follow from it."
-			>
+			<Field label={dueLabel} htmlFor={`${id}-due`} className="content-start" hint={dueHint}>
 				<Input
 					id={`${id}-due`}
 					name="dueDate"
 					type="date"
-					required
 					defaultValue={dueDate}
 					className={inCard ? "bg-card" : undefined}
+					aria-invalid={invalid || undefined}
 				/>
 			</Field>
 		</div>
@@ -270,7 +372,7 @@ export function AddCommitment({ month }: { month: MonthKey }) {
 	const id = useId();
 	// A fresh ID per Commitment; a retry of the same attempt reuses it, so it's added once.
 	const [commitmentId, setCommitmentId] = useState(() => ulid());
-	const [invalidAmount, setInvalidAmount] = useState(false);
+	const [errors, setErrors] = useState<CommitmentErrors>({});
 	const add = usePlanChange(month, {
 		save: (data: CommitmentVariables) => addCommitment({ data }),
 		apply: withNewCommitment,
@@ -279,14 +381,10 @@ export function AddCommitment({ month }: { month: MonthKey }) {
 	function onSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		const form = event.currentTarget;
-		const values = new FormData(form);
-		const name = String(values.get("name") ?? "").trim();
-		const amountCents = parseDollars(String(values.get("amount") ?? ""));
-		const cadence = values.get("cadence");
-		const dueDate = values.get("dueDate");
-		setInvalidAmount(amountCents === null);
-		if (!name || amountCents === null || !isCadence(cadence) || !isDay(dueDate)) return;
-		add.mutate({ commitmentId, month, name, amountCents, cadence, dueDate });
+		const read = readCommitment(form);
+		setErrors(read.errors);
+		if (!read.ok) return;
+		add.mutate({ commitmentId, month, ...read.terms });
 		// The Commitment shows at once; the next one gets its own ID.
 		setCommitmentId(ulid());
 		form.reset();
@@ -294,28 +392,32 @@ export function AddCommitment({ month }: { month: MonthKey }) {
 
 	return (
 		<Card>
-			<form onSubmit={onSubmit} aria-label="Add a Commitment" className="grid gap-3 p-(--card-pad)">
+			<form
+				onSubmit={onSubmit}
+				noValidate
+				aria-label="Add a Commitment"
+				className="grid gap-3 p-(--card-pad)"
+			>
 				<div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
 					<Field label="New Commitment" htmlFor={`${id}-name`}>
 						<Input
 							id={`${id}-name`}
 							name="name"
-							required
 							maxLength={40}
 							autoComplete="off"
 							placeholder="Mortgage"
+							aria-invalid={errors.name || undefined}
 						/>
 					</Field>
 					<Field label="Amount due" htmlFor={`${id}-amount`}>
 						<Input
 							id={`${id}-amount`}
 							name="amount"
-							required
 							inputMode="decimal"
 							autoComplete="off"
 							placeholder="0"
 							className="tabular-nums"
-							aria-invalid={invalidAmount || undefined}
+							aria-invalid={errors.amount || undefined}
 						/>
 					</Field>
 				</div>
@@ -324,10 +426,9 @@ export function AddCommitment({ month }: { month: MonthKey }) {
 					cadence="monthly"
 					dueDate={`${month}-01` as DayKey}
 					inCard={false}
+					invalid={errors.dueDate}
 				/>
-				{invalidAmount ? (
-					<FormError>Enter the amount as a dollar amount, like 1,800 or 15.99.</FormError>
-				) : null}
+				<CommitmentFormErrors errors={errors} />
 				<SaveFailed change={add} />
 				<Button
 					type="submit"

@@ -27,7 +27,10 @@ async function quickAdd(page: Page, amount: string, bucket: string, note: string
 /** Opens this month's Buckets in the Plan, from This Month. */
 async function openPlanBuckets(page: Page) {
 	await switchTo(page, "Plan");
-	await page.getByRole("link", { name: "Buckets", exact: true }).click();
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Buckets", exact: true })
+		.click();
 	await expect(page.getByRole("heading", { level: 1 })).toContainText("Buckets");
 }
 

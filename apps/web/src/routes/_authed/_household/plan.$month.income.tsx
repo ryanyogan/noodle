@@ -28,7 +28,13 @@ function PlanIncome() {
 	const received = state.income.filter((i) => monthOfDay(i.date) === month);
 	const total = received.reduce((sum, i) => sum + i.amount, 0);
 	return (
-		<PlanSubPage month={month} current={current} editable={state.editable} title="Income">
+		<PlanSubPage
+			page="income"
+			month={month}
+			current={current}
+			editable={state.editable}
+			title="Income"
+		>
 			<TakeHomePayEditor month={month} baseline={state.baseline} editable={state.editable} />
 			<Section aria-labelledby="plan-received">
 				<SectionHeader id="plan-received" title="Received this month" count={received.length} />

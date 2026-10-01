@@ -20,6 +20,7 @@ function PlanGoalsPage() {
 	const funding = month === current && state.editable;
 	return (
 		<PlanSubPage
+			page="goals"
 			month={month}
 			current={current}
 			editable={state.editable}

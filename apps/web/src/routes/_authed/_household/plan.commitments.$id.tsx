@@ -16,10 +16,12 @@ import { List, ListRow } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { ChevronLeft } from "lucide-react";
+import { createFileRoute, Link, notFound, useHydrated } from "@tanstack/react-router";
+import { ChevronLeft, Pencil } from "lucide-react";
+import { useState } from "react";
 import { termsSchedule } from "../../../commitments";
 import { DateTile, dueDay, dueStatus } from "../../../components/coming-up";
+import { CommitmentSheet, useCommitmentChanges } from "../../../components/commitment-editor";
 import { PlanHistoryList } from "../../../components/plan-history";
 import { formatMoney, fullDay, monthName } from "../../../format";
 import { commitmentsQuery, planHistoryQuery } from "../../../queries";
@@ -41,8 +43,12 @@ const NEXT_DUES = 4;
 
 function CommitmentPage() {
 	const { id } = Route.useParams();
+	const hydrated = useHydrated();
 	const data = useSuspenseQuery(commitmentsQuery()).data;
 	const month = monthOfDay(data.asOf);
+	const [editing, setEditing] = useState(false);
+	// Owned here: ending it closes the sheet, which must not take a failure with it.
+	const changes = useCommitmentChanges(month);
 	const commitment = data.commitments.find((c) => c.id === id);
 	const back = <BackToCommitments month={month} />;
 	// A Commitment only goes away if another Parent's change removes it; the loader 404s on reload.
@@ -55,8 +61,38 @@ function CommitmentPage() {
 				eyebrow={ended ? "Ended Commitment" : "Commitment"}
 				title={commitment.name}
 				leading={back}
+				actions={
+					terms && !ended ? (
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							disabled={!hydrated}
+							onClick={() => setEditing(true)}
+						>
+							<Pencil />
+							Edit
+						</Button>
+					) : undefined
+				}
 			/>
+			{terms && !ended ? (
+				<CommitmentSheet
+					month={month}
+					commitment={{
+						id,
+						name: commitment.name,
+						amount: terms.amount,
+						cadence: terms.cadence,
+						dueDate: terms.dueDate,
+					}}
+					open={editing}
+					onOpenChange={setEditing}
+					changes={changes}
+				/>
+			) : null}
 			<div className="grid max-w-2xl gap-8">
+				{changes.failed}
 				{terms ? (
 					<Card role="region" aria-labelledby="commitment-cost">
 						<div className="grid gap-1 p-(--card-pad)">
