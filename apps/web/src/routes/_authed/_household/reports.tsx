@@ -16,8 +16,8 @@ import { NativeSelect } from "@noodle/ui/components/native-select";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
+import { LinkTab, LinkTabs, LinkTabsSeparator } from "@noodle/ui/components/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
-import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
@@ -30,7 +30,7 @@ import {
 	Plus,
 	X,
 } from "lucide-react";
-import { useId, useMemo, useState } from "react";
+import { Fragment, useId, useMemo, useState } from "react";
 import { FilterSelect } from "../../../components/filter-select";
 import { quickAddSearch } from "../../../components/quick-add";
 import { ReportBody, type ReportNav, tablesFor } from "../../../components/report-views";
@@ -204,15 +204,16 @@ function ReportsPage() {
 	);
 }
 
+// The views in three groups: the overview; where the spending went; money in, its flow and Goals.
+const VIEW_GROUP_STARTS = new Set<ReportView>(["big", "cash-flow"]);
+
 function ViewTabs({ current }: { current: ReportSearch["view"] & string }) {
 	return (
-		<nav
-			aria-label="Report views"
-			className="-mx-(--gutter) overflow-x-auto px-(--gutter) [scrollbar-width:none]"
-		>
-			<ul className="flex w-max gap-1 rounded-xl bg-surface-2 p-1">
-				{REPORT_VIEWS.map((view) => (
-					<li key={view}>
+		<LinkTabs aria-label="Report views" className="-mx-(--gutter) px-(--gutter)">
+			{REPORT_VIEWS.map((view) => (
+				<Fragment key={view}>
+					{VIEW_GROUP_STARTS.has(view) ? <LinkTabsSeparator /> : null}
+					<LinkTab asChild>
 						<Link
 							from={Route.fullPath}
 							search={(prev) => ({
@@ -228,18 +229,13 @@ function ViewTabs({ current }: { current: ReportSearch["view"] & string }) {
 							// the Overview tab (no `view`) always is; exact matching leaves it to `current`.
 							activeOptions={{ exact: true }}
 							aria-current={view === current ? "page" : undefined}
-							className={cn(
-								"block whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] font-medium text-muted-foreground",
-								"transition-[background-color,color,box-shadow] duration-(--duration-fast) ease-standard hover:text-foreground",
-								"aria-[current=page]:bg-card aria-[current=page]:text-foreground aria-[current=page]:shadow-card",
-							)}
 						>
 							{VIEW_LABELS[view]}
 						</Link>
-					</li>
-				))}
-			</ul>
-		</nav>
+					</LinkTab>
+				</Fragment>
+			))}
+		</LinkTabs>
 	);
 }
 

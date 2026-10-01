@@ -1,6 +1,6 @@
 import { addMonths, type MonthKey } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
-import { cn } from "@noodle/ui/lib/utils";
+import { LinkTab, LinkTabs } from "@noodle/ui/components/tabs";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ChartColumn, ChevronLeft, ChevronRight, MessageCircleQuestionMark } from "lucide-react";
 import { type TouchEvent, useRef } from "react";
@@ -48,23 +48,20 @@ export function MonthPlanSwitch({
 		{ key: "plan", label: "Plan", to: "/plan/$month" },
 	] as const;
 	return (
-		<nav aria-label="Month and Plan" className="inline-flex rounded-lg bg-surface-2 p-0.5">
+		<LinkTabs aria-label="Month and Plan">
 			{options.map((option) => (
-				<Link
-					key={option.key}
-					to={option.to}
-					params={{ month }}
-					aria-current={option.key === current ? "page" : undefined}
-					className={cn(
-						"grid h-7 min-w-16 place-items-center rounded-md px-3 text-[13px] font-medium text-muted-foreground",
-						"transition-colors duration-(--duration-fast) ease-standard hover:text-foreground",
-						"aria-[current=page]:bg-card aria-[current=page]:text-foreground aria-[current=page]:shadow-card",
-					)}
-				>
-					{option.label}
-				</Link>
+				<LinkTab key={option.key} asChild className="h-7 min-w-16">
+					<Link
+						activeOptions={{ exact: true }}
+						to={option.to}
+						params={{ month }}
+						aria-current={option.key === current ? "page" : undefined}
+					>
+						{option.label}
+					</Link>
+				</LinkTab>
 			))}
-		</nav>
+		</LinkTabs>
 	);
 }
 

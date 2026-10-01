@@ -7,13 +7,12 @@ import { ListRow } from "@noodle/ui/components/list";
 import { RadioGroup, RadioGroupCard } from "@noodle/ui/components/radio-group";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
-import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useHydrated } from "@tanstack/react-router";
 import { Archive, ArrowDown, ArrowUp, Pencil, Plus } from "lucide-react";
 import { type FormEvent, useEffect, useId, useState } from "react";
 import { ulid } from "ulid";
-import { asBucketColor, bucketColors, monogram, nextBucketColor } from "../buckets";
+import { asBucketColor, monogram, nextBucketColor } from "../buckets";
 import { formatMoney, formatMoneyInput, monthName } from "../format";
 import {
 	usePlanChange,

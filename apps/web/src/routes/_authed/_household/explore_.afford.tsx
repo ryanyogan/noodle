@@ -31,6 +31,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@noodle/ui/components/table";
+import { LinkTab, LinkTabs } from "@noodle/ui/components/tabs";
 import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -160,22 +161,20 @@ function AffordPage() {
 				}
 			/>
 			<div className="grid gap-6">
-				<nav aria-label="What to check" className="flex gap-1">
+				<LinkTabs aria-label="What to check">
 					{kinds.map((k) => (
-						<Link
-							key={k}
-							to="/explore/afford"
-							search={{ kind: k }}
-							aria-current={k === kind ? "page" : undefined}
-							className={cn(
-								"rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground",
-								"aria-[current=page]:bg-card aria-[current=page]:text-foreground aria-[current=page]:shadow-card aria-[current=page]:ring-1 aria-[current=page]:ring-border",
-							)}
-						>
-							{kindName[k]}
-						</Link>
+						<LinkTab key={k} asChild>
+							<Link
+								activeOptions={{ exact: true }}
+								to="/explore/afford"
+								search={{ kind: k }}
+								aria-current={k === kind ? "page" : undefined}
+							>
+								{kindName[k]}
+							</Link>
+						</LinkTab>
 					))}
-				</nav>
+				</LinkTabs>
 				{context.plan.baseline === 0 ? (
 					<Card role="note" className="grid justify-items-start gap-2 p-(--card-pad) text-sm">
 						<p className="font-medium">Set up the Plan first</p>

@@ -2,7 +2,7 @@ import type { MonthKey, PlanPart } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { PageHeader } from "@noodle/ui/components/page-header";
-import { cn } from "@noodle/ui/lib/utils";
+import { LinkTab, LinkTabs } from "@noodle/ui/components/tabs";
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft } from "lucide-react";
 import type { ReactNode } from "react";
@@ -16,67 +16,71 @@ export type PlanPage = "overview" | "income" | "commitments" | "buckets" | "goal
  * lives and go between them (the overview's rows lead there too). Styled like tabs; each is a link.
  */
 export function PlanNav({ month, page }: { month: MonthKey; page: PlanPage }) {
-	const link = (key: PlanPage) =>
-		cn(
-			"inline-flex h-8 shrink-0 items-center rounded-md px-3 text-[13px] font-medium text-muted-foreground",
-			"transition-colors duration-(--duration-fast) ease-standard hover:text-foreground",
-			"focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-			key === page && "bg-card text-foreground shadow-card",
-		);
 	const current = (key: PlanPage) => (key === page ? ("page" as const) : undefined);
+	const year = month.slice(0, 4);
 	return (
-		<nav aria-label="Plan pages" className="mb-6 max-w-full overflow-x-auto">
-			<div className="inline-flex gap-0.5 rounded-lg bg-surface-2 p-0.5">
+		<LinkTabs aria-label="Plan pages" className="mb-6">
+			<LinkTab asChild>
 				<Link
+					activeOptions={{ exact: true }}
 					to="/plan/$month"
 					params={{ month }}
-					className={link("overview")}
 					aria-current={current("overview")}
 				>
 					Overview
 				</Link>
+			</LinkTab>
+			<LinkTab asChild>
 				<Link
+					activeOptions={{ exact: true }}
 					to="/plan/$month/income"
 					params={{ month }}
-					className={link("income")}
 					aria-current={current("income")}
 				>
 					Income
 				</Link>
+			</LinkTab>
+			<LinkTab asChild>
 				<Link
+					activeOptions={{ exact: true }}
 					to="/plan/$month/commitments"
 					params={{ month }}
-					className={link("commitments")}
 					aria-current={current("commitments")}
 				>
 					Commitments
 				</Link>
+			</LinkTab>
+			<LinkTab asChild>
 				<Link
+					activeOptions={{ exact: true }}
 					to="/plan/$month/buckets"
 					params={{ month }}
-					className={link("buckets")}
 					aria-current={current("buckets")}
 				>
 					Buckets
 				</Link>
+			</LinkTab>
+			<LinkTab asChild>
 				<Link
+					activeOptions={{ exact: true }}
 					to="/plan/$month/goals"
 					params={{ month }}
-					className={link("goals")}
 					aria-current={current("goals")}
 				>
 					Goal funding
 				</Link>
+			</LinkTab>
+			<LinkTab asChild>
 				<Link
+					activeOptions={{ exact: true }}
 					to="/plan/year/$year"
-					params={{ year: month.slice(0, 4) }}
-					className={link("year")}
+					params={{ year }}
 					aria-current={current("year")}
 				>
 					Year
 				</Link>
-			</div>
-		</nav>
+			</LinkTab>
+		</LinkTabs>
 	);
 }
 
