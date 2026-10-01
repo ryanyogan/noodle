@@ -53,6 +53,14 @@ export function useDecidePerkSource() {
 					action: { label: "Retry", onClick: () => decide.mutate(decision) },
 				},
 			),
+		onSuccess: (_data, { source, status }) =>
+			toast(
+				status === "confirmed"
+					? `${source.name} added to Perk Sources`
+					: source.status === "suggested"
+						? `${source.name} won’t be suggested again`
+						: `${source.name} removed`,
+			),
 		onSettled: refetch,
 	});
 	return decide;

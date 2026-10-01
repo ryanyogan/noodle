@@ -108,10 +108,40 @@ function PrivateBadge({ source }: { source: PerkSourceItem }) {
 	) : null;
 }
 
+/**
+ * Where focus goes once a suggestion is decided and its row is gone: the next suggestion, else
+ * the Perk Sources heading (or the one above the list), never the page's body.
+ */
+function focusAfter(next: HTMLElement | null) {
+	const target =
+		next?.querySelector<HTMLElement>("button:not([disabled])") ??
+		document.getElementById("perk-sources") ??
+		document.getElementById("perks-to-confirm");
+	if (!target) return;
+	if (!target.matches("button, a, input")) target.tabIndex = -1;
+	target.focus();
+}
+
 function Suggestion({ source }: { source: PerkSourceItem }) {
 	const decide = useDecidePerkSource();
 	const hydrated = useHydrated();
 	const busy = !hydrated || decide.isPending;
+	const decideAndMoveOn = (status: "confirmed" | "dismissed", button: HTMLElement) => {
+		const row = button.closest("li");
+		const next = (row?.nextElementSibling ?? row?.previousElementSibling) as HTMLElement | null;
+		decide
+			.mutateAsync({ source, status })
+			// Once the list has refetched without this row (a few frames, at most a second).
+			.then(() => {
+				let frames = 60;
+				const settle = () => {
+					if (row?.isConnected && frames-- > 0) requestAnimationFrame(settle);
+					else focusAfter(next?.isConnected ? next : null);
+				};
+				settle();
+			})
+			.catch(() => {});
+	};
 	return (
 		<ListRow
 			aria-label={source.name}
@@ -129,14 +159,14 @@ function Suggestion({ source }: { source: PerkSourceItem }) {
 						variant="ghost"
 						size="sm"
 						disabled={busy}
-						onClick={() => decide.mutate({ source, status: "dismissed" })}
+						onClick={(event) => decideAndMoveOn("dismissed", event.currentTarget)}
 					>
 						Not ours
 					</Button>
 					<Button
 						size="sm"
 						disabled={busy}
-						onClick={() => decide.mutate({ source, status: "confirmed" })}
+						onClick={(event) => decideAndMoveOn("confirmed", event.currentTarget)}
 					>
 						<Check />
 						Confirm

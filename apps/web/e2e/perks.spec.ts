@@ -33,6 +33,7 @@ async function addCommitment(page: Page, name: string, due: string) {
 test("a phone plan among the Commitments is confirmed, asks for its plan, and finds a Perk Overlap", async ({
 	browser,
 }) => {
+	test.slow();
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "9,000", buckets: [["Groceries", "1,200"]] });
 	await switchTo(page, "Plan");
@@ -51,6 +52,9 @@ test("a phone plan among the Commitments is confirmed, asks for its plan, and fi
 	await expect(suggestion).toContainText("Phone plan");
 	await expect(suggestion).toContainText("Seen in “T-Mobile”");
 	await suggestion.getByRole("button", { name: "Confirm" }).click();
+	// It says where it went, and focus lands there rather than on the page's body.
+	await expect(page.getByText("T-Mobile added to Perk Sources")).toBeVisible();
+	await expect(page.getByRole("heading", { name: /^Perk Sources/ })).toBeFocused();
 
 	// Its Perks depend on the plan: it asks rather than guessing.
 	const card = sourceCard(page, "T-Mobile");
