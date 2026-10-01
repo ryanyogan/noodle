@@ -18,7 +18,7 @@ import { NativeSelect } from "@noodle/ui/components/native-select";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
 import { useHydrated } from "@tanstack/react-router";
-import { Pencil, Plus, X } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
 import { monogram } from "../buckets";
@@ -290,22 +290,25 @@ function CommitmentDetails({
 					onScopeChange={setScope}
 				/>
 				<CommitmentFormErrors errors={errors} />
-				<div className="flex flex-wrap items-center gap-2">
-					<Button type="submit" disabled={!hydrated}>
-						Save
-					</Button>
-					<Button
-						type="button"
-						variant="ghost"
-						className="ms-auto"
-						disabled={!hydrated}
-						onClick={() => setConfirmEnd(true)}
-					>
-						<X />
-						End
-					</Button>
-				</div>
+				<Button type="submit" disabled={!hydrated}>
+					Save
+				</Button>
 			</form>
+			{/* Apart from Save, as the Bucket sheet's Archive is: it asks first, in an AlertDialog. */}
+			<div className="mt-2 flex items-center justify-between gap-3 border-t pt-4">
+				<p className="text-[13px] text-muted-foreground">
+					Ending takes it out of the Plan from {monthName(month)} on.
+				</p>
+				<Button
+					type="button"
+					variant="destructive"
+					size="sm"
+					disabled={!hydrated}
+					onClick={() => setConfirmEnd(true)}
+				>
+					End
+				</Button>
+			</div>
 			{confirmEnd ? (
 				<Confirm
 					onConfirm={() => onEnd(commitment.id)}
