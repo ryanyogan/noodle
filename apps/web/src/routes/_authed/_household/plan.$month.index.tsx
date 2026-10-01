@@ -18,7 +18,7 @@ import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { Check, ChevronRight } from "lucide-react";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
-import { ComingUp, LumpCallout } from "../../../components/coming-up";
+import { ComingUpSummary, LumpCallout } from "../../../components/coming-up";
 import { AmountInput } from "../../../components/goals";
 import { MonthLinks, MonthTopRow, monthTitle, useMonthSwipe } from "../../../components/month-nav";
 import { PlanDraftSection } from "../../../components/plan-draft";
@@ -86,7 +86,7 @@ function PlanOverview() {
 					<LumpCallout lumps={lumpsIn(state)} month={month} />
 					<YearLink month={month} />
 				</div>
-				{month === current ? <ComingUp /> : null}
+				{month === current ? <ComingUpSummary /> : null}
 				<WhatChanged month={month} />
 			</div>
 		</div>

@@ -10,7 +10,6 @@ import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
-import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Tile } from "@noodle/ui/components/tile";
 import { Link, useHydrated } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
@@ -37,12 +36,20 @@ function progress({ dueDates, charges }: CommitmentState) {
 	return next ? `${charges} of ${dueDates.length} paid · next due ${shortDay(next)}` : "Paid";
 }
 
+/** What the month's Commitments have been paid, against what's expected: "$2,630 of $2,580 paid". */
+export function commitmentsPaid(commitments: CommitmentState[]): string | null {
+	if (commitments.length === 0) return null;
+	const paid = commitments.reduce((sum, c) => sum + c.actual, 0);
+	const expected = commitments.reduce((sum, c) => sum + c.expected, 0);
+	return `${formatMoney(paid)} of ${formatMoney(expected)} paid`;
+}
+
 /**
  * The month's Commitments, each with what's been paid against what's expected. A charge that
  * differs from the expected amount is flagged. In the current month, a payment can be recorded.
- * Those not due this month are collapsed under "Not this month".
+ * Those not due this month are collapsed under "Not this month". Bills (This Month) holds it.
  */
-export function Commitments({
+export function CommitmentsList({
 	month,
 	asOf,
 	commitments,
@@ -58,22 +65,8 @@ export function Commitments({
 	// Owned here, not by a row, so a failed payment's Retry outlives the row's form.
 	const payment = useCommitmentPayment();
 	const canPay = monthOfDay(asOf) === month;
-	const paid = commitments.reduce((sum, c) => sum + c.actual, 0);
-	const expected = commitments.reduce((sum, c) => sum + c.expected, 0);
 	return (
-		<Section aria-labelledby="commitments">
-			<SectionHeader
-				id="commitments"
-				title="Commitments"
-				count={commitments.length}
-				action={
-					commitments.length > 0 ? (
-						<span className="text-[13px] text-muted-foreground tabular-nums">
-							{formatMoney(paid)} of {formatMoney(expected)} paid
-						</span>
-					) : undefined
-				}
-			/>
+		<>
 			{commitments.length > 0 ? (
 				<List>
 					{commitments.map((commitment) => (
@@ -97,7 +90,7 @@ export function Commitments({
 				</List>
 			) : null}
 			{notDue.length > 0 ? <NotThisMonth month={month} commitments={notDue} /> : null}
-		</Section>
+		</>
 	);
 }
 

@@ -233,9 +233,12 @@ function ThisMonth({ bucket }: { bucket: BucketState }) {
 					<span className="text-[2.25rem] font-[650] leading-[1.05] tracking-[-0.035em] tabular-nums">
 						{formatMoney(Math.max(0, bucket.left))}
 					</span>
-					<span className="text-sm text-muted-foreground tabular-nums">
-						of {formatMoney(bucket.available)}
-					</span>
+					{/* Below zero, "of −$1,035" says nothing: the parts beneath explain it instead. */}
+					{bucket.available >= 0 ? (
+						<span className="text-sm text-muted-foreground tabular-nums">
+							of {formatMoney(bucket.available)}
+						</span>
+					) : null}
 				</p>
 				<Meter
 					bucket={asBucketColor(bucket.color)}

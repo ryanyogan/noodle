@@ -26,7 +26,9 @@ test("a new Parent signs in, creates a Household, and lands on an empty This Mon
 		await expect(page).toHaveURL(/\/month\/\d{4}-\d{2}$/);
 		await expect(page.getByRole("heading", { level: 1 })).toContainText("This Month");
 		await expect(page.getByText("The Testers")).toBeVisible();
-		await expect(page.getByText(/Nothing planned yet/)).toBeVisible();
+		await expect(page.getByRole("region", { name: "Get started" })).toContainText(
+			"Set your take-home pay",
+		);
 
 		// A Parent with a Household never sees the create step again.
 		await page.goto("/welcome");

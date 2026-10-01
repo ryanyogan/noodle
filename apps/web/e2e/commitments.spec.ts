@@ -186,9 +186,7 @@ test("a payment that differs from what's expected is flagged", async ({ browser 
 	await expect(phone).toHaveAccessibleName("Phone: $80 paid of $80 expected");
 	await expect(phone).toContainText("Paid");
 	await expect(phone.getByRole("button", { name: "Record payment" })).toHaveCount(0);
-	await expect(page.getByRole("region", { name: "Commitments" })).toContainText(
-		"$2,630 of $2,580 paid",
-	);
+	await expect(page.getByRole("region", { name: "Bills" })).toContainText("$2,630 of $2,580 paid");
 
 	// A payment is already-planned money: Free to Spend doesn't move.
 	await expect(

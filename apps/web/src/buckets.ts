@@ -40,5 +40,9 @@ export function availableParts(
 			: amount < 0
 				? ` − ${formatMoney(-amount)} ${lost}`
 				: "";
+	// Overspent by more than this month's allowance: a negative "of" means nothing to a beginner.
+	if (bucket.allowance + bucket.rolledOver + bucket.moved < 0 && bucket.rolledOver < 0) {
+		return `Started ${formatMoney(-bucket.rolledOver)} short from last month · ${formatMoney(bucket.allowance)} planned${part(bucket.moved, "moved in", "moved out")}`;
+	}
 	return `${formatMoney(bucket.allowance)} planned${part(bucket.rolledOver, "carried over", "overspent last month")}${part(bucket.moved, "moved in", "moved out")}`;
 }

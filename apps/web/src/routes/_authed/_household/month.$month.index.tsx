@@ -30,14 +30,23 @@ import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarDays, ChevronRight, History, Lightbulb, ListChecks } from "lucide-react";
+import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
+import {
+	CalendarCheck,
+	CalendarDays,
+	Check,
+	ChevronRight,
+	HeartPulse,
+	History,
+	Lightbulb,
+	ListChecks,
+} from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, availableParts, monogram } from "../../../buckets";
-import { ComingUp, LumpCallout } from "../../../components/coming-up";
-import { Commitments } from "../../../components/commitment-list";
-import { ALittleOver, CoverSheet, CoversInto, sourceName } from "../../../components/cover";
+import { Bills } from "../../../components/bills";
+import { LumpCallout } from "../../../components/coming-up";
+import { CoverSheet, CoversInto, sourceName } from "../../../components/cover";
 import {
 	ExtraIncomeSection,
 	ExtraIncomeSheet,
@@ -51,13 +60,15 @@ import { planParts } from "../../../components/plan-page";
 import { TermHelp } from "../../../components/term-help";
 import { type CoverVariables, useCovers } from "../../../covers";
 import { useExtraIncomes, useIncome } from "../../../extra-income";
-import { formatMoney, shortDay } from "../../../format";
+import { formatMoney, monthName, shortDay } from "../../../format";
 import { type GoalView, useGoals } from "../../../goals";
 import { closingWeek, useCloseMonth } from "../../../month-close";
 import {
+	checkInStatusQuery,
 	commitmentsQuery,
 	insightsQuery,
 	membersQuery,
+	planHealthQuery,
 	planHistoryQuery,
 	reviewQuery,
 	useMonthState,
@@ -96,8 +107,11 @@ function ThisMonth() {
 	const over = canCover
 		? state.buckets.filter((b) => b.status === "over" && canAssign(b, parentId))
 		: [];
-	const buckets = state.buckets.filter((b) => b.owner === undefined);
-	const allowances = state.buckets.filter((b) => b.owner !== undefined);
+	// Overspent Buckets first, each with its Cover on the row: one place says it's over.
+	const overFirst = (list: BucketState[]) =>
+		[...list].sort((a, b) => Number(b.status === "over") - Number(a.status === "over"));
+	const buckets = overFirst(state.buckets.filter((b) => b.owner === undefined));
+	const allowances = overFirst(state.buckets.filter((b) => b.owner !== undefined));
 	const bucketRow = (bucket: BucketState) => {
 		const mine = canAssign(bucket, parentId);
 		const covers = state.moves.filter((m) => m.toBucketId === bucket.id);
@@ -105,6 +119,7 @@ function ThisMonth() {
 			<BucketRow
 				key={bucket.id}
 				bucket={bucket}
+				onCover={over.includes(bucket) ? () => setCovering(bucket.id) : undefined}
 				// Only the other Parent's Personal Allowance is private; its totals are all there is.
 				private={!mine}
 				covers={
@@ -185,6 +200,8 @@ function ThisMonth() {
 							emergencyGoalId={goals.emergencyGoalId}
 						/>
 					) : null}
+					{month === current ? <GetStarted state={state} /> : null}
+					{month === current ? <CheckInToday /> : null}
 					{month === current ? <Chips month={month} asOf={state.asOf} /> : null}
 					<div className="grid gap-3">
 						<FreeToSpend state={state} check={check} />
@@ -217,9 +234,6 @@ function ThisMonth() {
 							}
 						/>
 					) : null}
-					{over.length > 0 ? (
-						<ALittleOver buckets={over} onCover={(bucket) => setCovering(bucket.id)} />
-					) : null}
 					{buckets.length > 0 ? (
 						<Section aria-labelledby="buckets">
 							<SectionHeader
@@ -249,13 +263,18 @@ function ThisMonth() {
 						</Section>
 					) : null}
 					{month === current && activeGoals.length > 0 ? (
-						<GoalsThisMonth month={month} goals={activeGoals} funded={state.fundedGoals} />
+						<GoalsThisMonth
+							month={month}
+							goals={activeGoals}
+							funded={state.fundedGoals}
+							freeToSpend={state.freeToSpend}
+						/>
 					) : null}
-					{month === current ? <ComingUp /> : null}
 					{state.commitments.length > 0 ? (
-						<Commitments
+						<Bills
 							month={month}
 							asOf={state.asOf}
+							current={month === current}
 							commitments={commitments}
 							notDue={notDue}
 						/>
@@ -277,6 +296,10 @@ function ThisMonth() {
 							}
 						/>
 					) : null}
+				</div>
+			) : month === current ? (
+				<div className="grid max-w-2xl gap-8">
+					<GetStarted state={state} />
 				</div>
 			) : (
 				<EmptyState
@@ -342,8 +365,9 @@ function ThisMonth() {
 
 /**
  * Chips above Free to Spend: "3 to review", when imported Transactions wait in Review, and in the
- * month's first week "2 Plan changes this month", linking to the Plan's What changed, and
- * "2 new Insights" when the nightly look found some. Nothing when none applies.
+ * month's first week "2 Plan changes this month", linking to the Plan's What changed, "2 new
+ * Insights" when the nightly look found some, and "4 things to check in the Plan" when Plan
+ * health has warnings (shown in full only on the Plan). Nothing when none applies.
  */
 function Chips({ month, asOf }: { month: MonthKey; asOf: DayKey }) {
 	const waiting = useQuery(reviewQuery()).data?.total ?? 0;
@@ -351,7 +375,8 @@ function Chips({ month, asOf }: { month: MonthKey; asOf: DayKey }) {
 	const history = useQuery({ ...planHistoryQuery(month), enabled: firstWeek }).data;
 	const changes = firstWeek && history ? whatChanged(history.changes, month).length : 0;
 	const insights = useQuery(insightsQuery()).data?.filter((i) => i.status === "new").length ?? 0;
-	if (waiting === 0 && changes === 0 && insights === 0) return null;
+	const health = useQuery(planHealthQuery()).data?.warnings.length ?? 0;
+	if (waiting === 0 && changes === 0 && insights === 0 && health === 0) return null;
 	return (
 		<div className="-mb-3 flex flex-wrap gap-2">
 			{waiting > 0 ? (
@@ -367,6 +392,11 @@ function Chips({ month, asOf }: { month: MonthKey; asOf: DayKey }) {
 			{insights > 0 ? (
 				<Chip to="/insights" icon={Lightbulb}>
 					{insights === 1 ? "1 new Insight" : `${insights} new Insights`}
+				</Chip>
+			) : null}
+			{health > 0 ? (
+				<Chip to="/plan/$month" params={{ month }} hash="plan-health" icon={HeartPulse}>
+					{health === 1 ? "1 thing to check in the Plan" : `${health} things to check in the Plan`}
 				</Chip>
 			) : null}
 		</div>
@@ -445,6 +475,8 @@ function ClosePreviousMonth({
  */
 function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck | null }) {
 	const overPlanned = state.freeToSpend < 0;
+	// An ended month has no days left, and what wasn't planned is simply what it ended with.
+	const ended = state.month < monthOfDay(state.asOf);
 	// "In Buckets" counts Personal Allowances, which the breakdown above lists on their own.
 	const { personalAllowances } = allowancesByKind(state);
 	return (
@@ -476,6 +508,8 @@ function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck |
 							{formatMoney(-state.freeToSpend)} more than your take-home pay.{" "}
 							<PlanLink month={state.month}>Adjust the Plan</PlanLink>
 						</>
+					) : ended ? (
+						<>Left unplanned at the end of {monthName(state.month)}</>
 					) : (
 						<>Not planned for anything yet · yours until {shortDay(lastDayOf(state.month))}</>
 					)}
@@ -488,7 +522,7 @@ function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck |
 				) : null}
 			</div>
 			{state.baseline === null ? null : <Breakdown state={state} baseline={state.baseline} />}
-			<dl className="grid grid-cols-3 border-t">
+			<dl className={cn("grid border-t", ended ? "grid-cols-2" : "grid-cols-3")}>
 				<Stat
 					label="In Buckets"
 					value={formatMoney(state.planned)}
@@ -499,7 +533,7 @@ function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck |
 					}
 				/>
 				<Stat label="Left in Buckets" value={formatMoney(state.leftInBuckets)} />
-				<Stat label="Days left" value={String(state.daysLeft)} />
+				{ended ? null : <Stat label="Days left" value={String(state.daysLeft)} />}
 			</dl>
 		</Card>
 	);
@@ -570,10 +604,13 @@ function PlanLink({ month, children }: { month: MonthState["month"]; children: s
 function BucketRow({
 	bucket,
 	covers,
+	onCover,
 	private: isPrivate = false,
 }: {
 	bucket: BucketState;
 	covers?: ReactNode;
+	/** Covers it, when it's overspent and the Parent may. */
+	onCover?: () => void;
 	/** The other Parent's Personal Allowance: its totals only (its page shows no more). */
 	private?: boolean;
 }) {
@@ -618,9 +655,12 @@ function BucketRow({
 			trailing={
 				<>
 					<span className="text-sm font-semibold tabular-nums">{formatMoney(left)}</span>
-					<span className="text-xs text-subtle-foreground tabular-nums">
-						of {formatMoney(bucket.available)}
-					</span>
+					{/* Below zero, "of −$1,035" says nothing: its parts beneath explain it instead. */}
+					{bucket.available >= 0 ? (
+						<span className="text-xs text-subtle-foreground tabular-nums">
+							of {formatMoney(bucket.available)}
+						</span>
+					) : null}
 				</>
 			}
 			below={
@@ -633,8 +673,148 @@ function BucketRow({
 					/>
 					{parts ? <p className="text-xs text-muted-foreground tabular-nums">{parts}</p> : null}
 					{covers}
+					{onCover ? <CoverButton name={bucket.name} onCover={onCover} /> : null}
 				</div>
 			}
 		/>
+	);
+}
+
+/** Cover on an overspent Bucket's row: brings it back to $0 from somewhere with money left. */
+function CoverButton({ name, onCover }: { name: string; onCover: () => void }) {
+	const hydrated = useHydrated();
+	return (
+		<div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+			<Button
+				type="button"
+				variant="outline"
+				size="sm"
+				disabled={!hydrated}
+				aria-label={`Cover ${name}`}
+				onClick={onCover}
+			>
+				Cover
+			</Button>
+			<span className="flex items-center gap-1 text-xs text-muted-foreground">
+				Bring it back to $0 from another Bucket or Free to Spend.
+				<TermHelp term="cover" />
+			</span>
+		</div>
+	);
+}
+
+/** On the Check-in day, until this Parent has done it: a card that starts this week's Check-in. */
+function CheckInToday() {
+	const status = useQuery(checkInStatusQuery()).data;
+	if (!status?.today || status.done) return null;
+	return (
+		<Card className="flex flex-wrap items-center justify-between gap-3 p-(--card-pad)">
+			<div className="flex items-center gap-3">
+				<Tile aria-hidden="true">
+					<CalendarCheck />
+				</Tile>
+				<div className="grid gap-0.5">
+					<h2 className="text-sm font-semibold">It’s Check-in day</h2>
+					<p className="text-[13px] text-muted-foreground">
+						A few minutes: confirm spending, look at suggestions, decide leftovers.
+					</p>
+				</div>
+			</div>
+			<Button asChild size="sm">
+				<Link to="/check-in">Start the Check-in</Link>
+			</Button>
+		</Card>
+	);
+}
+
+/**
+ * Get started (#47): after Welcome, the steps to a working Plan, each ticked when done and linking
+ * to where it's done. Gone once every step is.
+ */
+function GetStarted({ state }: { state: MonthState }) {
+	const { accounts } = useGoals();
+	const members = useSuspenseQuery(membersQuery()).data;
+	const parents = members.filter((m) => m.kind === "parent" && !m.removed).length;
+	const steps: { done: boolean; title: string; link: ReactNode }[] = [
+		{
+			done: state.baseline !== null,
+			title: "Set your take-home pay",
+			link: (
+				<Link to="/plan/$month" params={{ month: state.month }}>
+					Set up the Plan
+				</Link>
+			),
+		},
+		{
+			done: state.buckets.length > 0,
+			title: "Add Buckets for everyday spending",
+			link: (
+				<Link to="/plan/$month/buckets" params={{ month: state.month }}>
+					Add Buckets
+				</Link>
+			),
+		},
+		{
+			done: accounts.length > 0,
+			title: "Add an Account or a bank",
+			link: <Link to="/accounts">Add an Account</Link>,
+		},
+		{
+			done: parents > 1,
+			title: "Invite the other Parent",
+			link: (
+				<Link to="/household" hash="invite">
+					Invite
+				</Link>
+			),
+		},
+	];
+	const left = steps.filter((step) => !step.done).length;
+	if (left === 0) return null;
+	return (
+		<Section aria-labelledby="get-started">
+			<SectionHeader
+				id="get-started"
+				title="Get started"
+				action={
+					<span className="text-[13px] text-muted-foreground tabular-nums">
+						{steps.length - left} of {steps.length} done
+					</span>
+				}
+			/>
+			<List aria-label="Steps to get started">
+				{steps.map((step) => (
+					<ListRow
+						key={step.title}
+						aria-label={`${step.title}${step.done ? ", done" : ""}`}
+						leading={
+							<span
+								aria-hidden="true"
+								className={cn(
+									"grid size-6 place-items-center rounded-full border text-xs",
+									step.done
+										? "border-transparent bg-foreground text-card"
+										: "border-border-strong text-transparent",
+								)}
+							>
+								<Check className="size-3.5" strokeWidth={2.5} />
+							</span>
+						}
+						title={
+							<span className={cn(step.done && "text-muted-foreground line-through")}>
+								{step.title}
+							</span>
+						}
+						trailing={
+							step.done ? null : (
+								<Button asChild variant="outline" size="sm">
+									{step.link}
+								</Button>
+							)
+						}
+					/>
+				))}
+			</List>
+		</Section>
 	);
 }

@@ -8,8 +8,6 @@ import {
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Input } from "@noodle/ui/components/input";
-import { List, ListRow } from "@noodle/ui/components/list";
-import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
@@ -18,57 +16,10 @@ import { Wallet } from "lucide-react";
 import { type CSSProperties, useId, useState } from "react";
 import { asBucketColor, monogram } from "../buckets";
 import { formatMoney, formatMoneyInput } from "../format";
-import { TermHelp } from "./term-help";
 
 /** What a Cover's source is called: a Bucket's name, or Free to Spend. */
 export const sourceName = (bucket: Pick<BucketState, "name"> | null | undefined) =>
 	bucket ? bucket.name : "Free to Spend";
-
-/**
- * Overspent Buckets, said calmly, each with a way to Cover it: overspending happens, and moving
- * money from somewhere with some left is the fix.
- */
-export function ALittleOver({
-	buckets,
-	onCover,
-}: {
-	buckets: BucketState[];
-	onCover: (bucket: BucketState) => void;
-}) {
-	const hydrated = useHydrated();
-	return (
-		<Section aria-labelledby="a-little-over">
-			<SectionHeader
-				id="a-little-over"
-				title="A little over"
-				count={buckets.length}
-				help={<TermHelp term="cover" />}
-			/>
-			<List>
-				{buckets.map((bucket) => (
-					<ListRow
-						key={bucket.id}
-						leading={<Tile bucket={asBucketColor(bucket.color)}>{monogram(bucket.name)}</Tile>}
-						title={bucket.name}
-						meta={`${formatMoney(-bucket.left)} over its ${formatMoney(bucket.available)}`}
-						trailing={
-							<Button
-								variant="outline"
-								size="sm"
-								type="button"
-								disabled={!hydrated}
-								aria-label={`Cover ${bucket.name}`}
-								onClick={() => onCover(bucket)}
-							>
-								Cover
-							</Button>
-						}
-					/>
-				))}
-			</List>
-		</Section>
-	);
-}
 
 /**
  * Covers an overspent Bucket: the amount it's over, unless the Parent changes it, from one of

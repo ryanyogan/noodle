@@ -14,7 +14,11 @@ test.afterEach(async () => {
 
 const waterfall = (page: Page) =>
 	page.getByRole("region", { name: "From take-home pay to Free to Spend" });
-const comingUp = (page: Page) => page.getByRole("region", { name: "Coming up" });
+const bills = (page: Page) => page.getByRole("region", { name: /^Bills/ });
+const comingUp = (page: Page) => bills(page).getByRole("tabpanel", { name: /^Coming up/ });
+/** Switches This Month's Bills to one of its views. */
+const billsView = (page: Page, view: RegExp) =>
+	bills(page).getByRole("tab", { name: view }).click();
 const addForm = (page: Page) => page.getByRole("form", { name: "Add a Commitment" });
 
 const monthName = (month: string) =>
@@ -65,17 +69,21 @@ test("Commitments show what's coming up, why a month is lumpy, and each one's pa
 	await expect(page.getByRole("note", { name: "Why Free to Spend is lower" })).toHaveText(
 		`Car insurance $1,140 is due in ${name}. That’s why ${name}’s Free to Spend is lower.`,
 	);
+	// Bills shows this month's first; Coming up is the next 30 days.
+	await billsView(page, /^Coming up/);
 	await expect(
 		comingUp(page).getByRole("listitem", { name: /^Car insurance, due .*, \$1,140$/ }),
 	).toBeVisible();
 	await expect(comingUp(page).getByText("Gym")).toHaveCount(0);
 
 	// Gym isn't due this month: it waits, collapsed, under "Not this month".
+	await billsView(page, /^This month/);
 	const gym = page.getByRole("link", { name: "Gym", exact: true });
 	await expect(gym).toBeHidden();
 	await page.getByText("Not this month").click();
 	await expect(gym).toBeVisible();
 
+	await billsView(page, /^Coming up/);
 	await comingUp(page).getByRole("link", { name: "Car insurance" }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toContainText("Car insurance");
 	const cost = page.getByRole("region", { name: "Cost a year" });

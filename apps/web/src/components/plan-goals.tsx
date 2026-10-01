@@ -104,19 +104,24 @@ export function PlanGoals({ state, title = "Goals" }: { state: MonthState; title
 /**
  * The Goals on This Month: each one's on track or behind, the months to its target date, and what
  * it's been funded this month against what it needs. The header totals the month's Goal funding
- * (`funded`, as the Free to Spend breakdown counts it) and what dated Goals still need. The Plan's
- * Goals page funds them.
+ * (`funded`, as the Free to Spend breakdown counts it) and what dated Goals still need. Each row
+ * funds its Goal here, as the Plan's Goals page does.
  */
 export function GoalsThisMonth({
 	month,
 	goals,
 	funded,
+	freeToSpend,
 }: {
 	month: MonthKey;
 	goals: GoalView[];
 	/** This month's Goal funding from Free to Spend, every Goal (MonthState.fundedGoals). */
 	funded: Cents;
+	/** What the Fund sheet can take from. */
+	freeToSpend: Cents;
 }) {
+	const { fund } = useGoalMoney();
+	const [funding, setFunding] = useState<GoalView | null>(null);
 	const needed = stillToFund(goals.map((g) => g.progress));
 	const summary = [
 		funded > 0 || needed === 0 ? `${formatMoney(funded)} funded` : null,
@@ -138,7 +143,7 @@ export function GoalsThisMonth({
 			/>
 			<List>
 				{goals.map((goal) => (
-					<GoalThisMonthRow key={goal.id} goal={goal} />
+					<GoalThisMonthRow key={goal.id} goal={goal} onFund={() => setFunding(goal)} />
 				))}
 			</List>
 			<Link
@@ -146,13 +151,31 @@ export function GoalsThisMonth({
 				params={{ month }}
 				className="justify-self-start px-1 text-[13px] font-medium text-muted-foreground underline decoration-border-strong underline-offset-3 hover:text-foreground hover:decoration-foreground"
 			>
-				Fund Goals in the Plan
+				Goals in the Plan
 			</Link>
+			<FundGoalSheet
+				goal={funding}
+				freeToSpend={freeToSpend}
+				onOpenChange={(open) => {
+					if (!open) setFunding(null);
+				}}
+				onFund={(goal, amountCents) => {
+					setFunding(null);
+					fund.mutate({
+						moveId: ulid(),
+						goalId: goal.id,
+						goalName: goal.name,
+						month,
+						amountCents,
+					});
+				}}
+			/>
 		</Section>
 	);
 }
 
-function GoalThisMonthRow({ goal }: { goal: GoalView }) {
+function GoalThisMonthRow({ goal, onFund }: { goal: GoalView; onFund: () => void }) {
+	const hydrated = useHydrated();
 	const { progress } = goal;
 	const payoff = goal.kind === "payoff";
 	const status =
@@ -199,23 +222,38 @@ function GoalThisMonthRow({ goal }: { goal: GoalView }) {
 			badge={status}
 			meta={meta.length > 0 ? meta.join(" · ") : undefined}
 			trailing={
-				progress.monthly !== null && progress.status !== "reached" ? (
-					<>
-						<span className="text-sm font-semibold tabular-nums">
-							{formatMoney(progress.fundedThisMonth)}
+				<div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-4">
+					{progress.monthly !== null && progress.status !== "reached" ? (
+						<span className="grid justify-items-end gap-0.5">
+							<span className="text-sm font-semibold tabular-nums">
+								{formatMoney(progress.fundedThisMonth)}
+							</span>
+							<span className="text-xs text-subtle-foreground tabular-nums">
+								of {formatMoney(progress.monthly)} this month
+							</span>
 						</span>
-						<span className="text-xs text-subtle-foreground tabular-nums">
-							of {formatMoney(progress.monthly)} this month
+					) : progress.fundedThisMonth > 0 ? (
+						<span className="grid justify-items-end gap-0.5">
+							<span className="text-sm font-semibold tabular-nums">
+								{formatMoney(progress.fundedThisMonth)}
+							</span>
+							<span className="text-xs text-subtle-foreground">funded this month</span>
 						</span>
-					</>
-				) : progress.fundedThisMonth > 0 ? (
-					<>
-						<span className="text-sm font-semibold tabular-nums">
-							{formatMoney(progress.fundedThisMonth)}
-						</span>
-						<span className="text-xs text-subtle-foreground">funded this month</span>
-					</>
-				) : undefined
+					) : null}
+					{/* A paid-off card needs no more payments; it's completed on its page. */}
+					{payoff && progress.status === "reached" ? null : (
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							disabled={!hydrated}
+							aria-label={`Fund ${goal.name}`}
+							onClick={onFund}
+						>
+							Fund
+						</Button>
+					)}
+				</div>
 			}
 		/>
 	);
