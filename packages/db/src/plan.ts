@@ -30,7 +30,7 @@ export async function loadPlanRecords(
 	householdId: string,
 	month: MonthKey,
 ): Promise<PlanRecords> {
-	const [baselineRows, bucketRows, allowanceRows, commitmentRows, termRows, rollingRows] =
+	const [takeHomePayRows, bucketRows, allowanceRows, commitmentRows, termRows, carriesOverRows] =
 		await db.batch([
 			db
 				.select({ month: baselines.month, amount: baselines.amountCents })
@@ -90,12 +90,12 @@ export async function loadPlanRecords(
 		]);
 	// Months and days are always written as MonthKeys and DayKeys by the functions that write them.
 	return {
-		baselines: baselineRows as PlanRecords["baselines"],
+		baselines: takeHomePayRows as PlanRecords["baselines"],
 		buckets: bucketRows as PlanRecords["buckets"],
 		allowances: allowanceRows as PlanRecords["allowances"],
 		commitments: commitmentRows as PlanRecords["commitments"],
 		commitmentTerms: termRows as PlanRecords["commitmentTerms"],
-		rolling: rollingRows as PlanRecords["rolling"],
+		rolling: carriesOverRows as PlanRecords["rolling"],
 	};
 }
 
@@ -104,10 +104,10 @@ type Ranged = { scope?: PlanScope; until?: MonthKey | null };
 
 const untilOf = (input: Ranged) => (input.until ? { until: input.until } : {});
 
-type BaselineInput = Author & { householdId: string; month: MonthKey; amountCents: Cents };
+type TakeHomePayInput = Author & { householdId: string; month: MonthKey; amountCents: Cents };
 
 /** The Plan change for setting the Baseline, written before it. */
-export const baselineLog = (db: Db, input: BaselineInput & Ranged) => {
+export const takeHomePayLog = (db: Db, input: TakeHomePayInput & Ranged) => {
 	const was = inForce(
 		baselines,
 		baselines.amountCents,
@@ -134,12 +134,12 @@ export const baselineLog = (db: Db, input: BaselineInput & Ranged) => {
  * goes back to the Baseline in force before, unless it has its own. Setting it again for the same
  * month replaces it.
  */
-export async function setBaseline(
+export async function setTakeHomePay(
 	db: Db,
-	input: BaselineInput & { scope?: PlanScope },
+	input: TakeHomePayInput & { scope?: PlanScope },
 ): Promise<void> {
 	const { householdId, month, amountCents } = input;
-	const log = baselineLog(db, input);
+	const log = takeHomePayLog(db, input);
 	const write = db
 		.insert(baselines)
 		.values({ householdId, month, amountCents })
@@ -491,7 +491,7 @@ export const allowanceWrite = (db: Db, input: AllowanceInput) =>
  * Sets a Bucket Rolling or Fresh-start from `month` onward, for the Parent `memberId`. Setting it
  * again for the same month replaces it.
  */
-export async function setRolling(
+export async function setCarriesOver(
 	db: Db,
 	input: {
 		householdId: string;

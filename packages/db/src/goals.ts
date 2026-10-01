@@ -53,7 +53,7 @@ const nowMs = sql<Date>`cast(unixepoch('subsec') * 1000 as integer)`;
  * Transactions and Splits spent from it. Mirrors earmarkOf in @noodle/domain (goals.test.ts holds
  * it to it).
  */
-export function earmarkSql(householdId: string, goalId: string | SQL): SQL {
+export function setAsideSql(householdId: string, goalId: string | SQL): SQL {
 	return sql`(coalesce((select sum(c.amount_cents) from earmark_claims c
 			where c.household_id = ${householdId} and c.goal_id = ${goalId}), 0)
 		+ coalesce((select sum(m.amount_cents) from moves m
@@ -382,7 +382,7 @@ export async function claimForGoal(
 		db,
 		input,
 		input.amountCents < 0
-			? sql`${earmarkSql(input.householdId, input.goalId)} >= ${-input.amountCents}`
+			? sql`${setAsideSql(input.householdId, input.goalId)} >= ${-input.amountCents}`
 			: undefined,
 	);
 	const [written] = await db
@@ -465,7 +465,7 @@ export async function undoGoalFunding(
 		and(
 			own,
 			// Correlated with the Move being deleted (the subqueries alias their own `moves`).
-			sql`${earmarkSql(input.householdId, sql.raw("moves.to_goal_id"))} >= ${sql.raw("moves.amount_cents")}`,
+			sql`${setAsideSql(input.householdId, sql.raw("moves.to_goal_id"))} >= ${sql.raw("moves.amount_cents")}`,
 		),
 	);
 	const [left] = await db.select({ id: moves.id }).from(moves).where(own);
@@ -519,7 +519,7 @@ export async function spendGoal(
 					and(
 						ownGoal(householdId, input.goalId),
 						isNull(goals.archivedAt),
-						sql`${earmarkSql(householdId, input.goalId)} >= ${input.amountCents}`,
+						sql`${setAsideSql(householdId, input.goalId)} >= ${input.amountCents}`,
 					),
 				),
 		)

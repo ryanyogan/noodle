@@ -25,10 +25,10 @@ import type { Db } from "./index";
 import {
 	allowanceLog,
 	allowanceWrite,
-	baselineLog,
 	bucketAdd,
 	bucketArchive,
 	changeableBucket,
+	takeHomePayLog,
 } from "./plan";
 import type { Author } from "./plan-log";
 import {
@@ -108,7 +108,7 @@ type ScenarioInput = {
  * Household's Scenario ID changes nothing.
  */
 function scenarioWrite(db: Db, input: ScenarioInput, applied: boolean) {
-	const levers = { version: SCENARIO_VERSION, levers: input.levers } as const;
+	const changes = { version: SCENARIO_VERSION, levers: input.levers } as const;
 	const now = sql`(unixepoch() * 1000)`;
 	const appliedBy = applied ? { appliedAt: now, appliedByMemberId: input.memberId } : {};
 	return db
@@ -117,7 +117,7 @@ function scenarioWrite(db: Db, input: ScenarioInput, applied: boolean) {
 			id: input.scenarioId,
 			householdId: input.householdId,
 			name: input.name,
-			levers,
+			levers: changes,
 			createdByMemberId: input.memberId,
 			...appliedBy,
 		})
@@ -125,7 +125,7 @@ function scenarioWrite(db: Db, input: ScenarioInput, applied: boolean) {
 			target: scenarios.id,
 			set: {
 				name: input.name,
-				levers,
+				levers: changes,
 				updatedAt: sql`case when ${scenarios.name} is excluded.name and ${scenarios.levers} is excluded.levers then ${scenarios.updatedAt} else ${now} end`,
 				...appliedBy,
 			},
@@ -151,7 +151,7 @@ export async function deleteScenario(
 }
 
 /** A Lever that can't be applied (see whyNotApplicable); nothing was written. */
-export class LeverNotApplicable extends Error {}
+export class ChangeNotApplicable extends Error {}
 
 type Batch = BatchItem<"sqlite">[];
 
@@ -168,7 +168,7 @@ type Batch = BatchItem<"sqlite">[];
  * upgraded first. With `scenario`, the Scenario `scenarioId` is saved as it is and marked
  * applied by `memberId` in the same batch.
  */
-export async function applyLevers(
+export async function applyChanges(
 	db: Db,
 	input: {
 		householdId: string;
@@ -183,19 +183,19 @@ export async function applyLevers(
 ): Promise<void> {
 	const { householdId, memberId, month, scenarioId, scenario } = input;
 	const author: Author = { memberId, source: "scenario", scenarioId: scenarioId ?? null };
-	const levers = upgradeLevers(input.levers, month).filter((l) => !l.muted && !isAssumption(l));
-	for (const lever of levers) {
-		const why = whyNotApplicable(lever, month);
-		if (why !== null) throw new LeverNotApplicable(why);
+	const changes = upgradeLevers(input.levers, month).filter((l) => !l.muted && !isAssumption(l));
+	for (const change of changes) {
+		const why = whyNotApplicable(change, month);
+		if (why !== null) throw new ChangeNotApplicable(why);
 	}
 
 	// A Commitment's new terms build on the terms in force when they start, read here and
 	// written only if no one changed them in between.
-	const termLevers = levers.filter(
+	const termChanges = changes.filter(
 		(l): l is LeverOf<"commitment-terms"> => l.kind === "commitment-terms",
 	);
 	const termRows =
-		termLevers.length === 0
+		termChanges.length === 0
 			? []
 			: await db
 					.select({
@@ -211,7 +211,7 @@ export async function applyLevers(
 							eq(commitmentTerms.householdId, householdId),
 							inArray(
 								commitmentTerms.commitmentId,
-								termLevers.map((l) => l.commitmentId),
+								termChanges.map((l) => l.commitmentId),
 							),
 						),
 					);
@@ -220,51 +220,51 @@ export async function applyLevers(
 	if (scenarioId && scenario) {
 		writes.push(scenarioWrite(db, { householdId, memberId, scenarioId, ...scenario }, true));
 	}
-	for (const lever of levers) {
-		const range = rangeFrom(lever, month);
+	for (const change of changes) {
+		const range = rangeFrom(change, month);
 		if (range === null) continue;
 		const { from, until } = range;
 		// Each Plan change goes in the batch just before its write.
 		const logged = { ...author, householdId, month: from, scope: scopeOf(from, until), until };
-		switch (lever.kind) {
+		switch (change.kind) {
 			case "baseline":
-				writes.push(baselineLog(db, { ...logged, amountCents: lever.amount }));
-				if (until !== null) writes.push(baselineBack(db, householdId, until));
+				writes.push(takeHomePayLog(db, { ...logged, amountCents: change.amount }));
+				if (until !== null) writes.push(takeHomePayBack(db, householdId, until));
 				writes.push(
 					db
 						.insert(baselines)
-						.values({ householdId, month: from, amountCents: lever.amount })
+						.values({ householdId, month: from, amountCents: change.amount })
 						.onConflictDoUpdate({
 							target: [baselines.householdId, baselines.month],
-							set: { amountCents: lever.amount },
+							set: { amountCents: change.amount },
 						}),
 				);
 				break;
 			case "allowance": {
-				const bucket = { householdId, memberId, bucketId: lever.bucketId };
+				const bucket = { householdId, memberId, bucketId: change.bucketId };
 				writes.push(
-					allowanceLog(db, { ...logged, bucketId: lever.bucketId, amountCents: lever.amount }),
+					allowanceLog(db, { ...logged, bucketId: change.bucketId, amountCents: change.amount }),
 				);
 				if (until !== null) writes.push(allowanceBack(db, bucket, until));
-				writes.push(allowanceWrite(db, { ...bucket, month: from, amountCents: lever.amount }));
+				writes.push(allowanceWrite(db, { ...bucket, month: from, amountCents: change.amount }));
 				break;
 			}
 			case "commitment-terms": {
-				const rows = termRows.filter((r) => r.commitmentId === lever.commitmentId);
+				const rows = termRows.filter((r) => r.commitmentId === change.commitmentId);
 				const read = rows.reduce<(typeof rows)[number] | undefined>(
 					(found, r) => (r.month <= from && (!found || r.month > found.month) ? r : found),
 					undefined,
 				);
 				if (!read) break;
 				const was = read as { month: string } & CommitmentTerms;
-				const terms = changedTerms(was, lever, from);
+				const terms = changedTerms(was, change, from);
 				const guard = termsGuard({ from, read: was });
 				writes.push(
 					termsLog(
 						db,
 						{
 							...logged,
-							commitmentId: lever.commitmentId,
+							commitmentId: change.commitmentId,
 							amountCents: terms.amount,
 							cadence: terms.cadence,
 							dueDate: terms.dueDate,
@@ -272,9 +272,9 @@ export async function applyLevers(
 						guard,
 					),
 				);
-				if (until !== null) writes.push(termsBack(db, householdId, lever.commitmentId, until));
+				if (until !== null) writes.push(termsBack(db, householdId, change.commitmentId, until));
 				writes.push(
-					termsWrite(db, { householdId, commitmentId: lever.commitmentId, from, guard, terms }),
+					termsWrite(db, { householdId, commitmentId: change.commitmentId, from, guard, terms }),
 				);
 				break;
 			}
@@ -283,25 +283,25 @@ export async function applyLevers(
 					...commitmentEnd(db, {
 						...author,
 						householdId,
-						commitmentId: lever.commitmentId,
+						commitmentId: change.commitmentId,
 						month: from,
 					}),
 				);
 				break;
 			case "add-commitment": {
 				// Its term runs from the month it's added.
-				const termEnd = addedUntil({ ...lever, fromMonth: from });
+				const termEnd = addedUntil({ ...change, fromMonth: from });
 				writes.push(
 					...commitmentAdd(db, {
 						...author,
 						householdId,
-						commitmentId: lever.commitmentId,
-						name: lever.name,
+						commitmentId: change.commitmentId,
+						name: change.name,
 						month: from,
 						endedFromMonth: termEnd ?? null,
-						amountCents: lever.amount,
-						cadence: lever.cadence,
-						dueDate: dueDateFrom(lever.cadence, from, lever.dueDay),
+						amountCents: change.amount,
+						cadence: change.cadence,
+						dueDate: dueDateFrom(change.cadence, from, change.dueDay),
 					}),
 				);
 				break;
@@ -311,36 +311,36 @@ export async function applyLevers(
 					...bucketAdd(db, {
 						...author,
 						householdId,
-						bucketId: lever.bucketId,
-						name: lever.name,
-						color: lever.color ?? nextColor(householdId),
+						bucketId: change.bucketId,
+						name: change.name,
+						color: change.color ?? nextColor(householdId),
 						month: from,
 						archivedFromMonth: until,
-						allowanceCents: lever.amount,
-						rolling: lever.rolling,
+						allowanceCents: change.amount,
+						rolling: change.rolling,
 					}),
 				);
 				break;
 			case "archive-bucket":
 				writes.push(
-					...bucketArchive(db, { ...author, householdId, bucketId: lever.bucketId, month: from }),
+					...bucketArchive(db, { ...author, householdId, bucketId: change.bucketId, month: from }),
 				);
 				break;
 			case "goal": {
 				const target = {
 					...logged,
-					goalId: lever.goalId,
-					targetCents: lever.target,
-					targetDate: lever.targetDate,
+					goalId: change.goalId,
+					targetCents: change.target,
+					targetDate: change.targetDate,
 				};
 				writes.push(
 					goalLog(db, target, isNull(goals.archivedAt)),
 					db
 						.update(goals)
-						.set({ targetCents: lever.target, targetDate: lever.targetDate })
+						.set({ targetCents: change.target, targetDate: change.targetDate })
 						.where(
 							and(
-								eq(goals.id, lever.goalId),
+								eq(goals.id, change.goalId),
 								eq(goals.householdId, householdId),
 								isNull(goals.archivedAt),
 							),
@@ -349,15 +349,15 @@ export async function applyLevers(
 				break;
 			}
 			case "add-goal":
-				if (lever.accountId === undefined) break;
+				if (change.accountId === undefined) break;
 				writes.push(
 					goalInsert(db, {
 						householdId,
-						goalId: lever.goalId,
-						accountId: lever.accountId,
-						name: lever.name,
-						targetCents: lever.target,
-						targetDate: lever.targetDate,
+						goalId: change.goalId,
+						accountId: change.accountId,
+						name: change.name,
+						targetCents: change.target,
+						targetDate: change.targetDate,
 						fromMonth: from,
 					}),
 				);
@@ -381,7 +381,7 @@ export const nextColor = (householdId: string): SQL =>
 	sql`(select count(*) % 8 + 1 from ${buckets} where ${buckets.householdId} = ${householdId})`;
 
 /** Writes the Baseline in force at `until` back at `until`, unless a month set there already. */
-const baselineBack = (db: Db, householdId: string, until: MonthKey) =>
+const takeHomePayBack = (db: Db, householdId: string, until: MonthKey) =>
 	db
 		.insert(baselines)
 		.select(

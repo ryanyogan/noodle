@@ -1,9 +1,9 @@
 import {
 	addIncome,
-	decideWindfall as decideWindfallInDb,
+	decideWindfall as decideExtraIncomeInDb,
 	type IncomeWriteResult,
 	removeIncome as removeIncomeInDb,
-	undoWindfall as undoWindfallInDb,
+	undoWindfall as undoExtraIncomeInDb,
 } from "@noodle/db";
 import {
 	type Cents,
@@ -89,13 +89,13 @@ export const removeIncome = createServerFn({ method: "POST" })
 	});
 
 /** Refused Windfall Moves say what was left of the Windfall, to explain why. */
-export type WindfallOutcome = { ok: true } | { ok: false; left: Cents };
+export type ExtraIncomeOutcome = { ok: true } | { ok: false; left: Cents };
 
 /**
  * Moves `amountCents` of a month's Windfall to a Goal's Earmark or one of the month's Buckets.
  * Refused unless the Windfall still has that much left, and the destination can take it.
  */
-export const decideWindfall = createServerFn({ method: "POST" })
+export const decideExtraIncome = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(
 		z.object({
@@ -108,11 +108,11 @@ export const decideWindfall = createServerFn({ method: "POST" })
 			amountCents: amountSchema,
 		}),
 	)
-	.handler(async ({ data, context }): Promise<WindfallOutcome> => {
+	.handler(async ({ data, context }): Promise<ExtraIncomeOutcome> => {
 		const { household } = context;
 		assertNotFuture(household, data.month);
 		const db = getDb();
-		const result = await decideWindfallInDb(db, {
+		const result = await decideExtraIncomeInDb(db, {
 			householdId: household.id,
 			createdByMemberId: context.parent.id,
 			...data,
@@ -126,12 +126,12 @@ export const decideWindfall = createServerFn({ method: "POST" })
 	});
 
 /** Undoes a Windfall Move. Refused once a Goal it went to has spent the money. */
-export const undoWindfall = createServerFn({ method: "POST" })
+export const undoExtraIncome = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ moveId: ulidSchema, month: monthKeySchema }))
 	.handler(async ({ data, context }): Promise<IncomeWriteResult> => {
 		const { household } = context;
-		const result = await undoWindfallInDb(getDb(), { householdId: household.id, ...data });
+		const result = await undoExtraIncomeInDb(getDb(), { householdId: household.id, ...data });
 		if (result.ok) await notifyHousehold(household.id, ["goals", `month:${data.month}`]);
 		return result;
 	});

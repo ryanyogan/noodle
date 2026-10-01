@@ -304,7 +304,7 @@ export function FieldGroup({
 }
 
 /** Which Goals' Earmarks go toward it (their money is set aside for it), and other cash. */
-export function EarmarkPicker({
+export function SetAsidePicker({
 	goals,
 	chosen,
 	onChosen,

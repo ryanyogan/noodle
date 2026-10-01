@@ -94,8 +94,8 @@ test("a Parent tweaks the Plan in a sandbox: amounts, new things, date ranges an
 	await type(page, "Baseline", "8,000");
 	await page.getByLabel("Baseline from").selectOption({ index: 12 });
 	await page.getByLabel("Baseline until").selectOption({ index: 6 });
-	const baseline = change(page, /^Income \$9,000 → \$8,000 a month from \w+ \d{4} until/);
-	await expect(baseline).toContainText("Costs $6,000 over 2 years");
+	const takeHomePay = change(page, /^Income \$9,000 → \$8,000 a month from \w+ \d{4} until/);
+	await expect(takeHomePay).toContainText("Costs $6,000 over 2 years");
 	await expect(scenarioTotal(page)).toHaveText("$142,800");
 
 	// Muting the Daycare change leaves it out, and says what it would do.

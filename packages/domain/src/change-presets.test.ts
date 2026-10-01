@@ -75,7 +75,7 @@ describe("parseLeverPreset: a change written into a link", () => {
 	});
 
 	it("round-trips the kinds it carries", () => {
-		const levers: Lever[] = [
+		const changes: Lever[] = [
 			{ kind: "end-commitment", commitmentId: "daycare", fromMonth: "2027-03" },
 			{
 				kind: "allowance",
@@ -89,10 +89,10 @@ describe("parseLeverPreset: a change written into a link", () => {
 			{ kind: "archive-bucket", bucketId: "hockey", fromMonth: "2027-01" },
 			{ kind: "goal", goalId: "college", target: 1, targetDate: null, fromMonth: month },
 		];
-		for (const lever of levers) {
-			const preset = leverPreset(lever);
+		for (const change of changes) {
+			const preset = leverPreset(change);
 			expect(preset).not.toBeNull();
-			expect(parseLeverPreset(preset ?? "", month)).toEqual(lever);
+			expect(parseLeverPreset(preset ?? "", month)).toEqual(change);
 		}
 		expect(leverPreset({ kind: "growth", incomePct: 3, costsPct: 2, fromMonth: month })).toBeNull();
 	});

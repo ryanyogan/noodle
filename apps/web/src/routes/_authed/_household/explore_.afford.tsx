@@ -39,19 +39,19 @@ import {
 	guessRole,
 	HOME_DEFAULTS,
 	type NewCost,
-	purchaseLevers,
+	purchaseChanges,
 	startMonth,
 } from "../../../affordability";
 import {
 	Assumptions,
 	Breakdown,
 	CommitmentRoles,
-	EarmarkPicker,
 	FieldGroup,
 	MoneyField,
 	NoIncomeYet,
 	PercentField,
 	SelectField,
+	SetAsidePicker,
 	VerdictCard,
 	VerdictLabel,
 	verdictName,
@@ -313,7 +313,7 @@ function CheckActions({
 							save.mutate({
 								scenarioId,
 								name: scenario.name,
-								levers: purchaseLevers({
+								levers: purchaseChanges({
 									from,
 									costs: costs.map((c) => ({ ...c, commitmentId: ulid() })),
 									replaced: scenario.replaced,
@@ -535,7 +535,7 @@ function HomeCheck({ context, form, onForm }: FormProps<HomeForm>) {
 					onChange={(gross) => set({ gross })}
 				/>
 			</FieldGroup>
-			<EarmarkPicker
+			<SetAsidePicker
 				goals={context.goals}
 				chosen={form.goals}
 				onChosen={(goals) => set({ goals })}
@@ -733,7 +733,7 @@ function CarCheck({ context, form, onForm }: FormProps<CarForm>) {
 					/>
 				</div>
 			</FieldGroup>
-			<EarmarkPicker
+			<SetAsidePicker
 				goals={context.goals}
 				chosen={form.goals}
 				onChosen={(goals) => set({ goals })}
@@ -895,7 +895,7 @@ function AnythingCheck({ context, form, onForm }: FormProps<AnythingForm>) {
 				</Field>
 				<MoneyField label="Price" value={form.price} onChange={(price) => set({ price })} />
 			</FieldGroup>
-			<EarmarkPicker
+			<SetAsidePicker
 				goals={context.goals}
 				chosen={form.goals}
 				single

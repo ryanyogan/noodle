@@ -77,11 +77,11 @@ const goals = [
 ];
 const accounts = [{ id: "savings", name: "Savings" }];
 
-const preview = (levers: Lever[], viewer = "sam") =>
-	applyPreview({ records, month, levers, viewer, goals, accounts });
+const preview = (scenarioChanges: Lever[], viewer = "sam") =>
+	applyPreview({ records, month, levers: scenarioChanges, viewer, goals, accounts });
 
-const lines = (lever: Lever, viewer?: string) =>
-	preview([lever], viewer).changes.flatMap((c) => c.lines);
+const lines = (change: Lever, viewer?: string) =>
+	preview([change], viewer).changes.flatMap((c) => c.lines);
 
 describe("applyPreview: exactly what applying writes to the Plan", () => {
 	it("writes a value from its first month, and the Plan's back when its range ends", () => {

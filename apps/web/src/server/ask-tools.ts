@@ -584,11 +584,11 @@ async function affordabilityCheck(
  */
 function scenarioOutcome(
 	{ ahead, goals }: Awaited<ReturnType<typeof yearAhead>>,
-	lever: Lever,
+	scenarioChange: Lever,
 	name: string,
 ) {
 	const before = project(ahead);
-	const after = project(ahead, [lever]);
+	const after = project(ahead, [scenarioChange]);
 	const freed = moneyFreed(before, after);
 	const overYear = freed[freed.length - 1] ?? 0;
 	const goalChanges = after.goals.flatMap((g) => {
@@ -607,7 +607,7 @@ function scenarioOutcome(
 		overYear >= 0
 			? `frees ${money(overYear)} over the next 12 months`
 			: `costs ${money(-overYear)} over the next 12 months`;
-	const preset = leverPreset(lever);
+	const preset = leverPreset(scenarioChange);
 	const link: AskLink = preset ? { kind: "explore", name, lever: preset } : { kind: "explore" };
 	return { before, after, overYear, goalChanges, change, link };
 }

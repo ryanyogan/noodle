@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { goalAccount, goalDate, guessRole, purchaseLevers, startMonth } from "./affordability";
+import { goalAccount, goalDate, guessRole, purchaseChanges, startMonth } from "./affordability";
 
 describe("guessRole", () => {
 	test("a home replaces rent or a mortgage, and counts loans and cards as debts", () => {
@@ -30,7 +30,7 @@ describe("startMonth", () => {
 describe("purchaseLevers", () => {
 	test("adds each new cost from the month, and cancels what it replaces from then", () => {
 		expect(
-			purchaseLevers({
+			purchaseChanges({
 				from: "2026-10",
 				costs: [
 					{ commitmentId: "loan", name: "Car loan", amount: 59_404, months: 60 },

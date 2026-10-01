@@ -399,17 +399,17 @@ function GoalDetails({
 				description={`Earmarks money already in ${accountName} for this Goal. It doesn’t touch the Plan.`}
 				submitLabel="Set aside"
 				check={(cents) => {
-					const unclaimed = account?.unclaimed ?? null;
-					if (unclaimed === null) {
+					const notSetAside = account?.unclaimed ?? null;
+					if (notSetAside === null) {
 						return { hint: `${accountName} has no balance yet, so nothing there is Unclaimed.` };
 					}
-					if (cents !== null && cents > unclaimed) {
+					if (cents !== null && cents > notSetAside) {
 						return {
-							hint: `Only ${formatMoney(Math.max(0, unclaimed))} in ${accountName} is Unclaimed. Update its balance if there’s more.`,
+							hint: `Only ${formatMoney(Math.max(0, notSetAside))} in ${accountName} is Unclaimed. Update its balance if there’s more.`,
 							refused: true,
 						};
 					}
-					return { hint: `${formatMoney(unclaimed)} in ${accountName} is Unclaimed.` };
+					return { hint: `${formatMoney(notSetAside)} in ${accountName} is Unclaimed.` };
 				}}
 				onSave={(amountCents) => {
 					setSheet(null);

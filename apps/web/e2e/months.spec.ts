@@ -56,7 +56,7 @@ async function quickAdd(page: Page, amount: string, bucket: string) {
 }
 
 /** Sets a Bucket Rolling on its page, from This Month, then returns to This Month. */
-async function setRolling(page: Page, bucket: string) {
+async function setCarriesOver(page: Page, bucket: string) {
 	await page.getByRole("link", { name: bucket, exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toContainText(bucket);
 	await page.getByRole("button", { name: "Edit", exact: true }).click();
@@ -117,7 +117,7 @@ test("a Rolling Bucket carries what's left into next month; a Fresh-start one st
 }) => {
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, plan);
-	await setRolling(page, "Hockey");
+	await setCarriesOver(page, "Hockey");
 	await quickAdd(page, "100", "Hockey");
 	await quickAdd(page, "200", "Groceries");
 	await expect(bucketRow(page, "Hockey")).toHaveAccessibleName(/^Hockey: \$300 left of \$400/);

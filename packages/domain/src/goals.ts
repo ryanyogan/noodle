@@ -39,7 +39,7 @@ export function accountBalance(
  * released back, negative); `funding`: Goal funding, a Move from Free to Spend in `month`'s
  * Plan; `spending`: a Transaction assigned to the Goal (negative).
  */
-export type EarmarkChange = {
+export type SetAsideChange = {
 	goalId: string;
 	kind: "claim" | "funding" | "spending";
 	amount: Cents;
@@ -47,7 +47,7 @@ export type EarmarkChange = {
 };
 
 /** A Goal's Earmark: every change to it, summed. */
-export function earmarkOf(goalId: string, changes: EarmarkChange[]): Cents {
+export function setAsideOf(goalId: string, changes: SetAsideChange[]): Cents {
 	return changes.reduce((sum, c) => (c.goalId === goalId ? sum + c.amount : sum), 0);
 }
 
@@ -64,19 +64,24 @@ export function splitAccount({
 	balance: Cents | null;
 	/** This Account's Goals. */
 	goals: { id: string; archived: boolean }[];
-	changes: EarmarkChange[];
+	changes: SetAsideChange[];
 }): {
 	earmarks: { goalId: string; amount: Cents }[];
 	earmarked: Cents;
 	unclaimed: Cents | null;
 	overClaimedBy: Cents;
 } {
-	const earmarks = goals
+	const setAsides = goals
 		.filter((g) => !g.archived)
-		.map((g) => ({ goalId: g.id, amount: earmarkOf(g.id, changes) }));
-	const earmarked = earmarks.reduce((sum, e) => sum + e.amount, 0);
-	const unclaimed = balance === null ? null : balance - earmarked;
-	return { earmarks, earmarked, unclaimed, overClaimedBy: Math.max(0, -(unclaimed ?? 0)) };
+		.map((g) => ({ goalId: g.id, amount: setAsideOf(g.id, changes) }));
+	const setAside = setAsides.reduce((sum, e) => sum + e.amount, 0);
+	const notSetAside = balance === null ? null : balance - setAside;
+	return {
+		earmarks: setAsides,
+		earmarked: setAside,
+		unclaimed: notSetAside,
+		overClaimedBy: Math.max(0, -(notSetAside ?? 0)),
+	};
 }
 
 /**
@@ -114,12 +119,12 @@ export type GoalProgress = {
 /** How a Goal is doing in `month` (the Household's current month). */
 export function goalProgress(
 	goal: { id: string; target: Cents; targetDate: DayKey | null; fromMonth: MonthKey },
-	changes: EarmarkChange[],
+	changes: SetAsideChange[],
 	month: MonthKey,
 ): GoalProgress {
 	const own = changes.filter((c) => c.goalId === goal.id);
-	const saved = earmarkOf(goal.id, own);
-	const fundedThisMonth = earmarkOf(
+	const saved = setAsideOf(goal.id, own);
+	const fundedThisMonth = setAsideOf(
 		goal.id,
 		own.filter((c) => c.kind === "funding" && c.month === month),
 	);
@@ -167,7 +172,7 @@ export function stillToFund(progress: readonly Pick<GoalProgress, "leftThisMonth
  * were recorded: spending entered late, a statement brought in, or a month's Sweeps closed after
  * the fact belong where they happened.
  */
-export function goalHistory<C extends EarmarkChange & { id: string; date?: DayKey }>(
+export function goalHistory<C extends SetAsideChange & { id: string; date?: DayKey }>(
 	changes: readonly C[],
 ): { month: MonthKey; net: Cents; changes: C[] }[] {
 	const day = (c: C) => c.date ?? `${c.month}-01`;
@@ -203,7 +208,7 @@ export function attributeWithdrawal(
 	account: { balanceBefore: Cents; earmarked: Cents },
 ): WithdrawalAttribution {
 	if (withdrawal.goalId !== null) return { kind: "goal", goalId: withdrawal.goalId };
-	const unclaimed = Math.max(0, account.balanceBefore - account.earmarked);
-	if (account.earmarked <= 0 || withdrawal.amount <= unclaimed) return { kind: "unclaimed" };
-	return { kind: "review", fromEarmarks: withdrawal.amount - unclaimed };
+	const notSetAside = Math.max(0, account.balanceBefore - account.earmarked);
+	if (account.earmarked <= 0 || withdrawal.amount <= notSetAside) return { kind: "unclaimed" };
+	return { kind: "review", fromEarmarks: withdrawal.amount - notSetAside };
 }

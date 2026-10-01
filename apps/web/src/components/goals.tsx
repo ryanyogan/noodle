@@ -415,7 +415,7 @@ function AddGoalForm({
 		});
 	}
 
-	const unclaimedHint = !account
+	const notSetAsideHint = !account
 		? "Add a checking or savings Account first."
 		: account.unclaimed === null
 			? `${account.name} has no balance yet, so nothing there is Unclaimed.`
@@ -479,7 +479,7 @@ function AddGoalForm({
 					))}
 				</NativeSelect>
 			</Field>
-			<Field label="Already set aside" htmlFor={`${id}-claim`} hint={unclaimedHint}>
+			<Field label="Already set aside" htmlFor={`${id}-claim`} hint={notSetAsideHint}>
 				<AmountInput
 					id={`${id}-claim`}
 					placeholder="0"

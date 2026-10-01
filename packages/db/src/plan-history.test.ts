@@ -334,13 +334,13 @@ describe("Plan changes", () => {
 	});
 
 	it("names the Scenario a change was applied from", async () => {
-		const levers = [{ kind: "baseline", amount: 1_000_000, fromMonth: month }] as const;
+		const scenarioChanges = [{ kind: "baseline", amount: 1_000_000, fromMonth: month }] as const;
 		await applyLevers(db, {
 			...sam,
 			scenarioId: "raise",
-			scenario: { name: "Raise", levers: [...levers] },
+			scenario: { name: "Raise", levers: [...scenarioChanges] },
 			month,
-			levers,
+			levers: scenarioChanges,
 		});
 		expect((await history()).filter((c) => c.source === "scenario")).toMatchObject([
 			{ kind: "baseline", scenarioName: "Raise" },

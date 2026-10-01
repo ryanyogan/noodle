@@ -12,9 +12,13 @@ import {
 	type Spend,
 } from "./index";
 
-const planOf = (month: MonthKey, allowances: Record<string, number>, baseline = 500_000): Plan => ({
+const planOf = (
+	month: MonthKey,
+	allowances: Record<string, number>,
+	takeHomePay = 500_000,
+): Plan => ({
 	month,
-	baseline,
+	baseline: takeHomePay,
 	commitments: [],
 	buckets: Object.entries(allowances).map(([id, allowance], i) => ({
 		id,

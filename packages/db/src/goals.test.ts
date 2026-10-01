@@ -9,7 +9,7 @@ import {
 } from "@noodle/domain";
 import { type SQL, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
-import { earmarkSql } from "./goals";
+import { setAsideSql } from "./goals";
 import {
 	addAccount,
 	addBucket,
@@ -151,7 +151,7 @@ const evaluate = async (expression: SQL) =>
 	(await db.values<[number | null]>(sql`select ${expression}`))[0]?.[0];
 
 /** A Goal's Earmark as the app computes it, from the same rows. */
-const earmark = async (goalId: string) => earmarkOf(goalId, (await loadGoals(db, viewer)).changes);
+const setAside = async (goalId: string) => earmarkOf(goalId, (await loadGoals(db, viewer)).changes);
 
 beforeEach(async () => {
 	db = testDb();
@@ -283,7 +283,7 @@ describe("claimForGoal", () => {
 		expect(await claim("c1", "braces", 50_000)).toEqual({ ok: true });
 		expect(await claim("c2", "braces", -350_001)).toEqual({ ok: false, reason: "refused" });
 		expect(await claim("c3", "braces", -350_000)).toEqual({ ok: true });
-		expect(await earmark("braces")).toBe(0);
+		expect(await setAside("braces")).toBe(0);
 	});
 
 	it("refuses an archived Goal", async () => {
@@ -300,7 +300,7 @@ describe("fundGoal", () => {
 	it("Moves money from Free to Spend into the Earmark, apart from Bucket Moves", async () => {
 		expect(await fund("m1", "braces", 25_000)).toEqual({ ok: true });
 		expect(await fund("m1", "braces", 25_000)).toEqual({ ok: true });
-		expect(await earmark("braces")).toBe(25_000);
+		expect(await setAside("braces")).toBe(25_000);
 		expect(await loadGoalFunding(db, householdId, month)).toEqual([
 			{ id: "m1", goalId: "braces", amount: 25_000, month },
 		]);
@@ -503,8 +503,8 @@ describe("Splits assigned to a Goal", () => {
 			{ bucketId: "groceries", amount: 15_000 },
 		]);
 		expect(await evaluate(freeToSpendSql(householdId, month))).toBe(free);
-		expect(await earmark("braces")).toBe(20_000);
-		expect(await evaluate(earmarkSql(householdId, "braces"))).toBe(20_000);
+		expect(await setAside("braces")).toBe(20_000);
+		expect(await evaluate(setAsideSql(householdId, "braces"))).toBe(20_000);
 
 		const records = await loadGoals(db, viewer);
 		expect(records.changes.at(-1)).toEqual({
@@ -536,11 +536,11 @@ describe("Splits assigned to a Goal", () => {
 		await spend("t0", "braces", 20_000);
 		expect(await split(10_001)).toEqual({ ok: false, reason: "not-in-plan" });
 		expect(await split(10_000)).toEqual({ ok: true });
-		expect(await earmark("braces")).toBe(0);
+		expect(await setAside("braces")).toBe(0);
 		// Split again with new Splits: its own $100 is back in the Earmark while they replace it.
 		expect(await split(10_000, ["food-2", "part-2"])).toEqual({ ok: true });
 		expect(await split(10_001, ["food-3", "part-3"])).toEqual({ ok: false, reason: "not-in-plan" });
-		expect(await earmark("braces")).toBe(0);
+		expect(await setAside("braces")).toBe(0);
 	});
 
 	it("refuses an archived Goal or another Household's", async () => {
@@ -590,9 +590,9 @@ describe("the Earmark guard's SQL agrees with @noodle/domain", () => {
 			["vacation", 55_000],
 			["missing", 0],
 		] as const) {
-			expect(await earmark(goalId)).toBe(expected);
-			expect(await evaluate(earmarkSql(householdId, goalId))).toBe(expected);
-			expect(await evaluate(earmarkSql("other-household", goalId))).toBe(0);
+			expect(await setAside(goalId)).toBe(expected);
+			expect(await evaluate(setAsideSql(householdId, goalId))).toBe(expected);
+			expect(await evaluate(setAsideSql("other-household", goalId))).toBe(0);
 		}
 	});
 });

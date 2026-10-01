@@ -1,6 +1,7 @@
 import type { DayKey, MonthKey, StatementLine } from "@noodle/domain";
 import { eq, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
+import { extraIncomeLeftSql } from "./extra-income";
 import {
 	addAccount,
 	addBucket,
@@ -25,7 +26,6 @@ import {
 import { bucketLeftSql } from "./moves";
 import { members, transactions } from "./schema";
 import { testDb } from "./test-db";
-import { windfallLeftSql } from "./windfalls";
 
 // The ingest seam for Transfers and Refunds: statements go in through importStatement, as an
 // upload does, and what counts is read back through the same reads the app makes.
@@ -169,7 +169,7 @@ describe("Transfers on Import", () => {
 		const income = await loadIncome(db, householdId, month, "2026-10");
 		expect(income.map((row) => row.note)).toEqual(["ACME PAYROLL"]);
 		// The Windfall is payroll beyond the Baseline, not the money from savings.
-		const [left] = await db.values<[number]>(sql`select ${windfallLeftSql(householdId, month)}`);
+		const [left] = await db.values<[number]>(sql`select ${extraIncomeLeftSql(householdId, month)}`);
 		expect(left?.[0]).toBe(10_000);
 		const out = await loadTransfer(db, viewer, await idOf("TRANSFER TO CHECKING"));
 		expect(out).toMatchObject({

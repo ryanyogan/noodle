@@ -1,6 +1,7 @@
 import { type MonthKey, monthState, planForMonth } from "@noodle/domain";
 import { type SQL, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
+import { extraIncomeLeftSql } from "./extra-income";
 import {
 	addAccount,
 	addBucket,
@@ -23,7 +24,6 @@ import {
 } from "./index";
 import { freeToSpendSql } from "./moves";
 import { testDb } from "./test-db";
-import { windfallLeftSql } from "./windfalls";
 
 const householdId = "household";
 const parentId = "parent";
@@ -135,11 +135,11 @@ describe("Windfall Moves", () => {
 	});
 
 	it("SQL agrees with the domain on what's left to decide", async () => {
-		expect(await scalar(windfallLeftSql(householdId, month))).toBe(300_000);
+		expect(await scalar(extraIncomeLeftSql(householdId, month))).toBe(300_000);
 		expect((await state()).windfallLeft).toBe(300_000);
 		await decide("to-trip", { kind: "goal", goalId: "trip" }, 200_000);
 		await decide("to-fun", { kind: "bucket", bucketId: "fun" }, 30_000);
-		expect(await scalar(windfallLeftSql(householdId, month))).toBe(70_000);
+		expect(await scalar(extraIncomeLeftSql(householdId, month))).toBe(70_000);
 		const after = await state();
 		expect(after.windfallLeft).toBe(70_000);
 		expect(after.buckets[0]?.left).toBe(70_000);
@@ -182,7 +182,7 @@ describe("Windfall Moves", () => {
 			ok: false,
 			reason: "refused",
 		});
-		expect(await scalar(windfallLeftSql(householdId, month))).toBe(100_000);
+		expect(await scalar(extraIncomeLeftSql(householdId, month))).toBe(100_000);
 	});
 
 	it("are refused to another Household's Goal or a Bucket not in the Plan", async () => {
@@ -216,7 +216,7 @@ describe("Windfall Moves", () => {
 			ok: false,
 			reason: "refused",
 		});
-		expect(await scalar(windfallLeftSql(householdId, month))).toBe(200_000);
+		expect(await scalar(extraIncomeLeftSql(householdId, month))).toBe(200_000);
 	});
 
 	it("keep the income they came from from being removed", async () => {
@@ -228,7 +228,7 @@ describe("Windfall Moves", () => {
 		await undoWindfall(db, { householdId, moveId: "to-trip", month });
 		expect(await removeIncome(db, { householdId, incomeId: "pay-3", month })).toEqual({ ok: true });
 		expect(await removeIncome(db, { householdId, incomeId: "pay-3", month })).toEqual({ ok: true });
-		expect(await scalar(windfallLeftSql(householdId, month))).toBe(0);
+		expect(await scalar(extraIncomeLeftSql(householdId, month))).toBe(0);
 	});
 });
 

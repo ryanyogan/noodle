@@ -60,14 +60,14 @@ test("a change that empties the Cushion is flagged, and the warning leads to it"
 
 	// The Cushion's chart, as a table.
 	await page.getByRole("button", { name: "Show Cushion as a table" }).click();
-	const cushion = page.getByRole("table", { name: "Cushion" });
-	await expect(cushion.getByRole("row").nth(1)).toContainText(/\$3,400\s*−\$6,600$/);
-	await expect(cushion.getByRole("row").nth(2)).toContainText(/\$6,800\s*−\$3,200$/);
+	const projectedBalance = page.getByRole("table", { name: "Cushion" });
+	await expect(projectedBalance.getByRole("row").nth(1)).toContainText(/\$3,400\s*−\$6,600$/);
+	await expect(projectedBalance.getByRole("row").nth(2)).toContainText(/\$6,800\s*−\$3,200$/);
 
 	// Muted, the roof no longer counts, and nothing is flagged.
 	await roof.getByRole("button", { name: "Mute" }).click();
 	await expect(warnings).toHaveCount(0);
-	await expect(cushion.getByRole("row").nth(1)).toContainText(/\$3,400\s*\$3,400$/);
+	await expect(projectedBalance.getByRole("row").nth(1)).toContainText(/\$3,400\s*\$3,400$/);
 });
 
 test("on a phone, tapping a month shows it in full under the chart", async ({ browser }) => {
@@ -89,19 +89,21 @@ test("on a phone, tapping a month shows it in full under the chart", async ({ br
 	await expect(page.getByRole("dialog")).toBeHidden();
 
 	// The first tap lands on the month under the finger, and the next tap moves it.
-	const cushion = page.getByRole("group", { name: "Cushion", exact: true });
-	const chart = cushion.locator("svg.recharts-surface").first();
+	const projectedBalance = page.getByRole("group", { name: "Cushion", exact: true });
+	const chart = projectedBalance.locator("svg.recharts-surface").first();
 	await chart.scrollIntoViewIfNeeded();
 	const box = await chart.boundingBox();
 	if (!box) throw new Error("no Cushion chart");
 	const tap = (share: number) =>
 		page.touchscreen.tap(box.x + 52 + (box.width - 60) * share, box.y + box.height / 2);
 	await tap(0.02);
-	await expect(cushion.getByRole("button", { name: /^Close \w+ \d{4}$/ })).toBeVisible();
-	await expect(cushion).toContainText(/Why\s*Income \$5,000 → \$4,000 a month/);
-	const first = await cushion.getByRole("button", { name: /^Close / }).textContent();
+	await expect(projectedBalance.getByRole("button", { name: /^Close \w+ \d{4}$/ })).toBeVisible();
+	await expect(projectedBalance).toContainText(/Why\s*Income \$5,000 → \$4,000 a month/);
+	const first = await projectedBalance.getByRole("button", { name: /^Close / }).textContent();
 	await tap(0.6);
-	await expect(cushion.getByRole("button", { name: /^Close / })).not.toHaveText(first ?? "");
-	await cushion.getByRole("button", { name: /^Close / }).click();
-	await expect(cushion.getByRole("button", { name: /^Close / })).toBeHidden();
+	await expect(projectedBalance.getByRole("button", { name: /^Close / })).not.toHaveText(
+		first ?? "",
+	);
+	await projectedBalance.getByRole("button", { name: /^Close / }).click();
+	await expect(projectedBalance.getByRole("button", { name: /^Close / })).toBeHidden();
 });

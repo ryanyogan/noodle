@@ -8,7 +8,7 @@ import { cn } from "@noodle/ui/lib/utils";
 import { Eye, EyeOff, X } from "lucide-react";
 import { memo, useEffect, useState } from "react";
 import { formatMoney, shortMonth } from "../format";
-import { leverTarget, withMuted, withoutLever } from "../scenarios";
+import { changeTarget, withMuted, withoutChange } from "../scenarios";
 
 // "Your changes": each Lever in words, what it does on its own, a mute toggle to see the outcome
 // without it, and Remove. Impacts cost one projection per Lever, so they follow the Levers a
@@ -39,7 +39,7 @@ export const ScenarioChanges = memo(function ScenarioChanges({
 	/** Every Goal a Lever can move, Plan's and added, by id. */
 	goalNames: ReadonlyMap<string, string>;
 	horizonLabel: string;
-	onChange: (change: (levers: Lever[]) => Lever[]) => void;
+	onChange: (change: (changes: Lever[]) => Lever[]) => void;
 }) {
 	return (
 		<Section aria-labelledby="your-changes">
@@ -51,21 +51,21 @@ export const ScenarioChanges = memo(function ScenarioChanges({
 			) : (
 				<Card>
 					<List>
-						{levers.map((lever) => {
-							const target = leverTarget(lever);
-							const { text, gone } = describeLever(lever, subjects, levers);
+						{levers.map((scenarioChange) => {
+							const target = changeTarget(scenarioChange);
+							const { text, gone } = describeLever(scenarioChange, subjects, levers);
 							return (
 								<Change
 									key={target}
 									id={changeId(target)}
 									text={text}
 									gone={gone}
-									muted={lever.muted === true}
+									muted={scenarioChange.muted === true}
 									impact={gone ? null : impacts.get(target)}
 									goalNames={goalNames}
 									horizonLabel={horizonLabel}
 									onMute={(muted) => onChange((current) => withMuted(current, target, muted))}
-									onRemove={() => onChange((current) => withoutLever(current, target))}
+									onRemove={() => onChange((current) => withoutChange(current, target))}
 								/>
 							);
 						})}

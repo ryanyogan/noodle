@@ -24,7 +24,7 @@ const freeToSpend = (page: Page) => waterfall(page).getByRole("listitem").last()
 const bucketRow = (page: Page, bucket: string) =>
 	page.getByRole("listitem").filter({ has: page.getByRole("button", { name: `Edit ${bucket}` }) });
 
-async function setBaseline(page: Page, amount: string) {
+async function setTakeHomePay(page: Page, amount: string) {
 	await page.getByRole("textbox", { name: "Baseline" }).fill(amount);
 	await page.getByRole("button", { name: "Set Baseline" }).click();
 }
@@ -76,7 +76,7 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 	const page = await signedInPage(browser, parent.email);
 	await openPlan(page);
 
-	await setBaseline(page, "9,000");
+	await setTakeHomePay(page, "9,000");
 	await expect(freeToSpend(page)).toHaveText("Free to Spend$9,000");
 	await page.getByRole("link", { name: "Add Buckets" }).click();
 	await addBucket(page, "Groceries", "1,200");
@@ -159,7 +159,7 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 test("a failed save is undone and can be retried", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email);
 	await openPlan(page);
-	await setBaseline(page, "5,000");
+	await setTakeHomePay(page, "5,000");
 	await expect(freeToSpend(page)).toHaveText("Free to Spend$5,000");
 	await page.getByRole("link", { name: "Add Buckets" }).click();
 	await addBucket(page, "Fun", "300");

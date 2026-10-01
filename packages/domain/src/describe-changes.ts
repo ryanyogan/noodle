@@ -1,5 +1,5 @@
+import type { Change, ChangeOf } from "./changes";
 import type { Cadence } from "./commitments";
-import type { Lever, LeverOf } from "./levers";
 import type { Cents } from "./money";
 import { type DayKey, type MonthKey, monthOfDay } from "./month";
 
@@ -7,7 +7,7 @@ import { type DayKey, type MonthKey, monthOfDay } from "./month";
 // Each says what the Plan has now, what the Scenario makes it, and the months it holds for.
 
 /** What Levers change, as the Plan has them this month: the words describe Levers against it. */
-export type LeverSubjects = {
+export type ChangeSubjects = {
 	/** The Household's current month: a Lever from then (or earlier) needs no "from". */
 	month: MonthKey;
 	baseline: Cents | null;
@@ -26,7 +26,7 @@ export type LeverSubjects = {
 export const OTHER_PERSONAL_ALLOWANCE = "Personal Allowance";
 
 /** The Bucket a Lever changes, if it's the other Parent's Personal Allowance. */
-const othersAllowance = (subjects: LeverSubjects, bucketId: string) => {
+const othersAllowance = (subjects: ChangeSubjects, bucketId: string) => {
 	const bucket = subjects.buckets.find((b) => b.id === bucketId);
 	return bucket?.owner !== undefined &&
 		subjects.viewer !== undefined &&
@@ -35,7 +35,7 @@ const othersAllowance = (subjects: LeverSubjects, bucketId: string) => {
 		: undefined;
 };
 
-export type LeverDescription = {
+export type ChangeDescription = {
 	text: string;
 	/**
 	 * The Bucket, Commitment or Goal it changes is no longer in the Plan, and no other Lever adds
@@ -74,9 +74,12 @@ export const ordinal = (day: number) =>
 	day >= 11 && day <= 13 ? `${day}th` : `${day}${["th", "st", "nd", "rd"][day % 10] ?? "th"}`;
 
 /** " from Mar 2027 until Aug 2028", " until Aug 2028" (from now), or "" (from now, for good). */
-function rangeWords(lever: Lever, month: MonthKey): string {
-	const from = lever.fromMonth > month ? ` from ${shortMonthName(lever.fromMonth)}` : "";
-	const until = lever.untilMonth ? ` until ${shortMonthName(lever.untilMonth)}` : "";
+function rangeWords(scenarioChange: Change, month: MonthKey): string {
+	const from =
+		scenarioChange.fromMonth > month ? ` from ${shortMonthName(scenarioChange.fromMonth)}` : "";
+	const until = scenarioChange.untilMonth
+		? ` until ${shortMonthName(scenarioChange.untilMonth)}`
+		: "";
 	return `${from}${until}`;
 }
 
@@ -84,107 +87,110 @@ export const goalWords = (target: Cents, targetDate: DayKey | null) =>
 	`${money(target)} ${targetDate ? `by ${shortMonthName(monthOfDay(targetDate))}` : "with no date"}`;
 
 /** The name of a Commitment a Lever adds, if one does. */
-const addedCommitment = (levers: readonly Lever[], id: string) =>
-	levers.find(
-		(l): l is LeverOf<"add-commitment"> => l.kind === "add-commitment" && l.commitmentId === id,
+const addedCommitment = (changes: readonly Change[], id: string) =>
+	changes.find(
+		(l): l is ChangeOf<"add-commitment"> => l.kind === "add-commitment" && l.commitmentId === id,
 	);
 
-const addedBucket = (levers: readonly Lever[], id: string) =>
-	levers.find((l): l is LeverOf<"add-bucket"> => l.kind === "add-bucket" && l.bucketId === id);
+const addedBucket = (changes: readonly Change[], id: string) =>
+	changes.find((l): l is ChangeOf<"add-bucket"> => l.kind === "add-bucket" && l.bucketId === id);
 
 /**
  * A Lever in words, against the Plan as it stands (`subjects`) and the Scenario's other Levers
  * (which may add the Commitment or Bucket it ends).
  */
-export function describeLever(
-	lever: Lever,
-	subjects: LeverSubjects,
-	levers: readonly Lever[] = [],
-): LeverDescription {
-	const range = rangeWords(lever, subjects.month);
-	const described = (text: string, gone = false): LeverDescription => ({ text, gone });
+export function describeChange(
+	scenarioChange: Change,
+	subjects: ChangeSubjects,
+	changes: readonly Change[] = [],
+): ChangeDescription {
+	const range = rangeWords(scenarioChange, subjects.month);
+	const described = (text: string, gone = false): ChangeDescription => ({ text, gone });
 	if (
-		(lever.kind === "allowance" || lever.kind === "archive-bucket") &&
-		othersAllowance(subjects, lever.bucketId)
+		(scenarioChange.kind === "allowance" || scenarioChange.kind === "archive-bucket") &&
+		othersAllowance(subjects, scenarioChange.bucketId)
 	) {
 		return described(`${OTHER_PERSONAL_ALLOWANCE} changed`);
 	}
 
-	switch (lever.kind) {
+	switch (scenarioChange.kind) {
 		case "baseline":
 			return described(
 				subjects.baseline === null
-					? `Income ${money(lever.amount)} a month${range}`
-					: `Income ${money(subjects.baseline)} → ${money(lever.amount)} a month${range}`,
+					? `Income ${money(scenarioChange.amount)} a month${range}`
+					: `Income ${money(subjects.baseline)} → ${money(scenarioChange.amount)} a month${range}`,
 			);
 		case "allowance": {
-			const bucket = subjects.buckets.find((b) => b.id === lever.bucketId);
+			const bucket = subjects.buckets.find((b) => b.id === scenarioChange.bucketId);
 			return bucket
 				? described(
-						`${bucket.name} ${money(bucket.allowance)} → ${money(lever.amount)} a month${range}`,
+						`${bucket.name} ${money(bucket.allowance)} → ${money(scenarioChange.amount)} a month${range}`,
 					)
-				: described(`A Bucket’s allowance ${money(lever.amount)} a month${range}`, true);
+				: described(`A Bucket’s allowance ${money(scenarioChange.amount)} a month${range}`, true);
 		}
 		case "commitment-terms": {
-			const commitment = subjects.commitments.find((c) => c.id === lever.commitmentId);
-			const due = lever.dueDay ? `, due on the ${ordinal(lever.dueDay)}` : "";
+			const commitment = subjects.commitments.find((c) => c.id === scenarioChange.commitmentId);
+			const due = scenarioChange.dueDay ? `, due on the ${ordinal(scenarioChange.dueDay)}` : "";
 			if (!commitment) {
-				const amount = lever.amount === undefined ? "new terms" : money(lever.amount);
+				const amount =
+					scenarioChange.amount === undefined ? "new terms" : money(scenarioChange.amount);
 				return described(`A Commitment’s ${amount}${due}${range}`, true);
 			}
 			const before = `${money(commitment.amount)} ${cadenceWords[commitment.cadence]}`;
-			const after = `${money(lever.amount ?? commitment.amount)} ${cadenceWords[lever.cadence ?? commitment.cadence]}`;
+			const after = `${money(scenarioChange.amount ?? commitment.amount)} ${cadenceWords[scenarioChange.cadence ?? commitment.cadence]}`;
 			// "$1,400 → $1,200 a month" when only the amount changes.
 			const change =
-				(lever.cadence ?? commitment.cadence) === commitment.cadence
+				(scenarioChange.cadence ?? commitment.cadence) === commitment.cadence
 					? `${money(commitment.amount)} → ${after}`
 					: `${before} → ${after}`;
 			return described(`${commitment.name} ${change}${due}${range}`);
 		}
 		case "end-commitment": {
-			const commitment = subjects.commitments.find((c) => c.id === lever.commitmentId);
+			const commitment = subjects.commitments.find((c) => c.id === scenarioChange.commitmentId);
 			if (commitment) {
 				return described(`${commitment.name} ${money(commitment.amount)} → ended${range}`);
 			}
-			const added = addedCommitment(levers, lever.commitmentId);
+			const added = addedCommitment(changes, scenarioChange.commitmentId);
 			return added
 				? described(`${added.name} → ended${range}`)
 				: described(`A Commitment ended${range}`, true);
 		}
 		case "add-commitment": {
-			const term = lever.months === null ? "" : ` for ${lever.months} months`;
+			const term = scenarioChange.months === null ? "" : ` for ${scenarioChange.months} months`;
 			return described(
-				`New Commitment: ${lever.name} ${money(lever.amount)} ${cadenceWords[lever.cadence]}${term}${range}`,
+				`New Commitment: ${scenarioChange.name} ${money(scenarioChange.amount)} ${cadenceWords[scenarioChange.cadence]}${term}${range}`,
 			);
 		}
 		case "one-off":
 			return described(
-				`One-off ${lever.flow}: ${lever.name} ${money(lever.amount)} in ${shortMonthName(lever.fromMonth)}`,
+				`One-off ${scenarioChange.flow}: ${scenarioChange.name} ${money(scenarioChange.amount)} in ${shortMonthName(scenarioChange.fromMonth)}`,
 			);
 		case "add-bucket":
-			return described(`New Bucket: ${lever.name} ${money(lever.amount)} a month${range}`);
+			return described(
+				`New Bucket: ${scenarioChange.name} ${money(scenarioChange.amount)} a month${range}`,
+			);
 		case "archive-bucket": {
-			const bucket = subjects.buckets.find((b) => b.id === lever.bucketId);
+			const bucket = subjects.buckets.find((b) => b.id === scenarioChange.bucketId);
 			if (bucket) return described(`${bucket.name} ${money(bucket.allowance)} → archived${range}`);
-			const added = addedBucket(levers, lever.bucketId);
+			const added = addedBucket(changes, scenarioChange.bucketId);
 			return added
 				? described(`${added.name} → archived${range}`)
 				: described(`A Bucket archived${range}`, true);
 		}
 		case "goal": {
-			const goal = subjects.goals.find((g) => g.id === lever.goalId);
-			const after = goalWords(lever.target, lever.targetDate);
+			const goal = subjects.goals.find((g) => g.id === scenarioChange.goalId);
+			const after = goalWords(scenarioChange.target, scenarioChange.targetDate);
 			return goal
 				? described(`${goal.name} ${goalWords(goal.target, goal.targetDate)} → ${after}${range}`)
 				: described(`A Goal ${after}${range}`, true);
 		}
 		case "add-goal":
 			return described(
-				`New Goal: ${lever.name} ${goalWords(lever.target, lever.targetDate)}${range}`,
+				`New Goal: ${scenarioChange.name} ${goalWords(scenarioChange.target, scenarioChange.targetDate)}${range}`,
 			);
 		case "growth":
 			return described(
-				`Raises ${lever.incomePct}% and inflation ${lever.costsPct}% a year${range}`,
+				`Raises ${scenarioChange.incomePct}% and inflation ${scenarioChange.costsPct}% a year${range}`,
 			);
 	}
 }
@@ -193,34 +199,35 @@ export function describeLever(
  * What a Lever changes, in a word or two: "Daycare", "Income", "New roof", "Growth". Warnings
  * name the change responsible by it.
  */
-export function leverName(
-	lever: Lever,
-	subjects: LeverSubjects,
-	levers: readonly Lever[] = [],
+export function changeName(
+	scenarioChange: Change,
+	subjects: ChangeSubjects,
+	changes: readonly Change[] = [],
 ): string {
-	switch (lever.kind) {
+	switch (scenarioChange.kind) {
 		case "baseline":
 			return "Income";
 		case "allowance":
 		case "archive-bucket":
-			if (othersAllowance(subjects, lever.bucketId)) return OTHER_PERSONAL_ALLOWANCE;
+			if (othersAllowance(subjects, scenarioChange.bucketId)) return OTHER_PERSONAL_ALLOWANCE;
 			return (
-				subjects.buckets.find((b) => b.id === lever.bucketId)?.name ??
-				addedBucket(levers, lever.bucketId)?.name ??
+				subjects.buckets.find((b) => b.id === scenarioChange.bucketId)?.name ??
+				addedBucket(changes, scenarioChange.bucketId)?.name ??
 				"A Bucket"
 			);
 		case "commitment-terms":
 		case "end-commitment":
 			return (
-				subjects.commitments.find((c) => c.id === lever.commitmentId)?.name ??
-				addedCommitment(levers, lever.commitmentId)?.name ??
+				subjects.commitments.find((c) => c.id === scenarioChange.commitmentId)?.name ??
+				addedCommitment(changes, scenarioChange.commitmentId)?.name ??
 				"A Commitment"
 			);
 		case "goal":
 			return (
-				subjects.goals.find((g) => g.id === lever.goalId)?.name ??
-				levers.find(
-					(l): l is LeverOf<"add-goal"> => l.kind === "add-goal" && l.goalId === lever.goalId,
+				subjects.goals.find((g) => g.id === scenarioChange.goalId)?.name ??
+				changes.find(
+					(l): l is ChangeOf<"add-goal"> =>
+						l.kind === "add-goal" && l.goalId === scenarioChange.goalId,
 				)?.name ??
 				"A Goal"
 			);
@@ -228,7 +235,7 @@ export function leverName(
 		case "one-off":
 		case "add-bucket":
 		case "add-goal":
-			return lever.name;
+			return scenarioChange.name;
 		case "growth":
 			return "Growth";
 	}

@@ -148,12 +148,12 @@ function CardDetails({ card }: { card: CheckInCard }) {
 		case "windfalls":
 			return (
 				<ul className="border-t [&>li+li]:border-t">
-					{card.windfalls.map((windfall) => (
+					{card.windfalls.map((extraIncome) => (
 						<ListRow
-							key={windfall.month}
-							title={monthName(windfall.month)}
+							key={extraIncome.month}
+							title={monthName(extraIncome.month)}
 							trailing={
-								<span className="text-sm tabular-nums">{formatMoney(windfall.amount)}</span>
+								<span className="text-sm tabular-nums">{formatMoney(extraIncome.amount)}</span>
 							}
 						/>
 					))}

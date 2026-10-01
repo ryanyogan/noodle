@@ -67,14 +67,14 @@ import { formatMoney, shortDayAt, shortMonth } from "../../../format";
 import { useReducedMotion } from "../../../motion";
 import { goalsQuery, planAheadQuery, scenariosQuery } from "../../../queries";
 import {
-	leverTarget,
+	changeTarget,
 	projectionGoals,
 	type SaveScenarioVariables,
 	type ScenarioRecord,
 	useApplyScenario,
 	useDeleteScenario,
 	useSaveScenario,
-	withLever,
+	withChange,
 } from "../../../scenarios";
 
 // Explore: Scenarios projected against the Plan. The loader fetches the data on the server;
@@ -123,7 +123,7 @@ const freshDraft = (scenarios: ScenarioRecord[]): Draft => ({
 	levers: [],
 });
 
-const sameLevers = (a: Lever[], b: Lever[]) => JSON.stringify(a) === JSON.stringify(b);
+const sameChanges = (a: Lever[], b: Lever[]) => JSON.stringify(a) === JSON.stringify(b);
 
 type ExploreSearch = { scenario?: string; lever?: string | string[]; end?: string };
 
@@ -131,7 +131,7 @@ type ExploreSearch = { scenario?: string; lever?: string | string[]; end?: strin
  * The Levers a link's presets make, keeping only those on what's in the Plan: a Bucket,
  * Commitment or Goal that's gone, or the other Parent's Personal Allowance, is dropped.
  */
-function presetLevers(
+function presetChanges(
 	search: ExploreSearch,
 	input: { month: MonthKey; plan: Plan; goals: readonly { id: string }[]; parentId: string },
 ): Lever[] {
@@ -141,19 +141,22 @@ function presetLevers(
 		...(search.lever === undefined ? [] : [search.lever].flat()),
 	];
 	const bucket = (id: string) => plan.buckets.find((b) => b.id === id);
-	const inPlan = (lever: Lever) => {
-		switch (lever.kind) {
+	const inPlan = (scenarioChange: Lever) => {
+		switch (scenarioChange.kind) {
 			case "allowance": {
-				const owner = bucket(lever.bucketId)?.owner;
-				return bucket(lever.bucketId) !== undefined && (owner === undefined || owner === parentId);
+				const owner = bucket(scenarioChange.bucketId)?.owner;
+				return (
+					bucket(scenarioChange.bucketId) !== undefined &&
+					(owner === undefined || owner === parentId)
+				);
 			}
 			case "archive-bucket":
-				return bucket(lever.bucketId) !== undefined;
+				return bucket(scenarioChange.bucketId) !== undefined;
 			case "commitment-terms":
 			case "end-commitment":
-				return plan.commitments.some((c) => c.id === lever.commitmentId);
+				return plan.commitments.some((c) => c.id === scenarioChange.commitmentId);
 			case "goal":
-				return goals.some((g) => g.id === lever.goalId);
+				return goals.some((g) => g.id === scenarioChange.goalId);
 			default:
 				return true;
 		}
@@ -161,7 +164,7 @@ function presetLevers(
 	return presets
 		.flatMap((preset) => parseLeverPreset(preset, month) ?? [])
 		.filter(inPlan)
-		.reduce<Lever[]>(withLever, []);
+		.reduce<Lever[]>(withChange, []);
 }
 
 function ExplorePage() {
@@ -266,17 +269,17 @@ function Explore({ search }: { search: ExploreSearch }) {
 		if (search.scenario && pending?.name && pending.levers) {
 			return { id: search.scenario, name: pending.name, levers: pending.levers };
 		}
-		const levers = presetLevers(search, { month, plan, goals, parentId });
-		if (levers.length > 0) {
-			const [only] = levers;
+		const scenarioChanges = presetChanges(search, { month, plan, goals, parentId });
+		if (scenarioChanges.length > 0) {
+			const [only] = scenarioChanges;
 			const ending =
-				levers.length === 1 && only?.kind === "end-commitment"
+				scenarioChanges.length === 1 && only?.kind === "end-commitment"
 					? plan.commitments.find((c) => c.id === only.commitmentId)
 					: undefined;
 			return {
 				...freshDraft(scenarios),
 				...(ending ? { name: `Without ${ending.name}`.slice(0, 40) } : {}),
-				levers,
+				levers: scenarioChanges,
 			};
 		}
 		const [latest] = scenarios;
@@ -286,11 +289,11 @@ function Explore({ search }: { search: ExploreSearch }) {
 	});
 	const saved = scenarios.find((s) => s.id === draft.id);
 	const dirty =
-		!saved || saved.name !== draft.name.trim() || !sameLevers(saved.levers, draft.levers);
+		!saved || saved.name !== draft.name.trim() || !sameChanges(saved.levers, draft.levers);
 	// Sliders update the Levers at once; the projection and chart follow in a deferred render.
-	const levers = useDeferredValue(draft.levers);
-	const onLeversChange = useMemo(
-		() => (change: (levers: Lever[]) => Lever[]) =>
+	const scenarioChanges = useDeferredValue(draft.levers);
+	const onChangesEdit = useMemo(
+		() => (change: (scenarioChanges: Lever[]) => Lever[]) =>
 			setDraft((d) => ({ ...d, levers: change(d.levers) })),
 		[],
 	);
@@ -299,7 +302,10 @@ function Explore({ search }: { search: ExploreSearch }) {
 	const horizonLabel = HORIZONS.find((h) => h.months === horizon)?.label ?? "";
 	// Recomputed only when the deferred Levers (or the horizon) change.
 	const planProjection = useMemo(() => project(ahead), [ahead]);
-	const scenarioProjection = useMemo(() => project(ahead, levers), [ahead, levers]);
+	const scenarioProjection = useMemo(
+		() => project(ahead, scenarioChanges),
+		[ahead, scenarioChanges],
+	);
 
 	// What Levers change, as the Plan has them now: "Your changes" and Apply describe Levers by it.
 	const subjects = useMemo<LeverSubjects>(
@@ -336,15 +342,18 @@ function Explore({ search }: { search: ExploreSearch }) {
 			levers: settled,
 			impacts,
 			describe: (index) => {
-				const lever = settled[index];
-				return lever ? describeLever(lever, subjects, settled).text : "";
+				const scenarioChange = settled[index];
+				return scenarioChange ? describeLever(scenarioChange, subjects, settled).text : "";
 			},
 		};
 	}, [ahead, settled, planProjection, subjects]);
 	const impacts = useMemo(
 		() =>
 			new Map(
-				outcome.levers.map((lever, i) => [leverTarget(lever), outcome.impacts[i] as LeverImpact]),
+				outcome.levers.map((scenarioChange, i) => [
+					changeTarget(scenarioChange),
+					outcome.impacts[i] as LeverImpact,
+				]),
 			),
 		[outcome],
 	);
@@ -354,11 +363,14 @@ function Explore({ search }: { search: ExploreSearch }) {
 				...outcome,
 				goalName: (id) => goalNames.get(id) ?? "Goal",
 			}).map((warning) => {
-				const lever = warning.lever === null ? undefined : outcome.levers[warning.lever];
+				const scenarioChange = warning.lever === null ? undefined : outcome.levers[warning.lever];
 				return {
 					...warning,
-					change: lever
-						? { target: leverTarget(lever), name: leverName(lever, subjects, outcome.levers) }
+					change: scenarioChange
+						? {
+								target: changeTarget(scenarioChange),
+								name: leverName(scenarioChange, subjects, outcome.levers),
+							}
 						: null,
 				};
 			}),
@@ -457,7 +469,7 @@ function Explore({ search }: { search: ExploreSearch }) {
 							subjects={subjects}
 							goalNames={goalNames}
 							horizonLabel={horizonLabel}
-							onChange={onLeversChange}
+							onChange={onChangesEdit}
 						/>
 						<ScenarioOutcome
 							value={
@@ -476,7 +488,7 @@ function Explore({ search }: { search: ExploreSearch }) {
 								accounts={accounts}
 								levers={draft.levers}
 								parentId={parentId}
-								onChange={onLeversChange}
+								onChange={onChangesEdit}
 							/>
 						</ScenarioOutcome>
 					</div>
@@ -559,14 +571,14 @@ function ScenarioBar({
 	const asGoal = (index: number) =>
 		onDraft({
 			...draft,
-			levers: draft.levers.map((lever, i) =>
-				i === index && lever.kind === "one-off"
-					? oneOffAsGoal(lever, {
+			levers: draft.levers.map((scenarioChange, i) =>
+				i === index && scenarioChange.kind === "one-off"
+					? oneOffAsGoal(scenarioChange, {
 							goalId: ulid(),
 							month: subjects.month,
 							accountId: goalAccount?.id,
 						})
-					: lever,
+					: scenarioChange,
 			),
 		});
 
@@ -783,7 +795,7 @@ const Summary = memo(function Summary({
 				<div className="grid gap-0.5">
 					<h2 className="text-sm font-medium text-muted-foreground">Against the Plan</h2>
 					<Freed plan={plan} scenario={scenario} horizonLabel={horizonLabel} className="text-2xl" />
-					<Cushion scenario={scenario} />
+					<ProjectedBalance scenario={scenario} />
 				</div>
 				{warnings.length > 0 ? <Warnings warnings={warnings} /> : null}
 			</CardContent>
@@ -894,7 +906,7 @@ const Freed = memo(function Freed({
 });
 
 /** The Scenario's Cushion at its lowest, and the month it first goes below zero. */
-function Cushion({ scenario }: { scenario: Projection }) {
+function ProjectedBalance({ scenario }: { scenario: Projection }) {
 	const { lowest, firstNegative } = scenario;
 	if (!lowest) return null;
 	return (

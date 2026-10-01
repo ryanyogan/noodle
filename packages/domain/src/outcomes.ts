@@ -1,8 +1,8 @@
-import { money, shortMonthName } from "./describe-levers";
-import { addedUntil, holdsIn, type Lever } from "./levers";
+import { addedUntil, type Change, holdsIn } from "./changes";
+import { money, shortMonthName } from "./describe-changes";
 import type { Cents } from "./money";
 import { type MonthKey, monthsBetween } from "./month";
-import type { LeverImpact, ProjectedMonth, Projection } from "./scenario";
+import type { ChangeImpact, ProjectedMonth, Projection } from "./scenario";
 
 // What a Scenario's outcome means, in words: warnings when it stops holding up, each pointing at
 // the change most responsible; what each month changes and why; and the assumptions behind it.
@@ -33,18 +33,18 @@ export function outcomeWarnings({
 }: {
 	plan: Projection;
 	scenario: Projection;
-	levers: readonly Lever[];
-	impacts: readonly LeverImpact[];
+	levers: readonly Change[];
+	impacts: readonly ChangeImpact[];
 	goalName: (goalId: string) => string;
 }): OutcomeWarning[] {
 	const warnings: OutcomeWarning[] = [];
 	/** The counted Lever whose `score` is most negative, if any is below zero. */
-	const worst = (score: (impact: LeverImpact) => number): number | null => {
+	const worst = (score: (impact: ChangeImpact) => number): number | null => {
 		let found: number | null = null;
 		let lowest = 0;
-		levers.forEach((lever, i) => {
+		levers.forEach((scenarioChange, i) => {
 			const impact = impacts[i];
-			if (lever.muted || !impact) return;
+			if (scenarioChange.muted || !impact) return;
 			const value = score(impact);
 			if (value < lowest) {
 				lowest = value;
@@ -57,14 +57,14 @@ export function outcomeWarnings({
 	const negative = scenario.months.findIndex((m) => m.freeToSpend < 0);
 	const negativeMonth = scenario.months[negative];
 	if (negativeMonth) {
-		const lever = worst((impact) => impact.byMonth[negative]?.freeToSpend ?? 0);
+		const scenarioChange = worst((impact) => impact.byMonth[negative]?.freeToSpend ?? 0);
 		const inPlan = (plan.months[negative]?.freeToSpend ?? 0) < 0;
 		warnings.push({
 			kind: "free-to-spend-negative",
-			text: `Free to Spend goes negative in ${shortMonthName(negativeMonth.month)}${lever === null && inPlan ? ", as in the Plan" : ""}`,
+			text: `Free to Spend goes negative in ${shortMonthName(negativeMonth.month)}${scenarioChange === null && inPlan ? ", as in the Plan" : ""}`,
 			month: negativeMonth.month,
 			goalId: null,
-			lever,
+			lever: scenarioChange,
 		});
 	}
 
@@ -72,16 +72,16 @@ export function outcomeWarnings({
 	if (firstNegative) {
 		const index = scenario.months.findIndex((m) => m.month === firstNegative);
 		// What each Lever has taken from the Cushion by the month it runs out.
-		const lever = worst((impact) =>
+		const scenarioChange = worst((impact) =>
 			impact.byMonth.slice(0, index + 1).reduce((sum, m) => sum + m.freeToSpend + m.oneOffs, 0),
 		);
 		const inPlan = plan.firstNegative !== null && plan.firstNegative <= firstNegative;
 		warnings.push({
 			kind: "cushion-negative",
-			text: `The Cushion dips below zero from ${shortMonthName(firstNegative)}${lever === null && inPlan ? ", as in the Plan" : ""}`,
+			text: `The Cushion dips below zero from ${shortMonthName(firstNegative)}${scenarioChange === null && inPlan ? ", as in the Plan" : ""}`,
 			month: firstNegative,
 			goalId: null,
-			lever,
+			lever: scenarioChange,
 		});
 	}
 
@@ -90,7 +90,7 @@ export function outcomeWarnings({
 		const before = plan.goals.find((g) => g.goalId === goal.goalId)?.reachedIn ?? null;
 		if (before === null || (goal.reachedIn !== null && goal.reachedIn <= before)) continue;
 		// The Lever that moves it furthest: one that stops it being reached at all counts most.
-		const lever = worst((impact) => {
+		const scenarioChange = worst((impact) => {
 			const moved = impact.goals.find((g) => g.goalId === goal.goalId);
 			if (!moved) return 0;
 			return moved.months === null ? (moved.reachedIn === null ? -Infinity : 0) : -moved.months;
@@ -102,7 +102,7 @@ export function outcomeWarnings({
 				text: `The ${name} Goal is no longer reached${lastMonth ? ` by ${shortMonthName(lastMonth)}` : ""}`,
 				month: null,
 				goalId: goal.goalId,
-				lever,
+				lever: scenarioChange,
 			});
 		} else {
 			const months = monthsBetween(before, goal.reachedIn);
@@ -111,7 +111,7 @@ export function outcomeWarnings({
 				text: `The ${name} Goal slips ${months} month${months === 1 ? "" : "s"}, to ${shortMonthName(goal.reachedIn)}`,
 				month: goal.reachedIn,
 				goalId: goal.goalId,
-				lever,
+				lever: scenarioChange,
 			});
 		}
 	}
@@ -119,12 +119,15 @@ export function outcomeWarnings({
 }
 
 /** Whether a Lever is in play in `month`: a one-off only in its month, a new Commitment for its term. */
-export function leverHoldsIn(lever: Lever, month: MonthKey): boolean {
-	if (lever.kind === "one-off") return lever.fromMonth === month;
-	if (lever.kind === "add-commitment") {
-		return holdsIn({ fromMonth: lever.fromMonth, untilMonth: addedUntil(lever) }, month);
+export function changeHoldsIn(scenarioChange: Change, month: MonthKey): boolean {
+	if (scenarioChange.kind === "one-off") return scenarioChange.fromMonth === month;
+	if (scenarioChange.kind === "add-commitment") {
+		return holdsIn(
+			{ fromMonth: scenarioChange.fromMonth, untilMonth: addedUntil(scenarioChange) },
+			month,
+		);
 	}
-	return holdsIn(lever, month);
+	return holdsIn(scenarioChange, month);
 }
 
 export type MonthBreakdown = {
@@ -148,8 +151,8 @@ export function monthBreakdown({
 }: {
 	plan: Projection;
 	scenario: Projection;
-	levers: readonly Lever[];
-	impacts: readonly LeverImpact[];
+	levers: readonly Change[];
+	impacts: readonly ChangeImpact[];
 	/** Which month, counting from the first projected. */
 	index: number;
 }): MonthBreakdown | null {
@@ -157,10 +160,14 @@ export function monthBreakdown({
 	const planned = plan.months[index];
 	if (!at || !planned) return null;
 	const changes: MonthBreakdown["changes"] = [];
-	levers.forEach((lever, i) => {
-		if (lever.muted) return;
+	levers.forEach((scenarioChange, i) => {
+		if (scenarioChange.muted) return;
 		const change = impacts[i]?.byMonth[index] ?? { freeToSpend: 0, oneOffs: 0 };
-		if (leverHoldsIn(lever, at.month) || change.freeToSpend !== 0 || change.oneOffs !== 0) {
+		if (
+			changeHoldsIn(scenarioChange, at.month) ||
+			change.freeToSpend !== 0 ||
+			change.oneOffs !== 0
+		) {
 			changes.push({ lever: i, ...change });
 		}
 	});
@@ -171,8 +178,11 @@ export function monthBreakdown({
  * What every projection assumes, in plain sentences, with growth when a Lever turns it on.
  * Muted Levers don't count.
  */
-export function projectionAssumptions(levers: readonly Lever[], startingCushion: Cents): string[] {
-	const growth = levers.filter((l) => l.kind === "growth" && !l.muted);
+export function projectionAssumptions(
+	scenarioChanges: readonly Change[],
+	startingBalance: Cents,
+): string[] {
+	const growth = scenarioChanges.filter((l) => l.kind === "growth" && !l.muted);
 	return [
 		"Spending is assumed to equal allowances.",
 		"Dated Goals are funded what they need each month; undated ones aren’t.",
@@ -186,6 +196,6 @@ export function projectionAssumptions(levers: readonly Lever[], startingCushion:
 							]
 						: [],
 				)),
-		`The Cushion starts at ${money(startingCushion)}.`,
+		`The Cushion starts at ${money(startingBalance)}.`,
 	];
 }

@@ -34,8 +34,8 @@ export function exploreTriesFor(
 	const live = insight.commitments.filter(
 		(c) => c.endedFromMonth === null || c.endedFromMonth > current,
 	);
-	const tryAs = (name: string, lever: Lever) => {
-		const preset = leverPreset(lever);
+	const tryAs = (name: string, change: Lever) => {
+		const preset = leverPreset(change);
 		return preset ? [{ name, preset }] : [];
 	};
 	switch (insight.kind) {

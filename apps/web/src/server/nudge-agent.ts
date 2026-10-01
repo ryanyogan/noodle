@@ -14,10 +14,10 @@ import { getDb } from "./db";
 import { loadMonth } from "./month";
 import {
 	bucketPaceNudge,
+	extraIncomeArrived,
 	type RaisedNudges,
 	type ScheduledNudge,
 	scheduleNudges,
-	windfallArrived,
 } from "./nudge-content";
 import type { NudgeDelivery } from "./nudge-delivery";
 
@@ -37,7 +37,7 @@ const HOUSEHOLD_KEY = "household-id";
 const PENDING_KEY = "nudges:pending";
 const SCHEDULED_KEY = "nudges:scheduled";
 const PAST_PACE_PREFIX = "nudges:past-pace:";
-const WINDFALL_PREFIX = "nudges:windfall:";
+const EXTRA_INCOME_PREFIX = "nudges:windfall:";
 const CHECK_IN_KEY = "nudges:check-in-week";
 
 /**
@@ -165,14 +165,14 @@ export class HouseholdNudges {
 		this.kv.get<string[]>(`${PAST_PACE_PREFIX}${month}`) ?? [];
 
 	private readonly windfallNudgedAt = (month: MonthKey): Cents =>
-		this.kv.get<Cents>(`${WINDFALL_PREFIX}${month}`) ?? 0;
+		this.kv.get<Cents>(`${EXTRA_INCOME_PREFIX}${month}`) ?? 0;
 
 	/** Remembers what a month's Windfall was Nudged at, forgetting earlier months'. */
-	private rememberWindfall(month: MonthKey, windfall: Cents) {
-		for (const [key] of this.kv.list({ prefix: WINDFALL_PREFIX })) {
-			if (key < `${WINDFALL_PREFIX}${month}`) this.kv.delete(key);
+	private rememberWindfall(month: MonthKey, extraIncome: Cents) {
+		for (const [key] of this.kv.list({ prefix: EXTRA_INCOME_PREFIX })) {
+			if (key < `${EXTRA_INCOME_PREFIX}${month}`) this.kv.delete(key);
 		}
-		this.kv.put(`${WINDFALL_PREFIX}${month}`, windfall);
+		this.kv.put(`${EXTRA_INCOME_PREFIX}${month}`, extraIncome);
 	}
 
 	/** Remembers this month's Buckets past Pace, forgetting earlier months'. */
@@ -204,7 +204,7 @@ async function decideNudges(
 	const { recipients, timeZone } = household;
 	const raised: RaisedNudges = { pace: [], quickAdds: [], windfalls: [] };
 	let pastPace: { month: MonthKey; ids: string[] } | undefined;
-	const windfalls: { month: MonthKey; windfall: Cents }[] = [];
+	const extraIncomes: { month: MonthKey; windfall: Cents }[] = [];
 	const [anyone] = recipients;
 	// The month as a Parent sees it: charges, Moves, income, and what rolled over included. Every
 	// Bucket's totals, Personal Allowances' too, and the Windfall are the same whichever Parent
@@ -228,10 +228,10 @@ async function decideNudges(
 	for (const [month, recordedBy] of incomeIn) {
 		if (!anyone) break;
 		const { windfall } = await stateOf(month, anyone.memberId);
-		const arrived = windfallArrived(month, windfall, before.windfallNudgedAt(month), recordedBy);
+		const arrived = extraIncomeArrived(month, windfall, before.windfallNudgedAt(month), recordedBy);
 		if (arrived) {
 			raised.windfalls.push(arrived);
-			windfalls.push({ month, windfall });
+			extraIncomes.push({ month, windfall });
 		}
 	}
 	for (const event of pending.events) {
@@ -248,5 +248,9 @@ async function decideNudges(
 			if (transaction) raised.quickAdds.push({ recipientId: memberId, transaction });
 		}
 	}
-	return { scheduled: scheduleNudges(raised, household.recipients, now), pastPace, windfalls };
+	return {
+		scheduled: scheduleNudges(raised, household.recipients, now),
+		pastPace,
+		windfalls: extraIncomes,
+	};
 }

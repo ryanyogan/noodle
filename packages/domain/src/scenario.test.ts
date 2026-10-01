@@ -81,8 +81,8 @@ const ahead = (goals: ProjectionGoal[] = [], count = 12) =>
 
 // The tests up to "engine v2" project v1 Levers, as saved before Levers had ranges, upgraded:
 // they must come out exactly as they always have.
-const projectV1 = (a: PlanAhead, levers: LeverV1[] = []) =>
-	project(a, upgradeLevers(levers, "2026-09"));
+const projectV1 = (a: PlanAhead, changes: LeverV1[] = []) =>
+	project(a, upgradeLevers(changes, "2026-09"));
 
 const month = (m: MonthKey, projection: ReturnType<typeof project>) =>
 	projection.months.find((p) => p.month === m);
@@ -587,7 +587,7 @@ describe("project: v2 Levers over a range of months", () => {
 	});
 
 	it("adds an annual Commitment in its month each year, ending at untilMonth before its term", () => {
-		const lever: Lever = {
+		const change: Lever = {
 			kind: "add-commitment",
 			commitmentId: "tuition",
 			name: "Tuition",
@@ -598,13 +598,13 @@ describe("project: v2 Levers over a range of months", () => {
 			months: null,
 		};
 		const plan14 = project(ahead([], 14));
-		const extra = (levers: Lever[]) =>
-			project(ahead([], 14), levers)
+		const extra = (changes: Lever[]) =>
+			project(ahead([], 14), changes)
 				.months.map((m, i) => m.commitments - (plan14.months[i]?.commitments ?? 0))
 				.filter((x) => x !== 0);
-		expect(extra([lever])).toEqual([500_000, 500_000]);
-		expect(extra([{ ...lever, untilMonth: "2027-10" }])).toEqual([500_000]);
-		expect(extra([{ ...lever, months: 12, untilMonth: "2028-01" }])).toEqual([500_000]);
+		expect(extra([change])).toEqual([500_000, 500_000]);
+		expect(extra([{ ...change, untilMonth: "2027-10" }])).toEqual([500_000]);
+		expect(extra([{ ...change, months: 12, untilMonth: "2028-01" }])).toEqual([500_000]);
 	});
 
 	it("a one-off lands in its month, outside Free to Spend but in the Cushion", () => {
@@ -816,7 +816,7 @@ describe("leverImpacts: each Lever left out in turn", () => {
 		saved: 0,
 		fundedThisMonth: 0,
 	};
-	const levers: Lever[] = [
+	const changes: Lever[] = [
 		{ kind: "end-commitment", commitmentId: "streaming", fromMonth: "2026-09" },
 		{
 			kind: "one-off",
@@ -835,7 +835,7 @@ describe("leverImpacts: each Lever left out in turn", () => {
 		},
 		{ kind: "allowance", bucketId: "gone", amount: 1, fromMonth: "2026-09" },
 	];
-	const impacts = leverImpacts(ahead([car], 24), levers, { startingBalance: 50_000 });
+	const impacts = leverImpacts(ahead([car], 24), changes, { startingBalance: 50_000 });
 
 	it("has one impact per Lever, in order", () => {
 		expect(impacts).toHaveLength(4);

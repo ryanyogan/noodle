@@ -28,7 +28,7 @@ import {
 } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { counts } from "./counting";
-import { earmarkSql } from "./goals";
+import { setAsideSql } from "./goals";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
 import {
@@ -709,7 +709,7 @@ function goalPartsFit(householdId: string, transactionId: string, parts: SplitIn
 	return and(
 		...[...perGoal].map(
 			([goalId, amount]) =>
-				sql`${earmarkSql(householdId, goalId)} + coalesce((select sum(s.amount_cents) from splits s
+				sql`${setAsideSql(householdId, goalId)} + coalesce((select sum(s.amount_cents) from splits s
 					where s.household_id = ${householdId} and s.transaction_id = ${transactionId}
 					and s.goal_id = ${goalId}), 0) >= ${amount}`,
 		),

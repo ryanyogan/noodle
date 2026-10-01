@@ -1,23 +1,23 @@
+import {
+	addedTerms,
+	addedUntil,
+	type Change,
+	changedTerms,
+	isAssumption,
+	rangeFrom,
+	whyNotApplicable,
+} from "./changes";
 import { type CommitmentTerms, dueDatesIn } from "./commitments";
 import {
+	type ChangeSubjects,
 	cadenceWords,
-	describeLever,
+	describeChange,
 	goalWords,
-	type LeverSubjects,
 	money,
 	OTHER_PERSONAL_ALLOWANCE,
 	ordinal,
 	shortMonthName,
-} from "./describe-levers";
-import {
-	addedTerms,
-	addedUntil,
-	changedTerms,
-	isAssumption,
-	type Lever,
-	rangeFrom,
-	whyNotApplicable,
-} from "./levers";
+} from "./describe-changes";
 import type { Cents } from "./money";
 import type { MonthKey } from "./month";
 import { effective, type PlanRecords, planForMonth } from "./plan";
@@ -44,10 +44,10 @@ export type ApplyPreviewInput = {
 	records: PlanRecords;
 	/** The Household's current month: applying starts no earlier. */
 	month: MonthKey;
-	levers: readonly Lever[];
+	levers: readonly Change[];
 	/** The Parent applying: only they change their Personal Allowance, and see its amounts. */
 	viewer: string;
-	goals: LeverSubjects["goals"];
+	goals: ChangeSubjects["goals"];
 	accounts: readonly { id: string; name: string }[];
 };
 
@@ -81,35 +81,35 @@ const sameTerms = (a: CommitmentTerms, b: CommitmentTerms) =>
 export function applyPreview(input: ApplyPreviewInput): ApplyPreview {
 	const { records, month, levers, viewer } = input;
 	const preview: ApplyPreview = { changes: [], leftOut: [], blocked: [] };
-	const subjects: LeverSubjects = {
+	const subjects: ChangeSubjects = {
 		...planForMonth(records, month),
 		goals: input.goals,
 		viewer,
 	};
 
-	for (const [index, lever] of levers.entries()) {
-		const text = describeLever(lever, subjects, levers).text;
+	for (const [index, change] of levers.entries()) {
+		const text = describeChange(change, subjects, levers).text;
 		const leave = (reason: string, asGoal = false) => {
 			preview.leftOut.push({ lever: index, text, reason, asGoal });
 		};
-		if (lever.muted) {
+		if (change.muted) {
 			leave("Muted, so it isn’t applied.");
 			continue;
 		}
-		if (isAssumption(lever)) {
+		if (isAssumption(change)) {
 			leave(
-				whyNotApplicable(lever, month) ?? "",
-				lever.kind === "one-off" && lever.flow === "expense",
+				whyNotApplicable(change, month) ?? "",
+				change.kind === "one-off" && change.flow === "expense",
 			);
 			continue;
 		}
-		const why = whyNotApplicable(lever, month);
+		const why = whyNotApplicable(change, month);
 		if (why !== null) {
 			preview.blocked.push({ lever: index, reason: why });
 			continue;
 		}
-		const range = rangeFrom(lever, month);
-		const lines = range === null ? "Its months are over." : changeLines(lever, range, input);
+		const range = rangeFrom(change, month);
+		const lines = range === null ? "Its months are over." : changeLines(change, range, input);
 		if (typeof lines === "string") leave(lines);
 		else preview.changes.push({ lever: index, lines });
 	}
@@ -118,7 +118,7 @@ export function applyPreview(input: ApplyPreviewInput): ApplyPreview {
 
 /** A Lever's Plan changes in words, or why it changes nothing. */
 function changeLines(
-	lever: Lever,
+	change: Change,
 	range: { from: MonthKey; until: MonthKey | null },
 	input: ApplyPreviewInput,
 ): string[] | string {
@@ -145,40 +145,40 @@ function changeLines(
 		return lines;
 	};
 
-	switch (lever.kind) {
+	switch (change.kind) {
 		case "baseline": {
 			const before = plan.baseline;
-			if (before === lever.amount) return unchanged;
+			if (before === change.amount) return unchanged;
 			const back = effective(records.baselines, until ?? start)?.amount ?? null;
 			return valueLines({
 				name: "Income",
 				own: records.baselines,
 				before: before === null ? "not set" : money(before),
-				after: `${money(lever.amount)} a month`,
+				after: `${money(change.amount)} a month`,
 				back: () => (back === null ? "not set" : `${money(back)} a month`),
 			});
 		}
 		case "allowance": {
-			const bucket = plan.buckets.find((b) => b.id === lever.bucketId);
+			const bucket = plan.buckets.find((b) => b.id === change.bucketId);
 			if (!bucket) return gone;
 			if (bucket.owner !== undefined && bucket.owner !== viewer) {
 				return `Only its Parent changes their ${OTHER_PERSONAL_ALLOWANCE}.`;
 			}
-			if (bucket.allowance === lever.amount) return unchanged;
+			if (bucket.allowance === change.amount) return unchanged;
 			const own = records.allowances.filter((a) => a.bucketId === bucket.id);
 			const back = (effective(own, until ?? start)?.amount ?? 0) as Cents;
 			return valueLines({
 				name: bucket.name,
 				own,
 				before: money(bucket.allowance),
-				after: `${money(lever.amount)} a month`,
+				after: `${money(change.amount)} a month`,
 				back: () => `${money(back)} a month`,
 			});
 		}
 		case "commitment-terms": {
-			const commitment = plan.commitments.find((c) => c.id === lever.commitmentId);
+			const commitment = plan.commitments.find((c) => c.id === change.commitmentId);
 			if (!commitment) return gone;
-			const terms = changedTerms(commitment, lever, start);
+			const terms = changedTerms(commitment, change, start);
 			if (sameTerms(terms, commitment)) return unchanged;
 			const own = records.commitmentTerms.filter((t) => t.commitmentId === commitment.id);
 			const due =
@@ -195,55 +195,55 @@ function changeLines(
 			});
 		}
 		case "end-commitment": {
-			const commitment = plan.commitments.find((c) => c.id === lever.commitmentId);
+			const commitment = plan.commitments.find((c) => c.id === change.commitmentId);
 			const added = levers.find(
-				(l) => l.kind === "add-commitment" && l.commitmentId === lever.commitmentId,
+				(l) => l.kind === "add-commitment" && l.commitmentId === change.commitmentId,
 			);
 			if (!commitment && !added) return gone;
 			const name = commitment?.name ?? (added?.kind === "add-commitment" ? added.name : "");
 			return [`${name} ends: out of the Plan ${from(start)}`];
 		}
 		case "add-commitment": {
-			if (records.commitments.some((c) => c.id === lever.commitmentId)) return unchanged;
-			const terms = addedTerms({ ...lever, fromMonth: start });
-			const ends = addedUntil({ ...lever, fromMonth: start });
+			if (records.commitments.some((c) => c.id === change.commitmentId)) return unchanged;
+			const terms = addedTerms({ ...change, fromMonth: start });
+			const ends = addedUntil({ ...change, fromMonth: start });
 			const firstDue = dueDatesIn(terms, start)[0] ?? terms.dueDate;
 			return [
-				`New Commitment ${lever.name}: ${termsWords(terms)}, due the ${ordinal(Number(firstDue.slice(8)))}, ${from(start)}${ends ? ` until ${shortMonthName(ends)}` : ""}`,
+				`New Commitment ${change.name}: ${termsWords(terms)}, due the ${ordinal(Number(firstDue.slice(8)))}, ${from(start)}${ends ? ` until ${shortMonthName(ends)}` : ""}`,
 			];
 		}
 		case "add-bucket": {
-			if (records.buckets.some((b) => b.id === lever.bucketId)) return unchanged;
-			const kind = lever.rolling ? "Rolling" : "Fresh-start";
+			if (records.buckets.some((b) => b.id === change.bucketId)) return unchanged;
+			const kind = change.rolling ? "Rolling" : "Fresh-start";
 			return [
-				`New Bucket ${lever.name}: ${money(lever.amount)} a month, ${kind}, ${from(start)}${until ? ` until ${shortMonthName(until)}` : ""}`,
+				`New Bucket ${change.name}: ${money(change.amount)} a month, ${kind}, ${from(start)}${until ? ` until ${shortMonthName(until)}` : ""}`,
 			];
 		}
 		case "archive-bucket": {
-			const bucket = plan.buckets.find((b) => b.id === lever.bucketId);
-			const added = levers.find((l) => l.kind === "add-bucket" && l.bucketId === lever.bucketId);
+			const bucket = plan.buckets.find((b) => b.id === change.bucketId);
+			const added = levers.find((l) => l.kind === "add-bucket" && l.bucketId === change.bucketId);
 			if (bucket?.owner !== undefined) return "A Personal Allowance isn’t archived.";
 			if (!bucket && !added) return gone;
 			const name = bucket?.name ?? (added?.kind === "add-bucket" ? added.name : "");
 			return [`${name} archived: out of the Plan ${from(start)}`];
 		}
 		case "goal": {
-			const goal = input.goals.find((g) => g.id === lever.goalId);
+			const goal = input.goals.find((g) => g.id === change.goalId);
 			if (!goal) return gone;
-			if (goal.target === lever.target && goal.targetDate === lever.targetDate) return unchanged;
+			if (goal.target === change.target && goal.targetDate === change.targetDate) return unchanged;
 			return [
-				`${goal.name} ${goalWords(goal.target, goal.targetDate)} → ${goalWords(lever.target, lever.targetDate)}`,
+				`${goal.name} ${goalWords(goal.target, goal.targetDate)} → ${goalWords(change.target, change.targetDate)}`,
 			];
 		}
 		case "add-goal": {
-			if (input.goals.some((g) => g.id === lever.goalId)) return unchanged;
-			const account = input.accounts.find((a) => a.id === lever.accountId);
+			if (input.goals.some((g) => g.id === change.goalId)) return unchanged;
+			const account = input.accounts.find((a) => a.id === change.accountId);
 			return [
-				`New Goal ${lever.name}: ${goalWords(lever.target, lever.targetDate)}${account ? `, kept in ${account.name}` : ""}`,
+				`New Goal ${change.name}: ${goalWords(change.target, change.targetDate)}${account ? `, kept in ${account.name}` : ""}`,
 			];
 		}
 		case "one-off":
 		case "growth":
-			return whyNotApplicable(lever, start) ?? "";
+			return whyNotApplicable(change, start) ?? "";
 	}
 }

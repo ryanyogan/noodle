@@ -3,7 +3,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { commitmentAdd } from "./commitments";
 import type { Db } from "./index";
-import { baselineLog, bucketAdd } from "./plan";
+import { bucketAdd, takeHomePayLog } from "./plan";
 import { nextColor } from "./scenarios";
 import { baselines, planDraftDecisions, planDrafts } from "./schema";
 
@@ -100,7 +100,7 @@ export async function decideDraft(
 	if (input.baselineCents != null) {
 		const amountCents = input.baselineCents;
 		writes.push(
-			baselineLog(db, { householdId, memberId, month, amountCents }),
+			takeHomePayLog(db, { householdId, memberId, month, amountCents }),
 			db
 				.insert(baselines)
 				.values({ householdId, month, amountCents })

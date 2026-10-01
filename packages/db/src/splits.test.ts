@@ -21,7 +21,7 @@ import {
 	updateTransaction,
 } from "./index";
 import { bucketLeftSql } from "./moves";
-import { setRolling } from "./plan";
+import { setCarriesOver } from "./plan";
 import { loadRolledOver } from "./rollover";
 import { testDb } from "./test-db";
 
@@ -323,7 +323,7 @@ describe("Splits everywhere spending is summed", () => {
 	});
 
 	it("rolls a Rolling Bucket's leftover over after its Splits", async () => {
-		await setRolling(db, {
+		await setCarriesOver(db, {
 			householdId,
 			memberId: parentId,
 			bucketId: "hockey",

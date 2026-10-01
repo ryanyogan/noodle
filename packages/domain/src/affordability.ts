@@ -72,8 +72,8 @@ export type PlanNow = {
 };
 
 /** Gross monthly income estimated from the take-home Baseline (see TAKE_HOME_SHARE). */
-export const estimateGrossIncome = (baseline: Cents): Cents =>
-	Math.round((baseline * 100) / TAKE_HOME_SHARE);
+export const estimateGrossIncome = (takeHomePay: Cents): Cents =>
+	Math.round((takeHomePay * 100) / TAKE_HOME_SHARE);
 
 /** Free to Spend in a typical month: the average over a projection, rounded down. */
 export const typicalFreeToSpend = (projection: Projection): Cents =>
@@ -502,13 +502,13 @@ function planReason({
 	after: Cents;
 	change: string;
 }): Reason {
-	const cushion = Math.ceil((plan.baseline * AFFORDABILITY_LIMITS.cushion) / 100);
+	const projectedBalance = Math.ceil((plan.baseline * AFFORDABILITY_LIMITS.cushion) / 100);
 	const text = `${change} would take Free to Spend from ${dollars(plan.freeToSpend)} to ${dollars(after)} a month`;
-	if (after >= cushion) return { tone: "comfortable", text: `${text}.` };
+	if (after >= projectedBalance) return { tone: "comfortable", text: `${text}.` };
 	if (after >= 0) {
 		return {
 			tone: "stretch",
-			text: `${text}, less than ${dollars(cushion)} (${AFFORDABILITY_LIMITS.cushion}% of the Baseline) to spare.`,
+			text: `${text}, less than ${dollars(projectedBalance)} (${AFFORDABILITY_LIMITS.cushion}% of the Baseline) to spare.`,
 		};
 	}
 	return {

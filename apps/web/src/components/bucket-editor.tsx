@@ -18,10 +18,10 @@ import {
 	usePlanChange,
 	withAllowance,
 	withBucketDetails,
+	withCarriesOver,
 	withNewBucket,
 	withNewPersonalAllowance,
 	withOrder,
-	withRolling,
 } from "../plan-changes";
 import { membersQuery } from "../queries";
 import {
@@ -29,7 +29,7 @@ import {
 	addPersonalAllowance,
 	reorderBuckets,
 	setAllowance,
-	setRolling,
+	setCarriesOver,
 	updateBucket,
 } from "../server/plan";
 import { Confirm, SaveFailed } from "./plan-editing";
@@ -151,7 +151,7 @@ export function BucketDetails({
 	const [confirmArchive, setConfirmArchive] = useState(false);
 	// The colour just picked, shown until the cache catches up (or rolls back).
 	const [pickedColor, setPickedColor] = useState<number | null>(null);
-	const [pickedRolling, setPickedRolling] = useState<boolean | null>(null);
+	const [pickedCarriesOver, setPickedCarriesOver] = useState<boolean | null>(null);
 	const details = usePlanChange(month, {
 		save: (data: { bucketId: string; name?: string; color?: number }) => updateBucket({ data }),
 		apply: withBucketDetails,
@@ -160,9 +160,10 @@ export function BucketDetails({
 		save: (data: { bucketIds: string[] }) => reorderBuckets({ data }),
 		apply: withOrder,
 	});
-	const rolling = usePlanChange(month, {
-		save: (data: { bucketId: string; month: MonthKey; rolling: boolean }) => setRolling({ data }),
-		apply: withRolling,
+	const carriesOver = usePlanChange(month, {
+		save: (data: { bucketId: string; month: MonthKey; rolling: boolean }) =>
+			setCarriesOver({ data }),
+		apply: withCarriesOver,
 	});
 
 	function move(by: -1 | 1) {
@@ -182,7 +183,7 @@ export function BucketDetails({
 		<div className="grid gap-4 rounded-xl bg-surface-2 p-3">
 			<SaveFailed change={details} />
 			<SaveFailed change={reorder} />
-			<SaveFailed change={rolling} />
+			<SaveFailed change={carriesOver} />
 			<form onSubmit={rename}>
 				<Field label="Name" htmlFor={nameId}>
 					<div className="flex gap-2">
@@ -234,7 +235,7 @@ export function BucketDetails({
 			</fieldset>
 			<fieldset className="grid gap-2">
 				<legend className="mb-2 text-sm font-medium">At the end of the month</legend>
-				{rollingOptions.map((option) => (
+				{carriesOverOptions.map((option) => (
 					<label
 						key={option.label}
 						className="flex cursor-pointer items-start gap-3 rounded-lg bg-card px-3 py-2.5"
@@ -242,12 +243,12 @@ export function BucketDetails({
 						<input
 							type="radio"
 							name={`rolling-${bucket.id}`}
-							checked={(pickedRolling ?? bucket.rolling) === option.rolling}
+							checked={(pickedCarriesOver ?? bucket.rolling) === option.rolling}
 							onChange={() => {
-								setPickedRolling(option.rolling);
-								rolling.mutate(
+								setPickedCarriesOver(option.rolling);
+								carriesOver.mutate(
 									{ bucketId: bucket.id, month, rolling: option.rolling },
-									{ onSettled: () => setPickedRolling(null) },
+									{ onSettled: () => setPickedCarriesOver(null) },
 								);
 							}}
 							className="mt-0.5 size-4 shrink-0 accent-foreground"
@@ -308,7 +309,7 @@ export function BucketDetails({
 	);
 }
 
-const rollingOptions = [
+const carriesOverOptions = [
 	{
 		rolling: false,
 		label: "Fresh-start",

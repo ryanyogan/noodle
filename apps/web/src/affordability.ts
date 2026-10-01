@@ -80,7 +80,7 @@ export type NewCost = {
  * The Levers that make a Check's new monthly costs a Scenario: each a new Commitment from
  * `from`, with the Commitments they replace cancelled from the same month.
  */
-export function purchaseLevers({
+export function purchaseChanges({
 	from,
 	costs,
 	replaced,

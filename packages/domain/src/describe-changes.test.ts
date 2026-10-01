@@ -15,11 +15,12 @@ const subjects: LeverSubjects = {
 	goals: [{ id: "college", name: "College", target: 5_000_000, targetDate: "2030-08-31" }],
 };
 
-const text = (lever: Lever, levers: Lever[] = []) => describeLever(lever, subjects, levers).text;
+const text = (change: Lever, changes: Lever[] = []) =>
+	describeLever(change, subjects, changes).text;
 
 describe("leverName", () => {
 	it("names what a Lever changes in a word or two, for warnings to point at", () => {
-		const name = (lever: Lever, levers: Lever[] = []) => leverName(lever, subjects, levers);
+		const name = (change: Lever, changes: Lever[] = []) => leverName(change, subjects, changes);
 		expect(name({ kind: "end-commitment", commitmentId: "daycare", fromMonth: "2027-09" })).toBe(
 			"Daycare",
 		);
@@ -189,14 +190,14 @@ describe("describeLever", () => {
 	});
 
 	it("flags a Lever whose Bucket, Commitment or Goal is no longer in the Plan", () => {
-		for (const lever of [
+		for (const change of [
 			{ kind: "allowance", bucketId: "gone", amount: 1_000, fromMonth: "2026-09" },
 			{ kind: "archive-bucket", bucketId: "gone", fromMonth: "2026-09" },
 			{ kind: "commitment-terms", commitmentId: "gone", amount: 1_000, fromMonth: "2026-09" },
 			{ kind: "end-commitment", commitmentId: "gone", fromMonth: "2026-09" },
 			{ kind: "goal", goalId: "gone", target: 1_000, targetDate: null, fromMonth: "2026-09" },
 		] satisfies Lever[]) {
-			expect(describeLever(lever, subjects).gone).toBe(true);
+			expect(describeLever(change, subjects).gone).toBe(true);
 		}
 		expect(
 			describeLever({ kind: "baseline", amount: 1, fromMonth: "2026-09" }, subjects).gone,

@@ -39,7 +39,7 @@ import {
 import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../buckets";
 import { formatMoney, fullDay, shortMonth } from "../format";
-import { leverTarget, withLever, withoutLever } from "../scenarios";
+import { changeTarget, withChange, withoutChange } from "../scenarios";
 import { MoneyInput } from "./money-input";
 
 // The Plan as an editable outline: Income, Commitments, Buckets, Goals, One-offs and growth. Each
@@ -87,14 +87,14 @@ function SheetOutcome() {
 	return outcome ? <div className="rounded-xl bg-surface-2 px-3 py-2">{outcome}</div> : null;
 }
 
-type Levers = (change: (levers: Lever[]) => Lever[]) => void;
+type Changes = (change: (changes: Lever[]) => Lever[]) => void;
 
 /** What every line needs to change the Scenario. */
 type Editing = {
 	month: MonthKey;
 	wide: boolean;
 	/** Sets a Lever (counted, even if it was muted). */
-	set: (lever: Lever) => void;
+	set: (scenarioChange: Lever) => void;
 	unset: (target: string) => void;
 };
 
@@ -116,28 +116,28 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 	accounts: { id: string; name: string }[];
 	levers: Lever[];
 	parentId: string;
-	onChange: Levers;
+	onChange: Changes;
 }) {
 	const wide = useWide();
-	const byTarget = new Map(levers.map((l) => [leverTarget(l), l]));
+	const byTarget = new Map(levers.map((l) => [changeTarget(l), l]));
 	const edit: Editing = {
 		month,
 		wide,
-		set: (lever) => {
-			const { muted: _, ...counted } = lever;
-			onChange((current) => withLever(current, counted as Lever));
+		set: (scenarioChange) => {
+			const { muted: _, ...counted } = scenarioChange;
+			onChange((current) => withChange(current, counted as Lever));
 		},
-		unset: (target) => onChange((current) => withoutLever(current, target)),
+		unset: (target) => onChange((current) => withoutChange(current, target)),
 	};
 	const added = <K extends LeverKind>(kind: K) =>
 		levers.filter((l): l is LeverOf<K> => l.kind === kind);
-	const addNew = (lever: Lever) => onChange((current) => [...current, lever]);
+	const addNew = (scenarioChange: Lever) => onChange((current) => [...current, scenarioChange]);
 
 	return (
 		<div className="grid gap-8">
 			<Group id="outline-income" title="Income" wide={wide}>
 				<List>
-					<BaselineLine plan={plan} lever={byTarget.get("baseline")} edit={edit} />
+					<TakeHomePayLine plan={plan} lever={byTarget.get("baseline")} edit={edit} />
 				</List>
 			</Group>
 
@@ -157,9 +157,9 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 						months: null,
 						fromMonth: month,
 					}),
-					fields: (lever, change) =>
-						lever.kind === "add-commitment" ? (
-							<AddedCommitmentFields lever={lever} month={month} onChange={change} />
+					fields: (scenarioChange, change) =>
+						scenarioChange.kind === "add-commitment" ? (
+							<AddedCommitmentFields lever={scenarioChange} month={month} onChange={change} />
 						) : null,
 					onAdd: addNew,
 				}}
@@ -175,17 +175,17 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 								edit={edit}
 							/>
 						))}
-						{added("add-commitment").map((lever) => (
+						{added("add-commitment").map((scenarioChange) => (
 							<AddedLine
-								key={lever.commitmentId}
-								lever={lever}
+								key={scenarioChange.commitmentId}
+								lever={scenarioChange}
 								edit={edit}
-								meta={`${lever.months === null ? "Ongoing" : `For ${lever.months} months`}`}
-								value={`${formatMoney(lever.amount)} ${cadenceWords[lever.cadence]}`}
+								meta={`${scenarioChange.months === null ? "Ongoing" : `For ${scenarioChange.months} months`}`}
+								value={`${formatMoney(scenarioChange.amount)} ${cadenceWords[scenarioChange.cadence]}`}
 								fields={(change) => (
 									<AddedCommitmentFields
-										lever={lever}
-										prefix={lever.name}
+										lever={scenarioChange}
+										prefix={scenarioChange.name}
 										month={month}
 										onChange={change}
 									/>
@@ -211,9 +211,9 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 						amount: 10_000,
 						fromMonth: month,
 					}),
-					fields: (lever, change) =>
-						lever.kind === "add-bucket" ? (
-							<AddedBucketFields lever={lever} month={month} onChange={change} />
+					fields: (scenarioChange, change) =>
+						scenarioChange.kind === "add-bucket" ? (
+							<AddedBucketFields lever={scenarioChange} month={month} onChange={change} />
 						) : null,
 					onAdd: addNew,
 				}}
@@ -230,17 +230,17 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 								edit={edit}
 							/>
 						))}
-						{added("add-bucket").map((lever) => (
+						{added("add-bucket").map((scenarioChange) => (
 							<AddedLine
-								key={lever.bucketId}
-								lever={lever}
+								key={scenarioChange.bucketId}
+								lever={scenarioChange}
 								edit={edit}
 								meta="New Bucket"
-								value={`${formatMoney(lever.amount)} a month`}
+								value={`${formatMoney(scenarioChange.amount)} a month`}
 								fields={(change) => (
 									<AddedBucketFields
-										lever={lever}
-										prefix={lever.name}
+										lever={scenarioChange}
+										prefix={scenarioChange.name}
 										month={month}
 										onChange={change}
 									/>
@@ -268,9 +268,14 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 						fromMonth: month,
 						...(accounts[0] ? { accountId: accounts[0].id } : {}),
 					}),
-					fields: (lever, change) =>
-						lever.kind === "add-goal" ? (
-							<AddedGoalFields lever={lever} month={month} accounts={accounts} onChange={change} />
+					fields: (scenarioChange, change) =>
+						scenarioChange.kind === "add-goal" ? (
+							<AddedGoalFields
+								lever={scenarioChange}
+								month={month}
+								accounts={accounts}
+								onChange={change}
+							/>
 						) : null,
 					onAdd: addNew,
 				}}
@@ -285,17 +290,17 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 								edit={edit}
 							/>
 						))}
-						{added("add-goal").map((lever) => (
+						{added("add-goal").map((scenarioChange) => (
 							<AddedLine
-								key={lever.goalId}
-								lever={lever}
+								key={scenarioChange.goalId}
+								lever={scenarioChange}
 								edit={edit}
 								meta="New Goal"
-								value={goalValue(lever.target, lever.targetDate)}
+								value={goalValue(scenarioChange.target, scenarioChange.targetDate)}
 								fields={(change) => (
 									<AddedGoalFields
-										lever={lever}
-										prefix={lever.name}
+										lever={scenarioChange}
+										prefix={scenarioChange.name}
 										month={month}
 										accounts={accounts}
 										onChange={change}
@@ -323,23 +328,28 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 						flow: "expense",
 						fromMonth: month,
 					}),
-					fields: (lever, change) =>
-						lever.kind === "one-off" ? (
-							<OneOffFields lever={lever} month={month} onChange={change} />
+					fields: (scenarioChange, change) =>
+						scenarioChange.kind === "one-off" ? (
+							<OneOffFields lever={scenarioChange} month={month} onChange={change} />
 						) : null,
 					onAdd: addNew,
 				}}
 			>
 				<List>
-					{added("one-off").map((lever) => (
+					{added("one-off").map((scenarioChange) => (
 						<AddedLine
-							key={lever.oneOffId}
-							lever={lever}
+							key={scenarioChange.oneOffId}
+							lever={scenarioChange}
 							edit={edit}
-							meta={`${lever.flow === "expense" ? "Expense" : "Income"} in ${shortMonth(lever.fromMonth)}`}
-							value={`${lever.flow === "expense" ? "−" : "+"}${formatMoney(lever.amount)}`}
+							meta={`${scenarioChange.flow === "expense" ? "Expense" : "Income"} in ${shortMonth(scenarioChange.fromMonth)}`}
+							value={`${scenarioChange.flow === "expense" ? "−" : "+"}${formatMoney(scenarioChange.amount)}`}
 							fields={(change) => (
-								<OneOffFields lever={lever} prefix={lever.name} month={month} onChange={change} />
+								<OneOffFields
+									lever={scenarioChange}
+									prefix={scenarioChange.name}
+									month={month}
+									onChange={change}
+								/>
 							)}
 						/>
 					))}
@@ -357,8 +367,8 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 type Adding = {
 	noun: string;
 	fresh: () => Lever;
-	fields: (lever: Lever, change: (lever: Lever) => void) => ReactNode;
-	onAdd: (lever: Lever) => void;
+	fields: (scenarioChange: Lever, change: (scenarioChange: Lever) => void) => ReactNode;
+	onAdd: (scenarioChange: Lever) => void;
 };
 
 /** A group of the outline, with its Add button and the form for a new one. */
@@ -529,7 +539,7 @@ function Mark({ lever, added }: { lever: Lever | undefined; added?: boolean }) {
 	);
 }
 
-function BaselineLine({
+function TakeHomePayLine({
 	plan,
 	lever,
 	edit,
@@ -579,8 +589,8 @@ function BaselineLine({
 
 function CommitmentLine({
 	commitment,
-	terms: termsLever,
-	ended: endedLever,
+	terms: termsChange,
+	ended: endedChange,
 	edit,
 }: {
 	commitment: Plan["commitments"][number];
@@ -589,8 +599,8 @@ function CommitmentLine({
 	edit: Editing;
 }) {
 	const { id, name } = commitment;
-	const terms = termsLever?.kind === "commitment-terms" ? termsLever : null;
-	const ended = endedLever?.kind === "end-commitment" ? endedLever : null;
+	const terms = termsChange?.kind === "commitment-terms" ? termsChange : null;
+	const ended = endedChange?.kind === "end-commitment" ? endedChange : null;
 	const amount = terms?.amount ?? commitment.amount;
 	const cadence = terms?.cadence ?? commitment.cadence;
 	const setTerms = (next: { amount: Cents; cadence: Cadence }) =>
@@ -692,8 +702,8 @@ function CommitmentLine({
 function BucketLine({
 	bucket,
 	mine,
-	allowance: allowanceLever,
-	archived: archivedLever,
+	allowance: allowanceChange,
+	archived: archivedChange,
 	edit,
 }: {
 	bucket: Plan["buckets"][number];
@@ -704,8 +714,8 @@ function BucketLine({
 	edit: Editing;
 }) {
 	const { id, name } = bucket;
-	const allowance = allowanceLever?.kind === "allowance" ? allowanceLever : null;
-	const archived = archivedLever?.kind === "archive-bucket" ? archivedLever : null;
+	const allowance = allowanceChange?.kind === "allowance" ? allowanceChange : null;
+	const archived = archivedChange?.kind === "archive-bucket" ? archivedChange : null;
 	const amount = allowance?.amount ?? bucket.allowance;
 	const archive =
 		archived || bucket.owner ? null : (
@@ -878,7 +888,7 @@ function AddedLine({
 	edit: Editing;
 	meta: string;
 	value: string;
-	fields: (change: (lever: Lever) => void) => ReactNode;
+	fields: (change: (scenarioChange: Lever) => void) => ReactNode;
 }) {
 	return (
 		<Line
@@ -896,7 +906,7 @@ function AddedLine({
 							type="button"
 							variant="ghost"
 							size="sm"
-							onClick={() => edit.unset(leverTarget(lever))}
+							onClick={() => edit.unset(changeTarget(lever))}
 						>
 							Remove<span className="sr-only"> {lever.name}</span>
 						</Button>
@@ -997,7 +1007,7 @@ function AddedCommitmentFields({
 	lever: LeverOf<"add-commitment">;
 	prefix?: string;
 	month: MonthKey;
-	onChange: (lever: Lever) => void;
+	onChange: (scenarioChange: Lever) => void;
 }) {
 	return (
 		<div className="grid gap-2.5">
@@ -1074,7 +1084,7 @@ function AddedBucketFields({
 	lever: LeverOf<"add-bucket">;
 	prefix?: string;
 	month: MonthKey;
-	onChange: (lever: Lever) => void;
+	onChange: (scenarioChange: Lever) => void;
 }) {
 	return (
 		<div className="grid gap-2.5">
@@ -1111,7 +1121,7 @@ function AddedGoalFields({
 	prefix?: string;
 	month: MonthKey;
 	accounts: { id: string; name: string }[];
-	onChange: (lever: Lever) => void;
+	onChange: (scenarioChange: Lever) => void;
 }) {
 	return (
 		<div className="grid gap-2.5">
@@ -1168,7 +1178,7 @@ function OneOffFields({
 	lever: LeverOf<"one-off">;
 	prefix?: string;
 	month: MonthKey;
-	onChange: (lever: Lever) => void;
+	onChange: (scenarioChange: Lever) => void;
 }) {
 	return (
 		<div className="grid gap-2.5">

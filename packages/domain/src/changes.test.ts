@@ -96,7 +96,7 @@ describe("whyNotApplicable: what applying can make the real Plan", () => {
 	const month = "2026-09";
 
 	it("applies what the Plan stores, over a range where it can write the old value back", () => {
-		const levers: Lever[] = [
+		const changes: Lever[] = [
 			{ kind: "baseline", amount: 1, fromMonth: "2026-10", untilMonth: "2027-01" },
 			{ kind: "allowance", bucketId: "b", amount: 1, fromMonth: month, untilMonth: "2027-01" },
 			{
@@ -137,7 +137,7 @@ describe("whyNotApplicable: what applying can make the real Plan", () => {
 				accountId: "a",
 			},
 		];
-		expect(levers.map((l) => whyNotApplicable(l, month))).toEqual(levers.map(() => null));
+		expect(changes.map((l) => whyNotApplicable(l, month))).toEqual(changes.map(() => null));
 	});
 
 	it("refuses one-offs and growth, which aren't part of the Plan", () => {

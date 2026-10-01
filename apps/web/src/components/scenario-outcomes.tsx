@@ -421,7 +421,7 @@ export function FreeToSpendChart({ title }: { title: string }) {
  * The Cushion month by month: the Scenario as a filled area that turns the over colour below
  * zero, the Plan as a dashed line, and the Scenario's lowest point marked.
  */
-export function CushionChart() {
+export function ProjectedBalanceChart() {
 	const { plan, scenario } = useOutcome();
 	const animation = useAnimation();
 	const reveal = useMonthReveal();
@@ -963,7 +963,7 @@ export default function ScenarioOutcomes({
 	const hasGoals = outcome.scenario.goals.length > 0;
 	return (
 		<OutcomeProvider value={outcome}>
-			<CushionChart />
+			<ProjectedBalanceChart />
 			<CompositionChart />
 			{hasGoals ? <GoalPathsChart names={goalNames} /> : null}
 		</OutcomeProvider>

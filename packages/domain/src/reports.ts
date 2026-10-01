@@ -1,6 +1,7 @@
 import { expectedIn } from "./commitments";
+import { extraIncomeOf } from "./extra-income";
 import { shares } from "./for";
-import { type EarmarkChange, earmarkOf } from "./goals";
+import { type SetAsideChange, setAsideOf } from "./goals";
 import type { Cents } from "./money";
 import {
 	addDays,
@@ -13,7 +14,6 @@ import {
 	monthsBetween,
 } from "./month";
 import { type PlanRecords, planForMonth } from "./plan";
-import { windfallOf } from "./windfall";
 
 // Reports: where the money went over a period, pure and unit-tested. D1 aggregates spending with
 // GROUP BY into Cells (a period, a Target, a sum); these functions only reshape and compare those
@@ -492,15 +492,15 @@ export function cashFlow({
 }
 
 /** A Goal's Earmark at the end of each month (changes up to and including it). */
-export function earmarkHistory(
+export function setAsideHistory(
 	goalId: string,
-	changes: readonly EarmarkChange[],
+	changes: readonly SetAsideChange[],
 	months: readonly MonthKey[],
 ): { month: MonthKey; saved: Cents }[] {
 	const own = changes.filter((c) => c.goalId === goalId);
 	return months.map((month) => ({
 		month,
-		saved: earmarkOf(
+		saved: setAsideOf(
 			goalId,
 			own.filter((c) => c.month <= month),
 		),
@@ -514,16 +514,16 @@ export function earmarkHistory(
  */
 export function projectedCompletion(
 	goal: { id: string; target: Cents; fromMonth: MonthKey },
-	changes: readonly EarmarkChange[],
+	changes: readonly SetAsideChange[],
 	month: MonthKey,
 	window = 6,
 ): MonthKey | null {
 	const own = changes.filter((c) => c.goalId === goal.id);
-	const saved = earmarkOf(goal.id, own);
+	const saved = setAsideOf(goal.id, own);
 	if (saved >= goal.target) return month;
 	const start = [addMonths(month, 1 - window), goal.fromMonth].sort().at(-1) as MonthKey;
 	const months = Math.max(1, monthsBetween(start, month) + 1);
-	const recent = earmarkOf(
+	const recent = setAsideOf(
 		goal.id,
 		own.filter((c) => c.month >= start && c.month <= month),
 	);
@@ -540,7 +540,7 @@ export function incomeByMonth(
 ) {
 	return months.map((month) => {
 		const total = sumOf(received.filter((r) => r.month === month));
-		const baseline =
+		const takeHomePay =
 			[...records.baselines]
 				.filter((b) => b.month <= month)
 				.sort((a, b) => a.month.localeCompare(b.month))
@@ -548,8 +548,8 @@ export function incomeByMonth(
 		return {
 			month,
 			total,
-			baseline,
-			windfall: windfallOf({ baseline, received: total, decided: 0 }).windfall,
+			baseline: takeHomePay,
+			windfall: extraIncomeOf({ baseline: takeHomePay, received: total, decided: 0 }).windfall,
 		};
 	});
 }

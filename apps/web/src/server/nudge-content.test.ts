@@ -10,13 +10,13 @@ import { describe, expect, it } from "vitest";
 import {
 	bucketPaceNudge,
 	checkInNudge,
+	type ExtraIncomeArrived,
+	extraIncomeArrived,
+	extraIncomeNudge,
 	quickAddNudge,
 	scheduleCheckInNudges,
 	scheduleNudges,
 	type VisibleQuickAdd,
-	type WindfallArrived,
-	windfallArrived,
-	windfallNudge,
 } from "./nudge-content";
 
 const alex = "member-alex";
@@ -160,31 +160,31 @@ describe("scheduleNudges", () => {
 describe("Windfall Nudges", () => {
 	it("Nudges when income starts a month's Windfall, then once per increase", () => {
 		// Income within the Baseline: no Windfall yet.
-		expect(windfallArrived("2026-09", 0, 0, [alex])).toBeNull();
-		expect(windfallArrived("2026-09", 50_000, 0, [alex])).toEqual({
+		expect(extraIncomeArrived("2026-09", 0, 0, [alex])).toBeNull();
+		expect(extraIncomeArrived("2026-09", 50_000, 0, [alex])).toEqual({
 			month: "2026-09",
 			grew: 50_000,
 			windfall: 50_000,
 			recordedBy: [alex],
 		});
 		// The same income again (a retry), or recorded again after it was removed: already Nudged.
-		expect(windfallArrived("2026-09", 50_000, 50_000, [alex])).toBeNull();
-		expect(windfallArrived("2026-09", 20_000, 50_000, [alex])).toBeNull();
-		expect(windfallArrived("2026-09", 80_000, 50_000, [alex])?.grew).toBe(30_000);
+		expect(extraIncomeArrived("2026-09", 50_000, 50_000, [alex])).toBeNull();
+		expect(extraIncomeArrived("2026-09", 20_000, 50_000, [alex])).toBeNull();
+		expect(extraIncomeArrived("2026-09", 80_000, 50_000, [alex])?.grew).toBe(30_000);
 	});
 
 	it("says how much arrived, or how much the month's Windfall grew by", () => {
-		const started = windfallArrived("2026-09", 50_000, 0, [alex]);
-		const grew = windfallArrived("2026-09", 80_000, 50_000, [alex]);
+		const started = extraIncomeArrived("2026-09", 50_000, 0, [alex]);
+		const grew = extraIncomeArrived("2026-09", 80_000, 50_000, [alex]);
 		if (!started || !grew) throw new Error("expected Windfalls");
-		expect(windfallNudge(started)).toEqual({
+		expect(extraIncomeNudge(started)).toEqual({
 			kind: "windfall",
 			title: "A $500 Windfall arrived",
 			body: "Decide where it goes at your next Check-in.",
 			tag: "windfall:2026-09",
 			url: "/month/2026-09",
 		});
-		expect(windfallNudge(grew)).toMatchObject({
+		expect(extraIncomeNudge(grew)).toMatchObject({
 			title: "September’s Windfall grew by $300",
 			body: "It’s $800 now. Decide where it goes at your next Check-in.",
 			// Replaces the first on a device rather than stacking.
@@ -193,13 +193,15 @@ describe("Windfall Nudges", () => {
 	});
 
 	it("goes to Parents who want Windfall Nudges, but not one who only recorded it", () => {
-		const alexsIncome = windfallArrived("2026-09", 50_000, 0, [alex]);
-		const bothIncome = windfallArrived("2026-09", 50_000, 0, [alex, sam]);
+		const alexsIncome = extraIncomeArrived("2026-09", 50_000, 0, [alex]);
+		const bothIncome = extraIncomeArrived("2026-09", 50_000, 0, [alex, sam]);
 		if (!alexsIncome || !bothIncome) throw new Error("expected Windfalls");
-		const to = (windfall: WindfallArrived, recipients: NudgeRecipient[]) =>
-			scheduleNudges({ pace: [], quickAdds: [], windfalls: [windfall] }, recipients, afternoon).map(
-				({ memberId }) => memberId,
-			);
+		const to = (extraIncome: ExtraIncomeArrived, recipients: NudgeRecipient[]) =>
+			scheduleNudges(
+				{ pace: [], quickAdds: [], windfalls: [extraIncome] },
+				recipients,
+				afternoon,
+			).map(({ memberId }) => memberId);
 
 		expect(to(alexsIncome, [recipient(alex), recipient(sam)])).toEqual([sam]);
 		expect(to(alexsIncome, [recipient(alex), recipient(sam, { windfalls: false })])).toEqual([]);
@@ -207,12 +209,12 @@ describe("Windfall Nudges", () => {
 	});
 
 	it("waits out quiet hours", () => {
-		const windfall = windfallArrived("2026-09", 50_000, 0, [alex]);
-		if (!windfall) throw new Error("expected a Windfall");
+		const extraIncome = extraIncomeArrived("2026-09", 50_000, 0, [alex]);
+		if (!extraIncome) throw new Error("expected a Windfall");
 		// 22:00 in Chicago; quiet 21:00–07:00.
 		const night = new Date("2026-09-11T03:00:00Z");
 		const scheduled = scheduleNudges(
-			{ pace: [], quickAdds: [], windfalls: [windfall] },
+			{ pace: [], quickAdds: [], windfalls: [extraIncome] },
 			[recipient(sam, { quietHours: { start: 21 * 60, end: 7 * 60 } })],
 			night,
 		);

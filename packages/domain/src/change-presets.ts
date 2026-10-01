@@ -1,4 +1,4 @@
-import type { Lever } from "./levers";
+import type { Change } from "./changes";
 import { MAX_CENTS } from "./money";
 import type { DayKey, MonthKey } from "./month";
 
@@ -45,7 +45,7 @@ function range(
 }
 
 /** A preset as a Lever from `month` (the Household's current month) on, or null if it isn't one. */
-export function parseLeverPreset(preset: string, month: MonthKey): Lever | null {
+export function parseChangePreset(preset: string, month: MonthKey): Change | null {
 	const [kind, ...fields] = preset.trim().split(":");
 	const id = fields[0] ?? "";
 	switch (kind) {
@@ -94,24 +94,24 @@ export function parseLeverPreset(preset: string, month: MonthKey): Lever | null 
 }
 
 /** A Lever as a preset (see parseLeverPreset), or null for a kind presets don't carry. */
-export function leverPreset(lever: Lever): string | null {
-	const months = [lever.fromMonth, ...(lever.untilMonth ? [lever.untilMonth] : [])];
+export function changePreset(change: Change): string | null {
+	const months = [change.fromMonth, ...(change.untilMonth ? [change.untilMonth] : [])];
 	const join = (...parts: (string | number)[]) => parts.join(":");
-	switch (lever.kind) {
+	switch (change.kind) {
 		case "baseline":
-			return join(lever.kind, lever.amount, ...months);
+			return join(change.kind, change.amount, ...months);
 		case "allowance":
-			return join(lever.kind, lever.bucketId, lever.amount, ...months);
+			return join(change.kind, change.bucketId, change.amount, ...months);
 		case "commitment-terms":
-			return lever.amount === undefined || lever.cadence || lever.dueDay
+			return change.amount === undefined || change.cadence || change.dueDay
 				? null
-				: join(lever.kind, lever.commitmentId, lever.amount, ...months);
+				: join(change.kind, change.commitmentId, change.amount, ...months);
 		case "end-commitment":
-			return join(lever.kind, lever.commitmentId, ...months);
+			return join(change.kind, change.commitmentId, ...months);
 		case "archive-bucket":
-			return join(lever.kind, lever.bucketId, ...months);
+			return join(change.kind, change.bucketId, ...months);
 		case "goal":
-			return join(lever.kind, lever.goalId, lever.target, lever.targetDate ?? "none");
+			return join(change.kind, change.goalId, change.target, change.targetDate ?? "none");
 		default:
 			return null;
 	}

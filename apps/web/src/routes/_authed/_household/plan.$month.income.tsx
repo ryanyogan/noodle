@@ -11,9 +11,9 @@ import { SaveFailed } from "../../../components/plan-editing";
 import { PlanSubPage } from "../../../components/plan-page";
 import { ChangedNote, PlanAmountForm } from "../../../components/plan-scope-field";
 import { formatMoney, shortDay } from "../../../format";
-import { usePlanChange, usePlanChanges, withBaseline } from "../../../plan-changes";
+import { usePlanChange, usePlanChanges, withTakeHomePay } from "../../../plan-changes";
 import { useMonthState } from "../../../queries";
-import { setBaseline } from "../../../server/plan";
+import { setTakeHomePay } from "../../../server/plan";
 
 export const Route = createFileRoute("/_authed/_household/plan/$month/income")({
 	component: PlanIncome,
@@ -28,7 +28,7 @@ function PlanIncome() {
 	const total = received.reduce((sum, i) => sum + i.amount, 0);
 	return (
 		<PlanSubPage month={month} current={current} editable={state.editable} title="Income">
-			<BaselineEditor month={month} baseline={state.baseline} editable={state.editable} />
+			<TakeHomePayEditor month={month} baseline={state.baseline} editable={state.editable} />
 			<Section aria-labelledby="plan-received">
 				<SectionHeader id="plan-received" title="Received this month" count={received.length} />
 				<p className="px-1 text-sm text-muted-foreground">
@@ -65,7 +65,7 @@ function PlanIncome() {
 }
 
 /** The Baseline, with an Edit sheet to set it from this month on or just this month. */
-function BaselineEditor({
+function TakeHomePayEditor({
 	month,
 	baseline,
 	editable,
@@ -79,8 +79,8 @@ function BaselineEditor({
 	const changes = usePlanChanges(month);
 	const change = usePlanChange(month, {
 		save: (data: { month: MonthKey; amountCents: number; scope: PlanScope }) =>
-			setBaseline({ data }),
-		apply: withBaseline,
+			setTakeHomePay({ data }),
+		apply: withTakeHomePay,
 	});
 	return (
 		<List>

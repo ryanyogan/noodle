@@ -77,9 +77,9 @@ test("a Bucket's page shows its month, its year and its history, and changes it"
 	// Rolling shows its balance month by month.
 	await expect(page.getByRole("group", { name: "Rolling balance" })).toHaveCount(0);
 	await page.getByRole("button", { name: "Edit", exact: true }).click();
-	const rolling = page.waitForResponse((r) => serverFn("setRolling")(new URL(r.url())));
+	const carriesOver = page.waitForResponse((r) => serverFn("setRolling")(new URL(r.url())));
 	await page.getByRole("radio", { name: /^Rolling/ }).check();
-	expect((await rolling).ok()).toBe(true);
+	expect((await carriesOver).ok()).toBe(true);
 
 	// Renamed, here and on This Month.
 	await editSheet(page, "Hockey").getByLabel("Name").fill("Kids’ hockey");

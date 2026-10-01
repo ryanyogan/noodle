@@ -1,14 +1,14 @@
-import { type CommitmentTerms, expectedIn } from "./commitments";
 import {
-	activeLevers,
+	activeChanges,
 	addedTerms,
 	addedUntil,
+	type Change,
+	type ChangeOf,
+	type ChangeRange,
 	changedTerms,
 	holdsIn,
-	type Lever,
-	type LeverOf,
-	type LeverRange,
-} from "./levers";
+} from "./changes";
+import { type CommitmentTerms, expectedIn } from "./commitments";
 import type { Cents } from "./money";
 import { addMonths, type DayKey, type MonthKey, monthOfDay, monthsBetween } from "./month";
 import { type PlanRecords, planForMonth } from "./plan";
@@ -33,7 +33,7 @@ import { type PlanRecords, planForMonth } from "./plan";
 //   Growth compounds yearly in steps from its first month, and isn't applied to Goal funding or
 //   one-offs. A muted Lever is left out altogether.
 
-export type { Lever } from "./levers";
+export type { Change as Lever } from "./changes";
 
 /** An active Goal as it stands this month. */
 export type ProjectionGoal = {
@@ -187,18 +187,18 @@ export function planAhead(
  * The last of `levers` holding in `month`: later Levers win. With `setIn` (when the Plan's own
  * value in force was set), only a Lever from that month or later replaces it.
  */
-function holding<T extends LeverRange>(
-	levers: readonly T[] | undefined,
+function holding<T extends ChangeRange>(
+	changes: readonly T[] | undefined,
 	month: MonthKey,
 	start: MonthKey,
 	setIn?: MonthKey | null,
 ): T | undefined {
-	if (!levers) return undefined;
-	for (let i = levers.length - 1; i >= 0; i--) {
-		const lever = levers[i] as T;
-		if (!holdsIn(lever, month)) continue;
-		const from = lever.fromMonth < start ? start : lever.fromMonth;
-		if (setIn == null || setIn <= from) return lever;
+	if (!changes) return undefined;
+	for (let i = changes.length - 1; i >= 0; i--) {
+		const scenarioChange = changes[i] as T;
+		if (!holdsIn(scenarioChange, month)) continue;
+		const from = scenarioChange.fromMonth < start ? start : scenarioChange.fromMonth;
+		if (setIn == null || setIn <= from) return scenarioChange;
 	}
 	return undefined;
 }
@@ -208,15 +208,15 @@ type GoalParams = { target: Cents; targetDate: DayKey | null };
 /** Projects the Plan ahead with Levers applied (none: the Plan as it stands); muted ones don't count. */
 export function project(
 	ahead: PlanAhead,
-	levers: readonly Lever[] = [],
+	changes: readonly Change[] = [],
 	options: ProjectOptions = {},
 ): Projection {
 	const start = ahead.months[0]?.month ?? ("0000-01" as MonthKey);
-	const active = activeLevers(levers);
-	const of = <K extends Lever["kind"]>(kind: K) =>
-		active.filter((l): l is LeverOf<K> => l.kind === kind);
+	const active = activeChanges(changes);
+	const of = <K extends Change["kind"]>(kind: K) =>
+		active.filter((l): l is ChangeOf<K> => l.kind === kind);
 
-	const baselines = of("baseline");
+	const takeHomePays = of("baseline");
 	const growth = of("growth");
 	const oneOffs = of("one-off");
 	const allowances = groupBy(of("allowance"), (l) => l.bucketId);
@@ -224,22 +224,23 @@ export function project(
 	const addedBuckets = of("add-bucket");
 	const newTerms = groupBy(of("commitment-terms"), (l) => l.commitmentId);
 	const ended = groupBy(of("end-commitment"), (l) => l.commitmentId);
-	const addedCommitments = of("add-commitment").map((lever) => ({
-		lever,
-		range: { fromMonth: lever.fromMonth, untilMonth: addedUntil(lever) },
-		terms: addedTerms(lever),
+	const addedCommitments = of("add-commitment").map((scenarioChange) => ({
+		lever: scenarioChange,
+		range: { fromMonth: scenarioChange.fromMonth, untilMonth: addedUntil(scenarioChange) },
+		terms: addedTerms(scenarioChange),
 	}));
-	const goalLevers = groupBy(of("goal"), (l) => l.goalId);
+	const goalChanges = groupBy(of("goal"), (l) => l.goalId);
 
-	const fromOf = (lever: LeverRange) => (lever.fromMonth < start ? start : lever.fromMonth);
+	const fromOf = (scenarioChange: ChangeRange) =>
+		scenarioChange.fromMonth < start ? start : scenarioChange.fromMonth;
 
 	/** Growth's factor for `month`: each Lever holding compounds once per full year since its start. */
-	const grown = (month: MonthKey, pct: (lever: LeverOf<"growth">) => number) => {
+	const grown = (month: MonthKey, pct: (scenarioChange: ChangeOf<"growth">) => number) => {
 		let factor = 1;
-		for (const lever of growth) {
-			if (!holdsIn(lever, month)) continue;
-			const years = Math.floor(monthsBetween(lever.fromMonth, month) / 12);
-			factor *= (1 + pct(lever) / 100) ** years;
+		for (const scenarioChange of growth) {
+			if (!holdsIn(scenarioChange, month)) continue;
+			const years = Math.floor(monthsBetween(scenarioChange.fromMonth, month) / 12);
+			factor *= (1 + pct(scenarioChange) / 100) ** years;
 		}
 		return factor;
 	};
@@ -255,21 +256,21 @@ export function project(
 			saved: goal.saved,
 			fundedThisMonth: goal.fundedThisMonth,
 			paramsIn: (month: MonthKey): GoalParams | null =>
-				holding(goalLevers.get(goal.id), month, start) ?? goal,
+				holding(goalChanges.get(goal.id), month, start) ?? goal,
 			fallback: goal as GoalParams,
 		})),
 		...of("add-goal")
-			.filter((lever) => !planGoalIds.has(lever.goalId))
-			.map((lever) => ({
-				id: lever.goalId,
+			.filter((scenarioChange) => !planGoalIds.has(scenarioChange.goalId))
+			.map((scenarioChange) => ({
+				id: scenarioChange.goalId,
 				added: true,
 				saved: 0,
 				fundedThisMonth: 0,
 				paramsIn: (month: MonthKey): GoalParams | null =>
-					holdsIn(lever, month)
-						? (holding(goalLevers.get(lever.goalId), month, start) ?? lever)
+					holdsIn(scenarioChange, month)
+						? (holding(goalChanges.get(scenarioChange.goalId), month, start) ?? scenarioChange)
 						: null,
-				fallback: lever as GoalParams,
+				fallback: scenarioChange as GoalParams,
 			})),
 	].map((g) => ({
 		...g,
@@ -281,8 +282,8 @@ export function project(
 		reachedIn: null as MonthKey | null,
 	}));
 
-	const startingCushion = options.startingBalance ?? 0;
-	let cushion = startingCushion;
+	const startingProjectedBalance = options.startingBalance ?? 0;
+	let projectedBalance = startingProjectedBalance;
 	let totalFree = 0;
 	let totalOneOffs = 0;
 	let lowest: Projection["lowest"] = null;
@@ -292,25 +293,27 @@ export function project(
 		const { month } = m;
 		const costs = grown(month, (l) => l.costsPct);
 
-		const baselineLever = holding(baselines, month, start, m.baselineSetIn);
-		const baseline = scaled(
-			baselineLever ? baselineLever.amount : m.baseline,
+		const takeHomePayChange = holding(takeHomePays, month, start, m.baselineSetIn);
+		const takeHomePay = scaled(
+			takeHomePayChange ? takeHomePayChange.amount : m.baseline,
 			grown(month, (l) => l.incomePct),
 		);
 
 		let commitments = 0;
 		for (const c of m.commitments) {
 			if (holding(ended.get(c.id), month, start)) continue;
-			const lever = holding(newTerms.get(c.id), month, start, c.setIn);
-			commitments += lever
-				? expectedIn(changedTerms(c.terms, lever, fromOf(lever)), month)
+			const scenarioChange = holding(newTerms.get(c.id), month, start, c.setIn);
+			commitments += scenarioChange
+				? expectedIn(changedTerms(c.terms, scenarioChange, fromOf(scenarioChange)), month)
 				: c.expected;
 		}
 		for (const added of addedCommitments) {
 			const id = added.lever.commitmentId;
 			if (!holdsIn(added.range, month) || holding(ended.get(id), month, start)) continue;
-			const lever = holding(newTerms.get(id), month, start);
-			const terms = lever ? changedTerms(added.terms, lever, fromOf(lever)) : added.terms;
+			const scenarioChange = holding(newTerms.get(id), month, start);
+			const terms = scenarioChange
+				? changedTerms(added.terms, scenarioChange, fromOf(scenarioChange))
+				: added.terms;
 			commitments += expectedIn(terms, month);
 		}
 		commitments = scaled(commitments, costs);
@@ -361,27 +364,29 @@ export function project(
 		}
 
 		let oneOffTotal = 0;
-		for (const lever of oneOffs) {
-			if (lever.fromMonth === month) {
-				oneOffTotal += lever.flow === "income" ? lever.amount : -lever.amount;
+		for (const scenarioChange of oneOffs) {
+			if (scenarioChange.fromMonth === month) {
+				oneOffTotal +=
+					scenarioChange.flow === "income" ? scenarioChange.amount : -scenarioChange.amount;
 			}
 		}
 
-		const freeToSpend = baseline - commitments - allowanceTotal - goalFunding;
+		const freeToSpend = takeHomePay - commitments - allowanceTotal - goalFunding;
 		totalFree += freeToSpend;
 		totalOneOffs += oneOffTotal;
-		cushion += freeToSpend + oneOffTotal;
-		if (lowest === null || cushion < lowest.amount) lowest = { month, amount: cushion };
-		if (cushion < 0 && firstNegative === null) firstNegative = month;
+		projectedBalance += freeToSpend + oneOffTotal;
+		if (lowest === null || projectedBalance < lowest.amount)
+			lowest = { month, amount: projectedBalance };
+		if (projectedBalance < 0 && firstNegative === null) firstNegative = month;
 		return {
 			month,
-			baseline,
+			baseline: takeHomePay,
 			commitments,
 			allowances: allowanceTotal,
 			goalFunding,
 			freeToSpend,
 			oneOffs: oneOffTotal,
-			cushion,
+			cushion: projectedBalance,
 		};
 	});
 
@@ -398,7 +403,7 @@ export function project(
 		})),
 		freeToSpend: totalFree,
 		oneOffs: totalOneOffs,
-		startingCushion,
+		startingCushion: startingProjectedBalance,
 		lowest,
 		firstNegative,
 	};
@@ -414,7 +419,7 @@ export function moneyFreed(plan: Projection, scenario: Projection): Cents[] {
 }
 
 /** What one Lever does to a Scenario: the Scenario with it, less the Scenario without it. */
-export type LeverImpact = {
+export type ChangeImpact = {
 	/** Free to Spend over every month projected (positive: the Lever frees money). */
 	freeToSpend: Cents;
 	/** The Cushion at the end of the months projected (Free to Spend and one-offs). */
@@ -446,18 +451,18 @@ export type LeverImpact = {
  * one with them all). A muted Lever's is what it would do turned back on: the Scenario with it
  * unmuted, less the Scenario as it is.
  */
-export function leverImpacts(
+export function changeImpacts(
 	ahead: PlanAhead,
-	levers: readonly Lever[],
+	changes: readonly Change[],
 	options: ProjectOptions = {},
-): LeverImpact[] {
-	const scenario = project(ahead, levers, options);
-	return levers.map((lever, index): LeverImpact => {
-		const [all, without] = lever.muted
+): ChangeImpact[] {
+	const scenario = project(ahead, changes, options);
+	return changes.map((scenarioChange, index): ChangeImpact => {
+		const [all, without] = scenarioChange.muted
 			? [
 					project(
 						ahead,
-						levers.map((l, i) => (i === index ? { ...l, muted: false } : l)),
+						changes.map((l, i) => (i === index ? { ...l, muted: false } : l)),
 						options,
 					),
 					scenario,
@@ -466,11 +471,11 @@ export function leverImpacts(
 					scenario,
 					project(
 						ahead,
-						levers.filter((_, i) => i !== index),
+						changes.filter((_, i) => i !== index),
 						options,
 					),
 				];
-		let firstChange: LeverImpact["firstChange"] = null;
+		let firstChange: ChangeImpact["firstChange"] = null;
 		const byMonth = all.months.map((m, i) => {
 			const other = without.months[i];
 			const change = {
@@ -481,7 +486,7 @@ export function leverImpacts(
 			if (amount !== 0 && firstChange === null) firstChange = { month: m.month, amount };
 			return change;
 		});
-		const goals: LeverImpact["goals"] = [];
+		const goals: ChangeImpact["goals"] = [];
 		for (const goal of all.goals) {
 			const other = without.goals.find((g) => g.goalId === goal.goalId);
 			if (!other || other.reachedIn === goal.reachedIn) continue;

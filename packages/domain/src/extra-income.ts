@@ -21,7 +21,7 @@ export type Income = { amount: Cents; date: DayKey };
  * still awaiting a decision once `decided` (Moved to Goals or Buckets) is taken off. There is no
  * Windfall without a Baseline, since there's nothing to be beyond.
  */
-export function windfallOf({
+export function extraIncomeOf({
 	baseline,
 	received,
 	decided,
@@ -32,8 +32,8 @@ export function windfallOf({
 	/** Windfall already Moved to Goals or Buckets. */
 	decided: Cents;
 }): { windfall: Cents; pending: Cents } {
-	const windfall = baseline === null ? 0 : Math.max(0, received - baseline);
-	return { windfall, pending: Math.max(0, windfall - decided) };
+	const extraIncome = baseline === null ? 0 : Math.max(0, received - baseline);
+	return { windfall: extraIncome, pending: Math.max(0, extraIncome - decided) };
 }
 
 /** Income in `month`, received by the end of `day` (every day of it, when omitted). */
@@ -103,12 +103,12 @@ export function incomeCheck({
 }
 
 /** Where a Windfall can go: a Goal's Earmark, or a Bucket this month. */
-export type WindfallDestination =
+export type ExtraIncomeDestination =
 	| { kind: "goal"; goalId: string }
 	| { kind: "bucket"; bucketId: string };
 
-export type WindfallSuggestion = {
-	to: WindfallDestination;
+export type ExtraIncomeSuggestion = {
+	to: ExtraIncomeDestination;
 	name: string;
 	/** What to send: what the destination needs, up to what's pending. */
 	amount: Cents;
@@ -125,7 +125,7 @@ export type WindfallSuggestion = {
  * alternative sized on its own, for what it needs up to the whole Windfall. Deterministic rules,
  * not a model: the same month always suggests the same.
  */
-export function windfallSuggestions({
+export function extraIncomeSuggestions({
 	pending,
 	goals,
 	emergencyGoalId,
@@ -143,7 +143,7 @@ export function windfallSuggestions({
 	emergencyGoalId: string | null;
 	/** The month's Buckets the Parent may Move money into. */
 	buckets: Pick<BucketState, "id" | "name" | "left">[];
-}): WindfallSuggestion[] {
+}): ExtraIncomeSuggestion[] {
 	if (pending <= 0) return [];
 	const behind = goals
 		.filter((g) => (g.status === "behind" || g.status === "past-due") && g.remaining > 0)
@@ -154,7 +154,7 @@ export function windfallSuggestions({
 	const over = buckets.filter((b) => b.left < 0).sort((a, b) => a.left - b.left);
 	return [
 		...behind.map(
-			(g): WindfallSuggestion => ({
+			(g): ExtraIncomeSuggestion => ({
 				to: { kind: "goal", goalId: g.id },
 				name: g.name,
 				amount: Math.min(pending, g.remaining),
@@ -168,11 +168,11 @@ export function windfallSuggestions({
 						name: emergency.name,
 						amount: Math.min(pending, emergency.remaining),
 						reason: "emergency",
-					} satisfies WindfallSuggestion,
+					} satisfies ExtraIncomeSuggestion,
 				]
 			: []),
 		...over.map(
-			(b): WindfallSuggestion => ({
+			(b): ExtraIncomeSuggestion => ({
 				to: { kind: "bucket", bucketId: b.id },
 				name: b.name,
 				amount: Math.min(pending, -b.left),

@@ -76,14 +76,14 @@ function actualIn(actuals: YearActuals, month: MonthKey): YearFigures {
 		// Goal spending comes out of its Earmark, not the month's money.
 		else if (kind !== "goal") other += cell.amount;
 	}
-	const baseline = sumIn(actuals.income, month);
+	const takeHomePay = sumIn(actuals.income, month);
 	const goalFunding = sumIn(actuals.goalFunding, month);
 	return {
-		baseline,
+		baseline: takeHomePay,
 		commitments,
 		allowances,
 		goalFunding,
-		freeToSpend: baseline - commitments - allowances - other - goalFunding,
+		freeToSpend: takeHomePay - commitments - allowances - other - goalFunding,
 	};
 }
 

@@ -11,6 +11,7 @@ import {
 } from "@noodle/domain";
 import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+import { extraIncomeLeftSql } from "./extra-income";
 import { loadGoals, loadPlanRecords, loadRolledOver } from "./index";
 import { bucketLeftSql, freeToSpendSql } from "./moves";
 import * as s from "./schema";
@@ -23,7 +24,6 @@ import {
 	writeSeed,
 } from "./seed";
 import { testDb } from "./test-db";
-import { windfallLeftSql } from "./windfalls";
 
 // The seed scenarios (#46) hold to the invariants the app relies on: every row has its parent,
 // money adds up (Splits, Transfers, Refunds, Receipts), Earmarks fit their Accounts' balances,
@@ -175,7 +175,7 @@ describe.each(SEED_SCENARIOS)("the %s seed", (scenario) => {
 			const free = await scalar(db, sql`select ${freeToSpendSql(householdId, month)}`);
 			expect(free, month).toBeGreaterThanOrEqual(0);
 			// Windfall decided never exceeds the Windfall.
-			const left = await scalar(db, sql`select ${windfallLeftSql(householdId, month)} as left`);
+			const left = await scalar(db, sql`select ${extraIncomeLeftSql(householdId, month)} as left`);
 			expect(left, month).toBeGreaterThanOrEqual(0);
 		}
 		// A Sweep takes exactly the leftover a Fresh-start Bucket had.

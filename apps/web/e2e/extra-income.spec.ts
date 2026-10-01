@@ -14,7 +14,7 @@ test.afterEach(async () => {
 
 const freeToSpend = (page: Page) => page.getByRole("region", { name: "Free to Spend" });
 const income = (page: Page) => page.getByRole("region", { name: "Income" });
-const windfall = (page: Page) => page.getByRole("region", { name: "Windfall" });
+const extraIncome = (page: Page) => page.getByRole("region", { name: "Windfall" });
 
 async function addIncome(page: Page, amount: string, note: string) {
 	await income(page).getByRole("button", { name: "Add income" }).click();
@@ -59,25 +59,25 @@ test("income beyond the Baseline is a Windfall, sent to the emergency Goal", asy
 	await addIncome(page, "2,500", "Paycheck");
 	await addIncome(page, "2,500", "Paycheck");
 	await expect(income(page)).toContainText("$5,000 received of the $5,000 Baseline");
-	await expect(windfall(page)).toBeHidden();
+	await expect(extraIncome(page)).toBeHidden();
 
 	// A bonus is, and it doesn't touch Free to Spend.
 	await addIncome(page, "1,200", "Bonus");
-	await expect(windfall(page)).toContainText("$1,200 came in beyond the Baseline");
+	await expect(extraIncome(page)).toContainText("$1,200 came in beyond the Baseline");
 	await expect(freeToSpend(page).getByText("$3,800", { exact: true })).toBeVisible();
-	const suggestion = windfall(page).getByRole("listitem").filter({ hasText: "Rainy day" });
+	const suggestion = extraIncome(page).getByRole("listitem").filter({ hasText: "Rainy day" });
 	await expect(suggestion).toContainText("Your emergency Goal");
 	await suggestion.getByRole("button", { name: "Send $1,200 to Rainy day" }).click();
 	await expect(page.getByRole("status").filter({ hasText: "of the Windfall" })).toContainText(
 		"$1,200 of the Windfall to Rainy day",
 	);
-	await expect(windfall(page)).toBeHidden();
+	await expect(extraIncome(page)).toBeHidden();
 	await expect(freeToSpend(page).getByText("$3,800", { exact: true })).toBeVisible();
 
 	// It stuck, and it's in the Goal's Earmark.
 	await page.reload();
 	await expect(income(page)).toContainText("$6,200 received");
-	await expect(windfall(page)).toBeHidden();
+	await expect(extraIncome(page)).toBeHidden();
 	await page.getByRole("link", { name: "Goals", exact: true }).click();
 	await page.getByRole("link", { name: /^Rainy day, \$1,200 of \$6,000/ }).click();
 	await expect(page.getByRole("listitem").filter({ hasText: "From a Windfall" })).toContainText(

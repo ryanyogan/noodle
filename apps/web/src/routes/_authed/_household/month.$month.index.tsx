@@ -38,13 +38,18 @@ import { asBucketColor, availableParts, monogram } from "../../../buckets";
 import { ComingUp, LumpCallout } from "../../../components/coming-up";
 import { Commitments } from "../../../components/commitment-list";
 import { ALittleOver, CoverSheet, CoversInto, sourceName } from "../../../components/cover";
+import {
+	ExtraIncomeSection,
+	ExtraIncomeSheet,
+	IncomeSection,
+} from "../../../components/extra-income";
 import { AmountSheet } from "../../../components/goals";
 import { MonthCloseSection, MonthEndSection } from "../../../components/month-close";
 import { MonthLinks, MonthTopRow, monthTitle, useMonthSwipe } from "../../../components/month-nav";
 import { GoalsThisMonth } from "../../../components/plan-goals";
 import { planParts } from "../../../components/plan-page";
-import { IncomeSection, WindfallSection, WindfallSheet } from "../../../components/windfalls";
 import { type CoverVariables, useCovers } from "../../../covers";
+import { useExtraIncomes, useIncome } from "../../../extra-income";
 import { formatMoney, shortDay } from "../../../format";
 import { type GoalView, useGoals } from "../../../goals";
 import { closingWeek, useCloseMonth } from "../../../month-close";
@@ -56,7 +61,6 @@ import {
 	reviewQuery,
 	useMonthState,
 } from "../../../queries";
-import { useIncome, useWindfalls } from "../../../windfalls";
 
 export const Route = createFileRoute("/_authed/_household/month/$month/")({
 	// Coming up reads every Commitment's schedule and charges; an ended month names who closed it.
@@ -75,9 +79,9 @@ function ThisMonth() {
 	// The overspent Bucket being covered, by ID, so the sheet follows its latest state.
 	const [covering, setCovering] = useState<string | null>(null);
 	const [addingIncome, setAddingIncome] = useState(false);
-	const [choosingWindfall, setChoosingWindfall] = useState(false);
+	const [choosingExtraIncome, setChoosingExtraIncome] = useState(false);
 	const income = useIncome();
-	const windfalls = useWindfalls();
+	const extraIncomes = useExtraIncomes();
 	const goals = useGoals();
 	const members = useSuspenseQuery(membersQuery()).data;
 	const planned =
@@ -145,7 +149,7 @@ function ThisMonth() {
 	});
 	const activeGoals = goals.goals.filter((g) => g.state === "active");
 	// This month's Windfall can go to its Buckets too; an ended month's only to Goals.
-	const windfallPlaces = {
+	const extraIncomePlaces = {
 		goals: activeGoals,
 		buckets: month === current ? state.buckets.filter((b) => canAssign(b, parentId)) : [],
 	};
@@ -159,7 +163,7 @@ function ThisMonth() {
 			remaining: g.progress.remaining,
 		})),
 		emergencyGoalId: goals.emergencyGoalId,
-		buckets: windfallPlaces.buckets,
+		buckets: extraIncomePlaces.buckets,
 	});
 	return (
 		<div {...swipe}>
@@ -196,13 +200,13 @@ function ThisMonth() {
 						/>
 					) : null}
 					{state.windfallLeft > 0 && month <= current ? (
-						<WindfallSection
+						<ExtraIncomeSection
 							left={state.windfallLeft}
 							suggestions={suggestions}
 							goals={activeGoals}
-							onChoose={() => setChoosingWindfall(true)}
+							onChoose={() => setChoosingExtraIncome(true)}
 							onSend={(s) =>
-								windfalls.decide.mutate({
+								extraIncomes.decide.mutate({
 									moveId: ulid(),
 									month,
 									to: s.to,
@@ -309,14 +313,14 @@ function ThisMonth() {
 					});
 				}}
 			/>
-			<WindfallSheet
-				open={choosingWindfall}
-				onOpenChange={setChoosingWindfall}
+			<ExtraIncomeSheet
+				open={choosingExtraIncome}
+				onOpenChange={setChoosingExtraIncome}
 				left={state.windfallLeft}
-				places={windfallPlaces}
+				places={extraIncomePlaces}
 				onSend={(to, toName, amountCents) => {
-					setChoosingWindfall(false);
-					windfalls.decide.mutate({ moveId: ulid(), month, to, toName, amountCents });
+					setChoosingExtraIncome(false);
+					extraIncomes.decide.mutate({ moveId: ulid(), month, to, toName, amountCents });
 				}}
 			/>
 		</div>

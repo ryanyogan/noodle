@@ -254,14 +254,14 @@ function History({ months, color }: { months: BucketMonth[]; color: number }) {
 	const first = months.findIndex((m) => m.inPlan);
 	const shown = first < 0 ? [] : months.slice(first);
 	if (shown.length === 0) return null;
-	const rolling = shown.some((m) => m.rolling);
+	const carriesOver = shown.some((m) => m.rolling);
 	const table: ReportTable = {
 		title: "Spent vs allowance",
 		columns: [
 			{ label: "Month", kind: "text" },
 			{ label: "Allowance", kind: "money" },
 			{ label: "Spent", kind: "money" },
-			{ label: rolling ? "Balance" : "Left", kind: "money" },
+			{ label: carriesOver ? "Balance" : "Left", kind: "money" },
 		],
 		rows: shown.map((m) => [periodLabel(m.month, "long"), m.allowance, m.spent, m.left]),
 	};
@@ -287,7 +287,7 @@ function History({ months, color }: { months: BucketMonth[]; color: number }) {
 					"h-52",
 				)}
 			</ChartCard>
-			{rolling ? (
+			{carriesOver ? (
 				<ChartCard
 					title="Rolling balance"
 					description="What it had left at each month’s end, carried into the next"

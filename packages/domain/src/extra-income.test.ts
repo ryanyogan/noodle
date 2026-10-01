@@ -10,9 +10,9 @@ import {
 	windfallSuggestions,
 } from "./index";
 
-const planOf = (month: MonthKey, baseline: number | null = 600_000): Plan => ({
+const planOf = (month: MonthKey, takeHomePay: number | null = 600_000): Plan => ({
 	month,
-	baseline,
+	baseline: takeHomePay,
 	commitments: [],
 	buckets: [
 		{ id: "groceries", name: "Groceries", color: 1, allowance: 120_000, rolling: false },
@@ -145,10 +145,12 @@ describe("monthState: the Windfall", () => {
 });
 
 describe("incomeCheck: a warning when income is tracking below the Baseline", () => {
-	const baseline = 600_000;
+	const takeHomePay = 600_000;
 
 	it("says nothing when no income is recorded this month or last", () => {
-		expect(incomeCheck({ baseline, income: [], month: "2026-10", asOf: "2026-10-20" })).toBeNull();
+		expect(
+			incomeCheck({ baseline: takeHomePay, income: [], month: "2026-10", asOf: "2026-10-20" }),
+		).toBeNull();
 		expect(
 			incomeCheck({
 				baseline: null,
@@ -166,14 +168,18 @@ describe("incomeCheck: a warning when income is tracking below the Baseline", ()
 			paid("2026-10-01", 300_000),
 		];
 		// The 15th's paycheck hasn't come: that's short, and it's mid-month.
-		expect(incomeCheck({ baseline, income, month: "2026-10", asOf: "2026-10-15" })).toEqual({
+		expect(
+			incomeCheck({ baseline: takeHomePay, income, month: "2026-10", asOf: "2026-10-15" }),
+		).toEqual({
 			received: 300_000,
 			expected: 600_000,
 			short: 300_000,
 			below: true,
 		});
 		// On the 14th last month had only the first paycheck too.
-		expect(incomeCheck({ baseline, income, month: "2026-10", asOf: "2026-10-14" })).toMatchObject({
+		expect(
+			incomeCheck({ baseline: takeHomePay, income, month: "2026-10", asOf: "2026-10-14" }),
+		).toMatchObject({
 			expected: 300_000,
 			short: 0,
 			below: false,
@@ -182,13 +188,15 @@ describe("incomeCheck: a warning when income is tracking below the Baseline", ()
 
 	it("waits until mid-month before warning", () => {
 		const income = [paid("2026-09-01", 300_000), paid("2026-09-10", 300_000)];
-		expect(incomeCheck({ baseline, income, month: "2026-10", asOf: "2026-10-12" })).toMatchObject({
+		expect(
+			incomeCheck({ baseline: takeHomePay, income, month: "2026-10", asOf: "2026-10-12" }),
+		).toMatchObject({
 			short: 600_000,
 			below: false,
 		});
-		expect(incomeCheck({ baseline, income, month: "2026-10", asOf: "2026-10-15" })?.below).toBe(
-			true,
-		);
+		expect(
+			incomeCheck({ baseline: takeHomePay, income, month: "2026-10", asOf: "2026-10-15" })?.below,
+		).toBe(true);
 	});
 
 	it("caps what's expected at the Baseline, so last month's bonus isn't expected again", () => {
@@ -199,7 +207,9 @@ describe("incomeCheck: a warning when income is tracking below the Baseline", ()
 			paid("2026-10-01", 300_000),
 			paid("2026-10-15", 300_000),
 		];
-		expect(incomeCheck({ baseline, income, month: "2026-10", asOf: "2026-10-20" })).toMatchObject({
+		expect(
+			incomeCheck({ baseline: takeHomePay, income, month: "2026-10", asOf: "2026-10-20" }),
+		).toMatchObject({
 			expected: 600_000,
 			below: false,
 		});
@@ -208,19 +218,23 @@ describe("incomeCheck: a warning when income is tracking below the Baseline", ()
 	it("pro-rates the Baseline without last month to go by, and tolerates a little", () => {
 		const income = [paid("2026-10-01", 280_000)];
 		// 15 of October's 31 days: 15/31 of $6,000 is $2,903.23.
-		expect(incomeCheck({ baseline, income, month: "2026-10", asOf: "2026-10-15" })).toMatchObject({
+		expect(
+			incomeCheck({ baseline: takeHomePay, income, month: "2026-10", asOf: "2026-10-15" }),
+		).toMatchObject({
 			expected: 290_323,
 			short: 10_323,
 			below: false,
 		});
-		expect(incomeCheck({ baseline, income, month: "2026-10", asOf: "2026-10-31" })?.below).toBe(
-			true,
-		);
+		expect(
+			incomeCheck({ baseline: takeHomePay, income, month: "2026-10", asOf: "2026-10-31" })?.below,
+		).toBe(true);
 	});
 
 	it("compares a finished month against all of last month", () => {
 		const income = [paid("2026-02-27", 600_000), paid("2026-03-30", 600_000)];
-		expect(incomeCheck({ baseline, income, month: "2026-03", asOf: "2026-04-02" })).toMatchObject({
+		expect(
+			incomeCheck({ baseline: takeHomePay, income, month: "2026-03", asOf: "2026-04-02" }),
+		).toMatchObject({
 			expected: 600_000,
 			short: 0,
 		});

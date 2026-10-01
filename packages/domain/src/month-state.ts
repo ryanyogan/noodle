@@ -1,4 +1,5 @@
 import { dueDatesIn } from "./commitments";
+import { extraIncomeOf, type Income, receivedIn } from "./extra-income";
 import type { Cents } from "./money";
 import { type DayKey, daysElapsed, daysInMonth, type MonthKey, monthOfDay } from "./month";
 import {
@@ -9,7 +10,6 @@ import {
 	totalAllowances,
 	totalCommitments,
 } from "./plan";
-import { type Income, receivedIn, windfallOf } from "./windfall";
 
 /** Spending recorded against a Bucket on a day (a Transaction or one of its Splits). */
 export type Spend = { bucketId: string; amount: Cents; date: DayKey };
@@ -164,11 +164,11 @@ export function monthState({
 	const inPlan = new Set(plan.buckets.map((b) => b.id));
 	const movedByBucket = new Map<string, Cents>();
 	let movedToBuckets = 0;
-	let windfallDecided = 0;
+	let extraIncomeDecided = 0;
 	for (const { fromBucketId: from, toBucketId: to, amount, month, windfall } of moves) {
 		if (month !== plan.month || !inPlan.has(to) || (from !== null && !inPlan.has(from))) continue;
 		movedByBucket.set(to, (movedByBucket.get(to) ?? 0) + amount);
-		if (windfall) windfallDecided += amount;
+		if (windfall) extraIncomeDecided += amount;
 		else if (from === null) movedToBuckets += amount;
 		else movedByBucket.set(from, (movedByBucket.get(from) ?? 0) - amount);
 	}
@@ -179,14 +179,14 @@ export function monthState({
 	let fundedGoals = 0;
 	for (const funding of goalFunding) {
 		if (funding.month !== plan.month) continue;
-		if (funding.windfall) windfallDecided += funding.amount;
+		if (funding.windfall) extraIncomeDecided += funding.amount;
 		else fundedGoals += funding.amount;
 	}
 	const received = receivedIn(income, plan.month);
-	const { windfall, pending } = windfallOf({
+	const { windfall, pending } = extraIncomeOf({
 		baseline: plan.baseline,
 		received,
-		decided: windfallDecided,
+		decided: extraIncomeDecided,
 	});
 	const buckets = plan.buckets.map((bucket): BucketState => {
 		const moved = movedByBucket.get(bucket.id) ?? 0;

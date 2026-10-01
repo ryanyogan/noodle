@@ -59,7 +59,7 @@ const ranged = <S extends z.ZodRawShape>(shape: S) =>
 		muted: z.boolean().optional(),
 	});
 
-const leverV2Schema = z.discriminatedUnion("kind", [
+const changeV2Schema = z.discriminatedUnion("kind", [
 	ranged({ kind: z.literal("baseline"), amount: centsSchema }),
 	ranged({ kind: z.literal("allowance"), bucketId: ulidSchema, amount: centsSchema }),
 	ranged({
@@ -116,7 +116,7 @@ const leverV2Schema = z.discriminatedUnion("kind", [
 ]);
 
 /** Levers as v1 Scenarios (and clients) sent them, upgraded before use. */
-const leverV1Schema = z.discriminatedUnion("kind", [
+const changeV1Schema = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("allowance"), bucketId: ulidSchema, amount: centsSchema }),
 	z.object({
 		kind: z.literal("end-commitment"),
@@ -139,19 +139,19 @@ const leverV1Schema = z.discriminatedUnion("kind", [
 	}),
 ]);
 
-const leverSchema: z.ZodType<Lever | LeverV1> = z
-	.union([leverV2Schema, leverV1Schema])
+const changeSchema: z.ZodType<Lever | LeverV1> = z
+	.union([changeV2Schema, changeV1Schema])
 	.refine(
-		(lever) =>
-			!("untilMonth" in lever) ||
-			lever.untilMonth === undefined ||
-			lever.untilMonth > lever.fromMonth,
+		(change) =>
+			!("untilMonth" in change) ||
+			change.untilMonth === undefined ||
+			change.untilMonth > change.fromMonth,
 		{
 			message: "A Lever’s range must end after it starts.",
 		},
 	);
 
-const leversSchema = z.array(leverSchema).max(200);
+const changesSchema = z.array(changeSchema).max(200);
 const scenarioNameSchema = z.string().trim().min(1).max(40);
 
 export const getPlanAhead = createServerFn({ method: "GET" })
@@ -175,7 +175,7 @@ export const getScenarios = createServerFn({ method: "GET" })
 /** Creates a Scenario, or renames it and replaces its Levers. */
 export const saveScenario = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
-	.validator(z.object({ scenarioId: ulidSchema, name: scenarioNameSchema, levers: leversSchema }))
+	.validator(z.object({ scenarioId: ulidSchema, name: scenarioNameSchema, levers: changesSchema }))
 	.handler(async ({ data, context }) => {
 		const month = monthKeyAt(new Date(), context.household.timeZone);
 		await saveScenarioInDb(getDb(), {
@@ -202,14 +202,14 @@ export const deleteScenario = createServerFn({ method: "POST" })
  */
 export const applyScenario = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
-	.validator(z.object({ scenarioId: ulidSchema, name: scenarioNameSchema, levers: leversSchema }))
+	.validator(z.object({ scenarioId: ulidSchema, name: scenarioNameSchema, levers: changesSchema }))
 	.handler(async ({ data, context }) => {
 		const today = dayKeyAt(new Date(), context.household.timeZone);
 		const month = monthOfDay(today);
-		const levers = upgradeLevers(data.levers, month);
-		const applied = activeLevers(levers).filter((l) => !isAssumption(l));
-		for (const lever of applied) {
-			const why = whyNotApplicable(lever, month);
+		const changes = upgradeLevers(data.levers, month);
+		const applied = activeLevers(changes).filter((l) => !isAssumption(l));
+		for (const change of applied) {
+			const why = whyNotApplicable(change, month);
 			if (why !== null) throw new Error(why);
 		}
 		if (
@@ -226,7 +226,7 @@ export const applyScenario = createServerFn({ method: "POST" })
 			householdId: context.household.id,
 			memberId: context.parent.id,
 			scenarioId: data.scenarioId,
-			scenario: { name: data.name, levers },
+			scenario: { name: data.name, levers: changes },
 			month,
 			levers: applied,
 		});

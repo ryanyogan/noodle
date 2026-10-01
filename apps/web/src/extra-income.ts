@@ -16,8 +16,13 @@ import {
 } from "./goals";
 import { monthChangeKey } from "./plan-changes";
 import { goalsQuery, monthQuery } from "./queries";
+import {
+	decideExtraIncome,
+	recordIncome,
+	removeIncome,
+	undoExtraIncome,
+} from "./server/extra-income";
 import type { MonthData } from "./server/month";
-import { decideWindfall, recordIncome, removeIncome, undoWindfall } from "./server/windfalls";
 
 export type IncomeVariables = {
 	/** A client ULID: retrying the same income records it once. */
@@ -29,7 +34,7 @@ export type IncomeVariables = {
 	note: string | null;
 };
 
-export type WindfallVariables = {
+export type ExtraIncomeVariables = {
 	/** A client ULID: retrying the same decision records it once. */
 	moveId: string;
 	/** The month the Windfall came in. */
@@ -39,7 +44,7 @@ export type WindfallVariables = {
 	amountCents: Cents;
 };
 
-export type UndoWindfallVariables = Pick<WindfallVariables, "moveId" | "month" | "toName">;
+export type UndoExtraIncomeVariables = Pick<ExtraIncomeVariables, "moveId" | "month" | "toName">;
 
 /** A month's inputs with income in them; adding the same one twice changes nothing. */
 export const withIncome = (data: MonthData, v: IncomeVariables): MonthData =>
@@ -59,7 +64,7 @@ export const withoutIncome = (data: MonthData, { incomeId }: { incomeId: string 
 });
 
 /** A month's inputs with a Windfall Move in them: into a Bucket's Moves, or a Goal's funding. */
-export function withWindfall(data: MonthData, v: WindfallVariables): MonthData {
+export function withExtraIncome(data: MonthData, v: ExtraIncomeVariables): MonthData {
 	const { moveId: id, month, amountCents: amount, to } = v;
 	if (data.moves.some((m) => m.id === id) || data.goalFunding.some((f) => f.id === id)) return data;
 	return to.kind === "goal"
@@ -79,14 +84,14 @@ export function withWindfall(data: MonthData, v: WindfallVariables): MonthData {
 			};
 }
 
-export const withoutWindfall = (data: MonthData, { moveId }: { moveId: string }): MonthData => ({
+export const withoutExtraIncome = (data: MonthData, { moveId }: { moveId: string }): MonthData => ({
 	...data,
 	moves: data.moves.filter((m) => m.id !== moveId),
 	goalFunding: data.goalFunding.filter((f) => f.id !== moveId),
 });
 
 /** The server refused a Windfall Move: the Windfall had less left, or the destination can't take it. */
-class WindfallRefused extends GoalRefused {
+class ExtraIncomeRefused extends GoalRefused {
 	constructor(readonly left: Cents) {
 		super("Not enough Windfall left");
 	}
@@ -165,7 +170,7 @@ export function useIncome() {
  * records and the month's inputs at once, a Move to a Bucket in the month's; each rolls back if
  * the server fails or refuses it. Deciding's toast offers Undo.
  */
-export function useWindfalls() {
+export function useExtraIncomes() {
 	const queryClient = useQueryClient();
 
 	function onSettled() {
@@ -175,11 +180,11 @@ export function useWindfalls() {
 		]);
 	}
 
-	async function add(v: WindfallVariables): Promise<Rollback> {
+	async function add(v: ExtraIncomeVariables): Promise<Rollback> {
 		const { to } = v;
 		return [
 			await editCache<MonthData>(queryClient, monthQuery(v.month).queryKey, (data) =>
-				withWindfall(data, v),
+				withExtraIncome(data, v),
 			),
 			...(to.kind === "goal"
 				? [
@@ -198,9 +203,9 @@ export function useWindfalls() {
 		];
 	}
 
-	const remove = async (v: UndoWindfallVariables): Promise<Rollback> => [
+	const remove = async (v: UndoExtraIncomeVariables): Promise<Rollback> => [
 		await editCache<MonthData>(queryClient, monthQuery(v.month).queryKey, (data) =>
-			withoutWindfall(data, v),
+			withoutExtraIncome(data, v),
 		),
 		await editCache<GoalsData>(queryClient, goalsQuery().queryKey, (data) =>
 			withoutChange(data, v.moveId),
@@ -210,8 +215,8 @@ export function useWindfalls() {
 	const undo = useMutation({
 		mutationKey: monthChangeKey,
 		meta: touchesGoals,
-		mutationFn: async ({ moveId, month }: UndoWindfallVariables) => {
-			const result = await undoWindfall({ data: { moveId, month } });
+		mutationFn: async ({ moveId, month }: UndoExtraIncomeVariables) => {
+			const result = await undoExtraIncome({ data: { moveId, month } });
 			if (!result.ok) throw new GoalRefused();
 		},
 		onMutate: remove,
@@ -233,14 +238,14 @@ export function useWindfalls() {
 	const decide = useMutation({
 		mutationKey: monthChangeKey,
 		meta: touchesGoals,
-		mutationFn: async ({ moveId, month, to, amountCents }: WindfallVariables) => {
-			const outcome = await decideWindfall({ data: { moveId, month, to, amountCents } });
-			if (!outcome.ok) throw new WindfallRefused(outcome.left);
+		mutationFn: async ({ moveId, month, to, amountCents }: ExtraIncomeVariables) => {
+			const outcome = await decideExtraIncome({ data: { moveId, month, to, amountCents } });
+			if (!outcome.ok) throw new ExtraIncomeRefused(outcome.left);
 		},
 		onMutate: add,
 		onError: (error, v, rollback) => {
 			rollBack(queryClient, rollback);
-			if (error instanceof WindfallRefused) {
+			if (error instanceof ExtraIncomeRefused) {
 				toast(
 					error.left < v.amountCents
 						? `The Windfall has only ${formatMoney(error.left)} left, so nothing went to ${v.toName}.`

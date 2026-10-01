@@ -33,7 +33,7 @@ import {
 import { PlanEnded, planParts } from "../../../components/plan-page";
 import { formatMoney, monthName } from "../../../format";
 import { useGoals } from "../../../goals";
-import { usePlanChange, withBaseline } from "../../../plan-changes";
+import { usePlanChange, withTakeHomePay } from "../../../plan-changes";
 import {
 	commitmentsQuery,
 	goalsQuery,
@@ -42,7 +42,7 @@ import {
 	planHistoryQuery,
 	useMonthState,
 } from "../../../queries";
-import { setBaseline } from "../../../server/plan";
+import { setTakeHomePay } from "../../../server/plan";
 
 export const Route = createFileRoute("/_authed/_household/plan/$month/")({
 	// Setting up the Plan ticks off its Goals step once there are Goals; Coming up reads every
@@ -136,7 +136,7 @@ function SetUp({ state, current }: { state: PlanState; current: boolean }) {
 								: `${formatMoney(state.baseline)} a month`
 						}
 					>
-						{state.baseline === null ? <BaselineForm month={month} /> : null}
+						{state.baseline === null ? <TakeHomePayForm month={month} /> : null}
 					</Step>
 					<Step
 						number={2}
@@ -260,14 +260,14 @@ function StepLink({
 }
 
 /** The first step of setting up: the Baseline, which applies from this month on. */
-function BaselineForm({ month }: { month: MonthKey }) {
+function TakeHomePayForm({ month }: { month: MonthKey }) {
 	const hydrated = useHydrated();
 	const id = useId();
 	const [amount, setAmount] = useState("");
 	const cents = parseDollars(amount);
 	const change = usePlanChange(month, {
-		save: (data: { month: MonthKey; amountCents: number }) => setBaseline({ data }),
-		apply: withBaseline,
+		save: (data: { month: MonthKey; amountCents: number }) => setTakeHomePay({ data }),
+		apply: withTakeHomePay,
 	});
 
 	function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -306,20 +306,20 @@ function BaselineForm({ month }: { month: MonthKey }) {
  * link to its page. The bars run waterfall-style on one scale, from the Baseline down.
  */
 function Waterfall({ state, current }: { state: MonthState; current: boolean }) {
-	const baseline = state.baseline ?? 0;
+	const takeHomePay = state.baseline ?? 0;
 	// Goal funding shows in the current month, where it can still happen, or once it did.
 	const steps = freeToSpendParts(state)
 		.filter(({ part, amount }) => part !== "goal-funding" || amount > 0 || current)
 		.map(({ part, amount }) => ({ ...planParts[part], amount }));
 	// One scale for every bar: from Free to Spend (when it's below zero) up to the Baseline.
 	const low = Math.min(0, state.freeToSpend);
-	const high = Math.max(0, baseline);
+	const high = Math.max(0, takeHomePay);
 	const bar = (from: number, to: number) =>
 		state.baseline === null || high === low
 			? null
 			: { left: (from - low) / (high - low), width: (to - from) / (high - low) };
 	const overBy = -state.freeToSpend;
-	let left = baseline;
+	let left = takeHomePay;
 	return (
 		<Section aria-labelledby="plan-waterfall">
 			<SectionHeader id="plan-waterfall" title="Baseline to Free to Spend" />
@@ -328,8 +328,8 @@ function Waterfall({ state, current }: { state: MonthState; current: boolean }) 
 					label="Baseline"
 					to="/plan/$month/income"
 					month={state.month}
-					amount={state.baseline === null ? "Not set" : formatMoney(baseline)}
-					bar={bar(0, baseline)}
+					amount={state.baseline === null ? "Not set" : formatMoney(takeHomePay)}
+					bar={bar(0, takeHomePay)}
 					tone="total"
 				/>
 				{steps.map((step) => {

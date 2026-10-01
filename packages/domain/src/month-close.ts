@@ -99,10 +99,10 @@ export function monthEnd(
 	state: MonthState,
 	{ sweeps, goalFunding }: { sweeps: Sweep[]; goalFunding: GoalFunding[] },
 ): MonthEnd {
-	const windfall = new Map<string, Cents>();
+	const extraIncome = new Map<string, Cents>();
 	for (const funding of goalFunding) {
 		if (!funding.windfall || funding.month !== state.month) continue;
-		windfall.set(funding.goalId, (windfall.get(funding.goalId) ?? 0) + funding.amount);
+		extraIncome.set(funding.goalId, (extraIncome.get(funding.goalId) ?? 0) + funding.amount);
 	}
 	return {
 		sweeps: sweeps.flatMap((sweep) => {
@@ -111,7 +111,7 @@ export function monthEnd(
 				? [{ bucketId: bucket.id, name: bucket.name, goalId: sweep.goalId, amount: sweep.amount }]
 				: [];
 		}),
-		windfall: [...windfall].map(([goalId, amount]) => ({ goalId, amount })),
+		windfall: [...extraIncome].map(([goalId, amount]) => ({ goalId, amount })),
 		rolledOver: state.buckets
 			.filter((b) => b.rolling && b.left !== 0)
 			.map((b) => ({ bucketId: b.id, name: b.name, amount: b.left })),

@@ -509,7 +509,7 @@ async function viewData(
 			const shown = (bucketId: string) =>
 				!request.buckets?.length || request.buckets.includes(bucketId);
 			const variances = planVsActual(records, spent, months).filter((v) => shown(v.bucketId));
-			const rollingIds = [
+			const carriesOverIds = [
 				...new Set(records.rolling.filter((r) => r.rolling).map((r) => r.bucketId)),
 			].filter(shown);
 			return {
@@ -517,7 +517,7 @@ async function viewData(
 				months,
 				variances,
 				habits: planHabits(variances),
-				rolling: rollingIds.map((bucketId) => ({
+				rolling: carriesOverIds.map((bucketId) => ({
 					bucketId,
 					carried: months.map((month) => ({
 						month,

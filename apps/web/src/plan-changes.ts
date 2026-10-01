@@ -72,7 +72,7 @@ const mapBucket = (data: MonthData, bucketId: string, change: (b: PlanBucket) =>
 		buckets: plan.buckets.map((b) => (b.id === bucketId ? change(b) : b)),
 	}));
 
-export const withBaseline = (data: MonthData, { amountCents }: { amountCents: number }) =>
+export const withTakeHomePay = (data: MonthData, { amountCents }: { amountCents: number }) =>
 	mapPlan(data, (plan) => ({ ...plan, baseline: amountCents }));
 
 export const withAllowance = (
@@ -80,7 +80,7 @@ export const withAllowance = (
 	{ bucketId, amountCents }: { bucketId: string; amountCents: number },
 ) => mapBucket(data, bucketId, (b) => ({ ...b, allowance: amountCents }));
 
-export const withRolling = (
+export const withCarriesOver = (
 	data: MonthData,
 	{ bucketId, rolling }: { bucketId: string; rolling: boolean },
 ) => mapBucket(data, bucketId, (b) => ({ ...b, rolling }));

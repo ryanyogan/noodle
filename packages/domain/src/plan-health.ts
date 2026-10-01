@@ -1,10 +1,10 @@
-import { type EarmarkChange, earmarkOf, goalProgress } from "./goals";
+import { type Income, incomeCheck } from "./extra-income";
+import { goalProgress, type SetAsideChange, setAsideOf } from "./goals";
 import type { Cents } from "./money";
 import { addMonths, type DayKey, type MonthKey, monthOfDay } from "./month";
 import { type PlanRecords, planForMonth } from "./plan";
 import { planHabits, planVsActual, projectedCompletion } from "./reports";
 import { planAhead, project } from "./scenario";
-import { type Income, incomeCheck } from "./windfall";
 
 // Plan health: what in the Plan is likely to go wrong, each warning pointing at its fix.
 //
@@ -79,7 +79,7 @@ export function planHealth({
 	parentId: string;
 	records: PlanRecords;
 	goals: readonly HealthGoal[];
-	changes: readonly EarmarkChange[];
+	changes: readonly SetAsideChange[];
 	income: readonly Income[];
 	spent: readonly { bucketId: string; month: MonthKey; amount: Cents }[];
 }): PlanWarning[] {
@@ -92,8 +92,8 @@ export function planHealth({
 			id: goal.id,
 			target: goal.target,
 			targetDate: goal.targetDate,
-			saved: earmarkOf(goal.id, [...changes]),
-			fundedThisMonth: earmarkOf(
+			saved: setAsideOf(goal.id, [...changes]),
+			fundedThisMonth: setAsideOf(
 				goal.id,
 				changes.filter((c) => c.kind === "funding" && c.month === month),
 			),

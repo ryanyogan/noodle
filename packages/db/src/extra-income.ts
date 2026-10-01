@@ -2,7 +2,7 @@ import type { Cents, DayKey, MonthKey, WindfallDestination } from "@noodle/domai
 import { addMonths } from "@noodle/domain";
 import { and, eq, gte, isNotNull, isNull, lt, type SQL, sql } from "drizzle-orm";
 import { incomeCounts, incomeCountsRaw } from "./counting";
-import { earmarkSql } from "./goals";
+import { setAsideSql } from "./goals";
 import type { Db } from "./index";
 import { bucketInPlan } from "./moves";
 import { assignableBy } from "./privacy";
@@ -75,7 +75,7 @@ const receivedSql = (householdId: string, month: MonthKey) =>
 		and i.date >= ${`${month}-01`} and i.date < ${`${addMonths(month, 1)}-01`}
 		and ${sql.raw(incomeCountsRaw("i.id"))}), 0)`;
 
-const baselineSql = (householdId: string, month: MonthKey) =>
+const takeHomePaySql = (householdId: string, month: MonthKey) =>
 	sql`(select b.amount_cents from baselines b
 		where b.household_id = ${householdId} and b.month <= ${month}
 		order by b.month desc limit 1)`;
@@ -85,12 +85,12 @@ const decidedSql = (householdId: string, month: MonthKey) =>
 		where m.household_id = ${householdId} and m.month = ${month} and m.kind = 'windfall'), 0)`;
 
 /** The month's income beyond its Baseline; 0 without a Baseline. */
-const windfallSql = (householdId: string, month: MonthKey, lessReceived: SQL | Cents = 0) =>
-	sql`coalesce(max(0, ${receivedSql(householdId, month)} - ${lessReceived} - ${baselineSql(householdId, month)}), 0)`;
+const extraIncomeSql = (householdId: string, month: MonthKey, lessReceived: SQL | Cents = 0) =>
+	sql`coalesce(max(0, ${receivedSql(householdId, month)} - ${lessReceived} - ${takeHomePaySql(householdId, month)}), 0)`;
 
 /** What's left of the month's Windfall to decide. */
-export function windfallLeftSql(householdId: string, month: MonthKey): SQL {
-	return sql`(${windfallSql(householdId, month)} - ${decidedSql(householdId, month)})`;
+export function extraIncomeLeftSql(householdId: string, month: MonthKey): SQL {
+	return sql`(${extraIncomeSql(householdId, month)} - ${decidedSql(householdId, month)})`;
 }
 
 export type IncomeWriteResult = { ok: true } | { ok: false; reason: "refused" };
@@ -114,7 +114,7 @@ export async function removeIncome(
 	const removable = and(
 		own,
 		sql.raw(incomeCountsRaw("income.id")),
-		sql`${windfallSql(householdId, month, sql.raw("income.amount_cents"))} >= ${decidedSql(householdId, month)}`,
+		sql`${extraIncomeSql(householdId, month, sql.raw("income.amount_cents"))} >= ${decidedSql(householdId, month)}`,
 	);
 	await db.batch([
 		db
@@ -139,11 +139,11 @@ export async function removeIncome(
  * the Household's and active, or the Bucket is in the month's Plan and isn't the other Parent's
  * Personal Allowance.
  */
-export async function decideWindfall(
+export async function decideExtraIncome(
 	db: Db,
-	input: WindfallMoveInput & { createdByMemberId: string },
+	input: ExtraIncomeMoveInput & { createdByMemberId: string },
 ): Promise<IncomeWriteResult> {
-	await insertWindfallMove(db, input);
+	await insertExtraIncomeMove(db, input);
 	const [written] = await db
 		.select({ id: moves.id })
 		.from(moves)
@@ -151,7 +151,7 @@ export async function decideWindfall(
 	return written ? { ok: true } : { ok: false, reason: "refused" };
 }
 
-type WindfallMoveInput = {
+type ExtraIncomeMoveInput = {
 	householdId: string;
 	moveId: string;
 	month: MonthKey;
@@ -162,7 +162,7 @@ type WindfallMoveInput = {
 };
 
 /** A Windfall Move's guarded insert (see decideWindfall), also landing only if `guard` holds. */
-export function insertWindfallMove(db: Db, input: WindfallMoveInput, guard?: SQL) {
+export function insertExtraIncomeMove(db: Db, input: ExtraIncomeMoveInput, guard?: SQL) {
 	const { householdId, month, to } = input;
 	// Selected in the table's column order: insert … select is positional.
 	const row = <H, B, G>(owner: H, toBucketId: B, toGoalId: G) => ({
@@ -177,7 +177,7 @@ export function insertWindfallMove(db: Db, input: WindfallMoveInput, guard?: SQL
 		createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
 		toGoalId,
 	});
-	const enough = sql`${windfallLeftSql(householdId, month)} >= ${input.amountCents}`;
+	const enough = sql`${extraIncomeLeftSql(householdId, month)} >= ${input.amountCents}`;
 	const select =
 		to.kind === "goal"
 			? db
@@ -211,7 +211,7 @@ export function insertWindfallMove(db: Db, input: WindfallMoveInput, guard?: SQL
  * Undoes a Windfall Move, putting the money back in the Windfall. Refused if it went to a Goal
  * that has since spent it (its Earmark is less than the Move). Undoing it twice changes nothing.
  */
-export async function undoWindfall(
+export async function undoExtraIncome(
 	db: Db,
 	input: { householdId: string; moveId: string; month: MonthKey },
 ): Promise<IncomeWriteResult> {
@@ -225,7 +225,7 @@ export async function undoWindfall(
 		and(
 			own,
 			// Correlated with the Move being deleted (the subqueries alias their own `moves`).
-			sql`(moves.to_goal_id is null or ${earmarkSql(input.householdId, sql.raw("moves.to_goal_id"))} >= moves.amount_cents)`,
+			sql`(moves.to_goal_id is null or ${setAsideSql(input.householdId, sql.raw("moves.to_goal_id"))} >= moves.amount_cents)`,
 		),
 	);
 	const [left] = await db.select({ id: moves.id }).from(moves).where(own);

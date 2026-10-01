@@ -57,6 +57,33 @@ export {
 	SIMILAR_MERCHANT_SCORE,
 } from "./categorize";
 export {
+	changePreset as leverPreset,
+	parseChangePreset as parseLeverPreset,
+} from "./change-presets";
+export {
+	activeChanges as activeLevers,
+	addedTerms,
+	addedUntil,
+	type Change as Lever,
+	type ChangeKind as LeverKind,
+	type ChangeMute as LeverMute,
+	type ChangeOf as LeverOf,
+	type ChangeRange as LeverRange,
+	type ChangeV1 as LeverV1,
+	changedTerms,
+	dueDateFrom,
+	holdsIn,
+	isAssumption,
+	type OneOffFlow,
+	oneOffAsGoal,
+	rangeFrom,
+	readScenarioChanges as readScenarioLevers,
+	SCENARIO_VERSION,
+	type ScenarioJson,
+	upgradeChanges as upgradeLevers,
+	whyNotApplicable,
+} from "./changes";
+export {
 	CHECK_IN_MINUTE,
 	type CheckInCard,
 	type CheckInCardKind,
@@ -70,7 +97,7 @@ export {
 	DEFAULT_CHECK_IN_DAY,
 	isCheckInDay,
 	isWeekday,
-	type PendingWindfall,
+	type PendingExtraIncome as PendingWindfall,
 	WEEKDAYS,
 	type Weekday,
 	weekdayOf,
@@ -99,12 +126,23 @@ export {
 } from "./commitments";
 export { type CoverSource, coverSources, leftToMove } from "./cover";
 export {
-	describeLever,
-	type LeverDescription,
-	type LeverSubjects,
-	leverName,
+	type ChangeDescription as LeverDescription,
+	type ChangeSubjects as LeverSubjects,
+	changeName as leverName,
+	describeChange as describeLever,
 	shortMonthName,
-} from "./describe-levers";
+} from "./describe-changes";
+export {
+	type ExtraIncomeDestination as WindfallDestination,
+	type ExtraIncomeSuggestion as WindfallSuggestion,
+	extraIncomeOf as windfallOf,
+	extraIncomeSuggestions as windfallSuggestions,
+	INCOME_WARNING_FROM_DAY,
+	type Income,
+	type IncomeCheck,
+	incomeCheck,
+	receivedIn,
+} from "./extra-income";
 export {
 	type AttributedSpend,
 	type For,
@@ -122,13 +160,13 @@ export {
 	accountBalance,
 	attributeWithdrawal,
 	type BalanceUpdate,
-	type EarmarkChange,
-	earmarkOf,
 	type GoalProgress,
 	type GoalStatus,
 	goalHistory,
 	goalProgress,
 	holdsMoney,
+	type SetAsideChange as EarmarkChange,
+	setAsideOf as earmarkOf,
 	splitAccount,
 	stillToFund,
 	type WithdrawalAttribution,
@@ -147,30 +185,6 @@ export {
 	type Service,
 	services,
 } from "./insights";
-export { leverPreset, parseLeverPreset } from "./lever-presets";
-export {
-	activeLevers,
-	addedTerms,
-	addedUntil,
-	changedTerms,
-	dueDateFrom,
-	holdsIn,
-	isAssumption,
-	type Lever,
-	type LeverKind,
-	type LeverMute,
-	type LeverOf,
-	type LeverRange,
-	type LeverV1,
-	type OneOffFlow,
-	oneOffAsGoal,
-	rangeFrom,
-	readScenarioLevers,
-	SCENARIO_VERSION,
-	type ScenarioJson,
-	upgradeLevers,
-	whyNotApplicable,
-} from "./levers";
 export { type BucketUse, likelyBucketOrder } from "./likely";
 export {
 	autoMatches,
@@ -235,7 +249,7 @@ export {
 } from "./nudges";
 export { readOfxStatement } from "./ofx";
 export {
-	leverHoldsIn,
+	changeHoldsIn as leverHoldsIn,
 	type MonthBreakdown,
 	monthBreakdown,
 	type OutcomeWarning,
@@ -283,7 +297,6 @@ export {
 	DRAFT_BUCKET_NAMES,
 	DRAFT_DAYS,
 	DRAFT_MIN_DAYS,
-	type DraftBaseline,
 	type DraftBucket,
 	type DraftCommitment,
 	type DraftFindings,
@@ -291,6 +304,7 @@ export {
 	type DraftIncome,
 	type DraftLabels,
 	type DraftMerchant,
+	type DraftTakeHomePay as DraftBaseline,
 	detectCommitments,
 	detectPaychecks,
 	draftFindings,
@@ -350,7 +364,6 @@ export {
 	csvDollars,
 	type DayRange,
 	defaultGrouping,
-	earmarkHistory,
 	type Flow,
 	type ForCell,
 	freeToSpendOver,
@@ -375,6 +388,7 @@ export {
 	regroupMonthly,
 	type SpendCell,
 	seriesOf,
+	setAsideHistory as earmarkHistory,
 	spendFor,
 	sumOf,
 	type Target,
@@ -395,8 +409,8 @@ export {
 	rolloverSince,
 } from "./rollover";
 export {
-	type LeverImpact,
-	leverImpacts,
+	type ChangeImpact as LeverImpact,
+	changeImpacts as leverImpacts,
 	MAX_PROJECTION_MONTHS,
 	moneyFreed,
 	type PlanAhead,
@@ -447,17 +461,6 @@ export {
 	type TransferSide,
 	transferPairs,
 } from "./transfers";
-export {
-	INCOME_WARNING_FROM_DAY,
-	type Income,
-	type IncomeCheck,
-	incomeCheck,
-	receivedIn,
-	type WindfallDestination,
-	type WindfallSuggestion,
-	windfallOf,
-	windfallSuggestions,
-} from "./windfall";
 export {
 	type YearActuals,
 	type YearFigures,

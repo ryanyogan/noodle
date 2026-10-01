@@ -46,7 +46,7 @@ export function MonthCloseSection({
 	const [sweeps, setSweeps] = useState<Record<string, string>>(() =>
 		Object.fromEntries(proposal.leftovers.map((l) => [l.bucketId, emergency?.id ?? ""])),
 	);
-	const [windfallGoalId, setWindfallGoalId] = useState("");
+	const [extraIncomeGoalId, setExtraIncomeGoalId] = useState("");
 	const name = monthName(proposal.month);
 	const goalOptions = goals.map((g) => (
 		<option key={g.id} value={g.id}>
@@ -100,9 +100,9 @@ export function MonthCloseSection({
 							<NativeSelect
 								className="w-40"
 								aria-label="Where the Windfall goes"
-								value={windfallGoalId}
+								value={extraIncomeGoalId}
 								disabled={!hydrated || pending}
-								onChange={(event) => setWindfallGoalId(event.currentTarget.value)}
+								onChange={(event) => setExtraIncomeGoalId(event.currentTarget.value)}
 							>
 								<option value="">Decide later</option>
 								{goalOptions}
@@ -114,7 +114,7 @@ export function MonthCloseSection({
 			<div className="flex justify-end pt-3">
 				<Button
 					disabled={!hydrated || pending}
-					onClick={() => onClose({ sweeps, windfallGoalId: windfallGoalId || null })}
+					onClick={() => onClose({ sweeps, windfallGoalId: extraIncomeGoalId || null })}
 				>
 					Close {name}
 				</Button>
@@ -180,12 +180,12 @@ export function MonthEndSection({
 							trailing={<Amount cents={sweep.amount} />}
 						/>
 					))}
-					{end.windfall.map((windfall) => (
+					{end.windfall.map((extraIncome) => (
 						<ListRow
-							key={`windfall:${windfall.goalId}`}
+							key={`windfall:${extraIncome.goalId}`}
 							title="Windfall"
-							meta={`Sent to ${goalName(windfall.goalId)}`}
-							trailing={<Amount cents={windfall.amount} />}
+							meta={`Sent to ${goalName(extraIncome.goalId)}`}
+							trailing={<Amount cents={extraIncome.amount} />}
 						/>
 					))}
 					{end.rolledOver.map((rolled) => (

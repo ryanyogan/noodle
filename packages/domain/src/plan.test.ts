@@ -64,12 +64,12 @@ describe("planForMonth: the Plan in force for a month", () => {
 	});
 
 	it("makes a Bucket Fresh-start until it is set Rolling, and carries that forward", () => {
-		const rolling = (month: `${number}-${number}`) =>
+		const carriesOver = (month: `${number}-${number}`) =>
 			Object.fromEntries(planForMonth(records, month).buckets.map((b) => [b.id, b.rolling]));
-		expect(rolling("2026-09")).toMatchObject({ hockey: true, groceries: false });
-		expect(rolling("2026-10")).toMatchObject({ hockey: true, groceries: false });
-		expect(rolling("2026-11")).toMatchObject({ hockey: false, groceries: false });
-		expect(rolling("2026-12")).toMatchObject({ hockey: false, groceries: true });
+		expect(carriesOver("2026-09")).toMatchObject({ hockey: true, groceries: false });
+		expect(carriesOver("2026-10")).toMatchObject({ hockey: true, groceries: false });
+		expect(carriesOver("2026-11")).toMatchObject({ hockey: false, groceries: false });
+		expect(carriesOver("2026-12")).toMatchObject({ hockey: false, groceries: true });
 	});
 
 	it("includes a Bucket from the month it was added until the month it was archived", () => {
@@ -175,9 +175,9 @@ describe("planForMonth: Commitments", () => {
 });
 
 describe("freeToSpend: the Baseline not yet assigned", () => {
-	const plan = (baseline: number | null, ...allowances: number[]) => ({
+	const plan = (takeHomePay: number | null, ...allowances: number[]) => ({
 		month: "2026-09" as const,
-		baseline,
+		baseline: takeHomePay,
 		commitments: [],
 		buckets: allowances.map((allowance, i) => ({
 			id: `b${i}`,

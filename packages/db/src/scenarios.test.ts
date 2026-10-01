@@ -319,8 +319,8 @@ describe("Scenarios as versioned JSON", () => {
 });
 
 describe("applyLevers: v2 Levers", () => {
-	const apply = (levers: Lever[], at: MonthKey = month) =>
-		applyLevers(db, { householdId, memberId: parentId, month: at, levers });
+	const apply = (changes: Lever[], at: MonthKey = month) =>
+		applyLevers(db, { householdId, memberId: parentId, month: at, levers: changes });
 	const planIn = async (m: MonthKey) =>
 		planForMonth(await loadPlanRecords(db, householdId, "2028-12"), m);
 
@@ -341,7 +341,7 @@ describe("applyLevers: v2 Levers", () => {
 			month: "2027-02",
 			amountCents: 200_000,
 		});
-		const lever: Lever = {
+		const change: Lever = {
 			kind: "allowance",
 			bucketId: "groceries",
 			amount: 150_000,
@@ -349,8 +349,8 @@ describe("applyLevers: v2 Levers", () => {
 			untilMonth: "2026-12",
 		};
 		// Idempotent: applying again changes nothing.
-		await apply([lever]);
-		await apply([lever]);
+		await apply([change]);
+		await apply([change]);
 		const allowance = async (m: MonthKey) => (await planIn(m)).buckets[0]?.allowance;
 		expect(await allowance("2026-09")).toBe(120_000);
 		expect(await allowance("2026-11")).toBe(150_000);
@@ -359,7 +359,7 @@ describe("applyLevers: v2 Levers", () => {
 	});
 
 	it("changes a Commitment's terms for a range, from the terms in force", async () => {
-		const lever: Lever = {
+		const change: Lever = {
 			kind: "commitment-terms",
 			commitmentId: "streaming",
 			amount: 1_500,
@@ -367,8 +367,8 @@ describe("applyLevers: v2 Levers", () => {
 			fromMonth: "2026-10",
 			untilMonth: "2027-01",
 		};
-		await apply([lever]);
-		await apply([lever]);
+		await apply([change]);
+		await apply([change]);
 		const streaming = async (m: MonthKey) => (await planIn(m)).commitments[0];
 		expect(await streaming("2026-09")).toMatchObject({ amount: 2_000, cadence: "monthly" });
 		expect(await streaming("2026-11")).toMatchObject({
@@ -482,16 +482,16 @@ describe("applyLevers: v2 Levers", () => {
 		expect(saved).toMatchObject({ createdBy: parentId, appliedAt: null, appliedBy: null });
 		await db.update(scenarios).set({ updatedAt: new Date(0) });
 
-		const levers: Lever[] = [
+		const changes: Lever[] = [
 			{ kind: "allowance", bucketId: "groceries", amount: 100_000, fromMonth: month },
 		];
 		await applyLevers(db, {
 			householdId,
 			memberId: parentId,
 			scenarioId: "s1",
-			scenario: { name: "Tighter groceries", levers },
+			scenario: { name: "Tighter groceries", levers: changes },
 			month,
-			levers,
+			levers: changes,
 		});
 		const [applied] = await loadScenarios(db, householdId, month);
 		expect(applied?.appliedBy).toBe(parentId);
@@ -503,15 +503,15 @@ describe("applyLevers: v2 Levers", () => {
 
 	it("saves an unsaved Scenario as it applies it, and not another Household's", async () => {
 		await save("s1", "Theirs", "other-household");
-		const levers: Lever[] = [{ kind: "baseline", amount: 800_000, fromMonth: month }];
+		const changes: Lever[] = [{ kind: "baseline", amount: 800_000, fromMonth: month }];
 		for (const scenarioId of ["s1", "s2"]) {
 			await applyLevers(db, {
 				householdId,
 				memberId: parentId,
 				scenarioId,
-				scenario: { name: "Raise", levers },
+				scenario: { name: "Raise", levers: changes },
 				month,
-				levers,
+				levers: changes,
 			});
 		}
 		expect(await loadScenarios(db, householdId, month)).toMatchObject([
@@ -558,7 +558,7 @@ describe("applyLevers: v2 Levers", () => {
 	});
 
 	it("comes out as the Scenario projected it", async () => {
-		const levers: Lever[] = [
+		const changes: Lever[] = [
 			{ kind: "baseline", amount: 950_000, fromMonth: "2026-11", untilMonth: "2027-05" },
 			{ kind: "allowance", bucketId: "groceries", amount: 90_000, fromMonth: "2026-10" },
 			{
@@ -590,8 +590,8 @@ describe("applyLevers: v2 Levers", () => {
 				allowances,
 			}));
 		const before = await loadPlanRecords(db, householdId, "2028-08");
-		const scenario = project(planAhead(before, [], month, 24), levers);
-		await apply(levers);
+		const scenario = project(planAhead(before, [], month, 24), changes);
+		await apply(changes);
 		const after = project(
 			planAhead(await loadPlanRecords(db, householdId, "2028-08"), [], month, 24),
 		);

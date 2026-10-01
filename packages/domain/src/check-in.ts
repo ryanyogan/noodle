@@ -44,7 +44,7 @@ export function checkInNudgeTime(now: Date, timeZone: string): Date {
 }
 
 /** A month's Windfall still to decide. */
-export type PendingWindfall = { month: MonthKey; amount: Cents };
+export type PendingExtraIncome = { month: MonthKey; amount: Cents };
 
 /** What waits for one Parent, read for them: nothing of the other Parent's Personal Allowance. */
 export type CheckInWaiting = {
@@ -55,7 +55,7 @@ export type CheckInWaiting = {
 	/** The last month that ended, while it hasn't closed; null once it has. */
 	monthClose: MonthCloseProposal | null;
 	/** Each month's Windfall still to decide. */
-	windfalls: PendingWindfall[];
+	windfalls: PendingExtraIncome[];
 };
 
 /** One card of the stack. Each is a summary that leads to where it's decided. */
@@ -63,7 +63,7 @@ export type CheckInCard =
 	| { kind: "review"; count: number }
 	| { kind: "insights"; titles: string[] }
 	| { kind: "sweeps"; month: MonthKey; leftovers: Leftover[]; total: Cents }
-	| { kind: "windfalls"; windfalls: PendingWindfall[]; total: Cents };
+	| { kind: "windfalls"; windfalls: PendingExtraIncome[]; total: Cents };
 
 export type CheckInCardKind = CheckInCard["kind"];
 
@@ -86,11 +86,15 @@ export function checkInCards(waiting: CheckInWaiting): CheckInCard[] {
 			total: sum(close.leftovers.map((leftover) => leftover.amount)),
 		});
 	}
-	const windfalls = waiting.windfalls
-		.filter((windfall) => windfall.amount > 0)
+	const extraIncomes = waiting.windfalls
+		.filter((extraIncome) => extraIncome.amount > 0)
 		.sort((a, b) => a.month.localeCompare(b.month));
-	if (windfalls.length > 0) {
-		cards.push({ kind: "windfalls", windfalls, total: sum(windfalls.map((w) => w.amount)) });
+	if (extraIncomes.length > 0) {
+		cards.push({
+			kind: "windfalls",
+			windfalls: extraIncomes,
+			total: sum(extraIncomes.map((w) => w.amount)),
+		});
 	}
 	return cards;
 }

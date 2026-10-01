@@ -68,17 +68,17 @@ test("a Parent turns on Nudges for their device and chooses which they get", asy
 		// 9pm to 7am.
 		const pace = nudges.getByRole("switch", { name: "A Bucket gets ahead of Pace" });
 		const quickAdds = nudges.getByRole("switch", { name: "The other Parent’s Quick Adds" });
-		const windfalls = nudges.getByRole("switch", { name: "A Windfall arrives" });
+		const extraIncomes = nudges.getByRole("switch", { name: "A Windfall arrives" });
 		const quiet = nudges.getByRole("switch", { name: "Quiet hours" });
 		await expect(pace).toBeChecked();
 		await expect(quickAdds).not.toBeChecked();
-		await expect(windfalls).toBeChecked();
+		await expect(extraIncomes).toBeChecked();
 		await expect(quiet).toBeChecked();
 		await expect(nudges.getByLabel("From")).toHaveValue("21:00");
 
 		await pace.uncheck();
 		await quickAdds.check();
-		await windfalls.uncheck();
+		await extraIncomes.uncheck();
 		await nudges.getByLabel("From").fill("22:30");
 		await nudges.getByLabel("Until").fill("06:15");
 		await nudges.getByRole("button", { name: "Save" }).click();
@@ -92,7 +92,7 @@ test("a Parent turns on Nudges for their device and chooses which they get", asy
 		await expect(nudges.getByText("Nudges are on for this device.")).toBeVisible();
 		await expect(pace).not.toBeChecked();
 		await expect(quickAdds).toBeChecked();
-		await expect(windfalls).not.toBeChecked();
+		await expect(extraIncomes).not.toBeChecked();
 		await expect(nudges.getByLabel("From")).toHaveValue("22:30");
 		await expect(nudges.getByLabel("Until")).toHaveValue("06:15");
 

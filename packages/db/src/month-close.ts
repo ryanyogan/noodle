@@ -1,10 +1,10 @@
 import type { Cents, MonthKey, Sweep } from "@noodle/domain";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
+import { insertExtraIncomeMove } from "./extra-income";
 import type { Db } from "./index";
 import { bucketInPlan, bucketLeftSql } from "./moves";
 import { buckets, households, monthCloses, moves } from "./schema";
-import { insertWindfallMove } from "./windfalls";
 
 // Month-close: the Sweeps and Windfall Moves decided for a month that has ended, written in one
 // batch together with the month's `month_closes` row, and only while it has none (ADR-0004), so
@@ -97,7 +97,7 @@ export async function closeMonth(db: Db, input: CloseMonthInput): Promise<MonthC
 	const activeGoal = (goalId: string) =>
 		sql`exists (select 1 from goals g where g.id = ${goalId} and g.household_id = ${householdId}
 			and g.completed_at is null and g.archived_at is null)`;
-	const freshStart = sql`coalesce((select r.rolling from bucket_rolling r
+	const resetsMonthly = sql`coalesce((select r.rolling from bucket_rolling r
 		where r.bucket_id = ${buckets.id} and r.month <= ${month}
 		order by r.month desc limit 1), 0) = 0`;
 	const sweeps = input.sweeps.map((sweep) =>
@@ -123,7 +123,7 @@ export async function closeMonth(db: Db, input: CloseMonthInput): Promise<MonthC
 						and(
 							bucketInPlan(householdId, sweep.bucketId, month),
 							isNull(buckets.ownerMemberId),
-							freshStart,
+							resetsMonthly,
 							sql`${bucketLeftSql(householdId, sweep.bucketId, month, sweep.rolledOverCents)} >= ${sweep.amountCents}`,
 							activeGoal(sweep.goalId),
 							open,
@@ -132,8 +132,8 @@ export async function closeMonth(db: Db, input: CloseMonthInput): Promise<MonthC
 			)
 			.onConflictDoNothing({ target: moves.id }),
 	);
-	const windfall = input.windfall.map((w) =>
-		insertWindfallMove(
+	const extraIncome = input.windfall.map((w) =>
+		insertExtraIncomeMove(
 			db,
 			{
 				householdId,
@@ -151,7 +151,7 @@ export async function closeMonth(db: Db, input: CloseMonthInput): Promise<MonthC
 		.values({ id: input.closeId, householdId, month, decidedByMemberId })
 		.onConflictDoNothing();
 	// The row goes last: every Move before it checks that the month isn't closed yet.
-	const batch: BatchItem<"sqlite">[] = [...sweeps, ...windfall, close];
+	const batch: BatchItem<"sqlite">[] = [...sweeps, ...extraIncome, close];
 	await db.batch(batch as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
 	const [row] = await db
 		.select({ id: monthCloses.id })

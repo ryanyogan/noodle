@@ -1,7 +1,7 @@
 import { type MonthKey, monthState, planForMonth } from "@noodle/domain";
 import { type SQL, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
-import { earmarkSql } from "./goals";
+import { setAsideSql } from "./goals";
 import {
 	addAccount,
 	addBucket,
@@ -156,8 +156,8 @@ describe("closeMonth", () => {
 		expect(await loadSweeps(db, householdId, month)).toEqual([
 			{ id: "s1", bucketId: "groceries", goalId: "rainy-day", amount: 20_000, month },
 		]);
-		expect(await scalar(earmarkSql(householdId, "rainy-day"))).toBe(20_000);
-		expect(await scalar(earmarkSql(householdId, "trip"))).toBe(50_000);
+		expect(await scalar(setAsideSql(householdId, "rainy-day"))).toBe(20_000);
+		expect(await scalar(setAsideSql(householdId, "trip"))).toBe(50_000);
 		// Sweeps come out of the Bucket, never Free to Spend.
 		expect(await scalar(freeToSpendSql(householdId, month))).toBe(free);
 		const records = await loadPlanRecords(db, householdId, month);
@@ -201,7 +201,7 @@ describe("closeMonth", () => {
 			}),
 		).toEqual({ ok: true });
 		expect(await loadSweeps(db, householdId, month)).toEqual([]);
-		expect(await scalar(earmarkSql(householdId, "rainy-day"))).toBe(0);
+		expect(await scalar(setAsideSql(householdId, "rainy-day"))).toBe(0);
 	});
 
 	it("Sweeps in turn: together they can't take more than the leftover", async () => {

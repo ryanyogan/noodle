@@ -50,18 +50,18 @@ const college: ProjectionGoal = {
 
 /** The Plan and a Scenario of `levers`, and the warnings between them. */
 function outcome(
-	levers: Lever[],
+	scenarioChanges: Lever[],
 	{ count = 12, goals = [] as ProjectionGoal[], plan = records() } = {},
 ) {
 	const ahead = planAhead(plan, goals, "2026-09", count);
-	const impacts = leverImpacts(ahead, levers);
-	const projections = { plan: project(ahead), scenario: project(ahead, levers) };
+	const impacts = leverImpacts(ahead, scenarioChanges);
+	const projections = { plan: project(ahead), scenario: project(ahead, scenarioChanges) };
 	return {
 		...projections,
 		impacts,
 		warnings: outcomeWarnings({
 			...projections,
-			levers,
+			levers: scenarioChanges,
 			impacts,
 			goalName: (id) => (id === "college" ? "College" : id),
 		}),
@@ -196,8 +196,8 @@ describe("monthBreakdown", () => {
 
 	it("lists the changes in play in a month and what each does to it", () => {
 		const { plan, scenario, impacts } = outcome([endDaycare, bonus]);
-		const levers = [endDaycare, bonus];
-		const january = monthBreakdown({ plan, scenario, levers, impacts, index: 4 });
+		const scenarioChanges = [endDaycare, bonus];
+		const january = monthBreakdown({ plan, scenario, levers: scenarioChanges, impacts, index: 4 });
 		expect(january).toMatchObject({
 			month: "2027-01",
 			plan: { commitments: 140_000, freeToSpend: 200_000, oneOffs: 0 },
@@ -208,15 +208,21 @@ describe("monthBreakdown", () => {
 			],
 		});
 		// Before either: nothing changed.
-		expect(monthBreakdown({ plan, scenario, levers, impacts, index: 1 })?.changes).toEqual([]);
+		expect(
+			monthBreakdown({ plan, scenario, levers: scenarioChanges, impacts, index: 1 })?.changes,
+		).toEqual([]);
 		// Past the months projected: nothing to say.
-		expect(monthBreakdown({ plan, scenario, levers, impacts, index: 12 })).toBeNull();
+		expect(
+			monthBreakdown({ plan, scenario, levers: scenarioChanges, impacts, index: 12 }),
+		).toBeNull();
 	});
 
 	it("leaves muted changes out", () => {
-		const levers = [{ ...endDaycare, muted: true }];
-		const { plan, scenario, impacts } = outcome(levers);
-		expect(monthBreakdown({ plan, scenario, levers, impacts, index: 4 })?.changes).toEqual([]);
+		const scenarioChanges = [{ ...endDaycare, muted: true }];
+		const { plan, scenario, impacts } = outcome(scenarioChanges);
+		expect(
+			monthBreakdown({ plan, scenario, levers: scenarioChanges, impacts, index: 4 })?.changes,
+		).toEqual([]);
 	});
 });
 

@@ -1526,7 +1526,7 @@ function IncomeView({ data, nav, tables }: ViewProps<"income">) {
 	if (data.months.every((m) => m.total === 0))
 		return <NothingYet what="No income recorded in this period." />;
 	const total = data.months.reduce((s, m) => s + m.total, 0);
-	const windfalls = data.months.reduce((s, m) => s + m.windfall, 0);
+	const extraIncomes = data.months.reduce((s, m) => s + m.windfall, 0);
 	const sources = [...new Map(data.cells.map((c) => [c.source, c.name || "Income"])).entries()];
 	const bySource = sources
 		.map(([key, name]) => ({
@@ -1542,7 +1542,7 @@ function IncomeView({ data, nav, tables }: ViewProps<"income">) {
 				<Stat
 					index={1}
 					label="Windfalls"
-					value={formatMoney(windfalls)}
+					value={formatMoney(extraIncomes)}
 					hint="above the Baseline"
 				/>
 			</Card>

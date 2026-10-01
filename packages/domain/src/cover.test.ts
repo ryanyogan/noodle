@@ -33,8 +33,8 @@ const cover = (fromBucketId: string | null, toBucketId: string, amount: number):
 	month: "2026-09",
 });
 
-const stateOf = (spending: Spend[], moves: Move[] = [], baseline = plan.baseline) =>
-	monthState({ plan: { ...plan, baseline }, spending, moves, asOf: "2026-09-20" });
+const stateOf = (spending: Spend[], moves: Move[] = [], takeHomePay = plan.baseline) =>
+	monthState({ plan: { ...plan, baseline: takeHomePay }, spending, moves, asOf: "2026-09-20" });
 
 describe("monthState: Moves", () => {
 	it("a Cover from another Bucket brings the overspent Bucket back to zero", () => {

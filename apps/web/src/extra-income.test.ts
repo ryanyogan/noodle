@@ -1,7 +1,7 @@
 import { monthState } from "@noodle/domain";
 import { describe, expect, test } from "vitest";
+import { withExtraIncome, withIncome, withoutExtraIncome, withoutIncome } from "./extra-income";
 import type { MonthData } from "./server/month";
-import { withIncome, withoutIncome, withoutWindfall, withWindfall } from "./windfalls";
 
 const month: MonthData = {
 	plan: {
@@ -43,14 +43,14 @@ describe("optimistic income and Windfall Moves", () => {
 	test("sending the Windfall to a Goal or Bucket leaves Free to Spend alone", () => {
 		const data = withIncome(month, bonus);
 		const before = monthState(data);
-		const toGoal = withWindfall(data, {
+		const toGoal = withExtraIncome(data, {
 			moveId: "a",
 			month: "2026-09",
 			to: { kind: "goal", goalId: "trip" },
 			toName: "Trip",
 			amountCents: 100_000,
 		});
-		const both = withWindfall(toGoal, {
+		const both = withExtraIncome(toGoal, {
 			moveId: "b",
 			month: "2026-09",
 			to: { kind: "bucket", bucketId: "fun" },
@@ -60,6 +60,6 @@ describe("optimistic income and Windfall Moves", () => {
 		const after = monthState(both);
 		expect(after).toMatchObject({ freeToSpend: before.freeToSpend, windfallLeft: 0 });
 		expect(after.buckets[0]?.left).toBe(60_000);
-		expect(monthState(withoutWindfall(both, { moveId: "a" })).windfallLeft).toBe(100_000);
+		expect(monthState(withoutExtraIncome(both, { moveId: "a" })).windfallLeft).toBe(100_000);
 	});
 });

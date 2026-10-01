@@ -269,7 +269,7 @@ function starter(o: SeedOptions): SeedRows {
 		["Fun", 20_000, false, 5],
 	] as const;
 	const bucketIds: Record<string, string> = {};
-	buckets.forEach(([name, amount, rolling, color], i) => {
+	buckets.forEach(([name, amount, carriesOver, color], i) => {
 		const bucket = id();
 		bucketIds[name] = bucket;
 		rows.buckets.push({
@@ -287,15 +287,20 @@ function starter(o: SeedOptions): SeedRows {
 			month,
 			amountCents: amount,
 		});
-		if (rolling)
-			rows.bucketRolling.push({ householdId: household, bucketId: bucket, month, rolling });
+		if (carriesOver)
+			rows.bucketRolling.push({
+				householdId: household,
+				bucketId: bucket,
+				month,
+				rolling: carriesOver,
+			});
 		planChange(rows, household, {
 			member: alex,
 			kind: "bucket-add",
 			target: bucket,
 			month,
 			before: null,
-			after: { name, amount, ...(rolling ? { rolling: true } : {}) },
+			after: { name, amount, ...(carriesOver ? { rolling: true } : {}) },
 			at: setup + i * 1000,
 		});
 	});
@@ -970,11 +975,11 @@ function busy(o: SeedOptions): SeedRows {
 	const setup = at(created, 21 * 60);
 
 	// Baseline: raised three months in ----------------------------------------------------------
-	const baselineAt = [
+	const takeHomePayAt = [
 		[0, 1_240_000],
 		[4, 1_300_000],
 	] as const;
-	for (const [i, amount] of baselineAt) {
+	for (const [i, amount] of takeHomePayAt) {
 		rows.baselines.push({ householdId: household, month: monthAt(i), amountCents: amount });
 	}
 	planChange(rows, household, {
@@ -1845,11 +1850,13 @@ function busy(o: SeedOptions): SeedRows {
 	}
 	// Closed months: every Fresh-start Household Bucket's leftover swept to a Goal. Last month is
 	// still open, so This Month (in its first week) and the Check-in offer its Sweeps and Windfall.
-	const freshStart = BUCKETS.filter((b) => !b.owner && !b.rolling && b.rollingFrom === undefined);
+	const resetsMonthly = BUCKETS.filter(
+		(b) => !b.owner && !b.rolling && b.rollingFrom === undefined,
+	);
 	for (let i = 0; i < 6; i++) {
 		const decidedBy = [alex, null, jordan, jordan, null, alex][i] ?? null;
 		const closedOn = dayIn(monthAt(i + 1), 2 + (i % 3));
-		for (const b of freshStart) {
+		for (const b of resetsMonthly) {
 			if (!inPlan(b.key, i)) continue;
 			const left = leftOf(b.key, i);
 			if (left <= 0) continue;
@@ -1957,12 +1964,12 @@ function busy(o: SeedOptions): SeedRows {
 			{ by: jordan, at: at(dayIn(monthAt(5), 21), 21 * 60) },
 		],
 	];
-	for (const [sid, name, levers, by, when, applied] of scenarioRows) {
+	for (const [sid, name, changes, by, when, applied] of scenarioRows) {
 		rows.scenarios.push({
 			id: sid,
 			householdId: household,
 			name,
-			levers: { version: 2, levers },
+			levers: { version: 2, levers: changes },
 			createdByMemberId: by,
 			createdAt: new Date(when),
 			updatedAt: new Date(applied?.at ?? when + 3_600_000),

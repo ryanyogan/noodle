@@ -66,9 +66,9 @@ export async function createPlannedHousehold(
 	await createHousehold(page, "The Rinks", "Alex");
 	await page.getByRole("link", { name: "Set up the Plan" }).click();
 	await page.getByRole("textbox", { name: "Baseline" }).fill(baseline);
-	const baselineSaved = savedBy(page, "setBaseline");
+	const takeHomePaySaved = savedBy(page, "setBaseline");
 	await page.getByRole("button", { name: "Set Baseline" }).click();
-	await baselineSaved;
+	await takeHomePaySaved;
 	await page.getByRole("link", { name: "Add Buckets" }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toContainText("Buckets");
 	for (const [name, allowance] of buckets) {

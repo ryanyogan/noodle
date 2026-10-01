@@ -99,7 +99,7 @@ const reasonText = (suggestion: WindfallSuggestion, goals: GoalView[]) => {
  * A month's Windfall awaiting a decision: a few suggested places for it (deterministic rules,
  * see windfallSuggestions), each sent with one tap, or somewhere else of the Parent's choosing.
  */
-export function WindfallSection({
+export function ExtraIncomeSection({
 	left,
 	suggestions,
 	goals,
@@ -156,7 +156,7 @@ export function WindfallSection({
 }
 
 /** Where the Windfall can go: the active Goals, and (this month) the Buckets the Parent can use. */
-export type WindfallPlaces = {
+export type ExtraIncomePlaces = {
 	goals: Pick<GoalView, "id" | "name">[];
 	buckets: Pick<BucketState, "id" | "name">[];
 };
@@ -165,7 +165,7 @@ const destinationValue = (to: WindfallDestination) =>
 	to.kind === "goal" ? `goal:${to.goalId}` : `bucket:${to.bucketId}`;
 
 /** Sends some of a Windfall to a Goal or Bucket the Parent picks. */
-export function WindfallSheet({
+export function ExtraIncomeSheet({
 	open,
 	onOpenChange,
 	left,
@@ -175,7 +175,7 @@ export function WindfallSheet({
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	left: Cents;
-	places: WindfallPlaces;
+	places: ExtraIncomePlaces;
 	onSend: (to: WindfallDestination, name: string, amountCents: Cents) => void;
 }) {
 	return (
@@ -186,20 +186,20 @@ export function WindfallSheet({
 						title="Send the Windfall"
 						description="Moves money from the Windfall into a Goal’s Earmark or a Bucket. Free to Spend stays as it is."
 					/>
-					<WindfallForm left={left} places={places} onSend={onSend} />
+					<ExtraIncomeForm left={left} places={places} onSend={onSend} />
 				</SheetContent>
 			) : null}
 		</Sheet>
 	);
 }
 
-function WindfallForm({
+function ExtraIncomeForm({
 	left,
 	places,
 	onSend,
 }: {
 	left: Cents;
-	places: WindfallPlaces;
+	places: ExtraIncomePlaces;
 	onSend: (to: WindfallDestination, name: string, amountCents: Cents) => void;
 }) {
 	const hydrated = useHydrated();

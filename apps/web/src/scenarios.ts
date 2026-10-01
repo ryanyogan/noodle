@@ -25,29 +25,29 @@ export type { ScenarioRecord };
 // Levers. A Scenario holds at most one Lever per thing it adjusts (see leverTarget).
 
 /** What a Lever adjusts: one per Bucket, Commitment, Goal, new one, one-off, or the Baseline. */
-export function leverTarget(lever: Lever): string {
-	switch (lever.kind) {
+export function changeTarget(scenarioChange: Lever): string {
+	switch (scenarioChange.kind) {
 		case "baseline":
 		case "growth":
-			return lever.kind;
+			return scenarioChange.kind;
 		case "allowance":
-			return `bucket:${lever.bucketId}`;
+			return `bucket:${scenarioChange.bucketId}`;
 		case "add-bucket":
-			return `new-bucket:${lever.bucketId}`;
+			return `new-bucket:${scenarioChange.bucketId}`;
 		case "archive-bucket":
-			return `archive-bucket:${lever.bucketId}`;
+			return `archive-bucket:${scenarioChange.bucketId}`;
 		case "commitment-terms":
-			return `terms:${lever.commitmentId}`;
+			return `terms:${scenarioChange.commitmentId}`;
 		case "end-commitment":
-			return `commitment:${lever.commitmentId}`;
+			return `commitment:${scenarioChange.commitmentId}`;
 		case "add-commitment":
-			return `new-commitment:${lever.commitmentId}`;
+			return `new-commitment:${scenarioChange.commitmentId}`;
 		case "goal":
-			return `goal:${lever.goalId}`;
+			return `goal:${scenarioChange.goalId}`;
 		case "add-goal":
-			return `new-goal:${lever.goalId}`;
+			return `new-goal:${scenarioChange.goalId}`;
 		case "one-off":
-			return `one-off:${lever.oneOffId}`;
+			return `one-off:${scenarioChange.oneOffId}`;
 	}
 }
 
@@ -55,20 +55,26 @@ export function leverTarget(lever: Lever): string {
  * The Levers with `lever` in place of the one on the same thing (where it was, so "Your changes"
  * keeps its order), or added last.
  */
-export function withLever(levers: readonly Lever[], lever: Lever): Lever[] {
-	const target = leverTarget(lever);
-	const index = levers.findIndex((l) => leverTarget(l) === target);
-	return index === -1 ? [...levers, lever] : levers.map((l, i) => (i === index ? lever : l));
+export function withChange(scenarioChanges: readonly Lever[], scenarioChange: Lever): Lever[] {
+	const target = changeTarget(scenarioChange);
+	const index = scenarioChanges.findIndex((l) => changeTarget(l) === target);
+	return index === -1
+		? [...scenarioChanges, scenarioChange]
+		: scenarioChanges.map((l, i) => (i === index ? scenarioChange : l));
 }
 
 /** The Levers without any on `target` (see leverTarget). */
-export const withoutLever = (levers: readonly Lever[], target: string): Lever[] =>
-	levers.filter((l) => leverTarget(l) !== target);
+export const withoutChange = (scenarioChanges: readonly Lever[], target: string): Lever[] =>
+	scenarioChanges.filter((l) => changeTarget(l) !== target);
 
 /** The Levers with the one on `target` muted (left out of the projection) or counted again. */
-export const withMuted = (levers: readonly Lever[], target: string, muted: boolean): Lever[] =>
-	levers.map((l) => {
-		if (leverTarget(l) !== target) return l;
+export const withMuted = (
+	scenarioChanges: readonly Lever[],
+	target: string,
+	muted: boolean,
+): Lever[] =>
+	scenarioChanges.map((l) => {
+		if (changeTarget(l) !== target) return l;
 		const { muted: _, ...counted } = l;
 		return muted ? { ...counted, muted: true } : (counted as Lever);
 	});
@@ -194,10 +200,10 @@ export function useTryInExplore(month: MonthKey) {
 	const save = useSaveScenario();
 	const navigate = useNavigate();
 	return ({ name, preset }: ExploreTry) => {
-		const lever = parseLeverPreset(preset, month);
-		if (!lever) return;
+		const scenarioChange = parseLeverPreset(preset, month);
+		if (!scenarioChange) return;
 		const scenarioId = ulid();
-		save.mutate({ scenarioId, name: name.trim().slice(0, 40), levers: [lever] });
+		save.mutate({ scenarioId, name: name.trim().slice(0, 40), levers: [scenarioChange] });
 		// Opens this Scenario, even before its save lands.
 		void navigate({ to: "/explore", search: { scenario: scenarioId } });
 	};

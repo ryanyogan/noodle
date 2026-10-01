@@ -76,8 +76,8 @@ export async function loadBucketHistory(
 	records: PlanRecords,
 	query: { bucketId: string; from: MonthKey; to: MonthKey },
 ): Promise<BucketMonth[]> {
-	const rolling = rolloverSince(records, query.to);
-	const since = rolling !== null && rolling < query.from ? rolling : query.from;
+	const carriesOver = rolloverSince(records, query.to);
+	const since = carriesOver !== null && carriesOver < query.from ? carriesOver : query.from;
 	const until = addMonths(query.to, 1);
 	const [spent, moves] = await Promise.all([
 		loadBucketMonths(db, viewer, since, until, [query.bucketId]),

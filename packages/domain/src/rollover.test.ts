@@ -22,13 +22,16 @@ const bucket = (id: string, overrides: Partial<BucketRecord> = {}): BucketRecord
 	...overrides,
 });
 
-const records = (rolling: PlanRecords["rolling"], buckets = [bucket("hockey")]): PlanRecords => ({
+const records = (
+	carriesOver: PlanRecords["rolling"],
+	buckets = [bucket("hockey")],
+): PlanRecords => ({
 	baselines: [{ month: "2026-06", amount: 500_000 }],
 	buckets,
 	allowances: buckets.map((b) => ({ bucketId: b.id, month: b.fromMonth, amount: 40_000 })),
 	commitments: [],
 	commitmentTerms: [],
-	rolling,
+	rolling: carriesOver,
 });
 
 const spent = (month: MonthKey, amount: number, bucketId = "hockey"): MonthlySpend => ({

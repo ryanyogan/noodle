@@ -109,7 +109,7 @@ function NudgePreferencesForm({ saved }: { saved: NudgePreferences }) {
 	const id = useId();
 	const [bucketPace, setBucketPace] = useState(saved.bucketPace);
 	const [quickAdds, setQuickAdds] = useState(saved.otherParentQuickAdds);
-	const [windfalls, setWindfalls] = useState(saved.windfalls);
+	const [extraIncomes, setExtraIncomes] = useState(saved.windfalls);
 	const [quiet, setQuiet] = useState(saved.quietHours !== null);
 	const [quietHours, setQuietHours] = useState(saved.quietHours ?? usualQuietHours);
 
@@ -134,7 +134,7 @@ function NudgePreferencesForm({ saved }: { saved: NudgePreferences }) {
 		save.mutate({
 			bucketPace,
 			otherParentQuickAdds: quickAdds,
-			windfalls,
+			windfalls: extraIncomes,
 			quietHours: quiet ? quietHours : null,
 			// Quiet hours are this Parent's own, so they follow the device they set them on.
 			timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -161,8 +161,8 @@ function NudgePreferencesForm({ saved }: { saved: NudgePreferences }) {
 					<Switch
 						label="A Windfall arrives"
 						hint="When income beyond the Baseline starts or grows a month’s Windfall."
-						checked={windfalls}
-						onChange={setWindfalls}
+						checked={extraIncomes}
+						onChange={setExtraIncomes}
 					/>
 					<div className="grid gap-3 pb-(--card-pad)">
 						<Switch

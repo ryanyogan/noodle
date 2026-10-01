@@ -12,7 +12,7 @@ import { addMonths, type DayKey, daysInMonth, lastDayOf, type MonthKey } from ".
 // and at `untilMonth` the Plan's own value comes back.
 
 /** The months a Lever holds for: from `fromMonth` until, not including, `untilMonth`. */
-export type LeverRange = {
+export type ChangeRange = {
 	fromMonth: MonthKey;
 	/** Exclusive: the first month the Lever no longer holds. None: for good. */
 	untilMonth?: MonthKey;
@@ -22,14 +22,14 @@ export type LeverRange = {
  * A Lever muted in the sandbox: kept in the Scenario (and saved with it) but left out of its
  * projection and never applied, to see the outcome without it. Unset: it counts.
  */
-export type LeverMute = { muted?: boolean };
+export type ChangeMute = { muted?: boolean };
 
 /** Whether a one-off takes money out (a roof repair) or brings it in (a bonus). */
 export type OneOffFlow = "expense" | "income";
 
 /** A single adjustable quantity in a Scenario (v2: every Lever has a range). */
-export type Lever = LeverRange &
-	LeverMute &
+export type Change = ChangeRange &
+	ChangeMute &
 	(
 		| {
 				/** Income from `fromMonth`: a raise, a job change, parental leave. */
@@ -121,13 +121,13 @@ export type Lever = LeverRange &
 		  }
 	);
 
-export type LeverKind = Lever["kind"];
+export type ChangeKind = Change["kind"];
 
 /** A Lever of one kind. */
-export type LeverOf<K extends LeverKind> = Extract<Lever, { kind: K }>;
+export type ChangeOf<K extends ChangeKind> = Extract<Change, { kind: K }>;
 
 /** A Lever as v1 Scenarios saved it, before Levers had ranges. */
-export type LeverV1 =
+export type ChangeV1 =
 	/** From the first month projected (the Household's current month). */
 	| { kind: "allowance"; bucketId: string; amount: Cents }
 	| { kind: "end-commitment"; commitmentId: string; fromMonth: MonthKey }
@@ -143,7 +143,7 @@ export type LeverV1 =
 	  };
 
 /** A saved Scenario's Levers. v1 Scenarios saved the bare array. */
-export type ScenarioJson = { version: 2; levers: Lever[] };
+export type ScenarioJson = { version: 2; levers: Change[] };
 
 export const SCENARIO_VERSION = 2;
 
@@ -152,45 +152,46 @@ export const SCENARIO_VERSION = 2;
  * first month projected, which v1 meant), and a new Commitment is due monthly on the 1st. v2
  * Levers pass through, so a mix is fine.
  */
-export function upgradeLevers(levers: readonly (Lever | LeverV1)[], start: MonthKey): Lever[] {
-	return levers.map((lever): Lever => {
-		switch (lever.kind) {
+export function upgradeChanges(changes: readonly (Change | ChangeV1)[], start: MonthKey): Change[] {
+	return changes.map((change): Change => {
+		switch (change.kind) {
 			case "allowance":
 			case "goal":
-				return "fromMonth" in lever ? lever : { ...lever, fromMonth: start };
+				return "fromMonth" in change ? change : { ...change, fromMonth: start };
 			case "add-commitment":
-				return "cadence" in lever ? lever : { ...lever, cadence: "monthly", dueDay: 1 };
+				return "cadence" in change ? change : { ...change, cadence: "monthly", dueDay: 1 };
 			default:
-				return lever;
+				return change;
 		}
 	});
 }
 
 /** A saved Scenario's Levers, whichever version saved them (see upgradeLevers for `start`). */
-export function readScenarioLevers(
-	stored: ScenarioJson | readonly LeverV1[],
+export function readScenarioChanges(
+	stored: ScenarioJson | readonly ChangeV1[],
 	start: MonthKey,
-): Lever[] {
-	return upgradeLevers(Array.isArray(stored) ? stored : (stored as ScenarioJson).levers, start);
+): Change[] {
+	return upgradeChanges(Array.isArray(stored) ? stored : (stored as ScenarioJson).levers, start);
 }
 
 /** The Levers that count: every one not muted. Projecting and applying see only these. */
-export const activeLevers = (levers: readonly Lever[]): Lever[] => levers.filter((l) => !l.muted);
+export const activeChanges = (changes: readonly Change[]): Change[] =>
+	changes.filter((l) => !l.muted);
 
 /** Whether a Lever holds in `month`. */
-export const holdsIn = (lever: LeverRange, month: MonthKey) =>
-	month >= lever.fromMonth && (lever.untilMonth === undefined || month < lever.untilMonth);
+export const holdsIn = (change: ChangeRange, month: MonthKey) =>
+	month >= change.fromMonth && (change.untilMonth === undefined || month < change.untilMonth);
 
 /**
  * The months a Lever holds from `start` (the Household's current month) on: a range that began
  * earlier holds from `start`, as applying it can't change past months. Null when it's over.
  */
 export function rangeFrom(
-	lever: LeverRange,
+	change: ChangeRange,
 	start: MonthKey,
 ): { from: MonthKey; until: MonthKey | null } | null {
-	const from = lever.fromMonth < start ? start : lever.fromMonth;
-	const until = lever.untilMonth ?? null;
+	const from = change.fromMonth < start ? start : change.fromMonth;
+	const until = change.untilMonth ?? null;
 	return until !== null && until <= from ? null : { from, until };
 }
 
@@ -225,15 +226,15 @@ export function dueDateFrom(
  */
 export function changedTerms(
 	terms: CommitmentTerms,
-	lever: Pick<LeverOf<"commitment-terms">, "amount" | "cadence" | "dueDay">,
+	change: Pick<ChangeOf<"commitment-terms">, "amount" | "cadence" | "dueDay">,
 	from: MonthKey,
 ): CommitmentTerms {
-	const amount = lever.amount ?? terms.amount;
-	const cadence = lever.cadence ?? terms.cadence;
-	if (cadence === terms.cadence && lever.dueDay === undefined) {
+	const amount = change.amount ?? terms.amount;
+	const cadence = change.cadence ?? terms.cadence;
+	if (cadence === terms.cadence && change.dueDay === undefined) {
 		return { amount, cadence, dueDate: terms.dueDate };
 	}
-	const day = lever.dueDay ?? Number(terms.dueDate.slice(8, 10));
+	const day = change.dueDay ?? Number(terms.dueDate.slice(8, 10));
 	const keepMonth = cadence === "annual" && terms.cadence === "annual";
 	return {
 		amount,
@@ -243,18 +244,18 @@ export function changedTerms(
 }
 
 /** A new Commitment's terms from an `add-commitment` Lever. */
-export const addedTerms = (lever: LeverOf<"add-commitment">): CommitmentTerms => ({
-	amount: lever.amount,
-	cadence: lever.cadence,
-	dueDate: dueDateFrom(lever.cadence, lever.fromMonth, lever.dueDay),
+export const addedTerms = (change: ChangeOf<"add-commitment">): CommitmentTerms => ({
+	amount: change.amount,
+	cadence: change.cadence,
+	dueDate: dueDateFrom(change.cadence, change.fromMonth, change.dueDay),
 });
 
 /** The first month an `add-commitment` Lever no longer holds: its term's end or `untilMonth`. */
-export function addedUntil(lever: LeverOf<"add-commitment">): MonthKey | undefined {
-	const termEnd = lever.months === null ? undefined : addMonths(lever.fromMonth, lever.months);
-	if (termEnd === undefined) return lever.untilMonth;
-	if (lever.untilMonth === undefined) return termEnd;
-	return termEnd < lever.untilMonth ? termEnd : lever.untilMonth;
+export function addedUntil(change: ChangeOf<"add-commitment">): MonthKey | undefined {
+	const termEnd = change.months === null ? undefined : addMonths(change.fromMonth, change.months);
+	if (termEnd === undefined) return change.untilMonth;
+	if (change.untilMonth === undefined) return termEnd;
+	return termEnd < change.untilMonth ? termEnd : change.untilMonth;
 }
 
 /**
@@ -263,26 +264,26 @@ export function addedUntil(lever: LeverOf<"add-commitment">): MonthKey | undefin
  * assumption, and a Plan change that ends and comes back (ending a Commitment, archiving a
  * Bucket, a Goal's target) has nowhere to be stored for a while only.
  */
-export function whyNotApplicable(lever: Lever, month: MonthKey): string | null {
-	switch (lever.kind) {
+export function whyNotApplicable(change: Change, month: MonthKey): string | null {
+	switch (change.kind) {
 		case "one-off":
 			return "A one-off isn’t part of the Plan. Make it a Goal to save for it.";
 		case "growth":
 			return "Growth is an assumption about the future, not part of the Plan.";
 		case "end-commitment":
-			return lever.untilMonth === undefined
+			return change.untilMonth === undefined
 				? null
 				: "Ending a Commitment for a while can’t be applied. End it for good instead.";
 		case "archive-bucket":
-			return lever.untilMonth === undefined
+			return change.untilMonth === undefined
 				? null
 				: "Archiving a Bucket for a while can’t be applied. Archive it for good instead.";
 		case "goal":
 		case "add-goal":
-			if (lever.untilMonth !== undefined || lever.fromMonth > month) {
+			if (change.untilMonth !== undefined || change.fromMonth > month) {
 				return "A Goal’s change applies from this month, for good.";
 			}
-			if (lever.kind === "add-goal" && lever.accountId === undefined) {
+			if (change.kind === "add-goal" && change.accountId === undefined) {
 				return "Choose the Account the Goal is kept in.";
 			}
 			return null;
@@ -295,8 +296,8 @@ export function whyNotApplicable(lever: Lever, month: MonthKey): string | null {
  * Whether a Lever is an assumption about the future rather than a change to the Plan: a one-off
  * or growth. Applying a Scenario leaves these out; the Plan has nowhere to store them.
  */
-export const isAssumption = (lever: Lever): lever is LeverOf<"one-off" | "growth"> =>
-	lever.kind === "one-off" || lever.kind === "growth";
+export const isAssumption = (change: Change): change is ChangeOf<"one-off" | "growth"> =>
+	change.kind === "one-off" || change.kind === "growth";
 
 /**
  * A one-off expense as a Goal to save for it instead ("Make it a Goal"), which applying can make
@@ -304,17 +305,17 @@ export const isAssumption = (lever: Lever): lever is LeverOf<"one-off" | "growth
  * month) and due on the first of the one-off's month, or at the end of this one if that's now.
  */
 export function oneOffAsGoal(
-	lever: LeverOf<"one-off">,
+	change: ChangeOf<"one-off">,
 	input: { goalId: string; month: MonthKey; accountId?: string },
-): LeverOf<"add-goal"> {
+): ChangeOf<"add-goal"> {
 	return {
 		kind: "add-goal",
 		goalId: input.goalId,
-		name: lever.name,
-		target: lever.amount,
-		targetDate: lever.fromMonth > input.month ? `${lever.fromMonth}-01` : lastDayOf(input.month),
+		name: change.name,
+		target: change.amount,
+		targetDate: change.fromMonth > input.month ? `${change.fromMonth}-01` : lastDayOf(input.month),
 		fromMonth: input.month,
 		...(input.accountId === undefined ? {} : { accountId: input.accountId }),
-		...(lever.muted ? { muted: true } : {}),
+		...(change.muted ? { muted: true } : {}),
 	};
 }

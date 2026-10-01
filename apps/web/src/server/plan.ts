@@ -5,8 +5,8 @@ import {
 	loadPlanChanges,
 	reorderBuckets as reorderBucketsInDb,
 	setAllowance as setAllowanceInDb,
-	setBaseline as setBaselineInDb,
-	setRolling as setRollingInDb,
+	setRolling as setCarriesOverInDb,
+	setBaseline as setTakeHomePayInDb,
 	updateBucket as updateBucketInDb,
 } from "@noodle/db";
 import {
@@ -42,12 +42,12 @@ export function assertEditable(household: Pick<HouseholdSummary, "timeZone">, mo
 }
 
 /** Sets the Baseline from `month` onward, or just for `month`. */
-export const setBaseline = createServerFn({ method: "POST" })
+export const setTakeHomePay = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ month: monthKeySchema, amountCents: centsSchema, scope: planScopeSchema }))
 	.handler(async ({ data, context }) => {
 		assertEditable(context.household, data.month);
-		await setBaselineInDb(getDb(), {
+		await setTakeHomePayInDb(getDb(), {
 			householdId: context.household.id,
 			memberId: context.parent.id,
 			...data,
@@ -139,12 +139,12 @@ export const setAllowance = createServerFn({ method: "POST" })
 	});
 
 /** Sets a Bucket Rolling or Fresh-start from `month` onward; it changes what rolls into later months. */
-export const setRolling = createServerFn({ method: "POST" })
+export const setCarriesOver = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ bucketId: ulidSchema, month: monthKeySchema, rolling: z.boolean() }))
 	.handler(async ({ data, context }) => {
 		assertEditable(context.household, data.month);
-		await setRollingInDb(getDb(), {
+		await setCarriesOverInDb(getDb(), {
 			householdId: context.household.id,
 			memberId: context.parent.id,
 			...data,

@@ -108,7 +108,7 @@ export type DraftLabels = { buckets: Record<string, string>; names: Record<strin
 
 export const noDraftLabels: DraftLabels = { buckets: {}, names: {} };
 
-export type DraftBaseline = {
+export type DraftTakeHomePay = {
 	key: "baseline";
 	amount: Cents;
 	paychecks: (Paycheck & { name: string })[];
@@ -130,7 +130,7 @@ export type DraftBucket = {
 export type PlanDraft = {
 	from: DayKey;
 	through: DayKey;
-	baseline: DraftBaseline | null;
+	baseline: DraftTakeHomePay | null;
 	commitments: DraftCommitment[];
 	buckets: DraftBucket[];
 };
