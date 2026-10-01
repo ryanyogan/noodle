@@ -33,6 +33,7 @@ function SheetContent({
 	onOpenAutoFocus,
 	onCloseAutoFocus,
 	onEscapeKeyDown,
+	onInputCapture,
 	...props
 }: React.ComponentProps<typeof SheetPrimitive.Content>) {
 	const { close } = React.useContext(SheetContext);
@@ -69,6 +70,12 @@ function SheetContent({
 				)}
 				{...focus}
 				onEscapeKeyDown={leaveEscToAlert}
+				// Marks the sheet once anything is typed or picked in it, so leaving the page can ask
+				// first (the app's LeaveGuard) rather than throw it away.
+				onInputCapture={(event) => {
+					event.currentTarget.dataset.dirty = "true";
+					onInputCapture?.(event);
+				}}
 				{...props}
 			>
 				<div

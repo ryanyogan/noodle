@@ -3,6 +3,7 @@ import { Toaster } from "@noodle/ui/components/toast";
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { z } from "zod";
 import { AppShell } from "../../components/app-shell";
+import { LeaveGuard } from "../../components/leave-guard";
 import { QuickAdd } from "../../components/quick-add";
 import { useLiveUpdates } from "../../live-updates";
 import { useKeepPushSubscription } from "../../push-device";
@@ -38,6 +39,7 @@ function AppLayout() {
 			{/* Outside the frame: while a sheet is open the whole frame is hidden from assistive tech
 			    as one element, and the Toaster (a live region, which stays exposed) isn't inside it. */}
 			<QuickAdd timeZone={household.timeZone} parentId={parentId} />
+			<LeaveGuard />
 			<Toaster />
 		</>
 	);
