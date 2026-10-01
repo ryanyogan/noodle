@@ -553,8 +553,9 @@ function CsvMappingFields({
 			<legend className="mb-1 text-[13px] font-medium text-muted-foreground">
 				Which columns are which
 			</legend>
-			<label className="flex items-center gap-2 text-sm">
+			<label htmlFor={`${id}-has-header`} className="flex items-center gap-2 text-sm">
 				<Checkbox
+					id={`${id}-has-header`}
 					checked={mapping.hasHeader}
 					disabled={!hydrated}
 					onCheckedChange={(checked) => onChange({ ...mapping, hasHeader: checked === true })}

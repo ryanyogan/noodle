@@ -66,8 +66,8 @@ test("a change that empties the Projected balance is flagged, and the warning le
 	await expect(projectedBalance.getByRole("row").nth(1)).toContainText(/\$3,400\s*−\$6,600$/);
 	await expect(projectedBalance.getByRole("row").nth(2)).toContainText(/\$6,800\s*−\$3,200$/);
 
-	// Muted, the roof no longer counts, and nothing is flagged.
-	await roof.getByRole("button", { name: "Mute" }).click();
+	// Left out, the roof no longer counts, and nothing is flagged.
+	await roof.getByRole("button", { name: "Leave out" }).click();
 	await expect(warnings).toHaveCount(0);
 	await expect(projectedBalance.getByRole("row").nth(1)).toContainText(/\$3,400\s*\$3,400$/);
 });

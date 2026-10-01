@@ -340,6 +340,7 @@ export function SetAsidePicker({
 	otherCash: Cents;
 	onOtherCash: (cents: Cents) => void;
 }) {
+	const id = useId();
 	return (
 		<FieldGroup legend="Set aside for it">
 			{goals.length > 0 ? (
@@ -347,9 +348,11 @@ export function SetAsidePicker({
 					{goals.map((goal) => (
 						<label
 							key={goal.id}
+							htmlFor={`${id}-${goal.id}`}
 							className="flex cursor-pointer items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5 text-sm"
 						>
 							<Checkbox
+								id={`${id}-${goal.id}`}
 								checked={chosen.includes(goal.id)}
 								onCheckedChange={(checked) => {
 									const on = checked === true;
