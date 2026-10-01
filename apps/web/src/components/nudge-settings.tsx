@@ -180,6 +180,7 @@ function NudgePreferencesForm({ saved }: { saved: NudgePreferences }) {
 								<Input
 									id={`${id}-start`}
 									type="time"
+									className="appearance-none [&::-webkit-calendar-picker-indicator]:hidden"
 									value={toTime(quietHours.start)}
 									onChange={(event) =>
 										event.target.value &&
@@ -193,6 +194,7 @@ function NudgePreferencesForm({ saved }: { saved: NudgePreferences }) {
 								<Input
 									id={`${id}-end`}
 									type="time"
+									className="appearance-none [&::-webkit-calendar-picker-indicator]:hidden"
 									value={toTime(quietHours.end)}
 									onChange={(event) =>
 										event.target.value &&
