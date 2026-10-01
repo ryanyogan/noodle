@@ -211,6 +211,8 @@ export type ViewData =
 				saved: Cents;
 				targetDate: DayKey | null;
 				completed: boolean;
+				/** What a completed Goal spent, up to the period's end; 0 for a payoff Goal. */
+				spent: Cents;
 				history: { month: MonthKey; saved: Cents }[];
 				projected: MonthKey | null;
 			}[];
@@ -627,6 +629,7 @@ async function viewData(
 								saved: paidDownOf(g.target, owedThen),
 								targetDate: g.targetDate,
 								completed: g.completed,
+								spent: 0,
 								history: paidDownHistory(g, own, months),
 								projected: projectedPayoff(g, owedThen, last),
 							};
@@ -642,6 +645,9 @@ async function viewData(
 							),
 							targetDate: g.targetDate,
 							completed: g.completed,
+							spent: -goalChanges
+								.filter((c) => c.goalId === g.id && c.kind === "spending" && c.month <= last)
+								.reduce((sum, c) => sum + c.amount, 0),
 							history: setAsideHistory(g.id, goalChanges, months),
 							projected: projectedCompletion(
 								g,

@@ -27,7 +27,7 @@ import {
 	Rows3,
 } from "lucide-react";
 import { type ReactNode, useId, useMemo, useState } from "react";
-import { asBucketColor, monogram } from "../buckets";
+import { asBucketColor, bucketColors, monogram } from "../buckets";
 import { formatMoney, formatWholeMoney, fullDay, shortDay } from "../format";
 import {
 	type ChartKind,
@@ -40,6 +40,7 @@ import {
 	type ReportTable,
 } from "../reports";
 import type { AreaData, ReportData, ViewData } from "../server/reports";
+import { GoalProgressBar } from "./goals";
 import {
 	CalendarHeatmap,
 	ChartCard,
@@ -1544,7 +1545,7 @@ function GoalsView({ data, tables, report }: ViewProps<"goals">) {
 					series={data.goals.map((g, i) => ({
 						key: g.id,
 						label: g.name,
-						color: i === 0 ? "var(--chart-income)" : `var(--chart-seq-${Math.max(1, 4 - i)})`,
+						color: goalColor(i),
 					}))}
 					className="h-64"
 				/>
@@ -1552,42 +1553,66 @@ function GoalsView({ data, tables, report }: ViewProps<"goals">) {
 			<ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
 				{data.goals.map((g, i) => {
 					const share = g.target > 0 ? Math.min(1, g.saved / g.target) : 0;
+					const done = g.completed || g.saved >= g.target;
 					const late = g.projected && g.targetDate && g.projected > g.targetDate.slice(0, 7);
+					const pastDue = !done && g.targetDate !== null && g.targetDate < report.asOf;
+					const status = g.completed
+						? [
+								"Completed",
+								...(g.spent > 0 ? [`spent ${formatMoney(g.spent)}`] : []),
+								...(g.kind === "payoff" ? [] : [`${formatMoney(g.saved)} still set aside`]),
+							].join(" · ")
+						: g.saved >= g.target
+							? g.kind === "payoff"
+								? "Paid off"
+								: "Reached"
+							: g.kind === "payoff"
+								? g.projected
+									? `Paid off by ${monthLabel(g.projected)} at this pace`
+									: "Not coming down yet"
+								: g.projected
+									? `On course for ${monthLabel(g.projected)}`
+									: "No recent saving to project from";
 					return (
 						<li key={g.id} className="animate-enter" style={{ animationDelay: `${i * 40}ms` }}>
-							<Link to="/goals/$goalId" params={{ goalId: g.id }} className="block">
-								<Card className="grid gap-3 p-(--card-pad) transition-shadow duration-(--duration-fast) hover:shadow-pop">
-									<span className="flex items-baseline justify-between gap-3">
-										<span className="truncate text-sm font-semibold">{g.name}</span>
-										<span className="text-xs text-muted-foreground tabular-nums">
-											{formatPercent(share)}
-										</span>
-									</span>
-									<span className="text-xl font-semibold tabular-nums">
-										{formatMoney(g.saved)}
-										<span className="text-sm font-normal text-muted-foreground">
-											{" "}
-											{g.kind === "payoff" ? "paid down of" : "of"} {formatMoney(g.target)}
-										</span>
-									</span>
-									<span className="block h-1.5 overflow-hidden rounded-full bg-surface-2">
+							<Link to="/goals/$goalId" params={{ goalId: g.id }} className="block h-full">
+								<Card className="grid h-full content-start gap-3 p-(--card-pad) transition-shadow duration-(--duration-fast) hover:shadow-pop">
+									<span className="flex items-center gap-2">
 										<span
-											className="block h-full origin-left animate-[bar-grow_var(--duration-meter)_var(--ease-standard)_both] rounded-full bg-brand"
-											style={{ width: `${share * 100}%` }}
+											aria-hidden="true"
+											className="size-2.5 shrink-0 rounded-full"
+											style={{ background: goalColor(i) }}
 										/>
+										<span className="min-w-0 flex-1 truncate text-sm font-semibold">{g.name}</span>
+										{g.completed ? null : (
+											<span className="text-xs text-muted-foreground tabular-nums">
+												{formatPercent(share)}
+											</span>
+										)}
 									</span>
-									<span className="text-xs text-muted-foreground">
-										{g.completed
-											? "Completed"
-											: g.kind === "payoff"
-												? g.saved >= g.target
-													? "Paid off"
-													: g.projected
-														? `Paid off by ${monthLabel(g.projected)} at this pace${late ? ", after its target date" : ""}`
-														: "Not coming down yet"
-												: g.projected
-													? `On course for ${monthLabel(g.projected)}${late ? ", after its target date" : ""}`
-													: "No recent saving to project from"}
+									{g.completed ? null : (
+										<>
+											<span className="text-xl font-semibold tabular-nums">
+												{formatMoney(g.saved)}
+												<span className="text-sm font-normal text-muted-foreground">
+													{" "}
+													{g.kind === "payoff" ? "paid down of" : "of"} {formatMoney(g.target)}
+												</span>
+											</span>
+											<GoalProgressBar share={share} />
+										</>
+									)}
+									<span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+										{status}
+										{pastDue ? (
+											<Badge variant="over" dot>
+												Past its target date
+											</Badge>
+										) : late ? (
+											<Badge variant="pace" dot>
+												After its target date
+											</Badge>
+										) : null}
 									</span>
 								</Card>
 							</Link>
@@ -1599,6 +1624,10 @@ function GoalsView({ data, tables, report }: ViewProps<"goals">) {
 		</div>
 	);
 }
+
+/** A Goal's line and dot: the Bucket palette in order, so each Goal reads apart. */
+const goalColor = (index: number) =>
+	`var(--bucket-${bucketColors[index % bucketColors.length]?.value})`;
 
 const monthsOf = (goals: Extract<ViewData, { kind: "goals" }>["goals"]) =>
 	goals[0]?.history.map((h) => h.month) ?? [];

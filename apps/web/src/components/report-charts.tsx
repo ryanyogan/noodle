@@ -484,11 +484,14 @@ export function Sparkline({
 	const id = useId().replace(/:/g, "");
 	if (values.length < 2) return null;
 	const max = Math.max(...values, 1);
-	const points = values.map((v, i) => [
-		(i / (values.length - 1)) * 100,
-		28 - (Math.max(v, 0) / max) * 26,
-	]);
+	// Nothing before the first month with data: the line starts there rather than climbing from $0.
+	const first = values.findIndex((v) => v !== 0);
+	const from = first > 0 && values.length - first >= 2 ? first : 0;
+	const points = values
+		.map((v, i) => [(i / (values.length - 1)) * 100, 28 - (Math.max(v, 0) / max) * 26])
+		.slice(from);
 	const line = points.map(([x, y]) => `${x?.toFixed(2)},${y?.toFixed(2)}`).join(" ");
+	const startX = points[0]?.[0]?.toFixed(2) ?? "0";
 	return (
 		<svg
 			viewBox="0 0 100 30"
@@ -502,7 +505,7 @@ export function Sparkline({
 					<stop offset="100%" stopColor={color} stopOpacity={0} />
 				</linearGradient>
 			</defs>
-			<polygon points={`0,30 ${line} 100,30`} fill={`url(#spark-${id})`} />
+			<polygon points={`${startX},30 ${line} 100,30`} fill={`url(#spark-${id})`} />
 			<polyline
 				points={line}
 				fill="none"
@@ -861,7 +864,7 @@ function HeatmapKey({ tone }: { tone: (ratio: number | null) => string }) {
 			</span>
 			<span>Grey is within 10% of the Plan</span>
 			<span className="flex items-center gap-1.5">
-				<span aria-hidden="true" className="h-3 w-5 rounded-[3px] bg-surface-2/40" />
+				<span aria-hidden="true" className="h-3 w-5 rounded-[3px] border border-border-strong" />
 				Not in the Plan
 			</span>
 		</div>
@@ -1091,6 +1094,9 @@ export function TrendLines({
 }
 
 /** Income sources through the Household to Buckets, Goals and savings, as a Sankey. */
+/** The longest Sankey label before it's cut. */
+const LABEL_CHARS = 26;
+
 export function FlowSankey({
 	nodes,
 	links,
@@ -1101,6 +1107,19 @@ export function FlowSankey({
 	onSelect?: (key: string) => void;
 }) {
 	const animation = useAnimation();
+	// Labels sit right of each node; the gutter fits the longest destination label (12px text is
+	// about 6.6px a character), and longer names are cut with the full name in a tooltip.
+	const label = (name: string) =>
+		name.length > LABEL_CHARS ? `${name.slice(0, LABEL_CHARS - 1)}…` : name;
+	const gutter = Math.min(
+		240,
+		Math.max(
+			140,
+			...nodes
+				.filter((n) => n.kind === "destination")
+				.map((n) => (label(n.name).length + 7) * 6.6 + 12),
+		),
+	);
 	const fill = (kind: string, key: string) =>
 		kind === "source"
 			? "var(--chart-income)"
@@ -1117,7 +1136,7 @@ export function FlowSankey({
 				nodePadding={18}
 				linkCurvature={0.5}
 				iterations={32}
-				margin={{ top: 8, right: 132, bottom: 8, left: 8 }}
+				margin={{ top: 8, right: gutter, bottom: 8, left: 8 }}
 				{...animation}
 				onClick={(item: unknown, type: string) => {
 					if (type !== "node") return;
@@ -1147,11 +1166,15 @@ export function FlowSankey({
 								x={right ? x + width + 6 : x + width + 6}
 								y={y + height / 2}
 								dominantBaseline="middle"
-								fontSize={11}
+								fontSize={12}
 								fill="var(--foreground)"
 							>
-								{payload.name}
-								<tspan fill="var(--muted-foreground)"> {formatCompact(payload.value)}</tspan>
+								<title>{`${payload.name} ${formatMoney(payload.value)}`}</title>
+								{label(payload.name)}
+								<tspan fill="var(--foreground)" fontWeight={500}>
+									{" "}
+									{formatCompact(payload.value)}
+								</tspan>
 							</text>
 						</g>
 					);
