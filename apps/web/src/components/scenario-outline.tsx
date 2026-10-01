@@ -30,6 +30,7 @@ import {
 	SelectValue,
 } from "@noodle/ui/components/select";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
+import { Slider } from "@noodle/ui/components/slider";
 import { Switch } from "@noodle/ui/components/switch";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
@@ -63,6 +64,11 @@ const cadenceLabels: Record<Cadence, string> = {
 
 /** Where an amount's slider goes up to: well past the amount, in round $50s. */
 const sliderMax = (amount: Cents) => Math.ceil(Math.max(amount * 2, 50_000) / 5_000) * 5_000;
+/**
+ * A step that suits the slider's size: $10 up to $1,000, $50 up to $10,000, $500 beyond, so an
+ * arrow key moves a mortgage or a down payment a useful amount (Page Up/Down moves ten).
+ */
+const sliderStep = (max: Cents) => (max <= 100_000 ? 1_000 : max <= 1_000_000 ? 5_000 : 50_000);
 
 /** Every month a change can start in: the whole horizon. */
 const horizonMonths = (month: MonthKey) =>
@@ -1241,18 +1247,19 @@ function AmountField({
 	min?: Cents;
 	onChange: (value: Cents) => void;
 }) {
+	const max = Math.max(sliderMax(reference), value);
 	return (
 		<div className="grid grid-cols-[minmax(0,1fr)_7.5rem] items-center gap-3">
-			<input
-				type="range"
-				aria-label={label}
-				aria-valuetext={formatMoney(value)}
+			<Slider
+				label={label}
+				valueText={formatMoney(value)}
 				min={min}
-				max={Math.max(sliderMax(reference), value)}
-				step={1_000}
-				value={value}
-				className="h-6 w-full cursor-pointer touch-pan-y accent-(--brand)"
-				onChange={(event) => onChange(Number(event.currentTarget.value))}
+				max={max}
+				step={sliderStep(max)}
+				value={[value]}
+				onValueChange={([next]) => {
+					if (next !== undefined) onChange(next);
+				}}
 			/>
 			<MoneyInput
 				aria-label={label}
@@ -1300,7 +1307,6 @@ function NameField({
 	);
 }
 
-/** A small select shaped like a chip. */
 /** Radix Select has no empty value; this stands for "". */
 const CHIP_NONE = "__none";
 
