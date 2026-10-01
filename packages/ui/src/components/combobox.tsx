@@ -41,6 +41,15 @@ function Combobox({
 	} = props;
 	const [current, set] = useChoice(props);
 	const [open, setOpen] = React.useState(false);
+	const list = React.useRef<HTMLDivElement>(null);
+	// Opening starts on the current choice, scrolled into view, rather than the top of the list.
+	React.useEffect(() => {
+		if (!open) return;
+		const frame = requestAnimationFrame(() =>
+			list.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" }),
+		);
+		return () => cancelAnimationFrame(frame);
+	}, [open]);
 	// A Radix trigger does nothing before hydration, so it waits (lib/hydrated.ts).
 	const hydrated = useHydrated();
 	const chosen = flatChoices(choices).find((c) => c.value === current);
@@ -87,14 +96,14 @@ function Combobox({
 						collisionPadding={8}
 						className={cn(
 							// Above sheets (z-41) and alert dialogs (z-51), as Select.
-							"z-55 w-(--radix-popover-trigger-width) max-w-[calc(100vw-16px)] min-w-[max(var(--radix-popover-trigger-width),14rem)]",
+							"z-55 w-(--radix-popover-trigger-width) max-w-[calc(100vw-16px)] min-w-[max(var(--radix-popover-trigger-width),12rem)]",
 							"origin-(--radix-popover-content-transform-origin) overflow-hidden rounded-xl border bg-popover shadow-pop",
 							"data-[state=open]:animate-enter",
 						)}
 					>
-						<Command loop>
+						<Command loop defaultValue={current}>
 							<CommandInput placeholder={searchPlaceholder} />
-							<CommandList>
+							<CommandList ref={list}>
 								<CommandEmpty>{empty}</CommandEmpty>
 								{choices.map((c) =>
 									isGroup(c) ? (

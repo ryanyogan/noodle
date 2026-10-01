@@ -370,7 +370,7 @@ function EditForm({
 							value={assignment}
 							onValueChange={setAssignment}
 							placeholder="Choose a Bucket"
-							searchPlaceholder="Find a Bucket or Commitment"
+							searchPlaceholder="Search"
 							aria-invalid={invalid === "assignment" || undefined}
 							choices={choices}
 						/>
@@ -548,7 +548,7 @@ function SplitFields({
 						disabled={disabled}
 						value={split.assignment}
 						onValueChange={(assignment) => onChange({ assignment })}
-						searchPlaceholder="Find a Bucket or Commitment"
+						searchPlaceholder="Search"
 						aria-invalid={(invalid && !split.assignment) || undefined}
 						choices={choices}
 					/>
