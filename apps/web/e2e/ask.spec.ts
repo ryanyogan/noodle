@@ -54,11 +54,11 @@ test("answers cite the Household's figures and link to the screens with more", a
 		/^\/transactions\/\d{4}-\d{2}$/,
 	);
 
-	// Another question, then its Affordability Check opened in Explore, filled in.
+	// Another question, then its Affordability Check opened in Can we afford it?, filled in.
 	await ask(page, "Can we afford a $2,000 trip?");
 	await expect(page.getByText(/^Trip at \$2,000: (Comfortable|Stretch)\./)).toBeVisible();
 	await expect(figures(page)).toContainText("Still to save");
-	await page.getByRole("link", { name: "Open in Explore" }).click();
+	await page.getByRole("link", { name: "Open Can we afford it?" }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Can we afford it?");
 	await expect(page.getByTestId("affordability-verdict")).toContainText("trip, $2,000");
 });

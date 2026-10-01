@@ -133,8 +133,9 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 
 		// Sam sees both Personal Allowances' totals.
 		await nav(sam).getByRole("link", { name: "This Month" }).click();
+		// Early in a month $92 of $150 is ahead of pace; later it isn't.
 		await expect(bucketRow(sam, ALEX_PA)).toHaveAccessibleName(
-			`${ALEX_PA}: $58 left of $150, private`,
+			new RegExp(`^${ALEX_PA}: \\$58 left of \\$150(, ahead of pace)?, private$`),
 		);
 		await expect(bucketRow(sam, ALEX_PA)).toContainText("$92 spent");
 		await expect(bucketRow(sam, SAM_PA)).toHaveAccessibleName(`${SAM_PA}: $100 left of $100`);
