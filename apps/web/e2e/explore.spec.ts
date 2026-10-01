@@ -67,8 +67,8 @@ test("moving a Change changes the projection, and applying the Scenario changes 
 	// Saved, it's there to come back to.
 	await page.getByLabel("Name").fill("No hockey");
 	await page.getByRole("button", { name: "Save Scenario" }).click();
-	await expect(page.getByRole("combobox", { name: "Scenario" })).toHaveValue(/.+/);
-	await expect(page.getByRole("option", { name: "No hockey" })).toBeAttached();
+	// Saved, it is the Scenario chosen.
+	await expect(page.getByRole("combobox", { name: "Scenario" })).toHaveText("No hockey");
 
 	// Applied, it becomes the Plan from this month on.
 	await page.getByRole("button", { name: "Apply to Plan" }).click();

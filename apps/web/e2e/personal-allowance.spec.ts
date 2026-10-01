@@ -185,11 +185,13 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 		await expect(shown.getByRole("textbox")).toHaveCount(0);
 		await sam.keyboard.press("Escape");
 		await expect(shown).toBeHidden();
-		await expect(sam.getByLabel("Bucket").locator("option")).toHaveText([
+		await sam.getByRole("combobox", { name: "Bucket", exact: true }).click();
+		await expect(sam.getByRole("listbox").getByRole("option")).toHaveText([
 			"All Buckets",
 			"Groceries",
 			SAM_PA,
 		]);
+		await sam.keyboard.press("Escape");
 		await list(sam)
 			.getByRole("button", { name: /^Milk,/ })
 			.click();

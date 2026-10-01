@@ -40,12 +40,27 @@ import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@noodle/ui/components/select";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { cn } from "@noodle/ui/lib/utils";
 import { useMutationState, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Calculator, ChevronLeft, Info, Layers, Telescope, TriangleAlert } from "lucide-react";
+import {
+	Calculator,
+	ChevronLeft,
+	Info,
+	Layers,
+	Plus,
+	Telescope,
+	TriangleAlert,
+} from "lucide-react";
 import {
 	lazy,
 	memo,
@@ -59,7 +74,6 @@ import {
 } from "react";
 import { ulid } from "ulid";
 import { z } from "zod";
-import { NativeSelect } from "../../../components/native-select";
 import { Confirm } from "../../../components/plan-editing";
 import { changeId, ScenarioChanges, useDebounced } from "../../../components/scenario-changes";
 import type { Outcome } from "../../../components/scenario-outcomes";
@@ -584,30 +598,46 @@ function ScenarioBar({
 			<CardContent className="grid gap-3">
 				<div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
 					<Field label="Scenario" htmlFor={`${id}-scenario`}>
-						<NativeSelect
-							id={`${id}-scenario`}
-							value={saved ? draft.id : "new"}
-							onChange={(event) => {
-								const value = event.currentTarget.value;
-								const scenario = scenarios.find((s) => s.id === value);
-								setConfirming(null);
-								onDraft(
-									scenario
-										? { id: scenario.id, name: scenario.name, levers: scenario.levers }
-										: freshDraft(scenarios),
-								);
-							}}
-						>
-							{saved ? <option value="new">New Scenario from the Plan</option> : null}
-							{saved ? null : (
-								<option value="new">{draft.name || "New Scenario"} (not saved)</option>
-							)}
-							{scenarios.map((s) => (
-								<option key={s.id} value={s.id}>
-									{s.name}
-								</option>
-							))}
-						</NativeSelect>
+						<div className="flex gap-2">
+							<Select
+								value={saved ? draft.id : "new"}
+								onValueChange={(value) => {
+									const scenario = scenarios.find((s) => s.id === value);
+									if (!scenario) return;
+									setConfirming(null);
+									onDraft({ id: scenario.id, name: scenario.name, levers: scenario.levers });
+								}}
+							>
+								<SelectTrigger id={`${id}-scenario`} className="flex-1">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{saved ? null : (
+										<SelectItem value="new">{draft.name || "New Scenario"} (not saved)</SelectItem>
+									)}
+									{scenarios.map((s) => (
+										<SelectItem key={s.id} value={s.id}>
+											{s.name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							{saved ? (
+								<Button
+									type="button"
+									variant="outline"
+									className="h-10"
+									onClick={() => {
+										setConfirming(null);
+										onDraft(freshDraft(scenarios));
+									}}
+								>
+									<Plus />
+									New
+									<span className="sr-only"> Scenario from the Plan</span>
+								</Button>
+							) : null}
+						</div>
 					</Field>
 					<Field label="Name" htmlFor={`${id}-name`}>
 						<Input

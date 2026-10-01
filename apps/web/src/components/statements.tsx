@@ -17,6 +17,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field } from "@noodle/ui/components/field";
 import { List, ListRow } from "@noodle/ui/components/list";
+import { NativeSelect } from "@noodle/ui/components/native-select";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { cn } from "@noodle/ui/lib/utils";
@@ -30,7 +31,6 @@ import { type AccountView, useUpdateAccountBalance } from "../goals";
 import { accountImportsQuery } from "../queries";
 import { MAX_STATEMENT_CHARS } from "../server/imports";
 import { importSummary, StatementRefused, useUploadStatement } from "../statements";
-import { NativeSelect } from "./native-select";
 
 // Statements on an Account's page: its Import history, and the sheet a Parent uploads a CSV or
 // OFX statement in. A CSV's columns are mapped (remembered per Account) and previewed first.

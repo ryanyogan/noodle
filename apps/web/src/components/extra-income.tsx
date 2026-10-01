@@ -12,6 +12,7 @@ import {
 import { Button } from "@noodle/ui/components/button";
 import { Field } from "@noodle/ui/components/field";
 import { List, ListRow } from "@noodle/ui/components/list";
+import { NativeSelect } from "@noodle/ui/components/native-select";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { cn } from "@noodle/ui/lib/utils";
@@ -23,7 +24,6 @@ import { useIncome } from "../extra-income";
 import { formatMoney, formatMoneyInput, shortDay } from "../format";
 import type { GoalView } from "../goals";
 import { AmountInput, AmountSheet } from "./goals";
-import { NativeSelect } from "./native-select";
 import { TermHelp } from "./term-help";
 
 /**

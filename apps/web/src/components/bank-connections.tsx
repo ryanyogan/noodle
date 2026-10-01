@@ -2,6 +2,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { List, ListRow } from "@noodle/ui/components/list";
+import { NativeSelect } from "@noodle/ui/components/native-select";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
@@ -28,7 +29,6 @@ import {
 	startBankLink,
 	startBankReconnect,
 } from "../server/bank-connections";
-import { NativeSelect } from "./native-select";
 import { TermHelp } from "./term-help";
 
 // Bank Connections on the Accounts page: a Parent connects a bank or card through Plaid Link, then

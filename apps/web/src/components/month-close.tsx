@@ -8,13 +8,13 @@ import {
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { List, ListRow } from "@noodle/ui/components/list";
+import { NativeSelect } from "@noodle/ui/components/native-select";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { cn } from "@noodle/ui/lib/utils";
 import { useHydrated } from "@tanstack/react-router";
 import { useState } from "react";
 import { formatMoney, monthName } from "../format";
 import type { GoalView } from "../goals";
-import { NativeSelect } from "./native-select";
 import { TermHelp } from "./term-help";
 
 /** Where the Parents send a month's leftovers and Extra income, by Goal ID; unset ones stay put. */

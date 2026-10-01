@@ -12,6 +12,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
+import { NativeSelect } from "@noodle/ui/components/native-select";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { cn } from "@noodle/ui/lib/utils";
@@ -29,7 +30,6 @@ import {
 	goalStatusName,
 	statusNameOf,
 } from "../goals";
-import { NativeSelect } from "./native-select";
 import { TermHelp } from "./term-help";
 
 /** A Goal page's way back to Goals. */

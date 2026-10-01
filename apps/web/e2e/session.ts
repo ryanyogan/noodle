@@ -1,5 +1,11 @@
 import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
-import { type Browser, type BrowserContextOptions, expect, type Page } from "@playwright/test";
+import {
+	type Browser,
+	type BrowserContextOptions,
+	expect,
+	type Locator,
+	type Page,
+} from "@playwright/test";
 
 /**
  * The budget for the first expect after a full page load (goto, reload) of a route that renders
@@ -82,4 +88,15 @@ export async function createPlannedHousehold(
 	}
 	await page.getByRole("link", { name: "Back to Plan" }).click();
 	await switchTo(page, "Month");
+}
+
+/**
+ * Picks `option` from a shadcn Select (a combobox that opens a listbox) named `label`; native
+ * selects take `selectOption` instead.
+ */
+export async function choose(scope: Page | Locator, label: string, option: string) {
+	const page = "page" in scope ? scope.page() : scope;
+	await scope.getByRole("combobox", { name: label, exact: true }).click();
+	await page.getByRole("listbox").getByRole("option", { name: option, exact: true }).click();
+	await expect(page.getByRole("listbox")).toBeHidden();
 }

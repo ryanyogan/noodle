@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, serverFn, signedInPage } from "./session";
+import { choose, createPlannedHousehold, serverFn, signedInPage } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -156,26 +156,28 @@ test("the list filters by Bucket and by who it was For", async ({ browser }) => 
 	await openTransactions(page);
 	await expect(list(page).getByRole("button")).toHaveCount(3);
 
-	await page.getByLabel("Bucket", { exact: true }).selectOption({ label: "Hockey" });
+	await choose(page, "Bucket", "Hockey");
 	await expect(page).toHaveURL(/bucket=/);
 	await expect(list(page).getByRole("button")).toHaveCount(1);
 	await expect(row(page, "Ice time")).toBeVisible();
 
-	await page.getByLabel("Bucket", { exact: true }).selectOption({ label: "All Buckets" });
-	await page.getByLabel("For", { exact: true }).selectOption({ label: "Leo" });
+	await choose(page, "Bucket", "All Buckets");
+	await choose(page, "For", "Leo");
 	await expect(list(page).getByRole("button")).toHaveCount(1);
 	await expect(row(page, "Ice time")).toBeVisible();
 
-	await page.getByLabel("For", { exact: true }).selectOption({ label: "Everyone (shared)" });
+	await choose(page, "For", "Everyone (shared)");
 	await expect(list(page).getByRole("button")).toHaveCount(2);
 	await expect(row(page, "Ice time")).toHaveCount(0);
 
 	// The filters are in the URL, so a reload keeps them.
 	await page.reload();
-	await expect(page.getByLabel("For", { exact: true })).toHaveValue("everyone");
+	await expect(page.getByRole("combobox", { name: "For", exact: true })).toHaveText(
+		"Everyone (shared)",
+	);
 	await expect(list(page).getByRole("button")).toHaveCount(2);
 
-	await page.getByLabel("Bucket", { exact: true }).selectOption({ label: "Hockey" });
+	await choose(page, "Bucket", "Hockey");
 	await expect(page.getByText("Nothing matches")).toBeVisible();
 	await page.context().close();
 });
@@ -253,9 +255,11 @@ test("an Account lists its Transactions, and Transactions filters by it", async 
 	// Matching keeps what was typed in the editor: the note is saved with the Match.
 	await page.getByRole("link", { name: "All in Transactions" }).click();
 	await expect(page).toHaveURL(/account=/);
-	await expect(page.getByLabel("Account", { exact: true })).toHaveValue(/.+/);
+	await expect(page.getByRole("combobox", { name: "Account", exact: true })).not.toHaveText(
+		"All Accounts",
+	);
 	await expect(list(page).getByRole("button")).toHaveCount(3);
-	await page.getByLabel("Account", { exact: true }).selectOption({ label: "All Accounts" });
+	await choose(page, "Account", "All Accounts");
 	await expect(row(page, "Pro Hockey Life")).toHaveAccessibleName(
 		"Pro Hockey Life, $64.99, Groceries, For Everyone, waiting for the bank’s copy",
 	);

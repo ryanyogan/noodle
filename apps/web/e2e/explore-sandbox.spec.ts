@@ -92,8 +92,10 @@ test("a Parent tweaks the Plan in a sandbox: amounts, new things, date ranges an
 
 	// Take-home pay $1,000 lower for six months, a year from now.
 	await type(page, "Take-home pay", "8,000");
-	await page.getByLabel("Take-home pay from").selectOption({ index: 12 });
-	await page.getByLabel("Take-home pay until").selectOption({ index: 6 });
+	await page.getByRole("combobox", { name: "Take-home pay from" }).click();
+	await page.getByRole("listbox").getByRole("option").nth(12).click();
+	await page.getByRole("combobox", { name: "Take-home pay until" }).click();
+	await page.getByRole("listbox").getByRole("option").nth(6).click();
 	const takeHomePay = change(page, /^Income \$9,000 → \$8,000 a month from \w+ \d{4} until/);
 	await expect(takeHomePay).toContainText("Costs $6,000 over 2 years");
 	await expect(scenarioTotal(page)).toHaveText("$142,800");

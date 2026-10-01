@@ -54,7 +54,8 @@ test("a Scenario opened from a link is kept, applied with a preview, and compare
 
 	await page.getByLabel("Name", { exact: true }).fill("Raise");
 	await page.getByRole("button", { name: "Save Scenario" }).click();
-	await expect(page.getByRole("option", { name: "Raise" })).toBeAttached();
+	// Saved, it is the Scenario chosen.
+	await expect(page.getByRole("combobox", { name: "Scenario" })).toHaveText("Raise");
 
 	// Apply lists exactly what changes in the Plan, and what it leaves out.
 	await page.getByRole("button", { name: "Apply to Plan" }).click();
@@ -80,7 +81,8 @@ test("a Scenario opened from a link is kept, applied with a preview, and compare
 	await expect(changes(page)).toContainText("Income $6,000 → $4,500 a month");
 	await page.getByLabel("Name", { exact: true }).fill("Pay cut");
 	await page.getByRole("button", { name: "Save Scenario" }).click();
-	await expect(page.getByRole("option", { name: "Pay cut" })).toBeAttached();
+	// Saved, it is the Scenario chosen.
+	await expect(page.getByRole("combobox", { name: "Scenario" })).toHaveText("Pay cut");
 
 	// The overview: who made each, and which was applied.
 	await page.getByRole("link", { name: "Scenarios" }).click();

@@ -3,6 +3,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
+import { NativeSelect } from "@noodle/ui/components/native-select";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { cn } from "@noodle/ui/lib/utils";
 import { useHydrated } from "@tanstack/react-router";
@@ -20,9 +21,9 @@ import type {
 	TransactionRow,
 } from "../transactions";
 import { ForPicker } from "./for-picker";
+import { AmountInput } from "./goals";
 import { MatchSection } from "./match-section";
 import { MoneyDetail, TransferSection } from "./money-sections";
-import { NativeSelect } from "./native-select";
 import { Confirm } from "./plan-editing";
 import { ReceiptSection } from "./receipt-section";
 
@@ -341,16 +342,13 @@ function EditForm({
 		<form ref={form} onSubmit={save} noValidate className="grid gap-4">
 			<div className="grid gap-3 sm:grid-cols-2">
 				<Field label="Amount" htmlFor="transaction-amount">
-					<Input
+					<AmountInput
 						id="transaction-amount"
 						name="amount"
-						inputMode="decimal"
-						autoComplete="off"
 						required
 						disabled={!hydrated}
 						value={amount}
 						onChange={(event) => setAmount(event.currentTarget.value)}
-						className="tabular-nums"
 						aria-invalid={invalid === "amount" || undefined}
 					/>
 				</Field>
@@ -542,15 +540,12 @@ function SplitFields({
 			) : null}
 			<div className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-3">
 				<Field label="Amount" htmlFor={`${id}-amount`}>
-					<Input
+					<AmountInput
 						id={`${id}-amount`}
-						inputMode="decimal"
-						autoComplete="off"
 						placeholder="0.00"
 						disabled={disabled}
 						value={split.amount}
 						onChange={(event) => onChange({ amount: event.currentTarget.value })}
-						className="tabular-nums"
 						aria-invalid={(invalid && !parseDollars(split.amount)) || undefined}
 					/>
 				</Field>

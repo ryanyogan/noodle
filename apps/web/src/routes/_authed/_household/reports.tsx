@@ -12,6 +12,7 @@ import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
+import { NativeSelect } from "@noodle/ui/components/native-select";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
@@ -30,7 +31,7 @@ import {
 	X,
 } from "lucide-react";
 import { useId, useMemo, useState } from "react";
-import { NativeSelect } from "../../../components/native-select";
+import { FilterSelect } from "../../../components/filter-select";
 import { quickAddSearch } from "../../../components/quick-add";
 import { ReportBody, type ReportNav, tablesFor } from "../../../components/report-views";
 import { reportQuery } from "../../../queries";
@@ -290,32 +291,26 @@ function Options({
 	return (
 		<div className="grid gap-3">
 			<div className="flex flex-wrap items-end gap-2">
-				<label className="grid gap-1 max-sm:w-[calc(50%-0.25rem)]" htmlFor={`${id}-period`}>
-					<span className="text-[13px] font-medium text-muted-foreground">Period</span>
-					<NativeSelect
-						id={`${id}-period`}
-						value={period}
-						onChange={(event) =>
-							nav.set({
-								period: event.target.value as ReportSearch["period"],
-								...(event.target.value === "custom"
-									? {
-											from: search.from ?? report.range.from,
-											to: search.to ?? (report.asOf as DayKey),
-										}
-									: { from: undefined, to: undefined }),
-								month: undefined,
-							})
-						}
-						className="sm:w-44"
-					>
-						{REPORT_PERIODS.map((p) => (
-							<option key={p} value={p}>
-								{PERIOD_LABELS[p]}
-							</option>
-						))}
-					</NativeSelect>
-				</label>
+				<FilterSelect
+					id={`${id}-period`}
+					label="Period"
+					value={period}
+					onChange={(value) =>
+						nav.set({
+							period: value as ReportSearch["period"],
+							...(value === "custom"
+								? {
+										from: search.from ?? report.range.from,
+										to: search.to ?? (report.asOf as DayKey),
+									}
+								: { from: undefined, to: undefined }),
+							month: undefined,
+						})
+					}
+					options={REPORT_PERIODS.map((p) => ({ value: p, label: PERIOD_LABELS[p] }))}
+					className="max-sm:w-[calc(50%-0.25rem)]"
+					triggerClassName="sm:w-44"
+				/>
 				{period === "custom" ? (
 					<>
 						<Input
@@ -341,48 +336,29 @@ function Options({
 					</>
 				) : null}
 				{offered.compare ? (
-					<label className="grid gap-1 max-sm:w-[calc(50%-0.25rem)]" htmlFor={`${id}-compare`}>
-						<span className="text-[13px] font-medium text-muted-foreground">Compare with</span>
-						<NativeSelect
-							id={`${id}-compare`}
-							value={search.compare ?? "previous"}
-							onChange={(event) =>
-								nav.set({
-									compare:
-										event.target.value === "previous"
-											? undefined
-											: (event.target.value as Comparison),
-								})
-							}
-							className="sm:w-52"
-						>
-							{COMPARISONS.map((c) => (
-								<option key={c} value={c}>
-									{COMPARE_LABELS[c]}
-								</option>
-							))}
-						</NativeSelect>
-					</label>
+					<FilterSelect
+						id={`${id}-compare`}
+						label="Compare with"
+						value={search.compare ?? "previous"}
+						onChange={(value) =>
+							nav.set({ compare: value === "previous" ? undefined : (value as Comparison) })
+						}
+						options={COMPARISONS.map((c) => ({ value: c, label: COMPARE_LABELS[c] }))}
+						className="max-sm:w-[calc(50%-0.25rem)]"
+						triggerClassName="sm:w-52"
+					/>
 				) : null}
 				{offered.group ? (
-					<label className="grid gap-1 max-sm:w-[calc(50%-0.25rem)]" htmlFor={`${id}-group`}>
-						<span className="text-[13px] font-medium text-muted-foreground">Group by</span>
-						<NativeSelect
-							id={`${id}-group`}
-							value={search.group ?? ""}
-							onChange={(event) =>
-								nav.set({ group: (event.target.value || undefined) as ReportSearch["group"] })
-							}
-							className="sm:w-44"
-						>
-							<option value="">By {report.grouping} (auto)</option>
-							{GROUPINGS.map((g) => (
-								<option key={g} value={g}>
-									By {g}
-								</option>
-							))}
-						</NativeSelect>
-					</label>
+					<FilterSelect
+						id={`${id}-group`}
+						label="Group by"
+						all={`By ${report.grouping} (auto)`}
+						value={search.group ?? ""}
+						onChange={(value) => nav.set({ group: (value || undefined) as ReportSearch["group"] })}
+						options={GROUPINGS.map((g) => ({ value: g, label: `By ${g}` }))}
+						className="max-sm:w-[calc(50%-0.25rem)]"
+						triggerClassName="sm:w-44"
+					/>
 				) : null}
 				{offered.filters ? (
 					<Button

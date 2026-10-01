@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
-import { clientRendered, createPlannedHousehold, signedInPage } from "./session";
+import { choose, clientRendered, createPlannedHousehold, signedInPage } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -45,13 +45,16 @@ test("Reports: change the period, then drill from a Bucket to its Transactions",
 	);
 	await expect(nothingEarlier).toBeVisible();
 
-	await page.getByLabel("Period").selectOption({ label: "Last 3 months" });
+	await choose(page, "Period", "Last 3 months");
 	await expect(page).toHaveURL(/period=3m/);
 	// The three months before are within the history, so they're compared.
 	await expect(nothingEarlier).toHaveCount(0);
 	// Every option lives in the URL, so a reload keeps it.
 	await page.reload();
-	await expect(page.getByLabel("Period")).toHaveValue("3m", clientRendered);
+	await expect(page.getByRole("combobox", { name: "Period" })).toHaveText(
+		"Last 3 months",
+		clientRendered,
+	);
 
 	await page.getByRole("link", { name: "Buckets", exact: true }).click();
 	await expect(heading(page)).toContainText("Buckets");
@@ -121,7 +124,7 @@ test("no Report view is wider than a phone, and a long merchant name stays in it
 
 	await page.getByRole("link", { name: "Reports" }).click();
 	await expect(heading(page)).toContainText("Overview");
-	await page.getByLabel("Period").selectOption({ label: "Last 12 months" });
+	await choose(page, "Period", "Last 12 months");
 	await expect(page).toHaveURL(/period=12m/);
 
 	// Merchants on desktop: the amounts stay inside the card beside the long name.

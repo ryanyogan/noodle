@@ -22,12 +22,18 @@ import { Card } from "@noodle/ui/components/card";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@noodle/ui/components/select";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
-import { ChevronDown, ChevronRight, Plus } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import {
-	type ComponentProps,
 	createContext,
 	memo,
 	type ReactNode,
@@ -643,16 +649,9 @@ function CommitmentLine({
 						<ChipSelect
 							aria-label={`${name} cadence`}
 							value={cadence}
-							onChange={(event) =>
-								setTerms({ amount, cadence: event.currentTarget.value as Cadence })
-							}
-						>
-							{CADENCES.map((c) => (
-								<option key={c} value={c}>
-									{cadenceLabels[c]}
-								</option>
-							))}
-						</ChipSelect>
+							onValueChange={(value) => setTerms({ amount, cadence: value as Cadence })}
+							options={CADENCES.map((c) => ({ value: c, label: cadenceLabels[c] }))}
+						/>
 						{terms ? (
 							<RangeChips
 								name={name}
@@ -1046,42 +1045,32 @@ function AddedCommitmentFields({
 				<ChipSelect
 					aria-label={labelled(prefix, "Cadence")}
 					value={lever.cadence}
-					onChange={(event) =>
-						onChange({ ...lever, cadence: event.currentTarget.value as Cadence })
-					}
-				>
-					{CADENCES.map((c) => (
-						<option key={c} value={c}>
-							{cadenceLabels[c]}
-						</option>
-					))}
-				</ChipSelect>
+					onValueChange={(value) => onChange({ ...lever, cadence: value as Cadence })}
+					options={CADENCES.map((c) => ({ value: c, label: cadenceLabels[c] }))}
+				/>
 				<ChipSelect
 					aria-label={labelled(prefix, "Due day")}
-					value={lever.dueDay}
-					onChange={(event) => onChange({ ...lever, dueDay: Number(event.currentTarget.value) })}
-				>
-					{Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
-						<option key={day} value={day}>
-							Due on day {day}
-						</option>
-					))}
-				</ChipSelect>
+					value={String(lever.dueDay)}
+					onValueChange={(value) => onChange({ ...lever, dueDay: Number(value) })}
+					options={Array.from({ length: 31 }, (_, i) => ({
+						value: String(i + 1),
+						label: `Due on day ${i + 1}`,
+					}))}
+				/>
 				<ChipSelect
 					aria-label={labelled(prefix, "Term")}
-					value={lever.months ?? ""}
-					onChange={(event) => {
-						const months = event.currentTarget.value;
-						onChange({ ...lever, months: months === "" ? null : Number(months) });
-					}}
-				>
-					<option value="">Ongoing</option>
-					{[3, 6, 12, 18, 24, 36, 48, 60, 72, 84, 120, 180, 360].map((months) => (
-						<option key={months} value={months}>
-							For {months} months
-						</option>
-					))}
-				</ChipSelect>
+					value={lever.months === null || lever.months === undefined ? "" : String(lever.months)}
+					onValueChange={(months) =>
+						onChange({ ...lever, months: months === "" ? null : Number(months) })
+					}
+					options={[
+						{ value: "", label: "Ongoing" },
+						...[3, 6, 12, 18, 24, 36, 48, 60, 72, 84, 120, 180, 360].map((months) => ({
+							value: String(months),
+							label: `For ${months} months`,
+						})),
+					]}
+				/>
 			</div>
 			<RangeChips
 				name={prefix ?? ""}
@@ -1168,19 +1157,18 @@ function AddedGoalFields({
 					<ChipSelect
 						aria-label={labelled(prefix, "Account")}
 						value={lever.accountId ?? ""}
-						onChange={(event) => {
+						onValueChange={(accountId) => {
 							const { accountId: _, ...rest } = lever;
-							const accountId = event.currentTarget.value;
 							onChange(accountId === "" ? rest : { ...rest, accountId });
 						}}
-					>
-						<option value="">Account: choose later</option>
-						{accounts.map((account) => (
-							<option key={account.id} value={account.id}>
-								Kept in {account.name}
-							</option>
-						))}
-					</ChipSelect>
+						options={[
+							{ value: "", label: "Account: choose later" },
+							...accounts.map((account) => ({
+								value: account.id,
+								label: `Kept in ${account.name}`,
+							})),
+						]}
+					/>
 				) : null}
 			</div>
 		</div>
@@ -1217,26 +1205,18 @@ function OneOffFields({
 				<ChipSelect
 					aria-label={labelled(prefix, "Kind")}
 					value={lever.flow}
-					onChange={(event) =>
-						onChange({ ...lever, flow: event.currentTarget.value as "expense" | "income" })
-					}
-				>
-					<option value="expense">An expense</option>
-					<option value="income">Income</option>
-				</ChipSelect>
+					onValueChange={(value) => onChange({ ...lever, flow: value as "expense" | "income" })}
+					options={[
+						{ value: "expense", label: "An expense" },
+						{ value: "income", label: "Income" },
+					]}
+				/>
 				<ChipSelect
 					aria-label={labelled(prefix, "Month")}
 					value={lever.fromMonth}
-					onChange={(event) =>
-						onChange({ ...lever, fromMonth: event.currentTarget.value as MonthKey })
-					}
-				>
-					{horizonMonths(month).map((m) => (
-						<option key={m} value={m}>
-							in {shortMonth(m)}
-						</option>
-					))}
-				</ChipSelect>
+					onValueChange={(value) => onChange({ ...lever, fromMonth: value as MonthKey })}
+					options={horizonMonths(month).map((m) => ({ value: m, label: `in ${shortMonth(m)}` }))}
+				/>
 			</div>
 		</div>
 	);
@@ -1320,21 +1300,41 @@ function NameField({
 }
 
 /** A small select shaped like a chip. */
-function ChipSelect({ className, ...props }: ComponentProps<"select">) {
+/** Radix Select has no empty value; this stands for "". */
+const CHIP_NONE = "__none";
+
+/**
+ * A compact choice on an Explore row, as a rounded chip: a shadcn Select. `""` is a value like any
+ * other ("No date", "for good").
+ */
+function ChipSelect({
+	value,
+	onValueChange,
+	options,
+	"aria-label": ariaLabel,
+}: {
+	value: string;
+	onValueChange: (value: string) => void;
+	options: { value: string; label: string }[];
+	"aria-label": string;
+}) {
+	const toChip = (v: string) => (v === "" ? CHIP_NONE : v);
 	return (
-		<span className={cn("relative inline-grid", className)}>
-			<select
-				className={cn(
-					"h-8 appearance-none rounded-full border border-border bg-surface-2 ps-3 pe-7 text-base font-medium text-foreground lg:h-7 lg:text-[13px]",
-					"focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring",
-				)}
-				{...props}
-			/>
-			<ChevronDown
-				aria-hidden="true"
-				className="pointer-events-none absolute end-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-			/>
-		</span>
+		<Select
+			value={toChip(value)}
+			onValueChange={(next) => onValueChange(next === CHIP_NONE ? "" : next)}
+		>
+			<SelectTrigger size="pill" aria-label={ariaLabel}>
+				<SelectValue />
+			</SelectTrigger>
+			<SelectContent className="max-h-[min(20rem,var(--radix-select-content-available-height))]">
+				{options.map((option) => (
+					<SelectItem key={option.value} value={toChip(option.value)}>
+						{option.label}
+					</SelectItem>
+				))}
+			</SelectContent>
+		</Select>
 	);
 }
 
@@ -1361,36 +1361,27 @@ function RangeChips({
 			<ChipSelect
 				aria-label={labelled(name, "From")}
 				value={from}
-				onChange={(event) => {
-					const fromMonth = event.currentTarget.value as MonthKey;
+				onValueChange={(value) => {
+					const fromMonth = value as MonthKey;
 					onChange({
 						fromMonth,
 						untilMonth:
 							lever.untilMonth && lever.untilMonth > fromMonth ? lever.untilMonth : undefined,
 					});
 				}}
-			>
-				{months.map((m) => (
-					<option key={m} value={m}>
-						from {shortMonth(m)}
-					</option>
-				))}
-			</ChipSelect>
+				options={months.map((m) => ({ value: m, label: `from ${shortMonth(m)}` }))}
+			/>
 			<ChipSelect
 				aria-label={labelled(name, "Until")}
 				value={lever.untilMonth ?? ""}
-				onChange={(event) => {
-					const value = event.currentTarget.value;
-					onChange({ fromMonth: from, untilMonth: value === "" ? undefined : (value as MonthKey) });
-				}}
-			>
-				<option value="">for good</option>
-				{until.map((m) => (
-					<option key={m} value={m}>
-						until {shortMonth(m)}
-					</option>
-				))}
-			</ChipSelect>
+				onValueChange={(value) =>
+					onChange({ fromMonth: from, untilMonth: value === "" ? undefined : (value as MonthKey) })
+				}
+				options={[
+					{ value: "", label: "for good" },
+					...until.map((m) => ({ value: m, label: `until ${shortMonth(m)}` })),
+				]}
+			/>
 		</div>
 	);
 }
@@ -1453,19 +1444,16 @@ function GoalDate({
 		<ChipSelect
 			aria-label={labelled(name, "Date")}
 			value={chosen}
-			onChange={(event) => {
-				const m = event.currentTarget.value as MonthKey | "";
+			onValueChange={(value) => {
+				const m = value as MonthKey | "";
 				if (m === "") return onChange(null);
 				onChange(own && monthOfDay(own) === m ? own : lastDayOf(m));
 			}}
-		>
-			<option value="">No date</option>
-			{months.map((m) => (
-				<option key={m} value={m}>
-					by {shortMonth(m)}
-				</option>
-			))}
-		</ChipSelect>
+			options={[
+				{ value: "", label: "No date" },
+				...months.map((m) => ({ value: m, label: `by ${shortMonth(m)}` })),
+			]}
+		/>
 	);
 }
 

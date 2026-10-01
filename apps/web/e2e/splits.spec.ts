@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, serverFn, signedInPage } from "./session";
+import { choose, createPlannedHousehold, serverFn, signedInPage } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -101,13 +101,13 @@ test("splitting a Quick Add spends each Split from its own Bucket, For its own M
 	);
 
 	// Filters match the Splits: Hockey's Split is For Leo; Groceries' is For everyone.
-	await page.getByLabel("Bucket", { exact: true }).selectOption({ label: "Hockey" });
+	await choose(page, "Bucket", "Hockey");
 	await expect(costco(page)).toBeVisible();
-	await page.getByLabel("For", { exact: true }).selectOption({ label: "Leo" });
+	await choose(page, "For", "Leo");
 	await expect(costco(page)).toBeVisible();
-	await page.getByLabel("Bucket", { exact: true }).selectOption({ label: "Groceries" });
+	await choose(page, "Bucket", "Groceries");
 	await expect(page.getByText("Nothing matches")).toBeVisible();
-	await page.getByLabel("For", { exact: true }).selectOption({ label: "Everyone (shared)" });
+	await choose(page, "For", "Everyone (shared)");
 	await expect(costco(page)).toBeVisible();
 
 	await nav(page).getByRole("link", { name: "This Month" }).click();

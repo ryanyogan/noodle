@@ -29,7 +29,7 @@ import {
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { QuickAddLink } from "../../../components/app-shell";
-import { NativeSelect } from "../../../components/native-select";
+import { FilterSelect } from "../../../components/filter-select";
 import { TransactionEditor } from "../../../components/transaction-editor";
 import {
 	TransactionItem,
@@ -250,62 +250,41 @@ function Filters({
 				/>
 			</div>
 			<div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-				<div className="grid min-w-0 gap-1">
-					<label htmlFor="filter-bucket" className="text-xs font-medium text-muted-foreground">
-						Bucket
-					</label>
-					<NativeSelect
-						id="filter-bucket"
-						value={filters.bucket ?? ""}
-						disabled={!hydrated}
-						onChange={(event) => onChange({ bucket: event.currentTarget.value || undefined })}
-					>
-						<option value="">All Buckets</option>
-						{plan.buckets.map((bucket) => (
-							<option key={bucket.id} value={bucket.id}>
-								{bucket.name}
-							</option>
-						))}
-					</NativeSelect>
-				</div>
-				<div className="grid min-w-0 gap-1">
-					<label htmlFor="filter-for" className="text-xs font-medium text-muted-foreground">
-						For
-					</label>
-					<NativeSelect
-						id="filter-for"
-						value={filters.for ?? ""}
-						disabled={!hydrated}
-						onChange={(event) => onChange({ for: event.currentTarget.value || undefined })}
-					>
-						<option value="">Anyone</option>
-						<option value="everyone">Everyone (shared)</option>
-						{pickableMembers(members, filters.for ? [filters.for] : []).map((member) => (
-							<option key={member.id} value={member.id}>
-								{member.name}
-							</option>
-						))}
-					</NativeSelect>
-				</div>
+				<FilterSelect
+					id="filter-bucket"
+					label="Bucket"
+					all="All Buckets"
+					value={filters.bucket ?? ""}
+					disabled={!hydrated}
+					onChange={(value) => onChange({ bucket: value || undefined })}
+					options={plan.buckets.map((bucket) => ({ value: bucket.id, label: bucket.name }))}
+				/>
+				<FilterSelect
+					id="filter-for"
+					label="For"
+					all="Anyone"
+					value={filters.for ?? ""}
+					disabled={!hydrated}
+					onChange={(value) => onChange({ for: value || undefined })}
+					options={[
+						{ value: "everyone", label: "Everyone (shared)" },
+						...pickableMembers(members, filters.for ? [filters.for] : []).map((member) => ({
+							value: member.id,
+							label: member.name,
+						})),
+					]}
+				/>
 				{accounts.length > 0 ? (
-					<div className="col-span-2 grid min-w-0 gap-1 sm:col-span-1">
-						<label htmlFor="filter-account" className="text-xs font-medium text-muted-foreground">
-							Account
-						</label>
-						<NativeSelect
-							id="filter-account"
-							value={filters.account ?? ""}
-							disabled={!hydrated}
-							onChange={(event) => onChange({ account: event.currentTarget.value || undefined })}
-						>
-							<option value="">All Accounts</option>
-							{accounts.map((account) => (
-								<option key={account.id} value={account.id}>
-									{account.name}
-								</option>
-							))}
-						</NativeSelect>
-					</div>
+					<FilterSelect
+						id="filter-account"
+						label="Account"
+						all="All Accounts"
+						value={filters.account ?? ""}
+						disabled={!hydrated}
+						onChange={(value) => onChange({ account: value || undefined })}
+						options={accounts.map((account) => ({ value: account.id, label: account.name }))}
+						className="col-span-2 sm:col-span-1"
+					/>
 				) : null}
 			</div>
 		</div>

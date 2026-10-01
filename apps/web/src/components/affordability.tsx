@@ -2,6 +2,7 @@ import type { Cents, Reason, Verdict } from "@noodle/domain";
 import { Card } from "@noodle/ui/components/card";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
+import { NativeSelect } from "@noodle/ui/components/native-select";
 import { cn } from "@noodle/ui/lib/utils";
 import { Check, Circle, CircleAlert, CircleCheck, Clock, Info, Minus } from "lucide-react";
 import {
@@ -15,7 +16,6 @@ import {
 import type { CommitmentRole } from "../affordability";
 import { formatMoney } from "../format";
 import { MoneyInput } from "./money-input";
-import { NativeSelect } from "./native-select";
 
 // The pieces of an Affordability Check's form and its answer. Quiet by design: colour marks only
 // the verdict, and Not yet stays neutral (it's "not yet", not an alarm).
