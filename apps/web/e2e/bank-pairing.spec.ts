@@ -165,7 +165,18 @@ test("connecting pairs with the card already there, and counts nothing twice", a
 
 	// Stopping keeps the card and all it has, kept by statements again.
 	await page.getByRole("link", { name: /^Costco Anywhere Visa, / }).click();
-	await page.getByRole("button", { name: "Stop bringing in" }).click();
+	// A connected Account's actions share a menu; a sheet opened from it gives focus back to it.
+	const actions = page.getByRole("button", { name: "More actions for Costco Anywhere Visa" });
+	await actions.click();
+	await page.getByRole("menuitem", { name: "Rename…" }).click();
+	await expect(page.getByRole("dialog").getByRole("textbox")).toBeFocused();
+	await page.keyboard.press("Escape");
+	await expect(actions).toBeFocused();
+	await page.keyboard.press("Enter");
+	await expect(page.getByRole("menuitem", { name: "Rename…" })).toBeFocused();
+	await page.keyboard.press("ArrowDown");
+	await expect(page.getByRole("menuitem", { name: "Stop bringing in…" })).toBeFocused();
+	await page.keyboard.press("Enter");
 	await page
 		.getByRole("alertdialog")
 		.getByRole("button", { name: "Stop bringing in from First Platypus Bank" })

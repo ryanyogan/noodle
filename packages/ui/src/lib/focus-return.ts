@@ -12,6 +12,17 @@ const firstField = (content: HTMLElement) =>
 	);
 
 /**
+ * The control focus should go back to for the next sheet or dialog that opens, when it isn't what
+ * has focus as that opens: a menu item that opens a sheet is gone by then, so the menu's button
+ * is named here instead (DropdownMenuItem does this).
+ */
+let nextOpener: HTMLElement | null = null;
+
+export function setNextOpener(element: HTMLElement | null) {
+	nextOpener = element;
+}
+
+/**
  * Focus in and out, as the APG dialog pattern has it: on desktop the first field takes focus when
  * a sheet or dialog opens (otherwise Radix focuses its first tabbable: a sheet's Close button, an
  * alert dialog's Cancel); on closing, focus goes back to what had it when it opened, the control
@@ -31,7 +42,9 @@ export function useFocusReturn({
 	return {
 		onOpenAutoFocus: (event: Event) => {
 			const active = document.activeElement;
-			opener.current = active instanceof HTMLElement && active !== document.body ? active : null;
+			opener.current =
+				nextOpener ?? (active instanceof HTMLElement && active !== document.body ? active : null);
+			nextOpener = null;
 			onOpenAutoFocus?.(event);
 			if (event.defaultPrevented || !window.matchMedia(FIRST_FIELD_QUERY).matches) return;
 			const field = event.currentTarget instanceof HTMLElement && firstField(event.currentTarget);

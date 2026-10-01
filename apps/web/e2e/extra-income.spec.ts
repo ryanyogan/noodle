@@ -91,7 +91,8 @@ test("income removed by mistake comes back with Undo", async ({ browser }) => {
 	await addIncome(page, "2,500", "Paycheck");
 	await expect(income(page)).toContainText("$2,500 received of $5,000 usual take-home pay");
 
-	await income(page).getByRole("button", { name: "Remove $2,500 of income" }).click();
+	await income(page).getByRole("button", { name: "Actions for $2,500 of income" }).click();
+	await page.getByRole("menuitem", { name: "Remove income" }).click();
 	await expect(income(page)).toContainText("$0 received");
 	const removed = page.getByRole("status").filter({ hasText: "$2,500 of income removed" });
 	await removed.getByRole("button", { name: "Undo" }).click();
@@ -119,7 +120,8 @@ test("income is added and removed on Plan › Income as on This Month", async ({
 	await page.goto(`/month/${month}`);
 	await expect(income(page)).toContainText("$2,500 received of $5,000");
 	await page.goto(`/plan/${month}/income`);
-	await income(page).getByRole("button", { name: "Remove $2,500 of income" }).click();
+	await income(page).getByRole("button", { name: "Actions for $2,500 of income" }).click();
+	await page.getByRole("menuitem", { name: "Remove income" }).click();
 	await expect(income(page).getByRole("listitem")).toHaveCount(0);
 	await page.context().close();
 });

@@ -1,6 +1,12 @@
 import { dayKeyAt, monthOfDay } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@noodle/ui/components/dropdown-menu";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
@@ -23,7 +29,7 @@ import {
 	useHydrated,
 	useRouteContext,
 } from "@tanstack/react-router";
-import { Pencil, Unplug } from "lucide-react";
+import { Ellipsis, Pencil, Unplug } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
 import { accountSource, accountSourceText } from "../../../account-source";
@@ -124,19 +130,37 @@ function AccountDetails({ account }: { account: AccountView }) {
 				title={account.name}
 				leading={<BackToAccounts />}
 				actions={
-					<>
-						{connected ? (
-							<Button
-								type="button"
-								variant="ghost"
-								size="sm"
-								disabled={!hydrated || unpair.isPending}
-								onClick={() => setSheet("unpair")}
-							>
-								<Unplug />
-								Stop bringing in
-							</Button>
-						) : null}
+					// One action is a button; with a Bank Connection's too, they share a menu.
+					connected ? (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									disabled={!hydrated}
+									aria-label={`More actions for ${account.name}`}
+								>
+									<Ellipsis />
+									<span aria-hidden="true">More</span>
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent>
+								<DropdownMenuItem onSelect={() => setSheet("rename")}>
+									<Pencil />
+									Rename…
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									variant="destructive"
+									disabled={unpair.isPending}
+									onSelect={() => setSheet("unpair")}
+								>
+									<Unplug />
+									Stop bringing in…
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					) : (
 						<Button
 							type="button"
 							variant="ghost"
@@ -147,7 +171,7 @@ function AccountDetails({ account }: { account: AccountView }) {
 							<Pencil />
 							Rename
 						</Button>
-					</>
+					)
 				}
 			/>
 			{sheet === "unpair" && connected ? (

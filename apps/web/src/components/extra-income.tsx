@@ -10,6 +10,12 @@ import {
 	parseDollars,
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@noodle/ui/components/dropdown-menu";
 import { Field } from "@noodle/ui/components/field";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { NativeSelect } from "@noodle/ui/components/native-select";
@@ -17,7 +23,7 @@ import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { cn } from "@noodle/ui/lib/utils";
 import { useHydrated } from "@tanstack/react-router";
-import { X } from "lucide-react";
+import { Ellipsis, Trash2 } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
 import { useIncome } from "../extra-income";
@@ -128,15 +134,24 @@ export function IncomeSection({
 								<div className="flex items-center gap-1">
 									<span className="tabular-nums">{formatMoney(entry.amount)}</span>
 									{canRecord ? (
-										<Button
-											variant="ghost"
-											size="icon"
-											disabled={!hydrated}
-											aria-label={`Remove ${formatMoney(entry.amount)} of income`}
-											onClick={() => onRemove(entry)}
-										>
-											<X className="size-4" />
-										</Button>
+										<DropdownMenu>
+											<DropdownMenuTrigger asChild>
+												<Button
+													variant="ghost"
+													size="icon"
+													disabled={!hydrated}
+													aria-label={`Actions for ${formatMoney(entry.amount)} of income`}
+												>
+													<Ellipsis className="size-4" />
+												</Button>
+											</DropdownMenuTrigger>
+											<DropdownMenuContent>
+												<DropdownMenuItem variant="destructive" onSelect={() => onRemove(entry)}>
+													<Trash2 />
+													Remove income
+												</DropdownMenuItem>
+											</DropdownMenuContent>
+										</DropdownMenu>
 									) : null}
 								</div>
 							}
