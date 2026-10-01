@@ -448,7 +448,7 @@ export function tablesFor(report: ReportData, names: Names): Record<string, Repo
 			return {
 				goals: {
 					title: "Goals",
-					columns: [text("Goal"), money("Saved"), money("Target"), text("Projected")],
+					columns: [text("Goal"), money("Saved or paid down"), money("Target"), text("Projected")],
 					rows: data.goals.map((g) => [
 						g.name,
 						g.saved,
@@ -1459,8 +1459,8 @@ function GoalsView({ data, tables, report }: ViewProps<"goals">) {
 	return (
 		<div className="grid gap-4 lg:gap-6">
 			<ChartCard
-				title="Set aside over time"
-				description="What each Goal had set aside at each month's end"
+				title="Set aside and paid down over time"
+				description="What each Goal had set aside, or paid down on its card or loan, at each month's end"
 				table={tables.goals}
 			>
 				<TrendLines
@@ -1497,7 +1497,7 @@ function GoalsView({ data, tables, report }: ViewProps<"goals">) {
 										{formatMoney(g.saved)}
 										<span className="text-sm font-normal text-muted-foreground">
 											{" "}
-											of {formatMoney(g.target)}
+											{g.kind === "payoff" ? "paid down of" : "of"} {formatMoney(g.target)}
 										</span>
 									</span>
 									<span className="block h-1.5 overflow-hidden rounded-full bg-surface-2">
@@ -1509,9 +1509,15 @@ function GoalsView({ data, tables, report }: ViewProps<"goals">) {
 									<span className="text-xs text-muted-foreground">
 										{g.completed
 											? "Completed"
-											: g.projected
-												? `On course for ${monthLabel(g.projected)}${late ? ", after its target date" : ""}`
-												: "No recent saving to project from"}
+											: g.kind === "payoff"
+												? g.saved >= g.target
+													? "Paid off"
+													: g.projected
+														? `Paid off by ${monthLabel(g.projected)} at this pace${late ? ", after its target date" : ""}`
+														: "Not coming down yet"
+												: g.projected
+													? `On course for ${monthLabel(g.projected)}${late ? ", after its target date" : ""}`
+													: "No recent saving to project from"}
 									</span>
 								</Card>
 							</Link>

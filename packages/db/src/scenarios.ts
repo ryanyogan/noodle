@@ -20,7 +20,7 @@ import { and, desc, eq, inArray, isNull, lte, type SQL, sql } from "drizzle-orm"
 import type { BatchItem } from "drizzle-orm/batch";
 import { alias } from "drizzle-orm/sqlite-core";
 import { commitmentAdd, commitmentEnd, inPlanFor, ownCommitment, termsLog } from "./commitments";
-import { goalInsert, goalLog } from "./goals";
+import { goalInsert, goalLog, targetFor } from "./goals";
 import type { Db } from "./index";
 import {
 	allowanceLog,
@@ -337,7 +337,7 @@ export async function applyChanges(
 					goalLog(db, target, isNull(goals.archivedAt)),
 					db
 						.update(goals)
-						.set({ targetCents: change.target, targetDate: change.targetDate })
+						.set({ targetCents: targetFor(change.target), targetDate: change.targetDate })
 						.where(
 							and(
 								eq(goals.id, change.goalId),

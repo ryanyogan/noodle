@@ -35,21 +35,27 @@ import {
 	defaultGrouping,
 	type Flow,
 	freeToSpendOver,
+	type GoalKind,
 	GROUPINGS,
 	type Grouping,
 	headlines,
 	incomeByMonth,
 	type MonthKey,
 	mergeCells,
+	monthKeyAt,
 	monthOfDay,
 	monthsIn,
+	owedAtEndOf,
 	type PlanRecords,
+	paidDownHistory,
+	paidDownOf,
 	periodKeys,
 	periodRange,
 	planForMonth,
 	planHabits,
 	planVsActual,
 	projectedCompletion,
+	projectedPayoff,
 	REPORT_PERIODS,
 	recurringSplit,
 	regroupMonthly,
@@ -198,6 +204,8 @@ export type ViewData =
 			kind: "goals";
 			goals: {
 				id: string;
+				/** A payoff Goal's `saved` and `history` are what it had paid down (ADR-0019). */
+				kind: GoalKind;
 				name: string;
 				target: Cents;
 				saved: Cents;
@@ -319,7 +327,17 @@ export const getReport = createServerFn({ method: "GET" })
 		const data =
 			request.area || request.month
 				? await areaData(context_)
-				: await viewData(context_, goalRecords.changes, goalRecords.goals);
+				: await viewData(
+						context_,
+						goalRecords.changes,
+						goalRecords.goals,
+						// What was owed on each card or loan, by the month it was recorded in.
+						goalRecords.owed.map((p) => ({
+							accountId: p.accountId,
+							amount: p.amount,
+							month: monthKeyAt(new Date(p.at), context.household.timeZone),
+						})),
+					);
 		return { asOf, range, compared, historyFrom, grouping, periods, meta, data };
 	});
 
@@ -385,6 +403,8 @@ async function viewData(
 	}[],
 	goals: {
 		id: string;
+		kind: GoalKind;
+		accountId: string;
 		name: string;
 		target: Cents;
 		targetDate: DayKey | null;
@@ -392,6 +412,7 @@ async function viewData(
 		completed: boolean;
 		archived: boolean;
 	}[],
+	owed: { accountId: string; month: MonthKey; amount: Cents }[],
 ): Promise<ViewData> {
 	const householdId = viewer.householdId;
 	const months = monthsIn(range);
@@ -593,23 +614,42 @@ async function viewData(
 				kind: "goals",
 				goals: goals
 					.filter((g) => !g.archived && g.fromMonth <= last)
-					.map((g) => ({
-						id: g.id,
-						name: g.name,
-						target: g.target,
-						saved: setAsideOf(
-							g.id,
-							goalChanges.filter((c) => c.month <= last),
-						),
-						targetDate: g.targetDate,
-						completed: g.completed,
-						history: setAsideHistory(g.id, goalChanges, months),
-						projected: projectedCompletion(
-							g,
-							goalChanges.filter((c) => c.month <= last),
-							last,
-						),
-					})),
+					.map((g) => {
+						if (g.kind === "payoff") {
+							// Paid down, from what was owed at each month's end (ADR-0019).
+							const own = owed.filter((p) => p.accountId === g.accountId);
+							const owedThen = owedAtEndOf(own, last);
+							return {
+								id: g.id,
+								kind: g.kind,
+								name: g.name,
+								target: g.target,
+								saved: paidDownOf(g.target, owedThen),
+								targetDate: g.targetDate,
+								completed: g.completed,
+								history: paidDownHistory(g, own, months),
+								projected: projectedPayoff(g, owedThen, last),
+							};
+						}
+						return {
+							id: g.id,
+							kind: g.kind,
+							name: g.name,
+							target: g.target,
+							saved: setAsideOf(
+								g.id,
+								goalChanges.filter((c) => c.month <= last),
+							),
+							targetDate: g.targetDate,
+							completed: g.completed,
+							history: setAsideHistory(g.id, goalChanges, months),
+							projected: projectedCompletion(
+								g,
+								goalChanges.filter((c) => c.month <= last),
+								last,
+							),
+						};
+					}),
 			};
 		}
 		case "income": {

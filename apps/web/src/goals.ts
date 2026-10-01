@@ -2,12 +2,16 @@ import type { AccountRecord, GoalChange, GoalRecord } from "@noodle/db";
 import {
 	type AccountKind,
 	accountBalance,
+	type BalanceUpdate,
 	type Cents,
+	canPayOff,
 	type DayKey,
+	type GoalKind,
 	type GoalProgress,
 	goalProgress,
 	holdsMoney,
 	type MonthKey,
+	owedFor,
 	splitAccount,
 } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
@@ -30,6 +34,7 @@ import {
 	fundGoal,
 	type GoalsData,
 	renameAccount,
+	restartPayoffGoal,
 	setEmergencyGoal,
 	spendGoal,
 	undoGoalFunding,
@@ -58,14 +63,21 @@ export type AccountView = AccountRecord & {
 	unclaimed: Cents | null;
 	/** How much more what Goals have set aside are than the balance, or 0. */
 	overClaimedBy: Cents;
+	/** A credit card or loan's active payoff Goal, if it has one (ADR-0019). */
+	payoffGoal: GoalRecord | null;
 };
 
 export type GoalView = GoalRecord & {
 	state: GoalState;
 	account: AccountRecord | null;
 	progress: GoalProgress;
-	/** Every change to what it has set aside, newest first. */
+	/** Every change to what it has set aside (a payoff Goal's: its funding), newest first. */
 	changes: GoalChange[];
+	/**
+	 * A payoff Goal's card or loan: what's owed now (null without a balance), and every balance
+	 * since the one before the Goal was added, newest first. Null for a savings Goal.
+	 */
+	payoff: { owed: Cents | null; history: BalanceUpdate[] } | null;
 };
 
 export type GoalsView = {
@@ -87,7 +99,12 @@ export function accountView(data: GoalsData, account: AccountRecord): AccountVie
 		data.withdrawals.filter((w) => w.accountId === account.id),
 	);
 	const goals = data.goals.filter((g) => g.accountId === account.id);
-	const split = splitAccount({ balance, goals, changes: data.changes });
+	// A payoff Goal sets nothing aside (ADR-0019).
+	const split = splitAccount({
+		balance,
+		goals: goals.filter((g) => g.kind === "save"),
+		changes: data.changes,
+	});
 	return {
 		...account,
 		holdsMoney: holdsMoney(account.kind),
@@ -99,17 +116,42 @@ export function accountView(data: GoalsData, account: AccountRecord): AccountVie
 		earmarked: split.earmarked,
 		unclaimed: split.unclaimed,
 		overClaimedBy: split.overClaimedBy,
+		payoffGoal:
+			goals.find((g) => g.kind === "payoff" && !g.completed && !g.archived) ??
+			// Otherwise the latest one paid off, so the Account still links to it.
+			[...goals].reverse().find((g) => g.kind === "payoff" && g.completed && !g.archived) ??
+			null,
 	};
 }
 
 export function goalView(data: GoalsData, goal: GoalRecord): GoalView {
+	const owed = owedFor(goal, data.accounts);
 	return {
 		...goal,
 		state: goalState(goal),
 		account: data.accounts.find((a) => a.id === goal.accountId) ?? null,
-		progress: goalProgress(goal, data.changes, data.month),
+		progress: goalProgress({ ...goal, owed }, data.changes, data.month),
 		changes: data.changes.filter((c) => c.goalId === goal.id).reverse(),
+		payoff: goal.kind === "payoff" ? { owed, history: owedHistory(data, goal) } : null,
 	};
+}
+
+/**
+ * What was owed on a payoff Goal's card or loan over time, newest first: every balance from the
+ * last one before the Goal was added (what it started from) on.
+ */
+function owedHistory(data: GoalsData, goal: GoalRecord): BalanceUpdate[] {
+	const points = data.owed.filter((p) => p.accountId === goal.accountId);
+	// By UTC day, the same on the server and in the browser.
+	const firstOfMonth = `${goal.fromMonth}-01`;
+	let startsAt = 0;
+	points.forEach((p, i) => {
+		if (new Date(p.at).toISOString().slice(0, 10) < firstOfMonth) startsAt = i;
+	});
+	return points
+		.slice(startsAt)
+		.map(({ amount, at }) => ({ amount, at }))
+		.reverse();
 }
 
 export const goalsView = (data: GoalsData): GoalsView => ({
@@ -130,6 +172,13 @@ export const accountKindName: Record<AccountKind, string> = {
 	"credit-card": "Credit card",
 	loan: "Loan",
 };
+
+/** A credit card or loan can be paid off with a payoff Goal. */
+export { canPayOff };
+
+/** "On track", "Behind", …; a payoff Goal that's reached is "Paid off". */
+export const statusNameOf = (goal: { kind: GoalKind }, status: GoalProgress["status"]) =>
+	goal.kind === "payoff" && status === "reached" ? "Paid off" : goalStatusName[status];
 
 /** "On track", "Behind", … */
 export const goalStatusName: Record<GoalProgress["status"], string> = {
@@ -276,15 +325,25 @@ export const withAccountName = (
 
 export type BalanceVariables = { balanceId: string; accountId: string; amountCents: Cents };
 
-export const withBalance = (data: GoalsData, v: BalanceVariables): GoalsData => ({
-	...data,
-	accounts: data.accounts.map((a) =>
-		a.id === v.accountId ? { ...a, latestBalance: { amount: v.amountCents, at: Date.now() } } : a,
-	),
-});
+export const withBalance = (data: GoalsData, v: BalanceVariables): GoalsData => {
+	const at = Date.now();
+	const account = data.accounts.find((a) => a.id === v.accountId);
+	return {
+		...data,
+		accounts: data.accounts.map((a) =>
+			a.id === v.accountId ? { ...a, latestBalance: { amount: v.amountCents, at } } : a,
+		),
+		owed:
+			account && canPayOff(account.kind)
+				? [...data.owed, { accountId: v.accountId, amount: v.amountCents, at }]
+				: data.owed,
+	};
+};
 
 export type AddGoalVariables = {
 	goalId: string;
+	/** A payoff Goal's target is what's owed now; the server reads it again (ADR-0019). */
+	kind: GoalKind;
 	accountId: string;
 	name: string;
 	targetCents: Cents;
@@ -303,6 +362,7 @@ export const withGoal = (data: GoalsData, v: AddGoalVariables): GoalsData =>
 					...data.goals,
 					{
 						id: v.goalId,
+						kind: v.kind,
 						accountId: v.accountId,
 						name: v.name,
 						target: v.targetCents,
@@ -343,7 +403,8 @@ export const withGoalDetails = (data: GoalsData, v: UpdateGoalVariables): GoalsD
 	mapGoal(data, v.goalId, (g) => ({
 		...g,
 		name: v.name,
-		target: v.targetCents,
+		// A payoff Goal's target stays what was owed (ADR-0019).
+		target: g.kind === "payoff" ? g.target : v.targetCents,
 		targetDate: v.targetDate,
 	}));
 
@@ -405,6 +466,19 @@ export const useAddGoal = (callbacks: ChangeCallbacks<AddGoalVariables> = {}) =>
 		save: (data: AddGoalVariables) => refuseUnlessOk(addGoal({ data })),
 		apply: withGoal,
 		...callbacks,
+	});
+
+/** Starts a payoff Goal again from what's owed now, with its schedule from this month. */
+export const useRestartPayoffGoal = () =>
+	useGoalChange({
+		save: (data: { goalId: string }) => refuseUnlessOk(restartPayoffGoal({ data })),
+		apply: (data, { goalId }): GoalsData => {
+			const goal = data.goals.find((g) => g.id === goalId);
+			const owed = goal ? owedFor(goal, data.accounts) : null;
+			return owed === null || owed <= 0
+				? data
+				: mapGoal(data, goalId, (g) => ({ ...g, target: owed, fromMonth: data.month }));
+		},
 	});
 
 export const useUpdateGoal = () =>

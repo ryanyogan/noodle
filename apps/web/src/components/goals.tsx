@@ -2,7 +2,9 @@ import {
 	ACCOUNT_KINDS,
 	type AccountKind,
 	type Cents,
+	canPayOff,
 	type DayKey,
+	type GoalKind,
 	parseDollars,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
@@ -24,8 +26,10 @@ import {
 	accountKindName,
 	type GoalView,
 	goalStatusName,
+	statusNameOf,
 } from "../goals";
 import { NativeSelect } from "./native-select";
+import { TermHelp } from "./term-help";
 
 /** A Goal page's way back to Goals. */
 export function BackToGoals() {
@@ -153,7 +157,7 @@ export function GoalSummary({ goal }: { goal: GoalView }) {
 	if (goal.state === "archived") {
 		parts.push("Archived");
 	} else if (progress.status === "reached") {
-		parts.push(goalStatusName.reached);
+		parts.push(statusNameOf(goal, "reached"));
 	} else if (goal.state === "completed") {
 		parts.push("Completed");
 	} else {
@@ -338,39 +342,286 @@ function AccountFields({
 }
 
 /**
- * Adds a Goal: a name, a target, an optional target date, the checking or savings Account it's
- * set aside in, and what's already set aside there for it (claimed from not set aside money).
+ * Adds a Goal. It starts with what for: saving up (a name, a target, an optional target date, the
+ * checking or savings Account it's set aside in, and what's already set aside there) or paying off
+ * a credit card or loan (ADR-0019: the card or loan, whose balance now is the target, a name and
+ * an optional date). `kind` and `accountId` start it on one; `lockKind` hides the choice.
  */
 export function AddGoalSheet({
 	open,
 	onOpenChange,
 	accounts,
+	goals,
 	today,
 	onAdd,
+	kind: initialKind = "save",
+	accountId,
+	lockKind = false,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	/** Every Account; only those that hold money are offered. */
+	/** Every Account; each kind of Goal offers the ones it can use. */
 	accounts: AccountView[];
+	/** Every Goal, so a card or loan already being paid off isn't offered again. */
+	goals: Pick<GoalView, "kind" | "accountId" | "state">[];
 	today: DayKey;
 	onAdd: (goal: AddGoalVariables) => void;
+	kind?: GoalKind;
+	accountId?: string;
+	lockKind?: boolean;
 }) {
 	return (
 		<Sheet open={open} onOpenChange={onOpenChange}>
 			{open ? (
 				<SheetContent>
-					<SheetHeader
-						title="Add a Goal"
-						description="Money set aside in an Account for something ahead, funded a little each month."
+					<AddGoalChoice
+						accounts={accounts}
+						goals={goals}
+						today={today}
+						onAdd={onAdd}
+						initialKind={initialKind}
+						accountId={accountId}
+						lockKind={lockKind}
 					/>
+				</SheetContent>
+			) : null}
+		</Sheet>
+	);
+}
+
+function AddGoalChoice({
+	accounts,
+	goals,
+	today,
+	onAdd,
+	initialKind,
+	accountId,
+	lockKind,
+}: {
+	accounts: AccountView[];
+	goals: Pick<GoalView, "kind" | "accountId" | "state">[];
+	today: DayKey;
+	onAdd: (goal: AddGoalVariables) => void;
+	initialKind: GoalKind;
+	accountId?: string;
+	lockKind: boolean;
+}) {
+	const [kind, setKind] = useState<GoalKind>(initialKind);
+	// A card or loan with an active payoff Goal is already being paid off.
+	const payingOff = new Set(
+		goals.filter((g) => g.kind === "payoff" && g.state === "active").map((g) => g.accountId),
+	);
+	return (
+		<>
+			<SheetHeader
+				title={kind === "payoff" ? "Pay off a card or loan" : "Add a Goal"}
+				description={
+					kind === "payoff"
+						? "Plan extra payments each month from Free to Spend, and watch what’s owed come down to $0."
+						: "Money set aside in an Account for something ahead, funded a little each month."
+				}
+			/>
+			<div className="grid gap-4">
+				{lockKind ? null : <GoalKindField kind={kind} onKindChange={setKind} />}
+				{kind === "payoff" ? (
+					<PayoffGoalForm
+						accounts={accounts.filter((a) => canPayOff(a.kind) && !payingOff.has(a.id))}
+						initialAccountId={accountId}
+						today={today}
+						onAdd={onAdd}
+					/>
+				) : (
 					<AddGoalForm
 						accounts={accounts.filter((a) => a.holdsMoney)}
 						today={today}
 						onAdd={onAdd}
 					/>
-				</SheetContent>
-			) : null}
-		</Sheet>
+				)}
+			</div>
+		</>
+	);
+}
+
+/** Save up, or pay off a card or loan: two options side by side. */
+function GoalKindField({
+	kind,
+	onKindChange,
+}: {
+	kind: GoalKind;
+	onKindChange: (kind: GoalKind) => void;
+}) {
+	const hydrated = useHydrated();
+	const name = useId();
+	const options = [
+		{ kind: "save", label: "Save up" },
+		{ kind: "payoff", label: "Pay off a card or loan" },
+	] as const;
+	return (
+		<fieldset className="grid gap-1.5">
+			<legend className="mb-1.5 flex items-center gap-1 text-sm font-medium">
+				What’s it for?
+				<TermHelp term="payoff-goal" />
+			</legend>
+			<div className="grid grid-cols-2 gap-1 rounded-lg bg-surface-2 p-0.5">
+				{options.map((option) => (
+					<label
+						key={option.kind}
+						className={cn(
+							"relative grid min-h-9 cursor-pointer place-items-center rounded-md px-2 py-1 text-center text-[13px] font-medium text-muted-foreground",
+							"transition-colors duration-(--duration-fast) ease-standard",
+							"has-checked:bg-card has-checked:text-foreground has-checked:shadow-card",
+							"has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ring",
+						)}
+					>
+						<input
+							type="radio"
+							name={name}
+							value={option.kind}
+							checked={kind === option.kind}
+							disabled={!hydrated}
+							onChange={() => onKindChange(option.kind)}
+							className="absolute inset-0 size-full cursor-pointer appearance-none opacity-0"
+						/>
+						<span>{option.label}</span>
+					</label>
+				))}
+			</div>
+		</fieldset>
+	);
+}
+
+/**
+ * A payoff Goal's fields: the card or loan (its balance now is the target), a name and an
+ * optional target date. A card or loan with no balance, or owing nothing, can't be picked.
+ */
+function PayoffGoalForm({
+	accounts,
+	initialAccountId,
+	today,
+	onAdd,
+}: {
+	/** The credit cards and loans not already being paid off. */
+	accounts: AccountView[];
+	initialAccountId?: string;
+	today: DayKey;
+	onAdd: (goal: AddGoalVariables) => void;
+}) {
+	const hydrated = useHydrated();
+	const id = useId();
+	const owing = accounts.filter((a) => a.balance !== null && a.balance > 0);
+	const [accountId, setAccountId] = useState(
+		owing.find((a) => a.id === initialAccountId)?.id ?? owing[0]?.id ?? "",
+	);
+	const [name, setName] = useState<string | null>(null);
+	const [targetDate, setTargetDate] = useState("");
+	const account = owing.find((a) => a.id === accountId);
+	const suggested = account ? `Pay off ${account.name}`.slice(0, 40) : "";
+	const goalName = (name ?? suggested).trim();
+	const dateInvalid = targetDate !== "" && targetDate < today;
+	const valid = account !== undefined && goalName !== "" && !dateInvalid;
+
+	if (owing.length === 0) {
+		const noBalance = accounts.find((a) => a.balance === null);
+		return (
+			<div className="grid justify-items-start gap-3 text-sm text-muted-foreground">
+				<p>
+					{accounts.length === 0
+						? "Add the credit card or loan on Accounts first, with what’s owed on it today."
+						: noBalance
+							? `Add what’s owed on ${noBalance.name} first, on its Account page.`
+							: "None of your cards or loans owe anything right now."}
+				</p>
+				<Button variant="outline" size="sm" asChild>
+					{noBalance ? (
+						<Link to="/accounts/$accountId" params={{ accountId: noBalance.id }}>
+							Go to {noBalance.name}
+						</Link>
+					) : (
+						<Link to="/accounts">Go to Accounts</Link>
+					)}
+				</Button>
+			</div>
+		);
+	}
+
+	function onSubmit(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		if (!valid || !account || account.balance === null) return;
+		onAdd({
+			goalId: ulid(),
+			kind: "payoff",
+			accountId: account.id,
+			name: goalName,
+			targetCents: account.balance,
+			targetDate: targetDate === "" ? null : (targetDate as DayKey),
+			claimId: ulid(),
+			claimCents: 0,
+		});
+	}
+
+	return (
+		<form onSubmit={onSubmit} className="grid gap-4">
+			<Field
+				label="Card or loan"
+				htmlFor={`${id}-account`}
+				hint={
+					account?.balance != null ? (
+						<>
+							<span className="font-medium text-foreground tabular-nums">
+								{formatMoney(account.balance)}
+							</span>{" "}
+							owed today. That’s the target: the Goal is done when it’s $0.
+						</>
+					) : undefined
+				}
+			>
+				<NativeSelect
+					id={`${id}-account`}
+					disabled={!hydrated}
+					value={accountId}
+					onChange={(event) => setAccountId(event.currentTarget.value)}
+				>
+					{owing.map((a) => (
+						<option key={a.id} value={a.id}>
+							{a.name}
+						</option>
+					))}
+				</NativeSelect>
+			</Field>
+			<div className="grid gap-4 sm:grid-cols-2">
+				<Field label="Name" htmlFor={`${id}-name`}>
+					<Input
+						id={`${id}-name`}
+						maxLength={40}
+						autoComplete="off"
+						value={name ?? suggested}
+						aria-invalid={goalName === "" || undefined}
+						onChange={(event) => setName(event.currentTarget.value)}
+					/>
+				</Field>
+				<Field
+					label="Paid off by"
+					htmlFor={`${id}-date`}
+					hint={dateInvalid ? "Pick today or a day ahead." : "Optional."}
+				>
+					<Input
+						id={`${id}-date`}
+						type="date"
+						min={today}
+						value={targetDate}
+						aria-invalid={dateInvalid || undefined}
+						onChange={(event) => setTargetDate(event.currentTarget.value)}
+					/>
+				</Field>
+			</div>
+			<p className="text-[13px] text-muted-foreground">
+				Each month you plan extra payments from Free to Spend. A regular payment you already make,
+				like a loan’s monthly payment, stays a Commitment; this is on top of it.
+			</p>
+			<Button type="submit" disabled={!hydrated || !valid}>
+				Add Goal
+			</Button>
+		</form>
 	);
 }
 
@@ -406,6 +657,7 @@ function AddGoalForm({
 		if (!valid || targetCents === null || claimCents === null || !account) return;
 		onAdd({
 			goalId: ulid(),
+			kind: "save",
 			accountId: account.id,
 			name: name.trim(),
 			targetCents,
@@ -647,7 +899,11 @@ export function FundGoalSheet({
 			open={goal !== null}
 			onOpenChange={onOpenChange}
 			title={`Fund ${goal?.name ?? "Goal"}`}
-			description={`Plans some of this month’s Free to Spend for ${goal?.name ?? "the Goal"}, and sets it aside.`}
+			description={
+				goal?.kind === "payoff"
+					? `Plans extra payments toward paying down ${goal.account?.name ?? "the card"} from this month’s Free to Spend. Then pay it from checking as usual.`
+					: `Plans some of this month’s Free to Spend for ${goal?.name ?? "the Goal"}, and sets it aside.`
+			}
 			initialCents={left}
 			submitLabel="Fund"
 			check={(cents) =>

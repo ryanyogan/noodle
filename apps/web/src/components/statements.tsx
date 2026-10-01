@@ -1,5 +1,6 @@
 import type { ImportRecord } from "@noodle/db";
 import {
+	type Cents,
 	type ClosingBalance,
 	type CsvMapping,
 	closingBalanceFor,
@@ -47,19 +48,45 @@ export function latestClosingBalance(imports: ImportRecord[]): ClosingBalance | 
 
 /**
  * "Your latest statement ends at $X on Sep 20", or for a card or loan "ends owing $X"
- * (closingBalanceFor). The hand-entered balance is never changed from it.
+ * (closingBalanceFor). The balance is only changed from it when a Parent chooses to (`onUse`,
+ * offered when the statement is from the day the balance was entered or later, and says something else).
  */
-export function StatementBalanceNote({ account }: { account: AccountView }) {
+export function StatementBalanceNote({
+	account,
+	onUse,
+}: {
+	account: AccountView;
+	onUse?: (amountCents: Cents) => void;
+}) {
+	const hydrated = useHydrated();
 	const { imports } = useSuspenseQuery(accountImportsQuery(account.id)).data;
+	const { timeZone } = useRouteContext({ from: "/_authed/_household" }).household;
 	const closing = latestClosingBalance(imports);
 	if (!closing) return null;
 	const { owing, amount } = closingBalanceFor(closing, account.holdsMoney);
+	const newer =
+		account.latestBalance === null ||
+		closing.date >= dayKeyAt(new Date(account.latestBalance.at), timeZone);
+	const offer = onUse && newer && amount >= 0 && amount !== account.balance;
 	return (
-		<p className="text-sm text-muted-foreground">
-			Your latest statement ends {owing ? "owing" : "at"}{" "}
-			<span className="font-medium text-foreground tabular-nums">{formatMoney(amount)}</span> on{" "}
-			<span className="whitespace-nowrap">{shortDay(closing.date)}.</span>
-		</p>
+		<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+			<p className="text-sm text-muted-foreground">
+				Your latest statement ends {owing ? "owing" : "at"}{" "}
+				<span className="font-medium text-foreground tabular-nums">{formatMoney(amount)}</span> on{" "}
+				<span className="whitespace-nowrap">{shortDay(closing.date)}.</span>
+			</p>
+			{offer ? (
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					disabled={!hydrated}
+					onClick={() => onUse(amount)}
+				>
+					Use {formatMoney(amount)} {owing ? "as what’s owed" : "as the balance"}
+				</Button>
+			) : null}
+		</div>
 	);
 }
 

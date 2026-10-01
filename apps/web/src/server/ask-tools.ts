@@ -17,6 +17,7 @@ import {
 	changePreset,
 	type DayKey,
 	dayKeyAt,
+	type GoalKind,
 	goalProgress,
 	type MonthKey,
 	moneyFreed,
@@ -29,10 +30,11 @@ import {
 	planAhead,
 	planForMonth,
 	project,
+	projectionGoalOf,
 	type ScenarioChange,
-	setAsideOf,
 	typicalFreeToSpend,
 	type Verdict,
+	withOwed,
 } from "@noodle/domain";
 import { z } from "zod";
 import { formatMoney, monthName } from "../format";
@@ -290,24 +292,15 @@ const verdictName: Record<Verdict, string> = {
 	"not-yet": "Not yet",
 };
 
-/** The Goals still being saved for, as a projection starts them this month. */
+/** The Goals still being funded, as a projection starts them this month (payoff Goals too). */
 function projectionGoals(
 	records: GoalRecords,
 	month: MonthKey,
-): (ProjectionGoal & { name: string })[] {
-	return records.goals
-		.filter((g) => !g.completed && !g.archived)
-		.map((g) => ({
-			id: g.id,
-			name: g.name,
-			target: g.target,
-			targetDate: g.targetDate,
-			saved: setAsideOf(g.id, records.changes),
-			fundedThisMonth: setAsideOf(
-				g.id,
-				records.changes.filter((c) => c.kind === "funding" && c.month === month),
-			),
-		}));
+): (ProjectionGoal & { name: string; kind: GoalKind })[] {
+	return withOwed(
+		records.goals.filter((g) => !g.completed && !g.archived),
+		records.accounts,
+	).map((g) => ({ ...projectionGoalOf(g, records.changes, month), name: g.name, kind: g.kind }));
 }
 
 /** The next year of the Plan, ready to project, with the Goals it funds. */
@@ -494,8 +487,14 @@ function uniqueById<T extends { id: string }>(items: T[]): T[] {
 async function goals(ctx: AskContext): Promise<ToolOutcome> {
 	const month = currentMonth(ctx);
 	const records = await loadGoals(ctx.db, viewerOf(ctx));
-	const active = records.goals.filter((g) => !g.completed && !g.archived);
-	const rows = active.map((g) => ({ goal: g, progress: goalProgress(g, records.changes, month) }));
+	const active = withOwed(
+		records.goals.filter((g) => !g.completed && !g.archived),
+		records.accounts,
+	);
+	const all = active.map((g) => ({ goal: g, progress: goalProgress(g, records.changes, month) }));
+	// Payoff Goals pay down a card or loan (ADR-0019): what's owed and paid down, not set aside.
+	const rows = all.filter((r) => r.goal.kind === "save");
+	const payoffs = all.filter((r) => r.goal.kind === "payoff");
 	const saved = rows.reduce((sum, r) => sum + r.progress.saved, 0);
 	const statusName = {
 		reached: "reached",
@@ -505,12 +504,25 @@ async function goals(ctx: AskContext): Promise<ToolOutcome> {
 		saving: "saving, with no date",
 	} as const;
 	return {
-		summary:
-			rows.length === 0
-				? "There are no active Goals."
-				: `${rows.length} active Goal${rows.length === 1 ? "" : "s"} with ${money(saved)} set aside: ${rows
+		summary: [
+			rows.length === 0 && payoffs.length === 0 ? "There are no active Goals." : null,
+			rows.length > 0
+				? `${rows.length} active Goal${rows.length === 1 ? "" : "s"} with ${money(saved)} set aside: ${rows
 						.map((r) => `${r.goal.name} ${money(r.progress.saved)} of ${money(r.goal.target)}`)
-						.join("; ")}.`,
+						.join("; ")}.`
+				: null,
+			payoffs.length > 0
+				? `Paying off: ${payoffs
+						.map((r) =>
+							r.progress.status === "reached"
+								? `${r.goal.name} is paid off`
+								: `${r.goal.name} has paid down ${money(r.progress.saved)} of ${money(r.goal.target)}, with ${money(r.progress.remaining)} still owed`,
+						)
+						.join("; ")}.`
+				: null,
+		]
+			.filter((line) => line !== null)
+			.join(" "),
 		data: {
 			goals: rows.map(({ goal, progress }) => ({
 				name: goal.name,
@@ -521,12 +533,27 @@ async function goals(ctx: AskContext): Promise<ToolOutcome> {
 				neededEachMonth: progress.monthly === null ? undefined : money(progress.monthly),
 				status: statusName[progress.status],
 			})),
+			payingOff: payoffs.map(({ goal, progress }) => ({
+				name: goal.name,
+				owedWhenAdded: money(goal.target),
+				paidDown: money(progress.saved),
+				stillOwed: money(progress.remaining),
+				targetDate: goal.targetDate,
+				neededEachMonth: progress.monthly === null ? undefined : money(progress.monthly),
+				status: progress.status === "reached" ? "paid off" : statusName[progress.status],
+			})),
 			completed: records.goals.filter((g) => g.completed && !g.archived).map((g) => g.name),
 		},
-		facts: rows.map(({ goal, progress }) => ({
-			label: `${goal.name}, set aside toward ${money(goal.target)}`,
-			amount: progress.saved,
-		})),
+		facts: [
+			...rows.map(({ goal, progress }) => ({
+				label: `${goal.name}, set aside toward ${money(goal.target)}`,
+				amount: progress.saved,
+			})),
+			...payoffs.map(({ goal, progress }) => ({
+				label: `${goal.name}, still owed`,
+				amount: progress.remaining,
+			})),
+		],
 		links: [{ kind: "goals" }],
 	};
 }
@@ -536,7 +563,13 @@ async function affordabilityCheck(
 	args: { price: Cents; name?: string; by?: MonthKey; goal?: string },
 ): Promise<ToolOutcome> {
 	const { month, ahead, goals } = await yearAhead(ctx);
-	const goal = args.goal ? findByName(goals, args.goal) : undefined;
+	// A payoff Goal holds no money to spend (ADR-0019).
+	const goal = args.goal
+		? findByName(
+				goals.filter((g) => g.kind === "save"),
+				args.goal,
+			)
+		: undefined;
 	const saved = goal?.saved ?? 0;
 	const monthly = Math.max(0, typicalFreeToSpend(project(ahead)));
 	const check = anythingCheck({ price: args.price, saved, monthly, month });

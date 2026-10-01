@@ -174,7 +174,7 @@ function SetUp({ state, current }: { state: PlanState; current: boolean }) {
 						description={
 							activeGoals.length > 0
 								? count(activeGoals.length, "Goal")
-								: "Money set aside for something ahead, funded from Free to Spend."
+								: "Save for something ahead, or pay down a card or loan, funded from Free to Spend."
 						}
 						action={<StepLink to="/plan/$month/goals" month={month} label="Add Goals" />}
 					/>

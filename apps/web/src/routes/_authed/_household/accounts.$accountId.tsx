@@ -11,7 +11,13 @@ import { createFileRoute, Link, notFound, useHydrated } from "@tanstack/react-ro
 import { Pencil } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
-import { AmountSheet, BackToAccounts, LinkRow } from "../../../components/goals";
+import {
+	AddGoalSheet,
+	AmountSheet,
+	BackToAccounts,
+	GoalProgressBar,
+	LinkRow,
+} from "../../../components/goals";
 import { SaveFailed } from "../../../components/plan-editing";
 import { StatementBalanceNote, StatementsSection } from "../../../components/statements";
 import { TermHelp } from "../../../components/term-help";
@@ -19,6 +25,7 @@ import { formatMoney } from "../../../format";
 import {
 	type AccountView,
 	accountKindName,
+	useAddGoal,
 	useGoals,
 	useRenameAccount,
 	useUpdateAccountBalance,
@@ -117,7 +124,12 @@ function AccountDetails({ account }: { account: AccountView }) {
 								already taken off.
 							</p>
 						) : null}
-						<StatementBalanceNote account={account} />
+						<StatementBalanceNote
+							account={account}
+							onUse={(amountCents) =>
+								updateBalance.mutate({ balanceId: ulid(), accountId: account.id, amountCents })
+							}
+						/>
 						{account.holdsMoney && account.balance !== null ? <SplitBar account={account} /> : null}
 					</div>
 					{account.overClaimedBy > 0 ? (
@@ -181,10 +193,7 @@ function AccountDetails({ account }: { account: AccountView }) {
 						</List>
 					</Section>
 				) : (
-					<Card className="p-(--card-pad) text-sm text-muted-foreground">
-						A {accountKindName[account.kind].toLowerCase()} is tracked by what’s owed on it. Goals
-						are set aside in a checking or savings Account.
-					</Card>
+					<PayOffSection account={account} />
 				)}
 				<StatementsSection account={account} />
 			</div>
@@ -227,6 +236,93 @@ function AccountDetails({ account }: { account: AccountView }) {
 				) : null}
 			</Sheet>
 		</>
+	);
+}
+
+/**
+ * A credit card or loan's plan to pay it off (ADR-0019): its payoff Goal's progress, linking to
+ * it, or "Plan to pay this off", which adds one with what's owed now as its target.
+ */
+function PayOffSection({ account }: { account: AccountView }) {
+	const hydrated = useHydrated();
+	const { goals, asOf, accounts } = useGoals();
+	const addGoal = useAddGoal();
+	const [adding, setAdding] = useState(false);
+	const goal = goals.find((g) => g.id === account.payoffGoal?.id);
+	const active = goal?.state === "active";
+	const owes = account.balance !== null && account.balance > 0;
+	return (
+		<Section aria-labelledby="account-pay-off">
+			<SectionHeader
+				id="account-pay-off"
+				title="Paying it off"
+				help={<TermHelp term="payoff-goal" />}
+			/>
+			{goal ? (
+				<List>
+					<LinkRow
+						link={(props) => <Link to="/goals/$goalId" params={{ goalId: goal.id }} {...props} />}
+						label={`${goal.name}, paid down ${formatMoney(goal.progress.saved)} of ${formatMoney(goal.target)}`}
+						title={goal.name}
+						meta={
+							goal.state === "completed"
+								? `Completed · paid down ${formatMoney(goal.target)}`
+								: goal.progress.status === "reached"
+									? "Paid off · complete it on its page"
+									: `Paid down ${formatMoney(goal.progress.saved)} of ${formatMoney(goal.target)}${goal.progress.monthly ? ` · ${formatMoney(goal.progress.monthly)} a month` : ""}`
+						}
+						trailing={
+							active && goal.progress.status !== "reached" ? (
+								<>
+									<span className="text-sm font-semibold tabular-nums">
+										{formatMoney(goal.progress.remaining)}
+									</span>
+									<span className="text-xs text-muted-foreground">still owed</span>
+								</>
+							) : undefined
+						}
+						below={active ? <GoalProgressBar share={goal.progress.share} /> : undefined}
+					/>
+				</List>
+			) : null}
+			{active ? null : (
+				<Card className="grid justify-items-start gap-3 p-(--card-pad) text-sm text-muted-foreground">
+					<p>
+						{owes
+							? `Plan extra payments on ${account.name} each month from Free to Spend, and watch what’s owed come down to $0.`
+							: account.balance === null
+								? "Add what’s owed on it first. Then you can plan to pay it off."
+								: "Nothing’s owed on it now."}
+					</p>
+					{owes ? (
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							disabled={!hydrated}
+							onClick={() => setAdding(true)}
+						>
+							Plan to pay this off
+						</Button>
+					) : null}
+					<SaveFailed change={addGoal} />
+				</Card>
+			)}
+			<AddGoalSheet
+				open={adding}
+				onOpenChange={setAdding}
+				accounts={accounts}
+				goals={goals}
+				today={asOf}
+				kind="payoff"
+				accountId={account.id}
+				lockKind
+				onAdd={(variables) => {
+					setAdding(false);
+					addGoal.mutate(variables);
+				}}
+			/>
+		</Section>
 	);
 }
 

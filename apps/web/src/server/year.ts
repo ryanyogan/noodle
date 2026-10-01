@@ -21,7 +21,8 @@ import {
 	monthOfDay,
 	type PlanWarning,
 	planHealth,
-	setAsideOf,
+	projectionGoalOf,
+	withOwed,
 	type YearMonth,
 	yearGrid,
 } from "@noodle/domain";
@@ -46,7 +47,12 @@ export type YearData = {
 } | null;
 
 /** The active Goals, as they stand now. */
-const activeGoals = (goals: GoalRecords) => goals.goals.filter((g) => !g.completed && !g.archived);
+/** The active Goals, each payoff Goal with what's owed on its card or loan now. */
+const activeGoals = (goals: GoalRecords) =>
+	withOwed(
+		goals.goals.filter((g) => !g.completed && !g.archived),
+		goals.accounts,
+	);
 
 const firstOf = (month: MonthKey) => `${month}-01` as DayKey;
 
@@ -97,16 +103,7 @@ export const getYear = createServerFn({ method: "GET" })
 
 /** The active Goals as a projection funds them from `month` on. */
 function projectionGoals(goals: GoalRecords, month: MonthKey) {
-	return activeGoals(goals).map((g) => ({
-		id: g.id,
-		target: g.target,
-		targetDate: g.targetDate,
-		saved: setAsideOf(g.id, goals.changes),
-		fundedThisMonth: setAsideOf(
-			g.id,
-			goals.changes.filter((c) => c.kind === "funding" && c.month === month),
-		),
-	}));
+	return activeGoals(goals).map((g) => projectionGoalOf(g, goals.changes, month));
 }
 
 export type PlanHealthData = { month: MonthKey; warnings: PlanWarning[] };

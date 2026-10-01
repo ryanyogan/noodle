@@ -821,10 +821,12 @@ function GoalLine({
 	lever,
 	edit,
 }: {
-	goal: ProjectionGoal & { name: string };
+	goal: ProjectionGoal & { name: string; kind?: "save" | "payoff" };
 	lever: ScenarioChange | undefined;
 	edit: Editing;
 }) {
+	// A payoff Goal's target is what was owed when it was added: only its date can change (ADR-0019).
+	const payoff = goal.kind === "payoff";
 	const current = lever?.kind === "goal" ? lever : null;
 	const target = current?.target ?? goal.target;
 	const targetDate = current ? current.targetDate : goal.targetDate;
@@ -837,22 +839,34 @@ function GoalLine({
 			title={goal.name}
 			badge={<Mark lever={current ?? undefined} />}
 			meta={
-				goal.targetDate
-					? `Plan ${formatMoney(goal.target)} by ${fullDay(goal.targetDate)}`
-					: `Plan ${formatMoney(goal.target)}, no date`
+				payoff
+					? goal.targetDate
+						? `Plan: pay it off by ${fullDay(goal.targetDate)}`
+						: "Plan: pay it off, no date"
+					: goal.targetDate
+						? `Plan ${formatMoney(goal.target)} by ${fullDay(goal.targetDate)}`
+						: `Plan ${formatMoney(goal.target)}, no date`
 			}
-			value={goalValue(target, targetDate)}
+			value={
+				payoff
+					? targetDate
+						? `Paid off by ${shortMonth(monthOfDay(targetDate))}`
+						: "No date"
+					: goalValue(target, targetDate)
+			}
 			changed={current !== null}
 			wide={edit.wide}
 			editor={
 				<div className="grid gap-2.5">
-					<AmountField
-						label={`${goal.name} target`}
-						value={target}
-						reference={goal.target}
-						min={1_000}
-						onChange={(value) => set({ target: value, targetDate })}
-					/>
+					{payoff ? null : (
+						<AmountField
+							label={`${goal.name} target`}
+							value={target}
+							reference={goal.target}
+							min={1_000}
+							onChange={(value) => set({ target: value, targetDate })}
+						/>
+					)}
 					<div className="flex flex-wrap items-center gap-2">
 						<GoalDate
 							name={goal.name}

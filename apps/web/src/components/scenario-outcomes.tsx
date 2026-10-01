@@ -821,7 +821,7 @@ export function GoalPathsChart({ names }: { names: ReadonlyMap<string, string> }
 	return (
 		<ChartCard
 			title="Goal paths"
-			description="How much each Goal has set aside over time. Dashed: the Plan as it is."
+			description="How much each Goal has set aside, or paid down on its card or loan, over time. Dashed: the Plan as it is."
 			table={table}
 			className="overflow-visible"
 		>

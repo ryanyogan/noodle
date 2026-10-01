@@ -20,6 +20,7 @@ import {
 	FundGoalSheet,
 	GoalProgressBar,
 } from "../../../components/goals";
+import { PayoffGoalDetails } from "../../../components/payoff-goal";
 import { Confirm, SaveFailed } from "../../../components/plan-editing";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney, fullDay, monthName, shortDay } from "../../../format";
@@ -37,14 +38,21 @@ import {
 	useSetEmergencyGoal,
 	useUpdateGoal,
 } from "../../../goals";
-import { goalsQuery, monthQuery, useMonthState } from "../../../queries";
+import { accountImportsQuery, goalsQuery, monthQuery, useMonthState } from "../../../queries";
 
 export const Route = createFileRoute("/_authed/_household/goals/$goalId")({
 	loader: async ({ context, params }) => {
 		const data = await context.queryClient.ensureQueryData(goalsQuery());
-		if (!data.goals.some((g) => g.id === params.goalId)) throw notFound();
-		// Funding comes out of this month's Free to Spend, which the Fund sheet shows.
-		await context.queryClient.ensureQueryData(monthQuery(data.month));
+		const goal = data.goals.find((g) => g.id === params.goalId);
+		if (!goal) throw notFound();
+		// Funding comes out of this month's Free to Spend, which the Fund sheet shows; a payoff
+		// Goal's page also offers its card's latest statement balance.
+		await Promise.all([
+			context.queryClient.ensureQueryData(monthQuery(data.month)),
+			goal.kind === "payoff"
+				? context.queryClient.ensureQueryData(accountImportsQuery(goal.accountId))
+				: null,
+		]);
 	},
 	component: GoalPage,
 });
@@ -58,6 +66,9 @@ function GoalPage() {
 	const account = accounts.find((a) => a.id === goal?.accountId);
 	// A Goal only goes away if another Parent's change removes it; the loader 404s on reload.
 	if (!goal) return <PageHeader eyebrow="Goal" title="Goal" leading={<BackToGoals />} />;
+	if (goal.kind === "payoff") {
+		return <PayoffGoalDetails goal={goal} account={account} month={month} today={asOf} />;
+	}
 	return (
 		<GoalDetails
 			goal={goal}

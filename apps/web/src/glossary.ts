@@ -74,7 +74,13 @@ export const glossary = {
 	goal: {
 		term: "Goal",
 		short:
-			"Something you’re saving for, with a target amount and maybe a date: an emergency fund, a trip, a new roof.",
+			"Something you’re saving for, with a target amount and maybe a date: an emergency fund, a trip, a new roof. A Goal can also pay off a credit card or loan.",
+	},
+	"payoff-goal": {
+		term: "Paying off a card or loan",
+		short:
+			"A Goal to get a credit card or loan down to $0. It starts from what’s owed today; as the balance comes down, so does what’s left to pay. Each month you plan extra payments from Free to Spend.",
+		more: "Your regular payment stays a Commitment; the Goal is extra, on top. The card’s payment (from checking) shows once the card’s balance does: when the bank brings it in, you update it, or you use a statement’s. New charges take the balance back up, and the Goal shows it. At $0 it’s paid off, and you complete it.",
 	},
 	"set-aside": {
 		term: "Set aside",

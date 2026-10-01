@@ -1,6 +1,7 @@
 import {
 	addAccount as addAccountInDb,
 	addGoal as addGoalInDb,
+	addPayoffGoal as addPayoffGoalInDb,
 	archiveGoal as archiveGoalInDb,
 	claimForGoal as claimForGoalInDb,
 	completeGoal as completeGoalInDb,
@@ -8,7 +9,9 @@ import {
 	type GoalRecords,
 	type GoalWriteResult,
 	loadGoals,
+	owedNow,
 	renameAccount as renameAccountInDb,
+	restartPayoffGoal as restartPayoffGoalInDb,
 	setEmergencyGoal as setEmergencyGoalInDb,
 	spendGoal as spendGoalInDb,
 	undoGoalFunding as undoGoalFundingInDb,
@@ -20,6 +23,7 @@ import {
 	type Cents,
 	type DayKey,
 	dayKeyAt,
+	GOAL_KINDS,
 	MAX_CENTS,
 	type MonthKey,
 	monthKeyAt,
@@ -124,14 +128,18 @@ export const updateAccountBalance = createServerFn({ method: "POST" })
 	});
 
 /**
- * Adds a Goal backed by a checking or savings Account, from this month, with `claimCents` of
- * the Account's not set aside money already set aside for it (0 for none).
+ * Adds a Goal from this month. A savings Goal is backed by a checking or savings Account, with
+ * `claimCents` of the Account's not set aside money already set aside for it (0 for none). A
+ * payoff Goal (ADR-0019) pays down a credit card or loan: its target is what's owed on it now,
+ * read here (the client's `targetCents` only shows it until the refetch), and it sets nothing
+ * aside. Refused when the card or loan owes nothing, or already has an active payoff Goal.
  */
 export const addGoal = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(
 		z.object({
 			goalId: ulidSchema,
+			kind: z.enum(GOAL_KINDS).default("save"),
 			accountId: ulidSchema,
 			name: goalNameSchema,
 			targetCents: amountSchema,
@@ -144,13 +152,60 @@ export const addGoal = createServerFn({ method: "POST" })
 		const { household } = context;
 		assertNotPast(household, data.targetDate);
 		const month = currentMonth(household);
-		const result = await addGoalInDb(getDb(), {
-			householdId: household.id,
-			fromMonth: month,
-			createdByMemberId: context.parent.id,
-			...data,
-		});
+		const db = getDb();
+		let result: GoalWriteResult;
+		if (data.kind === "payoff") {
+			const owed = await owedNow(db, { householdId: household.id, accountId: data.accountId });
+			result =
+				owed === null || owed <= 0
+					? { ok: false, reason: "refused" }
+					: await addPayoffGoalInDb(db, {
+							householdId: household.id,
+							goalId: data.goalId,
+							accountId: data.accountId,
+							name: data.name,
+							targetCents: owed,
+							targetDate: data.targetDate,
+							fromMonth: month,
+							createdByMemberId: context.parent.id,
+						});
+		} else {
+			result = await addGoalInDb(db, {
+				householdId: household.id,
+				fromMonth: month,
+				createdByMemberId: context.parent.id,
+				...data,
+			});
+		}
 		// The month's Plan history has the new Goal.
+		if (result.ok) await notifyHousehold(household.id, ["goals", `month:${month}`]);
+		return result;
+	});
+
+/**
+ * Starts a payoff Goal again from today's balance (ADR-0019): its target becomes what's owed on
+ * its card or loan now, and its schedule starts this month. Refused when nothing is owed.
+ */
+export const restartPayoffGoal = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ goalId: ulidSchema }))
+	.handler(async ({ data, context }): Promise<GoalWriteResult> => {
+		const { household } = context;
+		const db = getDb();
+		const { goals } = await loadGoals(db, viewerOf(context));
+		const goal = goals.find((g) => g.id === data.goalId && g.kind === "payoff");
+		const owed = goal
+			? await owedNow(db, { householdId: household.id, accountId: goal.accountId })
+			: null;
+		if (!goal || owed === null || owed <= 0) return { ok: false, reason: "refused" };
+		const month = currentMonth(household);
+		const result = await restartPayoffGoalInDb(db, {
+			householdId: household.id,
+			memberId: context.parent.id,
+			goalId: goal.id,
+			month,
+			owedCents: owed,
+		});
 		if (result.ok) await notifyHousehold(household.id, ["goals", `month:${month}`]);
 		return result;
 	});

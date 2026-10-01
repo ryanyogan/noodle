@@ -1,9 +1,11 @@
 import {
+	type GoalKind,
 	type MonthKey,
 	type ProjectionGoal,
 	parseChangePreset,
+	projectionGoalOf,
 	type ScenarioChange,
-	setAsideOf,
+	withOwed,
 } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import { type QueryClient, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -88,20 +90,14 @@ export const withMuted = (
  * The Household's active Goals as a projection starts from them: what their Goals have set aside now and what
  * Goal funding has already Moved into them this month.
  */
-export function projectionGoals(data: GoalsData): (ProjectionGoal & { name: string })[] {
-	return data.goals
-		.filter((g) => !g.completed && !g.archived)
-		.map((g) => ({
-			id: g.id,
-			name: g.name,
-			target: g.target,
-			targetDate: g.targetDate,
-			saved: setAsideOf(g.id, data.changes),
-			fundedThisMonth: setAsideOf(
-				g.id,
-				data.changes.filter((c) => c.kind === "funding" && c.month === data.month),
-			),
-		}));
+export function projectionGoals(
+	data: GoalsData,
+): (ProjectionGoal & { name: string; kind: GoalKind })[] {
+	// A payoff Goal projects from what it has paid down (ADR-0019).
+	return withOwed(
+		data.goals.filter((g) => !g.completed && !g.archived),
+		data.accounts,
+	).map((g) => ({ ...projectionGoalOf(g, data.changes, data.month), name: g.name, kind: g.kind }));
 }
 
 // ---------------------------------------------------------------------------------------------

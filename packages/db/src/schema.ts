@@ -356,9 +356,13 @@ export const csvMappings = sqliteTable("csv_mappings", {
 		.default(sql`(unixepoch() * 1000)`),
 });
 
-// A target the Household funds over time, held as money set aside on one checking or savings Account
-// (ADR-0002). `target_date` is optional ("YYYY-MM-DD"); `from_month` is the month it was added.
-// A completed Goal keeps what it has set aside; an archived one claims nothing.
+// A target the Household funds over time. A `save` Goal is held as money set aside on one checking
+// or savings Account (ADR-0002). A `payoff` Goal pays down one credit card or loan (ADR-0019): its
+// target is what was owed when it was added, and its progress how far the Account's balance has
+// come down since; it has no claims or spending, and each card or loan has at most one that's
+// neither completed nor archived. `target_date` is optional ("YYYY-MM-DD"); `from_month` is the
+// month it was added (or a payoff Goal started again). A completed Goal keeps what it has set
+// aside; an archived one claims nothing.
 export const goals = sqliteTable(
 	"goals",
 	{
@@ -378,8 +382,16 @@ export const goals = sqliteTable(
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()
 			.default(sql`(unixepoch() * 1000)`),
+		kind: text("kind", { enum: ["save", "payoff"] })
+			.notNull()
+			.default("save"),
 	},
-	(t) => [index("goals_household_idx").on(t.householdId)],
+	(t) => [
+		index("goals_household_idx").on(t.householdId),
+		uniqueIndex("goals_one_payoff_per_account")
+			.on(t.accountId)
+			.where(sql`${t.kind} = 'payoff' and ${t.completedAt} is null and ${t.archivedAt} is null`),
+	],
 );
 
 // not set aside Account money set aside for a Goal, or released back to not set aside (negative). Not a

@@ -9,7 +9,7 @@ import { Card } from "@noodle/ui/components/card";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { withoutCommitment } from "../../../commitments";
 import { lumpText } from "../../../components/coming-up";
 import { AddCommitment, CommitmentEditor } from "../../../components/commitment-editor";
@@ -75,6 +75,17 @@ function PlanCommitments() {
 							, about{" "}
 							{formatMoney(state.commitments.reduce((sum, c) => sum + monthlyEquivalent(c), 0))} a
 							month.
+						</p>
+						<p className="px-1 text-[13px] text-muted-foreground">
+							Paying off a card or loan faster? Its regular payment stays here; a{" "}
+							<Link
+								to="/goals"
+								search={{ add: "payoff" }}
+								className="font-medium text-foreground underline underline-offset-3"
+							>
+								payoff Goal
+							</Link>{" "}
+							plans the extra on top.
 						</p>
 					</>
 				) : state.editable ? (

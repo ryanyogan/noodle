@@ -1,0 +1,2 @@
+ALTER TABLE `goals` ADD `kind` text DEFAULT 'save' NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX `goals_one_payoff_per_account` ON `goals` (`account_id`) WHERE "goals"."kind" = 'payoff' and "goals"."completed_at" is null and "goals"."archived_at" is null;

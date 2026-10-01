@@ -4,7 +4,9 @@ import {
 	type FundGoalVariables,
 	type GoalsData,
 	goalsView,
+	withBalance,
 	withGoal,
+	withGoalDetails,
 	withMonthFunding,
 	withoutMonthFunding,
 	withSpending,
@@ -34,10 +36,12 @@ const goals: GoalsData = {
 	withdrawals: [],
 	goals: [],
 	changes: [],
+	owed: [{ accountId: "visa", amount: 50_000, at: 1 }],
 };
 
 const braces = {
 	goalId: "braces",
+	kind: "save",
 	accountId: "savings",
 	name: "Braces",
 	targetCents: 600_000,
@@ -103,5 +107,41 @@ describe("the optimistic Goal edits", () => {
 		const funded = withMonthFunding(withMonthFunding(month, funding), funding);
 		expect(monthState(funded).freeToSpend).toBe(475_000);
 		expect(monthState(withoutMonthFunding(funded, funding)).freeToSpend).toBe(500_000);
+	});
+
+	test("a payoff Goal is paid down as what's owed falls, sets nothing aside, and keeps its target", () => {
+		const payoff = {
+			goalId: "visa-goal",
+			kind: "payoff",
+			accountId: "visa",
+			name: "Pay off the Visa",
+			targetCents: 50_000,
+			targetDate: "2027-02-28",
+			claimId: "unused",
+			claimCents: 0,
+		} as const;
+		const added = withGoal(goals, payoff);
+		expect(goalsView(added).goals[0]).toMatchObject({
+			kind: "payoff",
+			progress: { saved: 0, remaining: 50_000, monthly: 8_334 },
+			payoff: { owed: 50_000, history: [{ amount: 50_000, at: 1 }] },
+		});
+		const paid = withBalance(added, { balanceId: "b2", accountId: "visa", amountCents: 20_000 });
+		const view = goalsView(paid);
+		expect(view.goals[0]).toMatchObject({
+			progress: { saved: 30_000, remaining: 20_000, share: 0.6 },
+			payoff: { owed: 20_000 },
+		});
+		expect(view.goals[0]?.payoff?.history).toHaveLength(2);
+		expect(view.accounts[1]).toMatchObject({ earmarks: [], payoffGoal: { id: "visa-goal" } });
+		const edited = withGoalDetails(paid, {
+			goalId: "visa-goal",
+			name: "Visa",
+			targetCents: 1,
+			targetDate: null,
+		});
+		expect(goalsView(edited).goals[0]).toMatchObject({ name: "Visa", target: 50_000 });
+		const paidOff = withBalance(paid, { balanceId: "b3", accountId: "visa", amountCents: 0 });
+		expect(goalsView(paidOff).goals[0]?.progress.status).toBe("reached");
 	});
 });

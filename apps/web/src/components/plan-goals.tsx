@@ -16,7 +16,8 @@ import { FundGoalSheet } from "./goals";
 export function PlanGoals({ state, title = "Goals" }: { state: MonthState; title?: string }) {
 	const hydrated = useHydrated();
 	const { goals, accounts } = useGoals();
-	const canAddGoal = accounts.some((a) => a.holdsMoney);
+	// Checking or savings to save up in, or a card or loan to pay off.
+	const canAddGoal = accounts.length > 0;
 	const { fund } = useGoalMoney();
 	const [funding, setFunding] = useState<GoalView | null>(null);
 	const active = goals.filter((g) => g.state === "active");
@@ -40,16 +41,21 @@ export function PlanGoals({ state, title = "Goals" }: { state: MonthState; title
 							}
 							meta={goalThisMonth(goal)}
 							trailing={
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									disabled={!hydrated}
-									aria-label={`Fund ${goal.name}`}
-									onClick={() => setFunding(goal)}
-								>
-									Fund
-								</Button>
+								// A paid-off card needs no more payments; it's completed on its page.
+								goal.kind === "payoff" && goal.progress.status === "reached" ? (
+									<Badge variant="brand">Paid off</Badge>
+								) : (
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										disabled={!hydrated}
+										aria-label={`Fund ${goal.name}`}
+										onClick={() => setFunding(goal)}
+									>
+										Fund
+									</Button>
+								)
 							}
 						/>
 					))}
@@ -60,8 +66,8 @@ export function PlanGoals({ state, title = "Goals" }: { state: MonthState; title
 					title="No Goals yet"
 					description={
 						canAddGoal
-							? "A Goal sets money aside for something ahead, like braces or a trip, funded from Free to Spend a little each month."
-							: "A Goal sets money aside for something ahead, like braces or a trip. Its money is kept in a checking or savings Account, so add that Account first."
+							? "A Goal sets money aside for something ahead, like braces or a trip, or pays down a credit card or loan, funded from Free to Spend a little each month."
+							: "A Goal sets money aside for something ahead, like braces or a trip, or pays down a credit card or loan. It starts from an Account, so add that Account first."
 					}
 					action={
 						<Button variant="outline" size="sm" asChild>
@@ -148,8 +154,11 @@ export function GoalsThisMonth({
 
 function GoalThisMonthRow({ goal }: { goal: GoalView }) {
 	const { progress } = goal;
+	const payoff = goal.kind === "payoff";
 	const status =
-		progress.status === "behind" ? (
+		payoff && progress.status === "reached" ? (
+			<Badge variant="brand">Paid off</Badge>
+		) : progress.status === "behind" ? (
 			<Badge variant="pace" dot>
 				{goalStatusName.behind}
 			</Badge>
@@ -159,7 +168,11 @@ function GoalThisMonthRow({ goal }: { goal: GoalView }) {
 			</Badge>
 		) : null;
 	const meta = [
-		progress.status === "on-track" || progress.status === "reached"
+		// A payoff Goal says what's still owed (ADR-0019); paid off is its badge.
+		payoff && progress.status !== "reached"
+			? `${formatMoney(progress.remaining)} still owed`
+			: null,
+		progress.status === "on-track" || (progress.status === "reached" && !payoff)
 			? goalStatusName[progress.status]
 			: progress.status === "saving"
 				? "No target date"
@@ -209,10 +222,12 @@ function GoalThisMonthRow({ goal }: { goal: GoalView }) {
 }
 
 /** What a Goal still needs this month, in words. */
-function goalThisMonth({ progress, target }: GoalView): string {
-	if (progress.status === "reached") return "Reached";
+function goalThisMonth({ kind, progress, target, account }: GoalView): string {
+	if (progress.status === "reached") return kind === "payoff" ? "Paid off" : "Reached";
 	if (progress.leftThisMonth === null) {
-		return `${formatMoney(progress.saved)} of ${formatMoney(target)} set aside`;
+		return kind === "payoff"
+			? `Paid down ${formatMoney(progress.saved)} of ${formatMoney(target)}${account ? ` on ${account.name}` : ""}`
+			: `${formatMoney(progress.saved)} of ${formatMoney(target)} set aside`;
 	}
 	return progress.leftThisMonth > 0
 		? `${formatMoney(progress.leftThisMonth)} left to fund this month`

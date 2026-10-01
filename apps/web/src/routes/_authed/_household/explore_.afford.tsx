@@ -119,7 +119,8 @@ function AffordPage() {
 				monthly: monthlyEquivalent(c),
 			})),
 			goals: view.goals
-				.filter((g) => g.state === "active")
+				// A payoff Goal holds no money to use (ADR-0019).
+				.filter((g) => g.state === "active" && g.kind === "save")
 				.map((g) => ({ id: g.id, name: g.name, saved: g.progress.saved, accountId: g.accountId })),
 			accounts: view.accounts,
 		};
@@ -292,6 +293,7 @@ function CheckActions({
 						if (accountId === null) return;
 						addGoal.mutate({
 							goalId: ulid(),
+							kind: "save",
 							accountId,
 							name: goal.name,
 							targetCents: goal.target,

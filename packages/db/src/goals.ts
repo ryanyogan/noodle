@@ -5,11 +5,24 @@ import {
 	type Cents,
 	type DayKey,
 	type GoalFunding,
+	type GoalKind,
+	holdsMoney,
 	type MonthKey,
 	monthOfDay,
 	type SetAsideChange,
 } from "@noodle/domain";
-import { and, asc, eq, inArray, isNotNull, isNull, notExists, type SQL, sql } from "drizzle-orm";
+import {
+	and,
+	asc,
+	desc,
+	eq,
+	inArray,
+	isNotNull,
+	isNull,
+	notExists,
+	type SQL,
+	sql,
+} from "drizzle-orm";
 import { counts, countsRaw } from "./counting";
 import type { Db } from "./index";
 import { freeToSpendSql } from "./moves";
@@ -189,7 +202,15 @@ const insertClaim = (
 					createdAt: now.as("created_at"),
 				})
 				.from(goals)
-				.where(and(ownGoal(input.householdId, input.goalId), isNull(goals.archivedAt), guard)),
+				.where(
+					and(
+						ownGoal(input.householdId, input.goalId),
+						// A payoff Goal sets nothing aside (ADR-0019).
+						eq(goals.kind, "save"),
+						isNull(goals.archivedAt),
+						guard,
+					),
+				),
 		)
 		.onConflictDoNothing({ target: earmarkClaims.id });
 
@@ -224,6 +245,7 @@ export const goalInsert = (
 					completedAt: sql<Date | null>`null`.as("completed_at"),
 					archivedAt: sql<Date | null>`null`.as("archived_at"),
 					createdAt: now.as("created_at"),
+					kind: sql<GoalKind>`'save'`.as("kind"),
 				})
 				.from(accounts)
 				.where(
@@ -306,32 +328,206 @@ type GoalTargetInput = Author & {
  * The Plan change for setting a Goal's target and date, written before them: only if the Goal
  * is the Household's (and matches `where`) and either differs.
  */
-export const goalLog = (db: Db, input: GoalTargetInput, where?: SQL) =>
-	logChange(
+export const goalLog = (db: Db, input: GoalTargetInput, where?: SQL) => {
+	const target = targetFor(input.targetCents);
+	return logChange(
 		db,
 		goals,
 		and(
 			ownGoal(input.householdId, input.goalId),
 			where,
-			sql`(${goals.targetCents} is not ${input.targetCents} or ${goals.targetDate} is not ${input.targetDate})`,
+			sql`(${goals.targetCents} is not ${target} or ${goals.targetDate} is not ${input.targetDate})`,
 		),
 		{
 			...input,
 			kind: "goal",
 			targetId: input.goalId,
 			before: sql`json_object('target', ${goals.targetCents}, 'targetDate', ${goals.targetDate})`,
-			after: { target: input.targetCents, targetDate: input.targetDate },
+			after: sql`json_object('target', ${target}, 'targetDate', ${input.targetDate})`,
 		},
 	);
+};
+
+/**
+ * The target a Goal takes when set to `targetCents`: a payoff Goal's stays what was owed when it
+ * was added (only "Start again from today's balance" changes it, restartPayoffGoal).
+ */
+export const targetFor = (targetCents: Cents) =>
+	sql<number>`(case when ${goals.kind} = 'payoff' then ${goals.targetCents} else ${targetCents} end)`;
 
 export async function updateGoal(db: Db, input: GoalTargetInput & { name: string }): Promise<void> {
 	await db.batch([
 		goalLog(db, input),
 		db
 			.update(goals)
-			.set({ name: input.name, targetCents: input.targetCents, targetDate: input.targetDate })
+			.set({
+				name: input.name,
+				targetCents: targetFor(input.targetCents),
+				targetDate: input.targetDate,
+			})
 			.where(ownGoal(input.householdId, input.goalId)),
 	]);
+}
+
+/** What's owed on one of the Household's credit cards or loans now: its latest balance, if any. */
+export const latestBalanceSql = (accountId: SQL | string) =>
+	sql<number | null>`(select b.amount_cents from account_balances b
+		where b.account_id = ${accountId} order by b.created_at desc, b.id desc limit 1)`;
+
+/** What's owed now on one of the Household's credit cards or loans; null without a balance. */
+export async function owedNow(
+	db: Db,
+	input: { householdId: string; accountId: string },
+): Promise<Cents | null> {
+	const [row] = await db
+		.select({ amount: accountBalances.amountCents })
+		.from(accountBalances)
+		.where(
+			and(
+				eq(accountBalances.accountId, input.accountId),
+				eq(accountBalances.householdId, input.householdId),
+			),
+		)
+		.orderBy(desc(accountBalances.createdAt), desc(accountBalances.id))
+		.limit(1);
+	return row?.amount ?? null;
+}
+
+/**
+ * Adds a payoff Goal on one of the Household's credit cards or loans (ADR-0019), from
+ * `fromMonth`, with `targetCents` what's owed on it now (owedNow). Idempotent per `goalId`.
+ * Refused unless, at write time, the Account is the Household's card or loan, still owes exactly
+ * `targetCents` (more than nothing), and has no other payoff Goal that's neither completed nor
+ * archived.
+ */
+export async function addPayoffGoal(
+	db: Db,
+	input: {
+		householdId: string;
+		goalId: string;
+		accountId: string;
+		name: string;
+		targetCents: Cents;
+		targetDate: DayKey | null;
+		fromMonth: MonthKey;
+		createdByMemberId: string;
+	},
+): Promise<GoalWriteResult> {
+	const guard = and(
+		ownAccount(input.householdId, input.accountId),
+		inArray(accounts.kind, ["credit-card", "loan"]),
+		sql`${input.targetCents} > 0`,
+		sql`${latestBalanceSql(sql`${accounts.id}`)} = ${input.targetCents}`,
+		notExists(
+			db
+				.select({ id: goals.id })
+				.from(goals)
+				.where(
+					and(
+						eq(goals.accountId, input.accountId),
+						eq(goals.kind, "payoff"),
+						isNull(goals.completedAt),
+						isNull(goals.archivedAt),
+					),
+				),
+		),
+	);
+	await db.batch([
+		logChange(
+			db,
+			accounts,
+			and(
+				guard,
+				notExists(db.select({ id: goals.id }).from(goals).where(eq(goals.id, input.goalId))),
+			),
+			{
+				householdId: input.householdId,
+				memberId: input.createdByMemberId,
+				kind: "goal-add",
+				targetId: input.goalId,
+				month: input.fromMonth,
+				before: null,
+				after: {
+					name: input.name,
+					target: input.targetCents,
+					targetDate: input.targetDate,
+				},
+			},
+		),
+		db
+			.insert(goals)
+			.select(
+				db
+					.select({
+						id: sql<string>`${input.goalId}`.as("id"),
+						householdId: accounts.householdId,
+						accountId: accounts.id,
+						name: sql<string>`${input.name}`.as("name"),
+						targetCents: sql<number>`${input.targetCents}`.as("target_cents"),
+						targetDate: sql<string | null>`${input.targetDate}`.as("target_date"),
+						fromMonth: sql<string>`${input.fromMonth}`.as("from_month"),
+						completedAt: sql<Date | null>`null`.as("completed_at"),
+						archivedAt: sql<Date | null>`null`.as("archived_at"),
+						createdAt: now.as("created_at"),
+						// Selected in the table's column order: insert … select is positional.
+						kind: sql<GoalKind>`'payoff'`.as("kind"),
+					})
+					.from(accounts)
+					.where(guard),
+			)
+			// The Goal's ID, or the one-active-payoff-Goal-per-Account index.
+			.onConflictDoNothing(),
+	]);
+	const [written] = await db
+		.select({ id: goals.id })
+		.from(goals)
+		.where(and(ownGoal(input.householdId, input.goalId), eq(goals.kind, "payoff")));
+	return written ? { ok: true } : { ok: false, reason: "refused" };
+}
+
+/**
+ * Starts a payoff Goal again from today's balance (ADR-0019): its target becomes `owedCents`,
+ * what's owed now, and its schedule starts in `month`, so nothing is paid down yet. A Plan change
+ * like any target change. Refused unless, at write time, the Goal is the Household's active payoff
+ * Goal and its card or loan still owes exactly `owedCents`, more than nothing.
+ */
+export async function restartPayoffGoal(
+	db: Db,
+	input: Author & { householdId: string; goalId: string; month: MonthKey; owedCents: Cents },
+): Promise<GoalWriteResult> {
+	const guard = and(
+		ownGoal(input.householdId, input.goalId),
+		eq(goals.kind, "payoff"),
+		isNull(goals.completedAt),
+		isNull(goals.archivedAt),
+		sql`${input.owedCents} > 0`,
+		sql`${latestBalanceSql(sql`${goals.accountId}`)} = ${input.owedCents}`,
+	);
+	await db.batch([
+		logChange(
+			db,
+			goals,
+			and(
+				guard,
+				sql`(${goals.targetCents} is not ${input.owedCents} or ${goals.fromMonth} is not ${input.month})`,
+			),
+			{
+				...input,
+				kind: "goal",
+				targetId: input.goalId,
+				before: sql`json_object('target', ${goals.targetCents}, 'targetDate', ${goals.targetDate})`,
+				after: sql`json_object('target', ${input.owedCents}, 'targetDate', ${goals.targetDate})`,
+			},
+		),
+		db.update(goals).set({ targetCents: input.owedCents, fromMonth: input.month }).where(guard),
+	]);
+	const [row] = await db
+		.select({ target: goals.targetCents, fromMonth: goals.fromMonth })
+		.from(goals)
+		.where(ownGoal(input.householdId, input.goalId));
+	return row?.target === input.owedCents && row.fromMonth === input.month
+		? { ok: true }
+		: { ok: false, reason: "refused" };
 }
 
 /** Marks a Goal completed. It keeps what it has set aside. Completing it again changes nothing. */
@@ -518,6 +714,7 @@ export async function spendGoal(
 				.where(
 					and(
 						ownGoal(householdId, input.goalId),
+						eq(goals.kind, "save"),
 						isNull(goals.archivedAt),
 						sql`${setAsideSql(householdId, input.goalId)} >= ${input.amountCents}`,
 					),
@@ -545,6 +742,8 @@ export type AccountRecord = {
 
 export type GoalRecord = {
 	id: string;
+	/** "save", or "payoff": a credit card or loan paid down (ADR-0019). */
+	kind: GoalKind;
 	accountId: string;
 	name: string;
 	target: Cents;
@@ -575,6 +774,11 @@ export type GoalRecords = {
 	goals: GoalRecord[];
 	/** Every Goal's claims, funding, and spending, oldest first. */
 	changes: GoalChange[];
+	/**
+	 * Every balance entered or brought in for the credit cards and loans, oldest first: what was
+	 * owed over time, which a payoff Goal's history shows.
+	 */
+	owed: (BalanceUpdate & { accountId: string })[];
 	/** The Goal the Household keeps for emergencies, if it has marked one. */
 	emergencyGoalId: string | null;
 };
@@ -718,6 +922,7 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 			})),
 		goals: goalRows.map((row) => ({
 			id: row.id,
+			kind: row.kind,
 			accountId: row.accountId,
 			name: row.name,
 			target: row.targetCents,
@@ -727,6 +932,9 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 			archived: row.archivedAt !== null,
 		})),
 		changes,
+		owed: balanceRows
+			.filter((row) => accountRows.some((a) => a.id === row.accountId && !holdsMoney(a.kind)))
+			.map((row) => ({ accountId: row.accountId, amount: row.amount, at: row.at.getTime() })),
 		emergencyGoalId: householdRows[0]?.emergencyGoalId ?? null,
 	};
 }
@@ -783,12 +991,12 @@ export async function setEmergencyGoal(
 	await db
 		.update(households)
 		.set({
-			emergencyGoalId: sql`(select ${goals.id} from ${goals} where ${and(ownGoal(householdId, goalId), isNull(goals.archivedAt))})`,
+			emergencyGoalId: sql`(select ${goals.id} from ${goals} where ${and(ownGoal(householdId, goalId), eq(goals.kind, "save"), isNull(goals.archivedAt))})`,
 		})
 		.where(
 			and(
 				eq(households.id, householdId),
-				sql`exists (select 1 from ${goals} where ${and(ownGoal(householdId, goalId), isNull(goals.archivedAt))})`,
+				sql`exists (select 1 from ${goals} where ${and(ownGoal(householdId, goalId), eq(goals.kind, "save"), isNull(goals.archivedAt))})`,
 			),
 		);
 	const [row] = await db

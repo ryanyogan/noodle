@@ -14,6 +14,7 @@ import {
 	addAccount,
 	addBucket,
 	addGoal,
+	addPayoffGoal,
 	addQuickAdd,
 	archiveGoal,
 	claimForGoal,
@@ -28,6 +29,9 @@ import {
 	loadPlanRecords,
 	loadSpending,
 	loadTransactionsPage,
+	owedNow,
+	restartPayoffGoal,
+	setEmergencyGoal,
 	setTakeHomePay,
 	spendGoal,
 	splitTransaction,
@@ -217,6 +221,7 @@ describe("addGoal", () => {
 		expect(goals).toEqual([
 			{
 				id: "braces",
+				kind: "save",
 				accountId: "savings",
 				name: "braces",
 				target: 600_000,
@@ -595,5 +600,124 @@ describe("what's set aside guard's SQL agrees with @noodle/domain", () => {
 			expect(await evaluate(setAsideSql(householdId, goalId))).toBe(expected);
 			expect(await evaluate(setAsideSql("other-household", goalId))).toBe(0);
 		}
+	});
+});
+
+describe("payoff Goals (ADR-0019)", () => {
+	const payoff = (goalId: string, targetCents = 50_000, accountId = "visa") =>
+		addPayoffGoal(db, {
+			householdId,
+			goalId,
+			accountId,
+			name: `Pay off ${accountId}`,
+			targetCents,
+			targetDate: "2027-03-31",
+			fromMonth: month,
+			createdByMemberId: parentId,
+		});
+	const owe = (balanceId: string, amountCents: number, accountId = "visa") =>
+		updateAccountBalance(db, {
+			householdId,
+			balanceId,
+			accountId,
+			amountCents,
+			createdByMemberId: parentId,
+		});
+
+	it("adds one on a card with what's owed now as its target, once, and logs it", async () => {
+		expect(await owedNow(db, { householdId, accountId: "visa" })).toBe(50_000);
+		expect(await payoff("visa-goal")).toEqual({ ok: true });
+		expect(await payoff("visa-goal")).toEqual({ ok: true });
+		const { goals, owed } = await loadGoals(db, viewer);
+		expect(goals).toEqual([
+			expect.objectContaining({
+				id: "visa-goal",
+				kind: "payoff",
+				accountId: "visa",
+				target: 50_000,
+			}),
+		]);
+		expect(owed).toEqual([{ accountId: "visa", amount: 50_000, at: expect.any(Number) }]);
+		const logged = await db.all(sql`select kind from plan_changes where target_id = 'visa-goal'`);
+		expect(logged).toEqual([["goal-add"]]);
+	});
+
+	it("refuses an Account that holds money, owes nothing, or owes something else now", async () => {
+		expect(await payoff("savings-goal", 1_000_000, "savings")).toEqual({
+			ok: false,
+			reason: "refused",
+		});
+		expect(await payoff("stale", 40_000)).toEqual({ ok: false, reason: "refused" });
+		await owe("paid", 0);
+		expect(await payoff("zero", 0)).toEqual({ ok: false, reason: "refused" });
+		expect(await owedNow(db, { householdId: "other-household", accountId: "visa" })).toBeNull();
+		expect((await loadGoals(db, viewer)).goals).toEqual([]);
+	});
+
+	it("allows one active payoff Goal per card or loan", async () => {
+		await payoff("first");
+		expect(await payoff("second")).toEqual({ ok: false, reason: "refused" });
+		await completeGoal(db, { householdId, goalId: "first" });
+		expect(await payoff("second")).toEqual({ ok: true });
+		const logged = await db.all(sql`select 1 from plan_changes where kind = 'goal-add'`);
+		expect(logged).toHaveLength(2);
+	});
+
+	it("is funded from Free to Spend, but sets nothing aside and can't be spent or the emergency Goal", async () => {
+		await payoff("visa-goal");
+		expect(await fund("f1", "visa-goal", 20_000)).toEqual({ ok: true });
+		expect(await claim("c1", "visa-goal", 1_000)).toEqual({ ok: false, reason: "refused" });
+		expect(await spend("t1", "visa-goal", 1_000)).toEqual({ ok: false, reason: "refused" });
+		expect(await setEmergencyGoal(db, { householdId, goalId: "visa-goal" })).toEqual({
+			ok: false,
+			reason: "refused",
+		});
+		expect(await undoGoalFunding(db, { householdId, moveId: "f1", month })).toEqual({ ok: true });
+	});
+
+	it("keeps its target when edited: only its name and date change", async () => {
+		await payoff("visa-goal");
+		await updateGoal(db, {
+			householdId,
+			memberId: parentId,
+			month,
+			goalId: "visa-goal",
+			name: "Visa",
+			targetCents: 1,
+			targetDate: null,
+		});
+		expect((await loadGoals(db, viewer)).goals[0]).toMatchObject({
+			name: "Visa",
+			target: 50_000,
+			targetDate: null,
+		});
+		const [change] = await db.all<[string]>(
+			sql`select after from plan_changes where kind = 'goal' and target_id = 'visa-goal'`,
+		);
+		expect(JSON.parse(change?.[0] ?? "null")).toEqual({ target: 50_000, targetDate: null });
+	});
+
+	it("starts again from today's balance, only at what's owed now", async () => {
+		await payoff("visa-goal");
+		await owe("more", 65_000);
+		const restart = (owedCents: number, at: MonthKey = "2026-10") =>
+			restartPayoffGoal(db, {
+				householdId,
+				memberId: parentId,
+				goalId: "visa-goal",
+				month: at,
+				owedCents,
+			});
+		expect(await restart(50_000)).toEqual({ ok: false, reason: "refused" });
+		expect(await restart(65_000)).toEqual({ ok: true });
+		expect((await loadGoals(db, viewer)).goals[0]).toMatchObject({
+			target: 65_000,
+			fromMonth: "2026-10",
+		});
+		const logged = await db.all(sql`select 1 from plan_changes where kind = 'goal'`);
+		expect(logged).toHaveLength(1);
+		// Again changes nothing and logs nothing.
+		expect(await restart(65_000)).toEqual({ ok: true });
+		expect(await db.all(sql`select 1 from plan_changes where kind = 'goal'`)).toHaveLength(1);
 	});
 });

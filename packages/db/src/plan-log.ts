@@ -35,7 +35,8 @@ export type LogEntry = Author & {
 	scope?: PlanScope;
 	/** SQL for what was in force (read before the write), or the value itself. */
 	before: SQL | PlanChangeValue | null;
-	after: PlanChangeValue | null;
+	/** The value itself, or SQL for it (read in the same statement). */
+	after: SQL | PlanChangeValue | null;
 	/** The Parent whose Personal Allowance this is, if it is one. */
 	owner?: AnyColumn | string | null;
 };
