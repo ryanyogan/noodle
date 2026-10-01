@@ -20,7 +20,13 @@ import { Field } from "@noodle/ui/components/field";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { NativeSelect } from "@noodle/ui/components/native-select";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
-import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
+import {
+	Sheet,
+	SheetCancel,
+	SheetContent,
+	SheetFooter,
+	SheetHeader,
+} from "@noodle/ui/components/sheet";
 import { cn } from "@noodle/ui/lib/utils";
 import { useHydrated } from "@tanstack/react-router";
 import { Ellipsis, Trash2 } from "lucide-react";
@@ -360,9 +366,12 @@ function ExtraIncomeForm({
 					onChange={(event) => setAmount(event.currentTarget.value)}
 				/>
 			</Field>
-			<Button type="submit" disabled={!hydrated || !valid}>
-				Send
-			</Button>
+			<SheetFooter>
+				<SheetCancel />
+				<Button type="submit" disabled={!hydrated || !valid}>
+					Send
+				</Button>
+			</SheetFooter>
 		</form>
 	);
 }

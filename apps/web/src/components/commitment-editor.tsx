@@ -15,7 +15,13 @@ import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { ListRow } from "@noodle/ui/components/list";
 import { NativeSelect } from "@noodle/ui/components/native-select";
-import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
+import {
+	Sheet,
+	SheetCancel,
+	SheetContent,
+	SheetFooter,
+	SheetHeader,
+} from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
 import { useHydrated } from "@tanstack/react-router";
 import { Pencil, Plus } from "lucide-react";
@@ -290,9 +296,12 @@ function CommitmentDetails({
 					onScopeChange={setScope}
 				/>
 				<CommitmentFormErrors errors={errors} />
-				<Button type="submit" disabled={!hydrated}>
-					Save
-				</Button>
+				<SheetFooter>
+					<SheetCancel />
+					<Button type="submit" disabled={!hydrated}>
+						Save
+					</Button>
+				</SheetFooter>
 			</form>
 			{/* Apart from Save, as the Bucket sheet's Archive is: it asks first, in an AlertDialog. */}
 			<div className="mt-2 flex items-center justify-between gap-3 border-t pt-4">

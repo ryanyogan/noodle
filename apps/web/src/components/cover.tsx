@@ -45,7 +45,7 @@ export function CoverSheet({
 	return (
 		<Sheet open={bucket !== null} onOpenChange={onOpenChange}>
 			{bucket ? (
-				<SheetContent>
+				<SheetContent layout="wide">
 					<SheetHeader
 						title={`Cover ${bucket.name}`}
 						description={`${bucket.name} is ${formatMoney(-bucket.left)} over. Move money from somewhere with some left to bring it back to zero.`}
@@ -173,7 +173,7 @@ function SourceList({
 	onPick: (source: CoverSource) => void;
 }) {
 	return (
-		<ul aria-labelledby={labelledBy} className="grid gap-2">
+		<ul aria-labelledby={labelledBy} className="grid gap-2 lg:grid-cols-2">
 			{sources.map((source) => (
 				<li key={source.bucket?.id ?? "free-to-spend"} className="grid">
 					<SourcePick source={source} ready={ready(source)} onPick={() => onPick(source)} />

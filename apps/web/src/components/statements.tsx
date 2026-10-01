@@ -188,7 +188,7 @@ export function StatementsSection({
 			)}
 			<Sheet open={open} onOpenChange={setOpen}>
 				{open ? (
-					<SheetContent>
+					<SheetContent layout="side" className="lg:w-140">
 						<SheetHeader
 							title="Upload a statement"
 							description={`A CSV, OFX or QFX file from your bank for ${account.name}.`}

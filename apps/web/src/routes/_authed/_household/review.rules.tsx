@@ -8,7 +8,13 @@ import { Input } from "@noodle/ui/components/input";
 import { List } from "@noodle/ui/components/list";
 import { NativeSelect } from "@noodle/ui/components/native-select";
 import { PageHeader } from "@noodle/ui/components/page-header";
-import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
+import {
+	Sheet,
+	SheetCancel,
+	SheetContent,
+	SheetFooter,
+	SheetHeader,
+} from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -336,9 +342,12 @@ function RuleForm({
 				</NativeSelect>
 			</Field>
 			<ForPicker members={members} value={forIds} onChange={setForIds} multiple />
-			<Button type="submit" disabled={!hydrated}>
-				{rule ? "Save" : "Add Rule and file what matches"}
-			</Button>
+			<SheetFooter>
+				<SheetCancel />
+				<Button type="submit" disabled={!hydrated}>
+					{rule ? "Save" : "Add Rule and file what matches"}
+				</Button>
+			</SheetFooter>
 			{rule ? (
 				<Button type="button" variant="outline" disabled={!hydrated} onClick={fileNow}>
 					{unchanged ? "File what’s still unassigned now" : "Save and file what’s still unassigned"}

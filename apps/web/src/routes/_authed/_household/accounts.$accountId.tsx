@@ -13,7 +13,13 @@ import { List, ListRow } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Progress } from "@noodle/ui/components/progress";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
-import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
+import {
+	Sheet,
+	SheetCancel,
+	SheetContent,
+	SheetFooter,
+	SheetHeader,
+} from "@noodle/ui/components/sheet";
 import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
 import {
@@ -89,7 +95,14 @@ function AccountPage() {
 	const { accountId } = Route.useParams();
 	const account = useGoals().accounts.find((a) => a.id === accountId);
 	if (!account)
-		return <PageHeader eyebrow="Account" title="Account" leading={<BackToAccounts />} />;
+		return (
+			<PageHeader
+				className="max-w-2xl"
+				eyebrow="Account"
+				title="Account"
+				leading={<BackToAccounts />}
+			/>
+		);
 	return <AccountDetails account={account} />;
 }
 
@@ -127,6 +140,7 @@ function AccountDetails({ account }: { account: AccountView }) {
 	return (
 		<>
 			<PageHeader
+				className="max-w-2xl"
 				eyebrow={`${accountKindName[account.kind]} Account`}
 				title={account.name}
 				leading={<BackToAccounts />}
@@ -524,9 +538,12 @@ function RenameForm({ name, onSave }: { name: string; onSave: (name: string) => 
 					onChange={(event) => setValue(event.currentTarget.value)}
 				/>
 			</Field>
-			<Button type="submit" disabled={!hydrated}>
-				Save
-			</Button>
+			<SheetFooter>
+				<SheetCancel />
+				<Button type="submit" disabled={!hydrated}>
+					Save
+				</Button>
+			</SheetFooter>
 		</form>
 	);
 }

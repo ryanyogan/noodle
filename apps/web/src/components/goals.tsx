@@ -14,7 +14,13 @@ import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { NativeSelect } from "@noodle/ui/components/native-select";
 import { Progress } from "@noodle/ui/components/progress";
-import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
+import {
+	Sheet,
+	SheetCancel,
+	SheetContent,
+	SheetFooter,
+	SheetHeader,
+} from "@noodle/ui/components/sheet";
 import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { cn } from "@noodle/ui/lib/utils";
 import { Link, useHydrated } from "@tanstack/react-router";
@@ -650,9 +656,12 @@ function PayoffGoalForm({
 				Each month you plan extra payments from Free to Spend. A regular payment you already make,
 				like a loan’s monthly payment, stays a Commitment; this is on top of it.
 			</p>
-			<Button type="submit" disabled={!hydrated || !valid}>
-				Add Goal
-			</Button>
+			<SheetFooter>
+				<SheetCancel />
+				<Button type="submit" disabled={!hydrated || !valid}>
+					Add Goal
+				</Button>
+			</SheetFooter>
 		</form>
 	);
 }
@@ -773,9 +782,12 @@ function AddGoalForm({
 					onChange={(event) => setClaim(event.currentTarget.value)}
 				/>
 			</Field>
-			<Button type="submit" disabled={!valid}>
-				Add Goal
-			</Button>
+			<SheetFooter>
+				<SheetCancel />
+				<Button type="submit" disabled={!valid}>
+					Add Goal
+				</Button>
+			</SheetFooter>
 		</form>
 	);
 }
@@ -903,9 +915,12 @@ function AmountForm({
 					/>
 				</Field>
 			) : null}
-			<Button type="submit" disabled={!hydrated || !valid}>
-				{submitLabel}
-			</Button>
+			<SheetFooter>
+				<SheetCancel />
+				<Button type="submit" disabled={!hydrated || !valid}>
+					{submitLabel}
+				</Button>
+			</SheetFooter>
 		</form>
 	);
 }

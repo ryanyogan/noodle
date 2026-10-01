@@ -4,7 +4,13 @@ import { Field, FormError } from "@noodle/ui/components/field";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { NativeSelect } from "@noodle/ui/components/native-select";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
-import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
+import {
+	Sheet,
+	SheetCancel,
+	SheetContent,
+	SheetFooter,
+	SheetHeader,
+} from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { Tile } from "@noodle/ui/components/tile";
 import { toast } from "@noodle/ui/components/toast";
@@ -539,9 +545,12 @@ function ChooseAccountsForm({
 				<FormError>Each Account can be only one of these. Pick another for one of them.</FormError>
 			) : null}
 			{save.isError ? <FormError>Couldn’t save that. Try again.</FormError> : null}
-			<Button type="submit" disabled={save.isPending || open.length === 0}>
-				{connection.status === "choosing" ? "Start bringing them in" : "Save"}
-			</Button>
+			<SheetFooter>
+				<SheetCancel />
+				<Button type="submit" disabled={save.isPending || open.length === 0}>
+					{connection.status === "choosing" ? "Start bringing them in" : "Save"}
+				</Button>
+			</SheetFooter>
 		</form>
 	);
 }

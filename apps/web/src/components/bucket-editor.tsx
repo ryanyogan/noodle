@@ -5,7 +5,7 @@ import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { ListRow } from "@noodle/ui/components/list";
 import { RadioGroup, RadioGroupCard } from "@noodle/ui/components/radio-group";
-import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
+import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useHydrated } from "@tanstack/react-router";
@@ -320,14 +320,14 @@ function BucketForm({
 			{errors.amount ? (
 				<FormError>Enter the allowance as a dollar amount, like 250 or 85.50.</FormError>
 			) : null}
-			<div className="grid grid-cols-2 gap-2">
+			<SheetFooter className="max-lg:grid-cols-2">
 				<Button type="button" variant="outline" onClick={onCancel}>
 					Cancel
 				</Button>
 				<Button type="submit" disabled={!hydrated || !dirty}>
 					Save
 				</Button>
-			</div>
+			</SheetFooter>
 		</form>
 	);
 }

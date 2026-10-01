@@ -4,7 +4,7 @@ import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { NativeSelect } from "@noodle/ui/components/native-select";
-import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
+import { Sheet, SheetCancel, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { cn } from "@noodle/ui/lib/utils";
 import { useHydrated } from "@tanstack/react-router";
 import { Plus, Sparkles, Split as SplitIcon, Trash2, X } from "lucide-react";
@@ -94,7 +94,7 @@ export function TransactionEditor({
 }) {
 	return (
 		<Sheet open={transaction !== null} onOpenChange={(open) => (open ? undefined : onClose())}>
-			<SheetContent>
+			<SheetContent layout="side">
 				{transaction?.partlyPrivate ? (
 					<>
 						<SheetHeader title="Transaction" description={dayName(transaction.date, today)} />
@@ -484,9 +484,10 @@ function EditForm({
 					<Trash2 />
 					Delete
 				</Button>
+				<SheetCancel className="ms-auto" />
 				<Button
 					type="submit"
-					className="ms-auto"
+					className="max-lg:ms-auto"
 					disabled={!hydrated || (splits !== null && remainder !== 0)}
 				>
 					Save

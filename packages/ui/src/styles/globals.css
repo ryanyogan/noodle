@@ -245,6 +245,8 @@
 	--animate-sheet-out: sheet-in 280ms cubic-bezier(0.4, 0, 1, 1) reverse both;
 	--animate-dialog-in: dialog-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 	--animate-dialog-out: dialog-in 160ms cubic-bezier(0.4, 0, 1, 1) reverse both;
+	--animate-side-in: side-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+	--animate-side-out: side-in 220ms cubic-bezier(0.4, 0, 1, 1) reverse both;
 
 	@keyframes fade-in {
 		from {
@@ -254,6 +256,11 @@
 	@keyframes sheet-in {
 		from {
 			transform: translateY(100%);
+		}
+	}
+	@keyframes side-in {
+		from {
+			transform: translateX(100%);
 		}
 	}
 	@keyframes dialog-in {

@@ -169,7 +169,9 @@ function Sidebar({ householdName }: { householdName: string }) {
 			<div className="mt-auto flex items-center gap-2.5 rounded-xl p-2.5 pe-0">
 				<UserButton />
 				<div className="grid min-w-0 flex-1 text-[13px] leading-tight">
-					<span className="truncate font-medium">{householdName}</span>
+					<span className="line-clamp-2 font-medium wrap-break-word" title={householdName}>
+						{householdName}
+					</span>
 					<span className="text-xs text-subtle-foreground">Household</span>
 				</div>
 				<GlossaryButton className="shrink-0" />

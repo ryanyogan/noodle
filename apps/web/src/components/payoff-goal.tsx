@@ -7,7 +7,13 @@ import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
-import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
+import {
+	Sheet,
+	SheetCancel,
+	SheetContent,
+	SheetFooter,
+	SheetHeader,
+} from "@noodle/ui/components/sheet";
 import { cn } from "@noodle/ui/lib/utils";
 import { Link, useHydrated, useRouteContext } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
@@ -542,9 +548,12 @@ function PayoffEditForm({
 					/>
 				</Field>
 			</div>
-			<Button type="submit" disabled={!hydrated || !valid}>
-				Save
-			</Button>
+			<SheetFooter>
+				<SheetCancel />
+				<Button type="submit" disabled={!hydrated || !valid}>
+					Save
+				</Button>
+			</SheetFooter>
 			{onRestart ? (
 				<div className={cn("grid gap-2 border-t pt-4 text-[13px] text-muted-foreground")}>
 					<p>

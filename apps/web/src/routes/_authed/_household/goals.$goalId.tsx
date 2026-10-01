@@ -19,7 +19,13 @@ import { Input } from "@noodle/ui/components/input";
 import { List, ListGroupLabel, ListRow } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
-import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
+import {
+	Sheet,
+	SheetCancel,
+	SheetContent,
+	SheetFooter,
+	SheetHeader,
+} from "@noodle/ui/components/sheet";
 import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { cn } from "@noodle/ui/lib/utils";
 import { createFileRoute, Link, notFound, useHydrated } from "@tanstack/react-router";
@@ -871,9 +877,12 @@ function EditGoalForm({
 					/>
 				</Field>
 			</div>
-			<Button type="submit" disabled={!hydrated || !valid}>
-				Save
-			</Button>
+			<SheetFooter>
+				<SheetCancel />
+				<Button type="submit" disabled={!hydrated || !valid}>
+					Save
+				</Button>
+			</SheetFooter>
 		</form>
 	);
 }
