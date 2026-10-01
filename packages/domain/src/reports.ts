@@ -1,7 +1,7 @@
 import { expectedIn } from "./commitments";
 import { extraIncomeOf } from "./extra-income";
 import { shares } from "./for";
-import { type SetAsideChange, setAsideOf } from "./goals";
+import { type GoalKind, paidDownOf, type SetAsideChange, setAsideOf } from "./goals";
 import type { Cents } from "./money";
 import {
 	addDays,
@@ -513,11 +513,12 @@ export function setAsideHistory(
  * `month` itself.
  */
 export function projectedCompletion(
-	goal: { id: string; target: Cents; fromMonth: MonthKey },
+	goal: { id: string; target: Cents; fromMonth: MonthKey; kind?: GoalKind; owed?: Cents | null },
 	changes: readonly SetAsideChange[],
 	month: MonthKey,
 	window = 6,
 ): MonthKey | null {
+	if (goal.kind === "payoff") return projectedPayoff(goal, goal.owed ?? null, month);
 	const own = changes.filter((c) => c.goalId === goal.id);
 	const saved = setAsideOf(goal.id, own);
 	if (saved >= goal.target) return month;
@@ -530,6 +531,50 @@ export function projectedCompletion(
 	const perMonth = recent / months;
 	if (perMonth <= 0) return null;
 	return addMonths(month, Math.ceil((goal.target - saved) / perMonth));
+}
+
+/**
+ * When a payoff Goal's card or loan will be paid off at the pace it has been paid down since the
+ * Goal was added (ADR-0019), as a month; null when it isn't coming down (or has no balance yet).
+ * Paid off already gets `month` itself.
+ */
+export function projectedPayoff(
+	goal: { target: Cents; fromMonth: MonthKey },
+	owed: Cents | null,
+	month: MonthKey,
+): MonthKey | null {
+	if (owed === null) return null;
+	if (owed <= 0) return month;
+	const paid = paidDownOf(goal.target, owed);
+	const months = Math.max(1, monthsBetween(goal.fromMonth, month) + 1);
+	const perMonth = paid / months;
+	if (perMonth <= 0) return null;
+	return addMonths(month, Math.ceil(owed / perMonth));
+}
+
+/**
+ * What's owed on a card or loan at the end of `month`: the latest balance recorded in or before
+ * it (`owed`, oldest first, each with the month it was recorded in); null before the first.
+ */
+export function owedAtEndOf(
+	owed: readonly { month: MonthKey; amount: Cents }[],
+	month: MonthKey,
+): Cents | null {
+	let found: Cents | null = null;
+	for (const point of owed) if (point.month <= month) found = point.amount;
+	return found;
+}
+
+/** A payoff Goal's paid down at the end of each month, from what was owed then (ADR-0019). */
+export function paidDownHistory(
+	goal: { target: Cents; fromMonth: MonthKey },
+	owed: readonly { month: MonthKey; amount: Cents }[],
+	months: readonly MonthKey[],
+): { month: MonthKey; saved: Cents }[] {
+	return months.map((month) => ({
+		month,
+		saved: month < goal.fromMonth ? 0 : paidDownOf(goal.target, owedAtEndOf(owed, month)),
+	}));
 }
 
 /** Income per month against its take-home pay: what came in, and the Extra income beyond take-home pay. */

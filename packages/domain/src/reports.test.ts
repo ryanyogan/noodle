@@ -8,16 +8,20 @@ import {
 	headlines,
 	incomeByMonth,
 	levelOf,
+	type MonthKey,
 	mergeCells,
 	monthsIn,
 	overThreshold,
+	owedAtEndOf,
 	type PlanRecords,
+	paidDownHistory,
 	periodKey,
 	periodKeys,
 	periodRange,
 	planHabits,
 	planVsActual,
 	projectedCompletion,
+	projectedPayoff,
 	recurringSplit,
 	regroupMonthly,
 	type SpendCell,
@@ -424,5 +428,54 @@ describe("withinHistory: a Report kept to the Household's history", () => {
 
 	it("has nothing to compare with before any history", () => {
 		expect(withinHistory(range, previous, null)).toEqual({ range, compared: null });
+	});
+});
+
+describe("projectedPayoff (ADR-0019)", () => {
+	const card = { target: 600_000, fromMonth: "2026-07" as MonthKey };
+	it("pays off what's owed at the pace it has come down since the Goal was added", () => {
+		// $1,500 down over July–September is $500 a month: $4,500 takes 9 more.
+		expect(projectedPayoff(card, 450_000, "2026-09")).toBe("2027-06");
+	});
+	it("is this month once paid off, and null when it isn't coming down", () => {
+		expect(projectedPayoff(card, 0, "2026-09")).toBe("2026-09");
+		expect(projectedPayoff(card, 600_000, "2026-09")).toBeNull();
+		expect(projectedPayoff(card, 700_000, "2026-09")).toBeNull();
+		expect(projectedPayoff(card, null, "2026-09")).toBeNull();
+	});
+	it("is what projectedCompletion gives a payoff Goal, whatever its funding", () => {
+		const funded = [
+			{ goalId: "c", kind: "funding" as const, amount: 900_000, month: "2026-09" as MonthKey },
+		];
+		expect(
+			projectedCompletion({ id: "c", ...card, kind: "payoff", owed: 450_000 }, funded, "2026-09"),
+		).toBe("2027-06");
+	});
+});
+
+describe("paidDownHistory (ADR-0019)", () => {
+	const owed = [
+		{ month: "2026-05" as MonthKey, amount: 300_000 },
+		{ month: "2026-07" as MonthKey, amount: 250_000 },
+		{ month: "2026-07" as MonthKey, amount: 240_000 },
+		{ month: "2026-09" as MonthKey, amount: 320_000 },
+	];
+	it("is what was paid down at each month's end, nothing before the Goal", () => {
+		expect(
+			paidDownHistory({ target: 300_000, fromMonth: "2026-06" }, owed, [
+				"2026-05",
+				"2026-06",
+				"2026-07",
+				"2026-08",
+				"2026-09",
+			]),
+		).toEqual([
+			{ month: "2026-05", saved: 0 },
+			{ month: "2026-06", saved: 0 },
+			{ month: "2026-07", saved: 60_000 },
+			{ month: "2026-08", saved: 60_000 },
+			{ month: "2026-09", saved: 0 },
+		]);
+		expect(owedAtEndOf(owed, "2026-04")).toBeNull();
 	});
 });

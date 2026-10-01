@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+	ACCOUNT_KINDS,
 	accountBalance,
 	attributeWithdrawal,
+	canPayOff,
 	type DayKey,
 	goalHistory,
 	goalProgress,
 	holdsMoney,
 	type MonthKey,
 	monthState,
+	owedFor,
+	paidDownOf,
+	projectionGoalOf,
 	type SetAsideChange,
 	setAsideOf,
 	splitAccount,
@@ -364,5 +369,148 @@ describe("goalHistory", () => {
 		// Within a month, the dated spending before the month's funding.
 		expect(history[0]?.changes.map((c) => c.id)).toEqual(["04", "01"]);
 		expect(history[1]?.changes.map((c) => c.id)).toEqual(["02", "03"]);
+	});
+});
+
+describe("payoff Goals (ADR-0019)", () => {
+	const card = {
+		id: "card",
+		target: 600_000,
+		targetDate: "2027-02-28" as DayKey,
+		fromMonth: "2026-07" as MonthKey,
+	};
+
+	describe("paidDownOf", () => {
+		it.each([
+			[450_000, 150_000],
+			[600_000, 0],
+			// New charges took it above what was owed: nothing paid down, never negative.
+			[700_000, 0],
+			[0, 600_000],
+			// A credit on the card counts as paid off, no more.
+			[-5_000, 600_000],
+			[null, 0],
+		])("owing %s has paid down %s", (owed, paid) => {
+			expect(paidDownOf(600_000, owed)).toBe(paid);
+		});
+	});
+
+	describe("owedFor", () => {
+		const accounts = [
+			{ id: "visa", latestBalance: { amount: 45_000, at: 1 } },
+			{ id: "new-card", latestBalance: null },
+		];
+		it("is the card's latest balance", () => {
+			expect(owedFor({ kind: "payoff", accountId: "visa" }, accounts)).toBe(45_000);
+		});
+		it("is null without a balance, and for a savings Goal", () => {
+			expect(owedFor({ kind: "payoff", accountId: "new-card" }, accounts)).toBeNull();
+			expect(owedFor({ kind: "save", accountId: "visa" }, accounts)).toBeNull();
+		});
+	});
+
+	describe("goalProgress of a payoff Goal", () => {
+		const progress = (owed: number | null, changes: SetAsideChange[] = [], month = "2026-09") =>
+			goalProgress({ ...card, kind: "payoff", owed }, changes, month as MonthKey);
+
+		it("is paid down from the target to what's owed, with what's owed still to go", () => {
+			expect(progress(450_000)).toMatchObject({
+				saved: 150_000,
+				remaining: 450_000,
+				share: 0.25,
+				status: "on-track",
+			});
+		});
+
+		it("needs what's owed spread over the months left, this one included", () => {
+			// September to February is 6 months: $4,500 / 6.
+			expect(progress(450_000)).toMatchObject({ monthsLeft: 6, monthly: 75_000 });
+		});
+
+		it("counts this month's funding against the month's need, never as progress", () => {
+			const funded = progress(450_000, [
+				change("card", "funding", 50_000),
+				change("card", "funding", 40_000, "2026-08"),
+				change("other", "funding", 99_000),
+			]);
+			expect(funded).toMatchObject({
+				saved: 150_000,
+				fundedThisMonth: 50_000,
+				monthly: 75_000,
+				leftThisMonth: 25_000,
+			});
+		});
+
+		it("is behind when paid down is short of an even schedule from the month it was added", () => {
+			// July to February is 8 months; by September's start 2/8 of $6,000 ($1,500) is expected.
+			expect(progress(460_000).status).toBe("behind");
+			expect(progress(450_000).status).toBe("on-track");
+		});
+
+		it("loses progress when new charges take what's owed back up", () => {
+			expect(progress(650_000)).toMatchObject({ saved: 0, remaining: 650_000, share: 0 });
+		});
+
+		it("is reached (paid off) at $0 owed", () => {
+			expect(progress(0)).toMatchObject({
+				saved: 600_000,
+				remaining: 0,
+				share: 1,
+				monthly: 0,
+				leftThisMonth: 0,
+				status: "reached",
+			});
+		});
+
+		it("is past due once its date's month has gone with something still owed", () => {
+			expect(progress(10_000, [], "2027-03")).toMatchObject({ status: "past-due", monthly: null });
+		});
+
+		it("has no schedule without a target date", () => {
+			const undated = (owed: number) =>
+				goalProgress({ ...card, targetDate: null, kind: "payoff", owed }, [], "2026-09");
+			expect(undated(300_000)).toMatchObject({ status: "saving", monthly: null, saved: 300_000 });
+			expect(undated(0).status).toBe("reached");
+		});
+
+		it("has nothing paid down until the card has a balance", () => {
+			expect(progress(null)).toMatchObject({ saved: 0, remaining: 600_000 });
+		});
+	});
+
+	describe("projectionGoalOf", () => {
+		it("is what a savings Goal has set aside", () => {
+			const changes = [change("g", "claim", 10_000), change("g", "funding", 5_000)];
+			expect(
+				projectionGoalOf(
+					{ id: "g", target: 50_000, targetDate: null, fromMonth: "2026-01" },
+					changes,
+					"2026-09",
+				),
+			).toEqual({
+				id: "g",
+				target: 50_000,
+				targetDate: null,
+				saved: 15_000,
+				fundedThisMonth: 5_000,
+			});
+		});
+
+		it("projects a payoff Goal from what it has paid down, as if this month's funding is paid", () => {
+			const changes = [change("card", "funding", 50_000), change("card", "funding", 1, "2026-08")];
+			expect(
+				projectionGoalOf({ ...card, kind: "payoff", owed: 450_000 }, changes, "2026-09"),
+			).toEqual({
+				id: "card",
+				target: 600_000,
+				targetDate: "2027-02-28",
+				saved: 200_000,
+				fundedThisMonth: 50_000,
+			});
+		});
+	});
+
+	it("canPayOff: credit cards and loans", () => {
+		expect(ACCOUNT_KINDS.filter(canPayOff)).toEqual(["credit-card", "loan"]);
 	});
 });

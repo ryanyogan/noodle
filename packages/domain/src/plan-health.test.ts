@@ -134,3 +134,43 @@ describe("planHealth", () => {
 		expect(health({ goals })).toMatchObject([{ kind: "goal-late", reachedIn: null }]);
 	});
 });
+
+describe("planHealth: payoff Goals (ADR-0019)", () => {
+	const card = (owed: number | null): HealthGoal => ({
+		id: "card",
+		name: "Pay off the Visa",
+		target: 600_000,
+		targetDate: "2026-12-31",
+		fromMonth: "2026-06",
+		kind: "payoff",
+		owed,
+	});
+
+	it("is fine when what's owed is coming down fast enough", () => {
+		// $4,000 paid down over June–September, $1,000 a month: $2,000 left is gone by November.
+		expect(health({ goals: [card(200_000)] })).toEqual([]);
+	});
+
+	it("warns when what's owed won't reach $0 by the date at its pace", () => {
+		// $800 paid down over 4 months is $200 a month: $5,200 takes 26 more.
+		expect(health({ goals: [card(520_000)] })).toEqual([
+			expect.objectContaining({ kind: "goal-late", goalId: "card", reachedIn: "2028-11" }),
+		]);
+	});
+
+	it("warns when what's owed has gone up, so it isn't coming down", () => {
+		expect(health({ goals: [card(650_000)] })).toEqual([
+			expect.objectContaining({ kind: "goal-late", goalId: "card", reachedIn: null }),
+		]);
+	});
+
+	it("never warns about one that's paid off", () => {
+		expect(health({ goals: [card(0)] })).toEqual([]);
+	});
+
+	it("doesn't count its funding as progress", () => {
+		expect(health({ goals: [card(650_000)], changes: funding("card", 100_000) })).toEqual([
+			expect.objectContaining({ kind: "goal-late", goalId: "card" }),
+		]);
+	});
+});

@@ -12,6 +12,41 @@ export type AccountKind = (typeof ACCOUNT_KINDS)[number];
 /** Only Accounts that hold money can back what a Goal has set aside. */
 export const holdsMoney = (kind: AccountKind) => kind === "checking" || kind === "savings";
 
+/**
+ * A Goal saves (money Set aside on a checking or savings Account) or pays off a credit card or
+ * loan (ADR-0019): its target is what was owed when it was added, its progress how far what's
+ * owed has come down since, and its funding a plan for extra payments, set aside nowhere.
+ */
+export const GOAL_KINDS = ["save", "payoff"] as const;
+
+export type GoalKind = (typeof GOAL_KINDS)[number];
+
+/** Credit cards and loans are what a payoff Goal pays down. */
+export const canPayOff = (kind: AccountKind) => !holdsMoney(kind);
+
+/**
+ * What a payoff Goal has paid down: its target (what was owed when it was added) less what's
+ * owed now, never below 0 (new charges took it back up) or above the target (owed nothing, or a
+ * credit). Nothing until the card or loan has a balance.
+ */
+export function paidDownOf(target: Cents, owed: Cents | null): Cents {
+	if (owed === null) return 0;
+	return Math.min(target, Math.max(0, target - owed));
+}
+
+/**
+ * What's owed now on a payoff Goal's card or loan: its latest balance (Goal spending only ever
+ * comes out of checking or savings, so nothing comes off it in between). Null for a savings Goal,
+ * or until the Account has a balance.
+ */
+export function owedFor(
+	goal: { kind: GoalKind; accountId: string },
+	accounts: readonly { id: string; latestBalance: BalanceUpdate | null }[],
+): Cents | null {
+	if (goal.kind !== "payoff") return null;
+	return accounts.find((a) => a.id === goal.accountId)?.latestBalance?.amount ?? null;
+}
+
 /** A balance a Parent entered for an Account, and when it was recorded (ms). */
 export type BalanceUpdate = { amount: Cents; at: number };
 
@@ -47,7 +82,7 @@ export type SetAsideChange = {
 };
 
 /** A Goal's set-aside money: every change to it, summed. */
-export function setAsideOf(goalId: string, changes: SetAsideChange[]): Cents {
+export function setAsideOf(goalId: string, changes: readonly SetAsideChange[]): Cents {
 	return changes.reduce((sum, c) => (c.goalId === goalId ? sum + c.amount : sum), 0);
 }
 
@@ -94,9 +129,9 @@ export function splitAccount({
 export type GoalStatus = "reached" | "on-track" | "behind" | "past-due" | "saving";
 
 export type GoalProgress = {
-	/** The Goal's set-aside money. */
+	/** The Goal's set-aside money; for a payoff Goal, what it has paid down (paidDownOf). */
 	saved: Cents;
-	/** Still to save to reach the target. */
+	/** Still to save to reach the target; for a payoff Goal, what's still owed. */
 	remaining: Cents;
 	/** Saved as a share of the target, 0–1. */
 	share: number;
@@ -116,12 +151,32 @@ export type GoalProgress = {
 	status: GoalStatus;
 };
 
+/** Goals with what's owed now on each payoff Goal's card or loan (owedFor), for goalProgress. */
+export const withOwed = <G extends { kind: GoalKind; accountId: string }>(
+	goals: readonly G[],
+	accounts: readonly { id: string; latestBalance: BalanceUpdate | null }[],
+): (G & { owed: Cents | null })[] => goals.map((g) => ({ ...g, owed: owedFor(g, accounts) }));
+
+/**
+ * A Goal as its progress needs it. A payoff Goal (`kind: "payoff"`) also needs what's owed now
+ * (`owed`, owedFor); one without a `kind` saves.
+ */
+export type ProgressGoal = {
+	id: string;
+	target: Cents;
+	targetDate: DayKey | null;
+	fromMonth: MonthKey;
+	kind?: GoalKind;
+	owed?: Cents | null;
+};
+
 /** How a Goal is doing in `month` (the Household's current month). */
 export function goalProgress(
-	goal: { id: string; target: Cents; targetDate: DayKey | null; fromMonth: MonthKey },
-	changes: SetAsideChange[],
+	goal: ProgressGoal,
+	changes: readonly SetAsideChange[],
 	month: MonthKey,
 ): GoalProgress {
+	if (goal.kind === "payoff") return payoffProgress(goal, goal.owed ?? null, changes, month);
 	const own = changes.filter((c) => c.goalId === goal.id);
 	const saved = setAsideOf(goal.id, own);
 	const fundedThisMonth = setAsideOf(
@@ -154,6 +209,69 @@ export function goalProgress(
 	const expectedByStart = Math.floor((goal.target * elapsed) / total);
 	const status = saved < expectedByStart ? "behind" : "on-track";
 	return { ...base, monthsLeft, monthly, leftThisMonth, status };
+}
+
+/**
+ * How a payoff Goal is doing in `month` (ADR-0019). Saved is what it has paid down, remaining
+ * what's still owed. It's reached ("Paid off") once nothing is owed. A month is what's still owed
+ * spread over the months to its target date, this one included, so a payment made this month
+ * lowers it at once; behind is paid down short of an even schedule from the month it was added.
+ * Its funding is planned extra payments: it counts this month, never as progress.
+ */
+export function payoffProgress(
+	goal: Omit<ProgressGoal, "kind" | "owed">,
+	owed: Cents | null,
+	changes: readonly SetAsideChange[],
+	month: MonthKey,
+): GoalProgress {
+	const fundedThisMonth = setAsideOf(
+		goal.id,
+		changes.filter((c) => c.goalId === goal.id && c.kind === "funding" && c.month === month),
+	);
+	const saved = paidDownOf(goal.target, owed);
+	const remaining = owed === null ? goal.target : Math.max(0, owed);
+	const share = goal.target > 0 ? saved / goal.target : 1;
+	const paidOff = owed !== null && owed <= 0;
+	const base = { saved, remaining, share, fundedThisMonth };
+	if (goal.targetDate === null) {
+		const status = paidOff ? "reached" : "saving";
+		return { ...base, monthsLeft: null, monthly: null, leftThisMonth: null, status };
+	}
+	const targetMonth = monthOfDay(goal.targetDate);
+	const monthsLeft = Math.max(0, monthsBetween(month, targetMonth) + 1);
+	if (paidOff) return { ...base, monthsLeft, monthly: 0, leftThisMonth: 0, status: "reached" };
+	if (monthsLeft === 0) {
+		return { ...base, monthsLeft, monthly: null, leftThisMonth: null, status: "past-due" };
+	}
+	const monthly = Math.ceil(remaining / monthsLeft);
+	const leftThisMonth = Math.max(0, monthly - fundedThisMonth);
+	const total = Math.max(1, monthsBetween(goal.fromMonth, targetMonth) + 1);
+	const elapsed = Math.min(total, Math.max(0, monthsBetween(goal.fromMonth, month)));
+	const expectedByStart = Math.floor((goal.target * elapsed) / total);
+	const status = saved < expectedByStart ? "behind" : "on-track";
+	return { ...base, monthsLeft, monthly, leftThisMonth, status };
+}
+
+/**
+ * A Goal for projecting the Plan ahead (ProjectionGoal in scenario.ts): what it has saved, with
+ * this month's funding part of it. A payoff Goal is projected as if its funding is paid to the
+ * card, so what it has paid down plus this month's funding stands in for saved, and its monthly
+ * amount is what's still owed over the months left, as payoffProgress has it.
+ */
+export function projectionGoalOf(
+	goal: ProgressGoal,
+	changes: readonly SetAsideChange[],
+	month: MonthKey,
+): { id: string; target: Cents; targetDate: DayKey | null; saved: Cents; fundedThisMonth: Cents } {
+	const fundedThisMonth = setAsideOf(
+		goal.id,
+		changes.filter((c) => c.goalId === goal.id && c.kind === "funding" && c.month === month),
+	);
+	const saved =
+		goal.kind === "payoff"
+			? paidDownOf(goal.target, goal.owed ?? null) + fundedThisMonth
+			: setAsideOf(goal.id, changes as SetAsideChange[]);
+	return { id: goal.id, target: goal.target, targetDate: goal.targetDate, saved, fundedThisMonth };
 }
 
 /**

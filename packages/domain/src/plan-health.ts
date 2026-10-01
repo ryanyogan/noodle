@@ -1,5 +1,5 @@
 import { type Income, incomeCheck } from "./extra-income";
-import { goalProgress, type SetAsideChange, setAsideOf } from "./goals";
+import { type GoalKind, goalProgress, projectionGoalOf, type SetAsideChange } from "./goals";
 import type { Cents } from "./money";
 import { addMonths, type DayKey, type MonthKey, monthOfDay } from "./month";
 import { type PlanRecords, planForMonth } from "./plan";
@@ -15,6 +15,7 @@ import { planAhead, project } from "./scenario";
 //   Parent's Personal Allowance is theirs alone to set, so it's never flagged to this one.
 // - A dated Goal that won't reach its target by its date at the pace of its last 6 months
 //   (projectedCompletion). A Goal added this month hasn't had time to show a pace.
+//   A payoff Goal's pace is how far what's owed has come down since it was added (ADR-0019).
 //
 // Every Commitment has a due date (the Plan can't store one without), so none is flagged for it.
 
@@ -59,6 +60,9 @@ export type HealthGoal = {
 	target: Cents;
 	targetDate: DayKey | null;
 	fromMonth: MonthKey;
+	/** A payoff Goal is judged by what's owed now (ADR-0019). */
+	kind?: GoalKind;
+	owed?: Cents | null;
 };
 
 /**
@@ -88,16 +92,7 @@ export function planHealth({
 
 	const ahead = planAhead(
 		records,
-		goals.map((goal) => ({
-			id: goal.id,
-			target: goal.target,
-			targetDate: goal.targetDate,
-			saved: setAsideOf(goal.id, [...changes]),
-			fundedThisMonth: setAsideOf(
-				goal.id,
-				changes.filter((c) => c.kind === "funding" && c.month === month),
-			),
-		})),
+		goals.map((goal) => projectionGoalOf(goal, changes, month)),
 		month,
 		HEALTH_MONTHS_AHEAD + 1,
 	);
@@ -153,7 +148,7 @@ export function planHealth({
 
 	for (const goal of goals) {
 		if (goal.targetDate === null || goal.fromMonth >= month) continue;
-		if (goalProgress(goal, [...changes], month).status === "reached") continue;
+		if (goalProgress(goal, changes, month).status === "reached") continue;
 		const reachedIn = projectedCompletion(goal, changes, month);
 		if (reachedIn !== null && reachedIn <= monthOfDay(goal.targetDate)) continue;
 		warnings.push({
