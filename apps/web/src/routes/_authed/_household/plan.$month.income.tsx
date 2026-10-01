@@ -1,17 +1,16 @@
 import { type MonthKey, monthOfDay, type PlanScope } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
-import { Card } from "@noodle/ui/components/card";
 import { List, ListRow } from "@noodle/ui/components/list";
-import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
-import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
+import { createFileRoute, useHydrated } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
 import { useState } from "react";
+import { MonthIncome } from "../../../components/extra-income";
 import { SaveFailed } from "../../../components/plan-editing";
 import { PlanSubPage } from "../../../components/plan-page";
 import { ChangedNote, PlanAmountForm } from "../../../components/plan-scope-field";
 import { TermHelp } from "../../../components/term-help";
-import { formatMoney, shortDay } from "../../../format";
+import { formatMoney } from "../../../format";
 import { usePlanChange, usePlanChanges, withTakeHomePay } from "../../../plan-changes";
 import { useMonthState } from "../../../queries";
 import { setTakeHomePay } from "../../../server/plan";
@@ -26,7 +25,6 @@ function PlanIncome() {
 	const state = useMonthState(month);
 	const current = monthOfDay(state.asOf);
 	const received = state.income.filter((i) => monthOfDay(i.date) === month);
-	const total = received.reduce((sum, i) => sum + i.amount, 0);
 	return (
 		<PlanSubPage
 			page="income"
@@ -36,37 +34,10 @@ function PlanIncome() {
 			title="Income"
 		>
 			<TakeHomePayEditor month={month} baseline={state.baseline} editable={state.editable} />
-			<Section aria-labelledby="plan-received">
-				<SectionHeader id="plan-received" title="Received this month" count={received.length} />
-				<p className="px-1 text-sm text-muted-foreground">
-					<span className="font-medium text-foreground tabular-nums">{formatMoney(total)}</span>{" "}
-					received
-					{state.baseline === null ? "" : ` of ${formatMoney(state.baseline)} usual take-home pay`}
-				</p>
-				{received.length > 0 ? (
-					<List>
-						{received.map((entry) => (
-							<ListRow
-								key={entry.id}
-								title={entry.note ?? "Income"}
-								meta={shortDay(entry.date)}
-								trailing={<span className="tabular-nums">{formatMoney(entry.amount)}</span>}
-							/>
-						))}
-					</List>
-				) : null}
-				{/* Income is recorded as it arrives, on the month itself. */}
-				{month === current ? (
-					<Card className="flex items-center justify-between gap-4 p-(--card-pad) text-sm text-muted-foreground">
-						Record a paycheck or other money in on This Month.
-						<Button variant="outline" size="sm" asChild>
-							<Link to="/month/$month" params={{ month }}>
-								Record income
-							</Link>
-						</Button>
-					</Card>
-				) : null}
-			</Section>
+			{/* The same income list as This Month's, with Add income and the same row actions. */}
+			{state.baseline !== null ? (
+				<MonthIncome month={month} asOf={state.asOf} baseline={state.baseline} income={received} />
+			) : null}
 		</PlanSubPage>
 	);
 }

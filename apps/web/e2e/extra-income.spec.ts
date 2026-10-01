@@ -103,3 +103,23 @@ test("income removed by mistake comes back with Undo", async ({ browser }) => {
 	await expect(income(page)).toContainText("$2,500 received of $5,000 usual take-home pay");
 	await page.context().close();
 });
+
+test("income is added and removed on Plan › Income as on This Month", async ({ browser }) => {
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
+	const month = /\/month\/(\d{4}-\d{2})/.exec(page.url())?.[1];
+	if (!month) throw new Error(`No month in ${page.url()}`);
+	await page.goto(`/plan/${month}/income`);
+	await expect(page.getByRole("heading", { level: 1 })).toContainText("Income");
+	await addIncome(page, "2,500", "Paycheck");
+	await expect(income(page)).toContainText("$2,500 received of $5,000 usual take-home pay");
+	await expect(income(page).getByRole("listitem")).toContainText("Paycheck");
+
+	// The same list on This Month, and the same row actions on either.
+	await page.goto(`/month/${month}`);
+	await expect(income(page)).toContainText("$2,500 received of $5,000");
+	await page.goto(`/plan/${month}/income`);
+	await income(page).getByRole("button", { name: "Remove $2,500 of income" }).click();
+	await expect(income(page).getByRole("listitem")).toHaveCount(0);
+	await page.context().close();
+});

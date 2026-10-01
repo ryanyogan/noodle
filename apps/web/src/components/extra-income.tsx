@@ -2,8 +2,11 @@ import type { IncomeRecord } from "@noodle/db";
 import {
 	type BucketState,
 	type Cents,
+	type DayKey,
 	type ExtraIncomeDestination,
 	type ExtraIncomeSuggestion,
+	type MonthKey,
+	monthOfDay,
 	parseDollars,
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
@@ -15,11 +18,69 @@ import { cn } from "@noodle/ui/lib/utils";
 import { useHydrated } from "@tanstack/react-router";
 import { X } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
+import { ulid } from "ulid";
+import { useIncome } from "../extra-income";
 import { formatMoney, formatMoneyInput, shortDay } from "../format";
 import type { GoalView } from "../goals";
-import { AmountInput } from "./goals";
+import { AmountInput, AmountSheet } from "./goals";
 import { NativeSelect } from "./native-select";
 import { TermHelp } from "./term-help";
+
+/**
+ * A month's income, with adding and removing it: the one income list This Month and Plan › Income
+ * both show, with the same Add income sheet and row actions. Only this month takes new income.
+ */
+export function MonthIncome({
+	month,
+	asOf,
+	baseline,
+	income,
+}: {
+	month: MonthKey;
+	/** Today: income is recorded on it, so only this month takes it. */
+	asOf: DayKey;
+	baseline: Cents;
+	/** This month's income. */
+	income: IncomeRecord[];
+}) {
+	const [adding, setAdding] = useState(false);
+	const writes = useIncome();
+	return (
+		<>
+			<IncomeSection
+				baseline={baseline}
+				income={income}
+				canRecord={monthOfDay(asOf) === month}
+				onAdd={() => setAdding(true)}
+				onRemove={(entry) =>
+					writes.remove.mutate({
+						incomeId: entry.id,
+						month,
+						date: entry.date,
+						amountCents: entry.amount,
+						note: entry.note,
+					})
+				}
+			/>
+			<AmountSheet
+				open={adding}
+				onOpenChange={setAdding}
+				title="Add income"
+				description="Money in today: a paycheck, a bonus, a tax refund. A Refund of a purchase goes back to its Bucket instead."
+				withNote
+				notePlaceholder="e.g. Paycheck"
+				submitLabel="Add income"
+				check={() => ({
+					hint: "Whatever comes in above your usual take-home pay is Extra income, for you to decide where it goes.",
+				})}
+				onSave={(amountCents, note) => {
+					setAdding(false);
+					writes.record.mutate({ incomeId: ulid(), month, date: asOf, amountCents, note });
+				}}
+			/>
+		</>
+	);
+}
 
 /** The month's income against the Take-home pay: what came in, and each entry (removable this month). */
 export function IncomeSection({

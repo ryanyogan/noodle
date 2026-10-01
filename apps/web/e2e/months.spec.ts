@@ -64,8 +64,8 @@ async function setCarriesOver(page: Page, bucket: string) {
 		serverFn("setCarriesOver")(new URL(response.url())),
 	);
 	await page.getByRole("radio", { name: /^Carries over/ }).check();
+	await page.getByRole("button", { name: "Save", exact: true }).click();
 	expect((await saved).ok()).toBe(true);
-	await page.keyboard.press("Escape");
 	await expect(page.getByRole("region", { name: "Left this month" })).toContainText("Carries over");
 	await page
 		.getByRole("navigation", { name: "Main" })

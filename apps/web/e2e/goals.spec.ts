@@ -96,7 +96,15 @@ test("a Goal is funded from Free to Spend and spent from what it has set aside, 
 	await expect(waterfall).toContainText("Goal funding−$250");
 	await expect(waterfall).toContainText("Free to Spend$3,150");
 	await waterfall.getByRole("link", { name: "Goal funding" }).click();
-	await expect(page.getByRole("region", { name: /^To fund this month/ })).toContainText("Braces");
+	const toFund = page.getByRole("region", { name: /^To fund this month/ });
+	await expect(toFund).toContainText("Braces");
+	// Every row reads the same way: this month's funding, then how far it has come.
+	await expect(toFund).toContainText("$250 funded");
+	await expect(toFund).toContainText("$1,250 of $6,000 set aside");
+	await expect(toFund.getByRole("link", { name: "New Goal" })).toHaveAttribute(
+		"href",
+		"/goals?add=save",
+	);
 
 	// Spending comes out of what's set aside, and no more than it.
 	await openGoals(page);

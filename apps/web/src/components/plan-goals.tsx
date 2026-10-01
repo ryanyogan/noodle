@@ -5,7 +5,7 @@ import { EmptyState } from "@noodle/ui/components/empty-state";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Link, useHydrated } from "@tanstack/react-router";
-import { Target } from "lucide-react";
+import { Check, Plus, Target } from "lucide-react";
 import { useState } from "react";
 import { ulid } from "ulid";
 import { formatMoney } from "../format";
@@ -23,7 +23,21 @@ export function PlanGoals({ state, title = "Goals" }: { state: MonthState; title
 	const active = goals.filter((g) => g.state === "active");
 	return (
 		<Section aria-labelledby="plan-goals">
-			<SectionHeader id="plan-goals" title={title} count={active.length} />
+			<SectionHeader
+				id="plan-goals"
+				title={title}
+				count={active.length}
+				action={
+					canAddGoal && active.length > 0 ? (
+						<Button variant="ghost" size="sm" asChild>
+							<Link to="/goals" search={{ add: "save" }}>
+								<Plus />
+								New Goal
+							</Link>
+						</Button>
+					) : undefined
+				}
+			/>
 			{active.length > 0 ? (
 				<List>
 					{active.map((goal) => (
@@ -44,6 +58,12 @@ export function PlanGoals({ state, title = "Goals" }: { state: MonthState; title
 								// A paid-off card needs no more payments; it's completed on its page.
 								goal.kind === "payoff" && goal.progress.status === "reached" ? (
 									<Badge variant="brand">Paid off</Badge>
+								) : goal.progress.leftThisMonth === 0 && goal.progress.status !== "reached" ? (
+									// Funded for the month: no Fund to press again (its page still funds more).
+									<Badge>
+										<Check aria-hidden="true" />
+										Funded
+									</Badge>
 								) : (
 									<Button
 										type="button"
@@ -72,7 +92,9 @@ export function PlanGoals({ state, title = "Goals" }: { state: MonthState; title
 					action={
 						<Button variant="outline" size="sm" asChild>
 							{canAddGoal ? (
-								<Link to="/goals">Add a Goal</Link>
+								<Link to="/goals" search={{ add: "save" }}>
+									Add a Goal
+								</Link>
 							) : (
 								<Link to="/accounts">Add an Account first</Link>
 							)}
@@ -259,15 +281,27 @@ function GoalThisMonthRow({ goal, onFund }: { goal: GoalView; onFund: () => void
 	);
 }
 
-/** What a Goal still needs this month, in words. */
-function goalThisMonth({ kind, progress, target, account }: GoalView): string {
-	if (progress.status === "reached") return kind === "payoff" ? "Paid off" : "Reached";
-	if (progress.leftThisMonth === null) {
-		return kind === "payoff"
-			? `Paid down ${formatMoney(progress.saved)} of ${formatMoney(target)}${account ? ` on ${account.name}` : ""}`
-			: `${formatMoney(progress.saved)} of ${formatMoney(target)} set aside`;
-	}
-	return progress.leftThisMonth > 0
-		? `${formatMoney(progress.leftThisMonth)} left to fund this month`
-		: "Funded for this month";
+/**
+ * A Goal this month, the same way for every row: what's funded this month (or still to fund),
+ * then how far it has come. "$500 funded this month · $25,249 of $30,000 set aside".
+ */
+function goalThisMonth({ kind, progress, target }: GoalView): string {
+	const sofar =
+		kind === "payoff"
+			? progress.status === "reached"
+				? "Paid off"
+				: `paid down ${formatMoney(progress.saved)} of ${formatMoney(target)}`
+			: progress.status === "reached"
+				? `Reached ${formatMoney(target)}`
+				: `${formatMoney(progress.saved)} of ${formatMoney(target)} set aside`;
+	const month =
+		progress.status === "reached"
+			? null
+			: progress.leftThisMonth !== null && progress.leftThisMonth > 0
+				? progress.fundedThisMonth > 0
+					? `${formatMoney(progress.fundedThisMonth)} funded, ${formatMoney(progress.leftThisMonth)} to go this month`
+					: `${formatMoney(progress.leftThisMonth)} to fund this month`
+				: `${formatMoney(progress.fundedThisMonth)} funded this month`;
+	const text = [month, sofar].filter(Boolean).join(" · ");
+	return text.charAt(0).toUpperCase() + text.slice(1);
 }

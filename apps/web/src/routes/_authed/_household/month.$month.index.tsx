@@ -50,16 +50,15 @@ import { CoverSheet, CoversInto, sourceName } from "../../../components/cover";
 import {
 	ExtraIncomeSection,
 	ExtraIncomeSheet,
-	IncomeSection,
+	MonthIncome,
 } from "../../../components/extra-income";
-import { AmountSheet } from "../../../components/goals";
 import { MonthCloseSection, MonthEndSection } from "../../../components/month-close";
 import { MonthLinks, MonthTopRow, monthTitle, useMonthSwipe } from "../../../components/month-nav";
 import { GoalsThisMonth } from "../../../components/plan-goals";
 import { planParts } from "../../../components/plan-page";
 import { TermHelp } from "../../../components/term-help";
 import { type CoverVariables, useCovers } from "../../../covers";
-import { useExtraIncomes, useIncome } from "../../../extra-income";
+import { useExtraIncomes } from "../../../extra-income";
 import { formatMoney, monthName, shortDay } from "../../../format";
 import { type GoalView, useGoals } from "../../../goals";
 import { closingWeek, useCloseMonth } from "../../../month-close";
@@ -90,9 +89,7 @@ function ThisMonth() {
 	const { cover, undo } = useCovers();
 	// The overspent Bucket being covered, by ID, so the sheet follows its latest state.
 	const [covering, setCovering] = useState<string | null>(null);
-	const [addingIncome, setAddingIncome] = useState(false);
 	const [choosingExtraIncome, setChoosingExtraIncome] = useState(false);
-	const income = useIncome();
 	const extraIncomes = useExtraIncomes();
 	const goals = useGoals();
 	const members = useSuspenseQuery(membersQuery()).data;
@@ -280,20 +277,11 @@ function ThisMonth() {
 						/>
 					) : null}
 					{state.baseline !== null && (month === current || monthIncome.length > 0) ? (
-						<IncomeSection
+						<MonthIncome
+							month={month}
+							asOf={state.asOf}
 							baseline={state.baseline}
 							income={monthIncome}
-							canRecord={month === current}
-							onAdd={() => setAddingIncome(true)}
-							onRemove={(entry) =>
-								income.remove.mutate({
-									incomeId: entry.id,
-									month,
-									date: entry.date,
-									amountCents: entry.amount,
-									note: entry.note,
-								})
-							}
 						/>
 					) : null}
 				</div>
@@ -325,28 +313,6 @@ function ThisMonth() {
 					const bucket = over.find((b) => b.id === covering);
 					setCovering(null);
 					if (bucket) cover.mutate(coverVariables(bucket, source, amountCents));
-				}}
-			/>
-			<AmountSheet
-				open={addingIncome}
-				onOpenChange={setAddingIncome}
-				title="Add income"
-				description="Money in today: a paycheck, a bonus, a tax refund. A Refund of a purchase goes back to its Bucket instead."
-				withNote
-				notePlaceholder="e.g. Paycheck"
-				submitLabel="Add income"
-				check={() => ({
-					hint: "Whatever comes in above your usual take-home pay is Extra income, for you to decide where it goes.",
-				})}
-				onSave={(amountCents, note) => {
-					setAddingIncome(false);
-					income.record.mutate({
-						incomeId: ulid(),
-						month,
-						date: state.asOf,
-						amountCents,
-						note,
-					});
 				}}
 			/>
 			<ExtraIncomeSheet
