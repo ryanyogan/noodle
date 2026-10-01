@@ -22,6 +22,15 @@ import { Card } from "@noodle/ui/components/card";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { PageHeader } from "@noodle/ui/components/page-header";
+import {
+	Table,
+	TableBody,
+	TableCaption,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@noodle/ui/components/table";
 import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -55,7 +64,6 @@ import {
 	SetAsidePicker,
 	VerdictCard,
 	VerdictLabel,
-	verdictName,
 } from "../../../components/affordability";
 import { formatMoney } from "../../../format";
 import { goalsView, useAddGoal } from "../../../goals";
@@ -770,49 +778,60 @@ function CarComparison({
 		{ label: "Paid in all", value: (w) => formatMoney(check[w].paid) },
 		{ label: "Worth at the end", value: (w) => formatMoney(check[w].worthAtEnd) },
 		{ label: "Costs all in", value: (w) => formatMoney(check[w].totalCost), total: true },
-		{ label: "Verdict", value: (w) => verdictName[check[w].verdict] },
 	];
 	return (
-		<div className="-mx-(--card-pad) overflow-x-auto px-(--card-pad)">
-			<table className="w-full min-w-[20rem] text-sm tabular-nums">
-				<caption className="pb-1.5 text-start text-[13px] font-medium text-muted-foreground">
+		<div className="grid gap-2">
+			<Table className="min-w-[20rem] text-sm">
+				<TableCaption className="mt-0 mb-1.5 caption-top text-start font-medium">
 					Over {years === 1 ? "1 year" : `${years} years`}
-				</caption>
-				<thead>
-					<tr className="[&>*]:pb-1.5 [&>*]:font-medium">
+				</TableCaption>
+				<TableHeader>
+					<TableRow className="border-0">
 						<td />
 						{ways.map((w) => (
-							<th
+							<TableHead
 								key={w}
 								scope="col"
-								className={cn("text-end", w === way ? "text-foreground" : "text-muted-foreground")}
+								numeric
+								className={cn("h-auto pb-1.5", w === way && "text-foreground")}
 							>
 								{wayName[w]}
-							</th>
+							</TableHead>
 						))}
-					</tr>
-				</thead>
-				<tbody>
+					</TableRow>
+				</TableHeader>
+				<TableBody>
 					{rows.map((row) => (
-						<tr
+						<TableRow
 							key={row.label}
-							className={cn("[&>*]:py-1.5", row.total && "border-t font-semibold")}
+							className={cn(row.total ? "border-t font-semibold" : "border-0")}
 						>
 							<th
 								scope="row"
-								className={cn("text-start font-normal", !row.total && "text-muted-foreground")}
+								className={cn(
+									"py-1.5 text-start font-normal",
+									!row.total && "text-muted-foreground",
+								)}
 							>
 								{row.label}
 							</th>
 							{ways.map((w) => (
-								<td key={w} className={cn("text-end", w !== way && "text-muted-foreground")}>
+								<TableCell
+									key={w}
+									numeric
+									className={cn("py-1.5", w !== way && "text-muted-foreground")}
+								>
 									{row.value(w)}
-								</td>
+								</TableCell>
 							))}
-						</tr>
+						</TableRow>
 					))}
-				</tbody>
-			</table>
+				</TableBody>
+			</Table>
+			<p className="text-[13px] text-muted-foreground">
+				Worth at the end is what the car would sell for then, less anything still owed on it. Costs
+				all in is everything paid and spent running it, less that.
+			</p>
 		</div>
 	);
 }

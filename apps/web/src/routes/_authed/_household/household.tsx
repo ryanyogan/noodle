@@ -8,6 +8,16 @@ import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import {
+	Table,
+	TableBody,
+	TableCaption,
+	TableCell,
+	TableFooter,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@noodle/ui/components/table";
 import { Tile } from "@noodle/ui/components/tile";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
@@ -383,23 +393,31 @@ function ChildCost({
 				{year.total === 0 ? <Badge>Nothing yet</Badge> : null}
 			</div>
 			{year.total > 0 ? (
-				<table className="w-full table-fixed border-t text-sm">
-					<thead>
-						<tr className="text-xs text-subtle-foreground">
-							<th scope="col" className="px-(--card-pad) pt-2.5 pb-1.5 text-start font-medium">
+				<Table className="table-fixed border-t text-sm">
+					<TableCaption className="sr-only">What {child.name} cost, by Bucket</TableCaption>
+					<TableHeader>
+						<TableRow className="border-0">
+							<TableHead
+								scope="col"
+								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-2.5 pb-1.5"
+							>
 								Bucket
-							</th>
-							<th scope="col" className="w-28 px-2 pt-2.5 pb-1.5 text-end font-medium">
+							</TableHead>
+							<TableHead scope="col" numeric className="h-auto w-28 px-2 pt-2.5 pb-1.5">
 								This month
-							</th>
-							<th scope="col" className="w-28 px-(--card-pad) pt-2.5 pb-1.5 text-end font-medium">
+							</TableHead>
+							<TableHead
+								scope="col"
+								numeric
+								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto w-28 pt-2.5 pb-1.5"
+							>
 								This year
-							</th>
-						</tr>
-					</thead>
-					<tbody className="tabular-nums">
+							</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
 						{rows.map((bucket) => (
-							<tr key={bucket.id}>
+							<TableRow key={bucket.id} className="border-0">
 								<th scope="row" className="px-(--card-pad) py-1.5 text-start font-normal">
 									<span className="flex items-center gap-2">
 										<span
@@ -410,25 +428,35 @@ function ChildCost({
 										<span className="truncate">{bucket.name}</span>
 									</span>
 								</th>
-								<td className="px-2 py-1.5 text-end">
+								<TableCell numeric className="px-2 py-1.5">
 									{formatMoney(month.buckets[bucket.id] ?? 0)}
-								</td>
-								<td className="px-(--card-pad) py-1.5 text-end">
+								</TableCell>
+								<TableCell
+									numeric
+									className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) py-1.5"
+								>
 									{formatMoney(year.buckets[bucket.id] ?? 0)}
-								</td>
-							</tr>
+								</TableCell>
+							</TableRow>
 						))}
-					</tbody>
-					<tfoot className="tabular-nums">
-						<tr className="border-t font-semibold">
+					</TableBody>
+					<TableFooter className="bg-transparent">
+						<TableRow className="font-semibold">
 							<th scope="row" className="px-(--card-pad) py-2.5 text-start">
 								Total
 							</th>
-							<td className="px-2 py-2.5 text-end">{formatMoney(month.total)}</td>
-							<td className="px-(--card-pad) py-2.5 text-end">{formatMoney(year.total)}</td>
-						</tr>
-					</tfoot>
-				</table>
+							<TableCell numeric className="px-2 py-2.5">
+								{formatMoney(month.total)}
+							</TableCell>
+							<TableCell
+								numeric
+								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) py-2.5"
+							>
+								{formatMoney(year.total)}
+							</TableCell>
+						</TableRow>
+					</TableFooter>
+				</Table>
 			) : null}
 		</Card>
 	);

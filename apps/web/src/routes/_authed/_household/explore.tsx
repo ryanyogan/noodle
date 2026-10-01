@@ -48,6 +48,15 @@ import {
 	SelectValue,
 } from "@noodle/ui/components/select";
 import { Skeleton } from "@noodle/ui/components/skeleton";
+import {
+	Table,
+	TableBody,
+	TableCaption,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@noodle/ui/components/table";
 import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { cn } from "@noodle/ui/lib/utils";
 import { useMutationState, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
@@ -1013,35 +1022,62 @@ function Totals({
 			<h3 className="px-(--card-pad) pt-(--card-pad) text-sm font-semibold">
 				Free to Spend, the Plan against this Scenario
 			</h3>
-			<table
-				aria-label="Free to Spend, the Plan against this Scenario"
-				className="w-full text-sm tabular-nums"
-			>
-				<thead className="text-[13px] text-muted-foreground">
-					<tr className="[&>th]:px-(--card-pad) [&>th]:pt-3 [&>th]:pb-2 [&>th]:font-medium">
-						<th className="text-start">
+			<Table aria-label="Free to Spend, the Plan against this Scenario" className="text-sm">
+				<TableHeader>
+					<TableRow className="border-0">
+						<TableHead
+							scope="col"
+							className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-3 pb-2 text-[13px]"
+						>
 							<span className="sr-only">Total</span>
-						</th>
-						<th className="text-end">Plan</th>
-						<th className="text-end">Scenario</th>
-					</tr>
-				</thead>
-				<tbody>
+						</TableHead>
+						<TableHead
+							scope="col"
+							numeric
+							className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-3 pb-2 text-[13px]"
+						>
+							Plan
+						</TableHead>
+						<TableHead
+							scope="col"
+							numeric
+							className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-3 pb-2 text-[13px]"
+						>
+							Scenario
+						</TableHead>
+					</TableRow>
+				</TableHeader>
+				<TableBody>
 					{rows.map((row) => (
-						<tr key={row.label} className="border-t [&>*]:px-(--card-pad) [&>*]:py-2.5">
-							<th scope="row" className="text-start font-normal text-muted-foreground">
+						<TableRow key={row.label} className="border-0 border-t">
+							<th
+								scope="row"
+								className="px-(--card-pad) py-2.5 text-start font-normal text-muted-foreground"
+							>
 								{row.label}
 							</th>
-							<td className={cn("text-end", row.plan < 0 && "text-over")}>
+							<TableCell
+								numeric
+								className={cn(
+									"px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) py-2.5",
+									row.plan < 0 && "text-over",
+								)}
+							>
 								{formatMoney(row.plan)}
-							</td>
-							<td className={cn("text-end font-semibold", row.scenario < 0 && "text-over")}>
+							</TableCell>
+							<TableCell
+								numeric
+								className={cn(
+									"px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) py-2.5 font-semibold",
+									row.scenario < 0 && "text-over",
+								)}
+							>
 								{formatMoney(row.scenario)}
-							</td>
-						</tr>
+							</TableCell>
+						</TableRow>
 					))}
-				</tbody>
-			</table>
+				</TableBody>
+			</Table>
 		</Card>
 	);
 }
@@ -1067,19 +1103,39 @@ function GoalsReached({
 		<Section aria-labelledby="goals-reached">
 			<SectionHeader id="goals-reached" title="Goals reached" />
 			<Card>
-				<table className="w-full text-sm tabular-nums">
-					<thead className="text-[13px] text-muted-foreground">
-						<tr className="[&>th]:px-(--card-pad) [&>th]:pt-3 [&>th]:pb-2 [&>th]:font-medium">
-							<th className="text-start">Goal</th>
-							<th className="text-end">Plan</th>
-							<th className="text-end">Scenario</th>
-						</tr>
-					</thead>
-					<tbody>
+				<Table className="text-sm">
+					<TableCaption className="sr-only">
+						When each Goal is reached, the Plan against this Scenario
+					</TableCaption>
+					<TableHeader>
+						<TableRow className="border-0">
+							<TableHead
+								scope="col"
+								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-3 pb-2 text-[13px]"
+							>
+								Goal
+							</TableHead>
+							<TableHead
+								scope="col"
+								numeric
+								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-3 pb-2 text-[13px]"
+							>
+								Plan
+							</TableHead>
+							<TableHead
+								scope="col"
+								numeric
+								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-3 pb-2 text-[13px]"
+							>
+								Scenario
+							</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
 						{goals.map((goal) => {
 							const funding = monthly(scenario, goal.id);
 							return (
-								<tr key={goal.id} className="border-t [&>td]:px-(--card-pad) [&>td]:py-2.5">
+								<TableRow key={goal.id} className="border-0 border-t">
 									<th scope="row" className="px-(--card-pad) py-2.5 text-start font-normal">
 										<span className="block">{goal.name}</span>
 										{funding ? (
@@ -1088,13 +1144,23 @@ function GoalsReached({
 											</span>
 										) : null}
 									</th>
-									<td className="text-end text-muted-foreground">{reached(plan, goal.id)}</td>
-									<td className="text-end font-semibold">{reached(scenario, goal.id)}</td>
-								</tr>
+									<TableCell
+										numeric
+										className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) py-2.5 text-muted-foreground"
+									>
+										{reached(plan, goal.id)}
+									</TableCell>
+									<TableCell
+										numeric
+										className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) py-2.5 font-semibold"
+									>
+										{reached(scenario, goal.id)}
+									</TableCell>
+								</TableRow>
 							);
 						})}
-					</tbody>
-				</table>
+					</TableBody>
+				</Table>
 			</Card>
 		</Section>
 	);

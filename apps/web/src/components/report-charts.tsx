@@ -8,6 +8,15 @@ import {
 	ChartLegendContent,
 	ChartTooltip,
 } from "@noodle/ui/components/chart";
+import {
+	Table,
+	TableBody,
+	TableCaption,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@noodle/ui/components/table";
 import { Toggle } from "@noodle/ui/components/toggle";
 import { cn } from "@noodle/ui/lib/utils";
 import { Table2 } from "lucide-react";
@@ -173,47 +182,44 @@ export function ChartCard({
 
 /** A ReportTable as an HTML table, money right-aligned in tabular figures. */
 export function DataTable({ table, className }: { table: ReportTable; className?: string }) {
+	const pad = "px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad)";
 	return (
-		<div className={cn("-mx-(--card-pad) overflow-x-auto", className)}>
-			<table className="w-full min-w-max text-[13px]">
-				<caption className="sr-only">{table.title}</caption>
-				<thead>
-					<tr className="border-b text-left text-muted-foreground">
+		<div className={cn("-mx-(--card-pad)", className)}>
+			<Table className="min-w-max">
+				<TableCaption className="sr-only">{table.title}</TableCaption>
+				<TableHeader>
+					<TableRow>
 						{table.columns.map((column, i) => (
-							<th
+							<TableHead
 								key={column.label}
 								scope="col"
-								className={cn(
-									"px-(--card-pad) py-2 font-medium first:ps-(--card-pad)",
-									i > 0 && column.kind !== "text" && "text-right",
-								)}
+								numeric={i > 0 && column.kind !== "text"}
+								className={pad}
 							>
 								{column.label}
-							</th>
+							</TableHead>
 						))}
-					</tr>
-				</thead>
-				<tbody>
+					</TableRow>
+				</TableHeader>
+				<TableBody>
 					{table.rows.map((row) => (
-						<tr key={row.join("|")} className="border-b last:border-b-0">
+						<TableRow key={row.join("|")}>
 							{row.map((value, i) => {
 								const kind = table.columns[i]?.kind ?? "text";
 								return (
-									<td
+									<TableCell
 										key={table.columns[i]?.label ?? i}
-										className={cn(
-											"px-(--card-pad) py-2",
-											i > 0 && kind !== "text" && "text-right tabular-nums",
-										)}
+										numeric={i > 0 && kind !== "text"}
+										className={pad}
 									>
 										{formatCell(kind, value)}
-									</td>
+									</TableCell>
 								);
 							})}
-						</tr>
+						</TableRow>
 					))}
-				</tbody>
-			</table>
+				</TableBody>
+			</Table>
 		</div>
 	);
 }

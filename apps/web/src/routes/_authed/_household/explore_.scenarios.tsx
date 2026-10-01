@@ -15,6 +15,15 @@ import { List, ListRow } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Skeleton } from "@noodle/ui/components/skeleton";
+import {
+	Table,
+	TableBody,
+	TableCaption,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@noodle/ui/components/table";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -269,28 +278,26 @@ function Compare({
 		<Section aria-labelledby="compare">
 			<SectionHeader id="compare" title="Compare" />
 			<Card>
-				<CardContent className="overflow-x-auto">
-					<table className="w-full text-sm tabular-nums">
-						<caption className="sr-only">Key numbers, the Plan against each Scenario</caption>
-						<thead>
-							<tr className="text-xs text-muted-foreground">
-								<th scope="col" className="py-1.5 pe-3 text-start font-medium">
+				<CardContent>
+					<Table className="text-sm">
+						<TableCaption className="sr-only">
+							Key numbers, the Plan against each Scenario
+						</TableCaption>
+						<TableHeader>
+							<TableRow className="border-0">
+								<TableHead scope="col">
 									<span className="sr-only">Number</span>
-								</th>
+								</TableHead>
 								{columns.map((c) => (
-									<th
-										key={c.key}
-										scope="col"
-										className="max-w-32 truncate py-1.5 ps-3 text-end font-medium"
-									>
+									<TableHead key={c.key} scope="col" numeric className="max-w-32 whitespace-normal">
 										{c.name}
-									</th>
+									</TableHead>
 								))}
-							</tr>
-						</thead>
-						<tbody>
+							</TableRow>
+						</TableHeader>
+						<TableBody>
 							{rows.map((row) => (
-								<tr key={row.label} className="border-t">
+								<TableRow key={row.label} className="border-0 border-t">
 									<th
 										scope="row"
 										className="py-2 pe-3 text-start font-normal text-muted-foreground"
@@ -298,21 +305,21 @@ function Compare({
 										{row.label}
 									</th>
 									{columns.map((c) => (
-										<td
+										<TableCell
 											key={c.key}
+											numeric
 											className={cn(
-												"py-2 ps-3 text-end whitespace-nowrap",
 												c.key === "plan" ? "text-muted-foreground" : "font-medium",
 												row.over?.(c.projection) && "text-over",
 											)}
 										>
 											{row.value(c.projection)}
-										</td>
+										</TableCell>
 									))}
-								</tr>
+								</TableRow>
 							))}
-						</tbody>
-					</table>
+						</TableBody>
+					</Table>
 				</CardContent>
 			</Card>
 			<div className="grid gap-4 lg:grid-cols-2 lg:items-start">

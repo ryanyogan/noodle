@@ -3,6 +3,7 @@ import { Card } from "@noodle/ui/components/card";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { NativeSelect } from "@noodle/ui/components/native-select";
+import { Table, TableBody, TableCaption, TableCell, TableRow } from "@noodle/ui/components/table";
 import { cn } from "@noodle/ui/lib/utils";
 import { Check, Circle, CircleAlert, CircleCheck, Clock, Info, Minus } from "lucide-react";
 import {
@@ -123,24 +124,29 @@ export function Breakdown({
 	rows: { label: string; amount: Cents; total?: boolean }[];
 }) {
 	return (
-		<table className="w-full text-sm tabular-nums">
-			<caption className="pb-1.5 text-start text-[13px] font-medium text-muted-foreground">
+		<Table className="text-sm">
+			<TableCaption className="mt-0 mb-1.5 caption-top text-start font-medium">
 				{caption}
-			</caption>
-			<tbody>
+			</TableCaption>
+			<TableBody>
 				{rows.map((row) => (
-					<tr key={row.label} className={cn("[&>*]:py-1.5", row.total && "border-t font-semibold")}>
+					<TableRow
+						key={row.label}
+						className={cn(row.total ? "border-t font-semibold" : "border-0")}
+					>
 						<th
 							scope="row"
-							className={cn("text-start font-normal", !row.total && "text-muted-foreground")}
+							className={cn("py-1.5 text-start font-normal", !row.total && "text-muted-foreground")}
 						>
 							{row.label}
 						</th>
-						<td className="text-end">{formatMoney(row.amount)}</td>
-					</tr>
+						<TableCell numeric className="py-1.5">
+							{formatMoney(row.amount)}
+						</TableCell>
+					</TableRow>
 				))}
-			</tbody>
-		</table>
+			</TableBody>
+		</Table>
 	);
 }
 

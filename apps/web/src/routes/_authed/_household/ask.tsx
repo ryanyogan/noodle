@@ -1,9 +1,17 @@
 import { monthKeyAt } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Input } from "@noodle/ui/components/input";
-import { List, ListRow } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Skeleton } from "@noodle/ui/components/skeleton";
+import {
+	Table,
+	TableBody,
+	TableCaption,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@noodle/ui/components/table";
 import { cn } from "@noodle/ui/lib/utils";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { ArrowUp, LoaderCircle, RotateCcw, Telescope } from "lucide-react";
@@ -137,20 +145,34 @@ function Turn({ turn, onRetry }: { turn: AskTurnState; onRetry: () => void }) {
 						<p className="text-[15px] leading-relaxed whitespace-pre-line">{turn.answer}</p>
 					)}
 					{turn.facts.length > 0 ? (
-						<List aria-label="Figures">
-							{turn.facts.map((fact) => (
-								<ListRow
-									key={fact.label}
-									title={<span className="font-normal text-muted-foreground">{fact.label}</span>}
-									trailing={
-										<span className="text-sm font-medium tabular-nums">
-											{formatMoney(fact.amount)}
-										</span>
-									}
-									className="py-2.5"
-								/>
-							))}
-						</List>
+						<div className="rounded-2xl border bg-card px-(--card-pad) py-1 shadow-card">
+							<Table aria-label="Figures">
+								<TableCaption className="sr-only">The figures this answer used</TableCaption>
+								<TableHeader>
+									<TableRow>
+										<TableHead scope="col">Figure</TableHead>
+										<TableHead scope="col" numeric>
+											Amount
+										</TableHead>
+									</TableRow>
+								</TableHeader>
+								<TableBody>
+									{turn.facts.map((fact) => (
+										<TableRow key={fact.label}>
+											<th
+												scope="row"
+												className="py-2.5 text-start text-sm font-normal text-muted-foreground"
+											>
+												{fact.label}
+											</th>
+											<TableCell numeric className="py-2.5 text-sm font-medium">
+												{formatMoney(fact.amount)}
+											</TableCell>
+										</TableRow>
+									))}
+								</TableBody>
+							</Table>
+						</div>
 					) : null}
 					{turn.links.length > 0 ? (
 						<div className={cn("flex flex-wrap gap-2", waiting && "invisible")}>

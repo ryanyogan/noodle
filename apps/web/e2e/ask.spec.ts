@@ -25,7 +25,7 @@ const plan = {
 };
 
 const question = (page: Page) => page.getByLabel("Question");
-const figures = (page: Page) => page.getByRole("list", { name: "Figures" }).last();
+const figures = (page: Page) => page.getByRole("table", { name: "Figures" }).last();
 
 async function ask(page: Page, text: string) {
 	await question(page).fill(text);

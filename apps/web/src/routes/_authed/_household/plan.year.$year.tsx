@@ -6,6 +6,16 @@ import { EmptyState } from "@noodle/ui/components/empty-state";
 import { List } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import {
+	Table,
+	TableBody,
+	TableCaption,
+	TableCell,
+	TableFooter,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@noodle/ui/components/table";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
@@ -198,26 +208,34 @@ function YearTable({ months }: { months: YearMonth[] }) {
 	const total = (key: keyof YearFigures) => months.reduce((sum, m) => sum + m.plan[key], 0);
 	return (
 		<Card className="max-md:hidden">
-			<table className="w-full text-[13px]">
-				<caption className="sr-only">The Plan month by month</caption>
-				<thead>
-					<tr className="border-b text-muted-foreground">
-						<th scope="col" className="px-(--card-pad) py-2.5 text-start font-medium">
+			<Table>
+				<TableCaption className="sr-only">The Plan month by month</TableCaption>
+				<TableHeader>
+					<TableRow>
+						<TableHead
+							scope="col"
+							className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad)"
+						>
 							Month
-						</th>
+						</TableHead>
 						{FIGURES.map((f) => (
-							<th key={f.key} scope="col" className="px-(--card-pad) py-2.5 text-end font-medium">
+							<TableHead
+								key={f.key}
+								scope="col"
+								numeric
+								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad)"
+							>
 								{f.label}
-							</th>
+							</TableHead>
 						))}
-					</tr>
-				</thead>
-				<tbody>
+					</TableRow>
+				</TableHeader>
+				<TableBody>
 					{months.map((month) => (
-						<tr
+						<TableRow
 							key={month.month}
 							className={cn(
-								"border-b align-top",
+								"align-top",
 								month.lumps.length > 0 && "bg-surface-2/60",
 								month.when === "current" && "font-medium",
 							)}
@@ -240,26 +258,34 @@ function YearTable({ months }: { months: YearMonth[] }) {
 								) : null}
 							</th>
 							{FIGURES.map((f) => (
-								<td key={f.key} className="px-(--card-pad) py-2.5 text-end">
+								<TableCell
+									key={f.key}
+									numeric
+									className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) py-2.5"
+								>
 									<Figure month={month} figure={f.key} />
-								</td>
+								</TableCell>
 							))}
-						</tr>
+						</TableRow>
 					))}
-				</tbody>
-				<tfoot>
-					<tr className="font-semibold">
+				</TableBody>
+				<TableFooter>
+					<TableRow className="font-semibold">
 						<th scope="row" className="px-(--card-pad) py-2.5 text-start">
 							Planned for the year
 						</th>
 						{FIGURES.map((f) => (
-							<td key={f.key} className="px-(--card-pad) py-2.5 text-end">
+							<TableCell
+								key={f.key}
+								numeric
+								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) py-2.5"
+							>
 								<Amount cents={total(f.key)} />
-							</td>
+							</TableCell>
 						))}
-					</tr>
-				</tfoot>
-			</table>
+					</TableRow>
+				</TableFooter>
+			</Table>
 		</Card>
 	);
 }
