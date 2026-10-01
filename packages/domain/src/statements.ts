@@ -36,6 +36,8 @@ export type Statement = {
 	lines: StatementLine[];
 	closingBalance: ClosingBalance | null;
 	unreadable: { row: number; reason: string }[];
+	/** The last four digits of the account it's for, when the file says (OFX's ACCTID). */
+	accountDigits?: string | null;
 };
 
 export type StatementFormat = "csv" | "ofx";

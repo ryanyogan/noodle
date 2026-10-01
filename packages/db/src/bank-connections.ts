@@ -256,6 +256,10 @@ export async function loadPairableAccounts(
 			kind: accounts.kind,
 			bankConnectionId: accounts.bankConnectionId,
 			externalId: accounts.externalId,
+			// Spelled out: inside a select's fields Drizzle leaves column names unqualified.
+			statementDigits: sql<string | null>`(select i.account_digits from imports i
+				where i.account_id = "accounts"."id" and i.account_digits is not null
+				order by i.created_at desc, i.id desc limit 1)`,
 		})
 		.from(accounts)
 		.where(eq(accounts.householdId, householdId))

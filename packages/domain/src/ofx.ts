@@ -70,7 +70,18 @@ export function readOfxStatement(content: string): Statement {
 			bankId: leaf(block, "FITID"),
 		});
 	});
-	return { lines, closingBalance: closingBalance(content), unreadable };
+	return {
+		lines,
+		closingBalance: closingBalance(content),
+		unreadable,
+		accountDigits: lastDigits(leaf(content, "ACCTID")),
+	};
+}
+
+/** The last four digits of an account number, to tell accounts apart; null without four. */
+function lastDigits(accountId: string | null): string | null {
+	const digits = accountId?.replace(/\D/g, "") ?? "";
+	return digits.length >= 4 ? digits.slice(-4) : null;
 }
 
 function closingBalance(content: string): ClosingBalance | null {

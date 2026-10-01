@@ -17,6 +17,8 @@ export type PairableAccount = {
 	/** Paired with a Bank Connection already: its ID and the bank's ID for the account. */
 	bankConnectionId: string | null;
 	externalId: string | null;
+	/** The last four digits its latest statement file said it's for, when one did. */
+	statementDigits?: string | null;
 };
 
 /**
@@ -85,12 +87,17 @@ const hasDigits = (name: string, mask: string | null) =>
 export function pairingScore(
 	bank: Pick<BankAccount, "name" | "mask"> & { kind: AccountKind },
 	institution: string | null,
-	account: Pick<PairableAccount, "name" | "kind">,
+	account: Pick<PairableAccount, "name" | "kind" | "statementDigits">,
 ): number {
 	if (!canPair(bank.kind, account.kind)) return 0;
 	const theirs = new Set([...wordsOf(bank.name), ...wordsOf(institution ?? "")]);
 	const shared = [...wordsOf(account.name)].filter((word) => theirs.has(word)).length;
-	const digits = hasDigits(account.name, bank.mask);
+	// Its last digits in the Account's name, or on the statements uploaded to it.
+	const digits =
+		hasDigits(account.name, bank.mask) ||
+		(bank.mask !== null &&
+			bank.mask.length >= 4 &&
+			account.statementDigits === bank.mask.slice(-4));
 	if (!digits && shared === 0) return 0;
 	return (digits ? 10 : 0) + shared * 3 + (bank.kind === account.kind ? 1 : 0);
 }

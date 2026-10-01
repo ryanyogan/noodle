@@ -62,6 +62,16 @@ describe("suggestPairings (ADR-0020)", () => {
 		).toBe(0);
 	});
 
+	it("counts the last digits its statements were for", () => {
+		const suggested = suggestPairings(
+			[bank("b-ally", "Online Savings", "savings", "9921")],
+			"Ally Bank",
+			"c-new",
+			[{ ...account("house", "House fund", "savings"), statementDigits: "9921" }],
+		);
+		expect(suggested.get("b-ally")).toBe("house");
+	});
+
 	it("never suggests an Account of the other side, or one connected already", () => {
 		expect(
 			pairingScore(bank("b", "Costco", "checking", "1"), null, household[2] as PairableAccount),

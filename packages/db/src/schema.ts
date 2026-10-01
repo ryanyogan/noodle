@@ -352,6 +352,9 @@ export const imports = sqliteTable(
 		fileName: text("file_name"),
 		fileKey: text("file_key"),
 		status: text("status", { enum: ["processing", "imported"] }).notNull(),
+		// The last four digits of the account a statement file said it's for (OFX's ACCTID), so a
+		// file for another account can be caught, and a bank's account matched with it.
+		accountDigits: text("account_digits"),
 		transactionCount: integer("transaction_count").notNull().default(0),
 		incomeCount: integer("income_count").notNull().default(0),
 		duplicateCount: integer("duplicate_count").notNull().default(0),

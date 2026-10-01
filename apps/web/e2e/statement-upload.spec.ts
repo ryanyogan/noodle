@@ -74,6 +74,16 @@ test("a bank statement comes in once, as Transactions to assign and income", asy
 	await sheet.getByRole("button", { name: /^Import \d+ lines$/ }).click();
 	await expect(toast(page, "checking-v1.ofx:")).toBeVisible();
 	await expect(page.getByText("Your latest statement ends at $2,540.26 on Sep 20")).toBeVisible();
+	// It's older than the balance typed today, so it isn't offered in its place.
+	await expect(sheet).toBeHidden();
+
+	// A file for another account (its OFX names the account) is caught before it's imported.
+	sheet = await chooseStatement(page, "card-v2.qfx");
+	await expect(sheet.getByRole("alert")).toContainText(
+		"This file is for an account ending 1111, but earlier statements for Everyday Checking were for one ending 3210",
+	);
+	await page.keyboard.press("Escape");
+	await expect(sheet).toBeHidden();
 
 	// Money out waits, unassigned, in the Transactions list; nothing is listed twice.
 	await page.goto(page.url().replace(/\/accounts\/.*$/, "/transactions/2026-09"));

@@ -1,0 +1,1 @@
+ALTER TABLE `imports` ADD `account_digits` text;

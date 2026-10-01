@@ -42,6 +42,8 @@ export type ImportRecord = {
 	firstDate: DayKey | null;
 	lastDate: DayKey | null;
 	closingBalance: ClosingBalance | null;
+	/** The last four digits of the account its file said it's for, when it did. */
+	accountDigits: string | null;
 	createdAt: Date;
 };
 
@@ -67,6 +69,8 @@ export async function importStatement(
 		/** A Bank Connection's may be pending (bank-sync.ts); a statement's never are. */
 		lines: (StatementLine & { pending?: boolean })[];
 		closingBalance: ClosingBalance | null;
+		/** The last four digits of the account the file says it's for, when it does. */
+		accountDigits?: string | null;
 		/** The CSV mapping to remember for the Account. */
 		csvMapping: CsvMapping | null;
 		/** A Bank Connection's lines left out as already in the Account (ADR-0020), to count. */
@@ -136,6 +140,7 @@ export async function importStatement(
 				lastDate: dates.at(-1) ?? null,
 				closingBalanceCents: input.closingBalance?.amount ?? null,
 				closingBalanceDate: input.closingBalance?.date ?? null,
+				accountDigits: input.accountDigits ?? null,
 				createdByMemberId: input.createdByMemberId,
 				bankConnectionId: input.bankConnectionId ?? null,
 			})
@@ -282,6 +287,7 @@ export async function loadImports(
 			row.closingBalanceCents !== null && row.closingBalanceDate
 				? { amount: row.closingBalanceCents, date: row.closingBalanceDate as DayKey }
 				: null,
+		accountDigits: row.accountDigits,
 		createdAt: row.createdAt,
 	}));
 }

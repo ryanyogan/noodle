@@ -91,6 +91,7 @@ export const uploadStatement = createServerFn({ method: "POST" })
 			fileKey,
 			lines: statement.lines,
 			closingBalance: statement.closingBalance,
+			accountDigits: statement.accountDigits ?? null,
 			csvMapping: format === "csv" ? data.csvMapping : null,
 			createdByMemberId: context.parent.id,
 			newId: ulid,

@@ -25,7 +25,7 @@ Noodle suggests an Account only when it has a reason to, and never one it would 
 
 - **Compatible kinds only.** Checking and savings hold money; cards and loans are owed. A bank account can pair with an Account of the same side only, because the sign of every line, what counts as income, and what Goals can do there all follow from it. Within a side the Account keeps the kind the Parent gave it (their "savings" stays savings if Plaid calls it checking).
 - **Not connected already.** An Account already paired with any Bank Connection isn't offered.
-- **A reason:** the last digits Plaid shows appear in the Account's name ("Visa ··3333", "card 3333"), or the names share a word that isn't generic ("Costco", "Kids", "Chase"; not "checking", "card", "account", "bank" and the like), counting the institution's name. Digits weigh most, then shared words, then the exact kind.
+- **A reason:** the last digits Plaid shows appear in the Account's name ("Visa ··3333", "card 3333") or match the account its OFX statements named (ACCTID, kept on each Import), or the names share a word that isn't generic ("Costco", "Kids", "Chase"; not "checking", "card", "account", "bank" and the like), counting the institution's name. Digits weigh most, then shared words, then the exact kind.
 - Each Account is suggested for at most one bank account, the best-scoring pair first.
 
 ## Edge cases

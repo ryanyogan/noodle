@@ -325,7 +325,11 @@ function UploadForm({
 	const hydrated = useHydrated();
 	const id = useId();
 	const input = useRef<HTMLInputElement>(null);
-	const { csvMapping: remembered } = useSuspenseQuery(accountImportsQuery(account.id)).data;
+	const { csvMapping: remembered, imports } = useSuspenseQuery(
+		accountImportsQuery(account.id),
+	).data;
+	// The account earlier statement files said they were for, to catch a file for another one.
+	const pastDigits = imports.find((i) => i.accountDigits !== null)?.accountDigits ?? null;
 	// Kept above the sheet, so closing it by accident loses neither the file nor the columns.
 	const { file, mapping } = draft;
 	const setFile = (next: ChosenFile | null) => onDraft({ file: next, mapping: null });
@@ -433,7 +437,12 @@ function UploadForm({
 			) : null}
 
 			{file && statement ? (
-				<StatementPreview statement={statement} account={account} format={format} />
+				<StatementPreview
+					statement={statement}
+					account={account}
+					format={format}
+					pastDigits={pastDigits}
+				/>
 			) : null}
 
 			{upload.isError ? (
@@ -604,12 +613,18 @@ function StatementPreview({
 	statement,
 	account,
 	format,
+	pastDigits,
 }: {
 	statement: Statement;
 	account: AccountView;
 	format: "csv" | "ofx" | null;
+	pastDigits: string | null;
 }) {
 	const { lines, unreadable } = statement;
+	const otherAccount =
+		statement.accountDigits && pastDigits && statement.accountDigits !== pastDigits
+			? statement.accountDigits
+			: null;
 	if (lines.length === 0) {
 		return (
 			<p role="status" className="text-sm text-over">
@@ -624,6 +639,13 @@ function StatementPreview({
 	const dates = lines.map((l) => l.date).sort();
 	return (
 		<section aria-label="Preview" className="grid gap-2">
+			{otherAccount ? (
+				<p role="alert" className="rounded-xl bg-over-soft px-3 py-2.5 text-[13px] text-over">
+					This file is for an account ending {otherAccount}, but earlier statements for{" "}
+					{account.name} were for one ending {pastDigits}. Check it’s the right Account before
+					importing.
+				</p>
+			) : null}
 			<p role="status" className="text-sm">
 				<span className="font-medium">
 					{lines.length} {lines.length === 1 ? "line" : "lines"}
