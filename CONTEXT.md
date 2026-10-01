@@ -69,8 +69,16 @@ What a Bucket has to spend this month: its allowance ("planned"), plus what carr
 _Avoid_: Budget, total, remaining
 
 **Goal**:
-A target amount (optionally with a target date) the Household funds over time, either to keep (savings) or to spend on a known future big expense. Its money is Set aside on one real Account.
+A target amount (optionally with a target date) the Household funds over time from Free to Spend. Most Goals save: to keep (savings) or to spend on a known future big expense, with their money Set aside on one checking or savings Account. A payoff Goal pays down a credit card or loan instead.
 _Avoid_: Sinking fund, savings bucket, pot
+
+**Payoff Goal** (in the app, "Pay off a card or loan"):
+A Goal to pay a credit card or loan down to $0 (ADR-0019). Its target is what was owed when it was added; it's **paid down** by how far what's owed has come down since (never below $0), and it's **paid off** when what's owed reaches $0, after which a Parent completes it. Its funding is a plan for extra payments, on top of any regular payment Commitment; nothing is Set aside for it. A card payment (a Transfer) shows in it once the card's balance does. A card or loan has at most one active payoff Goal.
+_Avoid_: Debt goal, pay-down goal, debt snowball
+
+**What's owed** (on a credit card or loan):
+The card's or loan's balance as Noodle knows it: the latest one its bank brought in, a Parent entered, or a Parent took from a statement.
+_Avoid_: Debt, principal, outstanding balance
 
 **Set aside**:
 The part of a real Account's balance a Goal holds ("Emergency fund has $5,000 set aside"). Setting money aside, or releasing it, changes nothing in the Plan.
@@ -259,6 +267,7 @@ _Avoid_: Tag, assignee, owner
 - A **Plan** contains **Commitments**, **Buckets**, and **Goals**; whatever remains is **Free to Spend**.
 - A **Transaction** belongs to one **Account** and is assigned whole or via **Splits**; each carries a **For**.
 - A **Goal**'s money is **Set aside** on exactly one **Account**.
+- A **Payoff Goal** belongs to exactly one credit card or loan **Account**, which has at most one active one.
 - An **Insight** may become a **Change** in a **Scenario**; an **Affordability Check** may become a **Scenario**.
 - A **Perk** belongs to a **Perk Source**; an **Overlap** is detected between a Perk or Commitment and other spending.
 
