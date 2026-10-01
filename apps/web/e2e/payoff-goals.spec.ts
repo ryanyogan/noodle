@@ -27,7 +27,9 @@ async function addAccount(page: Page, name: string, kind: string, amount: string
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	const first = await page.getByText("Accounts are where the money is").count();
 	if (!first) await page.getByRole("button", { name: "Add Account" }).click();
-	const form = first ? page.getByRole("main") : page.getByRole("dialog", { name: "Add an Account" });
+	const form = first
+		? page.getByRole("main")
+		: page.getByRole("dialog", { name: "Add an Account" });
 	await form.getByLabel("Name").fill(name);
 	await form.getByLabel("Kind").selectOption(kind);
 	await form.getByLabel(kind === "checking" ? "Balance now" : "Owed now").fill(amount);
