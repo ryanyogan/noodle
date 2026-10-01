@@ -7,7 +7,7 @@ import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { cn } from "@noodle/ui/lib/utils";
 import { useHydrated } from "@tanstack/react-router";
 import { Plus, Sparkles, Split as SplitIcon, Trash2, X } from "lucide-react";
-import { type FormEvent, type ReactNode, useState } from "react";
+import { type FormEvent, type ReactNode, useRef, useState } from "react";
 import { ulid } from "ulid";
 import { dayName, formatMoney, formatMoneyInput } from "../format";
 import { forLabel, type MemberSummary } from "../members";
@@ -16,6 +16,7 @@ import type {
 	SplitEdit,
 	SplitRow,
 	TransactionChange,
+	TransactionEdit,
 	TransactionRow,
 } from "../transactions";
 import { ForPicker } from "./for-picker";
@@ -233,16 +234,25 @@ function EditForm({
 		);
 	}
 
-	function save(event: FormEvent<HTMLFormElement>) {
-		event.preventDefault();
-		const note = String(new FormData(event.currentTarget).get("note") ?? "").trim() || null;
-		if (!amountCents) return setInvalid("amount");
+	const form = useRef<HTMLFormElement>(null);
+
+	/** What the form says now, or null after flagging what's wrong with it. */
+	function edited(): TransactionEdit | null {
+		const note =
+			String(form.current ? (new FormData(form.current).get("note") ?? "") : "").trim() || null;
+		if (!amountCents) {
+			setInvalid("amount");
+			return null;
+		}
 		if (splits) {
 			const edits: SplitEdit[] = [];
 			for (const split of splits) {
 				const splitCents = parseDollars(split.amount);
 				const splitAssignment = assignmentOf(split.assignment);
-				if (!splitCents || !splitAssignment) return setInvalid("splits");
+				if (!splitCents || !splitAssignment) {
+					setInvalid("splits");
+					return null;
+				}
 				edits.push({
 					id: split.id,
 					amountCents: splitCents,
@@ -250,12 +260,59 @@ function EditForm({
 					forMemberIds: [...split.for].sort(),
 				});
 			}
-			if (remainder !== 0) return setInvalid("splits");
-			return onChange({ amountCents, note, splits: edits });
+			if (remainder !== 0) {
+				setInvalid("splits");
+				return null;
+			}
+			return { amountCents, note, splits: edits };
 		}
 		const whole = assignmentOf(assignment);
-		if (!whole) return setInvalid("assignment");
-		onChange({ amountCents, assignment: whole, note, forMemberIds: [...forMemberIds].sort() });
+		if (!whole) {
+			setInvalid("assignment");
+			return null;
+		}
+		return { amountCents, assignment: whole, note, forMemberIds: [...forMemberIds].sort() };
+	}
+
+	/** Whether anything was changed in the form since it opened. */
+	function dirty(): boolean {
+		const note = String(form.current ? (new FormData(form.current).get("note") ?? "") : "").trim();
+		return (
+			amount !== formatMoneyInput(transaction.amountCents) ||
+			note !== (transaction.note ?? "") ||
+			(splits === null
+				? transaction.splits.length > 0 ||
+					assignment !== assignmentValue(transaction) ||
+					[...forMemberIds].sort().join() !== [...transaction.for].sort().join()
+				: transaction.splits.length !== splits.length ||
+					splits.some((split, i) => {
+						const was = transaction.splits[i];
+						return (
+							!was ||
+							split.amount !== formatMoneyInput(was.amountCents) ||
+							split.assignment !== assignmentValue(was) ||
+							[...split.for].sort().join() !== [...was.for].sort().join()
+						);
+					}))
+		);
+	}
+
+	/**
+	 * Before a Match or unmatch, which closes the editor: what was typed is saved with it, so
+	 * nothing is lost. False, with what's wrong flagged, when what was typed can't be saved.
+	 */
+	function saveBeforeMatch(): boolean {
+		if (!dirty()) return true;
+		const next = edited();
+		if (!next) return false;
+		onChange(next);
+		return true;
+	}
+
+	function save(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		const next = edited();
+		if (next) onChange(next);
 	}
 
 	const choices = (
@@ -280,7 +337,8 @@ function EditForm({
 	);
 
 	return (
-		<form onSubmit={save} className="grid gap-4">
+		// Checked on Save, with what's wrong said beside it, rather than by the browser's own bubble.
+		<form ref={form} onSubmit={save} noValidate className="grid gap-4">
 			<div className="grid gap-3 sm:grid-cols-2">
 				<Field label="Amount" htmlFor="transaction-amount">
 					<Input
@@ -410,7 +468,7 @@ function EditForm({
 				/>
 			</Field>
 			<ReceiptSection transaction={transaction} plan={plan} members={members} onChange={onChange} />
-			<MatchSection transaction={transaction} onDone={onClose} />
+			<MatchSection transaction={transaction} beforeChange={saveBeforeMatch} onDone={onClose} />
 			{transaction.importedFrom ? (
 				<TransferSection transaction={transaction} onDone={onClose} />
 			) : null}

@@ -15,9 +15,15 @@ import { TermHelp } from "./term-help";
  */
 export function MatchSection({
 	transaction,
+	beforeChange = () => true,
 	onDone,
 }: {
 	transaction: TransactionRow;
+	/**
+	 * Runs before a Match or unmatch is sent, so the editor saves what was typed with it; false
+	 * when that can't be saved yet, and nothing is sent.
+	 */
+	beforeChange?: () => boolean;
 	/** Called once a Match or unmatch is sent: the row may leave the list. */
 	onDone: () => void;
 }) {
@@ -53,6 +59,7 @@ export function MatchSection({
 					className="justify-self-start"
 					disabled={!hydrated}
 					onClick={() => {
+						if (!beforeChange()) return;
 						change.mutate({ kind: "unmatch", matchId: data.matchId, label });
 						onDone();
 					}}
@@ -87,6 +94,7 @@ export function MatchSection({
 								disabled={!hydrated}
 								aria-label={`Match with ${peer.note || "Quick Add"}, ${formatMoney(peer.amountCents)}, ${shortDay(peer.date)}`}
 								onClick={() => {
+									if (!beforeChange()) return;
 									change.mutate({
 										kind: "match",
 										matchId: ulid(),
