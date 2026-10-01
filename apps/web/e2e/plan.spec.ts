@@ -106,9 +106,12 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 	await openBucket(page, "Hockey");
 	const details = await editBucket(page, "Hockey");
 	await details.getByLabel("Name").fill("Kids’ hockey");
-	await details.getByRole("button", { name: "Rename" }).click();
-	await expect(page.getByRole("dialog", { name: "Kids’ hockey" })).toBeVisible();
-	await page.getByRole("radio", { name: "Green" }).check();
+	await details.getByRole("radio", { name: "Green" }).check();
+	await details.getByRole("button", { name: "Save", exact: true }).click();
+	await expect(details).toBeHidden();
+	await expect(page.getByRole("heading", { level: 1 })).toContainText("Kids’ hockey");
+	// Moving happens at once, apart from Save.
+	await editBucket(page, "Kids’ hockey");
 	await page.getByRole("button", { name: "Move up" }).click();
 	await page.keyboard.press("Escape");
 	await expect(page.getByRole("heading", { level: 1 })).toContainText("Kids’ hockey");

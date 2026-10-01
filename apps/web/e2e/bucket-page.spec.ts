@@ -29,6 +29,7 @@ async function quickAdd(page: Page, amount: string, bucket: string, note: string
 test("a Bucket's page shows its month, its year and its history, and changes it", async ({
 	browser,
 }) => {
+	test.slow();
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, {
 		baseline: "5,000",
@@ -80,18 +81,26 @@ test("a Bucket's page shows its month, its year and its history, and changes it"
 		"$400 → $450",
 	);
 
-	// carries over shows its balance month by month.
+	// One sheet, one Save: closing it with changes asks before throwing them away.
 	await expect(page.getByRole("group", { name: "Carried over each month" })).toHaveCount(0);
 	await page.getByRole("button", { name: "Edit", exact: true }).click();
-	const carriesOver = page.waitForResponse((r) => serverFn("setCarriesOver")(new URL(r.url())));
-	await page.getByRole("radio", { name: /^Carries over/ }).check();
-	expect((await carriesOver).ok()).toBe(true);
-
-	// Renamed, here and on This Month.
-	await editSheet(page, "Hockey").getByLabel("Name").fill("Kids’ hockey");
-	await editSheet(page, "Hockey").getByRole("button", { name: "Rename" }).click();
-	await expect(editSheet(page, "Kids’ hockey")).toBeVisible();
+	const sheet = editSheet(page, "Hockey");
+	await expect(sheet.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
+	await sheet.getByLabel("Name").fill("Kids’ hockey");
 	await page.keyboard.press("Escape");
+	const discard = page.getByRole("alertdialog");
+	await expect(discard).toContainText("hasn’t been saved");
+	await discard.getByRole("button", { name: "Cancel" }).click();
+	await expect(sheet.getByLabel("Name")).toHaveValue("Kids’ hockey");
+
+	// Renamed and made to carry over together; it shows its balance month by month.
+	await sheet.getByRole("radio", { name: /^Carries over/ }).check();
+	const carriesOver = page.waitForResponse((r) => serverFn("setCarriesOver")(new URL(r.url())));
+	const renamed = page.waitForResponse((r) => serverFn("updateBucket")(new URL(r.url())));
+	await sheet.getByRole("button", { name: "Save", exact: true }).click();
+	expect((await carriesOver).ok()).toBe(true);
+	expect((await renamed).ok()).toBe(true);
+	await expect(sheet).toBeHidden();
 	await expect(heading(page)).toHaveText("BucketKids’ hockey");
 	await expect(thisMonth(page)).toContainText("Carries over");
 	await expect(page.getByRole("group", { name: "Carried over each month" })).toBeVisible();
@@ -117,6 +126,36 @@ test("a Bucket's page shows its month, its year and its history, and changes it"
 	await page.context().close();
 });
 
+test("an archived Bucket can be restored to the Plan", async ({ browser }) => {
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, {
+		baseline: "5,000",
+		buckets: [
+			["Groceries", "1,200"],
+			["Gifts", "150"],
+		],
+	});
+	await page.getByRole("link", { name: "Gifts", exact: true }).click();
+	await page.getByRole("button", { name: "Edit", exact: true }).click();
+	await editSheet(page, "Gifts").getByRole("button", { name: "Archive" }).click();
+	await page.getByRole("alertdialog").getByRole("button", { name: "Archive Gifts" }).click();
+	await expect(heading(page)).toHaveText("Archived BucketGifts");
+	await expect(page.getByText("It’s archived, so nothing goes into it.")).toBeVisible();
+
+	await page.getByRole("button", { name: "Restore to the Plan" }).click();
+	const restore = page.getByRole("dialog", { name: "Restore Gifts" });
+	await expect(restore.getByRole("textbox", { name: "Allowance", exact: true })).toHaveValue("150");
+	await restore.getByRole("textbox", { name: "Allowance", exact: true }).fill("200");
+	await restore.getByRole("button", { name: "Restore to the Plan" }).click();
+	await expect(restore).toBeHidden();
+	await expect(heading(page)).toHaveText("BucketGifts");
+	await expect(thisMonth(page)).toContainText("of $200");
+	await expect(page.getByRole("region", { name: "Allowance history" })).toContainText(
+		"Back in the Plan",
+	);
+	await page.context().close();
+});
+
 test("a Bucket's page works on a phone", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email, {
 		viewport: { width: 393, height: 852 },
@@ -128,7 +167,7 @@ test("a Bucket's page works on a phone", async ({ browser }) => {
 	await expect(heading(page)).toHaveText("BucketGroceries");
 	await expect(page.getByRole("group", { name: "Spent vs allowance" })).toBeVisible();
 	await page.getByRole("button", { name: "Edit", exact: true }).click();
-	await expect(editSheet(page, "Groceries").getByRole("button", { name: "Rename" })).toBeVisible();
+	await expect(editSheet(page, "Groceries").getByRole("button", { name: "Save" })).toBeVisible();
 	const width = await page.evaluate(() => document.documentElement.scrollWidth);
 	expect(width).toBeLessThanOrEqual(393);
 	await page.context().close();

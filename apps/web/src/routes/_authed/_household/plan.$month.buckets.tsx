@@ -49,6 +49,7 @@ function PlanBuckets() {
 								bucket={bucket}
 								editable={state.editable}
 								was={changes.allowances[bucket.id]}
+								order={buckets.map((b) => b.id)}
 							/>
 						))}
 					</List>
@@ -82,6 +83,7 @@ function PlanBuckets() {
 									// Each Parent sets their own; the other's shows its amount.
 									editable={state.editable && bucket.owner === parentId}
 									was={changes.allowances[bucket.id]}
+									order={[]}
 								/>
 							))}
 						</List>

@@ -10,10 +10,10 @@ import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useHydrated } from "@tanstack/react-router";
 import { Archive, ArrowDown, ArrowUp, Pencil, Plus } from "lucide-react";
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, useEffect, useId, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, bucketColors, monogram, nextBucketColor } from "../buckets";
-import { formatMoney, monthName } from "../format";
+import { formatMoney, formatMoneyInput, monthName } from "../format";
 import {
 	usePlanChange,
 	withAllowance,
@@ -22,44 +22,46 @@ import {
 	withNewBucket,
 	withNewPersonalAllowance,
 	withOrder,
+	withoutBucket,
 } from "../plan-changes";
 import { membersQuery } from "../queries";
 import {
 	addBucket,
 	addPersonalAllowance,
+	archiveBucket,
 	reorderBuckets,
 	setAllowance,
 	setCarriesOver,
 	updateBucket,
 } from "../server/plan";
+import { AmountInput } from "./goals";
 import { Confirm, SaveFailed } from "./plan-editing";
 import { PlanHistoryDisclosure } from "./plan-history";
-import { ChangedNote, PlanAmountForm } from "./plan-scope-field";
+import { ChangedNote, PlanScopeField } from "./plan-scope-field";
 
 /**
- * A Bucket (or Personal Allowance) in the Plan: its allowance, and an Edit sheet to change it. The
- * rest of the Bucket (name, colour, carries over, order, archiving) changes on its page, which the name
- * links to. `was` is its allowance the month before, when this month changed it.
+ * A Bucket (or Personal Allowance) in the Plan: its allowance, and the Bucket sheet to change it,
+ * the same one its page opens. `was` is its allowance the month before, when this month changed
+ * it.
  */
 export function BucketEditor({
 	month,
 	bucket,
 	editable,
 	was,
+	order,
 }: {
 	month: MonthKey;
 	bucket: PlanBucket;
 	editable: boolean;
 	was?: number;
+	/** The shared Buckets' IDs in order, for moving this one; a Personal Allowance has none. */
+	order: string[];
 }) {
 	const hydrated = useHydrated();
 	const [open, setOpen] = useState(false);
 	const color = asBucketColor(bucket.color);
-	const allowance = usePlanChange(month, {
-		save: (data: { bucketId: string; month: MonthKey; amountCents: number; scope: PlanScope }) =>
-			setAllowance({ data }),
-		apply: withAllowance,
-	});
+	const changes = useBucketChanges(month);
 	return (
 		<ListRow
 			leading={<Tile bucket={color}>{monogram(bucket.name)}</Tile>}
@@ -94,118 +96,218 @@ export function BucketEditor({
 							<Pencil />
 						</Button>
 					) : null}
-					<Sheet open={open} onOpenChange={setOpen}>
-						{open ? (
-							<SheetContent>
-								<SheetHeader
-									title={bucket.name}
-									description={bucket.owner === undefined ? "Bucket" : "Personal Allowance"}
-								/>
-								<PlanAmountForm
-									month={month}
-									label="Allowance"
-									value={bucket.allowance}
-									onSave={(amountCents, scope) => {
-										setOpen(false);
-										if (amountCents !== bucket.allowance) {
-											allowance.mutate({ bucketId: bucket.id, month, amountCents, scope });
-										}
-									}}
-								/>
-								<PlanHistoryDisclosure month={month} targetId={bucket.id} />
-								<p className="text-[13px] text-muted-foreground">
-									Rename it, change its colour, choose whether it carries over, move or archive it
-									on{" "}
-									<Link
-										to="/plan/buckets/$id"
-										params={{ id: bucket.id }}
-										className="font-medium text-foreground underline underline-offset-2"
-									>
-										its page
-									</Link>
-									.
-								</p>
-							</SheetContent>
-						) : null}
-					</Sheet>
+					<BucketSheet
+						month={month}
+						bucket={bucket}
+						order={order}
+						open={open}
+						onOpenChange={setOpen}
+						changes={changes}
+						withHistory
+					/>
 				</div>
 			}
-			below={allowance.isError ? <SaveFailed change={allowance} /> : undefined}
+			below={changes.failed ? <div className="grid gap-2">{changes.failed}</div> : undefined}
 		/>
 	);
 }
 
-/**
- * Rename, recolour, set carries over or resets monthly from `month` on, move, or archive a Bucket: on its
- * page, in its Edit sheet.
- */
-export function BucketDetails({
-	month,
-	bucket,
-	order,
-	index,
-	onArchive,
-}: {
-	month: MonthKey;
-	bucket: PlanBucket;
-	order: string[];
-	index: number;
-	onArchive: (bucketId: string) => void;
-}) {
-	const nameId = useId();
-	const [confirmArchive, setConfirmArchive] = useState(false);
-	// The colour just picked, shown until the cache catches up (or rolls back).
-	const [pickedColor, setPickedColor] = useState<number | null>(null);
-	const [pickedCarriesOver, setPickedCarriesOver] = useState<boolean | null>(null);
+/** The writes the Bucket sheet makes, kept by whatever opens it so a failure outlives the sheet. */
+export function useBucketChanges(month: MonthKey) {
+	const allowance = usePlanChange(month, {
+		save: (data: { bucketId: string; month: MonthKey; amountCents: number; scope: PlanScope }) =>
+			setAllowance({ data }),
+		apply: withAllowance,
+	});
 	const details = usePlanChange(month, {
 		save: (data: { bucketId: string; name?: string; color?: number }) => updateBucket({ data }),
 		apply: withBucketDetails,
-	});
-	const reorder = usePlanChange(month, {
-		save: (data: { bucketIds: string[] }) => reorderBuckets({ data }),
-		apply: withOrder,
 	});
 	const carriesOver = usePlanChange(month, {
 		save: (data: { bucketId: string; month: MonthKey; rolling: boolean }) =>
 			setCarriesOver({ data }),
 		apply: withCarriesOver,
 	});
+	const reorder = usePlanChange(month, {
+		save: (data: { bucketIds: string[] }) => reorderBuckets({ data }),
+		apply: withOrder,
+	});
+	const archive = usePlanChange(month, {
+		save: (data: { bucketId: string; month: MonthKey }) => archiveBucket({ data }),
+		apply: withoutBucket,
+	});
+	const all = [allowance, details, carriesOver, reorder, archive];
+	const failed = all.some((change) => change.isError) ? (
+		<>
+			<SaveFailed change={allowance} />
+			<SaveFailed change={details} />
+			<SaveFailed change={carriesOver} />
+			<SaveFailed change={reorder} />
+			<SaveFailed change={archive} />
+		</>
+	) : null;
+	return { allowance, details, carriesOver, reorder, archive, failed };
+}
 
-	function move(by: -1 | 1) {
-		const bucketIds = [...order];
-		const [moved] = bucketIds.splice(index, 1);
-		if (moved) bucketIds.splice(index + by, 0, moved);
-		reorder.mutate({ bucketIds });
-	}
+export type BucketChanges = ReturnType<typeof useBucketChanges>;
 
-	function rename(event: FormEvent<HTMLFormElement>) {
+/**
+ * The Bucket sheet, the one place a Bucket changes: its name, allowance (from this month on, or
+ * just this month), colour, and whether it carries over, saved together by one Save; then moving
+ * and archiving it, which act at once. Closing it with unsaved changes asks first.
+ */
+export function BucketSheet({
+	month,
+	bucket,
+	order,
+	open,
+	onOpenChange,
+	changes,
+	withHistory = false,
+}: {
+	month: MonthKey;
+	bucket: PlanBucket;
+	order: string[];
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	changes: BucketChanges;
+	withHistory?: boolean;
+}) {
+	const [dirty, setDirty] = useState(false);
+	const [confirmDiscard, setConfirmDiscard] = useState(false);
+	const close = () => {
+		setDirty(false);
+		setConfirmDiscard(false);
+		onOpenChange(false);
+	};
+	return (
+		<Sheet
+			open={open}
+			onOpenChange={(next) => {
+				if (next) onOpenChange(true);
+				else if (dirty) setConfirmDiscard(true);
+				else close();
+			}}
+		>
+			{open ? (
+				<SheetContent>
+					<SheetHeader
+						title={bucket.name}
+						description={bucket.owner === undefined ? "Bucket" : "Personal Allowance"}
+					/>
+					<BucketForm
+						month={month}
+						bucket={bucket}
+						changes={changes}
+						onDirty={setDirty}
+						onCancel={() => (dirty ? setConfirmDiscard(true) : close())}
+						onSaved={close}
+					/>
+					{withHistory ? <PlanHistoryDisclosure month={month} targetId={bucket.id} /> : null}
+					<BucketActions
+						month={month}
+						bucket={bucket}
+						order={order}
+						changes={changes}
+						onArchived={close}
+					/>
+					{confirmDiscard ? (
+						<Confirm
+							confirmLabel="Discard changes"
+							onConfirm={close}
+							onCancel={() => setConfirmDiscard(false)}
+						>
+							What you changed in {bucket.name} hasn’t been saved.
+						</Confirm>
+					) : null}
+				</SheetContent>
+			) : null}
+		</Sheet>
+	);
+}
+
+function BucketForm({
+	month,
+	bucket,
+	changes,
+	onDirty,
+	onCancel,
+	onSaved,
+}: {
+	month: MonthKey;
+	bucket: PlanBucket;
+	changes: BucketChanges;
+	onDirty: (dirty: boolean) => void;
+	onCancel: () => void;
+	onSaved: () => void;
+}) {
+	const hydrated = useHydrated();
+	const id = useId();
+	const [name, setName] = useState(bucket.name);
+	const [amount, setAmount] = useState(() => formatMoneyInput(bucket.allowance));
+	const [scope, setScope] = useState<PlanScope>("from-on");
+	const [color, setColor] = useState(bucket.color);
+	const [rolling, setRolling] = useState(bucket.rolling);
+	const [errors, setErrors] = useState<{ name?: boolean; amount?: boolean }>({});
+	const cents = parseDollars(amount);
+	const trimmed = name.trim();
+	const changed = {
+		name: trimmed !== bucket.name,
+		allowance: cents !== bucket.allowance,
+		color: color !== bucket.color,
+		rolling: rolling !== bucket.rolling,
+	};
+	const dirty = Object.values(changed).some(Boolean);
+	useEffect(() => onDirty(dirty), [dirty, onDirty]);
+
+	function onSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		const name = String(new FormData(event.currentTarget).get("name") ?? "").trim();
-		if (name && name !== bucket.name) details.mutate({ bucketId: bucket.id, name });
+		const next = { name: trimmed === "", amount: cents === null };
+		setErrors(next);
+		if (next.name || cents === null) return;
+		if (changed.name || changed.color) {
+			changes.details.mutate({
+				bucketId: bucket.id,
+				...(changed.name ? { name: trimmed } : {}),
+				...(changed.color ? { color } : {}),
+			});
+		}
+		if (changed.allowance) {
+			changes.allowance.mutate({ bucketId: bucket.id, month, amountCents: cents, scope });
+		}
+		if (changed.rolling) changes.carriesOver.mutate({ bucketId: bucket.id, month, rolling });
+		onSaved();
 	}
 
 	return (
-		<div className="grid gap-4 rounded-xl bg-surface-2 p-3">
-			<SaveFailed change={details} />
-			<SaveFailed change={reorder} />
-			<SaveFailed change={carriesOver} />
-			<form onSubmit={rename}>
-				<Field label="Name" htmlFor={nameId}>
-					<div className="flex gap-2">
-						<Input
-							id={nameId}
-							name="name"
-							required
-							maxLength={40}
-							defaultValue={bucket.name}
-							className="bg-card"
-						/>
-						<Button type="submit" variant="outline">
-							Rename
-						</Button>
-					</div>
-				</Field>
-			</form>
+		<form onSubmit={onSubmit} noValidate className="grid gap-4">
+			<Field label="Allowance" htmlFor={`${id}-amount`}>
+				<AmountInput
+					id={`${id}-amount`}
+					placeholder="0"
+					value={amount}
+					aria-invalid={errors.amount || undefined}
+					onChange={(event) => setAmount(event.currentTarget.value)}
+				/>
+			</Field>
+			{changed.allowance && cents !== null ? (
+				<PlanScopeField
+					month={month}
+					current={bucket.allowance}
+					scope={scope}
+					onScopeChange={setScope}
+				/>
+			) : null}
+			<Field label="Name" htmlFor={`${id}-name`}>
+				<Input
+					id={`${id}-name`}
+					maxLength={40}
+					autoComplete="off"
+					value={name}
+					aria-invalid={errors.name || undefined}
+					onChange={(event) => setName(event.currentTarget.value)}
+				/>
+			</Field>
 			<fieldset className="grid gap-2">
 				<legend className="mb-2 text-sm font-medium">Colour</legend>
 				<div className="flex flex-wrap gap-2">
@@ -213,23 +315,17 @@ export function BucketDetails({
 						<label key={option.value} className="relative">
 							<input
 								type="radio"
-								name={`color-${bucket.id}`}
+								name={`${id}-color`}
 								value={option.value}
-								checked={(pickedColor ?? bucket.color) === option.value}
-								onChange={() => {
-									setPickedColor(option.value);
-									details.mutate(
-										{ bucketId: bucket.id, color: option.value },
-										{ onSettled: () => setPickedColor(null) },
-									);
-								}}
+								checked={color === option.value}
+								onChange={() => setColor(option.value)}
 								className="peer absolute inset-0 z-10 size-full cursor-pointer appearance-none rounded-full opacity-0"
 							/>
 							<span className="sr-only">{option.name}</span>
 							<span
 								aria-hidden="true"
 								className={cn(
-									"block size-8 rounded-full ring-offset-2 ring-offset-surface-2 transition-shadow duration-(--duration-fast)",
+									"block size-8 rounded-full ring-offset-2 ring-offset-card transition-shadow duration-(--duration-fast)",
 									"peer-checked:ring-2 peer-checked:ring-foreground peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4 peer-focus-visible:outline-ring",
 								)}
 								style={{ background: `var(--bucket-${option.value})` }}
@@ -238,72 +334,134 @@ export function BucketDetails({
 					))}
 				</div>
 			</fieldset>
-			<fieldset className="grid gap-2">
-				<legend className="mb-2 text-sm font-medium">At the end of the month</legend>
-				{carriesOverOptions.map((option) => (
-					<label
-						key={option.label}
-						className="flex cursor-pointer items-start gap-3 rounded-lg bg-card px-3 py-2.5"
-					>
-						<input
-							type="radio"
-							name={`rolling-${bucket.id}`}
-							checked={(pickedCarriesOver ?? bucket.rolling) === option.rolling}
-							onChange={() => {
-								setPickedCarriesOver(option.rolling);
-								carriesOver.mutate(
-									{ bucketId: bucket.id, month, rolling: option.rolling },
-									{ onSettled: () => setPickedCarriesOver(null) },
-								);
-							}}
-							className="mt-0.5 size-4 shrink-0 accent-foreground"
-						/>
-						<span className="grid gap-0.5">
-							<span className="text-sm font-medium">{option.label}</span>
-							<span className="text-[13px] text-muted-foreground">{option.description}</span>
-						</span>
-					</label>
-				))}
-			</fieldset>
-			{/* A Personal Allowance has its own section, and stays in the Plan: its Parent sets it to
-			    zero rather than archiving it. */}
-			{bucket.owner === undefined ? (
-				<div className="flex flex-wrap items-center gap-2">
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						disabled={index === 0}
-						onClick={() => move(-1)}
-					>
-						<ArrowUp />
-						Move up
-					</Button>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						disabled={index === order.length - 1}
-						onClick={() => move(1)}
-					>
-						<ArrowDown />
-						Move down
-					</Button>
-					<Button
-						type="button"
-						variant="ghost"
-						size="sm"
-						className="ms-auto"
-						onClick={() => setConfirmArchive(true)}
-					>
-						<Archive />
-						Archive
-					</Button>
-				</div>
+			<CarriesOverField
+				name={`${id}-rolling`}
+				rolling={rolling}
+				onChange={setRolling}
+				hint={changed.rolling ? `From ${monthName(month)} on.` : undefined}
+			/>
+			{errors.name ? <FormError>Give the Bucket a name.</FormError> : null}
+			{errors.amount ? (
+				<FormError>Enter the allowance as a dollar amount, like 250 or 85.50.</FormError>
 			) : null}
+			<div className="grid grid-cols-2 gap-2">
+				<Button type="button" variant="outline" onClick={onCancel}>
+					Cancel
+				</Button>
+				<Button type="submit" disabled={!hydrated || !dirty}>
+					Save
+				</Button>
+			</div>
+		</form>
+	);
+}
+
+/** "At the end of the month": Resets monthly or Carries over, each with what it means. */
+export function CarriesOverField({
+	name,
+	rolling,
+	onChange,
+	hint,
+}: {
+	name: string;
+	rolling: boolean;
+	onChange: (rolling: boolean) => void;
+	hint?: string;
+}) {
+	return (
+		<fieldset className="grid gap-2">
+			<legend className="mb-2 text-sm font-medium">At the end of the month</legend>
+			{carriesOverOptions.map((option) => (
+				<label
+					key={option.label}
+					className="flex cursor-pointer items-start gap-3 rounded-lg bg-surface-2 px-3 py-2.5"
+				>
+					<input
+						type="radio"
+						name={name}
+						checked={rolling === option.rolling}
+						onChange={() => onChange(option.rolling)}
+						className="mt-0.5 size-4 shrink-0 accent-foreground"
+					/>
+					<span className="grid gap-0.5">
+						<span className="text-sm font-medium">{option.label}</span>
+						<span className="text-[13px] text-muted-foreground">{option.description}</span>
+					</span>
+				</label>
+			))}
+			{hint ? <p className="text-xs text-subtle-foreground">{hint}</p> : null}
+		</fieldset>
+	);
+}
+
+/** Moving and archiving a Bucket: they act at once, apart from the form's Save. */
+function BucketActions({
+	month,
+	bucket,
+	order,
+	changes,
+	onArchived,
+}: {
+	month: MonthKey;
+	bucket: PlanBucket;
+	order: string[];
+	changes: BucketChanges;
+	onArchived: () => void;
+}) {
+	const [confirmArchive, setConfirmArchive] = useState(false);
+	const index = order.indexOf(bucket.id);
+	// A Personal Allowance has its own section, and stays in the Plan: its Parent sets it to zero
+	// rather than archiving it.
+	if (bucket.owner !== undefined || index < 0) return null;
+
+	function move(by: -1 | 1) {
+		const bucketIds = [...order];
+		const [moved] = bucketIds.splice(index, 1);
+		if (moved) bucketIds.splice(index + by, 0, moved);
+		changes.reorder.mutate({ bucketIds });
+	}
+
+	return (
+		<div className="grid gap-2 border-t pt-4">
+			<p className="text-[13px] text-muted-foreground">These happen at once.</p>
+			<div className="flex flex-wrap items-center gap-2">
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					disabled={index === 0 || changes.reorder.isPending}
+					onClick={() => move(-1)}
+				>
+					<ArrowUp />
+					Move up
+				</Button>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					disabled={index === order.length - 1 || changes.reorder.isPending}
+					onClick={() => move(1)}
+				>
+					<ArrowDown />
+					Move down
+				</Button>
+				<Button
+					type="button"
+					variant="ghost"
+					size="sm"
+					className="ms-auto"
+					onClick={() => setConfirmArchive(true)}
+				>
+					<Archive />
+					Archive
+				</Button>
+			</div>
 			{confirmArchive ? (
 				<Confirm
-					onConfirm={() => onArchive(bucket.id)}
+					onConfirm={() => {
+						onArchived();
+						changes.archive.mutate({ bucketId: bucket.id, month });
+					}}
 					onCancel={() => setConfirmArchive(false)}
 					confirmLabel={`Archive ${bucket.name}`}
 				>
@@ -413,9 +571,11 @@ export function AddPersonalAllowance({
 
 export function AddBucket({ month, buckets }: { month: MonthKey; buckets: PlanBucket[] }) {
 	const hydrated = useHydrated();
+	const id = useId();
 	// A fresh ID per Bucket; a retry of the same attempt reuses it, so it's added once.
 	const [bucketId, setBucketId] = useState(() => ulid());
-	const [invalidAmount, setInvalidAmount] = useState(false);
+	const [rolling, setRolling] = useState(false);
+	const [errors, setErrors] = useState<{ name?: boolean; amount?: boolean }>({});
 	const add = usePlanChange(month, {
 		save: (data: {
 			bucketId: string;
@@ -423,6 +583,7 @@ export function AddBucket({ month, buckets }: { month: MonthKey; buckets: PlanBu
 			name: string;
 			color: number;
 			allowanceCents: number;
+			rolling: boolean;
 		}) => addBucket({ data }),
 		apply: withNewBucket,
 	});
@@ -433,48 +594,52 @@ export function AddBucket({ month, buckets }: { month: MonthKey; buckets: PlanBu
 		const values = new FormData(form);
 		const name = String(values.get("name") ?? "").trim();
 		const allowanceCents = parseDollars(String(values.get("allowance") ?? ""));
-		setInvalidAmount(allowanceCents === null);
-		if (!name || allowanceCents === null) return;
+		const next = { name: name === "", amount: allowanceCents === null };
+		setErrors(next);
+		if (next.name || allowanceCents === null) return;
 		add.mutate({
 			bucketId,
 			month,
 			name,
 			color: nextBucketColor(buckets.map((b) => b.color)),
 			allowanceCents,
+			rolling,
 		});
 		// The Bucket shows at once; the next one gets its own ID.
 		setBucketId(ulid());
+		setRolling(false);
 		form.reset();
 	}
 
 	return (
 		<Card>
-			<form onSubmit={onSubmit} className="grid gap-3 p-(--card-pad)">
+			<form onSubmit={onSubmit} noValidate className="grid gap-3 p-(--card-pad)">
 				<div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
 					<Field label="New Bucket" htmlFor="new-bucket-name">
 						<Input
 							id="new-bucket-name"
 							name="name"
-							required
 							maxLength={40}
 							autoComplete="off"
 							placeholder="Gifts"
+							aria-invalid={errors.name || undefined}
 						/>
 					</Field>
 					<Field label="Monthly allowance" htmlFor="new-bucket-allowance">
 						<Input
 							id="new-bucket-allowance"
 							name="allowance"
-							required
 							inputMode="decimal"
 							autoComplete="off"
 							placeholder="0"
 							className="tabular-nums"
-							aria-invalid={invalidAmount || undefined}
+							aria-invalid={errors.amount || undefined}
 						/>
 					</Field>
 				</div>
-				{invalidAmount ? (
+				<CarriesOverField name={`${id}-rolling`} rolling={rolling} onChange={setRolling} />
+				{errors.name ? <FormError>Give the Bucket a name, like Gifts.</FormError> : null}
+				{errors.amount ? (
 					<FormError>Enter the allowance as a dollar amount, like 250 or 85.50.</FormError>
 				) : null}
 				<SaveFailed change={add} />

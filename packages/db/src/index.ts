@@ -454,6 +454,7 @@ export {
 	bucketAdd,
 	loadPlanRecords,
 	reorderBuckets,
+	restoreBucket,
 	setAllowance,
 	setCarriesOver,
 	setTakeHomePay,

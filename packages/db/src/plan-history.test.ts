@@ -11,6 +11,8 @@ import {
 	type Db,
 	endCommitment,
 	loadPlanChanges,
+	loadPlanRecords,
+	restoreBucket,
 	setAllowance,
 	setCarriesOver,
 	setTakeHomePay,
@@ -433,5 +435,40 @@ describe("Plan changes", () => {
 
 		const elsewhere = await loadPlanChanges(db, { householdId: "elsewhere", memberId: "x" }, {});
 		expect(elsewhere).toEqual({ changes: [], historyStart: null });
+	});
+});
+
+describe("restoring an archived Bucket", () => {
+	it("brings it back from a month on, keeping the months it was archived at $0", async () => {
+		await archiveBucket(db, { ...alex, bucketId: "groceries", month: "2026-10" });
+		expect(
+			await restoreBucket(db, {
+				...sam,
+				bucketId: "groceries",
+				month: "2026-12",
+				amountCents: 100_000,
+			}),
+		).toBe(true);
+		const records = await loadPlanRecords(db, householdId, "2027-01");
+		expect(records.buckets.find((b) => b.id === "groceries")?.archivedFromMonth).toBeNull();
+		expect(
+			records.allowances
+				.filter((a) => a.bucketId === "groceries")
+				.map(({ month, amount }) => [month, amount]),
+		).toEqual([
+			["2026-09", 120_000],
+			["2026-10", 0],
+			["2026-12", 100_000],
+		]);
+		const [restored] = (await history(sam)).filter((c) => c.kind === "bucket-restore");
+		expect(restored).toMatchObject({
+			targetId: "groceries",
+			month: "2026-12",
+			after: { amount: 100_000 },
+		});
+		// Restored already: nothing to do again.
+		expect(
+			await restoreBucket(db, { ...sam, bucketId: "groceries", month: "2026-12", amountCents: 1 }),
+		).toBe(false);
 	});
 });

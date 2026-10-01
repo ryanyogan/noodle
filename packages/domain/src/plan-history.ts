@@ -11,6 +11,7 @@ export const PLAN_CHANGE_KINDS = [
 	"bucket-add",
 	"bucket-rename",
 	"bucket-archive",
+	"bucket-restore",
 	"commitment-add",
 	"commitment-terms",
 	"commitment-rename",
@@ -75,6 +76,8 @@ export type PlanChangeGroup<C extends PlanChange = PlanChange> = {
 	/** Added this month (so nothing was before) or taken out of the Plan from it. */
 	added: boolean;
 	removed: boolean;
+	/** An archived Bucket brought back into the Plan from this month. */
+	restored?: boolean;
 	/** Only the values that differ between the two, keyed alike. */
 	before: PlanChangeValue;
 	after: PlanChangeValue;
@@ -115,7 +118,14 @@ export function whatChanged<C extends PlanChange>(
 		// The other Parent's Personal Allowance stays one opaque group.
 		if (change.kind === "personal-allowance") group.kind = "personal-allowance";
 		if (change.kind.endsWith("-add")) group.added = true;
-		if (change.kind === "bucket-archive" || change.kind === "commitment-end") group.removed = true;
+		if (change.kind === "bucket-archive" || change.kind === "commitment-end") {
+			group.removed = true;
+			group.restored = false;
+		}
+		if (change.kind === "bucket-restore") {
+			group.removed = false;
+			group.restored = true;
+		}
 		for (const [field, value] of Object.entries(change.before ?? {})) {
 			if (!(field in group.after) && !(field in group.before)) {
 				(group.before as Record<string, unknown>)[field] = value;

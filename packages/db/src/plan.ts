@@ -6,7 +6,7 @@ import {
 	type PlanScope,
 	restoreAfterJust,
 } from "@noodle/domain";
-import { and, eq, gt, isNull, lte, or, type SQL, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, lt, lte, or, type SQL, sql } from "drizzle-orm";
 import type { Db } from "./index";
 import { type Author, inForce, logChange } from "./plan-log";
 import { assignableBy } from "./privacy";
@@ -198,6 +198,8 @@ export async function addBucket(
 		color: number;
 		month: MonthKey;
 		allowanceCents: Cents;
+		/** Carries over from the start; a new Bucket resets monthly unless a Parent says. */
+		rolling?: boolean;
 	},
 ): Promise<void> {
 	await db.batch(bucketAdd(db, input));
@@ -565,6 +567,86 @@ export async function archiveBucket(db: Db, input: ArchiveBucketInput): Promise<
 }
 
 type ArchiveBucketInput = Author & { householdId: string; bucketId: string; month: MonthKey };
+
+/**
+ * Brings an archived Bucket back into the Plan from `month` on, with `amountCents` as its
+ * allowance. The months it was out of the Plan keep it out in effect: from the month it was
+ * archived to the one before `month`, its allowance is $0 (a Bucket is archived from one month
+ * on, not over a range, so those months now list it at $0, which changes no number). A Personal
+ * Allowance is never archived; one not archived is left as it is.
+ */
+export async function restoreBucket(
+	db: Db,
+	input: Author & { householdId: string; bucketId: string; month: MonthKey; amountCents: Cents },
+): Promise<boolean> {
+	const [bucket] = await db
+		.select({ archivedFromMonth: buckets.archivedFromMonth })
+		.from(buckets)
+		.where(and(ownBucket(input.householdId, input.bucketId), isNull(buckets.ownerMemberId)));
+	const archivedFrom = bucket?.archivedFromMonth as MonthKey | null | undefined;
+	if (!archivedFrom) return false;
+	const restorable = and(
+		ownBucket(input.householdId, input.bucketId),
+		isNull(buckets.ownerMemberId),
+		eq(buckets.archivedFromMonth, archivedFrom),
+	);
+	const gap =
+		archivedFrom < input.month
+			? [
+					// The months between keep nothing of their own.
+					db
+						.delete(bucketAllowances)
+						.where(
+							and(
+								eq(bucketAllowances.householdId, input.householdId),
+								eq(bucketAllowances.bucketId, input.bucketId),
+								gt(bucketAllowances.month, archivedFrom),
+								lt(bucketAllowances.month, input.month),
+								sql`exists (select 1 from ${buckets} where ${restorable})`,
+							),
+						),
+					restoredAllowance(db, archivedFrom, 0, restorable),
+				]
+			: [];
+	await db.batch([
+		logChange(db, buckets, restorable, {
+			...input,
+			kind: "bucket-restore",
+			targetId: input.bucketId,
+			before: null,
+			after: { amount: input.amountCents },
+		}),
+		...gap,
+		restoredAllowance(db, input.month, input.amountCents, restorable),
+		db.update(buckets).set({ archivedFromMonth: null }).where(restorable),
+	]);
+	return true;
+}
+
+/** An allowance a restore writes, while the Bucket is still archived as it was read. */
+const restoredAllowance = (
+	db: Db,
+	month: MonthKey,
+	amountCents: Cents,
+	restorable: SQL | undefined,
+) =>
+	db
+		.insert(bucketAllowances)
+		.select(
+			db
+				.select({
+					householdId: buckets.householdId,
+					bucketId: buckets.id,
+					month: sql<string>`${month}`.as("month"),
+					amountCents: sql<number>`${amountCents}`.as("amount_cents"),
+				})
+				.from(buckets)
+				.where(restorable),
+		)
+		.onConflictDoUpdate({
+			target: [bucketAllowances.bucketId, bucketAllowances.month],
+			set: { amountCents },
+		});
 
 /** archiveBucket as statements (its Plan change, then itself), for a batch with others. */
 export const bucketArchive = (db: Db, input: ArchiveBucketInput) => {

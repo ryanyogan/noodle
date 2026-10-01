@@ -97,7 +97,8 @@ export const withNewBucket = (
 		name,
 		color,
 		allowanceCents,
-	}: { bucketId: string; name: string; color: number; allowanceCents: number },
+		rolling = false,
+	}: { bucketId: string; name: string; color: number; allowanceCents: number; rolling?: boolean },
 ) =>
 	mapPlan(data, (plan) =>
 		plan.buckets.some((b) => b.id === bucketId)
@@ -106,7 +107,7 @@ export const withNewBucket = (
 					...plan,
 					buckets: [
 						...plan.buckets,
-						{ id: bucketId, name, color, allowance: allowanceCents, rolling: false },
+						{ id: bucketId, name, color, allowance: allowanceCents, rolling },
 					],
 				},
 	);

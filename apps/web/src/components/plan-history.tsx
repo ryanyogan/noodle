@@ -66,6 +66,8 @@ export function describeChange(change: PlanChange): string {
 			return PERSONAL_ALLOWANCE;
 		case "bucket-archive":
 			return "Archived";
+		case "bucket-restore":
+			return ["Back in the Plan", ...describeValues(null, change.after ?? {})].join(" · ");
 		case "commitment-end":
 			return "Ended";
 		case "bucket-add":
@@ -81,6 +83,11 @@ export function describeChange(change: PlanChange): string {
 export function describeGroup(group: PlanChangeGroup): string {
 	if (group.kind === "personal-allowance") return PERSONAL_ALLOWANCE;
 	if (group.removed) return group.kind === "commitment" ? "Ended" : "Archived";
+	if (group.restored) {
+		return ["Back in the Plan", ...describeValues(null, { ...group.after, name: undefined })].join(
+			" · ",
+		);
+	}
 	if (group.added) {
 		return ["Added", ...describeValues(null, { ...group.after, name: undefined })].join(" · ");
 	}

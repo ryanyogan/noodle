@@ -4,31 +4,36 @@ import {
 	type BucketState,
 	type MonthKey,
 	monthOfDay,
-	type PlanScope,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import { FormError } from "@noodle/ui/components/field";
 import { List } from "@noodle/ui/components/list";
 import { Meter } from "@noodle/ui/components/meter";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
-import { useQuery, useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { toast } from "@noodle/ui/components/toast";
+import {
+	useMutation,
+	useQuery,
+	useQueryClient,
+	useSuspenseInfiniteQuery,
+	useSuspenseQuery,
+} from "@tanstack/react-query";
 import { createFileRoute, Link, notFound, useHydrated } from "@tanstack/react-router";
-import { ChartColumn, ChevronLeft, Pencil } from "lucide-react";
+import { ArchiveRestore, ChartColumn, ChevronLeft, Pencil } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { asBucketColor, availableParts } from "../../../buckets";
-import { BucketDetails } from "../../../components/bucket-editor";
-import { SaveFailed } from "../../../components/plan-editing";
+import { BucketSheet, useBucketChanges } from "../../../components/bucket-editor";
 import { PlanHistoryList } from "../../../components/plan-history";
 import { PlanAmountForm } from "../../../components/plan-scope-field";
 import { AllowanceBars, ChartCard, TrendLines } from "../../../components/report-charts";
 import { TermHelp } from "../../../components/term-help";
 import { EditTransactionSheet, TransactionItem } from "../../../components/transaction-list";
 import { formatMoney, monthName } from "../../../format";
-import { usePlanChange, withAllowance, withoutBucket } from "../../../plan-changes";
 import {
 	bucketQuery,
 	membersQuery,
@@ -38,7 +43,7 @@ import {
 } from "../../../queries";
 import { periodLabel, type ReportTable } from "../../../reports";
 import { BUCKET_MONTHS } from "../../../server/buckets";
-import { archiveBucket, setAllowance } from "../../../server/plan";
+import { restoreBucket } from "../../../server/plan";
 import { ulidSchema } from "../../../server/schemas";
 import { type TransactionRow, transactionsQuery } from "../../../transactions";
 
@@ -80,16 +85,9 @@ function BucketPage() {
 	const month = monthOfDay(data.asOf);
 	const state = useMonthState(month);
 	const [editing, setEditing] = useState(false);
-	const allowance = usePlanChange(month, {
-		save: (data: { bucketId: string; month: MonthKey; amountCents: number; scope: PlanScope }) =>
-			setAllowance({ data }),
-		apply: withAllowance,
-	});
-	// Owned here: archiving takes the Bucket out of this month, and with it the Edit sheet.
-	const archive = usePlanChange(month, {
-		save: (data: { bucketId: string; month: MonthKey }) => archiveBucket({ data }),
-		apply: withoutBucket,
-	});
+	const [restoring, setRestoring] = useState(false);
+	// Owned here: archiving takes the Bucket out of this month, and with it the sheet.
+	const changes = useBucketChanges(month);
 	const back = <BackToBuckets month={month} />;
 	const record = data.bucket;
 	// A Bucket only goes away if another Parent's change removes it; the loader 404s on reload.
@@ -118,12 +116,22 @@ function BucketPage() {
 							<Pencil />
 							Edit
 						</Button>
+					) : archived && !personal && state.editable ? (
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							disabled={!hydrated}
+							onClick={() => setRestoring(true)}
+						>
+							<ArchiveRestore />
+							Restore to the Plan
+						</Button>
 					) : undefined
 				}
 			/>
 			<div className="grid max-w-2xl gap-8">
-				<SaveFailed change={allowance} />
-				<SaveFailed change={archive} />
+				{changes.failed}
 				{current ? (
 					<ThisMonth bucket={current} />
 				) : (
@@ -135,7 +143,7 @@ function BucketPage() {
 				)}
 				<History months={data.months} color={current?.color ?? record.color} />
 				{open ? (
-					<BucketTransactions month={month} bucketId={id} parentId={parentId} />
+					<BucketTransactions month={month} bucketId={id} parentId={parentId} archived={archived} />
 				) : (
 					<Section aria-labelledby="bucket-transactions">
 						<SectionHeader id="bucket-transactions" title="Transactions" />
@@ -158,38 +166,81 @@ function BucketPage() {
 					</Button>
 				</div>
 			</div>
-			<Sheet open={editing && current !== undefined} onOpenChange={setEditing}>
-				{editing && current ? (
-					<SheetContent>
-						<SheetHeader
-							title={current.name}
-							description={personal ? "Personal Allowance" : "Bucket"}
-						/>
-						<PlanAmountForm
-							month={month}
-							label="Allowance"
-							value={current.allowance}
-							onSave={(amountCents, scope) => {
-								setEditing(false);
-								if (amountCents !== current.allowance) {
-									allowance.mutate({ bucketId: id, month, amountCents, scope });
-								}
-							}}
-						/>
-						<BucketDetails
-							month={month}
-							bucket={current}
-							order={personal ? [id] : shared}
-							index={personal ? 0 : shared.indexOf(id)}
-							onArchive={(bucketId) => {
-								setEditing(false);
-								archive.mutate({ bucketId, month });
-							}}
-						/>
-					</SheetContent>
-				) : null}
-			</Sheet>
+			{current ? (
+				<BucketSheet
+					month={month}
+					bucket={current}
+					order={personal ? [] : shared}
+					open={editing}
+					onOpenChange={setEditing}
+					changes={changes}
+				/>
+			) : null}
+			<RestoreSheet
+				open={restoring}
+				onOpenChange={setRestoring}
+				month={month}
+				bucketId={id}
+				name={record.name}
+				lastAllowance={[...data.months].reverse().find((m) => m.inPlan)?.allowance ?? null}
+			/>
 		</>
+	);
+}
+
+/**
+ * Brings an archived Bucket back into the Plan from this month on, with an allowance (its last,
+ * to start with). The months it was archived for stay at $0.
+ */
+function RestoreSheet({
+	open,
+	onOpenChange,
+	month,
+	bucketId,
+	name,
+	lastAllowance,
+}: {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	month: MonthKey;
+	bucketId: string;
+	name: string;
+	lastAllowance: number | null;
+}) {
+	const queryClient = useQueryClient();
+	const restore = useMutation({
+		mutationFn: (amountCents: number) => restoreBucket({ data: { bucketId, month, amountCents } }),
+		onSuccess: async () => {
+			await Promise.all([
+				queryClient.invalidateQueries({ queryKey: monthQuery(month).queryKey }),
+				queryClient.invalidateQueries({ queryKey: bucketQuery(bucketId).queryKey }),
+			]);
+			toast(`${name} is back in the Plan from ${monthName(month)} on.`);
+			onOpenChange(false);
+		},
+	});
+	return (
+		<Sheet open={open} onOpenChange={onOpenChange}>
+			{open ? (
+				<SheetContent>
+					<SheetHeader
+						title={`Restore ${name}`}
+						description={`It comes back into the Plan from ${monthName(month)} on. The months it was archived stay as they were.`}
+					/>
+					<PlanAmountForm
+						month={month}
+						label="Allowance"
+						value={lastAllowance}
+						withScope={false}
+						submitLabel="Restore to the Plan"
+						onSave={(amountCents) => restore.mutate(amountCents)}
+					/>
+					{restore.isError ? (
+						<FormError>Couldn’t restore it. Check your connection and try again.</FormError>
+					) : null}
+				</SheetContent>
+			) : null}
+		</Sheet>
 	);
 }
 
@@ -264,9 +315,11 @@ function ThisMonth({ bucket }: { bucket: BucketState }) {
 /** Its last year: spent against allowance each month and, while it carried over, its balance. */
 function History({ months, color }: { months: BucketMonth[]; color: number }) {
 	const hydrated = useHydrated();
-	// From the first month it was in the Plan, so a new Bucket doesn't open on empty months.
+	// Only the months it was in the Plan, so a new Bucket doesn't open on empty months and an
+	// archived one doesn't end on them.
 	const first = months.findIndex((m) => m.inPlan);
-	const shown = first < 0 ? [] : months.slice(first);
+	const last = months.length - 1 - [...months].reverse().findIndex((m) => m.inPlan);
+	const shown = first < 0 ? [] : months.slice(first, last + 1);
 	if (shown.length === 0) return null;
 	const carriesOver = shown.some((m) => m.rolling);
 	const table: ReportTable = {
@@ -336,10 +389,12 @@ function BucketTransactions({
 	month,
 	bucketId,
 	parentId,
+	archived,
 }: {
 	month: MonthKey;
 	bucketId: string;
 	parentId: string;
+	archived: boolean;
 }) {
 	const list = useSuspenseInfiniteQuery(transactionsQuery(month, { bucket: bucketId })).data;
 	const { plan, asOf } = useSuspenseQuery(monthQuery(month)).data;
@@ -376,7 +431,9 @@ function BucketTransactions({
 				</List>
 			) : (
 				<Card className="p-(--card-pad) text-sm text-muted-foreground">
-					Nothing spent from it yet this month.
+					{archived
+						? "It’s archived, so nothing goes into it."
+						: "Nothing spent from it yet this month."}
 				</Card>
 			)}
 			<EditTransactionSheet

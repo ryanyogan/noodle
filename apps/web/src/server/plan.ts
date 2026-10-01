@@ -4,6 +4,7 @@ import {
 	archiveBucket as archiveBucketInDb,
 	loadPlanChanges,
 	reorderBuckets as reorderBucketsInDb,
+	restoreBucket as restoreBucketInDb,
 	setAllowance as setAllowanceInDb,
 	setCarriesOver as setCarriesOverInDb,
 	setTakeHomePay as setTakeHomePayInDb,
@@ -64,6 +65,7 @@ export const addBucket = createServerFn({ method: "POST" })
 			name: bucketNameSchema,
 			color: colorSchema,
 			allowanceCents: centsSchema,
+			rolling: z.boolean().optional(),
 		}),
 	)
 	.handler(async ({ data, context }) => {
@@ -171,6 +173,21 @@ export const archiveBucket = createServerFn({ method: "POST" })
 			...data,
 		});
 		await notifyHousehold(context.household.id, ["months"]);
+	});
+
+/** Brings an archived Bucket back into the Plan from `month` on, with its allowance. */
+export const restoreBucket = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ bucketId: ulidSchema, month: monthKeySchema, amountCents: centsSchema }))
+	.handler(async ({ data, context }) => {
+		assertEditable(context.household, data.month);
+		const restored = await restoreBucketInDb(getDb(), {
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			...data,
+		});
+		await notifyHousehold(context.household.id, ["months"]);
+		return { ok: restored };
 	});
 
 /** A Plan change with the day it was made, in the Household's time zone. */
