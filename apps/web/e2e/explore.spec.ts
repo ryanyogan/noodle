@@ -48,6 +48,7 @@ test("moving a Change changes the projection, and applying the Scenario changes 
 	await expect(firstMonth(page)).toContainText(/\$3,400\s*\$3,400\s*\$0$/);
 
 	// Hockey down to nothing frees $400 a month.
+	await page.getByRole("button", { name: "Edit Hockey" }).click();
 	const hockey = page.getByRole("slider", { name: "Hockey allowance" });
 	await hockey.focus();
 	await hockey.press("Home");
@@ -65,10 +66,11 @@ test("moving a Change changes the projection, and applying the Scenario changes 
 	await expect(totals(page, /^Over 5 years/).scenario).toHaveText("$228,000");
 
 	// Saved, it's there to come back to.
-	await page.getByLabel("Name").fill("No hockey");
+	await page.getByLabel("Name", { exact: true }).fill("No hockey");
 	await page.getByRole("button", { name: "Save Scenario" }).click();
 	// Saved, it is the Scenario chosen.
-	await expect(page.getByRole("combobox", { name: "Scenario" })).toHaveText("No hockey");
+	await expect(page.getByLabel("Name", { exact: true })).toHaveValue("No hockey");
+	await expect(page.getByText("Saved", { exact: true })).toBeVisible();
 
 	// Applied, it becomes the Plan from this month on.
 	await page.getByRole("button", { name: "Apply to Plan" }).click();

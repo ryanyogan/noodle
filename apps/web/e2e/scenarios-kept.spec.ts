@@ -15,7 +15,7 @@ test.afterEach(async () => {
 const changes = (page: Page) => page.getByRole("region", { name: "Your changes" });
 const confirm = (page: Page) => page.getByRole("alertdialog", { name: "Apply to the Plan" });
 const saved = (page: Page, name: string) =>
-	page.getByRole("listitem").filter({ has: page.getByRole("link", { name, exact: true }) });
+	page.getByRole("row").filter({ has: page.getByRole("link", { name, exact: true }) });
 
 test("a Scenario opened from a link is kept, applied with a preview, and compared", async ({
 	browser,
@@ -55,7 +55,7 @@ test("a Scenario opened from a link is kept, applied with a preview, and compare
 	await page.getByLabel("Name", { exact: true }).fill("Raise");
 	await page.getByRole("button", { name: "Save Scenario" }).click();
 	// Saved, it is the Scenario chosen.
-	await expect(page.getByRole("combobox", { name: "Scenario" })).toHaveText("Raise");
+	await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Raise");
 
 	// Apply lists exactly what changes in the Plan, and what it leaves out.
 	await page.getByRole("button", { name: "Apply to Plan" }).click();
@@ -82,13 +82,13 @@ test("a Scenario opened from a link is kept, applied with a preview, and compare
 	await page.getByLabel("Name", { exact: true }).fill("Pay cut");
 	await page.getByRole("button", { name: "Save Scenario" }).click();
 	// Saved, it is the Scenario chosen.
-	await expect(page.getByRole("combobox", { name: "Scenario" })).toHaveText("Pay cut");
+	await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Pay cut");
 
 	// The overview: who made each, and which was applied.
 	await page.getByRole("link", { name: "Scenarios" }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Scenarios");
 	await expect(saved(page, "Raise")).toContainText("Applied");
-	await expect(saved(page, "Raise")).toContainText("Made by Alex");
+	await expect(saved(page, "Raise").getByRole("cell").nth(2)).toHaveText("Alex");
 	await expect(saved(page, "Pay cut")).not.toContainText("Applied");
 	// $1,500 a month less over 2 years.
 	await expect(saved(page, "Pay cut")).toContainText("−$36,000");

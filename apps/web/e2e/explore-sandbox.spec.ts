@@ -58,6 +58,7 @@ test("a Parent tweaks the Plan in a sandbox: amounts, new things, date ranges an
 	await expect(changes(page)).toContainText("Nothing changed yet");
 
 	// A Commitment's amount, typed: $400 a month less.
+	await page.getByRole("button", { name: "Edit Daycare" }).click();
 	await type(page, "Daycare amount", "1,000");
 	await expect(change(page, "Daycare $1,400 → $1,000 a month")).toContainText(
 		"Frees $9,600 over 2 years",
@@ -91,6 +92,7 @@ test("a Parent tweaks the Plan in a sandbox: amounts, new things, date ranges an
 	await expect(scenarioTotal(page)).toHaveText("$148,800");
 
 	// Take-home pay $1,000 lower for six months, a year from now.
+	await page.getByRole("button", { name: "Edit Take-home pay" }).click();
 	await type(page, "Take-home pay", "8,000");
 	await page.getByRole("combobox", { name: "Take-home pay from" }).click();
 	await page.getByRole("listbox").getByRole("option").nth(12).click();

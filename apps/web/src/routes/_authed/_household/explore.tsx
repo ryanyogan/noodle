@@ -36,7 +36,6 @@ import {
 import { Button } from "@noodle/ui/components/button";
 import { Card, CardContent } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
-import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
@@ -63,6 +62,7 @@ import { useMutationState, useQueryClient, useSuspenseQuery } from "@tanstack/re
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
 	Calculator,
+	Check,
 	ChevronLeft,
 	Info,
 	Layers,
@@ -88,7 +88,7 @@ import { changeId, ScenarioChanges, useDebounced } from "../../../components/sce
 import type { Outcome } from "../../../components/scenario-outcomes";
 import { ScenarioOutcome, ScenarioOutline } from "../../../components/scenario-outline";
 import { TermHelp } from "../../../components/term-help";
-import { formatMoney, shortDayAt, shortMonth } from "../../../format";
+import { formatMoney, formatWholeMoney, shortDayAt, shortMonth } from "../../../format";
 import { useReducedMotion } from "../../../motion";
 import { goalsQuery, planAheadQuery, scenariosQuery } from "../../../queries";
 import {
@@ -105,10 +105,19 @@ import {
 // Explore: Scenarios projected against the Plan. The loader fetches the data on the server;
 // the page itself renders only in the browser (data-only SSR), and its charts load lazily.
 
-const ScenarioOutcomes = lazy(() => import("../../../components/scenario-outcomes"));
-const FreeToSpendOutcome = lazy(() =>
-	import("../../../components/scenario-outcomes").then((m) => ({ default: m.FreeToSpendOutcome })),
+const OutcomeTabs = lazy(() =>
+	import("../../../components/scenario-outcomes").then((m) => ({ default: m.OutcomeTabs })),
 );
+
+/** The size of the loaded Tabs and chart card (tabs, header, plot, legend), so nothing shifts. */
+function OutcomeTabsSkeleton() {
+	return (
+		<div className="grid gap-3">
+			<Skeleton className="h-9 w-72 rounded-lg" />
+			<Skeleton className="h-[400px] w-full rounded-xl" />
+		</div>
+	);
+}
 
 export const Route = createFileRoute("/_authed/_household/explore")({
 	ssr: "data-only",
@@ -445,10 +454,10 @@ function Explore({ search }: { search: ExploreSearch }) {
 					accounts={accounts}
 					onDraft={setDraft}
 				/>
-				<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(340px,440px)] lg:items-start">
-					{/* It stays beside the Changes only where it fits on screen: stuck, anything below
-					    the fold couldn't be reached until the Changes ran out. */}
-					<div className="grid gap-4 lg:[@media(min-height:48rem)]:sticky lg:top-6">
+				<div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(360px,460px)] lg:items-start">
+					{/* Beside the Changes, the outcome stays in view: stuck, and scrolling on its own when
+					    it's taller than the screen. On phones its parts sit in the page, the totals last. */}
+					<div className="grid gap-4 max-lg:contents lg:sticky lg:top-4 lg:-m-1 lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto lg:p-1 lg:[scrollbar-width:thin]">
 						<ToggleGroup
 							type="single"
 							aria-label="Look ahead"
@@ -472,9 +481,23 @@ function Explore({ search }: { search: ExploreSearch }) {
 							horizonLabel={horizonLabel}
 							warnings={warnings}
 						/>
-						<Suspense fallback={<Skeleton className="h-[340px] w-full rounded-xl" />}>
-							<FreeToSpendOutcome outcome={outcome} title="Free to Spend each month" />
+						<Suspense fallback={<OutcomeTabsSkeleton />}>
+							<OutcomeTabs outcome={outcome} goalNames={goalNames} />
 						</Suspense>
+						<Section aria-labelledby="outcomes" className="max-lg:order-last">
+							<SectionHeader id="outcomes" title="How it plays out" />
+							<Totals
+								plan={planProjection}
+								scenario={scenarioProjection}
+								horizonLabel={horizonLabel}
+							/>
+							{goals.length > 0 ? (
+								<GoalsReached plan={planProjection} scenario={scenarioProjection} goals={goals} />
+							) : null}
+							<p className="max-w-prose text-xs text-muted-foreground">
+								<span className="font-medium">Assumptions.</span> {assumptions.join(" ")}
+							</p>
+						</Section>
 					</div>
 					<div className="grid gap-3">
 						<Freed
@@ -513,32 +536,6 @@ function Explore({ search }: { search: ExploreSearch }) {
 						</ScenarioOutcome>
 					</div>
 				</div>
-				<Section aria-labelledby="outcomes">
-					<SectionHeader id="outcomes" title="How it plays out" />
-					<div className="grid gap-4 lg:grid-cols-2 lg:items-start">
-						<Suspense
-							fallback={
-								<>
-									<Skeleton className="h-[340px] w-full rounded-xl" />
-									<Skeleton className="h-[340px] w-full rounded-xl" />
-								</>
-							}
-						>
-							<ScenarioOutcomes outcome={outcome} goalNames={goalNames} />
-						</Suspense>
-						<Totals
-							plan={planProjection}
-							scenario={scenarioProjection}
-							horizonLabel={horizonLabel}
-						/>
-						{goals.length > 0 ? (
-							<GoalsReached plan={planProjection} scenario={scenarioProjection} goals={goals} />
-						) : null}
-					</div>
-					<p className="max-w-prose text-xs text-muted-foreground">
-						<span className="font-medium">Assumptions.</span> {assumptions.join(" ")}
-					</p>
-				</Section>
 			</div>
 		</>
 	);
@@ -605,57 +602,56 @@ function ScenarioBar({
 	return (
 		<Card>
 			<CardContent className="grid gap-3">
-				<div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-					<Field label="Scenario" htmlFor={`${id}-scenario`}>
-						<div className="flex gap-2">
-							<Select
-								value={saved ? draft.id : "new"}
-								onValueChange={(value) => {
-									const scenario = scenarios.find((s) => s.id === value);
-									if (!scenario) return;
-									setConfirming(null);
-									onDraft({ id: scenario.id, name: scenario.name, levers: scenario.levers });
-								}}
-							>
-								<SelectTrigger id={`${id}-scenario`} className="flex-1">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{saved ? null : (
-										<SelectItem value="new">{draft.name || "New Scenario"} (not saved)</SelectItem>
-									)}
-									{scenarios.map((s) => (
-										<SelectItem key={s.id} value={s.id}>
-											{s.name}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-							{saved ? (
-								<Button
-									type="button"
-									variant="outline"
-									className="h-10"
-									onClick={() => {
-										setConfirming(null);
-										onDraft(freshDraft(scenarios));
-									}}
-								>
-									<Plus />
-									New
-									<span className="sr-only"> Scenario from the Plan</span>
-								</Button>
-							) : null}
-						</div>
-					</Field>
-					<Field label="Name" htmlFor={`${id}-name`}>
-						<Input
-							id={`${id}-name`}
-							value={draft.name}
-							maxLength={40}
-							onChange={(event) => onDraft({ ...draft, name: event.currentTarget.value })}
-						/>
-					</Field>
+				{/* The Scenario's name is its title, renamed in place; the Select only switches. */}
+				<div className="flex flex-wrap items-center gap-2">
+					<Input
+						id={`${id}-name`}
+						aria-label="Name"
+						placeholder="Name this Scenario"
+						value={draft.name}
+						maxLength={40}
+						onChange={(event) => onDraft({ ...draft, name: event.currentTarget.value })}
+						className="-ms-2 h-10 min-w-48 flex-1 max-sm:basis-full border-transparent bg-transparent px-2 text-lg font-semibold md:text-lg shadow-none hover:border-input focus-visible:border-ring dark:bg-transparent"
+					/>
+					<Select
+						value={saved ? draft.id : "new"}
+						onValueChange={(value) => {
+							const scenario = scenarios.find((s) => s.id === value);
+							if (!scenario) return;
+							setConfirming(null);
+							onDraft({ id: scenario.id, name: scenario.name, levers: scenario.levers });
+						}}
+					>
+						<SelectTrigger aria-label="Scenario" className="w-auto">
+							<Layers />
+							<SelectValue>Switch</SelectValue>
+						</SelectTrigger>
+						<SelectContent align="end">
+							{saved ? null : (
+								<SelectItem value="new">{draft.name || "New Scenario"} (not saved)</SelectItem>
+							)}
+							{scenarios.map((s) => (
+								<SelectItem key={s.id} value={s.id}>
+									{s.name}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					{saved ? (
+						<Button
+							type="button"
+							variant="outline"
+							className="h-10"
+							onClick={() => {
+								setConfirming(null);
+								onDraft(freshDraft(scenarios));
+							}}
+						>
+							<Plus />
+							New
+							<span className="sr-only"> Scenario from the Plan</span>
+						</Button>
+					) : null}
 				</div>
 				<p className="text-[13px] text-muted-foreground">
 					{draft.levers.length > 0
@@ -760,17 +756,25 @@ function ScenarioBar({
 					</Confirm>
 				) : null}
 				<div className="flex flex-wrap items-center gap-2">
-					<Button
-						type="button"
-						size="sm"
-						disabled={!dirty || name === ""}
-						onClick={() => {
-							save.mutate({ scenarioId: draft.id, name, levers: draft.levers });
-							onDraft({ ...draft, name });
-						}}
-					>
-						{saved ? "Save" : "Save Scenario"}
-					</Button>
+					{/* Save shows only once there's something to save; a kept Scenario says it's saved. */}
+					{dirty ? (
+						<Button
+							type="button"
+							size="sm"
+							disabled={name === ""}
+							onClick={() => {
+								save.mutate({ scenarioId: draft.id, name, levers: draft.levers });
+								onDraft({ ...draft, name });
+							}}
+						>
+							{saved ? "Save" : "Save Scenario"}
+						</Button>
+					) : saved ? (
+						<span className="inline-flex h-8 items-center gap-1 px-1 text-[13px] text-muted-foreground">
+							<Check className="size-4" aria-hidden="true" />
+							Saved
+						</span>
+					) : null}
 					<Button
 						type="button"
 						size="sm"
@@ -967,8 +971,8 @@ const Freed = memo(function Freed({
 					? "Same as the Plan"
 					: "Same Free to Spend"
 				: freed > 0
-					? `Frees ${formatMoney(freed)}`
-					: `Costs ${formatMoney(-freed)}`}
+					? `Frees ${formatWholeMoney(freed)}`
+					: `Costs ${formatWholeMoney(-freed)}`}
 			<span className="text-base font-normal text-muted-foreground"> over {horizonLabel}</span>
 		</p>
 	);
@@ -983,7 +987,7 @@ function ProjectedBalance({ scenario }: { scenario: Projection }) {
 			<p className="text-[13px] text-muted-foreground tabular-nums">
 				Projected balance at its lowest{" "}
 				<span className={cn("font-medium text-foreground", lowest.amount < 0 && "text-over")}>
-					{formatMoney(lowest.amount)}
+					{formatWholeMoney(lowest.amount)}
 				</span>{" "}
 				in {shortMonth(lowest.month)}
 			</p>
@@ -1063,7 +1067,7 @@ function Totals({
 									row.plan < 0 && "text-over",
 								)}
 							>
-								{formatMoney(row.plan)}
+								{formatWholeMoney(row.plan)}
 							</TableCell>
 							<TableCell
 								numeric
@@ -1072,7 +1076,7 @@ function Totals({
 									row.scenario < 0 && "text-over",
 								)}
 							>
-								{formatMoney(row.scenario)}
+								{formatWholeMoney(row.scenario)}
 							</TableCell>
 						</TableRow>
 					))}

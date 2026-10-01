@@ -7,11 +7,29 @@ import {
 	project,
 	type ScenarioChangeSubjects,
 } from "@noodle/domain";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@noodle/ui/components/alert-dialog";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card, CardContent } from "@noodle/ui/components/card";
 import { Checkbox } from "@noodle/ui/components/checkbox";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@noodle/ui/components/dropdown-menu";
 import { EmptyState } from "@noodle/ui/components/empty-state";
+import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
@@ -28,12 +46,17 @@ import {
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ChevronLeft, Layers } from "lucide-react";
-import { lazy, Suspense, useMemo } from "react";
+import { ChevronLeft, Ellipsis, Layers } from "lucide-react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { z } from "zod";
-import { formatMoney, shortDayAt, shortMonth } from "../../../format";
+import { formatMoney, formatWholeMoney, shortDayAt, shortMonth } from "../../../format";
 import { goalsQuery, planAheadQuery, scenariosQuery } from "../../../queries";
-import { projectionGoals, type ScenarioRecord } from "../../../scenarios";
+import {
+	projectionGoals,
+	type ScenarioRecord,
+	useDeleteScenario,
+	useSaveScenario,
+} from "../../../scenarios";
 
 // The Household's saved Scenarios, each with its headline outcome, who made it, when it last
 // changed and whether it was applied; and up to three compared side by side against the Plan.
@@ -139,73 +162,93 @@ function ScenariosPage() {
 					<Section aria-labelledby="saved">
 						<SectionHeader id="saved" title="Saved" count={projected.length} />
 						<p className="-mt-1 text-[13px] text-muted-foreground">
-							Each against the Plan over {HORIZON_LABEL}. Pick up to {MAX_COMPARED} to compare.
+							Each against the Plan over {HORIZON_LABEL}. Tick up to {MAX_COMPARED} to compare them
+							side by side with the Plan.
 						</p>
-						<List>
-							{projected.map(({ scenario, projection, freed }) => {
-								const picked = compared.includes(scenario.id);
-								const names = scenario.levers
-									.filter((l) => !l.muted)
-									.map((l) => changeName(l, subjects, scenario.levers));
-								return (
-									<ListRow
-										key={scenario.id}
-										leading={
-											<Checkbox
-												aria-label={`Compare “${scenario.name}”`}
-												checked={picked}
-												disabled={!picked && compared.length >= MAX_COMPARED}
-												onCheckedChange={() => toggle(scenario.id)}
-											/>
-										}
-										title={
-											<Link
-												to="/explore"
-												search={{ scenario: scenario.id }}
-												className="hover:underline"
-											>
-												{scenario.name}
-											</Link>
-										}
-										badge={scenario.appliedAt ? <Badge variant="brand">Applied</Badge> : null}
-										meta={
-											<>
-												{scenario.createdBy ? <span>Made by {scenario.createdBy}</span> : null}
-												<span>Changed {shortDayAt(scenario.updatedAt)}</span>
-												{scenario.appliedAt ? (
-													<span>
-														Applied {shortDayAt(scenario.appliedAt)}
-														{scenario.appliedBy ? ` by ${scenario.appliedBy}` : ""}
-													</span>
-												) : null}
-											</>
-										}
-										trailing={
-											<>
-												<span
-													className={cn(
-														"text-sm font-semibold tabular-nums",
-														freed < 0 && "text-over",
-													)}
+						{compared.length > 0 ? (
+							<div className="flex flex-wrap items-center gap-2">
+								<Button asChild size="sm" variant="outline">
+									<a href="#compare">Compare {compared.length} selected</a>
+								</Button>
+								<span className="text-[13px] text-muted-foreground">
+									The comparison is below the list.
+								</span>
+							</div>
+						) : null}
+						<ScenarioTable
+							className="max-md:hidden"
+							projected={projected}
+							compared={compared}
+							subjects={subjects}
+							onToggle={toggle}
+						/>
+						<div className="md:hidden">
+							<List>
+								{projected.map(({ scenario, projection, freed }) => {
+									const picked = compared.includes(scenario.id);
+									const names = scenario.levers
+										.filter((l) => !l.muted)
+										.map((l) => changeName(l, subjects, scenario.levers));
+									return (
+										<ListRow
+											key={scenario.id}
+											leading={
+												<Checkbox
+													aria-label={`Compare “${scenario.name}”`}
+													checked={picked}
+													disabled={!picked && compared.length >= MAX_COMPARED}
+													onCheckedChange={() => toggle(scenario.id)}
+												/>
+											}
+											title={
+												<Link
+													to="/explore"
+													search={{ scenario: scenario.id }}
+													className="underline decoration-border-strong underline-offset-4 hover:decoration-current"
 												>
-													{freed > 0 ? "+" : ""}
-													{formatMoney(freed)}
-												</span>
-												<span className="text-xs text-muted-foreground">Free to Spend</span>
-											</>
-										}
-										below={
-											<p className="text-[13px] text-muted-foreground">
-												{names.length > 0 ? names.join(" · ") : "No changes"}
-												{projection.lowest
-													? ` · Projected balance at its lowest ${formatMoney(projection.lowest.amount)} in ${shortMonth(projection.lowest.month)}`
-													: null}
-											</p>
-										}
-									/>
-								);
-							})}
-						</List>
+													{scenario.name}
+												</Link>
+											}
+											badge={scenario.appliedAt ? <Badge variant="brand">Applied</Badge> : null}
+											meta={
+												<>
+													{scenario.createdBy ? <span>Made by {scenario.createdBy}</span> : null}
+													<span>Changed {shortDayAt(scenario.updatedAt)}</span>
+													{scenario.appliedAt ? (
+														<span>
+															Applied {shortDayAt(scenario.appliedAt)}
+															{scenario.appliedBy ? ` by ${scenario.appliedBy}` : ""}
+														</span>
+													) : null}
+												</>
+											}
+											trailing={
+												<>
+													<span
+														className={cn(
+															"text-sm font-semibold tabular-nums",
+															freed < 0 && "text-over",
+														)}
+													>
+														{freed > 0 ? "+" : ""}
+														{formatWholeMoney(freed)}
+													</span>
+													<span className="text-xs text-muted-foreground">Free to Spend</span>
+												</>
+											}
+											below={
+												<p className="text-[13px] text-muted-foreground">
+													{names.length > 0 ? names.join(" · ") : "No changes"}
+													{projection.lowest
+														? ` · Projected balance at its lowest ${formatWholeMoney(projection.lowest.amount)} in ${shortMonth(projection.lowest.month)}`
+														: null}
+												</p>
+											}
+										/>
+									);
+								})}
+							</List>
+						</div>
 					</Section>
 					{compared.length > 0 ? (
 						<Compare
@@ -221,6 +264,201 @@ function ScenariosPage() {
 }
 
 /** The Scenarios picked, side by side against the Plan: key numbers, then charts. */
+
+/** The saved Scenarios as a table on wider screens: tick to compare, the name opens it, and a menu per row. */
+function ScenarioTable({
+	projected,
+	compared,
+	subjects,
+	onToggle,
+	className,
+}: {
+	projected: Projected[];
+	compared: string[];
+	subjects: ScenarioChangeSubjects;
+	onToggle: (id: string) => void;
+	className?: string;
+}) {
+	const save = useSaveScenario();
+	const remove = useDeleteScenario();
+	const navigate = useNavigate();
+	const [renaming, setRenaming] = useState<ScenarioRecord | null>(null);
+	const [name, setName] = useState("");
+	const [deleting, setDeleting] = useState<ScenarioRecord | null>(null);
+	const trimmed = name.trim();
+	return (
+		<Card className={cn("overflow-hidden py-0", className)}>
+			<Table>
+				<TableHeader>
+					<TableRow>
+						<TableHead className="w-10">
+							<span className="sr-only">Compare</span>
+						</TableHead>
+						<TableHead>Name</TableHead>
+						<TableHead>Made by</TableHead>
+						<TableHead>Changed</TableHead>
+						<TableHead className="text-end">Frees</TableHead>
+						<TableHead className="text-end">Lowest projected balance</TableHead>
+						<TableHead className="w-10">
+							<span className="sr-only">Actions</span>
+						</TableHead>
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{projected.map(({ scenario, projection, freed }) => {
+						const picked = compared.includes(scenario.id);
+						const names = scenario.levers
+							.filter((l) => !l.muted)
+							.map((l) => changeName(l, subjects, scenario.levers));
+						return (
+							<TableRow key={scenario.id} data-state={picked ? "selected" : undefined}>
+								<TableCell>
+									<Checkbox
+										aria-label={`Compare “${scenario.name}”`}
+										checked={picked}
+										disabled={!picked && compared.length >= MAX_COMPARED}
+										onCheckedChange={() => onToggle(scenario.id)}
+									/>
+								</TableCell>
+								<TableCell className="max-w-96 whitespace-normal">
+									<div className="flex flex-wrap items-center gap-2">
+										<Link
+											to="/explore"
+											search={{ scenario: scenario.id }}
+											className="font-medium underline decoration-border-strong underline-offset-4 hover:decoration-current"
+										>
+											{scenario.name}
+										</Link>
+										{scenario.appliedAt ? (
+											<Badge
+												variant="brand"
+												title={`Applied ${shortDayAt(scenario.appliedAt)}${scenario.appliedBy ? ` by ${scenario.appliedBy}` : ""}`}
+											>
+												Applied
+											</Badge>
+										) : null}
+									</div>
+									<p className="mt-0.5 line-clamp-2 text-[13px] text-muted-foreground">
+										{names.length > 0 ? names.join(" · ") : "No changes"}
+									</p>
+								</TableCell>
+								<TableCell className="text-muted-foreground">{scenario.createdBy ?? "—"}</TableCell>
+								<TableCell className="text-muted-foreground">
+									{shortDayAt(scenario.updatedAt)}
+								</TableCell>
+								<TableCell
+									className={cn("text-end font-semibold tabular-nums", freed < 0 && "text-over")}
+								>
+									{freed > 0 ? "+" : ""}
+									{formatWholeMoney(freed)}
+								</TableCell>
+								<TableCell className="text-end tabular-nums">
+									{projection.lowest ? (
+										<>
+											{formatWholeMoney(projection.lowest.amount)}
+											<span className="text-muted-foreground">
+												{" "}
+												in {shortMonth(projection.lowest.month)}
+											</span>
+										</>
+									) : (
+										"—"
+									)}
+								</TableCell>
+								<TableCell>
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<Button
+												variant="ghost"
+												size="icon"
+												aria-label={`More for “${scenario.name}”`}
+											>
+												<Ellipsis />
+											</Button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent align="end">
+											<DropdownMenuItem
+												onSelect={() =>
+													navigate({ to: "/explore", search: { scenario: scenario.id } })
+												}
+											>
+												Open
+											</DropdownMenuItem>
+											<DropdownMenuItem
+												onSelect={() => {
+													setName(scenario.name);
+													setRenaming(scenario);
+												}}
+											>
+												Rename
+											</DropdownMenuItem>
+											<DropdownMenuSeparator />
+											<DropdownMenuItem
+												className="text-over focus:text-over"
+												onSelect={() => setDeleting(scenario)}
+											>
+												Delete
+											</DropdownMenuItem>
+										</DropdownMenuContent>
+									</DropdownMenu>
+								</TableCell>
+							</TableRow>
+						);
+					})}
+				</TableBody>
+			</Table>
+			<AlertDialog open={renaming !== null} onOpenChange={(open) => !open && setRenaming(null)}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Rename Scenario</AlertDialogTitle>
+						<AlertDialogDescription>The Plan doesn’t change.</AlertDialogDescription>
+					</AlertDialogHeader>
+					<Input
+						aria-label="Scenario name"
+						value={name}
+						maxLength={40}
+						onChange={(event) => setName(event.currentTarget.value)}
+					/>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							variant="default"
+							disabled={trimmed === ""}
+							onClick={() => {
+								if (renaming && trimmed !== "") {
+									save.mutate({ scenarioId: renaming.id, name: trimmed, levers: renaming.levers });
+								}
+							}}
+						>
+							Rename
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+			<AlertDialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete Scenario</AlertDialogTitle>
+						<AlertDialogDescription>
+							Delete “{deleting?.name}”? The Plan doesn’t change.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={() => {
+								if (deleting) remove.mutate({ scenarioId: deleting.id, name: deleting.name });
+							}}
+						>
+							Delete Scenario
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+		</Card>
+	);
+}
+
 function Compare({
 	plan,
 	compared,

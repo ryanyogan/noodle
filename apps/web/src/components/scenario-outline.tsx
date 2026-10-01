@@ -34,12 +34,13 @@ import { Slider } from "@noodle/ui/components/slider";
 import { Switch } from "@noodle/ui/components/switch";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
-import { ChevronRight, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import {
 	createContext,
 	memo,
 	type ReactNode,
 	use,
+	useEffect,
 	useId,
 	useState,
 	useSyncExternalStore,
@@ -349,24 +350,33 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 					onAdd: addNew,
 				}}
 			>
+				{added("one-off").length > 0 ? (
+					<List>
+						{added("one-off").map((scenarioChange) => (
+							<AddedLine
+								key={scenarioChange.oneOffId}
+								lever={scenarioChange}
+								edit={edit}
+								meta={`${scenarioChange.flow === "expense" ? "Expense" : "Income"} in ${shortMonth(scenarioChange.fromMonth)}`}
+								value={`${scenarioChange.flow === "expense" ? "−" : "+"}${formatMoney(scenarioChange.amount)}`}
+								fields={(change) => (
+									<OneOffFields
+										lever={scenarioChange}
+										prefix={scenarioChange.name}
+										month={month}
+										onChange={change}
+									/>
+								)}
+							/>
+						))}
+					</List>
+				) : (
+					<Empty>No one-offs yet.</Empty>
+				)}
+			</Group>
+
+			<Group id="outline-assumptions" title="Assumptions" wide={wide}>
 				<List>
-					{added("one-off").map((scenarioChange) => (
-						<AddedLine
-							key={scenarioChange.oneOffId}
-							lever={scenarioChange}
-							edit={edit}
-							meta={`${scenarioChange.flow === "expense" ? "Expense" : "Income"} in ${shortMonth(scenarioChange.fromMonth)}`}
-							value={`${scenarioChange.flow === "expense" ? "−" : "+"}${formatMoney(scenarioChange.amount)}`}
-							fields={(change) => (
-								<OneOffFields
-									lever={scenarioChange}
-									prefix={scenarioChange.name}
-									month={month}
-									onChange={change}
-								/>
-							)}
-						/>
-					))}
 					<GrowthLine lever={byTarget.get("growth")} edit={edit} />
 				</List>
 			</Group>
@@ -504,15 +514,41 @@ function Line({
 			{changed ? <span className="sr-only"> (changed)</span> : null}
 		</span>
 	);
-	if (wide || !editor) {
+	// On desktop a line is one compact row; its editor opens below it, and opens by itself once
+	// the line is changed, so every changed line shows how it changed.
+	const [expanded, setExpanded] = useState(changed);
+	useEffect(() => {
+		if (changed) setExpanded(true);
+	}, [changed]);
+	if (!editor) {
+		return <ListRow leading={leading} title={title} badge={badge} meta={meta} trailing={shown} />;
+	}
+	if (wide) {
 		return (
 			<ListRow
 				leading={leading}
 				title={title}
 				badge={badge}
 				meta={meta}
-				trailing={shown}
-				below={editor || undefined}
+				trailing={
+					<button
+						type="button"
+						aria-label={`Edit ${title}`}
+						aria-expanded={expanded}
+						className="-me-2 flex min-h-9 items-center gap-1 rounded-lg ps-2 pe-1 hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
+						onClick={() => setExpanded((open) => !open)}
+					>
+						{shown}
+						<ChevronDown
+							aria-hidden="true"
+							className={cn(
+								"size-4 text-subtle-foreground transition-transform",
+								expanded && "rotate-180",
+							)}
+						/>
+					</button>
+				}
+				below={expanded ? editor : undefined}
 			/>
 		);
 	}
@@ -546,12 +582,12 @@ function Line({
 	);
 }
 
-/** "Changed", "New" or "Muted" beside a line's name. */
+/** "Changed", "New" or "Left out" beside a line's name. */
 function Mark({ lever, added }: { lever: ScenarioChange | undefined; added?: boolean }) {
 	if (!lever) return null;
 	return (
 		<Badge dot={!lever.muted} className="font-normal">
-			{lever.muted ? "Muted" : added ? "New" : "Changed"}
+			{lever.muted ? "Left out" : added ? "New" : "Changed"}
 		</Badge>
 	);
 }

@@ -32,6 +32,7 @@ test("a change that empties the Projected balance is flagged, and the warning le
 	await page.getByRole("link", { name: "Explore", exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Explore");
 	const warnings = page.getByRole("list", { name: "Caused by this Scenario" });
+	await page.getByRole("tab", { name: "Projected balance" }).click();
 	await expect(page.getByRole("heading", { name: "Projected balance" })).toBeVisible();
 	await expect(warnings).toHaveCount(0);
 	await expect(
@@ -91,6 +92,7 @@ test("on a phone, tapping a month shows it in full under the chart", async ({ br
 	await expect(page.getByRole("dialog")).toBeHidden();
 
 	// The first tap lands on the month under the finger, and the next tap moves it.
+	await page.getByRole("tab", { name: "Projected balance" }).click();
 	const projectedBalance = page.getByRole("group", { name: "Projected balance", exact: true });
 	const chart = projectedBalance.locator("svg.recharts-surface").first();
 	await chart.scrollIntoViewIfNeeded();

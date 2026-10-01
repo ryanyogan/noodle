@@ -15,6 +15,7 @@ import {
 	ChartLegendContent,
 	ChartTooltip,
 } from "@noodle/ui/components/chart";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@noodle/ui/components/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { cn } from "@noodle/ui/lib/utils";
 import { X } from "lucide-react";
@@ -957,6 +958,46 @@ export default function ScenarioOutcomes({
 			<ProjectedBalanceChart />
 			<CompositionChart />
 			{hasGoals ? <GoalPathsChart names={goalNames} /> : null}
+		</OutcomeProvider>
+	);
+}
+
+/**
+ * Every outcome chart as Tabs (Free to Spend, Projected balance, each month, Goal paths), so they
+ * fit beside the Changes in one pane: one chart at a time, each the same size.
+ */
+export function OutcomeTabs({
+	outcome,
+	goalNames,
+}: {
+	outcome: Outcome;
+	goalNames: ReadonlyMap<string, string>;
+}) {
+	const hasGoals = outcome.scenario.goals.length > 0;
+	return (
+		<OutcomeProvider value={outcome}>
+			<Tabs defaultValue="free-to-spend" className="grid-cols-[minmax(0,1fr)]">
+				<TabsList aria-label="Charts" className="max-w-full overflow-x-auto [scrollbar-width:none]">
+					<TabsTrigger value="free-to-spend">Free to Spend</TabsTrigger>
+					<TabsTrigger value="projected-balance">Projected balance</TabsTrigger>
+					<TabsTrigger value="each-month">Each month</TabsTrigger>
+					{hasGoals ? <TabsTrigger value="goal-paths">Goal paths</TabsTrigger> : null}
+				</TabsList>
+				<TabsContent value="free-to-spend">
+					<FreeToSpendChart title="Free to Spend each month" />
+				</TabsContent>
+				<TabsContent value="projected-balance">
+					<ProjectedBalanceChart />
+				</TabsContent>
+				<TabsContent value="each-month">
+					<CompositionChart />
+				</TabsContent>
+				{hasGoals ? (
+					<TabsContent value="goal-paths">
+						<GoalPathsChart names={goalNames} />
+					</TabsContent>
+				) : null}
+			</Tabs>
 		</OutcomeProvider>
 	);
 }

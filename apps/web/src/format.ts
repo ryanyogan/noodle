@@ -69,3 +69,8 @@ export function dayName(key: string, today: string): string {
 
 /** "Aug 2027" for a "YYYY-MM" month key. */
 export { shortMonthName as shortMonth } from "@noodle/domain";
+
+/** "$1,240": a projection rounded to whole dollars, so headlines, totals and charts agree. */
+export function formatWholeMoney(cents: number): string {
+	return formatMoney(Math.round(cents / 100) * 100);
+}
