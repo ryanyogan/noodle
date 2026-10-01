@@ -1,4 +1,4 @@
-import { lumpyMonths, monthlyEquivalent, monthOfDay } from "@noodle/domain";
+import { lumpyMonths, monthlyEquivalent, monthOfDay, yearlyCost } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Card } from "@noodle/ui/components/card";
 import { List } from "@noodle/ui/components/list";
@@ -98,7 +98,7 @@ function PlanCommitments() {
 							<span className="font-medium text-foreground tabular-nums">
 								{formatMoney(average)} a month
 							</span>{" "}
-							({formatMoney(average * 12)} a year).{" "}
+							({formatMoney(state.commitments.reduce((sum, c) => sum + yearlyCost(c), 0))} a year).{" "}
 							{average > state.committed
 								? `That’s more than this month’s ${formatMoney(state.committed)}, because some are due only in certain months.`
 								: average < state.committed
