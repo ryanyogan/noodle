@@ -27,7 +27,7 @@ const waterfall = (page: Page) =>
 const changes = (page: Page) => page.getByRole("region", { name: "Your changes" });
 const scenarioName = (page: Page) => page.getByLabel("Name", { exact: true });
 const saved = (page: Page, name: string) =>
-	page.getByRole("listitem").filter({ has: page.getByRole("link", { name, exact: true }) });
+	page.getByRole("row").filter({ has: page.getByRole("link", { name, exact: true }) });
 
 /**
  * Makes the next Scenario save land after Explore has read the Scenarios without it, but before
