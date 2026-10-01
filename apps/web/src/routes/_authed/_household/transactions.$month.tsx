@@ -32,11 +32,12 @@ import { QuickAddLink } from "../../../components/app-shell";
 import { FilterSelect } from "../../../components/filter-select";
 import { TransactionEditor } from "../../../components/transaction-editor";
 import {
+	TRANSACTION_COLUMNS,
 	TransactionItem,
 	useBringsSpendingIn,
 	waitingForBank,
 } from "../../../components/transaction-list";
-import { dayName, monthName } from "../../../format";
+import { dayName, formatMoney, monthName } from "../../../format";
 import { type AccountView, useGoals } from "../../../goals";
 import { type MemberSummary, pickableMembers } from "../../../members";
 import { goalsQuery, membersQuery, monthQuery, reviewQuery } from "../../../queries";
@@ -103,7 +104,6 @@ function TransactionsPage() {
 	return (
 		<>
 			<PageHeader
-				className="max-w-2xl"
 				eyebrow="Transactions"
 				title={sameYear ? monthName(month) : `${monthName(month)} ${month.slice(0, 4)}`}
 				actions={
@@ -158,7 +158,8 @@ function TransactionsPage() {
 					</div>
 				}
 			/>
-			<div className="grid max-w-2xl gap-4">
+			{/* lg: the list takes the width, with the filters in a pane on the right that stays put (#47). */}
+			<div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start lg:gap-8">
 				<Filters
 					plan={plan}
 					members={members}
@@ -228,7 +229,7 @@ function Filters({
 		return () => clearTimeout(timer);
 	}, [search, filters.q]);
 	return (
-		<div className="grid gap-2">
+		<div className="grid gap-2 lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1">
 			<div className="relative">
 				<label htmlFor="filter-search" className="sr-only">
 					Search notes and merchants
@@ -249,7 +250,7 @@ function Filters({
 					className="ps-9"
 				/>
 			</div>
-			<div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+			<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1">
 				<FilterSelect
 					id="filter-bucket"
 					label="Bucket"
@@ -283,7 +284,7 @@ function Filters({
 						disabled={!hydrated}
 						onChange={(value) => onChange({ account: value || undefined })}
 						options={accounts.map((account) => ({ value: account.id, label: account.name }))}
-						className="col-span-2 sm:col-span-1"
+						className="col-span-2 sm:col-span-1 lg:col-span-1"
 					/>
 				) : null}
 			</div>
@@ -292,22 +293,28 @@ function Filters({
 }
 
 type Item =
-	| { kind: "day"; day: DayKey }
+	| { kind: "day"; day: DayKey; total: number | null }
 	| { kind: "transaction"; transaction: TransactionRow }
 	| { kind: "more" };
 
 /** The loaded Transactions as the list shows them: each day's label, then its Transactions. */
 function itemsOf(transactions: TransactionRow[], more: boolean): Item[] {
 	const items: Item[] = [];
-	let day: DayKey | null = null;
+	let label = null as Extract<Item, { kind: "day" }> | null;
 	for (const transaction of transactions) {
-		if (transaction.date !== day) {
-			day = transaction.date;
-			items.push({ kind: "day", day });
+		if (transaction.date !== label?.day) {
+			label = { kind: "day", day: transaction.date, total: 0 };
+			items.push(label);
 		}
+		// What the day spent: a Transfer's sides count nowhere; money back takes off.
+		if (!transaction.transfer && label.total !== null) label.total += transaction.amountCents;
 		items.push({ kind: "transaction", transaction });
 	}
-	if (more) items.push({ kind: "more" });
+	// The last day may go on in the next page: no total until it's all here.
+	if (more) {
+		if (label) label.total = null;
+		items.push({ kind: "more" });
+	}
 	return items;
 }
 
@@ -417,53 +424,82 @@ function TransactionList({
 	}
 
 	return (
-		<List
-			ref={list}
-			aria-label={`Transactions in ${monthName(month)}`}
-			className="relative"
-			style={{ height: virtualizer.getTotalSize() }}
-		>
-			{virtualItems.map((virtual) => {
-				const item = items[virtual.index];
-				if (!item) return null;
-				const position = {
-					ref: virtualizer.measureElement,
-					"data-index": virtual.index,
-					className: "absolute inset-x-0 top-0",
-					style: { transform: `translateY(${virtual.start - scrollMargin}px)` },
-				};
-				if (item.kind === "day") {
-					return (
-						<ListGroupLabel key={virtual.key} {...position}>
-							{dayName(item.day, today)}
-						</ListGroupLabel>
-					);
-				}
-				if (item.kind === "more") {
-					return (
-						<li key={virtual.key} {...position} aria-hidden="true">
-							<div className="flex items-center gap-3 px-(--card-pad) py-3.5">
-								<Skeleton className="size-9 rounded-xl" />
-								<div className="grid flex-1 gap-2">
-									<Skeleton className="h-3.5 w-1/3" />
-									<Skeleton className="h-3 w-1/2" />
+		<div className="grid gap-2">
+			{/* The columns’ names at xl; each row says them to a screen reader itself. */}
+			<div
+				aria-hidden="true"
+				className={cn(
+					"hidden gap-x-4 px-(--card-pad) text-xs font-medium text-subtle-foreground xl:grid",
+					TRANSACTION_COLUMNS,
+				)}
+			>
+				<span />
+				<span>Description</span>
+				<span>Assigned to</span>
+				<span>For</span>
+				<span>Account</span>
+				<span className="text-end">Amount</span>
+			</div>
+			<List
+				ref={list}
+				aria-label={`Transactions in ${monthName(month)}`}
+				className="relative"
+				style={{ height: virtualizer.getTotalSize() }}
+			>
+				{virtualItems.map((virtual) => {
+					const item = items[virtual.index];
+					if (!item) return null;
+					const position = {
+						ref: virtualizer.measureElement,
+						"data-index": virtual.index,
+						className: "absolute inset-x-0 top-0",
+						style: { transform: `translateY(${virtual.start - scrollMargin}px)` },
+					};
+					if (item.kind === "day") {
+						return (
+							<ListGroupLabel key={virtual.key} {...position}>
+								<span className="flex items-baseline justify-between gap-3">
+									<span>{dayName(item.day, today)}</span>
+									{item.total !== null ? (
+										<span className="tabular-nums">
+											<span className="sr-only">Spent </span>
+											{formatMoney(item.total)}
+										</span>
+									) : null}
+								</span>
+							</ListGroupLabel>
+						);
+					}
+					if (item.kind === "more") {
+						return (
+							<li key={virtual.key} {...position}>
+								<span role="status" className="sr-only">
+									Loading more Transactions…
+								</span>
+								<div aria-hidden="true" className="flex items-center gap-3 px-(--card-pad) py-3.5">
+									<Skeleton className="size-9 rounded-xl" />
+									<div className="grid flex-1 gap-2">
+										<Skeleton className="h-3.5 w-1/3" />
+										<Skeleton className="h-3 w-1/2" />
+									</div>
 								</div>
-							</div>
-						</li>
+							</li>
+						);
+					}
+					return (
+						<TransactionItem
+							key={virtual.key}
+							{...position}
+							transaction={item.transaction}
+							plan={plan}
+							members={members}
+							waiting={waitingForBank(item.transaction, today, bringsIn)}
+							columns
+							onEdit={onEdit}
+						/>
 					);
-				}
-				return (
-					<TransactionItem
-						key={virtual.key}
-						{...position}
-						transaction={item.transaction}
-						plan={plan}
-						members={members}
-						waiting={waitingForBank(item.transaction, today, bringsIn)}
-						onEdit={onEdit}
-					/>
-				);
-			})}
-		</List>
+				})}
+			</List>
+		</div>
 	);
 }

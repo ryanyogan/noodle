@@ -23,6 +23,13 @@ import { TransactionEditor } from "./transaction-editor";
 // One Transaction as a row, the same everywhere it's listed (Transactions, an Account's page, a
 // Bucket's page), and the editor a row opens, with its own month's Plan to assign it to.
 
+/**
+ * The Transactions page's columns at xl (#47): the tile, what it was, what it's assigned to, who
+ * it was For, its Account, and the amount. Shared by its rows and the header above them.
+ */
+export const TRANSACTION_COLUMNS =
+	"xl:grid-cols-[2.25rem_minmax(0,2fr)_minmax(0,1.3fr)_minmax(0,0.8fr)_minmax(0,1.3fr)_6rem]";
+
 /** What a Transaction or Split is assigned to, by name, with its Bucket's colour. */
 export function assignmentOf(
 	transaction: Pick<TransactionRow, "bucketId" | "commitmentId"> &
@@ -76,6 +83,7 @@ export function TransactionItem({
 	members,
 	waiting = false,
 	dated = false,
+	columns = false,
 	onEdit,
 	className,
 	...props
@@ -87,6 +95,8 @@ export function TransactionItem({
 	waiting?: boolean;
 	/** Says its day too, for a list that isn't grouped by day. */
 	dated?: boolean;
+	/** At xl, lays the row out in TRANSACTION_COLUMNS instead of a second line. */
+	columns?: boolean;
 	onEdit: (transaction: TransactionRow) => void;
 }) {
 	const split = transaction.splits.length > 0;
@@ -140,10 +150,50 @@ export function TransactionItem({
 						: `${assignment.name} · ${who}${from}`;
 	const rowClassName = cn(
 		"grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-(--card-pad) py-3.5 text-start",
+		columns && cn(TRANSACTION_COLUMNS, "xl:gap-x-4 xl:py-3"),
 		"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60",
 		"focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
 	);
 	const pill = "h-4.5 px-1.5 text-[11px]";
+	const badges = (
+		<>
+			{transaction.pending ? (
+				<Badge aria-hidden="true" dot className={pill}>
+					Pending
+				</Badge>
+			) : null}
+			{autoFiled ? (
+				<Badge aria-hidden="true" className={pill}>
+					<Sparkles />
+					Auto
+				</Badge>
+			) : null}
+			{transaction.matchedIn ? (
+				<Badge aria-hidden="true" variant="brand" className={pill}>
+					Matched
+				</Badge>
+			) : waiting ? (
+				<Badge aria-hidden="true" dot className={pill}>
+					Waiting for bank
+				</Badge>
+			) : null}
+		</>
+	);
+	// The xl columns say the second line's parts apart; the line itself stays for screen readers
+	// and find-in-page.
+	const columnAssigned = transaction.goal
+		? `${assignment.name} Goal`
+		: transfer
+			? "Transfer"
+			: refund
+				? `Refund · ${assignment.name}`
+				: moneyBack
+					? "Money back"
+					: split
+						? `Split across ${transaction.splits.length}`
+						: assignment.name;
+	const columnFor = transfer || transaction.goal || moneyBack ? "" : who;
+	const columnAccount = transaction.importedFrom ?? transaction.matchedIn ?? "Quick Add";
 	const content = (
 		<>
 			{transfer ? (
@@ -162,33 +212,38 @@ export function TransactionItem({
 			<span className="grid min-w-0 gap-0.5">
 				<span className="flex min-w-0 items-center gap-1.5">
 					<span className="truncate text-sm font-medium">{title}</span>
-					{transaction.pending ? (
-						<Badge aria-hidden="true" dot className={pill}>
-							Pending
-						</Badge>
-					) : null}
-					{autoFiled ? (
-						<Badge aria-hidden="true" className={pill}>
-							<Sparkles />
-							Auto
-						</Badge>
-					) : null}
-					{transaction.matchedIn ? (
-						<Badge aria-hidden="true" variant="brand" className={pill}>
-							Matched
-						</Badge>
-					) : waiting ? (
-						<Badge aria-hidden="true" dot className={pill}>
-							Waiting for bank
-						</Badge>
-					) : null}
+					<span className="flex shrink-0 items-center gap-1.5 empty:hidden max-sm:hidden">
+						{badges}
+					</span>
 				</span>
-				<span className="truncate text-[13px] text-muted-foreground">
-					{day}
-					{detail}
+				<span
+					className={cn(
+						"flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground",
+						columns && "xl:sr-only",
+					)}
+				>
+					{/* On phones the badges go here, so the title keeps its room (#47). */}
+					<span className="flex shrink-0 items-center gap-1.5 empty:hidden sm:hidden">
+						{badges}
+					</span>
+					<span className="truncate">
+						{day}
+						{detail}
+					</span>
 				</span>
 			</span>
-			<span className="text-sm font-semibold tabular-nums">{amount}</span>
+			{columns ? (
+				<>
+					<span className="hidden truncate text-sm xl:block">{columnAssigned}</span>
+					<span className="hidden truncate text-sm text-muted-foreground xl:block">
+						{columnFor}
+					</span>
+					<span className="hidden truncate text-sm text-muted-foreground xl:block">
+						{columnAccount}
+					</span>
+				</>
+			) : null}
+			<span className="text-end text-sm font-semibold tabular-nums">{amount}</span>
 		</>
 	);
 	return (

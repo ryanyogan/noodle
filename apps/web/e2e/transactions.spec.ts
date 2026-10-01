@@ -82,7 +82,7 @@ test("editing a Transaction reassigns its spending on This Month at once", async
 	await openTransactions(page);
 
 	// Newest first, under the day they happened.
-	await expect(list(page).getByRole("listitem").first()).toHaveText("Today");
+	await expect(list(page).getByRole("listitem").first()).toHaveText(/^Today/);
 	await expect(list(page).getByRole("button")).toHaveCount(2);
 	await expect(list(page).getByRole("button").first()).toHaveAccessibleName(
 		"Pro Hockey Life, $64.99, Groceries, For Everyone",
