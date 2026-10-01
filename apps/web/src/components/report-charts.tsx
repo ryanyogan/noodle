@@ -523,66 +523,88 @@ export function ShareDonut({
 	data,
 	total,
 	onSelect,
+	active,
 }: {
 	data: Share[];
 	total: Cents;
 	onSelect?: (key: string) => void;
+	/** The share a list beside the donut points at (hovered or focused), shown in the centre. */
+	active?: string | null;
 }) {
 	const animation = useAnimation();
-	const [hovered, setHovered] = useState<string | null>(null);
+	const [pointed, setHovered] = useState<string | null>(null);
 	const { onPointerDownCapture, select } = useTapToReveal(onSelect);
+	// A key outside the slices is part of "Everything else".
+	const outside = active && !data.some((d) => d.key === active) ? "other" : active;
+	const hovered = pointed ?? outside ?? null;
 	const focus = data.find((d) => d.key === hovered);
+	const other = data.find((d) => d.key === "other");
 	return (
-		<div
-			className="relative mx-auto aspect-square w-full max-w-72"
-			onPointerDownCapture={onPointerDownCapture}
-		>
-			<ChartContainer
-				config={{}}
-				className="aspect-square h-full w-full [&_.recharts-sector]:cursor-pointer"
+		<div className="grid w-full justify-items-center gap-3">
+			<div
+				className="relative mx-auto aspect-square w-full max-w-72"
+				onPointerDownCapture={onPointerDownCapture}
 			>
-				<PieChart accessibilityLayer>
-					<ChartTooltip content={<MoneyTooltip />} />
-					<Pie
-						data={data}
-						dataKey="amount"
-						nameKey="label"
-						innerRadius="64%"
-						outerRadius="96%"
-						paddingAngle={1.2}
-						cornerRadius={4}
-						stroke="var(--card)"
-						strokeWidth={2}
-						onMouseEnter={(_, i) => setHovered(data[i]?.key ?? null)}
-						onMouseLeave={() => setHovered(null)}
-						onClick={(_, i) => {
-							const key = data[i]?.key;
-							if (key) select(key);
-						}}
-						{...animation}
-					>
-						{data.map((d) => (
-							<Cell
-								key={d.key}
-								fill={d.color}
-								fillOpacity={hovered && hovered !== d.key ? 0.3 : 1}
-								className="transition-[fill-opacity] duration-(--duration-base)"
-							/>
-						))}
-					</Pie>
-				</PieChart>
-			</ChartContainer>
-			<div className="pointer-events-none absolute inset-0 grid place-content-center text-center">
-				<span className="text-xs text-muted-foreground">{focus ? focus.label : "Spent"}</span>
-				<span className="text-2xl font-semibold tracking-tight tabular-nums">
-					{formatMoney(focus ? focus.amount : total)}
-				</span>
-				{focus && total > 0 ? (
-					<span className="text-xs text-subtle-foreground tabular-nums">
-						{Math.round((focus.amount / total) * 100)}%
+				<ChartContainer
+					config={{}}
+					className="aspect-square h-full w-full [&_.recharts-sector]:cursor-pointer"
+				>
+					<PieChart accessibilityLayer>
+						<ChartTooltip content={<MoneyTooltip />} />
+						<Pie
+							data={data}
+							dataKey="amount"
+							nameKey="label"
+							innerRadius="64%"
+							outerRadius="96%"
+							paddingAngle={1.2}
+							cornerRadius={4}
+							stroke="var(--card)"
+							strokeWidth={2}
+							onMouseEnter={(_, i) => setHovered(data[i]?.key ?? null)}
+							onMouseLeave={() => setHovered(null)}
+							onClick={(_, i) => {
+								const key = data[i]?.key;
+								if (key) select(key);
+							}}
+							{...animation}
+						>
+							{data.map((d) => (
+								<Cell
+									key={d.key}
+									fill={d.color}
+									fillOpacity={hovered && hovered !== d.key ? 0.3 : 1}
+									className="transition-[fill-opacity] duration-(--duration-base)"
+								/>
+							))}
+						</Pie>
+					</PieChart>
+				</ChartContainer>
+				<div className="pointer-events-none absolute inset-0 grid place-content-center text-center">
+					<span className="text-xs text-muted-foreground">{focus ? focus.label : "Spent"}</span>
+					<span className="text-2xl font-semibold tracking-tight tabular-nums">
+						{formatMoney(focus ? focus.amount : total)}
 					</span>
-				) : null}
+					{focus && total > 0 ? (
+						<span className="text-xs text-subtle-foreground tabular-nums">
+							{Math.round((focus.amount / total) * 100)}%
+						</span>
+					) : null}
+				</div>
 			</div>
+			{other ? (
+				<p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+					<span
+						aria-hidden="true"
+						className="size-2.5 rounded-full"
+						style={{ background: other.color }}
+					/>
+					Everything else
+					<span className="font-medium text-foreground tabular-nums">
+						{formatMoney(other.amount)}
+					</span>
+				</p>
+			) : null}
 		</div>
 	);
 }
@@ -627,14 +649,21 @@ export function ShareTreemap({
 					if (depth !== 1 || !name) return <g />;
 					const key = (props as { key?: string }).key ?? name;
 					return (
-						// biome-ignore lint/a11y/useSemanticElements: an SVG treemap cell can't be a <button>; the table view is its accessible form.
+						// biome-ignore lint/a11y/useSemanticElements: an SVG treemap cell can't be a <button>; the table view is its other accessible form.
 						<g
 							role="button"
-							tabIndex={-1}
-							className="cursor-pointer"
+							tabIndex={0}
+							aria-label={`${name}: ${formatMoney(amount ?? 0)}`}
+							className="cursor-pointer outline-none focus-visible:[&>rect]:stroke-(--ring) focus-visible:[&>rect]:stroke-[3px]"
 							onClick={() => select(key)}
-							onKeyDown={(event) => event.key === "Enter" && select(key)}
+							onKeyDown={(event) => {
+								if (event.key === "Enter" || event.key === " ") {
+									event.preventDefault();
+									select(key);
+								}
+							}}
 						>
+							<title>{`${name}: ${formatMoney(amount ?? 0)}`}</title>
 							<rect
 								x={x + 1}
 								y={y + 1}
@@ -644,15 +673,16 @@ export function ShareTreemap({
 								fill={color}
 								fillOpacity={0.9}
 							/>
-							{width > 64 && height > 36 ? (
-								<>
-									<text x={x + 10} y={y + 20} fill="white" fontSize={12} fontWeight={600}>
+							{width >= 64 && height >= 48 ? (
+								// White on the Bucket colours; dark on the light grey of "Everything else".
+								<g fill={key === "other" ? "var(--foreground)" : "white"}>
+									<text x={x + 10} y={y + 20} fontSize={12} fontWeight={600}>
 										{name.length > width / 8 ? `${name.slice(0, Math.floor(width / 8))}…` : name}
 									</text>
-									<text x={x + 10} y={y + 36} fill="white" fillOpacity={0.85} fontSize={11}>
+									<text x={x + 10} y={y + 36} fontSize={12}>
 										{formatCompact(amount ?? 0)}
 									</text>
-								</>
+								</g>
 							) : null}
 						</g>
 					);

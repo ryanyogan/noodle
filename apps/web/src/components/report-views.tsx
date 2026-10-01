@@ -26,7 +26,7 @@ import {
 	ReceiptText,
 	Rows3,
 } from "lucide-react";
-import { type ReactNode, useId, useMemo } from "react";
+import { type ReactNode, useId, useMemo, useState } from "react";
 import { asBucketColor, monogram } from "../buckets";
 import { formatMoney, formatWholeMoney, fullDay, shortDay } from "../format";
 import {
@@ -869,6 +869,8 @@ function BucketsView({ data, names, search, nav, tables }: ViewProps<"buckets">)
 			})),
 		[data.totals, names],
 	);
+	// The row the pointer or focus is on in the list, shown in the donut's centre.
+	const [active, setActive] = useState<string | null>(null);
 	if (data.totals.length === 0) return <NothingYet />;
 	const select = (key: string) => {
 		if (key !== "other" && !names.isPrivate(key)) nav.area(key);
@@ -902,15 +904,32 @@ function BucketsView({ data, names, search, nav, tables }: ViewProps<"buckets">)
 				</ToggleGroup>
 			}
 		>
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: it only follows the pointer and focus in the list to label the donut */}
 			<div
 				className={cn(
 					"grid grid-cols-[minmax(0,1fr)] gap-6",
 					chart === "donut" &&
-						"lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] lg:items-center lg:gap-10",
+						"lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] lg:items-start lg:gap-10",
 				)}
+				onMouseOver={(event) =>
+					setActive(
+						(event.target as HTMLElement).closest<HTMLElement>("[data-share]")?.dataset.share ??
+							null,
+					)
+				}
+				onMouseLeave={() => setActive(null)}
+				onFocus={(event) =>
+					setActive(
+						(event.target as HTMLElement).closest<HTMLElement>("[data-share]")?.dataset.share ??
+							null,
+					)
+				}
+				onBlur={() => setActive(null)}
 			>
 				{chart === "donut" ? (
-					<ShareDonut data={shares} total={data.spent} onSelect={select} />
+					<div className="lg:sticky lg:top-4">
+						<ShareDonut data={shares} total={data.spent} onSelect={select} active={active} />
+					</div>
 				) : chart === "treemap" ? (
 					<ShareTreemap data={shares} onSelect={select} />
 				) : null}
@@ -925,41 +944,43 @@ function BucketsView({ data, names, search, nav, tables }: ViewProps<"buckets">)
 						if (!t) return null;
 						const before = data.previous ? (data.previous[t.target] ?? 0) : null;
 						return (
-							<DrillRow
-								onClick={() => select(t.target)}
-								disabled={t.private || names.isPrivate(t.target)}
-								label={`${names.label(t.target)}: ${formatMoney(t.amount)}`}
-							>
-								<KeyTile names={names} target={t.target} className="size-8" />
-								<span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-1.5">
-									<span className="flex items-baseline gap-3">
-										<span className="min-w-0 flex-1 truncate text-sm font-medium">
-											{names.label(t.target)}
-										</span>
-										<span className="shrink-0 text-sm font-semibold tabular-nums">
-											{formatMoney(t.amount)}
-										</span>
-									</span>
-									{chart === "bar" ? bar : null}
-									<span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-										<span>{SHARE_KIND[names.kindOf(t.target)] ?? ""}</span>
-										<span aria-hidden="true">·</span>
-										<span className="tabular-nums">
-											{data.spent > 0 ? formatPercent(t.amount / data.spent) : "—"}
-										</span>
-										{t.count > 0 ? (
-											<span>
-												<span aria-hidden="true" className="me-1.5">
-													·
-												</span>
-												{t.count} {t.count === 1 ? "Transaction" : "Transactions"}
+							<div data-share={t.target} className="contents">
+								<DrillRow
+									onClick={() => select(t.target)}
+									disabled={t.private || names.isPrivate(t.target)}
+									label={`${names.label(t.target)}: ${formatMoney(t.amount)}`}
+								>
+									<KeyTile names={names} target={t.target} className="size-8" />
+									<span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-1.5">
+										<span className="flex items-baseline gap-3">
+											<span className="min-w-0 flex-1 truncate text-sm font-medium">
+												{names.label(t.target)}
 											</span>
-										) : null}
-										{t.private ? <PrivateMark /> : null}
-										<Delta now={t.amount} before={before} className="ms-auto" />
+											<span className="shrink-0 text-sm font-semibold tabular-nums">
+												{formatMoney(t.amount)}
+											</span>
+										</span>
+										{chart === "bar" ? bar : null}
+										<span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+											<span>{SHARE_KIND[names.kindOf(t.target)] ?? ""}</span>
+											<span aria-hidden="true">·</span>
+											<span className="tabular-nums">
+												{data.spent > 0 ? formatPercent(t.amount / data.spent) : "—"}
+											</span>
+											{t.count > 0 ? (
+												<span>
+													<span aria-hidden="true" className="me-1.5">
+														·
+													</span>
+													{t.count} {t.count === 1 ? "Transaction" : "Transactions"}
+												</span>
+											) : null}
+											{t.private ? <PrivateMark /> : null}
+											<Delta now={t.amount} before={before} className="ms-auto" />
+										</span>
 									</span>
-								</span>
-							</DrillRow>
+								</DrillRow>
+							</div>
 						);
 					}}
 				/>
