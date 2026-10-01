@@ -11,3 +11,4 @@ The tokens live in `packages/ui/src/styles/globals.css` and are the only source 
 - Clerk's sign-in and account screens are themed through its `--clerk-*` CSS variables, which point at the same tokens.
 - Bucket colours are assigned in a fixed, colour-blind-validated order (`--bucket-1` … `--bucket-8`) and never cycled. Their exact values were checked with the dataviz palette validator in #2.
 - Screenshot tests (`apps/web/e2e/shell.spec.ts`) guard the shell in light and dark at iPhone and desktop sizes. Intentional visual changes update the baselines with `bun run e2e --update-snapshots`.
+- `packages/ui/COMPONENTS.md` lists every component, how shadcn ones are added (by hand from the registry: the CLI wants an npm `cn` package here), which select goes where, and what wasn't added and why (#47).
