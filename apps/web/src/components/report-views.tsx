@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { type ReactNode, useId, useMemo } from "react";
 import { asBucketColor, monogram } from "../buckets";
-import { formatMoney, fullDay, shortDay } from "../format";
+import { formatMoney, formatWholeMoney, fullDay, shortDay } from "../format";
 import {
 	type ChartKind,
 	formatPercent,
@@ -145,13 +145,13 @@ export function Delta({
 		<span
 			className={cn(
 				"inline-flex items-center gap-0.5 text-xs font-medium tabular-nums",
-				good ? "text-brand" : "text-muted-foreground",
+				good ? "text-brand" : "text-over",
 				className,
 			)}
 		>
 			<Arrow aria-hidden="true" className="size-3.5" />
-			<span className="sr-only">{up ? "Up" : "Down"} </span>
-			{amount}
+			{amount} {up ? "more" : "less"}
+			<span className="sr-only"> than the period before</span>
 		</span>
 	);
 }
@@ -178,7 +178,7 @@ function Stat({
 			<span className="text-2xl font-semibold tracking-[-0.02em] tabular-nums lg:text-[1.75rem]">
 				{value}
 			</span>
-			<span className="flex min-h-4 items-center gap-1.5 text-xs text-subtle-foreground">
+			<span className="flex min-h-4 flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
 				{delta}
 				{hint}
 			</span>
@@ -535,20 +535,20 @@ function OverviewView({ report, data, names, nav, tables }: ViewProps<"overview"
 				<Stat
 					index={0}
 					label="Spent"
-					value={formatMoney(now.spent)}
+					value={formatWholeMoney(now.spent)}
 					delta={<Delta now={now.spent} before={previous?.spent} />}
 					hint={data.private ? <PrivateMark /> : null}
 				/>
 				<Stat
 					index={1}
 					label="Earned"
-					value={formatMoney(now.earned)}
+					value={formatWholeMoney(now.earned)}
 					delta={<Delta now={now.earned} before={previous?.earned} invert />}
 				/>
 				<Stat
 					index={2}
 					label="Saved"
-					value={formatMoney(now.saved)}
+					value={formatWholeMoney(now.saved)}
 					delta={<Delta now={now.saved} before={previous?.saved} invert />}
 				/>
 				<Stat
@@ -564,62 +564,68 @@ function OverviewView({ report, data, names, nav, tables }: ViewProps<"overview"
 				<Stat
 					index={4}
 					label="Free to Spend"
-					value={formatMoney(now.freeToSpend)}
+					value={formatWholeMoney(now.freeToSpend)}
 					hint="over the Plans"
 				/>
 			</Card>
-			<ChartCard
-				title="Income and spending"
-				description={`By ${report.grouping}. The dashed line is what was left over.`}
-				table={tables.series}
-			>
-				<IncomeSpendChart
-					data={data.series}
-					labelOf={periodLabel}
-					onSelect={(period) => nav.month(monthOfPeriod(period))}
-				/>
-			</ChartCard>
-			<ChartCard
-				title="Where it went"
-				description="The biggest spending, with its trend"
-				table={tables.top}
-			>
-				<ul className="grid gap-0.5">
-					{data.top.map((top, i) => (
-						<li
-							key={top.target}
-							className="animate-enter"
-							style={{ animationDelay: `${i * 35}ms` }}
-						>
-							<DrillRow
-								onClick={() => nav.area(top.target)}
-								disabled={names.isPrivate(top.target)}
-								label={`${names.label(top.target)}: ${formatMoney(top.amount)}`}
+			<div className="grid gap-4 lg:gap-6 xl:grid-cols-12 xl:items-start">
+				<ChartCard
+					className="xl:col-span-7"
+					title="Income and spending"
+					description={`By ${report.grouping}. The dashed line is what was left over.`}
+					table={tables.series}
+				>
+					<IncomeSpendChart
+						data={data.series}
+						labelOf={periodLabel}
+						onSelect={(period) => nav.month(monthOfPeriod(period))}
+					/>
+				</ChartCard>
+				<ChartCard
+					className="xl:col-span-5"
+					title="Where it went"
+					description="The biggest spending, with its trend"
+					table={tables.top}
+				>
+					<ul className="grid gap-0.5">
+						{data.top.map((top, i) => (
+							<li
+								key={top.target}
+								className="animate-enter"
+								style={{ animationDelay: `${i * 35}ms` }}
 							>
-								<KeyTile names={names} target={top.target} />
-								<span className="grid min-w-0 flex-1 gap-0.5">
-									<span className="truncate text-sm font-medium">{names.label(top.target)}</span>
-									<span className="flex items-center gap-2 text-xs text-muted-foreground">
-										{now.spent > 0 ? `${formatPercent(top.amount / now.spent)} of spending` : null}
-										{names.isPrivate(top.target) ? <PrivateMark /> : null}
+								<DrillRow
+									onClick={() => nav.area(top.target)}
+									disabled={names.isPrivate(top.target)}
+									label={`${names.label(top.target)}: ${formatMoney(top.amount)}`}
+								>
+									<KeyTile names={names} target={top.target} />
+									<span className="grid min-w-0 flex-1 gap-0.5">
+										<span className="truncate text-sm font-medium">{names.label(top.target)}</span>
+										<span className="flex items-center gap-2 text-xs text-muted-foreground">
+											{now.spent > 0
+												? `${formatPercent(top.amount / now.spent)} of spending`
+												: null}
+											{names.isPrivate(top.target) ? <PrivateMark /> : null}
+										</span>
 									</span>
-								</span>
-								<Sparkline
-									values={top.spark}
-									className="hidden sm:block"
-									color={shareColor(names, top.target)}
-								/>
-								<span className="grid justify-items-end gap-0.5">
-									<span className="shrink-0 text-sm font-semibold tabular-nums">
-										{formatMoney(top.amount)}
+									<Sparkline
+										values={top.spark}
+										className="hidden sm:block"
+										color={shareColor(names, top.target)}
+									/>
+									<span className="grid justify-items-end gap-0.5">
+										<span className="shrink-0 text-sm font-semibold tabular-nums">
+											{formatMoney(top.amount)}
+										</span>
+										<Delta now={top.amount} before={top.previous} />
 									</span>
-									<Delta now={top.amount} before={top.previous} />
-								</span>
-							</DrillRow>
-						</li>
-					))}
-				</ul>
-			</ChartCard>
+								</DrillRow>
+							</li>
+						))}
+					</ul>
+				</ChartCard>
+			</div>
 		</div>
 	);
 }
@@ -1157,11 +1163,11 @@ function PlanView({ data, names, nav, tables }: ViewProps<"plan">) {
 	}));
 	const habits = data.habits.filter((h) => h.habit !== "on-plan");
 	return (
-		<div className="grid gap-4 lg:grid-cols-5 lg:gap-6">
+		<div className="grid items-start gap-4 lg:grid-cols-5 lg:gap-6">
 			<ChartCard
 				className="lg:col-span-5"
 				title="Plan vs actual"
-				description="Spent as a share of each month's allowance: blue under, red over, grey within 10%"
+				description="Spent as a share of each month's allowance"
 				table={tables.variance}
 			>
 				<VarianceHeatmap
@@ -1172,7 +1178,7 @@ function PlanView({ data, names, nav, tables }: ViewProps<"plan">) {
 				/>
 			</ChartCard>
 			<ChartCard
-				className={cn(data.rolling.length ? "lg:col-span-2" : "lg:col-span-5", "lg:self-start")}
+				className={data.rolling.length ? "lg:col-span-2" : "lg:col-span-5"}
 				title="Usually over or under"
 				description="Buckets over or under the Plan in most months"
 				table={tables.habits}
@@ -1213,8 +1219,32 @@ function PlanView({ data, names, nav, tables }: ViewProps<"plan">) {
 					description="What each Bucket that carries over took into the next month"
 					table={tables.rolling}
 				>
-					{data.rolling.length ? (
+					{data.rolling.length >= 8 ? (
+						// Eight or more lines tangle: one small chart each instead.
+						<ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+							{data.rolling.map((r) => (
+								<li key={r.bucketId} className="grid gap-1 rounded-xl bg-surface-2/60 p-3">
+									<span className="truncate text-[13px] font-medium">
+										{names.label(`bucket:${r.bucketId}`)}
+									</span>
+									<span className="text-sm font-semibold tabular-nums">
+										{formatMoney(
+											r.carried.find((c) => c.month === data.months.at(-1))?.amount ?? 0,
+										)}
+									</span>
+									<Sparkline
+										values={data.months.map(
+											(m) => r.carried.find((c) => c.month === m)?.amount ?? 0,
+										)}
+										className="h-10 w-full"
+										color={shareColor(names, `bucket:${r.bucketId}`)}
+									/>
+								</li>
+							))}
+						</ul>
+					) : (
 						<TrendLines
+							className="h-60"
 							labelOf={periodLabel}
 							rows={data.months.map((m) => ({
 								period: m,
@@ -1231,7 +1261,7 @@ function PlanView({ data, names, nav, tables }: ViewProps<"plan">) {
 								color: shareColor(names, `bucket:${r.bucketId}`),
 							}))}
 						/>
-					) : null}
+					)}
 				</ChartCard>
 			) : null}
 		</div>

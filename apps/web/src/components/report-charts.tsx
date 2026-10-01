@@ -22,6 +22,7 @@ import { WithTooltip } from "@noodle/ui/components/tooltip";
 import { cn } from "@noodle/ui/lib/utils";
 import { Table2 } from "lucide-react";
 import {
+	type KeyboardEvent as ReactKeyboardEvent,
 	type ReactNode,
 	type PointerEvent as ReactPointerEvent,
 	useCallback,
@@ -732,89 +733,116 @@ export function VarianceHeatmap({
 		if (el && months.length) el.scrollLeft = el.scrollWidth;
 	}, [months.length]);
 	return (
-		<div ref={scroller} className="-mx-(--card-pad) overflow-x-auto px-(--card-pad)">
-			<table className="w-full min-w-max border-separate border-spacing-0.5 text-xs">
-				<thead>
-					<tr>
-						<th className="sticky left-0 z-10 bg-card" scope="col">
-							<span className="sr-only">Bucket</span>
-						</th>
-						{months.map((m) => (
-							<th
-								key={m}
-								scope="col"
-								className="px-1 pb-1 text-center font-medium text-muted-foreground"
-							>
-								{monthLabel(m)}
+		<>
+			<div ref={scroller} className="-mx-(--card-pad) overflow-x-auto px-(--card-pad)">
+				<table className="w-full min-w-max border-separate border-spacing-0.5 text-xs">
+					<thead>
+						<tr>
+							<th className="sticky left-0 z-10 bg-card" scope="col">
+								<span className="sr-only">Bucket</span>
 							</th>
-						))}
-					</tr>
-				</thead>
-				<tbody>
-					{rows.map((row) => (
-						<tr key={row.key}>
-							<th
-								scope="row"
-								className="sticky left-0 z-10 max-w-28 truncate bg-card pe-3 text-left font-medium sm:max-w-36"
-							>
-								{row.label}
-							</th>
-							{row.cells.map((cell, i) => {
-								const month = months[i] ?? "";
-								const text =
-									cell?.ratio === null || !cell ? "—" : `${Math.round(cell.ratio * 100)}%`;
-								const off = cell && cell.ratio !== null ? Math.abs(cell.ratio - 1) : 0;
-								const strong = off > 0.5;
-								// The deepest tints are dark enough in both appearances to need light text.
-								const deep = off > 0.75;
-								return (
-									<td key={month} className="p-0">
-										<WithTooltip
-											label={
-												cell
-													? `${formatMoney(cell.spent)} of ${formatMoney(cell.planned)}`
-													: "Not in the Plan"
-											}
-										>
-											<button
-												type="button"
-												disabled={!onSelect || !cell}
-												onClick={() => onSelect?.(row.key, month)}
-												aria-label={
-													cell
-														? `${monthLabel(month)}: ${formatMoney(cell.spent)} spent of ${formatMoney(cell.planned)} planned`
-														: `${monthLabel(month)}: not in the Plan`
-												}
-												className={cn(
-													"h-9 w-full min-w-12 rounded-md text-center tabular-nums transition-[transform,box-shadow] duration-(--duration-fast)",
-													"enabled:hover:scale-[1.04] enabled:hover:shadow-card focus-visible:outline-2 focus-visible:outline-ring",
-													deep
-														? "font-semibold text-white"
-														: strong
-															? "font-semibold text-foreground"
-															: "text-muted-foreground",
-													!cell && "bg-surface-2/40",
-												)}
-												style={{ background: cell ? tone(cell.ratio) : undefined }}
-											>
-												{text}
-											</button>
-										</WithTooltip>
-									</td>
-								);
-							})}
+							{months.map((m) => (
+								<th
+									key={m}
+									scope="col"
+									className="px-1 pb-1 text-center font-medium text-muted-foreground"
+								>
+									{monthLabel(m)}
+								</th>
+							))}
 						</tr>
+					</thead>
+					<tbody>
+						{rows.map((row) => (
+							<tr key={row.key}>
+								<th
+									scope="row"
+									className="sticky left-0 z-10 max-w-28 truncate bg-card pe-3 text-left font-medium sm:max-w-36"
+								>
+									{row.label}
+								</th>
+								{row.cells.map((cell, i) => {
+									const month = months[i] ?? "";
+									const text =
+										cell?.ratio === null || !cell ? "—" : `${Math.round(cell.ratio * 100)}%`;
+									const off = cell && cell.ratio !== null ? Math.abs(cell.ratio - 1) : 0;
+									const strong = off > 0.5;
+									// The deepest tints are dark enough in both appearances to need light text.
+									const deep = off > 0.75;
+									return (
+										<td key={month} className="p-0">
+											<WithTooltip
+												label={
+													cell
+														? `${formatMoney(cell.spent)} of ${formatMoney(cell.planned)}`
+														: "Not in the Plan"
+												}
+											>
+												<button
+													type="button"
+													disabled={!onSelect || !cell}
+													onClick={() => onSelect?.(row.key, month)}
+													aria-label={
+														cell
+															? `${monthLabel(month)}: ${formatMoney(cell.spent)} spent of ${formatMoney(cell.planned)} planned`
+															: `${monthLabel(month)}: not in the Plan`
+													}
+													className={cn(
+														"h-9 w-full min-w-12 rounded-md text-center tabular-nums transition-[transform,box-shadow] duration-(--duration-fast)",
+														"enabled:hover:scale-[1.04] enabled:hover:shadow-card focus-visible:outline-2 focus-visible:outline-ring",
+														deep
+															? "font-semibold text-white"
+															: strong
+																? "font-semibold text-foreground"
+																: "text-foreground",
+														!cell && "bg-surface-2/40",
+													)}
+													style={{ background: cell ? tone(cell.ratio) : undefined }}
+												>
+													{text}
+												</button>
+											</WithTooltip>
+										</td>
+									);
+								})}
+							</tr>
+						))}
+					</tbody>
+				</table>
+			</div>
+			<HeatmapKey tone={tone} />
+		</>
+	);
+}
+
+/** The variance heatmap's colour key: under the Plan, on it, over it. */
+function HeatmapKey({ tone }: { tone: (ratio: number | null) => string }) {
+	const stops = [0, 0.5, 1, 1.5, 2];
+	return (
+		<div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-3 text-xs text-muted-foreground">
+			<span className="flex items-center gap-1.5">
+				Under the Plan
+				<span aria-hidden="true" className="flex gap-0.5">
+					{stops.map((s) => (
+						<span key={s} className="h-3 w-5 rounded-[3px]" style={{ background: tone(s) }} />
 					))}
-				</tbody>
-			</table>
+				</span>
+				Over the Plan
+			</span>
+			<span>Grey is within 10% of the Plan</span>
+			<span className="flex items-center gap-1.5">
+				<span aria-hidden="true" className="h-3 w-5 rounded-[3px] bg-surface-2/40" />
+				Not in the Plan
+			</span>
 		</div>
 	);
 }
 
 /**
  * Daily spend as a calendar: a column per week, a row per weekday, darker for more (square-root
- * steps of the brand, so a few big days don't wash out the rest). Each day is focusable and
- * names its amount.
+ * steps of the brand, so a few big days don't wash out the rest). Cells are 24px (the target
+ * size), with weekday and month labels; the grid is one tab stop, the arrow keys move a day or a
+ * week, and each day names its amount in a tooltip on hover and focus.
  */
 export function CalendarHeatmap({
 	days,
@@ -841,6 +869,51 @@ export function CalendarHeatmap({
 		const day = date.toISOString().slice(0, 10) as DayKey;
 		cells.push({ day, inRange: day >= from });
 	}
+	const inRange = cells.filter((c) => c.inRange).map((c) => c.day);
+	const last = inRange[inRange.length - 1];
+	const [active, setActive] = useState<DayKey | undefined>(last);
+	const current = active && active >= from && active < until ? active : last;
+	const scroller = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		const el = scroller.current;
+		if (el && cells.length) el.scrollLeft = el.scrollWidth;
+	}, [cells.length]);
+	const weeks = Math.ceil(cells.length / 7);
+	// A month's name over the first week that holds its 1st (or the first week shown).
+	const monthLabels: { week: number; label: string }[] = [];
+	cells.forEach(({ day, inRange: shown }, i) => {
+		const week = Math.floor(i / 7);
+		if (!shown) return;
+		const first = monthLabels.length === 0 || day.endsWith("-01");
+		if (first && monthLabels[monthLabels.length - 1]?.week !== week) {
+			monthLabels.push({
+				week,
+				label: new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", {
+					month: "short",
+					timeZone: "UTC",
+				}),
+			});
+		}
+	});
+	const move = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+		if (!current) return;
+		const step: Record<string, number> = {
+			ArrowUp: -1,
+			ArrowDown: 1,
+			ArrowLeft: -7,
+			ArrowRight: 7,
+		};
+		let next: DayKey | undefined;
+		if (event.key in step) {
+			const at = inRange.indexOf(current) + (step[event.key] ?? 0);
+			next = inRange[Math.max(0, Math.min(inRange.length - 1, at))];
+		} else if (event.key === "Home") next = inRange[0];
+		else if (event.key === "End") next = last;
+		if (!next) return;
+		event.preventDefault();
+		setActive(next);
+		event.currentTarget.querySelector<HTMLButtonElement>(`[data-day="${next}"]`)?.focus();
+	};
 	const fills = [
 		"var(--surface-2)",
 		"var(--chart-seq-1)",
@@ -848,37 +921,73 @@ export function CalendarHeatmap({
 		"var(--chart-seq-3)",
 		"var(--chart-seq-4)",
 	];
+	const weekdays = ["Mon", "", "Wed", "", "Fri", "", ""];
 	return (
 		<div className="grid gap-3">
-			<div className="-mx-(--card-pad) overflow-x-auto px-(--card-pad) pb-1">
-				<div className="grid w-max grid-flow-col grid-rows-7 gap-[3px]">
-					{cells.map(({ day, inRange }) => {
+			<div ref={scroller} className="-mx-(--card-pad) overflow-x-auto px-(--card-pad) pb-1">
+				{/* biome-ignore lint/a11y/useSemanticElements: a fieldset breaks the grid layout; the arrow keys rove between the day buttons inside */}
+				<div
+					role="group"
+					aria-label="Spending each day"
+					onKeyDown={move}
+					className="grid w-max gap-[3px] text-[11px] text-muted-foreground"
+					style={{
+						gridTemplateColumns: `auto repeat(${weeks}, 1.5rem)`,
+						gridTemplateRows: "auto repeat(7, 1.5rem)",
+					}}
+				>
+					{monthLabels.map(({ week, label }) => (
+						<span
+							key={`${week}-${label}`}
+							aria-hidden="true"
+							className="pb-0.5 whitespace-nowrap"
+							style={{ gridColumn: `${week + 2} / span 3`, gridRow: 1 }}
+						>
+							{label}
+						</span>
+					))}
+					{weekdays.map((label, d) => (
+						<span
+							// biome-ignore lint/suspicious/noArrayIndexKey: fixed weekday rows
+							key={d}
+							aria-hidden="true"
+							className="sticky left-0 z-10 flex items-center bg-card pe-1.5 before:absolute before:inset-y-[-2px] before:-right-[3px] before:-left-(--card-pad) before:-z-10 before:bg-card"
+							style={{ gridColumn: 1, gridRow: d + 2 }}
+						>
+							{label}
+						</span>
+					))}
+					{cells.map(({ day, inRange: shown }, i) => {
+						if (!shown) return null;
 						const amount = byDay.get(day) ?? 0;
 						const level = levelOf(amount, max);
-						return inRange ? (
-							<WithTooltip key={day} label={`${shortDay(day)}: ${formatMoney(amount)}`}>
+						const label = `${shortDay(day)}: ${formatMoney(amount)}`;
+						return (
+							<WithTooltip key={day} label={label}>
 								<button
 									type="button"
-									disabled={!onSelect}
+									data-day={day}
+									tabIndex={day === current ? 0 : -1}
+									aria-disabled={onSelect ? undefined : true}
+									onFocus={() => setActive(day)}
 									onClick={() => onSelect?.(day)}
-									aria-label={`${shortDay(day)}: ${formatMoney(amount)}`}
-									className="size-3.5 rounded-[3px] transition-transform duration-(--duration-fast) enabled:hover:scale-125 focus-visible:outline-2 focus-visible:outline-ring lg:size-4"
-									style={{ background: fills[level] }}
+									aria-label={label}
+									className="size-6 rounded-[4px] transition-transform duration-(--duration-fast) hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+									style={{
+										background: fills[level],
+										gridColumn: Math.floor(i / 7) + 2,
+										gridRow: (i % 7) + 2,
+									}}
 								/>
 							</WithTooltip>
-						) : (
-							<span key={day} className="size-3.5 lg:size-4" />
 						);
 					})}
 				</div>
 			</div>
-			<div
-				className="flex items-center gap-1.5 text-[11px] text-muted-foreground"
-				aria-hidden="true"
-			>
+			<div className="flex items-center gap-1.5 text-xs text-muted-foreground" aria-hidden="true">
 				Less
 				{fills.map((fill) => (
-					<span key={fill} className="size-2.5 rounded-[2px]" style={{ background: fill }} />
+					<span key={fill} className="size-3 rounded-[3px]" style={{ background: fill }} />
 				))}
 				More
 			</div>
@@ -903,30 +1012,51 @@ export function TrendLines({
 		series.map((s) => [s.key, { label: s.label, color: s.color }]),
 	);
 	return (
-		<ChartContainer config={config} className={cn("aspect-auto h-48 w-full", className)}>
-			<ComposedChart data={rows} accessibilityLayer>
-				<CartesianGrid vertical={false} stroke="var(--chart-grid)" />
-				<XAxis dataKey="period" tickFormatter={(p) => labelOf(p)} {...axisProps} minTickGap={12} />
-				<YAxis tickFormatter={formatCompact} width={52} {...axisProps} />
-				<ChartTooltip content={<MoneyTooltip labelOf={(p) => labelOf(p, "long")} />} />
-				{series.length > 1 ? <ChartLegend content={<ChartLegendContent />} /> : null}
-				{series.map((s) => (
-					<Line
-						key={s.key}
-						dataKey={s.key}
-						name={s.label}
-						type="monotone"
-						stroke={`var(--color-${s.key})`}
-						strokeWidth={2}
-						strokeDasharray={s.dashed ? "4 3" : undefined}
-						dot={false}
-						activeDot={{ r: 4 }}
-						connectNulls
-						{...animation}
+		<div className="grid gap-3">
+			<ChartContainer config={config} className={cn("aspect-auto h-48 w-full", className)}>
+				<ComposedChart data={rows} accessibilityLayer>
+					<CartesianGrid vertical={false} stroke="var(--chart-grid)" />
+					<XAxis
+						dataKey="period"
+						tickFormatter={(p) => labelOf(p)}
+						{...axisProps}
+						minTickGap={12}
 					/>
-				))}
-			</ComposedChart>
-		</ChartContainer>
+					<YAxis tickFormatter={formatCompact} width={52} {...axisProps} />
+					<ChartTooltip content={<MoneyTooltip labelOf={(p) => labelOf(p, "long")} />} />
+					{series.map((s) => (
+						<Line
+							key={s.key}
+							dataKey={s.key}
+							name={s.label}
+							type="monotone"
+							stroke={`var(--color-${s.key})`}
+							strokeWidth={2}
+							strokeDasharray={s.dashed ? "4 3" : undefined}
+							dot={false}
+							activeDot={{ r: 4 }}
+							connectNulls
+							{...animation}
+						/>
+					))}
+				</ComposedChart>
+			</ChartContainer>
+			{series.length > 1 ? (
+				// Below the plot, one line each and truncated, so a long list can't squash the chart.
+				<ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+					{series.map((s) => (
+						<li key={s.key} className="flex min-w-0 max-w-48 items-center gap-1.5" title={s.label}>
+							<span
+								aria-hidden="true"
+								className={cn("w-3 shrink-0 border-t-2", s.dashed && "border-dashed")}
+								style={{ borderColor: s.color }}
+							/>
+							<span className="truncate">{s.label}</span>
+						</li>
+					))}
+				</ul>
+			) : null}
+		</div>
 	);
 }
 
