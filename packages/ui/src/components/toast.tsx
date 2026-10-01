@@ -1,4 +1,4 @@
-import { CheckIcon, TriangleAlertIcon } from "lucide-react";
+import { CheckIcon, TriangleAlertIcon, XIcon } from "lucide-react";
 import * as React from "react";
 import { cn } from "#lib/utils";
 
@@ -7,6 +7,11 @@ type Toast = {
 	message: string;
 	tone: "success" | "error";
 	action?: { label: string; onClick: () => void };
+	/**
+	 * Stays until it's dismissed or replaced, for an Undo of money moved in one click: a few
+	 * seconds isn't long enough to notice a mistake.
+	 */
+	sticky?: boolean;
 };
 
 // One toast at a time: a new one replaces whatever is showing.
@@ -22,12 +27,13 @@ function set(toast: Toast | null) {
 
 /**
  * Shows a short message at the bottom of the screen. Toasts with an action stay long enough
- * to use it; errors stay longest.
+ * to use it; errors stay longest; a sticky one stays until it's dismissed.
  */
 function toast(message: string, options: Omit<Toast, "id" | "message"> = { tone: "success" }) {
 	clearTimeout(timer);
 	const shown = { id: nextId++, message, ...options };
 	set(shown);
+	if (options.sticky) return;
 	const ms = options.tone === "error" ? 10_000 : options.action ? 6_000 : 2_400;
 	timer = setTimeout(() => {
 		if (current?.id === shown.id) set(null);
@@ -81,6 +87,16 @@ function Toaster({ className }: { className?: string }) {
 							}}
 						>
 							{shown.action.label}
+						</button>
+					) : null}
+					{shown.sticky ? (
+						<button
+							type="button"
+							aria-label="Dismiss"
+							className="grid size-7 shrink-0 place-items-center rounded-lg transition-colors duration-(--duration-fast) hover:bg-card/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&_svg]:size-4"
+							onClick={() => set(null)}
+						>
+							<XIcon />
 						</button>
 					) : null}
 				</div>

@@ -263,9 +263,11 @@ export function useExtraIncomes() {
 			}
 		},
 		onSuccess: (_data, v) => {
+			// Sent in one click, so its Undo stays until the Parent dismisses it.
 			toast(`${formatMoney(v.amountCents)} of the Extra income to ${v.toName}`, {
 				tone: "success",
 				action: { label: "Undo", onClick: () => undo.mutate(v) },
+				sticky: true,
 			});
 		},
 		onSettled,
