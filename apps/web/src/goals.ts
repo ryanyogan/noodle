@@ -681,6 +681,7 @@ export function useGoalMoney() {
 			toast(`${formatMoney(v.amountCents)} from Free to Spend to ${v.goalName}`, {
 				tone: "success",
 				action: { label: "Undo", onClick: () => undo.mutate(v) },
+				sticky: true,
 			});
 		},
 		onSettled,

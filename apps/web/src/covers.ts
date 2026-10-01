@@ -120,7 +120,11 @@ export function useCovers() {
 		onSuccess: (_data, variables) => {
 			toast(
 				`${formatMoney(variables.amountCents)} from ${variables.fromName} covers ${variables.toName}`,
-				{ tone: "success", action: { label: "Undo", onClick: () => undo.mutate(variables) } },
+				{
+					tone: "success",
+					action: { label: "Undo", onClick: () => undo.mutate(variables) },
+					sticky: true,
+				},
 			);
 		},
 		onSettled: refetchOnceSettled,

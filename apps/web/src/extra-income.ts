@@ -136,6 +136,7 @@ export function useIncome() {
 			toast(`${formatMoney(v.amountCents)} of income removed`, {
 				tone: "success",
 				action: { label: "Undo", onClick: () => record.mutate(v) },
+				sticky: true,
 			}),
 		onSettled: () => refetchMonthsOnceSettled(queryClient),
 	});
@@ -160,6 +161,7 @@ export function useIncome() {
 			toast(`${formatMoney(v.amountCents)} of income recorded`, {
 				tone: "success",
 				action: { label: "Undo", onClick: () => remove.mutate(v) },
+				sticky: true,
 			});
 		},
 		onSettled: () => refetchMonthsOnceSettled(queryClient),
