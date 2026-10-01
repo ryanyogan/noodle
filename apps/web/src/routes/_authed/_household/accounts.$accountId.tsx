@@ -1,4 +1,4 @@
-import { dayKeyAt } from "@noodle/domain";
+import { dayKeyAt, monthOfDay } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field } from "@noodle/ui/components/field";
@@ -9,7 +9,13 @@ import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
-import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import {
+	useMutation,
+	useQuery,
+	useQueryClient,
+	useSuspenseInfiniteQuery,
+	useSuspenseQuery,
+} from "@tanstack/react-query";
 import {
 	createFileRoute,
 	Link,
@@ -31,6 +37,12 @@ import {
 import { Confirm, SaveFailed } from "../../../components/plan-editing";
 import { StatementBalanceNote, StatementsSection } from "../../../components/statements";
 import { TermHelp } from "../../../components/term-help";
+import {
+	EditTransactionSheet,
+	TransactionItem,
+	useBringsSpendingIn,
+	waitingForBank,
+} from "../../../components/transaction-list";
 import { formatMoney, shortDay } from "../../../format";
 import {
 	type AccountView,
@@ -40,8 +52,15 @@ import {
 	useRenameAccount,
 	useUpdateAccountBalance,
 } from "../../../goals";
-import { accountImportsQuery, bankConnectionsQuery, goalsQuery } from "../../../queries";
+import {
+	accountImportsQuery,
+	bankConnectionsQuery,
+	goalsQuery,
+	membersQuery,
+	monthQuery,
+} from "../../../queries";
 import { unpairBankAccount } from "../../../server/bank-connections";
+import { accountTransactionsQuery, type TransactionRow } from "../../../transactions";
 
 export const Route = createFileRoute("/_authed/_household/accounts/$accountId")({
 	loader: async ({ context, params }) => {
@@ -51,6 +70,10 @@ export const Route = createFileRoute("/_authed/_household/accounts/$accountId")(
 			context.queryClient.ensureQueryData(bankConnectionsQuery()),
 		]);
 		if (!data.accounts.some((a) => a.id === params.accountId)) throw notFound();
+		await Promise.all([
+			context.queryClient.ensureInfiniteQueryData(accountTransactionsQuery(params.accountId)),
+			context.queryClient.ensureQueryData(membersQuery()),
+		]);
 	},
 	component: AccountPage,
 });
@@ -275,6 +298,7 @@ function AccountDetails({ account }: { account: AccountView }) {
 				) : (
 					<PayOffSection account={account} />
 				)}
+				<AccountTransactions account={account} />
 				<StatementsSection
 					account={account}
 					connected={
@@ -477,5 +501,75 @@ function RenameForm({ name, onSave }: { name: string; onSave: (name: string) => 
 				Save
 			</Button>
 		</form>
+	);
+}
+
+/** How many of an Account's latest Transactions its page lists before "All in Transactions". */
+const ACCOUNT_TRANSACTIONS = 8;
+
+/**
+ * An Account's latest Transactions, from any month: what was brought in from it, Goal spending
+ * from it, and Quick Adds Matched with its lines. Each opens the editor, as on Transactions;
+ * Transactions has the rest, filtered to the Account.
+ */
+function AccountTransactions({ account }: { account: AccountView }) {
+	const { parentId } = Route.useRouteContext();
+	const { asOf } = useGoals();
+	const thisMonth = monthOfDay(asOf);
+	const list = useSuspenseInfiniteQuery(accountTransactionsQuery(account.id)).data;
+	const members = useSuspenseQuery(membersQuery()).data;
+	// Names what each row is assigned to; a Bucket since archived reads as one.
+	const plan = useQuery(monthQuery(thisMonth)).data?.plan ?? { buckets: [], commitments: [] };
+	const bringsIn = useBringsSpendingIn();
+	const [editing, setEditing] = useState<TransactionRow | null>(null);
+	const all = list.pages.flatMap((page) => page.transactions);
+	const shown = all.slice(0, ACCOUNT_TRANSACTIONS);
+	return (
+		<Section aria-labelledby="account-transactions">
+			<SectionHeader
+				id="account-transactions"
+				title="Transactions"
+				action={
+					shown.length > 0 ? (
+						<Button variant="ghost" size="sm" asChild>
+							<Link
+								to="/transactions/$month"
+								params={{ month: thisMonth }}
+								search={{ account: account.id }}
+							>
+								All in Transactions
+							</Link>
+						</Button>
+					) : undefined
+				}
+			/>
+			{shown.length > 0 ? (
+				<List aria-label={`Latest Transactions in ${account.name}`}>
+					{shown.map((transaction) => (
+						<TransactionItem
+							key={transaction.id}
+							transaction={transaction}
+							plan={plan}
+							members={members}
+							waiting={waitingForBank(transaction, asOf, bringsIn)}
+							dated
+							onEdit={setEditing}
+						/>
+					))}
+				</List>
+			) : (
+				<Card className="p-(--card-pad) text-sm text-muted-foreground">
+					{account.bankConnectionId
+						? "Its Transactions show here once the bank brings them in."
+						: "Its Transactions show here once a statement brings them in, or a Quick Add is Matched with one."}
+				</Card>
+			)}
+			<EditTransactionSheet
+				transaction={editing}
+				today={asOf}
+				parentId={parentId}
+				onClose={() => setEditing(null)}
+			/>
+		</Section>
 	);
 }

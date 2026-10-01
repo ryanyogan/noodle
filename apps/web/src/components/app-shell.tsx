@@ -135,7 +135,7 @@ function Sidebar({ householdName }: { householdName: string }) {
 }
 
 /** Opens Quick Add over the current page (a history entry, so Back closes it). */
-function QuickAddLink(props: Omit<ComponentProps<"a">, "href">) {
+export function QuickAddLink(props: Omit<ComponentProps<"a">, "href">) {
 	return (
 		<Link
 			to="."

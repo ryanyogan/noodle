@@ -261,3 +261,37 @@ describe("Match on Import", () => {
 		expect(await loadMatch(db, viewer, "gift")).toMatchObject({ kind: "matched" });
 	});
 });
+
+describe("the Transactions list's Account filter and search", () => {
+	it("lists an Account's lines and the Quick Adds Matched with them, in every month", async () => {
+		await quickAdd("dinner", "2026-09-10", 4_250, "Nopa");
+		await quickAdd("cash", "2026-09-11", 900, "Farmers market");
+		await importLines("import-1", [
+			spent("2026-09-12", 4_250, "NOPA SAN FRANCISCO"),
+			spent("2026-08-20", 6_100, "COSTCO WHSE #123"),
+		]);
+		const inCard = await loadTransactionsPage(db, viewer, { accountId: "card", limit: 50 });
+		// The Matched bank copy stays hidden; its Quick Add stands for it.
+		expect(inCard.transactions.map((row) => row.note)).toEqual(["Nopa", "COSTCO WHSE #123"]);
+		const septemberOnly = await loadTransactionsPage(db, viewer, {
+			month,
+			accountId: "card",
+			limit: 50,
+		});
+		expect(septemberOnly.transactions.map((row) => row.note)).toEqual(["Nopa"]);
+	});
+
+	it("finds Transactions by words in their note, any case, wildcards as typed", async () => {
+		await quickAdd("dinner", "2026-09-10", 4_250, "Nopa");
+		await quickAdd("cash", "2026-09-11", 900, "Farmers market 50%_off");
+		await quickAdd("other", "2026-09-12", 900, "Market 50 off");
+		const find = async (search: string) =>
+			(await loadTransactionsPage(db, viewer, { month, search, limit: 50 })).transactions.map(
+				(row) => row.id,
+			);
+		expect(await find("NOPA")).toEqual(["dinner"]);
+		expect(await find("market")).toEqual(["other", "cash"]);
+		expect(await find("50%_")).toEqual(["cash"]);
+		expect(await find("zzz")).toEqual([]);
+	});
+});

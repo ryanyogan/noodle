@@ -49,8 +49,14 @@ test("a Bucket's page shows its month, its year and its history, and changes it"
 
 	// This month's Transactions, and the rest in the Transactions list.
 	const transactions = page.getByRole("region", { name: /^Transactions in / });
-	await expect(transactions.getByRole("listitem", { name: /^Skates, / })).toContainText("$100");
-	await transactions.getByRole("link", { name: "In Transactions" }).click();
+	await expect(transactions.getByRole("button", { name: /^Skates, / })).toContainText("$100");
+	// A row opens the Transaction, as on Transactions.
+	await transactions.getByRole("button", { name: /^Skates, / }).click();
+	const edit = page.getByRole("dialog", { name: "Edit Transaction" });
+	await expect(edit.getByLabel("Assigned to")).toHaveValue(/^bucket:/);
+	await edit.getByRole("button", { name: "Close" }).click();
+	await expect(edit).toBeHidden();
+	await transactions.getByRole("link", { name: "All in Transactions" }).click();
 	await expect(page).toHaveURL(/\/transactions\/\d{4}-\d{2}\?bucket=/);
 	await page.goBack();
 	await expect(heading(page)).toHaveText("BucketHockey");

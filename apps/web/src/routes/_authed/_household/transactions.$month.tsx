@@ -9,48 +9,54 @@ import {
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { EmptyState } from "@noodle/ui/components/empty-state";
+import { Input } from "@noodle/ui/components/input";
 import { List, ListGroupLabel } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Skeleton } from "@noodle/ui/components/skeleton";
-import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound, useHydrated, useNavigate } from "@tanstack/react-router";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import {
-	ArrowLeftRight,
 	ChevronLeft,
 	ChevronRight,
 	Landmark,
 	ListChecks,
+	Plus,
 	ReceiptText,
-	Sparkles,
-	Split as SplitIcon,
-	Target,
+	Search,
 } from "lucide-react";
-import { type ComponentProps, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { z } from "zod";
-import { asBucketColor, monogram } from "../../../buckets";
+import { QuickAddLink } from "../../../components/app-shell";
 import { NativeSelect } from "../../../components/native-select";
 import { TransactionEditor } from "../../../components/transaction-editor";
-import { dayName, formatMoney, monthName } from "../../../format";
-import { forLabel, type MemberSummary, pickableMembers } from "../../../members";
-import { membersQuery, monthQuery, reviewQuery } from "../../../queries";
+import {
+	TransactionItem,
+	useBringsSpendingIn,
+	waitingForBank,
+} from "../../../components/transaction-list";
+import { dayName, monthName } from "../../../format";
+import { type AccountView, useGoals } from "../../../goals";
+import { type MemberSummary, pickableMembers } from "../../../members";
+import { goalsQuery, membersQuery, monthQuery, reviewQuery } from "../../../queries";
 import { monthKeySchema } from "../../../server/month";
 import { ulidSchema } from "../../../server/schemas";
-import { forFilterSchema } from "../../../server/transactions";
+import { forFilterSchema, SEARCH_MAX } from "../../../server/transactions";
 import {
+	type TransactionFilters,
 	type TransactionRow,
 	transactionLabel,
 	transactionsQuery,
 	useTransactionChange,
 } from "../../../transactions";
-import { transferDetail } from "../../../transfers";
 
 export const Route = createFileRoute("/_authed/_household/transactions/$month")({
 	validateSearch: z.object({
 		bucket: ulidSchema.optional().catch(undefined),
 		for: forFilterSchema.optional().catch(undefined),
+		account: ulidSchema.optional().catch(undefined),
+		q: z.string().trim().max(SEARCH_MAX).optional().catch(undefined),
 	}),
 	beforeLoad: ({ params, context }) => {
 		if (!monthKeySchema.safeParse(params.month).success) throw notFound();
@@ -59,13 +65,19 @@ export const Route = createFileRoute("/_authed/_household/transactions/$month")(
 		if (params.month > current) throw notFound();
 		return { month: params.month as MonthKey, current };
 	},
-	loaderDeps: ({ search }) => ({ bucket: search.bucket, for: search.for }),
+	loaderDeps: ({ search }) => ({
+		bucket: search.bucket,
+		for: search.for,
+		account: search.account,
+		q: search.q || undefined,
+	}),
 	// The first page is rendered on the server; later pages load as the Parent scrolls.
 	loader: ({ context, deps }) =>
 		Promise.all([
 			context.queryClient.ensureQueryData(monthQuery(context.month)),
 			context.queryClient.ensureQueryData(membersQuery()),
 			context.queryClient.ensureQueryData(reviewQuery()),
+			context.queryClient.ensureQueryData(goalsQuery()),
 			context.queryClient.ensureInfiniteQueryData(transactionsQuery(context.month, deps)),
 		]),
 	component: TransactionsPage,
@@ -81,11 +93,12 @@ function TransactionsPage() {
 	// Transactions never reach them).
 	const plan = { ...data.plan, buckets: data.plan.buckets.filter((b) => canAssign(b, parentId)) };
 	const members = useSuspenseQuery(membersQuery()).data;
+	const { accounts } = useGoals();
 	const [editing, setEditing] = useState<TransactionRow | null>(null);
 	const change = useTransactionChange();
 	const waiting = useSuspenseQuery(reviewQuery()).data.total;
 	const sameYear = month.slice(0, 4) === current.slice(0, 4);
-	const filtered = filters.bucket !== undefined || filters.for !== undefined;
+	const filtered = Object.values(filters).some((value) => value !== undefined);
 
 	return (
 		<>
@@ -149,6 +162,7 @@ function TransactionsPage() {
 				<Filters
 					plan={plan}
 					members={members}
+					accounts={accounts}
 					filters={filters}
 					onChange={(next) =>
 						void navigate({ search: (prev) => ({ ...prev, ...next }), replace: true })
@@ -181,60 +195,118 @@ function TransactionsPage() {
 	);
 }
 
-type Filters = { bucket?: string; for?: string };
+/** How long the search waits for typing to pause before it narrows the list. */
+const SEARCH_PAUSE_MS = 300;
 
-/** Narrows the list to one Bucket and to spending For one Member (or the whole Household). */
+/**
+ * Narrows the list to one Bucket, to spending For one Member (or the whole Household), to one
+ * Account, and to notes with the words searched for in them.
+ */
 function Filters({
 	plan,
 	members,
+	accounts,
 	filters,
 	onChange,
 }: {
 	plan: Pick<Plan, "buckets">;
 	members: MemberSummary[];
-	filters: Filters;
-	onChange: (filters: Filters) => void;
+	accounts: AccountView[];
+	filters: TransactionFilters;
+	onChange: (filters: TransactionFilters) => void;
 }) {
 	// Until hydrated, a change would only move the select, not the list.
 	const hydrated = useHydrated();
+	const [search, setSearch] = useState(filters.q ?? "");
+	const change = useRef(onChange);
+	change.current = onChange;
+	// Typing narrows the list once it pauses, without a history entry per letter.
+	useEffect(() => {
+		const typed = search.trim() || undefined;
+		if (typed === filters.q) return;
+		const timer = setTimeout(() => change.current({ q: typed }), SEARCH_PAUSE_MS);
+		return () => clearTimeout(timer);
+	}, [search, filters.q]);
 	return (
-		<div className="grid grid-cols-2 gap-2 sm:flex">
-			<div className="grid gap-1 sm:w-48">
-				<label htmlFor="filter-bucket" className="text-xs font-medium text-muted-foreground">
-					Bucket
+		<div className="grid gap-2">
+			<div className="relative">
+				<label htmlFor="filter-search" className="sr-only">
+					Search notes and merchants
 				</label>
-				<NativeSelect
-					id="filter-bucket"
-					value={filters.bucket ?? ""}
+				<Search
+					aria-hidden="true"
+					className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+				/>
+				<Input
+					id="filter-search"
+					type="search"
+					placeholder="Search notes and merchants"
+					autoComplete="off"
+					maxLength={SEARCH_MAX}
 					disabled={!hydrated}
-					onChange={(event) => onChange({ bucket: event.currentTarget.value || undefined })}
-				>
-					<option value="">All Buckets</option>
-					{plan.buckets.map((bucket) => (
-						<option key={bucket.id} value={bucket.id}>
-							{bucket.name}
-						</option>
-					))}
-				</NativeSelect>
+					value={search}
+					onChange={(event) => setSearch(event.currentTarget.value)}
+					className="ps-9"
+				/>
 			</div>
-			<div className="grid gap-1 sm:w-48">
-				<label htmlFor="filter-for" className="text-xs font-medium text-muted-foreground">
-					For
-				</label>
-				<NativeSelect
-					id="filter-for"
-					value={filters.for ?? ""}
-					disabled={!hydrated}
-					onChange={(event) => onChange({ for: event.currentTarget.value || undefined })}
-				>
-					<option value="">Anyone</option>
-					<option value="everyone">Everyone (shared)</option>
-					{pickableMembers(members, filters.for ? [filters.for] : []).map((member) => (
-						<option key={member.id} value={member.id}>
-							{member.name}
-						</option>
-					))}
-				</NativeSelect>
+			<div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+				<div className="grid min-w-0 gap-1">
+					<label htmlFor="filter-bucket" className="text-xs font-medium text-muted-foreground">
+						Bucket
+					</label>
+					<NativeSelect
+						id="filter-bucket"
+						value={filters.bucket ?? ""}
+						disabled={!hydrated}
+						onChange={(event) => onChange({ bucket: event.currentTarget.value || undefined })}
+					>
+						<option value="">All Buckets</option>
+						{plan.buckets.map((bucket) => (
+							<option key={bucket.id} value={bucket.id}>
+								{bucket.name}
+							</option>
+						))}
+					</NativeSelect>
+				</div>
+				<div className="grid min-w-0 gap-1">
+					<label htmlFor="filter-for" className="text-xs font-medium text-muted-foreground">
+						For
+					</label>
+					<NativeSelect
+						id="filter-for"
+						value={filters.for ?? ""}
+						disabled={!hydrated}
+						onChange={(event) => onChange({ for: event.currentTarget.value || undefined })}
+					>
+						<option value="">Anyone</option>
+						<option value="everyone">Everyone (shared)</option>
+						{pickableMembers(members, filters.for ? [filters.for] : []).map((member) => (
+							<option key={member.id} value={member.id}>
+								{member.name}
+							</option>
+						))}
+					</NativeSelect>
+				</div>
+				{accounts.length > 0 ? (
+					<div className="col-span-2 grid min-w-0 gap-1 sm:col-span-1">
+						<label htmlFor="filter-account" className="text-xs font-medium text-muted-foreground">
+							Account
+						</label>
+						<NativeSelect
+							id="filter-account"
+							value={filters.account ?? ""}
+							disabled={!hydrated}
+							onChange={(event) => onChange({ account: event.currentTarget.value || undefined })}
+						>
+							<option value="">All Accounts</option>
+							{accounts.map((account) => (
+								<option key={account.id} value={account.id}>
+									{account.name}
+								</option>
+							))}
+						</NativeSelect>
+					</div>
+				) : null}
 			</div>
 		</div>
 	);
@@ -277,7 +349,7 @@ function TransactionList({
 	onEdit,
 }: {
 	month: MonthKey;
-	filters: Filters;
+	filters: TransactionFilters;
 	today: DayKey;
 	plan: Pick<Plan, "buckets" | "commitments">;
 	members: MemberSummary[];
@@ -287,6 +359,7 @@ function TransactionList({
 	const { data, hasNextPage, isFetchingNextPage, fetchNextPage } = useSuspenseInfiniteQuery(
 		transactionsQuery(month, filters),
 	);
+	const bringsIn = useBringsSpendingIn();
 	const transactions = data.pages.flatMap((page) => page.transactions);
 	const items = itemsOf(transactions, hasNextPage);
 	const list = useRef<HTMLUListElement>(null);
@@ -315,8 +388,13 @@ function TransactionList({
 		},
 		overscan: 8,
 		scrollMargin,
-		// The server has no window: render the rows a tall phone screen would show.
+		// The server has no window: render the rows a tall phone screen would show, from the top.
 		initialRect: { width: 0, height: 1000 },
+		// The browser's first render must be the server's, so it starts from the top too: by
+		// default it reads window.scrollY, which is past 0 when the browser restores a scrolled
+		// page, and then renders other rows than the server did (a hydration error). Once
+		// mounted, the virtualizer follows the real scroll.
+		initialOffset: 0,
 	});
 	const virtualItems = virtualizer.getVirtualItems();
 	const lastIndex = virtualItems.at(-1)?.index ?? 0;
@@ -328,14 +406,32 @@ function TransactionList({
 	}, [lastIndex, items.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
 	if (transactions.length === 0) {
-		return (
+		return filtered ? (
 			<EmptyState
 				icon={<ReceiptText />}
-				title={filtered ? "Nothing matches" : `No Transactions in ${monthName(month)}`}
-				description={
-					filtered
-						? "No Transactions this month match these filters."
-						: "Quick Adds and imported spending show up here."
+				title="Nothing matches"
+				description="No Transactions this month match these filters."
+			/>
+		) : (
+			<EmptyState
+				icon={<ReceiptText />}
+				title={`No Transactions in ${monthName(month)}`}
+				description="Quick Add what you spend as you spend it, or bring it in from your bank: connect it, or upload a statement on its Account."
+				action={
+					<div className="flex flex-wrap justify-center gap-2">
+						<Button asChild>
+							<QuickAddLink>
+								<Plus />
+								Quick Add
+							</QuickAddLink>
+						</Button>
+						<Button variant="outline" asChild>
+							<Link to="/accounts">
+								<Landmark />
+								Connect a bank or upload a statement
+							</Link>
+						</Button>
+					</div>
 				}
 			/>
 		);
@@ -384,170 +480,11 @@ function TransactionList({
 						transaction={item.transaction}
 						plan={plan}
 						members={members}
+						waiting={waitingForBank(item.transaction, today, bringsIn)}
 						onEdit={onEdit}
 					/>
 				);
 			})}
 		</List>
-	);
-}
-
-/** What a Transaction or Split is assigned to, by name, with its Bucket's colour. */
-function assignmentOf(
-	transaction: Pick<TransactionRow, "bucketId" | "commitmentId"> &
-		Partial<Pick<TransactionRow, "goal">>,
-	plan: Pick<Plan, "buckets" | "commitments">,
-) {
-	if (transaction.goal) return { name: transaction.goal.name, color: null };
-	if (transaction.bucketId) {
-		const bucket = plan.buckets.find((b) => b.id === transaction.bucketId);
-		return {
-			name: bucket?.name ?? "An archived Bucket",
-			color: bucket ? asBucketColor(bucket.color) : null,
-		};
-	}
-	if (transaction.commitmentId) {
-		const commitment = plan.commitments.find((c) => c.id === transaction.commitmentId);
-		return { name: commitment?.name ?? "An ended Commitment", color: null };
-	}
-	return { name: "Unassigned", color: null };
-}
-
-/**
- * One Transaction: what it was, what it's assigned to and who it was For, and its amount. A split
- * one says how many Splits it has and what they're assigned to. Goal spending opens its Goal
- * instead: it only changes there.
- */
-function TransactionItem({
-	transaction,
-	plan,
-	members,
-	onEdit,
-	className,
-	...props
-}: Omit<ComponentProps<"li">, "children"> & {
-	transaction: TransactionRow;
-	plan: Pick<Plan, "buckets" | "commitments">;
-	members: MemberSummary[];
-	onEdit: (transaction: TransactionRow) => void;
-}) {
-	const split = transaction.splits.length > 0;
-	const assignment = assignmentOf(transaction, plan);
-	const title =
-		transaction.note ||
-		(transaction.goal
-			? "Goal spending"
-			: transaction.commitmentId
-				? "Payment"
-				: transaction.importedFrom
-					? "Imported"
-					: "Quick Add");
-	const who = forLabel(members, transaction.for);
-	const amount = formatMoney(transaction.amountCents);
-	// A pending charge may still change, or go, until the bank posts it (and its copy takes its place).
-	const spokenTitle = transaction.pending ? `${title} (pending)` : title;
-	// Where an imported Transaction came from, or a Quick Add's bank copy, after what it's assigned to.
-	const from = transaction.importedFrom
-		? ` · ${transaction.importedFrom}`
-		: transaction.matchedIn
-			? ` · Matched in ${transaction.matchedIn}`
-			: "";
-	const spokenFrom = transaction.importedFrom
-		? `, from ${transaction.importedFrom}`
-		: transaction.matchedIn
-			? `, Matched in ${transaction.matchedIn}`
-			: "";
-	// A side of a Transfer counts nowhere; so does money back onto a card or loan until it's
-	// linked as a Refund. Either opens its Transfer and Refund link instead of the editor.
-	const { transfer } = transaction;
-	const moneyBack = transaction.amountCents < 0;
-	const refund = transaction.refundOf !== null;
-	// Filed by categorization and not yet looked at: marked, so a Parent can tap to check it.
-	const autoFiled = transaction.autoFiled !== null && !split && !transfer && !refund && !moneyBack;
-	const detail = transaction.goal
-		? `From the ${assignment.name} Goal`
-		: transfer
-			? transferDetail(transfer)
-			: refund
-				? `Refund · ${assignment.name}${from}`
-				: moneyBack
-					? `Money back${from}`
-					: split
-						? `Split across ${transaction.splits.length} · ${[
-								...new Set(transaction.splits.map((s) => assignmentOf(s, plan).name)),
-							].join(", ")}${from}`
-						: `${assignment.name} · ${who}${from}`;
-	const rowClassName = cn(
-		"grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-(--card-pad) py-3.5 text-start",
-		"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60",
-		"focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
-	);
-	const content = (
-		<>
-			{transfer ? (
-				<Tile aria-hidden="true">
-					<ArrowLeftRight className="size-4" />
-				</Tile>
-			) : split ? (
-				<Tile aria-hidden="true">
-					<SplitIcon className="size-4" />
-				</Tile>
-			) : (
-				<Tile aria-hidden="true" bucket={assignment.color ?? undefined}>
-					{transaction.goal ? <Target /> : monogram(assignment.name)}
-				</Tile>
-			)}
-			<span className="grid min-w-0 gap-0.5">
-				<span className="flex min-w-0 items-center gap-1.5">
-					<span className="truncate text-sm font-medium">{title}</span>
-					{transaction.pending ? (
-						<Badge aria-hidden="true" dot className="h-4.5 px-1.5 text-[11px]">
-							Pending
-						</Badge>
-					) : null}
-					{autoFiled ? (
-						<Badge aria-hidden="true" className="h-4.5 px-1.5 text-[11px]">
-							<Sparkles />
-							Auto
-						</Badge>
-					) : null}
-				</span>
-				<span className="truncate text-[13px] text-muted-foreground">{detail}</span>
-			</span>
-			<span className="text-sm font-semibold tabular-nums">{amount}</span>
-		</>
-	);
-	return (
-		<li data-slot="list-row" className={className} {...props}>
-			{transaction.goal ? (
-				<Link
-					to="/goals/$goalId"
-					params={{ goalId: transaction.goal.id }}
-					aria-label={`${spokenTitle}, ${amount}, from the ${assignment.name} Goal`}
-					className={rowClassName}
-				>
-					{content}
-				</Link>
-			) : (
-				<button
-					type="button"
-					aria-label={
-						transfer
-							? `${spokenTitle}, ${amount}, ${detail.replace(" · ", ", ").replace(" → ", " to ")}`
-							: refund
-								? `${spokenTitle}, ${amount}, Refund, ${assignment.name}${spokenFrom}`
-								: moneyBack
-									? `${spokenTitle}, ${amount}, Money back${spokenFrom}`
-									: split
-										? `${spokenTitle}, ${amount}, ${detail.replace(" · ", ": ")}`
-										: `${spokenTitle}, ${amount}, ${assignment.name}${autoFiled ? " (filed automatically)" : ""}, For ${who}${spokenFrom}`
-					}
-					onClick={() => onEdit(transaction)}
-					className={rowClassName}
-				>
-					{content}
-				</button>
-			)}
-		</li>
 	);
 }

@@ -9,27 +9,33 @@ import {
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
-import { List, ListRow } from "@noodle/ui/components/list";
+import { List } from "@noodle/ui/components/list";
 import { Meter } from "@noodle/ui/components/meter";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
-import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound, useHydrated } from "@tanstack/react-router";
 import { ChartColumn, ChevronLeft, Pencil } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { asBucketColor, availableParts } from "../../../buckets";
 import { BucketDetails } from "../../../components/bucket-editor";
-import { DateTile } from "../../../components/coming-up";
 import { SaveFailed } from "../../../components/plan-editing";
 import { PlanHistoryList } from "../../../components/plan-history";
 import { PlanAmountForm } from "../../../components/plan-scope-field";
 import { AllowanceBars, ChartCard, TrendLines } from "../../../components/report-charts";
 import { TermHelp } from "../../../components/term-help";
-import { formatMoney, fullDay, monthName } from "../../../format";
+import { EditTransactionSheet, TransactionItem } from "../../../components/transaction-list";
+import { formatMoney, monthName } from "../../../format";
 import { usePlanChange, withAllowance, withoutBucket } from "../../../plan-changes";
-import { bucketQuery, monthQuery, planHistoryQuery, useMonthState } from "../../../queries";
+import {
+	bucketQuery,
+	membersQuery,
+	monthQuery,
+	planHistoryQuery,
+	useMonthState,
+} from "../../../queries";
 import { periodLabel, type ReportTable } from "../../../reports";
 import { BUCKET_MONTHS } from "../../../server/buckets";
 import { archiveBucket, setAllowance } from "../../../server/plan";
@@ -129,7 +135,7 @@ function BucketPage() {
 				)}
 				<History months={data.months} color={current?.color ?? record.color} />
 				{open ? (
-					<BucketTransactions month={month} bucketId={id} />
+					<BucketTransactions month={month} bucketId={id} parentId={parentId} />
 				) : (
 					<Section aria-labelledby="bucket-transactions">
 						<SectionHeader id="bucket-transactions" title="Transactions" />
@@ -319,12 +325,24 @@ function History({ months, color }: { months: BucketMonth[]; color: number }) {
 	);
 }
 
-/** This month's Transactions in the Bucket, newest first; the Transactions list has the rest. */
-function BucketTransactions({ month, bucketId }: { month: MonthKey; bucketId: string }) {
+/**
+ * This month's Transactions in the Bucket, newest first, each opening the editor as on
+ * Transactions; the Transactions list has the rest.
+ */
+function BucketTransactions({
+	month,
+	bucketId,
+	parentId,
+}: {
+	month: MonthKey;
+	bucketId: string;
+	parentId: string;
+}) {
 	const list = useSuspenseInfiniteQuery(transactionsQuery(month, { bucket: bucketId })).data;
-	const all = list.pages.flatMap((p) => p.transactions);
-	const more = all.length > RECENT_TRANSACTIONS || list.pages.at(-1)?.next != null;
-	const shown = all.slice(0, RECENT_TRANSACTIONS);
+	const { plan, asOf } = useSuspenseQuery(monthQuery(month)).data;
+	const members = useQuery(membersQuery()).data ?? [];
+	const [editing, setEditing] = useState<TransactionRow | null>(null);
+	const shown = list.pages.flatMap((p) => p.transactions).slice(0, RECENT_TRANSACTIONS);
 	return (
 		<Section aria-labelledby="bucket-transactions">
 			<SectionHeader
@@ -334,16 +352,23 @@ function BucketTransactions({ month, bucketId }: { month: MonthKey; bucketId: st
 					shown.length > 0 ? (
 						<Button variant="ghost" size="sm" asChild>
 							<Link to="/transactions/$month" params={{ month }} search={{ bucket: bucketId }}>
-								{more ? "See all" : "In Transactions"}
+								All in Transactions
 							</Link>
 						</Button>
 					) : undefined
 				}
 			/>
 			{shown.length > 0 ? (
-				<List>
-					{shown.map((t) => (
-						<TransactionLine key={t.id} transaction={t} bucketId={bucketId} />
+				<List aria-label={`Latest in ${monthName(month)}`}>
+					{shown.map((transaction) => (
+						<TransactionItem
+							key={transaction.id}
+							transaction={transaction}
+							plan={plan}
+							members={members}
+							dated
+							onEdit={setEditing}
+						/>
 					))}
 				</List>
 			) : (
@@ -351,40 +376,13 @@ function BucketTransactions({ month, bucketId }: { month: MonthKey; bucketId: st
 					Nothing spent from it yet this month.
 				</Card>
 			)}
+			<EditTransactionSheet
+				transaction={editing}
+				today={asOf}
+				parentId={parentId}
+				onClose={() => setEditing(null)}
+			/>
 		</Section>
-	);
-}
-
-function TransactionLine({
-	transaction,
-	bucketId,
-}: {
-	transaction: TransactionRow;
-	bucketId: string;
-}) {
-	const split = transaction.splits.length > 0;
-	// A split Transaction counts here only for its Splits in this Bucket.
-	const amount = split
-		? transaction.splits
-				.filter((s) => s.bucketId === bucketId)
-				.reduce((sum, s) => sum + s.amountCents, 0)
-		: transaction.amountCents;
-	const title = transaction.note || (transaction.importedFrom ? "Imported" : "Quick Add");
-	const meta = [
-		transaction.pending ? "Pending" : null,
-		split ? `Part of ${formatMoney(transaction.amountCents)}` : null,
-		transaction.importedFrom,
-	]
-		.filter(Boolean)
-		.join(" · ");
-	return (
-		<ListRow
-			aria-label={`${title}${transaction.pending ? " (pending)" : ""}, ${fullDay(transaction.date)}, ${formatMoney(amount)}`}
-			leading={<DateTile date={transaction.date} />}
-			title={title}
-			meta={meta || undefined}
-			trailing={<span className="text-sm font-medium tabular-nums">{formatMoney(amount)}</span>}
-		/>
 	);
 }
 

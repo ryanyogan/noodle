@@ -93,17 +93,23 @@ export const forFilterSchema = z.union([ulidSchema, z.literal("everyone")]);
 
 export type TransactionsPage = { transactions: TransactionRow[]; next: TransactionCursor | null };
 
+/** What a Transactions search looks for in notes, at most this long. */
+export const SEARCH_MAX = 60;
+
 /**
- * One page of a month's Transactions, newest first, filtered by Bucket and by who it was For.
- * Never the other Parent's Personal Allowance Transactions, whatever the filters.
+ * One page of a month's Transactions (or, with no month, every month's), newest first, filtered
+ * by Bucket, by who it was For, by Account and by words in the note. Never the other Parent's
+ * Personal Allowance Transactions, whatever the filters.
  */
 export const getTransactions = createServerFn({ method: "GET" })
 	.middleware([householdMiddleware])
 	.validator(
 		z.object({
-			month: monthKeySchema,
+			month: monthKeySchema.optional(),
 			bucketId: ulidSchema.optional(),
 			forMember: forFilterSchema.optional(),
+			accountId: ulidSchema.optional(),
+			search: z.string().trim().max(SEARCH_MAX).optional(),
 			after: z.object({ date: dayKeySchema, id: ulidSchema }).optional(),
 		}),
 	)

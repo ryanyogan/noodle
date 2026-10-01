@@ -22,8 +22,11 @@ import {
 
 export type { Assignment, SplitRow, TransactionRow };
 
-/** The list's filters: a Bucket, and who it was For (a Member, or "everyone"). */
-export type TransactionFilters = { bucket?: string; for?: string };
+/**
+ * The list's filters: a Bucket, who it was For (a Member, or "everyone"), an Account, and words
+ * in the note.
+ */
+export type TransactionFilters = { bucket?: string; for?: string; account?: string; q?: string };
 
 /**
  * Every cached list of a month's Transactions, whatever the filters. Kept under the month, so
@@ -39,8 +42,31 @@ export const transactionsQuery = (month: MonthKey, filters: TransactionFilters) 
 		queryKey: [...transactionsKey(month), filters],
 		queryFn: ({ pageParam }) =>
 			getTransactions({
-				data: { month, bucketId: filters.bucket, forMember: filters.for, after: pageParam },
+				data: {
+					month,
+					bucketId: filters.bucket,
+					forMember: filters.for,
+					accountId: filters.account,
+					search: filters.q || undefined,
+					after: pageParam,
+				},
 			}),
+		initialPageParam: undefined as TransactionCursor | undefined,
+		getNextPageParam: (page) => page.next ?? undefined,
+	});
+
+/**
+ * Every cached list of an Account's Transactions (across months). Kept under "months", so a
+ * change that refetches every month refetches these too.
+ */
+export const accountTransactionsKey = (accountId: string) =>
+	[...monthsKey, "account-transactions", accountId] as const;
+
+/** An Account's latest Transactions, in every month, newest first (its page lists a few). */
+export const accountTransactionsQuery = (accountId: string) =>
+	infiniteQueryOptions({
+		queryKey: accountTransactionsKey(accountId),
+		queryFn: ({ pageParam }) => getTransactions({ data: { accountId, after: pageParam } }),
 		initialPageParam: undefined as TransactionCursor | undefined,
 		getNextPageParam: (page) => page.next ?? undefined,
 	});
@@ -210,9 +236,15 @@ export async function applyTransactionChange(queryClient: QueryClient, change: T
 	if (previousMonth) {
 		queryClient.setQueryData(monthKey, withTransactionChange(previousMonth, change));
 	}
-	const previousLists = queryClient.getQueriesData<InfiniteData<TransactionsPage>>({
-		queryKey: transactionsKey(month),
-	});
+	const previousLists = [
+		...queryClient.getQueriesData<InfiniteData<TransactionsPage>>({
+			queryKey: transactionsKey(month),
+		}),
+		// An Account's list holds Transactions from any month.
+		...queryClient.getQueriesData<InfiniteData<TransactionsPage>>({
+			queryKey: [...monthsKey, "account-transactions"],
+		}),
+	];
 	for (const [queryKey, list] of previousLists) {
 		if (list) queryClient.setQueryData(queryKey, withRowChange(list, change));
 	}

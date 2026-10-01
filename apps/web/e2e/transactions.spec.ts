@@ -180,6 +180,100 @@ test("the list filters by Bucket and by who it was For", async ({ browser }) => 
 	await page.context().close();
 });
 
+test("the list searches notes, and the editor says what's missing before it saves", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await setUp(page);
+	await openTransactions(page);
+
+	await page.getByLabel("Search notes and merchants").fill("hockey");
+	await expect(page).toHaveURL(/q=hockey/);
+	await expect(list(page).getByRole("button")).toHaveCount(1);
+	await expect(row(page, "Pro Hockey Life")).toBeVisible();
+	await page.reload();
+	await expect(page.getByLabel("Search notes and merchants")).toHaveValue("hockey");
+	await expect(list(page).getByRole("button")).toHaveCount(1);
+	await page.getByLabel("Search notes and merchants").fill("");
+	await expect(list(page).getByRole("button")).toHaveCount(2);
+
+	// An empty amount is said beside the form, not by the browser, and nothing is saved.
+	await row(page, "Costco").click();
+	await editSheet(page).getByLabel("Amount").fill("");
+	await editSheet(page).getByRole("button", { name: "Save" }).click();
+	await expect(editSheet(page).getByRole("alert")).toHaveText(
+		"Enter the amount in dollars, like 12 or 85.50.",
+	);
+	await expect(editSheet(page).getByLabel("Amount")).toHaveAttribute("aria-invalid", "true");
+	// Closing it gives focus back to the row it was opened from.
+	await page.keyboard.press("Escape");
+	await expect(editSheet(page)).toBeHidden();
+	await expect(row(page, "Costco")).toBeFocused();
+	await expect(row(page, "Costco")).toHaveAccessibleName("Costco, $85.50, Groceries, For Everyone");
+	await page.context().close();
+});
+
+test("an Account lists its Transactions, and Transactions filters by it", async ({ browser }) => {
+	const page = await signedInPage(browser, parent.email);
+	await setUp(page);
+	await quickAdd(page, "12", "Hockey", "Chipotle");
+
+	// A card whose statement has Costco's bank copy, a tipped Chipotle, and Trader Joe's.
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
+	await page.getByLabel("Name").fill("Visa");
+	await page.getByLabel("Kind").selectOption("credit-card");
+	await page.getByLabel("Owed now").fill("800");
+	await page.getByRole("button", { name: "Add Account" }).click();
+	await page.getByRole("link", { name: /^Visa, / }).click();
+	const today = await page.evaluate(() => new Date().toLocaleDateString("en-US"));
+	const csv = [
+		"Transaction Date,Description,Debit,Credit",
+		`${today},COSTCO WHSE #1042,85.50,`,
+		`${today},CHIPOTLE 1234,14.40,`,
+		`${today},TRADER JOE'S #552,42.17,`,
+	].join("\n");
+	await page.getByRole("button", { name: "Upload statement" }).click();
+	const upload = page.getByRole("dialog", { name: "Upload a statement" });
+	await upload
+		.getByLabel("Statement file")
+		.setInputFiles({ name: "visa.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+	await upload.getByRole("button", { name: "Import 3 lines" }).click();
+	await expect(upload).toBeHidden();
+
+	// The Account's page lists them: Costco as its Matched Quick Add, the others as brought in.
+	const latest = page.getByRole("list", { name: "Latest Transactions in Visa" });
+	await expect(latest.getByRole("button")).toHaveCount(3);
+	await expect(
+		latest.getByRole("button", {
+			name: /^Costco, \$85\.50, Groceries, For Everyone, Matched in Visa$/,
+		}),
+	).toBeVisible();
+	await expect(latest.getByRole("button", { name: /^TRADER JOE'S #552, / })).toBeVisible();
+
+	// Matching keeps what was typed in the editor: the note is saved with the Match.
+	await page.getByRole("link", { name: "All in Transactions" }).click();
+	await expect(page).toHaveURL(/account=/);
+	await expect(page.getByLabel("Account", { exact: true })).toHaveValue(/.+/);
+	await expect(list(page).getByRole("button")).toHaveCount(3);
+	await page.getByLabel("Account", { exact: true }).selectOption({ label: "All Accounts" });
+	await expect(row(page, "Pro Hockey Life")).toHaveAccessibleName(
+		"Pro Hockey Life, $64.99, Groceries, For Everyone, waiting for the bank’s copy",
+	);
+	await row(page, "Chipotle").click();
+	await editSheet(page).getByLabel("Note").fill("Chipotle lunch");
+	const possible = editSheet(page).getByRole("region", { name: "Possible match" });
+	await possible.getByRole("button", { name: /^Match with CHIPOTLE 1234, \$14\.40/ }).click();
+	await expect(editSheet(page)).toBeHidden();
+	await expect(row(page, "Chipotle lunch")).toHaveAccessibleName(
+		"Chipotle lunch, $12, Hockey, For Everyone, Matched in Visa",
+	);
+	await page.reload();
+	await expect(row(page, "Chipotle lunch")).toHaveAccessibleName(
+		"Chipotle lunch, $12, Hockey, For Everyone, Matched in Visa",
+	);
+	await page.context().close();
+});
+
 test("on a phone, Transactions is in the tab bar either side of Quick Add", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email, {
 		viewport: { width: 393, height: 852 },
@@ -197,5 +291,14 @@ test("on a phone, Transactions is in the tab bar either side of Quick Add", asyn
 	await nav(page).getByRole("link", { name: "Transactions" }).tap();
 	await expect(page.getByRole("heading", { level: 1 })).toContainText("Transactions");
 	await expect(page.getByText(/^No Transactions in /)).toBeVisible();
+	// It says how to get some in.
+	await expect(
+		page.getByRole("link", { name: "Connect a bank or upload a statement" }),
+	).toBeVisible();
+	await expect(page.getByRole("main").getByRole("link", { name: "Quick Add" })).toBeVisible();
+	const overflows = await page.evaluate(
+		() => document.documentElement.scrollWidth > window.innerWidth,
+	);
+	expect(overflows).toBe(false);
 	await page.context().close();
 });

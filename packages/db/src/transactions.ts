@@ -499,25 +499,46 @@ function matching(viewer: Viewer, bucketId?: string, forMember?: string): SQL | 
 }
 
 /**
- * One page of a month's Transactions that `viewer` may see, newest first, optionally only those
- * in a Bucket and only those For a Member (or For the whole Household). `after` continues from
- * a previous page. A Transaction split partly into the other Parent's Personal Allowance shows
- * only its other Splits, with their sum as its amount and no note.
+ * Transactions in an Account: brought in from it, spent from a Goal on it, or a Quick Add Matched
+ * with a line brought in from it (the Matched copy itself is never listed).
+ */
+const inAccount = (accountId: string) =>
+	or(
+		eq(transactions.accountId, accountId),
+		sql`exists (select 1 from matches m join transactions c on c.id = m.imported_id
+			where m.quick_add_id = ${transactions.id} and m.removed_at is null
+			and c.account_id = ${accountId})`,
+	) as SQL;
+
+/** Characters LIKE reads as wildcards, escaped (with "!") so a search finds them as typed. */
+const likeEscaped = (text: string) => text.replace(/[!%_]/g, (c) => `!${c}`);
+
+/**
+ * One page of the Transactions that `viewer` may see, newest first: in a month (or in every
+ * month), optionally only those in a Bucket, those For a Member (or For the whole Household),
+ * those in an Account, and those whose note has `search` in it. `after` continues from a
+ * previous page. A Transaction split partly into the other Parent's Personal Allowance shows only
+ * its other Splits, with their sum as its amount and no note, so a search never finds it by it.
  */
 export async function loadTransactionsPage(
 	db: Db,
 	viewer: Viewer,
 	query: {
-		month: MonthKey;
+		/** Left out for every month (an Account's list). */
+		month?: MonthKey;
 		bucketId?: string;
 		/** A Member's ID, or "everyone" for spending For the whole Household. */
 		forMember?: string;
+		accountId?: string;
+		/** Words in the note (the merchant, for imported ones), any case. */
+		search?: string;
 		after?: TransactionCursor;
 		limit: number;
 	},
 ): Promise<{ transactions: TransactionRow[]; next: TransactionCursor | null }> {
 	const householdId = viewer.householdId;
 	const partly = partlyPrivate(viewer);
+	const search = query.search?.trim();
 	const rows = await db
 		.select({
 			id: transactions.id,
@@ -564,9 +585,13 @@ export async function loadTransactionsPage(
 		.where(
 			and(
 				visibleTo(viewer),
-				gte(transactions.date, `${query.month}-01`),
-				lt(transactions.date, nextMonthStart(query.month)),
+				query.month ? gte(transactions.date, `${query.month}-01`) : undefined,
+				query.month ? lt(transactions.date, nextMonthStart(query.month)) : undefined,
 				matching(viewer, query.bucketId, query.forMember),
+				query.accountId ? inAccount(query.accountId) : undefined,
+				search
+					? sql`(not ${partly} and ${transactions.note} like ${`%${likeEscaped(search)}%`} escape '!')`
+					: undefined,
 				query.after
 					? or(
 							lt(transactions.date, query.after.date),
