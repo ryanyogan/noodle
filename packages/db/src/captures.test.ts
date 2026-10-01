@@ -13,7 +13,7 @@ import {
 	loadMatch,
 	loadTransactionsPage,
 	revokeCaptureToken,
-	setBaseline,
+	setTakeHomePay,
 } from "./index";
 import { members } from "./schema";
 import { testDb } from "./test-db";
@@ -48,7 +48,7 @@ beforeEach(async () => {
 		name: "Sam",
 		clerkUserId: "clerk-sam",
 	});
-	await setBaseline(db, { householdId, memberId: parentId, month, amountCents: 600_000 });
+	await setTakeHomePay(db, { householdId, memberId: parentId, month, amountCents: 600_000 });
 	await addBucket(db, {
 		householdId,
 		memberId: parentId,

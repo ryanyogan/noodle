@@ -198,7 +198,7 @@ function AskLinkButton({ link }: { link: AskLink }) {
 					to="/explore/afford"
 					search={{ kind: "anything", name: link.name || undefined, price: link.price }}
 				>
-					Open in Explore
+					Open Can we afford it?
 				</Link>,
 			);
 	}

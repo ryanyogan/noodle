@@ -13,7 +13,6 @@ import {
 	addMonths,
 	type DayKey,
 	dayKeyAt,
-	earmarkOf,
 	HEALTH_HABIT_MONTHS,
 	HEALTH_MONTHS_AHEAD,
 	MAX_PROJECTION_MONTHS,
@@ -22,6 +21,7 @@ import {
 	monthOfDay,
 	type PlanWarning,
 	planHealth,
+	setAsideOf,
 	type YearMonth,
 	yearGrid,
 } from "@noodle/domain";
@@ -101,8 +101,8 @@ function projectionGoals(goals: GoalRecords, month: MonthKey) {
 		id: g.id,
 		target: g.target,
 		targetDate: g.targetDate,
-		saved: earmarkOf(g.id, goals.changes),
-		fundedThisMonth: earmarkOf(
+		saved: setAsideOf(g.id, goals.changes),
+		fundedThisMonth: setAsideOf(
 			g.id,
 			goals.changes.filter((c) => c.kind === "funding" && c.month === month),
 		),

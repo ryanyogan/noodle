@@ -8,7 +8,7 @@ export type MonthlySpend = { bucketId: string; month: MonthKey; amount: Cents };
 
 /**
  * The first month whose leftovers can carry into `month`: the first month before it that any
- * Bucket was Rolling. Null when none was, so nothing rolls over and no history is needed.
+ * Bucket carrying over. Null when none was, so nothing rolls over and no history is needed.
  */
 export function rolloverSince(
 	records: Pick<PlanRecords, "rolling">,
@@ -26,9 +26,9 @@ export function rolloverSince(
 /**
  * What each Bucket carries into `month`, per Bucket ID (Buckets carrying nothing are left out).
  * A month's leftover (allowance, plus what rolled into it, plus Moves, less spending) carries
- * into the next month only if the Bucket was Rolling in that month; overspending carries too, as
- * a negative amount, unless it was Covered. A Fresh-start month, or a month the Bucket wasn't in
- * the Plan, carries nothing. So setting a Bucket Rolling or Fresh-start this month changes what
+ * into the next month only if the Bucket carrying over in that month; overspending carries too, as
+ * a negative amount, unless it was Covered. A resets monthly month, or a month the Bucket wasn't in
+ * the Plan, carries nothing. So setting a Bucket carries over or resets monthly this month changes what
  * rolls into next month, never what rolled into this one.
  */
 export function rolledOver({
@@ -51,7 +51,7 @@ export function rolledOver({
 	return carry;
 }
 
-/** What a month's Rolling Buckets carry into the next, per Bucket ID. */
+/** What a month's Buckets that carry over carry into the next, per Bucket ID. */
 const carryOf = (state: MonthState): Record<string, Cents> =>
 	Object.fromEntries(
 		state.buckets.filter((b) => b.rolling && b.left !== 0).map((b) => [b.id, b.left]),
@@ -100,7 +100,7 @@ export type BucketMonth = {
 	/** Moved in, less moved out. */
 	moved: Cents;
 	spent: Cents;
-	/** Left at the month's end (so far, in a month not over yet): what a Rolling Bucket carries on. */
+	/** Left at the month's end (so far, in a month not over yet): what a Bucket that carries over carries on. */
 	left: Cents;
 };
 

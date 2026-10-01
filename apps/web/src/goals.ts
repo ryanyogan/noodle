@@ -51,12 +51,12 @@ export type AccountView = AccountRecord & {
 	holdsMoney: boolean;
 	/** The latest balance entered, less Goal spending since. Null until one is entered. */
 	balance: Cents | null;
-	/** Each non-archived Goal's Earmark on this Account. */
+	/** Each non-archived Goal's set-aside money on this Account. */
 	earmarks: { goal: GoalRecord; amount: Cents }[];
 	earmarked: Cents;
 	/** Null until the Account has a balance; negative when over-claimed. */
 	unclaimed: Cents | null;
-	/** How much more the Earmarks are than the balance, or 0. */
+	/** How much more what Goals have set aside are than the balance, or 0. */
 	overClaimedBy: Cents;
 };
 
@@ -64,7 +64,7 @@ export type GoalView = GoalRecord & {
 	state: GoalState;
 	account: AccountRecord | null;
 	progress: GoalProgress;
-	/** Every change to its Earmark, newest first. */
+	/** Every change to what it has set aside, newest first. */
 	changes: GoalChange[];
 };
 
@@ -152,7 +152,7 @@ export const touchesGoals = { goals: true } as const;
 const isGoalsChange = (mutation: Mutation<unknown, Error, unknown, unknown>) =>
 	mutation.options.meta?.goals === true;
 
-/** The server's guard refused the change (e.g. more than the Earmark); retrying won't help. */
+/** The server's guard refused the change (e.g. more than what's set aside); retrying won't help. */
 export class GoalRefused extends Error {
 	constructor(message = "Refused") {
 		super(message);
@@ -290,7 +290,7 @@ export type AddGoalVariables = {
 	targetCents: Cents;
 	targetDate: DayKey | null;
 	claimId: string;
-	/** Unclaimed money already set aside for it; 0 for none. */
+	/** not set aside money already set aside for it; 0 for none. */
 	claimCents: Cents;
 };
 
@@ -353,7 +353,7 @@ export const withGoalCompleted = (data: GoalsData, { goalId }: { goalId: string 
 export const withGoalArchived = (data: GoalsData, { goalId }: { goalId: string }) =>
 	mapGoal(data, goalId, (g) => ({ ...g, archived: true }));
 
-/** Appends an Earmark change; the same one twice changes nothing. */
+/** Appends money set aside change; the same one twice changes nothing. */
 export const withChange = (data: GoalsData, change: GoalChange): GoalsData =>
 	data.changes.some((c) => c.id === change.id)
 		? data
@@ -367,7 +367,7 @@ export const withoutChange = (data: GoalsData, id: string): GoalsData => ({
 export type ClaimVariables = {
 	claimId: string;
 	goalId: string;
-	/** Positive sets Unclaimed money aside; negative releases some of the Earmark. */
+	/** Positive sets not set aside money aside; negative releases some of what's set aside. */
 	amountCents: Cents;
 };
 
@@ -432,7 +432,7 @@ export const useSetEmergencyGoal = () =>
 		apply: (data, { goalId }): GoalsData => ({ ...data, emergencyGoalId: goalId }),
 	});
 
-/** Sets Unclaimed money aside for a Goal, or releases some back; refused beyond its Earmark. */
+/** Sets not set aside money aside for a Goal, or releases some back; refused beyond what it has set aside. */
 export const useClaimForGoal = () =>
 	useGoalChange({
 		save: (data: ClaimVariables) => refuseUnlessOk(claimForGoal({ data })),
@@ -521,8 +521,8 @@ export const withSpending = (data: GoalsData, v: SpendGoalVariables): GoalsData 
 };
 
 /**
- * Goal funding (a Move from this month's Free to Spend into a Goal's Earmark), undoing it, and
- * Goal spending (a Transaction out of the Earmark, never a Bucket). Each lands in the cached
+ * Goal funding (a Move from this month's Free to Spend into what a Goal has set aside), undoing it, and
+ * Goal spending (a Transaction out of what's set aside, never a Bucket). Each lands in the cached
  * Goals records, and funding in the month's inputs too, at once; each rolls back if the server
  * fails or refuses it. Funding's toast offers Undo; a failure's offers Retry.
  */
@@ -555,7 +555,7 @@ export function useGoalMoney() {
 			rollBack(queryClient, rollback);
 			if (error instanceof GoalRefused) {
 				toast(
-					`Some of ${v.goalName}’s Earmark is already spent or released, so it can’t be undone.`,
+					`Some of what ${v.goalName} has set aside is already spent or released, so it can’t be undone.`,
 					{
 						tone: "error",
 					},

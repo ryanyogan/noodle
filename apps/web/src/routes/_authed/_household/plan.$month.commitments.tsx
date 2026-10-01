@@ -15,6 +15,7 @@ import { lumpText } from "../../../components/coming-up";
 import { AddCommitment, CommitmentEditor } from "../../../components/commitment-editor";
 import { SaveFailed } from "../../../components/plan-editing";
 import { PlanSubPage } from "../../../components/plan-page";
+import { TermHelp } from "../../../components/term-help";
 import { formatMoney, monthName } from "../../../format";
 import { usePlanChange, usePlanChanges } from "../../../plan-changes";
 import { commitmentsQuery, useMonthState } from "../../../queries";
@@ -79,7 +80,8 @@ function PlanCommitments() {
 				) : state.editable ? (
 					<p className="px-1 text-sm text-muted-foreground">
 						Recurring, predictable costs: the mortgage, insurance, daycare, subscriptions. What
-						they’re expected to take each month comes out before the Buckets.
+						they’re expected to take each month comes out before the Buckets.{" "}
+						<TermHelp term="commitment" />
 					</p>
 				) : (
 					<Card className="p-(--card-pad) text-sm text-muted-foreground">
@@ -90,7 +92,11 @@ function PlanCommitments() {
 			</div>
 			{lumpy.length > 0 ? (
 				<Section aria-labelledby="lumpy-months">
-					<SectionHeader id="lumpy-months" title="Lumpy months ahead" />
+					<SectionHeader
+						id="lumpy-months"
+						title="Lumpy months ahead"
+						help={<TermHelp term="lumpy-month" />}
+					/>
 					<List>
 						{lumpy.map(({ month: lumpyMonth, lumps }) => (
 							<ListRow

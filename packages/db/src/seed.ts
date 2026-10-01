@@ -6,13 +6,13 @@ import {
 	type DayKey,
 	daysInMonth,
 	dueDatesIn,
-	type Lever,
 	type MonthKey,
 	merchantKey,
 	monthOfDay,
 	type PlanChangeValue,
 	perkKey,
 	type ReceiptLine,
+	type ScenarioChange,
 } from "@noodle/domain";
 import { eq } from "drizzle-orm";
 import type { Db } from "./index";
@@ -458,7 +458,7 @@ type BucketSpec = {
 	/** Allowance changes: [month index, cents]. */
 	allowances: [number, Cents][];
 	rolling?: boolean;
-	/** Rolling from this month index on (a Plan change). */
+	/** carries over from this month index on (a Plan change). */
 	rollingFrom?: number;
 	owner?: "alex" | "jordan";
 	archivedFrom?: number;
@@ -974,7 +974,7 @@ function busy(o: SeedOptions): SeedRows {
 	);
 	const setup = at(created, 21 * 60);
 
-	// Baseline: raised three months in ----------------------------------------------------------
+	// take-home pay: raised three months in ----------------------------------------------------------
 	const takeHomePayAt = [
 		[0, 1_240_000],
 		[4, 1_300_000],
@@ -1572,7 +1572,7 @@ function busy(o: SeedOptions): SeedRows {
 			incomeRow("checking", date, amount(i), note);
 		}
 	});
-	// Windfalls: a bonus (to the house), a tax refund (split), and last month's sale, undecided.
+	// Extra income: a bonus (to the house), a tax refund (split), and last month's sale, undecided.
 	const bonus = incomeRow("checking", dayIn(monthAt(2), 12), 420_000, "ACME CORP BONUS");
 	const refundIncome = incomeRow(
 		"checking",
@@ -1645,7 +1645,7 @@ function busy(o: SeedOptions): SeedRows {
 		});
 	});
 
-	// Goals and Earmarks ------------------------------------------------------------------------
+	// Goals and what Goals have set aside ------------------------------------------------------------------------
 	const goal = { emergency: id(), house: id(), trip: id(), laptop: id(), hockey: id() };
 	const goalSpecs = [
 		["emergency", "Emergency fund", "ally", 3_000_000, null, 0, 1_800_000, 50_000, [0, 8]],
@@ -1798,7 +1798,7 @@ function busy(o: SeedOptions): SeedRows {
 	balance("costco", 61_240, at(dayIn(thisMonth, 3), 9 * 60));
 	balance("kids", 310_000, at(dayIn(monthAt(0), 5), 20 * 60), alex);
 
-	// Moves: Covers, Windfall decisions, then Month-close Sweeps ---------------------------------------
+	// Moves: Covers, Extra income decisions, then Month-close Sweeps ---------------------------------------
 	const moved: Record<string, Cents[]> = {};
 	const addMoved = (key: string, i: number, cents: Cents) => {
 		const list = moved[key] ?? months.map(() => 0);
@@ -1848,8 +1848,8 @@ function busy(o: SeedOptions): SeedRows {
 		});
 		if ("toBucketId" in to) addMoved("fun", i, cents);
 	}
-	// Closed months: every Fresh-start Household Bucket's leftover swept to a Goal. Last month is
-	// still open, so This Month (in its first week) and the Check-in offer its Sweeps and Windfall.
+	// Closed months: every resets monthly Household Bucket's leftover swept to a Goal. Last month is
+	// still open, so This Month (in its first week) and the Check-in offer its Sweeps and Extra income.
 	const resetsMonthly = BUCKETS.filter(
 		(b) => !b.owner && !b.rolling && b.rollingFrom === undefined,
 	);
@@ -1887,7 +1887,7 @@ function busy(o: SeedOptions): SeedRows {
 	const scenarioRows: [
 		string,
 		string,
-		Lever[],
+		ScenarioChange[],
 		string,
 		number,
 		{ by: string; at: number } | null,

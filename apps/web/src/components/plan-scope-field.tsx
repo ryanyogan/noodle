@@ -66,7 +66,7 @@ export function PlanScopeField({
 }
 
 /**
- * An amount in the Plan (an allowance, the Baseline) and how far its change reaches, saved
+ * An amount in the Plan (an allowance, take-home pay) and how far its change reaches, saved
  * together. Without `withScope` (nothing set yet) it applies from the month on.
  */
 export function PlanAmountForm({

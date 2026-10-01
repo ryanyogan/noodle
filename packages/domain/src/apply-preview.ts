@@ -1,21 +1,21 @@
 import {
 	addedTerms,
 	addedUntil,
-	type Change,
 	changedTerms,
 	isAssumption,
 	rangeFrom,
+	type ScenarioChange,
 	whyNotApplicable,
 } from "./changes";
 import { type CommitmentTerms, dueDatesIn } from "./commitments";
 import {
-	type ChangeSubjects,
 	cadenceWords,
 	describeChange,
 	goalWords,
 	money,
 	OTHER_PERSONAL_ALLOWANCE,
 	ordinal,
+	type ScenarioChangeSubjects,
 	shortMonthName,
 } from "./describe-changes";
 import type { Cents } from "./money";
@@ -23,15 +23,15 @@ import type { MonthKey } from "./month";
 import { effective, type PlanRecords, planForMonth } from "./plan";
 
 // What applying a Scenario will write to the Plan, in words, before a Parent confirms it: each
-// Lever's Plan changes exactly as applyLevers (in @noodle/db) makes them, effective-dated
-// (ADR-0009). A value is written at the first month of the Lever's range and holds until a later
+// Change's Plan changes exactly as applyChanges (in @noodle/db) makes them, effective-dated
+// (ADR-0009). A value is written at the first month of the Change's range and holds until a later
 // month the Plan set on its own; a range's end writes the Plan's value back there.
 
 export type ApplyPreview = {
-	/** Each Lever applying changes, by index in the Scenario's Levers, and its Plan changes. */
+	/** Each Change applying changes, by index in the Scenario's Changes, and its Plan changes. */
 	changes: { lever: number; lines: string[] }[];
 	/**
-	 * Levers applying leaves out, and why: muted ones, assumptions (a one-off, growth), ones that
+	 * Changes applying leaves out, and why: muted ones, assumptions (a one-off, growth), ones that
 	 * change nothing, and ones whose Bucket, Commitment or Goal is no longer in the Plan. `asGoal`:
 	 * a one-off expense, which can become a Goal to save for it instead.
 	 */
@@ -44,10 +44,10 @@ export type ApplyPreviewInput = {
 	records: PlanRecords;
 	/** The Household's current month: applying starts no earlier. */
 	month: MonthKey;
-	levers: readonly Change[];
+	levers: readonly ScenarioChange[];
 	/** The Parent applying: only they change their Personal Allowance, and see its amounts. */
 	viewer: string;
-	goals: ChangeSubjects["goals"];
+	goals: ScenarioChangeSubjects["goals"];
 	accounts: readonly { id: string; name: string }[];
 };
 
@@ -81,7 +81,7 @@ const sameTerms = (a: CommitmentTerms, b: CommitmentTerms) =>
 export function applyPreview(input: ApplyPreviewInput): ApplyPreview {
 	const { records, month, levers, viewer } = input;
 	const preview: ApplyPreview = { changes: [], leftOut: [], blocked: [] };
-	const subjects: ChangeSubjects = {
+	const subjects: ScenarioChangeSubjects = {
 		...planForMonth(records, month),
 		goals: input.goals,
 		viewer,
@@ -116,9 +116,9 @@ export function applyPreview(input: ApplyPreviewInput): ApplyPreview {
 	return preview;
 }
 
-/** A Lever's Plan changes in words, or why it changes nothing. */
+/** A Change's Plan changes in words, or why it changes nothing. */
 function changeLines(
-	change: Change,
+	change: ScenarioChange,
 	range: { from: MonthKey; until: MonthKey | null },
 	input: ApplyPreviewInput,
 ): string[] | string {
@@ -214,7 +214,7 @@ function changeLines(
 		}
 		case "add-bucket": {
 			if (records.buckets.some((b) => b.id === change.bucketId)) return unchanged;
-			const kind = change.rolling ? "Rolling" : "Fresh-start";
+			const kind = change.rolling ? "carries over" : "resets monthly";
 			return [
 				`New Bucket ${change.name}: ${money(change.amount)} a month, ${kind}, ${from(start)}${until ? ` until ${shortMonthName(until)}` : ""}`,
 			];

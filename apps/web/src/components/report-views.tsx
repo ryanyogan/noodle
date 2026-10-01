@@ -351,7 +351,7 @@ export function tablesFor(report: ReportData, names: Names): Record<string, Repo
 					]),
 				},
 				habits: {
-					title: "Habits",
+					title: "Usually over or under",
 					columns: [
 						text("Bucket"),
 						text("Habit"),
@@ -370,7 +370,7 @@ export function tablesFor(report: ReportData, names: Names): Record<string, Repo
 				...(data.rolling.length
 					? {
 							rolling: {
-								title: "Rolled over",
+								title: "Carried over",
 								columns: [text("Bucket"), text("Month"), money("Carried into next month")],
 								rows: data.rolling.flatMap((r) =>
 									r.carried.map((c) => [
@@ -423,7 +423,7 @@ export function tablesFor(report: ReportData, names: Names): Record<string, Repo
 			const who = [...new Set(data.cells.map((c) => c.who))];
 			return {
 				people: {
-					title: "Spending For each Member",
+					title: "Spending for each person",
 					columns: [text("Period"), ...who.map((w) => money(names.label(w)))],
 					rows: report.periods.map((p) => [
 						period(p),
@@ -461,7 +461,12 @@ export function tablesFor(report: ReportData, names: Names): Record<string, Repo
 			return {
 				months: {
 					title: "Income by month",
-					columns: [text("Month"), money("Received"), money("Baseline"), money("Windfall")],
+					columns: [
+						text("Month"),
+						money("Received"),
+						money("Take-home pay"),
+						money("Extra income"),
+					],
 					rows: data.months.map((m) => [monthLabel(m.month), m.total, m.baseline, m.windfall]),
 				},
 				sources: {
@@ -1149,8 +1154,8 @@ function PlanView({ data, names, nav, tables }: ViewProps<"plan">) {
 			</ChartCard>
 			<ChartCard
 				className={cn(data.rolling.length ? "lg:col-span-2" : "lg:col-span-5", "lg:self-start")}
-				title="Habits"
-				description="Over or under Plan in most months"
+				title="Usually over or under"
+				description="Buckets over or under the Plan in most months"
 				table={tables.habits}
 			>
 				{habits.length ? (
@@ -1185,8 +1190,8 @@ function PlanView({ data, names, nav, tables }: ViewProps<"plan">) {
 			{data.rolling.length ? (
 				<ChartCard
 					className="lg:col-span-3"
-					title="Rolling balances"
-					description="What each Rolling Bucket carried into the next month"
+					title="Balances carried to next month"
+					description="What each Bucket that carries over took into the next month"
 					table={tables.rolling}
 				>
 					{data.rolling.length ? (
@@ -1354,7 +1359,7 @@ function PeopleView({ report, data, names, nav, tables }: ViewProps<"people">) {
 		<div className="grid gap-4 lg:grid-cols-5 lg:gap-6">
 			<ChartCard
 				className="lg:col-span-2"
-				title="Spending For each Member"
+				title="Spending for each person"
 				description="Shared spending counts evenly for each"
 				table={tables.people}
 			>
@@ -1454,7 +1459,7 @@ function GoalsView({ data, tables, report }: ViewProps<"goals">) {
 	return (
 		<div className="grid gap-4 lg:gap-6">
 			<ChartCard
-				title="Earmarked over time"
+				title="Set aside over time"
 				description="What each Goal had set aside at each month's end"
 				table={tables.goals}
 			>
@@ -1541,15 +1546,15 @@ function IncomeView({ data, nav, tables }: ViewProps<"income">) {
 				<Stat label="Received" value={formatMoney(total)} />
 				<Stat
 					index={1}
-					label="Windfalls"
+					label="Extra income"
 					value={formatMoney(extraIncomes)}
-					hint="above the Baseline"
+					hint="above your usual take-home pay"
 				/>
 			</Card>
 			<ChartCard
 				className="lg:col-span-3"
 				title="Income by month"
-				description="Up to the Baseline in ink; Windfalls above it in blue"
+				description="Up to your usual take-home pay in ink; Extra income above it in blue"
 				table={tables.months}
 			>
 				<PeriodBars
@@ -1564,7 +1569,7 @@ function IncomeView({ data, nav, tables }: ViewProps<"income">) {
 						})),
 						series: [
 							{ key: "regular", label: "Regular", color: "var(--chart-spend)" },
-							{ key: "windfall", label: "Windfall", color: "var(--chart-income)" },
+							{ key: "windfall", label: "Extra income", color: "var(--chart-income)" },
 						],
 					}}
 				/>

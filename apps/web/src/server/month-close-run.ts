@@ -16,7 +16,7 @@ import type { HouseholdChange } from "../household-changes";
 // The Month-close Workflow, one instance per Household and ended month. It starts on the
 // Household's 1st (see monthClosesToStart), proposes what there is to decide, and waits up to a
 // week for the Parents' decision (closeMonth sends it as an event once it has landed). When none
-// comes, it applies the defaults: leftovers Swept into the emergency Goal, the Windfall left for
+// comes, it applies the defaults: leftovers Swept into the emergency Goal, the Extra income left for
 // the Parents (ADR-0001). The database guard lets only one of the two close the month.
 
 export type MonthCloseParams = { householdId: string; timeZone: string; month: MonthKey };

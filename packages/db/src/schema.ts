@@ -3,12 +3,12 @@ import {
 	DEFAULT_CHECK_IN_DAY,
 	type DraftLabels,
 	INSIGHT_KINDS,
-	type LeverV1,
 	PERK_KINDS,
 	PERK_SOURCE_KINDS,
 	PLAN_CHANGE_KINDS,
 	type PlanChangeValue,
 	type ReceiptLine,
+	type ScenarioChangeV1,
 	type ScenarioJson,
 	type Weekday,
 } from "@noodle/domain";
@@ -36,7 +36,7 @@ export const households = sqliteTable("households", {
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.notNull()
 		.default(sql`(unixepoch() * 1000)`),
-	// The Goal the Household keeps for emergencies: suggested for Windfalls, and where Fresh-start
+	// The Goal the Household keeps for emergencies: suggested for Extra income, and where resets monthly
 	// leftovers are Swept when nobody decides at month-close.
 	emergencyGoalId: text("emergency_goal_id").references((): AnySQLiteColumn => goals.id),
 	// The day of the week the Household's Check-in falls on, 0 for Sunday to 6 for Saturday.
@@ -96,7 +96,7 @@ export const invites = sqliteTable(
 	],
 );
 
-// The Plan is stored effective-dated (see planForMonth in @noodle/domain): a Baseline or
+// The Plan is stored effective-dated (see planForMonth in @noodle/domain): take-home pay or
 // allowance set for a month holds for later months until set again. Months are "YYYY-MM".
 // Money is integer cents.
 
@@ -160,8 +160,8 @@ export const bucketAllowances = sqliteTable(
 	],
 );
 
-// Whether a Bucket is Rolling (1) or Fresh-start (0) from `month` onward, effective-dated like an
-// allowance. A Bucket with no row is Fresh-start.
+// Whether a Bucket carries over (1) or resets monthly (0) from `month` onward, effective-dated like an
+// allowance. A Bucket with no row is resets monthly.
 export const bucketRolling = sqliteTable(
 	"bucket_rolling",
 	{
@@ -356,9 +356,9 @@ export const csvMappings = sqliteTable("csv_mappings", {
 		.default(sql`(unixepoch() * 1000)`),
 });
 
-// A target the Household funds over time, held as an Earmark on one checking or savings Account
+// A target the Household funds over time, held as money set aside on one checking or savings Account
 // (ADR-0002). `target_date` is optional ("YYYY-MM-DD"); `from_month` is the month it was added.
-// A completed Goal keeps its Earmark; an archived one claims nothing.
+// A completed Goal keeps what it has set aside; an archived one claims nothing.
 export const goals = sqliteTable(
 	"goals",
 	{
@@ -382,8 +382,8 @@ export const goals = sqliteTable(
 	(t) => [index("goals_household_idx").on(t.householdId)],
 );
 
-// Unclaimed Account money set aside for a Goal, or released back to Unclaimed (negative). Not a
-// Move: the Plan is untouched. A Goal's Earmark is these, plus its Goal funding Moves, less the
+// not set aside Account money set aside for a Goal, or released back to not set aside (negative). Not a
+// Move: the Plan is untouched. A Goal's set-aside money is these, plus its Goal funding Moves, less the
 // Transactions assigned to it.
 export const earmarkClaims = sqliteTable(
 	"earmark_claims",
@@ -430,7 +430,7 @@ export const transactions = sqliteTable(
 		commitmentId: text("commitment_id").references(() => commitments.id),
 		// The Account it left; for Goal spending, the Goal's Account.
 		accountId: text("account_id").references(() => accounts.id),
-		// The Goal it's spent from, out of its Earmark (never a Bucket or Free to Spend).
+		// The Goal it's spent from, out of what it has set aside (never a Bucket or Free to Spend).
 		goalId: text("goal_id").references(() => goals.id),
 		// The Import that brought it in, and its line's ID in the Account (see imports).
 		importId: text("import_id").references(() => imports.id),
@@ -474,7 +474,7 @@ export const transactionFor = sqliteTable(
 // A portion of one Transaction with its own amount, assignment, and For. A split Transaction is
 // assigned only through its Splits (its own bucket_id, commitment_id, and For are empty), and its
 // Splits' amounts add up to its amount. Each Split is assigned to a Bucket, a Commitment, or a
-// Goal (Goal spending, out of its Earmark). `position` keeps the order they were entered in.
+// Goal (Goal spending, out of what it has set aside). `position` keeps the order they were entered in.
 export const splits = sqliteTable(
 	"splits",
 	{
@@ -611,10 +611,10 @@ export const refunds = sqliteTable(
 
 // A Move of planned money within one month's Plan (no real money moves): from a Bucket, or from
 // Free to Spend when `from_bucket_id` is null, to a Bucket (a Cover) or, for Goal funding, from
-// Free to Spend to a Goal's Earmark (`to_goal_id`, with `to_bucket_id` null). A `windfall` Move
-// comes from the month's Windfall (`from_bucket_id` null) to a Bucket or a Goal, never out of
-// Free to Spend. A `sweep` is a Fresh-start Bucket's leftover at the end of `month` (`from_bucket_id`)
-// into a Goal's Earmark (`to_goal_id`). Balances are derived from these rows (ADR-0004); undoing a
+// Free to Spend to what a Goal has set aside (`to_goal_id`, with `to_bucket_id` null). A `windfall` Move
+// comes from the month's Extra income (`from_bucket_id` null) to a Bucket or a Goal, never out of
+// Free to Spend. A `sweep` is a Bucket that resets monthly's leftover at the end of `month` (`from_bucket_id`)
+// into what a Goal has set aside (`to_goal_id`). Balances are derived from these rows (ADR-0004); undoing a
 // Move deletes its row.
 export const moves = sqliteTable(
 	"moves",
@@ -681,7 +681,7 @@ export const nudgePreferences = sqliteTable("nudge_preferences", {
 		.default(sql`(unixepoch() * 1000)`),
 });
 
-// A Scenario: a named set of Levers (JSON, see Lever in @noodle/domain) on the Plan, explored
+// A Scenario: a named set of Changes (JSON, see Change in @noodle/domain) on the Plan, explored
 // against it and never part of it until a Parent applies it.
 export const scenarios = sqliteTable(
 	"scenarios",
@@ -691,7 +691,7 @@ export const scenarios = sqliteTable(
 			.notNull()
 			.references(() => households.id),
 		name: text("name").notNull(),
-		levers: text("levers", { mode: "json" }).$type<ScenarioJson | LeverV1[]>().notNull(),
+		levers: text("levers", { mode: "json" }).$type<ScenarioJson | ScenarioChangeV1[]>().notNull(),
 		createdByMemberId: text("created_by_member_id").references(() => members.id),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()
@@ -721,7 +721,7 @@ export const planChanges = sqliteTable(
 			.notNull()
 			.references(() => members.id),
 		kind: text("kind", { enum: PLAN_CHANGE_KINDS }).notNull(),
-		/** The Bucket, Commitment or Goal; null for the Baseline. */
+		/** The Bucket, Commitment or Goal; null for take-home pay. */
 		targetId: text("target_id"),
 		/** The first month it takes effect. */
 		month: text("month").notNull(),
@@ -745,7 +745,7 @@ export const planChanges = sqliteTable(
 // refund). `date` is the day it came in, in the Household's time zone; `amount_cents` is what
 // came in, so it's positive. Kept apart from Transactions, whose amounts are money spent, so no
 // spending total can ever count it; Imports will write deposits here too. Income beyond the
-// month's Baseline is its Windfall.
+// month's take-home pay is its Extra income.
 export const income = sqliteTable(
 	"income",
 	{
@@ -772,7 +772,7 @@ export const income = sqliteTable(
 	],
 );
 
-// A month closed: the Parents decided its Sweeps and Windfall at month-close, or nobody did in time
+// A month closed: the Parents decided its Sweeps and Extra income at month-close, or nobody did in time
 // and the defaults were applied (`decided_by_member_id` null). One per Household and month; the
 // Moves it decided are written in the same batch, only while there is none yet.
 export const monthCloses = sqliteTable(

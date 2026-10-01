@@ -120,7 +120,7 @@ describe("assignedParts: what a Transaction adds to its month", () => {
 		});
 	});
 
-	it("takes a Split assigned to a Goal from its Earmark, never a Bucket or the month", () => {
+	it("takes a Split assigned to a Goal from what it has set aside, never a Bucket or the month", () => {
 		const parts = assignedParts(
 			costco([
 				split({ bucketId: "groceries" }, 15_000),

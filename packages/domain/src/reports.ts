@@ -491,7 +491,7 @@ export function cashFlow({
 	};
 }
 
-/** A Goal's Earmark at the end of each month (changes up to and including it). */
+/** A Goal's set-aside money at the end of each month (changes up to and including it). */
 export function setAsideHistory(
 	goalId: string,
 	changes: readonly SetAsideChange[],
@@ -532,7 +532,7 @@ export function projectedCompletion(
 	return addMonths(month, Math.ceil((goal.target - saved) / perMonth));
 }
 
-/** Income per month against its Baseline: what came in, and the Windfall beyond the Baseline. */
+/** Income per month against its take-home pay: what came in, and the Extra income beyond take-home pay. */
 export function incomeByMonth(
 	received: readonly { month: MonthKey; amount: Cents }[],
 	records: Pick<PlanRecords, "baselines">,

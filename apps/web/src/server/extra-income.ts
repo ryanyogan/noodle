@@ -1,9 +1,9 @@
 import {
 	addIncome,
-	decideWindfall as decideExtraIncomeInDb,
+	decideExtraIncome as decideExtraIncomeInDb,
 	type IncomeWriteResult,
 	removeIncome as removeIncomeInDb,
-	undoWindfall as undoExtraIncomeInDb,
+	undoExtraIncome as undoExtraIncomeInDb,
 } from "@noodle/db";
 import {
 	type Cents,
@@ -22,7 +22,7 @@ import { loadMonth, monthKeySchema } from "./month";
 import { notifyHousehold } from "./notify";
 import { dayKeySchema, ulidSchema } from "./schemas";
 
-// Income and Windfalls. Each write is idempotent per its client ULID; a write the database guard
+// Income and Extra income. Each write is idempotent per its client ULID; a write the database guard
 // refuses comes back as `{ ok: false }` rather than an error.
 
 export type { IncomeWriteResult };
@@ -32,7 +32,7 @@ const amountSchema = z.number().int().min(1).max(MAX_CENTS);
 const currentMonth = (household: Pick<HouseholdSummary, "timeZone">) =>
 	monthKeyAt(new Date(), household.timeZone);
 
-/** Windfalls are decided in the month they came in, or once it has ended; never ahead. */
+/** Extra income are decided in the month they came in, or once it has ended; never ahead. */
 function assertNotFuture(household: Pick<HouseholdSummary, "timeZone">, month: MonthKey) {
 	if (month > currentMonth(household)) throw new Error("That month hasn’t begun.");
 }
@@ -75,7 +75,7 @@ export const recordIncome = createServerFn({ method: "POST" })
 	});
 
 /**
- * Removes income recorded by mistake. Refused while the part of its month's Windfall already
+ * Removes income recorded by mistake. Refused while the part of its month's Extra income already
  * decided would no longer be covered.
  */
 export const removeIncome = createServerFn({ method: "POST" })
@@ -88,12 +88,12 @@ export const removeIncome = createServerFn({ method: "POST" })
 		return result;
 	});
 
-/** Refused Windfall Moves say what was left of the Windfall, to explain why. */
+/** Refused Extra income Moves say what was left of the Extra income, to explain why. */
 export type ExtraIncomeOutcome = { ok: true } | { ok: false; left: Cents };
 
 /**
- * Moves `amountCents` of a month's Windfall to a Goal's Earmark or one of the month's Buckets.
- * Refused unless the Windfall still has that much left, and the destination can take it.
+ * Moves `amountCents` of a month's Extra income to what a Goal has set aside or one of the month's Buckets.
+ * Refused unless the Extra income still has that much left, and the destination can take it.
  */
 export const decideExtraIncome = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
@@ -125,7 +125,7 @@ export const decideExtraIncome = createServerFn({ method: "POST" })
 		return { ok: true };
 	});
 
-/** Undoes a Windfall Move. Refused once a Goal it went to has spent the money. */
+/** Undoes Extra income Move. Refused once a Goal it went to has spent the money. */
 export const undoExtraIncome = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ moveId: ulidSchema, month: monthKeySchema }))

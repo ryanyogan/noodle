@@ -9,7 +9,7 @@ import {
 	importStatement,
 	loadReceipt,
 	loadUnfiledReceipt,
-	setBaseline,
+	setTakeHomePay,
 } from "@noodle/db";
 import { matches, members, receipts, transactions } from "@noodle/db/schema";
 import { testDb } from "@noodle/db/test-db";
@@ -48,7 +48,7 @@ beforeEach(async () => {
 		.insert(members)
 		.values({ id: "sam", householdId, kind: "parent", name: "Sam", clerkUserId: "clerk-sam" });
 	await addChild(db, { householdId, memberId: "maya", name: "Maya", color: 3 });
-	await setBaseline(db, { householdId, memberId: "alex", month, amountCents: 900_000 });
+	await setTakeHomePay(db, { householdId, memberId: "alex", month, amountCents: 900_000 });
 	for (const [bucketId, name] of [
 		["groceries", "Groceries"],
 		["eating-out", "Eating out"],

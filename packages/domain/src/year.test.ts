@@ -66,7 +66,7 @@ const actuals: YearActuals = {
 		// The other Parent's Personal Allowance, as its month's total only.
 		cell("2026-03", "bucket:mine", 25_000, true),
 		cell("2026-03", "unassigned", 10_000),
-		// Spent from a Goal's Earmark: not the month's money.
+		// Spent from what a Goal has set aside: not the month's money.
 		cell("2026-03", "goal:trip", 50_000),
 		cell("2026-09", "bucket:groceries", 40_000),
 	],
@@ -129,7 +129,7 @@ describe("yearGrid", () => {
 		});
 	});
 
-	it("marks a month before any Baseline", () => {
+	it("marks a month before any take-home pay", () => {
 		expect(at("2026-01")).toMatchObject({
 			noBaseline: true,
 			plan: { baseline: 0, commitments: 0, allowances: 0, freeToSpend: 0 },

@@ -52,7 +52,7 @@ export function PlanSubPage({
 	);
 }
 
-/** Each part of the Plan on the way from the Baseline to Free to Spend: its name and its page. */
+/** Each part of the Plan on the way from take-home pay to Free to Spend: its name and its page. */
 export const planParts: Record<
 	PlanPart,
 	{

@@ -62,7 +62,7 @@ import { goalsQuery, planAheadQuery, scenariosQuery } from "../../../queries";
 import { projectionGoals, useSaveScenario } from "../../../scenarios";
 
 // Affordability Checks: a home, a car or anything else, checked against the Plan, Goals and
-// Earmarks, each answered Comfortable, Stretch or Not Yet with its reasons, and one tap from a
+// what Goals have set aside, each answered Comfortable, Stretch or Not yet with its reasons, and one tap from a
 // Goal or a Scenario. Like Explore, it renders only in the browser (data-only SSR).
 
 const kinds = ["home", "car", "anything"] as const;
@@ -93,7 +93,7 @@ type Context = {
 	month: MonthKey;
 	plan: PlanNow;
 	commitments: { id: string; name: string; monthly: Cents }[];
-	/** Active Goals, with their Earmarks. */
+	/** Active Goals, with what their Goals have set aside. */
 	goals: { id: string; name: string; saved: Cents; accountId: string }[];
 	accounts: { id: string; holdsMoney: boolean }[];
 };
@@ -365,7 +365,7 @@ type HomeForm = {
 	insurancePerYear: Cents;
 	pmiRate: number;
 	hoaPerMonth: Cents;
-	/** Gross monthly income as entered; null to estimate it from the Baseline. */
+	/** Gross monthly income as entered; null to estimate it from take-home pay. */
 	gross: Cents | null;
 	goals: string[];
 	otherCash: Cents;
@@ -517,7 +517,7 @@ function HomeCheck({ context, form, onForm }: FormProps<HomeForm>) {
 					label="Gross income a month"
 					hint={
 						form.gross === null ? (
-							`Estimated from the ${dollars(context.plan.baseline)} Baseline, assuming take-home pay is ${TAKE_HOME_SHARE}% of gross. Enter yours for a truer answer.`
+							`Estimated from your ${dollars(context.plan.baseline)} take-home pay, assuming it’s ${TAKE_HOME_SHARE}% of gross. Enter yours for a truer answer.`
 						) : (
 							<>
 								Before tax, for both Parents.{" "}
@@ -645,7 +645,7 @@ function CarCheck({ context, form, onForm }: FormProps<CarForm>) {
 						lines={[
 							`Each way is compared over ${horizon === 1 ? "1 year" : `${horizon} years`}: what’s paid, plus running costs, less what the car is worth at the end (less anything still owed on it).`,
 							`The car loses ${form.depreciationRate}% of its value a year. A lease ends with nothing to keep, and is signed again on the same terms.`,
-							`Running a car (payment and running costs) up to ${AFFORDABILITY_LIMITS.carShare}% of the Baseline is Comfortable.`,
+							`Running a car (payment and running costs) up to ${AFFORDABILITY_LIMITS.carShare}% of take-home pay is Comfortable.`,
 							typicalLine(context.plan),
 						]}
 					/>
@@ -820,7 +820,7 @@ function CarComparison({
 type AnythingForm = {
 	name: string;
 	price: Cents;
-	/** At most one Goal whose Earmark goes toward it. */
+	/** At most one Goal whose set-aside money goes toward it. */
 	goals: string[];
 	otherCash: Cents;
 	/** Set aside each month; null for a typical month's Free to Spend. */
@@ -876,7 +876,7 @@ function AnythingCheck({ context, form, onForm }: FormProps<AnythingForm>) {
 					<Assumptions
 						lines={[
 							`Setting aside ${dollars(monthly)} a month, with no interest.`,
-							`Set aside already is Comfortable; within ${AFFORDABILITY_LIMITS.saveMonths} months of saving a Stretch; longer is Not Yet.`,
+							`Set aside already is Comfortable; within ${AFFORDABILITY_LIMITS.saveMonths} months of saving a Stretch; longer is Not yet.`,
 							typicalLine(context.plan),
 						]}
 					/>

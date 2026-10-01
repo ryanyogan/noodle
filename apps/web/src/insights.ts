@@ -1,5 +1,5 @@
 import type { InsightItem } from "@noodle/db";
-import { isOverlap, type Lever, leverPreset, type MonthKey } from "@noodle/domain";
+import { changePreset, isOverlap, type MonthKey, type ScenarioChange } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatMoney } from "./format";
@@ -21,11 +21,11 @@ export const insightLabel = (insight: Pick<InsightItem, "kind">) =>
 			: "Not charged lately";
 
 /**
- * What an Insight can be tried as in Explore, a Lever preset each: ending a Commitment it's about
+ * What an Insight can be tried as in Explore, a Change preset each: ending a Commitment it's about
  * (an Overlap, or one not charged lately), or a price increase as its Commitment's new terms, to
  * see what the new price costs. An Overlap offers ending each of its Commitments still in the
  * Plan. The same charge twice, a cost a Perk covers, or a merchant's price increase, has no
- * Lever to try.
+ * Change to try.
  */
 export function exploreTriesFor(
 	insight: Pick<InsightItem, "kind" | "commitments" | "transactions">,
@@ -34,8 +34,8 @@ export function exploreTriesFor(
 	const live = insight.commitments.filter(
 		(c) => c.endedFromMonth === null || c.endedFromMonth > current,
 	);
-	const tryAs = (name: string, change: Lever) => {
-		const preset = leverPreset(change);
+	const tryAs = (name: string, change: ScenarioChange) => {
+		const preset = changePreset(change);
 		return preset ? [{ name, preset }] : [];
 	};
 	switch (insight.kind) {

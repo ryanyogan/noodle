@@ -41,13 +41,13 @@ const changedQueries = {
 	members: membersQuery().queryKey,
 	/** What each Member cost earlier in the year: only edits to past spending change it. */
 	"for-earlier": forTotalsEarlierKey,
-	/** Accounts, Goals and their Earmarks. */
+	/** Accounts, Goals and what their Goals have set aside. */
 	goals: goalsQuery().queryKey,
 	/** Every Account's Imports. */
 	imports: ["imports"],
 	/** Bank Connections and how each one's Import stands. */
 	"bank-connections": bankConnectionsQuery().queryKey,
-	/** Scenarios and their Levers. */
+	/** Scenarios and their Changes. */
 	scenarios: scenariosQuery().queryKey,
 	/** The Household itself, as each screen's viewer sees it. */
 	viewer: viewerQuery().queryKey,
@@ -124,7 +124,7 @@ export function queryKeysFor(changes: readonly HouseholdChange[]): QueryKey[] {
 			keys.set(JSON.stringify(key), key);
 		}
 	}
-	// Goal funding and Earmarks feed the year view and Plan health too.
+	// Goal funding and what Goals have set aside feed the year view and Plan health too.
 	if (!everyMonth && changes.includes("goals")) {
 		keys.set(JSON.stringify(planOutlookKey), planOutlookKey);
 	}

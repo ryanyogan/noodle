@@ -27,7 +27,7 @@ describe("startMonth", () => {
 	});
 });
 
-describe("purchaseLevers", () => {
+describe("purchaseChanges", () => {
 	test("adds each new cost from the month, and cancels what it replaces from then", () => {
 		expect(
 			purchaseChanges({
@@ -61,7 +61,7 @@ describe("goalDate and goalAccount", () => {
 		expect(goalDate("2026-09", null)).toBeNull();
 	});
 
-	test("backs it with the first chosen Earmark's Account, or the first that holds money", () => {
+	test("backs it with the first chosen set-aside money's Account, or the first that holds money", () => {
 		const accounts = [
 			{ id: "card", holdsMoney: false },
 			{ id: "checking", holdsMoney: true },

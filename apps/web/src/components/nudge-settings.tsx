@@ -147,7 +147,7 @@ function NudgePreferencesForm({ saved }: { saved: NudgePreferences }) {
 				<fieldset disabled={!hydrated} className="divide-y">
 					<legend className="sr-only">Which Nudges you get</legend>
 					<Switch
-						label="A Bucket gets ahead of Pace"
+						label="A Bucket is being spent faster than the month is going"
 						hint="While there’s still a week or more of the month to go."
 						checked={bucketPace}
 						onChange={setBucketPace}
@@ -159,8 +159,8 @@ function NudgePreferencesForm({ saved }: { saved: NudgePreferences }) {
 						onChange={setQuickAdds}
 					/>
 					<Switch
-						label="A Windfall arrives"
-						hint="When income beyond the Baseline starts or grows a month’s Windfall."
+						label="Extra income arrives"
+						hint="When you’re paid more than your usual take-home pay in a month."
 						checked={extraIncomes}
 						onChange={setExtraIncomes}
 					/>

@@ -38,7 +38,7 @@ import { ChangedNote, PlanAmountForm } from "./plan-scope-field";
 
 /**
  * A Bucket (or Personal Allowance) in the Plan: its allowance, and an Edit sheet to change it. The
- * rest of the Bucket (name, colour, Rolling, order, archiving) changes on its page, which the name
+ * rest of the Bucket (name, colour, carries over, order, archiving) changes on its page, which the name
  * links to. `was` is its allowance the month before, when this month changed it.
  */
 export function BucketEditor({
@@ -69,10 +69,15 @@ export function BucketEditor({
 				</Link>
 			}
 			meta={
-				<>
-					<span>{bucket.rolling ? "Rolling" : "Fresh-start"}</span>
-					<ChangedNote was={was} />
-				</>
+				// Only the choice that isn't the default is named (most Buckets reset monthly).
+				bucket.rolling ? (
+					<>
+						<span>Carries over</span>
+						<ChangedNote was={was} />
+					</>
+				) : was != null ? (
+					<span>Changed this month · was {formatMoney(was)}</span>
+				) : undefined
 			}
 			trailing={
 				<div className="flex items-center gap-1">
@@ -109,7 +114,7 @@ export function BucketEditor({
 								/>
 								<PlanHistoryDisclosure month={month} targetId={bucket.id} />
 								<p className="text-[13px] text-muted-foreground">
-									Rename it, change its colour, make it Rolling or Fresh-start, move or archive it
+									Rename it, change its colour, choose whether it carries over, move or archive it
 									on{" "}
 									<Link
 										to="/plan/buckets/$id"
@@ -131,7 +136,7 @@ export function BucketEditor({
 }
 
 /**
- * Rename, recolour, set Rolling or Fresh-start from `month` on, move, or archive a Bucket: on its
+ * Rename, recolour, set carries over or resets monthly from `month` on, move, or archive a Bucket: on its
  * page, in its Edit sheet.
  */
 export function BucketDetails({
@@ -312,12 +317,12 @@ export function BucketDetails({
 const carriesOverOptions = [
 	{
 		rolling: false,
-		label: "Fresh-start",
-		description: "Starts each month at its allowance.",
+		label: "Resets monthly",
+		description: "Starts each month at its allowance. What’s left can go to a Goal.",
 	},
 	{
 		rolling: true,
-		label: "Rolling",
+		label: "Carries over",
 		description:
 			"What’s left carries into next month, and so does overspending that isn’t Covered.",
 	},

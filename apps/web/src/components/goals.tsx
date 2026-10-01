@@ -184,26 +184,26 @@ export function GoalSummary({ goal }: { goal: GoalView }) {
 }
 
 /**
- * How an Account's money splits, in words: "Earmarked $X · Unclaimed $Y", or, when the Earmarks
- * add up to more than the balance, that said plainly (`over`: show it in the over colour).
- * Null when there's nothing to say: a credit card or loan, or no balance and no Earmarks.
+ * How an Account's money splits, in words: "Set aside $X · Not set aside $Y", or, when Goals have
+ * set aside more than the balance, that said plainly (`over`: show it in the over colour).
+ * Null when there's nothing to say: a credit card or loan, or no balance and nothing set aside.
  */
 export function accountSplitText(account: AccountView): { text: string; over: boolean } | null {
 	if (!account.holdsMoney) return null;
-	// Without a balance there's no Unclaimed to show; the balance itself says it's missing.
+	// Without a balance there's nothing to show as not set aside; the balance itself says it's missing.
 	if (account.unclaimed === null) {
 		return account.earmarked !== 0
-			? { text: `Earmarked ${formatMoney(account.earmarked)}`, over: false }
+			? { text: `Set aside ${formatMoney(account.earmarked)}`, over: false }
 			: null;
 	}
 	if (account.overClaimedBy > 0) {
 		return {
-			text: `Earmarks are ${formatMoney(account.overClaimedBy)} more than the balance`,
+			text: `Goals have set aside ${formatMoney(account.overClaimedBy)} more than the balance`,
 			over: true,
 		};
 	}
 	return {
-		text: `Earmarked ${formatMoney(account.earmarked)} · Unclaimed ${formatMoney(account.unclaimed)}`,
+		text: `Set aside ${formatMoney(account.earmarked)} · Not set aside ${formatMoney(account.unclaimed)}`,
 		over: false,
 	};
 }
@@ -339,7 +339,7 @@ function AccountFields({
 
 /**
  * Adds a Goal: a name, a target, an optional target date, the checking or savings Account it's
- * set aside in, and what's already set aside there for it (claimed from Unclaimed money).
+ * set aside in, and what's already set aside there for it (claimed from not set aside money).
  */
 export function AddGoalSheet({
 	open,
@@ -418,10 +418,10 @@ function AddGoalForm({
 	const notSetAsideHint = !account
 		? "Add a checking or savings Account first."
 		: account.unclaimed === null
-			? `${account.name} has no balance yet, so nothing there is Unclaimed.`
+			? `${account.name} has no balance yet, so there’s nothing to set aside from.`
 			: account.unclaimed <= 0
-				? `Nothing in ${account.name} is Unclaimed.`
-				: `${formatMoney(account.unclaimed)} in ${account.name} is Unclaimed.`;
+				? `Everything in ${account.name} is already set aside.`
+				: `${formatMoney(account.unclaimed)} in ${account.name} isn’t set aside yet.`;
 
 	return (
 		<form onSubmit={onSubmit} className="grid gap-4">
@@ -622,7 +622,7 @@ function AmountForm({
 }
 
 /**
- * Funds a Goal from this month's Free to Spend: a Move into its Earmark. Starts at what's left
+ * Funds a Goal from this month's Free to Spend: a Move into what it has set aside. Starts at what's left
  * to fund this month; more than Free to Spend has can't be moved, and the sheet says how much
  * there is.
  */
@@ -647,7 +647,7 @@ export function FundGoalSheet({
 			open={goal !== null}
 			onOpenChange={onOpenChange}
 			title={`Fund ${goal?.name ?? "Goal"}`}
-			description="Moves money from this month’s Free to Spend into the Goal’s Earmark."
+			description={`Plans some of this month’s Free to Spend for ${goal?.name ?? "the Goal"}, and sets it aside.`}
 			initialCents={left}
 			submitLabel="Fund"
 			check={(cents) =>

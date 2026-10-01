@@ -36,7 +36,7 @@ export type PlanChanges = {
 
 /**
  * The values `plan` changed from `before` (the Plan the month before), each with what it was:
- * the Baseline, and the allowance of every Bucket and amount of every Commitment in both Plans.
+ * take-home pay, and the allowance of every Bucket and amount of every Commitment in both Plans.
  * A value new this month, or with nothing before, is not a change.
  */
 export function planChanges(plan: Plan, before: Plan | null): PlanChanges {

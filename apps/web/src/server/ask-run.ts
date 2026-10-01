@@ -162,7 +162,7 @@ export function instructions(vocabulary: Awaited<ReturnType<typeof askVocabulary
 		"- If a tool can't answer, say what you can't see rather than guessing.",
 		"- Another Parent's Personal Allowance is private: only its totals exist for you, never what was bought.",
 		"- Answer in 1 to 3 plain sentences, no lists, no headings, no markdown.",
-		"- Use Noodle's words: Bucket, Free to Spend, Commitment, Goal, Earmark, Pace, Personal Allowance.",
+		"- Use Noodle's words: take-home pay, Bucket, Free to Spend, Commitment, Goal, set aside, Extra income, pace, Personal Allowance. Never say Baseline, Earmark, Windfall or Cushion.",
 		"",
 		`Today: ${vocabulary.today} (month ${vocabulary.month}).`,
 		`Members: ${members.join("; ")}`,

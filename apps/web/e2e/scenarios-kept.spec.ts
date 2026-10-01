@@ -105,7 +105,7 @@ test("a Scenario opened from a link is kept, applied with a preview, and compare
 		/\$102,600\$102,600\$66,600$/,
 	);
 	await expect(numbers.getByRole("row", { name: /^New roof reached/ })).toBeVisible();
-	await expect(page.getByRole("group", { name: "Cushion" })).toBeVisible();
+	await expect(page.getByRole("group", { name: "Projected balance" })).toBeVisible();
 
 	// It opens a kept Scenario to carry on with it.
 	await saved(page, "Pay cut").getByRole("link", { name: "Pay cut" }).click();

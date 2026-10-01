@@ -31,6 +31,7 @@ import {
 	HistoryStart,
 } from "../../../components/plan-history";
 import { PlanEnded, planParts } from "../../../components/plan-page";
+import { TermHelp } from "../../../components/term-help";
 import { formatMoney, monthName } from "../../../format";
 import { useGoals } from "../../../goals";
 import { usePlanChange, withTakeHomePay } from "../../../plan-changes";
@@ -111,7 +112,7 @@ function YearLink({ month }: { month: MonthKey }) {
 }
 
 /**
- * Setting up a month's Plan, step by step: the Baseline right here, then Commitments, Buckets and
+ * Setting up a month's Plan, step by step: take-home pay right here, then Commitments, Buckets and
  * Goals on their own pages. Each step says when it's done.
  */
 function SetUp({ state, current }: { state: PlanState; current: boolean }) {
@@ -128,11 +129,11 @@ function SetUp({ state, current }: { state: PlanState; current: boolean }) {
 				<ol className="[&>li+li]:border-t">
 					<Step
 						number={1}
-						title="Baseline"
+						title="Take-home pay"
 						done={state.baseline !== null}
 						description={
 							state.baseline === null
-								? "Your normal monthly take-home pay. The Plan divides it up."
+								? "Your usual monthly pay after taxes and deductions. The Plan divides it up."
 								: `${formatMoney(state.baseline)} a month`
 						}
 					>
@@ -259,7 +260,7 @@ function StepLink({
 	);
 }
 
-/** The first step of setting up: the Baseline, which applies from this month on. */
+/** The first step of setting up: take-home pay, which applies from this month on. */
 function TakeHomePayForm({ month }: { month: MonthKey }) {
 	const hydrated = useHydrated();
 	const id = useId();
@@ -279,7 +280,7 @@ function TakeHomePayForm({ month }: { month: MonthKey }) {
 		<form onSubmit={onSubmit} className="grid gap-3">
 			{/* The step's title shows what it is; the label names the field for assistive tech. */}
 			<label htmlFor={`${id}-baseline`} className="sr-only">
-				Baseline
+				Take-home pay
 			</label>
 			<div className="flex gap-2">
 				<AmountInput
@@ -293,7 +294,7 @@ function TakeHomePayForm({ month }: { month: MonthKey }) {
 					onChange={(event) => setAmount(event.currentTarget.value)}
 				/>
 				<Button type="submit" variant="secondary" disabled={!hydrated || cents === null}>
-					Set Baseline
+					Set take-home pay
 				</Button>
 			</div>
 			<SaveFailed change={change} />
@@ -302,16 +303,16 @@ function TakeHomePayForm({ month }: { month: MonthKey }) {
 }
 
 /**
- * How the Baseline becomes Free to Spend: each part of the Plan takes its share in turn, each a
- * link to its page. The bars run waterfall-style on one scale, from the Baseline down.
+ * How take-home pay becomes Free to Spend: each part of the Plan takes its share in turn, each a
+ * link to its page. The bars run waterfall-style on one scale, from take-home pay down.
  */
 function Waterfall({ state, current }: { state: MonthState; current: boolean }) {
 	const takeHomePay = state.baseline ?? 0;
 	// Goal funding shows in the current month, where it can still happen, or once it did.
 	const steps = freeToSpendParts(state)
 		.filter(({ part, amount }) => part !== "goal-funding" || amount > 0 || current)
-		.map(({ part, amount }) => ({ ...planParts[part], amount }));
-	// One scale for every bar: from Free to Spend (when it's below zero) up to the Baseline.
+		.map(({ part, amount }) => ({ ...planParts[part], part, amount }));
+	// One scale for every bar: from Free to Spend (when it's below zero) up to take-home pay.
 	const low = Math.min(0, state.freeToSpend);
 	const high = Math.max(0, takeHomePay);
 	const bar = (from: number, to: number) =>
@@ -322,10 +323,11 @@ function Waterfall({ state, current }: { state: MonthState; current: boolean }) 
 	let left = takeHomePay;
 	return (
 		<Section aria-labelledby="plan-waterfall">
-			<SectionHeader id="plan-waterfall" title="Baseline to Free to Spend" />
+			<SectionHeader id="plan-waterfall" title="From take-home pay to Free to Spend" />
 			<List>
 				<WaterfallStep
-					label="Baseline"
+					label="Take-home pay"
+					help={<TermHelp term="take-home-pay" />}
 					to="/plan/$month/income"
 					month={state.month}
 					amount={state.baseline === null ? "Not set" : formatMoney(takeHomePay)}
@@ -341,6 +343,7 @@ function Waterfall({ state, current }: { state: MonthState; current: boolean }) 
 							label={step.label}
 							to={step.to}
 							hash={step.hash}
+							help={step.part === "covers" ? <TermHelp term="cover" /> : undefined}
 							month={state.month}
 							amount={step.amount > 0 ? `−${formatMoney(step.amount)}` : formatMoney(0)}
 							bar={bar(Math.max(left, low), before)}
@@ -349,7 +352,10 @@ function Waterfall({ state, current }: { state: MonthState; current: boolean }) 
 				})}
 				<li className="grid gap-2.5 px-(--card-pad) py-3.5">
 					<div className="flex items-center justify-between gap-4 text-sm font-semibold">
-						<span>Free to Spend</span>
+						<span className="inline-flex items-center gap-1">
+							Free to Spend
+							<TermHelp term="free-to-spend" />
+						</span>
 						<span className={cn("tabular-nums", overBy > 0 && "text-over")}>
 							{formatMoney(state.freeToSpend)}
 						</span>
@@ -363,8 +369,8 @@ function Waterfall({ state, current }: { state: MonthState; current: boolean }) 
 			{overBy > 0 ? (
 				<p className="rounded-xl bg-over-soft px-3 py-2.5 text-[13px] text-over-foreground">
 					{state.committed > 0
-						? `Your Commitments and Buckets add up to ${formatMoney(overBy)} more than your Baseline. Lower an amount or raise the Baseline.`
-						: `Your Buckets add up to ${formatMoney(overBy)} more than your Baseline. Lower an allowance or raise the Baseline.`}
+						? `Your Commitments and Buckets add up to ${formatMoney(overBy)} more than your take-home pay. Lower an amount, or raise your take-home pay if it has gone up.`
+						: `Your Buckets add up to ${formatMoney(overBy)} more than your take-home pay. Lower an allowance, or raise your take-home pay if it has gone up.`}
 				</p>
 			) : null}
 		</Section>
@@ -383,6 +389,7 @@ function WaterfallStep({
 	label,
 	to,
 	hash,
+	help,
 	month,
 	amount,
 	bar,
@@ -391,6 +398,8 @@ function WaterfallStep({
 	label: string;
 	to: StepPath;
 	hash?: string;
+	/** A term's help, raised above the row's link so it opens on its own. */
+	help?: ReactNode;
 	month: MonthKey;
 	amount: string;
 	bar: BarSpan;
@@ -414,6 +423,7 @@ function WaterfallStep({
 				>
 					{label}
 				</Link>
+				{help ? <span className="relative z-10 me-auto -ms-2">{help}</span> : null}
 				<span className="flex items-center gap-1.5 tabular-nums">
 					{amount}
 					<ChevronRight aria-hidden="true" className="size-4 text-subtle-foreground" />
@@ -424,7 +434,7 @@ function WaterfallStep({
 	);
 }
 
-/** One step's share of the Baseline, placed where it falls on the way down. */
+/** One step's share of take-home pay, placed where it falls on the way down. */
 function Bar({ bar, tone }: { bar: BarSpan; tone: "step" | "total" | "over" }) {
 	if (!bar) return null;
 	return (

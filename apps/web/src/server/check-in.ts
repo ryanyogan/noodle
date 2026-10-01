@@ -29,10 +29,10 @@ import { notifyHousehold } from "./notify";
 
 // The weekly Check-in. What waits in it is read for the Parent looking, like every read
 // (ADR-0003): their Review, the Insights they may see, and the Household's leftovers and
-// Windfalls, which never include a Personal Allowance. Finishing it is theirs alone; the other
+// Extra income, which never include a Personal Allowance. Finishing it is theirs alone; the other
 // Parent sees only that, and when.
 
-/** What waits for a Parent: Review, new Insights, last month's Sweeps while it's open, Windfalls. */
+/** What waits for a Parent: Review, new Insights, last month's Sweeps while it's open, Extra income. */
 export async function loadCheckInWaiting(
 	db: Db,
 	household: Pick<HouseholdSummary, "id" | "timeZone">,

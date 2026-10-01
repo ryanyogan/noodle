@@ -41,7 +41,7 @@ async function openGoals(page: Page) {
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Goals");
 }
 
-test("a Goal is funded from Free to Spend and spent from its Earmark, never a Bucket", async ({
+test("a Goal is funded from Free to Spend and spent from what it has set aside, never a Bucket", async ({
 	browser,
 }) => {
 	const page = await signedInPage(browser, parent.email);
@@ -92,13 +92,13 @@ test("a Goal is funded from Free to Spend and spent from its Earmark, never a Bu
 	await page.goto(thisMonth);
 	await expect(freeToSpend(page).getByText("$3,150", { exact: true })).toBeVisible();
 	await switchTo(page, "Plan");
-	const waterfall = page.getByRole("region", { name: "Baseline to Free to Spend" });
+	const waterfall = page.getByRole("region", { name: "From take-home pay to Free to Spend" });
 	await expect(waterfall).toContainText("Goal funding−$250");
 	await expect(waterfall).toContainText("Free to Spend$3,150");
 	await waterfall.getByRole("link", { name: "Goal funding" }).click();
 	await expect(page.getByRole("region", { name: /^To fund this month/ })).toContainText("Braces");
 
-	// Spending comes out of the Earmark, and no more than it.
+	// Spending comes out of what's set aside, and no more than it.
 	await openGoals(page);
 	await page.getByRole("link", { name: /^Braces, / }).click();
 	await setAside(page).getByRole("button", { name: "Spend" }).click();
@@ -115,23 +115,23 @@ test("a Goal is funded from Free to Spend and spent from its Earmark, never a Bu
 		"−$400",
 	);
 
-	// The Account: the spending came off its balance, and Unclaimed is what isn't Earmarked.
+	// The Account: the spending came off its balance, and not set aside is what isn't Set aside.
 	await page.getByRole("link", { name: "Ally savings", exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toContainText("Ally savings");
 	const balance = page.getByRole("region", { name: "Balance" });
 	await expect(balance.getByText("$9,600", { exact: true })).toBeVisible();
 	await expect(balance).toContainText("Goal spending of $400 since the balance was last updated");
 	await expect(page.getByRole("link", { name: "Braces, $850 set aside" })).toBeVisible();
-	await expect(page.getByRole("listitem", { name: "Unclaimed, $8,750" })).toBeVisible();
+	await expect(page.getByRole("listitem", { name: "Not set aside, $8,750" })).toBeVisible();
 
-	// A lower balance than the Earmarks is said plainly.
+	// A lower balance than what Goals have set aside is said plainly.
 	await balance.getByRole("button", { name: "Update balance" }).click();
 	const update = page.getByRole("dialog", { name: "Update balance" });
 	await update.getByLabel("Balance now").fill("500");
 	await update.getByRole("button", { name: "Save" }).click();
 	await expect(update).toBeHidden();
-	await expect(balance).toContainText("Earmarks are $350 more than the balance");
-	await expect(page.getByRole("listitem", { name: "Unclaimed, −$350" })).toBeVisible();
+	await expect(balance).toContainText("Goals have set aside $350 more than the balance");
+	await expect(page.getByRole("listitem", { name: "Not set aside, −$350" })).toBeVisible();
 
 	// Goal spending never touched a Bucket or Free to Spend.
 	await page.goto(thisMonth);

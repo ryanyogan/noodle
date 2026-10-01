@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { applyPreview } from "./apply-preview";
 import {
-	describeLever,
-	type Lever,
-	type LeverSubjects,
-	leverName,
+	changeName,
+	describeChange,
 	oneOffAsGoal,
 	type PlanRecords,
+	type ScenarioChange,
+	type ScenarioChangeSubjects,
 } from "./index";
 
 const month = "2026-09";
@@ -77,10 +77,10 @@ const goals = [
 ];
 const accounts = [{ id: "savings", name: "Savings" }];
 
-const preview = (scenarioChanges: Lever[], viewer = "sam") =>
+const preview = (scenarioChanges: ScenarioChange[], viewer = "sam") =>
 	applyPreview({ records, month, levers: scenarioChanges, viewer, goals, accounts });
 
-const lines = (change: Lever, viewer?: string) =>
+const lines = (change: ScenarioChange, viewer?: string) =>
 	preview([change], viewer).changes.flatMap((c) => c.lines);
 
 describe("applyPreview: exactly what applying writes to the Plan", () => {
@@ -147,7 +147,7 @@ describe("applyPreview: exactly what applying writes to the Plan", () => {
 				rolling: true,
 				fromMonth: month,
 			}),
-		).toEqual(["New Bucket Hockey: $150 a month, Rolling, from Sep 2026"]);
+		).toEqual(["New Bucket Hockey: $150 a month, carries over, from Sep 2026"]);
 		expect(lines({ kind: "archive-bucket", bucketId: "groceries", fromMonth: "2027-01" })).toEqual([
 			"Groceries archived: out of the Plan from Jan 2027",
 		]);
@@ -177,7 +177,7 @@ describe("applyPreview: exactly what applying writes to the Plan", () => {
 	});
 
 	it("leaves out assumptions, offering a one-off expense as a Goal", () => {
-		const roof: Lever = {
+		const roof: ScenarioChange = {
 			kind: "one-off",
 			oneOffId: "roof",
 			name: "Roof",
@@ -231,7 +231,7 @@ describe("applyPreview: exactly what applying writes to the Plan", () => {
 	});
 
 	it("never changes, nor says the amounts of, the other Parent's Personal Allowance", () => {
-		const theirs: Lever = {
+		const theirs: ScenarioChange = {
 			kind: "allowance",
 			bucketId: "alex-fun",
 			amount: 35_000,
@@ -280,8 +280,8 @@ describe("oneOffAsGoal: “Make it a Goal”", () => {
 	});
 });
 
-describe("Levers on the other Parent's Personal Allowance", () => {
-	const subjects: LeverSubjects = {
+describe("Changes on the other Parent's Personal Allowance", () => {
+	const subjects: ScenarioChangeSubjects = {
 		month,
 		baseline: 900_000,
 		buckets: [
@@ -292,7 +292,7 @@ describe("Levers on the other Parent's Personal Allowance", () => {
 		goals: [],
 		viewer: "sam",
 	};
-	const allowance = (bucketId: string): Lever => ({
+	const allowance = (bucketId: string): ScenarioChange => ({
 		kind: "allowance",
 		bucketId,
 		amount: 35_000,
@@ -300,12 +300,12 @@ describe("Levers on the other Parent's Personal Allowance", () => {
 	});
 
 	it("read only as “Personal Allowance changed”, with no amounts or months", () => {
-		expect(describeLever(allowance("alex-fun"), subjects).text).toBe("Personal Allowance changed");
-		expect(leverName(allowance("alex-fun"), subjects)).toBe("Personal Allowance");
+		expect(describeChange(allowance("alex-fun"), subjects).text).toBe("Personal Allowance changed");
+		expect(changeName(allowance("alex-fun"), subjects)).toBe("Personal Allowance");
 	});
 
 	it("read in full for their own Parent", () => {
-		expect(describeLever(allowance("sam-fun"), subjects).text).toBe(
+		expect(describeChange(allowance("sam-fun"), subjects).text).toBe(
 			"Sam’s money $200 → $350 a month from Jan 2027",
 		);
 	});

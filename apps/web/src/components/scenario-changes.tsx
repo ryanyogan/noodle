@@ -1,4 +1,9 @@
-import { describeLever, type Lever, type LeverImpact, type LeverSubjects } from "@noodle/domain";
+import {
+	describeChange,
+	type ScenarioChange,
+	type ScenarioChangeImpact,
+	type ScenarioChangeSubjects,
+} from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
@@ -10,8 +15,8 @@ import { memo, useEffect, useState } from "react";
 import { formatMoney, shortMonth } from "../format";
 import { changeTarget, withMuted, withoutChange } from "../scenarios";
 
-// "Your changes": each Lever in words, what it does on its own, a mute toggle to see the outcome
-// without it, and Remove. Impacts cost one projection per Lever, so they follow the Levers a
+// "Your changes": each Change in words, what it does on its own, a mute toggle to see the outcome
+// without it, and Remove. Impacts cost one projection per Change, so they follow the Changes a
 // moment behind rather than on every slider step.
 
 /** `value`, once it has stopped changing for `ms`. */
@@ -32,14 +37,14 @@ export const ScenarioChanges = memo(function ScenarioChanges({
 	horizonLabel,
 	onChange,
 }: {
-	/** Each Lever's impact by its target, a moment behind the Levers (see useDebounced). */
-	impacts: ReadonlyMap<string, LeverImpact>;
-	levers: Lever[];
-	subjects: LeverSubjects;
-	/** Every Goal a Lever can move, Plan's and added, by id. */
+	/** Each Change's impact by its target, a moment behind the Changes (see useDebounced). */
+	impacts: ReadonlyMap<string, ScenarioChangeImpact>;
+	levers: ScenarioChange[];
+	subjects: ScenarioChangeSubjects;
+	/** Every Goal a Change can move, Plan's and added, by id. */
 	goalNames: ReadonlyMap<string, string>;
 	horizonLabel: string;
-	onChange: (change: (changes: Lever[]) => Lever[]) => void;
+	onChange: (change: (changes: ScenarioChange[]) => ScenarioChange[]) => void;
 }) {
 	return (
 		<Section aria-labelledby="your-changes">
@@ -53,7 +58,7 @@ export const ScenarioChanges = memo(function ScenarioChanges({
 					<List>
 						{levers.map((scenarioChange) => {
 							const target = changeTarget(scenarioChange);
-							const { text, gone } = describeLever(scenarioChange, subjects, levers);
+							const { text, gone } = describeChange(scenarioChange, subjects, levers);
 							return (
 								<Change
 									key={target}
@@ -95,7 +100,7 @@ function Change({
 	gone: boolean;
 	muted: boolean;
 	/** Undefined while it's being worked out; null when it changes nothing. */
-	impact: LeverImpact | null | undefined;
+	impact: ScenarioChangeImpact | null | undefined;
 	goalNames: ReadonlyMap<string, string>;
 	horizonLabel: string;
 	onMute: (muted: boolean) => void;
@@ -163,11 +168,11 @@ function Change({
 }
 
 /**
- * What a Lever does on its own, e.g. "Frees $16,800 over 2 years · College 4 months sooner". A
+ * What a Change does on its own, e.g. "Frees $16,800 over 2 years · College 4 months sooner". A
  * muted one says what it would do.
  */
 function impactWords(
-	impact: LeverImpact | null,
+	impact: ScenarioChangeImpact | null,
 	muted: boolean,
 	horizonLabel: string,
 	goalNames: ReadonlyMap<string, string>,
@@ -184,8 +189,8 @@ function impactWords(
 	} else if (impact.cushion !== 0) {
 		parts.push(
 			impact.cushion > 0
-				? `${says("add", impact.cushion)} to the Cushion`
-				: `${says("take", impact.cushion)} from the Cushion`,
+				? `${says("add", impact.cushion)} to the projected balance`
+				: `${says("take", impact.cushion)} from the projected balance`,
 		);
 	}
 	for (const goal of impact.goals) {

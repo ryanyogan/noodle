@@ -55,16 +55,18 @@ async function quickAdd(page: Page, amount: string, bucket: string) {
 	await expect(sheet).toBeHidden();
 }
 
-/** Sets a Bucket Rolling on its page, from This Month, then returns to This Month. */
+/** Sets a Bucket carries over on its page, from This Month, then returns to This Month. */
 async function setCarriesOver(page: Page, bucket: string) {
 	await page.getByRole("link", { name: bucket, exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toContainText(bucket);
 	await page.getByRole("button", { name: "Edit", exact: true }).click();
-	const saved = page.waitForResponse((response) => serverFn("setRolling")(new URL(response.url())));
-	await page.getByRole("radio", { name: /^Rolling/ }).check();
+	const saved = page.waitForResponse((response) =>
+		serverFn("setCarriesOver")(new URL(response.url())),
+	);
+	await page.getByRole("radio", { name: /^Carries over/ }).check();
 	expect((await saved).ok()).toBe(true);
 	await page.keyboard.press("Escape");
-	await expect(page.getByRole("region", { name: "Left this month" })).toContainText("Rolling");
+	await expect(page.getByRole("region", { name: "Left this month" })).toContainText("Carries over");
 	await page
 		.getByRole("navigation", { name: "Main" })
 		.getByRole("link", { name: "This Month" })
@@ -112,7 +114,7 @@ test("months are addressable, and the chevrons move between them", async ({ brow
 	await expect(heading(page)).toHaveText(`Month${title(next, current.year)}`);
 });
 
-test("a Rolling Bucket carries what's left into next month; a Fresh-start one starts over", async ({
+test("a Bucket that carries over carries what's left into next month; a resets monthly one starts over", async ({
 	browser,
 }) => {
 	const page = await signedInPage(browser, parent.email);
@@ -124,7 +126,7 @@ test("a Rolling Bucket carries what's left into next month; a Fresh-start one st
 
 	await page.getByRole("link", { name: "Next month" }).click();
 	await expect(bucketRow(page, "Hockey")).toHaveAccessibleName("Hockey: $700 left of $700");
-	await expect(bucketRow(page, "Hockey")).toContainText("$300 rolled over");
+	await expect(bucketRow(page, "Hockey")).toContainText("$300 carried over");
 	await expect(bucketRow(page, "Groceries")).toHaveAccessibleName(
 		"Groceries: $1,200 left of $1,200",
 	);

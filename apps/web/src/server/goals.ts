@@ -33,13 +33,13 @@ import { loadMonth, monthKeySchema } from "./month";
 import { notifyHousehold } from "./notify";
 import { dayKeySchema, ulidSchema } from "./schemas";
 
-// Accounts, Goals and their Earmarks. Each write is idempotent per its client ULID, so the client
+// Accounts, Goals and what their Goals have set aside. Each write is idempotent per its client ULID, so the client
 // can retry it safely; a write the database guard refuses comes back as `{ ok: false }` rather
 // than an error. The month and day are always the Household's, worked out here.
 
 /**
- * Every Account, Goal and Earmark change, with the Household's current month and today:
- * components derive balances, Unclaimed and progress from these with @noodle/domain, so an
+ * Every Account, Goal and set-aside money change, with the Household's current month and today:
+ * components derive balances, not set aside and progress from these with @noodle/domain, so an
  * optimistic edit updates every number the same way the server would.
  */
 export type GoalsData = GoalRecords & { month: MonthKey; asOf: DayKey };
@@ -125,7 +125,7 @@ export const updateAccountBalance = createServerFn({ method: "POST" })
 
 /**
  * Adds a Goal backed by a checking or savings Account, from this month, with `claimCents` of
- * the Account's Unclaimed money already set aside for it (0 for none).
+ * the Account's not set aside money already set aside for it (0 for none).
  */
 export const addGoal = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
@@ -185,7 +185,7 @@ export const updateGoal = createServerFn({ method: "POST" })
 		await notifyHousehold(household.id, ["goals", `month:${month}`]);
 	});
 
-/** Marks a Goal completed; it keeps its Earmark. */
+/** Marks a Goal completed; it keeps what it has set aside. */
 export const completeGoal = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ goalId: ulidSchema }))
@@ -194,7 +194,7 @@ export const completeGoal = createServerFn({ method: "POST" })
 		await notifyHousehold(context.household.id, ["goals"]);
 	});
 
-/** Archives a Goal, releasing its Earmark to its Account's Unclaimed money. */
+/** Archives a Goal, releasing what it has set aside to its Account's not set aside money. */
 export const archiveGoal = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ goalId: ulidSchema }))
@@ -204,8 +204,8 @@ export const archiveGoal = createServerFn({ method: "POST" })
 	});
 
 /**
- * Sets Unclaimed money aside for a Goal, or releases some of its Earmark back (a negative
- * amount). Refused when releasing more than the Earmark, or when the Goal is archived.
+ * Sets not set aside money aside for a Goal, or releases some of what it has set aside back (a negative
+ * amount). Refused when releasing more than what's set aside, or when the Goal is archived.
  */
 export const claimForGoal = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
@@ -234,7 +234,7 @@ export const claimForGoal = createServerFn({ method: "POST" })
 	});
 
 /**
- * Goal funding: Moves `amountCents` from this month's Free to Spend into a Goal's Earmark.
+ * Goal funding: Moves `amountCents` from this month's Free to Spend into what a Goal has set aside.
  * Refused unless Free to Spend has that much and the Goal is active.
  */
 export const fundGoal = createServerFn({ method: "POST" })
@@ -268,7 +268,7 @@ export const fundGoal = createServerFn({ method: "POST" })
 
 /**
  * Undoes Goal funding, putting the money back in Free to Spend. Refused once the Goal's
- * Earmark is less than the funding (some of it was spent or released).
+ * set-aside money is less than the funding (some of it was spent or released).
  */
 export const undoGoalFunding = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
@@ -282,8 +282,8 @@ export const undoGoalFunding = createServerFn({ method: "POST" })
 	});
 
 /**
- * Marks a Goal as the Household's emergency Goal (null clears it): suggested for Windfalls, and
- * where Fresh-start leftovers are Swept when nobody decides at month-close.
+ * Marks a Goal as the Household's emergency Goal (null clears it): suggested for Extra income, and
+ * where resets monthly leftovers are Swept when nobody decides at month-close.
  */
 export const setEmergencyGoal = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
@@ -296,8 +296,8 @@ export const setEmergencyGoal = createServerFn({ method: "POST" })
 	});
 
 /**
- * Records Goal spending today: a Transaction out of the Goal's Earmark and its Account, never a
- * Bucket or Free to Spend. Refused when it's more than the Earmark or the Goal is archived.
+ * Records Goal spending today: a Transaction out of what the Goal has set aside and its Account, never a
+ * Bucket or Free to Spend. Refused when it's more than what's set aside or the Goal is archived.
  */
 export const spendGoal = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])

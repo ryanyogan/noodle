@@ -57,19 +57,13 @@ export {
 	SIMILAR_MERCHANT_SCORE,
 } from "./categorize";
 export {
-	changePreset as leverPreset,
-	parseChangePreset as parseLeverPreset,
+	changePreset,
+	parseChangePreset,
 } from "./change-presets";
 export {
-	activeChanges as activeLevers,
+	activeChanges,
 	addedTerms,
 	addedUntil,
-	type Change as Lever,
-	type ChangeKind as LeverKind,
-	type ChangeMute as LeverMute,
-	type ChangeOf as LeverOf,
-	type ChangeRange as LeverRange,
-	type ChangeV1 as LeverV1,
 	changedTerms,
 	dueDateFrom,
 	holdsIn,
@@ -77,10 +71,16 @@ export {
 	type OneOffFlow,
 	oneOffAsGoal,
 	rangeFrom,
-	readScenarioChanges as readScenarioLevers,
+	readScenarioChanges,
 	SCENARIO_VERSION,
+	type ScenarioChange,
+	type ScenarioChangeKind,
+	type ScenarioChangeMute,
+	type ScenarioChangeOf,
+	type ScenarioChangeRange,
+	type ScenarioChangeV1,
 	type ScenarioJson,
-	upgradeChanges as upgradeLevers,
+	upgradeChanges,
 	whyNotApplicable,
 } from "./changes";
 export {
@@ -97,7 +97,7 @@ export {
 	DEFAULT_CHECK_IN_DAY,
 	isCheckInDay,
 	isWeekday,
-	type PendingExtraIncome as PendingWindfall,
+	type PendingExtraIncome,
 	WEEKDAYS,
 	type Weekday,
 	weekdayOf,
@@ -126,17 +126,17 @@ export {
 } from "./commitments";
 export { type CoverSource, coverSources, leftToMove } from "./cover";
 export {
-	type ChangeDescription as LeverDescription,
-	type ChangeSubjects as LeverSubjects,
-	changeName as leverName,
-	describeChange as describeLever,
+	changeName,
+	describeChange,
+	type ScenarioChangeDescription,
+	type ScenarioChangeSubjects,
 	shortMonthName,
 } from "./describe-changes";
 export {
-	type ExtraIncomeDestination as WindfallDestination,
-	type ExtraIncomeSuggestion as WindfallSuggestion,
-	extraIncomeOf as windfallOf,
-	extraIncomeSuggestions as windfallSuggestions,
+	type ExtraIncomeDestination,
+	type ExtraIncomeSuggestion,
+	extraIncomeOf,
+	extraIncomeSuggestions,
 	INCOME_WARNING_FROM_DAY,
 	type Income,
 	type IncomeCheck,
@@ -165,8 +165,8 @@ export {
 	goalHistory,
 	goalProgress,
 	holdsMoney,
-	type SetAsideChange as EarmarkChange,
-	setAsideOf as earmarkOf,
+	type SetAsideChange,
+	setAsideOf,
 	splitAccount,
 	stillToFund,
 	type WithdrawalAttribution,
@@ -249,7 +249,7 @@ export {
 } from "./nudges";
 export { readOfxStatement } from "./ofx";
 export {
-	changeHoldsIn as leverHoldsIn,
+	changeHoldsIn,
 	type MonthBreakdown,
 	monthBreakdown,
 	type OutcomeWarning,
@@ -304,7 +304,7 @@ export {
 	type DraftIncome,
 	type DraftLabels,
 	type DraftMerchant,
-	type DraftTakeHomePay as DraftBaseline,
+	type DraftTakeHomePay,
 	detectCommitments,
 	detectPaychecks,
 	draftFindings,
@@ -388,7 +388,7 @@ export {
 	regroupMonthly,
 	type SpendCell,
 	seriesOf,
-	setAsideHistory as earmarkHistory,
+	setAsideHistory,
 	spendFor,
 	sumOf,
 	type Target,
@@ -409,8 +409,7 @@ export {
 	rolloverSince,
 } from "./rollover";
 export {
-	type ChangeImpact as LeverImpact,
-	changeImpacts as leverImpacts,
+	changeImpacts,
 	MAX_PROJECTION_MONTHS,
 	moneyFreed,
 	type PlanAhead,
@@ -421,6 +420,7 @@ export {
 	type ProjectOptions,
 	planAhead,
 	project,
+	type ScenarioChangeImpact,
 } from "./scenario";
 export {
 	type AssignedTransaction,

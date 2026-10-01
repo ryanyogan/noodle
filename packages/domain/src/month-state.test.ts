@@ -85,7 +85,7 @@ describe("monthState: each Bucket's allowance, spent, and left", () => {
 });
 
 describe("monthState: Free to Spend", () => {
-	it("is the Baseline less every allowance, whatever has been spent", () => {
+	it("is take-home pay less every allowance, whatever has been spent", () => {
 		const state = monthState({
 			plan: planOf("2026-09", { groceries: 120_000, hockey: 40_000 }, 500_000),
 			asOf: "2026-09-15",
@@ -95,7 +95,7 @@ describe("monthState: Free to Spend", () => {
 		expect(state.freeToSpend).toBe(340_000);
 	});
 
-	it("goes negative, not zero, when allowances exceed the Baseline", () => {
+	it("goes negative, not zero, when allowances exceed take-home pay", () => {
 		const state = monthState({
 			plan: planOf("2026-09", { groceries: 300_000, hockey: 250_000 }, 500_000),
 			asOf: "2026-09-15",
@@ -137,7 +137,7 @@ describe("monthState: Goal funding", () => {
 		expect(state.freeToSpend).toBe(340_000);
 	});
 
-	it("can take Free to Spend negative, like any other assignment beyond the Baseline", () => {
+	it("can take Free to Spend negative, like any other assignment beyond take-home pay", () => {
 		const state = monthState({
 			plan,
 			asOf: "2026-09-15",
@@ -275,7 +275,7 @@ describe("Commitment cadences: the days a Commitment is due in a month", () => {
 	});
 });
 
-describe("monthState: Commitments count against the Baseline", () => {
+describe("monthState: Commitments count against take-home pay", () => {
 	const plan = (month: MonthKey): Plan => ({
 		...planOf(month, { groceries: 120_000 }, 900_000),
 		commitments: [
@@ -311,7 +311,7 @@ describe("monthState: Commitments count against the Baseline", () => {
 		]);
 	});
 
-	it("goes negative when Commitments and allowances exceed the Baseline", () => {
+	it("goes negative when Commitments and allowances exceed take-home pay", () => {
 		const over = monthState({
 			plan: { ...plan("2026-09"), baseline: 400_000 },
 			spending: [],

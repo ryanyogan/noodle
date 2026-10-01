@@ -16,7 +16,7 @@ import {
 	loadTransactionsPage,
 	loadUncategorized,
 	matchTransactions,
-	setBaseline,
+	setTakeHomePay,
 	unmatch,
 } from "./index";
 import { bucketLeftSql } from "./moves";
@@ -53,7 +53,7 @@ beforeEach(async () => {
 		name: "Sam",
 		clerkUserId: "clerk-sam",
 	});
-	await setBaseline(db, { householdId, memberId: parentId, month, amountCents: 600_000 });
+	await setTakeHomePay(db, { householdId, memberId: parentId, month, amountCents: 600_000 });
 	await addBucket(db, {
 		householdId,
 		memberId: parentId,

@@ -14,6 +14,7 @@ import { ulid } from "ulid";
 import { AmountSheet, BackToAccounts, LinkRow } from "../../../components/goals";
 import { SaveFailed } from "../../../components/plan-editing";
 import { StatementBalanceNote, StatementsSection } from "../../../components/statements";
+import { TermHelp } from "../../../components/term-help";
 import { formatMoney } from "../../../format";
 import {
 	type AccountView,
@@ -108,7 +109,7 @@ function AccountDetails({ account }: { account: AccountView }) {
 							<p className="text-sm text-muted-foreground">
 								{owes
 									? "Add what’s owed on it today."
-									: "Add what’s in it today, from your bank, to see what’s Unclaimed."}
+									: "Add what’s in it today, from your bank, to see what’s not set aside."}
 							</p>
 						) : spentSince > 0 ? (
 							<p className="text-sm text-muted-foreground">
@@ -124,8 +125,8 @@ function AccountDetails({ account }: { account: AccountView }) {
 							role="status"
 							className="border-t bg-over-soft px-(--card-pad) py-3 text-[13px] text-over-foreground"
 						>
-							Earmarks are {formatMoney(account.overClaimedBy)} more than the balance. Update the
-							balance if it’s out of date, or release some of a Goal’s Earmark.
+							Goals have set aside {formatMoney(account.overClaimedBy)} more than the balance.
+							Update the balance if it’s out of date, or release some of what a Goal has set aside.
 						</p>
 					) : null}
 				</Card>
@@ -133,8 +134,13 @@ function AccountDetails({ account }: { account: AccountView }) {
 				<SaveFailed change={rename} />
 
 				{account.holdsMoney ? (
-					<Section aria-labelledby="account-earmarks">
-						<SectionHeader id="account-earmarks" title="Earmarks" count={account.earmarks.length} />
+					<Section aria-labelledby="account-set-aside">
+						<SectionHeader
+							id="account-set-aside"
+							title="Set aside for Goals"
+							count={account.earmarks.length}
+							help={<TermHelp term="set-aside" />}
+						/>
 						<List>
 							{account.earmarks.map(({ goal, amount }) => (
 								<LinkRow
@@ -155,11 +161,11 @@ function AccountDetails({ account }: { account: AccountView }) {
 							<ListRow
 								aria-label={
 									account.unclaimed === null
-										? "Unclaimed, unknown until the balance is added"
-										: `Unclaimed, ${formatMoney(account.unclaimed)}`
+										? "Not set aside, unknown until the balance is added"
+										: `Not set aside, ${formatMoney(account.unclaimed)}`
 								}
-								title="Unclaimed"
-								meta="Not set aside for any Goal"
+								title="Not set aside"
+								meta="Free for new Goals"
 								trailing={
 									<span
 										className={cn(
@@ -199,7 +205,7 @@ function AccountDetails({ account }: { account: AccountView }) {
 				check={() => ({
 					hint: owes
 						? "Replaces what was owed before."
-						: "Replaces the balance; Earmarks stay as they are.",
+						: "Replaces the balance; what Goals have set aside stays as it is.",
 				})}
 				onSave={(amountCents) => {
 					setSheet(null);
@@ -224,7 +230,7 @@ function AccountDetails({ account }: { account: AccountView }) {
 	);
 }
 
-/** How the balance splits: Earmarks, then Unclaimed. Over-claimed fills it in the over colour. */
+/** How the balance splits: set aside for Goals, then not. Over-claimed fills it in the over colour. */
 function SplitBar({ account }: { account: AccountView }) {
 	const balance = account.balance ?? 0;
 	const over = account.overClaimedBy > 0;
@@ -241,9 +247,9 @@ function SplitBar({ account }: { account: AccountView }) {
 				/>
 			</div>
 			<p className="flex flex-wrap justify-between gap-x-4 text-[13px] text-muted-foreground tabular-nums">
-				<span>Earmarked {formatMoney(account.earmarked)}</span>
+				<span>Set aside {formatMoney(account.earmarked)}</span>
 				<span className={cn(over && "text-over")}>
-					Unclaimed {formatMoney(account.unclaimed ?? 0)}
+					Not set aside {formatMoney(account.unclaimed ?? 0)}
 				</span>
 			</p>
 		</div>

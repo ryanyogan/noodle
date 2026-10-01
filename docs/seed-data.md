@@ -8,7 +8,7 @@ bun run seed busy        # or fresh, starter; about 3 s
 bun run dev              # http://localhost:5173 (AI_MODEL=stub bun run dev works offline)
 ```
 
-The builder is `packages/db/src/seed.ts`. It computes rows only, with no I/O. `apps/web/scripts/seed.ts` applies the local migrations, finds or creates the two Clerk Parents, and writes the rows in one transaction. `packages/db/src/seed.test.ts` loads each scenario on several "todays" and checks the invariants the app relies on: no orphan rows, Splits add up, Transfers and Refunds net out, Matches, Receipts total, Earmarks fit their Accounts' balances, every month's Plan leaves Free to Spend at or above zero, and Windfall decisions and Sweeps never exceed what there was. It also checks the edge cases `busy` promises.
+The builder is `packages/db/src/seed.ts`. It computes rows only, with no I/O. `apps/web/scripts/seed.ts` applies the local migrations, finds or creates the two Clerk Parents, and writes the rows in one transaction. `packages/db/src/seed.test.ts` loads each scenario on several "todays" and checks the invariants the app relies on: no orphan rows, Splits add up, Transfers and Refunds net out, Matches, Receipts total, what Goals set aside fits their Accounts' balances, every month's Plan leaves Free to Spend at or above zero, and Extra income decisions and Sweeps never exceed what there was. It also checks the edge cases `busy` promises.
 
 All dates are relative to today in the Household's time zone (America/Chicago), so "this month" always has live data. IDs are fixed, so a page's URL survives a reseed.
 
@@ -41,12 +41,12 @@ One Parent (Alex) whose Household "The Rinks" was created five minutes ago. Ther
 ### starter
 
 About two weeks in, with one Parent and an open invite to Jordan. It has:
-- a Baseline of $9,000;
-- 4 Buckets (Kids is Rolling);
+- a take-home pay of $9,000;
+- 4 Buckets (Kids carries over);
 - 3 Commitments;
 - one checking Account with a balance;
 - about a dozen Quick Adds, plus the Commitments that came due and one paycheck;
-- an Emergency fund Goal with a $1,000 Earmark, not yet marked as the emergency Goal.
+- an Emergency fund Goal with $1,000 set aside, not yet marked as the emergency Goal.
 
 ### busy
 
@@ -59,8 +59,8 @@ About two weeks in, with one Parent and an open invite to Jordan. It has:
 - Kids' Savings has a balance from an OFX statement.
 
 **Plan**
-- The Baseline is $12,400, raised to $13,000 by Jordan three months in.
-- 17 Buckets: Rolling and Fresh-start, both Personal Allowances, one archived, one renamed, and one Just change.
+- Take-home pay is $12,400, raised to $13,000 by Jordan three months in.
+- 17 Buckets: some carry over and some reset monthly, both Personal Allowances, one archived, one renamed, and one Just change.
 - 14 Commitments: monthly, biweekly (Daycare, so some months are Lumpy) and annual.
   - Disney+ was ended by an applied Scenario.
   - Netflix's price went up.
@@ -86,12 +86,12 @@ About two weeks in, with one Parent and an open invite to Jordan. It has:
 - "Spring break: Disney World with Grandma!", which is behind.
 - A completed laptop Goal.
 - An archived tournament Goal.
-- Each has Earmark claims, monthly funding, Goal spending, Sweeps and Windfall money.
+- Each has money set aside from its Account, monthly funding, Goal spending, Sweeps and Extra income.
 
 **Month by month**
 - The six months before last are closed, some by a Parent and some by the defaults, with their Sweeps.
-- Last month is still open, with its leftovers and a pending $640 Windfall. The Check-in offers them, and This Month does too on days 1–7.
-- Windfalls: a bonus sent to the house Goal, and a tax refund split between a Goal and a Bucket.
+- Last month is still open, with its leftovers and $640 of pending Extra income. The Check-in offers them, and This Month does too on days 1–7.
+- Extra income: a bonus sent to the house Goal, and a tax refund split between a Goal and a Bucket.
 - Covers come from other Buckets and from Free to Spend.
 
 **Warnings and edge cases**
@@ -104,7 +104,7 @@ About two weeks in, with one Parent and an open invite to Jordan. It has:
 **Assistance**
 - Insights and Overlaps: new, accepted and dismissed. The new ones are a Perk-covered Netflix, a duplicate charge and a price increase.
 - Perk Sources: T-Mobile and Chase Sapphire are confirmed, with Perks; Costco is suggested; Amazon Prime is dismissed.
-- Scenarios: three, with Levers. One Lever is muted, one points at the archived Bucket ("No longer in the Plan"), one is a $120,000 one-off, and one Scenario was applied.
+- Scenarios: three, with Changes. One Change is muted, one points at the archived Bucket ("No longer in the Plan"), one is a $120,000 one-off, and one Scenario was applied.
 - Six Receipts: five forwarded Amazon ones and a snapped Costco one.
 - Weekly Check-ins by both Parents. This week only Jordan has done it, so Alex gets the full card stack.
 - Nudge preferences are set for both Parents, one with quiet hours.
@@ -123,8 +123,8 @@ Every page was opened in each scenario at 1280×900 and 390×844, signed in as A
 
 Pages without a proper empty state in `fresh`:
 - **Plan › Goals** (`/plan/$month/goals`): just the heading and one line. It doesn't say there are no Goals yet, or that an Account comes first, as `/goals` does.
-- **Explore** (`/explore`): opens straight into the sandbox on an empty Plan ("Scenario 1 (not saved)", flat $0 charts, "Cushion lowest $0"). There's no hint that it needs a Plan first.
-- **Can we afford it?** (`/explore/afford`): under the "no Baseline yet" note it still gives Home verdicts from zeros: "Not yet", "$0 set aside", housing that "would take Free to Spend from $0 to −$2,589".
+- **Explore** (`/explore`): opens straight into the sandbox on an empty Plan ("Scenario 1 (not saved)", flat $0 charts, "Projected balance at its lowest $0"). There's no hint that it needs a Plan first.
+- **Can we afford it?** (`/explore/afford`): under the "no take-home pay yet" note it still gives Home verdicts from zeros: "Not yet", "$0 set aside", housing that "would take Free to Spend from $0 to −$2,589".
 - **Year at a glance** (`/plan/year/$year`): shows a table row of "Not set" and $0 for this month instead of an empty state.
 - **This Month / Plan for a month before the Household existed** (the previous-month arrow): offers "Nothing planned yet · Set up the Plan" for a month before the Household was created. The arrows keep going back.
 - **Check-in**: on day one it opens on "You're done for this week · Nothing needed you this week", with nothing to say what a Check-in is.

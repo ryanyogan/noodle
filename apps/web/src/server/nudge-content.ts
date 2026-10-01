@@ -33,7 +33,7 @@ export function bucketPaceNudge(bucket: BucketState, month: MonthKey, daysLeft: 
 	const over = bucket.left < 0;
 	const nudge: NudgeMessage = {
 		kind: "bucket-pace",
-		title: over ? `${bucket.name} is over its allowance` : `${bucket.name} is ahead of Pace`,
+		title: over ? `${bucket.name} is over its allowance` : `${bucket.name} is ahead of pace`,
 		body: over
 			? `${formatMoney(-bucket.left)} over, with ${days(daysLeft)} of ${monthName(month)} to go.`
 			: `${formatMoney(bucket.left)} left, with ${days(daysLeft)} of ${monthName(month)} to go.`,
@@ -63,20 +63,20 @@ export function quickAddNudge({ transaction }: VisibleQuickAdd): NudgeMessage {
 	};
 }
 
-/** A month's Windfall that started or grew, and the Parents whose income made it grow. */
+/** A month's Extra income that started or grew, and the Parents whose income made it grow. */
 export type ExtraIncomeArrived = {
 	month: MonthKey;
 	/** How much it grew by since it was last Nudged. */
 	grew: Cents;
-	/** The month's whole Windfall now. */
+	/** The month's whole Extra income now. */
 	windfall: Cents;
 	recordedBy: readonly string[];
 };
 
 /**
- * Whether income recorded in a month makes its Windfall worth a Nudge: only when the Windfall is
+ * Whether income recorded in a month makes its Extra income worth a Nudge: only when the Extra income is
  * now more than the most it was Nudged at, so each increase Nudges once. A retried write, income
- * that stays within the Baseline, or income removed and recorded again changes nothing.
+ * that stays within take-home pay, or income removed and recorded again changes nothing.
  */
 export function extraIncomeArrived(
 	month: MonthKey,
@@ -89,14 +89,14 @@ export function extraIncomeArrived(
 		: null;
 }
 
-/** A month's Windfall starting or growing: only Household totals, never who was paid what. */
+/** A month's Extra income starting or growing: only Household totals, never who was paid what. */
 export function extraIncomeNudge(extraIncome: ExtraIncomeArrived): NudgeMessage {
 	const started = extraIncome.grew === extraIncome.windfall;
 	return {
 		kind: "windfall",
 		title: started
-			? `A ${formatMoney(extraIncome.windfall)} Windfall arrived`
-			: `${monthName(extraIncome.month)}’s Windfall grew by ${formatMoney(extraIncome.grew)}`,
+			? `${formatMoney(extraIncome.windfall)} of Extra income arrived`
+			: `${monthName(extraIncome.month)}’s Extra income grew by ${formatMoney(extraIncome.grew)}`,
 		body: started
 			? "Decide where it goes at your next Check-in."
 			: `It’s ${formatMoney(extraIncome.windfall)} now. Decide where it goes at your next Check-in.`,
@@ -156,7 +156,7 @@ export type RaisedNudges = {
 	pace: PaceNudge[];
 	/** Quick Adds, each read for a Parent who may get a Nudge about it. */
 	quickAdds: VisibleQuickAdd[];
-	/** Months whose Windfall started or grew. */
+	/** Months whose Extra income started or grew. */
 	windfalls: ExtraIncomeArrived[];
 };
 
@@ -165,7 +165,7 @@ export type ScheduledNudge = { memberId: string; nudge: NudgeMessage; deliverAt:
 
 /**
  * Who gets which Nudges, and when: each Parent only the kinds they want, never their own Quick
- * Adds or a Windfall grown only by their own income, only what was read for them, nobody else's
+ * Adds or Extra income grown only by their own income, only what was read for them, nobody else's
  * Personal Allowance, and after their quiet hours.
  */
 export function scheduleNudges(
@@ -190,7 +190,7 @@ export function scheduleNudges(
 		}
 		if (wantsNudge(preferences, "windfall")) {
 			for (const extraIncome of raised.windfalls) {
-				// They saw the Windfall grow as they recorded the income.
+				// They saw the Extra income grow as they recorded the income.
 				if (extraIncome.recordedBy.every((id) => id === memberId)) continue;
 				nudges.push(extraIncomeNudge(extraIncome));
 			}

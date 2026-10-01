@@ -47,7 +47,7 @@ describe("loans amortize the standard way", () => {
 });
 
 describe("the Plan's numbers a Check starts from", () => {
-	it("estimates gross income from the take-home Baseline at 75%", () => {
+	it("estimates gross income from the take-home take-home pay at 75%", () => {
 		// $9,000 take-home / 0.75 = $12,000 gross.
 		expect(estimateGrossIncome(900_000)).toBe(1_200_000);
 	});
@@ -144,7 +144,7 @@ describe("homeCheck: a worked example", () => {
 		]);
 	});
 
-	it("is Not Yet with 10% down, $30,000 set aside and no rent replaced", () => {
+	it("is Not yet with 10% down, $30,000 set aside and no rent replaced", () => {
 		// Loan $360,000: P&I 360,000 × 0.0054167 × 6.99179 / 5.99179 = $2,275.44; PMI
 		// 360,000 × 0.5% / 12 = $150; housing 2,275.44 + 366.67 + 150 + 150 = $2,942.11.
 		// Cash needed $40,000 + $12,000 = $52,000: $22,000 short, 15 months at $1,500 (Dec 2027).
@@ -205,7 +205,7 @@ describe("homeCheck: thresholds at their edges", () => {
 	const tone = (check: ReturnType<typeof homeCheck>, starts: string) =>
 		check.reasons.find((r) => r.text.startsWith(starts))?.tone;
 
-	it("front-end: Comfortable up to 28%, a Stretch up to 31%, Not Yet above", () => {
+	it("front-end: Comfortable up to 28%, a Stretch up to 31%, Not yet above", () => {
 		expect(tone(bare({ hoaPerMonth: 280_000 }), "Housing would")).toBe("comfortable");
 		expect(tone(bare({ hoaPerMonth: 280_001 }), "Housing would")).toBe("stretch");
 		expect(tone(bare({ hoaPerMonth: 310_000 }), "Housing would")).toBe("stretch");
@@ -213,14 +213,14 @@ describe("homeCheck: thresholds at their edges", () => {
 		expect(bare({ hoaPerMonth: 310_001 }).verdict).toBe("not-yet");
 	});
 
-	it("back-end: Comfortable up to 36%, a Stretch up to 43%, Not Yet above", () => {
+	it("back-end: Comfortable up to 36%, a Stretch up to 43%, Not yet above", () => {
 		expect(tone(bare({ otherDebts: 260_000 }), "With $2,600")).toBe("comfortable");
 		expect(tone(bare({ otherDebts: 260_001 }), "With $2,600")).toBe("stretch");
 		expect(tone(bare({ otherDebts: 330_000 }), "With $3,300")).toBe("stretch");
 		expect(tone(bare({ otherDebts: 330_001 }), "With $3,300")).toBe("not-yet");
 	});
 
-	it("the Plan: Comfortable at 5% of the Baseline left, a Stretch down to zero, Not Yet below", () => {
+	it("the Plan: Comfortable at 5% of your take-home pay left, a Stretch down to zero, Not yet below", () => {
 		// Free to Spend 1,500 + replaced − 1,000 HOA; the cushion is 5% of $9,000 = $450.
 		const leaving = (left: number) => bare({ replaced: 100_000 - 150_000 + left });
 		expect(leaving(45_000).freeToSpendAfter).toBe(45_000);
@@ -230,7 +230,7 @@ describe("homeCheck: thresholds at their edges", () => {
 		expect(tone(leaving(-1), "Housing of")).toBe("not-yet");
 	});
 
-	it("cash: Comfortable when exactly enough is set aside, Not Yet a cent short", () => {
+	it("cash: Comfortable when exactly enough is set aside, Not yet a cent short", () => {
 		expect(tone(bare({ cashAvailable: 10_000_000 }), "You have")).toBe("comfortable");
 		expect(tone(bare({ cashAvailable: 9_999_999 }), "You have")).toBe("not-yet");
 	});
@@ -292,7 +292,7 @@ describe("carCheck: cash vs loan vs lease", () => {
 		});
 		expect(car.loan.reasons.map((r) => r.text)).toEqual([
 			"You have $40,000 set aside for the $5,000 down payment.",
-			"The $594 payment a month is 6.6% of the Baseline, within the 10% a car can comfortably take.",
+			"The $594 payment a month is 6.6% of your take-home pay, within the 10% a car can comfortably take.",
 			"$594 a month would take Free to Spend from $1,500 to $906 a month.",
 			"Over 3 years it costs about $21,733 all in, counting the $4,652 it’s worth at the end.",
 		]);
@@ -319,7 +319,7 @@ describe("carCheck: cash vs loan vs lease", () => {
 		expect(longer.loan.totalCost).toBe(500_000 + 60 * 59_404 - 1_146_880);
 	});
 
-	it("is Not Yet in cash when the price isn't set aside, with when it could be", () => {
+	it("is Not yet in cash when the price isn't set aside, with when it could be", () => {
 		const short = carCheck({
 			price: 3_500_000,
 			cashAvailable: 2_000_000,
@@ -337,7 +337,7 @@ describe("carCheck: cash vs loan vs lease", () => {
 		expect(short.loan.reasons.map((r) => r.tone)).toContain("note");
 	});
 
-	it("car costs: Comfortable up to 10% of the Baseline, a Stretch above", () => {
+	it("car costs: Comfortable up to 10% of your take-home pay, a Stretch above", () => {
 		const leaseAt = (monthly: number) =>
 			carCheck({
 				price: 3_500_000,
@@ -354,7 +354,7 @@ describe("carCheck: cash vs loan vs lease", () => {
 		expect(leaseAt(80_000).verdict).toBe("comfortable");
 		expect(leaseAt(80_001).verdict).toBe("stretch");
 		expect(leaseAt(80_000).reasons[1]?.text).toBe(
-			"The $800 payment and $100 running costs a month are 10.0% of the Baseline, within the 10% a car can comfortably take.",
+			"The $800 payment and $100 running costs a month are 10.0% of your take-home pay, within the 10% a car can comfortably take.",
 		);
 	});
 });
@@ -376,7 +376,7 @@ describe("anythingCheck: months until it's affordable", () => {
 		);
 	});
 
-	it("is Comfortable now, a Stretch within 12 months, Not Yet beyond", () => {
+	it("is Comfortable now, a Stretch within 12 months, Not yet beyond", () => {
 		expect(at(600_000)).toMatchObject({
 			months: 0,
 			affordableIn: "2026-09",
@@ -387,7 +387,7 @@ describe("anythingCheck: months until it's affordable", () => {
 		expect(at(0, 49_999)).toMatchObject({ months: 13, verdict: "not-yet" });
 	});
 
-	it("is Not Yet, with no date, when nothing can be set aside", () => {
+	it("is Not yet, with no date, when nothing can be set aside", () => {
 		expect(at(0, 0)).toMatchObject({ months: null, affordableIn: null, verdict: "not-yet" });
 	});
 });

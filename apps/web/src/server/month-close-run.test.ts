@@ -110,7 +110,7 @@ describe("runMonthClose", () => {
 						rolledOverCents: 500,
 					},
 				],
-				// The Windfall is always left for the Parents.
+				// The Extra income is always left for the Parents.
 				windfall: [],
 			},
 		]);

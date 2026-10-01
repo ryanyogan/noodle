@@ -106,7 +106,7 @@ const untilOf = (input: Ranged) => (input.until ? { until: input.until } : {});
 
 type TakeHomePayInput = Author & { householdId: string; month: MonthKey; amountCents: Cents };
 
-/** The Plan change for setting the Baseline, written before it. */
+/** The Plan change for setting take-home pay, written before it. */
 export const takeHomePayLog = (db: Db, input: TakeHomePayInput & Ranged) => {
 	const was = inForce(
 		baselines,
@@ -130,8 +130,8 @@ export const takeHomePayLog = (db: Db, input: TakeHomePayInput & Ranged) => {
 };
 
 /**
- * Sets the Baseline from `month` onward, or for `scope` "just" that month only: the next month
- * goes back to the Baseline in force before, unless it has its own. Setting it again for the same
+ * Sets take-home pay from `month` onward, or for `scope` "just" that month only: the next month
+ * goes back to take-home pay in force before, unless it has its own. Setting it again for the same
  * month replaces it.
  */
 export async function setTakeHomePay(
@@ -162,7 +162,7 @@ export async function setTakeHomePay(
 	}
 	await db.batch([
 		log,
-		// The next month's own Baseline always wins, even one written since the read above.
+		// The next month's own take-home pay always wins, even one written since the read above.
 		db
 			.insert(baselines)
 			.values({ householdId, ...restore })
@@ -206,7 +206,7 @@ export async function addBucket(
 /**
  * addBucket as statements, for writing them in a batch with others; `color` may be SQL (say,
  * the next colour in turn), `archivedFromMonth` also sets when it leaves the Plan, and `rolling`
- * makes it Rolling from the start.
+ * makes it carries over from the start.
  */
 export const bucketAdd = (
 	db: Db,
@@ -488,7 +488,7 @@ export const allowanceWrite = (db: Db, input: AllowanceInput) =>
 	});
 
 /**
- * Sets a Bucket Rolling or Fresh-start from `month` onward, for the Parent `memberId`. Setting it
+ * Sets a Bucket carries over or resets monthly from `month` onward, for the Parent `memberId`. Setting it
  * again for the same month replaces it.
  */
 export async function setCarriesOver(

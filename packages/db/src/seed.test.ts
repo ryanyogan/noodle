@@ -26,8 +26,8 @@ import {
 import { testDb } from "./test-db";
 
 // The seed scenarios (#46) hold to the invariants the app relies on: every row has its parent,
-// money adds up (Splits, Transfers, Refunds, Receipts), Earmarks fit their Accounts' balances,
-// every month's Plan nets out, Sweeps and Windfall decisions never exceed what there was, and
+// money adds up (Splits, Transfers, Refunds, Receipts), what Goals have set aside fit their Accounts' balances,
+// every month's Plan nets out, Sweeps and Extra income decisions never exceed what there was, and
 // busy has the edge cases the design reviews need. Checked on a few "todays", since every date
 // is relative to it.
 
@@ -143,50 +143,59 @@ describe.each(SEED_SCENARIOS)("the %s seed", (scenario) => {
 		},
 	);
 
-	it.each(TODAYS)("keeps Earmarks within their Accounts' balances (today %s)", async (today) => {
-		const { db, householdId, alex } = await seeded(scenario, today);
-		if (!alex) return;
-		const records = await loadGoals(db, { householdId, memberId: alex });
-		for (const account of records.accounts) {
-			const balance = accountBalance(
-				account.latestBalance,
-				records.withdrawals.filter((w) => w.accountId === account.id),
-			);
-			const goals = records.goals
-				.filter((g) => g.accountId === account.id)
-				.map((g) => ({ id: g.id, archived: g.archived }));
-			const split = splitAccount({ balance, goals, changes: records.changes });
-			expect(split.overClaimedBy, account.name).toBe(0);
-			for (const e of split.earmarks) expect(e.amount, e.goalId).toBeGreaterThanOrEqual(0);
-		}
-	});
+	it.each(TODAYS)(
+		"keeps what Goals set aside within their Accounts' balances (today %s)",
+		async (today) => {
+			const { db, householdId, alex } = await seeded(scenario, today);
+			if (!alex) return;
+			const records = await loadGoals(db, { householdId, memberId: alex });
+			for (const account of records.accounts) {
+				const balance = accountBalance(
+					account.latestBalance,
+					records.withdrawals.filter((w) => w.accountId === account.id),
+				);
+				const goals = records.goals
+					.filter((g) => g.accountId === account.id)
+					.map((g) => ({ id: g.id, archived: g.archived }));
+				const split = splitAccount({ balance, goals, changes: records.changes });
+				expect(split.overClaimedBy, account.name).toBe(0);
+				for (const e of split.earmarks) expect(e.amount, e.goalId).toBeGreaterThanOrEqual(0);
+			}
+		},
+	);
 
-	it.each(TODAYS)("nets out every month's Plan, Windfall and Sweeps (today %s)", async (today) => {
-		const { db, rows, householdId } = await seeded(scenario, today);
-		const thisMonth = monthOfDay(today);
-		const first = rows.baselines.map((b) => b.month).sort()[0] as MonthKey | undefined;
-		if (!first) return;
-		for (let month = first; month <= thisMonth; month = addMonths(month, 1)) {
-			const records = await loadPlanRecords(db, householdId, month);
-			const plan = planForMonth(records, month);
-			// The Plan in force leaves Free to Spend at or above zero before any Cover...
-			expect(planFreeToSpend(plan), month).toBeGreaterThanOrEqual(0);
-			// ...and after Covers from it and Goal funding too.
-			const free = await scalar(db, sql`select ${freeToSpendSql(householdId, month)}`);
-			expect(free, month).toBeGreaterThanOrEqual(0);
-			// Windfall decided never exceeds the Windfall.
-			const left = await scalar(db, sql`select ${extraIncomeLeftSql(householdId, month)} as left`);
-			expect(left, month).toBeGreaterThanOrEqual(0);
-		}
-		// A Sweep takes exactly the leftover a Fresh-start Bucket had.
-		for (const sweep of rows.moves.filter((m) => m.kind === "sweep")) {
-			const left = await scalar(
-				db,
-				sql`select ${bucketLeftSql(householdId, sweep.fromBucketId as string, sweep.month as MonthKey)} as left from buckets s where s.id = ${sweep.fromBucketId}`,
-			);
-			expect(left).toBe(0);
-		}
-	});
+	it.each(TODAYS)(
+		"nets out every month's Plan, Extra income and Sweeps (today %s)",
+		async (today) => {
+			const { db, rows, householdId } = await seeded(scenario, today);
+			const thisMonth = monthOfDay(today);
+			const first = rows.baselines.map((b) => b.month).sort()[0] as MonthKey | undefined;
+			if (!first) return;
+			for (let month = first; month <= thisMonth; month = addMonths(month, 1)) {
+				const records = await loadPlanRecords(db, householdId, month);
+				const plan = planForMonth(records, month);
+				// The Plan in force leaves Free to Spend at or above zero before any Cover...
+				expect(planFreeToSpend(plan), month).toBeGreaterThanOrEqual(0);
+				// ...and after Covers from it and Goal funding too.
+				const free = await scalar(db, sql`select ${freeToSpendSql(householdId, month)}`);
+				expect(free, month).toBeGreaterThanOrEqual(0);
+				// Extra income decided never exceeds the Extra income.
+				const left = await scalar(
+					db,
+					sql`select ${extraIncomeLeftSql(householdId, month)} as left`,
+				);
+				expect(left, month).toBeGreaterThanOrEqual(0);
+			}
+			// A Sweep takes exactly the leftover a Bucket that resets monthly had.
+			for (const sweep of rows.moves.filter((m) => m.kind === "sweep")) {
+				const left = await scalar(
+					db,
+					sql`select ${bucketLeftSql(householdId, sweep.fromBucketId as string, sweep.month as MonthKey)} as left from buckets s where s.id = ${sweep.fromBucketId}`,
+				);
+				expect(left).toBe(0);
+			}
+		},
+	);
 });
 
 describe("the busy seed", () => {

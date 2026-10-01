@@ -255,7 +255,7 @@ function RuleForm({
 					onDone();
 				}}
 			>
-				File unassigned matches now
+				File what’s still unassigned now
 			</Button>
 			{deleting ? (
 				<Confirm

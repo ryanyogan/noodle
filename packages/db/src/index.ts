@@ -329,12 +329,12 @@ export {
 } from "./commitments";
 export {
 	addIncome,
-	decideExtraIncome as decideWindfall,
+	decideExtraIncome,
 	type IncomeRecord,
 	type IncomeWriteResult,
 	loadIncome,
 	removeIncome,
-	undoExtraIncome as undoWindfall,
+	undoExtraIncome,
 } from "./extra-income";
 export {
 	type AccountRecord,
@@ -447,8 +447,8 @@ export {
 	loadPlanRecords,
 	reorderBuckets,
 	setAllowance,
-	setCarriesOver as setRolling,
-	setTakeHomePay as setBaseline,
+	setCarriesOver,
+	setTakeHomePay,
 	updateBucket,
 } from "./plan";
 export {
@@ -504,10 +504,10 @@ export {
 	saveRule,
 } from "./rules";
 export {
-	applyChanges as applyLevers,
-	ChangeNotApplicable as LeverNotApplicable,
+	applyChanges,
 	deleteScenario,
 	loadScenarios,
+	ScenarioChangeNotApplicable,
 	type ScenarioRecord,
 	saveScenario,
 } from "./scenarios";

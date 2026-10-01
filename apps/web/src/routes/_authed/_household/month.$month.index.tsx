@@ -5,6 +5,7 @@ import {
 	type CoverSource,
 	canAssign,
 	type DayKey,
+	extraIncomeSuggestions,
 	freeToSpendParts,
 	type IncomeCheck,
 	incomeCheck,
@@ -17,7 +18,6 @@ import {
 	monthOfDay,
 	nothingToClose,
 	whatChanged,
-	windfallSuggestions,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
@@ -48,6 +48,7 @@ import { MonthCloseSection, MonthEndSection } from "../../../components/month-cl
 import { MonthLinks, MonthTopRow, monthTitle, useMonthSwipe } from "../../../components/month-nav";
 import { GoalsThisMonth } from "../../../components/plan-goals";
 import { planParts } from "../../../components/plan-page";
+import { TermHelp } from "../../../components/term-help";
 import { type CoverVariables, useCovers } from "../../../covers";
 import { useExtraIncomes, useIncome } from "../../../extra-income";
 import { formatMoney, shortDay } from "../../../format";
@@ -148,12 +149,12 @@ function ThisMonth() {
 		asOf: state.asOf,
 	});
 	const activeGoals = goals.goals.filter((g) => g.state === "active");
-	// This month's Windfall can go to its Buckets too; an ended month's only to Goals.
+	// This month's Extra income can go to its Buckets too; an ended month's only to Goals.
 	const extraIncomePlaces = {
 		goals: activeGoals,
 		buckets: month === current ? state.buckets.filter((b) => canAssign(b, parentId)) : [],
 	};
-	const suggestions = windfallSuggestions({
+	const suggestions = extraIncomeSuggestions({
 		pending: state.windfallLeft,
 		goals: activeGoals.map((g) => ({
 			id: g.id,
@@ -221,7 +222,19 @@ function ThisMonth() {
 					) : null}
 					{buckets.length > 0 ? (
 						<Section aria-labelledby="buckets">
-							<SectionHeader id="buckets" title="Buckets" count={buckets.length} />
+							<SectionHeader
+								id="buckets"
+								title="Buckets"
+								count={buckets.length}
+								help={<TermHelp term="bucket" />}
+							/>
+							<p className="-mt-1 flex flex-wrap items-center gap-x-1 px-1 text-[13px] text-muted-foreground">
+								<span>
+									Each bar is what’s left. The line marks where you’d be if you spent evenly across
+									the month: its Pace.
+								</span>
+								<TermHelp term="pace" />
+							</p>
 							<List>{buckets.map(bucketRow)}</List>
 						</Section>
 					) : null}
@@ -269,7 +282,7 @@ function ThisMonth() {
 				<EmptyState
 					icon={<CalendarDays />}
 					title="Nothing planned yet"
-					description="Set your Baseline and add Buckets to start this month’s Plan."
+					description="Set your take-home pay and add Buckets to start this month’s Plan."
 					action={
 						<Button asChild>
 							<Link to="/plan/$month" params={{ month }}>
@@ -300,7 +313,7 @@ function ThisMonth() {
 				notePlaceholder="e.g. Paycheck"
 				submitLabel="Add income"
 				check={() => ({
-					hint: "Whatever comes in beyond the Baseline is a Windfall to decide on.",
+					hint: "Whatever comes in above your usual take-home pay is Extra income, for you to decide where it goes.",
 				})}
 				onSave={(amountCents, note) => {
 					setAddingIncome(false);
@@ -437,9 +450,12 @@ function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck |
 	return (
 		<Card role="region" aria-labelledby="free-to-spend">
 			<div className="grid gap-1 p-(--card-pad)">
-				<h2 id="free-to-spend" className="text-[13px] font-medium text-muted-foreground">
-					Free to Spend
-				</h2>
+				<div className="flex items-center gap-1">
+					<h2 id="free-to-spend" className="text-[13px] font-medium text-muted-foreground">
+						Free to Spend
+					</h2>
+					<TermHelp term="free-to-spend" />
+				</div>
 				<p
 					className={cn(
 						"text-[2.75rem] font-[650] leading-[1.05] tracking-[-0.04em] tabular-nums",
@@ -451,13 +467,13 @@ function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck |
 				<p className="text-sm text-muted-foreground">
 					{state.baseline === null ? (
 						<>
-							Set your Baseline to see what’s free.{" "}
-							<PlanLink month={state.month}>Set Baseline</PlanLink>
+							Set your take-home pay to see what’s free.{" "}
+							<PlanLink month={state.month}>Set take-home pay</PlanLink>
 						</>
 					) : overPlanned ? (
 						<>
 							Your {state.committed > 0 ? "Commitments and Buckets" : "Buckets"} add up to{" "}
-							{formatMoney(-state.freeToSpend)} more than your Baseline.{" "}
+							{formatMoney(-state.freeToSpend)} more than your take-home pay.{" "}
 							<PlanLink month={state.month}>Adjust the Plan</PlanLink>
 						</>
 					) : (
@@ -490,7 +506,7 @@ function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck |
 }
 
 /**
- * Free to Spend worked out in one line, "$6,000 Baseline − $2,100 Commitments − …", each part
+ * Free to Spend worked out in one line, "$6,000 take-home pay − $2,100 Commitments − …", each part
  * that takes something; it opens the Plan's waterfall.
  */
 function Breakdown({ state, baseline }: { state: MonthState; baseline: number }) {
@@ -511,7 +527,7 @@ function Breakdown({ state, baseline }: { state: MonthState; baseline: number })
 			)}
 		>
 			<span className="flex flex-wrap gap-x-1.5 gap-y-0.5 tabular-nums">
-				<span className="whitespace-nowrap">{term(formatMoney(baseline), "Baseline")}</span>
+				<span className="whitespace-nowrap">{term(formatMoney(baseline), "take-home pay")}</span>
 				{parts.map(({ part, amount }) => (
 					<span key={part} className="whitespace-nowrap">
 						<span aria-hidden="true">− </span>
@@ -571,7 +587,7 @@ function BucketRow({
 				bucket.status === "over"
 					? `, over by ${formatMoney(-bucket.left)}`
 					: bucket.status === "ahead"
-						? ", ahead of Pace"
+						? ", ahead of pace"
 						: ""
 			}${isPrivate ? ", private" : ""}`}
 			leading={<Tile bucket={color}>{monogram(bucket.name)}</Tile>}
@@ -587,13 +603,13 @@ function BucketRow({
 					</Badge>
 				) : bucket.status === "ahead" ? (
 					<Badge variant="pace" dot>
-						Ahead of Pace
+						Ahead of pace
 					</Badge>
 				) : null
 			}
 			meta={
 				<>
-					<Badge>{bucket.rolling ? "Rolling" : "Fresh-start"}</Badge>
+					{bucket.rolling ? <Badge>Carries over</Badge> : null}
 					<span>
 						{formatMoney(bucket.spent)} spent{isPrivate ? " · Private" : ""}
 					</span>

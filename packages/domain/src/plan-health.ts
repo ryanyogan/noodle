@@ -8,9 +8,9 @@ import { planAhead, project } from "./scenario";
 
 // Plan health: what in the Plan is likely to go wrong, each warning pointing at its fix.
 //
-// - Free to Spend below zero in a month ahead: the Plan projected with no Levers (planAhead),
+// - Free to Spend below zero in a month ahead: the Plan projected with no Changes (planAhead),
 //   over the next 12 months.
-// - Income behind the Baseline this month, from mid-month on (incomeCheck).
+// - Income behind take-home pay this month, from mid-month on (incomeCheck).
 // - A Bucket over its allowance in most of the last 6 months (Reports' planHabits). The other
 //   Parent's Personal Allowance is theirs alone to set, so it's never flagged to this one.
 // - A dated Goal that won't reach its target by its date at the pace of its last 6 months

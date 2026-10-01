@@ -50,7 +50,7 @@ async function loadHistory(db: Db, viewer: Viewer, asOf: DayKey) {
 	return { findings, plan: planForMonth(records, month) };
 }
 
-/** Whether the Plan still needs setting up: no Baseline, or no Buckets but Personal Allowances. */
+/** Whether the Plan still needs setting up: no take-home pay, or no Buckets but Personal Allowances. */
 const needsSetUp = (plan: Plan) =>
 	plan.baseline === null || plan.buckets.every((bucket) => bucket.owner !== undefined);
 

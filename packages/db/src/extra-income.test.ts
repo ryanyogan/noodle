@@ -9,7 +9,7 @@ import {
 	addIncome,
 	createHouseholdForParent,
 	type Db,
-	decideWindfall,
+	decideExtraIncome,
 	fundGoal,
 	loadGoalFunding,
 	loadGoals,
@@ -17,10 +17,10 @@ import {
 	loadMoves,
 	loadPlanRecords,
 	removeIncome,
-	setBaseline,
 	setEmergencyGoal,
+	setTakeHomePay,
 	spendGoal,
-	undoWindfall,
+	undoExtraIncome,
 } from "./index";
 import { freeToSpendSql } from "./moves";
 import { testDb } from "./test-db";
@@ -41,7 +41,7 @@ beforeEach(async () => {
 		parentId,
 		parentName: "Alex",
 	});
-	await setBaseline(db, { householdId, memberId: parentId, month, amountCents: 600_000 });
+	await setTakeHomePay(db, { householdId, memberId: parentId, month, amountCents: 600_000 });
 	await addBucket(db, {
 		householdId,
 		memberId: parentId,
@@ -91,7 +91,14 @@ const decide = (
 	to: { kind: "goal"; goalId: string } | { kind: "bucket"; bucketId: string },
 	amountCents: number,
 ) =>
-	decideWindfall(db, { householdId, moveId, month, to, amountCents, createdByMemberId: parentId });
+	decideExtraIncome(db, {
+		householdId,
+		moveId,
+		month,
+		to,
+		amountCents,
+		createdByMemberId: parentId,
+	});
 
 const scalar = async (expression: SQL) =>
 	(await db.values<[number | null]>(sql`select ${expression}`))[0]?.[0];
@@ -127,7 +134,7 @@ describe("income", () => {
 	});
 });
 
-describe("Windfall Moves", () => {
+describe("Extra income Moves", () => {
 	beforeEach(async () => {
 		await receive("pay-1", "2026-10-02", 300_000);
 		await receive("pay-2", "2026-10-16", 300_000);
@@ -146,7 +153,7 @@ describe("Windfall Moves", () => {
 		expect(after.fundedGoals).toBe(0);
 	});
 
-	it("go to a Goal's Earmark without touching Free to Spend", async () => {
+	it("go to what a Goal has set aside without touching Free to Spend", async () => {
 		const free = (await scalar(freeToSpendSql(householdId, month))) ?? 0;
 		expect(await decide("to-trip", { kind: "goal", goalId: "trip" }, 300_000)).toEqual({
 			ok: true,
@@ -188,7 +195,7 @@ describe("Windfall Moves", () => {
 	it("are refused to another Household's Goal or a Bucket not in the Plan", async () => {
 		expect(await decide("x", { kind: "goal", goalId: "nope" }, 1_000)).toMatchObject({ ok: false });
 		expect(
-			await decideWindfall(db, {
+			await decideExtraIncome(db, {
 				householdId,
 				moveId: "y",
 				month: "2026-09",
@@ -201,7 +208,9 @@ describe("Windfall Moves", () => {
 
 	it("can be undone, unless the Goal has spent the money since", async () => {
 		await decide("to-fun", { kind: "bucket", bucketId: "fun" }, 50_000);
-		expect(await undoWindfall(db, { householdId, moveId: "to-fun", month })).toEqual({ ok: true });
+		expect(await undoExtraIncome(db, { householdId, moveId: "to-fun", month })).toEqual({
+			ok: true,
+		});
 		await decide("to-trip", { kind: "goal", goalId: "trip" }, 100_000);
 		await spendGoal(db, {
 			householdId,
@@ -212,7 +221,7 @@ describe("Windfall Moves", () => {
 			note: null,
 			createdByMemberId: parentId,
 		});
-		expect(await undoWindfall(db, { householdId, moveId: "to-trip", month })).toEqual({
+		expect(await undoExtraIncome(db, { householdId, moveId: "to-trip", month })).toEqual({
 			ok: false,
 			reason: "refused",
 		});
@@ -225,7 +234,7 @@ describe("Windfall Moves", () => {
 			ok: false,
 			reason: "refused",
 		});
-		await undoWindfall(db, { householdId, moveId: "to-trip", month });
+		await undoExtraIncome(db, { householdId, moveId: "to-trip", month });
 		expect(await removeIncome(db, { householdId, incomeId: "pay-3", month })).toEqual({ ok: true });
 		expect(await removeIncome(db, { householdId, incomeId: "pay-3", month })).toEqual({ ok: true });
 		expect(await scalar(extraIncomeLeftSql(householdId, month))).toBe(0);

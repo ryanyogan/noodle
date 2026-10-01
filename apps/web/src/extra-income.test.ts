@@ -32,15 +32,15 @@ const bonus = {
 	note: "Bonus",
 };
 
-describe("optimistic income and Windfall Moves", () => {
-	test("income beyond the Baseline shows up as a Windfall at once, and goes when removed", () => {
+describe("optimistic income and Extra income Moves", () => {
+	test("income beyond take-home pay shows up as Extra income at once, and goes when removed", () => {
 		const withBonus = withIncome(month, bonus);
 		expect(withIncome(withBonus, bonus)).toBe(withBonus);
 		expect(monthState(withBonus)).toMatchObject({ received: 620_000, windfallLeft: 120_000 });
 		expect(monthState(withoutIncome(withBonus, bonus)).windfall).toBe(0);
 	});
 
-	test("sending the Windfall to a Goal or Bucket leaves Free to Spend alone", () => {
+	test("sending the Extra income to a Goal or Bucket leaves Free to Spend alone", () => {
 		const data = withIncome(month, bonus);
 		const before = monthState(data);
 		const toGoal = withExtraIncome(data, {

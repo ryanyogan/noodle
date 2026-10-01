@@ -15,17 +15,18 @@ import { useState } from "react";
 import { formatMoney, monthName } from "../format";
 import type { GoalView } from "../goals";
 import { NativeSelect } from "./native-select";
+import { TermHelp } from "./term-help";
 
-/** Where the Parents send a month's leftovers and Windfall, by Goal ID; unset ones stay put. */
+/** Where the Parents send a month's leftovers and Extra income, by Goal ID; unset ones stay put. */
 export type MonthCloseChoice = {
 	sweeps: Record<string, string>;
 	windfallGoalId: string | null;
 };
 
 /**
- * A month that has ended, awaiting the Parents: each Fresh-start Bucket's leftover to Sweep into
- * a Goal or leave, and the pending Windfall. Leftovers start on the emergency Goal, as the
- * defaults would send them; the Windfall is always left for a deliberate choice (ADR-0001).
+ * A month that has ended, awaiting the Parents: each resetting Bucket's leftover to Sweep into
+ * a Goal or leave, and the pending Extra income. Leftovers start on the emergency Goal, as the
+ * defaults would send them; the Extra income is always left for a deliberate choice (ADR-0001).
  */
 export function MonthCloseSection({
 	proposal,
@@ -55,12 +56,16 @@ export function MonthCloseSection({
 	));
 	return (
 		<Section aria-labelledby="month-close">
-			<SectionHeader id="month-close" title={`Close ${name}`} />
+			<SectionHeader
+				id="month-close"
+				title={`Close ${name}`}
+				help={<TermHelp term="month-close" />}
+			/>
 			<p className="px-1 pb-3 text-sm text-muted-foreground">
 				{name} has ended.{" "}
 				{proposal.leftovers.length > 0
 					? goals.length > 0
-						? "Sweep what’s left in Fresh-start Buckets into a Goal, or leave it."
+						? "Sweep what’s left in Buckets that reset monthly into a Goal, or leave it."
 						: "There’s no Goal to Sweep leftovers into yet, so they stay put."
 					: null}{" "}
 				{proposal.leftovers.length > 0
@@ -94,12 +99,12 @@ export function MonthCloseSection({
 				))}
 				{proposal.windfall > 0 ? (
 					<ListRow
-						title="Windfall"
-						meta={`${formatMoney(proposal.windfall)} beyond the Baseline`}
+						title="Extra income"
+						meta={`${formatMoney(proposal.windfall)} above your usual take-home pay`}
 						trailing={
 							<NativeSelect
 								className="w-40"
-								aria-label="Where the Windfall goes"
+								aria-label="Where the Extra income goes"
 								value={extraIncomeGoalId}
 								disabled={!hydrated || pending}
 								onChange={(event) => setExtraIncomeGoalId(event.currentTarget.value)}
@@ -125,7 +130,7 @@ export function MonthCloseSection({
 
 /**
  * How an ended month's money ended up, on that month: the leftovers Swept into Goals, the
- * Windfall sent to Goals, what each Rolling Bucket carried into the next month, and who closed
+ * Extra income sent to Goals, what each Bucket that carries over took into the next month, and who closed
  * it (or that the defaults did). Nothing when the month closed with nothing to tell.
  */
 export function MonthEndSection({
@@ -168,7 +173,7 @@ export function MonthEndSection({
 			/>
 			{quietEnd(end) ? (
 				<p className="rounded-xl border border-dashed px-(--card-pad) py-4 text-[13px] text-muted-foreground">
-					Nothing was Swept or rolled over.
+					Nothing was Swept or carried over.
 				</p>
 			) : (
 				<List aria-label={`How ${name} ended`}>
@@ -183,7 +188,7 @@ export function MonthEndSection({
 					{end.windfall.map((extraIncome) => (
 						<ListRow
 							key={`windfall:${extraIncome.goalId}`}
-							title="Windfall"
+							title="Extra income"
 							meta={`Sent to ${goalName(extraIncome.goalId)}`}
 							trailing={<Amount cents={extraIncome.amount} />}
 						/>
@@ -194,7 +199,7 @@ export function MonthEndSection({
 							title={rolled.name}
 							meta={
 								rolled.amount > 0
-									? `Rolled over into ${next}`
+									? `Carried over into ${next}`
 									: `Overspent, so ${next} starts short`
 							}
 							trailing={<Amount cents={rolled.amount} />}

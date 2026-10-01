@@ -1,4 +1,4 @@
-import { parseLeverPreset } from "@noodle/domain";
+import { parseChangePreset } from "@noodle/domain";
 import { describe, expect, it } from "vitest";
 import { exploreTriesFor, type InsightItem } from "./insights";
 
@@ -43,8 +43,8 @@ describe("exploreTriesFor", () => {
 		expect(tries).toEqual([
 			{ name: "Hulu at $19.99", preset: "commitment-terms:hulu:1999:2026-09" },
 		]);
-		// Explore reads it back as the same Lever.
-		expect(parseLeverPreset(tries[0]?.preset ?? "", current)).toEqual({
+		// Explore reads it back as the same Change.
+		expect(parseChangePreset(tries[0]?.preset ?? "", current)).toEqual({
 			kind: "commitment-terms",
 			commitmentId: "hulu",
 			amount: 1_999,

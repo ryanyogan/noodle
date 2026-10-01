@@ -48,14 +48,14 @@ const cover = (month: MonthKey, amount: number, toBucketId = "hockey"): Move => 
 });
 
 describe("rolledOver: what each Bucket carries into a month", () => {
-	it("carries nothing for a Fresh-start Bucket", () => {
+	it("carries nothing for a Bucket that resets monthly", () => {
 		const plan = records([]);
 		expect(
 			rolledOver({ records: plan, spent: [spent("2026-06", 10_000)], moves: [], month: "2026-07" }),
 		).toEqual({});
 	});
 
-	it("carries a Rolling Bucket's leftover forward, adding up across months", () => {
+	it("carries a Bucket that carries over's leftover forward, adding up across months", () => {
 		const plan = records([{ bucketId: "hockey", month: "2026-06", rolling: true }]);
 		const history = [spent("2026-06", 30_000), spent("2026-07", 35_000)];
 		const into = (month: MonthKey) =>
@@ -84,7 +84,7 @@ describe("rolledOver: what each Bucket carries into a month", () => {
 		);
 	});
 
-	it("carries a month's leftover only if the Bucket was Rolling in that month", () => {
+	it("carries a month's leftover only if the Bucket was carries over in that month", () => {
 		const plan = records([
 			{ bucketId: "hockey", month: "2026-06", rolling: true },
 			{ bucketId: "hockey", month: "2026-07", rolling: false },
@@ -93,11 +93,11 @@ describe("rolledOver: what each Bucket carries into a month", () => {
 		const history = [spent("2026-06", 30_000), spent("2026-07", 0), spent("2026-08", 20_000)];
 		const into = (month: MonthKey) =>
 			rolledOver({ records: plan, spent: history, moves: [], month });
-		// June was Rolling: July starts with its 10,000.
+		// June carrying over: July starts with its 10,000.
 		expect(into("2026-07")).toEqual({ hockey: 10_000 });
-		// July was Fresh-start: its 50,000 left stays in July.
+		// July was resets monthly: its 50,000 left stays in July.
 		expect(into("2026-08")).toEqual({});
-		// August was Rolling again.
+		// August carrying over again.
 		expect(into("2026-09")).toEqual({ hockey: 20_000 });
 	});
 
@@ -126,7 +126,7 @@ describe("rolledOver: what each Bucket carries into a month", () => {
 });
 
 describe("rolloverSince: how far back history matters", () => {
-	it("is the first month before this one that any Bucket was Rolling", () => {
+	it("is the first month before this one that any Bucket was carries over", () => {
 		const plan = records([
 			{ bucketId: "hockey", month: "2026-05", rolling: false },
 			{ bucketId: "hockey", month: "2026-08", rolling: true },
@@ -153,7 +153,7 @@ describe("monthState with what rolled over", () => {
 });
 
 describe("bucketMonths: a Bucket month by month", () => {
-	it("gives each month's allowance, spending and balance, carrying a Rolling Bucket's", () => {
+	it("gives each month's allowance, spending and balance, carrying a Bucket that carries over's", () => {
 		const plan = records([{ bucketId: "hockey", month: "2026-06", rolling: true }]);
 		const months = bucketMonths({
 			records: plan,
@@ -214,7 +214,7 @@ describe("bucketMonths: a Bucket month by month", () => {
 		expect(august).toMatchObject({ rolledOver: 15_000, left: 55_000 });
 	});
 
-	it("leaves a Fresh-start Bucket's leftover behind each month", () => {
+	it("leaves a Bucket that resets monthly's leftover behind each month", () => {
 		const months = bucketMonths({
 			records: records([]),
 			spent: [spent("2026-06", 30_000)],

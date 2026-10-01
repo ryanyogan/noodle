@@ -12,7 +12,8 @@ test.afterEach(async () => {
 	await parent?.remove();
 });
 
-const waterfall = (page: Page) => page.getByRole("region", { name: "Baseline to Free to Spend" });
+const waterfall = (page: Page) =>
+	page.getByRole("region", { name: "From take-home pay to Free to Spend" });
 const comingUp = (page: Page) => page.getByRole("region", { name: "Coming up" });
 const addForm = (page: Page) => page.getByRole("form", { name: "Add a Commitment" });
 
@@ -89,6 +90,6 @@ test("Commitments show what's coming up, why a month is lumpy, and each one's pa
 	await expect(page.getByRole("region", { name: "Terms history" })).toContainText("$1,140");
 
 	// Try ending it: Explore opens a new Scenario with it ended.
-	await page.getByRole("link", { name: "Try ending this" }).click();
+	await page.getByRole("link", { name: "See what ending it frees up" }).click();
 	await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Without Car insurance");
 });

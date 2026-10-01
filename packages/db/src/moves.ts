@@ -18,7 +18,7 @@ export function loadMoves(db: Db, householdId: string, month: MonthKey): Promise
 }
 
 /**
- * Moves into Buckets (from Buckets, Free to Spend, or the Windfall) in months from `from` up to,
+ * Moves into Buckets (from Buckets, Free to Spend, or the Extra income) in months from `from` up to,
  * not including, `until`.
  */
 export async function loadMovesBetween(
@@ -125,8 +125,8 @@ function committedSql(householdId: string, month: MonthKey): SQL {
 }
 
 /**
- * Free to Spend this month: the Baseline less Commitments, allowances, and Moves out of it (a
- * Windfall Move comes from the Windfall, not from it).
+ * Free to Spend this month: take-home pay less Commitments, allowances, and Moves out of it (a
+ * Extra income Move comes from the Extra income, not from it).
  */
 export function freeToSpendSql(householdId: string, month: MonthKey): SQL {
 	return sql`(coalesce((select b.amount_cents from baselines b
@@ -217,7 +217,7 @@ export async function addCover(
 
 /**
  * Undoes a Move to a Bucket in `month` by removing it. Undoing one already undone changes
- * nothing. Goal funding is undone with undoGoalFunding, which guards the Goal's Earmark.
+ * nothing. Goal funding is undone with undoGoalFunding, which guards what the Goal has set aside.
  */
 export async function undoMove(
 	db: Db,

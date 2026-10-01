@@ -264,7 +264,7 @@ function ReviewPage() {
 						<EmptyState
 							icon={<CheckCheck />}
 							title="All caught up"
-							description="Imported Transactions land here when categorization isn’t sure where they go."
+							description="Anything Noodle isn’t sure about waits here for you to confirm."
 							action={
 								<Button variant="outline" size="sm" asChild>
 									<Link to="/transactions">See Transactions</Link>
@@ -414,7 +414,7 @@ function SwipeCard({
 							{monogram(item.guess.name)}
 						</Tile>
 						<div className="grid min-w-0 flex-1">
-							<span className="text-xs text-muted-foreground">Best guess</span>
+							<span className="text-xs text-muted-foreground">Noodle’s guess</span>
 							<span className="truncate text-sm font-medium">{item.guess.name}</span>
 						</div>
 						{item.guess.confidence !== null ? (
@@ -429,7 +429,7 @@ function SwipeCard({
 							<Sparkles />
 						</Tile>
 						<div className="grid min-w-0 flex-1">
-							<span className="text-xs text-muted-foreground">Best guess</span>
+							<span className="text-xs text-muted-foreground">Noodle’s guess</span>
 							<span className="text-sm font-medium">No guess</span>
 						</div>
 					</>

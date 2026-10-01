@@ -3,23 +3,23 @@ import {
 	accountBalance,
 	attributeWithdrawal,
 	type DayKey,
-	type EarmarkChange,
-	earmarkOf,
 	goalHistory,
 	goalProgress,
 	holdsMoney,
 	type MonthKey,
 	monthState,
+	type SetAsideChange,
+	setAsideOf,
 	splitAccount,
 	stillToFund,
 } from "./index";
 
 const change = (
 	goalId: string,
-	kind: EarmarkChange["kind"],
+	kind: SetAsideChange["kind"],
 	amount: number,
 	month: MonthKey = "2026-09",
-): EarmarkChange => ({ goalId, kind, amount, month });
+): SetAsideChange => ({ goalId, kind, amount, month });
 
 describe("holdsMoney: only checking and savings Accounts can back a Goal", () => {
 	it.each([
@@ -51,10 +51,10 @@ describe("accountBalance", () => {
 	});
 });
 
-describe("earmarkOf: a Goal's Earmark", () => {
+describe("setAsideOf: what a Goal has set aside", () => {
 	it("sums claims, funding, and spending for that Goal only", () => {
 		expect(
-			earmarkOf("braces", [
+			setAsideOf("braces", [
 				change("braces", "claim", 800_000, "2026-08"),
 				change("braces", "funding", 25_000),
 				change("braces", "spending", -300_000),
@@ -65,7 +65,7 @@ describe("earmarkOf: a Goal's Earmark", () => {
 	});
 });
 
-describe("splitAccount: Earmarks and Unclaimed", () => {
+describe("splitAccount: what Goals have set aside and not set aside", () => {
 	const goals = [
 		{ id: "braces", archived: false },
 		{ id: "vacation", archived: false },
@@ -77,7 +77,7 @@ describe("splitAccount: Earmarks and Unclaimed", () => {
 		change("old-car", "claim", 300_000),
 	];
 
-	it("leaves what no Goal claims Unclaimed; archived Goals claim nothing", () => {
+	it("leaves what no Goal claims not set aside; archived Goals claim nothing", () => {
 		expect(splitAccount({ balance: 1_000_000, goals, changes })).toEqual({
 			earmarks: [
 				{ goalId: "braces", amount: 400_000 },
@@ -89,13 +89,13 @@ describe("splitAccount: Earmarks and Unclaimed", () => {
 		});
 	});
 
-	it("says by how much Earmarks exceed the balance", () => {
+	it("says by how much what Goals have set aside exceed the balance", () => {
 		const split = splitAccount({ balance: 450_000, goals, changes });
 		expect(split.unclaimed).toBe(-50_000);
 		expect(split.overClaimedBy).toBe(50_000);
 	});
 
-	it("has no Unclaimed until the Account has a balance", () => {
+	it("has no not set aside until the Account has a balance", () => {
 		const split = splitAccount({ balance: null, goals, changes });
 		expect(split.earmarked).toBe(500_000);
 		expect(split.unclaimed).toBeNull();
@@ -161,7 +161,7 @@ describe("goalProgress", () => {
 		expect(all).toMatchObject({ monthly: 25_000, leftThisMonth: 0, status: "on-track" });
 	});
 
-	it("counts money set aside from Unclaimed this month as already saved", () => {
+	it("counts money set aside from not set aside this month as already saved", () => {
 		const progress = goalProgress(braces, [change("braces", "claim", 60_000)], "2026-09");
 		expect(progress).toMatchObject({ saved: 60_000, monthly: 15_000, leftThisMonth: 15_000 });
 	});
@@ -264,13 +264,13 @@ describe("attributeWithdrawal (ADR-0002)", () => {
 		});
 	});
 
-	it("comes out of Unclaimed money when that covers it", () => {
+	it("comes out of not set aside money when that covers it", () => {
 		expect(attributeWithdrawal({ amount: 300_000, goalId: null }, account)).toEqual({
 			kind: "unclaimed",
 		});
 	});
 
-	it("comes out of Unclaimed money when nothing is earmarked", () => {
+	it("comes out of not set aside money when nothing is earmarked", () => {
 		expect(
 			attributeWithdrawal(
 				{ amount: 2_000_000, goalId: null },
@@ -279,12 +279,12 @@ describe("attributeWithdrawal (ADR-0002)", () => {
 		).toEqual({ kind: "unclaimed" });
 	});
 
-	it("goes to Review for what it takes from Earmarks", () => {
+	it("goes to Review for what it takes from what Goals have set aside", () => {
 		expect(attributeWithdrawal({ amount: 450_000, goalId: null }, account)).toEqual({
 			kind: "review",
 			fromEarmarks: 150_000,
 		});
-		// Already over-claimed: all of it comes from Earmarks.
+		// Already over-claimed: all of it comes from what Goals have set aside.
 		expect(
 			attributeWithdrawal(
 				{ amount: 50_000, goalId: null },
@@ -338,7 +338,7 @@ describe("goalHistory", () => {
 	it("lists changes by when they happened, newest month first, not by when they were recorded", () => {
 		const at = (
 			id: string,
-			kind: EarmarkChange["kind"],
+			kind: SetAsideChange["kind"],
 			amount: number,
 			month: MonthKey,
 			date?: DayKey,

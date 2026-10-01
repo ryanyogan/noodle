@@ -1,14 +1,14 @@
-import type { Change, ChangeOf } from "./changes";
+import type { ScenarioChange, ScenarioChangeOf } from "./changes";
 import type { Cadence } from "./commitments";
 import type { Cents } from "./money";
 import { type DayKey, type MonthKey, monthOfDay } from "./month";
 
-// Levers in plain words, as "Your changes" lists them: "Daycare $1,400 → ended from Sep 2027".
+// Changes in plain words, as "Your changes" lists them: "Daycare $1,400 → ended from Sep 2027".
 // Each says what the Plan has now, what the Scenario makes it, and the months it holds for.
 
-/** What Levers change, as the Plan has them this month: the words describe Levers against it. */
-export type ChangeSubjects = {
-	/** The Household's current month: a Lever from then (or earlier) needs no "from". */
+/** What Changes change, as the Plan has them this month: the words describe Changes against it. */
+export type ScenarioChangeSubjects = {
+	/** The Household's current month: a Change from then (or earlier) needs no "from". */
 	month: MonthKey;
 	baseline: Cents | null;
 	/** `owner`: set for a Personal Allowance, the Parent it belongs to. */
@@ -16,17 +16,17 @@ export type ChangeSubjects = {
 	commitments: readonly { id: string; name: string; amount: Cents; cadence: Cadence }[];
 	goals: readonly { id: string; name: string; target: Cents; targetDate: DayKey | null }[];
 	/**
-	 * The Parent reading: a Lever on the other Parent's Personal Allowance reads only as
+	 * The Parent reading: a Change on the other Parent's Personal Allowance reads only as
 	 * "Personal Allowance changed", with no amounts or months (ADR-0003). Unset: no one's is hidden.
 	 */
 	viewer?: string;
 };
 
-/** What the other Parent's Personal Allowance reads as, wherever a Lever changes it. */
+/** What the other Parent's Personal Allowance reads as, wherever a Change changes it. */
 export const OTHER_PERSONAL_ALLOWANCE = "Personal Allowance";
 
-/** The Bucket a Lever changes, if it's the other Parent's Personal Allowance. */
-const othersAllowance = (subjects: ChangeSubjects, bucketId: string) => {
+/** The Bucket a Change changes, if it's the other Parent's Personal Allowance. */
+const othersAllowance = (subjects: ScenarioChangeSubjects, bucketId: string) => {
 	const bucket = subjects.buckets.find((b) => b.id === bucketId);
 	return bucket?.owner !== undefined &&
 		subjects.viewer !== undefined &&
@@ -35,10 +35,10 @@ const othersAllowance = (subjects: ChangeSubjects, bucketId: string) => {
 		: undefined;
 };
 
-export type ChangeDescription = {
+export type ScenarioChangeDescription = {
 	text: string;
 	/**
-	 * The Bucket, Commitment or Goal it changes is no longer in the Plan, and no other Lever adds
+	 * The Bucket, Commitment or Goal it changes is no longer in the Plan, and no other Change adds
 	 * it: it changes nothing, and is flagged rather than dropped.
 	 */
 	gone: boolean;
@@ -74,7 +74,7 @@ export const ordinal = (day: number) =>
 	day >= 11 && day <= 13 ? `${day}th` : `${day}${["th", "st", "nd", "rd"][day % 10] ?? "th"}`;
 
 /** " from Mar 2027 until Aug 2028", " until Aug 2028" (from now), or "" (from now, for good). */
-function rangeWords(scenarioChange: Change, month: MonthKey): string {
+function rangeWords(scenarioChange: ScenarioChange, month: MonthKey): string {
 	const from =
 		scenarioChange.fromMonth > month ? ` from ${shortMonthName(scenarioChange.fromMonth)}` : "";
 	const until = scenarioChange.untilMonth
@@ -86,26 +86,29 @@ function rangeWords(scenarioChange: Change, month: MonthKey): string {
 export const goalWords = (target: Cents, targetDate: DayKey | null) =>
 	`${money(target)} ${targetDate ? `by ${shortMonthName(monthOfDay(targetDate))}` : "with no date"}`;
 
-/** The name of a Commitment a Lever adds, if one does. */
-const addedCommitment = (changes: readonly Change[], id: string) =>
+/** The name of a Commitment a Change adds, if one does. */
+const addedCommitment = (changes: readonly ScenarioChange[], id: string) =>
 	changes.find(
-		(l): l is ChangeOf<"add-commitment"> => l.kind === "add-commitment" && l.commitmentId === id,
+		(l): l is ScenarioChangeOf<"add-commitment"> =>
+			l.kind === "add-commitment" && l.commitmentId === id,
 	);
 
-const addedBucket = (changes: readonly Change[], id: string) =>
-	changes.find((l): l is ChangeOf<"add-bucket"> => l.kind === "add-bucket" && l.bucketId === id);
+const addedBucket = (changes: readonly ScenarioChange[], id: string) =>
+	changes.find(
+		(l): l is ScenarioChangeOf<"add-bucket"> => l.kind === "add-bucket" && l.bucketId === id,
+	);
 
 /**
- * A Lever in words, against the Plan as it stands (`subjects`) and the Scenario's other Levers
+ * A Change in words, against the Plan as it stands (`subjects`) and the Scenario's other Changes
  * (which may add the Commitment or Bucket it ends).
  */
 export function describeChange(
-	scenarioChange: Change,
-	subjects: ChangeSubjects,
-	changes: readonly Change[] = [],
-): ChangeDescription {
+	scenarioChange: ScenarioChange,
+	subjects: ScenarioChangeSubjects,
+	changes: readonly ScenarioChange[] = [],
+): ScenarioChangeDescription {
 	const range = rangeWords(scenarioChange, subjects.month);
-	const described = (text: string, gone = false): ChangeDescription => ({ text, gone });
+	const described = (text: string, gone = false): ScenarioChangeDescription => ({ text, gone });
 	if (
 		(scenarioChange.kind === "allowance" || scenarioChange.kind === "archive-bucket") &&
 		othersAllowance(subjects, scenarioChange.bucketId)
@@ -196,13 +199,13 @@ export function describeChange(
 }
 
 /**
- * What a Lever changes, in a word or two: "Daycare", "Income", "New roof", "Growth". Warnings
+ * What a Change changes, in a word or two: "Daycare", "Income", "New roof", "Growth". Warnings
  * name the change responsible by it.
  */
 export function changeName(
-	scenarioChange: Change,
-	subjects: ChangeSubjects,
-	changes: readonly Change[] = [],
+	scenarioChange: ScenarioChange,
+	subjects: ScenarioChangeSubjects,
+	changes: readonly ScenarioChange[] = [],
 ): string {
 	switch (scenarioChange.kind) {
 		case "baseline":
@@ -226,7 +229,7 @@ export function changeName(
 			return (
 				subjects.goals.find((g) => g.id === scenarioChange.goalId)?.name ??
 				changes.find(
-					(l): l is ChangeOf<"add-goal"> =>
+					(l): l is ScenarioChangeOf<"add-goal"> =>
 						l.kind === "add-goal" && l.goalId === scenarioChange.goalId,
 				)?.name ??
 				"A Goal"

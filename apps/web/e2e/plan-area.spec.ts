@@ -23,7 +23,8 @@ const plan = {
 const phone = { viewport: { width: 393, height: 852 }, isMobile: true, hasTouch: true };
 
 const heading = (page: Page) => page.getByRole("heading", { level: 1 });
-const waterfall = (page: Page) => page.getByRole("region", { name: "Baseline to Free to Spend" });
+const waterfall = (page: Page) =>
+	page.getByRole("region", { name: "From take-home pay to Free to Spend" });
 const planRow = (page: Page, bucket: string) =>
 	page.getByRole("listitem").filter({ has: page.getByRole("button", { name: `Edit ${bucket}` }) });
 
@@ -69,7 +70,7 @@ test("on a phone, the Plan is a switch away from This Month", async ({ browser }
 	await page.context().close();
 });
 
-test("each step from the Baseline to Free to Spend opens its part of the Plan", async ({
+test("each step from take-home pay to Free to Spend opens its part of the Plan", async ({
 	browser,
 }) => {
 	const page = await signedInPage(browser, parent.email);
@@ -85,7 +86,7 @@ test("each step from the Baseline to Free to Spend opens its part of the Plan", 
 	await page.getByRole("link", { name: "Back to Plan" }).click();
 
 	for (const [step, title] of [
-		["Baseline", "Income"],
+		["Take-home pay", "Income"],
 		["Commitments", "Commitments"],
 		["Buckets", "Buckets"],
 		["Personal Allowances", "Buckets"],

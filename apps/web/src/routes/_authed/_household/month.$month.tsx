@@ -5,7 +5,7 @@ import { goalsQuery, monthQuery, reviewQuery } from "../../../queries";
 import { monthKeySchema } from "../../../server/month";
 
 // A month of the Plan. Its pages (This Month, the Plan editor) share one cached query; This
-// Month's Windfall suggestions read the Goals too, and in its first week it asks to close the
+// Month's Extra income suggestions read the Goals too, and in its first week it asks to close the
 // month before.
 export const Route = createFileRoute("/_authed/_household/month/$month")({
 	beforeLoad: ({ params }) => {

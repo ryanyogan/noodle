@@ -16,7 +16,7 @@ import {
 	loadTransactionsPage,
 	type SplitInput,
 	setAllowance,
-	setBaseline,
+	setTakeHomePay,
 	splitTransaction,
 	updateTransaction,
 } from "./index";
@@ -42,7 +42,7 @@ beforeEach(async () => {
 		parentId,
 		parentName: "Alex",
 	});
-	await setBaseline(db, { householdId, memberId: parentId, month, amountCents: 900_000 });
+	await setTakeHomePay(db, { householdId, memberId: parentId, month, amountCents: 900_000 });
 	for (const [bucketId, color, allowanceCents] of [
 		["groceries", 1, 120_000],
 		["hockey", 2, 40_000],
@@ -322,7 +322,7 @@ describe("Splits everywhere spending is summed", () => {
 		expect((row as unknown as [number])[0]).toBe(33_000);
 	});
 
-	it("rolls a Rolling Bucket's leftover over after its Splits", async () => {
+	it("rolls a Bucket that carries over's leftover over after its Splits", async () => {
 		await setCarriesOver(db, {
 			householdId,
 			memberId: parentId,

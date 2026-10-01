@@ -17,9 +17,9 @@ import type { BucketState } from "./month-state";
 export type Income = { amount: Cents; date: DayKey };
 
 /**
- * A month's Windfall: the income received in it beyond the Baseline, and how much of that is
+ * A month's Extra income: the income received in it beyond take-home pay, and how much of that is
  * still awaiting a decision once `decided` (Moved to Goals or Buckets) is taken off. There is no
- * Windfall without a Baseline, since there's nothing to be beyond.
+ * Extra income without take-home pay, since there's nothing to be beyond.
  */
 export function extraIncomeOf({
 	baseline,
@@ -29,7 +29,7 @@ export function extraIncomeOf({
 	baseline: Cents | null;
 	/** Income received in the month. */
 	received: Cents;
-	/** Windfall already Moved to Goals or Buckets. */
+	/** Extra income already Moved to Goals or Buckets. */
 	decided: Cents;
 }): { windfall: Cents; pending: Cents } {
 	const extraIncome = baseline === null ? 0 : Math.max(0, received - baseline);
@@ -50,7 +50,7 @@ export function receivedIn(income: Income[], month: MonthKey, day?: number): Cen
 /** The warning waits until mid-month: before then one paycheck early or late is just timing. */
 export const INCOME_WARNING_FROM_DAY = 15;
 
-/** Income short of what's expected by no more than this share of the Baseline isn't a warning. */
+/** Income short of what's expected by no more than this share of take-home pay isn't a warning. */
 const INCOME_TOLERANCE = 0.05;
 
 export type IncomeCheck = {
@@ -60,15 +60,15 @@ export type IncomeCheck = {
 	expected: Cents;
 	/** How far `received` is behind `expected`; 0 when it isn't. */
 	short: Cents;
-	/** Income is tracking below the Baseline: worth a calm word from mid-month on. */
+	/** Income is tracking below take-home pay: worth a calm word from mid-month on. */
 	below: boolean;
 };
 
 /**
- * Whether `month`'s income is keeping up with the Baseline as of `asOf`. Expected by now is what
- * came in by the same day last month (up to the Baseline), since paychecks land on much the same
- * days each month; without last month's income to go by, the Baseline pro-rated over the month.
- * Null when there's no Baseline, the month hasn't started, or no income has been recorded this
+ * Whether `month`'s income is keeping up with take-home pay as of `asOf`. Expected by now is what
+ * came in by the same day last month (up to take-home pay), since paychecks land on much the same
+ * days each month; without last month's income to go by, take-home pay pro-rated over the month.
+ * Null when there's no take-home pay, the month hasn't started, or no income has been recorded this
  * month or last (the Household isn't recording income, so there's nothing to warn about).
  */
 export function incomeCheck({
@@ -102,7 +102,7 @@ export function incomeCheck({
 	return { received, expected, short, below };
 }
 
-/** Where a Windfall can go: a Goal's Earmark, or a Bucket this month. */
+/** Where Extra income can go: what a Goal has set aside, or a Bucket this month. */
 export type ExtraIncomeDestination =
 	| { kind: "goal"; goalId: string }
 	| { kind: "bucket"; bucketId: string };
@@ -120,9 +120,9 @@ export type ExtraIncomeSuggestion = {
 };
 
 /**
- * Where a pending Windfall could go, best first: Goals behind schedule, nearest target date
+ * Where a pending Extra income could go, best first: Goals behind schedule, nearest target date
  * first; then the emergency Goal; then overspent Buckets, most overspent first. Each is an
- * alternative sized on its own, for what it needs up to the whole Windfall. Deterministic rules,
+ * alternative sized on its own, for what it needs up to the whole Extra income. Deterministic rules,
  * not a model: the same month always suggests the same.
  */
 export function extraIncomeSuggestions({

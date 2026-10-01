@@ -56,7 +56,7 @@ export async function switchTo(page: Page, view: "Month" | "Plan") {
 }
 
 /**
- * Creates a Household and plans this month from setting up the Plan: a Baseline and Buckets
+ * Creates a Household and plans this month from setting up the Plan: take-home pay and Buckets
  * with allowances ("1,200"), in order. Ends on This Month.
  */
 export async function createPlannedHousehold(
@@ -65,9 +65,9 @@ export async function createPlannedHousehold(
 ) {
 	await createHousehold(page, "The Rinks", "Alex");
 	await page.getByRole("link", { name: "Set up the Plan" }).click();
-	await page.getByRole("textbox", { name: "Baseline" }).fill(baseline);
-	const takeHomePaySaved = savedBy(page, "setBaseline");
-	await page.getByRole("button", { name: "Set Baseline" }).click();
+	await page.getByRole("textbox", { name: "Take-home pay" }).fill(baseline);
+	const takeHomePaySaved = savedBy(page, "setTakeHomePay");
+	await page.getByRole("button", { name: "Set take-home pay" }).click();
 	await takeHomePaySaved;
 	await page.getByRole("link", { name: "Add Buckets" }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toContainText("Buckets");

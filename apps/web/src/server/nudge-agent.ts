@@ -24,7 +24,7 @@ import type { NudgeDelivery } from "./nudge-delivery";
 /** Something a write did that may be worth a Nudge, beyond what it changed. */
 export type HouseholdEvent =
 	| { type: "quick-add"; transactionId: string }
-	/** Income recorded in a month, which may have started or grown its Windfall. */
+	/** Income recorded in a month, which may have started or grown its Extra income. */
 	| { type: "income"; month: MonthKey; recordedBy: string };
 
 /** Writes that land within this long of each other are looked at together. */
@@ -46,7 +46,7 @@ const CHECK_IN_KEY = "nudges:check-in-week";
  * until that Parent's quiet hours end, and hands them to the Nudge Queue to deliver. It keeps
  * what it needs in the Agent's own storage: what's still to look at, the Nudges it's holding,
  * which Buckets were past Pace last time, so a Bucket nudges once per crossing, the most each
- * month's Windfall was Nudged at, so it nudges once per increase, and the last week it took
+ * month's Extra income was Nudged at, so it nudges once per increase, and the last week it took
  * Check-in Nudges for, so each week's go out once.
  */
 export class HouseholdNudges {
@@ -126,7 +126,8 @@ export class HouseholdNudges {
 					now,
 				);
 				if (decided.pastPace) this.rememberPastPace(decided.pastPace.month, decided.pastPace.ids);
-				for (const { month, windfall } of decided.windfalls) this.rememberWindfall(month, windfall);
+				for (const { month, windfall } of decided.windfalls)
+					this.rememberExtraIncome(month, windfall);
 				this.kv.put(SCHEDULED_KEY, [...this.scheduled(), ...decided.scheduled]);
 			}
 			if (pending.checkIns.length > 0) {
@@ -167,8 +168,8 @@ export class HouseholdNudges {
 	private readonly windfallNudgedAt = (month: MonthKey): Cents =>
 		this.kv.get<Cents>(`${EXTRA_INCOME_PREFIX}${month}`) ?? 0;
 
-	/** Remembers what a month's Windfall was Nudged at, forgetting earlier months'. */
-	private rememberWindfall(month: MonthKey, extraIncome: Cents) {
+	/** Remembers what a month's Extra income was Nudged at, forgetting earlier months'. */
+	private rememberExtraIncome(month: MonthKey, extraIncome: Cents) {
 		for (const [key] of this.kv.list({ prefix: EXTRA_INCOME_PREFIX })) {
 			if (key < `${EXTRA_INCOME_PREFIX}${month}`) this.kv.delete(key);
 		}
@@ -207,7 +208,7 @@ async function decideNudges(
 	const extraIncomes: { month: MonthKey; windfall: Cents }[] = [];
 	const [anyone] = recipients;
 	// The month as a Parent sees it: charges, Moves, income, and what rolled over included. Every
-	// Bucket's totals, Personal Allowances' too, and the Windfall are the same whichever Parent
+	// Bucket's totals, Personal Allowances' too, and the Extra income are the same whichever Parent
 	// it's read for.
 	const stateOf = async (month: MonthKey, memberId: string) =>
 		monthState(await loadMonth(db, { id: householdId, timeZone }, memberId, month));

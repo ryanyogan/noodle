@@ -1,11 +1,11 @@
 import {
-	type LeverSubjects,
-	leverName,
+	changeName,
 	moneyFreed,
 	type Projection,
 	planAhead,
 	planForMonth,
 	project,
+	type ScenarioChangeSubjects,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
@@ -76,7 +76,7 @@ function ScenariosPage() {
 	);
 	// Changes are named as the Parent reading may see them: the other Parent's Personal Allowance
 	// reads only as "Personal Allowance" (ADR-0003).
-	const subjects = useMemo<LeverSubjects>(() => {
+	const subjects = useMemo<ScenarioChangeSubjects>(() => {
 		const now = planForMonth(records, month);
 		return {
 			month,
@@ -136,7 +136,7 @@ function ScenariosPage() {
 								const picked = compared.includes(scenario.id);
 								const names = scenario.levers
 									.filter((l) => !l.muted)
-									.map((l) => leverName(l, subjects, scenario.levers));
+									.map((l) => changeName(l, subjects, scenario.levers));
 								return (
 									<ListRow
 										key={scenario.id}
@@ -190,7 +190,7 @@ function ScenariosPage() {
 											<p className="text-[13px] text-muted-foreground">
 												{names.length > 0 ? names.join(" · ") : "No changes"}
 												{projection.lowest
-													? ` · Cushion lowest ${formatMoney(projection.lowest.amount)} in ${shortMonth(projection.lowest.month)}`
+													? ` · Projected balance at its lowest ${formatMoney(projection.lowest.amount)} in ${shortMonth(projection.lowest.month)}`
 													: null}
 											</p>
 										}
@@ -247,7 +247,7 @@ function Compare({
 			over: (p) => p.freeToSpend < 0,
 		},
 		{
-			label: "Lowest Cushion",
+			label: "Lowest projected balance",
 			value: (p) =>
 				p.lowest ? `${formatMoney(p.lowest.amount)} in ${shortMonth(p.lowest.month)}` : "—",
 			over: (p) => (p.lowest?.amount ?? 0) < 0,
@@ -332,8 +332,8 @@ function Compare({
 						scenarios={series((p) => p.months.map((m) => m.freeToSpend))}
 					/>
 					<CompareChart
-						title="Cushion"
-						description="Money built up month by month, if spending matches the allowances"
+						title="Projected balance"
+						description="What’s left month by month if you spend what’s planned, starting from $0 today"
 						months={months}
 						plan={plan.months.map((m) => m.cushion)}
 						scenarios={series((p) => p.months.map((m) => m.cushion))}

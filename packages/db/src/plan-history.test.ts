@@ -5,15 +5,15 @@ import {
 	addCommitment,
 	addGoal,
 	addPersonalAllowance,
-	applyLevers,
+	applyChanges,
 	archiveBucket,
 	createHouseholdForParent,
 	type Db,
 	endCommitment,
 	loadPlanChanges,
 	setAllowance,
-	setBaseline,
-	setRolling,
+	setCarriesOver,
+	setTakeHomePay,
 	updateBucket,
 	updateCommitment,
 	updateGoal,
@@ -49,7 +49,7 @@ beforeEach(async () => {
 		name: "Sam",
 		clerkUserId: "clerk-sam",
 	});
-	await setBaseline(db, { ...alex, month, amountCents: 900_000 });
+	await setTakeHomePay(db, { ...alex, month, amountCents: 900_000 });
 	await addBucket(db, {
 		...alex,
 		bucketId: "groceries",
@@ -79,9 +79,9 @@ beforeEach(async () => {
 
 describe("Plan changes", () => {
 	it("appends one per Plan write, with who, what, from → to, month and scope", async () => {
-		await setBaseline(db, { ...sam, month: "2026-10", amountCents: 950_000, scope: "just" });
+		await setTakeHomePay(db, { ...sam, month: "2026-10", amountCents: 950_000, scope: "just" });
 		await setAllowance(db, { ...sam, bucketId: "groceries", month, amountCents: 130_000 });
-		await setRolling(db, { ...sam, bucketId: "groceries", month, rolling: true });
+		await setCarriesOver(db, { ...sam, bucketId: "groceries", month, rolling: true });
 		await updateBucket(db, { ...sam, bucketId: "groceries", month, name: "Food" });
 		await updateCommitment(db, {
 			...sam,
@@ -295,8 +295,8 @@ describe("Plan changes", () => {
 		]);
 	});
 
-	it("logs a Scenario's Levers as its own, with each range's end", async () => {
-		await applyLevers(db, {
+	it("logs a Scenario's Changes as its own, with each range's end", async () => {
+		await applyChanges(db, {
 			...sam,
 			scenarioId: "tighter",
 			month,
@@ -335,7 +335,7 @@ describe("Plan changes", () => {
 
 	it("names the Scenario a change was applied from", async () => {
 		const scenarioChanges = [{ kind: "baseline", amount: 1_000_000, fromMonth: month }] as const;
-		await applyLevers(db, {
+		await applyChanges(db, {
 			...sam,
 			scenarioId: "raise",
 			scenario: { name: "Raise", levers: [...scenarioChanges] },
@@ -351,7 +351,7 @@ describe("Plan changes", () => {
 		const change = { ...alex, bucketId: "groceries", month, amountCents: 130_000 } as const;
 		await setAllowance(db, change);
 		await setAllowance(db, change);
-		await setRolling(db, { ...alex, bucketId: "groceries", month, rolling: false });
+		await setCarriesOver(db, { ...alex, bucketId: "groceries", month, rolling: false });
 		await archiveBucket(db, { ...alex, bucketId: "groceries", month: "2026-12" });
 		await archiveBucket(db, { ...alex, bucketId: "groceries", month: "2026-12" });
 		await addBucket(db, {
@@ -373,7 +373,7 @@ describe("Plan changes", () => {
 		const before = (await history()).length;
 		// Only Alex sets Alex's Personal Allowance, and each Parent has one.
 		await setAllowance(db, { ...sam, bucketId: "alex-pa", month, amountCents: 99_000 });
-		await setRolling(db, { ...sam, bucketId: "alex-pa", month, rolling: true });
+		await setCarriesOver(db, { ...sam, bucketId: "alex-pa", month, rolling: true });
 		await updateBucket(db, { ...sam, bucketId: "alex-pa", month, name: "Mine now" });
 		await addPersonalAllowance(db, {
 			...alex,
@@ -422,7 +422,7 @@ describe("Plan changes", () => {
 
 	it("reads one month's changes, or one item's, and when history starts", async () => {
 		await setAllowance(db, { ...alex, bucketId: "groceries", month: "2026-10", amountCents: 1 });
-		await setBaseline(db, { ...alex, month: "2026-10", amountCents: 2 });
+		await setTakeHomePay(db, { ...alex, month: "2026-10", amountCents: 2 });
 
 		const october = await loadPlanChanges(db, alex, { month: "2026-10" });
 		expect(october.changes.map((c) => c.kind)).toEqual(["baseline", "allowance"]);

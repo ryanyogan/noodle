@@ -3,9 +3,9 @@ import {
 	type CarWay,
 	type Cents,
 	type DayKey,
-	type Lever,
 	lastDayOf,
 	type MonthKey,
+	type ScenarioChange,
 } from "@noodle/domain";
 
 // Turning an Affordability Check into a Scenario or a Goal, and the defaults its forms start
@@ -59,7 +59,7 @@ export function guessRole(name: string, purchase: "home" | "car"): CommitmentRol
 
 /**
  * The month a Scenario starts the new cost: when the cash is ready (next month at the soonest,
- * as buying takes time), and within the next year, which a Commitment Lever can move within.
+ * as buying takes time), and within the next year, which a Commitment Change can move within.
  */
 export function startMonth(month: MonthKey, cashReadyIn: MonthKey | null): MonthKey {
 	const soonest = addMonths(month, 1);
@@ -77,7 +77,7 @@ export type NewCost = {
 };
 
 /**
- * The Levers that make a Check's new monthly costs a Scenario: each a new Commitment from
+ * The Changes that make a Check's new monthly costs a Scenario: each a new Commitment from
  * `from`, with the Commitments they replace cancelled from the same month.
  */
 export function purchaseChanges({
@@ -88,12 +88,12 @@ export function purchaseChanges({
 	from: MonthKey;
 	costs: NewCost[];
 	replaced: string[];
-}): Lever[] {
+}): ScenarioChange[] {
 	return [
 		...costs
 			.filter((c) => c.amount > 0)
 			.map(
-				(c): Lever => ({
+				(c): ScenarioChange => ({
 					kind: "add-commitment",
 					commitmentId: c.commitmentId,
 					name: c.name,
@@ -105,7 +105,7 @@ export function purchaseChanges({
 				}),
 			),
 		...replaced.map(
-			(commitmentId): Lever => ({ kind: "end-commitment", commitmentId, fromMonth: from }),
+			(commitmentId): ScenarioChange => ({ kind: "end-commitment", commitmentId, fromMonth: from }),
 		),
 	];
 }
@@ -118,7 +118,7 @@ export const goalDate = (month: MonthKey, readyIn: MonthKey | null): DayKey | nu
 	readyIn === null || readyIn <= month ? null : lastDayOf(readyIn);
 
 /**
- * The Account a new Goal is backed by: the one holding the first chosen Earmark, or else the
+ * The Account a new Goal is backed by: the one holding the first chosen set-aside money, or else the
  * first that holds money; null when there's none to back it.
  */
 export function goalAccount(

@@ -52,7 +52,7 @@ describe("planForMonth: the Plan in force for a month", () => {
 		expect(plan.buckets.map((b) => b.id)).toEqual(["hockey", "groceries", "life"]);
 	});
 
-	it("carries a Baseline or allowance forward until it is set again", () => {
+	it("carries a take-home pay or allowance forward until it is set again", () => {
 		expect(planForMonth(records, "2026-10").baseline).toBe(900_000);
 		expect(planForMonth(records, "2026-11").baseline).toBe(950_000);
 		expect(planForMonth(records, "2027-03").baseline).toBe(950_000);
@@ -63,7 +63,7 @@ describe("planForMonth: the Plan in force for a month", () => {
 		expect(groceries("2027-01")).toBe(130_000);
 	});
 
-	it("makes a Bucket Fresh-start until it is set Rolling, and carries that forward", () => {
+	it("makes a Bucket resets monthly until it is set carries over, and carries that forward", () => {
 		const carriesOver = (month: `${number}-${number}`) =>
 			Object.fromEntries(planForMonth(records, month).buckets.map((b) => [b.id, b.rolling]));
 		expect(carriesOver("2026-09")).toMatchObject({ hockey: true, groceries: false });
@@ -81,7 +81,7 @@ describe("planForMonth: the Plan in force for a month", () => {
 		expect(ids("2026-10")).not.toContain("life");
 	});
 
-	it("has no Baseline before one is set", () => {
+	it("has no take-home pay before one is set", () => {
 		expect(planForMonth(records, "2026-08")).toEqual({
 			month: "2026-08",
 			baseline: null,
@@ -174,7 +174,7 @@ describe("planForMonth: Commitments", () => {
 	});
 });
 
-describe("freeToSpend: the Baseline not yet assigned", () => {
+describe("freeToSpend: take-home pay not yet assigned", () => {
 	const plan = (takeHomePay: number | null, ...allowances: number[]) => ({
 		month: "2026-09" as const,
 		baseline: takeHomePay,
@@ -193,7 +193,7 @@ describe("freeToSpend: the Baseline not yet assigned", () => {
 		["all of it with no Buckets", plan(900_000), 900_000],
 		["zero when fully assigned", plan(100_000, 60_000, 40_000), 0],
 		["negative, never clamped, when over-assigned", plan(100_000, 80_000, 32_500), -12_500],
-		["negative before a Baseline is set", plan(null, 5_000), -5_000],
+		["negative before take-home pay is set", plan(null, 5_000), -5_000],
 	])("is %s", (_, input, expected) => {
 		expect(freeToSpend(input)).toBe(expected);
 	});

@@ -6,7 +6,7 @@ import type { Db } from "./index";
 import { bucketInPlan, bucketLeftSql } from "./moves";
 import { buckets, households, monthCloses, moves } from "./schema";
 
-// Month-close: the Sweeps and Windfall Moves decided for a month that has ended, written in one
+// Month-close: the Sweeps and Extra income Moves decided for a month that has ended, written in one
 // batch together with the month's `month_closes` row, and only while it has none (ADR-0004), so
 // the Parents' decision and the defaults applied on timeout can never both land.
 
@@ -84,11 +84,11 @@ export type CloseMonthInput = {
 };
 
 /**
- * Closes `month` with a decision: its Sweeps and Windfall Moves, and the `month_closes` row, in
+ * Closes `month` with a decision: its Sweeps and Extra income Moves, and the `month_closes` row, in
  * one atomic batch. Every Move lands only while the month isn't closed yet, and each is guarded
- * as it would be alone: a Sweep only from a Household Bucket that is Fresh-start that month and
- * still has the amount left, into an active Goal of the Household's; a Windfall Move as in
- * decideWindfall. Idempotent per `closeId`; refused when the month was already closed otherwise.
+ * as it would be alone: a Sweep only from a Household Bucket that is resets monthly that month and
+ * still has the amount left, into an active Goal of the Household's; Extra income Move as in
+ * decideExtraIncome. Idempotent per `closeId`; refused when the month was already closed otherwise.
  */
 export async function closeMonth(db: Db, input: CloseMonthInput): Promise<MonthCloseResult> {
 	const { householdId, month, decidedByMemberId } = input;

@@ -26,7 +26,7 @@ export type NudgePreferences = {
 };
 
 /**
- * Before a Parent has chosen: Buckets passing Pace and Windfalls, never the other Parent's
+ * Before a Parent has chosen: Buckets passing Pace and Extra income, never the other Parent's
  * Quick Adds, and quiet from 9 PM to 7 AM in the Household's time zone.
  */
 export const defaultNudgePreferences = (timeZone: string): NudgePreferences => ({

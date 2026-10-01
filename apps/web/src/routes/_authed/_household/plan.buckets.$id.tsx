@@ -26,6 +26,7 @@ import { SaveFailed } from "../../../components/plan-editing";
 import { PlanHistoryList } from "../../../components/plan-history";
 import { PlanAmountForm } from "../../../components/plan-scope-field";
 import { AllowanceBars, ChartCard, TrendLines } from "../../../components/report-charts";
+import { TermHelp } from "../../../components/term-help";
 import { formatMoney, fullDay, monthName } from "../../../format";
 import { usePlanChange, withAllowance, withoutBucket } from "../../../plan-changes";
 import { bucketQuery, monthQuery, planHistoryQuery, useMonthState } from "../../../queries";
@@ -41,7 +42,7 @@ const isOpenTo = (bucket: Pick<BucketRecord, "owner">, parentId: string) =>
 
 // A Bucket's page: this month and its Pace, its last year month by month, its Transactions this
 // month and its allowance history, and everything about it the Plan doesn't set (name, colour,
-// Rolling, order, archiving). The other Parent's Personal Allowance shows its totals only
+// carries over, order, archiving). The other Parent's Personal Allowance shows its totals only
 // (ADR-0003): its Transactions are never fetched, and the server wouldn't return them anyway.
 export const Route = createFileRoute("/_authed/_household/plan/buckets/$id")({
 	loader: async ({ context, params }) => {
@@ -208,17 +209,17 @@ function ThisMonth({ bucket }: { bucket: BucketState }) {
 						Left this month
 					</h2>
 					<div className="flex flex-wrap items-center gap-1.5">
-						<Badge>{bucket.rolling ? "Rolling" : "Fresh-start"}</Badge>
+						<Badge>{bucket.rolling ? "Carries over" : "Resets monthly"}</Badge>
 						{bucket.status === "over" ? (
 							<Badge variant="over" dot>
 								Over by {formatMoney(-bucket.left)}
 							</Badge>
 						) : bucket.status === "ahead" ? (
 							<Badge variant="pace" dot>
-								Ahead of Pace
+								Ahead of pace
 							</Badge>
 						) : (
-							<Badge dot>On Pace</Badge>
+							<Badge dot>On pace</Badge>
 						)}
 					</div>
 				</div>
@@ -240,14 +241,18 @@ function ThisMonth({ bucket }: { bucket: BucketState }) {
 			</div>
 			<dl className="grid grid-cols-2 border-t sm:grid-cols-3">
 				<Stat label="Spent" value={formatMoney(bucket.spent)} />
-				<Stat label="Pace by today" value={formatMoney(bucket.pace.spent)} />
-				<Stat label="Allowance" value={formatMoney(bucket.allowance)} />
+				<Stat
+					label="Even spending by today"
+					help={<TermHelp term="pace" />}
+					value={formatMoney(bucket.pace.spent)}
+				/>
+				<Stat label="Planned this month" value={formatMoney(bucket.allowance)} />
 			</dl>
 		</Card>
 	);
 }
 
-/** Its last year: spent against allowance each month and, while it was Rolling, its balance. */
+/** Its last year: spent against allowance each month and, while it carried over, its balance. */
 function History({ months, color }: { months: BucketMonth[]; color: number }) {
 	const hydrated = useHydrated();
 	// From the first month it was in the Plan, so a new Bucket doesn't open on empty months.
@@ -289,10 +294,10 @@ function History({ months, color }: { months: BucketMonth[]; color: number }) {
 			</ChartCard>
 			{carriesOver ? (
 				<ChartCard
-					title="Rolling balance"
+					title="Carried over each month"
 					description="What it had left at each month’s end, carried into the next"
 					table={{
-						title: "Rolling balance",
+						title: "Carried over each month",
 						columns: [
 							{ label: "Month", kind: "text" },
 							{ label: "Balance", kind: "money" },
@@ -383,10 +388,13 @@ function TransactionLine({
 	);
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, help }: { label: string; value: string; help?: ReactNode }) {
 	return (
 		<div className="grid gap-0.5 border-l px-(--card-pad) py-3 first:border-l-0 max-sm:last:col-span-2 max-sm:last:border-t max-sm:last:border-l-0">
-			<dt className="text-xs text-muted-foreground">{label}</dt>
+			<dt className="flex items-center gap-1 text-xs text-muted-foreground">
+				{label}
+				{help}
+			</dt>
 			<dd className="text-sm font-semibold tabular-nums">{value}</dd>
 		</div>
 	);

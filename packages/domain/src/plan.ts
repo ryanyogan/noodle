@@ -3,7 +3,7 @@ import type { Cents } from "./money";
 import type { MonthKey } from "./month";
 
 /**
- * The Plan is stored as effective-dated records: a Baseline or allowance set for a month
+ * The Plan is stored as effective-dated records: take-home pay or allowance set for a month
  * holds for every later month until it is set again, so each month's Plan starts as a copy
  * of the previous one without copying rows.
  */
@@ -15,8 +15,8 @@ export type PlanRecords = {
 	/** A Commitment's terms set for a month hold for later months until set again. */
 	commitmentTerms: ({ commitmentId: string; month: MonthKey } & CommitmentTerms)[];
 	/**
-	 * Whether a Bucket is Rolling (true) or Fresh-start (false) holds, once set for a month, for
-	 * later months until set again. A Bucket with none set is Fresh-start.
+	 * Whether a Bucket carries over (true) or resets monthly (false) holds, once set for a month, for
+	 * later months until set again. A Bucket with none set is resets monthly.
 	 */
 	rolling: { bucketId: string; month: MonthKey; rolling: boolean }[];
 };
@@ -50,7 +50,7 @@ export type PlanBucket = {
 	name: string;
 	color: number;
 	allowance: Cents;
-	/** Rolling: what's left at the end of this month carries into the next. Else Fresh-start. */
+	/** carries over: what's left at the end of this month carries into the next. Else resets monthly. */
 	rolling: boolean;
 	/**
 	 * Set for a Personal Allowance: the Parent it belongs to. Only they see its Transactions and
@@ -121,7 +121,7 @@ export function firstPlanMonth(records: PlanRecords, current: MonthKey): MonthKe
 }
 
 /**
- * The Plan in force for `month`: its Baseline, its Commitments with their terms (in the order
+ * The Plan in force for `month`: its take-home pay, its Commitments with their terms (in the order
  * they're next due), and its Buckets in order with their allowances.
  */
 export function planForMonth(records: PlanRecords, month: MonthKey): Plan {
@@ -172,9 +172,9 @@ export function totalCommitments(plan: Pick<Plan, "month" | "commitments">): Cen
 }
 
 /**
- * Money in the Plan not yet assigned to anything: the Baseline less what the Commitments are
+ * Money in the Plan not yet assigned to anything: take-home pay less what the Commitments are
  * expected to take this month and every Bucket's allowance. Negative when the Plan assigns
- * more than the Baseline, which the app must always say out loud (never clamp to zero).
+ * more than take-home pay, which the app must always say out loud (never clamp to zero).
  */
 export function freeToSpend(
 	plan: Pick<Plan, "month" | "baseline" | "commitments" | "buckets">,

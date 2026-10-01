@@ -1,13 +1,13 @@
-import type { Change } from "./changes";
+import type { ScenarioChange } from "./changes";
 import { MAX_CENTS } from "./money";
 import type { DayKey, MonthKey } from "./month";
 
-// Lever presets: a change written into a link, so Explore opens with it already made. Insights,
+// Change presets: a change written into a link, so Explore opens with it already made. Insights,
 // Ask, a Commitment's "Try ending this" and Affordability open Explore this way:
 //
 //   /explore?lever=end-commitment:<id>:2027-03
 //
-// Each is the Lever's kind, then its fields, colon-separated; amounts are in cents, and the
+// Each is the Change's kind, then its fields, colon-separated; amounts are in cents, and the
 // range (from, then until) comes last and may be left off (from this month, for good):
 //
 //   baseline:<cents>[:from[:until]]
@@ -29,7 +29,7 @@ const cents = (text: string | undefined) =>
 	text !== undefined && CENTS.test(text) && Number(text) <= MAX_CENTS ? Number(text) : null;
 
 /**
- * The months a preset's Lever holds for: from `from` (this month when left off, or earlier) up
+ * The months a preset's Change holds for: from `from` (this month when left off, or earlier) up
  * to `until`. Null when either isn't a month, or the range ends before it starts.
  */
 function range(
@@ -44,8 +44,8 @@ function range(
 	return until > fromMonth ? { fromMonth, untilMonth: until as MonthKey } : null;
 }
 
-/** A preset as a Lever from `month` (the Household's current month) on, or null if it isn't one. */
-export function parseChangePreset(preset: string, month: MonthKey): Change | null {
+/** A preset as a Change from `month` (the Household's current month) on, or null if it isn't one. */
+export function parseChangePreset(preset: string, month: MonthKey): ScenarioChange | null {
 	const [kind, ...fields] = preset.trim().split(":");
 	const id = fields[0] ?? "";
 	switch (kind) {
@@ -93,8 +93,8 @@ export function parseChangePreset(preset: string, month: MonthKey): Change | nul
 	}
 }
 
-/** A Lever as a preset (see parseLeverPreset), or null for a kind presets don't carry. */
-export function changePreset(change: Change): string | null {
+/** A Change as a preset (see parseChangePreset), or null for a kind presets don't carry. */
+export function changePreset(change: ScenarioChange): string | null {
 	const months = [change.fromMonth, ...(change.untilMonth ? [change.untilMonth] : [])];
 	const join = (...parts: (string | number)[]) => parts.join(":");
 	switch (change.kind) {

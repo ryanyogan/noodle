@@ -17,7 +17,7 @@ import {
 	loadTransactionsPage,
 	type SplitInput,
 	setAllowance,
-	setBaseline,
+	setTakeHomePay,
 	splitTransaction,
 	updateTransaction,
 	type Viewer,
@@ -68,7 +68,7 @@ beforeEach(async () => {
 		name: "Sam",
 		clerkUserId: "clerk-sam",
 	});
-	await setBaseline(db, { householdId, memberId: "alex", month, amountCents: 900_000 });
+	await setTakeHomePay(db, { householdId, memberId: "alex", month, amountCents: 900_000 });
 	await addBucket(db, {
 		householdId,
 		memberId: "alex",

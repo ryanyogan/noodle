@@ -6,7 +6,7 @@ import {
 	createHouseholdForParent,
 	type Db,
 	loadPlanDraft,
-	setBaseline,
+	setTakeHomePay,
 	type Viewer,
 } from "@noodle/db";
 import { testDb } from "@noodle/db/test-db";
@@ -134,7 +134,7 @@ describe("the model's labels", () => {
 });
 
 describe("drafting the first Plan", () => {
-	it("drafts a Baseline, Commitments and Buckets from the history, naming nothing private", async () => {
+	it("drafts a take-home pay, Commitments and Buckets from the history, naming nothing private", async () => {
 		const { model, shown } = recordingModel();
 		expect(await labelPlanDraft(deps(model), alex, asOf)).not.toBeNull();
 		expect(JSON.stringify(shown).toLowerCase()).not.toContain("secret");
@@ -163,7 +163,7 @@ describe("drafting the first Plan", () => {
 	});
 
 	it("leaves a Plan already set up alone", async () => {
-		await setBaseline(db, { householdId, memberId: "alex", month, amountCents: 400_000 });
+		await setTakeHomePay(db, { householdId, memberId: "alex", month, amountCents: 400_000 });
 		expect(await labelPlanDraft(deps(stubDraftModel), alex, asOf)).toBeNull();
 		expect(await loadPlanDraft(db, householdId)).toBeNull();
 		expect(await buildPlanDraft(db, alex, asOf)).toBeNull();

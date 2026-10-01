@@ -17,7 +17,7 @@ async function type(page: Page, label: string, value: string) {
 	await page.getByRole("textbox", { name: label }).press("Enter");
 }
 
-test("a change that empties the Cushion is flagged, and the warning leads to it", async ({
+test("a change that empties the Projected balance is flagged, and the warning leads to it", async ({
 	browser,
 }) => {
 	const page = await signedInPage(browser, parent.email);
@@ -32,13 +32,13 @@ test("a change that empties the Cushion is flagged, and the warning leads to it"
 	await page.getByRole("link", { name: "Explore", exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Explore");
 	const warnings = page.getByRole("list", { name: "Warnings" });
-	await expect(page.getByRole("heading", { name: "Cushion" })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Projected balance" })).toBeVisible();
 	await expect(warnings).toHaveCount(0);
 	await expect(
 		page.getByText(/^Assumptions\. Spending is assumed to equal allowances\./),
 	).toBeVisible();
 
-	// A $10,000 roof this month: $3,400 less $10,000 leaves the Cushion at −$6,600.
+	// A $10,000 roof this month: $3,400 less $10,000 leaves the Projected balance at −$6,600.
 	await page.getByRole("button", { name: "Add one-off" }).click();
 	const oneOff = page.getByRole("form", { name: "New one-off" });
 	await oneOff.getByRole("textbox", { name: "Name" }).fill("New roof");
@@ -46,7 +46,9 @@ test("a change that empties the Cushion is flagged, and the warning leads to it"
 	await oneOff.getByRole("textbox", { name: "Amount" }).press("Tab");
 	await oneOff.getByRole("button", { name: "Add", exact: true }).click();
 
-	const warning = warnings.getByRole("link", { name: /^The Cushion dips below zero from/ });
+	const warning = warnings.getByRole("link", {
+		name: /^The projected balance dips below zero from/,
+	});
 	await expect(warning).toContainText("Mostly from your change to New roof");
 	await expect(warnings.getByRole("listitem")).toHaveCount(1);
 
@@ -58,9 +60,9 @@ test("a change that empties the Cushion is flagged, and the warning leads to it"
 	await expect(roof).toBeFocused();
 	await expect(roof).toBeInViewport();
 
-	// The Cushion's chart, as a table.
-	await page.getByRole("button", { name: "Show Cushion as a table" }).click();
-	const projectedBalance = page.getByRole("table", { name: "Cushion" });
+	// The Projected balance's chart, as a table.
+	await page.getByRole("button", { name: "Show Projected balance as a table" }).click();
+	const projectedBalance = page.getByRole("table", { name: "Projected balance" });
 	await expect(projectedBalance.getByRole("row").nth(1)).toContainText(/\$3,400\s*−\$6,600$/);
 	await expect(projectedBalance.getByRole("row").nth(2)).toContainText(/\$6,800\s*−\$3,200$/);
 
@@ -83,17 +85,17 @@ test("on a phone, tapping a month shows it in full under the chart", async ({ br
 	await page.goto("/explore");
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Explore", clientRendered);
 	// On a phone a line opens in a sheet.
-	await page.getByRole("button", { name: "Edit Baseline" }).click();
-	await type(page, "Baseline", "4,000");
+	await page.getByRole("button", { name: "Edit Take-home pay" }).click();
+	await type(page, "Take-home pay", "4,000");
 	await page.keyboard.press("Escape");
 	await expect(page.getByRole("dialog")).toBeHidden();
 
 	// The first tap lands on the month under the finger, and the next tap moves it.
-	const projectedBalance = page.getByRole("group", { name: "Cushion", exact: true });
+	const projectedBalance = page.getByRole("group", { name: "Projected balance", exact: true });
 	const chart = projectedBalance.locator("svg.recharts-surface").first();
 	await chart.scrollIntoViewIfNeeded();
 	const box = await chart.boundingBox();
-	if (!box) throw new Error("no Cushion chart");
+	if (!box) throw new Error("no Projected balance chart");
 	const tap = (share: number) =>
 		page.touchscreen.tap(box.x + 52 + (box.width - 60) * share, box.y + box.height / 2);
 	await tap(0.02);

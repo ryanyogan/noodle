@@ -18,8 +18,8 @@ import {
 	loadPlanRecords,
 	loadSpending,
 	loadSweeps,
-	setBaseline,
-	setRolling,
+	setCarriesOver,
+	setTakeHomePay,
 } from "./index";
 import { freeToSpendSql } from "./moves";
 import { testDb } from "./test-db";
@@ -40,7 +40,7 @@ beforeEach(async () => {
 		parentId,
 		parentName: "Alex",
 	});
-	await setBaseline(db, { householdId, memberId: parentId, month, amountCents: 600_000 });
+	await setTakeHomePay(db, { householdId, memberId: parentId, month, amountCents: 600_000 });
 	for (const [bucketId, allowanceCents] of [
 		["groceries", 120_000],
 		["hockey", 40_000],
@@ -55,7 +55,7 @@ beforeEach(async () => {
 			allowanceCents,
 		});
 	}
-	await setRolling(db, {
+	await setCarriesOver(db, {
 		householdId,
 		memberId: parentId,
 		bucketId: "hockey",
@@ -104,7 +104,7 @@ beforeEach(async () => {
 			createdByMemberId: parentId,
 		});
 	}
-	// $500 beyond the Baseline.
+	// $500 beyond take-home pay.
 	await addIncome(db, {
 		householdId,
 		incomeId: "pay",
@@ -144,7 +144,7 @@ const close = (
 	});
 
 describe("closeMonth", () => {
-	it("Sweeps leftovers and sends the Windfall to Goals, atomically with the close", async () => {
+	it("Sweeps leftovers and sends the Extra income to Goals, atomically with the close", async () => {
 		const free = await scalar(freeToSpendSql(householdId, month));
 		expect(
 			await close("close", {
@@ -191,7 +191,7 @@ describe("closeMonth", () => {
 		expect(
 			await close("close", {
 				sweeps: [
-					// More than is left, a Rolling Bucket, a Personal Allowance, an archived Goal.
+					// More than is left, a Bucket that carries over, a Personal Allowance, an archived Goal.
 					sweep("s1", "groceries", 20_001),
 					sweep("s2", "hockey", 1_000),
 					sweep("s3", "alex", 1_000),

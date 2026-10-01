@@ -1,4 +1,10 @@
-import { type Lever, type MonthKey, planAhead, planForMonth, project } from "@noodle/domain";
+import {
+	type MonthKey,
+	planAhead,
+	planForMonth,
+	project,
+	type ScenarioChange,
+} from "@noodle/domain";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	addAccount,
@@ -6,17 +12,17 @@ import {
 	addCommitment,
 	addGoal,
 	addPersonalAllowance,
-	applyLevers,
+	applyChanges,
 	createHouseholdForParent,
 	type Db,
 	deleteScenario,
-	LeverNotApplicable,
 	loadGoals,
 	loadPlanRecords,
 	loadScenarios,
+	ScenarioChangeNotApplicable,
 	saveScenario,
 	setAllowance,
-	setBaseline,
+	setTakeHomePay,
 	updateCommitment,
 } from "./index";
 import { scenarios } from "./schema";
@@ -43,7 +49,7 @@ beforeEach(async () => {
 			parentName: parent,
 		});
 	}
-	await setBaseline(db, { householdId, memberId: parentId, month, amountCents: 900_000 });
+	await setTakeHomePay(db, { householdId, memberId: parentId, month, amountCents: 900_000 });
 	await addBucket(db, {
 		householdId,
 		memberId: parentId,
@@ -96,7 +102,7 @@ const save = (scenarioId: string, name: string, household = householdId) =>
 	});
 
 describe("Scenarios", () => {
-	it("saves a Scenario with its Levers, and saving it again renames it and replaces them", async () => {
+	it("saves a Scenario with its Changes, and saving it again renames it and replaces them", async () => {
 		await save("s1", "Tighter groceries");
 		await saveScenario(db, {
 			householdId,
@@ -130,9 +136,9 @@ describe("Scenarios", () => {
 	});
 });
 
-describe("applyLevers: a Scenario becomes the real Plan", () => {
+describe("applyChanges: a Scenario becomes the real Plan", () => {
 	it("sets allowances, ends Commitments and moves Goals from this month on, all at once", async () => {
-		await applyLevers(db, {
+		await applyChanges(db, {
 			householdId,
 			memberId: parentId,
 			month: "2026-10",
@@ -173,7 +179,7 @@ describe("applyLevers: a Scenario becomes the real Plan", () => {
 			months: null,
 		} as const;
 		for (let i = 0; i < 2; i++) {
-			await applyLevers(db, { householdId, memberId: parentId, month, levers: [loan, home] });
+			await applyChanges(db, { householdId, memberId: parentId, month, levers: [loan, home] });
 		}
 		const records = await loadPlanRecords(db, householdId, "2027-03");
 		const ids = (m: MonthKey) =>
@@ -197,7 +203,7 @@ describe("applyLevers: a Scenario becomes the real Plan", () => {
 
 	it("changes nothing of another Household's Commitment with the same ID", async () => {
 		const before = planForMonth(await loadPlanRecords(db, householdId, "2026-12"), "2026-12");
-		await applyLevers(db, {
+		await applyChanges(db, {
 			householdId: "other-household",
 			memberId: "other-parent",
 			month,
@@ -224,7 +230,7 @@ describe("applyLevers: a Scenario becomes the real Plan", () => {
 			month: "2026-12",
 			amountCents: 200_000,
 		});
-		await applyLevers(db, {
+		await applyChanges(db, {
 			householdId,
 			memberId: parentId,
 			month,
@@ -245,7 +251,7 @@ describe("applyLevers: a Scenario becomes the real Plan", () => {
 			month,
 			allowanceCents: 30_000,
 		});
-		await applyLevers(db, {
+		await applyChanges(db, {
 			householdId: "other-household",
 			memberId: "other-parent",
 			month,
@@ -256,7 +262,7 @@ describe("applyLevers: a Scenario becomes the real Plan", () => {
 			],
 		});
 		// The other Parent's Scenario can't set this Parent's Personal Allowance.
-		await applyLevers(db, {
+		await applyChanges(db, {
 			householdId,
 			memberId: "second-parent",
 			month,
@@ -269,13 +275,13 @@ describe("applyLevers: a Scenario becomes the real Plan", () => {
 		expect(goals[0]).toMatchObject({ target: 1_200_000, targetDate: "2027-08-31" });
 	});
 
-	it("does nothing without Levers", async () => {
-		await applyLevers(db, { householdId, memberId: parentId, month, levers: [] });
+	it("does nothing without Changes", async () => {
+		await applyChanges(db, { householdId, memberId: parentId, month, levers: [] });
 	});
 });
 
 describe("Scenarios as versioned JSON", () => {
-	it("saves v2 Levers as { version: 2, levers }", async () => {
+	it("saves v2 Changes as { version: 2, levers }", async () => {
 		await save("s1", "Ours");
 		const [row] = await db.select({ levers: scenarios.levers }).from(scenarios);
 		expect(row?.levers).toEqual({
@@ -318,13 +324,13 @@ describe("Scenarios as versioned JSON", () => {
 	});
 });
 
-describe("applyLevers: v2 Levers", () => {
-	const apply = (changes: Lever[], at: MonthKey = month) =>
-		applyLevers(db, { householdId, memberId: parentId, month: at, levers: changes });
+describe("applyChanges: v2 Changes", () => {
+	const apply = (changes: ScenarioChange[], at: MonthKey = month) =>
+		applyChanges(db, { householdId, memberId: parentId, month: at, levers: changes });
 	const planIn = async (m: MonthKey) =>
 		planForMonth(await loadPlanRecords(db, householdId, "2028-12"), m);
 
-	it("changes the Baseline for a range, writing the Plan's back at its end", async () => {
+	it("changes take-home pay for a range, writing the Plan's back at its end", async () => {
 		await apply([
 			{ kind: "baseline", amount: 600_000, fromMonth: "2026-10", untilMonth: "2027-01" },
 		]);
@@ -341,7 +347,7 @@ describe("applyLevers: v2 Levers", () => {
 			month: "2027-02",
 			amountCents: 200_000,
 		});
-		const change: Lever = {
+		const change: ScenarioChange = {
 			kind: "allowance",
 			bucketId: "groceries",
 			amount: 150_000,
@@ -359,7 +365,7 @@ describe("applyLevers: v2 Levers", () => {
 	});
 
 	it("changes a Commitment's terms for a range, from the terms in force", async () => {
-		const change: Lever = {
+		const change: ScenarioChange = {
 			kind: "commitment-terms",
 			commitmentId: "streaming",
 			amount: 1_500,
@@ -405,7 +411,7 @@ describe("applyLevers: v2 Levers", () => {
 		expect((await planIn("2027-06")).commitments).toEqual([]);
 	});
 
-	it("adds a Bucket for a range, Rolling, and archives one from its month", async () => {
+	it("adds a Bucket for a range, carries over, and archives one from its month", async () => {
 		await apply([
 			{
 				kind: "add-bucket",
@@ -442,7 +448,7 @@ describe("applyLevers: v2 Levers", () => {
 		expect(goals.map((g) => g.name).sort()).toEqual(["Car", "Trip"]);
 	});
 
-	it("refuses the lot if any Lever can't be applied, writing nothing", async () => {
+	it("refuses the lot if any Change can't be applied, writing nothing", async () => {
 		await expect(
 			apply([
 				{ kind: "baseline", amount: 1, fromMonth: month },
@@ -453,11 +459,11 @@ describe("applyLevers: v2 Levers", () => {
 					untilMonth: "2026-12",
 				},
 			]),
-		).rejects.toBeInstanceOf(LeverNotApplicable);
+		).rejects.toBeInstanceOf(ScenarioChangeNotApplicable);
 		expect((await planIn(month)).baseline).toBe(900_000);
 	});
 
-	it("leaves out muted Levers and assumptions (one-offs, growth), applying the rest", async () => {
+	it("leaves out muted Changes and assumptions (one-offs, growth), applying the rest", async () => {
 		await apply([
 			{ kind: "baseline", amount: 800_000, fromMonth: month },
 			{ kind: "allowance", bucketId: "groceries", amount: 1, fromMonth: month, muted: true },
@@ -482,10 +488,10 @@ describe("applyLevers: v2 Levers", () => {
 		expect(saved).toMatchObject({ createdBy: parentId, appliedAt: null, appliedBy: null });
 		await db.update(scenarios).set({ updatedAt: new Date(0) });
 
-		const changes: Lever[] = [
+		const changes: ScenarioChange[] = [
 			{ kind: "allowance", bucketId: "groceries", amount: 100_000, fromMonth: month },
 		];
-		await applyLevers(db, {
+		await applyChanges(db, {
 			householdId,
 			memberId: parentId,
 			scenarioId: "s1",
@@ -503,9 +509,9 @@ describe("applyLevers: v2 Levers", () => {
 
 	it("saves an unsaved Scenario as it applies it, and not another Household's", async () => {
 		await save("s1", "Theirs", "other-household");
-		const changes: Lever[] = [{ kind: "baseline", amount: 800_000, fromMonth: month }];
+		const changes: ScenarioChange[] = [{ kind: "baseline", amount: 800_000, fromMonth: month }];
 		for (const scenarioId of ["s1", "s2"]) {
-			await applyLevers(db, {
+			await applyChanges(db, {
 				householdId,
 				memberId: parentId,
 				scenarioId,
@@ -522,7 +528,7 @@ describe("applyLevers: v2 Levers", () => {
 		]);
 	});
 
-	it("skips a Lever whose range is over", async () => {
+	it("skips a Change whose range is over", async () => {
 		await apply(
 			[{ kind: "baseline", amount: 1, fromMonth: "2026-09", untilMonth: "2026-10" }],
 			"2026-11",
@@ -558,7 +564,7 @@ describe("applyLevers: v2 Levers", () => {
 	});
 
 	it("comes out as the Scenario projected it", async () => {
-		const changes: Lever[] = [
+		const changes: ScenarioChange[] = [
 			{ kind: "baseline", amount: 950_000, fromMonth: "2026-11", untilMonth: "2027-05" },
 			{ kind: "allowance", bucketId: "groceries", amount: 90_000, fromMonth: "2026-10" },
 			{

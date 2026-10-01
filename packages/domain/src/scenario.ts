@@ -2,45 +2,45 @@ import {
 	activeChanges,
 	addedTerms,
 	addedUntil,
-	type Change,
-	type ChangeOf,
-	type ChangeRange,
 	changedTerms,
 	holdsIn,
+	type ScenarioChange,
+	type ScenarioChangeOf,
+	type ScenarioChangeRange,
 } from "./changes";
 import { type CommitmentTerms, expectedIn } from "./commitments";
 import type { Cents } from "./money";
 import { addMonths, type DayKey, type MonthKey, monthOfDay, monthsBetween } from "./month";
 import { type PlanRecords, planForMonth } from "./plan";
 
-// Scenarios: the Plan projected forward, as it stands and as Levers change it.
+// Scenarios: the Plan projected forward, as it stands and as Changes change it.
 //
 // The model is deliberately plain, so a Parent can check any number by hand:
-// - Each month's Baseline, Commitments and allowances are the Plan's as stored (ADR-0009),
+// - Each month's take-home pay, Commitments and allowances are the Plan's as stored (ADR-0009),
 //   including changes already set for later months. Commitments take what their cadence expects
 //   that month (so an annual one shows up once a year, and a biweekly one three times in some).
 // - Every dated Goal is funded its monthly needed amount (as goalProgress works it out today)
 //   out of Free to Spend each month until it reaches its target; an undated Goal isn't funded.
-//   When a Lever changes a Goal's target or date, what it needs each month is worked out again
-//   from its Earmark then. Earmarks earn nothing: no interest or investment returns.
-// - Spending is assumed to equal the allowances. Covers, Windfalls, Sweeps and spending don't
+//   When a Change changes a Goal's target or date, what it needs each month is worked out again
+//   from what it has set aside then. what Goals have set aside earn nothing: no interest or investment returns.
+// - Spending is assumed to equal the allowances. Covers, Extra income, Sweeps and spending don't
 //   change the Plan, so they aren't projected.
-// - The Cushion is money built up month by month: a starting balance (the Household's Accounts,
+// - The Projected balance is money built up month by month: a starting balance (the Household's Accounts,
 //   when given) plus each month's Free to Spend and one-offs.
-// - Levers mirror the writes that apply a Scenario, over their range of months (see levers.ts):
-//   one that changes the Baseline, an allowance or a Commitment's terms from a month holds until
+// - Changes mirror the writes that apply a Scenario, over their range of months (see changes.ts):
+//   one that changes take-home pay, an allowance or a Commitment's terms from a month holds until
 //   a later month the Plan set on its own, and the Plan's own value comes back at its end.
 //   Growth compounds yearly in steps from its first month, and isn't applied to Goal funding or
-//   one-offs. A muted Lever is left out altogether.
+//   one-offs. A muted Change is left out altogether.
 
-export type { Change as Lever } from "./changes";
+export type { ScenarioChange } from "./changes";
 
 /** An active Goal as it stands this month. */
 export type ProjectionGoal = {
 	id: string;
 	target: Cents;
 	targetDate: DayKey | null;
-	/** Its Earmark now. */
+	/** What it has set aside now. */
 	saved: Cents;
 	/** Goal funding already Moved into it this month (part of `saved`). */
 	fundedThisMonth: Cents;
@@ -51,13 +51,13 @@ export type PlanAhead = {
 	months: {
 		month: MonthKey;
 		baseline: Cents;
-		/** The month the Baseline in force was set; null when none is. */
+		/** The month take-home pay in force was set; null when none is. */
 		baselineSetIn: MonthKey | null;
 		buckets: {
 			id: string;
 			allowance: Cents;
 			/**
-			 * The month the allowance in force was set; null when none is. A Lever from a month
+			 * The month the allowance in force was set; null when none is. A Change from a month
 			 * replaces it only if it was set then or earlier, as applying it would.
 			 */
 			setIn: MonthKey | null;
@@ -80,24 +80,24 @@ export type ProjectedMonth = {
 	commitments: Cents;
 	allowances: Cents;
 	goalFunding: Cents;
-	/** Negative when the Plan assigns more than the Baseline (never clamped). */
+	/** Negative when the Plan assigns more than take-home pay (never clamped). */
 	freeToSpend: Cents;
 	/** One-offs this month: income less expenses. */
 	oneOffs: Cents;
-	/** The Cushion at the end of the month: negative when it's run out (never clamped). */
+	/** The Projected balance at the end of the month: negative when it's run out (never clamped). */
 	cushion: Cents;
 };
 
 export type ProjectedGoal = {
 	goalId: string;
-	/** A Goal a Lever adds, not yet in the Plan. */
+	/** A Goal a Change adds, not yet in the Plan. */
 	added: boolean;
 	/** Its target and date in the first month it's funded (or projected, if never). */
 	target: Cents;
 	targetDate: DayKey | null;
 	/** What it's funded each month to reach its target in time; null when undated or past due. */
 	monthly: Cents | null;
-	/** Its Earmark at the end of each month (0 for an added one before its first month). */
+	/** What it has set aside at the end of each month (0 for an added one before its first month). */
 	earmarks: Cents[];
 	/** The month it reaches its target, or null if not within the months projected. */
 	reachedIn: MonthKey | null;
@@ -110,16 +110,16 @@ export type Projection = {
 	freeToSpend: Cents;
 	/** One-offs over every month projected: income less expenses. */
 	oneOffs: Cents;
-	/** The Cushion the projection starts from. */
+	/** The Projected balance the projection starts from. */
 	startingCushion: Cents;
-	/** The Cushion's lowest month-end (the earliest, on a tie); null with no months. */
+	/** The Projected balance's lowest month-end (the earliest, on a tie); null with no months. */
 	lowest: { month: MonthKey; amount: Cents } | null;
-	/** The first month the Cushion ends below zero, if any. */
+	/** The first month the Projected balance ends below zero, if any. */
 	firstNegative: MonthKey | null;
 };
 
 export type ProjectOptions = {
-	/** The Cushion to start from, such as the Household's Account balances; 0 when unset. */
+	/** The Projected balance to start from, such as the Household's Account balances; 0 when unset. */
 	startingBalance?: Cents;
 };
 
@@ -149,7 +149,7 @@ function groupBy<T, K>(items: readonly T[], key: (item: T) => K): Map<K, T[]> {
 /**
  * Resolves the Plan for `count` months from `start` (the Household's current month). `records`
  * must hold every record up to the last of them. The slow part of a projection, done once so
- * `project` can run on every Lever change.
+ * `project` can run on every Change change.
  */
 export function planAhead(
 	records: PlanRecords,
@@ -184,10 +184,10 @@ export function planAhead(
 }
 
 /**
- * The last of `levers` holding in `month`: later Levers win. With `setIn` (when the Plan's own
- * value in force was set), only a Lever from that month or later replaces it.
+ * The last of `levers` holding in `month`: later Changes win. With `setIn` (when the Plan's own
+ * value in force was set), only a Change from that month or later replaces it.
  */
-function holding<T extends ChangeRange>(
+function holding<T extends ScenarioChangeRange>(
 	changes: readonly T[] | undefined,
 	month: MonthKey,
 	start: MonthKey,
@@ -205,16 +205,16 @@ function holding<T extends ChangeRange>(
 
 type GoalParams = { target: Cents; targetDate: DayKey | null };
 
-/** Projects the Plan ahead with Levers applied (none: the Plan as it stands); muted ones don't count. */
+/** Projects the Plan ahead with Changes applied (none: the Plan as it stands); muted ones don't count. */
 export function project(
 	ahead: PlanAhead,
-	changes: readonly Change[] = [],
+	changes: readonly ScenarioChange[] = [],
 	options: ProjectOptions = {},
 ): Projection {
 	const start = ahead.months[0]?.month ?? ("0000-01" as MonthKey);
 	const active = activeChanges(changes);
-	const of = <K extends Change["kind"]>(kind: K) =>
-		active.filter((l): l is ChangeOf<K> => l.kind === kind);
+	const of = <K extends ScenarioChange["kind"]>(kind: K) =>
+		active.filter((l): l is ScenarioChangeOf<K> => l.kind === kind);
 
 	const takeHomePays = of("baseline");
 	const growth = of("growth");
@@ -231,11 +231,11 @@ export function project(
 	}));
 	const goalChanges = groupBy(of("goal"), (l) => l.goalId);
 
-	const fromOf = (scenarioChange: ChangeRange) =>
+	const fromOf = (scenarioChange: ScenarioChangeRange) =>
 		scenarioChange.fromMonth < start ? start : scenarioChange.fromMonth;
 
-	/** Growth's factor for `month`: each Lever holding compounds once per full year since its start. */
-	const grown = (month: MonthKey, pct: (scenarioChange: ChangeOf<"growth">) => number) => {
+	/** Growth's factor for `month`: each Change holding compounds once per full year since its start. */
+	const grown = (month: MonthKey, pct: (scenarioChange: ScenarioChangeOf<"growth">) => number) => {
 		let factor = 1;
 		for (const scenarioChange of growth) {
 			if (!holdsIn(scenarioChange, month)) continue;
@@ -247,7 +247,7 @@ export function project(
 	const scaled = (amount: Cents, factor: number) =>
 		factor === 1 ? amount : Math.round(amount * factor);
 
-	// Goals: the Plan's, then any a Lever adds.
+	// Goals: the Plan's, then any a Change adds.
 	const planGoalIds = new Set(ahead.goals.map((g) => g.id));
 	const goals = [
 		...ahead.goals.map((goal) => ({
@@ -351,7 +351,7 @@ export function project(
 				g.params = params;
 				if (params !== null && g.first === null) g.first = { params, monthly: g.monthly };
 			}
-			// This month's funding so far is already in the Earmark, and still comes out of it.
+			// This month's funding so far is already in what's set aside, and still comes out of it.
 			const already = i === 0 ? g.fundedThisMonth : 0;
 			const due = g.monthly === null ? 0 : Math.max(0, g.monthly - already);
 			const funding = params === null ? 0 : Math.min(due, Math.max(0, params.target - g.earmark));
@@ -418,25 +418,25 @@ export function moneyFreed(plan: Projection, scenario: Projection): Cents[] {
 	});
 }
 
-/** What one Lever does to a Scenario: the Scenario with it, less the Scenario without it. */
-export type ChangeImpact = {
-	/** Free to Spend over every month projected (positive: the Lever frees money). */
+/** What one Change does to a Scenario: the Scenario with it, less the Scenario without it. */
+export type ScenarioChangeImpact = {
+	/** Free to Spend over every month projected (positive: the Change frees money). */
 	freeToSpend: Cents;
-	/** The Cushion at the end of the months projected (Free to Spend and one-offs). */
+	/** The Projected balance at the end of the months projected (Free to Spend and one-offs). */
 	cushion: Cents;
-	/** The Cushion's lowest point (positive: the Lever raises it). */
+	/** The Projected balance's lowest point (positive: the Change raises it). */
 	lowest: Cents;
 	/**
-	 * The first month the Lever changes Free to Spend and one-offs, and by how much: "frees
+	 * The first month the Change changes Free to Spend and one-offs, and by how much: "frees
 	 * $1,400/mo from March". Null when it changes nothing (say, its target is gone).
 	 */
 	firstChange: { month: MonthKey; amount: Cents } | null;
 	/** What it changes each month projected: Free to Spend and one-offs (the month breakdown). */
 	byMonth: { freeToSpend: Cents; oneOffs: Cents }[];
 	/**
-	 * Goals the Lever moves: when each is reached with it and without it, and `months` later with
+	 * Goals the Change moves: when each is reached with it and without it, and `months` later with
 	 * it (negative: sooner; null when either isn't reached within the months projected). A Goal
-	 * the Lever adds isn't listed.
+	 * the Change adds isn't listed.
 	 */
 	goals: {
 		goalId: string;
@@ -447,17 +447,17 @@ export type ChangeImpact = {
 };
 
 /**
- * Each Lever's impact, leaving it out of the Scenario one at a time (one projection each, plus
- * one with them all). A muted Lever's is what it would do turned back on: the Scenario with it
+ * Each Change's impact, leaving it out of the Scenario one at a time (one projection each, plus
+ * one with them all). A muted Change's is what it would do turned back on: the Scenario with it
  * unmuted, less the Scenario as it is.
  */
 export function changeImpacts(
 	ahead: PlanAhead,
-	changes: readonly Change[],
+	changes: readonly ScenarioChange[],
 	options: ProjectOptions = {},
-): ChangeImpact[] {
+): ScenarioChangeImpact[] {
 	const scenario = project(ahead, changes, options);
-	return changes.map((scenarioChange, index): ChangeImpact => {
+	return changes.map((scenarioChange, index): ScenarioChangeImpact => {
 		const [all, without] = scenarioChange.muted
 			? [
 					project(
@@ -475,7 +475,7 @@ export function changeImpacts(
 						options,
 					),
 				];
-		let firstChange: ChangeImpact["firstChange"] = null;
+		let firstChange: ScenarioChangeImpact["firstChange"] = null;
 		const byMonth = all.months.map((m, i) => {
 			const other = without.months[i];
 			const change = {
@@ -486,7 +486,7 @@ export function changeImpacts(
 			if (amount !== 0 && firstChange === null) firstChange = { month: m.month, amount };
 			return change;
 		});
-		const goals: ChangeImpact["goals"] = [];
+		const goals: ScenarioChangeImpact["goals"] = [];
 		for (const goal of all.goals) {
 			const other = without.goals.find((g) => g.goalId === goal.goalId);
 			if (!other || other.reachedIn === goal.reachedIn) continue;

@@ -33,7 +33,7 @@ const q = (value: string) => `'${value.replaceAll("'", "''")}'`;
 
 /**
  * What a week leaves for a Check-in, written straight into the local D1: a Transaction waiting in
- * Review, a new Insight, $250 of income beyond the Baseline, and a second Parent, Sam, who has
+ * Review, a new Insight, $250 of income beyond take-home pay, and a second Parent, Sam, who has
  * already done this week's (`week`).
  */
 function seedCheckIn(clerkUserId: string, week: string) {
@@ -56,7 +56,7 @@ function seedCheckIn(clerkUserId: string, week: string) {
 	});
 }
 
-test("a seeded Check-in walks Review, Insights and Windfalls to a done state", async ({
+test("a seeded Check-in walks Review, Insights and Extra income to a done state", async ({
 	browser,
 }) => {
 	// Planning the month and seeding through wrangler take most of the default budget.
@@ -95,7 +95,7 @@ test("a seeded Check-in walks Review, Insights and Windfalls to a done state", a
 	await page.getByRole("button", { name: "Next" }).click();
 
 	await expect(page.getByText("3 of 3")).toBeVisible();
-	await expect(page.getByRole("heading", { name: "A $250 Windfall to decide" })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "$250 of Extra income to decide" })).toBeVisible();
 	const finished = savedBy(page, "completeCheckIn");
 	await page.getByRole("button", { name: "Finish" }).click();
 	await finished;

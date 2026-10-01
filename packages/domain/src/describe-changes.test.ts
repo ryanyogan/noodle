@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { describeLever, type Lever, type LeverSubjects, leverName } from "./index";
+import {
+	changeName,
+	describeChange,
+	type ScenarioChange,
+	type ScenarioChangeSubjects,
+} from "./index";
 
-const subjects: LeverSubjects = {
+const subjects: ScenarioChangeSubjects = {
 	month: "2026-09",
 	baseline: 900_000,
 	buckets: [
@@ -15,12 +20,13 @@ const subjects: LeverSubjects = {
 	goals: [{ id: "college", name: "College", target: 5_000_000, targetDate: "2030-08-31" }],
 };
 
-const text = (change: Lever, changes: Lever[] = []) =>
-	describeLever(change, subjects, changes).text;
+const text = (change: ScenarioChange, changes: ScenarioChange[] = []) =>
+	describeChange(change, subjects, changes).text;
 
-describe("leverName", () => {
-	it("names what a Lever changes in a word or two, for warnings to point at", () => {
-		const name = (change: Lever, changes: Lever[] = []) => leverName(change, subjects, changes);
+describe("changeName", () => {
+	it("names what a Change changes in a word or two, for warnings to point at", () => {
+		const name = (change: ScenarioChange, changes: ScenarioChange[] = []) =>
+			changeName(change, subjects, changes);
 		expect(name({ kind: "end-commitment", commitmentId: "daycare", fromMonth: "2027-09" })).toBe(
 			"Daycare",
 		);
@@ -38,8 +44,8 @@ describe("leverName", () => {
 				fromMonth: "2027-05",
 			}),
 		).toBe("New roof");
-		// A Lever on a Goal another Lever adds takes that Goal's name.
-		const boat: Lever = {
+		// A Change on a Goal another Change adds takes that Goal's name.
+		const boat: ScenarioChange = {
 			kind: "add-goal",
 			goalId: "boat",
 			name: "Boat",
@@ -58,7 +64,7 @@ describe("leverName", () => {
 	});
 });
 
-describe("describeLever", () => {
+describe("describeChange", () => {
 	it("says what the Plan has, what the Scenario makes it, and when", () => {
 		expect(text({ kind: "end-commitment", commitmentId: "daycare", fromMonth: "2027-09" })).toBe(
 			"Daycare $1,400 → ended from Sep 2027",
@@ -77,7 +83,7 @@ describe("describeLever", () => {
 		);
 	});
 
-	it("leaves out “from” for a Lever from this month (or earlier)", () => {
+	it("leaves out “from” for a Change from this month (or earlier)", () => {
 		expect(text({ kind: "allowance", bucketId: "hockey", amount: 0, fromMonth: "2026-09" })).toBe(
 			"Hockey $400 → $0 a month",
 		);
@@ -171,8 +177,8 @@ describe("describeLever", () => {
 		).toBe("College $50,000 by Aug 2030 → $50,000 with no date");
 	});
 
-	it("names a Commitment or Bucket another Lever adds", () => {
-		const car: Lever = {
+	it("names a Commitment or Bucket another Change adds", () => {
+		const car: ScenarioChange = {
 			kind: "add-commitment",
 			commitmentId: "car",
 			name: "Car loan",
@@ -182,25 +188,29 @@ describe("describeLever", () => {
 			months: null,
 			fromMonth: "2026-09",
 		};
-		const ended: Lever = { kind: "end-commitment", commitmentId: "car", fromMonth: "2027-09" };
-		expect(describeLever(ended, subjects, [car, ended])).toEqual({
+		const ended: ScenarioChange = {
+			kind: "end-commitment",
+			commitmentId: "car",
+			fromMonth: "2027-09",
+		};
+		expect(describeChange(ended, subjects, [car, ended])).toEqual({
 			text: "Car loan → ended from Sep 2027",
 			gone: false,
 		});
 	});
 
-	it("flags a Lever whose Bucket, Commitment or Goal is no longer in the Plan", () => {
+	it("flags a Change whose Bucket, Commitment or Goal is no longer in the Plan", () => {
 		for (const change of [
 			{ kind: "allowance", bucketId: "gone", amount: 1_000, fromMonth: "2026-09" },
 			{ kind: "archive-bucket", bucketId: "gone", fromMonth: "2026-09" },
 			{ kind: "commitment-terms", commitmentId: "gone", amount: 1_000, fromMonth: "2026-09" },
 			{ kind: "end-commitment", commitmentId: "gone", fromMonth: "2026-09" },
 			{ kind: "goal", goalId: "gone", target: 1_000, targetDate: null, fromMonth: "2026-09" },
-		] satisfies Lever[]) {
-			expect(describeLever(change, subjects).gone).toBe(true);
+		] satisfies ScenarioChange[]) {
+			expect(describeChange(change, subjects).gone).toBe(true);
 		}
 		expect(
-			describeLever({ kind: "baseline", amount: 1, fromMonth: "2026-09" }, subjects).gone,
+			describeChange({ kind: "baseline", amount: 1, fromMonth: "2026-09" }, subjects).gone,
 		).toBe(false);
 	});
 });

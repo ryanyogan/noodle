@@ -89,7 +89,7 @@ describe("the Check-in's cards", () => {
 		],
 	};
 
-	it("come in order: Review, Insights, Sweeps, Windfalls", () => {
+	it("come in order: Review, Insights, Sweeps, Extra income", () => {
 		const cards = checkInCards(everything);
 		expect(cards.map((card) => card.kind)).toEqual(["review", "insights", "sweeps", "windfalls"]);
 		expect(cards[2]).toMatchObject({ month: "2026-08", total: 5_500 });
@@ -104,7 +104,7 @@ describe("the Check-in's cards", () => {
 		const cards = checkInCards({
 			...nothing,
 			insights: ["A price went up"],
-			// A month closing with only a Windfall has nothing to Sweep.
+			// A month closing with only Extra income has nothing to Sweep.
 			monthClose: { month: month("2026-08"), leftovers: [], windfall: 5_000 },
 			windfalls: [{ month: month("2026-09"), amount: 0 }],
 		});

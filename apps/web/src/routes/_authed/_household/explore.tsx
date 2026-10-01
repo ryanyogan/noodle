@@ -1,13 +1,10 @@
 import {
 	type AccountKind,
 	applyPreview,
-	describeLever,
+	changeImpacts,
+	changeName,
+	describeChange,
 	holdsMoney,
-	type Lever,
-	type LeverImpact,
-	type LeverSubjects,
-	leverImpacts,
-	leverName,
 	MAX_PROJECTION_MONTHS,
 	type MonthKey,
 	moneyFreed,
@@ -17,11 +14,14 @@ import {
 	type Plan,
 	type PlanRecords,
 	type Projection,
-	parseLeverPreset,
+	parseChangePreset,
 	planAhead,
 	planForMonth,
 	project,
 	projectionAssumptions,
+	type ScenarioChange,
+	type ScenarioChangeImpact,
+	type ScenarioChangeSubjects,
 } from "@noodle/domain";
 import {
 	AlertDialog,
@@ -63,6 +63,7 @@ import { Confirm } from "../../../components/plan-editing";
 import { changeId, ScenarioChanges, useDebounced } from "../../../components/scenario-changes";
 import type { Outcome } from "../../../components/scenario-outcomes";
 import { ScenarioOutcome, ScenarioOutline } from "../../../components/scenario-outline";
+import { TermHelp } from "../../../components/term-help";
 import { formatMoney, shortDayAt, shortMonth } from "../../../format";
 import { useReducedMotion } from "../../../motion";
 import { goalsQuery, planAheadQuery, scenariosQuery } from "../../../queries";
@@ -88,7 +89,7 @@ const FreeToSpendOutcome = lazy(() =>
 export const Route = createFileRoute("/_authed/_household/explore")({
 	ssr: "data-only",
 	// `scenario`: open this saved Scenario. `lever`: open a new Scenario with these changes made
-	// (see parseLeverPreset), e.g. from Insights, Ask or Affordability. `end`: the same, ending a
+	// (see parseChangePreset), e.g. from Insights, Ask or Affordability. `end`: the same, ending a
 	// Commitment (as `lever=end-commitment:<id>` does), for links made before presets.
 	validateSearch: z.object({
 		scenario: z.string().optional().catch(undefined),
@@ -115,7 +116,7 @@ const HORIZONS = [
 ] as const;
 
 /** The Scenario being explored; it isn't saved until a Parent saves it. */
-type Draft = { id: string; name: string; levers: Lever[] };
+type Draft = { id: string; name: string; levers: ScenarioChange[] };
 
 const freshDraft = (scenarios: ScenarioRecord[]): Draft => ({
 	id: ulid(),
@@ -123,25 +124,26 @@ const freshDraft = (scenarios: ScenarioRecord[]): Draft => ({
 	levers: [],
 });
 
-const sameChanges = (a: Lever[], b: Lever[]) => JSON.stringify(a) === JSON.stringify(b);
+const sameChanges = (a: ScenarioChange[], b: ScenarioChange[]) =>
+	JSON.stringify(a) === JSON.stringify(b);
 
 type ExploreSearch = { scenario?: string; lever?: string | string[]; end?: string };
 
 /**
- * The Levers a link's presets make, keeping only those on what's in the Plan: a Bucket,
+ * The Changes a link's presets make, keeping only those on what's in the Plan: a Bucket,
  * Commitment or Goal that's gone, or the other Parent's Personal Allowance, is dropped.
  */
 function presetChanges(
 	search: ExploreSearch,
 	input: { month: MonthKey; plan: Plan; goals: readonly { id: string }[]; parentId: string },
-): Lever[] {
+): ScenarioChange[] {
 	const { month, plan, goals, parentId } = input;
 	const presets = [
 		...(search.end ? [`end-commitment:${search.end}`] : []),
 		...(search.lever === undefined ? [] : [search.lever].flat()),
 	];
 	const bucket = (id: string) => plan.buckets.find((b) => b.id === id);
-	const inPlan = (scenarioChange: Lever) => {
+	const inPlan = (scenarioChange: ScenarioChange) => {
 		switch (scenarioChange.kind) {
 			case "allowance": {
 				const owner = bucket(scenarioChange.bucketId)?.owner;
@@ -162,9 +164,9 @@ function presetChanges(
 		}
 	};
 	return presets
-		.flatMap((preset) => parseLeverPreset(preset, month) ?? [])
+		.flatMap((preset) => parseChangePreset(preset, month) ?? [])
 		.filter(inPlan)
-		.reduce<Lever[]>(withChange, []);
+		.reduce<ScenarioChange[]>(withChange, []);
 }
 
 function ExplorePage() {
@@ -290,25 +292,25 @@ function Explore({ search }: { search: ExploreSearch }) {
 	const saved = scenarios.find((s) => s.id === draft.id);
 	const dirty =
 		!saved || saved.name !== draft.name.trim() || !sameChanges(saved.levers, draft.levers);
-	// Sliders update the Levers at once; the projection and chart follow in a deferred render.
+	// Sliders update the Changes at once; the projection and chart follow in a deferred render.
 	const scenarioChanges = useDeferredValue(draft.levers);
 	const onChangesEdit = useMemo(
-		() => (change: (scenarioChanges: Lever[]) => Lever[]) =>
+		() => (change: (scenarioChanges: ScenarioChange[]) => ScenarioChange[]) =>
 			setDraft((d) => ({ ...d, levers: change(d.levers) })),
 		[],
 	);
 
 	const horizonId = useId();
 	const horizonLabel = HORIZONS.find((h) => h.months === horizon)?.label ?? "";
-	// Recomputed only when the deferred Levers (or the horizon) change.
+	// Recomputed only when the deferred Changes (or the horizon) change.
 	const planProjection = useMemo(() => project(ahead), [ahead]);
 	const scenarioProjection = useMemo(
 		() => project(ahead, scenarioChanges),
 		[ahead, scenarioChanges],
 	);
 
-	// What Levers change, as the Plan has them now: "Your changes" and Apply describe Levers by it.
-	const subjects = useMemo<LeverSubjects>(
+	// What Changes change, as the Plan has them now: "Your changes" and Apply describe Changes by it.
+	const subjects = useMemo<ScenarioChangeSubjects>(
 		() => ({
 			month,
 			baseline: plan.baseline,
@@ -331,11 +333,11 @@ function Explore({ search }: { search: ExploreSearch }) {
 	);
 	const accounts = goalsData.accounts;
 
-	// The outcome charts, warnings and each change's impact follow the Levers once they settle:
-	// one projection per Lever is too much for every slider step, and the charts animate calmer.
+	// The outcome charts, warnings and each change's impact follow the Changes once they settle:
+	// one projection per Change is too much for every slider step, and the charts animate calmer.
 	const settled = useDebounced(draft.levers, 250);
 	const outcome = useMemo<Outcome>(() => {
-		const impacts = leverImpacts(ahead, settled);
+		const impacts = changeImpacts(ahead, settled);
 		return {
 			plan: planProjection,
 			scenario: project(ahead, settled),
@@ -343,7 +345,7 @@ function Explore({ search }: { search: ExploreSearch }) {
 			impacts,
 			describe: (index) => {
 				const scenarioChange = settled[index];
-				return scenarioChange ? describeLever(scenarioChange, subjects, settled).text : "";
+				return scenarioChange ? describeChange(scenarioChange, subjects, settled).text : "";
 			},
 		};
 	}, [ahead, settled, planProjection, subjects]);
@@ -352,7 +354,7 @@ function Explore({ search }: { search: ExploreSearch }) {
 			new Map(
 				outcome.levers.map((scenarioChange, i) => [
 					changeTarget(scenarioChange),
-					outcome.impacts[i] as LeverImpact,
+					outcome.impacts[i] as ScenarioChangeImpact,
 				]),
 			),
 		[outcome],
@@ -369,7 +371,7 @@ function Explore({ search }: { search: ExploreSearch }) {
 					change: scenarioChange
 						? {
 								target: changeTarget(scenarioChange),
-								name: leverName(scenarioChange, subjects, outcome.levers),
+								name: changeName(scenarioChange, subjects, outcome.levers),
 							}
 						: null,
 				};
@@ -421,8 +423,8 @@ function Explore({ search }: { search: ExploreSearch }) {
 					onDraft={setDraft}
 				/>
 				<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(340px,440px)] lg:items-start">
-					{/* It stays beside the Levers only where it fits on screen: stuck, anything below
-					    the fold couldn't be reached until the Levers ran out. */}
+					{/* It stays beside the Changes only where it fits on screen: stuck, anything below
+					    the fold couldn't be reached until the Changes ran out. */}
 					<div className="grid gap-4 lg:[@media(min-height:48rem)]:sticky lg:top-6">
 						<fieldset className="flex flex-wrap items-center gap-1">
 							<legend className="sr-only">Look ahead</legend>
@@ -539,7 +541,7 @@ function ScenarioBar({
 	scenarios: ScenarioRecord[];
 	saved: ScenarioRecord | undefined;
 	dirty: boolean;
-	subjects: LeverSubjects;
+	subjects: ScenarioChangeSubjects;
 	records: PlanRecords;
 	accounts: readonly { id: string; name: string; kind: AccountKind }[];
 	onDraft: (draft: Draft) => void;
@@ -774,8 +776,8 @@ function ScenarioBar({
 type Warning = OutcomeWarning & { change: { target: string; name: string } | null };
 
 /**
- * The Scenario against the Plan at a glance: what it frees, the Cushion at its lowest, and where
- * it stops holding up. Memoised, so it re-renders only when the deferred Levers, the horizon or
+ * The Scenario against the Plan at a glance: what it frees, the Projected balance at its lowest, and where
+ * it stops holding up. Memoised, so it re-renders only when the deferred Changes, the horizon or
  * the warnings change, never in the urgent render of a slider move.
  */
 const Summary = memo(function Summary({
@@ -804,7 +806,7 @@ const Summary = memo(function Summary({
 });
 
 /** Where the Scenario stops holding up, each linking to the change most responsible. */
-/** Warnings shown before the rest fold behind "more": the summary stays short beside the Levers. */
+/** Warnings shown before the rest fold behind "more": the summary stays short beside the Changes. */
 const WARNINGS_SHOWN = 2;
 
 function Warnings({ warnings }: { warnings: Warning[] }) {
@@ -905,21 +907,24 @@ const Freed = memo(function Freed({
 	);
 });
 
-/** The Scenario's Cushion at its lowest, and the month it first goes below zero. */
+/** The Scenario's Projected balance at its lowest, and the month it first goes below zero. */
 function ProjectedBalance({ scenario }: { scenario: Projection }) {
 	const { lowest, firstNegative } = scenario;
 	if (!lowest) return null;
 	return (
-		<p className="text-[13px] text-muted-foreground tabular-nums">
-			Cushion lowest{" "}
-			<span className={cn("font-medium text-foreground", lowest.amount < 0 && "text-over")}>
-				{formatMoney(lowest.amount)}
-			</span>{" "}
-			in {shortMonth(lowest.month)}
-			{firstNegative ? (
-				<span className="text-over"> · below zero from {shortMonth(firstNegative)}</span>
-			) : null}
-		</p>
+		<div className="flex items-center gap-1">
+			<p className="text-[13px] text-muted-foreground tabular-nums">
+				Projected balance at its lowest{" "}
+				<span className={cn("font-medium text-foreground", lowest.amount < 0 && "text-over")}>
+					{formatMoney(lowest.amount)}
+				</span>{" "}
+				in {shortMonth(lowest.month)}
+				{firstNegative ? (
+					<span className="text-over"> · below zero from {shortMonth(firstNegative)}</span>
+				) : null}
+			</p>
+			<TermHelp term="projected-balance" />
+		</div>
 	);
 }
 

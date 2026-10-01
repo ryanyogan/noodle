@@ -3,7 +3,7 @@ import { addMonths, type MonthKey } from "./month";
 import type { Projection } from "./scenario";
 
 // Affordability Checks: can the Household take on a home, a car, or anything else, against the
-// Plan, Goals and Earmarks? Each answers Comfortable, Stretch or Not Yet, always with the reasons
+// Plan, Goals and what Goals have set aside? Each answers Comfortable, Stretch or Not yet, always with the reasons
 // (plain sentences with the numbers that drove them); the verdict is the worst of its reasons.
 //
 // The model is plain and US-centric, so a Parent can check any number by hand:
@@ -13,7 +13,7 @@ import type { Projection } from "./scenario";
 //   price), homeowner's insurance, PMI (an annual % of the loan, only when the down payment is
 //   under 20% of the price, counted for the whole Check though it usually ends once the loan is
 //   down to 78% of the price) and HOA dues. Closing costs are a % of the price, paid in cash.
-// - Lenders judge a home by gross income, but the Plan knows only the take-home Baseline, so a
+// - Lenders judge a home by gross income, but the Plan knows only the take-home take-home pay, so a
 //   Parent enters gross income; the default estimate assumes take-home is 75% of gross.
 // - A car is compared three ways over the same horizon: cash, a loan and a lease. What it costs
 //   all in is what's paid (up front and monthly), plus running costs, less what the car is worth
@@ -24,17 +24,17 @@ import type { Projection } from "./scenario";
 //
 // Thresholds (a value exactly at a limit counts as within it):
 // - Home, housing cost against gross income ("front-end" ratio): Comfortable up to 28%, the
-//   conventional limit; a Stretch up to 31%, what FHA loans allow; Not Yet above.
+//   conventional limit; a Stretch up to 31%, what FHA loans allow; Not yet above.
 // - Home, all debt payments against gross income ("back-end" ratio): Comfortable up to 36%; a
-//   Stretch up to 43%, the Qualified Mortgage limit; Not Yet above.
+//   Stretch up to 43%, the Qualified Mortgage limit; Not yet above.
 // - Cash: the down payment and closing costs (a car's cash price, down payment or amount due at
-//   signing) must be set aside already, from chosen Goals' Earmarks and other cash; Not Yet if not.
-// - The Plan: Comfortable when Free to Spend after the new cost stays at 5% of the Baseline or
-//   more; a Stretch when it stays at zero or more; Not Yet when it goes negative.
-// - Car: running it (payment and running costs) up to 10% of the Baseline is Comfortable, more
+//   signing) must be set aside already, from chosen what Goals have set aside and other cash; Not yet if not.
+// - The Plan: Comfortable when Free to Spend after the new cost stays at 5% of take-home pay or
+//   more; a Stretch when it stays at zero or more; Not yet when it goes negative.
+// - Car: running it (payment and running costs) up to 10% of take-home pay is Comfortable, more
 //   is a Stretch.
 // - Anything: Comfortable when it's set aside already, a Stretch when it can be within 12 months,
-//   Not Yet beyond that or when nothing can be set aside each month.
+//   Not yet beyond that or when nothing can be set aside each month.
 
 export type Verdict = "comfortable" | "stretch" | "not-yet";
 
@@ -49,9 +49,9 @@ export const AFFORDABILITY_LIMITS = {
 	frontEnd: { comfortable: 28, stretch: 31 },
 	/** All debt payments, % of gross income. */
 	backEnd: { comfortable: 36, stretch: 43 },
-	/** Free to Spend left, % of the Baseline, to be Comfortable. */
-	cushion: 5,
-	/** Running a car, % of the Baseline, to be Comfortable. */
+	/** Free to Spend left, % of take-home pay, to be Comfortable. */
+	spare: 5,
+	/** Running a car, % of take-home pay, to be Comfortable. */
 	carShare: 10,
 	/** Down payment, % of the price, below which a home loan carries PMI. */
 	pmiBelow: 20,
@@ -71,7 +71,7 @@ export type PlanNow = {
 	freeToSpend: Cents;
 };
 
-/** Gross monthly income estimated from the take-home Baseline (see TAKE_HOME_SHARE). */
+/** Gross monthly income estimated from the take-home take-home pay (see TAKE_HOME_SHARE). */
 export const estimateGrossIncome = (takeHomePay: Cents): Cents =>
 	Math.round((takeHomePay * 100) / TAKE_HOME_SHARE);
 
@@ -113,7 +113,7 @@ export function monthsToSave(shortfall: Cents, monthly: Cents): number | null {
 export type HomeInput = {
 	price: Cents;
 	downPayment: Cents;
-	/** Set aside for the down payment and closing costs: chosen Goals' Earmarks and other cash. */
+	/** Set aside for the down payment and closing costs: chosen what Goals have set aside and other cash. */
 	cashAvailable: Cents;
 	/** Closing costs, % of the price. */
 	closingCostRate: number;
@@ -255,7 +255,7 @@ export type CarWay = "cash" | "loan" | "lease";
 
 export type CarInput = {
 	price: Cents;
-	/** Set aside toward it: chosen Goals' Earmarks and other cash. */
+	/** Set aside toward it: chosen what Goals have set aside and other cash. */
 	cashAvailable: Cents;
 	loan: { downPayment: Cents; rate: number; months: number };
 	lease: { monthly: Cents; months: number; dueAtSigning: Cents };
@@ -327,7 +327,7 @@ export function carCheck(input: CarInput): CarCheck {
 					: payment > 0
 						? `The ${dollars(payment)} payment`
 						: `Running costs of ${dollars(input.running)}`;
-			const share = `${parts} a month ${payment > 0 && input.running > 0 ? "are" : "is"} ${percent(monthly, plan.baseline)} of the Baseline`;
+			const share = `${parts} a month ${payment > 0 && input.running > 0 ? "are" : "is"} ${percent(monthly, plan.baseline)} of your take-home pay`;
 			reasons.push(
 				within(monthly, plan.baseline, AFFORDABILITY_LIMITS.carShare)
 					? {
@@ -401,7 +401,7 @@ export function carCheck(input: CarInput): CarCheck {
 
 export type AnythingInput = {
 	price: Cents;
-	/** Set aside toward it: a chosen Goal's Earmark and other cash. */
+	/** Set aside toward it: a chosen Goal's set-aside money and other cash. */
 	saved: Cents;
 	/** What can be set aside toward it each month. */
 	monthly: Cents;
@@ -502,13 +502,13 @@ function planReason({
 	after: Cents;
 	change: string;
 }): Reason {
-	const projectedBalance = Math.ceil((plan.baseline * AFFORDABILITY_LIMITS.cushion) / 100);
+	const spare = Math.ceil((plan.baseline * AFFORDABILITY_LIMITS.spare) / 100);
 	const text = `${change} would take Free to Spend from ${dollars(plan.freeToSpend)} to ${dollars(after)} a month`;
-	if (after >= projectedBalance) return { tone: "comfortable", text: `${text}.` };
+	if (after >= spare) return { tone: "comfortable", text: `${text}.` };
 	if (after >= 0) {
 		return {
 			tone: "stretch",
-			text: `${text}, less than ${dollars(projectedBalance)} (${AFFORDABILITY_LIMITS.cushion}% of the Baseline) to spare.`,
+			text: `${text}, less than ${dollars(spare)} (${AFFORDABILITY_LIMITS.spare}% of your take-home pay) to spare.`,
 		};
 	}
 	return {

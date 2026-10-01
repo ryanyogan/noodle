@@ -14,7 +14,7 @@ test.afterEach(async () => {
 
 const freeToSpend = (page: Page) => page.getByRole("region", { name: "Free to Spend" });
 const income = (page: Page) => page.getByRole("region", { name: "Income" });
-const extraIncome = (page: Page) => page.getByRole("region", { name: "Windfall" });
+const extraIncome = (page: Page) => page.getByRole("region", { name: "Extra income" });
 
 async function addIncome(page: Page, amount: string, note: string) {
 	await income(page).getByRole("button", { name: "Add income" }).click();
@@ -25,7 +25,7 @@ async function addIncome(page: Page, amount: string, note: string) {
 	await expect(sheet).toBeHidden();
 }
 
-test("income beyond the Baseline is a Windfall, sent to the emergency Goal", async ({
+test("income beyond take-home pay is Extra income, sent to the emergency Goal", async ({
 	browser,
 }) => {
 	const page = await signedInPage(browser, parent.email);
@@ -54,33 +54,33 @@ test("income beyond the Baseline is a Windfall, sent to the emergency Goal", asy
 	await page.getByRole("button", { name: "Use for emergencies" }).click();
 	await expect(page.getByRole("button", { name: "Stop using" })).toBeVisible();
 
-	// The Baseline's worth of paychecks is no Windfall.
+	// Take-home pay's worth of paychecks is no Extra income.
 	await page.goto(thisMonth);
 	await addIncome(page, "2,500", "Paycheck");
 	await addIncome(page, "2,500", "Paycheck");
-	await expect(income(page)).toContainText("$5,000 received of the $5,000 Baseline");
+	await expect(income(page)).toContainText("$5,000 received of $5,000 usual take-home pay");
 	await expect(extraIncome(page)).toBeHidden();
 
 	// A bonus is, and it doesn't touch Free to Spend.
 	await addIncome(page, "1,200", "Bonus");
-	await expect(extraIncome(page)).toContainText("$1,200 came in beyond the Baseline");
+	await expect(extraIncome(page)).toContainText("$1,200 came in above your usual take-home pay");
 	await expect(freeToSpend(page).getByText("$3,800", { exact: true })).toBeVisible();
 	const suggestion = extraIncome(page).getByRole("listitem").filter({ hasText: "Rainy day" });
 	await expect(suggestion).toContainText("Your emergency Goal");
 	await suggestion.getByRole("button", { name: "Send $1,200 to Rainy day" }).click();
-	await expect(page.getByRole("status").filter({ hasText: "of the Windfall" })).toContainText(
-		"$1,200 of the Windfall to Rainy day",
+	await expect(page.getByRole("status").filter({ hasText: "of the Extra income" })).toContainText(
+		"$1,200 of the Extra income to Rainy day",
 	);
 	await expect(extraIncome(page)).toBeHidden();
 	await expect(freeToSpend(page).getByText("$3,800", { exact: true })).toBeVisible();
 
-	// It stuck, and it's in the Goal's Earmark.
+	// It stuck, and it's in what the Goal has set aside.
 	await page.reload();
 	await expect(income(page)).toContainText("$6,200 received");
 	await expect(extraIncome(page)).toBeHidden();
 	await page.getByRole("link", { name: "Goals", exact: true }).click();
 	await page.getByRole("link", { name: /^Rainy day, \$1,200 of \$6,000/ }).click();
-	await expect(page.getByRole("listitem").filter({ hasText: "From a Windfall" })).toContainText(
+	await expect(page.getByRole("listitem").filter({ hasText: "From Extra income" })).toContainText(
 		"$1,200",
 	);
 });
@@ -89,17 +89,17 @@ test("income removed by mistake comes back with Undo", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
 	await addIncome(page, "2,500", "Paycheck");
-	await expect(income(page)).toContainText("$2,500 received of the $5,000 Baseline");
+	await expect(income(page)).toContainText("$2,500 received of $5,000 usual take-home pay");
 
 	await income(page).getByRole("button", { name: "Remove $2,500 of income" }).click();
 	await expect(income(page)).toContainText("$0 received");
 	const removed = page.getByRole("status").filter({ hasText: "$2,500 of income removed" });
 	await removed.getByRole("button", { name: "Undo" }).click();
-	await expect(income(page)).toContainText("$2,500 received of the $5,000 Baseline");
+	await expect(income(page)).toContainText("$2,500 received of $5,000 usual take-home pay");
 	await expect(income(page).getByRole("listitem")).toContainText("Paycheck");
 
 	// It's back for good, not only on screen.
 	await page.reload();
-	await expect(income(page)).toContainText("$2,500 received of the $5,000 Baseline");
+	await expect(income(page)).toContainText("$2,500 received of $5,000 usual take-home pay");
 	await page.context().close();
 });

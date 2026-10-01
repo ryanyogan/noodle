@@ -20,7 +20,7 @@ import { acceptDraft, finishDraft, skipDraft } from "../server/plan-draft";
 import { AmountInput } from "./goals";
 import { SaveFailed } from "./plan-editing";
 
-// The first Plan, drafted from the Household's history: a Baseline from the paychecks, the
+// The first Plan, drafted from the Household's history: take-home pay from the paychecks, the
 // Commitments found, and a Bucket for each kind of everyday spending. Nothing is in the Plan until
 // a Parent adds it, as it is or changed; each can be skipped, and "Done" puts the rest away.
 
@@ -119,10 +119,10 @@ export function PlanDraftSection() {
 				Plan until you add it.
 			</p>
 			{baseline ? (
-				<Group title="Baseline">
+				<Group title="Take-home pay">
 					<List>
 						<Suggestion
-							name="Baseline"
+							name="Take-home pay"
 							meta={baseline.paychecks
 								.map((p) => `${p.name} · ${formatMoney(p.amount)} ${payWords[p.cadence]}`)
 								.join("; ")}

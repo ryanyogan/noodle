@@ -6,7 +6,7 @@ import { addDays, type DayKey, daysBetween } from "./month";
 
 // The first Plan, drafted from a new Household's history: whatever came in first (statements
 // today, a Bank Connection later), read the same way. Plain code finds the paychecks behind a
-// Baseline, the recurring charges that look like Commitments, and what everyday spending comes
+// take-home pay, the recurring charges that look like Commitments, and what everyday spending comes
 // to each month; a model only names things, sorting merchants into Bucket names from a closed
 // list and giving statement lines a readable name. Every figure comes from this module. Nothing
 // is added to the Plan until a Parent adds it, as it is or changed, and each can be skipped.
@@ -367,7 +367,7 @@ export type PlanSoFar = {
 };
 
 /**
- * The first Plan, drafted from what was found and named: a Baseline from the paychecks (while
+ * The first Plan, drafted from what was found and named: take-home pay from the paychecks (while
  * there's none), the Commitments found, and a Bucket for each kind of everyday spending. A
  * suggestion a Parent has already added or skipped (`decided`, by key) isn't made again, nor
  * one the Plan already has: a Commitment of the same name or merchant, a Bucket of the same name.

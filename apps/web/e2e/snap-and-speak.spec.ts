@@ -115,7 +115,7 @@ test("a snapped Receipt fills in Quick Add and is attached to what's saved", asy
 
 const q = (value: string) => `'${value.replaceAll("'", "''")}'`;
 
-/** Moves the Household's Plan (its Baseline, Buckets and allowances) back to start in `month`. */
+/** Moves the Household's Plan (its take-home pay, Buckets and allowances) back to start in `month`. */
 function planFrom(clerkUserId: string, month: string) {
 	const household = `(select household_id from members where clerk_user_id = ${q(clerkUserId)})`;
 	const statements = [

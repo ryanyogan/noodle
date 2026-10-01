@@ -50,9 +50,9 @@ export type PlanChange = {
 	memberId: string;
 	memberName: string;
 	kind: PlanChangeKind | "personal-allowance";
-	/** The Bucket, Commitment or Goal; null for the Baseline. */
+	/** The Bucket, Commitment or Goal; null for take-home pay. */
 	targetId: string | null;
-	/** Its name now; null for the Baseline and for the other Parent's Personal Allowance. */
+	/** Its name now; null for take-home pay and for the other Parent's Personal Allowance. */
 	targetName: string | null;
 	/** The first month it takes effect. */
 	month: MonthKey;

@@ -14,12 +14,10 @@ import {
 	addMonths,
 	anythingCheck,
 	type Cents,
+	changePreset,
 	type DayKey,
 	dayKeyAt,
-	earmarkOf,
 	goalProgress,
-	type Lever,
-	leverPreset,
 	type MonthKey,
 	moneyFreed,
 	monthKeyAt,
@@ -31,6 +29,8 @@ import {
 	planAhead,
 	planForMonth,
 	project,
+	type ScenarioChange,
+	setAsideOf,
 	typicalFreeToSpend,
 	type Verdict,
 } from "@noodle/domain";
@@ -100,7 +100,7 @@ export const TOOL_SPECS: ToolSpec[] = [
 	{
 		name: "month_overview",
 		description:
-			"A month of the Plan: Baseline, Free to Spend, what's left across Buckets, each Bucket's allowance, spent, left and Pace, and each Commitment's expected and charged amounts.",
+			"A month of the Plan: take-home pay, Free to Spend, what's left across Buckets, each Bucket's allowance, spent, left and pace, and each Commitment's expected and charged amounts.",
 		parameters: {
 			type: "object",
 			properties: { month: monthProperty("The month; the current month if left out.") },
@@ -123,13 +123,13 @@ export const TOOL_SPECS: ToolSpec[] = [
 	{
 		name: "goals",
 		description:
-			"Every active Goal: its target, what's saved (its Earmark), what's left to save, its target date, what it needs each month, and whether it's on track.",
+			"Every active Goal: its target, what it has set aside, what's left to save, its target date, what it needs each month, and whether it's on track.",
 		parameters: { type: "object", properties: {} },
 	},
 	{
 		name: "affordability_check",
 		description:
-			"An Affordability Check for buying something at a price: Comfortable, Stretch or Not Yet, and the month it's affordable by setting aside Free to Spend (plus a Goal's Earmark if one is named).",
+			"An Affordability Check for buying something at a price: Comfortable, Stretch or Not yet, and the month it's affordable by setting aside Free to Spend (plus what a Goal has set aside, if one is named).",
 		parameters: {
 			type: "object",
 			properties: {
@@ -283,11 +283,11 @@ function ownerLabel(owner: string | undefined, ctx: AskContext, members: MemberS
 	return members.find((m) => m.id === owner)?.name ?? "the other Parent";
 }
 
-const statusText = { "on-pace": "on Pace", ahead: "ahead of Pace", over: "overspent" } as const;
+const statusText = { "on-pace": "on pace", ahead: "ahead of pace", over: "overspent" } as const;
 const verdictName: Record<Verdict, string> = {
 	comfortable: "Comfortable",
 	stretch: "Stretch",
-	"not-yet": "Not Yet",
+	"not-yet": "Not yet",
 };
 
 /** The Goals still being saved for, as a projection starts them this month. */
@@ -302,8 +302,8 @@ function projectionGoals(
 			name: g.name,
 			target: g.target,
 			targetDate: g.targetDate,
-			saved: earmarkOf(g.id, records.changes),
-			fundedThisMonth: earmarkOf(
+			saved: setAsideOf(g.id, records.changes),
+			fundedThisMonth: setAsideOf(
 				g.id,
 				records.changes.filter((c) => c.kind === "funding" && c.month === month),
 			),
@@ -369,7 +369,7 @@ async function monthOverview(ctx: AskContext, args: { month?: MonthKey }): Promi
 		facts: [
 			{ label: "Free to Spend", amount: state.freeToSpend },
 			{ label: "Left in Buckets", amount: state.leftInBuckets },
-			{ label: "Baseline", amount: state.baseline ?? 0 },
+			{ label: "Take-home pay", amount: state.baseline ?? 0 },
 		],
 		links,
 	};
@@ -508,14 +508,14 @@ async function goals(ctx: AskContext): Promise<ToolOutcome> {
 		summary:
 			rows.length === 0
 				? "There are no active Goals."
-				: `${rows.length} active Goal${rows.length === 1 ? "" : "s"} with ${money(saved)} saved: ${rows
+				: `${rows.length} active Goal${rows.length === 1 ? "" : "s"} with ${money(saved)} set aside: ${rows
 						.map((r) => `${r.goal.name} ${money(r.progress.saved)} of ${money(r.goal.target)}`)
 						.join("; ")}.`,
 		data: {
 			goals: rows.map(({ goal, progress }) => ({
 				name: goal.name,
 				target: money(goal.target),
-				saved: money(progress.saved),
+				setAside: money(progress.saved),
 				leftToSave: money(progress.remaining),
 				targetDate: goal.targetDate,
 				neededEachMonth: progress.monthly === null ? undefined : money(progress.monthly),
@@ -524,7 +524,7 @@ async function goals(ctx: AskContext): Promise<ToolOutcome> {
 			completed: records.goals.filter((g) => g.completed && !g.archived).map((g) => g.name),
 		},
 		facts: rows.map(({ goal, progress }) => ({
-			label: `${goal.name}, saved of ${money(goal.target)}`,
+			label: `${goal.name}, set aside toward ${money(goal.target)}`,
 			amount: progress.saved,
 		})),
 		links: [{ kind: "goals" }],
@@ -584,7 +584,7 @@ async function affordabilityCheck(
  */
 function scenarioOutcome(
 	{ ahead, goals }: Awaited<ReturnType<typeof yearAhead>>,
-	scenarioChange: Lever,
+	scenarioChange: ScenarioChange,
 	name: string,
 ) {
 	const before = project(ahead);
@@ -607,7 +607,7 @@ function scenarioOutcome(
 		overYear >= 0
 			? `frees ${money(overYear)} over the next 12 months`
 			: `costs ${money(-overYear)} over the next 12 months`;
-	const preset = leverPreset(scenarioChange);
+	const preset = changePreset(scenarioChange);
 	const link: AskLink = preset ? { kind: "explore", name, lever: preset } : { kind: "explore" };
 	return { before, after, overYear, goalChanges, change, link };
 }

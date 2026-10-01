@@ -5,6 +5,7 @@ import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { createFileRoute } from "@tanstack/react-router";
 import { AddBucket, AddPersonalAllowance, BucketEditor } from "../../../components/bucket-editor";
 import { PlanSubPage } from "../../../components/plan-page";
+import { TermHelp } from "../../../components/term-help";
 import { formatMoney } from "../../../format";
 import { usePlanChanges } from "../../../plan-changes";
 import { membersQuery, useMonthState } from "../../../queries";
@@ -69,6 +70,7 @@ function PlanBuckets() {
 						id="plan-personal-allowances"
 						title="Personal Allowances"
 						count={allowances.length}
+						help={<TermHelp term="personal-allowance" />}
 					/>
 					{allowances.length > 0 ? (
 						<List>

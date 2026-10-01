@@ -4,14 +4,16 @@ A household budgeting tool for a family (two parents, two kids) that layers a si
 
 ## Language
 
+The Parents are new to budgeting, so these words are plain ones (ADR-0018). Where a kept term first appears in the app, a help popover explains it in a sentence and links to the Glossary page, which explains every term below that a Parent sees.
+
 ### The Plan
 
 **Plan**:
-The Household's allocation of one month's Baseline across Commitments, Buckets, and Goals. Each month's Plan starts as a copy of the previous one.
+The Household's allocation of one month's Take-home pay across Commitments, Buckets, and Goals. Each month's Plan starts as a copy of the previous one.
 _Avoid_: Budget (as a noun for the whole thing), spending plan
 
 **From <Month> on**:
-How far a change to an amount in the Plan (the Baseline, a Bucket's allowance, a Commitment's amount) reaches by default: that month and every later month, unless a later month has its own amount.
+How far a change to an amount in the Plan (the Take-home pay, a Bucket's allowance, a Commitment's amount) reaches by default: that month and every later month, unless a later month has its own amount.
 _Avoid_: Permanently, going forward, default
 
 **Just <Month>**:
@@ -23,7 +25,7 @@ An amount in a month's Plan that differs from the month before's, shown with wha
 _Avoid_: Modified, edited, overridden
 
 **Plan change**:
-One change a Parent made to the Plan (the Baseline, an allowance, Rolling or Fresh-start, new Commitment terms, a Goal’s target; a Bucket, Commitment or Goal added; a Bucket or Commitment renamed, archived or ended), kept with who made it, when, the month it takes effect and what it was before. "What changed" on the Plan nets a month's Plan changes per item; the other Parent's Personal Allowance only ever reads as "Personal Allowance changed".
+One change a Parent made to the Plan (the Take-home pay, an allowance, Resets monthly or Carries over, new Commitment terms, a Goal’s target; a Bucket, Commitment or Goal added; a Bucket or Commitment renamed, archived or ended), kept with who made it, when, the month it takes effect and what it was before. "What changed" on the Plan nets a month's Plan changes per item; the other Parent's Personal Allowance only ever reads as "Personal Allowance changed".
 _Avoid_: Edit, audit entry, revision
 
 **Commitment**:
@@ -43,44 +45,48 @@ A month whose Free to Spend is lower because an annual Commitment is due in it, 
 _Avoid_: Spike, expensive month
 
 **Plan health**:
-The warnings on the Plan overview about the Plan as it stands, each linking to its fix: a month ahead whose Free to Spend goes below zero, income running behind the Baseline, a Bucket over its allowance most months (never the other Parent's Personal Allowance), and a Goal that won't reach its target by its date at its current funding.
+The warnings on the Plan overview about the Plan as it stands, each linking to its fix: a month ahead whose Free to Spend goes below zero, income running behind the Take-home pay, a Bucket over its allowance most months (never the other Parent's Personal Allowance), and a Goal that won't reach its target by its date at its current funding.
 _Avoid_: Alerts, budget score
 
 **Bucket**:
-A monthly allowance for discretionary, variable spending (Hockey, Fun, Life, Groceries), tracked as "amount left." Every Bucket is either Rolling or Fresh-start.
+A monthly allowance for discretionary, variable spending (Hockey, Fun, Life, Groceries), tracked as "amount left." Every Bucket either Resets monthly or Carries over.
 _Avoid_: Envelope, category, budget line
 
-**Rolling Bucket**:
-A Bucket whose unspent amount carries into the next month.
-_Avoid_: Rollover category, accumulating
+**Carries over** (a Bucket that carries over):
+A Bucket whose unspent amount carries into the next month, and whose overspending comes out of the next month.
+_Avoid_: Rolling, Rolling Bucket, rollover category, accumulating
 
-**Fresh-start Bucket**:
-A Bucket that resets to its allowance each month; any leftover is offered as a Sweep.
-_Avoid_: Resetting, use-it-or-lose-it
+**Resets monthly** (a Bucket that resets monthly):
+A Bucket that starts each month at its allowance; any leftover is offered as a Sweep. A new Bucket resets monthly unless a Parent says otherwise.
+_Avoid_: Fresh-start, Fresh-start Bucket, use-it-or-lose-it
 
 **Personal Allowance**:
 A Bucket belonging to one Parent whose individual Transactions are private to that Parent; the other Parent sees only its totals.
 _Avoid_: Fun money, private bucket, hidden spending
 
 **Available**:
-What a Bucket has to spend this month: its allowance ("planned"), plus what rolled over from last month (less, if a Rolling Bucket was overspent), plus or minus what was Moved in or out. "Left" is Available less what's been spent; a Rolling Bucket's month-end Left is its balance, carried into the next month.
+What a Bucket has to spend this month: its allowance ("planned"), plus what carried over from last month (less, if a Bucket that carries over was overspent), plus or minus what was Moved in or out. "Left" is Available less what's been spent; the month-end Left of a Bucket that carries over is its balance, carried into the next month.
 _Avoid_: Budget, total, remaining
 
 **Goal**:
-A target amount (optionally with a target date) the Household funds over time, either to keep (savings) or to spend on a known future big expense. Its money is held as an Earmark.
+A target amount (optionally with a target date) the Household funds over time, either to keep (savings) or to spend on a known future big expense. Its money is Set aside on one real Account.
 _Avoid_: Sinking fund, savings bucket, pot
 
-**Earmark**:
-The portion of a real Account's balance claimed by a Goal. An Account's balance not claimed by any Goal is Unclaimed.
-_Avoid_: Allocation, sub-account, virtual account
+**Set aside**:
+The part of a real Account's balance a Goal holds ("Emergency fund has $5,000 set aside"). Setting money aside, or releasing it, changes nothing in the Plan.
+_Avoid_: Earmark, earmarked, allocation, sub-account, virtual account
 
-**Baseline**:
-The Household's normal monthly take-home income that the Plan is built on.
-_Avoid_: Expected income, salary, budgeted income
+**Not set aside**:
+The part of an Account's balance no Goal holds ("$3,000 not set aside"); new Goals are Set aside from it.
+_Avoid_: Unclaimed, available for goals, unallocated
 
-**Windfall**:
-Income received beyond the Baseline in a month (an extra paycheck, bonus, refund), awaiting a decision on where it goes.
-_Avoid_: Extra income, surplus, bonus
+**Take-home pay**:
+The Household's usual monthly pay after taxes and deductions, which the Plan is built on.
+_Avoid_: Baseline, expected income, salary, budgeted income, gross income
+
+**Extra income**:
+Income received beyond the Take-home pay in a month (a third paycheck, a bonus, a refund), awaiting a decision on where it goes.
+_Avoid_: Windfall, surplus, bonus
 
 **Free to Spend**:
 Money in the current Plan not yet assigned to any Commitment, Bucket, or Goal.
@@ -95,11 +101,12 @@ A Move that brings an overspent Bucket back to zero from another Bucket or Free 
 _Avoid_: Rebalance, borrow
 
 **Sweep**:
-A Move of a Fresh-start Bucket's month-end leftover into a Goal.
+A Move of the month-end leftover of a Bucket that resets monthly into a Goal.
 _Avoid_: Rollover, save leftovers
 
 **Month-close**:
-Deciding, once a month has ended, where its Fresh-start Buckets' leftovers are Swept and where its pending Windfall goes: by a Parent in the next month's first week, or by the defaults when nobody does. The ended month then shows how it ended: its Sweeps, the Windfall it sent to Goals, what each Rolling Bucket carried into the next month, and who closed it.
+Deciding, once a month has ended, where the leftovers of its Buckets that reset monthly are Swept and where its pending Extra income goes: by a Parent in the next month's first week, or by the defaults when nobody does. The ended month then shows how it ended: its Sweeps, the Extra income it sent to Goals, what each Bucket that carries over took into the next month, and who closed it.
+The app says "Close <Month>" and "How <Month> ended".
 _Avoid_: Rollover, reconciliation, closing the books
 
 ### Money movement
@@ -149,8 +156,8 @@ _Avoid_: Dedupe, merge, reconcile
 ### Assistance
 
 **Check-in**:
-The weekly, few-minute ritual where the Parents clear Review, act on Insights, and decide Sweeps and Windfalls. The only time the app asks for attention.
-It falls on the Household's chosen Check-in day; its week runs from that day. At 9 AM that day (or when their quiet hours end) each Parent who hasn't done it gets one Nudge and an email summary, both read for them alone. It opens as a short card stack (Review, Insights, Sweeps, Windfalls, skipping any with nothing in it) that ends on a done state, even when nothing needed them. Each Parent does their own; each sees whether the other has done this week's.
+The weekly, few-minute ritual where the Parents clear Review, act on Insights, and decide Sweeps and Extra income. The only time the app asks for attention.
+It falls on the Household's chosen Check-in day; its week runs from that day. At 9 AM that day (or when their quiet hours end) each Parent who hasn't done it gets one Nudge and an email summary, both read for them alone. It opens as a short card stack (Review, Insights, Sweeps, Extra income, skipping any with nothing in it) that ends on a done state, even when nothing needed them. Each Parent does their own; each sees whether the other has done this week's.
 _Avoid_: Review session, weekly budget, reconciliation
 
 **Pace**:
@@ -167,7 +174,7 @@ The Household's one email address for forwarding Receipts (`receipts+<key>@…`)
 _Avoid_: Inbox, drop box
 
 **Nudge**:
-A notification the app sends on its own because something changed that a Parent would want to know now (a Bucket passing Pace, a Windfall arriving, the other Parent's Quick Add).
+A notification the app sends on its own because something changed that a Parent would want to know now (a Bucket passing Pace, Extra income arriving, the other Parent's Quick Add).
 _Avoid_: Alert, push, reminder
 
 **Review**:
@@ -205,23 +212,23 @@ _Avoid_: Benefit, reward, feature
 ### Exploring
 
 **Scenario**:
-A hypothetical copy of the Plan, changed by Levers, projected forward in time to compare against the real Plan. Can be applied to become the real Plan: applying shows exactly what will change in the Plan first, then records on the Scenario who applied it and when, and each Plan change it makes names it ("from Scenario X"). Muted Levers and assumptions aren't applied; a one-off expense can be made a Goal instead. A Household's saved Scenarios are listed in the Scenarios overview (each with its headline outcome, who made it, when it last changed, and whether it was applied), where up to three can be compared side by side, as charts and key numbers.
+A hypothetical copy of the Plan with Changes made to it, projected forward in time to compare against the real Plan. Can be applied to become the real Plan: applying shows exactly what will change in the Plan first, then records on the Scenario who applied it and when, and each Plan change it makes names it ("from Scenario X"). Muted Changes and assumptions aren't applied; a one-off expense can be made a Goal instead. A Household's saved Scenarios are listed in the Scenarios overview (each with its headline outcome, who made it, when it last changed, and whether it was applied), where up to three can be compared side by side, as charts and key numbers.
 _Avoid_: Simulation, what-if, forecast
 
-**Lever**:
-A single adjustable quantity in a Scenario: the Baseline, a Bucket allowance, a Commitment's terms, a Commitment ended or added, a one-off expense or income, a Bucket added or archived, a Goal changed or added, or yearly growth in income and costs (an Insight accepted becomes one). Each holds for a range of months, from its first month up to, but not including, the month it ends, or for good. Only what the Plan stores can be applied: a one-off or growth is an assumption. A Lever can be muted: it stays in the Scenario, but is left out of the projection and isn't applied, to see the outcome without it. A Lever whose Bucket, Commitment or Goal is no longer in the Plan changes nothing and is flagged "No longer in the Plan" until removed.
-_Avoid_: Slider, knob, variable
+**Change** (in a Scenario):
+A single adjustable quantity in a Scenario: the Take-home pay, a Bucket allowance, a Commitment's terms, a Commitment ended or added, a one-off expense or income, a Bucket added or archived, a Goal changed or added, or yearly growth in income and costs (an Insight accepted becomes one). Each holds for a range of months, from its first month up to, but not including, the month it ends, or for good. Only what the Plan stores can be applied: a one-off or growth is an assumption. A Change can be muted: it stays in the Scenario, but is left out of the projection and isn't applied, to see the outcome without it. A Change whose Bucket, Commitment or Goal is no longer in the Plan does nothing and is flagged "No longer in the Plan" until removed. It is a different thing from a Plan change, which is real; in the UI a Scenario's are "Your changes".
+_Avoid_: Lever, slider, knob, variable
 
-**Lever preset**:
-A Lever written into a link, so Explore opens with the change already made: its kind, then its fields, colon-separated, with amounts in cents and an optional range last (`end-commitment:<id>:2027-03`). A Commitment's "Try ending this", an Affordability Check, Insights and Ask open Explore this way. A preset only says what to change; one whose Bucket, Commitment or Goal isn't in the Plan, or that touches the other Parent's Personal Allowance, is dropped.
-_Avoid_: Deep link, query Lever
+**Change preset**:
+A Change written into a link, so Explore opens with the change already made: its kind, then its fields, colon-separated, with amounts in cents and an optional range last (`end-commitment:<id>:2027-03`). A Commitment's "Try ending this", an Affordability Check, Insights and Ask open Explore this way. A preset only says what to change; one whose Bucket, Commitment or Goal isn't in the Plan, or that touches the other Parent's Personal Allowance, is dropped.
+_Avoid_: Lever preset, deep link
 
-**Cushion**:
+**Projected balance**:
 The money a Scenario projects the Household to have month by month: a starting balance (from Accounts, later) plus each month's Free to Spend and one-offs, carried forward. Its lowest point, and the first month it goes below zero, show whether a Scenario holds up.
-_Avoid_: Running balance, runway
+_Avoid_: Cushion, running balance, runway
 
 **Affordability Check**:
-An evaluation of whether the Household can take on a specific purchase (a home, a car, anything) given the Plan, Goals, and Earmarks, answered as Comfortable, Stretch, or Not Yet. Can be turned into a Scenario.
+An evaluation of whether the Household can take on a specific purchase (a home, a car, anything) given the Plan, Goals, and what's Set aside, answered as Comfortable, Stretch, or Not yet. Can be turned into a Scenario.
 _Avoid_: Calculator, affordability calculator
 
 ### People
@@ -251,8 +258,8 @@ _Avoid_: Tag, assignee, owner
 - A **Household** has one **Plan** per month, two **Parents**, and any number of **Children**.
 - A **Plan** contains **Commitments**, **Buckets**, and **Goals**; whatever remains is **Free to Spend**.
 - A **Transaction** belongs to one **Account** and is assigned whole or via **Splits**; each carries a **For**.
-- A **Goal** is backed by an **Earmark** on exactly one **Account**.
-- An **Insight** may become a **Lever** in a **Scenario**; an **Affordability Check** may become a **Scenario**.
+- A **Goal**'s money is **Set aside** on exactly one **Account**.
+- An **Insight** may become a **Change** in a **Scenario**; an **Affordability Check** may become a **Scenario**.
 - A **Perk** belongs to a **Perk Source**; an **Overlap** is detected between a Perk or Commitment and other spending.
 
 ## Flagged ambiguities

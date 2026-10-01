@@ -1,11 +1,11 @@
 import {
 	type Cents,
-	type Lever,
-	type LeverImpact,
 	type MonthBreakdown,
 	type MonthKey,
 	monthBreakdown,
 	type Projection,
+	type ScenarioChange,
+	type ScenarioChangeImpact,
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import {
@@ -43,20 +43,21 @@ import { formatMoney, monthName, shortMonth } from "../format";
 import { useReducedMotion } from "../motion";
 import { formatCompact, type ReportTable } from "../reports";
 import { ChartCard, MoneyTooltip } from "./report-charts";
+import { TermHelp } from "./term-help";
 
 // Explore's outcome charts (ADR-0013): the Plan against the Scenario, on #40's chart wrapper.
 // The Plan is always the quiet reference (ghost bars, dashed lines), the Scenario the one solid
 // series in the brand colour; the over colour only where money runs out. Hovering a month (or
 // tapping it on a phone) says what the Scenario changed that month and why. Every chart has its
-// table, and the charts animate as Levers change unless the Parent asked for less motion.
+// table, and the charts animate as Changes change unless the Parent asked for less motion.
 
 /** Everything a chart needs to explain a month: the projections and the changes behind them. */
 export type Outcome = {
 	plan: Projection;
 	scenario: Projection;
-	levers: readonly Lever[];
-	impacts: readonly LeverImpact[];
-	/** A Lever of `levers` in words, by index. */
+	levers: readonly ScenarioChange[];
+	impacts: readonly ScenarioChangeImpact[];
+	/** A Change of `levers` in words, by index. */
 	describe: (index: number) => string;
 };
 
@@ -159,7 +160,7 @@ function MonthDetail({ breakdown }: { breakdown: MonthBreakdown }) {
 			["Goal funding", "goalFunding"],
 			["One-offs", "oneOffs"],
 			["Free to Spend", "freeToSpend"],
-			["Cushion", "cushion"],
+			["Projected balance", "cushion"],
 		] as const
 	).filter(
 		([, key]) =>
@@ -418,7 +419,7 @@ export function FreeToSpendChart({ title }: { title: string }) {
 }
 
 /**
- * The Cushion month by month: the Scenario as a filled area that turns the over colour below
+ * The Projected balance month by month: the Scenario as a filled area that turns the over colour below
  * zero, the Plan as a dashed line, and the Scenario's lowest point marked.
  */
 export function ProjectedBalanceChart() {
@@ -453,14 +454,15 @@ export function ProjectedBalanceChart() {
 		plan: { label: "Plan", color: "var(--subtle-foreground)", icon: PlanKey },
 	} satisfies ChartConfig;
 	const table = monthTable(
-		"Cushion",
+		"Projected balance",
 		["Plan", "Scenario"],
 		rows.map((r) => [shortMonth(r.month), r.plan, r.scenario]),
 	);
 	return (
 		<ChartCard
-			title="Cushion"
-			description="Money built up month by month, if spending matches the allowances"
+			title="Projected balance"
+			description="What’s left month by month if you spend what’s planned, starting from $0 today"
+			actions={<TermHelp term="projected-balance" />}
 			table={table}
 			className="overflow-visible"
 		>
@@ -614,8 +616,8 @@ const PARTS = [
 ] as const;
 
 /**
- * Each month's Baseline split into what it's for, stacked, the Plan's or the Scenario's. One-offs
- * come out of the Cushion, not the Baseline: they're marked above their month with their amount
+ * Each month's take-home pay split into what it's for, stacked, the Plan's or the Scenario's. One-offs
+ * come out of the Projected balance, not take-home pay: they're marked above their month with their amount
  * rather than plotted to scale, where one big one would flatten every bar.
  */
 export function CompositionChart() {
@@ -661,7 +663,7 @@ export function CompositionChart() {
 	return (
 		<ChartCard
 			title="Each month"
-			description="Where the Baseline goes"
+			description="Where take-home pay goes"
 			table={table}
 			className="overflow-visible"
 			actions={
@@ -794,7 +796,7 @@ function OneOffMark({
 }
 
 /**
- * Each Goal's Earmark over the months, one small chart per Goal: the Plan dashed, the Scenario
+ * Each Goal's set-aside money over the months, one small chart per Goal: the Plan dashed, the Scenario
  * solid, the target as a line and the month it's reached marked. Added Goals have no Plan line.
  */
 export function GoalPathsChart({ names }: { names: ReadonlyMap<string, string> }) {
@@ -819,7 +821,7 @@ export function GoalPathsChart({ names }: { names: ReadonlyMap<string, string> }
 	return (
 		<ChartCard
 			title="Goal paths"
-			description="Each Goal’s Earmark toward its target, the Plan’s dashed"
+			description="How much each Goal has set aside over time. Dashed: the Plan as it is."
 			table={table}
 			className="overflow-visible"
 		>
@@ -952,7 +954,7 @@ function GoalPath({ name, goalId }: { name: string; goalId: string }) {
 	);
 }
 
-/** The outcome charts below the Free to Spend one: the Cushion, each month, and Goal paths. */
+/** The outcome charts below the Free to Spend one: the Projected balance, each month, and Goal paths. */
 export default function ScenarioOutcomes({
 	outcome,
 	goalNames,
@@ -970,7 +972,7 @@ export default function ScenarioOutcomes({
 	);
 }
 
-/** Free to Spend each month, on its own: it sits beside the Levers, where it stays in view. */
+/** Free to Spend each month, on its own: it sits beside the Changes, where it stays in view. */
 export function FreeToSpendOutcome({ outcome, title }: { outcome: Outcome; title: string }) {
 	return (
 		<OutcomeProvider value={outcome}>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { EarmarkChange, HealthGoal, MonthKey, PlanRecords } from "./index";
+import type { HealthGoal, MonthKey, PlanRecords, SetAsideChange } from "./index";
 import { planHealth } from "./index";
 
 const bucket = (id: string, owner?: string) => ({
@@ -27,7 +27,7 @@ const healthy: PlanRecords = {
 
 const pastMonths: MonthKey[] = ["2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08"];
 
-const funding = (goalId: string, amount: number): EarmarkChange[] =>
+const funding = (goalId: string, amount: number): SetAsideChange[] =>
 	pastMonths.map((month) => ({ goalId, kind: "funding", amount, month }));
 
 const health = (overrides: Partial<Parameters<typeof planHealth>[0]> = {}) =>
@@ -65,7 +65,7 @@ describe("planHealth", () => {
 		]);
 	});
 
-	it("warns when this month's income is behind the Baseline", () => {
+	it("warns when this month's income is behind take-home pay", () => {
 		expect(
 			health({
 				income: [

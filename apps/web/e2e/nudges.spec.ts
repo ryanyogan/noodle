@@ -64,11 +64,13 @@ test("a Parent turns on Nudges for their device and chooses which they get", asy
 		await saved;
 		await expect(nudges.getByText("Nudges are on for this device.")).toBeVisible();
 
-		// Defaults: Buckets passing Pace and Windfalls on, the other Parent's Quick Adds off, quiet
+		// Defaults: Buckets passing Pace and Extra income on, the other Parent's Quick Adds off, quiet
 		// 9pm to 7am.
-		const pace = nudges.getByRole("switch", { name: "A Bucket gets ahead of Pace" });
+		const pace = nudges.getByRole("switch", {
+			name: "A Bucket is being spent faster than the month is going",
+		});
 		const quickAdds = nudges.getByRole("switch", { name: "The other Parent’s Quick Adds" });
-		const extraIncomes = nudges.getByRole("switch", { name: "A Windfall arrives" });
+		const extraIncomes = nudges.getByRole("switch", { name: "Extra income arrives" });
 		const quiet = nudges.getByRole("switch", { name: "Quiet hours" });
 		await expect(pace).toBeChecked();
 		await expect(quickAdds).not.toBeChecked();

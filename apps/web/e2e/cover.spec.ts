@@ -66,7 +66,7 @@ test("an overspent Bucket is covered back to zero from another Bucket, and undon
 	await expect(sheet).toBeHidden();
 
 	await expect(bucketRow(page, "Hockey")).toHaveAccessibleName(
-		/^Hockey: \$0 left of \$450(, ahead of Pace)?$/,
+		/^Hockey: \$0 left of \$450(, ahead of pace)?$/,
 	);
 	await expect(bucketRow(page, "Groceries")).toHaveAccessibleName(
 		/^Groceries: \$1,150 left of \$1,150$/,
@@ -80,7 +80,7 @@ test("an overspent Bucket is covered back to zero from another Bucket, and undon
 
 	await page.reload();
 	await expect(bucketRow(page, "Hockey")).toHaveAccessibleName(
-		/^Hockey: \$0 left of \$450(, ahead of Pace)?$/,
+		/^Hockey: \$0 left of \$450(, ahead of pace)?$/,
 	);
 	await expect(bucketRow(page, "Hockey")).toContainText("Covered $50 from Groceries");
 
@@ -106,7 +106,7 @@ test("a Cover from Free to Spend is undone from its toast", async ({ browser }) 
 
 	await cover(page, "Hockey", "Free to Spend");
 	await expect(bucketRow(page, "Hockey")).toHaveAccessibleName(
-		/^Hockey: \$0 left of \$430(, ahead of Pace)?$/,
+		/^Hockey: \$0 left of \$430(, ahead of pace)?$/,
 	);
 	await expect(hero(page).getByText("$3,370", { exact: true })).toBeVisible();
 

@@ -4,10 +4,10 @@ import {
 	type BalanceUpdate,
 	type Cents,
 	type DayKey,
-	type EarmarkChange,
 	type GoalFunding,
 	type MonthKey,
 	monthOfDay,
+	type SetAsideChange,
 } from "@noodle/domain";
 import { and, asc, eq, inArray, isNotNull, isNull, notExists, type SQL, sql } from "drizzle-orm";
 import { counts, countsRaw } from "./counting";
@@ -26,7 +26,7 @@ import {
 	transactions,
 } from "./schema";
 
-// Accounts, Goals, and their Earmarks (ADR-0002). An Earmark is never stored: it is derived from
+// Accounts, Goals, and what their Goals have set aside (ADR-0002). Money set aside is never stored: it is derived from
 // appended claims, Goal funding Moves, and Transactions (or Splits) assigned to the Goal
 // (ADR-0004). Every query is scoped by household_id; IDs from the client are only ever used
 // together with it.
@@ -48,9 +48,9 @@ const now = sql<Date>`(unixepoch() * 1000)`;
 const nowMs = sql<Date>`cast(unixepoch('subsec') * 1000 as integer)`;
 
 /**
- * A Goal's Earmark, computed from the rows inside the write that depends on it, so a concurrent
+ * A Goal's set-aside money, computed from the rows inside the write that depends on it, so a concurrent
  * write by the other Parent can't make it wrong: its claims, plus its Goal funding, less the
- * Transactions and Splits spent from it. Mirrors earmarkOf in @noodle/domain (goals.test.ts holds
+ * Transactions and Splits spent from it. Mirrors setAsideOf in @noodle/domain (goals.test.ts holds
  * it to it).
  */
 export function setAsideSql(householdId: string, goalId: string | SQL): SQL {
@@ -162,7 +162,7 @@ export async function updateAccountBalance(
 	return written ? { ok: true } : { ok: false, reason: "refused" };
 }
 
-/** Appends a claim on Unclaimed money for a Goal that isn't archived (negative: a release). */
+/** Appends a claim on not set aside money for a Goal that isn't archived (negative: a release). */
 const insertClaim = (
 	db: Db,
 	input: {
@@ -237,7 +237,7 @@ export const goalInsert = (
 
 /**
  * Adds a Goal backed by one of the Household's checking or savings Accounts, from `fromMonth`
- * (the Household's current month), with `claimCents` of Unclaimed money already set aside for it
+ * (the Household's current month), with `claimCents` of not set aside money already set aside for it
  * (0 for none). Idempotent per `goalId`: a retry leaves the first attempt's Goal as it was.
  * Refused unless, at write time, the Account is the Household's and holds money.
  */
@@ -334,7 +334,7 @@ export async function updateGoal(db: Db, input: GoalTargetInput & { name: string
 	]);
 }
 
-/** Marks a Goal completed. It keeps its Earmark. Completing it again changes nothing. */
+/** Marks a Goal completed. It keeps what it has set aside. Completing it again changes nothing. */
 export async function completeGoal(
 	db: Db,
 	input: { householdId: string; goalId: string },
@@ -351,7 +351,7 @@ export async function completeGoal(
 		);
 }
 
-/** Archives a Goal, releasing its Earmark to Unclaimed. Archiving it again changes nothing. */
+/** Archives a Goal, releasing what it has set aside to not set aside. Archiving it again changes nothing. */
 export async function archiveGoal(
 	db: Db,
 	input: { householdId: string; goalId: string },
@@ -363,9 +363,9 @@ export async function archiveGoal(
 }
 
 /**
- * Sets `amountCents` of Unclaimed money aside for a Goal, or releases it back to Unclaimed when
+ * Sets `amountCents` of not set aside money aside for a Goal, or releases it back to not set aside when
  * negative. Idempotent per `claimId`. Refused unless, at write time, the Goal is the Household's
- * and not archived, and a release is no more than the Goal's Earmark.
+ * and not archived, and a release is no more than what the Goal has set aside.
  */
 export async function claimForGoal(
 	db: Db,
@@ -395,7 +395,7 @@ export async function claimForGoal(
 }
 
 /**
- * Records Goal funding: `amountCents` Moved from `month`'s Free to Spend into a Goal's Earmark.
+ * Records Goal funding: `amountCents` Moved from `month`'s Free to Spend into what a Goal has set aside.
  * Idempotent per `moveId`. Refused unless, at write time, the Goal is the Household's and still
  * active (neither completed nor archived), and Free to Spend has at least `amountCents` left.
  */
@@ -448,7 +448,7 @@ export async function fundGoal(
 
 /**
  * Undoes Goal funding in `month` by removing its Move, returning the money to Free to Spend.
- * Refused if the Goal has since spent it (its Earmark is less than the funding). Undoing one
+ * Refused if the Goal has since spent it (what it has set aside is less than the funding). Undoing one
  * already undone changes nothing.
  */
 export async function undoGoalFunding(
@@ -473,9 +473,9 @@ export async function undoGoalFunding(
 }
 
 /**
- * Records Goal spending: a Transaction of `amountCents` spent today out of a Goal's Earmark, from
+ * Records Goal spending: a Transaction of `amountCents` spent today out of what a Goal has set aside, from
  * its Account. It never touches a Bucket or Free to Spend. Idempotent per `transactionId`.
- * Refused unless, at write time, the Goal is the Household's and not archived, and its Earmark
+ * Refused unless, at write time, the Goal is the Household's and not archived, and what it has set aside
  * is at least `amountCents`.
  */
 export async function spendGoal(
@@ -555,12 +555,12 @@ export type GoalRecord = {
 	archived: boolean;
 };
 
-/** A change to a Goal's Earmark with its row's ID; Goal spending also has its day and note. */
-export type GoalChange = EarmarkChange & {
+/** A change to what a Goal has set aside with its row's ID; Goal spending also has its day and note. */
+export type GoalChange = SetAsideChange & {
 	id: string;
 	date?: DayKey;
 	note?: string | null;
-	/** Funding that came from a Windfall, or was Swept from a Bucket, rather than Free to Spend. */
+	/** Funding that came from Extra income, or was Swept from a Bucket, rather than Free to Spend. */
 	from?: "windfall" | "sweep";
 };
 
@@ -580,7 +580,7 @@ export type GoalRecords = {
 };
 
 /**
- * The Household's Accounts, Goals, and every change to their Earmarks, as `viewer` may see them:
+ * The Household's Accounts, Goals, and every change to what their Goals have set aside, as `viewer` may see them:
  * Goal spending is never in a Personal Allowance, but a Split's Transaction shows no note when
  * another of its Splits is in the other Parent's.
  */
@@ -733,7 +733,7 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 
 /**
  * Goal funding in the Household's `month`, oldest first: from Free to Spend, or from the
- * Windfall (`windfall`).
+ * Extra income (`windfall`).
  */
 export async function loadGoalFunding(
 	db: Db,

@@ -15,7 +15,8 @@ test.afterEach(async () => {
 	await parent?.remove();
 });
 
-const waterfall = (page: Page) => page.getByRole("region", { name: "Baseline to Free to Spend" });
+const waterfall = (page: Page) =>
+	page.getByRole("region", { name: "From take-home pay to Free to Spend" });
 const commitmentRow = (page: Page, name: string) =>
 	page.getByRole("listitem", {
 		name: new RegExp(`^${name.replace(/[+.]/g, "\\$&")}: `),

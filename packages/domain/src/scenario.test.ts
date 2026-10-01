@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-	activeLevers,
+	activeChanges,
 	type BucketRecord,
+	changeImpacts,
 	type DayKey,
-	type Lever,
-	type LeverV1,
-	leverImpacts,
 	type MonthKey,
 	moneyFreed,
 	type PlanAhead,
@@ -13,8 +11,10 @@ import {
 	type ProjectionGoal,
 	planAhead,
 	project,
-	readScenarioLevers,
-	upgradeLevers,
+	readScenarioChanges,
+	type ScenarioChange,
+	type ScenarioChangeV1,
+	upgradeChanges,
 } from "./index";
 
 const bucket = (id: string, overrides: Partial<BucketRecord> = {}): BucketRecord => ({
@@ -79,10 +79,10 @@ const records: PlanRecords = {
 const ahead = (goals: ProjectionGoal[] = [], count = 12) =>
 	planAhead(records, goals, "2026-09", count);
 
-// The tests up to "engine v2" project v1 Levers, as saved before Levers had ranges, upgraded:
+// The tests up to "engine v2" project v1 Changes, as saved before Changes had ranges, upgraded:
 // they must come out exactly as they always have.
-const projectV1 = (a: PlanAhead, changes: LeverV1[] = []) =>
-	project(a, upgradeLevers(changes, "2026-09"));
+const projectV1 = (a: PlanAhead, changes: ScenarioChangeV1[] = []) =>
+	project(a, upgradeChanges(changes, "2026-09"));
 
 const month = (m: MonthKey, projection: ReturnType<typeof project>) =>
 	projection.months.find((p) => p.month === m);
@@ -96,7 +96,7 @@ describe("project: the Plan as it stands", () => {
 		expect(plan.months[11]?.month).toBe("2027-08");
 	});
 
-	it("is the Baseline less Commitments expected and allowances, each month", () => {
+	it("is take-home pay less Commitments expected and allowances, each month", () => {
 		expect(month("2026-09", plan)).toEqual({
 			month: "2026-09",
 			baseline: 900_000,
@@ -113,7 +113,7 @@ describe("project: the Plan as it stands", () => {
 		// The annual premium lands in November, with the camp allowance.
 		expect(month("2026-11", plan)?.commitments).toBe(422_000);
 		expect(month("2026-11", plan)?.allowances).toBe(220_000);
-		// Fun is archived from December; the Baseline rises in January; Streaming ends in March.
+		// Fun is archived from December; take-home pay rises in January; Streaming ends in March.
 		expect(month("2026-12", plan)?.allowances).toBe(160_000);
 		expect(month("2027-01", plan)?.baseline).toBe(950_000);
 		expect(month("2027-03", plan)?.commitments).toBe(300_000);
@@ -123,7 +123,7 @@ describe("project: the Plan as it stands", () => {
 		expect(plan.freeToSpend).toBe(plan.months.reduce((sum, m) => sum + m.freeToSpend, 0));
 	});
 
-	it("says a Plan that assigns more than the Baseline out loud (never clamped)", () => {
+	it("says a Plan that assigns more than take-home pay out loud (never clamped)", () => {
 		const tight = projectV1(ahead(), [
 			{ kind: "allowance", bucketId: "groceries", amount: 800_000 },
 		]);
@@ -131,10 +131,10 @@ describe("project: the Plan as it stands", () => {
 	});
 });
 
-describe("project: Levers", () => {
+describe("project: Changes", () => {
 	const plan = projectV1(ahead());
 
-	it("an allowance Lever sets it from the first month until a later month set its own", () => {
+	it("an allowance Change sets it from the first month until a later month set its own", () => {
 		const scenario = projectV1(ahead(), [
 			{ kind: "allowance", bucketId: "hockey", amount: 25_000 },
 		]);
@@ -203,7 +203,7 @@ describe("project: Levers", () => {
 		expect(moneyFreed(plan, scenario)[11]).toBe(-11 * 40_000);
 	});
 
-	it("ignores Levers on Buckets, Commitments or Goals no longer in the Plan", () => {
+	it("ignores Changes on Buckets, Commitments or Goals no longer in the Plan", () => {
 		const scenario = projectV1(ahead(), [
 			{ kind: "allowance", bucketId: "gone", amount: 1 },
 			{ kind: "end-commitment", commitmentId: "gone", fromMonth: "2026-09" },
@@ -249,20 +249,20 @@ describe("project: Goals", () => {
 		expect(month("2027-08", projection)?.goalFunding).toBe(1_000_000 - 83_334 * 11);
 	});
 
-	it("keeps an undated Goal's Earmark as it is", () => {
+	it("keeps an undated Goal's set-aside money as it is", () => {
 		const projection = projectV1(ahead([{ ...car, targetDate: null, saved: 50_000 }]));
 		expect(projection.goals[0]).toMatchObject({ monthly: null, reachedIn: null });
 		expect(projection.goals[0]?.earmarks[11]).toBe(50_000);
 		expect(month("2026-09", projection)?.goalFunding).toBe(0);
 	});
 
-	it("marks a Goal already reached as reached this month", () => {
+	it("marks a Goal already reached this month", () => {
 		const projection = projectV1(ahead([{ ...car, saved: 1_300_000 }]));
 		expect(projection.goals[0]?.reachedIn).toBe("2026-09");
 		expect(month("2026-10", projection)?.goalFunding).toBe(0);
 	});
 
-	it("a Goal Lever moves its date and target, and with them what it takes each month", () => {
+	it("a Goal Change moves its date and target, and with them what it takes each month", () => {
 		const later = projectV1(ahead([car], 24), [
 			{ kind: "goal", goalId: "car", target: 1_200_000, targetDate: "2028-08-31" },
 		]);
@@ -312,13 +312,13 @@ describe("project: fast enough for every slider frame", () => {
 		fundedThisMonth: 0,
 	}));
 
-	// Twenty Levers of every kind, the most a sandbox is likely to hold.
-	const twenty: Lever[] = [
+	// Twenty Changes of every kind, the most a sandbox is likely to hold.
+	const twenty: ScenarioChange[] = [
 		{ kind: "baseline", amount: 1_000_000, fromMonth: "2027-01" },
 		{ kind: "growth", incomePct: 3, costsPct: 2, fromMonth: "2026-09" },
 		...Array.from(
 			{ length: 6 },
-			(_, i): Lever => ({
+			(_, i): ScenarioChange => ({
 				kind: "allowance",
 				bucketId: `b${i}`,
 				amount: 5_000 * i,
@@ -374,7 +374,7 @@ describe("project: fast enough for every slider frame", () => {
 	// after a warm-up: noise from a shared machine only ever adds time, never takes it away. CI's
 	// runner has 2 vCPUs shared by every package's tests at once (turbo runs them together), so it
 	// samples for up to a second and a half to catch a quiet moment, and allows half as much again
-	// there. A real blowup (a Lever that re-resolves the Plan, a quadratic loop) is many times
+	// there. A real blowup (a Change that re-resolves the Plan, a quadratic loop) is many times
 	// the budget, so it still fails.
 	const fastest = (work: () => void): number => {
 		work();
@@ -390,7 +390,7 @@ describe("project: fast enough for every slider frame", () => {
 	};
 	const budget = (ms: number) => (process.env.CI ? ms * 1.5 : ms);
 
-	it("projects 60 months with twenty Levers well within a slider frame", () => {
+	it("projects 60 months with twenty Changes well within a slider frame", () => {
 		expect(twenty).toHaveLength(20);
 		const resolved = planAhead(many, goals, "2026-09", 60);
 		// Ten projections a run, a few milliseconds here.
@@ -400,10 +400,10 @@ describe("project: fast enough for every slider frame", () => {
 		expect(fastest(ten)).toBeLessThan(budget(50));
 	});
 
-	it("resolves the Plan and works out every Lever's impact in well under 100ms", () => {
-		expect(fastest(() => leverImpacts(planAhead(many, goals, "2026-09", 60), twenty))).toBeLessThan(
-			budget(100),
-		);
+	it("resolves the Plan and works out every Change's impact in well under 100ms", () => {
+		expect(
+			fastest(() => changeImpacts(planAhead(many, goals, "2026-09", 60), twenty)),
+		).toBeLessThan(budget(100));
 	});
 
 	it("resolves 60 months of the Plan in a few milliseconds", () => {
@@ -412,10 +412,10 @@ describe("project: fast enough for every slider frame", () => {
 });
 
 // ---------------------------------------------------------------------------------------------
-// Engine v2: Levers with ranges, and the kinds that change anything in the Plan.
+// Engine v2: Changes with ranges, and the kinds that change anything in the Plan.
 
 describe("v1 Scenarios", () => {
-	const v1: LeverV1[] = [
+	const v1: ScenarioChangeV1[] = [
 		{ kind: "allowance", bucketId: "hockey", amount: 25_000 },
 		{ kind: "end-commitment", commitmentId: "mortgage", fromMonth: "2026-10" },
 		{ kind: "goal", goalId: "car", target: 1_000_000, targetDate: null },
@@ -429,8 +429,8 @@ describe("v1 Scenarios", () => {
 		},
 	];
 
-	it("upgrade to v2 Levers that mean the same: from the first month, due monthly on the 1st", () => {
-		expect(upgradeLevers(v1, "2026-09")).toEqual([
+	it("upgrade to v2 Changes that mean the same: from the first month, due monthly on the 1st", () => {
+		expect(upgradeChanges(v1, "2026-09")).toEqual([
 			{ kind: "allowance", bucketId: "hockey", amount: 25_000, fromMonth: "2026-09" },
 			{ kind: "end-commitment", commitmentId: "mortgage", fromMonth: "2026-10" },
 			{ kind: "goal", goalId: "car", target: 1_000_000, targetDate: null, fromMonth: "2026-09" },
@@ -448,18 +448,18 @@ describe("v1 Scenarios", () => {
 	});
 
 	it("load whether saved as a bare v1 array or as versioned v2 JSON", () => {
-		const upgraded = upgradeLevers(v1, "2026-09");
-		expect(readScenarioLevers(v1, "2026-09")).toEqual(upgraded);
-		expect(readScenarioLevers({ version: 2, levers: upgraded }, "2027-01")).toEqual(upgraded);
+		const upgraded = upgradeChanges(v1, "2026-09");
+		expect(readScenarioChanges(v1, "2026-09")).toEqual(upgraded);
+		expect(readScenarioChanges({ version: 2, levers: upgraded }, "2027-01")).toEqual(upgraded);
 		// Upgrading again changes nothing.
-		expect(upgradeLevers(upgraded, "2027-01")).toEqual(upgraded);
+		expect(upgradeChanges(upgraded, "2027-01")).toEqual(upgraded);
 	});
 });
 
-describe("project: v2 Levers over a range of months", () => {
+describe("project: v2 Changes over a range of months", () => {
 	const plan = project(ahead());
 
-	it("a Baseline Lever changes income for its range, then the Plan's comes back", () => {
+	it("a take-home pay Change changes income for its range, then the Plan's comes back", () => {
 		// Parental leave: $6,000 a month for October and November.
 		const leave = project(ahead(), [
 			{ kind: "baseline", amount: 600_000, fromMonth: "2026-10", untilMonth: "2026-12" },
@@ -470,8 +470,8 @@ describe("project: v2 Levers over a range of months", () => {
 		expect(leave.freeToSpend).toBe(plan.freeToSpend - 2 * 300_000);
 	});
 
-	it("a Lever's value holds until a later month the Plan set on its own, as applying it would", () => {
-		// A raise from October; the Plan already has January's Baseline set on its own.
+	it("a Change's value holds until a later month the Plan set on its own, as applying it would", () => {
+		// A raise from October; the Plan already has January's take-home pay set on its own.
 		const raise = project(ahead(), [{ kind: "baseline", amount: 1_000_000, fromMonth: "2026-10" }]);
 		expect(month("2026-12", raise)?.baseline).toBe(1_000_000);
 		expect(month("2027-01", raise)?.baseline).toBe(950_000);
@@ -490,7 +490,7 @@ describe("project: v2 Levers over a range of months", () => {
 		expect(month("2026-11", scenario)?.allowances).toBe(220_000);
 	});
 
-	it("an allowance Lever for a few months: Groceries +$300 for October to December", () => {
+	it("an allowance Change for a few months: Groceries +$300 for October to December", () => {
 		const scenario = project(ahead(), [
 			{
 				kind: "allowance",
@@ -587,7 +587,7 @@ describe("project: v2 Levers over a range of months", () => {
 	});
 
 	it("adds an annual Commitment in its month each year, ending at untilMonth before its term", () => {
-		const change: Lever = {
+		const change: ScenarioChange = {
 			kind: "add-commitment",
 			commitmentId: "tuition",
 			name: "Tuition",
@@ -598,7 +598,7 @@ describe("project: v2 Levers over a range of months", () => {
 			months: null,
 		};
 		const plan14 = project(ahead([], 14));
-		const extra = (changes: Lever[]) =>
+		const extra = (changes: ScenarioChange[]) =>
 			project(ahead([], 14), changes)
 				.months.map((m, i) => m.commitments - (plan14.months[i]?.commitments ?? 0))
 				.filter((x) => x !== 0);
@@ -607,7 +607,7 @@ describe("project: v2 Levers over a range of months", () => {
 		expect(extra([{ ...change, months: 12, untilMonth: "2028-01" }])).toEqual([500_000]);
 	});
 
-	it("a one-off lands in its month, outside Free to Spend but in the Cushion", () => {
+	it("a one-off lands in its month, outside Free to Spend but in the Projected balance", () => {
 		const scenario = project(ahead(), [
 			{
 				kind: "one-off",
@@ -660,7 +660,7 @@ describe("project: v2 Levers over a range of months", () => {
 		]);
 	});
 
-	it("an allowance Lever changes an added Bucket's allowance too", () => {
+	it("an allowance Change changes an added Bucket's allowance too", () => {
 		const scenario = project(ahead(), [
 			{ kind: "add-bucket", bucketId: "swim", name: "Swim", amount: 30_000, fromMonth: "2026-10" },
 			{ kind: "allowance", bucketId: "swim", amount: 10_000, fromMonth: "2026-12" },
@@ -669,7 +669,7 @@ describe("project: v2 Levers over a range of months", () => {
 		expect(month("2026-12", scenario)?.allowances).toBe(170_000);
 	});
 
-	it("ignores Levers on things no longer in the Plan", () => {
+	it("ignores Changes on things no longer in the Plan", () => {
 		const scenario = project(ahead(), [
 			{ kind: "baseline", amount: 900_000, fromMonth: "2026-09" },
 			{ kind: "commitment-terms", commitmentId: "gone", amount: 1, fromMonth: "2026-09" },
@@ -706,7 +706,7 @@ describe("project: growth", () => {
 	});
 });
 
-describe("project: the Cushion", () => {
+describe("project: the Projected balance", () => {
 	it("builds up Free to Spend and one-offs month by month from a starting balance", () => {
 		const projection = project(ahead(), [], { startingBalance: 100_000 });
 		expect(projection.startingCushion).toBe(100_000);
@@ -749,7 +749,7 @@ describe("project: Goals in v2", () => {
 		fundedThisMonth: 0,
 	};
 
-	it("an added Goal gets its own Earmark path, funded from its first month", () => {
+	it("an added Goal gets its own set-aside money path, funded from its first month", () => {
 		const projection = project(ahead(), [
 			{
 				kind: "add-goal",
@@ -772,7 +772,7 @@ describe("project: Goals in v2", () => {
 		expect(month("2027-03", projection)?.goalFunding).toBe(0);
 	});
 
-	it("a Goal Lever from a later month works out what it needs again from its Earmark then", () => {
+	it("a Goal Change from a later month works out what it needs again from what it has set aside then", () => {
 		const projection = project(ahead([car], 24), [
 			{
 				kind: "goal",
@@ -789,7 +789,7 @@ describe("project: Goals in v2", () => {
 		expect(goal?.reachedIn).toBe("2028-08");
 	});
 
-	it("a Goal Lever for a while gives the Goal back its own target and date at its end", () => {
+	it("a Goal Change for a while gives the Goal back its own target and date at its end", () => {
 		// No date (so not funded) for December to February.
 		const projection = project(ahead([car], 12), [
 			{
@@ -808,7 +808,7 @@ describe("project: Goals in v2", () => {
 	});
 });
 
-describe("leverImpacts: each Lever left out in turn", () => {
+describe("changeImpacts: each Change left out in turn", () => {
 	const car: ProjectionGoal = {
 		id: "car",
 		target: 1_200_000,
@@ -816,7 +816,7 @@ describe("leverImpacts: each Lever left out in turn", () => {
 		saved: 0,
 		fundedThisMonth: 0,
 	};
-	const changes: Lever[] = [
+	const changes: ScenarioChange[] = [
 		{ kind: "end-commitment", commitmentId: "streaming", fromMonth: "2026-09" },
 		{
 			kind: "one-off",
@@ -835,13 +835,13 @@ describe("leverImpacts: each Lever left out in turn", () => {
 		},
 		{ kind: "allowance", bucketId: "gone", amount: 1, fromMonth: "2026-09" },
 	];
-	const impacts = leverImpacts(ahead([car], 24), changes, { startingBalance: 50_000 });
+	const impacts = changeImpacts(ahead([car], 24), changes, { startingBalance: 50_000 });
 
-	it("has one impact per Lever, in order", () => {
+	it("has one impact per Change, in order", () => {
 		expect(impacts).toHaveLength(4);
 	});
 
-	it("says what a Lever frees each month and over the horizon", () => {
+	it("says what a Change frees each month and over the horizon", () => {
 		// Streaming ends in March anyway: $20 a month for six months.
 		expect(impacts[0]).toMatchObject({
 			freeToSpend: 12_000,
@@ -851,7 +851,7 @@ describe("leverImpacts: each Lever left out in turn", () => {
 		});
 	});
 
-	it("shows a one-off in the Cushion, not Free to Spend", () => {
+	it("shows a one-off in the Projected balance, not Free to Spend", () => {
 		expect(impacts[1]).toMatchObject({
 			freeToSpend: 0,
 			cushion: -300_000,
@@ -859,7 +859,7 @@ describe("leverImpacts: each Lever left out in turn", () => {
 		});
 	});
 
-	it("says how far a Lever moves a Goal", () => {
+	it("says how far a Change moves a Goal", () => {
 		expect(impacts[2]?.goals).toEqual([
 			{ goalId: "car", reachedIn: "2028-08", without: "2027-08", months: 12 },
 		]);
@@ -867,7 +867,7 @@ describe("leverImpacts: each Lever left out in turn", () => {
 		expect(impacts[2]?.lowest).toBe(50_000);
 	});
 
-	it("is nothing for a Lever on something no longer in the Plan", () => {
+	it("is nothing for a Change on something no longer in the Plan", () => {
 		expect(impacts[3]).toEqual({
 			freeToSpend: 0,
 			cushion: 0,
@@ -879,9 +879,13 @@ describe("leverImpacts: each Lever left out in turn", () => {
 	});
 });
 
-describe("muted Levers", () => {
-	const end: Lever = { kind: "end-commitment", commitmentId: "streaming", fromMonth: "2026-09" };
-	const roof: Lever = {
+describe("muted Changes", () => {
+	const end: ScenarioChange = {
+		kind: "end-commitment",
+		commitmentId: "streaming",
+		fromMonth: "2026-09",
+	};
+	const roof: ScenarioChange = {
 		kind: "one-off",
 		oneOffId: "roof",
 		name: "Roof",
@@ -894,23 +898,23 @@ describe("muted Levers", () => {
 		const a = ahead();
 		expect(project(a, [end, { ...roof, muted: true }])).toEqual(project(a, [end]));
 		expect(project(a, [{ ...end, muted: true }])).toEqual(project(a));
-		// Unmuted, a Lever counts again.
+		// Unmuted, a Change counts again.
 		expect(project(a, [{ ...end, muted: false }])).toEqual(project(a, [end]));
 	});
 
 	it("are left out of what applying sees", () => {
-		expect(activeLevers([end, { ...roof, muted: true }])).toEqual([end]);
+		expect(activeChanges([end, { ...roof, muted: true }])).toEqual([end]);
 	});
 
-	it("show what they'd do turned back on, with the other Levers as they are", () => {
-		const [ended, muted] = leverImpacts(ahead([], 24), [end, { ...roof, muted: true }]);
+	it("show what they'd do turned back on, with the other Changes as they are", () => {
+		const [ended, muted] = changeImpacts(ahead([], 24), [end, { ...roof, muted: true }]);
 		expect(ended?.freeToSpend).toBe(12_000);
 		expect(muted).toMatchObject({
 			freeToSpend: 0,
 			cushion: -300_000,
 			firstChange: { month: "2026-11", amount: -300_000 },
 		});
-		const [endMuted] = leverImpacts(ahead([], 24), [{ ...end, muted: true }, roof]);
+		const [endMuted] = changeImpacts(ahead([], 24), [{ ...end, muted: true }, roof]);
 		expect(endMuted).toMatchObject({ freeToSpend: 12_000, cushion: 12_000 });
 	});
 });

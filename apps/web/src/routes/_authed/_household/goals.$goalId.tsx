@@ -21,6 +21,7 @@ import {
 	GoalProgressBar,
 } from "../../../components/goals";
 import { Confirm, SaveFailed } from "../../../components/plan-editing";
+import { TermHelp } from "../../../components/term-help";
 import { formatMoney, fullDay, monthName, shortDay } from "../../../format";
 import {
 	type AccountView,
@@ -190,7 +191,8 @@ function GoalDetails({
 							) : (
 								accountName
 							)}
-							{archived ? ". Archiving released its Earmark to Unclaimed." : null}
+							{archived ? ". Archiving released it, so it’s no longer set aside." : null}{" "}
+							<TermHelp term="set-aside" />
 						</p>
 						{archived ? null : (
 							<div className="-me-2.5 flex gap-1">
@@ -269,13 +271,17 @@ function GoalDetails({
 
 				{active ? (
 					<Section aria-labelledby="goal-emergency">
-						<SectionHeader id="goal-emergency" title="Emergencies" />
+						<SectionHeader
+							id="goal-emergency"
+							title="Emergencies"
+							help={<TermHelp term="sweep" />}
+						/>
 						<Card className="grid gap-3 p-(--card-pad)">
 							<FinishRow
 								text={
 									emergency
-										? "This is your emergency Goal: Windfalls suggest it, and Fresh-start leftovers are Swept into it when nobody decides at month-close."
-										: "Keeping this for emergencies? Windfalls will suggest it, and Fresh-start leftovers are Swept into it when nobody decides at month-close."
+										? "This is your emergency Goal. Noodle suggests it for Extra income, and when nobody decides where last month’s leftovers go, they’re Swept into it."
+										: "Keeping this for emergencies? Noodle will suggest it for Extra income, and when nobody decides where last month’s leftovers go, they’ll be Swept into it."
 								}
 								action={
 									<Button
@@ -300,7 +306,7 @@ function GoalDetails({
 						<Card className="grid gap-3 p-(--card-pad)">
 							{active ? (
 								<FinishRow
-									text="Done saving? Completing keeps its Earmark, so the money stays set aside to spend."
+									text="Done saving? Completing it keeps the money set aside, ready to spend."
 									action={
 										<Button
 											type="button"
@@ -315,7 +321,7 @@ function GoalDetails({
 								/>
 							) : (
 								<p className="text-sm text-muted-foreground">
-									Completed. Its Earmark stays set aside until it’s spent or released.
+									Completed. Its money stays set aside until it’s spent or released.
 								</p>
 							)}
 							{archiving ? (
@@ -327,13 +333,13 @@ function GoalDetails({
 										archive.mutate({ goalId: goal.id });
 									}}
 								>
-									Archiving {goal.name} releases its Earmark
-									{progress.saved > 0 ? ` of ${formatMoney(progress.saved)}` : ""} to Unclaimed in{" "}
-									{accountName}.
+									Archiving {goal.name} releases
+									{progress.saved > 0 ? ` the ${formatMoney(progress.saved)}` : " what"} it has set
+									aside in {accountName}, so it’s free for other Goals.
 								</Confirm>
 							) : (
 								<FinishRow
-									text="No longer saving for it? Archiving releases its Earmark to Unclaimed."
+									text="No longer saving for it? Archiving releases what it has set aside."
 									action={
 										<Button
 											type="button"
@@ -367,7 +373,7 @@ function GoalDetails({
 				open={sheet === "spend"}
 				onOpenChange={close}
 				title={`Spend from ${goal.name}`}
-				description="Records spending that comes out of the Goal’s Earmark, never a Bucket or Free to Spend."
+				description="Records spending from what this Goal has set aside, never from a Bucket or Free to Spend."
 				withNote
 				submitLabel="Spend"
 				check={(cents) =>
@@ -396,20 +402,22 @@ function GoalDetails({
 				open={sheet === "claim"}
 				onOpenChange={close}
 				title={`Set aside for ${goal.name}`}
-				description={`Earmarks money already in ${accountName} for this Goal. It doesn’t touch the Plan.`}
+				description={`Sets aside money already in ${accountName} for this Goal. It doesn’t change the Plan.`}
 				submitLabel="Set aside"
 				check={(cents) => {
 					const notSetAside = account?.unclaimed ?? null;
 					if (notSetAside === null) {
-						return { hint: `${accountName} has no balance yet, so nothing there is Unclaimed.` };
+						return {
+							hint: `${accountName} has no balance yet, so there’s nothing to set aside from.`,
+						};
 					}
 					if (cents !== null && cents > notSetAside) {
 						return {
-							hint: `Only ${formatMoney(Math.max(0, notSetAside))} in ${accountName} is Unclaimed. Update its balance if there’s more.`,
+							hint: `Only ${formatMoney(Math.max(0, notSetAside))} in ${accountName} isn’t set aside yet. Update its balance if there’s more.`,
 							refused: true,
 						};
 					}
-					return { hint: `${formatMoney(notSetAside)} in ${accountName} is Unclaimed.` };
+					return { hint: `${formatMoney(notSetAside)} in ${accountName} isn’t set aside yet.` };
 				}}
 				onSave={(amountCents) => {
 					setSheet(null);
@@ -420,7 +428,7 @@ function GoalDetails({
 				open={sheet === "release"}
 				onOpenChange={close}
 				title={`Release from ${goal.name}`}
-				description={`Gives some of the Earmark back to Unclaimed in ${accountName}.`}
+				description={`Stops keeping some of it for this Goal. It stays in ${accountName}, no longer set aside.`}
 				initialCents={progress.saved}
 				submitLabel="Release"
 				check={(cents) =>
@@ -505,15 +513,15 @@ function FinishRow({ text, action }: { text: string; action: ReactNode }) {
 const changeTitle = (change: GoalChange) =>
 	change.kind === "funding"
 		? change.from === "windfall"
-			? "From a Windfall"
+			? "From Extra income"
 			: change.from === "sweep"
 				? "Swept from a Bucket"
 				: "Funded from Free to Spend"
 		: change.kind === "spending"
 			? "Spent"
 			: change.amount >= 0
-				? "Set aside from Unclaimed"
-				: "Released to Unclaimed";
+				? "Set aside from the Account"
+				: "Released";
 
 /** "September", or "September 2025" outside this year. */
 const monthLabel = (month: MonthKey, today: DayKey) =>
@@ -521,7 +529,7 @@ const monthLabel = (month: MonthKey, today: DayKey) =>
 		? monthName(month)
 		: `${monthName(month)} ${month.slice(0, 4)}`;
 
-/** One change to the Earmark: what it was, when, and how much it moved. */
+/** One change to what's set aside: what it was, when, and how much it moved. */
 function HistoryRow({
 	change,
 	today,

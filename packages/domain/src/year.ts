@@ -11,20 +11,20 @@ import {
 import { type SpendCell, targetKind } from "./reports";
 import { type PlanAhead, type ProjectionGoal, planAhead, project } from "./scenario";
 
-// The year at a glance: each month's Plan, from the Baseline down to Free to Spend, with what
+// The year at a glance: each month's Plan, from take-home pay down to Free to Spend, with what
 // actually happened next to it once the month has begun.
 //
 // - Earlier months' Plans, and this month's, are as stored (ADR-0009), as This Month and the
 //   Plan show them: their Goal funding is what has been Moved from Free to Spend into Goals, and
 //   Covers from Free to Spend count with the Buckets' allowances.
-// - Later months come from `planAhead`, projected with no Levers: each dated Goal is funded what
+// - Later months come from `planAhead`, projected with no Changes: each dated Goal is funded what
 //   it needs each month (see scenario.ts).
 // - Actual: income received, what was spent on Commitments and from Buckets (the other Parent's
 //   Personal Allowance only as its total), and the Goal funding. Actual Free to Spend is what was
-//   left: income less every Transaction not spent from a Goal's Earmark, less the Goal funding.
+//   left: income less every Transaction not spent from what a Goal has set aside, less the Goal funding.
 
 export type YearFigures = {
-	/** The Baseline in the Plan; income received, in the actual. */
+	/** Take-home pay in the Plan; income received, in the actual. */
 	baseline: Cents;
 	commitments: Cents;
 	/**
@@ -33,7 +33,7 @@ export type YearFigures = {
 	 */
 	allowances: Cents;
 	goalFunding: Cents;
-	/** Negative when the Plan assigns more than the Baseline, or more was spent than came in. */
+	/** Negative when the Plan assigns more than take-home pay, or more was spent than came in. */
 	freeToSpend: Cents;
 };
 
@@ -41,7 +41,7 @@ export type YearMonth = {
 	month: MonthKey;
 	/** `past`: over; `current`: the Household's month, under way; `ahead`: not begun. */
 	when: "past" | "current" | "ahead";
-	/** No Baseline was set for the month. */
+	/** No take-home pay was set for the month. */
 	noBaseline: boolean;
 	plan: YearFigures;
 	/** What happened, so far for the current month; null for months ahead. */
@@ -54,9 +54,9 @@ export type YearActuals = {
 	/** Spending per month (`period` is the month) and Target, private totals folded in. */
 	spending: readonly SpendCell[];
 	income: readonly { month: MonthKey; amount: Cents }[];
-	/** Moves from Free to Spend into Goals (not from a Windfall or a Sweep). */
+	/** Moves from Free to Spend into Goals (not from Extra income or a Sweep). */
 	goalFunding: readonly { month: MonthKey; amount: Cents }[];
-	/** Moves from Free to Spend into Buckets (Covers; not from a Windfall or another Bucket). */
+	/** Moves from Free to Spend into Buckets (Covers; not from Extra income or another Bucket). */
 	covers?: readonly { month: MonthKey; amount: Cents }[];
 };
 
@@ -73,7 +73,7 @@ function actualIn(actuals: YearActuals, month: MonthKey): YearFigures {
 		const kind = targetKind(cell.target);
 		if (kind === "commitment") commitments += cell.amount;
 		else if (kind === "bucket") allowances += cell.amount;
-		// Goal spending comes out of its Earmark, not the month's money.
+		// Goal spending comes out of what it has set aside, not the month's money.
 		else if (kind !== "goal") other += cell.amount;
 	}
 	const takeHomePay = sumIn(actuals.income, month);

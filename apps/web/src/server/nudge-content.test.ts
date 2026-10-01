@@ -68,7 +68,7 @@ describe("messages", () => {
 
 	it("tells a Bucket ahead of Pace from one that's over", () => {
 		expect(bucketPaceNudge(groceries(12_000), "2026-09", 20).nudge).toMatchObject({
-			title: "Groceries is ahead of Pace",
+			title: "Groceries is ahead of pace",
 			body: "$120 left, with 20 days of September to go.",
 			tag: "bucket-pace:groceries:2026-09",
 		});
@@ -157,9 +157,9 @@ describe("scheduleNudges", () => {
 	});
 });
 
-describe("Windfall Nudges", () => {
-	it("Nudges when income starts a month's Windfall, then once per increase", () => {
-		// Income within the Baseline: no Windfall yet.
+describe("Extra income Nudges", () => {
+	it("Nudges when income starts a month's Extra income, then once per increase", () => {
+		// Income within take-home pay: no Extra income yet.
 		expect(extraIncomeArrived("2026-09", 0, 0, [alex])).toBeNull();
 		expect(extraIncomeArrived("2026-09", 50_000, 0, [alex])).toEqual({
 			month: "2026-09",
@@ -173,29 +173,29 @@ describe("Windfall Nudges", () => {
 		expect(extraIncomeArrived("2026-09", 80_000, 50_000, [alex])?.grew).toBe(30_000);
 	});
 
-	it("says how much arrived, or how much the month's Windfall grew by", () => {
+	it("says how much arrived, or how much the month's Extra income grew by", () => {
 		const started = extraIncomeArrived("2026-09", 50_000, 0, [alex]);
 		const grew = extraIncomeArrived("2026-09", 80_000, 50_000, [alex]);
-		if (!started || !grew) throw new Error("expected Windfalls");
+		if (!started || !grew) throw new Error("expected Extra income");
 		expect(extraIncomeNudge(started)).toEqual({
 			kind: "windfall",
-			title: "A $500 Windfall arrived",
+			title: "$500 of Extra income arrived",
 			body: "Decide where it goes at your next Check-in.",
 			tag: "windfall:2026-09",
 			url: "/month/2026-09",
 		});
 		expect(extraIncomeNudge(grew)).toMatchObject({
-			title: "September’s Windfall grew by $300",
+			title: "September’s Extra income grew by $300",
 			body: "It’s $800 now. Decide where it goes at your next Check-in.",
 			// Replaces the first on a device rather than stacking.
 			tag: "windfall:2026-09",
 		});
 	});
 
-	it("goes to Parents who want Windfall Nudges, but not one who only recorded it", () => {
+	it("goes to Parents who want Extra income Nudges, but not one who only recorded it", () => {
 		const alexsIncome = extraIncomeArrived("2026-09", 50_000, 0, [alex]);
 		const bothIncome = extraIncomeArrived("2026-09", 50_000, 0, [alex, sam]);
-		if (!alexsIncome || !bothIncome) throw new Error("expected Windfalls");
+		if (!alexsIncome || !bothIncome) throw new Error("expected Extra income");
 		const to = (extraIncome: ExtraIncomeArrived, recipients: NudgeRecipient[]) =>
 			scheduleNudges(
 				{ pace: [], quickAdds: [], windfalls: [extraIncome] },
@@ -210,7 +210,7 @@ describe("Windfall Nudges", () => {
 
 	it("waits out quiet hours", () => {
 		const extraIncome = extraIncomeArrived("2026-09", 50_000, 0, [alex]);
-		if (!extraIncome) throw new Error("expected a Windfall");
+		if (!extraIncome) throw new Error("expected Extra income");
 		// 22:00 in Chicago; quiet 21:00–07:00.
 		const night = new Date("2026-09-11T03:00:00Z");
 		const scheduled = scheduleNudges(
@@ -240,7 +240,7 @@ describe("Check-in", () => {
 		expect(checkInNudge(cards, week)).toEqual({
 			kind: "check-in",
 			title: "Time for your Check-in",
-			body: "3 Transactions in Review, 1 new Insight, a $250 Windfall to decide.",
+			body: "3 Transactions in Review, 1 new Insight, $250 of Extra income to decide.",
 			tag: "check-in:2026-09-27",
 			url: "/check-in",
 		});

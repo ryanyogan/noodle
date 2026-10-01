@@ -87,10 +87,10 @@ test("a new Household's first Plan is drafted from its history, and a Parent dec
 	const row = (name: string) => draft.getByRole("listitem", { name, exact: true });
 
 	// Two paychecks a month, every two weeks.
-	await expect(row("Baseline")).toContainText("$5,000");
-	await expect(row("Baseline")).toContainText("every two weeks");
-	await row("Baseline").getByRole("button", { name: "Add" }).click();
-	await expect(row("Baseline")).toBeHidden();
+	await expect(row("Take-home pay")).toContainText("$5,000");
+	await expect(row("Take-home pay")).toContainText("every two weeks");
+	await row("Take-home pay").getByRole("button", { name: "Add" }).click();
+	await expect(row("Take-home pay")).toBeHidden();
 	await expect(setUp).toContainText("$5,000 a month");
 
 	// A Commitment changed before it's added, and one skipped.

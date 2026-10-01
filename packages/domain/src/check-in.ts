@@ -43,7 +43,7 @@ export function checkInNudgeTime(now: Date, timeZone: string): Date {
 		: nextLocalMinute(now, CHECK_IN_MINUTE, timeZone);
 }
 
-/** A month's Windfall still to decide. */
+/** A month's Extra income still to decide. */
 export type PendingExtraIncome = { month: MonthKey; amount: Cents };
 
 /** What waits for one Parent, read for them: nothing of the other Parent's Personal Allowance. */
@@ -54,7 +54,7 @@ export type CheckInWaiting = {
 	insights: string[];
 	/** The last month that ended, while it hasn't closed; null once it has. */
 	monthClose: MonthCloseProposal | null;
-	/** Each month's Windfall still to decide. */
+	/** Each month's Extra income still to decide. */
 	windfalls: PendingExtraIncome[];
 };
 
@@ -70,7 +70,7 @@ export type CheckInCardKind = CheckInCard["kind"];
 const sum = (amounts: Cents[]) => amounts.reduce((total, amount) => total + amount, 0);
 
 /**
- * The stack, in order: Review, Insights, Sweeps, Windfalls. A card with nothing in it is left
+ * The stack, in order: Review, Insights, Sweeps, Extra income. A card with nothing in it is left
  * out, so a quiet week has no cards at all.
  */
 export function checkInCards(waiting: CheckInWaiting): CheckInCard[] {
@@ -99,7 +99,7 @@ export function checkInCards(waiting: CheckInWaiting): CheckInCard[] {
 	return cards;
 }
 
-/** How many things wait in all: each Transaction in Review, Insight, leftover, and Windfall. */
+/** How many things wait in all: each Transaction in Review, Insight, leftover, and Extra income. */
 export function checkInCount(cards: readonly CheckInCard[]): number {
 	return sum(cards.map(waitingOn));
 }

@@ -44,8 +44,8 @@ test("a Bucket's page shows its month, its year and its history, and changes it"
 	await expect(heading(page)).toHaveText("BucketHockey");
 	await expect(thisMonth(page)).toContainText("$300");
 	await expect(thisMonth(page)).toContainText("of $400");
-	await expect(thisMonth(page)).toContainText("Fresh-start");
-	await expect(thisMonth(page)).toContainText("Pace by today");
+	await expect(thisMonth(page)).toContainText("Resets monthly");
+	await expect(thisMonth(page)).toContainText("Even spending by today");
 
 	// This month's Transactions, and the rest in the Transactions list.
 	const transactions = page.getByRole("region", { name: /^Transactions in / });
@@ -74,11 +74,11 @@ test("a Bucket's page shows its month, its year and its history, and changes it"
 		"$400 → $450",
 	);
 
-	// Rolling shows its balance month by month.
-	await expect(page.getByRole("group", { name: "Rolling balance" })).toHaveCount(0);
+	// carries over shows its balance month by month.
+	await expect(page.getByRole("group", { name: "Carried over each month" })).toHaveCount(0);
 	await page.getByRole("button", { name: "Edit", exact: true }).click();
-	const carriesOver = page.waitForResponse((r) => serverFn("setRolling")(new URL(r.url())));
-	await page.getByRole("radio", { name: /^Rolling/ }).check();
+	const carriesOver = page.waitForResponse((r) => serverFn("setCarriesOver")(new URL(r.url())));
+	await page.getByRole("radio", { name: /^Carries over/ }).check();
 	expect((await carriesOver).ok()).toBe(true);
 
 	// Renamed, here and on This Month.
@@ -87,14 +87,14 @@ test("a Bucket's page shows its month, its year and its history, and changes it"
 	await expect(editSheet(page, "Kids’ hockey")).toBeVisible();
 	await page.keyboard.press("Escape");
 	await expect(heading(page)).toHaveText("BucketKids’ hockey");
-	await expect(thisMonth(page)).toContainText("Rolling");
-	await expect(page.getByRole("group", { name: "Rolling balance" })).toBeVisible();
+	await expect(thisMonth(page)).toContainText("Carries over");
+	await expect(page.getByRole("group", { name: "Carried over each month" })).toBeVisible();
 
 	// Saved, not just shown.
 	await page.reload();
 	await expect(heading(page)).toHaveText("BucketKids’ hockey");
 	await expect(thisMonth(page)).toContainText("of $450");
-	await expect(page.getByRole("group", { name: "Rolling balance" })).toBeVisible();
+	await expect(page.getByRole("group", { name: "Carried over each month" })).toBeVisible();
 
 	// Reports' Plan vs actual, for this Bucket.
 	await page.getByRole("link", { name: "See in Reports" }).click();
@@ -105,7 +105,9 @@ test("a Bucket's page shows its month, its year and its history, and changes it"
 		.getByRole("navigation", { name: "Main" })
 		.getByRole("link", { name: "This Month" })
 		.click();
-	await expect(page.getByRole("listitem", { name: /^Kids’ hockey: / })).toContainText("Rolling");
+	await expect(page.getByRole("listitem", { name: /^Kids’ hockey: / })).toContainText(
+		"Carries over",
+	);
 	await page.context().close();
 });
 

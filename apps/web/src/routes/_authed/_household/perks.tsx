@@ -14,6 +14,7 @@ import { Check, ChevronLeft, ExternalLink, Gift, Lock, RefreshCw } from "lucide-
 import { type FormEvent, useId, useState } from "react";
 import { NativeSelect } from "../../../components/native-select";
 import { Confirm } from "../../../components/plan-editing";
+import { TermHelp } from "../../../components/term-help";
 import { shortDayAt } from "../../../format";
 import {
 	newPerkSourceId,
@@ -78,7 +79,12 @@ function PerksPage() {
 				) : null}
 				{confirmed.length > 0 ? (
 					<Section aria-labelledby="perk-sources">
-						<SectionHeader id="perk-sources" title="Perk Sources" count={confirmed.length} />
+						<SectionHeader
+							id="perk-sources"
+							title="Perk Sources"
+							count={confirmed.length}
+							help={<TermHelp term="perk-source" />}
+						/>
 						{confirmed.map((source) => (
 							<PerkSourceCard key={source.id} source={source} />
 						))}
@@ -188,7 +194,9 @@ function PerkSourceCard({ source }: { source: PerkSourceItem }) {
 							title={perk.name}
 							meta={
 								<>
-									<span>{perk.kind === "service" ? "Included" : "Covered cost"}</span>
+									<span>
+										{perk.kind === "service" ? "A service it includes" : "A cost it pays for"}
+									</span>
 									<span>·</span>
 									<a
 										href={perk.sourceUrl}

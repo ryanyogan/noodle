@@ -468,7 +468,7 @@ function StatementPreview({
 				Money out comes in as Transactions to assign.{" "}
 				{account.holdsMoney
 					? "Money in is recorded as income."
-					: "Money in (payments and refunds) is listed but counts nowhere for now."}{" "}
+					: "Payments to the card and refunds are brought in, but don’t count as spending."}{" "}
 				The balance you entered stays as it is.
 			</p>
 			{unreadable.length > 0 ? (

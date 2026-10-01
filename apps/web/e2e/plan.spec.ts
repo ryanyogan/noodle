@@ -19,14 +19,15 @@ async function openPlan(page: Page) {
 	await expect(page.getByRole("heading", { level: 1 })).toContainText("Plan");
 }
 
-const waterfall = (page: Page) => page.getByRole("region", { name: "Baseline to Free to Spend" });
+const waterfall = (page: Page) =>
+	page.getByRole("region", { name: "From take-home pay to Free to Spend" });
 const freeToSpend = (page: Page) => waterfall(page).getByRole("listitem").last();
 const bucketRow = (page: Page, bucket: string) =>
 	page.getByRole("listitem").filter({ has: page.getByRole("button", { name: `Edit ${bucket}` }) });
 
 async function setTakeHomePay(page: Page, amount: string) {
-	await page.getByRole("textbox", { name: "Baseline" }).fill(amount);
-	await page.getByRole("button", { name: "Set Baseline" }).click();
+	await page.getByRole("textbox", { name: "Take-home pay" }).fill(amount);
+	await page.getByRole("button", { name: "Set take-home pay" }).click();
 }
 
 /** Opens a part of the Plan from the overview's waterfall. */
@@ -86,19 +87,19 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 	await backToPlan(page);
 	await expect(freeToSpend(page)).toHaveText("Free to Spend$7,400");
 
-	// Allowances beyond the Baseline are allowed, but never silently.
+	// Allowances beyond take-home pay are allowed, but never silently.
 	await openStep(page, "Buckets");
 	await setAllowance(page, "Groceries", "8,800");
 	await backToPlan(page);
 	await expect(freeToSpend(page)).toHaveText("Free to Spend−$200");
 	await expect(waterfall(page)).toContainText(
-		"Your Buckets add up to $200 more than your Baseline",
+		"Your Buckets add up to $200 more than your take-home pay",
 	);
 	await openStep(page, "Buckets");
 	await setAllowance(page, "Groceries", "1,250.50");
 	await backToPlan(page);
 	await expect(freeToSpend(page)).toHaveText("Free to Spend$7,349.50");
-	await expect(waterfall(page)).not.toContainText("more than your Baseline");
+	await expect(waterfall(page)).not.toContainText("more than your take-home pay");
 
 	// Rename, recolour, and reorder Hockey, on its page.
 	await openStep(page, "Buckets");

@@ -36,7 +36,7 @@ const closing = monthState({
 });
 
 describe("monthCloseProposal", () => {
-	it("offers Fresh-start Household Buckets' leftovers and the pending Windfall", () => {
+	it("offers resets monthly Household Buckets' leftovers and the pending Extra income", () => {
 		const proposal = monthCloseProposal(closing);
 		// Hockey rolls its money over; Fun is overspent; Alex's is Alex's; Gifts was Swept already.
 		expect(proposal).toEqual({
@@ -59,7 +59,7 @@ describe("defaultDecision", () => {
 		windfall: 50_000,
 	};
 
-	it("Sweeps every leftover to the emergency Goal and leaves the Windfall for the Parents", () => {
+	it("Sweeps every leftover to the emergency Goal and leaves the Extra income for the Parents", () => {
 		expect(defaultDecision(proposal, "rainy-day")).toEqual({
 			sweeps: [
 				{ bucketId: "groceries", goalId: "rainy-day", amount: 20_000 },
@@ -86,7 +86,7 @@ describe("fitsProposal", () => {
 	};
 	const sweep = (bucketId: string, amount: number) => ({ bucketId, goalId: "trip", amount });
 
-	it("takes Sweeps up to each leftover and Windfall up to what's pending", () => {
+	it("takes Sweeps up to each leftover and Extra income up to what's pending", () => {
 		expect(
 			fitsProposal(proposal, {
 				sweeps: [sweep("groceries", 20_000)],
@@ -117,7 +117,7 @@ describe("fitsProposal", () => {
 });
 
 describe("monthEnd", () => {
-	it("tells the month's Sweeps, its Windfall to Goals and what rolls over", () => {
+	it("tells the month's Sweeps, its Extra income to Goals and what rolls over", () => {
 		const end = monthEnd(closing, {
 			sweeps: [
 				{ bucketId: "gifts", goalId: "trip", amount: 4_000, month: "2026-09" },
@@ -139,7 +139,7 @@ describe("monthEnd", () => {
 		expect(quietEnd(end)).toBe(false);
 	});
 
-	it("carries an overspent Rolling Bucket's shortfall, and is quiet when nothing happened", () => {
+	it("carries an overspent carrying-over Bucket's shortfall, and is quiet when nothing happened", () => {
 		const overspent = monthState({
 			plan: { ...plan, buckets: plan.buckets.filter((b) => b.id === "hockey") },
 			spending: [{ bucketId: "hockey", amount: 45_000, date: "2026-09-10" }],

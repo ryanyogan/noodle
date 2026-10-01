@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
 	type DayKey,
+	extraIncomeOf,
+	extraIncomeSuggestions,
 	type Income,
 	incomeCheck,
 	type MonthKey,
 	monthState,
 	type Plan,
-	windfallOf,
-	windfallSuggestions,
 } from "./index";
 
 const planOf = (month: MonthKey, takeHomePay: number | null = 600_000): Plan => ({
@@ -22,36 +22,36 @@ const planOf = (month: MonthKey, takeHomePay: number | null = 600_000): Plan => 
 
 const paid = (date: DayKey, amount: number): Income => ({ date, amount });
 
-describe("windfallOf", () => {
-	it("is the income beyond the Baseline, less what's been decided", () => {
-		expect(windfallOf({ baseline: 600_000, received: 750_000, decided: 0 })).toEqual({
+describe("extraIncomeOf", () => {
+	it("is the income beyond take-home pay, less what's been decided", () => {
+		expect(extraIncomeOf({ baseline: 600_000, received: 750_000, decided: 0 })).toEqual({
 			windfall: 150_000,
 			pending: 150_000,
 		});
-		expect(windfallOf({ baseline: 600_000, received: 750_000, decided: 100_000 })).toEqual({
+		expect(extraIncomeOf({ baseline: 600_000, received: 750_000, decided: 100_000 })).toEqual({
 			windfall: 150_000,
 			pending: 50_000,
 		});
 	});
 
-	it("is nothing until income passes the Baseline, or without a Baseline", () => {
-		expect(windfallOf({ baseline: 600_000, received: 450_000, decided: 0 })).toEqual({
+	it("is nothing until income passes take-home pay, or without a take-home pay", () => {
+		expect(extraIncomeOf({ baseline: 600_000, received: 450_000, decided: 0 })).toEqual({
 			windfall: 0,
 			pending: 0,
 		});
-		expect(windfallOf({ baseline: null, received: 450_000, decided: 0 }).windfall).toBe(0);
+		expect(extraIncomeOf({ baseline: null, received: 450_000, decided: 0 }).windfall).toBe(0);
 	});
 });
 
-describe("monthState: the Windfall", () => {
-	// Biweekly paychecks of $3,000 on a $6,000 Baseline.
+describe("monthState: the Extra income", () => {
+	// Biweekly paychecks of $3,000 on a $6,000 take-home pay.
 	const biweekly = [
 		paid("2026-10-02", 300_000),
 		paid("2026-10-16", 300_000),
 		paid("2026-10-30", 300_000),
 	];
 
-	it("makes a 3-paycheck month's third paycheck a Windfall once it lands", () => {
+	it("makes a 3-paycheck month's third paycheck Extra income once it lands", () => {
 		const plan = planOf("2026-10");
 		const third = monthState({ plan, spending: [], income: biweekly, asOf: "2026-10-30" });
 		expect(third).toMatchObject({ received: 900_000, windfall: 300_000, windfallLeft: 300_000 });
@@ -64,7 +64,7 @@ describe("monthState: the Windfall", () => {
 		expect(twoPaychecks).toMatchObject({ received: 600_000, windfall: 0, windfallLeft: 0 });
 	});
 
-	it("counts a bonus beyond the Baseline, and only this month's income", () => {
+	it("counts a bonus beyond take-home pay, and only this month's income", () => {
 		const state = monthState({
 			plan: planOf("2026-10"),
 			spending: [],
@@ -93,7 +93,7 @@ describe("monthState: the Windfall", () => {
 		expect(state.buckets.find((b) => b.id === "fun")?.left).toBe(40_000);
 	});
 
-	it("counts a tax refund recorded as income toward the Windfall", () => {
+	it("counts a tax refund recorded as income toward the Extra income", () => {
 		const state = monthState({
 			plan: planOf("2026-10"),
 			spending: [],
@@ -103,7 +103,7 @@ describe("monthState: the Windfall", () => {
 		expect(state.windfall).toBe(90_000);
 	});
 
-	it("takes Windfall Moves to Goals and Buckets off what's left, leaving Free to Spend alone", () => {
+	it("takes Extra income Moves to Goals and Buckets off what's left, leaving Free to Spend alone", () => {
 		const plan = planOf("2026-10");
 		const income = [paid("2026-10-01", 600_000), paid("2026-10-20", 150_000)];
 		const plain = monthState({ plan, spending: [], income, asOf: "2026-10-20" });
@@ -144,7 +144,7 @@ describe("monthState: the Windfall", () => {
 	});
 });
 
-describe("incomeCheck: a warning when income is tracking below the Baseline", () => {
+describe("incomeCheck: a warning when income is tracking below take-home pay", () => {
 	const takeHomePay = 600_000;
 
 	it("says nothing when no income is recorded this month or last", () => {
@@ -199,7 +199,7 @@ describe("incomeCheck: a warning when income is tracking below the Baseline", ()
 		).toBe(true);
 	});
 
-	it("caps what's expected at the Baseline, so last month's bonus isn't expected again", () => {
+	it("caps what's expected at take-home pay, so last month's bonus isn't expected again", () => {
 		const income = [
 			paid("2026-09-01", 300_000),
 			paid("2026-09-05", 200_000),
@@ -215,7 +215,7 @@ describe("incomeCheck: a warning when income is tracking below the Baseline", ()
 		});
 	});
 
-	it("pro-rates the Baseline without last month to go by, and tolerates a little", () => {
+	it("pro-rates take-home pay without last month to go by, and tolerates a little", () => {
 		const income = [paid("2026-10-01", 280_000)];
 		// 15 of October's 31 days: 15/31 of $6,000 is $2,903.23.
 		expect(
@@ -241,7 +241,7 @@ describe("incomeCheck: a warning when income is tracking below the Baseline", ()
 	});
 });
 
-describe("windfallSuggestions", () => {
+describe("extraIncomeSuggestions", () => {
 	const goal = (
 		id: string,
 		status: "behind" | "on-track" | "past-due" | "saving" | "reached",
@@ -250,7 +250,7 @@ describe("windfallSuggestions", () => {
 	) => ({ id, name: id, status, targetDate, remaining });
 
 	it("suggests behind Goals nearest-dated first, then the emergency Goal, then overspent Buckets", () => {
-		const suggestions = windfallSuggestions({
+		const suggestions = extraIncomeSuggestions({
 			pending: 150_000,
 			goals: [
 				goal("roof", "behind", "2027-06-01"),
@@ -279,7 +279,7 @@ describe("windfallSuggestions", () => {
 	it("lists the emergency Goal once, and skips it once it's reached", () => {
 		const emergency = goal("emergency", "behind", "2027-01-01");
 		expect(
-			windfallSuggestions({
+			extraIncomeSuggestions({
 				pending: 1_000,
 				goals: [emergency],
 				emergencyGoalId: "emergency",
@@ -287,7 +287,7 @@ describe("windfallSuggestions", () => {
 			}),
 		).toHaveLength(1);
 		expect(
-			windfallSuggestions({
+			extraIncomeSuggestions({
 				pending: 1_000,
 				goals: [goal("emergency", "reached", null, 0)],
 				emergencyGoalId: "emergency",
@@ -296,9 +296,9 @@ describe("windfallSuggestions", () => {
 		).toEqual([]);
 	});
 
-	it("suggests nothing without a pending Windfall", () => {
+	it("suggests nothing without a pending Extra income", () => {
 		expect(
-			windfallSuggestions({
+			extraIncomeSuggestions({
 				pending: 0,
 				goals: [goal("roof", "behind", "2027-06-01")],
 				emergencyGoalId: null,

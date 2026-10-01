@@ -8,7 +8,7 @@ import {
 	type Db,
 	loadPlanRecords,
 	setAllowance,
-	setBaseline,
+	setTakeHomePay,
 	updateCommitment,
 } from "./index";
 import { members } from "./schema";
@@ -46,7 +46,7 @@ beforeEach(async () => {
 		name: "Sam",
 		clerkUserId: "clerk-sam",
 	});
-	await setBaseline(db, { householdId, memberId: "alex", month, amountCents: 900_000 });
+	await setTakeHomePay(db, { householdId, memberId: "alex", month, amountCents: 900_000 });
 	await addBucket(db, {
 		householdId,
 		memberId: "alex",
@@ -129,8 +129,8 @@ describe("Just <Month>: a change to the Plan for one month", () => {
 		expect(await allowances("alex-pa", ["2026-10", "2026-11"])).toEqual([0, 20_000]);
 	});
 
-	it("puts the next month back to the Baseline in force before", async () => {
-		await setBaseline(db, {
+	it("puts the next month back to take-home pay in force before", async () => {
+		await setTakeHomePay(db, {
 			householdId,
 			memberId: "alex",
 			month: "2026-10",

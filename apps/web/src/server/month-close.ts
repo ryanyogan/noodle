@@ -26,7 +26,7 @@ const amountSchema = z.number().int().min(1).max(MAX_CENTS);
 
 /**
  * The Parents' decision for a month that has ended: which leftovers are Swept into which Goals,
- * and where the pending Windfall goes. Everything left out stays where it is. Refused once the
+ * and where the pending Extra income goes. Everything left out stays where it is. Refused once the
  * month is closed, and when the decision no longer fits what the month has left.
  */
 export const closeMonth = createServerFn({ method: "POST" })

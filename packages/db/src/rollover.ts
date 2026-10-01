@@ -20,7 +20,7 @@ import { splits, transactions } from "./schema";
 /**
  * What each Bucket carries into `month` from earlier months (see rolledOver in @noodle/domain),
  * from each earlier month's spending totals (whole Transactions and Splits) and Moves. Reads no history when no Bucket was
- * Rolling before `month`. `records` must include every Plan record before `month`.
+ * carries over before `month`. `records` must include every Plan record before `month`.
  */
 export async function loadRolledOver(
 	db: Db,

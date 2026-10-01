@@ -90,12 +90,12 @@ describe("planChanges: what changed from the month before", () => {
 		});
 	});
 
-	it("skips values new this month, and a Baseline set for the first time", () => {
+	it("skips values new this month, and a take-home pay set for the first time", () => {
 		const before = plan({ month: "2026-08", baseline: null, commitments: [], buckets: [] });
 		expect(planChanges(plan(), before)).toEqual(none);
 	});
 
-	it("skips a Baseline taken away", () => {
+	it("skips a take-home pay taken away", () => {
 		expect(planChanges(plan({ baseline: null }), plan({ month: "2026-08" }))).toEqual(none);
 	});
 });

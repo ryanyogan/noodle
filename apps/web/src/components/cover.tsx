@@ -18,6 +18,7 @@ import { Wallet } from "lucide-react";
 import { type CSSProperties, useId, useState } from "react";
 import { asBucketColor, monogram } from "../buckets";
 import { formatMoney, formatMoneyInput } from "../format";
+import { TermHelp } from "./term-help";
 
 /** What a Cover's source is called: a Bucket's name, or Free to Spend. */
 export const sourceName = (bucket: Pick<BucketState, "name"> | null | undefined) =>
@@ -37,7 +38,12 @@ export function ALittleOver({
 	const hydrated = useHydrated();
 	return (
 		<Section aria-labelledby="a-little-over">
-			<SectionHeader id="a-little-over" title="A little over" count={buckets.length} />
+			<SectionHeader
+				id="a-little-over"
+				title="A little over"
+				count={buckets.length}
+				help={<TermHelp term="cover" />}
+			/>
 			<List>
 				{buckets.map((bucket) => (
 					<ListRow

@@ -247,7 +247,7 @@ describe("draftPlan", () => {
 	if (!findings) throw new Error("no findings");
 	const empty = { baseline: null, commitments: [], buckets: [] };
 
-	it("drafts a Baseline, Commitments and Buckets, named by the model where it did", () => {
+	it("drafts a take-home pay, Commitments and Buckets, named by the model where it did", () => {
 		const draft = draftPlan(
 			findings,
 			{

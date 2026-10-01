@@ -7,6 +7,7 @@ import { formatMoney, shortDay } from "../format";
 import { matchQuery, useMatchChange } from "../matches";
 import type { MatchPeer } from "../server/matches";
 import type { TransactionRow } from "../transactions";
+import { TermHelp } from "./term-help";
 
 /**
  * A Transaction's Match in its detail: a Quick Add's bank copy (with Unmatch), or, while it's
@@ -42,7 +43,8 @@ export function MatchSection({
 				<p className="text-[13px] text-muted-foreground">
 					{data.automatic ? "Matched automatically" : "Matched"}, so it counts once, as this Quick
 					Add.
-					{differs ? ` The bank shows ${formatMoney(peer.amountCents)}.` : ""}
+					{differs ? ` The bank shows ${formatMoney(peer.amountCents)}.` : ""}{" "}
+					<TermHelp term="match" />
 				</p>
 				<Button
 					type="button"
@@ -69,7 +71,8 @@ export function MatchSection({
 			<p className="text-[13px] text-muted-foreground">
 				{isQuickAdd
 					? "Is one of these the bank’s copy? Matching counts it once, as this Quick Add."
-					: "Is this the bank’s copy of a Quick Add? Matching counts it once, as the Quick Add."}
+					: "Is this the bank’s copy of a Quick Add? Matching counts it once, as the Quick Add."}{" "}
+				<TermHelp term="match" />
 			</p>
 			<List>
 				{data.possible.map((peer) => (

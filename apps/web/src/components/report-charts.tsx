@@ -877,7 +877,7 @@ export function CalendarHeatmap({
 	);
 }
 
-/** Lines over months (Goals' Earmarks, income by source): ink for one, brand for the highlight. */
+/** Lines over months (what Goals have set aside, income by source): ink for one, brand for the highlight. */
 export function TrendLines({
 	rows,
 	series,

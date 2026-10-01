@@ -660,7 +660,7 @@ export type TransactionEditResult =
  * What `assignment` names is the Household's and, for a Bucket or Commitment, in the Plan for
  * `month` (a SQL expression), and, if a Bucket, one the Parent `memberId` can assign to (not the
  * other Parent's Personal Allowance). A Goal only needs to be one that isn't archived; its
- * Earmark is checked for all of a Transaction's Splits together (goalPartsFit).
+ * set-aside money is checked for all of a Transaction's Splits together (goalPartsFit).
  */
 const assignable = (
 	householdId: string,
@@ -694,7 +694,7 @@ const assignmentColumns = (assignment: SplitAssignment) => ({
 });
 
 /**
- * Every Goal the Splits take from has the Earmark for them, counting what the Transaction's
+ * Every Goal the Splits take from has what's set aside for them, counting what the Transaction's
  * current Splits already take from it (they're replaced), so a retry or a re-split isn't refused
  * for its own earlier Goal spending.
  */
@@ -874,7 +874,7 @@ export type SplitInput = {
  * write time, the Transaction is the Household's and the Parent `memberId`'s to change (no
  * spending in the other Parent's Personal Allowance), and every Split's Bucket or Commitment is in
  * the Plan for its month and, if a Bucket, one they can assign to (so never the other Parent's
- * Personal Allowance), and every Split assigned to a Goal fits in its Earmark (a Goal that isn't
+ * Personal Allowance), and every Split assigned to a Goal fits in what it has set aside (a Goal that isn't
  * archived); Splits and their For are only written onto that Transaction.
  */
 export async function splitTransaction(

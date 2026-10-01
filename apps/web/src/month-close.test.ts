@@ -38,7 +38,7 @@ const decision: CloseMonthVariables = {
 };
 
 describe("optimistic month-close", () => {
-	test("the decision's Sweeps and Windfall Moves show at once, and the month is closed", () => {
+	test("the decision's Sweeps and Extra income Moves show at once, and the month is closed", () => {
 		expect(monthCloseProposal(monthState(month))).toMatchObject({
 			leftovers: [
 				{ bucketId: "groceries", amount: 120_000 },

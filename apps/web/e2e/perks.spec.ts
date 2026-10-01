@@ -18,7 +18,8 @@ test.afterEach(async () => {
 	await parent?.remove();
 });
 
-const waterfall = (page: Page) => page.getByRole("region", { name: "Baseline to Free to Spend" });
+const waterfall = (page: Page) =>
+	page.getByRole("region", { name: "From take-home pay to Free to Spend" });
 const sourceCard = (page: Page, name: string) => page.getByRole("article", { name });
 
 async function addCommitment(page: Page, name: string, due: string) {
@@ -109,7 +110,7 @@ test("a card added by hand covers a cost already paid; a page that can't be read
 	const perks = card.getByRole("list", { name: "Chase Sapphire Perks" });
 	await expect(perks.getByRole("listitem")).toHaveCount(2);
 	await expect(perks).toContainText("TSA PreCheck or Global Entry fee credit");
-	await expect(perks).toContainText("Covered cost");
+	await expect(perks).toContainText("A cost it pays for");
 
 	// A card Noodle doesn't know, with a page that can't be found.
 	await add.getByLabel("Name").fill("Credit union card");

@@ -1,12 +1,12 @@
-import { addedUntil, type Change, holdsIn } from "./changes";
+import { addedUntil, holdsIn, type ScenarioChange } from "./changes";
 import { money, shortMonthName } from "./describe-changes";
 import type { Cents } from "./money";
 import { type MonthKey, monthsBetween } from "./month";
-import type { ChangeImpact, ProjectedMonth, Projection } from "./scenario";
+import type { ProjectedMonth, Projection, ScenarioChangeImpact } from "./scenario";
 
 // What a Scenario's outcome means, in words: warnings when it stops holding up, each pointing at
 // the change most responsible; what each month changes and why; and the assumptions behind it.
-// Everything here reads projections and Lever impacts (scenario.ts); nothing is projected again.
+// Everything here reads projections and Change impacts (scenario.ts); nothing is projected again.
 
 export type OutcomeWarning = {
 	kind: "free-to-spend-negative" | "cushion-negative" | "goal-slips" | "goal-missed";
@@ -21,8 +21,8 @@ export type OutcomeWarning = {
 
 /**
  * Where the Scenario stops holding up, against the Plan: Free to Spend going negative, the
- * Cushion dipping below zero, and Goals reached later (or no longer at all). `impacts` are
- * `leverImpacts(ahead, levers)` for the same Levers.
+ * Projected balance dipping below zero, and Goals reached later (or no longer at all). `impacts` are
+ * `changeImpacts(ahead, levers)` for the same Changes.
  */
 export function outcomeWarnings({
 	plan,
@@ -33,13 +33,13 @@ export function outcomeWarnings({
 }: {
 	plan: Projection;
 	scenario: Projection;
-	levers: readonly Change[];
-	impacts: readonly ChangeImpact[];
+	levers: readonly ScenarioChange[];
+	impacts: readonly ScenarioChangeImpact[];
 	goalName: (goalId: string) => string;
 }): OutcomeWarning[] {
 	const warnings: OutcomeWarning[] = [];
-	/** The counted Lever whose `score` is most negative, if any is below zero. */
-	const worst = (score: (impact: ChangeImpact) => number): number | null => {
+	/** The counted Change whose `score` is most negative, if any is below zero. */
+	const worst = (score: (impact: ScenarioChangeImpact) => number): number | null => {
 		let found: number | null = null;
 		let lowest = 0;
 		levers.forEach((scenarioChange, i) => {
@@ -71,14 +71,14 @@ export function outcomeWarnings({
 	const { firstNegative } = scenario;
 	if (firstNegative) {
 		const index = scenario.months.findIndex((m) => m.month === firstNegative);
-		// What each Lever has taken from the Cushion by the month it runs out.
+		// What each Change has taken from the Projected balance by the month it runs out.
 		const scenarioChange = worst((impact) =>
 			impact.byMonth.slice(0, index + 1).reduce((sum, m) => sum + m.freeToSpend + m.oneOffs, 0),
 		);
 		const inPlan = plan.firstNegative !== null && plan.firstNegative <= firstNegative;
 		warnings.push({
 			kind: "cushion-negative",
-			text: `The Cushion dips below zero from ${shortMonthName(firstNegative)}${scenarioChange === null && inPlan ? ", as in the Plan" : ""}`,
+			text: `The projected balance dips below zero from ${shortMonthName(firstNegative)}${scenarioChange === null && inPlan ? ", as in the Plan" : ""}`,
 			month: firstNegative,
 			goalId: null,
 			lever: scenarioChange,
@@ -89,7 +89,7 @@ export function outcomeWarnings({
 	for (const goal of scenario.goals) {
 		const before = plan.goals.find((g) => g.goalId === goal.goalId)?.reachedIn ?? null;
 		if (before === null || (goal.reachedIn !== null && goal.reachedIn <= before)) continue;
-		// The Lever that moves it furthest: one that stops it being reached at all counts most.
+		// The Change that moves it furthest: one that stops it being reached at all counts most.
 		const scenarioChange = worst((impact) => {
 			const moved = impact.goals.find((g) => g.goalId === goal.goalId);
 			if (!moved) return 0;
@@ -118,8 +118,8 @@ export function outcomeWarnings({
 	return warnings;
 }
 
-/** Whether a Lever is in play in `month`: a one-off only in its month, a new Commitment for its term. */
-export function changeHoldsIn(scenarioChange: Change, month: MonthKey): boolean {
+/** Whether a Change is in play in `month`: a one-off only in its month, a new Commitment for its term. */
+export function changeHoldsIn(scenarioChange: ScenarioChange, month: MonthKey): boolean {
 	if (scenarioChange.kind === "one-off") return scenarioChange.fromMonth === month;
 	if (scenarioChange.kind === "add-commitment") {
 		return holdsIn(
@@ -135,7 +135,7 @@ export type MonthBreakdown = {
 	plan: ProjectedMonth;
 	scenario: ProjectedMonth;
 	/**
-	 * The counted Levers in play that month or changing it (a Goal's new date changes its funding
+	 * The counted Changes in play that month or changing it (a Goal's new date changes its funding
 	 * for good): what each does to Free to Spend and one-offs on its own. `lever` indexes `levers`.
 	 */
 	changes: { lever: number; freeToSpend: Cents; oneOffs: Cents }[];
@@ -151,8 +151,8 @@ export function monthBreakdown({
 }: {
 	plan: Projection;
 	scenario: Projection;
-	levers: readonly Change[];
-	impacts: readonly ChangeImpact[];
+	levers: readonly ScenarioChange[];
+	impacts: readonly ScenarioChangeImpact[];
 	/** Which month, counting from the first projected. */
 	index: number;
 }): MonthBreakdown | null {
@@ -175,11 +175,11 @@ export function monthBreakdown({
 }
 
 /**
- * What every projection assumes, in plain sentences, with growth when a Lever turns it on.
- * Muted Levers don't count.
+ * What every projection assumes, in plain sentences, with growth when a Change turns it on.
+ * Muted Changes don't count.
  */
 export function projectionAssumptions(
-	scenarioChanges: readonly Change[],
+	scenarioChanges: readonly ScenarioChange[],
 	startingBalance: Cents,
 ): string[] {
 	const growth = scenarioChanges.filter((l) => l.kind === "growth" && !l.muted);
@@ -196,6 +196,8 @@ export function projectionAssumptions(
 							]
 						: [],
 				)),
-		`The Cushion starts at ${money(startingBalance)}.`,
+		startingBalance === 0
+			? "The projected balance starts at $0 today, not at what’s in your Accounts."
+			: `The projected balance starts at ${money(startingBalance)}.`,
 	];
 }

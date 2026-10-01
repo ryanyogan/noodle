@@ -42,7 +42,7 @@ test("Accounts are their own area, and each Goal names the Account holding it", 
 	await page.getByLabel("Balance now").fill("8,000");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	const savings = page.getByRole("link", { name: /^Joint Savings, Savings, \$8,000/ });
-	await expect(savings).toContainText("Earmarked $0 · Unclaimed $8,000");
+	await expect(savings).toContainText("Set aside $0 · Not set aside $8,000");
 
 	// A second Account, from the header's Add Account.
 	await page.getByRole("button", { name: "Add Account" }).click();
@@ -76,7 +76,7 @@ test("Accounts are their own area, and each Goal names the Account holding it", 
 	const accountPath = new URL(page.url()).pathname;
 	await page.getByRole("link", { name: "Back to Accounts" }).click();
 	await expect(heading(page)).toHaveText("Accounts");
-	await expect(savings).toContainText("Earmarked $500 · Unclaimed $7,500");
+	await expect(savings).toContainText("Set aside $500 · Not set aside $7,500");
 
 	// The old address still opens it.
 	await page.goto(`/goals${accountPath}`);

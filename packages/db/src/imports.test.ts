@@ -22,7 +22,7 @@ import {
 	loadIncome,
 	loadSpending,
 	loadTransactionsPage,
-	setBaseline,
+	setTakeHomePay,
 	splitTransaction,
 } from "./index";
 import { members, transactions } from "./schema";
@@ -53,7 +53,7 @@ beforeEach(async () => {
 		parentId,
 		parentName: "Alex",
 	});
-	await setBaseline(db, { householdId, memberId: parentId, month, amountCents: 600_000 });
+	await setTakeHomePay(db, { householdId, memberId: parentId, month, amountCents: 600_000 });
 	await addBucket(db, {
 		householdId,
 		memberId: parentId,

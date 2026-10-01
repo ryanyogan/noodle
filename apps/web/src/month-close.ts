@@ -36,7 +36,7 @@ export const closingWeek = (month: MonthKey, asOf: DayKey) =>
 /** A Sweep's Move ID, as the server names it (see closeMonth). */
 const sweepId = (closeId: string, bucketId: string) => `${closeId}:${bucketId}`;
 
-/** A month's inputs once closed with a decision: its Sweeps and Windfall Moves in them. */
+/** A month's inputs once closed with a decision: its Sweeps and Extra income Moves in them. */
 export function withMonthClosed(data: MonthData, v: CloseMonthVariables): MonthData {
 	if (data.closed) return data;
 	return {
@@ -65,7 +65,7 @@ export function withMonthClosed(data: MonthData, v: CloseMonthVariables): MonthD
 	};
 }
 
-/** The Goals records with a decision's Sweeps and Windfall Moves in their Earmarks. */
+/** The Goals records with a decision's Sweeps and Extra income Moves in what their Goals have set aside. */
 function withClosingFunding(data: GoalsData, v: CloseMonthVariables): GoalsData {
 	const changes = [
 		...v.sweeps.map((s) => ({

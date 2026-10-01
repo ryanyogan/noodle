@@ -5,16 +5,16 @@ import {
 	type Cents,
 	canAssign,
 	type DayKey,
-	type Lever,
-	type LeverKind,
-	type LeverOf,
-	type LeverRange,
 	lastDayOf,
 	MAX_PROJECTION_MONTHS,
 	type MonthKey,
 	monthOfDay,
 	type Plan,
 	type ProjectionGoal,
+	type ScenarioChange,
+	type ScenarioChangeKind,
+	type ScenarioChangeOf,
+	type ScenarioChangeRange,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
@@ -43,7 +43,7 @@ import { changeTarget, withChange, withoutChange } from "../scenarios";
 import { MoneyInput } from "./money-input";
 
 // The Plan as an editable outline: Income, Commitments, Buckets, Goals, One-offs and growth. Each
-// line shows the Plan's value and the Scenario's; every change is a Lever, set at once, and the
+// line shows the Plan's value and the Scenario's; every change is a Change, set at once, and the
 // projection catches up in a deferred render, so a slider never waits for the chart. Editing is
 // inline on desktop and in a sheet on phones; each change carries the months it holds for.
 
@@ -87,14 +87,14 @@ function SheetOutcome() {
 	return outcome ? <div className="rounded-xl bg-surface-2 px-3 py-2">{outcome}</div> : null;
 }
 
-type Changes = (change: (changes: Lever[]) => Lever[]) => void;
+type Changes = (change: (changes: ScenarioChange[]) => ScenarioChange[]) => void;
 
 /** What every line needs to change the Scenario. */
 type Editing = {
 	month: MonthKey;
 	wide: boolean;
-	/** Sets a Lever (counted, even if it was muted). */
-	set: (scenarioChange: Lever) => void;
+	/** Sets a Change (counted, even if it was muted). */
+	set: (scenarioChange: ScenarioChange) => void;
 	unset: (target: string) => void;
 };
 
@@ -114,7 +114,7 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 	goals: (ProjectionGoal & { name: string })[];
 	/** Where a new Goal can be kept. */
 	accounts: { id: string; name: string }[];
-	levers: Lever[];
+	levers: ScenarioChange[];
 	parentId: string;
 	onChange: Changes;
 }) {
@@ -125,13 +125,14 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 		wide,
 		set: (scenarioChange) => {
 			const { muted: _, ...counted } = scenarioChange;
-			onChange((current) => withChange(current, counted as Lever));
+			onChange((current) => withChange(current, counted as ScenarioChange));
 		},
 		unset: (target) => onChange((current) => withoutChange(current, target)),
 	};
-	const added = <K extends LeverKind>(kind: K) =>
-		levers.filter((l): l is LeverOf<K> => l.kind === kind);
-	const addNew = (scenarioChange: Lever) => onChange((current) => [...current, scenarioChange]);
+	const added = <K extends ScenarioChangeKind>(kind: K) =>
+		levers.filter((l): l is ScenarioChangeOf<K> => l.kind === kind);
+	const addNew = (scenarioChange: ScenarioChange) =>
+		onChange((current) => [...current, scenarioChange]);
 
 	return (
 		<div className="grid gap-8">
@@ -363,12 +364,15 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 // ---------------------------------------------------------------------------------------------
 // Groups and lines
 
-/** Adding something to a group: a fresh Lever for the form, and its fields. */
+/** Adding something to a group: a fresh Change for the form, and its fields. */
 type Adding = {
 	noun: string;
-	fresh: () => Lever;
-	fields: (scenarioChange: Lever, change: (scenarioChange: Lever) => void) => ReactNode;
-	onAdd: (scenarioChange: Lever) => void;
+	fresh: () => ScenarioChange;
+	fields: (
+		scenarioChange: ScenarioChange,
+		change: (scenarioChange: ScenarioChange) => void,
+	) => ReactNode;
+	onAdd: (scenarioChange: ScenarioChange) => void;
 };
 
 /** A group of the outline, with its Add button and the form for a new one. */
@@ -385,7 +389,7 @@ function Group({
 	add?: Adding;
 	children: ReactNode;
 }) {
-	const [draft, setDraft] = useState<Lever | null>(null);
+	const [draft, setDraft] = useState<ScenarioChange | null>(null);
 	const name = draft && "name" in draft ? draft.name.trim() : "";
 	const label = `New ${add?.noun ?? ""}`;
 	const form =
@@ -396,7 +400,7 @@ function Group({
 				onSubmit={(event) => {
 					event.preventDefault();
 					if (name === "") return;
-					add.onAdd({ ...draft, name } as Lever);
+					add.onAdd({ ...draft, name } as ScenarioChange);
 					setDraft(null);
 				}}
 			>
@@ -530,7 +534,7 @@ function Line({
 }
 
 /** "Changed", "New" or "Muted" beside a line's name. */
-function Mark({ lever, added }: { lever: Lever | undefined; added?: boolean }) {
+function Mark({ lever, added }: { lever: ScenarioChange | undefined; added?: boolean }) {
 	if (!lever) return null;
 	return (
 		<Badge dot={!lever.muted} className="font-normal">
@@ -545,7 +549,7 @@ function TakeHomePayLine({
 	edit,
 }: {
 	plan: Plan;
-	lever: Lever | undefined;
+	lever: ScenarioChange | undefined;
 	edit: Editing;
 }) {
 	const planned = plan.baseline ?? 0;
@@ -562,7 +566,7 @@ function TakeHomePayLine({
 				});
 	return (
 		<Line
-			title="Baseline"
+			title="Take-home pay"
 			badge={<Mark lever={lever} />}
 			meta={`Plan ${formatMoney(planned)} a month`}
 			value={formatMoney(amount)}
@@ -570,15 +574,15 @@ function TakeHomePayLine({
 			wide={edit.wide}
 			editor={
 				<div className="grid gap-2.5">
-					<AmountField label="Baseline" value={amount} reference={planned} onChange={set} />
+					<AmountField label="Take-home pay" value={amount} reference={planned} onChange={set} />
 					{current ? (
 						<ChangeRange
-							name="Baseline"
+							name="Take-home pay"
 							lever={current}
 							month={edit.month}
 							onChange={(range) => edit.set({ ...current, ...range })}
 							onUndo={() => edit.unset("baseline")}
-							undoing="Baseline change"
+							undoing="Take-home pay change"
 						/>
 					) : null}
 				</div>
@@ -594,8 +598,8 @@ function CommitmentLine({
 	edit,
 }: {
 	commitment: Plan["commitments"][number];
-	terms: Lever | undefined;
-	ended: Lever | undefined;
+	terms: ScenarioChange | undefined;
+	ended: ScenarioChange | undefined;
 	edit: Editing;
 }) {
 	const { id, name } = commitment;
@@ -709,8 +713,8 @@ function BucketLine({
 	bucket: Plan["buckets"][number];
 	/** Not the other Parent's Personal Allowance, which only they change (ADR-0003). */
 	mine: boolean;
-	allowance: Lever | undefined;
-	archived: Lever | undefined;
+	allowance: ScenarioChange | undefined;
+	archived: ScenarioChange | undefined;
 	edit: Editing;
 }) {
 	const { id, name } = bucket;
@@ -818,7 +822,7 @@ function GoalLine({
 	edit,
 }: {
 	goal: ProjectionGoal & { name: string };
-	lever: Lever | undefined;
+	lever: ScenarioChange | undefined;
 	edit: Editing;
 }) {
 	const current = lever?.kind === "goal" ? lever : null;
@@ -876,7 +880,7 @@ function GoalLine({
 	);
 }
 
-/** Something the Scenario adds: removing it deletes its Lever. */
+/** Something the Scenario adds: removing it deletes its Change. */
 function AddedLine({
 	lever,
 	edit,
@@ -884,11 +888,11 @@ function AddedLine({
 	value,
 	fields,
 }: {
-	lever: Lever & { name: string };
+	lever: ScenarioChange & { name: string };
 	edit: Editing;
 	meta: string;
 	value: string;
-	fields: (change: (scenarioChange: Lever) => void) => ReactNode;
+	fields: (change: (scenarioChange: ScenarioChange) => void) => ReactNode;
 }) {
 	return (
 		<Line
@@ -917,7 +921,7 @@ function AddedLine({
 	);
 }
 
-function GrowthLine({ lever, edit }: { lever: Lever | undefined; edit: Editing }) {
+function GrowthLine({ lever, edit }: { lever: ScenarioChange | undefined; edit: Editing }) {
 	const growth = lever?.kind === "growth" ? lever : null;
 	const id = useId();
 	const pct = (key: "incomePct" | "costsPct", label: string) =>
@@ -1004,10 +1008,10 @@ function AddedCommitmentFields({
 	month,
 	onChange,
 }: {
-	lever: LeverOf<"add-commitment">;
+	lever: ScenarioChangeOf<"add-commitment">;
 	prefix?: string;
 	month: MonthKey;
-	onChange: (scenarioChange: Lever) => void;
+	onChange: (scenarioChange: ScenarioChange) => void;
 }) {
 	return (
 		<div className="grid gap-2.5">
@@ -1081,10 +1085,10 @@ function AddedBucketFields({
 	month,
 	onChange,
 }: {
-	lever: LeverOf<"add-bucket">;
+	lever: ScenarioChangeOf<"add-bucket">;
 	prefix?: string;
 	month: MonthKey;
-	onChange: (scenarioChange: Lever) => void;
+	onChange: (scenarioChange: ScenarioChange) => void;
 }) {
 	return (
 		<div className="grid gap-2.5">
@@ -1117,11 +1121,11 @@ function AddedGoalFields({
 	accounts,
 	onChange,
 }: {
-	lever: LeverOf<"add-goal">;
+	lever: ScenarioChangeOf<"add-goal">;
 	prefix?: string;
 	month: MonthKey;
 	accounts: { id: string; name: string }[];
-	onChange: (scenarioChange: Lever) => void;
+	onChange: (scenarioChange: ScenarioChange) => void;
 }) {
 	return (
 		<div className="grid gap-2.5">
@@ -1175,10 +1179,10 @@ function OneOffFields({
 	month,
 	onChange,
 }: {
-	lever: LeverOf<"one-off">;
+	lever: ScenarioChangeOf<"one-off">;
 	prefix?: string;
 	month: MonthKey;
-	onChange: (scenarioChange: Lever) => void;
+	onChange: (scenarioChange: ScenarioChange) => void;
 }) {
 	return (
 		<div className="grid gap-2.5">
@@ -1322,7 +1326,7 @@ function ChipSelect({ className, ...props }: ComponentProps<"select">) {
 
 /**
  * The months a change holds for as chips: "from Mar 2027" "until Aug 2028", anywhere across the
- * horizon. Until is exclusive, like a Lever's `untilMonth`.
+ * horizon. Until is exclusive, like a Change's `untilMonth`.
  */
 function RangeChips({
 	name,
@@ -1331,9 +1335,9 @@ function RangeChips({
 	onChange,
 }: {
 	name: string;
-	lever: LeverRange;
+	lever: ScenarioChangeRange;
 	month: MonthKey;
-	onChange: (range: LeverRange) => void;
+	onChange: (range: ScenarioChangeRange) => void;
 }) {
 	const months = horizonMonths(month);
 	const from = lever.fromMonth < month ? month : lever.fromMonth;
@@ -1390,11 +1394,11 @@ function ChangeRange({
 }: {
 	label?: string;
 	name: string;
-	lever: LeverRange;
+	lever: ScenarioChangeRange;
 	month: MonthKey;
-	onChange: (range: LeverRange) => void;
+	onChange: (range: ScenarioChangeRange) => void;
 	onUndo: () => void;
-	/** What Undo undoes, for screen readers: "Baseline change". */
+	/** What Undo undoes, for screen readers: "Take-home pay change". */
 	undoing: string;
 	/** More actions beside Undo. */
 	children?: ReactNode;

@@ -22,7 +22,7 @@ const totals = (page: Page, row: string | RegExp) => {
 const firstMonth = (page: Page) =>
 	page.getByRole("table", { name: "Free to Spend each month" }).getByRole("row").nth(1);
 
-test("moving a Lever changes the projection, and applying the Scenario changes the Plan", async ({
+test("moving a Change changes the projection, and applying the Scenario changes the Plan", async ({
 	browser,
 }) => {
 	const page = await signedInPage(browser, parent.email);

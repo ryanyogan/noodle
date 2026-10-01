@@ -31,8 +31,8 @@ function addMonths(month: string, count: number) {
 const q = (value: string) => `'${value.replaceAll("'", "''")}'`;
 
 /**
- * Last month, closed by the Parent, written straight into the local D1: a Fresh-start Bucket, Fun,
- * whose $300 leftover was Swept into the Trip Goal, and a Rolling Bucket, Hockey, carrying $200
+ * Last month, closed by the Parent, written straight into the local D1: a Bucket that resets monthly, Fun,
+ * whose $300 leftover was Swept into the Trip Goal, and a Bucket that carries over, Hockey, carrying $200
  * into this month. Both stay in the Plan this month. Trip ($1,200 by three months from now) has
  * $100 of Goal funding this month, and Rainy day (no target date) $50.
  */
@@ -75,12 +75,12 @@ test("This Month shows the Plan: Free to Spend worked out, the Goals, and how la
 	seedLastMonth(parent.userId, month);
 	await page.reload();
 
-	// Free to Spend, worked out part by part from the Baseline.
+	// Free to Spend, worked out part by part from take-home pay.
 	const freeToSpend = page.getByRole("region", { name: "Free to Spend" });
 	await expect(freeToSpend).toContainText("$3,150");
-	const breakdown = freeToSpend.getByRole("link", { name: /Baseline/ });
+	const breakdown = freeToSpend.getByRole("link", { name: /take-home pay/ });
 	await expect(breakdown).toHaveAccessibleName(
-		"$5,000 Baseline minus $1,700 Buckets minus $150 Goal funding",
+		"$5,000 take-home pay minus $1,700 Buckets minus $150 Goal funding",
 	);
 
 	// Each Goal: on track or behind, its months left, and funded against needed this month. The
@@ -105,7 +105,9 @@ test("This Month shows the Plan: Free to Spend worked out, the Goals, and how la
 	// The breakdown opens the Plan's waterfall.
 	await breakdown.click();
 	await expect(page).toHaveURL(new RegExp(`/plan/${month}#plan-waterfall$`));
-	await expect(page.getByRole("region", { name: "Baseline to Free to Spend" })).toBeVisible();
+	await expect(
+		page.getByRole("region", { name: "From take-home pay to Free to Spend" }),
+	).toBeVisible();
 
 	// Last month shows how it ended: the Sweep, what rolled over, and who closed it.
 	const last = addMonths(month, -1);
@@ -116,7 +118,7 @@ test("This Month shows the Plan: Free to Spend worked out, the Goals, and how la
 	await expect(sweep).toContainText("Swept to Trip");
 	await expect(sweep).toContainText("$300");
 	const rolled = ended.getByRole("listitem").filter({ hasText: "Hockey" });
-	await expect(rolled).toContainText(`Rolled over into ${monthName(month)}`);
+	await expect(rolled).toContainText(`Carried over into ${monthName(month)}`);
 	await expect(rolled).toContainText("$200");
 	// This month has no Goals strip for an ended month.
 	await expect(page.getByRole("region", { name: /^Goals/ })).toHaveCount(0);

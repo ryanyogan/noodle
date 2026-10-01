@@ -5,15 +5,15 @@ import {
 	changedTerms,
 	dueDateFrom,
 	isAssumption,
-	type Lever,
-	type LeverOf,
-	type LeverV1,
 	type MonthKey,
 	type PlanScope,
 	rangeFrom,
-	readScenarioLevers,
+	readScenarioChanges,
 	SCENARIO_VERSION,
-	upgradeLevers,
+	type ScenarioChange,
+	type ScenarioChangeOf,
+	type ScenarioChangeV1,
+	upgradeChanges,
 	whyNotApplicable,
 } from "@noodle/domain";
 import { and, desc, eq, inArray, isNull, lte, type SQL, sql } from "drizzle-orm";
@@ -42,16 +42,16 @@ import {
 	scenarios,
 } from "./schema";
 
-// A Household's Scenarios: named sets of Levers explored against the Plan. Every query is scoped
+// A Household's Scenarios: named sets of Changes explored against the Plan. Every query is scoped
 // by household_id; Scenario IDs from the client are only ever used together with it. Saving is
-// idempotent per the client's ULID, so a retried save lands once. Levers are saved as versioned
+// idempotent per the client's ULID, so a retried save lands once. Changes are saved as versioned
 // JSON ({ version: 2, levers }); v1 Scenarios (a bare array) are upgraded as they load. Applying
 // one records when, and by which Parent, on the Scenario.
 
 export type ScenarioRecord = {
 	id: string;
 	name: string;
-	levers: Lever[];
+	levers: ScenarioChange[];
 	updatedAt: number;
 	/** The Parent who made it, by name; null if they've left the Household. */
 	createdBy: string | null;
@@ -62,7 +62,7 @@ export type ScenarioRecord = {
 
 /**
  * The Household's Scenarios, most recently changed first. `month` is the Household's current
- * month, which v1 Levers held from.
+ * month, which v1 Changes held from.
  */
 export async function loadScenarios(
 	db: Db,
@@ -88,7 +88,7 @@ export async function loadScenarios(
 		.orderBy(desc(scenarios.updatedAt), desc(scenarios.id));
 	return rows.map((row) => ({
 		...row,
-		levers: readScenarioLevers(row.levers, month),
+		levers: readScenarioChanges(row.levers, month),
 		updatedAt: row.updatedAt.getTime(),
 		appliedAt: row.appliedAt?.getTime() ?? null,
 	}));
@@ -99,12 +99,12 @@ type ScenarioInput = {
 	memberId: string;
 	scenarioId: string;
 	name: string;
-	levers: Lever[];
+	levers: ScenarioChange[];
 };
 
 /**
- * Creates a Scenario, or renames it and replaces its Levers; it counts as changed only if its
- * name or Levers did. `applied` also records that `memberId` applied it now. Another
+ * Creates a Scenario, or renames it and replaces its Changes; it counts as changed only if its
+ * name or Changes did. `applied` also records that `memberId` applied it now. Another
  * Household's Scenario ID changes nothing.
  */
 function scenarioWrite(db: Db, input: ScenarioInput, applied: boolean) {
@@ -134,7 +134,7 @@ function scenarioWrite(db: Db, input: ScenarioInput, applied: boolean) {
 }
 
 /**
- * Creates a Scenario, or renames it and replaces its Levers. Saving another Household's
+ * Creates a Scenario, or renames it and replaces its Changes. Saving another Household's
  * Scenario ID changes nothing.
  */
 export async function saveScenario(db: Db, input: ScenarioInput): Promise<void> {
@@ -150,21 +150,21 @@ export async function deleteScenario(
 		.where(and(eq(scenarios.id, input.scenarioId), eq(scenarios.householdId, input.householdId)));
 }
 
-/** A Lever that can't be applied (see whyNotApplicable); nothing was written. */
-export class ChangeNotApplicable extends Error {}
+/** A Change that can't be applied (see whyNotApplicable); nothing was written. */
+export class ScenarioChangeNotApplicable extends Error {}
 
 type Batch = BatchItem<"sqlite">[];
 
 /**
- * Makes Levers the real Plan from `month` (the Household's current month) on, all at once or
- * not at all, as effective-dated writes (ADR-0009). Each Lever's range starts no earlier than
- * `month`. A value (the Baseline, an allowance, a Commitment's terms) is written at the range's
+ * Makes Changes the real Plan from `month` (the Household's current month) on, all at once or
+ * not at all, as effective-dated writes (ADR-0009). Each Change's range starts no earlier than
+ * `month`. A value (take-home pay, an allowance, a Commitment's terms) is written at the range's
  * first month, and when the range ends, the Plan's value at its end is written back there first.
  * Commitments and Buckets are added and ended or archived; Goals are changed or added. Muted
- * Levers and assumptions (a one-off, growth) are left out, a Lever whose range is over is
- * skipped, and any other Lever that can't be applied (whyNotApplicable) refuses the lot. Every
+ * Changes and assumptions (a one-off, growth) are left out, a Change whose range is over is
+ * skipped, and any other Change that can't be applied (whyNotApplicable) refuses the lot. Every
  * write is the Plan's own, guarded to the Household and the Parent `memberId` (only its Parent
- * sets a Personal Allowance), and idempotent, so applying again changes nothing. v1 Levers are
+ * sets a Personal Allowance), and idempotent, so applying again changes nothing. v1 Changes are
  * upgraded first. With `scenario`, the Scenario `scenarioId` is saved as it is and marked
  * applied by `memberId` in the same batch.
  */
@@ -175,24 +175,24 @@ export async function applyChanges(
 		memberId: string;
 		/** The Scenario applied, if it was saved; its Plan changes name it. */
 		scenarioId?: string | null;
-		/** The Scenario as it's applied (all its Levers, muted too), to save with it. */
-		scenario?: { name: string; levers: Lever[] };
+		/** The Scenario as it's applied (all its Changes, muted too), to save with it. */
+		scenario?: { name: string; levers: ScenarioChange[] };
 		month: MonthKey;
-		levers: readonly (Lever | LeverV1)[];
+		levers: readonly (ScenarioChange | ScenarioChangeV1)[];
 	},
 ): Promise<void> {
 	const { householdId, memberId, month, scenarioId, scenario } = input;
 	const author: Author = { memberId, source: "scenario", scenarioId: scenarioId ?? null };
-	const changes = upgradeLevers(input.levers, month).filter((l) => !l.muted && !isAssumption(l));
+	const changes = upgradeChanges(input.levers, month).filter((l) => !l.muted && !isAssumption(l));
 	for (const change of changes) {
 		const why = whyNotApplicable(change, month);
-		if (why !== null) throw new ChangeNotApplicable(why);
+		if (why !== null) throw new ScenarioChangeNotApplicable(why);
 	}
 
 	// A Commitment's new terms build on the terms in force when they start, read here and
 	// written only if no one changed them in between.
 	const termChanges = changes.filter(
-		(l): l is LeverOf<"commitment-terms"> => l.kind === "commitment-terms",
+		(l): l is ScenarioChangeOf<"commitment-terms"> => l.kind === "commitment-terms",
 	);
 	const termRows =
 		termChanges.length === 0
@@ -372,7 +372,7 @@ export async function applyChanges(
 	if (first) await db.batch([first, ...rest]);
 }
 
-/** A Lever's range as a Plan change's scope: one month is "just" it; its end goes in `until`. */
+/** A Change's range as a Plan change's scope: one month is "just" it; its end goes in `until`. */
 const scopeOf = (from: MonthKey, until: MonthKey | null): PlanScope =>
 	until === addMonths(from, 1) ? "just" : "from-on";
 
@@ -380,7 +380,7 @@ const scopeOf = (from: MonthKey, until: MonthKey | null): PlanScope =>
 export const nextColor = (householdId: string): SQL =>
 	sql`(select count(*) % 8 + 1 from ${buckets} where ${buckets.householdId} = ${householdId})`;
 
-/** Writes the Baseline in force at `until` back at `until`, unless a month set there already. */
+/** Writes take-home pay in force at `until` back at `until`, unless a month set there already. */
 const takeHomePayBack = (db: Db, householdId: string, until: MonthKey) =>
 	db
 		.insert(baselines)

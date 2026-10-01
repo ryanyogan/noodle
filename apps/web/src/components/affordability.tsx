@@ -3,7 +3,7 @@ import { Card } from "@noodle/ui/components/card";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { cn } from "@noodle/ui/lib/utils";
-import { Check, Circle, Info, Minus } from "lucide-react";
+import { Check, Circle, CircleAlert, CircleCheck, Clock, Info, Minus } from "lucide-react";
 import {
 	type ComponentProps,
 	createContext,
@@ -18,7 +18,7 @@ import { MoneyInput } from "./money-input";
 import { NativeSelect } from "./native-select";
 
 // The pieces of an Affordability Check's form and its answer. Quiet by design: colour marks only
-// the verdict, and Not Yet stays neutral (it's "not yet", not an alarm).
+// the verdict, and Not yet stays neutral (it's "not yet", not an alarm).
 
 export const verdictName: Record<Verdict, string> = {
 	comfortable: "Comfortable",
@@ -26,29 +26,27 @@ export const verdictName: Record<Verdict, string> = {
 	"not-yet": "Not yet",
 };
 
-const verdictDot: Record<Verdict, string> = {
-	comfortable: "bg-brand",
-	stretch: "bg-pace",
-	"not-yet": "bg-muted-foreground",
+// Each verdict has its own shape as well as its colour, so it never rests on colour alone.
+const verdictIcon: Record<Verdict, ReactNode> = {
+	comfortable: <CircleCheck aria-hidden="true" className="size-4 shrink-0 text-brand" />,
+	stretch: <CircleAlert aria-hidden="true" className="size-4 shrink-0 text-pace" />,
+	"not-yet": <Clock aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />,
 };
 
 /**
- * The Plan has no Baseline, so a Check has no income or Free to Spend to weigh a cost against:
+ * The Plan has no take-home pay, so a Check has no income or Free to Spend to weigh a cost against:
  * its verdict would come from zeros. Checks then say they can't tell yet, and still show costs.
  */
 export const NoIncomeYet = createContext(false);
 
-/** The verdict as a word with its dot. */
+/** The verdict as a word with its icon. */
 export function VerdictLabel({ verdict, className }: { verdict: Verdict; className?: string }) {
 	if (useContext(NoIncomeYet)) {
 		return <span className={cn("inline-flex items-center gap-2", className)}>Can’t check yet</span>;
 	}
 	return (
 		<span className={cn("inline-flex items-center gap-2", className)}>
-			<span
-				aria-hidden="true"
-				className={cn("size-2.5 shrink-0 rounded-full", verdictDot[verdict])}
-			/>
+			{verdictIcon[verdict]}
 			{verdictName[verdict]}
 		</span>
 	);
@@ -303,7 +301,7 @@ export function FieldGroup({
 	);
 }
 
-/** Which Goals' Earmarks go toward it (their money is set aside for it), and other cash. */
+/** Which Goals' set-aside money goes toward it (their money is set aside for it), and other cash. */
 export function SetAsidePicker({
 	goals,
 	chosen,

@@ -33,8 +33,6 @@ import {
 	type DayRange,
 	dayKeyAt,
 	defaultGrouping,
-	earmarkHistory,
-	earmarkOf,
 	type Flow,
 	freeToSpendOver,
 	GROUPINGS,
@@ -58,6 +56,8 @@ import {
 	rolledOver,
 	type SpendCell,
 	seriesOf,
+	setAsideHistory,
+	setAsideOf,
 	spendFor,
 	sumOf,
 	type Target,
@@ -499,7 +499,7 @@ async function viewData(
 		case "plan": {
 			const first = months[0] as MonthKey;
 			const last = months.at(-1) as MonthKey;
-			// Rollover reaches back to whenever a Bucket last started Rolling.
+			// Rollover reaches back to whenever a Bucket last started carries over.
 			const since = records.buckets.map((b) => b.fromMonth).sort()[0] ?? first;
 			const [spent, moves] = await Promise.all([
 				loadBucketMonths(db, viewer, since < first ? since : first, addMonths(last, 1)),
@@ -597,13 +597,13 @@ async function viewData(
 						id: g.id,
 						name: g.name,
 						target: g.target,
-						saved: earmarkOf(
+						saved: setAsideOf(
 							g.id,
 							goalChanges.filter((c) => c.month <= last),
 						),
 						targetDate: g.targetDate,
 						completed: g.completed,
-						history: earmarkHistory(g.id, goalChanges, months),
+						history: setAsideHistory(g.id, goalChanges, months),
 						projected: projectedCompletion(
 							g,
 							goalChanges.filter((c) => c.month <= last),

@@ -1,9 +1,9 @@
 import {
-	earmarkOf,
-	type Lever,
 	type MonthKey,
 	type ProjectionGoal,
-	parseLeverPreset,
+	parseChangePreset,
+	type ScenarioChange,
+	setAsideOf,
 } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import { type QueryClient, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -22,10 +22,10 @@ import {
 export type { ScenarioRecord };
 
 // ---------------------------------------------------------------------------------------------
-// Levers. A Scenario holds at most one Lever per thing it adjusts (see leverTarget).
+// Changes. A Scenario holds at most one Change per thing it adjusts (see changeTarget).
 
-/** What a Lever adjusts: one per Bucket, Commitment, Goal, new one, one-off, or the Baseline. */
-export function changeTarget(scenarioChange: Lever): string {
+/** What a Change adjusts: one per Bucket, Commitment, Goal, new one, one-off, or take-home pay. */
+export function changeTarget(scenarioChange: ScenarioChange): string {
 	switch (scenarioChange.kind) {
 		case "baseline":
 		case "growth":
@@ -52,10 +52,13 @@ export function changeTarget(scenarioChange: Lever): string {
 }
 
 /**
- * The Levers with `lever` in place of the one on the same thing (where it was, so "Your changes"
+ * The Changes with `lever` in place of the one on the same thing (where it was, so "Your changes"
  * keeps its order), or added last.
  */
-export function withChange(scenarioChanges: readonly Lever[], scenarioChange: Lever): Lever[] {
+export function withChange(
+	scenarioChanges: readonly ScenarioChange[],
+	scenarioChange: ScenarioChange,
+): ScenarioChange[] {
 	const target = changeTarget(scenarioChange);
 	const index = scenarioChanges.findIndex((l) => changeTarget(l) === target);
 	return index === -1
@@ -63,24 +66,26 @@ export function withChange(scenarioChanges: readonly Lever[], scenarioChange: Le
 		: scenarioChanges.map((l, i) => (i === index ? scenarioChange : l));
 }
 
-/** The Levers without any on `target` (see leverTarget). */
-export const withoutChange = (scenarioChanges: readonly Lever[], target: string): Lever[] =>
-	scenarioChanges.filter((l) => changeTarget(l) !== target);
+/** The Changes without any on `target` (see changeTarget). */
+export const withoutChange = (
+	scenarioChanges: readonly ScenarioChange[],
+	target: string,
+): ScenarioChange[] => scenarioChanges.filter((l) => changeTarget(l) !== target);
 
-/** The Levers with the one on `target` muted (left out of the projection) or counted again. */
+/** The Changes with the one on `target` muted (left out of the projection) or counted again. */
 export const withMuted = (
-	scenarioChanges: readonly Lever[],
+	scenarioChanges: readonly ScenarioChange[],
 	target: string,
 	muted: boolean,
-): Lever[] =>
+): ScenarioChange[] =>
 	scenarioChanges.map((l) => {
 		if (changeTarget(l) !== target) return l;
 		const { muted: _, ...counted } = l;
-		return muted ? { ...counted, muted: true } : (counted as Lever);
+		return muted ? { ...counted, muted: true } : (counted as ScenarioChange);
 	});
 
 /**
- * The Household's active Goals as a projection starts from them: their Earmarks now and what
+ * The Household's active Goals as a projection starts from them: what their Goals have set aside now and what
  * Goal funding has already Moved into them this month.
  */
 export function projectionGoals(data: GoalsData): (ProjectionGoal & { name: string })[] {
@@ -91,8 +96,8 @@ export function projectionGoals(data: GoalsData): (ProjectionGoal & { name: stri
 			name: g.name,
 			target: g.target,
 			targetDate: g.targetDate,
-			saved: earmarkOf(g.id, data.changes),
-			fundedThisMonth: earmarkOf(
+			saved: setAsideOf(g.id, data.changes),
+			fundedThisMonth: setAsideOf(
 				g.id,
 				data.changes.filter((c) => c.kind === "funding" && c.month === data.month),
 			),
@@ -102,7 +107,7 @@ export function projectionGoals(data: GoalsData): (ProjectionGoal & { name: stri
 // ---------------------------------------------------------------------------------------------
 // Changes. Saving and deleting a Scenario edit the cached list at once and roll back on failure.
 
-export type SaveScenarioVariables = { scenarioId: string; name: string; levers: Lever[] };
+export type SaveScenarioVariables = { scenarioId: string; name: string; levers: ScenarioChange[] };
 
 /**
  * The Scenarios with this one saved, first as the most recently changed. It keeps who made it
@@ -188,19 +193,19 @@ export const useDeleteScenario = () =>
 		failed: ({ name }) => `Couldn’t delete “${name}”, so it’s back.`,
 	});
 
-/** A change to try in Explore: a Lever preset (see parseLeverPreset) and a name for its Scenario. */
+/** A change to try in Explore: a Change preset (see parseChangePreset) and a name for its Scenario. */
 export type ExploreTry = { name: string; preset: string };
 
 /**
- * "Try in Explore" from Insights and Ask: saves a new Scenario with the preset's Lever and opens
+ * "Try in Explore" from Insights and Ask: saves a new Scenario with the preset's Change and opens
  * it, as Affordability's "Explore as a Scenario" does. The Plan doesn't change unless the Scenario
- * is applied. `month` is the Household's current month, where the Lever starts.
+ * is applied. `month` is the Household's current month, where the Change starts.
  */
 export function useTryInExplore(month: MonthKey) {
 	const save = useSaveScenario();
 	const navigate = useNavigate();
 	return ({ name, preset }: ExploreTry) => {
-		const scenarioChange = parseLeverPreset(preset, month);
+		const scenarioChange = parseChangePreset(preset, month);
 		if (!scenarioChange) return;
 		const scenarioId = ulid();
 		save.mutate({ scenarioId, name: name.trim().slice(0, 40), levers: [scenarioChange] });
@@ -210,7 +215,7 @@ export function useTryInExplore(month: MonthKey) {
 }
 
 /**
- * Makes a Scenario's Levers the real Plan from this month on, saving the Scenario as applied.
+ * Makes a Scenario's Changes the real Plan from this month on, saving the Scenario as applied.
  * The server writes them all at once; every month, the Goals and the Scenarios are refetched
  * after, since the change carries forward.
  */

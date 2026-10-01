@@ -1,10 +1,10 @@
 import {
 	accountBalance,
 	type DayKey,
-	earmarkOf,
 	type MonthKey,
 	monthState,
 	planForMonth,
+	setAsideOf,
 	splitAccount,
 } from "@noodle/domain";
 import { type SQL, sql } from "drizzle-orm";
@@ -28,7 +28,7 @@ import {
 	loadPlanRecords,
 	loadSpending,
 	loadTransactionsPage,
-	setBaseline,
+	setTakeHomePay,
 	spendGoal,
 	splitTransaction,
 	undoGoalFunding,
@@ -60,8 +60,8 @@ async function seed(db: Db) {
 			parentName: parent,
 		});
 	}
-	// Free to Spend: $9,000 Baseline − $1,200 Groceries.
-	await setBaseline(db, { householdId, memberId: parentId, month, amountCents: 900_000 });
+	// Free to Spend: $9,000 take-home pay − $1,200 Groceries.
+	await setTakeHomePay(db, { householdId, memberId: parentId, month, amountCents: 900_000 });
 	await addBucket(db, {
 		householdId,
 		memberId: parentId,
@@ -150,8 +150,9 @@ const claim = (claimId: string, goalId: string, amountCents: number) =>
 const evaluate = async (expression: SQL) =>
 	(await db.values<[number | null]>(sql`select ${expression}`))[0]?.[0];
 
-/** A Goal's Earmark as the app computes it, from the same rows. */
-const setAside = async (goalId: string) => earmarkOf(goalId, (await loadGoals(db, viewer)).changes);
+/** A Goal's set-aside money as the app computes it, from the same rows. */
+const setAside = async (goalId: string) =>
+	setAsideOf(goalId, (await loadGoals(db, viewer)).changes);
 
 beforeEach(async () => {
 	db = testDb();
@@ -279,7 +280,7 @@ describe("claimForGoal", () => {
 		await goal("braces", 300_000);
 	});
 
-	it("sets Unclaimed money aside, and releases no more than the Earmark", async () => {
+	it("sets not set aside money aside, and releases no more than what's set aside", async () => {
 		expect(await claim("c1", "braces", 50_000)).toEqual({ ok: true });
 		expect(await claim("c2", "braces", -350_001)).toEqual({ ok: false, reason: "refused" });
 		expect(await claim("c3", "braces", -350_000)).toEqual({ ok: true });
@@ -297,7 +298,7 @@ describe("fundGoal", () => {
 		await goal("braces");
 	});
 
-	it("Moves money from Free to Spend into the Earmark, apart from Bucket Moves", async () => {
+	it("Moves money from Free to Spend into what's set aside, apart from Bucket Moves", async () => {
 		expect(await fund("m1", "braces", 25_000)).toEqual({ ok: true });
 		expect(await fund("m1", "braces", 25_000)).toEqual({ ok: true });
 		expect(await setAside("braces")).toBe(25_000);
@@ -357,7 +358,7 @@ describe("undoGoalFunding", () => {
 			ok: false,
 			reason: "refused",
 		});
-		// Another Goal's Earmark doesn't make up for it.
+		// Another Goal's set-aside money doesn't make up for it.
 		await goal("vacation", 100_000);
 		expect(await undoGoalFunding(db, { householdId, moveId: "m1", month })).toEqual({
 			ok: false,
@@ -378,7 +379,7 @@ describe("spendGoal", () => {
 		await goal("braces", 300_000);
 	});
 
-	it("comes out of the Earmark and the Goal's Account, never a Bucket or Free to Spend", async () => {
+	it("comes out of what's set aside and the Goal's Account, never a Bucket or Free to Spend", async () => {
 		const before = {
 			free: await evaluate(freeToSpendSql(householdId, month)),
 			groceries: await evaluate(bucketLeftSql(householdId, "groceries", month)),
@@ -410,7 +411,7 @@ describe("spendGoal", () => {
 		);
 	});
 
-	it("refuses more than the Earmark", async () => {
+	it("refuses more than what's set aside", async () => {
 		expect(await spend("t1", "braces", 300_001)).toEqual({ ok: false, reason: "refused" });
 		expect(await spend("t2", "braces", 300_000)).toEqual({ ok: true });
 		expect(await spend("t3", "braces", 1)).toEqual({ ok: false, reason: "refused" });
@@ -494,7 +495,7 @@ describe("Splits assigned to a Goal", () => {
 			],
 		});
 
-	it("is Goal spending: out of the Earmark and the Goal's Account, never a Bucket or Free to Spend", async () => {
+	it("is Goal spending: out of what's set aside and the Goal's Account, never a Bucket or Free to Spend", async () => {
 		const free = await evaluate(freeToSpendSql(householdId, month));
 		expect(await split(10_000)).toEqual({ ok: true });
 		expect(await split(10_000)).toEqual({ ok: true });
@@ -532,12 +533,12 @@ describe("Splits assigned to a Goal", () => {
 		]);
 	});
 
-	it("refuses more than the Earmark, counting what the Transaction already takes from it", async () => {
+	it("refuses more than what's set aside, counting what the Transaction already takes from it", async () => {
 		await spend("t0", "braces", 20_000);
 		expect(await split(10_001)).toEqual({ ok: false, reason: "not-in-plan" });
 		expect(await split(10_000)).toEqual({ ok: true });
 		expect(await setAside("braces")).toBe(0);
-		// Split again with new Splits: its own $100 is back in the Earmark while they replace it.
+		// Split again with new Splits: its own $100 is back in what's set aside while they replace it.
 		expect(await split(10_000, ["food-2", "part-2"])).toEqual({ ok: true });
 		expect(await split(10_001, ["food-3", "part-3"])).toEqual({ ok: false, reason: "not-in-plan" });
 		expect(await setAside("braces")).toBe(0);
@@ -565,7 +566,7 @@ describe("Splits assigned to a Goal", () => {
 	});
 });
 
-describe("the Earmark guard's SQL agrees with @noodle/domain", () => {
+describe("what's set aside guard's SQL agrees with @noodle/domain", () => {
 	it("for every Goal", async () => {
 		await goal("braces", 300_000);
 		await goal("vacation");

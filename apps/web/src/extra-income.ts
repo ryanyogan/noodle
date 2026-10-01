@@ -1,4 +1,4 @@
-import type { Cents, DayKey, MonthKey, WindfallDestination } from "@noodle/domain";
+import type { Cents, DayKey, ExtraIncomeDestination, MonthKey } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatMoney } from "./format";
@@ -37,9 +37,9 @@ export type IncomeVariables = {
 export type ExtraIncomeVariables = {
 	/** A client ULID: retrying the same decision records it once. */
 	moveId: string;
-	/** The month the Windfall came in. */
+	/** The month the Extra income came in. */
 	month: MonthKey;
-	to: WindfallDestination;
+	to: ExtraIncomeDestination;
 	toName: string;
 	amountCents: Cents;
 };
@@ -63,7 +63,7 @@ export const withoutIncome = (data: MonthData, { incomeId }: { incomeId: string 
 	income: data.income.filter((i) => i.id !== incomeId),
 });
 
-/** A month's inputs with a Windfall Move in them: into a Bucket's Moves, or a Goal's funding. */
+/** A month's inputs with Extra income Move in them: into a Bucket's Moves, or a Goal's funding. */
 export function withExtraIncome(data: MonthData, v: ExtraIncomeVariables): MonthData {
 	const { moveId: id, month, amountCents: amount, to } = v;
 	if (data.moves.some((m) => m.id === id) || data.goalFunding.some((f) => f.id === id)) return data;
@@ -90,10 +90,10 @@ export const withoutExtraIncome = (data: MonthData, { moveId }: { moveId: string
 	goalFunding: data.goalFunding.filter((f) => f.id !== moveId),
 });
 
-/** The server refused a Windfall Move: the Windfall had less left, or the destination can't take it. */
+/** The server refused Extra income Move: the Extra income had less left, or the destination can't take it. */
 class ExtraIncomeRefused extends GoalRefused {
 	constructor(readonly left: Cents) {
-		super("Not enough Windfall left");
+		super("Not enough Extra income left");
 	}
 }
 
@@ -118,9 +118,12 @@ export function useIncome() {
 		onError: (error, v, rollback) => {
 			rollBack(queryClient, rollback);
 			if (error instanceof GoalRefused) {
-				toast("Some of this month’s Windfall has gone somewhere already, so the income stays.", {
-					tone: "error",
-				});
+				toast(
+					"Some of this month’s Extra income has gone somewhere already, so the income stays.",
+					{
+						tone: "error",
+					},
+				);
 			} else {
 				toast("Couldn’t remove the income, so it’s still there.", {
 					tone: "error",
@@ -166,7 +169,7 @@ export function useIncome() {
 }
 
 /**
- * Deciding where a Windfall goes, and undoing it. A Move to a Goal lands in the cached Goals
+ * Deciding where Extra income goes, and undoing it. A Move to a Goal lands in the cached Goals
  * records and the month's inputs at once, a Move to a Bucket in the month's; each rolls back if
  * the server fails or refuses it. Deciding's toast offers Undo.
  */
@@ -231,7 +234,7 @@ export function useExtraIncomes() {
 					: { tone: "error", action: { label: "Retry", onClick: () => undo.mutate(v) } },
 			);
 		},
-		onSuccess: () => toast("Undone: the money is back in the Windfall"),
+		onSuccess: () => toast("Undone: the money is back with the Extra income"),
 		onSettled,
 	});
 
@@ -248,19 +251,19 @@ export function useExtraIncomes() {
 			if (error instanceof ExtraIncomeRefused) {
 				toast(
 					error.left < v.amountCents
-						? `The Windfall has only ${formatMoney(error.left)} left, so nothing went to ${v.toName}.`
+						? `Only ${formatMoney(error.left)} of the Extra income is left, so nothing went to ${v.toName}.`
 						: `${v.toName} can’t take it now.`,
 					{ tone: "error" },
 				);
 			} else {
-				toast(`Couldn’t send the Windfall to ${v.toName}, so it’s been undone.`, {
+				toast(`Couldn’t send the Extra income to ${v.toName}, so it’s been undone.`, {
 					tone: "error",
 					action: { label: "Retry", onClick: () => decide.mutate(v) },
 				});
 			}
 		},
 		onSuccess: (_data, v) => {
-			toast(`${formatMoney(v.amountCents)} of the Windfall to ${v.toName}`, {
+			toast(`${formatMoney(v.amountCents)} of the Extra income to ${v.toName}`, {
 				tone: "success",
 				action: { label: "Undo", onClick: () => undo.mutate(v) },
 			});

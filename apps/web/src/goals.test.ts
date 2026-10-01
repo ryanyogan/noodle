@@ -47,7 +47,7 @@ const braces = {
 } as const;
 
 describe("the optimistic Goal edits", () => {
-	test("a new Goal claims Unclaimed money on its Account at once, once", () => {
+	test("a new Goal claims not set aside money on its Account at once, once", () => {
 		const data = withGoal(withGoal(goals, braces), braces);
 		const view = goalsView(data);
 		expect(view.goals).toMatchObject([
@@ -62,7 +62,7 @@ describe("the optimistic Goal edits", () => {
 		expect(view.accounts[1]).toMatchObject({ holdsMoney: false, earmarks: [] });
 	});
 
-	test("Goal spending lowers the Earmark and the Account's balance together", () => {
+	test("Goal spending lowers what's set aside and the Account's balance together", () => {
 		const data = withSpending(withGoal(goals, braces), {
 			transactionId: "t1",
 			goalId: "braces",

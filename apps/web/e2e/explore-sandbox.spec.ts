@@ -43,7 +43,7 @@ test("a Parent tweaks the Plan in a sandbox: amounts, new things, date ranges an
 	});
 	await switchTo(page, "Plan");
 	await page
-		.getByRole("region", { name: "Baseline to Free to Spend" })
+		.getByRole("region", { name: "From take-home pay to Free to Spend" })
 		.getByRole("link", { name: "Commitments", exact: true })
 		.click();
 	const addCommitment = page.getByRole("form", { name: "Add a Commitment" });
@@ -64,7 +64,7 @@ test("a Parent tweaks the Plan in a sandbox: amounts, new things, date ranges an
 	);
 	await expect(scenarioTotal(page)).toHaveText("$153,600");
 
-	// A one-off expense this month: the Cushion takes it, Free to Spend doesn't.
+	// A one-off expense this month: the Projected balance takes it, Free to Spend doesn't.
 	await page.getByRole("button", { name: "Add one-off" }).click();
 	const oneOff = page.getByRole("form", { name: "New one-off" });
 	await oneOff.getByRole("textbox", { name: "Name" }).fill("New roof");
@@ -72,11 +72,11 @@ test("a Parent tweaks the Plan in a sandbox: amounts, new things, date ranges an
 	await oneOff.getByRole("textbox", { name: "Amount" }).press("Tab");
 	await oneOff.getByRole("button", { name: "Add", exact: true }).click();
 	await expect(change(page, /^One-off expense: New roof \$3,000/)).toContainText(
-		"Takes $3,000 from the Cushion",
+		"Takes $3,000 from the projected balance",
 	);
 	await expect(scenarioTotal(page)).toHaveText("$153,600");
 	// $6,400 in the first month, less the roof.
-	await expect(page.getByText(/^Cushion lowest \$3,400 in /)).toBeVisible();
+	await expect(page.getByText(/^Projected balance at its lowest \$3,400 in /)).toBeVisible();
 
 	// A new Bucket at $200 a month.
 	await page.getByRole("button", { name: "Add Bucket" }).click();
@@ -90,10 +90,10 @@ test("a Parent tweaks the Plan in a sandbox: amounts, new things, date ranges an
 	);
 	await expect(scenarioTotal(page)).toHaveText("$148,800");
 
-	// The Baseline $1,000 lower for six months, a year from now.
-	await type(page, "Baseline", "8,000");
-	await page.getByLabel("Baseline from").selectOption({ index: 12 });
-	await page.getByLabel("Baseline until").selectOption({ index: 6 });
+	// Take-home pay $1,000 lower for six months, a year from now.
+	await type(page, "Take-home pay", "8,000");
+	await page.getByLabel("Take-home pay from").selectOption({ index: 12 });
+	await page.getByLabel("Take-home pay until").selectOption({ index: 6 });
 	const takeHomePay = change(page, /^Income \$9,000 → \$8,000 a month from \w+ \d{4} until/);
 	await expect(takeHomePay).toContainText("Costs $6,000 over 2 years");
 	await expect(scenarioTotal(page)).toHaveText("$142,800");
@@ -107,7 +107,7 @@ test("a Parent tweaks the Plan in a sandbox: amounts, new things, date ranges an
 	);
 	await expect(daycare).toContainText("Would free $9,600 over 2 years");
 	await expect(scenarioTotal(page)).toHaveText("$133,200");
-	await expect(page.getByText(/^Cushion lowest \$2,800 in /)).toBeVisible();
+	await expect(page.getByText(/^Projected balance at its lowest \$2,800 in /)).toBeVisible();
 	await expect(page.getByText("4 changes (1 muted) to the Plan")).toBeVisible();
 
 	// Unmuted, then removed from the list: back to the Plan's Daycare.

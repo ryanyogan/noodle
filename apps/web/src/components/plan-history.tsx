@@ -21,7 +21,7 @@ const fromTo = <T,>(was: T | undefined, now: T, text: (value: T) => string) =>
 	was === undefined ? text(now) : `${text(was)} → ${text(now)}`;
 
 /**
- * The values that moved, in words: "$500 → $600", "Fresh start → Rolling", "Renamed from
+ * The values that moved, in words: "$500 → $600", "Fresh start → carries over", "Renamed from
  * “Food”", "Every two weeks, due Oct 9", "Target $12,000 by Jun 30, 2027". Without `before`,
  * just what they are now.
  */
@@ -30,7 +30,7 @@ export function describeValues(before: PlanChangeValue | null, after: PlanChange
 	const parts: string[] = [];
 	if (was.name !== undefined && after.name !== undefined) parts.push(`Renamed from “${was.name}”`);
 	if ("amount" in after) {
-		// Nothing before (no Baseline yet, say) reads as set, not "none → $9,000".
+		// Nothing before (no take-home pay yet, say) reads as set, not "none → $9,000".
 		parts.push(
 			was.amount === null
 				? `Set to ${amountText(after.amount)}`
@@ -38,7 +38,7 @@ export function describeValues(before: PlanChangeValue | null, after: PlanChange
 		);
 	}
 	if (after.rolling !== undefined) {
-		parts.push(fromTo(was.rolling, after.rolling, (r) => (r ? "Rolling" : "Fresh start")));
+		parts.push(fromTo(was.rolling, after.rolling, (r) => (r ? "Carries over" : "Resets monthly")));
 	}
 	if (after.cadence !== undefined) {
 		parts.push(fromTo(was.cadence, after.cadence, (c) => cadenceNames[c]));
@@ -96,10 +96,10 @@ export function scopeText(change: Pick<PlanChange, "month" | "scope" | "after">)
 		: `From ${monthName(change.month)} on`;
 }
 
-/** What a group or change is about: the Bucket, Commitment or Goal, or the Baseline. */
+/** What a group or change is about: the Bucket, Commitment or Goal, or take-home pay. */
 export const groupTitle = (group: Pick<PlanChangeGroup, "kind" | "targetName">) =>
 	group.kind === "baseline"
-		? "Baseline"
+		? "Take-home pay"
 		: group.kind === "personal-allowance"
 			? PERSONAL_ALLOWANCE
 			: (group.targetName ?? "Removed item");

@@ -44,14 +44,14 @@ function describe(warning: PlanWarning): { title: string; meta: string; link: Li
 				title: `Free to Spend goes below zero in ${monthName(warning.month)}`,
 				meta:
 					warning.months > 1
-						? `${formatMoney(warning.freeToSpend)} then, and below zero in ${monthsText(warning.months)} of the next 12. Lower an amount or raise the Baseline.`
-						: `${formatMoney(warning.freeToSpend)} in the Plan as it stands. Lower an amount or raise the Baseline.`,
+						? `${formatMoney(warning.freeToSpend)} then, and below zero in ${monthsText(warning.months)} of the next 12. Lower an amount, or raise your take-home pay if it has gone up.`
+						: `${formatMoney(warning.freeToSpend)} in the Plan as it stands. Lower an amount, or raise your take-home pay if it has gone up.`,
 				link: { to: "/plan/$month", params: { month: warning.month } },
 			};
 		case "income-behind":
 			return {
-				title: "Income is behind the Baseline",
-				meta: `${formatMoney(warning.received)} received by now, ${formatMoney(warning.expected)} expected. If that’s the new normal, lower the Baseline.`,
+				title: "Income is behind your take-home pay",
+				meta: `${formatMoney(warning.received)} received by now, ${formatMoney(warning.expected)} expected. If that’s the new normal, lower your take-home pay.`,
 				link: { to: "/plan/$month/income", params: { month: warning.month } },
 			};
 		case "bucket-over":

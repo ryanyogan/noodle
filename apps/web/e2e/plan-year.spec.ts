@@ -12,7 +12,8 @@ test.afterEach(async () => {
 	await parent?.remove();
 });
 
-const waterfall = (page: Page) => page.getByRole("region", { name: "Baseline to Free to Spend" });
+const waterfall = (page: Page) =>
+	page.getByRole("region", { name: "From take-home pay to Free to Spend" });
 const health = (page: Page) => page.getByRole("region", { name: "Plan health" });
 const addForm = (page: Page) => page.getByRole("form", { name: "Add a Commitment" });
 
@@ -37,7 +38,7 @@ test("the year at a glance, and Plan health pointing at the fix", async ({ brows
 	// A healthy Plan has nothing to warn about.
 	await expect(health(page)).toHaveCount(0);
 
-	// A yearly Commitment bigger than a month's Baseline, due two months from now.
+	// A yearly Commitment bigger than a month's take-home pay, due two months from now.
 	const lumpy = addMonths(month, 2);
 	await waterfall(page).getByRole("link", { name: "Commitments", exact: true }).click();
 	const form = addForm(page);

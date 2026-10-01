@@ -6,7 +6,7 @@ import {
 	addBucket,
 	addPersonalAllowance,
 	createHouseholdForParent,
-	setBaseline,
+	setTakeHomePay,
 } from "./index";
 import { loadReview, returnToReview } from "./review";
 import { applyRule, deleteRule, editRule, listRules, loadRules, saveRule } from "./rules";
@@ -45,7 +45,7 @@ beforeEach(async () => {
 		{ id: "sam", householdId, kind: "parent", name: "Sam", clerkUserId: "clerk-sam" },
 		{ id: "maya", householdId, kind: "child", name: "Maya" },
 	]);
-	await setBaseline(db, { householdId, memberId: "alex", month, amountCents: 900_000 });
+	await setTakeHomePay(db, { householdId, memberId: "alex", month, amountCents: 900_000 });
 	for (const [bucketId, name] of [
 		["groceries", "Groceries"],
 		["fun", "Fun"],

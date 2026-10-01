@@ -21,14 +21,14 @@ const plan: Plan = {
 };
 
 describe("freeToSpendParts", () => {
-	it("takes the Baseline down to Free to Spend, part by part", () => {
+	it("takes take-home pay down to Free to Spend, part by part", () => {
 		const state = monthState({
 			plan,
 			spending: [],
 			moves: [{ fromBucketId: null, toBucketId: "hockey", amount: 5_000, month: "2026-09" }],
 			goalFunding: [
 				{ goalId: "trip", amount: 30_000, month: "2026-09" },
-				// A Windfall sent to a Goal doesn't come out of Free to Spend.
+				// Extra income sent to a Goal doesn't come out of Free to Spend.
 				{ goalId: "trip", amount: 9_000, month: "2026-09", windfall: true },
 			],
 			asOf: "2026-09-15",

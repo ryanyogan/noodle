@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-	type Lever,
-	leverHoldsIn,
-	leverImpacts,
+	changeHoldsIn,
+	changeImpacts,
 	monthBreakdown,
 	outcomeWarnings,
 	type PlanRecords,
@@ -10,6 +9,7 @@ import {
 	planAhead,
 	project,
 	projectionAssumptions,
+	type ScenarioChange,
 } from "./index";
 
 // $5,000 − $1,400 Daycare − $1,600 in allowances: $2,000 Free to Spend a month.
@@ -50,11 +50,11 @@ const college: ProjectionGoal = {
 
 /** The Plan and a Scenario of `levers`, and the warnings between them. */
 function outcome(
-	scenarioChanges: Lever[],
+	scenarioChanges: ScenarioChange[],
 	{ count = 12, goals = [] as ProjectionGoal[], plan = records() } = {},
 ) {
 	const ahead = planAhead(plan, goals, "2026-09", count);
-	const impacts = leverImpacts(ahead, scenarioChanges);
+	const impacts = changeImpacts(ahead, scenarioChanges);
 	const projections = { plan: project(ahead), scenario: project(ahead, scenarioChanges) };
 	return {
 		...projections,
@@ -68,8 +68,8 @@ function outcome(
 	};
 }
 
-const raise: Lever = { kind: "baseline", amount: 510_000, fromMonth: "2026-09" };
-const groceries: Lever = {
+const raise: ScenarioChange = { kind: "baseline", amount: 510_000, fromMonth: "2026-09" };
+const groceries: ScenarioChange = {
 	kind: "allowance",
 	bucketId: "groceries",
 	amount: 400_000,
@@ -82,8 +82,8 @@ describe("outcomeWarnings", () => {
 		expect(outcome([raise]).warnings).toEqual([]);
 	});
 
-	it("says when Free to Spend goes negative and the Cushion runs out, and which change did it", () => {
-		// From November: $5,100 − $1,400 − $4,400 = −$700 a month, eating a $4,200 Cushion by May.
+	it("says when Free to Spend goes negative and the Projected balance runs out, and which change did it", () => {
+		// From November: $5,100 − $1,400 − $4,400 = −$700 a month, eating a $4,200 Projected balance by May.
 		const { warnings } = outcome([raise, groceries]);
 		expect(warnings).toEqual([
 			{
@@ -95,7 +95,7 @@ describe("outcomeWarnings", () => {
 			},
 			{
 				kind: "cushion-negative",
-				text: "The Cushion dips below zero from May 2027",
+				text: "The projected balance dips below zero from May 2027",
 				month: "2027-05",
 				goalId: null,
 				lever: 1,
@@ -103,8 +103,8 @@ describe("outcomeWarnings", () => {
 		]);
 	});
 
-	it("blames a one-off that empties the Cushion, though Free to Spend holds", () => {
-		const roof: Lever = {
+	it("blames a one-off that empties the Projected balance, though Free to Spend holds", () => {
+		const roof: ScenarioChange = {
 			kind: "one-off",
 			oneOffId: "roof",
 			name: "New roof",
@@ -118,7 +118,7 @@ describe("outcomeWarnings", () => {
 		expect(warnings).toEqual([
 			expect.objectContaining({
 				kind: "cushion-negative",
-				text: "The Cushion dips below zero from Oct 2026",
+				text: "The projected balance dips below zero from Oct 2026",
 				lever: 1,
 			}),
 		]);
@@ -129,7 +129,7 @@ describe("outcomeWarnings", () => {
 		const { warnings } = outcome([], { plan: records(400_000) });
 		expect(warnings.map((w) => [w.text, w.lever])).toEqual([
 			["Free to Spend goes negative in Sep 2026, as in the Plan", null],
-			["The Cushion dips below zero from Sep 2026, as in the Plan", null],
+			["The projected balance dips below zero from Sep 2026, as in the Plan", null],
 		]);
 	});
 
@@ -138,7 +138,7 @@ describe("outcomeWarnings", () => {
 	});
 
 	it("says a Goal slips, and by how many months", () => {
-		const later: Lever = {
+		const later: ScenarioChange = {
 			kind: "goal",
 			goalId: "college",
 			target: 1_200_000,
@@ -168,7 +168,7 @@ describe("outcomeWarnings", () => {
 	});
 
 	it("doesn't warn about a Goal reached sooner", () => {
-		const sooner: Lever = {
+		const sooner: ScenarioChange = {
 			kind: "goal",
 			goalId: "college",
 			target: 1_200_000,
@@ -180,12 +180,12 @@ describe("outcomeWarnings", () => {
 });
 
 describe("monthBreakdown", () => {
-	const endDaycare: Lever = {
+	const endDaycare: ScenarioChange = {
 		kind: "end-commitment",
 		commitmentId: "daycare",
 		fromMonth: "2026-12",
 	};
-	const bonus: Lever = {
+	const bonus: ScenarioChange = {
 		kind: "one-off",
 		oneOffId: "bonus",
 		name: "Bonus",
@@ -226,9 +226,9 @@ describe("monthBreakdown", () => {
 	});
 });
 
-describe("leverHoldsIn", () => {
+describe("changeHoldsIn", () => {
 	it("holds a one-off in its month only, and a new Commitment for its term", () => {
-		const roof: Lever = {
+		const roof: ScenarioChange = {
 			kind: "one-off",
 			oneOffId: "roof",
 			name: "Roof",
@@ -236,9 +236,9 @@ describe("leverHoldsIn", () => {
 			flow: "expense",
 			fromMonth: "2027-05",
 		};
-		expect(leverHoldsIn(roof, "2027-05")).toBe(true);
-		expect(leverHoldsIn(roof, "2027-06")).toBe(false);
-		const car: Lever = {
+		expect(changeHoldsIn(roof, "2027-05")).toBe(true);
+		expect(changeHoldsIn(roof, "2027-06")).toBe(false);
+		const car: ScenarioChange = {
 			kind: "add-commitment",
 			commitmentId: "car",
 			name: "Car",
@@ -249,9 +249,9 @@ describe("leverHoldsIn", () => {
 			fromMonth: "2027-01",
 		};
 		expect(
-			(["2026-12", "2027-01", "2027-03", "2027-04"] as const).map((m) => leverHoldsIn(car, m)),
+			(["2026-12", "2027-01", "2027-03", "2027-04"] as const).map((m) => changeHoldsIn(car, m)),
 		).toEqual([false, true, true, false]);
-		expect(leverHoldsIn(groceries, "2030-01")).toBe(true);
+		expect(changeHoldsIn(groceries, "2030-01")).toBe(true);
 	});
 });
 
@@ -262,13 +262,20 @@ describe("projectionAssumptions", () => {
 			"Dated Goals are funded what they need each month; undated ones aren’t.",
 			"No interest or investment returns.",
 			"No raises or inflation.",
-			"The Cushion starts at $0.",
+			"The projected balance starts at $0 today, not at what’s in your Accounts.",
 		]);
-		const growth: Lever = { kind: "growth", incomePct: 3, costsPct: 2.5, fromMonth: "2027-01" };
+		const growth: ScenarioChange = {
+			kind: "growth",
+			incomePct: 3,
+			costsPct: 2.5,
+			fromMonth: "2027-01",
+		};
 		expect(projectionAssumptions([growth], 1_250_000)).toContain(
 			"Income grows 3% and costs 2.5% a year from Jan 2027.",
 		);
-		expect(projectionAssumptions([growth], 1_250_000)).toContain("The Cushion starts at $12,500.");
+		expect(projectionAssumptions([growth], 1_250_000)).toContain(
+			"The projected balance starts at $12,500.",
+		);
 		expect(projectionAssumptions([{ ...growth, muted: true }], 0)).toContain(
 			"No raises or inflation.",
 		);

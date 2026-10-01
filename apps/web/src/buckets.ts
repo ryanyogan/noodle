@@ -40,5 +40,5 @@ export function availableParts(
 			: amount < 0
 				? ` − ${formatMoney(-amount)} ${lost}`
 				: "";
-	return `${formatMoney(bucket.allowance)} planned${part(bucket.rolledOver, "rolled over", "overspent last month")}${part(bucket.moved, "moved in", "moved out")}`;
+	return `${formatMoney(bucket.allowance)} planned${part(bucket.rolledOver, "carried over", "overspent last month")}${part(bucket.moved, "moved in", "moved out")}`;
 }

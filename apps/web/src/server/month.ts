@@ -56,9 +56,9 @@ export type MonthData = {
 	 * Plan change this month only changes what rolls into later ones.
 	 */
 	rolledOver: Record<string, Cents>;
-	/** Moves from Free to Spend into Goals' Earmarks. */
+	/** Moves from Free to Spend into what Goals have set aside. */
 	goalFunding: (GoalFunding & { id: string })[];
-	/** Fresh-start Buckets' leftovers Swept into Goals as the month closed. */
+	/** Buckets that reset monthly' leftovers Swept into Goals as the month closed. */
 	sweeps: PlanSweep[];
 	/** How the month was closed (see month-close), or null while it hasn't been. */
 	closed: MonthCloseRecord | null;

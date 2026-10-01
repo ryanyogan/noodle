@@ -44,7 +44,7 @@ function GoalsPage() {
 					<EmptyState
 						icon={<Target />}
 						title="Goals are money set aside in an Account"
-						description="Each Goal is an Earmark on a checking or savings Account: money there that’s spoken for, like braces or a trip. Add the Account first, with what’s in it now."
+						description="A Goal is money in a checking or savings Account that you’re keeping for something, like braces or a trip. Add the Account first, with what’s in it now."
 					/>
 					<AccountsLink />
 				</div>

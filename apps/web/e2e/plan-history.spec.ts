@@ -2,7 +2,8 @@ import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { createPlannedHousehold, savedBy, signedInPage, switchTo } from "./session";
 
-const waterfall = (page: Page) => page.getByRole("region", { name: "Baseline to Free to Spend" });
+const waterfall = (page: Page) =>
+	page.getByRole("region", { name: "From take-home pay to Free to Spend" });
 const whatChanged = (page: Page) => page.getByRole("region", { name: "What changed" });
 const item = (page: Page, title: string) =>
 	whatChanged(page)

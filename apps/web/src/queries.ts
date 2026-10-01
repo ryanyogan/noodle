@@ -221,7 +221,7 @@ export const scenariosQuery = () =>
 		queryFn: () => getScenarios(),
 	});
 
-/** Every Account, Goal and Earmark change, with the Household's current month. */
+/** Every Account, Goal and set-aside money change, with the Household's current month. */
 export const goalsQuery = () =>
 	queryOptions({
 		queryKey: ["goals"],

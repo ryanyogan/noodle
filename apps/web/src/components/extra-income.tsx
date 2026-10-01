@@ -2,9 +2,9 @@ import type { IncomeRecord } from "@noodle/db";
 import {
 	type BucketState,
 	type Cents,
+	type ExtraIncomeDestination,
+	type ExtraIncomeSuggestion,
 	parseDollars,
-	type WindfallDestination,
-	type WindfallSuggestion,
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Field } from "@noodle/ui/components/field";
@@ -19,8 +19,9 @@ import { formatMoney, formatMoneyInput, shortDay } from "../format";
 import type { GoalView } from "../goals";
 import { AmountInput } from "./goals";
 import { NativeSelect } from "./native-select";
+import { TermHelp } from "./term-help";
 
-/** The month's income against the Baseline: what came in, and each entry (removable this month). */
+/** The month's income against the Take-home pay: what came in, and each entry (removable this month). */
 export function IncomeSection({
 	baseline,
 	income,
@@ -53,7 +54,7 @@ export function IncomeSection({
 			/>
 			<p className="px-1 pb-2 text-sm text-muted-foreground">
 				<span className="font-medium text-foreground tabular-nums">{formatMoney(received)}</span>{" "}
-				received of the {formatMoney(baseline)} Baseline
+				received of {formatMoney(baseline)} usual take-home pay
 			</p>
 			{income.length > 0 ? (
 				<List>
@@ -86,7 +87,7 @@ export function IncomeSection({
 	);
 }
 
-const reasonText = (suggestion: WindfallSuggestion, goals: GoalView[]) => {
+const reasonText = (suggestion: ExtraIncomeSuggestion, goals: GoalView[]) => {
 	if (suggestion.reason === "overspent") return "Overspent this month";
 	if (suggestion.reason === "emergency") return "Your emergency Goal";
 	const goal = goals.find((g) => suggestion.to.kind === "goal" && g.id === suggestion.to.goalId);
@@ -96,8 +97,8 @@ const reasonText = (suggestion: WindfallSuggestion, goals: GoalView[]) => {
 };
 
 /**
- * A month's Windfall awaiting a decision: a few suggested places for it (deterministic rules,
- * see windfallSuggestions), each sent with one tap, or somewhere else of the Parent's choosing.
+ * A month's Extra income awaiting a decision: a few suggested places for it (deterministic rules,
+ * see extraIncomeSuggestions), each sent with one tap, or somewhere else of the Parent's choosing.
  */
 export function ExtraIncomeSection({
 	left,
@@ -106,19 +107,20 @@ export function ExtraIncomeSection({
 	onSend,
 	onChoose,
 }: {
-	/** The Windfall still to decide. */
+	/** The Extra income still to decide. */
 	left: Cents;
-	suggestions: WindfallSuggestion[];
+	suggestions: ExtraIncomeSuggestion[];
 	goals: GoalView[];
-	onSend: (suggestion: WindfallSuggestion) => void;
+	onSend: (suggestion: ExtraIncomeSuggestion) => void;
 	onChoose: () => void;
 }) {
 	const hydrated = useHydrated();
 	return (
-		<Section aria-labelledby="windfall">
+		<Section aria-labelledby="extra-income">
 			<SectionHeader
-				id="windfall"
-				title="Windfall"
+				id="extra-income"
+				title="Extra income"
+				help={<TermHelp term="extra-income" />}
 				action={
 					<Button variant="outline" size="sm" disabled={!hydrated} onClick={onChoose}>
 						Choose where
@@ -127,7 +129,8 @@ export function ExtraIncomeSection({
 			/>
 			<p className="px-1 pb-3 text-sm text-muted-foreground">
 				<span className="font-medium text-foreground tabular-nums">{formatMoney(left)}</span> came
-				in beyond the Baseline. Decide where it goes, so it doesn’t drift into everyday spending.
+				in above your usual take-home pay. Decide where it goes, so it doesn’t drift into everyday
+				spending.
 			</p>
 			{suggestions.length > 0 ? (
 				<List aria-label="Suggestions">
@@ -155,16 +158,16 @@ export function ExtraIncomeSection({
 	);
 }
 
-/** Where the Windfall can go: the active Goals, and (this month) the Buckets the Parent can use. */
+/** Where Extra income can go: the active Goals, and (this month) the Buckets the Parent can use. */
 export type ExtraIncomePlaces = {
 	goals: Pick<GoalView, "id" | "name">[];
 	buckets: Pick<BucketState, "id" | "name">[];
 };
 
-const destinationValue = (to: WindfallDestination) =>
+const destinationValue = (to: ExtraIncomeDestination) =>
 	to.kind === "goal" ? `goal:${to.goalId}` : `bucket:${to.bucketId}`;
 
-/** Sends some of a Windfall to a Goal or Bucket the Parent picks. */
+/** Sends some of the Extra income to a Goal or Bucket the Parent picks. */
 export function ExtraIncomeSheet({
 	open,
 	onOpenChange,
@@ -176,15 +179,15 @@ export function ExtraIncomeSheet({
 	onOpenChange: (open: boolean) => void;
 	left: Cents;
 	places: ExtraIncomePlaces;
-	onSend: (to: WindfallDestination, name: string, amountCents: Cents) => void;
+	onSend: (to: ExtraIncomeDestination, name: string, amountCents: Cents) => void;
 }) {
 	return (
 		<Sheet open={open} onOpenChange={onOpenChange}>
 			{open ? (
 				<SheetContent>
 					<SheetHeader
-						title="Send the Windfall"
-						description="Moves money from the Windfall into a Goal’s Earmark or a Bucket. Free to Spend stays as it is."
+						title="Send the Extra income"
+						description="Sets it aside for a Goal or adds it to a Bucket. Free to Spend stays as it is."
 					/>
 					<ExtraIncomeForm left={left} places={places} onSend={onSend} />
 				</SheetContent>
@@ -200,7 +203,7 @@ function ExtraIncomeForm({
 }: {
 	left: Cents;
 	places: ExtraIncomePlaces;
-	onSend: (to: WindfallDestination, name: string, amountCents: Cents) => void;
+	onSend: (to: ExtraIncomeDestination, name: string, amountCents: Cents) => void;
 }) {
 	const hydrated = useHydrated();
 	const id = useId();
@@ -266,8 +269,8 @@ function ExtraIncomeForm({
 				hint={
 					<span className={cn(tooMuch && "text-over")}>
 						{tooMuch
-							? `The Windfall has only ${formatMoney(left)} left.`
-							: `${formatMoney(left)} of the Windfall is left to decide.`}
+							? `Only ${formatMoney(left)} of the Extra income is left.`
+							: `${formatMoney(left)} of the Extra income is left to decide.`}
 					</span>
 				}
 			>

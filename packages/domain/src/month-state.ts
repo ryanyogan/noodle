@@ -20,7 +20,7 @@ export type Charge = { commitmentId: string; amount: Cents; date: DayKey };
 /**
  * A Move of planned money within one month's Plan, from a Bucket (or from Free to Spend, when
  * `fromBucketId` is null) to a Bucket. No real money moves. A Cover is one. With `windfall`, it
- * comes from the month's Windfall instead, so Free to Spend is untouched.
+ * comes from the month's Extra income instead, so Free to Spend is untouched.
  */
 export type Move = {
 	fromBucketId: string | null;
@@ -32,12 +32,12 @@ export type Move = {
 
 /**
  * Goal funding: a Move of planned money from Free to Spend in one month's Plan into a Goal's
- * Earmark. Like any Move, no real money moves; the Goal's Account already holds it. With
- * `windfall`, it comes from the month's Windfall instead, so Free to Spend is untouched.
+ * set-aside money. Like any Move, no real money moves; the Goal's Account already holds it. With
+ * `windfall`, it comes from the month's Extra income instead, so Free to Spend is untouched.
  */
 export type GoalFunding = { goalId: string; amount: Cents; month: MonthKey; windfall?: boolean };
 
-/** A Sweep: a Move of a Fresh-start Bucket's leftover at the end of `month` into a Goal. */
+/** A Sweep: a Move of a Bucket that resets monthly's leftover at the end of `month` into a Goal. */
 export type Sweep = { bucketId: string; goalId: string; amount: Cents; month: MonthKey };
 
 /**
@@ -47,7 +47,7 @@ export type Sweep = { bucketId: string; goalId: string; amount: Cents; month: Mo
 export type BucketStatus = "on-pace" | "ahead" | "over";
 
 export type BucketState = PlanBucket & {
-	/** Carried in from last month, when the Bucket was Rolling then; negative if it was overspent. */
+	/** Carried in from last month, when the Bucket carrying over then; negative if it was overspent. */
 	rolledOver: Cents;
 	/** Moved into the Bucket this month, less what was moved out of it (Swept included). */
 	moved: Cents;
@@ -104,13 +104,13 @@ export type MonthState = Omit<Plan, "buckets" | "commitments"> & {
 	movedToBuckets: Cents;
 	/** Moved from Free to Spend into Goals this month (Goal funding). */
 	fundedGoals: Cents;
-	/** Negative when the Plan assigns more than the Baseline. */
+	/** Negative when the Plan assigns more than take-home pay. */
 	freeToSpend: Cents;
 	/** Income received this month. */
 	received: Cents;
-	/** Income received this month beyond the Baseline. */
+	/** Income received this month beyond take-home pay. */
 	windfall: Cents;
-	/** The Windfall not yet Moved to a Goal or Bucket, awaiting a decision. */
+	/** The Extra income not yet Moved to a Goal or Bucket, awaiting a decision. */
 	windfallLeft: Cents;
 	/** What's left across Buckets, not counting any Bucket's overspending. */
 	leftInBuckets: Cents;
@@ -125,8 +125,8 @@ const PACE_TOLERANCE = 0.03;
  * The state of a month: each Bucket's allowance, spent, left, Pace, and status, each
  * Commitment's expected and actual amounts, and Free to Spend, as of the end of a given day.
  * Moves shift money between Buckets and Free to Spend; Goal funding takes it out of Free to
- * Spend; a Sweep takes a Bucket's leftover into a Goal; income beyond the Baseline is the
- * Windfall, and Moves from it add to Buckets and Goals without touching Free to Spend; what rolled over from last month (see `rolledOver`) adds to a Bucket without touching
+ * Spend; a Sweep takes a Bucket's leftover into a Goal; income beyond take-home pay is the
+ * Extra income, and Moves from it add to Buckets and Goals without touching Free to Spend; what rolled over from last month (see `rolledOver`) adds to a Bucket without touching
  * Free to Spend. Spending, charges, and Moves outside the
  * month, or involving a Bucket or Commitment not in the Plan, are ignored. The server and the client's optimistic updates both call this, so the numbers a
  * Parent sees before and after a save are the same.

@@ -16,8 +16,8 @@ import {
 	loadRolledOver,
 	loadSpending,
 	setAllowance,
-	setBaseline,
-	setRolling,
+	setCarriesOver,
+	setTakeHomePay,
 	updateCommitment,
 } from "./index";
 import { addCover, bucketLeftSql, freeToSpendSql, loadMoves, undoMove } from "./moves";
@@ -38,7 +38,7 @@ async function seed(db: Db) {
 		parentName: "Alex",
 	});
 	const month = "2026-09";
-	await setBaseline(db, { householdId, memberId: parentId, month, amountCents: 900_000 });
+	await setTakeHomePay(db, { householdId, memberId: parentId, month, amountCents: 900_000 });
 	for (const [bucketId, color, allowanceCents] of [
 		["groceries", 1, 120_000],
 		["hockey", 2, 40_000],
@@ -188,7 +188,7 @@ describe("the Cover guard's SQL agrees with @noodle/domain", () => {
 			month: "2026-10",
 			amountCents: 100_000,
 		});
-		await setBaseline(db, {
+		await setTakeHomePay(db, {
 			householdId,
 			memberId: parentId,
 			month: "2026-12",
@@ -270,7 +270,7 @@ describe("addCover", () => {
 	});
 
 	it("refuses more than Free to Spend has left", async () => {
-		// $9,000 Baseline − $3,700 Commitments − $1,850 in Buckets.
+		// $9,000 take-home pay − $3,700 Commitments − $1,850 in Buckets.
 		expect(await cover("m1", null, "hockey", 345_001)).toEqual({ ok: false, reason: "refused" });
 		expect(await cover("m2", null, "hockey", 340_000)).toEqual({ ok: true });
 		expect(await cover("m3", null, "hockey", 5_001)).toEqual({ ok: false, reason: "refused" });
@@ -340,7 +340,7 @@ describe("undoMove", () => {
 		expect(await loadMoves(db, householdId, "2026-09")).toHaveLength(1);
 	});
 
-	it("leaves Goal funding alone (undoGoalFunding guards the Earmark)", async () => {
+	it("leaves Goal funding alone (undoGoalFunding guards what's set aside)", async () => {
 		await fundBraces("m1", 1_000);
 		await undoMove(db, { householdId, moveId: "m1", month: "2026-09" });
 		expect(await loadGoalFunding(db, householdId, "2026-09")).toHaveLength(1);
@@ -348,8 +348,8 @@ describe("undoMove", () => {
 });
 
 describe("what rolls over", () => {
-	it("carries a Rolling Bucket's September leftover, after Covers, into October and later", async () => {
-		await setRolling(db, {
+	it("carries a Bucket that carries over's September leftover, after Covers, into October and later", async () => {
+		await setCarriesOver(db, {
 			householdId,
 			memberId: parentId,
 			bucketId: "hockey",
@@ -362,13 +362,13 @@ describe("what rolls over", () => {
 		const into = async (month: MonthKey) =>
 			loadRolledOver(db, householdId, await loadPlanRecords(db, householdId, month), month);
 		expect(await into("2026-09")).toEqual({});
-		// Hockey: 40,000 + 2,000 covered − 45,000; Groceries is Fresh-start.
+		// Hockey: 40,000 + 2,000 covered − 45,000; Groceries is resets monthly.
 		expect(await into("2026-10")).toEqual({ hockey: -3_000 });
 		expect(await into("2026-11")).toEqual({ hockey: 37_000 });
 	});
 
 	it("keeps the Cover guard in step with the domain once something has rolled over", async () => {
-		await setRolling(db, {
+		await setCarriesOver(db, {
 			householdId,
 			memberId: parentId,
 			bucketId: "hockey",
@@ -405,22 +405,22 @@ describe("what rolls over", () => {
 		expect(await coverFromHockey("m2", 70_000)).toEqual({ ok: true });
 	});
 
-	it("sets Rolling only on the Household's own Buckets, replacing the same month's setting", async () => {
-		await setRolling(db, {
+	it("sets carries over only on the Household's own Buckets, replacing the same month's setting", async () => {
+		await setCarriesOver(db, {
 			householdId: "other",
 			memberId: parentId,
 			bucketId: "hockey",
 			month: "2026-09",
 			rolling: true,
 		});
-		await setRolling(db, {
+		await setCarriesOver(db, {
 			householdId,
 			memberId: parentId,
 			bucketId: "fun",
 			month: "2026-10",
 			rolling: true,
 		});
-		await setRolling(db, {
+		await setCarriesOver(db, {
 			householdId,
 			memberId: parentId,
 			bucketId: "fun",

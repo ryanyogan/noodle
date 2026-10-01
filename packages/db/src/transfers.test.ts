@@ -19,7 +19,7 @@ import {
 	loadTransfer,
 	loadUncategorized,
 	markTransfer,
-	setBaseline,
+	setTakeHomePay,
 	unlinkRefund,
 	unmarkTransfer,
 } from "./index";
@@ -57,7 +57,7 @@ beforeEach(async () => {
 		name: "Sam",
 		clerkUserId: "clerk-sam",
 	});
-	await setBaseline(db, { householdId, memberId: parentId, month, amountCents: 600_000 });
+	await setTakeHomePay(db, { householdId, memberId: parentId, month, amountCents: 600_000 });
 	await addBucket(db, {
 		householdId,
 		memberId: parentId,
@@ -168,7 +168,7 @@ describe("Transfers on Import", () => {
 		]);
 		const income = await loadIncome(db, householdId, month, "2026-10");
 		expect(income.map((row) => row.note)).toEqual(["ACME PAYROLL"]);
-		// The Windfall is payroll beyond the Baseline, not the money from savings.
+		// The Extra income is payroll beyond take-home pay, not the money from savings.
 		const [left] = await db.values<[number]>(sql`select ${extraIncomeLeftSql(householdId, month)}`);
 		expect(left?.[0]).toBe(10_000);
 		const out = await loadTransfer(db, viewer, await idOf("TRANSFER TO CHECKING"));

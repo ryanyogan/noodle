@@ -61,7 +61,7 @@ function CommitmentPage() {
 					<Card role="region" aria-labelledby="commitment-cost">
 						<div className="grid gap-1 p-(--card-pad)">
 							<h2 id="commitment-cost" className="text-[13px] font-medium text-muted-foreground">
-								{ended ? "Cost a year, when it ended" : "Cost a year"}
+								{ended ? "What it cost a year" : "Cost a year"}
 							</h2>
 							<p className="flex flex-wrap items-baseline gap-x-2">
 								<span className="text-[2.25rem] font-[650] leading-[1.05] tracking-[-0.035em] tabular-nums">
@@ -81,16 +81,18 @@ function CommitmentPage() {
 								value={
 									commitment.endedFromMonth === null
 										? "No end date"
-										: `After ${monthName(addMonths(commitment.endedFromMonth, -1))}`
+										: ended
+											? lastMonthText(addMonths(commitment.endedFromMonth, -1))
+											: `After ${lastMonthText(addMonths(commitment.endedFromMonth, -1))}`
 								}
 							/>
 						</dl>
 						{ended ? null : (
 							<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t px-(--card-pad) py-2.5 text-[13px] text-muted-foreground">
-								<p className="py-1">See what ending it would free up.</p>
+								<p className="py-1">Try it in Explore: nothing in the Plan changes.</p>
 								<Button variant="outline" size="sm" asChild>
 									<Link to="/explore" search={{ lever: `end-commitment:${id}` }}>
-										Try ending this
+										See what ending it frees up
 									</Link>
 								</Button>
 							</div>
@@ -231,3 +233,6 @@ function Stat({ label, value }: { label: string; value: string }) {
 		</div>
 	);
 }
+
+/** "July 2026": the last month a Commitment is (or was) in the Plan. */
+const lastMonthText = (month: MonthKey) => `${monthName(month)} ${month.slice(0, 4)}`;

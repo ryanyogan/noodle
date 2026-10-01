@@ -5,8 +5,8 @@ import {
 	loadPlanChanges,
 	reorderBuckets as reorderBucketsInDb,
 	setAllowance as setAllowanceInDb,
-	setRolling as setCarriesOverInDb,
-	setBaseline as setTakeHomePayInDb,
+	setCarriesOver as setCarriesOverInDb,
+	setTakeHomePay as setTakeHomePayInDb,
 	updateBucket as updateBucketInDb,
 } from "@noodle/db";
 import {
@@ -41,7 +41,7 @@ export function assertEditable(household: Pick<HouseholdSummary, "timeZone">, mo
 	}
 }
 
-/** Sets the Baseline from `month` onward, or just for `month`. */
+/** Sets take-home pay from `month` onward, or just for `month`. */
 export const setTakeHomePay = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ month: monthKeySchema, amountCents: centsSchema, scope: planScopeSchema }))
@@ -138,7 +138,7 @@ export const setAllowance = createServerFn({ method: "POST" })
 		await notifyHousehold(context.household.id, ["months"]);
 	});
 
-/** Sets a Bucket Rolling or Fresh-start from `month` onward; it changes what rolls into later months. */
+/** Sets a Bucket carries over or resets monthly from `month` onward; it changes what rolls into later months. */
 export const setCarriesOver = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ bucketId: ulidSchema, month: monthKeySchema, rolling: z.boolean() }))

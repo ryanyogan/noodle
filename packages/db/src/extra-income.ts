@@ -1,4 +1,4 @@
-import type { Cents, DayKey, MonthKey, WindfallDestination } from "@noodle/domain";
+import type { Cents, DayKey, ExtraIncomeDestination, MonthKey } from "@noodle/domain";
 import { addMonths } from "@noodle/domain";
 import { and, eq, gte, isNotNull, isNull, lt, type SQL, sql } from "drizzle-orm";
 import { incomeCounts, incomeCountsRaw } from "./counting";
@@ -8,7 +8,7 @@ import { bucketInPlan } from "./moves";
 import { assignableBy } from "./privacy";
 import { buckets, goals, income, moves, transfers } from "./schema";
 
-// Income, and Windfall Moves: income beyond a month's Baseline Moved deliberately to a Goal or a
+// Income, and Extra income Moves: income beyond a month's take-home pay Moved deliberately to a Goal or a
 // Bucket (ADR-0001), never silently into Free to Spend. Every query is scoped by household_id.
 
 /** Income with its ID and note. */
@@ -65,8 +65,8 @@ export async function addIncome(
 		.onConflictDoNothing({ target: income.id });
 }
 
-// A month's Windfall, computed from the rows inside the write that depends on it, so a
-// concurrent write by the other Parent can't make it wrong. Mirrors windfallOf in @noodle/domain
+// A month's Extra income, computed from the rows inside the write that depends on it, so a
+// concurrent write by the other Parent can't make it wrong. Mirrors extraIncomeOf in @noodle/domain
 // (windfalls.test.ts holds it to it).
 
 const receivedSql = (householdId: string, month: MonthKey) =>
@@ -84,11 +84,11 @@ const decidedSql = (householdId: string, month: MonthKey) =>
 	sql`coalesce((select sum(m.amount_cents) from moves m
 		where m.household_id = ${householdId} and m.month = ${month} and m.kind = 'windfall'), 0)`;
 
-/** The month's income beyond its Baseline; 0 without a Baseline. */
+/** The month's income beyond its take-home pay; 0 without take-home pay. */
 const extraIncomeSql = (householdId: string, month: MonthKey, lessReceived: SQL | Cents = 0) =>
 	sql`coalesce(max(0, ${receivedSql(householdId, month)} - ${lessReceived} - ${takeHomePaySql(householdId, month)}), 0)`;
 
-/** What's left of the month's Windfall to decide. */
+/** What's left of the month's Extra income to decide. */
 export function extraIncomeLeftSql(householdId: string, month: MonthKey): SQL {
 	return sql`(${extraIncomeSql(householdId, month)} - ${decidedSql(householdId, month)})`;
 }
@@ -97,7 +97,7 @@ export type IncomeWriteResult = { ok: true } | { ok: false; reason: "refused" };
 
 /**
  * Removes income recorded by mistake. Refused while what's already been decided of its month's
- * Windfall would no longer be covered without it. Removing it twice changes nothing.
+ * Extra income would no longer be covered without it. Removing it twice changes nothing.
  */
 export async function removeIncome(
 	db: Db,
@@ -134,8 +134,8 @@ export async function removeIncome(
 }
 
 /**
- * Moves `amountCents` of `month`'s Windfall to a Goal's Earmark or a Bucket. Idempotent per
- * `moveId`. Refused unless, at write time, the Windfall still has that much left, and the Goal is
+ * Moves `amountCents` of `month`'s Extra income to what a Goal has set aside or a Bucket. Idempotent per
+ * `moveId`. Refused unless, at write time, the Extra income still has that much left, and the Goal is
  * the Household's and active, or the Bucket is in the month's Plan and isn't the other Parent's
  * Personal Allowance.
  */
@@ -155,13 +155,13 @@ type ExtraIncomeMoveInput = {
 	householdId: string;
 	moveId: string;
 	month: MonthKey;
-	to: WindfallDestination;
+	to: ExtraIncomeDestination;
 	amountCents: Cents;
 	/** Null when month-close applies it; then only Household Buckets can take it. */
 	createdByMemberId: string | null;
 };
 
-/** A Windfall Move's guarded insert (see decideWindfall), also landing only if `guard` holds. */
+/** Extra income Move's guarded insert (see decideExtraIncome), also landing only if `guard` holds. */
 export function insertExtraIncomeMove(db: Db, input: ExtraIncomeMoveInput, guard?: SQL) {
 	const { householdId, month, to } = input;
 	// Selected in the table's column order: insert … select is positional.
@@ -208,8 +208,8 @@ export function insertExtraIncomeMove(db: Db, input: ExtraIncomeMoveInput, guard
 }
 
 /**
- * Undoes a Windfall Move, putting the money back in the Windfall. Refused if it went to a Goal
- * that has since spent it (its Earmark is less than the Move). Undoing it twice changes nothing.
+ * Undoes Extra income Move, putting the money back in the Extra income. Refused if it went to a Goal
+ * that has since spent it (what it has set aside is less than the Move). Undoing it twice changes nothing.
  */
 export async function undoExtraIncome(
 	db: Db,

@@ -9,7 +9,7 @@ export const ACCOUNT_KINDS = ["checking", "savings", "credit-card", "loan"] as c
  */
 export type AccountKind = (typeof ACCOUNT_KINDS)[number];
 
-/** Only Accounts that hold money can back a Goal's Earmark. */
+/** Only Accounts that hold money can back what a Goal has set aside. */
 export const holdsMoney = (kind: AccountKind) => kind === "checking" || kind === "savings";
 
 /** A balance a Parent entered for an Account, and when it was recorded (ms). */
@@ -35,7 +35,7 @@ export function accountBalance(
 }
 
 /**
- * One change to a Goal's Earmark, signed. `claim`: Unclaimed money set aside for the Goal (or
+ * One change to what a Goal has set aside, signed. `claim`: not set aside money set aside for the Goal (or
  * released back, negative); `funding`: Goal funding, a Move from Free to Spend in `month`'s
  * Plan; `spending`: a Transaction assigned to the Goal (negative).
  */
@@ -46,15 +46,15 @@ export type SetAsideChange = {
 	month: MonthKey;
 };
 
-/** A Goal's Earmark: every change to it, summed. */
+/** A Goal's set-aside money: every change to it, summed. */
 export function setAsideOf(goalId: string, changes: SetAsideChange[]): Cents {
 	return changes.reduce((sum, c) => (c.goalId === goalId ? sum + c.amount : sum), 0);
 }
 
 /**
- * How an Account's balance splits between its Goals' Earmarks and Unclaimed money. Archived
- * Goals claim nothing. Unclaimed is null until the Account has a balance, and negative when
- * the Earmarks add up to more than the balance, by `overClaimedBy`.
+ * How an Account's balance splits between its what Goals have set aside and not set aside money. Archived
+ * Goals claim nothing. not set aside is null until the Account has a balance, and negative when
+ * what Goals have set aside add up to more than the balance, by `overClaimedBy`.
  */
 export function splitAccount({
 	balance,
@@ -94,20 +94,20 @@ export function splitAccount({
 export type GoalStatus = "reached" | "on-track" | "behind" | "past-due" | "saving";
 
 export type GoalProgress = {
-	/** The Goal's Earmark. */
+	/** The Goal's set-aside money. */
 	saved: Cents;
 	/** Still to save to reach the target. */
 	remaining: Cents;
 	/** Saved as a share of the target, 0–1. */
 	share: number;
-	/** Moved into it in this month's Plan: Goal funding, and any Windfall or Sweep sent to it. */
+	/** Moved into it in this month's Plan: Goal funding, and any Extra income or Sweep sent to it. */
 	fundedThisMonth: Cents;
 	/** Months to the target date, counting this one and the target's. Null when undated. */
 	monthsLeft: number | null;
 	/**
 	 * What to fund each month from this one on to reach the target in time. Set from what
 	 * is saved apart from this month's Goal funding, so it holds steady as the month is
-	 * funded (money set aside from Unclaimed this month counts as saved). Null when undated
+	 * funded (money set aside from not set aside this month counts as saved). Null when undated
 	 * or past due.
 	 */
 	monthly: Cents | null;
@@ -195,8 +195,8 @@ export function goalHistory<C extends SetAsideChange & { id: string; date?: DayK
 
 /**
  * Where a withdrawal from an Account comes from (ADR-0002): the Goal it's assigned to;
- * Unclaimed money when that covers it (or nothing is earmarked); otherwise it dips into
- * Earmarks by `fromEarmarks`, and a Parent decides which Goals in Review.
+ * not set aside money when that covers it (or nothing is earmarked); otherwise it dips into
+ * what Goals have set aside by `fromEarmarks`, and a Parent decides which Goals in Review.
  */
 export type WithdrawalAttribution =
 	| { kind: "goal"; goalId: string }

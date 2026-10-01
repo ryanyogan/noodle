@@ -7,7 +7,7 @@ import {
 	addQuickAdd,
 	createHouseholdForParent,
 	type Db,
-	setBaseline,
+	setTakeHomePay,
 } from "@noodle/db";
 import { members, transactions } from "@noodle/db/schema";
 import { testDb } from "@noodle/db/test-db";
@@ -74,7 +74,7 @@ beforeEach(async () => {
 	await db
 		.insert(members)
 		.values({ id: "sam", householdId, kind: "parent", name: "Sam", clerkUserId: "clerk-sam" });
-	await setBaseline(db, { householdId, memberId: "alex", month, amountCents: 900_000 });
+	await setTakeHomePay(db, { householdId, memberId: "alex", month, amountCents: 900_000 });
 	await addBucket(db, {
 		householdId,
 		memberId: "alex",
@@ -131,7 +131,7 @@ const factAmount = (outcome: { facts: { label: string; amount: number }[] }, lab
 describe("Ask's tools", () => {
 	it("gives the month's Free to Spend and what's left in Buckets", async () => {
 		const outcome = await runTool("month_overview", {}, as("alex"));
-		// Baseline − allowances; spending inside Buckets doesn't change Free to Spend.
+		// take-home pay − allowances; spending inside Buckets doesn't change Free to Spend.
 		expect(factAmount(outcome, "Free to Spend")).toBe(900_000 - 120_000 - 20_000 - 15_000);
 		expect(factAmount(outcome, "Left in Buckets")).toBe(155_000 - 4_200 - 1_800 - 650 - 500);
 		expect(outcome.links).toEqual([{ kind: "month", month }]);
@@ -159,9 +159,9 @@ describe("Ask's tools", () => {
 		).rejects.toThrow(/Buckets: Groceries/);
 	});
 
-	it("reads Goals with their Earmarks", async () => {
+	it("reads Goals with their what Goals have set aside", async () => {
 		const outcome = await runTool("goals", {}, as("sam"));
-		expect(outcome.facts).toEqual([{ label: "Disney, saved of $6,000", amount: 150_000 }]);
+		expect(outcome.facts).toEqual([{ label: "Disney, set aside toward $6,000", amount: 150_000 }]);
 	});
 
 	it("checks affordability at a price the model writes as text", async () => {
@@ -184,7 +184,7 @@ describe("Ask's tools", () => {
 		);
 		expect(factAmount(outcome, "In the Scenario")).toBe(100_000);
 		expect(outcome.data.freeToSpendChangeEachMonth).toBe("$200");
-		// "Try in Explore": the same change, as a Lever preset built here, never by the model.
+		// "Try in Explore": the same change, as a Change preset built here, never by the model.
 		expect(outcome.links).toEqual([
 			{ kind: "explore", name: "Groceries at $1,000", lever: "allowance:groceries:100000:2026-09" },
 		]);

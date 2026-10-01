@@ -18,8 +18,8 @@ export function checkInLine(card: CheckInCard): string {
 			return `${formatMoney(card.total)} to Sweep from ${monthName(card.month)}`;
 		case "windfalls":
 			return card.windfalls.length === 1
-				? `A ${formatMoney(card.total)} Windfall to decide`
-				: `${formatMoney(card.total)} in Windfalls to decide`;
+				? `${formatMoney(card.total)} of Extra income to decide`
+				: `${formatMoney(card.total)} of Extra income to decide, from ${card.windfalls.length} months`;
 	}
 }
 
@@ -38,7 +38,7 @@ export const checkInCardTitle: Record<CheckInCard["kind"], string> = {
 	review: "Review",
 	insights: "Insights",
 	sweeps: "Sweeps",
-	windfalls: "Windfalls",
+	windfalls: "Extra income",
 };
 
 /** The weekday names, Sunday first, for choosing the Check-in day. */

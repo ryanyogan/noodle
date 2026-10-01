@@ -12,7 +12,8 @@ test.afterEach(async () => {
 	await parent?.remove();
 });
 
-const waterfall = (page: Page) => page.getByRole("region", { name: "Baseline to Free to Spend" });
+const waterfall = (page: Page) =>
+	page.getByRole("region", { name: "From take-home pay to Free to Spend" });
 const freeToSpend = (page: Page) => waterfall(page).getByRole("listitem").last();
 const expected = (page: Page, total: string) => page.getByText(`${total} expected this month`);
 const edit = (page: Page, commitment: string) =>

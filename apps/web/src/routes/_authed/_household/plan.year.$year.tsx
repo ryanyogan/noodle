@@ -12,11 +12,12 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { CalendarRange, ChevronLeft, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { lumpText } from "../../../components/coming-up";
+import { TermHelp } from "../../../components/term-help";
 import { formatMoney, monthName } from "../../../format";
 import { yearQuery } from "../../../queries";
 import { FIRST_YEAR } from "../../../server/year";
 
-// The year at a glance: each month's Plan from the Baseline down to Free to Spend, what actually
+// The year at a glance: each month's Plan from take-home pay down to Free to Spend, what actually
 // happened beneath it for months over or under way, and the lumpy months picked out. Each month
 // opens its Plan.
 export const Route = createFileRoute("/_authed/_household/plan/year/$year")({
@@ -33,9 +34,9 @@ export const Route = createFileRoute("/_authed/_household/plan/year/$year")({
 });
 
 const FIGURES: { key: keyof YearFigures; label: string }[] = [
-	{ key: "baseline", label: "Baseline" },
+	{ key: "baseline", label: "Take-home pay" },
 	{ key: "commitments", label: "Commitments" },
-	{ key: "allowances", label: "Allowances" },
+	{ key: "allowances", label: "Buckets & allowances" },
 	{ key: "goalFunding", label: "Goal funding" },
 	{ key: "freeToSpend", label: "Free to Spend" },
 ];
@@ -84,11 +85,11 @@ function YearPage() {
 			) : (
 				<div className="grid max-w-3xl gap-8">
 					<p className="text-[13px] text-muted-foreground">
-						Each month’s Plan, from the Baseline down to Free to Spend, as the Plan shows it. Months
-						over or under way show what actually happened beneath it: income received, spending, and
-						Goal funding. Beneath Free to Spend, that’s the income received less the spending and
-						Goal funding, so this month it’s only what’s come in so far. Later months are the Plan
-						as it stands, with each dated Goal funded what it needs.
+						Each month’s Plan, from take-home pay down to Free to Spend, as the Plan shows it.
+						Months over or under way show what actually happened beneath it: income received,
+						spending, and Goal funding. Beneath Free to Spend, that’s the income received less the
+						spending and Goal funding, so this month it’s only what’s come in so far. Later months
+						are the Plan as it stands, with each dated Goal funded what it needs.
 					</p>
 					{start > 0 && months[0] ? (
 						<p className="text-[13px] text-muted-foreground">
@@ -99,7 +100,11 @@ function YearPage() {
 					<YearList months={months} />
 					{lumpy.length > 0 ? (
 						<Section aria-labelledby="year-lumpy">
-							<SectionHeader id="year-lumpy" title="Lumpy months" />
+							<SectionHeader
+								id="year-lumpy"
+								title="Lumpy months"
+								help={<TermHelp term="lumpy-month" />}
+							/>
 							<List>
 								{lumpy.map(({ month, lumps }) => (
 									<li key={month} className="grid gap-0.5 px-(--card-pad) py-3">
@@ -139,11 +144,11 @@ function YearLinks({ year, lastYear }: { year: number; lastYear: number }) {
 const empty = (figures: YearFigures | null) =>
 	figures === null || Object.values(figures).every((cents) => cents === 0);
 
-/** A month with no Baseline and nothing planned or spent. */
+/** A month with no take-home pay and nothing planned or spent. */
 const unplanned = (month: YearMonth) =>
 	month.noBaseline && empty(month.plan) && empty(month.actual);
 
-/** A past month with no Baseline and nothing planned or spent. */
+/** A past month with no take-home pay and nothing planned or spent. */
 const isBlank = (month: YearMonth) => month.when === "past" && unplanned(month);
 
 /** "This month" for the month under way, "Lumpy" for a lumpy one. */

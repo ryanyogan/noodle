@@ -41,7 +41,7 @@ test("a home is checked against the Plan, then made a Goal and explored as a Sce
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Can we afford it?");
 
 	// The defaults: a $400,000 home, 20% down, 6.5% over 30 years, against gross income
-	// estimated from the Baseline ($10,000 is 75% of $13,333). Nothing is set aside yet.
+	// estimated from take-home pay ($10,000 is 75% of $13,333). Nothing is set aside yet.
 	await expect(verdict(page)).toContainText("A $400,000 home");
 	await expect(verdict(page).getByRole("heading", { level: 2 })).toHaveText("Not yet");
 	await expect(reasons(page)).toContainText(
@@ -128,7 +128,7 @@ test("a long Commitment name keeps every field of the form in its column", async
 	const longName = "Maya’s braces — Dr. Patel’s orthodontics";
 	await switchTo(page, "Plan");
 	await page
-		.getByRole("region", { name: "Baseline to Free to Spend" })
+		.getByRole("region", { name: "From take-home pay to Free to Spend" })
 		.getByRole("link", { name: "Commitments", exact: true })
 		.click();
 	const addCommitment = page.getByRole("form", { name: "Add a Commitment" });

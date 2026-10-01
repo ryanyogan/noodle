@@ -4,12 +4,12 @@ import {
 	changedTerms,
 	dueDateFrom,
 	holdsIn,
-	type Lever,
 	rangeFrom,
+	type ScenarioChange,
 	whyNotApplicable,
 } from "./index";
 
-describe("Lever ranges", () => {
+describe("Change ranges", () => {
 	it("hold from fromMonth up to, not including, untilMonth", () => {
 		const range = { fromMonth: "2027-03", untilMonth: "2027-06" } as const;
 		expect(
@@ -31,7 +31,7 @@ describe("Lever ranges", () => {
 	});
 
 	it("end a new Commitment at the earlier of its term and untilMonth", () => {
-		const loan: Lever = {
+		const loan: ScenarioChange = {
 			kind: "add-commitment",
 			commitmentId: "car",
 			name: "Car",
@@ -96,7 +96,7 @@ describe("whyNotApplicable: what applying can make the real Plan", () => {
 	const month = "2026-09";
 
 	it("applies what the Plan stores, over a range where it can write the old value back", () => {
-		const changes: Lever[] = [
+		const changes: ScenarioChange[] = [
 			{ kind: "baseline", amount: 1, fromMonth: "2026-10", untilMonth: "2027-01" },
 			{ kind: "allowance", bucketId: "b", amount: 1, fromMonth: month, untilMonth: "2027-01" },
 			{

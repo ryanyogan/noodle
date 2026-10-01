@@ -11,6 +11,7 @@ import { Check, ChevronRight } from "lucide-react";
 import { useEffect } from "react";
 import { z } from "zod";
 import { checkInCardTitle, checkInLine } from "../../../check-in";
+import { TermHelp } from "../../../components/term-help";
 import { formatMoney, fullDay, monthName } from "../../../format";
 import { checkInQuery } from "../../../queries";
 import { type CheckInView, completeCheckIn } from "../../../server/check-in";
@@ -27,7 +28,7 @@ export const Route = createFileRoute("/_authed/_household/check-in")({
 
 /**
  * The weekly Check-in: a short stack of what waits for this Parent (Review, Insights, Sweeps,
- * Windfalls, skipping any with nothing in it), one card at a time, ending on a done state that
+ * Extra income, skipping any with nothing in it), one card at a time, ending on a done state that
  * also says whether the other Parent has done theirs. Reaching the end finishes the week's
  * Check-in; nothing on the cards changes until the Parent acts on the page each one links to.
  */
@@ -106,6 +107,19 @@ function CheckInCardView({
 					{checkInCardTitle[card.kind]}
 				</p>
 				<h2 className="text-lg font-semibold tracking-[-0.01em]">{checkInLine(card)}</h2>
+				{card.kind === "sweeps" ? (
+					<p className="flex flex-wrap items-center gap-x-1 text-sm text-muted-foreground">
+						<span>
+							Leftovers from last month’s Buckets that reset monthly: choose which Goal they go to.
+						</span>
+						<TermHelp term="sweep" />
+					</p>
+				) : card.kind === "windfalls" ? (
+					<p className="flex flex-wrap items-center gap-x-1 text-sm text-muted-foreground">
+						<span>Pay above your usual take-home pay: decide where it goes.</span>
+						<TermHelp term="extra-income" />
+					</p>
+				) : null}
 			</CardContent>
 			<CardDetails card={card} />
 			<CardFooter className="justify-between">
@@ -116,7 +130,7 @@ function CheckInCardView({
 	);
 }
 
-/** What's behind a card's line: the Insights' titles, the leftovers, the Windfalls' months. */
+/** What's behind a card's line: the Insights' titles, the leftovers, the Extra income's months. */
 function CardDetails({ card }: { card: CheckInCard }) {
 	switch (card.kind) {
 		case "review":

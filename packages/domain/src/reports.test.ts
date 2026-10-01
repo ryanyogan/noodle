@@ -4,7 +4,6 @@ import {
 	changeOf,
 	comparisonRange,
 	type DayKey,
-	earmarkHistory,
 	freeToSpendOver,
 	headlines,
 	incomeByMonth,
@@ -23,6 +22,7 @@ import {
 	regroupMonthly,
 	type SpendCell,
 	seriesOf,
+	setAsideHistory,
 	spendFor,
 	toCsv,
 	topWithOther,
@@ -351,8 +351,8 @@ describe("goals", () => {
 	];
 	const trip = { id: "trip", target: 400_000, fromMonth: "2026-04" as const };
 
-	it("tracks the Earmark month by month", () => {
-		expect(earmarkHistory("trip", changes, ["2026-03", "2026-04", "2026-09"])).toEqual([
+	it("tracks what's set aside month by month", () => {
+		expect(setAsideHistory("trip", changes, ["2026-03", "2026-04", "2026-09"])).toEqual([
 			{ month: "2026-03", saved: 0 },
 			{ month: "2026-04", saved: 100_000 },
 			{ month: "2026-09", saved: 160_000 },
@@ -368,7 +368,7 @@ describe("goals", () => {
 });
 
 describe("incomeByMonth", () => {
-	it("marks income beyond the Baseline as the month's Windfall", () => {
+	it("marks income beyond take-home pay as the month's Extra income", () => {
 		expect(
 			incomeByMonth(
 				[

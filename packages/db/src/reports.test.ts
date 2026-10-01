@@ -18,8 +18,8 @@ import {
 	loadReportItems,
 	loadSpendCells,
 	type ReportScope,
-	setBaseline,
-	setRolling,
+	setCarriesOver,
+	setTakeHomePay,
 	splitTransaction,
 	type Viewer,
 } from "./index";
@@ -72,7 +72,12 @@ beforeEach(async () => {
 		{ id: "sam", householdId, kind: "parent", name: "Sam", clerkUserId: "clerk-sam" },
 		{ id: "kid", householdId, kind: "child", name: "Kid" },
 	]);
-	await setBaseline(db, { householdId, memberId: "alex", month: "2026-08", amountCents: 900_000 });
+	await setTakeHomePay(db, {
+		householdId,
+		memberId: "alex",
+		month: "2026-08",
+		amountCents: 900_000,
+	});
 	await addBucket(db, {
 		householdId,
 		memberId: "alex",
@@ -284,8 +289,8 @@ describe("loadBucketHistory", () => {
 			to,
 		});
 
-	it("gives a Bucket's spending and balance month by month, whole and split, carried while Rolling", async () => {
-		await setRolling(db, {
+	it("gives a Bucket's spending and balance month by month, whole and split, carried while carries over", async () => {
+		await setCarriesOver(db, {
 			householdId,
 			memberId: "alex",
 			bucketId: "groceries",

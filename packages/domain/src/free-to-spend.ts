@@ -1,7 +1,7 @@
 import type { Cents } from "./money";
 import type { MonthState } from "./month-state";
 
-/** A part of the Plan that takes its share of the Baseline on the way to Free to Spend. */
+/** A part of the Plan that takes its share of take-home pay on the way to Free to Spend. */
 export type PlanPart =
 	| "commitments"
 	| "buckets"
@@ -10,9 +10,9 @@ export type PlanPart =
 	| "covers";
 
 /**
- * How a month's Baseline becomes its Free to Spend, part by part in the Plan's order: the
+ * How a month's take-home pay becomes its Free to Spend, part by part in the Plan's order: the
  * Commitments and Buckets always, the Personal Allowances when there are any, Goal funding, and
- * Covers from Free to Spend when there were some. The Baseline less every part is Free to Spend.
+ * Covers from Free to Spend when there were some. Take-home pay less every part is Free to Spend.
  */
 export function freeToSpendParts(
 	state: Pick<MonthState, "buckets" | "committed" | "fundedGoals" | "movedToBuckets">,

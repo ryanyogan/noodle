@@ -11,7 +11,7 @@ import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Tile } from "@noodle/ui/components/tile";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
-import { Check, Landmark, Mail, Pencil, Plus, UserRoundMinus } from "lucide-react";
+import { BookOpen, Check, Landmark, Mail, Pencil, Plus, UserRoundMinus } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram, nextBucketColor } from "../../../buckets";
@@ -135,6 +135,24 @@ function HouseholdPage() {
 				<NudgeSettings />
 				<CaptureSettings />
 				<ReceiptSettings />
+				<Section aria-labelledby="glossary">
+					<SectionHeader id="glossary" title="Words Noodle uses" />
+					<Card className="flex items-center gap-3 p-(--card-pad) text-sm text-muted-foreground">
+						<Tile>
+							<BookOpen />
+						</Tile>
+						<p>
+							What Free to Spend, a Bucket, a Sweep and the rest mean, in plain words:{" "}
+							<Link
+								to="/glossary"
+								className="font-medium text-foreground underline underline-offset-2"
+							>
+								the Glossary
+							</Link>
+							.
+						</p>
+					</Card>
+				</Section>
 				<Section aria-labelledby="account" className="lg:hidden">
 					<SectionHeader id="account" title="Your account" />
 					<Card className="flex items-center gap-3 p-(--card-pad) text-sm text-muted-foreground">

@@ -8,7 +8,7 @@ export type Assignment = { bucketId: string } | { commitmentId: string };
 
 /**
  * What a Split is assigned to: a Bucket, a Commitment, or a Goal. A Split assigned to a Goal is
- * Goal spending, out of the Goal's Earmark, never a Bucket or Free to Spend. A whole Transaction
+ * Goal spending, out of what the Goal has set aside, never a Bucket or Free to Spend. A whole Transaction
  * is only Goal spending when it's spent from the Goal itself.
  */
 export type SplitAssignment = Assignment | { goalId: string };
@@ -16,7 +16,7 @@ export type SplitAssignment = Assignment | { goalId: string };
 /** A portion of a Transaction with its own amount, assignment, and For. */
 export type Split = { amount: Cents; assignment: SplitAssignment; for: For };
 
-/** Part of a Transaction spent from a Goal's Earmark through one of its Splits. */
+/** Part of a Transaction spent from what a Goal has set aside through one of its Splits. */
 export type GoalSpend = { goalId: string; amount: Cents; date: DayKey };
 
 /**
@@ -51,7 +51,7 @@ export function splitsBalance(amount: Cents, splits: Pick<Split, "amount">[]): b
  * charges. A split Transaction contributes each Split to its own Bucket or Commitment and its
  * own Members instead of its whole assignment. Splits of one Transaction paying the same
  * Commitment are one charge of it, as the whole Transaction would have been. Splits assigned to
- * a Goal add nothing to the month: they're `goalSpending`, taken from the Goal's Earmark.
+ * a Goal add nothing to the month: they're `goalSpending`, taken from what the Goal has set aside.
  */
 export function assignedParts(transaction: AssignedTransaction): {
 	spending: AttributedSpend[];

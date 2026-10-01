@@ -1,5 +1,5 @@
 import {
-	applyLevers,
+	applyChanges,
 	deleteScenario as deleteScenarioInDb,
 	loadPlanRecords,
 	loadScenarios,
@@ -7,20 +7,20 @@ import {
 	saveScenario as saveScenarioInDb,
 } from "@noodle/db";
 import {
-	activeLevers,
+	activeChanges,
 	addMonths,
 	CADENCES,
 	dayKeyAt,
 	isAssumption,
-	type Lever,
-	type LeverV1,
 	MAX_CENTS,
 	MAX_PROJECTION_MONTHS,
 	type MonthKey,
 	monthKeyAt,
 	monthOfDay,
 	type PlanRecords,
-	upgradeLevers,
+	type ScenarioChange,
+	type ScenarioChangeV1,
+	upgradeChanges,
 	whyNotApplicable,
 } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
@@ -41,7 +41,7 @@ export type { ScenarioRecord };
 
 /**
  * The Plan's records from now to as far as a Scenario projects, with the Household's current
- * month: the client resolves and projects them with @noodle/domain as the Levers move.
+ * month: the client resolves and projects them with @noodle/domain as the Changes move.
  */
 export type PlanAheadData = { month: MonthKey; records: PlanRecords };
 
@@ -50,7 +50,7 @@ const positiveCentsSchema = z.number().int().min(1).max(MAX_CENTS);
 const dueDaySchema = z.number().int().min(1).max(31);
 const pctSchema = z.number().min(-50).max(50);
 
-/** A v2 Lever's fields plus its range of months, and whether it's muted. */
+/** A v2 Change's fields plus its range of months, and whether it's muted. */
 const ranged = <S extends z.ZodRawShape>(shape: S) =>
 	z.object({
 		...shape,
@@ -115,7 +115,7 @@ const changeV2Schema = z.discriminatedUnion("kind", [
 	ranged({ kind: z.literal("growth"), incomePct: pctSchema, costsPct: pctSchema }),
 ]);
 
-/** Levers as v1 Scenarios (and clients) sent them, upgraded before use. */
+/** Changes as v1 Scenarios (and clients) sent them, upgraded before use. */
 const changeV1Schema = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("allowance"), bucketId: ulidSchema, amount: centsSchema }),
 	z.object({
@@ -139,7 +139,7 @@ const changeV1Schema = z.discriminatedUnion("kind", [
 	}),
 ]);
 
-const changeSchema: z.ZodType<Lever | LeverV1> = z
+const changeSchema: z.ZodType<ScenarioChange | ScenarioChangeV1> = z
 	.union([changeV2Schema, changeV1Schema])
 	.refine(
 		(change) =>
@@ -147,7 +147,7 @@ const changeSchema: z.ZodType<Lever | LeverV1> = z
 			change.untilMonth === undefined ||
 			change.untilMonth > change.fromMonth,
 		{
-			message: "A Lever’s range must end after it starts.",
+			message: "A change’s range must end after it starts.",
 		},
 	);
 
@@ -172,7 +172,7 @@ export const getScenarios = createServerFn({ method: "GET" })
 		),
 	);
 
-/** Creates a Scenario, or renames it and replaces its Levers. */
+/** Creates a Scenario, or renames it and replaces its Changes. */
 export const saveScenario = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ scenarioId: ulidSchema, name: scenarioNameSchema, levers: changesSchema }))
@@ -182,7 +182,7 @@ export const saveScenario = createServerFn({ method: "POST" })
 			householdId: context.household.id,
 			memberId: context.parent.id,
 			...data,
-			levers: upgradeLevers(data.levers, month),
+			levers: upgradeChanges(data.levers, month),
 		});
 		await notifyHousehold(context.household.id, ["scenarios"]);
 	});
@@ -196,9 +196,9 @@ export const deleteScenario = createServerFn({ method: "POST" })
 	});
 
 /**
- * Makes a Scenario's Levers the real Plan from this month on, all at once, and records who
- * applied it and when; muted Levers and assumptions (one-offs, growth) aren't applied. The
- * Scenario is saved as it's applied, with all its Levers.
+ * Makes a Scenario's Changes the real Plan from this month on, all at once, and records who
+ * applied it and when; muted Changes and assumptions (one-offs, growth) aren't applied. The
+ * Scenario is saved as it's applied, with all its Changes.
  */
 export const applyScenario = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
@@ -206,8 +206,8 @@ export const applyScenario = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }) => {
 		const today = dayKeyAt(new Date(), context.household.timeZone);
 		const month = monthOfDay(today);
-		const changes = upgradeLevers(data.levers, month);
-		const applied = activeLevers(changes).filter((l) => !isAssumption(l));
+		const changes = upgradeChanges(data.levers, month);
+		const applied = activeChanges(changes).filter((l) => !isAssumption(l));
 		for (const change of applied) {
 			const why = whyNotApplicable(change, month);
 			if (why !== null) throw new Error(why);
@@ -222,7 +222,7 @@ export const applyScenario = createServerFn({ method: "POST" })
 		) {
 			throw new Error("A Goal’s target date can’t be in the past.");
 		}
-		await applyLevers(getDb(), {
+		await applyChanges(getDb(), {
 			householdId: context.household.id,
 			memberId: context.parent.id,
 			scenarioId: data.scenarioId,

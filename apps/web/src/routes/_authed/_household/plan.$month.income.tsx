@@ -10,6 +10,7 @@ import { useState } from "react";
 import { SaveFailed } from "../../../components/plan-editing";
 import { PlanSubPage } from "../../../components/plan-page";
 import { ChangedNote, PlanAmountForm } from "../../../components/plan-scope-field";
+import { TermHelp } from "../../../components/term-help";
 import { formatMoney, shortDay } from "../../../format";
 import { usePlanChange, usePlanChanges, withTakeHomePay } from "../../../plan-changes";
 import { useMonthState } from "../../../queries";
@@ -19,7 +20,7 @@ export const Route = createFileRoute("/_authed/_household/plan/$month/income")({
 	component: PlanIncome,
 });
 
-/** The Baseline the month's Plan is built on, and the income that's come in against it. */
+/** Take-home pay the month's Plan is built on, and the income that's come in against it. */
 function PlanIncome() {
 	const { month } = Route.useRouteContext();
 	const state = useMonthState(month);
@@ -34,7 +35,7 @@ function PlanIncome() {
 				<p className="px-1 text-sm text-muted-foreground">
 					<span className="font-medium text-foreground tabular-nums">{formatMoney(total)}</span>{" "}
 					received
-					{state.baseline === null ? "" : ` of the ${formatMoney(state.baseline)} Baseline`}
+					{state.baseline === null ? "" : ` of ${formatMoney(state.baseline)} usual take-home pay`}
 				</p>
 				{received.length > 0 ? (
 					<List>
@@ -64,7 +65,7 @@ function PlanIncome() {
 	);
 }
 
-/** The Baseline, with an Edit sheet to set it from this month on or just this month. */
+/** Take-home pay, with an Edit sheet to set it from this month on or just this month. */
 function TakeHomePayEditor({
 	month,
 	baseline,
@@ -85,10 +86,11 @@ function TakeHomePayEditor({
 	return (
 		<List>
 			<ListRow
-				title="Baseline"
+				title="Take-home pay"
+				badge={<TermHelp term="take-home-pay" />}
 				meta={
 					<>
-						<span>Your normal monthly take-home pay</span>
+						<span>Your usual monthly pay, after taxes and deductions</span>
 						<ChangedNote was={changes.baseline} />
 					</>
 				}
@@ -103,7 +105,7 @@ function TakeHomePayEditor({
 								size="icon"
 								type="button"
 								disabled={!hydrated}
-								aria-label="Edit Baseline"
+								aria-label="Edit take-home pay"
 								onClick={() => setOpen(true)}
 							>
 								<Pencil />
@@ -113,12 +115,12 @@ function TakeHomePayEditor({
 							{open ? (
 								<SheetContent>
 									<SheetHeader
-										title="Baseline"
-										description="Your normal monthly take-home pay, which the Plan is built on."
+										title="Take-home pay"
+										description="Your usual monthly pay after taxes and deductions: what lands in your account. The Plan is built on it."
 									/>
 									<PlanAmountForm
 										month={month}
-										label="Baseline"
+										label="Take-home pay"
 										value={baseline}
 										withScope={baseline !== null}
 										onSave={(amountCents, scope) => {
