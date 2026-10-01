@@ -17,7 +17,7 @@ import { useBlocker } from "@tanstack/react-router";
 
 const dirtySheet = () =>
 	typeof document !== "undefined" &&
-	document.querySelector("[data-slot=sheet-content][data-dirty]") !== null;
+	document.querySelector("[data-slot=sheet-content][data-state=open][data-dirty]") !== null;
 
 export function LeaveGuard() {
 	const blocker = useBlocker({

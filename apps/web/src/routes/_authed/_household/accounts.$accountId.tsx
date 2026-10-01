@@ -1,3 +1,4 @@
+import { dayKeyAt } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field } from "@noodle/ui/components/field";
@@ -9,7 +10,13 @@ import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, notFound, useHydrated } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	Link,
+	notFound,
+	useHydrated,
+	useRouteContext,
+} from "@tanstack/react-router";
 import { Pencil, Unplug } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
@@ -24,7 +31,7 @@ import {
 import { Confirm, SaveFailed } from "../../../components/plan-editing";
 import { StatementBalanceNote, StatementsSection } from "../../../components/statements";
 import { TermHelp } from "../../../components/term-help";
-import { formatMoney } from "../../../format";
+import { formatMoney, shortDay } from "../../../format";
 import {
 	type AccountView,
 	accountKindName,
@@ -62,6 +69,7 @@ function AccountDetails({ account }: { account: AccountView }) {
 	const updateBalance = useUpdateAccountBalance();
 	const [sheet, setSheet] = useState<"balance" | "rename" | "unpair" | null>(null);
 	const { connections } = useSuspenseQuery(bankConnectionsQuery()).data;
+	const { timeZone } = useRouteContext({ from: "/_authed/_household" }).household;
 	const source = accountSource(account, connections);
 	const connected = source.kind === "connected" ? source : null;
 	// A live bank balance isn't typed over, unless the bank has stopped bringing it in.
@@ -167,6 +175,15 @@ function AccountDetails({ account }: { account: AccountView }) {
 						</div>
 						<p className="text-sm text-muted-foreground">
 							{accountSourceText(source)}
+							{/* One balance with where and when it's from (#47), not three numbers apart. */}
+							{!connected && account.latestBalance ? (
+								<>
+									{" · "}
+									{owes ? "owed" : "balance"} as of{" "}
+									{shortDay(dayKeyAt(new Date(account.latestBalance.at), timeZone))}
+									{spentSince > 0 ? `, less ${formatMoney(spentSince)} spent from Goals since` : ""}
+								</>
+							) : null}
 							{connected?.needsLogin ? (
 								<>
 									{" · "}
@@ -182,10 +199,9 @@ function AccountDetails({ account }: { account: AccountView }) {
 									? "Add what’s owed on it today."
 									: "Add what’s in it today, from your bank, to see what’s not set aside."}
 							</p>
-						) : spentSince > 0 ? (
+						) : connected && spentSince > 0 ? (
 							<p className="text-sm text-muted-foreground">
-								Goal spending of {formatMoney(spentSince)} since the balance was last updated is
-								already taken off.
+								Less {formatMoney(spentSince)} spent from Goals since the bank last said.
 							</p>
 						) : null}
 						<StatementBalanceNote

@@ -120,7 +120,9 @@ test("a Goal is funded from Free to Spend and spent from what it has set aside, 
 	await expect(page.getByRole("heading", { level: 1 })).toContainText("Ally savings");
 	const balance = page.getByRole("region", { name: "Balance" });
 	await expect(balance.getByText("$9,600", { exact: true })).toBeVisible();
-	await expect(balance).toContainText("Goal spending of $400 since the balance was last updated");
+	await expect(balance).toContainText(
+		/Entered by hand · balance as of \w+ \d+, less \$400 spent from Goals since/,
+	);
 	await expect(page.getByRole("link", { name: "Braces, $850 set aside" })).toBeVisible();
 	await expect(page.getByRole("listitem", { name: "Not set aside, $8,750" })).toBeVisible();
 
