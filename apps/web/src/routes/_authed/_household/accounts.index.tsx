@@ -55,11 +55,8 @@ function AccountsPage() {
 						description="Every Transaction comes from one. Pick how Noodle should know about each of yours."
 					/>
 					<AddAccountWays bank={bank} />
-					<Section aria-labelledby="add-by-hand">
-						<SectionHeader id="add-by-hand" title="Add an Account yourself" />
-						<AddAccountForm onAdd={(account) => addAccount.mutate(account)} />
-						<SaveFailed change={addAccount} />
-					</Section>
+					<AddAccountForm onAdd={(account) => addAccount.mutate(account)} />
+					<SaveFailed change={addAccount} />
 					{bank.connections.length > 0 ? <BankConnections bank={bank} /> : bank.chooseSheet}
 				</div>
 			</>
