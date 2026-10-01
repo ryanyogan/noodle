@@ -1582,6 +1582,10 @@ function busy(o: SeedOptions): SeedRows {
 	);
 	incomeRow("checking", dayIn(monthAt(6), 17), 64_000, "VENMO CASHOUT — SOLD JOGGING STROLLER");
 
+	// The Costco card carries a balance from before; a payoff Goal (ADR-0019) plans an extra
+	// $250 a month on it from the fifth month, paid with each month's card payment.
+	const PAYOFF_FROM = 4;
+	const PAYOFF_EXTRA = 25_000;
 	// Transfers: the cards are paid from checking, and savings moved to Ally each month.
 	months.forEach((month, i) => {
 		if (i === 7 && dayNumber(o.today) < 26) return;
@@ -1599,7 +1603,9 @@ function busy(o: SeedOptions): SeedRows {
 			["costco", 20, "ONLINE PAYMENT, THANK YOU"],
 		] as const) {
 			const date = dayIn(month, day);
-			const amount = i === 0 ? 150_000 : cardSpend(key);
+			// From the month the payoff Goal was added, the Costco card gets its extra payment too.
+			const extra = key === "costco" && i >= PAYOFF_FROM ? PAYOFF_EXTRA : 0;
+			const amount = (i === 0 ? 150_000 : cardSpend(key)) + extra;
 			if (date > o.today || amount <= 0) continue;
 			const out = importRow("checking", {
 				date,
@@ -1757,6 +1763,49 @@ function busy(o: SeedOptions): SeedRows {
 		...(rows.households[0] as typeof s.households.$inferInsert),
 		emergencyGoalId: goal.emergency,
 	};
+	// Paying off the Costco card (ADR-0019): added in the fifth month at what was owed then, which
+	// three extra payments have brought down to this month's statement balance ($612.40).
+	const payoff = id();
+	const costcoOwed = 61_240;
+	const payoffTarget = costcoOwed + 3 * PAYOFF_EXTRA;
+	const payoffAt = at(dayIn(monthAt(PAYOFF_FROM), 2), 20 * 60);
+	const payoffDate = `${addMonths(thisMonth, 3)}-28` as DayKey;
+	rows.goals.push({
+		id: payoff,
+		householdId: household,
+		accountId: account.costco,
+		kind: "payoff",
+		name: "Pay off the Costco Visa",
+		targetCents: payoffTarget,
+		targetDate: payoffDate,
+		fromMonth: monthAt(PAYOFF_FROM),
+		completedAt: null,
+		archivedAt: null,
+		createdAt: new Date(payoffAt),
+	});
+	planChange(rows, household, {
+		member: jordan,
+		kind: "goal-add",
+		target: payoff,
+		month: monthAt(PAYOFF_FROM),
+		before: null,
+		after: { name: "Pay off the Costco Visa", target: payoffTarget, targetDate: payoffDate },
+		at: payoffAt,
+	});
+	for (let i = PAYOFF_FROM; i < 8; i++) {
+		const date = dayIn(monthAt(i), 2);
+		if (date > o.today) continue;
+		rows.moves.push({
+			id: id(),
+			householdId: household,
+			kind: "goal-funding",
+			month: monthAt(i),
+			amountCents: PAYOFF_EXTRA,
+			toGoalId: payoff,
+			createdByMemberId: parent(i),
+			createdAt: new Date(at(date, 20 * 60 + 5)),
+		});
+	}
 	// Spending from Goals: the trip deposit, the laptop, and the tournament.
 	for (const [key, acct, i, day, amount, note] of [
 		["trip", "checking", 5, 14, 50_000, "Disney resort deposit"],
@@ -1795,7 +1844,17 @@ function busy(o: SeedOptions): SeedRows {
 	balance("sapphire", 284_733, o.now - 2 * 3_600_000);
 	balance("ally", 11_248_055, at(lapsed, 6 * 60));
 	balance("loan", 2_138_000, at(lapsed, 6 * 60));
-	balance("costco", 61_240, at(dayIn(thisMonth, 3), 9 * 60));
+	// What was owed on the Costco card when its payoff Goal was added, then each statement since.
+	balance("costco", payoffTarget, payoffAt - 60_000, jordan);
+	for (let i = PAYOFF_FROM + 1; i < 7; i++) {
+		balance(
+			"costco",
+			payoffTarget - (i - PAYOFF_FROM) * PAYOFF_EXTRA,
+			at(dayIn(monthAt(i), 3), 9 * 60),
+			jordan,
+		);
+	}
+	balance("costco", costcoOwed, at(dayIn(thisMonth, 3), 9 * 60));
 	balance("kids", 310_000, at(dayIn(monthAt(0), 5), 20 * 60), alex);
 
 	// Moves: Covers, Extra income decisions, then Month-close Sweeps ---------------------------------------

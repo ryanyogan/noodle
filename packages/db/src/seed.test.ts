@@ -2,8 +2,10 @@ import {
 	accountBalance,
 	addMonths,
 	type DayKey,
+	goalProgress,
 	type MonthKey,
 	monthOfDay,
+	owedFor,
 	planForMonth,
 	freeToSpend as planFreeToSpend,
 	splitAccount,
@@ -154,8 +156,9 @@ describe.each(SEED_SCENARIOS)("the %s seed", (scenario) => {
 					account.latestBalance,
 					records.withdrawals.filter((w) => w.accountId === account.id),
 				);
+				// A payoff Goal sets nothing aside (ADR-0019).
 				const goals = records.goals
-					.filter((g) => g.accountId === account.id)
+					.filter((g) => g.accountId === account.id && g.kind === "save")
 					.map((g) => ({ id: g.id, archived: g.archived }));
 				const split = splitAccount({ balance, goals, changes: records.changes });
 				expect(split.overClaimedBy, account.name).toBe(0);
@@ -264,6 +267,38 @@ describe("the busy seed", () => {
 		const future = planForMonth(await loadPlanRecords(db, householdId, ahead), ahead);
 		expect(planFreeToSpend(future)).toBeLessThan(0);
 	});
+
+	it.each(TODAYS)(
+		"pays down the Costco card with a payoff Goal from what it owed (today %s)",
+		async (today) => {
+			const { db, rows, householdId, alex } = await seeded("busy", today);
+			const records = await loadGoals(db, { householdId, memberId: alex });
+			const payoffs = records.goals.filter((g) => g.kind === "payoff");
+			expect(payoffs).toHaveLength(1);
+			const [goal] = payoffs;
+			if (!goal) return;
+			const card = records.accounts.find((a) => a.id === goal.accountId);
+			expect(card?.kind).toBe("credit-card");
+			expect(goal.completed || goal.archived).toBe(false);
+			// Its target is what the card owed just before it was added.
+			const added = rows.goals.find((g) => g.id === goal.id)?.createdAt as Date;
+			const before = records.owed
+				.filter((p) => p.accountId === goal.accountId && p.at <= added.getTime())
+				.at(-1);
+			expect(before?.amount).toBe(goal.target);
+			// It has come down since, and still owes something, so it's neither new nor done.
+			const owed = owedFor(goal, records.accounts);
+			const progress = goalProgress({ ...goal, owed }, records.changes, monthOfDay(today));
+			expect(progress.saved).toBeGreaterThan(0);
+			expect(progress.remaining).toBeGreaterThan(0);
+			expect(progress.status).toBe("on-track");
+			// Funded from Free to Spend, and never set aside or spent from.
+			const own = records.changes.filter((c) => c.goalId === goal.id);
+			expect(own.length).toBeGreaterThan(0);
+			expect(own.every((c) => c.kind === "funding")).toBe(true);
+			expect(rows.earmarkClaims.some((c) => c.goalId === goal.id)).toBe(false);
+		},
+	);
 
 	it("replaces the old data when reseeded", async () => {
 		const { db } = await seeded("busy", "2026-09-30");

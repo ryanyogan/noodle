@@ -8,7 +8,7 @@ bun run seed busy        # or fresh, starter; about 3 s
 bun run dev              # http://localhost:5173 (AI_MODEL=stub bun run dev works offline)
 ```
 
-The builder is `packages/db/src/seed.ts`. It computes rows only, with no I/O. `apps/web/scripts/seed.ts` applies the local migrations, finds or creates the two Clerk Parents, and writes the rows in one transaction. `packages/db/src/seed.test.ts` loads each scenario on several "todays" and checks the invariants the app relies on: no orphan rows, Splits add up, Transfers and Refunds net out, Matches, Receipts total, what Goals set aside fits their Accounts' balances, every month's Plan leaves Free to Spend at or above zero, and Extra income decisions and Sweeps never exceed what there was. It also checks the edge cases `busy` promises.
+The builder is `packages/db/src/seed.ts`. It computes rows only, with no I/O. `apps/web/scripts/seed.ts` applies the local migrations, finds or creates the two Clerk Parents, and writes the rows in one transaction. `packages/db/src/seed.test.ts` loads each scenario on several "todays" and checks the invariants the app relies on: no orphan rows, Splits add up, Transfers and Refunds net out, Matches, Receipts total, what Goals set aside fits their Accounts' balances, the payoff Goal started from what its card owed and has come down since, every month's Plan leaves Free to Spend at or above zero, and Extra income decisions and Sweeps never exceed what there was. It also checks the edge cases `busy` promises.
 
 All dates are relative to today in the Household's time zone (America/Chicago), so "this month" always has live data. IDs are fixed, so a page's URL survives a reseed.
 
@@ -86,7 +86,8 @@ About two weeks in, with one Parent and an open invite to Jordan. It has:
 - "Spring break: Disney World with Grandma!", which is behind.
 - A completed laptop Goal.
 - An archived tournament Goal.
-- Each has money set aside from its Account, monthly funding, Goal spending, Sweeps and Extra income.
+- A payoff Goal, "Pay off the Costco Visa" (ADR-0019), added four months ago at what the card owed then. An extra $250 a month is funded from Free to Spend and paid with each card payment, and the card's balance over those months shows it paid down by $750 to this month's $612.40.
+- Each savings Goal has money set aside from its Account, monthly funding, Goal spending, Sweeps and Extra income.
 
 **Month by month**
 - The six months before last are closed, some by a Parent and some by the defaults, with their Sweeps.
