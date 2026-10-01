@@ -1,8 +1,12 @@
 import type { Cents, MonthKey, PlanChange, PlanChangeGroup, PlanChangeValue } from "@noodle/domain";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@noodle/ui/components/collapsible";
 import { List } from "@noodle/ui/components/list";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
-import { useState } from "react";
 import { cadenceNames } from "../commitments";
 import { formatMoney, fullDay, monthName, shortDay } from "../format";
 import { planHistoryQuery } from "../queries";
@@ -173,24 +177,19 @@ export function PlanHistoryList({ month, targetId }: { month: MonthKey; targetId
 
 /** A closed "History" disclosure in an edit sheet; the history loads when it opens. */
 export function PlanHistoryDisclosure({ month, targetId }: { month: MonthKey; targetId: string }) {
-	const [open, setOpen] = useState(false);
 	return (
-		<details
-			className="group mt-2 border-t pt-4"
-			onToggle={(event) => setOpen(event.currentTarget.open)}
-		>
-			<summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
+		<Collapsible className="group mt-2 border-t pt-4">
+			<CollapsibleTrigger className="flex w-full items-center gap-1.5 text-start text-sm font-medium">
 				<ChevronRight
-					className="size-4 text-muted-foreground transition-transform group-open:rotate-90"
+					className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90"
 					aria-hidden="true"
 				/>
 				History
-			</summary>
-			{open ? (
-				<div className="mt-3">
-					<PlanHistoryList month={month} targetId={targetId} />
-				</div>
-			) : null}
-		</details>
+			</CollapsibleTrigger>
+			{/* Mounted only while open, so the history loads when it opens. */}
+			<CollapsibleContent className="mt-3">
+				<PlanHistoryList month={month} targetId={targetId} />
+			</CollapsibleContent>
+		</Collapsible>
 	);
 }

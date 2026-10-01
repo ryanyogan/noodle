@@ -2,6 +2,11 @@ import { isOnce, type MonthKey, monthKeyAt, monthOfDay } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@noodle/ui/components/collapsible";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { ListRow } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
@@ -205,66 +210,68 @@ function InsightCard({
 				</div>
 			</div>
 			{evidence > 0 ? (
-				<details className="group border-t">
-					<summary className="flex cursor-pointer list-none items-center gap-2 px-(--card-pad) py-2.5 text-[13px] font-medium text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
-						<ChevronRight className="size-4 transition-transform group-open:rotate-90 motion-reduce:transition-none" />
+				<Collapsible className="group border-t">
+					<CollapsibleTrigger className="w-full text-start flex items-center gap-2 px-(--card-pad) py-2.5 text-[13px] font-medium text-muted-foreground hover:text-foreground">
+						<ChevronRight className="size-4 transition-transform group-data-[state=open]:rotate-90 motion-reduce:transition-none" />
 						What it’s based on
 						<Badge variant="count">{evidence}</Badge>
-					</summary>
-					<ul className="border-t [&>li+li]:border-t">
-						{insight.commitments.map((commitment) => (
-							<ListRow
-								key={commitment.id}
-								title={
-									<Link
-										to="/plan/commitments/$id"
-										params={{ id: commitment.id }}
-										className="underline-offset-4 hover:underline"
-									>
-										{commitment.name}
-									</Link>
-								}
-								meta={
-									live.includes(commitment) ? "Commitment" : "Commitment, no longer in the Plan"
-								}
-							/>
-						))}
-						{insight.perks.map((perk) => (
-							<ListRow
-								key={perk.id}
-								title={
-									<a
-										href={perk.sourceUrl}
-										target="_blank"
-										rel="noreferrer"
-										className="underline-offset-4 hover:underline"
-									>
-										{perk.name}
-									</a>
-								}
-								meta={`Perk of ${perk.sourceName} · Checked ${shortDayAt(perk.checkedAt)}`}
-							/>
-						))}
-						{insight.transactions.map((transaction) => (
-							<ListRow
-								key={transaction.id}
-								title={
-									<Link
-										to="/transactions/$month"
-										params={{ month: monthOfDay(transaction.date) }}
-										className="underline-offset-4 hover:underline"
-									>
-										{transaction.note || "No note"}
-									</Link>
-								}
-								meta={shortDay(transaction.date)}
-								trailing={
-									<span className="text-sm tabular-nums">{formatMoney(transaction.amount)}</span>
-								}
-							/>
-						))}
-					</ul>
-				</details>
+					</CollapsibleTrigger>
+					<CollapsibleContent>
+						<ul className="border-t [&>li+li]:border-t">
+							{insight.commitments.map((commitment) => (
+								<ListRow
+									key={commitment.id}
+									title={
+										<Link
+											to="/plan/commitments/$id"
+											params={{ id: commitment.id }}
+											className="underline-offset-4 hover:underline"
+										>
+											{commitment.name}
+										</Link>
+									}
+									meta={
+										live.includes(commitment) ? "Commitment" : "Commitment, no longer in the Plan"
+									}
+								/>
+							))}
+							{insight.perks.map((perk) => (
+								<ListRow
+									key={perk.id}
+									title={
+										<a
+											href={perk.sourceUrl}
+											target="_blank"
+											rel="noreferrer"
+											className="underline-offset-4 hover:underline"
+										>
+											{perk.name}
+										</a>
+									}
+									meta={`Perk of ${perk.sourceName} · Checked ${shortDayAt(perk.checkedAt)}`}
+								/>
+							))}
+							{insight.transactions.map((transaction) => (
+								<ListRow
+									key={transaction.id}
+									title={
+										<Link
+											to="/transactions/$month"
+											params={{ month: monthOfDay(transaction.date) }}
+											className="underline-offset-4 hover:underline"
+										>
+											{transaction.note || "No note"}
+										</Link>
+									}
+									meta={shortDay(transaction.date)}
+									trailing={
+										<span className="text-sm tabular-nums">{formatMoney(transaction.amount)}</span>
+									}
+								/>
+							))}
+						</ul>
+					</CollapsibleContent>
+				</Collapsible>
 			) : null}
 			{offersEnding && insight.status === "accepted" ? (
 				<div className="grid gap-2 border-t px-(--card-pad) py-3">

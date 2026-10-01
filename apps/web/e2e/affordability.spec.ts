@@ -56,7 +56,7 @@ test("a home is checked against the Plan, then made a Goal and explored as a Sce
 	await expect(verdict(page).getByRole("row", { name: /^Housing/ })).toContainText("$2,589.29");
 
 	// With the cash set aside, it's Comfortable.
-	const otherCash = page.getByLabel("Other cash");
+	const otherCash = page.getByLabel("Other savings you’d use");
 	await otherCash.fill("95,000");
 	await otherCash.press("Enter");
 	await expect(verdict(page).getByRole("heading", { level: 2 })).toHaveText("Comfortable");
@@ -141,6 +141,8 @@ test("a long Commitment name keeps every field of the form in its column", async
 	await page.getByRole("link", { name: "Can we afford it?" }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Can we afford it?");
 	// Every field stays inside the form's card, at desktop and phone widths.
+	// The Commitments are summed up; Edit lists each.
+	await page.getByRole("button", { name: "Edit Commitments" }).click();
 	for (const width of [1280, 393]) {
 		await page.setViewportSize({ width, height: 900 });
 		await expect(page.getByLabel(`${longName} is`)).toBeVisible();

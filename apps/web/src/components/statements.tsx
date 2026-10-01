@@ -15,6 +15,11 @@ import {
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@noodle/ui/components/collapsible";
 import { Field } from "@noodle/ui/components/field";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { NativeSelect } from "@noodle/ui/components/native-select";
@@ -335,6 +340,8 @@ function UploadForm({
 	const setFile = (next: ChosenFile | null) => onDraft({ file: next, mapping: null });
 	const setMapping = (next: CsvMapping | null) => onDraft({ file, mapping: next });
 	const [fileError, setFileError] = useState<string | null>(null);
+	// Open while nothing reads, so the columns can be fixed; otherwise folded unless asked for.
+	const [mappingOpen, setMappingOpen] = useState(false);
 	const upload = useUploadStatement(onImported);
 	const format = file ? statementFormat(file.content) : null;
 	const statement = useMemo(
@@ -426,14 +433,20 @@ function UploadForm({
 
 			{file && format === "csv" && mapping ? (
 				// The guess is usually right: the columns stay folded away unless nothing reads.
-				<details open={lines === 0} className="group grid gap-3">
-					<summary className="cursor-pointer text-sm font-medium text-muted-foreground underline-offset-4 hover:underline">
+				<Collapsible
+					open={mappingOpen || lines === 0}
+					onOpenChange={setMappingOpen}
+					className="group grid gap-3"
+				>
+					<CollapsibleTrigger className="text-sm font-medium text-muted-foreground underline-offset-4 hover:underline">
 						Columns look wrong?
-					</summary>
-					<div className="pt-3">
-						<CsvMappingFields rows={file.rows} mapping={mapping} onChange={setMapping} />
-					</div>
-				</details>
+					</CollapsibleTrigger>
+					<CollapsibleContent keepMounted>
+						<div className="pt-3">
+							<CsvMappingFields rows={file.rows} mapping={mapping} onChange={setMapping} />
+						</div>
+					</CollapsibleContent>
+				</Collapsible>
 			) : null}
 
 			{file && statement ? (

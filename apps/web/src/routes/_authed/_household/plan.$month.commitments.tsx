@@ -1,6 +1,11 @@
 import { lumpyMonths, monthlyEquivalent, monthOfDay, yearlyCost } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Card } from "@noodle/ui/components/card";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@noodle/ui/components/collapsible";
 import { List } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -77,21 +82,19 @@ function PlanCommitments() {
 							</Section>
 						) : null}
 						{notDue.length > 0 ? (
-							<details
-								className="group"
-								open={showNotDue}
-								onToggle={(event) => setShowNotDue(event.currentTarget.open)}
-							>
-								<summary className="flex min-h-9 cursor-pointer list-none items-center gap-1.5 px-1 text-[13px] text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+							<Collapsible className="group" open={showNotDue} onOpenChange={setShowNotDue}>
+								<CollapsibleTrigger className="w-full text-start flex min-h-9 items-center gap-1.5 px-1 text-[13px] text-muted-foreground hover:text-foreground">
 									<ChevronRight
 										aria-hidden="true"
-										className="size-4 transition-transform group-open:rotate-90"
+										className="size-4 transition-transform group-data-[state=open]:rotate-90"
 									/>
 									Not this month
 									<Badge variant="count">{notDue.length}</Badge>
-								</summary>
-								<List>{notDue.map(row)}</List>
-							</details>
+								</CollapsibleTrigger>
+								<CollapsibleContent>
+									<List>{notDue.map(row)}</List>
+								</CollapsibleContent>
+							</Collapsible>
 						) : null}
 						<p className="px-1 text-sm text-muted-foreground">
 							Across a year these average{" "}

@@ -8,6 +8,11 @@ import {
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@noodle/ui/components/collapsible";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Tile } from "@noodle/ui/components/tile";
@@ -97,33 +102,35 @@ export function CommitmentsList({
 /** Commitments in the Plan but not due this month, collapsed, each with when it's next due. */
 function NotThisMonth({ month, commitments }: { month: MonthKey; commitments: CommitmentState[] }) {
 	return (
-		<details className="group">
-			<summary className="flex min-h-9 cursor-pointer list-none items-center gap-1.5 px-1 text-[13px] text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+		<Collapsible className="group">
+			<CollapsibleTrigger className="w-full text-start flex min-h-9 items-center gap-1.5 px-1 text-[13px] text-muted-foreground hover:text-foreground">
 				<ChevronRight
 					aria-hidden="true"
-					className="size-4 transition-transform group-open:rotate-90"
+					className="size-4 transition-transform group-data-[state=open]:rotate-90"
 				/>
 				Not this month
 				<Badge variant="count">{commitments.length}</Badge>
-			</summary>
-			<List>
-				{commitments.map((commitment) => (
-					<ListRow
-						key={commitment.id}
-						leading={<Tile>{monogram(commitment.name)}</Tile>}
-						title={<CommitmentLink commitment={commitment} />}
-						meta={`${cadenceNames[commitment.cadence]} · next due ${fullDay(
-							nextDueDate(commitment, `${month}-01`),
-						)}`}
-						trailing={
-							<span className="text-sm font-medium tabular-nums">
-								{formatMoney(commitment.amount)}
-							</span>
-						}
-					/>
-				))}
-			</List>
-		</details>
+			</CollapsibleTrigger>
+			<CollapsibleContent>
+				<List>
+					{commitments.map((commitment) => (
+						<ListRow
+							key={commitment.id}
+							leading={<Tile>{monogram(commitment.name)}</Tile>}
+							title={<CommitmentLink commitment={commitment} />}
+							meta={`${cadenceNames[commitment.cadence]} · next due ${fullDay(
+								nextDueDate(commitment, `${month}-01`),
+							)}`}
+							trailing={
+								<span className="text-sm font-medium tabular-nums">
+									{formatMoney(commitment.amount)}
+								</span>
+							}
+						/>
+					))}
+				</List>
+			</CollapsibleContent>
+		</Collapsible>
 	);
 }
 

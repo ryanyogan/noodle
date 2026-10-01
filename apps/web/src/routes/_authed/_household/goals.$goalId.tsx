@@ -9,6 +9,11 @@ import {
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@noodle/ui/components/collapsible";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListGroupLabel, ListRow } from "@noodle/ui/components/list";
@@ -635,14 +640,14 @@ function SweepsRow({ sweeps }: { sweeps: GoalChange[] }) {
 	const total = sweeps.reduce((sum, c) => sum + c.amount, 0);
 	return (
 		<li className="px-(--card-pad) py-3">
-			<details className="group">
-				<summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+			<Collapsible className="group">
+				<CollapsibleTrigger className="w-full text-start flex items-center justify-between gap-3">
 					<span className="grid gap-0.5">
 						<span className="text-sm font-medium">
 							Leftovers from {sweeps.length} Buckets
 							<ChevronDown
 								aria-hidden="true"
-								className="ms-1 inline size-4 text-muted-foreground transition-transform group-open:rotate-180"
+								className="ms-1 inline size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
 							/>
 						</span>
 						<span className="text-[13px] text-muted-foreground">
@@ -650,16 +655,18 @@ function SweepsRow({ sweeps }: { sweeps: GoalChange[] }) {
 						</span>
 					</span>
 					<span className="text-sm font-semibold tabular-nums">+{formatMoney(total)}</span>
-				</summary>
-				<ul className="mt-2 grid gap-1 border-t pt-2 text-[13px] text-muted-foreground">
-					{sweeps.map((sweep) => (
-						<li key={sweep.id} className="flex justify-between gap-3">
-							<span>{changeTitle(sweep)}</span>
-							<span className="tabular-nums">+{formatMoney(sweep.amount)}</span>
-						</li>
-					))}
-				</ul>
-			</details>
+				</CollapsibleTrigger>
+				<CollapsibleContent>
+					<ul className="mt-2 grid gap-1 border-t pt-2 text-[13px] text-muted-foreground">
+						{sweeps.map((sweep) => (
+							<li key={sweep.id} className="flex justify-between gap-3">
+								<span>{changeTitle(sweep)}</span>
+								<span className="tabular-nums">+{formatMoney(sweep.amount)}</span>
+							</li>
+						))}
+					</ul>
+				</CollapsibleContent>
+			</Collapsible>
 		</li>
 	);
 }

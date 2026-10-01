@@ -1,11 +1,26 @@
 import type { Cents, Reason, Verdict } from "@noodle/domain";
+import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@noodle/ui/components/collapsible";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { NativeSelect } from "@noodle/ui/components/native-select";
 import { Table, TableBody, TableCaption, TableCell, TableRow } from "@noodle/ui/components/table";
 import { cn } from "@noodle/ui/lib/utils";
-import { Check, Circle, CircleAlert, CircleCheck, Clock, Info, Minus } from "lucide-react";
+import {
+	Check,
+	ChevronDown,
+	Circle,
+	CircleAlert,
+	CircleCheck,
+	Clock,
+	Info,
+	Minus,
+} from "lucide-react";
 import {
 	type ComponentProps,
 	createContext,
@@ -359,8 +374,8 @@ export function SetAsidePicker({
 				<p className="text-sm text-muted-foreground">No Goals with money set aside yet.</p>
 			)}
 			<MoneyField
-				label="Other cash"
-				hint="Savings not claimed by a Goal that could go toward it."
+				label="Other savings you’d use"
+				hint="Savings not set aside for a Goal that could go toward it."
 				value={otherCash}
 				onChange={onOtherCash}
 			/>
@@ -389,33 +404,58 @@ export function CommitmentRoles({
 	onRole: (commitmentId: string, role: CommitmentRole) => void;
 }) {
 	if (commitments.length === 0) return null;
+	// Most stay as they are: say which don't, and open the list to change them.
+	const changed = (role: CommitmentRole) =>
+		commitments.filter((c) => (roles[c.id] ?? "stays") === role).map((c) => c.name);
+	const summary = [
+		changed("replaced").length > 0 ? `Replaced: ${changed("replaced").join(", ")}` : null,
+		changed("debt").length > 0 ? `Debts: ${changed("debt").join(", ")}` : null,
+	].filter(Boolean);
 	return (
 		<FieldGroup legend="Commitments">
-			<p className="-mt-2 text-xs text-subtle-foreground">{hint}</p>
-			<div className="grid grid-cols-[minmax(0,1fr)] gap-2">
-				{commitments.map((c) => (
-					<div key={c.id} className="flex items-center gap-3 text-sm">
-						<span className="min-w-0 flex-1">
-							<span className="block truncate">{c.name}</span>
-							<span className="text-[13px] text-muted-foreground tabular-nums">
-								{formatMoney(c.monthly)} a month
-							</span>
-						</span>
-						<NativeSelect
-							className="w-40 shrink-0"
-							aria-label={`${c.name} is`}
-							value={roles[c.id] ?? "stays"}
-							onChange={(event) => onRole(c.id, event.currentTarget.value as CommitmentRole)}
-						>
-							{allowed.map((role) => (
-								<option key={role} value={role}>
-									{roleName[role]}
-								</option>
-							))}
-						</NativeSelect>
+			<Collapsible className="group grid gap-3">
+				<div className="-mt-2 flex items-start justify-between gap-3">
+					<div className="grid min-w-0 gap-0.5">
+						<p className="text-sm">
+							{summary.length > 0 ? summary.join(" · ") : `All ${commitments.length} stay`}
+						</p>
+						<p className="text-xs text-subtle-foreground">{hint}</p>
 					</div>
-				))}
-			</div>
+					<CollapsibleTrigger asChild>
+						<Button type="button" variant="outline" size="sm" className="shrink-0">
+							Edit<span className="sr-only"> Commitments</span>
+							<ChevronDown
+								aria-hidden="true"
+								className="transition-transform group-data-[state=open]:rotate-180"
+							/>
+						</Button>
+					</CollapsibleTrigger>
+				</div>
+				<CollapsibleContent className="grid grid-cols-[minmax(0,1fr)] gap-2">
+					{commitments.map((c) => (
+						<div key={c.id} className="flex items-center gap-3 text-sm">
+							<span className="min-w-0 flex-1">
+								<span className="block truncate">{c.name}</span>
+								<span className="text-[13px] text-muted-foreground tabular-nums">
+									{formatMoney(c.monthly)} a month
+								</span>
+							</span>
+							<NativeSelect
+								className="w-40 shrink-0"
+								aria-label={`${c.name} is`}
+								value={roles[c.id] ?? "stays"}
+								onChange={(event) => onRole(c.id, event.currentTarget.value as CommitmentRole)}
+							>
+								{allowed.map((role) => (
+									<option key={role} value={role}>
+										{roleName[role]}
+									</option>
+								))}
+							</NativeSelect>
+						</div>
+					))}
+				</CollapsibleContent>
+			</Collapsible>
 		</FieldGroup>
 	);
 }

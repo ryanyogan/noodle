@@ -1,8 +1,14 @@
 import type { Plan, ReceiptPart } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@noodle/ui/components/collapsible";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { useQuery } from "@tanstack/react-query";
 import { useHydrated } from "@tanstack/react-router";
+import { ChevronRight } from "lucide-react";
 import { ulid } from "ulid";
 import { formatMoney, shortDay } from "../format";
 import { forLabel, type MemberSummary } from "../members";
@@ -84,21 +90,27 @@ export function ReceiptSection({
 				</p>
 			</div>
 			{receipt.lines.length > 0 ? (
-				<details className="text-[13px]">
-					<summary className="cursor-pointer text-muted-foreground">
+				<Collapsible className="group text-[13px]">
+					<CollapsibleTrigger className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
+						<ChevronRight
+							aria-hidden="true"
+							className="size-3.5 transition-transform group-data-[state=open]:rotate-90"
+						/>
 						{receipt.lines.length} {receipt.lines.length === 1 ? "line" : "lines"}
-					</summary>
-					<ul className="mt-2 grid gap-1">
-						{receipt.lines.map((line, i) => (
-							// Lines have no ID; their order is the Receipt's.
-							// biome-ignore lint/suspicious/noArrayIndexKey: a Receipt's lines never reorder
-							<li key={i} className="flex gap-3">
-								<span className="min-w-0 flex-1 truncate">{line.text}</span>
-								<span className="tabular-nums">{formatMoney(line.amount)}</span>
-							</li>
-						))}
-					</ul>
-				</details>
+					</CollapsibleTrigger>
+					<CollapsibleContent>
+						<ul className="mt-2 grid gap-1">
+							{receipt.lines.map((line, i) => (
+								// Lines have no ID; their order is the Receipt's.
+								// biome-ignore lint/suspicious/noArrayIndexKey: a Receipt's lines never reorder
+								<li key={i} className="flex gap-3">
+									<span className="min-w-0 flex-1 truncate">{line.text}</span>
+									<span className="tabular-nums">{formatMoney(line.amount)}</span>
+								</li>
+							))}
+						</ul>
+					</CollapsibleContent>
+				</Collapsible>
 			) : null}
 			{proposal === null ? (
 				<p className="text-[13px] text-muted-foreground">Its total couldn’t be read.</p>
