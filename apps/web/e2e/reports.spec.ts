@@ -124,8 +124,18 @@ test("no Report view is wider than a phone, and a long merchant name stays in it
 
 	await page.getByRole("link", { name: "Reports" }).click();
 	await expect(heading(page)).toContainText("Overview");
-	await choose(page, "Period", "Last 12 months");
+	// By keyboard: the Select opens on Enter, the arrows move, Enter chooses, and focus comes back.
+	const period = page.getByRole("combobox", { name: "Period" });
+	await period.focus();
+	await page.keyboard.press("Enter");
+	const listbox = page.getByRole("listbox");
+	await expect(listbox.getByRole("option", { name: "Last 6 months" })).toBeFocused();
+	await page.keyboard.press("ArrowDown");
+	await expect(listbox.getByRole("option", { name: "Last 12 months" })).toBeFocused();
+	await page.keyboard.press("Enter");
 	await expect(page).toHaveURL(/period=12m/);
+	await expect(period).toBeFocused();
+	await expect(period).toHaveText("Last 12 months");
 
 	// Merchants on desktop: the amounts stay inside the card beside the long name.
 	await page.getByRole("link", { name: "Merchants", exact: true }).click();
