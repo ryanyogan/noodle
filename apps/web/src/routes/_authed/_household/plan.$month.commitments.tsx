@@ -58,6 +58,58 @@ function PlanCommitments() {
 			changes={writes}
 		/>
 	);
+	const aside = (
+		<>
+			{state.editable ? <AddCommitment month={month} /> : null}
+			{state.commitments.length > 0 ? (
+				<>
+					<p className="px-1 text-sm text-muted-foreground">
+						Across a year these average{" "}
+						<span className="font-medium text-foreground tabular-nums">
+							{formatMoney(average)} a month
+						</span>{" "}
+						({formatMoney(state.commitments.reduce((sum, c) => sum + yearlyCost(c), 0))} a year).{" "}
+						{average > state.committed
+							? `That’s more than this month’s ${formatMoney(state.committed)}, because some are due only in certain months.`
+							: average < state.committed
+								? `This month’s ${formatMoney(state.committed)} is more, because some fall due in it.`
+								: null}
+					</p>
+					<p className="px-1 text-[13px] text-muted-foreground">
+						Paying off a card or loan faster? Its regular payment stays here; a{" "}
+						<Link
+							to="/goals"
+							search={{ add: "payoff" }}
+							className="font-medium text-foreground underline underline-offset-3"
+						>
+							payoff Goal
+						</Link>{" "}
+						plans the extra on top.
+					</p>
+				</>
+			) : null}
+			{lumpy.length > 0 ? (
+				// The year view keeps the one list of lumpy months; this says how many and leads there.
+				<Link
+					to="/plan/year/$year"
+					params={{ year: month.slice(0, 4) }}
+					className="flex items-center justify-between gap-4 rounded-xl border px-(--card-pad) py-3 text-sm transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60"
+				>
+					<span>
+						<span className="font-medium">
+							{lumpy.length === 1 ? "1 lumpy month" : `${lumpy.length} lumpy months`} ahead
+						</span>
+						<span className="block text-[13px] text-muted-foreground">
+							Next: {monthYear(lumpy[0]?.month ?? month)},{" "}
+							{formatMoney((lumpy[0]?.lumps ?? []).reduce((sum, l) => sum + l.extra, 0))} extra. See
+							them on the year.
+						</span>
+					</span>
+					<ChevronRight aria-hidden="true" className="size-4 shrink-0 text-subtle-foreground" />
+				</Link>
+			) : null}
+		</>
+	);
 	return (
 		<PlanSubPage
 			page="commitments"
@@ -70,6 +122,7 @@ function PlanCommitments() {
 					? `${formatMoney(state.committed)} expected this month`
 					: undefined
 			}
+			aside={aside}
 		>
 			<div className="grid gap-3">
 				{writes.failed}
@@ -96,29 +149,6 @@ function PlanCommitments() {
 								</CollapsibleContent>
 							</Collapsible>
 						) : null}
-						<p className="px-1 text-sm text-muted-foreground">
-							Across a year these average{" "}
-							<span className="font-medium text-foreground tabular-nums">
-								{formatMoney(average)} a month
-							</span>{" "}
-							({formatMoney(state.commitments.reduce((sum, c) => sum + yearlyCost(c), 0))} a year).{" "}
-							{average > state.committed
-								? `That’s more than this month’s ${formatMoney(state.committed)}, because some are due only in certain months.`
-								: average < state.committed
-									? `This month’s ${formatMoney(state.committed)} is more, because some fall due in it.`
-									: null}
-						</p>
-						<p className="px-1 text-[13px] text-muted-foreground">
-							Paying off a card or loan faster? Its regular payment stays here; a{" "}
-							<Link
-								to="/goals"
-								search={{ add: "payoff" }}
-								className="font-medium text-foreground underline underline-offset-3"
-							>
-								payoff Goal
-							</Link>{" "}
-							plans the extra on top.
-						</p>
 					</>
 				) : state.editable ? (
 					<p className="px-1 text-sm text-muted-foreground">
@@ -131,28 +161,7 @@ function PlanCommitments() {
 						No Commitments in this month’s Plan.
 					</Card>
 				)}
-				{state.editable ? <AddCommitment month={month} /> : null}
 			</div>
-			{lumpy.length > 0 ? (
-				// The year view keeps the one list of lumpy months; this says how many and leads there.
-				<Link
-					to="/plan/year/$year"
-					params={{ year: month.slice(0, 4) }}
-					className="flex items-center justify-between gap-4 rounded-xl border px-(--card-pad) py-3 text-sm transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60"
-				>
-					<span>
-						<span className="font-medium">
-							{lumpy.length === 1 ? "1 lumpy month" : `${lumpy.length} lumpy months`} ahead
-						</span>
-						<span className="block text-[13px] text-muted-foreground">
-							Next: {monthYear(lumpy[0]?.month ?? month)},{" "}
-							{formatMoney((lumpy[0]?.lumps ?? []).reduce((sum, l) => sum + l.extra, 0))} extra. See
-							them on the year.
-						</span>
-					</span>
-					<ChevronRight aria-hidden="true" className="size-4 shrink-0 text-subtle-foreground" />
-				</Link>
-			) : null}
 		</PlanSubPage>
 	);
 }

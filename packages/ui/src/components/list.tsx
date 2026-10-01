@@ -61,7 +61,9 @@ function ListRow({
 					</div>
 				) : null}
 			</div>
-			{trailing ? <div className="grid justify-items-end gap-0.5 text-end">{trailing}</div> : null}
+			{trailing ? (
+				<div className="grid justify-items-end gap-0.5 text-end tabular-nums">{trailing}</div>
+			) : null}
 			{below ? (
 				<div className={leading ? "col-start-2 col-end-4" : "col-span-2"}>{below}</div>
 			) : null}

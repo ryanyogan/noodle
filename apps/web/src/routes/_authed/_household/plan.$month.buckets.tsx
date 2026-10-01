@@ -2,6 +2,7 @@ import { monthOfDay } from "@noodle/domain";
 import { Card } from "@noodle/ui/components/card";
 import { List } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { AddBucket, AddPersonalAllowance, BucketEditor } from "../../../components/bucket-editor";
 import { PlanSubPage } from "../../../components/plan-page";
@@ -23,6 +24,8 @@ function PlanBuckets() {
 	const buckets = state.buckets.filter((b) => b.owner === undefined);
 	const allowances = state.buckets.filter((b) => b.owner !== undefined);
 	const shared = buckets.reduce((sum, b) => sum + b.allowance, 0);
+	const members = useSuspenseQuery(membersQuery()).data;
+	const nameOf = (id: string) => members.find((m) => m.id === id)?.name;
 	return (
 		<PlanSubPage
 			page="buckets"
@@ -39,6 +42,7 @@ function PlanBuckets() {
 						}`
 					: undefined
 			}
+			aside={state.editable ? <AddBucket month={month} buckets={state.buckets} /> : undefined}
 		>
 			<div className="grid gap-3">
 				{buckets.length > 0 ? (
@@ -64,7 +68,6 @@ function PlanBuckets() {
 						No Buckets in this month’s Plan.
 					</Card>
 				)}
-				{state.editable ? <AddBucket month={month} buckets={state.buckets} /> : null}
 			</div>
 			{allowances.length > 0 || state.editable ? (
 				<Section id="personal-allowances" aria-labelledby="plan-personal-allowances">
@@ -85,6 +88,11 @@ function PlanBuckets() {
 									editable={state.editable && bucket.owner === parentId}
 									was={changes.allowances[bucket.id]}
 									order={[]}
+									setBy={
+										state.editable && bucket.owner !== parentId && bucket.owner
+											? nameOf(bucket.owner)
+											: undefined
+									}
 								/>
 							))}
 						</List>

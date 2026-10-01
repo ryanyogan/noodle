@@ -130,40 +130,57 @@ function BucketPage() {
 					) : undefined
 				}
 			/>
-			<div className="grid max-w-2xl gap-8">
-				{changes.failed}
-				{current ? (
-					<ThisMonth bucket={current} />
-				) : (
-					<Card className="p-(--card-pad) text-sm text-muted-foreground">
-						{archived
-							? `It left the Plan${record.archivedFromMonth ? ` from ${monthName(record.archivedFromMonth)} on` : ""}. Earlier months keep it.`
-							: `It joins the Plan in ${monthName(record.fromMonth)}.`}
-					</Card>
-				)}
-				<History months={data.months} color={current?.color ?? record.color} />
-				{open ? (
-					<BucketTransactions month={month} bucketId={id} parentId={parentId} archived={archived} />
-				) : (
-					<Section aria-labelledby="bucket-transactions">
-						<SectionHeader id="bucket-transactions" title="Transactions" />
+			{/* At lg: this month and its Transactions on the left; how it's gone over time on the right.
+			    On phones the two columns' parts interleave, in the order they always had. */}
+			<div className="grid max-w-2xl gap-8 lg:max-w-none lg:grid-cols-2 lg:items-start lg:gap-6">
+				<div className="max-lg:contents lg:grid lg:min-w-0 lg:gap-8">
+					{changes.failed}
+					{current ? (
+						<ThisMonth bucket={current} />
+					) : (
 						<Card className="p-(--card-pad) text-sm text-muted-foreground">
-							It’s a Personal Allowance: only its Parent sees what’s spent from it.
+							{archived
+								? `It left the Plan${record.archivedFromMonth ? ` from ${monthName(record.archivedFromMonth)} on` : ""}. Earlier months keep it.`
+								: `It joins the Plan in ${monthName(record.fromMonth)}.`}
 						</Card>
-					</Section>
-				)}
-				<Section aria-labelledby="allowance-history">
-					<SectionHeader id="allowance-history" title="Allowance history" />
-					<PlanHistoryList month={month} targetId={id} />
-				</Section>
-				<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border px-(--card-pad) py-2.5 text-[13px] text-muted-foreground">
-					<p className="py-1">Its Plan vs actual, over any period.</p>
-					<Button variant="outline" size="sm" asChild>
-						<Link to="/reports" search={{ view: "plan", period: "12m", buckets: [id] }}>
-							<ChartColumn />
-							See in Reports
-						</Link>
-					</Button>
+					)}
+					<div className="grid min-w-0 gap-8 max-lg:order-2">
+						{open ? (
+							<BucketTransactions
+								month={month}
+								bucketId={id}
+								parentId={parentId}
+								archived={archived}
+							/>
+						) : (
+							<Section aria-labelledby="bucket-transactions">
+								<SectionHeader id="bucket-transactions" title="Transactions" />
+								<Card className="p-(--card-pad) text-sm text-muted-foreground">
+									It’s a Personal Allowance: only its Parent sees what’s spent from it.
+								</Card>
+							</Section>
+						)}
+					</div>
+				</div>
+				<div className="max-lg:contents lg:grid lg:min-w-0 lg:gap-8">
+					<div className="grid min-w-0 gap-8 max-lg:order-1">
+						<History months={data.months} color={current?.color ?? record.color} />
+					</div>
+					<div className="grid min-w-0 gap-8 max-lg:order-3">
+						<Section aria-labelledby="allowance-history">
+							<SectionHeader id="allowance-history" title="Allowance history" />
+							<PlanHistoryList month={month} targetId={id} />
+						</Section>
+						<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border px-(--card-pad) py-2.5 text-[13px] text-muted-foreground">
+							<p className="py-1">Compare planned and spent for any period</p>
+							<Button variant="outline" size="sm" asChild>
+								<Link to="/reports" search={{ view: "plan", period: "12m", buckets: [id] }}>
+									<ChartColumn />
+									See in Reports
+								</Link>
+							</Button>
+						</div>
+					</div>
 				</div>
 			</div>
 			{current ? (

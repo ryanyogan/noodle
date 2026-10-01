@@ -1,6 +1,8 @@
 import { type MonthKey, monthOfDay, type PlanScope } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
+import { Card } from "@noodle/ui/components/card";
 import { List, ListRow } from "@noodle/ui/components/list";
+import { Progress } from "@noodle/ui/components/progress";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { createFileRoute, useHydrated } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
@@ -11,6 +13,7 @@ import { PlanSubPage } from "../../../components/plan-page";
 import { ChangedNote, PlanAmountForm } from "../../../components/plan-scope-field";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney } from "../../../format";
+import { glossary } from "../../../glossary";
 import { usePlanChange, usePlanChanges, withTakeHomePay } from "../../../plan-changes";
 import { useMonthState } from "../../../queries";
 import { setTakeHomePay } from "../../../server/plan";
@@ -32,6 +35,7 @@ function PlanIncome() {
 			current={current}
 			editable={state.editable}
 			title="Income"
+			aside={<TakeHomePayNote baseline={state.baseline} received={received} />}
 		>
 			<TakeHomePayEditor month={month} baseline={state.baseline} editable={state.editable} />
 			{/* The same income list as This Month's, with Add income and the same row actions. */}
@@ -39,6 +43,43 @@ function PlanIncome() {
 				<MonthIncome month={month} asOf={state.asOf} baseline={state.baseline} income={received} />
 			) : null}
 		</PlanSubPage>
+	);
+}
+
+/** What take-home pay is, and how much of it has come in so far this month. */
+function TakeHomePayNote({
+	baseline,
+	received,
+}: {
+	baseline: number | null;
+	received: { amount: number }[];
+}) {
+	const term = glossary["take-home-pay"];
+	const total = received.reduce((sum, i) => sum + i.amount, 0);
+	return (
+		<Card className="grid gap-3 p-(--card-pad)">
+			{baseline !== null && baseline > 0 ? (
+				<div className="grid gap-2">
+					<p className="text-sm">
+						<span className="font-medium tabular-nums">{formatMoney(total)}</span>
+						<span className="text-muted-foreground tabular-nums">
+							{" "}
+							received of {formatMoney(baseline)}
+						</span>
+					</p>
+					<Progress
+						value={Math.min(total, baseline)}
+						max={baseline}
+						aria-label="Received of take-home pay"
+					/>
+				</div>
+			) : null}
+			<div className="grid gap-1 text-[13px] text-muted-foreground">
+				<h2 className="text-sm font-medium text-foreground">What’s take-home pay?</h2>
+				<p>{term.short}</p>
+				<p>{term.more}</p>
+			</div>
+		</Card>
 	);
 }
 

@@ -8,6 +8,7 @@ import {
 	nextDueDate,
 	type PlanScope,
 	parseDollars,
+	yearlyCost,
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
@@ -93,12 +94,21 @@ export function CommitmentEditor({
 					</span>
 					<ChangedNote was={was} />
 					{monthly ? (
-						<span className="basis-full text-subtle-foreground">{costText(commitment)}</span>
+						// At lg the yearly total is its own column instead.
+						<span className="basis-full text-subtle-foreground lg:sr-only">
+							{costText(commitment)}
+						</span>
 					) : null}
 				</>
 			}
 			trailing={
 				<div className="flex items-center gap-1">
+					<span
+						aria-hidden={monthly || undefined}
+						className="me-3 hidden w-32 text-end text-[13px] text-subtle-foreground lg:block"
+					>
+						{formatMoney(yearlyCost(commitment))} a year
+					</span>
 					<span className="text-sm font-medium tabular-nums">
 						{monthly
 							? formatMoney(commitment.amount)
@@ -406,7 +416,7 @@ export function AddCommitment({ month }: { month: MonthKey }) {
 				aria-label="Add a Commitment"
 				className="grid gap-3 p-(--card-pad)"
 			>
-				<div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
+				<div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem] lg:grid-cols-1">
 					<Field label="New Commitment" htmlFor={`${id}-name`}>
 						<Input
 							id={`${id}-name`}

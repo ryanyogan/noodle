@@ -61,7 +61,7 @@ test("the year at a glance, and Plan health pointing at the fix", async ({ brows
 	await expect(page.getByRole("heading", { level: 1 })).toContainText(monthName(lumpy));
 
 	// The year at a glance, from the Plan overview.
-	await page.getByRole("link", { name: `${lumpy.slice(0, 4)} at a glance` }).click();
+	await page.getByRole("link", { name: `See the whole of ${lumpy.slice(0, 4)}` }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toContainText(lumpy.slice(0, 4));
 	const table = page.getByRole("table", { name: "The Plan month by month" });
 	const row = table.getByRole("row", { name: new RegExp(`^${monthName(lumpy)}`) });

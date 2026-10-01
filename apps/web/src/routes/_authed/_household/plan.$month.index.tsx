@@ -71,28 +71,32 @@ function PlanOverview() {
 		<div {...swipe}>
 			<MonthTopRow month={month} current="plan" />
 			<PageHeader
-				className="max-w-2xl"
 				eyebrow="Plan"
 				title={monthTitle(month, current)}
 				actions={<MonthLinks to="/plan/$month" month={month} first={state.firstMonth} />}
 			/>
 			<PlanNav month={month} page="overview" />
-			<div className="grid max-w-2xl gap-8">
-				{state.editable ? null : <PlanEnded />}
-				{state.editable && month === current ? <PlanDraftSection /> : null}
-				{settingUp ? <SetUp state={state} current={month === current} /> : null}
-				{month === current ? <PlanHealth /> : null}
-				{/* Until take-home pay is set, the rest is all zeros: setting up comes first. */}
-				{settingUp && state.baseline === null ? null : (
-					<>
+			{/* At lg: the Plan itself on the left, what's coming and what changed on the right. */}
+			<div className="grid max-w-2xl gap-8 lg:max-w-none lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)] lg:items-start">
+				<div className="grid min-w-0 gap-8">
+					{state.editable ? null : <PlanEnded />}
+					{state.editable && month === current ? <PlanDraftSection /> : null}
+					{settingUp ? <SetUp state={state} current={month === current} /> : null}
+					{month === current ? <PlanHealth /> : null}
+					{/* Until take-home pay is set, the rest is all zeros: setting up comes first. */}
+					{settingUp && state.baseline === null ? null : (
 						<div className="grid gap-3">
 							<Waterfall state={state} current={month === current} />
 							<LumpCallout lumps={lumpsIn(state)} month={month} />
 							<YearLink month={month} />
 						</div>
+					)}
+				</div>
+				{settingUp && state.baseline === null ? null : (
+					<div className="grid min-w-0 gap-8">
 						{month === current ? <ComingUpSummary /> : null}
 						<WhatChanged month={month} first={state.firstMonth} />
-					</>
+					</div>
 				)}
 			</div>
 		</div>
@@ -103,17 +107,12 @@ function PlanOverview() {
 function YearLink({ month }: { month: MonthKey }) {
 	const year = month.slice(0, 4);
 	return (
-		<Link
-			to="/plan/year/$year"
-			params={{ year }}
-			className={cn(
-				"flex items-center justify-between gap-4 rounded-xl border px-(--card-pad) py-3 text-sm font-medium",
-				"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60",
-			)}
-		>
-			{year} at a glance
-			<ChevronRight aria-hidden="true" className="size-4 text-subtle-foreground" />
-		</Link>
+		<Button variant="secondary" className="h-11 justify-between px-(--card-pad)" asChild>
+			<Link to="/plan/year/$year" params={{ year }}>
+				See the whole of {year}
+				<ChevronRight aria-hidden="true" className="size-4 text-subtle-foreground" />
+			</Link>
+		</Button>
 	);
 }
 

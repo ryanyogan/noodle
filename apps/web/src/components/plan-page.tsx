@@ -93,6 +93,7 @@ export function PlanSubPage({
 	page,
 	summary,
 	actions,
+	aside,
 	children,
 }: {
 	month: MonthKey;
@@ -105,12 +106,13 @@ export function PlanSubPage({
 	summary?: ReactNode;
 	/** The header's actions, e.g. adding to this part. */
 	actions?: ReactNode;
+	/** The right column at lg (the add form, the page's explainer); on phones it follows the list. */
+	aside?: ReactNode;
 	children: ReactNode;
 }) {
 	return (
 		<>
 			<PageHeader
-				className="max-w-2xl"
 				eyebrow={`${monthTitle(month, current)} Plan`}
 				title={title}
 				leading={
@@ -123,14 +125,21 @@ export function PlanSubPage({
 				actions={actions}
 			/>
 			<PlanNav month={month} page={page} />
-			<div className="grid max-w-2xl gap-8">
-				{summary || !editable ? (
-					<div className="grid gap-3">
-						{editable ? null : <PlanEnded />}
-						{summary ? <p className="px-1 text-sm text-muted-foreground">{summary}</p> : null}
-					</div>
-				) : null}
-				{children}
+			{/* At lg the list takes the left; the total, the add form and the explainer sit in a sticky
+			    right column. On phones that column's parts fall in line: the total first, the rest last. */}
+			<div className="grid max-w-2xl gap-8 lg:max-w-none lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start xl:grid-cols-[minmax(0,1fr)_380px]">
+				<div className="grid min-w-0 gap-8">{children}</div>
+				<div className="max-lg:contents lg:sticky lg:top-6 lg:grid lg:gap-6">
+					{summary || !editable ? (
+						<div className="grid gap-3 max-lg:order-first">
+							{editable ? null : <PlanEnded />}
+							{summary ? (
+								<p className="px-1 text-sm text-muted-foreground tabular-nums">{summary}</p>
+							) : null}
+						</div>
+					) : null}
+					{aside ? <div className="grid gap-4">{aside}</div> : null}
+				</div>
 			</div>
 		</>
 	);

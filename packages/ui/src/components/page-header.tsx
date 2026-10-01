@@ -33,7 +33,7 @@ function PageHeader({
 							{eyebrow}
 						</span>
 					) : null}
-					<span className="block truncate">{title}</span>
+					<span className="line-clamp-2 text-balance break-words">{title}</span>
 				</h1>
 				{trailing}
 			</div>

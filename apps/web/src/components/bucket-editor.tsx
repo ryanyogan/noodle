@@ -51,11 +51,14 @@ export function BucketEditor({
 	editable,
 	was,
 	order,
+	setBy,
 }: {
 	month: MonthKey;
 	bucket: PlanBucket;
 	editable: boolean;
 	was?: number;
+	/** Who sets this one, when it isn't the viewer (the other Parent's Personal Allowance). */
+	setBy?: string;
 	/** The shared Buckets' IDs in order, for moving this one; a Personal Allowance has none. */
 	order: string[];
 }) {
@@ -80,6 +83,8 @@ export function BucketEditor({
 					</>
 				) : was != null ? (
 					<span>Changed this month · was {formatMoney(was)}</span>
+				) : setBy ? (
+					<span>{setBy} sets this</span>
 				) : undefined
 			}
 			trailing={
@@ -96,6 +101,9 @@ export function BucketEditor({
 						>
 							<Pencil />
 						</Button>
+					) : setBy ? (
+						// Keeps the pencil's space, so its amount lines up with the viewer's own.
+						<span aria-hidden="true" className="size-8 shrink-0" />
 					) : null}
 					<BucketSheet
 						month={month}
@@ -591,14 +599,14 @@ export function AddBucket({ month, buckets }: { month: MonthKey; buckets: PlanBu
 	return (
 		<Card>
 			<form onSubmit={onSubmit} noValidate className="grid gap-3 p-(--card-pad)">
-				<div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
+				<div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem] lg:grid-cols-1">
 					<Field label="New Bucket" htmlFor="new-bucket-name">
 						<Input
 							id="new-bucket-name"
 							name="name"
 							maxLength={40}
 							autoComplete="off"
-							placeholder="Gifts"
+							placeholder="e.g. Pets"
 							aria-invalid={errors.name || undefined}
 						/>
 					</Field>

@@ -67,7 +67,6 @@ function YearPage() {
 	return (
 		<>
 			<PageHeader
-				className="max-w-3xl"
 				eyebrow="Plan"
 				title={year}
 				leading={
@@ -95,8 +94,8 @@ function YearPage() {
 					}
 				/>
 			) : (
-				<div className="grid max-w-3xl gap-8">
-					<p className="text-[13px] text-muted-foreground">
+				<div className="grid gap-8">
+					<p className="max-w-prose text-[13px] text-muted-foreground">
 						Each month’s Plan, from take-home pay down to Free to Spend, as the Plan shows it.
 						Months over or under way show what actually happened beneath it: income received,
 						spending, and Goal funding. Beneath Free to Spend, that’s the income received less the
