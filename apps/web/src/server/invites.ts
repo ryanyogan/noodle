@@ -7,7 +7,7 @@ import {
 } from "@noodle/db";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireUserId, verifiedEmails } from "./auth";
+import { primaryEmail, requireUserId, verifiedEmails } from "./auth";
 import { getDb } from "./db";
 import { householdMiddleware, toHouseholdSummary } from "./household";
 import { notifyHousehold } from "./notify";
@@ -22,8 +22,12 @@ export const getHouseholdParents = createServerFn({ method: "GET" })
 			listParents(db, context.household.id),
 			findOpenInvite(db, context.household.id),
 		]);
+		// Each Parent's email, from Clerk: which login is whose, once both have joined.
+		const emails = await Promise.all(
+			parents.map((parent) => (parent.clerkUserId ? primaryEmail(parent.clerkUserId) : null)),
+		);
 		return {
-			parents: parents.map(({ id, name }) => ({ id, name })),
+			parents: parents.map(({ id, name }, i) => ({ id, name, email: emails[i] ?? null })),
 			invitedEmail: invite?.email ?? null,
 			hasAllParents: parents.length >= MAX_PARENTS,
 		};

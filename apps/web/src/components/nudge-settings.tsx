@@ -9,7 +9,7 @@ import { toast } from "@noodle/ui/components/toast";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useHydrated } from "@tanstack/react-router";
 import { Bell, BellOff } from "lucide-react";
-import { type FormEvent, type ReactNode, useEffect, useId, useState } from "react";
+import { type ReactNode, useEffect, useId, useState } from "react";
 import { type PushDeviceState, pushDeviceState, turnOffPush, turnOnPush } from "../push-device";
 import { nudgeSettingsQuery } from "../queries";
 import { saveNudgePreferences, sendTestNudge } from "../server/nudges";
@@ -103,85 +103,88 @@ const toMinutes = (time: string) => {
 /** Quiet hours when none are saved yet: 9pm to 7am. */
 const usualQuietHours: QuietHours = { start: 21 * 60, end: 7 * 60 };
 
+/**
+ * Which Nudges this Parent gets. Each switch, and each quiet-hours time, saves the moment it
+ * changes, as switches look like they do; the line under them says when it has.
+ */
 function NudgePreferencesForm({ saved }: { saved: NudgePreferences }) {
 	const queryClient = useQueryClient();
 	const hydrated = useHydrated();
 	const id = useId();
-	const [bucketPace, setBucketPace] = useState(saved.bucketPace);
-	const [quickAdds, setQuickAdds] = useState(saved.otherParentQuickAdds);
-	const [extraIncomes, setExtraIncomes] = useState(saved.windfalls);
-	const [quiet, setQuiet] = useState(saved.quietHours !== null);
-	const [quietHours, setQuietHours] = useState(saved.quietHours ?? usualQuietHours);
+	const [preferences, setPreferences] = useState<NudgePreferences>(saved);
+	const quietHours = preferences.quietHours ?? usualQuietHours;
+	// The times last set, kept while quiet hours are off, so turning them on brings them back.
+	const [lastQuietHours, setLastQuietHours] = useState(quietHours);
 
 	const save = useMutation({
-		mutationFn: (preferences: NudgePreferences) =>
-			saveNudgePreferences({ data: preferences }).then(() => preferences),
-		onSuccess: (preferences) => {
+		// One at a time, in order: the last change made is the one that stays.
+		scope: { id: "nudge-preferences" },
+		mutationFn: (next: NudgePreferences) => saveNudgePreferences({ data: next }).then(() => next),
+		onSuccess: (next) => {
 			queryClient.setQueryData(nudgeSettingsQuery().queryKey, (settings) =>
-				settings ? { ...settings, preferences } : settings,
+				settings ? { ...settings, preferences: next } : settings,
 			);
-			toast("Nudge settings saved");
 		},
-		onError: (_error, preferences) =>
+		onError: (_error, next) =>
 			toast("Couldn’t save your Nudge settings.", {
 				tone: "error",
-				action: { label: "Retry", onClick: () => save.mutate(preferences) },
+				action: { label: "Retry", onClick: () => save.mutate(next) },
 			}),
 	});
 
-	function onSubmit(event: FormEvent<HTMLFormElement>) {
-		event.preventDefault();
-		save.mutate({
-			bucketPace,
-			otherParentQuickAdds: quickAdds,
-			windfalls: extraIncomes,
-			quietHours: quiet ? quietHours : null,
+	function change(patch: Partial<NudgePreferences>) {
+		const next: NudgePreferences = {
+			...preferences,
+			...patch,
 			// Quiet hours are this Parent's own, so they follow the device they set them on.
 			timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-		});
+		};
+		setPreferences(next);
+		if (next.quietHours) setLastQuietHours(next.quietHours);
+		save.mutate(next);
 	}
 
 	return (
 		<Card>
-			<form onSubmit={onSubmit}>
-				<fieldset disabled={!hydrated} className="divide-y">
-					<legend className="sr-only">Which Nudges you get</legend>
+			<fieldset disabled={!hydrated} className="divide-y">
+				<legend className="sr-only">Which Nudges you get</legend>
+				<Switch
+					label="A Bucket is being spent faster than the month is going"
+					hint="While there’s still a week or more of the month to go."
+					checked={preferences.bucketPace}
+					onChange={(bucketPace) => change({ bucketPace })}
+				/>
+				<Switch
+					label="The other Parent’s Quick Adds"
+					hint="Never anything in their Personal Allowance."
+					checked={preferences.otherParentQuickAdds}
+					onChange={(otherParentQuickAdds) => change({ otherParentQuickAdds })}
+				/>
+				<Switch
+					label="Extra income arrives"
+					hint="When you’re paid more than your usual take-home pay in a month."
+					checked={preferences.windfalls}
+					onChange={(windfalls) => change({ windfalls })}
+				/>
+				<div className="grid gap-3 pb-(--card-pad)">
 					<Switch
-						label="A Bucket is being spent faster than the month is going"
-						hint="While there’s still a week or more of the month to go."
-						checked={bucketPace}
-						onChange={setBucketPace}
+						label="Quiet hours"
+						hint="Nudges wait until they’re over. In this device’s time zone."
+						checked={preferences.quietHours !== null}
+						onChange={(on) => change({ quietHours: on ? lastQuietHours : null })}
 					/>
-					<Switch
-						label="The other Parent’s Quick Adds"
-						hint="Never anything in their Personal Allowance."
-						checked={quickAdds}
-						onChange={setQuickAdds}
-					/>
-					<Switch
-						label="Extra income arrives"
-						hint="When you’re paid more than your usual take-home pay in a month."
-						checked={extraIncomes}
-						onChange={setExtraIncomes}
-					/>
-					<div className="grid gap-3 pb-(--card-pad)">
-						<Switch
-							label="Quiet hours"
-							hint="Nudges wait until they’re over. In this device’s time zone."
-							checked={quiet}
-							onChange={setQuiet}
-						/>
+					{preferences.quietHours ? (
 						<div className="grid grid-cols-2 gap-3 px-(--card-pad)">
 							<Field label="From" htmlFor={`${id}-start`}>
 								<Input
 									id={`${id}-start`}
 									type="time"
-									required
-									disabled={!quiet}
 									value={toTime(quietHours.start)}
 									onChange={(event) =>
 										event.target.value &&
-										setQuietHours({ ...quietHours, start: toMinutes(event.target.value) })
+										change({
+											quietHours: { ...quietHours, start: toMinutes(event.target.value) },
+										})
 									}
 								/>
 							</Field>
@@ -189,24 +192,28 @@ function NudgePreferencesForm({ saved }: { saved: NudgePreferences }) {
 								<Input
 									id={`${id}-end`}
 									type="time"
-									required
-									disabled={!quiet}
 									value={toTime(quietHours.end)}
 									onChange={(event) =>
 										event.target.value &&
-										setQuietHours({ ...quietHours, end: toMinutes(event.target.value) })
+										change({
+											quietHours: { ...quietHours, end: toMinutes(event.target.value) },
+										})
 									}
 								/>
 							</Field>
 						</div>
-					</div>
-					<div className="flex justify-end p-(--card-pad)">
-						<Button type="submit" disabled={save.isPending}>
-							Save
-						</Button>
-					</div>
-				</fieldset>
-			</form>
+					) : null}
+				</div>
+				<p role="status" className="px-(--card-pad) py-3 text-[13px] text-muted-foreground">
+					{save.isPending
+						? "Saving…"
+						: save.isError
+							? "Not saved."
+							: save.isSuccess
+								? "Saved."
+								: "Changes save as you make them."}
+				</p>
+			</fieldset>
 		</Card>
 	);
 }

@@ -12,6 +12,16 @@ export async function requireUserId(): Promise<string> {
 	return userId;
 }
 
+/** The user's primary email address in Clerk, or null when Clerk can't say. */
+export async function primaryEmail(userId: string): Promise<string | null> {
+	try {
+		const user = await clerkClient().users.getUser(userId);
+		return user.primaryEmailAddress?.emailAddress ?? null;
+	} catch {
+		return null;
+	}
+}
+
 /** The user's verified email addresses, from Clerk (never from client input). */
 export async function verifiedEmails(userId: string): Promise<string[]> {
 	const user = await clerkClient().users.getUser(userId);

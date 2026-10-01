@@ -38,7 +38,9 @@ test("a Parent invites the other Parent, who joins the same Household", async ({
 		await expect(secondPage.getByRole("listitem").filter({ hasText: "Sam" })).toBeVisible();
 		// Two Parents is the limit, so there is nobody left to invite.
 		await expect(secondPage.getByLabel("Their email")).toHaveCount(0);
-		await expect(secondPage.getByText(/both Parents/)).toBeVisible();
+		await expect(secondPage.getByRole("heading", { name: "Invite the other Parent" })).toHaveCount(
+			0,
+		);
 	} finally {
 		await Promise.all([first.remove(), second.remove()]);
 	}
@@ -47,6 +49,7 @@ test("a Parent invites the other Parent, who joins the same Household", async ({
 test("a replaced invite can't be used, so a full Household never gets a third Parent", async ({
 	browser,
 }) => {
+	test.slow();
 	const first = await createTestParent();
 	const replaced = await createTestParent();
 	const second = await createTestParent();

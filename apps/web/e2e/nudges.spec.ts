@@ -83,8 +83,9 @@ test("a Parent turns on Nudges for their device and chooses which they get", asy
 		await extraIncomes.uncheck();
 		await nudges.getByLabel("From").fill("22:30");
 		await nudges.getByLabel("Until").fill("06:15");
-		await nudges.getByRole("button", { name: "Save" }).click();
-		await expect(page.getByText("Nudge settings saved")).toBeVisible();
+		// Each change saves as it's made: there's no Save to forget.
+		await expect(nudges.getByRole("button", { name: "Save" })).toHaveCount(0);
+		await expect(nudges.getByRole("status").filter({ hasText: "Saved." })).toBeVisible();
 
 		await nudges.getByRole("button", { name: "Send a test" }).click();
 		await expect(page.getByText("Test Nudge sent")).toBeVisible();
@@ -98,11 +99,10 @@ test("a Parent turns on Nudges for their device and chooses which they get", asy
 		await expect(nudges.getByLabel("From")).toHaveValue("22:30");
 		await expect(nudges.getByLabel("Until")).toHaveValue("06:15");
 
-		// No quiet hours: the times can't be changed and aren't kept.
+		// No quiet hours: the times aren't shown or kept.
 		await quiet.uncheck();
-		await expect(nudges.getByLabel("From")).toBeDisabled();
-		await nudges.getByRole("button", { name: "Save" }).click();
-		await expect(page.getByText("Nudge settings saved")).toBeVisible();
+		await expect(nudges.getByLabel("From")).toHaveCount(0);
+		await expect(nudges.getByRole("status").filter({ hasText: "Saved." })).toBeVisible();
 		await page.reload();
 		await expect(quiet).not.toBeChecked();
 

@@ -11,7 +11,7 @@ import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Tile } from "@noodle/ui/components/tile";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
-import { BookOpen, Check, Landmark, Mail, Pencil, Plus, UserRoundMinus } from "lucide-react";
+import { BookOpen, Landmark, Mail, Pencil, Plus, UserRoundMinus } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram, nextBucketColor } from "../../../buckets";
@@ -96,7 +96,7 @@ function HouseholdPage() {
 								key={parent.id}
 								leading={<Tile>{parent.name.charAt(0).toUpperCase()}</Tile>}
 								title={parent.name}
-								meta="Parent"
+								meta={parent.email ? `Parent · ${parent.email}` : "Parent"}
 							/>
 						))}
 					</List>
@@ -118,19 +118,12 @@ function HouseholdPage() {
 					<AddChild members={members} />
 				</Section>
 				{children.length > 0 ? <ChildCosts of={children} /> : null}
-				<Section aria-labelledby="invite">
-					<SectionHeader id="invite" title="Invite the other Parent" />
-					{data.hasAllParents ? (
-						<Card className="flex items-center gap-3 p-(--card-pad) text-sm text-muted-foreground">
-							<Tile bucket={6}>
-								<Check />
-							</Tile>
-							Your Household has both Parents.
-						</Card>
-					) : (
+				{data.hasAllParents ? null : (
+					<Section aria-labelledby="invite">
+						<SectionHeader id="invite" title="Invite the other Parent" />
 						<InviteOtherParent invitedEmail={data.invitedEmail} />
-					)}
-				</Section>
+					</Section>
+				)}
 				<CheckInSettings />
 				<NudgeSettings />
 				<CaptureSettings />
