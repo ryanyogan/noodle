@@ -76,9 +76,10 @@ export function MonthCloseSection({
 						key={leftover.bucketId}
 						title={leftover.name}
 						meta={`${formatMoney(leftover.amount)} left`}
+						className="max-sm:grid-cols-1"
 						trailing={
 							<OptionSelect
-								className="w-40"
+								className="w-48 max-sm:w-full"
 								aria-label={`Where ${leftover.name}’s leftover goes`}
 								value={sweeps[leftover.bucketId] ?? ""}
 								disabled={!hydrated || pending}
@@ -94,9 +95,10 @@ export function MonthCloseSection({
 					<ListRow
 						title="Extra income"
 						meta={`${formatMoney(proposal.windfall)} above your usual take-home pay`}
+						className="max-sm:grid-cols-1"
 						trailing={
 							<OptionSelect
-								className="w-40"
+								className="w-48 max-sm:w-full"
 								aria-label="Where the Extra income goes"
 								value={extraIncomeGoalId}
 								disabled={!hydrated || pending}

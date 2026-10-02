@@ -6,6 +6,7 @@ import { Card } from "@noodle/ui/components/card";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
+import { MetaParts } from "@noodle/ui/components/meta-parts";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import {
@@ -107,7 +108,20 @@ function HouseholdPage() {
 									key={parent.id}
 									leading={<Tile>{parent.name.charAt(0).toUpperCase()}</Tile>}
 									title={parent.name}
-									meta={parent.email ? `Parent · ${parent.email}` : "Parent"}
+									meta={
+										<MetaParts
+											parts={[
+												"Parent",
+												parent.email ? (
+													// Breaks at the @ rather than mid-word on a phone.
+													<span key="email" className="min-w-0 break-words">
+														{parent.email.split("@")[0]}
+														<wbr />@{parent.email.split("@").slice(1).join("@")}
+													</span>
+												) : null,
+											]}
+										/>
+									}
 								/>
 							))}
 						</List>
@@ -396,7 +410,44 @@ function ChildCost({
 				{year.total === 0 ? <Badge>Nothing yet</Badge> : null}
 			</div>
 			{year.total > 0 ? (
-				<Table className="border-t text-sm sm:table-fixed">
+				// A phone gets a list (each Bucket's name whole, its two amounts beneath); sm+ the table.
+				<ul
+					aria-label={`What ${child.name} cost, by Bucket`}
+					className="grid gap-2.5 border-t px-(--card-pad) py-3 text-sm sm:hidden"
+				>
+					{rows.map((bucket) => (
+						<li key={bucket.id} className="grid gap-0.5">
+							<span className="flex items-center gap-2">
+								<span
+									aria-hidden="true"
+									className="size-2 shrink-0 rounded-[2px]"
+									style={{ background: `var(--bucket-${asBucketColor(bucket.color)})` }}
+								/>
+								<span className="min-w-0 break-words">{bucket.name}</span>
+							</span>
+							<MetaParts
+								className="ms-4 text-[13px] text-muted-foreground tabular-nums"
+								parts={[
+									`This month ${formatMoney(month.buckets[bucket.id] ?? 0)}`,
+									`This year ${formatMoney(year.buckets[bucket.id] ?? 0)}`,
+								]}
+							/>
+						</li>
+					))}
+					<li className="grid gap-0.5 border-t pt-2.5 font-semibold">
+						<span>Total</span>
+						<MetaParts
+							className="tabular-nums"
+							parts={[
+								`This month ${formatMoney(month.total)}`,
+								`This year ${formatMoney(year.total)}`,
+							]}
+						/>
+					</li>
+				</ul>
+			) : null}
+			{year.total > 0 ? (
+				<Table className="border-t text-sm max-sm:hidden sm:table-fixed">
 					<TableCaption className="sr-only">What {child.name} cost, by Bucket</TableCaption>
 					<TableHeader>
 						<TableRow className="border-0">

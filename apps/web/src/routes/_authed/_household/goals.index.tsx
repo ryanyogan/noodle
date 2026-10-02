@@ -218,14 +218,11 @@ function GoalItem({
 				</>
 			}
 			meta={
-				<>
-					<GoalSummary goal={goal} month={month} />
-					{goal.account ? (
-						<span className="inline-flex items-center gap-1.5">
-							<span aria-hidden="true">·</span>in {goal.account.name}
-						</span>
-					) : null}
-				</>
+				<GoalSummary
+					goal={goal}
+					month={month}
+					after={goal.account ? `in ${goal.account.name}` : null}
+				/>
 			}
 			trailing={
 				<>
@@ -252,13 +249,7 @@ function PayoffGoalItem({ goal, quiet }: { goal: GoalView; quiet: boolean }) {
 			link={(props) => <Link to="/goals/$goalId" params={{ goalId: goal.id }} {...props} />}
 			label={`${goal.name}, paid down ${formatMoney(progress.saved)} of ${formatMoney(goal.target)}, ${paidOff ? "paid off" : `${formatMoney(progress.remaining)} still owed`}${goal.account ? `, on ${goal.account.name}` : ""}`}
 			title={<span className={cn(quiet && "text-muted-foreground")}>{goal.name}</span>}
-			meta={
-				<>
-					<span>Paid down {formatMoney(progress.saved)}</span>
-					<span aria-hidden="true">·</span>
-					<GoalSummary goal={goal} />
-				</>
-			}
+			meta={<GoalSummary goal={goal} before={`Paid down ${formatMoney(progress.saved)}`} />}
 			trailing={
 				paidOff ? (
 					<Badge variant="brand">Paid off</Badge>

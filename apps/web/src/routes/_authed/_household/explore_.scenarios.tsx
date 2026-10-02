@@ -31,6 +31,7 @@ import {
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
+import { MetaParts } from "@noodle/ui/components/meta-parts";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Skeleton } from "@noodle/ui/components/skeleton";
@@ -211,16 +212,15 @@ function ScenariosPage() {
 											}
 											badge={scenario.appliedAt ? <Badge variant="brand">Applied</Badge> : null}
 											meta={
-												<>
-													{scenario.createdBy ? <span>Made by {scenario.createdBy}</span> : null}
-													<span>Changed {shortDayAt(scenario.updatedAt)}</span>
-													{scenario.appliedAt ? (
-														<span>
-															Applied {shortDayAt(scenario.appliedAt)}
-															{scenario.appliedBy ? ` by ${scenario.appliedBy}` : ""}
-														</span>
-													) : null}
-												</>
+												<MetaParts
+													parts={[
+														scenario.createdBy ? `Made by ${scenario.createdBy}` : null,
+														`Changed ${shortDayAt(scenario.updatedAt)}`,
+														scenario.appliedAt
+															? `Applied ${shortDayAt(scenario.appliedAt)}${scenario.appliedBy ? ` by ${scenario.appliedBy}` : ""}`
+															: null,
+													]}
+												/>
 											}
 											trailing={
 												<>

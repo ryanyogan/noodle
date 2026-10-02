@@ -15,6 +15,7 @@ import { Card } from "@noodle/ui/components/card";
 import { DatePicker } from "@noodle/ui/components/date-picker";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
+import { MetaParts } from "@noodle/ui/components/meta-parts";
 import { Progress } from "@noodle/ui/components/progress";
 import { OptionSelect } from "@noodle/ui/components/select";
 import {
@@ -166,7 +167,18 @@ const recentFunding = (goal: GoalView, month: MonthKey): Cents => {
 	return Math.round(funded / 3);
 };
 
-export function GoalSummary({ goal, month }: { goal: GoalView; month?: MonthKey }) {
+export function GoalSummary({
+	goal,
+	month,
+	before,
+	after,
+}: {
+	goal: GoalView;
+	month?: MonthKey;
+	/** Facts to show first or last, joined like the rest. */
+	before?: ReactNode;
+	after?: ReactNode;
+}) {
 	const { progress, targetDate } = goal;
 	const parts: ReactNode[] = [];
 	if (goal.state === "archived") {
@@ -199,18 +211,7 @@ export function GoalSummary({ goal, month }: { goal: GoalView; month?: MonthKey 
 	if (goal.state === "active" || progress.status === "reached") {
 		parts.push(targetDate ? `by ${fullDay(targetDate)}` : "No target date");
 	}
-	return (
-		<>
-			{parts.map((part, index) => (
-				// The parts are fixed per state, so their positions are stable keys.
-				// biome-ignore lint/suspicious/noArrayIndexKey: see above
-				<span key={index} className="inline-flex items-center gap-1.5">
-					{index > 0 ? <span aria-hidden="true">·</span> : null}
-					{part}
-				</span>
-			))}
-		</>
-	);
+	return <MetaParts parts={[before, ...parts, after]} />;
 }
 
 /**
@@ -771,7 +772,8 @@ function AddGoalForm({
 					onValueChange={setAccountId}
 					choices={accounts.map((a) => ({
 						value: a.id,
-						label: `${a.name}${a.unclaimed === null ? "" : ` · ${formatMoney(a.unclaimed)} not set aside`}`,
+						label: a.name,
+						hint: a.unclaimed === null ? undefined : `${formatMoney(a.unclaimed)} not set aside`,
 					}))}
 				/>
 			</Field>

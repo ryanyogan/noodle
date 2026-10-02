@@ -14,6 +14,7 @@ import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
+import { MetaParts } from "@noodle/ui/components/meta-parts";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { OptionSelect } from "@noodle/ui/components/select";
@@ -172,10 +173,16 @@ function Suggestion({ source }: { source: PerkSourceItem }) {
 			title={source.name}
 			badge={<PrivateBadge source={source} />}
 			meta={
-				<>
-					<span>{perkSourceKindLabel[source.kind]}</span>
-					{source.seenIn ? <span className="truncate">· Seen in “{source.seenIn}”</span> : null}
-				</>
+				<MetaParts
+					parts={[
+						perkSourceKindLabel[source.kind],
+						source.seenIn ? (
+							<span key="seen" className="break-words">
+								Seen in “{source.seenIn}”
+							</span>
+						) : null,
+					]}
+				/>
 			}
 			trailing={
 				<div className="flex items-center gap-2">

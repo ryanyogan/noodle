@@ -6,6 +6,7 @@ import { DatePicker } from "@noodle/ui/components/date-picker";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
+import { MetaParts } from "@noodle/ui/components/meta-parts";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import {
@@ -119,12 +120,16 @@ export function PayoffGoalDetails({
 								</p>
 							</div>
 							{archived ? null : <GoalProgressBar share={progress.share} />}
-							<p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-muted-foreground">
-								<span className="tabular-nums">
-									Paid down {formatMoney(progress.saved)} of {formatMoney(goal.target)}
-								</span>
-								<PayoffStatus goal={goal} />
-							</p>
+							<div className="text-sm text-muted-foreground">
+								<PayoffStatus
+									goal={goal}
+									lead={
+										<span className="tabular-nums">
+											Paid down {formatMoney(progress.saved)} of {formatMoney(goal.target)}
+										</span>
+									}
+								/>
+							</div>
 							{account ? (
 								<StatementBalanceNote account={account} onUse={active ? saveOwed : undefined} />
 							) : null}
@@ -329,9 +334,9 @@ export function PayoffGoalDetails({
 }
 
 /** On track, behind (Pace), past due (over) or paid off, and whether it has a date. */
-function PayoffStatus({ goal }: { goal: GoalView }) {
+function PayoffStatus({ goal, lead }: { goal: GoalView; lead: ReactNode }) {
 	const { progress } = goal;
-	const parts: ReactNode[] = [];
+	const parts: ReactNode[] = [lead];
 	if (goal.state === "archived") parts.push("Archived");
 	else if (goal.state === "completed") parts.push("Completed");
 	else if (progress.status === "behind") {
@@ -344,18 +349,7 @@ function PayoffStatus({ goal }: { goal: GoalView }) {
 	if (goal.state === "active" && !goal.targetDate && progress.status !== "reached") {
 		parts.push("No target date");
 	}
-	return (
-		<>
-			{parts.map((part, index) => (
-				// The parts are fixed per state, so their positions are stable keys.
-				// biome-ignore lint/suspicious/noArrayIndexKey: see above
-				<span key={index} className="inline-flex items-center gap-1.5">
-					<span aria-hidden="true">·</span>
-					{part}
-				</span>
-			))}
-		</>
-	);
+	return <MetaParts parts={parts} />;
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

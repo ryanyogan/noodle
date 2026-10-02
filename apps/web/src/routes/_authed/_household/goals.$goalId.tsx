@@ -18,6 +18,7 @@ import { DatePicker } from "@noodle/ui/components/date-picker";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListGroupLabel, ListRow } from "@noodle/ui/components/list";
+import { MetaParts } from "@noodle/ui/components/meta-parts";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import {
@@ -537,18 +538,7 @@ function GoalStatus({ goal, month }: { goal: GoalView; month: MonthKey }) {
 		parts.push(`${formatMoney(progress.remaining)} to go`);
 	}
 	if (goal.state === "active" && !goal.targetDate) parts.push("No target date");
-	return (
-		<>
-			{parts.map((part, index) => (
-				// The parts are fixed per state, so their positions are stable keys.
-				// biome-ignore lint/suspicious/noArrayIndexKey: see above
-				<span key={index} className="inline-flex items-center gap-1.5">
-					{index > 0 ? <span aria-hidden="true">·</span> : null}
-					{part}
-				</span>
-			))}
-		</>
-	);
+	return <MetaParts parts={parts} />;
 }
 
 function FinishRow({ text, action }: { text: string; action: ReactNode }) {
@@ -742,7 +732,7 @@ function AddMoneySheet({
 							value={from}
 							disabled={!hydrated}
 							onValueChange={(value) => onFromChange(value as typeof from)}
-							className="grid w-full grid-cols-2"
+							className="grid w-full grid-cols-1 sm:grid-cols-2"
 						>
 							{options.map((option) => (
 								<ToggleGroupItem

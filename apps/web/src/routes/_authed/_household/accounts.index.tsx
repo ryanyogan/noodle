@@ -160,7 +160,7 @@ function AccountTotals({ accounts }: { accounts: AccountView[] }) {
 				<h2 id="account-totals" className="text-[13px] font-medium text-muted-foreground">
 					Totals
 				</h2>
-				<dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+				<dl className="grid grid-cols-2 gap-x-4 gap-y-3 max-[360px]:grid-cols-1">
 					{rows.map((row) => (
 						<div key={row.label} className="grid gap-0.5">
 							<dt className="text-[13px] text-muted-foreground">{row.label}</dt>

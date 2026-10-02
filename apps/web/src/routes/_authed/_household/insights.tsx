@@ -210,6 +210,7 @@ function InsightCard({
 			size="sm"
 			disabled={!hydrated}
 			onClick={() => setEnding(commitment)}
+			className="h-auto min-h-8 max-w-full py-1.5 text-start whitespace-normal"
 		>
 			End {commitment.name} in the Plan…
 		</Button>

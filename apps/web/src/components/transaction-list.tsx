@@ -213,12 +213,14 @@ export function TransactionItem({
 			    its room (#47): one copy, placed by the grid. */}
 			<span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-y-0.5 sm:grid-cols-[minmax(0,max-content)_1fr]">
 				<span className="col-span-2 truncate text-sm font-medium sm:col-span-1">{title}</span>
-				<span className="col-start-1 row-start-2 me-1.5 flex shrink-0 items-center gap-1.5 empty:hidden sm:col-start-2 sm:row-start-1 sm:ms-1.5 sm:me-0">
+				<span className="peer/badges col-start-1 row-start-2 me-1.5 flex shrink-0 items-center gap-1.5 empty:hidden sm:col-start-2 sm:row-start-1 sm:ms-1.5 sm:me-0">
 					{badges}
 				</span>
 				<span
 					className={cn(
 						"col-start-2 row-start-2 truncate text-[13px] text-muted-foreground sm:col-span-2 sm:col-start-1",
+						// On a phone, badges get the second line and the detail a full third line (320 px).
+						"max-sm:peer-[:not(:empty)]/badges:col-span-2 max-sm:peer-[:not(:empty)]/badges:col-start-1 max-sm:peer-[:not(:empty)]/badges:row-start-3",
 						columns && "xl:sr-only",
 					)}
 				>

@@ -1,3 +1,4 @@
+import { useUser } from "@clerk/tanstack-react-start";
 import type { InviteToJoin } from "@noodle/db";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
@@ -42,6 +43,7 @@ function useEnterHousehold() {
 }
 
 function CreateHousehold() {
+	const firstName = useFirstName();
 	const enterHousehold = useEnterHousehold();
 	// Until hydrated, a click would fall through to a native GET submit.
 	const hydrated = useHydrated();
@@ -93,6 +95,9 @@ function CreateHousehold() {
 							required
 							maxLength={80}
 							autoComplete="given-name"
+							// Clerk's first name once it loads (after hydration): remount to take it.
+							key={firstName ?? ""}
+							defaultValue={firstName}
 						/>
 					</Field>
 					{create.isError ? (
@@ -112,6 +117,7 @@ function CreateHousehold() {
 }
 
 function JoinHousehold({ invite, onStartOwn }: { invite: InviteToJoin; onStartOwn: () => void }) {
+	const firstName = useFirstName();
 	const enterHousehold = useEnterHousehold();
 	const hydrated = useHydrated();
 	const [parentId] = useState(() => ulid());
@@ -143,6 +149,9 @@ function JoinHousehold({ invite, onStartOwn }: { invite: InviteToJoin; onStartOw
 							required
 							maxLength={80}
 							autoComplete="given-name"
+							// Clerk's first name once it loads (after hydration): remount to take it.
+							key={firstName ?? ""}
+							defaultValue={firstName}
 						/>
 					</Field>
 					{refused === "invite-unusable" ? (
@@ -179,4 +188,10 @@ function JoinHousehold({ invite, onStartOwn }: { invite: InviteToJoin; onStartOw
 			</div>
 		</CenteredPage>
 	);
+}
+
+/** The signed-in user's first name in Clerk, to start "Your name" with; undefined until Clerk loads. */
+function useFirstName(): string | undefined {
+	const { user } = useUser();
+	return user?.firstName?.trim() || undefined;
 }

@@ -119,8 +119,9 @@ function SelectLabel({ className, ...props }: React.ComponentProps<typeof Select
 function SelectItem({
 	className,
 	children,
+	hint,
 	...props
-}: React.ComponentProps<typeof SelectPrimitive.Item>) {
+}: React.ComponentProps<typeof SelectPrimitive.Item> & { hint?: React.ReactNode }) {
 	return (
 		<SelectPrimitive.Item
 			data-slot="select-item"
@@ -138,7 +139,14 @@ function SelectItem({
 					<CheckIcon aria-hidden="true" />
 				</SelectPrimitive.ItemIndicator>
 			</span>
-			<SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+			{hint ? (
+				<span className="grid min-w-0">
+					<SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+					<span className="text-[13px] text-muted-foreground tabular-nums">{hint}</span>
+				</span>
+			) : (
+				<SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+			)}
 		</SelectPrimitive.Item>
 	);
 }
@@ -191,6 +199,8 @@ type Choice = {
 	label: React.ReactNode;
 	/** Plain text for search and the trigger, when `label` isn't a string. */
 	text?: string;
+	/** A second line under the label in the list only (e.g. an amount); the trigger shows just the label. */
+	hint?: string;
 	disabled?: boolean;
 };
 type ChoiceGroup = { label: string; choices: Choice[] };
@@ -243,7 +253,7 @@ function OptionSelect(props: ChoiceFieldProps) {
 	const hasEmpty = flatChoices(choices).some((c) => c.value === "");
 	const toRadix = (v: string) => (v === "" && hasEmpty ? EMPTY : v);
 	const item = (c: Choice) => (
-		<SelectItem key={c.value} value={toRadix(c.value)} disabled={c.disabled}>
+		<SelectItem key={c.value} value={toRadix(c.value)} disabled={c.disabled} hint={c.hint}>
 			{c.label}
 		</SelectItem>
 	);

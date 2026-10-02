@@ -1219,13 +1219,15 @@ function PlanView({ data, names, nav, tables }: ViewProps<"plan">) {
 										<span className="truncate text-sm font-medium">
 											{names.label(`bucket:${h.bucketId}`)}
 										</span>
-										<span className="text-xs text-muted-foreground">
-											{h.habit === "over" ? h.over : h.under} of {h.months} months {h.habit}
+										<span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+											<span className="whitespace-nowrap">
+												{h.habit === "over" ? h.over : h.under} of {h.months} months {h.habit}
+											</span>
+											<Badge variant={h.gap > 0 ? "over" : "brand"} dot>
+												{h.gap > 0 ? `${formatMoney(h.gap)} over` : `${formatMoney(-h.gap)} under`}
+											</Badge>
 										</span>
 									</span>
-									<Badge variant={h.gap > 0 ? "over" : "brand"} dot>
-										{h.gap > 0 ? `${formatMoney(h.gap)} over` : `${formatMoney(-h.gap)} under`}
-									</Badge>
 								</DrillRow>
 							</li>
 						))}
