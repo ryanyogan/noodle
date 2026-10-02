@@ -12,6 +12,7 @@ import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListGroupLabel } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
+import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
@@ -25,14 +26,16 @@ import {
 	ChevronRight,
 	Landmark,
 	ListChecks,
+	ListFilter,
 	Plus,
 	ReceiptText,
 	Search,
+	X,
 } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { QuickAddLink } from "../../../components/app-shell";
-import { FilterSelect } from "../../../components/filter-select";
+import { type FilterOption, FilterSelect } from "../../../components/filter-select";
 import { TransactionEditor } from "../../../components/transaction-editor";
 import {
 	TRANSACTION_COLUMNS,
@@ -254,6 +257,25 @@ function Filters({
 		const timer = setTimeout(() => change.current({ q: typed }), SEARCH_PAUSE_MS);
 		return () => clearTimeout(timer);
 	}, [search, filters.q]);
+	const [sheetOpen, setSheetOpen] = useState(false);
+	const bucketOptions = plan.buckets.map((bucket) => ({ value: bucket.id, label: bucket.name }));
+	const forOptions = [
+		{ value: "everyone", label: "Everyone (shared)" },
+		...pickableMembers(members, filters.for ? [filters.for] : []).map((member) => ({
+			value: member.id,
+			label: member.name,
+		})),
+	];
+	const accountOptions = accounts.map((account) => ({ value: account.id, label: account.name }));
+	const labelOf = (options: { value: string; label: string }[], value: string | undefined) =>
+		value === undefined ? undefined : (options.find((o) => o.value === value)?.label ?? value);
+	const chips = (
+		[
+			["bucket", labelOf(bucketOptions, filters.bucket)],
+			["for", labelOf(forOptions, filters.for)],
+			["account", labelOf(accountOptions, filters.account)],
+		] as const
+	).flatMap(([key, label]) => (label === undefined ? [] : [{ key, label }]));
 	return (
 		<div className="grid gap-2 lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1">
 			{total !== null && total !== undefined ? (
@@ -266,27 +288,43 @@ function Filters({
 					</span>
 				</p>
 			) : null}
-			<div className="relative">
-				<label htmlFor="filter-search" className="sr-only">
-					Search notes and merchants
-				</label>
-				<Search
-					aria-hidden="true"
-					className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-				/>
-				<Input
-					id="filter-search"
-					type="search"
-					placeholder="Search notes and merchants"
-					autoComplete="off"
-					maxLength={SEARCH_MAX}
+			<div className="flex gap-2">
+				<div className="relative min-w-0 flex-1">
+					<label htmlFor="filter-search" className="sr-only">
+						Search notes and merchants
+					</label>
+					<Search
+						aria-hidden="true"
+						className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+					/>
+					<Input
+						id="filter-search"
+						type="search"
+						placeholder="Search notes and merchants"
+						autoComplete="off"
+						maxLength={SEARCH_MAX}
+						disabled={!hydrated}
+						value={search}
+						onChange={(event) => setSearch(event.currentTarget.value)}
+						className="ps-9"
+					/>
+				</div>
+				<Button
+					variant="outline"
 					disabled={!hydrated}
-					value={search}
-					onChange={(event) => setSearch(event.currentTarget.value)}
-					className="ps-9"
-				/>
+					onClick={() => setSheetOpen(true)}
+					className="h-10 lg:hidden"
+				>
+					<ListFilter />
+					Filters
+					{chips.length ? (
+						<span className="rounded-full bg-foreground px-1.5 text-[11px] text-background tabular-nums">
+							{chips.length}
+						</span>
+					) : null}
+				</Button>
 			</div>
-			<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1">
+			<div className="grid gap-2 max-lg:hidden">
 				<FilterSelect
 					id="filter-bucket"
 					label="Bucket"
@@ -294,7 +332,7 @@ function Filters({
 					value={filters.bucket ?? ""}
 					disabled={!hydrated}
 					onChange={(value) => onChange({ bucket: value || undefined })}
-					options={plan.buckets.map((bucket) => ({ value: bucket.id, label: bucket.name }))}
+					options={bucketOptions}
 				/>
 				<FilterSelect
 					id="filter-for"
@@ -303,13 +341,7 @@ function Filters({
 					value={filters.for ?? ""}
 					disabled={!hydrated}
 					onChange={(value) => onChange({ for: value || undefined })}
-					options={[
-						{ value: "everyone", label: "Everyone (shared)" },
-						...pickableMembers(members, filters.for ? [filters.for] : []).map((member) => ({
-							value: member.id,
-							label: member.name,
-						})),
-					]}
+					options={forOptions}
 				/>
 				{accounts.length > 0 ? (
 					<FilterSelect
@@ -319,12 +351,116 @@ function Filters({
 						value={filters.account ?? ""}
 						disabled={!hydrated}
 						onChange={(value) => onChange({ account: value || undefined })}
-						options={accounts.map((account) => ({ value: account.id, label: account.name }))}
-						className="col-span-2 sm:col-span-1 lg:col-span-1"
+						options={accountOptions}
 					/>
 				) : null}
 			</div>
+			{/* Phones and tablets: the selects sit in a Filters sheet and the active ones show as chips, so the list starts high (#48). */}
+			{chips.length ? (
+				<ul className="flex flex-wrap gap-1.5 lg:hidden" aria-label="Filters">
+					{chips.map((chip) => (
+						<li key={chip.key}>
+							<button
+								type="button"
+								onClick={() => onChange({ [chip.key]: undefined })}
+								aria-label={`Remove filter ${chip.label}`}
+								className="inline-flex h-7 max-w-56 items-center gap-1 rounded-full bg-surface-2 ps-2.5 pe-1.5 text-xs font-medium transition-colors hover:bg-surface-3"
+							>
+								<span className="truncate">{chip.label}</span>
+								<X aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+							</button>
+						</li>
+					))}
+				</ul>
+			) : null}
+			<Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+				<SheetContent>
+					<SheetHeader title="Filters" description="Narrow the list to some Transactions." />
+					<FiltersForm
+						filters={filters}
+						bucketOptions={bucketOptions}
+						forOptions={forOptions}
+						accountOptions={accountOptions}
+						onApply={(next) => {
+							onChange(next);
+							setSheetOpen(false);
+						}}
+					/>
+				</SheetContent>
+			</Sheet>
 		</div>
+	);
+}
+
+/** The phone Filters sheet: picks are kept here until Apply, as on Reports. */
+function FiltersForm({
+	filters,
+	bucketOptions,
+	forOptions,
+	accountOptions,
+	onApply,
+}: {
+	filters: TransactionFilters;
+	bucketOptions: FilterOption[];
+	forOptions: FilterOption[];
+	accountOptions: FilterOption[];
+	onApply: (filters: TransactionFilters) => void;
+}) {
+	const id = useId();
+	const [bucket, setBucket] = useState(filters.bucket ?? "");
+	const [member, setMember] = useState<string>(filters.for ?? "");
+	const [account, setAccount] = useState(filters.account ?? "");
+	return (
+		<form
+			className="grid gap-5"
+			onSubmit={(event) => {
+				event.preventDefault();
+				onApply({
+					bucket: bucket || undefined,
+					for: (member || undefined) as TransactionFilters["for"],
+					account: account || undefined,
+				});
+			}}
+		>
+			<div className="grid gap-4">
+				<FilterSelect
+					id={`${id}-bucket`}
+					label="Bucket"
+					all="All Buckets"
+					value={bucket}
+					onChange={setBucket}
+					options={bucketOptions}
+				/>
+				<FilterSelect
+					id={`${id}-for`}
+					label="For"
+					all="Anyone"
+					value={member}
+					onChange={setMember}
+					options={forOptions}
+				/>
+				{accountOptions.length > 0 ? (
+					<FilterSelect
+						id={`${id}-account`}
+						label="Account"
+						all="All Accounts"
+						value={account}
+						onChange={setAccount}
+						options={accountOptions}
+					/>
+				) : null}
+			</div>
+			<SheetFooter className="max-lg:grid-cols-2">
+				<Button
+					type="button"
+					variant="ghost"
+					onClick={() => onApply({ bucket: undefined, for: undefined, account: undefined })}
+				>
+					Clear all
+				</Button>
+				<Button type="submit">Apply</Button>
+			</SheetFooter>
+		</form>
 	);
 }
 
@@ -405,7 +541,14 @@ function TransactionList({
 		};
 		measure();
 		window.addEventListener("resize", measure);
-		return () => window.removeEventListener("resize", measure);
+		// Filter chips above the list come and go on phones, which moves where the list starts.
+		const above = list.current?.parentElement?.parentElement;
+		const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+		if (above) observer?.observe(above);
+		return () => {
+			window.removeEventListener("resize", measure);
+			observer?.disconnect();
+		};
 	}, []);
 	const virtualizer = useWindowVirtualizer({
 		count: items.length,
