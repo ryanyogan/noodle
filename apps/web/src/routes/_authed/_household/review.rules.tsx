@@ -102,7 +102,7 @@ function RulesPage() {
 						<EmptyState
 							icon={<WandSparkles />}
 							title="No Rules yet"
-							description="Add one for a merchant you always file the same way, or have Noodle make one when you confirm or change a card in Review."
+							description="A Rule files a merchant’s charges in the same Bucket every time, so they skip Review. Add one here, or press “Always file” after you file a card in Review."
 						/>
 					</Card>
 				) : (
@@ -220,7 +220,7 @@ function RuleListRow({
 							</Badge>
 						) : null}
 					</span>
-					<span className="truncate text-[13px] text-muted-foreground lg:hidden">
+					<span className="line-clamp-2 text-[13px] text-muted-foreground lg:hidden">
 						{detail.join(" · ")}
 					</span>
 				</span>

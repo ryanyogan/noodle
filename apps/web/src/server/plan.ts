@@ -120,6 +120,8 @@ export const addPersonalAllowance = createServerFn({ method: "POST" })
 			...data,
 		});
 		await notifyHousehold(context.household.id, ["months"]);
+		// The new Personal Allowance may fit what waits in Review.
+		lookAgainAfterPlanChange(viewerOf(context));
 	});
 
 /** Sets a Bucket's allowance from `month` onward, or just for `month`. */
@@ -190,6 +192,8 @@ export const restoreBucket = createServerFn({ method: "POST" })
 			...data,
 		});
 		await notifyHousehold(context.household.id, ["months"]);
+		// The restored Bucket may fit what waits in Review.
+		if (restored) lookAgainAfterPlanChange(viewerOf(context));
 		return { ok: restored };
 	});
 

@@ -1,5 +1,6 @@
 import {
 	applyRule as applyRuleInDb,
+	countFiledOnItsOwn,
 	deleteRule as deleteRuleInDb,
 	editRule as editRuleInDb,
 	listRules,
@@ -9,6 +10,7 @@ import {
 	returnToReview as returnToReviewInDb,
 	saveRule as saveRuleInDb,
 } from "@noodle/db";
+import { monthKeyAt } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { lookAgain } from "./categorize";
@@ -29,9 +31,15 @@ const REVIEW_CARDS = 100;
 /** What waits in Review, oldest first. */
 export const getReview = createServerFn({ method: "GET" })
 	.middleware([householdMiddleware])
-	.handler(
-		({ context }): Promise<ReviewQueue> => loadReview(getDb(), viewerOf(context), REVIEW_CARDS),
-	);
+	.handler(async ({ context }): Promise<ReviewQueue & { filedOnItsOwn: number }> => {
+		const db = getDb();
+		const month = monthKeyAt(new Date(), context.household.timeZone);
+		const [queue, filedOnItsOwn] = await Promise.all([
+			loadReview(db, viewerOf(context), REVIEW_CARDS),
+			countFiledOnItsOwn(db, context.household.id, month),
+		]);
+		return { ...queue, filedOnItsOwn };
+	});
 
 /**
  * "Look again": categorizes what waits in Review that this Parent imported once more, against the

@@ -6,6 +6,7 @@ import {
 	type DayKey,
 	daysInMonth,
 	dueDatesIn,
+	type GuessMethod,
 	type MonthKey,
 	merchantKey,
 	monthOfDay,
@@ -1484,21 +1485,26 @@ function busy(o: SeedOptions): SeedRows {
 		addSpent(key, 7, amount);
 	});
 
-	// Review: imported charges nobody has filed yet, with the model's guess (or none).
-	const reviewSpecs = [
-		[0, "SQ *MARIA'S TAQUERIA", 2_340, "eating", 0.62],
-		[0, "PAYPAL *EBAY INC", 8_999, null, 0],
-		[0, "VENMO *KAREN MITCHELL", 4_000, "hockey", 0.41],
-		[0, "AMZN MKTP US*2K4LM1QZ0", 3_187, "household", 0.55],
-		[0, "SP * HANDMADE CANDLE CO", 2_800, "gifts", 0.48],
-		[0, "BUC-EE'S #22 NEW BRAUNFELS", 6_512, "gas", 0.7],
-		[0, "ZELLE TO DAVID NGUYEN", 15_000, null, 0],
-		[0, "EVENTBRITE *SPRING GALA", 12_500, "fun", 0.35],
-		[1, "TST* UCHIKO AUSTIN", 18_450, "eating", 0.6],
-		[1, "WWW.KOHLS.COM #0873", 5_612, "clothing", 0.66],
-		[1, "SQ *AUSTIN FC SHOP", 7_900, null, 0],
-	] as const;
-	reviewSpecs.forEach(([ago, text, amount, guess, confidence], n) => {
+	// Review: imported charges nobody has filed yet, each with a different kind of guess: a Rule's
+	// (one sent back to Review), a similar merchant's, the model's, Alex's own Personal Allowance,
+	// or none at all.
+	const reviewSpecs: [number, string, Cents, string | null, number, GuessMethod, string | null][] =
+		[
+			[0, "SQ *MARIA'S TAQUERIA", 2_340, "eating", 0.81, "similar", "Torchy's Tacos"],
+			[0, "PAYPAL *EBAY INC", 8_999, null, 0, "none", null],
+			[0, "VENMO *KAREN MITCHELL", 4_000, "hockey", 0.41, "model", "looks like a team fee"],
+			[0, "AMZN MKTP US*2K4LM1QZ0", 3_187, "household", 0.55, "model", "looks like home supplies"],
+			[0, "SP * HANDMADE CANDLE CO", 2_800, "gifts", 0.48, "model", "looks like a gift"],
+			[0, "BUC-EE'S #22 NEW BRAUNFELS", 6_512, "gas", 0.78, "similar", "Shell"],
+			[0, "ZELLE TO DAVID NGUYEN", 15_000, null, 0, "none", null],
+			[0, "EVENTBRITE *SPRING GALA", 12_500, "fun", 0.35, "model", "looks like event tickets"],
+			[0, "NINTENDO *ESHOP US", 1_999, "pa-alex", 0.64, "model", "looks like a video game"],
+			[0, "H-E-B #512 AUSTIN TX", 9_418, "groceries", 1, "rule", null],
+			[1, "TST* UCHIKO AUSTIN", 18_450, "eating", 0.6, "model", "looks like a restaurant"],
+			[1, "WWW.KOHLS.COM #0873", 5_612, "clothing", 0.66, "model", "looks like clothes"],
+			[1, "SQ *AUSTIN FC SHOP", 7_900, null, 0, "none", null],
+		];
+	reviewSpecs.forEach(([ago, text, amount, guess, confidence, method, reason], n) => {
 		const month = addMonths(thisMonth, -ago);
 		const last = ago === 0 ? dayNumber(o.today) : daysInMonth(month);
 		const date = dayIn(month, 1 + ((n * 7) % last));
@@ -1512,10 +1518,11 @@ function busy(o: SeedOptions): SeedRows {
 			transactionId: tx.id,
 			householdId: household,
 			outcome: "review",
-			method: "model",
+			method,
 			bucketId: guess ? (bucketId[guess] as string) : null,
-			confidence,
+			confidence: guess ? confidence : null,
 			merchant: merchantKey(text),
+			reason,
 			createdAt: new Date(at(addDays(date, 1), 6 * 60 + 5)),
 		});
 	});

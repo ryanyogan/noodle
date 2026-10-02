@@ -17,7 +17,7 @@ import type { Choices } from "@noodle/ui/components/select";
 import { Tile } from "@noodle/ui/components/tile";
 import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
-import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { Check, CheckCheck, Pencil, RefreshCw, Sparkles, WandSparkles } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
@@ -110,6 +110,7 @@ function ReviewPage() {
 	const saveRule = useSaveRule();
 	const lookAgain = useLookAgain();
 	const hydrated = useHydrated();
+	const queryClient = useQueryClient();
 	const months = byMonth(queue.items);
 	const cards = months.flatMap(([, items]) => items);
 	const top = cards.find((item) => item.id === cursor) ?? cards[0] ?? null;
@@ -151,7 +152,10 @@ function ReviewPage() {
 		if (!decision || !item.guess) return openPicker(item);
 		moveOn(item);
 		decide.mutate(decision);
-		offerRule(item, { id: item.guess.bucketId, name: item.guess.name }, item.for);
+		const { bucketId, name } = item.guess;
+		const plan = queryClient.getQueryData(monthQuery(monthOfTransaction(item)).queryKey)?.plan;
+		const owner = plan?.buckets.find((b) => b.id === bucketId)?.owner;
+		offerRule(item, { id: bucketId, name, owner }, item.for);
 	}
 
 	/** Files a card where the Parent picked: a Bucket or a Commitment. */
@@ -326,7 +330,11 @@ function ReviewPage() {
 						<EmptyState
 							icon={<CheckCheck />}
 							title="Nothing to review"
-							description="Noodle filed everything on its own. Anything it isn’t sure about waits here for you."
+							description={`${
+								queue.filedOnItsOwn > 0
+									? `Noodle filed ${queue.filedOnItsOwn} on its own this month.`
+									: "Noodle filed everything on its own."
+							} Anything it isn’t sure about waits here for you.`}
 							action={
 								<Button variant="outline" size="sm" asChild>
 									<Link to="/transactions">See Transactions</Link>
@@ -381,7 +389,9 @@ function Key({ children, name }: { children: string; name?: string }) {
 function suggestionWhy(guess: NonNullable<ReviewItem["guess"]>) {
 	switch (guess.method) {
 		case "rule":
-			return `Your Rule: ${guess.reason ?? "this merchant"} → ${guess.name}`;
+			return guess.reason
+				? `Your Rule: ${guess.reason} → ${guess.name}`
+				: `Your Rule files this in ${guess.name}`;
 		case "similar":
 			return guess.reason
 				? `Like ${guess.reason}, which you filed in ${guess.name}`

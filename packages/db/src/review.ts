@@ -1,4 +1,4 @@
-import type { DayKey, GuessMethod } from "@noodle/domain";
+import type { DayKey, GuessMethod, MonthKey } from "@noodle/domain";
 import { and, asc, count, eq, isNull, or, type SQL, sql } from "drizzle-orm";
 import type { Uncategorized } from "./categorize";
 import { counts } from "./counting";
@@ -274,4 +274,24 @@ export async function returnToReview(
 				},
 			}),
 	]);
+}
+
+/** How many of the Household's Transactions dated in `month` categorization filed on its own. */
+export async function countFiledOnItsOwn(
+	db: Db,
+	householdId: string,
+	month: MonthKey,
+): Promise<number> {
+	const [row] = await db
+		.select({ count: count() })
+		.from(categorizations)
+		.innerJoin(transactions, eq(transactions.id, categorizations.transactionId))
+		.where(
+			and(
+				eq(categorizations.householdId, householdId),
+				eq(categorizations.outcome, "filed"),
+				sql`${transactions.date} like ${`${month}-%`}`,
+			),
+		);
+	return row?.count ?? 0;
 }

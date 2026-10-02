@@ -75,7 +75,13 @@ About two weeks in, with one Parent and an open invite to Jordan. It has:
 - Target returns are linked as Refunds.
 - Quick Adds are Matched to their imported copies.
 - The card has three Pending charges.
-- 11 items wait in Review, with and without a guess.
+- 13 items wait in Review, across this month and last, one of each kind of card:
+  - a Rule's guess (H-E-B, a row sent back to Review after its Rule filed it);
+  - a similar merchant's guess with its reason ("Like Torchy's Tacos, which you filed in Eating out"; Buc-ee's like Shell);
+  - the model's guesses with a few words of why ("Suggested: looks like a gift");
+  - a guess of Alex's own Personal Allowance (Nintendo eShop), which only Alex sees, and whose Rule offer says only Alex will see it;
+  - no guess at all (eBay, a Zelle and Austin FC), with the picker.
+  - Every month in `busy` has a Plan, so the "<Month> has no Plan yet" card can't show here; the E2E spec in `e2e/review.spec.ts` covers it.
 - 11 Rules, two of them a Parent's own.
 - Filed rows show as auto-filed.
 - There is a $0 charge, a duplicate charge, and a 66-character merchant.

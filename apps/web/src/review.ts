@@ -47,6 +47,7 @@ async function takeCards(queryClient: QueryClient, leaving: (item: ReviewItem) =
 	if (previous) {
 		const items = previous.items.filter((item) => !leaving(item));
 		queryClient.setQueryData(queryKey, {
+			...previous,
 			items,
 			total: Math.max(0, previous.total - (previous.items.length - items.length)),
 		});
@@ -224,6 +225,7 @@ export function useReturnToReview() {
 			const previous = queryClient.getQueryData(queryKey);
 			if (previous && !previous.items.some((card) => card.id === item.id)) {
 				queryClient.setQueryData(queryKey, {
+					...previous,
 					items: [...previous.items, item].sort(byDate),
 					total: previous.total + 1,
 				});

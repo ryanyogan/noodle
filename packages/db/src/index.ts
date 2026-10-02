@@ -500,6 +500,7 @@ export {
 	type ReportScope,
 } from "./reports";
 export {
+	countFiledOnItsOwn,
 	loadReview,
 	loadReviewToLookAgain,
 	type ReviewItem,
