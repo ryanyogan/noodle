@@ -7,7 +7,6 @@ import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { MetaParts } from "@noodle/ui/components/meta-parts";
-import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import {
 	Sheet,
@@ -36,7 +35,8 @@ import {
 	useUpdateGoal,
 } from "../goals";
 import { useMonthState } from "../queries";
-import { AmountSheet, BackToGoals, FundGoalSheet, GoalProgressBar } from "./goals";
+import { AmountSheet, BackToGoals, FundGoalSheet, GoalPager, GoalProgressBar } from "./goals";
+import { DetailHeader } from "./master-detail";
 import { Confirm, SaveFailed } from "./plan-editing";
 import { StatementBalanceNote } from "./statements";
 import { TermHelp } from "./term-help";
@@ -84,10 +84,11 @@ export function PayoffGoalDetails({
 
 	return (
 		<>
-			<PageHeader
+			<DetailHeader
 				eyebrow="Paying off"
 				title={goal.name}
 				leading={<BackToGoals />}
+				pager={<GoalPager id={goal.id} />}
 				actions={
 					archived ? undefined : (
 						<Button
@@ -104,8 +105,8 @@ export function PayoffGoalDetails({
 				}
 			/>
 			{/* At lg, what's owed stays in a right rail beside the funding history (#47). */}
-			<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start xl:grid-cols-[minmax(0,1fr)_400px]">
-				<div className="grid min-w-0 gap-8 lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1">
+			<div className="grid gap-8 @3xl:grid-cols-[minmax(0,1fr)_320px] @3xl:items-start">
+				<div className="grid min-w-0 gap-8 @3xl:col-start-2 @3xl:row-start-1">
 					<Card role="region" aria-labelledby="payoff-owed">
 						<div className="grid gap-3 p-(--card-pad)">
 							<div className="grid gap-1">
@@ -228,7 +229,7 @@ export function PayoffGoalDetails({
 					)}
 				</div>
 
-				<div className="grid min-w-0 gap-8 lg:col-start-1 lg:row-start-1">
+				<div className="grid min-w-0 gap-8 @3xl:col-start-1 @3xl:row-start-1">
 					<PayoffHistory
 						goal={goal}
 						month={month}

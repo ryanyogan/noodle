@@ -7,7 +7,7 @@ import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
+import { createFileRoute, Link, useHydrated, useParams } from "@tanstack/react-router";
 import { Landmark, Plus } from "lucide-react";
 import { useState } from "react";
 import { accountSource, accountSourceText } from "../../../account-source";
@@ -25,12 +25,13 @@ import {
 	balanceLabel,
 	LinkRow,
 } from "../../../components/goals";
+import { ListBesideDetail, masterDetailItem } from "../../../components/master-detail";
 import { SaveFailed } from "../../../components/plan-editing";
 import { formatMoney } from "../../../format";
 import { type AccountView, accountKindName, useAddAccount, useGoals } from "../../../goals";
 import { bankConnectionsQuery, goalsQuery } from "../../../queries";
 
-export const Route = createFileRoute("/_authed/_household/accounts/")({
+export const Route = createFileRoute("/_authed/_household/accounts")({
 	loader: ({ context }) =>
 		Promise.all([
 			context.queryClient.ensureQueryData(goalsQuery()),
@@ -43,6 +44,7 @@ function AccountsPage() {
 	const hydrated = useHydrated();
 	const { accounts } = useGoals();
 	const [adding, setAdding] = useState(false);
+	const picked = useParams({ strict: false, select: (params) => params.accountId });
 	const addAccount = useAddAccount();
 	const bank = useConnectBank();
 	const cash = accounts.filter((a) => a.holdsMoney);
@@ -78,19 +80,23 @@ function AccountsPage() {
 					</Button>
 				}
 			/>
-			{/* lg: the Accounts on the left; totals and Bank Connections in a rail that stays put (#47). */}
-			<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start xl:grid-cols-[minmax(0,1fr)_380px]">
-				<div className="grid min-w-0 gap-8">
-					<SaveFailed change={addAccount} />
-					<AccountGroup id="accounts-cash" title="Cash" accounts={cash} />
-					<AccountGroup id="accounts-owed" title="Cards and loans" accounts={owing} />
-				</div>
-				{/* On phones the totals come first and the Bank Connections last. */}
-				<div className="max-lg:contents lg:sticky lg:top-6 lg:grid lg:gap-8">
-					<AccountTotals accounts={accounts} />
-					<BankConnections bank={bank} />
-				</div>
-			</div>
+			{/* The Accounts and Bank Connections on the left; the picked Account beside them, or the
+			    totals while none is picked (#67). On phones the totals come first. */}
+			<ListBesideDetail
+				picked={picked !== undefined}
+				noun="Account"
+				listLabel="Accounts"
+				hint="Pick an Account to see it here."
+				aside={<AccountTotals accounts={accounts} />}
+				list={
+					<>
+						<SaveFailed change={addAccount} />
+						<AccountGroup id="accounts-cash" title="Cash" accounts={cash} />
+						<AccountGroup id="accounts-owed" title="Cards and loans" accounts={owing} />
+						<BankConnections bank={bank} />
+					</>
+				}
+			/>
 			<AddAccountSheet
 				open={adding}
 				onOpenChange={setAdding}
@@ -155,7 +161,7 @@ function AccountTotals({ accounts }: { accounts: AccountView[] }) {
 		{ label: "Not set aside", value: notSetAside, show: cash.length > 0, over: notSetAside < 0 },
 	].filter((row) => row.show);
 	return (
-		<Card role="region" aria-labelledby="account-totals" className="max-lg:order-first">
+		<Card role="region" aria-labelledby="account-totals">
 			<div className="grid gap-3 p-(--card-pad)">
 				<h2 id="account-totals" className="text-[13px] font-medium text-muted-foreground">
 					Totals
@@ -241,7 +247,12 @@ function AccountItem({ account }: { account: AccountView }) {
 	return (
 		<LinkRow
 			link={(props) => (
-				<Link to="/accounts/$accountId" params={{ accountId: account.id }} {...props} />
+				<Link
+					to="/accounts/$accountId"
+					params={{ accountId: account.id }}
+					{...masterDetailItem}
+					{...props}
+				/>
 			)}
 			label={`${account.name}, ${accountKindName[account.kind]}, ${balanceLabel(account)}`}
 			leading={

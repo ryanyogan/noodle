@@ -1,11 +1,12 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
 
 // Guards the list beside its item (#67): the list stays mounted and keeps its scroll while the
 // detail changes, old addresses still arrive, a phone shows one level at a time, and the keys
-// work. Buckets stand for every master-detail page: they share MasterDetail and its helpers.
+// work. Buckets stand for the Plan's pages, and Goals and Accounts are walked after them: all share
+// MasterDetail and its helpers.
 const desktop = { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 } as const;
 const phone = { viewport: { width: 393, height: 852 }, isMobile: true, hasTouch: true } as const;
 
@@ -154,5 +155,119 @@ test("a phone shows the list, then the item with Back", async ({ browser }) => {
 	await expect(row(page, "Fund 02")).toBeVisible();
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
 	await expect(title(page)).toHaveCount(0);
+	await page.context().close();
+});
+
+/** A Household with one Account and two Goals in it, left on Goals once it has hydrated. */
+async function withGoals(page: Page) {
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "800"]] });
+	await page.goto("/accounts");
+	await page.getByLabel("Name").fill("Joint Savings");
+	await choose(page, "Kind", accountKindLabel("savings"));
+	await page.getByLabel("Balance now").fill("8,000");
+	await page.getByRole("button", { name: "Add Account" }).click();
+	await expect(page.getByRole("link", { name: /^Joint Savings, / })).toBeVisible();
+	await page.goto("/goals");
+	for (const name of ["Trip", "Car"]) {
+		await page.getByRole("button", { name: "Add Goal" }).click();
+		const add = page.getByRole("dialog", { name: "Add a Goal" });
+		await add.getByLabel("Name").fill(name);
+		await add.getByLabel("Target", { exact: true }).fill("3,000");
+		await add.getByRole("button", { name: "Add Goal" }).click();
+		await expect(add).toBeHidden();
+		await expect(list(page).getByRole("link", { name: new RegExp(`^${name}, `) })).toBeVisible();
+	}
+}
+
+test("Goals and Accounts keep their list beside the picked item", async ({ browser }) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email, desktop);
+	await withGoals(page);
+	const goal = (name: string) => list(page).getByRole("link", { name: new RegExp(`^${name}, `) });
+
+	// Nothing picked: the right pane holds the summary.
+	await expect(list(page)).toHaveAttribute("aria-label", "Goals");
+	await expect(detail(page)).toContainText("Pick a Goal to see it here.");
+	await expect(detail(page)).toContainText("A month to stay on track");
+	await axe(page, "Goals, nothing picked");
+	await list(page).evaluate((pane) => {
+		pane.dataset.kept = "yes";
+	});
+
+	await goal("Trip").click();
+	await expect(page).toHaveURL(/\/goals\/[0-9A-Z]{26}$/);
+	await expect(title(page)).toHaveText("Trip");
+	await expect(picked(page)).toHaveAccessibleName(/^Trip, /);
+	await expect(list(page)).toHaveAttribute("data-kept", "yes");
+	await expect(detail(page)).toHaveAttribute("aria-label", "Goal details");
+	await axe(page, "A Goal beside its list");
+
+	// The other Goal is one step away in the header; Esc returns to the picked row.
+	await detail(page).locator("[data-slot=detail-pager] a:not([aria-disabled=true])").click();
+	await expect(title(page)).toHaveText("Car");
+	await expect(picked(page)).toHaveAccessibleName(/^Car, /);
+	await expect(list(page)).toHaveAttribute("data-kept", "yes");
+	await page.keyboard.press("Escape");
+	await expect(goal("Car")).toBeFocused();
+
+	// A deep link shows the list and the item together.
+	await page.reload();
+	await expect(title(page)).toHaveText("Car");
+	await expect(picked(page)).toHaveAccessibleName(/^Car, /);
+	await page.getByRole("link", { name: "Back to Goals" }).click();
+	await expect(page).toHaveURL(/\/goals$/);
+	await expect(detail(page)).toContainText("Pick a Goal to see it here.");
+
+	// Accounts: the same, with Bank Connections under the list and the totals beside it.
+	await page.goto("/accounts");
+	await expect(page.getByRole("button", { name: "Add Account" })).toBeEnabled();
+	await expect(list(page)).toHaveAttribute("aria-label", "Accounts");
+	await expect(detail(page).getByRole("region", { name: "Totals" })).toBeVisible();
+	await axe(page, "Accounts, nothing picked");
+	await list(page).evaluate((pane) => {
+		pane.dataset.kept = "yes";
+	});
+	await list(page)
+		.getByRole("link", { name: /^Joint Savings, / })
+		.click();
+	await expect(page).toHaveURL(/\/accounts\/[0-9A-Z]{26}$/);
+	await expect(title(page)).toHaveText("Joint Savings");
+	await expect(picked(page)).toHaveAccessibleName(/^Joint Savings, /);
+	await expect(list(page)).toHaveAttribute("data-kept", "yes");
+	await axe(page, "An Account beside its list");
+
+	// Its old address under Goals still arrives, with the list beside it.
+	const id = new URL(page.url()).pathname.split("/").pop();
+	await page.goto(`/goals/accounts/${id}`);
+	await expect(page).toHaveURL(new RegExp(`/accounts/${id}$`));
+	await expect(title(page)).toHaveText("Joint Savings");
+	await expect(picked(page)).toHaveAccessibleName(/^Joint Savings, /);
+	await page.getByRole("link", { name: "Back to Accounts" }).click();
+	await expect(detail(page).getByRole("region", { name: "Totals" })).toBeVisible();
+	await page.context().close();
+});
+
+test("a phone shows Goals or Accounts, then the item with Back", async ({ browser }) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email, phone);
+	await withGoals(page);
+	for (const [path, name, back] of [
+		["/goals", "Trip", "Back to Goals"],
+		["/accounts", "Joint Savings", "Back to Accounts"],
+	] as const) {
+		await page.goto(path);
+		const item = list(page).getByRole("link", { name: new RegExp(`^${name}, `) });
+		await expect(item).toBeVisible();
+		await item.click();
+		await expect(title(page)).toHaveText(name);
+		await expect(list(page)).toBeHidden();
+		await axe(page, `${name} on a phone`);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+			393,
+		);
+		await page.getByRole("link", { name: back }).click();
+		await expect(item).toBeVisible();
+		await expect(title(page)).toHaveCount(0);
+	}
 	await page.context().close();
 });

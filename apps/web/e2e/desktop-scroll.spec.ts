@@ -1,7 +1,13 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
-import { clientRendered, createPlannedHousehold, signedInPage } from "./session";
+import {
+	accountKindLabel,
+	choose,
+	clientRendered,
+	createPlannedHousehold,
+	signedInPage,
+} from "./session";
 
 // Guards the desktop's one scroll per region (#67): the page scrolls, and nothing scrolls inside
 // it. A rail with its own scrollbar inside a scrolling page is what this catches. Allowed:
@@ -33,13 +39,13 @@ const migrated = [
 	"/glossary",
 	"/ask",
 	"/check-in",
+	"/goals",
+	"/accounts",
 ];
 
 /** Waiting for their master-detail routes (67b to 67d; Review is #68). Move each up as it lands. */
 const waiting = [
 	"/transactions",
-	"/accounts",
-	"/goals",
 	"/explore",
 	"/explore/afford",
 	"/explore/scenarios",
@@ -127,6 +133,21 @@ async function busyHousehold(page: Page) {
 		],
 	});
 	seedReportHistory(parent.userId, 8);
+	// An Account and a Goal in it, so Goals and Accounts have a list and an item to show.
+	await page.goto("/accounts");
+	await page.getByLabel("Name").fill("Joint Savings");
+	await choose(page, "Kind", accountKindLabel("savings"));
+	await page.getByLabel("Balance now").fill("8,000");
+	await page.getByRole("button", { name: "Add Account" }).click();
+	await expect(page.getByRole("link", { name: /^Joint Savings, / })).toBeVisible();
+	await page.goto("/goals");
+	await page.getByRole("button", { name: "Add Goal" }).click();
+	const addGoal = page.getByRole("dialog", { name: "Add a Goal" });
+	await addGoal.getByLabel("Name").fill("Trip");
+	await addGoal.getByLabel("Target", { exact: true }).fill("3,000");
+	await addGoal.getByRole("button", { name: "Add Goal" }).click();
+	await expect(addGoal).toBeHidden();
+	await expect(page.getByRole("link", { name: /^Trip, / })).toBeVisible();
 }
 
 test("no desktop page has a region that scrolls inside another", async ({ browser }) => {
@@ -134,11 +155,13 @@ test("no desktop page has a region that scrolls inside another", async ({ browse
 	const page = await signedInPage(browser, parent.email, desktop);
 	await busyHousehold(page);
 	await walk(page, migrated);
-	// A Bucket and a Commitment beside their lists (67b): only MasterDetail's panes scroll.
-	for (const part of ["buckets", "commitments"]) {
-		await page.goto(`/plan/${month}/${part}`);
+	// An item beside its list (67b, 67c): only MasterDetail's panes scroll. The busy Household
+	// has no Commitment, so that one is walked only when there is one.
+	const lists = [`/plan/${month}/buckets`, `/plan/${month}/commitments`, "/goals", "/accounts"];
+	for (const path of lists) {
+		await page.goto(path);
 		const item = page.locator("[data-slot=master-detail-list] [data-md-item]").first();
-		if (part === "buckets") await expect(item).toBeVisible();
+		if (!path.endsWith("/commitments")) await expect(item).toBeVisible();
 		if (!(await item.isVisible())) continue;
 		await item.click();
 		await expect(page.locator("[data-slot=detail-title]")).toBeVisible();

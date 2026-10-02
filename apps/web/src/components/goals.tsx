@@ -27,7 +27,7 @@ import {
 } from "@noodle/ui/components/sheet";
 import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { cn } from "@noodle/ui/lib/utils";
-import { Link, useHydrated } from "@tanstack/react-router";
+import { Link, linkOptions, useHydrated } from "@tanstack/react-router";
 import { ChevronLeft, CreditCard, HandCoins, Landmark, PiggyBank, Plus } from "lucide-react";
 import { type ComponentProps, type FormEvent, type ReactNode, useId, useState } from "react";
 import { ulid } from "ulid";
@@ -40,7 +40,9 @@ import {
 	type GoalView,
 	goalStatusName,
 	statusNameOf,
+	useGoals,
 } from "../goals";
+import { DetailPager } from "./master-detail";
 import { TermHelp } from "./term-help";
 
 /** A Goal page's way back to Goals. */
@@ -62,6 +64,44 @@ export function BackToAccounts() {
 				<ChevronLeft className="size-5" />
 			</Link>
 		</Button>
+	);
+}
+
+/** Goals in the order their list shows them: paying off, saving for, completed, archived. */
+export function goalOrder(goals: readonly GoalView[]) {
+	const active = goals.filter((g) => g.state === "active");
+	return [
+		...active.filter((g) => g.kind === "payoff"),
+		...active.filter((g) => g.kind === "save"),
+		...goals.filter((g) => g.state === "completed"),
+		...goals.filter((g) => g.state === "archived"),
+	].map((g) => g.id);
+}
+
+/** Previous and next Goal, in the list's order. */
+export function GoalPager({ id }: { id: string }) {
+	const { goals } = useGoals();
+	return (
+		<DetailPager
+			ids={goalOrder(goals)}
+			id={id}
+			noun="Goal"
+			link={(goalId) => linkOptions({ to: "/goals/$goalId", params: { goalId } })}
+		/>
+	);
+}
+
+/** Previous and next Account, in the list's order: cash, then cards and loans. */
+export function AccountPager({ id }: { id: string }) {
+	const { accounts } = useGoals();
+	const ids = [...accounts.filter((a) => a.holdsMoney), ...accounts.filter((a) => !a.holdsMoney)];
+	return (
+		<DetailPager
+			ids={ids.map((a) => a.id)}
+			id={id}
+			noun="Account"
+			link={(accountId) => linkOptions({ to: "/accounts/$accountId", params: { accountId } })}
+		/>
 	);
 }
 

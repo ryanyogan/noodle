@@ -10,7 +10,6 @@ import {
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
-import { PageHeader } from "@noodle/ui/components/page-header";
 import { Progress } from "@noodle/ui/components/progress";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import {
@@ -41,12 +40,14 @@ import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
 import { accountSource, accountSourceText } from "../../../account-source";
 import {
+	AccountPager,
 	AddGoalSheet,
 	AmountSheet,
 	BackToAccounts,
 	GoalProgressBar,
 	LinkRow,
 } from "../../../components/goals";
+import { DetailHeader, DetailPending } from "../../../components/master-detail";
 import { Confirm, SaveFailed } from "../../../components/plan-editing";
 import { StatementBalanceNote, StatementsSection } from "../../../components/statements";
 import { TermHelp } from "../../../components/term-help";
@@ -88,6 +89,7 @@ export const Route = createFileRoute("/_authed/_household/accounts/$accountId")(
 			context.queryClient.ensureQueryData(membersQuery()),
 		]);
 	},
+	pendingComponent: DetailPending,
 	component: AccountPage,
 });
 
@@ -95,7 +97,7 @@ function AccountPage() {
 	const { accountId } = Route.useParams();
 	const account = useGoals().accounts.find((a) => a.id === accountId);
 	if (!account)
-		return <PageHeader eyebrow="Account" title="Account" leading={<BackToAccounts />} />;
+		return <DetailHeader eyebrow="Account" title="Account" leading={<BackToAccounts />} />;
 	return <AccountDetails account={account} />;
 }
 
@@ -132,10 +134,11 @@ function AccountDetails({ account }: { account: AccountView }) {
 
 	return (
 		<>
-			<PageHeader
+			<DetailHeader
 				eyebrow={`${accountKindName[account.kind]} Account`}
 				title={account.name}
 				leading={<BackToAccounts />}
+				pager={<AccountPager id={account.id} />}
 				actions={
 					// One action is a button; with a Bank Connection's too, they share a menu.
 					connected ? (
@@ -192,10 +195,10 @@ function AccountDetails({ account }: { account: AccountView }) {
 					choose it again from the Bank Connection on Accounts.
 				</Confirm>
 			) : null}
-			{/* lg: Transactions and statements on the left; the balance, what's set aside and the
+			{/* In a wide pane: Transactions and statements on the left; the balance, what's set aside and the
 			    payoff plan in a rail on the right that stays put (#47). Phones keep the rail first. */}
-			<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start xl:grid-cols-[minmax(0,1fr)_400px]">
-				<div className="grid min-w-0 gap-8 lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1">
+			<div className="grid gap-8 @3xl:grid-cols-[minmax(0,1fr)_320px] @3xl:items-start">
+				<div className="grid min-w-0 gap-8 @3xl:col-start-2 @3xl:row-start-1">
 					<Card role="region" aria-labelledby="account-balance">
 						<div className="grid gap-3 p-(--card-pad)">
 							<div className="flex items-start justify-between gap-4">
@@ -341,7 +344,7 @@ function AccountDetails({ account }: { account: AccountView }) {
 						<PayOffSection account={account} />
 					)}
 				</div>
-				<div className="grid min-w-0 gap-8 lg:col-start-1 lg:row-start-1">
+				<div className="grid min-w-0 gap-8 @3xl:col-start-1 @3xl:row-start-1">
 					<AccountTransactions account={account} />
 					<StatementsSection
 						account={account}

@@ -1,9 +1,11 @@
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import { MasterDetail } from "@noodle/ui/components/layout";
 import { Skeleton } from "@noodle/ui/components/skeleton";
-import { Link, type LinkOptions } from "@tanstack/react-router";
+import { cn } from "@noodle/ui/lib/utils";
+import { Link, type LinkOptions, Outlet } from "@tanstack/react-router";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import type { KeyboardEvent, ReactNode } from "react";
+import { type KeyboardEvent, type ReactNode, Suspense } from "react";
 
 // What every list-beside-its-item page shares (#67), next to `MasterDetail` in @noodle/ui: the
 // row's marker and highlight, the keys, the detail's header with previous and next, and the
@@ -169,5 +171,58 @@ export function DetailPending() {
 				<Skeleton className="h-4 w-3/5" />
 			</Card>
 		</div>
+	);
+}
+
+/**
+ * A section whose items have pages of their own (Goals, Accounts): the list on the left and, from
+ * lg, the picked item beside it (its route is this one's child). With nothing picked the right
+ * pane holds the section's totals; on phones those come first, then the list, and an item is a
+ * page with Back.
+ */
+export function ListBesideDetail({
+	picked,
+	noun,
+	listLabel,
+	hint,
+	list,
+	aside,
+}: {
+	/** An item's route is showing. */
+	picked: boolean;
+	/** What an item is called, e.g. "Goal". */
+	noun: string;
+	/** Names the list pane, e.g. "Goals". */
+	listLabel: string;
+	/** Says what the right pane is for while nothing is picked, e.g. "Pick a Goal to see it here." */
+	hint: string;
+	list: ReactNode;
+	/** The right pane while nothing is picked; on phones it comes before the list. */
+	aside?: ReactNode;
+}) {
+	return (
+		<MasterDetail
+			className="max-lg:[&>[data-slot=master-detail-detail]]:order-first"
+			listLabel={listLabel}
+			detailLabel={picked ? `${noun} details` : `${listLabel} overview`}
+			emptyStacks={Boolean(aside)}
+			onKeyDown={masterDetailKeys}
+			list={<div className={cn("grid min-w-0 content-start gap-8", selectedRow)}>{list}</div>}
+			detail={
+				picked ? (
+					<div className="@container">
+						<Suspense fallback={<DetailPending />}>
+							<Outlet />
+						</Suspense>
+					</div>
+				) : undefined
+			}
+			empty={
+				<div className="grid w-full content-start gap-4 lg:max-w-md">
+					{aside}
+					<p className="px-1 text-sm text-muted-foreground max-lg:hidden">{hint}</p>
+				</div>
+			}
+		/>
 	);
 }

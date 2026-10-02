@@ -77,7 +77,7 @@ test("a Goal is funded from Free to Spend and spent from what it has set aside, 
 
 	// Each Goal says which Account holds it.
 	await page.getByRole("link", { name: /^Braces, \$1,000 of \$6,000, in Ally savings$/ }).click();
-	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Braces");
+	await expect(page.locator("[data-slot=detail-title]")).toContainText("Braces");
 	await expect(setAside(page)).toContainText("$1,000of $6,000");
 
 	// The plan in words: what it needs a month to reach its target.
@@ -156,7 +156,7 @@ test("a Goal is funded from Free to Spend and spent from what it has set aside, 
 
 	// The Account: the spending came off its balance, and not set aside is what isn't Set aside.
 	await page.getByRole("link", { name: "Ally savings", exact: true }).click();
-	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Ally savings");
+	await expect(page.locator("[data-slot=detail-title]")).toContainText("Ally savings");
 	const balance = page.getByRole("region", { name: "Balance" });
 	await expect(balance.getByText("$9,600", { exact: true })).toBeVisible();
 	await expect(balance).toContainText(

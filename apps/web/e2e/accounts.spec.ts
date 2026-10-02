@@ -75,7 +75,7 @@ test("Accounts are their own area, and each Goal names the Account holding it", 
 	await page.getByRole("link", { name: "Joint Savings", exact: true }).click();
 
 	// The Account's page lives under Accounts, and back goes to Accounts.
-	await expect(header(page)).toContainText("Joint Savings");
+	await expect(page.locator("[data-slot=detail-title]")).toContainText("Joint Savings");
 	await expect(page).toHaveURL(/\/accounts\/[^/]+$/);
 	await expect(page.getByRole("link", { name: "Trip, $500 set aside" })).toBeVisible();
 	const accountPath = new URL(page.url()).pathname;
@@ -86,7 +86,7 @@ test("Accounts are their own area, and each Goal names the Account holding it", 
 	// The old address still opens it.
 	await page.goto(`/goals${accountPath}`);
 	await expect(page).toHaveURL(new RegExp(`${accountPath}$`));
-	await expect(header(page)).toContainText("Joint Savings");
+	await expect(page.locator("[data-slot=detail-title]")).toContainText("Joint Savings");
 });
 
 test("on a phone, Accounts is reached from Transactions and the Household page", async ({

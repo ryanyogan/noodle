@@ -8,18 +8,19 @@ import { List } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { cn } from "@noodle/ui/lib/utils";
-import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
+import { createFileRoute, Link, useHydrated, useParams } from "@tanstack/react-router";
 import { Landmark, Plus, Target, Telescope } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 import { AddGoalSheet, GoalProgressBar, GoalSummary, LinkRow } from "../../../components/goals";
+import { ListBesideDetail, masterDetailItem } from "../../../components/master-detail";
 import { SaveFailed } from "../../../components/plan-editing";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney } from "../../../format";
 import { GoalRefused, type GoalView, useAddGoal, useGoals } from "../../../goals";
 import { goalsQuery } from "../../../queries";
 
-export const Route = createFileRoute("/_authed/_household/goals/")({
+export const Route = createFileRoute("/_authed/_household/goals")({
 	// `?add=payoff` opens Add Goal on paying off a card or loan (from the Plan's pages).
 	validateSearch: z.object({ add: z.enum(GOAL_KINDS).optional().catch(undefined) }),
 	loader: ({ context }) => context.queryClient.ensureQueryData(goalsQuery()),
@@ -37,6 +38,7 @@ function GoalsPage() {
 		setAdding(null);
 		if (add) void navigate({ search: {}, replace: true });
 	};
+	const picked = useParams({ strict: false, select: (params) => params.goalId });
 	const addGoal = useAddGoal();
 	// Any Account will do: checking or savings for saving up, a card or loan for paying off.
 	const canAddGoal = accounts.length > 0;
@@ -85,48 +87,41 @@ function GoalsPage() {
 					</>
 				}
 			/>
-			<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start xl:grid-cols-[minmax(0,1fr)_360px]">
-				{active.length + payingOff.length > 0 ? (
-					<GoalsSummary
-						goals={[...active, ...payingOff]}
-						emergency={goals.find((g) => g.id === emergencyGoalId && g.state === "active") ?? null}
-					/>
-				) : null}
-				<div className="grid min-w-0 gap-8 lg:col-start-1 lg:row-start-1">
-					{addGoal.error instanceof GoalRefused && addGoal.variables?.kind === "payoff" ? (
-						<FormError>
-							That card or loan owes nothing now, or is already being paid off, so no Goal was
-							added.
-						</FormError>
-					) : (
-						<SaveFailed change={addGoal} />
-					)}
-					{payingOff.length > 0 ? (
-						<Section aria-labelledby="paying-off-goals">
-							<SectionHeader
-								id="paying-off-goals"
-								title="Paying off"
-								count={payingOff.length}
-								help={<TermHelp term="payoff-goal" />}
-							/>
-							<List>
-								{payingOff.map((goal) => (
-									<GoalItem
-										key={goal.id}
-										goal={goal}
-										month={month}
-										emergency={goal.id === emergencyGoalId}
-									/>
-								))}
-							</List>
-						</Section>
-					) : null}
-					<Section aria-labelledby="active-goals">
-						<SectionHeader id="active-goals" title="Saving for" count={active.length} />
-						{active.length > 0 ? (
-							<>
+			<ListBesideDetail
+				picked={picked !== undefined}
+				noun="Goal"
+				listLabel="Goals"
+				hint="Pick a Goal to see it here."
+				aside={
+					active.length + payingOff.length > 0 ? (
+						<GoalsSummary
+							goals={[...active, ...payingOff]}
+							emergency={
+								goals.find((g) => g.id === emergencyGoalId && g.state === "active") ?? null
+							}
+						/>
+					) : undefined
+				}
+				list={
+					<>
+						{addGoal.error instanceof GoalRefused && addGoal.variables?.kind === "payoff" ? (
+							<FormError>
+								That card or loan owes nothing now, or is already being paid off, so no Goal was
+								added.
+							</FormError>
+						) : (
+							<SaveFailed change={addGoal} />
+						)}
+						{payingOff.length > 0 ? (
+							<Section aria-labelledby="paying-off-goals">
+								<SectionHeader
+									id="paying-off-goals"
+									title="Paying off"
+									count={payingOff.length}
+									help={<TermHelp term="payoff-goal" />}
+								/>
 								<List>
-									{active.map((goal) => (
+									{payingOff.map((goal) => (
 										<GoalItem
 											key={goal.id}
 											goal={goal}
@@ -135,50 +130,67 @@ function GoalsPage() {
 										/>
 									))}
 								</List>
-								{/* What each Goal is and how far along lives here; deciding how much of this
+							</Section>
+						) : null}
+						<Section aria-labelledby="active-goals">
+							<SectionHeader id="active-goals" title="Saving for" count={active.length} />
+							{active.length > 0 ? (
+								<>
+									<List>
+										{active.map((goal) => (
+											<GoalItem
+												key={goal.id}
+												goal={goal}
+												month={month}
+												emergency={goal.id === emergencyGoalId}
+											/>
+										))}
+									</List>
+									{/* What each Goal is and how far along lives here; deciding how much of this
 								    month's Free to Spend goes to them is the Plan's Goal funding page. */}
-								<Link
-									to="/plan/$month/goals"
-									params={{ month }}
-									className="inline-flex min-h-11 items-center justify-self-start px-1 text-[13px] font-medium text-muted-foreground underline decoration-border-strong underline-offset-3 hover:text-foreground hover:decoration-foreground lg:min-h-6"
-								>
-									Fund Goals from this month’s Plan
-								</Link>
-							</>
-						) : canAddGoal ? (
-							<Card className="p-(--card-pad) text-sm text-muted-foreground">
-								No savings Goals yet. Add one to start setting money aside for it, a little each
-								month.
-							</Card>
-						) : (
-							<Card className="grid justify-items-start gap-3 p-(--card-pad) text-sm text-muted-foreground">
-								Goals are set aside in a checking or savings Account. Add one to start a new Goal.
-								<AccountsLink />
-							</Card>
-						)}
-					</Section>
-					{completed.length > 0 ? (
-						<Section aria-labelledby="completed-goals">
-							<SectionHeader id="completed-goals" title="Completed" count={completed.length} />
-							<List>
-								{completed.map((goal) => (
-									<GoalItem key={goal.id} goal={goal} quiet />
-								))}
-							</List>
+									<Link
+										to="/plan/$month/goals"
+										params={{ month }}
+										className="inline-flex min-h-11 items-center justify-self-start px-1 text-[13px] font-medium text-muted-foreground underline decoration-border-strong underline-offset-3 hover:text-foreground hover:decoration-foreground lg:min-h-6"
+									>
+										Fund Goals from this month’s Plan
+									</Link>
+								</>
+							) : canAddGoal ? (
+								<Card className="p-(--card-pad) text-sm text-muted-foreground">
+									No savings Goals yet. Add one to start setting money aside for it, a little each
+									month.
+								</Card>
+							) : (
+								<Card className="grid justify-items-start gap-3 p-(--card-pad) text-sm text-muted-foreground">
+									Goals are set aside in a checking or savings Account. Add one to start a new Goal.
+									<AccountsLink />
+								</Card>
+							)}
 						</Section>
-					) : null}
-					{archived.length > 0 ? (
-						<Section aria-labelledby="archived-goals">
-							<SectionHeader id="archived-goals" title="Archived" count={archived.length} />
-							<List>
-								{archived.map((goal) => (
-									<GoalItem key={goal.id} goal={goal} quiet />
-								))}
-							</List>
-						</Section>
-					) : null}
-				</div>
-			</div>
+						{completed.length > 0 ? (
+							<Section aria-labelledby="completed-goals">
+								<SectionHeader id="completed-goals" title="Completed" count={completed.length} />
+								<List>
+									{completed.map((goal) => (
+										<GoalItem key={goal.id} goal={goal} quiet />
+									))}
+								</List>
+							</Section>
+						) : null}
+						{archived.length > 0 ? (
+							<Section aria-labelledby="archived-goals">
+								<SectionHeader id="archived-goals" title="Archived" count={archived.length} />
+								<List>
+									{archived.map((goal) => (
+										<GoalItem key={goal.id} goal={goal} quiet />
+									))}
+								</List>
+							</Section>
+						) : null}
+					</>
+				}
+			/>
 			<AddGoalSheet
 				// Keyed so it opens on the kind asked for.
 				key={addKind ?? "closed"}
@@ -215,7 +227,9 @@ function GoalItem({
 	if (goal.kind === "payoff") return <PayoffGoalItem goal={goal} quiet={quiet} />;
 	return (
 		<LinkRow
-			link={(props) => <Link to="/goals/$goalId" params={{ goalId: goal.id }} {...props} />}
+			link={(props) => (
+				<Link to="/goals/$goalId" params={{ goalId: goal.id }} {...masterDetailItem} {...props} />
+			)}
 			label={`${goal.name}, ${formatMoney(progress.saved)} of ${formatMoney(goal.target)}${goal.account ? `, in ${goal.account.name}` : ""}`}
 			title={
 				// Inline, not flex, so a long name wraps and clamps with an ellipsis (LinkRow).
@@ -257,7 +271,9 @@ function PayoffGoalItem({ goal, quiet }: { goal: GoalView; quiet: boolean }) {
 	const paidOff = progress.status === "reached";
 	return (
 		<LinkRow
-			link={(props) => <Link to="/goals/$goalId" params={{ goalId: goal.id }} {...props} />}
+			link={(props) => (
+				<Link to="/goals/$goalId" params={{ goalId: goal.id }} {...masterDetailItem} {...props} />
+			)}
 			label={`${goal.name}, paid down ${formatMoney(progress.saved)} of ${formatMoney(goal.target)}, ${paidOff ? "paid off" : `${formatMoney(progress.remaining)} still owed`}${goal.account ? `, on ${goal.account.name}` : ""}`}
 			title={<span className={cn(quiet && "text-muted-foreground")}>{goal.name}</span>}
 			meta={<GoalSummary goal={goal} before={`Paid down ${formatMoney(progress.saved)}`} />}
@@ -280,18 +296,15 @@ function PayoffGoalItem({ goal, quiet }: { goal: GoalView; quiet: boolean }) {
 
 /**
  * What the active Goals add up to: set aside across them, and what dated Goals need each month
- * to stay on track. Beside the lists from a laptop up, above them on a phone.
+ * to stay on track. In the right pane from a laptop up while no Goal is picked, above the lists on a phone.
  */
 function GoalsSummary({ goals, emergency }: { goals: GoalView[]; emergency: GoalView | null }) {
 	const saving = goals.filter((g) => g.kind === "save");
 	const setAside = saving.reduce((sum, g) => sum + g.progress.saved, 0);
 	const monthly = goals.reduce((sum, g) => sum + (g.progress.monthly ?? 0), 0);
 	return (
-		<Card
-			aria-label="Goals summary"
-			className="grid gap-4 p-(--card-pad) lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1"
-		>
-			<dl className="grid grid-cols-2 gap-4 lg:grid-cols-1">
+		<Card aria-label="Goals summary" className="grid gap-4 p-(--card-pad)">
+			<dl className="grid grid-cols-2 gap-4">
 				<div className="grid gap-1">
 					<dt className="text-xs text-muted-foreground">
 						Set aside across {saving.length} Goal{saving.length === 1 ? "" : "s"}

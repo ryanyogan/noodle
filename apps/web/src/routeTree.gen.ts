@@ -16,22 +16,22 @@ import { Route as AuthedJoinedRouteImport } from './routes/_authed/joined'
 import { Route as AuthedSetupRouteImport } from './routes/_authed/setup'
 import { Route as AuthedWelcomeRouteImport } from './routes/_authed/welcome'
 import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
+import { Route as AuthedHouseholdAccountsRouteImport } from './routes/_authed/_household/accounts'
 import { Route as AuthedHouseholdAskRouteImport } from './routes/_authed/_household/ask'
 import { Route as AuthedHouseholdCheckInRouteImport } from './routes/_authed/_household/check-in'
 import { Route as AuthedHouseholdExploreRouteImport } from './routes/_authed/_household/explore'
 import { Route as AuthedHouseholdGlossaryRouteImport } from './routes/_authed/_household/glossary'
+import { Route as AuthedHouseholdGoalsRouteImport } from './routes/_authed/_household/goals'
 import { Route as AuthedHouseholdHouseholdRouteImport } from './routes/_authed/_household/household'
 import { Route as AuthedHouseholdInsightsRouteImport } from './routes/_authed/_household/insights'
 import { Route as AuthedHouseholdPerksRouteImport } from './routes/_authed/_household/perks'
 import { Route as AuthedHouseholdReportsRouteImport } from './routes/_authed/_household/reports'
 import { Route as AuthedHouseholdReviewRouteImport } from './routes/_authed/_household/review'
 import { Route as AuthedBankReturnRouteImport } from './routes/_authed/bank.return'
-import { Route as AuthedHouseholdAccountsIndexRouteImport } from './routes/_authed/_household/accounts.index'
 import { Route as AuthedHouseholdAccountsAccountIdRouteImport } from './routes/_authed/_household/accounts.$accountId'
 import { Route as AuthedHouseholdExploreIndexRouteImport } from './routes/_authed/_household/explore.index'
 import { Route as AuthedHouseholdExploreAffordRouteImport } from './routes/_authed/_household/explore.afford'
 import { Route as AuthedHouseholdExploreScenariosRouteImport } from './routes/_authed/_household/explore.scenarios'
-import { Route as AuthedHouseholdGoalsIndexRouteImport } from './routes/_authed/_household/goals.index'
 import { Route as AuthedHouseholdGoalsGoalIdRouteImport } from './routes/_authed/_household/goals.$goalId'
 import { Route as AuthedHouseholdInsightsIndexRouteImport } from './routes/_authed/_household/insights.index'
 import { Route as AuthedHouseholdInsightsPerksRouteImport } from './routes/_authed/_household/insights.perks'
@@ -43,7 +43,7 @@ import { Route as AuthedHouseholdReviewIndexRouteImport } from './routes/_authed
 import { Route as AuthedHouseholdReviewRulesRouteImport } from './routes/_authed/_household/review.rules'
 import { Route as AuthedHouseholdTransactionsIndexRouteImport } from './routes/_authed/_household/transactions.index'
 import { Route as AuthedHouseholdTransactionsMonthRouteImport } from './routes/_authed/_household/transactions.$month'
-import { Route as AuthedHouseholdGoalsAccountsAccountIdRouteImport } from './routes/_authed/_household/goals.accounts.$accountId'
+import { Route as AuthedHouseholdGoalsAccountsAccountIdRouteImport } from './routes/_authed/_household/goals_.accounts.$accountId'
 import { Route as AuthedHouseholdMonthMonthIndexRouteImport } from './routes/_authed/_household/month.$month.index'
 import { Route as AuthedHouseholdMonthMonthPlanRouteImport } from './routes/_authed/_household/month.$month.plan'
 import { Route as AuthedHouseholdPlanMonthIndexRouteImport } from './routes/_authed/_household/plan.$month.index'
@@ -91,6 +91,11 @@ const SignInSplatRoute = SignInSplatRouteImport.update({
   path: '/sign-in/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthedHouseholdAccountsRoute = AuthedHouseholdAccountsRouteImport.update({
+  id: '/accounts',
+  path: '/accounts',
+  getParentRoute: () => AuthedHouseholdRoute,
+} as any)
 const AuthedHouseholdAskRoute = AuthedHouseholdAskRouteImport.update({
   id: '/ask',
   path: '/ask',
@@ -109,6 +114,11 @@ const AuthedHouseholdExploreRoute = AuthedHouseholdExploreRouteImport.update({
 const AuthedHouseholdGlossaryRoute = AuthedHouseholdGlossaryRouteImport.update({
   id: '/glossary',
   path: '/glossary',
+  getParentRoute: () => AuthedHouseholdRoute,
+} as any)
+const AuthedHouseholdGoalsRoute = AuthedHouseholdGoalsRouteImport.update({
+  id: '/goals',
+  path: '/goals',
   getParentRoute: () => AuthedHouseholdRoute,
 } as any)
 const AuthedHouseholdHouseholdRoute =
@@ -142,17 +152,11 @@ const AuthedBankReturnRoute = AuthedBankReturnRouteImport.update({
   path: '/bank/return',
   getParentRoute: () => AuthedRoute,
 } as any)
-const AuthedHouseholdAccountsIndexRoute =
-  AuthedHouseholdAccountsIndexRouteImport.update({
-    id: '/accounts/',
-    path: '/accounts/',
-    getParentRoute: () => AuthedHouseholdRoute,
-  } as any)
 const AuthedHouseholdAccountsAccountIdRoute =
   AuthedHouseholdAccountsAccountIdRouteImport.update({
-    id: '/accounts/$accountId',
-    path: '/accounts/$accountId',
-    getParentRoute: () => AuthedHouseholdRoute,
+    id: '/$accountId',
+    path: '/$accountId',
+    getParentRoute: () => AuthedHouseholdAccountsRoute,
   } as any)
 const AuthedHouseholdExploreIndexRoute =
   AuthedHouseholdExploreIndexRouteImport.update({
@@ -172,17 +176,11 @@ const AuthedHouseholdExploreScenariosRoute =
     path: '/scenarios',
     getParentRoute: () => AuthedHouseholdExploreRoute,
   } as any)
-const AuthedHouseholdGoalsIndexRoute =
-  AuthedHouseholdGoalsIndexRouteImport.update({
-    id: '/goals/',
-    path: '/goals/',
-    getParentRoute: () => AuthedHouseholdRoute,
-  } as any)
 const AuthedHouseholdGoalsGoalIdRoute =
   AuthedHouseholdGoalsGoalIdRouteImport.update({
-    id: '/goals/$goalId',
-    path: '/goals/$goalId',
-    getParentRoute: () => AuthedHouseholdRoute,
+    id: '/$goalId',
+    path: '/$goalId',
+    getParentRoute: () => AuthedHouseholdGoalsRoute,
   } as any)
 const AuthedHouseholdInsightsIndexRoute =
   AuthedHouseholdInsightsIndexRouteImport.update({
@@ -246,7 +244,7 @@ const AuthedHouseholdTransactionsMonthRoute =
   } as any)
 const AuthedHouseholdGoalsAccountsAccountIdRoute =
   AuthedHouseholdGoalsAccountsAccountIdRouteImport.update({
-    id: '/goals/accounts/$accountId',
+    id: '/goals_/accounts/$accountId',
     path: '/goals/accounts/$accountId',
     getParentRoute: () => AuthedHouseholdRoute,
   } as any)
@@ -335,10 +333,12 @@ export interface FileRoutesByFullPath {
   '/setup': typeof AuthedSetupRoute
   '/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
+  '/accounts': typeof AuthedHouseholdAccountsRouteWithChildren
   '/ask': typeof AuthedHouseholdAskRoute
   '/check-in': typeof AuthedHouseholdCheckInRoute
   '/explore': typeof AuthedHouseholdExploreRouteWithChildren
   '/glossary': typeof AuthedHouseholdGlossaryRoute
+  '/goals': typeof AuthedHouseholdGoalsRouteWithChildren
   '/household': typeof AuthedHouseholdHouseholdRoute
   '/insights': typeof AuthedHouseholdInsightsRouteWithChildren
   '/perks': typeof AuthedHouseholdPerksRoute
@@ -354,9 +354,7 @@ export interface FileRoutesByFullPath {
   '/plan/$month': typeof AuthedHouseholdPlanMonthRouteWithChildren
   '/review/rules': typeof AuthedHouseholdReviewRulesRoute
   '/transactions/$month': typeof AuthedHouseholdTransactionsMonthRoute
-  '/accounts/': typeof AuthedHouseholdAccountsIndexRoute
   '/explore/': typeof AuthedHouseholdExploreIndexRoute
-  '/goals/': typeof AuthedHouseholdGoalsIndexRoute
   '/insights/': typeof AuthedHouseholdInsightsIndexRoute
   '/month/': typeof AuthedHouseholdMonthIndexRoute
   '/plan/': typeof AuthedHouseholdPlanIndexRoute
@@ -383,9 +381,11 @@ export interface FileRoutesByTo {
   '/setup': typeof AuthedSetupRoute
   '/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
+  '/accounts': typeof AuthedHouseholdAccountsRouteWithChildren
   '/ask': typeof AuthedHouseholdAskRoute
   '/check-in': typeof AuthedHouseholdCheckInRoute
   '/glossary': typeof AuthedHouseholdGlossaryRoute
+  '/goals': typeof AuthedHouseholdGoalsRouteWithChildren
   '/household': typeof AuthedHouseholdHouseholdRoute
   '/perks': typeof AuthedHouseholdPerksRoute
   '/reports': typeof AuthedHouseholdReportsRoute
@@ -397,9 +397,7 @@ export interface FileRoutesByTo {
   '/insights/perks': typeof AuthedHouseholdInsightsPerksRoute
   '/review/rules': typeof AuthedHouseholdReviewRulesRoute
   '/transactions/$month': typeof AuthedHouseholdTransactionsMonthRoute
-  '/accounts': typeof AuthedHouseholdAccountsIndexRoute
   '/explore': typeof AuthedHouseholdExploreIndexRoute
-  '/goals': typeof AuthedHouseholdGoalsIndexRoute
   '/insights': typeof AuthedHouseholdInsightsIndexRoute
   '/month': typeof AuthedHouseholdMonthIndexRoute
   '/plan': typeof AuthedHouseholdPlanIndexRoute
@@ -429,10 +427,12 @@ export interface FileRoutesById {
   '/_authed/setup': typeof AuthedSetupRoute
   '/_authed/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
+  '/_authed/_household/accounts': typeof AuthedHouseholdAccountsRouteWithChildren
   '/_authed/_household/ask': typeof AuthedHouseholdAskRoute
   '/_authed/_household/check-in': typeof AuthedHouseholdCheckInRoute
   '/_authed/_household/explore': typeof AuthedHouseholdExploreRouteWithChildren
   '/_authed/_household/glossary': typeof AuthedHouseholdGlossaryRoute
+  '/_authed/_household/goals': typeof AuthedHouseholdGoalsRouteWithChildren
   '/_authed/_household/household': typeof AuthedHouseholdHouseholdRoute
   '/_authed/_household/insights': typeof AuthedHouseholdInsightsRouteWithChildren
   '/_authed/_household/perks': typeof AuthedHouseholdPerksRoute
@@ -448,15 +448,13 @@ export interface FileRoutesById {
   '/_authed/_household/plan/$month': typeof AuthedHouseholdPlanMonthRouteWithChildren
   '/_authed/_household/review/rules': typeof AuthedHouseholdReviewRulesRoute
   '/_authed/_household/transactions/$month': typeof AuthedHouseholdTransactionsMonthRoute
-  '/_authed/_household/accounts/': typeof AuthedHouseholdAccountsIndexRoute
   '/_authed/_household/explore/': typeof AuthedHouseholdExploreIndexRoute
-  '/_authed/_household/goals/': typeof AuthedHouseholdGoalsIndexRoute
   '/_authed/_household/insights/': typeof AuthedHouseholdInsightsIndexRoute
   '/_authed/_household/month/': typeof AuthedHouseholdMonthIndexRoute
   '/_authed/_household/plan/': typeof AuthedHouseholdPlanIndexRoute
   '/_authed/_household/review/': typeof AuthedHouseholdReviewIndexRoute
   '/_authed/_household/transactions/': typeof AuthedHouseholdTransactionsIndexRoute
-  '/_authed/_household/goals/accounts/$accountId': typeof AuthedHouseholdGoalsAccountsAccountIdRoute
+  '/_authed/_household/goals_/accounts/$accountId': typeof AuthedHouseholdGoalsAccountsAccountIdRoute
   '/_authed/_household/month/$month/plan': typeof AuthedHouseholdMonthMonthPlanRoute
   '/_authed/_household/plan/$month/buckets': typeof AuthedHouseholdPlanMonthBucketsRouteWithChildren
   '/_authed/_household/plan/$month/commitments': typeof AuthedHouseholdPlanMonthCommitmentsRouteWithChildren
@@ -479,10 +477,12 @@ export interface FileRouteTypes {
     | '/setup'
     | '/welcome'
     | '/sign-in/$'
+    | '/accounts'
     | '/ask'
     | '/check-in'
     | '/explore'
     | '/glossary'
+    | '/goals'
     | '/household'
     | '/insights'
     | '/perks'
@@ -498,9 +498,7 @@ export interface FileRouteTypes {
     | '/plan/$month'
     | '/review/rules'
     | '/transactions/$month'
-    | '/accounts/'
     | '/explore/'
-    | '/goals/'
     | '/insights/'
     | '/month/'
     | '/plan/'
@@ -527,9 +525,11 @@ export interface FileRouteTypes {
     | '/setup'
     | '/welcome'
     | '/sign-in/$'
+    | '/accounts'
     | '/ask'
     | '/check-in'
     | '/glossary'
+    | '/goals'
     | '/household'
     | '/perks'
     | '/reports'
@@ -541,9 +541,7 @@ export interface FileRouteTypes {
     | '/insights/perks'
     | '/review/rules'
     | '/transactions/$month'
-    | '/accounts'
     | '/explore'
-    | '/goals'
     | '/insights'
     | '/month'
     | '/plan'
@@ -572,10 +570,12 @@ export interface FileRouteTypes {
     | '/_authed/setup'
     | '/_authed/welcome'
     | '/sign-in/$'
+    | '/_authed/_household/accounts'
     | '/_authed/_household/ask'
     | '/_authed/_household/check-in'
     | '/_authed/_household/explore'
     | '/_authed/_household/glossary'
+    | '/_authed/_household/goals'
     | '/_authed/_household/household'
     | '/_authed/_household/insights'
     | '/_authed/_household/perks'
@@ -591,15 +591,13 @@ export interface FileRouteTypes {
     | '/_authed/_household/plan/$month'
     | '/_authed/_household/review/rules'
     | '/_authed/_household/transactions/$month'
-    | '/_authed/_household/accounts/'
     | '/_authed/_household/explore/'
-    | '/_authed/_household/goals/'
     | '/_authed/_household/insights/'
     | '/_authed/_household/month/'
     | '/_authed/_household/plan/'
     | '/_authed/_household/review/'
     | '/_authed/_household/transactions/'
-    | '/_authed/_household/goals/accounts/$accountId'
+    | '/_authed/_household/goals_/accounts/$accountId'
     | '/_authed/_household/month/$month/plan'
     | '/_authed/_household/plan/$month/buckets'
     | '/_authed/_household/plan/$month/commitments'
@@ -672,6 +670,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignInSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authed/_household/accounts': {
+      id: '/_authed/_household/accounts'
+      path: '/accounts'
+      fullPath: '/accounts'
+      preLoaderRoute: typeof AuthedHouseholdAccountsRouteImport
+      parentRoute: typeof AuthedHouseholdRoute
+    }
     '/_authed/_household/ask': {
       id: '/_authed/_household/ask'
       path: '/ask'
@@ -698,6 +703,13 @@ declare module '@tanstack/react-router' {
       path: '/glossary'
       fullPath: '/glossary'
       preLoaderRoute: typeof AuthedHouseholdGlossaryRouteImport
+      parentRoute: typeof AuthedHouseholdRoute
+    }
+    '/_authed/_household/goals': {
+      id: '/_authed/_household/goals'
+      path: '/goals'
+      fullPath: '/goals'
+      preLoaderRoute: typeof AuthedHouseholdGoalsRouteImport
       parentRoute: typeof AuthedHouseholdRoute
     }
     '/_authed/_household/household': {
@@ -742,19 +754,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedBankReturnRouteImport
       parentRoute: typeof AuthedRoute
     }
-    '/_authed/_household/accounts/': {
-      id: '/_authed/_household/accounts/'
-      path: '/accounts'
-      fullPath: '/accounts/'
-      preLoaderRoute: typeof AuthedHouseholdAccountsIndexRouteImport
-      parentRoute: typeof AuthedHouseholdRoute
-    }
     '/_authed/_household/accounts/$accountId': {
       id: '/_authed/_household/accounts/$accountId'
-      path: '/accounts/$accountId'
+      path: '/$accountId'
       fullPath: '/accounts/$accountId'
       preLoaderRoute: typeof AuthedHouseholdAccountsAccountIdRouteImport
-      parentRoute: typeof AuthedHouseholdRoute
+      parentRoute: typeof AuthedHouseholdAccountsRoute
     }
     '/_authed/_household/explore/': {
       id: '/_authed/_household/explore/'
@@ -777,19 +782,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedHouseholdExploreScenariosRouteImport
       parentRoute: typeof AuthedHouseholdExploreRoute
     }
-    '/_authed/_household/goals/': {
-      id: '/_authed/_household/goals/'
-      path: '/goals'
-      fullPath: '/goals/'
-      preLoaderRoute: typeof AuthedHouseholdGoalsIndexRouteImport
-      parentRoute: typeof AuthedHouseholdRoute
-    }
     '/_authed/_household/goals/$goalId': {
       id: '/_authed/_household/goals/$goalId'
-      path: '/goals/$goalId'
+      path: '/$goalId'
       fullPath: '/goals/$goalId'
       preLoaderRoute: typeof AuthedHouseholdGoalsGoalIdRouteImport
-      parentRoute: typeof AuthedHouseholdRoute
+      parentRoute: typeof AuthedHouseholdGoalsRoute
     }
     '/_authed/_household/insights/': {
       id: '/_authed/_household/insights/'
@@ -861,8 +859,8 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedHouseholdTransactionsMonthRouteImport
       parentRoute: typeof AuthedHouseholdRoute
     }
-    '/_authed/_household/goals/accounts/$accountId': {
-      id: '/_authed/_household/goals/accounts/$accountId'
+    '/_authed/_household/goals_/accounts/$accountId': {
+      id: '/_authed/_household/goals_/accounts/$accountId'
       path: '/goals/accounts/$accountId'
       fullPath: '/goals/accounts/$accountId'
       preLoaderRoute: typeof AuthedHouseholdGoalsAccountsAccountIdRouteImport
@@ -962,6 +960,21 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthedHouseholdAccountsRouteChildren {
+  AuthedHouseholdAccountsAccountIdRoute: typeof AuthedHouseholdAccountsAccountIdRoute
+}
+
+const AuthedHouseholdAccountsRouteChildren: AuthedHouseholdAccountsRouteChildren =
+  {
+    AuthedHouseholdAccountsAccountIdRoute:
+      AuthedHouseholdAccountsAccountIdRoute,
+  }
+
+const AuthedHouseholdAccountsRouteWithChildren =
+  AuthedHouseholdAccountsRoute._addFileChildren(
+    AuthedHouseholdAccountsRouteChildren,
+  )
+
 interface AuthedHouseholdExploreRouteChildren {
   AuthedHouseholdExploreAffordRoute: typeof AuthedHouseholdExploreAffordRoute
   AuthedHouseholdExploreScenariosRoute: typeof AuthedHouseholdExploreScenariosRoute
@@ -979,6 +992,17 @@ const AuthedHouseholdExploreRouteWithChildren =
   AuthedHouseholdExploreRoute._addFileChildren(
     AuthedHouseholdExploreRouteChildren,
   )
+
+interface AuthedHouseholdGoalsRouteChildren {
+  AuthedHouseholdGoalsGoalIdRoute: typeof AuthedHouseholdGoalsGoalIdRoute
+}
+
+const AuthedHouseholdGoalsRouteChildren: AuthedHouseholdGoalsRouteChildren = {
+  AuthedHouseholdGoalsGoalIdRoute: AuthedHouseholdGoalsGoalIdRoute,
+}
+
+const AuthedHouseholdGoalsRouteWithChildren =
+  AuthedHouseholdGoalsRoute._addFileChildren(AuthedHouseholdGoalsRouteChildren)
 
 interface AuthedHouseholdInsightsRouteChildren {
   AuthedHouseholdInsightsPerksRoute: typeof AuthedHouseholdInsightsPerksRoute
@@ -1084,22 +1108,20 @@ const AuthedHouseholdPlanMonthRouteWithChildren =
   )
 
 interface AuthedHouseholdRouteChildren {
+  AuthedHouseholdAccountsRoute: typeof AuthedHouseholdAccountsRouteWithChildren
   AuthedHouseholdAskRoute: typeof AuthedHouseholdAskRoute
   AuthedHouseholdCheckInRoute: typeof AuthedHouseholdCheckInRoute
   AuthedHouseholdExploreRoute: typeof AuthedHouseholdExploreRouteWithChildren
   AuthedHouseholdGlossaryRoute: typeof AuthedHouseholdGlossaryRoute
+  AuthedHouseholdGoalsRoute: typeof AuthedHouseholdGoalsRouteWithChildren
   AuthedHouseholdHouseholdRoute: typeof AuthedHouseholdHouseholdRoute
   AuthedHouseholdInsightsRoute: typeof AuthedHouseholdInsightsRouteWithChildren
   AuthedHouseholdPerksRoute: typeof AuthedHouseholdPerksRoute
   AuthedHouseholdReportsRoute: typeof AuthedHouseholdReportsRoute
   AuthedHouseholdReviewRoute: typeof AuthedHouseholdReviewRouteWithChildren
-  AuthedHouseholdAccountsAccountIdRoute: typeof AuthedHouseholdAccountsAccountIdRoute
-  AuthedHouseholdGoalsGoalIdRoute: typeof AuthedHouseholdGoalsGoalIdRoute
   AuthedHouseholdMonthMonthRoute: typeof AuthedHouseholdMonthMonthRouteWithChildren
   AuthedHouseholdPlanMonthRoute: typeof AuthedHouseholdPlanMonthRouteWithChildren
   AuthedHouseholdTransactionsMonthRoute: typeof AuthedHouseholdTransactionsMonthRoute
-  AuthedHouseholdAccountsIndexRoute: typeof AuthedHouseholdAccountsIndexRoute
-  AuthedHouseholdGoalsIndexRoute: typeof AuthedHouseholdGoalsIndexRoute
   AuthedHouseholdMonthIndexRoute: typeof AuthedHouseholdMonthIndexRoute
   AuthedHouseholdPlanIndexRoute: typeof AuthedHouseholdPlanIndexRoute
   AuthedHouseholdTransactionsIndexRoute: typeof AuthedHouseholdTransactionsIndexRoute
@@ -1110,22 +1132,20 @@ interface AuthedHouseholdRouteChildren {
 }
 
 const AuthedHouseholdRouteChildren: AuthedHouseholdRouteChildren = {
+  AuthedHouseholdAccountsRoute: AuthedHouseholdAccountsRouteWithChildren,
   AuthedHouseholdAskRoute: AuthedHouseholdAskRoute,
   AuthedHouseholdCheckInRoute: AuthedHouseholdCheckInRoute,
   AuthedHouseholdExploreRoute: AuthedHouseholdExploreRouteWithChildren,
   AuthedHouseholdGlossaryRoute: AuthedHouseholdGlossaryRoute,
+  AuthedHouseholdGoalsRoute: AuthedHouseholdGoalsRouteWithChildren,
   AuthedHouseholdHouseholdRoute: AuthedHouseholdHouseholdRoute,
   AuthedHouseholdInsightsRoute: AuthedHouseholdInsightsRouteWithChildren,
   AuthedHouseholdPerksRoute: AuthedHouseholdPerksRoute,
   AuthedHouseholdReportsRoute: AuthedHouseholdReportsRoute,
   AuthedHouseholdReviewRoute: AuthedHouseholdReviewRouteWithChildren,
-  AuthedHouseholdAccountsAccountIdRoute: AuthedHouseholdAccountsAccountIdRoute,
-  AuthedHouseholdGoalsGoalIdRoute: AuthedHouseholdGoalsGoalIdRoute,
   AuthedHouseholdMonthMonthRoute: AuthedHouseholdMonthMonthRouteWithChildren,
   AuthedHouseholdPlanMonthRoute: AuthedHouseholdPlanMonthRouteWithChildren,
   AuthedHouseholdTransactionsMonthRoute: AuthedHouseholdTransactionsMonthRoute,
-  AuthedHouseholdAccountsIndexRoute: AuthedHouseholdAccountsIndexRoute,
-  AuthedHouseholdGoalsIndexRoute: AuthedHouseholdGoalsIndexRoute,
   AuthedHouseholdMonthIndexRoute: AuthedHouseholdMonthIndexRoute,
   AuthedHouseholdPlanIndexRoute: AuthedHouseholdPlanIndexRoute,
   AuthedHouseholdTransactionsIndexRoute: AuthedHouseholdTransactionsIndexRoute,

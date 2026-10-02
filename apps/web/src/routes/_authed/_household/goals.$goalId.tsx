@@ -19,7 +19,6 @@ import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListGroupLabel, ListRow } from "@noodle/ui/components/list";
 import { MetaParts } from "@noodle/ui/components/meta-parts";
-import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import {
 	Sheet,
@@ -34,7 +33,14 @@ import { createFileRoute, Link, notFound, useHydrated } from "@tanstack/react-ro
 import { ChevronDown, Pencil } from "lucide-react";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { ulid } from "ulid";
-import { AmountInput, AmountSheet, BackToGoals, GoalProgressBar } from "../../../components/goals";
+import {
+	AmountInput,
+	AmountSheet,
+	BackToGoals,
+	GoalPager,
+	GoalProgressBar,
+} from "../../../components/goals";
+import { DetailHeader, DetailPending } from "../../../components/master-detail";
 import { PayoffGoalDetails } from "../../../components/payoff-goal";
 import { Confirm, SaveFailed } from "../../../components/plan-editing";
 import { TermHelp } from "../../../components/term-help";
@@ -69,6 +75,7 @@ export const Route = createFileRoute("/_authed/_household/goals/$goalId")({
 				: null,
 		]);
 	},
+	pendingComponent: DetailPending,
 	component: GoalPage,
 });
 
@@ -83,9 +90,11 @@ function GoalPage() {
 	const goal = goals.find((g) => g.id === goalId);
 	const account = accounts.find((a) => a.id === goal?.accountId);
 	// A Goal only goes away if another Parent's change removes it; the loader 404s on reload.
-	if (!goal) return <PageHeader eyebrow="Goal" title="Goal" leading={<BackToGoals />} />;
+	if (!goal) return <DetailHeader eyebrow="Goal" title="Goal" leading={<BackToGoals />} />;
 	if (goal.kind === "payoff") {
-		return <PayoffGoalDetails goal={goal} account={account} month={month} today={asOf} />;
+		return (
+			<PayoffGoalDetails goal={goal} account={account} month={month} today={asOf} />
+		);
 	}
 	return (
 		<GoalDetails
@@ -144,10 +153,11 @@ function GoalDetails({
 
 	return (
 		<>
-			<PageHeader
+			<DetailHeader
 				eyebrow="Goal"
 				title={goal.name}
 				leading={<BackToGoals />}
+				pager={<GoalPager id={goal.id} />}
 				actions={
 					archived ? undefined : (
 						<Button
@@ -163,9 +173,9 @@ function GoalDetails({
 					)
 				}
 			/>
-			<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start xl:grid-cols-[minmax(0,1fr)_380px]">
+			<div className="grid gap-8 @3xl:grid-cols-[minmax(0,1fr)_320px] @3xl:items-start">
 				{/* Right from a laptop up: the progress card and what to do; on a phone, History comes before Emergencies and Finish. */}
-				<div className="grid gap-8 max-lg:contents lg:col-start-2 lg:row-start-1">
+				<div className="grid gap-8 @max-3xl:contents @3xl:col-start-2 @3xl:row-start-1">
 					<Card role="region" aria-labelledby="goal-saved">
 						<div className="grid gap-3 p-(--card-pad)">
 							<div className="grid gap-1">
@@ -273,7 +283,7 @@ function GoalDetails({
 						<SaveFailed change={claim} />
 					)}
 
-					<div className="grid gap-8 max-lg:order-2">
+					<div className="grid gap-8 @max-3xl:order-2">
 						{active ? (
 							<Section aria-labelledby="goal-emergency">
 								<SectionHeader
@@ -365,7 +375,7 @@ function GoalDetails({
 						)}
 					</div>
 				</div>
-				<div className="grid min-w-0 gap-8 max-lg:order-1 lg:col-start-1 lg:row-start-1">
+				<div className="grid min-w-0 gap-8 @max-3xl:order-1 @3xl:col-start-1 @3xl:row-start-1">
 					<Section aria-labelledby="goal-history">
 						<SectionHeader id="goal-history" title="History" count={goal.changes.length} />
 						{goal.changes.length > 0 ? (

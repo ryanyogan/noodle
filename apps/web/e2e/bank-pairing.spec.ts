@@ -79,9 +79,7 @@ test("connecting pairs with the card already there, and counts nothing twice", a
 	await page.getByLabel("Owed now").fill("300");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: /^Costco Anywhere Visa, / }).click();
-	await expect(page.locator("[data-slot=page-header]:visible")).toContainText(
-		"Costco Anywhere Visa",
-	);
+	await expect(page.locator("[data-slot=detail-title]")).toContainText("Costco Anywhere Visa");
 	await expect(page.getByText("Entered by hand")).toBeVisible();
 	const shellDay = utcDaysAgo(2);
 	const csv = [

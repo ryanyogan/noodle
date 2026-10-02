@@ -70,7 +70,7 @@ test("a card is paid off with a payoff Goal: added from what's owed, funded, pai
 
 	// The card's page plans paying it off, from what's owed now.
 	await page.getByRole("link", { name: /^Visa, / }).click();
-	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Visa");
+	await expect(page.locator("[data-slot=detail-title]")).toContainText("Visa");
 	const payingOff = page.getByRole("region", { name: /^Paying it off/ });
 	await payingOff.getByRole("button", { name: "Plan to pay this off" }).click();
 	const add = page.getByRole("dialog", { name: "Pay off a card or loan" });
@@ -84,7 +84,7 @@ test("a card is paid off with a payoff Goal: added from what's owed, funded, pai
 
 	// The Account links to it, and it starts with nothing paid down.
 	await payingOff.getByRole("link", { name: "Pay off Visa, paid down $0 of $1,200" }).click();
-	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Pay off Visa");
+	await expect(page.locator("[data-slot=detail-title]")).toContainText("Pay off Visa");
 	await expect(owedCard(page)).toContainText("$1,200");
 	await expect(owedCard(page)).toContainText("Paid down $0 of $1,200");
 	await expect(owedCard(page).getByRole("button", { name: "Spend" })).toHaveCount(0);
