@@ -25,6 +25,7 @@ const month = new Intl.DateTimeFormat("en-CA", {
 /** On PageLayout or SplitLayout (67a), or with no columns to begin with. */
 const migrated = [
 	"/month",
+	"/explore/scenarios",
 	`/plan/${month}`,
 	`/plan/${month}/commitments`,
 	`/plan/${month}/buckets`,
@@ -48,7 +49,7 @@ const migrated = [
 ];
 
 /** Waiting for their master-detail routes (67b to 67d; Review is #68). Move each up as it lands. */
-const waiting = ["/explore/scenarios", "/review"];
+const waiting = ["/review"];
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 

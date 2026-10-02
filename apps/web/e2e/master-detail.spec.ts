@@ -2,7 +2,13 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
-import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
+import {
+	accountKindLabel,
+	choose,
+	clientRendered,
+	createPlannedHousehold,
+	signedInPage,
+} from "./session";
 
 // Guards the list beside its item (#67): the list stays mounted and keeps its scroll while the
 // detail changes, old addresses still arrive, a phone shows one level at a time, and the keys
@@ -332,5 +338,189 @@ test("a Transaction opens beside its month's list, which keeps its place", async
 	await expect(pane).toHaveCount(0);
 	await expect(page).toHaveURL(/\/transactions\/\d{4}-\d{2}$/);
 	await expect(page.locator("[data-slot=split-rail]").getByTestId("month-total")).toBeVisible();
+	await page.context().close();
+});
+
+const overflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth);
+
+test("a Transaction's address shows it whatever the list has loaded, and is a page on a phone", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email, desktop);
+	await createPlannedHousehold(page, { baseline: "6200", buckets: [["Groceries", "800"]] });
+	seedReportHistory(parent.userId, 2);
+	await page.goto("/transactions");
+	const rows = page.locator("[data-slot=list-row] > button");
+	const paneTitle = page.locator("[data-slot=transaction-detail] [data-slot=detail-title]");
+	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
+	await rows.first().click();
+	await expect(paneTitle).toBeVisible();
+	const address = new URL(page.url()).pathname;
+	const name = await paneTitle.innerText();
+
+	// Left out of the list by its filters, the Transaction is fetched by its ID.
+	await page.goto(`${address}?q=nothing-is-called-this`);
+	await expect(paneTitle).toHaveText(name, clientRendered);
+	await expect(page.getByText("Nothing matches")).toBeVisible();
+
+	// On a phone its address is a page with Back: the list is out of the way until then.
+	await page.setViewportSize({ width: phone.viewport.width, height: phone.viewport.height });
+	await page.goto(address);
+	await expect(paneTitle).toHaveText(name, clientRendered);
+	await expect(rows.first()).toBeHidden();
+	expect(await overflow(page)).toBeLessThanOrEqual(393);
+	await axe(page, "A Transaction on a phone");
+	await page.getByRole("button", { name: "Back to Transactions" }).click();
+	await expect(page).toHaveURL(/\/transactions\/\d{4}-\d{2}$/);
+	await expect(rows.first()).toBeVisible();
+	await expect(paneTitle).toHaveCount(0);
+	await page.context().close();
+});
+
+test("a Rule opens beside the Rules list, and is a page with Back on a phone", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email, desktop);
+	await household(page);
+	await page.goto("/review/rules");
+	const addRule = page.getByRole("button", { name: "Add Rule" });
+	for (const [merchant, bucket] of [
+		["Acme", "Fund 01"],
+		["Corner Gas", "Fund 02"],
+	] as const) {
+		await expect(addRule).toBeEnabled();
+		await addRule.click();
+		const add = page.getByRole("dialog", { name: "Add a Rule" });
+		await add.getByLabel("Merchant").fill(merchant);
+		await choose(add, "Bucket", bucket);
+		await add.getByRole("button", { name: "Add Rule and file what matches" }).click();
+		await expect(add).toBeHidden();
+	}
+	const items = list(page).locator("[data-md-item]");
+	await expect(items).toHaveCount(2);
+	await list(page).evaluate((pane) => {
+		pane.dataset.kept = "yes";
+	});
+
+	// Picked: its editor is in the right pane at its own address; the list is the same node.
+	await items.first().click();
+	await expect(page).toHaveURL(/\/review\/rules\/[0-9A-Z]{26}$/);
+	const editor = page.getByRole("region", { name: "Rule details" });
+	await expect(editor.locator("[data-slot=detail-title]")).toBeVisible();
+	await expect(picked(page)).toHaveCount(1);
+	await expect(list(page)).toHaveAttribute("data-kept", "yes");
+	await expect(items).toHaveCount(2);
+	await axe(page, "A Rule beside the list");
+
+	// The other Rule is one step away in the header, and by ↑ and ↓ in the list.
+	const first = page.url();
+	const firstTitle = await title(page).innerText();
+	await editor.getByRole("link", { name: "Next Rule" }).click();
+	await expect(page).not.toHaveURL(first);
+	await expect(title(page)).not.toHaveText(firstTitle);
+	await expect(picked(page)).toHaveCount(1);
+	await picked(page).focus();
+	await page.keyboard.press("ArrowUp");
+	await expect(items.first()).toBeFocused();
+	await page.keyboard.press("Enter");
+	await expect(page).toHaveURL(first);
+	await expect(list(page)).toHaveAttribute("data-kept", "yes");
+
+	// A deep link shows both; on a phone it is a page with Back.
+	await page.reload();
+	await expect(title(page)).toHaveText(firstTitle);
+	await expect(items).toHaveCount(2);
+	await page.setViewportSize({ width: phone.viewport.width, height: phone.viewport.height });
+	await expect(title(page)).toHaveText(firstTitle);
+	await expect(list(page)).toBeHidden();
+	expect(await overflow(page)).toBeLessThanOrEqual(393);
+	await axe(page, "A Rule on a phone");
+	await page.getByRole("link", { name: "Back to Rules" }).click();
+	await expect(page).toHaveURL(/\/review\/rules$/);
+	await expect(items.first()).toBeVisible();
+	await expect(title(page)).toHaveCount(0);
+	await page.context().close();
+});
+
+test("a kept Scenario opens beside the Scenarios list, and Compare still works", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email, desktop);
+	await createPlannedHousehold(page, { baseline: "5000", buckets: [["Groceries", "800"]] });
+	for (const [lever, name] of [
+		["baseline:600000", "Raise"],
+		["baseline:450000", "Pay cut"],
+	] as const) {
+		await page.goto(`/explore?lever=${lever}`);
+		await expect(page.getByRole("region", { name: "Your changes" })).toContainText(
+			"Income",
+			clientRendered,
+		);
+		await page.getByLabel("Name", { exact: true }).fill(name);
+		await page.getByRole("button", { name: "Save Scenario" }).click();
+		await expect(page.getByLabel("Name", { exact: true })).toHaveValue(name);
+	}
+	await page.goto("/explore/scenarios");
+	await expect(row(page, "Raise")).toBeVisible(clientRendered);
+	const numbers = page.getByRole("table", { name: /^Key numbers/ });
+	await list(page).evaluate((pane) => {
+		pane.dataset.kept = "yes";
+	});
+
+	// Nothing picked: ticking a Scenario compares it with the Plan in the right pane.
+	await page.getByRole("checkbox", { name: "Compare “Raise”" }).check();
+	await expect(numbers.getByRole("columnheader")).toHaveText(["Number", "Plan", "Raise"]);
+	await expect(page).toHaveURL(/\/explore\/scenarios\?compare=[0-9A-Z]{26}$/);
+
+	// Picked: the Scenario is read beside the list, at its own address, with what's compared kept.
+	await row(page, "Pay cut").click();
+	await expect(page).toHaveURL(/\/explore\/scenarios\/[0-9A-Z]{26}\?compare=[0-9A-Z]{26}$/);
+	await expect(title(page)).toHaveText("Pay cut");
+	await expect(picked(page)).toHaveCount(1);
+	await expect(detail(page).getByRole("region", { name: "Your changes" })).toContainText(
+		"Income $5,000 → $4,500 a month",
+	);
+	await expect(detail(page).getByRole("link", { name: "Open in Explore" })).toBeVisible();
+	await expect(detail(page).getByRole("tab", { name: "Projected balance" })).toBeVisible();
+	await expect(numbers).toHaveCount(0);
+	await expect(page.getByRole("checkbox", { name: "Compare “Raise”" })).toBeChecked();
+	await expect(list(page)).toHaveAttribute("data-kept", "yes");
+	await axe(page, "A Scenario beside the list");
+
+	// Ticking another keeps the Scenario open; the other Scenario is one step away.
+	await page.getByRole("checkbox", { name: "Compare “Pay cut”" }).check();
+	await expect(page).toHaveURL(/\/explore\/scenarios\/[0-9A-Z]{26}\?compare=.+(%2C|,).+$/);
+	await expect(title(page)).toHaveText("Pay cut");
+	await detail(page).getByRole("link", { name: "Next Scenario" }).click();
+	await expect(title(page)).toHaveText("Raise");
+	await expect(page).toHaveURL(/\?compare=/);
+	const address = new URL(page.url()).pathname;
+
+	// A deep link shows both; "Compare" goes back to the comparison.
+	await page.reload();
+	await expect(title(page)).toHaveText("Raise", clientRendered);
+	await expect(row(page, "Pay cut")).toBeVisible();
+	await page.getByRole("link", { name: "Compare 2 selected" }).click();
+	await expect(numbers.getByRole("columnheader")).toHaveText([
+		"Number",
+		"Plan",
+		"Raise",
+		"Pay cut",
+	]);
+	await expect(title(page)).toHaveCount(0);
+
+	// On a phone the Scenario is a page with Back, which keeps what's compared.
+	await page.setViewportSize({ width: phone.viewport.width, height: phone.viewport.height });
+	await page.goto(`${address}?compare=`);
+	await expect(title(page)).toHaveText("Raise", clientRendered);
+	await expect(list(page)).toBeHidden();
+	expect(await overflow(page)).toBeLessThanOrEqual(393);
+	await axe(page, "A Scenario on a phone");
+	await page.getByRole("link", { name: "Back to Scenarios" }).click();
+	await expect(page).toHaveURL(/\/explore\/scenarios(\?.*)?$/);
+	await expect(row(page, "Pay cut")).toBeVisible();
 	await page.context().close();
 });

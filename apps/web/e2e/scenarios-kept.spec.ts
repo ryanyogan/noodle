@@ -22,7 +22,9 @@ test.afterEach(async () => {
 const changes = (page: Page) => page.getByRole("region", { name: "Your changes" });
 const confirm = (page: Page) => page.getByRole("alertdialog", { name: "Apply to the Plan" });
 const saved = (page: Page, name: string) =>
-	page.getByRole("row").filter({ has: page.getByRole("link", { name, exact: true }) });
+	page
+		.locator("[data-slot=list-row]")
+		.filter({ has: page.getByRole("link", { name, exact: true }) });
 
 test("a Scenario opened from a link is kept, applied with a preview, and compared", async ({
 	browser,
@@ -99,7 +101,7 @@ test("a Scenario opened from a link is kept, applied with a preview, and compare
 	await expect(currentTab(page, "Explore pages")).toHaveText("Scenarios");
 	await expectSectionHeaderKept(page);
 	await expect(saved(page, "Raise")).toContainText("Applied");
-	await expect(saved(page, "Raise").getByRole("cell").nth(2)).toHaveText("Alex");
+	await expect(saved(page, "Raise")).toContainText("Made by Alex");
 	await expect(saved(page, "Pay cut")).not.toContainText("Applied");
 	// $1,500 a month less over 2 years.
 	await expect(saved(page, "Pay cut")).toContainText("−$36,000");
@@ -120,8 +122,11 @@ test("a Scenario opened from a link is kept, applied with a preview, and compare
 	await expect(numbers.getByRole("row", { name: /^New roof reached/ })).toBeVisible();
 	await expect(page.getByRole("group", { name: "Projected balance" })).toBeVisible();
 
-	// It opens a kept Scenario to carry on with it.
+	// It opens a kept Scenario beside the list, and from there in Explore to carry on with it.
 	await saved(page, "Pay cut").getByRole("link", { name: "Pay cut" }).click();
+	await expect(page.locator("[data-slot=detail-title]")).toHaveText("Pay cut");
+	await expect(page).toHaveURL(/\/explore\/scenarios\/[0-9A-Z]{26}\?compare=/);
+	await page.getByRole("link", { name: "Open in Explore" }).click();
 	await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Pay cut");
 
 	// On a phone the overview fits the screen.

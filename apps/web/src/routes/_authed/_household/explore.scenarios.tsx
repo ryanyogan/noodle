@@ -166,12 +166,8 @@ function ScenariosPage() {
 										}
 										trailing={
 											<>
-												<span
-													className={cn(
-														"text-sm font-semibold tabular-nums",
-														freed < 0 && "text-over",
-													)}
-												>
+												{/* Not coloured when it's less: the picked row's shade is too close to it. */}
+												<span className="text-sm font-semibold tabular-nums">
 													{freed > 0 ? "+" : ""}
 													{formatWholeMoney(freed)}
 												</span>
