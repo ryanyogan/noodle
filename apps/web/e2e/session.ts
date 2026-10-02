@@ -70,7 +70,9 @@ export async function switchTo(page: Page, view: "Month" | "Plan") {
 		.getByRole("navigation", { name: "Month and Plan" })
 		.getByRole("link", { name: view })
 		.click();
-	await expect(page.locator("[data-slot=page-header]")).toContainText(
+	// While the other one loads, React keeps the page being left in the document, hidden, beside the
+	// pending header: look at the one that shows.
+	await expect(page.locator("[data-slot=page-header]:visible")).toContainText(
 		view === "Month" ? "This Month" : "Plan",
 	);
 }

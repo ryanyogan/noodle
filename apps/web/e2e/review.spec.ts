@@ -77,7 +77,7 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	// Inside Transactions, as far as the sidebar goes.
 	await expect(
 		page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Transactions" }),
-	).toHaveClass(/(^| )bg-card( |$)/);
+	).toHaveAttribute("aria-current", "page");
 	await expect(card(page).getByRole("heading", { name: "ACME WIDGETS LLC" })).toBeVisible();
 	await expect(card(page)).toContainText("$19.99");
 	await expect(card(page)).toContainText("Visa");
