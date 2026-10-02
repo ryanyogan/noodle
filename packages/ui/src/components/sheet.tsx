@@ -2,6 +2,7 @@ import { XIcon } from "lucide-react";
 import { Dialog as SheetPrimitive } from "radix-ui";
 import * as React from "react";
 import { useFocusReturn } from "#lib/focus-return";
+import { HoldPage, useKeyboardInset } from "#lib/page-lock";
 import { cn } from "#lib/utils";
 import { Button } from "./button";
 
@@ -67,8 +68,10 @@ function SheetContent({
 				data-slot="sheet-content"
 				className={cn(
 					"fixed z-41 grid gap-4 overflow-y-auto overscroll-contain bg-card shadow-pop outline-none",
-					// Phones: from the bottom edge, clear of the status bar and home indicator.
-					"inset-x-0 bottom-0 max-h-[calc(100dvh-16px-env(safe-area-inset-top))] rounded-t-3xl border border-b-0",
+					// Phones: from the bottom edge (or the top of the keyboard), as tall as its content up
+					// to 92% of what's visible, clear of the status bar and home indicator.
+					"inset-x-0 bottom-(--keyboard-inset,0px) rounded-t-3xl border border-b-0",
+					"max-h-[min(92dvh,calc(var(--visible-height,100dvh)-16px-env(safe-area-inset-top)))]",
 					"px-4 pt-2 pb-[calc(12px+env(safe-area-inset-bottom))]",
 					"data-[state=open]:animate-sheet-in data-[state=closed]:animate-sheet-out",
 					layout === "side"
@@ -95,26 +98,51 @@ function SheetContent({
 				}}
 				{...props}
 			>
+				<HoldPage />
+				<KeyboardInset />
 				<div
 					aria-hidden="true"
-					className="-mb-2 grid h-4 touch-none place-items-center lg:hidden"
+					className="-mb-4 grid h-6 touch-none place-items-center lg:hidden"
 					{...drag}
 				>
 					<span className="h-1.25 w-9 rounded-full bg-surface-3" />
 				</div>
-				{children}
+				{/* What the sheet waits on suspends here, not the page behind (which would jump). */}
+				<React.Suspense fallback={<SheetPending />}>{children}</React.Suspense>
 			</SheetPrimitive.Content>
 		</SheetPrimitive.Portal>
 	);
 }
 
-/** Pointer handlers for the grabber: the sheet follows a downward drag and closes past a threshold. */
+/** Holds the sheet's place while what it shows loads. */
+function SheetPending() {
+	return (
+		<div role="status" aria-label="Loading" className="grid gap-3 py-2">
+			<div className="h-6 w-40 animate-pulse rounded-md bg-surface-2" />
+			<div className="h-11 animate-pulse rounded-md bg-surface-2" />
+			<div className="h-11 animate-pulse rounded-md bg-surface-2" />
+		</div>
+	);
+}
+
+/** Mounted only while the sheet is open: keeps the sheet above the on-screen keyboard. */
+function KeyboardInset() {
+	useKeyboardInset();
+	return null;
+}
+
+/**
+ * Pointer handlers for the grabber and the header on phones: the sheet follows a downward drag and
+ * closes past a threshold. A press on a control in the header (Close) stays a press.
+ */
 function useDragToClose(close: () => void) {
 	const start = React.useRef<number | null>(null);
 	const sheetOf = (target: EventTarget) =>
 		(target as HTMLElement).closest<HTMLElement>("[data-slot=sheet-content]");
 	return {
 		onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
+			if (event.button !== 0 || window.matchMedia("(min-width: 64rem)").matches) return;
+			if ((event.target as HTMLElement).closest("button, a, input, [role=button]")) return;
 			start.current = event.clientY;
 			event.currentTarget.setPointerCapture(event.pointerId);
 		},
@@ -152,8 +180,14 @@ function SheetHeader({
 	description?: React.ReactNode;
 	className?: string;
 }) {
+	const { close } = React.useContext(SheetContext);
+	const drag = useDragToClose(close);
 	return (
-		<div data-slot="sheet-header" className={cn("flex min-h-8 items-center gap-3", className)}>
+		<div
+			data-slot="sheet-header"
+			className={cn("flex min-h-8 items-center gap-3 max-lg:touch-none", className)}
+			{...drag}
+		>
 			<div className="grid flex-1 gap-0.5">
 				<SheetPrimitive.Title className="text-base font-semibold">{title}</SheetPrimitive.Title>
 				{description ? (
@@ -177,14 +211,23 @@ function SheetHeader({
 }
 
 /**
- * The sheet's actions, the same in every sheet: stacked full width on phones; at lg, together on
- * the right, Cancel before Save.
+ * The sheet's actions, the same in every sheet: stacked full width on phones, held at the bottom
+ * of the sheet while its body scrolls; at lg, together on the right, Cancel before Save. Put it
+ * last in the sheet.
  */
 function SheetFooter({ className, children }: { className?: string; children: React.ReactNode }) {
 	return (
 		<div
 			data-slot="sheet-footer"
-			className={cn("grid gap-2 lg:flex lg:items-center lg:justify-end", className)}
+			className={cn(
+				"grid gap-2 lg:flex lg:items-center lg:justify-end",
+				// Phones: the sheet's bottom padding moves into the footer, so it covers the body
+				// scrolling under it right down to the edge.
+				"max-lg:sticky max-lg:bottom-[calc(-12px-env(safe-area-inset-bottom))] max-lg:z-1 max-lg:-mx-4",
+				"max-lg:-mb-[calc(12px+env(safe-area-inset-bottom))] max-lg:border-t max-lg:bg-card",
+				"max-lg:px-4 max-lg:pt-3 max-lg:pb-[calc(12px+env(safe-area-inset-bottom))]",
+				className,
+			)}
 		>
 			{children}
 		</div>

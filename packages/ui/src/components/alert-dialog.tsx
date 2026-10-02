@@ -1,6 +1,7 @@
 import { AlertDialog as AlertDialogPrimitive } from "radix-ui";
 import type * as React from "react";
 import { useFocusReturn } from "#lib/focus-return";
+import { HoldPage } from "#lib/page-lock";
 import { cn } from "#lib/utils";
 import { buttonVariants } from "./button";
 
@@ -16,6 +17,7 @@ function AlertDialogContent({
 	className,
 	onOpenAutoFocus,
 	onCloseAutoFocus,
+	children,
 	...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Content>) {
 	const focus = useFocusReturn({ onOpenAutoFocus, onCloseAutoFocus });
@@ -38,7 +40,10 @@ function AlertDialogContent({
 				)}
 				{...focus}
 				{...props}
-			/>
+			>
+				<HoldPage />
+				{children}
+			</AlertDialogPrimitive.Content>
 		</AlertDialogPrimitive.Portal>
 	);
 }

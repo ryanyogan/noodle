@@ -9,7 +9,7 @@ import {
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Input } from "@noodle/ui/components/input";
-import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
+import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
@@ -44,6 +44,13 @@ export const quickAddSearch = { sheet: "quick-add" } as const;
  */
 let openedInApp = false;
 
+/**
+ * What's typed so far, kept when Quick Add closes without adding (a stray swipe, Back), so opening
+ * it again picks up where it was. Cleared once it's added.
+ */
+const emptyDraft = { amount: "", note: "", forMemberIds: [] as string[] };
+let draft = emptyDraft;
+
 /** Call when pushing the entry that opens Quick Add. */
 export function markQuickAddOpened() {
 	openedInApp = true;
@@ -72,7 +79,12 @@ export function QuickAdd({ timeZone, parentId }: { timeZone: string; parentId: s
 			openedInApp = false;
 			router.history.back();
 		} else {
-			void navigate({ to: ".", search: ({ sheet: _, ...rest }) => rest, replace: true });
+			void navigate({
+				to: ".",
+				search: ({ sheet: _, ...rest }) => rest,
+				replace: true,
+				resetScroll: false,
+			});
 		}
 	}, [navigate, router]);
 
@@ -89,7 +101,11 @@ export function QuickAdd({ timeZone, parentId }: { timeZone: string; parentId: s
 				return;
 			event.preventDefault();
 			markQuickAddOpened();
-			void navigate({ to: ".", search: (prev) => ({ ...prev, ...quickAddSearch }) });
+			void navigate({
+				to: ".",
+				search: (prev) => ({ ...prev, ...quickAddSearch }),
+				resetScroll: false,
+			});
 		}
 		document.addEventListener("keydown", onKeyDown);
 		return () => document.removeEventListener("keydown", onKeyDown);
@@ -157,14 +173,17 @@ function QuickAddForm({
 	});
 	const queryClient = useQueryClient();
 	const uses = useQuery(bucketUsesQuery()).data ?? [];
-	const [amount, setAmount] = useState("");
+	const [amount, setAmount] = useState(draft.amount);
 	// Read by key presses, which can arrive faster than re-renders.
-	const typedSoFar = useRef("");
-	const [note, setNote] = useState("");
+	const typedSoFar = useRef(draft.amount);
+	const [note, setNote] = useState(draft.note);
 	const members = useSuspenseQuery(membersQuery()).data;
-	const [forMemberIds, setForMemberIds] = useState<string[]>([]);
+	const [forMemberIds, setForMemberIds] = useState(draft.forMemberIds);
 	const display = useRef<HTMLOutputElement>(null);
 	const added = useRef(false);
+	useEffect(() => {
+		if (!added.current) draft = { amount, note, forMemberIds };
+	}, [amount, note, forMemberIds]);
 	const cents = parseDollars(amount) ?? 0;
 	// What a snapped Receipt or a phrase filled in: a Bucket to offer first, and the Receipt.
 	const [suggested, setSuggested] = useState<string | null>(null);
@@ -248,6 +267,7 @@ function QuickAddForm({
 		// A double tap lands here twice; the ID would make it count once anyway.
 		if (added.current) return;
 		added.current = true;
+		draft = emptyDraft;
 		onAdd({
 			transactionId: entry.transactionId,
 			bucketId: bucket.id,
@@ -368,21 +388,24 @@ function QuickAddForm({
 					if (event.key === "Enter") event.currentTarget.blur();
 				}}
 			/>
-			<fieldset className="grid grid-cols-3 gap-0.5 lg:hidden">
-				<legend className="sr-only">Keypad</legend>
-				{["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0"].map((key) => (
-					<Key
-						key={key}
-						label={key === "." ? "Decimal point" : undefined}
-						onPress={() => press(key)}
-					>
-						{key}
+			{/* Phones: the keypad stays at the bottom, in thumb reach, while the Buckets scroll. */}
+			<SheetFooter className="lg:hidden">
+				<fieldset className="grid grid-cols-3 gap-0.5">
+					<legend className="sr-only">Keypad</legend>
+					{["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0"].map((key) => (
+						<Key
+							key={key}
+							label={key === "." ? "Decimal point" : undefined}
+							onPress={() => press(key)}
+						>
+							{key}
+						</Key>
+					))}
+					<Key label="Delete" onPress={() => press("Backspace")}>
+						<Delete className="size-5.5" strokeWidth={1.75} />
 					</Key>
-				))}
-				<Key label="Delete" onPress={() => press("Backspace")}>
-					<Delete className="size-5.5" strokeWidth={1.75} />
-				</Key>
-			</fieldset>
+				</fieldset>
+			</SheetFooter>
 		</>
 	);
 }

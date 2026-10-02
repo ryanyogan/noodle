@@ -200,6 +200,7 @@ export function QuickAddLink(props: Omit<ComponentProps<"a">, "href">) {
 		<Link
 			to="."
 			search={(prev) => ({ ...prev, ...quickAddSearch })}
+			resetScroll={false}
 			aria-keyshortcuts="Q"
 			{...props}
 			onClick={(event) => {

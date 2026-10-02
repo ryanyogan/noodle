@@ -23,7 +23,7 @@ import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { OptionSelect } from "@noodle/ui/components/select";
-import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
+import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { LinkTab, LinkTabs, LinkTabsSeparator } from "@noodle/ui/components/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
@@ -511,7 +511,7 @@ function Filters({
 					/>
 				</Field>
 			</div>
-			<div className="flex justify-end gap-2">
+			<SheetFooter className="max-lg:grid-cols-2">
 				<Button
 					type="button"
 					variant="ghost"
@@ -528,7 +528,7 @@ function Filters({
 					Clear all
 				</Button>
 				<Button type="submit">Apply</Button>
-			</div>
+			</SheetFooter>
 		</form>
 	);
 }
