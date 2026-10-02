@@ -2,7 +2,7 @@
 
 ## Summary (2026-10-01, #47 closed)
 
-Of the 253 rows: **221 fixed**, **25 partly fixed**, **1 won't fix in #47** (row 227), **2 moved to #50** (Review rework: rows 217 and 222, plus the rest of 218), **4 still open**. Row numbers below are line numbers in this file.
+Of the 253 rows: **221 fixed**, **25 partly fixed**, **1 won't fix in #47** (row 227), **2 moved to #50** (Review rework: rows 217 and 222, plus the rest of 218), **4 still open**. A row's number (as used in #47's commits, #50 and #51) is its line number in this file before this summary was added; today it sits 11 lines lower.
 
 Follow-ups:
 
