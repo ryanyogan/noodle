@@ -6,7 +6,6 @@ import {
 	canAssign,
 	type DayKey,
 	extraIncomeSuggestions,
-	freeToSpendParts,
 	type IncomeCheck,
 	incomeCheck,
 	lastDayOf,
@@ -20,12 +19,12 @@ import {
 	whatChanged,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
+import { BudgetBar, BudgetBarKey } from "@noodle/ui/components/budget-bar";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
 import { List, ListRow } from "@noodle/ui/components/list";
-import { Meter } from "@noodle/ui/components/meter";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Stat, StatGrid } from "@noodle/ui/components/stat";
 import { Tile } from "@noodle/ui/components/tile";
@@ -54,8 +53,8 @@ import {
 	MonthIncome,
 } from "../../../components/extra-income";
 import { MonthCloseSection, MonthEndSection } from "../../../components/month-close";
+import { MonthGlance, monthSentence } from "../../../components/month-glance";
 import { GoalsThisMonth } from "../../../components/plan-goals";
-import { planParts } from "../../../components/plan-page";
 import { TermHelp } from "../../../components/term-help";
 import { type CoverVariables, useCovers } from "../../../covers";
 import { useExtraIncomes } from "../../../extra-income";
@@ -246,13 +245,10 @@ function ThisMonth() {
 										count={buckets.length}
 										help={<TermHelp term="bucket" />}
 									/>
-									<p className="-mt-1 px-1 text-[13px] text-muted-foreground">
-										Each bar is what’s left. The line marks where you’d be if you spent evenly
-										across the month: its{" "}
-										<span className="whitespace-nowrap">
-											Pace. <TermHelp term="pace" />
-										</span>
-									</p>
+									<div className="-mt-1 flex items-center gap-1 px-1">
+										<BudgetBarKey />
+										<TermHelp term="pace" />
+									</div>
 									<List>{buckets.map(bucketRow)}</List>
 								</Section>
 							) : null}
@@ -505,7 +501,9 @@ function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck |
 					) : ended ? (
 						<>Left unplanned at the end of {monthName(state.month)}</>
 					) : (
-						<>Not planned for anything yet · yours until {shortDay(lastDayOf(state.month))}</>
+						(monthSentence(state) ?? (
+							<>Not planned for anything yet · yours until {shortDay(lastDayOf(state.month))}</>
+						))
 					)}
 				</p>
 				{check?.below ? (
@@ -547,36 +545,22 @@ function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck |
  * other part that takes something; it opens the Plan's waterfall.
  */
 function Breakdown({ state, baseline }: { state: MonthState; baseline: number }) {
-	const parts = freeToSpendParts(state).filter((p) => p.amount > 0);
-	const label = [
-		`${formatMoney(baseline)} take-home pay`,
-		...parts.map(({ part, amount }) => `minus ${formatMoney(amount)} ${planParts[part].label}`),
-	].join(" ");
 	return (
-		<Link
-			to="/plan/$month"
-			params={{ month: state.month }}
-			hash="plan-waterfall"
-			aria-label={label}
-			className={cn(
-				"flex items-center gap-3 border-t px-(--card-pad) py-3 text-[13px] text-muted-foreground",
-				"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60",
-			)}
-		>
-			<span className="grid flex-1 gap-1 tabular-nums">
-				<span className="flex justify-between gap-3">
-					<span>Take-home pay</span>
-					<span className="font-medium text-foreground">{formatMoney(baseline)}</span>
-				</span>
-				{parts.map(({ part, amount }) => (
-					<span key={part} className="flex justify-between gap-3">
-						<span>{planParts[part].label}</span>
-						<span className="font-medium text-foreground">− {formatMoney(amount)}</span>
-					</span>
-				))}
-			</span>
-			<ChevronRight aria-hidden="true" className="size-4 shrink-0 text-subtle-foreground" />
-		</Link>
+		<div className="grid gap-2.5 border-t px-(--card-pad) py-3">
+			<p className="flex justify-between gap-3 text-[13px] text-muted-foreground tabular-nums">
+				<span>Where {formatMoney(baseline)} take-home pay goes</span>
+				<Link
+					to="/plan/$month"
+					params={{ month: state.month }}
+					hash="plan-waterfall"
+					className="inline-flex shrink-0 items-center font-medium text-foreground underline decoration-border-strong underline-offset-3 hover:decoration-foreground"
+				>
+					Plan
+					<ChevronRight aria-hidden="true" className="size-3.5" />
+				</Link>
+			</p>
+			<MonthGlance state={state} />
+		</div>
 	);
 }
 
@@ -593,8 +577,8 @@ function PlanLink({ month, children }: { month: MonthState["month"]; children: s
 }
 
 /**
- * A Bucket's vessel: what's left of what it has this month, draining as money is spent, against
- * its Pace tick. `covers` lists Covers into it.
+ * A Bucket this month: its bar fills with what's spent out of Available, against the Today line
+ * (its Pace). `covers` lists Covers into it.
  */
 function BucketRow({
 	bucket,
@@ -610,7 +594,6 @@ function BucketRow({
 	private?: boolean;
 }) {
 	const color = asBucketColor(bucket.color);
-	const share = (cents: number) => (bucket.available > 0 ? cents / bucket.available : 0);
 	const left = Math.max(0, bucket.left);
 	const parts = availableParts(bucket);
 	return (
@@ -675,11 +658,18 @@ function BucketRow({
 			}
 			below={
 				<div className="grid gap-1.5">
-					<Meter
+					<BudgetBar
 						bucket={color}
-						left={share(bucket.left)}
-						paceLeft={bucket.pace.leftShare}
-						over={bucket.status === "over"}
+						value={bucket.spent}
+						max={bucket.available}
+						marker={1 - bucket.pace.leftShare}
+						state={bucket.status === "on-pace" ? undefined : bucket.status}
+						label={bucket.name}
+						valueText={`${formatMoney(bucket.spent)} spent of ${formatMoney(bucket.available)}, ${
+							bucket.left < 0
+								? `over by ${formatMoney(-bucket.left)}`
+								: `${formatMoney(bucket.left)} left`
+						}`}
 					/>
 					{parts ? <p className="text-xs text-muted-foreground tabular-nums">{parts}</p> : null}
 					{covers ? <div className="relative z-10">{covers}</div> : null}
