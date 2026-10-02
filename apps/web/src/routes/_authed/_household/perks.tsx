@@ -1,5 +1,13 @@
 import { PERK_SOURCE_KINDS, type PerkSourceKind, perkSourceKindLabel } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
+import {
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbLink,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+} from "@noodle/ui/components/breadcrumb";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
@@ -45,12 +53,23 @@ function PerksPage() {
 	const confirmed = sources.filter((s) => s.status === "confirmed");
 	return (
 		<>
+			<Breadcrumb className="mb-2 hidden lg:block">
+				<BreadcrumbList>
+					<BreadcrumbItem>
+						<BreadcrumbLink asChild>
+							<Link to="/insights">Insights</Link>
+						</BreadcrumbLink>
+					</BreadcrumbItem>
+					<BreadcrumbSeparator />
+					<BreadcrumbItem>
+						<BreadcrumbPage>Perks</BreadcrumbPage>
+					</BreadcrumbItem>
+				</BreadcrumbList>
+			</Breadcrumb>
 			<PageHeader
-				className="max-w-2xl"
-				eyebrow="Insights"
 				title="Perks"
 				actions={
-					<Button variant="outline" size="sm" asChild>
+					<Button variant="outline" size="sm" className="lg:hidden" asChild>
 						<Link to="/insights">
 							<ChevronLeft />
 							Insights
@@ -58,40 +77,44 @@ function PerksPage() {
 					</Button>
 				}
 			/>
-			<div className="grid max-w-2xl gap-6">
-				{sources.length === 0 ? (
-					<Card className="p-0">
-						<EmptyState
-							icon={<Gift />}
-							title="No Perk Sources yet"
-							description="Phone plans, credit cards and memberships often include services or pay for costs. Noodle suggests the ones it spots in your spending each night, or add one below."
-						/>
-					</Card>
-				) : null}
-				{suggested.length > 0 ? (
-					<Section aria-labelledby="perks-to-confirm">
-						<SectionHeader id="perks-to-confirm" title="To confirm" count={suggested.length} />
-						<List>
-							{suggested.map((source) => (
-								<Suggestion key={source.id} source={source} />
+			<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-start">
+				<div className="grid max-w-3xl gap-6">
+					{sources.length === 0 ? (
+						<Card className="p-0">
+							<EmptyState
+								icon={<Gift />}
+								title="No Perk Sources yet"
+								description="Phone plans, credit cards and memberships often include services or pay for costs. Noodle suggests the ones it spots in your spending each night, or add one below."
+							/>
+						</Card>
+					) : null}
+					{suggested.length > 0 ? (
+						<Section aria-labelledby="perks-to-confirm">
+							<SectionHeader id="perks-to-confirm" title="To confirm" count={suggested.length} />
+							<List>
+								{suggested.map((source) => (
+									<Suggestion key={source.id} source={source} />
+								))}
+							</List>
+						</Section>
+					) : null}
+					{confirmed.length > 0 ? (
+						<Section aria-labelledby="perk-sources">
+							<SectionHeader
+								id="perk-sources"
+								title="Perk Sources"
+								count={confirmed.length}
+								help={<TermHelp term="perk-source" />}
+							/>
+							{confirmed.map((source) => (
+								<PerkSourceCard key={source.id} source={source} />
 							))}
-						</List>
-					</Section>
-				) : null}
-				{confirmed.length > 0 ? (
-					<Section aria-labelledby="perk-sources">
-						<SectionHeader
-							id="perk-sources"
-							title="Perk Sources"
-							count={confirmed.length}
-							help={<TermHelp term="perk-source" />}
-						/>
-						{confirmed.map((source) => (
-							<PerkSourceCard key={source.id} source={source} />
-						))}
-					</Section>
-				) : null}
-				<AddPerkSource />
+						</Section>
+					) : null}
+				</div>
+				<div className="xl:sticky xl:top-6">
+					<AddPerkSource />
+				</div>
 			</div>
 		</>
 	);

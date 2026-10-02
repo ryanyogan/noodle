@@ -80,7 +80,7 @@ test("a phone plan among the Commitments is confirmed, asks for its plan, and fi
 	await page.getByRole("link", { name: "Insights" }).click();
 	const overlap = page.getByRole("article", { name: "Netflix may come with T-Mobile (stub)" });
 	await expect(overlap).toContainText("Overlap");
-	await expect(overlap).toContainText("$215.88");
+	await expect(overlap).toContainText("$216");
 	await expect(overlap).toContainText("a year");
 	await overlap.getByText("What it’s based on").click();
 	await expect(overlap.getByRole("link", { name: "Netflix Standard with ads" })).toHaveAttribute(

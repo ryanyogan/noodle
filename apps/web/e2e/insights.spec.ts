@@ -60,7 +60,7 @@ test("an Overlap between two streaming Commitments is found, accepted, and dismi
 	// Worded by the model; the figure is the cheaper service's year, from domain code.
 	const card = page.getByRole("article", { name: "Disney+ and Hulu may overlap (stub)" });
 	await expect(card).toContainText("Overlap");
-	await expect(card).toContainText("$167.88");
+	await expect(card).toContainText("$168");
 	await expect(card).toContainText("a year");
 
 	// What it rests on: both Commitments and both charges, linked.

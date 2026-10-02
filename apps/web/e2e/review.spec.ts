@@ -172,7 +172,9 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 
 	// The Rule, which filed one line; deleted, it's gone.
 	await page.getByRole("link", { name: "Rules" }).click();
-	const rule = page.getByRole("button", { name: /^acme widgets.*, Fun, For Everyone, Filed 1$/ });
+	const rule = page.getByRole("button", {
+		name: /^acme widgets.*, Fun, For Everyone, Filed 1 so far$/,
+	});
 	await expect(rule).toBeEnabled();
 	await rule.click();
 	const sheet = page.getByRole("dialog", { name: "Edit Rule" });

@@ -102,6 +102,8 @@ function CheckInBadge() {
 	);
 }
 
+const WIDE_PAGES = ["/explore", "/reports", "/afford", "/scenarios"];
+
 /** The authenticated app frame: a sidebar on desktop, a bottom tab bar on phones. */
 export function AppShell({
 	householdName,
@@ -110,8 +112,17 @@ export function AppShell({
 	householdName: string;
 	children: ReactNode;
 }) {
+	const pathname = useRouterState({ select: (state) => state.location.pathname });
+	// The data-dense pages get a wider cap so a 1920 screen isn't mostly empty.
+	const wide = WIDE_PAGES.some((page) => pathname.startsWith(page));
 	return (
 		<div className="min-h-dvh lg:grid lg:grid-cols-[var(--sidebar-width)_minmax(0,1fr)]">
+			<a
+				href="#main"
+				className="sr-only focus:not-sr-only focus:fixed focus:start-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-card focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:shadow-card focus:ring-2 focus:ring-ring"
+			>
+				Skip to content
+			</a>
 			<Sidebar householdName={householdName} />
 			<main
 				id="main"
@@ -119,6 +130,7 @@ export function AppShell({
 				tabIndex={-1}
 				className={cn(
 					"mx-auto w-full max-w-[1200px] px-(--gutter) outline-none",
+					wide && "max-w-[1440px]",
 					"pt-[calc(env(safe-area-inset-top)+16px)] pb-[calc(var(--tabbar-height)+env(safe-area-inset-bottom)+32px)]",
 					"lg:pt-6 lg:pb-12",
 				)}
@@ -167,7 +179,9 @@ function Sidebar({ householdName }: { householdName: string }) {
 				))}
 			</nav>
 			<div className="mt-auto flex items-center gap-2.5 rounded-xl p-2.5 pe-0">
-				<UserButton />
+				<span className="flex rounded-full [&_button:focus-visible]:ring-2 [&_button:focus-visible]:ring-ring [&_button:focus-visible]:ring-offset-2 [&_button:focus-visible]:ring-offset-card [&_button:focus-visible]:outline-none">
+					<UserButton />
+				</span>
 				<div className="grid min-w-0 flex-1 text-[13px] leading-tight">
 					<span className="line-clamp-2 font-medium wrap-break-word" title={householdName}>
 						{householdName}

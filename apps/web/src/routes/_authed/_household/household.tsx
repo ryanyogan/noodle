@@ -97,72 +97,76 @@ function HouseholdPage() {
 					</Button>
 				}
 			/>
-			<div className="grid max-w-2xl gap-8">
-				<Section aria-labelledby="parents">
-					<SectionHeader id="parents" title="Parents" count={data.parents.length} />
-					<List>
-						{data.parents.map((parent) => (
-							<ListRow
-								key={parent.id}
-								leading={<Tile>{parent.name.charAt(0).toUpperCase()}</Tile>}
-								title={parent.name}
-								meta={parent.email ? `Parent · ${parent.email}` : "Parent"}
-							/>
-						))}
-					</List>
-				</Section>
-				<Section aria-labelledby="children">
-					<SectionHeader id="children" title="Children" count={children.length} />
-					<SaveFailed change={remove} />
-					{children.length > 0 ? (
+			<div className="grid gap-8 lg:grid-cols-2 lg:items-start xl:gap-10">
+				<div className="grid gap-8">
+					<Section aria-labelledby="parents">
+						<SectionHeader id="parents" title="Parents" count={data.parents.length} />
 						<List>
-							{children.map((child) => (
-								<ChildRow
-									key={child.id}
-									child={child}
-									onRemove={(memberId) => remove.mutate({ memberId })}
+							{data.parents.map((parent) => (
+								<ListRow
+									key={parent.id}
+									leading={<Tile>{parent.name.charAt(0).toUpperCase()}</Tile>}
+									title={parent.name}
+									meta={parent.email ? `Parent · ${parent.email}` : "Parent"}
 								/>
 							))}
 						</List>
-					) : null}
-					<AddChild members={members} />
-				</Section>
-				{children.length > 0 ? <ChildCosts of={children} /> : null}
-				{data.hasAllParents ? null : (
-					<Section aria-labelledby="invite">
-						<SectionHeader id="invite" title="Invite the other Parent" />
-						<InviteOtherParent invitedEmail={data.invitedEmail} />
 					</Section>
-				)}
-				<CheckInSettings />
-				<NudgeSettings />
-				<CaptureSettings />
-				<ReceiptSettings />
-				<Section aria-labelledby="glossary">
-					<SectionHeader id="glossary" title="Words Noodle uses" />
-					<Card className="flex items-center gap-3 p-(--card-pad) text-sm text-muted-foreground">
-						<Tile>
-							<BookOpen />
-						</Tile>
-						<p>
-							What Free to Spend, a Bucket, a Sweep and the rest mean, in plain words:{" "}
-							<Link
-								to="/glossary"
-								className="font-medium text-foreground underline underline-offset-2"
-							>
-								the Glossary
-							</Link>
-							.
-						</p>
-					</Card>
-				</Section>
-				<Section aria-labelledby="account" className="lg:hidden">
-					<SectionHeader id="account" title="Your account" />
-					<Card className="flex items-center gap-3 p-(--card-pad) text-sm text-muted-foreground">
-						<UserButton />
-						Manage your sign-in or sign out.
-					</Card>
-				</Section>
+					<Section aria-labelledby="children">
+						<SectionHeader id="children" title="Children" count={children.length} />
+						<SaveFailed change={remove} />
+						{children.length > 0 ? (
+							<List>
+								{children.map((child) => (
+									<ChildRow
+										key={child.id}
+										child={child}
+										onRemove={(memberId) => remove.mutate({ memberId })}
+									/>
+								))}
+							</List>
+						) : null}
+						<AddChild members={members} />
+					</Section>
+					{children.length > 0 ? <ChildCosts of={children} /> : null}
+					{data.hasAllParents ? null : (
+						<Section aria-labelledby="invite">
+							<SectionHeader id="invite" title="Invite the other Parent" />
+							<InviteOtherParent invitedEmail={data.invitedEmail} />
+						</Section>
+					)}
+				</div>
+				<div className="grid gap-8">
+					<CheckInSettings />
+					<NudgeSettings />
+					<CaptureSettings />
+					<ReceiptSettings />
+					<Section aria-labelledby="glossary">
+						<SectionHeader id="glossary" title="Words Noodle uses" />
+						<Card className="flex items-center gap-3 p-(--card-pad) text-sm text-muted-foreground">
+							<Tile>
+								<BookOpen />
+							</Tile>
+							<p>
+								What Free to Spend, a Bucket, a Sweep and the rest mean, in plain words:{" "}
+								<Link
+									to="/glossary"
+									className="font-medium text-foreground underline underline-offset-2"
+								>
+									the Glossary
+								</Link>
+								.
+							</p>
+						</Card>
+					</Section>
+					<Section aria-labelledby="account" className="lg:hidden">
+						<SectionHeader id="account" title="Your account" />
+						<Card className="flex items-center gap-3 p-(--card-pad) text-sm text-muted-foreground">
+							<UserButton />
+							Manage your sign-in or sign out.
+						</Card>
+					</Section>
+				</div>
 			</div>
 		</>
 	);

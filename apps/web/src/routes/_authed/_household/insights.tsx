@@ -19,7 +19,7 @@ import { Check, ChevronRight, Gift, Lightbulb, Lock, RefreshCw, Telescope } from
 import { useState } from "react";
 import { withoutCommitment } from "../../../commitments";
 import { Confirm, SaveFailed } from "../../../components/plan-editing";
-import { formatMoney, monthName, shortDay, shortDayAt } from "../../../format";
+import { formatMoney, formatWholeMoney, monthName, shortDay, shortDayAt } from "../../../format";
 import {
 	exploreTriesFor,
 	type InsightItem,
@@ -80,38 +80,77 @@ function InsightsPage() {
 	return (
 		<>
 			<PageHeader title="Insights" actions={insights.length > 0 ? lookNow : undefined} />
-			<div className="grid max-w-2xl gap-4">
-				<SaveFailed change={end} />
-				<PerksLink toConfirm={toConfirm} />
-				{insights.length === 0 ? (
-					<EmptyState
-						icon={<Lightbulb />}
-						title="No Insights right now"
-						description="Each night Noodle looks over your spending and Commitments for things like paying twice for the same service or a price that went up. Nothing changes until you act."
-						action={lookNow}
-					/>
-				) : (
-					insights.map((insight) => (
-						<InsightCard
-							key={insight.id}
-							insight={insight}
-							current={current}
-							onEnd={(commitment) =>
-								end.mutate(
-									{ commitmentId: commitment.id, month: current },
-									{
-										onSuccess: () => {
-											toast(`${commitment.name} leaves the Plan from ${monthName(current)} on.`);
-											void queryClient.invalidateQueries({ queryKey: insightsQuery().queryKey });
-										},
-									},
-								)
-							}
+			<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
+				<div className="grid max-w-3xl gap-4">
+					<SaveFailed change={end} />
+					<div className="grid xl:hidden">
+						<PerksLink toConfirm={toConfirm} />
+					</div>
+					{insights.length === 0 ? (
+						<EmptyState
+							icon={<Lightbulb />}
+							title="No Insights right now"
+							description="Each night Noodle looks over your spending and Commitments for things like paying twice for the same service or a price that went up. Nothing changes until you act."
+							action={lookNow}
 						/>
-					))
-				)}
+					) : (
+						insights.map((insight) => (
+							<InsightCard
+								key={insight.id}
+								insight={insight}
+								current={current}
+								onEnd={(commitment) =>
+									end.mutate(
+										{ commitmentId: commitment.id, month: current },
+										{
+											onSuccess: () => {
+												toast(`${commitment.name} leaves the Plan from ${monthName(current)} on.`);
+												void queryClient.invalidateQueries({ queryKey: insightsQuery().queryKey });
+											},
+										},
+									)
+								}
+							/>
+						))
+					)}
+				</div>
+				<InsightsSide insights={insights} toConfirm={toConfirm} />
 			</div>
 		</>
+	);
+}
+
+/** The xl side panel: Perks to confirm, how Insights work, and how many of each kind. */
+function InsightsSide({ insights, toConfirm }: { insights: InsightItem[]; toConfirm: number }) {
+	const counts = new Map<string, number>();
+	for (const insight of insights) {
+		const label = insightLabel(insight);
+		counts.set(label, (counts.get(label) ?? 0) + 1);
+	}
+	return (
+		<aside aria-label="About Insights" className="hidden gap-4 xl:sticky xl:top-6 xl:grid">
+			<PerksLink toConfirm={toConfirm} />
+			{counts.size > 0 ? (
+				<Card className="grid gap-2 p-(--card-pad)">
+					<h2 className="text-sm font-semibold">By type</h2>
+					<ul className="grid gap-1.5 text-sm">
+						{[...counts].map(([label, count]) => (
+							<li key={label} className="flex justify-between gap-3">
+								<span className="text-muted-foreground">{label}</span>
+								<span className="tabular-nums">{count}</span>
+							</li>
+						))}
+					</ul>
+				</Card>
+			) : null}
+			<Card className="grid gap-2 p-(--card-pad)">
+				<h2 className="text-sm font-semibold">How Insights work</h2>
+				<p className="text-sm text-muted-foreground">
+					Noodle checks your spending and Commitments overnight. Each Insight shows what it's based
+					on, and your Plan stays as it is until you act on one.
+				</p>
+			</Card>
+		</aside>
 	);
 }
 
@@ -201,9 +240,18 @@ function InsightCard({
 						<p className="text-sm text-muted-foreground">{insight.body}</p>
 					</div>
 					<p className="flex items-baseline gap-1.5 sm:grid sm:gap-0 sm:text-right">
-						<span className="text-xl font-[650] tracking-[-0.02em] tabular-nums">
-							{formatMoney(insight.yearlyImpact)}
-						</span>
+						{isOnce(insight.kind) ? (
+							<span className="text-xl font-[650] tracking-[-0.02em] tabular-nums">
+								{formatMoney(insight.yearlyImpact)}
+							</span>
+						) : (
+							<span className="text-xl font-[650] tracking-[-0.02em] tabular-nums">
+								<span className="me-1 text-[13px] font-normal tracking-normal text-muted-foreground">
+									about
+								</span>
+								{formatWholeMoney(insight.yearlyImpact)}
+							</span>
+						)}
 						<span className="text-[13px] text-muted-foreground">
 							{isOnce(insight.kind) ? "once" : "a year"}
 						</span>

@@ -19,8 +19,8 @@ import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
-import { ChevronLeft, Lock, Plus, WandSparkles } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { ChevronLeft, ChevronRight, Lock, Plus, WandSparkles } from "lucide-react";
+import { type CSSProperties, type FormEvent, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../../../buckets";
 import { ForPicker } from "../../../components/for-picker";
@@ -70,7 +70,7 @@ function RulesPage() {
 	return (
 		<>
 			<PageHeader
-				className="max-w-2xl"
+				className="max-w-4xl"
 				eyebrow="Review"
 				title="Rules"
 				actions={
@@ -92,7 +92,11 @@ function RulesPage() {
 					</>
 				}
 			/>
-			<div className="grid max-w-2xl gap-4">
+			<div className="grid max-w-4xl gap-4">
+				<p className="max-w-prose text-sm text-muted-foreground">
+					A Rule files each new statement line whose merchant contains its words. What it filed
+					stays put when you change or delete it.
+				</p>
 				{rules.length === 0 ? (
 					<Card className="p-0">
 						<EmptyState
@@ -103,6 +107,18 @@ function RulesPage() {
 					</Card>
 				) : (
 					<Card className="p-0">
+						<div
+							aria-hidden="true"
+							className="hidden grid-cols-(--rule-cols) gap-x-3 border-b px-(--card-pad) py-2.5 text-xs font-medium text-muted-foreground lg:grid"
+							style={RULE_COLS}
+						>
+							<span className="col-span-2">Merchant words</span>
+							<span>Bucket</span>
+							<span>For</span>
+							<span>Made by</span>
+							<span className="text-end">Filed</span>
+							<span />
+						</div>
 						<List>
 							{rules.map((rule) => (
 								<RuleListRow
@@ -116,10 +132,6 @@ function RulesPage() {
 						</List>
 					</Card>
 				)}
-				<p className="text-xs text-subtle-foreground">
-					A Rule files each new statement line whose merchant contains its words. What it filed
-					stays put when you change or delete it.
-				</p>
 			</div>
 			<Sheet
 				open={open !== null || adding}
@@ -174,7 +186,7 @@ function RuleListRow({
 }) {
 	const hydrated = useHydrated();
 	const who = forLabel(members, rule.for);
-	const filed = rule.matched === 1 ? "Filed 1" : `Filed ${rule.matched}`;
+	const filed = `Filed ${rule.matched} so far`;
 	const detail = [
 		rule.bucketName,
 		`For ${who}`,
@@ -188,8 +200,9 @@ function RuleListRow({
 				aria-label={`${rule.pattern}, ${rule.bucketName}, For ${who}${rule.private ? ", only you" : ""}, ${filed}`}
 				onClick={onEdit}
 				disabled={!hydrated}
+				style={RULE_COLS}
 				className={cn(
-					"grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-(--card-pad) py-3.5 text-start",
+					"grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-(--card-pad) py-3.5 text-start lg:grid-cols-(--rule-cols)",
 					"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60",
 					"focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
 				)}
@@ -207,12 +220,26 @@ function RuleListRow({
 							</Badge>
 						) : null}
 					</span>
-					<span className="truncate text-[13px] text-muted-foreground">{detail.join(" · ")}</span>
+					<span className="truncate text-[13px] text-muted-foreground lg:hidden">
+						{detail.join(" · ")}
+					</span>
 				</span>
+				<span className="hidden truncate text-sm lg:block">{rule.bucketName}</span>
+				<span className="hidden truncate text-sm text-muted-foreground lg:block">{who}</span>
+				<span className="hidden truncate text-sm text-muted-foreground lg:block">
+					{rule.createdBy ?? "—"}
+				</span>
+				<span className="hidden text-end text-sm tabular-nums lg:block">{rule.matched}</span>
+				<ChevronRight aria-hidden="true" className="size-4 text-subtle-foreground" />
 			</button>
 		</li>
 	);
 }
+
+/** The lg table columns: tile, merchant words, Bucket, For, Made by, Filed, chevron. */
+const RULE_COLS = {
+	"--rule-cols": "auto minmax(0,1.6fr) minmax(0,1fr) minmax(0,0.8fr) minmax(0,0.8fr) 4rem auto",
+} as CSSProperties;
 
 /**
  * Adds a Rule (`rule` null), or changes one's merchant words, Bucket and For; files what it

@@ -5,6 +5,7 @@ import { EmptyState } from "@noodle/ui/components/empty-state";
 import { ListRow } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { toast } from "@noodle/ui/components/toast";
+import { cn } from "@noodle/ui/lib/utils";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Check, ChevronRight } from "lucide-react";
@@ -55,28 +56,62 @@ function CheckInPage() {
 
 	return (
 		<>
-			<PageHeader
-				eyebrow={`Week of ${fullDay(view.week)}`}
-				title="Check-in"
-				actions={
-					step.kind === "card" ? (
-						<span className="text-sm text-muted-foreground tabular-nums">
-							{step.position} of {step.of}
-						</span>
-					) : undefined
-				}
-			/>
-			<div className="grid max-w-2xl gap-4">
-				{step.kind === "card" ? (
-					<CheckInCardView
-						key={step.card.kind}
-						card={step.card}
-						last={step.last}
-						onNext={() => setPast([...past, step.card.kind])}
-					/>
-				) : (
-					<Done view={view} empty={view.cards.length === 0 && past.length === 0} />
+			<PageHeader eyebrow={`Week of ${fullDay(view.week)}`} title="Check-in" />
+			<div
+				className={cn(
+					"grid gap-4",
+					view.cards.length > 0 && "lg:grid-cols-[240px_minmax(0,42rem)] lg:items-start lg:gap-8",
 				)}
+			>
+				{view.cards.length > 0 ? (
+					<nav aria-label="Check-in steps" className="hidden lg:block">
+						<ol className="grid gap-1">
+							{view.cards.map((card) => {
+								const current = step.kind === "card" && step.card.kind === card.kind;
+								const seen = done || past.includes(card.kind);
+								return (
+									<li
+										key={card.kind}
+										aria-current={current ? "step" : undefined}
+										className={cn(
+											"flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm",
+											current
+												? "bg-card font-medium shadow-card ring-1 ring-border"
+												: "text-muted-foreground",
+										)}
+									>
+										{seen ? (
+											<Check aria-hidden="true" className="size-4 text-brand" />
+										) : (
+											<span
+												aria-hidden="true"
+												className={cn("size-2 rounded-full", current ? "bg-brand" : "bg-border")}
+											/>
+										)}
+										{checkInCardTitle[card.kind]}
+									</li>
+								);
+							})}
+						</ol>
+					</nav>
+				) : null}
+				<div className="grid max-w-2xl gap-3">
+					{step.kind === "card" ? (
+						<p className="text-sm text-muted-foreground tabular-nums">
+							{step.position} of {step.of}
+						</p>
+					) : null}
+					{step.kind === "card" ? (
+						<CheckInCardView
+							key={step.card.kind}
+							card={step.card}
+							last={step.last}
+							onNext={() => setPast([...past, step.card.kind])}
+						/>
+					) : (
+						<Done view={view} empty={view.cards.length === 0 && past.length === 0} />
+					)}
+				</div>
 			</div>
 		</>
 	);

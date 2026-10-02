@@ -56,61 +56,101 @@ function AskPage() {
 		setQuestion("");
 	};
 
+	// Screen readers hear the finished answer once; the streaming article stays quiet.
+	const announcement =
+		last?.status === "answered"
+			? `Answer: ${last.answer}`
+			: last?.status === "failed"
+				? "Ask couldn't answer. Retry is below the question."
+				: "";
+
+	const suggestions = (
+		<div className="flex flex-wrap gap-2">
+			{SUGGESTIONS.map((suggestion) => (
+				<Button
+					key={suggestion}
+					variant="outline"
+					size="sm"
+					disabled={!hydrated || busy}
+					onClick={() => ask(suggestion)}
+				>
+					{suggestion}
+				</Button>
+			))}
+		</div>
+	);
+
 	return (
 		<>
-			<PageHeader className="max-w-2xl" title="Ask" />
-			<div className="grid max-w-2xl gap-8">
-				{turns.length === 0 ? (
-					<div className="grid gap-3">
+			<PageHeader title="Ask" />
+			<div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
+				<div className="grid max-w-3xl gap-8">
+					{turns.length === 0 ? (
 						<p className="text-sm text-muted-foreground">
 							Ask about your Plan, spending, Goals, or whether you can afford something. Answers use
 							your Household's real numbers.
 						</p>
-						<div className="flex flex-wrap gap-2">
-							{SUGGESTIONS.map((suggestion) => (
-								<Button
-									key={suggestion}
-									variant="outline"
-									size="sm"
-									disabled={!hydrated}
-									onClick={() => ask(suggestion)}
-								>
-									{suggestion}
-								</Button>
+					) : (
+						<div className="grid gap-8">
+							{turns.map((turn) => (
+								<Turn key={turn.id} turn={turn} onRetry={() => retry(turn.id)} />
 							))}
 						</div>
-					</div>
-				) : (
-					<div className="grid gap-8">
-						{turns.map((turn) => (
-							<Turn key={turn.id} turn={turn} onRetry={() => retry(turn.id)} />
-						))}
-					</div>
-				)}
-				<form onSubmit={submit} className="flex items-center gap-2">
-					<label htmlFor="ask-question" className="sr-only">
-						Question
-					</label>
-					<Input
-						id="ask-question"
-						value={question}
-						onChange={(event) => setQuestion(event.target.value)}
-						placeholder="Ask about your money"
-						maxLength={500}
-						autoComplete="off"
-						disabled={!hydrated}
-					/>
-					<Button
-						type="submit"
-						size="icon"
-						className="size-9 shrink-0 rounded-xl"
-						aria-label="Ask"
-						disabled={!hydrated || busy || !question.trim()}
+					)}
+					<p role="status" className="sr-only">
+						{announcement}
+					</p>
+					<div
+						ref={end}
+						className="sticky bottom-[calc(var(--tabbar-height)+env(safe-area-inset-bottom)+8px)] z-10 -mx-2 grid gap-2.5 rounded-2xl bg-background/90 px-2 pt-2 pb-2 backdrop-blur lg:bottom-4"
 					>
-						<ArrowUp />
-					</Button>
-				</form>
-				<div ref={end} />
+						{suggestions}
+						<form onSubmit={submit} className="flex items-center gap-2">
+							<label htmlFor="ask-question" className="sr-only">
+								Question
+							</label>
+							<Input
+								id="ask-question"
+								value={question}
+								onChange={(event) => setQuestion(event.target.value)}
+								placeholder="Ask about your money"
+								maxLength={500}
+								autoComplete="off"
+								aria-describedby="ask-kept"
+								disabled={!hydrated}
+							/>
+							<Button
+								type="submit"
+								size="icon"
+								className="size-9 shrink-0 rounded-xl"
+								aria-label="Ask"
+								disabled={!hydrated || busy || !question.trim()}
+							>
+								<ArrowUp />
+							</Button>
+						</form>
+						<p id="ask-kept" className="text-xs text-muted-foreground">
+							Questions aren't saved. They're gone when you leave this page.
+						</p>
+					</div>
+				</div>
+				<aside
+					aria-labelledby="ask-sees"
+					className="hidden rounded-2xl border bg-card p-(--card-pad) shadow-card xl:sticky xl:top-6 xl:grid xl:gap-3"
+				>
+					<h2 id="ask-sees" className="text-sm font-semibold">
+						What Ask can see
+					</h2>
+					<ul className="grid list-disc gap-1.5 ps-4 text-sm text-muted-foreground">
+						<li>Your Plan, Buckets and Commitments</li>
+						<li>Spending and Transactions</li>
+						<li>Goals and how they're tracking</li>
+						<li>Whether you can afford something</li>
+					</ul>
+					<p className="text-sm text-muted-foreground">
+						Each answer lists the figures it used, with links to the screens that have more.
+					</p>
+				</aside>
 			</div>
 		</>
 	);

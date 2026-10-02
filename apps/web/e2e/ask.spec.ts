@@ -81,7 +81,7 @@ test("a failed answer can be retried, from the phone's This Month header", async
 	await page.unroute(askHousehold);
 	await page.getByRole("button", { name: "Retry" }).click();
 	// $10,000 − $1,200 − $400.
-	await expect(page.getByText(/Free to Spend is \$8,400/)).toBeVisible();
+	await expect(page.getByText(/Free to Spend is \$8,400/).first()).toBeVisible();
 	await expect(page.getByText("Couldn't answer that just now.")).toBeHidden();
 	await page.getByRole("link", { name: /^Open / }).click();
 	await expect(page.getByText("Free to Spend").first()).toBeVisible();
