@@ -110,6 +110,12 @@ export const glossary = {
 			"After a month ends, deciding where its leftovers and Extra income go. If nobody does in the first week, Noodle uses the suggestions.",
 		more: "The app says “Close August”, and afterwards shows how August ended.",
 	},
+	review: {
+		term: "Review",
+		short:
+			"Spending Noodle wasn’t sure where to file. Confirm its suggestion or pick another, and it’s filed.",
+		more: "Noodle files most spending on its own, by your Rules or by what you filed before. Only what it’s unsure about waits here.",
+	},
 	match: {
 		term: "Match",
 		short:

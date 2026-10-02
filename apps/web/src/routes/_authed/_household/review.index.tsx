@@ -1,36 +1,38 @@
-import { canAssign, type MonthKey, monthKeyAt, type PlanBucket } from "@noodle/domain";
+import {
+	type Assignment,
+	canAssign,
+	type MonthKey,
+	monthKeyAt,
+	type Plan,
+	type PlanBucket,
+} from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import { Combobox } from "@noodle/ui/components/combobox";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Kbd } from "@noodle/ui/components/kbd";
 import { PageHeader } from "@noodle/ui/components/page-header";
+import type { Choices } from "@noodle/ui/components/select";
 import { Tile } from "@noodle/ui/components/tile";
+import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
-import {
-	Check,
-	CheckCheck,
-	Lock,
-	Pencil,
-	RefreshCw,
-	SkipForward,
-	Sparkles,
-	WandSparkles,
-} from "lucide-react";
-import { type PointerEvent, Suspense, useEffect, useRef, useState } from "react";
+import { Check, CheckCheck, Pencil, RefreshCw, Sparkles, WandSparkles } from "lucide-react";
+import { Suspense, useEffect, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../../../buckets";
 import { ReviewMatchOffer } from "../../../components/match-section";
+import { TermHelp } from "../../../components/term-help";
 import { TransactionEditor } from "../../../components/transaction-editor";
-import { dayName, formatMoney } from "../../../format";
+import { dayName, formatMoney, monthName } from "../../../format";
 import { forLabel, type MemberSummary } from "../../../members";
-import { useReducedMotion } from "../../../motion";
 import { membersQuery, monthQuery, reviewQuery } from "../../../queries";
 import {
 	type ReviewDecision,
 	type ReviewItem,
+	useConfirmAll,
 	useLookAgain,
 	useReviewDecision,
 	useSaveRule,
@@ -41,15 +43,14 @@ export const Route = createFileRoute("/_authed/_household/review/")({
 	beforeLoad: ({ context }) => ({
 		current: monthKeyAt(new Date(), context.household.timeZone),
 	}),
-	// The first cards' months too: a card shows its guess's Bucket, and changing it edits it
-	// against its own month's Plan.
+	// Every card's month too: a card offers its own month's Buckets.
 	loader: async ({ context }) => {
 		const [queue] = await Promise.all([
 			context.queryClient.ensureQueryData(reviewQuery()),
 			context.queryClient.ensureQueryData(membersQuery()),
 		]);
 		const months = new Set<MonthKey>([context.current]);
-		for (const item of queue.items.slice(0, 3)) months.add(monthOfTransaction(item));
+		for (const item of queue.items) months.add(monthOfTransaction(item));
 		await Promise.all(
 			[...months].map((month) => context.queryClient.ensureQueryData(monthQuery(month))),
 		);
@@ -57,72 +58,115 @@ export const Route = createFileRoute("/_authed/_household/review/")({
 	component: ReviewPage,
 });
 
-/** How far a card is dragged before letting go decides it. */
-const SWIPE_DISTANCE = 96;
+/** Newest first: the newest month's cards, newest day first. */
+const newestFirst = (a: ReviewItem, b: ReviewItem) =>
+	b.date.localeCompare(a.date) || b.id.localeCompare(a.id);
 
-/** A Rule a Parent may state after deciding a card: this merchant always in this Bucket. */
-type RuleOffer = {
-	merchant: string;
-	bucket: Pick<PlanBucket, "id" | "name">;
-	forMemberIds: string[];
-	/** Into the Parent's own Personal Allowance: a Rule only they see. */
-	private: boolean;
-};
+/** The cards by month, newest month first. */
+function byMonth(items: ReviewItem[]) {
+	const months = new Map<MonthKey, ReviewItem[]>();
+	for (const item of [...items].sort(newestFirst)) {
+		const month = monthOfTransaction(item);
+		months.set(month, [...(months.get(month) ?? []), item]);
+	}
+	return [...months];
+}
 
-/** The stack in order: as the server sent it, with skipped cards moved to the back. */
-function inOrder(items: ReviewItem[], skipped: string[]) {
-	const later = new Set(skipped);
-	return [
-		...items.filter((item) => !later.has(item.id)),
-		...skipped.flatMap((id) => items.filter((item) => item.id === id)),
-	];
+/** Confirming a card: filed in its suggestion, as it is otherwise. */
+function confirmed(item: ReviewItem): ReviewDecision | null {
+	if (!item.guess) return null;
+	return {
+		item,
+		next: {
+			amountCents: item.amountCents,
+			note: item.note,
+			assignment: { bucketId: item.guess.bucketId },
+			forMemberIds: item.for,
+		},
+		placeName: item.guess.name,
+	};
+}
+
+/** What a card's month offers: the Buckets this Parent can file in, and its Commitments. */
+function placesIn(plan: Plan, parentId: string) {
+	const buckets = plan.buckets.filter((b) => canAssign(b, parentId));
+	return { buckets, commitments: plan.commitments };
 }
 
 /**
- * Review: imported Transactions categorization wasn't sure of, one card at a time. Confirming
- * files a card in its guess; changing opens the Transaction editor. Either offers a Rule, so the
- * merchant is filed on its own next time.
+ * Review: what categorization wasn't sure where to file, newest first by month. Each card shows
+ * Noodle's suggestion and why; Confirm files it there, and picking another files it there instead.
+ * Either then offers a Rule, so the merchant is filed on its own next time.
  */
 function ReviewPage() {
 	const { current, parentId } = Route.useRouteContext();
 	const queue = useSuspenseQuery(reviewQuery()).data;
 	const members = useSuspenseQuery(membersQuery()).data;
 	const today = useSuspenseQuery(monthQuery(current)).data.asOf;
-	const [skipped, setSkipped] = useState<string[]>([]);
+	const [cursor, setCursor] = useState<string | null>(null);
 	const [changing, setChanging] = useState<ReviewItem | null>(null);
-	const [offer, setOffer] = useState<RuleOffer | null>(null);
 	const decide = useReviewDecision();
+	const confirmAll = useConfirmAll();
 	const saveRule = useSaveRule();
 	const lookAgain = useLookAgain();
-	const reduced = useReducedMotion();
 	const hydrated = useHydrated();
-	const cards = inOrder(queue.items, skipped);
-	const top = cards[0] ?? null;
-	// The top card's own month, for its guess's colour.
-	const topPlan = useQuery({
-		...monthQuery(top ? monthOfTransaction(top) : current),
-		enabled: top !== null,
-	}).data?.plan;
+	const months = byMonth(queue.items);
+	const cards = months.flatMap(([, items]) => items);
+	const top = cards.find((item) => item.id === cursor) ?? cards[0] ?? null;
+	const guessed = cards.filter((item) => item.guess);
 
-	function confirm(item: ReviewItem) {
-		if (!item.guess) return setChanging(item);
-		const bucket = { id: item.guess.bucketId, name: item.guess.name };
-		decide.mutate({
-			item,
-			next: {
-				amountCents: item.amountCents,
-				note: item.note,
-				assignment: { bucketId: bucket.id },
-				forMemberIds: item.for,
+	/** "Always file <merchant> in <Bucket>?", after a card is filed in a Bucket. */
+	function offerRule(
+		item: ReviewItem,
+		bucket: Pick<PlanBucket, "id" | "name" | "owner">,
+		forMemberIds: string[],
+	) {
+		const only = bucket.owner === parentId ? " Only you will see this Rule." : "";
+		const forWhom = forMemberIds.length > 0 ? `, For ${forLabel(members, forMemberIds)}` : "";
+		toast(`Always file “${item.merchant}” in ${bucket.name}${forWhom}?${only}`, {
+			tone: "success",
+			action: {
+				label: "Always file",
+				onClick: () =>
+					saveRule.mutate({
+						ruleId: ulid(),
+						pattern: item.merchant,
+						bucketId: bucket.id,
+						bucketName: bucket.name,
+						forMemberIds,
+					}),
 			},
-			placeName: bucket.name,
 		});
-		// A guess is never a Personal Allowance.
-		setOffer({ merchant: item.merchant, bucket, forMemberIds: item.for, private: false });
 	}
 
-	function skip(item: ReviewItem) {
-		setSkipped((ids) => [...ids.filter((id) => id !== item.id), item.id]);
+	/** Moves the keyboard's card on from `item`, which is leaving. */
+	function moveOn(item: ReviewItem) {
+		const at = cards.findIndex((card) => card.id === item.id);
+		const next = cards[at + 1] ?? cards[at - 1];
+		setCursor(next?.id ?? null);
+	}
+
+	function confirm(item: ReviewItem) {
+		const decision = confirmed(item);
+		if (!decision || !item.guess) return openPicker(item);
+		moveOn(item);
+		decide.mutate(decision);
+		offerRule(item, { id: item.guess.bucketId, name: item.guess.name }, item.for);
+	}
+
+	/** Files a card where the Parent picked: a Bucket or a Commitment. */
+	function file(item: ReviewItem, value: string, plan: Plan) {
+		const [kind, id] = value.split(":") as ["bucket" | "commitment", string];
+		const assignment: Assignment = kind === "bucket" ? { bucketId: id } : { commitmentId: id };
+		const bucket = kind === "bucket" ? plan.buckets.find((b) => b.id === id) : undefined;
+		const name = bucket?.name ?? plan.commitments.find((c) => c.id === id)?.name ?? null;
+		moveOn(item);
+		decide.mutate({
+			item,
+			next: { amountCents: item.amountCents, note: item.note, assignment, forMemberIds: item.for },
+			placeName: name ?? "its Commitment",
+		});
+		if (bucket) offerRule(item, bucket, item.for);
 	}
 
 	function changed(item: ReviewItem, next: TransactionChange["next"], buckets: PlanBucket[]) {
@@ -136,17 +180,19 @@ function ReviewPage() {
 		if (next && "assignment" in next) {
 			decision.placeName = bucket?.name ?? "its Commitment";
 		}
+		moveOn(item);
 		decide.mutate(decision);
-		setOffer(
-			bucket && next && "assignment" in next
-				? {
-						merchant: item.merchant,
-						bucket,
-						forMemberIds: next.forMemberIds,
-						private: bucket.owner === parentId,
-					}
-				: null,
-		);
+		if (bucket && next && "assignment" in next) offerRule(item, bucket, next.forMemberIds);
+	}
+
+	function confirmEach(items: ReviewItem[]) {
+		const decisions = items.flatMap((item) => confirmed(item) ?? []);
+		if (decisions.length > 0) confirmAll.mutate(decisions);
+	}
+
+	function skip(item: ReviewItem) {
+		const at = cards.findIndex((card) => card.id === item.id);
+		setCursor((cards[at + 1] ?? cards[0])?.id ?? null);
 	}
 
 	// → or Enter confirms, ← changes, ↓ skips; not while typing or while the editor is open.
@@ -158,15 +204,15 @@ function ReviewPage() {
 			if (target?.closest("input, select, textarea, [role=dialog], [contenteditable=true]")) {
 				return;
 			}
-			// A focused button or link answers keys itself: Enter on Skip or the Rules link mustn't
-			// also confirm the card, nor an arrow move it on.
+			// A focused button or link answers keys itself: Enter on a card's button or the Rules
+			// link mustn't also confirm the card, nor an arrow move it on.
 			// The sidebar's links don't count: arriving from one, the keys work at once.
 			if (target?.closest("main") && target.closest("button, a, summary, [role=button]")) return;
 			const act =
 				event.key === "ArrowRight" || event.key === "Enter"
 					? confirm
 					: event.key === "ArrowLeft"
-						? setChanging
+						? openPicker
 						: event.key === "ArrowDown"
 							? skip
 							: null;
@@ -216,82 +262,71 @@ function ReviewPage() {
 				}
 			/>
 			<div className="grid max-w-xl gap-5">
-				{offer ? (
-					<RuleOfferCard
-						offer={offer}
-						members={members}
-						onAccept={() => {
-							saveRule.mutate({
-								ruleId: ulid(),
-								pattern: offer.merchant,
-								bucketId: offer.bucket.id,
-								bucketName: offer.bucket.name,
-								forMemberIds: offer.forMemberIds,
-							});
-							setOffer(null);
-						}}
-						onDismiss={() => setOffer(null)}
-					/>
-				) : null}
 				{top ? (
 					<>
-						<ReviewMatchOffer key={top.id} transaction={top} />
-						<div className="relative">
-							{/* The cards waiting behind this one, as edges. */}
-							{cards.length > 2 ? (
-								<div
-									aria-hidden="true"
-									className="absolute inset-x-6 -bottom-4 h-12 rounded-2xl bg-card/60 ring-1 ring-border"
-								/>
+						<div className="-mt-3 grid gap-3 lg:-mt-5">
+							<p className="flex items-start gap-1 text-sm text-muted-foreground">
+								<span>
+									Noodle wasn’t sure where to file these. Confirm its suggestion or pick another.
+								</span>
+								<TermHelp term="review" className="mt-0.5" />
+							</p>
+							{guessed.length > 1 ? (
+								<Button
+									variant="outline"
+									className="justify-self-start"
+									disabled={!hydrated || confirmAll.isPending}
+									onClick={() => confirmEach(guessed)}
+								>
+									<CheckCheck />
+									Confirm all {guessed.length} with a suggestion
+								</Button>
 							) : null}
-							{cards.length > 1 ? (
-								<div
-									aria-hidden="true"
-									className="absolute inset-x-3 -bottom-2 h-12 rounded-2xl bg-card ring-1 ring-border"
-								/>
-							) : null}
-							<SwipeCard
-								// A fresh card, undragged, for each Transaction on top.
-								key={top.id}
-								item={top}
-								today={today}
-								members={members}
-								buckets={topPlan?.buckets ?? []}
-								swipe={hydrated && !reduced}
-								onConfirm={() => confirm(top)}
-								onChange={() => setChanging(top)}
-							/>
 						</div>
-						<div className="mt-2 grid grid-cols-3 gap-2">
-							<Button variant="outline" onClick={() => setChanging(top)} disabled={!hydrated}>
-								<Pencil />
-								Change
-							</Button>
-							<Button variant="ghost" onClick={() => skip(top)} disabled={!hydrated}>
-								<SkipForward />
-								Skip
-							</Button>
-							<Button onClick={() => confirm(top)} disabled={!hydrated}>
-								<Check />
-								{top.guess ? "Confirm" : "Choose"}
-							</Button>
-						</div>
-						<p className="text-center text-xs text-muted-foreground">
-							<span className="hidden lg:inline">
-								<Key name="Right arrow">→</Key> or <Key>Enter</Key> to confirm,{" "}
-								<Key name="Left arrow">←</Key> to change, <Key name="Down arrow">↓</Key> to skip
-							</span>
-							{reduced ? null : (
-								<span className="lg:hidden">Swipe right to confirm, left to change</span>
-							)}
+						{months.map(([month, items]) => (
+							<section key={month} aria-labelledby={`review-month-${month}`} className="grid gap-3">
+								<h2
+									id={`review-month-${month}`}
+									className="text-sm font-semibold text-muted-foreground"
+								>
+									{monthName(month)}
+									{month.slice(0, 4) === current.slice(0, 4) ? "" : ` ${month.slice(0, 4)}`}
+								</h2>
+								{items.map((item) => {
+									const same = guessed.filter((other) => other.merchant === item.merchant);
+									return (
+										<div key={item.id} className="grid gap-3">
+											{item.id === top.id ? <ReviewMatchOffer transaction={item} /> : null}
+											<ReviewCard
+												item={item}
+												today={today}
+												members={members}
+												parentId={parentId}
+												current={item.id === top.id}
+												hydrated={hydrated}
+												sameMerchant={item.guess && same.length > 1 ? same : []}
+												onFocus={() => setCursor(item.id)}
+												onConfirm={() => confirm(item)}
+												onPick={(value, plan) => file(item, value, plan)}
+												onEdit={() => setChanging(item)}
+												onConfirmAll={(items) => confirmEach(items)}
+											/>
+										</div>
+									);
+								})}
+							</section>
+						))}
+						<p className="hidden text-center text-xs text-muted-foreground lg:block">
+							<Key name="Right arrow">→</Key> or <Key>Enter</Key> to confirm,{" "}
+							<Key name="Left arrow">←</Key> to change, <Key name="Down arrow">↓</Key> to skip
 						</p>
 					</>
 				) : (
 					<Card className="p-0">
 						<EmptyState
 							icon={<CheckCheck />}
-							title="All caught up"
-							description="Anything Noodle isn’t sure about waits here for you to confirm."
+							title="Nothing to review"
+							description="Noodle filed everything on its own. Anything it isn’t sure about waits here for you."
 							action={
 								<Button variant="outline" size="sm" asChild>
 									<Link to="/transactions">See Transactions</Link>
@@ -317,6 +352,15 @@ function ReviewPage() {
 	);
 }
 
+/** Opens a card's picker, as ← does. */
+function openPicker(item: ReviewItem) {
+	const picker = document.getElementById(pickerId(item));
+	picker?.focus();
+	picker?.click();
+}
+
+const pickerId = (item: ReviewItem) => `review-pick-${item.id}`;
+
 /** A key in the hint, with words for a screen reader where it's a symbol. */
 function Key({ children, name }: { children: string; name?: string }) {
 	return (
@@ -333,127 +377,123 @@ function Key({ children, name }: { children: string; name?: string }) {
 	);
 }
 
+/** Why a suggestion, in plain words (ADR-0018). */
+function suggestionWhy(guess: NonNullable<ReviewItem["guess"]>) {
+	switch (guess.method) {
+		case "rule":
+			return `Your Rule: ${guess.reason ?? "this merchant"} → ${guess.name}`;
+		case "similar":
+			return guess.reason
+				? `Like ${guess.reason}, which you filed in ${guess.name}`
+				: `Like something you filed in ${guess.name}`;
+		case "model":
+			return guess.reason ? `Suggested: ${guess.reason}` : "Suggested by Noodle";
+		default:
+			return "Noodle’s suggestion";
+	}
+}
+
 /**
- * The card on top: what the Transaction was, and categorization's guess. It can be dragged:
- * far enough right confirms, left changes; short of that it springs back. Only buttons and keys
- * when the Parent asked for less motion.
+ * A card: what the Transaction was, Noodle's suggestion and why, and what to do with it. Confirm
+ * files it in the suggestion; the picker files it wherever the Parent picks, from its own month's
+ * Plan. A month with nothing to file in says so, with a way to set it up.
  */
-function SwipeCard({
+function ReviewCard({
 	item,
 	today,
 	members,
-	buckets,
-	swipe,
+	parentId,
+	current,
+	hydrated,
+	sameMerchant,
+	onFocus,
 	onConfirm,
-	onChange,
+	onPick,
+	onEdit,
+	onConfirmAll,
 }: {
 	item: ReviewItem;
 	today: string;
 	members: MemberSummary[];
-	buckets: PlanBucket[];
-	swipe: boolean;
+	parentId: string;
+	current: boolean;
+	hydrated: boolean;
+	sameMerchant: ReviewItem[];
+	onFocus: () => void;
 	onConfirm: () => void;
-	onChange: () => void;
+	onPick: (value: string, plan: Plan) => void;
+	onEdit: () => void;
+	onConfirmAll: (items: ReviewItem[]) => void;
 }) {
-	const [dx, setDx] = useState(0);
-	const [dragging, setDragging] = useState(false);
-	const drag = useRef<{ x: number; y: number; sideways: boolean | null } | null>(null);
-	const guessed = buckets.find((b) => b.id === item.guess?.bucketId);
+	const month = monthOfTransaction(item);
+	const plan = useQuery(monthQuery(month)).data?.plan;
+	const places = plan ? placesIn(plan, parentId) : null;
+	const bucket = plan?.buckets.find((b) => b.id === item.guess?.bucketId);
 	const headingId = `review-${item.id}`;
-
-	function onPointerDown(event: PointerEvent<HTMLElement>) {
-		if (!swipe || event.button !== 0) return;
-		drag.current = { x: event.clientX, y: event.clientY, sideways: null };
-		event.currentTarget.setPointerCapture(event.pointerId);
-	}
-	function onPointerMove(event: PointerEvent<HTMLElement>) {
-		const start = drag.current;
-		if (!start) return;
-		const x = event.clientX - start.x;
-		const y = event.clientY - start.y;
-		// Decided by the first few pixels: sideways drags the card, anything else is a scroll.
-		if (start.sideways === null && Math.hypot(x, y) > 8) {
-			start.sideways = Math.abs(x) > Math.abs(y);
-			setDragging(start.sideways);
-		}
-		if (start.sideways) setDx(x);
-	}
-	function onPointerUp() {
-		if (!drag.current) return;
-		drag.current = null;
-		setDragging(false);
-		if (dx > SWIPE_DISTANCE && item.guess) {
-			// Off to the right, then decided.
-			setDx(window.innerWidth);
-			setTimeout(onConfirm, 160);
-			return;
-		}
-		setDx(0);
-		if (dx > SWIPE_DISTANCE || dx < -SWIPE_DISTANCE) onChange();
-	}
-	function onPointerCancel() {
-		drag.current = null;
-		setDragging(false);
-		setDx(0);
-	}
-
-	const toward = dx > 24 ? "confirm" : dx < -24 ? "change" : null;
+	const empty = places !== null && places.buckets.length === 0 && places.commitments.length === 0;
+	const choices: Choices = places
+		? [
+				{
+					label: "Buckets",
+					choices: places.buckets.map((b) => ({ value: `bucket:${b.id}`, label: b.name })),
+				},
+				...(places.commitments.length > 0
+					? [
+							{
+								label: "Commitments",
+								choices: places.commitments.map((c) => ({
+									value: `commitment:${c.id}`,
+									label: c.name,
+								})),
+							},
+						]
+					: []),
+			]
+		: [];
+	const name = monthName(month);
 	return (
 		<article
 			aria-labelledby={headingId}
 			data-testid="review-card"
-			onPointerDown={onPointerDown}
-			onPointerMove={onPointerMove}
-			onPointerUp={onPointerUp}
-			onPointerCancel={onPointerCancel}
-			style={dx === 0 ? undefined : { transform: `translateX(${dx}px) rotate(${dx / 30}deg)` }}
+			data-current={current || undefined}
+			onFocusCapture={onFocus}
 			className={cn(
-				"relative grid gap-5 rounded-2xl bg-card p-5 shadow-card ring-1 ring-border select-none",
-				swipe && "touch-pan-y cursor-grab",
-				dragging && "cursor-grabbing",
-				!dragging && "transition-transform duration-(--duration-fast) ease-standard",
+				"grid gap-4 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border sm:p-5",
+				current && "ring-2 ring-ring",
 			)}
 		>
-			{toward ? (
-				<span
-					aria-hidden="true"
-					className={cn(
-						"absolute top-4 rounded-md px-2 py-0.5 text-xs font-semibold ring-1",
-						toward === "confirm"
-							? "start-4 bg-surface-2 text-foreground ring-border"
-							: "end-4 bg-surface-2 text-muted-foreground ring-border",
-					)}
-				>
-					{toward === "confirm" ? (item.guess ? "Confirm" : "Choose") : "Change"}
-				</span>
-			) : null}
-			<div className="grid gap-1 text-center">
-				<p className="text-xs text-muted-foreground">
-					{dayName(item.date, today)}
-					{item.importedFrom ? ` · ${item.importedFrom}` : ""}
-				</p>
-				<h2 id={headingId} className="truncate text-lg font-semibold">
-					{item.note ?? item.merchant}
-				</h2>
-				<p className="text-4xl font-semibold tracking-tight tabular-nums">
-					{formatMoney(item.amountCents)}
-				</p>
-				{item.for.length > 0 ? (
-					<p className="text-sm text-muted-foreground">For {forLabel(members, item.for)}</p>
-				) : null}
+			<div className="flex items-start justify-between gap-3">
+				<div className="grid min-w-0 gap-0.5">
+					<p className="text-xs text-muted-foreground">
+						{dayName(item.date, today)}
+						{item.importedFrom ? ` · ${item.importedFrom}` : ""}
+					</p>
+					<h3 id={headingId} className="truncate text-base font-semibold">
+						{item.note ?? item.merchant}
+					</h3>
+					{item.for.length > 0 ? (
+						<p className="text-sm text-muted-foreground">For {forLabel(members, item.for)}</p>
+					) : null}
+				</div>
+				<div className="grid shrink-0 justify-items-end gap-1">
+					<p className="text-xl font-semibold tracking-tight tabular-nums">
+						{formatMoney(item.amountCents)}
+					</p>
+					<Badge>{item.guess ? "We weren’t sure" : "New merchant"}</Badge>
+				</div>
 			</div>
 			<div className="flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5">
 				{item.guess ? (
 					<>
-						<Tile aria-hidden="true" bucket={guessed ? asBucketColor(guessed.color) : undefined}>
+						<Tile aria-hidden="true" bucket={bucket ? asBucketColor(bucket.color) : undefined}>
 							{monogram(item.guess.name)}
 						</Tile>
 						<div className="grid min-w-0 flex-1">
-							<span className="text-xs text-muted-foreground">Noodle’s guess</span>
 							<span className="truncate text-sm font-medium">{item.guess.name}</span>
+							<span className="text-xs text-muted-foreground">{suggestionWhy(item.guess)}</span>
 						</div>
 						{item.guess.confidence !== null ? (
-							<span className="text-sm text-muted-foreground tabular-nums">
+							<span className="text-xs text-muted-foreground tabular-nums">
 								{Math.round(item.guess.confidence * 100)}% sure
 							</span>
 						) : null}
@@ -463,13 +503,64 @@ function SwipeCard({
 						<Tile aria-hidden="true">
 							<Sparkles />
 						</Tile>
-						<div className="grid min-w-0 flex-1">
-							<span className="text-xs text-muted-foreground">Noodle’s guess</span>
-							<span className="text-sm font-medium">No guess</span>
-						</div>
+						<p className="text-sm font-medium">
+							{empty ? "No suggestion" : "No suggestion — pick where it goes"}
+						</p>
 					</>
 				)}
 			</div>
+			{empty ? (
+				<div className="grid gap-2 text-sm sm:flex sm:items-center sm:justify-between">
+					<p>
+						{plan?.baseline === null
+							? `${name} has no Plan yet, so there’s nowhere to file this.`
+							: `${name}’s Plan has no Buckets yet, so there’s nowhere to file this.`}
+					</p>
+					<Button variant="outline" size="sm" asChild>
+						<Link to="/plan/$month/buckets" params={{ month }}>
+							Set up {name}’s Plan
+						</Link>
+					</Button>
+				</div>
+			) : (
+				<div className="grid grid-cols-[auto_1fr] gap-2 sm:flex sm:items-center">
+					<Combobox
+						id={pickerId(item)}
+						className="col-span-2 sm:flex-1"
+						aria-label={`Where ${item.note ?? item.merchant} goes`}
+						disabled={!hydrated || !places}
+						placeholder={item.guess ? "Pick another…" : "Pick where it goes"}
+						searchPlaceholder="Find a Bucket"
+						choices={choices}
+						onValueChange={(value) => plan && onPick(value, plan)}
+					/>
+					<Button
+						variant="ghost"
+						size="icon"
+						aria-label={`Edit ${item.note ?? item.merchant}`}
+						disabled={!hydrated}
+						onClick={onEdit}
+					>
+						<Pencil />
+					</Button>
+					{item.guess ? (
+						<Button disabled={!hydrated} onClick={onConfirm}>
+							<Check />
+							Confirm
+						</Button>
+					) : null}
+				</div>
+			)}
+			{sameMerchant.length > 1 ? (
+				<Button
+					variant="link"
+					className="justify-self-start px-0"
+					disabled={!hydrated}
+					onClick={() => onConfirmAll(sameMerchant)}
+				>
+					Confirm all {sameMerchant.length} from “{item.merchant}”
+				</Button>
+			) : null}
 		</article>
 	);
 }
@@ -504,50 +595,5 @@ function ChangeSheet({
 			onChange={(next) => onChange(next, plan.buckets)}
 			onClose={onClose}
 		/>
-	);
-}
-
-/** "Always file <merchant> in <Bucket>?", after a card is decided. */
-function RuleOfferCard({
-	offer,
-	members,
-	onAccept,
-	onDismiss,
-}: {
-	offer: RuleOffer;
-	members: MemberSummary[];
-	onAccept: () => void;
-	onDismiss: () => void;
-}) {
-	return (
-		<section
-			aria-label="Make a Rule"
-			className="grid gap-3 rounded-xl bg-card p-4 shadow-card ring-1 ring-border sm:flex sm:items-center"
-		>
-			<div className="grid flex-1 gap-0.5">
-				<p className="text-sm font-medium">
-					Always file “{offer.merchant}” in {offer.bucket.name}
-					{offer.forMemberIds.length > 0 ? `, For ${forLabel(members, offer.forMemberIds)}` : ""}?
-				</p>
-				<p className="flex items-center gap-1 text-xs text-muted-foreground">
-					{offer.private ? (
-						<>
-							<Lock className="size-3" aria-hidden="true" />
-							Only you will see this Rule.
-						</>
-					) : (
-						"Its next statement lines, and any still waiting, go there on their own."
-					)}
-				</p>
-			</div>
-			<div className="flex justify-end gap-2">
-				<Button variant="ghost" size="sm" onClick={onDismiss}>
-					Not now
-				</Button>
-				<Button variant="outline" size="sm" onClick={onAccept}>
-					Always file
-				</Button>
-			</div>
-		</section>
 	);
 }

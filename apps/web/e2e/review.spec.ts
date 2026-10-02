@@ -19,7 +19,11 @@ const card = (page: Page) => page.getByTestId("review-card");
 const editSheet = (page: Page) => page.getByRole("dialog", { name: "Edit Transaction" });
 
 /** Uploads a card statement to the Visa Account, adding the Account first if it's new. */
-async function uploadStatement(page: Page, lines: [string, string][], addAccount = false) {
+async function uploadStatement(
+	page: Page,
+	lines: [what: string, amount: string, date?: string][],
+	addAccount = false,
+) {
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	if (addAccount) {
@@ -35,7 +39,7 @@ async function uploadStatement(page: Page, lines: [string, string][], addAccount
 	const today = await page.evaluate(() => new Date().toLocaleDateString("en-US"));
 	const csv = [
 		"Transaction Date,Description,Debit,Credit",
-		...lines.map(([what, amount]) => `${today},${what},${amount},`),
+		...lines.map(([what, amount, date]) => `${date ?? today},${what},${amount},`),
 	].join("\n");
 	await page.getByRole("button", { name: "Upload statement" }).click();
 	const sheet = page.getByRole("dialog", { name: "Upload a statement" });
@@ -46,34 +50,8 @@ async function uploadStatement(page: Page, lines: [string, string][], addAccount
 	await expect(sheet).toBeHidden();
 }
 
-/** Swipes the top card sideways by `dx` pixels with a finger, as on a phone. */
-async function touchSwipe(page: Page, dx: number) {
-	const box = await card(page).boundingBox();
-	if (!box) throw new Error("No card to swipe");
-	const y = box.y + box.height / 2;
-	const x = box.x + box.width / 2;
-	const cdp = await page.context().newCDPSession(page);
-	await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
-	for (let step = 1; step <= 12; step++) {
-		await cdp.send("Input.dispatchTouchEvent", {
-			type: "touchMove",
-			touchPoints: [{ x: x + (dx * step) / 12, y: y + step / 3 }],
-		});
-	}
-	await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-}
-
-/** Drags the top card sideways by `dx` pixels, as a swipe. */
-async function swipe(page: Page, dx: number) {
-	const box = await card(page).boundingBox();
-	if (!box) throw new Error("No card to swipe");
-	const x = box.x + box.width / 2;
-	const y = box.y + box.height / 2;
-	await page.mouse.move(x, y);
-	await page.mouse.down();
-	await page.mouse.move(x + dx, y + 4, { steps: 12 });
-	await page.mouse.up();
-}
+const status = (page: Page, text: string | RegExp) =>
+	page.getByRole("status").filter({ hasText: text });
 
 test("a card changed in Review makes a Rule that files the merchant's next statement line", async ({
 	browser,
@@ -102,24 +80,18 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	await expect(card(page).getByRole("heading", { name: "ACME WIDGETS LLC" })).toBeVisible();
 	await expect(card(page)).toContainText("$19.99");
 	await expect(card(page)).toContainText("Visa");
-	await expect(card(page)).toContainText("No guess");
+	await expect(card(page)).toContainText("No suggestion — pick where it goes");
+	await expect(card(page)).toContainText("New merchant");
+	await expect(card(page).getByRole("button", { name: "Confirm" })).toHaveCount(0);
 
-	// Swiped left (once it can be): the editor, where the Parent picks the Bucket.
-	await expect(page.getByRole("button", { name: "Change" })).toBeEnabled();
-	await swipe(page, -220);
-	await choose(editSheet(page), "Assigned to", "Fun");
-	await editSheet(page).getByRole("button", { name: "Save" }).click();
-	await expect(editSheet(page)).toBeHidden();
-	await expect(
-		page.getByRole("status").getByText("$19.99 (ACME WIDGETS LLC) filed in Fun"),
-	).toBeVisible();
-	await expect(page.getByText("All caught up")).toBeVisible();
+	// Picked from the card's own month's Buckets, it's filed there.
+	await choose(card(page), "Where ACME WIDGETS LLC goes", "Fun");
+	await expect(status(page, "$19.99 (ACME WIDGETS LLC) filed in Fun")).toBeVisible();
+	await expect(page.getByText("Nothing to review")).toBeVisible();
 
 	// And made a Rule of it.
-	const offer = page.getByRole("region", { name: "Make a Rule" });
-	await expect(offer).toContainText(/Always file “acme widgets.*” in Fun\?/);
+	const offer = status(page, /Always file “acme widgets.*” in Fun\?/);
 	await offer.getByRole("button", { name: "Always file" }).click();
-	await expect(offer).toBeHidden();
 	await expect(page.getByText(/Rule saved/)).toBeVisible();
 
 	// The next statement: ACME is filed by the Rule; the gas station waits, with a guess.
@@ -143,14 +115,16 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	await expect(card(page).getByRole("heading", { name: "CORNER GAS MART" })).toBeVisible();
 	await expect(card(page)).toContainText("Gas");
 	await expect(card(page)).toContainText("50% sure");
+	await expect(card(page)).toContainText("We weren’t sure");
+	await expect(card(page)).toContainText("Suggested:");
 
 	// → confirms the guess; Undo puts the card back.
 	await page.keyboard.press("ArrowRight");
-	await expect(page.getByText("All caught up")).toBeVisible();
-	await page.getByRole("status").getByRole("button", { name: "Undo" }).click();
+	await expect(page.getByText("Nothing to review")).toBeVisible();
+	await status(page, "filed in Gas").getByRole("button", { name: "Undo" }).click();
 	await expect(card(page).getByRole("heading", { name: "CORNER GAS MART" })).toBeVisible();
 
-	// On a phone, a finger swiping right confirms it.
+	// On a phone, a tap on Confirm files it.
 	const phone = await signedInPage(browser, parent.email, {
 		viewport: { width: 393, height: 852 },
 		isMobile: true,
@@ -158,17 +132,12 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	});
 	await phone.goto(new URL("/review", thisMonth).href);
 	await expect(card(phone).getByRole("heading", { name: "CORNER GAS MART" })).toBeVisible();
-	await expect(phone.getByRole("button", { name: "Confirm" })).toBeEnabled();
-	await touchSwipe(phone, 250);
-	await expect(phone.getByText("All caught up")).toBeVisible();
-	await phone
-		.getByRole("region", { name: "Make a Rule" })
-		.getByRole("button", { name: "Not now" })
-		.click();
+	await card(phone).getByRole("button", { name: "Confirm" }).tap();
+	await expect(phone.getByText("Nothing to review")).toBeVisible();
 
 	// Filed for the other screen too.
 	await page.reload();
-	await expect(page.getByText("All caught up")).toBeVisible();
+	await expect(page.getByText("Nothing to review")).toBeVisible();
 
 	// The Rule, which filed one line; deleted, it's gone.
 	await page.getByRole("link", { name: "Rules" }).click();
@@ -202,4 +171,67 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	await expect(edit).toBeHidden();
 	await expect(page.getByText(/Nothing unassigned matches corner gas/i)).toBeVisible();
 	await expect(page.getByRole("button", { name: /^corner gas, Fun, / })).toBeVisible();
+});
+
+test("Review confirms a merchant's cards, or all with a suggestion, with one Undo, and says when a month has no Plan", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, {
+		baseline: "5,000",
+		buckets: [
+			["Groceries", "1,200"],
+			["Gas", "300"],
+		],
+	});
+	const thisMonth = page.url();
+	// Mid last month: before the Plan, which starts this month.
+	const lastMonth = await page.evaluate(() => {
+		const now = new Date();
+		return new Date(now.getFullYear(), now.getMonth() - 1, 15).toLocaleDateString("en-US");
+	});
+	await uploadStatement(
+		page,
+		[
+			["CORNER GAS MART", "40.00"],
+			["CORNER GAS MART", "22.50"],
+			["VALLEY GAS STOP", "30.00"],
+			["ACME WIDGETS LLC", "19.99", lastMonth],
+		],
+		true,
+	);
+	await page.goto(new URL("/review", thisMonth).href);
+	await expect(card(page)).toHaveCount(4);
+	await expect(page.getByRole("button", { name: "What’s “Review”?" })).toBeVisible();
+
+	// A card from a month with no Plan says so, with a way to set it up, never an empty list.
+	const acme = card(page).filter({ hasText: "ACME WIDGETS LLC" });
+	await expect(acme).toContainText(/has no Plan yet/);
+	await expect(acme.getByRole("combobox")).toHaveCount(0);
+	await expect(acme.getByRole("link", { name: /^Set up .*’s Plan$/ })).toHaveAttribute(
+		"href",
+		/\/plan\/\d{4}-\d{2}\/buckets$/,
+	);
+
+	// Both of one merchant's cards at once; one Undo puts both back.
+	await page
+		.getByRole("button", { name: /^Confirm all 2 from “corner gas mart/ })
+		.first()
+		.click();
+	await expect(status(page, "Filed 2 where Noodle suggested")).toBeVisible();
+	await expect(card(page)).toHaveCount(2);
+	await status(page, "Filed 2 where Noodle suggested")
+		.getByRole("button", { name: "Undo" })
+		.click();
+	await expect(card(page)).toHaveCount(4);
+
+	// Everything with a suggestion; what has none stays.
+	await page.getByRole("button", { name: "Confirm all 3 with a suggestion" }).click();
+	await expect(status(page, "Filed 3 where Noodle suggested")).toBeVisible();
+	await expect(card(page)).toHaveCount(1);
+	await expect(page.getByLabel("1 to review")).toBeVisible();
+	await page.reload();
+	await expect(card(page)).toHaveCount(1);
+	await expect(card(page)).toContainText("ACME WIDGETS LLC");
 });

@@ -111,6 +111,56 @@ export function useReviewDecision() {
 	return decide;
 }
 
+/**
+ * Confirms several cards at once, each in its suggestion: they leave the stack and land in their
+ * months at once, with one Undo that puts them all back. A failure puts back what wasn't saved.
+ */
+export function useConfirmAll() {
+	const queryClient = useQueryClient();
+	const returnCard = useReturnToReview();
+	const confirmAll = useMutation({
+		mutationKey: monthChangeKey,
+		mutationFn: async (decisions: ReviewDecision[]) => {
+			// One at a time: each is an ordinary Transaction change.
+			for (const decision of decisions) await saveTransactionChange(changeOf(decision));
+		},
+		onMutate: async (decisions) => {
+			const ids = new Set(decisions.map((d) => d.item.id));
+			const putBack = await takeCards(queryClient, (item) => ids.has(item.id));
+			const rollbacks: (() => void)[] = [];
+			for (const decision of decisions) {
+				rollbacks.push(await applyTransactionChange(queryClient, changeOf(decision)));
+			}
+			return {
+				rollback: () => {
+					putBack();
+					for (const rollback of rollbacks.reverse()) rollback();
+				},
+			};
+		},
+		onError: (_error, decisions, context) => {
+			context?.rollback();
+			toast(`Couldn’t file all ${decisions.length}, so what wasn’t filed is back in Review.`, {
+				tone: "error",
+				action: { label: "Retry", onClick: () => confirmAll.mutate(decisions) },
+			});
+		},
+		onSuccess: (_data, decisions) => {
+			toast(`Filed ${decisions.length} where Noodle suggested`, {
+				tone: "success",
+				action: {
+					label: "Undo",
+					onClick: () => {
+						for (const decision of decisions) returnCard.mutate(decision.item);
+					},
+				},
+			});
+		},
+		onSettled: () => refetchAfterChange(queryClient),
+	});
+	return confirmAll;
+}
+
 /** A list's pages with a Transaction back as Review has it: unassigned, unsplit. */
 function withRowReturned(
 	data: InfiniteData<TransactionsPage>,

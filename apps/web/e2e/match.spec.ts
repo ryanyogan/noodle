@@ -138,16 +138,17 @@ test("Review asks whether a tipped bank line is a Quick Add's copy, and Matches 
 	const card = page.getByTestId("review-card");
 	const offer = page.getByRole("region", { name: /^Is this your Quick Add/ });
 	// Shell is only a similar amount: nothing to Match it with. Skip to Nopa's line.
-	while (!(await card.textContent())?.includes("NOPA")) {
+	const current = page.locator("[data-testid=review-card][data-current]");
+	while (!(await current.textContent())?.includes("NOPA")) {
 		await expect(offer).toHaveCount(0);
-		await page.getByRole("button", { name: "Skip" }).click();
+		await page.keyboard.press("ArrowDown");
 	}
 	await expect(offer).toHaveAccessibleName(/^Is this your Quick Add “Nopa” \(\$40, /);
 	await expect(offer.getByRole("button", { name: /^Match with / })).toHaveCount(1);
 	await offer.getByRole("button", { name: /^Match with Nopa, \$40/ }).click();
 	await expect(toast(page, "Nopa Matched")).toBeVisible();
 	// Matched, it leaves Review, and the dinner counts once, as the Quick Add.
-	await expect(card).not.toContainText("NOPA");
+	await expect(card.filter({ hasText: "NOPA" })).toHaveCount(0);
 	await expect(page.locator("[data-slot=page-header]")).toContainText("1");
 	await page.context().close();
 });
