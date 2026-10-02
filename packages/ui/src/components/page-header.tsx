@@ -45,7 +45,11 @@ function PageHeader({
 				</div>
 				{trailing}
 			</div>
-			{actions ? <div className="ms-auto flex shrink-0 items-center gap-3">{actions}</div> : null}
+			{actions ? (
+				<div className="ms-auto flex max-w-full flex-wrap items-center justify-end gap-3">
+					{actions}
+				</div>
+			) : null}
 		</header>
 	);
 }

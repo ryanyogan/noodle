@@ -129,7 +129,7 @@ function TransactionsPage() {
 				eyebrow="Transactions"
 				title={sameYear ? monthName(month) : `${monthName(month)} ${month.slice(0, 4)}`}
 				actions={
-					<div className="flex items-center gap-1">
+					<div className="flex flex-wrap items-center justify-end gap-1">
 						{/* On phones Accounts lives here; the sidebar has its own link. */}
 						<Button variant="ghost" size="icon" className="lg:hidden" asChild>
 							<Link to="/accounts" aria-label="Accounts">
