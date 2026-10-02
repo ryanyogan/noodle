@@ -252,16 +252,16 @@ function Charges({ data, id }: { data: CommitmentsData; id: string }) {
 						</TableCaption>
 						<TableHeader>
 							<TableRow>
-								<TableHead className="ps-4">Due</TableHead>
+								<TableHead className="first:ps-4">Due</TableHead>
 								<TableHead>Paid</TableHead>
 								<TableHead>Status</TableHead>
-								<TableHead className="pe-4 text-end">Amount</TableHead>
+								<TableHead className="last:pe-4 text-end">Amount</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>
 							{charges.map((charge) => (
 								<TableRow key={charge.id}>
-									<TableCell className="ps-4 text-muted-foreground">
+									<TableCell className="first:ps-4 text-muted-foreground">
 										{charge.dueDate ? dayText(charge.dueDate, data.asOf) : "—"}
 									</TableCell>
 									<TableCell>{dayText(charge.date, data.asOf)}</TableCell>
@@ -276,7 +276,7 @@ function Charges({ data, id }: { data: CommitmentsData; id: string }) {
 											<span className="text-subtle-foreground">On time</span>
 										)}
 									</TableCell>
-									<TableCell className="pe-4 text-end font-medium tabular-nums">
+									<TableCell className="last:pe-4 text-end font-medium tabular-nums">
 										{formatMoney(charge.amount)}
 									</TableCell>
 								</TableRow>
