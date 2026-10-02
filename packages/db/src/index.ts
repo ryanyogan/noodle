@@ -564,6 +564,7 @@ export {
 	loadSpending,
 	loadSpendingBetween,
 	loadSpendingEarlierInYear,
+	loadTransaction,
 	loadTransactionsPage,
 	loadUnassignedBetween,
 	type QuickAddResult,

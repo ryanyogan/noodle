@@ -1,40 +1,23 @@
-import { canAssign, type For, monthKeyAt, type PlanBucket } from "@noodle/domain";
+import { canAssign, monthKeyAt, type PlanBucket } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
-import { Combobox } from "@noodle/ui/components/combobox";
 import { EmptyState } from "@noodle/ui/components/empty-state";
-import { Field } from "@noodle/ui/components/field";
-import { Input } from "@noodle/ui/components/input";
 import { List } from "@noodle/ui/components/list";
-import {
-	Sheet,
-	SheetCancel,
-	SheetContent,
-	SheetFooter,
-	SheetHeader,
-} from "@noodle/ui/components/sheet";
+import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated, useParams } from "@tanstack/react-router";
 import { ChevronRight, Lock, Plus, WandSparkles } from "lucide-react";
-import { type FormEvent, useState } from "react";
-import { ulid } from "ulid";
+import { useState } from "react";
 import { asBucketColor, monogram } from "../../../buckets";
-import { ForPicker } from "../../../components/for-picker";
 import { ListBesideDetail, masterDetailItem } from "../../../components/master-detail";
-import { Confirm } from "../../../components/plan-editing";
+import { RuleForm } from "../../../components/rule-form";
 import { SectionPending } from "../../../components/section-layout";
 import { forLabel, type MemberSummary } from "../../../members";
 import { membersQuery, monthQuery, rulesQuery } from "../../../queries";
-import {
-	type RuleRow,
-	useApplyRule,
-	useDeleteRule,
-	useEditRule,
-	useSaveRule,
-} from "../../../review";
+import type { RuleRow } from "../../../review";
 
 export const Route = createFileRoute("/_authed/_household/review/rules")({
 	beforeLoad: ({ context }) => ({
@@ -185,180 +168,5 @@ function RuleListRow({
 				<ChevronRight aria-hidden="true" className="size-4 text-subtle-foreground" />
 			</Link>
 		</li>
-	);
-}
-
-/**
- * Adds a Rule (`rule` null), or changes one's merchant words, Bucket and For; files what it
- * matches (saving any change first); or deletes it.
- */
-export function RuleForm({
-	rule,
-	buckets,
-	members,
-	onDone,
-	inline = false,
-}: {
-	rule: RuleRow | null;
-	buckets: PlanBucket[];
-	members: MemberSummary[];
-	onDone: () => void;
-	/** In the pane beside the list, not a sheet: Cancel goes back to the list. */
-	inline?: boolean;
-}) {
-	const hydrated = useHydrated();
-	const edit = useEditRule();
-	const remove = useDeleteRule();
-	const apply = useApplyRule();
-	const add = useSaveRule();
-	const [pattern, setPattern] = useState(rule?.pattern ?? "");
-	const [bucketId, setBucketId] = useState(rule?.bucketId ?? buckets[0]?.id ?? "");
-	const [forIds, setForIds] = useState<For>(rule?.for ?? []);
-	const [deleting, setDeleting] = useState(false);
-	const [missing, setMissing] = useState(false);
-	// Its Bucket stays pickable after leaving the Plan.
-	const options =
-		!rule || buckets.some((b) => b.id === rule.bucketId)
-			? buckets
-			: [...buckets, { id: rule.bucketId, name: rule.bucketName }];
-	const bucketName = options.find((b) => b.id === bucketId)?.name ?? rule?.bucketName ?? "";
-	const unchanged =
-		rule !== null &&
-		pattern.trim() === rule.pattern &&
-		bucketId === rule.bucketId &&
-		forIds.join() === rule.for.join();
-
-	function save(event: FormEvent) {
-		event.preventDefault();
-		if (!pattern.trim()) {
-			setMissing(true);
-			return;
-		}
-		if (!rule) {
-			// A new Rule also files what's still unassigned that it matches, as Review's does.
-			add.mutate({
-				ruleId: ulid(),
-				pattern: pattern.trim(),
-				bucketId,
-				bucketName,
-				forMemberIds: forIds,
-			});
-		} else if (!unchanged) {
-			edit.mutate({
-				ruleId: rule.id,
-				pattern: pattern.trim(),
-				bucketId,
-				bucketName,
-				forMemberIds: forIds,
-			});
-		}
-		onDone();
-	}
-
-	/** Files what the Rule matches, saving any change to it first. */
-	function fileNow() {
-		if (!rule) return;
-		if (!pattern.trim()) {
-			setMissing(true);
-			return;
-		}
-		const edited = { ...rule, pattern: pattern.trim(), bucketId, bucketName, for: forIds };
-		if (unchanged) apply.mutate(rule);
-		else {
-			// The sheet closes at once, so this goes on after it's gone: by the promise, not by
-			// mutate's own callbacks, which an unmounted form never hears.
-			edit
-				.mutateAsync({
-					ruleId: rule.id,
-					pattern: edited.pattern,
-					bucketId,
-					bucketName,
-					forMemberIds: forIds,
-				})
-				.then(() => apply.mutate(edited))
-				.catch(() => {});
-		}
-		onDone();
-	}
-
-	return (
-		<form onSubmit={save} noValidate className="grid gap-4">
-			<Field
-				label="Merchant"
-				htmlFor="rule-pattern"
-				hint={
-					missing && !pattern.trim() ? (
-						<span className="text-over">Type a word from the merchant’s name.</span>
-					) : (
-						"Statement lines containing these words"
-					)
-				}
-			>
-				<Input
-					id="rule-pattern"
-					value={pattern}
-					onChange={(event) => setPattern(event.target.value)}
-					maxLength={64}
-					autoComplete="off"
-					aria-invalid={(missing && !pattern.trim()) || undefined}
-					disabled={!hydrated}
-				/>
-			</Field>
-			<Field label="Bucket" htmlFor="rule-bucket">
-				<Combobox
-					id="rule-bucket"
-					value={bucketId}
-					onValueChange={setBucketId}
-					disabled={!hydrated}
-					searchPlaceholder="Find a Bucket"
-					choices={options.map((b) => ({ value: b.id, label: b.name }))}
-				/>
-			</Field>
-			<ForPicker members={members} value={forIds} onChange={setForIds} multiple />
-			{inline ? (
-				<div className="flex justify-end gap-2">
-					<Button type="button" variant="outline" onClick={onDone}>
-						Cancel
-					</Button>
-					<Button type="submit" disabled={!hydrated}>
-						Save
-					</Button>
-				</div>
-			) : (
-				<SheetFooter>
-					<SheetCancel />
-					<Button type="submit" disabled={!hydrated}>
-						{rule ? "Save" : "Add Rule and file what matches"}
-					</Button>
-				</SheetFooter>
-			)}
-			{rule ? (
-				<Button type="button" variant="outline" disabled={!hydrated} onClick={fileNow}>
-					{unchanged ? "File what’s still unassigned now" : "Save and file what’s still unassigned"}
-				</Button>
-			) : null}
-			{!rule ? null : deleting ? (
-				<Confirm
-					confirmLabel="Delete Rule"
-					onConfirm={() => {
-						remove.mutate(rule);
-						onDone();
-					}}
-					onCancel={() => setDeleting(false)}
-				>
-					Delete the Rule for “{rule.pattern}”? What it already filed stays where it is.
-				</Confirm>
-			) : (
-				<Button
-					type="button"
-					variant="ghost"
-					className="text-over"
-					disabled={!hydrated}
-					onClick={() => setDeleting(true)}
-				>
-					Delete Rule
-				</Button>
-			)}
-		</form>
 	);
 }

@@ -540,6 +540,8 @@ export async function loadTransactionsPage(
 		/** Newest first when left out. */
 		sort?: TransactionSort;
 		after?: TransactionCursor;
+		/** Only this Transaction (see `loadTransaction`). */
+		transactionId?: string;
 		limit: number;
 	},
 ): Promise<{
@@ -558,6 +560,7 @@ export async function loadTransactionsPage(
 	const amount = sql<number>`case when ${partly} then ${visibleSplitsSum(viewer)} else ${transactions.amountCents} end`;
 	const filtered = and(
 		visibleTo(viewer),
+		query.transactionId ? eq(transactions.id, query.transactionId) : undefined,
 		query.month ? gte(transactions.date, `${query.month}-01`) : undefined,
 		query.month ? lt(transactions.date, nextMonthStart(query.month)) : undefined,
 		matching(viewer, query.bucketId, query.forMember),
@@ -718,6 +721,20 @@ export async function loadTransactionsPage(
 				: null,
 		total,
 	};
+}
+
+/**
+ * One Transaction as the list would show it to `viewer`, or null when the list never would: it
+ * isn't the Household's, it's deleted, or it's in the other Parent's Personal Allowance
+ * (ADR-0003). One split partly into theirs comes back as the list has it: only its other Splits.
+ */
+export async function loadTransaction(
+	db: Db,
+	viewer: Viewer,
+	transactionId: string,
+): Promise<TransactionRow | null> {
+	const page = await loadTransactionsPage(db, viewer, { transactionId, limit: 1 });
+	return page.transactions[0] ?? null;
 }
 
 export type TransactionEditResult =

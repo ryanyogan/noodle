@@ -1,15 +1,21 @@
 import { canAssign } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
-import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, getRouteApi } from "@tanstack/react-router";
+import { useQuery, useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { createFileRoute, getRouteApi, Link, Navigate } from "@tanstack/react-router";
 import { ChevronLeft } from "lucide-react";
 import { useCallback, useEffect } from "react";
 import { DetailHeader, DetailPager, DetailPending } from "../../../components/master-detail";
 import { TransactionBody } from "../../../components/transaction-editor";
 import { dayName } from "../../../format";
 import { membersQuery, monthQuery } from "../../../queries";
-import { transactionLabel, transactionsQuery, useTransactionChange } from "../../../transactions";
+import {
+	monthOfTransaction,
+	transactionLabel,
+	transactionQuery,
+	transactionsQuery,
+	useTransactionChange,
+} from "../../../transactions";
 
 const list = getRouteApi("/_authed/_household/transactions/$month");
 
@@ -25,7 +31,8 @@ export const Route = createFileRoute("/_authed/_household/transactions/$month/$t
 function TransactionPane() {
 	const { transactionId } = Route.useParams();
 	const { month, parentId } = Route.useRouteContext();
-	// The list's own filters and order: the Transaction is read from the rows it has loaded.
+	// The list's own filters and order: the Transaction is read from the rows it has loaded, and
+	// asked for by its ID when it isn't among them (further down, or left out by the filters).
 	const filters = list.useLoaderDeps();
 	const navigate = Route.useNavigate();
 	const data = useSuspenseQuery(monthQuery(month)).data;
@@ -35,7 +42,9 @@ function TransactionPane() {
 	const loaded = useSuspenseInfiniteQuery(transactionsQuery(month, filters)).data.pages.flatMap(
 		(page) => page.transactions,
 	);
-	const transaction = loaded.find((row) => row.id === transactionId);
+	const listed = loaded.find((row) => row.id === transactionId);
+	const one = useQuery({ ...transactionQuery(month, transactionId), enabled: !listed });
+	const transaction = listed ?? one.data ?? undefined;
 	const change = useTransactionChange();
 	// Back to the list alone: it stays where it was scrolled to, and focus returns to the row, as
 	// it does when a sheet closes.
@@ -72,13 +81,44 @@ function TransactionPane() {
 			<ChevronLeft className="size-5" />
 		</Button>
 	);
+	if (!listed && one.isPending) return <DetailPending />;
 	if (!transaction) {
+		// Deleted, or not this Parent's to see: the two read the same (ADR-0003).
 		return (
 			<Card className="p-(--card-pad)">
 				<DetailHeader title="Transaction" leading={back} />
 				<p className="text-sm text-muted-foreground">
-					This Transaction isn’t in the list as it stands. It may be further down, left out by the
-					filters, or deleted.
+					There’s no Transaction here. It may have been deleted.
+				</p>
+			</Card>
+		);
+	}
+	// An address with another month's Transaction goes to its own month, whose Plan it's filed in.
+	const itsMonth = monthOfTransaction(transaction);
+	if (itsMonth !== month) {
+		return (
+			<Navigate
+				to="/transactions/$month/$transactionId"
+				params={{ month: itsMonth, transactionId }}
+				replace
+			/>
+		);
+	}
+	// Spending from a Goal is changed on its Goal, as its row in the list goes there.
+	if (transaction.goal) {
+		return (
+			<Card className="p-(--card-pad)">
+				<DetailHeader title={transactionLabel(transaction)} leading={back} />
+				<p className="text-sm text-muted-foreground">
+					This was spent from{" "}
+					<Link
+						to="/goals/$goalId"
+						params={{ goalId: transaction.goal.id }}
+						className="underline underline-offset-4"
+					>
+						{transaction.goal.name}
+					</Link>
+					, and is changed there.
 				</p>
 			</Card>
 		);

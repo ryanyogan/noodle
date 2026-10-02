@@ -2,6 +2,7 @@ import {
 	addQuickAdd as addQuickAddInDb,
 	deleteTransaction as deleteTransactionInDb,
 	loadBucketUses,
+	loadTransaction,
 	loadTransactionsPage,
 	loadUnfiledReceipt,
 	splitTransaction as splitTransactionInDb,
@@ -127,6 +128,20 @@ export const getTransactions = createServerFn({ method: "GET" })
 	.handler(
 		({ data, context }): Promise<TransactionsPage> =>
 			loadTransactionsPage(getDb(), viewerOf(context), { ...data, limit: PAGE_SIZE }),
+	);
+
+/**
+ * One Transaction by its ID, as the list shows it, for its own address
+ * (`/transactions/$month/$transactionId`) when the list hasn't loaded it. Null for what the list
+ * would never show this Parent: another Household's, a deleted one, or one in the other Parent's
+ * Personal Allowance (ADR-0003).
+ */
+export const getTransaction = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ transactionId: ulidSchema }))
+	.handler(
+		({ data, context }): Promise<TransactionRow | null> =>
+			loadTransaction(getDb(), viewerOf(context), data.transactionId),
 	);
 
 /** What a Transaction, or one of its Splits, is assigned to. */

@@ -17,7 +17,7 @@ import { Tile } from "@noodle/ui/components/tile";
 import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
+import { createFileRoute, Link, useHydrated, useNavigate } from "@tanstack/react-router";
 import { Check, CheckCheck, Pencil, RefreshCw, Sparkles } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { ulid } from "ulid";
@@ -106,6 +106,17 @@ function ReviewPage() {
 	const today = useSuspenseQuery(monthQuery(current)).data.asOf;
 	const [cursor, setCursor] = useState<string | null>(null);
 	const [changing, setChanging] = useState<ReviewItem | null>(null);
+	const navigate = useNavigate();
+	// From lg the Transaction opens at its own address, beside its month's list (#67); on a phone,
+	// in a sheet here.
+	const onEdit = (item: ReviewItem) => {
+		if (window.matchMedia("(min-width: 1024px)").matches) {
+			void navigate({
+				to: "/transactions/$month/$transactionId",
+				params: { month: monthOfTransaction(item), transactionId: item.id },
+			});
+		} else setChanging(item);
+	};
 	const decide = useReviewDecision();
 	const confirmAll = useConfirmAll();
 	const saveRule = useSaveRule();
@@ -291,7 +302,7 @@ function ReviewPage() {
 												onFocus={() => setCursor(item.id)}
 												onConfirm={() => confirm(item)}
 												onPick={(value, plan) => file(item, value, plan)}
-												onEdit={() => setChanging(item)}
+												onEdit={() => onEdit(item)}
 												onConfirmAll={(items) => confirmEach(items)}
 											/>
 										</div>

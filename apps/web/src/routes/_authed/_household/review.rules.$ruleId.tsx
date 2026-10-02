@@ -4,8 +4,8 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronLeft } from "lucide-react";
 import { DetailHeader, DetailPager, DetailPending } from "../../../components/master-detail";
+import { RuleForm } from "../../../components/rule-form";
 import { membersQuery, monthQuery, rulesQuery } from "../../../queries";
-import { RuleForm } from "./review.rules";
 
 /**
  * A Rule beside the Rules list (#67): its editor in the right pane from lg, a page with Back on a

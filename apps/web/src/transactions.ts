@@ -11,6 +11,7 @@ import {
 	type InfiniteData,
 	infiniteQueryOptions,
 	type QueryClient,
+	queryOptions,
 	useMutation,
 	useQueryClient,
 } from "@tanstack/react-query";
@@ -20,6 +21,7 @@ import { bucketUsesQuery, forTotalsEarlierKey, monthQuery, monthsKey } from "./q
 import type { MonthData } from "./server/month";
 import {
 	deleteTransaction,
+	getTransaction,
 	getTransactions,
 	splitTransaction,
 	type TransactionsPage,
@@ -67,6 +69,16 @@ export const transactionsQuery = (month: MonthKey, filters: TransactionFilters) 
 			}),
 		initialPageParam: undefined as TransactionCursor | undefined,
 		getNextPageParam: (page) => page.next ?? undefined,
+	});
+
+/**
+ * One Transaction by its ID, for its own address when the month's list hasn't loaded it. Null when
+ * it isn't this Parent's to see. Kept under its address's month, so it refetches with that month.
+ */
+export const transactionQuery = (month: MonthKey, transactionId: string) =>
+	queryOptions({
+		queryKey: [...transactionsKey(month), "one", transactionId],
+		queryFn: () => getTransaction({ data: { transactionId } }),
 	});
 
 /**

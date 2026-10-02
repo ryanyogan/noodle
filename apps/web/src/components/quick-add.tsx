@@ -292,7 +292,10 @@ function QuickAddForm({
 					{attached.applied ? ", split across its Buckets." : "."}
 				</p>
 				<Button variant="outline" asChild>
-					<Link to="/transactions/$month" params={{ month: monthOfDay(transaction.date) }}>
+					<Link
+						to="/transactions/$month/$transactionId"
+						params={{ month: monthOfDay(transaction.date), transactionId: transaction.id }}
+					>
 						See it in Transactions
 					</Link>
 				</Button>

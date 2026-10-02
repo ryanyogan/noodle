@@ -14,6 +14,7 @@ import {
 	loadPlanRecords,
 	loadSpending,
 	loadSpendingEarlierInYear,
+	loadTransaction,
 	loadTransactionsPage,
 	type SplitInput,
 	setAllowance,
@@ -104,6 +105,54 @@ const transactionIds = async (viewer: Viewer, bucketId?: string) =>
 	);
 
 describe("Personal Allowance privacy: reads", () => {
+	it("refuses the other Parent's Personal Allowance Transaction asked for by its ID", async () => {
+		// Its own Parent gets it whole; the other Parent gets nothing, as in the list.
+		expect(await loadTransaction(db, alex, "gift")).toMatchObject({
+			id: "gift",
+			amountCents: 4_200,
+			note: "Birthday gift for Sam",
+			bucketId: "alex-pa",
+		});
+		expect(await loadTransaction(db, sam, "gift")).toBeNull();
+		expect(await loadTransaction(db, alex, "coffee")).toBeNull();
+		// A shared Bucket's is both Parents'.
+		expect(await loadTransaction(db, sam, "milk")).toMatchObject({ id: "milk", amountCents: 650 });
+		// Another Household's, and one that isn't there.
+		expect(await loadTransaction(db, { householdId: "other", memberId: "sam" }, "milk")).toBeNull();
+		expect(await loadTransaction(db, alex, "nothing")).toBeNull();
+	});
+
+	it("gives one split partly into the other Parent's Personal Allowance only its other Splits", async () => {
+		await splitTransaction(db, {
+			householdId,
+			memberId: "alex",
+			transactionId: "milk",
+			amountCents: 650,
+			note: "Milk and a treat",
+			splits: [
+				{
+					id: "milk-shared",
+					amountCents: 400,
+					assignment: { bucketId: "groceries" },
+					forMemberIds: [],
+				},
+				{
+					id: "milk-mine",
+					amountCents: 250,
+					assignment: { bucketId: "alex-pa" },
+					forMemberIds: [],
+				},
+			],
+		});
+		const theirs = await loadTransaction(db, sam, "milk");
+		expect(theirs).toMatchObject({ amountCents: 400, note: null, partlyPrivate: true });
+		expect(theirs?.splits.map((split) => split.id)).toEqual(["milk-shared"]);
+		expect(await loadTransaction(db, alex, "milk")).toMatchObject({
+			amountCents: 650,
+			partlyPrivate: false,
+		});
+	});
+
 	it("gives the other Parent only a Personal Allowance's total, never its Transactions", async () => {
 		const spending = await loadSpending(db, sam, month);
 		expect(spending.map((s) => s.id).sort()).toEqual(["coffee", "milk", "private:alex-pa:2026-09"]);
