@@ -8,6 +8,16 @@ test("a signed-out visitor is sent to sign in, keeping where they were going", a
 	await expect(page).toHaveURL(/\/sign-in\?redirect_url=.*%2Fmonth%2F2026-08/);
 });
 
+test("a signed-out visitor keeps the address's query too, as a bank's return needs (#71)", async ({
+	page,
+}) => {
+	await page.goto("/bank/return?oauth_state_id=abc");
+	await expect(page).toHaveURL(/\/sign-in\?redirect_url=.*%2Fbank%2Freturn%3Foauth_state_id%3Dabc/);
+	expect(new URL(page.url()).searchParams.get("redirect_url")).toBe(
+		"/bank/return?oauth_state_id=abc",
+	);
+});
+
 test("a new Parent signs in, creates a Household, and can leave setup for an empty This Month", async ({
 	page,
 }) => {
