@@ -1,6 +1,6 @@
 import { cva } from "class-variance-authority";
 import { Slot, Tabs as TabsPrimitive } from "radix-ui";
-import type * as React from "react";
+import * as React from "react";
 import { cn } from "#lib/utils";
 
 // shadcn/ui's Tabs (https://ui.shadcn.com/docs/components/tabs), radix-nova, on this design
@@ -67,10 +67,46 @@ function LinkTabs({
 	children,
 	...props
 }: React.ComponentProps<"nav"> & { listClassName?: string }) {
+	// When the track scrolls, a faded edge says there's more that way (there's no scrollbar), and
+	// the current tab is scrolled into view.
+	const ref = React.useRef<HTMLElement>(null);
+	const [edges, setEdges] = React.useState({ start: false, end: false });
+	React.useEffect(() => {
+		const nav = ref.current;
+		if (!nav) return;
+		const measure = () => {
+			const max = nav.scrollWidth - nav.clientWidth;
+			const at = Math.abs(nav.scrollLeft);
+			setEdges((e) => {
+				const next = { start: max > 1 && at > 1, end: max > 1 && at < max - 1 };
+				return e.start === next.start && e.end === next.end ? e : next;
+			});
+		};
+		nav
+			.querySelector('[aria-current="page"]')
+			?.scrollIntoView({ block: "nearest", inline: "nearest" });
+		measure();
+		nav.addEventListener("scroll", measure, { passive: true });
+		const observer = new ResizeObserver(measure);
+		observer.observe(nav);
+		return () => {
+			nav.removeEventListener("scroll", measure);
+			observer.disconnect();
+		};
+	}, []);
 	return (
 		<nav
+			ref={ref}
 			data-slot="link-tabs"
-			className={cn("max-w-full overflow-x-auto [scrollbar-width:none]", className)}
+			data-fade-start={edges.start || undefined}
+			data-fade-end={edges.end || undefined}
+			className={cn(
+				"max-w-full snap-x snap-proximity overflow-x-auto [scrollbar-width:none]",
+				"[--fade-s:black] [--fade-e:black] data-fade-start:[--fade-s:transparent] data-fade-end:[--fade-e:transparent]",
+				"data-fade-start:mask-[linear-gradient(to_right,var(--fade-s),black_2rem,black_calc(100%-2rem),var(--fade-e))]",
+				"data-fade-end:mask-[linear-gradient(to_right,var(--fade-s),black_2rem,black_calc(100%-2rem),var(--fade-e))]",
+				className,
+			)}
 			{...props}
 		>
 			<div className={cn(tabsListVariants(), "max-w-none", listClassName)}>{children}</div>
@@ -85,7 +121,13 @@ function LinkTab({
 	...props
 }: React.ComponentProps<"a"> & { asChild?: boolean }) {
 	const Comp = asChild ? Slot.Root : "a";
-	return <Comp data-slot="link-tab" className={cn(tabsTriggerVariants(), className)} {...props} />;
+	return (
+		<Comp
+			data-slot="link-tab"
+			className={cn(tabsTriggerVariants(), "snap-start", className)}
+			{...props}
+		/>
+	);
 }
 
 /** A quiet rule between groups of LinkTabs. */

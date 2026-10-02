@@ -1,4 +1,4 @@
-import { ChevronsUpDownIcon } from "lucide-react";
+import { ChevronDownIcon } from "lucide-react";
 import { Popover as PopoverPrimitive } from "radix-ui";
 import * as React from "react";
 import {
@@ -86,7 +86,7 @@ function Combobox({
 					className={cn(selectTriggerClass, className)}
 				>
 					<span className="truncate">{chosen ? chosen.label : placeholder}</span>
-					<ChevronsUpDownIcon aria-hidden="true" className="text-muted-foreground" />
+					<ChevronDownIcon aria-hidden="true" className="text-muted-foreground" />
 				</PopoverPrimitive.Trigger>
 				<PopoverPrimitive.Portal>
 					<PopoverPrimitive.Content

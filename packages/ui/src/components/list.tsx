@@ -51,8 +51,10 @@ function ListRow({
 		>
 			{leading}
 			<div className="grid min-w-0 gap-0.5">
-				<div className="flex min-w-0 items-center gap-2 text-sm font-medium">
-					<span className="truncate">{title}</span>
+				{/* The name comes first: it wraps to two lines, and a badge that doesn't fit beside it
+				    drops to the next line rather than squeezing it to a letter (320 px phones). */}
+				<div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
+					<span className="line-clamp-2 min-w-0 break-words">{title}</span>
 					{badge}
 				</div>
 				{meta ? (

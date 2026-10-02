@@ -24,9 +24,14 @@ function PageHeader({
 	return (
 		<header
 			data-slot="page-header"
-			className={cn("mb-6 flex items-center justify-between gap-4 lg:mb-8", className)}
+			className={cn(
+				// Wraps: when a title word and the actions don't fit on one line (320 px phones), the actions
+				// drop to their own row instead of squeezing the title mid-word.
+				"mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 lg:mb-8",
+				className,
+			)}
 		>
-			<div className="flex min-w-0 items-center gap-1">
+			<div className="flex max-w-full items-center gap-1">
 				{leading}
 				<div className="min-w-0 px-0.5">
 					{eyebrow ? (
@@ -34,13 +39,13 @@ function PageHeader({
 							{eyebrow}
 						</p>
 					) : null}
-					<h1 className="line-clamp-2 text-2xl font-semibold tracking-[-0.025em] text-balance break-words lg:text-[2rem]">
+					<h1 className="text-2xl font-semibold tracking-[-0.025em] text-balance break-words lg:text-[2rem]">
 						{title}
 					</h1>
 				</div>
 				{trailing}
 			</div>
-			{actions ? <div className="flex shrink-0 items-center gap-3">{actions}</div> : null}
+			{actions ? <div className="ms-auto flex shrink-0 items-center gap-3">{actions}</div> : null}
 		</header>
 	);
 }

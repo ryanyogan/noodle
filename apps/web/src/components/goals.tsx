@@ -104,7 +104,7 @@ export function LinkRow({
 					<>
 						{leading}
 						<span className="grid min-w-0 gap-0.5">
-							<span className="truncate text-sm font-medium">{title}</span>
+							<span className="line-clamp-2 text-sm font-medium break-words">{title}</span>
 							{meta ? (
 								<span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[13px] text-muted-foreground">
 									{meta}

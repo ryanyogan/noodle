@@ -207,10 +207,15 @@ function GoalItem({
 			link={(props) => <Link to="/goals/$goalId" params={{ goalId: goal.id }} {...props} />}
 			label={`${goal.name}, ${formatMoney(progress.saved)} of ${formatMoney(goal.target)}${goal.account ? `, in ${goal.account.name}` : ""}`}
 			title={
-				<span className="inline-flex flex-wrap items-center gap-2">
+				// Inline, not flex, so a long name wraps and clamps with an ellipsis (LinkRow).
+				<>
 					<span className={cn(quiet && "text-muted-foreground")}>{goal.name}</span>
-					{emergency ? <Badge variant="brand">Emergency fund</Badge> : null}
-				</span>
+					{emergency ? (
+						<Badge variant="brand" className="ms-2 align-middle">
+							Emergency fund
+						</Badge>
+					) : null}
+				</>
 			}
 			meta={
 				<>

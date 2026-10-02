@@ -307,7 +307,7 @@ function Options({
 						})
 					}
 					options={REPORT_PERIODS.map((p) => ({ value: p, label: PERIOD_LABELS[p] }))}
-					className="max-sm:w-[calc(50%-0.25rem)]"
+					className="max-sm:min-w-38 max-sm:flex-[1_1_calc(50%-0.25rem)]"
 					triggerClassName="sm:w-44"
 				/>
 				{period === "custom" ? (
@@ -339,7 +339,7 @@ function Options({
 							nav.set({ compare: value === "previous" ? undefined : (value as Comparison) })
 						}
 						options={COMPARISONS.map((c) => ({ value: c, label: COMPARE_LABELS[c] }))}
-						className="max-sm:w-[calc(50%-0.25rem)]"
+						className="max-sm:min-w-38 max-sm:flex-[1_1_calc(50%-0.25rem)]"
 						triggerClassName="sm:w-52"
 					/>
 				) : null}
@@ -351,7 +351,7 @@ function Options({
 						value={search.group ?? ""}
 						onChange={(value) => nav.set({ group: (value || undefined) as ReportSearch["group"] })}
 						options={GROUPINGS.map((g) => ({ value: g, label: `By ${g}` }))}
-						className="max-sm:w-[calc(50%-0.25rem)]"
+						className="max-sm:min-w-38 max-sm:flex-[1_1_calc(50%-0.25rem)]"
 						triggerClassName="sm:w-44"
 					/>
 				) : null}

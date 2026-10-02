@@ -396,7 +396,7 @@ function ChildCost({
 				{year.total === 0 ? <Badge>Nothing yet</Badge> : null}
 			</div>
 			{year.total > 0 ? (
-				<Table className="table-fixed border-t text-sm">
+				<Table className="border-t text-sm sm:table-fixed">
 					<TableCaption className="sr-only">What {child.name} cost, by Bucket</TableCaption>
 					<TableHeader>
 						<TableRow className="border-0">
@@ -406,13 +406,13 @@ function ChildCost({
 							>
 								Bucket
 							</TableHead>
-							<TableHead scope="col" numeric className="h-auto w-28 px-2 pt-2.5 pb-1.5">
+							<TableHead scope="col" numeric className="h-auto px-2 pt-2.5 pb-1.5 sm:w-28">
 								This month
 							</TableHead>
 							<TableHead
 								scope="col"
 								numeric
-								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto w-28 pt-2.5 pb-1.5"
+								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-2.5 pb-1.5 sm:w-28"
 							>
 								This year
 							</TableHead>
@@ -428,7 +428,7 @@ function ChildCost({
 											className="size-2 shrink-0 rounded-[2px]"
 											style={{ background: `var(--bucket-${asBucketColor(bucket.color)})` }}
 										/>
-										<span className="truncate">{bucket.name}</span>
+										<span className="min-w-0 break-words">{bucket.name}</span>
 									</span>
 								</th>
 								<TableCell numeric className="px-2 py-1.5">
