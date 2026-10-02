@@ -164,6 +164,11 @@ _Avoid_: Dedupe, merge, reconcile
 
 ### Assistance
 
+**Setup**:
+The step-by-step start a new Household is walked through after it's created: how spending comes in (a bank, a statement, or by hand), Take-home pay, bills, Buckets, one Goal, inviting the other Parent, and a summary ending in Free to Spend.
+Each step lands on the Plan as it's finished, and leaving and coming back resumes. With a bank or a statement, Noodle reads the spending in the background and fills in amounts marked "Suggested from your spending", never replacing what a Parent typed. A Parent can run it again from Household, which changes what's there. The other Parent, on joining, gets "Here's your Household" instead.
+_Avoid_: Onboarding, tour, wizard (in the app's own words)
+
 **Check-in**:
 The weekly, few-minute ritual where the Parents clear Review, act on Insights, and decide Sweeps and Extra income. The only time the app asks for attention.
 It falls on the Household's chosen Check-in day; its week runs from that day. At 9 AM that day (or when their quiet hours end) each Parent who hasn't done it gets one Nudge and an email summary, both read for them alone. It opens as a short card stack (Review, Insights, Sweeps, Extra income, skipping any with nothing in it) that ends on a done state, even when nothing needed them. Each Parent does their own; each sees whether the other has done this week's.

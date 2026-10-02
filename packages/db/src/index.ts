@@ -528,6 +528,7 @@ export {
 	saveScenario,
 } from "./scenarios";
 export {
+	hasTakeHomePay,
 	loadSetupHistory,
 	loadSetupJobs,
 	loadSetupProgress,

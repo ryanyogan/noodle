@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "./index";
-import { bankConnections, imports, setupJobs, setupProgress } from "./schema";
+import { bankConnections, baselines, imports, setupJobs, setupProgress } from "./schema";
 
 // The get-started wizard (#53): its progress per Household, the Setup Workflow's jobs, and what
 // that Workflow waits on (the first history to land). Every query is scoped by household_id.
@@ -29,6 +29,19 @@ export async function loadSetupProgress(
 		.from(setupProgress)
 		.where(eq(setupProgress.householdId, householdId));
 	return row ?? null;
+}
+
+/**
+ * Whether the Household has ever set take-home pay. A Household from before the wizard has a Plan
+ * and no progress row; it counts as set up, so This Month doesn't ask it to continue.
+ */
+export async function hasTakeHomePay(db: Db, householdId: string): Promise<boolean> {
+	const [row] = await db
+		.select({ month: baselines.month })
+		.from(baselines)
+		.where(eq(baselines.householdId, householdId))
+		.limit(1);
+	return row !== undefined;
 }
 
 /**

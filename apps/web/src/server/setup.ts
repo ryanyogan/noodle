@@ -1,4 +1,5 @@
 import {
+	hasTakeHomePay,
 	loadSetupJobs,
 	loadSetupProgress,
 	restartSetupProgress,
@@ -35,16 +36,19 @@ export const getSetup = createServerFn({ method: "GET" })
 	.middleware([householdMiddleware])
 	.handler(async ({ context }): Promise<SetupState> => {
 		const db = getDb();
-		const [progress, jobs] = await Promise.all([
+		const [progress, jobs, planned] = await Promise.all([
 			loadSetupProgress(db, context.household.id),
 			loadSetupJobs(db, context.household.id),
+			hasTakeHomePay(db, context.household.id),
 		]);
 		const answers = setupAnswersSchema.safeParse(progress?.answers ?? {});
 		return {
 			step: progress?.step ?? 1,
 			answers: answers.success ? answers.data : {},
 			skipped: progress?.skipped ?? [],
-			finished: progress?.finishedAt != null,
+			// No progress row: a brand-new Household has setup ahead of it; one that already has a
+			// Plan was set up before the wizard (or by the checklist) and isn't asked to continue.
+			finished: progress ? progress.finishedAt != null : planned,
 			jobs,
 		};
 	});
