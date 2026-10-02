@@ -443,7 +443,9 @@ function BucketPick({
 			<Tile bucket={color} aria-hidden="true" className="row-span-2 size-8 rounded-[10px]">
 				{monogram(bucket.name)}
 			</Tile>
-			<span className="truncate text-[13px] font-medium">{bucket.name}</span>
+			<span className="line-clamp-2 text-[13px] leading-tight font-medium [overflow-wrap:anywhere]">
+				{bucket.name}
+			</span>
 			<span className="truncate text-xs text-subtle-foreground tabular-nums">
 				{formatMoney(Math.max(0, bucket.left))} left
 				{suggested ? <span className="text-muted-foreground"> · Suggested</span> : null}
