@@ -6,7 +6,7 @@ import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useHydrated, useRouter } from "@tanstack/react-router";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { ulid } from "ulid";
 import { CenteredHeading, CenteredPage } from "../../components/centered-page";
 import { viewerQuery } from "../../queries";
@@ -89,16 +89,7 @@ function CreateHousehold() {
 						/>
 					</Field>
 					<Field label="Your name" htmlFor="parentName">
-						<Input
-							id="parentName"
-							name="parentName"
-							required
-							maxLength={80}
-							autoComplete="given-name"
-							// Clerk's first name once it loads (after hydration): remount to take it.
-							key={firstName ?? ""}
-							defaultValue={firstName}
-						/>
+						<ParentNameInput firstName={firstName} />
 					</Field>
 					{create.isError ? (
 						<FormError>We couldn’t create your Household. Please try again.</FormError>
@@ -143,16 +134,7 @@ function JoinHousehold({ invite, onStartOwn }: { invite: InviteToJoin; onStartOw
 			<Card>
 				<form onSubmit={onSubmit} className="grid gap-4 p-(--card-pad)">
 					<Field label="Your name" htmlFor="parentName">
-						<Input
-							id="parentName"
-							name="parentName"
-							required
-							maxLength={80}
-							autoComplete="given-name"
-							// Clerk's first name once it loads (after hydration): remount to take it.
-							key={firstName ?? ""}
-							defaultValue={firstName}
-						/>
+						<ParentNameInput firstName={firstName} />
 					</Field>
 					{refused === "invite-unusable" ? (
 						<FormError>
@@ -187,6 +169,28 @@ function JoinHousehold({ invite, onStartOwn }: { invite: InviteToJoin; onStartOw
 				</Button>
 			</div>
 		</CenteredPage>
+	);
+}
+
+/**
+ * "Your name", started with Clerk's first name once it loads (after hydration) - unless the Parent
+ * has typed in it already, so a late load never overwrites what they typed.
+ */
+function ParentNameInput({ firstName }: { firstName: string | undefined }) {
+	const input = useRef<HTMLInputElement>(null);
+	useEffect(() => {
+		if (firstName && input.current && input.current.value === "") input.current.value = firstName;
+	}, [firstName]);
+	return (
+		<Input
+			ref={input}
+			id="parentName"
+			name="parentName"
+			required
+			maxLength={80}
+			autoComplete="given-name"
+			defaultValue={firstName}
+		/>
 	);
 }
 
