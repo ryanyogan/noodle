@@ -6,8 +6,14 @@
 	// TanStack Start's server entry, plus the Household Agent class it exports.
 	"main": "src/server.ts",
 	"observability": { "enabled": true },
+	// The app's address. workers.dev stays on so links already handed out, and the webhook URLs
+	// Plaid stored for Bank Connections made before the move, keep working.
+	"routes": [{ "pattern": "noodle.yogan.dev", "custom_domain": true }],
+	"workers_dev": true,
 	"vars": {
 		"CLERK_SIGN_IN_URL": "/sign-in",
+		// The app's own address, for links in emails and the webhook URL given to Plaid.
+		"APP_ORIGIN": "https://noodle.yogan.dev",
 		// Ask's model calls go through this AI Gateway (ADR-0012); "default" is auto-created on first use.
 		"AI_GATEWAY_ID": "default",
 		// Plaid's environment for Bank Connections: "sandbox" or "production" (ADR-0017). They also
@@ -80,7 +86,7 @@
 	// (server/check-in-weekly.ts); without them it's skipped, as in local dev and E2E. The domain
 	// of CHECK_IN_EMAIL_FROM must be onboarded to Email Service first.
 	// "send_email": [{ "name": "EMAIL" }],
-	// and in "vars": "CHECK_IN_EMAIL_FROM": "checkin@<domain>", "APP_ORIGIN": "https://<app>"
+	// and in "vars": "CHECK_IN_EMAIL_FROM": "checkin@<domain>"
 	// Forwarded Receipts arrive by Email Routing (ADR-0016): route receipts@<domain>, with
 	// subaddressing on, to this Worker, and add to "vars": "RECEIPTS_EMAIL_DOMAIN": "<domain>".
 	// Without it the Household page says forwarding isn't set up.

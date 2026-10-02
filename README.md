@@ -30,7 +30,7 @@ Schema changes: edit `packages/db/src/schema.ts`, then `cd packages/db && bun ru
 
 ## Deploy
 
-The Worker is `noodle` (https://noodle.ryanyogan.workers.dev) with D1 database `noodle`. CI deploys on push to `main` after checks pass.
+The Worker is `noodle` (https://noodle.yogan.dev, also at https://noodle.ryanyogan.workers.dev) with D1 database `noodle`. CI deploys on push to `main` after checks pass.
 
 One-time setup, not automated:
 
