@@ -8,12 +8,14 @@ import {
 	monthOfDay,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
+import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Tile } from "@noodle/ui/components/tile";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight, Info } from "lucide-react";
+import { useState } from "react";
 import { dayName, formatMoney, monthName, shortDay } from "../format";
 import { commitmentsQuery } from "../queries";
 
@@ -48,14 +50,34 @@ export function useComingUp() {
  * Coming up: what the Commitments are due from today through the next 30 days, by date, each
  * linking to its Commitment's page. Bills (This Month) holds it.
  */
+/** How many Coming up shows before "See all". */
+const COMING_UP_FIRST = 5;
+
 export function ComingUpList() {
 	const { dues, today } = useComingUp();
+	// The first few, so a busy month doesn't push everything below it down (#47).
+	const [all, setAll] = useState(false);
+	const shown = all ? dues : dues.slice(0, COMING_UP_FIRST);
 	return dues.length > 0 ? (
-		<List>
-			{dues.map((due) => (
-				<DueRow key={`${due.commitmentId}:${due.date}`} due={due} today={today} />
-			))}
-		</List>
+		<div className="grid gap-2">
+			<List>
+				{shown.map((due) => (
+					<DueRow key={`${due.commitmentId}:${due.date}`} due={due} today={today} />
+				))}
+			</List>
+			{dues.length > COMING_UP_FIRST ? (
+				<Button
+					type="button"
+					variant="ghost"
+					size="sm"
+					className="justify-self-start"
+					aria-expanded={all}
+					onClick={() => setAll(!all)}
+				>
+					{all ? "Show fewer" : `See all ${dues.length}`}
+				</Button>
+			) : null}
+		</div>
 	) : (
 		<Card className="p-(--card-pad) text-sm text-muted-foreground">
 			Nothing is due in the next 30 days.

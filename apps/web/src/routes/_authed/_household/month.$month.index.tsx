@@ -285,7 +285,7 @@ function ThisMonth() {
 							) : null}
 						</div>
 					</div>
-					<div className="contents lg:grid lg:gap-8">
+					<div className="contents lg:sticky lg:top-4 lg:-m-1 lg:grid lg:max-h-[calc(100dvh-2rem)] lg:gap-8 lg:overflow-y-auto lg:p-1 lg:[scrollbar-width:thin]">
 						<div className="order-5 grid gap-3 lg:order-none">
 							<FreeToSpend state={state} check={check} />
 							<LumpCallout lumps={lumpsIn(state)} month={month} />
