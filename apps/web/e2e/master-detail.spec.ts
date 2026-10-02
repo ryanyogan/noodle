@@ -371,7 +371,7 @@ test("a Transaction's address shows it whatever the list has loaded, and is a pa
 	await expect(rows.first()).toBeHidden();
 	expect(await overflow(page)).toBeLessThanOrEqual(393);
 	await axe(page, "A Transaction on a phone");
-	await page.getByRole("button", { name: "Back to Transactions" }).click();
+	await page.getByRole("link", { name: "Back to Transactions" }).click();
 	await expect(page).toHaveURL(/\/transactions\/\d{4}-\d{2}$/);
 	await expect(rows.first()).toBeVisible();
 	await expect(paneTitle).toHaveCount(0);

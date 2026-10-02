@@ -4,7 +4,7 @@ import { Card } from "@noodle/ui/components/card";
 import { useQuery, useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, getRouteApi, Link, Navigate } from "@tanstack/react-router";
 import { ChevronLeft } from "lucide-react";
-import { useCallback, useEffect } from "react";
+import { useCallback } from "react";
 import { DetailHeader, DetailPager, DetailPending } from "../../../components/master-detail";
 import { TransactionBody } from "../../../components/transaction-editor";
 import { dayName } from "../../../format";
@@ -46,8 +46,9 @@ function TransactionPane() {
 	const one = useQuery({ ...transactionQuery(month, transactionId), enabled: !listed });
 	const transaction = listed ?? one.data ?? undefined;
 	const change = useTransactionChange();
-	// Back to the list alone: it stays where it was scrolled to, and focus returns to the row, as
-	// it does when a sheet closes.
+	// Back to the list alone, by its address rather than by going Back, so it works when this
+	// address was the first one opened: the list stays where it was scrolled to, and focus returns
+	// to the row, as it does when a sheet closes. Esc does the same from the list's route.
 	const close = useCallback(() => {
 		document.querySelector<HTMLElement>('[data-slot="list-row"] > button[aria-current]')?.focus();
 		void navigate({
@@ -57,28 +58,23 @@ function TransactionPane() {
 			resetScroll: false,
 		});
 	}, [navigate, month]);
-	// Esc closes the pane as it closes the sheet, unless a menu, picker or dialog is open to take it.
-	useEffect(() => {
-		const onKey = (event: KeyboardEvent) => {
-			if (event.key !== "Escape" || event.defaultPrevented) return;
-			if (document.querySelector("[role=dialog],[role=alertdialog],[role=listbox],[role=menu]")) {
-				return;
-			}
-			close();
-		};
-		// Before a picker's own Esc handler runs, while it is still in the page.
-		window.addEventListener("keydown", onKey, true);
-		return () => window.removeEventListener("keydown", onKey, true);
-	}, [close]);
+	// A link, as the other details' Back is: it works before the pane has hydrated.
 	const back = (
-		<Button
-			type="button"
-			variant="ghost"
-			size="icon"
-			aria-label="Back to Transactions"
-			onClick={close}
-		>
-			<ChevronLeft className="size-5" />
+		<Button variant="ghost" size="icon" asChild>
+			<Link
+				to="/transactions/$month"
+				params={{ month }}
+				search
+				resetScroll={false}
+				aria-label="Back to Transactions"
+				onClick={() =>
+					document
+						.querySelector<HTMLElement>('[data-slot="list-row"] > button[aria-current]')
+						?.focus()
+				}
+			>
+				<ChevronLeft className="size-5" />
+			</Link>
 		</Button>
 	);
 	if (!listed && one.isPending) return <DetailPending />;

@@ -129,6 +129,29 @@ function TransactionsPage() {
 			});
 		} else setEditing(transaction);
 	};
+	// Esc closes the pane as it closes the sheet, unless a menu, picker or dialog is open to take
+	// it. It goes to the list's address, not Back: a Transaction's address opened on its own has
+	// nothing to go back to. Listened for here rather than in the pane, which hydrates later than
+	// the list, so the key works as soon as the list does.
+	useEffect(() => {
+		if (!picked) return;
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key !== "Escape" || event.defaultPrevented) return;
+			if (document.querySelector("[role=dialog],[role=alertdialog],[role=listbox],[role=menu]")) {
+				return;
+			}
+			document.querySelector<HTMLElement>('[data-slot="list-row"] > button[aria-current]')?.focus();
+			void navigate({
+				to: "/transactions/$month",
+				params: { month },
+				search: true,
+				resetScroll: false,
+			});
+		};
+		// Before a picker's own Esc handler runs, while it is still in the page.
+		window.addEventListener("keydown", onKey, true);
+		return () => window.removeEventListener("keydown", onKey, true);
+	}, [picked, navigate, month]);
 	const change = useTransactionChange();
 	const waiting = useSuspenseQuery(reviewQuery()).data.total;
 	const sameYear = month.slice(0, 4) === current.slice(0, 4);
