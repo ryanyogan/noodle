@@ -743,11 +743,7 @@ function AddMoneySheet({
 							className="grid w-full grid-cols-1 sm:grid-cols-2"
 						>
 							{options.map((option) => (
-								<ToggleGroupItem
-									key={option.from}
-									value={option.from}
-									className="h-auto min-h-9 py-1 whitespace-normal"
-								>
+								<ToggleGroupItem key={option.from} value={option.from} size="wrap">
 									{option.label}
 								</ToggleGroupItem>
 							))}

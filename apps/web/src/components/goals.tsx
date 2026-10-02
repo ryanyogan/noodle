@@ -594,11 +594,7 @@ function GoalKindField({
 				className="grid w-full grid-cols-2"
 			>
 				{options.map((option) => (
-					<ToggleGroupItem
-						key={option.kind}
-						value={option.kind}
-						className="h-auto min-h-9 py-1 whitespace-normal"
-					>
+					<ToggleGroupItem key={option.kind} value={option.kind} size="wrap">
 						{option.label}
 					</ToggleGroupItem>
 				))}

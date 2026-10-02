@@ -9,6 +9,7 @@ import {
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Input } from "@noodle/ui/components/input";
+import { RowButton } from "@noodle/ui/components/row-button";
 import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { Tile } from "@noodle/ui/components/tile";
@@ -16,15 +17,7 @@ import { cn } from "@noodle/ui/lib/utils";
 import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useRouter, useSearch } from "@tanstack/react-router";
 import { Delete, ReceiptText } from "lucide-react";
-import {
-	type CSSProperties,
-	type ReactNode,
-	Suspense,
-	useCallback,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../buckets";
 import { formatMoney, monthName, shortDay } from "../format";
@@ -428,20 +421,11 @@ function BucketPick({
 }) {
 	const color = asBucketColor(bucket.color);
 	return (
-		<button
-			type="button"
+		<RowButton
+			variant="tile"
 			aria-disabled={!ready}
 			onClick={onPick}
-			style={{ "--tile": `var(--bucket-${color})` } as CSSProperties}
-			className={cn(
-				"grid grid-cols-[32px_minmax(0,1fr)] items-center gap-x-2.5 rounded-xl border bg-card px-2.5 py-2 text-start",
-				"transition-[border-color,background-color,opacity,transform] duration-(--duration-fast) ease-standard",
-				"focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-				ready
-					? "hover:border-[color-mix(in_oklab,var(--tile)_45%,var(--border))] hover:bg-[color-mix(in_oklab,var(--tile)_5%,var(--card))] active:scale-[0.98]"
-					: "opacity-45",
-				suggested && "border-border-strong",
-			)}
+			className={cn("grid-cols-[32px_minmax(0,1fr)]", suggested && "border-border-strong")}
 		>
 			<Tile bucket={color} aria-hidden="true" className="row-span-2 size-8 rounded-[10px]">
 				{monogram(bucket.name)}
@@ -453,7 +437,7 @@ function BucketPick({
 				{formatMoney(Math.max(0, bucket.left))} left
 				{suggested ? <span className="text-muted-foreground"> · Suggested</span> : null}
 			</span>
-		</button>
+		</RowButton>
 	);
 }
 
@@ -467,19 +451,9 @@ function Key({
 	children: ReactNode;
 }) {
 	return (
-		<button
-			type="button"
-			aria-label={label}
-			onClick={onPress}
-			className={cn(
-				"grid h-13 place-items-center rounded-xl text-2xl font-medium tabular-nums select-none",
-				"transition-[background-color,transform] duration-(--duration-fast) ease-standard",
-				"hover:bg-surface-2 active:scale-[0.96] active:bg-surface-3",
-				"focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-			)}
-		>
+		<RowButton variant="key" aria-label={label} onClick={onPress}>
 			{children}
-		</button>
+		</RowButton>
 	);
 }
 

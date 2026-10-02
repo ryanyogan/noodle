@@ -424,11 +424,7 @@ function Explore({ search }: { search: ExploreSearch }) {
 						className="flex-wrap"
 					>
 						{HORIZONS.map((h) => (
-							<ToggleGroupItem
-								key={h.months}
-								value={String(h.months)}
-								className="data-[state=on]:bg-card data-[state=on]:shadow-card data-[state=on]:ring-1 data-[state=on]:ring-border"
-							>
+							<ToggleGroupItem key={h.months} value={String(h.months)} variant="segmented">
 								{h.label}
 							</ToggleGroupItem>
 						))}

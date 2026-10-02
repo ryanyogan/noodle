@@ -15,6 +15,15 @@ import {
 	ChartLegendContent,
 	ChartTooltip,
 } from "@noodle/ui/components/chart";
+import {
+	Table,
+	TableBody,
+	TableCaption,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@noodle/ui/components/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@noodle/ui/components/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { cn } from "@noodle/ui/lib/utils";
@@ -170,43 +179,37 @@ function MonthDetail({ breakdown }: { breakdown: MonthBreakdown }) {
 	);
 	return (
 		<div className="grid gap-2 text-xs">
-			<table className="w-full tabular-nums">
-				<caption className="pb-1 text-start font-medium text-foreground">
-					{monthLong(breakdown.month)}
-				</caption>
-				<thead className="sr-only">
-					<tr>
-						<th>Line</th>
-						<th>Plan</th>
-						<th>Scenario</th>
-					</tr>
-				</thead>
-				<tbody>
+			<Table dense>
+				<TableCaption>{monthLong(breakdown.month)}</TableCaption>
+				<TableHeader className="sr-only">
+					<TableRow>
+						<TableHead>Line</TableHead>
+						<TableHead>Plan</TableHead>
+						<TableHead>Scenario</TableHead>
+					</TableRow>
+				</TableHeader>
+				<TableBody>
 					{lines.map(([label, key]) => (
-						<tr key={key}>
-							<th
-								scope="row"
-								className="py-0.5 pe-3 text-start font-normal whitespace-nowrap text-muted-foreground"
-							>
-								{label}
-							</th>
-							<td className="py-0.5 ps-2 text-end whitespace-nowrap text-muted-foreground">
+						<TableRow key={key}>
+							<TableHead scope="row">{label}</TableHead>
+							<TableCell numeric className="text-muted-foreground">
 								{formatMoney(breakdown.plan[key])}
-							</td>
-							<td
+							</TableCell>
+							<TableCell
+								numeric
 								className={cn(
-									"py-0.5 ps-2 text-end font-medium whitespace-nowrap text-foreground",
+									"font-medium text-foreground",
 									breakdown.scenario[key] < 0 && (key === "freeToSpend" || key === "cushion")
 										? "text-over"
 										: null,
 								)}
 							>
 								{formatMoney(breakdown.scenario[key])}
-							</td>
-						</tr>
+							</TableCell>
+						</TableRow>
 					))}
-				</tbody>
-			</table>
+				</TableBody>
+			</Table>
 			{levers.length > 0 ? (
 				<div className="grid gap-1 border-t pt-2">
 					<p className="font-medium text-muted-foreground">
@@ -308,7 +311,7 @@ function TappedMonth({ month, onClose }: { month: string | null; onClose: () => 
 				type="button"
 				variant="ghost"
 				size="icon-sm"
-				className="absolute top-1 right-1 text-muted-foreground"
+				className="absolute top-1 right-1 z-10 text-muted-foreground"
 				onClick={onClose}
 			>
 				<X />

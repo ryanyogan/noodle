@@ -1,3 +1,4 @@
+import { Button } from "@noodle/ui/components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@noodle/ui/components/popover";
 import { cn } from "@noodle/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
@@ -19,20 +20,19 @@ export function TermHelp({ term, className }: { term: GlossaryId; className?: st
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
-				<button
+				<Button
 					ref={trigger}
 					type="button"
+					variant="ghost"
+					size="help"
 					aria-label={`What’s “${entry.term}”?`}
 					className={cn(
-						"relative -my-1 inline-flex size-6 shrink-0 max-lg:after:absolute max-lg:after:-inset-2.5 items-center justify-center rounded-full align-middle text-muted-foreground",
-						"transition-colors duration-(--duration-fast) hover:bg-surface-2 hover:text-foreground",
-						"focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring",
-						"data-[state=open]:bg-surface-2 data-[state=open]:text-foreground",
+						"align-middle data-[state=open]:bg-surface-2 data-[state=open]:text-foreground",
 						className,
 					)}
 				>
-					<CircleHelp aria-hidden="true" className="size-4" />
-				</button>
+					<CircleHelp aria-hidden="true" />
+				</Button>
 			</PopoverTrigger>
 			<PopoverContent
 				align="start"

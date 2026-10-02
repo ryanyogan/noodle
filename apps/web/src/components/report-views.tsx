@@ -10,6 +10,7 @@ import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
+import { RowButton } from "@noodle/ui/components/row-button";
 import { Stat, StatGrid } from "@noodle/ui/components/stat";
 import { Tile } from "@noodle/ui/components/tile";
 import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
@@ -203,15 +204,11 @@ function DrillRow({
 	children: ReactNode;
 }) {
 	return (
-		<button
-			type="button"
+		<RowButton
 			onClick={onClick}
 			disabled={disabled}
 			aria-label={label}
-			className={cn(
-				"group -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-xl px-2 py-2 text-left",
-				"transition-colors duration-(--duration-fast) enabled:hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-ring",
-			)}
+			className="group -mx-2 w-[calc(100%+1rem)] px-2"
 		>
 			{children}
 			{disabled ? (
@@ -222,7 +219,7 @@ function DrillRow({
 					className="size-4 shrink-0 text-subtle-foreground transition-transform duration-(--duration-fast) group-hover:translate-x-0.5"
 				/>
 			)}
-		</button>
+		</RowButton>
 	);
 }
 
@@ -904,7 +901,7 @@ function BucketsView({ data, names, search, nav, tables }: ViewProps<"buckets">)
 				<ToggleGroup
 					type="single"
 					variant="segmented"
-					size="sm"
+					size="icon-sm"
 					aria-label="Chart type"
 					value={chart}
 					onValueChange={(kind) =>
@@ -912,7 +909,7 @@ function BucketsView({ data, names, search, nav, tables }: ViewProps<"buckets">)
 					}
 				>
 					{kinds.map(({ kind, label, icon: Icon }) => (
-						<ToggleGroupItem key={kind} value={kind} aria-label={label} className="px-0">
+						<ToggleGroupItem key={kind} value={kind} aria-label={label}>
 							<Icon />
 						</ToggleGroupItem>
 					))}
@@ -1344,11 +1341,10 @@ function TrendsView({ report, data, names, nav, tables }: ViewProps<"trends">) {
 				<ul className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
 					{data.multiples.map((m) => (
 						<li key={m.target} className="min-w-0">
-							<button
-								type="button"
+							<RowButton
+								variant="soft"
 								disabled={names.isPrivate(m.target)}
 								onClick={() => nav.area(m.target)}
-								className="grid w-full gap-2 rounded-xl bg-surface-2/60 p-3 text-left transition-colors duration-(--duration-fast) enabled:hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-ring"
 							>
 								<span className="flex items-center gap-2">
 									<span
@@ -1367,7 +1363,7 @@ function TrendsView({ report, data, names, nav, tables }: ViewProps<"trends">) {
 									className="h-10 w-full"
 									color={shareColor(names, m.target)}
 								/>
-							</button>
+							</RowButton>
 						</li>
 					))}
 				</ul>

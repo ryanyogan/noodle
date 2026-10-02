@@ -8,6 +8,7 @@ import {
 	ChartLegendContent,
 	ChartTooltip,
 } from "@noodle/ui/components/chart";
+import { RowButton } from "@noodle/ui/components/row-button";
 import {
 	Table,
 	TableBody,
@@ -796,11 +797,10 @@ export function VarianceHeatmap({
 					const off = cell && cell.ratio !== null ? Math.abs(cell.ratio - 1) : 0;
 					return (
 						<li key={row.key}>
-							<button
-								type="button"
+							<RowButton
 								disabled={!onSelect || !cell}
 								onClick={() => onSelect?.(row.key, month)}
-								className="flex min-h-11 w-full items-center gap-3 rounded-lg py-2 text-left enabled:active:bg-surface-2 focus-visible:outline-2 focus-visible:outline-ring"
+								className="rounded-lg"
 							>
 								<span className="grid min-w-0 flex-1 gap-1">
 									<span className="min-w-0 text-sm font-medium">{row.label}</span>
@@ -836,7 +836,7 @@ export function VarianceHeatmap({
 								>
 									{text}
 								</span>
-							</button>
+							</RowButton>
 						</li>
 					);
 				})}

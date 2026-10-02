@@ -458,11 +458,7 @@ function Filters({
 					className="w-full flex-wrap gap-1.5"
 				>
 					{meta.buckets.map((b) => (
-						<ToggleGroupItem
-							key={b.id}
-							value={b.id}
-							className="rounded-full border border-border bg-card text-foreground hover:bg-surface-2 data-[state=on]:border-transparent data-[state=on]:bg-foreground data-[state=on]:text-background"
-						>
+						<ToggleGroupItem key={b.id} value={b.id} variant="chip">
 							<span
 								className="size-2 rounded-full"
 								style={{ background: `var(--bucket-${b.color})` }}

@@ -7,6 +7,7 @@ import {
 	CollapsibleTrigger,
 } from "@noodle/ui/components/collapsible";
 import { List } from "@noodle/ui/components/list";
+import { RowButton } from "@noodle/ui/components/row-button";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -92,23 +93,21 @@ function PlanCommitments() {
 			) : null}
 			{lumpy.length > 0 ? (
 				// The year view keeps the one list of lumpy months; this says how many and leads there.
-				<Link
-					to="/plan/$month/year"
-					params={{ month }}
-					className="flex items-center justify-between gap-4 rounded-xl border px-(--card-pad) py-3 text-sm transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60"
-				>
-					<span>
-						<span className="font-medium">
-							{lumpy.length === 1 ? "1 lumpy month" : `${lumpy.length} lumpy months`} ahead
+				<RowButton asChild variant="bordered">
+					<Link to="/plan/$month/year" params={{ month }}>
+						<span>
+							<span className="font-medium">
+								{lumpy.length === 1 ? "1 lumpy month" : `${lumpy.length} lumpy months`} ahead
+							</span>
+							<span className="block text-[13px] text-muted-foreground">
+								Next: {monthYear(lumpy[0]?.month ?? month)},{" "}
+								{formatMoney((lumpy[0]?.lumps ?? []).reduce((sum, l) => sum + l.extra, 0))} extra.
+								See them on the year.
+							</span>
 						</span>
-						<span className="block text-[13px] text-muted-foreground">
-							Next: {monthYear(lumpy[0]?.month ?? month)},{" "}
-							{formatMoney((lumpy[0]?.lumps ?? []).reduce((sum, l) => sum + l.extra, 0))} extra. See
-							them on the year.
-						</span>
-					</span>
-					<ChevronRight aria-hidden="true" className="size-4 shrink-0 text-subtle-foreground" />
-				</Link>
+						<ChevronRight aria-hidden="true" className="size-4 shrink-0 text-subtle-foreground" />
+					</Link>
+				</RowButton>
 			) : null}
 		</>
 	);

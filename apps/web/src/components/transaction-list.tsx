@@ -1,5 +1,6 @@
 import { canAssign, type DayKey, daysBetween, MATCH_WINDOW, type Plan } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
+import { RowButton } from "@noodle/ui/components/row-button";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
@@ -151,12 +152,7 @@ export function TransactionItem({
 								...new Set(transaction.splits.map((s) => assignmentOf(s, plan).name)),
 							].join(", ")}${from}`
 						: `${assignment.name} · ${who}${from}`;
-	const rowClassName = cn(
-		"grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-(--card-pad) py-3.5 text-start",
-		columns && cn(TRANSACTION_COLUMNS, "xl:gap-x-4 xl:py-3"),
-		"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60",
-		"focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
-	);
+	const rowClassName = columns ? cn(TRANSACTION_COLUMNS, "xl:gap-x-4 xl:py-3") : undefined;
 	const pill = "h-4.5 px-1.5 text-[11px]";
 	const badges = (
 		<>
@@ -262,17 +258,19 @@ export function TransactionItem({
 			{...props}
 		>
 			{transaction.goal ? (
-				<Link
-					to="/goals/$goalId"
-					params={{ goalId: transaction.goal.id }}
-					aria-label={`${spokenTitle}, ${amount}, from the ${assignment.name} Goal`}
-					className={rowClassName}
-				>
-					{content}
-				</Link>
+				<RowButton asChild variant="list" className={rowClassName}>
+					<Link
+						to="/goals/$goalId"
+						params={{ goalId: transaction.goal.id }}
+						aria-label={`${spokenTitle}, ${amount}, from the ${assignment.name} Goal`}
+					>
+						{content}
+					</Link>
+				</RowButton>
 			) : (
-				<button
-					type="button"
+				<RowButton
+					variant="list"
+					className={rowClassName}
 					aria-label={
 						transfer
 							? `${spokenTitle}, ${amount}, ${detail.replace(" · ", ", ").replace(" → ", " to ")}`
@@ -286,10 +284,9 @@ export function TransactionItem({
 					}
 					aria-current={selected ? "true" : undefined}
 					onClick={() => onEdit(transaction)}
-					className={rowClassName}
 				>
 					{content}
-				</button>
+				</RowButton>
 			)}
 		</li>
 	);

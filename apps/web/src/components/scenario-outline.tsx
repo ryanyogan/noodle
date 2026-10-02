@@ -21,6 +21,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
+import { RowButton } from "@noodle/ui/components/row-button";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import {
 	Select,
@@ -531,11 +532,11 @@ function Line({
 				badge={badge}
 				meta={meta}
 				trailing={
-					<button
-						type="button"
+					<RowButton
+						variant="value"
 						aria-label={`Edit ${title}`}
 						aria-expanded={expanded}
-						className="-me-2 flex min-h-9 items-center gap-1 rounded-lg ps-2 pe-1 hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
+						className="-me-2"
 						onClick={() => setExpanded((open) => !open)}
 					>
 						{shown}
@@ -546,7 +547,7 @@ function Line({
 								expanded && "rotate-180",
 							)}
 						/>
-					</button>
+					</RowButton>
 				}
 				below={expanded ? editor : undefined}
 			/>
@@ -560,15 +561,15 @@ function Line({
 			meta={meta}
 			trailing={
 				<>
-					<button
-						type="button"
+					<RowButton
+						variant="value"
 						aria-label={`Edit ${title}`}
-						className="-me-2 flex min-h-11 items-center gap-1 rounded-lg ps-2 pe-1 focus-visible:outline-2 focus-visible:outline-ring"
+						className="-me-2"
 						onClick={() => setOpen(true)}
 					>
 						{shown}
 						<ChevronRight aria-hidden="true" className="size-4 text-subtle-foreground" />
-					</button>
+					</RowButton>
 					<Sheet open={open} onOpenChange={setOpen}>
 						<SheetContent>
 							<SheetHeader title={title} description={meta} />

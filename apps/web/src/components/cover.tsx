@@ -13,12 +13,12 @@ import {
 	CollapsibleTrigger,
 } from "@noodle/ui/components/collapsible";
 import { Input } from "@noodle/ui/components/input";
+import { RowButton } from "@noodle/ui/components/row-button";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
-import { cn } from "@noodle/ui/lib/utils";
 import { Link, useHydrated } from "@tanstack/react-router";
 import { ChevronRight, Wallet } from "lucide-react";
-import { type CSSProperties, useId, useState } from "react";
+import { useId, useState } from "react";
 import { asBucketColor, monogram } from "../buckets";
 import { formatMoney, formatMoneyInput } from "../format";
 
@@ -196,19 +196,11 @@ function SourcePick({
 	const { bucket } = source;
 	const color = bucket ? asBucketColor(bucket.color) : undefined;
 	return (
-		<button
-			type="button"
+		<RowButton
+			variant="tile"
 			aria-disabled={!ready}
 			onClick={onPick}
-			style={color ? ({ "--tile": `var(--bucket-${color})` } as CSSProperties) : undefined}
-			className={cn(
-				"grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-x-2.5 rounded-xl border bg-card px-2.5 py-2 text-start",
-				"transition-[border-color,background-color,opacity,transform] duration-(--duration-fast) ease-standard",
-				"focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-				ready
-					? "hover:border-border-strong hover:bg-surface-2 active:scale-[0.98]"
-					: "cursor-not-allowed opacity-45",
-			)}
+			className="grid-cols-[32px_minmax(0,1fr)_auto]"
 		>
 			<Tile bucket={color} aria-hidden="true" className="size-8 rounded-[10px]">
 				{bucket ? monogram(bucket.name) : <Wallet />}
@@ -217,7 +209,7 @@ function SourcePick({
 			<span className="text-[13px] text-muted-foreground tabular-nums">
 				{formatMoney(source.left)} left
 			</span>
-		</button>
+		</RowButton>
 	);
 }
 
