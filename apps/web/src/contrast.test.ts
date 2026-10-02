@@ -63,6 +63,12 @@ describe.each([
 		},
 	);
 
+	it("a bar's Today line and over fill are at least 3:1 on its track (BudgetBar, #64)", () => {
+		for (const ink of ["foreground", "over"]) {
+			expect(contrast(t[ink] as string, t["surface-3"] as string)).toBeGreaterThanOrEqual(3);
+		}
+	});
+
 	it("the Over badge's text is at least 4.5:1 on its tint, over a card", () => {
 		const badge = tint(t.over as string, overAlpha, t.card as string);
 		expect(contrast(t["over-foreground"] as string, badge)).toBeGreaterThanOrEqual(4.5);

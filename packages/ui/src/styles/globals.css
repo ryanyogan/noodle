@@ -216,6 +216,7 @@
 	--color-chart-spend: var(--chart-spend);
 	--color-chart-income: var(--chart-income);
 	--color-chart-compare: var(--chart-compare);
+	--color-chart-allowance: var(--chart-allowance);
 	--color-chart-net: var(--chart-net);
 	--color-chart-mid: var(--chart-mid);
 	--color-chart-seq-1: var(--chart-seq-1);
