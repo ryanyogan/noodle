@@ -652,6 +652,11 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 	const shown = data.items.filter((item) => item.amount >= threshold);
 	const maxItem = Math.max(1, ...data.items.map((i) => i.amount));
 	const bandMax = Math.max(1, ...data.bands.map((b) => b.amount));
+	// The picked bar in words, so touch reads what hover's tooltip shows.
+	const band = data.bands.find((b) => b.floor === threshold);
+	const next = stops[index + 1];
+	const bandCount = band?.count ?? 0;
+	const bandText = `${next === undefined ? `${stopLabel(threshold)} and up` : `${stopLabel(threshold)} to ${stopLabel(next)}`}: ${formatMoney(band?.amount ?? 0)} in ${bandCount} ${bandCount === 1 ? "Transaction" : "Transactions"}`;
 	if (data.spent === 0 && data.items.length === 0 && data.commitments.length === 0)
 		return <NothingYet />;
 	return (
@@ -726,6 +731,7 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 							);
 						})}
 					</ToggleGroup>
+					<p className="text-xs text-muted-foreground tabular-nums">{bandText}</p>
 				</div>
 			</Card>
 			<ChartCard
@@ -962,9 +968,13 @@ function BucketsView({ data, names, search, nav, tables }: ViewProps<"buckets">)
 											</span>
 										</span>
 										{chart === "bar" ? bar : null}
-										<span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-											<span>{SHARE_KIND[names.kindOf(t.target)] ?? ""}</span>
-											<span aria-hidden="true">·</span>
+										<span className="flex items-center gap-1.5 text-xs whitespace-nowrap text-muted-foreground">
+											<span className="max-sm:hidden">
+												{SHARE_KIND[names.kindOf(t.target)] ?? ""}
+											</span>
+											<span aria-hidden="true" className="max-sm:hidden">
+												·
+											</span>
 											<span className="tabular-nums">
 												{data.spent > 0 ? formatPercent(t.amount / data.spent) : "—"}
 											</span>
@@ -1176,7 +1186,9 @@ function PlanView({ data, names, nav, tables }: ViewProps<"plan">) {
 		label: (
 			<span className="flex items-center gap-2">
 				<KeyTile names={names} target={`bucket:${id}`} className="size-6 rounded-md text-[11px]" />
-				<span className="truncate">{names.label(`bucket:${id}`)}</span>
+				<span className="min-w-0 truncate max-sm:line-clamp-2 max-sm:whitespace-normal">
+					{names.label(`bucket:${id}`)}
+				</span>
 			</span>
 		),
 		cells: data.months.map(
@@ -1319,9 +1331,9 @@ function TrendsView({ report, data, names, nav, tables }: ViewProps<"trends">) {
 				/>
 			</ChartCard>
 			<ChartCard title="By Bucket" description="Each on its own scale" table={tables.multiples}>
-				<ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+				<ul className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
 					{data.multiples.map((m) => (
-						<li key={m.target}>
+						<li key={m.target} className="min-w-0">
 							<button
 								type="button"
 								disabled={names.isPrivate(m.target)}
@@ -1333,7 +1345,9 @@ function TrendsView({ report, data, names, nav, tables }: ViewProps<"trends">) {
 										className="size-2 shrink-0 rounded-full"
 										style={{ background: shareColor(names, m.target) }}
 									/>
-									<span className="truncate text-[13px] font-medium">{names.label(m.target)}</span>
+									<span className="min-w-0 truncate text-[13px] font-medium">
+										{names.label(m.target)}
+									</span>
 								</span>
 								<span className="text-base font-semibold tabular-nums">
 									{formatMoney(m.amount)}

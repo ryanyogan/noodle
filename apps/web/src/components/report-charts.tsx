@@ -156,14 +156,14 @@ export function ChartCard({
 			aria-labelledby={titleId}
 			role="group"
 		>
-			<div className="flex items-start justify-between gap-3">
-				<div className="grid min-w-0 gap-0.5">
+			<div className="flex flex-wrap items-start justify-between gap-3">
+				<div className="grid min-w-0 flex-1 basis-40 gap-0.5">
 					<h2 id={titleId} className="text-sm font-semibold">
 						{title}
 					</h2>
 					{description ? <p className="text-[13px] text-muted-foreground">{description}</p> : null}
 				</div>
-				<div className="flex shrink-0 items-center gap-1">
+				<div className="ms-auto flex shrink-0 items-center gap-1">
 					{actions}
 					{table ? (
 						<Toggle
@@ -786,7 +786,65 @@ export function VarianceHeatmap({
 	}, [months.length]);
 	return (
 		<>
-			<div ref={scroller} className="-mx-(--card-pad) overflow-x-auto px-(--card-pad)">
+			{/* On a phone, a list: each Bucket's latest month in words, its past months as a strip. */}
+			<ul className="grid gap-1 sm:hidden">
+				{rows.map((row) => {
+					const at = months.length - 1;
+					const month = months[at] ?? "";
+					const cell = row.cells[at] ?? null;
+					const text = cell && cell.ratio !== null ? `${Math.round(cell.ratio * 100)}%` : "—";
+					const off = cell && cell.ratio !== null ? Math.abs(cell.ratio - 1) : 0;
+					return (
+						<li key={row.key}>
+							<button
+								type="button"
+								disabled={!onSelect || !cell}
+								onClick={() => onSelect?.(row.key, month)}
+								className="flex min-h-11 w-full items-center gap-3 rounded-lg py-2 text-left enabled:active:bg-surface-2 focus-visible:outline-2 focus-visible:outline-ring"
+							>
+								<span className="grid min-w-0 flex-1 gap-1">
+									<span className="min-w-0 text-sm font-medium">{row.label}</span>
+									<span className="text-xs text-muted-foreground tabular-nums">
+										{cell
+											? `${formatMoney(cell.spent)} of ${formatMoney(cell.planned)} in ${monthLabel(month)}`
+											: `Not in the Plan in ${monthLabel(month)}`}
+									</span>
+									<span aria-hidden="true" className="flex flex-wrap gap-0.5">
+										{row.cells.map((c, i) => (
+											<span
+												key={months[i]}
+												className={cn(
+													"h-2.5 w-4 rounded-[2px]",
+													!c && "border border-border-strong",
+												)}
+												style={{ background: c ? tone(c.ratio) : undefined }}
+											/>
+										))}
+									</span>
+								</span>
+								<span
+									className={cn(
+										"min-w-14 shrink-0 rounded-md px-2 py-1.5 text-center text-sm tabular-nums",
+										off > 0.75
+											? "font-semibold text-white"
+											: off > 0.5
+												? "font-semibold text-foreground"
+												: "text-foreground",
+										!cell && "bg-surface-2/40",
+									)}
+									style={{ background: cell ? tone(cell.ratio) : undefined }}
+								>
+									{text}
+								</span>
+							</button>
+						</li>
+					);
+				})}
+			</ul>
+			<div
+				ref={scroller}
+				className="-mx-(--card-pad) hidden overflow-x-auto px-(--card-pad) sm:block"
+			>
 				<table className="w-full min-w-max border-separate border-spacing-0.5 text-xs">
 					<thead>
 						<tr>
@@ -925,6 +983,9 @@ export function CalendarHeatmap({
 	const last = inRange[inRange.length - 1];
 	const [active, setActive] = useState<DayKey | undefined>(last);
 	const current = active && active >= from && active < until ? active : last;
+	// On touch the first tap on a day shows its amount below; a second tap opens it.
+	const pointer = useRef("mouse");
+	const [revealed, setRevealed] = useState<DayKey | undefined>();
 	const scroller = useRef<HTMLDivElement>(null);
 	useEffect(() => {
 		const el = scroller.current;
@@ -982,6 +1043,9 @@ export function CalendarHeatmap({
 					role="group"
 					aria-label="Spending each day"
 					onKeyDown={move}
+					onPointerDownCapture={(event) => {
+						pointer.current = event.pointerType;
+					}}
 					className="grid w-max gap-[3px] text-[11px] text-muted-foreground"
 					style={{
 						gridTemplateColumns: `auto repeat(${weeks}, 1.5rem)`,
@@ -1022,9 +1086,19 @@ export function CalendarHeatmap({
 									tabIndex={day === current ? 0 : -1}
 									aria-disabled={onSelect ? undefined : true}
 									onFocus={() => setActive(day)}
-									onClick={() => onSelect?.(day)}
+									onClick={() => {
+										if (pointer.current === "touch" && revealed !== day) {
+											setRevealed(day);
+											setActive(day);
+											return;
+										}
+										onSelect?.(day);
+									}}
 									aria-label={label}
-									className="size-6 rounded-[4px] transition-transform duration-(--duration-fast) hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+									className={cn(
+										"size-6 rounded-[4px] transition-transform duration-(--duration-fast) hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring",
+										day === revealed && "ring-2 ring-foreground/60",
+									)}
 									style={{
 										background: fills[level],
 										gridColumn: Math.floor(i / 7) + 2,
@@ -1036,6 +1110,11 @@ export function CalendarHeatmap({
 					})}
 				</div>
 			</div>
+			{current ? (
+				<p className="text-xs text-foreground tabular-nums">
+					{shortDay(current)}: {formatMoney(byDay.get(current) ?? 0)}
+				</p>
+			) : null}
 			<div className="flex items-center gap-1.5 text-xs text-muted-foreground" aria-hidden="true">
 				Less
 				{fills.map((fill) => (
