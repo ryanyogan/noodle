@@ -523,9 +523,13 @@ function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck |
 					label="In Buckets"
 					value={formatMoney(state.planned)}
 					note={
-						personalAllowances === null
-							? undefined
-							: `incl. ${formatMoney(personalAllowances)} Personal Allowances`
+						personalAllowances === null ? undefined : (
+							<>
+								incl. {formatMoney(personalAllowances)}{" "}
+								{/* Three narrow columns on a phone: two lines, not three (#48). */}
+								<span className="max-sm:sr-only">Personal </span>Allowances
+							</>
+						)
 					}
 				/>
 				<Stat label="Left in Buckets" value={formatMoney(state.leftInBuckets)} />
@@ -578,7 +582,7 @@ function Breakdown({ state, baseline }: { state: MonthState; baseline: number })
 	);
 }
 
-function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
+function Stat({ label, value, note }: { label: string; value: string; note?: ReactNode }) {
 	return (
 		<div className="grid content-start gap-0.5 px-(--card-pad) py-3.5 [&+&]:border-s">
 			<dt className="text-xs font-medium text-muted-foreground">{label}</dt>
