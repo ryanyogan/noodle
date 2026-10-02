@@ -1,10 +1,12 @@
 import type * as React from "react";
 import { cn } from "#lib/utils";
 
-function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+function Input({ className, type, autoComplete, ...props }: React.ComponentProps<"input">) {
 	return (
 		<input
 			type={type}
+			// Names and amounts here are the Household's own; browser autofill only gets in the way.
+			autoComplete={autoComplete ?? (type === "email" ? "email" : "off")}
 			data-slot="input"
 			className={cn(
 				// 16px on phones so iOS Safari doesn't zoom on focus.

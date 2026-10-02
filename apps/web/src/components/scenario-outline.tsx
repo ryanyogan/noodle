@@ -986,11 +986,10 @@ function GrowthLine({ lever, edit }: { lever: ScenarioChange | undefined; edit: 
 				{label}
 				<Input
 					id={`${id}-${key}`}
-					type="number"
+					type="text"
 					inputMode="decimal"
-					step={0.5}
-					min={-50}
-					max={50}
+					pattern="-?[0-9]*[.]?[0-9]*"
+					autoComplete="off"
 					defaultValue={growth[key]}
 					className="h-9 tabular-nums"
 					onChange={(event) => {
