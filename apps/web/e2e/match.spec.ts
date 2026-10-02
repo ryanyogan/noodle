@@ -39,7 +39,7 @@ async function uploadCardStatement(page: Page, lines: [string, string][]) {
 	await page.getByLabel("Owed now").fill("800");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: /^Visa, / }).click();
-	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Visa");
+	await expect(page.locator("[data-slot=detail-title]:visible")).toContainText("Visa");
 
 	// Dated today where the browser (and so the Household) is: the Quick Adds' day.
 	const today = await page.evaluate(() => new Date().toLocaleDateString("en-US"));

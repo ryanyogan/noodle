@@ -70,7 +70,7 @@ test("an Overlap between two streaming Commitments is found, accepted, and dismi
 	await card.getByText("What it’s based on").click();
 	await expect(card.getByRole("link", { name: "Disney+" })).toHaveAttribute(
 		"href",
-		/\/plan\/commitments\//,
+		/\/plan\/\d{4}-\d{2}\/commitments\//,
 	);
 	await expect(card.getByRole("link", { name: "Hulu" })).toBeVisible();
 	await expect(card.getByRole("listitem")).toHaveCount(4);
