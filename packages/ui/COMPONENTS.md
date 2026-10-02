@@ -49,6 +49,8 @@ Never let the CLI overwrite a file here.
 | Tooltip | shadcn, by hand (#47) | `WithTooltip` is the common case. Never the only place something is said: touch can't hover. |
 | Chart | shadcn | On Recharts, for Reports and Explore. |
 | PageLayout, SplitLayout (SplitMain, SplitRail), MasterDetail | Noodle's own (#67) | The page grid, below. Every page under the shared header is one of the three. |
+| Stat, StatGrid | Noodle's own (#56) | A figure under its label, and the `<dl>` a few of them sit in. See "Figures" below. |
+| Money | Noodle's own (#56) | An amount from cents, in tabular figures on one line: `whole` rounds to dollars, `signed` adds "+" to a gain, `flagNegative` puts a negative in the over ink. `formatMoney` (`lib/money.ts`) is the same text as a string. |
 | Field, List, Meter, PageHeader, Section, Tile, EmptyState, Logo | Noodle's own | |
 
 ## The page grid
@@ -87,6 +89,20 @@ One height scale, so controls that sit in a row line up without a height class. 
 - **Button `chip`** with `variant="secondary"`: a filter that is on, with an × to take it off (Transactions, Reports).
 - **Button `inline`** with `variant="link"`: a few underlined words inside a sentence that do something ("Try again", "Use the estimate"). It takes the sentence's text size; for the sentence's colour too, add `text-current hover:text-current`.
 - Below lg every size is 44px, as "Tap targets" says, apart from `chip` and `inline`.
+
+## Figures
+
+A figure with a label is a `Stat` in a `StatGrid`, never a hand-written `<dl>`. The grid picks the layout and the size, so every figure in it matches; columns come from `className`.
+
+| Layout | Size | Label / value | Where |
+| --- | --- | --- | --- |
+| `ruled` | `sm` | 12px / 14px semibold | A strip along the bottom of a card, ruled above and between: This Month's totals, a Bucket's, a Commitment's and a payoff Goal's facts. `wrapLast` gives the last of three its own row on a phone. |
+| `spaced` (default) | `default` | 13px / 18px semibold | A card's totals: Accounts, Goals. |
+| `cards` | `lg` | 13px / 24px semibold | Each figure is its own Card: a Scenario against the Plan. |
+
+- `note` is a second line under the value, `help` a TermHelp beside the label, `tone="over"` the over ink.
+- Give the value as text, or as `<Money cents={…} />` so it never wraps.
+- A list of words and their meanings (the Glossary) and a table of Plan against actual (the Year) are not figures; they stay a `<dl>` or a Table.
 
 ## Which dialog
 
