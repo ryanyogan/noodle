@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { accountKindLabel, choose, savedBy, signedInPage } from "./session";
+import { savedBy, signedInPage } from "./session";
 
 // The get-started wizard's statement and bank paths (#53), with the fakes (AI_MODEL=stub): Hello
 // starts the Setup Workflow, the header reports its jobs, and once the plan draft lands the steps
@@ -61,27 +61,20 @@ async function begin(browser: Parameters<typeof signedInPage>[0], path: RegExp) 
 	return page;
 }
 
-/** In another tab, as the statement card says: adds a checking Account and uploads its statement. */
-async function uploadInNewTab(page: Page) {
-	const tab = await page.context().newPage();
-	await tab.goto("/accounts");
-	await expect(tab.getByRole("heading", { level: 1 })).toHaveText("Accounts");
-	await tab.getByLabel("Name").fill("Checking");
-	await choose(tab, "Kind", accountKindLabel("checking"));
-	await tab.getByLabel("Balance now").fill("3,000");
-	await tab.getByRole("button", { name: "Add Account" }).click();
-	await tab.getByRole("link", { name: /^Checking, / }).click();
-	await expect(tab.locator("[data-slot=page-header]")).toContainText("Checking");
-	await tab.getByRole("button", { name: "Upload statement" }).click();
-	const sheet = tab.getByRole("dialog", { name: "Upload a statement" });
-	await sheet.getByLabel("Statement file").setInputFiles({
+/** In the wizard itself: names the Account the statement is from, and uploads its file. */
+async function uploadHere(page: Page) {
+	await page.getByLabel("Which account is this from?").fill("Checking");
+	await page.getByRole("button", { name: "Choose the statement" }).click();
+	await page.getByLabel("Statement file").setInputFiles({
 		name: "checking.csv",
 		mimeType: "text/csv",
 		buffer: Buffer.from(history()),
 	});
-	await sheet.getByRole("button", { name: /^Import \d+ lines$/ }).click();
-	await expect(sheet).toBeHidden();
-	await tab.close();
+	await page.getByRole("button", { name: /^Import \d+ lines$/ }).click();
+	await expect(page.getByText("checking.csv is in for Checking")).toBeVisible();
+	// It was all done here: no other tab, and still on the step.
+	expect(page.context().pages()).toHaveLength(1);
+	await expect(page.getByText("Step 2 of 7")).toBeVisible();
 }
 
 const next = async (page: Page, step: number) => {
@@ -98,8 +91,8 @@ test("statement: the Setup Workflow reads it and steps 2 to 4 fill in from the p
 	const page = await begin(browser, /Upload a statement/);
 	const pay = page.getByRole("textbox", { name: PAY });
 	await expect(pay).toHaveValue("");
-	await expect(page.getByRole("link", { name: "Open Accounts in a new tab" })).toBeVisible();
-	await uploadInNewTab(page);
+	await expect(page.getByRole("link", { name: /Accounts/ })).toHaveCount(0);
+	await uploadHere(page);
 
 	// The wizard stayed put; the header follows the jobs, and the guess fills the empty field.
 	await expect(spendingIn(page)).toBeVisible({ timeout: 60_000 });
@@ -130,7 +123,7 @@ test("statement: take-home pay typed before the suggestion arrives is kept", asy
 	const page = await begin(browser, /Upload a statement/);
 	const pay = page.getByRole("textbox", { name: PAY });
 	await pay.fill("4,321");
-	await uploadInNewTab(page);
+	await uploadHere(page);
 	await expect(spendingIn(page)).toBeVisible({ timeout: 60_000 });
 	// Give a late fill the chance to happen before saying it didn't.
 	await page.waitForTimeout(1500);
@@ -149,18 +142,22 @@ test("bank: connecting the fake bank runs the Setup Workflow to the end", async 
 	const pay = page.getByRole("textbox", { name: PAY });
 	await pay.fill("5,000");
 
-	// The wizard has no connect button of its own yet: the bank is connected on Accounts.
-	const tab = await page.context().newPage();
-	await tab.goto("/accounts");
-	await tab.getByRole("button", { name: "Connect a bank" }).click();
-	await tab
+	// Plaid Link (its stand-in here) and Choose Accounts open in the wizard itself.
+	await page.getByRole("button", { name: "Connect your bank" }).click();
+	await page
 		.getByRole("dialog", { name: "Which of these do you have already?" })
 		.getByRole("button", { name: "Start bringing them in" })
 		.click();
-	await expect(
-		tab.getByRole("status").filter({ hasText: "from First Platypus Bank." }),
-	).toBeVisible();
-	await tab.close();
+	// The card names the bank and says how the reading stands (it may be done already).
+	const card = page
+		.locator("[data-slot=card]")
+		.filter({ hasText: "First Platypus Bank is connected" });
+	await expect(card).toBeVisible();
+	await expect(card.getByRole("status")).toHaveText(
+		/(Reading|Sorting) your spending…|Your spending is in/,
+	);
+	expect(page.context().pages()).toHaveLength(1);
+	await expect(page.getByText("Step 2 of 7")).toBeVisible();
 
 	await expect(spendingIn(page)).toBeVisible({ timeout: 60_000 });
 	await expect(pay).toHaveValue(/^5,?000(\.00)?$/);

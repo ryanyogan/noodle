@@ -6,17 +6,18 @@ import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { Logo } from "@noodle/ui/components/logo";
 import { RadioGroup, RadioGroupCard } from "@noodle/ui/components/radio-group";
+import { Skeleton } from "@noodle/ui/components/skeleton";
 import { Spinner } from "@noodle/ui/components/spinner";
 import { Stepper } from "@noodle/ui/components/stepper";
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect, useHydrated, useRouter } from "@tanstack/react-router";
 import { type FormEvent, type ReactNode, Suspense, useEffect, useId, useState } from "react";
 import { ulid } from "ulid";
-import { BankConnections, useConnectBank } from "../../components/bank-connections";
 import { GlossaryDialog } from "../../components/glossary";
 import { AmountInput } from "../../components/goals";
 import { InviteOtherParent } from "../../components/invite-other-parent";
 import { SetupBills } from "../../components/setup-bills";
+import { SetupBankCard, SetupStatementCard } from "../../components/setup-spending";
 import { CarriesOverHelp, StarterBucketPicker } from "../../components/starter-buckets";
 import { TermHelp } from "../../components/term-help";
 import { formatMoney, formatMoneyInput } from "../../format";
@@ -219,6 +220,7 @@ function StepFrame({
 	disabled,
 	aside,
 	formless,
+	lead,
 }: {
 	title: string;
 	intro?: ReactNode;
@@ -233,20 +235,33 @@ function StepFrame({
 	aside?: ReactNode;
 	/** For a step whose body has a form of its own: the primary button is then a plain button. */
 	formless?: boolean;
+	/**
+	 * Shown first, outside the step's form: for a card with a form or a sheet of its own (connecting
+	 * a bank, uploading a statement), whose submit must not also submit the step.
+	 */
+	lead?: ReactNode;
 }) {
 	const hydrated = useHydrated();
+	const formId = useId();
 	function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		onSubmit();
 	}
-	const frame = (
-		<>
+	return (
+		<div className="flex flex-1 flex-col">
 			<div className="grid gap-5 pb-6">
 				<div className="grid gap-2">
 					<h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.03em]">{title}</h1>
 					{intro ? <p className="text-[15px] text-muted-foreground">{intro}</p> : null}
 				</div>
-				{children}
+				{lead}
+				{formless ? (
+					children
+				) : (
+					<form id={formId} onSubmit={submit} className="grid gap-5">
+						{children}
+					</form>
+				)}
 			</div>
 			<div className="sticky bottom-0 z-10 mt-auto grid gap-2 border-t border-border bg-background py-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
 				{aside}
@@ -264,6 +279,7 @@ function StepFrame({
 						) : null}
 						<Button
 							type={formless ? "button" : "submit"}
+							form={formless ? undefined : formId}
 							size="lg"
 							disabled={!hydrated || pending || disabled}
 							onClick={formless ? onSubmit : undefined}
@@ -274,14 +290,7 @@ function StepFrame({
 					</div>
 				</div>
 			</div>
-		</>
-	);
-	return formless ? (
-		<div className="flex flex-1 flex-col">{frame}</div>
-	) : (
-		<form onSubmit={submit} className="flex flex-1 flex-col">
-			{frame}
-		</form>
+		</div>
 	);
 }
 
@@ -296,7 +305,7 @@ const PATHS: { value: SetupPath; label: string; description: string }[] = [
 		value: "statement",
 		label: "Upload a statement",
 		description:
-			"Download a statement from your bank (CSV, OFX or PDF) and upload it now and then. Noodle files what it can.",
+			"Download a statement from your bank (CSV, OFX or QFX) and upload it now and then. Noodle files what it can.",
 	},
 	{
 		value: "hand",
@@ -417,6 +426,7 @@ function TakeHomePayStep({
 	return (
 		<StepFrame
 			title="Take-home pay"
+			lead={<SpendingCard path={path} jobs={jobs} />}
 			intro="Your usual monthly pay after taxes and deductions. Add both Parents’ pay together. The Plan is built on it."
 			primary="Continue"
 			onBack={onBack}
@@ -490,20 +500,21 @@ function TakeHomePayStep({
 			{set.isError ? (
 				<FormError>We couldn’t save your take-home pay. Please try again.</FormError>
 			) : null}
-			{path === "bank" ? (
-				<Suspense fallback={null}>
-					<ConnectBankCard />
-				</Suspense>
-			) : null}
-			{path === "statement" ? <StatementCard jobs={jobs} /> : null}
 		</StepFrame>
 	);
 }
 
-/** Connecting the bank chosen on Hello, while setup goes on; the Setup Workflow waits for it. */
-function ConnectBankCard() {
-	const bank = useConnectBank();
-	return <BankConnections bank={bank} />;
+/**
+ * How the spending chosen on Hello comes in, right in the step (#53): connecting the bank, or
+ * uploading a statement. The Setup Workflow waits for either, while the Parent goes on.
+ */
+function SpendingCard({ path, jobs }: { path: SetupPath | undefined; jobs: SetupJobView[] }) {
+	if (path !== "bank" && path !== "statement") return null;
+	return (
+		<Suspense fallback={<Skeleton className="h-28" />}>
+			{path === "bank" ? <SetupBankCard jobs={jobs} /> : <SetupStatementCard jobs={jobs} />}
+		</Suspense>
+	);
 }
 
 /**
@@ -740,30 +751,6 @@ function SuggestLater({ jobs }: { jobs: SetupJobView[] }) {
 	) : null;
 }
 
-/**
- * The statement path's way to bring the statement in (#53): Accounts, in a new tab, where an
- * Account is added and its statement uploaded as usual. The wizard stays put in this tab and fills
- * in as the Setup Workflow reads it.
- */
-function StatementCard({ jobs }: { jobs: SetupJobView[] }) {
-	if (jobs.some((job) => job.job === "history" && job.status === "done")) return null;
-	return (
-		<Card className="grid gap-2 p-(--card-pad) text-sm">
-			<p className="font-medium">Upload your statement</p>
-			<p className="text-muted-foreground">
-				Open Accounts in a new tab, add the Account the statement is from, and upload it there. Then
-				come back to this tab: your answers stay here, and amounts fill in once your spending is
-				read.
-			</p>
-			<Button asChild variant="outline" size="sm" className="justify-self-start">
-				<a href="/accounts" target="_blank" rel="noopener">
-					Open Accounts in a new tab
-				</a>
-			</Button>
-		</Card>
-	);
-}
-
 const toBill = ({ amount: _a, suggested: _s, ...bill }: BillRow): SetupBill => ({
 	...bill,
 	name: bill.name.trim(),
@@ -838,6 +825,12 @@ function BillsStep({
 	return (
 		<StepFrame
 			title="Bills"
+			lead={
+				// Still offered here while nothing has come in, for a Parent who went past it.
+				jobs.some((job) => job.job === "history" && job.status === "done") ? null : (
+					<SpendingCard path={answers.path} jobs={jobs} />
+				)
+			}
 			intro={
 				<>
 					Tick the bills you pay, with what each one usually costs and the day it’s due. Noodle
@@ -862,7 +855,6 @@ function BillsStep({
 			}
 		>
 			<SuggestLater jobs={jobs} />
-			{answers.path === "statement" ? <StatementCard jobs={jobs} /> : null}
 			<SetupBills rows={rows} onChange={setRows} />
 			{save.isError ? <FormError>We couldn’t save your bills. Please try again.</FormError> : null}
 		</StepFrame>

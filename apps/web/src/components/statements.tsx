@@ -97,8 +97,8 @@ export function StatementBalanceNote({
 }
 
 /** A statement chosen in the upload sheet, kept while the sheet is closed by accident. */
-type Draft = { file: ChosenFile | null; mapping: CsvMapping | null };
-const NO_DRAFT: Draft = { file: null, mapping: null };
+export type Draft = { file: ChosenFile | null; mapping: CsvMapping | null };
+export const NO_DRAFT: Draft = { file: null, mapping: null };
 
 /**
  * An Account's Imports, and its upload sheet. A connected Account's lines come from its bank
@@ -317,7 +317,7 @@ const fits = (mapping: CsvMapping, rows: string[][]) => {
 	return columns.every((c) => c < width);
 };
 
-function UploadForm({
+export function UploadForm({
 	account,
 	draft,
 	onDraft,
