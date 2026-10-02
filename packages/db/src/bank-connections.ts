@@ -5,7 +5,7 @@ import {
 	holdsMoney,
 	type PairableAccount,
 } from "@noodle/domain";
-import { and, asc, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, lt, ne, notInArray, or, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import type { Db } from "./index";
 import {
@@ -38,6 +38,10 @@ export type BankConnectionSummary = {
 	lastImportedAt: Date | null;
 	/** What the provider last asked the Parent to read about the link, as plain text. */
 	notice: string | null;
+	/** When the provider last sent a webhook about it. */
+	lastWebhookAt: Date | null;
+	/** Whether its login has an account the Parent hasn't been asked about. */
+	newAccounts: boolean;
 	accounts: { id: string; name: string; kind: AccountKind }[];
 	/**
 	 * What it has brought in so far: Transactions, how many of those are Matched to Quick Adds,
@@ -330,6 +334,8 @@ export async function loadBankConnections(
 				status: bankConnections.status,
 				lastImportedAt: bankConnections.lastImportedAt,
 				notice: bankConnections.notice,
+				lastWebhookAt: bankConnections.lastWebhookAt,
+				newAccounts: bankConnections.newAccounts,
 			})
 			.from(bankConnections)
 			.where(eq(bankConnections.householdId, householdId))
@@ -548,7 +554,7 @@ export async function loadBankConnectionsToSync(db: Db): Promise<BankConnectionT
 		.select(toSync)
 		.from(bankConnections)
 		.innerJoin(households, eq(households.id, bankConnections.householdId))
-		.where(notInArray(bankConnections.status, ["reconnect", "choosing"]))
+		.where(notInArray(bankConnections.status, ["reconnect", "choosing", "disconnected"]))
 		.orderBy(asc(bankConnections.createdAt), asc(bankConnections.id));
 }
 
@@ -582,7 +588,7 @@ export async function markBankConnectionReconnect(
 				eq(bankConnections.id, connectionId),
 				eq(bankConnections.householdId, householdId),
 				// One still choosing hasn't read anything yet: its choice comes first.
-				notInArray(bankConnections.status, ["reconnect", "choosing"]),
+				notInArray(bankConnections.status, ["reconnect", "choosing", "disconnected"]),
 			),
 		)
 		.returning({ id: bankConnections.id });
@@ -623,17 +629,25 @@ export async function loadBankConnectionsToCompare(
 	db: Db,
 	householdId: string,
 ): Promise<BankConnectionToCompare[]> {
-	return db
-		.select({
-			id: bankConnections.id,
-			provider: bankConnections.provider,
-			institution: bankConnections.institution,
-			institutionId: bankConnections.institutionId,
-			credential: bankConnections.credential,
-		})
-		.from(bankConnections)
-		.where(eq(bankConnections.householdId, householdId))
-		.orderBy(asc(bankConnections.createdAt), asc(bankConnections.id));
+	return (
+		db
+			.select({
+				id: bankConnections.id,
+				provider: bankConnections.provider,
+				institution: bankConnections.institution,
+				institutionId: bankConnections.institutionId,
+				credential: bankConnections.credential,
+			})
+			.from(bankConnections)
+			// Not a disconnected one: its link is dead, so there's nothing to reconnect.
+			.where(
+				and(
+					eq(bankConnections.householdId, householdId),
+					ne(bankConnections.status, "disconnected"),
+				),
+			)
+			.orderBy(asc(bankConnections.createdAt), asc(bankConnections.id))
+	);
 }
 
 /** A Parent's Plaid Link in progress: its link token, and the page to go back to. */
@@ -688,4 +702,166 @@ export async function loadBankLinkSession(
 /** Forgets the Parent's Link in progress, once it's finished. */
 export async function clearBankLinkSession(db: Db, memberId: string): Promise<void> {
 	await db.delete(bankLinkSessions).where(eq(bankLinkSessions.memberId, memberId));
+}
+
+/**
+ * Records that a Parent took the app's access away at the institution: the link is dead, and
+ * only a new one brings the bank back. Its Accounts and Transactions stay. False when it's gone,
+ * or marked already.
+ */
+export async function markBankConnectionDisconnected(
+	db: Db,
+	householdId: string,
+	connectionId: string,
+): Promise<boolean> {
+	const written = await db
+		.update(bankConnections)
+		.set({ status: "disconnected", notice: null, newAccounts: false })
+		.where(
+			and(
+				eq(bankConnections.id, connectionId),
+				eq(bankConnections.householdId, householdId),
+				ne(bankConnections.status, "disconnected"),
+			),
+		)
+		.returning({ id: bankConnections.id });
+	return written.length > 0;
+}
+
+/**
+ * Records whether a Bank Connection's login has an account its Parent hasn't been asked about.
+ * False when it's gone, disconnected, or says so already.
+ */
+export async function markBankNewAccounts(
+	db: Db,
+	householdId: string,
+	connectionId: string,
+	newAccounts: boolean,
+): Promise<boolean> {
+	const written = await db
+		.update(bankConnections)
+		.set({ newAccounts })
+		.where(
+			and(
+				eq(bankConnections.id, connectionId),
+				eq(bankConnections.householdId, householdId),
+				ne(bankConnections.newAccounts, newAccounts),
+				ne(bankConnections.status, "disconnected"),
+			),
+		)
+		.returning({ id: bankConnections.id });
+	return written.length > 0;
+}
+
+/**
+ * Records that the provider sent a webhook for a Bank Connection at `at`; with `webhookUrl`, that
+ * it now sends them to that address.
+ */
+export async function recordBankWebhook(
+	db: Db,
+	householdId: string,
+	connectionId: string,
+	at: Date,
+	webhookUrl?: string | null,
+): Promise<void> {
+	await db
+		.update(bankConnections)
+		.set({ lastWebhookAt: at, ...(webhookUrl ? { webhookUrl } : {}) })
+		.where(and(eq(bankConnections.id, connectionId), eq(bankConnections.householdId, householdId)));
+}
+
+/** A Bank Connection whose webhooks go, as far as is recorded, somewhere other than they should. */
+export type BankConnectionToMove = { householdId: string; id: string; credential: string };
+
+/**
+ * The Bank Connections not recorded as sending webhooks to `webhookUrl`: those sending them
+ * elsewhere, and those made before the address was kept. Not disconnected ones, whose link is dead.
+ */
+export async function loadBankConnectionsToMoveWebhook(
+	db: Db,
+	provider: BankProvider,
+	webhookUrl: string,
+): Promise<BankConnectionToMove[]> {
+	return db
+		.select({
+			householdId: bankConnections.householdId,
+			id: bankConnections.id,
+			credential: bankConnections.credential,
+		})
+		.from(bankConnections)
+		.where(
+			and(
+				eq(bankConnections.provider, provider),
+				ne(bankConnections.status, "disconnected"),
+				or(isNull(bankConnections.webhookUrl), ne(bankConnections.webhookUrl, webhookUrl)),
+			),
+		)
+		.orderBy(asc(bankConnections.createdAt), asc(bankConnections.id));
+}
+
+/** Records the address the provider was told to send a Bank Connection's webhooks to. */
+export async function saveBankWebhookUrl(
+	db: Db,
+	householdId: string,
+	connectionId: string,
+	webhookUrl: string,
+): Promise<void> {
+	await db
+		.update(bankConnections)
+		.set({ webhookUrl })
+		.where(and(eq(bankConnections.id, connectionId), eq(bankConnections.householdId, householdId)));
+}
+
+/** How long a sync holds its Bank Connection before it's taken to have died: well past a run's longest. */
+export const BANK_SYNC_STALE_MS = 30 * 60 * 1000;
+
+/**
+ * Takes a Bank Connection for one sync. True when it's this sync's to run; false when another is
+ * running, which is then told to run once more when it ends (releaseBankSync), so news that came
+ * meanwhile isn't missed and no two syncs overlap. A sync that began over half an hour ago is
+ * taken to have died.
+ */
+export async function claimBankSync(
+	db: Db,
+	householdId: string,
+	connectionId: string,
+	now: Date,
+): Promise<boolean> {
+	const mine = and(
+		eq(bankConnections.id, connectionId),
+		eq(bankConnections.householdId, householdId),
+	);
+	const claimed = await db
+		.update(bankConnections)
+		.set({ syncStartedAt: now, syncPending: false })
+		.where(
+			and(
+				mine,
+				or(
+					isNull(bankConnections.syncStartedAt),
+					lt(bankConnections.syncStartedAt, new Date(now.getTime() - BANK_SYNC_STALE_MS)),
+				),
+			),
+		)
+		.returning({ id: bankConnections.id });
+	if (claimed.length > 0) return true;
+	await db.update(bankConnections).set({ syncPending: true }).where(mine);
+	return false;
+}
+
+/**
+ * Lets a Bank Connection go when its sync ends. True when another sync was asked for meanwhile:
+ * the caller starts it (its claim clears the mark).
+ */
+export async function releaseBankSync(
+	db: Db,
+	householdId: string,
+	connectionId: string,
+): Promise<boolean> {
+	const [released] = await db
+		.update(bankConnections)
+		.set({ syncStartedAt: null })
+		.where(and(eq(bankConnections.id, connectionId), eq(bankConnections.householdId, householdId)))
+		.returning({ pending: bankConnections.syncPending });
+	return released?.pending ?? false;
 }

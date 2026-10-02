@@ -10,6 +10,7 @@ import { startMonthCloses } from "./server/month-close-workflow";
 import { consumeNudges, type NudgeDelivery } from "./server/nudge-delivery";
 import { startPerkRechecks } from "./server/perk-research-workflow";
 import { handlePlaidWebhook, PLAID_WEBHOOK_PATH } from "./server/plaid-webhook";
+import { handlePlaidWebhookMove, PLAID_WEBHOOK_MOVE_PATH } from "./server/plaid-webhook-move";
 import { handleReceiptEmail } from "./server/receipt-worker";
 
 // The Worker's entry: TanStack Start serves the app, and screens' WebSockets go to their
@@ -20,7 +21,8 @@ import { handleReceiptEmail } from "./server/receipt-worker";
 // endpoint and wait on the ingest Queue, which this Worker consumes too; Receipts forwarded to a
 // Household's Receipt address arrive by email and wait there as well, as does each Bank
 // Connection to read, which the Import Workflow (also exported) brings in: when Plaid's webhook
-// (its own endpoint) says there's news, and every night for all of them. The Setup Workflow (also
+// (its own endpoint) says there's news, and every night for all of them, one sync at a time for
+// each. Moving Items' webhooks to the app's address has an endpoint of its own, for an admin. The Setup Workflow (also
 // exported) does a new Household's slow setup work while the get-started wizard goes on.
 export { ImportWorkflow } from "./server/bank-import-workflow";
 export { HouseholdAgent } from "./server/household-agent";
@@ -40,6 +42,7 @@ export default {
 		if (pathname === HOUSEHOLD_AGENT_PATH) return connectToHouseholdAgent(request);
 		if (pathname === CAPTURE_PATH) return handleCapture(request);
 		if (pathname === PLAID_WEBHOOK_PATH) return handlePlaidWebhook(request);
+		if (pathname === PLAID_WEBHOOK_MOVE_PATH) return handlePlaidWebhookMove(request);
 		return handler.fetch(request);
 	},
 	queue(batch) {

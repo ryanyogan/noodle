@@ -140,3 +140,19 @@ export function duplicateOf(linked: LinkedBank, known: KnownBank[]): KnownBank |
 		}) ?? null
 	);
 }
+
+/**
+ * How long ago a Bank Connection was last read, as its row says it: "Last updated 2 hours ago".
+ * Minutes under an hour, hours under a day, then days.
+ */
+export function lastUpdatedText(at: number, now: number): string {
+	const minutes = Math.floor(Math.max(0, now - at) / 60_000);
+	if (minutes < 1) return "Last updated just now";
+	const [count, unit] =
+		minutes < 60
+			? [minutes, "minute"]
+			: minutes < 24 * 60
+				? [Math.floor(minutes / 60), "hour"]
+				: [Math.floor(minutes / (24 * 60)), "day"];
+	return `Last updated ${count} ${unit}${count === 1 ? "" : "s"} ago`;
+}

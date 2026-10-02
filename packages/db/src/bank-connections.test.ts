@@ -1,21 +1,29 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	addBankConnection,
+	BANK_SYNC_STALE_MS,
 	chooseBankAccounts,
+	claimBankSync,
 	createHouseholdForParent,
 	type Db,
 	findBankConnectionsByExternal,
 	loadBankConnections,
+	loadBankConnectionsToMoveWebhook,
 	loadBankConnectionsToSync,
 	loadBankConnectionToImport,
 	loadGoals,
 	loadImports,
+	markBankConnectionDisconnected,
 	markBankConnectionReconnect,
 	markBankConnectionReconnected,
 	markBankImportFailed,
+	markBankNewAccounts,
+	recordBankWebhook,
 	refreshBankBalances,
+	releaseBankSync,
 	saveBankImport,
 	saveBankNotice,
+	saveBankWebhookUrl,
 } from "./index";
 import { testDb } from "./test-db";
 
@@ -275,5 +283,55 @@ describe("reconnecting a Bank Connection", () => {
 			{ householdId, connectionId: "conn-1", timeZone: "America/Chicago" },
 		]);
 		expect(await findBankConnectionsByExternal(db, "plaid", "item-2")).toEqual([]);
+	});
+
+	it("disconnects a Bank Connection for good, keeping its Accounts", async () => {
+		await connect();
+		expect(await markBankConnectionDisconnected(db, householdId, "conn-1")).toBe(true);
+		expect(await markBankConnectionDisconnected(db, householdId, "conn-1")).toBe(false);
+		const [connection] = await loadBankConnections(db, householdId);
+		expect(connection?.status).toBe("disconnected");
+		expect(connection?.accounts).toHaveLength(2);
+		expect(await loadBankConnectionsToSync(db)).toEqual([]);
+		// Neither a lapsed login nor a repaired one changes it, and it has no new accounts to offer.
+		expect(await markBankConnectionReconnect(db, householdId, "conn-1")).toBe(false);
+		expect(await markBankConnectionReconnected(db, householdId, "conn-1")).toBe(false);
+		expect(await markBankNewAccounts(db, householdId, "conn-1", true)).toBe(false);
+	});
+
+	it("records new accounts at the bank, webhooks, and where they're sent", async () => {
+		await connect();
+		expect(await markBankNewAccounts(db, householdId, "conn-1", true)).toBe(true);
+		expect(await markBankNewAccounts(db, householdId, "conn-1", true)).toBe(false);
+		const at = new Date("2026-09-20T15:00:00Z");
+		await recordBankWebhook(db, householdId, "conn-1", at);
+		expect((await loadBankConnections(db, householdId))[0]).toMatchObject({
+			newAccounts: true,
+			lastWebhookAt: at,
+		});
+		const url = "https://noodle.example/webhooks/plaid";
+		expect(await loadBankConnectionsToMoveWebhook(db, "plaid", url)).toMatchObject([
+			{ householdId, id: "conn-1" },
+		]);
+		await saveBankWebhookUrl(db, householdId, "conn-1", "https://old.example/webhooks/plaid");
+		expect(await loadBankConnectionsToMoveWebhook(db, "plaid", url)).toHaveLength(1);
+		await recordBankWebhook(db, householdId, "conn-1", at, url);
+		expect(await loadBankConnectionsToMoveWebhook(db, "plaid", url)).toEqual([]);
+	});
+
+	it("lets one sync at a time have a Bank Connection, and folds later ones into the next", async () => {
+		await connect();
+		const now = new Date("2026-09-20T15:00:00Z");
+		expect(await claimBankSync(db, householdId, "conn-1", now)).toBe(true);
+		// Two more asked for while it runs: neither starts, and one more run follows.
+		expect(await claimBankSync(db, householdId, "conn-1", now)).toBe(false);
+		expect(await claimBankSync(db, householdId, "conn-1", now)).toBe(false);
+		expect(await releaseBankSync(db, householdId, "conn-1")).toBe(true);
+		expect(await claimBankSync(db, householdId, "conn-1", now)).toBe(true);
+		expect(await releaseBankSync(db, householdId, "conn-1")).toBe(false);
+		// A sync that died holding it is passed over after half an hour.
+		expect(await claimBankSync(db, householdId, "conn-1", now)).toBe(true);
+		const later = new Date(now.getTime() + BANK_SYNC_STALE_MS + 1);
+		expect(await claimBankSync(db, householdId, "conn-1", later)).toBe(true);
 	});
 });

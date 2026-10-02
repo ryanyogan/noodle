@@ -6,8 +6,10 @@ import {
 	type BankImportDeps,
 	type BankImportParams,
 	bankImportInstanceId,
+	finishBankSync,
 	inlineStep,
 	runBankImport,
+	startOneSync,
 } from "./bank-import-run";
 import { type BankSetup, bankSetup, providerFor } from "./bank-setup";
 import { categorizeImported } from "./categorize";
@@ -48,32 +50,50 @@ export class ImportWorkflow extends WorkflowEntrypoint<Env, BankImportParams> {
 			);
 			return;
 		}
-		await runBankImport(event.payload, step, importDeps(createDb(this.env.DB), setup));
+		const db = createDb(this.env.DB);
+		try {
+			await runBankImport(event.payload, step, importDeps(db, setup));
+		} finally {
+			// The Bank Connection is let go however the run ended; a sync asked for meanwhile runs now.
+			await step.do("release", async () => {
+				await finishBankSync(db, event.payload, (message) => env.INGEST_QUEUE.send(message));
+			});
+		}
 	}
 }
 
 /**
- * Starts the Import Workflow for a Bank Connection, once per run: the same queue message again
- * finds its instance already there. With the fakes (AI_MODEL=stub) it runs inline, so E2E sees
+ * Starts the Import Workflow for a Bank Connection, one at a time (startOneSync), and once per
+ * run: the same queue message again finds its instance already there. With the fakes (AI_MODEL=stub) it runs inline, so E2E sees
  * the Transactions as soon as the ingest Queue has the message.
  */
 export async function startBankImport({ kind: _, ...params }: BankImportMessage): Promise<void> {
 	const setup = bankSetup();
 	if (!setup) return;
+	const db = getDb();
 	if (__AI_STUB__) {
-		await runBankImport(params, inlineStep, importDeps(getDb(), setup));
+		const ran = await startOneSync(db, params, new Date(), async () => {});
+		if (!ran) return;
+		try {
+			await runBankImport(params, inlineStep, importDeps(db, setup));
+		} finally {
+			await finishBankSync(db, params, startBankImport);
+		}
 		return;
 	}
-	// createBatch skips an instance that already exists, where create would throw.
-	await env.IMPORT.createBatch([
-		{ id: bankImportInstanceId(params.connectionId, params.runId), params },
-	]);
+	await startOneSync(db, params, new Date(), async () => {
+		// createBatch skips an instance that already exists, where create would throw.
+		await env.IMPORT.createBatch([
+			{ id: bankImportInstanceId(params.connectionId, params.runId), params },
+		]);
+	});
 }
 
 /**
- * The daily sync: every Bank Connection not waiting on a reconnect goes on the ingest Queue, so
- * Accounts stay current even when no webhook came. One run per Bank Connection per day, however
- * often the cron fires.
+ * The daily sync, the fallback for webhooks that never came: every Bank Connection not waiting on
+ * a reconnect, a Parent's choice of Accounts, or disconnected goes on the ingest Queue, so each
+ * is read at least once a day. One run per Bank Connection per day, however often the cron
+ * fires, and never beside a sync already running (startOneSync).
  */
 export async function startBankSyncs(now: Date): Promise<void> {
 	if (!bankSetup()) return;

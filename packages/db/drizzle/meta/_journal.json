@@ -267,6 +267,13 @@
       "when": 1790959919131,
       "tag": "0037_bank_link",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1790961732276,
+      "tag": "0038_bank_webhooks",
+      "breakpoints": true
     }
   ]
 }

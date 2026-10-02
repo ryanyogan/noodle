@@ -82,6 +82,11 @@ export type LinkTokenOptions = {
 	 * where the app isn't at an address registered there.
 	 */
 	redirectUri?: string | null;
+	/**
+	 * In update mode, lets the Parent say which of the login's accounts Noodle may read: how an
+	 * account opened since is added (Plaid's NEW_ACCOUNTS_AVAILABLE).
+	 */
+	accountSelection?: boolean;
 };
 
 /**
@@ -102,7 +107,10 @@ export async function createLinkToken(
 		...(options.webhook ? { webhook: options.webhook } : {}),
 		...(options.redirectUri ? { redirect_uri: options.redirectUri } : {}),
 		...(options.accessToken
-			? { access_token: options.accessToken }
+			? {
+					access_token: options.accessToken,
+					...(options.accountSelection ? { update: { account_selection_enabled: true } } : {}),
+				}
 			: { products: ["transactions"], transactions: { days_requested: 90 } }),
 	})) as { link_token?: unknown };
 	if (typeof answer.link_token !== "string") {
@@ -129,6 +137,41 @@ export async function webhookVerificationKey(
 	const key = answer.key;
 	if (key?.kty !== "EC" || key.crv !== "P-256" || key.expired_at) return null;
 	return { kty: key.kty, crv: key.crv, x: key.x, y: key.y };
+}
+
+/** How long a webhook key is kept before Plaid is asked for it again: keys are rotated and expire. */
+const WEBHOOK_KEY_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** Plaid's webhook keys by ID, with when each was fetched. */
+export type WebhookKeyCache = Map<string, { key: JsonWebKey; at: number }>;
+
+/**
+ * Plaid's webhook keys, kept by key ID so most webhooks cost no call to Plaid. An ID not kept (a
+ * new key, after Plaid rotates) is fetched; one Plaid doesn't know isn't kept, so it's asked for
+ * again next time. A kept key is fetched afresh after a day, by when Plaid may have expired it.
+ */
+export function cachedWebhookKeys(
+	fetchKey: (keyId: string) => Promise<JsonWebKey | null>,
+	cache: WebhookKeyCache = new Map(),
+	now: () => number = Date.now,
+): (keyId: string) => Promise<JsonWebKey | null> {
+	return async (keyId) => {
+		const kept = cache.get(keyId);
+		if (kept && now() - kept.at < WEBHOOK_KEY_TTL_MS) return kept.key;
+		cache.delete(keyId);
+		const key = await fetchKey(keyId);
+		if (key) cache.set(keyId, { key, at: now() });
+		return key;
+	};
+}
+
+/** Tells Plaid where to send an Item's webhooks from now on (/item/webhook/update). */
+export async function updateItemWebhook(
+	transport: PlaidTransport,
+	accessToken: string,
+	webhook: string,
+): Promise<void> {
+	await transport("/item/webhook/update", { access_token: accessToken, webhook });
 }
 
 /** At most this many /transactions/sync pages in one read: 4,000 lines, well inside a step's 1 MiB. */

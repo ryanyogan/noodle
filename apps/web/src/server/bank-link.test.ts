@@ -2,11 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
 	duplicateOf,
 	type KnownBank,
+	lastUpdatedText,
 	linkExitMessage,
 	linkTokenExpired,
 	sameBank,
 } from "../bank-link";
-import { createLinkToken, type PlaidTransport } from "./plaid";
+import {
+	createLinkToken,
+	type PlaidTransport,
+	plaidTransport,
+	webhookVerificationKey,
+} from "./plaid";
 
 describe("linkExitMessage", () => {
 	it("says nothing when the Parent simply closed Link", () => {
@@ -168,5 +174,55 @@ describe("createLinkToken", () => {
 			redirect_uri: "https://noodle.example/bank/return",
 		});
 		expect(body).not.toHaveProperty("products");
+	});
+});
+
+describe("lastUpdatedText", () => {
+	const now = Date.parse("2026-09-20T15:00:00Z");
+	const minute = 60_000;
+
+	it("says how long ago a Bank Connection was last read", () => {
+		expect(lastUpdatedText(now - 20_000, now)).toBe("Last updated just now");
+		expect(lastUpdatedText(now - minute, now)).toBe("Last updated 1 minute ago");
+		expect(lastUpdatedText(now - 59 * minute, now)).toBe("Last updated 59 minutes ago");
+		expect(lastUpdatedText(now - 60 * minute, now)).toBe("Last updated 1 hour ago");
+		expect(lastUpdatedText(now - 125 * minute, now)).toBe("Last updated 2 hours ago");
+		expect(lastUpdatedText(now - 25 * 60 * minute, now)).toBe("Last updated 1 day ago");
+		expect(lastUpdatedText(now - 3 * 24 * 60 * minute, now)).toBe("Last updated 3 days ago");
+		// A clock a little behind the server's never says "in the future".
+		expect(lastUpdatedText(now + minute, now)).toBe("Last updated just now");
+	});
+});
+
+describe("Plaid's webhook key under production keys", () => {
+	it("comes from Plaid's own /webhook_verification_key/get, not the fake's", async () => {
+		const asked: { url: string; body: unknown; secret: string | null }[] = [];
+		const fetcher = (async (url: string | URL | Request, init?: RequestInit) => {
+			asked.push({
+				url: String(url),
+				body: JSON.parse(String(init?.body)),
+				secret: new Headers(init?.headers).get("PLAID-SECRET"),
+			});
+			return Response.json({
+				key: { kty: "EC", crv: "P-256", x: "x", y: "y", kid: "plaid-kid", expired_at: null },
+			});
+		}) as typeof fetch;
+		const transport = plaidTransport(
+			{ clientId: "client", secret: "production-secret", environment: "production" },
+			fetcher,
+		);
+		expect(await webhookVerificationKey(transport, "plaid-kid")).toEqual({
+			kty: "EC",
+			crv: "P-256",
+			x: "x",
+			y: "y",
+		});
+		expect(asked).toEqual([
+			{
+				url: "https://production.plaid.com/webhook_verification_key/get",
+				body: { key_id: "plaid-kid" },
+				secret: "production-secret",
+			},
+		]);
 	});
 });

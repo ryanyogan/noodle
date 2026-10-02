@@ -2,17 +2,20 @@ import type { WorkflowStep, WorkflowStepConfig } from "cloudflare:workers";
 import {
 	type BankConnectionToImport,
 	type BankProvider,
+	claimBankSync,
 	type Db,
 	loadBankConnectionToImport,
 	markBankConnectionReconnect,
 	markBankImportFailed,
 	refreshBankBalances,
+	releaseBankSync,
 	saveBankImport,
 	saveBankNotice,
 	syncBankLines,
 	type Viewer,
 } from "@noodle/db";
 import type { BankLine, Cents } from "@noodle/domain";
+import { ulid } from "ulid";
 import type { HouseholdChange } from "../household-changes";
 import { type BankConnectionProvider, BankProviderError } from "./bank-connection";
 
@@ -110,6 +113,8 @@ export async function runBankImport(
 					const connection = await loadBankConnectionToImport(db, householdId, connectionId);
 					if (!connection) return null;
 					if (connection.status === "choosing") return "choosing";
+					// Its Parent took the access away at the bank: there's nothing left to read.
+					if (connection.status === "disconnected") return null;
 					const credential = await deps.openCredential(connection);
 					const provider = deps.providerFor(connection.provider);
 					try {
@@ -247,3 +252,36 @@ export const inlineStep: BankImportStep = {
 			: (fn as () => unknown))()) as BankImportStep["do"],
 	sleep: async () => {},
 };
+
+/**
+ * Runs `start` only when no sync has the Bank Connection (claimBankSync): a webhook Plaid sent
+ * twice, or the daily sync landing on one a webhook started, doesn't make two overlapping runs.
+ * The one running is told to run once more when it ends instead. Whether it started.
+ */
+export async function startOneSync(
+	db: Db,
+	params: BankImportParams,
+	now: Date,
+	start: () => Promise<void>,
+): Promise<boolean> {
+	if (!(await claimBankSync(db, params.householdId, params.connectionId, now))) return false;
+	try {
+		await start();
+	} catch (error) {
+		// Never started: let go, so the queue's retry can take it.
+		await releaseBankSync(db, params.householdId, params.connectionId);
+		throw error;
+	}
+	return true;
+}
+
+/** Lets a Bank Connection go when its sync ends, and asks for one more if any came meanwhile. */
+export async function finishBankSync(
+	db: Db,
+	params: BankImportParams,
+	send: (message: { kind: "bank-import" } & BankImportParams) => Promise<unknown>,
+): Promise<void> {
+	if (await releaseBankSync(db, params.householdId, params.connectionId)) {
+		await send({ kind: "bank-import", ...params, runId: ulid() });
+	}
+}

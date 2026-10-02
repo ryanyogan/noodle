@@ -250,11 +250,23 @@ export const bankConnections = sqliteTable(
 		cursor: text("cursor"),
 		// "choosing" until a Parent has said which Accounts its accounts are (ADR-0020): nothing is
 		// read from it meanwhile, so no history is lost.
-		status: text("status", { enum: ["choosing", "importing", "ready", "failed", "reconnect"] })
+		status: text("status", {
+			enum: ["choosing", "importing", "ready", "failed", "reconnect", "disconnected"],
+		})
 			.notNull()
 			.default("importing"),
 		lastImportedAt: integer("last_imported_at", { mode: "timestamp_ms" }),
 		notice: text("notice"),
+		// Plaid's webhooks (#71): when the last one for this Item came, and the address Plaid was
+		// last told to send them to (null on Bank Connections made before it was kept).
+		lastWebhookAt: integer("last_webhook_at", { mode: "timestamp_ms" }),
+		webhookUrl: text("webhook_url"),
+		// Plaid said the login has an account the Parent hasn't been asked about.
+		newAccounts: integer("new_accounts", { mode: "boolean" }).notNull().default(false),
+		// One sync at a time: when the one running began (null when none is), and whether another
+		// was asked for meanwhile, which runs once this one ends.
+		syncStartedAt: integer("sync_started_at", { mode: "timestamp_ms" }),
+		syncPending: integer("sync_pending", { mode: "boolean" }).notNull().default(false),
 		createdByMemberId: text("created_by_member_id")
 			.notNull()
 			.references(() => members.id),

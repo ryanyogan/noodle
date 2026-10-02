@@ -25,10 +25,11 @@ import {
 	type LinkedBank,
 	LOGGED_LINK_EVENTS,
 	type LoggedLinkEvent,
+	lastUpdatedText,
 	linkExitMessage,
 	linkTokenExpired,
 } from "../bank-link";
-import { formatMoney, shortDayAt } from "../format";
+import { formatMoney } from "../format";
 import { accountKindName } from "../goals";
 import { bankConnectionsQuery, goalsQuery } from "../queries";
 import {
@@ -276,12 +277,13 @@ const openLink = (setUp: BankConnectionsData["setUp"], token: string, options: L
 async function linkHere(
 	setUp: BankConnectionsData["setUp"],
 	connectionId: string | null,
+	newAccounts = false,
 ): Promise<LinkOutcome | { kind: "not-started" }> {
 	const returnTo = window.location.pathname;
 	let outcome: LinkOutcome | null = null;
 	for (let attempt = 0; attempt < 2; attempt++) {
 		const started = connectionId
-			? await startBankReconnect({ data: { connectionId, returnTo } })
+			? await startBankReconnect({ data: { connectionId, returnTo, newAccounts } })
 			: await startBankLink({ data: { returnTo } });
 		if (!started.ok) return { kind: "not-started" };
 		keep(LINK_KEY, { linkToken: started.linkToken, returnTo, connectionId } satisfies StoredLink);
@@ -331,19 +333,24 @@ async function connectLinked(linked: Linked, anyway = false): Promise<Connected>
 
 type Reconnected = { kind: "done" | "closed" | "gone" } | { kind: "exit"; message: string };
 
-/** Logs in to a Bank Connection's Item again, in Link's update mode: nothing to exchange. */
+/**
+ * Logs in to a Bank Connection's Item again, in Link's update mode: nothing to exchange. With
+ * `newAccounts`, Link also asks which of the login's accounts to share, which is how one opened
+ * since is added.
+ */
 async function reconnectBank(
 	setUp: BankConnectionsData["setUp"],
 	connectionId: string,
 	institution: string | null,
+	newAccounts = false,
 ): Promise<Reconnected> {
-	const outcome = await linkHere(setUp, connectionId);
+	const outcome = await linkHere(setUp, connectionId, newAccounts);
 	if (outcome.kind === "not-started") return { kind: "gone" };
 	if (outcome.kind === "exit") {
 		const message = linkExitMessage(outcome.error, outcome.institution ?? institution, true);
 		return message ? { kind: "exit", message } : { kind: "closed" };
 	}
-	const finished = await finishBankReconnect({ data: { connectionId } });
+	const finished = await finishBankReconnect({ data: { connectionId, newAccounts } });
 	return { kind: finished.ok ? "done" : "gone" };
 }
 
@@ -633,10 +640,15 @@ const statusText = (connection: BankConnectionSummary): { text: string; failed: 
 			return { text: "Couldn’t bring in Transactions. Noodle will try again.", failed: true };
 		case "reconnect":
 			return { text: "The bank wants you to log in again.", failed: true };
+		case "disconnected":
+			return {
+				text: `Access was turned off at the bank, so nothing new comes in. Its Accounts and Transactions are still here. To bring in new ones, connect ${connection.institution ?? "the bank"} again.`,
+				failed: true,
+			};
 		default:
 			return {
 				text: connection.lastImportedAt
-					? `Up to date · ${shortDayAt(connection.lastImportedAt.getTime())}`
+					? `Up to date · ${lastUpdatedText(connection.lastImportedAt.getTime(), Date.now())}`
 					: "Up to date",
 				failed: false,
 			};
@@ -683,6 +695,23 @@ function ConnectionRow({
 		onMutate: () => setFailed(null),
 	});
 
+	// The bank says this login has an account Noodle hasn't asked about (Plaid's
+	// NEW_ACCOUNTS_AVAILABLE): Link in update mode asks which accounts to share, then Choose
+	// Accounts says which Account the new one is.
+	const offersNew =
+		connection.newAccounts && (connection.status === "ready" || connection.status === "failed");
+	const addNew = useMutation({
+		mutationFn: () => reconnectBank(setUp, connection.id, connection.institution, true),
+		onSuccess: (result) => {
+			if (result.kind === "exit") setFailed(result.message);
+			if (result.kind === "closed" || result.kind === "exit") return;
+			void queryClient.invalidateQueries({ queryKey: bankConnectionsQuery().queryKey });
+			if (result.kind === "done") onChoose();
+		},
+		onError: () => setFailed(`${bankName} didn’t take the login. Try again in a little while.`),
+		onMutate: () => setFailed(null),
+	});
+
 	return (
 		<ListRow
 			stackTrailing
@@ -697,7 +726,9 @@ function ConnectionRow({
 					<span>
 						{count === 1 ? "1 Account" : `${count} Accounts`}
 						{" · "}
-						<span className={cn(status.failed && "text-over")}>{status.text}</span>
+						<span className={cn(status.failed && "text-over")} suppressHydrationWarning>
+							{status.text}
+						</span>
 					</span>
 					{count > 0 ? (
 						<span className="basis-full">{connection.accounts.map((a) => a.name).join(", ")}</span>
@@ -719,6 +750,11 @@ function ConnectionRow({
 									</Link>
 								</>
 							) : null}
+						</span>
+					) : null}
+					{offersNew ? (
+						<span className="basis-full font-medium text-foreground">
+							{bankName} has a new account. Add it?
 						</span>
 					) : null}
 					{failed ? (
@@ -750,7 +786,17 @@ function ConnectionRow({
 					>
 						Reconnect
 					</Button>
-				) : setUp ? (
+				) : offersNew && setUp ? (
+					<Button
+						type="button"
+						size="sm"
+						disabled={!hydrated || addNew.isPending}
+						onClick={() => addNew.mutate()}
+						aria-label={`Add the new account at ${connection.institution ?? "the bank"}`}
+					>
+						Add it
+					</Button>
+				) : connection.status === "disconnected" ? null : setUp ? (
 					<Button
 						type="button"
 						size="sm"

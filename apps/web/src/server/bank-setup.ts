@@ -4,11 +4,14 @@ import { dayKeyAt } from "@noodle/domain";
 import type { BankConnectionProvider } from "./bank-connection";
 import { credentialKey, TEST_CREDENTIAL_KEY } from "./bank-credential";
 import {
+	cachedWebhookKeys,
 	createLinkToken,
 	type LinkTokenOptions,
 	type PlaidTransport,
 	plaidProvider,
 	plaidTransport,
+	updateItemWebhook,
+	type WebhookKeyCache,
 	webhookVerificationKey,
 } from "./plaid";
 import { fakePlaidTransport } from "./plaid-fake";
@@ -36,6 +39,8 @@ export type BankSetup = {
 		linkToken: (householdId: string, options?: LinkTokenOptions) => Promise<string>;
 		/** The public key Plaid signed a webhook with, by its ID; null when Plaid doesn't know it. */
 		webhookKey: (keyId: string) => Promise<JsonWebKey | null>;
+		/** Tells Plaid where to send an Item's webhooks, by its access token. */
+		updateWebhook: (accessToken: string, webhook: string) => Promise<void>;
 	};
 	/** The key each credential is sealed with. */
 	key: () => Promise<CryptoKey>;
@@ -66,10 +71,14 @@ export function bankSetup(): BankSetup | null {
 	};
 }
 
+/** Plaid's webhook keys, kept for as long as this isolate lives. */
+const webhookKeys: WebhookKeyCache = new Map();
+
 const plaidSetup = (transport: PlaidTransport): BankSetup["plaid"] => ({
 	provider: plaidProvider(transport),
 	linkToken: (householdId, options) => createLinkToken(transport, householdId, options),
-	webhookKey: (keyId) => webhookVerificationKey(transport, keyId),
+	webhookKey: cachedWebhookKeys((keyId) => webhookVerificationKey(transport, keyId), webhookKeys),
+	updateWebhook: (accessToken, webhook) => updateItemWebhook(transport, accessToken, webhook),
 });
 
 /** The providers a Parent can connect through here. */

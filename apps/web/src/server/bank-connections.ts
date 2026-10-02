@@ -9,7 +9,9 @@ import {
 	loadBankConnectionToImport,
 	loadBankLinkSession,
 	markBankConnectionReconnected,
+	markBankNewAccounts,
 	saveBankLinkSession,
+	saveBankWebhookUrl,
 	unpairAccount,
 } from "@noodle/db";
 import { createServerFn } from "@tanstack/react-start";
@@ -243,7 +245,14 @@ export type StartBankReconnectResult =
 /** A link token for Plaid Link in update mode: a Parent logs in to a Bank Connection's Item again. */
 export const startBankReconnect = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
-	.validator(z.object({ connectionId: ulidSchema, returnTo: returnToSchema }))
+	.validator(
+		z.object({
+			connectionId: ulidSchema,
+			returnTo: returnToSchema,
+			/** To add an account opened since: Link asks which of the login's accounts to share. */
+			newAccounts: z.boolean().default(false),
+		}),
+	)
 	.handler(async ({ data, context }): Promise<StartBankReconnectResult> => {
 		const setup = bankSetup();
 		if (!setup) return { ok: false, reason: "not-set-up" };
@@ -258,6 +267,7 @@ export const startBankReconnect = createServerFn({ method: "POST" })
 			webhook: webhookUrl(),
 			redirectUri: redirectUri(),
 			accessToken,
+			accountSelection: data.newAccounts,
 		});
 		await saveBankLinkSession(getDb(), {
 			householdId,
@@ -273,10 +283,14 @@ export const startBankReconnect = createServerFn({ method: "POST" })
 /** A Parent logged in again: the Bank Connection is ready, and syncs at once. */
 export const finishBankReconnect = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
-	.validator(z.object({ connectionId: ulidSchema }))
+	.validator(z.object({ connectionId: ulidSchema, newAccounts: z.boolean().default(false) }))
 	.handler(async ({ data, context }): Promise<{ ok: boolean }> => {
 		const { household } = context;
 		await clearBankLinkSession(getDb(), context.parent.id);
+		// The Parent has been through Link's account selection: the offer has been answered.
+		if (data.newAccounts) {
+			await markBankNewAccounts(getDb(), household.id, data.connectionId, false);
+		}
 		const ready = await markBankConnectionReconnected(getDb(), household.id, data.connectionId);
 		if (!ready) {
 			// It wasn't waiting for a login (a Parent linked the same bank again and chose to
@@ -329,7 +343,12 @@ export const connectBank = createServerFn({ method: "POST" })
 				institutionId: data.institutionId,
 			},
 		);
-		if (result.ok) await notifyHousehold(household.id, ["bank-connections"]);
+		if (result.ok) {
+			// Where its link token told Plaid to send webhooks, kept so a later move knows (#71).
+			const webhook = webhookUrl();
+			if (webhook) await saveBankWebhookUrl(getDb(), household.id, data.connectionId, webhook);
+			await notifyHousehold(household.id, ["bank-connections"]);
+		}
 		return result;
 	});
 

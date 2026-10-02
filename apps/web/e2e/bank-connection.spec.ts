@@ -158,3 +158,57 @@ test("Plaid's webhooks sync the bank, and a lapsed login is reconnected", async 
 	await expect(connection).toContainText("4 Accounts · Up to date");
 	await expect(connection.getByRole("button", { name: /Reconnect/ })).toHaveCount(0);
 });
+
+test("a bank that's down, has a new account, or was revoked says so on its row", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await createHousehold(page, "The Rinks", "Alex");
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
+	await connectBank(page);
+	const connection = bankConnections(page).getByRole("listitem");
+	await expect(connection).toContainText("4 Accounts · Up to date · Last updated");
+	const itemId = itemIdOf(parent.userId);
+	const item = (webhook_code: string, more: Record<string, unknown> = {}) =>
+		plaidWebhook(page, { webhook_type: "ITEM", webhook_code, item_id: itemId, ...more });
+
+	// The bank is down: the row says so, and doesn't ask for a login.
+	expect((await item("ERROR", { error: { error_code: "INSTITUTION_DOWN" } })).status()).toBe(200);
+	await page.reload();
+	await expect(connection).toContainText("Your bank isn’t answering right now.");
+	await expect(connection.getByRole("button", { name: /Reconnect/ })).toHaveCount(0);
+
+	// The next sync that works clears it. Plaid sending that webhook twice changes nothing.
+	const news = {
+		webhook_type: "TRANSACTIONS",
+		webhook_code: "SYNC_UPDATES_AVAILABLE",
+		item_id: itemId,
+	};
+	expect((await plaidWebhook(page, news)).status()).toBe(200);
+	expect((await plaidWebhook(page, news)).status()).toBe(200);
+	await expect(async () => {
+		await page.reload();
+		await expect(connection).toContainText("4 Accounts · Up to date", { timeout: 3000 });
+		await expect(connection).not.toContainText("isn’t answering", { timeout: 3000 });
+	}).toPass({ timeout: 45_000 });
+
+	// The bank has a new account: the row offers it, through Link and then Choose Accounts.
+	expect((await item("NEW_ACCOUNTS_AVAILABLE")).status()).toBe(200);
+	await page.reload();
+	await expect(connection).toContainText("First Platypus Bank has a new account. Add it?");
+	await connection
+		.getByRole("button", { name: "Add the new account at First Platypus Bank" })
+		.click();
+	await expect(page.getByRole("dialog")).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(page.getByRole("dialog")).toBeHidden();
+	await expect(connection).not.toContainText("has a new account");
+
+	// The Parent turned access off at the bank: it's disconnected, and its Accounts stay.
+	expect((await item("USER_PERMISSION_REVOKED")).status()).toBe(200);
+	await page.reload();
+	await expect(connection).toContainText("4 Accounts");
+	await expect(connection).toContainText("Access was turned off at the bank");
+	await expect(connection.getByRole("button")).toHaveCount(0);
+});
