@@ -209,27 +209,21 @@ export function TransactionItem({
 					{transaction.goal ? <Target /> : monogram(assignment.name)}
 				</Tile>
 			)}
-			<span className="grid min-w-0 gap-0.5">
-				<span className="flex min-w-0 items-center gap-1.5">
-					<span className="truncate text-sm font-medium">{title}</span>
-					<span className="flex shrink-0 items-center gap-1.5 empty:hidden max-sm:hidden">
-						{badges}
-					</span>
+			{/* The badges follow the title, or start the second line on phones so the title keeps
+			    its room (#47): one copy, placed by the grid. */}
+			<span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-y-0.5 sm:grid-cols-[minmax(0,max-content)_1fr]">
+				<span className="col-span-2 truncate text-sm font-medium sm:col-span-1">{title}</span>
+				<span className="col-start-1 row-start-2 me-1.5 flex shrink-0 items-center gap-1.5 empty:hidden sm:col-start-2 sm:row-start-1 sm:ms-1.5 sm:me-0">
+					{badges}
 				</span>
 				<span
 					className={cn(
-						"flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground",
+						"col-start-2 row-start-2 truncate text-[13px] text-muted-foreground sm:col-span-2 sm:col-start-1",
 						columns && "xl:sr-only",
 					)}
 				>
-					{/* On phones the badges go here, so the title keeps its room (#47). */}
-					<span className="flex shrink-0 items-center gap-1.5 empty:hidden sm:hidden">
-						{badges}
-					</span>
-					<span className="truncate">
-						{day}
-						{detail}
-					</span>
+					{day}
+					{detail}
 				</span>
 			</span>
 			{columns ? (
