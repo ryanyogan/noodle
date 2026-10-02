@@ -164,7 +164,8 @@ function JoinHousehold({ invite, onStartOwn }: { invite: InviteToJoin; onStartOw
 				<Button
 					type="button"
 					variant="link"
-					className="h-auto px-0 font-medium text-foreground underline underline-offset-4"
+					size="inline"
+					className="font-medium text-foreground underline-offset-4"
 					onClick={onStartOwn}
 					disabled={!hydrated || join.isPending}
 				>

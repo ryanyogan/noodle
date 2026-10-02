@@ -33,6 +33,8 @@ const buttonVariants = cva(
 				"icon-sm": "size-7 rounded-lg max-lg:size-11",
 				// Square at the control height, for an icon button beside an Input.
 				"icon-lg": "size-9 rounded-xl max-lg:size-11",
+				// `sm` whose words may run to a second line: a long name inside the label.
+				wrap: "h-auto min-h-8 max-w-full rounded-lg px-2.5 py-1.5 text-start text-[13px] whitespace-normal max-lg:min-h-11 max-lg:min-w-11",
 				// A filter that's on, with an × to take it off. Use with variant="secondary".
 				chip: "h-7 gap-1 rounded-full ps-2.5 pe-1.5 text-xs",
 				// TermHelp's "?": 24px, round, with a 44px hit area on phones from an ::after box.

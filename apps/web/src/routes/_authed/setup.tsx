@@ -487,12 +487,7 @@ function TakeHomePayStep({
 				</Card>
 			) : (
 				<div>
-					<Button
-						type="button"
-						variant="link"
-						className="h-auto px-0"
-						onClick={() => setBiweekly(true)}
-					>
+					<Button type="button" variant="link" onClick={() => setBiweekly(true)}>
 						Paid every two weeks?
 					</Button>
 				</div>

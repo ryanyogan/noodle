@@ -2,6 +2,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { Slot } from "radix-ui";
 import type * as React from "react";
 import { cn } from "#lib/utils";
+import type { BucketColor } from "./tile";
 
 // Noodle's own (#56): a button that is a whole row or tile rather than a labelled control, so its
 // content is laid out by the caller (a name over a figure, a Tile beside two lines) and it is as
@@ -30,11 +31,8 @@ const rowButtonVariants = cva(
 				bordered:
 					"flex w-full items-center justify-between gap-4 rounded-xl border px-(--card-pad) py-3 text-sm hover:bg-surface-2/60",
 				// A bordered tile in a grid of choices: a Bucket in Quick Add, a source in Cover.
-				tile: cn(
-					"grid items-center gap-x-2.5 rounded-xl border bg-card px-2.5 py-2 focus-visible:outline-offset-2",
-					"[&:not([aria-disabled=true])]:hover:border-border-strong [&:not([aria-disabled=true])]:active:scale-[0.98]",
-					hover,
-				),
+				// Its hover is added below: neutral, or a tint of the Bucket's colour when `bucket` is given.
+				tile: "grid items-center gap-x-2.5 rounded-xl border bg-card px-2.5 py-2 focus-visible:outline-offset-2 [&:not([aria-disabled=true])]:active:scale-[0.98]",
 				// A tile without a border, on the soft ground: one small chart of several.
 				soft: "grid w-full gap-2 rounded-xl bg-surface-2/60 p-3 hover:bg-surface-2",
 				// The value at the end of a row, which opens its editor.
@@ -50,20 +48,37 @@ const rowButtonVariants = cva(
 	},
 );
 
+const tileHover = cn("[&:not([aria-disabled=true])]:hover:border-border-strong", hover);
+const tileHoverTinted = cn(
+	"[&:not([aria-disabled=true])]:hover:border-[color-mix(in_oklab,var(--tile)_45%,var(--border))]",
+	"[&:not([aria-disabled=true])]:hover:bg-[color-mix(in_oklab,var(--tile)_5%,var(--card))]",
+);
+
 function RowButton({
 	className,
 	variant = "row",
+	bucket,
 	asChild = false,
+	style,
 	...props
 }: React.ComponentProps<"button"> &
-	VariantProps<typeof rowButtonVariants> & { asChild?: boolean }) {
+	VariantProps<typeof rowButtonVariants> & {
+		asChild?: boolean;
+		/** A `tile` for a Bucket: its hover takes a tint of the Bucket's colour. */
+		bucket?: BucketColor;
+	}) {
 	const Comp = asChild ? Slot.Root : "button";
 	return (
 		<Comp
 			data-slot="row-button"
 			data-variant={variant}
 			type={asChild ? undefined : "button"}
-			className={cn(rowButtonVariants({ variant }), className)}
+			className={cn(
+				rowButtonVariants({ variant }),
+				variant === "tile" && (bucket ? tileHoverTinted : tileHover),
+				className,
+			)}
+			style={bucket ? { ...style, ["--tile" as string]: `var(--bucket-${bucket})` } : style}
 			{...props}
 		/>
 	);

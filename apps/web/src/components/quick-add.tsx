@@ -423,6 +423,7 @@ function BucketPick({
 	return (
 		<RowButton
 			variant="tile"
+			bucket={color}
 			aria-disabled={!ready}
 			onClick={onPick}
 			className={cn("grid-cols-[32px_minmax(0,1fr)]", suggested && "border-border-strong")}

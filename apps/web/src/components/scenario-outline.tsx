@@ -992,7 +992,7 @@ function GrowthLine({ lever, edit }: { lever: ScenarioChange | undefined; edit: 
 					pattern="-?[0-9]*[.]?[0-9]*"
 					autoComplete="off"
 					defaultValue={growth[key]}
-					className="h-9 tabular-nums"
+					className="tabular-nums"
 					onChange={(event) => {
 						const value = Number(event.currentTarget.value);
 						if (

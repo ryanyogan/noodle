@@ -80,7 +80,7 @@ One scroll per region: `apps/web/e2e/desktop-scroll.spec.ts` fails a page with a
 
 ## Control sizes
 
-One height scale, so controls that sit in a row line up without a height class. Don't pass `h-*` or `size-*` in `className` to a Button, Input or SelectTrigger: pick a size.
+One height scale, so controls that sit in a row line up without a height class. Don't pass `h-*` or `size-*` in `className` to a Button, Input or SelectTrigger: pick a size. `apps/web/src/shared-controls.test.ts` fails on an `h-*` class on one of them, and on a raw `<button>`, `<input>`, `<select>`, `<textarea>` or `<table>` outside its short list of exceptions.
 
 | Height from lg | What |
 | --- | --- |
@@ -89,6 +89,7 @@ One height scale, so controls that sit in a row line up without a height class. 
 | 30px and 28px | Button `sm` (30), Button `icon-sm` and `chip` (28). |
 | 44px (`h-11`) | Button `lg`. |
 
+- **Button `wrap`**: `sm` whose words may run to a second line, for a label with a long name in it ("End … in the Plan…" on Insights).
 - **Button `chip`** with `variant="secondary"`: a filter that is on, with an × to take it off (Transactions, Reports).
 - **Button `inline`** with `variant="link"`: a few underlined words inside a sentence that do something ("Try again", "Use the estimate"). It takes the sentence's text size; for the sentence's colour too, add `text-current hover:text-current`.
 - **Button `help`** with `variant="ghost"`: TermHelp's "?", 24px and round, with its 44px hit area on phones.
@@ -103,7 +104,7 @@ Button is a word or an icon at a control height. When the thing to press is a wh
 | `row` (default) | A row on a card that opens something. | A Report's line that drills in; a Bucket's row in the phone heatmap. |
 | `list` | A row of a List, edge to edge. | A Transaction. |
 | `bordered` | A row with its own border, on its own. | "3 lumpy months ahead" on Commitments. |
-| `tile` | A bordered tile in a grid of choices. | A Bucket in Quick Add, a source in Cover. |
+| `tile` | A bordered tile in a grid of choices. `bucket` (a Bucket colour) tints its hover with that colour. | A Bucket in Quick Add (tinted), a source in Cover. |
 | `soft` | A tile without a border, on the soft ground. | Reports' "By Bucket" small charts. |
 | `value` | The value at the end of a row, which opens its editor. | A Scenario's lines. |
 | `key` | A key of the amount keypad. | Quick Add. |

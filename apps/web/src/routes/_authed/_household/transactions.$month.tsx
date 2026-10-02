@@ -814,7 +814,7 @@ function SortButton({
 			aria-pressed={state !== null}
 			onClick={onClick}
 			className={cn(
-				"h-7 gap-1 px-2 text-xs font-medium",
+				"gap-1 px-2 text-xs font-medium",
 				state === null ? "text-subtle-foreground" : "text-foreground",
 				className,
 			)}

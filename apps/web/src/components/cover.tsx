@@ -200,7 +200,7 @@ function SourcePick({
 			variant="tile"
 			aria-disabled={!ready}
 			onClick={onPick}
-			className="grid-cols-[32px_minmax(0,1fr)_auto]"
+			className="grid-cols-[32px_minmax(0,1fr)_auto] aria-disabled:cursor-not-allowed"
 		>
 			<Tile bucket={color} aria-hidden="true" className="size-8 rounded-[10px]">
 				{bucket ? monogram(bucket.name) : <Wallet />}
