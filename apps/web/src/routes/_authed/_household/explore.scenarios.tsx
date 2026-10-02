@@ -1,35 +1,9 @@
-import {
-	changeName,
-	moneyFreed,
-	type Projection,
-	planAhead,
-	planForMonth,
-	project,
-	type ScenarioChangeSubjects,
-} from "@noodle/domain";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "@noodle/ui/components/alert-dialog";
+import { changeName, type Projection } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card, CardContent } from "@noodle/ui/components/card";
 import { Checkbox } from "@noodle/ui/components/checkbox";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "@noodle/ui/components/dropdown-menu";
 import { EmptyState } from "@noodle/ui/components/empty-state";
-import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { MetaParts } from "@noodle/ui/components/meta-parts";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
@@ -44,23 +18,20 @@ import {
 	TableRow,
 } from "@noodle/ui/components/table";
 import { cn } from "@noodle/ui/lib/utils";
-import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Ellipsis, Layers } from "lucide-react";
-import { lazy, Suspense, useMemo, useState } from "react";
+import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-router";
+import { Layers } from "lucide-react";
+import { lazy, Suspense } from "react";
 import { z } from "zod";
+import { ListBesideDetail, masterDetailItem } from "../../../components/master-detail";
+import { HORIZON_LABEL, type Projected, useKeptScenarios } from "../../../components/scenario-view";
 import { SectionPending } from "../../../components/section-layout";
 import { formatMoney, formatWholeMoney, shortDayAt, shortMonth } from "../../../format";
 import { goalsQuery, planAheadQuery, scenariosQuery } from "../../../queries";
-import {
-	projectionGoals,
-	type ScenarioRecord,
-	useDeleteScenario,
-	useSaveScenario,
-} from "../../../scenarios";
 
 // The Household's saved Scenarios, each with its headline outcome, who made it, when it last
-// changed and whether it was applied; and up to three compared side by side against the Plan.
+// changed and whether it was applied. From lg the picked one shows beside the list (its route is
+// this one's child, #67); with none picked, the right pane is Compare: up to three side by side
+// against the Plan.
 // Like Explore, it renders only in the browser (data-only SSR), and its charts load lazily.
 
 const CompareChart = lazy(() =>
@@ -69,10 +40,6 @@ const CompareChart = lazy(() =>
 
 /** The most Scenarios compared at once. */
 const MAX_COMPARED = 3;
-
-/** How far the headlines and Compare look ahead. */
-const HORIZON = 24;
-const HORIZON_LABEL = "2 years";
 
 export const Route = createFileRoute("/_authed/_household/explore/scenarios")({
 	ssr: "data-only",
@@ -88,368 +55,149 @@ export const Route = createFileRoute("/_authed/_household/explore/scenarios")({
 	component: ScenariosPage,
 });
 
-type Projected = { scenario: ScenarioRecord; projection: Projection; freed: number };
-
 function ScenariosPage() {
 	const { parentId } = Route.useRouteContext();
-	const { month, records } = useSuspenseQuery(planAheadQuery()).data;
-	const goalsData = useSuspenseQuery(goalsQuery()).data;
-	const scenarios = useSuspenseQuery(scenariosQuery()).data;
-	const goals = useMemo(() => projectionGoals(goalsData), [goalsData]);
-	const navigate = useNavigate({ from: Route.fullPath });
+	const { plan, projected, subjects, goals } = useKeptScenarios(parentId);
+	const navigate = useNavigate();
 	const search = Route.useSearch();
-
-	const ahead = useMemo(() => planAhead(records, goals, month, HORIZON), [records, goals, month]);
-	const plan = useMemo(() => project(ahead), [ahead]);
-	const projected = useMemo(
-		() =>
-			scenarios.map((scenario): Projected => {
-				const projection = project(ahead, scenario.levers);
-				return { scenario, projection, freed: moneyFreed(plan, projection).at(-1) ?? 0 };
-			}),
-		[scenarios, ahead, plan],
-	);
-	// Changes are named as the Parent reading may see them: the other Parent's Personal Allowance
-	// reads only as "Personal Allowance" (ADR-0003).
-	const subjects = useMemo<ScenarioChangeSubjects>(() => {
-		const now = planForMonth(records, month);
-		return {
-			month,
-			baseline: now.baseline,
-			buckets: now.buckets,
-			commitments: now.commitments,
-			goals,
-			viewer: parentId,
-		};
-	}, [records, month, goals, parentId]);
+	// The Scenario open beside the list.
+	const picked = useParams({ strict: false, select: (params) => params.id });
 
 	const compared = (search.compare ?? "")
 		.split(",")
 		.filter((id) => projected.some((p) => p.scenario.id === id))
 		.slice(0, MAX_COMPARED);
+	// Ticking keeps whatever is open beside the list; "Compare" below shows the comparison.
 	const toggle = (id: string) => {
 		const next = compared.includes(id) ? compared.filter((c) => c !== id) : [...compared, id];
-		navigate({
-			search: { compare: next.length > 0 ? next.join(",") : undefined },
-			replace: true,
-			resetScroll: false,
-		});
+		const compare = next.length > 0 ? next.join(",") : undefined;
+		const stay = { search: { compare }, replace: true, resetScroll: false } as const;
+		if (picked) {
+			void navigate({ to: "/explore/scenarios/$id", params: { id: picked }, ...stay });
+		} else void navigate({ to: "/explore/scenarios", ...stay });
 	};
 
+	if (projected.length === 0) {
+		return (
+			<EmptyState
+				icon={<Layers />}
+				title="No saved Scenarios yet"
+				description="Save a Scenario in Explore to keep it here and compare it with others."
+				action={
+					<Button asChild size="sm">
+						<Link to="/explore">Explore</Link>
+					</Button>
+				}
+			/>
+		);
+	}
 	return (
-		<>
-			{projected.length === 0 ? (
-				<EmptyState
-					icon={<Layers />}
-					title="No saved Scenarios yet"
-					description="Save a Scenario in Explore to keep it here and compare it with others."
-					action={
-						<Button asChild size="sm">
-							<Link to="/explore">Explore</Link>
-						</Button>
-					}
-				/>
-			) : (
-				<div className="grid gap-8">
-					<Section aria-labelledby="saved">
-						<SectionHeader id="saved" title="Saved" count={projected.length} />
-						<p className="-mt-1 text-[13px] text-muted-foreground">
-							Each against the Plan over {HORIZON_LABEL}. Tick up to {MAX_COMPARED} to compare them
-							side by side with the Plan.
-						</p>
-						{compared.length > 0 ? (
-							<div className="flex flex-wrap items-center gap-2">
-								<Button asChild size="sm" variant="outline">
-									<a href="#compare">Compare {compared.length} selected</a>
-								</Button>
-								<span className="text-[13px] text-muted-foreground">
-									The comparison is below the list.
-								</span>
-							</div>
-						) : null}
-						<ScenarioTable
-							className="max-md:hidden"
-							projected={projected}
-							compared={compared}
-							subjects={subjects}
-							onToggle={toggle}
-						/>
-						<div className="md:hidden">
-							<List>
-								{projected.map(({ scenario, projection, freed }) => {
-									const picked = compared.includes(scenario.id);
-									const names = scenario.levers
-										.filter((l) => !l.muted)
-										.map((l) => changeName(l, subjects, scenario.levers));
-									return (
-										<ListRow
-											key={scenario.id}
-											leading={
-												<Checkbox
-													aria-label={`Compare “${scenario.name}”`}
-													checked={picked}
-													disabled={!picked && compared.length >= MAX_COMPARED}
-													onCheckedChange={() => toggle(scenario.id)}
-												/>
-											}
-											title={
-												<Link
-													to="/explore"
-													search={{ scenario: scenario.id }}
-													className="underline decoration-border-strong underline-offset-4 hover:decoration-current"
-												>
-													{scenario.name}
-												</Link>
-											}
-											badge={scenario.appliedAt ? <Badge variant="brand">Applied</Badge> : null}
-											meta={
-												<MetaParts
-													parts={[
-														scenario.createdBy ? `Made by ${scenario.createdBy}` : null,
-														`Changed ${shortDayAt(scenario.updatedAt)}`,
-														scenario.appliedAt
-															? `Applied ${shortDayAt(scenario.appliedAt)}${scenario.appliedBy ? ` by ${scenario.appliedBy}` : ""}`
-															: null,
-													]}
-												/>
-											}
-											trailing={
-												<>
-													<span
-														className={cn(
-															"text-sm font-semibold tabular-nums",
-															freed < 0 && "text-over",
-														)}
-													>
-														{freed > 0 ? "+" : ""}
-														{formatWholeMoney(freed)}
-													</span>
-													<span className="text-xs text-muted-foreground">Free to Spend</span>
-												</>
-											}
-											below={
-												<p className="text-[13px] text-muted-foreground">
-													{names.length > 0 ? names.join(" · ") : "No changes"}
-													{projection.lowest
-														? ` · Projected balance at its lowest ${formatWholeMoney(projection.lowest.amount)} in ${shortMonth(projection.lowest.month)}`
-														: null}
-												</p>
-											}
-										/>
-									);
-								})}
-							</List>
-						</div>
-					</Section>
+		<ListBesideDetail
+			picked={picked !== undefined}
+			noun="Scenario"
+			listLabel="Scenarios"
+			hint="Pick a Scenario to see it here, or tick some to compare them."
+			asideFills
+			aside={
+				compared.length > 0 ? (
+					<Compare
+						plan={plan}
+						compared={compared.flatMap((id) => projected.find((p) => p.scenario.id === id) ?? [])}
+						goals={goals}
+					/>
+				) : undefined
+			}
+			list={
+				<Section aria-labelledby="saved">
+					<SectionHeader id="saved" title="Saved" count={projected.length} />
+					<p className="-mt-1 text-[13px] text-muted-foreground">
+						Each against the Plan over {HORIZON_LABEL}. Tick up to {MAX_COMPARED} to compare them
+						side by side with the Plan.
+					</p>
 					{compared.length > 0 ? (
-						<Compare
-							plan={plan}
-							compared={compared.flatMap((id) => projected.find((p) => p.scenario.id === id) ?? [])}
-							goals={goals}
-						/>
+						<div>
+							<Button asChild size="sm" variant="outline">
+								<Link to="/explore/scenarios" search hash="compare" resetScroll={false}>
+									Compare {compared.length} selected
+								</Link>
+							</Button>
+						</div>
 					) : null}
-				</div>
-			)}
-		</>
+					<Card className="p-0">
+						<List>
+							{projected.map(({ scenario, projection, freed }) => {
+								const ticked = compared.includes(scenario.id);
+								const names = scenario.levers
+									.filter((l) => !l.muted)
+									.map((l) => changeName(l, subjects, scenario.levers));
+								return (
+									<ListRow
+										key={scenario.id}
+										leading={
+											<Checkbox
+												aria-label={`Compare “${scenario.name}”`}
+												checked={ticked}
+												disabled={!ticked && compared.length >= MAX_COMPARED}
+												onCheckedChange={() => toggle(scenario.id)}
+											/>
+										}
+										title={
+											<Link
+												to="/explore/scenarios/$id"
+												params={{ id: scenario.id }}
+												search
+												{...masterDetailItem}
+												className="underline decoration-border-strong underline-offset-4 hover:decoration-current"
+											>
+												{scenario.name}
+											</Link>
+										}
+										badge={scenario.appliedAt ? <Badge variant="brand">Applied</Badge> : null}
+										meta={
+											<MetaParts
+												parts={[
+													scenario.createdBy ? `Made by ${scenario.createdBy}` : null,
+													`Changed ${shortDayAt(scenario.updatedAt)}`,
+													scenario.appliedAt
+														? `Applied ${shortDayAt(scenario.appliedAt)}${scenario.appliedBy ? ` by ${scenario.appliedBy}` : ""}`
+														: null,
+												]}
+											/>
+										}
+										trailing={
+											<>
+												<span
+													className={cn(
+														"text-sm font-semibold tabular-nums",
+														freed < 0 && "text-over",
+													)}
+												>
+													{freed > 0 ? "+" : ""}
+													{formatWholeMoney(freed)}
+												</span>
+												<span className="text-xs text-muted-foreground">Free to Spend</span>
+											</>
+										}
+										below={
+											<p className="text-[13px] text-muted-foreground">
+												{names.length > 0 ? names.join(" · ") : "No changes"}
+												{projection.lowest
+													? ` · Projected balance at its lowest ${formatWholeMoney(projection.lowest.amount)} in ${shortMonth(projection.lowest.month)}`
+													: null}
+											</p>
+										}
+									/>
+								);
+							})}
+						</List>
+					</Card>
+				</Section>
+			}
+		/>
 	);
 }
 
 /** The Scenarios picked, side by side against the Plan: key numbers, then charts. */
-
-/** The saved Scenarios as a table on wider screens: tick to compare, the name opens it, and a menu per row. */
-function ScenarioTable({
-	projected,
-	compared,
-	subjects,
-	onToggle,
-	className,
-}: {
-	projected: Projected[];
-	compared: string[];
-	subjects: ScenarioChangeSubjects;
-	onToggle: (id: string) => void;
-	className?: string;
-}) {
-	const save = useSaveScenario();
-	const remove = useDeleteScenario();
-	const navigate = useNavigate();
-	const [renaming, setRenaming] = useState<ScenarioRecord | null>(null);
-	const [name, setName] = useState("");
-	const [deleting, setDeleting] = useState<ScenarioRecord | null>(null);
-	const trimmed = name.trim();
-	return (
-		<Card className={cn("overflow-hidden py-0", className)}>
-			<Table>
-				<TableHeader>
-					<TableRow>
-						<TableHead className="w-10">
-							<span className="sr-only">Compare</span>
-						</TableHead>
-						<TableHead>Name</TableHead>
-						<TableHead>Made by</TableHead>
-						<TableHead>Changed</TableHead>
-						<TableHead className="text-end">Frees</TableHead>
-						<TableHead className="text-end">Lowest projected balance</TableHead>
-						<TableHead className="w-10">
-							<span className="sr-only">Actions</span>
-						</TableHead>
-					</TableRow>
-				</TableHeader>
-				<TableBody>
-					{projected.map(({ scenario, projection, freed }) => {
-						const picked = compared.includes(scenario.id);
-						const names = scenario.levers
-							.filter((l) => !l.muted)
-							.map((l) => changeName(l, subjects, scenario.levers));
-						return (
-							<TableRow key={scenario.id} data-state={picked ? "selected" : undefined}>
-								<TableCell>
-									<Checkbox
-										aria-label={`Compare “${scenario.name}”`}
-										checked={picked}
-										disabled={!picked && compared.length >= MAX_COMPARED}
-										onCheckedChange={() => onToggle(scenario.id)}
-									/>
-								</TableCell>
-								<TableCell className="max-w-96 whitespace-normal">
-									<div className="flex flex-wrap items-center gap-2">
-										<Link
-											to="/explore"
-											search={{ scenario: scenario.id }}
-											className="font-medium underline decoration-border-strong underline-offset-4 hover:decoration-current"
-										>
-											{scenario.name}
-										</Link>
-										{scenario.appliedAt ? (
-											<Badge
-												variant="brand"
-												title={`Applied ${shortDayAt(scenario.appliedAt)}${scenario.appliedBy ? ` by ${scenario.appliedBy}` : ""}`}
-											>
-												Applied
-											</Badge>
-										) : null}
-									</div>
-									<p className="mt-0.5 line-clamp-2 text-[13px] text-muted-foreground">
-										{names.length > 0 ? names.join(" · ") : "No changes"}
-									</p>
-								</TableCell>
-								<TableCell className="text-muted-foreground">{scenario.createdBy ?? "—"}</TableCell>
-								<TableCell className="text-muted-foreground">
-									{shortDayAt(scenario.updatedAt)}
-								</TableCell>
-								<TableCell
-									className={cn("text-end font-semibold tabular-nums", freed < 0 && "text-over")}
-								>
-									{freed > 0 ? "+" : ""}
-									{formatWholeMoney(freed)}
-								</TableCell>
-								<TableCell className="text-end tabular-nums">
-									{projection.lowest ? (
-										<>
-											{formatWholeMoney(projection.lowest.amount)}
-											<span className="text-muted-foreground">
-												{" "}
-												in {shortMonth(projection.lowest.month)}
-											</span>
-										</>
-									) : (
-										"—"
-									)}
-								</TableCell>
-								<TableCell>
-									<DropdownMenu>
-										<DropdownMenuTrigger asChild>
-											<Button
-												variant="ghost"
-												size="icon"
-												aria-label={`More for “${scenario.name}”`}
-											>
-												<Ellipsis />
-											</Button>
-										</DropdownMenuTrigger>
-										<DropdownMenuContent align="end">
-											<DropdownMenuItem
-												onSelect={() =>
-													navigate({ to: "/explore", search: { scenario: scenario.id } })
-												}
-											>
-												Open
-											</DropdownMenuItem>
-											<DropdownMenuItem
-												onSelect={() => {
-													setName(scenario.name);
-													setRenaming(scenario);
-												}}
-											>
-												Rename
-											</DropdownMenuItem>
-											<DropdownMenuSeparator />
-											<DropdownMenuItem
-												className="text-over focus:text-over"
-												onSelect={() => setDeleting(scenario)}
-											>
-												Delete
-											</DropdownMenuItem>
-										</DropdownMenuContent>
-									</DropdownMenu>
-								</TableCell>
-							</TableRow>
-						);
-					})}
-				</TableBody>
-			</Table>
-			<AlertDialog open={renaming !== null} onOpenChange={(open) => !open && setRenaming(null)}>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Rename Scenario</AlertDialogTitle>
-						<AlertDialogDescription>The Plan doesn’t change.</AlertDialogDescription>
-					</AlertDialogHeader>
-					<Input
-						aria-label="Scenario name"
-						value={name}
-						maxLength={40}
-						onChange={(event) => setName(event.currentTarget.value)}
-					/>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							variant="default"
-							disabled={trimmed === ""}
-							onClick={() => {
-								if (renaming && trimmed !== "") {
-									save.mutate({ scenarioId: renaming.id, name: trimmed, levers: renaming.levers });
-								}
-							}}
-						>
-							Rename
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
-			<AlertDialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Delete Scenario</AlertDialogTitle>
-						<AlertDialogDescription>
-							Delete “{deleting?.name}”? The Plan doesn’t change.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							onClick={() => {
-								if (deleting) remove.mutate({ scenarioId: deleting.id, name: deleting.name });
-							}}
-						>
-							Delete Scenario
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
-		</Card>
-	);
-}
-
 function Compare({
 	plan,
 	compared,

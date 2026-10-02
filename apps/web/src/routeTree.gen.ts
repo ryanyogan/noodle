@@ -43,6 +43,7 @@ import { Route as AuthedHouseholdReviewIndexRouteImport } from './routes/_authed
 import { Route as AuthedHouseholdReviewRulesRouteImport } from './routes/_authed/_household/review.rules'
 import { Route as AuthedHouseholdTransactionsIndexRouteImport } from './routes/_authed/_household/transactions.index'
 import { Route as AuthedHouseholdTransactionsMonthRouteImport } from './routes/_authed/_household/transactions.$month'
+import { Route as AuthedHouseholdExploreScenariosIdRouteImport } from './routes/_authed/_household/explore.scenarios.$id'
 import { Route as AuthedHouseholdGoalsAccountsAccountIdRouteImport } from './routes/_authed/_household/goals_.accounts.$accountId'
 import { Route as AuthedHouseholdMonthMonthIndexRouteImport } from './routes/_authed/_household/month.$month.index'
 import { Route as AuthedHouseholdMonthMonthPlanRouteImport } from './routes/_authed/_household/month.$month.plan'
@@ -244,6 +245,12 @@ const AuthedHouseholdTransactionsMonthRoute =
     path: '/transactions/$month',
     getParentRoute: () => AuthedHouseholdRoute,
   } as any)
+const AuthedHouseholdExploreScenariosIdRoute =
+  AuthedHouseholdExploreScenariosIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => AuthedHouseholdExploreScenariosRoute,
+  } as any)
 const AuthedHouseholdGoalsAccountsAccountIdRoute =
   AuthedHouseholdGoalsAccountsAccountIdRouteImport.update({
     id: '/goals_/accounts/$accountId',
@@ -361,7 +368,7 @@ export interface FileRoutesByFullPath {
   '/bank/return': typeof AuthedBankReturnRoute
   '/accounts/$accountId': typeof AuthedHouseholdAccountsAccountIdRoute
   '/explore/afford': typeof AuthedHouseholdExploreAffordRoute
-  '/explore/scenarios': typeof AuthedHouseholdExploreScenariosRoute
+  '/explore/scenarios': typeof AuthedHouseholdExploreScenariosRouteWithChildren
   '/goals/$goalId': typeof AuthedHouseholdGoalsGoalIdRoute
   '/insights/perks': typeof AuthedHouseholdInsightsPerksRoute
   '/month/$month': typeof AuthedHouseholdMonthMonthRouteWithChildren
@@ -374,6 +381,7 @@ export interface FileRoutesByFullPath {
   '/plan/': typeof AuthedHouseholdPlanIndexRoute
   '/review/': typeof AuthedHouseholdReviewIndexRoute
   '/transactions/': typeof AuthedHouseholdTransactionsIndexRoute
+  '/explore/scenarios/$id': typeof AuthedHouseholdExploreScenariosIdRoute
   '/goals/accounts/$accountId': typeof AuthedHouseholdGoalsAccountsAccountIdRoute
   '/month/$month/plan': typeof AuthedHouseholdMonthMonthPlanRoute
   '/plan/$month/buckets': typeof AuthedHouseholdPlanMonthBucketsRouteWithChildren
@@ -408,7 +416,7 @@ export interface FileRoutesByTo {
   '/bank/return': typeof AuthedBankReturnRoute
   '/accounts/$accountId': typeof AuthedHouseholdAccountsAccountIdRoute
   '/explore/afford': typeof AuthedHouseholdExploreAffordRoute
-  '/explore/scenarios': typeof AuthedHouseholdExploreScenariosRoute
+  '/explore/scenarios': typeof AuthedHouseholdExploreScenariosRouteWithChildren
   '/goals/$goalId': typeof AuthedHouseholdGoalsGoalIdRoute
   '/insights/perks': typeof AuthedHouseholdInsightsPerksRoute
   '/review/rules': typeof AuthedHouseholdReviewRulesRouteWithChildren
@@ -419,6 +427,7 @@ export interface FileRoutesByTo {
   '/plan': typeof AuthedHouseholdPlanIndexRoute
   '/review': typeof AuthedHouseholdReviewIndexRoute
   '/transactions': typeof AuthedHouseholdTransactionsIndexRoute
+  '/explore/scenarios/$id': typeof AuthedHouseholdExploreScenariosIdRoute
   '/goals/accounts/$accountId': typeof AuthedHouseholdGoalsAccountsAccountIdRoute
   '/month/$month/plan': typeof AuthedHouseholdMonthMonthPlanRoute
   '/plan/$month/buckets': typeof AuthedHouseholdPlanMonthBucketsRouteWithChildren
@@ -459,7 +468,7 @@ export interface FileRoutesById {
   '/_authed/bank/return': typeof AuthedBankReturnRoute
   '/_authed/_household/accounts/$accountId': typeof AuthedHouseholdAccountsAccountIdRoute
   '/_authed/_household/explore/afford': typeof AuthedHouseholdExploreAffordRoute
-  '/_authed/_household/explore/scenarios': typeof AuthedHouseholdExploreScenariosRoute
+  '/_authed/_household/explore/scenarios': typeof AuthedHouseholdExploreScenariosRouteWithChildren
   '/_authed/_household/goals/$goalId': typeof AuthedHouseholdGoalsGoalIdRoute
   '/_authed/_household/insights/perks': typeof AuthedHouseholdInsightsPerksRoute
   '/_authed/_household/month/$month': typeof AuthedHouseholdMonthMonthRouteWithChildren
@@ -472,6 +481,7 @@ export interface FileRoutesById {
   '/_authed/_household/plan/': typeof AuthedHouseholdPlanIndexRoute
   '/_authed/_household/review/': typeof AuthedHouseholdReviewIndexRoute
   '/_authed/_household/transactions/': typeof AuthedHouseholdTransactionsIndexRoute
+  '/_authed/_household/explore/scenarios/$id': typeof AuthedHouseholdExploreScenariosIdRoute
   '/_authed/_household/goals_/accounts/$accountId': typeof AuthedHouseholdGoalsAccountsAccountIdRoute
   '/_authed/_household/month/$month/plan': typeof AuthedHouseholdMonthMonthPlanRoute
   '/_authed/_household/plan/$month/buckets': typeof AuthedHouseholdPlanMonthBucketsRouteWithChildren
@@ -524,6 +534,7 @@ export interface FileRouteTypes {
     | '/plan/'
     | '/review/'
     | '/transactions/'
+    | '/explore/scenarios/$id'
     | '/goals/accounts/$accountId'
     | '/month/$month/plan'
     | '/plan/$month/buckets'
@@ -569,6 +580,7 @@ export interface FileRouteTypes {
     | '/plan'
     | '/review'
     | '/transactions'
+    | '/explore/scenarios/$id'
     | '/goals/accounts/$accountId'
     | '/month/$month/plan'
     | '/plan/$month/buckets'
@@ -621,6 +633,7 @@ export interface FileRouteTypes {
     | '/_authed/_household/plan/'
     | '/_authed/_household/review/'
     | '/_authed/_household/transactions/'
+    | '/_authed/_household/explore/scenarios/$id'
     | '/_authed/_household/goals_/accounts/$accountId'
     | '/_authed/_household/month/$month/plan'
     | '/_authed/_household/plan/$month/buckets'
@@ -885,6 +898,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedHouseholdTransactionsMonthRouteImport
       parentRoute: typeof AuthedHouseholdRoute
     }
+    '/_authed/_household/explore/scenarios/$id': {
+      id: '/_authed/_household/explore/scenarios/$id'
+      path: '/$id'
+      fullPath: '/explore/scenarios/$id'
+      preLoaderRoute: typeof AuthedHouseholdExploreScenariosIdRouteImport
+      parentRoute: typeof AuthedHouseholdExploreScenariosRoute
+    }
     '/_authed/_household/goals_/accounts/$accountId': {
       id: '/_authed/_household/goals_/accounts/$accountId'
       path: '/goals/accounts/$accountId'
@@ -1015,16 +1035,32 @@ const AuthedHouseholdAccountsRouteWithChildren =
     AuthedHouseholdAccountsRouteChildren,
   )
 
+interface AuthedHouseholdExploreScenariosRouteChildren {
+  AuthedHouseholdExploreScenariosIdRoute: typeof AuthedHouseholdExploreScenariosIdRoute
+}
+
+const AuthedHouseholdExploreScenariosRouteChildren: AuthedHouseholdExploreScenariosRouteChildren =
+  {
+    AuthedHouseholdExploreScenariosIdRoute:
+      AuthedHouseholdExploreScenariosIdRoute,
+  }
+
+const AuthedHouseholdExploreScenariosRouteWithChildren =
+  AuthedHouseholdExploreScenariosRoute._addFileChildren(
+    AuthedHouseholdExploreScenariosRouteChildren,
+  )
+
 interface AuthedHouseholdExploreRouteChildren {
   AuthedHouseholdExploreAffordRoute: typeof AuthedHouseholdExploreAffordRoute
-  AuthedHouseholdExploreScenariosRoute: typeof AuthedHouseholdExploreScenariosRoute
+  AuthedHouseholdExploreScenariosRoute: typeof AuthedHouseholdExploreScenariosRouteWithChildren
   AuthedHouseholdExploreIndexRoute: typeof AuthedHouseholdExploreIndexRoute
 }
 
 const AuthedHouseholdExploreRouteChildren: AuthedHouseholdExploreRouteChildren =
   {
     AuthedHouseholdExploreAffordRoute: AuthedHouseholdExploreAffordRoute,
-    AuthedHouseholdExploreScenariosRoute: AuthedHouseholdExploreScenariosRoute,
+    AuthedHouseholdExploreScenariosRoute:
+      AuthedHouseholdExploreScenariosRouteWithChildren,
     AuthedHouseholdExploreIndexRoute: AuthedHouseholdExploreIndexRoute,
   }
 

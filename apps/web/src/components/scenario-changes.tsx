@@ -46,14 +46,17 @@ export const ScenarioChanges = memo(function ScenarioChanges({
 	/** Every Goal a Change can move, Plan's and added, by id. */
 	goalNames: ReadonlyMap<string, string>;
 	horizonLabel: string;
-	onChange: (change: (changes: ScenarioChange[]) => ScenarioChange[]) => void;
+	/** Left out where the Changes are only read (a kept Scenario's page): no Leave out or Remove. */
+	onChange?: (change: (changes: ScenarioChange[]) => ScenarioChange[]) => void;
 }) {
 	return (
 		<Section aria-labelledby="your-changes">
 			<SectionHeader id="your-changes" title="Your changes" count={levers.length || undefined} />
 			{levers.length === 0 ? (
 				<p className="rounded-xl border border-dashed px-(--card-pad) py-4 text-[13px] text-muted-foreground">
-					Nothing changed yet. Edit a line below and it shows up here, with what it does on its own.
+					{onChange
+						? "Nothing changed yet. Edit a line below and it shows up here, with what it does on its own."
+						: "This Scenario changes nothing."}
 				</p>
 			) : (
 				<Card>
@@ -71,8 +74,13 @@ export const ScenarioChanges = memo(function ScenarioChanges({
 									impact={gone ? null : impacts.get(target)}
 									goalNames={goalNames}
 									horizonLabel={horizonLabel}
-									onMute={(muted) => onChange((current) => withMuted(current, target, muted))}
-									onRemove={() => onChange((current) => withoutChange(current, target))}
+									onMute={
+										onChange &&
+										((muted) => onChange((current) => withMuted(current, target, muted)))
+									}
+									onRemove={
+										onChange && (() => onChange((current) => withoutChange(current, target)))
+									}
 								/>
 							);
 						})}
@@ -105,8 +113,8 @@ function Change({
 	impact: ScenarioChangeImpact | null | undefined;
 	goalNames: ReadonlyMap<string, string>;
 	horizonLabel: string;
-	onMute: (muted: boolean) => void;
-	onRemove: () => void;
+	onMute?: (muted: boolean) => void;
+	onRemove?: () => void;
 }) {
 	return (
 		<li
@@ -138,33 +146,39 @@ function Change({
 					</p>
 				)}
 			</div>
-			<div className="-me-1.5 flex items-center">
-				{gone ? null : (
-					<WithTooltip label={muted ? "Left out: count it again" : "Leave it out"}>
-						<Toggle
-							size="sm"
-							aria-label="Leave out"
-							pressed={muted}
-							onPressedChange={onMute}
-							className="text-muted-foreground data-[state=on]:bg-transparent data-[state=on]:text-foreground"
-						>
-							{muted ? <EyeOff /> : <Eye />}
-						</Toggle>
-					</WithTooltip>
-				)}
-				<WithTooltip label="Remove">
-					<Button
-						type="button"
-						variant="ghost"
-						size="icon-sm"
-						aria-label="Remove"
-						className="text-muted-foreground"
-						onClick={onRemove}
-					>
-						<X />
-					</Button>
-				</WithTooltip>
-			</div>
+			{onMute || onRemove ? (
+				<div className="-me-1.5 flex items-center">
+					{gone || !onMute ? null : (
+						<WithTooltip label={muted ? "Left out: count it again" : "Leave it out"}>
+							<Toggle
+								size="sm"
+								aria-label="Leave out"
+								pressed={muted}
+								onPressedChange={onMute}
+								className="text-muted-foreground data-[state=on]:bg-transparent data-[state=on]:text-foreground"
+							>
+								{muted ? <EyeOff /> : <Eye />}
+							</Toggle>
+						</WithTooltip>
+					)}
+					{onRemove ? (
+						<WithTooltip label="Remove">
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon-sm"
+								aria-label="Remove"
+								className="text-muted-foreground"
+								onClick={onRemove}
+							>
+								<X />
+							</Button>
+						</WithTooltip>
+					) : null}
+				</div>
+			) : muted ? (
+				<Badge variant="count">Left out</Badge>
+			) : null}
 		</li>
 	);
 }

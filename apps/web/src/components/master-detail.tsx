@@ -187,6 +187,7 @@ export function ListBesideDetail({
 	hint,
 	list,
 	aside,
+	asideFills,
 }: {
 	/** An item's route is showing. */
 	picked: boolean;
@@ -199,10 +200,15 @@ export function ListBesideDetail({
 	list: ReactNode;
 	/** The right pane while nothing is picked; on phones it comes before the list. */
 	aside?: ReactNode;
+	/**
+	 * The aside is the section's own working area rather than its totals (Scenarios' Compare): it
+	 * takes the pane's width, and on phones it comes after the list.
+	 */
+	asideFills?: boolean;
 }) {
 	return (
 		<MasterDetail
-			className="max-lg:[&>[data-slot=master-detail-detail]]:order-first"
+			className={asideFills ? undefined : "max-lg:[&>[data-slot=master-detail-detail]]:order-first"}
 			listLabel={listLabel}
 			detailLabel={picked ? `${noun} details` : `${listLabel} overview`}
 			emptyStacks={Boolean(aside)}
@@ -218,7 +224,7 @@ export function ListBesideDetail({
 				) : undefined
 			}
 			empty={
-				<div className="grid w-full content-start gap-4 lg:max-w-md">
+				<div className={cn("grid w-full content-start gap-4", !asideFills && "lg:max-w-md")}>
 					{aside}
 					<p className="px-1 text-sm text-muted-foreground max-lg:hidden">{hint}</p>
 				</div>
