@@ -762,9 +762,9 @@ function ConnectionRow({
 						</span>
 					) : null}
 					{failed ? (
-						<span role="alert" className="basis-full text-over">
-							{failed}
-						</span>
+						<Alert variant="destructive" role="alert" className="basis-full">
+							<AlertDescription>{failed}</AlertDescription>
+						</Alert>
 					) : null}
 					{/* What the provider asked the Parent to read (Plaid's display_message), as plain text. */}
 					{connection.notice ? (

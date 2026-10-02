@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import type * as React from "react";
 import { cn } from "#lib/utils";
 
@@ -62,4 +63,48 @@ function Stepper({
 	);
 }
 
-export { Stepper };
+// StepList is the other shape: a flow whose steps have names worth showing (the weekly Check-in).
+// A `<nav>` holding an ordered list, one row per step: a tick once it's done, a dot until then,
+// and the current one raised onto a card with `aria-current="step"`. Name the nav with
+// `aria-label`. The tick and dot are decorative; say progress in words beside it ("2 of 4").
+
+function StepList({ className, children, ...props }: React.ComponentProps<"nav">) {
+	return (
+		<nav data-slot="step-list" className={className} {...props}>
+			<ol className="grid gap-1">{children}</ol>
+		</nav>
+	);
+}
+
+function StepListItem({
+	state = "todo",
+	className,
+	children,
+	...props
+}: React.ComponentProps<"li"> & { state?: "done" | "current" | "todo" }) {
+	return (
+		<li
+			data-slot="step-list-item"
+			data-state={state}
+			aria-current={state === "current" ? "step" : undefined}
+			className={cn(
+				"flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted-foreground",
+				"data-[state=current]:bg-card data-[state=current]:font-medium data-[state=current]:text-foreground data-[state=current]:shadow-card data-[state=current]:ring-1 data-[state=current]:ring-border",
+				className,
+			)}
+			{...props}
+		>
+			{state === "done" ? (
+				<Check aria-hidden="true" className="size-4 text-brand" />
+			) : (
+				<span
+					aria-hidden="true"
+					className={cn("size-2 rounded-full", state === "current" ? "bg-brand" : "bg-border")}
+				/>
+			)}
+			{children}
+		</li>
+	);
+}
+
+export { StepList, StepListItem, Stepper };

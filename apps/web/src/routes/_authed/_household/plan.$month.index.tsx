@@ -8,6 +8,7 @@ import {
 	parseDollars,
 	whatChanged,
 } from "@noodle/domain";
+import { Alert, AlertDescription } from "@noodle/ui/components/alert";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
@@ -397,11 +398,13 @@ function Waterfall({ state, current }: { state: MonthState; current: boolean }) 
 				</li>
 			</List>
 			{overBy > 0 ? (
-				<p className="rounded-xl bg-over-soft px-3 py-2.5 text-[13px] text-over-foreground">
-					{state.committed > 0
-						? `Your Commitments and Buckets add up to ${formatMoney(overBy)} more than your take-home pay. Lower an amount, or raise your take-home pay if it has gone up.`
-						: `Your Buckets add up to ${formatMoney(overBy)} more than your take-home pay. Lower an allowance, or raise your take-home pay if it has gone up.`}
-				</p>
+				<Alert variant="destructive">
+					<AlertDescription>
+						{state.committed > 0
+							? `Your Commitments and Buckets add up to ${formatMoney(overBy)} more than your take-home pay. Lower an amount, or raise your take-home pay if it has gone up.`
+							: `Your Buckets add up to ${formatMoney(overBy)} more than your take-home pay. Lower an allowance, or raise your take-home pay if it has gone up.`}
+					</AlertDescription>
+				</Alert>
 			) : null}
 		</Section>
 	);

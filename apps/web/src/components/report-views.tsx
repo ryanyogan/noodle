@@ -10,6 +10,7 @@ import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
+import { Stat, StatGrid } from "@noodle/ui/components/stat";
 import { Tile } from "@noodle/ui/components/tile";
 import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { WithTooltip } from "@noodle/ui/components/tooltip";
@@ -157,7 +158,8 @@ export function Delta({
 	);
 }
 
-function Stat({
+/** A headline figure of a Report: the shared Stat, with what changed since the period before under it. */
+function ReportStat({
 	label,
 	value,
 	delta,
@@ -171,19 +173,20 @@ function Stat({
 	index?: number;
 }) {
 	return (
-		<div
-			className="grid content-start gap-1 animate-enter"
+		<Stat
+			className="animate-enter"
 			style={{ animationDelay: `${index * 40}ms` }}
-		>
-			<span className="text-[13px] text-muted-foreground">{label}</span>
-			<span className="text-2xl font-semibold tracking-[-0.02em] tabular-nums lg:text-[1.75rem]">
-				{value}
-			</span>
-			<span className="flex min-h-4 flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
-				{delta}
-				{hint}
-			</span>
-		</div>
+			label={label}
+			value={value}
+			note={
+				delta || hint ? (
+					<span className="flex flex-wrap items-center gap-x-1.5">
+						{delta}
+						{hint}
+					</span>
+				) : undefined
+			}
+		/>
 	);
 }
 
@@ -532,42 +535,47 @@ function OverviewView({ report, data, names, nav, tables }: ViewProps<"overview"
 	}
 	return (
 		<div className="grid gap-4 lg:gap-6">
-			<Card className="grid grid-cols-2 gap-x-4 gap-y-6 p-(--card-pad) sm:grid-cols-3 lg:grid-cols-5 lg:py-6">
-				<Stat
-					index={0}
-					label="Spent"
-					value={formatWholeMoney(now.spent)}
-					delta={<Delta now={now.spent} before={previous?.spent} />}
-					hint={data.private ? <PrivateMark /> : null}
-				/>
-				<Stat
-					index={1}
-					label="Earned"
-					value={formatWholeMoney(now.earned)}
-					delta={<Delta now={now.earned} before={previous?.earned} invert />}
-				/>
-				<Stat
-					index={2}
-					label="Saved"
-					value={formatWholeMoney(now.saved)}
-					delta={<Delta now={now.saved} before={previous?.saved} invert />}
-				/>
-				<Stat
-					index={3}
-					label="Savings rate"
-					value={now.savingsRate === null ? "—" : formatPercent(now.savingsRate)}
-					hint={
-						previous?.savingsRate != null && now.savingsRate !== null
-							? `${formatPercent(previous.savingsRate)} before`
-							: null
-					}
-				/>
-				<Stat
-					index={4}
-					label="Free to Spend"
-					value={formatWholeMoney(now.freeToSpend)}
-					hint="over the Plans"
-				/>
+			<Card>
+				<StatGrid
+					size="lg"
+					className="grid-cols-2 gap-x-4 gap-y-6 p-(--card-pad) sm:grid-cols-3 lg:grid-cols-5 lg:py-6"
+				>
+					<ReportStat
+						index={0}
+						label="Spent"
+						value={formatWholeMoney(now.spent)}
+						delta={<Delta now={now.spent} before={previous?.spent} />}
+						hint={data.private ? <PrivateMark /> : null}
+					/>
+					<ReportStat
+						index={1}
+						label="Earned"
+						value={formatWholeMoney(now.earned)}
+						delta={<Delta now={now.earned} before={previous?.earned} invert />}
+					/>
+					<ReportStat
+						index={2}
+						label="Saved"
+						value={formatWholeMoney(now.saved)}
+						delta={<Delta now={now.saved} before={previous?.saved} invert />}
+					/>
+					<ReportStat
+						index={3}
+						label="Savings rate"
+						value={now.savingsRate === null ? "—" : formatPercent(now.savingsRate)}
+						hint={
+							previous?.savingsRate != null && now.savingsRate !== null
+								? `${formatPercent(previous.savingsRate)} before`
+								: null
+						}
+					/>
+					<ReportStat
+						index={4}
+						label="Free to Spend"
+						value={formatWholeMoney(now.freeToSpend)}
+						hint="over the Plans"
+					/>
+				</StatGrid>
 			</Card>
 			<div className="grid gap-4 lg:gap-6 xl:grid-cols-12 xl:items-start">
 				<ChartCard
@@ -1008,19 +1016,21 @@ function AreaView({ report, data, names, search, nav, tables }: ViewProps<"area"
 	const openMonth = month ?? (report.periods.at(-1)?.slice(0, 7) as MonthKey);
 	return (
 		<div className="grid gap-4 lg:grid-cols-5 lg:gap-6">
-			<Card className="grid grid-cols-2 gap-4 p-(--card-pad) sm:grid-cols-3 lg:col-span-5">
-				<Stat
-					label={month ? monthLabel(month) : "This period"}
-					value={formatMoney(data.total)}
-					delta={<Delta now={data.total} before={data.previous} />}
-					hint={data.private ? <PrivateMark /> : null}
-				/>
-				<Stat index={1} label="Transactions" value={data.count.toLocaleString("en-US")} />
-				<Stat
-					index={2}
-					label="Average"
-					value={data.count > 0 ? formatMoney(Math.round(data.total / data.count)) : "—"}
-				/>
+			<Card className="lg:col-span-5">
+				<StatGrid size="lg" className="grid-cols-2 gap-4 p-(--card-pad) sm:grid-cols-3">
+					<ReportStat
+						label={month ? monthLabel(month) : "This period"}
+						value={formatMoney(data.total)}
+						delta={<Delta now={data.total} before={data.previous} />}
+						hint={data.private ? <PrivateMark /> : null}
+					/>
+					<ReportStat index={1} label="Transactions" value={data.count.toLocaleString("en-US")} />
+					<ReportStat
+						index={2}
+						label="Average"
+						value={data.count > 0 ? formatMoney(Math.round(data.total / data.count)) : "—"}
+					/>
+				</StatGrid>
 			</Card>
 			<ChartCard
 				className="lg:col-span-5"
@@ -1509,10 +1519,12 @@ function CashFlowView({ data, nav, tables, names }: ViewProps<"cash-flow">) {
 	const nodes = data.flow.nodes.map((n) => ({ ...n, name: flowName(names, n) }));
 	return (
 		<div className="grid gap-4 lg:gap-6">
-			<Card className="grid grid-cols-3 gap-4 p-(--card-pad)">
-				<Stat label="Came in" value={formatMoney(data.earned)} />
-				<Stat index={1} label="Went out" value={formatMoney(data.spent)} />
-				<Stat index={2} label="To Goals" value={formatMoney(data.goals)} />
+			<Card>
+				<StatGrid size="lg" className="grid-cols-3 gap-4 p-(--card-pad)">
+					<ReportStat label="Came in" value={formatMoney(data.earned)} />
+					<ReportStat index={1} label="Went out" value={formatMoney(data.spent)} />
+					<ReportStat index={2} label="To Goals" value={formatMoney(data.goals)} />
+				</StatGrid>
 			</Card>
 			<ChartCard
 				title="Where the money flowed"
@@ -1663,14 +1675,16 @@ function IncomeView({ data, nav, tables }: ViewProps<"income">) {
 		.sort((a, b) => b.amount - a.amount);
 	return (
 		<div className="grid gap-4 lg:grid-cols-5 lg:gap-6">
-			<Card className="grid grid-cols-2 gap-4 p-(--card-pad) lg:col-span-5">
-				<Stat label="Received" value={formatMoney(total)} />
-				<Stat
-					index={1}
-					label="Extra income"
-					value={formatMoney(extraIncomes)}
-					hint="above your usual take-home pay"
-				/>
+			<Card className="lg:col-span-5">
+				<StatGrid size="lg" className="grid-cols-2 gap-4 p-(--card-pad)">
+					<ReportStat label="Received" value={formatMoney(total)} />
+					<ReportStat
+						index={1}
+						label="Extra income"
+						value={formatMoney(extraIncomes)}
+						hint="above your usual take-home pay"
+					/>
+				</StatGrid>
 			</Card>
 			<ChartCard
 				className="lg:col-span-3"

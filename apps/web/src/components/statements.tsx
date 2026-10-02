@@ -632,11 +632,13 @@ function StatementPreview({
 			: null;
 	if (lines.length === 0) {
 		return (
-			<p role="status" className="text-sm text-over">
-				{format === "csv"
-					? "No lines can be read with these columns. Check the date, its format, and the amount."
-					: "No transactions were found in this file."}
-			</p>
+			<Alert variant="destructive">
+				<AlertDescription>
+					{format === "csv"
+						? "No lines can be read with these columns. Check the date, its format, and the amount."
+						: "No transactions were found in this file."}
+				</AlertDescription>
+			</Alert>
 		);
 	}
 	const moneyOut = lines.reduce((sum, l) => sum + (l.amount < 0 ? -l.amount : 0), 0);

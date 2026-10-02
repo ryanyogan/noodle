@@ -1,5 +1,6 @@
 import type * as React from "react";
 import { cn } from "#lib/utils";
+import { Alert } from "./alert";
 import { Label } from "./label";
 
 /**
@@ -37,15 +38,18 @@ function Field({
 	);
 }
 
-/** An error beneath a form, announced to screen readers. */
-function FormError({ className, ...props }: React.ComponentProps<"p">) {
+/**
+ * An error beneath a form, announced to screen readers: the destructive Alert, so every error in
+ * the app is the same box and the same ink (`text-over-foreground`, which is 4.5:1 on the soft
+ * ground; `text-over` isn't in the light theme). A row, so a "Try again" Button can sit beside
+ * the words.
+ */
+function FormError({ className, ...props }: React.ComponentProps<"div">) {
 	return (
-		<p
+		<Alert
+			variant="destructive"
 			role="alert"
-			className={cn(
-				"flex items-start gap-2 rounded-xl bg-over-soft px-3 py-2.5 text-[13px] text-over",
-				className,
-			)}
+			className={cn("flex items-start gap-2 text-[13px]", className)}
 			{...props}
 		/>
 	);
