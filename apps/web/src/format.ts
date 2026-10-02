@@ -1,3 +1,5 @@
+import { formatMoney } from "@noodle/ui/lib/money";
+
 function monthDate(key: string): Date {
 	const [year, month] = key.split("-").map(Number);
 	return new Date(Date.UTC(year ?? 1970, (month ?? 1) - 1, 1));
@@ -8,18 +10,8 @@ export function monthName(key: string): string {
 	return monthDate(key).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" });
 }
 
-const dollars = new Intl.NumberFormat("en-US", {
-	style: "currency",
-	currency: "USD",
-	minimumFractionDigits: 0,
-	maximumFractionDigits: 2,
-});
-
-/** "$1,240" or "$1,240.50" (cents only when there are some); negatives use a true minus sign. */
-export function formatMoney(cents: number): string {
-	const text = dollars.format(Math.abs(cents) / 100).replace(/\.(\d)$/, ".$10");
-	return cents < 0 ? `−${text}` : text;
-}
+// formatMoney lives beside the Money component, so the two can't drift apart.
+export { formatMoney };
 
 /** An amount as a Parent would type it: "1,240" or "1,240.50", no currency sign. */
 export function formatMoneyInput(cents: number): string {

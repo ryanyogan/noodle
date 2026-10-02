@@ -8,6 +8,7 @@ import { Meter } from "@noodle/ui/components/meter";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
+import { Stat, StatGrid } from "@noodle/ui/components/stat";
 import { toast } from "@noodle/ui/components/toast";
 import {
 	useMutation,
@@ -328,7 +329,7 @@ function ThisMonth({ bucket }: { bucket: BucketState }) {
 				/>
 				{parts ? <p className="text-xs text-muted-foreground tabular-nums">{parts}</p> : null}
 			</div>
-			<dl className="grid grid-cols-2 border-t sm:grid-cols-3">
+			<StatGrid layout="ruled" wrapLast className="grid-cols-2 sm:grid-cols-3">
 				<Stat label="Spent" value={formatMoney(bucket.spent)} />
 				<Stat
 					label="Even spending by today"
@@ -336,7 +337,7 @@ function ThisMonth({ bucket }: { bucket: BucketState }) {
 					value={formatMoney(bucket.pace.spent)}
 				/>
 				<Stat label="Planned this month" value={formatMoney(bucket.allowance)} />
-			</dl>
+			</StatGrid>
 		</Card>
 	);
 }
@@ -472,17 +473,5 @@ function BucketTransactions({
 				onClose={() => setEditing(null)}
 			/>
 		</Section>
-	);
-}
-
-function Stat({ label, value, help }: { label: string; value: string; help?: ReactNode }) {
-	return (
-		<div className="grid gap-0.5 border-l px-(--card-pad) py-3 first:border-l-0 max-sm:last:col-span-2 max-sm:last:border-t max-sm:last:border-l-0">
-			<dt className="flex items-center gap-1 text-xs text-muted-foreground">
-				{label}
-				{help}
-			</dt>
-			<dd className="text-sm font-semibold tabular-nums">{value}</dd>
-		</div>
 	);
 }

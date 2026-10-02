@@ -27,6 +27,7 @@ import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout"
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Meter } from "@noodle/ui/components/meter";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import { Stat, StatGrid } from "@noodle/ui/components/stat";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
@@ -515,7 +516,7 @@ function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck |
 				) : null}
 			</div>
 			{state.baseline === null ? null : <Breakdown state={state} baseline={state.baseline} />}
-			<dl className={cn("grid border-t", ended ? "grid-cols-2" : "grid-cols-3")}>
+			<StatGrid layout="ruled" className={ended ? "grid-cols-2" : "grid-cols-3"}>
 				<Stat
 					label="In Buckets"
 					value={formatMoney(state.planned)}
@@ -536,7 +537,7 @@ function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck |
 						value={state.daysLeft === 0 ? "Last day" : String(state.daysLeft)}
 					/>
 				)}
-			</dl>
+			</StatGrid>
 		</Card>
 	);
 }
@@ -576,16 +577,6 @@ function Breakdown({ state, baseline }: { state: MonthState; baseline: number })
 			</span>
 			<ChevronRight aria-hidden="true" className="size-4 shrink-0 text-subtle-foreground" />
 		</Link>
-	);
-}
-
-function Stat({ label, value, note }: { label: string; value: string; note?: ReactNode }) {
-	return (
-		<div className="grid content-start gap-0.5 px-(--card-pad) py-3.5 [&+&]:border-s">
-			<dt className="text-xs font-medium text-muted-foreground">{label}</dt>
-			<dd className="text-base font-semibold tracking-[-0.01em] tabular-nums">{value}</dd>
-			{note ? <dd className="text-xs text-muted-foreground tabular-nums">{note}</dd> : null}
-		</div>
 	);
 }
 

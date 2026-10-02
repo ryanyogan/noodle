@@ -4,6 +4,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { List } from "@noodle/ui/components/list";
+import { Money } from "@noodle/ui/components/money";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import {
 	Table,
@@ -23,7 +24,7 @@ import type { ReactNode } from "react";
 import { lumpText } from "../../../components/coming-up";
 import { SectionPending } from "../../../components/section-layout";
 import { TermHelp } from "../../../components/term-help";
-import { formatMoney, monthName } from "../../../format";
+import { monthName } from "../../../format";
 import { yearQuery } from "../../../queries";
 import { FIRST_YEAR } from "../../../server/year";
 
@@ -187,11 +188,7 @@ function MonthBadges({ month }: { month: YearMonth }) {
 
 /** An amount, negative ones marked as over. */
 function Amount({ cents, className }: { cents: number; className?: string }) {
-	return (
-		<span className={cn("tabular-nums", cents < 0 && "text-over", className)}>
-			{formatMoney(cents)}
-		</span>
-	);
+	return <Money cents={cents} flagNegative className={className} />;
 }
 
 /** The Plan's figure, with what actually happened beneath it when there is one. */

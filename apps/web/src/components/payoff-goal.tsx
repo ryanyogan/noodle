@@ -15,6 +15,7 @@ import {
 	SheetFooter,
 	SheetHeader,
 } from "@noodle/ui/components/sheet";
+import { Stat, StatGrid } from "@noodle/ui/components/stat";
 import { cn } from "@noodle/ui/lib/utils";
 import { Link, useHydrated, useRouteContext } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
@@ -158,7 +159,10 @@ export function PayoffGoalDetails({
 							</div>
 						) : null}
 						{active && !paidOff && progress.monthly !== null && progress.leftThisMonth !== null ? (
-							<dl className="grid grid-cols-[repeat(2,minmax(0,1fr))_auto] border-t">
+							<StatGrid
+								layout="ruled"
+								className="grid-cols-[repeat(2,minmax(0,1fr))_auto] whitespace-nowrap"
+							>
 								<Stat label="A month" value={formatMoney(progress.monthly)} />
 								<Stat
 									label="This month"
@@ -172,7 +176,7 @@ export function PayoffGoalDetails({
 									label="Paid off by"
 									value={goal.targetDate ? fullDay(goal.targetDate) : "None"}
 								/>
-							</dl>
+							</StatGrid>
 						) : null}
 						{active ? (
 							<div className="flex flex-wrap gap-2 border-t p-(--card-pad)">
@@ -351,15 +355,6 @@ function PayoffStatus({ goal, lead }: { goal: GoalView; lead: ReactNode }) {
 		parts.push("No target date");
 	}
 	return <MetaParts parts={parts} />;
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-	return (
-		<div className="grid gap-0.5 border-l px-(--card-pad) py-3 first:border-l-0">
-			<dt className="text-xs text-muted-foreground">{label}</dt>
-			<dd className="text-sm font-semibold whitespace-nowrap tabular-nums">{value}</dd>
-		</div>
-	);
 }
 
 type HistoryItem =

@@ -13,6 +13,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import { Stat, StatGrid } from "@noodle/ui/components/stat";
 import {
 	Table,
 	TableBody,
@@ -140,7 +141,11 @@ function CommitmentPage() {
 								</span>
 							</p>
 						</div>
-						<dl className="grid grid-cols-2 border-t sm:grid-cols-[auto_minmax(0,1fr)_auto]">
+						<StatGrid
+							layout="ruled"
+							wrapLast
+							className="grid-cols-2 sm:grid-cols-[auto_minmax(0,1fr)_auto]"
+						>
 							<Stat label="Each payment" value={formatMoney(terms.amount)} />
 							<Stat label="Schedule" value={termsSchedule(terms)} />
 							<Stat
@@ -153,7 +158,7 @@ function CommitmentPage() {
 											: `After ${lastMonthText(addMonths(commitment.endedFromMonth, -1))}`
 								}
 							/>
-						</dl>
+						</StatGrid>
 						{ended ? null : (
 							<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t px-(--card-pad) py-2.5 text-[13px] text-muted-foreground">
 								<p className="py-1">Try it in Explore: nothing in the Plan changes.</p>
@@ -340,15 +345,6 @@ function Charges({ data, id }: { data: CommitmentsData; id: string }) {
 				</Card>
 			)}
 		</Section>
-	);
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-	return (
-		<div className="grid gap-0.5 border-l px-(--card-pad) py-3 first:border-l-0 max-sm:last:col-span-2 max-sm:last:border-t max-sm:last:border-l-0">
-			<dt className="text-xs text-muted-foreground">{label}</dt>
-			<dd className="text-sm font-semibold tabular-nums">{value}</dd>
-		</div>
 	);
 }
 

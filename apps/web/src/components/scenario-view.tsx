@@ -9,13 +9,13 @@ import {
 	type ScenarioChangeImpact,
 	type ScenarioChangeSubjects,
 } from "@noodle/domain";
-import { Card } from "@noodle/ui/components/card";
+import { Money } from "@noodle/ui/components/money";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Skeleton } from "@noodle/ui/components/skeleton";
-import { cn } from "@noodle/ui/lib/utils";
+import { Stat, StatGrid } from "@noodle/ui/components/stat";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { lazy, Suspense, useMemo } from "react";
-import { formatWholeMoney, shortDayAt, shortMonth } from "../format";
+import { shortDayAt, shortMonth } from "../format";
 import { goalsQuery, planAheadQuery, scenariosQuery } from "../queries";
 import { changeTarget, projectionGoals, type ScenarioRecord } from "../scenarios";
 import { ScenarioChanges } from "./scenario-changes";
@@ -112,20 +112,18 @@ export function ScenarioView({
 	);
 	return (
 		<div className="grid gap-8">
-			<dl className="grid gap-3 @md:grid-cols-2" aria-label="Against the Plan">
-				<Card className="grid gap-1 p-(--card-pad)">
-					<dt className="text-[13px] text-muted-foreground">Free to Spend, {HORIZON_LABEL}</dt>
-					<dd className={cn("text-2xl font-semibold tabular-nums", freed < 0 && "text-over")}>
-						{freed > 0 ? "+" : ""}
-						{formatWholeMoney(freed)}
-					</dd>
-				</Card>
-				<Card className="grid gap-1 p-(--card-pad)">
-					<dt className="text-[13px] text-muted-foreground">Lowest projected balance</dt>
-					<dd className="text-2xl font-semibold tabular-nums">
-						{projection.lowest ? (
+			<StatGrid layout="cards" className="@md:grid-cols-2" aria-label="Against the Plan">
+				<Stat
+					label={`Free to Spend, ${HORIZON_LABEL}`}
+					value={<Money cents={freed} whole signed />}
+					tone={freed < 0 ? "over" : undefined}
+				/>
+				<Stat
+					label="Lowest projected balance"
+					value={
+						projection.lowest ? (
 							<>
-								{formatWholeMoney(projection.lowest.amount)}
+								<Money cents={projection.lowest.amount} whole />
 								<span className="text-sm font-normal text-muted-foreground">
 									{" "}
 									in {shortMonth(projection.lowest.month)}
@@ -133,10 +131,10 @@ export function ScenarioView({
 							</>
 						) : (
 							"—"
-						)}
-					</dd>
-				</Card>
-			</dl>
+						)
+					}
+				/>
+			</StatGrid>
 			<p className="-mt-4 px-1 text-[13px] text-muted-foreground">
 				{[
 					scenario.createdBy ? `Made by ${scenario.createdBy}` : null,

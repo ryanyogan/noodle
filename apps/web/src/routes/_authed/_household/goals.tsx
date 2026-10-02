@@ -5,8 +5,10 @@ import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { FormError } from "@noodle/ui/components/field";
 import { List } from "@noodle/ui/components/list";
+import { Money } from "@noodle/ui/components/money";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import { Stat, StatGrid } from "@noodle/ui/components/stat";
 import { cn } from "@noodle/ui/lib/utils";
 import { createFileRoute, Link, useHydrated, useParams } from "@tanstack/react-router";
 import { Landmark, Plus, Target, Telescope } from "lucide-react";
@@ -304,18 +306,13 @@ function GoalsSummary({ goals, emergency }: { goals: GoalView[]; emergency: Goal
 	const monthly = goals.reduce((sum, g) => sum + (g.progress.monthly ?? 0), 0);
 	return (
 		<Card aria-label="Goals summary" className="grid gap-4 p-(--card-pad)">
-			<dl className="grid grid-cols-2 gap-4">
-				<div className="grid gap-1">
-					<dt className="text-xs text-muted-foreground">
-						Set aside across {saving.length} Goal{saving.length === 1 ? "" : "s"}
-					</dt>
-					<dd className="text-xl font-semibold tabular-nums">{formatMoney(setAside)}</dd>
-				</div>
-				<div className="grid gap-1">
-					<dt className="text-xs text-muted-foreground">A month to stay on track</dt>
-					<dd className="text-xl font-semibold tabular-nums">{formatMoney(monthly)}</dd>
-				</div>
-			</dl>
+			<StatGrid className="grid-cols-2">
+				<Stat
+					label={`Set aside across ${saving.length} Goal${saving.length === 1 ? "" : "s"}`}
+					value={<Money cents={setAside} />}
+				/>
+				<Stat label="A month to stay on track" value={<Money cents={monthly} />} />
+			</StatGrid>
 			{emergency ? (
 				<p className="text-[13px] text-muted-foreground">
 					Your emergency fund is{" "}

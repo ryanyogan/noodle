@@ -2,8 +2,10 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { List } from "@noodle/ui/components/list";
+import { Money } from "@noodle/ui/components/money";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import { Stat, StatGrid } from "@noodle/ui/components/stat";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -27,7 +29,6 @@ import {
 } from "../../../components/goals";
 import { ListBesideDetail, masterDetailItem } from "../../../components/master-detail";
 import { SaveFailed } from "../../../components/plan-editing";
-import { formatMoney } from "../../../format";
 import { type AccountView, accountKindName, useAddAccount, useGoals } from "../../../goals";
 import { bankConnectionsQuery, goalsQuery } from "../../../queries";
 
@@ -166,16 +167,16 @@ function AccountTotals({ accounts }: { accounts: AccountView[] }) {
 				<h2 id="account-totals" className="text-[13px] font-medium text-muted-foreground">
 					Totals
 				</h2>
-				<dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,8.5rem),1fr))] gap-x-4 gap-y-3">
+				<StatGrid className="grid-cols-[repeat(auto-fit,minmax(min(100%,8.5rem),1fr))]">
 					{rows.map((row) => (
-						<div key={row.label} className="grid gap-0.5">
-							<dt className="text-[13px] text-muted-foreground">{row.label}</dt>
-							<dd className={cn("text-lg font-semibold tabular-nums", row.over && "text-over")}>
-								{formatMoney(row.value)}
-							</dd>
-						</div>
+						<Stat
+							key={row.label}
+							label={row.label}
+							value={<Money cents={row.value} />}
+							tone={row.over ? "over" : undefined}
+						/>
 					))}
-				</dl>
+				</StatGrid>
 				{missing > 0 ? (
 					<p className="text-[13px] text-muted-foreground">
 						{missing === 1 ? "1 Account has" : `${missing} Accounts have`} no balance yet, so
