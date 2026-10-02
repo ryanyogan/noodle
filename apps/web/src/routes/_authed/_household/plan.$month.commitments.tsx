@@ -17,7 +17,7 @@ import {
 	CommitmentEditor,
 	useCommitmentChanges,
 } from "../../../components/commitment-editor";
-import { PlanSubPage } from "../../../components/plan-page";
+import { PlanMasterDetail } from "../../../components/plan-page";
 import { SectionPending } from "../../../components/section-layout";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney, monthName } from "../../../format";
@@ -113,7 +113,9 @@ function PlanCommitments() {
 		</>
 	);
 	return (
-		<PlanSubPage
+		<PlanMasterDetail
+			noun="Commitment"
+			listLabel="Commitments"
 			editable={state.editable}
 			summary={
 				state.commitments.length > 0
@@ -160,7 +162,7 @@ function PlanCommitments() {
 					</Card>
 				)}
 			</div>
-		</PlanSubPage>
+		</PlanMasterDetail>
 	);
 }
 

@@ -4,7 +4,7 @@ import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { AddBucket, AddPersonalAllowance, BucketEditor } from "../../../components/bucket-editor";
-import { PlanSubPage } from "../../../components/plan-page";
+import { PlanMasterDetail } from "../../../components/plan-page";
 import { SectionPending } from "../../../components/section-layout";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney } from "../../../format";
@@ -28,7 +28,9 @@ function PlanBuckets() {
 	const members = useSuspenseQuery(membersQuery()).data;
 	const nameOf = (id: string) => members.find((m) => m.id === id)?.name;
 	return (
-		<PlanSubPage
+		<PlanMasterDetail
+			noun="Bucket"
+			listLabel="Buckets"
 			editable={state.editable}
 			summary={
 				buckets.length > 0
@@ -99,6 +101,6 @@ function PlanBuckets() {
 					) : null}
 				</Section>
 			) : null}
-		</PlanSubPage>
+		</PlanMasterDetail>
 	);
 }

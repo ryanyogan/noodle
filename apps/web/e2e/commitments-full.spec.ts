@@ -133,7 +133,7 @@ test("Commitments show what's coming up, why a month is lumpy, and each one's pa
 	await expect(gym).toBeVisible();
 
 	await comingUp(page).getByRole("link", { name: "Car insurance" }).click();
-	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Car insurance");
+	await expect(page.locator("[data-slot=detail-header]")).toContainText("Car insurance");
 	const cost = page.getByRole("region", { name: "Cost a year" });
 	await expect(cost).toContainText("$1,140");
 	await expect(cost).toContainText("about $95 a month");

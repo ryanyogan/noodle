@@ -77,7 +77,7 @@ export function CommitmentEditor({
 	return (
 		<ListRow
 			leading={<Tile>{monogram(commitment.name)}</Tile>}
-			title={<CommitmentLink commitment={commitment} />}
+			title={<CommitmentLink month={month} commitment={commitment} />}
 			meta={
 				<>
 					<span>

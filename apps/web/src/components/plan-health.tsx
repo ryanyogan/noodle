@@ -1,4 +1,4 @@
-import type { PlanWarning } from "@noodle/domain";
+import type { MonthKey, PlanWarning } from "@noodle/domain";
 import { List } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { cn } from "@noodle/ui/lib/utils";
@@ -13,7 +13,7 @@ import { planHealthQuery } from "../queries";
  * it. Nothing shows while the Plan is healthy.
  */
 export function PlanHealth() {
-	const { warnings } = useSuspenseQuery(planHealthQuery()).data;
+	const { warnings, month } = useSuspenseQuery(planHealthQuery()).data;
 	if (warnings.length === 0) return null;
 	const sorted = [...warnings].sort((a, b) => urgency[a.kind] - urgency[b.kind]);
 	return (
@@ -21,7 +21,7 @@ export function PlanHealth() {
 			<SectionHeader id="plan-health" title="Things to check" count={warnings.length} />
 			<List>
 				{sorted.map((warning) => (
-					<HealthRow key={keyOf(warning)} warning={warning} />
+					<HealthRow key={keyOf(warning)} warning={warning} month={month} />
 				))}
 			</List>
 		</Section>
@@ -46,7 +46,10 @@ const urgency: Record<PlanWarning["kind"], number> = {
 const monthsText = (n: number) => `${n} month${n === 1 ? "" : "s"}`;
 
 /** What a warning says, and where its fix is. */
-function describe(warning: PlanWarning): { title: string; meta: string; link: LinkProps } {
+function describe(
+	warning: PlanWarning,
+	month: MonthKey,
+): { title: string; meta: string; link: LinkProps } {
 	switch (warning.kind) {
 		case "negative-ahead":
 			return {
@@ -67,7 +70,7 @@ function describe(warning: PlanWarning): { title: string; meta: string; link: Li
 			return {
 				title: `${warning.name} is over its allowance most months`,
 				meta: `Over in ${warning.over} of the last ${monthsText(warning.months)}${warning.gap > 0 ? `, ${formatMoney(warning.gap)} beyond it in all` : ""}. Its allowance may be too low.`,
-				link: { to: "/plan/buckets/$id", params: { id: warning.bucketId } },
+				link: { to: "/plan/$month/buckets/$id", params: { month, id: warning.bucketId } },
 			};
 		case "goal-late":
 			return {
@@ -81,8 +84,8 @@ function describe(warning: PlanWarning): { title: string; meta: string; link: Li
 	}
 }
 
-function HealthRow({ warning }: { warning: PlanWarning }) {
-	const { title, meta, link } = describe(warning);
+function HealthRow({ warning, month }: { warning: PlanWarning; month: MonthKey }) {
+	const { title, meta, link } = describe(warning, month);
 	// The whole row opens the fix, though the link's name is just the warning.
 	return (
 		<li

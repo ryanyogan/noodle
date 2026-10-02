@@ -132,6 +132,52 @@ function SplitRail({ className, ...props }: React.ComponentProps<"div">) {
 	);
 }
 
+const FOCUSABLE =
+	'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
+
+/**
+ * One of MasterDetail's panes. While it scrolls and holds nothing that takes focus, it takes focus
+ * itself, so the keyboard can scroll it (WCAG 2.1.1; axe's scrollable-region-focusable).
+ */
+function Pane({ className, ...props }: React.ComponentProps<"section">) {
+	const ref = React.useRef<HTMLElement>(null);
+	const [focusable, setFocusable] = React.useState(false);
+	React.useEffect(() => {
+		const pane = ref.current;
+		if (!pane) return;
+		const measure = () =>
+			setFocusable(
+				pane.scrollHeight > pane.clientHeight + 1 &&
+					getComputedStyle(pane).overflowY === "auto" &&
+					!pane.querySelector(FOCUSABLE),
+			);
+		measure();
+		const resized = new ResizeObserver(measure);
+		resized.observe(pane);
+		const changed = new MutationObserver(measure);
+		changed.observe(pane, { childList: true, subtree: true });
+		window.addEventListener("resize", measure);
+		return () => {
+			resized.disconnect();
+			changed.disconnect();
+			window.removeEventListener("resize", measure);
+		};
+	}, []);
+	return (
+		<section
+			ref={ref}
+			data-scroll-pane=""
+			tabIndex={focusable ? 0 : undefined}
+			className={cn(
+				"min-w-0 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain",
+				"focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
+				className,
+			)}
+			{...props}
+		/>
+	);
+}
+
 /**
  * A list beside the item picked from it. From lg the two are full-height panes under the page's
  * header and each scrolls on its own, so the list keeps its place while the detail changes; the
@@ -144,6 +190,7 @@ function MasterDetail({
 	list,
 	detail,
 	empty,
+	emptyStacks,
 	listLabel,
 	detailLabel,
 	className,
@@ -153,6 +200,11 @@ function MasterDetail({
 	/** The picked item, e.g. the detail route's outlet. Null or undefined when nothing is picked. */
 	detail?: React.ReactNode;
 	empty?: React.ReactNode;
+	/**
+	 * `empty` is part of the page rather than a placeholder (the list's add form, say): it starts at
+	 * the top of its pane, and below lg it follows the list instead of being left out.
+	 */
+	emptyStacks?: boolean;
 	/** Names the list pane, e.g. "Buckets". */
 	listLabel: string;
 	/** Names the detail pane, e.g. "Bucket". */
@@ -178,7 +230,6 @@ function MasterDetail({
 			window.removeEventListener("resize", measure);
 		};
 	}, []);
-	const pane = "min-w-0 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain";
 	return (
 		<div
 			ref={ref}
@@ -186,34 +237,36 @@ function MasterDetail({
 			data-picked={picked}
 			className={cn(
 				"grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[var(--list-pane-width)_minmax(0,1fr)] lg:gap-(--layout-gap)",
+				emptyStacks && !picked && "max-lg:gap-(--layout-gap)",
 				// The shell's bottom padding at lg is 3rem, so the panes end where a page would.
 				"lg:h-[calc(100dvh-var(--master-detail-top,11rem)-3rem)] lg:min-h-80",
 				className,
 			)}
 			{...props}
 		>
-			<section
+			<Pane
 				data-slot="master-detail-list"
-				data-scroll-pane=""
 				aria-label={listLabel}
-				className={cn(pane, picked && "max-lg:hidden")}
+				className={cn(picked && "max-lg:hidden")}
 			>
 				{list}
-			</section>
-			<section
+			</Pane>
+			<Pane
 				data-slot="master-detail-detail"
-				data-scroll-pane=""
 				aria-label={detailLabel}
-				className={cn(pane, !picked && "max-lg:hidden")}
+				className={cn(!picked && !emptyStacks && "max-lg:hidden")}
 			>
 				{picked ? (
 					detail
 				) : (
-					<div data-slot="master-detail-empty" className="grid h-full place-items-center">
+					<div
+						data-slot="master-detail-empty"
+						className={cn("grid", emptyStacks ? "content-start" : "h-full place-items-center")}
+					>
 						{empty}
 					</div>
 				)}
-			</section>
+			</Pane>
 		</div>
 	);
 }

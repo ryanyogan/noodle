@@ -12,7 +12,8 @@ test.afterEach(async () => {
 	await parent?.remove();
 });
 
-const heading = (page: Page) => page.getByRole("heading", { level: 1 });
+// The Bucket's name, in the detail's header (the h1 is the Plan's month).
+const heading = (page: Page) => page.locator("[data-slot=detail-title]");
 const thisMonth = (page: Page) => page.getByRole("region", { name: "Left this month" });
 const editSheet = (page: Page, bucket: string) => page.getByRole("dialog", { name: bucket });
 

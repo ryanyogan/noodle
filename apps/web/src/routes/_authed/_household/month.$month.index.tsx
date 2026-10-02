@@ -639,8 +639,8 @@ function BucketRow({
 			leading={<Tile bucket={color}>{monogram(bucket.name)}</Tile>}
 			title={
 				<Link
-					to="/plan/buckets/$id"
-					params={{ id: bucket.id }}
+					to="/plan/$month/buckets/$id"
+					params={{ month: Route.useParams().month, id: bucket.id }}
 					className="outline-none after:absolute after:inset-0"
 				>
 					{bucket.name}

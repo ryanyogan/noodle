@@ -134,6 +134,16 @@ test("no desktop page has a region that scrolls inside another", async ({ browse
 	const page = await signedInPage(browser, parent.email, desktop);
 	await busyHousehold(page);
 	await walk(page, migrated);
+	// A Bucket and a Commitment beside their lists (67b): only MasterDetail's panes scroll.
+	for (const part of ["buckets", "commitments"]) {
+		await page.goto(`/plan/${month}/${part}`);
+		const item = page.locator("[data-slot=master-detail-list] [data-md-item]").first();
+		if (part === "buckets") await expect(item).toBeVisible();
+		if (!(await item.isVisible())) continue;
+		await item.click();
+		await expect(page.locator("[data-slot=detail-title]")).toBeVisible();
+		await walk(page, [new URL(page.url()).pathname]);
+	}
 	// The check isn't empty: This Month has its two columns here.
 	await page.goto("/month");
 	await expect(page.locator("[data-slot=split-rail]")).toBeVisible();

@@ -124,8 +124,8 @@ function DueRow({ due, today }: { due: Due; today: DayKey }) {
 			leading={<DateTile date={due.date} />}
 			title={
 				<Link
-					to="/plan/commitments/$id"
-					params={{ id: due.commitmentId }}
+					to="/plan/$month/commitments/$id"
+					params={{ month: monthOfDay(today), id: due.commitmentId }}
 					className="hover:underline"
 				>
 					{due.name}

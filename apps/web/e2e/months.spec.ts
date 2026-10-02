@@ -58,7 +58,7 @@ async function quickAdd(page: Page, amount: string, bucket: string) {
 /** Sets a Bucket carries over on its page, from This Month, then returns to This Month. */
 async function setCarriesOver(page: Page, bucket: string) {
 	await page.getByRole("link", { name: bucket, exact: true }).click();
-	await expect(page.locator("[data-slot=page-header]:visible")).toContainText(bucket);
+	await expect(page.locator("[data-slot=detail-header]")).toContainText(bucket);
 	await page.getByRole("button", { name: "Edit", exact: true }).click();
 	const saved = page.waitForResponse((response) =>
 		serverFn("setCarriesOver")(new URL(response.url())),

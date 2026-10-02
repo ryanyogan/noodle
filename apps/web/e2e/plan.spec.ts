@@ -54,7 +54,7 @@ async function addBucket(page: Page, name: string, amount: string) {
 /** Opens a Bucket's page from the Plan's Buckets. */
 async function openBucket(page: Page, bucket: string) {
 	await page.getByRole("link", { name: bucket, exact: true }).click();
-	await expect(page.locator("[data-slot=page-header]:visible")).toContainText(bucket);
+	await expect(page.locator("[data-slot=detail-header]")).toContainText(bucket);
 }
 
 /** Opens the Edit sheet on a Bucket's page. */
@@ -112,12 +112,12 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 	await details.getByRole("radio", { name: "Green" }).check();
 	await details.getByRole("button", { name: "Save", exact: true }).click();
 	await expect(details).toBeHidden();
-	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Kids’ hockey");
+	await expect(page.locator("[data-slot=detail-header]")).toContainText("Kids’ hockey");
 	// Moving happens at once, apart from Save.
 	await editBucket(page, "Kids’ hockey");
 	await page.getByRole("button", { name: "Move up" }).click();
 	await page.keyboard.press("Escape");
-	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Kids’ hockey");
+	await expect(page.locator("[data-slot=detail-header]")).toContainText("Kids’ hockey");
 	await page.getByRole("link", { name: "Back to Buckets" }).click();
 	await expect(page.getByRole("main").getByRole("listitem").first()).toContainText("Kids’ hockey");
 
@@ -151,7 +151,7 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 	await editBucket(page, "Groceries");
 	await page.getByRole("button", { name: "Archive", exact: true }).click();
 	await page.getByRole("button", { name: "Archive Groceries" }).click();
-	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Archived Bucket");
+	await expect(page.locator("[data-slot=detail-header]")).toContainText("Archived Bucket");
 	await page.getByRole("link", { name: "Back to Buckets" }).click();
 	await expect(page.getByRole("button", { name: "Edit Groceries" })).toHaveCount(0);
 	await backToPlan(page);

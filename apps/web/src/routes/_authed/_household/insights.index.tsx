@@ -241,8 +241,8 @@ function InsightCard({
 									key={commitment.id}
 									title={
 										<Link
-											to="/plan/commitments/$id"
-											params={{ id: commitment.id }}
+											to="/plan/$month/commitments/$id"
+											params={{ month: current, id: commitment.id }}
 											className="underline-offset-4 hover:underline"
 										>
 											{commitment.name}

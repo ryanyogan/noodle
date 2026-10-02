@@ -23,6 +23,7 @@ import { ulid } from "ulid";
 import { monogram } from "../buckets";
 import { cadenceNames, type PaymentVariables, useCommitmentPayment } from "../commitments";
 import { formatMoney, formatMoneyInput, fullDay, shortDay } from "../format";
+import { masterDetailItem } from "./master-detail";
 
 const list = new Intl.ListFormat("en-US", { style: "long", type: "conjunction" });
 
@@ -76,6 +77,7 @@ export function CommitmentsList({
 				<List>
 					{commitments.map((commitment) => (
 						<CommitmentRow
+							month={month}
 							key={commitment.id}
 							commitment={commitment}
 							onPay={
@@ -117,7 +119,7 @@ function NotThisMonth({ month, commitments }: { month: MonthKey; commitments: Co
 						<ListRow
 							key={commitment.id}
 							leading={<Tile>{monogram(commitment.name)}</Tile>}
-							title={<CommitmentLink commitment={commitment} />}
+							title={<CommitmentLink month={month} commitment={commitment} />}
 							meta={`${cadenceNames[commitment.cadence]} · next due ${fullDay(
 								nextDueDate(commitment, `${month}-01`),
 							)}`}
@@ -135,18 +137,31 @@ function NotThisMonth({ month, commitments }: { month: MonthKey; commitments: Co
 }
 
 /** A Commitment's name, linking to its page. */
-export function CommitmentLink({ commitment }: { commitment: { id: string; name: string } }) {
+export function CommitmentLink({
+	month,
+	commitment,
+}: {
+	month: MonthKey;
+	commitment: { id: string; name: string };
+}) {
 	return (
-		<Link to="/plan/commitments/$id" params={{ id: commitment.id }} className="hover:underline">
+		<Link
+			to="/plan/$month/commitments/$id"
+			params={{ month, id: commitment.id }}
+			className="hover:underline"
+			{...masterDetailItem}
+		>
 			{commitment.name}
 		</Link>
 	);
 }
 
 function CommitmentRow({
+	month,
 	commitment,
 	onPay,
 }: {
+	month: MonthKey;
 	commitment: CommitmentState;
 	onPay?: (amountCents: number) => void;
 }) {
@@ -157,7 +172,7 @@ function CommitmentRow({
 				commitment.expected,
 			)} expected${differs ? `, ${differs}` : ""}`}
 			leading={<Tile>{monogram(commitment.name)}</Tile>}
-			title={<CommitmentLink commitment={commitment} />}
+			title={<CommitmentLink month={month} commitment={commitment} />}
 			meta={
 				<>
 					{progress(commitment)}

@@ -36,6 +36,7 @@ import {
 } from "../server/plan";
 import { ColourPicker } from "./colour-picker";
 import { AmountInput } from "./goals";
+import { masterDetailItem } from "./master-detail";
 import { Confirm, SaveFailed } from "./plan-editing";
 import { PlanHistoryDisclosure } from "./plan-history";
 import { ChangedNote, PlanScopeField } from "./plan-scope-field";
@@ -70,7 +71,12 @@ export function BucketEditor({
 		<ListRow
 			leading={<Tile bucket={color}>{monogram(bucket.name)}</Tile>}
 			title={
-				<Link to="/plan/buckets/$id" params={{ id: bucket.id }} className="hover:underline">
+				<Link
+					to="/plan/$month/buckets/$id"
+					params={{ month, id: bucket.id }}
+					className="hover:underline"
+					{...masterDetailItem}
+				>
 					{bucket.name}
 				</Link>
 			}
