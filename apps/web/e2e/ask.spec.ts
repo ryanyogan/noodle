@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
+import { currentTab } from "./section";
 import { createPlannedHousehold, serverFn, signedInPage } from "./session";
 
 // Ask runs against its deterministic fake model here (AI_MODEL=stub in playwright.config.ts):
@@ -59,7 +60,7 @@ test("answers cite the Household's figures and link to the screens with more", a
 	await expect(page.getByText(/^Trip at \$2,000: (Comfortable|Stretch)\./)).toBeVisible();
 	await expect(figures(page)).toContainText("Still to save");
 	await page.getByRole("link", { name: "Open Can we afford it?" }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Can we afford it?");
+	await expect(currentTab(page, "Explore pages")).toHaveText("Can we afford it?");
 	await expect(page.getByTestId("affordability-verdict")).toContainText("trip, $2,000");
 });
 
