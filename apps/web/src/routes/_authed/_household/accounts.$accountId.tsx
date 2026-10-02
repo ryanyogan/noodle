@@ -535,6 +535,7 @@ function RenameForm({ name, onSave }: { name: string; onSave: (name: string) => 
 			>
 				<Input
 					id={`${id}-name`}
+					data-autofocus
 					required
 					aria-invalid={missing || undefined}
 					aria-describedby={missing ? `${id}-name-error` : undefined}

@@ -46,8 +46,12 @@ export function useFocusReturn({
 				nextOpener ?? (active instanceof HTMLElement && active !== document.body ? active : null);
 			nextOpener = null;
 			onOpenAutoFocus?.(event);
-			if (event.defaultPrevented || !window.matchMedia(FIRST_FIELD_QUERY).matches) return;
-			const field = event.currentTarget instanceof HTMLElement && firstField(event.currentTarget);
+			if (event.defaultPrevented || !(event.currentTarget instanceof HTMLElement)) return;
+			// On phones only a field marked data-autofocus takes focus (and brings the keyboard up):
+			// one whose sheet is only for typing in it, like a rename.
+			const field = window.matchMedia(FIRST_FIELD_QUERY).matches
+				? firstField(event.currentTarget)
+				: event.currentTarget.querySelector<HTMLElement>("[data-autofocus]");
 			if (field) {
 				event.preventDefault();
 				field.focus();
