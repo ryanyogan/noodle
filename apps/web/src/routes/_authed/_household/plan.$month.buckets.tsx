@@ -1,4 +1,3 @@
-import { monthOfDay } from "@noodle/domain";
 import { Card } from "@noodle/ui/components/card";
 import { List } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
@@ -6,6 +5,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { AddBucket, AddPersonalAllowance, BucketEditor } from "../../../components/bucket-editor";
 import { PlanSubPage } from "../../../components/plan-page";
+import { SectionPending } from "../../../components/section-layout";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney } from "../../../format";
 import { usePlanChanges } from "../../../plan-changes";
@@ -14,6 +14,7 @@ import { membersQuery, useMonthState } from "../../../queries";
 export const Route = createFileRoute("/_authed/_household/plan/$month/buckets")({
 	// Setting up a Personal Allowance names it after its Parent.
 	loader: ({ context }) => context.queryClient.ensureQueryData(membersQuery()),
+	pendingComponent: SectionPending,
 	component: PlanBuckets,
 });
 
@@ -28,11 +29,7 @@ function PlanBuckets() {
 	const nameOf = (id: string) => members.find((m) => m.id === id)?.name;
 	return (
 		<PlanSubPage
-			page="buckets"
-			month={month}
-			current={monthOfDay(state.asOf)}
 			editable={state.editable}
-			title="Buckets"
 			summary={
 				buckets.length > 0
 					? `${formatMoney(shared)} in Buckets${

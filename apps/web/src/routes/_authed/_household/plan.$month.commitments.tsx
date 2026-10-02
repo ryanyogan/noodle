@@ -1,4 +1,4 @@
-import { lumpyMonths, monthlyEquivalent, monthOfDay, yearlyCost } from "@noodle/domain";
+import { lumpyMonths, monthlyEquivalent, yearlyCost } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Card } from "@noodle/ui/components/card";
 import {
@@ -18,6 +18,7 @@ import {
 	useCommitmentChanges,
 } from "../../../components/commitment-editor";
 import { PlanSubPage } from "../../../components/plan-page";
+import { SectionPending } from "../../../components/section-layout";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney, monthName } from "../../../format";
 import { usePlanChanges } from "../../../plan-changes";
@@ -26,6 +27,7 @@ import { commitmentsQuery, useMonthState } from "../../../queries";
 export const Route = createFileRoute("/_authed/_household/plan/$month/commitments")({
 	// Lumpy months ahead read every Commitment's schedule.
 	loader: ({ context }) => context.queryClient.ensureQueryData(commitmentsQuery()),
+	pendingComponent: SectionPending,
 	component: PlanCommitments,
 });
 
@@ -91,8 +93,8 @@ function PlanCommitments() {
 			{lumpy.length > 0 ? (
 				// The year view keeps the one list of lumpy months; this says how many and leads there.
 				<Link
-					to="/plan/year/$year"
-					params={{ year: month.slice(0, 4) }}
+					to="/plan/$month/year"
+					params={{ month }}
 					className="flex items-center justify-between gap-4 rounded-xl border px-(--card-pad) py-3 text-sm transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60"
 				>
 					<span>
@@ -112,11 +114,7 @@ function PlanCommitments() {
 	);
 	return (
 		<PlanSubPage
-			page="commitments"
-			month={month}
-			current={monthOfDay(state.asOf)}
 			editable={state.editable}
-			title="Commitments"
 			summary={
 				state.commitments.length > 0
 					? `${formatMoney(state.committed)} expected this month`

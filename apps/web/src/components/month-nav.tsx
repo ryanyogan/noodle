@@ -9,7 +9,16 @@ import { monthName } from "../format";
 import { GlossaryButton } from "./glossary";
 
 /** The two views of a month: what's happening in it, and its Plan. */
-type MonthView = "/month/$month" | "/plan/$month";
+type MonthView = "/month/$month" | PlanView;
+
+/** A page of a month's Plan: the overview, or one of its parts. */
+export type PlanView =
+	| "/plan/$month"
+	| "/plan/$month/income"
+	| "/plan/$month/commitments"
+	| "/plan/$month/buckets"
+	| "/plan/$month/goals"
+	| "/plan/$month/year";
 
 /**
  * The row above a month's page header: a switch between the month and its Plan, and on phones
@@ -150,8 +159,10 @@ export function useMonthSwipe(to: MonthView, month: MonthKey, first: MonthKey) {
 	return {
 		onTouchStart: (event: TouchEvent) => {
 			const touch = event.touches[0];
-			// Leave form fields and sheets' own gestures alone.
-			const inField = (event.target as Element).closest("input, textarea, [role=dialog]");
+			// Leave form fields, sheets' own gestures and anything that scrolls sideways alone.
+			const inField = (event.target as Element).closest(
+				"input, textarea, [role=dialog], [data-slot=link-tabs], [data-slot=table-container]",
+			);
 			start.current =
 				touch && event.touches.length === 1 && !inField
 					? { x: touch.clientX, y: touch.clientY }

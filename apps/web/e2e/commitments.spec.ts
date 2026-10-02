@@ -44,11 +44,16 @@ async function openPlan(page: Page) {
 
 async function openCommitments(page: Page) {
 	await waterfall(page).getByRole("link", { name: "Commitments", exact: true }).click();
-	await expect(page.locator("[data-slot=page-header]")).toContainText("Commitments");
+	await expect(page.locator("nav[aria-label='Plan pages'] [aria-current=page]")).toHaveText(
+		"Commitments",
+	);
 }
 
 async function backToPlan(page: Page) {
-	await page.getByRole("link", { name: "Back to Plan" }).click();
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Overview" })
+		.click();
 	await expect(waterfall(page)).toBeVisible();
 }
 

@@ -18,11 +18,14 @@ const item = (page: Page, title: string) =>
 
 async function openPart(page: Page, part: "Buckets" | "Commitments") {
 	await waterfall(page).getByRole("link", { name: part, exact: true }).click();
-	await expect(page.locator("[data-slot=page-header]")).toContainText(part);
+	await expect(page.locator("nav[aria-label='Plan pages'] [aria-current=page]")).toHaveText(part);
 }
 
 async function backToPlan(page: Page) {
-	await page.getByRole("link", { name: "Back to Plan" }).click();
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Overview" })
+		.click();
 	await expect(waterfall(page)).toBeVisible();
 }
 

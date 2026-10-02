@@ -53,7 +53,10 @@ test("On a phone, Bills switches between this month's bills and Coming up", asyn
 	const day = new Date().getDate() <= 28 ? 28 : lastDay;
 	await addYearly(page, "Car insurance", "1,140", `${month}-${day}`);
 	await addYearly(page, "Gym", "300", `${addMonths(month, 2)}-10`);
-	await page.getByRole("link", { name: "Back to Plan" }).click();
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Overview" })
+		.click();
 	await expect(waterfall(page)).toBeVisible();
 	await switchTo(page, "Month");
 
@@ -90,7 +93,9 @@ test("Commitments show what's coming up, why a month is lumpy, and each one's pa
 	await createPlannedHousehold(page, { baseline: "9,000", buckets: [["Groceries", "1,200"]] });
 	await switchTo(page, "Plan");
 	await waterfall(page).getByRole("link", { name: "Commitments", exact: true }).click();
-	await expect(page.locator("[data-slot=page-header]")).toContainText("Commitments");
+	await expect(page.locator("nav[aria-label='Plan pages'] [aria-current=page]")).toHaveText(
+		"Commitments",
+	);
 	const month = /\/plan\/(\d{4}-\d{2})\//.exec(page.url())?.[1];
 	if (!month) throw new Error(`No month in ${page.url()}`);
 
@@ -104,7 +109,10 @@ test("Commitments show what's coming up, why a month is lumpy, and each one's pa
 		page.getByText(/Across a year these average \$120 a month \(\$1,440 a year\)/),
 	).toBeVisible();
 
-	await page.getByRole("link", { name: "Back to Plan" }).click();
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Overview" })
+		.click();
 	await expect(waterfall(page)).toBeVisible();
 	await switchTo(page, "Month");
 	const name = monthName(month);

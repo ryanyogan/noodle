@@ -111,7 +111,9 @@ test("income is added and removed on Plan › Income as on This Month", async ({
 	const month = /\/month\/(\d{4}-\d{2})/.exec(page.url())?.[1];
 	if (!month) throw new Error(`No month in ${page.url()}`);
 	await page.goto(`/plan/${month}/income`);
-	await expect(page.locator("[data-slot=page-header]")).toContainText("Income");
+	await expect(page.locator("nav[aria-label='Plan pages'] [aria-current=page]")).toHaveText(
+		"Income",
+	);
 	await addIncome(page, "2,500", "Paycheck");
 	await expect(income(page)).toContainText("$2,500 received of $5,000 usual take-home pay");
 	await expect(income(page).getByRole("listitem")).toContainText("Paycheck");

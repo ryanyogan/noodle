@@ -85,7 +85,10 @@ test("an Insight and an Ask answer open as Scenarios in Explore, leaving the Pla
 	await waterfall(page).getByRole("link", { name: "Commitments", exact: true }).click();
 	await addCommitment(page, "Disney+", "13.99");
 	await addCommitment(page, "Hulu", "17.99");
-	await page.getByRole("link", { name: "Back to Plan" }).click();
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Overview" })
+		.click();
 	await switchTo(page, "Month");
 	await recordPayment(page, "Disney+");
 	await recordPayment(page, "Hulu");

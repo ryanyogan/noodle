@@ -4,11 +4,13 @@ import { Card } from "@noodle/ui/components/card";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PlanGoals } from "../../../components/plan-goals";
 import { PlanSubPage } from "../../../components/plan-page";
+import { SectionPending } from "../../../components/section-layout";
 import { formatMoney } from "../../../format";
 import { goalsQuery, useMonthState } from "../../../queries";
 
 export const Route = createFileRoute("/_authed/_household/plan/$month/goals")({
 	loader: ({ context }) => context.queryClient.ensureQueryData(goalsQuery()),
+	pendingComponent: SectionPending,
 	component: PlanGoalsPage,
 });
 
@@ -20,11 +22,7 @@ function PlanGoalsPage() {
 	const funding = month === current && state.editable;
 	return (
 		<PlanSubPage
-			page="goals"
-			month={month}
-			current={current}
 			editable={state.editable}
-			title="Goals"
 			summary={
 				state.fundedGoals > 0
 					? `${formatMoney(state.fundedGoals)} funded from Free to Spend this month`

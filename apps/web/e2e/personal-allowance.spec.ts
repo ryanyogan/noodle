@@ -38,7 +38,9 @@ async function openPlanBuckets(page: Page) {
 		.getByRole("navigation", { name: "Plan pages" })
 		.getByRole("link", { name: "Buckets", exact: true })
 		.click();
-	await expect(page.locator("[data-slot=page-header]")).toContainText("Buckets");
+	await expect(page.locator("nav[aria-label='Plan pages'] [aria-current=page]")).toHaveText(
+		"Buckets",
+	);
 }
 
 /** A Bucket's row in the Plan. */
@@ -53,7 +55,10 @@ async function setUpPersonalAllowance(page: Page, amount: string, name: string) 
 	await expect(page.getByRole("button", { name: `Edit ${name}` })).toBeVisible();
 	await expect(planRow(page, name)).toContainText(`$${amount}`);
 	await expect(page.getByRole("button", { name: "Set up Personal Allowance" })).toHaveCount(0);
-	await page.getByRole("link", { name: "Back to Plan" }).click();
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Overview" })
+		.click();
 	await switchTo(page, "Month");
 }
 

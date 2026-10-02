@@ -90,7 +90,9 @@ export async function createPlannedHousehold(
 	await page.getByRole("button", { name: "Set take-home pay" }).click();
 	await takeHomePaySaved;
 	await page.getByRole("link", { name: "Add Buckets" }).click();
-	await expect(page.locator("[data-slot=page-header]")).toContainText("Buckets");
+	await expect(page.locator("nav[aria-label='Plan pages'] [aria-current=page]")).toHaveText(
+		"Buckets",
+	);
 	for (const [name, allowance] of buckets) {
 		await page.getByLabel("New Bucket").fill(name);
 		await page.getByLabel("Monthly allowance").fill(allowance);
@@ -100,7 +102,10 @@ export async function createPlannedHousehold(
 		await expect(page.getByRole("button", { name: `Edit ${name}` })).toBeVisible();
 		await saved;
 	}
-	await page.getByRole("link", { name: "Back to Plan" }).click();
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Overview" })
+		.click();
 	await switchTo(page, "Month");
 }
 

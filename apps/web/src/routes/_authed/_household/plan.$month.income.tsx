@@ -11,6 +11,7 @@ import { MonthIncome } from "../../../components/extra-income";
 import { SaveFailed } from "../../../components/plan-editing";
 import { PlanSubPage } from "../../../components/plan-page";
 import { ChangedNote, PlanAmountForm } from "../../../components/plan-scope-field";
+import { SectionPending } from "../../../components/section-layout";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney } from "../../../format";
 import { glossary } from "../../../glossary";
@@ -19,6 +20,7 @@ import { useMonthState } from "../../../queries";
 import { setTakeHomePay } from "../../../server/plan";
 
 export const Route = createFileRoute("/_authed/_household/plan/$month/income")({
+	pendingComponent: SectionPending,
 	component: PlanIncome,
 });
 
@@ -26,15 +28,11 @@ export const Route = createFileRoute("/_authed/_household/plan/$month/income")({
 function PlanIncome() {
 	const { month } = Route.useRouteContext();
 	const state = useMonthState(month);
-	const current = monthOfDay(state.asOf);
+	const _current = monthOfDay(state.asOf);
 	const received = state.income.filter((i) => monthOfDay(i.date) === month);
 	return (
 		<PlanSubPage
-			page="income"
-			month={month}
-			current={current}
 			editable={state.editable}
-			title="Income"
 			aside={<TakeHomePayNote baseline={state.baseline} received={received} />}
 		>
 			<TakeHomePayEditor month={month} baseline={state.baseline} editable={state.editable} />

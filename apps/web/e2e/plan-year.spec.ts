@@ -48,7 +48,10 @@ test("the year at a glance, and Plan health pointing at the fix", async ({ brows
 	await pickDate(form, "Due on", `${lumpy}-10`);
 	await form.getByRole("button", { name: "Add Commitment" }).click();
 	await expect(page.getByRole("button", { name: "Edit Roof" })).toBeVisible();
-	await page.getByRole("link", { name: "Back to Plan" }).click();
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Overview" })
+		.click();
 
 	// Plan health: Free to Spend goes below zero then, and the warning opens that month's Plan.
 	const warning = health(page).getByRole("link", {
@@ -62,7 +65,10 @@ test("the year at a glance, and Plan health pointing at the fix", async ({ brows
 
 	// The year at a glance, from the Plan overview.
 	await page.getByRole("link", { name: `See the whole of ${lumpy.slice(0, 4)}` }).click();
-	await expect(page.locator("[data-slot=page-header]")).toContainText(lumpy.slice(0, 4));
+	await expect(page).toHaveURL(new RegExp(`/plan/${lumpy}/year$`));
+	await expect(
+		page.getByRole("heading", { level: 2, name: lumpy.slice(0, 4), exact: true }),
+	).toBeVisible();
 	const table = page.getByRole("table", { name: "The Plan month by month" });
 	const row = table.getByRole("row", { name: new RegExp(`^${monthName(lumpy)}`) });
 	await expect(row).toContainText("Lumpy");

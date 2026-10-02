@@ -46,6 +46,7 @@ import { Route as AuthedHouseholdPlanMonthBucketsRouteImport } from './routes/_a
 import { Route as AuthedHouseholdPlanMonthCommitmentsRouteImport } from './routes/_authed/_household/plan.$month.commitments'
 import { Route as AuthedHouseholdPlanMonthGoalsRouteImport } from './routes/_authed/_household/plan.$month.goals'
 import { Route as AuthedHouseholdPlanMonthIncomeRouteImport } from './routes/_authed/_household/plan.$month.income'
+import { Route as AuthedHouseholdPlanMonthYearRouteImport } from './routes/_authed/_household/plan.$month.year'
 import { Route as AuthedHouseholdPlanBucketsIdRouteImport } from './routes/_authed/_household/plan.buckets.$id'
 import { Route as AuthedHouseholdPlanCommitmentsIdRouteImport } from './routes/_authed/_household/plan.commitments.$id'
 import { Route as AuthedHouseholdPlanYearYearRouteImport } from './routes/_authed/_household/plan.year.$year'
@@ -256,6 +257,12 @@ const AuthedHouseholdPlanMonthIncomeRoute =
     path: '/income',
     getParentRoute: () => AuthedHouseholdPlanMonthRoute,
   } as any)
+const AuthedHouseholdPlanMonthYearRoute =
+  AuthedHouseholdPlanMonthYearRouteImport.update({
+    id: '/year',
+    path: '/year',
+    getParentRoute: () => AuthedHouseholdPlanMonthRoute,
+  } as any)
 const AuthedHouseholdPlanBucketsIdRoute =
   AuthedHouseholdPlanBucketsIdRouteImport.update({
     id: '/plan/buckets/$id',
@@ -309,6 +316,7 @@ export interface FileRoutesByFullPath {
   '/plan/$month/commitments': typeof AuthedHouseholdPlanMonthCommitmentsRoute
   '/plan/$month/goals': typeof AuthedHouseholdPlanMonthGoalsRoute
   '/plan/$month/income': typeof AuthedHouseholdPlanMonthIncomeRoute
+  '/plan/$month/year': typeof AuthedHouseholdPlanMonthYearRoute
   '/plan/buckets/$id': typeof AuthedHouseholdPlanBucketsIdRoute
   '/plan/commitments/$id': typeof AuthedHouseholdPlanCommitmentsIdRoute
   '/plan/year/$year': typeof AuthedHouseholdPlanYearYearRoute
@@ -347,6 +355,7 @@ export interface FileRoutesByTo {
   '/plan/$month/commitments': typeof AuthedHouseholdPlanMonthCommitmentsRoute
   '/plan/$month/goals': typeof AuthedHouseholdPlanMonthGoalsRoute
   '/plan/$month/income': typeof AuthedHouseholdPlanMonthIncomeRoute
+  '/plan/$month/year': typeof AuthedHouseholdPlanMonthYearRoute
   '/plan/buckets/$id': typeof AuthedHouseholdPlanBucketsIdRoute
   '/plan/commitments/$id': typeof AuthedHouseholdPlanCommitmentsIdRoute
   '/plan/year/$year': typeof AuthedHouseholdPlanYearYearRoute
@@ -390,6 +399,7 @@ export interface FileRoutesById {
   '/_authed/_household/plan/$month/commitments': typeof AuthedHouseholdPlanMonthCommitmentsRoute
   '/_authed/_household/plan/$month/goals': typeof AuthedHouseholdPlanMonthGoalsRoute
   '/_authed/_household/plan/$month/income': typeof AuthedHouseholdPlanMonthIncomeRoute
+  '/_authed/_household/plan/$month/year': typeof AuthedHouseholdPlanMonthYearRoute
   '/_authed/_household/plan/buckets/$id': typeof AuthedHouseholdPlanBucketsIdRoute
   '/_authed/_household/plan/commitments/$id': typeof AuthedHouseholdPlanCommitmentsIdRoute
   '/_authed/_household/plan/year/$year': typeof AuthedHouseholdPlanYearYearRoute
@@ -432,6 +442,7 @@ export interface FileRouteTypes {
     | '/plan/$month/commitments'
     | '/plan/$month/goals'
     | '/plan/$month/income'
+    | '/plan/$month/year'
     | '/plan/buckets/$id'
     | '/plan/commitments/$id'
     | '/plan/year/$year'
@@ -470,6 +481,7 @@ export interface FileRouteTypes {
     | '/plan/$month/commitments'
     | '/plan/$month/goals'
     | '/plan/$month/income'
+    | '/plan/$month/year'
     | '/plan/buckets/$id'
     | '/plan/commitments/$id'
     | '/plan/year/$year'
@@ -512,6 +524,7 @@ export interface FileRouteTypes {
     | '/_authed/_household/plan/$month/commitments'
     | '/_authed/_household/plan/$month/goals'
     | '/_authed/_household/plan/$month/income'
+    | '/_authed/_household/plan/$month/year'
     | '/_authed/_household/plan/buckets/$id'
     | '/_authed/_household/plan/commitments/$id'
     | '/_authed/_household/plan/year/$year'
@@ -786,6 +799,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedHouseholdPlanMonthIncomeRouteImport
       parentRoute: typeof AuthedHouseholdPlanMonthRoute
     }
+    '/_authed/_household/plan/$month/year': {
+      id: '/_authed/_household/plan/$month/year'
+      path: '/year'
+      fullPath: '/plan/$month/year'
+      preLoaderRoute: typeof AuthedHouseholdPlanMonthYearRouteImport
+      parentRoute: typeof AuthedHouseholdPlanMonthRoute
+    }
     '/_authed/_household/plan/buckets/$id': {
       id: '/_authed/_household/plan/buckets/$id'
       path: '/plan/buckets/$id'
@@ -831,6 +851,7 @@ interface AuthedHouseholdPlanMonthRouteChildren {
   AuthedHouseholdPlanMonthCommitmentsRoute: typeof AuthedHouseholdPlanMonthCommitmentsRoute
   AuthedHouseholdPlanMonthGoalsRoute: typeof AuthedHouseholdPlanMonthGoalsRoute
   AuthedHouseholdPlanMonthIncomeRoute: typeof AuthedHouseholdPlanMonthIncomeRoute
+  AuthedHouseholdPlanMonthYearRoute: typeof AuthedHouseholdPlanMonthYearRoute
   AuthedHouseholdPlanMonthIndexRoute: typeof AuthedHouseholdPlanMonthIndexRoute
 }
 
@@ -841,6 +862,7 @@ const AuthedHouseholdPlanMonthRouteChildren: AuthedHouseholdPlanMonthRouteChildr
       AuthedHouseholdPlanMonthCommitmentsRoute,
     AuthedHouseholdPlanMonthGoalsRoute: AuthedHouseholdPlanMonthGoalsRoute,
     AuthedHouseholdPlanMonthIncomeRoute: AuthedHouseholdPlanMonthIncomeRoute,
+    AuthedHouseholdPlanMonthYearRoute: AuthedHouseholdPlanMonthYearRoute,
     AuthedHouseholdPlanMonthIndexRoute: AuthedHouseholdPlanMonthIndexRoute,
   }
 

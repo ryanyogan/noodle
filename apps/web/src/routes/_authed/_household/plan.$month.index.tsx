@@ -11,7 +11,6 @@ import {
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { List } from "@noodle/ui/components/list";
-import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
@@ -20,7 +19,6 @@ import { Check, ChevronRight } from "lucide-react";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { ComingUpSummary, LumpCallout } from "../../../components/coming-up";
 import { AmountInput } from "../../../components/goals";
-import { MonthLinks, MonthTopRow, monthTitle, useMonthSwipe } from "../../../components/month-nav";
 import { PlanDraftSection } from "../../../components/plan-draft";
 import { SaveFailed } from "../../../components/plan-editing";
 import { PlanHealth } from "../../../components/plan-health";
@@ -30,7 +28,8 @@ import {
 	groupTitle,
 	HistoryStart,
 } from "../../../components/plan-history";
-import { PlanEnded, PlanNav, planParts } from "../../../components/plan-page";
+import { PlanEnded, planParts } from "../../../components/plan-page";
+import { SectionPending } from "../../../components/section-layout";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney, monthName } from "../../../format";
 import { useGoals } from "../../../goals";
@@ -55,6 +54,7 @@ export const Route = createFileRoute("/_authed/_household/plan/$month/")({
 			context.queryClient.ensureQueryData(planHistoryQuery(context.month)),
 			context.queryClient.ensureQueryData(planHealthQuery()),
 		]),
+	pendingComponent: SectionPending,
 	component: PlanOverview,
 });
 
@@ -64,18 +64,10 @@ function PlanOverview() {
 	const { month } = Route.useRouteContext();
 	const state = useMonthState(month);
 	const current = monthOfDay(state.asOf);
-	const swipe = useMonthSwipe("/plan/$month", month, state.firstMonth);
 	const buckets = state.buckets.filter((b) => b.owner === undefined);
 	const settingUp = state.editable && (state.baseline === null || buckets.length === 0);
 	return (
-		<div {...swipe}>
-			<MonthTopRow month={month} current="plan" />
-			<PageHeader
-				eyebrow="Plan"
-				title={monthTitle(month, current)}
-				actions={<MonthLinks to="/plan/$month" month={month} first={state.firstMonth} />}
-			/>
-			<PlanNav month={month} page="overview" />
+		<>
 			{/* At lg: the Plan itself on the left, what's coming and what changed on the right. */}
 			<div className="grid max-w-2xl gap-8 lg:max-w-none lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)] lg:items-start">
 				<div className="grid min-w-0 gap-8">
@@ -99,7 +91,7 @@ function PlanOverview() {
 					</div>
 				)}
 			</div>
-		</div>
+		</>
 	);
 }
 
@@ -108,7 +100,7 @@ function YearLink({ month }: { month: MonthKey }) {
 	const year = month.slice(0, 4);
 	return (
 		<Button variant="secondary" className="h-11 justify-between px-(--card-pad)" asChild>
-			<Link to="/plan/year/$year" params={{ year }}>
+			<Link to="/plan/$month/year" params={{ month }}>
 				See the whole of {year}
 				<ChevronRight aria-hidden="true" className="size-4 text-subtle-foreground" />
 			</Link>
