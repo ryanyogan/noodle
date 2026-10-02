@@ -44,7 +44,7 @@ async function openPlan(page: Page) {
 
 async function openCommitments(page: Page) {
 	await waterfall(page).getByRole("link", { name: "Commitments", exact: true }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toContainText("Commitments");
+	await expect(page.locator("[data-slot=page-header]")).toContainText("Commitments");
 }
 
 async function backToPlan(page: Page) {

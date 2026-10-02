@@ -23,6 +23,7 @@ const plan = {
 const phone = { viewport: { width: 393, height: 852 }, isMobile: true, hasTouch: true };
 
 const heading = (page: Page) => page.getByRole("heading", { level: 1 });
+const header = (page: Page) => page.locator("[data-slot=page-header]");
 const waterfall = (page: Page) =>
 	page.getByRole("region", { name: "From take-home pay to Free to Spend" });
 const planRow = (page: Page, bucket: string) =>
@@ -48,7 +49,7 @@ test("on a computer, the Plan is in the sidebar", async ({ browser }) => {
 	const sidebar = page.getByRole("navigation", { name: "Main" });
 	await sidebar.getByRole("link", { name: "Plan", exact: true }).click();
 	await expect(page).toHaveURL(/\/plan\/\d{4}-\d{2}$/);
-	await expect(heading(page)).toHaveText(`Plan${name}`);
+	await expect(heading(page)).toHaveText(name);
 	await expect(waterfall(page)).toContainText("Free to Spend$4,400");
 	await page.context().close();
 });
@@ -61,12 +62,12 @@ test("on a phone, the Plan is a switch away from This Month", async ({ browser }
 	const views = page.getByRole("navigation", { name: "Month and Plan" });
 	await expect(views.getByRole("link", { name: "Month" })).toHaveAttribute("aria-current", "page");
 	await views.getByRole("link", { name: "Plan" }).click();
-	await expect(heading(page)).toHaveText(`Plan${name}`);
+	await expect(heading(page)).toHaveText(name);
 	await expect(views.getByRole("link", { name: "Plan" })).toHaveAttribute("aria-current", "page");
 	await expect(waterfall(page)).toContainText("Free to Spend$4,400");
 
 	await views.getByRole("link", { name: "Month" }).click();
-	await expect(heading(page)).toContainText("This Month");
+	await expect(header(page)).toContainText("This Month");
 	await page.context().close();
 });
 
@@ -93,9 +94,9 @@ test("each step from take-home pay to Free to Spend opens its part of the Plan",
 		["Goal funding", "Goals"],
 	]) {
 		await waterfall(page).getByRole("link", { name: step, exact: true }).click();
-		await expect(heading(page)).toHaveText(`${name} Plan${title}`);
+		await expect(heading(page)).toHaveText(title as string);
 		await page.getByRole("link", { name: "Back to Plan" }).click();
-		await expect(heading(page)).toHaveText(`Plan${name}`);
+		await expect(heading(page)).toHaveText(name);
 	}
 	await expect(waterfall(page)).toContainText("Personal Allowances−$150");
 	await expect(waterfall(page)).toContainText("Free to Spend$4,250");
@@ -131,9 +132,9 @@ test("a change to just this month leaves next month's Plan as it was", async ({ 
 	// Next month goes back to the allowance before, and says it changed from this month's.
 	await switchTo(page, "Plan");
 	await page.getByRole("link", { name: "Next month" }).click();
-	await expect(heading(page)).toContainText(next);
+	await expect(header(page)).toContainText(next);
 	await waterfall(page).getByRole("link", { name: "Buckets", exact: true }).click();
-	await expect(heading(page)).toHaveText(new RegExp(`^${next}( \\d{4})? PlanBuckets$`));
+	await expect(heading(page)).toHaveText("Buckets");
 	await expect(planRow(page, "Groceries")).toContainText("$1,200");
 	await expect(planRow(page, "Groceries")).toContainText("Changed this month · was $1,500");
 	await expect(planRow(page, "Hockey")).not.toContainText("Changed this month");

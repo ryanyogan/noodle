@@ -24,6 +24,7 @@ const plan = {
 };
 
 const heading = (page: Page) => page.getByRole("heading", { level: 1 });
+const header = (page: Page) => page.locator("[data-slot=page-header]");
 
 // Reports render only in the browser, so the tests arrive the way a Parent does, by the Reports
 // link from the running app; the one full load they mean (a reload keeps the options) waits on
@@ -37,7 +38,7 @@ test("Reports: change the period, then drill from a Bucket to its Transactions",
 	seedReportHistory(parent.userId);
 
 	await page.getByRole("link", { name: "Reports" }).click();
-	await expect(heading(page)).toContainText("Overview");
+	await expect(header(page)).toContainText("Overview");
 	await expect(page.getByText("Income and spending")).toBeVisible();
 	// Six months of history: the six months before them had nothing, so no "226% more".
 	const nothingEarlier = page.getByText(
@@ -57,7 +58,7 @@ test("Reports: change the period, then drill from a Bucket to its Transactions",
 	);
 
 	await page.getByRole("link", { name: "Buckets", exact: true }).click();
-	await expect(heading(page)).toContainText("Buckets");
+	await expect(header(page)).toContainText("Buckets");
 	await page.getByRole("button", { name: /^Groceries: \$/ }).click();
 	await expect(page).toHaveURL(/area=bucket/);
 	await expect(page.getByText("Pick a month to see its Transactions")).toBeVisible();
@@ -73,10 +74,10 @@ test("Big expenses are the one-offs over a threshold the Parent picks", async ({
 	seedReportHistory(parent.userId);
 
 	await page.getByRole("link", { name: "Reports" }).click();
-	await expect(heading(page)).toContainText("Overview");
+	await expect(header(page)).toContainText("Overview");
 	await page.getByRole("link", { name: "Big expenses" }).click();
 	await expect(page).toHaveURL(/view=big/);
-	await expect(heading(page)).toContainText("Big expenses");
+	await expect(header(page)).toContainText("Big expenses");
 	const largest = page.getByRole("group", { name: "Largest Transactions" });
 	await expect(largest.getByText("Flights to Denver")).toBeVisible();
 	// Commitments are expected, not big expenses: they have their own card.
@@ -103,7 +104,7 @@ test("Phones reach Reports from This Month", async ({ browser }) => {
 	});
 	await createPlannedHousehold(page, plan);
 	await page.getByRole("link", { name: "Reports" }).click();
-	await expect(heading(page)).toContainText("Overview");
+	await expect(header(page)).toContainText("Overview");
 });
 
 test("no Report view is wider than a phone, and a long merchant name stays in its card", async ({
@@ -123,7 +124,7 @@ test("no Report view is wider than a phone, and a long merchant name stays in it
 	await expect(quickAdd).toBeHidden();
 
 	await page.getByRole("link", { name: "Reports" }).click();
-	await expect(heading(page)).toContainText("Overview");
+	await expect(header(page)).toContainText("Overview");
 	// By keyboard: the Select opens on Enter, the arrows move, Enter chooses, and focus comes back.
 	const period = page.getByRole("combobox", { name: "Period" });
 	await period.focus();
@@ -139,7 +140,7 @@ test("no Report view is wider than a phone, and a long merchant name stays in it
 
 	// Merchants on desktop: the amounts stay inside the card beside the long name.
 	await page.getByRole("link", { name: "Merchants", exact: true }).click();
-	await expect(heading(page)).toContainText("Merchants");
+	await expect(header(page)).toContainText("Merchants");
 	const visits = page.getByRole("group", { name: "By spending" });
 	const row = visits.getByRole("button", {
 		name: new RegExp(`^${longName.slice(0, 20).replace(/[*]/g, "\\*")}`),
@@ -155,7 +156,7 @@ test("no Report view is wider than a phone, and a long merchant name stays in it
 	const views = page.getByRole("navigation", { name: "Report views" }).getByRole("link");
 	for (const name of await views.allInnerTexts()) {
 		await views.filter({ hasText: name }).first().click();
-		await expect(heading(page)).toContainText(name);
+		await expect(header(page)).toContainText(name);
 		expect(
 			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
 			`${name} scrolls sideways`,

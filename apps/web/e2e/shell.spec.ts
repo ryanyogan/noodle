@@ -38,11 +38,10 @@ async function settle(page: Page) {
 
 // The month name changes every month and Clerk's avatar differs per test user.
 const dynamic = (page: Page) => [
-	page
-		.getByRole("heading", { level: 1 })
-		.getByText(
+	page.getByRole("heading", { level: 1 }).filter({
+		hasText:
 			/^(January|February|March|April|May|June|July|August|September|October|November|December)$/,
-		),
+	}),
 	page.locator(".cl-userButtonTrigger"),
 	// Each run's test Parent has a new email, shown on the Household page.
 	page.getByText(/@example\.com/),
@@ -55,7 +54,7 @@ for (const [screen, device] of Object.entries(screens)) {
 			const nav = page.getByRole("navigation", { name: "Main" });
 
 			await page.goto("/month");
-			await expect(page.getByRole("heading", { level: 1 })).toContainText("This Month");
+			await expect(page.locator("[data-slot=page-header]")).toContainText("This Month");
 			await expect(nav).toBeVisible();
 			await settle(page);
 			await expect(page).toHaveScreenshot(`month-${screen}-${colorScheme}.png`, {

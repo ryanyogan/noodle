@@ -58,11 +58,11 @@ test("the year at a glance, and Plan health pointing at the fix", async ({ brows
 	await expect(health(page)).toContainText("−$4,200 in the Plan as it stands");
 	await warning.click();
 	await expect(page).toHaveURL(new RegExp(`/plan/${lumpy}$`));
-	await expect(page.getByRole("heading", { level: 1 })).toContainText(monthName(lumpy));
+	await expect(page.locator("[data-slot=page-header]")).toContainText(monthName(lumpy));
 
 	// The year at a glance, from the Plan overview.
 	await page.getByRole("link", { name: `See the whole of ${lumpy.slice(0, 4)}` }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toContainText(lumpy.slice(0, 4));
+	await expect(page.locator("[data-slot=page-header]")).toContainText(lumpy.slice(0, 4));
 	const table = page.getByRole("table", { name: "The Plan month by month" });
 	const row = table.getByRole("row", { name: new RegExp(`^${monthName(lumpy)}`) });
 	await expect(row).toContainText("Lumpy");

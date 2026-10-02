@@ -16,7 +16,7 @@ test.afterEach(async () => {
 async function openPlan(page: Page) {
 	await createHousehold(page, "The Rinks", "Alex");
 	await page.getByRole("link", { name: "Set up the Plan" }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toContainText("Plan");
+	await expect(page.locator("[data-slot=page-header]")).toContainText("Plan");
 }
 
 const waterfall = (page: Page) =>
@@ -33,7 +33,7 @@ async function setTakeHomePay(page: Page, amount: string) {
 /** Opens a part of the Plan from the overview's waterfall. */
 async function openStep(page: Page, step: string) {
 	await waterfall(page).getByRole("link", { name: step, exact: true }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toContainText(step);
+	await expect(page.locator("[data-slot=page-header]")).toContainText(step);
 }
 
 async function backToPlan(page: Page) {
@@ -51,7 +51,7 @@ async function addBucket(page: Page, name: string, amount: string) {
 /** Opens a Bucket's page from the Plan's Buckets. */
 async function openBucket(page: Page, bucket: string) {
 	await page.getByRole("link", { name: bucket, exact: true }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toContainText(bucket);
+	await expect(page.locator("[data-slot=page-header]")).toContainText(bucket);
 }
 
 /** Opens the Edit sheet on a Bucket's page. */
@@ -109,12 +109,12 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 	await details.getByRole("radio", { name: "Green" }).check();
 	await details.getByRole("button", { name: "Save", exact: true }).click();
 	await expect(details).toBeHidden();
-	await expect(page.getByRole("heading", { level: 1 })).toContainText("Kids’ hockey");
+	await expect(page.locator("[data-slot=page-header]")).toContainText("Kids’ hockey");
 	// Moving happens at once, apart from Save.
 	await editBucket(page, "Kids’ hockey");
 	await page.getByRole("button", { name: "Move up" }).click();
 	await page.keyboard.press("Escape");
-	await expect(page.getByRole("heading", { level: 1 })).toContainText("Kids’ hockey");
+	await expect(page.locator("[data-slot=page-header]")).toContainText("Kids’ hockey");
 	await page.getByRole("link", { name: "Back to Buckets" }).click();
 	await expect(page.getByRole("listitem").first()).toContainText("Kids’ hockey");
 
@@ -148,7 +148,7 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 	await editBucket(page, "Groceries");
 	await page.getByRole("button", { name: "Archive", exact: true }).click();
 	await page.getByRole("button", { name: "Archive Groceries" }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toContainText("Archived Bucket");
+	await expect(page.locator("[data-slot=page-header]")).toContainText("Archived Bucket");
 	await page.getByRole("link", { name: "Back to Buckets" }).click();
 	await expect(page.getByRole("button", { name: "Edit Groceries" })).toHaveCount(0);
 	await backToPlan(page);

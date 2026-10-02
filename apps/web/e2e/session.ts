@@ -37,7 +37,7 @@ export async function createHousehold(page: Page, householdName: string, parentN
 	await page.getByRole("button", { name: "Create Household" }).click();
 	await expect(page).toHaveURL(/\/month\//);
 	// The URL changes before the page loads; clicking on before then can lose the click.
-	await expect(page.getByRole("heading", { level: 1 })).toContainText("This Month");
+	await expect(page.locator("[data-slot=page-header]")).toContainText("This Month");
 }
 
 /** True for calls to the named server function (its id is base64url JSON naming the export). */
@@ -56,7 +56,7 @@ export async function switchTo(page: Page, view: "Month" | "Plan") {
 		.getByRole("navigation", { name: "Month and Plan" })
 		.getByRole("link", { name: view })
 		.click();
-	await expect(page.getByRole("heading", { level: 1 })).toContainText(
+	await expect(page.locator("[data-slot=page-header]")).toContainText(
 		view === "Month" ? "This Month" : "Plan",
 	);
 }
@@ -76,7 +76,7 @@ export async function createPlannedHousehold(
 	await page.getByRole("button", { name: "Set take-home pay" }).click();
 	await takeHomePaySaved;
 	await page.getByRole("link", { name: "Add Buckets" }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toContainText("Buckets");
+	await expect(page.locator("[data-slot=page-header]")).toContainText("Buckets");
 	for (const [name, allowance] of buckets) {
 		await page.getByLabel("New Bucket").fill(name);
 		await page.getByLabel("Monthly allowance").fill(allowance);

@@ -93,7 +93,7 @@ test("each Parent's screen shows the other's changes without a reload", async ({
 		const samConnected = watchHouseholdAgent(sam);
 		await sam.getByLabel("Your name").fill("Sam");
 		await sam.getByRole("button", { name: "Join The Rinks" }).click();
-		await expect(sam.getByRole("heading", { level: 1 })).toContainText("This Month");
+		await expect(sam.locator("[data-slot=page-header]")).toContainText("This Month");
 		await markLoaded(sam);
 		await samConnected();
 

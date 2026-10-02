@@ -39,7 +39,7 @@ async function uploadCardStatement(page: Page, lines: [string, string][]) {
 	await page.getByLabel("Owed now").fill("800");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: /^Visa, / }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toContainText("Visa");
+	await expect(page.locator("[data-slot=page-header]")).toContainText("Visa");
 
 	// Dated today where the browser (and so the Household) is: the Quick Adds' day.
 	const today = await page.evaluate(() => new Date().toLocaleDateString("en-US"));
@@ -148,6 +148,6 @@ test("Review asks whether a tipped bank line is a Quick Add's copy, and Matches 
 	await expect(toast(page, "Nopa Matched")).toBeVisible();
 	// Matched, it leaves Review, and the dinner counts once, as the Quick Add.
 	await expect(card).not.toContainText("NOPA");
-	await expect(page.getByRole("heading", { level: 1 })).toContainText("1");
+	await expect(page.locator("[data-slot=page-header]")).toContainText("1");
 	await page.context().close();
 });

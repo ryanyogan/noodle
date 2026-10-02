@@ -58,7 +58,7 @@ async function quickAdd(page: Page, amount: string, bucket: string) {
 /** Sets a Bucket carries over on its page, from This Month, then returns to This Month. */
 async function setCarriesOver(page: Page, bucket: string) {
 	await page.getByRole("link", { name: bucket, exact: true }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toContainText(bucket);
+	await expect(page.locator("[data-slot=page-header]")).toContainText(bucket);
 	await page.getByRole("button", { name: "Edit", exact: true }).click();
 	const saved = page.waitForResponse((response) =>
 		serverFn("setCarriesOver")(new URL(response.url())),
@@ -71,7 +71,7 @@ async function setCarriesOver(page: Page, bucket: string) {
 		.getByRole("navigation", { name: "Main" })
 		.getByRole("link", { name: "This Month" })
 		.click();
-	await expect(page.getByRole("heading", { level: 1 })).toContainText("This Month");
+	await expect(page.locator("[data-slot=page-header]")).toContainText("This Month");
 }
 
 /** Swipes across the page on a touch screen: negative `dx` is leftward. */
@@ -93,11 +93,11 @@ test("months are addressable, and the chevrons move between them", async ({ brow
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, plan);
 	const { previous, current, next } = monthsAround(page);
-	await expect(heading(page)).toHaveText(`This Month${current.name}`);
+	await expect(heading(page)).toHaveText(current.name);
 
 	await page.getByRole("link", { name: "Next month" }).click();
 	await expect(page).toHaveURL(new RegExp(`/month/${next.key}$`));
-	await expect(heading(page)).toHaveText(`Month${title(next, current.year)}`);
+	await expect(heading(page)).toHaveText(title(next, current.year));
 	// Each month's Plan starts as the one before it.
 	await expect(bucketRow(page, "Hockey")).toHaveAccessibleName("Hockey: $400 left of $400");
 
@@ -108,10 +108,10 @@ test("months are addressable, and the chevrons move between them", async ({ brow
 	await expect(page.getByRole("link", { name: /^Previous month/ })).toHaveCount(0);
 	// Though an earlier month is still addressable.
 	await page.goto(`/month/${previous.key}`);
-	await expect(heading(page)).toHaveText(`Month${title(previous, current.year)}`);
+	await expect(heading(page)).toHaveText(title(previous, current.year));
 
 	await page.goto(`/month/${next.key}`);
-	await expect(heading(page)).toHaveText(`Month${title(next, current.year)}`);
+	await expect(heading(page)).toHaveText(title(next, current.year));
 });
 
 test("a Bucket that carries over carries what's left into next month; a resets monthly one starts over", async ({
@@ -157,7 +157,7 @@ test("swiping on a phone moves between months", async ({ browser }) => {
 
 	await swipe(page, -120);
 	await expect(page).toHaveURL(new RegExp(`/month/${next.key}$`));
-	await expect(heading(page)).toHaveText(`Month${title(next, current.year)}`);
+	await expect(heading(page)).toHaveText(title(next, current.year));
 
 	// A short drag isn't a swipe.
 	await swipe(page, 30);
@@ -165,5 +165,5 @@ test("swiping on a phone moves between months", async ({ browser }) => {
 
 	await swipe(page, 120);
 	await expect(page).toHaveURL(new RegExp(`/month/${current.key}$`));
-	await expect(heading(page)).toHaveText(`This Month${current.name}`);
+	await expect(heading(page)).toHaveText(current.name);
 });

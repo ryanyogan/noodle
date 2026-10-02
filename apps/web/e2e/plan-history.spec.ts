@@ -12,7 +12,7 @@ const item = (page: Page, title: string) =>
 
 async function openPart(page: Page, part: "Buckets" | "Commitments") {
 	await waterfall(page).getByRole("link", { name: part, exact: true }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toContainText(part);
+	await expect(page.locator("[data-slot=page-header]")).toContainText(part);
 }
 
 async function backToPlan(page: Page) {

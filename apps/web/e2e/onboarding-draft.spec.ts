@@ -54,7 +54,7 @@ async function uploadHistory(page: Page) {
 	await page.getByLabel("Balance now").fill("3,000");
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: /^Checking, / }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toContainText("Checking");
+	await expect(page.locator("[data-slot=page-header]")).toContainText("Checking");
 	const csv = history();
 	await page.getByRole("button", { name: "Upload statement" }).click();
 	const sheet = page.getByRole("dialog", { name: "Upload a statement" });

@@ -45,7 +45,7 @@ async function uploadStatement(
 		.fill(account.balance);
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: new RegExp(`^${account.name}, `) }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toContainText(account.name);
+	await expect(page.locator("[data-slot=page-header]")).toContainText(account.name);
 
 	await page.getByRole("button", { name: "Upload statement" }).click();
 	const sheet = page.getByRole("dialog", { name: "Upload a statement" });

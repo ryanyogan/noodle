@@ -2,7 +2,8 @@ import type * as React from "react";
 import { cn } from "#lib/utils";
 
 /**
- * The top of every screen: an optional eyebrow, the title (the page's only h1), and actions.
+ * The top of every screen: an optional eyebrow (a line above the h1, not part of it), the title
+ * (the page's only h1), and actions.
  * `leading`/`trailing` sit either side of the title (e.g. previous/next month).
  */
 function PageHeader({
@@ -27,14 +28,16 @@ function PageHeader({
 		>
 			<div className="flex min-w-0 items-center gap-1">
 				{leading}
-				<h1 className="min-w-0 px-0.5 text-2xl font-semibold tracking-[-0.025em] lg:text-[2rem]">
+				<div className="min-w-0 px-0.5">
 					{eyebrow ? (
-						<span className="block text-[13px] font-medium tracking-normal text-muted-foreground">
+						<p data-slot="page-eyebrow" className="text-[13px] font-medium text-muted-foreground">
 							{eyebrow}
-						</span>
+						</p>
 					) : null}
-					<span className="line-clamp-2 text-balance break-words">{title}</span>
-				</h1>
+					<h1 className="line-clamp-2 text-2xl font-semibold tracking-[-0.025em] text-balance break-words lg:text-[2rem]">
+						{title}
+					</h1>
+				</div>
 				{trailing}
 			</div>
 			{actions ? <div className="flex shrink-0 items-center gap-3">{actions}</div> : null}

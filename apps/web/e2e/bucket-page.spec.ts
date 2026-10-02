@@ -42,7 +42,7 @@ test("a Bucket's page shows its month, its year and its history, and changes it"
 
 	// Every Bucket on This Month links to its page.
 	await page.getByRole("link", { name: "Hockey", exact: true }).click();
-	await expect(heading(page)).toHaveText("BucketHockey");
+	await expect(heading(page)).toHaveText("Hockey");
 	await expect(thisMonth(page)).toContainText("$300");
 	await expect(thisMonth(page)).toContainText("of $400");
 	await expect(thisMonth(page)).toContainText("Resets monthly");
@@ -60,7 +60,7 @@ test("a Bucket's page shows its month, its year and its history, and changes it"
 	await transactions.getByRole("link", { name: "All in Transactions" }).click();
 	await expect(page).toHaveURL(/\/transactions\/\d{4}-\d{2}\?bucket=/);
 	await page.goBack();
-	await expect(heading(page)).toHaveText("BucketHockey");
+	await expect(heading(page)).toHaveText("Hockey");
 
 	// Spent vs allowance, as a table too.
 	const spentVsAllowance = page.getByRole("group", { name: "Spent vs allowance" });
@@ -101,13 +101,13 @@ test("a Bucket's page shows its month, its year and its history, and changes it"
 	expect((await carriesOver).ok()).toBe(true);
 	expect((await renamed).ok()).toBe(true);
 	await expect(sheet).toBeHidden();
-	await expect(heading(page)).toHaveText("BucketKids’ hockey");
+	await expect(heading(page)).toHaveText("Kids’ hockey");
 	await expect(thisMonth(page)).toContainText("Carries over");
 	await expect(page.getByRole("group", { name: "Carried over each month" })).toBeVisible();
 
 	// Saved, not just shown.
 	await page.reload();
-	await expect(heading(page)).toHaveText("BucketKids’ hockey");
+	await expect(heading(page)).toHaveText("Kids’ hockey");
 	await expect(thisMonth(page)).toContainText("of $450");
 	await expect(page.getByRole("group", { name: "Carried over each month" })).toBeVisible();
 
@@ -139,7 +139,7 @@ test("an archived Bucket can be restored to the Plan", async ({ browser }) => {
 	await page.getByRole("button", { name: "Edit", exact: true }).click();
 	await editSheet(page, "Gifts").getByRole("button", { name: "Archive" }).click();
 	await page.getByRole("alertdialog").getByRole("button", { name: "Archive Gifts" }).click();
-	await expect(heading(page)).toHaveText("Archived BucketGifts");
+	await expect(heading(page)).toHaveText("Gifts");
 	await expect(page.getByText("It’s archived, so nothing goes into it.")).toBeVisible();
 
 	await page.getByRole("button", { name: "Restore to the Plan" }).click();
@@ -148,7 +148,7 @@ test("an archived Bucket can be restored to the Plan", async ({ browser }) => {
 	await restore.getByRole("textbox", { name: "Allowance", exact: true }).fill("200");
 	await restore.getByRole("button", { name: "Restore to the Plan" }).click();
 	await expect(restore).toBeHidden();
-	await expect(heading(page)).toHaveText("BucketGifts");
+	await expect(heading(page)).toHaveText("Gifts");
 	await expect(thisMonth(page)).toContainText("of $200");
 	await expect(page.getByRole("region", { name: "Allowance history" })).toContainText(
 		"Back in the Plan",
@@ -164,7 +164,7 @@ test("a Bucket's page works on a phone", async ({ browser }) => {
 	});
 	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
 	await page.getByRole("link", { name: "Groceries", exact: true }).click();
-	await expect(heading(page)).toHaveText("BucketGroceries");
+	await expect(heading(page)).toHaveText("Groceries");
 	await expect(page.getByRole("group", { name: "Spent vs allowance" })).toBeVisible();
 	await page.getByRole("button", { name: "Edit", exact: true }).click();
 	await expect(editSheet(page, "Groceries").getByRole("button", { name: "Save" })).toBeVisible();

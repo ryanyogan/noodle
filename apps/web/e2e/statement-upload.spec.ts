@@ -25,7 +25,7 @@ async function addAccount(page: Page, name: string, kind: string, balance: strin
 	await page.getByLabel(kind === "credit-card" ? "Owed now" : "Balance now").fill(balance);
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: new RegExp(`^${name}, `) }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toContainText(name);
+	await expect(page.locator("[data-slot=page-header]")).toContainText(name);
 }
 
 /** Opens the upload sheet and chooses a statement file. */

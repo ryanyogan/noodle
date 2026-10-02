@@ -18,6 +18,7 @@ test.afterEach(async () => {
 const plan = { baseline: "5,000", buckets: [["Groceries", "1,200"]] as [string, string][] };
 const phone = { viewport: { width: 393, height: 852 }, isMobile: true, hasTouch: true };
 const heading = (page: Page) => page.getByRole("heading", { level: 1 });
+const header = (page: Page) => page.locator("[data-slot=page-header]");
 
 test("Accounts are their own area, and each Goal names the Account holding it", async ({
 	browser,
@@ -74,7 +75,7 @@ test("Accounts are their own area, and each Goal names the Account holding it", 
 	await page.getByRole("link", { name: "Joint Savings", exact: true }).click();
 
 	// The Account's page lives under Accounts, and back goes to Accounts.
-	await expect(heading(page)).toContainText("Joint Savings");
+	await expect(header(page)).toContainText("Joint Savings");
 	await expect(page).toHaveURL(/\/accounts\/[^/]+$/);
 	await expect(page.getByRole("link", { name: "Trip, $500 set aside" })).toBeVisible();
 	const accountPath = new URL(page.url()).pathname;
@@ -85,7 +86,7 @@ test("Accounts are their own area, and each Goal names the Account holding it", 
 	// The old address still opens it.
 	await page.goto(`/goals${accountPath}`);
 	await expect(page).toHaveURL(new RegExp(`${accountPath}$`));
-	await expect(heading(page)).toContainText("Joint Savings");
+	await expect(header(page)).toContainText("Joint Savings");
 });
 
 test("on a phone, Accounts is reached from Transactions and the Household page", async ({
@@ -97,7 +98,7 @@ test("on a phone, Accounts is reached from Transactions and the Household page",
 	await expect(tabs.getByRole("link", { name: "Accounts" })).toHaveCount(0);
 
 	await tabs.getByRole("link", { name: "Transactions" }).click();
-	await expect(heading(page)).toContainText("Transactions");
+	await expect(header(page)).toContainText("Transactions");
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await expect(heading(page)).toHaveText("Accounts");
 	// Accounts sits with Transactions in the tab bar.

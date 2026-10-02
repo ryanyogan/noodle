@@ -30,7 +30,7 @@ test("a Parent invites the other Parent, who joins the same Household", async ({
 
 		// Both Parents now share one Household.
 		await expect(secondPage).toHaveURL(/\/month\/\d{4}-\d{2}$/);
-		await expect(secondPage.getByRole("heading", { level: 1 })).toContainText("This Month");
+		await expect(secondPage.locator("[data-slot=page-header]")).toContainText("This Month");
 		await expect(secondPage.getByText("The Invites")).toBeVisible();
 
 		await secondPage.getByRole("link", { name: "Household" }).click();
@@ -124,7 +124,7 @@ test("someone invited by mistake can start their own Household instead", async (
 		await page.getByLabel("Your name").fill("Jo");
 		await page.getByRole("button", { name: "Create Household" }).click();
 		await expect(page).toHaveURL(/\/month\//);
-		await expect(page.getByRole("heading", { level: 1 })).toContainText("This Month");
+		await expect(page.locator("[data-slot=page-header]")).toContainText("This Month");
 		await expect(page.getByText("The Originals")).toBeVisible();
 	} finally {
 		await Promise.all([inviter.remove(), invitee.remove()]);

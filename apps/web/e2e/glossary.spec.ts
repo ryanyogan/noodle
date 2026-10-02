@@ -77,7 +77,7 @@ test("a term's help explains it in place and leads to the Glossary", async ({ br
 		.getByRole("link", { name: "Household" })
 		.click();
 	await page.getByRole("link", { name: "the Glossary" }).click();
-	await expect(heading(page)).toHaveText("HouseholdGlossary");
+	await expect(heading(page)).toHaveText("Glossary");
 	await expect(page.getByRole("term").filter({ hasText: "Take-home pay" })).toBeVisible();
 	await page.goto("/glossary#sweep");
 	await expect(page.locator("#sweep")).toBeInViewport();
