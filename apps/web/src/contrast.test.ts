@@ -69,6 +69,14 @@ describe.each([
 		}
 	});
 
+	it("every Bucket colour is at least 3:1 on the bar track (#64)", () => {
+		for (let i = 1; i <= 8; i++) {
+			expect(contrast(t[`bucket-${i}`] as string, t["surface-3"] as string)).toBeGreaterThanOrEqual(
+				3,
+			);
+		}
+	});
+
 	it("the Over badge's text is at least 4.5:1 on its tint, over a card", () => {
 		const badge = tint(t.over as string, overAlpha, t.card as string);
 		expect(contrast(t["over-foreground"] as string, badge)).toBeGreaterThanOrEqual(4.5);

@@ -74,13 +74,13 @@
 
 	/* Bucket identity, assigned in this order (colour-blind validated in #2); tiles and meters only. */
 	--bucket-1: #2a78d6;
-	--bucket-2: #e34948;
+	--bucket-2: #a347ba;
 	--bucket-3: #0e8fa8;
 	--bucket-4: #008300;
 	--bucket-5: #4a3aa7;
-	--bucket-6: #1baf7a;
+	--bucket-6: #138a5f;
 	--bucket-7: #9a5b2e;
-	--bucket-8: #e87ba4;
+	--bucket-8: #cc4a80;
 
 	/*
 	 * Charts (Reports): neutral ink for spending, the brand for income, a ghost tone for the
@@ -161,7 +161,7 @@
 		--elevation-pop: 0 16px 40px -8px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.04);
 		--card-highlight: inset 0 1px 0 rgb(255 255 255 / 0.03);
 		--bucket-1: #3987e5;
-		--bucket-2: #e66767;
+		--bucket-2: #c27ad6;
 		--bucket-3: #2aa3bd;
 		--bucket-4: #2f9e3a;
 		--bucket-5: #9085e9;
