@@ -57,6 +57,11 @@ async function toBuckets(page: Page) {
 	await page.getByRole("button", { name: "Skip" }).click();
 	await saved;
 	await step(page, 4);
+	// Buckets scales its starter amounts once, from what it knows as it mounts. Arriving by hand,
+	// that could be before the pay just saved had come back, so the first shot's amounts depended
+	// on timing. Load the step afresh, as every later shot does, so they all start the same way.
+	await page.goto("/setup");
+	await step(page, 4);
 }
 
 for (const name of ["hello", "buckets"] as const) {
@@ -72,6 +77,10 @@ for (const name of ["hello", "buckets"] as const) {
 				}
 				await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 				await page.evaluate(() => document.fonts.ready);
+				// Nothing still loading or moving: the step's own data is in, and no transition is mid-way.
+				await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
+				await page.waitForLoadState("networkidle");
+				await expect(page.locator("[aria-busy=true], [data-slot=skeleton]")).toHaveCount(0);
 				// The primary button stays on screen, whatever the step's length.
 				await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeInViewport();
 				await expect(page).toHaveScreenshot(`setup-${name}-${screen}-${colorScheme}.png`, {
