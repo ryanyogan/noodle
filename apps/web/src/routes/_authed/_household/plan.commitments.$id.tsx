@@ -243,10 +243,41 @@ function Charges({ data, id }: { data: CommitmentsData; id: string }) {
 				}
 			/>
 			{charges.length > 0 ? (
-				// A table at every width (#47): one line a Charge, its due and paid days side by side, and
-				// a status only when it was paid late (or wasn't scheduled).
+				// A table from sm (#47): one line a Charge, its due and paid days side by side. On phones a
+				// list (#48): the day it was paid and its amount, and the due day and status only when they
+				// say something (paid late, on another day, or not scheduled).
 				<Card className="overflow-hidden py-0">
-					<Table>
+					<ul className="divide-y divide-border sm:hidden">
+						{charges.map((charge) => {
+							const due = charge.dueDate ? dayText(charge.dueDate, data.asOf) : null;
+							const paid = dayText(charge.date, data.asOf);
+							const note =
+								charge.onTime === null
+									? "Not scheduled"
+									: due !== null && (charge.onTime === false || due !== paid)
+										? `Due ${due}`
+										: null;
+							return (
+								<li key={charge.id} className="grid gap-0.5 px-4 py-3 text-sm">
+									<div className="flex items-baseline justify-between gap-3">
+										<span>Paid {paid}</span>
+										<span className="font-medium tabular-nums">{formatMoney(charge.amount)}</span>
+									</div>
+									{note !== null || charge.onTime === false ? (
+										<div className="flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
+											{note}
+											{charge.onTime === false ? (
+												<Badge variant="pace" dot>
+													Late
+												</Badge>
+											) : null}
+										</div>
+									) : null}
+								</li>
+							);
+						})}
+					</ul>
+					<Table className="max-sm:hidden">
 						<TableCaption className="sr-only">
 							Charges in the last {COMMITMENT_MONTHS} months
 						</TableCaption>
