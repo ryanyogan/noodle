@@ -250,12 +250,12 @@ function ThisMonth() {
 										count={buckets.length}
 										help={<TermHelp term="bucket" />}
 									/>
-									<p className="-mt-1 flex flex-wrap items-center gap-x-1 px-1 text-[13px] text-muted-foreground">
-										<span>
-											Each bar is what’s left. The line marks where you’d be if you spent evenly
-											across the month: its Pace.
+									<p className="-mt-1 px-1 text-[13px] text-muted-foreground">
+										Each bar is what’s left. The line marks where you’d be if you spent evenly
+										across the month: its{" "}
+										<span className="whitespace-nowrap">
+											Pace. <TermHelp term="pace" />
 										</span>
-										<TermHelp term="pace" />
 									</p>
 									<List>{buckets.map(bucketRow)}</List>
 								</Section>
