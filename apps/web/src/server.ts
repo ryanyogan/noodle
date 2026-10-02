@@ -20,11 +20,13 @@ import { handleReceiptEmail } from "./server/receipt-worker";
 // endpoint and wait on the ingest Queue, which this Worker consumes too; Receipts forwarded to a
 // Household's Receipt address arrive by email and wait there as well, as does each Bank
 // Connection to read, which the Import Workflow (also exported) brings in: when Plaid's webhook
-// (its own endpoint) says there's news, and every night for all of them.
+// (its own endpoint) says there's news, and every night for all of them. The Setup Workflow (also
+// exported) does a new Household's slow setup work while the get-started wizard goes on.
 export { ImportWorkflow } from "./server/bank-import-workflow";
 export { HouseholdAgent } from "./server/household-agent";
 export { MonthCloseWorkflow } from "./server/month-close-workflow";
 export { PerkResearchWorkflow } from "./server/perk-research-workflow";
+export { SetupWorkflow } from "./server/setup-workflow";
 
 /**
  * The nightly cron: Bank Connections' daily sync, Insights, Perk re-checks, then Check-ins

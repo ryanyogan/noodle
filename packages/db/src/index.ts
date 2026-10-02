@@ -528,6 +528,17 @@ export {
 	saveScenario,
 } from "./scenarios";
 export {
+	loadSetupHistory,
+	loadSetupJobs,
+	loadSetupProgress,
+	resetSetupJobs,
+	type SetupJob,
+	type SetupJobStatus,
+	type SetupProgress,
+	saveSetupJob,
+	saveSetupProgress,
+} from "./setup";
+export {
 	type Assignment,
 	addQuickAdd,
 	type BucketSpend,

@@ -20,6 +20,7 @@ import { getReport, type ReportRequest } from "./server/reports";
 import { getReview, getRules } from "./server/review";
 import { getPlanAhead, getScenarios } from "./server/scenarios";
 import { getViewer } from "./server/session";
+import { getSetup } from "./server/setup";
 import { getBucketUses } from "./server/transactions";
 import { getPlanHealth, getYear } from "./server/year";
 
@@ -274,4 +275,11 @@ export const receiptAddressQuery = () =>
 	queryOptions({
 		queryKey: ["receipt-address"],
 		queryFn: () => getReceiptAddress(),
+	});
+
+/** Where the Household is in the get-started wizard, and its background jobs. */
+export const setupQuery = () =>
+	queryOptions({
+		queryKey: ["setup"],
+		queryFn: () => getSetup(),
 	});

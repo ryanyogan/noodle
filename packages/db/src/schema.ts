@@ -1142,3 +1142,41 @@ export const planDraftDecisions = sqliteTable(
 	},
 	(t) => [primaryKey({ columns: [t.householdId, t.key] })],
 );
+
+// The get-started wizard's progress, one row per Household (#53): the step the Parents are on,
+// what they've answered so far (JSON, read by apps/web's setup code), the steps they skipped, and
+// when they started and finished. Written after every step, so leaving and coming back resumes.
+// Nothing here is money or the Plan: the wizard's answers land through the Plan's own writes.
+export const setupProgress = sqliteTable("setup_progress", {
+	householdId: text("household_id")
+		.primaryKey()
+		.references(() => households.id),
+	step: integer("step").notNull().default(1),
+	answers: text("answers", { mode: "json" }).$type<Record<string, unknown>>().notNull().default({}),
+	skipped: text("skipped", { mode: "json" }).$type<number[]>().notNull().default([]),
+	startedAt: integer("started_at", { mode: "timestamp_ms" })
+		.notNull()
+		.default(sql`(unixepoch() * 1000)`),
+	finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+	updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+		.notNull()
+		.default(sql`(unixepoch() * 1000)`),
+});
+
+// The Setup Workflow's background jobs for a Household, one row per job (wait for history,
+// categorize, draft the Plan, ...), so the wizard can say "2 of 4 done". Each step of the Workflow
+// writes its own row; a re-run overwrites them.
+export const setupJobs = sqliteTable(
+	"setup_jobs",
+	{
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		job: text("job").notNull(),
+		status: text("status", { enum: ["waiting", "running", "done", "skipped"] }).notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [primaryKey({ columns: [t.householdId, t.job] })],
+);

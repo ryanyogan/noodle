@@ -20,6 +20,7 @@ import {
 	reportsKey,
 	rulesQuery,
 	scenariosQuery,
+	setupQuery,
 	viewerQuery,
 } from "./queries";
 
@@ -63,6 +64,8 @@ const changedQueries = {
 	"receipt-address": receiptAddressQuery().queryKey,
 	/** What's left of the first Plan's draft. */
 	"plan-draft": planDraftQuery().queryKey,
+	/** The get-started wizard's progress and the Setup Workflow's jobs. */
+	setup: setupQuery().queryKey,
 	/** Every Report; also refetched for any change to what Reports sum (see `queryKeysFor`). */
 	reports: reportsKey,
 } satisfies Record<string, QueryKey>;

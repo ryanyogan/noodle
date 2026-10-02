@@ -71,7 +71,8 @@
 	// another cron looks for Insights in every Household, then starts the weekly Check-in wherever
 	// it's Check-in day (server.ts dispatches by cron), and re-checks Perks a month old. The Perk
 	// research Workflow reads a Perk Source's benefits page when a Parent confirms or adds one. The
-	// Import Workflow reads a Bank Connection's Transactions, started from the ingest Queue.
+	// Import Workflow reads a Bank Connection's Transactions, started from the ingest Queue. The Setup
+	// Workflow waits for a new Household's first history, files it and drafts the Plan (#53).
 	"workflows": [
 		{ "name": "noodle-month-close", "binding": "MONTH_CLOSE", "class_name": "MonthCloseWorkflow" },
 		{
@@ -79,7 +80,8 @@
 			"binding": "PERK_RESEARCH",
 			"class_name": "PerkResearchWorkflow"
 		},
-		{ "name": "noodle-import", "binding": "IMPORT", "class_name": "ImportWorkflow" }
+		{ "name": "noodle-import", "binding": "IMPORT", "class_name": "ImportWorkflow" },
+		{ "name": "noodle-setup", "binding": "SETUP", "class_name": "SetupWorkflow" }
 	],
 	"triggers": { "crons": ["0 * 1-3 * *", "0 9 * * *"] }
 	// The Check-in's email summary goes out through Cloudflare Email Service once these are added

@@ -253,6 +253,13 @@
       "when": 1790932611770,
       "tag": "0035_categorization_reason",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1790946857015,
+      "tag": "0036_setup_progress",
+      "breakpoints": true
     }
   ]
 }
