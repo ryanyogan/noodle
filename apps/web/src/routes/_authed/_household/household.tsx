@@ -109,18 +109,18 @@ function HouseholdPage() {
 									leading={<Tile>{parent.name.charAt(0).toUpperCase()}</Tile>}
 									title={parent.name}
 									meta={
-										<MetaParts
-											parts={[
-												"Parent",
-												parent.email ? (
-													// Breaks at the @ rather than mid-word on a phone.
-													<span key="email" className="min-w-0 break-words">
-														{parent.email.split("@")[0]}
-														<wbr />@{parent.email.split("@").slice(1).join("@")}
-													</span>
-												) : null,
-											]}
-										/>
+										// The email on its own line: beside "Parent" it wrapped or not by its
+										// length, so the row's height changed from one Parent to the next.
+										<span className="flex min-w-0 flex-col">
+											<span>Parent</span>
+											{parent.email ? (
+												// Breaks at the @ rather than mid-word on a phone.
+												<span className="min-w-0 break-words">
+													{parent.email.split("@")[0]}
+													<wbr />@{parent.email.split("@").slice(1).join("@")}
+												</span>
+											) : null}
+										</span>
 									}
 								/>
 							))}
