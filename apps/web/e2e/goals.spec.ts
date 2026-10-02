@@ -55,7 +55,7 @@ test("a Goal is funded from Free to Spend and spent from what it has set aside, 
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, plan);
 	const thisMonth = page.url();
-	await expect(freeToSpend(page).getByText("$3,400", { exact: true })).toBeVisible();
+	await expect(freeToSpend(page).getByText("$3,400", { exact: true }).first()).toBeVisible();
 
 	// An Account with what's in it, then a dated Goal on it with some already set aside.
 	await openAccounts(page);
@@ -121,7 +121,7 @@ test("a Goal is funded from Free to Spend and spent from what it has set aside, 
 
 	// Free to Spend drops by exactly the funding, on the Plan and on This Month.
 	await page.goto(thisMonth);
-	await expect(freeToSpend(page).getByText("$3,150", { exact: true })).toBeVisible();
+	await expect(freeToSpend(page).getByText("$3,150", { exact: true }).first()).toBeVisible();
 	await switchTo(page, "Plan");
 	const waterfall = page.getByRole("region", { name: "From take-home pay to Free to Spend" });
 	await expect(waterfall).toContainText("Goal funding−$250");
@@ -176,7 +176,7 @@ test("a Goal is funded from Free to Spend and spent from what it has set aside, 
 
 	// Goal spending never touched a Bucket or Free to Spend.
 	await page.goto(thisMonth);
-	await expect(freeToSpend(page).getByText("$3,150", { exact: true })).toBeVisible();
+	await expect(freeToSpend(page).getByText("$3,150", { exact: true }).first()).toBeVisible();
 	await expect(bucketRow(page, "Groceries")).toHaveAccessibleName(
 		/^Groceries: \$1,200 left of \$1,200/,
 	);

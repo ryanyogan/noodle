@@ -35,7 +35,7 @@ test("moving a Change changes the projection, and applying the Scenario changes 
 			["Hockey", "400"],
 		],
 	});
-	await expect(freeToSpend(page).getByText("$3,400", { exact: true })).toBeVisible();
+	await expect(freeToSpend(page).getByText("$3,400", { exact: true }).first()).toBeVisible();
 
 	await page.getByRole("link", { name: "Explore", exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Explore");
@@ -98,5 +98,5 @@ test("moving a Change changes the projection, and applying the Scenario changes 
 	await expect(totals(page, /^Over 5 years/).plan).toHaveText("$228,000");
 
 	await page.getByRole("link", { name: "This Month", exact: true }).click();
-	await expect(freeToSpend(page).getByText("$3,800", { exact: true })).toBeVisible();
+	await expect(freeToSpend(page).getByText("$3,800", { exact: true }).first()).toBeVisible();
 });

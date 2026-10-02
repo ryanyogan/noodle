@@ -107,7 +107,7 @@ test("a card is paid off with a payoff Goal: added from what's owed, funded, pai
 
 	// It counts in Goal funding like any Goal, and This Month says what's still owed.
 	await page.goto(thisMonth);
-	await expect(freeToSpend(page).getByText("$3,200", { exact: true })).toBeVisible();
+	await expect(freeToSpend(page).getByText("$3,200", { exact: true }).first()).toBeVisible();
 	const goals = page.getByRole("region", { name: /^Goals/ });
 	await expect(goals.getByRole("listitem", { name: "Pay off Visa" })).toContainText(
 		"$1,200 still owed",

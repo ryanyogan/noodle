@@ -34,7 +34,7 @@ test("income beyond take-home pay is Extra income, sent to the emergency Goal", 
 		buckets: [["Groceries", "1,200"]],
 	});
 	const thisMonth = page.url();
-	await expect(freeToSpend(page).getByText("$3,800", { exact: true })).toBeVisible();
+	await expect(freeToSpend(page).getByText("$3,800", { exact: true }).first()).toBeVisible();
 
 	// A Goal kept for emergencies.
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
@@ -64,7 +64,7 @@ test("income beyond take-home pay is Extra income, sent to the emergency Goal", 
 	// A bonus is, and it doesn't touch Free to Spend.
 	await addIncome(page, "1,200", "Bonus");
 	await expect(extraIncome(page)).toContainText("$1,200 came in above your usual take-home pay");
-	await expect(freeToSpend(page).getByText("$3,800", { exact: true })).toBeVisible();
+	await expect(freeToSpend(page).getByText("$3,800", { exact: true }).first()).toBeVisible();
 	const suggestion = extraIncome(page).getByRole("listitem").filter({ hasText: "Rainy day" });
 	await expect(suggestion).toContainText("Your emergency Goal");
 	await suggestion.getByRole("button", { name: "Send $1,200 to Rainy day" }).click();
@@ -72,7 +72,7 @@ test("income beyond take-home pay is Extra income, sent to the emergency Goal", 
 		"$1,200 of the Extra income to Rainy day",
 	);
 	await expect(extraIncome(page)).toBeHidden();
-	await expect(freeToSpend(page).getByText("$3,800", { exact: true })).toBeVisible();
+	await expect(freeToSpend(page).getByText("$3,800", { exact: true }).first()).toBeVisible();
 
 	// It stuck, and it's in what the Goal has set aside.
 	await page.reload();
