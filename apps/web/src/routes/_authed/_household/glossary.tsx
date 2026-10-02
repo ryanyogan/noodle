@@ -16,15 +16,18 @@ function GlossaryPage() {
 	const [query, setQuery] = useState("");
 	return (
 		<>
-			<PageHeader eyebrow="Household" title="Glossary" className="max-w-2xl" />
-			<div className="grid max-w-2xl gap-6">
-				<p className="text-sm text-muted-foreground">
-					The words Noodle uses for your money, in plain language. A{" "}
-					<span className="whitespace-nowrap">“?”</span> beside a word anywhere in the app opens the
-					same explanation.
-				</p>
-				<GlossarySearch query={query} onQueryChange={setQuery} />
-				<Card className="p-2">
+			<PageHeader eyebrow="Household" title="Glossary" />
+			{/* At lg, the explanation and search stay in a left rail beside the words (#47). */}
+			<div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start lg:gap-8">
+				<div className="grid gap-6 lg:sticky lg:top-6">
+					<p className="text-sm text-muted-foreground">
+						The words Noodle uses for your money, in plain language. A{" "}
+						<span className="whitespace-nowrap">“?”</span> beside a word anywhere in the app opens
+						the same explanation.
+					</p>
+					<GlossarySearch query={query} onQueryChange={setQuery} />
+				</div>
+				<Card className="min-w-0 p-2 lg:max-w-3xl">
 					<GlossaryList query={query} />
 				</Card>
 			</div>

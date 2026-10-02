@@ -102,179 +102,184 @@ export function PayoffGoalDetails({
 					)
 				}
 			/>
-			<div className="grid max-w-2xl gap-8">
-				<Card role="region" aria-labelledby="payoff-owed">
-					<div className="grid gap-3 p-(--card-pad)">
-						<div className="grid gap-1">
-							<h2 id="payoff-owed" className="text-[13px] font-medium text-muted-foreground">
-								Still owed
-							</h2>
-							<p className="flex flex-wrap items-baseline gap-x-2">
-								<span className="text-[2.25rem] font-[650] leading-[1.05] tracking-[-0.035em] tabular-nums">
-									{owed === null ? "—" : formatMoney(Math.max(0, owed))}
+			{/* At lg, what's owed stays in a right rail beside the funding history (#47). */}
+			<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start xl:grid-cols-[minmax(0,1fr)_400px]">
+				<div className="grid min-w-0 gap-8 lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1">
+					<Card role="region" aria-labelledby="payoff-owed">
+						<div className="grid gap-3 p-(--card-pad)">
+							<div className="grid gap-1">
+								<h2 id="payoff-owed" className="text-[13px] font-medium text-muted-foreground">
+									Still owed
+								</h2>
+								<p className="flex flex-wrap items-baseline gap-x-2">
+									<span className="text-[2.25rem] font-[650] leading-[1.05] tracking-[-0.035em] tabular-nums">
+										{owed === null ? "—" : formatMoney(Math.max(0, owed))}
+									</span>
+									{paidOff ? <Badge variant="brand">Paid off</Badge> : null}
+								</p>
+							</div>
+							{archived ? null : <GoalProgressBar share={progress.share} />}
+							<p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-muted-foreground">
+								<span className="tabular-nums">
+									Paid down {formatMoney(progress.saved)} of {formatMoney(goal.target)}
 								</span>
-								{paidOff ? <Badge variant="brand">Paid off</Badge> : null}
+								<PayoffStatus goal={goal} />
 							</p>
+							{account ? (
+								<StatementBalanceNote account={account} onUse={active ? saveOwed : undefined} />
+							) : null}
 						</div>
-						{archived ? null : <GoalProgressBar share={progress.share} />}
-						<p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-muted-foreground">
-							<span className="tabular-nums">
-								Paid down {formatMoney(progress.saved)} of {formatMoney(goal.target)}
-							</span>
-							<PayoffStatus goal={goal} />
-						</p>
-						{account ? (
-							<StatementBalanceNote account={account} onUse={active ? saveOwed : undefined} />
-						) : null}
-					</div>
-					{active && above > 0 ? (
-						<div
-							role="status"
-							className="grid gap-2 border-t bg-pace-soft px-(--card-pad) py-3 text-[13px] text-pace-foreground"
-						>
-							<p>
-								New charges took what’s owed {formatMoney(above)} above the{" "}
-								{formatMoney(goal.target)} you started from, so nothing counts as paid down.
-								Starting again from today’s balance makes {formatMoney(owed ?? 0)} the target.
-							</p>
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								className="justify-self-start"
-								disabled={!hydrated}
-								onClick={() => restart.mutate({ goalId: goal.id })}
+						{active && above > 0 ? (
+							<div
+								role="status"
+								className="grid gap-2 border-t bg-pace-soft px-(--card-pad) py-3 text-[13px] text-pace-foreground"
 							>
-								Start again from today’s balance
-							</Button>
-						</div>
-					) : null}
-					{active && !paidOff && progress.monthly !== null && progress.leftThisMonth !== null ? (
-						<dl className="grid grid-cols-[repeat(2,minmax(0,1fr))_auto] border-t">
-							<Stat label="A month" value={formatMoney(progress.monthly)} />
-							<Stat
-								label="This month"
-								value={
-									progress.leftThisMonth > 0
-										? `${formatMoney(progress.leftThisMonth)} left`
-										: "Funded"
-								}
-							/>
-							<Stat
-								label="Paid off by"
-								value={goal.targetDate ? fullDay(goal.targetDate) : "None"}
-							/>
-						</dl>
-					) : null}
-					{active ? (
-						<div className="flex flex-wrap gap-2 border-t p-(--card-pad)">
-							{paidOff ? (
+								<p>
+									New charges took what’s owed {formatMoney(above)} above the{" "}
+									{formatMoney(goal.target)} you started from, so nothing counts as paid down.
+									Starting again from today’s balance makes {formatMoney(owed ?? 0)} the target.
+								</p>
 								<Button
 									type="button"
+									variant="outline"
+									size="sm"
+									className="justify-self-start"
 									disabled={!hydrated}
-									onClick={() => complete.mutate({ goalId: goal.id })}
+									onClick={() => restart.mutate({ goalId: goal.id })}
 								>
-									Complete
+									Start again from today’s balance
 								</Button>
-							) : (
-								<Button type="button" disabled={!hydrated} onClick={() => setSheet("fund")}>
-									Fund
-								</Button>
-							)}
-							<Button
-								type="button"
-								variant="outline"
-								disabled={!hydrated}
-								onClick={() => setSheet("owed")}
-							>
-								Update what’s owed
-							</Button>
-						</div>
-					) : null}
-					<div className="border-t px-(--card-pad) py-2.5 text-[13px] text-muted-foreground">
-						<p className="py-1">
-							{archived ? "Was paying off " : "Paying off "}
-							{account ? (
-								<Link
-									to="/accounts/$accountId"
-									params={{ accountId: account.id }}
-									className="font-medium text-foreground underline-offset-4 hover:underline"
-								>
-									{account.name}
-								</Link>
-							) : (
-								accountName
-							)}
-							. Pay it from checking as usual: what’s owed shows the payment once the card’s balance
-							does. <TermHelp term="payoff-goal" />
-						</p>
-					</div>
-				</Card>
-				<SaveFailed change={updateOwed} />
-				<SaveFailed change={update} />
-				{restart.error instanceof GoalRefused ? (
-					<FormError>
-						What’s owed changed meanwhile, so it didn’t start again. Try once more.
-					</FormError>
-				) : (
-					<SaveFailed change={restart} />
-				)}
-
-				<PayoffHistory
-					goal={goal}
-					month={month}
-					today={today}
-					onUndo={(change) =>
-						undo.mutate({ moveId: change.id, goalName: goal.name, month: change.month })
-					}
-				/>
-
-				{archived ? null : (
-					<Section aria-labelledby="goal-finish">
-						<SectionHeader id="goal-finish" title="Finish" />
-						<Card className="grid gap-3 p-(--card-pad)">
-							{active ? (
-								<p className="text-sm text-muted-foreground">
-									{paidOff
-										? "Paid off. Complete it to finish: it moves to Completed and stops asking for funding."
-										: `When ${accountName} is down to $0, it’s paid off and you can complete it.`}
-								</p>
-							) : (
-								<p className="text-sm text-muted-foreground">Completed. Nicely done.</p>
-							)}
-							{archiving ? (
-								<Confirm
-									confirmLabel="Archive Goal"
-									onCancel={() => setArchiving(false)}
-									onConfirm={() => {
-										setArchiving(false);
-										archive.mutate({ goalId: goal.id });
-									}}
-								>
-									Archiving {goal.name} stops planning payments for it. What’s owed on {accountName}{" "}
-									stays as it is.
-								</Confirm>
-							) : (
-								<div className="flex items-center justify-between gap-4">
-									<p className="text-sm text-muted-foreground">
-										Not paying it off now? Archiving stops planning for it.
-									</p>
+							</div>
+						) : null}
+						{active && !paidOff && progress.monthly !== null && progress.leftThisMonth !== null ? (
+							<dl className="grid grid-cols-[repeat(2,minmax(0,1fr))_auto] border-t">
+								<Stat label="A month" value={formatMoney(progress.monthly)} />
+								<Stat
+									label="This month"
+									value={
+										progress.leftThisMonth > 0
+											? `${formatMoney(progress.leftThisMonth)} left`
+											: "Funded"
+									}
+								/>
+								<Stat
+									label="Paid off by"
+									value={goal.targetDate ? fullDay(goal.targetDate) : "None"}
+								/>
+							</dl>
+						) : null}
+						{active ? (
+							<div className="flex flex-wrap gap-2 border-t p-(--card-pad)">
+								{paidOff ? (
 									<Button
 										type="button"
-										variant="ghost"
-										size="sm"
 										disabled={!hydrated}
-										onClick={() => setArchiving(true)}
+										onClick={() => complete.mutate({ goalId: goal.id })}
 									>
-										Archive
+										Complete
 									</Button>
-								</div>
-							)}
-							<SaveFailed change={complete} />
-							<SaveFailed change={archive} />
-						</Card>
-					</Section>
-				)}
+								) : (
+									<Button type="button" disabled={!hydrated} onClick={() => setSheet("fund")}>
+										Fund
+									</Button>
+								)}
+								<Button
+									type="button"
+									variant="outline"
+									disabled={!hydrated}
+									onClick={() => setSheet("owed")}
+								>
+									Update what’s owed
+								</Button>
+							</div>
+						) : null}
+						<div className="border-t px-(--card-pad) py-2.5 text-[13px] text-muted-foreground">
+							<p className="py-1">
+								{archived ? "Was paying off " : "Paying off "}
+								{account ? (
+									<Link
+										to="/accounts/$accountId"
+										params={{ accountId: account.id }}
+										className="font-medium text-foreground underline-offset-4 hover:underline"
+									>
+										{account.name}
+									</Link>
+								) : (
+									accountName
+								)}
+								. Pay it from checking as usual: what’s owed shows the payment once the card’s
+								balance does. <TermHelp term="payoff-goal" />
+							</p>
+						</div>
+					</Card>
+					<SaveFailed change={updateOwed} />
+					<SaveFailed change={update} />
+					{restart.error instanceof GoalRefused ? (
+						<FormError>
+							What’s owed changed meanwhile, so it didn’t start again. Try once more.
+						</FormError>
+					) : (
+						<SaveFailed change={restart} />
+					)}
+				</div>
+
+				<div className="grid min-w-0 gap-8 lg:col-start-1 lg:row-start-1">
+					<PayoffHistory
+						goal={goal}
+						month={month}
+						today={today}
+						onUndo={(change) =>
+							undo.mutate({ moveId: change.id, goalName: goal.name, month: change.month })
+						}
+					/>
+
+					{archived ? null : (
+						<Section aria-labelledby="goal-finish">
+							<SectionHeader id="goal-finish" title="Finish" />
+							<Card className="grid gap-3 p-(--card-pad)">
+								{active ? (
+									<p className="text-sm text-muted-foreground">
+										{paidOff
+											? "Paid off. Complete it to finish: it moves to Completed and stops asking for funding."
+											: `When ${accountName} is down to $0, it’s paid off and you can complete it.`}
+									</p>
+								) : (
+									<p className="text-sm text-muted-foreground">Completed. Nicely done.</p>
+								)}
+								{archiving ? (
+									<Confirm
+										confirmLabel="Archive Goal"
+										onCancel={() => setArchiving(false)}
+										onConfirm={() => {
+											setArchiving(false);
+											archive.mutate({ goalId: goal.id });
+										}}
+									>
+										Archiving {goal.name} stops planning payments for it. What’s owed on{" "}
+										{accountName} stays as it is.
+									</Confirm>
+								) : (
+									<div className="flex items-center justify-between gap-4">
+										<p className="text-sm text-muted-foreground">
+											Not paying it off now? Archiving stops planning for it.
+										</p>
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											disabled={!hydrated}
+											onClick={() => setArchiving(true)}
+										>
+											Archive
+										</Button>
+									</div>
+								)}
+								<SaveFailed change={complete} />
+								<SaveFailed change={archive} />
+							</Card>
+						</Section>
+					)}
+				</div>
 			</div>
 
 			<FundGoalSheet

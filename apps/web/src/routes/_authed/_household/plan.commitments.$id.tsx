@@ -91,10 +91,16 @@ function CommitmentPage() {
 					changes={changes}
 				/>
 			) : null}
-			<div className="grid max-w-2xl gap-8">
-				{changes.failed}
+			{changes.failed ? <div className="mb-8">{changes.failed}</div> : null}
+			{/* At lg, Charges take the main column; the cost, Next due and Terms history a right rail
+			    (#47). Phones keep the reading order. */}
+			<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:grid-rows-[auto_auto_1fr] lg:items-start xl:grid-cols-[minmax(0,1fr)_400px]">
 				{terms ? (
-					<Card role="region" aria-labelledby="commitment-cost">
+					<Card
+						role="region"
+						aria-labelledby="commitment-cost"
+						className="lg:col-start-2 lg:row-start-1"
+					>
 						<div className="grid gap-1 p-(--card-pad)">
 							<h2 id="commitment-cost" className="text-[13px] font-medium text-muted-foreground">
 								{ended ? "What it cost a year" : "Cost a year"}
@@ -135,9 +141,13 @@ function CommitmentPage() {
 						)}
 					</Card>
 				) : null}
-				<NextDues data={data} id={id} ended={ended} />
-				<Charges data={data} id={id} />
-				<Section aria-labelledby="terms-history">
+				<div className="min-w-0 lg:col-start-2 lg:row-start-2">
+					<NextDues data={data} id={id} ended={ended} />
+				</div>
+				<div className="min-w-0 lg:col-start-1 lg:row-span-3 lg:row-start-1">
+					<Charges data={data} id={id} />
+				</div>
+				<Section aria-labelledby="terms-history" className="min-w-0 lg:col-start-2 lg:row-start-3">
 					<SectionHeader id="terms-history" title="Terms history" />
 					<PlanHistoryList month={month} targetId={id} />
 				</Section>

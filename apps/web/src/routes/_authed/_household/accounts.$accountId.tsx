@@ -95,14 +95,7 @@ function AccountPage() {
 	const { accountId } = Route.useParams();
 	const account = useGoals().accounts.find((a) => a.id === accountId);
 	if (!account)
-		return (
-			<PageHeader
-				className="max-w-2xl"
-				eyebrow="Account"
-				title="Account"
-				leading={<BackToAccounts />}
-			/>
-		);
+		return <PageHeader eyebrow="Account" title="Account" leading={<BackToAccounts />} />;
 	return <AccountDetails account={account} />;
 }
 
