@@ -49,7 +49,7 @@ Never let the CLI overwrite a file here.
 
 ## The page grid
 
-`components/layout.tsx`. A page below the shared header (`SectionLayout` or `PageHeader`) is one of three layouts, so rail widths, gutters and column tops are the same on every page. Don't write a two-column `lg:grid-cols-[…]` template in a page.
+`components/layout.tsx`. A page below the shared header (`SectionLayout` or `PageHeader`) is one of three layouts, so rail widths, gutters and column tops are the same on every page. Don't write a two-column `lg:grid-cols-[…]` template in a page: `apps/web/src/layout-grids.test.ts` fails on a new one (its list of exceptions is for grids inside one card). ADR-0024 has the reasons.
 
 | Token | Value | What it is |
 | --- | --- | --- |
@@ -62,7 +62,10 @@ Never let the CLI overwrite a file here.
 
 - **PageLayout**: one column. `width="reading"` caps it; `columns={2}` is two equal columns from lg (Household); `spacing="tight"` sets a dashboard's cards closer (Reports).
 - **SplitLayout** with `SplitMain` and `SplitRail`: main plus the rail from lg, both starting on the same top edge. The rail is sticky only while all of it fits the window (it measures itself and sets `data-fits`); taller than that, it scrolls with the page. It never has its own scrollbar, so don't give it a max height or `overflow-y-auto`. Below lg it is one column: `stack="main"` (main first, the default), `"rail"` (rail first) or `"children"` (both columns become `display: contents` and each block's `order-N` places it; pair each with `lg:order-none`).
-- **MasterDetail**: `list`, `detail` and `empty`. From lg, two full-height panes under the header that each scroll on their own, and the page doesn't scroll. This is the only place a region scrolls inside the app's page; the panes carry `data-scroll-pane`. Below lg it shows one level at a time as ordinary page content: the list, or the detail once there is one. `empty` fills the detail pane at lg while nothing is picked.
+- **MasterDetail**: `list`, `detail` and `empty`. From lg, two full-height panes under the header that each scroll on their own, and the page doesn't scroll. This is the only place a region scrolls inside the app's page; the panes carry `data-scroll-pane`. Below lg it shows one level at a time as ordinary page content: the list, or the detail once there is one. `empty` fills the detail pane at lg while nothing is picked. With `emptyStacks`, `empty` is part of the page (an add form, the section's totals): it starts at the top of its pane and a phone shows it too.
+- **ListBesideDetail** (in the app, `apps/web/src/components/master-detail.tsx`, with `DetailHeader`, `DetailPager`, `DetailPending` and `masterDetailKeys`): MasterDetail for a section whose items are child routes (Goals, Accounts, Rules, Scenarios; the Plan's Buckets and Commitments use MasterDetail directly). The item's route renders in the right pane; with nothing picked the pane holds `aside` (the section's totals) and `hint`. `asideFills` is for an aside that is the section's working area (Scenarios' Compare): full pane width, and after the list on a phone.
+- **A picked item has its own address**, a child route of its list, and the search is kept. Back, Esc and Cancel in a detail go to the list's address rather than Back through history, so they work when the item's address was opened first. Below lg the same address is a page with a Back link.
+- **Transactions** is a SplitLayout, not a MasterDetail: its list is drawn only for the rows in view, against the window, so the page scrolls and the open Transaction sits in the rail.
 
 One scroll per region: `apps/web/e2e/desktop-scroll.spec.ts` fails a page with a scrolling element inside a scrolling page or ancestor, other than MasterDetail's panes, open sheets, dialogs and popovers, and things that scroll sideways.
 
