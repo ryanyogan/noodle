@@ -46,7 +46,16 @@ type Segment = {
  * Goals, then Free to Spend. The legend under it is the text version (amounts in words), so the
  * bar itself is hidden from screen readers.
  */
-export function MonthGlance({ state, className }: { state: MonthState; className?: string }) {
+export function MonthGlance({
+	state,
+	labelledBy,
+	className,
+}: {
+	state: MonthState;
+	/** The id of the line naming the list ("Where $6,200 take-home pay goes"). */
+	labelledBy?: string;
+	className?: string;
+}) {
 	const segments = monthSegments(state);
 	const total = segments.reduce((sum, s) => sum + s.amount, 0);
 	if (total <= 0) return null;
@@ -64,7 +73,10 @@ export function MonthGlance({ state, className }: { state: MonthState; className
 					) : null,
 				)}
 			</div>
-			<ul className="grid gap-1 text-[13px] text-muted-foreground tabular-nums">
+			<ul
+				aria-labelledby={labelledBy}
+				className="grid gap-1 text-[13px] text-muted-foreground tabular-nums"
+			>
 				{segments.map((s) => (
 					<li key={s.key} className="flex items-center gap-2">
 						<span aria-hidden="true" className={cn("size-2.5 shrink-0 rounded-sm", s.className)} />

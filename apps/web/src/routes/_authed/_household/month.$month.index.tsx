@@ -41,7 +41,7 @@ import {
 	Lightbulb,
 	ListChecks,
 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, availableParts, monogram } from "../../../buckets";
 import { Bills, ComingUpSection } from "../../../components/bills";
@@ -545,10 +545,11 @@ function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck |
  * other part that takes something; it opens the Plan's waterfall.
  */
 function Breakdown({ state, baseline }: { state: MonthState; baseline: number }) {
+	const id = useId();
 	return (
 		<div className="grid gap-2.5 border-t px-(--card-pad) py-3">
 			<p className="flex justify-between gap-3 text-[13px] text-muted-foreground tabular-nums">
-				<span>Where {formatMoney(baseline)} take-home pay goes</span>
+				<span id={id}>Where {formatMoney(baseline)} take-home pay goes</span>
 				<Link
 					to="/plan/$month"
 					params={{ month: state.month }}
@@ -559,7 +560,7 @@ function Breakdown({ state, baseline }: { state: MonthState; baseline: number })
 					<ChevronRight aria-hidden="true" className="size-3.5" />
 				</Link>
 			</p>
-			<MonthGlance state={state} />
+			<MonthGlance state={state} labelledBy={id} />
 		</div>
 	);
 }

@@ -99,30 +99,29 @@ const STRIPES =
  */
 function BudgetBarKey({ className }: { className?: string }) {
 	return (
-		<ul
-			aria-label="How to read the bars"
+		<p
 			className={cn(
 				"flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground",
 				className,
 			)}
 		>
-			<li className="flex items-center gap-1.5">
+			<span className="flex items-center gap-1.5">
 				<span aria-hidden="true" className="h-2 w-4 rounded-full bg-muted-foreground" />
 				Spent
-			</li>
-			<li className="flex items-center gap-1.5">
+			</span>
+			<span className="flex items-center gap-1.5">
 				<span aria-hidden="true" className="h-2 w-4 rounded-full bg-surface-3" />
 				Left
-			</li>
-			<li className="flex items-center gap-1.5">
+			</span>
+			<span className="flex items-center gap-1.5">
 				<span aria-hidden="true" className="h-3.5 w-0.5 rounded-full bg-foreground" />
 				Today, if you spent evenly
-			</li>
-			<li className="flex items-center gap-1.5">
+			</span>
+			<span className="flex items-center gap-1.5">
 				<span aria-hidden="true" className={cn("h-2 w-4 rounded-full bg-pace", STRIPES)} />
 				Ahead of pace
-			</li>
-		</ul>
+			</span>
+		</p>
 	);
 }
 

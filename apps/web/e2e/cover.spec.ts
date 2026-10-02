@@ -84,7 +84,7 @@ test("an overspent Bucket is covered back to zero from another Bucket, and undon
 		"$50 from Groceries covers Hockey",
 	);
 	// Moving money between Buckets doesn't touch Free to Spend.
-	await expect(hero(page).getByText("$3,400", { exact: true })).toBeVisible();
+	await expect(hero(page).getByText("$3,400", { exact: true }).first()).toBeVisible();
 
 	await page.reload();
 	await expect(bucketRow(page, "Hockey")).toHaveAccessibleName(
@@ -118,15 +118,15 @@ test("a Cover from Free to Spend is undone from its toast", async ({ browser }) 
 	await expect(bucketRow(page, "Hockey")).toHaveAccessibleName(
 		/^Hockey: \$0 left of \$430(, ahead of pace)?$/,
 	);
-	await expect(hero(page).getByText("$3,370", { exact: true })).toBeVisible();
+	await expect(hero(page).getByText("$3,370", { exact: true }).first()).toBeVisible();
 
 	const toast = page.getByRole("status").filter({ hasText: "covers" });
 	await expect(toast).toContainText("$30 from Free to Spend covers Hockey");
 	await toast.getByRole("button", { name: "Undo" }).click();
-	await expect(hero(page).getByText("$3,400", { exact: true })).toBeVisible();
+	await expect(hero(page).getByText("$3,400", { exact: true }).first()).toBeVisible();
 	await expect(bucketRow(page, "Hockey")).toHaveAccessibleName(/over by \$30$/);
 	await page.reload();
-	await expect(hero(page).getByText("$3,400", { exact: true })).toBeVisible();
+	await expect(hero(page).getByText("$3,400", { exact: true }).first()).toBeVisible();
 	await expect(bucketRow(page, "Hockey")).toHaveAccessibleName(/over by \$30$/);
 	await page.context().close();
 });

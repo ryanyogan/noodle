@@ -78,10 +78,13 @@ test("This Month shows the Plan: Free to Spend worked out, the Goals, and how la
 	// Free to Spend, worked out part by part from take-home pay.
 	const freeToSpend = page.getByRole("region", { name: "Free to Spend" });
 	await expect(freeToSpend).toContainText("$3,150");
-	const breakdown = freeToSpend.getByRole("link", { name: /take-home pay/ });
-	await expect(breakdown).toHaveAccessibleName(
-		"$5,000 take-home pay minus $1,700 Buckets minus $150 Goal funding",
+	// Where take-home pay goes (#64): one bar, and its legend as a list of amounts.
+	const breakdown = freeToSpend.getByRole("list", { name: "Where $5,000 take-home pay goes" });
+	await expect(breakdown.getByRole("listitem").filter({ hasText: "Goals" })).toContainText("$150");
+	await expect(breakdown.getByRole("listitem").filter({ hasText: "Free to Spend" })).toContainText(
+		"$3,150",
 	);
+	await expect(freeToSpend.getByRole("link", { name: "Plan" })).toBeVisible();
 
 	// Each Goal: on track or behind, its months left, and funded against needed this month. The
 	// header's funding is the breakdown's Goal funding, every Goal's; what's still needed is the
@@ -103,7 +106,7 @@ test("This Month shows the Plan: Free to Spend worked out, the Goals, and how la
 	await page.setViewportSize({ width: 1280, height: 800 });
 
 	// The breakdown opens the Plan's waterfall.
-	await breakdown.click();
+	await freeToSpend.getByRole("link", { name: "Plan" }).click();
 	await expect(page).toHaveURL(new RegExp(`/plan/${month}#plan-waterfall$`));
 	await expect(
 		page.getByRole("region", { name: "From take-home pay to Free to Spend" }),
