@@ -18,7 +18,10 @@ test.afterEach(async () => {
 });
 
 const list = (page: Page) => page.getByRole("list", { name: /^Transactions in / });
-const editSheet = (page: Page) => page.getByRole("dialog", { name: "Edit Transaction" });
+const editSheet = (page: Page) =>
+	page
+		.locator("[role=dialog], [data-slot=transaction-detail]")
+		.filter({ has: page.getByRole("heading", { name: "Edit Transaction" }) });
 
 /** A receipt email as a Parent forwards it, dated the day it arrives. */
 const receiptEmail = (from: string, to: string, id: string, body: string) =>

@@ -17,12 +17,13 @@ import {
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, useHydrated } from "@tanstack/react-router";
+import { createFileRoute, Link, useHydrated, useParams } from "@tanstack/react-router";
 import { ChevronRight, Lock, Plus, WandSparkles } from "lucide-react";
-import { type CSSProperties, type FormEvent, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../../../buckets";
 import { ForPicker } from "../../../components/for-picker";
+import { ListBesideDetail, masterDetailItem } from "../../../components/master-detail";
 import { Confirm } from "../../../components/plan-editing";
 import { SectionPending } from "../../../components/section-layout";
 import { forLabel, type MemberSummary } from "../../../members";
@@ -63,97 +64,70 @@ function RulesPage() {
 		canAssign(b, parentId),
 	);
 	const hydrated = useHydrated();
-	// A Rule's ID while it's edited, or "new" while one is added.
-	const [editing, setEditing] = useState<string | null>(null);
-	const open = rules.find((rule) => rule.id === editing) ?? null;
-	const adding = editing === "new";
+	const [adding, setAdding] = useState(false);
+	// The Rule open beside the list (its route is this one's child).
+	const picked = useParams({ strict: false, select: (params) => params.ruleId });
 
 	return (
 		<>
-			<div className="grid max-w-4xl gap-4">
-				<div className="flex flex-wrap items-start justify-between gap-3">
-					<p className="max-w-prose text-sm text-muted-foreground">
-						A Rule files each new statement line whose merchant contains its words. What it filed
-						stays put when you change or delete it.
-					</p>
-					<Button
-						size="sm"
-						disabled={!hydrated || buckets.length === 0}
-						onClick={() => setEditing("new")}
-					>
-						<Plus />
-						Add Rule
-					</Button>
-				</div>
-				{rules.length === 0 ? (
-					<Card className="p-0">
-						<EmptyState
-							icon={<WandSparkles />}
-							title="No Rules yet"
-							description="A Rule files a merchant’s charges in the same Bucket every time, so they skip Review. Add one here, or press “Always file” after you file a card in Review."
-						/>
-					</Card>
-				) : (
-					<Card className="p-0">
-						<div
-							aria-hidden="true"
-							className="hidden grid-cols-(--rule-cols) gap-x-3 border-b px-(--card-pad) py-2.5 text-xs font-medium text-muted-foreground lg:grid"
-							style={RULE_COLS}
-						>
-							<span className="col-span-2">Merchant words</span>
-							<span>Bucket</span>
-							<span>For</span>
-							<span>Made by</span>
-							<span className="text-end">Filed</span>
-							<span />
+			<ListBesideDetail
+				picked={picked !== undefined}
+				noun="Rule"
+				listLabel="Rules"
+				hint="Pick a Rule to change it here."
+				list={
+					<div className="grid gap-4">
+						<div className="flex flex-wrap items-start justify-between gap-3">
+							<p className="max-w-prose text-sm text-muted-foreground">
+								A Rule files each new statement line whose merchant contains its words. What it
+								filed stays put when you change or delete it.
+							</p>
+							<Button
+								size="sm"
+								disabled={!hydrated || buckets.length === 0}
+								onClick={() => setAdding(true)}
+							>
+								<Plus />
+								Add Rule
+							</Button>
 						</div>
-						<List>
-							{rules.map((rule) => (
-								<RuleListRow
-									key={rule.id}
-									rule={rule}
-									bucket={buckets.find((b) => b.id === rule.bucketId)}
-									members={members}
-									onEdit={() => setEditing(rule.id)}
+						<Card className="p-0">
+							{rules.length === 0 ? (
+								<EmptyState
+									icon={<WandSparkles />}
+									title="No Rules yet"
+									description="A Rule files a merchant’s charges in the same Bucket every time, so they skip Review. Add one here, or press “Always file” after you file a card in Review."
 								/>
-							))}
-						</List>
-					</Card>
-				)}
-			</div>
-			<Sheet
-				open={open !== null || adding}
-				onOpenChange={(next) => (next ? undefined : setEditing(null))}
-			>
+							) : (
+								<List>
+									{rules.map((rule) => (
+										<RuleListRow
+											key={rule.id}
+											rule={rule}
+											bucket={buckets.find((b) => b.id === rule.bucketId)}
+											members={members}
+										/>
+									))}
+								</List>
+							)}
+						</Card>
+					</div>
+				}
+			/>
+			<Sheet open={adding} onOpenChange={setAdding}>
 				<SheetContent>
+					<SheetHeader
+						title="Add a Rule"
+						description="New statement lines whose merchant contains these words are filed on their own."
+					/>
 					{adding ? (
-						<>
-							<SheetHeader
-								title="Add a Rule"
-								description="New statement lines whose merchant contains these words are filed on their own."
-							/>
-							<RuleForm
-								key="new"
-								rule={null}
-								buckets={buckets}
-								members={members}
-								onDone={() => setEditing(null)}
-							/>
-						</>
-					) : open ? (
-						<>
-							<SheetHeader
-								title="Edit Rule"
-								description={open.private ? "Only you see this Rule." : undefined}
-							/>
-							<RuleForm
-								key={open.id}
-								rule={open}
-								buckets={buckets}
-								members={members}
-								onDone={() => setEditing(null)}
-							/>
-						</>
+						<RuleForm
+							key="new"
+							rule={null}
+							buckets={buckets}
+							members={members}
+							onDone={() => setAdding(false)}
+						/>
 					) : null}
 				</SheetContent>
 			</Sheet>
@@ -165,14 +139,11 @@ function RuleListRow({
 	rule,
 	bucket,
 	members,
-	onEdit,
 }: {
 	rule: RuleRow;
 	bucket: PlanBucket | undefined;
 	members: MemberSummary[];
-	onEdit: () => void;
 }) {
-	const hydrated = useHydrated();
 	const who = forLabel(members, rule.for);
 	const filed = `Filed ${rule.matched} so far`;
 	const detail = [
@@ -183,14 +154,13 @@ function RuleListRow({
 	].filter(Boolean);
 	return (
 		<li data-slot="list-row">
-			<button
-				type="button"
+			<Link
+				to="/review/rules/$ruleId"
+				params={{ ruleId: rule.id }}
+				{...masterDetailItem}
 				aria-label={`${rule.pattern}, ${rule.bucketName}, For ${who}${rule.private ? ", only you" : ""}, ${filed}`}
-				onClick={onEdit}
-				disabled={!hydrated}
-				style={RULE_COLS}
 				className={cn(
-					"grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-(--card-pad) py-3.5 text-start lg:grid-cols-(--rule-cols)",
+					"grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-(--card-pad) py-3.5 text-start",
 					"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60",
 					"focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
 				)}
@@ -208,41 +178,33 @@ function RuleListRow({
 							</Badge>
 						) : null}
 					</span>
-					<span className="line-clamp-2 text-[13px] text-muted-foreground lg:hidden">
+					<span className="line-clamp-2 text-[13px] text-muted-foreground">
 						{detail.join(" · ")}
 					</span>
 				</span>
-				<span className="hidden truncate text-sm lg:block">{rule.bucketName}</span>
-				<span className="hidden truncate text-sm text-muted-foreground lg:block">{who}</span>
-				<span className="hidden truncate text-sm text-muted-foreground lg:block">
-					{rule.createdBy ?? "—"}
-				</span>
-				<span className="hidden text-end text-sm tabular-nums lg:block">{rule.matched}</span>
 				<ChevronRight aria-hidden="true" className="size-4 text-subtle-foreground" />
-			</button>
+			</Link>
 		</li>
 	);
 }
-
-/** The lg table columns: tile, merchant words, Bucket, For, Made by, Filed, chevron. */
-const RULE_COLS = {
-	"--rule-cols": "auto minmax(0,1.6fr) minmax(0,1fr) minmax(0,0.8fr) minmax(0,0.8fr) 4rem auto",
-} as CSSProperties;
 
 /**
  * Adds a Rule (`rule` null), or changes one's merchant words, Bucket and For; files what it
  * matches (saving any change first); or deletes it.
  */
-function RuleForm({
+export function RuleForm({
 	rule,
 	buckets,
 	members,
 	onDone,
+	inline = false,
 }: {
 	rule: RuleRow | null;
 	buckets: PlanBucket[];
 	members: MemberSummary[];
 	onDone: () => void;
+	/** In the pane beside the list, not a sheet: Cancel goes back to the list. */
+	inline?: boolean;
 }) {
 	const hydrated = useHydrated();
 	const edit = useEditRule();
@@ -353,12 +315,23 @@ function RuleForm({
 				/>
 			</Field>
 			<ForPicker members={members} value={forIds} onChange={setForIds} multiple />
-			<SheetFooter>
-				<SheetCancel />
-				<Button type="submit" disabled={!hydrated}>
-					{rule ? "Save" : "Add Rule and file what matches"}
-				</Button>
-			</SheetFooter>
+			{inline ? (
+				<div className="flex justify-end gap-2">
+					<Button type="button" variant="outline" onClick={onDone}>
+						Cancel
+					</Button>
+					<Button type="submit" disabled={!hydrated}>
+						Save
+					</Button>
+				</div>
+			) : (
+				<SheetFooter>
+					<SheetCancel />
+					<Button type="submit" disabled={!hydrated}>
+						{rule ? "Save" : "Add Rule and file what matches"}
+					</Button>
+				</SheetFooter>
+			)}
 			{rule ? (
 				<Button type="button" variant="outline" disabled={!hydrated} onClick={fileNow}>
 					{unchanged ? "File what’s still unassigned now" : "Save and file what’s still unassigned"}

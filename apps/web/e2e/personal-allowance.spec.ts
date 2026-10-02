@@ -11,7 +11,10 @@ import {
 
 const nav = (page: Page) => page.getByRole("navigation", { name: "Main" });
 const quickAddSheet = (page: Page) => page.getByRole("dialog", { name: "Quick Add" });
-const editSheet = (page: Page) => page.getByRole("dialog", { name: "Edit Transaction" });
+const editSheet = (page: Page) =>
+	page
+		.locator("[role=dialog], [data-slot=transaction-detail]")
+		.filter({ has: page.getByRole("heading", { name: "Edit Transaction" }) });
 const list = (page: Page) => page.getByRole("list", { name: /^Transactions in / });
 const bucketRow = (page: Page, name: string) =>
 	page.getByRole("listitem", { name: new RegExp(`^${name}: `) });
@@ -188,7 +191,9 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 		const targetRun = list(sam).getByRole("button", { name: /^Quick Add,/ });
 		await expect(targetRun).toHaveAccessibleName("Quick Add, $70, Split across 1: Groceries");
 		await targetRun.click();
-		const shown = sam.getByRole("dialog", { name: "Transaction", exact: true });
+		const shown = sam
+			.locator("[role=dialog], [data-slot=transaction-detail]")
+			.filter({ has: sam.getByRole("heading", { name: "Transaction", exact: true }) });
 		await expect(
 			shown.getByText("Part of this is in Alex’s Personal Allowance, so only Alex can change it."),
 		).toBeVisible();

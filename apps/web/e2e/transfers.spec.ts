@@ -98,7 +98,9 @@ test("paying the card from checking is one Transfer, which counts nowhere", asyn
 	await page
 		.getByRole("button", { name: "VISA ONLINE PAYMENT, $500, Transfer, Checking to Visa" })
 		.click();
-	let sheet = page.getByRole("dialog", { name: "Transfer" });
+	let sheet = page
+		.locator("[role=dialog], [data-slot=transaction-detail]")
+		.filter({ has: page.getByRole("heading", { name: "Transfer" }) });
 	await expect(sheet).toContainText("AUTOPAY PAYMENT - THANK YOU");
 	await expect(sheet).toContainText("Found automatically");
 	await expect(sheet.getByLabel("Bucket")).toHaveCount(0);
@@ -118,7 +120,9 @@ test("paying the card from checking is one Transfer, which counts nowhere", asyn
 
 	// A Parent marks it again from the card's side; it pairs with the payment again.
 	await card.click();
-	sheet = page.getByRole("dialog", { name: "Money back" });
+	sheet = page
+		.locator("[role=dialog], [data-slot=transaction-detail]")
+		.filter({ has: page.getByRole("heading", { name: "Money back" }) });
 	await sheet.getByRole("button", { name: "Mark as Transfer" }).click();
 	await expect(toast(page, "AUTOPAY PAYMENT - THANK YOU marked as a Transfer")).toBeVisible();
 	await expect(page.getByText("Transfer · Checking → Visa")).toHaveCount(2);
@@ -151,7 +155,9 @@ test("money back linked as a Refund goes back to the purchase's Bucket", async (
 	await page
 		.getByRole("button", { name: "REI #11 RETURN, −$24.99, Money back, from Visa" })
 		.click();
-	const sheet = page.getByRole("dialog", { name: "Money back" });
+	const sheet = page
+		.locator("[role=dialog], [data-slot=transaction-detail]")
+		.filter({ has: page.getByRole("heading", { name: "Money back" }) });
 	await sheet.getByRole("button", { name: /^Link as a Refund for REI jacket, \$80,/ }).click();
 	await expect(toast(page, "REI #11 RETURN linked as a Refund")).toBeVisible();
 	const refund = page.getByRole("button", {
@@ -166,7 +172,11 @@ test("money back linked as a Refund goes back to the purchase's Bucket", async (
 	// Unlinked, it counts nowhere again.
 	await openTransactions(page, thisMonth);
 	await refund.click();
-	await expect(page.getByRole("dialog", { name: "Money back" })).toContainText("REI jacket");
+	await expect(
+		page
+			.locator("[role=dialog], [data-slot=transaction-detail]")
+			.filter({ has: page.getByRole("heading", { name: "Money back" }) }),
+	).toContainText("REI jacket");
 	await page.getByRole("button", { name: "Unlink Refund" }).click();
 	await expect(toast(page, "REI #11 RETURN unlinked")).toBeVisible();
 	await expect(page.getByText("Money back · Visa")).toBeVisible();

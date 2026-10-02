@@ -33,7 +33,10 @@ const plan = {
 const sheet = (page: Page) => page.getByRole("dialog", { name: "Quick Add" });
 const picks = (page: Page) => sheet(page).getByRole("list", { name: "Add to" });
 const list = (page: Page) => page.getByRole("list", { name: /^Transactions in / });
-const editSheet = (page: Page) => page.getByRole("dialog", { name: "Edit Transaction" });
+const editSheet = (page: Page) =>
+	page
+		.locator("[role=dialog], [data-slot=transaction-detail]")
+		.filter({ has: page.getByRole("heading", { name: "Edit Transaction" }) });
 
 const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
 	let c = n;

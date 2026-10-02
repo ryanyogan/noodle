@@ -27,7 +27,10 @@ const plan = {
 };
 
 const quickAddSheet = (page: Page) => page.getByRole("dialog", { name: "Quick Add" });
-const editSheet = (page: Page) => page.getByRole("dialog", { name: "Edit Transaction" });
+const editSheet = (page: Page) =>
+	page
+		.locator("[role=dialog], [data-slot=transaction-detail]")
+		.filter({ has: page.getByRole("heading", { name: "Edit Transaction" }) });
 const nav = (page: Page) => page.getByRole("navigation", { name: "Main" });
 const list = (page: Page) => page.getByRole("list", { name: /^Transactions in / });
 const row = (page: Page, title: string) =>

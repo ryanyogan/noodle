@@ -10,13 +10,22 @@ import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Input } from "@noodle/ui/components/input";
+import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
 import { List, ListGroupLabel } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, notFound, useHydrated, useNavigate } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	Link,
+	notFound,
+	Outlet,
+	useHydrated,
+	useNavigate,
+	useParams,
+} from "@tanstack/react-router";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import {
 	ArrowDown,
@@ -32,10 +41,11 @@ import {
 	Search,
 	X,
 } from "lucide-react";
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { QuickAddLink } from "../../../components/app-shell";
 import { type FilterOption, FilterSelect } from "../../../components/filter-select";
+import { DetailPending } from "../../../components/master-detail";
 import { TransactionEditor } from "../../../components/transaction-editor";
 import {
 	TRANSACTION_COLUMNS,
@@ -106,6 +116,19 @@ function TransactionsPage() {
 	const members = useSuspenseQuery(membersQuery()).data;
 	const { accounts } = useGoals();
 	const [editing, setEditing] = useState<TransactionRow | null>(null);
+	// The Transaction open in the pane beside the list (its route is this one's child).
+	const picked = useParams({ strict: false, select: (params) => params.transactionId });
+	// From lg a Transaction opens beside the list, at its own address; on a phone, in a sheet.
+	const onEdit = (transaction: TransactionRow) => {
+		if (window.matchMedia("(min-width: 1024px)").matches) {
+			void navigate({
+				to: "/transactions/$month/$transactionId",
+				params: { month, transactionId: transaction.id },
+				search: true,
+				resetScroll: false,
+			});
+		} else setEditing(transaction);
+	};
 	const change = useTransactionChange();
 	const waiting = useSuspenseQuery(reviewQuery()).data.total;
 	const sameYear = month.slice(0, 4) === current.slice(0, 4);
@@ -180,28 +203,49 @@ function TransactionsPage() {
 					</div>
 				}
 			/>
-			{/* lg: the list takes the width, with the filters in a pane on the right that stays put (#47). */}
-			<div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start lg:gap-8">
-				<Filters
-					month={month}
-					plan={plan}
-					members={members}
-					accounts={accounts}
-					filters={filters}
-					filtered={filtered}
-					onChange={onChange}
-				/>
-				<TransactionList
-					month={month}
-					filters={filters}
-					today={asOf}
-					plan={plan}
-					members={members}
-					filtered={filtered}
-					onSort={(sort) => onChange({ sort })}
-					onEdit={setEditing}
-				/>
-			</div>
+			{/* lg: the list takes the width and the page scrolls (the list is virtualized against the
+			    window). The rail holds the filters and the total, or the Transaction picked from the
+			    list; a Transaction taller than the window scrolls in its pane, so it stays beside its row. */}
+			<SplitLayout stack="rail" className="max-lg:gap-4">
+				<SplitMain className={cn(picked && "max-lg:hidden")}>
+					<TransactionList
+						month={month}
+						filters={filters}
+						today={asOf}
+						plan={plan}
+						members={members}
+						filtered={filtered}
+						picked={picked}
+						onSort={(sort) => onChange({ sort })}
+						onEdit={onEdit}
+					/>
+				</SplitMain>
+				<SplitRail>
+					<div className={cn(picked && "hidden")}>
+						<Filters
+							month={month}
+							plan={plan}
+							members={members}
+							accounts={accounts}
+							filters={filters}
+							filtered={filtered}
+							onChange={onChange}
+						/>
+					</div>
+					{picked ? (
+						<section
+							aria-label="Transaction details"
+							data-slot="transaction-detail"
+							data-scroll-pane=""
+							className="@container min-w-0 lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto lg:overscroll-contain"
+						>
+							<Suspense fallback={<DetailPending />}>
+								<Outlet />
+							</Suspense>
+						</section>
+					) : null}
+				</SplitRail>
+			</SplitLayout>
 			<TransactionEditor
 				transaction={editing}
 				today={asOf}
@@ -277,7 +321,7 @@ function Filters({
 		] as const
 	).flatMap(([key, label]) => (label === undefined ? [] : [{ key, label }]));
 	return (
-		<div className="grid gap-2 lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1">
+		<div className="grid gap-2">
 			{total !== null && total !== undefined ? (
 				<p className="flex items-baseline justify-between gap-3 px-1 text-sm lg:order-last lg:pt-2">
 					<span className="text-muted-foreground">
@@ -508,6 +552,7 @@ function TransactionList({
 	plan,
 	members,
 	filtered,
+	picked,
 	onSort,
 	onEdit,
 }: {
@@ -517,6 +562,8 @@ function TransactionList({
 	plan: Pick<Plan, "buckets" | "commitments">;
 	members: MemberSummary[];
 	filtered: boolean;
+	/** The Transaction open beside the list. */
+	picked: string | undefined;
 	onSort: (sort: TransactionSort) => void;
 	onEdit: (transaction: TransactionRow) => void;
 }) {
@@ -542,7 +589,7 @@ function TransactionList({
 		measure();
 		window.addEventListener("resize", measure);
 		// Filter chips above the list come and go on phones, which moves where the list starts.
-		const above = list.current?.parentElement?.parentElement;
+		const above = list.current?.closest("[data-slot=split-layout]");
 		const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
 		if (above) observer?.observe(above);
 		return () => {
@@ -703,6 +750,7 @@ function TransactionList({
 							waiting={waitingForBank(item.transaction, today, bringsIn)}
 							columns
 							dated={byAmount}
+							selected={item.transaction.id === picked}
 							onEdit={onEdit}
 						/>
 					);

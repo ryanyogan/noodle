@@ -13,7 +13,10 @@ test.afterEach(async () => {
 });
 
 const quickAddSheet = (page: Page) => page.getByRole("dialog", { name: "Quick Add" });
-const editSheet = (page: Page) => page.getByRole("dialog", { name: "Edit Transaction" });
+const editSheet = (page: Page) =>
+	page
+		.locator("[role=dialog], [data-slot=transaction-detail]")
+		.filter({ has: page.getByRole("heading", { name: "Edit Transaction" }) });
 const splitFields = (page: Page, n: number) =>
 	editSheet(page).getByRole("group", { name: `Split ${n}`, exact: true });
 const remainder = (page: Page) => editSheet(page).getByRole("status");

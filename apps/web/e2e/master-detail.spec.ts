@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
+import { seedReportHistory } from "./reports-seed";
 import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
 
 // Guards the list beside its item (#67): the list stays mounted and keeps its scroll while the
@@ -269,5 +270,67 @@ test("a phone shows Goals or Accounts, then the item with Back", async ({ browse
 		await expect(item).toBeVisible();
 		await expect(title(page)).toHaveCount(0);
 	}
+	await page.context().close();
+});
+
+test("a Transaction opens beside its month's list, which keeps its place", async ({ browser }) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email, desktop);
+	await createPlannedHousehold(page, {
+		baseline: "6200",
+		buckets: [
+			["Groceries", "800"],
+			["Eating out", "300"],
+			["Kids", "400"],
+			["Fun", "250"],
+		],
+	});
+	seedReportHistory(parent.userId, 8);
+	await page.goto("/transactions");
+	const rows = page.locator("[data-slot=list-row] > button");
+	const pane = page.locator("[data-slot=transaction-detail]");
+	const marked = page.locator("[data-slot=list-row] > button[aria-current]");
+	// Hydrated: before then a press on a row does nothing.
+	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
+	await expect(rows.first()).toBeVisible();
+
+	// Nothing picked: the rail holds the filters and the month's total.
+	await expect(page.locator("[data-slot=split-rail]").getByTestId("month-total")).toBeVisible();
+	await expect(page.locator("[data-slot=split-rail]").getByLabel("Bucket")).toBeVisible();
+	await expect(pane).toHaveCount(0);
+
+	// Picked from part-way down: it opens in the rail at its own address, and the page stays put.
+	await page.evaluate(() => window.scrollTo(0, 300));
+	const inView = await rows.evaluateAll((all) =>
+		all.findIndex((el) => {
+			const box = el.getBoundingClientRect();
+			return box.top > 150 && box.bottom < 600;
+		}),
+	);
+	expect(inView).toBeGreaterThanOrEqual(0);
+	await rows.nth(inView).click();
+	await expect(page).toHaveURL(/\/transactions\/\d{4}-\d{2}\/[0-9A-Z]{26}$/);
+	await expect(pane.locator("[data-slot=detail-title]")).toBeVisible();
+	await expect(marked).toHaveCount(1);
+	const y = await page.evaluate(() => window.scrollY);
+	await axe(page, "A Transaction beside its list");
+
+	// The next one down is one step away in the header; the list hasn't moved.
+	const first = page.url();
+	await pane.getByRole("link", { name: "Next Transaction" }).click();
+	await expect(page).not.toHaveURL(first);
+	await expect(marked).toHaveCount(1);
+	expect(await page.evaluate(() => window.scrollY)).toBe(y);
+
+	// A deep link shows the list and the Transaction together; Esc closes the pane.
+	await page.reload();
+	await expect(pane.locator("[data-slot=detail-title]")).toBeVisible();
+	await expect(marked).toHaveCount(1);
+	// Hydrated (the filters are there, out of sight, while a Transaction is open).
+	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
+	await page.keyboard.press("Escape");
+	await expect(pane).toHaveCount(0);
+	await expect(page).toHaveURL(/\/transactions\/\d{4}-\d{2}$/);
+	await expect(page.locator("[data-slot=split-rail]").getByTestId("month-total")).toBeVisible();
 	await page.context().close();
 });

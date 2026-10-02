@@ -15,7 +15,10 @@ test.afterEach(async () => {
 	await parent?.remove();
 });
 
-const editSheet = (page: Page) => page.getByRole("dialog", { name: "Edit Transaction" });
+const editSheet = (page: Page) =>
+	page
+		.locator("[role=dialog], [data-slot=transaction-detail]")
+		.filter({ has: page.getByRole("heading", { name: "Edit Transaction" }) });
 
 /** Adds a credit card Account on the Accounts page and uploads a card statement to it. */
 async function uploadCardStatement(page: Page, lines: [string, string][]) {

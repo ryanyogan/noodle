@@ -41,17 +41,14 @@ const migrated = [
 	"/check-in",
 	"/goals",
 	"/accounts",
-];
-
-/** Waiting for their master-detail routes (67b to 67d; Review is #68). Move each up as it lands. */
-const waiting = [
 	"/transactions",
 	"/explore",
 	"/explore/afford",
-	"/explore/scenarios",
-	"/review",
 	"/review/rules",
 ];
+
+/** Waiting for their master-detail routes (67b to 67d; Review is #68). Move each up as it lands. */
+const waiting = ["/explore/scenarios", "/review"];
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -167,6 +164,19 @@ test("no desktop page has a region that scrolls inside another", async ({ browse
 		await expect(page.locator("[data-slot=detail-title]")).toBeVisible();
 		await walk(page, [new URL(page.url()).pathname]);
 	}
+	// A Transaction beside its month's list (67d): the page scrolls, and only the Transaction's pane
+	// may scroll in it.
+	await page.goto("/transactions");
+	await expect(page.locator("[data-slot=page-header]:visible").first()).toBeVisible(clientRendered);
+	const row = page.locator("[data-slot=list-row] > button").first();
+	// Hydrated: before then a press on a row does nothing.
+	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled(clientRendered);
+	await expect(row).toBeVisible();
+	await row.click();
+	await expect(
+		page.locator("[data-slot=transaction-detail] [data-slot=detail-title]"),
+	).toBeVisible();
+	await walk(page, [new URL(page.url()).pathname]);
 	// The check isn't empty: This Month has its two columns here.
 	await page.goto("/month");
 	await expect(page.locator("[data-slot=split-rail]")).toBeVisible();

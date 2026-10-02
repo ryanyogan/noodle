@@ -92,9 +92,7 @@ function GoalPage() {
 	// A Goal only goes away if another Parent's change removes it; the loader 404s on reload.
 	if (!goal) return <DetailHeader eyebrow="Goal" title="Goal" leading={<BackToGoals />} />;
 	if (goal.kind === "payoff") {
-		return (
-			<PayoffGoalDetails goal={goal} account={account} month={month} today={asOf} />
-		);
+		return <PayoffGoalDetails goal={goal} account={account} month={month} today={asOf} />;
 	}
 	return (
 		<GoalDetails

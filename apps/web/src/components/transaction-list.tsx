@@ -84,6 +84,7 @@ export function TransactionItem({
 	waiting = false,
 	dated = false,
 	columns = false,
+	selected = false,
 	onEdit,
 	className,
 	...props
@@ -97,6 +98,8 @@ export function TransactionItem({
 	dated?: boolean;
 	/** At xl, lays the row out in TRANSACTION_COLUMNS instead of a second line. */
 	columns?: boolean;
+	/** Open in the pane beside the list. */
+	selected?: boolean;
 	onEdit: (transaction: TransactionRow) => void;
 }) {
 	const split = transaction.splits.length > 0;
@@ -252,7 +255,12 @@ export function TransactionItem({
 		</>
 	);
 	return (
-		<li data-slot="list-row" className={className} {...props}>
+		<li
+			data-slot="list-row"
+			data-selected={selected || undefined}
+			className={`${className ?? ""} data-selected:bg-surface-2 data-selected:shadow-[inset_2px_0_0_var(--color-primary)]`}
+			{...props}
+		>
 			{transaction.goal ? (
 				<Link
 					to="/goals/$goalId"
@@ -276,6 +284,7 @@ export function TransactionItem({
 										? `${spokenTitle}, ${amount}, ${detail.replace(" · ", ": ")}`
 										: `${spokenTitle}, ${amount}, ${assignment.name}${autoFiled ? " (filed automatically)" : ""}, For ${who}${spokenFrom}`
 					}
+					aria-current={selected ? "true" : undefined}
 					onClick={() => onEdit(transaction)}
 					className={rowClassName}
 				>

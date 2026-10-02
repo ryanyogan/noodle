@@ -17,7 +17,10 @@ test.afterEach(async () => {
 });
 
 const card = (page: Page) => page.getByTestId("review-card");
-const editSheet = (page: Page) => page.getByRole("dialog", { name: "Edit Transaction" });
+const editSheet = (page: Page) =>
+	page
+		.locator("[role=dialog], [data-slot=transaction-detail]")
+		.filter({ has: page.getByRole("heading", { name: "Edit Transaction" }) });
 
 /** Uploads a card statement to the Visa Account, adding the Account first if it's new. */
 async function uploadStatement(
@@ -153,12 +156,12 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	await sectionTabs(page, "Review pages").getByRole("link", { name: "Rules" }).click();
 	await expect(currentTab(page, "Review pages")).toHaveText("Rules");
 	await expectSectionHeaderKept(page);
-	const rule = page.getByRole("button", {
+	const rule = page.getByRole("link", {
 		name: /^acme widgets.*, Fun, For Everyone, Filed 1 so far$/,
 	});
 	await expect(rule).toBeEnabled();
 	await rule.click();
-	const sheet = page.getByRole("dialog", { name: "Edit Rule" });
+	const sheet = page.getByRole("region", { name: "Rule details" });
 	await sheet.getByRole("button", { name: "Delete Rule" }).click();
 	await page.getByRole("alertdialog").getByRole("button", { name: "Delete Rule" }).click();
 	await expect(page.getByText("No Rules yet")).toBeVisible();
@@ -173,8 +176,8 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	await add.getByRole("button", { name: "Add Rule and file what matches" }).click();
 	await expect(add).toBeHidden();
 	await expect(page.getByText(/Rule saved: corner gas goes in Gas/i)).toBeVisible();
-	await page.getByRole("button", { name: /^corner gas, Gas, / }).click();
-	const edit = page.getByRole("dialog", { name: "Edit Rule" });
+	await page.getByRole("link", { name: /^corner gas, Gas, / }).click();
+	const edit = page.getByRole("region", { name: "Rule details" });
 	await expect(
 		edit.getByRole("button", { name: "File what’s still unassigned now" }),
 	).toBeEnabled();
@@ -182,7 +185,7 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	await edit.getByRole("button", { name: "Save and file what’s still unassigned" }).click();
 	await expect(edit).toBeHidden();
 	await expect(page.getByText(/Nothing unassigned matches corner gas/i)).toBeVisible();
-	await expect(page.getByRole("button", { name: /^corner gas, Fun, / })).toBeVisible();
+	await expect(page.getByRole("link", { name: /^corner gas, Fun, / })).toBeVisible();
 });
 
 test("Review confirms a merchant's cards, or all with a suggestion, with one Undo, and says when a month has no Plan", async ({

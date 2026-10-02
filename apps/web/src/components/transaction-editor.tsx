@@ -9,7 +9,7 @@ import { Sheet, SheetCancel, SheetContent, SheetHeader } from "@noodle/ui/compon
 import { cn } from "@noodle/ui/lib/utils";
 import { useHydrated } from "@tanstack/react-router";
 import { Plus, Sparkles, Split as SplitIcon, Trash2, X } from "lucide-react";
-import { type FormEvent, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useRef, useState } from "react";
 import { ulid } from "ulid";
 import { dayName, formatMoney, formatMoneyInput } from "../format";
 import { forLabel, type MemberSummary } from "../members";
@@ -96,40 +96,86 @@ export function TransactionEditor({
 	return (
 		<Sheet open={transaction !== null} onOpenChange={(open) => (open ? undefined : onClose())}>
 			<SheetContent layout="side">
-				{transaction?.partlyPrivate ? (
-					<>
-						<SheetHeader title="Transaction" description={dayName(transaction.date, today)} />
-						<PartlyPrivate
-							transaction={transaction}
-							plan={plan}
-							members={members}
-							parentId={parentId}
-						/>
-					</>
-				) : transaction && (transaction.transfer || transaction.amountCents < 0) ? (
-					<>
-						<SheetHeader
-							title={transaction.transfer ? "Transfer" : "Money back"}
-							description={dayName(transaction.date, today)}
-						/>
-						<MoneyDetail key={transaction.id} transaction={transaction} onDone={onClose} />
-					</>
-				) : transaction ? (
-					<>
-						<SheetHeader title="Edit Transaction" description={dayName(transaction.date, today)} />
-						<EditForm
-							// A fresh form for each Transaction opened.
-							key={transaction.id}
-							transaction={transaction}
-							plan={plan}
-							members={members}
-							onChange={onChange}
-							onClose={onClose}
-						/>
-					</>
+				{transaction ? (
+					<TransactionBody
+						transaction={transaction}
+						today={today}
+						plan={plan}
+						members={members}
+						parentId={parentId}
+						onChange={onChange}
+						onClose={onClose}
+						heading={(title, description) => (
+							<SheetHeader title={title} description={description} />
+						)}
+					/>
 				) : null}
 			</SheetContent>
 		</Sheet>
+	);
+}
+
+/**
+ * What the editor holds, under the heading its place gives it: the sheet's header, or the detail
+ * pane's beside the Transactions list (`inline`, where Cancel closes the pane itself).
+ */
+export function TransactionBody({
+	transaction,
+	today,
+	plan,
+	members,
+	parentId,
+	onChange,
+	onClose,
+	heading,
+	inline = false,
+}: {
+	transaction: TransactionRow;
+	today: string;
+	plan: Pick<Plan, "buckets" | "commitments">;
+	members: MemberSummary[];
+	parentId: string;
+	onChange: (next: TransactionChange["next"]) => void;
+	onClose: () => void;
+	heading: (title: string, description: string) => ReactNode;
+	inline?: boolean;
+}) {
+	const day = dayName(transaction.date, today);
+	if (transaction.partlyPrivate) {
+		return (
+			<>
+				{heading("Transaction", day)}
+				<PartlyPrivate
+					transaction={transaction}
+					plan={plan}
+					members={members}
+					parentId={parentId}
+				/>
+			</>
+		);
+	}
+	if (transaction.transfer || transaction.amountCents < 0) {
+		return (
+			<>
+				{heading(transaction.transfer ? "Transfer" : "Money back", day)}
+				<MoneyDetail key={transaction.id} transaction={transaction} onDone={onClose} />
+			</>
+		);
+	}
+	return (
+		<>
+			{heading("Edit Transaction", day)}
+			<EditForm
+				// A fresh form for each Transaction opened.
+				key={transaction.id}
+				transaction={transaction}
+				plan={plan}
+				members={members}
+				onChange={onChange}
+				onClose={onClose}
+				inline={inline}
+			/>
+		</>
 	);
 }
 
@@ -186,12 +232,15 @@ function EditForm({
 	members,
 	onChange,
 	onClose,
+	inline,
 }: {
 	transaction: TransactionRow;
 	plan: Pick<Plan, "buckets" | "commitments">;
 	members: MemberSummary[];
 	onChange: (next: TransactionChange["next"]) => void;
 	onClose: () => void;
+	/** In a pane, not a sheet: Cancel closes the pane. */
+	inline: boolean;
 }) {
 	const hydrated = useHydrated();
 	const [amount, setAmount] = useState(formatMoneyInput(transaction.amountCents));
@@ -476,7 +525,13 @@ function EditForm({
 					<Trash2 />
 					Delete
 				</Button>
-				<SheetCancel className="ms-auto" />
+				{inline ? (
+					<Button type="button" variant="outline" className="ms-auto" onClick={onClose}>
+						Cancel
+					</Button>
+				) : (
+					<SheetCancel className="ms-auto" />
+				)}
 				<Button
 					type="submit"
 					className="max-lg:ms-auto"
