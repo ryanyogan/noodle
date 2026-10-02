@@ -1,6 +1,13 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { choose, createPlannedHousehold, serverFn, signedInPage, switchTo } from "./session";
+import {
+	choose,
+	createPlannedHousehold,
+	enterJoinedHousehold,
+	serverFn,
+	signedInPage,
+	switchTo,
+} from "./session";
 
 const nav = (page: Page) => page.getByRole("navigation", { name: "Main" });
 const quickAddSheet = (page: Page) => page.getByRole("dialog", { name: "Quick Add" });
@@ -83,6 +90,7 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 		await sam.goto("/welcome");
 		await sam.getByLabel("Your name").fill("Sam");
 		await sam.getByRole("button", { name: "Join The Rinks" }).click();
+		await enterJoinedHousehold(sam);
 		await expect(sam.locator("[data-slot=page-header]")).toContainText("This Month");
 
 		// Each Parent sets their own; each sees the other's amount but can't change it.

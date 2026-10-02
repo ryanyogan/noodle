@@ -89,6 +89,8 @@ export const setupAnswersSchema = z.object({
 	bills: z.array(setupBillSchema).max(60).optional(),
 	buckets: z.array(setupBucketSchema).max(60).optional(),
 	goal: setupGoalSchema.optional(),
+	/** How many times "Run setup again" was pressed: each run gets its own Setup Workflow. */
+	run: z.number().int().min(0).max(10_000).optional(),
 });
 export type SetupAnswers = z.infer<typeof setupAnswersSchema>;
 
@@ -114,4 +116,39 @@ export function backgroundStatus(jobs: SetupJobView[]): string | null {
 	const history = jobs.find((job) => job.job === "history");
 	const reading = history?.status === "done" ? "Sorting your spending" : "Reading your spending";
 	return `${reading}… ${done} of ${jobs.length} done`;
+}
+
+type PlanItem = { id: string; name: string };
+
+/**
+ * The steps whose answers aren't on the Plan (2 Take-home pay, 3 Bills, 4 Buckets), for Done to
+ * check before it finishes: each step writes as the Parent goes, so normally none. A bill or
+ * Bucket counts as there by its id, or by its name when the Plan already had one. Only monthly
+ * bills are checked (a yearly one needn't fall in this month), and the Personal Allowance is
+ * matched by its owner where it is written, not here.
+ */
+export function setupUnsaved(
+	answers: SetupAnswers,
+	plan: { baseline: number | null; commitments: PlanItem[]; buckets: PlanItem[] },
+): number[] {
+	const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+	const has = (items: PlanItem[], row: PlanItem) =>
+		items.some((item) => item.id === row.id || same(item.name, row.name));
+	const steps: number[] = [];
+	if (answers.takeHomePayCents !== undefined && plan.baseline === null) steps.push(2);
+	if (
+		(answers.bills ?? []).some(
+			(bill) => bill.ticked && bill.cadence === "monthly" && !has(plan.commitments, bill),
+		)
+	) {
+		steps.push(3);
+	}
+	if (
+		(answers.buckets ?? []).some(
+			(bucket) => bucket.kept && !bucket.personal && !has(plan.buckets, bucket),
+		)
+	) {
+		steps.push(4);
+	}
+	return steps;
 }

@@ -532,6 +532,7 @@ export {
 	loadSetupJobs,
 	loadSetupProgress,
 	resetSetupJobs,
+	restartSetupProgress,
 	type SetupJob,
 	type SetupJobStatus,
 	type SetupProgress,

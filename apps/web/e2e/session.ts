@@ -36,6 +36,13 @@ export async function setUpLater(page: Page) {
 	await expect(page).toHaveURL(/\/month\//);
 }
 
+/** After joining a Household, leaves "Here's your Household" for This Month. */
+export async function enterJoinedHousehold(page: Page) {
+	await expect(page).toHaveURL(/\/joined$/);
+	await page.getByRole("link", { name: "Go to This Month" }).click();
+	await expect(page).toHaveURL(/\/month\//);
+}
+
 /** Creates a Household from /welcome, leaves the get-started wizard, and waits for This Month. */
 export async function createHousehold(page: Page, householdName: string, parentName: string) {
 	await page.goto("/welcome");

@@ -33,9 +33,9 @@ function Welcome() {
 
 /**
  * After joining or creating, re-run the route guards so they see the new Household. A new
- * Household goes on to the get-started wizard; a Parent joining one already set up skips it.
+ * Household goes on to the get-started wizard; a Parent joining one skips it for a short look at what's there.
  */
-function useEnterHousehold(to: "/setup" | "/month") {
+function useEnterHousehold(to: "/setup" | "/joined") {
 	const router = useRouter();
 	const queryClient = useQueryClient();
 	return async () => {
@@ -112,7 +112,7 @@ function CreateHousehold() {
 
 function JoinHousehold({ invite, onStartOwn }: { invite: InviteToJoin; onStartOwn: () => void }) {
 	const firstName = useFirstName();
-	const enterHousehold = useEnterHousehold("/month");
+	const enterHousehold = useEnterHousehold("/joined");
 	const hydrated = useHydrated();
 	const [parentId] = useState(() => ulid());
 	const join = useMutation({

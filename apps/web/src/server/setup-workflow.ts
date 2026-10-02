@@ -62,5 +62,5 @@ export async function startSetupWorkflow(params: SetupParams): Promise<void> {
 		return;
 	}
 	// createBatch skips an instance that already exists, where create would throw.
-	await env.SETUP.createBatch([{ id: setupInstanceId(params.householdId), params }]);
+	await env.SETUP.createBatch([{ id: setupInstanceId(params.householdId, params.run), params }]);
 }

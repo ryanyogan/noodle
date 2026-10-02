@@ -1,6 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, savedBy, signedInPage, switchTo } from "./session";
+import {
+	createPlannedHousehold,
+	enterJoinedHousehold,
+	savedBy,
+	signedInPage,
+	switchTo,
+} from "./session";
 
 const waterfall = (page: Page) =>
 	page.getByRole("region", { name: "From take-home pay to Free to Spend" });
@@ -40,6 +46,7 @@ test("What changed shows each Plan change and who made it; the other Parent's Pe
 		await samPage.goto("/welcome");
 		await samPage.getByLabel("Your name").fill("Sam");
 		await samPage.getByRole("button", { name: "Join The Rinks" }).click();
+		await enterJoinedHousehold(samPage);
 		await expect(samPage).toHaveURL(/\/month\/\d{4}-\d{2}$/);
 
 		await page.goto("/month");

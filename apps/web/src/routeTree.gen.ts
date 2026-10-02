@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as AuthedHouseholdRouteImport } from './routes/_authed/_household'
+import { Route as AuthedJoinedRouteImport } from './routes/_authed/joined'
 import { Route as AuthedSetupRouteImport } from './routes/_authed/setup'
 import { Route as AuthedWelcomeRouteImport } from './routes/_authed/welcome'
 import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
@@ -60,6 +61,11 @@ const AuthedRoute = AuthedRouteImport.update({
 } as any)
 const AuthedHouseholdRoute = AuthedHouseholdRouteImport.update({
   id: '/_household',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedJoinedRoute = AuthedJoinedRouteImport.update({
+  id: '/joined',
+  path: '/joined',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedSetupRoute = AuthedSetupRouteImport.update({
@@ -271,6 +277,7 @@ const AuthedHouseholdPlanYearYearRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/joined': typeof AuthedJoinedRoute
   '/setup': typeof AuthedSetupRoute
   '/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
@@ -310,6 +317,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/joined': typeof AuthedJoinedRoute
   '/setup': typeof AuthedSetupRoute
   '/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
@@ -350,6 +358,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authed': typeof AuthedRouteWithChildren
   '/_authed/_household': typeof AuthedHouseholdRouteWithChildren
+  '/_authed/joined': typeof AuthedJoinedRoute
   '/_authed/setup': typeof AuthedSetupRoute
   '/_authed/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
@@ -391,6 +400,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/joined'
     | '/setup'
     | '/welcome'
     | '/sign-in/$'
@@ -430,6 +440,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/joined'
     | '/setup'
     | '/welcome'
     | '/sign-in/$'
@@ -469,6 +480,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authed'
     | '/_authed/_household'
+    | '/_authed/joined'
     | '/_authed/setup'
     | '/_authed/welcome'
     | '/sign-in/$'
@@ -534,6 +546,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthedHouseholdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/joined': {
+      id: '/_authed/joined'
+      path: '/joined'
+      fullPath: '/joined'
+      preLoaderRoute: typeof AuthedJoinedRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/setup': {
@@ -895,12 +914,14 @@ const AuthedHouseholdRouteWithChildren = AuthedHouseholdRoute._addFileChildren(
 
 interface AuthedRouteChildren {
   AuthedHouseholdRoute: typeof AuthedHouseholdRouteWithChildren
+  AuthedJoinedRoute: typeof AuthedJoinedRoute
   AuthedSetupRoute: typeof AuthedSetupRoute
   AuthedWelcomeRoute: typeof AuthedWelcomeRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedHouseholdRoute: AuthedHouseholdRouteWithChildren,
+  AuthedJoinedRoute: AuthedJoinedRoute,
   AuthedSetupRoute: AuthedSetupRoute,
   AuthedWelcomeRoute: AuthedWelcomeRoute,
 }

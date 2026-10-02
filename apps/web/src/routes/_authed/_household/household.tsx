@@ -21,14 +21,15 @@ import {
 } from "@noodle/ui/components/table";
 import { Tile } from "@noodle/ui/components/tile";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
-import { BookOpen, Landmark, Mail, Pencil, Plus, UserRoundMinus } from "lucide-react";
+import { createFileRoute, Link, useHydrated, useRouter } from "@tanstack/react-router";
+import { BookOpen, Landmark, Pencil, Plus, UserRoundMinus } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram, nextBucketColor } from "../../../buckets";
 import { CaptureSettings } from "../../../components/capture-settings";
 import { CheckInSettings } from "../../../components/check-in-settings";
 import { ColourPicker } from "../../../components/colour-picker";
+import { InviteOtherParent } from "../../../components/invite-other-parent";
 import { NudgeSettings } from "../../../components/nudge-settings";
 import { Confirm, SaveFailed } from "../../../components/plan-editing";
 import { ReceiptSettings } from "../../../components/receipt-settings";
@@ -51,9 +52,10 @@ import {
 	monthQuery,
 	nudgeSettingsQuery,
 	receiptAddressQuery,
+	setupQuery,
 } from "../../../queries";
-import { inviteParent } from "../../../server/invites";
 import { addChild, removeChild, updateChild } from "../../../server/members";
+import { restartSetup } from "../../../server/setup";
 
 export const Route = createFileRoute("/_authed/_household/household")({
 	loader: async ({ context }) => {
@@ -155,6 +157,10 @@ function HouseholdPage() {
 					<NudgeSettings />
 					<CaptureSettings />
 					<ReceiptSettings />
+					<Section aria-labelledby="setup-again">
+						<SectionHeader id="setup-again" title="Setup" />
+						<RunSetupAgain />
+					</Section>
 					<Section aria-labelledby="glossary">
 						<SectionHeader id="glossary" title="Words Noodle uses" />
 						<Card className="flex items-center gap-3 p-(--card-pad) text-sm text-muted-foreground">
@@ -520,82 +526,38 @@ function ChildCost({
 	);
 }
 
-function InviteOtherParent({ invitedEmail }: { invitedEmail: string | null }) {
-	const queryClient = useQueryClient();
+/**
+ * "Run setup again" (#53): the get-started wizard from Hello, with what was answered before filled
+ * in, so each step changes what's on the Plan instead of adding to it.
+ */
+function RunSetupAgain() {
 	const hydrated = useHydrated();
-	// A fresh ID per attempt; reused by a retry of the same attempt.
-	const [inviteId, setInviteId] = useState(() => ulid());
-	const invite = useMutation({
-		mutationFn: (email: string) => inviteParent({ data: { inviteId, email } }),
-		onSuccess: async (result) => {
-			if (result.ok) setInviteId(ulid());
-			await queryClient.invalidateQueries({ queryKey: householdParentsQuery().queryKey });
+	const router = useRouter();
+	const queryClient = useQueryClient();
+	const again = useMutation({
+		mutationFn: () => restartSetup(),
+		onSuccess: async () => {
+			// The wizard reads where it is from the cache; drop the old copy so it starts at Hello.
+			queryClient.removeQueries({ queryKey: setupQuery().queryKey });
+			await router.navigate({ to: "/setup" });
 		},
 	});
-	const refused = invite.data?.ok === false ? invite.data.reason : null;
-
-	function onSubmit(event: FormEvent<HTMLFormElement>) {
-		event.preventDefault();
-		const form = event.currentTarget;
-		invite.mutate(String(new FormData(form).get("email") ?? ""), {
-			onSuccess: (result) => {
-				if (result.ok) form.reset();
-			},
-		});
-	}
-
 	return (
-		<Card>
-			<div className="flex items-start gap-3 border-b px-(--card-pad) py-3.5 text-sm">
-				<Tile>
-					<Mail />
-				</Tile>
-				{invitedEmail ? (
-					<div className="grid gap-1">
-						<div className="flex flex-wrap items-center gap-2 font-medium">
-							Invited {invitedEmail}
-							<Badge variant="pace" dot>
-								Waiting
-							</Badge>
-						</div>
-						<p className="text-muted-foreground">
-							Ask them to sign in to Noodle with that email to join.
-						</p>
-					</div>
-				) : (
-					<p className="self-center text-muted-foreground">
-						Noodle doesn’t send an email. Once you’ve invited them, they join by signing in with
-						that address.
-					</p>
-				)}
-			</div>
-			<form onSubmit={onSubmit} className="grid gap-3 p-(--card-pad)">
-				<Field label="Their email" htmlFor="invite-email">
-					<div className="flex flex-col gap-2 sm:flex-row">
-						<Input
-							id="invite-email"
-							name="email"
-							type="email"
-							required
-							maxLength={254}
-							autoComplete="off"
-							placeholder="name@example.com"
-						/>
-						<Button type="submit" disabled={!hydrated || invite.isPending}>
-							{invitedEmail ? "Invite someone else" : "Invite"}
-						</Button>
-					</div>
-				</Field>
-				{refused === "own-email" ? (
-					<FormError>That’s your own email. Enter the other Parent’s email.</FormError>
-				) : null}
-				{refused === "household-full" ? (
-					<FormError>Your Household already has both Parents.</FormError>
-				) : null}
-				{invite.isError ? (
-					<FormError>We couldn’t save that invite. Please try again.</FormError>
-				) : null}
-			</form>
+		<Card className="grid gap-3 p-(--card-pad) text-sm">
+			<p className="text-muted-foreground">
+				Go through the setup steps again to change your take-home pay, bills, Buckets or Goal. It
+				changes what’s there. Nothing is added twice.
+			</p>
+			<Button
+				type="button"
+				variant="outline"
+				className="justify-self-start"
+				disabled={!hydrated || again.isPending || again.isSuccess}
+				onClick={() => again.mutate()}
+			>
+				Run setup again
+			</Button>
+			{again.isError ? <FormError>We couldn’t start setup. Please try again.</FormError> : null}
 		</Card>
 	);
 }

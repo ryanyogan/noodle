@@ -70,8 +70,10 @@ import {
 	planHealthQuery,
 	planHistoryQuery,
 	reviewQuery,
+	setupQuery,
 	useMonthState,
 } from "../../../queries";
+import { SETUP_STEP_COUNT } from "../../../setup";
 
 export const Route = createFileRoute("/_authed/_household/month/$month/")({
 	// Coming up reads every Commitment's schedule and charges; an ended month names who closed it.
@@ -79,6 +81,7 @@ export const Route = createFileRoute("/_authed/_household/month/$month/")({
 		Promise.all([
 			context.queryClient.ensureQueryData(commitmentsQuery()),
 			context.queryClient.ensureQueryData(membersQuery()),
+			context.queryClient.ensureQueryData(setupQuery()),
 		]),
 	component: ThisMonth,
 });
@@ -759,6 +762,7 @@ function CheckInToday() {
  */
 function GetStarted({ state }: { state: MonthState }) {
 	const { accounts } = useGoals();
+	const setup = useSuspenseQuery(setupQuery()).data;
 	const members = useSuspenseQuery(membersQuery()).data;
 	const parents = members.filter((m) => m.kind === "parent" && !m.removed).length;
 	const steps: { done: boolean; title: string; link: ReactNode }[] = [
@@ -808,6 +812,20 @@ function GetStarted({ state }: { state: MonthState }) {
 					</span>
 				}
 			/>
+			{setup.finished ? null : (
+				// The get-started wizard (#53) is the main way in; the list below is for what it skipped.
+				<Card className="flex flex-wrap items-center justify-between gap-3 p-(--card-pad) text-sm">
+					<div className="grid gap-0.5">
+						<p className="font-medium">Finish setting up</p>
+						<p className="text-muted-foreground">
+							You’re on step {setup.step} of {SETUP_STEP_COUNT}. It picks up where you left off.
+						</p>
+					</div>
+					<Button asChild size="sm">
+						<Link to="/setup">Continue setup</Link>
+					</Button>
+				</Card>
+			)}
 			<List aria-label="Steps to get started">
 				{steps.map((step) => (
 					<ListRow

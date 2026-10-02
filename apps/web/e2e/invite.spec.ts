@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createHousehold, setUpLater, signedInPage } from "./session";
+import { createHousehold, enterJoinedHousehold, setUpLater, signedInPage } from "./session";
 
 async function invite(page: Page, email: string) {
 	await page.getByLabel("Their email").fill(email);
@@ -27,6 +27,7 @@ test("a Parent invites the other Parent, who joins the same Household", async ({
 		await expect(secondPage).toHaveURL(/\/welcome/);
 		await secondPage.getByLabel("Your name").fill("Sam");
 		await secondPage.getByRole("button", { name: "Join The Invites" }).click();
+		await enterJoinedHousehold(secondPage);
 
 		// Both Parents now share one Household.
 		await expect(secondPage).toHaveURL(/\/month\/\d{4}-\d{2}$/);
@@ -71,6 +72,7 @@ test("a replaced invite can't be used, so a full Household never gets a third Pa
 		await secondPage.goto("/welcome");
 		await secondPage.getByLabel("Your name").fill("Sam");
 		await secondPage.getByRole("button", { name: "Join The Replacements" }).click();
+		await enterJoinedHousehold(secondPage);
 		await expect(secondPage).toHaveURL(/\/month\//);
 
 		await replacedPage.getByLabel("Your name").fill("Jo");

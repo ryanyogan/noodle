@@ -23,10 +23,16 @@ export type SetupParams = {
 	/** The Parent who started setup: history is filed and read as them (ADR-0003). */
 	memberId: string;
 	timeZone: string;
+	/** Which run of setup this is: 0 the first, one more each "Run setup again". */
+	run?: number;
 };
 
-/** One instance per Household: starting it again finds the one already there. */
-export const setupInstanceId = (householdId: string) => `setup-${householdId}`;
+/**
+ * One instance per Household and run: starting it again finds the one already there, and "Run
+ * setup again" (a new run) gets a fresh one, since a finished instance's id can't be reused.
+ */
+export const setupInstanceId = (householdId: string, run = 0) =>
+	run > 0 ? `setup-${householdId}-${run}` : `setup-${householdId}`;
 
 export type SetupDeps = {
 	db: Db;

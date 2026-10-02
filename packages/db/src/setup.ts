@@ -68,6 +68,31 @@ export async function saveSetupProgress(
 		});
 }
 
+/**
+ * Starts the wizard again at Hello for "Run setup again": the answers are kept, so each step
+ * changes what it wrote before instead of adding to it, and the Household counts as not finished
+ * until Done is pressed again. Idempotent.
+ */
+export async function restartSetupProgress(
+	db: Db,
+	householdId: string,
+	answers: Record<string, unknown>,
+): Promise<void> {
+	await db
+		.insert(setupProgress)
+		.values({ householdId, step: 1, answers, skipped: [], finishedAt: null })
+		.onConflictDoUpdate({
+			target: setupProgress.householdId,
+			set: {
+				step: 1,
+				answers,
+				skipped: [],
+				finishedAt: null,
+				updatedAt: sql`(unixepoch() * 1000)`,
+			},
+		});
+}
+
 export type SetupJobStatus = "waiting" | "running" | "done" | "skipped";
 export type SetupJob = { job: string; status: SetupJobStatus };
 

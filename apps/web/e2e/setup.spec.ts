@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { savedBy, serverFn, signedInPage } from "./session";
+import { enterJoinedHousehold, savedBy, serverFn, signedInPage } from "./session";
 
 // The get-started wizard's shell (#53): a new Household lands on it, Hello chooses how spending
 // comes in, Take-home pay is set on the Plan, Back works, and a reload resumes where it was.
@@ -175,5 +175,125 @@ test("by hand: Bills, Buckets and a Goal land on the Plan, and going back adds n
 		await expect(page.getByText("Emergency fund").first()).toBeVisible();
 	} finally {
 		await parent.remove();
+	}
+});
+
+test("invite, Done, Continue setup, Run setup again, and the other Parent’s own screen", async ({
+	browser,
+}) => {
+	test.slow();
+	const first = await createTestParent();
+	const second = await createTestParent();
+	try {
+		const page = await signedInPage(browser, first.email);
+		await page.goto("/welcome");
+		await page.getByLabel("Household name").fill("The Finishers");
+		await page.getByLabel("Your name").fill("Alex");
+		await page.getByRole("button", { name: "Create Household" }).click();
+		await expect(page).toHaveURL(/\/setup$/);
+		const next = async (button: string, step: number) => {
+			const saved = savedBy(page, "saveSetup");
+			await page.getByRole("button", { name: button, exact: true }).click();
+			await saved;
+			await expect(page.getByText(`Step ${step} of 7`)).toBeVisible();
+		};
+		await page.getByRole("radio", { name: /I’ll add things by hand/ }).check();
+		await next("Continue", 2);
+		await page
+			.getByRole("textbox", { name: "What lands in your account in a normal month, after tax?" })
+			.fill("5,000");
+		await next("Continue", 3);
+		await page.getByRole("checkbox", { name: "Mortgage or rent" }).check();
+		await page.getByRole("textbox", { name: "Mortgage or rent amount" }).fill("1500");
+		// The due day can be emptied and typed again.
+		const day = page.getByRole("textbox", { name: "Mortgage or rent due day" });
+		await day.fill("");
+		await expect(day).toHaveValue("");
+		await day.fill("15");
+		await next("Continue", 4);
+		await next("Continue", 5);
+		await next("Skip", 6);
+
+		// Leaving now: This Month offers the way back, and it resumes on the same step.
+		await page.getByRole("link", { name: "Set up later" }).click();
+		await expect(page).toHaveURL(/\/month\//);
+		await page.getByRole("link", { name: "Continue setup" }).click();
+		await expect(page).toHaveURL(/\/setup$/);
+		await expect(page.getByText("Step 6 of 7")).toBeVisible();
+
+		// Step 6: the invite. Once someone is invited there is nothing to skip.
+		await expect(page.getByRole("heading", { name: "Invite the other Parent" })).toBeVisible();
+		await expect(page.getByRole("button", { name: "Skip" })).toBeVisible();
+		await page.getByLabel("Their email").fill(second.email);
+		await page.getByRole("button", { name: "Invite", exact: true }).click();
+		await expect(page.getByText(`Invited ${second.email}`)).toBeVisible();
+		await expect(page.getByRole("button", { name: "Skip" })).toHaveCount(0);
+		await next("Continue", 7);
+
+		// Step 7: the Plan from take-home pay down to Free to Spend, as This Month then shows it.
+		const summary = page.locator("dl");
+		await expect(summary).toContainText("Take-home pay");
+		await expect(summary).toContainText("$5,000");
+		await expect(summary).toContainText("1 bill");
+		await expect(summary).toContainText("$1,500");
+		await expect(summary).toContainText("Personal Allowances");
+		const free = (await page.locator('[data-summary="free-to-spend"] dd').innerText()).trim();
+		expect(free).toMatch(/^\$[\d,]+/);
+		await page.getByRole("button", { name: "Go to This Month" }).click();
+		await expect(page).toHaveURL(/\/month\//);
+		await expect(page.locator("[data-slot=page-header]")).toContainText("This Month");
+		await expect(page.getByText(free).first()).toBeVisible();
+		await expect(page.getByRole("link", { name: "Continue setup" })).toHaveCount(0);
+
+		// Run setup again, from Household: every step shows what's there, and nothing is added twice.
+		await page
+			.getByRole("navigation", { name: "Main" })
+			.getByRole("link", { name: "Household" })
+			.click();
+		const added: string[] = [];
+		page.on("request", (request) => {
+			if (request.method() !== "POST") return;
+			const url = new URL(request.url());
+			for (const fn of ["addCommitment", "addBucket", "addPersonalAllowance", "addGoal"]) {
+				if (serverFn(fn)(url)) added.push(fn);
+			}
+		});
+		await page.getByRole("button", { name: "Run setup again" }).click();
+		await expect(page).toHaveURL(/\/setup$/);
+		await expect(page.getByText("Step 1 of 7")).toBeVisible();
+		await expect(page.getByRole("radio", { name: /I’ll add things by hand/ })).toBeChecked();
+		await next("Continue", 2);
+		await next("Continue", 3);
+		await expect(page.getByRole("textbox", { name: "Mortgage or rent due day" })).toHaveValue("15");
+		await next("Continue", 4);
+		await next("Continue", 5);
+		await next("Skip", 6);
+		await expect(page.getByText(`Invited ${second.email}`)).toBeVisible();
+		await next("Continue", 7);
+		await expect(page.locator('[data-summary="free-to-spend"] dd')).toHaveText(free);
+		expect(added).toEqual([]);
+		await page.getByRole("button", { name: "Go to This Month" }).click();
+		await expect(page).toHaveURL(/\/month\//);
+
+		// The other Parent joins and gets "Here's your Household", not the wizard.
+		const sam = await signedInPage(browser, second.email);
+		await sam.goto("/welcome");
+		await sam.getByLabel("Your name").fill("Sam");
+		await sam.getByRole("button", { name: "Join The Finishers" }).click();
+		await expect(sam).toHaveURL(/\/joined$/);
+		await expect(sam.getByRole("heading", { name: "Here’s your Household" })).toBeVisible();
+		const household = sam.locator("dl");
+		await expect(household).toContainText("Alex and Sam");
+		await expect(household).toContainText("$5,000");
+		await expect(household).toContainText("1 bill");
+		await sam.getByRole("textbox", { name: "Your Personal Allowance each month" }).fill("100");
+		const allowance = savedBy(sam, "addPersonalAllowance");
+		await sam.getByRole("button", { name: "Add your Personal Allowance" }).click();
+		await allowance;
+		await expect(sam.getByText("Sam’s Personal Allowance")).toBeVisible();
+		await enterJoinedHousehold(sam);
+		await expect(sam.locator("[data-slot=page-header]")).toContainText("This Month");
+	} finally {
+		await Promise.all([first.remove(), second.remove()]);
 	}
 });

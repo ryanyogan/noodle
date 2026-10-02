@@ -1,4 +1,4 @@
-import { monthKeyAt, parseDollars } from "@noodle/domain";
+import { allowancesByKind, monthKeyAt, monthState, parseDollars } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
@@ -15,12 +15,15 @@ import { ulid } from "ulid";
 import { BankConnections, useConnectBank } from "../../components/bank-connections";
 import { GlossaryDialog } from "../../components/glossary";
 import { AmountInput } from "../../components/goals";
+import { InviteOtherParent } from "../../components/invite-other-parent";
 import { SetupBills } from "../../components/setup-bills";
 import { CarriesOverHelp, StarterBucketPicker } from "../../components/starter-buckets";
 import { TermHelp } from "../../components/term-help";
 import { formatMoney, formatMoneyInput } from "../../format";
+import { useGoals } from "../../goals";
 import { useLiveUpdates } from "../../live-updates";
 import {
+	goalsQuery,
 	householdParentsQuery,
 	monthQuery,
 	monthsKey,
@@ -54,6 +57,7 @@ import {
 	type SetupGoalKind,
 	type SetupJobView,
 	type SetupPath,
+	setupUnsaved,
 } from "../../setup";
 import {
 	type BillRow,
@@ -78,13 +82,13 @@ import {
 // Setup Workflow, whose jobs the progress header reports as they finish; when its plan draft lands,
 // Take-home pay, Bills and Buckets fill in from it without replacing anything the Parent typed.
 // Each step writes to the Plan through the Plan's own server functions, with ids kept in the saved
-// answers, so going back or running it again changes what's there instead of adding to it. The
-// invite step is filled in by later work.
+// answers, so going back or running it again changes what's there instead of adding to it. Done
+// reads the Plan itself, checks every answer is on it, and only then marks setup finished.
 
 export const Route = createFileRoute("/_authed/setup")({
 	beforeLoad: ({ context }) => {
 		if (!context.household || !context.parentId) throw redirect({ to: "/welcome" });
-		return { household: context.household };
+		return { household: context.household, parentId: context.parentId };
 	},
 	loader: async ({ context }) => {
 		const month = monthKeyAt(new Date(), context.household.timeZone);
@@ -93,6 +97,7 @@ export const Route = createFileRoute("/_authed/setup")({
 			// What the Plan has now, so a re-run changes it instead of adding to it.
 			context.queryClient.ensureQueryData(monthQuery(month)),
 			context.queryClient.ensureQueryData(householdParentsQuery()),
+			context.queryClient.ensureQueryData(goalsQuery()),
 		]);
 	},
 	head: () => ({ meta: [{ title: "Set up · Noodle" }] }),
@@ -182,8 +187,7 @@ function SetupWizard() {
 						onNext={(goal) => go(6, goal ? { goal } : {})}
 					/>
 				) : step < SETUP_STEP_COUNT ? (
-					<LaterStep
-						step={step}
+					<InviteStep
 						onBack={back}
 						onNext={() => go(step + 1)}
 						onSkip={canSkip(step) ? () => go(step + 1, {}, true) : undefined}
@@ -192,6 +196,7 @@ function SetupWizard() {
 					<DoneStep
 						answers={answers}
 						onBack={back}
+						onGo={(to) => void go(to)}
 						onDone={() => save.mutateAsync({ step, answers, skipped, finished: true })}
 					/>
 				)}
@@ -213,6 +218,7 @@ function StepFrame({
 	pending,
 	disabled,
 	aside,
+	formless,
 }: {
 	title: string;
 	intro?: ReactNode;
@@ -225,14 +231,16 @@ function StepFrame({
 	disabled?: boolean;
 	/** A short live figure kept beside the buttons, e.g. what's left to plan. */
 	aside?: ReactNode;
+	/** For a step whose body has a form of its own: the primary button is then a plain button. */
+	formless?: boolean;
 }) {
 	const hydrated = useHydrated();
 	function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		onSubmit();
 	}
-	return (
-		<form onSubmit={submit} className="flex flex-1 flex-col">
+	const frame = (
+		<>
 			<div className="grid gap-5 pb-6">
 				<div className="grid gap-2">
 					<h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.03em]">{title}</h1>
@@ -254,13 +262,25 @@ function StepFrame({
 								Skip
 							</Button>
 						) : null}
-						<Button type="submit" size="lg" disabled={!hydrated || pending || disabled}>
+						<Button
+							type={formless ? "button" : "submit"}
+							size="lg"
+							disabled={!hydrated || pending || disabled}
+							onClick={formless ? onSubmit : undefined}
+						>
 							{pending ? <Spinner /> : null}
 							{primary}
 						</Button>
 					</div>
 				</div>
 			</div>
+		</>
+	);
+	return formless ? (
+		<div className="flex flex-1 flex-col">{frame}</div>
+	) : (
+		<form onSubmit={submit} className="flex flex-1 flex-col">
+			{frame}
 		</form>
 	);
 }
@@ -486,82 +506,213 @@ function ConnectBankCard() {
 	return <BankConnections bank={bank} />;
 }
 
-/** The invite step, until later work fills it in. */
-function LaterStep({
-	step,
+/**
+ * Step 6: inviting the other Parent, with the same invite as on Household. Nothing to do once both
+ * Parents are in; with an invite out, it shows who was invited and can't be skipped past unseen.
+ */
+function InviteStep({
 	onBack,
 	onNext,
 	onSkip,
 }: {
-	step: number;
 	onBack?: () => void;
 	onNext: () => Promise<unknown>;
 	onSkip?: () => void;
 }) {
-	const { title } = SETUP_STEPS[step - 1] ?? SETUP_STEPS[0];
+	const { data } = useSuspenseQuery(householdParentsQuery());
+	const next = useMutation({ mutationFn: onNext });
+	const invited = data.hasAllParents || data.invitedEmail !== null;
 	return (
 		<StepFrame
-			title={title}
-			intro="This step is coming soon. For now you can set it up from the Plan."
+			formless
+			title="Invite the other Parent"
+			intro={
+				data.hasAllParents
+					? "Both Parents are in this Household. You share one Plan."
+					: "You share one Plan: you both see the same bills and Buckets, and each adds what they spend. You can also do this later, from Household."
+			}
 			primary="Continue"
 			onBack={onBack}
-			onSkip={onSkip}
-			onSubmit={() => void onNext()}
-		/>
+			onSkip={invited ? undefined : onSkip}
+			pending={next.isPending}
+			onSubmit={() => next.mutate()}
+		>
+			{data.hasAllParents ? (
+				<Card className="p-(--card-pad) text-sm">
+					<span className="font-medium">
+						{data.parents.map((parent) => parent.name).join(" and ")}
+					</span>
+				</Card>
+			) : (
+				<InviteOtherParent invitedEmail={data.invitedEmail} />
+			)}
+		</StepFrame>
 	);
 }
 
-/** Step 7: what was set up, then This Month. */
+/** One line of Done's summary: what it is, a word on it, and its amount. */
+function SummaryRow({
+	label,
+	detail,
+	amount,
+	total,
+	over,
+	...props
+}: {
+	label: ReactNode;
+	detail?: string;
+	amount: string;
+	total?: boolean;
+	over?: boolean;
+	"data-summary"?: string;
+}) {
+	return (
+		<div
+			className="flex items-baseline justify-between gap-4 border-t px-(--card-pad) py-3 first:border-t-0"
+			{...props}
+		>
+			<dt className="grid min-w-0 gap-0.5">
+				<span className={total ? "font-semibold" : undefined}>{label}</span>
+				{detail ? (
+					<span className="break-words text-[13px] text-muted-foreground">{detail}</span>
+				) : null}
+			</dt>
+			<dd
+				className={`shrink-0 tabular-nums ${total ? "text-base font-semibold" : "font-medium"} ${over ? "text-over-foreground" : ""}`}
+			>
+				{amount}
+			</dd>
+		</div>
+	);
+}
+
+const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * Step 7: the Plan as it now stands, from take-home pay down to Free to Spend, then This Month.
+ * The numbers are the Plan's own (the month's state), not the wizard's answers: steps 2 to 5 each
+ * wrote to the Plan as the Parent went. Before finishing, Done reads the Plan afresh and checks
+ * every answer is on it; a step that isn't sends the Parent back to save it again.
+ */
 function DoneStep({
 	answers,
 	onBack,
+	onGo,
 	onDone,
 }: {
 	answers: SetupAnswers;
 	onBack?: () => void;
+	onGo: (step: number) => void;
 	onDone: () => Promise<unknown>;
 }) {
 	const router = useRouter();
+	const queryClient = useQueryClient();
+	const { household } = Route.useRouteContext();
+	const month = monthKeyAt(new Date(), household.timeZone);
+	const state = useMonthState(month);
+	const goals = useGoals().goals.filter((g) => g.state === "active");
+	const { buckets, personalAllowances } = allowancesByKind(state);
+	const shared = state.buckets.filter((bucket) => !bucket.owner).length;
 	const finish = useMutation({
 		mutationFn: async () => {
+			// Look at the Plan as the server has it now, not at what this screen last loaded.
+			const now = monthState(await queryClient.fetchQuery({ ...monthQuery(month), staleTime: 0 }));
+			if (setupUnsaved(answers, now).length > 0) return;
 			await onDone();
 			await router.navigate({ to: "/month" });
 		},
 	});
+	const unsaved = setupUnsaved(answers, state);
+	const minus = (cents: number) => `− ${formatMoney(cents)}`;
 	return (
 		<StepFrame
 			title="You’re set up"
-			intro="Here’s your Plan so far. You can change any of it from the Plan."
+			intro="Here’s your Plan for a month. You can change any of it from the Plan."
 			primary="Go to This Month"
 			onBack={onBack}
 			pending={finish.isPending}
 			onSubmit={() => finish.mutate()}
 		>
-			<Card className="flex items-center justify-between gap-4 p-(--card-pad) text-sm">
-				<span>Take-home pay</span>
-				<span className="font-medium tabular-nums">
-					{answers.takeHomePayCents === undefined
-						? "Not set"
-						: formatMoney(answers.takeHomePayCents)}
-				</span>
+			<Card>
+				<dl className="text-sm">
+					<SummaryRow
+						label="Take-home pay"
+						amount={state.baseline === null ? "Not set" : formatMoney(state.baseline)}
+					/>
+					<SummaryRow
+						label={
+							<>
+								Bills (Commitments) <TermHelp term="commitment" />
+							</>
+						}
+						detail={count(state.commitments.length, "bill", "bills")}
+						amount={minus(state.committed)}
+					/>
+					<SummaryRow
+						label="Buckets"
+						detail={count(shared, "Bucket", "Buckets")}
+						amount={minus(buckets)}
+					/>
+					{personalAllowances === null ? null : (
+						<SummaryRow
+							label={
+								<>
+									Personal Allowances <TermHelp term="personal-allowance" />
+								</>
+							}
+							amount={minus(personalAllowances)}
+						/>
+					)}
+					<SummaryRow
+						label="Goals"
+						detail={
+							goals.length === 0
+								? "None yet. You can add one from Goals."
+								: `${goals.map((goal) => goal.name).join(", ")}. Set aside this month:`
+						}
+						amount={minus(state.fundedGoals)}
+					/>
+					<SummaryRow
+						data-summary="free-to-spend"
+						total
+						over={state.freeToSpend < 0}
+						label={
+							<>
+								Free to Spend <TermHelp term="free-to-spend" />
+							</>
+						}
+						detail={
+							state.freeToSpend < 0
+								? "The Plan uses more than your take-home pay."
+								: "What’s left after all of that."
+						}
+						amount={formatMoney(state.freeToSpend)}
+					/>
+				</dl>
 			</Card>
-			<Card className="flex items-center justify-between gap-4 p-(--card-pad) text-sm">
-				<span>Bills</span>
-				<span className="font-medium tabular-nums">
-					{formatMoney(billsMonthly(answers.bills ?? []))} a month
-				</span>
-			</Card>
-			<Card className="flex items-center justify-between gap-4 p-(--card-pad) text-sm">
-				<span>Buckets</span>
-				<span className="font-medium tabular-nums">
-					{formatMoney(bucketsTotal(answers.buckets ?? []))} a month
-				</span>
-			</Card>
-			{answers.goal ? (
-				<Card className="flex items-center justify-between gap-4 p-(--card-pad) text-sm">
-					<span>Goal</span>
-					<span className="font-medium">{answers.goal.name}</span>
+			{unsaved.length > 0 ? (
+				<Card className="grid gap-3 p-(--card-pad) text-sm">
+					<FormError>
+						Some of what you entered isn’t on the Plan yet. Open the step and press Continue to save
+						it again.
+					</FormError>
+					<div className="flex flex-wrap gap-2">
+						{unsaved.map((step) => (
+							<Button
+								key={step}
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={() => onGo(step)}
+							>
+								Go to {SETUP_STEPS[step - 1]?.title}
+							</Button>
+						))}
+					</div>
 				</Card>
+			) : null}
+			{finish.isError ? (
+				<FormError>We couldn’t finish setup. Check your connection and try again.</FormError>
 			) : null}
 		</StepFrame>
 	);
