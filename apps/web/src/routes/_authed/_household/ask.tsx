@@ -1,5 +1,6 @@
 import { monthKeyAt } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
+import { Card } from "@noodle/ui/components/card";
 import { Input } from "@noodle/ui/components/input";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Skeleton } from "@noodle/ui/components/skeleton";
@@ -133,22 +134,21 @@ function AskPage() {
 						</p>
 					</div>
 				</div>
-				<aside
-					aria-labelledby="ask-sees"
-					className="hidden rounded-2xl border bg-card p-(--card-pad) shadow-card xl:sticky xl:top-6 xl:grid xl:gap-3"
-				>
-					<h2 id="ask-sees" className="text-sm font-semibold">
-						What Ask can see
-					</h2>
-					<ul className="grid list-disc gap-1.5 ps-4 text-sm text-muted-foreground">
-						<li>Your Plan, Buckets and Commitments</li>
-						<li>Spending and Transactions</li>
-						<li>Goals and how they're tracking</li>
-						<li>Whether you can afford something</li>
-					</ul>
-					<p className="text-sm text-muted-foreground">
-						Each answer lists the figures it used, with links to the screens that have more.
-					</p>
+				<aside aria-labelledby="ask-sees" className="hidden xl:sticky xl:top-6 xl:block">
+					<Card className="grid gap-3 p-(--card-pad)">
+						<h2 id="ask-sees" className="text-sm font-semibold">
+							What Ask can see
+						</h2>
+						<ul className="grid list-disc gap-1.5 ps-4 text-sm text-muted-foreground">
+							<li>Your Plan, Buckets and Commitments</li>
+							<li>Spending and Transactions</li>
+							<li>Goals and how they're tracking</li>
+							<li>Whether you can afford something</li>
+						</ul>
+						<p className="text-sm text-muted-foreground">
+							Each answer lists the figures it used, with links to the screens that have more.
+						</p>
+					</Card>
 				</aside>
 			</div>
 		</>
@@ -185,7 +185,7 @@ function Turn({ turn, onRetry }: { turn: AskTurnState; onRetry: () => void }) {
 						<p className="text-[15px] leading-relaxed whitespace-pre-line">{turn.answer}</p>
 					)}
 					{turn.facts.length > 0 ? (
-						<div className="rounded-2xl border bg-card px-(--card-pad) py-1 shadow-card">
+						<Card className="px-(--card-pad) py-1">
 							<Table aria-label="Figures">
 								<TableCaption className="sr-only">The figures this answer used</TableCaption>
 								<TableHeader>
@@ -212,7 +212,7 @@ function Turn({ turn, onRetry }: { turn: AskTurnState; onRetry: () => void }) {
 									))}
 								</TableBody>
 							</Table>
-						</div>
+						</Card>
 					) : null}
 					{turn.links.length > 0 ? (
 						<div className={cn("flex flex-wrap gap-2", waiting && "invisible")}>

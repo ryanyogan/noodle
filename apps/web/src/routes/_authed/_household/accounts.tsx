@@ -221,17 +221,19 @@ function AddAccountWays({ bank }: { bank: ConnectBank }) {
 	return (
 		<ul aria-label="Ways to add an Account" className="grid gap-3 md:grid-cols-3">
 			{ways.map((way) => (
-				<li key={way.title} className="grid content-start gap-2 rounded-2xl border bg-card p-4">
-					<p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-						{way.title}
-						{way.badge ? (
-							<span className="rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-foreground">
-								{way.badge}
-							</span>
-						) : null}
-					</p>
-					<p className="text-[13px] text-muted-foreground">{way.text}</p>
-					{way.action ? <div className="pt-1">{way.action}</div> : null}
+				<li key={way.title}>
+					<Card className="grid h-full content-start gap-2 p-(--card-pad)">
+						<p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+							{way.title}
+							{way.badge ? (
+								<span className="rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-foreground">
+									{way.badge}
+								</span>
+							) : null}
+						</p>
+						<p className="text-[13px] text-muted-foreground">{way.text}</p>
+						{way.action ? <div className="pt-1">{way.action}</div> : null}
+					</Card>
 				</li>
 			))}
 		</ul>

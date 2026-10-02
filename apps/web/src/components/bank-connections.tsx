@@ -1,3 +1,4 @@
+import { Alert, AlertDescription } from "@noodle/ui/components/alert";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field, FormError } from "@noodle/ui/components/field";
@@ -469,18 +470,20 @@ export function useConnectBank() {
 		chooseSheet: (
 			<>
 				{problem ? (
-					<p role="alert" className="text-sm text-over">
-						{problem}{" "}
-						<Button
-							variant="link"
-							size="inline"
-							className="text-current hover:text-current"
-							disabled={connect.isPending}
-							onClick={() => connect.mutate(undefined)}
-						>
-							Try again
-						</Button>
-					</p>
+					<Alert variant="destructive" role="alert">
+						<AlertDescription>
+							{problem}{" "}
+							<Button
+								variant="link"
+								size="inline"
+								className="text-current hover:text-current"
+								disabled={connect.isPending}
+								onClick={() => connect.mutate(undefined)}
+							>
+								Try again
+							</Button>
+						</AlertDescription>
+					</Alert>
 				) : null}
 				<ChooseAccountsSheet
 					connection={connections.find((c) => c.id === choosing) ?? null}

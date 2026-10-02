@@ -13,6 +13,7 @@ import {
 	type Statement,
 	statementFormat,
 } from "@noodle/domain";
+import { Alert, AlertDescription } from "@noodle/ui/components/alert";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Checkbox } from "@noodle/ui/components/checkbox";
@@ -427,9 +428,9 @@ export function UploadForm({
 				) : null}
 			</div>
 			{fileError ? (
-				<p role="alert" className="text-sm text-over">
-					{fileError}
-				</p>
+				<Alert variant="destructive" role="alert">
+					<AlertDescription>{fileError}</AlertDescription>
+				</Alert>
 			) : null}
 
 			{file && format === "csv" && mapping ? (
@@ -460,13 +461,15 @@ export function UploadForm({
 			) : null}
 
 			{upload.isError ? (
-				<p role="alert" className="text-sm text-over">
-					{upload.error instanceof StatementRefused
-						? upload.error.reason === "no-account"
-							? "This Account no longer exists."
-							: "Nothing in this file could be read."
-						: "Couldn’t import the statement. Check your connection and try again."}
-				</p>
+				<Alert variant="destructive" role="alert">
+					<AlertDescription>
+						{upload.error instanceof StatementRefused
+							? upload.error.reason === "no-account"
+								? "This Account no longer exists."
+								: "Nothing in this file could be read."
+							: "Couldn’t import the statement. Check your connection and try again."}
+					</AlertDescription>
+				</Alert>
 			) : null}
 
 			{file ? (
@@ -642,11 +645,13 @@ function StatementPreview({
 	return (
 		<section aria-label="Preview" className="grid gap-2">
 			{otherAccount ? (
-				<p role="alert" className="rounded-xl bg-over-soft px-3 py-2.5 text-[13px] text-over">
-					This file is for an account ending {otherAccount}, but earlier statements for{" "}
-					{account.name} were for one ending {pastDigits}. Check it’s the right Account before
-					importing.
-				</p>
+				<Alert variant="destructive" role="alert">
+					<AlertDescription>
+						This file is for an account ending {otherAccount}, but earlier statements for{" "}
+						{account.name} were for one ending {pastDigits}. Check it’s the right Account before
+						importing.
+					</AlertDescription>
+				</Alert>
 			) : null}
 			<p role="status" className="text-sm">
 				<span className="font-medium">
