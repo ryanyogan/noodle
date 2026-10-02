@@ -1,5 +1,16 @@
 # Desktop review (#47)
 
+## Summary (2026-10-01, #47 closed)
+
+Of the 253 rows: **221 fixed**, **25 partly fixed**, **1 won't fix in #47** (row 227), **2 moved to #50** (Review rework: rows 217 and 222, plus the rest of 218), **4 still open**. Row numbers below are line numbers in this file.
+
+Follow-ups:
+
+- #51 Desktop review leftovers: the 4 open rows (109 drag reordering, 140 stat grids, 330 Goal paths, 334 Scenario colors), the remainders of the partly fixed rows (51, 105, 128, 142, 146, 153, 155, 201, 203, 207, 234, 243, 249, 255, 265, 321, 325, 329, 331, 333, 339, 345 to 347) and row 227.
+- #50 Review rework: rows 217, 218 and 222.
+- #48 Mobile review: phone-only polish.
+
+
 On 2026-09-30 we went through every page under `apps/web/src/routes/_authed` as a Parent who is new to budgeting. We used the `fresh` and `busy` seeds (#46), signed in as Alex. For each page:
 
 - Screenshots at 1280, 1440 and 1920 wide, plus 393 as the phone baseline, in light and dark.
@@ -70,7 +81,7 @@ Measured on these pages: the content column is 672px (`max-w-2xl`) everywhere ex
 
 | Page | Issue | Severity | Fix | Phase | Status |
 |---|---|---|---|---|---|
-| This Month | One 672px column (R/month.$month.index.tsx:167,173; month-nav.tsx:18), 4,903px tall in busy. At 1440 about 440px is empty on the right; at 1920 about 725px. | high | Full-width header. Body `grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]`. Right rail (`lg:sticky lg:top-6 self-start`): Free to Spend card, Goals, Coming up (first 5 + "See all"), Income. Left: over-spent Buckets, Buckets, Personal Allowances, Commitments. | 6 | partly fixed (bafea46 and earlier): the rail is sticky with its own scroll (lg:max-h 100dvh - 2rem); Coming up shows the first 5 and a See all / Show fewer button, but stays in Bills on the left rather than in the rail; Coming up (first 5 + See all) in the rail from lg, phones keep the switch (65f99de) |
+| This Month | One 672px column (R/month.$month.index.tsx:167,173; month-nav.tsx:18), 4,903px tall in busy. At 1440 about 440px is empty on the right; at 1920 about 725px. | high | Full-width header. Body `grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]`. Right rail (`lg:sticky lg:top-6 self-start`): Free to Spend card, Goals, Coming up (first 5 + "See all"), Income. Left: over-spent Buckets, Buckets, Personal Allowances, Commitments. | 6 | fixed (bafea46, 65f99de): the rail is sticky with its own scroll; from lg, Coming up (first 5 + See all) is its own section in the rail and Bills shows only the month's bills; phones keep the This month / Coming up switch in Bills |
 | This Month | The same numbers don't agree. The "In Buckets" stat is $4,650 (it includes Personal Allowances), but the breakdown beside it says "$4,250 Buckets". The Goals header says "$250 of $1,109 funded" (only Goals with a monthly target count), but the breakdown says "$1,550 Goal funding". | high | One definition per figure. Rename the stat "In Buckets & allowances", or split it. The Goals header totals every Goal ("$1,550 funded · $859 still needed"). | 4 | fixed (881bb74) |
 | This Month | "A little over" repeats the Over badges already on the same Buckets below (Eating out appears twice). Only the first copy has Cover. "A little" understates Car maintenance at $1,095 over. | med | Drop the section. Sort over-spent Buckets to the top of Buckets, with the Cover button on the row. If a summary stays, call it "Over this month". | 4 | fixed (96d73ff): the section is gone; overspent Buckets sort first with Cover on their row |
 | This Month | Coming up (the next 30 days) and Commitments (paid or due this month) list the same bills one after the other. The identical Coming up list is also on the Plan. | med | One "Bills" section with a Paid / Coming up switch (shadcn Tabs). Remove Coming up from the Plan overview, or show only a count and a link. | 4 | fixed (96d73ff): one Bills section with a This month / Coming up switch; the Plan overview shows a count linking to it |
@@ -214,12 +225,12 @@ Checked and fine on these pages:
 | Transaction editor | Empty submit relies on the native bubble (dialogs.json); on close, focus goes to body | med | Inline validation; return focus to the row, or to the list if the row was unmounted by virtualization | 4 | fixed (69ff9f8) |
 | Transaction editor | "Assigned to" is one flat native select of 15 Buckets and 12 Commitments | med | Optgroups Buckets/Commitments, or a Command combobox with search | 5 | fixed (d4fcb47): a searchable Combobox (shadcn Command) with Buckets and Commitments as groups |
 | Review | A bank copy that wasn't auto-Matched (the amount differs, e.g. a tip) lands in Review as a new charge. The card never mentions the possible Match, so confirming it counts the spend twice | high | Card shows "Is this your Quick Add 'Costco' ($56.53, Sep 29)? [Match]" whenever `possibleMatches` finds one | 4 | fixed (8c22b81) |
-| Review | Desktop: one 576px card with the rest of the queue hidden, and no batch actions | high | lg list-detail: on the left, the queue (merchant, amount, date, guess, % sure, checkbox) with "Confirm all guesses over 90%"; on the right, the current card. Keep the swipe stack on phones | 6 | open |
-| Review | "66% sure" / "Best guess" give no reason; the empty state says "categorization" | low | "Noodle's guess: Clothing (you filed Kohl's here before)"; empty state "Anything Noodle isn't sure about waits here." | 2 | partly fixed (264a14f): "Noodle’s guess" and the empty state; the guess still gives no reason, which needs the reason kept with the guess |
+| Review | Desktop: one 576px card with the rest of the queue hidden, and no batch actions | high | lg list-detail: on the left, the queue (merchant, amount, date, guess, % sure, checkbox) with "Confirm all guesses over 90%"; on the right, the current card. Keep the swipe stack on phones | 6 | moved to #50 (Review rework) |
+| Review | "66% sure" / "Best guess" give no reason; the empty state says "categorization" | low | "Noodle's guess: Clothing (you filed Kohl's here before)"; empty state "Anything Noodle isn't sure about waits here." | 2 | partly fixed (264a14f): "Noodle’s guess" and the empty state; the guess still gives no reason, which needs the reason kept with the guess; the rest moved to #50 |
 | Review | Keyboard hint glyphs are tiny and ambiguous (← renders like an ellipsis) in text-subtle-foreground | low | shadcn Kbd, muted-foreground, text alternative | 5 | fixed (e375aaa) |
 | Review | Arrow/Enter shortcuts are bound on window without checking the target: Enter on the focused Rules link or Skip button also confirms the card | med | Ignore keys whose target is another interactive element, or scope them to the card region | 6 | fixed (50cc171): the shortcuts leave keys alone while a button or link in the page has focus |
 | Review (Change sheet) | Focus lands on Close; after Esc, focus goes to body (keyboard users land at the top of the page) | med | Focus "Assigned to"; return focus to Change | 4 | fixed (01753e6) |
-| Review | The Rule offer card is inserted above the next card and pushes it down after each decision | low | Reserve the slot, or use a Sonner toast with an action | 6 | open |
+| Review | The Rule offer card is inserted above the next card and pushes it down after each decision | low | Reserve the slot, or use a Sonner toast with an action | 6 | moved to #50 (Review rework) |
 | Rules | No way to add a Rule directly (only from a Review offer) | med | "Add Rule" button and sheet (merchant words, Bucket, For) | 4 | fixed (50cc171) |
 | Rules (Edit sheet) | "File unassigned matches now" clashes with the domain term Match, and is disabled after any edit with no reason | med | "File what's still unassigned now"; enable it after save, or save and file in one step | 2 | fixed (264a14f, 50cc171): after an edit the button saves and files in one step |
 | Rules | Rows have no chevron or edit affordance; "Filed 95" is unclear | low | Trailing chevron; "Filed 95 so far" | 6 | fixed (d931128) |
