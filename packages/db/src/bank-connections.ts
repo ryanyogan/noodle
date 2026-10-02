@@ -12,6 +12,7 @@ import {
 	accountBalances,
 	accounts,
 	bankConnections,
+	bankLinkSessions,
 	households,
 	imports,
 	transactions,
@@ -77,6 +78,8 @@ export async function addBankConnection(
 		provider: BankProvider;
 		externalId: string;
 		institution: string | null;
+		/** The provider's ID for the institution, when the Parent's browser said. */
+		institutionId?: string | null;
 		credential: string;
 		createdByMemberId: string;
 	},
@@ -90,6 +93,7 @@ export async function addBankConnection(
 			provider: input.provider,
 			externalId: input.externalId,
 			institution: input.institution,
+			institutionId: input.institutionId ?? null,
 			credential: input.credential,
 			createdByMemberId: input.createdByMemberId,
 			status: "choosing",
@@ -603,4 +607,85 @@ export async function markBankConnectionReconnected(
 		)
 		.returning({ id: bankConnections.id });
 	return written.length > 0;
+}
+
+/** A Bank Connection as the duplicate check reads it: which institution, and how to list its accounts. */
+export type BankConnectionToCompare = {
+	id: string;
+	provider: BankProvider;
+	institution: string | null;
+	institutionId: string | null;
+	credential: string;
+};
+
+/** The Household's Bank Connections, to tell whether a bank a Parent just linked is one of them. */
+export async function loadBankConnectionsToCompare(
+	db: Db,
+	householdId: string,
+): Promise<BankConnectionToCompare[]> {
+	return db
+		.select({
+			id: bankConnections.id,
+			provider: bankConnections.provider,
+			institution: bankConnections.institution,
+			institutionId: bankConnections.institutionId,
+			credential: bankConnections.credential,
+		})
+		.from(bankConnections)
+		.where(eq(bankConnections.householdId, householdId))
+		.orderBy(asc(bankConnections.createdAt), asc(bankConnections.id));
+}
+
+/** A Parent's Plaid Link in progress: its link token, and the page to go back to. */
+export type BankLinkSession = {
+	linkToken: string;
+	returnTo: string;
+	/** The Bank Connection being logged in to again; null when it's a new one. */
+	connectionId: string | null;
+};
+
+/** Plaid's link tokens last 4 hours, and 30 minutes in update mode. */
+const LINK_TOKEN_MS = 4 * 60 * 60 * 1000;
+const UPDATE_LINK_TOKEN_MS = 30 * 60 * 1000;
+
+/** Keeps the Parent's Link in progress, in place of any earlier one of theirs. */
+export async function saveBankLinkSession(
+	db: Db,
+	input: BankLinkSession & { householdId: string; memberId: string; now: Date },
+): Promise<void> {
+	const values = {
+		householdId: input.householdId,
+		linkToken: input.linkToken,
+		returnTo: input.returnTo,
+		connectionId: input.connectionId,
+		createdAt: input.now,
+	};
+	await db
+		.insert(bankLinkSessions)
+		.values({ memberId: input.memberId, ...values })
+		.onConflictDoUpdate({ target: bankLinkSessions.memberId, set: values });
+}
+
+/** The Parent's Link in progress; null when there's none, or its link token has expired. */
+export async function loadBankLinkSession(
+	db: Db,
+	householdId: string,
+	memberId: string,
+	now: Date,
+): Promise<BankLinkSession | null> {
+	const [row] = await db
+		.select()
+		.from(bankLinkSessions)
+		.where(
+			and(eq(bankLinkSessions.memberId, memberId), eq(bankLinkSessions.householdId, householdId)),
+		);
+	if (!row) return null;
+	const age = now.getTime() - row.createdAt.getTime();
+	if (age > (row.connectionId ? UPDATE_LINK_TOKEN_MS : LINK_TOKEN_MS)) return null;
+	return { linkToken: row.linkToken, returnTo: row.returnTo, connectionId: row.connectionId };
+}
+
+/** Forgets the Parent's Link in progress, once it's finished. */
+export async function clearBankLinkSession(db: Db, memberId: string): Promise<void> {
+	await db.delete(bankLinkSessions).where(eq(bankLinkSessions.memberId, memberId));
 }

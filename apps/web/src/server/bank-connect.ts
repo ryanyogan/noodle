@@ -37,7 +37,14 @@ const tracked = (accounts: BankAccount[]) =>
 
 export async function connectInstitution(
 	deps: Deps,
-	input: { householdId: string; memberId: string; connectionId: string; handoff: BankHandoff },
+	input: {
+		householdId: string;
+		memberId: string;
+		connectionId: string;
+		handoff: BankHandoff;
+		/** The provider's ID for the institution, kept to spot the same bank linked again. */
+		institutionId?: string | null;
+	},
 ): Promise<ConnectInstitutionResult> {
 	const { householdId, connectionId } = input;
 	const link = await deps.provider.connect(input.handoff);
@@ -50,6 +57,7 @@ export async function connectInstitution(
 		provider: deps.provider.provider,
 		externalId: link.externalId,
 		institution: link.institution,
+		institutionId: input.institutionId ?? null,
 		credential: await sealCredential(deps.key, link.credential, { householdId, connectionId }),
 		createdByMemberId: input.memberId,
 	});

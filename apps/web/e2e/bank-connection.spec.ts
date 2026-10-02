@@ -100,6 +100,12 @@ test("a Parent connects a bank, and its Accounts and Transactions come in", asyn
 	// The same login again is refused rather than doubled.
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await bankConnections(page).getByRole("button", { name: "Connect a bank" }).click();
+	// Noodle sees it's the same bank and accounts, and offers to reconnect instead (#71). A Parent
+	// who says it's a different login goes on, and the same Item is still refused.
+	await page
+		.getByRole("dialog", { name: /already connected First Platypus Bank/ })
+		.getByRole("button", { name: "It’s a different login" })
+		.click();
 	await expect(toast(page, "That bank is connected already.")).toBeVisible();
 	await expect(bankConnections(page).getByRole("listitem")).toHaveCount(1);
 });

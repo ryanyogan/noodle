@@ -76,6 +76,12 @@ export type LinkTokenOptions = {
 	webhook?: string | null;
 	/** The Item's access token, to log in to it again (update mode) rather than link a new one. */
 	accessToken?: string;
+	/**
+	 * Where a bank that logs the Parent in on its own page or app (OAuth) sends them back: the
+	 * app's /bank/return, which must be among the Allowed redirect URIs in Plaid's dashboard. None
+	 * where the app isn't at an address registered there.
+	 */
+	redirectUri?: string | null;
 };
 
 /**
@@ -94,6 +100,7 @@ export async function createLinkToken(
 		country_codes: ["US"],
 		user: { client_user_id: householdId },
 		...(options.webhook ? { webhook: options.webhook } : {}),
+		...(options.redirectUri ? { redirect_uri: options.redirectUri } : {}),
 		...(options.accessToken
 			? { access_token: options.accessToken }
 			: { products: ["transactions"], transactions: { days_requested: 90 } }),

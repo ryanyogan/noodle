@@ -25,6 +25,7 @@ import { Route as AuthedHouseholdInsightsRouteImport } from './routes/_authed/_h
 import { Route as AuthedHouseholdPerksRouteImport } from './routes/_authed/_household/perks'
 import { Route as AuthedHouseholdReportsRouteImport } from './routes/_authed/_household/reports'
 import { Route as AuthedHouseholdReviewRouteImport } from './routes/_authed/_household/review'
+import { Route as AuthedBankReturnRouteImport } from './routes/_authed/bank.return'
 import { Route as AuthedHouseholdAccountsIndexRouteImport } from './routes/_authed/_household/accounts.index'
 import { Route as AuthedHouseholdAccountsAccountIdRouteImport } from './routes/_authed/_household/accounts.$accountId'
 import { Route as AuthedHouseholdExploreIndexRouteImport } from './routes/_authed/_household/explore.index'
@@ -133,6 +134,11 @@ const AuthedHouseholdReviewRoute = AuthedHouseholdReviewRouteImport.update({
   id: '/review',
   path: '/review',
   getParentRoute: () => AuthedHouseholdRoute,
+} as any)
+const AuthedBankReturnRoute = AuthedBankReturnRouteImport.update({
+  id: '/bank/return',
+  path: '/bank/return',
+  getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedHouseholdAccountsIndexRoute =
   AuthedHouseholdAccountsIndexRouteImport.update({
@@ -324,6 +330,7 @@ export interface FileRoutesByFullPath {
   '/perks': typeof AuthedHouseholdPerksRoute
   '/reports': typeof AuthedHouseholdReportsRoute
   '/review': typeof AuthedHouseholdReviewRouteWithChildren
+  '/bank/return': typeof AuthedBankReturnRoute
   '/accounts/$accountId': typeof AuthedHouseholdAccountsAccountIdRoute
   '/explore/afford': typeof AuthedHouseholdExploreAffordRoute
   '/explore/scenarios': typeof AuthedHouseholdExploreScenariosRoute
@@ -366,6 +373,7 @@ export interface FileRoutesByTo {
   '/household': typeof AuthedHouseholdHouseholdRoute
   '/perks': typeof AuthedHouseholdPerksRoute
   '/reports': typeof AuthedHouseholdReportsRoute
+  '/bank/return': typeof AuthedBankReturnRoute
   '/accounts/$accountId': typeof AuthedHouseholdAccountsAccountIdRoute
   '/explore/afford': typeof AuthedHouseholdExploreAffordRoute
   '/explore/scenarios': typeof AuthedHouseholdExploreScenariosRoute
@@ -412,6 +420,7 @@ export interface FileRoutesById {
   '/_authed/_household/perks': typeof AuthedHouseholdPerksRoute
   '/_authed/_household/reports': typeof AuthedHouseholdReportsRoute
   '/_authed/_household/review': typeof AuthedHouseholdReviewRouteWithChildren
+  '/_authed/bank/return': typeof AuthedBankReturnRoute
   '/_authed/_household/accounts/$accountId': typeof AuthedHouseholdAccountsAccountIdRoute
   '/_authed/_household/explore/afford': typeof AuthedHouseholdExploreAffordRoute
   '/_authed/_household/explore/scenarios': typeof AuthedHouseholdExploreScenariosRoute
@@ -459,6 +468,7 @@ export interface FileRouteTypes {
     | '/perks'
     | '/reports'
     | '/review'
+    | '/bank/return'
     | '/accounts/$accountId'
     | '/explore/afford'
     | '/explore/scenarios'
@@ -501,6 +511,7 @@ export interface FileRouteTypes {
     | '/household'
     | '/perks'
     | '/reports'
+    | '/bank/return'
     | '/accounts/$accountId'
     | '/explore/afford'
     | '/explore/scenarios'
@@ -546,6 +557,7 @@ export interface FileRouteTypes {
     | '/_authed/_household/perks'
     | '/_authed/_household/reports'
     | '/_authed/_household/review'
+    | '/_authed/bank/return'
     | '/_authed/_household/accounts/$accountId'
     | '/_authed/_household/explore/afford'
     | '/_authed/_household/explore/scenarios'
@@ -696,6 +708,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/review'
       preLoaderRoute: typeof AuthedHouseholdReviewRouteImport
       parentRoute: typeof AuthedHouseholdRoute
+    }
+    '/_authed/bank/return': {
+      id: '/_authed/bank/return'
+      path: '/bank/return'
+      fullPath: '/bank/return'
+      preLoaderRoute: typeof AuthedBankReturnRouteImport
+      parentRoute: typeof AuthedRoute
     }
     '/_authed/_household/accounts/': {
       id: '/_authed/_household/accounts/'
@@ -1055,6 +1074,7 @@ interface AuthedRouteChildren {
   AuthedJoinedRoute: typeof AuthedJoinedRoute
   AuthedSetupRoute: typeof AuthedSetupRoute
   AuthedWelcomeRoute: typeof AuthedWelcomeRoute
+  AuthedBankReturnRoute: typeof AuthedBankReturnRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
@@ -1062,6 +1082,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedJoinedRoute: AuthedJoinedRoute,
   AuthedSetupRoute: AuthedSetupRoute,
   AuthedWelcomeRoute: AuthedWelcomeRoute,
+  AuthedBankReturnRoute: AuthedBankReturnRoute,
 }
 
 const AuthedRouteWithChildren =

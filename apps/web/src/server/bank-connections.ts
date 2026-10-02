@@ -1,16 +1,22 @@
 import { env } from "cloudflare:workers";
 import {
 	type BankConnectionSummary,
+	type BankLinkSession,
 	type BankProvider,
+	clearBankLinkSession,
 	loadBankConnections,
+	loadBankConnectionsToCompare,
 	loadBankConnectionToImport,
+	loadBankLinkSession,
 	markBankConnectionReconnected,
+	saveBankLinkSession,
 	unpairAccount,
 } from "@noodle/db";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestUrl } from "@tanstack/react-start/server";
 import { monotonicFactory, ulid } from "ulid";
 import { z } from "zod";
+import { BANK_RETURN_PATH, duplicateOf, type KnownBank, sameBank } from "../bank-link";
 import {
 	applyBankChoices,
 	type BankChoice,
@@ -74,16 +80,160 @@ function webhookUrl(): string | null {
 	return origin.startsWith("https://") ? `${origin}${PLAID_WEBHOOK_PATH}` : null;
 }
 
-/** A link token for Plaid Link, for this Household. */
+/**
+ * Where a bank that logs the Parent in on its own page or app (OAuth) sends them back:
+ * APP_ORIGIN's /bank/return, which is the address registered under Allowed redirect URIs in
+ * Plaid's dashboard. Only when the app is being served from there over HTTPS: a local copy, or a
+ * preview at another address, sends none (Plaid would refuse an unregistered one, and a bank
+ * would send the Parent to the wrong copy). PLAID_REDIRECT_URI names another registered address,
+ * for a local copy trying OAuth against Sandbox.
+ */
+function redirectUri(): string | null {
+	const { APP_ORIGIN, PLAID_REDIRECT_URI } = env as unknown as {
+		APP_ORIGIN?: string;
+		PLAID_REDIRECT_URI?: string;
+	};
+	if (PLAID_REDIRECT_URI) return PLAID_REDIRECT_URI;
+	if (!APP_ORIGIN?.startsWith("https://") || getRequestUrl().origin !== APP_ORIGIN) return null;
+	return `${APP_ORIGIN}${BANK_RETURN_PATH}`;
+}
+
+/**
+ * The page a Parent started connecting from, to go back to after Link: Accounts, an Account's
+ * page or the get-started wizard. Anything else is Accounts.
+ */
+const returnToSchema = z
+	.string()
+	.max(100)
+	.regex(/^\/(setup|accounts(\/[0-9A-Za-z]{1,40})?)$/)
+	.catch("/accounts");
+
+/** A link token for Plaid Link, for this Household, made when the Parent presses Connect. */
 export const startBankLink = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
-	.handler(async ({ context }): Promise<StartBankLinkResult> => {
+	.validator(z.object({ returnTo: returnToSchema }))
+	.handler(async ({ data, context }): Promise<StartBankLinkResult> => {
 		const plaid = bankSetup()?.plaid;
 		if (!plaid) return { ok: false, reason: "not-set-up" };
-		return {
-			ok: true,
-			linkToken: await plaid.linkToken(context.household.id, { webhook: webhookUrl() }),
-		};
+		const linkToken = await plaid.linkToken(context.household.id, {
+			webhook: webhookUrl(),
+			redirectUri: redirectUri(),
+		});
+		await saveBankLinkSession(getDb(), {
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			linkToken,
+			returnTo: data.returnTo,
+			connectionId: null,
+			now: new Date(),
+		});
+		return { ok: true, linkToken };
+	});
+
+/**
+ * The Parent's Link in progress, for /bank/return when the browser it opens in doesn't have it
+ * (an installed PWA whose bank came back in Safari, say); null when there's none still usable.
+ */
+export const getBankLinkSession = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.handler(
+		({ context }): Promise<BankLinkSession | null> =>
+			loadBankLinkSession(getDb(), context.household.id, context.parent.id, new Date()),
+	);
+
+const linkText = z.string().max(200).nullable();
+
+/**
+ * Notes what Plaid Link did, in the Worker's logs: the event, Link's session and request IDs (what
+ * Plaid support asks for when a connect fails) and any error's type and code. No account data and
+ * no names: the institution is its Plaid ID, the Household its own ID.
+ */
+export const logBankLinkEvent = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			event: z.enum(["OPEN", "SELECT_INSTITUTION", "ERROR", "EXIT", "HANDOFF"]),
+			mode: z.enum(["connect", "reconnect"]),
+			linkSessionId: linkText,
+			requestId: linkText,
+			errorType: linkText,
+			errorCode: linkText,
+			exitStatus: linkText,
+			viewName: linkText,
+			institutionId: linkText,
+		}),
+	)
+	.handler(async ({ data, context }): Promise<void> => {
+		console.log(
+			JSON.stringify({
+				log: "plaid-link",
+				event: data.event,
+				mode: data.mode,
+				link_session_id: data.linkSessionId,
+				request_id: data.requestId,
+				error_type: data.errorType,
+				error_code: data.errorCode,
+				exit_status: data.exitStatus,
+				view_name: data.viewName,
+				institution_id: data.institutionId,
+				household_id: context.household.id,
+			}),
+		);
+	});
+
+export type BankDuplicate = { connectionId: string; institution: string | null };
+
+/**
+ * Whether the bank a Parent just linked is one the Household has connected already: the same
+ * institution, with no account there that the Bank Connection doesn't list (by last digits). Asked
+ * before Link's public token is exchanged, so the Parent can reconnect the one they have instead
+ * of making a second Item (each counts against Plaid's plan, and would bring every line in twice;
+ * ADR-0017).
+ */
+export const checkBankDuplicate = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			institutionId: z.string().trim().max(100).nullable(),
+			institution: z.string().trim().max(100).nullable(),
+			masks: z.array(z.string().trim().min(1).max(10)).max(100),
+		}),
+	)
+	.handler(async ({ data, context }): Promise<BankDuplicate | null> => {
+		const setup = bankSetup();
+		if (!setup) return null;
+		const householdId = context.household.id;
+		const connections = (await loadBankConnectionsToCompare(getDb(), householdId)).filter((c) =>
+			sameBank(data, c),
+		);
+		if (connections.length === 0) return null;
+		const key = await setup.key();
+		const known = await Promise.all(
+			connections.map(async (connection): Promise<KnownBank> => {
+				const { id, institution, institutionId } = connection;
+				try {
+					const credential = await openCredential(key, connection.credential, {
+						householdId,
+						connectionId: id,
+					});
+					const accounts = await setup.plaid.provider.accounts(credential);
+					return {
+						connectionId: id,
+						institution,
+						institutionId,
+						masks: accounts.flatMap((account) => (account.mask ? [account.mask] : [])),
+					};
+				} catch {
+					// It can't be read just now (its login lapsed, most likely): the same bank, and
+					// reconnecting is what it needs.
+					return { connectionId: id, institution, institutionId, masks: null };
+				}
+			}),
+		);
+		const duplicate = duplicateOf(data, known);
+		return duplicate
+			? { connectionId: duplicate.connectionId, institution: duplicate.institution }
+			: null;
 	});
 
 export type StartBankReconnectResult =
@@ -93,7 +243,7 @@ export type StartBankReconnectResult =
 /** A link token for Plaid Link in update mode: a Parent logs in to a Bank Connection's Item again. */
 export const startBankReconnect = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
-	.validator(z.object({ connectionId: ulidSchema }))
+	.validator(z.object({ connectionId: ulidSchema, returnTo: returnToSchema }))
 	.handler(async ({ data, context }): Promise<StartBankReconnectResult> => {
 		const setup = bankSetup();
 		if (!setup) return { ok: false, reason: "not-set-up" };
@@ -104,10 +254,20 @@ export const startBankReconnect = createServerFn({ method: "POST" })
 			householdId,
 			connectionId: connection.id,
 		});
-		return {
-			ok: true,
-			linkToken: await setup.plaid.linkToken(householdId, { webhook: webhookUrl(), accessToken }),
-		};
+		const linkToken = await setup.plaid.linkToken(householdId, {
+			webhook: webhookUrl(),
+			redirectUri: redirectUri(),
+			accessToken,
+		});
+		await saveBankLinkSession(getDb(), {
+			householdId,
+			memberId: context.parent.id,
+			linkToken,
+			returnTo: data.returnTo,
+			connectionId: connection.id,
+			now: new Date(),
+		});
+		return { ok: true, linkToken };
 	});
 
 /** A Parent logged in again: the Bank Connection is ready, and syncs at once. */
@@ -116,8 +276,16 @@ export const finishBankReconnect = createServerFn({ method: "POST" })
 	.validator(z.object({ connectionId: ulidSchema }))
 	.handler(async ({ data, context }): Promise<{ ok: boolean }> => {
 		const { household } = context;
+		await clearBankLinkSession(getDb(), context.parent.id);
 		const ready = await markBankConnectionReconnected(getDb(), household.id, data.connectionId);
-		if (!ready) return { ok: false };
+		if (!ready) {
+			// It wasn't waiting for a login (a Parent linked the same bank again and chose to
+			// reconnect the one they have): it stays as it was, and is read now all the same.
+			const connections = await loadBankConnections(getDb(), household.id);
+			if (!connections.some((connection) => connection.id === data.connectionId)) {
+				return { ok: false };
+			}
+		}
 		await notifyHousehold(household.id, ["bank-connections"]);
 		const message: BankImportMessage = {
 			kind: "bank-import",
@@ -143,12 +311,14 @@ export const connectBank = createServerFn({ method: "POST" })
 			connectionId: ulidSchema,
 			publicToken: z.string().trim().min(1).max(200),
 			institution: z.string().trim().min(1).max(100).nullable(),
+			institutionId: z.string().trim().min(1).max(100).nullable().default(null),
 		}),
 	)
 	.handler(async ({ data, context }): Promise<ConnectBankResult> => {
 		const setup = bankSetup();
 		if (!setup) return { ok: false, reason: "not-set-up" };
 		const { household, parent } = context;
+		await clearBankLinkSession(getDb(), parent.id);
 		const result = await connectInstitution(
 			{ db: getDb(), provider: setup.plaid.provider, key: await setup.key() },
 			{
@@ -156,6 +326,7 @@ export const connectBank = createServerFn({ method: "POST" })
 				memberId: parent.id,
 				connectionId: data.connectionId,
 				handoff: { token: data.publicToken, institution: data.institution },
+				institutionId: data.institutionId,
 			},
 		);
 		if (result.ok) await notifyHousehold(household.id, ["bank-connections"]);

@@ -243,6 +243,9 @@ export const bankConnections = sqliteTable(
 		provider: text("provider", { enum: ["plaid"] }).notNull(),
 		externalId: text("external_id").notNull(),
 		institution: text("institution"),
+		// Plaid's ID for the institution, kept to tell when a Parent links the same bank again (#71).
+		// Null on Bank Connections made before it was kept; those are told by name.
+		institutionId: text("institution_id"),
 		credential: text("credential").notNull(),
 		cursor: text("cursor"),
 		// "choosing" until a Parent has said which Accounts its accounts are (ADR-0020): nothing is
@@ -261,6 +264,21 @@ export const bankConnections = sqliteTable(
 	},
 	(t) => [uniqueIndex("bank_connections_external_idx").on(t.householdId, t.provider, t.externalId)],
 );
+
+// A Parent's Plaid Link in progress (#71): the link token and the page they started from, kept
+// while their bank's own page or app has the screen, for when it comes back to /bank/return in a
+// browser that doesn't have them (an installed PWA handing off to Safari, say). One per Parent,
+// overwritten by the next, and ignored once the token would have expired. No foreign keys: it's
+// short-lived, and must never stand in the way of removing a Parent or a Bank Connection.
+export const bankLinkSessions = sqliteTable("bank_link_sessions", {
+	memberId: text("member_id").primaryKey(),
+	householdId: text("household_id").notNull(),
+	linkToken: text("link_token").notNull(),
+	returnTo: text("return_to").notNull(),
+	// The Bank Connection being logged in to again (update mode); null for a new one.
+	connectionId: text("connection_id"),
+	createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+});
 
 // A real-world place money lives or is owed, entered by hand or brought in by a Bank Connection
 // (with the provider's ID for it). For credit cards and loans the balance is what's owed. `kind`
