@@ -41,6 +41,48 @@ async function addYearly(page: Page, name: string, due: string, dueDate: string)
 	await expect(page.getByRole("button", { name: `Edit ${name}` })).toBeVisible();
 }
 
+test("On a phone, Bills switches between this month's bills and Coming up", async ({ browser }) => {
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "9,000", buckets: [["Groceries", "1,200"]] });
+	await switchTo(page, "Plan");
+	await waterfall(page).getByRole("link", { name: "Commitments", exact: true }).click();
+	const month = /\/plan\/(\d{4}-\d{2})\//.exec(page.url())?.[1];
+	if (!month) throw new Error(`No month in ${page.url()}`);
+	const [year = 0, m = 0] = month.split("-").map(Number);
+	const lastDay = new Date(Date.UTC(year, m, 0)).getUTCDate();
+	const day = new Date().getDate() <= 28 ? 28 : lastDay;
+	await addYearly(page, "Car insurance", "1,140", `${month}-${day}`);
+	await addYearly(page, "Gym", "300", `${addMonths(month, 2)}-10`);
+	await page.getByRole("link", { name: "Back to Plan" }).click();
+	await expect(waterfall(page)).toBeVisible();
+	await switchTo(page, "Month");
+
+	// Below lg there's no rail: Bills holds both lists behind a two-tab switch.
+	await page.setViewportSize({ width: 393, height: 852 });
+	const tabs = bills(page).getByRole("tablist", { name: "Bills" });
+	await expect(tabs).toBeVisible();
+	await expect(comingUp(page)).toBeHidden();
+	const thisMonth = tabs.getByRole("tab", { name: "This month" });
+	const upcoming = tabs.getByRole("tab", { name: "Coming up (1)" });
+	await expect(thisMonth).toHaveAttribute("aria-selected", "true");
+	const panel = bills(page).getByRole("tabpanel");
+	await expect(panel.getByRole("link", { name: "Car insurance" })).toBeVisible();
+
+	await upcoming.click();
+	await expect(upcoming).toHaveAttribute("aria-selected", "true");
+	await expect(
+		panel.getByRole("listitem", { name: /^Car insurance, due .*, \$1,140$/ }),
+	).toBeVisible();
+	await expect(panel.getByText("Gym")).toHaveCount(0);
+
+	// Arrow keys move between the tabs too.
+	await page.keyboard.press("ArrowLeft");
+	await expect(thisMonth).toHaveAttribute("aria-selected", "true");
+	await expect(thisMonth).toBeFocused();
+	const sw = await page.evaluate(() => document.documentElement.scrollWidth);
+	expect(sw).toBeLessThanOrEqual(393);
+});
+
 test("Commitments show what's coming up, why a month is lumpy, and each one's page", async ({
 	browser,
 }) => {
