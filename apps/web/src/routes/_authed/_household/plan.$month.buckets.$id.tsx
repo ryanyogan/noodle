@@ -1,10 +1,10 @@
 import type { BucketMonth, BucketRecord, BucketState, MonthKey } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
+import { BudgetBar } from "@noodle/ui/components/budget-bar";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { FormError } from "@noodle/ui/components/field";
 import { List } from "@noodle/ui/components/list";
-import { Meter } from "@noodle/ui/components/meter";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
@@ -20,7 +20,7 @@ import {
 import { createFileRoute, Link, linkOptions, notFound, useHydrated } from "@tanstack/react-router";
 import { ArchiveRestore, ChartColumn, ChevronLeft, Pencil } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { asBucketColor, availableParts } from "../../../buckets";
+import { asBucketColor, availableParts, barState } from "../../../buckets";
 import { BucketSheet, useBucketChanges } from "../../../components/bucket-editor";
 import { DetailHeader, DetailPager, DetailPending } from "../../../components/master-detail";
 import { PlanHistoryList } from "../../../components/plan-history";
@@ -287,7 +287,6 @@ function BackToBuckets({ month }: { month: MonthKey }) {
 /** What's left of what it has this month, where that came from, and its Pace. */
 function ThisMonth({ bucket }: { bucket: BucketState }) {
 	const parts = availableParts(bucket);
-	const share = (cents: number) => (bucket.available > 0 ? cents / bucket.available : 0);
 	return (
 		<Card role="region" aria-labelledby="bucket-this-month">
 			<div className="grid gap-3 p-(--card-pad)">
@@ -311,9 +310,15 @@ function ThisMonth({ bucket }: { bucket: BucketState }) {
 					</div>
 				</div>
 				<p className="flex flex-wrap items-baseline gap-x-2">
-					<span className="text-[2.25rem] font-[650] leading-[1.05] tracking-[-0.035em] tabular-nums">
-						{formatMoney(Math.max(0, bucket.left))}
-					</span>
+					{bucket.left < 0 ? (
+						<span className="text-[2.25rem] font-[650] leading-[1.05] tracking-[-0.035em] text-over-foreground tabular-nums">
+							{formatMoney(-bucket.left)} over
+						</span>
+					) : (
+						<span className="text-[2.25rem] font-[650] leading-[1.05] tracking-[-0.035em] tabular-nums">
+							{formatMoney(bucket.left)}
+						</span>
+					)}
 					{/* Below zero, "of −$1,035" says nothing: the parts beneath explain it instead. */}
 					{bucket.available >= 0 ? (
 						<span className="text-sm text-muted-foreground tabular-nums">
@@ -321,11 +326,18 @@ function ThisMonth({ bucket }: { bucket: BucketState }) {
 						</span>
 					) : null}
 				</p>
-				<Meter
+				<BudgetBar
 					bucket={asBucketColor(bucket.color)}
-					left={share(bucket.left)}
-					paceLeft={bucket.pace.leftShare}
-					over={bucket.status === "over"}
+					value={bucket.spent}
+					max={bucket.available}
+					marker={1 - bucket.pace.leftShare}
+					state={barState(bucket.status)}
+					label={`${bucket.name} this month`}
+					valueText={`${formatMoney(bucket.spent)} spent of ${formatMoney(bucket.available)}, ${
+						bucket.left < 0
+							? `${formatMoney(-bucket.left)} over`
+							: `${formatMoney(bucket.left)} left`
+					}`}
 				/>
 				{parts ? <p className="text-xs text-muted-foreground tabular-nums">{parts}</p> : null}
 			</div>

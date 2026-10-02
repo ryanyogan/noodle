@@ -10,13 +10,13 @@ import {
 	parseDollars,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
+import { BudgetBar } from "@noodle/ui/components/budget-bar";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { DatePicker } from "@noodle/ui/components/date-picker";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { MetaParts } from "@noodle/ui/components/meta-parts";
-import { Progress } from "@noodle/ui/components/progress";
 import { OptionSelect } from "@noodle/ui/components/select";
 import {
 	Sheet,
@@ -213,11 +213,12 @@ export function AmountInput({ className, ...props }: Omit<ComponentProps<"input"
 }
 
 /**
- * How much of a Goal's target is saved: a quiet bar, no colour. Decorative: the row beside it says
- * the same in words, and it often sits inside a link, where a progressbar can't.
+ * How much of a Goal's target is saved: the one bar (BudgetBar), filling toward the target in the
+ * brand ink. Decorative: the row beside it says the same in words, and it often sits inside a
+ * link, where a meter can't.
  */
 export function GoalProgressBar({ share, className }: { share: number; className?: string }) {
-	return <Progress aria-hidden="true" value={share * 100} className={className} />;
+	return <BudgetBar value={share} max={1} className={className} />;
 }
 
 /**

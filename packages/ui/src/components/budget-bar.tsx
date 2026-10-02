@@ -12,7 +12,13 @@ import type { BucketColor } from "./tile";
  *   badge beside it always agree. "ahead" turns the stretch past the marker marigold and striped;
  *   "over" fills the whole bar in the over ink, striped. Stripes, so colour isn't the only signal.
  * - It is `role="meter"`, named by `label`, with `valueText` saying the value in words
- *   ("$280 spent of $600, $320 left"). Put the same words next to it on screen.
+ *   ("$280 spent of $600, $320 left"). Put the same words next to it on screen. Without a
+ *   `label` it is decorative (aria-hidden): only where the words beside it already say the
+ *   value and it sits inside a link (a Goal row).
+ * - `start` (a share, 0–1) floats the fill: it begins there instead of at the left. The Plan's
+ *   waterfall uses it, each step placed where it falls on the way down from take-home pay.
+ * - `fill` sets the fill's colour directly (a CSS colour) when it isn't a Bucket or the brand:
+ *   the neutral inks of a summary, or a Reports series colour.
  */
 function BudgetBar({
 	value,
@@ -20,41 +26,53 @@ function BudgetBar({
 	label,
 	valueText,
 	bucket,
+	fill,
+	start = 0,
 	marker,
 	state,
 	className,
 }: {
 	value: number;
 	max: number;
-	label: string;
-	valueText: string;
+	label?: string;
+	valueText?: string;
 	/** The fill's colour: the Bucket's (or a Goal's Bucket). Without it, the brand ink. */
 	bucket?: BucketColor;
+	fill?: string;
+	start?: number;
 	marker?: number;
 	state?: "ahead" | "over";
 	className?: string;
 }) {
-	const share = max > 0 ? clamp(value / max) : value > 0 ? 1 : 0;
+	const from = clamp(start);
+	const share = Math.min(1 - from, max > 0 ? clamp(value / max) : value > 0 ? 1 : 0);
 	const at = marker === undefined ? undefined : clamp(marker);
 	const over = state === "over";
 	// Only the stretch past Today is "ahead"; what came before it is ordinary spending.
 	const ahead = state === "ahead" && at !== undefined ? Math.max(0, share - at) : 0;
-	const base = over ? 1 : share - ahead;
+	const base = over ? 1 - from : share - ahead;
+	// Named, it's a meter (a native <meter> can't hold the Today line or the stripes, and its look
+	// differs per browser); unnamed, it's decorative.
+	const a11y =
+		label === undefined
+			? { "aria-hidden": true }
+			: {
+					role: "meter",
+					"aria-label": label,
+					"aria-valuemin": 0,
+					"aria-valuemax": Math.max(0, max),
+					"aria-valuenow": Math.min(Math.max(0, value), Math.max(0, max)),
+					"aria-valuetext": valueText,
+				};
 	return (
-		// biome-ignore lint/a11y/useSemanticElements: a native <meter> can't hold the Today line or the stripes, and its look differs per browser.
 		<div
-			role="meter"
-			aria-label={label}
-			aria-valuemin={0}
-			aria-valuemax={Math.max(0, max)}
-			aria-valuenow={Math.min(Math.max(0, value), Math.max(0, max))}
-			aria-valuetext={valueText}
+			{...a11y}
 			data-slot="budget-bar"
 			data-state={state}
 			className={cn("relative h-2 w-full rounded-full bg-surface-3", className)}
 			style={
 				{
-					["--bar" as string]: bucket ? `var(--bucket-${bucket})` : "var(--brand)",
+					["--bar" as string]: fill ?? (bucket ? `var(--bucket-${bucket})` : "var(--brand)"),
 				} as React.CSSProperties
 			}
 		>
@@ -62,10 +80,10 @@ function BudgetBar({
 				<div
 					data-slot="budget-bar-fill"
 					className={cn(
-						"absolute inset-y-0 left-0 transition-[width] duration-(--duration-meter) ease-spring",
+						"absolute inset-y-0 rounded-full transition-[left,width] duration-(--duration-meter) ease-spring",
 						over ? `bg-over ${STRIPES}` : "bg-(--bar)",
 					)}
-					style={{ width: pct(base) }}
+					style={{ left: pct(from), width: pct(base) }}
 				/>
 				{ahead > 0 ? (
 					<div
@@ -74,7 +92,7 @@ function BudgetBar({
 							"absolute inset-y-0 bg-pace transition-[left,width] duration-(--duration-meter) ease-spring",
 							STRIPES,
 						)}
-						style={{ left: pct(base), width: pct(ahead) }}
+						style={{ left: pct(from + base), width: pct(ahead) }}
 					/>
 				) : null}
 			</div>

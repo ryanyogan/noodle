@@ -43,7 +43,7 @@ import {
 } from "lucide-react";
 import { type ReactNode, useId, useState } from "react";
 import { ulid } from "ulid";
-import { asBucketColor, availableParts, monogram } from "../../../buckets";
+import { asBucketColor, availableParts, barState, monogram } from "../../../buckets";
 import { Bills, ComingUpSection } from "../../../components/bills";
 import { LumpCallout } from "../../../components/coming-up";
 import { CoverSheet, CoversInto, sourceName } from "../../../components/cover";
@@ -60,6 +60,7 @@ import { type CoverVariables, useCovers } from "../../../covers";
 import { useExtraIncomes } from "../../../extra-income";
 import { formatMoney, monthName, shortDay } from "../../../format";
 import { type GoalView, useGoals } from "../../../goals";
+import { useLearned } from "../../../learned";
 import { closingWeek, useCloseMonth } from "../../../month-close";
 import {
 	checkInStatusQuery,
@@ -245,10 +246,7 @@ function ThisMonth() {
 										count={buckets.length}
 										help={<TermHelp term="bucket" />}
 									/>
-									<div className="-mt-1 flex items-center gap-1 px-1">
-										<BudgetBarKey />
-										<TermHelp term="pace" />
-									</div>
+									<BarKey />
 									<List>{buckets.map(bucketRow)}</List>
 								</Section>
 							) : null}
@@ -643,7 +641,14 @@ function BucketRow({
 			trailing={
 				<span className="flex items-center gap-2">
 					<span className="grid justify-items-end gap-0.5">
-						<span className="text-sm font-semibold tabular-nums">{formatMoney(left)}</span>
+						{/* Over, the figure is how far over, in the over ink, not "$0 left". */}
+						{bucket.left < 0 ? (
+							<span className="text-sm font-semibold text-over-foreground tabular-nums">
+								{formatMoney(-bucket.left)} over
+							</span>
+						) : (
+							<span className="text-sm font-semibold tabular-nums">{formatMoney(left)}</span>
+						)}
 						{/* Below zero, "of −$1,035" says nothing: its parts beneath explain it instead. */}
 						{bucket.available >= 0 ? (
 							<span className="text-xs text-subtle-foreground tabular-nums">
@@ -664,7 +669,7 @@ function BucketRow({
 						value={bucket.spent}
 						max={bucket.available}
 						marker={1 - bucket.pace.leftShare}
-						state={bucket.status === "on-pace" ? undefined : bucket.status}
+						state={barState(bucket.status)}
 						label={bucket.name}
 						valueText={`${formatMoney(bucket.spent)} spent of ${formatMoney(bucket.available)}, ${
 							bucket.left < 0
@@ -682,6 +687,23 @@ function BucketRow({
 				</div>
 			}
 		/>
+	);
+}
+
+/**
+ * The bars' key beside the Pace "?": shown the first few views, then only inside the "?" popover
+ * once it's been learned (#64, ADR-0018).
+ */
+function BarKey() {
+	const learned = useLearned("bar-key");
+	return (
+		<div className="-mt-1 flex items-center gap-1 px-1">
+			{learned ? null : <BudgetBarKey />}
+			<TermHelp
+				term="pace"
+				extra={learned ? <BudgetBarKey className="mt-1 grid gap-1.5" /> : undefined}
+			/>
+		</div>
 	);
 }
 

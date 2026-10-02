@@ -1,4 +1,5 @@
 import { dayKeyAt, monthOfDay } from "@noodle/domain";
+import { BudgetBar } from "@noodle/ui/components/budget-bar";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import {
@@ -10,7 +11,6 @@ import {
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
-import { Progress } from "@noodle/ui/components/progress";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import {
 	Sheet,
@@ -495,16 +495,16 @@ function SplitBar({ account }: { account: AccountView }) {
 	const share = over ? 1 : balance > 0 ? Math.min(1, Math.max(0, account.earmarked / balance)) : 0;
 	return (
 		<div className="grid gap-2">
-			<Progress
-				aria-label="Set aside for Goals"
-				value={share * 100}
-				getValueLabel={() =>
+			<BudgetBar
+				label="Set aside for Goals"
+				value={share}
+				max={1}
+				state={over ? "over" : undefined}
+				valueText={
 					over
 						? `${formatMoney(account.overClaimedBy)} more set aside than is in it`
 						: `${formatMoney(account.earmarked)} of ${formatMoney(balance)}`
 				}
-				className="h-2"
-				indicatorClassName={over ? "bg-over" : undefined}
 			/>
 			<p className="flex flex-wrap justify-between gap-x-4 text-[13px] text-muted-foreground tabular-nums">
 				<span>Set aside {formatMoney(account.earmarked)}</span>

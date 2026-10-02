@@ -1,5 +1,6 @@
 import type { Cents, DayKey } from "@noodle/domain";
 import { levelOf } from "@noodle/domain";
+import { BudgetBar } from "@noodle/ui/components/budget-bar";
 import { Card } from "@noodle/ui/components/card";
 import {
 	type ChartConfig,
@@ -731,20 +732,16 @@ export function RankedBars({
 	const top = max ?? Math.max(1, ...rows.map((r) => r.amount));
 	return (
 		<ul className="grid grid-cols-[minmax(0,1fr)] gap-1">
-			{rows.map((row, i) => (
+			{rows.map((row) => (
 				<li key={row.key}>
 					{renderRow(
 						row,
-						<span className="block h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
-							<span
-								className="block h-full origin-left animate-[bar-grow_var(--duration-meter)_var(--ease-standard)_both] rounded-full"
-								style={{
-									width: `${Math.max(1.5, (Math.max(0, row.amount) / top) * 100)}%`,
-									background: row.color ?? "var(--chart-spend)",
-									animationDelay: `${Math.min(i, 10) * 30}ms`,
-								}}
-							/>
-						</span>,
+						// Decorative: the row's own words carry the amount. A sliver even for the smallest.
+						<BudgetBar
+							value={Math.max(top * 0.015, row.amount)}
+							max={top}
+							fill={row.color ?? "var(--chart-spend)"}
+						/>,
 					)}
 				</li>
 			))}

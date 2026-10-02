@@ -9,6 +9,7 @@ import {
 	whatChanged,
 } from "@noodle/domain";
 import { Alert, AlertDescription } from "@noodle/ui/components/alert";
+import { BudgetBar } from "@noodle/ui/components/budget-bar";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
@@ -467,25 +468,22 @@ function WaterfallStep({
 	);
 }
 
-/** One step's share of take-home pay, placed where it falls on the way down. */
+/**
+ * One step's share of take-home pay, placed where it falls on the way down: the one bar with a
+ * floating start. Decorative, since the amount beside it says the same.
+ */
 function Bar({ bar, tone }: { bar: BarSpan; tone: "step" | "total" | "over" }) {
 	if (!bar) return null;
 	return (
-		<span aria-hidden="true" className="relative block h-1.5 rounded-full bg-surface-2">
-			<span
-				className={cn(
-					"absolute inset-y-0 rounded-full transition-[left,width] duration-(--duration-meter) ease-spring",
-					tone === "step" && "bg-muted-foreground/70",
-					tone === "total" && "bg-foreground",
-					tone === "over" && "bg-over",
-				)}
-				style={{ left: pct(bar.left), width: pct(bar.width) }}
-			/>
-		</span>
+		<BudgetBar
+			start={bar.left}
+			value={bar.width}
+			max={1}
+			fill={tone === "total" ? "var(--foreground)" : "var(--muted-foreground)"}
+			state={tone === "over" ? "over" : undefined}
+		/>
 	);
 }
-
-const pct = (share: number) => `${(Math.min(1, Math.max(0, share)) * 100).toFixed(2)}%`;
 
 /**
  * What changed in this month's Plan since the month before, item by item, and who changed it.

@@ -46,3 +46,10 @@ export function availableParts(
 	}
 	return `${formatMoney(bucket.allowance)} planned${part(bucket.rolledOver, "carried over", "overspent last month")}${part(bucket.moved, "moved in", "moved out")}`;
 }
+
+/**
+ * A Bucket's status as BudgetBar's `state` (#64): the same status its badge reads, so the bar's
+ * "ahead" stripe and the "Ahead of pace" badge always agree.
+ */
+export const barState = (status: BucketState["status"]): "ahead" | "over" | undefined =>
+	status === "on-pace" ? undefined : status;

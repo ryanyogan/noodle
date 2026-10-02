@@ -3,6 +3,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@noodle/ui/components/p
 import { cn } from "@noodle/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { CircleHelp } from "lucide-react";
+import type { ReactNode } from "react";
 import { useRef, useState } from "react";
 import { type GlossaryId, glossary } from "../glossary";
 import { openGlossary } from "./glossary";
@@ -13,7 +14,16 @@ import { openGlossary } from "./glossary";
  * stays open until dismissed (WCAG 1.4.13). Put it beside a heading, not inside it, so the
  * heading's name stays the term.
  */
-export function TermHelp({ term, className }: { term: GlossaryId; className?: string }) {
+export function TermHelp({
+	term,
+	extra,
+	className,
+}: {
+	term: GlossaryId;
+	/** More to show under the sentence: a hint the Parent has learned, folded in here (#64). */
+	extra?: ReactNode;
+	className?: string;
+}) {
 	const entry = glossary[term];
 	const [open, setOpen] = useState(false);
 	const trigger = useRef<HTMLButtonElement>(null);
@@ -41,6 +51,7 @@ export function TermHelp({ term, className }: { term: GlossaryId; className?: st
 			>
 				<p className="text-sm font-semibold text-foreground">{entry.term}</p>
 				<p className="text-muted-foreground">{entry.short}</p>
+				{extra}
 				<Link
 					to="/glossary"
 					hash={term}

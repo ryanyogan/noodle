@@ -1,8 +1,8 @@
 import { type MonthKey, monthOfDay, type PlanScope } from "@noodle/domain";
+import { BudgetBar } from "@noodle/ui/components/budget-bar";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { List, ListRow } from "@noodle/ui/components/list";
-import { Progress } from "@noodle/ui/components/progress";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { createFileRoute, useHydrated } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
@@ -65,10 +65,11 @@ function TakeHomePayNote({
 							received of {formatMoney(baseline)}
 						</span>
 					</p>
-					<Progress
-						value={Math.min(total, baseline)}
+					<BudgetBar
+						value={total}
 						max={baseline}
-						aria-label="Received of take-home pay"
+						label="Received of take-home pay"
+						valueText={`${formatMoney(total)} received of ${formatMoney(baseline)}`}
 					/>
 				</div>
 			) : null}
