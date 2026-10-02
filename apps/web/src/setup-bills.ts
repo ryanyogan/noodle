@@ -73,7 +73,8 @@ export function startingBills(
 		return saved.map((bill) => ({
 			...bill,
 			amount: bill.amountCents ? format(bill.amountCents) : "",
-			touched: true,
+			// A row saved without being typed in still takes a suggestion that arrives later.
+			touched: bill.touched ?? true,
 			suggested: false,
 		}));
 	}

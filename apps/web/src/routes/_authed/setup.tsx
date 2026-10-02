@@ -668,7 +668,7 @@ function DoneStep({
 						detail={
 							goals.length === 0
 								? "None yet. You can add one from Goals."
-								: `${goals.map((goal) => goal.name).join(", ")}. Set aside this month:`
+								: goals.map((goal) => goal.name).join(", ")
 						}
 						amount={minus(state.fundedGoals)}
 					/>
@@ -764,16 +764,11 @@ function StatementCard({ jobs }: { jobs: SetupJobView[] }) {
 	);
 }
 
-const toBill = ({ amount: _a, touched: _t, suggested: _s, ...bill }: BillRow): SetupBill => ({
+const toBill = ({ amount: _a, suggested: _s, ...bill }: BillRow): SetupBill => ({
 	...bill,
 	name: bill.name.trim(),
 });
-const toBucket = ({
-	amount: _a,
-	touched: _t,
-	suggested: _s,
-	...bucket
-}: BucketRow): SetupBucket => ({
+const toBucket = ({ amount: _a, suggested: _s, ...bucket }: BucketRow): SetupBucket => ({
 	...bucket,
 	name: bucket.name.trim(),
 });
@@ -896,13 +891,11 @@ function BucketsStep({
 	const me = people.parents.find((parent) => parent.id === parentId);
 	const takeHome = answers.takeHomePayCents ?? plan.baseline ?? 0;
 	const afterBills = takeHome - billsMonthly(answers.bills ?? []);
-	const [rows, setRows] = useState(() =>
-		scaleBuckets(
-			startingBuckets(answers.buckets, me?.name, formatAmount),
-			afterBills,
-			formatAmount,
-		),
-	);
+	const [rows, setRows] = useState(() => {
+		const starting = startingBuckets(answers.buckets, me?.name, formatAmount);
+		// Saved rows keep what was written; only a first visit's list is scaled from what's left.
+		return answers.buckets?.length ? starting : scaleBuckets(starting, afterBills, formatAmount);
+	});
 	const { draft } = useSetupDraft(jobs);
 	useEffect(() => {
 		if (draft?.buckets.length) {
@@ -1047,6 +1040,12 @@ function GoalStep({
 	const [name, setName] = useState("");
 	const [target, setTarget] = useState("");
 	const [owed, setOwed] = useState<"credit-card" | "loan">("credit-card");
+	// Money for a Goal can stay in a savings Account the Household already has (from a bank or a
+	// statement), so setup doesn't add a second one.
+	const savings = useSuspenseQuery(goalsQuery()).data.accounts.filter(
+		(account) => account.kind === "savings",
+	);
+	const [keptIn, setKeptIn] = useState(() => savings[0]?.id ?? "new");
 	const targetCents = parseDollars(target);
 	const goalName = kind === "emergency" ? "Emergency fund" : name.trim();
 	const ready = !!kind && !!goalName && targetCents !== null && targetCents > 0;
@@ -1056,26 +1055,31 @@ function GoalStep({
 		mutationFn: async () => {
 			if (added) return onNext(added);
 			if (!kind || !ready || targetCents === null) return;
+			const existing =
+				kind === "payoff" ? undefined : savings.find((account) => account.id === keptIn);
 			const goal: SetupGoal = {
 				kind,
 				goalId: ulid(),
-				accountId: ulid(),
+				accountId: existing?.id ?? ulid(),
 				balanceId: ulid(),
 				claimId: ulid(),
 				name: goalName,
-				accountName: kind === "payoff" ? goalName : "Savings",
+				accountName:
+					existing?.name.trim().slice(0, 40) || (kind === "payoff" ? goalName : "Savings"),
 				targetCents,
 				accountKind: kind === "payoff" ? owed : "savings",
 			};
-			await addAccount({
-				data: {
-					accountId: goal.accountId,
-					name: goal.accountName,
-					kind: goal.accountKind,
-					balanceCents: kind === "payoff" ? targetCents : null,
-					balanceId: goal.balanceId,
-				},
-			});
+			if (!existing) {
+				await addAccount({
+					data: {
+						accountId: goal.accountId,
+						name: goal.accountName,
+						kind: goal.accountKind,
+						balanceCents: kind === "payoff" ? targetCents : null,
+						balanceId: goal.balanceId,
+					},
+				});
+			}
 			const result = await addGoal({
 				data: {
 					goalId: goal.goalId,
@@ -1143,6 +1147,32 @@ function GoalStep({
 							<RadioGroupCard id={`${id}-card`} value="credit-card" label="Credit card" />
 							<RadioGroupCard id={`${id}-loan`} value="loan" label="Loan" />
 						</RadioGroup>
+					) : null}
+					{kind && kind !== "payoff" && savings.length > 0 ? (
+						<fieldset className="grid gap-3">
+							<legend className="pb-3 text-sm font-medium">Where will you keep this money?</legend>
+							<RadioGroup
+								value={keptIn}
+								onValueChange={setKeptIn}
+								aria-label="Where will you keep this money?"
+							>
+								{savings.map((account) => (
+									<RadioGroupCard
+										key={account.id}
+										id={`${id}-in-${account.id}`}
+										value={account.id}
+										label={account.name}
+										description="A savings Account you already have."
+									/>
+								))}
+								<RadioGroupCard
+									id={`${id}-in-new`}
+									value="new"
+									label="A new savings Account"
+									description="Noodle adds one called Savings."
+								/>
+							</RadioGroup>
+						</fieldset>
 					) : null}
 					{kind && kind !== "emergency" ? (
 						<Field

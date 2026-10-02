@@ -72,7 +72,8 @@ export function startingBuckets(
 		return saved.map((bucket) => ({
 			...bucket,
 			amount: bucket.amountCents ? format(bucket.amountCents) : "",
-			touched: true,
+			// A row saved without being typed in still takes a suggestion that arrives later.
+			touched: bucket.touched ?? true,
 			suggested: null,
 		}));
 	}

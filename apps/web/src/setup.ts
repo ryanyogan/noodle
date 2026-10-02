@@ -46,6 +46,8 @@ export const setupBillSchema = z.object({
 	/** A detected Commitment's own date, which sets a biweekly or yearly schedule. */
 	dueDate: z.string().max(10).optional(),
 	ticked: z.boolean(),
+	/** The Parent typed in this row; unset in older saves, which count as typed. */
+	touched: z.boolean().optional(),
 	/** Which plan-draft suggestion it came from, so adding it takes the suggestion away. */
 	draftKey: z.string().max(200).optional(),
 });
@@ -61,6 +63,8 @@ export const setupBucketSchema = z.object({
 	/** The signed-in Parent's Personal Allowance. */
 	personal: z.boolean(),
 	kept: z.boolean(),
+	/** The Parent typed in this row; unset in older saves, which count as typed. */
+	touched: z.boolean().optional(),
 	draftKey: z.string().max(200).optional(),
 });
 export type SetupBucket = z.infer<typeof setupBucketSchema>;
