@@ -1,6 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
+import {
+	accountKindLabel,
+	choose,
+	clientRendered,
+	createPlannedHousehold,
+	signedInPage,
+} from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -41,7 +47,7 @@ test("a Scenario opened from a link is kept, applied with a preview, and compare
 
 	// A link opens Explore with the change already made: a raise to $6,000.
 	await page.goto("/explore?lever=baseline:600000");
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Explore");
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Explore", clientRendered);
 	await expect(changes(page)).toContainText("Income $5,000 → $6,000 a month");
 
 	// A one-off can't be part of the Plan.
@@ -78,7 +84,7 @@ test("a Scenario opened from a link is kept, applied with a preview, and compare
 
 	// Another Scenario from a link: a pay cut to $4,500.
 	await page.goto("/explore?lever=baseline:450000");
-	await expect(changes(page)).toContainText("Income $6,000 → $4,500 a month");
+	await expect(changes(page)).toContainText("Income $6,000 → $4,500 a month", clientRendered);
 	await page.getByLabel("Name", { exact: true }).fill("Pay cut");
 	await page.getByRole("button", { name: "Save Scenario" }).click();
 	// Saved, it is the Scenario chosen.
@@ -116,6 +122,6 @@ test("a Scenario opened from a link is kept, applied with a preview, and compare
 	// On a phone the overview fits the screen.
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto("/explore/scenarios?compare=");
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Scenarios");
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Scenarios", clientRendered);
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
