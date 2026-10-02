@@ -121,8 +121,7 @@ function AskPage() {
 							/>
 							<Button
 								type="submit"
-								size="icon"
-								className="size-9 shrink-0 rounded-xl"
+								size="icon-lg"
 								aria-label="Ask"
 								disabled={!hydrated || busy || !question.trim()}
 							>

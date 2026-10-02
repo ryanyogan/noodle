@@ -141,8 +141,7 @@ export function SnapAndSpeak({
 						<Button
 							type="button"
 							variant="outline"
-							size="icon"
-							className="h-9 w-9 shrink-0 rounded-xl"
+							size="icon-lg"
 							aria-label={speech.listening ? "Stop listening" : "Listen"}
 							disabled={read.isPending}
 							onClick={() => (speech.listening ? speech.stop() : speech.listen())}

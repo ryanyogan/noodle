@@ -49,7 +49,7 @@ export function CheckInSettings() {
 						}}
 						choices={weekdayNames.map((name, index) => ({ value: String(index), label: name }))}
 					/>
-					<Button asChild variant="outline" className="h-10">
+					<Button asChild variant="outline">
 						<Link to="/check-in">Start</Link>
 					</Button>
 				</div>

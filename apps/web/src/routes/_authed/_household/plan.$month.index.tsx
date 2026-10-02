@@ -100,7 +100,12 @@ function PlanOverview() {
 function YearLink({ month }: { month: MonthKey }) {
 	const year = month.slice(0, 4);
 	return (
-		<Button variant="secondary" className="h-11 justify-between px-(--card-pad)" asChild>
+		<Button
+			variant="secondary"
+			size="lg"
+			className="justify-between px-(--card-pad) text-sm"
+			asChild
+		>
 			<Link to="/plan/$month/year" params={{ month }}>
 				See the whole of {year}
 				<ChevronRight aria-hidden="true" className="size-4 text-subtle-foreground" />

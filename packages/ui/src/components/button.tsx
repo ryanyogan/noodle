@@ -3,6 +3,9 @@ import { Slot } from "radix-ui";
 import type * as React from "react";
 import { cn } from "#lib/utils";
 
+// One control height: Button `default`, Input, SelectTrigger `default`, Combobox and DatePicker are
+// all 36px (h-9) from lg and 44px below it, so a Button beside a field needs no height class.
+
 const buttonVariants = cva(
 	[
 		"inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap border font-medium select-none",
@@ -28,6 +31,13 @@ const buttonVariants = cva(
 				lg: "h-11 rounded-xl px-5 text-[15px]",
 				icon: "size-8 rounded-lg max-lg:size-11",
 				"icon-sm": "size-7 rounded-lg max-lg:size-11",
+				// Square at the control height, for an icon button beside an Input.
+				"icon-lg": "size-9 rounded-xl max-lg:size-11",
+				// A filter that's on, with an × to take it off. Use with variant="secondary".
+				chip: "h-7 gap-1 rounded-full ps-2.5 pe-1.5 text-xs",
+				// A few words inside a sentence that do something. Use with variant="link".
+				inline:
+					"h-auto rounded-sm p-0 text-[length:inherit] underline underline-offset-2 active:scale-100",
 			},
 		},
 		defaultVariants: { variant: "default", size: "default" },

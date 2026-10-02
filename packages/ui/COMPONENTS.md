@@ -18,12 +18,15 @@ Never let the CLI overwrite a file here.
 
 | Component | From | Notes |
 | --- | --- | --- |
+| Alert | shadcn, by hand (#56) | A boxed notice in the page: optional icon, `AlertTitle`, `AlertDescription`, `AlertAction`. `variant="destructive"` is the over ink. Its role is `status`; pass `role="alert"` for an error that has just happened. |
 | AlertDialog | shadcn, by hand (#47) | Focus starts on Cancel and returns to the opener (`lib/focus-return.ts`). |
 | Avatar | shadcn, by hand (#55) | Root, image and fallback only. The fallback (an initial) shows until the picture loads. |
 | Breadcrumb | shadcn, by hand (#47) | A drilled-in Report. |
-| Button, Input, Label, Badge, Card, Skeleton | shadcn, restyled | |
+| Button, Input, Label, Badge, Skeleton | shadcn, restyled | Button's sizes are under "Control sizes" below. |
+| Card | shadcn, restyled; header parts by hand (#56) | `Card`, `CardContent`, `CardFooter`, and `CardHeader` with `CardTitle`, `CardDescription` and `CardAction` (top right of the header). Padding is `--card-pad`. |
 | Checkbox, Switch | shadcn, by hand (#47) | Checked takes the primary ink. Each has a 24px target. Name them with `<label htmlFor>`. |
 | Collapsible | shadcn, by hand (#47) | The trigger waits for hydration. `keepMounted` keeps closed content in the page, as `<details>` does. |
+| Dialog | shadcn, by hand (#56) | A centred dialog at every width, with a Close button. See "Which dialog" below. |
 | DropdownMenu | shadcn, by hand (#47) | Items, labels and separators only. An item that opens a sheet gives focus back to the menu's button (`setNextOpener`). |
 | Kbd | shadcn, by hand (#47) | Give a symbol key words for a screen reader. |
 | Popover | shadcn, by hand (#47) | Term help. |
@@ -34,12 +37,13 @@ Never let the CLI overwrite a file here.
 | Calendar, DatePicker | shadcn, by hand (#47) | react-day-picker 10.0.2 (exact). DatePicker = Popover + Calendar in place of `<input type="date">`: a field-sized trigger reading "Oct 1, 2026", month and year dropdowns, `min`/`max`, Clear unless `required`, values stay yyyy-mm-dd (hidden input when `name`). Day buttons carry `data-day` (yyyy-mm-dd); specs use `pickDate()`. |
 | Separator | shadcn, by hand (#55) | Decorative by default. |
 | Sidebar | shadcn, by hand (#55) | The desktop sidebar: groups, menu buttons, a badge, a trigger. Collapses to an icon rail only (`rail:` variant, `--sidebar-width-icon`), remembered per device in localStorage and set on `<html>` before first paint by `sidebarStateScript`; Ctrl/⌘+B toggles. No mobile Sheet variant: phones keep the tab bar. A menu button's `tooltip` shows only in the rail. |
-| Sheet | Noodle's own, on Radix Dialog | A bottom sheet on phones and a centred dialog on desktop. It plays the part of shadcn's Dialog. |
+| Sheet | Noodle's own, on Radix Dialog | A bottom sheet on phones and a centred dialog on desktop: forms and lists to pick from. |
 | Slider | shadcn, by hand (#47) | One thumb, named, with its value in words. |
 | Spinner | shadcn, by hand (#47) | Decorative unless given a `label`. |
 | Stepper | Noodle's own (#53) | "Step 3 of 7 · about 2 minutes left", decorative segments, and an optional `status` line (a polite live region) for background work. The get-started wizard's progress header. |
 | Table | shadcn, by hand (#47) | `numeric` right-aligns a cell in tabular figures. Give each table a caption. |
 | Tabs | shadcn, by hand (#47) | Plus `LinkTabs`/`LinkTab`: the same look for pages that each have a URL, as a `<nav>` of links rather than a tablist. |
+| Textarea | shadcn, by hand (#56) | Input's look, three lines tall, growing with what's typed. |
 | Toast | Noodle's own look on Sonner (#47) | `toast(message, options)`. Up to three show at once, each a polite status. Sonner is the toast shadcn recommends; the registry's wrapper needs `next-themes`, so it isn't used. |
 | Toggle, ToggleGroup | shadcn, by hand (#47) | A `segmented` variant. A single-choice group is a radio group: one option is always chosen, and the arrow keys choose. |
 | Tooltip | shadcn, by hand (#47) | `WithTooltip` is the common case. Never the only place something is said: touch can't hover. |
@@ -69,6 +73,27 @@ Never let the CLI overwrite a file here.
 
 One scroll per region: `apps/web/e2e/desktop-scroll.spec.ts` fails a page with a scrolling element inside a scrolling page or ancestor, other than MasterDetail's panes, open sheets, dialogs and popovers, and things that scroll sideways.
 
+## Control sizes
+
+One height scale, so controls that sit in a row line up without a height class. Don't pass `h-*` or `size-*` in `className` to a Button, Input or SelectTrigger: pick a size.
+
+| Height from lg | What |
+| --- | --- |
+| 36px (`h-9`) | Button `default`, Input, SelectTrigger `default` (so OptionSelect, Combobox and DatePicker too), Button `icon-lg` (square, beside an Input). |
+| 32px (`h-8`) | Button `icon`, SelectTrigger `sm` and `pill`, Toggle and Tabs. |
+| 30px and 28px | Button `sm` (30), Button `icon-sm` and `chip` (28). |
+| 44px (`h-11`) | Button `lg`. |
+
+- **Button `chip`** with `variant="secondary"`: a filter that is on, with an × to take it off (Transactions, Reports).
+- **Button `inline`** with `variant="link"`: a few underlined words inside a sentence that do something ("Try again", "Use the estimate"). It takes the sentence's text size; for the sentence's colour too, add `text-current hover:text-current`.
+- Below lg every size is 44px, as "Tap targets" says, apart from `chip` and `inline`.
+
+## Which dialog
+
+- **Sheet**: a form, or a list to pick from. A bottom sheet on a phone, centred on a desktop.
+- **AlertDialog**: a question before something that can't be taken back. Focus starts on Cancel.
+- **Dialog**: something to look at, or one short question that isn't a warning (the video player). Centred at every width, with a Close button.
+
 ## Tap targets on phones
 
 Below `lg` (phones and small tablets) every control is at least 44×44 px; at `lg` and up the
@@ -94,6 +119,7 @@ desktop density stays as it was. One approach everywhere: `max-lg:` sizes in the
 
 ## Not added, and why
 
+- **ScrollArea**: one scroll per region (ADR-0024). The sidebar and sheets use the browser's own scrolling, and nothing has needed a styled scrollbar.
 - **Pagination**: long lists are virtualized (Transactions) or show the latest, with a "Show N older" button (a Goal's History).
 - **Accordion**: Collapsible covers the single disclosures the app has.
 - **Drawer**: phones get the bottom Sheet today. #48 (mobile) may move some menus and selects into a Drawer. Select, DropdownMenu and Popover are plain Radix parts, so a phone variant can wrap them without changing the app's calls.
