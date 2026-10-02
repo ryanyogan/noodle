@@ -1,4 +1,4 @@
-import { GOAL_KINDS, type GoalKind } from "@noodle/domain";
+import { GOAL_KINDS, type GoalKind, type MonthKey } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
@@ -28,7 +28,7 @@ export const Route = createFileRoute("/_authed/_household/goals/")({
 
 function GoalsPage() {
 	const hydrated = useHydrated();
-	const { accounts, goals, asOf } = useGoals();
+	const { accounts, goals, asOf, month, emergencyGoalId } = useGoals();
 	const { add } = Route.useSearch();
 	const navigate = Route.useNavigate();
 	const [adding, setAdding] = useState<GoalKind | null>(null);
@@ -85,69 +85,88 @@ function GoalsPage() {
 					</>
 				}
 			/>
-			<div className="grid max-w-2xl gap-8">
-				{addGoal.error instanceof GoalRefused && addGoal.variables?.kind === "payoff" ? (
-					<FormError>
-						That card or loan owes nothing now, or is already being paid off, so no Goal was added.
-					</FormError>
-				) : (
-					<SaveFailed change={addGoal} />
-				)}
-				{payingOff.length > 0 ? (
-					<Section aria-labelledby="paying-off-goals">
-						<SectionHeader
-							id="paying-off-goals"
-							title="Paying off"
-							count={payingOff.length}
-							help={<TermHelp term="payoff-goal" />}
-						/>
-						<List>
-							{payingOff.map((goal) => (
-								<GoalItem key={goal.id} goal={goal} />
-							))}
-						</List>
-					</Section>
+			<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start xl:grid-cols-[minmax(0,1fr)_360px]">
+				{active.length + payingOff.length > 0 ? (
+					<GoalsSummary
+						goals={[...active, ...payingOff]}
+						emergency={goals.find((g) => g.id === emergencyGoalId && g.state === "active") ?? null}
+					/>
 				) : null}
-				<Section aria-labelledby="active-goals">
-					<SectionHeader id="active-goals" title="Saving for" count={active.length} />
-					{active.length > 0 ? (
-						<List>
-							{active.map((goal) => (
-								<GoalItem key={goal.id} goal={goal} />
-							))}
-						</List>
-					) : canAddGoal ? (
-						<Card className="p-(--card-pad) text-sm text-muted-foreground">
-							No savings Goals yet. Add one to start setting money aside for it, a little each
-							month.
-						</Card>
+				<div className="grid min-w-0 gap-8 lg:col-start-1 lg:row-start-1">
+					{addGoal.error instanceof GoalRefused && addGoal.variables?.kind === "payoff" ? (
+						<FormError>
+							That card or loan owes nothing now, or is already being paid off, so no Goal was
+							added.
+						</FormError>
 					) : (
-						<Card className="grid justify-items-start gap-3 p-(--card-pad) text-sm text-muted-foreground">
-							Goals are set aside in a checking or savings Account. Add one to start a new Goal.
-							<AccountsLink />
-						</Card>
+						<SaveFailed change={addGoal} />
 					)}
-				</Section>
-				{completed.length > 0 ? (
-					<Section aria-labelledby="completed-goals">
-						<SectionHeader id="completed-goals" title="Completed" count={completed.length} />
-						<List>
-							{completed.map((goal) => (
-								<GoalItem key={goal.id} goal={goal} quiet />
-							))}
-						</List>
+					{payingOff.length > 0 ? (
+						<Section aria-labelledby="paying-off-goals">
+							<SectionHeader
+								id="paying-off-goals"
+								title="Paying off"
+								count={payingOff.length}
+								help={<TermHelp term="payoff-goal" />}
+							/>
+							<List>
+								{payingOff.map((goal) => (
+									<GoalItem
+										key={goal.id}
+										goal={goal}
+										month={month}
+										emergency={goal.id === emergencyGoalId}
+									/>
+								))}
+							</List>
+						</Section>
+					) : null}
+					<Section aria-labelledby="active-goals">
+						<SectionHeader id="active-goals" title="Saving for" count={active.length} />
+						{active.length > 0 ? (
+							<List>
+								{active.map((goal) => (
+									<GoalItem
+										key={goal.id}
+										goal={goal}
+										month={month}
+										emergency={goal.id === emergencyGoalId}
+									/>
+								))}
+							</List>
+						) : canAddGoal ? (
+							<Card className="p-(--card-pad) text-sm text-muted-foreground">
+								No savings Goals yet. Add one to start setting money aside for it, a little each
+								month.
+							</Card>
+						) : (
+							<Card className="grid justify-items-start gap-3 p-(--card-pad) text-sm text-muted-foreground">
+								Goals are set aside in a checking or savings Account. Add one to start a new Goal.
+								<AccountsLink />
+							</Card>
+						)}
 					</Section>
-				) : null}
-				{archived.length > 0 ? (
-					<Section aria-labelledby="archived-goals">
-						<SectionHeader id="archived-goals" title="Archived" count={archived.length} />
-						<List>
-							{archived.map((goal) => (
-								<GoalItem key={goal.id} goal={goal} quiet />
-							))}
-						</List>
-					</Section>
-				) : null}
+					{completed.length > 0 ? (
+						<Section aria-labelledby="completed-goals">
+							<SectionHeader id="completed-goals" title="Completed" count={completed.length} />
+							<List>
+								{completed.map((goal) => (
+									<GoalItem key={goal.id} goal={goal} quiet />
+								))}
+							</List>
+						</Section>
+					) : null}
+					{archived.length > 0 ? (
+						<Section aria-labelledby="archived-goals">
+							<SectionHeader id="archived-goals" title="Archived" count={archived.length} />
+							<List>
+								{archived.map((goal) => (
+									<GoalItem key={goal.id} goal={goal} quiet />
+								))}
+							</List>
+						</Section>
+					) : null}
+				</div>
 			</div>
 			<AddGoalSheet
 				// Keyed so it opens on the kind asked for.
@@ -170,17 +189,32 @@ function GoalsPage() {
 }
 
 /** A Goal: its name, how it's doing, and saved of target with a quiet bar. */
-function GoalItem({ goal, quiet = false }: { goal: GoalView; quiet?: boolean }) {
+function GoalItem({
+	goal,
+	month,
+	quiet = false,
+	emergency = false,
+}: {
+	goal: GoalView;
+	month?: MonthKey;
+	quiet?: boolean;
+	emergency?: boolean;
+}) {
 	const { progress } = goal;
 	if (goal.kind === "payoff") return <PayoffGoalItem goal={goal} quiet={quiet} />;
 	return (
 		<LinkRow
 			link={(props) => <Link to="/goals/$goalId" params={{ goalId: goal.id }} {...props} />}
 			label={`${goal.name}, ${formatMoney(progress.saved)} of ${formatMoney(goal.target)}${goal.account ? `, in ${goal.account.name}` : ""}`}
-			title={<span className={cn(quiet && "text-muted-foreground")}>{goal.name}</span>}
+			title={
+				<span className="inline-flex flex-wrap items-center gap-2">
+					<span className={cn(quiet && "text-muted-foreground")}>{goal.name}</span>
+					{emergency ? <Badge variant="brand">Emergency fund</Badge> : null}
+				</span>
+			}
 			meta={
 				<>
-					<GoalSummary goal={goal} />
+					<GoalSummary goal={goal} month={month} />
 					{goal.account ? (
 						<span className="inline-flex items-center gap-1.5">
 							<span aria-hidden="true">·</span>in {goal.account.name}
@@ -234,6 +268,48 @@ function PayoffGoalItem({ goal, quiet }: { goal: GoalView; quiet: boolean }) {
 			}
 			below={goal.state === "archived" ? undefined : <GoalProgressBar share={progress.share} />}
 		/>
+	);
+}
+
+/**
+ * What the active Goals add up to: set aside across them, and what dated Goals need each month
+ * to stay on track. Beside the lists from a laptop up, above them on a phone.
+ */
+function GoalsSummary({ goals, emergency }: { goals: GoalView[]; emergency: GoalView | null }) {
+	const saving = goals.filter((g) => g.kind === "save");
+	const setAside = saving.reduce((sum, g) => sum + g.progress.saved, 0);
+	const monthly = goals.reduce((sum, g) => sum + (g.progress.monthly ?? 0), 0);
+	return (
+		<Card
+			aria-label="Goals summary"
+			className="grid gap-4 p-(--card-pad) lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1"
+		>
+			<dl className="grid grid-cols-2 gap-4 lg:grid-cols-1">
+				<div className="grid gap-1">
+					<dt className="text-xs text-muted-foreground">
+						Set aside across {saving.length} Goal{saving.length === 1 ? "" : "s"}
+					</dt>
+					<dd className="text-xl font-semibold tabular-nums">{formatMoney(setAside)}</dd>
+				</div>
+				<div className="grid gap-1">
+					<dt className="text-xs text-muted-foreground">A month to stay on track</dt>
+					<dd className="text-xl font-semibold tabular-nums">{formatMoney(monthly)}</dd>
+				</div>
+			</dl>
+			{emergency ? (
+				<p className="text-[13px] text-muted-foreground">
+					Your emergency fund is{" "}
+					<Link
+						to="/goals/$goalId"
+						params={{ goalId: emergency.id }}
+						className="font-medium text-foreground hover:underline"
+					>
+						{emergency.name}
+					</Link>
+					.
+				</p>
+			) : null}
+		</Card>
 	);
 }
 

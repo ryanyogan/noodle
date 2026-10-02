@@ -1,10 +1,12 @@
 import {
 	ACCOUNT_KINDS,
 	type AccountKind,
+	addMonths,
 	type Cents,
 	canPayOff,
 	type DayKey,
 	type GoalKind,
+	type MonthKey,
 	parseDollars,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
@@ -155,7 +157,16 @@ export function GoalProgressBar({ share, className }: { share: number; className
  * A Goal's plan in words: what it needs a month and how it's doing, and its target date. Behind
  * is a Pace state and past due an over state, the only ones with colour.
  */
-export function GoalSummary({ goal }: { goal: GoalView }) {
+/** A Goal's funding over the three months before `month`, a month on average. */
+const recentFunding = (goal: GoalView, month: MonthKey): Cents => {
+	const from = addMonths(month, -3);
+	const funded = goal.changes
+		.filter((c) => c.kind === "funding" && c.month >= from && c.month < month)
+		.reduce((sum, c) => sum + c.amount, 0);
+	return Math.round(funded / 3);
+};
+
+export function GoalSummary({ goal, month }: { goal: GoalView; month?: MonthKey }) {
 	const { progress, targetDate } = goal;
 	const parts: ReactNode[] = [];
 	if (goal.state === "archived") {
@@ -172,6 +183,11 @@ export function GoalSummary({ goal }: { goal: GoalView }) {
 		parts.push(`${formatMoney(progress.saved)} still set aside`);
 	} else {
 		if (progress.monthly !== null) parts.push(`${formatMoney(progress.monthly)} a month`);
+		else if (month && !targetDate) {
+			// Undated: what it has been funded lately, in place of what it needs.
+			const lately = recentFunding(goal, month);
+			if (lately > 0) parts.push(`about ${formatMoney(lately)} a month lately`);
+		}
 		if (progress.status === "behind") {
 			parts.push(<Badge variant="pace">{goalStatusName.behind}</Badge>);
 		} else if (progress.status === "past-due") {

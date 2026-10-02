@@ -72,14 +72,18 @@ function CreateHousehold() {
 			</CenteredHeading>
 			<Card>
 				<form onSubmit={onSubmit} className="grid gap-4 p-(--card-pad)">
-					<Field label="Household name" htmlFor="householdName">
+					<Field
+						label="Household name"
+						htmlFor="householdName"
+						hint="Only you and the other Parent see this."
+					>
 						<Input
 							id="householdName"
 							name="householdName"
 							required
 							maxLength={80}
 							autoComplete="off"
-							placeholder="The Rinks"
+							placeholder="e.g. The Rinks"
 						/>
 					</Field>
 					<Field label="Your name" htmlFor="parentName">

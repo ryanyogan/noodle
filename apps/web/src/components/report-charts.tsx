@@ -434,9 +434,14 @@ export function AllowanceBars({
 }) {
 	const animation = useAnimation();
 	const config: ChartConfig = {
-		allowance: { label: "Allowance", color: "var(--chart-compare)" },
+		allowance: { label: "Allowance", color: "var(--chart-allowance)" },
 		spent: { label: "Spent", color: "var(--chart-spend)" },
 	};
+	const legend = [
+		{ label: "Allowance", color: "var(--chart-allowance)" },
+		{ label: "Spent", color: "var(--chart-spend)" },
+		...(rows.some((row) => row.over) ? [{ label: "Over", color: "var(--over)" }] : []),
+	];
 	return (
 		<ChartContainer config={config} className={cn("aspect-auto h-52 w-full", className)}>
 			<BarChart data={rows} barGap={2} barCategoryGap="20%" accessibilityLayer>
@@ -447,7 +452,21 @@ export function AllowanceBars({
 					cursor={{ fill: "var(--surface-2)" }}
 					content={<MoneyTooltip labelOf={(p) => labelOf(p, "long")} />}
 				/>
-				<ChartLegend content={<ChartLegendContent />} />
+				<ChartLegend
+					content={() => (
+						<div className="flex items-center justify-center gap-4 pt-3">
+							{legend.map((item) => (
+								<div key={item.label} className="flex items-center gap-1.5">
+									<div
+										className="size-2 shrink-0 rounded-[2px]"
+										style={{ backgroundColor: item.color }}
+									/>
+									{item.label}
+								</div>
+							))}
+						</div>
+					)}
+				/>
 				<Bar
 					dataKey="allowance"
 					name="Allowance"

@@ -69,13 +69,6 @@ function YearPage() {
 			<PageHeader
 				eyebrow="Plan"
 				title={year}
-				leading={
-					<Button variant="ghost" size="icon" asChild>
-						<Link to="/plan/$month" params={{ month: current }} aria-label="Back to the Plan">
-							<ChevronLeft className="size-5" />
-						</Link>
-					</Button>
-				}
 				actions={<YearLinks year={year} lastYear={lastYear} />}
 			/>
 			<PlanNav month={String(year) === current.slice(0, 4) ? current : `${year}-01`} page="year" />
@@ -107,7 +100,10 @@ function YearPage() {
 							Nothing was planned before {monthName(months[0].month)}.
 						</p>
 					) : null}
-					<YearTable months={months} />
+					<div className="grid gap-3">
+						<YearLegend />
+						<YearTable months={months} />
+					</div>
 					<YearList months={months} />
 					{lumpy.length > 0 ? (
 						<Section aria-labelledby="year-lumpy">
@@ -202,6 +198,21 @@ function Figure({ month, figure }: { month: YearMonth; figure: keyof YearFigures
 	);
 }
 
+/** From a tablet up: what each cell's two lines are. */
+function YearLegend() {
+	return (
+		<p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground max-md:hidden">
+			<span>
+				<span className="font-medium text-foreground">Top:</span> the Plan
+			</span>
+			<span>
+				<span className="font-medium text-foreground">Below:</span> what actually happened, for
+				months over or under way
+			</span>
+		</p>
+	);
+}
+
 /** From a tablet up: the months as rows of one table, the Plan's figures across. */
 function YearTable({ months }: { months: YearMonth[] }) {
 	const total = (key: keyof YearFigures) => months.reduce((sum, m) => sum + m.plan[key], 0);
@@ -233,11 +244,7 @@ function YearTable({ months }: { months: YearMonth[] }) {
 					{months.map((month) => (
 						<TableRow
 							key={month.month}
-							className={cn(
-								"align-top",
-								month.lumps.length > 0 && "bg-surface-2/60",
-								month.when === "current" && "font-medium",
-							)}
+							className={cn("align-top", month.when === "current" && "font-medium")}
 						>
 							<th scope="row" className="px-(--card-pad) py-2.5 text-start font-medium">
 								<span className="flex flex-wrap items-center gap-1.5">
@@ -295,13 +302,7 @@ function YearList({ months }: { months: YearMonth[] }) {
 		<div className="md:hidden">
 			<List aria-label="The Plan month by month">
 				{months.map((month) => (
-					<li
-						key={month.month}
-						className={cn(
-							"grid gap-2 px-(--card-pad) py-3.5",
-							month.lumps.length > 0 && "bg-surface-2/60",
-						)}
-					>
+					<li key={month.month} className={cn("grid gap-2 px-(--card-pad) py-3.5")}>
 						<div className="flex items-center justify-between gap-3">
 							<span className="flex min-w-0 flex-wrap items-center gap-1.5">
 								<Link

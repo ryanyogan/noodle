@@ -14,7 +14,7 @@ test.afterEach(async () => {
 
 const waterfall = (page: Page) =>
 	page.getByRole("region", { name: "From take-home pay to Free to Spend" });
-const health = (page: Page) => page.getByRole("region", { name: "Plan health" });
+const health = (page: Page) => page.getByRole("region", { name: "Things to check" });
 const addForm = (page: Page) => page.getByRole("form", { name: "Add a Commitment" });
 
 const monthName = (month: string) =>

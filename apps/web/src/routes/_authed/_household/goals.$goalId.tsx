@@ -162,264 +162,270 @@ function GoalDetails({
 					)
 				}
 			/>
-			<div className="grid max-w-2xl gap-8">
-				<Card role="region" aria-labelledby="goal-saved">
-					<div className="grid gap-3 p-(--card-pad)">
-						<div className="grid gap-1">
-							<h2 id="goal-saved" className="text-[13px] font-medium text-muted-foreground">
-								{archived ? "Was set aside" : "Set aside"}
-							</h2>
-							<p className="flex flex-wrap items-baseline gap-x-2">
-								<span className="text-[2.25rem] font-[650] leading-[1.05] tracking-[-0.035em] tabular-nums">
-									{formatMoney(progress.saved)}
-								</span>
-								<span className="text-sm text-muted-foreground tabular-nums">
-									of {formatMoney(goal.target)}
-								</span>
+			<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start xl:grid-cols-[minmax(0,1fr)_380px]">
+				{/* Right from a laptop up: the progress card and what to do; on a phone, History comes before Emergencies and Finish. */}
+				<div className="grid gap-8 max-lg:contents lg:col-start-2 lg:row-start-1">
+					<Card role="region" aria-labelledby="goal-saved">
+						<div className="grid gap-3 p-(--card-pad)">
+							<div className="grid gap-1">
+								<h2 id="goal-saved" className="text-[13px] font-medium text-muted-foreground">
+									{archived ? "Was set aside" : "Set aside"}
+								</h2>
+								<p className="flex flex-wrap items-baseline gap-x-2">
+									<span className="text-[2.25rem] font-[650] leading-[1.05] tracking-[-0.035em] tabular-nums">
+										{formatMoney(progress.saved)}
+									</span>
+									<span className="text-sm text-muted-foreground tabular-nums">
+										of {formatMoney(goal.target)}
+									</span>
+								</p>
+							</div>
+							{archived || completed ? null : <GoalProgressBar share={progress.share} />}
+							<p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-muted-foreground">
+								<GoalStatus goal={goal} month={month} />
 							</p>
 						</div>
-						{archived || completed ? null : <GoalProgressBar share={progress.share} />}
-						<p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-muted-foreground">
-							<GoalStatus goal={goal} month={month} />
-						</p>
-					</div>
-					{active && progress.monthly !== null && progress.leftThisMonth !== null ? (
-						<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t px-(--card-pad) py-3 text-sm">
-							<p className="text-muted-foreground">
-								To reach {formatMoney(goal.target)}
-								{goal.targetDate ? ` by ${fullDay(goal.targetDate)}` : ""} you need{" "}
-								<span className="font-medium text-foreground tabular-nums">
-									{formatMoney(progress.monthly)} a month
-								</span>
-								.{" "}
-								{progress.leftThisMonth === 0
-									? "This month’s is funded."
-									: progress.fundedThisMonth > 0
-										? `${formatMoney(progress.fundedThisMonth)} funded this month.`
-										: "Nothing funded this month yet."}
-							</p>
-							{progress.leftThisMonth > 0 ? (
+						{active && progress.monthly !== null && progress.leftThisMonth !== null ? (
+							<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t px-(--card-pad) py-3 text-sm">
+								<p className="text-muted-foreground">
+									To reach {formatMoney(goal.target)}
+									{goal.targetDate ? ` by ${fullDay(goal.targetDate)}` : ""} you need{" "}
+									<span className="font-medium text-foreground tabular-nums">
+										{formatMoney(progress.monthly)} a month
+									</span>
+									.{" "}
+									{progress.leftThisMonth === 0
+										? "This month’s is funded."
+										: progress.fundedThisMonth > 0
+											? `${formatMoney(progress.fundedThisMonth)} funded this month.`
+											: "Nothing funded this month yet."}
+								</p>
+								{progress.leftThisMonth > 0 ? (
+									<Button
+										type="button"
+										size="sm"
+										variant="outline"
+										disabled={!hydrated}
+										onClick={() => addMoney("plan")}
+									>
+										Fund {formatMoney(progress.leftThisMonth)}
+									</Button>
+								) : null}
+							</div>
+						) : null}
+						{archived ? null : (
+							<div className="flex flex-wrap gap-2 border-t p-(--card-pad)">
 								<Button
 									type="button"
-									size="sm"
-									variant="outline"
 									disabled={!hydrated}
-									onClick={() => addMoney("plan")}
+									onClick={() => addMoney(active ? "plan" : "account")}
 								>
-									Fund {formatMoney(progress.leftThisMonth)}
+									Add money
 								</Button>
-							) : null}
-						</div>
-					) : null}
-					{archived ? null : (
-						<div className="flex flex-wrap gap-2 border-t p-(--card-pad)">
-							<Button
-								type="button"
-								disabled={!hydrated}
-								onClick={() => addMoney(active ? "plan" : "account")}
-							>
-								Add money
-							</Button>
-							<Button
-								type="button"
-								variant="outline"
-								disabled={!hydrated || progress.saved <= 0}
-								onClick={() => setSheet("spend")}
-							>
-								Spend
-							</Button>
-						</div>
-					)}
-					<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t px-(--card-pad) py-2.5 text-[13px] text-muted-foreground">
-						<p className="py-1">
-							{archived ? "Was set aside in " : "Set aside in "}
-							{account ? (
-								<Link
-									to="/accounts/$accountId"
-									params={{ accountId: account.id }}
-									className="font-medium text-foreground underline-offset-4 hover:underline"
+								<Button
+									type="button"
+									variant="outline"
+									disabled={!hydrated || progress.saved <= 0}
+									onClick={() => setSheet("spend")}
 								>
-									{account.name}
-								</Link>
-							) : (
-								accountName
+									Spend
+								</Button>
+							</div>
+						)}
+						<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t px-(--card-pad) py-2.5 text-[13px] text-muted-foreground">
+							<p className="py-1">
+								{archived ? "Was set aside in " : "Set aside in "}
+								{account ? (
+									<Link
+										to="/accounts/$accountId"
+										params={{ accountId: account.id }}
+										className="font-medium text-foreground underline-offset-4 hover:underline"
+									>
+										{account.name}
+									</Link>
+								) : (
+									accountName
+								)}
+								{archived ? ". Archiving released it, so it’s no longer set aside." : null}{" "}
+								<TermHelp term="set-aside" />
+							</p>
+							{archived ? null : (
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									className="-me-2.5"
+									disabled={!hydrated || progress.saved <= 0}
+									onClick={() => setSheet("release")}
+								>
+									Take money back
+								</Button>
 							)}
-							{archived ? ". Archiving released it, so it’s no longer set aside." : null}{" "}
-							<TermHelp term="set-aside" />
-						</p>
+						</div>
+					</Card>
+					<SaveFailed change={update} />
+					{claim.error instanceof GoalRefused ? (
+						<FormError>
+							That’s more than is set aside for {goal.name} now, so nothing changed.
+						</FormError>
+					) : (
+						<SaveFailed change={claim} />
+					)}
+
+					<div className="grid gap-8 max-lg:order-2">
+						{active ? (
+							<Section aria-labelledby="goal-emergency">
+								<SectionHeader
+									id="goal-emergency"
+									title="Emergencies"
+									help={<TermHelp term="sweep" />}
+								/>
+								<Card className="grid gap-3 p-(--card-pad)">
+									<FinishRow
+										text={
+											emergency
+												? "This is your emergency Goal. Noodle suggests it for Extra income, and when nobody decides where last month’s leftovers go, they’re Swept into it."
+												: "Keeping this for emergencies? Noodle will suggest it for Extra income, and when nobody decides where last month’s leftovers go, they’ll be Swept into it."
+										}
+										action={
+											<Button
+												type="button"
+												variant="outline"
+												size="sm"
+												disabled={!hydrated}
+												onClick={() => setEmergency.mutate({ goalId: emergency ? null : goal.id })}
+											>
+												{emergency ? "Stop using" : "Use for emergencies"}
+											</Button>
+										}
+									/>
+									<SaveFailed change={setEmergency} />
+								</Card>
+							</Section>
+						) : null}
+
 						{archived ? null : (
+							<Section aria-labelledby="goal-finish">
+								<SectionHeader id="goal-finish" title="Finish" />
+								<Card className="grid gap-3 p-(--card-pad)">
+									{active ? (
+										<FinishRow
+											text="Done saving? Completing it keeps the money set aside, ready to spend."
+											action={
+												<Button
+													type="button"
+													variant="outline"
+													size="sm"
+													disabled={!hydrated}
+													onClick={() => complete.mutate({ goalId: goal.id })}
+												>
+													Complete
+												</Button>
+											}
+										/>
+									) : (
+										<p className="text-sm text-muted-foreground">
+											Completed. Its money stays set aside until it’s spent or released.
+										</p>
+									)}
+									{archiving ? (
+										<Confirm
+											confirmLabel="Archive Goal"
+											onCancel={() => setArchiving(false)}
+											onConfirm={() => {
+												setArchiving(false);
+												archive.mutate({ goalId: goal.id });
+											}}
+										>
+											Archiving {goal.name} releases
+											{progress.saved > 0 ? ` the ${formatMoney(progress.saved)}` : " what"} it has
+											set aside in {accountName}, so it’s free for other Goals.
+										</Confirm>
+									) : (
+										<FinishRow
+											text="No longer saving for it? Archiving releases what it has set aside."
+											action={
+												<Button
+													type="button"
+													variant="ghost"
+													size="sm"
+													disabled={!hydrated}
+													onClick={() => setArchiving(true)}
+												>
+													Archive
+												</Button>
+											}
+										/>
+									)}
+									<SaveFailed change={complete} />
+									<SaveFailed change={archive} />
+								</Card>
+							</Section>
+						)}
+					</div>
+				</div>
+				<div className="grid min-w-0 gap-8 max-lg:order-1 lg:col-start-1 lg:row-start-1">
+					<Section aria-labelledby="goal-history">
+						<SectionHeader id="goal-history" title="History" count={goal.changes.length} />
+						{goal.changes.length > 0 ? (
+							<List>
+								{history
+									.slice(0, showAll ? undefined : HISTORY_MONTHS)
+									.flatMap(({ month: changedIn, net, changes }) => [
+										<ListGroupLabel key={changedIn} className="flex justify-between gap-3">
+											<span>{monthLabel(changedIn, today)}</span>
+											<span className="tabular-nums">
+												{net >= 0 ? "+" : ""}
+												{formatMoney(net)}
+											</span>
+										</ListGroupLabel>,
+										...groupSweeps(changes).map((change) =>
+											Array.isArray(change) ? (
+												<SweepsRow key={change[0]?.id} sweeps={change} />
+											) : (
+												<HistoryRow
+													key={change.id}
+													change={change}
+													today={today}
+													onUndo={
+														active &&
+														change.kind === "funding" &&
+														change.from === undefined &&
+														change.month === month
+															? () =>
+																	undo.mutate({
+																		moveId: change.id,
+																		goalName: goal.name,
+																		month: change.month,
+																	})
+															: undefined
+													}
+												/>
+											),
+										),
+									])}
+							</List>
+						) : null}
+						{history.length > HISTORY_MONTHS && !showAll ? (
 							<Button
 								type="button"
 								variant="ghost"
 								size="sm"
-								className="-me-2.5"
-								disabled={!hydrated || progress.saved <= 0}
-								onClick={() => setSheet("release")}
+								className="justify-self-start"
+								onClick={() => setShowAll(true)}
 							>
-								Take money back
+								Show {history.length - HISTORY_MONTHS} older{" "}
+								{history.length - HISTORY_MONTHS === 1 ? "month" : "months"}
 							</Button>
+						) : null}
+						{goal.changes.length > 0 ? null : (
+							<Card className="p-(--card-pad) text-sm text-muted-foreground">
+								Nothing set aside yet. Add money from this month’s plan, or money already in{" "}
+								{accountName}.
+							</Card>
 						)}
-					</div>
-				</Card>
-				<SaveFailed change={update} />
-				{claim.error instanceof GoalRefused ? (
-					<FormError>
-						That’s more than is set aside for {goal.name} now, so nothing changed.
-					</FormError>
-				) : (
-					<SaveFailed change={claim} />
-				)}
-
-				<Section aria-labelledby="goal-history">
-					<SectionHeader id="goal-history" title="History" count={goal.changes.length} />
-					{goal.changes.length > 0 ? (
-						<List>
-							{history
-								.slice(0, showAll ? undefined : HISTORY_MONTHS)
-								.flatMap(({ month: changedIn, net, changes }) => [
-									<ListGroupLabel key={changedIn} className="flex justify-between gap-3">
-										<span>{monthLabel(changedIn, today)}</span>
-										<span className="tabular-nums">
-											{net >= 0 ? "+" : ""}
-											{formatMoney(net)}
-										</span>
-									</ListGroupLabel>,
-									...groupSweeps(changes).map((change) =>
-										Array.isArray(change) ? (
-											<SweepsRow key={change[0]?.id} sweeps={change} />
-										) : (
-											<HistoryRow
-												key={change.id}
-												change={change}
-												today={today}
-												onUndo={
-													active &&
-													change.kind === "funding" &&
-													change.from === undefined &&
-													change.month === month
-														? () =>
-																undo.mutate({
-																	moveId: change.id,
-																	goalName: goal.name,
-																	month: change.month,
-																})
-														: undefined
-												}
-											/>
-										),
-									),
-								])}
-						</List>
-					) : null}
-					{history.length > HISTORY_MONTHS && !showAll ? (
-						<Button
-							type="button"
-							variant="ghost"
-							size="sm"
-							className="justify-self-start"
-							onClick={() => setShowAll(true)}
-						>
-							Show {history.length - HISTORY_MONTHS} older{" "}
-							{history.length - HISTORY_MONTHS === 1 ? "month" : "months"}
-						</Button>
-					) : null}
-					{goal.changes.length > 0 ? null : (
-						<Card className="p-(--card-pad) text-sm text-muted-foreground">
-							Nothing set aside yet. Add money from this month’s plan, or money already in{" "}
-							{accountName}.
-						</Card>
-					)}
-				</Section>
-
-				{active ? (
-					<Section aria-labelledby="goal-emergency">
-						<SectionHeader
-							id="goal-emergency"
-							title="Emergencies"
-							help={<TermHelp term="sweep" />}
-						/>
-						<Card className="grid gap-3 p-(--card-pad)">
-							<FinishRow
-								text={
-									emergency
-										? "This is your emergency Goal. Noodle suggests it for Extra income, and when nobody decides where last month’s leftovers go, they’re Swept into it."
-										: "Keeping this for emergencies? Noodle will suggest it for Extra income, and when nobody decides where last month’s leftovers go, they’ll be Swept into it."
-								}
-								action={
-									<Button
-										type="button"
-										variant="outline"
-										size="sm"
-										disabled={!hydrated}
-										onClick={() => setEmergency.mutate({ goalId: emergency ? null : goal.id })}
-									>
-										{emergency ? "Stop using" : "Use for emergencies"}
-									</Button>
-								}
-							/>
-							<SaveFailed change={setEmergency} />
-						</Card>
 					</Section>
-				) : null}
-
-				{archived ? null : (
-					<Section aria-labelledby="goal-finish">
-						<SectionHeader id="goal-finish" title="Finish" />
-						<Card className="grid gap-3 p-(--card-pad)">
-							{active ? (
-								<FinishRow
-									text="Done saving? Completing it keeps the money set aside, ready to spend."
-									action={
-										<Button
-											type="button"
-											variant="outline"
-											size="sm"
-											disabled={!hydrated}
-											onClick={() => complete.mutate({ goalId: goal.id })}
-										>
-											Complete
-										</Button>
-									}
-								/>
-							) : (
-								<p className="text-sm text-muted-foreground">
-									Completed. Its money stays set aside until it’s spent or released.
-								</p>
-							)}
-							{archiving ? (
-								<Confirm
-									confirmLabel="Archive Goal"
-									onCancel={() => setArchiving(false)}
-									onConfirm={() => {
-										setArchiving(false);
-										archive.mutate({ goalId: goal.id });
-									}}
-								>
-									Archiving {goal.name} releases
-									{progress.saved > 0 ? ` the ${formatMoney(progress.saved)}` : " what"} it has set
-									aside in {accountName}, so it’s free for other Goals.
-								</Confirm>
-							) : (
-								<FinishRow
-									text="No longer saving for it? Archiving releases what it has set aside."
-									action={
-										<Button
-											type="button"
-											variant="ghost"
-											size="sm"
-											disabled={!hydrated}
-											onClick={() => setArchiving(true)}
-										>
-											Archive
-										</Button>
-									}
-								/>
-							)}
-							<SaveFailed change={complete} />
-							<SaveFailed change={archive} />
-						</Card>
-					</Section>
-				)}
+				</div>
 			</div>
 
 			<AddMoneySheet

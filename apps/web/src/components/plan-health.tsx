@@ -4,7 +4,7 @@ import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, type LinkProps } from "@tanstack/react-router";
-import { ChevronRight, CircleAlert } from "lucide-react";
+import { ChevronRight, CircleAlert, TriangleAlert } from "lucide-react";
 import { formatMoney, fullDay, monthName } from "../format";
 import { planHealthQuery } from "../queries";
 
@@ -15,11 +15,12 @@ import { planHealthQuery } from "../queries";
 export function PlanHealth() {
 	const { warnings } = useSuspenseQuery(planHealthQuery()).data;
 	if (warnings.length === 0) return null;
+	const sorted = [...warnings].sort((a, b) => urgency[a.kind] - urgency[b.kind]);
 	return (
 		<Section aria-labelledby="plan-health">
-			<SectionHeader id="plan-health" title="Plan health" count={warnings.length} />
+			<SectionHeader id="plan-health" title="Things to check" count={warnings.length} />
 			<List>
-				{warnings.map((warning) => (
+				{sorted.map((warning) => (
 					<HealthRow key={keyOf(warning)} warning={warning} />
 				))}
 			</List>
@@ -33,6 +34,14 @@ const keyOf = (warning: PlanWarning) =>
 		: warning.kind === "goal-late"
 			? `${warning.kind}:${warning.goalId}`
 			: warning.kind;
+
+/** Most urgent first: money running out, then income, then advice. */
+const urgency: Record<PlanWarning["kind"], number> = {
+	"negative-ahead": 0,
+	"income-behind": 1,
+	"goal-late": 2,
+	"bucket-over": 3,
+};
 
 const monthsText = (n: number) => `${n} month${n === 1 ? "" : "s"}`;
 
@@ -83,7 +92,11 @@ function HealthRow({ warning }: { warning: PlanWarning }) {
 				"has-focus-visible:outline-2 has-focus-visible:-outline-offset-2 has-focus-visible:outline-ring",
 			)}
 		>
-			<CircleAlert aria-hidden="true" className="mt-0.5 size-4 text-over" />
+			{warning.kind === "negative-ahead" ? (
+				<CircleAlert aria-hidden="true" className="mt-0.5 size-4 text-over" />
+			) : (
+				<TriangleAlert aria-hidden="true" className="mt-0.5 size-4 text-pace" />
+			)}
 			<div className="grid min-w-0 gap-0.5">
 				<Link {...link} className="text-sm font-medium outline-none after:absolute after:inset-0">
 					{title}
