@@ -40,18 +40,21 @@ Never let the CLI overwrite a file here.
 | Sheet | Noodle's own, on Radix Dialog | A bottom sheet on phones and a centred dialog on desktop: forms and lists to pick from. |
 | Slider | shadcn, by hand (#47) | One thumb, named, with its value in words. |
 | Spinner | shadcn, by hand (#47) | Decorative unless given a `label`. |
+| RowButton | Noodle's own (#56) | A button that is a whole row or tile. See "Rows and tiles that are buttons" below. |
 | Stepper | Noodle's own (#53) | "Step 3 of 7 · about 2 minutes left", decorative segments, and an optional `status` line (a polite live region) for background work. The get-started wizard's progress header. |
-| Table | shadcn, by hand (#47) | `numeric` right-aligns a cell in tabular figures. Give each table a caption. |
+| StepList, StepListItem | Noodle's own (#56) | In `stepper.tsx`. A flow whose steps have names: a `<nav>` (name it with `aria-label`) of rows, each `state="done"` (a tick), `"current"` (raised, `aria-current="step"`) or `"todo"`. The weekly Check-in. Use Stepper when the steps only need counting. |
+| Table | shadcn, by hand (#47) | `numeric` right-aligns a cell in tabular figures. Give each table a caption. `dense` is a few lines of figures in a small space: 12px, no rules, the caption on top (a Scenario's month against the Plan). |
 | Tabs | shadcn, by hand (#47) | Plus `LinkTabs`/`LinkTab`: the same look for pages that each have a URL, as a `<nav>` of links rather than a tablist. |
 | Textarea | shadcn, by hand (#56) | Input's look, three lines tall, growing with what's typed. |
 | Toast | Noodle's own look on Sonner (#47) | `toast(message, options)`. Up to three show at once, each a polite status. Sonner is the toast shadcn recommends; the registry's wrapper needs `next-themes`, so it isn't used. |
-| Toggle, ToggleGroup | shadcn, by hand (#47) | A `segmented` variant. A single-choice group is a radio group: one option is always chosen, and the arrow keys choose. |
+| Toggle, ToggleGroup | shadcn, by hand (#47) | Variants `segmented` (a track, the chosen one raised) and `chip` (round, filled when on: filters that can each be on). Sizes `sm`, `default`, `lg`, `icon-sm` (square, an icon only) and `wrap` (words that may run to two lines). Don't restyle an item with `className`: pick a variant and a size. A single-choice group is a radio group: one option is always chosen, and the arrow keys choose. |
 | Tooltip | shadcn, by hand (#47) | `WithTooltip` is the common case. Never the only place something is said: touch can't hover. |
 | Chart | shadcn | On Recharts, for Reports and Explore. |
 | PageLayout, SplitLayout (SplitMain, SplitRail), MasterDetail | Noodle's own (#67) | The page grid, below. Every page under the shared header is one of the three. |
 | Stat, StatGrid | Noodle's own (#56) | A figure under its label, and the `<dl>` a few of them sit in. See "Figures" below. |
 | Money | Noodle's own (#56) | An amount from cents, in tabular figures on one line: `whole` rounds to dollars, `signed` adds "+" to a gain, `flagNegative` puts a negative in the over ink. `formatMoney` (`lib/money.ts`) is the same text as a string. |
-| Field, List, Meter, PageHeader, Section, Tile, EmptyState, Logo | Noodle's own | |
+| Field, FormError | Noodle's own | A labelled control with its hint or error. `FormError` is the error under a form: the destructive Alert with `role="alert"`, laid out as a row so a "Try again" Button can sit beside the words. |
+| List, Meter, PageHeader, Section, Tile, EmptyState, Logo | Noodle's own | |
 
 ## The page grid
 
@@ -88,7 +91,31 @@ One height scale, so controls that sit in a row line up without a height class. 
 
 - **Button `chip`** with `variant="secondary"`: a filter that is on, with an × to take it off (Transactions, Reports).
 - **Button `inline`** with `variant="link"`: a few underlined words inside a sentence that do something ("Try again", "Use the estimate"). It takes the sentence's text size; for the sentence's colour too, add `text-current hover:text-current`.
-- Below lg every size is 44px, as "Tap targets" says, apart from `chip` and `inline`.
+- **Button `help`** with `variant="ghost"`: TermHelp's "?", 24px and round, with its 44px hit area on phones.
+- Below lg every size is 44px, as "Tap targets" says, apart from `chip`, `inline` and `help`.
+
+## Rows and tiles that are buttons
+
+Button is a word or an icon at a control height. When the thing to press is a whole row or a tile, with its own layout inside, it is a `RowButton`, never a raw `<button>`. It is as tall as its content; grid columns and negative margins come from `className`. `asChild` puts the look on a link.
+
+| Variant | What | Where |
+| --- | --- | --- |
+| `row` (default) | A row on a card that opens something. | A Report's line that drills in; a Bucket's row in the phone heatmap. |
+| `list` | A row of a List, edge to edge. | A Transaction. |
+| `bordered` | A row with its own border, on its own. | "3 lumpy months ahead" on Commitments. |
+| `tile` | A bordered tile in a grid of choices. | A Bucket in Quick Add, a source in Cover. |
+| `soft` | A tile without a border, on the soft ground. | Reports' "By Bucket" small charts. |
+| `value` | The value at the end of a row, which opens its editor. | A Scenario's lines. |
+| `key` | A key of the amount keypad. | Quick Add. |
+
+- `aria-disabled` dims it and stops the hover, but it can still be pressed, so it can say what is missing. `disabled` takes it out altogether.
+- Still raw, on purpose: the cells of Reports' heatmap table and the days of its spending calendar (`report-charts.tsx`). Each is a coloured data cell in a grid, sized and tinted by its figure, with roving focus in the calendar; the heatmap's `<table>` is that grid (sticky first column, its own sideways scroller), not a Table of text. Hidden file inputs driven by a Button also stay.
+
+## Notices
+
+- A notice in the page is an `Alert`; an error is `variant="destructive"`, with `role="alert"` when it has just happened. A form's error is `FormError`, which is the same box.
+- Not an Alert: a page that failed to load (`PageError`, an EmptyState, since it is the whole page); a strip along the bottom of a card (an Account's "set aside more than the balance", a payoff Goal's "new charges"), which is part of its card; Plan health and Explore's warnings, which are lists of links.
+- An error under one field (`Field`'s `error`) is a line of text, not a box.
 
 ## Figures
 
@@ -99,6 +126,7 @@ A figure with a label is a `Stat` in a `StatGrid`, never a hand-written `<dl>`. 
 | `ruled` | `sm` | 12px / 14px semibold | A strip along the bottom of a card, ruled above and between: This Month's totals, a Bucket's, a Commitment's and a payoff Goal's facts. `wrapLast` gives the last of three its own row on a phone. |
 | `spaced` (default) | `default` | 13px / 18px semibold | A card's totals: Accounts, Goals. |
 | `cards` | `lg` | 13px / 24px semibold | Each figure is its own Card: a Scenario against the Plan. |
+| `spaced` with `size="lg"` | `lg` | 13px / 24px semibold | A Report's headline figures, in one Card; `note` holds what changed since the period before. |
 
 - `note` is a second line under the value, `help` a TermHelp beside the label, `tone="over"` the over ink.
 - Give the value as text, or as `<Money cents={…} />` so it never wraps.
