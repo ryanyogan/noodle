@@ -80,7 +80,9 @@ test("connecting pairs with the card already there, and counts nothing twice", a
 	await page.getByRole("button", { name: "Add Account" }).click();
 	await page.getByRole("link", { name: /^Costco Anywhere Visa, / }).click();
 	await expect(page.locator("[data-slot=detail-title]")).toContainText("Costco Anywhere Visa");
-	await expect(page.getByText("Entered by hand")).toBeVisible();
+	await expect(
+		page.locator("[data-slot=master-detail-detail]").getByText("Entered by hand"),
+	).toBeVisible();
 	const shellDay = utcDaysAgo(2);
 	const csv = [
 		"Transaction Date,Description,Debit,Credit",
@@ -93,7 +95,9 @@ test("connecting pairs with the card already there, and counts nothing twice", a
 		.setInputFiles({ name: "costco.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
 	await upload.getByRole("button", { name: "Import 1 line" }).click();
 	await expect(toast(page, "costco.csv: 1 Transaction")).toBeVisible();
-	await expect(page.getByText(/^From statements · last /)).toBeVisible();
+	await expect(
+		page.locator("[data-slot=master-detail-detail]").getByText(/^From statements · last /),
+	).toBeVisible();
 
 	// Connecting asks which of the bank's accounts the Household has: the card is suggested.
 	await accountsLink(page).click();
@@ -123,7 +127,9 @@ test("connecting pairs with the card already there, and counts nothing twice", a
 	await expect(page.getByRole("link", { name: /··3333/ })).toHaveCount(0);
 	await expect(page.getByRole("link", { name: /Auto Loan/ })).toHaveCount(0);
 	await page.getByRole("link", { name: /^Costco Anywhere Visa, / }).click();
-	await expect(page.getByText(/^Connected · First Platypus Bank/)).toBeVisible();
+	await expect(
+		page.locator("[data-slot=master-detail-detail]").getByText(/^Connected · First Platypus Bank/),
+	).toBeVisible();
 	// A live balance isn't typed over, and the bank brings in what statements did.
 	await expect(page.getByRole("button", { name: "Update what’s owed" })).toHaveCount(0);
 	await expect(page.getByRole("button", { name: "Upload statement" })).toHaveCount(0);
@@ -184,7 +190,9 @@ test("connecting pairs with the card already there, and counts nothing twice", a
 		.getByRole("alertdialog")
 		.getByRole("button", { name: "Stop bringing in from First Platypus Bank" })
 		.click();
-	await expect(page.getByText(/^From statements · last /)).toBeVisible();
+	await expect(
+		page.locator("[data-slot=master-detail-detail]").getByText(/^From statements · last /),
+	).toBeVisible();
 	await expect(page.getByRole("button", { name: "Upload statement" })).toBeVisible();
 	await accountsLink(page).click();
 	await expect(connection).toContainText("2 Accounts");
