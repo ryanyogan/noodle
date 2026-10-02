@@ -23,6 +23,7 @@ import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
+import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Meter } from "@noodle/ui/components/meter";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
@@ -183,8 +184,8 @@ function ThisMonth() {
 			{planned ? (
 				// One column on phones, in reading order; from lg the money at a glance sits in a
 				// right rail. The columns are `contents` on phones so `order` interleaves them.
-				<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start xl:grid-cols-[minmax(0,1fr)_400px]">
-					<div className="contents lg:grid lg:gap-8">
+				<SplitLayout stack="children">
+					<SplitMain>
 						<div className="order-1 grid gap-3 empty:hidden lg:order-none">
 							{closingWeek(month, state.asOf) ? (
 								<ClosePreviousMonth
@@ -278,8 +279,8 @@ function ThisMonth() {
 								/>
 							) : null}
 						</div>
-					</div>
-					<div className="contents lg:sticky lg:top-4 lg:-m-1 lg:grid lg:max-h-[calc(100dvh-2rem)] lg:gap-8 lg:overflow-y-auto lg:p-1 lg:[scrollbar-width:thin]">
+					</SplitMain>
+					<SplitRail>
 						<div className="order-5 grid gap-3 lg:order-none">
 							<FreeToSpend state={state} check={check} />
 							<LumpCallout lumps={lumpsIn(state)} month={month} />
@@ -307,12 +308,14 @@ function ThisMonth() {
 								/>
 							) : null}
 						</div>
-					</div>
-				</div>
+					</SplitRail>
+				</SplitLayout>
 			) : month === current ? (
-				<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
-					<GetStarted state={state} />
-				</div>
+				<SplitLayout>
+					<SplitMain>
+						<GetStarted state={state} />
+					</SplitMain>
+				</SplitLayout>
 			) : (
 				<EmptyState
 					icon={<CalendarDays />}

@@ -127,6 +127,11 @@
 	--sidebar-width: 248px;
 	--sidebar-width-icon: 60px;
 	--tabbar-height: 56px;
+	/* The page grid (components/layout.tsx): one gutter, and one width for each kind of column. */
+	--layout-gap: 32px;
+	--rail-width: 360px;
+	--list-pane-width: 360px;
+	--reading-width: 48rem;
 }
 
 @media (prefers-color-scheme: dark) {

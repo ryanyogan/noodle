@@ -44,7 +44,27 @@ Never let the CLI overwrite a file here.
 | Toggle, ToggleGroup | shadcn, by hand (#47) | A `segmented` variant. A single-choice group is a radio group: one option is always chosen, and the arrow keys choose. |
 | Tooltip | shadcn, by hand (#47) | `WithTooltip` is the common case. Never the only place something is said: touch can't hover. |
 | Chart | shadcn | On Recharts, for Reports and Explore. |
+| PageLayout, SplitLayout (SplitMain, SplitRail), MasterDetail | Noodle's own (#67) | The page grid, below. Every page under the shared header is one of the three. |
 | Field, List, Meter, PageHeader, Section, Tile, EmptyState, Logo | Noodle's own | |
+
+## The page grid
+
+`components/layout.tsx`. A page below the shared header (`SectionLayout` or `PageHeader`) is one of three layouts, so rail widths, gutters and column tops are the same on every page. Don't write a two-column `lg:grid-cols-[…]` template in a page.
+
+| Token | Value | What it is |
+| --- | --- | --- |
+| `--gutter` | 16px, 40px from lg | The page's side padding (the shell). |
+| `--layout-gap` | 32px | The one gutter: between columns, and between the blocks stacked in a column. |
+| `--rail-width` | 360px | SplitLayout's rail. |
+| `--list-pane-width` | 360px | MasterDetail's list pane. |
+| `--reading-width` | 48rem | `PageLayout width="reading"`: the widest a page of prose or forms gets. |
+| (shell) | 1200px, 1440px when the route has `staticData: { wide: true }` | The max content width, gutters included. |
+
+- **PageLayout**: one column. `width="reading"` caps it; `columns={2}` is two equal columns from lg (Household); `spacing="tight"` sets a dashboard's cards closer (Reports).
+- **SplitLayout** with `SplitMain` and `SplitRail`: main plus the rail from lg, both starting on the same top edge. The rail is sticky only while all of it fits the window (it measures itself and sets `data-fits`); taller than that, it scrolls with the page. It never has its own scrollbar, so don't give it a max height or `overflow-y-auto`. Below lg it is one column: `stack="main"` (main first, the default), `"rail"` (rail first) or `"children"` (both columns become `display: contents` and each block's `order-N` places it; pair each with `lg:order-none`).
+- **MasterDetail**: `list`, `detail` and `empty`. From lg, two full-height panes under the header that each scroll on their own, and the page doesn't scroll. This is the only place a region scrolls inside the app's page; the panes carry `data-scroll-pane`. Below lg it shows one level at a time as ordinary page content: the list, or the detail once there is one. `empty` fills the detail pane at lg while nothing is picked.
+
+One scroll per region: `apps/web/e2e/desktop-scroll.spec.ts` fails a page with a scrolling element inside a scrolling page or ancestor, other than MasterDetail's panes, open sheets, dialogs and popovers, and things that scroll sideways.
 
 ## Tap targets on phones
 

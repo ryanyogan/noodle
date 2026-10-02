@@ -8,6 +8,7 @@ import {
 	CollapsibleTrigger,
 } from "@noodle/ui/components/collapsible";
 import { EmptyState } from "@noodle/ui/components/empty-state";
+import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
 import { ListRow } from "@noodle/ui/components/list";
 import { Spinner } from "@noodle/ui/components/spinner";
 import { toast } from "@noodle/ui/components/toast";
@@ -71,40 +72,44 @@ function InsightsPage() {
 		</Button>
 	);
 	return (
-		<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
-			<div className="grid max-w-3xl gap-4">
-				<SaveFailed change={end} />
-				{insights.length > 0 ? <div className="flex justify-end">{lookNow}</div> : null}
-				{insights.length === 0 ? (
-					<EmptyState
-						icon={<Lightbulb />}
-						title="No Insights right now"
-						description="Each night Noodle looks over your spending and Commitments for things like paying twice for the same service or a price that went up. Nothing changes until you act."
-						action={lookNow}
-					/>
-				) : (
-					insights.map((insight) => (
-						<InsightCard
-							key={insight.id}
-							insight={insight}
-							current={current}
-							onEnd={(commitment) =>
-								end.mutate(
-									{ commitmentId: commitment.id, month: current },
-									{
-										onSuccess: () => {
-											toast(`${commitment.name} leaves the Plan from ${monthName(current)} on.`);
-											void queryClient.invalidateQueries({ queryKey: insightsQuery().queryKey });
-										},
-									},
-								)
-							}
+		<SplitLayout>
+			<SplitMain>
+				<div className="grid max-w-3xl gap-4">
+					<SaveFailed change={end} />
+					{insights.length > 0 ? <div className="flex justify-end">{lookNow}</div> : null}
+					{insights.length === 0 ? (
+						<EmptyState
+							icon={<Lightbulb />}
+							title="No Insights right now"
+							description="Each night Noodle looks over your spending and Commitments for things like paying twice for the same service or a price that went up. Nothing changes until you act."
+							action={lookNow}
 						/>
-					))
-				)}
-			</div>
-			<InsightsSide insights={insights} />
-		</div>
+					) : (
+						insights.map((insight) => (
+							<InsightCard
+								key={insight.id}
+								insight={insight}
+								current={current}
+								onEnd={(commitment) =>
+									end.mutate(
+										{ commitmentId: commitment.id, month: current },
+										{
+											onSuccess: () => {
+												toast(`${commitment.name} leaves the Plan from ${monthName(current)} on.`);
+												void queryClient.invalidateQueries({ queryKey: insightsQuery().queryKey });
+											},
+										},
+									)
+								}
+							/>
+						))
+					)}
+				</div>
+			</SplitMain>
+			<SplitRail className="max-lg:hidden">
+				<InsightsSide insights={insights} />
+			</SplitRail>
+		</SplitLayout>
 	);
 }
 
@@ -116,7 +121,7 @@ function InsightsSide({ insights }: { insights: InsightItem[] }) {
 		counts.set(label, (counts.get(label) ?? 0) + 1);
 	}
 	return (
-		<aside aria-label="About Insights" className="hidden gap-4 xl:sticky xl:top-6 xl:grid">
+		<aside aria-label="About Insights" className="grid gap-4">
 			{counts.size > 0 ? (
 				<Card className="grid gap-2 p-(--card-pad)">
 					<h2 className="text-sm font-semibold">By type</h2>

@@ -1,5 +1,6 @@
 import type { PlanPart } from "@noodle/domain";
 import { Card } from "@noodle/ui/components/card";
+import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
 import type { ReactNode } from "react";
 
 /**
@@ -20,24 +21,24 @@ export function PlanSubPage({
 	children: ReactNode;
 }) {
 	return (
-		<>
-			{/* At lg the list takes the left; the total, the add form and the explainer sit in a sticky
-			    right column. On phones that column's parts fall in line: the total first, the rest last. */}
-			<div className="grid max-w-2xl gap-8 lg:max-w-none lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start xl:grid-cols-[minmax(0,1fr)_380px]">
+		// At lg the list takes the left; the total, the add form and the explainer sit in the rail.
+		// On phones the rail's parts fall in line: the total first, the rest last.
+		<SplitLayout stack="children" className="max-w-2xl lg:max-w-none">
+			<SplitMain>
 				<div className="grid min-w-0 gap-8">{children}</div>
-				<div className="max-lg:contents lg:sticky lg:top-6 lg:grid lg:gap-6">
-					{summary || !editable ? (
-						<div className="grid gap-3 max-lg:order-first">
-							{editable ? null : <PlanEnded />}
-							{summary ? (
-								<p className="px-1 text-sm text-muted-foreground tabular-nums">{summary}</p>
-							) : null}
-						</div>
-					) : null}
-					{aside ? <div className="grid gap-4">{aside}</div> : null}
-				</div>
-			</div>
-		</>
+			</SplitMain>
+			<SplitRail>
+				{summary || !editable ? (
+					<div className="grid gap-3 max-lg:order-first">
+						{editable ? null : <PlanEnded />}
+						{summary ? (
+							<p className="px-1 text-sm text-muted-foreground tabular-nums">{summary}</p>
+						) : null}
+					</div>
+				) : null}
+				{aside ? <div className="grid gap-4">{aside}</div> : null}
+			</SplitRail>
+		</SplitLayout>
 	);
 }
 

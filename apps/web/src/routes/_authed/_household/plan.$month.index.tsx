@@ -10,6 +10,7 @@ import {
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
 import { List } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { cn } from "@noodle/ui/lib/utils";
@@ -69,8 +70,8 @@ function PlanOverview() {
 	return (
 		<>
 			{/* At lg: the Plan itself on the left, what's coming and what changed on the right. */}
-			<div className="grid max-w-2xl gap-8 lg:max-w-none lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)] lg:items-start">
-				<div className="grid min-w-0 gap-8">
+			<SplitLayout className="max-w-2xl lg:max-w-none">
+				<SplitMain>
 					{state.editable ? null : <PlanEnded />}
 					{state.editable && month === current ? <PlanDraftSection /> : null}
 					{settingUp ? <SetUp state={state} current={month === current} /> : null}
@@ -83,14 +84,14 @@ function PlanOverview() {
 							<YearLink month={month} />
 						</div>
 					)}
-				</div>
+				</SplitMain>
 				{settingUp && state.baseline === null ? null : (
-					<div className="grid min-w-0 gap-8">
+					<SplitRail>
 						{month === current ? <ComingUpSummary /> : null}
 						<WhatChanged month={month} first={state.firstMonth} />
-					</div>
+					</SplitRail>
 				)}
-			</div>
+			</SplitLayout>
 		</>
 	);
 }

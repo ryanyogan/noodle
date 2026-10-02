@@ -5,6 +5,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
+import { PageLayout } from "@noodle/ui/components/layout";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { MetaParts } from "@noodle/ui/components/meta-parts";
 import { PageHeader } from "@noodle/ui/components/page-header";
@@ -100,7 +101,7 @@ function HouseholdPage() {
 					</Button>
 				}
 			/>
-			<div className="grid gap-8 lg:grid-cols-2 lg:items-start xl:gap-10">
+			<PageLayout columns={2}>
 				<div className="grid gap-8">
 					<Section aria-labelledby="parents">
 						<SectionHeader id="parents" title="Parents" count={data.parents.length} />
@@ -191,7 +192,7 @@ function HouseholdPage() {
 						</Card>
 					</Section>
 				</div>
-			</div>
+			</PageLayout>
 		</>
 	);
 }

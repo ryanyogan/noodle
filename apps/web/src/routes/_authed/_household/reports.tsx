@@ -21,6 +21,7 @@ import { DatePicker } from "@noodle/ui/components/date-picker";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
+import { PageLayout } from "@noodle/ui/components/layout";
 import { OptionSelect } from "@noodle/ui/components/select";
 import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
@@ -158,7 +159,7 @@ function ReportsPage() {
 		>
 			{/* One minmax(0,1fr) column: the view tabs' w-max list scrolls in its own nav rather than
 			    widening the page (a grid's auto column is as wide as its widest content). */}
-			<div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:gap-5">
+			<PageLayout spacing="tight">
 				{empty ? (
 					<Card className="p-0">
 						<EmptyState
@@ -204,7 +205,7 @@ function ReportsPage() {
 						</div>
 					</>
 				)}
-			</div>
+			</PageLayout>
 		</SectionLayout>
 	);
 }

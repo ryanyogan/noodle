@@ -5,6 +5,7 @@ import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
+import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { MetaParts } from "@noodle/ui/components/meta-parts";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
@@ -46,45 +47,47 @@ function PerksPage() {
 	const suggested = sources.filter((s) => s.status === "suggested");
 	const confirmed = sources.filter((s) => s.status === "confirmed");
 	return (
-		<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-start">
-			<div className="grid max-w-3xl gap-6">
-				{sources.length === 0 ? (
-					<Card className="p-0">
-						<EmptyState
-							icon={<Gift />}
-							title="No Perk Sources yet"
-							description="Phone plans, credit cards and memberships often include services or pay for costs. Noodle suggests the ones it spots in your spending each night, or add one below."
-						/>
-					</Card>
-				) : null}
-				{suggested.length > 0 ? (
-					<Section aria-labelledby="perks-to-confirm">
-						<SectionHeader id="perks-to-confirm" title="To confirm" count={suggested.length} />
-						<List>
-							{suggested.map((source) => (
-								<Suggestion key={source.id} source={source} />
+		<SplitLayout>
+			<SplitMain>
+				<div className="grid max-w-3xl gap-6">
+					{sources.length === 0 ? (
+						<Card className="p-0">
+							<EmptyState
+								icon={<Gift />}
+								title="No Perk Sources yet"
+								description="Phone plans, credit cards and memberships often include services or pay for costs. Noodle suggests the ones it spots in your spending each night, or add one below."
+							/>
+						</Card>
+					) : null}
+					{suggested.length > 0 ? (
+						<Section aria-labelledby="perks-to-confirm">
+							<SectionHeader id="perks-to-confirm" title="To confirm" count={suggested.length} />
+							<List>
+								{suggested.map((source) => (
+									<Suggestion key={source.id} source={source} />
+								))}
+							</List>
+						</Section>
+					) : null}
+					{confirmed.length > 0 ? (
+						<Section aria-labelledby="perk-sources">
+							<SectionHeader
+								id="perk-sources"
+								title="Perk Sources"
+								count={confirmed.length}
+								help={<TermHelp term="perk-source" />}
+							/>
+							{confirmed.map((source) => (
+								<PerkSourceCard key={source.id} source={source} />
 							))}
-						</List>
-					</Section>
-				) : null}
-				{confirmed.length > 0 ? (
-					<Section aria-labelledby="perk-sources">
-						<SectionHeader
-							id="perk-sources"
-							title="Perk Sources"
-							count={confirmed.length}
-							help={<TermHelp term="perk-source" />}
-						/>
-						{confirmed.map((source) => (
-							<PerkSourceCard key={source.id} source={source} />
-						))}
-					</Section>
-				) : null}
-			</div>
-			<div className="xl:sticky xl:top-6">
+						</Section>
+					) : null}
+				</div>
+			</SplitMain>
+			<SplitRail>
 				<AddPerkSource />
-			</div>
-		</div>
+			</SplitRail>
+		</SplitLayout>
 	);
 }
 
