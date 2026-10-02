@@ -1,5 +1,17 @@
 # Mobile review (#48)
 
+## Summary (2026-10-02, #48 closed)
+
+Of the 77 rows: **65 fixed**, **9 partly fixed** (133, 134, 135, 141, 142, 143, 145, 147, 157), **1 not a bug** (187), **1 decided** (144: Back closes Quick Add, other sheets ask before leaving), **0 won't fix**, **1 still open** (190). A row's number (as used in #48's commits and the follow-up issue) is its line number in this file before this summary was added; today it sits 12 lines lower.
+
+Not measurable headless, so still to try on an iPhone: the keyboard with a sheet open (rows 143, 147), swipe-to-dismiss feel, the installed PWA, real VoiceOver and Dynamic Type. See "Checks that need an iPhone" at the end. At 200% text, Accounts is still 4 px wider than a 393 phone and the Transactions search shows "Se".
+
+Follow-ups:
+
+- #52 Mobile review: device checks and leftovers: the iPhone checks, row 190, and the remainders of the partly fixed rows.
+- #50 Review rework.
+- #51 Desktop review leftovers.
+
 Phase 1a (2026-10-01): research notes and an automated scan of every page on phones. Phase 1b (2026-10-01) added a look at every screenshot, a pass over the sheets, a long-name and 7-figure stress probe, and Welcome. Later phases fix the rows below.
 
 ## Research notes
@@ -112,7 +124,7 @@ Each row is one page × one issue. Repeated small targets are grouped by compone
 
 | Page | Issue | Severity | Fix | Phase | Status |
 |---|---|---|---|---|---|
-| Every page | No horizontal page scroll at 320, 375, 393 or 430, in light or dark, on `busy` or `fresh`: `scrollWidth` equals `innerWidth` on all 528 loads. But seed names and amounts are realistic, not extreme. | med | Add a long-name and 7-figure-amount probe (rename a Bucket, Account and Goal to 60 characters, set a $1,234,567.89 balance) and recheck at 320. Then guard it with the phone E2E spec. | 2 | partly fixed (7665705): long-name probe rerun at 320 after the fixes, no overflow on 9 pages; the E2E guard is still open |
+| Every page | No horizontal page scroll at 320, 375, 393 or 430, in light or dark, on `busy` or `fresh`: `scrollWidth` equals `innerWidth` on all 528 loads. But seed names and amounts are realistic, not extreme. | med | Add a long-name and 7-figure-amount probe (rename a Bucket, Account and Goal to 60 characters, set a $1,234,567.89 balance) and recheck at 320. Then guard it with the phone E2E spec. | 2 | partly fixed (7665705): long-name probe rerun at 320 after the fixes, no overflow on 9 pages; the E2E guard is still open; then fixed (fd4c4ed, a61272d): phone-overflow.spec guards every main page at 320 |
 | Month (Close month sheet) | The Sweep select clips "Emergency fun…" at 393 (found in #47). | low | Let the Select trigger take the full row width on phones, and show full names in the list. | 2 | fixed (fd4c4ed): full-width select on phones |
 | Sign-in | Clerk's email field is 13 px, so iOS zooms the page when it gets focus. | high | Clerk `appearance`: set the form field input to 16 px below `md`. | 2 | fixed (7665705): Clerk appearance sets the fields to 16 px below md; measured 16 px at 320 |
 | Shell (every page) | The Quick Add button in the tab bar is 48×40. | med | Make it at least 44 tall (`h-11`). It's the most-used control in the app. | 3 | fixed (bff0f06) |
@@ -209,3 +221,15 @@ Phase 1b covered the screenshot review. These can't be measured headless:
 - **VoiceOver**: reading order, labels (Reports' chart buttons especially), rotor headings. Checked headless in phase 6 (#48) at 393 on `busy`: axe (WCAG 2.0-2.2 A/AA plus best practice) found no violations on 14 main pages in light or dark, and phone-a11y.spec now runs axe in both themes on CI. 200 % text (root font size) on Month, Transactions, Accounts, Plan and Goals: the Transactions header actions pushed the page sideways and the Account totals overlapped; fixed (976dcc5), the page now fits apart from 4 px on Accounts. With reduced motion the sheet and overlay animations compute to 0 s (the global `prefers-reduced-motion` rule sets animation and transition durations to 0 for everything, toasts included). Real VoiceOver and Dynamic Type still need a device.
 - **Heavy data**: measured (#48) on `busy` at 393, dev build, headless: the Transaction list is already windowed (`useWindowVirtualizer`, @tanstack/react-virtual 3.14.13), so a whole month (~16,000 px) keeps about 20 rows and 563 DOM nodes. Scrolling it end to end (3 runs) gave frame p50 16.7 ms, p95 33 ms, and 14-16 long tasks of 50-66 ms each as rows mount and pages load; CLS 0. No further virtualization needed; the dev build and this shared box overstate the cost, so confirm on a mid-range phone with a production build. Still to check: 60 fps scroll on long Transaction lists and Reports with 8+ months, on a mid-range phone. Production build (`vite build` + `vite preview`, same probe, 3 runs): frame p50 16.7 ms, p95 16.7-16.8 ms, max 17 ms, no long tasks, 20 rows / 644 nodes, CLS 0.0005; refetch, Filters close and edit sheet close CLS 0. The dev build's long tasks were dev-only.
 - **Hover-only affordances**: the scan can't detect them. Phase 1b looks for them in the screenshots.
+
+## Checks that need an iPhone
+
+Each is one step on a real iPhone, with what good looks like. Try them in Safari and as the installed PWA.
+
+- **Typing in a sheet:** open Quick Add (and Edit Transaction), tap a field so the keyboard comes up, type. Good: the sheet stays above the keyboard, the field and the primary button stay visible, the page behind doesn't jump, nothing zooms, and the text is still there after the keyboard closes.
+- **Swipe to close:** drag a sheet down from its grabber or header. Good: it follows the finger, closes past the threshold, springs back otherwise, and the page keeps its scroll position.
+- **Installed PWA:** add to Home Screen, open it, scroll every tab and overscroll at the top and bottom. Good: content clears the notch and status bar, the tab bar sits above the home indicator, the fixed tab bar and sticky headers don't bounce or tear, Back by edge swipe behaves as in Safari.
+- **VoiceOver:** on This Month and Quick Add, swipe through every element. Good: reading order follows the screen, every button has a clear label (the Term help ? buttons included), headings show in the rotor.
+- **Dynamic Type / 200% text:** set the largest text size (or 200% zoom) and visit Month, Transactions, Accounts, Plan and Goals. Good: nothing scrolls sideways, nothing is cut off, buttons still fit.
+- **Upload statement, Connect a bank, Close month:** open each sheet and go through it to the end. Good: the sheet fits, the primary action is reachable with a thumb, the keyboard doesn't hide it, closing returns to where you were.
+- **Long Transactions month:** on `busy`, open Transactions and fling to the end of the month and back. Good: smooth scrolling with no blank rows or jumps.
