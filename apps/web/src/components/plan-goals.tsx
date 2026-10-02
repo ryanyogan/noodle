@@ -171,7 +171,7 @@ export function GoalsThisMonth({
 			<Link
 				to="/plan/$month/goals"
 				params={{ month }}
-				className="justify-self-start px-1 text-[13px] font-medium text-muted-foreground underline decoration-border-strong underline-offset-3 hover:text-foreground hover:decoration-foreground"
+				className="inline-flex min-h-11 items-center justify-self-start px-1 text-[13px] lg:min-h-6 font-medium text-muted-foreground underline decoration-border-strong underline-offset-3 hover:text-foreground hover:decoration-foreground"
 			>
 				Goals in the Plan
 			</Link>

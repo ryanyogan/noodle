@@ -24,7 +24,7 @@ export function TermHelp({ term, className }: { term: GlossaryId; className?: st
 					type="button"
 					aria-label={`What’s “${entry.term}”?`}
 					className={cn(
-						"-my-1 inline-flex size-6 shrink-0 items-center justify-center rounded-full align-middle text-muted-foreground",
+						"relative -my-1 inline-flex size-6 shrink-0 max-lg:after:absolute max-lg:after:-inset-2.5 items-center justify-center rounded-full align-middle text-muted-foreground",
 						"transition-colors duration-(--duration-fast) hover:bg-surface-2 hover:text-foreground",
 						"focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring",
 						"data-[state=open]:bg-surface-2 data-[state=open]:text-foreground",

@@ -261,7 +261,7 @@ function InsightCard({
 			</div>
 			{evidence > 0 ? (
 				<Collapsible className="group border-t">
-					<CollapsibleTrigger className="w-full text-start flex items-center gap-2 px-(--card-pad) py-2.5 text-[13px] font-medium text-muted-foreground hover:text-foreground">
+					<CollapsibleTrigger className="w-full text-start flex max-lg:min-h-11 items-center gap-2 px-(--card-pad) py-2.5 text-[13px] font-medium text-muted-foreground hover:text-foreground">
 						<ChevronRight className="size-4 transition-transform group-data-[state=open]:rotate-90 motion-reduce:transition-none" />
 						What it’s based on
 						<Badge variant="count">{evidence}</Badge>

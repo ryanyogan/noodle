@@ -230,7 +230,7 @@ function TabBar() {
 			<TabGroup items={tabs.slice(0, half)} />
 			<QuickAddLink
 				className={cn(
-					"mx-2 grid h-10 w-12 place-items-center self-center rounded-[14px] bg-primary text-primary-foreground",
+					"mx-2 grid h-11 w-12 place-items-center self-center rounded-[14px] bg-primary text-primary-foreground",
 					"transition-transform duration-(--duration-fast) ease-standard active:scale-[0.94]",
 				)}
 			>

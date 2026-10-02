@@ -141,7 +141,7 @@ function BillsSwitch({ view, onChange }: { view: View; onChange: (view: View) =>
 						tabIndex={selected ? 0 : -1}
 						onClick={() => onChange(option.value)}
 						className={cn(
-							"h-8 rounded-lg px-3 text-sm font-medium text-muted-foreground",
+							"h-11 rounded-lg px-3 text-sm font-medium text-muted-foreground",
 							"transition-colors duration-(--duration-fast) ease-standard hover:text-foreground",
 							"focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
 							selected && "bg-card text-foreground shadow-card",

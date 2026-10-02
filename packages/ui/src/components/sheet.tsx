@@ -165,7 +165,7 @@ function SheetHeader({
 			<SheetPrimitive.Close
 				aria-label="Close"
 				className={cn(
-					"grid size-8 place-items-center rounded-lg text-muted-foreground",
+					"grid size-8 place-items-center rounded-lg text-muted-foreground max-lg:-me-1.5 max-lg:size-11",
 					"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2 hover:text-foreground",
 					"focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
 				)}

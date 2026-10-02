@@ -644,7 +644,7 @@ function SweepsRow({ sweeps }: { sweeps: GoalChange[] }) {
 	return (
 		<li className="px-(--card-pad) py-3">
 			<Collapsible className="group">
-				<CollapsibleTrigger className="w-full text-start flex items-center justify-between gap-3">
+				<CollapsibleTrigger className="w-full text-start flex max-lg:min-h-11 items-center justify-between gap-3">
 					<span className="grid gap-0.5">
 						<span className="text-sm font-medium">
 							Leftovers from {sweeps.length} Buckets

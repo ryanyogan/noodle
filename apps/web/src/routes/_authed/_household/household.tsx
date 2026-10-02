@@ -176,7 +176,11 @@ function HouseholdPage() {
 					<Section aria-labelledby="account" className="lg:hidden">
 						<SectionHeader id="account" title="Your account" />
 						<Card className="flex items-center gap-3 p-(--card-pad) text-sm text-muted-foreground">
-							<UserButton />
+							<UserButton
+								appearance={{
+									elements: { userButtonTrigger: { minWidth: "2.75rem", minHeight: "2.75rem" } },
+								}}
+							/>
 							Manage your sign-in or sign out.
 						</Card>
 					</Section>

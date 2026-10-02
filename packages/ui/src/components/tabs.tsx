@@ -17,7 +17,7 @@ const tabsListVariants = cva(
 );
 
 const tabsTriggerVariants = cva([
-	"inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md px-3 text-[13px] font-medium whitespace-nowrap",
+	"inline-flex h-8 max-lg:h-11 shrink-0 items-center justify-center gap-1.5 rounded-md px-3 text-[13px] font-medium whitespace-nowrap",
 	"transition-[background-color,color,box-shadow] duration-(--duration-fast) ease-standard hover:text-foreground",
 	"focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
 	"disabled:pointer-events-none disabled:opacity-50",

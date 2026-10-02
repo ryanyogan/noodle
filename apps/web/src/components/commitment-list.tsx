@@ -103,7 +103,7 @@ export function CommitmentsList({
 function NotThisMonth({ month, commitments }: { month: MonthKey; commitments: CommitmentState[] }) {
 	return (
 		<Collapsible className="group">
-			<CollapsibleTrigger className="w-full text-start flex min-h-9 items-center gap-1.5 px-1 text-[13px] text-muted-foreground hover:text-foreground">
+			<CollapsibleTrigger className="w-full text-start flex min-h-9 max-lg:min-h-11 items-center gap-1.5 px-1 text-[13px] text-muted-foreground hover:text-foreground">
 				<ChevronRight
 					aria-hidden="true"
 					className="size-4 transition-transform group-data-[state=open]:rotate-90"

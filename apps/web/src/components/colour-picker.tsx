@@ -34,7 +34,7 @@ export function ColourPicker({
 						value={String(option.value)}
 						aria-label={option.name}
 						className={cn(
-							"block size-8 rounded-full ring-offset-2 ring-offset-card transition-shadow duration-(--duration-fast)",
+							"block size-8 rounded-full max-lg:size-11 ring-offset-2 ring-offset-card transition-shadow duration-(--duration-fast)",
 							"data-[state=checked]:ring-2 data-[state=checked]:ring-foreground",
 							"focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring",
 						)}

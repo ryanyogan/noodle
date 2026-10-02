@@ -179,7 +179,7 @@ export function PlanHistoryList({ month, targetId }: { month: MonthKey; targetId
 export function PlanHistoryDisclosure({ month, targetId }: { month: MonthKey; targetId: string }) {
 	return (
 		<Collapsible className="group mt-2 border-t pt-4">
-			<CollapsibleTrigger className="flex w-full items-center gap-1.5 text-start text-sm font-medium">
+			<CollapsibleTrigger className="flex min-h-11 w-full items-center gap-1.5 text-start text-sm font-medium lg:min-h-8">
 				<ChevronRight
 					className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90"
 					aria-hidden="true"

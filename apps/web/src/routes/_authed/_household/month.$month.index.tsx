@@ -414,7 +414,7 @@ function Chip({
 		<Link
 			{...link}
 			className={cn(
-				"inline-flex w-fit items-center gap-2 rounded-full bg-card py-1.5 ps-3 pe-2 text-sm font-medium shadow-card ring-1 ring-border",
+				"inline-flex w-fit items-center gap-2 rounded-full bg-card py-1.5 max-lg:min-h-11 ps-3 pe-2 text-sm font-medium shadow-card ring-1 ring-border",
 				"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2",
 			)}
 		>

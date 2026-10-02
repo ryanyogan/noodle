@@ -12,7 +12,7 @@ function Checkbox({ className, ...props }: React.ComponentProps<typeof CheckboxP
 		<CheckboxPrimitive.Root
 			data-slot="checkbox"
 			className={cn(
-				"peer relative grid size-4.5 shrink-0 place-items-center rounded-[5px] border border-border-strong bg-card",
+				"peer relative grid size-4.5 max-lg:after:absolute max-lg:after:-inset-[13px] shrink-0 place-items-center rounded-[5px] border border-border-strong bg-card",
 				"transition-colors duration-(--duration-fast) ease-standard",
 				// A 24px target around the 18px box (WCAG 2.5.8).
 				"after:absolute after:-inset-1",

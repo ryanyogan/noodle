@@ -42,6 +42,22 @@ Never let the CLI overwrite a file here.
 | Chart | shadcn | On Recharts, for Reports and Explore. |
 | Field, List, Meter, PageHeader, Section, Tile, EmptyState, Logo | Noodle's own | |
 
+## Tap targets on phones
+
+Below `lg` (phones and small tablets) every control is at least 44×44 px; at `lg` and up the
+desktop density stays as it was. One approach everywhere: `max-lg:` sizes in the component.
+
+- Button: `default`, `sm`, `icon` and `icon-sm` become `max-lg:h-11` / `max-lg:size-11` (`lg` is already 44).
+- Input, SelectTrigger (all sizes), Combobox and DatePicker triggers: `max-lg:h-11`. Select and
+  dropdown items: `max-lg:min-h-11`.
+- TabsTrigger / LinkTab and Toggle / ToggleGroup items: `max-lg:h-11`.
+- Sheet Close: `max-lg:size-11`. Calendar cells: 40 px below `lg` (7 × 44 doesn't fit a 320 px phone).
+- Controls that stay visually small (Checkbox, Radio, Switch, TermHelp's "?") get a 44 px hit area
+  from an `::after` box (`max-lg:after:absolute max-lg:after:-inset-…`). Keep 8 px or more between
+  them and the next control so the hit areas don't overlap; better still, wrap the row in a `<label>`.
+- Don't pass a fixed height in `className` to shrink a control on phones; if a caller needs a
+  smaller control at desktop, override with `lg:h-…`.
+
 ## Which select
 
 - **Select**: a choice that changes what a page shows, or sits inline as a chip. For example Reports' Period, Transactions' filters, and Explore's Scenario and chips.

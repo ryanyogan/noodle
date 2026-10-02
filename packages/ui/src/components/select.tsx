@@ -37,9 +37,9 @@ const selectTriggerClass = [
 	"disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-over aria-invalid:ring-3 aria-invalid:ring-over-soft",
 	"data-placeholder:text-subtle-foreground",
 	// 16px on phones so iOS Safari doesn't zoom, as Input.
-	"data-[size=default]:h-10 data-[size=default]:rounded-xl data-[size=default]:ps-3 data-[size=default]:pe-2.5 data-[size=default]:text-base md:data-[size=default]:text-sm",
-	"data-[size=sm]:h-8 data-[size=sm]:rounded-lg data-[size=sm]:ps-2.5 data-[size=sm]:pe-2 data-[size=sm]:text-[13px]",
-	"data-[size=pill]:h-8 data-[size=pill]:w-auto data-[size=pill]:rounded-full data-[size=pill]:ps-3 data-[size=pill]:pe-2 data-[size=pill]:text-[13px] data-[size=pill]:font-medium lg:data-[size=pill]:h-7",
+	"data-[size=default]:h-10 max-lg:data-[size=default]:h-11 data-[size=default]:rounded-xl data-[size=default]:ps-3 data-[size=default]:pe-2.5 data-[size=default]:text-base md:data-[size=default]:text-sm",
+	"data-[size=sm]:h-8 max-lg:data-[size=sm]:h-11 data-[size=sm]:rounded-lg data-[size=sm]:ps-2.5 data-[size=sm]:pe-2 data-[size=sm]:text-[13px]",
+	"data-[size=pill]:h-8 max-lg:data-[size=pill]:h-11 data-[size=pill]:w-auto data-[size=pill]:rounded-full data-[size=pill]:ps-3 data-[size=pill]:pe-2 data-[size=pill]:text-[13px] data-[size=pill]:font-medium lg:data-[size=pill]:h-7",
 	"*:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5",
 	"[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
 ].join(" ");
@@ -126,7 +126,7 @@ function SelectItem({
 		<SelectPrimitive.Item
 			data-slot="select-item"
 			className={cn(
-				"relative flex min-h-9 w-full cursor-default items-center gap-2 rounded-lg py-1.5 ps-2 pe-8 text-sm outline-hidden select-none",
+				"relative flex min-h-9 max-lg:min-h-11 w-full cursor-default items-center gap-2 rounded-lg py-1.5 ps-2 pe-8 text-sm outline-hidden select-none",
 				"focus:bg-surface-2 focus:text-foreground data-[state=checked]:font-medium",
 				"data-disabled:pointer-events-none data-disabled:opacity-50",
 				"[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",

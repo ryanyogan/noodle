@@ -254,22 +254,22 @@ function PerkSourceCard({ source }: { source: PerkSourceItem }) {
 							key={perk.id}
 							title={perk.name}
 							meta={
-								<>
-									<span>
-										{perk.kind === "service" ? "A service it includes" : "A cost it pays for"}
-									</span>
-									<span>·</span>
-									<a
-										href={perk.sourceUrl}
-										target="_blank"
-										rel="noreferrer"
-										className="inline-flex items-center gap-1 underline-offset-4 hover:text-foreground hover:underline"
-									>
-										Source
-										<ExternalLink aria-hidden="true" className="size-3" />
-									</a>
-									<span>· Checked {shortDayAt(perk.checkedAt)}</span>
-								</>
+								<MetaParts
+									parts={[
+										perk.kind === "service" ? "A service it includes" : "A cost it pays for",
+										<a
+											key="source"
+											href={perk.sourceUrl}
+											target="_blank"
+											rel="noreferrer"
+											className="inline-flex items-center gap-1 underline-offset-4 hover:text-foreground hover:underline max-lg:min-h-11"
+										>
+											Source
+											<ExternalLink aria-hidden="true" className="size-3" />
+										</a>,
+										`Checked ${shortDayAt(perk.checkedAt)}`,
+									]}
+								/>
 							}
 						/>
 					))}

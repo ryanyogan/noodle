@@ -75,7 +75,7 @@ function DropdownMenuItem({
 				requestAnimationFrame(() => requestAnimationFrame(() => setNextOpener(null)));
 			}}
 			className={cn(
-				"relative flex min-h-9 cursor-default items-center gap-2 rounded-lg px-2 py-1.5 text-sm outline-hidden select-none",
+				"relative flex min-h-9 max-lg:min-h-11 cursor-default items-center gap-2 rounded-lg px-2 py-1.5 text-sm outline-hidden select-none",
 				"focus:bg-surface-2 focus:text-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
 				"data-[variant=destructive]:text-over-foreground data-[variant=destructive]:focus:bg-over-soft data-[variant=destructive]:focus:text-over-foreground",
 				"[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:text-muted-foreground data-[variant=destructive]:[&_svg]:text-current",
