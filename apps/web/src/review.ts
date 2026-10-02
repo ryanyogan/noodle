@@ -9,7 +9,14 @@ import {
 } from "@tanstack/react-query";
 import { monthChangeKey } from "./plan-changes";
 import { monthQuery, reviewQuery, rulesQuery } from "./queries";
-import { applyRule, deleteRule, editRule, returnToReview, saveRule } from "./server/review";
+import {
+	applyRule,
+	deleteRule,
+	editRule,
+	lookAgainAtReview,
+	returnToReview,
+	saveRule,
+} from "./server/review";
 import type { TransactionsPage } from "./server/transactions";
 import {
 	applyTransactionChange,
@@ -147,7 +154,12 @@ export function useReturnToReview() {
 					month: monthOfTransaction(item),
 					merchant: item.merchant,
 					guess: item.guess
-						? { bucketId: item.guess.bucketId, confidence: item.guess.confidence }
+						? {
+								bucketId: item.guess.bucketId,
+								confidence: item.guess.confidence,
+								method: item.guess.method,
+								reason: item.guess.reason,
+							}
 						: null,
 					forMemberIds: item.for,
 				},
@@ -334,6 +346,30 @@ export function useDeleteRule() {
 }
 
 /** Files everything still unassigned that a Rule matches, wherever it is. */
+/** "Look again": categorizes what waits in Review once more, against the Plan as it is now. */
+export function useLookAgain() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationKey: monthChangeKey,
+		mutationFn: () => lookAgainAtReview(),
+		onError: () => toast("Couldn’t look again. Try again in a moment.", { tone: "error" }),
+		onSuccess: ({ looked, filed, guessed }) =>
+			toast(
+				looked === 0
+					? "Nothing of yours to look at again"
+					: filed + guessed === 0
+						? "Looked again: still no suggestions"
+						: [
+								filed > 0 ? `Filed ${filed}` : null,
+								guessed > 0 ? `${guessed} with a suggestion` : null,
+							]
+								.filter(Boolean)
+								.join(", "),
+			),
+		onSettled: () => refetchAfterChange(queryClient),
+	});
+}
+
 export function useApplyRule() {
 	const queryClient = useQueryClient();
 	return useMutation({

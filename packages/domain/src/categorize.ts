@@ -16,8 +16,19 @@ export const AUTO_FILE_CONFIDENCE = 0.8;
  */
 export const SIMILAR_MERCHANT_SCORE = 0.9;
 
+/**
+ * How alike a merchant must be to one filed before for that Bucket to be kept as a guess for
+ * Review (never filed). Between this and SIMILAR_MERCHANT_SCORE are different merchants of the same
+ * kind ("hulu" to "netflix" scores 0.83), sometimes not ("walmart supercenter" to "the home
+ * depot", also 0.83): good enough to suggest, with the merchant named, so the Parent can judge.
+ */
+export const SIMILAR_GUESS_SCORE = 0.75;
+
 /** How a Transaction came to be filed. */
 export type CategorizationMethod = "rule" | "similar" | "model";
+
+/** Where a Review guess came from, or "none" when nothing had one. */
+export type GuessMethod = CategorizationMethod | "none";
 
 /** What categorization decided for one imported Transaction. */
 export type Categorization =
@@ -28,9 +39,17 @@ export type Categorization =
 			confidence: number;
 			/** Who it was For, when a Rule that says so filed it; otherwise it's left as it is. */
 			for?: string[];
+			/** Why: the merchant filed before it was like, or the model's few words. */
+			reason?: string | null;
 	  }
-	/** Left unassigned for Review, with the best guess if there was one. */
-	| { outcome: "review"; bucketId: string | null; confidence: number | null };
+	/** Left unassigned for Review, with the best guess if there was one, and where it came from. */
+	| {
+			outcome: "review";
+			method: GuessMethod;
+			bucketId: string | null;
+			confidence: number | null;
+			reason?: string | null;
+	  };
 
 /**
  * A stated mapping from a merchant pattern (a merchantKey, matched as whole words) to a Bucket
@@ -94,12 +113,15 @@ export function ruleFor<R extends Rule>(rules: R[], merchant: string): R | undef
  * What to do with an imported Transaction, given what each source said about its merchant, only
  * ever among Buckets the importing Parent may assign (the caller leaves the others out): a Rule
  * files it; failing that, a merchant filed before that's alike enough; failing that, the model's
- * guess if it's sure enough. Otherwise it's left for Review with the model's guess, if any.
+ * guess if it's sure enough. Otherwise it's left for Review with a guess: the model's Bucket, if
+ * it named one, else the merchant filed before if it's at least SIMILAR_GUESS_SCORE alike.
  */
 export function decideCategorization(said: {
 	rule?: Rule;
-	similar?: { bucketId: string; score: number };
-	model?: { bucketId: string | null; confidence: number };
+	/** The nearest merchant filed before: its Bucket, how alike (0–1), and its name. */
+	similar?: { bucketId: string; score: number; merchant?: string };
+	/** The model's guess, how sure (0–1), and its few words on why. */
+	model?: { bucketId: string | null; confidence: number; why?: string };
 }): Categorization {
 	if (said.rule) {
 		return {
@@ -116,6 +138,7 @@ export function decideCategorization(said: {
 			method: "similar",
 			bucketId: said.similar.bucketId,
 			confidence: said.similar.score,
+			reason: said.similar.merchant ?? null,
 		};
 	}
 	const model = said.model;
@@ -125,11 +148,26 @@ export function decideCategorization(said: {
 			method: "model",
 			bucketId: model.bucketId,
 			confidence: model.confidence,
+			reason: model.why ?? null,
 		};
 	}
-	return {
-		outcome: "review",
-		bucketId: model?.bucketId ?? null,
-		confidence: model?.bucketId ? model.confidence : null,
-	};
+	if (model?.bucketId) {
+		return {
+			outcome: "review",
+			method: "model",
+			bucketId: model.bucketId,
+			confidence: model.confidence,
+			reason: model.why ?? null,
+		};
+	}
+	if (said.similar && said.similar.score >= SIMILAR_GUESS_SCORE) {
+		return {
+			outcome: "review",
+			method: "similar",
+			bucketId: said.similar.bucketId,
+			confidence: said.similar.score,
+			reason: said.similar.merchant ?? null,
+		};
+	}
+	return { outcome: "review", method: "none", bucketId: null, confidence: null, reason: null };
 }

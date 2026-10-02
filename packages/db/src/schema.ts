@@ -903,13 +903,16 @@ export const categorizations = sqliteTable(
 			.references(() => households.id),
 		memberId: text("member_id").references(() => members.id),
 		outcome: text("outcome", { enum: ["filed", "review"] }).notNull(),
-		method: text("method", { enum: ["rule", "similar", "model"] }),
+		// How it was filed, or where a Review row's guess came from ("none": nothing had one).
+		method: text("method", { enum: ["rule", "similar", "model", "none"] }),
 		bucketId: text("bucket_id").references(() => buckets.id),
 		confidence: real("confidence"),
 		merchant: text("merchant").notNull(),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()
 			.default(sql`(unixepoch() * 1000)`),
+		// Why: the merchant filed before it was like ("similar"), or the model's few words.
+		reason: text("reason"),
 	},
 	(t) => [index("categorizations_household_idx").on(t.householdId, t.outcome)],
 );

@@ -9,7 +9,16 @@ import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
-import { Check, CheckCheck, Lock, Pencil, SkipForward, Sparkles, WandSparkles } from "lucide-react";
+import {
+	Check,
+	CheckCheck,
+	Lock,
+	Pencil,
+	RefreshCw,
+	SkipForward,
+	Sparkles,
+	WandSparkles,
+} from "lucide-react";
 import { type PointerEvent, Suspense, useEffect, useRef, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../../../buckets";
@@ -22,6 +31,7 @@ import { membersQuery, monthQuery, reviewQuery } from "../../../queries";
 import {
 	type ReviewDecision,
 	type ReviewItem,
+	useLookAgain,
 	useReviewDecision,
 	useSaveRule,
 } from "../../../review";
@@ -83,6 +93,7 @@ function ReviewPage() {
 	const [offer, setOffer] = useState<RuleOffer | null>(null);
 	const decide = useReviewDecision();
 	const saveRule = useSaveRule();
+	const lookAgain = useLookAgain();
 	const reduced = useReducedMotion();
 	const hydrated = useHydrated();
 	const cards = inOrder(queue.items, skipped);
@@ -183,12 +194,25 @@ function ReviewPage() {
 					</span>
 				}
 				actions={
-					<Button variant="outline" size="sm" asChild>
-						<Link to="/review/rules">
-							<WandSparkles />
-							Rules
-						</Link>
-					</Button>
+					<>
+						{queue.total > 0 ? (
+							<Button
+								variant="outline"
+								size="sm"
+								disabled={!hydrated || lookAgain.isPending}
+								onClick={() => lookAgain.mutate()}
+							>
+								<RefreshCw />
+								Look again
+							</Button>
+						) : null}
+						<Button variant="outline" size="sm" asChild>
+							<Link to="/review/rules">
+								<WandSparkles />
+								Rules
+							</Link>
+						</Button>
+					</>
 				}
 			/>
 			<div className="grid max-w-xl gap-5">

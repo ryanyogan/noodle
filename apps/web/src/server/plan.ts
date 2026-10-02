@@ -20,8 +20,9 @@ import {
 } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { lookAgainAfterPlanChange } from "./categorize";
 import { getDb } from "./db";
-import { type HouseholdSummary, householdMiddleware } from "./household";
+import { type HouseholdSummary, householdMiddleware, viewerOf } from "./household";
 import { monthKeySchema } from "./month";
 import { notifyHousehold } from "./notify";
 import { ulidSchema } from "./schemas";
@@ -76,6 +77,8 @@ export const addBucket = createServerFn({ method: "POST" })
 			...data,
 		});
 		await notifyHousehold(context.household.id, ["months"]);
+		// A new Bucket may fit what waits in Review.
+		lookAgainAfterPlanChange(viewerOf(context));
 	});
 
 export const updateBucket = createServerFn({ method: "POST" })

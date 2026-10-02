@@ -115,7 +115,8 @@ export type CategorizationDecision = {
  * unassigned and unsplit, and into a Bucket in the Plan for its month that `viewer` may assign
  * to; one that can't be is flagged for Review instead. A Rule's For lands with it, unless it's
  * already For someone. Idempotent: a Transaction is categorized once, though one waiting in
- * Review can still be filed (a Rule applied to what's unassigned).
+ * Review can still be filed (a Rule applied to what's unassigned) or given a new guess (looked at
+ * again once the Plan has changed).
  */
 export async function fileCategorizations(
 	db: Db,
@@ -130,7 +131,8 @@ export async function fileCategorizations(
 			id: transactionId,
 			merchant,
 			outcome: categorization.outcome,
-			method: categorization.outcome === "filed" ? categorization.method : null,
+			method: categorization.method,
+			reason: categorization.reason ?? null,
 			bucketId: categorization.bucketId,
 			confidence: categorization.confidence,
 			for: categorization.outcome === "filed" ? (categorization.for ?? []) : [],
@@ -228,13 +230,12 @@ export async function fileCategorizations(
 						memberId: sql<string>`${memberId}`.as("member_id"),
 						outcome: sql<"filed" | "review">`case when ${field("outcome")} = 'filed'
 							and ${filedAsDecided} then 'filed' else 'review' end`.as("outcome"),
-						method: sql<string | null>`case when ${filedAsDecided} then ${field("method")} end`.as(
-							"method",
-						),
+						method: sql<string | null>`${field("method")}`.as("method"),
 						bucketId: sql<string | null>`${field("bucketId")}`.as("bucket_id"),
 						confidence: sql<number | null>`${field("confidence")}`.as("confidence"),
 						merchant: sql<string>`${field("merchant")}`.as("merchant"),
 						createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
+						reason: sql<string | null>`${field("reason")}`.as("reason"),
 					})
 					.from(sql`json_each(${rows})`)
 					.where(
@@ -244,15 +245,17 @@ export async function fileCategorizations(
 			)
 			.onConflictDoUpdate({
 				target: categorizations.transactionId,
-				// Only filing one that waits in Review; anything else was categorized once already.
+				// Only one that waits in Review: filed now, or looked at again (refileReview) with a new
+				// guess. Anything filed was categorized once already.
 				set: {
 					memberId: sql`excluded.member_id`,
 					outcome: sql`excluded.outcome`,
 					method: sql`excluded.method`,
 					bucketId: sql`excluded.bucket_id`,
 					confidence: sql`excluded.confidence`,
+					reason: sql`excluded.reason`,
 				},
-				setWhere: sql`${categorizations.outcome} = 'review' and excluded.outcome = 'filed'`,
+				setWhere: sql`${categorizations.outcome} = 'review'`,
 			}),
 	);
 	await db.batch(batch as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);

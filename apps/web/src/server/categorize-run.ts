@@ -4,6 +4,7 @@ import {
 	fileCategorizations,
 	loadCategorizableBuckets,
 	loadCorrection,
+	loadReviewToLookAgain,
 	loadRules,
 	loadUncategorized,
 	loadUncategorizedTransaction,
@@ -11,7 +12,7 @@ import {
 	type Uncategorized,
 	type Viewer,
 } from "@noodle/db";
-import { decideCategorization, merchantKey, ruleFor } from "@noodle/domain";
+import { decideCategorization, type GuessMethod, merchantKey, ruleFor } from "@noodle/domain";
 import {
 	type Classification,
 	type Classifier,
@@ -29,7 +30,19 @@ import {
 
 export type CategorizeDeps = { db: Db; classifier: Classifier; merchants: MerchantIndex };
 
-export type CategorizeResult = { filed: number; review: number; months: string[] };
+export type CategorizeResult = {
+	filed: number;
+	review: number;
+	months: string[];
+	/** How many were filed or guessed by each method; "none" had no guess. */
+	methods: Record<GuessMethod, number>;
+};
+
+const noMethods = (): Record<GuessMethod, number> => ({ rule: 0, similar: 0, model: 0, none: 0 });
+
+/** One line for the logs: counts only, never merchants. */
+export const describeResult = (result: CategorizeResult) =>
+	`${result.filed} filed, ${result.review} for Review (rule ${result.methods.rule}, similar ${result.methods.similar}, model ${result.methods.model}, none ${result.methods.none})`;
 
 /**
  * Files an Import's uncategorized Transactions: by Rule, else by a merchant the Household filed
@@ -42,7 +55,21 @@ export async function categorizeImport(
 	viewer: Viewer,
 	importId: string,
 ): Promise<CategorizeResult> {
-	return categorize(deps, viewer, await loadUncategorized(deps.db, viewer.householdId, importId));
+	const rows = await loadUncategorized(deps.db, viewer.householdId, importId);
+	return categorize(deps, viewer, rows, `Import ${importId}`);
+}
+
+/**
+ * Looks again at what waits in Review that `viewer` imported, the same way, against the Plan as it
+ * is now (after Buckets are added, say): what's now sure is filed, the rest gets a new guess, or
+ * none. Idempotent: looking again with nothing changed decides the same.
+ */
+export async function lookAgainAtReview(
+	deps: CategorizeDeps,
+	viewer: Viewer,
+): Promise<CategorizeResult> {
+	const rows = await loadReviewToLookAgain(deps.db, viewer);
+	return categorize(deps, viewer, rows, `Review for ${viewer.memberId}`);
 }
 
 /**
@@ -56,16 +83,18 @@ export async function categorizeCapture(
 	transactionId: string,
 ): Promise<CategorizeResult> {
 	const rows = await loadUncategorizedTransaction(deps.db, viewer.householdId, transactionId);
-	return categorize(deps, viewer, rows);
+	return categorize(deps, viewer, rows, `Quick Add ${transactionId}`);
 }
 
 async function categorize(
 	deps: CategorizeDeps,
 	viewer: Viewer,
 	rows: Uncategorized[],
+	/** What's categorized, for the logs: an ID, never a merchant. */
+	label: string,
 ): Promise<CategorizeResult> {
 	const { db } = deps;
-	if (rows.length === 0) return { filed: 0, review: 0, months: [] };
+	if (rows.length === 0) return { filed: 0, review: 0, months: [], methods: noMethods() };
 	const months = [...new Set(rows.map((row) => row.date.slice(0, 7)))].sort();
 	const [buckets, allRules] = await Promise.all([
 		loadCategorizableBuckets(db, viewer, months[0] as string, months.at(-1) as string),
@@ -95,9 +124,11 @@ async function categorize(
 		deps.classifier,
 		buckets.map(({ id, name }) => ({ id, name })),
 		toModel,
+		label,
 	);
 
-	const personal = new Set(buckets.filter((bucket) => bucket.personal).map((b) => b.id));
+	// An unsure guess of the importing Parent's own Personal Allowance is kept (never filed): only
+	// they see it in Review (loadReview); the other Parent's is never choosable here.
 	const decisions = rows.map((row): CategorizationDecision => {
 		const merchant = merchantOf.get(row.id) as string;
 		const guess = modelled.get(merchant);
@@ -107,26 +138,16 @@ async function categorize(
 			similar: similar.get(merchant),
 			model:
 				guess && (guess.bucketId === null || choosable.has(guess.bucketId))
-					? { bucketId: guess.bucketId, confidence: guess.confidence }
+					? { bucketId: guess.bucketId, confidence: guess.confidence, why: guess.why }
 					: undefined,
 		});
-		// Review may be seen by either Parent: an unsure guess of a Personal Allowance isn't kept.
-		if (
-			categorization.outcome === "review" &&
-			categorization.bucketId &&
-			personal.has(categorization.bucketId)
-		) {
-			return {
-				transactionId: row.id,
-				merchant,
-				categorization: { outcome: "review", bucketId: null, confidence: null },
-			};
-		}
 		return { transactionId: row.id, merchant, categorization, ruleId: rule?.id };
 	});
 	await fileCategorizations(db, viewer, decisions);
 	const filed = decisions.filter((d) => d.categorization.outcome === "filed").length;
-	return { filed, review: decisions.length - filed, months };
+	const methods = noMethods();
+	for (const { categorization } of decisions) methods[categorization.method] += 1;
+	return { filed, review: decisions.length - filed, months, methods };
 }
 
 const similarEnough = (neighbour: Neighbour | undefined) =>
@@ -154,6 +175,7 @@ async function classify(
 	classifier: Classifier,
 	buckets: { id: string; name: string }[],
 	merchants: MerchantToFile[],
+	label: string,
 ): Promise<Map<string, Classification>> {
 	if (merchants.length === 0 || buckets.length === 0) return new Map();
 	const batches: MerchantToFile[][] = [];
@@ -168,6 +190,14 @@ async function classify(
 			}),
 		),
 	);
+	answers.forEach((answer, i) => {
+		const problems = [...new Set(answer.flatMap((a) => (a.problem ? [a.problem] : [])))];
+		if (problems.length === 0) return;
+		const unread = answer.filter((a) => a.problem).length;
+		console.warn(
+			`Couldn’t read the model’s answer for ${label} (prompt ${i + 1}): ${unread} of ${batches[i]?.length} merchants, ${problems.join(", ")}`,
+		);
+	});
 	return new Map(answers.flat().map((answer) => [answer.key, answer]));
 }
 

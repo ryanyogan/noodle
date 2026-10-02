@@ -7,6 +7,7 @@ import {
 	createHouseholdForParent,
 	type Db,
 	importStatement,
+	loadReview,
 	loadTransactionsPage,
 	saveRule,
 	setTakeHomePay,
@@ -29,6 +30,7 @@ import {
 	type CategorizeDeps,
 	categorizeCapture,
 	categorizeImport,
+	lookAgainAtReview,
 	settleAssignment,
 } from "./categorize-run";
 
@@ -186,7 +188,12 @@ describe("categorizing an Import", () => {
 
 		const result = await categorizeImport(deps(model.classifier), alex, importId);
 
-		expect(result).toEqual({ filed: 2, review: 0, months: ["2026-09"] });
+		expect(result).toEqual({
+			filed: 2,
+			review: 0,
+			months: ["2026-09"],
+			methods: { rule: 2, similar: 0, model: 0, none: 0 },
+		});
 		expect(Object.values(await outcomes())).toEqual([
 			expect.objectContaining({ bucketId: "groceries", outcome: "filed", method: "rule" }),
 			expect.objectContaining({ bucketId: "groceries", outcome: "filed", method: "rule" }),
@@ -285,7 +292,7 @@ describe("categorizing an Import", () => {
 		const again = await categorizeImport(deps(model.classifier), alex, importId);
 
 		expect(result).toMatchObject({ filed: 2, review: 0 });
-		expect(again).toEqual({ filed: 0, review: 0, months: [] });
+		expect(again).toMatchObject({ filed: 0, review: 0, months: [] });
 		expect(model.merchantsAsked()).toEqual(["netflix"]);
 	});
 
@@ -349,7 +356,7 @@ describe("categorizing keeps the other Parent's Personal Allowance private", () 
 		expect(model.merchantsAsked().sort()).toEqual(["lego store", "sephora", "ulta beauty"]);
 	});
 
-	it("uses the importing Parent's own Personal Allowance, but never keeps it as a guess for Review", async () => {
+	it("uses the importing Parent's own Personal Allowance, and keeps it as a guess only they see", async () => {
 		const model = fakeModel({
 			sephora: { bucketId: "sam-pa", confidence: 0.95 },
 			lego: { bucketId: "sam-pa", confidence: 0.4 },
@@ -363,11 +370,72 @@ describe("categorizing keeps the other Parent's Personal Allowance private", () 
 		expect(all["LEGO STORE"]).toMatchObject({
 			bucketId: null,
 			outcome: "review",
-			suggestion: null,
+			method: "model",
+			suggestion: "sam-pa",
 		});
+		const [samsCard] = (await loadReview(db, sam, 10)).items;
+		expect(samsCard?.guess).toMatchObject({ bucketId: "sam-pa", method: "model" });
+		const [alexsCard] = (await loadReview(db, alex, 10)).items;
+		expect(alexsCard).toMatchObject({ guess: null, lookedAt: "none" });
 		// Alex doesn't see Sam's Personal Allowance spending, marked or not.
 		const alexSees = (await loadTransactionsPage(db, alex, { month, limit: 10 })).transactions;
 		expect(alexSees.map((t) => t.note)).toEqual(["LEGO STORE"]);
+	});
+});
+
+describe("keeping guesses for Review, and looking again", () => {
+	it("keeps a merchant alike but not alike enough as a guess, naming it, and records why", async () => {
+		// Three of its four words: 0.75 alike in the memory index, at the floor, short of filing.
+		await merchants.learn(householdId, "blue bottle coffee", "fun");
+		const model = fakeModel({ "trader joe": { bucketId: "groceries", confidence: 0.6 } });
+		const importId = await importLines("alex", [
+			line("BLUE BOTTLE COFFEE OAKLAND", 18),
+			line("TRADER JOE S 552", 40),
+			line("ACME HOLDINGS 4411", 120),
+		]);
+
+		const result = await categorizeImport(deps(model.classifier), alex, importId);
+
+		expect(result.methods).toEqual({ rule: 0, similar: 1, model: 1, none: 1 });
+		const decided = await db.select().from(categorizations);
+		const by = (note: string) => {
+			const id = Object.values(decided).find((c) => c.merchant === merchantKey(note));
+			return id && { method: id.method, bucketId: id.bucketId, reason: id.reason };
+		};
+		expect(by("BLUE BOTTLE COFFEE OAKLAND")).toEqual({
+			method: "similar",
+			bucketId: "fun",
+			reason: "blue bottle coffee",
+		});
+		expect(by("TRADER JOE S 552")).toMatchObject({ method: "model", bucketId: "groceries" });
+		expect(by("ACME HOLDINGS 4411")).toEqual({ method: "none", bucketId: null, reason: null });
+		const page = await loadTransactionsPage(db, alex, { month, limit: 10 });
+		expect(page.transactions.every((t) => t.bucketId === null)).toBe(true);
+	});
+
+	it("looks again at what waits in Review once the Plan has a Bucket for it, idempotently", async () => {
+		const importId = await importLines("alex", [line("SHELL OIL 123", 50), line("ACME 9", 3)]);
+		await categorizeImport(deps(fakeModel().classifier), alex, importId);
+		expect((await loadReview(db, alex, 10)).items.map((i) => i.lookedAt)).toEqual(["none", "none"]);
+
+		const model = fakeModel({
+			shell: { bucketId: "gas", confidence: 0.95 },
+			acme: { bucketId: "fun", confidence: 0.5 },
+		});
+		const again = await lookAgainAtReview(deps(model.classifier), alex);
+
+		expect(again).toMatchObject({ filed: 1, review: 1 });
+		const queue = await loadReview(db, alex, 10);
+		expect(queue.items.map((i) => [i.note, i.guess?.bucketId, i.lookedAt])).toEqual([
+			["ACME 9", "fun", "model"],
+		]);
+		expect(await lookAgainAtReview(deps(model.classifier), alex)).toMatchObject({
+			filed: 0,
+			review: 1,
+		});
+		expect((await loadReview(db, alex, 10)).items).toHaveLength(1);
+		// What Alex imported is Alex's to look again at, with Alex's Rules and Allowance.
+		expect(await lookAgainAtReview(deps(model.classifier), sam)).toMatchObject({ review: 0 });
 	});
 });
 
@@ -388,10 +456,19 @@ describe("reading the model's answer", () => {
 \`\`\``;
 		expect(readAnswer(text, buckets, toFile)).toEqual([
 			{ key: "costco", bucketId: "groceries", confidence: 0.9 },
-			{ key: "shell", bucketId: null, confidence: 0 },
+			{ key: "shell", bucketId: null, confidence: 0, problem: "unknown Bucket code" },
 			{ key: "acme", bucketId: null, confidence: 0 },
 		]);
-		expect(readAnswer("not json", buckets, toFile).every((c) => c.bucketId === null)).toBe(true);
+		expect(readAnswer("not json", buckets, toFile)).toEqual(
+			toFile.map(({ key }) => ({ key, bucketId: null, confidence: 0, problem: "not JSON" })),
+		);
+		const short =
+			'{"results":[{"merchant":"m1","bucket":"b2","confidence":0.6,"why":" a gas station "}]}';
+		expect(readAnswer(short, buckets, toFile)).toEqual([
+			{ key: "costco", bucketId: "gas", confidence: 0.6, why: "a gas station" },
+			{ key: "shell", bucketId: null, confidence: 0, problem: "unanswered" },
+			{ key: "acme", bucketId: null, confidence: 0, problem: "unanswered" },
+		]);
 	});
 
 	it("lists Buckets and merchants by code in the prompt", () => {
@@ -468,7 +545,7 @@ describe("categorizing a captured Quick Add", () => {
 		expect(await outcome(nopa)).toEqual({
 			bucketId: null,
 			outcome: "review",
-			method: null,
+			method: "model",
 			suggestion: "fun",
 		});
 		expect(model.merchantsAsked()).toEqual([
@@ -484,7 +561,7 @@ describe("categorizing a captured Quick Add", () => {
 			filed: 1,
 			months: [month],
 		});
-		expect(await categorizeCapture(deps(model.classifier), alex, coffee)).toEqual({
+		expect(await categorizeCapture(deps(model.classifier), alex, coffee)).toMatchObject({
 			filed: 0,
 			review: 0,
 			months: [],

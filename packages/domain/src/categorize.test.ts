@@ -4,6 +4,7 @@ import {
 	decideCategorization,
 	merchantKey,
 	ruleFor,
+	SIMILAR_GUESS_SCORE,
 	SIMILAR_MERCHANT_SCORE,
 } from "./index";
 
@@ -87,17 +88,46 @@ describe("decideCategorization: Rules, then similar merchants, then the model", 
 
 	it("leaves an unsure guess for Review, keeping the guess", () => {
 		expect(
-			decideCategorization({ model: { bucketId: "gas", confidence: AUTO_FILE_CONFIDENCE - 0.1 } }),
-		).toEqual({ outcome: "review", bucketId: "gas", confidence: AUTO_FILE_CONFIDENCE - 0.1 });
-		expect(decideCategorization({ model: { bucketId: null, confidence: 0.9 } })).toEqual({
+			decideCategorization({
+				model: { bucketId: "gas", confidence: AUTO_FILE_CONFIDENCE - 0.1, why: "a gas station" },
+			}),
+		).toEqual({
 			outcome: "review",
+			method: "model",
+			bucketId: "gas",
+			confidence: AUTO_FILE_CONFIDENCE - 0.1,
+			reason: "a gas station",
+		});
+		const none = {
+			outcome: "review",
+			method: "none",
 			bucketId: null,
 			confidence: null,
-		});
-		expect(decideCategorization({})).toEqual({
+			reason: null,
+		};
+		expect(decideCategorization({ model: { bucketId: null, confidence: 0.9 } })).toEqual(none);
+		expect(decideCategorization({})).toEqual(none);
+	});
+
+	it("keeps a merchant alike but not alike enough to file as a guess, above a floor", () => {
+		const similar = { bucketId: "fun", score: SIMILAR_GUESS_SCORE, merchant: "netflix" };
+		expect(decideCategorization({ similar })).toEqual({
 			outcome: "review",
-			bucketId: null,
-			confidence: null,
+			method: "similar",
+			bucketId: "fun",
+			confidence: SIMILAR_GUESS_SCORE,
+			reason: "netflix",
 		});
+		expect(
+			decideCategorization({ similar: { ...similar, score: SIMILAR_GUESS_SCORE - 0.01 } }),
+		).toMatchObject({ method: "none", bucketId: null });
+		// The model's own guess about this merchant comes before another merchant's Bucket.
+		expect(
+			decideCategorization({ similar, model: { bucketId: "gas", confidence: 0.5 } }),
+		).toMatchObject({ outcome: "review", method: "model", bucketId: "gas" });
+		// It's never filed by a guess, however the two agree.
+		expect(
+			decideCategorization({ similar, model: { bucketId: "fun", confidence: 0.79 } }),
+		).toMatchObject({ outcome: "review" });
 	});
 });

@@ -1,5 +1,6 @@
-import type { DayKey } from "@noodle/domain";
-import { and, asc, count, eq, isNull, type SQL, sql } from "drizzle-orm";
+import type { DayKey, GuessMethod } from "@noodle/domain";
+import { and, asc, count, eq, isNull, or, type SQL, sql } from "drizzle-orm";
+import type { Uncategorized } from "./categorize";
 import { counts } from "./counting";
 import type { Db } from "./index";
 import { changeableBy, type Viewer, visibleTo } from "./privacy";
@@ -17,15 +18,27 @@ import type { TransactionRow } from "./transactions";
 // Review: the Transactions categorization wasn't sure of, waiting for a Parent to confirm its guess
 // or say otherwise. A Transaction waits in Review while its categorization says so and it's still
 // unassigned as a whole: unsplit, in no Bucket, Commitment or Goal. Either Parent may clear it
-// (it's in nobody's Personal Allowance while unassigned), and a guess is never a Personal
-// Allowance (categorize-run leaves those out), so nothing private reaches the other Parent.
+// (it's in nobody's Personal Allowance while unassigned). A guess may be the importing Parent's
+// own Personal Allowance, but it's only ever shown to them: to the other Parent the card has no
+// guess, so nothing private reaches them (ADR-0003, ADR-0021).
 
 /** A Transaction waiting in Review, as a card shows it. */
 export type ReviewItem = TransactionRow & {
 	/** The merchant its statement line names (a merchantKey): what a Rule for it would match. */
 	merchant: string;
-	/** Categorization's best guess, and how sure it was (0–1); null when it had none. */
-	guess: { bucketId: string; name: string; confidence: number | null } | null;
+	/**
+	 * Categorization's best guess, how sure it was (0–1), where it came from, and why (the merchant
+	 * filed before it was like, or the model's few words); null when it had none.
+	 */
+	guess: {
+		bucketId: string;
+		name: string;
+		confidence: number | null;
+		method: GuessMethod | null;
+		reason: string | null;
+	} | null;
+	/** "none" when categorization looked and found nothing; null when it isn't known. */
+	lookedAt: GuessMethod | null;
 };
 
 export type ReviewQueue = {
@@ -65,6 +78,8 @@ export async function loadReview(db: Db, viewer: Viewer, limit: number): Promise
 				guessId: buckets.id,
 				guessName: buckets.name,
 				confidence: categorizations.confidence,
+				method: categorizations.method,
+				reason: categorizations.reason,
 			})
 			.from(categorizations)
 			.innerJoin(transactions, eq(transactions.id, categorizations.transactionId))
@@ -75,7 +90,7 @@ export async function loadReview(db: Db, viewer: Viewer, limit: number): Promise
 				and(
 					eq(buckets.id, categorizations.bucketId),
 					eq(buckets.householdId, viewer.householdId),
-					isNull(buckets.ownerMemberId),
+					or(isNull(buckets.ownerMemberId), eq(buckets.ownerMemberId, viewer.memberId)),
 				),
 			)
 			.where(waiting(viewer))
@@ -128,10 +143,42 @@ export async function loadReview(db: Db, viewer: Viewer, limit: number): Promise
 			merchant: row.merchant,
 			guess:
 				row.guessId && row.guessName
-					? { bucketId: row.guessId, name: row.guessName, confidence: row.confidence }
+					? {
+							bucketId: row.guessId,
+							name: row.guessName,
+							confidence: row.confidence,
+							method: row.method,
+							reason: row.reason,
+						}
 					: null,
+			// A guess hidden from this Parent reads as none.
+			lookedAt: row.guessId ? row.method : row.method === null ? null : "none",
 		})),
 	};
+}
+
+/** At most how many Review rows one look again takes: 20 of the model's prompts. */
+const LOOK_AGAIN_ROWS = 200;
+
+/**
+ * What waits in Review that `viewer` imported, oldest first: what categorization looks at again
+ * for them once the Plan has changed. The other Parent's are theirs to look at again, with their
+ * Rules and Personal Allowance.
+ */
+export async function loadReviewToLookAgain(db: Db, viewer: Viewer): Promise<Uncategorized[]> {
+	const rows = await db
+		.select({
+			id: transactions.id,
+			date: transactions.date,
+			amountCents: transactions.amountCents,
+			note: transactions.note,
+		})
+		.from(categorizations)
+		.innerJoin(transactions, eq(transactions.id, categorizations.transactionId))
+		.where(and(waiting(viewer), eq(categorizations.memberId, viewer.memberId)))
+		.orderBy(asc(transactions.date), asc(transactions.id))
+		.limit(LOOK_AGAIN_ROWS);
+	return rows as Uncategorized[];
 }
 
 /**
@@ -146,7 +193,12 @@ export async function returnToReview(
 	input: {
 		transactionId: string;
 		merchant: string;
-		guess: { bucketId: string; confidence: number | null } | null;
+		guess: {
+			bucketId: string;
+			confidence: number | null;
+			method?: GuessMethod | null;
+			reason?: string | null;
+		} | null;
 		forMemberIds: string[];
 	},
 ): Promise<void> {
@@ -162,6 +214,8 @@ export async function returnToReview(
 			and ${buckets.householdId} = ${householdId} and ${buckets.ownerMemberId} is null)`
 		: sql`null`;
 	const confidence = input.guess?.confidence ?? null;
+	const method = input.guess?.method ?? null;
+	const reason = input.guess?.reason ?? null;
 	const ownSplits = sql`(select ${splits.id} from ${splits} where ${splits.transactionId} = ${transactionId})`;
 	await db.batch([
 		db.delete(splitFor).where(and(sql`${splitFor.splitId} in ${ownSplits}`, theirs)),
@@ -199,11 +253,12 @@ export async function returnToReview(
 						householdId: sql<string>`${householdId}`.as("household_id"),
 						memberId: sql<string>`${viewer.memberId}`.as("member_id"),
 						outcome: sql<"review">`'review'`.as("outcome"),
-						method: sql<null>`null`.as("method"),
+						method: sql<string | null>`${method}`.as("method"),
 						bucketId: sql<string | null>`${guess}`.as("bucket_id"),
 						confidence: sql<number | null>`${confidence}`.as("confidence"),
 						merchant: sql<string>`${input.merchant}`.as("merchant"),
 						createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
+						reason: sql<string | null>`${reason}`.as("reason"),
 					})
 					.from(sql`(select 1)`)
 					.where(theirs),
@@ -212,9 +267,10 @@ export async function returnToReview(
 				target: categorizations.transactionId,
 				set: {
 					outcome: sql`'review'`,
-					method: sql`null`,
+					method: sql`excluded.method`,
 					bucketId: sql`excluded.bucket_id`,
 					confidence: sql`excluded.confidence`,
+					reason: sql`excluded.reason`,
 				},
 			}),
 	]);

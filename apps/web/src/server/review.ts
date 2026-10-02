@@ -11,6 +11,7 @@ import {
 } from "@noodle/db";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { lookAgain } from "./categorize";
 import { getDb } from "./db";
 import { householdMiddleware, viewerOf } from "./household";
 import { monthKeySchema } from "./month";
@@ -33,6 +34,18 @@ export const getReview = createServerFn({ method: "GET" })
 	);
 
 /**
+ * "Look again": categorizes what waits in Review that this Parent imported once more, against the
+ * Plan as it is now. Idempotent. Returns how many it filed and how many still wait with a guess.
+ */
+export const lookAgainAtReview = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.handler(async ({ context }) => {
+		const result = await lookAgain(viewerOf(context));
+		const guessed = result.review - result.methods.none;
+		return { looked: result.filed + result.review, filed: result.filed, guessed };
+	});
+
+/**
  * Undoes a Parent's decision on a card: the Transaction goes back to Review unassigned, For whoever
  * it was For before, with categorization's guess. Idempotent.
  */
@@ -44,7 +57,12 @@ export const returnToReview = createServerFn({ method: "POST" })
 			month: monthKeySchema,
 			merchant: z.string().trim().min(1).max(64),
 			guess: z
-				.object({ bucketId: ulidSchema, confidence: z.number().min(0).max(1).nullable() })
+				.object({
+					bucketId: ulidSchema,
+					confidence: z.number().min(0).max(1).nullable(),
+					method: z.enum(["rule", "similar", "model", "none"]).nullable().optional(),
+					reason: z.string().max(80).nullable().optional(),
+				})
 				.nullable(),
 			forMemberIds: z.array(ulidSchema).max(20),
 		}),

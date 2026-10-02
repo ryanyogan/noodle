@@ -11,6 +11,8 @@ import {
 	type CategorizeResult,
 	categorizeCapture,
 	categorizeImport,
+	describeResult,
+	lookAgainAtReview,
 	settleAssignment,
 } from "./categorize-run";
 import { getDb } from "./db";
@@ -51,7 +53,7 @@ export async function categorizeImported(viewer: Viewer, importId: string): Prom
 		const started = Date.now();
 		const result = await categorizeImport(categorizeDeps(), viewer, importId);
 		console.log(
-			`Categorized Import ${importId}: ${result.filed} filed, ${result.review} for Review, ${Date.now() - started} ms`,
+			`Categorized Import ${importId}: ${describeResult(result)}, ${Date.now() - started} ms`,
 		);
 		if (result.filed + result.review === 0) return;
 		// Filing changes spending, which carries into later months.
@@ -74,8 +76,34 @@ export async function categorizeCaptured(
 		return await categorizeCapture(categorizeDeps(), viewer, transactionId);
 	} catch (error) {
 		console.error("Couldn’t categorize a captured Quick Add", error);
-		return { filed: 0, review: 0, months: [] };
+		return { filed: 0, review: 0, months: [], methods: { rule: 0, similar: 0, model: 0, none: 0 } };
 	}
+}
+
+/**
+ * Looks again at what waits in Review that this Parent imported, against the Plan as it is now,
+ * and tells the Household when anything changed. Throws, for a Parent who asked to see it fail.
+ */
+export async function lookAgain(viewer: Viewer): Promise<CategorizeResult> {
+	const started = Date.now();
+	const result = await lookAgainAtReview(categorizeDeps(), viewer);
+	console.log(
+		`Looked again at Review for ${viewer.memberId}: ${describeResult(result)}, ${Date.now() - started} ms`,
+	);
+	if (result.filed + result.review > 0) {
+		await notifyHousehold(viewer.householdId, ["months", "for-earlier", "bucket-uses"]);
+	}
+	return result;
+}
+
+/** Looks again after the Plan changed (a Bucket added), after the response has gone. */
+export function lookAgainAfterPlanChange(viewer: Viewer): void {
+	waitUntil(
+		lookAgain(viewer).then(
+			() => undefined,
+			(error: unknown) => console.error("Couldn’t look again at Review", error),
+		),
+	);
 }
 
 /**

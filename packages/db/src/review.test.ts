@@ -127,7 +127,7 @@ describe("the Review queue", () => {
 		expect(queue.total).toBe(2);
 		expect(queue.items.map((item) => [item.id, item.guess])).toEqual([
 			["t1", null],
-			["t2", { bucketId: "fun", name: "Fun", confidence: 0.6 }],
+			["t2", { bucketId: "fun", name: "Fun", confidence: 0.6, method: null, reason: null }],
 		]);
 		expect(queue.items[1]).toMatchObject({
 			merchant: "lego store",
@@ -215,7 +215,7 @@ describe("clearing Review", () => {
 			expect.objectContaining({
 				id: "t1",
 				for: [],
-				guess: { bucketId: "fun", name: "Fun", confidence: 0.6 },
+				guess: { bucketId: "fun", name: "Fun", confidence: 0.6, method: null, reason: null },
 			}),
 		]);
 		expect(await db.select().from(transactionFor)).toEqual([]);

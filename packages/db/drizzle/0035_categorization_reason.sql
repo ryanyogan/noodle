@@ -1,0 +1,1 @@
+ALTER TABLE `categorizations` ADD `reason` text;

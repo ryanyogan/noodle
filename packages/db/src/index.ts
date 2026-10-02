@@ -499,7 +499,13 @@ export {
 	type ReportItem,
 	type ReportScope,
 } from "./reports";
-export { loadReview, type ReviewItem, type ReviewQueue, returnToReview } from "./review";
+export {
+	loadReview,
+	loadReviewToLookAgain,
+	type ReviewItem,
+	type ReviewQueue,
+	returnToReview,
+} from "./review";
 export { loadBucketHistory, loadRolledOver } from "./rollover";
 export {
 	applyRule,

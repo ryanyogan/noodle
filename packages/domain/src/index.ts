@@ -51,9 +51,11 @@ export {
 	type Categorization,
 	type CategorizationMethod,
 	decideCategorization,
+	type GuessMethod,
 	merchantKey,
 	type Rule,
 	ruleFor,
+	SIMILAR_GUESS_SCORE,
 	SIMILAR_MERCHANT_SCORE,
 } from "./categorize";
 export {

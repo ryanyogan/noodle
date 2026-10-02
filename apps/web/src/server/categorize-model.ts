@@ -12,16 +12,25 @@ export type BucketChoice = { id: string; name: string };
 /** A merchant to file, as its statement line described it, with one of its amounts for context. */
 export type MerchantToFile = { key: string; description: string; amountCents: Cents };
 
-/** The model's answer for one merchant: a Bucket from those offered, or none, and how sure it is. */
-export type Classification = { key: string; bucketId: string | null; confidence: number };
+/**
+ * The model's answer for one merchant: a Bucket from those offered, or none, how sure it is, and
+ * its few words on why. `problem` says, without the merchant, why an answer couldn't be read.
+ */
+export type Classification = {
+	key: string;
+	bucketId: string | null;
+	confidence: number;
+	why?: string;
+	problem?: "not JSON" | "unanswered" | "unknown Bucket code";
+};
 
 export type Classifier = {
 	/** Chooses a Bucket for each merchant from `buckets` only, answering for every merchant. */
 	classify(buckets: BucketChoice[], merchants: MerchantToFile[]): Promise<Classification[]>;
 };
 
-/** A merchant the Household filed before, and how alike it is (cosine similarity, 0–1). */
-export type Neighbour = { bucketId: string; score: number };
+/** A merchant the Household filed before: its Bucket, how alike it is (cosine, 0–1), its name. */
+export type Neighbour = { bucketId: string; score: number; merchant?: string };
 
 /** Merchants a Household has filed, by embedding, to reuse for merchants like them. */
 export type MerchantIndex = {
@@ -46,7 +55,8 @@ const gateway = (gatewayId: string) => ({ gateway: { id: gatewayId, collectLog: 
 const SYSTEM = `You file a US household's card and bank transactions into its budget Buckets.
 For each merchant, choose the one Bucket it most likely belongs to, only from the Buckets listed, by
 its code; or "none" if no Bucket fits. Give your confidence from 0 to 1: above 0.8 only when the
-merchant is well known and the Bucket clearly fits. Answer every merchant, in JSON only.`;
+merchant is well known and the Bucket clearly fits. Say why in at most five plain words, like
+"looks like dining out". Answer every merchant, in JSON only.`;
 
 /** The prompt for one batch: Buckets and merchants by short codes, so the answer can't invent IDs. */
 export function classifyPrompt(buckets: BucketChoice[], merchants: MerchantToFile[]): string {
@@ -71,6 +81,7 @@ function answerSchema(buckets: BucketChoice[], merchants: MerchantToFile[]) {
 						merchant: { type: "string", enum: merchants.map((_, i) => `m${i + 1}`) },
 						bucket: { type: "string", enum: [...buckets.map((_, i) => `b${i + 1}`), "none"] },
 						confidence: { type: "number", minimum: 0, maximum: 1 },
+						why: { type: "string", maxLength: 60 },
 					},
 					required: ["merchant", "bucket", "confidence"],
 				},
@@ -91,28 +102,40 @@ export function readAnswer(
 ): Classification[] {
 	const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
 	let results: unknown = [];
+	let readable = true;
 	try {
 		results = (JSON.parse(json) as { results?: unknown }).results ?? [];
 	} catch {
-		results = [];
+		readable = false;
 	}
-	const answers = new Map<string, { bucket: unknown; confidence: unknown }>();
+	type Answer = { bucket: unknown; confidence: unknown; why?: unknown };
+	const answers = new Map<string, Answer>();
 	if (Array.isArray(results)) {
 		for (const result of results) {
 			if (result && typeof result === "object" && "merchant" in result) {
-				answers.set(String(result.merchant), result as { bucket: unknown; confidence: unknown });
+				answers.set(String(result.merchant), result as Answer);
 			}
 		}
 	}
-	return merchants.map((merchant, i) => {
+	return merchants.map((merchant, i): Classification => {
 		const answer = answers.get(`m${i + 1}`);
 		const code = typeof answer?.bucket === "string" ? /^b(\d+)$/.exec(answer.bucket) : null;
 		const bucket = code ? buckets[Number(code[1]) - 1] : undefined;
 		const confidence = Number(answer?.confidence);
+		const why = typeof answer?.why === "string" ? answer.why.trim().slice(0, 60) : "";
+		const problem = !readable
+			? "not JSON"
+			: !answer
+				? "unanswered"
+				: answer.bucket !== "none" && !bucket
+					? "unknown Bucket code"
+					: undefined;
 		return {
 			key: merchant.key,
 			bucketId: bucket?.id ?? null,
 			confidence: bucket && Number.isFinite(confidence) ? Math.min(1, Math.max(0, confidence)) : 0,
+			...(why && bucket ? { why } : {}),
+			...(problem ? { problem } : {}),
 		};
 	});
 }
@@ -136,7 +159,7 @@ export function workersAiClassifier(ai: Ai, gatewayId: string): Classifier {
 					// Short JSON, no thinking: this runs for every Import.
 					chat_template_kwargs: { enable_thinking: false },
 					temperature: 0,
-					max_completion_tokens: 60 * merchants.length + 200,
+					max_completion_tokens: 80 * merchants.length + 200,
 				},
 				gateway(gatewayId),
 			);
@@ -185,7 +208,12 @@ export function vectorizeMerchants(ai: Ai, gatewayId: string, index: Vectorize):
 				const bucketId = best?.metadata?.bucketId;
 				// Belt and braces: the filter already keeps to the Household.
 				if (best && typeof bucketId === "string" && best.metadata?.householdId === householdId) {
-					found.set(merchants[i] as string, { bucketId, score: best.score });
+					const merchant = best.metadata?.merchant;
+					found.set(merchants[i] as string, {
+						bucketId,
+						score: best.score,
+						...(typeof merchant === "string" ? { merchant } : {}),
+					});
 				}
 			});
 			return found;
@@ -227,11 +255,18 @@ export const stubClassifier: Classifier = {
 			for (const [word, known] of Object.entries(STUB_KNOWS)) {
 				const bucket = buckets.find((b) => b.name.toLowerCase().includes(word));
 				if (bucket && known.some((name) => merchant.key.includes(name))) {
-					return { key: merchant.key, bucketId: bucket.id, confidence: 0.95 };
+					return {
+						key: merchant.key,
+						bucketId: bucket.id,
+						confidence: 0.95,
+						why: `a ${word} merchant`,
+					};
 				}
 			}
 			const named = buckets.find((b) => merchant.key.includes(b.name.toLowerCase()));
-			if (named) return { key: merchant.key, bucketId: named.id, confidence: 0.5 };
+			if (named) {
+				return { key: merchant.key, bucketId: named.id, confidence: 0.5, why: "named like it" };
+			}
 			return { key: merchant.key, bucketId: null, confidence: 0 };
 		});
 	},
@@ -253,7 +288,9 @@ export function memoryMerchants(): MerchantIndex & { size(): number } {
 					const theirs = other.split(" ");
 					if (!theirs.every((word) => words.has(word))) continue;
 					const score = theirs.length / words.size;
-					if (score > (found.get(merchant)?.score ?? 0)) found.set(merchant, { bucketId, score });
+					if (score > (found.get(merchant)?.score ?? 0)) {
+						found.set(merchant, { bucketId, score, merchant: other });
+					}
 				}
 			}
 			return found;
