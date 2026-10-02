@@ -35,6 +35,8 @@ const buttonVariants = cva(
 				"icon-lg": "size-9 rounded-xl max-lg:size-11",
 				// A filter that's on, with an × to take it off. Use with variant="secondary".
 				chip: "h-7 gap-1 rounded-full ps-2.5 pe-1.5 text-xs",
+				// TermHelp's "?": 24px, round, with a 44px hit area on phones from an ::after box.
+				help: "relative -my-1 size-6 rounded-full max-lg:after:absolute max-lg:after:-inset-2.5",
 				// A few words inside a sentence that do something. Use with variant="link".
 				inline:
 					"h-auto rounded-sm p-0 text-[length:inherit] underline underline-offset-2 active:scale-100",

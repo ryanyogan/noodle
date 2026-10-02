@@ -6,12 +6,24 @@ import { cn } from "#lib/utils";
 // for money and counts (GOV.UK and NN/g: numbers line up on the right). Give every table a
 // TableCaption (it can be sr-only when a heading above already says it) and `scope` on headers.
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+function Table({
+	className,
+	dense = false,
+	...props
+}: React.ComponentProps<"table"> & {
+	/** A few lines of figures in a small space (a tooltip, a card's corner): 12px, no rules, the caption on top. */
+	dense?: boolean;
+}) {
 	return (
 		<div data-slot="table-container" className="relative w-full overflow-x-auto">
 			<table
 				data-slot="table"
-				className={cn("w-full caption-bottom text-[13px]", className)}
+				data-dense={dense || undefined}
+				className={cn(
+					"group/table w-full caption-bottom text-[13px]",
+					dense && "caption-top text-xs",
+					className,
+				)}
 				{...props}
 			/>
 		</div>
@@ -48,6 +60,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
 			data-slot="table-row"
 			className={cn(
 				"border-b transition-colors duration-(--duration-fast) data-[state=selected]:bg-surface-2",
+				"group-data-dense/table:border-0",
 				className,
 			)}
 			{...props}
@@ -66,6 +79,7 @@ function TableHead({
 			className={cn(
 				"h-9 px-3 text-start align-middle text-xs font-medium whitespace-nowrap text-muted-foreground",
 				"first:ps-0 last:pe-0 [&:has([role=checkbox])]:pe-0",
+				"group-data-dense/table:h-auto group-data-dense/table:px-0 group-data-dense/table:py-0.5 group-data-dense/table:pe-3 group-data-dense/table:font-normal",
 				numeric && "text-end",
 				className,
 			)}
@@ -84,6 +98,7 @@ function TableCell({
 			data-slot="table-cell"
 			className={cn(
 				"px-3 py-2 align-middle first:ps-0 last:pe-0 [&:has([role=checkbox])]:pe-0",
+				"group-data-dense/table:px-0 group-data-dense/table:py-0.5 group-data-dense/table:ps-2",
 				numeric && "text-end whitespace-nowrap tabular-nums",
 				className,
 			)}
@@ -96,7 +111,11 @@ function TableCaption({ className, ...props }: React.ComponentProps<"caption">) 
 	return (
 		<caption
 			data-slot="table-caption"
-			className={cn("mt-3 text-[13px] text-muted-foreground", className)}
+			className={cn(
+				"mt-3 text-[13px] text-muted-foreground",
+				"group-data-dense/table:mt-0 group-data-dense/table:pb-1 group-data-dense/table:text-start group-data-dense/table:text-xs group-data-dense/table:font-medium group-data-dense/table:text-foreground",
+				className,
+			)}
 			{...props}
 		/>
 	);

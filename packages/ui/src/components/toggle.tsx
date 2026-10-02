@@ -22,6 +22,8 @@ const toggleVariants = cva(
 					"rounded-lg bg-transparent text-muted-foreground hover:bg-surface-2 hover:text-foreground data-[state=on]:bg-surface-2 data-[state=on]:text-foreground",
 				outline:
 					"rounded-lg border border-border-strong bg-card text-muted-foreground hover:bg-surface-2 hover:text-foreground data-[state=on]:border-foreground/30 data-[state=on]:bg-surface-2 data-[state=on]:text-foreground",
+				// A round chip that fills when it's on: one of several filters that can each be on.
+				chip: "rounded-full border border-border bg-card text-foreground hover:bg-surface-2 data-[state=on]:border-transparent data-[state=on]:bg-foreground data-[state=on]:text-background",
 				segmented:
 					"rounded-md text-muted-foreground hover:text-foreground data-[state=on]:bg-card data-[state=on]:text-foreground data-[state=on]:shadow-card data-[state=on]:ring-1 data-[state=on]:ring-border",
 			},
@@ -29,6 +31,10 @@ const toggleVariants = cva(
 				default: "h-8 min-w-8 px-3 text-[13px] max-lg:h-11 max-lg:min-w-11",
 				sm: "h-7 min-w-7 px-2.5 text-xs max-lg:h-11 max-lg:min-w-11",
 				lg: "h-9 min-w-9 px-3.5 text-sm max-lg:h-11 max-lg:min-w-11",
+				// Square, for an option that is only an icon.
+				"icon-sm": "size-7 text-xs max-lg:size-11",
+				// An option whose words may run to two lines: as tall as they need.
+				wrap: "h-auto min-h-9 min-w-8 px-3 py-1 text-[13px] whitespace-normal max-lg:min-h-11 max-lg:min-w-11",
 			},
 		},
 		defaultVariants: { variant: "default", size: "default" },
