@@ -318,40 +318,52 @@ function YearList({ months }: { months: YearMonth[] }) {
 								</Link>
 								<MonthBadges month={month} />
 							</span>
-							{month.actual ? (
-								<span className="text-xs text-muted-foreground">
-									Plan · {month.when === "current" ? "so far" : "actual"}
-								</span>
-							) : null}
 						</div>
-						<dl className="grid gap-1 text-[13px]">
+						{/* Plan and actual in two right-aligned columns, headed, so the figures line up (#48). */}
+						<dl
+							className={cn(
+								"grid gap-x-4 gap-y-1 text-[13px] tabular-nums",
+								month.actual
+									? "grid-cols-[minmax(0,1fr)_auto_auto]"
+									: "grid-cols-[minmax(0,1fr)_auto]",
+							)}
+						>
+							{month.actual ? (
+								<div
+									aria-hidden="true"
+									className="col-span-full grid grid-cols-subgrid text-xs text-muted-foreground"
+								>
+									<span />
+									<span className="text-end">Plan</span>
+									<span className="text-end">{month.when === "current" ? "So far" : "Actual"}</span>
+								</div>
+							) : null}
 							{FIGURES.map((f) => (
 								<div
 									key={f.key}
 									className={cn(
-										"flex items-baseline justify-between gap-4",
+										"col-span-full grid grid-cols-subgrid items-baseline",
 										f.key === "freeToSpend" && "font-medium",
 									)}
 								>
 									<dt className={cn(f.key !== "freeToSpend" && "text-muted-foreground")}>
 										{f.label}
 									</dt>
-									<dd className="flex items-baseline gap-2 text-end">
+									<dd className="text-end">
 										{f.key === "baseline" && month.noBaseline ? (
 											<span className="text-muted-foreground">Not set</span>
 										) : (
 											<Amount cents={month.plan[f.key]} />
 										)}
-										{month.actual ? (
-											<span className="text-muted-foreground">
-												<span aria-hidden="true">· </span>
-												<span className="sr-only">
-													Actual{month.when === "current" ? " so far" : ""}:{" "}
-												</span>
-												<Amount cents={month.actual[f.key]} />
-											</span>
-										) : null}
 									</dd>
+									{month.actual ? (
+										<dd className="text-end text-muted-foreground">
+											<span className="sr-only">
+												Actual{month.when === "current" ? " so far" : ""}:{" "}
+											</span>
+											<Amount cents={month.actual[f.key]} />
+										</dd>
+									) : null}
 								</div>
 							))}
 						</dl>
