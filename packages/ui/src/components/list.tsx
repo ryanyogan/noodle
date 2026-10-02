@@ -29,6 +29,7 @@ function ListRow({
 	meta,
 	trailing,
 	below,
+	stackTrailing,
 	className,
 	...props
 }: Omit<React.ComponentProps<"li">, "title"> & {
@@ -38,6 +39,8 @@ function ListRow({
 	meta?: React.ReactNode;
 	trailing?: React.ReactNode;
 	below?: React.ReactNode;
+	/** Below `sm`, put the trailing actions on their own row under the text, which then takes the full width. */
+	stackTrailing?: boolean;
 }) {
 	return (
 		<li
@@ -64,7 +67,17 @@ function ListRow({
 				) : null}
 			</div>
 			{trailing ? (
-				<div className="grid justify-items-end gap-0.5 text-end tabular-nums">{trailing}</div>
+				<div
+					className={cn(
+						"grid justify-items-end gap-0.5 text-end tabular-nums",
+						stackTrailing &&
+							(leading
+								? "max-sm:col-start-2 max-sm:col-end-4 max-sm:flex max-sm:flex-wrap max-sm:gap-2"
+								: "max-sm:col-span-2 max-sm:flex max-sm:flex-wrap max-sm:gap-2"),
+					)}
+				>
+					{trailing}
+				</div>
 			) : null}
 			{below ? (
 				<div className={leading ? "col-start-2 col-end-4" : "col-span-2"}>{below}</div>

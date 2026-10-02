@@ -251,18 +251,14 @@ function AccountItem({ account }: { account: AccountView }) {
 			}
 			title={account.name}
 			meta={
-				// One run of text, so it wraps like a sentence on a phone.
+				// Kind and source on one line, how it splits on the next, so a phone reads it in two.
 				<span>
 					{accountKindName[account.kind]}
+					{" · "}
+					<span className={cn(needsLogin && "text-over")}>{accountSourceText(source, true)}</span>
 					{split ? (
-						<>
-							{" · "}
-							<span className={cn(split.over && "text-over")}>{split.text}</span>
-						</>
+						<span className={cn("block", split.over && "text-over")}>{split.text}</span>
 					) : null}
-					<span className={cn("block", needsLogin && "text-over")}>
-						{accountSourceText(source, true)}
-					</span>
 				</span>
 			}
 			trailing={
