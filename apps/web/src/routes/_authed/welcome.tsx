@@ -31,20 +31,23 @@ function Welcome() {
 	);
 }
 
-/** After joining or creating, re-run the route guards so they see the new Household. */
-function useEnterHousehold() {
+/**
+ * After joining or creating, re-run the route guards so they see the new Household. A new
+ * Household goes on to the get-started wizard; a Parent joining one already set up skips it.
+ */
+function useEnterHousehold(to: "/setup" | "/month") {
 	const router = useRouter();
 	const queryClient = useQueryClient();
 	return async () => {
 		await queryClient.invalidateQueries({ queryKey: viewerQuery().queryKey, refetchType: "none" });
 		await router.invalidate();
-		await router.navigate({ to: "/month" });
+		await router.navigate({ to });
 	};
 }
 
 function CreateHousehold() {
 	const firstName = useFirstName();
-	const enterHousehold = useEnterHousehold();
+	const enterHousehold = useEnterHousehold("/setup");
 	// Until hydrated, a click would fall through to a native GET submit.
 	const hydrated = useHydrated();
 	// Client-generated IDs make a retried submit create one Household.
@@ -109,7 +112,7 @@ function CreateHousehold() {
 
 function JoinHousehold({ invite, onStartOwn }: { invite: InviteToJoin; onStartOwn: () => void }) {
 	const firstName = useFirstName();
-	const enterHousehold = useEnterHousehold();
+	const enterHousehold = useEnterHousehold("/month");
 	const hydrated = useHydrated();
 	const [parentId] = useState(() => ulid());
 	const join = useMutation({

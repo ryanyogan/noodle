@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createHousehold, signedInPage } from "./session";
+import { createHousehold, setUpLater, signedInPage } from "./session";
 
 async function invite(page: Page, email: string) {
 	await page.getByLabel("Their email").fill(email);
@@ -123,7 +123,7 @@ test("someone invited by mistake can start their own Household instead", async (
 		await page.getByLabel("Household name").fill("The Originals");
 		await page.getByLabel("Your name").fill("Jo");
 		await page.getByRole("button", { name: "Create Household" }).click();
-		await expect(page).toHaveURL(/\/month\//);
+		await setUpLater(page);
 		await expect(page.locator("[data-slot=page-header]")).toContainText("This Month");
 		await expect(page.getByText("The Originals")).toBeVisible();
 	} finally {

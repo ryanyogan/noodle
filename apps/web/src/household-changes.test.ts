@@ -72,6 +72,7 @@ describe("queryKeysFor", () => {
 			["month", "check-in"],
 			["receipt-address"],
 			["month", "plan-draft"],
+			["setup"],
 			["reports"],
 		]);
 	});

@@ -29,13 +29,20 @@ export async function signedInPage(
 	return page;
 }
 
-/** Creates a Household from /welcome and waits for This Month. */
+/** From the get-started wizard a new Household lands on, leaves it for This Month. */
+export async function setUpLater(page: Page) {
+	await expect(page).toHaveURL(/\/setup$/);
+	await page.getByRole("link", { name: "Set up later" }).click();
+	await expect(page).toHaveURL(/\/month\//);
+}
+
+/** Creates a Household from /welcome, leaves the get-started wizard, and waits for This Month. */
 export async function createHousehold(page: Page, householdName: string, parentName: string) {
 	await page.goto("/welcome");
 	await page.getByLabel("Household name").fill(householdName);
 	await page.getByLabel("Your name").fill(parentName);
 	await page.getByRole("button", { name: "Create Household" }).click();
-	await expect(page).toHaveURL(/\/month\//);
+	await setUpLater(page);
 	// The URL changes before the page loads; clicking on before then can lose the click.
 	await expect(page.locator("[data-slot=page-header]")).toContainText("This Month");
 }
