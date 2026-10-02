@@ -225,6 +225,15 @@ export function TransactionItem({
 					{day}
 					{detail}
 				</span>
+				{/* At xl the second line is for screen readers; a dated row still shows its date. */}
+				{columns && dated ? (
+					<span
+						aria-hidden="true"
+						className="col-span-2 row-start-2 hidden text-[13px] text-muted-foreground xl:block"
+					>
+						{shortDay(transaction.date)}
+					</span>
+				) : null}
 			</span>
 			{columns ? (
 				<>

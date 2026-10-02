@@ -161,11 +161,16 @@ test("the list filters by Bucket and by who it was For", async ({ browser }) => 
 	await quickAdd(page, "40", "Hockey", "Ice time", "Leo");
 	await openTransactions(page);
 	await expect(list(page).getByRole("button")).toHaveCount(3);
+	// The month's total comes from the server, so it counts every page, not just those loaded.
+	await expect(page.getByText(/^Spent in /)).toBeVisible();
+	await expect(page.getByTestId("month-total")).toHaveText("$190.49");
 
 	await choose(page, "Bucket", "Hockey");
 	await expect(page).toHaveURL(/bucket=/);
 	await expect(list(page).getByRole("button")).toHaveCount(1);
 	await expect(row(page, "Ice time")).toBeVisible();
+	await expect(page.getByText("Total for these filters")).toBeVisible();
+	await expect(page.getByTestId("month-total")).toHaveText("$40");
 
 	await choose(page, "Bucket", "All Buckets");
 	await choose(page, "For", "Leo");
@@ -185,6 +190,36 @@ test("the list filters by Bucket and by who it was For", async ({ browser }) => 
 
 	await choose(page, "Bucket", "Hockey");
 	await expect(page.getByText("Nothing matches")).toBeVisible();
+	await page.context().close();
+});
+
+test("at xl, Date and Amount sort the list", async ({ browser }) => {
+	const page = await signedInPage(browser, parent.email);
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await setUp(page);
+	await quickAdd(page, "40", "Hockey", "Ice time", "Leo");
+	await openTransactions(page);
+	const rows = list(page).getByRole("button");
+	await expect(rows).toHaveText([/Ice time/, /Pro Hockey Life/, /Costco/]);
+	await expect(page.getByRole("button", { name: "Date, newest first" })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+
+	await page.getByRole("button", { name: "Sort by amount" }).click();
+	await expect(page).toHaveURL(/sort=largest/);
+	await expect(rows).toHaveText([/Costco/, /Pro Hockey Life/, /Ice time/]);
+	await page.getByRole("button", { name: "Amount, largest first" }).click();
+	await expect(page).toHaveURL(/sort=smallest/);
+	await expect(rows).toHaveText([/Ice time/, /Pro Hockey Life/, /Costco/]);
+	// Sorting isn't filtering: the total stays the month's.
+	await expect(page.getByTestId("month-total")).toHaveText("$190.49");
+
+	await page.getByRole("button", { name: "Sort by date" }).click();
+	await expect(page).not.toHaveURL(/sort=/);
+	await page.getByRole("button", { name: "Date, newest first" }).click();
+	await expect(page).toHaveURL(/sort=oldest/);
+	await expect(rows).toHaveText([/Costco/, /Pro Hockey Life/, /Ice time/]);
 	await page.context().close();
 });
 

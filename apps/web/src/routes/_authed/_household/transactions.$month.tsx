@@ -18,6 +18,9 @@ import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-quer
 import { createFileRoute, Link, notFound, useHydrated, useNavigate } from "@tanstack/react-router";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import {
+	ArrowDown,
+	ArrowUp,
+	ArrowUpDown,
 	ChevronLeft,
 	ChevronRight,
 	Landmark,
@@ -43,10 +46,11 @@ import { type MemberSummary, pickableMembers } from "../../../members";
 import { goalsQuery, membersQuery, monthQuery, reviewQuery } from "../../../queries";
 import { monthKeySchema } from "../../../server/month";
 import { ulidSchema } from "../../../server/schemas";
-import { forFilterSchema, SEARCH_MAX } from "../../../server/transactions";
+import { forFilterSchema, SEARCH_MAX, transactionSortSchema } from "../../../server/transactions";
 import {
 	type TransactionFilters,
 	type TransactionRow,
+	type TransactionSort,
 	transactionLabel,
 	transactionsQuery,
 	useTransactionChange,
@@ -58,6 +62,8 @@ export const Route = createFileRoute("/_authed/_household/transactions/$month")(
 		for: forFilterSchema.optional().catch(undefined),
 		account: ulidSchema.optional().catch(undefined),
 		q: z.string().trim().max(SEARCH_MAX).optional().catch(undefined),
+		// Newest first is the default, so it never shows in the URL.
+		sort: transactionSortSchema.exclude(["newest"]).optional().catch(undefined),
 	}),
 	beforeLoad: ({ params, context }) => {
 		if (!monthKeySchema.safeParse(params.month).success) throw notFound();
@@ -71,6 +77,7 @@ export const Route = createFileRoute("/_authed/_household/transactions/$month")(
 		for: search.for,
 		account: search.account,
 		q: search.q || undefined,
+		sort: search.sort,
 	}),
 	// The first page is rendered on the server; later pages load as the Parent scrolls.
 	loader: ({ context, deps }) =>
@@ -99,7 +106,19 @@ function TransactionsPage() {
 	const change = useTransactionChange();
 	const waiting = useSuspenseQuery(reviewQuery()).data.total;
 	const sameYear = month.slice(0, 4) === current.slice(0, 4);
-	const filtered = Object.values(filters).some((value) => value !== undefined);
+	// The order isn't a filter: every Transaction is still there.
+	const { sort: _sort, ...narrowing } = filters;
+	const filtered = Object.values(narrowing).some((value) => value !== undefined);
+	const onChange = (next: TransactionFilters) =>
+		void navigate({
+			search: (prev) => ({
+				...prev,
+				...next,
+				// Newest first is the default, left out of the URL.
+				sort: "sort" in next ? (next.sort === "newest" ? undefined : next.sort) : prev.sort,
+			}),
+			replace: true,
+		});
 
 	return (
 		<>
@@ -161,13 +180,13 @@ function TransactionsPage() {
 			{/* lg: the list takes the width, with the filters in a pane on the right that stays put (#47). */}
 			<div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start lg:gap-8">
 				<Filters
+					month={month}
 					plan={plan}
 					members={members}
 					accounts={accounts}
 					filters={filters}
-					onChange={(next) =>
-						void navigate({ search: (prev) => ({ ...prev, ...next }), replace: true })
-					}
+					filtered={filtered}
+					onChange={onChange}
 				/>
 				<TransactionList
 					month={month}
@@ -176,6 +195,7 @@ function TransactionsPage() {
 					plan={plan}
 					members={members}
 					filtered={filtered}
+					onSort={(sort) => onChange({ sort })}
 					onEdit={setEditing}
 				/>
 			</div>
@@ -204,18 +224,24 @@ const SEARCH_PAUSE_MS = 300;
  * Account, and to notes with the words searched for in them.
  */
 function Filters({
+	month,
 	plan,
 	members,
 	accounts,
 	filters,
+	filtered,
 	onChange,
 }: {
+	month: MonthKey;
 	plan: Pick<Plan, "buckets">;
 	members: MemberSummary[];
 	accounts: AccountView[];
 	filters: TransactionFilters;
+	filtered: boolean;
 	onChange: (filters: TransactionFilters) => void;
 }) {
+	// The list's own query (already loaded): its first page carries the month's total.
+	const total = useSuspenseInfiniteQuery(transactionsQuery(month, filters)).data.pages[0]?.total;
 	// Until hydrated, a change would only move the select, not the list.
 	const hydrated = useHydrated();
 	const [search, setSearch] = useState(filters.q ?? "");
@@ -230,6 +256,16 @@ function Filters({
 	}, [search, filters.q]);
 	return (
 		<div className="grid gap-2 lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1">
+			{total !== null && total !== undefined ? (
+				<p className="flex items-baseline justify-between gap-3 px-1 text-sm lg:order-last lg:pt-2">
+					<span className="text-muted-foreground">
+						{filtered ? "Total for these filters" : `Spent in ${monthName(month)}`}
+					</span>
+					<span className="font-semibold tabular-nums" data-testid="month-total">
+						{formatMoney(total)}
+					</span>
+				</p>
+			) : null}
 			<div className="relative">
 				<label htmlFor="filter-search" className="sr-only">
 					Search notes and merchants
@@ -298,10 +334,14 @@ type Item =
 	| { kind: "more" };
 
 /** The loaded Transactions as the list shows them: each day's label, then its Transactions. */
-function itemsOf(transactions: TransactionRow[], more: boolean): Item[] {
+function itemsOf(transactions: TransactionRow[], more: boolean, byDay: boolean): Item[] {
 	const items: Item[] = [];
 	let label = null as Extract<Item, { kind: "day" }> | null;
 	for (const transaction of transactions) {
+		if (!byDay) {
+			items.push({ kind: "transaction", transaction });
+			continue;
+		}
 		if (transaction.date !== label?.day) {
 			label = { kind: "day", day: transaction.date, total: 0 };
 			items.push(label);
@@ -332,6 +372,7 @@ function TransactionList({
 	plan,
 	members,
 	filtered,
+	onSort,
 	onEdit,
 }: {
 	month: MonthKey;
@@ -340,6 +381,7 @@ function TransactionList({
 	plan: Pick<Plan, "buckets" | "commitments">;
 	members: MemberSummary[];
 	filtered: boolean;
+	onSort: (sort: TransactionSort) => void;
 	onEdit: (transaction: TransactionRow) => void;
 }) {
 	const { data, hasNextPage, isFetchingNextPage, fetchNextPage } = useSuspenseInfiniteQuery(
@@ -347,7 +389,11 @@ function TransactionList({
 	);
 	const bringsIn = useBringsSpendingIn();
 	const transactions = data.pages.flatMap((page) => page.transactions);
-	const items = itemsOf(transactions, hasNextPage);
+	const sort = filters.sort ?? "newest";
+	// By amount, days mix, so there are no day labels and each row says its date.
+	const byAmount = sort === "largest" || sort === "smallest";
+	const items = itemsOf(transactions, hasNextPage, !byAmount);
+	const hydrated = useHydrated();
 	const list = useRef<HTMLUListElement>(null);
 	// Where the list starts on the page; 0 until measured, as on the server.
 	const [scrollMargin, setScrollMargin] = useState(0);
@@ -425,20 +471,38 @@ function TransactionList({
 
 	return (
 		<div className="grid gap-2">
-			{/* The columns’ names at xl; each row says them to a screen reader itself. */}
+			{/* The columns’ names at xl; each row says them to a screen reader itself. Date and
+			    Amount sort the list (on the server, as it loads a page at a time). */}
 			<div
-				aria-hidden="true"
 				className={cn(
-					"hidden gap-x-4 px-(--card-pad) text-xs font-medium text-subtle-foreground xl:grid",
+					"hidden items-center gap-x-4 px-(--card-pad) text-xs font-medium text-subtle-foreground xl:grid",
 					TRANSACTION_COLUMNS,
 				)}
 			>
-				<span />
-				<span>Description</span>
-				<span>Assigned to</span>
-				<span>For</span>
-				<span>Account</span>
-				<span className="text-end">Amount</span>
+				<span className="col-span-2 flex items-center gap-4">
+					<SortButton
+						label="Date"
+						state={sort === "newest" ? "newest first" : sort === "oldest" ? "oldest first" : null}
+						descending={sort !== "oldest"}
+						disabled={!hydrated}
+						onClick={() => onSort(sort === "newest" ? "oldest" : "newest")}
+						className="-ms-2"
+					/>
+					<span aria-hidden="true">Description</span>
+				</span>
+				<span aria-hidden="true">Assigned to</span>
+				<span aria-hidden="true">For</span>
+				<span aria-hidden="true">Account</span>
+				<SortButton
+					label="Amount"
+					state={
+						sort === "largest" ? "largest first" : sort === "smallest" ? "smallest first" : null
+					}
+					descending={sort !== "smallest"}
+					disabled={!hydrated}
+					onClick={() => onSort(sort === "largest" ? "smallest" : "largest")}
+					className="-me-2 justify-self-end"
+				/>
 			</div>
 			<List
 				ref={list}
@@ -495,11 +559,53 @@ function TransactionList({
 							members={members}
 							waiting={waitingForBank(item.transaction, today, bringsIn)}
 							columns
+							dated={byAmount}
 							onEdit={onEdit}
 						/>
 					);
 				})}
 			</List>
 		</div>
+	);
+}
+
+/**
+ * A column name that sorts the list by it: says the order it's in when it's the one sorting, and
+ * flips that order when pressed again.
+ */
+function SortButton({
+	label,
+	state,
+	descending,
+	disabled,
+	onClick,
+	className,
+}: {
+	label: string;
+	/** The order, when this column sorts the list. */
+	state: string | null;
+	descending: boolean;
+	disabled: boolean;
+	onClick: () => void;
+	className?: string;
+}) {
+	const Icon = state === null ? ArrowUpDown : descending ? ArrowDown : ArrowUp;
+	return (
+		<Button
+			type="button"
+			variant="ghost"
+			size="sm"
+			disabled={disabled}
+			aria-pressed={state !== null}
+			onClick={onClick}
+			className={cn(
+				"h-7 gap-1 px-2 text-xs font-medium",
+				state === null ? "text-subtle-foreground" : "text-foreground",
+				className,
+			)}
+		>
+			{state === null ? `Sort by ${label.toLowerCase()}` : `${label}, ${state}`}
+			<Icon aria-hidden="true" className="size-3.5" />
+		</Button>
 	);
 }

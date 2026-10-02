@@ -13,6 +13,7 @@ import {
 } from "@noodle/domain";
 import {
 	and,
+	asc,
 	desc,
 	eq,
 	gte,
@@ -24,6 +25,7 @@ import {
 	notInArray,
 	or,
 	type SQL,
+	type SQLWrapper,
 	sql,
 } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
@@ -454,7 +456,10 @@ export type TransactionRow = {
 };
 
 /** Where a page of the list starts: after this Transaction, going back in time. */
-export type TransactionCursor = { date: DayKey; id: string };
+export type TransactionCursor = { date: DayKey; id: string; amountCents?: number };
+
+/** How a list of Transactions is ordered: by date (newest first by default) or by amount. */
+export type TransactionSort = "newest" | "oldest" | "largest" | "smallest";
 
 /** Transactions with For rows, optionally only those For one Member. */
 const hasForRows = (memberId?: string) =>
@@ -532,18 +537,67 @@ export async function loadTransactionsPage(
 		accountId?: string;
 		/** Words in the note (the merchant, for imported ones), any case. */
 		search?: string;
+		/** Newest first when left out. */
+		sort?: TransactionSort;
 		after?: TransactionCursor;
 		limit: number;
 	},
-): Promise<{ transactions: TransactionRow[]; next: TransactionCursor | null }> {
+): Promise<{
+	transactions: TransactionRow[];
+	next: TransactionCursor | null;
+	/**
+	 * What the filtered month spent, on the first page of a month's list only (null otherwise):
+	 * a Transfer's sides count nowhere and money back takes off, as in the day totals.
+	 */
+	total: number | null;
+}> {
 	const householdId = viewer.householdId;
 	const partly = partlyPrivate(viewer);
 	const search = query.search?.trim();
-	const rows = await db
+	const sort = query.sort ?? "newest";
+	const amount = sql<number>`case when ${partly} then ${visibleSplitsSum(viewer)} else ${transactions.amountCents} end`;
+	const filtered = and(
+		visibleTo(viewer),
+		query.month ? gte(transactions.date, `${query.month}-01`) : undefined,
+		query.month ? lt(transactions.date, nextMonthStart(query.month)) : undefined,
+		matching(viewer, query.bucketId, query.forMember),
+		query.accountId ? inAccount(query.accountId) : undefined,
+		search
+			? sql`(not ${partly} and ${transactions.note} like ${`%${likeEscaped(search)}%`} escape '!')`
+			: undefined,
+	);
+	// Keyset paging: past the previous page's last row in the list's order (its ID breaks ties).
+	const byAmount = sort === "largest" || sort === "smallest";
+	const descending = sort === "newest" || sort === "largest";
+	const key = byAmount ? amount : transactions.date;
+	const past = (column: SQLWrapper, value: unknown) =>
+		descending ? sql`${column} < ${value}` : sql`${column} > ${value}`;
+	const after = query.after
+		? byAmount && query.after.amountCents === undefined
+			? undefined
+			: or(
+					past(key, byAmount ? query.after.amountCents : query.after.date),
+					and(
+						sql`${key} = ${byAmount ? query.after.amountCents : query.after.date}`,
+						past(transactions.id, query.after.id),
+					),
+				)
+		: undefined;
+	const order = descending ? [desc(key), desc(transactions.id)] : [asc(key), asc(transactions.id)];
+	const isTransfer = sql`exists (select 1 from transfers x where (x.out_transaction_id = ${transactions.id}
+		or x.in_transaction_id = ${transactions.id}) and x.removed_at is null)`;
+	const totalQuery =
+		query.month && !query.after
+			? db
+					.select({ total: sql<number>`coalesce(sum(${amount}), 0)`.mapWith(Number) })
+					.from(transactions)
+					.where(and(filtered, sql`not ${isTransfer}`))
+			: null;
+	const rowsQuery = db
 		.select({
 			id: transactions.id,
 			date: transactions.date,
-			amountCents: sql<number>`case when ${partly} then ${visibleSplitsSum(viewer)} else ${transactions.amountCents} end`,
+			amountCents: amount,
 			bucketId: transactions.bucketId,
 			commitmentId: transactions.commitmentId,
 			goalId: transactions.goalId,
@@ -582,27 +636,12 @@ export async function loadTransactionsPage(
 				eq(categorizations.bucketId, transactions.bucketId),
 			),
 		)
-		.where(
-			and(
-				visibleTo(viewer),
-				query.month ? gte(transactions.date, `${query.month}-01`) : undefined,
-				query.month ? lt(transactions.date, nextMonthStart(query.month)) : undefined,
-				matching(viewer, query.bucketId, query.forMember),
-				query.accountId ? inAccount(query.accountId) : undefined,
-				search
-					? sql`(not ${partly} and ${transactions.note} like ${`%${likeEscaped(search)}%`} escape '!')`
-					: undefined,
-				query.after
-					? or(
-							lt(transactions.date, query.after.date),
-							and(eq(transactions.date, query.after.date), lt(transactions.id, query.after.id)),
-						)
-					: undefined,
-			),
-		)
-		.orderBy(desc(transactions.date), desc(transactions.id))
+		.where(and(filtered, after))
+		.orderBy(...order)
 		// One more than asked for says whether there's another page.
 		.limit(query.limit + 1);
+	const [rows, totalRows] = await Promise.all([rowsQuery, totalQuery]);
+	const total = totalRows ? (totalRows[0]?.total ?? 0) : null;
 	const page = rows.slice(0, query.limit);
 	const ids = page.map((row) => row.id);
 	const [forRows, splitRows, splitForRows] =
@@ -673,7 +712,11 @@ export async function loadTransactionsPage(
 					splits: splitsOf.get(row.id) ?? [],
 				}) as TransactionRow,
 		),
-		next: rows.length > query.limit && last ? { date: last.date as DayKey, id: last.id } : null,
+		next:
+			rows.length > query.limit && last
+				? { date: last.date as DayKey, id: last.id, amountCents: last.amountCents }
+				: null,
+		total,
 	};
 }
 

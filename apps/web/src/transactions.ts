@@ -1,4 +1,10 @@
-import type { Assignment, SplitRow, TransactionCursor, TransactionRow } from "@noodle/db";
+import type {
+	Assignment,
+	SplitRow,
+	TransactionCursor,
+	TransactionRow,
+	TransactionSort,
+} from "@noodle/db";
 import { assignedParts, type MonthKey } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import {
@@ -20,13 +26,20 @@ import {
 	updateTransaction,
 } from "./server/transactions";
 
-export type { Assignment, SplitRow, TransactionRow };
+export type { Assignment, SplitRow, TransactionRow, TransactionSort };
 
 /**
  * The list's filters: a Bucket, who it was For (a Member, or "everyone"), an Account, and words
  * in the note.
  */
-export type TransactionFilters = { bucket?: string; for?: string; account?: string; q?: string };
+export type TransactionFilters = {
+	bucket?: string;
+	for?: string;
+	account?: string;
+	q?: string;
+	/** Newest first when left out. */
+	sort?: TransactionSort;
+};
 
 /**
  * Every cached list of a month's Transactions, whatever the filters. Kept under the month, so
@@ -48,6 +61,7 @@ export const transactionsQuery = (month: MonthKey, filters: TransactionFilters) 
 					forMember: filters.for,
 					accountId: filters.account,
 					search: filters.q || undefined,
+					sort: filters.sort,
 					after: pageParam,
 				},
 			}),

@@ -91,7 +91,15 @@ const dayKeySchema = z
 /** Who the list is filtered to: a Member, or "everyone" for spending For the whole Household. */
 export const forFilterSchema = z.union([ulidSchema, z.literal("everyone")]);
 
-export type TransactionsPage = { transactions: TransactionRow[]; next: TransactionCursor | null };
+export type TransactionsPage = {
+	transactions: TransactionRow[];
+	next: TransactionCursor | null;
+	/** What the filtered month spent; on a month's first page only. */
+	total: number | null;
+};
+
+/** How the list is ordered; newest first when left out. */
+export const transactionSortSchema = z.enum(["newest", "oldest", "largest", "smallest"]);
 
 /** What a Transactions search looks for in notes, at most this long. */
 export const SEARCH_MAX = 60;
@@ -110,7 +118,10 @@ export const getTransactions = createServerFn({ method: "GET" })
 			forMember: forFilterSchema.optional(),
 			accountId: ulidSchema.optional(),
 			search: z.string().trim().max(SEARCH_MAX).optional(),
-			after: z.object({ date: dayKeySchema, id: ulidSchema }).optional(),
+			sort: transactionSortSchema.optional(),
+			after: z
+				.object({ date: dayKeySchema, id: ulidSchema, amountCents: z.number().int().optional() })
+				.optional(),
 		}),
 	)
 	.handler(

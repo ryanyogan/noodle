@@ -360,3 +360,60 @@ describe("Refunds", () => {
 		expect(await loadRefund(db, viewer, await idOf("PAYMENT"))).toEqual({ kind: "none" });
 	});
 });
+
+describe("The Transactions list's order and total", () => {
+	/** Every page of the month's list in `sort` order, `limit` at a time. */
+	async function all(sort: "newest" | "oldest" | "largest" | "smallest") {
+		const rows = [];
+		let after: Parameters<typeof loadTransactionsPage>[2]["after"];
+		do {
+			const page = await loadTransactionsPage(db, viewer, { month, sort, after, limit: 2 });
+			rows.push(...page.transactions);
+			after = page.next ?? undefined;
+		} while (after);
+		return rows;
+	}
+
+	beforeEach(async () => {
+		await importInto("checking", "i-1", [
+			line("2026-09-10", -4_200, "COSTCO"),
+			line("2026-09-12", -3_000, "REI"),
+			line("2026-09-12", -9_900, "TARGET"),
+			line("2026-09-14", -3_000, "H-E-B"),
+		]);
+	});
+
+	it("sorts by amount and by date across pages, ties broken the same way every time", async () => {
+		const largest = await all("largest");
+		expect(largest.map((row) => row.amountCents)).toEqual([9_900, 4_200, 3_000, 3_000]);
+		expect(new Set(largest.map((row) => row.note)).size).toBe(4);
+		const smallest = await all("smallest");
+		expect(smallest.map((row) => row.amountCents)).toEqual([3_000, 3_000, 4_200, 9_900]);
+		expect(smallest.map((row) => row.id)).toEqual(largest.map((row) => row.id).reverse());
+		const oldest = await all("oldest");
+		expect(oldest.map((row) => row.date)).toEqual([
+			"2026-09-10",
+			"2026-09-12",
+			"2026-09-12",
+			"2026-09-14",
+		]);
+		expect((await all("newest")).map((row) => row.id)).toEqual(
+			oldest.map((row) => row.id).reverse(),
+		);
+	});
+
+	it("totals the whole filtered month on the first page, leaving Transfers out", async () => {
+		await importInto("checking", "i-2", [line("2026-09-09", -50_000, "AUTOPAY VISA")]);
+		await importInto("card", "i-3", [line("2026-09-11", 50_000, "PAYMENT THANK YOU")]);
+		const first = await loadTransactionsPage(db, viewer, { month, limit: 2 });
+		expect(first.total).toBe(20_100);
+		const next = await loadTransactionsPage(db, viewer, {
+			month,
+			limit: 2,
+			after: first.next ?? undefined,
+		});
+		expect(next.total).toBeNull();
+		const searched = await loadTransactionsPage(db, viewer, { month, search: "re", limit: 2 });
+		expect(searched.total).toBe(3_000);
+	});
+});

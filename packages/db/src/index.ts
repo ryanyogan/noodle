@@ -538,6 +538,7 @@ export {
 	type TransactionCursor,
 	type TransactionEditResult,
 	type TransactionRow,
+	type TransactionSort,
 	updateTransaction,
 } from "./transactions";
 export {
