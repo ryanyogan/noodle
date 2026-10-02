@@ -27,7 +27,7 @@ import {
 import { Tile } from "@noodle/ui/components/tile";
 import { useHydrated } from "@tanstack/react-router";
 import { Pencil, Plus } from "lucide-react";
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { ulid } from "ulid";
 import { monogram } from "../buckets";
 import {
@@ -194,8 +194,8 @@ export function CommitmentSheet({
 							onOpenChange(false);
 							changes.end.mutate({ commitmentId, month });
 						}}
+						history={<PlanHistoryDisclosure month={month} targetId={commitment.id} />}
 					/>
-					<PlanHistoryDisclosure month={month} targetId={commitment.id} />
 				</SheetContent>
 			) : null}
 		</Sheet>
@@ -242,11 +242,14 @@ function CommitmentDetails({
 	commitment,
 	onSave,
 	onEnd,
+	history,
 }: {
 	month: MonthKey;
 	commitment: Pick<CommitmentState, "id" | "name" | "amount" | "cadence" | "dueDate">;
 	onSave: (terms: Omit<CommitmentVariables, "commitmentId" | "month">) => void;
 	onEnd: (commitmentId: string) => void;
+	/** The Commitment's history: above the footer, so Save stays last. */
+	history?: ReactNode;
 }) {
 	const hydrated = useHydrated();
 	const id = useId();
@@ -307,6 +310,22 @@ function CommitmentDetails({
 					onScopeChange={setScope}
 				/>
 				<CommitmentFormErrors errors={errors} />
+				{history}
+				{/* Apart from Save, as the Bucket sheet's Archive is: it asks first, in an AlertDialog. */}
+				<div className="mt-2 flex items-center justify-between gap-3 border-t pt-4">
+					<p className="text-[13px] text-muted-foreground">
+						Ending takes it out of the Plan from {monthName(month)} on.
+					</p>
+					<Button
+						type="button"
+						variant="destructive"
+						size="sm"
+						disabled={!hydrated}
+						onClick={() => setConfirmEnd(true)}
+					>
+						End
+					</Button>
+				</div>
 				<SheetFooter>
 					<SheetCancel />
 					<Button type="submit" disabled={!hydrated}>
@@ -314,21 +333,6 @@ function CommitmentDetails({
 					</Button>
 				</SheetFooter>
 			</form>
-			{/* Apart from Save, as the Bucket sheet's Archive is: it asks first, in an AlertDialog. */}
-			<div className="mt-2 flex items-center justify-between gap-3 border-t pt-4">
-				<p className="text-[13px] text-muted-foreground">
-					Ending takes it out of the Plan from {monthName(month)} on.
-				</p>
-				<Button
-					type="button"
-					variant="destructive"
-					size="sm"
-					disabled={!hydrated}
-					onClick={() => setConfirmEnd(true)}
-				>
-					End
-				</Button>
-			</div>
 			{confirmEnd ? (
 				<Confirm
 					onConfirm={() => onEnd(commitment.id)}

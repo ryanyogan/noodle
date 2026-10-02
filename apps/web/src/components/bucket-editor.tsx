@@ -10,7 +10,7 @@ import { Tile } from "@noodle/ui/components/tile";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useHydrated } from "@tanstack/react-router";
 import { Archive, ArrowDown, ArrowUp, Pencil, Plus } from "lucide-react";
-import { type FormEvent, useEffect, useId, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useId, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram, nextBucketColor } from "../buckets";
 import { formatMoney, formatMoneyInput, monthName } from "../format";
@@ -211,15 +211,16 @@ export function BucketSheet({
 						onDirty={setDirty}
 						onCancel={() => (dirty ? setConfirmDiscard(true) : close())}
 						onSaved={close}
-					/>
-					{withHistory ? <PlanHistoryDisclosure month={month} targetId={bucket.id} /> : null}
-					<BucketActions
-						month={month}
-						bucket={bucket}
-						order={order}
-						changes={changes}
-						onArchived={close}
-					/>
+					>
+						{withHistory ? <PlanHistoryDisclosure month={month} targetId={bucket.id} /> : null}
+						<BucketActions
+							month={month}
+							bucket={bucket}
+							order={order}
+							changes={changes}
+							onArchived={close}
+						/>
+					</BucketForm>
 					{confirmDiscard ? (
 						<Confirm
 							confirmLabel="Discard changes"
@@ -242,6 +243,7 @@ function BucketForm({
 	onDirty,
 	onCancel,
 	onSaved,
+	children,
 }: {
 	month: MonthKey;
 	bucket: PlanBucket;
@@ -249,6 +251,8 @@ function BucketForm({
 	onDirty: (dirty: boolean) => void;
 	onCancel: () => void;
 	onSaved: () => void;
+	/** History and the Bucket's other actions: above the footer, so Save stays last. */
+	children?: ReactNode;
 }) {
 	const hydrated = useHydrated();
 	const id = useId();
@@ -328,6 +332,7 @@ function BucketForm({
 			{errors.amount ? (
 				<FormError>Enter the allowance as a dollar amount, like 250 or 85.50.</FormError>
 			) : null}
+			{children}
 			<SheetFooter className="max-lg:grid-cols-2">
 				<Button type="button" variant="outline" onClick={onCancel}>
 					Cancel
