@@ -250,6 +250,7 @@ function AccountItem({ account }: { account: AccountView }) {
 				</Tile>
 			}
 			title={account.name}
+			trailingOnTitle
 			meta={
 				// Kind and source on one line, how it splits on the next, so a phone reads it in two.
 				<span>

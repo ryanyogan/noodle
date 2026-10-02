@@ -82,6 +82,7 @@ export function LinkRow({
 	meta,
 	trailing,
 	below,
+	trailingOnTitle,
 }: {
 	link: (props: { className: string; children: ReactNode; "aria-label": string }) => ReactNode;
 	label: string;
@@ -90,7 +91,12 @@ export function LinkRow({
 	meta?: ReactNode;
 	trailing?: ReactNode;
 	below?: ReactNode;
+	/** Below `sm`, put the trailing amount on the title's line, so the meta under them takes the full width. */
+	trailingOnTitle?: boolean;
 }) {
+	// On a phone the text's parts become cells of the row's grid: title and trailing share the
+	// first line, the meta spans the line under them.
+	const phone = trailingOnTitle;
 	return (
 		<li data-slot="list-row">
 			{link({
@@ -100,20 +106,40 @@ export function LinkRow({
 					!leading && "grid-cols-[minmax(0,1fr)_auto]",
 					"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60",
 					"focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
+					phone && "max-sm:gap-y-0.5",
 				),
 				children: (
 					<>
 						{leading}
-						<span className="grid min-w-0 gap-0.5">
-							<span className="line-clamp-2 text-sm font-medium break-words">{title}</span>
+						<span className={cn("grid min-w-0 gap-0.5", phone && "max-sm:contents")}>
+							<span
+								className={cn(
+									"line-clamp-2 text-sm font-medium break-words",
+									phone && "max-sm:col-start-2 max-sm:row-start-1",
+								)}
+							>
+								{title}
+							</span>
 							{meta ? (
-								<span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[13px] text-muted-foreground">
+								<span
+									className={cn(
+										"flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[13px] text-muted-foreground",
+										phone && "max-sm:col-start-2 max-sm:col-end-4 max-sm:row-start-2",
+									)}
+								>
 									{meta}
 								</span>
 							) : null}
 						</span>
 						{trailing ? (
-							<span className="grid justify-items-end gap-0.5 text-end">{trailing}</span>
+							<span
+								className={cn(
+									"grid justify-items-end gap-0.5 text-end",
+									phone && "max-sm:col-start-3 max-sm:row-start-1 max-sm:self-start",
+								)}
+							>
+								{trailing}
+							</span>
 						) : null}
 						{below ? (
 							<span className={leading ? "col-start-2 col-end-4" : "col-span-2"}>{below}</span>
