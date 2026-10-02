@@ -37,6 +37,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Card, CardContent } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Input } from "@noodle/ui/components/input";
+import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import {
 	Select,
@@ -410,10 +411,11 @@ function Explore({ search }: { search: ExploreSearch }) {
 				accounts={accounts}
 				onDraft={setDraft}
 			/>
-			<div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(360px,460px)] lg:items-start">
-				{/* Beside the Changes, the outcome stays in view: stuck, and scrolling on its own when
-					    it's taller than the screen. On phones its parts sit in the page, the totals last. */}
-				<div className="grid gap-4 max-lg:contents lg:sticky lg:top-4 lg:-m-1 lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto lg:p-1 lg:[scrollbar-width:thin]">
+			<SplitLayout stack="children">
+				{/* Beside the Changes, the outcome takes the wide column and stays in view while it fits
+				    the window (what SplitRail does, whichever column it is in); taller, it scrolls with the
+				    page. On phones its parts sit in the page, the totals last. */}
+				<SplitRail className="lg:gap-4">
 					<ToggleGroup
 						type="single"
 						aria-label="Look ahead"
@@ -454,44 +456,46 @@ function Explore({ search }: { search: ExploreSearch }) {
 							<span className="font-medium">Assumptions.</span> {assumptions.join(" ")}
 						</p>
 					</Section>
-				</div>
-				<div className="grid gap-3">
-					<Freed
-						plan={planProjection}
-						scenario={scenarioProjection}
-						horizonLabel={horizonLabel}
-						className="sticky top-[env(safe-area-inset-top)] z-10 -mx-(--gutter) bg-background/85 px-(--gutter) py-2 text-lg backdrop-blur-xl lg:hidden"
-					/>
-					<ScenarioChanges
-						impacts={impacts}
-						levers={draft.levers}
-						subjects={subjects}
-						goalNames={goalNames}
-						horizonLabel={horizonLabel}
-						onChange={onChangesEdit}
-					/>
-					<ScenarioOutcome
-						value={
-							<Freed
-								plan={planProjection}
-								scenario={scenarioProjection}
-								horizonLabel={horizonLabel}
-								className="text-base"
-							/>
-						}
-					>
-						<ScenarioOutline
-							month={month}
-							plan={plan}
-							goals={goals}
-							accounts={accounts}
+				</SplitRail>
+				<SplitMain>
+					<div className="grid gap-3">
+						<Freed
+							plan={planProjection}
+							scenario={scenarioProjection}
+							horizonLabel={horizonLabel}
+							className="sticky top-[env(safe-area-inset-top)] z-10 -mx-(--gutter) bg-background/85 px-(--gutter) py-2 text-lg backdrop-blur-xl lg:hidden"
+						/>
+						<ScenarioChanges
+							impacts={impacts}
 							levers={draft.levers}
-							parentId={parentId}
+							subjects={subjects}
+							goalNames={goalNames}
+							horizonLabel={horizonLabel}
 							onChange={onChangesEdit}
 						/>
-					</ScenarioOutcome>
-				</div>
-			</div>
+						<ScenarioOutcome
+							value={
+								<Freed
+									plan={planProjection}
+									scenario={scenarioProjection}
+									horizonLabel={horizonLabel}
+									className="text-base"
+								/>
+							}
+						>
+							<ScenarioOutline
+								month={month}
+								plan={plan}
+								goals={goals}
+								accounts={accounts}
+								levers={draft.levers}
+								parentId={parentId}
+								onChange={onChangesEdit}
+							/>
+						</ScenarioOutcome>
+					</div>
+				</SplitMain>
+			</SplitLayout>
 		</div>
 	);
 }

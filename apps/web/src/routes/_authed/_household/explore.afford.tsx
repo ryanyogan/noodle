@@ -21,6 +21,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
+import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
 import {
 	Table,
 	TableBody,
@@ -204,16 +205,18 @@ function CheckLayout({
 	children: ReactNode;
 }) {
 	return (
-		<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)] lg:items-start">
-			<div className="grid min-w-0 gap-4 lg:sticky lg:top-6">{answer}</div>
-			<div className="grid min-w-0 gap-3">
+		// The answer takes the wide column and stays in view while it fits the window (what SplitRail
+		// does, whichever column it is in); the Check's questions take the narrow one.
+		<SplitLayout>
+			<SplitRail className="gap-4">{answer}</SplitRail>
+			<SplitMain className="gap-3">
 				<p className="sticky top-[env(safe-area-inset-top)] z-10 -mx-(--gutter) flex items-baseline justify-between gap-3 bg-background/85 px-(--gutter) py-2 backdrop-blur-xl lg:hidden">
 					<VerdictLabel verdict={verdict} className="font-semibold" />
 					<span className="truncate text-sm text-muted-foreground tabular-nums">{summary}</span>
 				</p>
 				<Card className="grid min-w-0 gap-7 p-(--card-pad)">{children}</Card>
-			</div>
-		</div>
+			</SplitMain>
+		</SplitLayout>
 	);
 }
 
