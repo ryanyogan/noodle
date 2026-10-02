@@ -15,6 +15,15 @@ import { Card } from "@noodle/ui/components/card";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import {
+	Table,
+	TableBody,
+	TableCaption,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@noodle/ui/components/table";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound, useHydrated } from "@tanstack/react-router";
 import { ChevronLeft, Pencil } from "lucide-react";
@@ -234,34 +243,47 @@ function Charges({ data, id }: { data: CommitmentsData; id: string }) {
 				}
 			/>
 			{charges.length > 0 ? (
-				<List>
-					{charges.map((charge) => {
-						const day = dayText(charge.date, data.asOf);
-						const status =
-							charge.onTime === null ? "Not scheduled" : charge.onTime ? "On time" : "Late";
-						return (
-							<ListRow
-								key={charge.id}
-								aria-label={`Paid ${day}, ${formatMoney(charge.amount)}, ${status}`}
-								leading={<DateTile date={charge.date} />}
-								title={`Paid ${day}`}
-								meta={
-									<>
-										{charge.dueDate ? <span>Due {dayText(charge.dueDate, data.asOf)}</span> : null}
-										<Badge variant={charge.onTime === false ? "pace" : "default"} dot>
-											{status}
-										</Badge>
-									</>
-								}
-								trailing={
-									<span className="text-sm font-medium tabular-nums">
+				// A table at every width (#47): one line a Charge, its due and paid days side by side, and
+				// a status only when it was paid late (or wasn't scheduled).
+				<Card className="overflow-hidden py-0">
+					<Table>
+						<TableCaption className="sr-only">
+							Charges in the last {COMMITMENT_MONTHS} months
+						</TableCaption>
+						<TableHeader>
+							<TableRow>
+								<TableHead className="ps-4">Due</TableHead>
+								<TableHead>Paid</TableHead>
+								<TableHead>Status</TableHead>
+								<TableHead className="pe-4 text-end">Amount</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{charges.map((charge) => (
+								<TableRow key={charge.id}>
+									<TableCell className="ps-4 text-muted-foreground">
+										{charge.dueDate ? dayText(charge.dueDate, data.asOf) : "—"}
+									</TableCell>
+									<TableCell>{dayText(charge.date, data.asOf)}</TableCell>
+									<TableCell>
+										{charge.onTime === false ? (
+											<Badge variant="pace" dot>
+												Late
+											</Badge>
+										) : charge.onTime === null ? (
+											<span className="text-muted-foreground">Not scheduled</span>
+										) : (
+											<span className="text-subtle-foreground">On time</span>
+										)}
+									</TableCell>
+									<TableCell className="pe-4 text-end font-medium tabular-nums">
 										{formatMoney(charge.amount)}
-									</span>
-								}
-							/>
-						);
-					})}
-				</List>
+									</TableCell>
+								</TableRow>
+							))}
+						</TableBody>
+					</Table>
+				</Card>
 			) : (
 				<Card className="p-(--card-pad) text-sm text-muted-foreground">
 					Nothing has been paid toward it in the last {COMMITMENT_MONTHS} months.
