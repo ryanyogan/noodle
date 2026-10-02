@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { createHousehold, serverFn, signedInPage } from "./session";
@@ -33,7 +34,11 @@ test.afterAll(async () => {
 /** Waits until the page is hydrated and settled: fonts loaded and Clerk's (client-only) avatar rendered. */
 async function settle(page: Page) {
 	await page.evaluate(() => document.fonts.ready);
-	await page.locator(".cl-userButtonTrigger").first().waitFor({ state: "attached" });
+	// The sidebar's Parent menu is ready once Clerk is; the Household page has Clerk's own button too.
+	await page.locator("[data-parent-menu][data-ready=true]").waitFor({ state: "attached" });
+	if (new URL(page.url()).pathname.startsWith("/household")) {
+		await page.locator(".cl-userButtonTrigger").first().waitFor({ state: "attached" });
+	}
 }
 
 // The month name changes every month and Clerk's avatar differs per test user.
@@ -43,6 +48,7 @@ const dynamic = (page: Page) => [
 			/^(January|February|March|April|May|June|July|August|September|October|November|December)$/,
 	}),
 	page.locator(".cl-userButtonTrigger"),
+	page.locator("[data-parent-menu] [data-slot=avatar]"),
 	// Each run's test Parent has a new email, shown on the Household page.
 	page.getByText(/@example\.com/),
 ];
@@ -128,5 +134,70 @@ test("a page that fails to load explains it and retries", async ({ browser }) =>
 	await page.unroute(parents);
 	await page.getByRole("button", { name: "Try again" }).click();
 	await expect(page.getByRole("heading", { name: "Parents" })).toBeVisible();
+	await page.context().close();
+});
+
+test("the sidebar marks the section you're in, collapses to a rail, and holds the Parent menu", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email, screens.desktop);
+	await page.goto("/month");
+	await settle(page);
+	const nav = page.getByRole("navigation", { name: "Main" });
+	const current = nav.locator("[aria-current=page]");
+
+	// Groups are named, and the current destination comes from the route, sub-pages included.
+	await expect(nav.getByRole("group", { name: "Day to day" }).getByRole("link")).toHaveText([
+		"This Month",
+		"Transactions",
+		"Accounts",
+	]);
+	await expect(nav.getByRole("group").filter({ hasText: "Glossary" })).toHaveAccessibleName(
+		"Household",
+	);
+	await expect(current).toHaveText("This Month");
+	const axe = async () =>
+		(await new AxeBuilder({ page }).include("[data-slot=sidebar]").analyze()).violations;
+	expect(await axe()).toEqual([]);
+	for (const [path, label] of [
+		["/month/2020-01", "This Month"],
+		["/review", "Transactions"],
+		["/review/rules", "Transactions"],
+		["/explore/afford", "Explore"],
+		["/perks", "Insights"],
+	] as const) {
+		await page.goto(path);
+		await expect(current).toHaveText(label);
+		await expect(current).toHaveCount(1);
+	}
+
+	// Ctrl+B collapses it to the rail: links keep their names and gain a tooltip.
+	await settle(page);
+	const width = () =>
+		page.getByRole("complementary").evaluate((el) => el.getBoundingClientRect().width);
+	expect(await width()).toBe(248);
+	await page.keyboard.press("Control+b");
+	await expect.poll(width).toBe(60);
+	await nav.getByRole("link", { name: "Goals" }).hover();
+	await expect(page.getByRole("tooltip", { name: "Goals" })).toBeVisible();
+	expect(await axe()).toEqual([]);
+
+	// Remembered on this device, with no expanded flash to wait out.
+	await page.reload();
+	expect(await width()).toBe(60);
+	await settle(page);
+	await page.getByRole("button", { name: "Toggle sidebar" }).click();
+	await expect.poll(width).toBe(248);
+
+	// The Parent menu: Household settings, the account, and signing out.
+	await page.getByRole("button", { name: /Account menu/ }).click();
+	const menu = page.getByRole("menu");
+	await expect(menu.getByRole("menuitem")).toHaveText([
+		"Household settings",
+		"Manage account…",
+		"Sign out",
+	]);
+	await menu.getByRole("menuitem", { name: "Sign out" }).click();
+	await expect(nav).toHaveCount(0);
 	await page.context().close();
 });

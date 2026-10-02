@@ -7,6 +7,7 @@ import { SectionLayout, type SectionTab } from "../../../components/section-layo
 // and the tabs live here, once; each page renders only what's below them, and reads its own
 // search (`?lever=`, `?kind=`, `?compare=`).
 export const Route = createFileRoute("/_authed/_household/explore")({
+	staticData: { wide: true },
 	component: ExploreLayout,
 });
 

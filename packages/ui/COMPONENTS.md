@@ -19,6 +19,7 @@ Never let the CLI overwrite a file here.
 | Component | From | Notes |
 | --- | --- | --- |
 | AlertDialog | shadcn, by hand (#47) | Focus starts on Cancel and returns to the opener (`lib/focus-return.ts`). |
+| Avatar | shadcn, by hand (#55) | Root, image and fallback only. The fallback (an initial) shows until the picture loads. |
 | Breadcrumb | shadcn, by hand (#47) | A drilled-in Report. |
 | Button, Input, Label, Badge, Card, Skeleton | shadcn, restyled | |
 | Checkbox, Switch | shadcn, by hand (#47) | Checked takes the primary ink. Each has a 24px target. Name them with `<label htmlFor>`. |
@@ -31,6 +32,8 @@ Never let the CLI overwrite a file here.
 | Select | shadcn, by hand (#47) | Trigger sizes `default`, `sm`, `pill`. `OptionSelect` is the form field: choices as data, groups, a hidden input under `name`. |
 | Command, Combobox | shadcn, by hand (#47) | cmdk 1.1.1. Combobox = Popover + Command with OptionSelect's props, for long or grouped lists. |
 | Calendar, DatePicker | shadcn, by hand (#47) | react-day-picker 10.0.2 (exact). DatePicker = Popover + Calendar in place of `<input type="date">`: a field-sized trigger reading "Oct 1, 2026", month and year dropdowns, `min`/`max`, Clear unless `required`, values stay yyyy-mm-dd (hidden input when `name`). Day buttons carry `data-day` (yyyy-mm-dd); specs use `pickDate()`. |
+| Separator | shadcn, by hand (#55) | Decorative by default. |
+| Sidebar | shadcn, by hand (#55) | The desktop sidebar: groups, menu buttons, a badge, a trigger. Collapses to an icon rail only (`rail:` variant, `--sidebar-width-icon`), remembered per device in localStorage and set on `<html>` before first paint by `sidebarStateScript`; Ctrl/⌘+B toggles. No mobile Sheet variant: phones keep the tab bar. A menu button's `tooltip` shows only in the rail. |
 | Sheet | Noodle's own, on Radix Dialog | A bottom sheet on phones and a centred dialog on desktop. It plays the part of shadcn's Dialog. |
 | Slider | shadcn, by hand (#47) | One thumb, named, with its value in words. |
 | Spinner | shadcn, by hand (#47) | Decorative unless given a `label`. |

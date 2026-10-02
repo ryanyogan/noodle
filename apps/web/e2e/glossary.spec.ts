@@ -53,10 +53,8 @@ test("a term's help explains it in place and leads to the Glossary", async ({ br
 	await expect(glossary).toBeHidden();
 	await expect(freeToSpendHelp(page)).toBeFocused();
 
-	// The help icon in the sidebar opens it too; it searches, and closes by clicking outside.
+	// Glossary in the sidebar opens it too; it searches, and closes by clicking outside.
 	const icon = page.getByRole("complementary").getByRole("button", { name: "Glossary" });
-	await icon.hover();
-	await expect(page.getByRole("tooltip", { name: "Glossary" })).toBeVisible();
 	await icon.click();
 	await expect(glossary).toBeVisible();
 	expect(await glossary.getByRole("term").count()).toBeGreaterThan(10);

@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import { ClerkProvider } from "@clerk/tanstack-react-start";
+import { sidebarStateScript } from "@noodle/ui/components/sidebar";
 import geistFont from "@noodle/ui/fonts/geist-latin-wght-normal.woff2?url";
 import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
@@ -34,12 +35,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 function RootShell({ children }: { children: ReactNode }) {
 	return (
 		<ClerkProvider>
-			<html lang="en">
+			{/* The inline script below sets data-sidebar-state on it before React hydrates. */}
+			<html lang="en" suppressHydrationWarning>
 				<head>
 					<HeadContent />
 					{/* Rendered here, not in head(): head() keeps one meta per name, and there are two. */}
 					<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f5f7" />
 					<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#090c12" />
+					{/* Before first paint, so a sidebar collapsed on this device renders collapsed. */}
+					{/* biome-ignore lint/security/noDangerouslySetInnerHtml: a constant from packages/ui, no user input. */}
+					<script dangerouslySetInnerHTML={{ __html: sidebarStateScript }} />
 				</head>
 				<body>
 					{children}

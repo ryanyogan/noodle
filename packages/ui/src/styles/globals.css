@@ -9,6 +9,8 @@
 
 /* Appearance follows the device setting. */
 @custom-variant dark (@media (prefers-color-scheme: dark));
+/* Inside a page whose sidebar is collapsed to its icon rail (Sidebar in components/sidebar.tsx). */
+@custom-variant rail (:where([data-sidebar-state="collapsed"]) &);
 
 /* ---------- Font: Geist, self-hosted (Latin), with a metric-matched fallback ---------- */
 @font-face {
@@ -123,6 +125,7 @@
 	--gutter: 16px;
 	--card-pad: 16px;
 	--sidebar-width: 248px;
+	--sidebar-width-icon: 60px;
 	--tabbar-height: 56px;
 }
 
@@ -363,4 +366,9 @@
 @utility tabular {
 	font-variant-numeric: tabular-nums;
 	letter-spacing: -0.01em;
+}
+
+/* The sidebar collapsed to its icon rail: set on <html> before first paint (sidebarStateScript). */
+:root[data-sidebar-state="collapsed"] {
+	--sidebar-width: var(--sidebar-width-icon);
 }

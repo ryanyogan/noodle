@@ -57,6 +57,7 @@ import type { ReportData, ReportView } from "../../../server/reports";
 // Report, and the page shows its skeleton until the charts can measure themselves.
 
 export const Route = createFileRoute("/_authed/_household/reports")({
+	staticData: { wide: true },
 	ssr: "data-only",
 	validateSearch: reportSearchSchema,
 	loaderDeps: ({ search }) => ({ request: requestOf(search) }),

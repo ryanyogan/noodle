@@ -1,108 +1,58 @@
-import { UserButton } from "@clerk/tanstack-react-start";
-import { monthKeyAt } from "@noodle/domain";
+import { useClerk, useUser } from "@clerk/tanstack-react-start";
+import { Avatar, AvatarFallback, AvatarImage } from "@noodle/ui/components/avatar";
 import { Button } from "@noodle/ui/components/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@noodle/ui/components/dropdown-menu";
 import { Kbd } from "@noodle/ui/components/kbd";
 import { Logo } from "@noodle/ui/components/logo";
+import {
+	Sidebar,
+	SidebarContent,
+	SidebarFooter,
+	SidebarGroup,
+	SidebarGroupLabel,
+	SidebarHeader,
+	SidebarMenu,
+	SidebarMenuBadge,
+	SidebarMenuButton,
+	SidebarMenuItem,
+	SidebarProvider,
+	SidebarSeparator,
+	SidebarTrigger,
+	useSidebar,
+} from "@noodle/ui/components/sidebar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@noodle/ui/components/tooltip";
+import { useHydrated } from "@noodle/ui/lib/hydrated";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { Link, type LinkProps, useRouteContext, useRouterState } from "@tanstack/react-router";
-import {
-	CalendarCheck,
-	CalendarDays,
-	ChartColumn,
-	Landmark,
-	List,
-	type LucideIcon,
-	MessageCircleQuestionMark,
-	Plus,
-	SlidersHorizontal,
-	Target,
-	Telescope,
-	UsersRound,
-} from "lucide-react";
-import type { ComponentProps, ReactNode } from "react";
-import { checkInStatusQuery } from "../queries";
-import { GlossaryButton } from "./glossary";
+import { Link, useMatches, useMatchRoute, useRouteContext } from "@tanstack/react-router";
+import { ChevronsUpDown, LogOut, Plus, Settings, UserRound } from "lucide-react";
+import { type ComponentProps, type ReactNode, useId } from "react";
+import { type NavGroup, type NavItem, navGroups, tabItems } from "../nav";
+import { checkInStatusQuery, membersQuery, reviewQuery } from "../queries";
+import { openGlossary } from "./glossary";
 import { markQuickAddOpened, quickAddSearch } from "./quick-add";
 
-type NavItem = {
-	to: LinkProps["to"];
-	label: string;
-	short: string;
-	icon: LucideIcon;
-	/** Left out of the phone tab bar, where it's reached from another destination instead. */
-	desktopOnly?: boolean;
-	/** Other paths this destination shows as current on in the tab bar. */
-	alsoFor?: string[];
-	/** Paths inside this destination, though not under its own: current there everywhere. */
-	within?: string[];
-};
-
-/** Whether `item` is current at `pathname` through one of the paths `within` it. */
-const currentWithin = (item: NavItem, pathname: string) =>
-	item.within?.some((path) => pathname.startsWith(path)) ?? false;
-
-// Every top-level destination, in order. The sidebar (desktop) and tab bar (phone) both render it,
-// though the tab bar has room for four: the Plan is reached from This Month there (its Month and
-// Plan switch), Accounts from Transactions and Household, Explore from Goals, which it plans
-// ahead, and Reports and Ask from the row above This Month's header. The Glossary isn't a
-// destination: it opens over the page from a help icon (the sidebar's footer, or that row above
-// This Month's header on a phone) and from every term's help popover.
-const nav: NavItem[] = [
-	{ to: "/month", label: "This Month", short: "Month", icon: CalendarDays, alsoFor: ["/plan"] },
-	{ to: "/plan", label: "Plan", short: "Plan", icon: SlidersHorizontal, desktopOnly: true },
-	{
-		to: "/transactions",
-		label: "Transactions",
-		short: "Transactions",
-		icon: List,
-		within: ["/review"],
-		alsoFor: ["/accounts"],
-	},
-	{ to: "/accounts", label: "Accounts", short: "Accounts", icon: Landmark, desktopOnly: true },
-	{ to: "/goals", label: "Goals", short: "Goals", icon: Target, alsoFor: ["/explore"] },
-	{ to: "/explore", label: "Explore", short: "Explore", icon: Telescope, desktopOnly: true },
-	{ to: "/reports", label: "Reports", short: "Reports", icon: ChartColumn, desktopOnly: true },
-	{ to: "/ask", label: "Ask", short: "Ask", icon: MessageCircleQuestionMark, desktopOnly: true },
-	// Weekly, so in the sidebar; on a phone it's reached from This Month's card on the day, its
-	// Nudge and email, and Household.
-	{
-		to: "/check-in",
-		label: "Check-in",
-		short: "Check-in",
-		icon: CalendarCheck,
-		desktopOnly: true,
-	},
-	{ to: "/household", label: "Household", short: "Household", icon: UsersRound },
-];
-
 /**
- * Whether a destination is the current page. This Month is only this month's page: an earlier
- * month's isn't "this month", so nothing in the sidebar is current there.
+ * Whether a destination is current, by the router's own matching: on its route or any page under
+ * it (This Month on every month, Plan on every Plan page), and on the routes `within` it (Review
+ * within Transactions). The tab bar also counts what's reached through a tab on a phone.
  */
-function useIsCurrent() {
-	const pathname = useRouterState({ select: (state) => state.location.pathname });
-	const { household } = useRouteContext({ from: "/_authed/_household" });
-	const thisMonth = monthKeyAt(new Date(), household.timeZone);
-	return (item: NavItem) =>
-		item.to === "/month"
-			? pathname === "/month" || pathname.startsWith(`/month/${thisMonth}`)
-			: pathname.startsWith(item.to as string) || currentWithin(item, pathname);
+function useIsCurrent(where: "sidebar" | "tabs") {
+	const matchRoute = useMatchRoute();
+	return (item: NavItem) => {
+		if (!item.to) return false;
+		const routes = [item.to, ...(item.within ?? [])];
+		if (where === "tabs") routes.push(...(item.tab?.within ?? []));
+		return routes.some((to) => matchRoute({ to, fuzzy: true }) !== false);
+	};
 }
-
-/** A dot beside Check-in while this Parent hasn't done this week's. */
-function CheckInBadge() {
-	const status = useQuery(checkInStatusQuery()).data;
-	if (!status || status.done) return null;
-	return (
-		<span className="ms-auto flex items-center">
-			<span aria-hidden="true" className="size-2 rounded-full bg-brand" />
-			<span className="sr-only">not done this week</span>
-		</span>
-	);
-}
-
-const WIDE_PAGES = ["/explore", "/reports", "/afford", "/scenarios"];
 
 /** The authenticated app frame: a sidebar on desktop, a bottom tab bar on phones. */
 export function AppShell({
@@ -112,85 +62,209 @@ export function AppShell({
 	householdName: string;
 	children: ReactNode;
 }) {
-	const pathname = useRouterState({ select: (state) => state.location.pathname });
-	// The data-dense pages get a wider cap so a 1920 screen isn't mostly empty.
-	const wide = WIDE_PAGES.some((page) => pathname.startsWith(page));
+	// A section says it's data-dense on its own route (`staticData: { wide: true }`).
+	const wide = useMatches({ select: (matches) => matches.some((match) => match.staticData.wide) });
 	return (
-		<div className="min-h-dvh lg:grid lg:grid-cols-[var(--sidebar-width)_minmax(0,1fr)]">
-			<a
-				href="#main"
-				className="sr-only focus:not-sr-only focus:fixed focus:start-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-card focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:shadow-card focus:ring-2 focus:ring-ring"
-			>
-				Skip to content
-			</a>
-			<Sidebar householdName={householdName} />
-			<main
-				id="main"
-				// Focus lands here when a sheet closes and the control that opened it is gone.
-				tabIndex={-1}
-				className={cn(
-					"mx-auto w-full max-w-[1200px] px-(--gutter) outline-none",
-					wide && "max-w-[1440px]",
-					"pt-[calc(env(safe-area-inset-top)+16px)] pb-[calc(var(--tabbar-height)+env(safe-area-inset-bottom)+32px)]",
-					"lg:pt-6 lg:pb-12",
-				)}
-			>
-				{children}
-			</main>
-			<TabBar />
-		</div>
+		<SidebarProvider>
+			<div className="min-h-dvh lg:grid lg:grid-cols-[var(--sidebar-width)_minmax(0,1fr)]">
+				<a
+					href="#main"
+					className="sr-only focus:not-sr-only focus:fixed focus:start-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-card focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:shadow-card focus:ring-2 focus:ring-ring"
+				>
+					Skip to content
+				</a>
+				<AppSidebar householdName={householdName} />
+				<main
+					id="main"
+					// Focus lands here when a sheet closes and the control that opened it is gone.
+					tabIndex={-1}
+					className={cn(
+						"mx-auto w-full max-w-[1200px] px-(--gutter) outline-none",
+						wide && "max-w-[1440px]",
+						"pt-[calc(env(safe-area-inset-top)+16px)] pb-[calc(var(--tabbar-height)+env(safe-area-inset-bottom)+32px)]",
+						"lg:pt-6 lg:pb-12",
+					)}
+				>
+					{children}
+				</main>
+				<TabBar />
+			</div>
+		</SidebarProvider>
 	);
 }
 
-function Sidebar({ householdName }: { householdName: string }) {
-	const isCurrent = useIsCurrent();
+function AppSidebar({ householdName }: { householdName: string }) {
+	const { state } = useSidebar();
+	const collapsed = state === "collapsed";
 	return (
-		<aside className="sticky top-0 hidden h-dvh flex-col gap-6 border-e bg-card/55 px-3 py-5 lg:flex">
-			<Link to="/month" className="rounded-lg px-3 py-1" aria-label="Noodle, This Month">
-				<Logo />
-			</Link>
-			<Button asChild className="mx-1">
-				<QuickAddLink>
-					<Plus />
-					Quick Add
-					<span aria-hidden="true" className="ms-auto">
-						<Kbd className="border-current/40 bg-transparent text-current opacity-70">Q</Kbd>
-					</span>
-				</QuickAddLink>
-			</Button>
-			<nav aria-label="Main" className="grid gap-0.5">
-				{nav.map((item) => (
+		<Sidebar className="hidden lg:flex">
+			<SidebarHeader>
+				<div className="flex h-8 items-center justify-between rail:justify-center">
 					<Link
-						key={item.label}
-						to={item.to}
-						// Current is worked out here (useIsCurrent), not by the router's fuzzy match.
-						activeOptions={{ exact: true }}
-						aria-current={isCurrent(item) ? "page" : undefined}
-						className={cn(
-							"flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium text-muted-foreground",
-							"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2 hover:text-foreground",
-							isCurrent(item) && "bg-card text-foreground shadow-card ring-1 ring-border",
-						)}
+						to="/month"
+						className="rounded-lg px-2.5 py-1 rail:hidden"
+						aria-label="Noodle, This Month"
 					>
-						<item.icon className="size-4.5" strokeWidth={1.75} aria-hidden="true" />
-						{item.label}
-						{item.to === "/check-in" ? <CheckInBadge /> : null}
+						<Logo />
 					</Link>
-				))}
-			</nav>
-			<div className="mt-auto flex items-center gap-2.5 rounded-xl p-2.5 pe-0">
-				<span className="flex rounded-full [&_button:focus-visible]:ring-2 [&_button:focus-visible]:ring-ring [&_button:focus-visible]:ring-offset-2 [&_button:focus-visible]:ring-offset-card [&_button:focus-visible]:outline-none">
-					<UserButton />
-				</span>
-				<div className="grid min-w-0 flex-1 text-[13px] leading-tight">
-					<span className="line-clamp-2 font-medium wrap-break-word" title={householdName}>
-						{householdName}
-					</span>
-					<span className="text-xs text-subtle-foreground">Household</span>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<SidebarTrigger />
+						</TooltipTrigger>
+						<TooltipContent side={collapsed ? "right" : "bottom"}>
+							{collapsed ? "Open the sidebar" : "Collapse the sidebar"}
+							<Kbd className="border-current/40 bg-transparent text-current opacity-70">Ctrl B</Kbd>
+						</TooltipContent>
+					</Tooltip>
 				</div>
-				<GlossaryButton className="shrink-0" />
-			</div>
-		</aside>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button asChild className="rail:px-0">
+							<QuickAddLink>
+								<Plus />
+								<span className="rail:sr-only">Quick Add</span>
+								<span aria-hidden="true" className="ms-auto rail:hidden">
+									<Kbd className="border-current/40 bg-transparent text-current opacity-70">Q</Kbd>
+								</span>
+							</QuickAddLink>
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent side="right" hidden={!collapsed}>
+						Quick Add
+					</TooltipContent>
+				</Tooltip>
+			</SidebarHeader>
+			<SidebarContent>
+				<nav aria-label="Main" className="flex flex-col gap-4 rail:gap-3">
+					{navGroups.map((group) => (
+						<NavGroupSection key={group.label} group={group} />
+					))}
+				</nav>
+			</SidebarContent>
+			<SidebarFooter>
+				<SidebarSeparator />
+				<ParentMenu householdName={householdName} />
+			</SidebarFooter>
+		</Sidebar>
+	);
+}
+
+function NavGroupSection({ group }: { group: NavGroup }) {
+	const labelId = useId();
+	const isCurrent = useIsCurrent("sidebar");
+	return (
+		<SidebarGroup aria-labelledby={labelId}>
+			<SidebarGroupLabel id={labelId}>{group.label}</SidebarGroupLabel>
+			<SidebarMenu>
+				{group.items.map((item) => (
+					<SidebarMenuItem key={item.label}>
+						{item.to ? (
+							<SidebarMenuButton asChild isActive={isCurrent(item)} tooltip={item.label}>
+								<Link
+									to={item.to}
+									// Current comes from useIsCurrent, which also counts the routes within it.
+									activeOptions={{ exact: true }}
+									aria-current={isCurrent(item) ? "page" : undefined}
+								>
+									<item.icon strokeWidth={1.75} aria-hidden="true" />
+									<span className="truncate rail:sr-only">{item.label}</span>
+									{item.badge === "check-in" ? <CheckInBadge /> : null}
+								</Link>
+							</SidebarMenuButton>
+						) : (
+							<SidebarMenuButton
+								tooltip={item.label}
+								aria-haspopup="dialog"
+								onClick={() => openGlossary()}
+							>
+								<item.icon strokeWidth={1.75} aria-hidden="true" />
+								<span className="truncate rail:sr-only">{item.label}</span>
+							</SidebarMenuButton>
+						)}
+						{item.badge === "review" ? <ReviewBadge /> : null}
+					</SidebarMenuItem>
+				))}
+			</SidebarMenu>
+		</SidebarGroup>
+	);
+}
+
+/** A dot beside Check-in while this Parent hasn't done this week's. */
+function CheckInBadge() {
+	const status = useQuery(checkInStatusQuery()).data;
+	if (!status || status.done) return null;
+	return (
+		<span className="ms-auto flex items-center rail:absolute rail:end-1.5 rail:top-1.5">
+			<span aria-hidden="true" className="size-2 rounded-full bg-brand" />
+			<span className="sr-only">not done this week</span>
+		</span>
+	);
+}
+
+/** How many Transactions wait in Review, beside Transactions. */
+function ReviewBadge() {
+	const waiting = useQuery(reviewQuery()).data?.total ?? 0;
+	if (waiting === 0) return null;
+	return (
+		<SidebarMenuBadge>
+			{waiting}
+			<span className="sr-only"> to review</span>
+		</SidebarMenuBadge>
+	);
+}
+
+/** The signed-in Parent, with their Household: opens the account menu. */
+function ParentMenu({ householdName }: { householdName: string }) {
+	const { parentId } = useRouteContext({ from: "/_authed/_household" });
+	const { isLoaded, user } = useUser();
+	const clerk = useClerk();
+	const members = useQuery(membersQuery()).data;
+	// The Parent's name and picture arrive after the page's HTML, so they wait for hydration.
+	const hydrated = useHydrated();
+	const name = hydrated
+		? (members?.find((member) => member.id === parentId)?.name ?? user?.fullName ?? undefined)
+		: undefined;
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<SidebarMenuButton
+					size="lg"
+					data-parent-menu=""
+					data-ready={hydrated && isLoaded ? "true" : undefined}
+				>
+					<Avatar>
+						{hydrated && user?.imageUrl ? <AvatarImage src={user.imageUrl} alt="" /> : null}
+						<AvatarFallback>{name?.trim().charAt(0).toUpperCase() ?? ""}</AvatarFallback>
+					</Avatar>
+					<span className="sr-only">Account menu,</span>
+					<span className="grid min-w-0 flex-1 text-[13px] leading-tight rail:sr-only">
+						<span className="truncate font-medium text-foreground">{name ?? " "}</span>
+						<span className="truncate text-xs font-normal text-subtle-foreground">
+							{householdName}
+						</span>
+					</span>
+					<ChevronsUpDown className="size-4 rail:hidden" aria-hidden="true" />
+				</SidebarMenuButton>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent side="top" align="start" className="min-w-56">
+				<DropdownMenuLabel className="truncate">{householdName}</DropdownMenuLabel>
+				<DropdownMenuItem asChild>
+					<Link to="/household">
+						<Settings aria-hidden="true" />
+						Household settings
+					</Link>
+				</DropdownMenuItem>
+				<DropdownMenuItem onSelect={() => clerk.openUserProfile()}>
+					<UserRound aria-hidden="true" />
+					Manage account…
+				</DropdownMenuItem>
+				<DropdownMenuSeparator />
+				<DropdownMenuItem onSelect={() => void clerk.signOut({ redirectUrl: "/" })}>
+					<LogOut aria-hidden="true" />
+					Sign out
+				</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 }
 
@@ -217,8 +291,7 @@ export function QuickAddLink(props: Omit<ComponentProps<"a">, "href">) {
 function TabBar() {
 	// Quick Add sits in the middle of the bar, in easy reach of either thumb, with the
 	// destinations split either side of it.
-	const tabs = nav.filter((item) => !item.desktopOnly);
-	const half = Math.ceil(tabs.length / 2);
+	const half = Math.ceil(tabItems.length / 2);
 	return (
 		<nav
 			aria-label="Main"
@@ -228,7 +301,7 @@ function TabBar() {
 				"px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+6px)]",
 			)}
 		>
-			<TabGroup items={tabs.slice(0, half)} />
+			<TabGroup items={tabItems.slice(0, half)} />
 			<QuickAddLink
 				className={cn(
 					"mx-2 grid h-11 w-12 place-items-center self-center rounded-[14px] bg-primary text-primary-foreground",
@@ -238,14 +311,13 @@ function TabBar() {
 				<Plus className="size-5.5" strokeWidth={2.2} aria-hidden="true" />
 				<span className="sr-only">Quick Add</span>
 			</QuickAddLink>
-			<TabGroup items={tabs.slice(half)} />
+			<TabGroup items={tabItems.slice(half)} />
 		</nav>
 	);
 }
 
-function TabGroup({ items }: { items: NavItem[] }) {
-	const pathname = useRouterState({ select: (state) => state.location.pathname });
-	const isCurrent = useIsCurrent();
+function TabGroup({ items }: { items: typeof tabItems }) {
+	const isCurrent = useIsCurrent("tabs");
 	return (
 		<div className="grid auto-cols-fr grid-flow-col">
 			{items.map((item) => (
@@ -257,12 +329,11 @@ function TabGroup({ items }: { items: NavItem[] }) {
 					className={cn(
 						"grid h-(--tabbar-height) min-w-0 place-content-center justify-items-center gap-1 rounded-lg text-[11px] font-medium text-subtle-foreground",
 						"transition-colors duration-(--duration-fast) ease-standard",
-						(isCurrent(item) || item.alsoFor?.some((path) => pathname.startsWith(path))) &&
-							"text-foreground",
+						isCurrent(item) && "text-foreground",
 					)}
 				>
 					<item.icon className="size-5.5" strokeWidth={1.75} aria-hidden="true" />
-					{item.short}
+					{item.tab.label}
 				</Link>
 			))}
 		</div>
