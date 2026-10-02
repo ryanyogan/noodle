@@ -20,3 +20,11 @@ In production every Review card had no guess. Categorization ran, but it threw a
 - The model is asked for a short `why`, which adds roughly 15 tokens per merchant. A prompt of ten still finishes well inside waitUntil's 30 seconds.
 - Adding a Bucket can cost one model run over the viewer's Review rows.
 - An undo (returnToReview) keeps the guess's method and reason, but still drops a Personal Allowance guess.
+
+## Addendum: the Review page (phase 2)
+
+- **A list, grouped by month, newest first**, rather than one card on a stack. The keys still act on one card (outlined): right or Enter confirms, left opens its picker, down skips to the next. Swiping is gone, since every card has its buttons in reach. Alternative: list-detail on desktop and the swipe stack on phones; rejected as two layouts to keep in step.
+- **Picking files at once.** The card's picker (the Combobox) lists its own month's Buckets this Parent can assign and its Commitments; choosing one files the card, with the usual Undo. Splits, notes and For are still changed in the editor (the pencil).
+- **A month with nothing to file in** says so ("September has no Plan yet") with a link to that month's Buckets. A Transaction is only assigned within its own month's Plan, so the card never offers another month's Buckets.
+- **Batch confirm** ("Confirm all N with a suggestion", "Confirm all N from <merchant>") has one Undo. It isn't sticky: filing a Transaction doesn't move money between Buckets, the same as a single card's Undo.
+- **The Rule offer is a toast** with an "Always file" action, so a decision never pushes the next card down.

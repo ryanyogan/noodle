@@ -2,12 +2,12 @@
 
 ## Summary (2026-10-01, #47 closed)
 
-Of the 253 rows: **221 fixed**, **25 partly fixed**, **1 won't fix in #47** (row 227), **2 moved to #50** (Review rework: rows 217 and 222, plus the rest of 218), **4 still open**. A row's number (as used in #47's commits, #50 and #51) is its line number in this file before this summary was added; today it sits 11 lines lower.
+Of the 253 rows: **221 fixed**, **25 partly fixed**, **1 won't fix in #47** (row 227), **2 moved to #50** (Review rework: rows 217 and 222, plus the rest of 218; since fixed in #50), **4 still open**. A row's number (as used in #47's commits, #50 and #51) is its line number in this file before this summary was added; today it sits 11 lines lower.
 
 Follow-ups:
 
 - #51 Desktop review leftovers: the 4 open rows (109 drag reordering, 140 stat grids, 330 Goal paths, 334 Scenario colors), the remainders of the partly fixed rows (51, 105, 128, 142, 146, 153, 155, 201, 203, 207, 234, 243, 249, 255, 265, 321, 325, 329, 331, 333, 339, 345 to 347) and row 227.
-- #50 Review rework: rows 217, 218 and 222.
+- #50 Review rework: rows 217, 218 and 222 (fixed in bf5e29f).
 - #48 Mobile review: phone-only polish.
 
 
@@ -225,12 +225,12 @@ Checked and fine on these pages:
 | Transaction editor | Empty submit relies on the native bubble (dialogs.json); on close, focus goes to body | med | Inline validation; return focus to the row, or to the list if the row was unmounted by virtualization | 4 | fixed (69ff9f8) |
 | Transaction editor | "Assigned to" is one flat native select of 15 Buckets and 12 Commitments | med | Optgroups Buckets/Commitments, or a Command combobox with search | 5 | fixed (d4fcb47): a searchable Combobox (shadcn Command) with Buckets and Commitments as groups |
 | Review | A bank copy that wasn't auto-Matched (the amount differs, e.g. a tip) lands in Review as a new charge. The card never mentions the possible Match, so confirming it counts the spend twice | high | Card shows "Is this your Quick Add 'Costco' ($56.53, Sep 29)? [Match]" whenever `possibleMatches` finds one | 4 | fixed (8c22b81) |
-| Review | Desktop: one 576px card with the rest of the queue hidden, and no batch actions | high | lg list-detail: on the left, the queue (merchant, amount, date, guess, % sure, checkbox) with "Confirm all guesses over 90%"; on the right, the current card. Keep the swipe stack on phones | 6 | moved to #50 (Review rework) |
-| Review | "66% sure" / "Best guess" give no reason; the empty state says "categorization" | low | "Noodle's guess: Clothing (you filed Kohl's here before)"; empty state "Anything Noodle isn't sure about waits here." | 2 | partly fixed (264a14f): "Noodle’s guess" and the empty state; the guess still gives no reason, which needs the reason kept with the guess; the rest moved to #50 |
+| Review | Desktop: one 576px card with the rest of the queue hidden, and no batch actions | high | lg list-detail: on the left, the queue (merchant, amount, date, guess, % sure, checkbox) with "Confirm all guesses over 90%"; on the right, the current card. Keep the swipe stack on phones | 6 | fixed in #50 (bf5e29f): a list of cards by month, newest first, each with its suggestion, a picker and Confirm; "Confirm all N with a suggestion" and "Confirm all N from <merchant>", with one Undo |
+| Review | "66% sure" / "Best guess" give no reason; the empty state says "categorization" | low | "Noodle's guess: Clothing (you filed Kohl's here before)"; empty state "Anything Noodle isn't sure about waits here." | 2 | partly fixed (264a14f): "Noodle’s guess" and the empty state; the guess still gives no reason, which needs the reason kept with the guess; the rest fixed in #50 (bf5e29f): each card says why ("Like Trader Joe’s, which you filed in Groceries", "Suggested: …") and why it’s here ("We weren’t sure", "New merchant") |
 | Review | Keyboard hint glyphs are tiny and ambiguous (← renders like an ellipsis) in text-subtle-foreground | low | shadcn Kbd, muted-foreground, text alternative | 5 | fixed (e375aaa) |
 | Review | Arrow/Enter shortcuts are bound on window without checking the target: Enter on the focused Rules link or Skip button also confirms the card | med | Ignore keys whose target is another interactive element, or scope them to the card region | 6 | fixed (50cc171): the shortcuts leave keys alone while a button or link in the page has focus |
 | Review (Change sheet) | Focus lands on Close; after Esc, focus goes to body (keyboard users land at the top of the page) | med | Focus "Assigned to"; return focus to Change | 4 | fixed (01753e6) |
-| Review | The Rule offer card is inserted above the next card and pushes it down after each decision | low | Reserve the slot, or use a Sonner toast with an action | 6 | moved to #50 (Review rework) |
+| Review | The Rule offer card is inserted above the next card and pushes it down after each decision | low | Reserve the slot, or use a Sonner toast with an action | 6 | fixed in #50 (bf5e29f): the Rule offer is a toast with an "Always file" action |
 | Rules | No way to add a Rule directly (only from a Review offer) | med | "Add Rule" button and sheet (merchant words, Bucket, For) | 4 | fixed (50cc171) |
 | Rules (Edit sheet) | "File unassigned matches now" clashes with the domain term Match, and is disabled after any edit with no reason | med | "File what's still unassigned now"; enable it after save, or save and file in one step | 2 | fixed (264a14f, 50cc171): after an edit the button saves and files in one step |
 | Rules | Rows have no chevron or edit affordance; "Filed 95" is unclear | low | Trailing chevron; "Filed 95 so far" | 6 | fixed (d931128) |
