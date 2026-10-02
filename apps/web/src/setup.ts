@@ -28,10 +28,67 @@ export const minutesLeft = (step: number) =>
 export const setupPathSchema = z.enum(["bank", "statement", "hand"]);
 export type SetupPath = z.infer<typeof setupPathSchema>;
 
+const idSchema = z.string().min(1).max(40);
+const nameSchema = z.string().trim().min(1).max(40);
+const centsSchema = z.number().int().min(0).max(1_000_000_000_00);
+
+/**
+ * A bill on step 3, as it was last written to the Plan: `id` is the Commitment's, made on the
+ * client so writing it again never makes a second one. Unticked bills aren't in the Plan.
+ */
+export const setupBillSchema = z.object({
+	key: z.string().min(1).max(80),
+	id: idSchema,
+	name: nameSchema,
+	amountCents: centsSchema,
+	cadence: z.enum(["monthly", "biweekly", "annual"]),
+	dueDay: z.number().int().min(1).max(31),
+	/** A detected Commitment's own date, which sets a biweekly or yearly schedule. */
+	dueDate: z.string().max(10).optional(),
+	ticked: z.boolean(),
+	/** Which plan-draft suggestion it came from, so adding it takes the suggestion away. */
+	draftKey: z.string().max(200).optional(),
+});
+export type SetupBill = z.infer<typeof setupBillSchema>;
+
+/** A Bucket on step 4, as it was last written to the Plan (see setupBillSchema). */
+export const setupBucketSchema = z.object({
+	key: z.string().min(1).max(80),
+	id: idSchema,
+	name: nameSchema,
+	amountCents: centsSchema,
+	rolling: z.boolean(),
+	/** The signed-in Parent's Personal Allowance. */
+	personal: z.boolean(),
+	kept: z.boolean(),
+	draftKey: z.string().max(200).optional(),
+});
+export type SetupBucket = z.infer<typeof setupBucketSchema>;
+
+export const setupGoalKindSchema = z.enum(["emergency", "save", "payoff"]);
+export type SetupGoalKind = z.infer<typeof setupGoalKindSchema>;
+
+/** The Goal added on step 5, with the ids used, so adding it again changes nothing. */
+export const setupGoalSchema = z.object({
+	kind: setupGoalKindSchema,
+	goalId: idSchema,
+	accountId: idSchema,
+	balanceId: idSchema,
+	claimId: idSchema,
+	name: nameSchema,
+	accountName: nameSchema,
+	targetCents: centsSchema,
+	accountKind: z.enum(["savings", "credit-card", "loan"]),
+});
+export type SetupGoal = z.infer<typeof setupGoalSchema>;
+
 /** Everything answered so far. Later steps add their own (optional) fields here. */
 export const setupAnswersSchema = z.object({
 	path: setupPathSchema.optional(),
 	takeHomePayCents: z.number().int().min(0).optional(),
+	bills: z.array(setupBillSchema).max(60).optional(),
+	buckets: z.array(setupBucketSchema).max(60).optional(),
+	goal: setupGoalSchema.optional(),
 });
 export type SetupAnswers = z.infer<typeof setupAnswersSchema>;
 
