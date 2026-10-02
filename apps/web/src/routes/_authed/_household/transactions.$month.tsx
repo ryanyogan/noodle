@@ -380,7 +380,7 @@ function Filters({
 					variant="outline"
 					disabled={!hydrated}
 					onClick={() => setSheetOpen(true)}
-					className="h-10 lg:hidden"
+					className="lg:hidden"
 				>
 					<ListFilter />
 					Filters
@@ -427,15 +427,16 @@ function Filters({
 				<ul className="flex flex-wrap gap-1.5 lg:hidden" aria-label="Filters">
 					{chips.map((chip) => (
 						<li key={chip.key}>
-							<button
-								type="button"
+							<Button
+								variant="secondary"
+								size="chip"
 								onClick={() => onChange({ [chip.key]: undefined })}
 								aria-label={`Remove filter ${chip.label}`}
-								className="inline-flex h-7 max-w-56 items-center gap-1 rounded-full bg-surface-2 ps-2.5 pe-1.5 text-xs font-medium transition-colors hover:bg-surface-3"
+								className="max-w-56"
 							>
 								<span className="truncate">{chip.label}</span>
-								<X aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
-							</button>
+								<X aria-hidden="true" className="size-3.5 text-muted-foreground" />
+							</Button>
 						</li>
 					))}
 				</ul>

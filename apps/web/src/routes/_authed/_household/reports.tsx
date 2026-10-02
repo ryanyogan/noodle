@@ -362,7 +362,7 @@ function Options({
 					<Button
 						variant="outline"
 						onClick={() => setFiltersOpen(true)}
-						className="h-10 max-sm:w-[calc(50%-0.25rem)]"
+						className="max-sm:w-[calc(50%-0.25rem)]"
 					>
 						<ListFilter />
 						Filters
@@ -385,15 +385,15 @@ function Options({
 				<ul className="flex flex-wrap gap-1.5" aria-label="Filters">
 					{chips.map((chip) => (
 						<li key={chip.key}>
-							<button
-								type="button"
+							<Button
+								variant="secondary"
+								size="chip"
 								onClick={() => nav.set(chip.clear)}
 								aria-label={`Remove filter ${chip.label}`}
-								className="inline-flex h-7 items-center gap-1 rounded-full bg-surface-2 ps-2.5 pe-1.5 text-xs font-medium transition-colors hover:bg-surface-3"
 							>
 								{chip.label}
 								<X aria-hidden="true" className="size-3.5 text-muted-foreground" />
-							</button>
+							</Button>
 						</li>
 					))}
 				</ul>
@@ -602,9 +602,9 @@ function ReportsPending() {
 			</div>
 			<Skeleton className="h-9 w-full max-w-2xl rounded-xl" />
 			<div className="flex gap-2">
-				<Skeleton className="h-10 w-44 rounded-xl" />
-				<Skeleton className="h-10 w-52 rounded-xl" />
-				<Skeleton className="h-10 w-24 rounded-xl" />
+				<Skeleton className="h-9 w-44 rounded-xl" />
+				<Skeleton className="h-9 w-52 rounded-xl" />
+				<Skeleton className="h-9 w-24 rounded-xl" />
 			</div>
 			<Card className="grid grid-cols-2 gap-6 p-(--card-pad) lg:grid-cols-5">
 				{[0, 1, 2, 3, 4].map((i) => (

@@ -1,7 +1,7 @@
 import type { CommitmentState, DayKey, MonthKey } from "@noodle/domain";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
-import { cn } from "@noodle/ui/lib/utils";
-import { type KeyboardEvent, useRef, useState, useSyncExternalStore } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@noodle/ui/components/tabs";
+import { useState, useSyncExternalStore } from "react";
 import { ComingUpList, useComingUp } from "./coming-up";
 import { CommitmentsList, commitmentsPaid } from "./commitment-list";
 
@@ -62,26 +62,18 @@ export function Bills({
 				}
 			/>
 			{switched ? (
-				<>
-					<BillsSwitch view={view} onChange={setView} />
-					<div
-						role="tabpanel"
-						id={`bills-${shown}`}
-						aria-labelledby={`bills-tab-${shown}`}
-						className="grid gap-3"
-					>
-						{shown === "month" ? (
-							<CommitmentsList
-								month={month}
-								asOf={asOf}
-								commitments={commitments}
-								notDue={notDue}
-							/>
-						) : (
-							<ComingUpList />
-						)}
-					</div>
-				</>
+				<Tabs
+					value={view}
+					onValueChange={(value) => setView(value === "coming-up" ? value : "month")}
+				>
+					<BillsSwitch />
+					<TabsContent value="month" className="grid gap-3">
+						<CommitmentsList month={month} asOf={asOf} commitments={commitments} notDue={notDue} />
+					</TabsContent>
+					<TabsContent value="coming-up" className="grid gap-3">
+						<ComingUpList />
+					</TabsContent>
+				</Tabs>
 			) : (
 				<CommitmentsList month={month} asOf={asOf} commitments={commitments} notDue={notDue} />
 			)}
@@ -103,54 +95,15 @@ export function ComingUpSection() {
 	);
 }
 
-/** "This month · Coming up": a two-tab switch, by arrow keys too (APG Tabs). */
-function BillsSwitch({ view, onChange }: { view: View; onChange: (view: View) => void }) {
+/** "This month · Coming up": the two tabs, with how many are coming up. */
+function BillsSwitch() {
 	const { dues } = useComingUp();
-	const tabs = useRef<Record<View, HTMLButtonElement | null>>({ month: null, "coming-up": null });
-	const options: { value: View; label: string }[] = [
-		{ value: "month", label: "This month" },
-		{ value: "coming-up", label: `Coming up${dues.length > 0 ? ` (${dues.length})` : ""}` },
-	];
-	function onKeyDown(event: KeyboardEvent) {
-		if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-		event.preventDefault();
-		const next = view === "month" ? "coming-up" : "month";
-		onChange(next);
-		tabs.current[next]?.focus();
-	}
 	return (
-		<div
-			role="tablist"
-			aria-label="Bills"
-			className="grid w-fit grid-flow-col gap-1 rounded-xl bg-surface-2 p-1 lg:hidden"
-			onKeyDown={onKeyDown}
-		>
-			{options.map((option) => {
-				const selected = option.value === view;
-				return (
-					<button
-						key={option.value}
-						ref={(node) => {
-							tabs.current[option.value] = node;
-						}}
-						type="button"
-						role="tab"
-						id={`bills-tab-${option.value}`}
-						aria-selected={selected}
-						aria-controls={`bills-${option.value}`}
-						tabIndex={selected ? 0 : -1}
-						onClick={() => onChange(option.value)}
-						className={cn(
-							"h-11 rounded-lg px-3 text-sm font-medium text-muted-foreground",
-							"transition-colors duration-(--duration-fast) ease-standard hover:text-foreground",
-							"focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-							selected && "bg-card text-foreground shadow-card",
-						)}
-					>
-						{option.label}
-					</button>
-				);
-			})}
-		</div>
+		<TabsList aria-label="Bills">
+			<TabsTrigger value="month">This month</TabsTrigger>
+			<TabsTrigger value="coming-up">
+				Coming up{dues.length > 0 ? ` (${dues.length})` : ""}
+			</TabsTrigger>
+		</TabsList>
 	);
 }

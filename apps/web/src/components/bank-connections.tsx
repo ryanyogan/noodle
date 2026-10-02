@@ -471,14 +471,15 @@ export function useConnectBank() {
 				{problem ? (
 					<p role="alert" className="text-sm text-over">
 						{problem}{" "}
-						<button
-							type="button"
-							className="font-medium underline"
+						<Button
+							variant="link"
+							size="inline"
+							className="text-current hover:text-current"
 							disabled={connect.isPending}
 							onClick={() => connect.mutate(undefined)}
 						>
 							Try again
-						</button>
+						</Button>
 					</p>
 				) : null}
 				<ChooseAccountsSheet
@@ -923,9 +924,14 @@ function ChooseAccountsForm({
 		return (
 			<FormError>
 				Couldn’t reach {connection.institution ?? "the bank"} to list its accounts.{" "}
-				<button type="button" className="underline" onClick={() => void choices.refetch()}>
+				<Button
+					variant="link"
+					size="inline"
+					className="text-current hover:text-current"
+					onClick={() => void choices.refetch()}
+				>
 					Try again
-				</button>
+				</Button>
 			</FormError>
 		);
 	}

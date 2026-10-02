@@ -522,13 +522,9 @@ function HomeCheck({ context, form, onForm }: FormProps<HomeForm>) {
 						) : (
 							<>
 								Before tax, for both Parents.{" "}
-								<button
-									type="button"
-									className="underline underline-offset-2 hover:text-foreground"
-									onClick={() => set({ gross: null })}
-								>
+								<Button variant="link" size="inline" onClick={() => set({ gross: null })}>
 									Use the estimate
-								</button>
+								</Button>
 							</>
 						)
 					}
@@ -924,13 +920,9 @@ function AnythingCheck({ context, form, onForm }: FormProps<AnythingForm>) {
 						) : (
 							<>
 								A typical month’s Free to Spend is {dollars(typical)}.{" "}
-								<button
-									type="button"
-									className="underline underline-offset-2 hover:text-foreground"
-									onClick={() => set({ monthly: null })}
-								>
+								<Button variant="link" size="inline" onClick={() => set({ monthly: null })}>
 									Use it
-								</button>
+								</Button>
 							</>
 						)
 					}
