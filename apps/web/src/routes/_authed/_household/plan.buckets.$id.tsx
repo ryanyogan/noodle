@@ -84,6 +84,7 @@ function BucketPage() {
 	const data = useSuspenseQuery(bucketQuery(id)).data;
 	const month = monthOfDay(data.asOf);
 	const state = useMonthState(month);
+	const history = useQuery(planHistoryQuery(month, id)).data;
 	const [editing, setEditing] = useState(false);
 	const [restoring, setRestoring] = useState(false);
 	// Owned here: archiving takes the Bucket out of this month, and with it the sheet.
@@ -98,6 +99,13 @@ function BucketPage() {
 	const personal = Boolean(record.owner);
 	const archived = !current && record.fromMonth <= month;
 	const shared = state.buckets.filter((b) => b.owner === undefined).map((b) => b.id);
+	// Its last allowance, to restore it with. A Bucket archived in the month it started was in no
+	// month's Plan, so its Plan history (newest first) gives the amount it had.
+	const lastAllowance =
+		[...data.months].reverse().find((m) => m.inPlan)?.allowance ??
+		history?.changes.find((c) => c.targetId === id && typeof c.after?.amount === "number")?.after
+			?.amount ??
+		null;
 	return (
 		<>
 			<PageHeader
@@ -199,7 +207,7 @@ function BucketPage() {
 				month={month}
 				bucketId={id}
 				name={record.name}
-				lastAllowance={[...data.months].reverse().find((m) => m.inPlan)?.allowance ?? null}
+				lastAllowance={lastAllowance}
 			/>
 		</>
 	);

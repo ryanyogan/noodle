@@ -141,6 +141,9 @@ test("an archived Bucket can be restored to the Plan", async ({ browser }) => {
 	await page.getByRole("alertdialog").getByRole("button", { name: "Archive Gifts" }).click();
 	await expect(heading(page)).toHaveText("Gifts");
 	await expect(page.getByText("It’s archived, so nothing goes into it.")).toBeVisible();
+	// Fresh from the server: archived in the month it started, it was in no month's Plan, and the
+	// Restore sheet still starts from its last allowance.
+	await page.reload();
 
 	await page.getByRole("button", { name: "Restore to the Plan" }).click();
 	const restore = page.getByRole("dialog", { name: "Restore Gifts" });
