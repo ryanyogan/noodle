@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
+import { currentTab, expectSectionHeaderKept, markSectionHeader, sectionTabs } from "./section";
 import {
 	accountKindLabel,
 	choose,
@@ -91,8 +92,11 @@ test("a Scenario opened from a link is kept, applied with a preview, and compare
 	await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Pay cut");
 
 	// The overview: who made each, and which was applied.
-	await page.getByRole("link", { name: "Scenarios" }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Scenarios");
+	// Only the page below the tabs changes: the header is the same node.
+	await markSectionHeader(page);
+	await sectionTabs(page, "Explore pages").getByRole("link", { name: "Scenarios" }).click();
+	await expect(currentTab(page, "Explore pages")).toHaveText("Scenarios");
+	await expectSectionHeaderKept(page);
 	await expect(saved(page, "Raise")).toContainText("Applied");
 	await expect(saved(page, "Raise").getByRole("cell").nth(2)).toHaveText("Alex");
 	await expect(saved(page, "Pay cut")).not.toContainText("Applied");
@@ -122,6 +126,6 @@ test("a Scenario opened from a link is kept, applied with a preview, and compare
 	// On a phone the overview fits the screen.
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto("/explore/scenarios?compare=");
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Scenarios", clientRendered);
+	await expect(currentTab(page, "Explore pages")).toHaveText("Scenarios", clientRendered);
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });

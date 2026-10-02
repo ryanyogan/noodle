@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createTestParent } from "./parents";
+import { currentTab } from "./section";
 import { clientRendered, createHousehold, signedInPage } from "./session";
 
 // A Household made a minute ago, with nothing planned: every page says what it's for and where
@@ -68,7 +69,7 @@ test("a new Household's pages say where to start", async ({ browser }) => {
 
 	// Can we afford it?: the costs, but no verdict worked out from zeros.
 	await page.getByRole("link", { name: "Can we afford it?" }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Can we afford it?");
+	await expect(currentTab(page, "Explore pages")).toHaveText("Can we afford it?");
 	const verdict = page.getByTestId("affordability-verdict");
 	await expect(verdict.getByRole("heading", { level: 2 })).toHaveText("Can’t check yet");
 	await expect(verdict).not.toContainText("Not yet");

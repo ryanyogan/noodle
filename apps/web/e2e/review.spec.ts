@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
+import { currentTab, expectSectionHeaderKept, markSectionHeader, sectionTabs } from "./section";
 import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
 
 // Categorization runs with its deterministic fake (AI_MODEL=stub, see vite.config.ts): it knows
@@ -141,6 +142,17 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 
 	// The Rule, which filed one line; deleted, it's gone.
 	await page.getByRole("link", { name: "Rules" }).click();
+	await expect(currentTab(page, "Review pages")).toHaveText("Rules");
+	// Between Review and its Rules only the page below the tabs changes: the header is the same
+	// node. (Marked once the page is hydrated: before that, a link is a full page load.)
+	await expect(page.getByRole("button", { name: "Add Rule" })).toBeEnabled();
+	await markSectionHeader(page);
+	await sectionTabs(page, "Review pages").getByRole("link", { name: "Review" }).click();
+	await expect(page.getByText("Nothing to review")).toBeVisible();
+	await expectSectionHeaderKept(page);
+	await sectionTabs(page, "Review pages").getByRole("link", { name: "Rules" }).click();
+	await expect(currentTab(page, "Review pages")).toHaveText("Rules");
+	await expectSectionHeaderKept(page);
 	const rule = page.getByRole("button", {
 		name: /^acme widgets.*, Fun, For Everyone, Filed 1 so far$/,
 	});

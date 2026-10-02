@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
+import { currentTab, expectSectionHeaderKept, markSectionHeader, sectionTabs } from "./section";
 import { createPlannedHousehold, signedInPage } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
@@ -38,6 +39,19 @@ test("moving a Change changes the projection, and applying the Scenario changes 
 
 	await page.getByRole("link", { name: "Explore", exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Explore");
+
+	// Explore's tabs change only the page below them: the header is the same node throughout.
+	await markSectionHeader(page);
+	for (const [tab, path] of [
+		["Scenarios", "/explore/scenarios"],
+		["Can we afford it?", "/explore/afford"],
+		["Explore", "/explore"],
+	] as const) {
+		await sectionTabs(page, "Explore pages").getByRole("link", { name: tab, exact: true }).click();
+		await expect(page).toHaveURL(new RegExp(`${path}$`));
+		await expect(currentTab(page, "Explore pages")).toHaveText(tab);
+		await expectSectionHeaderKept(page);
+	}
 
 	// A new Scenario starts as the Plan: two years of $3,400 a month either way.
 	const overTwoYears = totals(page, /^Over 2 years/);

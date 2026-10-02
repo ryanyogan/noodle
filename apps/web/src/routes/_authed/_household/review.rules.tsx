@@ -7,7 +7,6 @@ import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { List } from "@noodle/ui/components/list";
-import { PageHeader } from "@noodle/ui/components/page-header";
 import {
 	Sheet,
 	SheetCancel,
@@ -18,13 +17,14 @@ import {
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight, Lock, Plus, WandSparkles } from "lucide-react";
+import { createFileRoute, useHydrated } from "@tanstack/react-router";
+import { ChevronRight, Lock, Plus, WandSparkles } from "lucide-react";
 import { type CSSProperties, type FormEvent, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../../../buckets";
 import { ForPicker } from "../../../components/for-picker";
 import { Confirm } from "../../../components/plan-editing";
+import { SectionPending } from "../../../components/section-layout";
 import { forLabel, type MemberSummary } from "../../../members";
 import { membersQuery, monthQuery, rulesQuery } from "../../../queries";
 import {
@@ -45,6 +45,7 @@ export const Route = createFileRoute("/_authed/_household/review/rules")({
 			context.queryClient.ensureQueryData(membersQuery()),
 			context.queryClient.ensureQueryData(monthQuery(context.current)),
 		]),
+	pendingComponent: SectionPending,
 	component: RulesPage,
 });
 
@@ -69,34 +70,21 @@ function RulesPage() {
 
 	return (
 		<>
-			<PageHeader
-				className="max-w-4xl"
-				eyebrow="Review"
-				title="Rules"
-				actions={
-					<>
-						<Button variant="outline" size="sm" asChild>
-							<Link to="/review">
-								<ChevronLeft />
-								Review
-							</Link>
-						</Button>
-						<Button
-							size="sm"
-							disabled={!hydrated || buckets.length === 0}
-							onClick={() => setEditing("new")}
-						>
-							<Plus />
-							Add Rule
-						</Button>
-					</>
-				}
-			/>
 			<div className="grid max-w-4xl gap-4">
-				<p className="max-w-prose text-sm text-muted-foreground">
-					A Rule files each new statement line whose merchant contains its words. What it filed
-					stays put when you change or delete it.
-				</p>
+				<div className="flex flex-wrap items-start justify-between gap-3">
+					<p className="max-w-prose text-sm text-muted-foreground">
+						A Rule files each new statement line whose merchant contains its words. What it filed
+						stays put when you change or delete it.
+					</p>
+					<Button
+						size="sm"
+						disabled={!hydrated || buckets.length === 0}
+						onClick={() => setEditing("new")}
+					>
+						<Plus />
+						Add Rule
+					</Button>
+				</div>
 				{rules.length === 0 ? (
 					<Card className="p-0">
 						<EmptyState

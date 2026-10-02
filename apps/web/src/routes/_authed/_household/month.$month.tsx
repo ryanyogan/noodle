@@ -1,7 +1,9 @@
-import { addMonths, type MonthKey } from "@noodle/domain";
+import { addMonths, type MonthKey, monthOfDay } from "@noodle/domain";
 import { createFileRoute, notFound } from "@tanstack/react-router";
+import { MonthLinks, MonthTopRow, monthTitle, useMonthSwipe } from "../../../components/month-nav";
+import { SectionLayout } from "../../../components/section-layout";
 import { closingWeek } from "../../../month-close";
-import { goalsQuery, monthQuery, reviewQuery } from "../../../queries";
+import { goalsQuery, monthQuery, reviewQuery, useMonthState } from "../../../queries";
 import { monthKeySchema } from "../../../server/month";
 
 // A month of the Plan. Its pages (This Month, the Plan editor) share one cached query; This
@@ -23,4 +25,25 @@ export const Route = createFileRoute("/_authed/_household/month/$month")({
 			await context.queryClient.ensureQueryData(monthQuery(addMonths(context.month, -1)));
 		}
 	},
+	component: MonthLayout,
 });
+
+/**
+ * The same header as the Plan's layout (the Month and Plan switch, the title, previous and next in
+ * the same places), so going between a month and its Plan reads as a change of tab.
+ */
+function MonthLayout() {
+	const { month } = Route.useRouteContext();
+	const state = useMonthState(month);
+	const current = monthOfDay(state.asOf);
+	const swipe = useMonthSwipe("/month/$month", month, state.firstMonth);
+	return (
+		<SectionLayout
+			{...swipe}
+			top={<MonthTopRow month={month} current="month" />}
+			eyebrow={month === current ? "This Month" : "Month"}
+			title={monthTitle(month, current)}
+			actions={<MonthLinks to="/month/$month" month={month} first={state.firstMonth} />}
+		/>
+	);
+}

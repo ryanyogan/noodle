@@ -21,7 +21,6 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
-import { PageHeader } from "@noodle/ui/components/page-header";
 import {
 	Table,
 	TableBody,
@@ -36,7 +35,6 @@ import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ChevronLeft } from "lucide-react";
 import { type ReactNode, useId, useMemo, useState } from "react";
 import { ulid } from "ulid";
 import { z } from "zod";
@@ -66,6 +64,7 @@ import {
 	VerdictCard,
 	VerdictLabel,
 } from "../../../components/affordability";
+import { SectionPending } from "../../../components/section-layout";
 import { formatMoney } from "../../../format";
 import { goalsView, useAddGoal } from "../../../goals";
 import { goalsQuery, planAheadQuery, scenariosQuery } from "../../../queries";
@@ -78,8 +77,9 @@ import { projectionGoals, useSaveScenario } from "../../../scenarios";
 const kinds = ["home", "car", "anything"] as const;
 type Kind = (typeof kinds)[number];
 
-export const Route = createFileRoute("/_authed/_household/explore_/afford")({
+export const Route = createFileRoute("/_authed/_household/explore/afford")({
 	ssr: "data-only",
+	pendingComponent: SectionPending,
 	validateSearch: z.object({
 		kind: z.enum(kinds).optional().catch(undefined),
 		// What Ask was asked about: an Anything Check starts with its name and price.
@@ -149,57 +149,45 @@ function AffordPage() {
 	}));
 
 	return (
-		<>
-			<PageHeader
-				title="Can we afford it?"
-				leading={
-					<Button variant="ghost" size="icon" asChild>
-						<Link to="/explore" aria-label="Back to Explore">
-							<ChevronLeft className="size-5" />
+		<div className="grid gap-6">
+			<LinkTabs aria-label="What to check">
+				{kinds.map((k) => (
+					<LinkTab key={k} asChild>
+						<Link
+							activeOptions={{ exact: true }}
+							to="/explore/afford"
+							search={{ kind: k }}
+							aria-current={k === kind ? "page" : undefined}
+						>
+							{kindName[k]}
+						</Link>
+					</LinkTab>
+				))}
+			</LinkTabs>
+			{context.plan.baseline === 0 ? (
+				<Card role="note" className="grid justify-items-start gap-2 p-(--card-pad) text-sm">
+					<p className="font-medium">Set up the Plan first</p>
+					<p className="text-muted-foreground">
+						A Check weighs a cost against your take-home pay and what’s free to spend each month.
+						The Plan has neither yet, so it can show the costs but not whether they fit.
+					</p>
+					<Button size="sm" asChild>
+						<Link to="/plan/$month" params={{ month: context.month }}>
+							Set up the Plan
 						</Link>
 					</Button>
-				}
-			/>
-			<div className="grid gap-6">
-				<LinkTabs aria-label="What to check">
-					{kinds.map((k) => (
-						<LinkTab key={k} asChild>
-							<Link
-								activeOptions={{ exact: true }}
-								to="/explore/afford"
-								search={{ kind: k }}
-								aria-current={k === kind ? "page" : undefined}
-							>
-								{kindName[k]}
-							</Link>
-						</LinkTab>
-					))}
-				</LinkTabs>
-				{context.plan.baseline === 0 ? (
-					<Card role="note" className="grid justify-items-start gap-2 p-(--card-pad) text-sm">
-						<p className="font-medium">Set up the Plan first</p>
-						<p className="text-muted-foreground">
-							A Check weighs a cost against your take-home pay and what’s free to spend each month.
-							The Plan has neither yet, so it can show the costs but not whether they fit.
-						</p>
-						<Button size="sm" asChild>
-							<Link to="/plan/$month" params={{ month: context.month }}>
-								Set up the Plan
-							</Link>
-						</Button>
-					</Card>
-				) : null}
-				<NoIncomeYet value={context.plan.baseline === 0}>
-					{kind === "home" ? (
-						<HomeCheck context={context} form={home} onForm={setHome} />
-					) : kind === "car" ? (
-						<CarCheck context={context} form={car} onForm={setCar} />
-					) : (
-						<AnythingCheck context={context} form={anything} onForm={setAnything} />
-					)}
-				</NoIncomeYet>
-			</div>
-		</>
+				</Card>
+			) : null}
+			<NoIncomeYet value={context.plan.baseline === 0}>
+				{kind === "home" ? (
+					<HomeCheck context={context} form={home} onForm={setHome} />
+				) : kind === "car" ? (
+					<CarCheck context={context} form={car} onForm={setCar} />
+				) : (
+					<AnythingCheck context={context} form={anything} onForm={setAnything} />
+				)}
+			</NoIncomeYet>
+		</div>
 	);
 }
 

@@ -32,7 +32,6 @@ import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { MetaParts } from "@noodle/ui/components/meta-parts";
-import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import {
@@ -47,9 +46,10 @@ import {
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ChevronLeft, Ellipsis, Layers } from "lucide-react";
+import { Ellipsis, Layers } from "lucide-react";
 import { lazy, Suspense, useMemo, useState } from "react";
 import { z } from "zod";
+import { SectionPending } from "../../../components/section-layout";
 import { formatMoney, formatWholeMoney, shortDayAt, shortMonth } from "../../../format";
 import { goalsQuery, planAheadQuery, scenariosQuery } from "../../../queries";
 import {
@@ -74,8 +74,9 @@ const MAX_COMPARED = 3;
 const HORIZON = 24;
 const HORIZON_LABEL = "2 years";
 
-export const Route = createFileRoute("/_authed/_household/explore_/scenarios")({
+export const Route = createFileRoute("/_authed/_household/explore/scenarios")({
 	ssr: "data-only",
+	pendingComponent: SectionPending,
 	// `compare`: the Scenarios compared, as comma-separated IDs.
 	validateSearch: z.object({ compare: z.string().max(200).optional().catch(undefined) }),
 	loader: ({ context }) =>
@@ -137,16 +138,6 @@ function ScenariosPage() {
 
 	return (
 		<>
-			<PageHeader
-				title="Scenarios"
-				leading={
-					<Button variant="ghost" size="icon" asChild>
-						<Link to="/explore" aria-label="Back to Explore">
-							<ChevronLeft className="size-5" />
-						</Link>
-					</Button>
-				}
-			/>
 			{projected.length === 0 ? (
 				<EmptyState
 					icon={<Layers />}

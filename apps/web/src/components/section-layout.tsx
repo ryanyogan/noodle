@@ -6,7 +6,8 @@ import { Link, type LinkProps, Outlet } from "@tanstack/react-router";
 import type { ComponentProps, ReactNode } from "react";
 
 /** One page of a section: its tab's words and where it goes (build `link` with `linkOptions`). */
-export type SectionTab = { label: string; link: LinkProps };
+/** `badge` sits after the label, e.g. how many wait in Review. */
+export type SectionTab = { label: string; link: LinkProps; badge?: ReactNode };
 
 /**
  * A section with sibling pages (the Plan's parts, and so on): one header and one row of tabs that
@@ -18,6 +19,7 @@ export function SectionLayout({
 	top,
 	eyebrow,
 	title,
+	leading,
 	actions,
 	tabs,
 	tabsLabel,
@@ -28,10 +30,13 @@ export function SectionLayout({
 	top?: ReactNode;
 	eyebrow?: ReactNode;
 	title: ReactNode;
+	/** Beside the title, e.g. a back link on phones. */
+	leading?: ReactNode;
 	actions?: ReactNode;
-	tabs: SectionTab[];
+	/** The section's pages. Without them it's the same header over one page (This Month). */
+	tabs?: SectionTab[];
 	/** Names the tabs' `<nav>`, e.g. "Plan pages". */
-	tabsLabel: string;
+	tabsLabel?: string;
 	/** The current page. Defaults to the route's outlet; a pending layout passes its skeleton. */
 	children?: ReactNode;
 } & Omit<ComponentProps<"div">, "title" | "children">) {
@@ -39,18 +44,26 @@ export function SectionLayout({
 		<div data-slot="section-layout" {...props}>
 			<div data-slot="section-layout-header">
 				{top}
-				<PageHeader eyebrow={eyebrow} title={title} actions={actions} />
-				<LinkTabs aria-label={tabsLabel} className="mb-6">
-					{tabs.map((tab) => (
-						<LinkTab key={tab.label} asChild>
-							{/* The link marks itself current (aria-current="page") on its own page only. A tab
+				<PageHeader eyebrow={eyebrow} title={title} leading={leading} actions={actions} />
+				{tabs ? (
+					<LinkTabs aria-label={tabsLabel} className="mb-6">
+						{tabs.map((tab) => (
+							<LinkTab key={tab.label} asChild>
+								{/* The link marks itself current (aria-current="page") on its own page only, whatever
+								    the page's search (`?lever=`, `?kind=`): exact matching alone compares that too. A tab
 							    leaves the scroll where it is: only the part below the tabs changes. */}
-							<Link {...tab.link} activeOptions={{ exact: true }} resetScroll={false}>
-								{tab.label}
-							</Link>
-						</LinkTab>
-					))}
-				</LinkTabs>
+								<Link
+									{...tab.link}
+									activeOptions={{ exact: true, includeSearch: false }}
+									resetScroll={false}
+								>
+									{tab.label}
+									{tab.badge}
+								</Link>
+							</LinkTab>
+						))}
+					</LinkTabs>
+				) : null}
 			</div>
 			<div data-slot="section-layout-outlet">{children}</div>
 		</div>

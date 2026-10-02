@@ -1,4 +1,4 @@
-import { type MonthKey, monthOfDay } from "@noodle/domain";
+import { type MonthKey, monthKeyAt, monthOfDay } from "@noodle/domain";
 import { createFileRoute, linkOptions, notFound, useLocation } from "@tanstack/react-router";
 import {
 	MonthLinks,
@@ -75,12 +75,14 @@ function PlanLayout() {
 /** A month that's slow to load: the same header and tabs, with the page's skeleton below them. */
 function PlanPending() {
 	const month = Route.useParams().month as MonthKey;
+	// The month it is for the Household, not for the browser's clock.
+	const { household } = Route.useRouteContext();
 	const to = usePlanPage();
 	return (
 		<SectionLayout
 			top={<MonthTopRow month={month} current="plan" />}
 			eyebrow="Plan"
-			title={monthTitle(month, new Date().toISOString().slice(0, 7) as MonthKey)}
+			title={monthTitle(month, monthKeyAt(new Date(), household.timeZone))}
 			// Until the month loads, the first month with a Plan isn't known: both ways stay open.
 			actions={<MonthLinks to={to} month={month} first={"0000-01" as MonthKey} />}
 			tabsLabel="Plan pages"

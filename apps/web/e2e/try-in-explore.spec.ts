@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
+import { expectSectionHeaderKept, markSectionHeader, sectionTabs } from "./section";
 import {
 	clientRendered,
 	createPlannedHousehold,
@@ -114,6 +115,13 @@ test("an Insight and an Ask answer open as Scenarios in Explore, leaving the Pla
 	await expect(card.getByRole("button", { name: "Got it" })).toBeVisible();
 	await page.goto("/explore/scenarios");
 	await expect(saved(page, "Without Hulu")).toBeVisible(clientRendered);
+	// From the saved Scenarios back to Explore by its tab: the header is the same node.
+	await markSectionHeader(page);
+	await sectionTabs(page, "Explore pages")
+		.getByRole("link", { name: "Explore", exact: true })
+		.click();
+	await expect(page).toHaveURL(/\/explore$/);
+	await expectSectionHeaderKept(page);
 
 	// Ask offers the change it projected, built from its tool, not from the model's words.
 	await page.getByRole("link", { name: "Ask", exact: true }).click();

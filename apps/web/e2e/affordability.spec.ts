@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
+import { currentTab, expectSectionHeaderKept, markSectionHeader } from "./section";
 import {
 	accountKindLabel,
 	choose,
@@ -44,8 +45,11 @@ test("a home is checked against the Plan, then made a Goal and explored as a Sce
 	await expect(page.getByRole("link", { name: /^Ally savings, Savings/ })).toBeVisible();
 
 	await page.getByRole("link", { name: "Explore", exact: true }).click();
+	// Only the page below the tabs changes: the header is the same node.
+	await markSectionHeader(page);
 	await page.getByRole("link", { name: "Can we afford it?" }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Can we afford it?");
+	await expect(currentTab(page, "Explore pages")).toHaveText("Can we afford it?");
+	await expectSectionHeaderKept(page);
 
 	// The defaults: a $400,000 home, 20% down, 6.5% over 30 years, against gross income
 	// estimated from take-home pay ($10,000 is 75% of $13,333). Nothing is set aside yet.
@@ -146,7 +150,7 @@ test("a long Commitment name keeps every field of the form in its column", async
 
 	await page.getByRole("link", { name: "Explore", exact: true }).click();
 	await page.getByRole("link", { name: "Can we afford it?" }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Can we afford it?");
+	await expect(currentTab(page, "Explore pages")).toHaveText("Can we afford it?");
 	// Every field stays inside the form's card, at desktop and phone widths.
 	// The Commitments are summed up; Edit lists each.
 	await page.getByRole("button", { name: "Edit Commitments" }).click();

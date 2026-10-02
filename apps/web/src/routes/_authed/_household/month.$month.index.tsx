@@ -25,7 +25,6 @@ import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Meter } from "@noodle/ui/components/meter";
-import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
@@ -53,7 +52,6 @@ import {
 	MonthIncome,
 } from "../../../components/extra-income";
 import { MonthCloseSection, MonthEndSection } from "../../../components/month-close";
-import { MonthLinks, MonthTopRow, monthTitle, useMonthSwipe } from "../../../components/month-nav";
 import { GoalsThisMonth } from "../../../components/plan-goals";
 import { planParts } from "../../../components/plan-page";
 import { TermHelp } from "../../../components/term-help";
@@ -155,7 +153,6 @@ function ThisMonth() {
 			amountCents,
 		}) satisfies CoverVariables;
 	const current = monthOfDay(state.asOf);
-	const swipe = useMonthSwipe("/month/$month", month, state.firstMonth);
 	const monthIncome = state.income.filter((i) => monthOfDay(i.date) === month);
 	const check = incomeCheck({
 		baseline: state.baseline,
@@ -182,13 +179,7 @@ function ThisMonth() {
 		buckets: extraIncomePlaces.buckets,
 	});
 	return (
-		<div {...swipe}>
-			<MonthTopRow month={month} current="month" />
-			<PageHeader
-				eyebrow={month === current ? "This Month" : "Month"}
-				title={monthTitle(month, current)}
-				actions={<MonthLinks to="/month/$month" month={month} first={state.firstMonth} />}
-			/>
+		<>
 			{planned ? (
 				// One column on phones, in reading order; from lg the money at a glance sits in a
 				// right rail. The columns are `contents` on phones so `order` interleaves them.
@@ -358,7 +349,7 @@ function ThisMonth() {
 					extraIncomes.decide.mutate({ moveId: ulid(), month, to, toName, amountCents });
 				}}
 			/>
-		</div>
+		</>
 	);
 }
 

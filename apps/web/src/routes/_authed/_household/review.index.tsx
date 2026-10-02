@@ -12,18 +12,18 @@ import { Card } from "@noodle/ui/components/card";
 import { Combobox } from "@noodle/ui/components/combobox";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Kbd } from "@noodle/ui/components/kbd";
-import { PageHeader } from "@noodle/ui/components/page-header";
 import type { Choices } from "@noodle/ui/components/select";
 import { Tile } from "@noodle/ui/components/tile";
 import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
-import { Check, CheckCheck, Pencil, RefreshCw, Sparkles, WandSparkles } from "lucide-react";
+import { Check, CheckCheck, Pencil, RefreshCw, Sparkles } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../../../buckets";
 import { ReviewMatchOffer } from "../../../components/match-section";
+import { SectionPending } from "../../../components/section-layout";
 import { TermHelp } from "../../../components/term-help";
 import { TransactionEditor } from "../../../components/transaction-editor";
 import { dayName, formatMoney, monthName } from "../../../format";
@@ -55,6 +55,7 @@ export const Route = createFileRoute("/_authed/_household/review/")({
 			[...months].map((month) => context.queryClient.ensureQueryData(monthQuery(month))),
 		);
 	},
+	pendingComponent: SectionPending,
 	component: ReviewPage,
 });
 
@@ -230,62 +231,40 @@ function ReviewPage() {
 
 	return (
 		<>
-			<PageHeader
-				className="max-w-xl"
-				eyebrow="Transactions"
-				title={
-					<span className="flex items-center gap-2">
-						Review
-						{queue.total > 0 ? (
-							<Badge variant="count" aria-label={`${queue.total} to review`}>
-								{queue.total}
-							</Badge>
-						) : null}
-					</span>
-				}
-				actions={
-					<>
-						{queue.total > 0 ? (
-							<Button
-								variant="outline"
-								size="sm"
-								disabled={!hydrated || lookAgain.isPending}
-								onClick={() => lookAgain.mutate()}
-							>
-								<RefreshCw />
-								Look again
-							</Button>
-						) : null}
-						<Button variant="outline" size="sm" asChild>
-							<Link to="/review/rules">
-								<WandSparkles />
-								Rules
-							</Link>
-						</Button>
-					</>
-				}
-			/>
 			<div className="grid max-w-xl gap-5">
 				{top ? (
 					<>
-						<div className="-mt-3 grid gap-3 lg:-mt-5">
+						<div className="grid gap-3">
 							<p className="flex items-start gap-1 text-sm text-muted-foreground">
 								<span>
 									Noodle wasn’t sure where to file these. Confirm its suggestion or pick another.
 								</span>
 								<TermHelp term="review" className="mt-0.5" />
 							</p>
-							{guessed.length > 1 ? (
-								<Button
-									variant="outline"
-									className="justify-self-start"
-									disabled={!hydrated || confirmAll.isPending}
-									onClick={() => confirmEach(guessed)}
-								>
-									<CheckCheck />
-									Confirm all {guessed.length} with a suggestion
-								</Button>
-							) : null}
+							<div className="flex flex-wrap items-center gap-2 empty:hidden">
+								{guessed.length > 1 ? (
+									<Button
+										variant="outline"
+										size="sm"
+										disabled={!hydrated || confirmAll.isPending}
+										onClick={() => confirmEach(guessed)}
+									>
+										<CheckCheck />
+										Confirm all {guessed.length} with a suggestion
+									</Button>
+								) : null}
+								{queue.total > 0 ? (
+									<Button
+										variant="outline"
+										size="sm"
+										disabled={!hydrated || lookAgain.isPending}
+										onClick={() => lookAgain.mutate()}
+									>
+										<RefreshCw />
+										Look again
+									</Button>
+								) : null}
+							</div>
 						</div>
 						{months.map(([month, items]) => (
 							<section key={month} aria-labelledby={`review-month-${month}`} className="grid gap-3">
