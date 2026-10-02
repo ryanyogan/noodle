@@ -1,13 +1,29 @@
 import type { CommitmentState, DayKey, MonthKey } from "@noodle/domain";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { cn } from "@noodle/ui/lib/utils";
-import { type KeyboardEvent, useRef, useState } from "react";
+import { type KeyboardEvent, useRef, useState, useSyncExternalStore } from "react";
 import { ComingUpList, useComingUp } from "./coming-up";
 import { CommitmentsList, commitmentsPaid } from "./commitment-list";
 
 // Bills on This Month (#47): the month's Commitments, paid or due, and what's coming up in the
 // next 30 days were two lists of the same bills one after the other. Now one section switches
-// between them. An ended month has only its own.
+// between them. An ended month has only its own. From lg, Coming up sits in This Month's right
+// rail (ComingUpSection) and Bills shows only the month's.
+
+const lgQuery = "(min-width: 64rem)";
+
+/** Whether the window is lg or wider. The server renders the phone layout. */
+export function useLg() {
+	return useSyncExternalStore(
+		(onChange) => {
+			const query = window.matchMedia(lgQuery);
+			query.addEventListener("change", onChange);
+			return () => query.removeEventListener("change", onChange);
+		},
+		() => window.matchMedia(lgQuery).matches,
+		() => false,
+	);
+}
 
 type View = "month" | "coming-up";
 
@@ -28,7 +44,9 @@ export function Bills({
 }) {
 	const [view, setView] = useState<View>("month");
 	const paid = commitmentsPaid(commitments);
-	const shown = current ? view : "month";
+	const lg = useLg();
+	const switched = current && !lg;
+	const shown = switched ? view : "month";
 	return (
 		<Section aria-labelledby="bills-title" id="bills" className="scroll-mt-6">
 			<SectionHeader
@@ -43,7 +61,7 @@ export function Bills({
 					)
 				}
 			/>
-			{current ? (
+			{switched ? (
 				<>
 					<BillsSwitch view={view} onChange={setView} />
 					<div
@@ -71,6 +89,20 @@ export function Bills({
 	);
 }
 
+/** Coming up in This Month's right rail, from lg: the next 30 days' bills. */
+export function ComingUpSection() {
+	return (
+		<Section aria-labelledby="coming-up-title">
+			<SectionHeader
+				id="coming-up-title"
+				title="Coming up"
+				action={<span className="text-[13px] text-muted-foreground">Next 30 days</span>}
+			/>
+			<ComingUpList />
+		</Section>
+	);
+}
+
 /** "This month · Coming up": a two-tab switch, by arrow keys too (APG Tabs). */
 function BillsSwitch({ view, onChange }: { view: View; onChange: (view: View) => void }) {
 	const { dues } = useComingUp();
@@ -90,7 +122,7 @@ function BillsSwitch({ view, onChange }: { view: View; onChange: (view: View) =>
 		<div
 			role="tablist"
 			aria-label="Bills"
-			className="grid w-fit grid-flow-col gap-1 rounded-xl bg-surface-2 p-1"
+			className="grid w-fit grid-flow-col gap-1 rounded-xl bg-surface-2 p-1 lg:hidden"
 			onKeyDown={onKeyDown}
 		>
 			{options.map((option) => {

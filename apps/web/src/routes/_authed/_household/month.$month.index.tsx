@@ -44,7 +44,7 @@ import {
 import { type ReactNode, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, availableParts, monogram } from "../../../buckets";
-import { Bills } from "../../../components/bills";
+import { Bills, ComingUpSection } from "../../../components/bills";
 import { LumpCallout } from "../../../components/coming-up";
 import { CoverSheet, CoversInto, sourceName } from "../../../components/cover";
 import {
@@ -299,6 +299,9 @@ function ThisMonth() {
 									freeToSpend={state.freeToSpend}
 								/>
 							) : null}
+						</div>
+						<div className="hidden empty:hidden lg:grid">
+							{month === current && state.commitments.length > 0 ? <ComingUpSection /> : null}
 						</div>
 						<div className="order-12 grid gap-3 empty:hidden lg:order-none">
 							{state.baseline !== null && (month === current || monthIncome.length > 0) ? (
