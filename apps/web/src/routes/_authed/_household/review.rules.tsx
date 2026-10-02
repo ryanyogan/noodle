@@ -4,6 +4,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { List } from "@noodle/ui/components/list";
+import { MetaParts } from "@noodle/ui/components/meta-parts";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
@@ -129,12 +130,6 @@ function RuleListRow({
 }) {
 	const who = forLabel(members, rule.for);
 	const filed = `Filed ${rule.matched} so far`;
-	const detail = [
-		rule.bucketName,
-		`For ${who}`,
-		rule.createdBy ? `by ${rule.createdBy}` : null,
-		filed,
-	].filter(Boolean);
 	return (
 		<li data-slot="list-row">
 			<Link
@@ -143,7 +138,7 @@ function RuleListRow({
 				{...masterDetailItem}
 				aria-label={`${rule.pattern}, ${rule.bucketName}, For ${who}${rule.private ? ", only you" : ""}, ${filed}`}
 				className={cn(
-					"grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-(--card-pad) py-3.5 text-start",
+					"grid w-full grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-3 px-(--card-pad) py-3.5 text-start",
 					"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60",
 					"focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
 				)}
@@ -161,9 +156,20 @@ function RuleListRow({
 							</Badge>
 						) : null}
 					</span>
-					<span className="line-clamp-2 text-[13px] text-muted-foreground">
-						{detail.join(" · ")}
-					</span>
+					{/* Wraps between the facts, never inside one. */}
+					<MetaParts
+						className="text-[13px] text-muted-foreground"
+						parts={[
+							rule.bucketName,
+							`For ${who}`,
+							rule.createdBy ? `Made by ${rule.createdBy}` : null,
+						]}
+					/>
+				</span>
+				{/* How many it has filed, in a column of its own so the counts line up down the list. */}
+				<span className="grid justify-items-end text-end">
+					<span className="text-sm font-semibold tabular-nums">{rule.matched}</span>
+					<span className="text-xs text-muted-foreground">Filed</span>
 				</span>
 				<ChevronRight aria-hidden="true" className="size-4 text-subtle-foreground" />
 			</Link>
