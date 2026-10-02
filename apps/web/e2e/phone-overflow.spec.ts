@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createHousehold, signedInPage } from "./session";
+import { clientRendered, createHousehold, signedInPage } from "./session";
 
 // Guards the 320 px phone (#48): no main page scrolls sideways, and nothing sticks out past the
 // right edge, except inside a container that scrolls or clips on purpose (tab strips, wide charts).
@@ -73,7 +73,8 @@ test("main pages fit a 320 px phone", async ({ browser }) => {
 	await createHousehold(page, "The Rinks", "Alex");
 	for (const path of pages) {
 		await page.goto(path);
-		await expect(page.locator("[data-slot=page-header]").first()).toBeVisible();
+		// Reports and Explore render on the client and can take a while on a busy runner.
+		await expect(page.locator("[data-slot=page-header]").first()).toBeVisible(clientRendered);
 		await page.evaluate(() => document.fonts.ready);
 		const found = await measure(page);
 		expect.soft(found.sticking, `${path}: elements past the right edge`).toEqual([]);
