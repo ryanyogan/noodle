@@ -23,7 +23,6 @@ const plan = {
 	] as [string, string][],
 };
 
-const heading = (page: Page) => page.getByRole("heading", { level: 1 });
 const header = (page: Page) => page.locator("[data-slot=page-header]:visible");
 
 // Reports render only in the browser, so the tests arrive the way a Parent does, by the Reports

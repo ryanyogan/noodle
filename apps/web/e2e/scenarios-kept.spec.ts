@@ -49,7 +49,8 @@ test("a Scenario opened from a link is kept, applied with a preview, and compare
 	// A link opens Explore with the change already made: a raise to $6,000.
 	await page.goto("/explore?lever=baseline:600000");
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Explore", clientRendered);
-	await expect(changes(page)).toContainText("Income $5,000 → $6,000 a month");
+	// The header is the layout's and is there at once; the page below it is rendered in the browser.
+	await expect(changes(page)).toContainText("Income $5,000 → $6,000 a month", clientRendered);
 
 	// A one-off can't be part of the Plan.
 	await page.getByRole("button", { name: "Add one-off" }).click();

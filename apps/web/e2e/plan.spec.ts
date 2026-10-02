@@ -119,11 +119,11 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 	await page.keyboard.press("Escape");
 	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Kids’ hockey");
 	await page.getByRole("link", { name: "Back to Buckets" }).click();
-	await expect(page.getByRole("listitem").first()).toContainText("Kids’ hockey");
+	await expect(page.getByRole("main").getByRole("listitem").first()).toContainText("Kids’ hockey");
 
 	// Everything above was saved, not just shown.
 	await page.reload();
-	await expect(page.getByRole("listitem").first()).toContainText("Kids’ hockey");
+	await expect(page.getByRole("main").getByRole("listitem").first()).toContainText("Kids’ hockey");
 	await expect(bucketRow(page, "Groceries")).toContainText("$1,250.50");
 	await openBucket(page, "Kids’ hockey");
 	await editBucket(page, "Kids’ hockey");

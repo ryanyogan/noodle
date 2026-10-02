@@ -80,8 +80,10 @@ test("a replaced invite can't be used, so a full Household never gets a third Pa
 		await expect(replacedPage.getByRole("alert")).toContainText("can no longer be used");
 
 		await firstPage.reload();
-		await expect(firstPage.getByRole("listitem")).toHaveCount(2);
-		await expect(firstPage.getByRole("listitem").filter({ hasText: "Jo" })).toHaveCount(0);
+		await expect(firstPage.getByRole("main").getByRole("listitem")).toHaveCount(2);
+		await expect(
+			firstPage.getByRole("main").getByRole("listitem").filter({ hasText: "Jo" }),
+		).toHaveCount(0);
 	} finally {
 		await Promise.all([first.remove(), replaced.remove(), second.remove()]);
 	}
