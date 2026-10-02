@@ -300,7 +300,7 @@ function Filters({
 					<Input
 						id="filter-search"
 						type="search"
-						placeholder="Search notes and merchants"
+						placeholder="Search"
 						autoComplete="off"
 						maxLength={SEARCH_MAX}
 						disabled={!hydrated}
