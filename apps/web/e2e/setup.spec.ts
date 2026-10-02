@@ -241,7 +241,7 @@ test("invite, Done, Continue setup, Run setup again, and the other Parent’s ow
 		expect(free).toMatch(/^\$[\d,]+/);
 		await page.getByRole("button", { name: "Go to This Month" }).click();
 		await expect(page).toHaveURL(/\/month\//);
-		await expect(page.locator("[data-slot=page-header]")).toContainText("This Month");
+		await expect(page.locator("[data-slot=page-header]:visible")).toContainText("This Month");
 		await expect(page.getByText(free).first()).toBeVisible();
 		await expect(page.getByRole("link", { name: "Continue setup" })).toHaveCount(0);
 
@@ -292,7 +292,7 @@ test("invite, Done, Continue setup, Run setup again, and the other Parent’s ow
 		await allowance;
 		await expect(sam.getByText("Sam’s Personal Allowance")).toBeVisible();
 		await enterJoinedHousehold(sam);
-		await expect(sam.locator("[data-slot=page-header]")).toContainText("This Month");
+		await expect(sam.locator("[data-slot=page-header]:visible")).toContainText("This Month");
 	} finally {
 		await Promise.all([first.remove(), second.remove()]);
 	}

@@ -21,7 +21,6 @@ import { DatePicker } from "@noodle/ui/components/date-picker";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
-import { PageHeader } from "@noodle/ui/components/page-header";
 import { OptionSelect } from "@noodle/ui/components/select";
 import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
@@ -34,6 +33,7 @@ import { Fragment, useId, useMemo, useState } from "react";
 import { FilterSelect } from "../../../components/filter-select";
 import { quickAddSearch } from "../../../components/quick-add";
 import { ReportBody, type ReportNav, tablesFor } from "../../../components/report-views";
+import { SectionLayout } from "../../../components/section-layout";
 import { reportQuery } from "../../../queries";
 import {
 	csvName,
@@ -129,82 +129,83 @@ function ReportsPage() {
 	const empty = report.historyFrom === null;
 
 	return (
-		// One minmax(0,1fr) column: the view tabs' w-max list scrolls in its own nav rather than
-		// widening the page (a grid's auto column is as wide as its widest content).
-		<div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:gap-5">
-			{drilled && !empty ? (
-				<ReportCrumbs search={search} view={request.view} label={names.label} />
-			) : null}
-			<PageHeader
-				className="mb-0 lg:mb-0"
-				// Drilled in, the breadcrumb above says where; otherwise the eyebrow does.
-				eyebrow={drilled && !empty ? undefined : "Reports"}
-				title={title}
-				actions={
-					<>
-						<Button variant="ghost" size="sm" asChild>
-							<Link to="/insights">
-								<Lightbulb />
-								<span className="max-sm:sr-only">Insights</span>
-							</Link>
-						</Button>
-						<Button
-							variant="outline"
-							size="sm"
-							disabled={empty}
-							onClick={() =>
-								download(csvName(report, request.view), tablesCsv(Object.values(tables)))
-							}
-						>
-							<Download />
-							<span className="max-sm:sr-only">Export CSV</span>
-						</Button>
-					</>
-				}
-			/>
-			{empty ? (
-				<Card className="p-0">
-					<EmptyState
-						icon={<ChartPie />}
-						title="Reports fill in once you have Transactions"
-						description="Quick Add what you spend, or bring in your bank’s, and Reports show where the money went, month by month."
-						action={
-							<div className="flex flex-wrap justify-center gap-2">
-								<Button size="sm" asChild>
-									<Link to="." search={(prev) => ({ ...prev, ...quickAddSearch })}>
-										<Plus />
-										Quick Add
-									</Link>
-								</Button>
-								<Button size="sm" variant="outline" asChild>
-									<Link to="/accounts">
-										<Landmark />
-										Connect a bank or add an Account
-									</Link>
-								</Button>
-							</div>
-						}
-					/>
-				</Card>
-			) : (
+		// The header every section has, in the same place; the views, the way back out of a drill-in
+		// and the Report sit below it.
+		<SectionLayout
+			eyebrow="Reports"
+			title={title}
+			actions={
 				<>
-					<ViewTabs current={request.view} />
-					<Options
-						search={search}
-						report={report}
-						nav={nav}
-						offered={
-							search.area
-								? { ...VIEW_OPTIONS[request.view], compare: true }
-								: VIEW_OPTIONS[request.view]
+					<Button variant="ghost" size="sm" asChild>
+						<Link to="/insights">
+							<Lightbulb />
+							<span className="max-sm:sr-only">Insights</span>
+						</Link>
+					</Button>
+					<Button
+						variant="outline"
+						size="sm"
+						disabled={empty}
+						onClick={() =>
+							download(csvName(report, request.view), tablesCsv(Object.values(tables)))
 						}
-					/>
-					<div key={`${request.view}|${search.area ?? ""}`} className="animate-enter">
-						<ReportBody report={report} names={names} search={search} nav={nav} tables={tables} />
-					</div>
+					>
+						<Download />
+						<span className="max-sm:sr-only">Export CSV</span>
+					</Button>
 				</>
-			)}
-		</div>
+			}
+		>
+			{/* One minmax(0,1fr) column: the view tabs' w-max list scrolls in its own nav rather than
+			    widening the page (a grid's auto column is as wide as its widest content). */}
+			<div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:gap-5">
+				{empty ? (
+					<Card className="p-0">
+						<EmptyState
+							icon={<ChartPie />}
+							title="Reports fill in once you have Transactions"
+							description="Quick Add what you spend, or bring in your bank’s, and Reports show where the money went, month by month."
+							action={
+								<div className="flex flex-wrap justify-center gap-2">
+									<Button size="sm" asChild>
+										<Link to="." search={(prev) => ({ ...prev, ...quickAddSearch })}>
+											<Plus />
+											Quick Add
+										</Link>
+									</Button>
+									<Button size="sm" variant="outline" asChild>
+										<Link to="/accounts">
+											<Landmark />
+											Connect a bank or add an Account
+										</Link>
+									</Button>
+								</div>
+							}
+						/>
+					</Card>
+				) : (
+					<>
+						<ViewTabs current={request.view} />
+						{drilled ? (
+							<ReportCrumbs search={search} view={request.view} label={names.label} />
+						) : null}
+						<Options
+							search={search}
+							report={report}
+							nav={nav}
+							offered={
+								search.area
+									? { ...VIEW_OPTIONS[request.view], compare: true }
+									: VIEW_OPTIONS[request.view]
+							}
+						/>
+						<div key={`${request.view}|${search.area ?? ""}`} className="animate-enter">
+							<ReportBody report={report} names={names} search={search} nav={nav} tables={tables} />
+						</div>
+					</>
+				)}
+			</div>
+		</SectionLayout>
 	);
 }
 
@@ -213,7 +214,7 @@ const VIEW_GROUP_STARTS = new Set<ReportView>(["big", "cash-flow"]);
 
 function ViewTabs({ current }: { current: ReportSearch["view"] & string }) {
 	return (
-		<LinkTabs aria-label="Report views" className="-mx-(--gutter) px-(--gutter)">
+		<LinkTabs aria-label="Report views">
 			{REPORT_VIEWS.map((view) => (
 				<Fragment key={view}>
 					{VIEW_GROUP_STARTS.has(view) ? <LinkTabsSeparator /> : null}
@@ -593,7 +594,8 @@ function ReportCrumbs({
 function ReportsPending() {
 	return (
 		<div role="status" aria-label="Loading" className="grid gap-4 animate-enter lg:gap-5">
-			<div className="grid gap-2">
+			{/* With the gap, the header's own margin below it (mb-6, lg:mb-8). */}
+			<div className="mb-2 grid gap-2 lg:mb-3">
 				<Skeleton className="h-3.5 w-16" />
 				<Skeleton className="h-7 w-40 lg:h-8" />
 			</div>

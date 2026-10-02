@@ -25,7 +25,7 @@ const pages = [
 	"/review",
 	"/review/rules",
 	"/household",
-	"/perks",
+	"/insights/perks",
 	"/glossary",
 	"/ask",
 	"/check-in",
@@ -52,7 +52,7 @@ async function phonePage(browser: Browser) {
 
 async function open(page: Page, path: string) {
 	await page.goto(path);
-	await expect(page.locator("[data-slot=page-header]").first()).toBeVisible(clientRendered);
+	await expect(page.locator("[data-slot=page-header]:visible").first()).toBeVisible(clientRendered);
 	await page.evaluate(() => document.fonts.ready);
 }
 

@@ -91,7 +91,7 @@ test("a Parent connects a bank, and its Accounts and Transactions come in", asyn
 
 	// Its Import sits in the Account's history like a statement's.
 	await page.getByRole("link", { name: /^Plaid Checking ··0000, / }).click();
-	await expect(page.locator("[data-slot=page-header]")).toContainText("Plaid Checking");
+	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Plaid Checking");
 	const imports = page.getByRole("list", { name: "Imported statements" });
 	await expect(imports.getByRole("listitem")).toHaveCount(1);
 	await expect(imports).toContainText("From First Platypus Bank");
@@ -116,7 +116,7 @@ test("Plaid's webhooks sync the bank, and a lapsed login is reconnected", async 
 
 	// Netflix is still pending at the bank, and says so.
 	await nav(page).getByRole("link", { name: "Transactions" }).click();
-	await expect(page.locator("[data-slot=page-header]")).toContainText("Transactions");
+	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Transactions");
 	await expect(page.getByRole("button", { name: /^Netflix \(pending\), \$9\.99, / })).toBeVisible();
 
 	// A webhook nobody signed does nothing.

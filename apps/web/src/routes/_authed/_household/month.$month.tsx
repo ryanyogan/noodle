@@ -1,7 +1,7 @@
-import { addMonths, type MonthKey, monthOfDay } from "@noodle/domain";
+import { addMonths, type MonthKey, monthKeyAt, monthOfDay } from "@noodle/domain";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { MonthLinks, MonthTopRow, monthTitle, useMonthSwipe } from "../../../components/month-nav";
-import { SectionLayout } from "../../../components/section-layout";
+import { SectionLayout, SectionPending } from "../../../components/section-layout";
 import { closingWeek } from "../../../month-close";
 import { goalsQuery, monthQuery, reviewQuery, useMonthState } from "../../../queries";
 import { monthKeySchema } from "../../../server/month";
@@ -26,6 +26,7 @@ export const Route = createFileRoute("/_authed/_household/month/$month")({
 		}
 	},
 	component: MonthLayout,
+	pendingComponent: MonthPending,
 });
 
 /**
@@ -45,5 +46,24 @@ function MonthLayout() {
 			title={monthTitle(month, current)}
 			actions={<MonthLinks to="/month/$month" month={month} first={state.firstMonth} />}
 		/>
+	);
+}
+
+/** A month that's slow to load: the same header, with the page's skeleton below it. */
+function MonthPending() {
+	const month = Route.useParams().month as MonthKey;
+	// The month it is for the Household, not for the browser's clock.
+	const { household } = Route.useRouteContext();
+	const current = monthKeyAt(new Date(), household.timeZone);
+	return (
+		<SectionLayout
+			top={<MonthTopRow month={month} current="month" />}
+			eyebrow={month === current ? "This Month" : "Month"}
+			title={monthTitle(month, current)}
+			// Until the month loads, the first month with a Plan isn't known: both ways stay open.
+			actions={<MonthLinks to="/month/$month" month={month} first={"0000-01" as MonthKey} />}
+		>
+			<SectionPending />
+		</SectionLayout>
 	);
 }

@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
+import { expectSectionHeaderKept, markSectionHeader } from "./section";
 import { choose, createPlannedHousehold, signedInPage, switchTo } from "./session";
 
 // Perk research runs inline with its fakes here (AI_MODEL=stub in playwright.config.ts): any
@@ -45,8 +46,14 @@ test("a phone plan among the Commitments is confirmed, asks for its plan, and fi
 	await page.goto("/insights");
 	await page.getByRole("button", { name: "Look for Insights now" }).click();
 	await expect(page.getByText("Nothing new.")).toBeVisible();
-	await page.getByRole("link", { name: /1 Perk Source to confirm/ }).click();
-	await expect(page).toHaveURL(/\/perks$/);
+	const tabs = page.getByRole("navigation", { name: "Insights pages" });
+	await expect(tabs.getByRole("link", { name: /^Perks/ })).toContainText("1 to confirm");
+	// Going to the tab changes only what's below the tabs: the header is the same node.
+	await markSectionHeader(page);
+	await tabs.getByRole("link", { name: /^Perks/ }).click();
+	await expect(page).toHaveURL(/\/insights\/perks$/);
+	await expectSectionHeaderKept(page);
+	await expect(tabs.getByRole("link", { name: /^Perks/ })).toHaveAttribute("aria-current", "page");
 
 	const suggestion = page.getByRole("listitem", { name: "T-Mobile" });
 	await expect(suggestion).toContainText("Phone plan");
@@ -77,7 +84,7 @@ test("a phone plan among the Commitments is confirmed, asks for its plan, and fi
 	await expect(card).toContainText("Go5G Plus");
 
 	// Netflix, paid for, is included: a Perk Overlap, with its figure from the Commitment.
-	await page.getByRole("link", { name: "Insights" }).click();
+	await tabs.getByRole("link", { name: "Insights" }).click();
 	const overlap = page.getByRole("article", { name: "Netflix may come with T-Mobile (stub)" });
 	await expect(overlap).toContainText("Overlap");
 	await expect(overlap).toContainText("$216");
@@ -102,7 +109,9 @@ test("a card added by hand covers a cost already paid; a page that can't be read
 	await sheet.getByRole("button", { name: /^Groceries/ }).click();
 	await expect(sheet).toBeHidden();
 
+	// The old address still works: Perks moved under Insights.
 	await page.goto("/perks");
+	await expect(page).toHaveURL(/\/insights\/perks$/);
 	await expect(page.getByText("No Perk Sources yet")).toBeVisible();
 	const add = page.getByRole("region", { name: "Add a Perk Source" });
 	await add.getByLabel("Name").fill("Chase Sapphire");

@@ -28,7 +28,7 @@ test("a new Parent signs in, creates a Household, and can leave setup for an emp
 		await expect(page.getByText("Step 1 of 7")).toBeVisible();
 		await setUpLater(page);
 		await expect(page).toHaveURL(/\/month\/\d{4}-\d{2}$/);
-		await expect(page.locator("[data-slot=page-header]")).toContainText("This Month");
+		await expect(page.locator("[data-slot=page-header]:visible")).toContainText("This Month");
 		await expect(page.getByText("The Testers")).toBeVisible();
 		await expect(page.getByRole("region", { name: "Get started" })).toContainText(
 			"Set your take-home pay",

@@ -34,7 +34,7 @@ async function uploadStatement(
 		await page.getByRole("button", { name: "Add Account" }).click();
 	}
 	await page.getByRole("link", { name: /^Visa, / }).click();
-	await expect(page.locator("[data-slot=page-header]")).toContainText("Visa");
+	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Visa");
 
 	// Dated today, so the lines land in the month the Plan was made for.
 	const today = await page.evaluate(() => new Date().toLocaleDateString("en-US"));
@@ -73,7 +73,7 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	// This Month says something waits; categorization had no guess for it.
 	await page.goto(thisMonth);
 	await page.getByRole("link", { name: "1 to review" }).click();
-	await expect(page.locator("[data-slot=page-header]")).toContainText("Review");
+	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Review");
 	// Inside Transactions, as far as the sidebar goes.
 	await expect(
 		page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Transactions" }),

@@ -1,0 +1,37 @@
+# Sections keep one header and one row of tabs, and one nav config feeds the sidebar and the tab bar
+
+Status: accepted (2026-10-02, #55)
+
+## Context
+
+Each page of the Plan, Explore and Review rendered its own header and its own tabs, so going between sibling pages re-mounted both: the header flickered, the layout shifted and the scroll position was lost. The Year view sat outside the Plan at `/plan/year/$year`. The desktop sidebar was a flat hand-rolled list with its own `startsWith` checks for the current item, the phone tab bar had a second list, and a `WIDE_PAGES` array of paths decided which pages got the wider cap. Insights had no entry in any navigation, Perks was reached only from Insights, the Glossary was both a page and a dialog, and Goals and the Plan's Goal funding page overlapped.
+
+## Decision
+
+- **A section is a layout route that renders `SectionLayout`** (`apps/web/src/components/section-layout.tsx`): the optional row above, the `PageHeader`, the tabs as router links, and the `<Outlet />`. Its pages are nested routes that render only what is below the tabs, each with `pendingComponent: SectionPending`, so a slow page shows its skeleton in the outlet while the header and tabs stay. A tab is current by the router's own exact match with the search ignored (`activeOptions={{ exact: true, includeSearch: false }}`), and leaves the scroll where it is. The Plan (`plan.$month`), Explore (`explore`), Review (`review`) and Insights (`insights`) are sections. This Month (`month.$month`) and Reports use the same layout without route tabs, so every header sits in the same place; Reports' views are search params, so its own tabs stay in its content.
+- **Year is a tab of the Plan** (`/plan/$month/year`), not a page beside it. `/plan/year/$year` redirects there.
+- **Month and Plan remain two route trees with an identical header.** `/month/$month` and `/plan/$month` each have a layout that renders the same `SectionLayout` with the same `MonthTopRow`, title and previous and next links, and each has a pending component with that header. The header node is re-mounted on the switch between them (it is kept between the tabs within each). Merging them into one tree would have changed every month and Plan URL or needed a pathless layout around both; the switch reads as a change of tab without it.
+- **One nav config** (`apps/web/src/nav.ts`): `navGroups` is the sidebar's four groups (Day to day, Planning, Understand, Household), and an item with a `tab` is also in the phone tab bar. Which item is current comes from the router matching `to` and the item's `within` routes (`useMatchRoute`, fuzzy), never from comparing path strings.
+- **The sidebar is shadcn's Sidebar, added to `packages/ui` by hand** from the radix-nova registry rather than with the CLI, like the other components there (COMPONENTS.md lists it). It differs from the registry's: it collapses to an icon rail only (no off-canvas, no mobile Sheet, since phones keep the tab bar), the provider renders no wrapper, labels in the rail are `sr-only` so links keep their names, and Ctrl/⌘+B is left alone while the focus is in a text field.
+- **The collapse state is in `localStorage`, applied by an inline script in the document head**, not the registry's cookie. The script sets `data-sidebar-state` on `<html>` before first paint and CSS reads it, so there is no flash and no hydration mismatch, and the server (a Worker rendering for either Parent) doesn't need to read or vary on a cookie.
+- **A data-dense section says so on its route**: `staticData: { wide: true }` (Explore, Reports). The shell reads it from the matches. `WIDE_PAGES` is gone.
+- **The sidebar's own queries never hold a navigation.** The Review count, the Check-in dot and the Parent's name are plain `useQuery`s (not suspending, the app's 30 s `staleTime`, refreshed by live updates); the sidebar isn't re-mounted between pages, so they don't refetch per navigation. Measured, turning them off changed nothing. What did hold the Month and Plan switch was `_authed`'s `beforeLoad` asking for the viewer afresh on every link preload (hover or touch): the click then waited for that round trip before any loader ran. It now asks afresh only on entering the authed app and reuses the cached answer for preloads and for staying.
+
+### Orphan and duplicate pages
+
+- **Insights** has a sidebar entry (Understand). Reports, This Month and the Check-in still link to it.
+- **Perks is a tab of Insights** (`/insights/perks`), with how many Perk Sources wait to be confirmed on the tab. The card on Insights that linked to it and Perks' own breadcrumb and back button are gone. `/perks` redirects.
+- **Glossary: the dialog is the Glossary; `/glossary` stays as a deep link.** The sidebar item, the help icon on a phone and every term's "?" popover open the dialog over the page. The page shows the same list (one `GlossaryList` component, one `glossary.ts`) for a link from outside the app, a new tab from a popover, or `/glossary#term`; the Household page links to it. Nothing else lists the terms.
+- **Goals and Plan › Goal funding each have one job.** Goals is what the Household is saving for or paying off: each Goal's target, progress and history, and adding one. Goal funding is how much of this month's Free to Spend goes to them. Each links to the other ("Fund Goals from this month's Plan", "All Goals and their progress"); adding a Goal from the Plan goes to Goals.
+- **Reports and Ask** keep their phone-only icons in the row above This Month's header, since the tab bar has room for four.
+- **Legacy redirects stay, and nothing in the app links to them**: `/month/$month/plan`, `/goals/accounts/$accountId`, `/plan/year/$year`, `/perks`.
+- **Every page is reachable from navigation or one parent.** In the sidebar: This Month, Transactions, Accounts, Plan, Goals, Explore, Reports, Insights, Ask, Check-in, Household. Through a tab: the Plan's pages, Explore's, Review and Rules, Perks. Through one parent: Review (Transactions, and This Month's count), an Account, a Goal, a Bucket and a Commitment (their lists), Transactions for a month (Transactions), the Glossary page (Household). `/welcome`, `/setup` and `/joined` are outside the shell and reached by the redirects that start a Household.
+
+## Consequences
+
+- A new section is a layout route plus pages; a new destination is one entry in `nav.ts`. A page that isn't under a nav item's route needs a `within` entry there to show as current.
+- On a phone, Plan, Accounts, Explore, Reports, Insights, Ask and the Check-in are reached through another destination (the Month and Plan switch, Transactions, Goals, This Month's row of icons and cards), not the tab bar.
+- While a month or a Plan is slow to load, React keeps the page being left in the document, hidden, beside the pending header. Tests look at the visible page header (`[data-slot=page-header]:visible`).
+- A Parent who was signed out elsewhere finds out on the next server function call or the next time they enter the app, not on hovering a link. Server functions check the session on every call, as before.
+- The sidebar's state is per browser, not per Parent, and a first visit always starts expanded.
+- shadcn's Sidebar won't update itself: changes upstream are taken by hand, and the header comment in `sidebar.tsx` says what differs.

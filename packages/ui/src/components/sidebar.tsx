@@ -72,6 +72,10 @@ function useSidebar() {
 	return context;
 }
 
+const isEditable = (target: EventTarget | null) =>
+	target instanceof HTMLElement &&
+	(target.isContentEditable || target.matches("input, textarea, select"));
+
 function SidebarProvider({ children }: { children: React.ReactNode }) {
 	const state = React.useSyncExternalStore(subscribe, readState, serverState);
 
@@ -81,7 +85,9 @@ function SidebarProvider({ children }: { children: React.ReactNode }) {
 				event.key.toLowerCase() === SIDEBAR_KEYBOARD_SHORTCUT &&
 				(event.metaKey || event.ctrlKey) &&
 				!event.altKey &&
-				!event.shiftKey
+				!event.shiftKey &&
+				// Typing: there Ctrl/⌘+B belongs to the field (bold, or back one character on a Mac).
+				!isEditable(event.target)
 			) {
 				event.preventDefault();
 				writeState(readState() === "collapsed" ? "expanded" : "collapsed");

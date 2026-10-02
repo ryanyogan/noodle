@@ -18,7 +18,7 @@ test.afterEach(async () => {
 const plan = { baseline: "5,000", buckets: [["Groceries", "1,200"]] as [string, string][] };
 const phone = { viewport: { width: 393, height: 852 }, isMobile: true, hasTouch: true };
 const heading = (page: Page) => page.getByRole("heading", { level: 1 });
-const header = (page: Page) => page.locator("[data-slot=page-header]");
+const header = (page: Page) => page.locator("[data-slot=page-header]:visible");
 
 test("Accounts are their own area, and each Goal names the Account holding it", async ({
 	browser,

@@ -7,9 +7,11 @@ export const Route = createFileRoute("/_authed")({
 		// Asked afresh on entering the authed app. While it stays open (moving between its pages,
 		// or opening a sheet, which only changes the search) the cached answer is reused, so
 		// those don't wait on a round trip. Server functions check the session on every call anyway.
+		// Preloading a link (hover, focus, touch) reuses it too: asking again there made the click
+		// that follows wait for the answer before any of the page's loaders started (#55).
 		const viewer = await context.queryClient.fetchQuery({
 			...viewerQuery(),
-			staleTime: cause === "stay" ? Number.POSITIVE_INFINITY : 0,
+			staleTime: cause === "enter" ? 0 : Number.POSITIVE_INFINITY,
 		});
 		// Clerk's <SignIn> returns to redirect_url once the Parent signs in.
 		if (!viewer.signedIn)

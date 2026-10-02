@@ -60,7 +60,7 @@ for (const [screen, device] of Object.entries(screens)) {
 			const nav = page.getByRole("navigation", { name: "Main" });
 
 			await page.goto("/month");
-			await expect(page.locator("[data-slot=page-header]")).toContainText("This Month");
+			await expect(page.locator("[data-slot=page-header]:visible")).toContainText("This Month");
 			await expect(nav).toBeVisible();
 			await settle(page);
 			await expect(page).toHaveScreenshot(`month-${screen}-${colorScheme}.png`, {
@@ -164,7 +164,7 @@ test("the sidebar marks the section you're in, collapses to a rail, and holds th
 		["/review", "Transactions"],
 		["/review/rules", "Transactions"],
 		["/explore/afford", "Explore"],
-		["/perks", "Insights"],
+		["/insights/perks", "Insights"],
 	] as const) {
 		await page.goto(path);
 		await expect(current).toHaveText(label);

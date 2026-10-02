@@ -96,6 +96,8 @@ export function AppShell({
 function AppSidebar({ householdName }: { householdName: string }) {
 	const { state } = useSidebar();
 	const collapsed = state === "collapsed";
+	// The browser's platform is known only there, so until hydration it reads as Ctrl.
+	const mac = useHydrated() && /Mac|iPhone|iPad/.test(navigator.platform);
 	return (
 		<Sidebar className="hidden lg:flex">
 			<SidebarHeader>
@@ -113,7 +115,9 @@ function AppSidebar({ householdName }: { householdName: string }) {
 						</TooltipTrigger>
 						<TooltipContent side={collapsed ? "right" : "bottom"}>
 							{collapsed ? "Open the sidebar" : "Collapse the sidebar"}
-							<Kbd className="border-current/40 bg-transparent text-current opacity-70">Ctrl B</Kbd>
+							<Kbd className="border-current/40 bg-transparent text-current opacity-70">
+								{mac ? "⌘ B" : "Ctrl B"}
+							</Kbd>
 						</TooltipContent>
 					</Tooltip>
 				</div>

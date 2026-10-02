@@ -24,7 +24,7 @@ const pages = [
 	"/review",
 	"/review/rules",
 	"/household",
-	"/perks",
+	"/insights/perks",
 	"/glossary",
 	"/ask",
 	"/check-in",
@@ -74,7 +74,9 @@ test("main pages fit a 320 px phone", async ({ browser }) => {
 	for (const path of pages) {
 		await page.goto(path);
 		// Reports and Explore render on the client and can take a while on a busy runner.
-		await expect(page.locator("[data-slot=page-header]").first()).toBeVisible(clientRendered);
+		await expect(page.locator("[data-slot=page-header]:visible").first()).toBeVisible(
+			clientRendered,
+		);
 		await page.evaluate(() => document.fonts.ready);
 		const found = await measure(page);
 		expect.soft(found.sticking, `${path}: elements past the right edge`).toEqual([]);

@@ -73,7 +73,7 @@ async function quickAdd(
 
 async function openTransactions(page: Page) {
 	await nav(page).getByRole("link", { name: "Transactions" }).click();
-	await expect(page.locator("[data-slot=page-header]")).toContainText("Transactions");
+	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Transactions");
 }
 
 test("editing a Transaction reassigns its spending on This Month at once", async ({ browser }) => {
@@ -334,7 +334,7 @@ test("on a phone, Transactions is in the tab bar either side of Quick Add", asyn
 		"Household",
 	]);
 	await nav(page).getByRole("link", { name: "Transactions" }).tap();
-	await expect(page.locator("[data-slot=page-header]")).toContainText("Transactions");
+	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Transactions");
 	await expect(page.getByText(/^No Transactions in /)).toBeVisible();
 	// It says how to get some in.
 	await expect(

@@ -83,7 +83,7 @@ test("a seeded Check-in walks Review, Insights and Extra income to a done state"
 		.getByRole("link", { name: /^Check-in/ });
 	await expect(sidebarCheckIn).toHaveAccessibleName("Check-in not done this week");
 	await sidebarCheckIn.click();
-	await expect(page.locator("[data-slot=page-header]")).toContainText("Check-in");
+	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Check-in");
 
 	// Sweeps has nothing in it (last month had no Plan), so it's skipped.
 	await expect(page.getByText("1 of 3")).toBeVisible();
@@ -96,7 +96,7 @@ test("a seeded Check-in walks Review, Insights and Extra income to a done state"
 	await expect(page.getByText("Internet went up $10")).toBeVisible();
 	// Leaving to look at the Insight and coming Back picks up at the same card.
 	await page.getByRole("link", { name: "Open Insights" }).click();
-	await expect(page.locator("[data-slot=page-header]")).toContainText("Insights");
+	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Insights");
 	await page.goBack();
 	await expect(page.getByText("2 of 3")).toBeVisible();
 	await expect(page.getByRole("heading", { name: "1 new Insight" })).toBeVisible();

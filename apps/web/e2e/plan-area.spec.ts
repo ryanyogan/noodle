@@ -23,7 +23,7 @@ const plan = {
 const phone = { viewport: { width: 393, height: 852 }, isMobile: true, hasTouch: true };
 
 const heading = (page: Page) => page.getByRole("heading", { level: 1 });
-const header = (page: Page) => page.locator("[data-slot=page-header]");
+const header = (page: Page) => page.locator("[data-slot=page-header]:visible");
 const planTabs = (page: Page) => page.getByRole("navigation", { name: "Plan pages" });
 const waterfall = (page: Page) =>
 	page.getByRole("region", { name: "From take-home pay to Free to Spend" });

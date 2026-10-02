@@ -76,7 +76,7 @@ export const navGroups: NavGroup[] = [
 		label: "Understand",
 		items: [
 			{ label: "Reports", icon: ChartColumn, to: "/reports" },
-			{ label: "Insights", icon: Lightbulb, to: "/insights", within: ["/perks"] },
+			{ label: "Insights", icon: Lightbulb, to: "/insights" },
 			{ label: "Ask", icon: MessageCircleQuestionMark, to: "/ask" },
 		],
 	},

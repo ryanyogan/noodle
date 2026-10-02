@@ -64,7 +64,7 @@ async function setUpPersonalAllowance(page: Page, amount: string, name: string) 
 
 async function openTransactions(page: Page) {
 	await nav(page).getByRole("link", { name: "Transactions" }).click();
-	await expect(page.locator("[data-slot=page-header]")).toContainText("Transactions");
+	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Transactions");
 }
 
 test("a Personal Allowance's Transactions never reach the other Parent; its totals do", async ({
@@ -96,7 +96,7 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 		await sam.getByLabel("Your name").fill("Sam");
 		await sam.getByRole("button", { name: "Join The Rinks" }).click();
 		await enterJoinedHousehold(sam);
-		await expect(sam.locator("[data-slot=page-header]")).toContainText("This Month");
+		await expect(sam.locator("[data-slot=page-header]:visible")).toContainText("This Month");
 
 		// Each Parent sets their own; each sees the other's amount but can't change it.
 		await setUpPersonalAllowance(alex, "150", ALEX_PA);
@@ -160,7 +160,7 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 
 		// Alex's Personal Allowance has a page for Sam too: its totals, and nothing spent from it.
 		await bucketRow(sam, ALEX_PA).getByRole("link", { name: ALEX_PA }).click();
-		await expect(sam.locator("[data-slot=page-header]")).toContainText(ALEX_PA);
+		await expect(sam.locator("[data-slot=page-header]:visible")).toContainText(ALEX_PA);
 		const thisMonth = sam.getByRole("region", { name: "Left this month" });
 		await expect(thisMonth).toContainText("$58");
 		await expect(thisMonth).toContainText("$92");

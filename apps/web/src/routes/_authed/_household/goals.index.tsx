@@ -124,16 +124,27 @@ function GoalsPage() {
 					<Section aria-labelledby="active-goals">
 						<SectionHeader id="active-goals" title="Saving for" count={active.length} />
 						{active.length > 0 ? (
-							<List>
-								{active.map((goal) => (
-									<GoalItem
-										key={goal.id}
-										goal={goal}
-										month={month}
-										emergency={goal.id === emergencyGoalId}
-									/>
-								))}
-							</List>
+							<>
+								<List>
+									{active.map((goal) => (
+										<GoalItem
+											key={goal.id}
+											goal={goal}
+											month={month}
+											emergency={goal.id === emergencyGoalId}
+										/>
+									))}
+								</List>
+								{/* What each Goal is and how far along lives here; deciding how much of this
+								    month's Free to Spend goes to them is the Plan's Goal funding page. */}
+								<Link
+									to="/plan/$month/goals"
+									params={{ month }}
+									className="inline-flex min-h-11 items-center justify-self-start px-1 text-[13px] font-medium text-muted-foreground underline decoration-border-strong underline-offset-3 hover:text-foreground hover:decoration-foreground lg:min-h-6"
+								>
+									Fund Goals from this month’s Plan
+								</Link>
+							</>
 						) : canAddGoal ? (
 							<Card className="p-(--card-pad) text-sm text-muted-foreground">
 								No savings Goals yet. Add one to start setting money aside for it, a little each

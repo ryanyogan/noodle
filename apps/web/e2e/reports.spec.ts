@@ -24,7 +24,7 @@ const plan = {
 };
 
 const heading = (page: Page) => page.getByRole("heading", { level: 1 });
-const header = (page: Page) => page.locator("[data-slot=page-header]");
+const header = (page: Page) => page.locator("[data-slot=page-header]:visible");
 
 // Reports render only in the browser, so the tests arrive the way a Parent does, by the Reports
 // link from the running app; the one full load they mean (a reload keeps the options) waits on

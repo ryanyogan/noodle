@@ -51,7 +51,7 @@ export async function createHousehold(page: Page, householdName: string, parentN
 	await page.getByRole("button", { name: "Create Household" }).click();
 	await setUpLater(page);
 	// The URL changes before the page loads; clicking on before then can lose the click.
-	await expect(page.locator("[data-slot=page-header]")).toContainText("This Month");
+	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("This Month");
 }
 
 /** True for calls to the named server function (its id is base64url JSON naming the export). */
