@@ -78,6 +78,14 @@ Never let the CLI overwrite a file here.
 
 One scroll per region: `apps/web/e2e/desktop-scroll.spec.ts` fails a page with a scrolling element inside a scrolling page or ancestor, other than MasterDetail's panes, open sheets, dialogs and popovers, and things that scroll sideways.
 
+## Desktop rules (#73)
+
+- **One gutter.** `--layout-gap` (32 px) is the space between columns and between a column's blocks, on every layout. There is no tighter dashboard variant: Reports, Explore's rail and Can we afford it? use it too. Don't pass `gap-*` to `SplitMain`, `SplitRail` or `PageLayout`.
+- **One card.** `Card` alone draws a surface: radius `--radius-card` (16 px), padding `--card-pad` (16 px, 20 px from lg), a 1 px border and `shadow-card`. A card of rows has padding 0 and pads its rows with `--card-pad`. There is no dense card padding; a tighter group inside a card is rows, not a card. Controls (buttons, inputs, tab tracks' outer shape) take `--radius-control` (12 px, `rounded-xl`).
+- **Headings outside cards.** A section's heading is a `SectionHeader` above its card, never the card's first line. Each column of a `SplitLayout` starts with the same kind of block, a heading row in both or a card in both, so their tops line up. `e2e/alignment.ts` (`misaligned`) checks the first block of each column shares a top within 1 px and that cards keep their column's left edge; `desktop-scroll.spec.ts` runs it on This Month, Plan › Overview, Explore and Transactions at 1440. (This Month's rail starts with the Free to Spend card beside the Buckets heading; moving its heading out is 73c.)
+- **Tab strips.** `TabsList` and `LinkTabs` share one behaviour: when they don't fit they scroll sideways with no scrollbar, fade the edge that has more, snap to tabs, and scroll the current tab into view without scrolling the page. Don't add `overflow-x-auto` to a tab strip.
+- **Scrollbars.** Only the Sidebar and MasterDetail's panes scroll on their own (the page scrolls otherwise). Their bar is thin, shows only on hover or focus, and takes `--border-strong` (so it follows light and dark). Panes keep `scrollbar-gutter: stable` from lg, so content doesn't jump when a pane starts to scroll.
+
 ## Control sizes
 
 One height scale, so controls that sit in a row line up without a height class. Don't pass `h-*` or `size-*` in `className` to a Button, Input or SelectTrigger: pick a size. `apps/web/src/shared-controls.test.ts` fails on an `h-*` class on one of them, and on a raw `<button>`, `<input>`, `<select>`, `<textarea>` or `<table>` outside its short list of exceptions.

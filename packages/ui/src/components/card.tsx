@@ -1,13 +1,13 @@
 import type * as React from "react";
 import { cn } from "#lib/utils";
 
-/** A surface. Border, radius, and shadow come only from here. */
+/** A surface. Border, radius (`--radius-card`), and shadow come only from here; padding is `--card-pad`. */
 function Card({ className, ...props }: React.ComponentProps<"div">) {
 	return (
 		<div
 			data-slot="card"
 			className={cn(
-				"overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-card",
+				"overflow-hidden rounded-(--radius-card) border border-border bg-card text-card-foreground shadow-card",
 				className,
 			)}
 			{...props}

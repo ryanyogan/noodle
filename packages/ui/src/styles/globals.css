@@ -124,6 +124,9 @@
 	/* Layout */
 	--gutter: 16px;
 	--card-pad: 16px;
+	/* One radius for every surface (Card), one for every control (buttons, inputs, tab tracks). */
+	--radius-card: 16px;
+	--radius-control: 12px;
 	--sidebar-width: 248px;
 	--sidebar-width-icon: 60px;
 	--tabbar-height: 56px;
@@ -188,7 +191,7 @@
 
 /*
  * Radii use Tailwind's scale: rounded-lg 8px (small buttons, nav), rounded-xl 12px (buttons,
- * tiles, inputs), rounded-2xl 16px (cards), rounded-3xl 24px (sheets), rounded-full (pills).
+ * tiles, inputs: the --radius-control value), rounded-2xl 16px (cards: --radius-card), rounded-3xl 24px (sheets), rounded-full (pills).
  * Spacing uses Tailwind's 4px scale.
  */
 @theme inline {
@@ -446,4 +449,26 @@
 /* The sidebar collapsed to its icon rail: set on <html> before first paint (sidebarStateScript). */
 :root[data-sidebar-state="collapsed"] {
 	--sidebar-width: var(--sidebar-width-icon);
+}
+
+/*
+ * Scrollbars (#73). The Sidebar and MasterDetail's panes scroll on their own; their bar is thin and
+ * shows only while the pointer or focus is in them, in the theme's border colour (light and dark).
+ * A pane keeps its gutter, so its content doesn't jump sideways when it starts to scroll.
+ */
+@layer base {
+	[data-slot="sidebar-content"],
+	[data-scroll-pane] {
+		scrollbar-width: thin;
+		scrollbar-color: transparent transparent;
+	}
+	[data-slot="sidebar-content"]:is(:hover, :focus-within),
+	[data-scroll-pane]:is(:hover, :focus-within) {
+		scrollbar-color: var(--border-strong) transparent;
+	}
+	@media (min-width: 64rem) {
+		[data-scroll-pane] {
+			scrollbar-gutter: stable;
+		}
+	}
 }

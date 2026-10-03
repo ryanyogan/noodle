@@ -30,12 +30,62 @@ function Tabs({ className, ...props }: React.ComponentProps<typeof TabsPrimitive
 	return <TabsPrimitive.Root data-slot="tabs" className={cn("grid gap-3", className)} {...props} />;
 }
 
+/**
+ * A strip of tabs that doesn't fit scrolls sideways with no scrollbar; a faded edge says there's
+ * more that way, and the current tab is scrolled into view. TabsList and LinkTabs share it (#73).
+ */
+function useEdgeFade<T extends HTMLElement>() {
+	const ref = React.useRef<T>(null);
+	const [edges, setEdges] = React.useState({ start: false, end: false });
+	React.useEffect(() => {
+		const strip = ref.current;
+		if (!strip) return;
+		const measure = () => {
+			const max = strip.scrollWidth - strip.clientWidth;
+			const at = Math.abs(strip.scrollLeft);
+			setEdges((e) => {
+				const next = { start: max > 4 && at > 4, end: max > 4 && at < max - 4 };
+				return e.start === next.start && e.end === next.end ? e : next;
+			});
+		};
+		// Scroll only the strip, never the page, to the current tab.
+		const current = strip.querySelector<HTMLElement>('[aria-current="page"],[data-state="active"]');
+		if (current) {
+			const left = current.getBoundingClientRect().left - strip.getBoundingClientRect().left;
+			const right = left + current.offsetWidth;
+			if (right > strip.clientWidth) strip.scrollLeft += right - strip.clientWidth + 32;
+		}
+		measure();
+		strip.addEventListener("scroll", measure, { passive: true });
+		const observer = new ResizeObserver(measure);
+		observer.observe(strip);
+		return () => {
+			strip.removeEventListener("scroll", measure);
+			observer.disconnect();
+		};
+	}, []);
+	return {
+		ref,
+		"data-fade-start": edges.start || undefined,
+		"data-fade-end": edges.end || undefined,
+	};
+}
+
+const edgeFade = [
+	"max-w-full snap-x snap-proximity overflow-x-auto [scrollbar-width:none]",
+	"[--fade-s:black] [--fade-e:black] data-fade-start:[--fade-s:transparent] data-fade-end:[--fade-e:transparent]",
+	"data-fade-start:mask-[linear-gradient(to_right,var(--fade-s),black_2rem,black_calc(100%-2rem),var(--fade-e))]",
+	"data-fade-end:mask-[linear-gradient(to_right,var(--fade-s),black_2rem,black_calc(100%-2rem),var(--fade-e))]",
+];
+
 function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.List>) {
+	const fade = useEdgeFade<HTMLDivElement>();
 	return (
 		<TabsPrimitive.List
 			data-slot="tabs-list"
-			className={cn(tabsListVariants(), className)}
+			className={cn(tabsListVariants(), edgeFade, className)}
 			{...props}
+			{...fade}
 		/>
 	);
 }
@@ -44,7 +94,7 @@ function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPr
 	return (
 		<TabsPrimitive.Trigger
 			data-slot="tabs-trigger"
-			className={cn(tabsTriggerVariants(), className)}
+			className={cn(tabsTriggerVariants(), "snap-start", className)}
 			{...props}
 		/>
 	);
@@ -67,48 +117,9 @@ function LinkTabs({
 	children,
 	...props
 }: React.ComponentProps<"nav"> & { listClassName?: string }) {
-	// When the track scrolls, a faded edge says there's more that way (there's no scrollbar), and
-	// the current tab is scrolled into view.
-	const ref = React.useRef<HTMLElement>(null);
-	const [edges, setEdges] = React.useState({ start: false, end: false });
-	React.useEffect(() => {
-		const nav = ref.current;
-		if (!nav) return;
-		const measure = () => {
-			const max = nav.scrollWidth - nav.clientWidth;
-			const at = Math.abs(nav.scrollLeft);
-			setEdges((e) => {
-				const next = { start: max > 1 && at > 1, end: max > 1 && at < max - 1 };
-				return e.start === next.start && e.end === next.end ? e : next;
-			});
-		};
-		nav
-			.querySelector('[aria-current="page"]')
-			?.scrollIntoView({ block: "nearest", inline: "nearest" });
-		measure();
-		nav.addEventListener("scroll", measure, { passive: true });
-		const observer = new ResizeObserver(measure);
-		observer.observe(nav);
-		return () => {
-			nav.removeEventListener("scroll", measure);
-			observer.disconnect();
-		};
-	}, []);
+	const fade = useEdgeFade<HTMLElement>();
 	return (
-		<nav
-			ref={ref}
-			data-slot="link-tabs"
-			data-fade-start={edges.start || undefined}
-			data-fade-end={edges.end || undefined}
-			className={cn(
-				"max-w-full snap-x snap-proximity overflow-x-auto [scrollbar-width:none]",
-				"[--fade-s:black] [--fade-e:black] data-fade-start:[--fade-s:transparent] data-fade-end:[--fade-e:transparent]",
-				"data-fade-start:mask-[linear-gradient(to_right,var(--fade-s),black_2rem,black_calc(100%-2rem),var(--fade-e))]",
-				"data-fade-end:mask-[linear-gradient(to_right,var(--fade-s),black_2rem,black_calc(100%-2rem),var(--fade-e))]",
-				className,
-			)}
-			{...props}
-		>
+		<nav data-slot="link-tabs" className={cn(edgeFade, className)} {...props} {...fade}>
 			<div className={cn(tabsListVariants(), "max-w-none", listClassName)}>{children}</div>
 		</nav>
 	);

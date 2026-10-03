@@ -171,7 +171,7 @@ function ReportsPage() {
 		>
 			{/* One minmax(0,1fr) column: the view tabs' w-max list scrolls in its own nav rather than
 			    widening the page (a grid's auto column is as wide as its widest content). */}
-			<PageLayout spacing="tight">
+			<PageLayout>
 				{empty ? (
 					<Card className="p-0">
 						<EmptyState

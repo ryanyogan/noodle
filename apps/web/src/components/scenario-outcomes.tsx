@@ -987,7 +987,7 @@ export function OutcomeTabs({
 	return (
 		<OutcomeProvider value={outcome}>
 			<Tabs defaultValue="free-to-spend" className="grid-cols-[minmax(0,1fr)]">
-				<TabsList aria-label="Charts" className="max-w-full overflow-x-auto [scrollbar-width:none]">
+				<TabsList aria-label="Charts">
 					<TabsTrigger value="free-to-spend">Free to Spend</TabsTrigger>
 					<TabsTrigger value="projected-balance">Projected balance</TabsTrigger>
 					<TabsTrigger value="each-month">Each month</TabsTrigger>

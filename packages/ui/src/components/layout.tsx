@@ -22,14 +22,11 @@ const RAIL_INSET = 24;
 function PageLayout({
 	width = "full",
 	columns = 1,
-	spacing = "default",
 	className,
 	...props
 }: React.ComponentProps<"div"> & {
 	width?: "full" | "reading";
 	columns?: 1 | 2;
-	/** `tight` sets a dashboard's cards closer than the gutter (Reports). */
-	spacing?: "default" | "tight";
 }) {
 	return (
 		<div
@@ -37,7 +34,7 @@ function PageLayout({
 			className={cn(
 				// minmax(0,1fr): a wide child scrolls or wraps in itself rather than widening the page.
 				"grid grid-cols-[minmax(0,1fr)]",
-				spacing === "tight" ? "gap-4 lg:gap-5" : "gap-(--layout-gap)",
+				"gap-(--layout-gap)",
 				width === "reading" && "max-w-(--reading-width)",
 				columns === 2 && "lg:grid-cols-2 lg:items-start",
 				className,

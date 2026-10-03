@@ -93,7 +93,11 @@ export function Suggested({
 	);
 	if (open.length === 0) return null;
 	return (
-		<Card className={cn("grid gap-3 p-4", className)} aria-labelledby={id} data-testid="suggested">
+		<Card
+			className={cn("grid gap-3 p-(--card-pad)", className)}
+			aria-labelledby={id}
+			data-testid="suggested"
+		>
 			<h2 id={id} className="font-semibold text-base">
 				Suggested
 			</h2>

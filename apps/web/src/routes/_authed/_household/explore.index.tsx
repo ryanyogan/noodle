@@ -415,7 +415,7 @@ function Explore({ search }: { search: ExploreSearch }) {
 				{/* Beside the Changes, the outcome takes the wide column and stays in view while it fits
 				    the window (what SplitRail does, whichever column it is in); taller, it scrolls with the
 				    page. On phones its parts sit in the page, the totals last. */}
-				<SplitRail className="lg:gap-4">
+				<SplitRail>
 					<ToggleGroup
 						type="single"
 						aria-label="Look ahead"
