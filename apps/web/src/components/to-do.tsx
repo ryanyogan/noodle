@@ -96,7 +96,9 @@ export function ToDo({ className, items }: { className?: string; items: ToDoItem
 												)}
 											/>
 										</RowButton>
-										{item.action ? <div className="shrink-0 pe-4 empty:hidden">{item.action}</div> : null}
+										{item.action ? (
+											<div className="shrink-0 pe-4 empty:hidden">{item.action}</div>
+										) : null}
 									</div>
 								)}
 								<div
