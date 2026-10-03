@@ -34,7 +34,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
 	return (
-		<ClerkProvider>
+		<ClerkProvider
+			signInUrl="/sign-in"
+			signUpUrl="/sign-up"
+			// Only a development instance shows the orange "Development mode" band. Hidden, local and
+			// E2E look and measure as production does.
+			appearance={{ options: { unsafe_disableDevelopmentModeWarnings: true } }}
+		>
 			{/* The inline script below sets data-sidebar-state on it before React hydrates. */}
 			<html lang="en" suppressHydrationWarning>
 				<head>

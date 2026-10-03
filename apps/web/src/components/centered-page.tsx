@@ -1,7 +1,7 @@
 import { Logo } from "@noodle/ui/components/logo";
 import type { ReactNode } from "react";
 
-/** The frame for pages outside the app shell: landing, sign in, and creating or joining a Household. */
+/** The frame for pages outside the app shell: creating or joining a Household. */
 export function CenteredPage({ children }: { children: ReactNode }) {
 	return (
 		<main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-(--gutter) pt-[calc(env(safe-area-inset-top)+24px)] pb-[calc(env(safe-area-inset-bottom)+24px)]">

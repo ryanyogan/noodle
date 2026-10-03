@@ -10,6 +10,7 @@ interface __BaseEnv_Env {
 	AI: Ai;
 	IMAGES: ImagesBinding;
 	CLERK_SIGN_IN_URL: "/sign-in";
+	CLERK_SIGN_UP_URL: "/sign-up";
 	APP_ORIGIN: "https://noodle.yogan.dev";
 	AI_GATEWAY_ID: "default";
 	PLAID_ENV: "sandbox";
@@ -39,7 +40,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "CLERK_SIGN_IN_URL" | "APP_ORIGIN" | "AI_GATEWAY_ID" | "PLAID_ENV" | "VITE_CLERK_PUBLISHABLE_KEY" | "CLERK_SECRET_KEY" | "VAPID_PUBLIC_KEY" | "VAPID_PRIVATE_KEY" | "VAPID_SUBJECT" | "PLAID_CLIENT_ID" | "PLAID_SECRET" | "BANK_CONNECTION_KEY">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "CLERK_SIGN_IN_URL" | "CLERK_SIGN_UP_URL" | "APP_ORIGIN" | "AI_GATEWAY_ID" | "PLAID_ENV" | "VITE_CLERK_PUBLISHABLE_KEY" | "CLERK_SECRET_KEY" | "VAPID_PUBLIC_KEY" | "VAPID_PRIVATE_KEY" | "VAPID_SUBJECT" | "PLAID_CLIENT_ID" | "PLAID_SECRET" | "BANK_CONNECTION_KEY">> {}
 }
 
 // Begin runtime types

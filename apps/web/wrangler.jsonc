@@ -12,6 +12,7 @@
 	"workers_dev": true,
 	"vars": {
 		"CLERK_SIGN_IN_URL": "/sign-in",
+		"CLERK_SIGN_UP_URL": "/sign-up",
 		// The app's own address, for links in emails and the webhook URL given to Plaid.
 		"APP_ORIGIN": "https://noodle.yogan.dev",
 		// Ask's model calls go through this AI Gateway (ADR-0012); "default" is auto-created on first use.

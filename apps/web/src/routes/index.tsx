@@ -1,24 +1,14 @@
-import { Button } from "@noodle/ui/components/button";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight } from "lucide-react";
-import { CenteredHeading, CenteredPage } from "../components/centered-page";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { viewerQuery } from "../queries";
 
+// `/` never renders a page. On the server, before anything is sent, it sends a Parent into the
+// app, to create or join a Household, or to sign in. The installed app opens at /month (the
+// manifest's start_url), which _authed checks the same way.
 export const Route = createFileRoute("/")({
-	component: Landing,
+	beforeLoad: async ({ context }) => {
+		const viewer = await context.queryClient.fetchQuery({ ...viewerQuery(), staleTime: 0 });
+		if (!viewer.signedIn) throw redirect({ href: "/sign-in" });
+		if (!viewer.household) throw redirect({ to: "/welcome" });
+		throw redirect({ to: "/month" });
+	},
 });
-
-function Landing() {
-	return (
-		<CenteredPage>
-			<CenteredHeading title="A calm monthly Plan for your Household.">
-				Know where you stand in half a second, and spend a few minutes a week on the rest.
-			</CenteredHeading>
-			<Button size="lg" className="justify-self-start" asChild>
-				<Link to="/month">
-					Open Noodle
-					<ArrowRight />
-				</Link>
-			</Button>
-		</CenteredPage>
-	);
-}

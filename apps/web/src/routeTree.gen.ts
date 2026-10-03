@@ -16,6 +16,7 @@ import { Route as AuthedJoinedRouteImport } from './routes/_authed/joined'
 import { Route as AuthedSetupRouteImport } from './routes/_authed/setup'
 import { Route as AuthedWelcomeRouteImport } from './routes/_authed/welcome'
 import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
+import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
 import { Route as AuthedHouseholdAccountsRouteImport } from './routes/_authed/_household/accounts'
 import { Route as AuthedHouseholdAskRouteImport } from './routes/_authed/_household/ask'
 import { Route as AuthedHouseholdCheckInRouteImport } from './routes/_authed/_household/check-in'
@@ -92,6 +93,11 @@ const AuthedWelcomeRoute = AuthedWelcomeRouteImport.update({
 const SignInSplatRoute = SignInSplatRouteImport.update({
   id: '/sign-in/$',
   path: '/sign-in/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignUpSplatRoute = SignUpSplatRouteImport.update({
+  id: '/sign-up/$',
+  path: '/sign-up/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthedHouseholdAccountsRoute = AuthedHouseholdAccountsRouteImport.update({
@@ -354,6 +360,7 @@ export interface FileRoutesByFullPath {
   '/setup': typeof AuthedSetupRoute
   '/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
+  '/sign-up/$': typeof SignUpSplatRoute
   '/accounts': typeof AuthedHouseholdAccountsRouteWithChildren
   '/ask': typeof AuthedHouseholdAskRoute
   '/check-in': typeof AuthedHouseholdCheckInRoute
@@ -405,6 +412,7 @@ export interface FileRoutesByTo {
   '/setup': typeof AuthedSetupRoute
   '/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
+  '/sign-up/$': typeof SignUpSplatRoute
   '/accounts': typeof AuthedHouseholdAccountsRouteWithChildren
   '/ask': typeof AuthedHouseholdAskRoute
   '/check-in': typeof AuthedHouseholdCheckInRoute
@@ -454,6 +462,7 @@ export interface FileRoutesById {
   '/_authed/setup': typeof AuthedSetupRoute
   '/_authed/welcome': typeof AuthedWelcomeRoute
   '/sign-in/$': typeof SignInSplatRoute
+  '/sign-up/$': typeof SignUpSplatRoute
   '/_authed/_household/accounts': typeof AuthedHouseholdAccountsRouteWithChildren
   '/_authed/_household/ask': typeof AuthedHouseholdAskRoute
   '/_authed/_household/check-in': typeof AuthedHouseholdCheckInRoute
@@ -507,6 +516,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/welcome'
     | '/sign-in/$'
+    | '/sign-up/$'
     | '/accounts'
     | '/ask'
     | '/check-in'
@@ -558,6 +568,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/welcome'
     | '/sign-in/$'
+    | '/sign-up/$'
     | '/accounts'
     | '/ask'
     | '/check-in'
@@ -606,6 +617,7 @@ export interface FileRouteTypes {
     | '/_authed/setup'
     | '/_authed/welcome'
     | '/sign-in/$'
+    | '/sign-up/$'
     | '/_authed/_household/accounts'
     | '/_authed/_household/ask'
     | '/_authed/_household/check-in'
@@ -656,6 +668,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthedRoute: typeof AuthedRouteWithChildren
   SignInSplatRoute: typeof SignInSplatRoute
+  SignUpSplatRoute: typeof SignUpSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -707,6 +720,13 @@ declare module '@tanstack/react-router' {
       path: '/sign-in/$'
       fullPath: '/sign-in/$'
       preLoaderRoute: typeof SignInSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-up/$': {
+      id: '/sign-up/$'
+      path: '/sign-up/$'
+      fullPath: '/sign-up/$'
+      preLoaderRoute: typeof SignUpSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authed/_household/accounts': {
@@ -1290,6 +1310,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthedRoute: AuthedRouteWithChildren,
   SignInSplatRoute: SignInSplatRoute,
+  SignUpSplatRoute: SignUpSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

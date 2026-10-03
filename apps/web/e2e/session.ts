@@ -24,7 +24,8 @@ export async function signedInPage(
 ): Promise<Page> {
 	const page = await (await browser.newContext(options)).newPage();
 	await setupClerkTestingToken({ page });
-	await page.goto("/");
+	// `/` would redirect here anyway: sign-in is the one page that loads Clerk without signing in.
+	await page.goto("/sign-in");
 	await clerk.signIn({ page, emailAddress: email });
 	return page;
 }
