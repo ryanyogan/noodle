@@ -88,15 +88,9 @@ test("the list stays put, keeps its scroll and marks its item while the detail c
 	expect(await list(page).evaluate((pane) => pane.scrollTop)).toBe(top);
 	await axe(page, "A Bucket beside its list");
 
-	// Previous and next, in the list's order.
-	await expect(detail(page).getByRole("link", { name: "Next Bucket" })).toBeDisabled();
-	await detail(page).getByRole("link", { name: "Previous Bucket" }).click();
-	await expect(title(page)).toHaveText("Fund 11");
-	await expect(picked(page)).toHaveText("Fund 11");
-	await detail(page).getByRole("link", { name: "Next Bucket" }).click();
-	await expect(title(page)).toHaveText("Fund 12");
-	await expect(list(page)).toHaveAttribute("data-kept", "yes");
-	expect(await list(page).evaluate((pane) => pane.scrollTop)).toBe(top);
+	// The list beside it is the way between Buckets (#73): no Back and no previous and next here.
+	await expect(detail(page).locator("[data-slot=detail-pager]")).toBeHidden();
+	await expect(page.getByRole("link", { name: "Back to Buckets" })).toHaveCount(0);
 
 	// Esc goes back to the picked row; ↑ and ↓ move along the rows; Enter opens.
 	await page.keyboard.press("Escape");
@@ -113,8 +107,8 @@ test("the list stays put, keeps its scroll and marks its item while the detail c
 	await expect(picked(page)).toHaveText("Fund 11");
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
 
-	// Back closes the item: the add form is one step away.
-	await page.getByRole("link", { name: "Back to Buckets" }).click();
+	// The Buckets tab closes the item: the add form is one step away.
+	await page.getByRole("link", { name: "Buckets", exact: true }).click();
 	await expect(page).toHaveURL(new RegExp(`/plan/${month}/buckets$`));
 	await expect(detail(page)).toContainText("Pick a Bucket to see it here.");
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
@@ -209,8 +203,11 @@ test("Goals and Accounts keep their list beside the picked item", async ({ brows
 	await expect(detail(page)).toHaveAttribute("aria-label", "Goal details");
 	await axe(page, "A Goal beside its list");
 
-	// The other Goal is one step away in the header; Esc returns to the picked row.
-	await detail(page).locator("[data-slot=detail-pager] a:not([aria-disabled=true])").click();
+	// The other Goal is one step away in the list, not repeated in the header; Esc returns to the row.
+	await expect(detail(page).locator("[data-slot=detail-pager]")).toBeHidden();
+	await list(page)
+		.getByRole("link", { name: /^Car, / })
+		.click();
 	await expect(title(page)).toHaveText("Car");
 	await expect(picked(page)).toHaveAccessibleName(/^Car, /);
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
@@ -221,7 +218,8 @@ test("Goals and Accounts keep their list beside the picked item", async ({ brows
 	await page.reload();
 	await expect(title(page)).toHaveText("Car");
 	await expect(picked(page)).toHaveAccessibleName(/^Car, /);
-	await page.getByRole("link", { name: "Back to Goals" }).click();
+	await expect(page.getByRole("link", { name: "Back to Goals" })).toHaveCount(0);
+	await page.getByRole("link", { name: "Goals", exact: true }).first().click();
 	await expect(page).toHaveURL(/\/goals$/);
 	await expect(detail(page)).toContainText("Pick a Goal to see it here.");
 
@@ -249,7 +247,7 @@ test("Goals and Accounts keep their list beside the picked item", async ({ brows
 	await expect(page).toHaveURL(new RegExp(`/accounts/${id}$`));
 	await expect(title(page)).toHaveText("Joint Savings");
 	await expect(picked(page)).toHaveAccessibleName(/^Joint Savings, /);
-	await page.getByRole("link", { name: "Back to Accounts" }).click();
+	await page.getByRole("link", { name: "Accounts", exact: true }).first().click();
 	await expect(detail(page).getByRole("region", { name: "Totals" })).toBeVisible();
 	await page.context().close();
 });
@@ -416,10 +414,11 @@ test("a Rule opens beside the Rules list, and is a page with Back on a phone", a
 	await expect(items).toHaveCount(2);
 	await axe(page, "A Rule beside the list");
 
-	// The other Rule is one step away in the header, and by ↑ and ↓ in the list.
+	// The other Rule is one step away in the list beside it (no pager in the header at desktop).
 	const first = page.url();
 	const firstTitle = await title(page).innerText();
-	await editor.getByRole("link", { name: "Next Rule" }).click();
+	await expect(editor.getByRole("link", { name: "Next Rule" })).toHaveCount(0);
+	await list(page).locator("[data-md-item]:not([aria-current])").click();
 	await expect(page).not.toHaveURL(first);
 	await expect(title(page)).not.toHaveText(firstTitle);
 	await expect(picked(page)).toHaveCount(1);

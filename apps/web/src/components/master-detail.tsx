@@ -122,6 +122,7 @@ export function DetailHeader({
 	leading,
 	actions,
 	pager,
+	listBeside,
 }: {
 	eyebrow?: ReactNode;
 	title: ReactNode;
@@ -129,10 +130,16 @@ export function DetailHeader({
 	leading?: ReactNode;
 	actions?: ReactNode;
 	pager?: ReactNode;
+	/**
+	 * From lg the list is on screen beside this item, and is the way to it and between items (#73):
+	 * Back and previous/next show only below lg, where the item is a page of its own.
+	 */
+	listBeside?: boolean;
 }) {
+	const phoneOnly = listBeside ? "lg:hidden" : undefined;
 	return (
 		<header data-slot="detail-header" className="mb-6 flex flex-wrap items-center gap-x-2 gap-y-1">
-			{leading}
+			{leading ? <div className={cn("flex", phoneOnly)}>{leading}</div> : null}
 			{/* At least ~12 characters of title: past that the actions drop to their own row (#65). */}
 			<div className="min-w-0 flex-1 basis-36">
 				{eyebrow ? (
@@ -147,7 +154,7 @@ export function DetailHeader({
 			</div>
 			<div className="ms-auto flex items-center gap-1">
 				{actions}
-				{pager}
+				{pager ? <div className={cn("flex", phoneOnly)}>{pager}</div> : null}
 			</div>
 		</header>
 	);

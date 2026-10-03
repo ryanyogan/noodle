@@ -61,6 +61,12 @@ const aligned = [
 	"/reports",
 	"/reports?view=spending",
 	"/insights",
+	// The list-and-detail pages (73e).
+	`/plan/${month}/buckets`,
+	`/plan/${month}/commitments`,
+	"/goals",
+	"/accounts",
+	"/review/rules",
 ];
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;

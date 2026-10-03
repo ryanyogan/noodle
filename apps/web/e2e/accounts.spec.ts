@@ -74,12 +74,12 @@ test("Accounts are their own area, and each Goal names the Account holding it", 
 	await trip.click();
 	await page.getByRole("link", { name: "Joint Savings", exact: true }).click();
 
-	// The Account's page lives under Accounts, and back goes to Accounts.
+	// The Account's page lives under Accounts; the Sidebar's Accounts closes it.
 	await expect(page.locator("[data-slot=detail-title]")).toContainText("Joint Savings");
 	await expect(page).toHaveURL(/\/accounts\/[^/]+$/);
 	await expect(page.getByRole("link", { name: "Trip, $500 set aside" })).toBeVisible();
 	const accountPath = new URL(page.url()).pathname;
-	await page.getByRole("link", { name: "Back to Accounts" }).click();
+	await page.getByRole("link", { name: "Accounts", exact: true }).first().click();
 	await expect(heading(page)).toHaveText("Accounts");
 	await expect(savings).toContainText("Set aside $500 · Not set aside $7,500");
 

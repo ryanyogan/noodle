@@ -37,7 +37,7 @@ function RulePane() {
 	if (!rule) {
 		return (
 			<>
-				<DetailHeader title="Rule" leading={back} />
+				<DetailHeader listBeside title="Rule" leading={back} />
 				<p className="text-sm text-muted-foreground">This Rule isn’t here any more.</p>
 			</>
 		);
@@ -45,6 +45,7 @@ function RulePane() {
 	return (
 		<div className="max-w-xl">
 			<DetailHeader
+				listBeside
 				eyebrow={rule.private ? "Rule · only you see it" : "Rule"}
 				title={`“${rule.pattern}”`}
 				leading={back}

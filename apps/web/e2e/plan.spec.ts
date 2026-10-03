@@ -118,7 +118,7 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 	await expect(details).toBeHidden();
 	await expect(page.locator("[data-slot=detail-header]")).toContainText("Kids’ hockey");
 	// Moved in the list, by its handle and the arrow keys; saved at once.
-	await page.getByRole("link", { name: "Back to Buckets" }).click();
+	await page.getByRole("link", { name: "Buckets", exact: true }).click();
 	const moved = savedBy(page, "reorderBuckets");
 	await page.getByRole("button", { name: "Move Kids’ hockey" }).focus();
 	await page.keyboard.press("ArrowUp");
@@ -133,7 +133,7 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 	await editBucket(page, "Kids’ hockey");
 	await expect(page.getByRole("radio", { name: "Green" })).toBeChecked();
 	await page.keyboard.press("Escape");
-	await page.getByRole("link", { name: "Back to Buckets" }).click();
+	await page.getByRole("link", { name: "Buckets", exact: true }).click();
 	await backToPlan(page);
 	await expect(freeToSpend(page)).toHaveText("Free to Spend$7,349.50");
 
@@ -156,7 +156,7 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 	await page.getByRole("button", { name: "Archive", exact: true }).click();
 	await page.getByRole("button", { name: "Archive Groceries" }).click();
 	await expect(page.locator("[data-slot=detail-header]")).toContainText("Archived Bucket");
-	await page.getByRole("link", { name: "Back to Buckets" }).click();
+	await page.getByRole("link", { name: "Buckets", exact: true }).click();
 	await expect(page.getByRole("button", { name: "Edit Groceries" })).toHaveCount(0);
 	await backToPlan(page);
 	await expect(freeToSpend(page)).toHaveText("Free to Spend$8,600");

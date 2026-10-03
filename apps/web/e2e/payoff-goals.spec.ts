@@ -153,7 +153,7 @@ test("a card is paid off with a payoff Goal: added from what's owed, funded, pai
 	await owedCard(page).getByRole("button", { name: "Complete" }).click();
 	await completed;
 	await expect(page.getByText("Completed. Nicely done.")).toBeVisible();
-	await page.getByRole("link", { name: "Back to Goals" }).click();
+	await page.getByRole("link", { name: "Goals", exact: true }).first().click();
 	const done = page.getByRole("region", { name: /^Completed/ });
 	await expect(done.getByRole("link", { name: /^Pay off Visa, / })).toContainText("Paid off");
 	await page.context().close();

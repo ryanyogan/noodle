@@ -81,12 +81,14 @@ function CommitmentPage() {
 	const commitment = data.commitments.find((c) => c.id === id);
 	const back = <BackToCommitments month={month} />;
 	// A Commitment only goes away if another Parent's change removes it; the loader 404s on reload.
-	if (!commitment) return <DetailHeader eyebrow="Commitment" title="Commitment" leading={back} />;
+	if (!commitment)
+		return <DetailHeader listBeside eyebrow="Commitment" title="Commitment" leading={back} />;
 	const terms = currentTerms(data, id, month);
 	const ended = commitment.endedFromMonth !== null && commitment.endedFromMonth <= month;
 	return (
 		<>
 			<DetailHeader
+				listBeside
 				pager={
 					<DetailPager
 						ids={order}

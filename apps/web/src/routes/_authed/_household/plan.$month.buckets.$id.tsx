@@ -87,7 +87,7 @@ function BucketPage() {
 	const back = <BackToBuckets month={month} />;
 	const record = data.bucket;
 	// A Bucket only goes away if another Parent's change removes it; the loader 404s on reload.
-	if (!record) return <DetailHeader eyebrow="Bucket" title="Bucket" leading={back} />;
+	if (!record) return <DetailHeader listBeside eyebrow="Bucket" title="Bucket" leading={back} />;
 	// This month's Bucket, with any edit not saved yet; none once it's archived (or not started).
 	const current = state.buckets.find((b) => b.id === id);
 	const open = isOpenTo(record, parentId);
@@ -104,6 +104,7 @@ function BucketPage() {
 	return (
 		<>
 			<DetailHeader
+				listBeside
 				pager={
 					<DetailPager
 						ids={state.buckets.filter((b) => isOpenTo(b, parentId) || b.owner).map((b) => b.id)}
@@ -184,7 +185,7 @@ function BucketPage() {
 							<SectionHeader id="allowance-history" title="Allowance history" />
 							<PlanHistoryList month={month} targetId={id} />
 						</Section>
-						<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border px-(--card-pad) py-2.5 text-[13px] text-muted-foreground">
+						<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-(--radius-card) border px-(--card-pad) py-3 text-[13px] text-muted-foreground">
 							<p className="py-1">Compare planned and spent for any period</p>
 							<Button variant="outline" size="sm" asChild>
 								<Link to="/reports" search={{ view: "plan", period: "12m", buckets: [id] }}>
