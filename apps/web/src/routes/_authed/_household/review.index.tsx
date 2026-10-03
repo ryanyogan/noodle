@@ -15,31 +15,49 @@ import { Kbd } from "@noodle/ui/components/kbd";
 import type { Choices } from "@noodle/ui/components/select";
 import { Tile } from "@noodle/ui/components/tile";
 import { toast } from "@noodle/ui/components/toast";
+import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated, useNavigate } from "@tanstack/react-router";
-import { Check, CheckCheck, Pencil, RefreshCw, Sparkles } from "lucide-react";
-import { Suspense, useEffect, useState } from "react";
+import {
+	Check,
+	CheckCheck,
+	Layers,
+	List,
+	Pencil,
+	RefreshCw,
+	SkipForward,
+	Sparkles,
+	Undo2,
+} from "lucide-react";
+import { Suspense, useEffect, useReducer, useState } from "react";
 import { ulid } from "ulid";
+import { z } from "zod";
 import { asBucketColor, monogram } from "../../../buckets";
 import { ReviewMatchOffer } from "../../../components/match-section";
 import { SectionPending } from "../../../components/section-layout";
+import { SwipeCard } from "../../../components/swipe-card";
 import { TermHelp } from "../../../components/term-help";
 import { TransactionEditor } from "../../../components/transaction-editor";
 import { dayName, formatMoney, monthName } from "../../../format";
 import { forLabel, type MemberSummary } from "../../../members";
+import { useReducedMotion } from "../../../motion";
 import { membersQuery, monthQuery, reviewQuery } from "../../../queries";
 import {
 	type ReviewDecision,
 	type ReviewItem,
 	useConfirmAll,
 	useLookAgain,
+	useReturnToReview,
 	useReviewDecision,
 	useSaveRule,
 } from "../../../review";
+import { stackOrder, stackReducer, startStack } from "../../../review-stack";
 import { monthOfTransaction, type TransactionChange } from "../../../transactions";
 
 export const Route = createFileRoute("/_authed/_household/review/")({
+	// Sort (one card at a time) unless the list is asked for (#68).
+	validateSearch: z.object({ view: z.enum(["list"]).optional().catch(undefined) }),
 	beforeLoad: ({ context }) => ({
 		current: monthKeyAt(new Date(), context.household.timeZone),
 	}),
@@ -98,6 +116,9 @@ function placesIn(plan: Plan, parentId: string) {
  * Review: what categorization wasn't sure where to file, newest first by month. Each card shows
  * Noodle's suggestion and why; Confirm files it there, and picking another files it there instead.
  * Either then offers a Rule, so the merchant is filed on its own next time.
+ *
+ * Two views over the same cards and the same decisions (#68): Sort, one card at a time on a stack
+ * that can be swiped, with Skip and Undo; and the list, for scanning and batch work.
  */
 function ReviewPage() {
 	const { current, parentId } = Route.useRouteContext();
@@ -106,6 +127,9 @@ function ReviewPage() {
 	const today = useSuspenseQuery(monthQuery(current)).data.asOf;
 	const [cursor, setCursor] = useState<string | null>(null);
 	const [changing, setChanging] = useState<ReviewItem | null>(null);
+	const [stack, dispatch] = useReducer(stackReducer<ReviewItem>, startStack<ReviewItem>());
+	const sorting = Route.useSearch().view !== "list";
+	const reduced = useReducedMotion();
 	const navigate = useNavigate();
 	// From lg the Transaction opens at its own address, beside its month's list (#67); on a phone,
 	// in a sheet here.
@@ -119,6 +143,7 @@ function ReviewPage() {
 	};
 	const decide = useReviewDecision();
 	const confirmAll = useConfirmAll();
+	const returnCard = useReturnToReview();
 	const saveRule = useSaveRule();
 	const lookAgain = useLookAgain();
 	const hydrated = useHydrated();
@@ -127,6 +152,23 @@ function ReviewPage() {
 	const cards = months.flatMap(([, items]) => items);
 	const top = cards.find((item) => item.id === cursor) ?? cards[0] ?? null;
 	const guessed = cards.filter((item) => item.guess);
+	const order = stackOrder(cards, stack);
+	/** The card the keys act on: the stack's top, or the list's outlined card. */
+	const active = sorting ? (order[0] ?? null) : top;
+	// Undo waits for the save it would undo, so the two can't cross.
+	const canUndo =
+		stack.history.length > 0 && !decide.isPending && !confirmAll.isPending && !returnCard.isPending;
+	/** A failed save: its cards are back in Review, and back on top of the stack. */
+	const failed = (items: ReviewItem[]) => ({
+		onError: () => dispatch({ type: "failed", items }),
+	});
+
+	function undo() {
+		const last = stack.history.at(-1);
+		if (!last || !canUndo) return;
+		for (const item of last) returnCard.mutate(item);
+		dispatch({ type: "undone" });
+	}
 
 	/** "Always file <merchant> in <Bucket>?", after a card is filed in a Bucket. */
 	function offerRule(
@@ -163,7 +205,8 @@ function ReviewPage() {
 		const decision = confirmed(item);
 		if (!decision || !item.guess) return openPicker(item);
 		moveOn(item);
-		decide.mutate(decision);
+		dispatch({ type: "decided", items: [item] });
+		decide.mutate(decision, failed([item]));
 		const { bucketId, name } = item.guess;
 		const plan = queryClient.getQueryData(monthQuery(monthOfTransaction(item)).queryKey)?.plan;
 		const owner = plan?.buckets.find((b) => b.id === bucketId)?.owner;
@@ -177,11 +220,20 @@ function ReviewPage() {
 		const bucket = kind === "bucket" ? plan.buckets.find((b) => b.id === id) : undefined;
 		const name = bucket?.name ?? plan.commitments.find((c) => c.id === id)?.name ?? null;
 		moveOn(item);
-		decide.mutate({
-			item,
-			next: { amountCents: item.amountCents, note: item.note, assignment, forMemberIds: item.for },
-			placeName: name ?? "its Commitment",
-		});
+		dispatch({ type: "decided", items: [item] });
+		decide.mutate(
+			{
+				item,
+				next: {
+					amountCents: item.amountCents,
+					note: item.note,
+					assignment,
+					forMemberIds: item.for,
+				},
+				placeName: name ?? "its Commitment",
+			},
+			failed([item]),
+		);
 		if (bucket) offerRule(item, bucket, item.for);
 	}
 
@@ -197,29 +249,41 @@ function ReviewPage() {
 			decision.placeName = bucket?.name ?? "its Commitment";
 		}
 		moveOn(item);
-		decide.mutate(decision);
+		dispatch({ type: "decided", items: [item] });
+		decide.mutate(decision, failed([item]));
 		if (bucket && next && "assignment" in next) offerRule(item, bucket, next.forMemberIds);
 	}
 
 	function confirmEach(items: ReviewItem[]) {
 		const decisions = items.flatMap((item) => confirmed(item) ?? []);
-		if (decisions.length > 0) confirmAll.mutate(decisions);
+		if (decisions.length === 0) return;
+		const taken = decisions.map((decision) => decision.item);
+		dispatch({ type: "decided", items: taken });
+		confirmAll.mutate(decisions, failed(taken));
 	}
 
 	function skip(item: ReviewItem) {
+		if (sorting) return dispatch({ type: "skipped", id: item.id });
 		const at = cards.findIndex((card) => card.id === item.id);
 		setCursor((cards[at + 1] ?? cards[0])?.id ?? null);
 	}
 
-	// → or Enter confirms, ← changes, ↓ skips; not while typing or while the editor is open.
+	// → or Enter confirms, ← changes, ↓ skips, Z (or ⌘Z) undoes in Sort; not while typing or
+	// while the editor is open.
 	useEffect(() => {
-		if (!top || changing) return;
+		if (changing) return;
 		function onKey(event: KeyboardEvent) {
-			if (!top || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
 			const target = event.target as HTMLElement | null;
-			if (target?.closest("input, select, textarea, [role=dialog], [contenteditable=true]")) {
-				return;
+			const typing = target?.closest(
+				"input, select, textarea, [role=dialog], [contenteditable=true]",
+			);
+			if (sorting && !typing && event.key.toLowerCase() === "z" && !event.altKey) {
+				if (event.shiftKey || (event.metaKey && event.ctrlKey)) return;
+				event.preventDefault();
+				return undo();
 			}
+			if (!active || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+			if (typing) return;
 			// A focused button or link answers keys itself: Enter on a card's button or the Rules
 			// link mustn't also confirm the card, nor an arrow move it on.
 			// The sidebar's links don't count: arriving from one, the keys work at once.
@@ -234,7 +298,7 @@ function ReviewPage() {
 							: null;
 			if (!act) return;
 			event.preventDefault();
-			act(top);
+			act(active);
 		}
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
@@ -275,60 +339,172 @@ function ReviewPage() {
 										Look again
 									</Button>
 								) : null}
+								<ToggleGroup
+									type="single"
+									variant="segmented"
+									size="sm"
+									aria-label="Show"
+									className="grid w-full grid-cols-2 sm:ml-auto sm:flex sm:w-auto"
+									value={sorting ? "sort" : "list"}
+									disabled={!hydrated}
+									onValueChange={(value) => {
+										if (!value) return;
+										void navigate({
+											to: "/review",
+											search: value === "list" ? { view: "list" } : {},
+											replace: true,
+										});
+									}}
+								>
+									<ToggleGroupItem value="sort" className="min-w-0">
+										<Layers aria-hidden="true" />
+										One by one
+									</ToggleGroupItem>
+									<ToggleGroupItem value="list" className="min-w-0">
+										<List aria-hidden="true" />
+										List
+									</ToggleGroupItem>
+								</ToggleGroup>
 							</div>
 						</div>
-						{months.map(([month, items]) => (
-							<section key={month} aria-labelledby={`review-month-${month}`} className="grid gap-3">
-								<h2
-									id={`review-month-${month}`}
-									className="text-sm font-semibold text-muted-foreground"
-								>
-									{monthName(month)}
-									{month.slice(0, 4) === current.slice(0, 4) ? "" : ` ${month.slice(0, 4)}`}
-								</h2>
-								{items.map((item) => {
-									const same = guessed.filter((other) => other.merchant === item.merchant);
-									return (
-										<div key={item.id} className="grid gap-3">
-											{item.id === top.id ? <ReviewMatchOffer transaction={item} /> : null}
-											<ReviewCard
-												item={item}
-												today={today}
-												members={members}
-												parentId={parentId}
-												current={item.id === top.id}
-												hydrated={hydrated}
-												sameMerchant={item.guess && same.length > 1 ? same : []}
-												onFocus={() => setCursor(item.id)}
-												onConfirm={() => confirm(item)}
-												onPick={(value, plan) => file(item, value, plan)}
-												onEdit={() => onEdit(item)}
-												onConfirmAll={(items) => confirmEach(items)}
-											/>
-										</div>
-									);
-								})}
-							</section>
-						))}
-						<p className="hidden text-center text-xs text-muted-foreground lg:block">
-							<Key name="Right arrow">→</Key> or <Key>Enter</Key> to confirm,{" "}
-							<Key name="Left arrow">←</Key> to change, <Key name="Down arrow">↓</Key> to skip
-						</p>
+						{sorting && order[0] ? (
+							<div data-testid="review-stack" className="grid gap-3">
+								<p className="text-sm text-muted-foreground tabular-nums">
+									{stack.done + 1} of {stack.done + order.length}
+								</p>
+								<ReviewMatchOffer key={order[0].id} transaction={order[0]} />
+								<div className="relative pb-4">
+									{/* The cards waiting behind this one, as edges. */}
+									{order.length > 2 ? (
+										<div
+											aria-hidden="true"
+											className="absolute inset-x-6 bottom-0 h-12 rounded-2xl bg-card/60 ring-1 ring-border"
+										/>
+									) : null}
+									{order.length > 1 ? (
+										<div
+											aria-hidden="true"
+											className="absolute inset-x-3 bottom-2 h-12 rounded-2xl bg-card ring-1 ring-border"
+										/>
+									) : null}
+									<SwipeCard
+										// A fresh card, undragged, for each Transaction on top.
+										key={order[0].id}
+										enabled={hydrated && !reduced}
+										rightLabel={order[0].guess ? `${order[0].guess.name} ✓` : "Pick where it goes"}
+										leftLabel="Pick another"
+										onRight={() => confirm(order[0] as ReviewItem)}
+										onLeft={() => openPicker(order[0] as ReviewItem)}
+									>
+										<ReviewCard
+											item={order[0]}
+											today={today}
+											members={members}
+											parentId={parentId}
+											current
+											hydrated={hydrated}
+											sameMerchant={[]}
+											onFocus={() => {}}
+											onConfirm={() => confirm(order[0] as ReviewItem)}
+											onPick={(value, plan) => file(order[0] as ReviewItem, value, plan)}
+											onEdit={() => onEdit(order[0] as ReviewItem)}
+											onConfirmAll={(items) => confirmEach(items)}
+										/>
+									</SwipeCard>
+								</div>
+								<div className="grid grid-cols-2 gap-2">
+									<Button
+										variant="outline"
+										disabled={!hydrated || order.length < 2}
+										onClick={() => skip(order[0] as ReviewItem)}
+									>
+										<SkipForward />
+										Skip
+									</Button>
+									<Button variant="outline" disabled={!hydrated || !canUndo} onClick={undo}>
+										<Undo2 />
+										Undo
+									</Button>
+								</div>
+								<p className="hidden text-center text-xs text-muted-foreground lg:block">
+									<Key name="Right arrow">→</Key> or <Key>Enter</Key> to confirm,{" "}
+									<Key name="Left arrow">←</Key> to pick another, <Key name="Down arrow">↓</Key> to
+									skip, <Key>Z</Key> to undo
+								</p>
+								{hydrated && !reduced ? (
+									<p className="text-center text-xs text-muted-foreground lg:hidden">
+										Swipe right to confirm, left to pick another
+									</p>
+								) : null}
+							</div>
+						) : (
+							<>
+								{months.map(([month, items]) => (
+									<section
+										key={month}
+										aria-labelledby={`review-month-${month}`}
+										className="grid gap-3"
+									>
+										<h2
+											id={`review-month-${month}`}
+											className="text-sm font-semibold text-muted-foreground"
+										>
+											{monthName(month)}
+											{month.slice(0, 4) === current.slice(0, 4) ? "" : ` ${month.slice(0, 4)}`}
+										</h2>
+										{items.map((item) => {
+											const same = guessed.filter((other) => other.merchant === item.merchant);
+											return (
+												<div key={item.id} className="grid gap-3">
+													{item.id === top.id ? <ReviewMatchOffer transaction={item} /> : null}
+													<ReviewCard
+														item={item}
+														today={today}
+														members={members}
+														parentId={parentId}
+														current={item.id === top.id}
+														hydrated={hydrated}
+														sameMerchant={item.guess && same.length > 1 ? same : []}
+														onFocus={() => setCursor(item.id)}
+														onConfirm={() => confirm(item)}
+														onPick={(value, plan) => file(item, value, plan)}
+														onEdit={() => onEdit(item)}
+														onConfirmAll={(items) => confirmEach(items)}
+													/>
+												</div>
+											);
+										})}
+									</section>
+								))}
+								<p className="hidden text-center text-xs text-muted-foreground lg:block">
+									<Key name="Right arrow">→</Key> or <Key>Enter</Key> to confirm,{" "}
+									<Key name="Left arrow">←</Key> to change, <Key name="Down arrow">↓</Key> to skip
+								</p>
+							</>
+						)}
 					</>
 				) : (
 					<Card className="p-0">
 						<EmptyState
 							icon={<CheckCheck />}
-							title="Nothing to review"
-							description={`${
+							title={stack.done > 0 ? "All sorted" : "Nothing to review"}
+							description={`${stack.done > 0 ? `Nothing to review now. You did ${stack.done}. ` : ""}${
 								queue.filedOnItsOwn > 0
 									? `Noodle filed ${queue.filedOnItsOwn} on its own this month.`
 									: "Noodle filed everything on its own."
 							} Anything it isn’t sure about waits here for you.`}
 							action={
-								<Button variant="outline" size="sm" asChild>
-									<Link to="/transactions">See Transactions</Link>
-								</Button>
+								<div className="flex flex-wrap justify-center gap-2">
+									{stack.history.length > 0 ? (
+										<Button variant="outline" size="sm" disabled={!canUndo} onClick={undo}>
+											<Undo2 />
+											Undo
+										</Button>
+									) : null}
+									<Button variant="outline" size="sm" asChild>
+										<Link to="/transactions">See Transactions</Link>
+									</Button>
+								</div>
 							}
 						/>
 					</Card>

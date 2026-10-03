@@ -216,7 +216,7 @@ test("Review confirms a merchant's cards, or all with a suggestion, with one Und
 		],
 		true,
 	);
-	await page.goto(new URL("/review", thisMonth).href);
+	await page.goto(new URL("/review?view=list", thisMonth).href);
 	await expect(card(page)).toHaveCount(4);
 	await expect(page.getByRole("button", { name: "What’s “Review”?" })).toBeVisible();
 
