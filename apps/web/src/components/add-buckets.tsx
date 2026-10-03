@@ -19,6 +19,7 @@ import { addBuckets } from "../server/plan";
 import {
 	anotherBucket,
 	type BucketRow,
+	belongsOn,
 	bucketsTotal,
 	personalName,
 	personalShare,
@@ -143,7 +144,11 @@ function AddBucketsForm({
 			for (const item of ideas) {
 				const name = item.payload.name;
 				if (usedNames.has(name.toLowerCase())) continue;
-				const row = rows.find((r) => same(r, name));
+				// The same name first, else the starter it's a kind of ("Restaurants" is Dining out), so a
+				// suggestion never sits beside the starter the plan draft fills from history.
+				const row =
+					rows.find((r) => same(r, name)) ??
+					rows.find((r) => !r.suggestionId && belongsOn(r, name));
 				if (row?.suggestionId === item.id) continue;
 				if (!row) {
 					fresh.push({
@@ -161,7 +166,7 @@ function AddBucketsForm({
 					});
 					continue;
 				}
-				// A starter of the same name (Pets) becomes the suggested row, at the top.
+				// A starter of the same name (Pets) or kind becomes the suggested row, at the top.
 				const marked: BucketRow = row.touched
 					? { ...row, suggestionId: item.id }
 					: {

@@ -1,6 +1,12 @@
 import type { DraftBucket } from "@noodle/domain";
 import { describe, expect, test } from "vitest";
-import { personalShare, sheetStarters, startingBuckets, withSpending } from "./starter-buckets";
+import {
+	belongsOn,
+	personalShare,
+	sheetStarters,
+	startingBuckets,
+	withSpending,
+} from "./starter-buckets";
 
 const format = (cents: number) => (cents / 100).toFixed(0);
 const draft = (key: string, name: string, allowance: number): DraftBucket => ({
@@ -92,5 +98,19 @@ describe("the Add Buckets sheet's suggestions (#57)", () => {
 			"Travel",
 		);
 		expect(personalShare(100_000)).toBe(4_000);
+	});
+});
+
+describe("where a suggested Bucket lands in the sheet (#58)", () => {
+	const rows = sheetStarters([], [], 0, (c) => String(c / 100));
+	const dining = rows.find((row) => row.key === "dining");
+	test("a kind of starter lands on that starter, so it never sits beside it", () => {
+		expect(dining && belongsOn(dining, "Restaurants")).toBe(true);
+		expect(dining && belongsOn(dining, "dining out")).toBe(true);
+		expect(dining && belongsOn(dining, "Vet")).toBe(false);
+	});
+	test("a starter someone typed in keeps only its own name", () => {
+		expect(dining && belongsOn({ ...dining, touched: true }, "Restaurants")).toBe(false);
+		expect(dining && belongsOn({ ...dining, touched: true }, "Dining out")).toBe(true);
 	});
 });

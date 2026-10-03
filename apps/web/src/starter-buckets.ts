@@ -322,6 +322,17 @@ export function sheetStarters(
 	return withSpending(scaleBuckets(rows, leftCents, format), used, draft, format);
 }
 
+/**
+ * Whether a found name (a draft Bucket, a suggested one) belongs on this row: the same name, or a
+ * starter nobody typed in whose kind it is ("Restaurants" belongs on Dining out).
+ */
+export function belongsOn(row: BucketRow, name: string): boolean {
+	if (row.personal) return false;
+	if (norm(row.name) === norm(name)) return true;
+	const starter = STARTER_BUCKETS.find((s) => s.key === row.key);
+	return !row.touched && (starter?.also?.test(name) ?? false);
+}
+
 /** The plan draft's Buckets merged into the sheet's rows, leaving out what the Plan already has. */
 export const withSpending = (
 	rows: BucketRow[],
