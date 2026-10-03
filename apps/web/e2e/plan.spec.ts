@@ -47,7 +47,7 @@ async function backToPlan(page: Page) {
 async function addBucket(page: Page, name: string, amount: string) {
 	await page.getByLabel("New Bucket").fill(name);
 	await page.getByLabel("Monthly allowance").fill(amount);
-	await page.getByRole("button", { name: "Add Bucket" }).click();
+	await page.getByRole("button", { name: "Add Bucket", exact: true }).click();
 	await expect(page.getByRole("button", { name: `Edit ${name}` })).toBeVisible();
 }
 

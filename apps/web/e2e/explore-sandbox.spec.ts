@@ -80,7 +80,7 @@ test("a Parent tweaks the Plan in a sandbox: amounts, new things, date ranges an
 	await expect(page.getByText(/^Projected balance at its lowest \$3,400 in /)).toBeVisible();
 
 	// A new Bucket at $200 a month.
-	await page.getByRole("button", { name: "Add Bucket" }).click();
+	await page.getByRole("button", { name: "Add Bucket", exact: true }).click();
 	const bucket = page.getByRole("form", { name: "New Bucket" });
 	await bucket.getByRole("textbox", { name: "Name" }).fill("Swim");
 	await bucket.getByRole("textbox", { name: "Allowance" }).fill("200");

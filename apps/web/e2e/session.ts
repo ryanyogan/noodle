@@ -100,7 +100,7 @@ export async function createPlannedHousehold(
 		await page.getByLabel("Monthly allowance").fill(allowance);
 		// Let each save land before leaving the Plan.
 		const saved = savedBy(page, "addBucket");
-		await page.getByRole("button", { name: "Add Bucket" }).click();
+		await page.getByRole("button", { name: "Add Bucket", exact: true }).click();
 		await expect(page.getByRole("button", { name: `Edit ${name}` })).toBeVisible();
 		await saved;
 	}

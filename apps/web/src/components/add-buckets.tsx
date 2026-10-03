@@ -342,9 +342,10 @@ function SheetRow({
 					}}
 				/>
 			</div>
-			{row.personal && row.suggested !== "spending" ? null : (
+			{/* Unticked rows stay one line; ticking one shows whether it carries over. */}
+			{(row.personal || !row.kept) && row.suggested !== "spending" ? null : (
 				<div className="flex flex-wrap items-center gap-x-4 gap-y-1 ps-9">
-					{row.personal ? null : (
+					{row.personal || !row.kept ? null : (
 						<label htmlFor={`${id}-rolling`} className="flex items-center gap-2 text-[13px]">
 							<Switch
 								id={`${id}-rolling`}

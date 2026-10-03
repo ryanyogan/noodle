@@ -133,7 +133,7 @@ test("Review looks again once the Plan has a Bucket for what waits there", async
 	]) {
 		await page.getByLabel("New Bucket").fill(name as string);
 		await page.getByLabel("Monthly allowance").fill(amount as string);
-		await page.getByRole("button", { name: "Add Bucket" }).click();
+		await page.getByRole("button", { name: "Add Bucket", exact: true }).click();
 		await expect(page.getByRole("button", { name: `Edit ${name}` })).toBeVisible();
 	}
 
