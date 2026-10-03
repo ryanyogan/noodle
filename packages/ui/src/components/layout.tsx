@@ -169,7 +169,9 @@ function Pane({ className, ...props }: React.ComponentProps<"section">) {
 			data-scroll-pane=""
 			tabIndex={focusable ? 0 : undefined}
 			className={cn(
-				"min-w-0 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain",
+				// relative: something absolutely placed inside (an sr-only label) is clipped by the pane
+				// too. Otherwise its containing block is outside the pane, and it lengthens the page.
+				"min-w-0 lg:relative lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain",
 				"focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
 				className,
 			)}
@@ -194,6 +196,7 @@ function MasterDetail({
 	listLabel,
 	detailLabel,
 	className,
+	style,
 	...props
 }: Omit<React.ComponentProps<"div">, "children"> & {
 	list: React.ReactNode;
@@ -213,17 +216,19 @@ function MasterDetail({
 	const ref = React.useRef<HTMLDivElement>(null);
 	const picked = detail !== null && detail !== undefined && detail !== false;
 	// The panes fill what's left of the window under the header, whose height varies by section.
+	// Held in state and rendered into `style`, so a re-render or a new node keeps it.
+	const [top, setTop] = React.useState<number>();
 	React.useEffect(() => {
 		const root = ref.current;
 		if (!root) return;
-		const measure = () =>
-			root.style.setProperty(
-				"--master-detail-top",
-				`${Math.round(root.getBoundingClientRect().top + window.scrollY)}px`,
-			);
+		const measure = () => setTop(root.getBoundingClientRect().top + window.scrollY);
 		measure();
+		// The header above can change height once the fonts load, without resizing the parent.
+		document.fonts?.ready.then(measure);
 		const observer = new ResizeObserver(measure);
 		if (root.parentElement) observer.observe(root.parentElement);
+		// The section's header sits outside that parent; a change in it shows in the page's height.
+		observer.observe(document.documentElement);
 		window.addEventListener("resize", measure);
 		return () => {
 			observer.disconnect();
@@ -242,6 +247,11 @@ function MasterDetail({
 				"lg:h-[calc(100dvh-var(--master-detail-top,11rem)-3rem)] lg:min-h-80",
 				className,
 			)}
+			style={
+				top === undefined
+					? style
+					: ({ "--master-detail-top": `${top}px`, ...style } as React.CSSProperties)
+			}
 			{...props}
 		>
 			<Pane

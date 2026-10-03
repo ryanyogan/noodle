@@ -444,3 +444,53 @@ test("on a desktop the list opens a card beside it", async ({ browser }) => {
 	await detail.getByRole("button", { name: "Close" }).click();
 	await expect(detail).toContainText("A card’s pencil opens it here");
 });
+
+/** How far the page itself scrolls, and the elements reaching past the window (for the message). */
+function overflow(page: Page) {
+	return page.evaluate(() => {
+		const root = document.scrollingElement ?? document.documentElement;
+		const past = [...document.querySelectorAll("body *")]
+			.filter((el) => {
+				const box = el.getBoundingClientRect();
+				return (
+					box.width > 0 && box.height > 0 && box.bottom + root.scrollTop > root.clientHeight + 1
+				);
+			})
+			.slice(0, 8)
+			.map(
+				(el) =>
+					`${el.getAttribute("data-slot") ?? el.getAttribute("data-testid") ?? el.tagName.toLowerCase()}.${[...el.classList].slice(0, 5).join(".")} bottom ${Math.round(el.getBoundingClientRect().bottom + root.scrollTop)}`,
+			);
+		return { extra: root.scrollHeight - root.clientHeight, scrollTop: root.scrollTop, past };
+	});
+}
+
+test("on a desktop Review with cards fills the window and the page doesn't scroll, in both views", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email, {
+		viewport: { width: 1440, height: 900 },
+	});
+	await setUp(page);
+	for (const path of ["/review", "/review?view=list"]) {
+		await page.goto(path);
+		await expect(page.getByTestId("review-card").first()).toBeVisible();
+		await page.evaluate(() => document.fonts.ready);
+		const found = await overflow(page);
+		expect
+			.soft(found.extra, `${path}: the page scrolls; past the window: ${found.past.join(", ")}`)
+			.toBeLessThanOrEqual(1);
+	}
+	// Opening a card beside the list doesn't move the page.
+	const list = page.locator("[data-slot=master-detail-list]");
+	const detail = page.locator("[data-slot=master-detail-detail]");
+	await list.getByRole("button", { name: /^Edit ACME/i }).click();
+	await expect(detail.locator("[data-slot=detail-title]")).toHaveText("Edit Transaction");
+	const opened = await overflow(page);
+	expect(opened.scrollTop, "opening a card scrolled the page").toBe(0);
+	expect(
+		opened.extra,
+		`the page scrolls with a card open; past the window: ${opened.past.join(", ")}`,
+	).toBeLessThanOrEqual(1);
+});
