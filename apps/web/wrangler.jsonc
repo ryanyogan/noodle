@@ -5,7 +5,27 @@
 	"compatibility_flags": ["nodejs_compat"],
 	// TanStack Start's server entry, plus the Household Agent class it exports.
 	"main": "src/server.ts",
-	"observability": { "enabled": true },
+	// Logs and traces, every request, kept in Workers Observability (set by the Parent, 2026-10-03).
+	// Query strings aren't redacted; the invite token is in the path (/invite/<token>) either way.
+	"observability": {
+		"enabled": true,
+		"head_sampling_rate": 1,
+		"redact_query_string": false,
+		"logs": {
+			"enabled": true,
+			"head_sampling_rate": 1,
+			"invocation_logs": true,
+			"persist": true
+		},
+		"traces": {
+			"enabled": true,
+			"head_sampling_rate": 1,
+			"persist": true
+		},
+		"issue_detection": {
+			"enabled": true
+		}
+	},
 	// The app's address. workers.dev stays on so links already handed out, and the webhook URLs
 	// Plaid stored for Bank Connections made before the move, keep working.
 	"routes": [{ "pattern": "noodle.yogan.dev", "custom_domain": true }],
