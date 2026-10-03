@@ -26,10 +26,11 @@ import { TransactionEditor } from "./transaction-editor";
 
 /**
  * The Transactions page's columns at xl (#47): the tile, what it was, what it's assigned to, who
- * it was For, its Account, and the amount. Shared by its rows and the header above them.
+ * it was For, its Account, and the amount. Shared by its rows and the header above them. For keeps
+ * room for "Everyone" at 1280 wide, beside the rail (#73).
  */
 export const TRANSACTION_COLUMNS =
-	"xl:grid-cols-[2.25rem_minmax(0,2fr)_minmax(0,1.3fr)_minmax(0,0.8fr)_minmax(0,1.3fr)_6rem]";
+	"xl:grid-cols-[2.25rem_minmax(0,2fr)_minmax(0,1.3fr)_minmax(4.5rem,0.8fr)_minmax(0,1.3fr)_6rem]";
 
 /** What a Transaction or Split is assigned to, by name, with its Bucket's colour. */
 export function assignmentOf(
@@ -153,7 +154,9 @@ export function TransactionItem({
 								...new Set(transaction.splits.map((s) => assignmentOf(s, plan).name)),
 							].join(", ")}${from}`
 						: `${assignment.name} · ${who}${from}`;
-	const rowClassName = columns ? cn(TRANSACTION_COLUMNS, "xl:gap-x-4 xl:py-3") : undefined;
+	const rowClassName = columns
+		? cn(TRANSACTION_COLUMNS, "xl:gap-x-3 xl:py-3 2xl:gap-x-4")
+		: undefined;
 	const pill = "h-4.5 px-1.5 text-[11px]";
 	const badges = (
 		<>

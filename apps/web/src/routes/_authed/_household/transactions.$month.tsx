@@ -312,7 +312,6 @@ function Filters({
 }) {
 	// The list's own query (already loaded): its first page carries the month's total.
 	const total = useSuspenseInfiniteQuery(transactionsQuery(month, filters)).data.pages[0]?.total;
-	const toReview = useSuspenseQuery(reviewQuery()).data.total;
 	// Until hydrated, a change would only move the select, not the list.
 	const hydrated = useHydrated();
 	const [search, setSearch] = useState(filters.q ?? "");
@@ -359,20 +358,6 @@ function Filters({
 						{formatMoney(total)}
 					</span>
 				</p>
-			) : null}
-			{toReview > 0 ? (
-				// From a laptop up the rail says what waits in Review under the month's total (#51); the
-				// header's Review button stays for phones and keyboards.
-				<Link
-					to="/review"
-					className="-mt-1 mb-1 hidden min-h-9 items-center justify-between gap-3 rounded-md px-1 text-sm text-muted-foreground hover:bg-surface-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring lg:flex"
-				>
-					<span className="flex items-center gap-2">
-						<ListChecks aria-hidden="true" className="size-4" />
-						Waiting in Review
-					</span>
-					<Badge variant="count">{toReview}</Badge>
-				</Link>
 			) : null}
 			{/* With large text, Filters wraps below rather than squeeze the search to a few letters. */}
 			<div className="flex flex-wrap gap-2">
@@ -709,7 +694,7 @@ function TransactionList({
 			    Amount sort the list (on the server, as it loads a page at a time). */}
 			<div
 				className={cn(
-					"hidden items-center gap-x-4 px-(--card-pad) text-xs font-medium text-subtle-foreground xl:grid",
+					"hidden items-center gap-x-3 px-(--card-pad) text-xs font-medium text-subtle-foreground xl:grid 2xl:gap-x-4",
 					TRANSACTION_COLUMNS,
 				)}
 			>
@@ -722,7 +707,10 @@ function TransactionList({
 						onClick={() => onSort(sort === "newest" ? "oldest" : "newest")}
 						className="-ms-2"
 					/>
-					<span aria-hidden="true">Description</span>
+					{/* Beside the rail at 1280 the Date button fills this column, so its name waits for room. */}
+					<span aria-hidden="true" className="max-[87.5rem]:hidden">
+						Description
+					</span>
 				</span>
 				<span aria-hidden="true">Assigned to</span>
 				<span aria-hidden="true">For</span>
