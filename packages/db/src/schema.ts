@@ -1245,3 +1245,41 @@ export const merchantNames = sqliteTable(
 	},
 	(t) => [primaryKey({ columns: [t.householdId, t.raw] })],
 );
+
+// A Suggestion (ADR-0027): something background AI spotted in spending that a Parent can add with
+// one tap: a new Bucket, a new Commitment, a Commitment's new amount (and later a Rule). `key` says
+// what it's about, with its owner (one row per Household and key); `payload` holds the terms to add, and
+// `evidence` what it rests on (charges, the amount, months, the Transactions). A dismissed or
+// accepted one comes back only when its evidence changes a lot (changedALot in @noodle/domain).
+// `member_id` is set for one resting on a Parent's own Personal Allowance: only they ever read it
+// (ADR-0003); null is the Household's.
+export const suggestions = sqliteTable(
+	"suggestions",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		memberId: text("member_id").references(() => members.id),
+		kind: text("kind", {
+			enum: ["new-bucket", "new-commitment", "commitment-amount", "rule"],
+		}).notNull(),
+		key: text("key").notNull(),
+		status: text("status", { enum: ["open", "accepted", "dismissed"] })
+			.notNull()
+			.default("open"),
+		payload: text("payload", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+		evidence: text("evidence", { mode: "json" })
+			.$type<{ count: number; amountCents: number; months: number; transactionIds: string[] }>()
+			.notNull(),
+		fingerprint: text("fingerprint").notNull(),
+		decidedByMemberId: text("decided_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [uniqueIndex("suggestions_household_key_idx").on(t.householdId, t.key)],
+);

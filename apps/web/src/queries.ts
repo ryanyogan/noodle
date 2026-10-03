@@ -21,6 +21,7 @@ import { getReview, getRules } from "./server/review";
 import { getPlanAhead, getScenarios } from "./server/scenarios";
 import { getViewer } from "./server/session";
 import { getSetup } from "./server/setup";
+import { getSuggestions } from "./server/suggestions";
 import { getBucketUses } from "./server/transactions";
 import { getPlanHealth, getYear } from "./server/year";
 
@@ -282,4 +283,11 @@ export const setupQuery = () =>
 	queryOptions({
 		queryKey: ["setup"],
 		queryFn: () => getSetup(),
+	});
+
+/** The open Suggestions this Parent may read (ADR-0027). */
+export const suggestionsQuery = () =>
+	queryOptions({
+		queryKey: ["suggestions"],
+		queryFn: () => getSuggestions(),
 	});

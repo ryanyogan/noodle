@@ -69,3 +69,43 @@ note is what the Parent typed.
   (`backfill-merchants`) while more are left. The nightly Insights cron queues `backfill-merchants`
   for any Household with unnamed imported lines, so old rows are named in the nights after deploy
   with nothing to trigger by hand. Idempotent: only lines with no merchant are written.
+
+## Suggestions (phase c)
+
+Background AI also offers things to add: a **Suggestion** is a new Bucket, a new Commitment, a
+Commitment's new amount, or (later) a Rule, with its evidence, that a Parent adds with one tap or
+puts away ("Not now").
+
+- **One table.** `suggestions` holds each with its `kind`, `status` (open, accepted, dismissed), the
+  terms to add (`payload`), what it rests on (`evidence`: charges, amount, months, Transaction IDs)
+  and a short fingerprint of that evidence. `key` says what it's about (the Bucket's name, the
+  merchant, the Commitment) with its owner, unique per Household, so finding it again updates the
+  same row and a dismissed one is remembered.
+- **When.** A step at the end of each run, when the run had imports, a look again (Buckets or Rules
+  changed), a Commitment change or a new month. Open ones take the latest evidence; open ones no
+  longer found (the lines were filed, the Commitment added by hand) are deleted.
+- **Dismiss sticks** unless the evidence changes a lot: the amount moves by 30% or more, or the
+  charges double (`changedALot`). Then it reopens. Accepted ones follow the same rule, so a
+  Commitment whose charges move again can be flagged again.
+- **Suggest Buckets.** Over 90 days, spending in Review or a catch-all Bucket ("Other",
+  "Miscellaneous"…) grouped by kind of merchant, or the merchant itself. A group in 3 or more
+  months, with no month over 60% of it, 4 or more charges and $40 or more a month becomes a Bucket
+  at its monthly average rounded up to $5. Not for a name the Plan has.
+- **Spot Commitments.** Charges at one merchant, not paying a Commitment and not named like one,
+  whose latest run (up to 6) keeps a monthly (26–35 days), biweekly (12–16) or annual (350–380)
+  gap, within 10% of their median, 3 or more (2 for annual), the latest not overdue by half a
+  period: a Commitment at the median, due one period after the latest. A Commitment whose latest
+  2–3 charges agree and differ from its amount by more than 10%: its new amount.
+- **Deterministic, no model.** Names come from a short list of merchant kinds ("Pets" for Petco,
+  Chewy, a vet) or the merchant's clean name. The same spending always gets the same name, it costs
+  nothing, it's tested as it runs in production (AI_MODEL=stub changes nothing), and the Parent can
+  rename it afterwards. A model naming step can come later if names prove poor.
+- **Privacy (ADR-0003).** Each line carries its owner, the Parent whose Personal Allowance it's in;
+  groups never mix owners, so a suggestion resting on a Parent's Personal Allowance has their
+  `member_id` and only they read or decide it. Commitment amounts look only at the Household's
+  spending. Adding a private one makes a Household Bucket or Commitment: the Parent's choice.
+- **Accept** adds it to this month's Plan through the same writes as by hand (`addBucket`,
+  `addCommitment`, `updateCommitment` from this month on), so the Plan change is logged, and queues
+  `buckets-changed` or `commitment-changed` so Review is looked at again.
+- **Where.** A quiet "Suggested" card on This Month, hidden when there are none. Review, the Buckets
+  and Commitments pages and Check-in come next.

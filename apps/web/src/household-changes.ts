@@ -21,6 +21,7 @@ import {
 	rulesQuery,
 	scenariosQuery,
 	setupQuery,
+	suggestionsQuery,
 	viewerQuery,
 } from "./queries";
 
@@ -56,6 +57,8 @@ const changedQueries = {
 	rules: rulesQuery().queryKey,
 	/** The Insights a Parent sees. */
 	insights: insightsQuery().queryKey,
+	/** Suggestions to add a Bucket or Commitment. */
+	suggestions: suggestionsQuery().queryKey,
 	/** Perk Sources and their Perks. */
 	perks: perkSourcesQuery().queryKey,
 	/** The Check-in day, and who has finished this week's Check-in. */

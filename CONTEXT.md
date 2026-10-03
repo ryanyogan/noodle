@@ -203,6 +203,10 @@ _Avoid_: Filter, auto-categorization
 A suggested change to the Plan or to spending, backed by the specific Transactions that justify it and its estimated yearly impact. Never applied without a Parent's action.
 _Avoid_: Tip, recommendation, alert
 
+**Suggestion**:
+Something background AI spotted in spending that a Parent can add with one tap: a new Bucket, a new Commitment, or a Commitment's new amount, shown with its evidence ("about $120 a month across 9 charges"). "Not now" puts it away until the evidence changes a lot. One resting on a Parent's Personal Allowance is shown only to them. Not an **Insight**, which points out a saving.
+_Avoid_: recommendation, tip
+
 **Report**:
 A view of where the Household's money went over a period (by Bucket, merchant, Member, Goal or income), compared with an earlier period, from the whole Household down to the Transactions behind any number. Counts spending as the Viewer may see it: the other Parent's Personal Allowance only as totals.
 _Avoid_: Analytics, dashboard, stats

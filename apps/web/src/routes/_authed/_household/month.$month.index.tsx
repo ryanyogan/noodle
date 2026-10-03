@@ -55,6 +55,7 @@ import {
 import { MonthCloseSection, MonthEndSection } from "../../../components/month-close";
 import { MonthGlance, monthSentence } from "../../../components/month-glance";
 import { GoalsThisMonth } from "../../../components/plan-goals";
+import { Suggested } from "../../../components/suggested";
 import { TermHelp } from "../../../components/term-help";
 import { ToDo, type ToDoItem } from "../../../components/to-do";
 import { type CoverVariables, useCovers } from "../../../covers";
@@ -306,6 +307,7 @@ function ThisMonth() {
 								/>
 							)}
 						</WithClosePrevious>
+						{isCurrent ? <Suggested className="order-3 lg:order-none" /> : null}
 						{/* Coming up beside Buckets on a wide screen, before Goals and Income. */}
 						<div className="hidden empty:hidden lg:grid">
 							{month === current && state.commitments.length > 0 ? <ComingUpSection /> : null}

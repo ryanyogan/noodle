@@ -295,6 +295,13 @@
       "when": 1791010759700,
       "tag": "0041_merchant_names",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "6",
+      "when": 1791015793915,
+      "tag": "0042_suggestions",
+      "breakpoints": true
     }
   ]
 }

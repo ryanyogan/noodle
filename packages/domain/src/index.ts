@@ -479,6 +479,7 @@ export {
 	statementFormat,
 	statementLineIds,
 } from "./statements";
+export * from "./suggestions";
 export {
 	likelyOriginals,
 	REFUND_WINDOW_DAYS,

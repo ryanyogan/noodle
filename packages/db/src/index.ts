@@ -726,6 +726,17 @@ export {
 	saveSetupProgress,
 } from "./setup";
 export {
+	decideSuggestion,
+	householdTimeZone,
+	loadOpenSuggestion,
+	loadOpenSuggestions,
+	loadSuggestionInputs,
+	type SuggestionInputs,
+	type SuggestionItem,
+	type SuggestionTerms,
+	saveSuggestions,
+} from "./suggestions";
+export {
 	type Assignment,
 	addQuickAdd,
 	type BucketSpend,

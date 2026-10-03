@@ -10,6 +10,7 @@ import {
 } from "./categorize-run";
 import type { MerchantNamer } from "./merchant-model";
 import { nameMerchants } from "./merchant-run";
+import { spotSuggestions } from "./suggestion-run";
 
 // One background AI run for a Household (ADR-0027), apart from the Agent so unit tests can run it
 // with fakes. Filing first: look again at what waits in Review when something it depends on
@@ -70,13 +71,24 @@ export async function runAiBatch(deps: AiRunDeps, batch: AiBatch): Promise<Categ
 	for (const { memberId, id } of batch.captures) {
 		total = add(total, await categorizeCapture(deps, { householdId, memberId }, id));
 	}
+	// Suggestions rest on spending and Commitments: looked for when either may have changed.
+	let suggested = 0;
+	if (
+		batch.imports.length > 0 ||
+		batch.lookAgain ||
+		batch.events["commitment-changed"] ||
+		batch.events["month-started"]
+	) {
+		suggested = await spotSuggestions(deps.db, householdId);
+	}
 	const events = Object.entries(batch.events)
 		.map(([kind, count]) => `${kind} ${count}`)
 		.join(", ");
 	console.log(
-		`Background AI for ${householdId} (${events}): ${naming.named} merchants named (${naming.byModel} by the model), ${describeResult(total)}`,
+		`Background AI for ${householdId} (${events}): ${naming.named} merchants named (${naming.byModel} by the model), ${describeResult(total)}, ${suggested} suggestions changed`,
 	);
 	// Filing changes spending, which carries into later months.
 	if (total.filed + total.review > 0) await deps.notify(["months", "for-earlier", "bucket-uses"]);
+	if (suggested > 0) await deps.notify(["suggestions"]);
 	return total;
 }
