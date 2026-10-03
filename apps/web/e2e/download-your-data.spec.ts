@@ -2,7 +2,13 @@ import { readFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
 import { strFromU8, unzipSync } from "fflate";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, enterJoinedHousehold, signedInPage, switchTo, pickQuickAddBucket } from "./session";
+import {
+	createPlannedHousehold,
+	enterJoinedHousehold,
+	pickQuickAddBucket,
+	signedInPage,
+	switchTo,
+} from "./session";
 
 // Download your data (#62, ADR-0028): prepared in the background, downloaded as a ZIP of CSVs
 // that hold the Household's spending, and refused to anyone but the Parent it was made for.

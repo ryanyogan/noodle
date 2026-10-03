@@ -6,8 +6,8 @@ import {
 	choose,
 	clientRendered,
 	createPlannedHousehold,
-	signedInPage,
 	pickQuickAddBucket,
+	signedInPage,
 } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;

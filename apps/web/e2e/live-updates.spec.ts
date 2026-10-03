@@ -1,6 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, enterJoinedHousehold, signedInPage, switchTo, pickQuickAddBucket } from "./session";
+import {
+	createPlannedHousehold,
+	enterJoinedHousehold,
+	pickQuickAddBucket,
+	signedInPage,
+	switchTo,
+} from "./session";
 
 const bucketRow = (page: Page, name: string) =>
 	page.getByRole("listitem", { name: new RegExp(`^${name}: `) });

@@ -2,7 +2,13 @@ import { execFileSync } from "node:child_process";
 import { expect, type Page, test } from "@playwright/test";
 import { signFakeWebhook } from "../src/server/plaid-fake-webhook-key";
 import { createTestParent } from "./parents";
-import { accountKindLabel, choose, createPlannedHousehold, signedInPage, pickQuickAddBucket } from "./session";
+import {
+	accountKindLabel,
+	choose,
+	createPlannedHousehold,
+	pickQuickAddBucket,
+	signedInPage,
+} from "./session";
 
 // Connecting a bank pairs with the Accounts already there (ADR-0020), against the fake Plaid API
 // (AI_MODEL=stub). A card kept with a statement and a Quick Add is chosen as the bank's card: it

@@ -1,7 +1,13 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { expectSectionHeaderKept, markSectionHeader } from "./section";
-import { choose, createPlannedHousehold, signedInPage, switchTo, pickQuickAddBucket } from "./session";
+import {
+	choose,
+	createPlannedHousehold,
+	pickQuickAddBucket,
+	signedInPage,
+	switchTo,
+} from "./session";
 
 // Perk research runs inline with its fakes here (AI_MODEL=stub in playwright.config.ts): any
 // t-mobile.com page is a phone plan's whose Perks depend on the plan (Netflix with Go5G and Go5G

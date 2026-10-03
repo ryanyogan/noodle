@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { currentTab } from "./section";
-import { createPlannedHousehold, serverFn, signedInPage, pickQuickAddBucket } from "./session";
+import { createPlannedHousehold, pickQuickAddBucket, serverFn, signedInPage } from "./session";
 
 // Ask runs against its deterministic fake model here (AI_MODEL=stub in playwright.config.ts):
 // it picks a tool from the question's keywords and answers with the tool's own sentence, so these

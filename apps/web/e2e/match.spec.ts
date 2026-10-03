@@ -4,10 +4,10 @@ import {
 	accountKindLabel,
 	choose,
 	createPlannedHousehold,
+	pickQuickAddBucket,
 	reloadUntil,
 	signedInPage,
 	waitForReview,
-	pickQuickAddBucket,
 } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
