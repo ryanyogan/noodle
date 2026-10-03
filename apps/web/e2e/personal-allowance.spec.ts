@@ -4,10 +4,10 @@ import {
 	choose,
 	createPlannedHousehold,
 	enterJoinedHousehold,
+	pickQuickAddBucket,
 	serverFn,
 	signedInPage,
 	switchTo,
-	pickQuickAddBucket,
 } from "./session";
 
 const nav = (page: Page) => page.getByRole("navigation", { name: "Main" });
@@ -173,10 +173,16 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 
 		// Sam's Quick Add offers his own Personal Allowance, never Alex's.
 		await sam.getByRole("link", { name: "Quick Add" }).click();
-		await expect(quickAddSheet(sam).getByRole("button", { name: /^Sam’s Personal/ })).toBeVisible();
-		await expect(quickAddSheet(sam).getByRole("button", { name: /^Alex’s Personal/ })).toHaveCount(
-			0,
-		);
+		// A phone shows Bucket tiles, a computer the "Add to" options: the same check on either.
+		const samSheet = quickAddSheet(sam);
+		const choices = samSheet
+			.getByRole("list", { name: "Add to" })
+			.getByRole("button")
+			.or(samSheet.getByRole("listbox", { name: "Add to" }).getByRole("option"));
+		await expect(choices.filter({ hasText: "Sam’s Personal" })).toBeVisible();
+		// The Buckets are showing (Sam's own among them), so Alex's missing means it isn't offered.
+		await expect(choices.filter({ hasText: "Groceries" }).first()).toBeVisible();
+		await expect(choices.filter({ hasText: "Alex’s Personal" })).toHaveCount(0);
 		await sam.keyboard.press("Escape");
 		await expect(quickAddSheet(sam)).toBeHidden();
 
