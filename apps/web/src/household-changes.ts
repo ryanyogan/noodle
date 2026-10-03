@@ -8,6 +8,7 @@ import {
 	commitmentsQuery,
 	exportStatusQuery,
 	forTotalsEarlierKey,
+	freshStartQuery,
 	goalsQuery,
 	householdParentsQuery,
 	insightsQuery,
@@ -68,6 +69,8 @@ const changedQueries = {
 	"receipt-address": receiptAddressQuery().queryKey,
 	/** A Parent's "Download your data" ZIP is ready. */
 	export: exportStatusQuery().queryKey,
+	/** A fresh start was scheduled or cancelled. */
+	"fresh-start": freshStartQuery().queryKey,
 	/** What's left of the first Plan's draft. */
 	"plan-draft": planDraftQuery().queryKey,
 	/** The get-started wizard's progress and the Setup Workflow's jobs. */

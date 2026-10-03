@@ -19,6 +19,7 @@ import { CaptureSettings } from "../../../components/capture-settings";
 import { CheckInSettings } from "../../../components/check-in-settings";
 import { ColourPicker } from "../../../components/colour-picker";
 import { DataDownload } from "../../../components/data-download";
+import { DangerZone } from "../../../components/fresh-start";
 import { HouseholdDetails } from "../../../components/household-details";
 import { InviteOtherParent } from "../../../components/invite-other-parent";
 import { NudgeSettings } from "../../../components/nudge-settings";
@@ -151,6 +152,9 @@ function HouseholdPage() {
 					</SectionGroup>
 					<SectionGroup id="your-data" title="Your data">
 						<DataDownload />
+					</SectionGroup>
+					<SectionGroup id="danger-zone" title="Danger zone">
+						<DangerZone householdName={household.name} />
 					</SectionGroup>
 					{/* The sidebar has the account button from lg; a phone has it here. */}
 					<SectionGroup id="account" title="Account" className="lg:hidden">

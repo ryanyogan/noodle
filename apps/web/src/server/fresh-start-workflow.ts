@@ -20,7 +20,8 @@ export type FreshStartParams = { id: string; householdId: string; level: ClearLe
 export type FreshStartProgress = {
 	id: string;
 	level: ClearLevel;
-	state: "running" | "done";
+	/** `cleared` once everything is gone; `done` after the sweep two minutes later. */
+	state: "running" | "cleared" | "done";
 	step: number;
 	steps: number;
 	label: string | null;
@@ -67,8 +68,9 @@ export class FreshStartWorkflow extends WorkflowEntrypoint<Env, FreshStartParams
 			return freshStart?.status === "scheduled" ? freshStart.runAt.getTime() : null;
 		});
 		if (runAt === null) return "cancelled";
-		// Either Parent may cancel meanwhile; a past time goes straight on.
-		await step.sleepUntil("wait out the grace period", new Date(runAt));
+		// Either Parent may cancel meanwhile. A time already past goes straight on (sleepUntil
+		// refuses one: "You can't sleep until a time in the past").
+		if (runAt > Date.now()) await step.sleepUntil("wait out the grace period", new Date(runAt));
 		if (!(await step.do("start", () => startFreshStartRun(getDb(), id)))) return "cancelled";
 		const steps = CLEAR_STEPS.length + 1;
 		for (const [i, { key, label }] of CLEAR_STEPS.entries()) {
@@ -77,6 +79,9 @@ export class FreshStartWorkflow extends WorkflowEntrypoint<Env, FreshStartParams
 				await runClearStep(clearDeps(householdId), key, householdId, level);
 			});
 		}
+		await step.do("cleared", () =>
+			report(householdId, { id, level, state: "cleared", step: steps, steps, label: null }),
+		);
 		// Workflows already running for the Household (month close, Perk research, Setup, a
 		// download, background AI) find nothing to work on now; anything they wrote meanwhile goes.
 		await step.sleep("let work already running finish", "2 minutes");

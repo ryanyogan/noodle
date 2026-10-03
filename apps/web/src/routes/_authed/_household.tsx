@@ -4,6 +4,7 @@ import { TooltipProvider } from "@noodle/ui/components/tooltip";
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { z } from "zod";
 import { AppShell } from "../../components/app-shell";
+import { FreshStartBanner, FreshStartScreen } from "../../components/fresh-start";
 import { GlossaryDialog } from "../../components/glossary";
 import { LeaveGuard } from "../../components/leave-guard";
 import { QuickAdd } from "../../components/quick-add";
@@ -36,8 +37,10 @@ function AppLayout() {
 	return (
 		<TooltipProvider>
 			<AppShell householdName={household.name}>
+				<FreshStartBanner />
 				<Outlet />
 			</AppShell>
+			<FreshStartScreen />
 			{/* Outside the frame: while a sheet is open the whole frame is hidden from assistive tech
 			    as one element, and the Toaster (a live region, which stays exposed) isn't inside it. */}
 			<QuickAdd timeZone={household.timeZone} parentId={parentId} />

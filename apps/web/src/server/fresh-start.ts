@@ -3,6 +3,8 @@ import {
 	cancelFreshStart as cancelScheduled,
 	countHouseholdData,
 	type FreshStart,
+	linkedBankNames,
+	listParents,
 	loadActiveFreshStart,
 	scheduleFreshStart,
 } from "@noodle/db";
@@ -13,6 +15,7 @@ import { getDb } from "./db";
 import { filePrefixes } from "./fresh-start-clear";
 import { householdMiddleware } from "./household";
 import { notifyHousehold } from "./notify";
+import type { NudgeDelivery } from "./nudge-delivery";
 
 // Fresh start and Delete Household (#63, ADR-0029): what would be cleared, and starting or
 // cancelling it. Only a Parent of the Household reaches these (householdMiddleware).
@@ -60,17 +63,29 @@ export const getFreshStartCounts = createServerFn({ method: "GET" })
 	.handler(async ({ context }) => {
 		const db = getDb();
 		const householdId = context.household.id;
-		const [counts, statementFiles, active] = await Promise.all([
+		const [counts, statementFiles, banks, active] = await Promise.all([
 			countHouseholdData(db, householdId),
 			countFiles(householdId),
+			linkedBankNames(db, householdId),
 			loadActiveFreshStart(db, householdId),
 		]);
-		return { counts: { ...counts, statementFiles }, freshStart: statusOf(active) };
+		return { counts: { ...counts, statementFiles }, banks, freshStart: statusOf(active) };
 	});
 
+/** Only a fresh start scheduled or running, for the banner both Parents see (cheap to read). */
+export const getFreshStartStatus = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.handler(async ({ context }) =>
+		statusOf(await loadActiveFreshStart(getDb(), context.household.id)),
+	);
+
+/** How long the other Parent has to cancel: a day. A Household with one Parent skips it. */
+export const GRACE_PERIOD_MS = 24 * 60 * 60 * 1000;
+
 /**
- * Schedules a fresh start or Delete Household and starts its Workflow. For now it runs at once;
- * the 24-hour grace period when both Parents are in comes with the Danger zone (#63's second part).
+ * Schedules a fresh start or Delete Household and starts its Workflow. With both Parents in, it
+ * waits 24 hours, during which either can cancel, and the other Parent gets a Nudge; with one
+ * Parent it runs at once (the typed confirmation was the check).
  */
 export const startFreshStart = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
@@ -78,12 +93,14 @@ export const startFreshStart = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }) => {
 		const householdId = context.household.id;
 		const now = Date.now();
+		const parents = await listParents(getDb(), householdId);
+		const others = parents.filter((parent) => parent.id !== context.parent.id);
 		const { created, freshStart } = await scheduleFreshStart(getDb(), {
 			id: ulid(),
 			householdId,
 			level: data.level,
 			requestedBy: context.parent.id,
-			runAt: now,
+			runAt: others.length > 0 ? now + GRACE_PERIOD_MS : now,
 			now,
 		});
 		if (created) {
@@ -91,6 +108,21 @@ export const startFreshStart = createServerFn({ method: "POST" })
 				id: freshStart.id,
 				params: { id: freshStart.id, householdId, level: freshStart.level },
 			});
+			const what = freshStart.level === "delete" ? "delete the Household" : "start fresh";
+			for (const other of others) {
+				await env.NUDGE_QUEUE.send({
+					householdId,
+					memberId: other.id,
+					nudge: {
+						kind: "test",
+						title: `${context.parent.name} asked to ${what}`,
+						body: "It happens in 24 hours unless one of you cancels it in Household settings.",
+						tag: `fresh-start-${freshStart.id}`,
+						url: "/household#danger-zone",
+					},
+				} satisfies NudgeDelivery);
+			}
+			await notifyHousehold(householdId, ["fresh-start"]);
 		}
 		return statusOf(freshStart);
 	});
@@ -107,6 +139,6 @@ export const cancelFreshStart = createServerFn({ method: "POST" })
 		} catch {
 			// Already finished waiting: it reads the cancel and stops by itself.
 		}
-		await notifyHousehold(householdId, []);
+		await notifyHousehold(householdId, ["fresh-start"]);
 		return { ok: true as const };
 	});

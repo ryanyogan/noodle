@@ -68,6 +68,7 @@ test("Household settings is settings only, grouped under short headings (#69)", 
 			"Bringing in spending",
 			"Setup",
 			"Your data",
+			"Danger zone",
 		]);
 		// Account is the sidebar's on a desktop; a phone has it as the last group.
 		await expect(page.getByRole("heading", { name: "Children", level: 3 })).toBeVisible();

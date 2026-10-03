@@ -160,6 +160,20 @@ export async function linkedBankConnectionIds(db: Db, householdId: string): Prom
 	return rows.map((row) => row.id);
 }
 
+/** The banks the Household still has connected, by name, each once. */
+export async function linkedBankNames(db: Db, householdId: string): Promise<string[]> {
+	const rows = await db
+		.select({ institution: s.bankConnections.institution })
+		.from(s.bankConnections)
+		.where(
+			and(
+				eq(s.bankConnections.householdId, householdId),
+				ne(s.bankConnections.credential, REMOVED_CREDENTIAL),
+			),
+		);
+	return [...new Set(rows.map((row) => row.institution ?? "your bank"))];
+}
+
 /** Notes a merchant the Household's merchant index learned, so a fresh start can forget it. */
 export async function recordLearnedMerchant(
 	db: Db,

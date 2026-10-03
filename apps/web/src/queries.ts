@@ -6,6 +6,7 @@ import { getCaptureToken } from "./server/capture-tokens";
 import { getCheckIn, getCheckInStatus } from "./server/check-in";
 import { getCommitments } from "./server/commitments";
 import { getExportStatus } from "./server/export";
+import { getFreshStartCounts, getFreshStartStatus } from "./server/fresh-start";
 import { getGoals } from "./server/goals";
 import { getAccountImports } from "./server/imports";
 import { getInsights } from "./server/insights";
@@ -280,6 +281,21 @@ export const receiptAddressQuery = () =>
 	});
 
 /** The Parent's "Download your data" ZIP: none, preparing, or ready until it expires. */
+/** A fresh start or Delete Household scheduled or running (#63). */
+export const freshStartQuery = () =>
+	queryOptions({
+		queryKey: ["fresh-start"],
+		queryFn: () => getFreshStartStatus(),
+	});
+
+/** What a fresh start would clear, with counts, for the Danger zone's first sheet. */
+export const freshStartCountsQuery = () =>
+	queryOptions({
+		queryKey: ["fresh-start", "counts"],
+		queryFn: () => getFreshStartCounts(),
+		staleTime: 0,
+	});
+
 export const exportStatusQuery = () =>
 	queryOptions({
 		queryKey: ["export"],

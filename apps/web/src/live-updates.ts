@@ -1,5 +1,7 @@
 import { type Query, type QueryClient, type QueryKey, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
+import type { FreshStartProgress } from "./fresh-start-live";
+import { setFreshStartProgress } from "./fresh-start-live";
 import {
 	everyHouseholdChange,
 	HOUSEHOLD_AGENT_PATH,
@@ -28,6 +30,9 @@ export function useLiveUpdates() {
 		const connection = connect({
 			onChanges: refetcher.refetch,
 			onReconnect: () => refetcher.refetch(everyHouseholdChange),
+			// A fresh start (#63): its progress, and "everything changed" once the Agent is cleared.
+			onFreshStart: setFreshStartProgress,
+			onReload: () => void queryClient.invalidateQueries(),
 		});
 		return () => {
 			connection.close();
@@ -85,13 +90,29 @@ function createRefetcher(queryClient: QueryClient) {
 	};
 }
 
+/** The Household Agent's messages that aren't changes: a fresh start's progress, or reload. */
+function parseOtherMessage(
+	data: unknown,
+): { freshStart?: FreshStartProgress; reload?: true } | null {
+	if (typeof data !== "string" || !data.startsWith("{")) return null;
+	try {
+		return JSON.parse(data);
+	} catch {
+		return null;
+	}
+}
+
 /** A WebSocket to this Parent's Household Agent that reconnects, with backoff, until closed. */
 function connect({
 	onChanges,
 	onReconnect,
+	onFreshStart,
+	onReload,
 }: {
 	onChanges: (changes: HouseholdChange[]) => void;
 	onReconnect: () => void;
+	onFreshStart: (progress: FreshStartProgress) => void;
+	onReload: () => void;
 }) {
 	let socket: WebSocket | null = null;
 	let closed = false;
@@ -146,7 +167,10 @@ function connect({
 				clearTimeout(pongTimer);
 				pongTimer = undefined;
 			} else {
-				onChanges(parseHouseholdChanges(event.data));
+				const other = parseOtherMessage(event.data);
+				if (other?.freshStart) onFreshStart(other.freshStart);
+				else if (other?.reload) onReload();
+				else onChanges(parseHouseholdChanges(event.data));
 			}
 		};
 		// Also follows a refused connection, e.g. while Clerk refreshes an expired session.
