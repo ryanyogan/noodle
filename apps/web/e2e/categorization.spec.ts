@@ -5,6 +5,7 @@ import {
 	addBucketsInSheet,
 	choose,
 	createPlannedHousehold,
+	reloadUntil,
 	signedInPage,
 } from "./session";
 
@@ -70,22 +71,22 @@ test("imported Transactions are filed automatically, marked, and a Parent can ch
 		["ACME WIDGETS LLC", "19.99"],
 	]);
 
-	await page.goto(thisMonth.replace(/\/month\/(\d{4}-\d{2}).*$/, "/transactions/$1"));
+	// Filed and named by the background run a moment after the upload.
+	const shell = page.getByRole("button", {
+		name: "Shell, $38.05, Gas (filed automatically), For Everyone, from Visa",
+	});
+	await reloadUntil(page, thisMonth.replace(/\/month\/(\d{4}-\d{2}).*$/, "/transactions/$1"), () =>
+		expect(shell).toBeVisible({ timeout: 2_000 }),
+	);
 	await expect(page.getByLabel("Bucket")).toBeEnabled();
-	// Filed after the upload has answered; the list refreshes when categorization is done.
 	const costco = page.getByRole("button", {
 		name: "Costco, $61.20, Groceries (filed automatically), For Everyone, from Visa",
 	});
 	await expect(costco).toBeVisible();
-	await expect(
-		page.getByRole("button", {
-			name: "SHELL OIL 5741, $38.05, Gas (filed automatically), For Everyone, from Visa",
-		}),
-	).toBeVisible();
 	// Unsure: left for Review, unassigned and unmarked.
 	await expect(
 		page.getByRole("button", {
-			name: "ACME WIDGETS LLC, $19.99, Unassigned, For Everyone, from Visa",
+			name: "Acme Widgets, $19.99, Unassigned, For Everyone, from Visa",
 		}),
 	).toBeVisible();
 	await expect(page.getByText("Auto", { exact: true })).toHaveCount(2);

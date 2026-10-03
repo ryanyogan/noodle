@@ -308,10 +308,13 @@ test("an Account lists its Transactions, and Transactions filters by it", async 
 	await expect(row(page, "Pro Hockey Life")).toHaveAccessibleName(
 		"Pro Hockey Life, $64.99, Groceries, For Everyone, waiting for the bank’s copy",
 	);
-	await row(page, "Chipotle").click();
+	// The bank's copy is named "Chipotle" too: open the Quick Add.
+	await list(page)
+		.getByRole("button", { name: /^Chipotle, \$12,/ })
+		.click();
 	await editSheet(page).getByLabel("Note").fill("Chipotle lunch");
 	const possible = editSheet(page).getByRole("region", { name: "Possible match" });
-	await possible.getByRole("button", { name: /^Match with CHIPOTLE 1234, \$14\.40/ }).click();
+	await possible.getByRole("button", { name: /^Match with chipotle( 1234)?, \$14\.40/i }).click();
 	await expect(editSheet(page)).toBeHidden();
 	await expect(row(page, "Chipotle lunch")).toHaveAccessibleName(
 		"Chipotle lunch, $12, Hockey, For Everyone, Matched in Visa",

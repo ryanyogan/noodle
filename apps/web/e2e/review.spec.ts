@@ -1,7 +1,14 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { currentTab, expectSectionHeaderKept, markSectionHeader, sectionTabs } from "./section";
-import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
+import {
+	accountKindLabel,
+	choose,
+	createPlannedHousehold,
+	reloadUntil,
+	signedInPage,
+	waitForReview,
+} from "./session";
 
 // Categorization runs with its deterministic fake (AI_MODEL=stub, see vite.config.ts): it knows
 // nothing about ACME, and guesses Gas, unsure, for a merchant with "gas" in its name.
@@ -72,6 +79,8 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	});
 	const thisMonth = page.url();
 	await uploadStatement(page, [["ACME WIDGETS LLC", "19.99"]], true);
+	// Named and looked at by the background run a moment after the upload.
+	await waitForReview(page, new URL("/review", thisMonth).href, "1 of 1");
 
 	// This Month says something waits; categorization had no guess for it.
 	await page.goto(thisMonth);
@@ -81,7 +90,7 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	await expect(
 		page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Transactions" }),
 	).toHaveAttribute("aria-current", "page");
-	await expect(card(page).getByRole("heading", { name: "ACME WIDGETS LLC" })).toBeVisible();
+	await expect(card(page).getByRole("heading", { name: "Acme Widgets" })).toBeVisible();
 	await expect(card(page)).toContainText("$19.99");
 	await expect(card(page)).toContainText("Visa");
 	await expect(card(page)).toContainText("No suggestion — pick where it goes");
@@ -89,10 +98,10 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	await expect(card(page).getByRole("button", { name: "Confirm" })).toHaveCount(0);
 
 	// Picked from the card's own month's Buckets, it's filed there.
-	await choose(card(page), "Where ACME WIDGETS LLC goes", "Fun");
+	await choose(card(page), "Where Acme Widgets goes", "Fun");
 	// Sort says so beside the card, and offers the Rule there rather than in a toast over it.
 	await expect(page.getByTestId("review-said")).toHaveText(
-		"Filed ACME WIDGETS LLC in Fun. All sorted.",
+		"Filed Acme Widgets in Fun. All sorted.",
 	);
 	await expect(page.getByText("Nothing to review")).toBeVisible();
 
@@ -107,12 +116,20 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 		["ACME WIDGETS LLC #778", "25.00"],
 		["CORNER GAS MART", "40.00"],
 	]);
-	await page.goto(thisMonth.replace(/\/month\/(\d{4}-\d{2}).*$/, "/transactions/$1"));
-	await expect(page.getByLabel("Bucket")).toBeEnabled();
 	const acme = page.getByRole("button", {
-		name: "ACME WIDGETS LLC #778, $25, Fun (filed automatically), For Everyone, from Visa",
+		name: /^Acme Widgets[^,]*, \$25, Fun \(filed automatically\), For Everyone, from Visa$/,
 	});
-	await expect(acme).toBeVisible();
+	await reloadUntil(
+		page,
+		thisMonth.replace(/\/month\/(\d{4}-\d{2}).*$/, "/transactions/$1"),
+		async () => {
+			await expect(acme).toBeVisible({ timeout: 2_000 });
+			await expect(page.getByRole("button", { name: /^Corner Gas Mart, / })).toBeVisible({
+				timeout: 2_000,
+			});
+		},
+	);
+	await expect(page.getByLabel("Bucket")).toBeEnabled();
 	await acme.click();
 	await expect(editSheet(page).getByTestId("auto-filed-hint")).toContainText(
 		"Filed automatically by a Rule.",
@@ -120,7 +137,7 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	await page.keyboard.press("Escape");
 
 	await page.getByRole("link", { name: "Review, 1 to review" }).click();
-	await expect(card(page).getByRole("heading", { name: "CORNER GAS MART" })).toBeVisible();
+	await expect(card(page).getByRole("heading", { name: "Corner Gas Mart" })).toBeVisible();
 	await expect(card(page)).toContainText("Gas");
 	await expect(card(page)).toContainText("50% sure");
 	await expect(card(page)).toContainText("We weren’t sure");
@@ -131,7 +148,7 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	await expect(page.getByText("Nothing to review")).toBeVisible();
 	// Sort's own Undo (no toast over the card).
 	await page.getByRole("main").getByRole("button", { name: "Undo" }).click();
-	await expect(card(page).getByRole("heading", { name: "CORNER GAS MART" })).toBeVisible();
+	await expect(card(page).getByRole("heading", { name: "Corner Gas Mart" })).toBeVisible();
 
 	// On a phone, a tap on Confirm files it.
 	const phone = await signedInPage(browser, parent.email, {
@@ -140,7 +157,7 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 		hasTouch: true,
 	});
 	await phone.goto(new URL("/review", thisMonth).href);
-	await expect(card(phone).getByRole("heading", { name: "CORNER GAS MART" })).toBeVisible();
+	await expect(card(phone).getByRole("heading", { name: "Corner Gas Mart" })).toBeVisible();
 	await card(phone).getByRole("button", { name: "Confirm" }).tap();
 	await expect(phone.getByText("Nothing to review")).toBeVisible();
 
@@ -221,12 +238,17 @@ test("Review confirms a merchant's cards, or all with a suggestion, with one Und
 		],
 		true,
 	);
-	await page.goto(new URL("/review?view=list", thisMonth).href);
-	await expect(card(page)).toHaveCount(4);
+	// Once the background run has guessed the gas stations.
+	await reloadUntil(page, new URL("/review?view=list", thisMonth).href, async () => {
+		await expect(card(page)).toHaveCount(4, { timeout: 2_000 });
+		await expect(page.getByRole("button", { name: "Confirm all 3 with a suggestion" })).toBeVisible(
+			{ timeout: 2_000 },
+		);
+	});
 	await expect(page.getByRole("button", { name: "What’s “Review”?" })).toBeVisible();
 
 	// A card from a month with no Plan says so, with a way to set it up, never an empty list.
-	const acme = card(page).filter({ hasText: "ACME WIDGETS LLC" });
+	const acme = card(page).filter({ hasText: "Acme Widgets" });
 	await expect(acme).toContainText(/has no Plan yet/);
 	await expect(acme.getByRole("combobox")).toHaveCount(0);
 	await expect(acme.getByRole("link", { name: /^Set up .*’s Plan$/ })).toHaveAttribute(
@@ -236,7 +258,7 @@ test("Review confirms a merchant's cards, or all with a suggestion, with one Und
 
 	// Both of one merchant's cards at once; one Undo puts both back.
 	await page
-		.getByRole("button", { name: /^Confirm all 2 from “corner gas mart/ })
+		.getByRole("button", { name: /^Confirm all 2 from “corner gas mart/i })
 		.first()
 		.click();
 	await expect(status(page, "Filed 2 where Noodle suggested")).toBeVisible();
@@ -253,5 +275,5 @@ test("Review confirms a merchant's cards, or all with a suggestion, with one Und
 	await expect(page.getByLabel("1 to review")).toBeVisible();
 	await page.reload();
 	await expect(card(page)).toHaveCount(1);
-	await expect(card(page)).toContainText("ACME WIDGETS LLC");
+	await expect(card(page)).toContainText("Acme Widgets");
 });

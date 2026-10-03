@@ -265,8 +265,7 @@ test("a card splits, makes a Rule, can't be filed from a month with no Plan, and
 		],
 		true,
 	);
-	await page.goto(new URL("/review", thisMonth).href);
-	await expect(stack(page)).toContainText("1 of 3");
+	await waitForReview(page, new URL("/review", thisMonth).href, "1 of 3");
 	await axe(page, "Sort at desktop width");
 
 	// A month with no Plan: → says so instead of doing nothing, and the card stays.
@@ -311,7 +310,7 @@ test("a card splits, makes a Rule, can't be filed from a month with no Plan, and
 	await page.keyboard.press("Escape");
 
 	// Filing offers the Rule beside the card, not in a toast over it.
-	await toCard(page, "CORNER GAS");
+	await toCard(page, "Corner Gas");
 	await top(page).getByRole("button", { name: "Confirm" }).click();
 	await expect(page.getByTestId("review-rule-offer")).toContainText(
 		/Always file “Corner Gas.*” in Gas\?/,
@@ -354,7 +353,7 @@ test("a card filed in a Personal Allowance never reaches the other Parent", asyn
 		await alex.getByRole("button", { name: "Set up Personal Allowance" }).click();
 		await expect(alex.getByRole("button", { name: "Set up Personal Allowance" })).toHaveCount(0);
 		await uploadStatement(alex, [["SECRET HOBBY SHOP", "25.00"]], true);
-		await alex.goto(new URL("/review", thisMonth).href);
+		await waitForReview(alex, new URL("/review", thisMonth).href, "1 of 1");
 		await expect(top(alex)).toContainText("Secret Hobby Shop");
 		await top(alex).getByRole("button", { name: "Personal Allowance" }).click();
 		await expect(said(alex)).toContainText("Filed Secret Hobby Shop in");
@@ -405,6 +404,12 @@ test("Confirm all in Sort is said beside the stack with one Undo, and confirming
 		["HILLTOP GAS", "25.00"],
 		["RIVER GAS CO", "22.00"],
 	]);
+	// All four guessed (Gas) before Confirm all is offered for them.
+	await waitForReview(page, page.url(), "1 of 4", () =>
+		expect(
+			stack(page).getByRole("button", { name: "Confirm all 4 with a suggestion" }),
+		).toBeVisible({ timeout: 2_000 }),
+	);
 	await stack(page).getByRole("button", { name: "Confirm all 4 with a suggestion" }).click();
 	await expect(said(page)).toHaveText("Filed 4 where Noodle suggested. All sorted.");
 	await expect(page.locator("[data-slot=toast]")).toHaveCount(0);

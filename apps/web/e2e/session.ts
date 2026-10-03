@@ -180,17 +180,35 @@ export const accountKindLabel = (kind: string) => accountKindLabels[kind] ?? kin
 
 /** Uploads a card statement to the Visa Account, adding the Account first if it's new. */
 /**
- * Opens Review once the background run has filed or guessed the lines just brought in: filing
- * happens a moment after an import (ADR-0027), longer on CI, so it reloads until the stack says
- * `stackText` ("1 of 3").
+ * Reloads `url` until `check` passes: the background run files, guesses and names what was just
+ * brought in a moment after an import (ADR-0027), longer on CI. `check` should use short timeouts.
  */
-export async function waitForReview(page: Page, reviewUrl: string, stackText: string) {
+export async function reloadUntil(page: Page, url: string, check: () => Promise<void>) {
 	await expect(async () => {
-		await page.goto(reviewUrl);
-		await expect(page.getByTestId("review-stack")).toContainText(stackText, {
-			timeout: 2_000,
-		});
+		await page.goto(url);
+		await check();
 	}).toPass({ timeout: 20_000 });
+}
+
+/**
+ * Opens Review once the background run has filed or guessed the lines just brought in: it reloads
+ * until the stack says `stackText` ("1 of 3") and its top card has its clean merchant name (named
+ * in the same run, just before filing), and then until `ready` passes, if given.
+ */
+export async function waitForReview(
+	page: Page,
+	reviewUrl: string,
+	stackText: string,
+	ready?: () => Promise<void>,
+) {
+	const stack = page.getByTestId("review-stack");
+	await reloadUntil(page, reviewUrl, async () => {
+		await expect(stack).toContainText(stackText, { timeout: 2_000 });
+		await expect(
+			stack.getByTestId("review-card").first().getByRole("heading", { level: 3 }),
+		).not.toHaveText(/^[^a-z]*$/, { timeout: 2_000 });
+		await ready?.();
+	});
 }
 
 export async function uploadStatement(

@@ -108,8 +108,8 @@ test("a forwarded receipt becomes a Quick Add split across its Buckets", async (
 	await deliver(page, parent.email, address, costco);
 
 	await page.goto(transactions);
-	const row = await waitForRow(page, /^COSTCO WHOLESALE, \$49\.71/);
-	await expect(list(page).getByRole("button", { name: /^COSTCO WHOLESALE/ })).toHaveCount(1);
+	const row = await waitForRow(page, /^costco( wholesale)?, \$49\.71/i);
+	await expect(list(page).getByRole("button", { name: /^costco/i })).toHaveCount(1);
 	await open(page, row);
 	const receipt = editSheet(page).getByRole("region", { name: "Receipt" });
 	await expect(receipt).toContainText("COSTCO WHOLESALE");

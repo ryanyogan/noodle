@@ -1,7 +1,13 @@
 import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
+import {
+	accountKindLabel,
+	choose,
+	createPlannedHousehold,
+	reloadUntil,
+	signedInPage,
+} from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -86,13 +92,17 @@ test("a bank statement comes in once, as Transactions to assign and income", asy
 	await expect(sheet).toBeHidden();
 
 	// Money out waits, unassigned, in the Transactions list; nothing is listed twice.
-	await page.goto(page.url().replace(/\/accounts\/.*$/, "/transactions/2026-09"));
+	// Listed by the clean names the background run gives them a moment after the import.
+	const traderJoes = page.getByRole("button", { name: /^Trader Joe’?'?s, \$/i });
+	await reloadUntil(page, page.url().replace(/\/accounts\/.*$/, "/transactions/2026-09"), () =>
+		expect(traderJoes).toHaveCount(1, { timeout: 2_000 }),
+	);
 	const coffee = page.getByRole("button", {
-		name: "STUMPTOWN COFFEE, $4.50, Unassigned, For Everyone, from Everyday Checking",
+		name: /^Stumptown Coffee, \$4\.50, Unassigned, For Everyone, from Everyday Checking$/i,
 	});
 	await expect(coffee).toHaveCount(2);
 	await expect(page.getByText("Unassigned · Everyone · Everyday Checking").first()).toBeVisible();
-	await expect(page.getByText("TRADER JOE'S #552 PORTLAND OR")).toHaveCount(1);
+	await page.keyboard.press("Escape");
 	// Deposits are income, not Transactions.
 	await expect(page.getByText("ACME CORP PAYROLL")).toHaveCount(0);
 });
@@ -116,15 +126,19 @@ test("money back onto a card is listed but counts nowhere", async ({ browser }) 
 	await expect(toast(page, "card-v2.qfx:")).toBeVisible();
 	await expect(page.getByText("Your latest statement ends owing $812.33 on Sep 21")).toBeVisible();
 
-	await page.goto(page.url().replace(/\/accounts\/.*$/, "/transactions/2026-09"));
-	const refund = page.getByRole("listitem").filter({ hasText: "REI #11 RETURN" });
+	const netflix = page.getByRole("button", {
+		name: /^Netflix(\.com)?, \$15\.49, Unassigned, For Everyone, from Visa$/i,
+	});
+	await reloadUntil(page, page.url().replace(/\/accounts\/.*$/, "/transactions/2026-09"), () =>
+		expect(netflix).toBeVisible({ timeout: 2_000 }),
+	);
+	const refund = page
+		.getByRole("listitem")
+		.filter({ has: page.getByRole("button", { name: /^REI\b/i }) });
 	await expect(refund).toContainText("Money back · Visa");
 	await expect(refund).toContainText("−$24.99");
 	// It opens its Transfer and Refund link, not the editor.
 	await expect(refund.getByRole("button")).toHaveAccessibleName(
-		"REI #11 RETURN, −$24.99, Money back, from Visa",
+		/^REI[^,]*, −\$24\.99, Money back, from Visa$/i,
 	);
-	await expect(
-		page.getByRole("button", { name: "NETFLIX.COM, $15.49, Unassigned, For Everyone, from Visa" }),
-	).toBeVisible();
 });
