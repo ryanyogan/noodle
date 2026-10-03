@@ -573,7 +573,7 @@ export type ConnectBank = ReturnType<typeof useConnectBank>;
 
 /** What connecting does, in a sentence or two: said before a Parent connects. */
 export const CONNECT_EXPLAINED =
-	"Noodle reads balances and about 90 days of Transactions, then new ones every day; it can’t move money. You say which Accounts you have already, so nothing counts twice, and Quick Adds are Matched with the bank’s copies. Each bank login you connect uses one of Noodle’s 10 Plaid connections.";
+	"Noodle reads balances and about 90 days of Transactions, and can’t move money. You pick the Accounts you already have, so nothing counts twice; each bank login uses one of Noodle’s 10 Plaid connections.";
 
 export function BankConnections({ bank }: { bank: ConnectBank }) {
 	const hydrated = useHydrated();
@@ -617,18 +617,22 @@ export function BankConnections({ bank }: { bank: ConnectBank }) {
 					{plaid ? <div className="flex">{connectButton(true)}</div> : null}
 				</>
 			) : (
-				<Card className="grid gap-3 p-(--card-pad) sm:flex sm:items-center">
-					<div className="flex flex-1 items-center gap-3 text-sm">
-						<Tile>
-							<Landmark />
-						</Tile>
-						<p className="text-muted-foreground">
-							{plaid
-								? CONNECT_EXPLAINED
-								: "Connecting a bank needs Plaid, which isn’t set up for this copy of Noodle yet."}
-						</p>
+				// Sized by its own width, not the screen's: in the 360px list pane beside an Account
+				// the text and button stack, so the paragraph isn't squeezed to two words a line.
+				<Card className="@container p-(--card-pad)">
+					<div className="grid gap-3 @lg:flex @lg:items-center [&>button]:w-full @lg:[&>button]:w-auto">
+						<div className="flex flex-1 items-start gap-3 text-sm @lg:items-center">
+							<Tile>
+								<Landmark />
+							</Tile>
+							<p className="text-muted-foreground">
+								{plaid
+									? CONNECT_EXPLAINED
+									: "Connecting a bank needs Plaid, which isn’t set up for this copy of Noodle yet."}
+							</p>
+						</div>
+						{connectButton(false)}
 					</div>
-					{connectButton(false)}
 				</Card>
 			)}
 			{bank.chooseSheet}
