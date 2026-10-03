@@ -98,10 +98,12 @@ test("a bank statement comes in once, as Transactions to assign and income", asy
 		expect(traderJoes).toHaveCount(1, { timeout: 2_000 }),
 	);
 	const coffee = page.getByRole("button", {
-		name: /^Stumptown Coffee, \$4\.50, Unassigned, For Everyone, from Everyday Checking$/i,
+		name: /^Stumptown Coffee, \$4\.50, Unassigned, For Everyone, from Everyday Checking ••3210$/i,
 	});
 	await expect(coffee).toHaveCount(2);
-	await expect(page.getByText("Unassigned · Everyone · Everyday Checking").first()).toBeVisible();
+	await expect(
+		page.getByText("Unassigned · Everyone · Everyday Checking ••3210").first(),
+	).toBeVisible();
 	// The bank's own text is kept as the note: rows open their detail once the page is hydrated.
 	await expect(page.getByLabel("Bucket")).toBeEnabled();
 	await traderJoes.click();
@@ -136,7 +138,7 @@ test("money back onto a card is listed but counts nowhere", async ({ browser }) 
 	await expect(page.getByText("Your latest statement ends owing $812.33 on Sep 21")).toBeVisible();
 
 	const netflix = page.getByRole("button", {
-		name: /^Netflix(\.com)?, \$15\.49, Unassigned, For Everyone, from Visa$/i,
+		name: /^Netflix(\.com)?, \$15\.49, Unassigned, For Everyone, from Visa ••1111$/i,
 	});
 	await reloadUntil(page, page.url().replace(/\/accounts\/.*$/, "/transactions/2026-09"), () =>
 		expect(netflix).toBeVisible({ timeout: 2_000 }),
@@ -148,6 +150,6 @@ test("money back onto a card is listed but counts nowhere", async ({ browser }) 
 	await expect(refund).toContainText("−$24.99");
 	// It opens its Transfer and Refund link, not the editor.
 	await expect(refund.getByRole("button")).toHaveAccessibleName(
-		/^REI[^,]*, −\$24\.99, Money back, from Visa$/i,
+		/^REI[^,]*, −\$24\.99, Money back, from Visa ••1111$/i,
 	);
 });

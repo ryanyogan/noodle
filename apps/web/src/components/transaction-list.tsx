@@ -204,6 +204,8 @@ export function TransactionItem({
 						: assignment.name;
 	const columnFor = transfer || transaction.goal || moneyBack ? "" : who;
 	const columnAccount = transaction.importedFrom ?? transaction.matchedIn ?? "Quick Add";
+	const [, accountName = columnAccount, accountDigits = ""] =
+		/^(.*?)( ••\d{4})$/.exec(columnAccount) ?? [];
 	const content = (
 		<>
 			{transfer ? (
@@ -253,8 +255,12 @@ export function TransactionItem({
 					<span className="hidden truncate text-sm text-muted-foreground xl:block">
 						{columnFor}
 					</span>
-					<span className="hidden truncate text-sm text-muted-foreground xl:block">
-						{columnAccount}
+					{/* A narrow column shortens the name, never the last four digits. */}
+					<span className="hidden min-w-0 text-sm text-muted-foreground xl:flex">
+						<span className="truncate">{accountName}</span>
+						{accountDigits ? (
+							<span className="shrink-0 whitespace-pre">{accountDigits}</span>
+						) : null}
 					</span>
 				</>
 			) : null}
