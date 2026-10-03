@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanMerchant } from "./merchant-name";
+import { cleanMerchant, displayMerchant, merchantGroup } from "./merchant-name";
 
 // Anonymised-looking statement lines, as banks and card files write them, and the names a Parent
 // would say. `null` means the rules shouldn't settle it alone (it goes to the model).
@@ -63,5 +63,60 @@ describe("cleanMerchant", () => {
 	it("never comes back empty", () => {
 		for (const raw of ["#1042", "   ", "1234 5678"]) expect(cleanMerchant(raw).name).toBeDefined();
 		expect(cleanMerchant("#1042").name).toBe("1042");
+	});
+});
+
+// Statement lines as shown when no clean name is kept yet (#51), and a Parent's own words.
+const SHOWN: [string, string][] = [
+	["COSTCO WHSE #1042 SEATTLE WA", "Costco"],
+	["COSTCO WHSE #1042", "Costco"],
+	[
+		"SQ *EL CHILITO TACOS & BREAKFAST BAR ON MANOR ROAD AUSTIN TX 78722",
+		"El Chilito Tacos & Breakfast Bar on Manor Road",
+	],
+	["TST* LITTLE GEM DINER 4471 PORTLAND OR", "Little Gem Diner"],
+	["PAYPAL *EBAY O*12-34567-89012", "eBay"],
+	["MCDONALD'S F12345 AUSTIN TX", "McDonald's"],
+	["HEB #0123 AUSTIN TX 78704", "H-E-B"],
+	["H-E-B GAS #612", "H-E-B"],
+	["BOOKPEOPLE 0042 AUSTIN TX", "Bookpeople"],
+	["BLUE RIDGE HARDWARE STORE 52", "Blue Ridge Hardware"],
+	["MAPLE GROCERY SUPERCENTER #88 TULSA OK 74103", "Maple Grocery"],
+	["GREEN LEAF CAFE   SAN FRANCISCO CA", "Green Leaf Cafe"],
+	["SQ *JOE'S BBQ SHACK", "Joe's BBQ Shack"],
+	["Costco", "Costco"],
+	["Soccer cleats for Ava", "Soccer cleats for Ava"],
+	["  Birthday   gift ", "Birthday gift"],
+];
+
+describe("displayMerchant", () => {
+	it.each(SHOWN)("%s → %s", (raw, expected) => {
+		expect(displayMerchant(raw)).toBe(expected);
+	});
+
+	it("keeps a long name whole, where cleanMerchant cuts it at 40", () => {
+		const raw = "SQ *EL CHILITO TACOS & BREAKFAST BAR ON MANOR ROAD AUSTIN TX 78722";
+		expect(cleanMerchant(raw).name.length).toBeLessThanOrEqual(40);
+		expect(displayMerchant(raw).length).toBeGreaterThan(40);
+	});
+
+	it("never comes back empty", () => {
+		expect(displayMerchant("#1042")).toBe("1042");
+		expect(displayMerchant("***")).toBe("***");
+		expect(displayMerchant("   ")).toBe("   ");
+	});
+});
+
+describe("merchantGroup", () => {
+	it("groups a statement line with the name a Parent typed", () => {
+		expect(merchantGroup("COSTCO WHSE #1042 SEATTLE WA")).toBe("costco");
+		expect(merchantGroup("Costco")).toBe("costco");
+		expect(merchantGroup("costco")).toBe("costco");
+		expect(merchantGroup("WM SUPERCENTER #2231 AUSTIN TX")).toBe(merchantGroup("Walmart"));
+	});
+
+	it("keeps no note as its own group", () => {
+		expect(merchantGroup("")).toBe("");
+		expect(merchantGroup("  ")).toBe("");
 	});
 });

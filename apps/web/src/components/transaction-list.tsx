@@ -1,4 +1,11 @@
-import { canAssign, type DayKey, daysBetween, MATCH_WINDOW, type Plan } from "@noodle/domain";
+import {
+	canAssign,
+	type DayKey,
+	daysBetween,
+	displayMerchant,
+	MATCH_WINDOW,
+	type Plan,
+} from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { RowButton } from "@noodle/ui/components/row-button";
 import { Tile } from "@noodle/ui/components/tile";
@@ -109,7 +116,7 @@ export function TransactionItem({
 	const assignment = assignmentOf(transaction, plan);
 	const title =
 		transaction.merchantName ||
-		transaction.note ||
+		(transaction.note && displayMerchant(transaction.note)) ||
 		(transaction.goal
 			? "Goal spending"
 			: transaction.commitmentId

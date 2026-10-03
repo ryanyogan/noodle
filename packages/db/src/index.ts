@@ -694,6 +694,7 @@ export {
 	type ReportFilters,
 	type ReportItem,
 	type ReportScope,
+	resolveMerchant,
 } from "./reports";
 export {
 	countFiledOnItsOwn,

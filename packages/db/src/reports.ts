@@ -9,7 +9,7 @@ import type {
 	SpendCell,
 	Target,
 } from "@noodle/domain";
-import { THRESHOLD_STOPS } from "@noodle/domain";
+import { displayMerchant, merchantGroup, THRESHOLD_STOPS } from "@noodle/domain";
 import {
 	type AnyColumn,
 	and,
@@ -40,8 +40,10 @@ export type ReportFilters = {
 	/** A Member's ID, or "everyone" for spending For the whole Household. */
 	member?: string;
 	account?: string;
-	/** A merchant key, as `merchantKey` groups them. */
+	/** A merchant as Reports group them (merchantGroup in @noodle/domain), or one exact note. */
 	merchant?: string;
+	/** The spellings (`merchantKey`s) `merchant` stands for, once found (resolveMerchant). */
+	merchantKeys?: string[];
 	/** Only parts of at least this many cents. */
 	min?: Cents;
 	/** Only one-off spending: leaves out parts that pay a Commitment. */
@@ -118,7 +120,7 @@ function filtersFor(scope: ReportScope, parts: Omit<Parts, "where">): SQL | unde
 		filters.targets?.length ? inArray(targetOf(parts), filters.targets) : undefined,
 		filters.account ? eq(transactions.accountId, filters.account) : undefined,
 		filters.merchant !== undefined
-			? eq(merchantKey(viewer, parts.from), filters.merchant)
+			? inArray(merchantKey(viewer, parts.from), filters.merchantKeys ?? [filters.merchant])
 			: undefined,
 		filters.min ? gte(parts.amount, filters.min) : undefined,
 		filters.oneOff ? isNull(parts.commitmentId) : undefined,
@@ -300,17 +302,20 @@ export async function loadMerchants(
 		const key = merchantKey(scope.viewer, parts.from);
 		const amount = sql<number>`sum(${parts.amount})`;
 		const count = sql<number>`count(*)`;
-		return fromParts(db, parts, {
-			key,
-			name: merchantName(scope.viewer, parts.from),
-			amount,
-			count,
-			targets: sql<number>`count(distinct ${targetOf(parts)})`,
-		})
-			.where(parts.where)
-			.groupBy(key)
-			.orderBy(desc(order === "amount" ? amount : count))
-			.limit(limit);
+		return (
+			fromParts(db, parts, {
+				key,
+				name: merchantName(scope.viewer, parts.from),
+				amount,
+				count,
+				targets: sql<number>`count(distinct ${targetOf(parts)})`,
+			})
+				.where(parts.where)
+				.groupBy(key)
+				.orderBy(desc(order === "amount" ? amount : count))
+				// Spellings merge below by the name they're shown by, so read enough of them to merge.
+				.limit(limit * 25)
+		);
 	};
 	const rows = await db.batch([
 		query(whole, "amount"),
@@ -320,14 +325,21 @@ export async function loadMerchants(
 	]);
 	const merge = (lists: MerchantTotal[][]) => {
 		const byKey = new Map<string, MerchantTotal>();
-		for (const row of lists.flat()) {
+		for (const spelling of lists.flat()) {
+			// "COSTCO WHSE #1042" and "Costco" are one merchant, shown as "Costco" (#51).
+			const row = {
+				...spelling,
+				key: merchantGroup(spelling.name || spelling.key),
+				name: spelling.name ? displayMerchant(spelling.name) : "",
+			};
 			const seen = byKey.get(row.key);
 			byKey.set(
 				row.key,
 				seen
 					? {
 							...seen,
-							name: seen.name || row.name,
+							// A name with capitals ("Costco") over one typed all lower case.
+							name: /[A-Z]/.test(seen.name) ? seen.name : row.name || seen.name,
 							amount: seen.amount + row.amount,
 							count: seen.count + row.count,
 							targets: Math.max(seen.targets, row.targets),
@@ -346,6 +358,36 @@ export async function loadMerchants(
 			.sort((x, y) => y.count - x.count || y.amount - x.amount)
 			.slice(0, limit),
 	};
+}
+
+/**
+ * The scope with its merchant filter covering every spelling Reports group under it: "costco"
+ * stands for "COSTCO WHSE #1042 SEATTLE WA" and "Costco" alike (#51). It looks across all time,
+ * so a comparison period finds its spellings too.
+ */
+export async function resolveMerchant(db: Db, scope: ReportScope): Promise<ReportScope> {
+	const wanted = scope.filters.merchant;
+	if (!wanted) return scope;
+	const [whole, split] = partsOf({
+		...scope,
+		range: { from: "0000-01-01" as DayKey, until: "9999-12-31" as DayKey },
+		filters: {},
+	});
+	const query = (parts: Parts) => {
+		const key = merchantKey(scope.viewer, parts.from);
+		return fromParts(db, parts, { key, name: merchantName(scope.viewer, parts.from) })
+			.where(parts.where)
+			.groupBy(key);
+	};
+	const rows = (await db.batch([query(whole), query(split)])) as unknown as {
+		key: string;
+		name: string;
+	}[][];
+	const keys = new Set([wanted]);
+	for (const row of rows.flat()) {
+		if (merchantGroup(row.name || row.key) === wanted) keys.add(row.key);
+	}
+	return { ...scope, filters: { ...scope.filters, merchantKeys: [...keys] } };
 }
 
 /** Spending per merchant and Target, for one merchant's drill-down (where it lands). */

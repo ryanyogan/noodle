@@ -1,6 +1,7 @@
 import {
 	type Cents,
 	changeOf,
+	displayMerchant,
 	type MonthKey,
 	overThreshold,
 	THRESHOLD_STOPS,
@@ -771,7 +772,9 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 							>
 								<span className="flex items-baseline gap-3">
 									<span className="min-w-0 flex-1 truncate text-sm font-medium">
-										{item.merchantName || item.note || names.label(item.target)}
+										{item.merchantName ||
+											(item.note && displayMerchant(item.note)) ||
+											names.label(item.target)}
 									</span>
 									<span className="shrink-0 text-sm font-semibold tabular-nums">
 										{formatMoney(item.amount)}
@@ -1093,7 +1096,9 @@ function AreaView({ report, data, names, search, nav, tables }: ViewProps<"area"
 									<KeyTile names={names} target={item.target} className="size-8" />
 									<span className="grid min-w-0 flex-1 gap-0.5">
 										<span className="truncate text-sm font-medium">
-											{item.merchantName || item.note || names.label(item.target)}
+											{item.merchantName ||
+												(item.note && displayMerchant(item.note)) ||
+												names.label(item.target)}
 										</span>
 										<span className="text-xs text-muted-foreground">
 											{shortDay(item.date)} · {names.label(item.target)}

@@ -18,6 +18,7 @@ import {
 	type ReportFilters,
 	type ReportItem,
 	type ReportScope,
+	resolveMerchant,
 	type Viewer,
 } from "@noodle/db";
 import {
@@ -306,7 +307,8 @@ export const getReport = createServerFn({ method: "GET" })
 		const grouping = request.group ?? defaultGrouping(range);
 		const periods = periodKeys(range, grouping);
 		const filters = filtersOf(request);
-		const scope: ReportScope = { viewer, range, filters };
+		// Reports group merchants by the name they're shown by, so a merchant stands for its spellings.
+		const scope: ReportScope = await resolveMerchant(db, { viewer, range, filters });
 
 		const [records, goalRecords, members] = await Promise.all([
 			loadPlanRecords(db, householdId, monthOfDay(asOf)),

@@ -55,6 +55,9 @@ const KNOWN: [RegExp, string][] = [
 	[/^(?:at&t|att\s?\*)/, "AT&T"],
 	[/^ikea\b/, "IKEA"],
 	[/^paypal\b/, "PayPal"],
+	[/^ebay\b/, "eBay"],
+	[/^etsy\b/, "Etsy"],
+	[/^h ?& ?m\b/, "H&M"],
 ];
 
 /** Payment processors' and marketplaces' prefixes: "SQ *BLUE BOTTLE", "TST* CHIPOTLE". */
@@ -95,6 +98,9 @@ const TOWN_LEADS = new Set([
 /** Words a store number follows, or that end a name as noise: "WHSE 1042", "STORE 88", "LLC". */
 const TRAILING = new Set([
 	"whse",
+	"supercenter",
+	"supercentre",
+	"superstore",
 	"store",
 	"str",
 	"ste",
@@ -129,6 +135,11 @@ function titleWord(word: string, first: boolean): string {
 
 /** Cleans a statement line's raw text to its merchant's name (see the top of this file). */
 export function cleanMerchant(raw: string): CleanMerchant {
+	return settle(raw, 40);
+}
+
+/** The rules behind cleanMerchant and displayMerchant, cutting the name at `max` characters. */
+function settle(raw: string, max: number): CleanMerchant {
 	let text = raw.toLowerCase().replace(/\s+/g, " ").trim();
 	for (let i = 0; i < 3; i++) {
 		const before = text;
@@ -157,7 +168,7 @@ export function cleanMerchant(raw: string): CleanMerchant {
 	const name = words
 		.map((word, i) => (short ? word.toUpperCase() : titleWord(word, i === 0)))
 		.join(" ")
-		.slice(0, 40)
+		.slice(0, max)
 		.trim();
 	const sure =
 		name.length >= 3 &&
@@ -165,5 +176,22 @@ export function cleanMerchant(raw: string): CleanMerchant {
 		!/[*\d]/.test(name) &&
 		// A squeezed or cut-off word: "MRKTPLC", "WHLSL".
 		words.every((word) => word.length <= 4 || /[aeiouy]/.test(word));
-	return { name: name || raw.trim().slice(0, 40), sure };
+	return { name: name || raw.trim().slice(0, max), sure };
 }
+
+/**
+ * The name a merchant is shown by when nothing better is kept (no clean name yet, ADR-0027): the
+ * statement line cleaned by the same rules, uncut ("COSTCO WHSE #1042 SEATTLE WA" shows as
+ * "Costco"). A Parent's own words (mixed case, with no processor "*" or store "#") show as typed.
+ * Never empty: it falls back to the text itself. Display only; what's stored is unchanged (#51).
+ */
+export function displayMerchant(raw: string): string {
+	const text = raw.replace(/\s+/g, " ").trim();
+	if (!text) return raw;
+	if (/[a-z]/.test(text) && !/[*#]/.test(text)) return text;
+	return settle(text, 80).name || text;
+}
+
+/** How Reports group a merchant: by the name it's shown by, ignoring case ("" for no note). */
+export const merchantGroup = (raw: string): string =>
+	raw.trim() ? displayMerchant(raw).toLowerCase() : "";
