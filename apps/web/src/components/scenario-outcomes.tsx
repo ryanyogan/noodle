@@ -1020,11 +1020,15 @@ export function FreeToSpendOutcome({ outcome, title }: { outcome: Outcome; title
 	);
 }
 
-/** Compare's series, in turn: the brand, the neutral, then a lighter brand drawn dashed. */
+/**
+ * Compare's series, in turn: blue, orange-brown and purple from the colour-blind validated Bucket
+ * palette (as Reports' Goals), so up to three Scenarios stay apart from each other and from the
+ * Plan's grey dashed line.
+ */
 const COMPARED = [
-	{ color: "var(--chart-income)", dashed: false },
-	{ color: "var(--chart-spend)", dashed: false },
-	{ color: "var(--chart-seq-3)", dashed: true },
+	{ color: "var(--bucket-1)", dashed: false },
+	{ color: "var(--bucket-7)", dashed: false },
+	{ color: "var(--bucket-2)", dashed: false },
 ] as const;
 
 /**
