@@ -116,6 +116,9 @@ async function createHouseholdDirectly(
 	};
 	await page.goto(created.url);
 	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("This Month");
+	// The UI path left the page hydrated by clicking through it; a fresh load isn't yet, and a key
+	// pressed (Quick Add's "q") or a button clicked before then does nothing.
+	await page.waitForLoadState("networkidle");
 	return created;
 }
 
