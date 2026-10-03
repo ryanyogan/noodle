@@ -205,14 +205,20 @@ function CheckInBadge() {
 	);
 }
 
-/** How many Transactions wait in Review, beside Transactions. */
+/** How many Transactions wait in Review, beside Transactions: a link to Review. */
 function ReviewBadge() {
 	const waiting = useQuery(reviewQuery()).data?.total ?? 0;
 	if (waiting === 0) return null;
 	return (
-		<SidebarMenuBadge>
-			{waiting}
-			<span className="sr-only"> to review</span>
+		<SidebarMenuBadge className="pointer-events-auto transition-colors hover:bg-brand-soft hover:text-brand has-focus-visible:ring-2 has-focus-visible:ring-ring">
+			{/* The ::before widens what takes the click past the small badge. */}
+			<Link
+				to="/review"
+				className="outline-none before:absolute before:-inset-1 before:rounded-full before:content-['']"
+			>
+				{waiting}
+				<span className="sr-only"> to review</span>
+			</Link>
 		</SidebarMenuBadge>
 	);
 }
