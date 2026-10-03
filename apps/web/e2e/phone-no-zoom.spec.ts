@@ -107,7 +107,7 @@ test("no field on the main phone pages is small enough to zoom", async ({ browse
 	await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Month" }).click();
 	await switchTo(page, "Plan");
 	await page
-		.getByRole("region", { name: "From take-home pay to Free to Spend" })
+		.getByRole("navigation", { name: "Plan pages" })
 		.getByRole("link", { name: "Buckets", exact: true })
 		.click();
 	await expect(page.getByRole("button", { name: "Edit Gifts" })).toBeVisible();

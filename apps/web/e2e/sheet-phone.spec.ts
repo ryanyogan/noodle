@@ -34,7 +34,7 @@ test("a sheet on a phone keeps the page's place and its Save in view", async ({ 
 	});
 	await switchTo(page, "Plan");
 	await page
-		.getByRole("region", { name: "From take-home pay to Free to Spend" })
+		.getByRole("navigation", { name: "Plan pages" })
 		.getByRole("link", { name: "Buckets", exact: true })
 		.click();
 

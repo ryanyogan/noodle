@@ -79,7 +79,7 @@ for (const look of looks) {
 		// A sticky header (the Buckets toolbar) sticks below the status bar, not under it.
 		await switchTo(page, "Plan");
 		await page
-			.getByRole("region", { name: "From take-home pay to Free to Spend" })
+			.getByRole("navigation", { name: "Plan pages" })
 			.getByRole("link", { name: "Buckets", exact: true })
 			.click();
 		const sticky = page.locator("main .sticky").first();

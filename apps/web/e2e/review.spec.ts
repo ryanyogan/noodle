@@ -227,7 +227,7 @@ test("a Rule files a merchant's statement line to a Commitment", async ({ browse
 	// A monthly Commitment, due this month.
 	await switchTo(page, "Plan");
 	await page
-		.getByRole("region", { name: "From take-home pay to Free to Spend" })
+		.getByRole("navigation", { name: "Plan pages" })
 		.getByRole("link", { name: "Commitments", exact: true })
 		.click();
 	const form = page.getByRole("form", { name: "Add a Commitment" });

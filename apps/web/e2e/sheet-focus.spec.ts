@@ -29,7 +29,7 @@ test("a sheet focuses its first field, and gives focus back to what opened it", 
 	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
 	await switchTo(page, "Plan");
 	await page
-		.getByRole("region", { name: "From take-home pay to Free to Spend" })
+		.getByRole("navigation", { name: "Plan pages" })
 		.getByRole("link", { name: "Buckets", exact: true })
 		.click();
 

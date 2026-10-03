@@ -163,9 +163,10 @@ Extra income shows two amounts, and both are right: **$1,426** in the Close Sept
 
 ## Plan (73d)
 
-Decisions (code and tests only; the after screenshots did not get looked at in 73d, see the handoff):
+Decisions (code and tests; the after screenshots were looked at in 73d2, verdicts at the end):
 
 - **Month and Plan switch:** gone on a computer (the Sidebar has This Month and Plan). Kept on phones only: the phone tab bar has no Plan tab, so the switch is how a phone reaches the Plan. The whole row above the header (switch, Reports, Ask, Glossary) is lg:hidden. The e2e helper switchTo uses the Sidebar at 1024px and wider, the switch below.
 - **Plan › Overview:** the waterfall rows are figures with no links or chevrons; the tabs open each part. "See the whole of <year>" is gone (the Year tab). Coming up is gone from the rail (it is This Month's, in Bills), so both columns start with a heading (Waterfall / What changed); Plan Overview was already in desktop-scroll's aligned list.
 - **What changed:** shows its first three changes with "Show all N" / "Show fewer" (aria-expanded).
 - **Year:** each month links once (its name in the table or the phone list); Lumpy months names months without a second link.
+- **Screenshots (73d2):** sheet-plan.png: Plan and Year look right (the lead). sheet-month.png: at 1440 and 1920 This Month has no switch row, so the title sits at the top beside the Sidebar with nothing lost; at 1920 Income moves up into a middle column; Plan › Year at 1920 has the tabs right under the title and one link per month. sheet-phone.png: the Month and Plan switch with Reports, Ask and the Glossary is still above the header on Plan, Year and This Month; the waterfall rows have no chevrons, "See the whole of 2026" is gone so What changed shows right under it; Year and This Month are unchanged.

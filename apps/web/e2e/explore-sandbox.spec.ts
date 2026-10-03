@@ -43,7 +43,7 @@ test("a Parent tweaks the Plan in a sandbox: amounts, new things, date ranges an
 	});
 	await switchTo(page, "Plan");
 	await page
-		.getByRole("region", { name: "From take-home pay to Free to Spend" })
+		.getByRole("navigation", { name: "Plan pages" })
 		.getByRole("link", { name: "Commitments", exact: true })
 		.click();
 	const addCommitment = page.getByRole("form", { name: "Add a Commitment" });
