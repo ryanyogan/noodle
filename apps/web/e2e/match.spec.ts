@@ -171,5 +171,13 @@ test("Review asks whether a tipped bank line is a Quick Add's copy, and Matches 
 	await expect(
 		page.getByRole("navigation", { name: "Review pages" }).getByRole("link", { name: /^Review/ }),
 	).toContainText("1");
+
+	// Target's bank copy hasn't come in yet: its Match section says it's waiting for it.
+	await page.goto(new URL("/transactions", page.url()).href);
+	await expect(page.getByLabel("Bucket")).toBeEnabled();
+	await page.getByRole("button", { name: /^Target, \$45, Groceries/ }).click();
+	await expect(editSheet(page).getByRole("region", { name: "Waiting for bank" })).toContainText(
+		"When the bank's copy comes in",
+	);
 	await page.context().close();
 });
