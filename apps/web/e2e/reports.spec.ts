@@ -1,7 +1,13 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
-import { choose, clientRendered, createPlannedHousehold, signedInPage } from "./session";
+import {
+	accountKindLabel,
+	choose,
+	clientRendered,
+	createPlannedHousehold,
+	signedInPage,
+} from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -161,4 +167,46 @@ test("no Report view is wider than a phone, and a long merchant name stays in it
 			`${name} scrolls sideways`,
 		).toBe(true);
 	}
+});
+
+test("Reports › Goals says the month a Goal was completed", async ({ browser }) => {
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, plan);
+	seedReportHistory(parent.userId);
+
+	// A savings Account with a Goal on it, completed today.
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
+	await page.getByLabel("Name").fill("Ally savings");
+	await choose(page, "Kind", accountKindLabel("savings"));
+	await page.getByLabel("Balance now").fill("10,000");
+	await page.getByRole("button", { name: "Add Account" }).click();
+	await expect(page.getByRole("link", { name: /^Ally savings, Savings, \$10,000/ })).toBeVisible();
+
+	await page.getByRole("link", { name: "Goals", exact: true }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Goals");
+	await page.getByRole("button", { name: "Add Goal" }).click();
+	const addGoal = page.getByRole("dialog", { name: "Add a Goal" });
+	await addGoal.getByLabel("Name").fill("Braces");
+	await addGoal.getByLabel("Target", { exact: true }).fill("6,000");
+	await addGoal.getByLabel("Already set aside").fill("1,000");
+	await addGoal.getByRole("button", { name: "Add Goal" }).click();
+	await expect(addGoal).toBeHidden();
+	await page.getByRole("link", { name: /^Braces, / }).click();
+	await page.getByRole("button", { name: "Complete", exact: true }).click();
+	await expect(page.getByRole("region", { name: /^Completed/ })).toBeVisible();
+
+	// Reports › Goals says the month it was completed.
+	await page.getByRole("link", { name: "Reports" }).click();
+	await expect(header(page)).toContainText("Overview");
+	await page
+		.getByRole("link", { name: "Goals", exact: true })
+		.and(page.locator('[href*="report"]'))
+		.click();
+	await expect(header(page)).toContainText("Goals");
+	await expect(
+		page.getByRole("link", {
+			name: /^Braces Completed [A-Z][a-z]+ \d{4} · \$1,000 still set aside$/,
+		}),
+	).toBeVisible();
 });
