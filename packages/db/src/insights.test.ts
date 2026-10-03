@@ -12,11 +12,12 @@ import {
 	loadInsights,
 	type NewInsight,
 	recordInsights,
+	refreshInsightEvidence,
 	updateTransaction,
 	type Viewer,
 } from "./index";
 import { insightFingerprint } from "./insights";
-import { members } from "./schema";
+import { insights, members } from "./schema";
 import { testDb } from "./test-db";
 
 const householdId = "household";
@@ -112,6 +113,20 @@ describe("stored Insights", () => {
 		expect(await loadInsights(db, sam)).toEqual([]);
 		const stored = insightFingerprint(null, insight().fingerprint);
 		expect(await knownFingerprints(db, householdId, [stored, "other"])).toEqual(new Set([stored]));
+	});
+
+	it("brings a found-again Insight's evidence up to date, keeping its words and status (#58)", async () => {
+		await recordInsights(db, [insight()]);
+		await decideInsight(db, alex, { id: "i1", status: "accepted" });
+		const again = insight({ id: "i2", title: "Reworded", transactionIds: ["t1", "t2"] });
+		expect(await refreshInsightEvidence(db, [again])).toBe(1);
+		expect(await refreshInsightEvidence(db, [again])).toBe(0);
+		const [row] = await db.select().from(insights);
+		expect(row?.transactionIds).toEqual(["t1", "t2"]);
+		expect(row?.title).toBe(insight().title);
+		expect(row?.status).toBe("accepted");
+		await decideInsight(db, alex, { id: "i1", status: "dismissed" });
+		expect(await refreshInsightEvidence(db, [insight({ transactionIds: [] })])).toBe(0);
 	});
 
 	it("keeps an accepted Insight listed until it's dismissed, which is final", async () => {

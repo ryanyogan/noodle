@@ -104,6 +104,47 @@ export async function recordInsights(db: Db, found: NewInsight[]): Promise<numbe
 	return results.reduce((sum, added) => sum + added.length, 0);
 }
 
+/**
+ * Brings what Insights found again rest on up to date: the charges, Commitments and Perks behind
+ * them, and the yearly figure, when those changed since the Insight was stored (a charge recorded
+ * after it was found). Its words, status and fingerprint stay. Returns how many changed.
+ */
+export async function refreshInsightEvidence(db: Db, found: NewInsight[]): Promise<number> {
+	if (found.length === 0) return 0;
+	const same = (a: string[], b: string[]) =>
+		a.length === b.length && [...a].sort().every((id, i) => id === [...b].sort()[i]);
+	let changed = 0;
+	for (const { fingerprint, ...insight } of found) {
+		const stored = insightFingerprint(insight.ownerMemberId, fingerprint);
+		const where = and(
+			eq(insights.householdId, insight.householdId),
+			eq(insights.fingerprint, stored),
+			ne(insights.status, "dismissed"),
+		);
+		const [row] = await db.select().from(insights).where(where).limit(1);
+		if (
+			!row ||
+			(same(row.transactionIds, insight.transactionIds) &&
+				same(row.commitmentIds, insight.commitmentIds) &&
+				same(row.perkIds, insight.perkIds) &&
+				row.yearlyImpactCents === insight.yearlyImpactCents)
+		) {
+			continue;
+		}
+		await db
+			.update(insights)
+			.set({
+				transactionIds: insight.transactionIds,
+				commitmentIds: insight.commitmentIds,
+				perkIds: insight.perkIds,
+				yearlyImpactCents: insight.yearlyImpactCents,
+			})
+			.where(eq(insights.id, row.id));
+		changed += 1;
+	}
+	return changed;
+}
+
 /** The Insights `viewer` may read: the Household's and their own. */
 const readableBy = (viewer: Viewer) =>
 	and(

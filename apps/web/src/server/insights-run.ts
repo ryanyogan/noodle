@@ -10,6 +10,7 @@ import {
 	type NewInsight,
 	recordInsights,
 	recordPerkSourceSuggestions,
+	refreshInsightEvidence,
 	type Viewer,
 } from "@noodle/db";
 import {
@@ -85,8 +86,13 @@ export async function lookForInsights(
 	const ownerOf = (c: InsightCandidate) => (c.private ? viewer.memberId : null);
 	const stored = (c: InsightCandidate) => insightFingerprint(ownerOf(c), c.fingerprint);
 	const known = await knownFingerprints(db, viewer.householdId, found.map(stored));
+	// One found again may rest on more by now (a charge recorded after it was found): keep it current.
+	const refreshed = await refreshInsightEvidence(
+		db,
+		found.filter((c) => known.has(stored(c))).map((c) => newInsight(c, c.title, c.body)),
+	);
 	const fresh = found.filter((c) => !known.has(stored(c))).slice(0, MAX_NEW_INSIGHTS);
-	if (fresh.length === 0) return 0;
+	if (fresh.length === 0) return refreshed;
 
 	const worded = new Map<InsightCandidate, { title: string; body: string }>();
 	for (const own of [false, true]) {
@@ -109,27 +115,30 @@ export async function lookForInsights(
 		}
 	}
 
-	return recordInsights(
+	const added = await recordInsights(
 		db,
-		fresh.map(
-			(c): NewInsight => ({
-				id: deps.newId(),
-				householdId: viewer.householdId,
-				ownerMemberId: ownerOf(c),
-				kind: c.kind,
-				title: worded.get(c)?.title ?? c.title,
-				body: worded.get(c)?.body ?? c.body,
-				yearlyImpactCents: c.yearlyImpact,
-				transactionIds: c.transactionIds,
-				commitmentIds: c.commitmentIds,
-				perkIds: c.perkIds,
-				fingerprint: c.fingerprint,
-			}),
-		),
+		fresh.map((c) => newInsight(c, worded.get(c)?.title ?? c.title, worded.get(c)?.body ?? c.body)),
 	);
+	return added + refreshed;
+
+	function newInsight(c: InsightCandidate, title: string, body: string): NewInsight {
+		return {
+			id: deps.newId(),
+			householdId: viewer.householdId,
+			ownerMemberId: ownerOf(c),
+			kind: c.kind,
+			title,
+			body,
+			yearlyImpactCents: c.yearlyImpact,
+			transactionIds: c.transactionIds,
+			commitmentIds: c.commitmentIds,
+			perkIds: c.perkIds,
+			fingerprint: c.fingerprint,
+		};
+	}
 }
 
-/** Looks for Insights for each of the Household's Parents in turn; returns how many were added. */
+/** Looks for Insights for each of the Household's Parents in turn; returns how many were added or brought up to date. */
 export async function lookForHouseholdInsights(
 	deps: InsightDeps,
 	householdId: string,

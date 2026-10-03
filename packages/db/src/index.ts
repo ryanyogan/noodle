@@ -555,6 +555,7 @@ export {
 	loadInsights,
 	type NewInsight,
 	recordInsights,
+	refreshInsightEvidence,
 } from "./insights";
 export {
 	checkSend,

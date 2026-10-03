@@ -55,16 +55,15 @@ test("an Overlap between two streaming Commitments is found, accepted, and dismi
 	await recordPayment(page, "Disney+");
 	await recordPayment(page, "Hulu");
 
-	// Background AI refreshes Insights when Commitments change (#58), at most every 2 hours,
-	// so the Overlap may already be found; if not, a Parent asks for it.
+	// Background AI refreshes Insights when Commitments change (#58), a few times a day, so the
+	// Overlap may already be there from before the charges; looking now brings in what it rests on.
 	await page.goto("/insights");
 	const card = page.getByRole("article", { name: "Disney+ and Hulu may overlap (stub)" });
 	const look = page.getByRole("button", { name: "Look for Insights now" });
-	await expect(card.or(look).first()).toBeVisible();
-	if (!(await card.isVisible())) {
-		await look.click();
-		await expect(card).toBeVisible();
-	}
+	await expect(look).toBeEnabled();
+	await look.click();
+	await expect(look).toBeEnabled();
+	await expect(card).toBeVisible();
 
 	// Worded by the model; the figure is the cheaper service's year, from domain code.
 	await expect(card).toContainText("Overlap");
