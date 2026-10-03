@@ -70,10 +70,6 @@ function PlanCommitments() {
 	const aside = (
 		<>
 			{state.editable ? <AddCommitment month={month} /> : null}
-			{/* Adding one writes this month's Plan, so they show on this month only. */}
-			{state.editable && month === monthOfDay(state.asOf) ? (
-				<Suggested kinds={["new-commitment", "commitment-amount"]} />
-			) : null}
 			{state.commitments.length > 0 ? (
 				<>
 					<p className="px-1 text-sm text-muted-foreground">
@@ -172,6 +168,10 @@ function PlanCommitments() {
 						No Commitments in this month’s Plan.
 					</Card>
 				)}
+				{/* Under the list (#76). Adding one writes this month's Plan, so they show on this month only. */}
+				{state.editable && month === monthOfDay(state.asOf) ? (
+					<Suggested kinds={["new-commitment", "commitment-amount"]} />
+				) : null}
 			</div>
 		</PlanMasterDetail>
 	);

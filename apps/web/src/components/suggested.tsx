@@ -14,8 +14,9 @@ import { decideSuggestion } from "../server/suggestions";
 import { CommitmentFormErrors, readCommitment, ScheduleFields } from "./commitment-editor";
 
 // The "Suggested" card (ADR-0027): what background AI spotted, with its evidence in plain words, to
-// add with one tap or put away. All of them on This Month; in context elsewhere, only the kinds
-// that page is about (Rules on Review, Commitments on the Commitments page). Quiet, and gone when
+// add with one tap or put away. Never on This Month (#76): each shows in context, only the kinds
+// that page is about (Rules on Review, Commitments under Plan › Commitments, Buckets under
+// Plan › Buckets). Quiet, and gone when
 // there's nothing. Add on a new Bucket or Commitment opens its terms first, filled in, so the Parent
 // can change the name, amount or schedule before it goes in the Plan.
 
@@ -34,6 +35,8 @@ type Terms = {
 	cadence?: keyof typeof every;
 	dueDate?: string;
 	bucketName?: string;
+	/** Why it looks like a bill, like "Verizon Wireless, $85 on the 12th, 3 months running" (#76). */
+	reason?: string;
 };
 
 function words(item: SuggestionItem): { title: string; body: string; add: string } {
@@ -61,7 +64,10 @@ function words(item: SuggestionItem): { title: string; body: string; add: string
 		};
 	return {
 		title: `${terms.name} looks like a Commitment`,
-		body: `${money} ${often}, seen ${count} times.${terms.dueDate ? ` Next due ${shortDay(terms.dueDate as never)}.` : ""}`,
+		// Older suggestions, saved before the reason, fall back to the plain evidence.
+		body: terms.reason
+			? `${terms.reason}.${terms.dueDate ? ` Next due ${shortDay(terms.dueDate as never)}.` : ""}`
+			: `${money} ${often}, seen ${count} times.${terms.dueDate ? ` Next due ${shortDay(terms.dueDate as never)}.` : ""}`,
 		add: "Add Commitment",
 	};
 }

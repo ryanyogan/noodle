@@ -308,7 +308,7 @@ function TabBar() {
 			aria-label="Main"
 			className={cn(
 				"fixed inset-x-0 bottom-0 z-20 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] border-t lg:hidden",
-				"bg-card/80 backdrop-blur-xl backdrop-saturate-150",
+				"bg-card/95 backdrop-blur-xl backdrop-saturate-150",
 				"px-2 pt-1.5 pb-[calc(var(--safe-bottom)+6px)]",
 			)}
 		>

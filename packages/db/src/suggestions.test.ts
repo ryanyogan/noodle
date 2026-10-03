@@ -14,7 +14,7 @@ import {
 	saveSuggestions,
 	type Viewer,
 } from "./index";
-import { categorizations, members, transactions } from "./schema";
+import { categorizations, members, suggestions, transactions } from "./schema";
 import { testDb } from "./test-db";
 
 const householdId = "household";
@@ -91,6 +91,19 @@ describe("suggestions", () => {
 		expect((await loadOpenSuggestions(db, alex)).map((s) => s.payload.amountCents)).toEqual([
 			7_999,
 		]);
+	});
+
+	it("already open take the new wording when it changes, as a row saved before #76 gains its reason", async () => {
+		await run();
+		const [gym] = await loadOpenSuggestions(db, alex);
+		const { reason, ...older } = gym?.payload ?? {};
+		expect(reason).toEqual(expect.any(String));
+		await db.update(suggestions).set({ payload: older });
+		expect((await loadOpenSuggestions(db, alex))[0]?.payload.reason).toBeUndefined();
+		await run();
+		const open = await loadOpenSuggestions(db, alex);
+		expect(open.map((s) => s.id)).toEqual([gym?.id]);
+		expect(open[0]?.payload.reason).toBe(reason);
 	});
 
 	it("rest on a Parent's Personal Allowance only for that Parent", async () => {

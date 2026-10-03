@@ -9,8 +9,9 @@ import {
 	waitForReview,
 } from "./session";
 
-// Suggestions (#58, ADR-0027): a statement with months of a recurring charge gets a Commitment
-// suggestion on This Month after the background run. Add creates the Commitment; Not now sticks.
+// Suggestions (#58, ADR-0027, #76): a statement with months of a real bill gets a Commitment
+// suggestion under Plan › Commitments after the background run, saying why. Never on This Month.
+// Add creates the Commitment; Not now sticks. Bucket suggestions show under Plan › Buckets.
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -23,7 +24,7 @@ test.afterEach(async () => {
 });
 
 const shots =
-	"/tmp/claude-1000/-home-ryan-Work-noodle/350084fd-f9e1-4b75-9ecf-7a4034e88af2/scratchpad/s58c";
+	"/tmp/claude-1000/-home-ryan-Work-noodle/135121c1-f742-4921-8d27-be919c6ca3f4/scratchpad/s76b";
 
 const shots58d1b =
 	"/tmp/claude-1000/-home-ryan-Work-noodle/350084fd-f9e1-4b75-9ecf-7a4034e88af2/scratchpad/s58d1b";
@@ -44,40 +45,59 @@ const daysAgo = (days: number) => {
 	return date.toLocaleDateString("en-US");
 };
 
-test("a recurring charge is suggested as a Commitment; Add creates it, Not now sticks", async ({
+/** The same day of an earlier month, as a bill falls. */
+const monthsAgo = (months: number, day: number) => {
+	const date = new Date();
+	date.setDate(1);
+	date.setMonth(date.getMonth() - months);
+	date.setDate(day);
+	return date.toLocaleDateString("en-US");
+};
+
+const thisMonth = () => new Date().toLocaleDateString("en-CA").slice(0, 7);
+
+test("a bill is suggested under Plan › Commitments with its reason, not on This Month; Add creates it, Not now sticks", async ({
 	browser,
 }) => {
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "6000", buckets: [["Groceries", "600"]] });
 	const lines: [string, string, string][] = [];
-	for (const ago of [92, 61, 31, 1]) {
-		lines.push(["PLANET FITNESS CLUB", "49.99", daysAgo(ago)]);
-		lines.push(["SPOTIFY USA", "11.99", daysAgo(ago + 2)]);
+	for (const months of [4, 3, 2, 1]) {
+		lines.push(["PLANET FITNESS CLUB", "49.99", monthsAgo(months, 3)]);
+		lines.push(["SPOTIFY USA", "11.99", monthsAgo(months, 5)]);
 	}
 	await uploadStatement(page, lines, true);
+	const month = thisMonth();
 
 	const card = page.getByTestId("suggested");
-	await reloadUntil(page, "/month", async () => {
+	await reloadUntil(page, `/plan/${month}/commitments`, async () => {
 		await expect(card).toContainText("Planet Fitness looks like a Commitment", {
 			timeout: 2_000,
 		});
 		await expect(card).toContainText("Spotify looks like a Commitment", { timeout: 2_000 });
 	});
-	await expect(card).toContainText("$49.99 a month, seen 4 times.");
+	await expect(card).toContainText(/Planet Fitness, \$49\.99 on the 3rd, \d+ months running\./);
 	await page.setViewportSize({ width: 1440, height: 900 });
-	await page.screenshot({ path: `${shots}/this-month-1440.png`, fullPage: true });
-	await axe(page, "This Month with Suggested at 1440");
+	await page.screenshot({ path: `${shots}/commitments-1440.png`, fullPage: true });
+	await axe(page, "Plan › Commitments with Suggested at 1440");
 
 	// On a phone: no sideways scroll, and each button is a 44px target.
 	await page.setViewportSize({ width: 393, height: 852 });
-	await card.scrollIntoViewIfNeeded();
-	await card.screenshot({ path: `${shots}/suggested-393.png` });
+	await page.screenshot({ path: `${shots}/commitments-393.png`, fullPage: true });
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(393);
 	for (const button of await card.getByRole("button").all()) {
 		expect((await button.boundingBox())?.height).toBeGreaterThanOrEqual(44);
 	}
-	await axe(page, "This Month with Suggested at 393");
+	await axe(page, "Plan › Commitments with Suggested at 393");
 
+	// This Month stays a calm glance: no Suggested card there (#76).
+	await page.goto(`/month/${month}`);
+	await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+	await expect(page.getByTestId("suggested")).toHaveCount(0);
+	await expect(page.getByText("looks like a Commitment")).toHaveCount(0);
+
+	await page.goto(`/plan/${month}/commitments`);
+	await page.waitForLoadState("networkidle");
 	await card.getByRole("button", { name: "Not now: Spotify" }).click();
 	await expect(card).not.toContainText("Spotify");
 	// Add opens the terms first, filled in from the charges, to change before adding.
@@ -92,16 +112,13 @@ test("a recurring charge is suggested as a Commitment; Add creates it, Not now s
 	await expect(card).toBeHidden();
 
 	await page.reload();
-	await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-	await expect(page.getByTestId("suggested")).toBeHidden();
-	const month = page.url().match(/\/month\/(\d{4}-\d{2})/)?.[1];
-	await page.goto(`/plan/${month}/commitments`);
 	await expect(page.getByText("Planet Fitness").first()).toBeVisible();
+	await expect(page.getByTestId("suggested")).toBeHidden();
 	await expect(page.getByText("$52 expected this month")).toBeVisible();
 	await expect(page.getByText("Spotify")).toHaveCount(0);
 });
 
-test("steady pet spending is suggested as a Bucket on This Month and in the Add Buckets sheet; adding it there takes the suggestion", async ({
+test("steady pet spending is suggested as a Bucket under Plan › Buckets and in the Add Buckets sheet; adding it there takes the suggestion", async ({
 	browser,
 }) => {
 	test.slow();
@@ -114,16 +131,16 @@ test("steady pet spending is suggested as a Bucket on This Month and in the Add 
 		);
 	}
 	await uploadStatement(page, lines, true);
+	const month = thisMonth();
 
 	const card = page.getByTestId("suggested");
-	await reloadUntil(page, "/month", () =>
+	await reloadUntil(page, `/plan/${month}/buckets`, () =>
 		expect(card).toContainText("A Bucket for Pets", { timeout: 2_000 }),
 	);
 	await expect(card).toContainText("10 charges");
-	const month = page.url().match(/\/month\/(\d{4}-\d{2})/)?.[1];
 
 	await page.setViewportSize({ width: 393, height: 852 });
-	await page.goto(`/plan/${month}/buckets`);
+	await page.waitForLoadState("networkidle");
 	await page.getByRole("button", { name: "Add Buckets", exact: true }).click();
 	const sheet = page.getByRole("dialog", { name: "Add Buckets" });
 	const pets = sheet.getByRole("checkbox", { name: "Pets", exact: true });
@@ -141,9 +158,7 @@ test("steady pet spending is suggested as a Bucket on This Month and in the Add 
 	await expect(page.getByRole("button", { name: "Edit Pets" })).toBeVisible();
 	await expect(page.getByText("$150").first()).toBeVisible();
 
-	// Taken, not left for the next run to drop: gone from This Month at once.
-	await page.goto(`/month/${month}`);
-	await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+	// Taken, not left for the next run to drop: gone from under the list at once.
 	await expect(page.getByText("A Bucket for Pets")).toHaveCount(0);
 });
 

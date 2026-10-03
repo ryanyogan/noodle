@@ -1,3 +1,4 @@
+import { monthOfDay } from "@noodle/domain";
 import { Card } from "@noodle/ui/components/card";
 import { List } from "@noodle/ui/components/list";
 import { Money } from "@noodle/ui/components/money";
@@ -10,14 +11,19 @@ import { AddPersonalAllowance, BucketEditor } from "../../../components/bucket-e
 import { BucketList } from "../../../components/bucket-list";
 import { PlanMasterDetail } from "../../../components/plan-page";
 import { SectionPending } from "../../../components/section-layout";
+import { Suggested } from "../../../components/suggested";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney } from "../../../format";
 import { usePlanChanges } from "../../../plan-changes";
-import { membersQuery, useMonthState } from "../../../queries";
+import { membersQuery, suggestionsQuery, useMonthState } from "../../../queries";
 
 export const Route = createFileRoute("/_authed/_household/plan/$month/buckets")({
-	// Setting up a Personal Allowance names it after its Parent.
-	loader: ({ context }) => context.queryClient.ensureQueryData(membersQuery()),
+	// Setting up a Personal Allowance names it after its Parent; Suggested is in the first paint.
+	loader: ({ context }) =>
+		Promise.all([
+			context.queryClient.ensureQueryData(membersQuery()),
+			context.queryClient.ensureQueryData(suggestionsQuery()),
+		]),
 	pendingComponent: SectionPending,
 	component: PlanBuckets,
 });
@@ -100,6 +106,10 @@ function PlanBuckets() {
 						No Buckets in this month’s Plan.
 					</Card>
 				)}
+				{/* Under the list (#76), on this month only: adding one writes this month's Plan. */}
+				{state.editable && month === monthOfDay(state.asOf) ? (
+					<Suggested kinds={["new-bucket"]} />
+				) : null}
 			</div>
 			{allowances.length > 0 || state.editable ? (
 				<Section id="personal-allowances" aria-labelledby="plan-personal-allowances">

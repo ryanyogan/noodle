@@ -231,6 +231,13 @@ export async function saveSuggestions(
 				})
 				.where(eq(suggestions.id, row.id));
 			changed++;
+		} else if (row.status === "open" && JSON.stringify(row.payload) !== JSON.stringify(payload)) {
+			// Same evidence, newer words: an open one saved before #76 gains its reason.
+			await db
+				.update(suggestions)
+				.set({ payload, updatedAt: now })
+				.where(eq(suggestions.id, row.id));
+			changed++;
 		}
 	}
 	const gone = stored.filter((row) => row.status === "open" && !found.has(row.key));
