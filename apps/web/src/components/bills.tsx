@@ -1,7 +1,7 @@
 import type { CommitmentState, DayKey, MonthKey } from "@noodle/domain";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@noodle/ui/components/tabs";
-import { useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import { ComingUpList, useComingUp } from "./coming-up";
 import { CommitmentsList, commitmentsPaid } from "./commitment-list";
 
@@ -9,21 +9,6 @@ import { CommitmentsList, commitmentsPaid } from "./commitment-list";
 // next 30 days were two lists of the same bills one after the other. Now one section switches
 // between them, at every size, so each bill shows once on the page (#73). An ended month has only
 // its own.
-
-const lgQuery = "(min-width: 64rem)";
-
-/** Whether the window is lg or wider. The server renders the phone layout. */
-export function useLg() {
-	return useSyncExternalStore(
-		(onChange) => {
-			const query = window.matchMedia(lgQuery);
-			query.addEventListener("change", onChange);
-			return () => query.removeEventListener("change", onChange);
-		},
-		() => window.matchMedia(lgQuery).matches,
-		() => false,
-	);
-}
 
 type View = "month" | "coming-up";
 
@@ -76,20 +61,6 @@ export function Bills({
 			) : (
 				<CommitmentsList month={month} asOf={asOf} commitments={commitments} notDue={notDue} />
 			)}
-		</Section>
-	);
-}
-
-/** Coming up in This Month's right rail, from lg: the next 30 days' bills. */
-export function ComingUpSection() {
-	return (
-		<Section aria-labelledby="coming-up-title">
-			<SectionHeader
-				id="coming-up-title"
-				title="Coming up"
-				action={<span className="text-[13px] text-muted-foreground">Next 30 days</span>}
-			/>
-			<ComingUpList />
 		</Section>
 	);
 }
