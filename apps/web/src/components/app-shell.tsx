@@ -211,10 +211,11 @@ function ReviewBadge() {
 	if (waiting === 0) return null;
 	return (
 		<SidebarMenuBadge className="pointer-events-auto transition-colors hover:bg-brand-soft hover:text-brand has-focus-visible:ring-2 has-focus-visible:ring-ring">
-			{/* The ::before widens what takes the click past the small badge. */}
+			{/* The link itself is the 24px target (axe's target-size measures it, not a ::before):
+			    negative margins let it spill past the small badge without widening it. */}
 			<Link
 				to="/review"
-				className="outline-none before:absolute before:-inset-1 before:rounded-full before:content-['']"
+				className="-mx-2 flex h-6 min-w-6 items-center justify-center rounded-full px-2 outline-none"
 			>
 				{waiting}
 				<span className="sr-only"> to review</span>
