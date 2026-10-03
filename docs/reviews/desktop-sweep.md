@@ -160,3 +160,12 @@ What moved where:
 - **To do** is one card in the rail: a collapsed row per prompt with a status line ("2 Buckets and Extra income to decide", "3 of 4 done", "$2,328 in October to place"), its heading lined up with Free to Spend's. An opened row shows its content inside the same card: Close September's leftovers are plain rows between the card's own dividers (no card inside the card), its heading is not repeated (it stays for screen readers, and its help moves to the start of the text), and the Extra income line takes the rail's full width with its choice underneath. The phone is unchanged.
 
 Extra income shows two amounts, and both are right: **$1,426** in the Close September row is September's Extra income nobody has decided on yet; **$2,328** in the Extra income row is October's, $8,528 received less the $6,200 usual take-home pay.
+
+## Plan (73d)
+
+Decisions (code and tests only; the after screenshots did not get looked at in 73d, see the handoff):
+
+- **Month and Plan switch:** gone on a computer (the Sidebar has This Month and Plan). Kept on phones only: the phone tab bar has no Plan tab, so the switch is how a phone reaches the Plan. The whole row above the header (switch, Reports, Ask, Glossary) is lg:hidden. The e2e helper switchTo uses the Sidebar at 1024px and wider, the switch below.
+- **Plan › Overview:** the waterfall rows are figures with no links or chevrons; the tabs open each part. "See the whole of <year>" is gone (the Year tab). Coming up is gone from the rail (it is This Month's, in Bills), so both columns start with a heading (Waterfall / What changed); Plan Overview was already in desktop-scroll's aligned list.
+- **What changed:** shows its first three changes with "Show all N" / "Show fewer" (aria-expanded).
+- **Year:** each month links once (its name in the table or the phone list); Lumpy months names months without a second link.
