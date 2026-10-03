@@ -1,3 +1,4 @@
+import { env } from "cloudflare:workers";
 import {
 	acceptInvite as acceptInviteInDb,
 	findInviteByTokenHash,
@@ -13,9 +14,12 @@ import {
 	normalizeEmail,
 } from "@noodle/db";
 import { createServerFn } from "@tanstack/react-start";
+import { getRequestUrl } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { currentUserId, primaryEmail, requireUserId, verifiedEmails } from "./auth";
 import { getDb } from "./db";
+import { sendEmail } from "./email/send";
+import { inviteEmail } from "./email/templates";
 import { householdMiddleware, toHouseholdSummary } from "./household";
 import { notifyHousehold } from "./notify";
 import { ulidSchema } from "./schemas";
@@ -40,6 +44,16 @@ export const getHouseholdParents = createServerFn({ method: "GET" })
 		};
 	});
 
+/**
+ * The app's own address, for links in emails: APP_ORIGIN in production, and the address the app
+ * was opened at in dev and E2E, where APP_ORIGIN still names production.
+ */
+function appOrigin(): string {
+	const origin = (env as unknown as { APP_ORIGIN?: string }).APP_ORIGIN;
+	if (__AI_STUB__ || import.meta.env.DEV || !origin) return getRequestUrl().origin;
+	return origin;
+}
+
 export const inviteParent = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ inviteId: ulidSchema, email: z.email().max(254) }))
@@ -57,7 +71,17 @@ export const inviteParent = createServerFn({ method: "POST" })
 		});
 		if (!result.ok) return result;
 		await notifyHousehold(context.household.id, ["parents"]);
-		return { ok: true as const, email: result.invite.email, linkPath: `/invite/${token}` };
+		const link = new URL(`/invite/${token}`, appOrigin()).href;
+		const sent = await sendEmail(
+			result.invite.email,
+			inviteEmail({
+				inviterName: context.parent.name,
+				householdName: context.household.name,
+				link,
+			}),
+		);
+		// The link goes back too, for Copy link: the only other way to it once sending fails.
+		return { ok: true as const, email: result.invite.email, link, sent: sent.ok };
 	});
 
 /** Joins from /welcome: the open invite addressed to one of the signed-in user's verified emails. */

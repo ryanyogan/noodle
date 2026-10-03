@@ -18,7 +18,8 @@ import { CopyRow } from "./capture-settings";
 
 export function InviteOtherParent({ invitedEmail }: { invitedEmail: string | null }) {
 	// The invite link, shown only right after inviting: Noodle keeps just a hash of it (#60).
-	const [link, setLink] = useState<{ email: string; url: string } | null>(null);
+	// `sent` says whether the email went out; Copy link is the second way, or the only one.
+	const [link, setLink] = useState<{ email: string; url: string; sent: boolean } | null>(null);
 	const queryClient = useQueryClient();
 	const hydrated = useHydrated();
 	// A fresh ID per attempt; reused by a retry of the same attempt.
@@ -28,10 +29,7 @@ export function InviteOtherParent({ invitedEmail }: { invitedEmail: string | nul
 		onSuccess: async (result) => {
 			if (result.ok) {
 				setInviteId(ulid());
-				setLink({
-					email: result.email,
-					url: new URL(result.linkPath, window.location.origin).href,
-				});
+				setLink({ email: result.email, url: result.link, sent: result.sent });
 			}
 			await queryClient.invalidateQueries({ queryKey: householdParentsQuery().queryKey });
 		},
@@ -55,22 +53,33 @@ export function InviteOtherParent({ invitedEmail }: { invitedEmail: string | nul
 					<Mail />
 				</Tile>
 				{invitedEmail ? (
-					<div className="grid gap-1">
+					// min-w-0 and wrapping anywhere, so a long email can't push past a phone's edge.
+					<div className="grid min-w-0 gap-1 [overflow-wrap:anywhere]">
 						<div className="flex flex-wrap items-center gap-2 font-medium">
 							Invited {invitedEmail}
 							<Badge variant="pace" dot>
 								Waiting
 							</Badge>
 						</div>
-						<p className="text-muted-foreground">
-							{link?.email === invitedEmail
-								? "Send them this link. It works for 7 days."
-								: "They can join by signing in to Noodle with that email. Lost the link? Invite them again for a new one."}
-						</p>
+						{link?.email === invitedEmail ? (
+							link.sent ? (
+								<p className="text-muted-foreground">
+									We sent an invite to {invitedEmail}. The link in it works for 7 days. You can also
+									copy it and send it yourself.
+								</p>
+							) : (
+								<FormError>Couldn’t send. Copy the link instead. It works for 7 days.</FormError>
+							)
+						) : (
+							<p className="text-muted-foreground">
+								They can join from the link we emailed them, or by signing in to Noodle with that
+								email. Lost the link? Invite them again for a new one.
+							</p>
+						)}
 					</div>
 				) : (
 					<p className="self-center text-muted-foreground">
-						Once you’ve invited them, you’ll get a link to send them. It works for 7 days.
+						We’ll email them a link to join your Household. It works for 7 days.
 					</p>
 				)}
 			</div>

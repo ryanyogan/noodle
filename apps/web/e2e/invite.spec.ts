@@ -18,12 +18,40 @@ async function invite(page: Page, email: string) {
 async function inviteAndCopyLink(page: Page, email: string) {
 	await invite(page, email);
 	await expect(page.getByText(`Invited ${email}`)).toBeVisible();
-	await expect(page.getByText("Send them this link. It works for 7 days.")).toBeVisible();
+	await expect(page.getByText(`We sent an invite to ${email}.`)).toBeVisible();
 	await page.getByRole("button", { name: "Copy link" }).click();
 	await expect(page.getByText("Invite link copied")).toBeVisible();
 	const link = await page.evaluate(() => navigator.clipboard.readText());
 	expect(link).toMatch(/\/invite\/[\w-]{43}$/);
 	return new URL(link).pathname;
+}
+
+type OutboxEmail = { to: string; subject: string; text: string; html: string };
+
+/** The emails sent to `to`, from the dev outbox AI_MODEL=stub keeps instead of sending. */
+async function outbox(page: Page, to: string): Promise<OutboxEmail[]> {
+	const response = await page.request.get(`/api/dev/outbox?to=${encodeURIComponent(to)}`);
+	expect(response.ok()).toBe(true);
+	return response.json();
+}
+
+/** Checks the one invite email sent to `to` and gives its link's path, from the text and the button. */
+async function emailedLink(page: Page, to: string, inviter: string, household: string) {
+	const emails = await outbox(page, to);
+	expect(emails).toHaveLength(1);
+	const email = emails[0];
+	if (!email) throw new Error(`No email to ${to}`);
+	expect(email.to).toBe(to);
+	expect(email.subject).toBe(`${inviter} invited you to ${household} on Noodle`);
+	expect(email.text).toContain(
+		`${inviter} invited you to plan ${household}’s money together on Noodle`,
+	);
+	expect(email.text).toContain("This link works for 7 days.");
+	const url = email.text.match(/https?:\/\/\S+\/invite\/[\w-]{43}/)?.[0] ?? "";
+	// Links point at the app the inviter is using (APP_ORIGIN in production).
+	expect(new URL(url).origin).toBe(new URL(page.url()).origin);
+	expect(email.html).toContain(`href="${url}"`);
+	return new URL(url).pathname;
 }
 
 /** A browser that isn't signed in, with Clerk's testing token so its pages load in tests. */
@@ -57,9 +85,13 @@ test("a Parent sends an invite link, and the other Parent signs up from it and j
 		await invite(firstPage, first.email.toUpperCase());
 		await expect(firstPage.getByRole("alert")).toContainText("your own email");
 
-		const link = await inviteAndCopyLink(firstPage, secondEmail);
+		await invite(firstPage, secondEmail);
+		await expect(firstPage.getByText(`We sent an invite to ${secondEmail}.`)).toBeVisible();
+		// Copy link is there too, as a second way to send it.
+		await expect(firstPage.getByRole("button", { name: "Copy link" })).toBeVisible();
+		const link = await emailedLink(firstPage, secondEmail, "Alex", "The Invites");
 
-		// Signed out, the link opens sign-up with their email filled in.
+		// Signed out, the link from the email opens sign-up with their email filled in.
 		const secondPage = await signedOutPage(browser, phone);
 		await secondPage.goto(link);
 		await expect(secondPage).toHaveURL(/\/sign-up\?invite=/);
@@ -230,5 +262,35 @@ test("someone invited by mistake can start their own Household instead", async (
 		await expect(page.getByText("The Originals")).toBeVisible();
 	} finally {
 		await Promise.all([inviter.remove(), invitee.remove()]);
+	}
+});
+
+test("when the invite email can't be sent, the Parent is told to copy the link instead", async ({
+	browser,
+}) => {
+	const inviter = await createTestParent();
+	const invitedEmail = newTestEmail();
+	try {
+		const page = await signedInPage(browser, inviter.email, { ...clipboard, ...phone });
+		await createHousehold(page, "The Postmen", "Alex");
+		await page.goto("/household");
+		await invite(page, invitedEmail);
+		await expect(page.getByText(`We sent an invite to ${invitedEmail}.`)).toBeVisible();
+		await shot(page, "sent-393");
+
+		// The dev outbox refuses fail@example.com, as a real send might fail.
+		await invite(page, "fail@example.com");
+		await expect(page.getByText("Invited fail@example.com")).toBeVisible();
+		await expect(page.getByRole("alert")).toContainText("Couldn’t send. Copy the link instead.");
+		await page.getByRole("button", { name: "Copy link" }).click();
+		const link = await page.evaluate(() => navigator.clipboard.readText());
+		expect(link).toMatch(/\/invite\/[\w-]{43}$/);
+		expect(await outbox(page, "fail@example.com")).toHaveLength(0);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+			393,
+		);
+		await shot(page, "failed-393");
+	} finally {
+		await inviter.remove();
 	}
 });

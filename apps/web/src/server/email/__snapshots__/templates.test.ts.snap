@@ -1,0 +1,34 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`inviteEmail > has a button to the link and says when it stops working 1`] = `
+"<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark">
+<title>Alex invited you to plan The Lees’s money together on Noodle</title></head>
+<body style="margin:0;padding:0;font-family:Geist, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+<div style="display:none;max-height:0;overflow:hidden;">Join The Lees on Noodle. This link works for 7 days.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:32px 16px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;"><tr><td style="text-align:left;">
+<p style="margin:0 0 24px;font-size:15px;font-weight:600;color:#3e63dd;">Noodle</p>
+<h1 style="margin:0 0 16px;font-size:22px;line-height:30px;font-weight:600;">Alex invited you to plan The Lees’s money together on Noodle</h1>
+<p style="margin:0 0 16px;font-size:16px;line-height:24px;">Noodle is a budgeting app for families: you plan the month together and always know what you can spend.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;"><tr><td style="border-radius:8px;background:#3e63dd;"><a href="https://noodle.yogan.dev/invite/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcde" style="display:inline-block;padding:12px 20px;font-size:16px;font-weight:600;line-height:20px;color:#ffffff;text-decoration:none;border-radius:8px;">Join The Lees</a></td></tr></table>
+<p style="margin:0 0 12px;font-size:14px;line-height:20px;color:#71717a;word-break:break-word;overflow-wrap:anywhere;">This link works for 7 days.</p>
+<p style="margin:0 0 12px;font-size:14px;line-height:20px;color:#71717a;word-break:break-word;overflow-wrap:anywhere;">Or open this link: https://noodle.yogan.dev/invite/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcde</p>
+<p style="margin:0 0 12px;font-size:14px;line-height:20px;color:#71717a;word-break:break-word;overflow-wrap:anywhere;">If you weren’t expecting this, you can ignore this email.</p>
+</td></tr></table>
+</td></tr></table>
+</body></html>"
+`;
+
+exports[`inviteEmail > names who invited them and the Household, and nothing else from it 1`] = `
+"Alex invited you to plan The Lees’s money together on Noodle.
+
+Noodle is a budgeting app for families: you plan the month together and always know what you can spend.
+
+Join The Lees: https://noodle.yogan.dev/invite/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcde
+
+This link works for 7 days.
+If you weren’t expecting this, you can ignore this email."
+`;

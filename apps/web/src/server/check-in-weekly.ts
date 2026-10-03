@@ -20,6 +20,7 @@ import {
 import { loadCheckInWaiting } from "./check-in";
 import { type CheckInEmail, checkInEmail } from "./check-in-email";
 import { getDb } from "./db";
+import { sendEmail } from "./email/send";
 import { scheduleCheckInNudges } from "./nudge-content";
 
 // The nightly run's Check-in part (server.ts runs it after Insights, so it counts what they
@@ -80,39 +81,25 @@ async function startCheckIn(
 				cards: cards.get(parent.id) ?? [],
 				link: appLink("/check-in"),
 			});
-			await sendEmail(parent.clerkUserId, email).catch((error) => {
+			await sendCheckInEmail(parent.clerkUserId, email).catch((error) => {
 				console.error(`Couldn’t email ${parent.id} their Check-in`, error);
 			});
 		}),
 	);
 }
 
-/**
- * What sending email needs, all optional: a checkout without them (local dev, E2E) sends none.
- * EMAIL is the `send_email` binding (Cloudflare Email Service), CHECK_IN_EMAIL_FROM an address on
- * a domain onboarded to it, and APP_ORIGIN the app's own address, for links.
- */
-type EmailEnv = { EMAIL?: SendEmail; CHECK_IN_EMAIL_FROM?: string; APP_ORIGIN?: string };
-
-const emailEnv = () => env as unknown as EmailEnv;
-
 const appLink = (path: string) => {
-	const origin = emailEnv().APP_ORIGIN;
+	const origin = (env as unknown as { APP_ORIGIN?: string }).APP_ORIGIN;
 	return origin ? new URL(path, origin).toString() : null;
 };
 
-/** Emails a Parent at their primary address in Clerk, once it's verified. */
-async function sendEmail(clerkUserId: string, email: CheckInEmail): Promise<void> {
-	const { EMAIL, CHECK_IN_EMAIL_FROM } = emailEnv();
-	if (!EMAIL || !CHECK_IN_EMAIL_FROM) return;
+/**
+ * Emails a Parent at their primary address in Clerk, once it's verified, through the shared
+ * sender (server/email/send.ts). Without the `send_email` binding (or EMAIL_FROM) it sends none.
+ */
+async function sendCheckInEmail(clerkUserId: string, email: CheckInEmail): Promise<void> {
 	const user = await clerkClient().users.getUser(clerkUserId);
 	const address = user.primaryEmailAddress;
 	if (address?.verification?.status !== "verified") return;
-	await EMAIL.send({
-		to: address.emailAddress,
-		from: { email: CHECK_IN_EMAIL_FROM, name: "Noodle" },
-		subject: email.subject,
-		text: email.text,
-		html: email.html,
-	});
+	await sendEmail(address.emailAddress, email);
 }

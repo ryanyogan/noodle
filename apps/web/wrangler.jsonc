@@ -15,6 +15,8 @@
 		"CLERK_SIGN_UP_URL": "/sign-up",
 		// The app's own address, for links in emails and the webhook URL given to Plaid.
 		"APP_ORIGIN": "https://noodle.yogan.dev",
+		// Who Noodle's emails come from, shown as "Noodle" (ADR-0026): invites and the Check-in.
+		"EMAIL_FROM": "hello@noodle.yogan.dev",
 		// Ask's model calls go through this AI Gateway (ADR-0012); "default" is auto-created on first use.
 		"AI_GATEWAY_ID": "default",
 		// Plaid's environment for Bank Connections: "sandbox" or "production" (ADR-0017). They also
@@ -84,12 +86,12 @@
 		{ "name": "noodle-import", "binding": "IMPORT", "class_name": "ImportWorkflow" },
 		{ "name": "noodle-setup", "binding": "SETUP", "class_name": "SetupWorkflow" }
 	],
-	"triggers": { "crons": ["0 * 1-3 * *", "0 9 * * *"] }
-	// The Check-in's email summary goes out through Cloudflare Email Service once these are added
-	// (server/check-in-weekly.ts); without them it's skipped, as in local dev and E2E. The domain
-	// of CHECK_IN_EMAIL_FROM must be onboarded to Email Service first.
-	// "send_email": [{ "name": "EMAIL" }],
-	// and in "vars": "CHECK_IN_EMAIL_FROM": "checkin@<domain>"
+	"triggers": { "crons": ["0 * 1-3 * *", "0 9 * * *"] },
+	// Invites to the other Parent and the Check-in's email summary go out through Cloudflare Email
+	// Service (server/email/send.ts, ADR-0026), only from EMAIL_FROM. noodle.yogan.dev must be
+	// onboarded to Email Sending first (`wrangler email sending enable noodle.yogan.dev`). With
+	// AI_MODEL=stub nothing is sent: emails land in a dev outbox E2E reads.
+	"send_email": [{ "name": "EMAIL", "allowed_sender_addresses": ["hello@noodle.yogan.dev"] }]
 	// Forwarded Receipts arrive by Email Routing (ADR-0016): route receipts@<domain>, with
 	// subaddressing on, to this Worker, and add to "vars": "RECEIPTS_EMAIL_DOMAIN": "<domain>".
 	// Without it the Household page says forwarding isn't set up.
