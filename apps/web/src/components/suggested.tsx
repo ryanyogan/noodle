@@ -76,8 +76,10 @@ export function Suggested({ className }: { className?: string }) {
 								{item.personal ? <Badge variant="default">Only you see this</Badge> : null}
 							</div>
 							<div className="flex flex-wrap gap-2">
+								{/* Outline, not filled: a suggestion stays quiet beside the page's own actions. */}
 								<Button
 									size="sm"
+									variant="outline"
 									aria-label={`${add}: ${name}`}
 									onClick={() => decide.mutate({ suggestionId: item.id, decision: "add" })}
 								>

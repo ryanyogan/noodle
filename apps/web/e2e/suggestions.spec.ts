@@ -1,4 +1,5 @@
-import { expect, test } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { createPlannedHousehold, reloadUntil, signedInPage, uploadStatement } from "./session";
 
@@ -14,6 +15,19 @@ test.beforeEach(async () => {
 test.afterEach(async () => {
 	await parent?.remove();
 });
+
+const shots =
+	"/tmp/claude-1000/-home-ryan-Work-noodle/350084fd-f9e1-4b75-9ecf-7a4034e88af2/scratchpad/s58c";
+
+async function axe(page: Page, label: string) {
+	const { violations } = await new AxeBuilder({ page })
+		.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+		.analyze();
+	expect(
+		violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`),
+		label,
+	).toEqual([]);
+}
 
 const daysAgo = (days: number) => {
 	const date = new Date();
@@ -35,19 +49,29 @@ test("a recurring charge is suggested as a Commitment; Add creates it, Not now s
 
 	const card = page.getByTestId("suggested");
 	await reloadUntil(page, "/month", async () => {
-		await expect(card).toContainText("Planet Fitness looks like a Commitment", { timeout: 2_000 });
+		await expect(card).toContainText("Planet Fitness Club looks like a Commitment", {
+			timeout: 2_000,
+		});
 		await expect(card).toContainText("Spotify looks like a Commitment", { timeout: 2_000 });
 	});
 	await expect(card).toContainText("$49.99 a month, seen 4 times.");
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await page.screenshot({ path: `${shots}/this-month-1440.png`, fullPage: true });
+	await axe(page, "This Month with Suggested at 1440");
+
+	// On a phone: no sideways scroll, and each button is a 44px target.
 	await page.setViewportSize({ width: 393, height: 852 });
 	await card.scrollIntoViewIfNeeded();
-	await card.screenshot({
-		path: "/tmp/claude-1000/-home-ryan-Work-noodle/350084fd-f9e1-4b75-9ecf-7a4034e88af2/scratchpad/s58c/suggested-393.png",
-	});
+	await card.screenshot({ path: `${shots}/suggested-393.png` });
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(393);
+	for (const button of await card.getByRole("button").all()) {
+		expect((await button.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+	}
+	await axe(page, "This Month with Suggested at 393");
 
 	await card.getByRole("button", { name: "Not now: Spotify" }).click();
 	await expect(card).not.toContainText("Spotify");
-	await card.getByRole("button", { name: "Add Commitment: Planet Fitness" }).click();
+	await card.getByRole("button", { name: "Add Commitment: Planet Fitness Club" }).click();
 	await expect(card).toBeHidden();
 
 	await page.reload();
@@ -55,6 +79,6 @@ test("a recurring charge is suggested as a Commitment; Add creates it, Not now s
 	await expect(page.getByTestId("suggested")).toBeHidden();
 	const month = page.url().match(/\/month\/(\d{4}-\d{2})/)?.[1];
 	await page.goto(`/plan/${month}/commitments`);
-	await expect(page.getByText("Planet Fitness").first()).toBeVisible();
+	await expect(page.getByText("Planet Fitness Club").first()).toBeVisible();
 	await expect(page.getByText("Spotify")).toHaveCount(0);
 });
