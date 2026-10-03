@@ -545,7 +545,13 @@ function QuickAddForm({
 						value={note}
 						onChange={(event) => setNote(event.currentTarget.value)}
 						onKeyDown={(event) => {
-							if (event.key === "Enter") event.currentTarget.blur();
+							if (event.key !== "Enter") return;
+							// On a computer, Enter with an amount adds to the highlighted Bucket (ADR-0031);
+							// on a phone it just closes the keyboard.
+							if (cents > 0 && window.matchMedia("(min-width: 64rem)").matches) {
+								event.preventDefault();
+								choose(highlighted);
+							} else event.currentTarget.blur();
 						}}
 					/>
 				</SnapAndSpeak>

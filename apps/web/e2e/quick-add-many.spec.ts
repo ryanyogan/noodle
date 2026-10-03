@@ -141,10 +141,15 @@ test("on a 375×667 phone with 30 Buckets, the common save needs no scrolling, a
 	// The common save: an amount, then the first tile.
 	await open();
 	await keypad.getByRole("button", { name: "7", exact: true }).tap();
-	const first = (await tiles.first().textContent()) ?? "";
-	await tiles.first().getByRole("button").tap();
+	const tile = tiles.first().getByRole("button");
+	// The tile's first line is the Bucket's name; its monogram is hidden from the name.
+	const first = (
+		await tile.locator(':scope > span:not([aria-hidden="true"])').first().innerText()
+	).trim();
+	await tile.tap();
 	await expect(sheet(page)).toBeHidden();
-	await expect(saved(page, first.slice(2, 8))).toBeVisible();
+	// An earlier save's toast can still be showing; the newest is last.
+	await expect(saved(page, first).last()).toBeVisible();
 	await page.context().close();
 });
 
@@ -200,11 +205,12 @@ test("on a 1280×720 computer with 30 Buckets, Quick Add never scrolls and the k
 	await expect(sheet(page).getByText(THEIRS)).toHaveCount(0);
 	await page.keyboard.press("Escape");
 
-	// The note's merchant has a Rule: its Bucket goes first, saying why, and the Add button follows it.
+	// The note's merchant has a Rule: its Bucket goes first, saying why, and Enter in the note adds there.
 	await sheet(page).getByLabel("Note").fill("Chewy");
 	await expect(options.first()).toContainText("Pet supplies");
 	await expect(options.first()).toContainText("From your Rule");
-	await sheet(page).getByRole("button", { name: "Add $5 to Pet supplies" }).click();
+	await expect(sheet(page).getByRole("button", { name: "Add $5 to Pet supplies" })).toBeVisible();
+	await sheet(page).getByLabel("Note").press("Enter");
 	await expect(sheet(page)).toBeHidden();
 	await expect(saved(page, "Pet supplies")).toBeVisible();
 	await page.context().close();
