@@ -25,19 +25,23 @@ export function stopIfCleared<S extends Step>(
 	cleared: () => Promise<boolean>,
 	stop: (message: string) => Error = (message) => new Error(message),
 ): S {
-	const run = step.do as unknown as (...args: unknown[]) => Promise<unknown>;
+	// In workerd `step` is an RPC stub: every property is a remote method, so `step.do.call(…)` or
+	// `.bind(…)` would ask the Workflow engine for a method named "call" or "bind". Always call
+	// `step.<method>(…)` as a method instead.
+	type Method = (...args: unknown[]) => Promise<unknown>;
+	const target = step as unknown as { do: Method } & Record<PropertyKey, Method | undefined>;
 	const guarded = (name: string, ...rest: unknown[]) => {
 		const callback = rest.pop() as (...args: unknown[]) => Promise<unknown>;
-		return run.call(step, name, ...rest, async (...args: unknown[]) => {
+		return target.do(name, ...rest, async (...args: unknown[]) => {
 			if (await cleared()) throw stop(CLEARED_SINCE);
 			return callback(...args);
 		});
 	};
 	return new Proxy(step, {
-		get(target, prop) {
+		get(_, prop) {
 			if (prop === "do") return guarded;
-			const value = Reflect.get(target, prop);
-			return typeof value === "function" ? value.bind(target) : value;
+			const value = target[prop];
+			return typeof value === "function" ? (...args: unknown[]) => target[prop]?.(...args) : value;
 		},
 	});
 }

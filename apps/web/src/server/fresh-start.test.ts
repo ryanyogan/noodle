@@ -266,6 +266,44 @@ describe("work begun before a fresh start", () => {
 		await second.catch((error) => expect(isClearedSince(error)).toBe(true));
 		expect(writes).toEqual(["first"]);
 	});
+
+	it("runs every step for a Household never cleared, on a step that is an RPC stub", async () => {
+		// workerd hands a Workflow its step as an RPC stub: each property is a remote method, so
+		// `step.do.call(…)` or `.bind(…)` asks the engine for a method named "call" or "bind".
+		const calls: unknown[][] = [];
+		const methods: Record<string, (...args: unknown[]) => Promise<unknown>> = {
+			do: async (...args) => {
+				calls.push(["do", ...args.slice(0, -1)]);
+				return (args.at(-1) as () => Promise<unknown>)();
+			},
+			sleep: async (...args) => {
+				calls.push(["sleep", ...args]);
+			},
+		};
+		const remote = (name: string) =>
+			new Proxy((...args: unknown[]) => methods[name]?.(...args), {
+				get: (_, prop) => () => {
+					throw new TypeError(`The RPC receiver does not implement the method "${String(prop)}".`);
+				},
+			});
+		const step = new Proxy({} as { do: (...args: never[]) => Promise<unknown> }, {
+			get: (_, prop) => remote(String(prop)),
+		});
+		const began = new Date();
+		expect(await clearedCheck(db, a, began)()).toBe(false);
+		const guarded = stopIfCleared(step, clearedCheck(db, a, began)) as unknown as Record<
+			string,
+			(...args: unknown[]) => Promise<unknown>
+		>;
+		expect(await guarded.do?.("build", { retries: { limit: 2 } }, async () => "zip")).toBe("zip");
+		expect(await guarded.do?.("tell", async () => "told")).toBe("told");
+		await guarded.sleep?.("wait", "1 second");
+		expect(calls).toEqual([
+			["do", "build", { retries: { limit: 2 } }],
+			["do", "tell"],
+			["sleep", "wait", "1 second"],
+		]);
+	});
 });
 
 describe("when a fresh start runs", () => {
