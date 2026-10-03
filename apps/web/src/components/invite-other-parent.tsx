@@ -193,7 +193,9 @@ export function InviteOtherParent({ invite: open }: { invite: OpenInvite | null 
 							type="email"
 							required
 							maxLength={254}
+							// The other parent's address, not yours: "email" would offer your own.
 							autoComplete="off"
+							enterKeyHint="send"
 							placeholder="name@example.com"
 						/>
 						<Button type="submit" disabled={!hydrated || invite.isPending}>

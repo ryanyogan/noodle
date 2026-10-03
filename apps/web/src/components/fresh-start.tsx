@@ -261,14 +261,18 @@ function FreshStartSheet({
 							/>
 						</Field>
 						{banks.length > 0 ? (
-							<div className="flex items-start gap-2 text-sm">
+							// The whole row is the target, not just the box.
+							<label
+								htmlFor={banksId}
+								className="flex cursor-pointer items-start gap-2 py-1 text-sm"
+							>
 								<Checkbox
 									id={banksId}
 									checked={disconnect}
 									onCheckedChange={(checked) => setDisconnect(checked === true)}
 								/>
-								<label htmlFor={banksId}>Disconnect {joined(banks)} from Noodle</label>
-							</div>
+								<span>Disconnect {joined(banks)} from Noodle</span>
+							</label>
 						) : null}
 						{start.isError ? <FormError>We couldn’t start it. Please try again.</FormError> : null}
 						<SheetFooter className="max-lg:grid-cols-2">

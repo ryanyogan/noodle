@@ -2,11 +2,19 @@ import type * as React from "react";
 import { cn } from "#lib/utils";
 
 function Input({ className, type, autoComplete, ...props }: React.ComponentProps<"input">) {
+	const email = type === "email";
 	return (
 		<input
 			type={type}
 			// Names and amounts here are the Household's own; browser autofill only gets in the way.
-			autoComplete={autoComplete ?? (type === "email" ? "email" : "off")}
+			autoComplete={autoComplete ?? (email ? "email" : "off")}
+			// Phone keyboards: an email keyboard that doesn't capitalize or correct the address, and a
+			// Search key on search fields. Any of these can be overridden by the caller.
+			inputMode={email ? "email" : type === "search" ? "search" : undefined}
+			autoCapitalize={email ? "none" : undefined}
+			autoCorrect={email ? "off" : undefined}
+			spellCheck={email ? false : undefined}
+			enterKeyHint={type === "search" ? "search" : undefined}
 			data-slot="input"
 			className={cn(
 				// 16px on phones so iOS Safari doesn't zoom on focus.

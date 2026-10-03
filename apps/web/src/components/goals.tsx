@@ -205,6 +205,7 @@ export function AmountInput({ className, ...props }: Omit<ComponentProps<"input"
 				type="text"
 				inputMode="decimal"
 				autoComplete="off"
+				enterKeyHint="done"
 				className="pl-6 tabular-nums"
 				{...props}
 			/>

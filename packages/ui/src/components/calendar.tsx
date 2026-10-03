@@ -28,7 +28,7 @@ function Calendar({
 		<DayPicker
 			showOutsideDays={showOutsideDays}
 			className={cn(
-				"group/calendar p-3 [--cell-radius:var(--radius-lg)] [--cell-size:--spacing(9)] max-lg:[--cell-size:--spacing(10)]",
+				"group/calendar p-3 [--cell-radius:var(--radius-lg)] [--cell-size:--spacing(9)] max-lg:[--cell-size:--spacing(11)]",
 				className,
 			)}
 			captionLayout={captionLayout}
