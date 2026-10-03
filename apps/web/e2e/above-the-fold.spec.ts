@@ -5,6 +5,7 @@ import {
 	accountKindLabel,
 	choose,
 	clientRendered,
+	createHousehold,
 	createPlannedHousehold,
 	signedInPage,
 } from "./session";
@@ -149,4 +150,27 @@ test("key information starts above the fold", async ({ browser }) => {
 	lines.push(`| 375x667 | This Month | Free to Spend | ${box ? Math.round(box.y) : "none"} |`);
 	expect(box?.y ?? Number.POSITIVE_INFINITY).toBeLessThan(667);
 	console.log(`FOLD\n${lines.join("\n")}`);
+});
+
+test("a starter household's Get started starts above the fold", async ({ browser }) => {
+	// Just made, no Plan yet: there is no Free to Spend, so Get started is the page's key information.
+	for (const [width, height] of [
+		[393, 852],
+		[375, 667],
+	] as const) {
+		const page = await signedInPage(browser, parent.email, {
+			...phone,
+			viewport: { width, height },
+		});
+		if (width === 393) await createHousehold(page, "The Rinks", "Alex");
+		await page.goto("/month");
+		const free = page.getByRole("region", { name: "Get started" });
+		await expect(free).toBeVisible(clientRendered);
+		const box = await free.boundingBox();
+		console.log(
+			`FOLD | ${width}x${height} | This Month (starter) | Get started | ${box ? Math.round(box.y) : "none"} |`,
+		);
+		expect(box?.y ?? Number.POSITIVE_INFINITY).toBeLessThan(height);
+		await page.context().close();
+	}
 });

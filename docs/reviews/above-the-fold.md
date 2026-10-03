@@ -31,4 +31,16 @@ What moved it:
 - Plan overview: on a phone, a Free to Spend line first, then Things to check folded to one line naming the most urgent.
 - Transactions: from lg, "Spent in {Month}" heads the rail at headline size.
 
-Not measured yet: the starter household, a Check-in day state, Plan health at 1440 (the probe is optional and found nothing there), the next Commitment due.
+Not measured yet: a Check-in day state, Plan health at 1440 (the probe is optional and found nothing there), the next Commitment due (Bills sit under Buckets on a phone, and Coming up follows the To do strip in the desktop rail).
+
+## Crowding at 320 wide
+
+`apps/web/e2e/phone-crowding.spec.ts` builds the busy household with 12-character Bucket names ("Weekly shops", "Takeout food", "Kids lessons", "Family trips") and $16,200 take-home pay. At 320x640 it fails when This Month, the Plan, a Bucket's page or Transactions cut any text to fewer than about 12 characters, cut an amount at all, split a word over two lines in a heading or row, or scroll sideways. It prints the controls smaller than 44 px to look over (the "?" help buttons, 24 px, and row titles, whose whole row is the tap target).
+
+What it found, and what changed:
+
+- A Bucket's page at 320: "Weekly shops" broke into "Weekl / y / shops" beside Edit and the pager. The title now keeps about 12 characters and the actions drop to their own row.
+- This Month's stat row: on a phone, In Buckets and Left in Buckets; Days left is already in the sentence above, and shows again from sm.
+- A Bucket row: the name and the figure share the first line; the status is one word ("Over", "Ahead") on the meta line, beside the bar that shows it in colour. "Over by $200" no longer repeats "$200 over".
+- Cover's explanation sits behind its "?" on a phone, rather than repeated under each over Bucket.
+- The Plan overview on a phone lost the thin empty line under the folded Things to check.
