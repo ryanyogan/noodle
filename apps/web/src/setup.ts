@@ -97,6 +97,8 @@ export const setupAnswersSchema = z.object({
 	run: z.number().int().min(0).max(10_000).optional(),
 	/** A Parent pressed "Don’t ask again" on This Month's Finish setting up (#72). */
 	dismissed: z.boolean().optional(),
+	/** A Parent dismissed This Month's "Apply suggested amounts" (#72). */
+	amountsDismissed: z.boolean().optional(),
 });
 export type SetupAnswers = z.infer<typeof setupAnswersSchema>;
 

@@ -3,6 +3,7 @@ import {
 	addBuckets as addBucketsInDb,
 	addPersonalAllowance as addPersonalAllowanceInDb,
 	archiveBucket as archiveBucketInDb,
+	bucketsWithAllowanceChanges,
 	decideSuggestion as decideSuggestionInDb,
 	loadOpenSuggestion,
 	loadPlanChanges,
@@ -10,6 +11,7 @@ import {
 	reorderBuckets as reorderBucketsInDb,
 	restoreBucket as restoreBucketInDb,
 	setAllowance as setAllowanceInDb,
+	setAllowances as setAllowancesInDb,
 	setCarriesOver as setCarriesOverInDb,
 	setTakeHomePay as setTakeHomePayInDb,
 	updateBucket as updateBucketInDb,
@@ -195,6 +197,39 @@ export const addPersonalAllowance = createServerFn({ method: "POST" })
 export const getAllowanceOwners = createServerFn({ method: "GET" })
 	.middleware([householdMiddleware])
 	.handler(({ context }) => parentsWithPersonalAllowance(getDb(), context.household.id));
+
+/** The Buckets whose allowance a Parent has changed by hand: ids only (#72). */
+export const getEditedAllowances = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.handler(({ context }) => bucketsWithAllowanceChanges(getDb(), context.household.id));
+
+/**
+ * "Apply suggested amounts" (#72): the starter Buckets' amounts from `month` onward, as one change.
+ * A Bucket a Parent has changed by hand since is left as it is.
+ */
+export const applySuggestedAmounts = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			month: monthKeySchema,
+			items: z
+				.array(z.object({ bucketId: ulidSchema, amountCents: centsSchema }))
+				.min(1)
+				.max(60),
+		}),
+	)
+	.handler(async ({ data, context }) => {
+		assertEditable(context.household, data.month);
+		const db = getDb();
+		const edited = new Set(await bucketsWithAllowanceChanges(db, context.household.id));
+		await setAllowancesInDb(db, {
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			month: data.month,
+			items: data.items.filter((item) => !edited.has(item.bucketId)),
+		});
+		await notifyHousehold(context.household.id, ["months"]);
+	});
 
 /** Sets a Bucket's allowance from `month` onward, or just for `month`. */
 export const setAllowance = createServerFn({ method: "POST" })

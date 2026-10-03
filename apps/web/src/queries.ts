@@ -15,7 +15,7 @@ import { getForTotalsEarlierInYear, getMembers } from "./server/members";
 import { getMonth, type MonthData } from "./server/month";
 import { getNudgeSettings } from "./server/nudges";
 import { getPerkSources } from "./server/perks";
-import { getAllowanceOwners, getPlanHistory } from "./server/plan";
+import { getAllowanceOwners, getEditedAllowances, getPlanHistory } from "./server/plan";
 import { getPlanDraft } from "./server/plan-draft";
 import { getReceiptAddress } from "./server/receipts";
 import { getReport, type ReportRequest } from "./server/reports";
@@ -87,8 +87,15 @@ export const householdParentsQuery = () =>
 /** The Parents who have a Personal Allowance; whether one exists is all that's shared (ADR-0003). */
 export const allowanceOwnersQuery = () =>
 	queryOptions({
-		queryKey: ["months", "allowance-owners"],
+		queryKey: [...monthsKey, "allowance-owners"],
 		queryFn: () => getAllowanceOwners(),
+	});
+
+/** The Buckets whose allowance a Parent has changed by hand (#72); a Plan change refreshes it. */
+export const editedAllowancesQuery = () =>
+	queryOptions({
+		queryKey: [...monthsKey, "edited-allowances"],
+		queryFn: () => getEditedAllowances(),
 	});
 
 /**

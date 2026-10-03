@@ -19,6 +19,7 @@ import {
 	commitments,
 	commitmentTerms,
 	households,
+	planChanges as planChangeRows,
 } from "./schema";
 
 // The Plan's records for a Household (ADR-0004: effective-dated rows, written idempotently so a
@@ -704,4 +705,34 @@ export async function parentsWithPersonalAllowance(db: Db, householdId: string):
 		.from(buckets)
 		.where(and(eq(buckets.householdId, householdId), sql`${buckets.ownerMemberId} is not null`));
 	return rows.flatMap((row) => (row.owner ? [row.owner] : []));
+}
+
+/**
+ * The Buckets whose allowance a Parent has changed since they were added: any "allowance" Plan
+ * change. Ids only (ADR-0003). "Apply suggested amounts" never touches these (#72).
+ */
+export async function bucketsWithAllowanceChanges(db: Db, householdId: string): Promise<string[]> {
+	const rows = await db
+		.selectDistinct({ id: planChangeRows.targetId })
+		.from(planChangeRows)
+		.where(and(eq(planChangeRows.householdId, householdId), eq(planChangeRows.kind, "allowance")));
+	return rows.flatMap((row) => (row.id ? [row.id] : []));
+}
+
+/** Sets several Buckets' allowances from `month` onward in one batch, so it's one change (#72). */
+export async function setAllowances(
+	db: Db,
+	input: Author & {
+		householdId: string;
+		month: MonthKey;
+		items: { bucketId: string; amountCents: Cents }[];
+	},
+): Promise<void> {
+	const writes = input.items.flatMap(({ bucketId, amountCents }) => {
+		const one = { ...input, bucketId, amountCents };
+		return [allowanceLog(db, one), allowanceWrite(db, one)];
+	});
+	const [first, ...rest] = writes;
+	if (!first) return;
+	await db.batch([first, ...rest] as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
 }

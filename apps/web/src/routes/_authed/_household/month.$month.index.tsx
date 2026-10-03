@@ -64,16 +64,20 @@ import { closingWeek, useCloseMonth } from "../../../month-close";
 import {
 	checkInStatusQuery,
 	commitmentsQuery,
+	editedAllowancesQuery,
 	insightsQuery,
 	membersQuery,
+	monthsKey,
 	planHealthQuery,
 	planHistoryQuery,
 	reviewQuery,
 	setupQuery,
 	useMonthState,
 } from "../../../queries";
+import { applySuggestedAmounts } from "../../../server/plan";
 import { saveSetup } from "../../../server/setup";
 import { continueSetupShown, SETUP_STEP_COUNT } from "../../../setup";
+import { type SuggestedAmount, unappliedSuggestions } from "../../../suggested-amounts";
 
 export const Route = createFileRoute("/_authed/_household/month/$month/")({
 	// Coming up reads every Commitment's schedule and charges; an ended month names who closed it.
@@ -162,6 +166,16 @@ function ThisMonth() {
 	// What the To do strip holds is decided here, from the same data each prompt reads.
 	const getStarted = useGetStartedSteps(state);
 	const setupState = useSuspenseQuery(setupQuery()).data;
+	const edited = useQuery(editedAllowancesQuery()).data;
+	const suggested =
+		edited && setupState.answers.amountsDismissed !== true
+			? unappliedSuggestions({
+					answers: setupState.answers,
+					takeHomeCents: state.baseline,
+					plan: state.buckets,
+					edited: new Set(edited),
+				})
+			: [];
 	const checkInDue = useCheckInDue();
 	const chips = useChipCounts(month, state.asOf, isCurrent);
 	const monthIncome = state.income.filter((i) => monthOfDay(i.date) === month);
@@ -293,6 +307,13 @@ function ThisMonth() {
 												status: `${getStarted.filter((step) => step.done).length} of ${getStarted.length} done`,
 												action: <ContinueSetup />,
 												content: <GetStarted steps={getStarted} />,
+											},
+										isCurrent &&
+											suggested.length > 0 && {
+												label: "Apply suggested amounts",
+												status: `${suggested.length} Bucket${suggested.length === 1 ? "" : "s"}`,
+												action: <ApplySuggestedAmounts month={month} items={suggested} />,
+												content: <SuggestedAmounts items={suggested} />,
 											},
 										isCurrent &&
 											checkInDue && {
@@ -981,5 +1002,74 @@ function GetStarted({ steps }: { steps: ReturnType<typeof useGetStartedSteps> })
 				))}
 			</List>
 		</Section>
+	);
+}
+
+/** "Apply suggested amounts" (#72): every starter Bucket's suggested amount, as one Plan change. */
+function ApplySuggestedAmounts({ month, items }: { month: string; items: SuggestedAmount[] }) {
+	const queryClient = useQueryClient();
+	const apply = useMutation({
+		mutationFn: () =>
+			applySuggestedAmounts({
+				data: {
+					month,
+					items: items.map((item) => ({ bucketId: item.bucketId, amountCents: item.toCents })),
+				},
+			}),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: monthsKey }),
+	});
+	return (
+		<Button size="sm" disabled={apply.isPending} onClick={() => apply.mutate()}>
+			Apply all
+		</Button>
+	);
+}
+
+/** What applying changes, and "Not now" to stop offering it; a Bucket changed by hand isn't listed. */
+function SuggestedAmounts({ items }: { items: SuggestedAmount[] }) {
+	const queryClient = useQueryClient();
+	const setup = useSuspenseQuery(setupQuery()).data;
+	const dismiss = useMutation({
+		mutationFn: () =>
+			saveSetup({
+				data: {
+					step: setup.step,
+					answers: { ...setup.answers, amountsDismissed: true },
+					skipped: setup.skipped,
+					...(setup.finished ? { finished: true } : {}),
+				},
+			}),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: setupQuery().queryKey }),
+	});
+	return (
+		<Card className="grid gap-3 p-(--card-pad) text-sm">
+			<p className="text-muted-foreground">
+				Setup’s starter Buckets, scaled to your take-home pay. Buckets you’ve changed stay as they
+				are.
+			</p>
+			<List>
+				{items.map((item) => (
+					<ListRow
+						key={item.bucketId}
+						title={item.name}
+						trailing={
+							<span className="tabular-nums">
+								{formatMoney(item.fromCents)} → {formatMoney(item.toCents)}
+							</span>
+						}
+					/>
+				))}
+			</List>
+			<div>
+				<Button
+					variant="ghost"
+					size="sm"
+					disabled={dismiss.isPending}
+					onClick={() => dismiss.mutate()}
+				>
+					Not now
+				</Button>
+			</div>
+		</Card>
 	);
 }
