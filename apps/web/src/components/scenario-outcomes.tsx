@@ -387,6 +387,7 @@ export function FreeToSpendChart({ title }: { title: string }) {
 					<XAxis
 						dataKey="month"
 						tickFormatter={tickMonth(rows.length)}
+						interval="preserveStart"
 						minTickGap={18}
 						{...axisProps}
 					/>
@@ -497,6 +498,7 @@ export function ProjectedBalanceChart() {
 					<XAxis
 						dataKey="month"
 						tickFormatter={tickMonth(rows.length)}
+						interval="preserveStart"
 						minTickGap={18}
 						{...axisProps}
 					/>
@@ -694,6 +696,7 @@ export function CompositionChart() {
 					<XAxis
 						dataKey="month"
 						tickFormatter={tickMonth(rows.length)}
+						interval="preserveStart"
 						minTickGap={18}
 						{...axisProps}
 					/>
@@ -879,6 +882,7 @@ function GoalPath({ name, goalId }: { name: string; goalId: string }) {
 					<XAxis
 						dataKey="month"
 						tickFormatter={tickMonth(rows.length)}
+						interval="preserveStart"
 						minTickGap={24}
 						{...axisProps}
 					/>
@@ -1071,6 +1075,7 @@ export function CompareChart({
 					<XAxis
 						dataKey="month"
 						tickFormatter={tickMonth(rows.length)}
+						interval="preserveStart"
 						minTickGap={18}
 						{...axisProps}
 					/>

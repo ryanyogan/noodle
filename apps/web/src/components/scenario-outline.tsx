@@ -429,11 +429,21 @@ function Group({
 				}}
 			>
 				{add.fields(draft, setDraft)}
-				<div className="flex justify-end gap-2">
+				<div className="flex items-center justify-end gap-2">
+					{name === "" ? (
+						<p id={`${id}-add-hint`} className="mr-auto text-[13px] text-muted-foreground">
+							Name it to add it.
+						</p>
+					) : null}
 					<Button type="button" variant="ghost" size="sm" onClick={() => setDraft(null)}>
 						Cancel
 					</Button>
-					<Button type="submit" size="sm" disabled={name === ""}>
+					<Button
+						type="submit"
+						size="sm"
+						disabled={name === ""}
+						aria-describedby={name === "" ? `${id}-add-hint` : undefined}
+					>
 						Add
 					</Button>
 				</div>
