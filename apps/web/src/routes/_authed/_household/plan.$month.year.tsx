@@ -115,13 +115,8 @@ function YearPage() {
 							<List>
 								{lumpy.map(({ month, lumps }) => (
 									<li key={month} className="grid gap-0.5 px-(--card-pad) py-3">
-										<Link
-											to="/plan/$month"
-											params={{ month }}
-											className="inline-flex min-h-11 min-w-11 items-center text-sm font-medium lg:min-h-6"
-										>
-											{monthName(month)}
-										</Link>
+										{/* The month's name in the table above is its link (#73). */}
+										<p className="text-sm font-medium">{monthName(month)}</p>
 										<p className="text-[13px] text-muted-foreground">{lumpText(lumps, month)}</p>
 									</li>
 								))}
