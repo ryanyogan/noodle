@@ -65,8 +65,74 @@ export async function enterJoinedHousehold(page: Page) {
 	await expect(page).toHaveURL(/\/month\//);
 }
 
-/** Creates a Household from /welcome, leaves the get-started wizard, and waits for This Month. */
-export async function createHousehold(page: Page, householdName: string, parentName: string) {
+/** Options for making a test Household. */
+export type HouseholdOptions = {
+	/**
+	 * Through /welcome and the get-started wizard's "Set up later", as a Parent would. Only for specs
+	 * about that flow: otherwise the Household is made in one request to /api/dev/household.
+	 */
+	viaUi?: boolean;
+	/** Children, by name, added to the Household (not through the UI). */
+	children?: string[];
+	/** Marks the get-started wizard finished, so This Month has no "Continue setup". */
+	finishSetup?: boolean;
+};
+
+type DevPlan = {
+	takeHomePayCents: number;
+	buckets: { name: string; allowanceCents: number }[];
+	commitments?: {
+		name: string;
+		amountCents: number;
+		cadence: "monthly" | "quarterly" | "annual";
+		dueDay: number;
+	}[];
+};
+
+/** "1,200" or "1200.50" in cents. */
+export const toCents = (dollars: string) => Math.round(Number(dollars.replace(/[$,]/g, "")) * 100);
+
+/**
+ * Makes a Household for the signed-in user through the dev-only /api/dev/household (AI_MODEL=stub),
+ * the same rows the UI writes, and opens This Month.
+ */
+async function createHouseholdDirectly(
+	page: Page,
+	body: { householdName: string; parentName: string; plan?: DevPlan } & HouseholdOptions,
+) {
+	const timeZone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+	const response = await page.request.post("/api/dev/household", {
+		data: { ...body, viaUi: undefined, timeZone },
+	});
+	expect(response.ok(), await response.text()).toBe(true);
+	const created = (await response.json()) as {
+		householdId: string;
+		parentId: string;
+		month: string;
+		url: string;
+		bucketIds: Record<string, string>;
+		commitmentIds: Record<string, string>;
+		childIds: Record<string, string>;
+	};
+	await page.goto(created.url);
+	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("This Month");
+	return created;
+}
+
+/**
+ * Creates a Household and waits for This Month: in one request by default, or with `viaUi` from
+ * /welcome, leaving the get-started wizard.
+ */
+export async function createHousehold(
+	page: Page,
+	householdName: string,
+	parentName: string,
+	options: HouseholdOptions = {},
+) {
+	if (!options.viaUi) {
+		await createHouseholdDirectly(page, { householdName, parentName, ...options });
+		return;
+	}
 	await page.goto("/welcome");
 	await page.getByLabel("Household name").fill(householdName);
 	await page.getByLabel("Your name").fill(parentName);
@@ -100,14 +166,36 @@ export async function switchTo(page: Page, view: "Month" | "Plan") {
 }
 
 /**
- * Creates a Household and plans this month from setting up the Plan: take-home pay and Buckets
- * with allowances ("1,200"), in order. Ends on This Month.
+ * Creates a Household and plans this month: take-home pay and Buckets with allowances ("1,200"),
+ * in order, and any Commitments. Ends on This Month. With `viaUi` it sets up the Plan through the
+ * Plan screens and the Add Buckets sheet (no Commitments or Children then).
  */
 export async function createPlannedHousehold(
 	page: Page,
-	{ baseline, buckets }: { baseline: string; buckets: [name: string, allowance: string][] },
+	{
+		baseline,
+		buckets,
+		commitments,
+		...options
+	}: {
+		baseline: string;
+		buckets: [name: string, allowance: string][];
+		commitments?: DevPlan["commitments"];
+	} & HouseholdOptions,
 ) {
-	await createHousehold(page, "The Rinks", "Alex");
+	if (!options.viaUi) {
+		return createHouseholdDirectly(page, {
+			householdName: "The Rinks",
+			parentName: "Alex",
+			...options,
+			plan: {
+				takeHomePayCents: toCents(baseline),
+				buckets: buckets.map(([name, allowance]) => ({ name, allowanceCents: toCents(allowance) })),
+				commitments,
+			},
+		});
+	}
+	await createHousehold(page, "The Rinks", "Alex", { viaUi: true });
 	await page.getByRole("link", { name: "Set up the Plan" }).click();
 	await page.getByRole("textbox", { name: "Take-home pay" }).fill(baseline);
 	const takeHomePaySaved = savedBy(page, "setTakeHomePay");

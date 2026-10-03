@@ -21,7 +21,7 @@ test("a new Household's first Plan is drafted from its history, and a Parent dec
 	browser,
 }) => {
 	const page = await signedInPage(browser, parent.email);
-	await createHousehold(page, "The Rinks", "Alex");
+	await createHousehold(page, "The Rinks", "Alex", { viaUi: true });
 	const thisMonth = page.url();
 
 	// With nothing to draft from yet, setting up says where statements go.

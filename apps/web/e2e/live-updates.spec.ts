@@ -76,6 +76,7 @@ test("each Parent's screen shows the other's changes without a reload", async ({
 	try {
 		const alex = await signedInPage(browser, first.email);
 		await createPlannedHousehold(alex, {
+			viaUi: true,
 			baseline: "5,000",
 			buckets: [
 				["Groceries", "1,200"],

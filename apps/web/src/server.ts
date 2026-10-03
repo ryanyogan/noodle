@@ -4,6 +4,7 @@ import { HOUSEHOLD_AGENT_PATH } from "./household-changes";
 import { startBankSyncs } from "./server/bank-import-workflow";
 import { consumeIngest, handleCapture, type IngestMessage } from "./server/capture";
 import { startCheckIns } from "./server/check-in-weekly";
+import { DEV_HOUSEHOLD_PATH, handleDevHousehold } from "./server/dev-household";
 import {
 	DEV_INVITE_AGE_PATH,
 	DEV_OUTBOX_PATH,
@@ -57,6 +58,8 @@ export default {
 		// Emails "sent" with AI_MODEL=stub, for E2E to read; not in production builds.
 		if (__AI_STUB__ && pathname === DEV_OUTBOX_PATH) return handleDevOutbox(request);
 		if (__AI_STUB__ && pathname === DEV_INVITE_AGE_PATH) return handleDevInviteAge(request);
+		// A Household made in one request for E2E, as the signed-in user; not in production builds.
+		if (__AI_STUB__ && pathname === DEV_HOUSEHOLD_PATH) return handleDevHousehold(request);
 		return handler.fetch(request);
 	},
 	queue(batch) {

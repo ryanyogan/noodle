@@ -35,7 +35,7 @@ test("signed in without a Household, / opens Welcome; with one, This Month", asy
 		await page.goto("/");
 		await expect(page).toHaveURL(/\/welcome$/);
 
-		await createHousehold(page, "The Entries", "Alex");
+		await createHousehold(page, "The Entries", "Alex", { viaUi: true });
 		await expectRedirect(page.request, "/month");
 		await page.goto("/");
 		await expect(page).toHaveURL(/\/month\/\d{4}-\d{2}$/);

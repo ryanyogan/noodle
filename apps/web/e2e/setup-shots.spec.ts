@@ -23,7 +23,7 @@ let parent: Awaited<ReturnType<typeof createTestParent>>;
 test.beforeAll(async ({ browser }) => {
 	parent = await createTestParent();
 	const page = await signedInPage(browser, parent.email);
-	await createHousehold(page, "The Rinks", "Alex");
+	await createHousehold(page, "The Rinks", "Alex", { viaUi: true });
 	await page.context().close();
 });
 
