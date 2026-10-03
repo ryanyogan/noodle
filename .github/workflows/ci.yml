@@ -2,15 +2,63 @@ name: CI
 
 on:
   push:
+    # A change to docs alone doesn't need the app tested.
+    paths-ignore: ["docs/**", "**/*.md"]
   pull_request:
+    paths-ignore: ["docs/**", "**/*.md"]
+  # Nightly: the WebKit iPhone jobs, which don't run on every push.
+  schedule:
+    - cron: "17 9 * * *"
   workflow_dispatch:
+    inputs:
+      webkit:
+        description: Also run the WebKit iPhone jobs
+        type: boolean
+        default: true
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Never cancel main mid-deploy; other branches only need their newest push tested.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  # Decides what this run tests:
+  # - tested: this exact commit already passed CI on another branch (the wizard-53 run before
+  #   main), so main skips E2E and goes straight to deploy;
+  # - phone: which phone projects run. Chromium as an iPhone 15 on every push; WebKit as iPhone 15
+  #   and SE only nightly or when asked for from the Actions tab.
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      tested: ${{ steps.plan.outputs.tested }}
+      phone: ${{ steps.plan.outputs.phone }}
+    steps:
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tested=false
+          if [ "${{ github.ref }}" = "refs/heads/main" ] && [ "${{ github.event_name }}" = "push" ]; then
+            count=$(gh api "repos/${{ github.repository }}/actions/runs?head_sha=${{ github.sha }}&status=success&per_page=50" \
+              --jq '[.workflow_runs[] | select(.name == "CI" and .head_branch != "main")] | length')
+            [ "$count" -gt 0 ] && tested=true
+          fi
+          case "${{ github.event_name }}" in
+            schedule) phone='["webkit-iphone","webkit-iphone-se"]' ;;
+            workflow_dispatch)
+              if [ "${{ inputs.webkit }}" = "true" ]; then
+                phone='["chromium-mobile","webkit-iphone","webkit-iphone-se"]'
+              else
+                phone='["chromium-mobile"]'
+              fi ;;
+            *) phone='["chromium-mobile"]' ;;
+          esac
+          echo "tested=$tested" >> "$GITHUB_OUTPUT"
+          echo "phone=$phone" >> "$GITHUB_OUTPUT"
+          echo "Already passed on another branch: $tested; phone projects: $phone"
+
   check:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -23,6 +71,8 @@ jobs:
       - run: bun run test
 
   e2e:
+    needs: gate
+    if: needs.gate.outputs.tested != 'true' && github.event_name != 'schedule'
     runs-on: ubuntu-latest
     # Six runners at once, one worker each: a private repo's runner has 2 vCPUs, so one runner ran
     # every spec in series (12+ minutes), and two workers on one runner starved the dev server.
@@ -38,7 +88,16 @@ jobs:
         with:
           bun-version-file: package.json
       - run: bun install --frozen-lockfile
-      - run: bunx playwright install --with-deps chromium
+      # The browsers are cached by Playwright version; only their system libraries install each run.
+      - uses: actions/cache@v4
+        id: browsers
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}-chromium
+      - run: bunx playwright install chromium
+        if: steps.browsers.outputs.cache-hit != 'true'
+        working-directory: apps/web
+      - run: bunx playwright install-deps chromium
         working-directory: apps/web
       - name: Write dev keys for the local Worker
         working-directory: apps/web
@@ -47,7 +106,7 @@ jobs:
             "${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" "${{ secrets.CLERK_SECRET_KEY }}" > .dev.vars
           # Throwaway VAPID keys for Nudges; nothing is really pushed in E2E.
           bun scripts/vapid-keys.ts >> .dev.vars
-      # Phone tests run in e2e-phone, on Chromium and WebKit.
+      # Phone tests run in e2e-phone.
       - run: bun run e2e --project=chromium --shard=${{ matrix.shard }}/6
         working-directory: apps/web
       - uses: actions/upload-artifact@v4
@@ -56,23 +115,34 @@ jobs:
           name: playwright-traces-${{ matrix.shard }}
           path: apps/web/test-results
 
-  # The phone tests (phone-*.spec.ts, sheet-phone.spec.ts and tests tagged @phone) once per phone
-  # project: Chromium with iPhone 15 metrics, WebKit as iPhone 15, and WebKit as iPhone SE.
+  # The phone tests (phone-*.spec.ts, sheet-phone.spec.ts and tests tagged @phone), once per phone
+  # project the gate chose.
   e2e-phone:
+    needs: gate
+    if: needs.gate.outputs.tested != 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        project: [chromium-mobile, webkit-iphone, webkit-iphone-se]
+        project: ${{ fromJSON(needs.gate.outputs.phone) }}
     env:
       CI: "true"
+      BROWSER: ${{ startsWith(matrix.project, 'webkit') && 'webkit' || 'chromium' }}
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
       - run: bun install --frozen-lockfile
-      - run: bunx playwright install --with-deps chromium webkit
+      - uses: actions/cache@v4
+        id: browsers
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}-${{ env.BROWSER }}
+      - run: bunx playwright install ${{ env.BROWSER }}
+        if: steps.browsers.outputs.cache-hit != 'true'
+        working-directory: apps/web
+      - run: bunx playwright install-deps ${{ env.BROWSER }}
         working-directory: apps/web
       - name: Write dev keys for the local Worker
         working-directory: apps/web
@@ -91,8 +161,13 @@ jobs:
           path: apps/web/test-results
 
   deploy:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [check, e2e, e2e-phone]
+    # Runs when the tests passed here, or were skipped because this commit already passed elsewhere.
+    if: >-
+      always() && github.ref == 'refs/heads/main' && github.event_name == 'push' &&
+      needs.gate.result == 'success' && needs.check.result == 'success' &&
+      contains(fromJSON('["success","skipped"]'), needs.e2e.result) &&
+      contains(fromJSON('["success","skipped"]'), needs.e2e-phone.result)
+    needs: [gate, check, e2e, e2e-phone]
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
