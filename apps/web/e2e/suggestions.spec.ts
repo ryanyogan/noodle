@@ -185,13 +185,11 @@ test("filing one merchant into one Bucket by hand 3 times suggests a Rule on Rev
 	});
 	await expect(card).toContainText("You've done it 3 times.");
 	await page.setViewportSize({ width: 393, height: 852 });
-	await page.screenshot({
-		path: "/tmp/claude-1000/-home-ryan-Work-noodle/350084fd-f9e1-4b75-9ecf-7a4034e88af2/scratchpad/s58d1/review-rule-393.png",
-		fullPage: true,
-	});
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(393);
 	await axe(page, "Review with a Rule suggestion at 393");
 
+	// reloadUntil left a fresh load: a click before React hydrates does nothing, and the card stays.
+	await page.waitForLoadState("networkidle");
 	await card.getByRole("button", { name: "Add Rule: Acme Widgets" }).click();
 	await expect(card).toBeHidden();
 	// The new Rule looks again at Review in the background and files the fourth one.

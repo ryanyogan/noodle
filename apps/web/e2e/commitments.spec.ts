@@ -4,6 +4,7 @@ import {
 	choose,
 	createPlannedHousehold,
 	pickDate,
+	savedBy,
 	serverFn,
 	signedInPage,
 	switchTo,
@@ -189,7 +190,12 @@ test("a payment that differs from what's expected is flagged", async ({ browser 
 	const mortgage = commitmentRow(page, "Mortgage");
 	await mortgage.getByRole("button", { name: "Record payment" }).click();
 	await mortgage.getByLabel("Amount paid to Mortgage").fill("2,550");
+	// The payment shows at once, but a Month refetch already in flight (say, a link's preload) can
+	// put the old row back until the save lands and Noodle refetches; on a cold CI server that's
+	// longer than an expect's wait, so wait for the save.
+	const paid = savedBy(page, "addCommitmentPayment");
 	await mortgage.getByRole("button", { name: "Record", exact: true }).click();
+	await paid;
 	await expect(mortgage).toHaveAccessibleName(
 		"Mortgage: $2,550 paid of $2,500 expected, $50 more than expected",
 	);

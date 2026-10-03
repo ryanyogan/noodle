@@ -78,6 +78,27 @@ async function uploadHere(page: Page) {
 	await expect(page.getByText("Step 2 of 7")).toBeVisible();
 }
 
+/** Picks an option in an OptionSelect, a native select on a phone and a listbox otherwise. */
+async function choose(page: Page, label: string, option: string) {
+	const select = page.getByLabel(label);
+	if ((await select.evaluate((e) => e.tagName)) === "SELECT") {
+		await select.selectOption({ label: option });
+	} else {
+		await select.click();
+		await page.getByRole("option", { name: option }).click();
+	}
+}
+
+/** What an OptionSelect shows as chosen. */
+async function expectChosen(page: Page, label: string, option: string) {
+	const select = page.getByLabel(label);
+	if ((await select.evaluate((e) => e.tagName)) === "SELECT") {
+		await expect(select.locator("option:checked")).toHaveText(option);
+	} else {
+		await expect(select).toContainText(option);
+	}
+}
+
 const next = async (page: Page, step: number) => {
 	const saved = savedBy(page, "saveSetup");
 	await page.getByRole("button", { name: "Continue", exact: true }).click();
@@ -99,6 +120,10 @@ test("statement: the Setup Workflow reads it and steps 2 to 4 fill in from the p
 	await expect(spendingIn(page)).toBeVisible({ timeout: 60_000 });
 	await expect(pay).not.toHaveValue("");
 	await expect(page.getByText(`${SUGGESTED}. Change it if it’s off.`)).toBeVisible();
+	// Reading is done, and another statement can still be uploaded.
+	await page.getByRole("button", { name: "Upload another statement" }).click();
+	await expect(page.getByRole("button", { name: "Choose the statement" })).toBeVisible();
+	await expectChosen(page, "Which account is this from?", "Checking");
 	await next(page, 3);
 
 	// Step 3: the bills found in the history, ticked and marked.
@@ -175,13 +200,15 @@ test("goal: a pay-off Goal can be for a card already added, without adding anoth
 	const page = await begin(browser, /Upload a statement/);
 	// The statement card adds the card as an Account.
 	await page.getByLabel("Which account is this from?").fill("Visa");
-	const kindSelect = page.getByLabel("Kind");
-	if ((await kindSelect.evaluate((e) => e.tagName)) === "SELECT") {
-		await kindSelect.selectOption({ label: "Credit card" });
-	} else {
-		await kindSelect.click();
-		await page.getByRole("option", { name: "Credit card" }).click();
-	}
+	await choose(page, "Kind", "Credit card");
+	await page.getByRole("button", { name: "Choose the statement" }).click();
+	await expect(page.getByLabel("Statement file")).toBeAttached();
+	// Another, new Account starts as checking again, not as a second credit card.
+	await page.getByRole("button", { name: "Another account" }).click();
+	await choose(page, "Which account is this from?", "A new Account");
+	await expect(page.getByLabel("Its name")).toHaveValue("");
+	await expectChosen(page, "Kind", "Checking");
+	await choose(page, "Which account is this from?", "Visa");
 	await page.getByRole("button", { name: "Choose the statement" }).click();
 	await expect(page.getByLabel("Statement file")).toBeAttached();
 	await page.getByRole("textbox", { name: PAY }).fill("5,000");

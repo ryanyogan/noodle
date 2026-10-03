@@ -115,8 +115,9 @@ export function SetupBankCard({ jobs }: { jobs: SetupJobView[] }) {
 
 /**
  * The statement path: which Account the statement is from (one there already, or a new one with a
- * name and a kind), then the file, with the same upload form as an Account's page. Once the
- * spending has been read and nothing is being uploaded, there's nothing left to show.
+ * name and a kind), then the file, with the same upload form as an Account’s page. Once the
+ * spending has been read and nothing is being uploaded, there’s nothing left to show, until the
+ * Parent asks for another statement.
  */
 export function SetupStatementCard({ jobs }: { jobs: SetupJobView[] }) {
 	const hydrated = useHydrated();
@@ -136,6 +137,8 @@ export function SetupStatementCard({ jobs }: { jobs: SetupJobView[] }) {
 	// The statement's closing balance, offered as the Account's (as on the Account's page) until
 	// the Parent uses it or keeps what Noodle has.
 	const [balanceAnswered, setBalanceAnswered] = useState(false);
+	// Set when the Parent asks for another statement, so the card shows even once reading is done.
+	const [another, setAnother] = useState(false);
 	const offer =
 		imported && account && !balanceAnswered
 			? balanceOffer(account, imported.closingBalance, timeZone)
@@ -201,6 +204,9 @@ export function SetupStatementCard({ jobs }: { jobs: SetupJobView[] }) {
 						setBalanceAnswered(false);
 						setAccountId(null);
 						setFrom(accountId ?? "new");
+						setName("");
+						setKind("checking");
+						setAnother(true);
 					}}
 				>
 					Upload another statement
@@ -208,7 +214,7 @@ export function SetupStatementCard({ jobs }: { jobs: SetupJobView[] }) {
 			</Card>
 		);
 	}
-	if (read && !account) return null;
+	if (read && !account && !another) return null;
 
 	function onSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
@@ -249,6 +255,10 @@ export function SetupStatementCard({ jobs }: { jobs: SetupJobView[] }) {
 							setDraft(NO_DRAFT);
 							setAccountId(null);
 							setFrom(account.id);
+							// A new Account starts from the default, not the kind of the one just made.
+							setName("");
+							setKind("checking");
+							setAnother(true);
 						}}
 					>
 						Another account
