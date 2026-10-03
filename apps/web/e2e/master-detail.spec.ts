@@ -396,7 +396,7 @@ test("a Rule opens beside the Rules list, and is a page with Back on a phone", a
 		await addRule.click();
 		const add = page.getByRole("dialog", { name: "Add a Rule" });
 		await add.getByLabel("Merchant").fill(merchant);
-		await choose(add, "Bucket", bucket);
+		await choose(add, "Files to", bucket);
 		await add.getByRole("button", { name: "Add Rule and file what matches" }).click();
 		await expect(add).toBeHidden();
 	}
