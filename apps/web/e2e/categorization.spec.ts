@@ -74,7 +74,7 @@ test("imported Transactions are filed automatically, marked, and a Parent can ch
 	await expect(page.getByLabel("Bucket")).toBeEnabled();
 	// Filed after the upload has answered; the list refreshes when categorization is done.
 	const costco = page.getByRole("button", {
-		name: "COSTCO WHSE #1234, $61.20, Groceries (filed automatically), For Everyone, from Visa",
+		name: "Costco, $61.20, Groceries (filed automatically), For Everyone, from Visa",
 	});
 	await expect(costco).toBeVisible();
 	await expect(
@@ -101,7 +101,7 @@ test("imported Transactions are filed automatically, marked, and a Parent can ch
 	await expect(editSheet(page)).toBeHidden();
 	await expect(
 		page.getByRole("button", {
-			name: "COSTCO WHSE #1234, $61.20, Gas, For Everyone, from Visa",
+			name: "Costco, $61.20, Gas, For Everyone, from Visa",
 		}),
 	).toBeVisible();
 	await expect(page.getByText("Auto", { exact: true })).toHaveCount(1);
@@ -110,7 +110,7 @@ test("imported Transactions are filed automatically, marked, and a Parent can ch
 	await page.reload();
 	await expect(
 		page.getByRole("button", {
-			name: "COSTCO WHSE #1234, $61.20, Gas, For Everyone, from Visa",
+			name: "Costco, $61.20, Gas, For Everyone, from Visa",
 		}),
 	).toBeVisible();
 	await expect(page.getByText("Auto", { exact: true })).toHaveCount(1);

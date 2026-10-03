@@ -179,6 +179,20 @@ const accountKindLabels: Record<string, string> = {
 export const accountKindLabel = (kind: string) => accountKindLabels[kind] ?? kind;
 
 /** Uploads a card statement to the Visa Account, adding the Account first if it's new. */
+/**
+ * Opens Review once the background run has filed or guessed the lines just brought in: filing
+ * happens a moment after an import (ADR-0027), longer on CI, so it reloads until the stack says
+ * `stackText` ("1 of 3").
+ */
+export async function waitForReview(page: Page, reviewUrl: string, stackText: string) {
+	await expect(async () => {
+		await page.goto(reviewUrl);
+		await expect(page.getByTestId("review-stack")).toContainText(stackText, {
+			timeout: 2_000,
+		});
+	}).toPass({ timeout: 20_000 });
+}
+
 export async function uploadStatement(
 	page: Page,
 	lines: [what: string, amount: string, date?: string][],

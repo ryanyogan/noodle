@@ -7,6 +7,7 @@ import {
 	serverFn,
 	signedInPage,
 	uploadStatement,
+	waitForReview,
 } from "./session";
 
 // Review's Sort view (#68): one card at a time, every decision by button and by key, Undo, a
@@ -68,9 +69,7 @@ async function setUp(
 	});
 	const thisMonth = page.url();
 	await uploadStatement(page, lines, true);
-	await page.goto(new URL("/review", thisMonth).href);
-	await expect(stack(page)).toBeVisible();
-	await expect(stack(page)).toContainText(`1 of ${lines.length}`);
+	await waitForReview(page, new URL("/review", thisMonth).href, `1 of ${lines.length}`);
 }
 
 test("Review sorts one card at a time: confirm, pick another, skip and undo, by button and by key", async ({
@@ -283,7 +282,7 @@ test("a card splits, makes a Rule, can't be filed from a month with no Plan, and
 	await expect(stack(page)).toContainText("1 of 3");
 
 	// Split: by its button, then by S, the editor opens on its Splits.
-	await toCard(page, "ACME WIDGETS");
+	await toCard(page, "Acme Widgets");
 	await top(page).getByRole("button", { name: "Split" }).click();
 	const editor = page.getByRole("dialog");
 	await expect(editor.getByRole("group", { name: "Split 2" })).toBeVisible();
@@ -356,9 +355,9 @@ test("a card filed in a Personal Allowance never reaches the other Parent", asyn
 		await expect(alex.getByRole("button", { name: "Set up Personal Allowance" })).toHaveCount(0);
 		await uploadStatement(alex, [["SECRET HOBBY SHOP", "25.00"]], true);
 		await alex.goto(new URL("/review", thisMonth).href);
-		await expect(top(alex)).toContainText("SECRET HOBBY SHOP");
+		await expect(top(alex)).toContainText("Secret Hobby Shop");
 		await top(alex).getByRole("button", { name: "Personal Allowance" }).click();
-		await expect(said(alex)).toContainText("Filed SECRET HOBBY SHOP in");
+		await expect(said(alex)).toContainText("Filed Secret Hobby Shop in");
 		await expect(alex.getByText(/Only you will see this Rule/)).toBeVisible();
 
 		await alex.goto(new URL("/household", thisMonth).href);
@@ -384,11 +383,12 @@ test("a card filed in a Personal Allowance never reaches the other Parent", asyn
 		await enterJoinedHousehold(sam);
 		await sam.goto(new URL("/review", thisMonth).href);
 		await expect(sam.getByRole("heading", { level: 1 })).toBeVisible();
-		await expect(sam.getByText("SECRET HOBBY")).toHaveCount(0);
+		await expect(sam.getByText(/secret hobby/i)).toHaveCount(0);
 		await sam.goto(new URL("/transactions", thisMonth).href);
 		await expect(sam.locator("[data-slot=page-header]:visible")).toContainText("Transactions");
-		await expect(sam.getByText("SECRET HOBBY")).toHaveCount(0);
-		for (const body of await Promise.all(seen)) expect(body).not.toContain("SECRET HOBBY");
+		await expect(sam.getByText(/secret hobby/i)).toHaveCount(0);
+		for (const body of await Promise.all(seen))
+			expect(body.toLowerCase()).not.toContain("secret hobby");
 	} finally {
 		await second.remove();
 	}

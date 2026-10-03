@@ -295,7 +295,7 @@ test("an Account lists its Transactions, and Transactions filters by it", async 
 			name: /^Costco, \$85\.50, Groceries, For Everyone, Matched in Visa$/,
 		}),
 	).toBeVisible();
-	await expect(latest.getByRole("button", { name: /^TRADER JOE'S #552, / })).toBeVisible();
+	await expect(latest.getByRole("button", { name: /^Trader Joe/i })).toBeVisible();
 
 	// Matching keeps what was typed in the editor: the note is saved with the Match.
 	await page.getByRole("link", { name: "All in Transactions" }).click();
