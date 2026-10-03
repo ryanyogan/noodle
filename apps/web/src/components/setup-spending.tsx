@@ -232,7 +232,7 @@ export function SetupStatementCard({ jobs }: { jobs: SetupJobView[] }) {
 
 	if (account) {
 		return (
-			<Card className="grid gap-3 p-(--card-pad) text-sm">
+			<Card className="grid grid-cols-[minmax(0,1fr)] gap-3 p-(--card-pad) text-sm">
 				{heading}
 				{/* Side by side on a phone too: the words wrap, "Another account" stays at the right. */}
 				<div className="flex items-start justify-between gap-2">

@@ -400,7 +400,7 @@ export function UploadForm({
 
 	const lines = statement?.lines.length ?? 0;
 	return (
-		<form onSubmit={onSubmit} className="grid gap-4">
+		<form onSubmit={onSubmit} className="grid grid-cols-[minmax(0,1fr)] gap-4">
 			{/* One line on a phone too: the file's name gives way (truncated) before Clear wraps. */}
 			<div className="flex items-center gap-3">
 				<input

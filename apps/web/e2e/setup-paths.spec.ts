@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { savedBy, signedInPage } from "./session";
@@ -203,4 +204,31 @@ test("goal: a pay-off Goal can be for a card already added, without adding anoth
 	await page.goto("/goals");
 	await expect(page.getByText("Visa").first()).toBeVisible();
 	await expect(page.getByText(/\$1,200/).first()).toBeVisible();
+});
+
+test("statement: its closing balance is offered as the new Account's, and used", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await begin(browser, /Upload a statement/);
+	await page.getByLabel("Which account is this from?").fill("Checking");
+	await page.getByRole("button", { name: "Choose the statement" }).click();
+	await page
+		.getByLabel("Statement file")
+		.setInputFiles(
+			join(import.meta.dirname, "..", "..", "..", "packages", "domain", "fixtures", "statements", "checking-v1.ofx"),
+		);
+	await page.getByRole("button", { name: /^Import \d+ lines$/ }).click();
+	await expect(page.getByText("checking-v1.ofx is in for Checking")).toBeVisible();
+	// The new Account has no balance yet, so the statement's is offered, with nothing to keep.
+	await expect(page.getByText(/It ends at \$2,540\.26 on Sep 20\. Checking has no balance yet\./)).toBeVisible();
+	await expect(page.getByRole("button", { name: /^Keep / })).toHaveCount(0);
+	const saved = savedBy(page, "updateAccountBalance");
+	await page.getByRole("button", { name: "Use $2,540.26 as the balance" }).click();
+	await saved;
+	await expect(page.getByRole("button", { name: "Use $2,540.26 as the balance" })).toHaveCount(0);
+	await expect(page.getByText("Step 2 of 7")).toBeVisible();
+
+	await page.goto("/accounts");
+	await expect(page.getByRole("link", { name: /^Checking, / })).toContainText("$2,540.26");
 });
