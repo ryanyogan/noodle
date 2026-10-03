@@ -170,9 +170,17 @@ test("by hand: Bills, Buckets and a Goal land on the Plan, and going back adds n
 		await page.getByRole("link", { name: "Set up later" }).click();
 		await expect(page).toHaveURL(/\/month\//);
 		await page.goto("/plan");
-		await expect(page.getByText("Piano lessons").first()).toBeVisible();
-		await expect(page.getByText("Fuel").first()).toBeVisible();
-		await expect(page.getByText("Emergency fund").first()).toBeVisible();
+		// Each lives on its own Plan page; the Overview is only the summary (#73).
+		const planPage = async (name: string, shows: string) => {
+			await page
+				.getByRole("navigation", { name: "Plan pages" })
+				.getByRole("link", { name, exact: true })
+				.click();
+			await expect(page.getByText(shows).first()).toBeVisible();
+		};
+		await planPage("Commitments", "Piano lessons");
+		await planPage("Buckets", "Fuel");
+		await planPage("Goal funding", "Emergency fund");
 	} finally {
 		await parent.remove();
 	}
