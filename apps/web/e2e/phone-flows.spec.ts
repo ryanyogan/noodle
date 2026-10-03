@@ -72,7 +72,8 @@ test("on a phone a statement comes in, a bank connects and last month closes", a
 	const toDo = page.getByRole("region", { name: "To do" });
 	const close = toDo.getByRole("button", { name: /^Close \w+$/ });
 	await expect(async () => {
-		const strip = toDo.locator("[data-slot=row-button]");
+		// The phone strip is the first row; the desktop rows below it are hidden on a phone.
+		const strip = toDo.locator("[data-slot=row-button]").first();
 		if ((await strip.getAttribute("aria-expanded")) !== "true") await strip.click();
 		await expect(close).toBeVisible({ timeout: 2_000 });
 	}).toPass(clientRendered);
