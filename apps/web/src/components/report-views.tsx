@@ -42,6 +42,7 @@ import {
 	type ReportTable,
 } from "../reports";
 import type { AreaData, ReportData, ViewData } from "../server/reports";
+import { ChildCosts } from "./child-costs";
 import { GoalProgressBar } from "./goals";
 import {
 	CalendarHeatmap,
@@ -1435,7 +1436,7 @@ function MerchantsView({ data, nav, tables }: ViewProps<"merchants">) {
 	);
 }
 
-function PeopleView({ report, data, names, nav, tables }: ViewProps<"people">) {
+function PeopleView({ report, data, names, nav, tables, search }: ViewProps<"people">) {
 	const totals = [...new Set(data.cells.map((c) => c.who))]
 		.map((who) => ({
 			key: who,
@@ -1444,6 +1445,12 @@ function PeopleView({ report, data, names, nav, tables }: ViewProps<"people">) {
 		.sort((a, b) => b.amount - a.amount);
 	if (totals.length === 0) return <NothingYet />;
 	const children = report.meta.members.filter((m) => m.kind === "child").map((m) => m.id);
+	// Filtered to one Child (Household's "See what … costs"), the by-Bucket costs show only theirs.
+	const costChildren = report.meta.members.filter(
+		(m) =>
+			m.kind === "child" &&
+			(!search.member || !children.includes(search.member) || m.id === search.member),
+	);
 	const memberColor = (who: string) => {
 		const color = report.meta.members.find((m) => m.id === who)?.color;
 		return color ? `var(--bucket-${color})` : "var(--chart-spend)";
@@ -1506,6 +1513,11 @@ function PeopleView({ report, data, names, nav, tables }: ViewProps<"people">) {
 					</p>
 				)}
 			</ChartCard>
+			{costChildren.length ? (
+				<div className="lg:col-span-5">
+					<ChildCosts of={costChildren} />
+				</div>
+			) : null}
 		</div>
 	);
 }

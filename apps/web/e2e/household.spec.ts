@@ -1,7 +1,7 @@
 import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
 import { expect, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { setUpLater } from "./session";
+import { createPlannedHousehold, setUpLater, signedInPage } from "./session";
 
 test("a signed-out visitor is sent to sign in, keeping where they were going", async ({ page }) => {
 	await page.goto("/month/2026-08");
@@ -47,6 +47,27 @@ test("a new Parent signs in, creates a Household, and can leave setup for an emp
 		// A Parent with a Household never sees the create step again.
 		await page.goto("/welcome");
 		await expect(page).toHaveURL(/\/month\/\d{4}-\d{2}$/);
+	} finally {
+		await parent.remove();
+	}
+});
+
+test("Household is settings only, grouped under short headings (#69)", async ({ browser }) => {
+	const parent = await createTestParent();
+	try {
+		const page = await signedInPage(browser, parent.email);
+		await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Fun", "200"]] });
+		await page.goto("/household");
+		await expect(page.getByRole("heading", { level: 2 })).toHaveText([
+			"People",
+			"Reminders",
+			"Bringing in spending",
+			"Setup",
+		]);
+		// Account is the sidebar's on a desktop; a phone has it as the last group.
+		await expect(page.getByRole("heading", { name: "Children", level: 3 })).toBeVisible();
+		await expect(page.getByText("What each Child cost")).toHaveCount(0);
+		await page.context().close();
 	} finally {
 		await parent.remove();
 	}

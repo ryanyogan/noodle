@@ -1,25 +1,12 @@
 import { UserButton } from "@clerk/tanstack-react-start";
-import { type ForTotals, monthKeyAt, type SpendTotal } from "@noodle/domain";
-import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { PageLayout } from "@noodle/ui/components/layout";
 import { List, ListRow } from "@noodle/ui/components/list";
-import { MetaParts } from "@noodle/ui/components/meta-parts";
 import { PageHeader } from "@noodle/ui/components/page-header";
-import { Section, SectionHeader } from "@noodle/ui/components/section";
-import {
-	Table,
-	TableBody,
-	TableCaption,
-	TableCell,
-	TableFooter,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@noodle/ui/components/table";
+import { Section, SectionGroup, SectionHeader } from "@noodle/ui/components/section";
 import { Tile } from "@noodle/ui/components/tile";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated, useRouter } from "@tanstack/react-router";
@@ -34,11 +21,9 @@ import { InviteOtherParent } from "../../../components/invite-other-parent";
 import { NudgeSettings } from "../../../components/nudge-settings";
 import { Confirm, SaveFailed } from "../../../components/plan-editing";
 import { ReceiptSettings } from "../../../components/receipt-settings";
-import { formatMoney, monthName } from "../../../format";
 import {
 	childrenOf,
 	type MemberSummary,
-	useForTotals,
 	useMemberChange,
 	withChild,
 	withChildDetails,
@@ -47,10 +32,8 @@ import {
 import {
 	captureTokenQuery,
 	checkInQuery,
-	forTotalsEarlierQuery,
 	householdParentsQuery,
 	membersQuery,
-	monthQuery,
 	nudgeSettingsQuery,
 	receiptAddressQuery,
 	setupQuery,
@@ -60,19 +43,14 @@ import { restartSetup } from "../../../server/setup";
 
 export const Route = createFileRoute("/_authed/_household/household")({
 	loader: async ({ context }) => {
-		// What each Child cost is shown for the Household's current month and its year so far.
-		const month = monthKeyAt(new Date(), context.household.timeZone);
 		await Promise.all([
 			context.queryClient.ensureQueryData(householdParentsQuery()),
 			context.queryClient.ensureQueryData(membersQuery()),
-			context.queryClient.ensureQueryData(monthQuery(month)),
-			context.queryClient.ensureQueryData(forTotalsEarlierQuery(month)),
 			context.queryClient.ensureQueryData(nudgeSettingsQuery()),
 			context.queryClient.ensureQueryData(checkInQuery()),
 			context.queryClient.ensureQueryData(captureTokenQuery()),
 			context.queryClient.ensureQueryData(receiptAddressQuery()),
 		]);
-		return { month };
 	},
 	component: HouseholdPage,
 });
@@ -101,69 +79,69 @@ function HouseholdPage() {
 					</Button>
 				}
 			/>
-			<PageLayout columns={2}>
-				<div className="grid gap-8">
-					<Section aria-labelledby="parents">
-						<SectionHeader id="parents" title="Parents" count={data.parents.length} />
-						<List>
-							{data.parents.map((parent) => (
-								<ListRow
-									key={parent.id}
-									leading={<Tile>{parent.name.charAt(0).toUpperCase()}</Tile>}
-									title={parent.name}
-									meta={
-										// The email on its own line: beside "Parent" it wrapped or not by its
-										// length, so the row's height changed from one Parent to the next.
-										<span className="flex min-w-0 flex-col">
-											<span>Parent</span>
-											{parent.email ? (
-												// Breaks at the @ rather than mid-word on a phone.
-												<span className="min-w-0 break-words">
-													{parent.email.split("@")[0]}
-													<wbr />@{parent.email.split("@").slice(1).join("@")}
-												</span>
-											) : null}
-										</span>
-									}
-								/>
-							))}
-						</List>
-					</Section>
-					<Section aria-labelledby="children">
-						<SectionHeader id="children" title="Children" count={children.length} />
-						<SaveFailed change={remove} />
-						{children.length > 0 ? (
+			{/* A settings page (#69): one column of groups, each a short heading over what a Parent sets. */}
+			<PageLayout width="reading">
+				<div className="grid gap-10">
+					<SectionGroup id="people" title="People">
+						<Section aria-labelledby="parents">
+							<SectionHeader id="parents" title="Parents" count={data.parents.length} />
 							<List>
-								{children.map((child) => (
-									<ChildRow
-										key={child.id}
-										child={child}
-										onRemove={(memberId) => remove.mutate({ memberId })}
+								{data.parents.map((parent) => (
+									<ListRow
+										key={parent.id}
+										leading={<Tile>{parent.name.charAt(0).toUpperCase()}</Tile>}
+										title={parent.name}
+										meta={
+											// The email on its own line: beside "Parent" it wrapped or not by its
+											// length, so the row's height changed from one Parent to the next.
+											<span className="flex min-w-0 flex-col">
+												<span>Parent</span>
+												{parent.email ? (
+													// Breaks at the @ rather than mid-word on a phone.
+													<span className="min-w-0 break-words">
+														{parent.email.split("@")[0]}
+														<wbr />@{parent.email.split("@").slice(1).join("@")}
+													</span>
+												) : null}
+											</span>
+										}
 									/>
 								))}
 							</List>
-						) : null}
-						<AddChild members={members} />
-					</Section>
-					{children.length > 0 ? <ChildCosts of={children} /> : null}
-					{data.hasAllParents ? null : (
-						<Section aria-labelledby="invite">
-							<SectionHeader id="invite" title="Invite the other Parent" />
-							<InviteOtherParent invitedEmail={data.invitedEmail} />
 						</Section>
-					)}
-				</div>
-				<div className="grid gap-8">
-					<CheckInSettings />
-					<NudgeSettings />
-					<CaptureSettings />
-					<ReceiptSettings />
-					<Section aria-labelledby="setup-again">
-						<SectionHeader id="setup-again" title="Setup" />
+						{data.hasAllParents ? null : (
+							<Section aria-labelledby="invite">
+								<SectionHeader id="invite" title="Invite the other Parent" />
+								<InviteOtherParent invitedEmail={data.invitedEmail} />
+							</Section>
+						)}
+						<Section aria-labelledby="children">
+							<SectionHeader id="children" title="Children" count={children.length} />
+							<SaveFailed change={remove} />
+							{children.length > 0 ? (
+								<List>
+									{children.map((child) => (
+										<ChildRow
+											key={child.id}
+											child={child}
+											onRemove={(memberId) => remove.mutate({ memberId })}
+										/>
+									))}
+								</List>
+							) : null}
+							<AddChild members={members} />
+						</Section>
+					</SectionGroup>
+					<SectionGroup id="reminders" title="Reminders">
+						<CheckInSettings />
+						<NudgeSettings />
+					</SectionGroup>
+					<SectionGroup id="bringing-in" title="Bringing in spending">
+						<ReceiptSettings />
+						<CaptureSettings />
+					</SectionGroup>
+					<SectionGroup id="setup" title="Setup">
 						<RunSetupAgain />
-					</Section>
-					<Section aria-labelledby="glossary">
-						<SectionHeader id="glossary" title="Words Noodle uses" />
 						<Card className="flex items-center gap-3 p-(--card-pad) text-sm text-muted-foreground">
 							<Tile>
 								<BookOpen />
@@ -179,9 +157,9 @@ function HouseholdPage() {
 								.
 							</p>
 						</Card>
-					</Section>
-					<Section aria-labelledby="account" className="lg:hidden">
-						<SectionHeader id="account" title="Your account" />
+					</SectionGroup>
+					{/* The sidebar has the account button from lg; a phone has it here. */}
+					<SectionGroup id="account" title="Account" className="lg:hidden">
 						<Card className="flex items-center gap-3 p-(--card-pad) text-sm text-muted-foreground">
 							<UserButton
 								appearance={{
@@ -190,7 +168,7 @@ function HouseholdPage() {
 							/>
 							Manage your sign-in or sign out.
 						</Card>
-					</Section>
+					</SectionGroup>
 				</div>
 			</PageLayout>
 		</>
@@ -212,7 +190,19 @@ function ChildRow({
 		<ListRow
 			leading={<Tile bucket={asBucketColor(child.color ?? 1)}>{monogram(child.name)}</Tile>}
 			title={child.name}
-			meta="Child"
+			meta={
+				<span className="flex flex-wrap gap-x-3">
+					<span>Child</span>
+					{/* What a Child cost is a report, so it lives in Reports › People (#69). */}
+					<Link
+						to="/reports"
+						search={{ view: "people", member: child.id }}
+						className="underline underline-offset-2 hover:text-foreground"
+					>
+						See what {child.name} costs
+					</Link>
+				</span>
+			}
 			trailing={
 				<Button
 					variant="ghost"
@@ -357,172 +347,6 @@ function AddChild({ members }: { members: MemberSummary[] }) {
 				</Field>
 				<SaveFailed change={add} />
 			</form>
-		</Card>
-	);
-}
-
-/**
- * What each Child cost this month and this year, by Bucket. Spending For Everyone is the
- * Household's, counted once and never again under each Child.
- */
-function ChildCosts({ of: children }: { of: MemberSummary[] }) {
-	const { month } = Route.useLoaderData();
-	const totals = useForTotals(month);
-	return (
-		<Section aria-labelledby="child-costs">
-			<SectionHeader
-				id="child-costs"
-				title="What each Child cost"
-				action={
-					<span className="text-[13px] text-muted-foreground">
-						{monthName(month)} and {month.slice(0, 4)} so far
-					</span>
-				}
-			/>
-			{children.map((child) => (
-				<ChildCost key={child.id} child={child} totals={totals} />
-			))}
-			<p className="text-[13px] text-muted-foreground">
-				Spending For Everyone counts once, for the whole Household:{" "}
-				{formatMoney(totals.month.household.total)} this month,{" "}
-				{formatMoney(totals.yearToDate.household.total)} this year.
-			</p>
-		</Section>
-	);
-}
-
-const noSpending: SpendTotal = { total: 0, buckets: {} };
-
-function ChildCost({
-	child,
-	totals,
-}: {
-	child: MemberSummary;
-	totals: {
-		month: ForTotals;
-		yearToDate: ForTotals;
-		buckets: ReturnType<typeof useForTotals>["buckets"];
-	};
-}) {
-	const month = totals.month.members[child.id] ?? noSpending;
-	const year = totals.yearToDate.members[child.id] ?? noSpending;
-	// The year includes the month, so its Buckets are every Bucket spent from.
-	const rows = totals.buckets
-		.filter((bucket) => year.buckets[bucket.id])
-		.sort((a, b) => (year.buckets[b.id] ?? 0) - (year.buckets[a.id] ?? 0));
-	const headingId = `child-cost-${child.id}`;
-	return (
-		<Card role="region" aria-labelledby={headingId}>
-			<div className="flex items-center gap-3 px-(--card-pad) py-3.5">
-				<Tile bucket={asBucketColor(child.color ?? 1)}>{monogram(child.name)}</Tile>
-				<h3 id={headingId} className="flex-1 truncate text-sm font-medium">
-					{child.name}
-				</h3>
-				{year.total === 0 ? <Badge>Nothing yet</Badge> : null}
-			</div>
-			{year.total > 0 ? (
-				// A phone gets a list (each Bucket's name whole, its two amounts beneath); sm+ the table.
-				<ul
-					aria-label={`What ${child.name} cost, by Bucket`}
-					className="grid gap-2.5 border-t px-(--card-pad) py-3 text-sm sm:hidden"
-				>
-					{rows.map((bucket) => (
-						<li key={bucket.id} className="grid gap-0.5">
-							<span className="flex items-center gap-2">
-								<span
-									aria-hidden="true"
-									className="size-2 shrink-0 rounded-[2px]"
-									style={{ background: `var(--bucket-${asBucketColor(bucket.color)})` }}
-								/>
-								<span className="min-w-0 break-words">{bucket.name}</span>
-							</span>
-							<MetaParts
-								className="ms-4 text-[13px] text-muted-foreground tabular-nums"
-								parts={[
-									`This month ${formatMoney(month.buckets[bucket.id] ?? 0)}`,
-									`This year ${formatMoney(year.buckets[bucket.id] ?? 0)}`,
-								]}
-							/>
-						</li>
-					))}
-					<li className="grid gap-0.5 border-t pt-2.5 font-semibold">
-						<span>Total</span>
-						<MetaParts
-							className="tabular-nums"
-							parts={[
-								`This month ${formatMoney(month.total)}`,
-								`This year ${formatMoney(year.total)}`,
-							]}
-						/>
-					</li>
-				</ul>
-			) : null}
-			{year.total > 0 ? (
-				<Table className="border-t text-sm max-sm:hidden sm:table-fixed">
-					<TableCaption className="sr-only">What {child.name} cost, by Bucket</TableCaption>
-					<TableHeader>
-						<TableRow className="border-0">
-							<TableHead
-								scope="col"
-								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-2.5 pb-1.5"
-							>
-								Bucket
-							</TableHead>
-							<TableHead scope="col" numeric className="h-auto px-2 pt-2.5 pb-1.5 sm:w-28">
-								This month
-							</TableHead>
-							<TableHead
-								scope="col"
-								numeric
-								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-2.5 pb-1.5 sm:w-28"
-							>
-								This year
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{rows.map((bucket) => (
-							<TableRow key={bucket.id} className="border-0">
-								<th scope="row" className="px-(--card-pad) py-1.5 text-start font-normal">
-									<span className="flex items-center gap-2">
-										<span
-											aria-hidden="true"
-											className="size-2 shrink-0 rounded-[2px]"
-											style={{ background: `var(--bucket-${asBucketColor(bucket.color)})` }}
-										/>
-										<span className="min-w-0 break-words">{bucket.name}</span>
-									</span>
-								</th>
-								<TableCell numeric className="px-2 py-1.5">
-									{formatMoney(month.buckets[bucket.id] ?? 0)}
-								</TableCell>
-								<TableCell
-									numeric
-									className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) py-1.5"
-								>
-									{formatMoney(year.buckets[bucket.id] ?? 0)}
-								</TableCell>
-							</TableRow>
-						))}
-					</TableBody>
-					<TableFooter className="bg-transparent">
-						<TableRow className="font-semibold">
-							<th scope="row" className="px-(--card-pad) py-2.5 text-start">
-								Total
-							</th>
-							<TableCell numeric className="px-2 py-2.5">
-								{formatMoney(month.total)}
-							</TableCell>
-							<TableCell
-								numeric
-								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) py-2.5"
-							>
-								{formatMoney(year.total)}
-							</TableCell>
-						</TableRow>
-					</TableFooter>
-				</Table>
-			) : null}
 		</Card>
 	);
 }

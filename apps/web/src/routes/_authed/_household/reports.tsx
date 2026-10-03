@@ -4,6 +4,7 @@ import {
 	type DayKey,
 	GROUPINGS,
 	type MonthKey,
+	monthKeyAt,
 	monthOfDay,
 	REPORT_PERIODS,
 } from "@noodle/domain";
@@ -35,7 +36,7 @@ import { FilterSelect } from "../../../components/filter-select";
 import { quickAddSearch } from "../../../components/quick-add";
 import { ReportBody, type ReportNav, tablesFor } from "../../../components/report-views";
 import { SectionLayout } from "../../../components/section-layout";
-import { reportQuery } from "../../../queries";
+import { forTotalsEarlierQuery, monthQuery, reportQuery } from "../../../queries";
 import {
 	csvName,
 	download,
@@ -62,7 +63,18 @@ export const Route = createFileRoute("/_authed/_household/reports")({
 	ssr: "data-only",
 	validateSearch: reportSearchSchema,
 	loaderDeps: ({ search }) => ({ request: requestOf(search) }),
-	loader: ({ context, deps }) => context.queryClient.ensureQueryData(reportQuery(deps.request)),
+	loader: async ({ context, deps }) => {
+		const report = context.queryClient.ensureQueryData(reportQuery(deps.request));
+		if (deps.request.view === "people" && !deps.request.area) {
+			// People shows what each Child cost this month and the year so far, by Bucket (#69).
+			const month = monthKeyAt(new Date(), context.household.timeZone);
+			await Promise.all([
+				context.queryClient.ensureQueryData(monthQuery(month)),
+				context.queryClient.ensureQueryData(forTotalsEarlierQuery(month)),
+			]);
+		}
+		return report;
+	},
 	pendingComponent: ReportsPending,
 	component: ReportsPage,
 });
