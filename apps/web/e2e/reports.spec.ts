@@ -147,9 +147,8 @@ test("no Report view is wider than a phone, and a long merchant name stays in it
 	await page.getByRole("link", { name: "Merchants", exact: true }).click();
 	await expect(header(page)).toContainText("Merchants");
 	const visits = page.getByRole("group", { name: "By spending" });
-	const row = visits.getByRole("button", {
-		name: new RegExp(`^${longName.slice(0, 20).replace(/[*]/g, "\\*")}`),
-	});
+	// Shown cleaned: the "SQ *" prefix and the city, state and ZIP are gone, the rest kept whole.
+	const row = visits.getByRole("button", { name: /^El Chilito Tacos & Breakfast Bar/i });
 	await expect(row).toBeVisible();
 	const [card, button] = await Promise.all([visits.boundingBox(), row.boundingBox()]);
 	expect((button?.x ?? 0) + (button?.width ?? 0)).toBeLessThanOrEqual(
