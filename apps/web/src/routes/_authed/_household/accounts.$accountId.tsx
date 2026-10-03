@@ -39,6 +39,7 @@ import { Ellipsis, Pencil, Unplug } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
 import { accountSource, accountSourceText } from "../../../account-source";
+import { DisconnectBankDialog } from "../../../components/bank-connections";
 import {
 	AccountPager,
 	AddGoalSheet,
@@ -105,7 +106,7 @@ function AccountDetails({ account }: { account: AccountView }) {
 	const hydrated = useHydrated();
 	const rename = useRenameAccount();
 	const updateBalance = useUpdateAccountBalance();
-	const [sheet, setSheet] = useState<"balance" | "rename" | "unpair" | null>(null);
+	const [sheet, setSheet] = useState<"balance" | "rename" | "unpair" | "disconnect" | null>(null);
 	const { connections } = useSuspenseQuery(bankConnectionsQuery()).data;
 	const { timeZone } = useRouteContext({ from: "/_authed/_household" }).household;
 	const source = accountSource(account, connections);
@@ -168,6 +169,10 @@ function AccountDetails({ account }: { account: AccountView }) {
 									<Unplug />
 									Stop bringing in…
 								</DropdownMenuItem>
+								<DropdownMenuItem variant="destructive" onSelect={() => setSheet("disconnect")}>
+									<Unplug />
+									Disconnect {connected.connection.institution ?? "the bank"}…
+								</DropdownMenuItem>
 							</DropdownMenuContent>
 						</DropdownMenu>
 					) : (
@@ -194,6 +199,13 @@ function AccountDetails({ account }: { account: AccountView }) {
 					its new Transactions and balance; you can upload statements or update it by hand, or
 					choose it again from the Bank Connection on Accounts.
 				</Confirm>
+			) : null}
+			{sheet === "disconnect" && connected ? (
+				<DisconnectBankDialog
+					connectionId={connected.connection.id}
+					institution={connected.connection.institution}
+					onCancel={() => setSheet(null)}
+				/>
 			) : null}
 			{/* In a wide pane: Transactions and statements on the left; the balance, what's set aside and the
 			    payoff plan in a rail on the right that stays put (#47). Phones keep the rail first. */}

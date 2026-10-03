@@ -18,7 +18,7 @@ import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useHydrated } from "@tanstack/react-router";
-import { Landmark, Plus } from "lucide-react";
+import { Landmark, Plus, Unplug } from "lucide-react";
 import { type FormEvent, useEffect, useId, useState } from "react";
 import { ulid } from "ulid";
 import {
@@ -42,6 +42,7 @@ import {
 	checkBankDuplicate,
 	chooseBankAccountsFn,
 	connectBank,
+	disconnectBank,
 	finishBankReconnect,
 	getBankChoices,
 	getBankLinkSession,
@@ -49,6 +50,7 @@ import {
 	startBankLink,
 	startBankReconnect,
 } from "../server/bank-connections";
+import { Confirm } from "./plan-editing";
 import { TermHelp } from "./term-help";
 
 // Bank Connections on the Accounts page: a Parent connects a bank or card through Plaid Link, then
@@ -659,6 +661,55 @@ const statusText = (connection: BankConnectionSummary): { text: string; failed: 
 	}
 };
 
+/**
+ * Disconnecting a bank (#61), asked first: what stays (its Accounts, with their Transactions and
+ * statements, kept by hand) and what goes (new Transactions coming in on their own).
+ */
+export function DisconnectBankDialog({
+	institution,
+	onDone,
+	onCancel,
+	connectionId,
+}: {
+	connectionId: string;
+	institution: string | null;
+	onDone?: () => void;
+	onCancel: () => void;
+}) {
+	const queryClient = useQueryClient();
+	const bankName = institution ?? "the bank";
+	const disconnect = useMutation({
+		mutationFn: () => disconnectBank({ data: { connectionId } }),
+		onSuccess: (result) => {
+			if (!result.ok) {
+				toast(
+					result.reason === "bank"
+						? `${institution ?? "The bank"} didn’t answer, so it’s still connected. Try again in a little while.`
+						: "Couldn’t disconnect it. Try again.",
+					{ tone: "error" },
+				);
+				return;
+			}
+			toast(`${institution ?? "The bank"} is disconnected. Its Accounts are kept by hand now.`);
+			void queryClient.invalidateQueries({ queryKey: bankConnectionsQuery().queryKey });
+			void queryClient.invalidateQueries({ queryKey: goalsQuery().queryKey });
+			onDone?.();
+		},
+		onError: () => toast("Couldn’t disconnect it. Try again.", { tone: "error" }),
+	});
+	return (
+		<Confirm
+			confirmLabel={`Disconnect ${bankName}`}
+			onConfirm={() => disconnect.mutate()}
+			onCancel={onCancel}
+		>
+			Its Accounts stay, with their Transactions and statements, and are kept by hand from now on.
+			Noodle stops bringing in new Transactions from {bankName}, so add new spending with Quick Add
+			or by uploading a statement. You can connect {bankName} again later.
+		</Confirm>
+	);
+}
+
 function ConnectionRow({
 	connection,
 	setUp,
@@ -674,6 +725,7 @@ function ConnectionRow({
 	const count = connection.accounts.length;
 	// Why a reconnect didn't go through, in plain words. The Reconnect button stays beside it.
 	const [failed, setFailed] = useState<string | null>(null);
+	const [disconnecting, setDisconnecting] = useState(false);
 	const bankName = connection.institution ?? "The bank";
 	const statementsGo =
 		connection.accounts.length === 1 ? "its Account’s page" : "each Account’s page";
@@ -715,6 +767,45 @@ function ConnectionRow({
 		onError: () => setFailed(`${bankName} didn’t take the login. Try again in a little while.`),
 		onMutate: () => setFailed(null),
 	});
+
+	const trailing =
+		connection.status === "choosing" && setUp ? (
+			<Button type="button" size="sm" disabled={!hydrated} onClick={onChoose}>
+				Choose Accounts
+			</Button>
+		) : connection.status === "reconnect" && setUp ? (
+			<Button
+				type="button"
+				size="sm"
+				variant="outline"
+				disabled={!hydrated || reconnect.isPending}
+				onClick={() => reconnect.mutate()}
+				aria-label={`Reconnect ${connection.institution ?? "the bank"}`}
+			>
+				Reconnect
+			</Button>
+		) : offersNew && setUp ? (
+			<Button
+				type="button"
+				size="sm"
+				disabled={!hydrated || addNew.isPending}
+				onClick={() => addNew.mutate()}
+				aria-label={`Add the new account at ${connection.institution ?? "the bank"}`}
+			>
+				Add it
+			</Button>
+		) : connection.status === "disconnected" ? null : setUp ? (
+			<Button
+				type="button"
+				size="sm"
+				variant="ghost"
+				disabled={!hydrated}
+				onClick={onChoose}
+				aria-label={`Choose Accounts for ${connection.institution ?? "the bank"}`}
+			>
+				Accounts
+			</Button>
+		) : null;
 
 	return (
 		<ListRow
@@ -775,43 +866,29 @@ function ConnectionRow({
 				</>
 			}
 			trailing={
-				connection.status === "choosing" && setUp ? (
-					<Button type="button" size="sm" disabled={!hydrated} onClick={onChoose}>
-						Choose Accounts
-					</Button>
-				) : connection.status === "reconnect" && setUp ? (
-					<Button
-						type="button"
-						size="sm"
-						variant="outline"
-						disabled={!hydrated || reconnect.isPending}
-						onClick={() => reconnect.mutate()}
-						aria-label={`Reconnect ${connection.institution ?? "the bank"}`}
-					>
-						Reconnect
-					</Button>
-				) : offersNew && setUp ? (
-					<Button
-						type="button"
-						size="sm"
-						disabled={!hydrated || addNew.isPending}
-						onClick={() => addNew.mutate()}
-						aria-label={`Add the new account at ${connection.institution ?? "the bank"}`}
-					>
-						Add it
-					</Button>
-				) : connection.status === "disconnected" ? null : setUp ? (
-					<Button
-						type="button"
-						size="sm"
-						variant="ghost"
-						disabled={!hydrated}
-						onClick={onChoose}
-						aria-label={`Choose Accounts for ${connection.institution ?? "the bank"}`}
-					>
-						Accounts
-					</Button>
-				) : null
+				<div className="flex flex-wrap items-center gap-2">
+					{trailing}
+					{setUp ? (
+						<Button
+							type="button"
+							size="sm"
+							variant="ghost"
+							disabled={!hydrated}
+							onClick={() => setDisconnecting(true)}
+							aria-label={`Disconnect ${connection.institution ?? "the bank"}`}
+						>
+							<Unplug />
+							Disconnect
+						</Button>
+					) : null}
+					{disconnecting ? (
+						<DisconnectBankDialog
+							connectionId={connection.id}
+							institution={connection.institution}
+							onCancel={() => setDisconnecting(false)}
+						/>
+					) : null}
+				</div>
 			}
 		/>
 	);

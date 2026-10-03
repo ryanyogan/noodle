@@ -201,6 +201,9 @@ export function plaidProvider(transport: PlaidTransport): BankConnectionProvider
 			}
 			return { credential: answer.access_token, externalId: answer.item_id, institution };
 		},
+		async remove(credential) {
+			await transport("/item/remove", { access_token: credential });
+		},
 		async accounts(credential) {
 			const answer = (await transport("/accounts/get", { access_token: credential })) as {
 				accounts?: PlaidAccount[];

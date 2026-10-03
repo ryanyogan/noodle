@@ -144,6 +144,8 @@ export function fakePlaidTransport(today: DayKey): PlaidTransport {
 								: { ...none, next_cursor: LAST_CURSOR, has_more: false };
 				return { ...page, transactions_update_status: "HISTORICAL_UPDATE_COMPLETE" };
 			}
+			case "/item/remove":
+				return { request_id: "fake-remove" };
 			case "/item/webhook/update":
 				return { item: { webhook: body.webhook } };
 			case "/webhook_verification_key/get": {

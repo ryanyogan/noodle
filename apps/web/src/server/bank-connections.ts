@@ -28,6 +28,7 @@ import {
 	connectInstitution,
 } from "./bank-connect";
 import { openCredential } from "./bank-credential";
+import { disconnectBankConnection } from "./bank-disconnect";
 import type { BankImportMessage } from "./bank-import-workflow";
 import { type BankSetup, bankSetup, providerFor, setUpProviders } from "./bank-setup";
 import { getDb } from "./db";
@@ -258,7 +259,9 @@ export const startBankReconnect = createServerFn({ method: "POST" })
 		if (!setup) return { ok: false, reason: "not-set-up" };
 		const householdId = context.household.id;
 		const connection = await loadBankConnectionToImport(getDb(), householdId, data.connectionId);
-		if (!connection) return { ok: false, reason: "not-found" };
+		// A disconnected one's link is dead: only connecting the bank anew brings it back.
+		if (!connection || connection.status === "disconnected")
+			return { ok: false, reason: "not-found" };
 		const accessToken = await openCredential(await setup.key(), connection.credential, {
 			householdId,
 			connectionId: connection.id,
@@ -432,4 +435,46 @@ export const unpairBankAccount = createServerFn({ method: "POST" })
 		const done = await unpairAccount(getDb(), context.household.id, data.accountId);
 		if (done) await notifyHousehold(context.household.id, ["goals", "bank-connections"]);
 		return { ok: done };
+	});
+
+export type DisconnectBankFnResult =
+	| { ok: true }
+	| { ok: false; reason: "not-set-up" | "not-found" | "bank" };
+
+/**
+ * A Parent disconnects a Bank Connection (#61): removed at the bank, its access token deleted,
+ * and its Accounts kept by hand or by statements from now on, with everything on them.
+ */
+export const disconnectBank = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ connectionId: ulidSchema }))
+	.handler(async ({ data, context }): Promise<DisconnectBankFnResult> => {
+		const setup = bankSetup();
+		if (!setup) return { ok: false, reason: "not-set-up" };
+		const householdId = context.household.id;
+		const result = await disconnectBankConnection(
+			{
+				db: getDb(),
+				providerFor: (provider) => providerFor(setup, provider),
+				openCredential: async (connection) =>
+					openCredential(await setup.key(), connection.credential, {
+						householdId,
+						connectionId: connection.id,
+					}),
+			},
+			{ householdId, connectionId: data.connectionId },
+		);
+		if (!result.ok) return result;
+		// No activity history to record it in: the Plan's history holds Plan changes only. The
+		// Worker's log says who, by ID.
+		console.log(
+			JSON.stringify({
+				log: "bank-disconnected",
+				household_id: householdId,
+				connection_id: data.connectionId,
+				member_id: context.parent.id,
+			}),
+		);
+		await notifyHousehold(householdId, ["goals", "bank-connections"]);
+		return { ok: true };
 	});

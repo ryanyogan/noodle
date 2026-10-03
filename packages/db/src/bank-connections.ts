@@ -338,7 +338,13 @@ export async function loadBankConnections(
 				newAccounts: bankConnections.newAccounts,
 			})
 			.from(bankConnections)
-			.where(eq(bankConnections.householdId, householdId))
+			// Not one a Parent disconnected: its Accounts are kept by hand now, and it has no more to show.
+			.where(
+				and(
+					eq(bankConnections.householdId, householdId),
+					ne(bankConnections.credential, REMOVED_CREDENTIAL),
+				),
+			)
 			.orderBy(asc(bankConnections.createdAt), asc(bankConnections.id)),
 		db
 			.select({
@@ -726,6 +732,61 @@ export async function markBankConnectionDisconnected(
 		)
 		.returning({ id: bankConnections.id });
 	return written.length > 0;
+}
+
+/**
+ * What a Bank Connection a Parent disconnected keeps as its credential: nothing. The access token
+ * is deleted, not kept sealed.
+ */
+export const REMOVED_CREDENTIAL = "";
+
+/**
+ * A Parent disconnected a Bank Connection (#61), after the provider was told to remove the link:
+ * its access token is deleted, it's marked disconnected (so the Import Workflow, the daily sync
+ * and webhooks all skip it), and its Accounts are unpaired, ADR-0020's pairing in reverse. Each
+ * Account and everything on it stays, kept by hand or by statements again, and can be paired
+ * again when the bank is connected anew. The provider's ID for the link is set aside too: a link
+ * once removed is never used again, so a webhook naming it finds nothing, and connecting the same
+ * bank later is a new Bank Connection. The row itself stays, for the Imports that name it, but
+ * isn't shown. False when it's gone or disconnected by a Parent already.
+ */
+export async function removeBankConnection(
+	db: Db,
+	householdId: string,
+	connectionId: string,
+): Promise<boolean> {
+	const theConnection = and(
+		eq(bankConnections.id, connectionId),
+		eq(bankConnections.householdId, householdId),
+		ne(bankConnections.credential, REMOVED_CREDENTIAL),
+	);
+	const [found] = await db
+		.select({ id: bankConnections.id })
+		.from(bankConnections)
+		.where(theConnection);
+	if (!found) return false;
+	await db.batch([
+		db
+			.update(accounts)
+			.set({ bankConnectionId: null, externalId: null })
+			.where(
+				and(eq(accounts.householdId, householdId), eq(accounts.bankConnectionId, connectionId)),
+			),
+		db
+			.update(bankConnections)
+			.set({
+				status: "disconnected",
+				credential: REMOVED_CREDENTIAL,
+				externalId: `removed:${connectionId}`,
+				cursor: null,
+				notice: null,
+				newAccounts: false,
+				syncStartedAt: null,
+				syncPending: false,
+			})
+			.where(theConnection),
+	]);
+	return true;
 }
 
 /**

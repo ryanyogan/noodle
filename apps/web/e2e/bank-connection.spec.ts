@@ -210,5 +210,9 @@ test("a bank that's down, has a new account, or was revoked says so on its row",
 	await page.reload();
 	await expect(connection).toContainText("4 Accounts");
 	await expect(connection).toContainText("Access was turned off at the bank");
-	await expect(connection.getByRole("button")).toHaveCount(0);
+	// Only Disconnect, which deletes what's left of the link (#61).
+	await expect(connection.getByRole("button")).toHaveCount(1);
+	await expect(
+		connection.getByRole("button", { name: "Disconnect First Platypus Bank" }),
+	).toBeVisible();
 });

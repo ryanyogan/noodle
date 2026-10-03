@@ -41,6 +41,8 @@ export interface BankConnectionProvider {
 	connect(handoff: BankHandoff): Promise<BankLink>;
 	accounts(credential: string): Promise<BankAccount[]>;
 	changes(credential: string, cursor: string | null): Promise<BankChanges>;
+	/** Removes the link at the provider: its access token stops working for good (#61). */
+	remove(credential: string): Promise<void>;
 }
 
 /** A provider's answer that isn't one: an error it reported, or a response it shouldn't send. */
