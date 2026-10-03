@@ -146,7 +146,7 @@ function BucketPage() {
 			/>
 			{/* In a wide pane: this month and its Transactions on the left; how it's gone over time on the right.
 			    On phones the two columns' parts interleave, in the order they always had. */}
-			<div className="grid max-w-2xl gap-8 @3xl:max-w-none @3xl:grid-cols-2 @3xl:items-start @3xl:gap-6">
+			<div className="grid max-w-2xl gap-8 lg:max-w-none @3xl:max-w-none @3xl:grid-cols-2 @3xl:items-start @3xl:gap-6">
 				<div className="@max-3xl:contents @3xl:grid @3xl:min-w-0 @3xl:gap-8">
 					{changes.failed}
 					{current ? (
