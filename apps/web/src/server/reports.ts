@@ -129,7 +129,7 @@ export type ReportMeta = {
 	buckets: { id: string; name: string; color: number; private: boolean; mine: boolean }[];
 	commitments: { id: string; name: string }[];
 	goals: { id: string; name: string }[];
-	accounts: { id: string; name: string }[];
+	accounts: { id: string; name: string; mask: string | null }[];
 	members: { id: string; name: string; kind: "parent" | "child"; color: number | null }[];
 };
 
@@ -325,7 +325,7 @@ export const getReport = createServerFn({ method: "GET" })
 			})),
 			commitments: records.commitments.map((c) => ({ id: c.id, name: c.name })),
 			goals: goalRecords.goals.map((g) => ({ id: g.id, name: g.name })),
-			accounts: goalRecords.accounts.map((a) => ({ id: a.id, name: a.name })),
+			accounts: goalRecords.accounts.map((a) => ({ id: a.id, name: a.name, mask: a.mask })),
 			members: members.map((m) => ({ id: m.id, name: m.name, kind: m.kind, color: m.color })),
 		};
 		const context_ = { db, viewer, request, range, compared, grouping, periods, scope, records };

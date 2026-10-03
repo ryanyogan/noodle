@@ -59,9 +59,24 @@ export function plaidAccountKind(type: string, subtype: string | null): AccountK
 
 const SAVINGS_SUBTYPES = new Set(["savings", "money market", "cd", "hsa", "cash management"]);
 
+/** An account number's last four digits, digits only; null without four. */
+export function accountMask(raw: string | null | undefined): string | null {
+	const digits = raw?.replace(/\D/g, "") ?? "";
+	return digits.length >= 4 ? digits.slice(-4) : null;
+}
+
+/**
+ * An Account's short label: its name and last four digits ("Chase ••1234"), or its name alone
+ * when the digits aren't known or the name already shows them.
+ */
+export function accountLabel(account: { name: string; mask: string | null }): string {
+	const { name, mask } = account;
+	return mask && !name.includes(mask) ? `${name} ••${mask}` : name;
+}
+
 /** A name for an account, with the last digits the institution shows, to tell two cards apart. */
 export function bankAccountName(name: string, mask: string | null): string {
-	const digits = mask ? ` ··${mask}` : "";
+	const digits = mask ? ` ••${mask}` : "";
 	const base = name.trim() || "Account";
 	return base.length + digits.length <= ACCOUNT_NAME_MAX
 		? `${base}${digits}`

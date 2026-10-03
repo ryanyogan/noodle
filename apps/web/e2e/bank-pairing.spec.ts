@@ -109,18 +109,18 @@ test("connecting pairs with the card already there, and counts nothing twice", a
 	await accountsLink(page).click();
 	await bankConnections(page).getByRole("button", { name: "Connect a bank" }).click();
 	const picks = chooseSheet(page);
-	const card = picks.getByLabel("Costco Anywhere Visa ··3333");
+	const card = picks.getByLabel("Costco Anywhere Visa ••3333");
 	await expect(card).toHaveText("Same as Costco Anywhere Visa");
-	await expect(picks.getByLabel("Plaid Checking ··0000")).toHaveText("Add as a new Account");
+	await expect(picks.getByLabel("Plaid Checking ••0000")).toHaveText("Add as a new Account");
 	// A checking account can't be the card.
-	await picks.getByLabel("Plaid Checking ··0000").click();
+	await picks.getByLabel("Plaid Checking ••0000").click();
 	await expect(page.getByRole("listbox").getByRole("option")).toHaveText([
 		"Add as a new Account",
 		"Leave it out",
 	]);
 	await page.keyboard.press("Escape");
 	await expect(page.getByRole("listbox")).toBeHidden();
-	await choose(picks, "Plaid Auto Loan ··4444", "Leave it out");
+	await choose(picks, "Plaid Auto Loan ••4444", "Leave it out");
 	await picks.getByRole("button", { name: "Start bringing them in" }).click();
 	await expect(toast(page, "Bringing in 3 Accounts from First Platypus Bank.")).toBeVisible();
 
@@ -130,7 +130,7 @@ test("connecting pairs with the card already there, and counts nothing twice", a
 	// What it brought in: the card's three and checking's two, one of them Matched.
 	await expect(connection).toContainText("Brought in 5 Transactions · 1 Matched to Quick Adds");
 	await expect(page.getByRole("link", { name: /^Costco Anywhere Visa, / })).toHaveCount(1);
-	await expect(page.getByRole("link", { name: /··3333/ })).toHaveCount(0);
+	await expect(page.getByRole("link", { name: /••3333/ })).toHaveCount(0);
 	await expect(page.getByRole("link", { name: /Auto Loan/ })).toHaveCount(0);
 	await page.getByRole("link", { name: /^Costco Anywhere Visa, / }).click();
 	await expect(

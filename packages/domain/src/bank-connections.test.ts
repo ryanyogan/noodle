@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+	accountLabel,
+	accountMask,
 	bankAccountName,
 	dollarsToCents,
 	type PlaidTransaction,
@@ -44,7 +46,7 @@ describe("plaidAccountKind", () => {
 
 describe("bankAccountName", () => {
 	it("adds the last digits the institution shows", () => {
-		expect(bankAccountName("Plaid Checking", "0000")).toBe("Plaid Checking ··0000");
+		expect(bankAccountName("Plaid Checking", "0000")).toBe("Plaid Checking ••0000");
 		expect(bankAccountName("  Savings ", null)).toBe("Savings");
 		expect(bankAccountName("", null)).toBe("Account");
 	});
@@ -52,7 +54,7 @@ describe("bankAccountName", () => {
 	it("shortens a long name to fit, keeping the digits", () => {
 		const name = bankAccountName("Plaid Diamond 12.5% APR Interest Credit Card", "3333");
 		expect(name.length).toBeLessThanOrEqual(40);
-		expect(name.endsWith("… ··3333")).toBe(true);
+		expect(name.endsWith("… ••3333")).toBe(true);
 	});
 });
 
@@ -81,7 +83,7 @@ describe("plaidBankAccount", () => {
 		});
 		expect(card).toEqual({
 			externalId: "a",
-			name: "Plaid Credit Card ··3333",
+			name: "Plaid Credit Card ••3333",
 			mask: "3333",
 			kind: "credit-card",
 			balance: 41_000,
@@ -140,5 +142,29 @@ describe("plaidLine", () => {
 		expect(plaidLine(transaction({ iso_currency_code: "CAD" }))).toBeNull();
 		expect(plaidLine(transaction({ amount: 0 }))).toBeNull();
 		expect(plaidLine(transaction({ date: "soon", authorized_date: null }))).toBeNull();
+	});
+});
+
+describe("accountLabel", () => {
+	it("shows an Account's last four digits after its name", () => {
+		expect(accountLabel({ name: "Chase", mask: "1234" })).toBe("Chase ••1234");
+	});
+	it("is the name alone without digits, or when the name shows them", () => {
+		expect(accountLabel({ name: "Chase", mask: null })).toBe("Chase");
+		expect(accountLabel({ name: "Plaid Checking ••0000", mask: "0000" })).toBe(
+			"Plaid Checking ••0000",
+		);
+	});
+});
+
+describe("accountMask", () => {
+	it("keeps an account number's last four digits", () => {
+		expect(accountMask("4111-1111-1111-1234")).toBe("1234");
+		expect(accountMask("0000")).toBe("0000");
+	});
+	it("is null without four digits", () => {
+		expect(accountMask("12")).toBeNull();
+		expect(accountMask(null)).toBeNull();
+		expect(accountMask(undefined)).toBeNull();
 	});
 });

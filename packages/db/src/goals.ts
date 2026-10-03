@@ -735,6 +735,8 @@ export async function spendGoal(
 export type AccountRecord = {
 	id: string;
 	name: string;
+	/** The account number's last four digits, when known. */
+	mask: string | null;
 	kind: AccountKind;
 	/** The latest balance a Parent entered; null until one is. */
 	latestBalance: BalanceUpdate | null;
@@ -810,6 +812,7 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 			.select({
 				id: accounts.id,
 				name: accounts.name,
+				mask: accounts.mask,
 				kind: accounts.kind,
 				bankConnectionId: accounts.bankConnectionId,
 				// Spelled out: inside a select's fields Drizzle leaves column names unqualified.

@@ -31,6 +31,7 @@ import {
 	sql,
 } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
+import { accountLabelSql } from "./account-label";
 import { counts } from "./counting";
 import { setAsideSql } from "./goals";
 import type { Db } from "./index";
@@ -640,7 +641,7 @@ export async function loadTransactionsPage(
 			pending: transactions.pending,
 			importedFrom: sql<
 				string | null
-			>`case when ${transactions.source} = 'import' then ${accounts.name} end`,
+			>`case when ${transactions.source} = 'import' then ${accountLabelSql} end`,
 			matchedIn: sql<string | null>`(select a.name from matches m
 				join transactions c on c.id = m.imported_id join accounts a on a.id = c.account_id
 				where m.quick_add_id = ${transactions.id} and m.removed_at is null)`,

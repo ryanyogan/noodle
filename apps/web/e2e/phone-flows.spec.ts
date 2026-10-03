@@ -65,7 +65,7 @@ test("on a phone a statement comes in, a bank connects and last month closes", a
 	await start.click();
 	await expect(toast(page, /^Bringing in \d+ Accounts? from First Platypus Bank\./)).toBeVisible();
 	await expect(chooser).toBeHidden();
-	await expect(page.getByRole("link", { name: /^Plaid Checking ··0000, / })).toBeVisible();
+	await expect(page.getByRole("link", { name: /^Plaid Checking ••0000, / })).toBeVisible();
 
 	// Close month: on This Month, the To do strip opens to last month's close, which ends it.
 	await page.goto("/");

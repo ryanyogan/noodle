@@ -321,6 +321,8 @@ export const accounts = sqliteTable(
 			.default(sql`(unixepoch() * 1000)`),
 		bankConnectionId: text("bank_connection_id").references(() => bankConnections.id),
 		externalId: text("external_id"),
+		/** The account number's last four digits, from the bank or a statement; null until known. */
+		mask: text("mask"),
 	},
 	(t) => [
 		index("accounts_household_idx").on(t.householdId),

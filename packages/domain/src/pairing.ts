@@ -79,7 +79,7 @@ const wordsOf = (text: string) =>
 			.filter((word) => word.length > 1 && !GENERIC.has(word) && !/^\d+$/.test(word)),
 	);
 
-/** The bank's last digits, standing alone in an Account's name ("Visa ··3333", "card x3333"). */
+/** The bank's last digits, standing alone in an Account's name ("Visa ••3333", "card x3333"). */
 const hasDigits = (name: string, mask: string | null) =>
 	mask !== null && /^\d{2,}$/.test(mask) && new RegExp(`(^|\\D)${mask}($|\\D)`).test(name);
 

@@ -1,5 +1,6 @@
 import {
 	type AccountKind,
+	accountMask,
 	type BankAccount,
 	type Cents,
 	holdsMoney,
@@ -181,6 +182,7 @@ export async function chooseBankAccounts(
 								createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
 								bankConnectionId: bankConnections.id,
 								externalId: sql<string>`${account.externalId}`.as("external_id"),
+								mask: sql<string | null>`${accountMask(account.mask)}`.as("mask"),
 							})
 							.from(bankConnections)
 							.where(and(theConnection, notYetPaired)),
@@ -194,7 +196,11 @@ export async function chooseBankAccounts(
 			writes.push(
 				db
 					.update(accounts)
-					.set({ bankConnectionId: connectionId, externalId: account.externalId })
+					.set({
+						bankConnectionId: connectionId,
+						externalId: account.externalId,
+						mask: sql`coalesce(${accountMask(account.mask)}, ${accounts.mask})`,
+					})
 					.where(
 						and(
 							eq(accounts.id, choice.accountId),

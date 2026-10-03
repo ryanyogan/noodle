@@ -1,5 +1,5 @@
 import type { ImportRecord } from "@noodle/db";
-import { ACCOUNT_KINDS, type AccountKind } from "@noodle/domain";
+import { ACCOUNT_KINDS, type AccountKind, accountLabel } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field } from "@noodle/ui/components/field";
@@ -320,7 +320,7 @@ export function SetupStatementCard({ jobs }: { jobs: SetupJobView[] }) {
 							value={from}
 							onValueChange={setFrom}
 							choices={[
-								...accounts.map((a) => ({ value: a.id, label: a.name })),
+								...accounts.map((a) => ({ value: a.id, label: accountLabel(a) })),
 								{ value: "new", label: "A new Account" },
 							]}
 						/>

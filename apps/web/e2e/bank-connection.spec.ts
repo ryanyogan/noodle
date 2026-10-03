@@ -69,7 +69,7 @@ test("a Parent connects a bank, and its Accounts and Transactions come in", asyn
 
 	// Nothing's here yet, so each account there is added as a new Account.
 	await page.getByRole("button", { name: "Connect a bank" }).click();
-	await expect(chooseSheet(page).getByLabel("Plaid Checking ··0000")).toHaveText(
+	await expect(chooseSheet(page).getByLabel("Plaid Checking ••0000")).toHaveText(
 		"Add as a new Account",
 	);
 	await chooseSheet(page).getByRole("button", { name: "Start bringing them in" }).click();
@@ -77,11 +77,11 @@ test("a Parent connects a bank, and its Accounts and Transactions come in", asyn
 
 	// Checking, savings, card and loan become Accounts with their balances; the brokerage doesn't.
 	await expect(
-		page.getByRole("link", { name: "Plaid Checking ··0000, Checking, $1,250.40" }),
+		page.getByRole("link", { name: "Plaid Checking ••0000, Checking, $1,250.40" }),
 	).toBeVisible();
-	await expect(page.getByRole("link", { name: /^Kids Savings ··1111, Savings, / })).toBeVisible();
-	await expect(page.getByRole("link", { name: /^Costco Anywhere Visa ··3333, / })).toBeVisible();
-	await expect(page.getByRole("link", { name: /^Plaid Auto Loan ··4444, / })).toBeVisible();
+	await expect(page.getByRole("link", { name: /^Kids Savings ••1111, Savings, / })).toBeVisible();
+	await expect(page.getByRole("link", { name: /^Costco Anywhere Visa ••3333, / })).toBeVisible();
+	await expect(page.getByRole("link", { name: /^Plaid Auto Loan ••4444, / })).toBeVisible();
 	await expect(page.getByRole("link", { name: /Brokerage/ })).toHaveCount(0);
 
 	// The Import Workflow finishes, and the screen hears of it.
@@ -90,7 +90,7 @@ test("a Parent connects a bank, and its Accounts and Transactions come in", asyn
 	await expect(connection).toContainText("4 Accounts · Up to date");
 
 	// Its Import sits in the Account's history like a statement's.
-	await page.getByRole("link", { name: /^Plaid Checking ··0000, / }).click();
+	await page.getByRole("link", { name: /^Plaid Checking ••0000, / }).click();
 	await expect(page.locator("[data-slot=detail-title]")).toContainText("Plaid Checking");
 	const imports = page.getByRole("list", { name: "Imported statements" });
 	await expect(imports.getByRole("listitem")).toHaveCount(1);

@@ -57,7 +57,7 @@ test("disconnecting keeps the Accounts by hand, and connecting again pairs with 
 	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Fun", "300"]] });
 
 	await connectBank(page);
-	await expect(chooseSheet(page).getByLabel("Plaid Checking ··0000")).toHaveText(
+	await expect(chooseSheet(page).getByLabel("Plaid Checking ••0000")).toHaveText(
 		"Add as a new Account",
 	);
 	await chooseSheet(page).getByRole("button", { name: "Start bringing them in" }).click();
@@ -67,7 +67,7 @@ test("disconnecting keeps the Accounts by hand, and connecting again pairs with 
 	const item = String(d1(parent.userId, "x.external_id", "bank_connections"));
 	const transactions = Number(d1(parent.userId, "count(*)", "transactions"));
 	expect(transactions).toBeGreaterThan(0);
-	const accounts = await page.getByRole("link", { name: /··\d{4}, / }).count();
+	const accounts = await page.getByRole("link", { name: /••\d{4}, / }).count();
 
 	// Asked first, saying what stays and what goes.
 	await page.setViewportSize({ width: 393, height: 852 });
@@ -88,7 +88,7 @@ test("disconnecting keeps the Accounts by hand, and connecting again pairs with 
 
 	// The Accounts and their Transactions stay, kept by hand; the token is gone.
 	await expect(bankConnections(page).getByRole("listitem")).toHaveCount(0);
-	await expect(page.getByRole("link", { name: /··\d{4}, / })).toHaveCount(accounts);
+	await expect(page.getByRole("link", { name: /••\d{4}, / })).toHaveCount(accounts);
 	expect(Number(d1(parent.userId, "count(*)", "transactions"))).toBe(transactions);
 	expect(d1(parent.userId, "x.credential", "bank_connections")).toBe("");
 	await checking(page).click();
@@ -122,12 +122,12 @@ test("disconnecting keeps the Accounts by hand, and connecting again pairs with 
 	await expect(page).toHaveURL(/\/accounts$/);
 	await expect(page.getByText("Pick an Account to see it here.")).toBeVisible();
 	await connectBank(page);
-	await expect(chooseSheet(page).getByLabel("Plaid Checking ··0000")).toHaveText(
-		"Same as Plaid Checking ··0000",
+	await expect(chooseSheet(page).getByLabel("Plaid Checking ••0000")).toHaveText(
+		"Same as Plaid Checking ••0000",
 	);
 	await chooseSheet(page).getByRole("button", { name: "Start bringing them in" }).click();
 	await expect(bankConnections(page).getByRole("listitem")).toContainText("Up to date");
-	await expect(page.getByRole("link", { name: /··\d{4}, / })).toHaveCount(accounts);
+	await expect(page.getByRole("link", { name: /••\d{4}, / })).toHaveCount(accounts);
 	await expect(checking(page)).toContainText("Connected · First Platypus Bank");
 	// Nothing came in twice.
 	expect(Number(d1(parent.userId, "count(*)", "transactions"))).toBe(transactions);

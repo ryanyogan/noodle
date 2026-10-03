@@ -44,7 +44,7 @@ const deps = () => ({
 
 const bankChecking = {
 	externalId: "acc-chk",
-	name: "Checking ··0000",
+	name: "Checking ••0000",
 	mask: "0000",
 	kind: "checking" as const,
 	balance: 125_040,

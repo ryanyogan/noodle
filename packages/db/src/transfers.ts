@@ -23,6 +23,7 @@ import {
 	type SQL,
 	sql,
 } from "drizzle-orm";
+import { accountLabelSql } from "./account-label";
 import { counts, incomeCounts, inTransfer } from "./counting";
 import type { Db } from "./index";
 import { bucketInPlan } from "./moves";
@@ -293,7 +294,7 @@ async function loadPeers(
 					amountCents: income.amountCents,
 					note: income.note,
 					merchantName: sql<string | null>`null`,
-					account: accounts.name,
+					account: accountLabelSql,
 				})
 				.from(income)
 				.leftJoin(accounts, eq(accounts.id, income.accountId))
@@ -307,7 +308,7 @@ async function loadPeers(
 					merchantName: transactions.merchant,
 					account: sql<
 						string | null
-					>`case when ${transactions.source} = 'import' then ${accounts.name} end`,
+					>`case when ${transactions.source} = 'import' then ${accountLabelSql} end`,
 				})
 				.from(transactions)
 				.leftJoin(accounts, eq(accounts.id, transactions.accountId))
@@ -326,7 +327,7 @@ async function loadSelf(db: Db, viewer: Viewer, transactionId: string) {
 			note: transactions.note,
 			source: transactions.source,
 			accountId: transactions.accountId,
-			account: accounts.name,
+			account: accountLabelSql,
 			changeable: sql<boolean>`${changeableBy(viewer)}`.mapWith(Boolean),
 			transferable: sql<boolean>`${transferable}`.mapWith(Boolean),
 		})

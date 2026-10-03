@@ -25,7 +25,7 @@ import {
 	setTakeHomePay,
 	splitTransaction,
 } from "./index";
-import { members, transactions } from "./schema";
+import { accounts, members, transactions } from "./schema";
 import { testDb } from "./test-db";
 
 const householdId = "household";
@@ -331,5 +331,32 @@ describe("importStatement", () => {
 		await importLines("import-2", lines, { csvMapping: changed });
 		expect(await loadCsvMapping(db, householdId, "checking")).toEqual(changed);
 		expect(await loadCsvMapping(db, "other", "checking")).toBeNull();
+	});
+});
+
+describe("an Account's last four digits", () => {
+	const masks = () => db.select({ id: accounts.id, mask: accounts.mask }).from(accounts);
+	const withDigits = (importId: string, accountDigits: string | null) =>
+		importStatement(db, {
+			householdId,
+			importId,
+			accountId: "checking",
+			source: "ofx",
+			fileName: `${importId}.ofx`,
+			fileKey: null,
+			lines: checkingCsv().lines,
+			closingBalance: null,
+			csvMapping: null,
+			accountDigits,
+			createdByMemberId: parentId,
+			newId,
+		});
+
+	it("come from the first statement that has them, and stay", async () => {
+		await withDigits("import-none", null);
+		expect((await masks()).find((a) => a.id === "checking")?.mask).toBeNull();
+		await withDigits("import-1234", "1234");
+		await withDigits("import-9999", "9999");
+		expect((await masks()).find((a) => a.id === "checking")?.mask).toBe("1234");
 	});
 });

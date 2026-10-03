@@ -126,6 +126,11 @@ export async function importStatement(
 		and ${imports.householdId} = ${householdId} and ${imports.accountId} = ${accountId})`;
 	const lineField = (field: keyof ImportRow) => sql`json_extract(value, ${`$.${field}`})`;
 	await db.batch([
+		// The statement's last four digits, for an Account whose digits aren't known yet.
+		db
+			.update(accounts)
+			.set({ mask: sql`coalesce(${accounts.mask}, ${input.accountDigits ?? null})` })
+			.where(and(eq(accounts.id, accountId), eq(accounts.householdId, householdId))),
 		db
 			.insert(imports)
 			.values({

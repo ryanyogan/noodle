@@ -1,4 +1,5 @@
 import {
+	accountLabel,
 	COMPARISONS,
 	type Comparison,
 	type DayKey,
@@ -490,7 +491,7 @@ function Filters({
 						onValueChange={setAccount}
 						choices={[
 							{ value: "", label: "Any Account" },
-							...meta.accounts.map((a) => ({ value: a.id, label: a.name })),
+							...meta.accounts.map((a) => ({ value: a.id, label: accountLabel(a) })),
 						]}
 					/>
 				</Field>

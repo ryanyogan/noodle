@@ -1,3 +1,4 @@
+import { accountLabel } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
@@ -269,6 +270,7 @@ function AccountItem({ account }: { account: AccountView }) {
 				// Kind and source on one line, how it splits on the next, so a phone reads it in two.
 				<span>
 					{accountKindName[account.kind]}
+					{accountLabel(account) === account.name ? null : ` ••${account.mask}`}
 					{" · "}
 					<span className={cn(needsLogin && "text-over")}>{accountSourceText(source, true)}</span>
 					{split ? (

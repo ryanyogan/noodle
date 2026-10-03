@@ -149,10 +149,10 @@ describe("connecting a Bank Connection", () => {
 		expect(await connect()).toEqual({ ok: true, accounts: 4 });
 		const { accounts } = await loadGoals(db, { householdId, memberId: parentId });
 		expect(accounts.map((a) => [a.name, a.kind, a.latestBalance?.amount])).toEqual([
-			["Plaid Checking ··0000", "checking", 1_250_40],
-			["Kids Savings ··1111", "savings", 8_200_00],
-			["Costco Anywhere Visa ··3333", "credit-card", 410_25],
-			["Plaid Auto Loan ··4444", "loan", 12_480_00],
+			["Plaid Checking ••0000", "checking", 1_250_40],
+			["Kids Savings ••1111", "savings", 8_200_00],
+			["Costco Anywhere Visa ••3333", "credit-card", 410_25],
+			["Plaid Auto Loan ••4444", "loan", 12_480_00],
 		]);
 	});
 
@@ -234,7 +234,7 @@ describe("pairing with the Accounts already there (ADR-0020)", () => {
 			{ householdId, connectionId, institution: "First Platypus Bank" },
 		);
 		const card = choices?.accounts.find((a) => a.kind === "credit-card");
-		expect(card).toMatchObject({ name: "Costco Anywhere Visa ··3333", suggested: handCard });
+		expect(card).toMatchObject({ name: "Costco Anywhere Visa ••3333", suggested: handCard });
 		expect(choices?.accounts.filter((a) => a.suggested !== null)).toHaveLength(1);
 		expect(card?.options.map((o) => o.id)).toEqual([handCard]);
 

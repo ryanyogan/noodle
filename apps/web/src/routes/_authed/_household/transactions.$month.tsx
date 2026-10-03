@@ -1,4 +1,5 @@
 import {
+	accountLabel,
 	addMonths,
 	canAssign,
 	type DayKey,
@@ -333,7 +334,10 @@ function Filters({
 			label: member.name,
 		})),
 	];
-	const accountOptions = accounts.map((account) => ({ value: account.id, label: account.name }));
+	const accountOptions = accounts.map((account) => ({
+		value: account.id,
+		label: accountLabel(account),
+	}));
 	const labelOf = (options: { value: string; label: string }[], value: string | undefined) =>
 		value === undefined ? undefined : (options.find((o) => o.value === value)?.label ?? value);
 	const chips = (

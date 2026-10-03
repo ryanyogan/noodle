@@ -1,5 +1,6 @@
 import type { DayKey, GuessMethod, MonthKey } from "@noodle/domain";
 import { and, asc, count, eq, isNull, or, type SQL, sql } from "drizzle-orm";
+import { accountLabelSql } from "./account-label";
 import type { Uncategorized } from "./categorize";
 import { counts } from "./counting";
 import type { Db } from "./index";
@@ -73,7 +74,7 @@ export async function loadReview(db: Db, viewer: Viewer, limit: number): Promise
 				note: transactions.note,
 				source: transactions.source,
 				pending: transactions.pending,
-				account: accounts.name,
+				account: accountLabelSql,
 				merchant: categorizations.merchant,
 				merchantName: transactions.merchant,
 				guessId: buckets.id,

@@ -21,6 +21,7 @@ const goals: GoalsData = {
 		{
 			id: "savings",
 			name: "Savings",
+			mask: null,
 			kind: "savings",
 			bankConnectionId: null,
 			lastStatementDate: null,
@@ -29,6 +30,7 @@ const goals: GoalsData = {
 		{
 			id: "visa",
 			name: "Visa",
+			mask: null,
 			kind: "credit-card",
 			bankConnectionId: null,
 			lastStatementDate: null,

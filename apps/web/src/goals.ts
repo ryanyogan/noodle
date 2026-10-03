@@ -307,6 +307,7 @@ export const withAccount = (data: GoalsData, v: AddAccountVariables): GoalsData 
 					{
 						id: v.accountId,
 						name: v.name,
+						mask: null,
 						kind: v.kind,
 						bankConnectionId: null,
 						lastStatementDate: null,

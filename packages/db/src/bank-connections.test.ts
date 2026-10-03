@@ -65,7 +65,7 @@ async function connect(connectionId = "conn-1", externalId = "item-1") {
 				balanceId: `${connectionId}-b1`,
 				account: {
 					externalId: "acc-chk",
-					name: "Checking ··0000",
+					name: "Checking ••0000",
 					mask: "0000",
 					kind: "checking",
 					balance: 110_00,
@@ -76,7 +76,7 @@ async function connect(connectionId = "conn-1", externalId = "item-1") {
 				balanceId: `${connectionId}-b2`,
 				account: {
 					externalId: "acc-cc",
-					name: "Card ··3333",
+					name: "Card ••3333",
 					mask: "3333",
 					kind: "credit-card",
 					balance: null,
@@ -94,12 +94,13 @@ describe("addBankConnection", () => {
 		const { accounts } = await loadGoals(db, { householdId, memberId: parentId });
 		expect(accounts).toMatchObject([
 			{
-				name: "Checking ··0000",
+				name: "Checking ••0000",
 				kind: "checking",
 				bankConnectionId: "conn-1",
+				mask: "0000",
 				latestBalance: { amount: 110_00 },
 			},
-			{ name: "Card ··3333", kind: "credit-card", bankConnectionId: "conn-1", latestBalance: null },
+			{ name: "Card ••3333", kind: "credit-card", bankConnectionId: "conn-1", latestBalance: null },
 		]);
 		const [summary] = await loadBankConnections(db, householdId);
 		expect(summary).toMatchObject({
@@ -108,7 +109,7 @@ describe("addBankConnection", () => {
 			status: "importing",
 			lastImportedAt: null,
 		});
-		expect(summary?.accounts.map((a) => a.name)).toEqual(["Checking ··0000", "Card ··3333"]);
+		expect(summary?.accounts.map((a) => a.name)).toEqual(["Checking ••0000", "Card ••3333"]);
 		// What screens read never carries the credential.
 		expect(JSON.stringify(summary)).not.toContain("sealed");
 	});

@@ -67,14 +67,14 @@ beforeEach(async () => {
 
 const bankCard = {
 	externalId: "acc-cc",
-	name: "Costco ··3333",
+	name: "Costco ••3333",
 	mask: "3333",
 	kind: "credit-card" as const,
 	balance: 61_240,
 };
 const bankChecking = {
 	externalId: "acc-chk",
-	name: "Checking ··0000",
+	name: "Checking ••0000",
 	mask: "0000",
 	kind: "checking" as const,
 	balance: 125_040,

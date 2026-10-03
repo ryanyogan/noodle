@@ -8,6 +8,7 @@ import {
 	possibleMatches,
 } from "@noodle/domain";
 import { and, eq, gte, inArray, isNotNull, isNull, lte, or, type SQL, sql } from "drizzle-orm";
+import { accountLabelSql } from "./account-label";
 import { inTransfer } from "./counting";
 import type { Db } from "./index";
 import { changeableBy, type Viewer, visibleTo } from "./privacy";
@@ -157,7 +158,7 @@ async function loadPeers(db: Db, where: SQL): Promise<MatchPeer[]> {
 			amountCents: transactions.amountCents,
 			note: transactions.note,
 			merchantName: transactions.merchant,
-			account: accounts.name,
+			account: accountLabelSql,
 		})
 		.from(transactions)
 		.leftJoin(accounts, eq(accounts.id, transactions.accountId))
