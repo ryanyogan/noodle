@@ -7,6 +7,12 @@ config({ path: ".dev.vars", quiet: true });
 // Matches vite.config.ts: set PORT to run a second checkout's E2E alongside this one.
 const port = Number(process.env.PORT ?? 5173);
 
+// With DEV_TLS_CERT and DEV_TLS_KEY set the dev server serves https with that (self-signed)
+// certificate; see vite.config.ts. CI sets them for the WebKit projects, whose browser keeps no
+// Secure cookies on http://localhost, so Clerk could never sign anyone in there.
+const https = !!(process.env.DEV_TLS_CERT && process.env.DEV_TLS_KEY);
+const origin = `${https ? "https" : "http"}://localhost:${port}`;
+
 /**
  * Phone tests: every test in a phone-*.spec.ts or sheet-phone.spec.ts file, and any other test
  * tagged `@phone` (`test("…", { tag: "@phone" }, …)`). Playwright matches `grep` against the
@@ -23,7 +29,8 @@ export default defineConfig({
 	timeout: process.env.CI ? 60_000 : 30_000,
 	reporter: process.env.CI ? "github" : "list",
 	use: {
-		baseURL: `http://localhost:${port}`,
+		baseURL: origin,
+		ignoreHTTPSErrors: https,
 		trace: "retain-on-failure",
 	},
 	expect: {
@@ -65,7 +72,8 @@ export default defineConfig({
 		command: "bun run db:migrate:local && bun run dev",
 		// Ask answers with its deterministic fake, never the live model (see vite.config.ts).
 		env: { AI_MODEL: "stub" },
-		url: `http://localhost:${port}`,
+		url: origin,
+		ignoreHTTPSErrors: https,
 		reuseExistingServer: !process.env.CI,
 		timeout: 120_000,
 	},

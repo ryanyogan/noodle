@@ -80,6 +80,17 @@ jobs:
           printf 'VITE_CLERK_PUBLISHABLE_KEY=%s\nCLERK_SECRET_KEY=%s\n' \
             "${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" "${{ secrets.CLERK_SECRET_KEY }}" > .dev.vars
           bun scripts/vapid-keys.ts >> .dev.vars
+      # Playwright's WebKit on Linux keeps no Secure cookies on http://localhost, so Clerk's dev
+      # instance can't sign anyone in there: serve the dev server over https with a throwaway
+      # certificate (vite.config.ts and playwright.config.ts read DEV_TLS_CERT and DEV_TLS_KEY).
+      - name: Self-signed certificate for https://localhost
+        if: startsWith(matrix.project, 'webkit')
+        run: |
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=localhost \
+            -addext subjectAltName=DNS:localhost \
+            -keyout "$RUNNER_TEMP/localhost-key.pem" -out "$RUNNER_TEMP/localhost.pem"
+          echo "DEV_TLS_KEY=$RUNNER_TEMP/localhost-key.pem" >> "$GITHUB_ENV"
+          echo "DEV_TLS_CERT=$RUNNER_TEMP/localhost.pem" >> "$GITHUB_ENV"
       - run: bun run e2e --project=${{ matrix.project }}
         working-directory: apps/web
       - uses: actions/upload-artifact@v4
