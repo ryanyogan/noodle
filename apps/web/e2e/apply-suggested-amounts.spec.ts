@@ -26,7 +26,7 @@ async function shots(page: Page, name: string) {
 }
 
 /** A new Household set up with $5,000 take-home pay and the starter Buckets, left at step 5. */
-async function setUpThenLater(page: Page) {
+async function setUpThenLater(page: Page): Promise<string> {
 	await page.goto("/welcome");
 	await page.getByLabel("Household name").fill("The Starters");
 	await page.getByLabel("Your name").fill("Alex");
@@ -46,7 +46,9 @@ async function setUpThenLater(page: Page) {
 	await next(5);
 	await page.getByRole("link", { name: "Set up later" }).click();
 	await expect(page).toHaveURL(/\/month\//);
-	return new URL(page.url()).pathname.split("/")[2];
+	const month = new URL(page.url()).pathname.split("/")[2];
+	if (!month) throw new Error(`No month in ${page.url()}`);
+	return month;
 }
 
 /** Raises take-home pay to $6,000 from this month on, on Plan › Income. */
@@ -102,7 +104,7 @@ test("Apply all gives the starter Buckets their share of new take-home pay and l
 		const listed = await region.innerText();
 		const groceries = /Groceries[\s\S]*?→\s*\$([\d,]+)/.exec(listed);
 		expect(groceries, listed).not.toBeNull();
-		const suggested = groceries?.[1].replace(/,/g, "") ?? "";
+		const suggested = groceries?.[1]?.replace(/,/g, "") ?? "";
 		expect(Number(suggested)).toBeGreaterThan(Number(groceriesBefore));
 		await shots(page, "apply-item");
 
