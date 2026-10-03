@@ -1,3 +1,4 @@
+import type { DayKey } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { useQuery } from "@tanstack/react-query";
@@ -8,6 +9,7 @@ import { matchQuery, useMatchChange } from "../matches";
 import type { MatchPeer } from "../server/matches";
 import type { TransactionRow } from "../transactions";
 import { TermHelp } from "./term-help";
+import { useBringsSpendingIn, waitingForBank } from "./transaction-list";
 
 /**
  * A Transaction's Match in its detail: a Quick Add's bank copy (with Unmatch), or, while it's
@@ -17,6 +19,7 @@ export function MatchSection({
 	transaction,
 	beforeChange = () => true,
 	onDone,
+	today,
 }: {
 	transaction: TransactionRow;
 	/**
@@ -26,13 +29,29 @@ export function MatchSection({
 	beforeChange?: () => boolean;
 	/** Called once a Match or unmatch is sent: the row may leave the list. */
 	onDone: () => void;
+	/** The Household's today: with it, a Quick Add still waiting for its bank copy says so. */
+	today?: DayKey;
 }) {
 	const hydrated = useHydrated();
+	const bringsIn = useBringsSpendingIn();
 	const { data } = useQuery(matchQuery(transaction));
 	const change = useMatchChange();
 	if (!data || data.kind === "none") return null;
-	if (data.kind === "unmatched" && data.possible.length === 0) return null;
 	const isQuickAdd = transaction.importedFrom === null;
+	if (data.kind === "unmatched" && data.possible.length === 0) {
+		if (!today || !waitingForBank(transaction, today, bringsIn)) return null;
+		return (
+			<section aria-labelledby="match-heading" className="grid gap-2">
+				<h3 id="match-heading" className="text-xs font-medium text-subtle-foreground">
+					Waiting for bank
+				</h3>
+				<p className="text-[13px] text-muted-foreground">
+					When the bank's copy comes in, Noodle Matches it with this Quick Add so it counts once.{" "}
+					<TermHelp term="match" />
+				</p>
+			</section>
+		);
+	}
 	const label =
 		transaction.merchantName || transaction.note || (isQuickAdd ? "Quick Add" : "Transaction");
 

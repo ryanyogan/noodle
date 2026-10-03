@@ -1,6 +1,7 @@
 import {
 	type Assignment,
 	canAssign,
+	type DayKey,
 	type MonthKey,
 	merchantKey,
 	monthKeyAt,
@@ -1083,7 +1084,7 @@ function ReviewCard({
 	actions,
 }: {
 	item: ReviewItem;
-	today: string;
+	today: DayKey;
 	members: MemberSummary[];
 	parentId: string;
 	current: boolean;
@@ -1250,7 +1251,7 @@ function ChangePane({
 	onClose,
 }: {
 	item: ReviewItem;
-	today: string;
+	today: DayKey;
 	members: MemberSummary[];
 	parentId: string;
 	onChange: (next: TransactionChange["next"], buckets: PlanBucket[]) => void;
@@ -1297,7 +1298,7 @@ function ChangeSheet({
 	splitting,
 }: {
 	item: ReviewItem;
-	today: string;
+	today: DayKey;
 	members: MemberSummary[];
 	parentId: string;
 	onChange: (next: TransactionChange["next"], buckets: PlanBucket[]) => void;

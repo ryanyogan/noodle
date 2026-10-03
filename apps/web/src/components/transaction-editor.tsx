@@ -1,4 +1,4 @@
-import { type For, type Plan, parseDollars, splitRemainder } from "@noodle/domain";
+import { type DayKey, type For, type Plan, parseDollars, splitRemainder } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Combobox } from "@noodle/ui/components/combobox";
 import { Field, FormError } from "@noodle/ui/components/field";
@@ -92,7 +92,7 @@ export function TransactionEditor({
 }: {
 	/** The Transaction being edited; the sheet is open while there is one. */
 	transaction: TransactionRow | null;
-	today: string;
+	today: DayKey;
 	plan: Pick<Plan, "buckets" | "commitments">;
 	members: MemberSummary[];
 	/** The Parent looking. */
@@ -142,7 +142,7 @@ export function TransactionBody({
 	splitting = false,
 }: {
 	transaction: TransactionRow;
-	today: string;
+	today: DayKey;
 	plan: Pick<Plan, "buckets" | "commitments">;
 	members: MemberSummary[];
 	parentId: string;
@@ -187,6 +187,7 @@ export function TransactionBody({
 				onChange={onChange}
 				onClose={onClose}
 				inline={inline}
+				today={today}
 				splitting={splitting}
 			/>
 		</>
@@ -248,6 +249,7 @@ function EditForm({
 	onClose,
 	inline,
 	splitting,
+	today,
 }: {
 	transaction: TransactionRow;
 	plan: Pick<Plan, "buckets" | "commitments">;
@@ -257,6 +259,8 @@ function EditForm({
 	/** In a pane, not a sheet: Cancel closes the pane. */
 	inline: boolean;
 	splitting: boolean;
+	/** The Household's today, for the Match section's Waiting for bank line. */
+	today: DayKey;
 }) {
 	const hydrated = useHydrated();
 	const [amount, setAmount] = useState(formatMoneyInput(transaction.amountCents));
@@ -530,7 +534,12 @@ function EditForm({
 				/>
 			</Field>
 			<ReceiptSection transaction={transaction} plan={plan} members={members} onChange={onChange} />
-			<MatchSection transaction={transaction} beforeChange={saveBeforeMatch} onDone={onClose} />
+			<MatchSection
+				transaction={transaction}
+				beforeChange={saveBeforeMatch}
+				onDone={onClose}
+				today={today}
+			/>
 			{transaction.importedFrom ? (
 				<TransferSection transaction={transaction} onDone={onClose} />
 			) : null}
