@@ -105,13 +105,13 @@ test("a card is paid off with a payoff Goal: added from what's owed, funded, pai
 	// Funding isn't progress: only what's owed is.
 	await expect(owedCard(page)).toContainText("Paid down $0 of $1,200");
 
-	// It counts in Goal funding like any Goal, and This Month says what's still owed.
+	// It counts in Goal funding like any Goal, and the Goals list says what's still owed.
 	await page.goto(thisMonth);
 	await expect(freeToSpend(page).getByText("$3,200", { exact: true }).first()).toBeVisible();
-	const goals = page.getByRole("region", { name: /^Goals/ });
-	await expect(goals.getByRole("listitem", { name: "Pay off Visa" })).toContainText(
-		"$1,200 still owed",
-	);
+	await page.goto(new URL("/goals", page.url()).href);
+	await expect(
+		page.getByRole("link", { name: /^Pay off Visa, paid down \$0 of \$1,200, \$1,200 still owed/ }),
+	).toBeVisible();
 
 	// The card's statement brings in the payment, and what it ends owing pays the Goal down.
 	await page.goto(new URL("/accounts", page.url()).href);
