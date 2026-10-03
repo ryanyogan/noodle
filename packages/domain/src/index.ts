@@ -197,7 +197,16 @@ export {
 	type Service,
 	services,
 } from "./insights";
-export { type BucketUse, likelyBucketOrder } from "./likely";
+export {
+	type BucketMatch,
+	type BucketUse,
+	hourAt,
+	likelyBucketOrder,
+	matchBuckets,
+	type QuickAddChoice,
+	type QuickAddReason,
+	quickAddChoices,
+} from "./likely";
 export {
 	autoMatches,
 	clearPairs,

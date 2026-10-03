@@ -2,10 +2,11 @@ import {
 	type BucketState,
 	canAssign,
 	dayKeyAt,
-	likelyBucketOrder,
+	hourAt,
 	monthKeyAt,
 	monthOfDay,
 	parseDollars,
+	quickAddChoices,
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Input } from "@noodle/ui/components/input";
@@ -21,7 +22,13 @@ import { type ReactNode, Suspense, useCallback, useEffect, useRef, useState } fr
 import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../buckets";
 import { formatMoney, monthName, shortDay } from "../format";
-import { bucketUsesQuery, membersQuery, monthQuery, useMonthState } from "../queries";
+import {
+	bucketUsesQuery,
+	membersQuery,
+	monthQuery,
+	quickAddRulesQuery,
+	useMonthState,
+} from "../queries";
 import { type QuickAddVariables, useQuickAdd } from "../quick-add";
 import { type CaptureDraft, type SnapResult, typedAmount } from "../snap";
 import { ForPicker } from "./for-picker";
@@ -160,12 +167,14 @@ function QuickAddForm({
 		const now = new Date();
 		return {
 			today: dayKeyAt(now, timeZone),
+			hour: hourAt(now, timeZone),
 			month: monthKeyAt(now, timeZone),
 			transactionId: ulid(),
 		};
 	});
 	const queryClient = useQueryClient();
 	const uses = useQuery(bucketUsesQuery()).data ?? [];
+	const rules = useQuery(quickAddRulesQuery()).data ?? [];
 	const [amount, setAmount] = useState(draft.amount);
 	// Read by key presses, which can arrive faster than re-renders.
 	const typedSoFar = useRef(draft.amount);
@@ -189,13 +198,19 @@ function QuickAddForm({
 	const inReceiptMonth = useMonthState(receiptMonth).buckets.filter((b) => canAssign(b, parentId));
 	const inThisMonth = useMonthState(entry.month).buckets.filter((b) => canAssign(b, parentId));
 	const datedToday = receipt !== null && inReceiptMonth.length === 0;
-	const buckets = likelyBucketOrder(datedToday ? inThisMonth : inReceiptMonth, uses, entry.today);
-	const offered = suggested
-		? [
-				...buckets.filter((bucket) => bucket.id === suggested),
-				...buckets.filter((bucket) => bucket.id !== suggested),
-			]
-		: buckets;
+	// The note steers the order (ADR-0031), once it has stopped changing for a moment, so the
+	// Buckets don't shuffle with every letter.
+	const steeringNote = useSettled(note, NOTE_SETTLE_MS);
+	const offered = quickAddChoices({
+		buckets: datedToday ? inThisMonth : inReceiptMonth,
+		uses,
+		rules,
+		note: steeringNote,
+		today: entry.today,
+		hour: entry.hour,
+		suggested,
+	}).map((choice) => choice.bucket);
+	const buckets = offered;
 
 	/** Fills the form in with what was read, for the Parent to check before they save it. */
 	function fill(draft: CaptureDraft) {
@@ -470,4 +485,17 @@ function QuickAddPending() {
 			</div>
 		</div>
 	);
+}
+
+/** How long the note must stay unchanged before it reorders the Buckets. */
+const NOTE_SETTLE_MS = 150;
+
+/** `value`, once it has stayed the same for `ms`. */
+function useSettled<T>(value: T, ms: number): T {
+	const [settled, setSettled] = useState(value);
+	useEffect(() => {
+		const timer = setTimeout(() => setSettled(value), ms);
+		return () => clearTimeout(timer);
+	}, [value, ms]);
+	return settled;
 }

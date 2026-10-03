@@ -24,7 +24,7 @@ import { getPlanAhead, getScenarios } from "./server/scenarios";
 import { getViewer } from "./server/session";
 import { getSetup } from "./server/setup";
 import { getSuggestions } from "./server/suggestions";
-import { getBucketUses } from "./server/transactions";
+import { getBucketUses, getQuickAddRules } from "./server/transactions";
 import { getPlanHealth, getYear } from "./server/year";
 
 /** Who is signed in and their Household; read by the route guards. */
@@ -69,6 +69,13 @@ export const bucketUsesQuery = () =>
 	queryOptions({
 		queryKey: ["bucket-uses"],
 		queryFn: () => getBucketUses(),
+	});
+
+/** The Rules into Buckets this Parent may see, so Quick Add's note can steer its Buckets. */
+export const quickAddRulesQuery = () =>
+	queryOptions({
+		queryKey: ["rules", "quick-add"],
+		queryFn: () => getQuickAddRules(),
 	});
 
 export const householdParentsQuery = () =>

@@ -2,6 +2,7 @@ import {
 	addQuickAdd as addQuickAddInDb,
 	deleteTransaction as deleteTransactionInDb,
 	loadBucketUses,
+	loadRules,
 	loadTransaction,
 	loadTransactionsPage,
 	loadUnfiledReceipt,
@@ -10,7 +11,14 @@ import {
 	type TransactionRow,
 	updateTransaction as updateTransactionInDb,
 } from "@noodle/db";
-import { type BucketUse, type DayKey, dayKeyAt, MAX_CENTS, splitsBalance } from "@noodle/domain";
+import {
+	type BucketUse,
+	type DayKey,
+	dayKeyAt,
+	MAX_CENTS,
+	type Rule,
+	splitsBalance,
+} from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { ulid } from "ulid";
 import { z } from "zod";
@@ -78,7 +86,21 @@ export const getBucketUses = createServerFn({ method: "GET" })
 	.middleware([householdMiddleware])
 	.handler(async ({ context }): Promise<BucketUse[]> => {
 		const since = new Date(Date.now() - LIKELY_WINDOW_DAYS * 86_400_000);
-		return loadBucketUses(getDb(), viewerOf(context), dayKeyAt(since, context.household.timeZone));
+		const { timeZone } = context.household;
+		return loadBucketUses(getDb(), viewerOf(context), dayKeyAt(since, timeZone), timeZone);
+	});
+
+/**
+ * The Rules that file into a Bucket, so Quick Add's note can put that Bucket first. Only the ones
+ * this Parent may see: the Household's and their own private ones, never the other Parent's.
+ */
+export const getQuickAddRules = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.handler(async ({ context }): Promise<Rule[]> => {
+		const rules = await loadRules(getDb(), viewerOf(context));
+		return rules
+			.filter((rule) => rule.bucketId)
+			.map((rule) => ({ pattern: rule.pattern, bucketId: rule.bucketId, private: rule.private }));
 	});
 
 /** How many Transactions one page of the list holds. */

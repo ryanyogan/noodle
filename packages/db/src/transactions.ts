@@ -6,8 +6,10 @@ import {
 	type CategorizationMethod,
 	type Cents,
 	type DayKey,
+	hourAt,
 	MATCH_WINDOW,
 	type MonthKey,
+	merchantKey,
 	type SplitAssignment,
 	splitsBalance,
 } from "@noodle/domain";
@@ -224,17 +226,29 @@ const USES_LIMIT = 500;
  * Which Buckets spending `viewer` can see went into since `since`, newest first, for
  * likelyBucketOrder: whole Transactions and Splits.
  */
-export async function loadBucketUses(db: Db, viewer: Viewer, since: DayKey): Promise<BucketUse[]> {
+export async function loadBucketUses(
+	db: Db,
+	viewer: Viewer,
+	since: DayKey,
+	/** The Household's, for the hour each use was entered in. */
+	timeZone = "UTC",
+): Promise<BucketUse[]> {
+	const entered = {
+		date: transactions.date,
+		createdAt: transactions.createdAt,
+		merchant: transactions.merchant,
+		note: transactions.note,
+	};
 	const recent = and(visibleTo(viewer), counts(), gte(transactions.date, since));
 	const [whole, split] = await db.batch([
 		db
-			.select({ bucketId: transactions.bucketId, date: transactions.date })
+			.select({ bucketId: transactions.bucketId, ...entered })
 			.from(transactions)
 			.where(and(recent, isNotNull(transactions.bucketId)))
 			.orderBy(desc(transactions.date))
 			.limit(USES_LIMIT),
 		db
-			.select({ bucketId: splits.bucketId, date: transactions.date })
+			.select({ bucketId: splits.bucketId, ...entered })
 			.from(splits)
 			.innerJoin(transactions, eq(transactions.id, splits.transactionId))
 			.where(and(recent, visibleSplit(viewer), isNotNull(splits.bucketId)))
@@ -244,7 +258,17 @@ export async function loadBucketUses(db: Db, viewer: Viewer, since: DayKey): Pro
 	// Each Split in a Bucket is a use of it, like a whole Transaction.
 	return [...whole, ...split]
 		.sort((a, b) => b.date.localeCompare(a.date))
-		.slice(0, USES_LIMIT) as BucketUse[];
+		.slice(0, USES_LIMIT)
+		.map((use) => {
+			const named = (use.merchant ?? use.note ?? "").trim();
+			return {
+				bucketId: use.bucketId as string,
+				date: use.date as DayKey,
+				hour: use.createdAt ? hourAt(use.createdAt, timeZone) : null,
+				// What Quick Add's note is matched against: the merchant's clean name, else the note.
+				merchant: named ? merchantKey(named) : null,
+			};
+		});
 }
 
 /** The Bucket is the Household's and in the Plan for `month` (a MonthKey or a SQL expression). */

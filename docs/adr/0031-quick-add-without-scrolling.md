@@ -1,6 +1,6 @@
 # Quick Add without scrolling: a few likely Buckets, and search for the rest
 
-Status: proposed (#77). Research and design only; the phases at the end build it.
+Status: proposed (#77). Being built in the phases at the end: 77b (ranking and data) is done.
 
 ## Why
 

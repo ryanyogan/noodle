@@ -447,7 +447,13 @@ describe("Personal Allowance privacy: Splits", () => {
 		expect(await loadCharges(db, sam, month)).toEqual([]);
 		const uses = await loadBucketUses(db, sam, "2026-09-01");
 		expect(uses.some((u) => u.bucketId === "alex-pa")).toBe(false);
-		expect(uses.filter((u) => u.date === "2026-09-14")).toEqual([
+		const sept14 = uses.filter((u) => u.date === "2026-09-14");
+		// Each use knows the hour it was entered and its merchant, for Quick Add's order (ADR-0031).
+		expect(sept14.every((u) => typeof u.hour === "number" && u.hour >= 0 && u.hour < 24)).toBe(
+			true,
+		);
+		expect(sept14.map((u) => u.merchant)).toEqual(["target gift for sam"]);
+		expect(sept14.map(({ bucketId, date }) => ({ bucketId, date }))).toEqual([
 			{ bucketId: "groceries", date: "2026-09-14" },
 		]);
 		expect((await loadSpending(db, sam, month)).find((s) => s.bucketId === "alex-pa")?.amount).toBe(
