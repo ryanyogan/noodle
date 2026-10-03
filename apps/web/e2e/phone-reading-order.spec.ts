@@ -60,21 +60,37 @@ for (const look of looks) {
 		const sheet = page.getByRole("dialog", { name: "Quick Add" });
 		await expect(sheet.getByRole("button", { name: /^Groceries/ })).toBeVisible();
 		await expect(sheet).toMatchAriaSnapshot(`
-      - heading "Quick Add" [level=2]
-      - button "Close"
-      - status "Amount"
-      - list "Add to":
-        - listitem:
-          - button /^Groceries/
-        - listitem:
-          - button /^Gas/
-      - radiogroup "For":
-        - radio "Everyone" [checked]
-      - textbox "Note"
-      - group "Keypad":
-        - button "1"
-        - button "9"
-        - button "Delete"
-    `);
+		  - dialog "Quick Add":
+		    - heading "Quick Add" [level=2]
+		    - button "Close"
+		    - status "Amount": $ 0
+		    - paragraph: Type an amount
+		    - textbox "Note":
+		      - /placeholder: Where or what? (optional)
+		    - button "Snap receipt"
+		    - button "Say it"
+		    - button "Receipt photo"
+		    - status
+		    - list "Add to":
+		      - listitem:
+		        - button /Groceries \\$\\d+,\\d+ left/ [disabled]
+		      - listitem:
+		        - button /Gas \\$\\d+ left/ [disabled]
+		    - 'button "For: Everyone"'
+		    - group "Keypad":
+		      - text: ""
+		      - button "1"
+		      - button "2"
+		      - button "3"
+		      - button "4"
+		      - button "5"
+		      - button "6"
+		      - button "7"
+		      - button "8"
+		      - button "9"
+		      - button "Decimal point": .
+		      - button "0"
+		      - button "Delete"
+		`);
 	});
 }

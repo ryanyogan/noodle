@@ -4,7 +4,7 @@ import { cn } from "@noodle/ui/lib/utils";
 import { useMutation } from "@tanstack/react-query";
 import { useHydrated } from "@tanstack/react-router";
 import { Camera, Mic, Square } from "lucide-react";
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { ulid } from "ulid";
 import { readSpokenPhrase, snapReceiptPhoto } from "../server/snap";
 import { type CaptureDraft, photoToSend, type SnapResult, useSpeech } from "../snap";
@@ -17,9 +17,12 @@ import { type CaptureDraft, photoToSend, type SnapResult, useSpeech } from "../s
 export function SnapAndSpeak({
 	onPhrase,
 	onSnap,
+	children,
 }: {
 	onPhrase: (draft: CaptureDraft) => void;
 	onSnap: (result: SnapResult) => void;
+	/** The note field: Snap and Speak sit at its right end. */
+	children?: ReactNode;
 }) {
 	const hydrated = useHydrated();
 	const photoInput = useRef<HTMLInputElement>(null);
@@ -76,11 +79,12 @@ export function SnapAndSpeak({
 
 	return (
 		<div className="grid gap-2">
-			<div className="flex justify-center gap-2">
+			<div className={cn("flex gap-2", children ? "items-center" : "justify-center")}>
+				{children ? <div className="min-w-0 flex-1">{children}</div> : null}
 				<Button
 					type="button"
 					variant="outline"
-					size="sm"
+					size={children ? "icon-lg" : "sm"}
 					disabled={!hydrated || busy}
 					onClick={() => {
 						read.reset();
@@ -89,18 +93,18 @@ export function SnapAndSpeak({
 					}}
 				>
 					<Camera strokeWidth={1.75} />
-					Snap receipt
+					{children ? <span className="sr-only">Snap receipt</span> : "Snap receipt"}
 				</Button>
 				<Button
 					type="button"
 					variant="outline"
-					size="sm"
+					size={children ? "icon-lg" : "sm"}
 					aria-pressed={saying}
 					disabled={!hydrated || busy}
 					onClick={() => (saying ? setSaying(false) : say())}
 				>
 					<Mic strokeWidth={1.75} />
-					Say it
+					{children ? <span className="sr-only">Say it</span> : "Say it"}
 				</Button>
 			</div>
 			<input

@@ -188,3 +188,72 @@ test("a Quick Add delivered twice is recorded once", async ({ browser }) => {
 	await expect(bucketRow(page, "Groceries")).toContainText("$30 spent");
 	await page.context().close();
 });
+
+const many = {
+	baseline: "6,000",
+	buckets: [
+		["Groceries", "1,200"],
+		["Dining out", "300"],
+		["Gas", "200"],
+		["Kids", "250"],
+		["Household", "150"],
+		["Fun money", "150"],
+		["Gifts", "100"],
+		["Pet supplies", "80"],
+	] as [string, string][],
+};
+
+test("on a small phone, the amount, six Buckets and the keypad fit without scrolling, and More Buckets finds the rest", {
+	tag: "@phone",
+}, async ({ browser }) => {
+	const page = await signedInPage(browser, parent.email, {
+		viewport: { width: 375, height: 667 },
+		isMobile: true,
+		hasTouch: true,
+	});
+	await createPlannedHousehold(page, many);
+	await page
+		.getByRole("navigation", { name: "Main" })
+		.getByRole("link", { name: "Quick Add" })
+		.tap();
+	const keypad = sheet(page).getByRole("group", { name: "Keypad" });
+	const picks = sheet(page).getByRole("list", { name: "Add to" }).getByRole("listitem");
+	const more = sheet(page).getByRole("button", { name: /^More Buckets/ });
+	await expect(picks).toHaveCount(6);
+	await expect(picks.last()).toContainText("More Buckets");
+	for (const shown of [
+		sheet(page).getByRole("status", { name: "Amount" }),
+		picks.first(),
+		more,
+		keypad.getByRole("button", { name: "Delete" }),
+	]) {
+		await expect(shown).toBeInViewport({ ratio: 1 });
+	}
+	expect(await sheet(page).evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(
+		0,
+	);
+
+	// With no amount, a Bucket picked from More goes first in the grid, and nothing is saved.
+	await more.tap();
+	const find = sheet(page).getByRole("searchbox", { name: "Find a Bucket" });
+	await expect(find).toBeFocused();
+	await find.fill("pet");
+	await sheet(page)
+		.getByRole("region", { name: "Household" })
+		.getByRole("button", { name: /^Pet supplies/ })
+		.tap();
+	await expect(picks.first()).toContainText("Pet supplies");
+	await expect(picks.first()).toContainText("Picked");
+
+	// With an amount, picking from More is the save.
+	await keypad.getByRole("button", { name: "9", exact: true }).tap();
+	await more.tap();
+	await find.fill("gif");
+	await sheet(page)
+		.getByRole("button", { name: /^Gifts/ })
+		.tap();
+	await expect(sheet(page)).toBeHidden();
+	await expect(bucketRow(page, "Gifts")).toContainText("$9 spent");
+	await expect(bucketRow(page, "Pet supplies")).toContainText("$0 spent");
+	await page.context().close();
+});

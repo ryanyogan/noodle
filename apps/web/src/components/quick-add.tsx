@@ -3,6 +3,7 @@ import {
 	canAssign,
 	dayKeyAt,
 	hourAt,
+	matchBuckets,
 	monthKeyAt,
 	monthOfDay,
 	parseDollars,
@@ -10,6 +11,7 @@ import {
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Input } from "@noodle/ui/components/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@noodle/ui/components/popover";
 import { RowButton } from "@noodle/ui/components/row-button";
 import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
@@ -17,11 +19,22 @@ import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useRouter, useSearch } from "@tanstack/react-router";
-import { Delete, ReceiptText } from "lucide-react";
-import { type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { ChevronDown, ChevronLeft, Delete, Ellipsis, ReceiptText, Search } from "lucide-react";
+import {
+	type ReactNode,
+	type RefObject,
+	Suspense,
+	useCallback,
+	useEffect,
+	useId,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../buckets";
 import { formatMoney, monthName, shortDay } from "../format";
+import type { MemberSummary } from "../members";
 import {
 	bucketUsesQuery,
 	membersQuery,
@@ -116,6 +129,9 @@ export function QuickAdd({ timeZone, parentId }: { timeZone: string; parentId: s
 			<SheetContent
 				ref={content}
 				aria-describedby={undefined}
+				// Phones: the large detent, so the amount, the six Buckets and the keypad all fit at
+				// 375×667 without scrolling (ADR-0031).
+				className="gap-3 max-lg:max-h-[calc(var(--visible-height,100dvh)-8px-var(--safe-top))]"
 				// Focus the sheet, not the note field, so the phone keyboard stays down.
 				onOpenAutoFocus={(event) => {
 					event.preventDefault();
@@ -140,6 +156,20 @@ export function QuickAdd({ timeZone, parentId }: { timeZone: string; parentId: s
 
 /** Whole dollars are capped at five digits: Quick Add is for everyday spending. */
 const MAX_WHOLE_DIGITS = 5;
+
+/** The grid always has this many cells: the likely Buckets, then More Buckets if any are left. */
+const CELLS = 6;
+
+/** How long the Buckets hold still after a finger lands on them, so a tile can't jump away. */
+const HOLD_MS = 400;
+
+/** Why a Bucket sits where it does, said on its tile. */
+type Reason = "suggested" | "rule" | "merchant" | "likely" | "picked";
+const reasonHint: Partial<Record<Reason, string>> = {
+	suggested: "Suggested",
+	rule: "From your Rule",
+	picked: "Picked",
+};
 
 /** The amount as typed, after pressing a key; null if the key can't apply. */
 function typed(amount: string, key: string): string | null {
@@ -192,6 +222,9 @@ function QuickAddForm({
 	const [filled, setFilled] = useState(false);
 	const [receipt, setReceipt] = useState<(SnapResult & { kind: "draft" }) | null>(null);
 	const [attached, setAttached] = useState<(SnapResult & { kind: "attached" }) | null>(null);
+	// The main page, or More Buckets (a page inside the same sheet), and what was picked there.
+	const [page, setPage] = useState<"main" | "more">("main");
+	const [picked, setPicked] = useState<string | null>(null);
 	// The Buckets of the month it's dated in: a Receipt's, unless that month has no Plan to add it
 	// to (the server refuses a Bucket that isn't in it), and then today's, and the Parent is told.
 	const receiptMonth = receipt ? monthOfDay(receipt.date) : entry.month;
@@ -201,7 +234,7 @@ function QuickAddForm({
 	// The note steers the order (ADR-0031), once it has stopped changing for a moment, so the
 	// Buckets don't shuffle with every letter.
 	const steeringNote = useSettled(note, NOTE_SETTLE_MS);
-	const offered = quickAddChoices({
+	const choices: { bucket: BucketState; reason: Reason }[] = quickAddChoices({
 		buckets: datedToday ? inThisMonth : inReceiptMonth,
 		uses,
 		rules,
@@ -209,8 +242,40 @@ function QuickAddForm({
 		today: entry.today,
 		hour: entry.hour,
 		suggested,
-	}).map((choice) => choice.bucket);
-	const buckets = offered;
+	});
+	// A Bucket picked from More Buckets goes first, until the amount is added to it.
+	const pickedFirst = picked
+		? [
+				...choices
+					.filter((c) => c.bucket.id === picked)
+					.map((c) => ({ ...c, reason: "picked" as const })),
+				...choices.filter((c) => c.bucket.id !== picked),
+			]
+		: choices;
+	// Steadiness: within HOLD_MS of a finger landing on the grid, keep the order shown.
+	const [held, setHeld] = useState(false);
+	const holdTimer = useRef<number | undefined>(undefined);
+	const shownOrder = useRef<string[]>([]);
+	const ranked = held
+		? [...pickedFirst].sort((a, b) => rank(shownOrder.current, a) - rank(shownOrder.current, b))
+		: pickedFirst;
+	const orderKey = ranked.map((c) => c.bucket.id).join(" ");
+	useEffect(() => {
+		shownOrder.current = orderKey.split(" ");
+	}, [orderKey]);
+	useEffect(() => () => window.clearTimeout(holdTimer.current), []);
+	function hold() {
+		setHeld(true);
+		window.clearTimeout(holdTimer.current);
+		holdTimer.current = window.setTimeout(() => setHeld(false), HOLD_MS);
+	}
+	const buckets = ranked.map((c) => c.bucket);
+	// A suggested Bucket takes a whole row, so "Suggested" fits on a phone.
+	const wide = ranked[0]?.reason === "suggested" ? 1 : 0;
+	const fitsAll = ranked.length + wide <= CELLS;
+	const shown = fitsAll ? ranked : ranked.slice(0, CELLS - 1 - wide);
+	const grid = useRef<HTMLUListElement>(null);
+	useFlip(grid, orderKey);
 
 	/** Fills the form in with what was read, for the Parent to check before they save it. */
 	function fill(draft: CaptureDraft) {
@@ -222,6 +287,7 @@ function QuickAddForm({
 		if (draft.note) setNote(draft.note.slice(0, 80));
 		if (draft.forMemberIds.length > 0) setForMemberIds(draft.forMemberIds);
 		setSuggested(draft.bucketId);
+		setPicked(null);
 		setFilled(true);
 	}
 
@@ -289,6 +355,14 @@ function QuickAddForm({
 		});
 	}
 
+	/** From More Buckets: with an amount, that's the save; without one, it goes first in the grid. */
+	function pickFromMore(bucket: BucketState) {
+		if (cents > 0) return add(bucket);
+		setSuggested(null);
+		setPicked(bucket.id);
+		setPage("main");
+	}
+
 	if (attached) {
 		const { transaction } = attached;
 		return (
@@ -326,82 +400,119 @@ function QuickAddForm({
 		);
 	}
 
+	if (page === "more") {
+		return (
+			<MoreBuckets
+				buckets={buckets}
+				rules={rules}
+				onBack={() => setPage("main")}
+				onPick={pickFromMore}
+			/>
+		);
+	}
+
 	const [whole = "", fraction] = amount.split(".");
 	return (
 		<>
-			<div className="grid justify-items-center gap-1.5 pt-2">
-				<output
-					ref={display}
-					aria-label="Amount"
-					className={cn(
-						"inline-flex items-start text-[3.25rem] leading-none font-semibold tracking-[-0.045em] tabular-nums",
-						!amount && "text-subtle-foreground",
-					)}
-				>
-					<span className="mt-[0.2em] me-0.5 text-[0.5em] tracking-normal text-subtle-foreground">
-						$
-					</span>
-					{Number(whole || "0").toLocaleString("en-US")}
-					{fraction === undefined ? null : `.${fraction}`}
-				</output>
-				<p className="min-h-[1.4em] text-[13px] text-subtle-foreground">
-					{cents === 0
-						? "Type an amount"
-						: filled
-							? "Check it, then tap a Bucket to add it"
-							: "Tap a Bucket to add it"}
-				</p>
-			</div>
-			<SnapAndSpeak onPhrase={fill} onSnap={snapped} />
-			{receipt ? (
-				<p className="flex items-center justify-center gap-1.5 text-[13px] text-muted-foreground">
-					<ReceiptText className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-					<span>
-						Receipt{receipt.draft.note ? ` from ${receipt.draft.note}` : ""}, dated{" "}
-						{shortDay(receipt.date)}
-						{datedToday
-							? `. ${monthName(receiptMonth)} has no Plan, so it’s added today`
-							: receiptMonth !== entry.month
-								? `, so it’s added to ${monthName(receiptMonth)}`
-								: ""}
-						{receipt.buckets > 1 ? ". Split it across its Buckets from Transactions." : ""}
-					</span>
-				</p>
-			) : null}
 			<div className="grid gap-2">
-				<p className="text-xs font-medium text-muted-foreground" id="quick-add-buckets">
-					Add to
-				</p>
-				<ul aria-labelledby="quick-add-buckets" className="grid grid-cols-2 gap-2">
-					{offered.map((bucket) => (
-						// The suggested one takes the whole row, so "Suggested" fits on a phone.
-						<li key={bucket.id} className={cn("grid", bucket.id === suggested && "col-span-2")}>
+				<div className="grid justify-items-center gap-1">
+					<output
+						ref={display}
+						aria-label="Amount"
+						className={cn(
+							"inline-flex items-start text-[2.75rem] leading-none font-semibold tracking-[-0.045em] tabular-nums",
+							!amount && "text-subtle-foreground",
+						)}
+					>
+						<span className="mt-[0.2em] me-0.5 text-[0.5em] tracking-normal text-subtle-foreground">
+							$
+						</span>
+						{Number(whole || "0").toLocaleString("en-US")}
+						{fraction === undefined ? null : `.${fraction}`}
+					</output>
+					<p className="min-h-[1.4em] text-[13px] text-subtle-foreground">
+						{cents === 0
+							? "Type an amount"
+							: filled
+								? "Check it, then tap a Bucket to add it"
+								: "Tap a Bucket to add it"}
+					</p>
+				</div>
+				{/* The note sits over the Buckets and steers them: "costco" puts Groceries first. */}
+				<SnapAndSpeak onPhrase={fill} onSnap={snapped}>
+					<Input
+						aria-label="Note"
+						placeholder="Where or what? (optional)"
+						maxLength={80}
+						autoComplete="off"
+						enterKeyHint="done"
+						value={note}
+						onChange={(event) => setNote(event.currentTarget.value)}
+						onKeyDown={(event) => {
+							if (event.key === "Enter") event.currentTarget.blur();
+						}}
+					/>
+				</SnapAndSpeak>
+				{receipt ? (
+					<p className="flex items-center justify-center gap-1.5 text-[13px] text-muted-foreground">
+						<ReceiptText className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+						<span>
+							Receipt{receipt.draft.note ? ` from ${receipt.draft.note}` : ""}, dated{" "}
+							{shortDay(receipt.date)}
+							{datedToday
+								? `. ${monthName(receiptMonth)} has no Plan, so it’s added today`
+								: receiptMonth !== entry.month
+									? `, so it’s added to ${monthName(receiptMonth)}`
+									: ""}
+							{receipt.buckets > 1 ? ". Split it across its Buckets from Transactions." : ""}
+						</span>
+					</p>
+				) : null}
+				{/* Six cells at a fixed height, so nothing below moves as they reorder. */}
+				<ul
+					ref={grid}
+					aria-label="Add to"
+					className="grid grid-cols-2 grid-rows-[repeat(3,3.125rem)] gap-2"
+					onPointerDownCapture={hold}
+				>
+					{shown.map(({ bucket, reason }) => (
+						<li
+							key={bucket.id}
+							data-pick={bucket.id}
+							className={cn("grid", reason === "suggested" && "col-span-2")}
+						>
 							<BucketPick
 								bucket={bucket}
 								ready={cents > 0}
-								suggested={bucket.id === suggested}
+								hint={reasonHint[reason]}
 								onPick={() => add(bucket)}
 							/>
 						</li>
 					))}
+					{fitsAll ? null : (
+						<li data-pick="more" className="grid">
+							<RowButton
+								variant="tile"
+								aria-label={`More Buckets, ${ranked.length - shown.length} more`}
+								onClick={() => setPage("more")}
+								className="h-full grid-cols-[32px_minmax(0,1fr)]"
+							>
+								<Tile aria-hidden="true" className="row-span-2 size-8 rounded-[10px]">
+									<Ellipsis className="size-4" strokeWidth={2} />
+								</Tile>
+								<span className="truncate text-[13px] leading-tight font-medium">More Buckets</span>
+								<span className="truncate text-xs text-subtle-foreground tabular-nums">
+									{ranked.length - shown.length} more
+								</span>
+							</RowButton>
+						</li>
+					)}
 				</ul>
+				<ForLine members={members} value={forMemberIds} onChange={setForMemberIds} />
 			</div>
-			<ForPicker members={members} value={forMemberIds} onChange={setForMemberIds} />
-			<Input
-				aria-label="Note"
-				placeholder="Add a note (optional)"
-				maxLength={80}
-				autoComplete="off"
-				enterKeyHint="done"
-				value={note}
-				onChange={(event) => setNote(event.currentTarget.value)}
-				onKeyDown={(event) => {
-					if (event.key === "Enter") event.currentTarget.blur();
-				}}
-			/>
-			{/* Phones: the keypad stays at the bottom, in thumb reach, while the Buckets scroll. With
-			    the keyboard up for the note, it steps aside: the keyboard has numbers too. */}
-			<SheetFooter className="lg:hidden [[data-keyboard]_&]:hidden">
+			{/* Phones: the keypad stays at the bottom, in thumb reach. With the keyboard up for the
+			    note, it steps aside: the keyboard has numbers too. */}
+			<SheetFooter className="max-lg:pt-2 lg:hidden [[data-keyboard]_&]:hidden">
 				<fieldset className="grid grid-cols-3 gap-0.5">
 					<legend className="sr-only">Keypad</legend>
 					{["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0"].map((key) => (
@@ -422,17 +533,49 @@ function QuickAddForm({
 	);
 }
 
+/** Where a Bucket was in the order shown; one not shown goes after. */
+function rank(order: string[], choice: { bucket: BucketState }) {
+	const at = order.indexOf(choice.bucket.id);
+	return at === -1 ? order.length : at;
+}
+
+/** Slides tiles from where they were to where they are when the order changes (FLIP). */
+function useFlip(list: RefObject<HTMLUListElement | null>, orderKey: string) {
+	const was = useRef(new Map<string, DOMRect>());
+	useLayoutEffect(() => {
+		if (!orderKey) return;
+		const items = [...(list.current?.querySelectorAll<HTMLElement>("[data-pick]") ?? [])];
+		const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+		const now = new Map(
+			items.map((item) => [item.dataset.pick ?? "", item.getBoundingClientRect()]),
+		);
+		for (const item of items) {
+			const before = was.current.get(item.dataset.pick ?? "");
+			const after = now.get(item.dataset.pick ?? "");
+			if (still || !before || !after) continue;
+			const dx = before.left - after.left;
+			const dy = before.top - after.top;
+			if (dx === 0 && dy === 0) continue;
+			item.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], {
+				duration: 220,
+				easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+			});
+		}
+		was.current = now;
+	}, [list, orderKey]);
+}
+
 /** A Bucket to add the amount to, with what it has left. Colour says which Bucket, nothing more. */
 function BucketPick({
 	bucket,
 	ready,
-	suggested,
+	hint,
 	onPick,
 }: {
 	bucket: BucketState;
 	ready: boolean;
-	/** What a snapped Receipt or a phrase said it's for: offered first, and marked. */
-	suggested: boolean;
+	/** Why it's here: Suggested (a Receipt or a phrase), From your Rule, or Picked from More. */
+	hint?: string;
 	onPick: () => void;
 }) {
 	const color = asBucketColor(bucket.color);
@@ -442,19 +585,185 @@ function BucketPick({
 			bucket={color}
 			aria-disabled={!ready}
 			onClick={onPick}
-			className={cn("grid-cols-[32px_minmax(0,1fr)]", suggested && "border-border-strong")}
+			className={cn("h-full grid-cols-[32px_minmax(0,1fr)]", hint && "border-border-strong")}
 		>
 			<Tile bucket={color} aria-hidden="true" className="row-span-2 size-8 rounded-[10px]">
 				{monogram(bucket.name)}
 			</Tile>
-			<span className="line-clamp-2 text-[13px] leading-tight font-medium [overflow-wrap:anywhere]">
-				{bucket.name}
-			</span>
+			<span className="truncate text-[13px] leading-tight font-medium">{bucket.name}</span>
 			<span className="truncate text-xs text-subtle-foreground tabular-nums">
 				{formatMoney(Math.max(0, bucket.left))} left
-				{suggested ? <span className="text-muted-foreground"> · Suggested</span> : null}
+				{hint ? <span className="text-muted-foreground"> · {hint}</span> : null}
 			</span>
 		</RowButton>
+	);
+}
+
+/** Who it was For, on one line; the picker opens over the Buckets. */
+function ForLine({
+	members,
+	value,
+	onChange,
+}: {
+	members: MemberSummary[];
+	value: string[];
+	onChange: (value: string[]) => void;
+}) {
+	const [open, setOpen] = useState(false);
+	// The picker stays inside the sheet, so it's part of the dialog.
+	const [host, setHost] = useState<HTMLDivElement | null>(null);
+	const names = value.map((id) => members.find((m) => m.id === id)?.name).filter(Boolean);
+	return (
+		<div ref={setHost} className="flex h-8 items-center">
+			<Popover open={open} onOpenChange={setOpen}>
+				<PopoverTrigger asChild>
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						className="-ms-2 gap-1 text-muted-foreground"
+					>
+						For:{" "}
+						<span className="text-foreground">{names.length ? names.join(", ") : "Everyone"}</span>
+						<ChevronDown strokeWidth={1.75} aria-hidden="true" />
+					</Button>
+				</PopoverTrigger>
+				<PopoverContent
+					container={host}
+					side="top"
+					align="start"
+					className="w-[min(24rem,calc(100vw-32px))]"
+				>
+					<ForPicker
+						members={members}
+						value={value}
+						onChange={(next) => {
+							onChange(next);
+							setOpen(false);
+						}}
+					/>
+				</PopoverContent>
+			</Popover>
+		</div>
+	);
+}
+
+/**
+ * More Buckets: every Bucket the Parent may spend from, likely first, with search, in the same
+ * sheet. Household Buckets, then their own Personal Allowance.
+ */
+function MoreBuckets({
+	buckets,
+	rules,
+	onBack,
+	onPick,
+}: {
+	buckets: BucketState[];
+	rules: Parameters<typeof matchBuckets>[2];
+	onBack: () => void;
+	onPick: (bucket: BucketState) => void;
+}) {
+	const [query, setQuery] = useState("");
+	const search = useRef<HTMLInputElement>(null);
+	// The search is what this page is for, so the keyboard comes up with it.
+	useEffect(() => search.current?.focus(), []);
+	const matches = matchBuckets(query, buckets, rules);
+	return (
+		<div className="grid content-start gap-3 max-lg:min-h-[min(34rem,70dvh)]">
+			<div className="flex items-center gap-1">
+				<Button
+					type="button"
+					variant="ghost"
+					size="icon-lg"
+					aria-label="Back to Quick Add"
+					className="-ms-2"
+					onClick={onBack}
+				>
+					<ChevronLeft strokeWidth={1.75} />
+				</Button>
+				<h3 className="text-sm font-semibold">More Buckets</h3>
+			</div>
+			<div className="relative">
+				<Search
+					aria-hidden="true"
+					strokeWidth={1.75}
+					className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-subtle-foreground"
+				/>
+				<Input
+					ref={search}
+					type="search"
+					aria-label="Find a Bucket"
+					placeholder="Find a Bucket"
+					autoComplete="off"
+					enterKeyHint="search"
+					className="ps-9"
+					value={query}
+					onChange={(event) => setQuery(event.currentTarget.value)}
+					onKeyDown={(event) => {
+						const first = matches[0];
+						if (event.key === "Enter" && first) onPick(first.bucket);
+					}}
+				/>
+			</div>
+			{matches.length === 0 ? (
+				<p className="text-sm text-muted-foreground">No Bucket matches “{query.trim()}”.</p>
+			) : null}
+			<MoreSection
+				title="Household"
+				matches={matches.filter((m) => m.bucket.owner === undefined)}
+				onPick={onPick}
+			/>
+			<MoreSection
+				title="My Personal Allowance"
+				matches={matches.filter((m) => m.bucket.owner !== undefined)}
+				onPick={onPick}
+			/>
+		</div>
+	);
+}
+
+function MoreSection({
+	title,
+	matches,
+	onPick,
+}: {
+	title: string;
+	matches: { bucket: BucketState; via: "name" | "rule"; pattern?: string }[];
+	onPick: (bucket: BucketState) => void;
+}) {
+	const id = useId();
+	if (matches.length === 0) return null;
+	return (
+		<section aria-labelledby={id} className="grid gap-1">
+			<h4 id={id} className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+				{title}
+			</h4>
+			<ul className="grid">
+				{matches.map((match) => {
+					const color = asBucketColor(match.bucket.color);
+					return (
+						<li key={match.bucket.id}>
+							<RowButton onClick={() => onPick(match.bucket)} className="min-h-12">
+								<Tile bucket={color} aria-hidden="true" className="size-8 shrink-0 rounded-[10px]">
+									{monogram(match.bucket.name)}
+								</Tile>
+								<span className="grid min-w-0 flex-1 text-start">
+									<span className="truncate text-sm font-medium">{match.bucket.name}</span>
+									{match.via === "rule" ? (
+										<span className="truncate text-xs text-subtle-foreground">
+											via your {match.pattern} Rule
+										</span>
+									) : null}
+								</span>
+								<span className="shrink-0 text-xs text-subtle-foreground tabular-nums">
+									{formatMoney(Math.max(0, match.bucket.left))} left
+								</span>
+							</RowButton>
+						</li>
+					);
+				})}
+			</ul>
+		</section>
 	);
 }
 
@@ -468,7 +777,7 @@ function Key({
 	children: ReactNode;
 }) {
 	return (
-		<RowButton variant="key" aria-label={label} onClick={onPress}>
+		<RowButton variant="key" aria-label={label} onClick={onPress} className="h-12">
 			{children}
 		</RowButton>
 	);
@@ -477,10 +786,10 @@ function Key({
 function QuickAddPending() {
 	return (
 		<div role="status" aria-label="Loading" className="grid gap-4">
-			<Skeleton className="h-13 w-32 justify-self-center" />
+			<Skeleton className="h-11 w-32 justify-self-center" />
 			<div className="grid grid-cols-2 gap-2">
-				{[0, 1, 2, 3].map((pick) => (
-					<Skeleton key={pick} className="h-13 rounded-xl" />
+				{[0, 1, 2, 3, 4, 5].map((pick) => (
+					<Skeleton key={pick} className="h-12.5 rounded-xl" />
 				))}
 			</div>
 		</div>
