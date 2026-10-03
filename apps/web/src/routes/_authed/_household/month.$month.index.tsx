@@ -289,6 +289,7 @@ function ThisMonth() {
 											getStarted.some((step) => !step.done) && {
 												label: "Get started",
 												status: `${getStarted.filter((step) => step.done).length} of ${getStarted.length} done`,
+												action: <ContinueSetup />,
 												content: <GetStarted steps={getStarted} />,
 											},
 										isCurrent &&
@@ -323,6 +324,7 @@ function ThisMonth() {
 										isCurrent &&
 											chipsShow(chips) && {
 												label: "To look at",
+												open: true,
 												content: <Chips month={month} counts={chips} />,
 											},
 									])}
@@ -878,6 +880,17 @@ function useGetStartedSteps(state: MonthState) {
 	return steps;
 }
 
+/** The way back into the get-started wizard (#53); nothing once it's finished. */
+function ContinueSetup({ className }: { className?: string }) {
+	const setup = useSuspenseQuery(setupQuery()).data;
+	if (setup.finished) return null;
+	return (
+		<Button asChild size="sm" className={className}>
+			<Link to="/setup">Continue setup</Link>
+		</Button>
+	);
+}
+
 function GetStarted({ steps }: { steps: ReturnType<typeof useGetStartedSteps> }) {
 	const setup = useSuspenseQuery(setupQuery()).data;
 	const left = steps.filter((step) => !step.done).length;
@@ -902,9 +915,8 @@ function GetStarted({ steps }: { steps: ReturnType<typeof useGetStartedSteps> })
 							You’re on step {setup.step} of {SETUP_STEP_COUNT}. It picks up where you left off.
 						</p>
 					</div>
-					<Button asChild size="sm">
-						<Link to="/setup">Continue setup</Link>
-					</Button>
+					{/* From lg the To do row has it, closed or open. */}
+					<ContinueSetup className="lg:hidden" />
 				</Card>
 			)}
 			<List aria-label="Steps to get started">

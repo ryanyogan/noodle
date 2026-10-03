@@ -8,9 +8,17 @@ import { type ReactNode, useId, useState } from "react";
 
 /**
  * One prompt in the strip: what the closed strip calls it, a one-line status for its row from lg
- * ("2 of 4 done"), and the prompt itself.
+ * ("2 of 4 done"), and the prompt itself. From lg, `action` sits at the end of the closed row, so
+ * the one thing the prompt is for ("Continue setup") needs no click to open it first; `open` shows
+ * the prompt under its name with no row to click, for one that is only links (the chips).
  */
-export type ToDoItem = { label: string; status?: string; content: ReactNode };
+export type ToDoItem = {
+	label: string;
+	status?: string;
+	action?: ReactNode;
+	open?: boolean;
+	content: ReactNode;
+};
 
 /**
  * This Month's prompts (#65): Close the last month, Get started, Check-in day, Extra income and
@@ -55,33 +63,42 @@ export function ToDo({ className, items }: { className?: string; items: ToDoItem
 			<Card className="max-lg:contents">
 				<div id={id} className={cn("grid min-w-0 gap-3 lg:gap-0", !open && "max-lg:hidden")}>
 					{items.map((item, index) => {
-						const shown = expanded[item.label] ?? false;
+						const shown = item.open || (expanded[item.label] ?? false);
 						const panel = `${id}-${index}`;
 						return (
 							<div key={item.label} className="grid min-w-0 lg:border-border [&+&]:lg:border-t">
-								<button
-									type="button"
-									aria-expanded={shown}
-									aria-controls={panel}
-									disabled={!hydrated}
-									onClick={() => setExpanded((e) => ({ ...e, [item.label]: !shown }))}
-									className="flex min-w-0 items-center gap-3 px-4 py-3 text-start hover:bg-muted/50 max-lg:hidden"
-								>
-									<span className="grid min-w-0 flex-1 gap-0.5">
-										<span className="truncate text-sm font-medium">{item.label}</span>
-										{item.status ? (
-											<span className="truncate text-[13px] text-muted-foreground">
-												{item.status}
+								{item.open ? (
+									<p className="px-4 pt-3 pb-2 text-sm font-medium max-lg:hidden">{item.label}</p>
+								) : (
+									<div className="flex min-w-0 items-center max-lg:hidden">
+										<RowButton
+											aria-expanded={shown}
+											aria-controls={panel}
+											disabled={!hydrated}
+											onClick={() => setExpanded((e) => ({ ...e, [item.label]: !shown }))}
+											className="min-w-0 flex-1 rounded-none px-4 py-3"
+										>
+											<span className="grid min-w-0 flex-1 gap-0.5">
+												<span className="truncate text-sm font-medium">{item.label}</span>
+												{item.status ? (
+													<span className="truncate text-[13px] text-muted-foreground">
+														{item.status}
+													</span>
+												) : null}
 											</span>
-										) : null}
-									</span>
-									<ChevronDown
-										aria-hidden="true"
-										className={cn("size-4 shrink-0 text-muted-foreground transition-transform", {
-											"rotate-180": shown,
-										})}
-									/>
-								</button>
+											<ChevronDown
+												aria-hidden="true"
+												className={cn(
+													"size-4 shrink-0 text-muted-foreground transition-transform",
+													{
+														"rotate-180": shown,
+													},
+												)}
+											/>
+										</RowButton>
+										{item.action ? <div className="shrink-0 pe-4 empty:hidden">{item.action}</div> : null}
+									</div>
+								)}
 								<div
 									id={panel}
 									className={cn("grid min-w-0 gap-3 lg:px-3 lg:pb-3", !shown && "lg:hidden")}
