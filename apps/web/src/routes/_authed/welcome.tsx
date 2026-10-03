@@ -1,15 +1,14 @@
-import { useUser } from "@clerk/tanstack-react-start";
 import type { InviteToJoin } from "@noodle/db";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, redirect, useHydrated, useRouter } from "@tanstack/react-router";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { createFileRoute, redirect, useHydrated } from "@tanstack/react-router";
+import { type FormEvent, useState } from "react";
 import { ulid } from "ulid";
 import { CenteredHeading, CenteredPage } from "../../components/centered-page";
-import { viewerQuery } from "../../queries";
+import { ParentNameInput, useEnterHousehold, useFirstName } from "../../components/join-household";
 import { acceptInvite } from "../../server/invites";
 import { createHousehold } from "../../server/session";
 
@@ -29,20 +28,6 @@ function Welcome() {
 	) : (
 		<CreateHousehold />
 	);
-}
-
-/**
- * After joining or creating, re-run the route guards so they see the new Household. A new
- * Household goes on to the get-started wizard; a Parent joining one skips it for a short look at what's there.
- */
-function useEnterHousehold(to: "/setup" | "/joined") {
-	const router = useRouter();
-	const queryClient = useQueryClient();
-	return async () => {
-		await queryClient.invalidateQueries({ queryKey: viewerQuery().queryKey, refetchType: "none" });
-		await router.invalidate();
-		await router.navigate({ to });
-	};
 }
 
 function CreateHousehold() {
@@ -174,32 +159,4 @@ function JoinHousehold({ invite, onStartOwn }: { invite: InviteToJoin; onStartOw
 			</div>
 		</CenteredPage>
 	);
-}
-
-/**
- * "Your name", started with Clerk's first name once it loads (after hydration) - unless the Parent
- * has typed in it already, so a late load never overwrites what they typed.
- */
-function ParentNameInput({ firstName }: { firstName: string | undefined }) {
-	const input = useRef<HTMLInputElement>(null);
-	useEffect(() => {
-		if (firstName && input.current && input.current.value === "") input.current.value = firstName;
-	}, [firstName]);
-	return (
-		<Input
-			ref={input}
-			id="parentName"
-			name="parentName"
-			required
-			maxLength={80}
-			autoComplete="given-name"
-			defaultValue={firstName}
-		/>
-	);
-}
-
-/** The signed-in user's first name in Clerk, to start "Your name" with; undefined until Clerk loads. */
-function useFirstName(): string | undefined {
-	const { user } = useUser();
-	return user?.firstName?.trim() || undefined;
 }

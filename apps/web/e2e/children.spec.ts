@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { clientRendered, createPlannedHousehold, signedInPage } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -146,8 +146,9 @@ test("Quick Add is For Everyone unless a Child is picked, and each Child's cost 
 		"$186.42 this month",
 	);
 
+	// A full load of Reports is slow on a cold dev server (see clientRendered).
 	await page.goto("/reports?view=people");
-	await expect(costOf(page, "Maya")).toContainText("Nothing yet");
+	await expect(costOf(page, "Maya")).toContainText("Nothing yet", clientRendered);
 	await expect(costOf(page, "Leo").getByRole("row", { name: /^Total/ })).toHaveText(
 		/Total\$84\.99\$84\.99/,
 	);

@@ -21,6 +21,20 @@ export async function createTestParent() {
 	};
 }
 
+/** A fresh address in the shape removeStaleTestParents cleans up, for signing up through Clerk's page. */
+export function newTestEmail() {
+	return `e2e-${ulid().toLowerCase()}+clerk_test@example.com`;
+}
+
+/** Deletes the Clerk user with this email, if there is one: for someone who signed up on the page. */
+export async function removeTestUserByEmail(email: string) {
+	const secretKey = process.env.CLERK_SECRET_KEY;
+	if (!secretKey) return;
+	const clerk = createClerkClient({ secretKey });
+	const { data } = await clerk.users.getUserList({ emailAddress: [email] });
+	for (const user of data) await clerk.users.deleteUser(user.id).catch(() => {});
+}
+
 const TEST_PARENT_EMAIL = /^e2e-[0-9a-z]{26}\+clerk_test@example\.com$/;
 const STALE_AFTER_MS = 60 * 60 * 1000;
 

@@ -68,8 +68,9 @@ export const members = sqliteTable(
 	(t) => [index("members_household_idx").on(t.householdId)],
 );
 
-// A Parent's invitation for the other Parent to join the Household. It is accepted by
-// whoever signs in with a verified email matching `email`.
+// A Parent's invitation for the other Parent to join the Household. It is accepted through its
+// link (`/invite/<token>`, by whoever holds it) or by whoever signs in with a verified email
+// matching `email`.
 export const invites = sqliteTable(
 	"invites",
 	{
@@ -86,8 +87,14 @@ export const invites = sqliteTable(
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()
 			.default(sql`(unixepoch() * 1000)`),
+		// The invite link's token, as its SHA-256 hash (hex): the token itself is never stored
+		// (#60, invite-token.ts). Null on invites from before links.
+		tokenHash: text("token_hash"),
+		// When the link and the invite stop working. Null on invites from before links: no expiry.
+		expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
 	},
 	(t) => [
+		uniqueIndex("invites_token_hash_idx").on(t.tokenHash),
 		// A Household has at most one open invite (there is only ever one other Parent to invite).
 		uniqueIndex("invites_one_open_per_household")
 			.on(t.householdId)

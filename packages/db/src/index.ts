@@ -1,5 +1,17 @@
-import { type AnyColumn, and, eq, exists, inArray, isNull, sql } from "drizzle-orm";
+import {
+	type AnyColumn,
+	and,
+	eq,
+	exists,
+	gt,
+	inArray,
+	isNull,
+	or,
+	type SQL,
+	sql,
+} from "drizzle-orm";
 import { type DrizzleD1Database, drizzle } from "drizzle-orm/d1";
+import { type InviteLinkState, inviteLinkState } from "./invite-token";
 import * as schema from "./schema";
 import { type Household, households, type Invite, invites, type Member, members } from "./schema";
 
@@ -121,6 +133,9 @@ export async function findOpenInvite(db: Db, householdId: string): Promise<Invit
 const parentCountOf = (householdId: AnyColumn) =>
 	sql`(select count(*) from ${members} where ${parentsOf(householdId)})`;
 
+/** Not yet past its expiry (invites from before links have none). */
+const notExpired = (now: Date) => or(isNull(invites.expiresAt), gt(invites.expiresAt, now));
+
 export type InviteParentResult =
 	| { ok: true; invite: Invite }
 	| { ok: false; reason: "household-full" | "own-email" };
@@ -139,6 +154,9 @@ export async function inviteParent(
 		email: string;
 		invitedByMemberId: string;
 		inviterEmails: string[];
+		/** The link's token, hashed (invite-token.ts), and when it stops working. */
+		tokenHash: string;
+		expiresAt: Date;
 	},
 ): Promise<InviteParentResult> {
 	const email = normalizeEmail(input.email);
@@ -161,6 +179,9 @@ export async function inviteParent(
 					invitedByMemberId: sql<string>`${input.invitedByMemberId}`.as("invited_by_member_id"),
 					acceptedByMemberId: sql<string | null>`null`.as("accepted_by_member_id"),
 					createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
+					// Selected in the table's column order: insert … select is positional.
+					tokenHash: sql<string>`${input.tokenHash}`.as("token_hash"),
+					expiresAt: sql<Date>`${input.expiresAt.getTime()}`.as("expires_at"),
 				})
 				.from(households)
 				.where(
@@ -179,37 +200,73 @@ export async function inviteParent(
 /** An open invite for the signed-in user to join a Household as its other Parent. */
 export type InviteToJoin = { inviteId: string; householdName: string };
 
-/** An open invite addressed to any of the signed-in user's verified emails. */
-export async function findInviteForEmails(db: Db, emails: string[]): Promise<InviteToJoin | null> {
+/** An open, unexpired invite addressed to any of the signed-in user's verified emails. */
+export async function findInviteForEmails(
+	db: Db,
+	emails: string[],
+	now: Date,
+): Promise<InviteToJoin | null> {
 	if (emails.length === 0) return null;
 	const rows = await db
 		.select({ inviteId: invites.id, householdName: households.name })
 		.from(invites)
 		.innerJoin(households, eq(households.id, invites.householdId))
 		.where(
-			and(inArray(invites.email, emails.map(normalizeEmail)), isNull(invites.acceptedByMemberId)),
+			and(
+				inArray(invites.email, emails.map(normalizeEmail)),
+				isNull(invites.acceptedByMemberId),
+				notExpired(now),
+			),
 		)
 		.orderBy(invites.createdAt)
 		.limit(1);
 	return rows[0] ?? null;
 }
 
+/** What an invite link finds: its state and, while it can be found, who it's for and where. */
+export type InviteByLink =
+	| {
+			state: Exclude<InviteLinkState, "not-found">;
+			email: string;
+			householdId: string;
+			householdName: string;
+			hasRoom: boolean;
+	  }
+	| { state: "not-found" };
+
 /**
- * The open invite with this ID: who it's for and which Household it joins. A sign-up link (#60)
- * carries the ID, so the page can fill in the email and name the Household. Null once it's
- * accepted or replaced.
+ * The invite whose link token hashes to `tokenHash`. The row is found by its hash, and the hash
+ * is compared again in constant time before anything about it is trusted. A replaced invite is
+ * gone, so its link finds nothing.
  */
-export async function findOpenInviteById(
+export async function findInviteByTokenHash(
 	db: Db,
-	inviteId: string,
-): Promise<{ email: string; householdName: string } | null> {
-	const rows = await db
-		.select({ email: invites.email, householdName: households.name })
+	tokenHash: string,
+	now: Date,
+): Promise<InviteByLink> {
+	const [row] = await db
+		.select({
+			tokenHash: invites.tokenHash,
+			expiresAt: invites.expiresAt,
+			acceptedByMemberId: invites.acceptedByMemberId,
+			email: invites.email,
+			householdId: invites.householdId,
+			householdName: households.name,
+			parents: sql<number>`${parentCountOf(invites.householdId)}`,
+		})
 		.from(invites)
 		.innerJoin(households, eq(households.id, invites.householdId))
-		.where(and(eq(invites.id, inviteId), isNull(invites.acceptedByMemberId)))
+		.where(eq(invites.tokenHash, tokenHash))
 		.limit(1);
-	return rows[0] ?? null;
+	const state = inviteLinkState(row ?? null, tokenHash, now);
+	if (!row || state === "not-found") return { state: "not-found" };
+	return {
+		state,
+		email: row.email,
+		householdId: row.householdId,
+		householdName: row.householdName,
+		hasRoom: Number(row.parents) < MAX_PARENTS,
+	};
 }
 
 export type AcceptInviteResult =
@@ -217,34 +274,50 @@ export type AcceptInviteResult =
 	| { ok: false; reason: "invite-unusable" | "in-another-household" };
 
 /**
+ * Which invite is being accepted: the one with this ID addressed to one of the signed-in user's
+ * verified `emails` (/welcome), or the one whose link token hashes to `tokenHash` (whoever holds
+ * the link, whatever their email: the page asks them to confirm first).
+ */
+export type InviteKey = { inviteId: string; emails: string[] } | { tokenHash: string };
+
+/**
  * Joins the invite's Household as its second Parent, atomically. The Parent row is
- * inserted only if, at write time, the invite is still open, is addressed to one of
- * `emails`, and the Household has fewer than MAX_PARENTS — so two concurrent accepts
+ * inserted only if, at write time, the invite is still open and unexpired, matches
+ * `invite`, and the Household has fewer than MAX_PARENTS — so two concurrent accepts
  * can never produce a third Parent. The invite is closed only by the Parent row this
  * accept inserted. Retrying an accept that already succeeded returns the same membership.
  */
 export async function acceptInvite(
 	db: Db,
 	input: {
-		inviteId: string;
-		emails: string[];
+		invite: InviteKey;
 		clerkUserId: string;
 		parentId: string;
 		parentName: string;
+		now: Date;
 	},
 ): Promise<AcceptInviteResult> {
+	const key = input.invite;
+	const theInvite: SQL | undefined =
+		"tokenHash" in key ? eq(invites.tokenHash, key.tokenHash) : eq(invites.id, key.inviteId);
 	const existing = await findMembershipByClerkUser(db, input.clerkUserId);
 	if (existing) {
 		const [invite] = await db
 			.select({ householdId: invites.householdId })
 			.from(invites)
-			.where(eq(invites.id, input.inviteId));
+			.where(theInvite);
 		return invite?.householdId === existing.household.id
 			? { ok: true, membership: existing }
 			: { ok: false, reason: "in-another-household" };
 	}
-	const emails = input.emails.map(normalizeEmail);
-	if (emails.length === 0) return { ok: false, reason: "invite-unusable" };
+	const emails = "emails" in key ? key.emails.map(normalizeEmail) : null;
+	if (emails?.length === 0) return { ok: false, reason: "invite-unusable" };
+	const usable = and(
+		theInvite,
+		isNull(invites.acceptedByMemberId),
+		notExpired(input.now),
+		emails ? inArray(invites.email, emails) : undefined,
+	);
 	const membership = await addParent(db, input.clerkUserId, () =>
 		db.batch([
 			// insert into members select ... from invites where <still valid>
@@ -262,21 +335,14 @@ export async function acceptInvite(
 						removedAt: sql<Date | null>`null`.as("removed_at"),
 					})
 					.from(invites)
-					.where(
-						and(
-							eq(invites.id, input.inviteId),
-							isNull(invites.acceptedByMemberId),
-							inArray(invites.email, emails),
-							sql`${parentCountOf(invites.householdId)} < ${MAX_PARENTS}`,
-						),
-					),
+					.where(and(usable, sql`${parentCountOf(invites.householdId)} < ${MAX_PARENTS}`)),
 			),
 			db
 				.update(invites)
 				.set({ acceptedByMemberId: input.parentId })
 				.where(
 					and(
-						eq(invites.id, input.inviteId),
+						theInvite,
 						isNull(invites.acceptedByMemberId),
 						exists(
 							db
@@ -424,6 +490,15 @@ export {
 	type NewInsight,
 	recordInsights,
 } from "./insights";
+export {
+	constantTimeEqual,
+	hashInviteToken,
+	INVITE_LINK_DAYS,
+	type InviteLinkState,
+	inviteExpiresAt,
+	isInviteTokenShape,
+	newInviteToken,
+} from "./invite-token";
 export {
 	loadMatch,
 	type MatchPeer,

@@ -3,6 +3,7 @@ import { createTestParent } from "./parents";
 import {
 	accountKindLabel,
 	choose,
+	clientRendered,
 	createPlannedHousehold,
 	serverFn,
 	signedInPage,
@@ -118,7 +119,7 @@ test("editing a Transaction reassigns its spending on This Month at once", async
 	await page.goto("/reports?view=people");
 	await expect(
 		page.getByRole("region", { name: "Leo", exact: true }).getByRole("row", { name: /^Total/ }),
-	).toHaveText(/Total\$70\$70/);
+	).toHaveText(/Total\$70\$70/, clientRendered);
 	await page.context().close();
 });
 

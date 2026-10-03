@@ -33,7 +33,7 @@ export const getViewer = createServerFn({ method: "GET" }).handler(async (): Pro
 			invite: null,
 		};
 	}
-	const invite = await findInviteForEmails(db, await verifiedEmails(userId));
+	const invite = await findInviteForEmails(db, await verifiedEmails(userId), new Date());
 	return { signedIn: true, household: null, invite };
 });
 

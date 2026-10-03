@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import { type APIRequestContext, expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createHousehold, serverFn, signedInPage } from "./session";
+import { createHousehold, signedInPage } from "./session";
 
 // `/` never renders a page (#59): the server answers it with a redirect, before any HTML, so
 // there's nothing to flash. Asking for it without following redirects checks exactly that.
@@ -65,22 +65,23 @@ test("an invite link fills in the email and names the Household", async ({ brows
 		const inviterPage = await signedInPage(browser, inviter.email);
 		await createHousehold(inviterPage, "The Invitations", "Alex");
 		await inviterPage.getByRole("link", { name: "Household" }).first().click();
-		// The invite's ID is chosen in the browser, so it's in the request that sends it.
-		const sent = inviterPage.waitForRequest((r) => serverFn("inviteParent")(new URL(r.url())));
 		await inviterPage.getByLabel("Their email").fill(invitee);
 		await inviterPage.getByRole("button", { name: /^Invite/ }).click();
-		const inviteId = (await sent).postData()?.match(/[0-9A-HJKMNP-TV-Z]{26}/)?.[0];
-		expect(inviteId).toBeTruthy();
 		await expect(inviterPage.getByText(`Invited ${invitee}`)).toBeVisible();
+		// The link carries a random token (#60); only its hash is stored.
+		const link = await inviterPage.locator("code").filter({ hasText: "/invite/" }).textContent();
+		const token = link?.split("/invite/")[1];
+		expect(token).toMatch(/^[\w-]{43}$/);
 
 		await setupClerkTestingToken({ page });
-		await page.goto(`/sign-up?invite=${inviteId}`);
+		await page.goto(`/sign-up?invite=${token}`);
 		await clerkCard(page);
 		await expect(page.getByText("Join The Invitations on Noodle")).toBeVisible();
 		await expect(page.locator("input[name=emailAddress]")).toHaveValue(invitee);
 
-		// A wrong or made-up invite is plain sign-up.
-		for (const invite of ["01ARZ3NDEKTSV4RRFFQ69G5FAV", "not-an-invite", ""]) {
+		// A wrong or made-up invite is plain sign-up, and so is the invite's guessable ID.
+		const madeUp = `${token?.slice(0, -1)}${token?.endsWith("A") ? "B" : "A"}`;
+		for (const invite of ["01ARZ3NDEKTSV4RRFFQ69G5FAV", madeUp, "not-an-invite", ""]) {
 			await page.goto(`/sign-up?invite=${invite}`);
 			await clerkCard(page);
 			await expect(page.locator("[data-invite]")).toHaveCount(0);

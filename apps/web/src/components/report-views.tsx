@@ -1443,7 +1443,6 @@ function PeopleView({ report, data, names, nav, tables, search }: ViewProps<"peo
 			amount: data.cells.filter((c) => c.who === who).reduce((s, c) => s + c.amount, 0),
 		}))
 		.sort((a, b) => b.amount - a.amount);
-	if (totals.length === 0) return <NothingYet />;
 	const children = report.meta.members.filter((m) => m.kind === "child").map((m) => m.id);
 	// Filtered to one Child (Household's "See what … costs"), the by-Bucket costs show only theirs.
 	const costChildren = report.meta.members.filter(
@@ -1451,6 +1450,16 @@ function PeopleView({ report, data, names, nav, tables, search }: ViewProps<"peo
 			m.kind === "child" &&
 			(!search.member || !children.includes(search.member) || m.id === search.member),
 	);
+	// This month and the year so far don't depend on the period picked, so they show even when it's empty.
+	if (totals.length === 0)
+		return costChildren.length ? (
+			<div className="grid gap-4 lg:gap-6">
+				<NothingYet />
+				<ChildCosts of={costChildren} />
+			</div>
+		) : (
+			<NothingYet />
+		);
 	const memberColor = (who: string) => {
 		const color = report.meta.members.find((m) => m.id === who)?.color;
 		return color ? `var(--bucket-${color})` : "var(--chart-spend)";

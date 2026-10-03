@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { choose, createPlannedHousehold, serverFn, signedInPage } from "./session";
+import { choose, clientRendered, createPlannedHousehold, serverFn, signedInPage } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -124,7 +124,7 @@ test("splitting a Quick Add spends each Split from its own Bucket, For its own M
 	await page.goto("/reports?view=people");
 	await expect(
 		page.getByRole("region", { name: "Leo", exact: true }).getByRole("row", { name: /^Total/ }),
-	).toHaveText(/Total\$70\$70/);
+	).toHaveText(/Total\$70\$70/, clientRendered);
 	await page.context().close();
 });
 

@@ -11,11 +11,14 @@ import { type FormEvent, useState } from "react";
 import { ulid } from "ulid";
 import { householdParentsQuery } from "../queries";
 import { inviteParent } from "../server/invites";
+import { CopyRow } from "./capture-settings";
 
 // Inviting the other Parent by email, on Household and in the get-started wizard (#53). It is its
 // own form, so it can't sit inside another one.
 
 export function InviteOtherParent({ invitedEmail }: { invitedEmail: string | null }) {
+	// The invite link, shown only right after inviting: Noodle keeps just a hash of it (#60).
+	const [link, setLink] = useState<{ email: string; url: string } | null>(null);
 	const queryClient = useQueryClient();
 	const hydrated = useHydrated();
 	// A fresh ID per attempt; reused by a retry of the same attempt.
@@ -23,7 +26,13 @@ export function InviteOtherParent({ invitedEmail }: { invitedEmail: string | nul
 	const invite = useMutation({
 		mutationFn: (email: string) => inviteParent({ data: { inviteId, email } }),
 		onSuccess: async (result) => {
-			if (result.ok) setInviteId(ulid());
+			if (result.ok) {
+				setInviteId(ulid());
+				setLink({
+					email: result.email,
+					url: new URL(result.linkPath, window.location.origin).href,
+				});
+			}
 			await queryClient.invalidateQueries({ queryKey: householdParentsQuery().queryKey });
 		},
 	});
@@ -54,16 +63,22 @@ export function InviteOtherParent({ invitedEmail }: { invitedEmail: string | nul
 							</Badge>
 						</div>
 						<p className="text-muted-foreground">
-							Ask them to sign in to Noodle with that email to join.
+							{link?.email === invitedEmail
+								? "Send them this link. It works for 7 days."
+								: "They can join by signing in to Noodle with that email. Lost the link? Invite them again for a new one."}
 						</p>
 					</div>
 				) : (
 					<p className="self-center text-muted-foreground">
-						Noodle doesn’t send an email. Once you’ve invited them, they join by signing in with
-						that address.
+						Once you’ve invited them, you’ll get a link to send them. It works for 7 days.
 					</p>
 				)}
 			</div>
+			{invitedEmail && link?.email === invitedEmail ? (
+				<div className="border-b p-(--card-pad)">
+					<CopyRow label="Invite link" value={link.url} copyLabel="Copy link" />
+				</div>
+			) : null}
 			<form onSubmit={onSubmit} className="grid gap-3 p-(--card-pad)">
 				<Field label="Their email" htmlFor="invite-email">
 					<div className="flex flex-col gap-2 sm:flex-row">

@@ -15,6 +15,7 @@ import { Route as AuthedHouseholdRouteImport } from './routes/_authed/_household
 import { Route as AuthedJoinedRouteImport } from './routes/_authed/joined'
 import { Route as AuthedSetupRouteImport } from './routes/_authed/setup'
 import { Route as AuthedWelcomeRouteImport } from './routes/_authed/welcome'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
 import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
 import { Route as AuthedHouseholdAccountsRouteImport } from './routes/_authed/_household/accounts'
@@ -89,6 +90,11 @@ const AuthedWelcomeRoute = AuthedWelcomeRouteImport.update({
   id: '/welcome',
   path: '/welcome',
   getParentRoute: () => AuthedRoute,
+} as any)
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const SignInSplatRoute = SignInSplatRouteImport.update({
   id: '/sign-in/$',
@@ -359,6 +365,7 @@ export interface FileRoutesByFullPath {
   '/joined': typeof AuthedJoinedRoute
   '/setup': typeof AuthedSetupRoute
   '/welcome': typeof AuthedWelcomeRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/accounts': typeof AuthedHouseholdAccountsRouteWithChildren
@@ -411,6 +418,7 @@ export interface FileRoutesByTo {
   '/joined': typeof AuthedJoinedRoute
   '/setup': typeof AuthedSetupRoute
   '/welcome': typeof AuthedWelcomeRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/accounts': typeof AuthedHouseholdAccountsRouteWithChildren
@@ -461,6 +469,7 @@ export interface FileRoutesById {
   '/_authed/joined': typeof AuthedJoinedRoute
   '/_authed/setup': typeof AuthedSetupRoute
   '/_authed/welcome': typeof AuthedWelcomeRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/_authed/_household/accounts': typeof AuthedHouseholdAccountsRouteWithChildren
@@ -515,6 +524,7 @@ export interface FileRouteTypes {
     | '/joined'
     | '/setup'
     | '/welcome'
+    | '/invite/$token'
     | '/sign-in/$'
     | '/sign-up/$'
     | '/accounts'
@@ -567,6 +577,7 @@ export interface FileRouteTypes {
     | '/joined'
     | '/setup'
     | '/welcome'
+    | '/invite/$token'
     | '/sign-in/$'
     | '/sign-up/$'
     | '/accounts'
@@ -616,6 +627,7 @@ export interface FileRouteTypes {
     | '/_authed/joined'
     | '/_authed/setup'
     | '/_authed/welcome'
+    | '/invite/$token'
     | '/sign-in/$'
     | '/sign-up/$'
     | '/_authed/_household/accounts'
@@ -667,6 +679,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthedRoute: typeof AuthedRouteWithChildren
+  InviteTokenRoute: typeof InviteTokenRoute
   SignInSplatRoute: typeof SignInSplatRoute
   SignUpSplatRoute: typeof SignUpSplatRoute
 }
@@ -714,6 +727,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/welcome'
       preLoaderRoute: typeof AuthedWelcomeRouteImport
       parentRoute: typeof AuthedRoute
+    }
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/sign-in/$': {
       id: '/sign-in/$'
@@ -1309,6 +1329,7 @@ const AuthedRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthedRoute: AuthedRouteWithChildren,
+  InviteTokenRoute: InviteTokenRoute,
   SignInSplatRoute: SignInSplatRoute,
   SignUpSplatRoute: SignUpSplatRoute,
 }
