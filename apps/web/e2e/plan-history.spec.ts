@@ -74,7 +74,8 @@ test("What changed shows each Plan change and who made it; the other Parent's Pe
 		await sheet.getByText("History", { exact: true }).click();
 		await expect(sheet.getByText("$1,200 → $1,500")).toBeVisible();
 		await expect(sheet.getByText(/^Added · \$1,200/)).toBeVisible();
-		await expect(sheet.getByText(/History starts/)).toBeVisible();
+		// Its oldest change is the add, so the history is whole: no "History starts" (#51).
+		await expect(sheet.getByText(/History starts/)).toHaveCount(0);
 		await page.keyboard.press("Escape");
 		await backToPlan(page);
 
@@ -96,7 +97,8 @@ test("What changed shows each Plan change and who made it; the other Parent's Pe
 		await expect(item(page, "Daycare")).toContainText("Added · $1,450");
 		await expect(item(page, "Daycare")).toContainText(/Alex · \w{3} \d{1,2}/);
 		await expect(item(page, "Alex’s Personal Allowance")).toContainText("Added · $150");
-		await expect(whatChanged(page)).toContainText(/History starts/);
+		// The Plan began this month: nothing is cut short, so no "History starts" (#51).
+		await expect(whatChanged(page)).not.toContainText(/History starts/);
 
 		// Sam sees what Alex changed, but Alex's Personal Allowance only as changed.
 		await samPage.goto("/month");

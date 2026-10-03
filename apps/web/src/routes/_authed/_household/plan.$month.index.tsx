@@ -533,7 +533,12 @@ function WhatChanged({ month, first }: { month: MonthKey; first: MonthKey | null
 					))}
 				</List>
 			)}
-			{data.historyStart === null ? null : <HistoryStart day={data.historyStart} />}
+			{/* Only where the log's start cuts this month's comparison short. */}
+			{data.historyStart === null ||
+			fresh ||
+			monthOfDay(data.historyStart) < addMonths(month, -1) ? null : (
+				<HistoryStart day={data.historyStart} />
+			)}
 		</Section>
 	);
 }

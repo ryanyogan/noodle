@@ -141,11 +141,7 @@ function CommitmentPage() {
 								</span>
 							</p>
 						</div>
-						<StatGrid
-							layout="ruled"
-							wrapLast
-							className="grid-cols-2 sm:grid-cols-[auto_minmax(0,1fr)_auto]"
-						>
+						<StatGrid layout="ruled" wrapLast className="grid-cols-2 sm:grid-cols-3">
 							<Stat label="Each payment" value={formatMoney(terms.amount)} />
 							<Stat label="Schedule" value={termsSchedule(terms)} />
 							<Stat
@@ -328,7 +324,11 @@ function Charges({ data, id }: { data: CommitmentsData; id: string }) {
 										) : charge.onTime === null ? (
 											<span className="text-muted-foreground">Not scheduled</span>
 										) : (
-											<span className="text-subtle-foreground">On time</span>
+											<span className="text-subtle-foreground">
+												{charge.dueDate === charge.date
+													? "Paid on the due date"
+													: "Paid before it was due"}
+											</span>
 										)}
 									</TableCell>
 									<TableCell className="last:pe-4 text-end font-medium tabular-nums">

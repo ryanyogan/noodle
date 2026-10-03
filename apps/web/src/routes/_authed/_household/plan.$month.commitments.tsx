@@ -7,6 +7,7 @@ import {
 	CollapsibleTrigger,
 } from "@noodle/ui/components/collapsible";
 import { List } from "@noodle/ui/components/list";
+import { Money } from "@noodle/ui/components/money";
 import { RowButton } from "@noodle/ui/components/row-button";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -126,9 +127,11 @@ function PlanCommitments() {
 			listLabel="Commitments"
 			editable={state.editable}
 			summary={
-				state.commitments.length > 0
-					? `${formatMoney(state.committed)} expected this month`
-					: undefined
+				state.commitments.length > 0 ? (
+					<>
+						<Money cents={state.committed} /> expected this month
+					</>
+				) : undefined
 			}
 			aside={aside}
 		>

@@ -1,5 +1,6 @@
 import { Card } from "@noodle/ui/components/card";
 import { List } from "@noodle/ui/components/list";
+import { Money } from "@noodle/ui/components/money";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -47,13 +48,17 @@ function PlanBuckets() {
 			listLabel="Buckets"
 			editable={state.editable}
 			summary={
-				buckets.length > 0
-					? `${formatMoney(shared)} in Buckets${
-							state.movedToBuckets > 0
-								? ` · ${formatMoney(state.movedToBuckets)} Covered from Free to Spend`
-								: ""
-						}`
-					: undefined
+				buckets.length > 0 ? (
+					<>
+						<Money cents={shared} /> in Buckets
+						{state.movedToBuckets > 0 ? (
+							<>
+								{" · "}
+								<Money cents={state.movedToBuckets} /> Covered from Free to Spend
+							</>
+						) : null}
+					</>
+				) : undefined
 			}
 		>
 			<div className="grid gap-3">

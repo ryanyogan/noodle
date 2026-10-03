@@ -155,6 +155,9 @@ export function PlanHistoryList({ month, targetId }: { month: MonthKey; targetId
 		return <p className="text-[13px] text-muted-foreground">Couldn’t load the history.</p>;
 	}
 	const { changes, historyStart } = history.data;
+	// When history starts matters only when the list is empty or cut short: its oldest change
+	// edits something that was already there before the log began.
+	const cutShort = changes.length === 0 || changes[changes.length - 1]?.before !== null;
 	return (
 		<div className="grid gap-2">
 			{changes.length > 0 ? (
@@ -170,7 +173,7 @@ export function PlanHistoryList({ month, targetId }: { month: MonthKey; targetId
 					))}
 				</List>
 			) : null}
-			<HistoryStart day={historyStart} />
+			{cutShort ? <HistoryStart day={historyStart} /> : null}
 		</div>
 	);
 }

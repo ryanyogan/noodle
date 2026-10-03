@@ -1,11 +1,11 @@
 import { monthOfDay } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import { Money } from "@noodle/ui/components/money";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PlanGoals } from "../../../components/plan-goals";
 import { PlanSubPage } from "../../../components/plan-page";
 import { SectionPending } from "../../../components/section-layout";
-import { formatMoney } from "../../../format";
 import { goalsQuery, useMonthState } from "../../../queries";
 
 export const Route = createFileRoute("/_authed/_household/plan/$month/goals")({
@@ -27,9 +27,11 @@ function PlanGoalsPage() {
 		<PlanSubPage
 			editable={state.editable}
 			summary={
-				state.fundedGoals > 0
-					? `${formatMoney(state.fundedGoals)} funded from Free to Spend this month`
-					: undefined
+				state.fundedGoals > 0 ? (
+					<>
+						<Money cents={state.fundedGoals} /> funded from Free to Spend this month
+					</>
+				) : undefined
 			}
 		>
 			{funding ? (
