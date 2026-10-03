@@ -64,7 +64,7 @@ Never let the CLI overwrite a file here.
 | --- | --- | --- |
 | `--gutter` | 16px, 40px from lg | The page's side padding (the shell). |
 | `--layout-gap` | 32px | The one gutter: between columns, and between the blocks stacked in a column. |
-| `--rail-width` | 360px | SplitLayout's rail. |
+| `--rail-width` | 320px below 1280, 360px from 1280 | SplitLayout's rail; narrower below 1280 so the main column stays the wider one. |
 | `--list-pane-width` | 360px | MasterDetail's list pane. |
 | `--reading-width` | 48rem | `PageLayout width="reading"`: the widest a page of prose or forms gets. |
 | (shell) | 1200px, 1440px when the route has `staticData: { wide: true }` | The max content width, gutters included. |

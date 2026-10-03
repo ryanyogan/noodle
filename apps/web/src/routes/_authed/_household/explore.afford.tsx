@@ -208,7 +208,7 @@ function CheckLayout({
 		// The answer takes the wide column and stays in view while it fits the window (what SplitRail
 		// does, whichever column it is in); the Check's questions take the narrow one, 320px below
 		// 1280 so the answer stays the wider of the two (#73).
-		<SplitLayout className="lg:grid-cols-[minmax(0,1fr)_20rem] xl:grid-cols-[minmax(0,1fr)_var(--rail-width)]">
+		<SplitLayout>
 			<SplitRail className="@container/answer">{answer}</SplitRail>
 			<SplitMain>
 				<p className="sticky top-[var(--safe-top)] z-10 -mx-(--gutter) flex items-baseline justify-between gap-3 bg-background/85 px-(--gutter) py-2 backdrop-blur-xl lg:hidden">

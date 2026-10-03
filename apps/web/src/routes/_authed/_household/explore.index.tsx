@@ -411,10 +411,7 @@ function Explore({ search }: { search: ExploreSearch }) {
 				accounts={accounts}
 				onDraft={setDraft}
 			/>
-			<SplitLayout
-				stack="children"
-				className="lg:grid-cols-[minmax(0,1fr)_20rem] xl:grid-cols-[minmax(0,1fr)_var(--rail-width)]"
-			>
+			<SplitLayout stack="children">
 				{/* Beside the Changes, the outcome takes the wide column and stays in view while it fits
 				    the window (what SplitRail does, whichever column it is in); taller, it scrolls with the
 				    page. On phones its parts sit in the page, the totals last. */}

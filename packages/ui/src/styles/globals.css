@@ -137,9 +137,16 @@
 	--safe-right: env(safe-area-inset-right, 0px);
 	/* The page grid (components/layout.tsx): one gutter, and one width for each kind of column. */
 	--layout-gap: 32px;
-	--rail-width: 360px;
+	/* 320px from 1024 to 1280, so the main column stays the wider one there; 360px above (#73). */
+	--rail-width: 320px;
 	--list-pane-width: 360px;
 	--reading-width: 48rem;
+}
+
+@media (min-width: 80rem) {
+	:root {
+		--rail-width: 360px;
+	}
 }
 
 @media (prefers-color-scheme: dark) {
