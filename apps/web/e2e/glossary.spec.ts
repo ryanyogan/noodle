@@ -69,12 +69,8 @@ test("a term's help explains it in place and leads to the Glossary", async ({ br
 		page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Glossary" }),
 	).toHaveCount(0);
 
-	// The page is still there to link to, from Household.
-	await page
-		.getByRole("navigation", { name: "Main" })
-		.getByRole("link", { name: "Household" })
-		.click();
-	await page.getByRole("link", { name: "the Glossary" }).click();
+	// The page is still there to link to, from each term's help.
+	await page.goto("/glossary");
 	await expect(heading(page)).toHaveText("Glossary");
 	await expect(page.getByRole("term").filter({ hasText: "Take-home pay" })).toBeVisible();
 	await page.goto("/glossary#sweep");

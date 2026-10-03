@@ -535,7 +535,7 @@ function InviteStep({
 			intro={
 				data.hasAllParents
 					? "Both Parents are in this Household. You share one Plan."
-					: "You share one Plan: you both see the same bills and Buckets, and each adds what they spend. You can also do this later, from Household."
+					: "You share one Plan: you both see the same bills and Buckets, and each adds what they spend. You can also do this later, from Household settings."
 			}
 			primary="Continue"
 			onBack={onBack}

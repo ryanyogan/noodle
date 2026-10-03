@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { createPlannedHousehold, signedInPage } from "./session";
@@ -16,6 +17,16 @@ const children = (page: Page) =>
 	page.getByRole("region", { name: "Children" }).getByRole("listitem");
 const sheet = (page: Page) => page.getByRole("dialog", { name: "Quick Add" });
 const costOf = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
+
+async function expectNoAxeViolations(page: Page, what: string) {
+	const { violations } = await new AxeBuilder({ page })
+		.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+		.analyze();
+	expect(
+		violations.map((v) => `${v.id}: ${v.help}`),
+		`${what}: axe violations`,
+	).toEqual([]);
+}
 
 async function goToHousehold(page: Page) {
 	await page.goto("/household");
@@ -53,26 +64,30 @@ test("a Parent adds, renames, recolours, and removes Children", async ({ browser
 	await addChild(page, "Leo");
 	await expect(children(page)).toHaveCount(2);
 
+	// The pencil opens the Child's sheet (#51): name and colour, saved together.
 	await page.getByRole("button", { name: "Edit Leo" }).click();
-	const name = children(page).filter({ hasText: "Leo" }).getByLabel("Name");
-	await name.fill("Leon");
-	await page.getByRole("button", { name: "Rename" }).click();
+	const leoSheet = page.getByRole("dialog", { name: "Leo" });
+	await expect(leoSheet).toBeVisible();
+	await expectNoAxeViolations(page, "Child sheet");
+	await leoSheet.getByLabel("Name").fill("Leon");
+	await leoSheet.getByRole("radio", { name: "Violet" }).check();
+	await leoSheet.getByRole("button", { name: "Save" }).click();
+	await expect(leoSheet).toBeHidden();
 	await expect(page.getByRole("button", { name: "Edit Leon" })).toBeVisible();
-	const leon = children(page).filter({ has: page.getByRole("button", { name: "Edit Leon" }) });
-	await leon.getByRole("radio", { name: "Violet" }).check();
-	await expect(leon.getByRole("radio", { name: "Violet" })).toBeChecked();
 
 	await page.reload();
 	await expect(page.getByRole("button", { name: "Edit Leon" })).toBeVisible();
 	await page.getByRole("button", { name: "Edit Leon" }).click();
-	await expect(children(page).getByRole("radio", { name: "Violet" })).toBeChecked();
+	await expect(
+		page.getByRole("dialog", { name: "Leon" }).getByRole("radio", { name: "Violet" }),
+	).toBeChecked();
+	await page.keyboard.press("Escape");
 
 	await page.getByRole("button", { name: "Edit Maya" }).click();
-	await children(page)
-		.filter({ hasText: "Maya" })
-		.getByRole("button", { name: "Remove", exact: true })
-		.click();
+	const maya = page.getByRole("dialog", { name: "Maya" });
+	await maya.getByRole("button", { name: "Remove", exact: true }).click();
 	await page.getByRole("button", { name: "Remove Maya" }).click();
+	await expect(maya).toBeHidden();
 	await expect(children(page)).toHaveCount(1);
 	await page.reload();
 	await expect(children(page)).toHaveCount(1);

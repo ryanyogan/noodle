@@ -81,7 +81,7 @@ export async function receiveCapture(request: Request, deps: CaptureDeps): Promi
 	if (!found) {
 		return json(
 			401,
-			{ error: "That capture token isn’t valid. Make a new one in Noodle, on the Household page." },
+			{ error: "That capture token isn’t valid. Make a new one in Noodle, in Household settings." },
 			{ "WWW-Authenticate": "Bearer" },
 		);
 	}

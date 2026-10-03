@@ -96,6 +96,15 @@ export async function createHouseholdForParent(
 	return created;
 }
 
+/** Changes the Household's name and time zone, which decides which month "today" is in. */
+export async function setHouseholdDetails(
+	db: Db,
+	householdId: string,
+	details: { name: string; timeZone: string },
+): Promise<void> {
+	await db.update(households).set(details).where(eq(households.id, householdId));
+}
+
 export async function listParents(db: Db, householdId: string): Promise<Member[]> {
 	return db.select().from(members).where(parentsOf(householdId)).orderBy(members.createdAt);
 }

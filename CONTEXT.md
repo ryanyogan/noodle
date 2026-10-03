@@ -166,7 +166,7 @@ _Avoid_: Dedupe, merge, reconcile
 
 **Setup**:
 The step-by-step start a new Household is walked through after it's created: how spending comes in (a bank, a statement, or by hand), Take-home pay, bills, Buckets, one Goal, inviting the other Parent, and a summary ending in Free to Spend.
-Each step lands on the Plan as it's finished, and leaving and coming back resumes. With a bank or a statement, Noodle reads the spending in the background and fills in amounts marked "Suggested from your spending", never replacing what a Parent typed. A Parent can run it again from Household, which changes what's there. The other Parent, on joining, gets "Here's your Household" instead.
+Each step lands on the Plan as it's finished, and leaving and coming back resumes. With a bank or a statement, Noodle reads the spending in the background and fills in amounts marked "Suggested from your spending", never replacing what a Parent typed. A Parent can run it again from Household settings, which changes what's there. The other Parent, on joining, gets "Here's your Household" instead.
 _Avoid_: Onboarding, tour, wizard (in the app's own words)
 
 **Check-in**:
@@ -249,6 +249,7 @@ _Avoid_: Calculator, affordability calculator
 
 **Household**:
 The family unit that shares one Plan and one pool of money.
+Its name, time zone, Members, Check-in day, Nudges and ways of bringing in spending are set on **Household settings**, a page of settings only; reports about the Household live in Reports.
 _Avoid_: Account, family, workspace
 
 **Member**:

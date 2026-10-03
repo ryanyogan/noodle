@@ -3,12 +3,13 @@ import {
 	findInviteForEmails,
 	findMembershipByClerkUser,
 	type InviteToJoin,
+	setHouseholdDetails,
 } from "@noodle/db";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { currentUserId, requireUserId, verifiedEmails } from "./auth";
 import { getDb } from "./db";
-import { type HouseholdSummary, toHouseholdSummary } from "./household";
+import { type HouseholdSummary, householdMiddleware, toHouseholdSummary } from "./household";
 import { ulidSchema } from "./schemas";
 
 export type Viewer =
@@ -59,4 +60,12 @@ export const createHousehold = createServerFn({ method: "POST" })
 		const clerkUserId = await requireUserId();
 		const { household } = await createHouseholdForParent(getDb(), { ...data, clerkUserId });
 		return toHouseholdSummary(household);
+	});
+
+/** Household settings: the Household's name and time zone, which both Parents share. */
+export const updateHousehold = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ name: z.string().trim().min(1).max(80), timeZone: timeZoneSchema }))
+	.handler(async ({ data, context }) => {
+		await setHouseholdDetails(getDb(), context.household.id, data);
 	});

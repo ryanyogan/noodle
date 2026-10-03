@@ -66,7 +66,7 @@ test("a seeded Check-in walks Review, Insights and Extra income to a done state"
 
 	// Today is the Check-in day, so this week's starts today.
 	const { day, weekday } = today();
-	await page.getByRole("link", { name: "Household", exact: true }).click();
+	await page.getByRole("link", { name: /^Household( settings)?$/ }).click();
 	const checkInDay = page.getByRole("combobox", { name: "Check-in day" });
 	await expect(checkInDay).toHaveText("Sunday");
 	const saved = savedBy(page, "setCheckInDay");

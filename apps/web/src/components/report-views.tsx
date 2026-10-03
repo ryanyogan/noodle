@@ -1509,7 +1509,7 @@ function PeopleView({ report, data, names, nav, tables, search }: ViewProps<"peo
 					/>
 				) : (
 					<p className="text-sm text-muted-foreground">
-						Add Children on the Household page to see their costs.
+						Add Children in Household settings to see their costs.
 					</p>
 				)}
 			</ChartCard>

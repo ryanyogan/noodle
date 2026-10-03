@@ -84,9 +84,15 @@ export const navGroups: NavGroup[] = [
 		label: "Household",
 		items: [
 			// Weekly. On a phone it's reached from This Month's card on the day, its Nudge and email,
-			// and Household.
+			// and Household settings.
 			{ label: "Check-in", icon: CalendarCheck, to: "/check-in", badge: "check-in" },
-			{ label: "Household", icon: UsersRound, to: "/household", tab: { label: "Household" } },
+			// The tab keeps the short name: "Household settings" doesn't fit four tabs at 320 px.
+			{
+				label: "Household settings",
+				icon: UsersRound,
+				to: "/household",
+				tab: { label: "Household" },
+			},
 			// Not a destination: it opens over the page. On a phone it's the help icon in the row above
 			// This Month's header, and every term's help popover.
 			{ label: "Glossary", icon: BookOpen, action: "glossary" },

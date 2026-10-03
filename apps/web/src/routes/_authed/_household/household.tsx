@@ -7,16 +7,18 @@ import { PageLayout } from "@noodle/ui/components/layout";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionGroup, SectionHeader } from "@noodle/ui/components/section";
+import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated, useRouter } from "@tanstack/react-router";
-import { BookOpen, Landmark, Pencil, Plus, UserRoundMinus } from "lucide-react";
+import { Landmark, Pencil, Plus, UserRoundMinus } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram, nextBucketColor } from "../../../buckets";
 import { CaptureSettings } from "../../../components/capture-settings";
 import { CheckInSettings } from "../../../components/check-in-settings";
 import { ColourPicker } from "../../../components/colour-picker";
+import { HouseholdDetails } from "../../../components/household-details";
 import { InviteOtherParent } from "../../../components/invite-other-parent";
 import { NudgeSettings } from "../../../components/nudge-settings";
 import { Confirm, SaveFailed } from "../../../components/plan-editing";
@@ -67,7 +69,7 @@ function HouseholdPage() {
 	return (
 		<>
 			<PageHeader
-				eyebrow="Household"
+				eyebrow="Household settings"
 				title={household.name}
 				actions={
 					// On phones Accounts lives here and on Transactions; the sidebar has its own link.
@@ -82,6 +84,9 @@ function HouseholdPage() {
 			{/* A settings page (#69): one column of groups, each a short heading over what a Parent sets. */}
 			<PageLayout width="reading">
 				<div className="grid gap-10">
+					<SectionGroup id="household" title="Household">
+						<HouseholdDetails household={household} />
+					</SectionGroup>
 					<SectionGroup id="people" title="People">
 						<Section aria-labelledby="parents">
 							<SectionHeader id="parents" title="Parents" count={data.parents.length} />
@@ -142,21 +147,6 @@ function HouseholdPage() {
 					</SectionGroup>
 					<SectionGroup id="setup" title="Setup">
 						<RunSetupAgain />
-						<Card className="flex items-center gap-3 p-(--card-pad) text-sm text-muted-foreground">
-							<Tile>
-								<BookOpen />
-							</Tile>
-							<p>
-								What Free to Spend, a Bucket, a Sweep and the rest mean, in plain words:{" "}
-								<Link
-									to="/glossary"
-									className="font-medium text-foreground underline underline-offset-2"
-								>
-									the Glossary
-								</Link>
-								.
-							</p>
-						</Card>
 					</SectionGroup>
 					{/* The sidebar has the account button from lg; a phone has it here. */}
 					<SectionGroup id="account" title="Account" className="lg:hidden">
@@ -175,7 +165,7 @@ function HouseholdPage() {
 	);
 }
 
-/** A Child, with their name and colour to change, or to remove from the Household. */
+/** A Child, with a link to what they cost and a pencil that opens their sheet. */
 function ChildRow({
 	child,
 	onRemove,
@@ -185,119 +175,150 @@ function ChildRow({
 }) {
 	const hydrated = useHydrated();
 	const [open, setOpen] = useState(false);
-	const detailsId = useId();
+	const details = useMemberChange({
+		save: (data: { memberId: string; name?: string; color?: number }) => updateChild({ data }),
+		apply: withChildDetails,
+	});
 	return (
 		<ListRow
 			leading={<Tile bucket={asBucketColor(child.color ?? 1)}>{monogram(child.name)}</Tile>}
 			title={child.name}
 			meta={
-				<span className="flex flex-wrap gap-x-3">
+				<span className="flex flex-wrap items-center gap-x-3">
 					<span>Child</span>
-					{/* What a Child cost is a report, so it lives in Reports › People (#69). */}
+					{/* What a Child cost is a report, so it lives in Reports › People (#69). A quiet link, but
+					    44 px tall below lg so a thumb finds it; the negative margin keeps the row's height. */}
 					<Link
 						to="/reports"
 						search={{ view: "people", member: child.id }}
-						className="underline underline-offset-2 hover:text-foreground"
+						className="inline-flex items-center underline underline-offset-2 hover:text-foreground max-lg:-my-3 max-lg:min-h-11"
 					>
 						See what {child.name} costs
 					</Link>
 				</span>
 			}
 			trailing={
-				<Button
-					variant="ghost"
-					size="icon"
-					type="button"
-					disabled={!hydrated}
-					aria-label={`Edit ${child.name}`}
-					aria-expanded={open}
-					aria-controls={detailsId}
-					onClick={() => setOpen(!open)}
-				>
-					<Pencil />
-				</Button>
+				<>
+					<Button
+						variant="ghost"
+						size="icon"
+						type="button"
+						disabled={!hydrated}
+						aria-label={`Edit ${child.name}`}
+						onClick={() => setOpen(true)}
+					>
+						<Pencil />
+					</Button>
+					<ChildSheet
+						child={child}
+						open={open}
+						onOpenChange={setOpen}
+						onSave={(change) => details.mutate({ memberId: child.id, ...change })}
+						onRemove={() => onRemove(child.id)}
+					/>
+				</>
 			}
-			below={
-				open ? (
-					<div id={detailsId}>
-						<ChildDetails child={child} onRemove={onRemove} />
-					</div>
-				) : undefined
-			}
+			below={details.isError ? <SaveFailed change={details} /> : undefined}
 		/>
 	);
 }
 
-function ChildDetails({
+type ChildChange = { name?: string; color?: number };
+
+/** A Child's sheet (#51): their name and colour, saved together, or removing them. */
+function ChildSheet({
 	child,
+	open,
+	onOpenChange,
+	onSave,
 	onRemove,
 }: {
 	child: MemberSummary;
-	onRemove: (memberId: string) => void;
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	onSave: (change: ChildChange) => void;
+	onRemove: () => void;
 }) {
+	const hydrated = useHydrated();
 	const nameId = useId();
+	const [name, setName] = useState(child.name);
+	const [color, setColor] = useState(child.color ?? 1);
 	const [confirmRemove, setConfirmRemove] = useState(false);
-	// The colour just picked, shown until the cache catches up (or rolls back).
-	const [pickedColor, setPickedColor] = useState<number | null>(null);
-	const details = useMemberChange({
-		save: (data: { memberId: string; name?: string; color?: number }) => updateChild({ data }),
-		apply: withChildDetails,
-	});
+	const trimmed = name.trim();
+	const change: ChildChange = {
+		...(trimmed !== child.name ? { name: trimmed } : {}),
+		...(color !== (child.color ?? 1) ? { color } : {}),
+	};
+	const dirty = Object.keys(change).length > 0;
 
-	function rename(event: FormEvent<HTMLFormElement>) {
+	function close() {
+		setName(child.name);
+		setColor(child.color ?? 1);
+		setConfirmRemove(false);
+		onOpenChange(false);
+	}
+
+	function onSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		const name = String(new FormData(event.currentTarget).get("name") ?? "").trim();
-		if (name && name !== child.name) details.mutate({ memberId: child.id, name });
+		if (!trimmed) return;
+		// The row shows the change at once (and says so if it didn't save).
+		if (dirty) onSave(change);
+		onOpenChange(false);
 	}
 
 	return (
-		<div className="grid gap-4 rounded-xl bg-surface-2 p-3">
-			<SaveFailed change={details} />
-			<form onSubmit={rename}>
-				<Field label="Name" htmlFor={nameId}>
-					<div className="flex gap-2">
-						<Input
-							id={nameId}
-							name="name"
-							required
-							maxLength={40}
-							defaultValue={child.name}
-							className="bg-card"
-						/>
-						<Button type="submit" variant="outline">
-							Rename
+		<Sheet open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
+			{open ? (
+				<SheetContent>
+					<SheetHeader title={child.name} description="Child" />
+					<form onSubmit={onSubmit} className="grid gap-4">
+						<Field label="Name" htmlFor={nameId}>
+							<Input
+								id={nameId}
+								name="name"
+								required
+								maxLength={40}
+								autoComplete="off"
+								value={name}
+								onChange={(event) => setName(event.currentTarget.value)}
+							/>
+						</Field>
+						<ColourPicker value={color} onChange={setColor} />
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="justify-self-start"
+							onClick={() => setConfirmRemove(true)}
+						>
+							<UserRoundMinus />
+							Remove
 						</Button>
-					</div>
-				</Field>
-			</form>
-			<ColourPicker
-				value={pickedColor ?? child.color ?? 1}
-				onChange={(color) => {
-					setPickedColor(color);
-					details.mutate({ memberId: child.id, color }, { onSettled: () => setPickedColor(null) });
-				}}
-			/>
-			<Button
-				type="button"
-				variant="ghost"
-				size="sm"
-				className="justify-self-end"
-				onClick={() => setConfirmRemove(true)}
-			>
-				<UserRoundMinus />
-				Remove
-			</Button>
-			{confirmRemove ? (
-				<Confirm
-					onConfirm={() => onRemove(child.id)}
-					onCancel={() => setConfirmRemove(false)}
-					confirmLabel={`Remove ${child.name}`}
-				>
-					{child.name} can no longer be picked for new spending. Spending already For {child.name}{" "}
-					keeps it.
-				</Confirm>
+						{confirmRemove ? (
+							<Confirm
+								onConfirm={() => {
+									onRemove();
+									onOpenChange(false);
+								}}
+								onCancel={() => setConfirmRemove(false)}
+								confirmLabel={`Remove ${child.name}`}
+							>
+								{child.name} can no longer be picked for new spending. Spending already For{" "}
+								{child.name} keeps it.
+							</Confirm>
+						) : null}
+						<SheetFooter className="max-lg:grid-cols-2">
+							<Button type="button" variant="outline" onClick={close}>
+								Cancel
+							</Button>
+							<Button type="submit" disabled={!hydrated || !trimmed || !dirty}>
+								Save
+							</Button>
+						</SheetFooter>
+					</form>
+				</SheetContent>
 			) : null}
-		</div>
+		</Sheet>
 	);
 }
 
