@@ -212,24 +212,27 @@ function GoalsPage() {
 	);
 }
 
-/** A Goal: its name, how it's doing, and saved of target with a quiet bar. */
 /**
- * Goals as one list card, or from a wide screen up a 2-column grid of Goal cards (#51): the
- * list's card steps aside (`contents`) and each row becomes a card of its own.
+ * Goals as one list card, or a 2-column grid of Goal cards when the list itself is wide (#51):
+ * a container query, not a viewport one, since beside a Goal the list is the narrow master pane.
+ * In the grid the list's card steps aside (`contents`) and each row becomes a card of its own.
  */
 function GoalList({ children }: { children: ReactNode }) {
 	return (
-		<Card className="xl:contents">
-			<ul
-				data-slot="list"
-				className="[&>li+li]:border-t xl:grid xl:grid-cols-2 xl:items-stretch xl:gap-3 xl:[&>li]:grid xl:[&>li]:overflow-hidden xl:[&>li]:rounded-xl xl:[&>li]:border xl:[&>li]:bg-card xl:[&>li]:shadow-xs"
-			>
-				{children}
-			</ul>
-		</Card>
+		<div className="@container min-w-0">
+			<Card className="@2xl:contents">
+				<ul
+					data-slot="list"
+					className="[&>li+li]:border-t @2xl:grid @2xl:grid-cols-2 @2xl:items-stretch @2xl:gap-3 @2xl:[&>li]:grid @2xl:[&>li]:overflow-hidden @2xl:[&>li]:rounded-xl @2xl:[&>li]:border @2xl:[&>li]:bg-card @2xl:[&>li]:shadow-xs"
+				>
+					{children}
+				</ul>
+			</Card>
+		</div>
 	);
 }
 
+/** A Goal: its name, how it's doing, and saved of target with a quiet bar. */
 function GoalItem({
 	goal,
 	month,
