@@ -284,7 +284,7 @@ function BackToBuckets({ month }: { month: MonthKey }) {
 	);
 }
 
-/** What's left of what it has this month, where that came from, and its Pace. */
+/** What's left of what it has this month (or how far over, headed to match), where that came from, and its Pace. */
 function ThisMonth({ bucket }: { bucket: BucketState }) {
 	const parts = availableParts(bucket);
 	return (
@@ -292,7 +292,7 @@ function ThisMonth({ bucket }: { bucket: BucketState }) {
 			<div className="grid gap-3 p-(--card-pad)">
 				<div className="flex flex-wrap items-center justify-between gap-2">
 					<h2 id="bucket-this-month" className="text-[13px] font-medium text-muted-foreground">
-						Left this month
+						{bucket.left < 0 ? "Over this month" : "Left this month"}
 					</h2>
 					<div className="flex flex-wrap items-center gap-1.5">
 						<Badge>{bucket.rolling ? "Carries over" : "Resets monthly"}</Badge>

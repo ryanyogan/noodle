@@ -14,7 +14,7 @@ test.afterEach(async () => {
 
 // The Bucket's name, in the detail's header (the h1 is the Plan's month).
 const heading = (page: Page) => page.locator("[data-slot=detail-title]");
-const thisMonth = (page: Page) => page.getByRole("region", { name: "Left this month" });
+const thisMonth = (page: Page) => page.getByRole("region", { name: /^(Left|Over) this month$/ });
 const editSheet = (page: Page, bucket: string) => page.getByRole("dialog", { name: bucket });
 
 async function quickAdd(page: Page, amount: string, bucket: string, note: string) {

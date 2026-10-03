@@ -66,7 +66,9 @@ async function setCarriesOver(page: Page, bucket: string) {
 	await page.getByRole("radio", { name: /^Carries over/ }).check();
 	await page.getByRole("button", { name: "Save", exact: true }).click();
 	expect((await saved).ok()).toBe(true);
-	await expect(page.getByRole("region", { name: "Left this month" })).toContainText("Carries over");
+	await expect(page.getByRole("region", { name: /^(Left|Over) this month$/ })).toContainText(
+		"Carries over",
+	);
 	await page
 		.getByRole("navigation", { name: "Main" })
 		.getByRole("link", { name: "This Month" })

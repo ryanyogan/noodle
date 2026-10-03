@@ -164,7 +164,7 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 		// Alex's Personal Allowance has a page for Sam too: its totals, and nothing spent from it.
 		await bucketRow(sam, ALEX_PA).getByRole("link", { name: ALEX_PA }).click();
 		await expect(sam.locator("[data-slot=detail-title]:visible")).toContainText(ALEX_PA);
-		const thisMonth = sam.getByRole("region", { name: "Left this month" });
+		const thisMonth = sam.getByRole("region", { name: /^(Left|Over) this month$/ });
 		await expect(thisMonth).toContainText("$58");
 		await expect(thisMonth).toContainText("$92");
 		await expect(sam.getByText("only its Parent sees what’s spent from it")).toBeVisible();
