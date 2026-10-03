@@ -35,6 +35,6 @@ export async function spotSuggestions(
 	return saveSuggestions(db, householdId, [
 		...spotRules(learn.filings, learn.rules),
 		...spotBuckets(inputs.lines, today, inputs.bucketNames),
-		...spotCommitments(inputs.lines, inputs.commitments, today),
+		...spotCommitments(inputs.lines, inputs.commitments, today, inputs.bucketNames),
 	]);
 }

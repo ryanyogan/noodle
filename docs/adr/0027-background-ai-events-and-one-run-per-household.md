@@ -91,11 +91,26 @@ puts away ("Not now").
   "Miscellaneous"…) grouped by kind of merchant, or the merchant itself. A group in 3 or more
   months, with no month over 60% of it, 4 or more charges and $40 or more a month becomes a Bucket
   at its monthly average rounded up to $5. Not for a name the Plan has.
-- **Spot Commitments.** Charges at one merchant, not paying a Commitment and not named like one,
-  whose latest run (up to 6) keeps a monthly (26–35 days), biweekly (12–16) or annual (350–380)
-  gap, within 10% of their median, 3 or more (2 for annual), the latest not overdue by half a
-  period: a Commitment at the median, due one period after the latest. A Commitment whose latest
-  2–3 charges agree and differ from its amount by more than 10%: its new amount.
+- **Spot Commitments (rewritten in #76: real bills only).** A Commitment is a bill, not day-to-day
+  spending that repeats. The payee's kind comes from words in its clean name (`billKindOf`):
+  housing, loan or auto finance, insurance, utilities, telecom, childcare or education, and
+  subscriptions or memberships can be Commitments; eating out, coffee and groceries (the Bucket
+  kinds), fuel, general retail and moving money (`isMoneyMovement`) never are; anything else is
+  "unknown". Its latest run (up to 6 charges) must keep a cadence that kind bills on: monthly
+  (26–35 days) for all, annual (2 charges about a year apart) only for insurance and
+  subscriptions, biweekly (12–16 days) only for loans and childcare. The due day is stable: every
+  charge within 3 days of the usual day of the month (or a year apart within 4 days). The amount
+  is steady: within 10% of the median for fixed bills; utilities and telecom vary with the season,
+  so they're judged within 60% and planned at the recent high (of the last 3); an unknown kind
+  needs 5%, 4 or more charges and monthly only. 3 or more charges otherwise (2 for annual), the
+  latest not overdue by half a period, and a monthly equivalent of at least $25 ($10 for a
+  subscription, $100 for an unknown kind). Not for a payee paying a Commitment, nor one near the
+  name of a Commitment or Bucket the Plan has ("Verizon" covers "Verizon Wireless": the shorter
+  name's words, less noise like Inc, Wireless, .com, lead the longer's). Each comes with a reason
+  in plain words ("Verizon, $85 on the 12th, 4 months running"), kept in its payload. Open ones
+  that no longer qualify are deleted on the next run like any open one no longer found; added
+  Commitments are never touched. A Commitment whose latest 2–3 charges agree and differ from its
+  amount by more than 10%: its new amount.
 - **Deterministic, no model.** Names come from a short list of merchant kinds ("Pets" for Petco,
   Chewy, a vet) or the merchant's clean name. The same spending always gets the same name, it costs
   nothing, it's tested as it runs in production (AI_MODEL=stub changes nothing), and the Parent can

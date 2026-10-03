@@ -29,7 +29,7 @@ One change a Parent made to the Plan (the Take-home pay, an allowance, Resets mo
 _Avoid_: Edit, audit entry, revision
 
 **Commitment**:
-A recurring, predictable obligation (mortgage, insurance, daycare, subscriptions) that is expected every period.
+A fixed obligation the Household has signed up to and pays on a schedule, usually monthly: rent or mortgage, a car payment or other loan, insurance, utilities (electric, gas, water, trash), phone, internet and TV, childcare and tuition, memberships and subscriptions. It is not day-to-day spending that happens to repeat, like fast food, coffee, groceries, fuel or small shop purchases: those belong in Buckets.
 _Avoid_: Bill, fixed expense, recurring
 
 **Coming up**:

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	addDays,
+	billKindOf,
 	type CommitmentNow,
 	cadenceOf,
 	changedALot,
@@ -109,13 +110,17 @@ describe("spotCommitments", () => {
 
 	it("takes 2 charges for annual, 3 otherwise", () => {
 		expect(
-			spotCommitments([line(366, 9_900, "Costco"), line(1, 9_900, "Costco")], [], today)[0],
+			spotCommitments(
+				[line(366, 120_000, "State Farm"), line(1, 120_000, "State Farm")],
+				[],
+				today,
+			)[0],
 		).toMatchObject({ cadence: "annual" });
 		expect(spotCommitments(gym.slice(2), [], today)).toEqual([]);
 	});
 
 	it("skips amounts that wander, stopped charges, and what's a Commitment already", () => {
-		const wander = [92, 61, 31, 1].map((ago, i) => line(ago, 3_000 + i * 1_500, "Comcast"));
+		const wander = [92, 61, 31, 1].map((ago, i) => line(ago, 3_000 + i * 1_500, "Geico"));
 		expect(spotCommitments(wander, [], today)).toEqual([]);
 		const stopped = [152, 121, 91, 60].map((ago) => line(ago, 5_000, "Hulu"));
 		expect(spotCommitments(stopped, [], today)).toEqual([]);
@@ -156,6 +161,117 @@ describe("spotCommitments", () => {
 		expect(spotCommitments(same, [netflix], today)).toEqual([]);
 		const mine = charges.map((l) => ({ ...l, owner: "alex" }));
 		expect(spotCommitments(mine, [netflix], today)).toEqual([]);
+	});
+});
+
+describe("spotCommitments: real bills only (#76)", () => {
+	const on = (dates: string[], cents: number | number[], merchant: string) =>
+		dates.map((date, i) =>
+			line(0, Array.isArray(cents) ? (cents[i] as number) : cents, merchant, {
+				date: date as DayKey,
+			}),
+		);
+	const monthly = (day: string) => ["07", "08", "09"].map((m) => `2026-${m}-${day}`);
+	const names = (lines: SpendLine[], commitments: CommitmentNow[] = [], buckets: string[] = []) =>
+		spotCommitments(lines, commitments, today, buckets).map((i) => i.name);
+
+	it("never suggests fast food, coffee, groceries, fuel or small shop spending", () => {
+		const mcdonalds = [70, 56, 42, 28, 14, 0].map((ago) => line(ago, 1_100, "McDonald's"));
+		const starbucks = [35, 28, 21, 14, 7, 0].map((ago) => line(ago, 650, "Starbucks"));
+		const groceries = on(monthly("10"), 15_000, "Trader Joe's");
+		const fuel = on(monthly("11"), 6_000, "Shell");
+		const shop = on(monthly("12"), 4_000, "Target");
+		expect(names([...mcdonalds, ...starbucks, ...groceries, ...fuel, ...shop])).toEqual([]);
+	});
+
+	it("suggests rent, a car loan, a varying electric bill, a phone bill and Netflix, each with why", () => {
+		const ideas = spotCommitments(
+			[
+				...on(
+					["2026-07-01", "2026-08-01", "2026-09-01", "2026-10-01"],
+					240_000,
+					"Oakwood Apartments",
+				),
+				...on(
+					["2026-06-15", "2026-07-15", "2026-08-15", "2026-09-15"],
+					41_250,
+					"Toyota Financial Services",
+				),
+				...on(
+					["2026-06-20", "2026-07-21", "2026-08-19", "2026-09-20"],
+					[9_210, 16_430, 18_175, 12_840],
+					"PG&E",
+				),
+				...on(monthly("12"), 8_500, "Verizon Wireless"),
+				...on(monthly("05"), 1_549, "Netflix"),
+			],
+			[],
+			today,
+		);
+		const why = Object.fromEntries(
+			ideas.map((i) => [i.name, i.kind === "new-commitment" ? [i.amountCents, i.reason] : []]),
+		);
+		expect(why).toEqual({
+			"Oakwood Apartments": [240_000, "Oakwood Apartments, $2,400 on the 1st, 4 months running"],
+			"Toyota Financial Services": [
+				41_250,
+				"Toyota Financial Services, $412.50 on the 15th, 4 months running",
+			],
+			"PG&E": [18_175, "PG&E, up to $181.75 on the 20th, 4 months running"],
+			"Verizon Wireless": [8_500, "Verizon Wireless, $85 on the 12th, 3 months running"],
+			Netflix: [1_549, "Netflix, $15.49 on the 5th, 3 months running"],
+		});
+	});
+
+	it("suggests an annual insurance premium and a biweekly loan, not a biweekly subscription", () => {
+		const insurance = on(["2025-09-15", "2026-09-15"], 120_000, "State Farm");
+		const loan = [56, 42, 28, 14, 0].map((ago) => line(ago, 21_000, "Honda Financial"));
+		const hulu = [56, 42, 28, 14, 0].map((ago) => line(ago, 2_000, "Hulu"));
+		const ideas = spotCommitments([...insurance, ...loan, ...hulu], [], today);
+		expect(ideas.map((i) => [i.name, i.cadence, i.kind === "new-commitment" && i.reason])).toEqual([
+			["State Farm", "annual", "State Farm, $1,200 a year in September, 2 years running"],
+			["Honda Financial", "biweekly", "Honda Financial, $210 every two weeks, 5 times running"],
+		]);
+	});
+
+	it("wants a stable due day", () => {
+		const drifting = on(
+			["2026-06-10", "2026-07-06", "2026-08-09", "2026-09-04", "2026-10-02"],
+			240_000,
+			"Oakwood Apartments",
+		);
+		expect(names(drifting)).toEqual([]);
+	});
+
+	it("holds a payee of unknown kind to a bigger amount and more charges", () => {
+		const four = ["06", "07", "08", "09"].map((m) => `2026-${m}-08`);
+		expect(names(on(four, 2_500, "Secret Hobby Shop"))).toEqual([]);
+		expect(names(on(four.slice(1), 30_000, "Acme Holdings"))).toEqual([]);
+		expect(names(on(four, 30_000, "Acme Holdings"))).toEqual(["Acme Holdings"]);
+	});
+
+	it("skips a payee the Plan has as a Commitment or a Bucket, by a near name", () => {
+		const verizon: CommitmentNow = {
+			id: "v",
+			name: "Verizon",
+			amountCents: 8_500,
+			cadence: "monthly",
+			dueDate: today,
+		};
+		const phone = on(monthly("12"), 8_500, "Verizon Wireless");
+		expect(names(phone, [verizon]).length).toBe(0);
+		expect(names(on(monthly("05"), 1_549, "NETFLIX.COM"), [], ["Netflix"])).toEqual([]);
+		expect(names(phone, [], ["Groceries", "Phone"])).toEqual(["Verizon Wireless"]);
+	});
+
+	it("tells kinds of bill from day-to-day spending", () => {
+		expect(billKindOf("McDonald's")).toBeNull();
+		expect(billKindOf("Costco")).toBeNull();
+		expect(billKindOf("Online Payment")).toBeNull();
+		expect(billKindOf("Xfinity")).toBe("telecom");
+		expect(billKindOf("Bright Horizons")).toBe("childcare");
+		expect(billKindOf("Amazon Prime")).toBe("subscription");
+		expect(billKindOf("Acme Holdings")).toBe("unknown");
 	});
 });
 

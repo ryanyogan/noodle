@@ -45,7 +45,7 @@ const run = async () => {
 	const inputs = await loadSuggestionInputs(db, householdId, "2025-09-01", "2026-10");
 	return saveSuggestions(db, householdId, [
 		...spotBuckets(inputs.lines, today, inputs.bucketNames),
-		...spotCommitments(inputs.lines, inputs.commitments, today),
+		...spotCommitments(inputs.lines, inputs.commitments, today, inputs.bucketNames),
 	]);
 };
 
@@ -103,16 +103,16 @@ describe("suggestions", () => {
 			month: "2026-07",
 			allowanceCents: 20_000,
 		});
-		for (const [i, date] of ["2026-07-05", "2026-08-05", "2026-09-05", "2026-10-01"].entries()) {
-			await charge(`hobby${i}`, date, 2_500, "Secret Hobby Shop", "sam-pa");
+		for (const [i, date] of ["2026-06-05", "2026-07-05", "2026-08-05", "2026-09-05"].entries()) {
+			await charge(`hobby${i}`, date, 2_500, "Hobby Box Subscription", "sam-pa");
 		}
 		await run();
 		const forSam = await loadOpenSuggestions(db, sam);
 		expect(forSam.map((s) => s.payload.name).sort()).toEqual([
+			"Hobby Box Subscription",
 			"Planet Fitness",
-			"Secret Hobby Shop",
 		]);
-		expect(forSam.find((s) => s.payload.name === "Secret Hobby Shop")?.personal).toBe(true);
+		expect(forSam.find((s) => s.payload.name === "Hobby Box Subscription")?.personal).toBe(true);
 		expect((await loadOpenSuggestions(db, alex)).map((s) => s.payload.name)).toEqual([
 			"Planet Fitness",
 		]);
@@ -156,7 +156,7 @@ describe("suggestions and the first Plan's draft", () => {
 		await run();
 		expect(await loadOpenSuggestions(db, alex)).toEqual([]);
 
-		for (const [i, date] of ["2026-07-05", "2026-08-05", "2026-09-05", "2026-10-01"].entries()) {
+		for (const [i, date] of ["2026-06-05", "2026-07-05", "2026-08-05", "2026-09-05"].entries()) {
 			await charge(`spotify${i}`, date, 1_199, "Spotify");
 		}
 		await run();

@@ -55,6 +55,8 @@ export type CommitmentIdea = {
 	cadence: Cadence;
 	/** The next day it's due, after its latest charge. */
 	dueDate: DayKey;
+	/** Why, in plain words: "Verizon, $85 on the 12th, 4 months running". */
+	reason: string;
 	evidence: Evidence;
 };
 
@@ -216,10 +218,10 @@ export function cadenceOf(dates: DayKey[]): Cadence | null {
 	);
 }
 
-/** Each charge within 10% of their median: a steady amount. */
-const steady = (amounts: number[]) => {
+/** Each charge within `tolerance` (10% unless said) of their median: a steady amount. */
+const steady = (amounts: number[], tolerance = 0.1) => {
 	const mid = median(amounts);
-	return amounts.every((amount) => Math.abs(amount - mid) <= mid * 0.1);
+	return amounts.every((amount) => Math.abs(amount - mid) <= mid * tolerance);
 };
 
 export type CommitmentNow = {
@@ -230,40 +232,246 @@ export type CommitmentNow = {
 	dueDate: DayKey;
 };
 
+// What a Commitment is (CONTEXT.md, #76): a bill the Household signed up to, by kind of payee.
+export const BILL_KINDS = [
+	"housing",
+	"loan",
+	"insurance",
+	"utility",
+	"telecom",
+	"childcare",
+	"subscription",
+] as const;
+export type BillKind = (typeof BILL_KINDS)[number];
+
+const BILLS: [BillKind, RegExp][] = [
+	[
+		"housing",
+		/\b(rent|mortgage|apartments?|apts|property management|properties|hoa|homeowners'? assoc\w*|landlord|realty|mr\.? cooper|rocket mortgage)\b/i,
+	],
+	[
+		"loan",
+		/\b(loans?|auto finance|car payment|financial services|toyota financial|honda financial|ford credit|gm financial|ally auto|capital one auto|chase auto|santander consumer|navient|nelnet|mohela|sallie mae|sofi|upstart)\b/i,
+	],
+	[
+		"insurance",
+		/\b(insurance|insur\w*|assurance|geico|state farm|progressive|allstate|usaa|liberty mutual|farmers|nationwide|lemonade|aflac|metlife|prudential|travelers)\b/i,
+	],
+	[
+		"utility",
+		/\b(electric\w*|energy|power|gas co\w*|natural gas|water|sewer|trash|waste|sanitation|utilit\w*|pg&e|pge|con ?ed|duke energy|xcel|dominion|edison|comed|fpl|republic services)\b/i,
+	],
+	[
+		"telecom",
+		/\b(verizon|at&t|att|t-?mobile|sprint|comcast|xfinity|spectrum|cox|frontier|centurylink|mint mobile|google fi|visible|cricket|boost mobile|wireless|cellular|internet|broadband|fiber|directv|dish|sling)\b/i,
+	],
+	[
+		"childcare",
+		/\b(daycare|day care|child ?care|preschool|montessori|tuition|school|academy|kindercare|bright horizons|learning cent(er|re)|university|college|tutoring)\b/i,
+	],
+	[
+		"subscription",
+		/\b(netflix|hulu|disney\+?|spotify|apple\.com|icloud|youtube|hbo|paramount\+?|peacock|audible|prime video|amazon prime|adobe|microsoft 365|dropbox|patreon|membership|subscription|gym|fitness|ymca|peloton)\b/i,
+	],
+];
+
+// Day-to-day spending that repeats but is never a Commitment: eating out, coffee, groceries (the
+// Bucket kinds above), fuel and general retail. It belongs in a Bucket.
+const NOT_BILL_BUCKETS = ["Coffee", "Eating Out", "Groceries"];
+const NOT_BILLS =
+	/\b(cafe|wendy'?s|chick-fil-a|kitchen|diner|bar|sam'?s club|heb|wegmans|fuel|gas station|shell|chevron|exxon|mobil|bp|arco|valero|speedway|wawa|sunoco|citgo|marathon|quiktrip|circle k|76|amazon(?! prime)|amzn|target|walmart|best buy|ebay|etsy|dollar|tj ?maxx|marshalls|kohl'?s|macy'?s|old navy|home depot|lowe'?s|ikea|cvs|walgreens)\b/i;
+
 /**
- * Spot Commitments: charges at one merchant with a steady amount (within 10%) on a monthly,
- * biweekly or annual cadence, 3 or more of them (2 for annual) and the latest not overdue by more
- * than half a period, that pay no Commitment and aren't named like one: a Commitment with its terms.
+ * The kind of bill a merchant is, by words in its clean name: a BillKind, "unknown" (judged only
+ * on strong amount and regularity), or null when it's day-to-day spending or moving money.
+ */
+export function billKindOf(merchant: string): BillKind | "unknown" | null {
+	if (isMoneyMovement(merchant)) return null;
+	if (NOT_BILL_BUCKETS.includes(bucketNameFor(merchant)) || NOT_BILLS.test(merchant)) return null;
+	return BILLS.find(([, words]) => words.test(merchant))?.[0] ?? "unknown";
+}
+
+export const COMMITMENT_THRESHOLDS = {
+	/** The least a month (monthly equivalent, cents) a payee costs to be a Commitment. */
+	minMonthlyCents: { subscription: 1_000, known: 2_500, unknown: 10_000 },
+	/** How far (days) a charge's day may sit from the usual due day. */
+	dueDayDays: 3,
+	/** How far from the median each charge may be: fixed bills, varying bills, unknown kinds. */
+	tolerance: { fixed: 0.1, varying: 0.6, unknown: 0.05 },
+	/** Charges needed: an unknown kind needs more. Annual takes 2. */
+	minCharges: { known: 3, unknown: 4, annual: 2 },
+};
+
+/** The cadences a kind really bills on: monthly for all; annual and biweekly only where they're real. */
+const CADENCES_FOR: Record<BillKind | "unknown", Cadence[]> = {
+	housing: ["monthly"],
+	loan: ["monthly", "biweekly"],
+	insurance: ["monthly", "annual"],
+	utility: ["monthly"],
+	telecom: ["monthly"],
+	childcare: ["monthly", "biweekly"],
+	subscription: ["monthly", "annual"],
+	unknown: ["monthly"],
+};
+
+/** Bills whose amount moves month to month (seasons, usage): judged on payee and due day. */
+const VARYING: (BillKind | "unknown")[] = ["utility", "telecom"];
+
+const perMonth = (amountCents: number, cadence: Cadence) =>
+	cadence === "biweekly"
+		? (amountCents * 26) / 12
+		: cadence === "annual"
+			? amountCents / 12
+			: amountCents;
+
+const dayOf = (date: DayKey) => Number(date.slice(8));
+
+/** The usual day of the month, when every charge lands within a few days of it (around month end too). */
+const dueDayOf = (dates: DayKey[], cadence: Cadence): number | null => {
+	const t = COMMITMENT_THRESHOLDS.dueDayDays;
+	if (cadence === "biweekly") return dayOf(last(dates));
+	if (cadence === "annual") {
+		const gaps = dates.slice(1).map((date, i) => daysBetween(dates[i] as DayKey, date));
+		return gaps.every((gap) => Math.abs(gap - 365) <= t + 1) ? dayOf(last(dates)) : null;
+	}
+	const days = dates.map(dayOf);
+	const mid = median(days);
+	const near = days.every((day) => {
+		const apart = Math.abs(day - mid);
+		return Math.min(apart, 31 - apart) <= t;
+	});
+	return near ? mid : null;
+};
+
+/** A plan name close to the merchant's: "Verizon" for "Verizon Wireless", "Netflix" for "NETFLIX.COM". */
+const NAME_NOISE =
+	/\b(inc|llc|ltd|co|corp|company|the|wireless|services?|bill|payments?|online|usa?|com)\b/g;
+const coreName = (name: string) =>
+	name
+		.toLowerCase()
+		.replace(/\.com\b/g, "")
+		.replace(/[^a-z0-9& ]+/g, "")
+		.replace(NAME_NOISE, " ")
+		.split(/\s+/)
+		.filter(Boolean);
+
+export function nearName(a: string, b: string): boolean {
+	if (sameName(a, b)) return true;
+	const [x, y] = [coreName(a), coreName(b)];
+	const [short, long] = x.length <= y.length ? [x, y] : [y, x];
+	if (short.join("").length < 3) return false;
+	return short.every((word, i) => long[i] === word);
+}
+
+const MONTH_NAMES = [
+	"January",
+	"February",
+	"March",
+	"April",
+	"May",
+	"June",
+	"July",
+	"August",
+	"September",
+	"October",
+	"November",
+	"December",
+];
+
+const dollars = (cents: number) =>
+	`$${(cents / 100).toLocaleString("en-US", {
+		minimumFractionDigits: cents % 100 ? 2 : 0,
+		maximumFractionDigits: 2,
+	})}`;
+
+const ordinal = (n: number) => {
+	const teen = n % 100 >= 11 && n % 100 <= 13;
+	const suffix = teen ? "th" : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10];
+	return `${n}${suffix ?? "th"}`;
+};
+
+/** Why a Commitment is suggested: "Verizon, $85 on the 12th, 4 months running". */
+function commitmentReason(
+	merchant: string,
+	cadence: Cadence,
+	amountCents: number,
+	varying: boolean,
+	dueDay: number,
+	dates: DayKey[],
+): string {
+	const amount = `${varying ? "up to " : ""}${dollars(amountCents)}`;
+	if (cadence === "biweekly")
+		return `${merchant}, ${amount} every two weeks, ${dates.length} times running`;
+	if (cadence === "annual") {
+		const month = MONTH_NAMES[Number(last(dates).slice(5, 7)) - 1];
+		return `${merchant}, ${amount} a year in ${month}, ${dates.length} years running`;
+	}
+	const months = new Set(dates.map(monthOfDay)).size;
+	return `${merchant}, ${amount} on the ${ordinal(dueDay)}, ${months} months running`;
+}
+
+/**
+ * Spot Commitments (#76): a bill, not day-to-day spending. Charges at one payee whose kind can be a
+ * Commitment (never eating out, coffee, groceries, fuel, retail or moving money), on a cadence that
+ * kind bills on, with a stable due day (within 3 days), a steady amount (within 10%; utilities and
+ * phone within 60%, taken at their recent high; an unknown kind within 5% and 4 or more charges),
+ * 3 or more charges (2 for annual), costing at least $25 a month ($10 for a subscription, $100 for
+ * an unknown kind), the latest not overdue by more than half a period, paying no Commitment and not
+ * near the name of a Commitment or Bucket the Plan has: a Commitment with its terms and a reason.
  * Also a Commitment whose latest charges (2 or more, steady) are more than 10% off what it expects.
  */
 export function spotCommitments(
 	lines: SpendLine[],
 	commitments: CommitmentNow[],
 	today: DayKey,
+	bucketNames: string[] = [],
 ): (CommitmentIdea | AmountIdea)[] {
+	const t = COMMITMENT_THRESHOLDS;
 	const ideas: (CommitmentIdea | AmountIdea)[] = [];
 	const from = addDays(today, -400);
 	const recent = lines.filter((l) => l.amountCents > 0 && l.date > from && l.date <= today);
-	// Paying a card or moving money between accounts repeats too, but it isn't a Commitment.
-	const loose = recent.filter((l) => l.commitmentId === null && !isMoneyMovement(l.merchant));
+	const loose = recent.filter((l) => l.commitmentId === null);
+	const planned = [...commitments.map((c) => c.name), ...bucketNames];
 	for (const group of groupBy(
 		loose,
 		(l) => `${l.owner ?? ""}|${l.merchant.toLowerCase()}`,
 	).values()) {
 		const merchant = head(group).merchant;
-		if (commitments.some((c) => sameName(c.name, merchant))) continue;
+		const kind = billKindOf(merchant);
+		if (!kind) continue;
+		if (planned.some((name) => nearName(name, merchant))) continue;
 		const sorted = [...group].sort((a, b) => a.date.localeCompare(b.date));
 		// The latest steady run of charges: an older price doesn't hide a steady recent one.
 		const run = sorted.slice(-6);
-		const cadence = cadenceOf(run.map((l) => l.date));
-		if (!cadence) continue;
-		if (run.length < (cadence === "annual" ? 2 : 3)) continue;
+		const dates = run.map((l) => l.date);
+		const cadence = cadenceOf(dates);
+		if (!cadence || !CADENCES_FOR[kind].includes(cadence)) continue;
+		const fewest =
+			cadence === "annual"
+				? t.minCharges.annual
+				: kind === "unknown"
+					? t.minCharges.unknown
+					: t.minCharges.known;
+		if (run.length < fewest) continue;
+		const dueDay = dueDayOf(dates, cadence);
+		if (dueDay === null) continue;
+		const varying = VARYING.includes(kind);
 		const amounts = run.map((l) => l.amountCents);
-		if (!steady(amounts)) continue;
+		const tolerance =
+			kind === "unknown" ? t.tolerance.unknown : varying ? t.tolerance.varying : t.tolerance.fixed;
+		if (!steady(amounts, tolerance)) continue;
 		const lastDate = last(run).date;
 		const period = CADENCE_DAYS.find(([c]) => c === cadence)?.[2] ?? 35;
 		if (daysBetween(lastDate, today) > period * 1.5) continue;
-		const amountCents = median(amounts);
+		// A bill that varies is planned at its recent high, so the Plan isn't short in a cold month.
+		const amountCents = varying ? Math.max(...amounts.slice(-3)) : median(amounts);
+		const least =
+			kind === "unknown"
+				? t.minMonthlyCents.unknown
+				: kind === "subscription"
+					? t.minMonthlyCents.subscription
+					: t.minMonthlyCents.known;
+		if (perMonth(amountCents, cadence) < least) continue;
 		ideas.push({
 			kind: "new-commitment",
 			owner: head(group).owner,
@@ -272,6 +480,14 @@ export function spotCommitments(
 			amountCents,
 			cadence,
 			dueDate: nextDue(lastDate, cadence),
+			reason: commitmentReason(
+				merchant,
+				cadence,
+				amountCents,
+				varying && new Set(amounts).size > 1,
+				dueDay,
+				dates,
+			),
 			evidence: {
 				count: run.length,
 				amountCents,
