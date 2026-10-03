@@ -1,6 +1,6 @@
 # The get-started wizard saves as it goes, and a Workflow reads the spending behind it
 
-Status: accepted (2026-10-02, #53)
+Status: accepted (2026-10-02, #53). Re-confirmed (2026-10-03, #72): the final writes stay with the steps, not the Workflow; only background reads (history, filing, suggestions) belong in the Workflow.
 
 ## Context
 
@@ -16,7 +16,7 @@ A new Household got a name form and then an empty This Month with a checklist. T
 - **The bank and the statement come in inside the wizard.** Take-home pay (and Bills, while nothing has come in) starts with a card for the path chosen on Hello. Bank: "Connect your bank" opens Plaid Link there, then Choose Accounts (ADR-0020), then the card names the bank and says how the reading stands. Statement: "Which account is this from?" (an Account there already, or a new one by name and kind, added with `addAccount`), then the file, with the same upload form as an Account's page (`UploadForm`, `useUploadStatement`). The card sits outside the step's own form, so its submit doesn't also submit the step. This replaces the first version, which opened Accounts in a new tab for both. The wizard's upload doesn't offer the statement's closing balance as the Account's balance; an Account's page still does.
 - **One Workflow instance per run.** The instance id is `setup-<household>` for the first run and `setup-<household>-<run>` after. "Run setup again" on Household goes back to Hello with the answers kept and adds one to `run` (kept in the answers, so no migration), so choosing a bank or statement again starts a new instance, while starting twice within a run finds the one already there (`createBatch` skips an existing id).
 - **The other Parent gets `/joined`, not the wizard.** Joining shows "Here's your Household": the Parents, take-home pay, counts of bills, Buckets and Goals, and a field for their own Personal Allowance.
-- **Who is asked to continue.** This Month shows "Continue setup" while setup is started and not finished, or when the Household is brand new. A Household with no progress row that already has take-home pay was set up before the wizard (or through the checklist) and counts as finished.
+- **Who is asked to continue.** This Month shows "Continue setup" while setup is started and not finished, or when the Household is brand new. A Household with no progress row that already has take-home pay was set up before the wizard (or through the checklist) and counts as finished. "Set up later" saves the step it was pressed on, so setting take-home pay from the checklist afterwards doesn't count as finished: "Continue setup" follows the saved step and hides only when Done is reached or a Parent presses "Don’t ask again" (kept in the answers as `dismissed`; "Run setup again" clears it) (#72).
 
 ## Consequences
 
