@@ -9,6 +9,7 @@ import {
 	createPlannedHousehold,
 	signedInPage,
 	uploadStatement,
+	waitForReview,
 } from "./session";
 
 // Key information above the fold (#65): on the busy household (a Plan, 8 months of history, an
@@ -201,6 +202,8 @@ test("Review's card, its Skip and Undo and what it says fit a phone's first scre
 		],
 		true,
 	);
+	// Filing runs in the background after the import (#58); wait until it has.
+	await waitForReview(page, new URL("/review", page.url()).href, "1 of 3");
 	for (const [width, height] of [
 		[393, 852],
 		[375, 667],
