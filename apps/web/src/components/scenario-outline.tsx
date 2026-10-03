@@ -1325,12 +1325,13 @@ function NameField({
 	const [draft, setDraft] = useState(value);
 	return (
 		<label htmlFor={id} className="grid gap-1 text-[13px] text-muted-foreground">
-			<span className="sr-only">{label}</span>
+			{/* In the Add form the field is empty, so its name shows; on a line the name is its own label. */}
+			<span className={keepLast ? "sr-only" : undefined}>{label}</span>
 			<Input
 				id={id}
 				value={draft}
 				maxLength={40}
-				placeholder="Name"
+				placeholder={keepLast ? "Name" : "Such as Car repair"}
 				autoComplete="off"
 				onChange={(event) => {
 					const next = event.currentTarget.value;

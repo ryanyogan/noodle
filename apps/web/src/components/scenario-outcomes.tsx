@@ -848,18 +848,20 @@ function GoalPath({ name, goalId }: { name: string; goalId: string }) {
 		scenario: { label: "Scenario", color: "var(--chart-income)" },
 		...(planned ? { plan: { label: "Plan", color: "var(--subtle-foreground)" } } : {}),
 	};
-	const reached = (month: MonthKey | null) => (month ? shortMonth(month) : "not yet");
+	const reached = (month: MonthKey | null) =>
+		month ? `Reached ${shortMonth(month)}` : "Not reached yet";
 	return (
 		<figure className="grid min-w-0 gap-1">
-			<figcaption className="flex flex-wrap items-baseline justify-between gap-x-2 text-[13px]">
-				<span className="font-medium">
+			<figcaption className="flex items-baseline justify-between gap-x-2 text-[13px]">
+				{/* One line, so a long name doesn't push its chart below its neighbour's. */}
+				<span className="min-w-0 truncate font-medium" title={name}>
 					{name}
 					{goal.added ? <span className="font-normal text-muted-foreground"> · new</span> : null}
 				</span>
-				<span className="text-muted-foreground tabular-nums">
-					Reached {reached(goal.reachedIn)}
+				<span className="shrink-0 text-muted-foreground tabular-nums">
+					{reached(goal.reachedIn)}
 					{planned && planned.reachedIn !== goal.reachedIn
-						? ` (Plan ${reached(planned.reachedIn)})`
+						? ` (Plan: ${planned.reachedIn ? shortMonth(planned.reachedIn) : "not reached yet"})`
 						: null}
 				</span>
 			</figcaption>
