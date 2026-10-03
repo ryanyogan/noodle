@@ -5,7 +5,7 @@ import type { DayKey } from "@noodle/domain";
 import { type HouseholdChange, householdChangesMessage } from "../household-changes";
 import { AiCoalescer, type AiEvent, COALESCE, STUB_COALESCE } from "./ai-coalescer";
 import { runAiBatch } from "./ai-run";
-import { categorizeDeps } from "./categorize";
+import { categorizeDeps, merchantNamer } from "./categorize";
 import { getDb } from "./db";
 import { type HouseholdEvent, HouseholdNudges } from "./nudge-agent";
 import type { ScheduledNudge } from "./nudge-content";
@@ -77,6 +77,9 @@ export class HouseholdAgent extends DurableObject<Env> {
 			runAiBatch(
 				{
 					...categorizeDeps(),
+					namer: merchantNamer(),
+					again: () =>
+						this.ai.queue({ householdId: batch.householdId, kind: "backfill-merchants" }),
 					parents: async (householdId) =>
 						(await listMembers(getDb(), householdId))
 							.filter((member) => member.kind === "parent" && !member.removed)

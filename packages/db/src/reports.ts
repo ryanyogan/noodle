@@ -73,18 +73,21 @@ const isSplit = sql`exists (select 1 from ${splits} where ${splits.transactionId
  */
 const counted = (): SQL => counts(transactions.id);
 
-/** A merchant, as a Report groups them: the note, trimmed and lower-cased ("" when there's none). */
+/** What a merchant is called: its clean name once named (ADR-0027), else the note. */
+const called = () => sql`coalesce(${transactions.merchant}, ${transactions.note}, '')`;
+
+/** A merchant, as a Report groups them: its name, trimmed and lower-cased ("" when there's none). */
 const merchantKey = (viewer: Viewer, from: Parts["from"]) =>
 	from === "whole"
-		? sql<string>`lower(trim(coalesce(${transactions.note}, '')))`
+		? sql<string>`lower(trim(${called()}))`
 		: // A split Transaction partly in the other Parent's Personal Allowance shows them no note.
-			sql<string>`case when ${partlyPrivate(viewer)} then '' else lower(trim(coalesce(${transactions.note}, ''))) end`;
+			sql<string>`case when ${partlyPrivate(viewer)} then '' else lower(trim(${called()})) end`;
 
-/** The note a merchant is shown by (any one of its spellings). */
+/** The name a merchant is shown by (any one of its spellings). */
 const merchantName = (viewer: Viewer, from: Parts["from"]) =>
 	from === "whole"
-		? sql<string>`max(trim(coalesce(${transactions.note}, '')))`
-		: sql<string>`max(case when ${partlyPrivate(viewer)} then '' else trim(coalesce(${transactions.note}, '')) end)`;
+		? sql<string>`max(trim(${called()}))`
+		: sql<string>`max(case when ${partlyPrivate(viewer)} then '' else trim(${called()}) end)`;
 
 const targetOf = (parts: Pick<Parts, "bucketId" | "commitmentId" | "goalId">) =>
 	sql<Target>`case when ${parts.bucketId} is not null then 'bucket:' || ${parts.bucketId} when ${parts.commitmentId} is not null then 'commitment:' || ${parts.commitmentId} when ${parts.goalId} is not null then 'goal:' || ${parts.goalId} else 'unassigned' end`;

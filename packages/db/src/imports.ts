@@ -167,6 +167,7 @@ export async function importStatement(
 						externalId: sql<string>`${lineField("externalId")}`.as("external_id"),
 						capturedVia: sql<string | null>`null`.as("captured_via"),
 						pending: sql<boolean>`${lineField("pending")}`.as("pending"),
+						merchant: sql<string | null>`null`.as("merchant"),
 					})
 					.from(sql`json_each(${JSON.stringify(spending)})`)
 					.where(theImport),

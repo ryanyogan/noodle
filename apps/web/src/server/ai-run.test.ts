@@ -17,6 +17,7 @@ import type { HouseholdChange } from "../household-changes";
 import { type AiBatch, foldEvent } from "./ai-coalescer";
 import { runAiBatch } from "./ai-run";
 import { type BucketChoice, type Classifier, memoryMerchants } from "./categorize-model";
+import { stubNamer } from "./merchant-model";
 
 const householdId = "household";
 const month = "2026-09";
@@ -46,6 +47,7 @@ const deps = (classifier: Classifier) => ({
 	db,
 	classifier,
 	merchants: memoryMerchants(),
+	namer: stubNamer,
 	parents: async () => ["alex", "sam"],
 	notify: async (changes: HouseholdChange[]) => void notified.push(changes),
 });
@@ -260,5 +262,62 @@ describe("a background AI run keeps each Parent's Personal Allowance private", (
 		}
 		expect(model.offered.some((b) => b.some((x) => x.id === "sam-pa"))).toBe(true);
 		expect(model.offered.some((b) => b.some((x) => x.id === "alex-pa"))).toBe(true);
+	});
+});
+
+describe("a background AI run names merchants first", () => {
+	const merchantOf = async (note: string) =>
+		(await db.select().from(transactions)).filter((t) => t.note === note).map((t) => t.merchant);
+	const imported = (id: string) =>
+		batchOf({ householdId, kind: "imported", memberId: "alex", ids: [id] });
+
+	it("names what the normaliser settles without asking the model", async () => {
+		const asked: string[][] = [];
+		const namer = { name: async (raws: string[]) => (asked.push(raws), new Map<string, string>()) };
+		const id = await importLines("alex", [line("COSTCO WHSE #1042 SEATTLE WA", 120)]);
+		await runAiBatch({ ...deps(namingModel().classifier), namer }, imported(id));
+		expect(await merchantOf("COSTCO WHSE #1042 SEATTLE WA")).toEqual(["Costco"]);
+		expect(asked).toEqual([]);
+	});
+
+	it("asks the model for leftovers once, in one prompt, and keeps its names for the Household", async () => {
+		const asked: string[][] = [];
+		const namer = {
+			name: async (raws: string[]) => (
+				asked.push(raws), new Map(raws.map((raw) => [raw, "Patreon"]))
+			),
+		};
+		const first = await importLines("alex", [
+			line("CKO*PATREON* MEMBERSHIP", 5),
+			line("MRKTPLC SVCS 88123", 9),
+		]);
+		await runAiBatch({ ...deps(namingModel().classifier), namer }, imported(first));
+		expect(asked).toHaveLength(1);
+		expect(asked[0]).toHaveLength(2);
+		expect(await merchantOf("CKO*PATREON* MEMBERSHIP")).toEqual(["Patreon"]);
+
+		const fresh = {
+			...line("CKO*PATREON* MEMBERSHIP", 5),
+			date: "2026-09-20" as StatementLine["date"],
+		};
+		const second = await importLines("alex", [fresh]);
+		await runAiBatch({ ...deps(namingModel().classifier), namer }, imported(second));
+		expect(asked).toHaveLength(1);
+		expect(await merchantOf("CKO*PATREON* MEMBERSHIP")).toEqual(["Patreon", "Patreon"]);
+	});
+
+	it("keeps the normaliser's guess when the model fails, and leaves Quick Adds' notes alone", async () => {
+		const namer = {
+			name: async (): Promise<Map<string, string>> => {
+				throw new Error("down");
+			},
+		};
+		const id = await importLines("alex", [line("CKO*PATREON* MEMBERSHIP", 5)]);
+		await runAiBatch({ ...deps(namingModel().classifier), namer }, imported(id));
+		const [named] = await merchantOf("CKO*PATREON* MEMBERSHIP");
+		expect(named).toBeTruthy();
+		expect(
+			(await db.select().from(transactions)).filter((t) => t.source === "quick-add" && t.merchant),
+		).toEqual([]);
 	});
 });

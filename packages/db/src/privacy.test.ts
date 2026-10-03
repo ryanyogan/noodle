@@ -400,6 +400,7 @@ describe("Personal Allowance privacy: Splits", () => {
 			bucketId: null,
 			commitmentId: null,
 			goal: null,
+			merchantName: null,
 			note: null,
 			importedFrom: null,
 			pending: false,

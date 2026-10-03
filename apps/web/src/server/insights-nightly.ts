@@ -1,7 +1,8 @@
 import { env } from "cloudflare:workers";
-import { listHouseholds } from "@noodle/db";
+import { hasUnnamedMerchants, listHouseholds } from "@noodle/db";
 import { dayKeyAt } from "@noodle/domain";
 import { ulid } from "ulid";
+import { queueAi } from "./ai-queue";
 import { getDb } from "./db";
 import { stubInsightModel, workersAiInsightModel } from "./insights-model";
 import { type InsightDeps, lookForHouseholdInsights } from "./insights-run";
@@ -25,6 +26,15 @@ export async function startInsights(now: Date): Promise<void> {
 	const deps = insightDeps();
 	const households = (await listHouseholds(deps.db)).slice(0, MAX_HOUSEHOLDS);
 	for (const household of households) {
+		// Imported lines not yet named (from before merchant names, ADR-0027) are named in the
+		// Household's background AI, a share a run, until none are left. Idempotent.
+		try {
+			if (await hasUnnamedMerchants(deps.db, household.id)) {
+				await queueAi({ householdId: household.id, kind: "backfill-merchants" });
+			}
+		} catch (error) {
+			console.error(`Merchant backfill for ${household.id} failed`, (error as Error).name);
+		}
 		try {
 			const started = Date.now();
 			const added = await lookForHouseholdInsights(

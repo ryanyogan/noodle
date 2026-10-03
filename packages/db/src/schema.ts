@@ -527,6 +527,10 @@ export const transactions = sqliteTable(
 		// other; when it posts, its posted copy takes over this row (bank-sync.ts), so the two
 		// never both count and what a Parent did to it stays.
 		pending: integer("pending", { mode: "boolean" }).notNull().default(false),
+		// An imported line's merchant by its clean name ("Costco" for "COSTCO WHSE #1042 SEATTLE
+		// WA"), named by background AI from the note (merchant-run.ts, ADR-0027). Null until named,
+		// and always for a Quick Add, whose note is what the Parent typed.
+		merchant: text("merchant"),
 	},
 	(t) => [
 		index("transactions_household_date_idx").on(t.householdId, t.date),
@@ -1220,4 +1224,24 @@ export const setupJobs = sqliteTable(
 			.default(sql`(unixepoch() * 1000)`),
 	},
 	(t) => [primaryKey({ columns: [t.householdId, t.job] })],
+);
+
+/**
+ * A Household's merchant names the model settled, by the raw statement text it named, so each raw
+ * string goes to the model once (merchant-run.ts). Per Household, never shared: a raw line can
+ * carry a person's name (a Zelle or Venmo payee). Names the normaliser settles alone aren't kept.
+ */
+export const merchantNames = sqliteTable(
+	"merchant_names",
+	{
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		raw: text("raw").notNull(),
+		name: text("name").notNull(),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [primaryKey({ columns: [t.householdId, t.raw] })],
 );

@@ -16,6 +16,7 @@ import {
 	settleAssignment,
 } from "./categorize-run";
 import { getDb } from "./db";
+import { type MerchantNamer, stubNamer, workersAiNamer } from "./merchant-model";
 import { notifyHousehold } from "./notify";
 
 // Categorization in the Worker. New Transactions (an upload, a bank sync, a Quick Add or receipt)
@@ -26,6 +27,11 @@ import { notifyHousehold } from "./notify";
 
 /** The fake merchant index for AI_MODEL=stub, kept for as long as the dev server runs. */
 const stubMerchants = memoryMerchants();
+
+/** Merchant names for background AI's first step: the normaliser's own guess under AI_MODEL=stub. */
+export function merchantNamer(): MerchantNamer {
+	return __AI_STUB__ ? stubNamer : workersAiNamer(env.AI, env.AI_GATEWAY_ID);
+}
 
 export function categorizeDeps(): CategorizeDeps {
 	if (__AI_STUB__) return { db: getDb(), classifier: stubClassifier, merchants: stubMerchants };

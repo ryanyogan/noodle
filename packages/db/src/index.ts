@@ -576,6 +576,13 @@ export {
 	updateChild,
 } from "./members";
 export {
+	hasUnnamedMerchants,
+	loadMerchantNames,
+	loadUnnamedNotes,
+	nameTransactions,
+	saveMerchantNames,
+} from "./merchants";
+export {
 	type CloseMonthInput,
 	closeMonth,
 	listHouseholds,

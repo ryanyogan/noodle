@@ -20,7 +20,14 @@ import {
 // way a Parent's edit is, and never overwrites an assignment made in the meantime.
 
 /** A Transaction (imported, or a captured Quick Add) still waiting to be filed. */
-export type Uncategorized = { id: string; date: DayKey; amountCents: number; note: string | null };
+export type Uncategorized = {
+	id: string;
+	date: DayKey;
+	amountCents: number;
+	note: string | null;
+	/** Its merchant's clean name, once named (merchant-run.ts). */
+	merchant?: string | null;
+};
 
 /**
  * An Import's Transactions nobody has filed or looked at: unassigned, not split, money spent
@@ -51,6 +58,7 @@ async function uncategorized(db: Db, householdId: string, which: SQL): Promise<U
 			date: transactions.date,
 			amountCents: transactions.amountCents,
 			note: transactions.note,
+			merchant: transactions.merchant,
 		})
 		.from(transactions)
 		.leftJoin(categorizations, eq(categorizations.transactionId, transactions.id))

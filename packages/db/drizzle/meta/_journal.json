@@ -288,6 +288,13 @@
       "when": 1791008670333,
       "tag": "0040_invite_resend",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1791010759700,
+      "tag": "0041_merchant_names",
+      "breakpoints": true
     }
   ]
 }

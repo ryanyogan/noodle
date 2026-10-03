@@ -107,6 +107,7 @@ export function TransactionItem({
 	const day = dated ? `${shortDay(transaction.date)} · ` : "";
 	const assignment = assignmentOf(transaction, plan);
 	const title =
+		transaction.merchantName ||
 		transaction.note ||
 		(transaction.goal
 			? "Goal spending"

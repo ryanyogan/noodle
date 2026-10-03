@@ -75,6 +75,7 @@ export async function loadReview(db: Db, viewer: Viewer, limit: number): Promise
 				pending: transactions.pending,
 				account: accounts.name,
 				merchant: categorizations.merchant,
+				merchantName: transactions.merchant,
 				guessId: buckets.id,
 				guessName: buckets.name,
 				confidence: categorizations.confidence,
@@ -141,6 +142,7 @@ export async function loadReview(db: Db, viewer: Viewer, limit: number): Promise
 			partlyPrivate: false,
 			autoFiled: null,
 			merchant: row.merchant,
+			merchantName: row.merchantName,
 			guess:
 				row.guessId && row.guessName
 					? {
@@ -172,6 +174,7 @@ export async function loadReviewToLookAgain(db: Db, viewer: Viewer): Promise<Unc
 			date: transactions.date,
 			amountCents: transactions.amountCents,
 			note: transactions.note,
+			merchant: transactions.merchant,
 		})
 		.from(categorizations)
 		.innerJoin(transactions, eq(transactions.id, categorizations.transactionId))

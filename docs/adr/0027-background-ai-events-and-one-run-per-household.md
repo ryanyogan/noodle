@@ -32,3 +32,40 @@ Later phases add steps after filing: merchant normalisation (b), Bucket and Comm
 **Why not a Queue and a Workflow.** The issue sketched a Queue feeding a `HouseholdAiWorkflow`. The Agent already exists per Household, already has an alarm and durable storage, and already announces changes, so it debounces and serialises runs without new infrastructure or production setup. Filing a burst fits well inside an alarm's time limit. If later steps grow long (backfilling merchant names, say), the run can start a Workflow from the alarm; nothing needs creating in production for phase a.
 
 **Consequences.** New Transactions from any source are filed within about a minute without a page open (about a second in E2E), and renaming or archiving a Bucket or adding a Rule re-checks the affected Review rows. A 50-event burst is one run (ai-coalescer.test.ts). Bucket renames, new Rules and Personal Allowance privacy in the run are covered in ai-run.test.ts.
+
+## Merchant names (phase b)
+
+Every background run first names the Household's imported lines (`merchant-run.ts`), then files.
+`transactions.merchant` holds the clean name ("Costco" for "COSTCO WHSE #1042 SEATTLE WA"); the
+note keeps the raw text, still shown in the Transaction sheet. Quick Adds are never named: their
+note is what the Parent typed.
+
+- **Normaliser first.** `cleanMerchant` (`@noodle/domain`, pure, fixture-tested) drops bank wording
+  ("POS PURCHASE", "CHECKCARD 0912"), processor prefixes (SQ \*, TST\*, PAYPAL \*, …), everything
+  from the first word with a digit or "#" on (store numbers, card digits, dates, references), phone
+  numbers, a trailing town and state, and LLC/INC, names well-known chains outright, and fixes case.
+  It says whether it is sure; squeezed words ("MRKTPLC"), a leftover "\*" or digits are not.
+- **Model only for leftovers.** At most 40 unsure raw lines a run go to the model in one prompt with
+  a JSON schema (`AI_MODELS.name`, the same small MoE as classify: cheapest model here already proven
+  on schema'd JSON; about $0.10/$0.30 per M tokens, a few hundred tokens a run). Answers that aren't
+  names are dropped. If the call fails the normaliser's guess is used, uncached. Under
+  `AI_MODEL=stub` the namer returns the normaliser's guess.
+- **Cache per Household, not global.** `merchant_names (household_id, raw) → name` keeps only what
+  the model settled, so a raw line goes to the model once per Household. Not global because a raw
+  line can carry a person's name (a Zelle or Venmo payee) or an address, and a shared table would
+  hold one Household's text for another's benefit; deleting a Household deletes its rows. The cost
+  of repeats across Households is small and the AI Gateway cache answers identical prompts.
+- **Used everywhere a merchant was.** Categorization keys Rules, Vectorize similar-merchant lookups
+  and the model prompt by `merchantKey(merchant ?? note)`; a Rule stated for the raw text still
+  matches a named line (Rules are checked against both keys, also when a new Rule applies to
+  waiting lines). Reports group and show by `coalesce(merchant, note)`, hidden as the note is for
+  a Split partly in the other Parent's Personal Allowance. The Transactions list and Review cards
+  show the clean name.
+- **Plaid.** Bank lines already take Plaid's `merchant_name` as their text when Plaid has one, which
+  the normaliser keeps as is. `counterparties` isn't read yet. Plaid Enrich could name statement
+  (file) imports too, but it's a paid product priced per transaction, needs a separate Plaid
+  contract and sending every line to Plaid, so it isn't used.
+- **Backfill.** Each run names up to 500 distinct raw lines, newest first, and asks for another run
+  (`backfill-merchants`) while more are left. The nightly Insights cron queues `backfill-merchants`
+  for any Household with unnamed imported lines, so old rows are named in the nights after deploy
+  with nothing to trigger by hand. Idempotent: only lines with no merchant are written.

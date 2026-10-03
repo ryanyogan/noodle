@@ -195,6 +195,7 @@ export async function addReceipt(
 						externalId: sql<string | null>`null`.as("external_id"),
 						capturedVia: sql<"receipt">`'receipt'`.as("captured_via"),
 						pending: sql<boolean>`0`.as("pending"),
+						merchant: sql<string | null>`null`.as("merchant"),
 					})
 					.from(members)
 					.where(

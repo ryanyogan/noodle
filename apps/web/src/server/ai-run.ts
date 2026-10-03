@@ -8,6 +8,8 @@ import {
 	describeResult,
 	lookAgainAtReview,
 } from "./categorize-run";
+import type { MerchantNamer } from "./merchant-model";
+import { nameMerchants } from "./merchant-run";
 
 // One background AI run for a Household (ADR-0027), apart from the Agent so unit tests can run it
 // with fakes. Filing first: look again at what waits in Review when something it depends on
@@ -16,6 +18,10 @@ import {
 // Allowance, Rules and guesses never reach it (ADR-0003). Later phases add steps here.
 
 export type AiRunDeps = CategorizeDeps & {
+	/** Names merchants the normaliser can't settle (merchant-model.ts). */
+	namer: MerchantNamer;
+	/** Asks for another run, when naming had more than one run's share. */
+	again?: () => Promise<void>;
 	/** The Household's Parents now, for looking again at each one's Review. */
 	parents: (householdId: string) => Promise<string[]>;
 	/** Tells the Household's open screens what changed. */
@@ -49,6 +55,9 @@ const nothing = (): CategorizeResult => ({
 export async function runAiBatch(deps: AiRunDeps, batch: AiBatch): Promise<CategorizeResult> {
 	const { householdId } = batch;
 	let total = nothing();
+	// Merchants are named first, so filing, Rules and similar merchants go by the clean name.
+	const naming = await nameMerchants(deps, householdId);
+	if (naming.more) await deps.again?.();
 	// Looked again first, so what's filed next isn't looked at twice.
 	if (batch.lookAgain) {
 		for (const memberId of await deps.parents(householdId)) {
@@ -64,7 +73,9 @@ export async function runAiBatch(deps: AiRunDeps, batch: AiBatch): Promise<Categ
 	const events = Object.entries(batch.events)
 		.map(([kind, count]) => `${kind} ${count}`)
 		.join(", ");
-	console.log(`Background AI for ${householdId} (${events}): ${describeResult(total)}`);
+	console.log(
+		`Background AI for ${householdId} (${events}): ${naming.named} merchants named (${naming.byModel} by the model), ${describeResult(total)}`,
+	);
 	// Filing changes spending, which carries into later months.
 	if (total.filed + total.review > 0) await deps.notify(["months", "for-earlier", "bucket-uses"]);
 	return total;

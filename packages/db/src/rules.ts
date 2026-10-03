@@ -308,7 +308,10 @@ export async function applyRule(
 	const decisions: (CategorizationDecision & { date: DayKey })[] = [];
 	for (const row of rows) {
 		const merchant = row.merchant ?? (row.note ? merchantKey(row.note) : null);
-		if (!merchant || !matchingRule([rule], merchant)) continue;
+		// A Rule stated for the raw text ("costco whse") still matches once the line is named "Costco".
+		const raw = row.note ? merchantKey(row.note) : null;
+		if (!merchant || !(matchingRule([rule], merchant) || (raw && matchingRule([rule], raw))))
+			continue;
 		decisions.push({
 			transactionId: row.id,
 			date: row.date as DayKey,

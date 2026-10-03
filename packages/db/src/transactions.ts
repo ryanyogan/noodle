@@ -342,6 +342,7 @@ export async function addQuickAdd(
 					externalId: sql<string | null>`null`.as("external_id"),
 					capturedVia: sql<string | null>`null`.as("captured_via"),
 					pending: sql<boolean>`0`.as("pending"),
+					merchant: sql<string | null>`null`.as("merchant"),
 				})
 				.from(buckets)
 				.where(
@@ -427,6 +428,8 @@ export type TransactionRow = {
 	goal: { id: string; name: string } | null;
 	/** Its note; none shown when some of its Splits are in the other Parent's Personal Allowance. */
 	note: string | null;
+	/** Its merchant's clean name, for an imported line once named (ADR-0027); hidden as the note is. */
+	merchantName: string | null;
 	/** The name of the Account it was imported from; null unless it came in through an Import. */
 	importedFrom: string | null;
 	/** Reported by the bank but not yet posted: it may change, or go, until its posted copy lands. */
@@ -606,6 +609,9 @@ export async function loadTransactionsPage(
 			goalId: transactions.goalId,
 			goalName: goals.name,
 			note: sql<string | null>`case when ${partly} then null else ${transactions.note} end`,
+			merchantName: sql<
+				string | null
+			>`case when ${partly} then null else ${transactions.merchant} end`,
 			partlyPrivate: sql<boolean>`${partly}`.mapWith(Boolean),
 			pending: transactions.pending,
 			importedFrom: sql<

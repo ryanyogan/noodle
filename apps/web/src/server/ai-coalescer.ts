@@ -20,6 +20,8 @@ export const AI_EVENT_KINDS = [
 	"filed-by-hand",
 	/** A month started; `ids` is the month, so each Household's is taken once. */
 	"month-started",
+	/** Imported lines are still to be named (the nightly backfill, or a run that ran out of room). */
+	"backfill-merchants",
 ] as const;
 
 export type AiEventKind = (typeof AI_EVENT_KINDS)[number];

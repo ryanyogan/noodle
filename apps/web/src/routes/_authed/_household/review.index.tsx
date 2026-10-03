@@ -939,7 +939,7 @@ type RuleOffer = {
 	forMemberIds: string[];
 };
 
-const labelOf = (item: ReviewItem) => item.note ?? item.merchant;
+const labelOf = (item: ReviewItem) => item.merchantName ?? item.note ?? item.merchant;
 
 /** The top card's name for a screen reader: what, how much, and the suggestion. */
 const cardName = (item: ReviewItem) =>
@@ -1125,7 +1125,7 @@ function ReviewCard({
 						{item.importedFrom ? ` · ${item.importedFrom}` : ""}
 					</p>
 					<h3 id={headingId} className="truncate text-base font-semibold">
-						{item.note ?? item.merchant}
+						{item.merchantName ?? item.note ?? item.merchant}
 					</h3>
 					{item.for.length > 0 ? (
 						<p className="text-sm text-muted-foreground">For {forLabel(members, item.for)}</p>
@@ -1183,7 +1183,7 @@ function ReviewCard({
 					<Combobox
 						id={pickerId(item)}
 						className="min-w-0 flex-1"
-						aria-label={`Where ${item.note ?? item.merchant} goes`}
+						aria-label={`Where ${item.merchantName ?? item.note ?? item.merchant} goes`}
 						disabled={!hydrated || !places}
 						placeholder={item.guess ? "Pick another…" : "Pick where it goes"}
 						searchPlaceholder="Find a Bucket"
@@ -1193,7 +1193,7 @@ function ReviewCard({
 					<Button
 						variant="ghost"
 						size="icon"
-						aria-label={`Edit ${item.note ?? item.merchant}`}
+						aria-label={`Edit ${item.merchantName ?? item.note ?? item.merchant}`}
 						disabled={!hydrated}
 						onClick={onEdit}
 					>

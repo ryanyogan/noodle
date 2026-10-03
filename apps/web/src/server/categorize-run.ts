@@ -105,20 +105,31 @@ async function categorize(
 	// Nor one into a Bucket this Parent can't assign, or that isn't in the Plan for these months.
 	const rules = allRules.filter((rule) => choosable.has(rule.bucketId));
 
-	const merchantOf = new Map(rows.map((row) => [row.id, merchantKey(row.note ?? "")]));
+	// By the clean merchant name once named (ADR-0027); a Rule stated for the raw text still matches.
+	const merchantOf = new Map(
+		rows.map((row) => [row.id, merchantKey(row.merchant ?? row.note ?? "")]),
+	);
+	const ruleOf = (merchant: string, row: Uncategorized) =>
+		ruleFor(rules, merchant) ?? ruleFor(rules, merchantKey(row.note ?? ""));
 	const byMerchant = new Map<string, Uncategorized>();
 	for (const row of rows) {
 		const merchant = merchantOf.get(row.id) as string;
 		if (!byMerchant.has(merchant)) byMerchant.set(merchant, row);
 	}
-	const unruled = [...byMerchant.keys()].filter((merchant) => !ruleFor(rules, merchant));
+	const unruled = [...byMerchant.entries()]
+		.filter(([merchant, row]) => !ruleOf(merchant, row))
+		.map(([merchant]) => merchant);
 
 	const similar = await nearest(deps.merchants, viewer.householdId, unruled, choosable);
 	const toModel: MerchantToFile[] = unruled
 		.filter((merchant) => !similarEnough(similar.get(merchant)))
 		.map((merchant) => {
 			const row = byMerchant.get(merchant) as Uncategorized;
-			return { key: merchant, description: row.note ?? merchant, amountCents: row.amountCents };
+			return {
+				key: merchant,
+				description: row.merchant ?? row.note ?? merchant,
+				amountCents: row.amountCents,
+			};
 		});
 	const modelled = await classify(
 		deps.classifier,
@@ -132,7 +143,7 @@ async function categorize(
 	const decisions = rows.map((row): CategorizationDecision => {
 		const merchant = merchantOf.get(row.id) as string;
 		const guess = modelled.get(merchant);
-		const rule = ruleFor(rules, merchant);
+		const rule = ruleOf(merchant, row);
 		const categorization = decideCategorization({
 			rule,
 			similar: similar.get(merchant),

@@ -207,6 +207,7 @@ export {
 	possibleMatches,
 	withinMatchWindow,
 } from "./matching";
+export { type CleanMerchant, cleanMerchant } from "./merchant-name";
 export { type Cents, MAX_CENTS, parseDollars } from "./money";
 export {
 	addDays,

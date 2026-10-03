@@ -51,6 +51,7 @@ const skates: TransactionRow = {
 	commitmentId: null,
 	goal: null,
 	note: "Pro Hockey Life",
+	merchantName: null,
 	for: [],
 	splits: [],
 	partlyPrivate: false,
