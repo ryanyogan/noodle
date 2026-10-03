@@ -44,8 +44,9 @@ test("a bank that logs in on its own page comes back to Accounts", async ({ brow
 	await page.getByRole("button", { name: "Connect a bank" }).click();
 	await returned;
 
-	// Back where it started, with Choose Accounts open as after any Link.
-	await expect(page).toHaveURL(/\/accounts$/);
+	// Back where it started, with Choose Accounts open as after any Link. The return page finishes
+	// in the browser after it hydrates, which can take a while on CI.
+	await expect(page).toHaveURL(/\/accounts$/, clientRendered);
 	await chooseSheet(page).getByRole("button", { name: "Start bringing them in" }).click();
 	await expect(toast(page, "Bringing in 4 Accounts from First Platypus Bank.")).toBeVisible();
 	await expect(bankConnections(page).getByRole("listitem")).toContainText("First Platypus Bank");

@@ -7,7 +7,13 @@ import {
 	test,
 } from "@playwright/test";
 import { createTestParent, newTestEmail, removeTestUserByEmail } from "./parents";
-import { createHousehold, enterJoinedHousehold, setUpLater, signedInPage } from "./session";
+import {
+	clientRendered,
+	createHousehold,
+	enterJoinedHousehold,
+	setUpLater,
+	signedInPage,
+} from "./session";
 
 async function invite(page: Page, email: string) {
 	await page.getByLabel("Their email").fill(email);
@@ -360,7 +366,8 @@ test("a Parent resends an invite for a new link, and cancels it", async ({ brows
 		await page.reload();
 		await expect(page.getByText("Ran out", { exact: true })).toBeVisible();
 		await expect(page.getByText(`The invite to ${invitedEmail} ran out on`)).toBeVisible();
-		await expect(page.getByRole("button", { name: "Resend" })).toBeEnabled();
+		// Enabled once the page has hydrated, which can take a while on CI.
+		await expect(page.getByRole("button", { name: "Resend" })).toBeEnabled(clientRendered);
 		await shot(page, "expired-393");
 
 		// Cancelling asks first, and then its link doesn't work.
