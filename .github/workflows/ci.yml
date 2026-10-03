@@ -29,6 +29,9 @@ jobs:
   #   and SE only nightly or when asked for from the Actions tab.
   gate:
     runs-on: ubuntu-latest
+    # Reading earlier runs needs actions: read; the default token can't (403).
+    permissions:
+      actions: read
     outputs:
       tested: ${{ steps.plan.outputs.tested }}
       phone: ${{ steps.plan.outputs.phone }}
