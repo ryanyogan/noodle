@@ -1,4 +1,5 @@
 import type { HouseholdChange } from "../household-changes";
+import { budgetedClassifier, budgetedNamer, type ModelBudget } from "./ai-budget";
 import type { AiBatch } from "./ai-coalescer";
 import {
 	type CategorizeDeps,
@@ -27,6 +28,10 @@ export type AiRunDeps = CategorizeDeps & {
 	parents: (householdId: string) => Promise<string[]>;
 	/** Tells the Household's open screens what changed. */
 	notify: (changes: HouseholdChange[]) => Promise<void>;
+	/** The day's model budget (ai-budget.ts): past it, model steps are skipped. None: no limit. */
+	budget?: ModelBudget;
+	/** Looks for Insights for every Parent, its model within `budget`; returns how many were added. */
+	refreshInsights?: (budget: ModelBudget) => Promise<number>;
 };
 
 const add = (a: CategorizeResult, b: CategorizeResult): CategorizeResult => ({
@@ -53,8 +58,18 @@ const nothing = (): CategorizeResult => ({
  * merchants failing only sends what they'd have filed to Review. Idempotent: what's filed or
  * decided already isn't loaded again.
  */
-export async function runAiBatch(deps: AiRunDeps, batch: AiBatch): Promise<CategorizeResult> {
+export async function runAiBatch(given: AiRunDeps, batch: AiBatch): Promise<CategorizeResult> {
 	const { householdId } = batch;
+	const started = Date.now();
+	const { budget } = given;
+	// Model steps within the day's budget: past it, filing sends to Review and naming keeps the normaliser's guess.
+	const deps: AiRunDeps = budget
+		? {
+				...given,
+				classifier: budgetedClassifier(given.classifier, budget),
+				namer: budgetedNamer(given.namer, budget),
+			}
+		: given;
 	let total = nothing();
 	// Merchants are named first, so filing, Rules and similar merchants go by the clean name.
 	const naming = await nameMerchants(deps, householdId);
@@ -82,14 +97,38 @@ export async function runAiBatch(deps: AiRunDeps, batch: AiBatch): Promise<Categ
 	) {
 		suggested = await spotSuggestions(deps.db, householdId);
 	}
+	// Insights rest on spending, Plans and Commitments: refreshed here when those changed, at most a
+	// few times a day (the nightly job is the backstop).
+	let insights = 0;
+	if (budget && deps.refreshInsights) {
+		if (
+			total.filed + total.review > 0 ||
+			suggested > 0 ||
+			batch.lookAgain ||
+			batch.events["filed-by-hand"] ||
+			batch.events["commitment-changed"] ||
+			batch.events["month-started"]
+		) {
+			budget.markStale();
+		}
+		if (budget.shouldRefreshInsights()) {
+			try {
+				insights = await deps.refreshInsights(budget);
+				budget.refreshedInsights();
+			} catch (error) {
+				console.error(`Couldn’t refresh Insights for ${householdId}`, (error as Error).name);
+			}
+		}
+	}
 	const events = Object.entries(batch.events)
 		.map(([kind, count]) => `${kind} ${count}`)
 		.join(", ");
 	console.log(
-		`Background AI for ${householdId} (${events}): ${naming.named} merchants named (${naming.byModel} by the model), ${describeResult(total)}, ${suggested} suggestions changed`,
+		`Background AI for ${householdId} (${events}): ${naming.named} merchants named (${naming.byModel} by the model), ${describeResult(total)}, ${suggested} suggestions changed, ${insights} Insights added${budget ? `, ${budget.describe()}` : ""}, ${Date.now() - started} ms`,
 	);
 	// Filing changes spending, which carries into later months.
 	if (total.filed + total.review > 0) await deps.notify(["months", "for-earlier", "bucket-uses"]);
 	if (suggested > 0) await deps.notify(["suggestions"]);
+	if (insights > 0) await deps.notify(["insights", "perks"]);
 	return total;
 }

@@ -11,3 +11,18 @@ export const AI_MODELS = {
 	/** Merchant similarity in Vectorize. $0.012 per M. */
 	embed: "@cf/qwen/qwen3-embedding-0.6b",
 } as const;
+
+/**
+ * Which model each background AI step uses (ADR-0027, "Models per step"). Bucket naming is
+ * deterministic (no model); the others name an `AI_MODELS` entry so a change is made in one place.
+ */
+export const BACKGROUND_AI_MODELS = {
+	/** Merchant names the normaliser can't settle: a few short JSON lines, the small MoE. */
+	nameLeftovers: AI_MODELS.name,
+	/** Filing what no Rule or similar merchant decides: the current classify model. */
+	file: AI_MODELS.classify,
+	/** Suggested Buckets' names: from a merchant-kind list, no model. */
+	nameBuckets: null,
+	/** Insights' grouping and plainer words: the current reasoning model. */
+	insights: AI_MODELS.reason,
+} as const;

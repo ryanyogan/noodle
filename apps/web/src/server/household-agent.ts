@@ -1,12 +1,15 @@
 import { DurableObject, env } from "cloudflare:workers";
 import { clerkClient } from "@clerk/tanstack-react-start/server";
-import { findMembershipByClerkUser, listMembers } from "@noodle/db";
-import type { DayKey } from "@noodle/domain";
+import { findMembershipByClerkUser, listMembers, loadNudgeRecipients } from "@noodle/db";
+import { type DayKey, dayKeyAt } from "@noodle/domain";
 import { type HouseholdChange, householdChangesMessage } from "../household-changes";
+import { AI_BUDGET, budgetedInsightModel, ModelBudget, STUB_AI_BUDGET } from "./ai-budget";
 import { AiCoalescer, type AiEvent, COALESCE, STUB_COALESCE } from "./ai-coalescer";
 import { runAiBatch } from "./ai-run";
 import { categorizeDeps, merchantNamer } from "./categorize";
 import { getDb } from "./db";
+import { insightDeps } from "./insights-nightly";
+import { lookForHouseholdInsights } from "./insights-run";
 import { type HouseholdEvent, HouseholdNudges } from "./nudge-agent";
 import type { ScheduledNudge } from "./nudge-content";
 
@@ -73,28 +76,50 @@ export class HouseholdAgent extends DurableObject<Env> {
 	 * then decides and sends Nudges, retried by the runtime if that throws.
 	 */
 	override async alarm(): Promise<void> {
-		await this.ai.run((batch) =>
-			runAiBatch(
-				{
-					...categorizeDeps(),
-					namer: merchantNamer(),
-					again: () =>
-						this.ai.queue({ householdId: batch.householdId, kind: "backfill-merchants" }),
-					parents: async (householdId) =>
-						(await listMembers(getDb(), householdId))
-							.filter((member) => member.kind === "parent" && !member.removed)
-							.map((member) => member.id),
-					notify: (changes) => this.notify(batch.householdId, changes),
-				},
-				batch,
-			),
-		);
+		await this.ai.run(async (batch) => {
+			const budget = await ModelBudget.open(
+				this.ctx.storage,
+				__AI_STUB__ ? STUB_AI_BUDGET : AI_BUDGET,
+			);
+			try {
+				return await this.runAi(batch, budget);
+			} finally {
+				await budget.save();
+			}
+		});
 		try {
 			await this.nudges.run();
 		} finally {
 			// Nudges set the alarm for their own next time; bring it forward for the next AI run.
 			await this.ai.wake();
 		}
+	}
+
+	private runAi(batch: Parameters<Parameters<AiCoalescer["run"]>[0]>[0], budget: ModelBudget) {
+		return runAiBatch(
+			{
+				...categorizeDeps(),
+				budget,
+				refreshInsights: async (within) => {
+					const deps = insightDeps();
+					const household = await loadNudgeRecipients(deps.db, batch.householdId);
+					if (!household) return 0;
+					return lookForHouseholdInsights(
+						{ ...deps, model: budgetedInsightModel(deps.model, within) },
+						batch.householdId,
+						dayKeyAt(new Date(), household.timeZone),
+					);
+				},
+				namer: merchantNamer(),
+				again: () => this.ai.queue({ householdId: batch.householdId, kind: "backfill-merchants" }),
+				parents: async (householdId) =>
+					(await listMembers(getDb(), householdId))
+						.filter((member) => member.kind === "parent" && !member.removed)
+						.map((member) => member.id),
+				notify: (changes) => this.notify(batch.householdId, changes),
+			},
+			batch,
+		);
 	}
 
 	// Screens send nothing but pings, which the auto-response answers.

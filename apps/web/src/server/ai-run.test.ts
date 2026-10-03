@@ -14,6 +14,7 @@ import { testDb } from "@noodle/db/test-db";
 import type { StatementLine } from "@noodle/domain";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { HouseholdChange } from "../household-changes";
+import { ModelBudget } from "./ai-budget";
 import { type AiBatch, foldEvent } from "./ai-coalescer";
 import { runAiBatch } from "./ai-run";
 import { type BucketChoice, type Classifier, memoryMerchants } from "./categorize-model";
@@ -325,5 +326,60 @@ describe("a background AI run names merchants first", () => {
 		expect(
 			(await db.select().from(transactions)).filter((t) => t.source === "quick-add" && t.merchant),
 		).toEqual([]);
+	});
+});
+
+describe("a background AI run keeps to the day's model budget", () => {
+	const storage = () => {
+		const data = new Map<string, unknown>();
+		return {
+			get: async <T>(key: string) => data.get(key) as T | undefined,
+			put: async <T>(key: string, value: T) => void data.set(key, value),
+		};
+	};
+	const limits = { modelCallsPerDay: 0, insightRefreshesPerDay: 3, insightRefreshGapMs: 0 };
+
+	it("sends what the model would file to Review, quietly, once the budget is spent", async () => {
+		const model = namingModel();
+		const importId = await importLines("alex", [line("FUN ZONE ARCADE", 30)]);
+		const budget = await ModelBudget.open(storage(), limits);
+
+		const result = await runAiBatch(
+			{ ...deps(model.classifier), budget },
+			batchOf({ householdId, memberId: "alex", kind: "imported", ids: [importId] }),
+		);
+
+		expect(result).toMatchObject({ filed: 0, review: 1 });
+		expect(model.offered).toHaveLength(0);
+		expect(budget.steps.file.skipped).toBe(1);
+	});
+
+	it("refreshes Insights when it filed something, debounced, and says so", async () => {
+		const store = storage();
+		let refreshed = 0;
+		const refreshInsights = async () => {
+			refreshed += 1;
+			return 1;
+		};
+		const gap = { ...limits, modelCallsPerDay: 10, insightRefreshGapMs: 60 * 60 * 1000 };
+		const importId = await importLines("alex", [line("FUN ZONE ARCADE", 30)]);
+		const budget = await ModelBudget.open(store, gap);
+		await runAiBatch(
+			{ ...deps(namingModel().classifier), budget, refreshInsights },
+			batchOf({ householdId, memberId: "alex", kind: "imported", ids: [importId] }),
+		);
+		await budget.save();
+		expect(refreshed).toBe(1);
+		expect(notified).toContainEqual(["insights", "perks"]);
+
+		// A second burst within the hour: marked stale, refreshed later.
+		const second = await importLines("alex", [line("FUN ZONE BOWLING", 20)]);
+		const again = await ModelBudget.open(store, gap);
+		await runAiBatch(
+			{ ...deps(namingModel().classifier), budget: again, refreshInsights },
+			batchOf({ householdId, memberId: "alex", kind: "imported", ids: [second] }),
+		);
+		expect(refreshed).toBe(1);
+		expect(again.shouldRefreshInsights()).toBe(false);
 	});
 });

@@ -12,7 +12,13 @@ import {
 	type Uncategorized,
 	type Viewer,
 } from "@noodle/db";
-import { decideCategorization, type GuessMethod, merchantKey, ruleFor } from "@noodle/domain";
+import {
+	decideCategorization,
+	type GuessMethod,
+	merchantKey,
+	type Rule,
+	ruleFor,
+} from "@noodle/domain";
 import {
 	type Classification,
 	type Classifier,
@@ -104,6 +110,29 @@ async function categorize(
 	const choosable = new Set(buckets.map((bucket) => bucket.id));
 	// Nor one into a Bucket this Parent can't assign, or that isn't in the Plan for these months.
 	const rules = allRules.filter((rule) => choosable.has(rule.bucketId));
+	const decisions = await decideRows(deps, viewer.householdId, buckets, rules, rows, label);
+	await fileCategorizations(db, viewer, decisions);
+	const filed = decisions.filter((d) => d.categorization.outcome === "filed").length;
+	const methods = noMethods();
+	for (const { categorization } of decisions) methods[categorization.method] += 1;
+	return { filed, review: decisions.length - filed, months, methods };
+}
+
+/**
+ * The filing pipeline's decisions for some rows, without the database: Rule, then a similar
+ * merchant, then the model, with ADR-0021's thresholds. `buckets` and `rules` are the Viewer's
+ * own, already limited to what they may choose. The eval set (ai-eval.ts) runs this too.
+ */
+export async function decideRows<R extends Rule & { id: string }>(
+	deps: Pick<CategorizeDeps, "classifier" | "merchants">,
+	householdId: string,
+	buckets: { id: string; name: string }[],
+	rules: R[],
+	rows: Uncategorized[],
+	/** What's categorized, for the logs: an ID, never a merchant. */
+	label: string,
+): Promise<CategorizationDecision[]> {
+	const choosable = new Set(buckets.map((bucket) => bucket.id));
 
 	// By the clean merchant name once named (ADR-0027); a Rule stated for the raw text still matches.
 	const merchantOf = new Map(
@@ -120,7 +149,7 @@ async function categorize(
 		.filter(([merchant, row]) => !ruleOf(merchant, row))
 		.map(([merchant]) => merchant);
 
-	const similar = await nearest(deps.merchants, viewer.householdId, unruled, choosable);
+	const similar = await nearest(deps.merchants, householdId, unruled, choosable);
 	const toModel: MerchantToFile[] = unruled
 		.filter((merchant) => !similarEnough(similar.get(merchant)))
 		.map((merchant) => {
@@ -154,11 +183,7 @@ async function categorize(
 		});
 		return { transactionId: row.id, merchant, categorization, ruleId: rule?.id };
 	});
-	await fileCategorizations(db, viewer, decisions);
-	const filed = decisions.filter((d) => d.categorization.outcome === "filed").length;
-	const methods = noMethods();
-	for (const { categorization } of decisions) methods[categorization.method] += 1;
-	return { filed, review: decisions.length - filed, months, methods };
+	return decisions;
 }
 
 const similarEnough = (neighbour: Neighbour | undefined) =>

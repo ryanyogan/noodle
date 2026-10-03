@@ -123,3 +123,40 @@ puts away ("Not now").
 - **Edit before adding.** Add on a new Bucket or new Commitment suggestion opens its terms first, filled in (name and amount; schedule and next due for a Commitment), so a Parent can change them before it goes in the Plan. A changed Commitment amount suggestion stays one tap: it's only the amount.
 - **The Add Buckets sheet takes the suggestion.** A suggested row (or the starter of the same name, like Pets, which becomes the suggested row) carries its suggestion; adding it marks the suggestion accepted rather than leaving the next run to drop it.
 - **Commitments page shows them on this month only**, since adding one writes this month's Plan.
+
+## Eval, budgets, Insights refresh and models per step (phase d2)
+
+**Models per step** (`BACKGROUND_AI_MODELS` in packages/ai/src/models.ts):
+
+| Step | Model | Why |
+| --- | --- | --- |
+| Naming leftovers | `AI_MODELS.name` (small MoE, gemma-4-26b-a4b) | Short lines in, short names out, at most one prompt a run; the normaliser settles most lines, so this is cheap and rarely called. |
+| Filing | `AI_MODELS.classify` (the current one) | High volume, short JSON with a schema; proven on categorization (ADR-0021). A stronger model wasn't better enough on the eval set to pay for. |
+| Suggested Bucket names | none (deterministic) | A short merchant-kind list names them; Parents rename. No cost, no surprises. |
+| Insights | `AI_MODELS.reason` (the current one) | Few calls, latency doesn't matter, and grouping services and wording Insights needs the most judgement. |
+
+**Eval set.** `ai-eval-set.ts` holds 60 anonymised statement lines (made-up store numbers and towns)
+and the Bucket a typical family files each in, with a few Rules and hand-filed merchants.
+`ai-eval.ts` runs them through `decideRows` (cleaner, Rule, similar merchant, model) as a run does,
+counting right, wrong (filed into another Bucket) and Review. `ai-eval.test.ts` runs it with the stub
+(today 35 of 60 right after merchant names, 32 before, 2 wrong) and fails below 55% or above 2
+wrong. `bun run eval:ai` (apps/web/scripts/eval-ai.ts) runs the same set against the real models
+through the AI Gateway's REST endpoint, before and after merchant names, only when run by hand with
+`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`; CI and the tests never run it. It prints counts
+only.
+
+**Daily model budget** (`ai-budget.ts`, `AI_BUDGET`): each Household's Agent counts model calls per
+UTC day in its own storage (`ai:budget`), 60 a day by default (a busy day is a few imports, about 6
+calls each). Past it, model steps are skipped quietly: filing sends what the model would have guessed
+to Review (never a wrong Bucket), naming keeps the normaliser's guess (uncached, so a later run asks
+again), Insights keep their facts without the model's grouping or wording. Counts are kept in memory
+during a run (filing prompts run in parallel) and saved at its end. Each run logs, per step, model
+calls, skips and milliseconds, the day's total, the filing methods (rule, similar, model, none) and
+the run's time; never merchants. Tokens aren't logged yet: the model wrappers don't return usage.
+
+**Insights refresh.** A run that filed or sent anything to Review, changed suggestions, looked again
+(a Bucket or Rule changed), or saw a hand filing, a Commitment change or a new month marks Insights
+stale. It refreshes them in the run (every Parent, within the budget) when stale, at most 3 times a
+UTC day and 2 hours apart; otherwise they stay stale for a later run. With no later run, the nightly
+job is the backstop, unchanged.
+

@@ -5,5 +5,12 @@
 		"lib": ["ES2022", "DOM", "DOM.Iterable"],
 		"types": ["vite/client", "node"]
 	},
-	"include": ["src", "e2e", "scripts/seed.ts", "worker-configuration.d.ts", "*.config.ts"]
+	"include": [
+		"src",
+		"e2e",
+		"scripts/seed.ts",
+		"scripts/eval-ai.ts",
+		"worker-configuration.d.ts",
+		"*.config.ts"
+	]
 }
