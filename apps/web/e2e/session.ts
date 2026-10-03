@@ -22,7 +22,28 @@ export async function signedInPage(
 	email: string,
 	options: BrowserContextOptions = {},
 ): Promise<Page> {
-	const page = await (await browser.newContext(options)).newPage();
+	const context = await browser.newContext(options);
+	// Clerk's dev instance writes `__client_uat` with `Domain=localhost`, which Playwright's WebKit
+	// rejects, so the Worker saw a session token without it, sent every page to Clerk's handshake
+	// (session-token-but-no-client-uat) and no one got in. A host-only cookie on localhost is the
+	// same cookie, so in WebKit the attribute is dropped as clerk-js writes it.
+	if (browser.browserType().name() === "webkit") {
+		await context.addInitScript(() => {
+			const cookie = Object.getOwnPropertyDescriptor(Document.prototype, "cookie");
+			if (!cookie?.get || !cookie.set) return;
+			const { get, set } = cookie;
+			Object.defineProperty(Document.prototype, "cookie", {
+				configurable: true,
+				get() {
+					return get.call(this);
+				},
+				set(value: string) {
+					set.call(this, value.replace(/;\s*domain=localhost(?=;|$)/i, ""));
+				},
+			});
+		});
+	}
+	const page = await context.newPage();
 	await setupClerkTestingToken({ page });
 	// `/` would redirect here anyway: sign-in is the one page that loads Clerk without signing in.
 	await page.goto("/sign-in");

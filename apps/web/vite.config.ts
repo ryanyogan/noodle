@@ -2,7 +2,6 @@ import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
-import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
 
 // AI_MODEL=stub runs Ask and categorization on deterministic fakes instead of Workers AI and
@@ -10,17 +9,9 @@ import { defineConfig } from "vite";
 // needs no Cloudflare account at all. Production builds never set it.
 const aiStub = process.env.AI_MODEL === "stub";
 
-// DEV_TLS_CERT and DEV_TLS_KEY (PEM file paths) serve the dev server over https. The WebKit E2E
-// projects need it: Playwright's WebKit on Linux treats http://localhost as insecure and drops the
-// Secure cookies Clerk's dev instance sets (`__client_uat`), so sign-in never completes there.
-const tls =
-	process.env.DEV_TLS_CERT && process.env.DEV_TLS_KEY
-		? { cert: readFileSync(process.env.DEV_TLS_CERT), key: readFileSync(process.env.DEV_TLS_KEY) }
-		: undefined;
-
 export default defineConfig({
 	// PORT lets several checkouts (git worktrees) run the app and its E2E side by side.
-	server: { port: Number(process.env.PORT ?? 5173), strictPort: true, https: tls },
+	server: { port: Number(process.env.PORT ?? 5173), strictPort: true },
 	define: { __AI_STUB__: JSON.stringify(aiStub) },
 	plugins: [
 		cloudflare({
