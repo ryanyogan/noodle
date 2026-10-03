@@ -2,12 +2,11 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import {
-	accountKindLabel,
-	choose,
 	createPlannedHousehold,
 	enterJoinedHousehold,
 	serverFn,
 	signedInPage,
+	uploadStatement,
 } from "./session";
 
 // Review's Sort view (#68): one card at a time, every decision by button and by key, Undo, a
@@ -36,38 +35,6 @@ const said = (page: Page) => page.getByTestId("review-said");
 /** Focus rests on the top card after each decision, so the keys work at once. */
 const focusedCard = (page: Page) => page.locator("#review-top");
 
-/** Uploads a card statement to the Visa Account, adding the Account first if it's new. */
-async function uploadStatement(
-	page: Page,
-	lines: [what: string, amount: string, date?: string][],
-	addAccount = false,
-) {
-	await page.getByRole("link", { name: "Accounts", exact: true }).click();
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
-	if (addAccount) {
-		await page.getByLabel("Name").fill("Visa");
-		await choose(page, "Kind", accountKindLabel("credit-card"));
-		await page.getByLabel("Owed now").fill("800");
-		await page.getByRole("button", { name: "Add Account" }).click();
-	}
-	await page.getByRole("link", { name: /^Visa, / }).click();
-	await expect(page.locator("[data-slot=detail-title]:visible")).toContainText("Visa");
-
-	// Dated today, so the lines land in the month the Plan was made for.
-	const today = await page.evaluate(() => new Date().toLocaleDateString("en-US"));
-	const csv = [
-		"Transaction Date,Description,Debit,Credit",
-		...lines.map(([what, amount, date]) => `${date ?? today},${what},${amount},`),
-	].join("\n");
-	await page.getByRole("button", { name: "Upload statement" }).click();
-	const sheet = page.getByRole("dialog", { name: "Upload a statement" });
-	await sheet
-		.getByLabel("Statement file")
-		.setInputFiles({ name: "visa.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
-	await sheet.getByRole("button", { name: `Import ${lines.length} line` }).click();
-	await expect(sheet).toBeHidden();
-}
-
 /** Skips until the top card has a suggestion to confirm, returning its name. */
 async function toGuessed(page: Page) {
 	for (let i = 0; i < 4; i++) {
@@ -84,7 +51,14 @@ async function pick(page: Page, label: string, option: string) {
 	await page.getByRole("listbox").getByRole("option", { name: option, exact: true }).click();
 }
 
-async function setUp(page: Page) {
+async function setUp(
+	page: Page,
+	lines: [what: string, amount: string][] = [
+		["CORNER GAS MART", "40.00"],
+		["VALLEY GAS STOP", "30.00"],
+		["ACME WIDGETS LLC", "19.99"],
+	],
+) {
 	await createPlannedHousehold(page, {
 		baseline: "5,000",
 		buckets: [
@@ -93,18 +67,10 @@ async function setUp(page: Page) {
 		],
 	});
 	const thisMonth = page.url();
-	await uploadStatement(
-		page,
-		[
-			["CORNER GAS MART", "40.00"],
-			["VALLEY GAS STOP", "30.00"],
-			["ACME WIDGETS LLC", "19.99"],
-		],
-		true,
-	);
+	await uploadStatement(page, lines, true);
 	await page.goto(new URL("/review", thisMonth).href);
 	await expect(stack(page)).toBeVisible();
-	await expect(stack(page)).toContainText("1 of 3");
+	await expect(stack(page)).toContainText(`1 of ${lines.length}`);
 }
 
 test("Review sorts one card at a time: confirm, pick another, skip and undo, by button and by key", async ({
@@ -349,7 +315,7 @@ test("a card splits, makes a Rule, can't be filed from a month with no Plan, and
 	await toCard(page, "CORNER GAS");
 	await top(page).getByRole("button", { name: "Confirm" }).click();
 	await expect(page.getByTestId("review-rule-offer")).toContainText(
-		/Always file “corner gas.*” in Gas\?/,
+		/Always file “Corner Gas.*” in Gas\?/,
 	);
 	await expect(page.locator("[data-slot=toast]")).toHaveCount(0);
 
@@ -426,4 +392,55 @@ test("a card filed in a Personal Allowance never reaches the other Parent", asyn
 	} finally {
 		await second.remove();
 	}
+});
+
+test("Confirm all in Sort is said beside the stack with one Undo, and confirming in a row is cheered", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await setUp(page, [
+		["CORNER GAS MART", "40.00"],
+		["VALLEY GAS STOP", "30.00"],
+		["HILLTOP GAS", "25.00"],
+		["RIVER GAS CO", "22.00"],
+	]);
+	await stack(page).getByRole("button", { name: "Confirm all 4 with a suggestion" }).click();
+	await expect(said(page)).toHaveText("Filed 4 where Noodle suggested. All sorted.");
+	await expect(page.locator("[data-slot=toast]")).toHaveCount(0);
+	await page.locator("#review-finish").getByRole("button", { name: "Undo" }).click();
+	await expect(stack(page)).toContainText("1 of 4");
+	await expect(top(page)).toHaveCount(1);
+
+	// Three suggestions confirmed one after another: "3 in a row!", said once with the third.
+	await focusedCard(page).focus();
+	for (let i = 0; i < 3; i++) {
+		const name = await topName(page);
+		await page.keyboard.press("ArrowRight");
+		await expect(said(page)).toContainText(`Filed ${name} in Gas.`);
+	}
+	await expect(said(page)).toContainText("3 in a row!");
+	await expect(page.getByTestId("review-streak")).toHaveText("3 in a row!");
+	// Undo breaks the run.
+	await stack(page).getByRole("button", { name: "Undo" }).click();
+	await expect(page.getByTestId("review-streak")).toHaveCount(0);
+});
+
+test("on a desktop the list opens a card beside it", async ({ browser }) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email, {
+		viewport: { width: 1440, height: 900 },
+	});
+	await setUp(page);
+	await page.goto("/review?view=list");
+	const list = page.locator("[data-slot=master-detail-list]");
+	const detail = page.locator("[data-slot=master-detail-detail]");
+	await expect(list.getByTestId("review-card")).toHaveCount(3);
+	await expect(detail).toContainText("A card’s pencil opens it here");
+	await list.getByRole("button", { name: /^Edit ACME/i }).click();
+	await expect(detail.locator("[data-slot=detail-title]")).toHaveText("Edit Transaction");
+	// The list stays beside it.
+	await expect(list.getByTestId("review-card")).toHaveCount(3);
+	await detail.getByRole("button", { name: "Close" }).click();
+	await expect(detail).toContainText("A card’s pencil opens it here");
 });

@@ -46,10 +46,9 @@ const migrated = [
 	"/explore",
 	"/explore/afford",
 	"/review/rules",
+	"/review",
+	"/review?view=list",
 ];
-
-/** Waiting for their master-detail routes (67b to 67d; Review is #68). Move each up as it lands. */
-const waiting = ["/review"];
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -181,13 +180,5 @@ test("no desktop page has a region that scrolls inside another", async ({ browse
 	// The check isn't empty: This Month has its two columns here.
 	await page.goto("/month");
 	await expect(page.locator("[data-slot=split-rail]")).toBeVisible();
-	await page.context().close();
-});
-
-test.fixme("pages waiting for master-detail have one scroll region too", async ({ browser }) => {
-	test.setTimeout(180_000);
-	const page = await signedInPage(browser, parent.email, desktop);
-	await busyHousehold(page);
-	await walk(page, waiting);
 	await page.context().close();
 });

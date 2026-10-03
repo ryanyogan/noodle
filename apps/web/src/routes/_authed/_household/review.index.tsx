@@ -12,6 +12,7 @@ import { Card } from "@noodle/ui/components/card";
 import { Combobox } from "@noodle/ui/components/combobox";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Kbd } from "@noodle/ui/components/kbd";
+import { MasterDetail } from "@noodle/ui/components/layout";
 import type { Choices } from "@noodle/ui/components/select";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
@@ -33,6 +34,7 @@ import {
 	Split as SplitIcon,
 	Undo2,
 	Wallet,
+	X,
 } from "lucide-react";
 import {
 	type CSSProperties,
@@ -46,16 +48,18 @@ import {
 import { ulid } from "ulid";
 import { z } from "zod";
 import { asBucketColor, monogram } from "../../../buckets";
+import { DetailHeader, DetailPending } from "../../../components/master-detail";
 import { ReviewMatchOffer } from "../../../components/match-section";
 import { RuleForm } from "../../../components/rule-form";
 import { SectionPending } from "../../../components/section-layout";
 import { SwipeCard } from "../../../components/swipe-card";
 import { TermHelp } from "../../../components/term-help";
-import { TransactionEditor } from "../../../components/transaction-editor";
+import { TransactionBody, TransactionEditor } from "../../../components/transaction-editor";
 import { dayName, formatMoney, monthName } from "../../../format";
 import { forLabel, type MemberSummary } from "../../../members";
 import { useReducedMotion } from "../../../motion";
 import { membersQuery, monthQuery, reviewQuery } from "../../../queries";
+import { merchantName } from "../../../reports";
 import {
 	type ReviewDecision,
 	type ReviewItem,
@@ -144,10 +148,12 @@ function ReviewPage() {
 	const sorting = Route.useSearch().view !== "list";
 	const reduced = useReducedMotion();
 	const navigate = useNavigate();
-	// From lg the Transaction opens at its own address, beside its month's list (#67); on a phone,
-	// in a sheet here.
+	// From lg the list's card opens beside the list, and Sort's at the Transaction's own address
+	// beside its month's list (#67); on a phone, in a sheet here.
+	const [editing, setEditing] = useState<ReviewItem | null>(null);
 	const onEdit = (item: ReviewItem) => {
 		if (window.matchMedia("(min-width: 1024px)").matches) {
+			if (!sorting) return setEditing(item);
 			void navigate({
 				to: "/transactions/$month/$transactionId",
 				params: { month: monthOfTransaction(item), transactionId: item.id },
@@ -174,10 +180,34 @@ function ReviewPage() {
 		stack.history.length > 0 && !decide.isPending && !confirmAll.isPending && !returnCard.isPending;
 	/** A failed save: its cards are back in Review, and back on top of the stack. */
 	const failed = (items: ReviewItem[]) => ({
-		onError: () => dispatch({ type: "failed", items }),
+		onError: () => {
+			dispatch({ type: "failed", items });
+			if (!sorting) return;
+			// Said beside the card rather than in a toast over its buttons; it's on top to try again.
+			run.current = 0;
+			setStreak(null);
+			focusNext.current = true;
+			const [first] = items;
+			say(
+				items.length === 1 && first
+					? `Couldn’t file ${labelOf(first)}, so it’s back in Review, on top.`
+					: `Couldn’t file all ${items.length}, so they’re back in Review, on top.`,
+			);
+		},
 	});
 	/** What Sort last did, said beside the card and to a screen reader. */
 	const [said, say] = useState("");
+	/** Suggestions confirmed one after another in Sort, for a small "5 in a row!". */
+	const run = useRef(0);
+	const [streak, setStreak] = useState<number | null>(null);
+	/** The cheer shows for a moment; a screen reader hears it once, with the decision. */
+	const [cheering, setCheering] = useState(false);
+	useEffect(() => {
+		if (streak === null) return;
+		setCheering(true);
+		const timer = setTimeout(() => setCheering(false), 2500);
+		return () => clearTimeout(timer);
+	}, [streak]);
 	/** "Always file …?", offered beside the card in Sort rather than in a toast over it. */
 	const [offer, setOffer] = useState<RuleOffer | null>(null);
 	/** The card flying off the top, drawn over the next one for a moment. */
@@ -225,6 +255,8 @@ function ReviewPage() {
 		for (const item of items) returnCard.mutate(item);
 		dispatch({ type: "returned", items });
 		setOffer(null);
+		run.current = 0;
+		setStreak(null);
 		setLeaving(null);
 		const first = items[0];
 		if (!first || !sorting) return;
@@ -239,12 +271,16 @@ function ReviewPage() {
 	}
 
 	/** Records a decision; in Sort the card flies off, focus moves on and it's said. */
-	function decided(items: ReviewItem[], what: string, way: Way = "right") {
+	function decided(items: ReviewItem[], what: string, way: Way = "right", suggested = false) {
 		dispatch({ type: "decided", items });
 		if (!sorting) return;
 		const ids = new Set(items.map((item) => item.id));
 		const left = order.filter((item) => !ids.has(item.id)).length;
 		setOffer(null);
+		// 3 in a row, then every 5th.
+		run.current = suggested ? run.current + 1 : 0;
+		const inARow = run.current;
+		setStreak(inARow === 3 || (inARow > 0 && inARow % 5 === 0) ? inARow : null);
 		focusNext.current = true;
 		say(`${what} ${left > 0 ? `${left} left.` : "All sorted."}`);
 		const first = items[0];
@@ -273,7 +309,7 @@ function ReviewPage() {
 	function ruleQuestion({ item, bucket, forMemberIds }: RuleOffer) {
 		const only = bucket.owner === parentId ? " Only you will see this Rule." : "";
 		const forWhom = forMemberIds.length > 0 ? `, For ${forLabel(members, forMemberIds)}` : "";
-		return `Always file “${item.merchant}” in ${bucket.name}${forWhom}?${only}`;
+		return `Always file “${merchantName(item.merchant)}” in ${bucket.name}${forWhom}?${only}`;
 	}
 
 	function takeRule({ item, bucket, forMemberIds }: RuleOffer) {
@@ -303,7 +339,7 @@ function ReviewPage() {
 			return openPicker(item);
 		}
 		moveOn(item);
-		decided([item], `Filed ${labelOf(item)} in ${item.guess.name}.`);
+		decided([item], `Filed ${labelOf(item)} in ${item.guess.name}.`, "right", true);
 		decide.mutate({ ...decision, quiet: sorting }, failed([item]));
 		const { bucketId, name } = item.guess;
 		const plan = queryClient.getQueryData(monthQuery(monthOfTransaction(item)).queryKey)?.plan;
@@ -338,6 +374,7 @@ function ReviewPage() {
 
 	function changed(item: ReviewItem, next: TransactionChange["next"], buckets: PlanBucket[]) {
 		setChanging(null);
+		setEditing(null);
 		setSplitting(false);
 		const decision: ReviewDecision = { item, next, placeName: null, quiet: sorting };
 		const assigned = next && "assignment" in next ? next.assignment : null;
@@ -362,7 +399,10 @@ function ReviewPage() {
 	}
 
 	function confirmEach(items: ReviewItem[]) {
-		const decisions = items.flatMap((item) => confirmed(item) ?? []);
+		const decisions = items.flatMap((item) => {
+			const decision = confirmed(item);
+			return decision ? [{ ...decision, quiet: sorting }] : [];
+		});
 		if (decisions.length === 0) return;
 		const taken = decisions.map((decision) => decision.item);
 		decided(taken, `Filed ${taken.length} where Noodle suggested.`);
@@ -374,6 +414,8 @@ function ReviewPage() {
 			if (order.length < 2) return;
 			dispatch({ type: "skipped", id: item.id });
 			setOffer(null);
+			run.current = 0;
+			setStreak(null);
 			focusNext.current = true;
 			say(`Skipped ${labelOf(item)}. It’s at the back.`);
 			if (!reduced) setLeaving({ item, way: "down" });
@@ -467,229 +509,283 @@ function ReviewPage() {
 		return () => window.removeEventListener("keydown", onKey);
 	});
 
-	// What Sort last did and the Rule it offers, under the card or the finish.
+	// What Sort last did and the Rule it offers, under the card or the finish: a slot of its own
+	// height, so filling it never moves the card or its buttons.
 	const sortNote = (
-		<>
-			<p
-				role="status"
-				data-testid="review-said"
-				className="min-h-5 text-center text-sm text-muted-foreground"
-			>
-				{said}
-			</p>
+		<div data-slot="review-note" className="grid h-28 content-start gap-2 sm:h-24">
+			<div className="flex min-h-5 items-start justify-center gap-2">
+				<p
+					role="status"
+					data-testid="review-said"
+					className="line-clamp-2 min-w-0 text-center text-sm text-muted-foreground"
+				>
+					{said}
+					{streak !== null ? <span className="sr-only"> {streak} in a row!</span> : null}
+				</p>
+				{streak !== null && cheering ? (
+					<span
+						aria-hidden="true"
+						data-testid="review-streak"
+						className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-primary-foreground motion-safe:animate-card-in"
+					>
+						{streak} in a row!
+					</span>
+				) : null}
+			</div>
+			{!said && !offer && hydrated && !reduced ? (
+				<p className="text-center text-xs text-muted-foreground lg:hidden">
+					Swipe right to confirm, left to pick another
+				</p>
+			) : null}
 			{offer ? (
 				<div
 					data-testid="review-rule-offer"
-					className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-surface-2 px-3 py-2 text-sm"
+					className="flex items-center justify-between gap-2 rounded-xl bg-surface-2 px-3 py-1.5 text-[13px]"
 				>
-					<span className="min-w-0">{ruleQuestion(offer)}</span>
-					<Button variant="outline" size="sm" disabled={!hydrated} onClick={() => takeRule(offer)}>
+					<span className="line-clamp-2 min-w-0">{ruleQuestion(offer)}</span>
+					<Button
+						variant="outline"
+						size="sm"
+						className="shrink-0"
+						disabled={!hydrated}
+						onClick={() => takeRule(offer)}
+					>
 						Always file
 					</Button>
 				</div>
 			) : null}
-		</>
+		</div>
 	);
+
+	const confirmAllButton =
+		guessed.length > 1 ? (
+			<Button
+				variant="outline"
+				size="sm"
+				disabled={!hydrated || confirmAll.isPending}
+				onClick={() => confirmEach(guessed)}
+			>
+				<CheckCheck />
+				{/* On a phone in Sort, "All 3", so the row above the card stays one row. */}
+				<span className={cn(sorting && "max-sm:sr-only")}>Confirm all </span>
+				{sorting ? (
+					<span aria-hidden="true" className="sm:hidden">
+						All{" "}
+					</span>
+				) : null}
+				{guessed.length}
+				<span className={cn(sorting && "max-sm:sr-only")}> with a suggestion</span>
+			</Button>
+		) : null;
+	const lookAgainButton =
+		queue.total > 0 ? (
+			<Button
+				variant="outline"
+				size={sorting ? "icon" : "sm"}
+				aria-label={sorting ? "Look again" : undefined}
+				title={sorting ? "Look again" : undefined}
+				disabled={!hydrated || lookAgain.isPending}
+				onClick={() => lookAgain.mutate()}
+			>
+				<RefreshCw />
+				{sorting ? null : "Look again"}
+			</Button>
+		) : null;
+	const viewToggle = (
+		<ToggleGroup
+			type="single"
+			variant="segmented"
+			size="sm"
+			aria-label="Show"
+			className={
+				sorting ? "shrink-0" : "grid w-full grid-cols-2 sm:ml-auto sm:flex sm:w-auto lg:w-full"
+			}
+			value={sorting ? "sort" : "list"}
+			disabled={!hydrated}
+			onValueChange={(value) => {
+				if (!value) return;
+				setEditing(null);
+				void navigate({
+					to: "/review",
+					search: value === "list" ? { view: "list" } : {},
+					replace: true,
+				});
+			}}
+		>
+			<ToggleGroupItem value="sort" className="min-w-0">
+				<Layers aria-hidden="true" />
+				<span className={cn(sorting && "max-sm:sr-only")}>One by one</span>
+			</ToggleGroupItem>
+			<ToggleGroupItem value="list" className="min-w-0">
+				<List aria-hidden="true" />
+				<span className={cn(sorting && "max-sm:sr-only")}>List</span>
+			</ToggleGroupItem>
+		</ToggleGroup>
+	);
+	const editingItem = editing ? (cards.find((card) => card.id === editing.id) ?? null) : null;
 
 	return (
 		<>
-			<div className="grid max-w-xl gap-5">
-				{top ? (
-					<>
-						<div className="grid gap-3">
-							<p className="flex items-start gap-1 text-sm text-muted-foreground">
-								<span>
-									Noodle wasn’t sure where to file these. Confirm its suggestion or pick another.
-								</span>
-								<TermHelp term="review" className="mt-0.5" />
-							</p>
-							<div className="flex flex-wrap items-center gap-2 empty:hidden">
-								{guessed.length > 1 ? (
-									<Button
-										variant="outline"
-										size="sm"
-										disabled={!hydrated || confirmAll.isPending}
-										onClick={() => confirmEach(guessed)}
-									>
-										<CheckCheck />
-										Confirm all {guessed.length} with a suggestion
-									</Button>
-								) : null}
-								{queue.total > 0 ? (
-									<Button
-										variant="outline"
-										size="sm"
-										disabled={!hydrated || lookAgain.isPending}
-										onClick={() => lookAgain.mutate()}
-									>
-										<RefreshCw />
-										Look again
-									</Button>
-								) : null}
-								<ToggleGroup
-									type="single"
-									variant="segmented"
-									size="sm"
-									aria-label="Show"
-									className="grid w-full grid-cols-2 sm:ml-auto sm:flex sm:w-auto"
-									value={sorting ? "sort" : "list"}
-									disabled={!hydrated}
-									onValueChange={(value) => {
-										if (!value) return;
-										void navigate({
-											to: "/review",
-											search: value === "list" ? { view: "list" } : {},
-											replace: true,
-										});
-									}}
-								>
-									<ToggleGroupItem value="sort" className="min-w-0">
-										<Layers aria-hidden="true" />
-										One by one
-									</ToggleGroupItem>
-									<ToggleGroupItem value="list" className="min-w-0">
-										<List aria-hidden="true" />
-										List
-									</ToggleGroupItem>
-								</ToggleGroup>
+			<div className={cn("grid gap-5", !(top && !sorting) && "max-w-xl")}>
+				{top && sorting && order[0] ? (
+					<div data-testid="review-stack" className="grid gap-3">
+						{/* One row above the card: how far along, what Review is, and the rest of its tools. */}
+						<div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+							<h2 className="text-sm font-normal text-muted-foreground tabular-nums">
+								{stack.done + 1} of {stack.done + order.length}
+							</h2>
+							<TermHelp term="review" />
+							<div className="ms-auto flex items-center gap-2">
+								{confirmAllButton}
+								{lookAgainButton}
+								{viewToggle}
 							</div>
 						</div>
-						{sorting && order[0] ? (
-							<div data-testid="review-stack" className="grid gap-3">
-								<h2 className="text-sm font-normal text-muted-foreground tabular-nums">
-									{stack.done + 1} of {stack.done + order.length}
-								</h2>
-								<ReviewMatchOffer key={order[0].id} transaction={order[0]} />
-								<div className="relative pb-5">
-									{/* The cards waiting behind this one, as edges. */}
-									{order.length > 2 ? (
-										<div
-											aria-hidden="true"
-											className="absolute inset-x-6 top-6 bottom-0 rounded-2xl bg-card/70 shadow-card ring-1 ring-border"
+						<ReviewMatchOffer key={order[0].id} transaction={order[0]} />
+						<div className="relative pb-5">
+							{/* The cards waiting behind this one, as edges. */}
+							{order.length > 2 ? (
+								<div
+									aria-hidden="true"
+									className="absolute inset-x-6 top-6 bottom-0 rounded-2xl bg-card/70 shadow-card ring-1 ring-border"
+								/>
+							) : null}
+							{order.length > 1 ? (
+								<div
+									aria-hidden="true"
+									className="absolute inset-x-3 top-3 bottom-2.5 rounded-2xl bg-card shadow-card ring-1 ring-border"
+								/>
+							) : null}
+							<SwipeCard
+								// A fresh card, undragged, for each Transaction on top.
+								key={order[0].id}
+								enabled={hydrated && !reduced}
+								rightLabel={order[0].guess ? `${order[0].guess.name} ✓` : "Pick where it goes"}
+								leftLabel="Pick another"
+								onRight={() => confirm(order[0] as ReviewItem)}
+								onLeft={() => pickAnother(order[0] as ReviewItem)}
+							>
+								<div
+									className={cn("rounded-2xl", wobbling && "motion-safe:animate-wobble")}
+									onAnimationEnd={(event) => {
+										if (event.animationName === "wobble") setWobbling(false);
+									}}
+								>
+									{/* Focus rests here after each decision; its name says what the card is. */}
+									<section
+										id="review-top"
+										tabIndex={-1}
+										aria-label={cardName(order[0])}
+										className="rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-safe:animate-card-in"
+									>
+										<ReviewCard
+											item={order[0]}
+											today={today}
+											members={members}
+											parentId={parentId}
+											current
+											hydrated={hydrated}
+											sameMerchant={[]}
+											onFocus={() => {}}
+											onConfirm={() => confirm(order[0] as ReviewItem)}
+											onPick={(value, plan) => file(order[0] as ReviewItem, value, plan)}
+											onEdit={() => onEdit(order[0] as ReviewItem)}
+											onConfirmAll={(items) => confirmEach(items)}
+											actions={
+												stuck(order[0]) ? null : (
+													<CardActions
+														hydrated={hydrated}
+														allowance={allowanceOf(order[0]) !== undefined}
+														onSplit={() => splitCard(order[0] as ReviewItem)}
+														onAllowance={() => markAllowance(order[0] as ReviewItem)}
+														onRule={() => makeRule(order[0] as ReviewItem)}
+													/>
+												)
+											}
 										/>
-									) : null}
-									{order.length > 1 ? (
-										<div
-											aria-hidden="true"
-											className="absolute inset-x-3 top-3 bottom-2.5 rounded-2xl bg-card shadow-card ring-1 ring-border"
-										/>
-									) : null}
-									<SwipeCard
-										// A fresh card, undragged, for each Transaction on top.
-										key={order[0].id}
-										enabled={hydrated && !reduced}
-										rightLabel={order[0].guess ? `${order[0].guess.name} ✓` : "Pick where it goes"}
-										leftLabel="Pick another"
-										onRight={() => confirm(order[0] as ReviewItem)}
-										onLeft={() => pickAnother(order[0] as ReviewItem)}
-									>
-										<div
-											className={cn("rounded-2xl", wobbling && "motion-safe:animate-wobble")}
-											onAnimationEnd={(event) => {
-												if (event.animationName === "wobble") setWobbling(false);
-											}}
-										>
-											{/* Focus rests here after each decision; its name says what the card is. */}
-											<section
-												id="review-top"
-												tabIndex={-1}
-												aria-label={cardName(order[0])}
-												className="rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-safe:animate-card-in"
-											>
-												<ReviewCard
-													item={order[0]}
-													today={today}
-													members={members}
-													parentId={parentId}
-													current
-													hydrated={hydrated}
-													sameMerchant={[]}
-													onFocus={() => {}}
-													onConfirm={() => confirm(order[0] as ReviewItem)}
-													onPick={(value, plan) => file(order[0] as ReviewItem, value, plan)}
-													onEdit={() => onEdit(order[0] as ReviewItem)}
-													onConfirmAll={(items) => confirmEach(items)}
-													actions={
-														stuck(order[0]) ? null : (
-															<CardActions
-																hydrated={hydrated}
-																allowance={allowanceOf(order[0]) !== undefined}
-																onSplit={() => splitCard(order[0] as ReviewItem)}
-																onAllowance={() => markAllowance(order[0] as ReviewItem)}
-																onRule={() => makeRule(order[0] as ReviewItem)}
-															/>
-														)
-													}
-												/>
-											</section>
-										</div>
-									</SwipeCard>
-									{leaving ? (
-										<div
-											key={`${leaving.item.id}-${leaving.way}`}
-											aria-hidden="true"
-											inert
-											className={cn(
-												"pointer-events-none absolute inset-x-0 top-0 z-10",
-												leaving.way === "right" && "animate-fly-right",
-												leaving.way === "left" && "animate-fly-left",
-												leaving.way === "down" && "animate-fly-down",
-											)}
-											onAnimationEnd={() => setLeaving(null)}
-										>
-											<ReviewCard
-												item={leaving.item}
-												today={today}
-												members={members}
-												parentId={parentId}
-												current
-												ghost
-												hydrated={hydrated}
-												sameMerchant={[]}
-												onFocus={() => {}}
-												onConfirm={() => {}}
-												onPick={() => {}}
-												onEdit={() => {}}
-												onConfirmAll={() => {}}
-											/>
-										</div>
-									) : null}
+									</section>
 								</div>
-								<div className="grid grid-cols-2 gap-2">
-									<Button
-										variant="outline"
-										disabled={!hydrated || order.length < 2}
-										aria-keyshortcuts="ArrowDown"
-										onClick={() => skip(order[0] as ReviewItem)}
-									>
-										<SkipForward />
-										Skip
-									</Button>
-									<Button
-										variant="outline"
-										aria-keyshortcuts="Z"
-										disabled={!hydrated || !canUndo}
-										onClick={undo}
-									>
-										<Undo2 />
-										Undo
-									</Button>
+							</SwipeCard>
+							{leaving ? (
+								<div
+									key={`${leaving.item.id}-${leaving.way}`}
+									aria-hidden="true"
+									inert
+									className={cn(
+										"pointer-events-none absolute inset-x-0 top-0 z-10",
+										leaving.way === "right" && "animate-fly-right",
+										leaving.way === "left" && "animate-fly-left",
+										leaving.way === "down" && "animate-fly-down",
+									)}
+									onAnimationEnd={() => setLeaving(null)}
+								>
+									<ReviewCard
+										item={leaving.item}
+										today={today}
+										members={members}
+										parentId={parentId}
+										current
+										ghost
+										hydrated={hydrated}
+										sameMerchant={[]}
+										onFocus={() => {}}
+										onConfirm={() => {}}
+										onPick={() => {}}
+										onEdit={() => {}}
+										onConfirmAll={() => {}}
+									/>
 								</div>
-								{sortNote}
-								<p className="hidden text-center text-xs text-muted-foreground lg:block">
-									<Key name="Right arrow">→</Key> or <Key>Enter</Key> to confirm,{" "}
-									<Key name="Left arrow">←</Key> to pick another, <Key name="Down arrow">↓</Key> to
-									skip, <Key>Z</Key> to undo, <Key>S</Key> to split, <Key>P</Key> for your Personal
-									Allowance, <Key>R</Key> to make a Rule
-								</p>
-								{hydrated && !reduced ? (
-									<p className="text-center text-xs text-muted-foreground lg:hidden">
-										Swipe right to confirm, left to pick another
+							) : null}
+						</div>
+						<div className="grid grid-cols-2 gap-2">
+							<Button
+								variant="outline"
+								disabled={!hydrated || order.length < 2}
+								aria-keyshortcuts="ArrowDown"
+								onClick={() => skip(order[0] as ReviewItem)}
+							>
+								<SkipForward />
+								Skip
+							</Button>
+							<Button
+								variant="outline"
+								aria-keyshortcuts="Z"
+								disabled={!hydrated || !canUndo}
+								onClick={undo}
+							>
+								<Undo2 />
+								Undo
+							</Button>
+						</div>
+						{sortNote}
+						<p className="hidden text-center text-xs text-muted-foreground lg:block">
+							<Key name="Right arrow">→</Key> or <Key>Enter</Key> to confirm,{" "}
+							<Key name="Left arrow">←</Key> to pick another, <Key name="Down arrow">↓</Key> to
+							skip, <Key>Z</Key> to undo, <Key>S</Key> to split, <Key>P</Key> for your Personal
+							Allowance, <Key>R</Key> to make a Rule
+						</p>
+					</div>
+				) : top ? (
+					<MasterDetail
+						className="max-w-xl lg:max-w-none"
+						listLabel="Cards to review"
+						detailLabel={editingItem ? "Transaction" : "About Review"}
+						list={
+							<div className="grid min-w-0 content-start gap-5">
+								<div className="grid gap-3">
+									<p className="flex items-start gap-1 text-sm text-muted-foreground">
+										<span>
+											Noodle wasn’t sure where to file these. Confirm its suggestion or pick
+											another.
+										</span>
+										<TermHelp term="review" className="mt-0.5" />
 									</p>
-								) : null}
-							</div>
-						) : (
-							<>
+									<div className="flex flex-wrap items-center gap-2">
+										{confirmAllButton}
+										{lookAgainButton}
+										{viewToggle}
+									</div>
+								</div>
 								{months.map(([month, items]) => (
 									<section
 										key={month}
@@ -731,9 +827,29 @@ function ReviewPage() {
 									<Key name="Right arrow">→</Key> or <Key>Enter</Key> to confirm,{" "}
 									<Key name="Left arrow">←</Key> to change, <Key name="Down arrow">↓</Key> to skip
 								</p>
-							</>
-						)}
-					</>
+							</div>
+						}
+						detail={
+							editingItem ? (
+								<Suspense fallback={<DetailPending />}>
+									<ChangePane
+										key={editingItem.id}
+										item={editingItem}
+										today={today}
+										members={members}
+										parentId={parentId}
+										onChange={(next, buckets) => changed(editingItem, next, buckets)}
+										onClose={() => setEditing(null)}
+									/>
+								</Suspense>
+							) : undefined
+						}
+						empty={
+							<p className="max-w-sm px-1 text-center text-sm text-muted-foreground">
+								A card’s pencil opens it here, to split it, change its note or say who it was For.
+							</p>
+						}
+					/>
 				) : (
 					<div id="review-finish" tabIndex={-1} className="relative rounded-2xl outline-none">
 						{stack.done > 0 && !reduced ? <Burst /> : null}
@@ -998,7 +1114,7 @@ function ReviewCard({
 			data-current={current || undefined}
 			onFocusCapture={onFocus}
 			className={cn(
-				"grid gap-4 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border sm:p-5",
+				"grid gap-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border sm:gap-4 sm:p-5",
 				current && "ring-2 ring-ring",
 			)}
 		>
@@ -1063,10 +1179,10 @@ function ReviewCard({
 					</Button>
 				</div>
 			) : (
-				<div className="grid grid-cols-[auto_1fr] gap-2 sm:flex sm:items-center">
+				<div className="flex items-center gap-2">
 					<Combobox
 						id={pickerId(item)}
-						className="col-span-2 sm:flex-1"
+						className="min-w-0 flex-1"
 						aria-label={`Where ${item.note ?? item.merchant} goes`}
 						disabled={!hydrated || !places}
 						placeholder={item.guess ? "Pick another…" : "Pick where it goes"}
@@ -1103,6 +1219,52 @@ function ReviewCard({
 			) : null}
 			{actions}
 		</article>
+	);
+}
+
+/** The list's card's Transaction editor beside the list, from lg, against its own month's Plan. */
+function ChangePane({
+	item,
+	today,
+	members,
+	parentId,
+	onChange,
+	onClose,
+}: {
+	item: ReviewItem;
+	today: string;
+	members: MemberSummary[];
+	parentId: string;
+	onChange: (next: TransactionChange["next"], buckets: PlanBucket[]) => void;
+	onClose: () => void;
+}) {
+	const data = useSuspenseQuery(monthQuery(monthOfTransaction(item))).data;
+	// The other Parent's Personal Allowance isn't this Parent's to assign to.
+	const plan = { ...data.plan, buckets: data.plan.buckets.filter((b) => canAssign(b, parentId)) };
+	return (
+		<Card className="p-(--card-pad)">
+			<TransactionBody
+				inline
+				transaction={{ ...item, bucketId: item.guess?.bucketId ?? null }}
+				today={today}
+				plan={plan}
+				members={members}
+				parentId={parentId}
+				heading={(title) => (
+					<DetailHeader
+						eyebrow={dayName(item.date, today)}
+						title={title}
+						leading={
+							<Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
+								<X className="size-5" />
+							</Button>
+						}
+					/>
+				)}
+				onClose={onClose}
+				onChange={(next) => onChange(next, plan.buckets)}
+			/>
+		</Card>
 	);
 }
 

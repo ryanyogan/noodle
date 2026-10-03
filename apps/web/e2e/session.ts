@@ -146,3 +146,35 @@ const accountKindLabels: Record<string, string> = {
 
 /** An Account kind's name in the Kind select ("credit-card" → "Credit card"). */
 export const accountKindLabel = (kind: string) => accountKindLabels[kind] ?? kind;
+
+/** Uploads a card statement to the Visa Account, adding the Account first if it's new. */
+export async function uploadStatement(
+	page: Page,
+	lines: [what: string, amount: string, date?: string][],
+	addAccount = false,
+) {
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
+	if (addAccount) {
+		await page.getByLabel("Name").fill("Visa");
+		await choose(page, "Kind", accountKindLabel("credit-card"));
+		await page.getByLabel("Owed now").fill("800");
+		await page.getByRole("button", { name: "Add Account" }).click();
+	}
+	await page.getByRole("link", { name: /^Visa, / }).click();
+	await expect(page.locator("[data-slot=detail-title]:visible")).toContainText("Visa");
+
+	// Dated today, so the lines land in the month the Plan was made for.
+	const today = await page.evaluate(() => new Date().toLocaleDateString("en-US"));
+	const csv = [
+		"Transaction Date,Description,Debit,Credit",
+		...lines.map(([what, amount, date]) => `${date ?? today},${what},${amount},`),
+	].join("\n");
+	await page.getByRole("button", { name: "Upload statement" }).click();
+	const sheet = page.getByRole("dialog", { name: "Upload a statement" });
+	await sheet
+		.getByLabel("Statement file")
+		.setInputFiles({ name: "visa.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+	await sheet.getByRole("button", { name: `Import ${lines.length} line` }).click();
+	await expect(sheet).toBeHidden();
+}

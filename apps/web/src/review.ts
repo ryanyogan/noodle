@@ -101,6 +101,8 @@ export function useReviewDecision({
 		},
 		onError: (_error, decision, context) => {
 			context?.rollback();
+			// Sort says so beside the card, which is back on top to try again.
+			if (decision.quiet) return;
 			toast(`Couldn’t file ${transactionLabel(decision.item)}, so it’s back in Review.`, {
 				tone: "error",
 				action: { label: "Retry", onClick: () => decide.mutate(decision) },
@@ -158,12 +160,15 @@ export function useConfirmAll({
 		},
 		onError: (_error, decisions, context) => {
 			context?.rollback();
+			if (decisions.every((decision) => decision.quiet)) return;
 			toast(`Couldn’t file all ${decisions.length}, so what wasn’t filed is back in Review.`, {
 				tone: "error",
 				action: { label: "Retry", onClick: () => confirmAll.mutate(decisions) },
 			});
 		},
 		onSuccess: (_data, decisions) => {
+			// Sort says so beside the stack, whose Undo is right there.
+			if (decisions.every((decision) => decision.quiet)) return;
 			toast(`Filed ${decisions.length} where Noodle suggested`, {
 				tone: "success",
 				action: {

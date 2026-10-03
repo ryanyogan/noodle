@@ -8,6 +8,7 @@ import {
 	createHousehold,
 	createPlannedHousehold,
 	signedInPage,
+	uploadStatement,
 } from "./session";
 
 // Key information above the fold (#65): on the busy household (a Plan, 8 months of history, an
@@ -172,5 +173,62 @@ test("a starter household's Get started starts above the fold", async ({ browser
 		);
 		expect(box?.y ?? Number.POSITIVE_INFINITY).toBeLessThan(height);
 		await page.context().close();
+	}
+});
+
+test("Review's card, its Skip and Undo and what it says fit a phone's first screen", async ({
+	browser,
+}) => {
+	test.setTimeout(180_000);
+	const page = await signedInPage(browser, parent.email, {
+		...phone,
+		// Set up at desktop width, where Accounts is in the sidebar; then a phone.
+		viewport: { width: 1440, height: 900 },
+	});
+	await createPlannedHousehold(page, {
+		baseline: "5,000",
+		buckets: [
+			["Groceries", "1,200"],
+			["Gas", "300"],
+		],
+	});
+	await uploadStatement(
+		page,
+		[
+			["CORNER GAS MART", "40.00"],
+			["VALLEY GAS STOP", "30.00"],
+			["ACME WIDGETS LLC", "19.99"],
+		],
+		true,
+	);
+	for (const [width, height] of [
+		[393, 852],
+		[375, 667],
+	] as const) {
+		await page.setViewportSize({ width, height });
+		await page.goto("/review");
+		const stack = page.getByTestId("review-stack");
+		await expect(stack.getByRole("button", { name: "Skip" })).toBeEnabled(clientRendered);
+		// The tab bar covers the bottom of the window on a phone.
+		const bar = await page.locator('nav[aria-label="Main"]:visible').last().boundingBox();
+		const fold = Math.min(height, bar?.y ?? height);
+		if (OUT) await page.screenshot({ path: `${OUT}/${width}x${height}-Review Sort.png` });
+		const probes: [string, Locator][] = [
+			["card", stack.getByTestId("review-card")],
+			["Skip", stack.getByRole("button", { name: "Skip" })],
+			["Undo", stack.getByRole("button", { name: "Undo" })],
+			["what it says", page.locator("[data-slot=review-note]")],
+		];
+		for (const [label, locator] of probes) {
+			const box = await locator.boundingBox();
+			const bottom = box ? Math.round(box.y + box.height) : Number.POSITIVE_INFINITY;
+			console.log(
+				`FOLD | ${width}x${height} | Review Sort | ${label} | ${box ? Math.round(box.y) : "none"}-${bottom} |`,
+			);
+			// 393x852: all of it; 375x667: the card and its buttons, which is all there's room for.
+			if (width === 393 || label !== "what it says") {
+				expect(bottom, `${label} at ${width}x${height}`).toBeLessThanOrEqual(fold);
+			}
+		}
 	}
 });

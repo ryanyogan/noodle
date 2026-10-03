@@ -98,7 +98,7 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 
 	// And made a Rule of it.
 	const offer = page.getByTestId("review-rule-offer");
-	await expect(offer).toContainText(/Always file “acme widgets.*” in Fun\?/);
+	await expect(offer).toContainText(/Always file “Acme Widgets.*” in Fun\?/);
 	await offer.getByRole("button", { name: "Always file" }).click();
 	await expect(page.getByText(/Rule saved/)).toBeVisible();
 
