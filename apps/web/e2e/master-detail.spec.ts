@@ -146,8 +146,8 @@ test("a Bucket's and a Commitment's old addresses go to the new ones", async ({ 
 test("a phone shows the list, then the item with Back", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email, phone);
 	await household(page);
-	// The list is the page, with the add form after it.
-	await expect(page.locator("[data-slot=master-detail-empty]")).toBeVisible();
+	// The list is the page, with Add Buckets in its sticky bar.
+	await expect(page.getByRole("button", { name: "Add Buckets" })).toBeVisible();
 	await list(page).evaluate((pane) => {
 		pane.dataset.kept = "yes";
 	});
