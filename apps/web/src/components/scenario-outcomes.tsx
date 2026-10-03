@@ -821,7 +821,8 @@ export function GoalPathsChart({ names }: { names: ReadonlyMap<string, string> }
 			table={table}
 			className="overflow-visible"
 		>
-			<div className="grid gap-5 sm:grid-cols-2">
+			{/* As many small charts per row as fit (3 at 1280+ on a desktop), never one squeezed below 13rem. */}
+			<div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,13rem),1fr))] gap-5">
 				{goals.map((goal) => (
 					<GoalPath key={goal.goalId} name={nameOf(goal.goalId)} goalId={goal.goalId} />
 				))}
