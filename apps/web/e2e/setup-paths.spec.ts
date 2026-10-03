@@ -216,12 +216,24 @@ test("statement: its closing balance is offered as the new Account's, and used",
 	await page
 		.getByLabel("Statement file")
 		.setInputFiles(
-			join(import.meta.dirname, "..", "..", "..", "packages", "domain", "fixtures", "statements", "checking-v1.ofx"),
+			join(
+				import.meta.dirname,
+				"..",
+				"..",
+				"..",
+				"packages",
+				"domain",
+				"fixtures",
+				"statements",
+				"checking-v1.ofx",
+			),
 		);
 	await page.getByRole("button", { name: /^Import \d+ lines$/ }).click();
 	await expect(page.getByText("checking-v1.ofx is in for Checking")).toBeVisible();
 	// The new Account has no balance yet, so the statement's is offered, with nothing to keep.
-	await expect(page.getByText(/It ends at \$2,540\.26 on Sep 20\. Checking has no balance yet\./)).toBeVisible();
+	await expect(
+		page.getByText(/It ends at \$2,540\.26 on Sep 20\. Checking has no balance yet\./),
+	).toBeVisible();
 	await expect(page.getByRole("button", { name: /^Keep / })).toHaveCount(0);
 	const saved = savedBy(page, "updateAccountBalance");
 	await page.getByRole("button", { name: "Use $2,540.26 as the balance" }).click();
