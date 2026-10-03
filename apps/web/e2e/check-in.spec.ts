@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { ulid } from "ulid";
 import { createTestParent } from "./parents";
-import { choose, createPlannedHousehold, savedBy, signedInPage } from "./session";
+import { choose, createPlannedHousehold, openToDo, savedBy, signedInPage } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -77,6 +77,7 @@ test("a seeded Check-in walks Review, Insights and Extra income to a done state"
 
 	// On the day, This Month says so, and the sidebar marks it until it's done.
 	await page.getByRole("link", { name: "This Month", exact: true }).click();
+	await openToDo(page, "Check-in");
 	await expect(page.getByRole("heading", { name: "It’s Check-in day" })).toBeVisible();
 	const sidebarCheckIn = page
 		.getByRole("navigation", { name: "Main" })

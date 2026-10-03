@@ -45,12 +45,12 @@ for (const look of looks) {
           - listitem /^Gas/:
             - link "Gas"
             - meter "Gas"
-      - region "Free to Spend":
-        - heading "Free to Spend" [level=2]
-      - region "To do"
       - region "Income":
         - heading "Income" [level=2]
         - button "Add income"
+      - region "Free to Spend":
+        - heading "Free to Spend" [level=2]
+      - region "To do"
     `);
 
 		await page

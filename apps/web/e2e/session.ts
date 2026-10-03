@@ -16,6 +16,24 @@ import {
  */
 export const clientRendered = { timeout: 20_000 };
 
+/**
+ * From lg up, This Month's To do card lists each prompt (Close September, Get started, Extra
+ * income...) as a collapsed row; its content shows only once the row is opened. This opens the row
+ * whose label starts with `label` when it is closed. On a phone the prompts already show, so it
+ * does nothing there.
+ */
+export async function openToDo(page: Page, label: string) {
+	if ((page.viewportSize()?.width ?? 0) < 1024) return;
+	const row = page
+		.getByRole("region", { name: "To do" })
+		.getByRole("button", { name: label })
+		.and(page.locator("[aria-expanded]"))
+		.first();
+	await expect(row).toBeVisible();
+	if ((await row.getAttribute("aria-expanded")) !== "true") await row.click();
+	await expect(row).toHaveAttribute("aria-expanded", "true");
+}
+
 /** A fresh browser context signed in as `email`. */
 export async function signedInPage(
 	browser: Browser,

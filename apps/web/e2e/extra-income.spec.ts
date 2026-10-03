@@ -1,6 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
+import {
+	accountKindLabel,
+	choose,
+	createPlannedHousehold,
+	openToDo,
+	signedInPage,
+} from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -63,6 +69,7 @@ test("income beyond take-home pay is Extra income, sent to the emergency Goal", 
 
 	// A bonus is, and it doesn't touch Free to Spend.
 	await addIncome(page, "1,200", "Bonus");
+	await openToDo(page, "Extra income");
 	await expect(extraIncome(page)).toContainText("$1,200 came in above your usual take-home pay");
 	await expect(freeToSpend(page).getByText("$3,800", { exact: true }).first()).toBeVisible();
 	const suggestion = extraIncome(page).getByRole("listitem").filter({ hasText: "Rainy day" });
