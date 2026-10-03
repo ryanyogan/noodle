@@ -86,6 +86,8 @@ test("a recurring charge is suggested as a Commitment; Add creates it, Not now s
 	await expect(terms.getByRole("textbox", { name: "Name" })).toHaveValue("Planet Fitness");
 	await expect(terms.getByRole("textbox", { name: "Amount due" })).toHaveValue("49.99");
 	await terms.getByRole("textbox", { name: "Amount due" }).fill("52");
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(393);
+	await axe(page, "Suggested Commitment terms at 393");
 	await terms.getByRole("button", { name: "Add Commitment" }).click();
 	await expect(card).toBeHidden();
 
@@ -95,7 +97,7 @@ test("a recurring charge is suggested as a Commitment; Add creates it, Not now s
 	const month = page.url().match(/\/month\/(\d{4}-\d{2})/)?.[1];
 	await page.goto(`/plan/${month}/commitments`);
 	await expect(page.getByText("Planet Fitness").first()).toBeVisible();
-	await expect(page.getByText("$52.00").first()).toBeVisible();
+	await expect(page.getByText("$52 expected this month")).toBeVisible();
 	await expect(page.getByText("Spotify")).toHaveCount(0);
 });
 
@@ -125,7 +127,9 @@ test("steady pet spending is suggested as a Bucket on This Month and in the Add 
 	await page.getByRole("button", { name: "Add Buckets", exact: true }).click();
 	const sheet = page.getByRole("dialog", { name: "Add Buckets" });
 	const pets = sheet.getByRole("checkbox", { name: "Pets", exact: true });
-	const row = sheet.getByRole("listitem").filter({ has: pets });
+	const row = sheet
+		.getByRole("listitem")
+		.filter({ has: page.getByRole("checkbox", { name: "Pets", exact: true }) });
 	await expect(row).toContainText("Suggested from your spending");
 	await expect(pets).not.toBeChecked();
 	await sheet.screenshot({ path: `${shots58d1b}/add-buckets-suggested-393.png` });
@@ -135,7 +139,7 @@ test("steady pet spending is suggested as a Bucket on This Month and in the Add 
 	await row.getByRole("textbox").fill("150");
 	await sheet.getByRole("button", { name: /^Add \d+ Buckets?$/ }).click();
 	await expect(page.getByRole("button", { name: "Edit Pets" })).toBeVisible();
-	await expect(page.getByText("$150.00").first()).toBeVisible();
+	await expect(page.getByText("$150").first()).toBeVisible();
 
 	// Taken, not left for the next run to drop: gone from This Month at once.
 	await page.goto(`/month/${month}`);

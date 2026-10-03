@@ -24,11 +24,15 @@ import { Suggested } from "../../../components/suggested";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney, monthName } from "../../../format";
 import { usePlanChanges } from "../../../plan-changes";
-import { commitmentsQuery, useMonthState } from "../../../queries";
+import { commitmentsQuery, suggestionsQuery, useMonthState } from "../../../queries";
 
 export const Route = createFileRoute("/_authed/_household/plan/$month/commitments")({
-	// Lumpy months ahead read every Commitment's schedule.
-	loader: ({ context }) => context.queryClient.ensureQueryData(commitmentsQuery()),
+	// Lumpy months ahead read every Commitment's schedule; Suggested is in the first paint.
+	loader: ({ context }) =>
+		Promise.all([
+			context.queryClient.ensureQueryData(commitmentsQuery()),
+			context.queryClient.ensureQueryData(suggestionsQuery()),
+		]),
 	pendingComponent: SectionPending,
 	component: PlanCommitments,
 });

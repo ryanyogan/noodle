@@ -73,17 +73,20 @@ import {
 	planHistoryQuery,
 	reviewQuery,
 	setupQuery,
+	suggestionsQuery,
 	useMonthState,
 } from "../../../queries";
 import { SETUP_STEP_COUNT } from "../../../setup";
 
 export const Route = createFileRoute("/_authed/_household/month/$month/")({
 	// Coming up reads every Commitment's schedule and charges; an ended month names who closed it.
+	// Suggested is loaded here too, so the card is in the first paint rather than popping in late.
 	loader: ({ context }) =>
 		Promise.all([
 			context.queryClient.ensureQueryData(commitmentsQuery()),
 			context.queryClient.ensureQueryData(membersQuery()),
 			context.queryClient.ensureQueryData(setupQuery()),
+			context.queryClient.ensureQueryData(suggestionsQuery()),
 		]),
 	component: ThisMonth,
 });

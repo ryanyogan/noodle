@@ -85,6 +85,7 @@ export const Route = createFileRoute("/_authed/_household/review/")({
 		const [queue] = await Promise.all([
 			context.queryClient.ensureQueryData(reviewQuery()),
 			context.queryClient.ensureQueryData(membersQuery()),
+			context.queryClient.ensureQueryData(suggestionsQuery()),
 		]);
 		const months = new Set<MonthKey>([context.current]);
 		for (const item of queue.items) months.add(monthOfTransaction(item));
