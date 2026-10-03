@@ -477,6 +477,13 @@ test("on a desktop Review with cards fills the window and the page doesn't scrol
 		await page.goto(path);
 		await expect(page.getByTestId("review-card").first()).toBeVisible();
 		await page.evaluate(() => document.fonts.ready);
+		// The list view's panes are sized once the page has measured the header above them.
+		if (path.includes("list")) {
+			await expect(page.locator("[data-slot=master-detail]")).toHaveAttribute(
+				"style",
+				/--master-detail-top/,
+			);
+		}
 		const found = await overflow(page);
 		expect
 			.soft(found.extra, `${path}: the page scrolls; past the window: ${found.past.join(", ")}`)
