@@ -71,8 +71,8 @@ function SheetContent({
 					// Phones: from the bottom edge (or the top of the keyboard), as tall as its content up
 					// to 92% of what's visible, clear of the status bar and home indicator.
 					"inset-x-0 bottom-(--keyboard-inset,0px) rounded-t-3xl border border-b-0",
-					"max-h-[min(92dvh,calc(var(--visible-height,100dvh)-16px-env(safe-area-inset-top)))]",
-					"px-4 pt-2 pb-[calc(12px+env(safe-area-inset-bottom))]",
+					"max-h-[min(92dvh,calc(var(--visible-height,100dvh)-16px-var(--safe-top)))]",
+					"px-4 pt-2 pb-[calc(12px+var(--safe-bottom))]",
 					"data-[state=open]:animate-sheet-in data-[state=closed]:animate-sheet-out",
 					layout === "side"
 						? [
@@ -102,6 +102,7 @@ function SheetContent({
 				<KeyboardInset />
 				<div
 					aria-hidden="true"
+					data-slot="sheet-grabber"
 					className="-mb-4 grid h-6 touch-none place-items-center lg:hidden"
 					{...drag}
 				>
@@ -232,9 +233,9 @@ function SheetFooter({
 				"grid gap-2 lg:flex lg:items-center lg:justify-end",
 				// Phones: the sheet's bottom padding moves into the footer, so it covers the body
 				// scrolling under it right down to the edge.
-				"max-lg:sticky max-lg:bottom-[calc(-12px-env(safe-area-inset-bottom))] max-lg:z-1 max-lg:-mx-4",
-				"max-lg:-mb-[calc(12px+env(safe-area-inset-bottom))] max-lg:border-t max-lg:bg-card",
-				"max-lg:px-4 max-lg:pt-3 max-lg:pb-[calc(12px+env(safe-area-inset-bottom))]",
+				"max-lg:sticky max-lg:bottom-[calc(-12px-var(--safe-bottom))] max-lg:z-1 max-lg:-mx-4",
+				"max-lg:-mb-[calc(12px+var(--safe-bottom))] max-lg:border-t max-lg:bg-card",
+				"max-lg:px-4 max-lg:pt-3 max-lg:pb-[calc(12px+var(--safe-bottom))]",
 				stick &&
 					"lg:sticky lg:-bottom-5 lg:z-1 lg:-mx-5 lg:-mb-5 lg:border-t lg:bg-card lg:px-5 lg:py-4",
 				className,

@@ -210,7 +210,7 @@ function CheckLayout({
 		<SplitLayout>
 			<SplitRail className="gap-4">{answer}</SplitRail>
 			<SplitMain className="gap-3">
-				<p className="sticky top-[env(safe-area-inset-top)] z-10 -mx-(--gutter) flex items-baseline justify-between gap-3 bg-background/85 px-(--gutter) py-2 backdrop-blur-xl lg:hidden">
+				<p className="sticky top-[var(--safe-top)] z-10 -mx-(--gutter) flex items-baseline justify-between gap-3 bg-background/85 px-(--gutter) py-2 backdrop-blur-xl lg:hidden">
 					<VerdictLabel verdict={verdict} className="font-semibold" />
 					<span className="truncate text-sm text-muted-foreground tabular-nums">{summary}</span>
 				</p>

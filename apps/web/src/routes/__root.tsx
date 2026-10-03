@@ -32,6 +32,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 	shellComponent: RootShell,
 });
 
+/** Sets data-standalone on <html> when the app runs installed (home screen). */
+const standaloneScript =
+	'if (matchMedia("(display-mode: standalone)").matches || navigator.standalone === true) document.documentElement.dataset.standalone = "";';
+
 function RootShell({ children }: { children: ReactNode }) {
 	return (
 		<ClerkProvider
@@ -51,6 +55,9 @@ function RootShell({ children }: { children: ReactNode }) {
 					{/* Before first paint, so a sidebar collapsed on this device renders collapsed. */}
 					{/* biome-ignore lint/security/noDangerouslySetInnerHtml: a constant from packages/ui, no user input. */}
 					<script dangerouslySetInnerHTML={{ __html: sidebarStateScript }} />
+					{/* Marks the installed app before first paint, for CSS that only applies there. */}
+					{/* biome-ignore lint/security/noDangerouslySetInnerHtml: a constant below, no user input. */}
+					<script dangerouslySetInnerHTML={{ __html: standaloneScript }} />
 				</head>
 				<body>
 					{children}

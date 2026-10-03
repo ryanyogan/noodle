@@ -35,7 +35,7 @@ function AlertDialogContent({
 				className={cn(
 					"fixed z-51 grid gap-4 bg-card shadow-pop outline-none",
 					// Phones: from the bottom edge, in reach of the thumb, like a sheet.
-					"inset-x-0 bottom-0 rounded-t-3xl border border-b-0 px-4 pt-5 pb-[calc(16px+env(safe-area-inset-bottom))]",
+					"inset-x-0 bottom-0 rounded-t-3xl border border-b-0 px-4 pt-5 pb-[calc(16px+var(--safe-bottom))]",
 					"data-[state=open]:animate-sheet-in data-[state=closed]:animate-sheet-out",
 					// Desktop: a small centred dialog.
 					"lg:inset-x-auto lg:bottom-auto lg:top-1/2 lg:left-1/2 lg:w-[calc(100%-2rem)] lg:max-w-100 lg:-translate-x-1/2 lg:-translate-y-1/2",

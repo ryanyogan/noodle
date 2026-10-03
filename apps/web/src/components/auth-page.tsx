@@ -165,7 +165,7 @@ const points = [
 export function AuthPage({ children }: { children: ReactNode }) {
 	return (
 		<main className="flex min-h-dvh flex-col lg:grid lg:grid-cols-2">
-			<div className="flex flex-col gap-3 px-(--gutter) pt-[calc(env(safe-area-inset-top)+24px)] lg:justify-center lg:border-r lg:border-border lg:bg-[color-mix(in_oklab,var(--brand)_7%,var(--background))] lg:px-16 lg:py-16">
+			<div className="flex flex-col gap-3 px-(--gutter) pt-[calc(var(--safe-top)+24px)] lg:justify-center lg:border-r lg:border-border lg:bg-[color-mix(in_oklab,var(--brand)_7%,var(--background))] lg:px-16 lg:py-16">
 				<Logo />
 				<p className="max-w-md text-[1.25rem] font-semibold leading-tight tracking-[-0.03em] lg:mt-8 lg:text-[2rem]">
 					Know what you can spend, every day.
@@ -185,7 +185,7 @@ export function AuthPage({ children }: { children: ReactNode }) {
 				</ul>
 				{/* "Watch the 1-minute intro" goes here once the video exists (#54). */}
 			</div>
-			<div className="flex flex-1 animate-enter justify-center px-(--gutter) pt-6 pb-[calc(env(safe-area-inset-bottom)+24px)] lg:items-center lg:py-16">
+			<div className="flex flex-1 animate-enter justify-center px-(--gutter) pt-6 pb-[calc(var(--safe-bottom)+24px)] lg:items-center lg:py-16">
 				{children}
 			</div>
 		</main>

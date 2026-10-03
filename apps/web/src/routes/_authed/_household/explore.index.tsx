@@ -459,7 +459,7 @@ function Explore({ search }: { search: ExploreSearch }) {
 							plan={planProjection}
 							scenario={scenarioProjection}
 							horizonLabel={horizonLabel}
-							className="sticky top-[env(safe-area-inset-top)] z-10 -mx-(--gutter) bg-background/85 px-(--gutter) py-2 text-lg backdrop-blur-xl lg:hidden"
+							className="sticky top-[var(--safe-top)] z-10 -mx-(--gutter) bg-background/85 px-(--gutter) py-2 text-lg backdrop-blur-xl lg:hidden"
 						/>
 						<ScenarioChanges
 							impacts={impacts}

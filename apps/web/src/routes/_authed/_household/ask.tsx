@@ -103,7 +103,7 @@ function AskPage() {
 					</p>
 					<div
 						ref={end}
-						className="sticky bottom-[calc(var(--tabbar-height)+env(safe-area-inset-bottom)+8px)] z-10 -mx-2 grid gap-2.5 rounded-2xl bg-background/90 px-2 pt-2 pb-2 backdrop-blur lg:bottom-4"
+						className="sticky bottom-[calc(var(--tabbar-height)+var(--safe-bottom)+8px)] z-10 -mx-2 grid gap-2.5 rounded-2xl bg-background/90 px-2 pt-2 pb-2 backdrop-blur lg:bottom-4"
 					>
 						{suggestions}
 						<form onSubmit={submit} className="flex items-center gap-2">

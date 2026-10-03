@@ -97,7 +97,7 @@ function Toaster({ className }: { className?: string }) {
 			className={cn(
 				// Sonner's own stylesheet sets a system font; the app's is Geist.
 				"font-sans!",
-				"[--toast-bottom:calc(var(--tabbar-height)+env(safe-area-inset-bottom)+20px)]",
+				"[--toast-bottom:calc(var(--tabbar-height)+var(--safe-bottom)+20px)]",
 				"lg:ms-[calc(var(--sidebar-width)/2)] lg:[--toast-bottom:28px]",
 				className,
 			)}

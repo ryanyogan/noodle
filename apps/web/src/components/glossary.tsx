@@ -162,7 +162,7 @@ export function GlossaryDialog() {
 				className={cn(
 					// Phones have the grabber above the header.
 					"grid-rows-[auto_auto_auto_minmax(0,1fr)] gap-3 overflow-hidden lg:grid-rows-[auto_auto_minmax(0,1fr)]",
-					"h-[calc(100dvh-16px-env(safe-area-inset-top))] lg:h-[min(44rem,calc(100dvh-48px))] lg:w-140",
+					"h-[calc(100dvh-16px-var(--safe-top))] lg:h-[min(44rem,calc(100dvh-48px))] lg:w-140",
 				)}
 				// Searching isn't something to keep: leaving doesn't need to ask (LeaveGuard).
 				onInputCapture={(event) => {

@@ -135,7 +135,7 @@ function SetupWizard() {
 	const back = step > 1 ? () => void go(step - 1) : undefined;
 
 	return (
-		<main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col px-(--gutter) pt-[calc(env(safe-area-inset-top)+20px)]">
+		<main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col px-(--gutter) pt-[calc(var(--safe-top)+20px)]">
 			<header className="grid gap-5 pb-6">
 				<div className="flex items-center justify-between gap-4">
 					<Logo />
@@ -263,7 +263,7 @@ function StepFrame({
 					</form>
 				)}
 			</div>
-			<div className="sticky bottom-0 z-10 mt-auto grid gap-2 border-t border-border bg-background py-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+			<div className="sticky bottom-0 z-10 mt-auto grid gap-2 border-t border-border bg-background py-3 pb-[calc(var(--safe-bottom)+12px)]">
 				{aside}
 				<div className="flex items-center gap-2">
 					{onBack ? (

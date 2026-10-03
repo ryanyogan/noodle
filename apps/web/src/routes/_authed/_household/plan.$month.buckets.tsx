@@ -59,7 +59,7 @@ function PlanBuckets() {
 			<div className="grid gap-3">
 				{state.editable ? (
 					// Stays in view while Buckets are added and changed (a bar across the top on a phone).
-					<div className="sticky top-[env(safe-area-inset-top)] z-10 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl border bg-card/90 px-3 py-2 backdrop-blur-xl max-lg:-mx-1">
+					<div className="sticky top-[var(--safe-top)] z-10 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl border bg-card/90 px-3 py-2 backdrop-blur-xl max-lg:-mx-1">
 						<p aria-live="polite" className="text-sm text-muted-foreground">
 							Left to plan <TermHelp term="free-to-spend" />{" "}
 							<span

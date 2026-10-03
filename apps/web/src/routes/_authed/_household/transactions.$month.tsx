@@ -359,8 +359,9 @@ function Filters({
 					</span>
 				</p>
 			) : null}
-			<div className="flex gap-2">
-				<div className="relative min-w-0 flex-1">
+			{/* With large text, Filters wraps below rather than squeeze the search to a few letters. */}
+			<div className="flex flex-wrap gap-2">
+				<div className="relative min-w-0 flex-[1_1_10rem]">
 					<label htmlFor="filter-search" className="sr-only">
 						Search notes and merchants
 					</label>

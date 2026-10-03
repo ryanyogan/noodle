@@ -81,7 +81,7 @@ export function AppShell({
 					className={cn(
 						"mx-auto w-full max-w-[1200px] px-(--gutter) outline-none",
 						wide && "max-w-[1440px]",
-						"pt-[calc(env(safe-area-inset-top)+16px)] pb-[calc(var(--tabbar-height)+env(safe-area-inset-bottom)+32px)]",
+						"pt-[calc(var(--safe-top)+16px)] pb-[calc(var(--tabbar-height)+var(--safe-bottom)+32px)]",
 						"lg:pt-6 lg:pb-12",
 					)}
 				>
@@ -302,7 +302,7 @@ function TabBar() {
 			className={cn(
 				"fixed inset-x-0 bottom-0 z-20 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] border-t lg:hidden",
 				"bg-card/80 backdrop-blur-xl backdrop-saturate-150",
-				"px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+6px)]",
+				"px-2 pt-1.5 pb-[calc(var(--safe-bottom)+6px)]",
 			)}
 		>
 			<TabGroup items={tabItems.slice(0, half)} />

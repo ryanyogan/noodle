@@ -1,4 +1,5 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { measure } from "./overflow";
 import { createTestParent } from "./parents";
 import { clientRendered, createHousehold, signedInPage } from "./session";
 
@@ -39,33 +40,6 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
 	await parent?.remove();
 });
-
-/** The page's scroll width and the visible elements whose right edge passes the viewport. */
-function measure(page: Page) {
-	return page.evaluate(() => {
-		const width = window.innerWidth;
-		const clipped = (el: Element) => {
-			for (let e = el.parentElement; e && e !== document.body; e = e.parentElement) {
-				const x = getComputedStyle(e).overflowX;
-				if (x === "auto" || x === "scroll" || x === "hidden" || x === "clip") return true;
-			}
-			return false;
-		};
-		const sticking = [...document.querySelectorAll("body *")]
-			.filter((el) => {
-				const box = el.getBoundingClientRect();
-				if (box.width <= 1 || box.height <= 1 || box.right <= width + 1) return false;
-				if (getComputedStyle(el).visibility === "hidden") return false;
-				return !el.closest("[aria-hidden=true],[inert]") && !clipped(el);
-			})
-			.slice(0, 5)
-			.map((el) => {
-				const slot = el.getAttribute("data-slot") ?? el.tagName.toLowerCase();
-				return `${slot} "${(el.textContent ?? "").trim().slice(0, 40)}" right ${Math.round(el.getBoundingClientRect().right)}`;
-			});
-		return { scrollWidth: document.documentElement.scrollWidth, width, sticking };
-	});
-}
 
 test("main pages fit a 320 px phone", async ({ browser }) => {
 	test.setTimeout(120_000);
