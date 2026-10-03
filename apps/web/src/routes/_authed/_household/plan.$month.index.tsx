@@ -75,7 +75,9 @@ function PlanOverview() {
 			<SplitLayout className="max-w-2xl lg:max-w-none">
 				<SplitMain>
 					{state.editable ? null : <PlanEnded />}
-					{state.editable && month === current ? <PlanDraftSection /> : null}
+					{state.editable && month === current ? (
+						<PlanDraftSection planned={state.buckets.map((b) => b.name)} />
+					) : null}
 					{settingUp ? <SetUp state={state} current={month === current} /> : null}
 					{/* On a phone, Free to Spend first, then Plan health folded to one line (#65). */}
 					{settingUp && state.baseline === null ? null : (

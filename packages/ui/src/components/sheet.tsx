@@ -215,7 +215,16 @@ function SheetHeader({
  * of the sheet while its body scrolls; at lg, together on the right, Cancel before Save. Put it
  * last in the sheet.
  */
-function SheetFooter({ className, children }: { className?: string; children: React.ReactNode }) {
+function SheetFooter({
+	className,
+	children,
+	stick = false,
+}: {
+	className?: string;
+	children: React.ReactNode;
+	/** At lg too, stay at the bottom of a long centred sheet while its body scrolls. */
+	stick?: boolean;
+}) {
 	return (
 		<div
 			data-slot="sheet-footer"
@@ -226,6 +235,8 @@ function SheetFooter({ className, children }: { className?: string; children: Re
 				"max-lg:sticky max-lg:bottom-[calc(-12px-env(safe-area-inset-bottom))] max-lg:z-1 max-lg:-mx-4",
 				"max-lg:-mb-[calc(12px+env(safe-area-inset-bottom))] max-lg:border-t max-lg:bg-card",
 				"max-lg:px-4 max-lg:pt-3 max-lg:pb-[calc(12px+env(safe-area-inset-bottom))]",
+				stick &&
+					"lg:sticky lg:-bottom-5 lg:z-1 lg:-mx-5 lg:-mb-5 lg:border-t lg:bg-card lg:px-5 lg:py-4",
 				className,
 			)}
 		>

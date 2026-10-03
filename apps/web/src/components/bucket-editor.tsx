@@ -9,7 +9,7 @@ import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/compon
 import { Tile } from "@noodle/ui/components/tile";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useHydrated } from "@tanstack/react-router";
-import { Archive, ArrowDown, ArrowUp, Pencil, Plus } from "lucide-react";
+import { Archive, Pencil, Plus } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useId, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram, nextBucketColor } from "../buckets";
@@ -19,14 +19,12 @@ import {
 	withAllowance,
 	withBucketDetails,
 	withCarriesOver,
-	withNewBucket,
 	withNewPersonalAllowance,
 	withOrder,
 	withoutBucket,
 } from "../plan-changes";
 import { membersQuery } from "../queries";
 import {
-	addBucket,
 	addPersonalAllowance,
 	archiveBucket,
 	reorderBuckets,
@@ -53,11 +51,20 @@ export function BucketEditor({
 	was,
 	order,
 	setBy,
+	handle,
+	dragged,
+	onDraft,
 }: {
 	month: MonthKey;
 	bucket: PlanBucket;
 	editable: boolean;
 	was?: number;
+	/** The handle that moves it in the list, before its tile. */
+	handle?: ReactNode;
+	/** Whether it's being dragged to a new place. */
+	dragged?: boolean;
+	/** Its amount while typed in the list (for Left to plan), or null once put away. */
+	onDraft?: (cents: number | null) => void;
 	/** Who sets this one, when it isn't the viewer (the other Parent's Personal Allowance). */
 	setBy?: string;
 	/** The shared Buckets' IDs in order, for moving this one; a Personal Allowance has none. */
@@ -65,11 +72,27 @@ export function BucketEditor({
 }) {
 	const hydrated = useHydrated();
 	const [open, setOpen] = useState(false);
+	const [inline, setInline] = useState(false);
 	const color = asBucketColor(bucket.color);
 	const changes = useBucketChanges(month);
+	function closeInline() {
+		setInline(false);
+		onDraft?.(null);
+	}
 	return (
 		<ListRow
-			leading={<Tile bucket={color}>{monogram(bucket.name)}</Tile>}
+			data-bucket-row={bucket.id}
+			className={dragged ? "relative z-1 bg-surface-2 shadow-pop" : undefined}
+			leading={
+				handle ? (
+					<div className="flex items-center gap-1">
+						{handle}
+						<Tile bucket={color}>{monogram(bucket.name)}</Tile>
+					</div>
+				) : (
+					<Tile bucket={color}>{monogram(bucket.name)}</Tile>
+				)
+			}
 			title={
 				<Link
 					to="/plan/$month/buckets/$id"
@@ -95,7 +118,24 @@ export function BucketEditor({
 			}
 			trailing={
 				<div className="flex items-center gap-1">
-					<span className="text-sm font-medium tabular-nums">{formatMoney(bucket.allowance)}</span>
+					{editable && onDraft ? (
+						<Button
+							variant="ghost"
+							size="sm"
+							type="button"
+							disabled={!hydrated}
+							aria-label={`Change ${bucket.name}: ${formatMoney(bucket.allowance)}`}
+							aria-expanded={inline}
+							className="px-2 font-medium tabular-nums"
+							onClick={() => (inline ? closeInline() : setInline(true))}
+						>
+							{formatMoney(bucket.allowance)}
+						</Button>
+					) : (
+						<span className="text-sm font-medium tabular-nums">
+							{formatMoney(bucket.allowance)}
+						</span>
+					)}
 					{editable ? (
 						<Button
 							variant="ghost"
@@ -122,8 +162,120 @@ export function BucketEditor({
 					/>
 				</div>
 			}
-			below={changes.failed ? <div className="grid gap-2">{changes.failed}</div> : undefined}
+			below={
+				inline || changes.failed ? (
+					<div className="grid gap-2">
+						{inline ? (
+							<InlineBucketForm
+								month={month}
+								bucket={bucket}
+								changes={changes}
+								onDraft={(cents) => onDraft?.(cents)}
+								onDone={closeInline}
+							/>
+						) : null}
+						{changes.failed}
+					</div>
+				) : undefined
+			}
 		/>
+	);
+}
+
+/**
+ * A Bucket's name and amount, changed right in the list: Enter saves, Escape puts it away. A new
+ * amount asks how far it reaches, as the sheet does, and is saved as a Plan change.
+ */
+function InlineBucketForm({
+	month,
+	bucket,
+	changes,
+	onDraft,
+	onDone,
+}: {
+	month: MonthKey;
+	bucket: PlanBucket;
+	changes: BucketChanges;
+	onDraft: (cents: number | null) => void;
+	onDone: () => void;
+}) {
+	const id = useId();
+	const [name, setName] = useState(bucket.name);
+	const [amount, setAmount] = useState(() => formatMoneyInput(bucket.allowance));
+	const [scope, setScope] = useState<PlanScope>("from-on");
+	const cents = parseDollars(amount);
+	const trimmed = name.trim();
+	const changedAmount = cents !== null && cents !== bucket.allowance;
+
+	function onSubmit(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		if (trimmed === "" || cents === null) return;
+		if (trimmed !== bucket.name) changes.details.mutate({ bucketId: bucket.id, name: trimmed });
+		if (changedAmount) {
+			changes.allowance.mutate({ bucketId: bucket.id, month, amountCents: cents, scope });
+		}
+		onDone();
+	}
+
+	return (
+		<form
+			onSubmit={onSubmit}
+			noValidate
+			aria-label={`Change ${bucket.name}`}
+			className="col-span-full grid gap-3 rounded-xl bg-surface-2 p-3"
+			onKeyDown={(event) => {
+				if (event.key !== "Escape") return;
+				event.preventDefault();
+				event.stopPropagation();
+				onDone();
+			}}
+		>
+			<div className="grid grid-cols-[minmax(0,1fr)_8rem] gap-2">
+				<Field label="Name" htmlFor={`${id}-name`}>
+					<Input
+						id={`${id}-name`}
+						maxLength={40}
+						autoComplete="off"
+						enterKeyHint="done"
+						value={name}
+						aria-invalid={trimmed === "" || undefined}
+						onChange={(event) => setName(event.currentTarget.value)}
+					/>
+				</Field>
+				<Field label="Allowance" htmlFor={`${id}-amount`}>
+					<AmountInput
+						id={`${id}-amount`}
+						// Opened to change the amount, so it starts there.
+						autoFocus
+						enterKeyHint="done"
+						value={amount}
+						aria-invalid={cents === null || undefined}
+						onFocus={(event) => event.currentTarget.select()}
+						onChange={(event) => {
+							const value = event.currentTarget.value;
+							setAmount(value);
+							onDraft(parseDollars(value));
+						}}
+					/>
+				</Field>
+			</div>
+			{changedAmount ? (
+				<PlanScopeField
+					month={month}
+					current={bucket.allowance}
+					scope={scope}
+					onScopeChange={setScope}
+				/>
+			) : null}
+			<div className="flex justify-end gap-2">
+				<Button type="button" variant="ghost" size="sm" onClick={onDone}>
+					Cancel
+				</Button>
+				<Button type="submit" size="sm" disabled={trimmed === "" || cents === null}>
+					Save
+				</Button>
+			</div>
+		</form>
 	);
 }
 
@@ -410,44 +562,11 @@ function BucketActions({
 	// rather than archiving it.
 	if (bucket.owner !== undefined || index < 0) return null;
 
-	function move(by: -1 | 1) {
-		const bucketIds = [...order];
-		const [moved] = bucketIds.splice(index, 1);
-		if (moved) bucketIds.splice(index + by, 0, moved);
-		changes.reorder.mutate({ bucketIds });
-	}
-
 	return (
 		<div className="grid gap-2 border-t pt-4">
 			<p className="text-[13px] text-muted-foreground">These happen at once.</p>
 			<div className="flex flex-wrap items-center gap-2">
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					disabled={index === 0 || changes.reorder.isPending}
-					onClick={() => move(-1)}
-				>
-					<ArrowUp />
-					Move up
-				</Button>
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					disabled={index === order.length - 1 || changes.reorder.isPending}
-					onClick={() => move(1)}
-				>
-					<ArrowDown />
-					Move down
-				</Button>
-				<Button
-					type="button"
-					variant="ghost"
-					size="sm"
-					className="ms-auto"
-					onClick={() => setConfirmArchive(true)}
-				>
+				<Button type="button" variant="ghost" size="sm" onClick={() => setConfirmArchive(true)}>
 					<Archive />
 					Archive
 				</Button>
@@ -559,94 +678,6 @@ export function AddPersonalAllowance({
 				>
 					<Plus />
 					Set up Personal Allowance
-				</Button>
-			</form>
-		</Card>
-	);
-}
-
-export function AddBucket({ month, buckets }: { month: MonthKey; buckets: PlanBucket[] }) {
-	const hydrated = useHydrated();
-	const id = useId();
-	// A fresh ID per Bucket; a retry of the same attempt reuses it, so it's added once.
-	const [bucketId, setBucketId] = useState(() => ulid());
-	const [rolling, setRolling] = useState(false);
-	const [errors, setErrors] = useState<{ name?: boolean; amount?: boolean }>({});
-	const add = usePlanChange(month, {
-		save: (data: {
-			bucketId: string;
-			month: MonthKey;
-			name: string;
-			color: number;
-			allowanceCents: number;
-			rolling: boolean;
-		}) => addBucket({ data }),
-		apply: withNewBucket,
-	});
-
-	function onSubmit(event: FormEvent<HTMLFormElement>) {
-		event.preventDefault();
-		const form = event.currentTarget;
-		const values = new FormData(form);
-		const name = String(values.get("name") ?? "").trim();
-		const allowanceCents = parseDollars(String(values.get("allowance") ?? ""));
-		const next = { name: name === "", amount: allowanceCents === null };
-		setErrors(next);
-		if (next.name || allowanceCents === null) return;
-		add.mutate({
-			bucketId,
-			month,
-			name,
-			color: nextBucketColor(buckets.map((b) => b.color)),
-			allowanceCents,
-			rolling,
-		});
-		// The Bucket shows at once; the next one gets its own ID.
-		setBucketId(ulid());
-		setRolling(false);
-		form.reset();
-	}
-
-	return (
-		<Card>
-			<form onSubmit={onSubmit} noValidate className="grid gap-3 p-(--card-pad)">
-				<div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem] lg:grid-cols-1">
-					<Field label="New Bucket" htmlFor="new-bucket-name">
-						<Input
-							id="new-bucket-name"
-							name="name"
-							maxLength={40}
-							autoComplete="off"
-							placeholder="e.g. Pets"
-							aria-invalid={errors.name || undefined}
-						/>
-					</Field>
-					<Field label="Monthly allowance" htmlFor="new-bucket-allowance">
-						<Input
-							id="new-bucket-allowance"
-							name="allowance"
-							inputMode="decimal"
-							autoComplete="off"
-							placeholder="0"
-							className="tabular-nums"
-							aria-invalid={errors.amount || undefined}
-						/>
-					</Field>
-				</div>
-				<CarriesOverField name={`${id}-rolling`} rolling={rolling} onChange={setRolling} />
-				{errors.name ? <FormError>Give the Bucket a name, like Gifts.</FormError> : null}
-				{errors.amount ? (
-					<FormError>Enter the allowance as a dollar amount, like 250 or 85.50.</FormError>
-				) : null}
-				<SaveFailed change={add} />
-				<Button
-					type="submit"
-					variant="secondary"
-					className="justify-self-start"
-					disabled={!hydrated}
-				>
-					<Plus />
-					Add Bucket
 				</Button>
 			</form>
 		</Card>

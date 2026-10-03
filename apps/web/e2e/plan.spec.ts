@@ -1,6 +1,13 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createHousehold, savedBy, serverFn, signedInPage, switchTo } from "./session";
+import {
+	addBucketsInSheet,
+	createHousehold,
+	savedBy,
+	serverFn,
+	signedInPage,
+	switchTo,
+} from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -45,10 +52,7 @@ async function backToPlan(page: Page) {
 }
 
 async function addBucket(page: Page, name: string, amount: string) {
-	await page.getByLabel("New Bucket").fill(name);
-	await page.getByLabel("Monthly allowance").fill(amount);
-	await page.getByRole("button", { name: "Add Bucket", exact: true }).click();
-	await expect(page.getByRole("button", { name: `Edit ${name}` })).toBeVisible();
+	await addBucketsInSheet(page, [[name, amount]]);
 }
 
 /** Opens a Bucket's page from the Plan's Buckets. */
@@ -113,12 +117,12 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 	await details.getByRole("button", { name: "Save", exact: true }).click();
 	await expect(details).toBeHidden();
 	await expect(page.locator("[data-slot=detail-header]")).toContainText("Kids’ hockey");
-	// Moving happens at once, apart from Save.
-	await editBucket(page, "Kids’ hockey");
-	await page.getByRole("button", { name: "Move up" }).click();
-	await page.keyboard.press("Escape");
-	await expect(page.locator("[data-slot=detail-header]")).toContainText("Kids’ hockey");
+	// Moved in the list, by its handle and the arrow keys; saved at once.
 	await page.getByRole("link", { name: "Back to Buckets" }).click();
+	const moved = savedBy(page, "reorderBuckets");
+	await page.getByRole("button", { name: "Move Kids’ hockey" }).focus();
+	await page.keyboard.press("ArrowUp");
+	await moved;
 	await expect(page.getByRole("main").getByRole("listitem").first()).toContainText("Kids’ hockey");
 
 	// Everything above was saved, not just shown.
@@ -195,11 +199,11 @@ test("adding a Bucket twice with the same ID creates one Bucket", async ({ brows
 	await openPlan(page);
 	await page.getByRole("link", { name: "Add Buckets" }).click();
 	// Deliver the request to the server twice, as a retry after a lost response would.
-	await page.route(serverFn("addBucket"), async (route) => {
+	await page.route(serverFn("addBuckets"), async (route) => {
 		await route.fetch();
 		await route.continue();
 	});
-	const saved = savedBy(page, "addBucket");
+	const saved = savedBy(page, "addBuckets");
 	await addBucket(page, "Life", "250");
 	await saved;
 	await page.reload();

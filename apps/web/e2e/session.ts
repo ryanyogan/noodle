@@ -95,20 +95,50 @@ export async function createPlannedHousehold(
 	await expect(page.locator("nav[aria-label='Plan pages'] [aria-current=page]")).toHaveText(
 		"Buckets",
 	);
-	for (const [name, allowance] of buckets) {
-		await page.getByLabel("New Bucket").fill(name);
-		await page.getByLabel("Monthly allowance").fill(allowance);
-		// Let each save land before leaving the Plan.
-		const saved = savedBy(page, "addBucket");
-		await page.getByRole("button", { name: "Add Bucket", exact: true }).click();
-		await expect(page.getByRole("button", { name: `Edit ${name}` })).toBeVisible();
-		await saved;
-	}
+	await addBucketsInSheet(page, buckets);
 	await page
 		.getByRole("navigation", { name: "Plan pages" })
 		.getByRole("link", { name: "Overview" })
 		.click();
 	await switchTo(page, "Month");
+}
+
+/**
+ * Adds `buckets` (name, monthly amount) to the Plan from its Buckets page, through the Add Buckets
+ * sheet: a starter row when one has the name, otherwise "Add your own". Only these are added.
+ */
+export async function addBucketsInSheet(page: Page, buckets: [name: string, allowance: string][]) {
+	const open = page.getByRole("button", { name: "Add Buckets", exact: true });
+	await expect(open).toBeEnabled();
+	await page.waitForLoadState("networkidle");
+	await open.click();
+	const sheet = page.getByRole("dialog", { name: "Add Buckets" });
+	await expect(sheet).toBeVisible();
+	// Start from nothing ticked: the sheet ticks suggestions and the Parent's Personal Allowance.
+	for (const box of await sheet.getByRole("checkbox", { checked: true }).all()) {
+		await box.setChecked(false);
+	}
+	for (const [name, allowance] of buckets) {
+		if ((await sheet.getByRole("checkbox", { name, exact: true }).count()) === 0) {
+			await sheet.getByRole("button", { name: "Add your own" }).click();
+			await sheet.getByRole("textbox", { name: "Name of your own Bucket" }).last().fill(name);
+		}
+		const amount = sheet.getByRole("textbox", { name: `${name} amount`, exact: true });
+		const tick = sheet.getByRole("checkbox", { name: new RegExp(`^(Add )?${name}$`) });
+		// Right after a save the page can still be settling; type again until the row is ticked.
+		await expect(async () => {
+			await amount.fill(allowance);
+			await expect(tick).toBeChecked({ timeout: 1000 });
+		}).toPass();
+	}
+	await expect(sheet.getByRole("button", { name: /^Add \d+ Buckets?$/ })).toBeVisible();
+	const saved = savedBy(page, "addBuckets");
+	await sheet.getByRole("button", { name: /^Add \d+ Buckets?$/ }).click();
+	await expect(sheet).toBeHidden();
+	for (const [name] of buckets) {
+		await expect(page.getByRole("button", { name: `Edit ${name}`, exact: true })).toBeVisible();
+	}
+	await saved;
 }
 
 /**

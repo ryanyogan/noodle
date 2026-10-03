@@ -1,6 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
+import {
+	accountKindLabel,
+	addBucketsInSheet,
+	choose,
+	createPlannedHousehold,
+	signedInPage,
+} from "./session";
 
 // Categorization runs with its deterministic fake (AI_MODEL=stub, see vite.config.ts): it knows
 // Costco is groceries and Shell is gas, and nothing about ACME.
@@ -127,15 +133,10 @@ test("Review looks again once the Plan has a Bucket for what waits there", async
 
 	// The stub knows Shell is gas, and suggests (unsure) a Bucket named in the merchant.
 	await page.goto(thisMonth.replace(/\/month\/(\d{4}-\d{2}).*$/, "/plan/$1/buckets"));
-	for (const [name, amount] of [
+	await addBucketsInSheet(page, [
 		["Gas", "300"],
 		["Acme", "50"],
-	]) {
-		await page.getByLabel("New Bucket").fill(name as string);
-		await page.getByLabel("Monthly allowance").fill(amount as string);
-		await page.getByRole("button", { name: "Add Bucket", exact: true }).click();
-		await expect(page.getByRole("button", { name: `Edit ${name}` })).toBeVisible();
-	}
+	]);
 
 	await page.goto(review);
 	await page.getByRole("button", { name: "Look again" }).click();

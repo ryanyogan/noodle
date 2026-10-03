@@ -100,7 +100,7 @@ const bucketToAdd = (b: DraftBucket, name = b.name, allowanceCents = b.allowance
 });
 
 /** The first Plan's draft, while there's anything left in it. */
-export function PlanDraftSection() {
+export function PlanDraftSection({ planned = [] }: { planned?: string[] }) {
 	const { data: draft } = useQuery(planDraftQuery());
 	const decide = useDecide();
 	const queryClient = useQueryClient();
@@ -110,7 +110,11 @@ export function PlanDraftSection() {
 		onSettled: () => queryClient.invalidateQueries({ queryKey: planDraftQuery().queryKey }),
 	});
 	if (!draft) return null;
-	const { baseline, commitments, buckets } = draft;
+	const { baseline, commitments } = draft;
+	// A Bucket added another way (the Add Buckets sheet) isn't offered again.
+	const named = new Set(planned.map((name) => name.trim().toLowerCase()));
+	const buckets = draft.buckets.filter((b) => !named.has(b.name.trim().toLowerCase()));
+	if (!baseline && commitments.length === 0 && buckets.length === 0) return null;
 	return (
 		<Section aria-labelledby="plan-draft">
 			<SectionHeader id="plan-draft" title="Drafted from your history" />

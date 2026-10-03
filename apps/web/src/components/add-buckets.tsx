@@ -268,7 +268,7 @@ function AddBucketsForm({
 			{tried && unpriced ? (
 				<FormError>Enter each ticked Bucket’s amount in dollars, like 250 or 85.50.</FormError>
 			) : null}
-			<SheetFooter className="max-lg:grid-cols-2">
+			<SheetFooter stick className="max-lg:grid-cols-2">
 				<Button type="button" variant="outline" onClick={onCancel}>
 					Cancel
 				</Button>
