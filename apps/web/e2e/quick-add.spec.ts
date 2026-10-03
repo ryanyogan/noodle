@@ -49,7 +49,7 @@ test("a Quick Add drains its Bucket at once and is saved", async ({ browser }) =
 	await expect(bucketRow(page, "Groceries")).toContainText("$85.50 spent");
 	await expect(hero(page)).toContainText("Left in Buckets$1,514.50");
 	// Spending inside a Bucket doesn't touch Free to Spend: that money was already planned.
-	await expect(hero(page).getByText("$3,400", { exact: true })).toBeVisible();
+	await expect(hero(page).getByText("$3,400", { exact: true }).first()).toBeVisible();
 	await expect(page.getByRole("status").filter({ hasText: "added to" })).toHaveText(
 		"$85.50 added to Groceries",
 	);
@@ -92,14 +92,18 @@ test("Quick Add opens over any screen, and Back closes it without reloading the 
 		.getByRole("navigation", { name: "Plan pages" })
 		.getByRole("link", { name: "Buckets", exact: true })
 		.click();
-	await page.getByLabel("New Bucket").fill("Gifts");
+	await page.getByRole("button", { name: "Change Hockey: $400" }).click();
+	const name = page
+		.getByRole("form", { name: "Change Hockey" })
+		.getByRole("textbox", { name: "Name" });
+	await name.fill("Gifts");
 	await page.getByRole("link", { name: "Quick Add" }).click();
 	await expect(sheet(page)).toBeVisible();
 	await expect(page).toHaveURL(/sheet=quick-add/);
 	await page.goBack();
 	await expect(sheet(page)).toBeHidden();
 	await expect(page).not.toHaveURL(/sheet=/);
-	await expect(page.getByLabel("New Bucket")).toHaveValue("Gifts");
+	await expect(name).toHaveValue("Gifts");
 
 	// From the Household screen, adding closes the sheet and stays there.
 	await page

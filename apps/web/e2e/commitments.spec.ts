@@ -205,7 +205,10 @@ test("a payment that differs from what's expected is flagged", async ({ browser 
 
 	// A payment is already-planned money: Free to Spend doesn't move.
 	await expect(
-		page.getByRole("region", { name: "Free to Spend" }).getByText("$5,220", { exact: true }),
+		page
+			.getByRole("region", { name: "Free to Spend" })
+			.getByText("$5,220", { exact: true })
+			.first(),
 	).toBeVisible();
 	await page.reload();
 	await expect(mortgage).toHaveAccessibleName(/\$50 more than expected$/);
