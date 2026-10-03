@@ -77,7 +77,21 @@ function PlanOverview() {
 					{state.editable ? null : <PlanEnded />}
 					{state.editable && month === current ? <PlanDraftSection /> : null}
 					{settingUp ? <SetUp state={state} current={month === current} /> : null}
-					{month === current ? <PlanHealth /> : null}
+					{/* On a phone, Free to Spend first, then Plan health folded to one line (#65). */}
+					{settingUp && state.baseline === null ? null : (
+						<Card className="flex items-baseline justify-between gap-3 p-(--card-pad) lg:hidden">
+							<span className="text-sm font-medium text-muted-foreground">Free to Spend</span>
+							<span
+								className={cn(
+									"text-2xl font-semibold tracking-tight tabular-nums",
+									state.freeToSpend < 0 && "text-over",
+								)}
+							>
+								{formatMoney(state.freeToSpend)}
+							</span>
+						</Card>
+					)}
+					{month === current ? <PlanHealth folded /> : null}
 					{/* Until take-home pay is set, the rest is all zeros: setting up comes first. */}
 					{settingUp && state.baseline === null ? null : (
 						<div className="grid gap-3">

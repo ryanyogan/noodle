@@ -346,11 +346,15 @@ function Filters({
 	return (
 		<div className="grid gap-2">
 			{total !== null && total !== undefined ? (
-				<p className="flex items-baseline justify-between gap-3 px-1 text-sm lg:order-last lg:pt-2">
+				// The month's total heads the rail on a wide screen, as big as a headline (#65).
+				<p className="flex items-baseline justify-between gap-3 px-1 text-sm lg:grid lg:justify-start lg:gap-0.5 lg:pb-2">
 					<span className="text-muted-foreground">
 						{filtered ? "Total for these filters" : `Spent in ${monthName(month)}`}
 					</span>
-					<span className="font-semibold tabular-nums" data-testid="month-total">
+					<span
+						className="font-semibold tabular-nums lg:text-2xl lg:tracking-tight"
+						data-testid="month-total"
+					>
 						{formatMoney(total)}
 					</span>
 				</p>

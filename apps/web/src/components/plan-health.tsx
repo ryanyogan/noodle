@@ -1,25 +1,57 @@
 import type { MonthKey, PlanWarning } from "@noodle/domain";
+import { Badge } from "@noodle/ui/components/badge";
 import { List } from "@noodle/ui/components/list";
+import { RowButton } from "@noodle/ui/components/row-button";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Link, type LinkProps } from "@tanstack/react-router";
-import { ChevronRight, CircleAlert, TriangleAlert } from "lucide-react";
+import { Link, type LinkProps, useHydrated } from "@tanstack/react-router";
+import { ChevronDown, ChevronRight, CircleAlert, TriangleAlert } from "lucide-react";
+import { useId, useState } from "react";
 import { formatMoney, fullDay, monthName } from "../format";
 import { planHealthQuery } from "../queries";
 
 /**
  * Plan health: what in the Plan needs attention now, each warning opening the page that fixes
- * it. Nothing shows while the Plan is healthy.
+ * it. Nothing shows while the Plan is healthy. `folded` (the Plan overview, #65): on a phone it's
+ * one line naming the most urgent, opened on a tap, so Free to Spend stays above the fold.
  */
-export function PlanHealth() {
+export function PlanHealth({ folded = false }: { folded?: boolean }) {
 	const { warnings, month } = useSuspenseQuery(planHealthQuery()).data;
+	const [open, setOpen] = useState(false);
+	const hydrated = useHydrated();
+	const id = useId();
 	if (warnings.length === 0) return null;
 	const sorted = [...warnings].sort((a, b) => urgency[a.kind] - urgency[b.kind]);
+	const first = sorted[0];
 	return (
 		<Section aria-labelledby="plan-health">
-			<SectionHeader id="plan-health" title="Things to check" count={warnings.length} />
-			<List>
+			<div className={cn(folded && "max-lg:hidden")}>
+				<SectionHeader id="plan-health" title="Things to check" count={warnings.length} />
+			</div>
+			{folded && first ? (
+				<RowButton
+					variant="bordered"
+					aria-expanded={open}
+					aria-controls={id}
+					disabled={!hydrated}
+					onClick={() => setOpen((o) => !o)}
+					className="min-h-11 min-w-0 justify-start gap-2 bg-card lg:hidden"
+				>
+					<span className="text-sm font-semibold">Things to check</span>
+					<Badge variant="count">{warnings.length}</Badge>
+					<span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
+						{describe(first, month).title}
+					</span>
+					<ChevronDown
+						aria-hidden="true"
+						className={cn("size-4 shrink-0 text-muted-foreground transition-transform", {
+							"rotate-180": open,
+						})}
+					/>
+				</RowButton>
+			) : null}
+			<List id={id} className={cn(folded && !open && "max-lg:hidden")}>
 				{sorted.map((warning) => (
 					<HealthRow key={keyOf(warning)} warning={warning} month={month} />
 				))}

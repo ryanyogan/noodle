@@ -297,8 +297,9 @@ function ThisMonth({ bucket }: { bucket: BucketState }) {
 					<div className="flex flex-wrap items-center gap-1.5">
 						<Badge>{bucket.rolling ? "Carries over" : "Resets monthly"}</Badge>
 						{bucket.status === "over" ? (
+							// The figure beside it already says how much.
 							<Badge variant="over" dot>
-								Over by {formatMoney(-bucket.left)}
+								Over
 							</Badge>
 						) : bucket.status === "ahead" ? (
 							<Badge variant="pace" dot>
