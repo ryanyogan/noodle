@@ -370,6 +370,7 @@ export const withGoal = (data: GoalsData, v: AddGoalVariables): GoalsData =>
 						targetDate: v.targetDate,
 						fromMonth: data.month,
 						completed: false,
+						completedAt: null,
 						archived: false,
 					},
 				],
@@ -410,7 +411,9 @@ export const withGoalDetails = (data: GoalsData, v: UpdateGoalVariables): GoalsD
 	}));
 
 export const withGoalCompleted = (data: GoalsData, { goalId }: { goalId: string }) =>
-	mapGoal(data, goalId, (g) => (g.archived ? g : { ...g, completed: true }));
+	mapGoal(data, goalId, (g) =>
+		g.archived ? g : { ...g, completed: true, completedAt: Date.now() },
+	);
 
 export const withGoalArchived = (data: GoalsData, { goalId }: { goalId: string }) =>
 	mapGoal(data, goalId, (g) => ({ ...g, archived: true }));

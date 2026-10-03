@@ -211,6 +211,8 @@ export type ViewData =
 				saved: Cents;
 				targetDate: DayKey | null;
 				completed: boolean;
+				/** The month a completed Goal was completed, in the Household's time zone. */
+				completedMonth: MonthKey | null;
 				/** What a completed Goal spent, up to the period's end; 0 for a payoff Goal. */
 				spent: Cents;
 				history: { month: MonthKey; saved: Cents }[];
@@ -332,7 +334,13 @@ export const getReport = createServerFn({ method: "GET" })
 				: await viewData(
 						context_,
 						goalRecords.changes,
-						goalRecords.goals,
+						goalRecords.goals.map((g) => ({
+							...g,
+							completedMonth:
+								g.completedAt === null
+									? null
+									: monthKeyAt(new Date(g.completedAt), context.household.timeZone),
+						})),
 						// What was owed on each card or loan, by the month it was recorded in.
 						goalRecords.owed.map((p) => ({
 							accountId: p.accountId,
@@ -412,6 +420,7 @@ async function viewData(
 		targetDate: DayKey | null;
 		fromMonth: MonthKey;
 		completed: boolean;
+		completedMonth: MonthKey | null;
 		archived: boolean;
 	}[],
 	owed: { accountId: string; month: MonthKey; amount: Cents }[],
@@ -629,6 +638,7 @@ async function viewData(
 								saved: paidDownOf(g.target, owedThen),
 								targetDate: g.targetDate,
 								completed: g.completed,
+								completedMonth: g.completedMonth,
 								spent: 0,
 								history: paidDownHistory(g, own, months),
 								projected: projectedPayoff(g, owedThen, last),
@@ -645,6 +655,7 @@ async function viewData(
 							),
 							targetDate: g.targetDate,
 							completed: g.completed,
+							completedMonth: g.completedMonth,
 							spent: -goalChanges
 								.filter((c) => c.goalId === g.id && c.kind === "spending" && c.month <= last)
 								.reduce((sum, c) => sum + c.amount, 0),

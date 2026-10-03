@@ -1603,7 +1603,7 @@ function GoalsView({ data, tables, report }: ViewProps<"goals">) {
 					const pastDue = !done && g.targetDate !== null && g.targetDate < report.asOf;
 					const status = g.completed
 						? [
-								"Completed",
+								g.completedMonth ? `Completed ${monthLabel(g.completedMonth)}` : "Completed",
 								...(g.spent > 0 ? [`spent ${formatMoney(g.spent)}`] : []),
 								...(g.kind === "payoff" ? [] : [`${formatMoney(g.saved)} still set aside`]),
 							].join(" · ")

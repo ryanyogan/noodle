@@ -228,6 +228,7 @@ describe("addGoal", () => {
 				targetDate: "2027-06-15",
 				fromMonth: month,
 				completed: false,
+				completedAt: null,
 				archived: false,
 			},
 		]);
@@ -275,6 +276,7 @@ describe("addGoal", () => {
 			target: 650_000,
 			targetDate: null,
 			completed: true,
+			completedAt: expect.any(Number),
 			archived: false,
 		});
 	});

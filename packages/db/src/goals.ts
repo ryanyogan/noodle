@@ -755,6 +755,8 @@ export type GoalRecord = {
 	/** The month it was added. */
 	fromMonth: MonthKey;
 	completed: boolean;
+	/** When it was marked completed (epoch ms), or null. */
+	completedAt: number | null;
 	archived: boolean;
 };
 
@@ -943,6 +945,7 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 			targetDate: row.targetDate as DayKey | null,
 			fromMonth: row.fromMonth as MonthKey,
 			completed: row.completedAt !== null,
+			completedAt: row.completedAt?.getTime() ?? null,
 			archived: row.archivedAt !== null,
 		})),
 		changes,
