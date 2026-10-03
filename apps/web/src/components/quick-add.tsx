@@ -384,8 +384,9 @@ function QuickAddForm({
 					if (event.key === "Enter") event.currentTarget.blur();
 				}}
 			/>
-			{/* Phones: the keypad stays at the bottom, in thumb reach, while the Buckets scroll. */}
-			<SheetFooter className="lg:hidden">
+			{/* Phones: the keypad stays at the bottom, in thumb reach, while the Buckets scroll. With
+			    the keyboard up for the note, it steps aside: the keyboard has numbers too. */}
+			<SheetFooter className="lg:hidden [[data-keyboard]_&]:hidden">
 				<fieldset className="grid grid-cols-3 gap-0.5">
 					<legend className="sr-only">Keypad</legend>
 					{["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0"].map((key) => (

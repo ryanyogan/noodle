@@ -326,7 +326,9 @@ test("an Account lists its Transactions, and Transactions filters by it", async 
 	await page.context().close();
 });
 
-test("on a phone, Transactions is in the tab bar either side of Quick Add", async ({ browser }) => {
+test("on a phone, Transactions is in the tab bar either side of Quick Add", {
+	tag: "@phone",
+}, async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email, {
 		viewport: { width: 393, height: 852 },
 		isMobile: true,

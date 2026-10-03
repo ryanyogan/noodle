@@ -30,7 +30,7 @@ function CommandInput({
 				data-slot="command-input"
 				className={cn(
 					// 16px on phones so iOS Safari doesn't zoom, as Input.
-					"h-10 w-full min-w-0 bg-transparent text-base outline-hidden placeholder:text-subtle-foreground md:text-sm",
+					"h-10 w-full min-w-0 bg-transparent text-base outline-hidden placeholder:text-subtle-foreground lg:text-sm",
 					"disabled:cursor-not-allowed disabled:opacity-50",
 					className,
 				)}

@@ -47,7 +47,8 @@ jobs:
             "${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" "${{ secrets.CLERK_SECRET_KEY }}" > .dev.vars
           # Throwaway VAPID keys for Nudges; nothing is really pushed in E2E.
           bun scripts/vapid-keys.ts >> .dev.vars
-      - run: bun run e2e --shard=${{ matrix.shard }}/6
+      # Phone tests run in e2e-phone, on Chromium and WebKit.
+      - run: bun run e2e --project=chromium --shard=${{ matrix.shard }}/6
         working-directory: apps/web
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -55,9 +56,41 @@ jobs:
           name: playwright-traces-${{ matrix.shard }}
           path: apps/web/test-results
 
+  # The phone tests (phone-*.spec.ts, sheet-phone.spec.ts and tests tagged @phone) once per phone
+  # project: Chromium with iPhone 15 metrics, WebKit as iPhone 15, and WebKit as iPhone SE.
+  e2e-phone:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium-mobile, webkit-iphone, webkit-iphone-se]
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps chromium webkit
+        working-directory: apps/web
+      - name: Write dev keys for the local Worker
+        working-directory: apps/web
+        run: |
+          printf 'VITE_CLERK_PUBLISHABLE_KEY=%s\nCLERK_SECRET_KEY=%s\n' \
+            "${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" "${{ secrets.CLERK_SECRET_KEY }}" > .dev.vars
+          bun scripts/vapid-keys.ts >> .dev.vars
+      - run: bun run e2e --project=${{ matrix.project }}
+        working-directory: apps/web
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces-${{ matrix.project }}
+          path: apps/web/test-results
+
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [check, e2e]
+    needs: [check, e2e, e2e-phone]
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

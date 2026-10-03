@@ -55,7 +55,9 @@ test("on a computer, the Plan is in the sidebar", async ({ browser }) => {
 	await page.context().close();
 });
 
-test("on a phone, the Plan is a switch away from This Month", async ({ browser }) => {
+test("on a phone, the Plan is a switch away from This Month", { tag: "@phone" }, async ({
+	browser,
+}) => {
 	const page = await signedInPage(browser, parent.email, phone);
 	await createPlannedHousehold(page, plan);
 	const { name } = shownMonth(page);

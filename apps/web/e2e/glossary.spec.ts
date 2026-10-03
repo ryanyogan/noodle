@@ -78,7 +78,9 @@ test("a term's help explains it in place and leads to the Glossary", async ({ br
 	await page.context().close();
 });
 
-test("on a phone, a term's help opens with a tap and fits the screen", async ({ browser }) => {
+test("on a phone, a term's help opens with a tap and fits the screen", { tag: "@phone" }, async ({
+	browser,
+}) => {
 	const page = await signedInPage(browser, parent.email, phone);
 	await createPlannedHousehold(page, plan);
 

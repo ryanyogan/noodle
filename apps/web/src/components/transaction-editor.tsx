@@ -5,7 +5,13 @@ import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
 import { List, ListRow } from "@noodle/ui/components/list";
 import type { Choices } from "@noodle/ui/components/select";
-import { Sheet, SheetCancel, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
+import {
+	Sheet,
+	SheetCancel,
+	SheetContent,
+	SheetFooter,
+	SheetHeader,
+} from "@noodle/ui/components/sheet";
 import { cn } from "@noodle/ui/lib/utils";
 import { useHydrated } from "@tanstack/react-router";
 import { Plus, Sparkles, Split as SplitIcon, Trash2, X } from "lucide-react";
@@ -537,7 +543,7 @@ function EditForm({
 					It comes out of this month’s spending everywhere.
 				</Confirm>
 			) : null}
-			<div className="flex items-center gap-2">
+			<EditorActions inline={inline}>
 				<Button type="button" variant="ghost" onClick={() => setConfirmDelete(true)}>
 					<Trash2 />
 					Delete
@@ -556,7 +562,7 @@ function EditForm({
 				>
 					Save
 				</Button>
-			</div>
+			</EditorActions>
 		</form>
 	);
 }
@@ -656,4 +662,13 @@ function Remainder({ remainder }: { remainder: number | null }) {
 						: `${formatMoney(-remainder)} too much`}
 		</p>
 	);
+}
+
+/**
+ * Delete, Cancel and Save in one row. In the sheet they're its footer, so on a phone Save stays in
+ * view at the bottom while the form scrolls, the keyboard up or not (#52 row 147).
+ */
+function EditorActions({ inline, children }: { inline: boolean; children: ReactNode }) {
+	if (inline) return <div className="flex items-center gap-2">{children}</div>;
+	return <SheetFooter className="flex items-center gap-2">{children}</SheetFooter>;
 }

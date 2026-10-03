@@ -129,7 +129,9 @@ test("Quick Add opens over any screen, and Back closes it without reloading the 
 	await page.context().close();
 });
 
-test("on a phone, Quick Add takes three taps from the tab bar", async ({ browser }) => {
+test("on a phone, Quick Add takes three taps from the tab bar", { tag: "@phone" }, async ({
+	browser,
+}) => {
 	const page = await signedInPage(browser, parent.email, {
 		viewport: { width: 393, height: 852 },
 		isMobile: true,

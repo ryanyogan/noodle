@@ -7,6 +7,13 @@ config({ path: ".dev.vars", quiet: true });
 // Matches vite.config.ts: set PORT to run a second checkout's E2E alongside this one.
 const port = Number(process.env.PORT ?? 5173);
 
+/**
+ * Phone tests: every test in a phone-*.spec.ts or sheet-phone.spec.ts file, and any other test
+ * tagged `@phone` (`test("…", { tag: "@phone" }, …)`). Playwright matches `grep` against the
+ * project name, file name, describe and test titles, and tags joined by spaces.
+ */
+const phoneTests = /\b(phone-[\w-]+|sheet-phone)\.spec\.ts|@phone\b/;
+
 export default defineConfig({
 	testDir: "./e2e",
 	fullyParallel: true,
@@ -29,6 +36,29 @@ export default defineConfig({
 			name: "chromium",
 			use: { ...devices["Desktop Chrome"] },
 			dependencies: ["setup"],
+			grepInvert: phoneTests,
+		},
+		// The phone tests run on both engines: Chromium with iPhone 15 metrics, and WebKit (the
+		// engine inside Mobile Safari) with Playwright's iPhone descriptors. Tests that open their
+		// own context with `browser.newContext({ ...phone })` get this project's browser too.
+		{
+			name: "chromium-mobile",
+			use: { ...devices["iPhone 15"], defaultBrowserType: "chromium" },
+			dependencies: ["setup"],
+			grep: phoneTests,
+		},
+		{
+			name: "webkit-iphone",
+			use: { ...devices["iPhone 15"] },
+			dependencies: ["setup"],
+			grep: phoneTests,
+		},
+		// The smallest iPhone still sold second-hand: only the checks that depend on screen size.
+		{
+			name: "webkit-iphone-se",
+			use: { ...devices["iPhone SE"] },
+			dependencies: ["setup"],
+			grep: /\bphone-(keyboard|no-zoom)\.spec\.ts/,
 		},
 	],
 	webServer: {
