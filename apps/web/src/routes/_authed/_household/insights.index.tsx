@@ -277,7 +277,7 @@ function InsightCard({
 											params={{ month: monthOfDay(transaction.date) }}
 											className="underline-offset-4 hover:underline"
 										>
-											{transaction.note || "No note"}
+											{transaction.merchantName || transaction.note || "No note"}
 										</Link>
 									}
 									meta={shortDay(transaction.date)}

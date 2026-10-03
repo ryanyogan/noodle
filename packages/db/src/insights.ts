@@ -122,7 +122,14 @@ export type InsightItem = {
 	private: boolean;
 	createdAt: number;
 	/** Its Transactions, as `viewer` sees them, newest first. */
-	transactions: { id: string; date: DayKey; amount: number; note: string | null }[];
+	transactions: {
+		id: string;
+		date: DayKey;
+		amount: number;
+		note: string | null;
+		/** Its merchant's clean name, for an imported line once named (ADR-0027). */
+		merchantName: string | null;
+	}[];
 	/** Its Commitments, `ended` when no longer in the Plan. */
 	commitments: { id: string; name: string; endedFromMonth: string | null }[];
 	/** Its Perks, each with the page it was read from and when (one gone since a re-check is left out). */
@@ -156,6 +163,7 @@ export async function loadInsights(db: Db, viewer: Viewer): Promise<InsightItem[
 						date: transactions.date,
 						amount: transactions.amountCents,
 						note: transactions.note,
+						merchantName: transactions.merchant,
 					})
 					.from(transactions)
 					.where(

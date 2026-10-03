@@ -273,7 +273,12 @@ describe("a background AI run names merchants first", () => {
 
 	it("names what the normaliser settles without asking the model", async () => {
 		const asked: string[][] = [];
-		const namer = { name: async (raws: string[]) => (asked.push(raws), new Map<string, string>()) };
+		const namer = {
+			name: async (raws: string[]) => {
+				asked.push(raws);
+				return new Map<string, string>();
+			},
+		};
 		const id = await importLines("alex", [line("COSTCO WHSE #1042 SEATTLE WA", 120)]);
 		await runAiBatch({ ...deps(namingModel().classifier), namer }, imported(id));
 		expect(await merchantOf("COSTCO WHSE #1042 SEATTLE WA")).toEqual(["Costco"]);
@@ -283,9 +288,10 @@ describe("a background AI run names merchants first", () => {
 	it("asks the model for leftovers once, in one prompt, and keeps its names for the Household", async () => {
 		const asked: string[][] = [];
 		const namer = {
-			name: async (raws: string[]) => (
-				asked.push(raws), new Map(raws.map((raw) => [raw, "Patreon"]))
-			),
+			name: async (raws: string[]) => {
+				asked.push(raws);
+				return new Map(raws.map((raw) => [raw, "Patreon"]));
+			},
 		};
 		const first = await importLines("alex", [
 			line("CKO*PATREON* MEMBERSHIP", 5),

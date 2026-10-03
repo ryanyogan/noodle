@@ -1,5 +1,5 @@
 import { type DayKey, type MonthKey, monthState, planForMonth } from "@noodle/domain";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	addBucket,
@@ -23,6 +23,7 @@ import {
 import { bucketLeftSql } from "./moves";
 import { setCarriesOver } from "./plan";
 import { loadRolledOver } from "./rollover";
+import { transactions } from "./schema";
 import { testDb } from "./test-db";
 
 const householdId = "household";
@@ -347,5 +348,47 @@ describe("Splits everywhere spending is summed", () => {
 		await splitCostco();
 		const uses = await loadBucketUses(db, viewer, "2026-09-01");
 		expect(uses.map((use) => use.bucketId).sort()).toEqual(["groceries", "hockey"]);
+	});
+});
+
+describe("a merchant's clean name when the note is edited", () => {
+	const merchant = async () =>
+		(await db.select().from(transactions).where(eq(transactions.id, "costco")))[0]?.merchant;
+	const edit = (note: string) =>
+		updateTransaction(db, {
+			householdId,
+			memberId: parentId,
+			transactionId: "costco",
+			amountCents: 25_000,
+			assignment: { bucketId: "groceries" },
+			note,
+			forMemberIds: ["maya"],
+		});
+	beforeEach(async () => {
+		await db.update(transactions).set({ merchant: "Costco" }).where(eq(transactions.id, "costco"));
+	});
+
+	it("stays while the note does", async () => {
+		expect(await edit("Costco")).toEqual({ ok: true });
+		expect(await merchant()).toBe("Costco");
+	});
+
+	it("is cleared when the note changes, so the next run names it again", async () => {
+		expect(await edit("Costco gas")).toEqual({ ok: true });
+		expect(await merchant()).toBeNull();
+		expect(await edit("Costco gas")).toEqual({ ok: true });
+		expect(await merchant()).toBeNull();
+	});
+
+	it("is cleared when a split changes the note", async () => {
+		await splitTransaction(db, {
+			householdId,
+			memberId: parentId,
+			transactionId: "costco",
+			amountCents: 25_000,
+			note: "Costco run",
+			splits: costcoSplits,
+		});
+		expect(await merchant()).toBeNull();
 	});
 });

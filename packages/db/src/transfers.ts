@@ -54,6 +54,8 @@ export type MoneyPeer = {
 	/** Positive for money out or income; negative for money back onto a card. */
 	amountCents: Cents;
 	note: string | null;
+	/** Its merchant's clean name, for an imported line once named (ADR-0027). */
+	merchantName: string | null;
 	/** The Account it was imported into; null for a Quick Add. */
 	account: string | null;
 };
@@ -290,6 +292,7 @@ async function loadPeers(
 					date: income.date,
 					amountCents: income.amountCents,
 					note: income.note,
+					merchantName: sql<string | null>`null`,
 					account: accounts.name,
 				})
 				.from(income)
@@ -301,6 +304,7 @@ async function loadPeers(
 					date: transactions.date,
 					amountCents: transactions.amountCents,
 					note: transactions.note,
+					merchantName: transactions.merchant,
 					account: sql<
 						string | null
 					>`case when ${transactions.source} = 'import' then ${accounts.name} end`,

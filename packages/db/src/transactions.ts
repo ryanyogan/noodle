@@ -861,6 +861,13 @@ export function clearSplits(db: Db, householdId: string, transactionId: string, 
 }
 
 /**
+ * The merchant's clean name to keep when a note is set to `note`: unchanged while the note is,
+ * cleared when it changes, so the next background run names it again from the new note (ADR-0027).
+ */
+const keptMerchant = (note: string | null) =>
+	sql<string | null>`case when ${transactions.note} is ${note} then ${transactions.merchant} end`;
+
+/**
  * Changes a Transaction's amount, assignment, note, and For, all at once, assigning it as a whole
  * (so any Splits it had are removed), for the Parent `memberId`. Idempotent: it sets values, so a
  * retry lands the same. The Transaction only changes if, at write time, it is the Household's and
@@ -901,7 +908,13 @@ export async function updateTransaction(
 	)})`;
 	const update = db
 		.update(transactions)
-		.set({ amountCents: input.amountCents, bucketId, commitmentId, note: input.note })
+		.set({
+			amountCents: input.amountCents,
+			bucketId,
+			commitmentId,
+			note: input.note,
+			merchant: keptMerchant(input.note),
+		})
 		.where(
 			and(
 				theTransaction,
@@ -1014,7 +1027,13 @@ export async function splitTransaction(
 	const splitNow = and(edited, allAssignable, undecided) as SQL;
 	const update = db
 		.update(transactions)
-		.set({ amountCents: input.amountCents, bucketId: null, commitmentId: null, note: input.note })
+		.set({
+			amountCents: input.amountCents,
+			bucketId: null,
+			commitmentId: null,
+			note: input.note,
+			merchant: keptMerchant(input.note),
+		})
 		.where(and(theTransaction, allAssignable, undecided));
 	const clearFor = db
 		.delete(transactionFor)

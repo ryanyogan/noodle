@@ -33,7 +33,8 @@ export function MatchSection({
 	if (!data || data.kind === "none") return null;
 	if (data.kind === "unmatched" && data.possible.length === 0) return null;
 	const isQuickAdd = transaction.importedFrom === null;
-	const label = transaction.note || (isQuickAdd ? "Quick Add" : "Transaction");
+	const label =
+		transaction.merchantName || transaction.note || (isQuickAdd ? "Quick Add" : "Transaction");
 
 	if (data.kind === "matched") {
 		const { peer } = data;
@@ -92,7 +93,7 @@ export function MatchSection({
 								variant="secondary"
 								size="sm"
 								disabled={!hydrated}
-								aria-label={`Match with ${peer.note || "Quick Add"}, ${formatMoney(peer.amountCents)}, ${shortDay(peer.date)}`}
+								aria-label={`Match with ${peer.merchantName || peer.note || "Quick Add"}, ${formatMoney(peer.amountCents)}, ${shortDay(peer.date)}`}
 								onClick={() => {
 									if (!beforeChange()) return;
 									change.mutate({
@@ -126,7 +127,10 @@ export function ReviewMatchOffer({ transaction }: { transaction: { id: string; d
 	const change = useMatchChange();
 	if (data?.kind !== "unmatched" || data.possible.length === 0) return null;
 	const [only] = data.possible;
-	const name = (peer: MatchPeer) => (peer.note ? `“${peer.note}”` : "");
+	const name = (peer: MatchPeer) => {
+		const called = peer.merchantName || peer.note;
+		return called ? `“${called}”` : "";
+	};
 	return (
 		<section
 			aria-labelledby="review-match-heading"
@@ -151,14 +155,14 @@ export function ReviewMatchOffer({ transaction }: { transaction: { id: string; d
 								variant="secondary"
 								size="sm"
 								disabled={!hydrated || change.isPending}
-								aria-label={`Match with ${peer.note || "Quick Add"}, ${formatMoney(peer.amountCents)}, ${shortDay(peer.date)}`}
+								aria-label={`Match with ${peer.merchantName || peer.note || "Quick Add"}, ${formatMoney(peer.amountCents)}, ${shortDay(peer.date)}`}
 								onClick={() =>
 									change.mutate({
 										kind: "match",
 										matchId: ulid(),
 										quickAddId: peer.id,
 										importedId: transaction.id,
-										label: peer.note || "Quick Add",
+										label: peer.merchantName || peer.note || "Quick Add",
 									})
 								}
 							>
@@ -176,7 +180,7 @@ export function ReviewMatchOffer({ transaction }: { transaction: { id: string; d
 function PeerRow({ peer, action }: { peer: MatchPeer; action?: React.ReactNode }) {
 	return (
 		<ListRow
-			title={peer.note || (peer.account ? "Imported" : "Quick Add")}
+			title={peer.merchantName || peer.note || (peer.account ? "Imported" : "Quick Add")}
 			meta={[peer.account ?? "Quick Add", shortDay(peer.date)].join(" · ")}
 			trailing={
 				<div className="flex items-center gap-3">

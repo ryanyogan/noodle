@@ -15,6 +15,7 @@ const insight = (
 		date: "2026-09-01",
 		amount,
 		note: null,
+		merchantName: null,
 	})),
 });
 const disney = { id: "disney", name: "Disney+", endedFromMonth: null };

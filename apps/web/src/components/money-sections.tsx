@@ -32,7 +32,7 @@ export function MoneyDetail({
 		<div className="grid gap-5">
 			<List>
 				<ListRow
-					title={transaction.note || "Imported"}
+					title={transaction.merchantName || transaction.note || "Imported"}
 					meta={
 						transaction.transfer ? transferDetail(transaction.transfer) : transaction.importedFrom
 					}
@@ -74,7 +74,7 @@ export function TransferSection({
 	const change = useMoneyChange();
 	const transfer = view ?? data?.transfer;
 	if (!transfer || (transfer.kind === "none" && !transfer.markable)) return null;
-	const label = transaction.note || "Transaction";
+	const label = transaction.merchantName || transaction.note || "Transaction";
 
 	if (transfer.kind === "transfer") {
 		return (
@@ -154,7 +154,7 @@ function RefundSection({
 	const hydrated = useHydrated();
 	const change = useMoneyChange();
 	if (view.kind === "none") return null;
-	const label = transaction.note || "Money back";
+	const label = transaction.merchantName || transaction.note || "Money back";
 
 	if (view.kind === "refund") {
 		return (
@@ -207,7 +207,7 @@ function RefundSection({
 									variant="secondary"
 									size="sm"
 									disabled={!hydrated}
-									aria-label={`Link as a Refund for ${peer.note || "Quick Add"}, ${formatMoney(peer.amountCents)}, ${shortDay(peer.date)}`}
+									aria-label={`Link as a Refund for ${peer.merchantName || peer.note || "Quick Add"}, ${formatMoney(peer.amountCents)}, ${shortDay(peer.date)}`}
 									onClick={() => {
 										change.mutate({
 											kind: "link",
@@ -234,7 +234,7 @@ function RefundSection({
 function PeerRow({ peer, action }: { peer: MoneyPeer; action?: React.ReactNode }) {
 	return (
 		<ListRow
-			title={peer.note || (peer.account ? "Imported" : "Quick Add")}
+			title={peer.merchantName || peer.note || (peer.account ? "Imported" : "Quick Add")}
 			meta={[peer.account ?? "Quick Add", shortDay(peer.date)].join(" · ")}
 			trailing={
 				<div className="flex items-center gap-3">

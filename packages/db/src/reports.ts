@@ -397,6 +397,8 @@ export type ReportItem = {
 	date: DayKey;
 	amount: Cents;
 	note: string | null;
+	/** Its merchant's clean name, for an imported line once named (ADR-0027); hidden as the note is. */
+	merchantName: string | null;
 	target: Target;
 	accountId: string | null;
 	/** It's one Split of a split Transaction. */
@@ -425,6 +427,12 @@ export async function loadReportItems(
 					: sql<
 							string | null
 						>`case when ${partlyPrivate(scope.viewer)} then null else ${transactions.note} end`,
+			merchantName:
+				parts.from === "whole"
+					? transactions.merchant
+					: sql<
+							string | null
+						>`case when ${partlyPrivate(scope.viewer)} then null else ${transactions.merchant} end`,
 			target: targetOf(parts),
 			accountId: transactions.accountId,
 			split: sql<number>`${parts.from === "split" ? 1 : 0}`,

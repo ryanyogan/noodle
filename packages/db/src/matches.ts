@@ -25,6 +25,8 @@ export type MatchPeer = {
 	date: DayKey;
 	amountCents: Cents;
 	note: string | null;
+	/** Its merchant's clean name, for an imported line once named (ADR-0027). */
+	merchantName: string | null;
 	/** The Account it was imported into; null for a Quick Add. */
 	account: string | null;
 };
@@ -154,6 +156,7 @@ async function loadPeers(db: Db, where: SQL): Promise<MatchPeer[]> {
 			date: transactions.date,
 			amountCents: transactions.amountCents,
 			note: transactions.note,
+			merchantName: transactions.merchant,
 			account: accounts.name,
 		})
 		.from(transactions)
