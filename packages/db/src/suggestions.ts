@@ -2,10 +2,12 @@ import {
 	changedALot,
 	commitmentsIn,
 	type DayKey,
+	type Evidence,
 	evidenceFingerprint,
 	type HandFiling,
 	isCatchAll,
 	type MonthKey,
+	merchantKey,
 	type RuleNow,
 	type SpendLine,
 	type SuggestionIdea,
@@ -21,6 +23,7 @@ import {
 	buckets,
 	categorizations,
 	households,
+	planDraftDecisions,
 	rules,
 	splits,
 	suggestions,
@@ -180,25 +183,39 @@ export async function saveSuggestions(
 	const found = new Set<string>();
 	let changed = 0;
 	const now = new Date();
-	for (const idea of ideas) {
+	// Stored with its owner, so the other Parent's findings never collide with it.
+	const keyed = ideas.map((idea) => ({
+		idea,
+		key: `${idea.owner ?? "household"}|${suggestionKey(idea)}`,
+	}));
+	// One the draft already settled starts settled, as if a Parent had decided it here.
+	const fromDraft = await draftDecided(
+		db,
+		householdId,
+		keyed
+			.filter(({ key }) => !byKey.has(key))
+			.map(({ idea, key }) => ({ key, evidence: idea.evidence })),
+	);
+	for (const { idea, key } of keyed) {
 		const { evidence, owner, ...payload } = idea;
-		// Stored with its owner, so the other Parent's findings never collide with it.
-		const key = `${owner ?? "household"}|${suggestionKey(idea)}`;
 		found.add(key);
 		const fingerprint = evidenceFingerprint(evidence);
 		const row = byKey.get(key);
 		if (!row) {
+			const decided = fromDraft.get(key);
 			await db.insert(suggestions).values({
 				id: crypto.randomUUID(),
 				householdId,
 				memberId: owner,
 				kind: idea.kind,
 				key,
+				status: decided?.status ?? "open",
 				payload,
 				evidence,
 				fingerprint,
+				decidedByMemberId: decided?.memberId ?? null,
 			});
-			changed++;
+			if (!decided) changed++;
 		} else if (
 			row.status === "open" ? row.fingerprint !== fingerprint : changedALot(row.evidence, evidence)
 		) {
@@ -227,6 +244,85 @@ export async function saveSuggestions(
 		changed += gone.length;
 	}
 	return changed;
+}
+
+type DraftDecision = { status: "accepted" | "dismissed"; memberId: string };
+
+/**
+ * What the first Plan's draft settled among these suggestions (by stored key): a Commitment added
+ * or skipped there, matched by its charges' statement lines as the draft keys them, or a Bucket of
+ * the same name. Something a Parent turned down in the draft isn't suggested again, unless its
+ * evidence later changes a lot, like any dismissal (ADR-0027).
+ */
+async function draftDecided(
+	db: Db,
+	householdId: string,
+	candidates: { key: string; evidence: Evidence }[],
+): Promise<Map<string, DraftDecision>> {
+	const settled = new Map<string, DraftDecision>();
+	if (candidates.length === 0) return settled;
+	const decisions = await db
+		.select({
+			key: planDraftDecisions.key,
+			decision: planDraftDecisions.decision,
+			memberId: planDraftDecisions.memberId,
+		})
+		.from(planDraftDecisions)
+		.where(eq(planDraftDecisions.householdId, householdId));
+	if (decisions.length === 0) return settled;
+	const byDraftKey = new Map(
+		decisions.map((d) => [
+			d.key,
+			{ status: d.decision === "added" ? "accepted" : "dismissed", memberId: d.memberId } as const,
+		]),
+	);
+	const what = (key: string) => key.slice(key.indexOf("|") + 1);
+	const ids = candidates
+		.filter(({ key }) => what(key).startsWith("new-commitment:"))
+		.flatMap(({ evidence }) => evidence.transactionIds ?? []);
+	const notes = new Map<string, string>();
+	// D1 binds at most 100 parameters a query.
+	for (let i = 0; i < ids.length; i += 90) {
+		const rows = await db
+			.select({ id: transactions.id, note: transactions.note })
+			.from(transactions)
+			.where(inArray(transactions.id, ids.slice(i, i + 90)));
+		for (const row of rows) notes.set(row.id, row.note ?? "");
+	}
+	for (const { key, evidence } of candidates) {
+		const about = what(key);
+		const draftKeys = about.startsWith("new-bucket:")
+			? [`bucket:${about.slice("new-bucket:".length)}`]
+			: about.startsWith("new-commitment:")
+				? (evidence.transactionIds ?? []).map(
+						(id) => `commitment:${merchantKey(notes.get(id) ?? "")}`,
+					)
+				: [];
+		const decided = draftKeys.map((k) => byDraftKey.get(k)).find(Boolean);
+		if (decided) settled.set(key, decided);
+	}
+	return settled;
+}
+
+/**
+ * Settles the open suggestions the draft just decided: a drafted Commitment or Bucket a Parent
+ * skipped is dismissed, one they added is accepted. Called as the draft's decisions are saved.
+ */
+export async function settleFromDraft(db: Db, householdId: string): Promise<void> {
+	const open = await db
+		.select({ id: suggestions.id, key: suggestions.key, evidence: suggestions.evidence })
+		.from(suggestions)
+		.where(and(eq(suggestions.householdId, householdId), eq(suggestions.status, "open")));
+	const settled = await draftDecided(db, householdId, open);
+	const now = new Date();
+	for (const row of open) {
+		const decided = settled.get(row.key);
+		if (!decided) continue;
+		await db
+			.update(suggestions)
+			.set({ status: decided.status, decidedByMemberId: decided.memberId, updatedAt: now })
+			.where(eq(suggestions.id, row.id));
+	}
 }
 
 /** The terms a suggestion would add (by kind), as saved. */

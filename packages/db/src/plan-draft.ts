@@ -6,6 +6,7 @@ import type { Db } from "./index";
 import { bucketAdd, takeHomePayLog } from "./plan";
 import { nextColor } from "./scenarios";
 import { baselines, planDraftDecisions, planDrafts } from "./schema";
+import { settleFromDraft } from "./suggestions";
 
 // The first Plan's draft: what a model said about a Household's history, and each Parent's
 // decisions on its suggestions. Adding a suggestion writes it to the Plan the way adding it by
@@ -125,6 +126,9 @@ export async function decideDraft(
 	for (const key of input.skipped ?? []) decide(key, "skipped");
 	const [first, ...rest] = writes;
 	if (first) await db.batch([first, ...rest]);
+	// A suggestion already open for what was just decided is settled the same way.
+	if (input.commitments?.length || input.buckets?.length || input.skipped?.length)
+		await settleFromDraft(db, householdId);
 }
 
 /** A Parent is done with the draft: it stops showing, whatever is left in it. */

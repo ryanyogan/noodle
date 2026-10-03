@@ -1,10 +1,11 @@
-import { spotBuckets, spotCommitments } from "@noodle/domain";
+import { merchantKey, spotBuckets, spotCommitments } from "@noodle/domain";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	addBucket,
 	addPersonalAllowance,
 	createHouseholdForParent,
 	type Db,
+	decideDraft,
 	decideSuggestion,
 	loadLearnInputs,
 	loadOpenSuggestions,
@@ -124,6 +125,59 @@ describe("suggestions", () => {
 		await run();
 		await db.delete(transactions);
 		expect(await run()).toBe(1);
+		expect(await loadOpenSuggestions(db, alex)).toEqual([]);
+	});
+});
+
+describe("suggestions and the first Plan's draft", () => {
+	const gymKey = `commitment:${merchantKey("PLANET FITNESS")}`;
+	const skip = () =>
+		decideDraft(db, { householdId, memberId: "alex", month: "2026-10", skipped: [gymKey] });
+
+	it("aren't made for a Commitment skipped in the draft, unless its evidence changes a lot", async () => {
+		await skip();
+		expect(await run()).toBe(0);
+		expect(await loadOpenSuggestions(db, alex)).toEqual([]);
+		await db.delete(transactions);
+		for (const [i, date] of ["2026-07-02", "2026-08-02", "2026-09-02", "2026-10-02"].entries()) {
+			await charge(`gym-new${i}`, date, 7_999, "Planet Fitness");
+		}
+		await run();
+		expect((await loadOpenSuggestions(db, alex)).map((s) => s.payload.amountCents)).toEqual([
+			7_999,
+		]);
+	});
+
+	it("already open go when the draft skips or adds the same thing", async () => {
+		await run();
+		expect(await loadOpenSuggestions(db, alex)).toHaveLength(1);
+		await skip();
+		expect(await loadOpenSuggestions(db, alex)).toEqual([]);
+		await run();
+		expect(await loadOpenSuggestions(db, alex)).toEqual([]);
+
+		for (const [i, date] of ["2026-07-05", "2026-08-05", "2026-09-05", "2026-10-01"].entries()) {
+			await charge(`spotify${i}`, date, 1_199, "Spotify");
+		}
+		await run();
+		expect((await loadOpenSuggestions(db, alex)).map((s) => s.payload.name)).toEqual(["Spotify"]);
+		await decideDraft(db, {
+			householdId,
+			memberId: "alex",
+			month: "2026-10",
+			commitments: [
+				{
+					key: `commitment:${merchantKey("SPOTIFY")}`,
+					commitmentId: "music",
+					name: "Music",
+					amountCents: 1_199,
+					cadence: "monthly",
+					dueDate: "2026-11-01",
+				},
+			],
+		});
+		expect(await loadOpenSuggestions(db, alex)).toEqual([]);
+		await run();
 		expect(await loadOpenSuggestions(db, alex)).toEqual([]);
 	});
 });
