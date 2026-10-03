@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { BankProviderError } from "./bank-connection";
 import {
 	createLinkToken,
+	HISTORY_DAYS,
 	type PlaidTransport,
+	plaidNotSetUp,
 	plaidProvider,
 	plaidTransport,
 	webhookVerificationKey,
@@ -31,7 +33,7 @@ describe("Plaid's API", () => {
 		expect(JSON.parse(String(call?.init.body))).toMatchObject({
 			user: { client_user_id: "household-1" },
 			products: ["transactions"],
-			transactions: { days_requested: 90 },
+			transactions: { days_requested: HISTORY_DAYS },
 		});
 	});
 
@@ -60,7 +62,7 @@ describe("Plaid's API", () => {
 		expect(await answer("This institution is not currently responding.")).toMatchObject({
 			notice: "This institution is not currently responding.",
 		});
-		expect(await answer(null)).toMatchObject({ notice: null });
+		expect(await answer(null)).toMatchObject({ notice: expect.stringMatching(/isn’t answering/) });
 	});
 
 	it("says when a Parent must log in again", async () => {
@@ -191,5 +193,54 @@ describe("Plaid's transactions", () => {
 			{ accountExternalId: "acc", bankId: "b" },
 			{ accountExternalId: "acc", bankId: "p" },
 		]);
+	});
+});
+
+describe("Plaid in production (#70)", () => {
+	const failing = (body: Record<string, unknown>) =>
+		plaidTransport({ clientId: "client", secret: "secret", environment: "production" }, (async () =>
+			Response.json(body, { status: 400 })) as unknown as typeof fetch)(
+			"/transactions/sync",
+			{},
+		).catch((e: unknown) => e);
+
+	it("asks for a year of history", () => {
+		expect(HISTORY_DAYS).toBe(365);
+	});
+
+	it("fails closed when the secret doesn't fit the environment", async () => {
+		const error = await failing({
+			error_type: "INVALID_INPUT",
+			error_code: "INVALID_API_KEYS",
+			error_message: "invalid client_id or secret provided",
+		});
+		expect(plaidNotSetUp(error)).toBe(true);
+		expect(error).toMatchObject({ notice: expect.stringMatching(/^Plaid isn’t set up/) });
+		expect(plaidNotSetUp(new BankProviderError("down", "INSTITUTION_DOWN"))).toBe(false);
+		expect(plaidNotSetUp(new Error("INVALID_API_KEYS"))).toBe(false);
+	});
+
+	it("says busy banks, limits and unready products in plain words, never Plaid's own", async () => {
+		for (const body of [
+			{ error_type: "INSTITUTION_ERROR", error_code: "INSTITUTION_DOWN" },
+			{ error_type: "INSTITUTION_ERROR", error_code: "INSTITUTION_NOT_RESPONDING" },
+			{ error_type: "RATE_LIMIT_EXCEEDED", error_code: "TRANSACTIONS_SYNC_LIMIT" },
+			{ error_type: "RATE_LIMIT_EXCEEDED", error_code: "RATE_LIMIT_EXCEEDED" },
+			{ error_type: "ITEM_ERROR", error_code: "PRODUCT_NOT_READY" },
+		]) {
+			const error = await failing({
+				...body,
+				error_message: "raw Plaid text",
+				display_message: null,
+			});
+			expect(error).toBeInstanceOf(BankProviderError);
+			const { notice, reconnect } = error as BankProviderError;
+			expect(notice).toMatch(/nothing you need to do\.$/);
+			expect(notice).not.toContain("raw Plaid text");
+			expect(reconnect).toBe(false);
+		}
+		expect(await failing({ error_code: "A_NEW_CODE", error_message: "raw" })).toMatchObject({
+			notice: null,
+		});
 	});
 });

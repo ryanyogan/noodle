@@ -34,6 +34,7 @@ import { type BankSetup, bankSetup, providerFor, setUpProviders } from "./bank-s
 import { getDb } from "./db";
 import { householdMiddleware } from "./household";
 import { notifyHousehold } from "./notify";
+import { plaidNotSetUp } from "./plaid";
 import { PLAID_WEBHOOK_PATH } from "./plaid-webhook";
 import { ulidSchema } from "./schemas";
 
@@ -56,6 +57,12 @@ export type BankConnectionsData = {
 	/** The providers a Parent can connect through. */
 	providers: BankProvider[];
 	connections: BankConnectionSummary[];
+	/**
+	 * Accounts shows "Connect your real bank" once: after the switch to production Plaid
+	 * (PLAID_SANDBOX_RETIRED, set with it) ended the practice Bank Connections, until one is
+	 * connected again.
+	 */
+	connectRealBank?: boolean;
 };
 
 /** The Household's Bank Connections, and whether a Parent can connect one. */
@@ -63,10 +70,16 @@ export const getBankConnections = createServerFn({ method: "GET" })
 	.middleware([householdMiddleware])
 	.handler(async ({ context }): Promise<BankConnectionsData> => {
 		const setup = bankSetup();
+		const connections = await loadBankConnections(getDb(), context.household.id);
+		const { PLAID_SANDBOX_RETIRED } = env as unknown as { PLAID_SANDBOX_RETIRED?: string };
 		return {
 			setUp: setup?.mode ?? null,
 			providers: setup ? setUpProviders(setup) : [],
-			connections: await loadBankConnections(getDb(), context.household.id),
+			connections,
+			connectRealBank:
+				PLAID_SANDBOX_RETIRED === "true" &&
+				connections.length > 0 &&
+				connections.every((connection) => connection.status === "disconnected"),
 		};
 	});
 
@@ -111,6 +124,16 @@ const returnToSchema = z
 	.regex(/^\/(setup|accounts(\/[0-9A-Za-z]{1,40})?)$/)
 	.catch("/accounts");
 
+/**
+ * A link token Plaid refused because its secret doesn't fit PLAID_ENV (INVALID_API_KEYS) is null:
+ * the Parent reads that Plaid isn't set up, never an error page. Anything else is thrown.
+ */
+function nullIfNotSetUp(error: unknown): null {
+	if (!plaidNotSetUp(error)) throw error;
+	console.error(JSON.stringify({ log: "plaid-not-set-up", reason: "keys refused for PLAID_ENV" }));
+	return null;
+}
+
 /** A link token for Plaid Link, for this Household, made when the Parent presses Connect. */
 export const startBankLink = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
@@ -118,10 +141,10 @@ export const startBankLink = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }): Promise<StartBankLinkResult> => {
 		const plaid = bankSetup()?.plaid;
 		if (!plaid) return { ok: false, reason: "not-set-up" };
-		const linkToken = await plaid.linkToken(context.household.id, {
-			webhook: webhookUrl(),
-			redirectUri: redirectUri(),
-		});
+		const linkToken = await plaid
+			.linkToken(context.household.id, { webhook: webhookUrl(), redirectUri: redirectUri() })
+			.catch(nullIfNotSetUp);
+		if (!linkToken) return { ok: false, reason: "not-set-up" };
 		await saveBankLinkSession(getDb(), {
 			householdId: context.household.id,
 			memberId: context.parent.id,
@@ -266,12 +289,15 @@ export const startBankReconnect = createServerFn({ method: "POST" })
 			householdId,
 			connectionId: connection.id,
 		});
-		const linkToken = await setup.plaid.linkToken(householdId, {
-			webhook: webhookUrl(),
-			redirectUri: redirectUri(),
-			accessToken,
-			accountSelection: data.newAccounts,
-		});
+		const linkToken = await setup.plaid
+			.linkToken(householdId, {
+				webhook: webhookUrl(),
+				redirectUri: redirectUri(),
+				accessToken,
+				accountSelection: data.newAccounts,
+			})
+			.catch(nullIfNotSetUp);
+		if (!linkToken) return { ok: false, reason: "not-set-up" };
 		await saveBankLinkSession(getDb(), {
 			householdId,
 			memberId: context.parent.id,

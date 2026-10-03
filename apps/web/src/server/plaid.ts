@@ -38,6 +38,57 @@ const PLAID_HOSTS: Record<PlaidEnvironment, string> = {
 const RECONNECT_CODES = new Set(["ITEM_LOGIN_REQUIRED"]);
 
 /**
+ * How far back a new link asks Plaid for Transactions: a year, so the plan draft and Bucket
+ * suggestions see a whole year's seasons (school, holidays, insurance) without the slow first
+ * import of Plaid's most, 730 days. Plaid gathers it once, when the Item is made.
+ */
+export const HISTORY_DAYS = 365;
+
+/** Plaid's answers that mean its keys don't fit this environment: Plaid isn't set up here. */
+const NOT_SET_UP_CODES = new Set(["INVALID_API_KEYS", "UNAUTHORIZED_ENVIRONMENT"]);
+
+/**
+ * Whether Plaid refused the client ID and secret for PLAID_ENV (a sandbox secret against
+ * production, say): the app fails closed and says Plaid isn't set up, never an error page.
+ */
+export const plaidNotSetUp = (error: unknown): boolean =>
+	error instanceof BankProviderError && NOT_SET_UP_CODES.has(error.code ?? "");
+
+const BANK_BUSY =
+	"Your bank isn’t answering right now. Noodle will keep trying, and there’s nothing you need to do.";
+const NOT_SET_UP =
+	"Plaid isn’t set up for this copy of Noodle right now, so nothing new came in. Your Transactions are safe.";
+
+/**
+ * What a Bank Connection says for a Plaid error that isn't the Parent's to fix, when Plaid wrote
+ * nothing for them (ADR-0018). Plaid's own error_message is never shown. The Import Workflow
+ * retries these reads with backoff (READ_STEP), and the next read that works clears the notice.
+ */
+const PLAID_NOTICES: Record<string, string> = {
+	INSTITUTION_DOWN: BANK_BUSY,
+	INSTITUTION_NOT_RESPONDING: BANK_BUSY,
+	INSTITUTION_NOT_AVAILABLE: BANK_BUSY,
+	RATE_LIMIT_EXCEEDED:
+		"Your bank asked Noodle to slow down. Noodle will try again in a few minutes, and there’s nothing you need to do.",
+	PRODUCT_NOT_READY:
+		"Your bank is still getting your Transactions ready. Noodle will look again soon, and there’s nothing you need to do.",
+	INVALID_API_KEYS: NOT_SET_UP,
+	UNAUTHORIZED_ENVIRONMENT: NOT_SET_UP,
+};
+
+/** The notice for a Plaid error: Plaid's words for the Parent, else ours, else none. */
+const plaidNotice = (error: {
+	error_type?: string;
+	error_code?: string;
+	display_message?: string | null;
+}): string | null =>
+	error.display_message?.trim() ||
+	PLAID_NOTICES[error.error_code ?? ""] ||
+	// Plaid's rate limits come under several codes, all of this type.
+	(error.error_type === "RATE_LIMIT_EXCEEDED" ? PLAID_NOTICES.RATE_LIMIT_EXCEEDED : undefined) ||
+	null;
+
+/**
  * Plaid's API over fetch. An error answer carries Plaid's `error_code` and `error_message`, and
  * sometimes a `display_message` written for the Parent, which the Bank Connection shows.
  */
@@ -55,6 +106,7 @@ export function plaidTransport(config: PlaidConfig, fetcher: typeof fetch = fetc
 		const json: unknown = await response.json().catch(() => null);
 		if (!response.ok) {
 			const error = (json ?? {}) as {
+				error_type?: string;
 				error_code?: string;
 				error_message?: string;
 				display_message?: string | null;
@@ -62,7 +114,7 @@ export function plaidTransport(config: PlaidConfig, fetcher: typeof fetch = fetc
 			throw new BankProviderError(
 				`Plaid ${path}: ${error.error_message ?? `HTTP ${response.status}`}`,
 				error.error_code ?? null,
-				error.display_message?.trim() || null,
+				plaidNotice(error),
 				RECONNECT_CODES.has(error.error_code ?? ""),
 			);
 		}
@@ -91,7 +143,7 @@ export type LinkTokenOptions = {
 
 /**
  * A link token for Plaid Link, for one Household: its ID is Plaid's `client_user_id`. A new link
- * asks for transactions, 90 days back (what Plaid gathers when the Item is made, so it's set
+ * asks for transactions, HISTORY_DAYS back (what Plaid gathers when the Item is made, so it's set
  * here); update mode names the Item instead, whose products are set already.
  */
 export async function createLinkToken(
@@ -111,7 +163,7 @@ export async function createLinkToken(
 					access_token: options.accessToken,
 					...(options.accountSelection ? { update: { account_selection_enabled: true } } : {}),
 				}
-			: { products: ["transactions"], transactions: { days_requested: 90 } }),
+			: { products: ["transactions"], transactions: { days_requested: HISTORY_DAYS } }),
 	})) as { link_token?: unknown };
 	if (typeof answer.link_token !== "string") {
 		throw new BankProviderError("Plaid /link/token/create: no link token");
@@ -174,7 +226,11 @@ export async function updateItemWebhook(
 	await transport("/item/webhook/update", { access_token: accessToken, webhook });
 }
 
-/** At most this many /transactions/sync pages in one read: 4,000 lines, well inside a step's 1 MiB. */
+/**
+ * At most this many /transactions/sync pages in one read: 4,000 lines, well inside a step's 1 MiB
+ * and its timeout. A year's first import that's bigger is read on over the run's rounds, each from
+ * the cursor the last one saved, so no read pages through the whole history at once.
+ */
 const SYNC_PAGES = 8;
 const SYNC_COUNT = 500;
 /** How many times a read restarts when the Item changed while it was paging. */
@@ -258,7 +314,7 @@ async function syncFrom(
 		more = answer.has_more;
 		status = answer.transactions_update_status;
 	}
-	// Complete once every page is read and Plaid has all 90 days, not just the first 30.
+	// Complete once every page is read and Plaid has all HISTORY_DAYS, not just the first 30.
 	const complete = !more && (status === undefined || status === "HISTORICAL_UPDATE_COMPLETE");
 	return { lines: [...lines.values()], removed: [...removed.values()], cursor, complete };
 }

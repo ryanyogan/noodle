@@ -53,7 +53,7 @@ export function SetupBankCard({ jobs }: { jobs: SetupJobView[] }) {
 				</div>
 				<p className="text-muted-foreground">
 					{bank.plaid
-						? "You log in to your bank in its own window. Noodle reads balances and about 90 days of spending, then new spending every day. It can’t move money."
+						? "You log in to your bank in its own window. Noodle reads balances and about a year of spending, then new spending every day. It can’t move money."
 						: "Connecting a bank isn’t set up for this copy of Noodle yet. You can go on, and add what you spend by hand or from a statement later."}
 				</p>
 				{bank.plaid ? (

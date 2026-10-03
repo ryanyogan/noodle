@@ -573,11 +573,12 @@ export type ConnectBank = ReturnType<typeof useConnectBank>;
 
 /** What connecting does, in a sentence or two: said before a Parent connects. */
 export const CONNECT_EXPLAINED =
-	"Noodle reads balances and about 90 days of Transactions, and can’t move money. You pick the Accounts you already have, so nothing counts twice; each bank login uses one of Noodle’s 10 Plaid connections.";
+	"Noodle reads balances and about a year of Transactions, and can’t move money. You pick the Accounts you already have, so nothing counts twice; each bank login uses one of Noodle’s 10 Plaid connections.";
 
 export function BankConnections({ bank }: { bank: ConnectBank }) {
 	const hydrated = useHydrated();
 	const { setUp, plaid, connections } = bank;
+	const realBank = useSuspenseQuery(bankConnectionsQuery()).data.connectRealBank === true;
 	const connect = { isPending: bank.pending, mutate: bank.start };
 
 	const connectButton = (quiet: boolean) =>
@@ -602,6 +603,16 @@ export function BankConnections({ bank }: { bank: ConnectBank }) {
 				count={connections.length}
 				help={<TermHelp term="bank-connection" />}
 			/>
+			{realBank ? (
+				<Alert>
+					<AlertDescription>
+						<strong className="font-medium text-foreground">Connect your real bank.</strong> Until
+						now Noodle used Plaid’s practice bank, so those Bank Connections have ended. Your
+						Accounts and their Transactions are all still here. Connect your real bank to bring in
+						new ones.
+					</AlertDescription>
+				</Alert>
+			) : null}
 			{connections.length > 0 ? (
 				<>
 					<List aria-label="Bank Connections">
