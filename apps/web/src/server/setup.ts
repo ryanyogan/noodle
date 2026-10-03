@@ -107,6 +107,7 @@ export const restartSetup = createServerFn({ method: "POST" })
 		const kept = await savedAnswers(context.household.id);
 		await restartSetupProgress(getDb(), context.household.id, {
 			...kept,
+			dismissed: undefined,
 			run: (kept.run ?? 0) + 1,
 		});
 		await notifyHousehold(context.household.id, ["setup"]);

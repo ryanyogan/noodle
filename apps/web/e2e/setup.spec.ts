@@ -305,3 +305,43 @@ test("invite, Done, Continue setup, Run setup again, and the other Parent’s ow
 		await Promise.all([first.remove(), second.remove()]);
 	}
 });
+
+test("after Set up later, take-home pay set on the Plan keeps Continue setup until it's dismissed (#72)", async ({
+	browser,
+}) => {
+	const parent = await createTestParent();
+	try {
+		const page = await signedInPage(browser, parent.email);
+		await page.goto("/welcome");
+		await page.getByLabel("Household name").fill("The Later Ones");
+		await page.getByLabel("Your name").fill("Alex");
+		await page.getByRole("button", { name: "Create Household" }).click();
+		await expect(page).toHaveURL(/\/setup$/);
+		const saved = savedBy(page, "saveSetup");
+		await page.getByRole("link", { name: "Set up later" }).click();
+		await saved;
+		await expect(page).toHaveURL(/\/month\//);
+		const month = new URL(page.url()).pathname.split("/")[2];
+
+		// Take-home pay from the Plan, not the wizard: the wizard's other steps are still to do.
+		await page.goto(`/plan/${month}`);
+		await page.getByRole("textbox", { name: "Take-home pay" }).fill("5,000");
+		await page.getByRole("button", { name: "Set take-home pay" }).click();
+		await expect(page.getByText(/Change it any time on Income/)).toBeVisible();
+		await page.goto(`/month/${month}`);
+		await page.getByRole("link", { name: "Continue setup" }).click();
+		await expect(page.getByText("Step 1 of 7")).toBeVisible();
+
+		// "Don't ask again" hides it, after a reload too.
+		await page.getByRole("link", { name: "Set up later" }).click();
+		await expect(page).toHaveURL(/\/month\//);
+		await page.getByRole("button", { name: /^Get started/ }).click();
+		await page.getByRole("button", { name: "Don’t ask again" }).click();
+		await expect(page.getByRole("link", { name: "Continue setup" })).toHaveCount(0);
+		await page.reload();
+		await expect(page.getByRole("button", { name: /^Get started/ })).toBeVisible();
+		await expect(page.getByRole("link", { name: "Continue setup" })).toHaveCount(0);
+	} finally {
+		await parent.remove();
+	}
+});

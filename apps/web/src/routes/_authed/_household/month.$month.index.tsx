@@ -28,7 +28,7 @@ import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
-import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import {
 	CalendarCheck,
@@ -72,7 +72,8 @@ import {
 	setupQuery,
 	useMonthState,
 } from "../../../queries";
-import { SETUP_STEP_COUNT } from "../../../setup";
+import { saveSetup } from "../../../server/setup";
+import { continueSetupShown, SETUP_STEP_COUNT } from "../../../setup";
 
 export const Route = createFileRoute("/_authed/_household/month/$month/")({
 	// Coming up reads every Commitment's schedule and charges; an ended month names who closed it.
@@ -160,6 +161,7 @@ function ThisMonth() {
 	const isCurrent = month === current;
 	// What the To do strip holds is decided here, from the same data each prompt reads.
 	const getStarted = useGetStartedSteps(state);
+	const setupState = useSuspenseQuery(setupQuery()).data;
 	const checkInDue = useCheckInDue();
 	const chips = useChipCounts(month, state.asOf, isCurrent);
 	const monthIncome = state.income.filter((i) => monthOfDay(i.date) === month);
@@ -286,7 +288,7 @@ function ThisMonth() {
 											),
 										},
 										isCurrent &&
-											getStarted.some((step) => !step.done) && {
+											(getStarted.some((step) => !step.done) || continueSetupShown(setupState)) && {
 												label: "Get started",
 												status: `${getStarted.filter((step) => step.done).length} of ${getStarted.length} done`,
 												action: <ContinueSetup />,
@@ -883,7 +885,7 @@ function useGetStartedSteps(state: MonthState) {
 /** The way back into the get-started wizard (#53); nothing once it's finished. */
 function ContinueSetup({ className }: { className?: string }) {
 	const setup = useSuspenseQuery(setupQuery()).data;
-	if (setup.finished) return null;
+	if (!continueSetupShown(setup)) return null;
 	return (
 		<Button asChild size="sm" className={className}>
 			<Link to="/setup">Continue setup</Link>
@@ -891,10 +893,33 @@ function ContinueSetup({ className }: { className?: string }) {
 	);
 }
 
+/** "Don’t ask again": This Month stops offering the wizard; Household's "Run setup again" still can (#72). */
+function DismissSetup() {
+	const queryClient = useQueryClient();
+	const setup = useSuspenseQuery(setupQuery()).data;
+	const dismiss = useMutation({
+		mutationFn: () =>
+			saveSetup({
+				data: {
+					step: setup.step,
+					answers: { ...setup.answers, dismissed: true },
+					skipped: setup.skipped,
+				},
+			}),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: setupQuery().queryKey }),
+	});
+	return (
+		<Button variant="ghost" size="sm" disabled={dismiss.isPending} onClick={() => dismiss.mutate()}>
+			Don’t ask again
+		</Button>
+	);
+}
+
 function GetStarted({ steps }: { steps: ReturnType<typeof useGetStartedSteps> }) {
 	const setup = useSuspenseQuery(setupQuery()).data;
 	const left = steps.filter((step) => !step.done).length;
-	if (left === 0) return null;
+	const asked = continueSetupShown(setup);
+	if (left === 0 && !asked) return null;
 	return (
 		<Section aria-labelledby="get-started">
 			<SectionHeader
@@ -906,7 +931,7 @@ function GetStarted({ steps }: { steps: ReturnType<typeof useGetStartedSteps> })
 					</span>
 				}
 			/>
-			{setup.finished ? null : (
+			{!asked ? null : (
 				// The get-started wizard (#53) is the main way in; the list below is for what it skipped.
 				<Card className="flex flex-wrap items-center justify-between gap-3 p-(--card-pad) text-sm">
 					<div className="grid gap-0.5">
@@ -915,8 +940,11 @@ function GetStarted({ steps }: { steps: ReturnType<typeof useGetStartedSteps> })
 							You’re on step {setup.step} of {SETUP_STEP_COUNT}. It picks up where you left off.
 						</p>
 					</div>
-					{/* From lg the To do row has it, closed or open. */}
-					<ContinueSetup className="lg:hidden" />
+					<div className="flex flex-wrap items-center gap-2">
+						<DismissSetup />
+						{/* From lg the To do row has it, closed or open. */}
+						<ContinueSetup className="lg:hidden" />
+					</div>
 				</Card>
 			)}
 			<List aria-label="Steps to get started">

@@ -140,7 +140,11 @@ function SetupWizard() {
 				<div className="flex items-center justify-between gap-4">
 					<Logo />
 					<Button asChild variant="ghost" size="sm">
-						<Link to="/month">Set up later</Link>
+						{/* Saves the step, so This Month's "Continue setup" follows it even once take-home
+						    pay is set from the checklist (#72). */}
+						<Link to="/month" onClick={() => save.mutate({ step, answers, skipped })}>
+							Set up later
+						</Link>
 					</Button>
 				</div>
 				<Stepper

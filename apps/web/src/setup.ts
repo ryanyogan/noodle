@@ -95,8 +95,18 @@ export const setupAnswersSchema = z.object({
 	goal: setupGoalSchema.optional(),
 	/** How many times "Run setup again" was pressed: each run gets its own Setup Workflow. */
 	run: z.number().int().min(0).max(10_000).optional(),
+	/** A Parent pressed "Don’t ask again" on This Month's Finish setting up (#72). */
+	dismissed: z.boolean().optional(),
 });
 export type SetupAnswers = z.infer<typeof setupAnswersSchema>;
+
+/**
+ * Whether This Month offers "Continue setup" (#72): from the wizard's saved step until Done is
+ * reached or a Parent dismisses it. What the Plan has doesn't count: take-home pay set from the
+ * checklist after "Set up later" leaves the steps after it still to do.
+ */
+export const continueSetupShown = (setup: { finished: boolean; answers: SetupAnswers }) =>
+	!setup.finished && setup.answers.dismissed !== true;
 
 export const setupStepSchema = z.number().int().min(1).max(SETUP_STEP_COUNT);
 
