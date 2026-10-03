@@ -71,12 +71,13 @@ export async function runAiBatch(deps: AiRunDeps, batch: AiBatch): Promise<Categ
 	for (const { memberId, id } of batch.captures) {
 		total = add(total, await categorizeCapture(deps, { householdId, memberId }, id));
 	}
-	// Suggestions rest on spending and Commitments: looked for when either may have changed.
+	// Suggestions rest on spending, Commitments and what Parents filed by hand: looked for when either may have changed.
 	let suggested = 0;
 	if (
 		batch.imports.length > 0 ||
 		batch.lookAgain ||
 		batch.events["commitment-changed"] ||
+		batch.events["filed-by-hand"] ||
 		batch.events["month-started"]
 	) {
 		suggested = await spotSuggestions(deps.db, householdId);

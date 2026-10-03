@@ -52,6 +52,7 @@ import { DetailHeader, DetailPending } from "../../../components/master-detail";
 import { ReviewMatchOffer } from "../../../components/match-section";
 import { RuleForm } from "../../../components/rule-form";
 import { SectionPending } from "../../../components/section-layout";
+import { Suggested } from "../../../components/suggested";
 import { SwipeCard } from "../../../components/swipe-card";
 import { TermHelp } from "../../../components/term-help";
 import { TransactionBody, TransactionEditor } from "../../../components/transaction-editor";
@@ -880,6 +881,8 @@ function ReviewPage() {
 						{sorting ? <div className="mt-3 grid gap-3">{sortNote}</div> : null}
 					</div>
 				)}
+				{/* Rules background AI would add, from what this Parent keeps filing by hand: quiet, below. */}
+				<Suggested kinds={["rule"]} className="max-w-xl" />
 			</div>
 			{changing ? (
 				<Suspense fallback={null}>

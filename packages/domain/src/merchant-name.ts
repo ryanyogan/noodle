@@ -20,6 +20,7 @@ const KNOWN: [RegExp, string][] = [
 	[/^starbucks\b/, "Starbucks"],
 	[/^netflix\b/, "Netflix"],
 	[/^spotify\b/, "Spotify"],
+	[/^planet fitness\b/, "Planet Fitness"],
 	[/^uber\s*\*?\s*eats\b/, "Uber Eats"],
 	[/^uber\b/, "Uber"],
 	[/^lyft\b/, "Lyft"],

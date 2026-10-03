@@ -9,8 +9,10 @@ import { formatMoney, shortDay } from "../format";
 import { suggestionsQuery } from "../queries";
 import { decideSuggestion } from "../server/suggestions";
 
-// The "Suggested" card on This Month (ADR-0027): what background AI spotted, with its evidence in
-// plain words, to add with one tap or put away. Quiet, and gone when there's nothing.
+// The "Suggested" card (ADR-0027): what background AI spotted, with its evidence in plain words, to
+// add with one tap or put away. All of them on This Month; in context elsewhere, only the kinds
+// that page is about (Rules on Review, Commitments on the Commitments page). Quiet, and gone when
+// there's nothing.
 
 const every = { monthly: "a month", biweekly: "every two weeks", annual: "a year" } as const;
 
@@ -20,12 +22,19 @@ type Terms = {
 	fromCents?: number;
 	cadence?: keyof typeof every;
 	dueDate?: string;
+	bucketName?: string;
 };
 
 function words(item: SuggestionItem): { title: string; body: string; add: string } {
 	const terms = item.payload as Terms;
 	const { count, months } = item.evidence;
 	const money = formatMoney(terms.amountCents);
+	if (item.kind === "rule")
+		return {
+			title: `Always put ${terms.name} in ${terms.bucketName ?? "the same Bucket"}?`,
+			body: `You've done it ${count} times. A Rule files it there from now on.`,
+			add: "Add Rule",
+		};
 	if (item.kind === "new-bucket")
 		return {
 			title: `A Bucket for ${terms.name}`,
@@ -46,17 +55,30 @@ function words(item: SuggestionItem): { title: string; body: string; add: string
 	};
 }
 
-export function Suggested({ className }: { className?: string }) {
+export function Suggested({
+	className,
+	kinds,
+}: {
+	className?: string;
+	/** Only these kinds (all when left out). */
+	kinds?: SuggestionItem["kind"][];
+}) {
 	const id = useId();
 	const queryClient = useQueryClient();
 	const { data } = useQuery(suggestionsQuery());
 	const decide = useMutation({
 		mutationFn: (variables: { suggestionId: string; decision: "add" | "not-now" }) =>
 			decideSuggestion({ data: variables }),
-		onSettled: () => queryClient.invalidateQueries({ queryKey: ["suggestions"] }),
+		onSettled: () =>
+			Promise.all([
+				queryClient.invalidateQueries({ queryKey: ["suggestions"] }),
+				queryClient.invalidateQueries({ queryKey: ["rules"] }),
+			]),
 	});
 	const open = (data ?? []).filter(
-		(item) => !(decide.isPending && decide.variables?.suggestionId === item.id),
+		(item) =>
+			(!kinds || kinds.includes(item.kind)) &&
+			!(decide.isPending && decide.variables?.suggestionId === item.id),
 	);
 	if (open.length === 0) return null;
 	return (

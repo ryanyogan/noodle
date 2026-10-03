@@ -6,6 +6,7 @@ import {
 	loadOpenSuggestions,
 	loadPlanRecords,
 	type SuggestionItem,
+	saveRule,
 	updateCommitment as updateCommitmentInDb,
 } from "@noodle/db";
 import { type Cadence, type DayKey, dayKeyAt, monthOfDay } from "@noodle/domain";
@@ -33,6 +34,8 @@ type Terms = {
 	cadence: Cadence;
 	dueDate: DayKey;
 	commitmentId?: string;
+	merchant?: string;
+	bucketId?: string;
 };
 
 /** Adds or dismisses ("Not now") a suggestion. Idempotent: a decided one does nothing again. */
@@ -81,6 +84,19 @@ export const decideSuggestion = createServerFn({ method: "POST" })
 				dueDate: terms.dueDate,
 			});
 			await queueAi({ ...viewer, kind: "commitment-changed", ids: [commitmentId] });
+		} else if (row.kind === "rule") {
+			// The same write as stating a Rule on Review: into this Parent's own Personal Allowance
+			// it's private to them (ADR-0003); a Bucket they can't assign to makes nothing.
+			const saved = await saveRule(db, {
+				id: ulid(),
+				householdId,
+				memberId,
+				pattern: terms.merchant ?? terms.name,
+				bucketId: terms.bucketId ?? "",
+			});
+			if (!saved.ok) return;
+			await queueAi({ ...viewer, kind: "rule-added" });
+			if (!saved.private) await notifyHousehold(householdId, ["rules"]);
 		} else return;
 		await decideSuggestionInDb(db, viewer, row.id, "accepted");
 		await notifyHousehold(householdId, ["months", "suggestions"]);

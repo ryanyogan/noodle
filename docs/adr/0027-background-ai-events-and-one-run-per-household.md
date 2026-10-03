@@ -109,3 +109,10 @@ puts away ("Not now").
   `buckets-changed` or `commitment-changed` so Review is looked at again.
 - **Where.** A quiet "Suggested" card on This Month, hidden when there are none. Review, the Buckets
   and Commitments pages and Check-in come next.
+
+## Learn and in-context suggestions (phase d1)
+
+- A Parent's hand correction teaches similar-merchant memory by the clean merchant name (merchantKey of `transactions.merchant`), falling back to the categorized key, then the note.
+- **Rule suggestions.** "Filed by hand" is an imported line in a Bucket with no categorization row (a Parent settling a line deletes it; one categorization filed keeps it). When one owner's lines for the same clean merchant went into the same Bucket 3 or more times, with a clear favourite and no Rule covering it (the Household's, or that Parent's own), background AI suggests a Rule ("Always put Costco in Groceries? You've done it 4 times."). Filings into a Personal Allowance only ever suggest to its Parent (ADR-0003). It's looked for on every run with a `filed-by-hand` event, beside the other detectors. Add uses the same `saveRule` as Review, so a Rule into the Parent's own Personal Allowance is private, and queues `rule-added`, which looks again at Review. Not now sticks until the count doubles.
+- **In context.** One `Suggested` component, filtered by kind: all kinds on This Month, Rules on Review (below the stack), new and changed Commitments on the Commitments page. Household new-Bucket suggestions join the Add Buckets sheet as unticked rows with their amount.
+- Card payments and transfers ("Online Payment", "Autopay Payment", "Transfer to Savings") are never Commitment suggestions (by name, `isMoneyMovement`).

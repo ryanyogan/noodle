@@ -14,7 +14,7 @@ import { ulid } from "ulid";
 import { nextBucketColor } from "../buckets";
 import { formatMoney, formatMoneyInput } from "../format";
 import { usePlanChange, withNewBuckets } from "../plan-changes";
-import { planDraftQuery } from "../queries";
+import { planDraftQuery, suggestionsQuery } from "../queries";
 import { addBuckets } from "../server/plan";
 import {
 	anotherBucket,
@@ -127,6 +127,35 @@ function AddBucketsForm({
 	const [rows, setRows] = useState(() =>
 		sheetStarters(used, draft?.buckets, freeToSpend, formatMoneyInput),
 	);
+	// Buckets background AI suggested from spending (ADR-0027) join the list unticked, with their
+	// amount, so adding one is a tick. The Household's only: a Personal Allowance has its own row.
+	const { data: suggested } = useQuery(suggestionsQuery());
+	useEffect(() => {
+		const ideas = (suggested ?? []).filter((item) => item.kind === "new-bucket" && !item.personal);
+		if (ideas.length === 0) return;
+		setRows((current) => {
+			const taken = new Set(
+				[...used, ...current.map((row) => row.name)].map((n) => n.toLowerCase()),
+			);
+			const fresh = ideas
+				.filter((item) => !taken.has(item.payload.name.toLowerCase()))
+				.map(
+					(item): BucketRow => ({
+						key: `suggested-${item.id}`,
+						id: ulid(),
+						name: item.payload.name,
+						amountCents: item.payload.amountCents,
+						amount: formatMoneyInput(item.payload.amountCents),
+						rolling: false,
+						personal: false,
+						kept: false,
+						touched: false,
+						suggested: "spending",
+					}),
+				);
+			return fresh.length > 0 ? [...fresh, ...current] : current;
+		});
+	}, [suggested, used]);
 	// History that arrives after the sheet opened fills the rows nobody typed in.
 	useEffect(() => {
 		if (draft?.buckets.length) {

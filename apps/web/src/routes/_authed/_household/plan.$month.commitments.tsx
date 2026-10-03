@@ -20,6 +20,7 @@ import {
 } from "../../../components/commitment-editor";
 import { PlanMasterDetail } from "../../../components/plan-page";
 import { SectionPending } from "../../../components/section-layout";
+import { Suggested } from "../../../components/suggested";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney, monthName } from "../../../format";
 import { usePlanChanges } from "../../../plan-changes";
@@ -64,6 +65,7 @@ function PlanCommitments() {
 	const aside = (
 		<>
 			{state.editable ? <AddCommitment month={month} /> : null}
+			{state.editable ? <Suggested kinds={["new-commitment", "commitment-amount"]} /> : null}
 			{state.commitments.length > 0 ? (
 				<>
 					<p className="px-1 text-sm text-muted-foreground">

@@ -1,3 +1,4 @@
+import { merchantKey, type Rule, ruleFor } from "./categorize";
 import type { Cadence } from "./commitments";
 import { addDays, addMonths, type DayKey, daysBetween, type MonthKey, monthOfDay } from "./month";
 
@@ -69,7 +70,21 @@ export type AmountIdea = {
 	evidence: Evidence;
 };
 
-export type SuggestionIdea = BucketIdea | CommitmentIdea | AmountIdea;
+/** "Always put Costco in Groceries?": a Parent filed one merchant into one Bucket by hand, again and again. */
+export type RuleIdea = {
+	kind: "rule";
+	owner: string | null;
+	/** The merchant's clean name, as shown. */
+	name: string;
+	/** The Rule's pattern: the clean name made a merchantKey. */
+	merchant: string;
+	bucketId: string;
+	bucketName: string;
+	amountCents: number;
+	evidence: Evidence;
+};
+
+export type SuggestionIdea = BucketIdea | CommitmentIdea | AmountIdea | RuleIdea;
 
 /** A catch-all Bucket, whose spending could use a Bucket of its own. */
 export const isCatchAll = (bucketName: string) =>
@@ -229,7 +244,8 @@ export function spotCommitments(
 	const ideas: (CommitmentIdea | AmountIdea)[] = [];
 	const from = addDays(today, -400);
 	const recent = lines.filter((l) => l.amountCents > 0 && l.date > from && l.date <= today);
-	const loose = recent.filter((l) => l.commitmentId === null);
+	// Paying a card or moving money between accounts repeats too, but it isn't a Commitment.
+	const loose = recent.filter((l) => l.commitmentId === null && !isMoneyMovement(l.merchant));
 	for (const group of groupBy(
 		loose,
 		(l) => `${l.owner ?? ""}|${l.merchant.toLowerCase()}`,
@@ -302,6 +318,7 @@ export function spotCommitments(
 export function suggestionKey(idea: SuggestionIdea): string {
 	if (idea.kind === "commitment-amount") return `commitment-amount:${idea.commitmentId}`;
 	if (idea.kind === "new-commitment") return `new-commitment:${idea.merchant.toLowerCase()}`;
+	if (idea.kind === "rule") return `rule:${idea.merchant}`;
 	return `new-bucket:${idea.name.toLowerCase()}`;
 }
 
@@ -323,3 +340,74 @@ export function changedALot(before: Evidence, now: Evidence): boolean {
 
 /** The month a suggestion would start in the Plan: this month. */
 export const suggestionMonth = (today: DayKey): MonthKey => monthOfDay(today);
+
+/** A card payment or a transfer between accounts ("Online Payment", "Autopay Payment"), by its name. */
+export const isMoneyMovement = (merchant: string) =>
+	/^(online|autopay|auto|mobile|internet|electronic|ach|e-?pay|card|credit card)?\s*(payment|pymt)s?\b|\bautopay\b|\btransfers?\b|\bxfer\b|\bthank you\b/i.test(
+		merchant.trim(),
+	);
+
+/**
+ * An imported line a Parent put in a Bucket themselves (not filed by categorization), with its
+ * clean merchant name and the Bucket's owner (the Parent whose Personal Allowance it is, else null).
+ */
+export type HandFiling = {
+	id: string;
+	date: DayKey;
+	merchant: string;
+	bucketId: string;
+	bucketName: string;
+	owner: string | null;
+};
+
+/** A Rule as it stands, with whose it is (null: the Household's). */
+export type RuleNow = Rule & { owner: string | null };
+
+/** How many times the same merchant went into the same Bucket by hand before a Rule is offered. */
+export const RULE_TIMES = 3;
+
+/**
+ * Learn (ADR-0027): a merchant a Parent filed into the same Bucket by hand 3 or more times, with no
+ * Rule covering it, makes a Rule suggestion. Filings never mix owners, so filing into a Personal
+ * Allowance offers a Rule only to its Parent (ADR-0003). A merchant split between Buckets with no
+ * clear favourite offers nothing.
+ */
+export function spotRules(filings: HandFiling[], rules: RuleNow[]): RuleIdea[] {
+	const groups = new Map<string, { owner: string | null; key: string; lines: HandFiling[] }>();
+	for (const line of filings) {
+		const key = merchantKey(line.merchant);
+		if (!key) continue;
+		const group = `${line.owner ?? ""}|${key}`;
+		const found = groups.get(group) ?? { owner: line.owner, key, lines: [] };
+		found.lines.push(line);
+		groups.set(group, found);
+	}
+	const ideas: RuleIdea[] = [];
+	for (const { owner, key, lines } of groups.values()) {
+		const theirs = rules.filter((rule) => rule.owner === null || rule.owner === owner);
+		if (ruleFor(theirs, key)) continue;
+		const byBucket = new Map<string, HandFiling[]>();
+		for (const line of lines)
+			byBucket.set(line.bucketId, [...(byBucket.get(line.bucketId) ?? []), line]);
+		const ranked = [...byBucket.values()].sort((a, b) => b.length - a.length);
+		const best = ranked[0] ?? [];
+		if (best.length < RULE_TIMES || (ranked[1]?.length ?? 0) >= best.length) continue;
+		const latest = [...best].sort((a, b) => b.date.localeCompare(a.date))[0] as HandFiling;
+		ideas.push({
+			kind: "rule",
+			owner,
+			name: latest.merchant,
+			merchant: key,
+			bucketId: latest.bucketId,
+			bucketName: latest.bucketName,
+			amountCents: 0,
+			evidence: {
+				count: best.length,
+				amountCents: 0,
+				months: new Set(best.map((line) => line.date.slice(0, 7))).size,
+				transactionIds: best.map((line) => line.id).sort(),
+			},
+		});
+	}
+	return ideas;
+}

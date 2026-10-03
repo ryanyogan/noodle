@@ -3,19 +3,29 @@ import {
 	commitmentsIn,
 	type DayKey,
 	evidenceFingerprint,
+	type HandFiling,
 	isCatchAll,
 	type MonthKey,
+	type RuleNow,
 	type SpendLine,
 	type SuggestionIdea,
 	suggestionKey,
 } from "@noodle/domain";
-import { and, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import { counts } from "./counting";
 import type { Db } from "./index";
 import { loadPlanRecords } from "./plan";
 import type { Viewer } from "./privacy";
-import { buckets, households, splits, suggestions, transactions } from "./schema";
+import {
+	buckets,
+	categorizations,
+	households,
+	rules,
+	splits,
+	suggestions,
+	transactions,
+} from "./schema";
 
 // Suggestions (ADR-0027). The run loads the Household's spending with each line's owner (the
 // Parent whose Personal Allowance it's in), saves what the detectors find, and each Parent reads
@@ -89,6 +99,57 @@ export async function loadSuggestionInputs(
 			cadence: c.cadence,
 			dueDate: c.dueDate,
 		})),
+	};
+}
+
+/**
+ * What Learn rests on (ADR-0027): imported lines since `from` that a Parent put in a Bucket
+ * themselves (categorization's decision is gone once a Parent settles one; one it filed keeps it),
+ * by clean merchant name, with the Bucket's owner; and the Household's Rules with theirs.
+ */
+export async function loadLearnInputs(
+	db: Db,
+	householdId: string,
+	from: DayKey,
+): Promise<{ filings: HandFiling[]; rules: RuleNow[] }> {
+	const rows = await db
+		.select({
+			id: transactions.id,
+			date: transactions.date,
+			merchant: transactions.merchant,
+			bucketId: buckets.id,
+			bucketName: buckets.name,
+			owner: buckets.ownerMemberId,
+		})
+		.from(transactions)
+		.innerJoin(buckets, eq(buckets.id, transactions.bucketId))
+		.where(
+			and(
+				eq(transactions.householdId, householdId),
+				eq(transactions.source, "import"),
+				gt(transactions.date, from),
+				isNotNull(transactions.merchant),
+				counts(),
+				sql`not exists (select 1 from ${categorizations} where ${categorizations.transactionId} = ${transactions.id})`,
+				sql`not exists (select 1 from ${splits} where ${splits.transactionId} = ${transactions.id})`,
+			),
+		);
+	const stated = await db
+		.select({ pattern: rules.pattern, bucketId: rules.bucketId, owner: rules.ownerMemberId })
+		.from(rules)
+		.where(eq(rules.householdId, householdId));
+	return {
+		filings: rows
+			.filter((row) => row.merchant?.trim())
+			.map((row) => ({
+				id: row.id,
+				date: row.date as DayKey,
+				merchant: (row.merchant as string).trim(),
+				bucketId: row.bucketId,
+				bucketName: row.bucketName,
+				owner: row.owner,
+			})),
+		rules: stated,
 	};
 }
 
@@ -177,6 +238,8 @@ export type SuggestionTerms = {
 	dueDate?: string;
 	commitmentId?: string;
 	merchant?: string;
+	bucketId?: string;
+	bucketName?: string;
 };
 
 export type SuggestionItem = {

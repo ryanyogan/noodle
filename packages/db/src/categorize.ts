@@ -285,12 +285,17 @@ export async function loadCorrection(
 			note: transactions.note,
 			bucketId: transactions.bucketId,
 			merchant: categorizations.merchant,
+			cleanName: transactions.merchant,
 		})
 		.from(transactions)
 		.leftJoin(categorizations, eq(categorizations.transactionId, transactions.id))
 		.where(and(eq(transactions.id, transactionId), changeableBy(viewer)));
 	if (row?.source !== "import" || !row.bucketId) return null;
-	const merchant = row.merchant ?? (row.note ? merchantKey(row.note) : null);
+	// By the clean name once it's named, as categorization looks merchants up (ADR-0027).
+	const merchant =
+		(row.cleanName ? merchantKey(row.cleanName) : null) ||
+		row.merchant ||
+		(row.note ? merchantKey(row.note) : null);
 	return merchant ? { merchant, bucketId: row.bucketId } : null;
 }
 

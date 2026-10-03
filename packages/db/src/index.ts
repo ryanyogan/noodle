@@ -728,6 +728,7 @@ export {
 export {
 	decideSuggestion,
 	householdTimeZone,
+	loadLearnInputs,
 	loadOpenSuggestion,
 	loadOpenSuggestions,
 	loadSuggestionInputs,

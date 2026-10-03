@@ -1,7 +1,13 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, reloadUntil, signedInPage, uploadStatement } from "./session";
+import {
+	createPlannedHousehold,
+	reloadUntil,
+	signedInPage,
+	uploadStatement,
+	waitForReview,
+} from "./session";
 
 // Suggestions (#58, ADR-0027): a statement with months of a recurring charge gets a Commitment
 // suggestion on This Month after the background run. Add creates the Commitment; Not now sticks.
@@ -49,7 +55,7 @@ test("a recurring charge is suggested as a Commitment; Add creates it, Not now s
 
 	const card = page.getByTestId("suggested");
 	await reloadUntil(page, "/month", async () => {
-		await expect(card).toContainText("Planet Fitness Club looks like a Commitment", {
+		await expect(card).toContainText("Planet Fitness looks like a Commitment", {
 			timeout: 2_000,
 		});
 		await expect(card).toContainText("Spotify looks like a Commitment", { timeout: 2_000 });
@@ -71,7 +77,7 @@ test("a recurring charge is suggested as a Commitment; Add creates it, Not now s
 
 	await card.getByRole("button", { name: "Not now: Spotify" }).click();
 	await expect(card).not.toContainText("Spotify");
-	await card.getByRole("button", { name: "Add Commitment: Planet Fitness Club" }).click();
+	await card.getByRole("button", { name: "Add Commitment: Planet Fitness" }).click();
 	await expect(card).toBeHidden();
 
 	await page.reload();
@@ -79,6 +85,60 @@ test("a recurring charge is suggested as a Commitment; Add creates it, Not now s
 	await expect(page.getByTestId("suggested")).toBeHidden();
 	const month = page.url().match(/\/month\/(\d{4}-\d{2})/)?.[1];
 	await page.goto(`/plan/${month}/commitments`);
-	await expect(page.getByText("Planet Fitness Club").first()).toBeVisible();
+	await expect(page.getByText("Planet Fitness").first()).toBeVisible();
 	await expect(page.getByText("Spotify")).toHaveCount(0);
+});
+
+test("filing one merchant into one Bucket by hand 3 times suggests a Rule on Review; Add Rule files the next", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, {
+		baseline: "5,000",
+		buckets: [
+			["Groceries", "1,200"],
+			["Gas", "300"],
+		],
+	});
+	const review = new URL("/review", page.url()).href;
+	await uploadStatement(
+		page,
+		[
+			["ACME WIDGETS LLC", "19.99"],
+			["ACME WIDGETS LLC", "24.50"],
+			["ACME WIDGETS LLC", "12.00"],
+			["ACME WIDGETS LLC", "31.25"],
+		],
+		true,
+	);
+	await waitForReview(page, review, "1 of 4");
+	const stack = page.getByTestId("review-stack");
+	const top = stack.getByTestId("review-card");
+	for (const left of ["2 of 4", "3 of 4", "4 of 4"]) {
+		await top.getByRole("combobox", { name: "Where Acme Widgets goes", exact: true }).click();
+		await page.getByRole("listbox").getByRole("option", { name: "Groceries", exact: true }).click();
+		await expect(stack).toContainText(left);
+	}
+
+	const card = page.getByTestId("suggested");
+	await reloadUntil(page, review, async () => {
+		await expect(card).toContainText("Always put Acme Widgets in Groceries?", { timeout: 2_000 });
+	});
+	await expect(card).toContainText("You've done it 3 times.");
+	await page.setViewportSize({ width: 393, height: 852 });
+	await page.screenshot({
+		path: "/tmp/claude-1000/-home-ryan-Work-noodle/350084fd-f9e1-4b75-9ecf-7a4034e88af2/scratchpad/s58d1/review-rule-393.png",
+		fullPage: true,
+	});
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(393);
+	await axe(page, "Review with a Rule suggestion at 393");
+
+	await card.getByRole("button", { name: "Add Rule: Acme Widgets" }).click();
+	await expect(card).toBeHidden();
+	// The new Rule looks again at Review in the background and files the fourth one.
+	await reloadUntil(page, review, async () => {
+		await expect(page.getByText("Nothing to review")).toBeVisible({ timeout: 2_000 });
+	});
+	await expect(page.getByTestId("suggested")).toBeHidden();
 });

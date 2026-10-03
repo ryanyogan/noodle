@@ -5,9 +5,12 @@ import {
 	cadenceOf,
 	changedALot,
 	type DayKey,
+	type HandFiling,
+	isMoneyMovement,
 	type SpendLine,
 	spotBuckets,
 	spotCommitments,
+	spotRules,
 } from "./index";
 
 const today = "2026-10-03" as DayKey;
@@ -163,5 +166,86 @@ describe("changedALot", () => {
 		expect(changedALot(before, { ...before, amountCents: 13_000 })).toBe(true);
 		expect(changedALot(before, { ...before, amountCents: 7_000 })).toBe(true);
 		expect(changedALot(before, { ...before, count: 8 })).toBe(true);
+	});
+});
+
+const filed = (
+	id: string,
+	date: string,
+	bucketId = "groceries",
+	owner: string | null = null,
+	merchant = "Costco",
+): HandFiling => ({
+	id,
+	date: date as DayKey,
+	merchant,
+	bucketId,
+	bucketName: bucketId === "groceries" ? "Groceries" : bucketId,
+	owner,
+});
+
+describe("spotRules", () => {
+	const four = [
+		filed("a", "2026-07-02"),
+		filed("b", "2026-08-03"),
+		filed("c", "2026-09-01"),
+		filed("d", "2026-09-20"),
+	];
+
+	it("offers a Rule after the same merchant went into the same Bucket 3 or more times", () => {
+		const [idea, ...rest] = spotRules(four, []);
+		expect(rest).toEqual([]);
+		expect(idea).toMatchObject({
+			kind: "rule",
+			owner: null,
+			name: "Costco",
+			merchant: "costco",
+			bucketId: "groceries",
+			bucketName: "Groceries",
+			evidence: { count: 4, months: 3 },
+		});
+	});
+
+	it("waits for the third time, and for a clear favourite Bucket", () => {
+		expect(spotRules(four.slice(0, 2), [])).toEqual([]);
+		const split = [
+			...four.slice(0, 3),
+			...["e", "f", "g"].map((id) => filed(id, "2026-09-25", "household")),
+		];
+		expect(spotRules(split, [])).toEqual([]);
+	});
+
+	it("offers nothing when a Rule already covers the merchant", () => {
+		expect(spotRules(four, [{ pattern: "costco", bucketId: "household", owner: null }])).toEqual(
+			[],
+		);
+	});
+
+	it("keeps a Personal Allowance's filings to its Parent (ADR-0003)", () => {
+		const mine = four.map((f) => ({ ...f, bucketId: "alex-fun", owner: "alex" }));
+		const ideas = spotRules([...mine, ...four.slice(0, 2)], []);
+		expect(ideas).toHaveLength(1);
+		expect(ideas[0]).toMatchObject({ owner: "alex", bucketId: "alex-fun" });
+		// The other Parent's private Rule covers nothing for this one, nor for the Household.
+		expect(
+			spotRules(four, [{ pattern: "costco", bucketId: "sam-fun", owner: "sam" }]),
+		).toHaveLength(1);
+		expect(spotRules(mine, [{ pattern: "costco", bucketId: "alex-fun", owner: "alex" }])).toEqual(
+			[],
+		);
+	});
+});
+
+describe("isMoneyMovement", () => {
+	it("tells card payments and transfers from a merchant", () => {
+		for (const name of [
+			"Online Payment",
+			"Autopay Payment",
+			"Payment Thank You",
+			"Transfer to Savings",
+		])
+			expect(isMoneyMovement(name)).toBe(true);
+		for (const name of ["Planet Fitness", "Spotify", "Paypal Netflix"])
+			expect(isMoneyMovement(name)).toBe(false);
 	});
 });
