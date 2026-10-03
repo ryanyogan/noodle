@@ -39,6 +39,7 @@ type NewBucket = {
 	color: number;
 	allowanceCents: number;
 	rolling?: boolean;
+	suggestionId?: string;
 };
 
 type AddBucketsChange = {
@@ -134,16 +135,21 @@ function AddBucketsForm({
 		const ideas = (suggested ?? []).filter((item) => item.kind === "new-bucket" && !item.personal);
 		if (ideas.length === 0) return;
 		setRows((current) => {
-			const taken = new Set(
-				[...used, ...current.map((row) => row.name)].map((n) => n.toLowerCase()),
-			);
-			const fresh = ideas
-				.filter((item) => !taken.has(item.payload.name.toLowerCase()))
-				.map(
-					(item): BucketRow => ({
+			const usedNames = new Set(used.map((n) => n.toLowerCase()));
+			const same = (row: BucketRow, name: string) =>
+				!row.personal && row.name.toLowerCase() === name.toLowerCase();
+			let rows = current;
+			const fresh: BucketRow[] = [];
+			for (const item of ideas) {
+				const name = item.payload.name;
+				if (usedNames.has(name.toLowerCase())) continue;
+				const row = rows.find((r) => same(r, name));
+				if (row?.suggestionId === item.id) continue;
+				if (!row) {
+					fresh.push({
 						key: `suggested-${item.id}`,
 						id: ulid(),
-						name: item.payload.name,
+						name,
 						amountCents: item.payload.amountCents,
 						amount: formatMoneyInput(item.payload.amountCents),
 						rolling: false,
@@ -151,9 +157,24 @@ function AddBucketsForm({
 						kept: false,
 						touched: false,
 						suggested: "spending",
-					}),
-				);
-			return fresh.length > 0 ? [...fresh, ...current] : current;
+						suggestionId: item.id,
+					});
+					continue;
+				}
+				// A starter of the same name (Pets) becomes the suggested row, at the top.
+				const marked: BucketRow = row.touched
+					? { ...row, suggestionId: item.id }
+					: {
+							...row,
+							amountCents: item.payload.amountCents,
+							amount: formatMoneyInput(item.payload.amountCents),
+							suggested: "spending",
+							suggestionId: item.id,
+						};
+				rows = rows.filter((r) => r !== row);
+				fresh.push(marked);
+			}
+			return fresh.length > 0 ? [...fresh, ...rows] : current;
 		});
 	}, [suggested, used]);
 	// History that arrives after the sheet opened fills the rows nobody typed in.
@@ -215,6 +236,8 @@ function AddBucketsForm({
 					color: color(),
 					allowanceCents: cents(row),
 					rolling: row.rolling,
+					// A row background AI suggested: adding it marks that suggestion taken.
+					...(row.suggestionId ? { suggestionId: row.suggestionId } : {}),
 				})),
 			personal:
 				personal?.kept === true

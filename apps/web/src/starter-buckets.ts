@@ -13,6 +13,8 @@ export type BucketRow = SetupBucket & {
 	touched: boolean;
 	/** "spending" when the amount came from the plan draft; "scaled" when from what's left. */
 	suggested: "spending" | "scaled" | null;
+	/** The background AI suggestion this row carries (ADR-0027), marked taken once it's added. */
+	suggestionId?: string;
 };
 
 /**

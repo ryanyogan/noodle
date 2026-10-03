@@ -25,6 +25,9 @@ test.afterEach(async () => {
 const shots =
 	"/tmp/claude-1000/-home-ryan-Work-noodle/350084fd-f9e1-4b75-9ecf-7a4034e88af2/scratchpad/s58c";
 
+const shots58d1b =
+	"/tmp/claude-1000/-home-ryan-Work-noodle/350084fd-f9e1-4b75-9ecf-7a4034e88af2/scratchpad/s58d1b";
+
 async function axe(page: Page, label: string) {
 	const { violations } = await new AxeBuilder({ page })
 		.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
@@ -77,7 +80,13 @@ test("a recurring charge is suggested as a Commitment; Add creates it, Not now s
 
 	await card.getByRole("button", { name: "Not now: Spotify" }).click();
 	await expect(card).not.toContainText("Spotify");
+	// Add opens the terms first, filled in from the charges, to change before adding.
 	await card.getByRole("button", { name: "Add Commitment: Planet Fitness" }).click();
+	const terms = card.getByRole("form", { name: /Planet Fitness, before adding/ });
+	await expect(terms.getByRole("textbox", { name: "Name" })).toHaveValue("Planet Fitness");
+	await expect(terms.getByRole("textbox", { name: "Amount due" })).toHaveValue("49.99");
+	await terms.getByRole("textbox", { name: "Amount due" }).fill("52");
+	await terms.getByRole("button", { name: "Add Commitment" }).click();
 	await expect(card).toBeHidden();
 
 	await page.reload();
@@ -86,7 +95,52 @@ test("a recurring charge is suggested as a Commitment; Add creates it, Not now s
 	const month = page.url().match(/\/month\/(\d{4}-\d{2})/)?.[1];
 	await page.goto(`/plan/${month}/commitments`);
 	await expect(page.getByText("Planet Fitness").first()).toBeVisible();
+	await expect(page.getByText("$52.00").first()).toBeVisible();
 	await expect(page.getByText("Spotify")).toHaveCount(0);
+});
+
+test("steady pet spending is suggested as a Bucket on This Month and in the Add Buckets sheet; adding it there takes the suggestion", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "6000", buckets: [["Groceries", "600"]] });
+	const lines: [string, string, string][] = [];
+	for (const [i, ago] of [86, 80, 71, 60, 52, 44, 33, 24, 15, 6].entries()) {
+		lines.push(
+			i % 2 ? ["CHEWY.COM", "38.50", daysAgo(ago)] : ["PETCO 1234", "41.25", daysAgo(ago)],
+		);
+	}
+	await uploadStatement(page, lines, true);
+
+	const card = page.getByTestId("suggested");
+	await reloadUntil(page, "/month", () =>
+		expect(card).toContainText("A Bucket for Pets", { timeout: 2_000 }),
+	);
+	await expect(card).toContainText("10 charges");
+	const month = page.url().match(/\/month\/(\d{4}-\d{2})/)?.[1];
+
+	await page.setViewportSize({ width: 393, height: 852 });
+	await page.goto(`/plan/${month}/buckets`);
+	await page.getByRole("button", { name: "Add Buckets", exact: true }).click();
+	const sheet = page.getByRole("dialog", { name: "Add Buckets" });
+	const pets = sheet.getByRole("checkbox", { name: "Pets", exact: true });
+	const row = sheet.getByRole("listitem").filter({ has: pets });
+	await expect(row).toContainText("Suggested from your spending");
+	await expect(pets).not.toBeChecked();
+	await sheet.screenshot({ path: `${shots58d1b}/add-buckets-suggested-393.png` });
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(393);
+
+	await pets.check();
+	await row.getByRole("textbox").fill("150");
+	await sheet.getByRole("button", { name: /^Add \d+ Buckets?$/ }).click();
+	await expect(page.getByRole("button", { name: "Edit Pets" })).toBeVisible();
+	await expect(page.getByText("$150.00").first()).toBeVisible();
+
+	// Taken, not left for the next run to drop: gone from This Month at once.
+	await page.goto(`/month/${month}`);
+	await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+	await expect(page.getByText("A Bucket for Pets")).toHaveCount(0);
 });
 
 test("filing one merchant into one Bucket by hand 3 times suggests a Rule on Review; Add Rule files the next", async ({

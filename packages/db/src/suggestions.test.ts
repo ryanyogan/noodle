@@ -1,16 +1,19 @@
 import { spotBuckets, spotCommitments } from "@noodle/domain";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+	addBucket,
 	addPersonalAllowance,
 	createHouseholdForParent,
 	type Db,
 	decideSuggestion,
+	loadLearnInputs,
 	loadOpenSuggestions,
 	loadSuggestionInputs,
+	saveRule,
 	saveSuggestions,
 	type Viewer,
 } from "./index";
-import { members, transactions } from "./schema";
+import { categorizations, members, transactions } from "./schema";
 import { testDb } from "./test-db";
 
 const householdId = "household";
@@ -122,5 +125,56 @@ describe("suggestions", () => {
 		await db.delete(transactions);
 		expect(await run()).toBe(1);
 		expect(await loadOpenSuggestions(db, alex)).toEqual([]);
+	});
+});
+
+describe("loadLearnInputs", () => {
+	it("reads imported lines a Parent filed by hand, and the Household's Rules with their owners", async () => {
+		const author = { householdId, memberId: "alex", month: "2026-10", color: 1 } as const;
+		await addBucket(db, {
+			...author,
+			bucketId: "groceries",
+			name: "Groceries",
+			allowanceCents: 60_000,
+		});
+		await addPersonalAllowance(db, {
+			...author,
+			bucketId: "alex-fun",
+			name: "Alex's Fun",
+			allowanceCents: 5_000,
+		});
+		await charge("hand1", "2026-09-10", 4_200, "Acme Widgets", "groceries");
+		await charge("hand2", "2026-09-20", 1_500, "Comics Shop", "alex-fun");
+		// Filed by categorization: its decision stands, so it isn't a hand pick.
+		await charge("ai1", "2026-09-12", 3_000, "Trader Joe's", "groceries");
+		await db.insert(categorizations).values({
+			transactionId: "ai1",
+			householdId,
+			outcome: "filed",
+			bucketId: "groceries",
+			merchant: "trader joe's",
+		});
+		// Too old, and still in Review.
+		await charge("old1", "2025-01-10", 4_200, "Acme Widgets", "groceries");
+		await charge("loose", "2026-09-15", 900, "Corner Store");
+		const ruleBase = { householdId, memberId: "alex" };
+		await saveRule(db, { ...ruleBase, id: "r1", pattern: "costco", bucketId: "groceries" });
+		await saveRule(db, { ...ruleBase, id: "r2", pattern: "comics shop", bucketId: "alex-fun" });
+
+		const { filings, rules } = await loadLearnInputs(db, householdId, "2026-07-01");
+		expect(filings.map((f) => f.id).sort()).toEqual(["hand1", "hand2"]);
+		expect(filings.find((f) => f.id === "hand1")).toMatchObject({
+			merchant: "Acme Widgets",
+			bucketId: "groceries",
+			bucketName: "Groceries",
+			owner: null,
+		});
+		expect(filings.find((f) => f.id === "hand2")?.owner).toBe("alex");
+		expect(rules).toEqual(
+			expect.arrayContaining([
+				{ pattern: "costco", bucketId: "groceries", owner: null },
+				{ pattern: "comics shop", bucketId: "alex-fun", owner: "alex" },
+			]),
+		);
 	});
 });

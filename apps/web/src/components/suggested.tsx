@@ -1,18 +1,29 @@
 import type { SuggestionItem } from "@noodle/db";
+import { type DayKey, parseDollars } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import { Field, FormError } from "@noodle/ui/components/field";
+import { Input } from "@noodle/ui/components/input";
 import { cn } from "@noodle/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useId } from "react";
-import { formatMoney, shortDay } from "../format";
+import { type FormEvent, useId, useState } from "react";
+import { formatMoney, formatMoneyInput, shortDay } from "../format";
 import { suggestionsQuery } from "../queries";
 import { decideSuggestion } from "../server/suggestions";
+import { CommitmentFormErrors, readCommitment, ScheduleFields } from "./commitment-editor";
 
 // The "Suggested" card (ADR-0027): what background AI spotted, with its evidence in plain words, to
 // add with one tap or put away. All of them on This Month; in context elsewhere, only the kinds
 // that page is about (Rules on Review, Commitments on the Commitments page). Quiet, and gone when
-// there's nothing.
+// there's nothing. Add on a new Bucket or Commitment opens its terms first, filled in, so the Parent
+// can change the name, amount or schedule before it goes in the Plan.
+
+type Decision = {
+	suggestionId: string;
+	decision: "add" | "not-now";
+	terms?: { name: string; amountCents: number; cadence?: Terms["cadence"]; dueDate?: string };
+};
 
 const every = { monthly: "a month", biweekly: "every two weeks", annual: "a year" } as const;
 
@@ -66,9 +77,9 @@ export function Suggested({
 	const id = useId();
 	const queryClient = useQueryClient();
 	const { data } = useQuery(suggestionsQuery());
+	const [editing, setEditing] = useState<string | null>(null);
 	const decide = useMutation({
-		mutationFn: (variables: { suggestionId: string; decision: "add" | "not-now" }) =>
-			decideSuggestion({ data: variables }),
+		mutationFn: (variables: Decision) => decideSuggestion({ data: variables }),
 		onSettled: () =>
 			Promise.all([
 				queryClient.invalidateQueries({ queryKey: ["suggestions"] }),
@@ -103,7 +114,12 @@ export function Suggested({
 									size="sm"
 									variant="outline"
 									aria-label={`${add}: ${name}`}
-									onClick={() => decide.mutate({ suggestionId: item.id, decision: "add" })}
+									aria-expanded={editable(item) ? editing === item.id : undefined}
+									onClick={() =>
+										editable(item)
+											? setEditing(editing === item.id ? null : item.id)
+											: decide.mutate({ suggestionId: item.id, decision: "add" })
+									}
 								>
 									{add}
 								</Button>
@@ -116,10 +132,115 @@ export function Suggested({
 									Not now
 								</Button>
 							</div>
+							{editing === item.id ? (
+								<EditBeforeAdd
+									item={item}
+									add={add}
+									onCancel={() => setEditing(null)}
+									onSave={(terms) => {
+										setEditing(null);
+										decide.mutate({ suggestionId: item.id, decision: "add", terms });
+									}}
+								/>
+							) : null}
 						</li>
 					);
 				})}
 			</ul>
 		</Card>
+	);
+}
+
+const editable = (item: SuggestionItem) =>
+	item.kind === "new-bucket" || item.kind === "new-commitment";
+
+/** A new Bucket's or Commitment's terms as suggested, to change before adding. */
+function EditBeforeAdd({
+	item,
+	add,
+	onSave,
+	onCancel,
+}: {
+	item: SuggestionItem;
+	add: string;
+	onSave: (terms: NonNullable<Decision["terms"]>) => void;
+	onCancel: () => void;
+}) {
+	const id = useId();
+	const terms = item.payload as Terms;
+	const commitment = item.kind === "new-commitment";
+	const [errors, setErrors] = useState<{ name?: boolean; amount?: boolean; dueDate?: boolean }>({});
+	function onSubmit(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		const form = event.currentTarget;
+		if (commitment) {
+			const read = readCommitment(form);
+			setErrors(read.errors);
+			if (read.ok) onSave(read.terms);
+			return;
+		}
+		const values = new FormData(form);
+		const name = String(values.get("name") ?? "").trim();
+		const amountCents = parseDollars(String(values.get("amount") ?? ""));
+		setErrors({ name: name === "", amount: amountCents === null });
+		if (name !== "" && amountCents !== null) onSave({ name, amountCents });
+	}
+	return (
+		<form
+			onSubmit={onSubmit}
+			noValidate
+			aria-label={`${add}: ${terms.name}, before adding`}
+			className="grid gap-3 rounded-xl bg-surface-2 p-3"
+		>
+			<div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_9rem]">
+				<Field label="Name" htmlFor={`${id}-name`}>
+					<Input
+						id={`${id}-name`}
+						name="name"
+						maxLength={40}
+						autoComplete="off"
+						defaultValue={terms.name}
+						className="bg-card"
+						aria-invalid={errors.name || undefined}
+					/>
+				</Field>
+				<Field label={commitment ? "Amount due" : "A month"} htmlFor={`${id}-amount`}>
+					<Input
+						id={`${id}-amount`}
+						name="amount"
+						inputMode="decimal"
+						autoComplete="off"
+						defaultValue={formatMoneyInput(terms.amountCents)}
+						className="bg-card tabular-nums"
+						aria-invalid={errors.amount || undefined}
+					/>
+				</Field>
+			</div>
+			{commitment ? (
+				<>
+					<ScheduleFields
+						id={id}
+						cadence={terms.cadence ?? "monthly"}
+						dueDate={terms.dueDate as DayKey}
+						dueLabel="Next due"
+						invalid={errors.dueDate}
+					/>
+					<CommitmentFormErrors errors={errors} />
+				</>
+			) : (
+				<>
+					{errors.name ? <FormError>Give the Bucket a name.</FormError> : null}
+					{errors.amount ? <FormError>Type an amount, like 130.</FormError> : null}
+				</>
+			)}
+			<div className="flex flex-wrap gap-2">
+				<Button type="submit" size="sm">
+					{add}
+				</Button>
+				<Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+					Cancel
+				</Button>
+			</div>
+		</form>
 	);
 }

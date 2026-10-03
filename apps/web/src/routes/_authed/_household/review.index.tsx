@@ -2,6 +2,7 @@ import {
 	type Assignment,
 	canAssign,
 	type MonthKey,
+	merchantKey,
 	monthKeyAt,
 	type Plan,
 	type PlanBucket,
@@ -59,7 +60,7 @@ import { TransactionBody, TransactionEditor } from "../../../components/transact
 import { dayName, formatMoney, monthName } from "../../../format";
 import { forLabel, type MemberSummary } from "../../../members";
 import { useReducedMotion } from "../../../motion";
-import { membersQuery, monthQuery, reviewQuery } from "../../../queries";
+import { membersQuery, monthQuery, reviewQuery, suggestionsQuery } from "../../../queries";
 import { merchantName } from "../../../reports";
 import {
 	type ReviewDecision,
@@ -211,6 +212,7 @@ function ReviewPage() {
 	}, [streak]);
 	/** "Always file …?", offered beside the card in Sort rather than in a toast over it. */
 	const [offer, setOffer] = useState<RuleOffer | null>(null);
+	const { data: ruleIdeas } = useQuery(suggestionsQuery());
 	/** The card flying off the top, drawn over the next one for a moment. */
 	const [leaving, setLeaving] = useState<{ item: ReviewItem; way: Way } | null>(null);
 	const [wobbling, setWobbling] = useState(false);
@@ -300,6 +302,16 @@ function ReviewPage() {
 		bucket: Pick<PlanBucket, "id" | "name" | "owner">,
 		forMemberIds: string[],
 	) {
+		// One offer, not two: once background AI suggests this very Rule (ADR-0027), its card below
+		// the stack is the offer, and stays until it's added or put away.
+		const key = merchantKey(item.merchant ?? "");
+		const suggested = (ruleIdeas ?? []).some(
+			(idea) =>
+				idea.kind === "rule" &&
+				idea.payload.merchant === key &&
+				idea.payload.bucketId === bucket.id,
+		);
+		if (suggested) return;
 		if (sorting) return setOffer({ item, bucket, forMemberIds });
 		toast(ruleQuestion({ item, bucket, forMemberIds }), {
 			tone: "success",

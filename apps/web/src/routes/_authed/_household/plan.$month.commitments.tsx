@@ -1,4 +1,4 @@
-import { lumpyMonths, monthlyEquivalent, yearlyCost } from "@noodle/domain";
+import { lumpyMonths, monthlyEquivalent, monthOfDay, yearlyCost } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Card } from "@noodle/ui/components/card";
 import {
@@ -65,7 +65,10 @@ function PlanCommitments() {
 	const aside = (
 		<>
 			{state.editable ? <AddCommitment month={month} /> : null}
-			{state.editable ? <Suggested kinds={["new-commitment", "commitment-amount"]} /> : null}
+			{/* Adding one writes this month's Plan, so they show on this month only. */}
+			{state.editable && month === monthOfDay(state.asOf) ? (
+				<Suggested kinds={["new-commitment", "commitment-amount"]} />
+			) : null}
 			{state.commitments.length > 0 ? (
 				<>
 					<p className="px-1 text-sm text-muted-foreground">

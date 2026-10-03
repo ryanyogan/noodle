@@ -9,7 +9,7 @@ import {
 	saveRule,
 	updateCommitment as updateCommitmentInDb,
 } from "@noodle/db";
-import { type Cadence, type DayKey, dayKeyAt, monthOfDay } from "@noodle/domain";
+import { CADENCES, type Cadence, type DayKey, dayKeyAt, monthOfDay } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { ulid } from "ulid";
 import { z } from "zod";
@@ -17,6 +17,8 @@ import { queueAi } from "./ai-queue";
 import { getDb } from "./db";
 import { householdMiddleware, viewerOf } from "./household";
 import { notifyHousehold } from "./notify";
+import { centsSchema } from "./plan";
+import { dayKeySchema } from "./schemas";
 
 // Suggestions (ADR-0027): each Parent reads the Household's open ones and their own (ADR-0003).
 // Accepting one adds what it suggests to this month's Plan with the usual Plan change, through the
@@ -38,11 +40,25 @@ type Terms = {
 	bucketId?: string;
 };
 
-/** Adds or dismisses ("Not now") a suggestion. Idempotent: a decided one does nothing again. */
+/**
+ * Adds or dismisses ("Not now") a suggestion. Idempotent: a decided one does nothing again. `terms`
+ * are what the Parent changed before adding a new Bucket or Commitment (name, amount, schedule).
+ */
 export const decideSuggestion = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(
-		z.object({ suggestionId: z.string().min(1).max(64), decision: z.enum(["add", "not-now"]) }),
+		z.object({
+			suggestionId: z.string().min(1).max(64),
+			decision: z.enum(["add", "not-now"]),
+			terms: z
+				.object({
+					name: z.string().trim().min(1).max(40),
+					amountCents: centsSchema,
+					cadence: z.enum(CADENCES as [Cadence, ...Cadence[]]).optional(),
+					dueDate: dayKeySchema.optional(),
+				})
+				.optional(),
+		}),
 	)
 	.handler(async ({ data, context }) => {
 		const db = getDb();
@@ -57,7 +73,15 @@ export const decideSuggestion = createServerFn({ method: "POST" })
 			return;
 		}
 		const month = monthOfDay(dayKeyAt(new Date(), context.household.timeZone));
-		const terms = row.payload as Terms;
+		const suggested = row.payload as Terms;
+		const edited =
+			row.kind === "new-bucket" || row.kind === "new-commitment" ? data.terms : undefined;
+		const terms: Terms = {
+			...suggested,
+			...edited,
+			cadence: edited?.cadence ?? suggested.cadence,
+			dueDate: (edited?.dueDate as DayKey | undefined) ?? suggested.dueDate,
+		};
 		if (row.kind === "new-bucket") {
 			const plan = await loadPlanRecords(db, householdId, month);
 			await addBucketInDb(db, {

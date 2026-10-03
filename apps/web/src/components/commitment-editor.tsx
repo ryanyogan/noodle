@@ -206,7 +206,7 @@ export function CommitmentSheet({
 type CommitmentErrors = { name?: boolean; amount?: boolean; dueDate?: boolean };
 
 /** The fields' values, checked; with the errors when any is missing or wrong. */
-function readCommitment(form: HTMLFormElement) {
+export function readCommitment(form: HTMLFormElement) {
 	const values = new FormData(form);
 	const name = String(values.get("name") ?? "").trim();
 	const amountCents = parseDollars(String(values.get("amount") ?? ""));
@@ -224,7 +224,7 @@ function readCommitment(form: HTMLFormElement) {
 		: { ok: false as const, errors };
 }
 
-function CommitmentFormErrors({ errors }: { errors: CommitmentErrors }) {
+export function CommitmentFormErrors({ errors }: { errors: CommitmentErrors }) {
 	return (
 		<>
 			{errors.name ? <FormError>Give the Commitment a name, like Mortgage.</FormError> : null}
@@ -347,7 +347,7 @@ function CommitmentDetails({
 }
 
 /** How often a Commitment is due, and one day it's due. */
-function ScheduleFields({
+export function ScheduleFields({
 	id,
 	cadence,
 	dueDate,

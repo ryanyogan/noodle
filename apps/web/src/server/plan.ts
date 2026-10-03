@@ -3,6 +3,8 @@ import {
 	addBuckets as addBucketsInDb,
 	addPersonalAllowance as addPersonalAllowanceInDb,
 	archiveBucket as archiveBucketInDb,
+	decideSuggestion as decideSuggestionInDb,
+	loadOpenSuggestion,
 	loadPlanChanges,
 	reorderBuckets as reorderBucketsInDb,
 	restoreBucket as restoreBucketInDb,
@@ -100,6 +102,8 @@ export const addBuckets = createServerFn({ method: "POST" })
 						color: colorSchema,
 						allowanceCents: centsSchema,
 						rolling: z.boolean().optional(),
+						/** The suggestion this row came from (ADR-0027), marked accepted once added. */
+						suggestionId: z.string().min(1).max(64).optional(),
 					}),
 				)
 				.max(40),
@@ -117,11 +121,23 @@ export const addBuckets = createServerFn({ method: "POST" })
 		assertEditable(context.household, data.month);
 		const db = getDb();
 		const author = { householdId: context.household.id, memberId: context.parent.id };
-		await addBucketsInDb(db, { ...author, month: data.month, buckets: data.buckets });
+		const buckets = data.buckets.map(({ suggestionId: _, ...bucket }) => bucket);
+		await addBucketsInDb(db, { ...author, month: data.month, buckets });
 		if (data.personal) {
 			await addPersonalAllowanceInDb(db, { ...author, month: data.month, ...data.personal });
 		}
-		await notifyHousehold(context.household.id, ["months"]);
+		// A suggested row, added, is that suggestion taken: not left for the next run to drop.
+		const taken = data.buckets.flatMap((bucket) => bucket.suggestionId ?? []);
+		for (const suggestionId of taken) {
+			const row = await loadOpenSuggestion(db, viewerOf(context), suggestionId);
+			if (row?.status === "open" && row.kind === "new-bucket") {
+				await decideSuggestionInDb(db, viewerOf(context), row.id, "accepted");
+			}
+		}
+		await notifyHousehold(
+			context.household.id,
+			taken.length > 0 ? ["months", "suggestions"] : ["months"],
+		);
 		// New Buckets may fit what waits in Review.
 		await queueAi({ ...viewerOf(context), kind: "buckets-changed" });
 	});

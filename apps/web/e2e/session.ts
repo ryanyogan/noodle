@@ -183,11 +183,16 @@ export const accountKindLabel = (kind: string) => accountKindLabels[kind] ?? kin
  * Reloads `url` until `check` passes: the background run files, guesses and names what was just
  * brought in a moment after an import (ADR-0027), longer on CI. `check` should use short timeouts.
  */
-export async function reloadUntil(page: Page, url: string, check: () => Promise<void>) {
+export async function reloadUntil(
+	page: Page,
+	url: string,
+	check: () => Promise<void>,
+	timeout = 20_000,
+) {
 	await expect(async () => {
 		await page.goto(url);
 		await check();
-	}).toPass({ timeout: 20_000 });
+	}).toPass({ timeout });
 }
 
 /**
