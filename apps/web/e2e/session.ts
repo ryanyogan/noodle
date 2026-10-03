@@ -175,10 +175,14 @@ export const savedBy = (page: Page, name: string) =>
 
 /** Switches between a month's This Month and its Plan, from either one's overview. */
 export async function switchTo(page: Page, view: "Month" | "Plan") {
-	await page
-		.getByRole("navigation", { name: "Month and Plan" })
-		.getByRole("link", { name: view })
-		.click();
+	// On a computer the Sidebar goes there; the switch above the header is on phones only (#73).
+	const wide = (page.viewportSize()?.width ?? 1280) >= 1024;
+	await (wide
+		? page
+				.locator("[data-slot=sidebar]")
+				.getByRole("link", { name: view === "Month" ? "This Month" : "Plan", exact: true })
+		: page.getByRole("navigation", { name: "Month and Plan" }).getByRole("link", { name: view })
+	).click();
 	// While the other one loads, React keeps the page being left in the document, hidden, beside the
 	// pending header: look at the one that shows.
 	await expect(page.locator("[data-slot=page-header]:visible")).toContainText(

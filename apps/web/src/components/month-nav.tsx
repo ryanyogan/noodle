@@ -21,14 +21,15 @@ export type PlanView =
 	| "/plan/$month/year";
 
 /**
- * The row above a month's page header: a switch between the month and its Plan, and on phones
- * Reports, Ask and the Glossary, which the sidebar has on larger screens.
+ * On phones, the row above a month's page header: a switch between the month and its Plan (the
+ * tab bar has no Plan tab), then Reports, Ask and the Glossary. On a computer the Sidebar has all
+ * of them, so the row isn't there (#73).
  */
 export function MonthTopRow({ month, current }: { month: MonthKey; current: "month" | "plan" }) {
 	return (
-		<div className="mb-3 flex max-w-2xl items-center justify-between gap-3 lg:mb-4">
+		<div className="mb-3 flex max-w-2xl items-center justify-between gap-3 lg:hidden">
 			<MonthPlanSwitch month={month} current={current} />
-			<div className="flex items-center gap-1 lg:hidden">
+			<div className="flex items-center gap-1">
 				<Button variant="ghost" size="icon" asChild>
 					<Link to="/reports" aria-label="Reports">
 						<ChartColumn className="size-5" />

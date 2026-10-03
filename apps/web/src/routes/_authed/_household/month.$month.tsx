@@ -30,7 +30,7 @@ export const Route = createFileRoute("/_authed/_household/month/$month")({
 });
 
 /**
- * The same header as the Plan's layout (the Month and Plan switch, the title, previous and next in
+ * The same header as the Plan's layout (on phones the Month and Plan switch; the title, previous and next in
  * the same places), so going between a month and its Plan reads as a change of tab.
  */
 function MonthLayout() {
