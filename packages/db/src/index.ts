@@ -499,6 +499,13 @@ export {
 	updateCommitment,
 } from "./commitments";
 export {
+	type ExportAccount,
+	type ExportData,
+	type ExportFile,
+	loadExportData,
+	monthsBetween,
+} from "./export";
+export {
 	addIncome,
 	decideExtraIncome,
 	type IncomeRecord,

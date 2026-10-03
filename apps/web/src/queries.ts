@@ -5,6 +5,7 @@ import { getBucket } from "./server/buckets";
 import { getCaptureToken } from "./server/capture-tokens";
 import { getCheckIn, getCheckInStatus } from "./server/check-in";
 import { getCommitments } from "./server/commitments";
+import { getExportStatus } from "./server/export";
 import { getGoals } from "./server/goals";
 import { getAccountImports } from "./server/imports";
 import { getInsights } from "./server/insights";
@@ -276,6 +277,13 @@ export const receiptAddressQuery = () =>
 	queryOptions({
 		queryKey: ["receipt-address"],
 		queryFn: () => getReceiptAddress(),
+	});
+
+/** The Parent's "Download your data" ZIP: none, preparing, or ready until it expires. */
+export const exportStatusQuery = () =>
+	queryOptions({
+		queryKey: ["export"],
+		queryFn: () => getExportStatus(),
 	});
 
 /** Where the Household is in the get-started wizard, and its background jobs. */

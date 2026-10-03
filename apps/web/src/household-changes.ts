@@ -6,6 +6,7 @@ import {
 	bucketUsesQuery,
 	checkInQuery,
 	commitmentsQuery,
+	exportStatusQuery,
 	forTotalsEarlierKey,
 	goalsQuery,
 	householdParentsQuery,
@@ -65,6 +66,8 @@ const changedQueries = {
 	"check-in": checkInQuery().queryKey,
 	/** The Household's Receipt address. */
 	"receipt-address": receiptAddressQuery().queryKey,
+	/** A Parent's "Download your data" ZIP is ready. */
+	export: exportStatusQuery().queryKey,
 	/** What's left of the first Plan's draft. */
 	"plan-draft": planDraftQuery().queryKey,
 	/** The get-started wizard's progress and the Setup Workflow's jobs. */

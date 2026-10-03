@@ -84,7 +84,8 @@
 			"class_name": "PerkResearchWorkflow"
 		},
 		{ "name": "noodle-import", "binding": "IMPORT", "class_name": "ImportWorkflow" },
-		{ "name": "noodle-setup", "binding": "SETUP", "class_name": "SetupWorkflow" }
+		{ "name": "noodle-setup", "binding": "SETUP", "class_name": "SetupWorkflow" },
+		{ "name": "noodle-export", "binding": "EXPORT", "class_name": "ExportWorkflow" }
 	],
 	"triggers": { "crons": ["0 * 1-3 * *", "0 9 * * *"] },
 	// Invites to the other Parent and the Check-in's email summary go out through Cloudflare Email

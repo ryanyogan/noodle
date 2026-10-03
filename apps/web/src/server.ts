@@ -10,6 +10,7 @@ import {
 	handleDevInviteAge,
 	handleDevOutbox,
 } from "./server/email/outbox";
+import { EXPORT_PATH, handleExportDownload, sweepExports } from "./server/export-workflow";
 import { connectToHouseholdAgent } from "./server/household-agent";
 import { startInsights } from "./server/insights-nightly";
 import { startMonthCloses } from "./server/month-close-workflow";
@@ -29,8 +30,10 @@ import { handleReceiptEmail } from "./server/receipt-worker";
 // Connection to read, which the Import Workflow (also exported) brings in: when Plaid's webhook
 // (its own endpoint) says there's news, and every night for all of them, one sync at a time for
 // each. Moving Items' webhooks to the app's address has an endpoint of its own, for an admin. The Setup Workflow (also
-// exported) does a new Household's slow setup work while the get-started wizard goes on.
+// exported) does a new Household's slow setup work while the get-started wizard goes on. The Export
+// Workflow (also exported) builds a Parent's "Download your data" ZIP; the nightly cron sweeps old ones.
 export { ImportWorkflow } from "./server/bank-import-workflow";
+export { ExportWorkflow } from "./server/export-workflow";
 export { HouseholdAgent } from "./server/household-agent";
 export { MonthCloseWorkflow } from "./server/month-close-workflow";
 export { PerkResearchWorkflow } from "./server/perk-research-workflow";
@@ -47,6 +50,7 @@ export default {
 		const { pathname } = new URL(request.url);
 		if (pathname === HOUSEHOLD_AGENT_PATH) return connectToHouseholdAgent(request);
 		if (pathname === CAPTURE_PATH) return handleCapture(request);
+		if (pathname.startsWith(EXPORT_PATH)) return handleExportDownload(request);
 		if (pathname === PLAID_WEBHOOK_PATH) return handlePlaidWebhook(request);
 		if (pathname === PLAID_WEBHOOK_MOVE_PATH) return handlePlaidWebhookMove(request);
 		// Emails "sent" with AI_MODEL=stub, for E2E to read; not in production builds.
@@ -74,6 +78,7 @@ export default {
 			await startPerkRechecks(now).catch((error) =>
 				console.error("Couldn’t start Perk re-checks", error),
 			);
+			await sweepExports(now).catch((error) => console.error("Couldn’t sweep downloads", error));
 			return startCheckIns(now);
 		}
 		return startMonthCloses(now);
