@@ -312,6 +312,7 @@ function Filters({
 }) {
 	// The list's own query (already loaded): its first page carries the month's total.
 	const total = useSuspenseInfiniteQuery(transactionsQuery(month, filters)).data.pages[0]?.total;
+	const toReview = useSuspenseQuery(reviewQuery()).data.total;
 	// Until hydrated, a change would only move the select, not the list.
 	const hydrated = useHydrated();
 	const [search, setSearch] = useState(filters.q ?? "");
@@ -358,6 +359,20 @@ function Filters({
 						{formatMoney(total)}
 					</span>
 				</p>
+			) : null}
+			{toReview > 0 ? (
+				// From a laptop up the rail says what waits in Review under the month's total (#51); the
+				// header's Review button stays for phones and keyboards.
+				<Link
+					to="/review"
+					className="-mt-1 mb-1 hidden min-h-9 items-center justify-between gap-3 rounded-md px-1 text-sm text-muted-foreground hover:bg-surface-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring lg:flex"
+				>
+					<span className="flex items-center gap-2">
+						<ListChecks aria-hidden="true" className="size-4" />
+						Waiting in Review
+					</span>
+					<Badge variant="count">{toReview}</Badge>
+				</Link>
 			) : null}
 			{/* With large text, Filters wraps below rather than squeeze the search to a few letters. */}
 			<div className="flex flex-wrap gap-2">

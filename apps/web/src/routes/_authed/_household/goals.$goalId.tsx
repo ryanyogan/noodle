@@ -173,7 +173,7 @@ function GoalDetails({
 			/>
 			<div className="grid gap-8 @3xl:grid-cols-[minmax(0,1fr)_320px] @3xl:items-start">
 				{/* Right from a laptop up: the progress card and what to do; on a phone, History comes before Emergencies and Finish. */}
-				<div className="grid gap-8 @max-3xl:contents @3xl:col-start-2 @3xl:row-start-1">
+				<div className="grid gap-8 @max-3xl:contents @3xl:sticky @3xl:top-6 @3xl:col-start-2 @3xl:row-start-1 @3xl:-m-1 @3xl:max-h-[calc(100dvh-3rem)] @3xl:overflow-y-auto @3xl:overscroll-contain @3xl:p-1">
 					<Card role="region" aria-labelledby="goal-saved">
 						<div className="grid gap-3 p-(--card-pad)">
 							<div className="grid gap-1">

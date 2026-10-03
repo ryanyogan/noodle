@@ -121,6 +121,8 @@ export function StatementsSection({
 	const [open, setOpen] = useState(false);
 	const [draft, setDraft] = useState<Draft>(NO_DRAFT);
 	const [imported, setImported] = useState<ImportRecord | null>(null);
+	// The last upload's result, kept on the page after the sheet closes (a toast goes by) (#51).
+	const [result, setResult] = useState<ImportRecord | null>(null);
 	const bank = connected?.institution ?? "the bank";
 	const canUpload = !connected || connected.needsLogin;
 
@@ -139,6 +141,7 @@ export function StatementsSection({
 							disabled={!hydrated}
 							onClick={() => {
 								setImported(null);
+								setResult(null);
 								setOpen(true);
 							}}
 						>
@@ -152,6 +155,12 @@ export function StatementsSection({
 				<Card className="p-(--card-pad) text-sm text-muted-foreground">
 					{bank} needs you to log in again before it brings in more. Reconnect it on Accounts, or
 					upload a statement for now: what the bank brings in later isn’t added twice.
+				</Card>
+			) : null}
+			{result ? (
+				<Card role="status" className="grid gap-0.5 p-(--card-pad) text-sm">
+					<span className="font-medium">Uploaded {result.fileName ?? "the statement"}</span>
+					<span className="text-muted-foreground">{importSummary(result)}</span>
 				</Card>
 			) : null}
 			{imports.length === 0 ? (
@@ -210,6 +219,7 @@ export function StatementsSection({
 								onDraft={setDraft}
 								onImported={(record) => {
 									setDraft(NO_DRAFT);
+									setResult(record);
 									// Offer the statement's balance at once, when it has a newer one.
 									if (balanceOffer(account, record.closingBalance, timeZone)) setImported(record);
 									else setOpen(false);

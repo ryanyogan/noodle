@@ -4,7 +4,6 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { FormError } from "@noodle/ui/components/field";
-import { List } from "@noodle/ui/components/list";
 import { Money } from "@noodle/ui/components/money";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
@@ -12,7 +11,7 @@ import { Stat, StatGrid } from "@noodle/ui/components/stat";
 import { cn } from "@noodle/ui/lib/utils";
 import { createFileRoute, Link, useHydrated, useParams } from "@tanstack/react-router";
 import { Landmark, Plus, Target, Telescope } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { z } from "zod";
 import { AddGoalSheet, GoalProgressBar, GoalSummary, LinkRow } from "../../../components/goals";
 import { ListBesideDetail, masterDetailItem } from "../../../components/master-detail";
@@ -122,7 +121,7 @@ function GoalsPage() {
 									count={payingOff.length}
 									help={<TermHelp term="payoff-goal" />}
 								/>
-								<List>
+								<GoalList>
 									{payingOff.map((goal) => (
 										<GoalItem
 											key={goal.id}
@@ -131,14 +130,14 @@ function GoalsPage() {
 											emergency={goal.id === emergencyGoalId}
 										/>
 									))}
-								</List>
+								</GoalList>
 							</Section>
 						) : null}
 						<Section aria-labelledby="active-goals">
 							<SectionHeader id="active-goals" title="Saving for" count={active.length} />
 							{active.length > 0 ? (
 								<>
-									<List>
+									<GoalList>
 										{active.map((goal) => (
 											<GoalItem
 												key={goal.id}
@@ -147,7 +146,7 @@ function GoalsPage() {
 												emergency={goal.id === emergencyGoalId}
 											/>
 										))}
-									</List>
+									</GoalList>
 									{/* What each Goal is and how far along lives here; deciding how much of this
 								    month's Free to Spend goes to them is the Plan's Goal funding page. */}
 									<Link
@@ -173,21 +172,21 @@ function GoalsPage() {
 						{completed.length > 0 ? (
 							<Section aria-labelledby="completed-goals">
 								<SectionHeader id="completed-goals" title="Completed" count={completed.length} />
-								<List>
+								<GoalList>
 									{completed.map((goal) => (
 										<GoalItem key={goal.id} goal={goal} quiet />
 									))}
-								</List>
+								</GoalList>
 							</Section>
 						) : null}
 						{archived.length > 0 ? (
 							<Section aria-labelledby="archived-goals">
 								<SectionHeader id="archived-goals" title="Archived" count={archived.length} />
-								<List>
+								<GoalList>
 									{archived.map((goal) => (
 										<GoalItem key={goal.id} goal={goal} quiet />
 									))}
-								</List>
+								</GoalList>
 							</Section>
 						) : null}
 					</>
@@ -214,6 +213,23 @@ function GoalsPage() {
 }
 
 /** A Goal: its name, how it's doing, and saved of target with a quiet bar. */
+/**
+ * Goals as one list card, or from a wide screen up a 2-column grid of Goal cards (#51): the
+ * list's card steps aside (`contents`) and each row becomes a card of its own.
+ */
+function GoalList({ children }: { children: ReactNode }) {
+	return (
+		<Card className="xl:contents">
+			<ul
+				data-slot="list"
+				className="[&>li+li]:border-t xl:grid xl:grid-cols-2 xl:items-stretch xl:gap-3 xl:[&>li]:grid xl:[&>li]:overflow-hidden xl:[&>li]:rounded-xl xl:[&>li]:border xl:[&>li]:bg-card xl:[&>li]:shadow-xs"
+			>
+				{children}
+			</ul>
+		</Card>
+	);
+}
+
 function GoalItem({
 	goal,
 	month,
