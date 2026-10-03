@@ -298,11 +298,7 @@ function ReviewPage() {
 	}
 
 	/** "Always file <merchant> in <Bucket>?", after a card is filed in a Bucket or a Commitment. */
-	function offerRule(
-		item: ReviewItem,
-		bucket: RuleTarget,
-		forMemberIds: string[],
-	) {
+	function offerRule(item: ReviewItem, bucket: RuleTarget, forMemberIds: string[]) {
 		// One offer, not two: once background AI suggests this very Rule (ADR-0027), its card below
 		// the stack is the offer, and stays until it's added or put away.
 		const key = merchantKey(item.merchant ?? "");
