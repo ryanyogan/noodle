@@ -29,6 +29,7 @@ function ListRow({
 	meta,
 	trailing,
 	below,
+	belowFull,
 	stackTrailing,
 	className,
 	...props
@@ -39,6 +40,8 @@ function ListRow({
 	meta?: React.ReactNode;
 	trailing?: React.ReactNode;
 	below?: React.ReactNode;
+	/** `below` takes the row's full width, under the leading tile too (e.g. a form opened in the row). */
+	belowFull?: boolean;
 	/** Below `sm`, put the trailing actions on their own row under the text, which then takes the full width. */
 	stackTrailing?: boolean;
 }) {
@@ -80,7 +83,14 @@ function ListRow({
 				</div>
 			) : null}
 			{below ? (
-				<div className={leading ? "col-start-2 col-end-4" : "col-span-2"}>{below}</div>
+				<div
+					className={cn(
+						leading ? "col-start-2 col-end-4" : "col-span-2",
+						belowFull && "col-span-full col-start-1",
+					)}
+				>
+					{below}
+				</div>
 			) : null}
 		</li>
 	);

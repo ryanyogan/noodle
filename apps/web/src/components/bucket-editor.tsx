@@ -162,6 +162,7 @@ export function BucketEditor({
 					/>
 				</div>
 			}
+			belowFull={inline}
 			below={
 				inline || changes.failed ? (
 					<div className="grid gap-2">

@@ -37,7 +37,7 @@ Never let the CLI overwrite a file here.
 | Calendar, DatePicker | shadcn, by hand (#47) | react-day-picker 10.0.2 (exact). DatePicker = Popover + Calendar in place of `<input type="date">`: a field-sized trigger reading "Oct 1, 2026", month and year dropdowns, `min`/`max`, Clear unless `required`, values stay yyyy-mm-dd (hidden input when `name`). Day buttons carry `data-day` (yyyy-mm-dd); specs use `pickDate()`. |
 | Separator | shadcn, by hand (#55) | Decorative by default. |
 | Sidebar | shadcn, by hand (#55) | The desktop sidebar: groups, menu buttons, a badge, a trigger. Collapses to an icon rail only (`rail:` variant, `--sidebar-width-icon`), remembered per device in localStorage and set on `<html>` before first paint by `sidebarStateScript`; Ctrl/⌘+B toggles. No mobile Sheet variant: phones keep the tab bar. A menu button's `tooltip` shows only in the rail. |
-| Sheet | Noodle's own, on Radix Dialog | A bottom sheet on phones and a centred dialog on desktop: forms and lists to pick from. |
+| Sheet | Noodle's own, on Radix Dialog | A bottom sheet on phones and a centred dialog on desktop: forms and lists to pick from. `SheetFooter stick` keeps the footer's buttons in view on a desktop too (phones always stick), for a long list like Add Buckets. |
 | Slider | shadcn, by hand (#47) | One thumb, named, with its value in words. |
 | Spinner | shadcn, by hand (#47) | Decorative unless given a `label`. |
 | RowButton | Noodle's own (#56) | A button that is a whole row or tile. See "Rows and tiles that are buttons" below. |
@@ -54,7 +54,7 @@ Never let the CLI overwrite a file here.
 | Stat, StatGrid | Noodle's own (#56) | A figure under its label, and the `<dl>` a few of them sit in. See "Figures" below. |
 | Money | Noodle's own (#56) | An amount from cents, in tabular figures on one line: `whole` rounds to dollars, `signed` adds "+" to a gain, `flagNegative` puts a negative in the over ink. `formatMoney` (`lib/money.ts`) is the same text as a string. |
 | Field, FormError | Noodle's own | A labelled control with its hint or error. `FormError` is the error under a form: the destructive Alert with `role="alert"`, laid out as a row so a "Try again" Button can sit beside the words. |
-| List, PageHeader, Section, Tile, EmptyState, Logo | Noodle's own | |
+| List, PageHeader, Section, Tile, EmptyState, Logo | Noodle's own | ListRow `below` sits under the title and trailing columns; `belowFull` widens it to the whole row, under the leading tile, for a form opened in the row. |
 
 ## The page grid
 
