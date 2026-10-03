@@ -116,7 +116,11 @@ test("disconnecting keeps the Accounts by hand, and connecting again pairs with 
 	await page.waitForTimeout(1500);
 	expect(Number(d1(parent.userId, "count(*)", "transactions"))).toBe(transactions);
 
-	// Connecting the same bank again pairs with the same Accounts.
+	// Connecting the same bank again pairs with the same Accounts. Back on Accounts first: pressed
+	// while the Account's page is still leaving, Connect a bank's sheet went with it.
+	await accountsLink(page).click();
+	await expect(page).toHaveURL(/\/accounts$/);
+	await expect(page.getByText("Pick an Account to see it here.")).toBeVisible();
 	await connectBank(page);
 	await expect(chooseSheet(page).getByLabel("Plaid Checking ··0000")).toHaveText(
 		"Same as Plaid Checking ··0000",

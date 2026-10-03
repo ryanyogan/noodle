@@ -81,7 +81,7 @@ beforeEach(async () => {
 	for (const [id, parent, house] of [
 		[householdId, parentId, "The Rinks"],
 		["other", "other-parent", "The Others"],
-	]) {
+	] as const) {
 		await createHouseholdForParent(db, {
 			clerkUserId: `clerk-${parent}`,
 			householdId: id,
