@@ -154,7 +154,7 @@ Each row is one page × one issue. Repeated small targets are grouped by compone
 | Sign-in | Clerk's buttons (Continue with Google, Continue) and its input are 32 tall. The Clerk logo link is 48×14. | med | Clerk `appearance`: 44 tall buttons and inputs. | 3 | partly fixed: buttons and field 44; Clerk logo link left (bff0f06) |
 | Every page | Load CLS is at most 0.01 (Month on `busy`, every width) and 0 everywhere else. Nothing jumps on load. Refetch, live updates, the keyboard opening and a sheet closing aren't measured. | low | In phase 4, measure CLS while adding a Transaction (live update), on refetch (window focus), and when a sheet closes. Check scroll position after a sheet closes. | 4 | measured: CLS 0 on `busy` at 393 for a refetch (window focus) on Transactions and Month, closing the Filters sheet, and closing the edit sheet (scroll position kept: 600 -> 600); scrolling a full month 0. The keyboard opening still needs a device |
 | Every sheet | The bottom sheet is our own Sheet, not shadcn Drawer (Vaul). Drag-to-close works only from the 16 px grabber; you can't drag down from the header or from content scrolled to the top. Back-gesture behaviour isn't defined. | med | Decide: move phones to shadcn Drawer (the responsive dialog pattern) or widen the drag area to the header. Make Back close the sheet consistently. | 4 | decided: kept our Sheet; drag from the grabber or header closes it (652d751). Back closes Quick Add (URL state); in other sheets Back leaves the page and asks first if something was typed (sheet-leave.spec), which is the intended behaviour |
-| Quick Add, Glossary, Reports Filters | Full-height sheets (836 of 852): the Close button and the top fields sit out of thumb reach. | med | Keep actions at the bottom. Consider a shorter first snap point for Quick Add. | 4 | partly fixed (652d751): sheets are content-sized up to 92% of the visible height; Quick Add's keypad sits in a sticky footer. Glossary and Filters are still tall because their content is |
+| Quick Add, Glossary, Reports Filters | Full-height sheets (836 of 852): the Close button and the top fields sit out of thumb reach. | med | Keep actions at the bottom. Consider a shorter first snap point for Quick Add. | 4 | partly fixed (652d751): sheets are content-sized up to 92% of the visible height; Quick Add's keypad sits in a sticky footer. Glossary and Filters are still tall because their content is. Decided (#66): Glossary stays full height with its search sticky above a scrolling list; Filters is content-sized with a sticky Apply footer |
 | Reports Filters sheet | Its primary action sits at y=898 in an 852 tall viewport, so it can't be seen until you scroll. | med | Sticky sheet footer with a safe-area bottom pad. | 4 | fixed (652d751): Apply and Clear all in the sticky SheetFooter (Apply at 796-840 of 852) |
 | Sheets with forms (Quick Add, Cover, Fund, Add income, Edit Bucket and Commitment, Add Account and Goal, Edit Transaction) | Nothing keeps the primary action above the iOS keyboard (no visualViewport handling). That needs a device. | high | Check on an iPhone. If it hides, pin the footer to `visualViewport` (and use `interactive-widget=resizes-content` for Chrome). | 4 | partly fixed (652d751): sheets sit above the keyboard via visualViewport (--keyboard-inset, --visible-height); no interactive-widget meta (it would lift the tab bar too). Needs an iPhone check |
 | Explore (Scenario outline) | The growth % fields are `type="number"` (scenario-outline.tsx:989). They have `inputMode="decimal"`, but number inputs change on scroll and accept "e". | low | `type="text"` plus `inputMode="decimal"` and a pattern, like MoneyInput. | 5 | fixed (8214f3d): text field with `inputmode="decimal"` and a pattern |
@@ -199,7 +199,7 @@ Each row is one page × one issue. Repeated small targets are grouped by compone
 | Edit Transaction, Add a Rule sheets | "Assigned to" and Bucket are still native selects (the ⇕ trigger), which the 2026-10-01 decision rules out. | med | A shadcn Combobox (Command) for Assigned to, and a Select for Bucket. | 5 | not a bug (7665705): both were already the shadcn Combobox (d4fcb47); its ⇕ chevron read as native, so it now uses Select's chevron. Popover is min(trigger, 100vw−16px) |
 | Rename Account sheet | Focus lands on the Close button, with its ring showing, not on the Name field. | low | Autofocus the Name input so the keyboard comes up. | 4 | fixed (8a46653): Name takes focus on phones via data-autofocus |
 | Bucket sheet | Save and Cancel sit mid-sheet, with History, Move up/down and Archive below them, so the primary action isn't at the bottom as in the other sheets. | low | Sticky footer for Save. Move ordering and Archive above it. | 4 | fixed (fb4272b): History, Move, Archive and the Commitment End sit above the sticky footer |
-| Upload statement, Connect a bank, Close-month sheet | The sheet pass couldn't open these headless: no trigger matched by name on Transactions, the bank chooser didn't open within 4 s, and the "Close September" click timed out. | med | Check them by hand in phase 4. | 4 | open |
+| Upload statement, Connect a bank, Close-month sheet | The sheet pass couldn't open these headless: no trigger matched by name on Transactions, the bank chooser didn't open within 4 s, and the "Close September" click timed out. | med | Check them by hand in phase 4. | 4 | fixed (#66): phone-flows.spec goes through all three on a phone, start to finish (the Close button sits in the To do strip on This Month) |
 | Welcome | Checked with a fresh test Parent at 320 and 393, light and dark: no overflow, 16 px inputs, a full-width Create Household button. "Your name" is empty with no placeholder, though Clerk has the first name. | low | Prefill Your name from Clerk's first name. | 2 | fixed (fd4c4ed) |
 
 ## Needs a real device or a person
@@ -233,3 +233,23 @@ Each is one step on a real iPhone, with what good looks like. Try them in Safari
 - **Dynamic Type / 200% text:** set the largest text size (or 200% zoom) and visit Month, Transactions, Accounts, Plan and Goals. Good: nothing scrolls sideways, nothing is cut off, buttons still fit.
 - **Upload statement, Connect a bank, Close month:** open each sheet and go through it to the end. Good: the sheet fits, the primary action is reachable with a thumb, the keyboard doesn't hide it, closing returns to where you were.
 - **Long Transactions month:** on `busy`, open Transactions and fling to the end of the month and back. Good: smooth scrolling with no blank rows or jumps.
+
+## Emulated and tested now (#66)
+
+Phone specs (every `phone-*.spec.ts`, `sheet-phone.spec.ts` and any test tagged `@phone`) run on
+chromium-mobile (393x852, touch) and, on CI, on WebKit as an iPhone 15 (and an iPhone SE for the
+keyboard and no-zoom specs). They cover: sheets swiped closed with touches, Back, the installed app
+with a notch and home indicator (safe areas), reading order, 200% text, dark mode with reduced
+motion, keyboards per field (decimal pad and Done, email, Search, Send), no zoom on focus, no
+sideways scroll, tap targets, axe on each page, a busy Transactions month flung and scrolled with
+no blank gaps and frames inside budget (phone-long-list), and Upload statement, Connect a bank and
+Close month start to finish (phone-flows).
+
+## Only on a real iPhone
+
+- Real keyboard feel: the keys and the sheet riding above the keyboard are set and tested in
+  emulation; the feel of typing and the keyboard's own animation need a device.
+- Real VoiceOver speech: names, roles and order are checked; how VoiceOver speaks them is not.
+- Haptics: none are emulated.
+- Edge-swipe feel: Back from the left edge and sheet swipes use synthetic touches; the feel of the
+  real gesture needs a device.
