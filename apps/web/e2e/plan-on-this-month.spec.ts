@@ -63,7 +63,7 @@ function seedLastMonth(clerkUserId: string, month: string) {
 	});
 }
 
-test("This Month shows the Plan: Free to Spend worked out, the Goals, and how last month ended", async ({
+test("This Month shows the Plan: Free to Spend worked out and how last month ended", async ({
 	browser,
 }) => {
 	// Planning the month and seeding through wrangler take most of the default budget.
@@ -86,16 +86,9 @@ test("This Month shows the Plan: Free to Spend worked out, the Goals, and how la
 	);
 	await expect(freeToSpend.getByRole("link", { name: "Plan" })).toBeVisible();
 
-	// Each Goal: on track or behind, its months left, and funded against needed this month. The
-	// header's funding is the breakdown's Goal funding, every Goal's; what's still needed is the
-	// dated Goals'.
-	const goals = page.getByRole("region", { name: /^Goals/ });
-	await expect(goals).toContainText("$150 funded · $125 still needed");
-	const trip = goals.getByRole("listitem", { name: "Trip" });
-	await expect(trip).toContainText("On track");
-	await expect(trip).toContainText("4 months left");
-	await expect(trip).toContainText("$100");
-	await expect(trip).toContainText("of $225 this month");
+	// Goals aren't on This Month any more (#73): they're on the Goals page, and the breakdown
+	// above has their funding.
+	await expect(page.getByRole("region", { name: /^Goals/ })).toHaveCount(0);
 
 	// On a phone, nothing scrolls sideways.
 	await page.setViewportSize({ width: 390, height: 844 });
@@ -123,6 +116,4 @@ test("This Month shows the Plan: Free to Spend worked out, the Goals, and how la
 	const rolled = ended.getByRole("listitem").filter({ hasText: "Hockey" });
 	await expect(rolled).toContainText(`Carried over into ${monthName(month)}`);
 	await expect(rolled).toContainText("$200");
-	// This month has no Goals strip for an ended month.
-	await expect(page.getByRole("region", { name: /^Goals/ })).toHaveCount(0);
 });

@@ -15,8 +15,6 @@ test.afterEach(async () => {
 const waterfall = (page: Page) =>
 	page.getByRole("region", { name: "From take-home pay to Free to Spend" });
 const bills = (page: Page) => page.getByRole("region", { name: /^Bills/ });
-/** From lg, Coming up is its own section in This Month's right rail. */
-const comingUp = (page: Page) => page.getByRole("region", { name: /^Coming up/ });
 const addForm = (page: Page) => page.getByRole("form", { name: "Add a Commitment" });
 
 const monthName = (month: string) =>
@@ -41,7 +39,7 @@ async function addYearly(page: Page, name: string, due: string, dueDate: string)
 	await expect(page.getByRole("button", { name: `Edit ${name}` })).toBeVisible();
 }
 
-test("On a phone, Bills switches between this month's bills and Coming up", async ({ browser }) => {
+test("Bills switches between this month's bills and Coming up", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "9,000", buckets: [["Groceries", "1,200"]] });
 	await switchTo(page, "Plan");
@@ -60,11 +58,10 @@ test("On a phone, Bills switches between this month's bills and Coming up", asyn
 	await expect(waterfall(page)).toBeVisible();
 	await switchTo(page, "Month");
 
-	// Below lg there's no rail: Bills holds both lists behind a two-tab switch.
+	// Bills holds both lists behind a two-tab switch, on a phone as on a desktop (#73).
 	await page.setViewportSize({ width: 393, height: 852 });
 	const tabs = bills(page).getByRole("tablist", { name: "Bills" });
 	await expect(tabs).toBeVisible();
-	await expect(comingUp(page)).toBeHidden();
 	const thisMonth = tabs.getByRole("tab", { name: "This month" });
 	const upcoming = tabs.getByRole("tab", { name: "Coming up (1)" });
 	await expect(thisMonth).toHaveAttribute("aria-selected", "true");
@@ -119,12 +116,15 @@ test("Commitments show what's coming up, why a month is lumpy, and each one's pa
 	await expect(page.getByRole("note", { name: "Why Free to Spend is lower" })).toHaveText(
 		`Car insurance $1,140 is due in ${name}. That’s why ${name}’s Free to Spend is lower.`,
 	);
-	// Bills shows this month's; Coming up, in the rail, is the next 30 days.
-	await expect(bills(page).getByRole("tablist")).toHaveCount(0);
+	// Bills' switch at every size (#73): This month's bills, and Coming up, the next 30 days.
+	const upcoming = bills(page).getByRole("tab", { name: "Coming up (1)" });
+	const panel = bills(page).getByRole("tabpanel");
+	await upcoming.click();
 	await expect(
-		comingUp(page).getByRole("listitem", { name: /^Car insurance, due .*, \$1,140$/ }),
+		panel.getByRole("listitem", { name: /^Car insurance, due .*, \$1,140$/ }),
 	).toBeVisible();
-	await expect(comingUp(page).getByText("Gym")).toHaveCount(0);
+	await expect(panel.getByText("Gym")).toHaveCount(0);
+	await bills(page).getByRole("tab", { name: "This month" }).click();
 
 	// Gym isn't due this month: it waits, collapsed, under "Not this month".
 	const gym = page.getByRole("link", { name: "Gym", exact: true });
@@ -132,7 +132,8 @@ test("Commitments show what's coming up, why a month is lumpy, and each one's pa
 	await page.getByText("Not this month").click();
 	await expect(gym).toBeVisible();
 
-	await comingUp(page).getByRole("link", { name: "Car insurance" }).click();
+	await upcoming.click();
+	await panel.getByRole("link", { name: "Car insurance" }).click();
 	await expect(page.locator("[data-slot=detail-header]")).toContainText("Car insurance");
 	const cost = page.getByRole("region", { name: "Cost a year" });
 	await expect(cost).toContainText("$1,140");

@@ -192,7 +192,10 @@ function ThisMonth() {
 				// One column on phones, in reading order; from lg the money at a glance sits in a
 				// right rail. The columns are `contents` on phones so `order` interleaves them.
 				<SplitLayout stack="children">
-					<SplitMain className="min-[1920px]:grid-flow-row-dense min-[1920px]:grid-cols-2 min-[1920px]:items-start">
+					{/* From 1920px wide two columns, each its own stack so a short Bills doesn't leave a gap
+					    under it: Buckets and Personal Allowances left, Bills and Income right. Below that the
+					    column wrappers are `contents`, so `order` still interleaves on phones. */}
+					<SplitMain className="min-[1920px]:grid-cols-2 min-[1920px]:items-start">
 						<div className="order-6 grid gap-3 empty:hidden lg:order-none min-[1920px]:col-span-full">
 							{month < current ? (
 								<MonthEndSection
@@ -205,52 +208,56 @@ function ThisMonth() {
 								/>
 							) : null}
 						</div>
-						<div className="order-8 grid gap-3 empty:hidden lg:order-none min-[1920px]:col-start-1">
-							{buckets.length > 0 ? (
-								<Section aria-labelledby="buckets">
-									<SectionHeader
-										id="buckets"
-										title="Buckets"
-										count={buckets.length}
-										help={<TermHelp term="bucket" />}
+						<div className="contents min-[1920px]:grid min-[1920px]:min-w-0 min-[1920px]:content-start min-[1920px]:gap-(--layout-gap)">
+							<div className="order-8 grid gap-3 empty:hidden lg:order-none">
+								{buckets.length > 0 ? (
+									<Section aria-labelledby="buckets">
+										<SectionHeader
+											id="buckets"
+											title="Buckets"
+											count={buckets.length}
+											help={<TermHelp term="bucket" />}
+										/>
+										<BarKey />
+										<List>{buckets.map(bucketRow)}</List>
+									</Section>
+								) : null}
+							</div>
+							<div className="order-9 grid gap-3 empty:hidden lg:order-none">
+								{allowances.length > 0 ? (
+									<Section aria-labelledby="personal-allowances">
+										<SectionHeader
+											id="personal-allowances"
+											title="Personal Allowances"
+											count={allowances.length}
+										/>
+										<List>{allowances.map(bucketRow)}</List>
+									</Section>
+								) : null}
+							</div>
+						</div>
+						<div className="contents min-[1920px]:grid min-[1920px]:min-w-0 min-[1920px]:content-start min-[1920px]:gap-(--layout-gap)">
+							<div className="order-11 grid gap-3 empty:hidden lg:order-none">
+								{state.commitments.length > 0 ? (
+									<Bills
+										month={month}
+										asOf={state.asOf}
+										current={month === current}
+										commitments={commitments}
+										notDue={notDue}
 									/>
-									<BarKey />
-									<List>{buckets.map(bucketRow)}</List>
-								</Section>
-							) : null}
-						</div>
-						<div className="order-9 grid gap-3 empty:hidden lg:order-none min-[1920px]:col-start-1">
-							{allowances.length > 0 ? (
-								<Section aria-labelledby="personal-allowances">
-									<SectionHeader
-										id="personal-allowances"
-										title="Personal Allowances"
-										count={allowances.length}
+								) : null}
+							</div>
+							<div className="order-12 grid gap-3 empty:hidden lg:order-none">
+								{state.baseline !== null && (month === current || monthIncome.length > 0) ? (
+									<MonthIncome
+										month={month}
+										asOf={state.asOf}
+										baseline={state.baseline}
+										income={monthIncome}
 									/>
-									<List>{allowances.map(bucketRow)}</List>
-								</Section>
-							) : null}
-						</div>
-						<div className="order-11 grid gap-3 empty:hidden lg:order-none min-[1920px]:col-start-2">
-							{state.commitments.length > 0 ? (
-								<Bills
-									month={month}
-									asOf={state.asOf}
-									current={month === current}
-									commitments={commitments}
-									notDue={notDue}
-								/>
-							) : null}
-						</div>
-						<div className="order-12 grid gap-3 empty:hidden lg:order-none min-[1920px]:col-start-2">
-							{state.baseline !== null && (month === current || monthIncome.length > 0) ? (
-								<MonthIncome
-									month={month}
-									asOf={state.asOf}
-									baseline={state.baseline}
-									income={monthIncome}
-								/>
-							) : null}
+								) : null}
+							</div>
 						</div>
 					</SplitMain>
 					<SplitRail>
