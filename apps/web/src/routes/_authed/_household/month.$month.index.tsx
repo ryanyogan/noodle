@@ -9,6 +9,7 @@ import {
 	incomeCheck,
 	lastDayOf,
 	lumpsIn,
+	type MonthCloseProposal,
 	type MonthKey,
 	type MonthState,
 	monthCloseProposal,
@@ -268,12 +269,13 @@ function ThisMonth() {
 						{/* Under Free to Spend at every size: on a phone a closed strip, from lg open in the
 						    rail, so the prompts never push Buckets down. */}
 						<WithClosePrevious month={month} asOf={state.asOf}>
-							{(closeShows) => (
+							{(closeStatus) => (
 								<ToDo
 									className="order-2 lg:order-none"
 									items={present([
-										closeShows && {
+										closeStatus !== null && {
 											label: `Close ${monthName(addMonths(month, -1))}`,
+											status: closeStatus,
 											content: (
 												<ClosePreviousMonth
 													month={addMonths(month, -1)}
@@ -286,16 +288,19 @@ function ThisMonth() {
 										isCurrent &&
 											getStarted.some((step) => !step.done) && {
 												label: "Get started",
+												status: `${getStarted.filter((step) => step.done).length} of ${getStarted.length} done`,
 												content: <GetStarted steps={getStarted} />,
 											},
 										isCurrent &&
 											checkInDue && {
 												label: "Check-in day",
+												status: "Today’s the day to check in",
 												content: <CheckInToday />,
 											},
 										state.windfallLeft > 0 &&
 											month <= current && {
 												label: "Extra income",
+												status: `${formatMoney(state.windfallLeft)} in ${monthName(month)} to place`,
 												content: (
 													<ExtraIncomeSection
 														left={state.windfallLeft}
@@ -463,12 +468,12 @@ function WithClosePrevious({
 }: {
 	month: MonthKey;
 	asOf: DayKey;
-	children: (shows: boolean) => ReactNode;
+	children: (status: string | null) => ReactNode;
 }) {
 	return closingWeek(month, asOf) ? (
 		<PreviousMonthOpen month={addMonths(month, -1)}>{children}</PreviousMonthOpen>
 	) : (
-		children(false)
+		children(null)
 	);
 }
 
@@ -477,10 +482,21 @@ function PreviousMonthOpen({
 	children,
 }: {
 	month: MonthKey;
-	children: (shows: boolean) => ReactNode;
+	children: (status: string | null) => ReactNode;
 }) {
 	const state = useMonthState(month);
-	return children(!state.closed && !nothingToClose(monthCloseProposal(state)));
+	const proposal = monthCloseProposal(state);
+	return children(state.closed || nothingToClose(proposal) ? null : closeStatus(proposal));
+}
+
+/** The Close row's line from lg: "2 Buckets and Extra income to decide". */
+function closeStatus(proposal: MonthCloseProposal) {
+	const n = proposal.leftovers.length;
+	const parts = [
+		n > 0 && `${n} ${n === 1 ? "Bucket" : "Buckets"}`,
+		proposal.windfall > 0 && "Extra income",
+	].filter(Boolean);
+	return `${parts.join(" and ")} to decide`;
 }
 
 /** The month before, while it waits to be closed and has something to decide. */
