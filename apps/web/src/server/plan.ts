@@ -6,6 +6,7 @@ import {
 	decideSuggestion as decideSuggestionInDb,
 	loadOpenSuggestion,
 	loadPlanChanges,
+	parentsWithPersonalAllowance,
 	reorderBuckets as reorderBucketsInDb,
 	restoreBucket as restoreBucketInDb,
 	setAllowance as setAllowanceInDb,
@@ -186,6 +187,14 @@ export const addPersonalAllowance = createServerFn({ method: "POST" })
 		// The new Personal Allowance may fit what waits in Review.
 		await queueAi({ ...viewerOf(context), kind: "buckets-changed" });
 	});
+
+/**
+ * The Parents who have a Personal Allowance, so Left to plan can note whose is still to set.
+ * Whether one exists is all that's shared (ADR-0003).
+ */
+export const getAllowanceOwners = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.handler(({ context }) => parentsWithPersonalAllowance(getDb(), context.household.id));
 
 /** Sets a Bucket's allowance from `month` onward, or just for `month`. */
 export const setAllowance = createServerFn({ method: "POST" })

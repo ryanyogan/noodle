@@ -693,3 +693,15 @@ export const bucketArchive = (db: Db, input: ArchiveBucketInput) => {
 		db.update(buckets).set({ archivedFromMonth: input.month }).where(archivable),
 	] as const;
 };
+
+/**
+ * The Parents of a Household who have a Personal Allowance. Only that one exists is shared with
+ * the other Parent, never its amount or spending (ADR-0003).
+ */
+export async function parentsWithPersonalAllowance(db: Db, householdId: string): Promise<string[]> {
+	const rows = await db
+		.selectDistinct({ owner: buckets.ownerMemberId })
+		.from(buckets)
+		.where(and(eq(buckets.householdId, householdId), sql`${buckets.ownerMemberId} is not null`));
+	return rows.flatMap((row) => (row.owner ? [row.owner] : []));
+}

@@ -16,6 +16,7 @@ import {
 	loadSpendingEarlierInYear,
 	loadTransaction,
 	loadTransactionsPage,
+	parentsWithPersonalAllowance,
 	type SplitInput,
 	setAllowance,
 	setTakeHomePay,
@@ -495,5 +496,27 @@ describe("Personal Allowance privacy: Splits", () => {
 		// Its owner still can.
 		await deleteTransaction(db, { householdId, memberId: "alex", transactionId: "target" });
 		expect((await page(alex)).map((t) => t.id)).not.toContain("target");
+	});
+});
+
+describe("Personal Allowance privacy: who has one (#72)", () => {
+	it("tells which Parents have one and nothing else, never the amount", async () => {
+		const owners = await parentsWithPersonalAllowance(db, householdId);
+		expect([...owners].sort()).toEqual(["alex", "sam"]);
+		expect(owners.every((owner) => typeof owner === "string")).toBe(true);
+		expect(JSON.stringify(owners)).not.toMatch(/15000|20000|Allowance/);
+	});
+
+	it("leaves out a Parent who hasn't set one, and other Households' Parents", async () => {
+		await createHouseholdForParent(db, {
+			clerkUserId: "clerk-pat",
+			householdId: "other",
+			householdName: "The Others",
+			timeZone: "America/Chicago",
+			parentId: "pat",
+			parentName: "Pat",
+		});
+		expect(await parentsWithPersonalAllowance(db, "other")).toEqual([]);
+		expect(await parentsWithPersonalAllowance(db, householdId)).not.toContain("pat");
 	});
 });

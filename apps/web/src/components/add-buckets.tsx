@@ -14,7 +14,7 @@ import { ulid } from "ulid";
 import { nextBucketColor } from "../buckets";
 import { formatMoney, formatMoneyInput } from "../format";
 import { usePlanChange, withNewBuckets } from "../plan-changes";
-import { planDraftQuery, suggestionsQuery } from "../queries";
+import { planDraftQuery, suggestionsQuery, useAllowancesStillToSet } from "../queries";
 import { addBuckets } from "../server/plan";
 import {
 	anotherBucket,
@@ -122,6 +122,7 @@ function AddBucketsForm({
 	onCancel: () => void;
 	onAdd: (change: Pick<AddBucketsChange, "buckets" | "personal">) => void;
 }) {
+	const stillToSet = useAllowancesStillToSet(parentId);
 	const hydrated = useHydrated();
 	// The Plan as the sheet opened: what it already has stays hidden.
 	const [used] = useState(() => buckets.filter((b) => b.owner === undefined).map((b) => b.name));
@@ -272,6 +273,9 @@ function AddBucketsForm({
 					{formatMoney(left)}
 				</span>
 				{left < 0 ? " (more than you bring in)" : null}
+				{stillToSet.map((name) => (
+					<span key={name}> · still to set: {name}’s Personal Allowance</span>
+				))}
 			</p>
 			<p className="text-[13px] text-muted-foreground">
 				A Bucket resets monthly unless it carries over <TermHelp term="carries-over" />, keeping

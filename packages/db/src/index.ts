@@ -649,6 +649,7 @@ export {
 	archiveBucket,
 	bucketAdd,
 	loadPlanRecords,
+	parentsWithPersonalAllowance,
 	reorderBuckets,
 	restoreBucket,
 	setAllowance,

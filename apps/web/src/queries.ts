@@ -1,5 +1,5 @@
 import { type MonthKey, type MonthState, monthState } from "@noodle/domain";
-import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { getBankConnections } from "./server/bank-connections";
 import { getBucket } from "./server/buckets";
 import { getCaptureToken } from "./server/capture-tokens";
@@ -15,7 +15,7 @@ import { getForTotalsEarlierInYear, getMembers } from "./server/members";
 import { getMonth, type MonthData } from "./server/month";
 import { getNudgeSettings } from "./server/nudges";
 import { getPerkSources } from "./server/perks";
-import { getPlanHistory } from "./server/plan";
+import { getAllowanceOwners, getPlanHistory } from "./server/plan";
 import { getPlanDraft } from "./server/plan-draft";
 import { getReceiptAddress } from "./server/receipts";
 import { getReport, type ReportRequest } from "./server/reports";
@@ -83,6 +83,26 @@ export const householdParentsQuery = () =>
 		queryKey: ["household", "parents"],
 		queryFn: () => getHouseholdParents(),
 	});
+
+/** The Parents who have a Personal Allowance; whether one exists is all that's shared (ADR-0003). */
+export const allowanceOwnersQuery = () =>
+	queryOptions({
+		queryKey: ["months", "allowance-owners"],
+		queryFn: () => getAllowanceOwners(),
+	});
+
+/**
+ * First names of the other Parents with no Personal Allowance yet, for Left to plan's
+ * "still to set" note. There's no placeholder: each Parent sets their own (#72).
+ */
+export function useAllowancesStillToSet(parentId: string): string[] {
+	const owners = useQuery(allowanceOwnersQuery()).data;
+	const parents = useQuery(householdParentsQuery()).data?.parents;
+	if (!owners || !parents) return [];
+	return parents
+		.filter((parent) => parent.id !== parentId && !owners.includes(parent.id))
+		.map((parent) => parent.name.split(/\s+/)[0] ?? parent.name);
+}
 
 /** Every Member, Parents and Children, for For pickers and labels. */
 export const membersQuery = () =>

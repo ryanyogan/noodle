@@ -15,7 +15,12 @@ import { Suggested } from "../../../components/suggested";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney } from "../../../format";
 import { usePlanChanges } from "../../../plan-changes";
-import { membersQuery, suggestionsQuery, useMonthState } from "../../../queries";
+import {
+	membersQuery,
+	suggestionsQuery,
+	useAllowancesStillToSet,
+	useMonthState,
+} from "../../../queries";
 
 export const Route = createFileRoute("/_authed/_household/plan/$month/buckets")({
 	// Setting up a Personal Allowance names it after its Parent; Suggested is in the first paint.
@@ -37,6 +42,8 @@ function PlanBuckets() {
 	const shared = buckets.reduce((sum, b) => sum + b.allowance, 0);
 	const members = useSuspenseQuery(membersQuery()).data;
 	const nameOf = (id: string) => members.find((m) => m.id === id)?.name;
+	// Another Parent's Personal Allowance isn't in this Plan (ADR-0003); only whether one exists is.
+	const stillToSet = useAllowancesStillToSet(parentId);
 	// Amounts being typed in the list, so Left to plan follows before they're saved.
 	const [drafts, setDrafts] = useState<Record<string, number>>({});
 	const typed = state.buckets.reduce(
@@ -78,6 +85,9 @@ function PlanBuckets() {
 							>
 								{formatMoney(left)}
 							</span>
+							{stillToSet.map((name) => (
+								<span key={name}> · still to set: {name}’s Personal Allowance</span>
+							))}
 						</p>
 						<AddBuckets
 							month={month}
