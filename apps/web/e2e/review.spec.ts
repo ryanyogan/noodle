@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { currentTab, expectSectionHeaderKept, markSectionHeader, sectionTabs } from "./section";
@@ -85,7 +86,10 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 
 	// This Month says something waits; categorization had no guess for it.
 	await page.goto(thisMonth);
-	await page.getByRole("link", { name: "1 to review" }).click();
+	await page
+		.getByRole("region", { name: "To do" })
+		.getByRole("link", { name: "1 to review" })
+		.click();
 	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Review");
 	// Inside Transactions, as far as the sidebar goes.
 	await expect(
@@ -333,4 +337,46 @@ test("Review confirms a merchant's cards, or all with a suggestion, with one Und
 	await page.reload();
 	await expect(card(page)).toHaveCount(1);
 	await expect(card(page)).toContainText("Acme Widgets");
+});
+
+test("the Review count beside Transactions is a link to Review, expanded and as a rail", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email, {
+		viewport: { width: 1440, height: 900 },
+	});
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
+	const thisMonth = page.url();
+	await uploadStatement(page, [["ACME WIDGETS LLC", "19.99"]], true);
+	await waitForReview(page, new URL("/review", thisMonth).href, "1 of 1");
+
+	const nav = page.getByRole("navigation", { name: "Main" });
+	const count = nav.getByRole("link", { name: "1 to review" });
+	const axe = async () =>
+		(await new AxeBuilder({ page }).include("[data-slot=sidebar]").analyze()).violations;
+	// Hydrated, so clicks are client-side (the Parent menu marks itself ready then).
+	const hydrated = () =>
+		page.locator("[data-parent-menu][data-ready=true]").waitFor({ state: "attached" });
+	const opensReview = async () => {
+		await page.goto(thisMonth);
+		await hydrated();
+		await count.click();
+		await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Review");
+		expect(new URL(page.url()).pathname).toBe("/review");
+	};
+
+	// Expanded: the count sits at the end of the Transactions row.
+	await opensReview();
+	expect(await axe()).toEqual([]);
+
+	// The rail: the count rides the corner of the Transactions icon, and still opens Review.
+	await hydrated();
+	await page.getByRole("button", { name: "Toggle sidebar" }).click();
+	await expect
+		.poll(() => page.getByRole("complementary").evaluate((el) => el.getBoundingClientRect().width))
+		.toBe(60);
+	await opensReview();
+	expect(await axe()).toEqual([]);
+	await page.context().close();
 });
