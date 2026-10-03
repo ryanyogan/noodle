@@ -102,6 +102,15 @@ test("a bank statement comes in once, as Transactions to assign and income", asy
 	});
 	await expect(coffee).toHaveCount(2);
 	await expect(page.getByText("Unassigned · Everyone · Everyday Checking").first()).toBeVisible();
+	// The bank's own text is kept as the note: rows open their detail once the page is hydrated.
+	await expect(page.getByLabel("Bucket")).toBeEnabled();
+	await traderJoes.click();
+	const editor = page
+		.locator("[role=dialog], [data-slot=transaction-detail]")
+		.filter({ has: page.getByRole("heading", { name: "Edit Transaction" }) });
+	await expect(editor.getByLabel("Note")).toHaveValue("TRADER JOE'S #552 PORTLAND OR");
+	await page.keyboard.press("Escape");
+	await expect(editor).toBeHidden();
 	await page.keyboard.press("Escape");
 	// Deposits are income, not Transactions.
 	await expect(page.getByText("ACME CORP PAYROLL")).toHaveCount(0);

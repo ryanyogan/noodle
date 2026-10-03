@@ -141,8 +141,8 @@ test("connecting pairs with the card already there, and counts nothing twice", a
 
 	// Shell is listed once, as the statement had it.
 	await page.goto(`${origin}/transactions/${monthOf(shellDay)}`);
-	await expect(page.getByText("SHELL OIL 5741")).toHaveCount(1);
-	await expect(page.getByRole("button", { name: /^Shell, / })).toHaveCount(0);
+	// By the raw text or, once the background run has named it, the clean name, but only once.
+	await expect(page.getByRole("button", { name: /^(Shell|SHELL OIL 5741), / })).toHaveCount(1);
 	// Netflix counts once: the Quick Add, Matched with the bank's copy.
 	await page.goto(`${origin}/transactions/${monthOf(utcDaysAgo(0))}`);
 	const netflix = page.getByRole("button", { name: /^Netflix/ });

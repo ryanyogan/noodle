@@ -142,7 +142,8 @@ export function cleanMerchant(raw: string): CleanMerchant {
 	const cut = words.findIndex((word, i) => i > 0 && /[\d#]/.test(word));
 	if (cut > 0) words = words.slice(0, cut);
 	// A trailing state, its town, and a two-word town's first word.
-	if (words.length > 2 && US_STATES.has(words.at(-1) as string)) {
+	// "CO" closes a company's name far more often than it is Colorado: "RIVER GAS CO".
+	if (words.length > 2 && words.at(-1) !== "co" && US_STATES.has(words.at(-1) as string)) {
 		words.pop();
 		if (words.length > 1) words.pop();
 		if (words.length > 1 && TOWN_LEADS.has(words.at(-1) as string)) words.pop();
@@ -150,8 +151,10 @@ export function cleanMerchant(raw: string): CleanMerchant {
 	while (words.length > 1 && TRAILING.has(words.at(-1) as string)) words.pop();
 	words = words.map((word) => word.replace(/^[*#-]+|[*#,.-]+$/g, "")).filter(Boolean);
 
+	// A short one-word brand stays upper case, as banks write it: "REI".
+	const short = words.length === 1 && /^[a-z]{2,3}$/.test(words[0] as string);
 	const name = words
-		.map((word, i) => titleWord(word, i === 0))
+		.map((word, i) => (short ? word.toUpperCase() : titleWord(word, i === 0)))
 		.join(" ")
 		.slice(0, 40)
 		.trim();

@@ -1,6 +1,13 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
+import {
+	accountKindLabel,
+	choose,
+	createPlannedHousehold,
+	reloadUntil,
+	signedInPage,
+	waitForReview,
+} from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -77,7 +84,13 @@ test("the bank's copy of a Quick Add is Matched, so it counts once", async ({ br
 	await page.goto(thisMonth);
 	// The Matched copy adds nothing; the unassigned one waits to be assigned.
 	await expect(bucketRow(page, "Groceries")).toContainText("$54.17 spent");
-	await page.goto(thisMonth.replace(/\/month\/(\d{4}-\d{2}).*$/, "/transactions/$1"));
+	// The background run names the card's lines: the tipped Chipotle is listed by its clean name.
+	const transactions = thisMonth.replace(/\/month\/(\d{4}-\d{2}).*$/, "/transactions/$1");
+	await reloadUntil(page, transactions, () =>
+		expect(page.getByRole("button", { name: /^Chipotle, \$14\.40, / })).toBeVisible({
+			timeout: 2_000,
+		}),
+	);
 	// Rows open their detail once the page is hydrated, as the filters are.
 	await expect(page.getByLabel("Bucket")).toBeEnabled();
 	const groceries = page.getByRole("button", {
@@ -89,7 +102,7 @@ test("the bank's copy of a Quick Add is Matched, so it counts once", async ({ br
 	// The Quick Add shows its bank copy, and can be unmatched: then both are listed.
 	await groceries.click();
 	const bankCopy = editSheet(page).getByRole("region", { name: "Bank copy" });
-	await expect(bankCopy).toContainText("TRADER JOE'S #552");
+	await expect(bankCopy).toContainText("Trader Joe's");
 	await expect(bankCopy).toContainText("Matched automatically");
 	await bankCopy.getByRole("button", { name: "Unmatch" }).click();
 	await expect(editSheet(page)).toBeHidden();
@@ -99,14 +112,14 @@ test("the bank's copy of a Quick Add is Matched, so it counts once", async ({ br
 	).toBeVisible();
 	await expect(
 		page.getByRole("button", {
-			name: "TRADER JOE'S #552, $42.17, Unassigned, For Everyone, from Visa",
+			name: "Trader Joe's, $42.17, Unassigned, For Everyone, from Visa",
 		}),
 	).toBeVisible();
 
 	// Chipotle is Matched by hand to the tipped charge: a different amount, the same merchant.
 	await page.getByRole("button", { name: "Chipotle, $12, Groceries, For Everyone" }).click();
 	const possible = editSheet(page).getByRole("region", { name: "Possible match" });
-	await possible.getByRole("button", { name: /^Match with CHIPOTLE 1234, \$14\.40/ }).click();
+	await possible.getByRole("button", { name: /^Match with Chipotle, \$14\.40/ }).click();
 	await expect(editSheet(page)).toBeHidden();
 	await expect(toast(page, "Chipotle Matched")).toBeVisible();
 	await expect(
@@ -119,7 +132,9 @@ test("the bank's copy of a Quick Add is Matched, so it counts once", async ({ br
 	// Still matched after a reload, and unmatched stays unmatched.
 	await page.reload();
 	await expect(page.getByText("Matched in Visa")).toHaveCount(1);
-	await expect(page.getByText("TRADER JOE'S #552")).toHaveCount(1);
+	await expect(
+		page.getByRole("button", { name: /^Trader Joe's, \$42\.17, .*, from Visa$/ }),
+	).toHaveCount(1);
 	await page.context().close();
 });
 
@@ -137,12 +152,12 @@ test("Review asks whether a tipped bank line is a Quick Add's copy, and Matches 
 	]);
 	await expect(toast(page, "visa.csv: 2 Transactions")).toBeVisible();
 
-	await page.goto("/review");
+	await waitForReview(page, new URL("/review", page.url()).href, "1 of 2");
 	const card = page.getByTestId("review-card");
 	const offer = page.getByRole("region", { name: /^Is this your Quick Add/ });
 	// Shell is only a similar amount: nothing to Match it with. Skip to Nopa's line.
 	const current = page.locator("[data-testid=review-card][data-current]");
-	while (!(await current.textContent())?.includes("NOPA")) {
+	while (!(await current.textContent())?.toLowerCase().includes("nopa")) {
 		await expect(offer).toHaveCount(0);
 		await page.keyboard.press("ArrowDown");
 	}
@@ -151,7 +166,7 @@ test("Review asks whether a tipped bank line is a Quick Add's copy, and Matches 
 	await offer.getByRole("button", { name: /^Match with Nopa, \$40/ }).click();
 	await expect(toast(page, "Nopa Matched")).toBeVisible();
 	// Matched, it leaves Review, and the dinner counts once, as the Quick Add.
-	await expect(card.filter({ hasText: "NOPA" })).toHaveCount(0);
+	await expect(card.filter({ hasText: /nopa/i })).toHaveCount(0);
 	// The Review tab says how many still wait.
 	await expect(
 		page.getByRole("navigation", { name: "Review pages" }).getByRole("link", { name: /^Review/ }),

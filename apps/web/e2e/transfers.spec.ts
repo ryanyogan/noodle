@@ -1,6 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
+import {
+	accountKindLabel,
+	choose,
+	createPlannedHousehold,
+	reloadUntil,
+	signedInPage,
+} from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -95,26 +101,31 @@ test("paying the card from checking is one Transfer, which counts nowhere", asyn
 	// Both sides are listed as the Transfer; neither can be assigned to a Bucket.
 	await openTransactions(page, thisMonth);
 	await expect(page.getByText("Transfer · Checking → Visa")).toHaveCount(2);
-	await page
-		.getByRole("button", { name: "VISA ONLINE PAYMENT, $500, Transfer, Checking to Visa" })
-		.click();
+	// Listed by the clean name once the background run has named it.
+	const payment = page.getByRole("button", {
+		name: "Online Payment, $500, Transfer, Checking to Visa",
+	});
+	await reloadUntil(page, page.url(), () => expect(payment).toBeVisible({ timeout: 2_000 }));
+	// Rows open their detail once the page is hydrated.
+	await expect(page.getByLabel("Bucket")).toBeEnabled();
+	await payment.click();
 	let sheet = page
 		.locator("[role=dialog], [data-slot=transaction-detail]")
 		.filter({ has: page.getByRole("heading", { name: "Transfer" }) });
-	await expect(sheet).toContainText("AUTOPAY PAYMENT - THANK YOU");
+	await expect(sheet).toContainText(/AUTOPAY PAYMENT - THANK YOU|Autopay Payment Thank You/);
 	await expect(sheet).toContainText("Found automatically");
 	await expect(sheet.getByLabel("Bucket")).toHaveCount(0);
 
 	// Unmarked, the payment waits to be assigned, and the card's side is just money back.
 	await sheet.getByRole("button", { name: "Unmark Transfer" }).click();
-	await expect(toast(page, "VISA ONLINE PAYMENT no longer a Transfer")).toBeVisible();
+	await expect(toast(page, "Online Payment no longer a Transfer")).toBeVisible();
 	await expect(
 		page.getByRole("button", {
-			name: "VISA ONLINE PAYMENT, $500, Unassigned, For Everyone, from Checking",
+			name: "Online Payment, $500, Unassigned, For Everyone, from Checking",
 		}),
 	).toBeVisible();
 	const card = page.getByRole("button", {
-		name: "AUTOPAY PAYMENT - THANK YOU, −$500, Money back, from Visa",
+		name: /^(AUTOPAY PAYMENT - THANK YOU|Autopay Payment Thank You), −\$500, Money back, from Visa$/,
 	});
 	await expect(card).toBeVisible();
 
@@ -124,7 +135,9 @@ test("paying the card from checking is one Transfer, which counts nowhere", asyn
 		.locator("[role=dialog], [data-slot=transaction-detail]")
 		.filter({ has: page.getByRole("heading", { name: "Money back" }) });
 	await sheet.getByRole("button", { name: "Mark as Transfer" }).click();
-	await expect(toast(page, "AUTOPAY PAYMENT - THANK YOU marked as a Transfer")).toBeVisible();
+	await expect(toast(page, "marked as a Transfer")).toContainText(
+		/^(AUTOPAY PAYMENT - THANK YOU|Autopay Payment Thank You) marked/i,
+	);
 	await expect(page.getByText("Transfer · Checking → Visa")).toHaveCount(2);
 	await expect(page.getByText("Unassigned · Everyone · Checking")).toHaveCount(1);
 });
@@ -152,16 +165,18 @@ test("money back linked as a Refund goes back to the purchase's Bucket", async (
 
 	// The jacket is the likely purchase it refunds.
 	await openTransactions(page, thisMonth);
-	await page
-		.getByRole("button", { name: "REI #11 RETURN, −$24.99, Money back, from Visa" })
-		.click();
+	const moneyBack = page.getByRole("button", { name: "REI, −$24.99, Money back, from Visa" });
+	await reloadUntil(page, page.url(), () => expect(moneyBack).toBeVisible({ timeout: 2_000 }));
+	// Rows open their detail once the page is hydrated.
+	await expect(page.getByLabel("Bucket")).toBeEnabled();
+	await moneyBack.click();
 	const sheet = page
 		.locator("[role=dialog], [data-slot=transaction-detail]")
 		.filter({ has: page.getByRole("heading", { name: "Money back" }) });
 	await sheet.getByRole("button", { name: /^Link as a Refund for REI jacket, \$80,/ }).click();
-	await expect(toast(page, "REI #11 RETURN linked as a Refund")).toBeVisible();
+	await expect(toast(page, "REI linked as a Refund")).toBeVisible();
 	const refund = page.getByRole("button", {
-		name: "REI #11 RETURN, −$24.99, Refund, Gear, from Visa",
+		name: "REI, −$24.99, Refund, Gear, from Visa",
 	});
 	await expect(refund).toBeVisible();
 	await expect(page.getByText("Refund · Gear · Visa")).toBeVisible();
@@ -178,7 +193,7 @@ test("money back linked as a Refund goes back to the purchase's Bucket", async (
 			.filter({ has: page.getByRole("heading", { name: "Money back" }) }),
 	).toContainText("REI jacket");
 	await page.getByRole("button", { name: "Unlink Refund" }).click();
-	await expect(toast(page, "REI #11 RETURN unlinked")).toBeVisible();
+	await expect(toast(page, "REI unlinked")).toBeVisible();
 	await expect(page.getByText("Money back · Visa")).toBeVisible();
 	await page.goto(thisMonth);
 	await expect(bucketRow(page, "Gear")).toContainText("$80 spent");

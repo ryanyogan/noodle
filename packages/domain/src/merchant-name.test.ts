@@ -46,6 +46,9 @@ const FIXTURES: [string, string | null][] = [
 	["GREEN LEAF CAFE SAN FRANCISCO CA", "Green Leaf Cafe"],
 	["DEBIT CARD PURCHASE MAPLE STREET BAKERY", "Maple Street Bakery"],
 	["ACH DEBIT CITY OF SPRINGFIELD UTIL 0923", "City of Springfield Util"],
+	["RIVER GAS CO", "River Gas"],
+	["REI #11 RETURN", "REI"],
+	["HILLTOP GAS", "Hilltop Gas"],
 	["CKO*PATREON* MEMBERSHIP", null],
 	["MRKTPLC SVCS 88123", null],
 ];
