@@ -343,6 +343,8 @@ export type SuggestionTerms = {
 	merchant?: string;
 	bucketId?: string;
 	bucketName?: string;
+	/** Why it was suggested, in words (#76); rows saved before #76 gain it on the next run. */
+	reason?: string;
 };
 
 export type SuggestionItem = {
