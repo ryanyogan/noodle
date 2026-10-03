@@ -125,11 +125,11 @@ export async function addBucketsInSheet(page: Page, buckets: [name: string, allo
 		}
 		const amount = sheet.getByRole("textbox", { name: `${name} amount`, exact: true });
 		const tick = sheet.getByRole("checkbox", { name: new RegExp(`^(Add )?${name}$`) });
-		// Right after a save the page can still be settling; type again until the row is ticked.
-		await expect(async () => {
-			await amount.fill(allowance);
-			await expect(tick).toBeChecked({ timeout: 1000 });
-		}).toPass();
+		// Typing ticks the row, but when the sheet already suggests this very amount `fill` changes
+		// nothing (no input event), so tick it the way a Parent who keeps the suggestion would.
+		await amount.fill(allowance);
+		await tick.setChecked(true);
+		await expect(amount).toHaveValue(allowance);
 	}
 	await expect(sheet.getByRole("button", { name: /^Add \d+ Buckets?$/ })).toBeVisible();
 	const saved = savedBy(page, "addBuckets");
