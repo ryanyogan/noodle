@@ -251,6 +251,7 @@ function OptionSelect(props: ChoiceFieldProps) {
 	// A Radix trigger does nothing before hydration, so it waits (lib/hydrated.ts).
 	const hydrated = useHydrated();
 	const hasEmpty = flatChoices(choices).some((c) => c.value === "");
+	const chosen = flatChoices(choices).find((c) => c.value === current);
 	const toRadix = (v: string) => (v === "" && hasEmpty ? EMPTY : v);
 	const item = (c: Choice) => (
 		<SelectItem key={c.value} value={toRadix(c.value)} disabled={c.disabled} hint={c.hint}>
@@ -272,7 +273,11 @@ function OptionSelect(props: ChoiceFieldProps) {
 					aria-invalid={props["aria-invalid"]}
 					aria-describedby={props["aria-describedby"]}
 				>
-					<SelectValue placeholder={placeholder} />
+					{/* Radix fills the value from the chosen item only once it runs on the client, so the
+					    server's HTML (and the moment before hydration) shows the chosen label itself. */}
+					<SelectValue placeholder={placeholder}>
+						{hydrated ? undefined : (chosen?.label ?? placeholder)}
+					</SelectValue>
 				</SelectTrigger>
 				<SelectContent>
 					{choices.map((c) =>
