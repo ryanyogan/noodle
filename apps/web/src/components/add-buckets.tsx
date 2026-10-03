@@ -125,14 +125,17 @@ function AddBucketsForm({
 	const hydrated = useHydrated();
 	// The Plan as the sheet opened: what it already has stays hidden.
 	const [used] = useState(() => buckets.filter((b) => b.owner === undefined).map((b) => b.name));
-	const { data: draft } = useQuery(planDraftQuery());
+	const { data: draft, isPending: drafting } = useQuery(planDraftQuery());
 	const [rows, setRows] = useState(() =>
 		sheetStarters(used, draft?.buckets, freeToSpend, formatMoneyInput),
 	);
 	// Buckets background AI suggested from spending (ADR-0027) join the list unticked, with their
 	// amount, so adding one is a tick. The Household's only: a Personal Allowance has its own row.
+	// They wait for the plan draft, so history ticks its starter first (Restaurants on Dining out)
+	// and a suggestion only marks that row, whichever of the two arrives first.
 	const { data: suggested } = useQuery(suggestionsQuery());
 	useEffect(() => {
+		if (drafting) return;
 		const ideas = (suggested ?? []).filter((item) => item.kind === "new-bucket" && !item.personal);
 		if (ideas.length === 0) return;
 		setRows((current) => {
@@ -181,7 +184,7 @@ function AddBucketsForm({
 			}
 			return fresh.length > 0 ? [...fresh, ...rows] : current;
 		});
-	}, [suggested, used]);
+	}, [suggested, used, drafting]);
 	// History that arrives after the sheet opened fills the rows nobody typed in.
 	useEffect(() => {
 		if (draft?.buckets.length) {
