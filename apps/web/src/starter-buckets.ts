@@ -26,6 +26,8 @@ export const STARTER_BUCKETS: {
 	rolling: boolean;
 	personal?: boolean;
 	also?: RegExp;
+	/** Offered on the Plan's Buckets page (#57) but not in the get-started wizard's short list. */
+	more?: boolean;
 }[] = [
 	{
 		key: "groceries",
@@ -39,7 +41,7 @@ export const STARTER_BUCKETS: {
 		name: "Dining out",
 		share: 0.08,
 		rolling: false,
-		also: /dining|restaurant|takeout|coffee/i,
+		also: /dining|eating|restaurant|takeout|coffee/i,
 	},
 	{ key: "gas", name: "Gas", share: 0.08, rolling: false, also: /^gas|fuel|gasoline/i },
 	{
@@ -53,6 +55,32 @@ export const STARTER_BUCKETS: {
 	{ key: "fun", name: "Fun", share: 0.06, rolling: false, also: /fun|entertainment|hobb/i },
 	// Gifts come in lumps (birthdays, December), so what's left carries over by default.
 	{ key: "gifts", name: "Gifts", share: 0.04, rolling: true, also: /gift/i },
+	// Clothes and Travel come in lumps too: kids outgrow everything at once, trips are yearly.
+	{
+		key: "clothes",
+		name: "Clothes",
+		share: 0.03,
+		rolling: true,
+		also: /cloth|apparel|shoe/i,
+		more: true,
+	},
+	{ key: "pets", name: "Pets", share: 0.03, rolling: false, also: /pet|vet/i, more: true },
+	{
+		key: "health",
+		name: "Health",
+		share: 0.03,
+		rolling: false,
+		also: /health|pharm|doctor|medical/i,
+		more: true,
+	},
+	{
+		key: "travel",
+		name: "Travel",
+		share: 0.04,
+		rolling: true,
+		also: /travel|vacation|hotel|airline/i,
+		more: true,
+	},
 	{ key: "personal", name: "Personal Allowance", share: 0.04, rolling: false, personal: true },
 ];
 
@@ -77,7 +105,7 @@ export function startingBuckets(
 			suggested: null,
 		}));
 	}
-	return STARTER_BUCKETS.map((starter) => ({
+	return STARTER_BUCKETS.filter((starter) => !starter.more).map((starter) => ({
 		key: starter.key,
 		id: ulid(),
 		name: starter.personal ? personalName(parentName) : starter.name,
@@ -254,3 +282,53 @@ export function planBucketWrites(
 	for (const gone of before.values()) if (gone.kept) out.archive.push(gone.id);
 	return out;
 }
+
+/** True when the Plan already has a Bucket by this name, or one for the same kind of spending. */
+const inPlan = (used: string[], name: string, also?: RegExp) =>
+	used.some((taken) => norm(taken) === norm(name) || (also?.test(taken) ?? false));
+
+/** A share of what's left to plan, for the Personal Allowance row the Add Buckets sheet offers. */
+export const personalShare = (leftCents: number) =>
+	tens(leftCents * (STARTER_BUCKETS.find((s) => s.personal)?.share ?? 0));
+
+/**
+ * The Add Buckets sheet's rows (#57): the starter list without what the Plan already has (by name,
+ * or the same kind of spending), none ticked. Each gets an amount from history when the plan draft
+ * found that kind of spending (ticked, and marked "spending"), else a share of what's left to plan;
+ * spending the draft found that no starter fits is offered as a row of its own.
+ */
+export function sheetStarters(
+	used: string[],
+	draft: DraftBucket[] | null | undefined,
+	leftCents: number,
+	format: (c: number) => string,
+): BucketRow[] {
+	const rows: BucketRow[] = STARTER_BUCKETS.filter(
+		(starter) => !starter.personal && !inPlan(used, starter.name, starter.also),
+	).map((starter) => ({
+		key: starter.key,
+		id: ulid(),
+		name: starter.name,
+		amountCents: 0,
+		rolling: starter.rolling,
+		personal: false,
+		kept: false,
+		amount: "",
+		touched: false,
+		suggested: null,
+	}));
+	return withSpending(scaleBuckets(rows, leftCents, format), used, draft, format);
+}
+
+/** The plan draft's Buckets merged into the sheet's rows, leaving out what the Plan already has. */
+export const withSpending = (
+	rows: BucketRow[],
+	used: string[],
+	draft: DraftBucket[] | null | undefined,
+	format: (c: number) => string,
+) =>
+	mergeDraftBuckets(
+		rows,
+		(draft ?? []).filter((found) => !inPlan(used, found.name)),
+		format,
+	);

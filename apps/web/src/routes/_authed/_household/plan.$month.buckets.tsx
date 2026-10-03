@@ -3,6 +3,7 @@ import { List } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { AddBuckets } from "../../../components/add-buckets";
 import { AddBucket, AddPersonalAllowance, BucketEditor } from "../../../components/bucket-editor";
 import { PlanMasterDetail } from "../../../components/plan-page";
 import { SectionPending } from "../../../components/section-layout";
@@ -41,7 +42,20 @@ function PlanBuckets() {
 						}`
 					: undefined
 			}
-			aside={state.editable ? <AddBucket month={month} buckets={state.buckets} /> : undefined}
+			aside={
+				state.editable ? (
+					<div className="grid gap-3">
+						<AddBuckets
+							month={month}
+							buckets={state.buckets}
+							freeToSpend={state.freeToSpend}
+							parentId={parentId}
+							parentName={nameOf(parentId)}
+						/>
+						<AddBucket month={month} buckets={state.buckets} />
+					</div>
+				) : undefined
+			}
 		>
 			<div className="grid gap-3">
 				{buckets.length > 0 ? (

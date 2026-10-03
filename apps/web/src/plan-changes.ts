@@ -127,6 +127,29 @@ export const withNewPersonalAllowance = (
 		owner: variables.owner,
 	}));
 
+/** Several Buckets added at once, and maybe the Parent's Personal Allowance (#57). */
+export const withNewBuckets = (
+	data: MonthData,
+	{
+		buckets,
+		personal,
+		owner,
+	}: {
+		buckets: {
+			bucketId: string;
+			name: string;
+			color: number;
+			allowanceCents: number;
+			rolling?: boolean;
+		}[];
+		personal?: { bucketId: string; name: string; color: number; allowanceCents: number };
+		owner: string;
+	},
+) => {
+	const added = buckets.reduce(withNewBucket, data);
+	return personal ? withNewPersonalAllowance(added, { ...personal, owner }) : added;
+};
+
 export const withOrder = (data: MonthData, { bucketIds }: { bucketIds: string[] }) =>
 	mapPlan(data, (plan) => ({
 		...plan,

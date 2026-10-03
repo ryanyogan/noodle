@@ -464,6 +464,7 @@ export {
 } from "./perks";
 export {
 	addBucket,
+	addBuckets,
 	addPersonalAllowance,
 	archiveBucket,
 	bucketAdd,

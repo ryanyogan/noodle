@@ -1,5 +1,6 @@
 import {
 	addBucket as addBucketInDb,
+	addBuckets as addBucketsInDb,
 	addPersonalAllowance as addPersonalAllowanceInDb,
 	archiveBucket as archiveBucketInDb,
 	loadPlanChanges,
@@ -78,6 +79,50 @@ export const addBucket = createServerFn({ method: "POST" })
 		});
 		await notifyHousehold(context.household.id, ["months"]);
 		// A new Bucket may fit what waits in Review.
+		lookAgainAfterPlanChange(viewerOf(context));
+	});
+
+/**
+ * Adds several Buckets, and the signed-in Parent's Personal Allowance, from `month` onward in one
+ * call (#57's Add Buckets sheet). Each writes its Plan change; retrying with the same IDs adds none
+ * twice.
+ */
+export const addBuckets = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			month: monthKeySchema,
+			buckets: z
+				.array(
+					z.object({
+						bucketId: ulidSchema,
+						name: bucketNameSchema,
+						color: colorSchema,
+						allowanceCents: centsSchema,
+						rolling: z.boolean().optional(),
+					}),
+				)
+				.max(40),
+			personal: z
+				.object({
+					bucketId: ulidSchema,
+					name: bucketNameSchema,
+					color: colorSchema,
+					allowanceCents: centsSchema,
+				})
+				.optional(),
+		}),
+	)
+	.handler(async ({ data, context }) => {
+		assertEditable(context.household, data.month);
+		const db = getDb();
+		const author = { householdId: context.household.id, memberId: context.parent.id };
+		await addBucketsInDb(db, { ...author, month: data.month, buckets: data.buckets });
+		if (data.personal) {
+			await addPersonalAllowanceInDb(db, { ...author, month: data.month, ...data.personal });
+		}
+		await notifyHousehold(context.household.id, ["months"]);
+		// New Buckets may fit what waits in Review.
 		lookAgainAfterPlanChange(viewerOf(context));
 	});
 

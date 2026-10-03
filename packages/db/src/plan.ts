@@ -7,6 +7,7 @@ import {
 	restoreAfterJust,
 } from "@noodle/domain";
 import { and, eq, gt, isNull, lt, lte, or, type SQL, sql } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import type { Db } from "./index";
 import { type Author, inForce, logChange } from "./plan-log";
 import { assignableBy } from "./privacy";
@@ -203,6 +204,32 @@ export async function addBucket(
 	},
 ): Promise<void> {
 	await db.batch(bucketAdd(db, input));
+}
+
+/**
+ * Several new Buckets in one batch (#57's Add Buckets sheet): each is added, with its Plan change,
+ * as addBucket adds one, so a Bucket already there by ID is skipped and the rest still land.
+ */
+export async function addBuckets(
+	db: Db,
+	input: Author & {
+		householdId: string;
+		month: MonthKey;
+		buckets: {
+			bucketId: string;
+			name: string;
+			color: number;
+			allowanceCents: Cents;
+			rolling?: boolean;
+		}[];
+	},
+): Promise<void> {
+	const { buckets: rows, ...rest } = input;
+	const writes: BatchItem<"sqlite">[] = rows.flatMap((bucket) =>
+		bucketAdd(db, { ...rest, ...bucket }),
+	);
+	if (writes.length === 0) return;
+	await db.batch(writes as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
 }
 
 /**
