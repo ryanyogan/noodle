@@ -41,6 +41,7 @@ function importDeps(db: Db, setup: BankSetup): BankImportDeps {
 		draftPlan,
 		notify: notifyHousehold,
 		newId: ulid,
+		giveUp: (message) => new NonRetryableError(message),
 	};
 }
 

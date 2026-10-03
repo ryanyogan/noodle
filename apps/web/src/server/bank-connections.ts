@@ -34,7 +34,7 @@ import { type BankSetup, bankSetup, providerFor, setUpProviders } from "./bank-s
 import { getDb } from "./db";
 import { householdMiddleware } from "./household";
 import { notifyHousehold } from "./notify";
-import { plaidNotSetUp } from "./plaid";
+import { connectRealBankShown, plaidNotSetUp } from "./plaid";
 import { PLAID_WEBHOOK_PATH } from "./plaid-webhook";
 import { ulidSchema } from "./schemas";
 
@@ -76,10 +76,7 @@ export const getBankConnections = createServerFn({ method: "GET" })
 			setUp: setup?.mode ?? null,
 			providers: setup ? setUpProviders(setup) : [],
 			connections,
-			connectRealBank:
-				PLAID_SANDBOX_RETIRED === "true" &&
-				connections.length > 0 &&
-				connections.every((connection) => connection.status === "disconnected"),
+			connectRealBank: connectRealBankShown(PLAID_SANDBOX_RETIRED, connections),
 		};
 	});
 

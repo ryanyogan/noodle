@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BankProviderError } from "./bank-connection";
 import {
+	connectRealBankShown,
 	createLinkToken,
 	HISTORY_DAYS,
 	type PlaidTransport,
@@ -242,5 +243,21 @@ describe("Plaid in production (#70)", () => {
 		expect(await failing({ error_code: "A_NEW_CODE", error_message: "raw" })).toMatchObject({
 			notice: null,
 		});
+	});
+});
+
+describe("Connect your real bank", () => {
+	const off = { status: "disconnected" };
+	it("shows once the sandbox is retired and every Bank Connection is disconnected", () => {
+		expect(connectRealBankShown("true", [off, off])).toBe(true);
+	});
+	it("goes once a bank is connected again", () => {
+		expect(connectRealBankShown("true", [off, { status: "importing" }])).toBe(false);
+		expect(connectRealBankShown("true", [off, { status: "ready" }])).toBe(false);
+	});
+	it("stays away before the switch, and for a Household that never connected one", () => {
+		expect(connectRealBankShown(undefined, [off])).toBe(false);
+		expect(connectRealBankShown("false", [off])).toBe(false);
+		expect(connectRealBankShown("true", [])).toBe(false);
 	});
 });

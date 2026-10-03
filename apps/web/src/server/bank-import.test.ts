@@ -448,6 +448,33 @@ describe("the Import Workflow", () => {
 		expect((await landed()).transactions).toEqual([]);
 	});
 
+	it("gives up at once when Plaid refuses Noodle's keys, saying so on the Bank Connection", async () => {
+		await connect();
+		const refusing = (code: string): BankConnectionProvider => ({
+			...plaid(),
+			changes: async () => {
+				throw new BankProviderError("refused", code, "Plaid isn’t set up for this copy of Noodle.");
+			},
+		});
+		const gaveUp: string[] = [];
+		const run = async (code: string, runId: string) => {
+			const { importDeps } = deps(refusing(code));
+			importDeps.giveUp = (message) => {
+				gaveUp.push(code);
+				return new Error(message);
+			};
+			return runBankImport({ ...params, runId }, inlineStep, importDeps);
+		};
+		expect(await run("INVALID_API_KEYS", "run-1")).toBe("failed");
+		expect(await run("UNAUTHORIZED_ENVIRONMENT", "run-2")).toBe("failed");
+		// A bank that's down is worth trying again.
+		expect(await run("INSTITUTION_DOWN", "run-3")).toBe("failed");
+		expect(gaveUp).toEqual(["INVALID_API_KEYS", "UNAUTHORIZED_ENVIRONMENT"]);
+		const [summary] = await loadBankConnections(db, householdId);
+		expect(summary?.status).toBe("failed");
+		expect(summary?.notice).toBe("Plaid isn’t set up for this copy of Noodle.");
+	});
+
 	it("does nothing for a Bank Connection that's gone", async () => {
 		expect(await runBankImport(params, inlineStep, deps().importDeps)).toBe("gone");
 	});

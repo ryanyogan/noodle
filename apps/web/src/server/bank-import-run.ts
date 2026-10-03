@@ -18,6 +18,7 @@ import type { BankLine, Cents } from "@noodle/domain";
 import { ulid } from "ulid";
 import type { HouseholdChange } from "../household-changes";
 import { type BankConnectionProvider, BankProviderError } from "./bank-connection";
+import { plaidNotSetUp } from "./plaid";
 
 // The Import Workflow, one instance per Bank Connection and run: when a Parent connects one, when
 // its provider says it has news (a webhook), and daily. Each round reads what the provider has
@@ -43,6 +44,11 @@ export const bankImportInstanceId = (connectionId: string, runId: string) =>
 	`bank-import-${connectionId}-${runId}`;
 
 export type BankImportDeps = {
+	/**
+	 * Ends a step with no retries (a Workflow's NonRetryableError): keys Plaid refuses for
+	 * PLAID_ENV don't come right by trying again.
+	 */
+	giveUp?: (message: string) => Error;
 	db: Db;
 	/** The provider a Bank Connection reads through (Plaid); throws if it's not set up. */
 	providerFor: (provider: BankProvider) => BankConnectionProvider;
@@ -125,6 +131,7 @@ export async function runBankImport(
 						if (error.notice) await saveBankNotice(db, householdId, connectionId, error.notice);
 						// No retries: only a Parent logging in again fixes it.
 						if (error.reconnect) return "reconnect";
+						if (plaidNotSetUp(error) && deps.giveUp) throw deps.giveUp(error.message);
 						throw error;
 					}
 				},

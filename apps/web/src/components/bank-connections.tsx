@@ -334,7 +334,9 @@ async function connectLinked(linked: Linked, anyway = false): Promise<Connected>
 	});
 }
 
-type Reconnected = { kind: "done" | "closed" | "gone" } | { kind: "exit"; message: string };
+type Reconnected =
+	| { kind: "done" | "closed" | "gone" | "not-set-up" }
+	| { kind: "exit"; message: string };
 
 /**
  * Logs in to a Bank Connection's Item again, in Link's update mode: nothing to exchange. With
@@ -348,7 +350,7 @@ async function reconnectBank(
 	newAccounts = false,
 ): Promise<Reconnected> {
 	const outcome = await linkHere(setUp, connectionId, newAccounts);
-	if (outcome.kind === "not-started") return { kind: "gone" };
+	if (outcome.kind === "not-started") return { kind: "not-set-up" };
 	if (outcome.kind === "exit") {
 		const message = linkExitMessage(outcome.error, outcome.institution ?? institution, true);
 		return message ? { kind: "exit", message } : { kind: "closed" };
@@ -358,6 +360,10 @@ async function reconnectBank(
 }
 
 const RECONNECTED = "Reconnected. Bringing in new Transactions.";
+
+/** Connect or Reconnect with Plaid not set up here, or refusing this copy's keys. */
+const PLAID_NOT_SET_UP =
+	"Connecting a bank needs Plaid, which isn’t set up for this copy of Noodle yet.";
 
 /** What /bank/return leaves for the page the Parent started on. */
 type AfterReturn = { result?: Connected; toast?: string; problem?: string };
@@ -425,6 +431,7 @@ export function useConnectBank() {
 		} else if (result.reason === "no-accounts") {
 			toast("There’s no checking, savings, card or loan account there to connect.");
 		} else if (result.reason === "not-set-up") {
+			toast(PLAID_NOT_SET_UP, { tone: "error" });
 			refresh();
 		}
 	}
@@ -533,6 +540,7 @@ function DuplicateSheet({
 		onSuccess: (result) => {
 			if (result.kind === "done") toast(RECONNECTED);
 			if (result.kind === "exit") onProblem(result.message);
+			if (result.kind === "not-set-up") onProblem(PLAID_NOT_SET_UP);
 			void queryClient.invalidateQueries({ queryKey: bankConnectionsQuery().queryKey });
 			onClose();
 		},
@@ -637,9 +645,7 @@ export function BankConnections({ bank }: { bank: ConnectBank }) {
 								<Landmark />
 							</Tile>
 							<p className="text-muted-foreground">
-								{plaid
-									? CONNECT_EXPLAINED
-									: "Connecting a bank needs Plaid, which isn’t set up for this copy of Noodle yet."}
+								{plaid ? CONNECT_EXPLAINED : PLAID_NOT_SET_UP}
 							</p>
 						</div>
 						{connectButton(false)}
@@ -750,6 +756,7 @@ function ConnectionRow({
 		mutationFn: () => reconnectBank(setUp, connection.id, connection.institution),
 		onSuccess: (result) => {
 			if (result.kind === "done") toast(RECONNECTED);
+			if (result.kind === "not-set-up") setFailed(PLAID_NOT_SET_UP);
 			if (result.kind === "exit") {
 				setFailed(
 					`${result.message} Statements go on ${statementsGo}: what the bank brings in later isn’t added twice.`,
@@ -775,6 +782,7 @@ function ConnectionRow({
 		mutationFn: () => reconnectBank(setUp, connection.id, connection.institution, true),
 		onSuccess: (result) => {
 			if (result.kind === "exit") setFailed(result.message);
+			if (result.kind === "not-set-up") setFailed(PLAID_NOT_SET_UP);
 			if (result.kind === "closed" || result.kind === "exit") return;
 			void queryClient.invalidateQueries({ queryKey: bankConnectionsQuery().queryKey });
 			if (result.kind === "done") onChoose();

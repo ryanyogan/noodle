@@ -51,6 +51,18 @@ const NOT_SET_UP_CODES = new Set(["INVALID_API_KEYS", "UNAUTHORIZED_ENVIRONMENT"
  * Whether Plaid refused the client ID and secret for PLAID_ENV (a sandbox secret against
  * production, say): the app fails closed and says Plaid isn't set up, never an error page.
  */
+/**
+ * Accounts says "Connect your real bank" after the switch to production Plaid
+ * (PLAID_SANDBOX_RETIRED) ended the practice Bank Connections, until one is connected again.
+ */
+export const connectRealBankShown = (
+	retired: string | undefined,
+	connections: readonly { status: string }[],
+): boolean =>
+	retired === "true" &&
+	connections.length > 0 &&
+	connections.every((connection) => connection.status === "disconnected");
+
 export const plaidNotSetUp = (error: unknown): boolean =>
 	error instanceof BankProviderError && NOT_SET_UP_CODES.has(error.code ?? "");
 
