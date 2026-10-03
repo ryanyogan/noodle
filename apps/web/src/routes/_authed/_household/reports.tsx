@@ -30,7 +30,7 @@ import { LinkTab, LinkTabs, LinkTabsSeparator } from "@noodle/ui/components/tabs
 import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ChartPie, Download, Landmark, Lightbulb, ListFilter, Plus, X } from "lucide-react";
+import { ChartPie, Download, Landmark, ListFilter, Plus, X } from "lucide-react";
 import { Fragment, useId, useMemo, useState } from "react";
 import { FilterSelect } from "../../../components/filter-select";
 import { quickAddSearch } from "../../../components/quick-add";
@@ -148,25 +148,15 @@ function ReportsPage() {
 			eyebrow="Reports"
 			title={title}
 			actions={
-				<>
-					<Button variant="ghost" size="sm" asChild>
-						<Link to="/insights">
-							<Lightbulb />
-							<span className="max-sm:sr-only">Insights</span>
-						</Link>
-					</Button>
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={empty}
-						onClick={() =>
-							download(csvName(report, request.view), tablesCsv(Object.values(tables)))
-						}
-					>
-						<Download />
-						<span className="max-sm:sr-only">Export CSV</span>
-					</Button>
-				</>
+				<Button
+					variant="outline"
+					size="sm"
+					disabled={empty}
+					onClick={() => download(csvName(report, request.view), tablesCsv(Object.values(tables)))}
+				>
+					<Download />
+					<span className="max-sm:sr-only">Export CSV</span>
+				</Button>
 			}
 		>
 			{/* One minmax(0,1fr) column: the view tabs' w-max list scrolls in its own nav rather than

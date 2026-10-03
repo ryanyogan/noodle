@@ -52,7 +52,16 @@ const migrated = [
 ];
 
 /** Pages whose column blocks are checked for alignment (#73). */
-const aligned = ["/month", `/plan/${month}`, "/explore", "/transactions"];
+const aligned = [
+	"/month",
+	`/plan/${month}`,
+	"/explore",
+	"/transactions",
+	"/review",
+	"/reports",
+	"/reports?view=spending",
+	"/insights",
+];
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
