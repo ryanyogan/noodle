@@ -36,7 +36,11 @@ export function clearDeps(householdId: string): ClearDeps {
 	return {
 		db: getDb(),
 		files: env.STATEMENTS,
-		merchants: env.MERCHANTS as unknown as Vectorize,
+		// Under AI_MODEL=stub (dev and E2E) background AI learns nothing into the index (its
+		// stand-in keeps no vectors), so there is nothing to forget, and the index is remote.
+		merchants: __AI_STUB__
+			? { deleteByIds: async () => undefined }
+			: (env.MERCHANTS as unknown as Vectorize),
 		agent: (id) => env.HOUSEHOLD_AGENT.getByName(id),
 		bank: setup
 			? {

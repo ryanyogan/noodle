@@ -52,4 +52,15 @@ describe("setup progress", () => {
 			finishedAt: null,
 		});
 	});
+
+	it("starts the wizard at Hello for a Household with no setup progress, as after a fresh start", async () => {
+		expect(await loadSetupProgress(db, householdId)).toBeNull();
+		await restartSetupProgress(db, householdId, { run: 1 });
+		expect(await loadSetupProgress(db, householdId)).toMatchObject({
+			step: 1,
+			answers: { run: 1 },
+			skipped: [],
+			finishedAt: null,
+		});
+	});
 });

@@ -320,8 +320,8 @@ export function FreshStartScreen() {
 	}, [finished, progress?.level]);
 
 	const setup = useMutation({
-		// A cleared Household has no setup progress left; the wizard starts at Hello either way.
-		mutationFn: () => restartSetup().catch(() => undefined),
+		// A cleared Household has no setup progress left; restarting writes a fresh row at Hello.
+		mutationFn: () => restartSetup(),
 		onSuccess: async () => {
 			queryClient.removeQueries({ queryKey: setupQuery().queryKey });
 			setFreshStartProgress(null);
