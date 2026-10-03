@@ -4,10 +4,13 @@ import {
 	addBuckets,
 	addChild,
 	addCommitment,
+	addPersonalAllowance,
 	createHouseholdForParent,
+	saveRule,
 	saveSetupProgress,
 	setTakeHomePay,
 } from "@noodle/db";
+import { members } from "@noodle/db/schema";
 import { CADENCES, type DayKey, MAX_CENTS, monthKeyAt } from "@noodle/domain";
 import { ulid } from "ulid";
 import { z } from "zod";
@@ -52,6 +55,17 @@ const devHouseholdSchema = z.object({
 	children: z.array(nameSchema).max(8).default([]),
 	/** The get-started wizard marked finished, so This Month shows no "Continue setup". */
 	finishSetup: z.boolean().default(false),
+	/** The signed-in Parent's Personal Allowance this month, named "<name>’s Personal Allowance". */
+	personalAllowanceCents: centsSchema.optional(),
+	/** A second Parent who never signs in (no Clerk user), with their own Personal Allowance. */
+	otherParent: z
+		.object({ name: nameSchema, personalAllowanceCents: centsSchema.optional() })
+		.optional(),
+	/** Household Rules, each filing a merchant into one of the Plan's Buckets, named. */
+	rules: z
+		.array(z.object({ pattern: z.string().trim().min(1).max(80), bucket: z.string() }))
+		.max(20)
+		.default([]),
 });
 
 /** The signed-in Clerk user, from the request's session cookie (never from its body). */
@@ -64,14 +78,27 @@ async function signedInUser(request: Request): Promise<string | null> {
 	return state.isAuthenticated ? state.toAuth().userId : null;
 }
 
-/** POST {householdName, parentName, timeZone, plan?, children?, finishSetup?} as a signed-in user. */
+/**
+ * POST {householdName, parentName, timeZone, plan?, children?, finishSetup?, personalAllowanceCents?,
+ * otherParent?, rules?} as a signed-in user.
+ */
 export async function handleDevHousehold(request: Request): Promise<Response> {
 	if (request.method !== "POST") return new Response("POST only", { status: 405 });
 	const clerkUserId = await signedInUser(request);
 	if (!clerkUserId) return new Response("Not signed in", { status: 401 });
 	const parsed = devHouseholdSchema.safeParse(await request.json().catch(() => null));
 	if (!parsed.success) return Response.json(parsed.error.issues, { status: 400 });
-	const { householdName, parentName, timeZone, plan, children, finishSetup } = parsed.data;
+	const {
+		householdName,
+		parentName,
+		timeZone,
+		plan,
+		children,
+		finishSetup,
+		personalAllowanceCents,
+		otherParent,
+		rules,
+	} = parsed.data;
 
 	const db = getDb();
 	const { household, parent } = await createHouseholdForParent(db, {
@@ -112,6 +139,35 @@ export async function handleDevHousehold(request: Request): Promise<Response> {
 	for (const [index, name] of children.entries()) {
 		childIds[name] = ulid();
 		await addChild(db, { householdId, memberId: childIds[name], name, color: (index % 8) + 1 });
+	}
+	const allowances: [memberId: string, name: string, cents: number | undefined][] = [
+		[parent.id, parentName, personalAllowanceCents],
+	];
+	if (otherParent) {
+		const otherId = ulid();
+		await db
+			.insert(members)
+			.values({ id: otherId, householdId, kind: "parent", name: otherParent.name });
+		allowances.push([otherId, otherParent.name, otherParent.personalAllowanceCents]);
+	}
+	for (const [index, [memberId, name, allowanceCents]] of allowances.entries()) {
+		if (allowanceCents === undefined || !plan) continue;
+		const bucketName = `${name}’s Personal Allowance`;
+		bucketIds[bucketName] = ulid();
+		await addPersonalAllowance(db, {
+			householdId,
+			memberId,
+			bucketId: bucketIds[bucketName],
+			name: bucketName,
+			color: index + 1,
+			month,
+			allowanceCents,
+		});
+	}
+	for (const { pattern, bucket } of rules) {
+		const bucketId = bucketIds[bucket];
+		if (!bucketId) return new Response(`No Bucket named ${bucket}`, { status: 400 });
+		await saveRule(db, { id: ulid(), householdId, memberId: parent.id, pattern, bucketId });
 	}
 	if (finishSetup) {
 		await saveSetupProgress(db, householdId, { step: 1, answers: {}, skipped: [], finished: true });

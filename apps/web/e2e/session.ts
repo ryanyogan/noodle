@@ -94,6 +94,12 @@ export type HouseholdOptions = {
 	children?: string[];
 	/** Marks the get-started wizard finished, so This Month has no "Continue setup". */
 	finishSetup?: boolean;
+	/** The signed-in Parent's Personal Allowance, in cents (needs a Plan). */
+	personalAllowanceCents?: number;
+	/** A second Parent who never signs in, with their own Personal Allowance in cents. */
+	otherParent?: { name: string; personalAllowanceCents?: number };
+	/** Household Rules filing a merchant into a Bucket of the Plan, by name. */
+	rules?: { pattern: string; bucket: string }[];
 };
 
 type DevPlan = {
