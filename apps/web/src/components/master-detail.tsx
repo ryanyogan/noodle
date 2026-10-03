@@ -133,7 +133,8 @@ export function DetailHeader({
 	return (
 		<header data-slot="detail-header" className="mb-6 flex flex-wrap items-center gap-x-2 gap-y-1">
 			{leading}
-			<div className="min-w-0 flex-1">
+			{/* At least ~12 characters of title: past that the actions drop to their own row (#65). */}
+			<div className="min-w-0 flex-1 basis-36">
 				{eyebrow ? (
 					<p className="text-[13px] font-medium text-muted-foreground">{eyebrow}</p>
 				) : null}
@@ -144,7 +145,7 @@ export function DetailHeader({
 					{title}
 				</h2>
 			</div>
-			<div className="flex items-center gap-1">
+			<div className="ms-auto flex items-center gap-1">
 				{actions}
 				{pager}
 			</div>

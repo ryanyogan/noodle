@@ -584,23 +584,21 @@ function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck |
 				) : null}
 			</div>
 			{state.baseline === null ? null : <Breakdown state={state} baseline={state.baseline} />}
-			<StatGrid layout="ruled" className={ended ? "grid-cols-2" : "grid-cols-3"}>
+			{/* Two on a phone: the days left are in the sentence above (#65). */}
+			<StatGrid layout="ruled" className={ended ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3"}>
 				<Stat
 					label="In Buckets"
 					value={formatMoney(state.planned)}
 					note={
 						personalAllowances === null ? undefined : (
-							<>
-								incl. {formatMoney(personalAllowances)}{" "}
-								{/* Three narrow columns on a phone: two lines, not three (#48). */}
-								<span className="max-sm:sr-only">Personal </span>Allowances
-							</>
+							<>incl. {formatMoney(personalAllowances)} Personal Allowances</>
 						)
 					}
 				/>
 				<Stat label="Left in Buckets" value={formatMoney(state.leftInBuckets)} />
 				{ended ? null : (
 					<Stat
+						className="max-sm:hidden"
 						label="Days left"
 						value={state.daysLeft === 0 ? "Last day" : String(state.daysLeft)}
 					/>
@@ -691,19 +689,19 @@ function BucketRow({
 					{bucket.name}
 				</Link>
 			}
-			badge={
-				bucket.status === "over" ? (
-					<Badge variant="over" dot>
-						Over by {formatMoney(-bucket.left)}
-					</Badge>
-				) : bucket.status === "ahead" ? (
-					<Badge variant="pace" dot>
-						Ahead of pace
-					</Badge>
-				) : null
-			}
+			// On a phone the name and the figure share the first line; the status is one word on the
+			// meta line, beside the bar that already shows it in colour (#65).
 			meta={
 				<>
+					{bucket.status === "over" ? (
+						<Badge variant="over" dot>
+							Over
+						</Badge>
+					) : bucket.status === "ahead" ? (
+						<Badge variant="pace" dot>
+							Ahead
+						</Badge>
+					) : null}
 					{bucket.rolling ? <Badge>Carries over</Badge> : null}
 					<span>
 						{formatMoney(bucket.spent)} spent{isPrivate ? " · Private" : ""}
@@ -795,7 +793,10 @@ function CoverButton({ name, onCover }: { name: string; onCover: () => void }) {
 				Cover
 			</Button>
 			<span className="flex items-center gap-1 text-xs text-muted-foreground">
-				Bring it back to $0 from another Bucket or Free to Spend.
+				{/* On a phone the "?" says it; three over Buckets repeating it crowd the list (#65). */}
+				<span className="max-sm:hidden">
+					Bring it back to $0 from another Bucket or Free to Spend.
+				</span>
 				<TermHelp term="cover" />
 			</span>
 		</div>
