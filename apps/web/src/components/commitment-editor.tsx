@@ -94,8 +94,8 @@ export function CommitmentEditor({
 					</span>
 					<ChangedNote was={was} />
 					{monthly ? (
-						// At lg the yearly total is its own column instead.
-						<span className="basis-full text-subtle-foreground lg:sr-only">
+						// In a list wider than the pane beside an item, the yearly total is its own column instead.
+						<span className="basis-full text-subtle-foreground @lg:sr-only">
 							{costText(commitment)}
 						</span>
 					) : null}
@@ -105,7 +105,7 @@ export function CommitmentEditor({
 				<div className="flex items-center gap-1">
 					<span
 						aria-hidden={monthly || undefined}
-						className="me-3 hidden w-32 text-end text-[13px] text-subtle-foreground lg:block"
+						className="me-3 hidden w-32 text-end text-[13px] text-subtle-foreground @lg:block"
 					>
 						{formatMoney(yearlyCost(commitment))} a year
 					</span>

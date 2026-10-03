@@ -80,7 +80,9 @@ export function PlanMasterDetail({
 			emptyStacks
 			onKeyDown={masterDetailKeys}
 			list={
-				<div className={cn("grid min-w-0 content-start gap-8", selectedRow)}>
+				// A container, so a row can tell the narrow list pane beside an item (360 px) from a
+				// list with the page's width, and drop what doesn't fit (a Commitment's yearly figure).
+				<div className={cn("@container grid min-w-0 content-start gap-8", selectedRow)}>
 					{summary || !editable ? (
 						<div className="grid gap-3">
 							{editable ? null : <PlanEnded />}

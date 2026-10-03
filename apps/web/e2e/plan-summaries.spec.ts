@@ -63,6 +63,25 @@ test("Plan summaries show Money, a whole history has no History starts, a Commit
 			timeout: 20_000,
 		});
 		if (SHOTS) await page.screenshot({ path: `${SHOTS}/commitment-page.png`, fullPage: true });
+
+		// The list row beside it has the narrow pane to itself: no yearly column, so the name
+		// keeps one line instead of breaking mid-word.
+		const list = page.locator("[data-slot=master-detail-list]");
+		const name = await list.getByRole("link", { name: "Daycare", exact: true }).boundingBox();
+		expect(name?.height ?? 0).toBeLessThan(30);
+		if (SHOTS) {
+			await page.setViewportSize({ width: 1440, height: 900 });
+			await page.screenshot({ path: `${SHOTS}/commitment-page-1440.png` });
+			await page.setViewportSize({ width: 393, height: 852 });
+			await page.goto(`/plan/${month}/commitments`);
+			await expect(page.getByRole("button", { name: "Edit Daycare" })).toBeVisible();
+			await page.screenshot({ path: `${SHOTS}/commitments-393.png`, fullPage: true });
+			await page.setViewportSize({ width: 1280, height: 800 });
+			await page.goto(`/plan/${month}/buckets/`);
+			await page.getByRole("link", { name: "Groceries", exact: true }).first().click();
+			await expect(page.getByRole("heading", { name: "Groceries" }).first()).toBeVisible();
+			await page.screenshot({ path: `${SHOTS}/bucket-page-1280.png` });
+		}
 	} finally {
 		await parent.remove();
 	}
