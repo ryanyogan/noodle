@@ -35,7 +35,9 @@ export type Categorization =
 	| {
 			outcome: "filed";
 			method: CategorizationMethod;
-			bucketId: string;
+			/** Null only when a Rule filed it to `commitmentId` instead. */
+			bucketId: string | null;
+			commitmentId?: string | null;
 			confidence: number;
 			/** Who it was For, when a Rule that says so filed it; otherwise it's left as it is. */
 			for?: string[];
@@ -57,7 +59,14 @@ export type Categorization =
  * one into a Parent's own Personal Allowance: only that Parent sees it, and only their Imports
  * use it.
  */
-export type Rule = { pattern: string; bucketId: string; for?: string[]; private?: boolean };
+/** A Rule files into a Bucket or, with `bucketId` null, a Commitment (ADR-0030). */
+export type Rule = {
+	pattern: string;
+	bucketId: string | null;
+	commitmentId?: string | null;
+	for?: string[];
+	private?: boolean;
+};
 
 /** Words statements put around a merchant's name that say nothing about it. */
 const NOISE =
@@ -128,6 +137,7 @@ export function decideCategorization(said: {
 			outcome: "filed",
 			method: "rule",
 			bucketId: said.rule.bucketId,
+			commitmentId: said.rule.commitmentId ?? null,
 			confidence: 1,
 			for: said.rule.for ?? [],
 		};

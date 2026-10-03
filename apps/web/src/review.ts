@@ -291,7 +291,9 @@ export function useReturnToReview() {
 export type RuleInput = {
 	ruleId: string;
 	pattern: string;
-	bucketId: string;
+	/** What it files into: a Bucket, or with this null, `commitmentId` (ADR-0030). */
+	bucketId: string | null;
+	commitmentId?: string | null;
 	forMemberIds: string[];
 };
 
@@ -309,6 +311,7 @@ export function useSaveRule() {
 					ruleId: rule.ruleId,
 					pattern: rule.pattern,
 					bucketId: rule.bucketId,
+					commitmentId: rule.commitmentId ?? null,
 					forMemberIds: rule.forMemberIds,
 					apply: true,
 				},
@@ -351,6 +354,7 @@ export function useEditRule() {
 					ruleId: rule.ruleId,
 					pattern: rule.pattern,
 					bucketId: rule.bucketId,
+					commitmentId: rule.commitmentId ?? null,
 					forMemberIds: rule.forMemberIds,
 				},
 			}),
@@ -366,6 +370,7 @@ export function useEditRule() {
 									...row,
 									pattern: merchantKey(rule.pattern),
 									bucketId: rule.bucketId,
+									commitmentId: rule.commitmentId ?? null,
 									bucketName: rule.bucketName,
 									for: rule.forMemberIds,
 								}

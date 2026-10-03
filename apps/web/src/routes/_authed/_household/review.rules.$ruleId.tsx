@@ -22,6 +22,7 @@ function RulePane() {
 	const navigate = Route.useNavigate();
 	const rules = useSuspenseQuery(rulesQuery()).data;
 	const members = useSuspenseQuery(membersQuery()).data;
+	const commitments = useSuspenseQuery(monthQuery(current)).data.plan.commitments;
 	const buckets = useSuspenseQuery(monthQuery(current)).data.plan.buckets.filter((b) =>
 		canAssign(b, parentId),
 	);
@@ -61,6 +62,7 @@ function RulePane() {
 				inline
 				rule={rule}
 				buckets={buckets}
+				commitments={commitments}
 				members={members}
 				onDone={() => void navigate({ to: "/review/rules" })}
 			/>

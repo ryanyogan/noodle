@@ -7,6 +7,7 @@ import { assignableBy, changeableBy, type Viewer } from "./privacy";
 import {
 	buckets,
 	categorizations,
+	commitments,
 	members,
 	rules,
 	splits,
@@ -142,6 +143,8 @@ export async function fileCategorizations(
 			method: categorization.method,
 			reason: categorization.reason ?? null,
 			bucketId: categorization.bucketId,
+			commitmentId:
+				categorization.outcome === "filed" ? (categorization.commitmentId ?? null) : null,
 			confidence: categorization.confidence,
 			for: categorization.outcome === "filed" ? (categorization.for ?? []) : [],
 			rule: ruleId ?? null,
@@ -158,11 +161,25 @@ export async function fileCategorizations(
 		lte(buckets.fromMonth, month),
 		or(isNull(buckets.archivedFromMonth), sql`${buckets.archivedFromMonth} > ${month}`),
 	)})`;
+	// A Rule's Commitment (ADR-0030): one of the Household's, in the Plan for that month.
+	const chosenCommitment = sql`(select ${field("commitmentId")} from json_each(${rows})
+		where ${field("id")} = ${transactions.id} and ${field("outcome")} = 'filed')`;
+	const intoCommitment = sql`exists (select 1 from ${commitments} where ${and(
+		sql`${commitments.id} = ${chosenCommitment}`,
+		eq(commitments.householdId, householdId),
+		lte(commitments.fromMonth, month),
+		or(isNull(commitments.endedFromMonth), sql`${commitments.endedFromMonth} > ${month}`),
+	)})`;
 	const filedAsDecided = sql`exists (select 1 from ${transactions} where ${transactions.id} = ${field("id")}
-		and ${transactions.bucketId} = ${field("bucketId")})`;
-	// Filed by this batch: in its Bucket now, and not categorized as filed before.
-	const newlyFiled = (id: SQL, bucketId: SQL) => sql`exists (select 1 from ${transactions}
-		where ${transactions.id} = ${id} and ${transactions.bucketId} = ${bucketId})
+		and (${transactions.bucketId} = ${field("bucketId")} or ${transactions.commitmentId} = ${field("commitmentId")}))`;
+	// Filed by this batch: in its Bucket (or Commitment) now, and not categorized as filed before.
+	const newlyFiled = (
+		id: SQL,
+		bucketId: SQL,
+		commitmentId: SQL,
+	) => sql`exists (select 1 from ${transactions}
+		where ${transactions.id} = ${id} and (${transactions.bucketId} = ${bucketId}
+			or ${transactions.commitmentId} = ${commitmentId}))
 		and not exists (select 1 from ${categorizations} where ${categorizations.transactionId} = ${id}
 		and ${categorizations.outcome} = 'filed')`;
 	const byRule = decisions.some((decision) => decision.ruleId);
@@ -183,6 +200,19 @@ export async function fileCategorizations(
 					intoBucket,
 				),
 			),
+		db
+			.update(transactions)
+			.set({ commitmentId: chosenCommitment })
+			.where(
+				and(
+					changeableBy(viewer),
+					isNull(transactions.bucketId),
+					isNull(transactions.commitmentId),
+					isNull(transactions.goalId),
+					sql`not exists (select 1 from ${splits} where ${splits.transactionId} = ${transactions.id})`,
+					intoCommitment,
+				),
+			),
 	];
 	if (withFor) {
 		// A Rule's For, for what it just filed that isn't For anyone yet (ADR-0011).
@@ -200,7 +230,7 @@ export async function fileCategorizations(
 						.from(sql`json_each(${rows}) r, json_each(r.value, '$.for') f`)
 						.where(
 							sql`json_extract(r.value, '$.outcome') = 'filed'
-								and ${newlyFiled(id, sql`json_extract(r.value, '$.bucketId')`)}
+								and ${newlyFiled(id, sql`json_extract(r.value, '$.bucketId')`, sql`json_extract(r.value, '$.commitmentId')`)}
 								and not exists (select 1 from ${transactionFor} x where x.transaction_id = ${id})
 								and exists (select 1 from ${members} where ${members.id} = f.value
 									and ${members.householdId} = ${householdId})`,
@@ -216,7 +246,7 @@ export async function fileCategorizations(
 				.set({
 					matchedCount: sql`${rules.matchedCount} + (select count(*) from json_each(${rows})
 						where ${field("rule")} = ${rules.id} and ${field("outcome")} = 'filed'
-						and ${newlyFiled(field("id"), field("bucketId"))})`,
+						and ${newlyFiled(field("id"), field("bucketId"), field("commitmentId"))})`,
 				})
 				.where(
 					and(
@@ -244,6 +274,7 @@ export async function fileCategorizations(
 						merchant: sql<string>`${field("merchant")}`.as("merchant"),
 						createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
 						reason: sql<string | null>`${field("reason")}`.as("reason"),
+						commitmentId: sql<string | null>`${field("commitmentId")}`.as("commitment_id"),
 					})
 					.from(sql`json_each(${rows})`)
 					.where(
@@ -262,6 +293,7 @@ export async function fileCategorizations(
 					bucketId: sql`excluded.bucket_id`,
 					confidence: sql`excluded.confidence`,
 					reason: sql`excluded.reason`,
+					commitmentId: sql`excluded.commitment_id`,
 				},
 				setWhere: sql`${categorizations.outcome} = 'review'`,
 			}),

@@ -44,6 +44,7 @@ function RulesPage() {
 	const rules = useSuspenseQuery(rulesQuery()).data;
 	const members = useSuspenseQuery(membersQuery()).data;
 	// Rules file into this month's Buckets onward, so they're picked from this month's Plan.
+	const commitments = useSuspenseQuery(monthQuery(current)).data.plan.commitments;
 	const buckets = useSuspenseQuery(monthQuery(current)).data.plan.buckets.filter((b) =>
 		canAssign(b, parentId),
 	);
@@ -109,6 +110,7 @@ function RulesPage() {
 							key="new"
 							rule={null}
 							buckets={buckets}
+							commitments={commitments}
 							members={members}
 							onDone={() => setAdding(false)}
 						/>

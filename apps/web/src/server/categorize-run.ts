@@ -110,7 +110,10 @@ async function categorize(
 	]);
 	const choosable = new Set(buckets.map((bucket) => bucket.id));
 	// Nor one into a Bucket this Parent can't assign, or that isn't in the Plan for these months.
-	const rules = allRules.filter((rule) => choosable.has(rule.bucketId));
+	// A Rule into a Commitment is kept: filing checks it's in the Plan for each one's month.
+	const rules = allRules.filter((rule) =>
+		rule.bucketId ? choosable.has(rule.bucketId) : rule.commitmentId != null,
+	);
 	const decisions = await decideRows(deps, viewer.householdId, buckets, rules, rows, label);
 	await fileCategorizations(db, viewer, decisions);
 	const filed = decisions.filter((d) => d.categorization.outcome === "filed").length;

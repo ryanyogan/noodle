@@ -15,6 +15,7 @@ import {
 import { sql } from "drizzle-orm";
 import {
 	type AnySQLiteColumn,
+	check,
 	index,
 	integer,
 	primaryKey,
@@ -894,15 +895,15 @@ export const rules = sqliteTable(
 			.notNull()
 			.references(() => households.id),
 		pattern: text("pattern").notNull(),
-		bucketId: text("bucket_id")
-			.notNull()
-			.references(() => buckets.id),
+		// What it files into: a Bucket or a Commitment, exactly one of them (ADR-0030).
+		bucketId: text("bucket_id").references(() => buckets.id),
 		createdByMemberId: text("created_by_member_id").references(() => members.id),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()
 			.default(sql`(unixepoch() * 1000)`),
 		ownerMemberId: text("owner_member_id").references(() => members.id),
 		matchedCount: integer("matched_count").notNull().default(0),
+		commitmentId: text("commitment_id").references(() => commitments.id),
 	},
 	(t) => [
 		uniqueIndex("rules_household_pattern_owner_idx").on(
@@ -910,6 +911,7 @@ export const rules = sqliteTable(
 			t.pattern,
 			sql`coalesce(${t.ownerMemberId}, '')`,
 		),
+		check("rules_one_target", sql`(bucket_id is null) <> (commitment_id is null)`),
 	],
 );
 
@@ -958,6 +960,8 @@ export const categorizations = sqliteTable(
 			.default(sql`(unixepoch() * 1000)`),
 		// Why: the merchant filed before it was like ("similar"), or the model's few words.
 		reason: text("reason"),
+		// The Commitment a Rule filed it to, in place of a Bucket (ADR-0030).
+		commitmentId: text("commitment_id").references(() => commitments.id),
 	},
 	(t) => [index("categorizations_household_idx").on(t.householdId, t.outcome)],
 );

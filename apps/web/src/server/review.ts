@@ -90,7 +90,9 @@ export const getRules = createServerFn({ method: "GET" })
 const ruleSchema = z.object({
 	ruleId: ulidSchema,
 	pattern: z.string().trim().min(1).max(64),
-	bucketId: ulidSchema,
+	// What it files into: a Bucket, or a Commitment (ADR-0030).
+	bucketId: ulidSchema.nullable().default(null),
+	commitmentId: ulidSchema.nullable().default(null),
 	forMemberIds: z.array(ulidSchema).max(20),
 });
 
@@ -110,9 +112,10 @@ export const saveRule = createServerFn({ method: "POST" })
 			memberId: context.parent.id,
 			pattern: data.pattern,
 			bucketId: data.bucketId,
+			commitmentId: data.commitmentId,
 			forMemberIds: data.forMemberIds,
 		});
-		if (!result.ok) throw new Error("That Bucket isn’t yours to file into.");
+		if (!result.ok) throw new Error("That isn’t yours to file into.");
 		const { filed } = data.apply
 			? await applyRuleInDb(getDb(), viewerOf(context), result.ruleId)
 			: { filed: 0 };

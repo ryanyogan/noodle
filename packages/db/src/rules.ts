@@ -4,19 +4,34 @@ import { type CategorizationDecision, fileCategorizations } from "./categorize";
 import { counts } from "./counting";
 import type { Db } from "./index";
 import { assignableBy, type Viewer, visibleTo } from "./privacy";
-import { buckets, categorizations, members, ruleFor, rules, splits, transactions } from "./schema";
+import {
+	buckets,
+	categorizations,
+	commitments,
+	members,
+	ruleFor,
+	rules,
+	splits,
+	transactions,
+} from "./schema";
 
 // Rules: a Parent's stated "always file this merchant in this Bucket, For these Members". A Rule
 // into a Parent's own Personal Allowance is private to them (ADR-0003): it's kept with them as its
 // owner, only ever read for them, and only their Imports use it. Everything else is the
-// Household's, for either Parent to see, change, or delete.
+// Household's, for either Parent to see, change, or delete. A Rule may file into a Commitment
+// instead of a Bucket (ADR-0030): Commitments are the Household's, so such a Rule always is too.
 
 /** A Rule as categorization uses it. */
-export type StoredRule = Rule & { id: string; for: string[]; private: boolean };
+export type StoredRule = Rule & {
+	id: string;
+	commitmentId: string | null;
+	for: string[];
+	private: boolean;
+};
 
 /** A Rule as the Rules screen lists it. */
 export type RuleRow = StoredRule & {
-	/** Its Bucket's name, even once the Bucket has left the Plan. */
+	/** Its Bucket's (or Commitment's) name, even once that has left the Plan. */
 	bucketName: string;
 	/** The name of the Parent who last stated it. */
 	createdBy: string | null;
@@ -31,9 +46,40 @@ const visibleRule = (viewer: Viewer) =>
 		or(isNull(rules.ownerMemberId), eq(rules.ownerMemberId, viewer.memberId)),
 	) as SQL;
 
-/** Whose a Rule into `bucketId` is: its owner's when it's a Personal Allowance, else nobody's. */
-const ownerOf = (bucketId: string) =>
+/** Whose a Rule into `bucketId` is: its owner's when it's a Personal Allowance, else nobody's. A
+ * Rule into a Commitment (no Bucket) is nobody's. */
+const ownerOf = (bucketId: string | null) =>
 	sql`(select ${buckets.ownerMemberId} from ${buckets} where ${buckets.id} = ${bucketId})`;
+
+/** What a Rule files into: exactly one of a Bucket and a Commitment. */
+export type RuleTarget = { bucketId?: string | null; commitmentId?: string | null };
+
+/** `target` made exactly one of the two, the Bucket winning; null when it names neither. */
+function targetOf(
+	target: RuleTarget,
+): { bucketId: string | null; commitmentId: string | null } | null {
+	if (target.bucketId) return { bucketId: target.bucketId, commitmentId: null };
+	if (target.commitmentId) return { bucketId: null, commitmentId: target.commitmentId };
+	return null;
+}
+
+/** `memberId` may file into it: a Bucket they may assign, or one of the Household's Commitments still going. */
+const assignableTarget = (
+	householdId: string,
+	memberId: string,
+	target: { bucketId: string | null; commitmentId: string | null },
+) =>
+	target.bucketId
+		? assignable(householdId, memberId, target.bucketId)
+		: sql`exists (select 1 from ${commitments} where ${and(
+				eq(commitments.id, target.commitmentId as string),
+				eq(commitments.householdId, householdId),
+				isNull(commitments.endedFromMonth),
+			)})`;
+
+/** A Rule row files into exactly `target`. */
+const filesInto = (target: { bucketId: string | null; commitmentId: string | null }) =>
+	sql`${rules.bucketId} is ${target.bucketId} and ${rules.commitmentId} is ${target.commitmentId}`;
 
 /** `bucketId` is one of the Household's Buckets `memberId` may assign to. */
 const assignable = (householdId: string, memberId: string, bucketId: string) =>
@@ -70,6 +116,7 @@ export async function loadRules(db: Db, viewer: Viewer): Promise<StoredRule[]> {
 			id: rules.id,
 			pattern: rules.pattern,
 			bucketId: rules.bucketId,
+			commitmentId: rules.commitmentId,
 			owner: rules.ownerMemberId,
 		})
 		.from(rules)
@@ -93,13 +140,15 @@ export async function listRules(db: Db, viewer: Viewer): Promise<RuleRow[]> {
 			id: rules.id,
 			pattern: rules.pattern,
 			bucketId: rules.bucketId,
-			bucketName: buckets.name,
+			commitmentId: rules.commitmentId,
+			bucketName: sql<string>`coalesce(${buckets.name}, ${commitments.name}, '')`,
 			owner: rules.ownerMemberId,
 			createdBy: members.name,
 			matched: rules.matchedCount,
 		})
 		.from(rules)
-		.innerJoin(buckets, eq(buckets.id, rules.bucketId))
+		.leftJoin(buckets, eq(buckets.id, rules.bucketId))
+		.leftJoin(commitments, eq(commitments.id, rules.commitmentId))
 		.leftJoin(members, eq(members.id, rules.createdByMemberId))
 		.where(visibleRule(viewer))
 		.orderBy(asc(rules.pattern), asc(rules.id));
@@ -155,19 +204,24 @@ export async function saveRule(
 		householdId: string;
 		memberId: string;
 		pattern: string;
-		bucketId: string;
 		forMemberIds?: string[];
-	},
+	} & RuleTarget,
 ): Promise<{ ok: true; ruleId: string; private: boolean } | { ok: false }> {
-	const { householdId, memberId, bucketId } = input;
+	const { householdId, memberId } = input;
+	const target = targetOf(input);
+	if (!target) return { ok: false };
+	const { bucketId, commitmentId } = target;
 	const pattern = merchantKey(input.pattern);
 	const sameKey = sql`${rules.householdId} = ${householdId} and ${rules.pattern} = ${pattern}
 		and ${rules.ownerMemberId} is ${ownerOf(bucketId)}`;
-	const canAssign = assignable(householdId, memberId, bucketId);
+	const canAssign = assignableTarget(householdId, memberId, target);
 	const ruleId = sql`(select ${rules.id} from ${rules} where ${sameKey})`;
-	const landed = sql`exists (select 1 from ${rules} where ${sameKey} and ${rules.bucketId} = ${bucketId})`;
+	const landed = sql`exists (select 1 from ${rules} where ${sameKey} and ${filesInto(target)})`;
 	await db.batch([
-		db.update(rules).set({ bucketId, createdByMemberId: memberId }).where(and(sameKey, canAssign)),
+		db
+			.update(rules)
+			.set({ bucketId, commitmentId, createdByMemberId: memberId })
+			.where(and(sameKey, canAssign)),
 		db.insert(rules).select(
 			db
 				.select({
@@ -175,11 +229,12 @@ export async function saveRule(
 					id: sql<string>`${input.id}`.as("id"),
 					householdId: sql<string>`${householdId}`.as("household_id"),
 					pattern: sql<string>`${pattern}`.as("pattern"),
-					bucketId: sql<string>`${bucketId}`.as("bucket_id"),
+					bucketId: sql<string | null>`${bucketId}`.as("bucket_id"),
 					createdByMemberId: sql<string>`${memberId}`.as("created_by_member_id"),
 					createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
 					ownerMemberId: sql<string | null>`${ownerOf(bucketId)}`.as("owner_member_id"),
 					matchedCount: sql<number>`0`.as("matched_count"),
+					commitmentId: sql<string | null>`${commitmentId}`.as("commitment_id"),
 				})
 				.from(sql`(select 1)`)
 				.where(and(canAssign, sql`not exists (select 1 from ${rules} where ${sameKey})`)),
@@ -187,10 +242,15 @@ export async function saveRule(
 		...replaceFor(db, householdId, ruleId, input.forMemberIds ?? [], landed),
 	]);
 	const [saved] = await db
-		.select({ id: rules.id, bucketId: rules.bucketId, owner: rules.ownerMemberId })
+		.select({
+			id: rules.id,
+			bucketId: rules.bucketId,
+			commitmentId: rules.commitmentId,
+			owner: rules.ownerMemberId,
+		})
 		.from(rules)
 		.where(sameKey);
-	return saved?.bucketId === bucketId
+	return saved && saved.bucketId === bucketId && saved.commitmentId === commitmentId
 		? { ok: true, ruleId: saved.id, private: saved.owner !== null }
 		: { ok: false };
 }
@@ -207,10 +267,13 @@ export type RuleEditResult =
 export async function editRule(
 	db: Db,
 	viewer: Viewer,
-	input: { ruleId: string; pattern: string; bucketId: string; forMemberIds: string[] },
+	input: { ruleId: string; pattern: string; forMemberIds: string[] } & RuleTarget,
 ): Promise<RuleEditResult> {
 	const { householdId, memberId } = viewer;
-	const { ruleId, bucketId } = input;
+	const { ruleId } = input;
+	const target = targetOf(input);
+	if (!target) return { ok: false, reason: "not-found" };
+	const { bucketId, commitmentId } = target;
 	const pattern = merchantKey(input.pattern);
 	const duplicate = sql`exists (select 1 from ${rules} other where other.household_id = ${householdId}
 		and other.pattern = ${pattern} and other.owner_member_id is ${ownerOf(bucketId)}
@@ -219,7 +282,7 @@ export async function editRule(
 		eq(rules.id, ruleId),
 		visibleRule(viewer),
 		eq(rules.pattern, pattern),
-		eq(rules.bucketId, bucketId),
+		filesInto(target),
 	)})`;
 	await db.batch([
 		db
@@ -227,6 +290,7 @@ export async function editRule(
 			.set({
 				pattern,
 				bucketId,
+				commitmentId,
 				ownerMemberId: sql`${ownerOf(bucketId)}`,
 				createdByMemberId: memberId,
 			})
@@ -234,17 +298,26 @@ export async function editRule(
 				and(
 					eq(rules.id, ruleId),
 					visibleRule(viewer),
-					assignable(householdId, memberId, bucketId),
+					assignableTarget(householdId, memberId, target),
 					sql`not ${duplicate}`,
 				),
 			),
 		...replaceFor(db, householdId, sql`${ruleId}`, input.forMemberIds, landed),
 	]);
 	const [saved] = await db
-		.select({ pattern: rules.pattern, bucketId: rules.bucketId, owner: rules.ownerMemberId })
+		.select({
+			pattern: rules.pattern,
+			bucketId: rules.bucketId,
+			commitmentId: rules.commitmentId,
+			owner: rules.ownerMemberId,
+		})
 		.from(rules)
 		.where(and(eq(rules.id, ruleId), visibleRule(viewer)));
-	if (saved?.pattern === pattern && saved.bucketId === bucketId) {
+	if (
+		saved?.pattern === pattern &&
+		saved.bucketId === bucketId &&
+		saved.commitmentId === commitmentId
+	) {
 		return { ok: true, private: saved.owner !== null };
 	}
 	const [clash] = await db
@@ -321,6 +394,7 @@ export async function applyRule(
 				outcome: "filed",
 				method: "rule",
 				bucketId: rule.bucketId,
+				commitmentId: rule.commitmentId,
 				confidence: 1,
 				for: rule.for,
 			},
@@ -338,7 +412,9 @@ export async function applyRule(
 				sql`${transactions.id} in (select value from json_each(${JSON.stringify(
 					decisions.map((d) => d.transactionId),
 				)}))`,
-				eq(transactions.bucketId, rule.bucketId),
+				rule.bucketId
+					? eq(transactions.bucketId, rule.bucketId)
+					: eq(transactions.commitmentId, rule.commitmentId as string),
 			),
 		);
 	return {

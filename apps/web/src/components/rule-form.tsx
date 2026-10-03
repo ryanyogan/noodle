@@ -1,4 +1,4 @@
-import type { For, PlanBucket } from "@noodle/domain";
+import type { For, PlanBucket, PlanCommitment } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Combobox } from "@noodle/ui/components/combobox";
 import { Field } from "@noodle/ui/components/field";
@@ -13,12 +13,16 @@ import { ForPicker } from "./for-picker";
 import { Confirm } from "./plan-editing";
 
 /**
- * Adds a Rule (`rule` null), or changes one's merchant words, Bucket and For; files what it
- * matches (saving any change first); or deletes it.
+ * Adds a Rule (`rule` null), or changes one's merchant words, Bucket or Commitment, and For; files
+ * what it matches (saving any change first); or deletes it.
  */
+/** A Commitment's choice value, told apart from a Bucket's ID. */
+const AS_COMMITMENT = "commitment:";
+
 export function RuleForm({
 	rule,
 	buckets,
+	commitments = [],
 	members,
 	onDone,
 	inline = false,
@@ -26,8 +30,10 @@ export function RuleForm({
 }: {
 	rule: RuleRow | null;
 	/** A new Rule's merchant words, Bucket and For to start from (Review's card). */
-	start?: { pattern: string; bucketId?: string; for?: For };
+	start?: { pattern: string; bucketId?: string; commitmentId?: string; for?: For };
 	buckets: PlanBucket[];
+	/** The month's Commitments, which a Rule can file into instead of a Bucket. */
+	commitments?: Pick<PlanCommitment, "id" | "name">[];
 	members: MemberSummary[];
 	onDone: () => void;
 	/** In the pane beside the list, not a sheet: Cancel goes back to the list. */
@@ -39,22 +45,37 @@ export function RuleForm({
 	const apply = useApplyRule();
 	const add = useSaveRule();
 	const [pattern, setPattern] = useState(rule?.pattern ?? start?.pattern ?? "");
-	const [bucketId, setBucketId] = useState(
-		rule?.bucketId ?? start?.bucketId ?? buckets[0]?.id ?? "",
+	const startCommitment = rule ? rule.commitmentId : start?.commitmentId;
+	const [target, setTarget] = useState(
+		startCommitment
+			? AS_COMMITMENT + startCommitment
+			: (rule?.bucketId ?? start?.bucketId ?? buckets[0]?.id ?? ""),
 	);
+	const commitmentId = target.startsWith(AS_COMMITMENT) ? target.slice(AS_COMMITMENT.length) : null;
+	const bucketId = commitmentId ? null : target;
 	const [forIds, setForIds] = useState<For>(rule?.for ?? start?.for ?? []);
 	const [deleting, setDeleting] = useState(false);
 	const [missing, setMissing] = useState(false);
-	// Its Bucket stays pickable after leaving the Plan.
+	// Its Bucket or Commitment stays pickable after leaving the Plan.
 	const options =
-		!rule || buckets.some((b) => b.id === rule.bucketId)
+		!rule?.bucketId || buckets.some((b) => b.id === rule.bucketId)
 			? buckets
 			: [...buckets, { id: rule.bucketId, name: rule.bucketName }];
-	const bucketName = options.find((b) => b.id === bucketId)?.name ?? rule?.bucketName ?? "";
+	const commitmentOptions =
+		!rule?.commitmentId || commitments.some((c) => c.id === rule.commitmentId)
+			? commitments
+			: [...commitments, { id: rule.commitmentId, name: rule.bucketName }];
+	const bucketName =
+		(commitmentId
+			? commitmentOptions.find((c) => c.id === commitmentId)?.name
+			: options.find((b) => b.id === bucketId)?.name) ??
+		rule?.bucketName ??
+		"";
 	const unchanged =
 		rule !== null &&
 		pattern.trim() === rule.pattern &&
 		bucketId === rule.bucketId &&
+		commitmentId === rule.commitmentId &&
 		forIds.join() === rule.for.join();
 
 	function save(event: FormEvent) {
@@ -69,6 +90,7 @@ export function RuleForm({
 				ruleId: ulid(),
 				pattern: pattern.trim(),
 				bucketId,
+				commitmentId,
 				bucketName,
 				forMemberIds: forIds,
 			});
@@ -77,6 +99,7 @@ export function RuleForm({
 				ruleId: rule.id,
 				pattern: pattern.trim(),
 				bucketId,
+				commitmentId,
 				bucketName,
 				forMemberIds: forIds,
 			});
@@ -91,7 +114,14 @@ export function RuleForm({
 			setMissing(true);
 			return;
 		}
-		const edited = { ...rule, pattern: pattern.trim(), bucketId, bucketName, for: forIds };
+		const edited = {
+			...rule,
+			pattern: pattern.trim(),
+			bucketId,
+			commitmentId,
+			bucketName,
+			for: forIds,
+		};
 		if (unchanged) apply.mutate(rule);
 		else {
 			// The sheet closes at once, so this goes on after it's gone: by the promise, not by
@@ -101,6 +131,7 @@ export function RuleForm({
 					ruleId: rule.id,
 					pattern: edited.pattern,
 					bucketId,
+					commitmentId,
 					bucketName,
 					forMemberIds: forIds,
 				})
@@ -133,14 +164,30 @@ export function RuleForm({
 					disabled={!hydrated}
 				/>
 			</Field>
-			<Field label="Bucket" htmlFor="rule-bucket">
+			<Field label="Files to" htmlFor="rule-bucket">
 				<Combobox
 					id="rule-bucket"
-					value={bucketId}
-					onValueChange={setBucketId}
+					value={target}
+					onValueChange={setTarget}
 					disabled={!hydrated}
-					searchPlaceholder="Find a Bucket"
-					choices={options.map((b) => ({ value: b.id, label: b.name }))}
+					searchPlaceholder="Find a Bucket or Commitment"
+					choices={
+						commitmentOptions.length === 0
+							? options.map((b) => ({ value: b.id, label: b.name }))
+							: [
+									{
+										label: "Buckets",
+										choices: options.map((b) => ({ value: b.id, label: b.name })),
+									},
+									{
+										label: "Commitments",
+										choices: commitmentOptions.map((c) => ({
+											value: AS_COMMITMENT + c.id,
+											label: c.name,
+										})),
+									},
+								]
+					}
 				/>
 			</Field>
 			<ForPicker members={members} value={forIds} onChange={setForIds} multiple />
