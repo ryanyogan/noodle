@@ -15,6 +15,7 @@ import { useHydrated } from "@tanstack/react-router";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { ulid } from "ulid";
 import { formatMoney, formatMoneyInput, shortDay } from "../format";
+import { monthChangeKey } from "../plan-changes";
 import { monthsKey, planDraftQuery } from "../queries";
 import { acceptDraft, finishDraft, skipDraft } from "../server/plan-draft";
 import { AmountInput } from "./goals";
@@ -65,6 +66,8 @@ function useDecide() {
 	const queryClient = useQueryClient();
 	const { queryKey } = planDraftQuery();
 	return useMutation({
+		// A decision changes the Plan, so live updates and other changes wait for it (ADR-0006).
+		mutationKey: monthChangeKey,
 		mutationFn: (decision: Decision) =>
 			"skip" in decision
 				? skipDraft({ data: { keys: decision.skip } })
@@ -79,7 +82,12 @@ function useDecide() {
 			if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
 		},
 		// The Plan changed too, and the draft is under every month's key.
-		onSettled: () => queryClient.invalidateQueries({ queryKey: monthsKey }),
+		// Only after the last of several quick decisions, so each one doesn't start a round.
+		onSettled: () => {
+			if (queryClient.isMutating({ mutationKey: monthChangeKey }) === 1) {
+				return queryClient.invalidateQueries({ queryKey: monthsKey });
+			}
+		},
 	});
 }
 
