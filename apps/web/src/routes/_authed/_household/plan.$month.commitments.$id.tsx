@@ -40,8 +40,21 @@ import { COMMITMENT_MONTHS, type CommitmentsData } from "../../../server/commitm
 // and how its terms changed. Everything comes from the one Commitments query Coming up reads.
 export const Route = createFileRoute("/_authed/_household/plan/$month/commitments/$id")({
 	loader: async ({ context, params }) => {
-		const data = await context.queryClient.ensureQueryData(commitmentsQuery());
-		if (!data.commitments.some((c) => c.id === params.id)) throw notFound();
+		const { queryClient } = context;
+		const has = (data: CommitmentsData) => data.commitments.some((c) => c.id === params.id);
+		if (!has(await queryClient.ensureQueryData(commitmentsQuery()))) {
+			// A Commitment shows in the list the moment it's added, before its save lands: wait for
+			// the saves going out, then ask again before calling it gone.
+			await new Promise<void>((resolve) => {
+				if (queryClient.isMutating() === 0) return resolve();
+				const stop = queryClient.getMutationCache().subscribe(() => {
+					if (queryClient.isMutating() > 0) return;
+					stop();
+					resolve();
+				});
+			});
+			if (!has(await queryClient.fetchQuery(commitmentsQuery()))) throw notFound();
+		}
 		await context.queryClient.ensureQueryData(planHistoryQuery(context.month, params.id));
 	},
 	pendingComponent: DetailPending,
