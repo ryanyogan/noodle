@@ -40,7 +40,10 @@ test("the year at a glance, and Plan health pointing at the fix", async ({ brows
 
 	// A yearly Commitment bigger than a month's take-home pay, due two months from now.
 	const lumpy = addMonths(month, 2);
-	await waterfall(page).getByRole("link", { name: "Commitments", exact: true }).click();
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Commitments", exact: true })
+		.click();
 	const form = addForm(page);
 	await form.getByLabel("New Commitment").fill("Roof");
 	await form.getByLabel("Amount due").fill("12,000");
@@ -63,8 +66,11 @@ test("the year at a glance, and Plan health pointing at the fix", async ({ brows
 	await expect(page).toHaveURL(new RegExp(`/plan/${lumpy}$`));
 	await expect(page.locator("[data-slot=page-header]:visible")).toContainText(monthName(lumpy));
 
-	// The year at a glance, from the Plan overview.
-	await page.getByRole("link", { name: `See the whole of ${lumpy.slice(0, 4)}` }).click();
+	// The year at a glance, from the Plan's Year tab (#73: the overview no longer links it twice).
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Year" })
+		.click();
 	await expect(page).toHaveURL(new RegExp(`/plan/${lumpy}/year$`));
 	await expect(
 		page.getByRole("heading", { level: 2, name: lumpy.slice(0, 4), exact: true }),

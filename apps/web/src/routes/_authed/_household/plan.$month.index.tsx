@@ -18,9 +18,9 @@ import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
-import { Check, ChevronRight } from "lucide-react";
+import { Check } from "lucide-react";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
-import { ComingUpSummary, LumpCallout } from "../../../components/coming-up";
+import { LumpCallout } from "../../../components/coming-up";
 import { AmountInput } from "../../../components/goals";
 import { PlanDraftSection } from "../../../components/plan-draft";
 import { SaveFailed } from "../../../components/plan-editing";
@@ -38,7 +38,6 @@ import { formatMoney, monthName } from "../../../format";
 import { useGoals } from "../../../goals";
 import { usePlanChange, withTakeHomePay } from "../../../plan-changes";
 import {
-	commitmentsQuery,
 	goalsQuery,
 	planDraftQuery,
 	planHealthQuery,
@@ -48,12 +47,11 @@ import {
 import { setTakeHomePay } from "../../../server/plan";
 
 export const Route = createFileRoute("/_authed/_household/plan/$month/")({
-	// Setting up the Plan ticks off its Goals step once there are Goals; Coming up reads every
-	// Commitment's schedule and charges; Plan health shows on this month's Plan.
+	// Setting up the Plan ticks off its Goals step once there are Goals; Plan health shows on this
+	// month's Plan.
 	loader: ({ context }) =>
 		Promise.all([
 			context.queryClient.ensureQueryData(goalsQuery()),
-			context.queryClient.ensureQueryData(commitmentsQuery()),
 			context.queryClient.ensureQueryData(planHistoryQuery(context.month)),
 			context.queryClient.ensureQueryData(planHealthQuery()),
 		]),
@@ -71,7 +69,7 @@ function PlanOverview() {
 	const settingUp = state.editable && (state.baseline === null || buckets.length === 0);
 	return (
 		<>
-			{/* At lg: the Plan itself on the left, what's coming and what changed on the right. */}
+			{/* At lg: the Plan itself on the left, what changed on the right. Coming up is This Month's. */}
 			<SplitLayout className="max-w-2xl lg:max-w-none">
 				<SplitMain>
 					{state.editable ? null : <PlanEnded />}
@@ -99,36 +97,16 @@ function PlanOverview() {
 						<div className="grid gap-3">
 							<Waterfall state={state} current={month === current} />
 							<LumpCallout lumps={lumpsIn(state)} month={month} />
-							<YearLink month={month} />
 						</div>
 					)}
 				</SplitMain>
 				{settingUp && state.baseline === null ? null : (
 					<SplitRail>
-						{month === current ? <ComingUpSummary /> : null}
 						<WhatChanged month={month} first={state.firstMonth} />
 					</SplitRail>
 				)}
 			</SplitLayout>
 		</>
-	);
-}
-
-/** Opens the year the month is in, month by month. */
-function YearLink({ month }: { month: MonthKey }) {
-	const year = month.slice(0, 4);
-	return (
-		<Button
-			variant="secondary"
-			size="lg"
-			className="justify-between px-(--card-pad) text-sm"
-			asChild
-		>
-			<Link to="/plan/$month/year" params={{ month }}>
-				See the whole of {year}
-				<ChevronRight aria-hidden="true" className="size-4 text-subtle-foreground" />
-			</Link>
-		</Button>
 	);
 }
 
@@ -351,8 +329,9 @@ function TakeHomePayForm({ month }: { month: MonthKey }) {
 }
 
 /**
- * How take-home pay becomes Free to Spend: each part of the Plan takes its share in turn, each a
- * link to its page. The bars run waterfall-style on one scale, from take-home pay down.
+ * How take-home pay becomes Free to Spend: each part of the Plan takes its share in turn. The
+ * rows are figures, not links: the tabs above open each part (#73). The bars run waterfall-style
+ * on one scale, from take-home pay down.
  */
 function Waterfall({ state, current }: { state: MonthState; current: boolean }) {
 	const takeHomePay = state.baseline ?? 0;
@@ -376,8 +355,6 @@ function Waterfall({ state, current }: { state: MonthState; current: boolean }) 
 				<WaterfallStep
 					label="Take-home pay"
 					help={<TermHelp term="take-home-pay" />}
-					to="/plan/$month/income"
-					month={state.month}
 					amount={state.baseline === null ? "Not set" : formatMoney(takeHomePay)}
 					bar={bar(0, takeHomePay)}
 					tone="total"
@@ -389,10 +366,7 @@ function Waterfall({ state, current }: { state: MonthState; current: boolean }) 
 						<WaterfallStep
 							key={step.label}
 							label={step.label}
-							to={step.to}
-							hash={step.hash}
 							help={step.part === "covers" ? <TermHelp term="cover" /> : undefined}
-							month={state.month}
 							amount={step.amount > 0 ? `−${formatMoney(step.amount)}` : formatMoney(0)}
 							bar={bar(Math.max(left, low), before)}
 						/>
@@ -427,58 +401,28 @@ function Waterfall({ state, current }: { state: MonthState; current: boolean }) 
 	);
 }
 
-type StepPath =
-	| "/plan/$month/income"
-	| "/plan/$month/commitments"
-	| "/plan/$month/buckets"
-	| "/plan/$month/goals";
-
 type BarSpan = { left: number; width: number } | null;
 
 function WaterfallStep({
 	label,
-	to,
-	hash,
 	help,
-	month,
 	amount,
 	bar,
 	tone = "step",
 }: {
 	label: string;
-	to: StepPath;
-	hash?: string;
-	/** A term's help, raised above the row's link so it opens on its own. */
 	help?: ReactNode;
-	month: MonthKey;
 	amount: string;
 	bar: BarSpan;
 	tone?: "step" | "total";
 }) {
-	// The whole row opens the step's page, though the link's name is just its label.
 	return (
-		<li
-			className={cn(
-				"relative grid gap-2.5 px-(--card-pad) py-3.5",
-				"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60",
-				"has-focus-visible:outline-2 has-focus-visible:-outline-offset-2 has-focus-visible:outline-ring",
-			)}
-		>
+		<li className="grid gap-2.5 px-(--card-pad) py-3.5">
 			{/* Wraps at large text, the amount staying at the end, so a long label can't widen the page. */}
 			<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">
-				<Link
-					to={to}
-					params={{ month }}
-					hash={hash}
-					className="font-medium outline-none after:absolute after:inset-0"
-				>
-					{label}
-				</Link>
-				{help ? <span className="relative z-10 me-auto -ms-2">{help}</span> : null}
-				<span className="ms-auto flex items-center gap-1.5 tabular-nums">
-					{amount}
-					<ChevronRight aria-hidden="true" className="size-4 text-subtle-foreground" />
-				</span>
+				<span className="font-medium">{label}</span>
+				{help ? <span className="me-auto -ms-2">{help}</span> : null}
+				<span className="ms-auto tabular-nums">{amount}</span>
 			</div>
 			<Bar bar={bar} tone={tone} />
 		</li>
@@ -502,6 +446,9 @@ function Bar({ bar, tone }: { bar: BarSpan; tone: "step" | "total" | "over" }) {
 	);
 }
 
+/** How many changes What changed shows before "Show all". */
+const CHANGES_FOLDED = 3;
+
 /**
  * What changed in this month's Plan since the month before, item by item, and who changed it.
  * This Month's first week links here.
@@ -509,6 +456,9 @@ function Bar({ bar, tone }: { bar: BarSpan; tone: "step" | "total" | "over" }) {
 function WhatChanged({ month, first }: { month: MonthKey; first: MonthKey | null }) {
 	const { data } = useSuspenseQuery(planHistoryQuery(month));
 	const groups = whatChanged(data.changes, month);
+	// Folded to the first few (#73), so the rail stays about as tall as the Plan beside it.
+	const [all, setAll] = useState(false);
+	const shown = all ? groups : groups.slice(0, CHANGES_FOLDED);
 	// Nothing to compare with yet: the Household's first month, or no Plan changes at all.
 	const fresh = data.historyStart === null || first === null || month <= first;
 	return (
@@ -522,7 +472,7 @@ function WhatChanged({ month, first }: { month: MonthKey; first: MonthKey | null
 				</p>
 			) : (
 				<List>
-					{groups.map((group) => (
+					{shown.map((group) => (
 						<li key={group.key} className="grid gap-0.5 px-(--card-pad) py-3">
 							<p className="text-sm font-medium">{groupTitle(group)}</p>
 							{group.kind === "personal-allowance" ? null : (
@@ -533,6 +483,17 @@ function WhatChanged({ month, first }: { month: MonthKey; first: MonthKey | null
 					))}
 				</List>
 			)}
+			{groups.length > CHANGES_FOLDED ? (
+				<Button
+					variant="ghost"
+					size="sm"
+					className="self-start justify-self-start"
+					aria-expanded={all}
+					onClick={() => setAll(!all)}
+				>
+					{all ? "Show fewer" : `Show all ${groups.length}`}
+				</Button>
+			) : null}
 			{/* Only where the log's start cuts this month's comparison short. */}
 			{data.historyStart === null ||
 			fresh ||

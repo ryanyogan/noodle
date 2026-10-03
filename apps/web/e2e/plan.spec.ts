@@ -37,9 +37,14 @@ async function setTakeHomePay(page: Page, amount: string) {
 	await page.getByRole("button", { name: "Set take-home pay" }).click();
 }
 
-/** Opens a part of the Plan from the overview's waterfall. */
+/** Opens the part of the Plan a step of the overview's waterfall is, from the Plan's tabs. */
 async function openStep(page: Page, step: string) {
-	await waterfall(page).getByRole("link", { name: step, exact: true }).click();
+	const tab =
+		step === "Take-home pay" ? "Income" : step === "Personal Allowances" ? "Buckets" : step;
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: tab, exact: true })
+		.click();
 	await expect(page).toHaveURL(/\/plan\/\d{4}-\d{2}\/\w+/);
 }
 

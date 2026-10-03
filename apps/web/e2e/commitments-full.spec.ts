@@ -43,7 +43,10 @@ test("Bills switches between this month's bills and Coming up", async ({ browser
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "9,000", buckets: [["Groceries", "1,200"]] });
 	await switchTo(page, "Plan");
-	await waterfall(page).getByRole("link", { name: "Commitments", exact: true }).click();
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Commitments", exact: true })
+		.click();
 	const month = /\/plan\/(\d{4}-\d{2})\//.exec(page.url())?.[1];
 	if (!month) throw new Error(`No month in ${page.url()}`);
 	const [year = 0, m = 0] = month.split("-").map(Number);
@@ -89,7 +92,10 @@ test("Commitments show what's coming up, why a month is lumpy, and each one's pa
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "9,000", buckets: [["Groceries", "1,200"]] });
 	await switchTo(page, "Plan");
-	await waterfall(page).getByRole("link", { name: "Commitments", exact: true }).click();
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Commitments", exact: true })
+		.click();
 	await expect(page.locator("nav[aria-label='Plan pages'] [aria-current=page]")).toHaveText(
 		"Commitments",
 	);

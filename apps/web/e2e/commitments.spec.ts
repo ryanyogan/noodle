@@ -44,7 +44,10 @@ async function openPlan(page: Page) {
 }
 
 async function openCommitments(page: Page) {
-	await waterfall(page).getByRole("link", { name: "Commitments", exact: true }).click();
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Commitments", exact: true })
+		.click();
 	await expect(page.locator("nav[aria-label='Plan pages'] [aria-current=page]")).toHaveText(
 		"Commitments",
 	);

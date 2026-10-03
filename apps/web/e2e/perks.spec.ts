@@ -19,8 +19,6 @@ test.afterEach(async () => {
 	await parent?.remove();
 });
 
-const waterfall = (page: Page) =>
-	page.getByRole("region", { name: "From take-home pay to Free to Spend" });
 const sourceCard = (page: Page, name: string) => page.getByRole("article", { name });
 
 async function addCommitment(page: Page, name: string, due: string) {
@@ -38,7 +36,10 @@ test("a phone plan among the Commitments is confirmed, asks for its plan, and fi
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "9,000", buckets: [["Groceries", "1,200"]] });
 	await switchTo(page, "Plan");
-	await waterfall(page).getByRole("link", { name: "Commitments", exact: true }).click();
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Commitments", exact: true })
+		.click();
 	await addCommitment(page, "T-Mobile", "140");
 	await addCommitment(page, "Netflix", "17.99");
 

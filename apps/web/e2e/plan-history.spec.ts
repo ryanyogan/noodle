@@ -17,7 +17,10 @@ const item = (page: Page, title: string) =>
 		.filter({ has: page.getByText(title, { exact: true }) });
 
 async function openPart(page: Page, part: "Buckets" | "Commitments") {
-	await waterfall(page).getByRole("link", { name: part, exact: true }).click();
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: part, exact: true })
+		.click();
 	await expect(page.locator("nav[aria-label='Plan pages'] [aria-current=page]")).toHaveText(part);
 }
 
@@ -27,6 +30,9 @@ async function backToPlan(page: Page) {
 		.getByRole("link", { name: "Overview" })
 		.click();
 	await expect(waterfall(page)).toBeVisible();
+	// What changed shows its first three; the tests read all of them.
+	const more = whatChanged(page).getByRole("button", { name: /^Show all/ });
+	if (await more.isVisible()) await more.click();
 }
 
 test("What changed shows each Plan change and who made it; the other Parent's Personal Allowance only as changed", async ({

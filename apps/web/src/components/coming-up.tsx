@@ -14,7 +14,7 @@ import { List, ListRow } from "@noodle/ui/components/list";
 import { Tile } from "@noodle/ui/components/tile";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, Info } from "lucide-react";
+import { Info } from "lucide-react";
 import { useState } from "react";
 import { dayName, formatMoney, monthName, shortDay } from "../format";
 import { commitmentsQuery } from "../queries";
@@ -82,36 +82,6 @@ export function ComingUpList() {
 		<Card className="p-(--card-pad) text-sm text-muted-foreground">
 			Nothing is due in the next 30 days.
 		</Card>
-	);
-}
-
-/**
- * The Plan overview's line about Coming up: how many bills are due in the next 30 days and what
- * they come to, linking to This Month's Bills, which lists them. Nothing without Commitments.
- */
-export function ComingUpSummary() {
-	const { dues, month, active } = useComingUp();
-	if (!active && dues.length === 0) return null;
-	const unpaid = dues.filter((due) => due.status !== "paid");
-	const total = unpaid.reduce((sum, due) => sum + due.amount - due.paid, 0);
-	return (
-		<Link
-			to="/month/$month"
-			params={{ month }}
-			hash="bills"
-			className="flex items-center justify-between gap-3 rounded-2xl bg-card px-(--card-pad) py-3.5 text-sm shadow-card ring-1 ring-border transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60"
-		>
-			<span>
-				<span className="font-medium">Coming up</span>
-				<span className="text-muted-foreground">
-					{" · "}
-					{unpaid.length === 0
-						? "nothing due in the next 30 days"
-						: `${unpaid.length === 1 ? "1 bill" : `${unpaid.length} bills`} due in the next 30 days, ${formatMoney(total)}`}
-				</span>
-			</span>
-			<ChevronRight aria-hidden="true" className="size-4 shrink-0 text-subtle-foreground" />
-		</Link>
 	);
 }
 

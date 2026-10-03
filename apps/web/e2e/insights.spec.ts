@@ -15,8 +15,6 @@ test.afterEach(async () => {
 	await parent?.remove();
 });
 
-const waterfall = (page: Page) =>
-	page.getByRole("region", { name: "From take-home pay to Free to Spend" });
 const commitmentRow = (page: Page, name: string) =>
 	page.getByRole("listitem", {
 		name: new RegExp(`^${name.replace(/[+.]/g, "\\$&")}: `),
@@ -44,7 +42,10 @@ test("an Overlap between two streaming Commitments is found, accepted, and dismi
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "9,000", buckets: [["Groceries", "1,200"]] });
 	await switchTo(page, "Plan");
-	await waterfall(page).getByRole("link", { name: "Commitments", exact: true }).click();
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Commitments", exact: true })
+		.click();
 	await addCommitment(page, "Disney+", "13.99");
 	await addCommitment(page, "Hulu", "17.99");
 	await page

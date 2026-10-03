@@ -74,7 +74,7 @@ test("on a phone, the Plan is a switch away from This Month", { tag: "@phone" },
 	await page.context().close();
 });
 
-test("each step from take-home pay to Free to Spend opens its part of the Plan", async ({
+test("the steps from take-home pay to Free to Spend are figures, and the tabs open each part", async ({
 	browser,
 }) => {
 	const page = await signedInPage(browser, parent.email);
@@ -83,7 +83,7 @@ test("each step from take-home pay to Free to Spend opens its part of the Plan",
 	await switchTo(page, "Plan");
 
 	// A Personal Allowance is its own step.
-	await waterfall(page).getByRole("link", { name: "Buckets", exact: true }).click();
+	await planTabs(page).getByRole("link", { name: "Buckets", exact: true }).click();
 	await page.getByLabel("Your Personal Allowance").fill("150");
 	await page.getByRole("button", { name: "Set up Personal Allowance" }).click();
 	await expect(page.getByRole("button", { name: "Edit Alex’s Personal Allowance" })).toBeVisible();
@@ -92,6 +92,8 @@ test("each step from take-home pay to Free to Spend opens its part of the Plan",
 		.getByRole("link", { name: "Overview" })
 		.click();
 
+	// No row links to a tab right above it (#73).
+	await expect(waterfall(page).getByRole("link")).toHaveCount(0);
 	for (const [step, tab] of [
 		["Take-home pay", "Income"],
 		["Commitments", "Commitments"],
@@ -99,7 +101,8 @@ test("each step from take-home pay to Free to Spend opens its part of the Plan",
 		["Personal Allowances", "Buckets"],
 		["Goal funding", "Goal funding"],
 	]) {
-		await waterfall(page).getByRole("link", { name: step, exact: true }).click();
+		await expect(waterfall(page)).toContainText(step as string);
+		await planTabs(page).getByRole("link", { name: tab, exact: true }).click();
 		await expect(planTabs(page).getByRole("link", { name: tab as string })).toHaveAttribute(
 			"aria-current",
 			"page",
@@ -122,7 +125,7 @@ test("a change to just this month leaves next month's Plan as it was", async ({ 
 	await createPlannedHousehold(page, plan);
 	const { name, next } = shownMonth(page);
 	await switchTo(page, "Plan");
-	await waterfall(page).getByRole("link", { name: "Buckets", exact: true }).click();
+	await planTabs(page).getByRole("link", { name: "Buckets", exact: true }).click();
 
 	await page.getByRole("button", { name: "Edit Groceries" }).click();
 	const sheet = page.getByRole("dialog", { name: "Groceries" });
@@ -150,7 +153,7 @@ test("a change to just this month leaves next month's Plan as it was", async ({ 
 	await switchTo(page, "Plan");
 	await page.getByRole("link", { name: "Next month" }).click();
 	await expect(header(page)).toContainText(next);
-	await waterfall(page).getByRole("link", { name: "Buckets", exact: true }).click();
+	await planTabs(page).getByRole("link", { name: "Buckets", exact: true }).click();
 	await expect(planTabs(page).getByRole("link", { name: "Buckets" })).toHaveAttribute(
 		"aria-current",
 		"page",

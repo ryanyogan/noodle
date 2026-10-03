@@ -85,7 +85,10 @@ test("an Insight and an Ask answer open as Scenarios in Explore, leaving the Pla
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "9,000", buckets: [["Groceries", "1,200"]] });
 	await switchTo(page, "Plan");
-	await waterfall(page).getByRole("link", { name: "Commitments", exact: true }).click();
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Commitments", exact: true })
+		.click();
 	await addCommitment(page, "Disney+", "13.99");
 	await addCommitment(page, "Hulu", "17.99");
 	await page
@@ -142,7 +145,10 @@ test("an Insight and an Ask answer open as Scenarios in Explore, leaving the Pla
 	// Neither Scenario was applied: the Plan and its Commitments are as they were.
 	await page.goto("/plan");
 	await expect(waterfall(page)).toHaveText(planBefore);
-	await waterfall(page).getByRole("link", { name: "Commitments", exact: true }).click();
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Commitments", exact: true })
+		.click();
 	await expect(page.getByRole("button", { name: "Edit Disney+" })).toBeVisible();
 	await expect(page.getByRole("button", { name: "Edit Hulu" })).toBeVisible();
 	await page.context().close();

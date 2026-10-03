@@ -126,7 +126,10 @@ test("a Goal is funded from Free to Spend and spent from what it has set aside, 
 	const waterfall = page.getByRole("region", { name: "From take-home pay to Free to Spend" });
 	await expect(waterfall).toContainText("Goal funding−$250");
 	await expect(waterfall).toContainText("Free to Spend$3,150");
-	await waterfall.getByRole("link", { name: "Goal funding" }).click();
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Goal funding" })
+		.click();
 	const toFund = page.getByRole("region", { name: /^To fund this month/ });
 	await expect(toFund).toContainText("Braces");
 	// Every row reads the same way: this month's funding, then how far it has come.
