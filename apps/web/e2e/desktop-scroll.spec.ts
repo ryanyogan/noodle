@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { misaligned } from "./alignment";
 import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
 import {
@@ -49,6 +50,9 @@ const migrated = [
 	"/review",
 	"/review?view=list",
 ];
+
+/** Pages whose column blocks are checked for alignment (#73). */
+const aligned = ["/month", `/plan/${month}`, "/explore", "/transactions"];
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -115,6 +119,9 @@ async function walk(page: Page, paths: string[]) {
 		const found = await measure(page);
 		expect.soft(found.nested, `${path}: a region scrolls inside another`).toEqual([]);
 		expect.soft(found.uneven, `${path}: the columns start at different heights`).toEqual([]);
+		// The first block of each column shares a top, and cards keep their column's left edge (#73).
+		if (aligned.includes(path))
+			expect.soft(await misaligned(page), `${path}: blocks out of line`).toEqual([]);
 	}
 }
 
