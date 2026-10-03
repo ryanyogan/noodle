@@ -170,3 +170,21 @@ Decisions (code and tests; the after screenshots were looked at in 73d2, verdict
 - **What changed:** shows its first three changes with "Show all N" / "Show fewer" (aria-expanded).
 - **Year:** each month links once (its name in the table or the phone list); Lumpy months names months without a second link.
 - **Screenshots (73d2):** sheet-plan.png: Plan and Year look right (the lead). sheet-month.png: at 1440 and 1920 This Month has no switch row, so the title sits at the top beside the Sidebar with nothing lost; at 1920 Income moves up into a middle column; Plan › Year at 1920 has the tabs right under the title and one link per month. sheet-phone.png: the Month and Plan switch with Reports, Ask and the Glossary is still above the header on Plan, Year and This Month; the waterfall rows have no chevrons, "See the whole of 2026" is gone so What changed shows right under it; Year and This Month are unchanged.
+
+## Explore, Can we afford it?, Scenarios (73f)
+
+Done (2026-10-03):
+- Below 1280 (lg to xl) Explore and Can we afford it? give the editors' column 320px instead of the 360px rail, so the outcome / answer is the wider column (about 340px against 300px at 1024). From xl both keep the standard rail.
+- Can we afford it?'s "Housing a month" and "Cash to buy" tables sit side by side by the answer's own width (`@md/answer`), not the window's (`sm:`), so at 1024 they stack instead of clipping "$80,000" and "$2,022".
+- Column tops: Explore was already in `desktop-scroll`'s alignment list; it passes at 1440.
+
+Looked at (a plain Household: Plan, three Buckets, no Goals, no kept Scenarios):
+- 1024 before: Explore's outcome column wrapped "over 2 years" and the totals table's labels onto two lines, and the chart tabs clipped "Each m"; Afford's two tables clipped their figures. After: the totals table reads on one line per row, all three chart tabs fit, Afford's tables stack and read fully.
+- 393 after (Afford): unchanged layout, tables stacked, nothing clipped.
+- 1440 and 1920 were taken but only 1440 before was looked at; from xl nothing changed, so they are not claimed.
+- Scenarios at 1024: only the empty state (no kept Scenarios), which looked fine. Compare was not looked at (needs two kept Scenarios).
+
+Not done (left for a later phase):
+- The chart control stays a `TabsList` (it scrolls and fades like every tab strip, per the Tab strips rule) rather than turning into a select.
+- Explore's editors as collapsed sections showing their totals: not started. Many specs click rows inside Income, Buckets, Commitments, Goals and One-offs, so it needs the REDESIGN RULE grep and a full run of explore*, scenarios-kept, try-in-explore and affordability specs.
+- The kept Scenario page (`scenario-view.tsx`) still puts its Changes before the Outcome charts.
