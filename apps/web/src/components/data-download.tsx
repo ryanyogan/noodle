@@ -1,6 +1,6 @@
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
-import { Section, SectionHeader } from "@noodle/ui/components/section";
+import { Section } from "@noodle/ui/components/section";
 import { Tile } from "@noodle/ui/components/tile";
 import { toast } from "@noodle/ui/components/toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -46,8 +46,8 @@ export function DataDownload() {
 	const state = status.data;
 
 	return (
-		<Section aria-labelledby="download-data">
-			<SectionHeader id="download-data" title="Download your data" />
+		// The group's heading says "Your data"; a second heading here would only repeat it.
+		<Section aria-label="Download your data">
 			<Card className="grid gap-3 p-(--card-pad)">
 				<div className="flex items-start gap-3 text-sm">
 					<Tile>
@@ -65,14 +65,15 @@ export function DataDownload() {
 					</div>
 				</div>
 				{state?.state === "ready" ? (
-					<Button asChild className="sm:justify-self-start">
+					<Button asChild variant="outline" className="justify-self-start">
 						<a href={`/download-your-data/${state.id}.zip`} download>
 							Download (ready until {readyUntil(state.expiresAt)})
 						</a>
 					</Button>
 				) : (
 					<Button
-						className="sm:justify-self-start"
+						variant="outline"
+						className="justify-self-start"
 						disabled={!hydrated || !state || state.state === "preparing" || prepare.isPending}
 						onClick={() => prepare.mutate()}
 					>

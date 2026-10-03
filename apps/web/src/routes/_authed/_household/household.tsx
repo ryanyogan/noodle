@@ -149,10 +149,10 @@ function HouseholdPage() {
 					<SectionGroup id="setup" title="Setup">
 						<RunSetupAgain />
 					</SectionGroup>
-					{/* The sidebar has the account button from lg; a phone has it here. */}
 					<SectionGroup id="your-data" title="Your data">
 						<DataDownload />
 					</SectionGroup>
+					{/* The sidebar has the account button from lg; a phone has it here. */}
 					<SectionGroup id="account" title="Account" className="lg:hidden">
 						<Card className="flex items-center gap-3 p-(--card-pad) text-sm text-muted-foreground">
 							<UserButton
