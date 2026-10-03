@@ -52,12 +52,23 @@ export function MonthCloseSection({
 	const goalChoices = goals.map((g) => ({ value: g.id, label: g.name }));
 	return (
 		<Section aria-labelledby="month-close">
-			<SectionHeader
-				id="month-close"
-				title={`Close ${name}`}
-				help={<TermHelp term="month-close" />}
-			/>
+			{/* From lg this sits in a To do row that already says "Close September", so the heading
+			    is only for screen readers and its help moves to the start of the text (#73). */}
+			<div className="lg:sr-only">
+				<SectionHeader
+					id="month-close"
+					title={`Close ${name}`}
+					help={
+						<span className="lg:hidden">
+							<TermHelp term="month-close" />
+						</span>
+					}
+				/>
+			</div>
 			<p className="px-1 pb-3 text-sm text-muted-foreground">
+				<span className="max-lg:hidden">
+					<TermHelp term="month-close" />{" "}
+				</span>
 				{name} has ended.{" "}
 				{proposal.leftovers.length > 0
 					? goals.length > 0
@@ -70,45 +81,49 @@ export function MonthCloseSection({
 						: "If nobody decides within a week, they’re left as they are."
 					: null}
 			</p>
-			<List aria-label={`${name} leftovers`}>
-				{proposal.leftovers.map((leftover) => (
-					<ListRow
-						key={leftover.bucketId}
-						title={leftover.name}
-						meta={`${formatMoney(leftover.amount)} left`}
-						className="max-sm:grid-cols-1"
-						trailing={
-							<OptionSelect
-								className="w-48 max-sm:w-full"
-								aria-label={`Where ${leftover.name}’s leftover goes`}
-								value={sweeps[leftover.bucketId] ?? ""}
-								disabled={!hydrated || pending}
-								onValueChange={(goalId) =>
-									setSweeps((current) => ({ ...current, [leftover.bucketId]: goalId }))
-								}
-								choices={[{ value: "", label: "Leave it" }, ...goalChoices]}
-							/>
-						}
-					/>
-				))}
-				{proposal.windfall > 0 ? (
-					<ListRow
-						title="Extra income"
-						meta={`${formatMoney(proposal.windfall)} came in above your usual take-home pay in ${name}`}
-						className="max-sm:grid-cols-1"
-						trailing={
-							<OptionSelect
-								className="w-48 max-sm:w-full"
-								aria-label="Where the Extra income goes"
-								value={extraIncomeGoalId}
-								disabled={!hydrated || pending}
-								onValueChange={setExtraIncomeGoalId}
-								choices={[{ value: "", label: "Decide later" }, ...goalChoices]}
-							/>
-						}
-					/>
-				) : null}
-			</List>
+			{/* From lg the To do card is the card: the list loses its own and its rows run edge to
+			    edge between the To do card's dividers (#73). */}
+			<div className="lg:-mx-3 lg:border-y lg:*:rounded-none lg:*:border-0 lg:*:bg-transparent lg:*:shadow-none">
+				<List aria-label={`${name} leftovers`}>
+					{proposal.leftovers.map((leftover) => (
+						<ListRow
+							key={leftover.bucketId}
+							title={leftover.name}
+							meta={`${formatMoney(leftover.amount)} left`}
+							className="max-sm:grid-cols-1"
+							trailing={
+								<OptionSelect
+									className="w-48 max-sm:w-full"
+									aria-label={`Where ${leftover.name}’s leftover goes`}
+									value={sweeps[leftover.bucketId] ?? ""}
+									disabled={!hydrated || pending}
+									onValueChange={(goalId) =>
+										setSweeps((current) => ({ ...current, [leftover.bucketId]: goalId }))
+									}
+									choices={[{ value: "", label: "Leave it" }, ...goalChoices]}
+								/>
+							}
+						/>
+					))}
+					{proposal.windfall > 0 ? (
+						<ListRow
+							title="Extra income"
+							meta={`${formatMoney(proposal.windfall)} came in above your usual take-home pay in ${name}`}
+							className="max-sm:grid-cols-1 lg:grid-cols-1"
+							trailing={
+								<OptionSelect
+									className="w-48 max-sm:w-full lg:w-full"
+									aria-label="Where the Extra income goes"
+									value={extraIncomeGoalId}
+									disabled={!hydrated || pending}
+									onValueChange={setExtraIncomeGoalId}
+									choices={[{ value: "", label: "Decide later" }, ...goalChoices]}
+								/>
+							}
+						/>
+					) : null}
+				</List>
+			</div>
 			<div className="flex justify-end pt-3">
 				<Button
 					disabled={!hydrated || pending}
