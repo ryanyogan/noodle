@@ -23,7 +23,12 @@
 		// need the PLAID_CLIENT_ID, PLAID_SECRET and BANK_CONNECTION_KEY secrets (server/bank-setup.ts);
 		// without them the Accounts page says Plaid isn't set up. For production, set "production"
 		// and replace PLAID_SECRET with the production secret.
-		"PLAID_ENV": "sandbox"
+		"PLAID_ENV": "sandbox",
+		// The nightly backup (ADR-0032) calls the D1 export API for this account and database, with
+		// the D1_EXPORT_TOKEN secret, and emails failures to BACKUP_ALERT_TO (a var or secret; unset,
+		// failures are only logged).
+		"BACKUP_ACCOUNT_ID": "8ad084035b854467eb9d93ae3363d40b",
+		"BACKUP_DATABASE_ID": "dc862efc-c574-409a-a2c2-05fa98807dac"
 	},
 	// Workers AI, for Ask and categorization (ADR-0012). It has no local simulator: `vite dev` calls
 	// the real service with the logged-in account, unless AI_MODEL=stub (as E2E runs) swaps in
@@ -43,7 +48,12 @@
 	],
 	// Statement files Parents upload for their Accounts, one object per Import (ADR-0005), and each
 	// forwarded Receipt's email, under receipts/ (ADR-0016).
-	"r2_buckets": [{ "binding": "STATEMENTS", "bucket_name": "noodle-statements" }],
+	// Nightly D1 dumps and manifests (ADR-0032): d1/YYYY/MM/DD.sql kept 30 days, d1/monthly/ kept
+	// 370, and a bucket lock on d1/ for 14 days (lifecycle and lock rules set with wrangler).
+	"r2_buckets": [
+		{ "binding": "STATEMENTS", "bucket_name": "noodle-statements" },
+		{ "binding": "BACKUPS", "bucket_name": "noodle-backups" }
+	],
 	// Image transformations, for a photographed Receipt's thumbnail (ADR-0016).
 	"images": { "binding": "IMAGES" },
 	// One Household Agent per Household: the real-time hub both Parents' screens connect to (ADR-0007).
@@ -86,7 +96,9 @@
 		{ "name": "noodle-import", "binding": "IMPORT", "class_name": "ImportWorkflow" },
 		{ "name": "noodle-setup", "binding": "SETUP", "class_name": "SetupWorkflow" },
 		{ "name": "noodle-export", "binding": "EXPORT", "class_name": "ExportWorkflow" },
-		{ "name": "noodle-fresh-start", "binding": "FRESH_START", "class_name": "FreshStartWorkflow" }
+		{ "name": "noodle-fresh-start", "binding": "FRESH_START", "class_name": "FreshStartWorkflow" },
+		// The nightly whole-database backup, started first by the 09:00 UTC cron (ADR-0032).
+		{ "name": "noodle-backup", "binding": "BACKUP", "class_name": "BackupWorkflow" }
 	],
 	"triggers": { "crons": ["0 * 1-3 * *", "0 9 * * *"] },
 	// Invites to the other Parent and the Check-in's email summary go out through Cloudflare Email

@@ -1,6 +1,19 @@
 import handler from "@tanstack/react-start/server-entry";
 import { CAPTURE_PATH } from "./capture-path";
 import { HOUSEHOLD_AGENT_PATH } from "./household-changes";
+// The Worker's entry: TanStack Start serves the app, and screens' WebSockets go to their
+// Household Agent, which the Worker must export. It also consumes the Nudge Queue, and its cron
+// starts each Household's Month-close Workflow (also exported); a nightly one looks for Insights,
+// re-checks Perks a month old (the Perk research Workflow, also exported), then starts the weekly
+// Check-in wherever it's Check-in day. The iPhone Shortcut's captures arrive at their own
+// endpoint and wait on the ingest Queue, which this Worker consumes too; Receipts forwarded to a
+// Household's Receipt address arrive by email and wait there as well, as does each Bank
+// Connection to read, which the Import Workflow (also exported) brings in: when Plaid's webhook
+// (its own endpoint) says there's news, and every night for all of them, one sync at a time for
+// each. Moving Items' webhooks to the app's address has an endpoint of its own, for an admin. The Setup Workflow (also
+// exported) does a new Household's slow setup work while the get-started wizard goes on. The Export
+// Workflow (also exported) builds a Parent's "Download your data" ZIP; the nightly cron sweeps old ones.
+import { checkLastNight, startBackup } from "./server/backup-workflow";
 import { startBankSyncs } from "./server/bank-import-workflow";
 import { consumeIngest, handleCapture, type IngestMessage } from "./server/capture";
 import { startCheckIns } from "./server/check-in-weekly";
@@ -21,18 +34,8 @@ import { handlePlaidWebhook, PLAID_WEBHOOK_PATH } from "./server/plaid-webhook";
 import { handlePlaidWebhookMove, PLAID_WEBHOOK_MOVE_PATH } from "./server/plaid-webhook-move";
 import { handleReceiptEmail } from "./server/receipt-worker";
 
-// The Worker's entry: TanStack Start serves the app, and screens' WebSockets go to their
-// Household Agent, which the Worker must export. It also consumes the Nudge Queue, and its cron
-// starts each Household's Month-close Workflow (also exported); a nightly one looks for Insights,
-// re-checks Perks a month old (the Perk research Workflow, also exported), then starts the weekly
-// Check-in wherever it's Check-in day. The iPhone Shortcut's captures arrive at their own
-// endpoint and wait on the ingest Queue, which this Worker consumes too; Receipts forwarded to a
-// Household's Receipt address arrive by email and wait there as well, as does each Bank
-// Connection to read, which the Import Workflow (also exported) brings in: when Plaid's webhook
-// (its own endpoint) says there's news, and every night for all of them, one sync at a time for
-// each. Moving Items' webhooks to the app's address has an endpoint of its own, for an admin. The Setup Workflow (also
-// exported) does a new Household's slow setup work while the get-started wizard goes on. The Export
-// Workflow (also exported) builds a Parent's "Download your data" ZIP; the nightly cron sweeps old ones.
+// The Backup Workflow (also exported) exports the whole database to noodle-backups every night (#79).
+export { BackupWorkflow } from "./server/backup-workflow";
 export { ImportWorkflow } from "./server/bank-import-workflow";
 export { ExportWorkflow } from "./server/export-workflow";
 export { FreshStartWorkflow } from "./server/fresh-start-workflow";
@@ -74,6 +77,12 @@ export default {
 	async scheduled(controller) {
 		const now = new Date(controller.scheduledTime);
 		if (controller.cron === NIGHTLY_CRON) {
+			// The whole-database backup first, at the quietest hour (ADR-0032), after checking last
+			// night's is there.
+			await checkLastNight(now).catch((error) =>
+				console.error("Couldn’t check last night’s backup", error),
+			);
+			await startBackup(now).catch((error) => console.error("Couldn’t start the backup", error));
 			await startBankSyncs(now).catch((error) =>
 				console.error("Couldn’t start Bank Connections’ daily sync", error),
 			);
