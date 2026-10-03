@@ -8,6 +8,7 @@ import {
 	loadRules,
 	loadUncategorized,
 	loadUncategorizedTransaction,
+	recordLearnedMerchant,
 	settleCategorization,
 	type Uncategorized,
 	type Viewer,
@@ -253,6 +254,8 @@ export async function settleAssignment(
 	return {
 		teach: async () => {
 			if (!correction) return;
+			// Noted first, so a fresh start can forget it (#63).
+			await recordLearnedMerchant(deps.db, viewer.householdId, correction.merchant);
 			await deps.merchants.learn(viewer.householdId, correction.merchant, correction.bucketId);
 		},
 	};

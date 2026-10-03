@@ -173,7 +173,7 @@ export function workersAiClassifier(ai: Ai, gatewayId: string): Classifier {
 const TOP_K = 1;
 
 /** Vector IDs are at most 64 bytes: the Household's ID and a hash of the merchant. */
-async function vectorId(householdId: string, merchant: string): Promise<string> {
+export async function vectorId(householdId: string, merchant: string): Promise<string> {
 	const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(merchant));
 	const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 	return `${householdId}:${hex.slice(0, 32)}`;

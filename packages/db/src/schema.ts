@@ -1283,3 +1283,41 @@ export const suggestions = sqliteTable(
 	},
 	(t) => [uniqueIndex("suggestions_household_key_idx").on(t.householdId, t.key)],
 );
+
+// Merchants the Household's merchant index on Vectorize has learned (#63), by merchantKey, so a
+// fresh start can delete exactly this Household's vectors (their IDs are made from the Household
+// and the merchant, see categorize-model.ts). Recorded from #63 on; for older ones a fresh start
+// also derives the merchants from the Household's Transactions.
+export const merchantVectors = sqliteTable(
+	"merchant_vectors",
+	{
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		merchant: text("merchant").notNull(),
+	},
+	(t) => [primaryKey({ columns: [t.householdId, t.merchant] })],
+);
+
+// A fresh start or Delete Household a Parent asked for (#63, ADR-0029): when it runs (after the
+// grace period), how far the Fresh start Workflow has got, and who cancelled it. No foreign key,
+// like bank_link_sessions: Delete Household removes the household row it would point at, and this
+// row last of all. A fresh start keeps it, so the screen can say "All cleared".
+export const freshStarts = sqliteTable(
+	"fresh_starts",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id").notNull(),
+		level: text("level", { enum: ["fresh-start", "delete"] }).notNull(),
+		requestedBy: text("requested_by").notNull(),
+		runAt: integer("run_at", { mode: "timestamp_ms" }).notNull(),
+		status: text("status", { enum: ["scheduled", "running", "done", "cancelled"] }).notNull(),
+		step: integer("step").notNull().default(0),
+		steps: integer("steps").notNull().default(0),
+		label: text("label"),
+		cancelledBy: text("cancelled_by"),
+		createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+		finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+	},
+	(t) => [index("fresh_starts_household_idx").on(t.householdId, t.createdAt)],
+);

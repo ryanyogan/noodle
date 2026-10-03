@@ -8,6 +8,8 @@ import { AiCoalescer, type AiEvent, COALESCE, STUB_COALESCE } from "./ai-coalesc
 import { runAiBatch } from "./ai-run";
 import { categorizeDeps, merchantNamer } from "./categorize";
 import { getDb } from "./db";
+import { clearAgentStorage } from "./fresh-start-clear";
+import type { FreshStartProgress } from "./fresh-start-workflow";
 import { insightDeps } from "./insights-nightly";
 import { lookForHouseholdInsights } from "./insights-run";
 import { type HouseholdEvent, HouseholdNudges } from "./nudge-agent";
@@ -50,7 +52,11 @@ export class HouseholdAgent extends DurableObject<Env> {
 		changes: HouseholdChange[],
 		events: HouseholdEvent[] = [],
 	): Promise<void> {
-		const message = householdChangesMessage(changes);
+		this.broadcast(householdChangesMessage(changes));
+		await this.nudges.raise(householdId, changes, events);
+	}
+
+	private broadcast(message: string) {
 		for (const socket of this.ctx.getWebSockets()) {
 			try {
 				socket.send(message);
@@ -58,7 +64,20 @@ export class HouseholdAgent extends DurableObject<Env> {
 				// Already closing: that screen reconnects and catches up on everything.
 			}
 		}
-		await this.nudges.raise(householdId, changes, events);
+	}
+
+	/**
+	 * A fresh start (#63, ADR-0029): drops everything the Agent holds (Nudges waiting to go out,
+	 * background AI held or retrying, the model budget, the alarm) and tells open screens to reload.
+	 */
+	async clearHousehold(): Promise<void> {
+		await clearAgentStorage(this.ctx.storage);
+		this.broadcast(JSON.stringify({ reload: true }));
+	}
+
+	/** Tells open screens how far the Fresh start Workflow has got. */
+	async freshStartProgress(progress: FreshStartProgress): Promise<void> {
+		this.broadcast(JSON.stringify({ freshStart: progress }));
 	}
 
 	/** Holds a week's Check-in Nudges until they're due; false when that week's were already taken. */

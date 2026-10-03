@@ -514,6 +514,7 @@ export {
 	removeIncome,
 	undoExtraIncome,
 } from "./extra-income";
+export * from "./fresh-start";
 export {
 	type AccountRecord,
 	addAccount,

@@ -34,6 +34,7 @@ import { handleReceiptEmail } from "./server/receipt-worker";
 // Workflow (also exported) builds a Parent's "Download your data" ZIP; the nightly cron sweeps old ones.
 export { ImportWorkflow } from "./server/bank-import-workflow";
 export { ExportWorkflow } from "./server/export-workflow";
+export { FreshStartWorkflow } from "./server/fresh-start-workflow";
 export { HouseholdAgent } from "./server/household-agent";
 export { MonthCloseWorkflow } from "./server/month-close-workflow";
 export { PerkResearchWorkflow } from "./server/perk-research-workflow";

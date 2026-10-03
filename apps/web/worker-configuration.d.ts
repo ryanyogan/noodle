@@ -30,6 +30,7 @@ interface __BaseEnv_Env {
 	IMPORT: Workflow<Parameters<import("./src/server").ImportWorkflow['run']>[0]['payload']>;
 	SETUP: Workflow<Parameters<import("./src/server").SetupWorkflow['run']>[0]['payload']>;
 	EXPORT: Workflow<Parameters<import("./src/server").ExportWorkflow['run']>[0]['payload']>;
+	FRESH_START: Workflow<Parameters<import("./src/server").FreshStartWorkflow['run']>[0]['payload']>;
 }
 declare namespace Cloudflare {
 	interface GlobalProps {
