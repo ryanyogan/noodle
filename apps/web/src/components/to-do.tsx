@@ -3,47 +3,24 @@ import { RowButton } from "@noodle/ui/components/row-button";
 import { cn } from "@noodle/ui/lib/utils";
 import { useHydrated } from "@tanstack/react-router";
 import { ChevronDown } from "lucide-react";
-import { type ReactNode, useEffect, useId, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
+
+/** One prompt in the strip: what the closed strip calls it, and the prompt itself. */
+export type ToDoItem = { label: string; content: ReactNode };
 
 /**
  * This Month's prompts (#65): Close the last month, Get started, Check-in day, Extra income and
- * the chips, in one strip. On a phone it's one line with a count, under Free to Spend, and opens
- * on a tap; from lg it's always open at the top of the main column. Gone when nothing is in it.
+ * the chips, in one strip under Free to Spend. On a phone, closed, it's one line with a count and
+ * the names of what's in it, and a tap opens it; from lg it's always open, in the rail. The page
+ * decides which prompts show and passes only those, so the strip never looks at what rendered. Gone when nothing is in it.
  */
-export function ToDo({ className, children }: { className?: string; children: ReactNode }) {
+export function ToDo({ className, items }: { className?: string; items: ToDoItem[] }) {
 	const [open, setOpen] = useState(false);
-	const [labels, setLabels] = useState<string[]>([]);
 	const hydrated = useHydrated();
-	// A callback ref: the node can be replaced when a Suspense boundary inside resolves.
-	const [body, setBody] = useState<HTMLDivElement | null>(null);
 	const id = useId();
-	// Each item hides itself when it has nothing to say, so count the ones that rendered.
-	useEffect(() => {
-		const el = body;
-		if (!el) return;
-		const read = () =>
-			setLabels(
-				[...el.querySelectorAll<HTMLElement>(":scope > [data-todo-item]")]
-					.filter((item) => item.childElementCount > 0)
-					.map((item) => item.dataset.todoItem ?? ""),
-			);
-		read();
-		// The first read can land before the page has settled; read once more after it.
-		const later = setTimeout(read, 0);
-		const observer = new MutationObserver(read);
-		observer.observe(el, { childList: true, subtree: true });
-		return () => {
-			clearTimeout(later);
-			observer.disconnect();
-		};
-		// Read again once hydrated: until then the server's HTML is all there is.
-		void hydrated;
-	}, [body, hydrated]);
+	if (items.length === 0) return null;
 	return (
-		<section
-			aria-label="To do"
-			className={cn("hidden min-w-0 gap-3 has-[[data-todo-item]:not(:empty)]:grid", className)}
-		>
+		<section aria-label="To do" className={cn("grid min-w-0 gap-3", className)}>
 			<RowButton
 				variant="bordered"
 				aria-expanded={open}
@@ -53,9 +30,9 @@ export function ToDo({ className, children }: { className?: string; children: Re
 				className="min-h-11 min-w-0 justify-start gap-2 bg-card lg:hidden"
 			>
 				<span className="text-sm font-semibold">To do</span>
-				{labels.length > 0 ? <Badge variant="count">{labels.length}</Badge> : null}
+				<Badge variant="count">{items.length}</Badge>
 				<span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
-					{labels.join(" · ")}
+					{items.map((item) => item.label).join(" · ")}
 				</span>
 				<ChevronDown
 					aria-hidden="true"
@@ -64,18 +41,14 @@ export function ToDo({ className, children }: { className?: string; children: Re
 					})}
 				/>
 			</RowButton>
-			<div id={id} ref={setBody} className={cn("grid gap-3", !open && "max-lg:hidden")}>
-				{children}
+			{/* Kept mounted while closed, so a half-made choice in a prompt survives closing it. */}
+			<div id={id} className={cn("grid min-w-0 gap-3", !open && "max-lg:hidden")}>
+				{items.map((item) => (
+					<div key={item.label} className="grid min-w-0 gap-3">
+						{item.content}
+					</div>
+				))}
 			</div>
 		</section>
-	);
-}
-
-/** One prompt in the strip; empty when its prompt has nothing to say. */
-export function ToDoItem({ label, children }: { label: string; children: ReactNode }) {
-	return (
-		<div data-todo-item={label} className="grid gap-3 empty:hidden">
-			{children}
-		</div>
 	);
 }

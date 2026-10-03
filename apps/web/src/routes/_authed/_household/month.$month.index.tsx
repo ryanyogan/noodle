@@ -56,7 +56,7 @@ import { MonthCloseSection, MonthEndSection } from "../../../components/month-cl
 import { MonthGlance, monthSentence } from "../../../components/month-glance";
 import { GoalsThisMonth } from "../../../components/plan-goals";
 import { TermHelp } from "../../../components/term-help";
-import { ToDo, ToDoItem } from "../../../components/to-do";
+import { ToDo, type ToDoItem } from "../../../components/to-do";
 import { type CoverVariables, useCovers } from "../../../covers";
 import { useExtraIncomes } from "../../../extra-income";
 import { formatMoney, monthName, shortDay } from "../../../format";
@@ -156,6 +156,11 @@ function ThisMonth() {
 			amountCents,
 		}) satisfies CoverVariables;
 	const current = monthOfDay(state.asOf);
+	const isCurrent = month === current;
+	// What the To do strip holds is decided here, from the same data each prompt reads.
+	const getStarted = useGetStartedSteps(state);
+	const checkInDue = useCheckInDue();
+	const chips = useChipCounts(month, state.asOf, isCurrent);
 	const monthIncome = state.income.filter((i) => monthOfDay(i.date) === month);
 	const check = incomeCheck({
 		baseline: state.baseline,
@@ -188,46 +193,6 @@ function ThisMonth() {
 				// right rail. The columns are `contents` on phones so `order` interleaves them.
 				<SplitLayout stack="children">
 					<SplitMain>
-						<ToDo className="order-2 lg:order-none">
-							<ToDoItem label={`Close ${monthName(addMonths(month, -1))}`}>
-								{closingWeek(month, state.asOf) ? (
-									<ClosePreviousMonth
-										month={addMonths(month, -1)}
-										parentId={parentId}
-										goals={activeGoals}
-										emergencyGoalId={goals.emergencyGoalId}
-									/>
-								) : null}
-							</ToDoItem>
-							<ToDoItem label={"Get started"}>
-								{month === current ? <GetStarted state={state} /> : null}
-							</ToDoItem>
-							<ToDoItem label={"Check-in day"}>
-								{month === current ? <CheckInToday /> : null}
-							</ToDoItem>
-							<ToDoItem label="Extra income">
-								{state.windfallLeft > 0 && month <= current ? (
-									<ExtraIncomeSection
-										left={state.windfallLeft}
-										suggestions={suggestions}
-										goals={activeGoals}
-										onChoose={() => setChoosingExtraIncome(true)}
-										onSend={(s) =>
-											extraIncomes.decide.mutate({
-												moveId: ulid(),
-												month,
-												to: s.to,
-												toName: s.name,
-												amountCents: s.amount,
-											})
-										}
-									/>
-								) : null}
-							</ToDoItem>
-							<ToDoItem label={"To look at"}>
-								{month === current ? <Chips month={month} asOf={state.asOf} /> : null}
-							</ToDoItem>
-						</ToDo>
 						<div className="order-6 grid gap-3 empty:hidden lg:order-none">
 							{month < current ? (
 								<MonthEndSection
@@ -283,6 +248,68 @@ function ThisMonth() {
 							<FreeToSpend state={state} check={check} />
 							<LumpCallout lumps={lumpsIn(state)} month={month} />
 						</div>
+						{/* Under Free to Spend at every size: on a phone a closed strip, from lg open in the
+						    rail, so the prompts never push Buckets down. */}
+						<WithClosePrevious month={month} asOf={state.asOf}>
+							{(closeShows) => (
+								<ToDo
+									className="order-2 lg:order-none"
+									items={present([
+										closeShows && {
+											label: `Close ${monthName(addMonths(month, -1))}`,
+											content: (
+												<ClosePreviousMonth
+													month={addMonths(month, -1)}
+													parentId={parentId}
+													goals={activeGoals}
+													emergencyGoalId={goals.emergencyGoalId}
+												/>
+											),
+										},
+										isCurrent &&
+											getStarted.some((step) => !step.done) && {
+												label: "Get started",
+												content: <GetStarted steps={getStarted} />,
+											},
+										isCurrent &&
+											checkInDue && {
+												label: "Check-in day",
+												content: <CheckInToday />,
+											},
+										state.windfallLeft > 0 &&
+											month <= current && {
+												label: "Extra income",
+												content: (
+													<ExtraIncomeSection
+														left={state.windfallLeft}
+														suggestions={suggestions}
+														goals={activeGoals}
+														onChoose={() => setChoosingExtraIncome(true)}
+														onSend={(s) =>
+															extraIncomes.decide.mutate({
+																moveId: ulid(),
+																month,
+																to: s.to,
+																toName: s.name,
+																amountCents: s.amount,
+															})
+														}
+													/>
+												),
+											},
+										isCurrent &&
+											chipsShow(chips) && {
+												label: "To look at",
+												content: <Chips month={month} counts={chips} />,
+											},
+									])}
+								/>
+							)}
+						</WithClosePrevious>
+						{/* Coming up beside Buckets on a wide screen, before Goals and Income. */}
+						<div className="hidden empty:hidden lg:grid">
+							{month === current && state.commitments.length > 0 ? <ComingUpSection /> : null}
+						</div>
 						<div className="order-10 grid gap-3 empty:hidden lg:order-none">
 							{month === current && activeGoals.length > 0 ? (
 								<GoalsThisMonth
@@ -292,9 +319,6 @@ function ThisMonth() {
 									freeToSpend={state.freeToSpend}
 								/>
 							) : null}
-						</div>
-						<div className="hidden empty:hidden lg:grid">
-							{month === current && state.commitments.length > 0 ? <ComingUpSection /> : null}
 						</div>
 						<div className="order-12 grid gap-3 empty:hidden lg:order-none">
 							{state.baseline !== null && (month === current || monthIncome.length > 0) ? (
@@ -311,7 +335,7 @@ function ThisMonth() {
 			) : month === current ? (
 				<SplitLayout>
 					<SplitMain>
-						<GetStarted state={state} />
+						<GetStarted steps={getStarted} />
 					</SplitMain>
 				</SplitLayout>
 			) : (
@@ -360,14 +384,28 @@ function ThisMonth() {
  * Insights" when the nightly look found some, and "4 things to check in the Plan" when Plan
  * health has warnings (shown in full only on the Plan). Nothing when none applies.
  */
-function Chips({ month, asOf }: { month: MonthKey; asOf: DayKey }) {
+/** The prompts that have something to say; the rest are `false`. */
+const present = (items: (ToDoItem | false)[]) =>
+	items.filter((item): item is ToDoItem => item !== false);
+
+type ChipCounts = { waiting: number; changes: number; insights: number; health: number };
+
+function useChipCounts(month: MonthKey, asOf: DayKey, current: boolean): ChipCounts {
 	const waiting = useQuery(reviewQuery()).data?.total ?? 0;
-	const firstWeek = Number(asOf.slice(8)) <= 7;
+	const firstWeek = current && Number(asOf.slice(8)) <= 7;
 	const history = useQuery({ ...planHistoryQuery(month), enabled: firstWeek }).data;
 	const changes = firstWeek && history ? whatChanged(history.changes, month).length : 0;
 	const insights = useQuery(insightsQuery()).data?.filter((i) => i.status === "new").length ?? 0;
 	const health = useQuery(planHealthQuery()).data?.warnings.length ?? 0;
-	if (waiting === 0 && changes === 0 && insights === 0 && health === 0) return null;
+	return { waiting, changes, insights, health };
+}
+
+const chipsShow = (c: ChipCounts) =>
+	c.waiting > 0 || c.changes > 0 || c.insights > 0 || c.health > 0;
+
+function Chips({ month, counts }: { month: MonthKey; counts: ChipCounts }) {
+	const { waiting, changes, insights, health } = counts;
+	if (!chipsShow(counts)) return null;
 	return (
 		<div className="flex flex-wrap gap-2">
 			{waiting > 0 ? (
@@ -418,6 +456,37 @@ function Chip({
 			<ChevronRight className="size-4 text-muted-foreground" aria-hidden="true" />
 		</Link>
 	);
+}
+
+/**
+ * Whether the month before waits to be closed with something to decide. Only read in the
+ * closing week, so the month before isn't loaded the rest of the time.
+ */
+function WithClosePrevious({
+	month,
+	asOf,
+	children,
+}: {
+	month: MonthKey;
+	asOf: DayKey;
+	children: (shows: boolean) => ReactNode;
+}) {
+	return closingWeek(month, asOf) ? (
+		<PreviousMonthOpen month={addMonths(month, -1)}>{children}</PreviousMonthOpen>
+	) : (
+		children(false)
+	);
+}
+
+function PreviousMonthOpen({
+	month,
+	children,
+}: {
+	month: MonthKey;
+	children: (shows: boolean) => ReactNode;
+}) {
+	const state = useMonthState(month);
+	return children(!state.closed && !nothingToClose(monthCloseProposal(state)));
 }
 
 /** The month before, while it waits to be closed and has something to decide. */
@@ -734,9 +803,13 @@ function CoverButton({ name, onCover }: { name: string; onCover: () => void }) {
 }
 
 /** On the Check-in day, until this Parent has done it: a card that starts this week's Check-in. */
-function CheckInToday() {
+function useCheckInDue() {
 	const status = useQuery(checkInStatusQuery()).data;
-	if (!status?.today || status.done) return null;
+	return Boolean(status?.today && !status.done);
+}
+
+function CheckInToday() {
+	if (!useCheckInDue()) return null;
 	return (
 		<Card className="flex flex-wrap items-center justify-between gap-3 p-(--card-pad)">
 			<div className="flex items-center gap-3">
@@ -761,9 +834,8 @@ function CheckInToday() {
  * Get started (#47): after Welcome, the steps to a working Plan, each ticked when done and linking
  * to where it's done. Gone once every step is.
  */
-function GetStarted({ state }: { state: MonthState }) {
+function useGetStartedSteps(state: MonthState) {
 	const { accounts } = useGoals();
-	const setup = useSuspenseQuery(setupQuery()).data;
 	const members = useSuspenseQuery(membersQuery()).data;
 	const parents = members.filter((m) => m.kind === "parent" && !m.removed).length;
 	const steps: { done: boolean; title: string; link: ReactNode }[] = [
@@ -800,6 +872,11 @@ function GetStarted({ state }: { state: MonthState }) {
 			),
 		},
 	];
+	return steps;
+}
+
+function GetStarted({ steps }: { steps: ReturnType<typeof useGetStartedSteps> }) {
+	const setup = useSuspenseQuery(setupQuery()).data;
 	const left = steps.filter((step) => !step.done).length;
 	if (left === 0) return null;
 	return (
