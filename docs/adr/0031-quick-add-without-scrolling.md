@@ -1,6 +1,6 @@
 # Quick Add without scrolling: a few likely Buckets, and search for the rest
 
-Status: proposed (#77). Being built in the phases at the end: 77b (ranking and data) is done.
+Status: accepted, built (77b–77e) (#77).
 
 ## Why
 

@@ -142,6 +142,7 @@ _Avoid_: Credit, return, income
 **Quick Add**:
 A Transaction entered by hand at the moment of spending, before any bank data exists for it. One the Parent's iPhone Shortcut captures when they pay with Wallet (tap to capture) is a Quick Add too; it is filed the way imported Transactions are (by Rule, similar merchant, or the model), else goes to Review.
 Quick Add can be filled in by snapping a paper Receipt or by saying or typing a phrase ("forty on pizza after hockey"): the amount, a suggested Bucket, For and a note are read for the Parent to check, and nothing is saved until they tap a Bucket. One saved from a snapped Receipt is dated as the Receipt is, with it attached.
+Quick Add offers the **five likely Buckets** (the note's merchant by Rule or past filing first, then recent use near this time of day, then the Plan's order) and **More Buckets**, a searchable list of the rest, so nothing scrolls on a phone; on a computer it's a **Find a Bucket** list (letters filter, ↑/↓ move, Enter adds). Never the other Parent's Personal Allowance (ADR-0031).
 _Avoid_: Manual entry, pending
 
 **Import**:
