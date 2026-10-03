@@ -194,6 +194,24 @@ export async function findInviteForEmails(db: Db, emails: string[]): Promise<Inv
 	return rows[0] ?? null;
 }
 
+/**
+ * The open invite with this ID: who it's for and which Household it joins. A sign-up link (#60)
+ * carries the ID, so the page can fill in the email and name the Household. Null once it's
+ * accepted or replaced.
+ */
+export async function findOpenInviteById(
+	db: Db,
+	inviteId: string,
+): Promise<{ email: string; householdName: string } | null> {
+	const rows = await db
+		.select({ email: invites.email, householdName: households.name })
+		.from(invites)
+		.innerJoin(households, eq(households.id, invites.householdId))
+		.where(and(eq(invites.id, inviteId), isNull(invites.acceptedByMemberId)))
+		.limit(1);
+	return rows[0] ?? null;
+}
+
 export type AcceptInviteResult =
 	| { ok: true; membership: ParentMembership }
 	| { ok: false; reason: "invite-unusable" | "in-another-household" };

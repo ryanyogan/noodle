@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import { type APIRequestContext, expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createHousehold, signedInPage } from "./session";
+import { createHousehold, serverFn, signedInPage } from "./session";
 
 // `/` never renders a page (#59): the server answers it with a redirect, before any HTML, so
 // there's nothing to flash. Asking for it without following redirects checks exactly that.
@@ -56,6 +56,40 @@ test("sign-in and sign-up link to each other", async ({ page }) => {
 	await page.locator(".cl-footerActionLink").click();
 	await expect(page).toHaveURL(/\/sign-in/);
 	await clerkCard(page);
+});
+
+test("an invite link fills in the email and names the Household", async ({ browser, page }) => {
+	const inviter = await createTestParent();
+	const invitee = `invitee-${Date.now()}@example.com`;
+	try {
+		const inviterPage = await signedInPage(browser, inviter.email);
+		await createHousehold(inviterPage, "The Invitations", "Alex");
+		await inviterPage.getByRole("link", { name: "Household" }).first().click();
+		// The invite's ID is chosen in the browser, so it's in the request that sends it.
+		const sent = inviterPage.waitForRequest((r) => serverFn("inviteParent")(new URL(r.url())));
+		await inviterPage.getByLabel("Their email").fill(invitee);
+		await inviterPage.getByRole("button", { name: /^Invite/ }).click();
+		const inviteId = (await sent).postData()?.match(/[0-9A-HJKMNP-TV-Z]{26}/)?.[0];
+		expect(inviteId).toBeTruthy();
+		await expect(inviterPage.getByText(`Invited ${invitee}`)).toBeVisible();
+
+		await setupClerkTestingToken({ page });
+		await page.goto(`/sign-up?invite=${inviteId}`);
+		await clerkCard(page);
+		await expect(page.getByText("Join The Invitations on Noodle")).toBeVisible();
+		await expect(page.locator("input[name=emailAddress]")).toHaveValue(invitee);
+
+		// A wrong or made-up invite is plain sign-up.
+		for (const invite of ["01ARZ3NDEKTSV4RRFFQ69G5FAV", "not-an-invite", ""]) {
+			await page.goto(`/sign-up?invite=${invite}`);
+			await clerkCard(page);
+			await expect(page.locator("[data-invite]")).toHaveCount(0);
+			await expect(page.locator("input[name=emailAddress]")).toHaveValue("");
+		}
+		await inviterPage.context().close();
+	} finally {
+		await inviter.remove();
+	}
 });
 
 for (const size of [

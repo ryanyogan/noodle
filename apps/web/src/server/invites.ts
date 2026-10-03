@@ -1,6 +1,7 @@
 import {
 	acceptInvite as acceptInviteInDb,
 	findOpenInvite,
+	findOpenInviteById,
 	inviteParent as inviteParentInDb,
 	listParents,
 	MAX_PARENTS,
@@ -70,4 +71,18 @@ export const acceptInvite = createServerFn({ method: "POST" })
 		const { household } = result.membership;
 		await notifyHousehold(household.id, ["parents"]);
 		return { ok: true as const, household: toHouseholdSummary(household) };
+	});
+
+/**
+ * The invite a sign-up link points at (`/sign-up?invite=…`), for someone not signed in yet: the
+ * email to fill in and the Household's name. A missing, malformed, accepted or replaced invite
+ * gives null, and the page is plain sign-up. The ID is a ULID (80 random bits), sent only to the
+ * invited email, so it can't be guessed.
+ */
+export const getInviteForSignUp = createServerFn({ method: "GET" })
+	.validator(z.object({ invite: z.string().max(64).optional() }))
+	.handler(async ({ data }) => {
+		const inviteId = ulidSchema.safeParse(data.invite);
+		if (!inviteId.success) return null;
+		return findOpenInviteById(getDb(), inviteId.data);
 	});
