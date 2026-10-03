@@ -5,8 +5,10 @@ import {
 	backupAlertEmail,
 	backupKeys,
 	buildManifest,
+	checkNight,
 	exportConfig,
-	previousNightKeys,
+	noteBackupStored,
+	noteConfigMissing,
 	runExport,
 	tablesInDump,
 	verifyBackup,
@@ -80,12 +82,17 @@ export async function alertOperator(date: string, problems: string[]) {
 
 /**
  * The nightly cron's missed-night check: when last night's manifest isn't there (the Workflow
- * never ran, or failed without a word), say so.
+ * never ran, or failed without a word), say so, unless a setting was missing that night or is now.
  */
 export async function checkLastNight(now: Date) {
-	const keys = previousNightKeys(now);
-	if (await backupEnv().BACKUPS.head(keys.manifest)) return;
-	await alertOperator(keys.date, [`No backup was stored for ${keys.date} (${keys.manifest}).`]);
+	let configured = true;
+	try {
+		exportConfig(backupEnv());
+	} catch (error) {
+		if (!(error instanceof BackupConfigError)) throw error;
+		configured = false;
+	}
+	await checkNight(backupEnv().BACKUPS, now, configured, alertOperator);
 }
 
 /** Starts tonight's backup, once per day (the instance id is the date). */
@@ -107,6 +114,22 @@ export class BackupWorkflow extends WorkflowEntrypoint<Env, BackupParams> {
 	override async run(event: Readonly<WorkflowEvent<BackupParams>>, step: WorkflowStep) {
 		const keys = backupKeys(new Date(event.payload.day));
 		try {
+			// A missing setting (the export token, until it's set) emails once, then only logs.
+			const missing = await step.do("check the settings", async () => {
+				try {
+					exportConfig(backupEnv());
+					return null;
+				} catch (error) {
+					if (error instanceof BackupConfigError) return error.message;
+					throw error;
+				}
+			});
+			if (missing) {
+				await step.do("note the missing setting", () =>
+					noteConfigMissing(backupEnv().BACKUPS, keys.date, missing, alertOperator),
+				);
+				return null;
+			}
 			return await this.backUp(keys, step);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -183,6 +206,8 @@ export class BackupWorkflow extends WorkflowEntrypoint<Env, BackupParams> {
 			console.log("Backup stored", JSON.stringify(built));
 			return built;
 		});
+
+		await step.do("clear the missing-setting note", () => noteBackupStored(backupEnv().BACKUPS));
 
 		if (keys.monthlyDump && keys.monthlyManifest) {
 			const { monthlyDump, monthlyManifest } = keys;

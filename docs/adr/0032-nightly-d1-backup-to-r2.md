@@ -20,7 +20,7 @@ The export API, checked against Cloudflare's docs in October 2026: a running exp
 
 ## Credentials
 
-The Worker calls the API with a user API token in the `D1_EXPORT_TOKEN` secret, scoped to this one account with only D1 permission (Read; if the export endpoint refuses Read, D1 Edit, still nothing else). The account and database ids are plain vars. Without the token the Workflow fails at once without retrying and emails saying which setting is missing. The token is made in the dashboard and set with `wrangler secret put`, never committed or printed.
+The Worker calls the API with a user API token in the `D1_EXPORT_TOKEN` secret, scoped to this one account with only D1 permission (Read; if the export endpoint refuses Read, D1 Edit, still nothing else). The account and database ids are plain vars. Without the token (or either id) the Workflow stops at once without exporting. Only the first such night emails the operator, saying which setting is missing; later nights only log, so a token set some days after deploy costs one email, not one a night. The bucket remembers this in `state/backup.json` (outside the locked `d1/` prefix, so it can be overwritten): whether that email went, cleared when a backup is next stored so a later lapse emails again, and the last night skipped, so once the token is set the missed-night check doesn't report the token-less nights (it doesn't check at all while a setting is missing). The token is made in the dashboard and set with `wrangler secret put`, never committed or printed.
 
 ## Retention and the lock
 

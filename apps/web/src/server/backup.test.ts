@@ -4,8 +4,12 @@ import {
 	backupAlertEmail,
 	backupKeys,
 	buildManifest,
+	checkNight,
 	exportConfig,
+	noteBackupStored,
+	noteConfigMissing,
 	previousNightKeys,
+	readBackupState,
 	runExport,
 	tablesInDump,
 	verifyBackup,
@@ -192,5 +196,76 @@ describe("backupAlertEmail", () => {
 		expect(email.subject).toBe("Noodle’s database backup for 2026-10-03 didn’t work");
 		expect(email.text).toContain("- The dump <x> is empty.");
 		expect(email.html).toContain("The dump &lt;x&gt; is empty.");
+	});
+});
+
+function fakeBucket() {
+	const objects = new Map<string, string>();
+	return {
+		objects,
+		head: async (key: string) => (objects.has(key) ? { key } : null),
+		get: async (key: string) => {
+			const value = objects.get(key);
+			return value === undefined ? null : { text: async () => value };
+		},
+		put: async (key: string, value: string) => {
+			objects.set(key, value);
+			return {};
+		},
+	};
+}
+
+const MISSING = "The backup isn’t set up: D1_EXPORT_TOKEN missing.";
+
+describe("a missing export token", () => {
+	it("emails the first night, then only logs", async () => {
+		const bucket = fakeBucket();
+		const alert = vi.fn(async (_date: string, _problems: string[]) => undefined);
+		await noteConfigMissing(bucket, "2026-10-03", MISSING, alert);
+		expect(alert).toHaveBeenCalledTimes(1);
+		expect(alert.mock.calls[0]?.[0]).toBe("2026-10-03");
+		expect(alert.mock.calls[0]?.[1]).toContain(MISSING);
+
+		await noteConfigMissing(bucket, "2026-10-04", MISSING, alert);
+		expect(alert).toHaveBeenCalledTimes(1);
+		expect(await readBackupState(bucket)).toEqual({
+			settingMissingAlerted: true,
+			settingMissingThrough: "2026-10-04",
+		});
+		expect([...bucket.objects.keys()]).toEqual(["state/backup.json"]);
+	});
+
+	it("emails again after a backup is stored and it goes missing again", async () => {
+		const bucket = fakeBucket();
+		const alert = vi.fn(async (_date: string, _problems: string[]) => undefined);
+		await noteConfigMissing(bucket, "2026-10-03", MISSING, alert);
+		await noteBackupStored(bucket);
+		expect((await readBackupState(bucket)).settingMissingAlerted).toBe(false);
+		await noteConfigMissing(bucket, "2026-10-10", MISSING, alert);
+		expect(alert).toHaveBeenCalledTimes(2);
+	});
+
+	it("isn't reported as missed nights, while missing or once it's set", async () => {
+		const bucket = fakeBucket();
+		const alert = vi.fn(async (_date: string, _problems: string[]) => undefined);
+		// Nights of the 3rd and 4th ran without the token (one email).
+		await noteConfigMissing(bucket, "2026-10-03", MISSING, alert);
+		await checkNight(bucket, new Date("2026-10-04T09:00:00Z"), false, alert);
+		await noteConfigMissing(bucket, "2026-10-04", MISSING, alert);
+		expect(alert).toHaveBeenCalledTimes(1);
+
+		// The token is set; the 5th's cron checks the 4th, which had no token: no email.
+		await checkNight(bucket, new Date("2026-10-05T09:00:00Z"), true, alert);
+		expect(alert).toHaveBeenCalledTimes(1);
+
+		// The 5th's run never stored anything: the 6th's check says so, as usual.
+		await checkNight(bucket, new Date("2026-10-06T09:00:00Z"), true, alert);
+		expect(alert).toHaveBeenCalledTimes(2);
+		expect(alert.mock.calls[1]?.[0]).toBe("2026-10-05");
+
+		// A stored night isn't reported.
+		bucket.objects.set("d1/2026/10/06.json", "{}");
+		await checkNight(bucket, new Date("2026-10-07T09:00:00Z"), true, alert);
+		expect(alert).toHaveBeenCalledTimes(2);
 	});
 });

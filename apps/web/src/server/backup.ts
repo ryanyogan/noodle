@@ -184,6 +184,115 @@ export async function runExport(
 	throw new Error("The D1 export didn’t finish in time.");
 }
 
+// What the backup remembers between nights, in the bucket at state/backup.json (outside the
+// locked d1/ prefix, so it can be overwritten): whether the operator was already emailed about a
+// missing setting, and the last night skipped for one.
+
+export const BACKUP_STATE_KEY = "state/backup.json";
+
+export type BackupState = {
+	/** The operator was emailed that a setting (e.g. D1_EXPORT_TOKEN) is missing; until a backup is stored, only log. */
+	settingMissingAlerted: boolean;
+	/** The last night skipped for a missing setting, so the missed-night check doesn't count it. */
+	settingMissingThrough: string | null;
+};
+
+const NO_STATE: BackupState = { settingMissingAlerted: false, settingMissingThrough: null };
+
+/** The slice of the R2 binding the backup's bookkeeping needs, so tests can fake it. */
+export type BackupBucket = {
+	head(key: string): Promise<unknown>;
+	get(key: string): Promise<{ text(): Promise<string> } | null>;
+	put(
+		key: string,
+		value: string,
+		options?: { httpMetadata?: { contentType?: string } },
+	): Promise<unknown>;
+};
+
+export type AlertOperator = (date: string, problems: string[]) => Promise<void>;
+
+export async function readBackupState(bucket: BackupBucket): Promise<BackupState> {
+	const object = await bucket.get(BACKUP_STATE_KEY);
+	if (!object) return { ...NO_STATE };
+	try {
+		const saved = JSON.parse(await object.text()) as Partial<BackupState>;
+		return {
+			settingMissingAlerted: saved.settingMissingAlerted === true,
+			settingMissingThrough:
+				typeof saved.settingMissingThrough === "string" ? saved.settingMissingThrough : null,
+		};
+	} catch {
+		return { ...NO_STATE };
+	}
+}
+
+async function writeBackupState(bucket: BackupBucket, state: BackupState) {
+	await bucket.put(BACKUP_STATE_KEY, JSON.stringify(state), {
+		httpMetadata: { contentType: "application/json" },
+	});
+}
+
+/**
+ * A night with a setting missing (the export token, until the Parent sets it): the first such
+ * night emails the operator, later ones only log, and the night is remembered so the missed-night
+ * check doesn't report it.
+ */
+export async function noteConfigMissing(
+	bucket: BackupBucket,
+	date: string,
+	message: string,
+	alert: AlertOperator,
+) {
+	const state = await readBackupState(bucket);
+	if (state.settingMissingAlerted) {
+		console.warn(
+			`Backup for ${date} skipped: ${message} (already emailed; logging only until it’s set)`,
+		);
+	} else {
+		await alert(date, [
+			message,
+			"Nothing is backed up until it’s set. This is the only email about it; each night logs it instead.",
+		]);
+	}
+	const through =
+		state.settingMissingThrough && state.settingMissingThrough > date
+			? state.settingMissingThrough
+			: date;
+	await writeBackupState(bucket, { settingMissingAlerted: true, settingMissingThrough: through });
+}
+
+/** A backup was stored: a setting going missing later emails again. */
+export async function noteBackupStored(bucket: BackupBucket) {
+	const state = await readBackupState(bucket);
+	if (!state.settingMissingAlerted) return;
+	await writeBackupState(bucket, { ...state, settingMissingAlerted: false });
+}
+
+/**
+ * The missed-night check: emails when last night's manifest isn't there, except while a setting
+ * is missing (that night already emailed or logged) and for nights skipped for one.
+ */
+export async function checkNight(
+	bucket: BackupBucket,
+	now: Date,
+	configured: boolean,
+	alert: AlertOperator,
+) {
+	const keys = previousNightKeys(now);
+	if (!configured) {
+		console.warn(`Not checking the backup for ${keys.date}: the backup isn’t set up yet.`);
+		return;
+	}
+	if (await bucket.head(keys.manifest)) return;
+	const { settingMissingThrough } = await readBackupState(bucket);
+	if (settingMissingThrough && keys.date <= settingMissingThrough) {
+		console.warn(`No backup for ${keys.date}, but a setting was missing that night; not alerting.`);
+		return;
+	}
+	await alert(keys.date, [`No backup was stored for ${keys.date} (${keys.manifest}).`]);
+}
+
 const escapeHtml = (text: string) =>
 	text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 

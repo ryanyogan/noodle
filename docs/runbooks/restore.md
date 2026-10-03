@@ -59,6 +59,10 @@ Only when Time Travel can't reach the point you need. The dump has `CREATE TABLE
 4. `npx wrangler d1 execute noodle --remote --file=./restore.sql`
 5. Compare row counts with the manifest, then deploy the commit whose newest migration matches the manifest's `migration` (or run `bun run db:migrate:remote` to bring it forward).
 
+## Backup emails
+
+A failed or missing night emails `BACKUP_ALERT_TO`. If `D1_EXPORT_TOKEN` (or an id) isn't set, only the first night emails; later nights only log ("Backup for … skipped") until it's set, and those nights aren't reported as missed afterwards. `noodle-backups/state/backup.json` holds that memory; deleting it only means the next night without the token emails again.
+
 ## Drills
 
 | Date | Dump | Result |
