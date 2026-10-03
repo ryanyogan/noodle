@@ -65,7 +65,7 @@ function Scheduled({ status }: { status: NonNullable<FreshStartStatus> }) {
 			<Button
 				variant="link"
 				size="sm"
-				className="h-auto p-0"
+				className="px-0"
 				disabled={!hydrated || cancel.isPending}
 				onClick={() => cancel.mutate()}
 			>
