@@ -181,6 +181,19 @@ jobs:
         with:
           bun-version-file: package.json
       - run: bun install --frozen-lockfile
+      # The Time Travel bookmark just before migrating, so a bad migration can be rolled back to
+      # exactly here (docs/runbooks/restore.md).
+      - name: Record the Time Travel bookmark
+        working-directory: apps/web
+        run: |
+          npx wrangler d1 time-travel info noodle | tee time-travel.txt
+          {
+            echo "### D1 Time Travel bookmark before migrating"
+            echo
+            echo '```'
+            grep -i "bookmark" time-travel.txt || cat time-travel.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - run: bun run db:migrate:remote
         working-directory: apps/web
       - run: bun run deploy
