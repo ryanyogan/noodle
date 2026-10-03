@@ -28,3 +28,13 @@ In production every Review card had no guess. Categorization ran, but it threw a
 - **A month with nothing to file in** says so ("September has no Plan yet") with a link to that month's Buckets. A Transaction is only assigned within its own month's Plan, so the card never offers another month's Buckets.
 - **Batch confirm** ("Confirm all N with a suggestion", "Confirm all N from <merchant>") has one Undo. It isn't sticky: filing a Transaction doesn't move money between Buckets, the same as a single card's Undo.
 - **The Rule offer is a toast** with an "Always file" action, so a decision never pushes the next card down.
+
+## Addendum: the stack comes back as a view (#68)
+
+The Parents missed the cards, so Review opens on **Sort** (one card at a time, swipeable) when there are cards, with the list one tap away (`?view=list`). This revisits "two layouts to keep in step" above: Sort is not a second layout but a second **view** over the same cards, the same `ReviewCard`, and the same decisions (`useReviewDecision`, `useConfirmAll`, `useReturnToReview`). The stack's own state (skipped, put back on top, what Undo returns) is one pure reducer (`review-stack.ts`) with unit tests, and a toast's Undo goes through it too, so there is one Undo history.
+
+- Every swipe has a button and a key: → or Enter confirms, ← picks another, ↓ skips, Z undoes, S splits, P files in the Parent's own Personal Allowance, R makes a Rule. Under reduced motion there is no drag and no motion at all.
+- In Sort, what was just done is said beside the card (a polite status: "Filed Coffee in Eating out. 4 left.") and the "Always file …" offer sits there too, rather than toasts over the card's controls. Failures still toast. The list keeps its toasts.
+- After each decision focus moves to the next card (its name reads the merchant, amount and suggestion), or to the finish.
+- A card from a month with no Plan says so when → or ← is pressed, and can only be skipped.
+- Desktop master-detail for the list (#67) is still to come.
