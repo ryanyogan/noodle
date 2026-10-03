@@ -56,6 +56,7 @@ import { MonthCloseSection, MonthEndSection } from "../../../components/month-cl
 import { MonthGlance, monthSentence } from "../../../components/month-glance";
 import { GoalsThisMonth } from "../../../components/plan-goals";
 import { TermHelp } from "../../../components/term-help";
+import { ToDo, ToDoItem } from "../../../components/to-do";
 import { type CoverVariables, useCovers } from "../../../covers";
 import { useExtraIncomes } from "../../../extra-income";
 import { formatMoney, monthName, shortDay } from "../../../format";
@@ -187,25 +188,46 @@ function ThisMonth() {
 				// right rail. The columns are `contents` on phones so `order` interleaves them.
 				<SplitLayout stack="children">
 					<SplitMain>
-						<div className="order-1 grid gap-3 empty:hidden lg:order-none">
-							{closingWeek(month, state.asOf) ? (
-								<ClosePreviousMonth
-									month={addMonths(month, -1)}
-									parentId={parentId}
-									goals={activeGoals}
-									emergencyGoalId={goals.emergencyGoalId}
-								/>
-							) : null}
-						</div>
-						<div className="order-2 grid gap-3 empty:hidden lg:order-none">
-							{month === current ? <GetStarted state={state} /> : null}
-						</div>
-						<div className="order-3 grid gap-3 empty:hidden lg:order-none">
-							{month === current ? <CheckInToday /> : null}
-						</div>
-						<div className="order-4 grid gap-3 empty:hidden lg:order-none">
-							{month === current ? <Chips month={month} asOf={state.asOf} /> : null}
-						</div>
+						<ToDo className="order-2 lg:order-none">
+							<ToDoItem label={`Close ${monthName(addMonths(month, -1))}`}>
+								{closingWeek(month, state.asOf) ? (
+									<ClosePreviousMonth
+										month={addMonths(month, -1)}
+										parentId={parentId}
+										goals={activeGoals}
+										emergencyGoalId={goals.emergencyGoalId}
+									/>
+								) : null}
+							</ToDoItem>
+							<ToDoItem label={"Get started"}>
+								{month === current ? <GetStarted state={state} /> : null}
+							</ToDoItem>
+							<ToDoItem label={"Check-in day"}>
+								{month === current ? <CheckInToday /> : null}
+							</ToDoItem>
+							<ToDoItem label="Extra income">
+								{state.windfallLeft > 0 && month <= current ? (
+									<ExtraIncomeSection
+										left={state.windfallLeft}
+										suggestions={suggestions}
+										goals={activeGoals}
+										onChoose={() => setChoosingExtraIncome(true)}
+										onSend={(s) =>
+											extraIncomes.decide.mutate({
+												moveId: ulid(),
+												month,
+												to: s.to,
+												toName: s.name,
+												amountCents: s.amount,
+											})
+										}
+									/>
+								) : null}
+							</ToDoItem>
+							<ToDoItem label={"To look at"}>
+								{month === current ? <Chips month={month} asOf={state.asOf} /> : null}
+							</ToDoItem>
+						</ToDo>
 						<div className="order-6 grid gap-3 empty:hidden lg:order-none">
 							{month < current ? (
 								<MonthEndSection
@@ -215,25 +237,6 @@ function ThisMonth() {
 									parentId={parentId}
 									goals={goals.goals}
 									members={members}
-								/>
-							) : null}
-						</div>
-						<div className="order-7 grid gap-3 empty:hidden lg:order-none">
-							{state.windfallLeft > 0 && month <= current ? (
-								<ExtraIncomeSection
-									left={state.windfallLeft}
-									suggestions={suggestions}
-									goals={activeGoals}
-									onChoose={() => setChoosingExtraIncome(true)}
-									onSend={(s) =>
-										extraIncomes.decide.mutate({
-											moveId: ulid(),
-											month,
-											to: s.to,
-											toName: s.name,
-											amountCents: s.amount,
-										})
-									}
 								/>
 							) : null}
 						</div>
@@ -276,7 +279,7 @@ function ThisMonth() {
 						</div>
 					</SplitMain>
 					<SplitRail>
-						<div className="order-5 grid gap-3 lg:order-none">
+						<div className="order-1 grid gap-3 lg:order-none">
 							<FreeToSpend state={state} check={check} />
 							<LumpCallout lumps={lumpsIn(state)} month={month} />
 						</div>
