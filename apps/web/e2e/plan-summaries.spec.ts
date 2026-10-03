@@ -59,7 +59,9 @@ test("Plan summaries show Money, a whole history has no History starts, a Commit
 		await expect(page.locator("[data-slot=money]").first()).toHaveText("$1,400");
 		await page.getByRole("link", { name: "Daycare", exact: true }).first().click();
 		await page.waitForURL(/\/commitments\/\w+/);
-		await expect(page.getByRole("heading", { name: "Daycare" }).first()).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByRole("heading", { name: "Daycare" }).first()).toBeVisible({
+			timeout: 20_000,
+		});
 		if (SHOTS) await page.screenshot({ path: `${SHOTS}/commitment-page.png`, fullPage: true });
 	} finally {
 		await parent.remove();
