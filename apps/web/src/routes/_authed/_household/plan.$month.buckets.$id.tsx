@@ -382,7 +382,7 @@ function History({ months, color }: { months: BucketMonth[]; color: number }) {
 			<ChartCard
 				title="Spent vs allowance"
 				description={
-					shown.length === 1
+					shown.length === 1 && shown[0]
 						? periodLabel(shown[0].month, "long")
 						: `The last ${Math.min(shown.length, BUCKET_MONTHS)} months`
 				}
