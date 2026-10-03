@@ -94,7 +94,7 @@ export function MonthCloseSection({
 				{proposal.windfall > 0 ? (
 					<ListRow
 						title="Extra income"
-						meta={`${formatMoney(proposal.windfall)} above your usual take-home pay`}
+						meta={`${formatMoney(proposal.windfall)} came in above your usual take-home pay in ${name}`}
 						className="max-sm:grid-cols-1"
 						trailing={
 							<OptionSelect

@@ -188,9 +188,12 @@ export function ExtraIncomeSection({
 	goals,
 	onSend,
 	onChoose,
+	monthName,
 }: {
 	/** The Extra income still to decide. */
 	left: Cents;
+	/** The month it came in, so it isn't mistaken for the last month's, decided at its Close. */
+	monthName?: string;
 	suggestions: ExtraIncomeSuggestion[];
 	goals: GoalView[];
 	onSend: (suggestion: ExtraIncomeSuggestion) => void;
@@ -211,8 +214,8 @@ export function ExtraIncomeSection({
 			/>
 			<p className="px-1 pb-3 text-sm text-muted-foreground">
 				<span className="font-medium text-foreground tabular-nums">{formatMoney(left)}</span> came
-				in above your usual take-home pay. Decide where it goes, so it doesn’t drift into everyday
-				spending.
+				in above your usual take-home pay{monthName ? ` in ${monthName}` : ""}. Decide where it
+				goes, so it doesn’t drift into everyday spending.
 			</p>
 			{suggestions.length > 0 ? (
 				<List aria-label="Suggestions">

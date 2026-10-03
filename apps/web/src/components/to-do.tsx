@@ -41,6 +41,8 @@ export function ToDo({ className, items }: { className?: string; items: ToDoItem
 					})}
 				/>
 			</RowButton>
+			{/* From lg the prompts sit open under one heading, like every other section (#73). */}
+			<h2 className="px-1 text-[15px] font-semibold max-lg:hidden">To do</h2>
 			{/* Kept mounted while closed, so a half-made choice in a prompt survives closing it. */}
 			<div id={id} className={cn("grid min-w-0 gap-3", !open && "max-lg:hidden")}>
 				{items.map((item) => (

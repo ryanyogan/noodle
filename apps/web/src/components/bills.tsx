@@ -7,8 +7,8 @@ import { CommitmentsList, commitmentsPaid } from "./commitment-list";
 
 // Bills on This Month (#47): the month's Commitments, paid or due, and what's coming up in the
 // next 30 days were two lists of the same bills one after the other. Now one section switches
-// between them. An ended month has only its own. From lg, Coming up sits in This Month's right
-// rail (ComingUpSection) and Bills shows only the month's.
+// between them, at every size, so each bill shows once on the page (#73). An ended month has only
+// its own.
 
 const lgQuery = "(min-width: 64rem)";
 
@@ -44,8 +44,7 @@ export function Bills({
 }) {
 	const [view, setView] = useState<View>("month");
 	const paid = commitmentsPaid(commitments);
-	const lg = useLg();
-	const switched = current && !lg;
+	const switched = current;
 	const shown = switched ? view : "month";
 	return (
 		<Section aria-labelledby="bills-title" id="bills" className="scroll-mt-6">

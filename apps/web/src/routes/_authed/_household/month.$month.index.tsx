@@ -1,6 +1,5 @@
 import {
 	addMonths,
-	allowancesByKind,
 	type BucketState,
 	type CoverSource,
 	canAssign,
@@ -26,7 +25,6 @@ import { EmptyState } from "@noodle/ui/components/empty-state";
 import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
-import { Stat, StatGrid } from "@noodle/ui/components/stat";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
@@ -44,7 +42,7 @@ import {
 import { type ReactNode, useId, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, availableParts, barState, monogram } from "../../../buckets";
-import { Bills, ComingUpSection } from "../../../components/bills";
+import { Bills } from "../../../components/bills";
 import { LumpCallout } from "../../../components/coming-up";
 import { CoverSheet, CoversInto, sourceName } from "../../../components/cover";
 import {
@@ -54,7 +52,6 @@ import {
 } from "../../../components/extra-income";
 import { MonthCloseSection, MonthEndSection } from "../../../components/month-close";
 import { MonthGlance, monthSentence } from "../../../components/month-glance";
-import { GoalsThisMonth } from "../../../components/plan-goals";
 import { TermHelp } from "../../../components/term-help";
 import { ToDo, type ToDoItem } from "../../../components/to-do";
 import { type CoverVariables, useCovers } from "../../../covers";
@@ -113,6 +110,8 @@ function ThisMonth() {
 		[...list].sort((a, b) => Number(b.status === "over") - Number(a.status === "over"));
 	const buckets = overFirst(state.buckets.filter((b) => b.owner === undefined));
 	const allowances = overFirst(state.buckets.filter((b) => b.owner !== undefined));
+	// "Cover" is explained once, on the first overspent row, not on every one (#73).
+	const firstOver = [...buckets, ...allowances].find((b) => over.includes(b));
 	const bucketRow = (bucket: BucketState) => {
 		const mine = canAssign(bucket, parentId);
 		const covers = state.moves.filter((m) => m.toBucketId === bucket.id);
@@ -121,6 +120,7 @@ function ThisMonth() {
 				key={bucket.id}
 				bucket={bucket}
 				onCover={over.includes(bucket) ? () => setCovering(bucket.id) : undefined}
+				explainCover={bucket === firstOver}
 				// Only the other Parent's Personal Allowance is private; its totals are all there is.
 				private={!mine}
 				covers={
@@ -192,8 +192,8 @@ function ThisMonth() {
 				// One column on phones, in reading order; from lg the money at a glance sits in a
 				// right rail. The columns are `contents` on phones so `order` interleaves them.
 				<SplitLayout stack="children">
-					<SplitMain>
-						<div className="order-6 grid gap-3 empty:hidden lg:order-none">
+					<SplitMain className="min-[1920px]:grid-flow-row-dense min-[1920px]:grid-cols-2 min-[1920px]:items-start">
+						<div className="order-6 grid gap-3 empty:hidden lg:order-none min-[1920px]:col-span-full">
 							{month < current ? (
 								<MonthEndSection
 									month={month}
@@ -205,7 +205,7 @@ function ThisMonth() {
 								/>
 							) : null}
 						</div>
-						<div className="order-8 grid gap-3 empty:hidden lg:order-none">
+						<div className="order-8 grid gap-3 empty:hidden lg:order-none min-[1920px]:col-start-1">
 							{buckets.length > 0 ? (
 								<Section aria-labelledby="buckets">
 									<SectionHeader
@@ -219,7 +219,7 @@ function ThisMonth() {
 								</Section>
 							) : null}
 						</div>
-						<div className="order-9 grid gap-3 empty:hidden lg:order-none">
+						<div className="order-9 grid gap-3 empty:hidden lg:order-none min-[1920px]:col-start-1">
 							{allowances.length > 0 ? (
 								<Section aria-labelledby="personal-allowances">
 									<SectionHeader
@@ -231,7 +231,7 @@ function ThisMonth() {
 								</Section>
 							) : null}
 						</div>
-						<div className="order-11 grid gap-3 empty:hidden lg:order-none">
+						<div className="order-11 grid gap-3 empty:hidden lg:order-none min-[1920px]:col-start-2">
 							{state.commitments.length > 0 ? (
 								<Bills
 									month={month}
@@ -239,6 +239,16 @@ function ThisMonth() {
 									current={month === current}
 									commitments={commitments}
 									notDue={notDue}
+								/>
+							) : null}
+						</div>
+						<div className="order-12 grid gap-3 empty:hidden lg:order-none min-[1920px]:col-start-2">
+							{state.baseline !== null && (month === current || monthIncome.length > 0) ? (
+								<MonthIncome
+									month={month}
+									asOf={state.asOf}
+									baseline={state.baseline}
+									income={monthIncome}
 								/>
 							) : null}
 						</div>
@@ -282,6 +292,7 @@ function ThisMonth() {
 												content: (
 													<ExtraIncomeSection
 														left={state.windfallLeft}
+														monthName={monthName(month)}
 														suggestions={suggestions}
 														goals={activeGoals}
 														onChoose={() => setChoosingExtraIncome(true)}
@@ -306,30 +317,6 @@ function ThisMonth() {
 								/>
 							)}
 						</WithClosePrevious>
-						{/* Coming up beside Buckets on a wide screen, before Goals and Income. */}
-						<div className="hidden empty:hidden lg:grid">
-							{month === current && state.commitments.length > 0 ? <ComingUpSection /> : null}
-						</div>
-						<div className="order-10 grid gap-3 empty:hidden lg:order-none">
-							{month === current && activeGoals.length > 0 ? (
-								<GoalsThisMonth
-									month={month}
-									goals={activeGoals}
-									funded={state.fundedGoals}
-									freeToSpend={state.freeToSpend}
-								/>
-							) : null}
-						</div>
-						<div className="order-12 grid gap-3 empty:hidden lg:order-none">
-							{state.baseline !== null && (month === current || monthIncome.length > 0) ? (
-								<MonthIncome
-									month={month}
-									asOf={state.asOf}
-									baseline={state.baseline}
-									income={monthIncome}
-								/>
-							) : null}
-						</div>
 					</SplitRail>
 				</SplitLayout>
 			) : month === current ? (
@@ -537,74 +524,53 @@ function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck |
 	const overPlanned = state.freeToSpend < 0;
 	// An ended month has no days left, and what wasn't planned is simply what it ended with.
 	const ended = state.month < monthOfDay(state.asOf);
-	// "In Buckets" counts Personal Allowances, which the breakdown above lists on their own.
-	const { personalAllowances } = allowancesByKind(state);
 	return (
-		<Card role="region" aria-labelledby="free-to-spend">
-			<div className="grid gap-1 p-(--card-pad)">
-				<div className="flex items-center gap-1">
-					<h2 id="free-to-spend" className="text-[13px] font-medium text-muted-foreground">
-						Free to Spend
-					</h2>
-					<TermHelp term="free-to-spend" />
-				</div>
-				<p
-					className={cn(
-						"text-[2.75rem] font-[650] leading-[1.05] tracking-[-0.04em] tabular-nums",
-						overPlanned && "text-over",
-					)}
-				>
-					{formatMoney(state.freeToSpend)}
-				</p>
-				<p className="text-sm text-muted-foreground">
-					{state.baseline === null ? (
-						<>
-							Set your take-home pay to see what’s free.{" "}
-							<PlanLink month={state.month}>Set take-home pay</PlanLink>
-						</>
-					) : overPlanned ? (
-						<>
-							Your {state.committed > 0 ? "Commitments and Buckets" : "Buckets"} add up to{" "}
-							{formatMoney(-state.freeToSpend)} more than your take-home pay.{" "}
-							<PlanLink month={state.month}>Adjust the Plan</PlanLink>
-						</>
-					) : ended ? (
-						<>Left unplanned at the end of {monthName(state.month)}</>
-					) : (
-						(monthSentence(state) ?? (
-							<>Not planned for anything yet · yours until {shortDay(lastDayOf(state.month))}</>
-						))
-					)}
-				</p>
-				{check?.below ? (
-					<p role="note" className="mt-2 rounded-xl bg-surface-2 px-3 py-2.5 text-sm">
-						Income is {formatMoney(check.short)} behind where it usually is by now. Worth a look
-						before planning more spending.
+		<Section aria-labelledby="free-to-spend">
+			<SectionHeader
+				id="free-to-spend"
+				title="Free to Spend"
+				help={<TermHelp term="free-to-spend" />}
+			/>
+			<Card>
+				<div className="grid gap-1 p-(--card-pad)">
+					<p
+						className={cn(
+							"text-[2.75rem] font-[650] leading-[1.05] tracking-[-0.04em] tabular-nums",
+							overPlanned && "text-over",
+						)}
+					>
+						{formatMoney(state.freeToSpend)}
 					</p>
-				) : null}
-			</div>
-			{state.baseline === null ? null : <Breakdown state={state} baseline={state.baseline} />}
-			{/* Two on a phone: the days left are in the sentence above (#65). */}
-			<StatGrid layout="ruled" className={ended ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3"}>
-				<Stat
-					label="In Buckets"
-					value={formatMoney(state.planned)}
-					note={
-						personalAllowances === null ? undefined : (
-							<>incl. {formatMoney(personalAllowances)} Personal Allowances</>
-						)
-					}
-				/>
-				<Stat label="Left in Buckets" value={formatMoney(state.leftInBuckets)} />
-				{ended ? null : (
-					<Stat
-						className="max-sm:hidden"
-						label="Days left"
-						value={state.daysLeft === 0 ? "Last day" : String(state.daysLeft)}
-					/>
-				)}
-			</StatGrid>
-		</Card>
+					<p className="text-sm text-muted-foreground">
+						{state.baseline === null ? (
+							<>
+								Set your take-home pay to see what’s free.{" "}
+								<PlanLink month={state.month}>Set take-home pay</PlanLink>
+							</>
+						) : overPlanned ? (
+							<>
+								Your {state.committed > 0 ? "Commitments and Buckets" : "Buckets"} add up to{" "}
+								{formatMoney(-state.freeToSpend)} more than your take-home pay.{" "}
+								<PlanLink month={state.month}>Adjust the Plan</PlanLink>
+							</>
+						) : ended ? (
+							<>Left unplanned at the end of {monthName(state.month)}</>
+						) : (
+							(monthSentence(state) ?? (
+								<>Not planned for anything yet · yours until {shortDay(lastDayOf(state.month))}</>
+							))
+						)}
+					</p>
+					{check?.below ? (
+						<p role="note" className="mt-2 rounded-xl bg-surface-2 px-3 py-2.5 text-sm">
+							Income is {formatMoney(check.short)} behind where it usually is by now. Worth a look
+							before planning more spending.
+						</p>
+					) : null}
+				</div>
+				{state.baseline === null ? null : <Breakdown state={state} baseline={state.baseline} />}
+			</Card>
+		</Section>
 	);
 }
 
@@ -653,10 +619,13 @@ function BucketRow({
 	bucket,
 	covers,
 	onCover,
+	explainCover = false,
 	private: isPrivate = false,
 }: {
 	bucket: BucketState;
 	covers?: ReactNode;
+	/** Says what Cover does beside its button: only the first overspent row does. */
+	explainCover?: boolean;
 	/** Covers it, when it's overspent and the Parent may. */
 	onCover?: () => void;
 	/** The other Parent's Personal Allowance: its totals only (its page shows no more). */
@@ -751,7 +720,7 @@ function BucketRow({
 					{covers ? <div className="relative z-10">{covers}</div> : null}
 					{onCover ? (
 						<div className="relative z-10">
-							<CoverButton name={bucket.name} onCover={onCover} />
+							<CoverButton name={bucket.name} onCover={onCover} explain={explainCover} />
 						</div>
 					) : null}
 				</div>
@@ -778,7 +747,15 @@ function BarKey() {
 }
 
 /** Cover on an overspent Bucket's row: brings it back to $0 from somewhere with money left. */
-function CoverButton({ name, onCover }: { name: string; onCover: () => void }) {
+function CoverButton({
+	name,
+	onCover,
+	explain,
+}: {
+	name: string;
+	onCover: () => void;
+	explain: boolean;
+}) {
 	const hydrated = useHydrated();
 	return (
 		<div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -792,13 +769,15 @@ function CoverButton({ name, onCover }: { name: string; onCover: () => void }) {
 			>
 				Cover
 			</Button>
-			<span className="flex items-center gap-1 text-xs text-muted-foreground">
-				{/* On a phone the "?" says it; three over Buckets repeating it crowd the list (#65). */}
-				<span className="max-sm:hidden">
-					Bring it back to $0 from another Bucket or Free to Spend.
+			{explain ? (
+				<span className="flex items-center gap-1 text-xs text-muted-foreground">
+					{/* On a phone the "?" says it (#65). */}
+					<span className="max-sm:hidden">
+						Bring it back to $0 from another Bucket or Free to Spend.
+					</span>
+					<TermHelp term="cover" />
 				</span>
-				<TermHelp term="cover" />
-			</span>
+			) : null}
 		</div>
 	);
 }
