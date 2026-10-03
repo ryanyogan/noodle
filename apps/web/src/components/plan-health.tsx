@@ -51,11 +51,14 @@ export function PlanHealth({ folded = false }: { folded?: boolean }) {
 					/>
 				</RowButton>
 			) : null}
-			<List id={id} className={cn(folded && !open && "max-lg:hidden")}>
-				{sorted.map((warning) => (
-					<HealthRow key={keyOf(warning)} warning={warning} month={month} />
-				))}
-			</List>
+			{/* The wrapper hides, not the List: its Card would stay behind as a thin empty line. */}
+			<div id={id} className={cn(folded && !open && "max-lg:hidden")}>
+				<List>
+					{sorted.map((warning) => (
+						<HealthRow key={keyOf(warning)} warning={warning} month={month} />
+					))}
+				</List>
+			</div>
 		</Section>
 	);
 }
