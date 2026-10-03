@@ -4,7 +4,12 @@ import { HOUSEHOLD_AGENT_PATH } from "./household-changes";
 import { startBankSyncs } from "./server/bank-import-workflow";
 import { consumeIngest, handleCapture, type IngestMessage } from "./server/capture";
 import { startCheckIns } from "./server/check-in-weekly";
-import { DEV_OUTBOX_PATH, handleDevOutbox } from "./server/email/outbox";
+import {
+	DEV_INVITE_AGE_PATH,
+	DEV_OUTBOX_PATH,
+	handleDevInviteAge,
+	handleDevOutbox,
+} from "./server/email/outbox";
 import { connectToHouseholdAgent } from "./server/household-agent";
 import { startInsights } from "./server/insights-nightly";
 import { startMonthCloses } from "./server/month-close-workflow";
@@ -46,6 +51,7 @@ export default {
 		if (pathname === PLAID_WEBHOOK_MOVE_PATH) return handlePlaidWebhookMove(request);
 		// Emails "sent" with AI_MODEL=stub, for E2E to read; not in production builds.
 		if (__AI_STUB__ && pathname === DEV_OUTBOX_PATH) return handleDevOutbox(request);
+		if (__AI_STUB__ && pathname === DEV_INVITE_AGE_PATH) return handleDevInviteAge(request);
 		return handler.fetch(request);
 	},
 	queue(batch) {

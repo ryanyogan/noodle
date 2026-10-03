@@ -92,6 +92,10 @@ export const invites = sqliteTable(
 		tokenHash: text("token_hash"),
 		// When the link and the invite stop working. Null on invites from before links: no expiry.
 		expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
+		// When the email last went out (null: created_at), and how many went out on that UTC day,
+		// for Resend's limits (#60, invite-token.ts checkResend).
+		sentAt: integer("sent_at", { mode: "timestamp_ms" }),
+		sendsThatDay: integer("sends_that_day").notNull().default(1),
 	},
 	(t) => [
 		uniqueIndex("invites_token_hash_idx").on(t.tokenHash),

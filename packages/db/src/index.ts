@@ -11,7 +11,7 @@ import {
 	sql,
 } from "drizzle-orm";
 import { type DrizzleD1Database, drizzle } from "drizzle-orm/d1";
-import { type InviteLinkState, inviteLinkState } from "./invite-token";
+import { checkSend, type InviteLinkState, inviteLinkState } from "./invite-token";
 import * as schema from "./schema";
 import { type Household, households, type Invite, invites, type Member, members } from "./schema";
 
@@ -138,6 +138,7 @@ const notExpired = (now: Date) => or(isNull(invites.expiresAt), gt(invites.expir
 
 export type InviteParentResult =
 	| { ok: true; invite: Invite }
+	| { ok: false; reason: "daily-limit" }
 	| { ok: false; reason: "household-full" | "own-email" };
 
 /**
@@ -157,6 +158,8 @@ export async function inviteParent(
 		/** The link's token, hashed (invite-token.ts), and when it stops working. */
 		tokenHash: string;
 		expiresAt: Date;
+		/** When given, the email goes out now and the Household's daily limit applies (checkSend). */
+		now?: Date;
 	},
 ): Promise<InviteParentResult> {
 	const email = normalizeEmail(input.email);
@@ -165,6 +168,13 @@ export async function inviteParent(
 	}
 	const parents = await listParents(db, input.householdId);
 	if (parents.length >= MAX_PARENTS) return { ok: false, reason: "household-full" };
+	let sendsThatDay = 1;
+	if (input.now) {
+		const earlier = await findOpenInvite(db, input.householdId);
+		const check = checkSend(earlier && lastSend(earlier), input.now, { wait: false });
+		if (!check.ok) return { ok: false, reason: "daily-limit" };
+		sendsThatDay = check.sendsThatDay;
+	}
 	await db.batch([
 		db
 			.delete(invites)
@@ -182,6 +192,8 @@ export async function inviteParent(
 					// Selected in the table's column order: insert … select is positional.
 					tokenHash: sql<string>`${input.tokenHash}`.as("token_hash"),
 					expiresAt: sql<Date>`${input.expiresAt.getTime()}`.as("expires_at"),
+					sentAt: sql<Date | null>`${input.now ? input.now.getTime() : null}`.as("sent_at"),
+					sendsThatDay: sql<number>`${sendsThatDay}`.as("sends_that_day"),
 				})
 				.from(households)
 				.where(
@@ -195,6 +207,50 @@ export async function inviteParent(
 	const invite = await findOpenInvite(db, input.householdId);
 	if (!invite) return { ok: false, reason: "household-full" };
 	return { ok: true, invite };
+}
+
+/** When an invite's email last went out, and how many went out that day. */
+export const lastSend = (invite: Invite) => ({
+	sentAt: invite.sentAt ?? invite.createdAt,
+	sendsThatDay: invite.sendsThatDay,
+});
+
+export type ResendInviteResult =
+	| { ok: true; invite: Invite }
+	| { ok: false; reason: "no-invite" | "too-soon" | "daily-limit" };
+
+/**
+ * Resends the Household's open invite (expired or not) with a new link: the new token's hash
+ * replaces the old one, so the old link stops working, and the 7 days start again. At most once a
+ * minute and INVITE_SENDS_PER_DAY a day (checkSend).
+ */
+export async function resendInvite(
+	db: Db,
+	input: { householdId: string; tokenHash: string; expiresAt: Date; now: Date },
+): Promise<ResendInviteResult> {
+	const invite = await findOpenInvite(db, input.householdId);
+	if (!invite) return { ok: false, reason: "no-invite" };
+	const check = checkSend(lastSend(invite), input.now, { wait: true });
+	if (!check.ok) return check;
+	await db
+		.update(invites)
+		.set({
+			tokenHash: input.tokenHash,
+			expiresAt: input.expiresAt,
+			sentAt: input.now,
+			sendsThatDay: check.sendsThatDay,
+		})
+		.where(and(eq(invites.id, invite.id), isNull(invites.acceptedByMemberId)));
+	const resent = await findOpenInvite(db, input.householdId);
+	if (resent?.id !== invite.id) return { ok: false, reason: "no-invite" };
+	return { ok: true, invite: resent };
+}
+
+/** Cancels the Household's open invite: its link then finds nothing. */
+export async function cancelInvite(db: Db, householdId: string): Promise<void> {
+	await db
+		.delete(invites)
+		.where(and(eq(invites.householdId, householdId), isNull(invites.acceptedByMemberId)));
 }
 
 /** An open invite for the signed-in user to join a Household as its other Parent. */
@@ -491,13 +547,17 @@ export {
 	recordInsights,
 } from "./insights";
 export {
+	checkSend,
 	constantTimeEqual,
 	hashInviteToken,
 	INVITE_LINK_DAYS,
+	INVITE_SENDS_PER_DAY,
 	type InviteLinkState,
 	inviteExpiresAt,
 	isInviteTokenShape,
 	newInviteToken,
+	RESEND_WAIT_MS,
+	type SendCheck,
 } from "./invite-token";
 export {
 	loadMatch,

@@ -66,3 +66,32 @@ export function inviteLinkState(
 	if (invite.expiresAt && invite.expiresAt.getTime() <= now.getTime()) return "expired";
 	return "open";
 }
+
+/** Resend waits this long after the last email (#60). */
+export const RESEND_WAIT_MS = 60_000;
+/** At most this many invite emails a Household sends on one UTC day, new invites and resends. */
+export const INVITE_SENDS_PER_DAY = 5;
+
+export type SendCheck =
+	| { ok: true; sendsThatDay: number }
+	| { ok: false; reason: "too-soon" | "daily-limit" };
+
+const utcDay = (date: Date) => date.toISOString().slice(0, 10);
+
+/**
+ * Whether another invite email may go out now, given the last one (null: none yet). `wait` adds
+ * the minute between sends, for Resend; a new invite to a corrected email needn't wait.
+ */
+export function checkSend(
+	last: { sentAt: Date; sendsThatDay: number } | null,
+	now: Date,
+	{ wait }: { wait: boolean },
+): SendCheck {
+	if (!last) return { ok: true, sendsThatDay: 1 };
+	if (wait && now.getTime() - last.sentAt.getTime() < RESEND_WAIT_MS) {
+		return { ok: false, reason: "too-soon" };
+	}
+	const sends = utcDay(last.sentAt) === utcDay(now) ? last.sendsThatDay : 0;
+	if (sends >= INVITE_SENDS_PER_DAY) return { ok: false, reason: "daily-limit" };
+	return { ok: true, sendsThatDay: sends + 1 };
+}

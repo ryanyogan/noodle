@@ -40,3 +40,27 @@ export async function handleDevOutbox(request: Request): Promise<Response> {
 	);
 	return Response.json(emails.filter(Boolean));
 }
+
+export const DEV_INVITE_AGE_PATH = "/api/dev/invite-age";
+
+/**
+ * POST /api/dev/invite-age?to=a@b.com&days=3: makes the open invite to that address look sent
+ * `days` ago, its expiry moved back as far, so E2E can wait out Resend's minute and see an
+ * expired invite without waiting days. Only with AI_MODEL=stub, like the outbox.
+ */
+export async function handleDevInviteAge(request: Request): Promise<Response> {
+	const url = new URL(request.url);
+	const to = url.searchParams.get("to");
+	const days = Number(url.searchParams.get("days"));
+	if (request.method !== "POST" || !to || !Number.isFinite(days)) {
+		return Response.json({ error: "POST ?to=<email>&days=<n>" }, { status: 400 });
+	}
+	const ms = Math.round(days * 86_400_000);
+	await env.DB.prepare(
+		`update invites set sent_at = coalesce(sent_at, created_at) - ?1, created_at = created_at - ?1,
+		 expires_at = expires_at - ?1 where email = ?2 and accepted_by_member_id is null`,
+	)
+		.bind(ms, normalizeEmail(to))
+		.run();
+	return Response.json({ ok: true });
+}

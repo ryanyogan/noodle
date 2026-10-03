@@ -25,3 +25,12 @@ Inviting the other Parent used to send nothing. They had to find Noodle and sign
 4. Send yourself an invite from Household in production and check that it arrives (inbox, not spam) and that the link opens.
 
 **Left for later.** Household doesn't list invites with their sent and expiry times yet, and there's no Resend (rate-limited, minting a new token) or Cancel. The inviter isn't told yet when the other Parent joins.
+
+## Resend, cancel and expiry (#60, phase c)
+
+- **Household shows the open invite** with when it was last sent and when it runs out: "Sent 2 days ago · expires in 5 days". Past its expiry it says "The invite to a@b.com ran out on Oct 9" and still offers Resend.
+- **Resend makes a new link.** Only a hash is stored, so the old link can't be sent again: Resend mints a new token, replaces the hash (the old link then finds nothing and says it doesn't work), starts the 7 days again and emails it. Copy link shows the new link right after; after a reload the card says resending gives a new one.
+- **Limits:** Resend waits a minute after the last email ("You can resend in a minute."), and a Household sends at most 5 invite emails per UTC day, new invites and resends together, so swapping emails doesn't get round it ("You've sent 5 invites today. You can send another tomorrow."). A new invite to a corrected email needn't wait the minute. Kept on the invite row (`sent_at`, `sends_that_day`), checked by `checkSend` in `invite-token.ts`.
+- **Cancel** asks first, then deletes the open invite, so its link says it doesn't work. One open invite per Household and `MAX_PARENTS` are unchanged.
+- **Telling the inviter:** accepting already calls `notifyHousehold(["parents"])`, so the inviter's open Household page shows the new Parent without a reload (tested in `invite.spec.ts`). No Nudge yet: a new Nudge kind needs its own preference, event and content, which is more than this change.
+- **Dev seam:** with AI_MODEL=stub, `POST /api/dev/invite-age?to=&days=` moves an open invite's times back, so E2E can wait out the minute and see an expired invite. It isn't in production builds.

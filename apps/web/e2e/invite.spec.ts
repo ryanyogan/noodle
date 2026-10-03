@@ -294,3 +294,110 @@ test("when the invite email can't be sent, the Parent is told to copy the link i
 		await inviter.remove();
 	}
 });
+
+/** Makes the open invite to `to` look sent `days` ago (the dev seam, AI_MODEL=stub only). */
+async function ageInvite(page: Page, to: string, days: number) {
+	const response = await page.request.post(
+		`/api/dev/invite-age?to=${encodeURIComponent(to)}&days=${days}`,
+	);
+	expect(response.ok()).toBe(true);
+}
+
+/** The link in the newest email to `to`. */
+async function newestLink(page: Page, to: string) {
+	const emails = await outbox(page, to);
+	const url = emails.at(-1)?.text.match(/https?:\/\/\S+\/invite\/[\w-]{43}/)?.[0] ?? "";
+	return new URL(url).pathname;
+}
+
+test("a Parent resends an invite for a new link, and cancels it", async ({ browser }) => {
+	test.slow();
+	const inviter = await createTestParent();
+	const invitedEmail = newTestEmail();
+	try {
+		const page = await signedInPage(browser, inviter.email, { ...clipboard, ...phone });
+		await createHousehold(page, "The Resenders", "Alex");
+		await page.goto("/household");
+		await invite(page, invitedEmail);
+		await expect(page.getByText("Sent today · expires in 7 days")).toBeVisible();
+		const first = await newestLink(page, invitedEmail);
+
+		// Resend waits a minute between emails.
+		await page.getByRole("button", { name: "Resend" }).click();
+		await expect(page.getByRole("alert")).toContainText("You can resend in a minute.");
+
+		await ageInvite(page, invitedEmail, 2);
+		await page.reload();
+		await expect(page.getByText("Sent 2 days ago · expires in 5 days")).toBeVisible();
+		await expect(page.getByText("Resend it for a new one.")).toBeVisible();
+		await shot(page, "pending-393");
+		if (process.env.SHOTS) {
+			await page.emulateMedia({ colorScheme: "dark" });
+			await shot(page, "pending-393-dark");
+			await page.emulateMedia({ colorScheme: "light" });
+		}
+
+		await page.getByRole("button", { name: "Resend" }).click();
+		await expect(page.getByText(`We sent an invite to ${invitedEmail}.`)).toBeVisible();
+		await expect(page.getByText("Sent today · expires in 7 days")).toBeVisible();
+		await expect(page.getByRole("button", { name: "Copy link" })).toBeVisible();
+		await shot(page, "resent-393");
+		expect(await outbox(page, invitedEmail)).toHaveLength(2);
+		const second = await newestLink(page, invitedEmail);
+		expect(second).not.toBe(first);
+
+		// The new link works; the first one no longer does.
+		const other = await signedOutPage(browser);
+		await other.goto(first);
+		await expect(
+			other.getByRole("heading", { name: "This invite link doesn’t work" }),
+		).toBeVisible();
+		await other.goto(second);
+		await expect(other).toHaveURL(/\/sign-up\?invite=/);
+
+		// Run out: it says when, and Resend is still there.
+		await ageInvite(page, invitedEmail, 8);
+		await page.reload();
+		await expect(page.getByText("Ran out", { exact: true })).toBeVisible();
+		await expect(page.getByText(`The invite to ${invitedEmail} ran out on`)).toBeVisible();
+		await expect(page.getByRole("button", { name: "Resend" })).toBeEnabled();
+		await shot(page, "expired-393");
+
+		// Cancelling asks first, and then its link doesn't work.
+		await page.getByRole("button", { name: "Cancel invite" }).click();
+		await page.getByRole("alertdialog").getByRole("button", { name: "Cancel invite" }).click();
+		await expect(page.getByText(`Invited ${invitedEmail}`)).toHaveCount(0);
+		await expect(page.getByRole("button", { name: "Invite", exact: true })).toBeVisible();
+		await other.goto(second);
+		await expect(
+			other.getByRole("heading", { name: "This invite link doesn’t work" }),
+		).toBeVisible();
+	} finally {
+		await inviter.remove();
+	}
+});
+
+test("the inviter sees the other Parent join without reloading", async ({ browser }) => {
+	const inviter = await createTestParent();
+	const invitee = await createTestParent();
+	try {
+		const inviterPage = await signedInPage(browser, inviter.email, clipboard);
+		await createHousehold(inviterPage, "The Live Ones", "Alex");
+		await inviterPage.getByRole("link", { name: "Household" }).click();
+		const link = await inviteAndCopyLink(inviterPage, invitee.email);
+
+		const page = await signedInPage(browser, invitee.email);
+		await page.goto(link);
+		await page.getByLabel("Your name").fill("Sam");
+		await page.getByRole("button", { name: "Join The Live Ones" }).click();
+		await enterJoinedHousehold(page);
+
+		// The Household Agent tells the inviter's open page, which shows Sam with no reload.
+		await expect(
+			inviterPage.getByRole("main").getByRole("listitem").filter({ hasText: "Sam" }),
+		).toBeVisible({ timeout: 15_000 });
+		await expect(inviterPage.getByText(`Invited ${invitee.email}`)).toHaveCount(0);
+	} finally {
+		await Promise.all([inviter.remove(), invitee.remove()]);
+	}
+});

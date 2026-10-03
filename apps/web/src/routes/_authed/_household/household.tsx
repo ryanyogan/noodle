@@ -117,7 +117,7 @@ function HouseholdPage() {
 						{data.hasAllParents ? null : (
 							<Section aria-labelledby="invite">
 								<SectionHeader id="invite" title="Invite the other Parent" />
-								<InviteOtherParent invitedEmail={data.invitedEmail} />
+								<InviteOtherParent invite={data.invite} />
 							</Section>
 						)}
 						<Section aria-labelledby="children">

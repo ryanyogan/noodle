@@ -550,7 +550,7 @@ function InviteStep({
 					</span>
 				</Card>
 			) : (
-				<InviteOtherParent invitedEmail={data.invitedEmail} />
+				<InviteOtherParent invite={data.invite} />
 			)}
 		</StepFrame>
 	);
