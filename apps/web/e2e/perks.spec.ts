@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { expectSectionHeaderKept, markSectionHeader } from "./section";
-import { choose, createPlannedHousehold, signedInPage, switchTo } from "./session";
+import { choose, createPlannedHousehold, signedInPage, switchTo, pickQuickAddBucket } from "./session";
 
 // Perk research runs inline with its fakes here (AI_MODEL=stub in playwright.config.ts): any
 // t-mobile.com page is a phone plan's whose Perks depend on the plan (Netflix with Go5G and Go5G
@@ -107,7 +107,7 @@ test("a card added by hand covers a cost already paid; a page that can't be read
 	const sheet = page.getByRole("dialog", { name: "Quick Add" });
 	await page.keyboard.type("78");
 	await sheet.getByLabel("Note").fill("TSA PreCheck");
-	await sheet.getByRole("button", { name: /^Groceries/ }).click();
+	await pickQuickAddBucket(sheet, "Groceries");
 	await expect(sheet).toBeHidden();
 
 	// The old address still works: Perks moved under Insights.

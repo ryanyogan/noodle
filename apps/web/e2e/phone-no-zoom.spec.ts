@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage, switchTo } from "./session";
+import { createPlannedHousehold, signedInPage, switchTo, pickQuickAddBucket } from "./session";
 
 // Mobile Safari zooms the page when a field under 16 px gets focus. On a phone, portrait and
 // landscape (both below lg), every field on the main pages and sheets is at least 16 px. Buttons
@@ -84,7 +84,7 @@ test("no field on the main phone pages is small enough to zoom", async ({ browse
 	await expectNoZoom(page, "Quick Add");
 	await quickAdd.getByRole("group", { name: "Keypad" }).getByRole("button", { name: "7" }).click();
 	await quickAdd.getByLabel("Note").fill("Costco");
-	await quickAdd.getByRole("button", { name: /^Groceries/ }).click();
+	await pickQuickAddBucket(quickAdd, "Groceries");
 	await expect(quickAdd).toBeHidden();
 
 	await page

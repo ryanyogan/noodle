@@ -7,6 +7,7 @@ import {
 	clientRendered,
 	createPlannedHousehold,
 	signedInPage,
+	pickQuickAddBucket,
 } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
@@ -125,7 +126,7 @@ test("no Report view is wider than a phone, and a long merchant name stays in it
 	await expect(quickAdd).toBeVisible();
 	await page.keyboard.type("3000");
 	await quickAdd.getByLabel("Note").fill(longName);
-	await quickAdd.getByRole("button", { name: /^Eating out/ }).click();
+	await pickQuickAddBucket(quickAdd, "Eating out");
 	await expect(quickAdd).toBeHidden();
 
 	await page.getByRole("link", { name: "Reports" }).click();

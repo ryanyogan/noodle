@@ -6,6 +6,7 @@ import {
 	createPlannedHousehold,
 	reloadUntil,
 	signedInPage,
+	pickQuickAddBucket,
 } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
@@ -153,7 +154,7 @@ test("money back linked as a Refund goes back to the purchase's Bucket", async (
 	await expect(quickAdd).toBeVisible();
 	await page.keyboard.type("80");
 	await quickAdd.getByLabel("Note").fill("REI jacket");
-	await quickAdd.getByRole("button", { name: /^Gear/ }).click();
+	await pickQuickAddBucket(quickAdd, "Gear");
 	await expect(quickAdd).toBeHidden();
 	await expect(bucketRow(page, "Gear")).toContainText("$80 spent");
 

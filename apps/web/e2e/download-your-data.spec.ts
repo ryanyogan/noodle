@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
 import { strFromU8, unzipSync } from "fflate";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, enterJoinedHousehold, signedInPage, switchTo } from "./session";
+import { createPlannedHousehold, enterJoinedHousehold, signedInPage, switchTo, pickQuickAddBucket } from "./session";
 
 // Download your data (#62, ADR-0028): prepared in the background, downloaded as a ZIP of CSVs
 // that hold the Household's spending, and refused to anyone but the Parent it was made for.
@@ -22,7 +22,7 @@ async function quickAdd(page: Page, amount: string, bucket: string, note: string
 	await expect(sheet).toBeVisible();
 	await page.keyboard.type(amount);
 	await sheet.getByLabel("Note").fill(note);
-	await sheet.getByRole("button", { name: new RegExp(`^${bucket}`) }).click();
+	await pickQuickAddBucket(sheet, bucket);
 	await expect(sheet).toBeHidden();
 }
 

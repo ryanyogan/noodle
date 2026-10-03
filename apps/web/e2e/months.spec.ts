@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, serverFn, signedInPage } from "./session";
+import { createPlannedHousehold, serverFn, signedInPage, pickQuickAddBucket } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -51,7 +51,7 @@ async function quickAdd(page: Page, amount: string, bucket: string) {
 	const sheet = page.getByRole("dialog", { name: "Quick Add" });
 	await expect(sheet).toBeVisible();
 	await page.keyboard.type(amount);
-	await sheet.getByRole("button", { name: new RegExp(`^${bucket}`) }).click();
+	await pickQuickAddBucket(sheet, bucket);
 	await expect(sheet).toBeHidden();
 }
 

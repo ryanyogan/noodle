@@ -386,3 +386,22 @@ export async function uploadStatement(
 	await sheet.getByRole("button", { name: `Import ${lines.length} line` }).click();
 	await expect(sheet).toBeHidden();
 }
+
+/**
+ * Picks a Bucket in Quick Add by name: its tile when the grid shows it, otherwise
+ * More Buckets → Find a Bucket. With an amount typed the pick saves; with none,
+ * the Bucket goes first in the grid and nothing is saved (ADR 0031).
+ */
+export async function pickQuickAddBucket(sheet: Locator, name: string) {
+	const startsWith = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
+	const grid = sheet.getByRole("list", { name: "Add to" });
+	await expect(grid.getByRole("listitem").first()).toBeVisible();
+	const tile = grid.getByRole("button", { name: startsWith });
+	if ((await tile.count()) > 0) {
+		await tile.first().click();
+		return;
+	}
+	await sheet.getByRole("button", { name: /^More Buckets/ }).click();
+	await sheet.getByRole("searchbox", { name: "Find a Bucket" }).fill(name);
+	await sheet.getByRole("button", { name: startsWith }).first().click();
+}

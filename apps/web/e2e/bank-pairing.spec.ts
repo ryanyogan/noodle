@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { expect, type Page, test } from "@playwright/test";
 import { signFakeWebhook } from "../src/server/plaid-fake-webhook-key";
 import { createTestParent } from "./parents";
-import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
+import { accountKindLabel, choose, createPlannedHousehold, signedInPage, pickQuickAddBucket } from "./session";
 
 // Connecting a bank pairs with the Accounts already there (ADR-0020), against the fake Plaid API
 // (AI_MODEL=stub). A card kept with a statement and a Quick Add is chosen as the bank's card: it
@@ -69,7 +69,7 @@ test("connecting pairs with the card already there, and counts nothing twice", a
 	await expect(quickAddSheet(page)).toBeVisible();
 	await page.keyboard.type("9.99");
 	await quickAddSheet(page).getByLabel("Note").fill("Netflix");
-	await quickAddSheet(page).getByRole("button", { name: /^Fun/ }).click();
+	await pickQuickAddBucket(quickAddSheet(page), "Fun");
 	await expect(quickAddSheet(page)).toBeHidden();
 
 	// The Costco card, added by hand and kept with a statement that has Shell on it.

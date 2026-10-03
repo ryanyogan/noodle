@@ -7,6 +7,7 @@ import {
 	createPlannedHousehold,
 	serverFn,
 	signedInPage,
+	pickQuickAddBucket,
 } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
@@ -65,13 +66,14 @@ async function quickAdd(
 	await quickAddSheet(page).getByLabel("Note").fill(note);
 	if (forName) {
 		await quickAddSheet(page)
+			.getByRole("button", { name: /^For: / })
+			.click();
+		await quickAddSheet(page)
 			.getByRole("radiogroup", { name: "For" })
 			.getByRole("radio", { name: forName })
 			.click();
 	}
-	await quickAddSheet(page)
-		.getByRole("button", { name: new RegExp(`^${bucket}`) })
-		.click();
+	await pickQuickAddBucket(quickAddSheet(page), bucket);
 	await expect(quickAddSheet(page)).toBeHidden();
 }
 

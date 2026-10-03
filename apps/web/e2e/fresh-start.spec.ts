@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, enterJoinedHousehold, signedInPage } from "./session";
+import { createPlannedHousehold, enterJoinedHousehold, signedInPage, pickQuickAddBucket } from "./session";
 
 // Fresh start and Delete Household (#63, ADR-0029): two sheets, a typed name, a 24-hour grace
 // period when both Parents are in, progress, then "All cleared" (or /welcome after a delete).
@@ -32,7 +32,7 @@ async function quickAdd(page: Page, amount: string, bucket: string, note: string
 	await expect(sheet).toBeVisible();
 	await page.keyboard.type(amount);
 	await sheet.getByLabel("Note").fill(note);
-	await sheet.getByRole("button", { name: new RegExp(`^${bucket}`) }).click();
+	await pickQuickAddBucket(sheet, bucket);
 	await expect(sheet).toBeHidden();
 }
 

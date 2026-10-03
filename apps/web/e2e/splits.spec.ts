@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { choose, clientRendered, createPlannedHousehold, serverFn, signedInPage } from "./session";
+import { choose, clientRendered, createPlannedHousehold, serverFn, signedInPage, pickQuickAddBucket } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -44,9 +44,7 @@ async function setUp(page: Page) {
 	await expect(quickAddSheet(page)).toBeVisible();
 	await page.keyboard.type("250");
 	await quickAddSheet(page).getByLabel("Note").fill("Costco");
-	await quickAddSheet(page)
-		.getByRole("button", { name: /^Groceries/ })
-		.click();
+	await pickQuickAddBucket(quickAddSheet(page), "Groceries");
 	await expect(quickAddSheet(page)).toBeHidden();
 	await nav(page).getByRole("link", { name: "This Month" }).click();
 	await expect(bucketRow(page, "Groceries")).toContainText("$250 spent");

@@ -7,6 +7,7 @@ import {
 	serverFn,
 	signedInPage,
 	switchTo,
+	pickQuickAddBucket,
 } from "./session";
 
 const nav = (page: Page) => page.getByRole("navigation", { name: "Main" });
@@ -28,9 +29,7 @@ async function quickAdd(page: Page, amount: string, bucket: string, note: string
 	await expect(quickAddSheet(page)).toBeVisible();
 	await page.keyboard.type(amount);
 	await quickAddSheet(page).getByLabel("Note").fill(note);
-	await quickAddSheet(page)
-		.getByRole("button", { name: new RegExp(`^${bucket}`) })
-		.click();
+	await pickQuickAddBucket(quickAddSheet(page), bucket);
 	await expect(quickAddSheet(page)).toBeHidden();
 }
 

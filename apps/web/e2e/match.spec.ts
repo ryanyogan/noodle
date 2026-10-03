@@ -7,6 +7,7 @@ import {
 	reloadUntil,
 	signedInPage,
 	waitForReview,
+	pickQuickAddBucket,
 } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
@@ -34,9 +35,7 @@ async function quickAdd(page: Page, amount: string, bucket: string, note: string
 	await expect(quickAddSheet(page)).toBeVisible();
 	await page.keyboard.type(amount);
 	await quickAddSheet(page).getByLabel("Note").fill(note);
-	await quickAddSheet(page)
-		.getByRole("button", { name: new RegExp(`^${bucket}`) })
-		.click();
+	await pickQuickAddBucket(quickAddSheet(page), bucket);
 	await expect(quickAddSheet(page)).toBeHidden();
 }
 

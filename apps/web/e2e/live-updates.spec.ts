@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, enterJoinedHousehold, signedInPage, switchTo } from "./session";
+import { createPlannedHousehold, enterJoinedHousehold, signedInPage, switchTo, pickQuickAddBucket } from "./session";
 
 const bucketRow = (page: Page, name: string) =>
 	page.getByRole("listitem", { name: new RegExp(`^${name}: `) });
@@ -108,7 +108,7 @@ test("each Parent's screen shows the other's changes without a reload", async ({
 		const sheet = alex.getByRole("dialog", { name: "Quick Add" });
 		await expect(sheet).toBeVisible();
 		await alex.keyboard.type("85.50");
-		await sheet.getByRole("button", { name: /^Groceries/ }).click();
+		await pickQuickAddBucket(sheet, "Groceries");
 		await expect(sheet).toBeHidden();
 		await expect(bucketRow(sam, "Groceries")).toHaveAccessibleName(
 			/^Groceries: \$1,114\.50 left of \$1,200/,

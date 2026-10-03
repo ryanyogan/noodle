@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { currentTab } from "./section";
-import { createPlannedHousehold, serverFn, signedInPage } from "./session";
+import { createPlannedHousehold, serverFn, signedInPage, pickQuickAddBucket } from "./session";
 
 // Ask runs against its deterministic fake model here (AI_MODEL=stub in playwright.config.ts):
 // it picks a tool from the question's keywords and answers with the tool's own sentence, so these
@@ -41,7 +41,7 @@ test("answers cite the Household's figures and link to the screens with more", a
 	await page.getByRole("link", { name: "Quick Add" }).click();
 	const quickAdd = page.getByRole("dialog", { name: "Quick Add" });
 	await page.keyboard.type("40");
-	await quickAdd.getByRole("button", { name: /^Hockey/ }).click();
+	await pickQuickAddBucket(quickAdd, "Hockey");
 	await expect(quickAdd).toBeHidden();
 
 	await page.getByRole("link", { name: "Ask", exact: true }).click();
