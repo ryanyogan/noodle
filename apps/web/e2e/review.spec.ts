@@ -194,7 +194,7 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	await add.getByRole("button", { name: "Add Rule and file what matches" }).click();
 	await expect(add).toContainText("Type a word from the merchant’s name.");
 	await add.getByLabel("Merchant").fill("Corner Gas");
-	await choose(add, "Bucket", "Gas");
+	await choose(add, "Files to", "Gas");
 	await add.getByRole("button", { name: "Add Rule and file what matches" }).click();
 	await expect(add).toBeHidden();
 	await expect(page.getByText(/Rule saved: corner gas goes in Gas/i)).toBeVisible();
@@ -203,7 +203,7 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	await expect(
 		edit.getByRole("button", { name: "File what’s still unassigned now" }),
 	).toBeEnabled();
-	await choose(edit, "Bucket", "Fun");
+	await choose(edit, "Files to", "Fun");
 	await edit.getByRole("button", { name: "Save and file what’s still unassigned" }).click();
 	await expect(edit).toBeHidden();
 	await expect(page.getByText(/Nothing unassigned matches corner gas/i)).toBeVisible();

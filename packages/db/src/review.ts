@@ -262,6 +262,7 @@ export async function returnToReview(
 						merchant: sql<string>`${input.merchant}`.as("merchant"),
 						createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
 						reason: sql<string | null>`${reason}`.as("reason"),
+						commitmentId: sql<string | null>`null`.as("commitment_id"),
 					})
 					.from(sql`(select 1)`)
 					.where(theirs),
@@ -272,6 +273,7 @@ export async function returnToReview(
 					outcome: sql`'review'`,
 					method: sql`excluded.method`,
 					bucketId: sql`excluded.bucket_id`,
+					commitmentId: sql`null`,
 					confidence: sql`excluded.confidence`,
 					reason: sql`excluded.reason`,
 				},

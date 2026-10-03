@@ -924,6 +924,7 @@ function ReviewPage() {
 							key={ruling.id}
 							rule={null}
 							buckets={(planOf(ruling)?.buckets ?? []).filter((b) => canAssign(b, parentId))}
+							commitments={planOf(ruling)?.commitments}
 							members={members}
 							start={{
 								pattern: ruling.merchant,

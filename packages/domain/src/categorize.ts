@@ -137,7 +137,7 @@ export function decideCategorization(said: {
 			outcome: "filed",
 			method: "rule",
 			bucketId: said.rule.bucketId,
-			commitmentId: said.rule.commitmentId ?? null,
+			...(said.rule.commitmentId ? { commitmentId: said.rule.commitmentId } : {}),
 			confidence: 1,
 			for: said.rule.for ?? [],
 		};

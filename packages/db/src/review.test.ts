@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { fileCategorizations, settleCategorization } from "./categorize";
+import { addCommitment } from "./commitments";
 import {
 	addAccount,
 	addBucket,
@@ -12,6 +13,7 @@ import { loadReview, returnToReview } from "./review";
 import { applyRule, deleteRule, editRule, listRules, loadRules, saveRule } from "./rules";
 import {
 	categorizations,
+	commitments,
 	matches,
 	members,
 	rules,
@@ -273,6 +275,7 @@ describe("Rules", () => {
 				pattern: "lego store",
 				bucketId: "fun",
 				bucketName: "Fun",
+				commitmentId: null,
 				for: ["maya"],
 				private: false,
 				createdBy: "Sam",
@@ -460,6 +463,160 @@ describe("Rules", () => {
 		expect(await db.select().from(transactionFor)).toEqual([
 			expect.objectContaining({ transactionId: "t1", memberId: "maya" }),
 		]);
+		expect((await listRules(db, alex)).find((r) => r.id === "r1")?.matched).toBe(1);
+	});
+});
+
+describe("Rules into a Commitment", () => {
+	beforeEach(async () => {
+		for (const [commitmentId, name, from] of [
+			["netflix", "Netflix", month],
+			["gym", "Gym", "2026-10"],
+		] as const) {
+			await addCommitment(db, {
+				householdId,
+				memberId: "alex",
+				commitmentId,
+				name,
+				month: from,
+				amountCents: 1_599,
+				cadence: "monthly",
+				dueDate: `${from}-15`,
+			});
+		}
+	});
+
+	it("is the Household's: both Parents see it, and moving a Personal Allowance Rule to one shares it", async () => {
+		const saved = await saveRule(db, {
+			id: "r1",
+			householdId,
+			memberId: "alex",
+			pattern: "netflix.com",
+			commitmentId: "netflix",
+		});
+		expect(saved).toEqual({ ok: true, ruleId: "r1", private: false });
+		expect(await listRules(db, sam)).toEqual([
+			expect.objectContaining({
+				id: "r1",
+				bucketId: null,
+				commitmentId: "netflix",
+				bucketName: "Netflix",
+				private: false,
+			}),
+		]);
+
+		await saveRule(db, {
+			id: "mine",
+			householdId,
+			memberId: "alex",
+			pattern: "spotify",
+			bucketId: "alex-pa",
+		});
+		expect((await listRules(db, sam)).map((r) => r.id)).toEqual(["r1"]);
+		const toCommitment = { ruleId: "mine", pattern: "spotify", forMemberIds: [] };
+		expect(
+			await editRule(db, alex, { ...toCommitment, bucketId: null, commitmentId: "netflix" }),
+		).toMatchObject({ ok: true });
+		expect((await listRules(db, sam)).map((r) => r.id).sort()).toEqual(["mine", "r1"]);
+		// And back into Alex's own: private to Alex again.
+		expect(
+			await editRule(db, alex, { ...toCommitment, bucketId: "alex-pa", commitmentId: null }),
+		).toMatchObject({ ok: true });
+		expect((await listRules(db, sam)).map((r) => r.id)).toEqual(["r1"]);
+		const [mine] = await db.select().from(rules).where(eq(rules.id, "mine"));
+		expect(mine).toMatchObject({ ownerMemberId: "alex", commitmentId: null, bucketId: "alex-pa" });
+	});
+
+	it("refuses another Household's Commitment, or one that has ended", async () => {
+		await createHouseholdForParent(db, {
+			clerkUserId: "clerk-other",
+			householdId: "other",
+			householdName: "Others",
+			timeZone: "America/Chicago",
+			parentId: "other-parent",
+			parentName: "Pat",
+		});
+		await addCommitment(db, {
+			householdId: "other",
+			memberId: "other-parent",
+			commitmentId: "theirs",
+			name: "Theirs",
+			month,
+			amountCents: 1_000,
+			cadence: "monthly",
+			dueDate: "2026-09-01",
+		});
+		const rule = { householdId, memberId: "alex", pattern: "x" };
+		expect(await saveRule(db, { ...rule, id: "a", commitmentId: "theirs" })).toEqual({ ok: false });
+		await db
+			.update(commitments)
+			.set({ endedFromMonth: month })
+			.where(eq(commitments.id, "netflix"));
+		expect(await saveRule(db, { ...rule, id: "b", commitmentId: "netflix" })).toEqual({
+			ok: false,
+		});
+		expect(await db.select().from(rules)).toEqual([]);
+	});
+
+	it("files a matching import to the Commitment, counting the match", async () => {
+		await saveRule(db, {
+			id: "r1",
+			householdId,
+			memberId: "alex",
+			pattern: "netflix",
+			commitmentId: "netflix",
+		});
+		await imported("t1", "NETFLIX.COM");
+		const decision = {
+			transactionId: "t1",
+			merchant: "netflix.com",
+			ruleId: "r1",
+			categorization: {
+				outcome: "filed" as const,
+				method: "rule" as const,
+				bucketId: null,
+				commitmentId: "netflix",
+				confidence: 1,
+				for: [],
+			},
+		};
+		await fileCategorizations(db, alex, [decision]);
+
+		const [row] = await db.select().from(transactions).where(eqId("t1"));
+		expect(row).toMatchObject({ bucketId: null, commitmentId: "netflix" });
+		const [decided] = await db.select().from(categorizations);
+		expect(decided).toMatchObject({ outcome: "filed", method: "rule", commitmentId: "netflix" });
+		expect(await reviewIds()).toEqual([]);
+		expect((await listRules(db, alex))[0]?.matched).toBe(1);
+	});
+
+	it("applies to what's unassigned, but not before the Commitment is in the Plan", async () => {
+		await saveRule(db, {
+			id: "r1",
+			householdId,
+			memberId: "alex",
+			pattern: "netflix",
+			commitmentId: "netflix",
+		});
+		await saveRule(db, {
+			id: "r2",
+			householdId,
+			memberId: "alex",
+			pattern: "gym",
+			commitmentId: "gym",
+		});
+		await imported("t1", "Netflix.com", { outcome: "review", bucketId: "fun", confidence: 0.4 });
+		await imported("t2", "GYM 24");
+
+		expect(await applyRule(db, sam, "r1")).toEqual({ filed: 1, months: ["2026-09"] });
+		// The Gym is planned from October, so September's charge waits in Review.
+		expect(await applyRule(db, alex, "r2")).toEqual({ filed: 0, months: [] });
+		const rows = await db.select().from(transactions);
+		expect(Object.fromEntries(rows.map((r) => [r.id, r.commitmentId]))).toEqual({
+			t1: "netflix",
+			t2: null,
+		});
+		expect(await reviewIds()).toEqual(["t2"]);
 		expect((await listRules(db, alex)).find((r) => r.id === "r1")?.matched).toBe(1);
 	});
 });

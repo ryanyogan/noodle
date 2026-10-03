@@ -642,7 +642,11 @@ export async function loadTransactionsPage(
 			and(
 				eq(categorizations.transactionId, transactions.id),
 				eq(categorizations.outcome, "filed"),
-				eq(categorizations.bucketId, transactions.bucketId),
+				// Still where categorization filed it: its Bucket, or a Rule's Commitment (ADR-0030).
+				or(
+					eq(categorizations.bucketId, transactions.bucketId),
+					eq(categorizations.commitmentId, transactions.commitmentId),
+				),
 			),
 		)
 		.where(and(filtered, after))
