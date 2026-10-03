@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { clientRendered, createPlannedHousehold, signedInPage } from "./session";
 
 // Phone keyboards (#66): money fields bring up the decimal pad with a Done key, emails the email
 // keyboard without capitals or corrections, and search fields a Search key. The shared Input sets
@@ -46,6 +46,8 @@ const wrongKeyboards = (page: Page) =>
 	});
 
 test("fields on a phone bring up the right keyboard", async ({ browser }) => {
+	// Four pages and a sheet on one phone: past the 30 s default on a busy machine.
+	test.setTimeout(60_000);
 	const page = await signedInPage(browser, parent.email, phone);
 	await createPlannedHousehold(page, {
 		baseline: "6200",
@@ -69,7 +71,9 @@ test("fields on a phone bring up the right keyboard", async ({ browser }) => {
 	await expect(search).toHaveAttribute("enterkeyhint", "search");
 	await expect(search).toHaveAttribute("inputmode", "search");
 	expect(await wrongKeyboards(page), "Transactions").toEqual([]);
-	// The first row with a button (day headings carry no button).
+	// The first row with a button (day headings carry no button), once hydrated: before then a
+	// press on a row does nothing.
+	await expect(search).toBeEnabled(clientRendered);
 	await page.locator("[data-index]").getByRole("button").first().click();
 	const amount = page.locator("#transaction-amount");
 	await expect(amount).toHaveAttribute("inputmode", "decimal");
@@ -78,9 +82,14 @@ test("fields on a phone bring up the right keyboard", async ({ browser }) => {
 	await page.keyboard.press("Escape");
 	await expect(amount).toBeHidden();
 
-	// The Glossary's search.
-	await page.getByRole("button", { name: "Glossary" }).first().click();
+	// The Glossary's search: its button sits above This Month's header on a phone. Pressed again
+	// until it opens, since a press before hydration does nothing.
+	await page.goto("/");
 	const glossary = page.getByRole("dialog", { name: "Glossary" });
+	await expect(async () => {
+		await page.getByRole("button", { name: "Glossary" }).click();
+		await expect(glossary).toBeVisible({ timeout: 1_000 });
+	}).toPass(clientRendered);
 	await expect(glossary.getByRole("searchbox")).toHaveAttribute("enterkeyhint", "search");
 	await page.keyboard.press("Escape");
 	await expect(glossary).toBeHidden();

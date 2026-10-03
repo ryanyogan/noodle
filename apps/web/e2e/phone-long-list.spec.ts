@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { clientRendered, createPlannedHousehold, signedInPage } from "./session";
 import { swipe } from "./touch";
 
 // A busy Transactions month on a phone (#66): flung with a touch and scrolled with a wheel, the
@@ -23,10 +23,7 @@ test.afterEach(async () => {
 	await parent?.remove();
 });
 
-// fixme (#66 phase e): on chromium-mobile, after the first 900 px wheel the rows end at y=537 and
-// the list's box runs on past the screen's bottom (852): a real blank gap, or the end of the list
-// with List's own height past its last row. Not yet looked into; see the 66e handoff.
-test.fixme("a busy month flings without blank gaps or long frames", async ({ browser }) => {
+test("a busy month flings without blank gaps or long frames", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email, phone);
 	await createPlannedHousehold(page, {
 		baseline: "6200",
@@ -38,9 +35,15 @@ test.fixme("a busy month flings without blank gaps or long frames", async ({ bro
 		],
 	});
 	seedReportHistory(parent.userId, 2);
+	// Last month, which is full: this month's rows stop at today, too few to scroll far.
 	await page.goto("/transactions");
+	const title = page.getByRole("heading", { level: 1 });
+	const thisMonth = (await title.textContent()) ?? "";
+	await page.getByRole("link", { name: "Previous month" }).click();
+	await expect(title).not.toHaveText(thisMonth);
 	const rows = page.locator("[data-index]");
 	await expect(rows.first()).toBeVisible();
+	await expect(page.locator("#filter-search")).toBeEnabled(clientRendered);
 
 	await page.evaluate(() => {
 		const w = window as unknown as { longTasks: number[]; frames: number[]; stop: boolean };
