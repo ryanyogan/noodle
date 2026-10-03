@@ -9,10 +9,11 @@ import {
 import { openCredential } from "./bank-credential";
 import { bankSetup, providerFor } from "./bank-setup";
 import { getDb } from "./db";
-import { CLEAR_STEPS, type ClearDeps, runClearStep, SWEEP_STEPS } from "./fresh-start-clear";
+import { CLEAR_STEPS, type ClearDeps, runClearStep } from "./fresh-start-clear";
 
 // The Fresh start Workflow (#63, ADR-0029): waits out the grace period, then clears the Household
-// a step at a time, each retried, telling open screens how far it has got through the Agent.
+// a step at a time, each retried, telling open screens how far it has got through the Agent, and
+// two minutes later sweeps files uploaded before the clear finished.
 
 export type FreshStartParams = { id: string; householdId: string; level: ClearLevel };
 
@@ -20,7 +21,7 @@ export type FreshStartParams = { id: string; householdId: string; level: ClearLe
 export type FreshStartProgress = {
 	id: string;
 	level: ClearLevel;
-	/** `cleared` once everything is gone; `done` after the sweep two minutes later. */
+	/** `cleared` once everything is gone (the fresh start is done then); `done` when the screen found it gone. */
 	state: "running" | "cleared" | "done";
 	step: number;
 	steps: number;
@@ -83,28 +84,21 @@ export class FreshStartWorkflow extends WorkflowEntrypoint<Env, FreshStartParams
 				await runClearStep(clearDeps(householdId), key, householdId, level);
 			});
 		}
-		await step.do("cleared", () =>
-			report(householdId, { id, level, state: "cleared", step: steps, steps, label: null }),
-		);
-		// Workflows already running for the Household (month close, Perk research, Setup, a
-		// download, background AI) find nothing to work on now; anything they wrote meanwhile goes.
+		// Done at "cleared": the Parent can set up again at once. Work already running for the
+		// Household stops before its next write, since it began before this finished (clearedSince).
+		const clearedAt = await step.do("cleared", async () => {
+			const now = Date.now();
+			await finishFreshStart(getDb(), id, now);
+			await report(householdId, { id, level, state: "cleared", step: steps, steps, label: null });
+			return now;
+		});
+		// Files that work uploaded just before it stopped go too; nothing uploaded after the clear
+		// (a new statement, a download) is touched. D1, the merchants index and the Agent's storage
+		// aren't swept: they can't tell what came after, and work running checks before writing.
 		await step.sleep("let work already running finish", "2 minutes");
-		await step.do("sweep", RETRY, async () => {
-			await report(householdId, {
-				id,
-				level,
-				state: "running",
-				step: steps,
-				steps,
-				label: "Finishing up",
-			});
-			for (const key of SWEEP_STEPS)
-				await runClearStep(clearDeps(householdId), key, householdId, level);
-		});
-		await step.do("done", async () => {
-			if (level === "fresh-start") await finishFreshStart(getDb(), id, Date.now());
-			await report(householdId, { id, level, state: "done", step: steps, steps, label: null });
-		});
+		await step.do("sweep", RETRY, () =>
+			runClearStep(clearDeps(householdId), "files", householdId, level, new Date(clearedAt)),
+		);
 		return "done";
 	}
 }

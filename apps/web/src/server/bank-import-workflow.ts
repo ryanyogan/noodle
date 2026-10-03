@@ -1,4 +1,5 @@
 import { env, WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
+import { NonRetryableError } from "cloudflare:workflows";
 import { createDb, type Db, loadBankConnectionsToSync } from "@noodle/db";
 import { ulid } from "ulid";
 import { queueAi } from "./ai-queue";
@@ -13,6 +14,7 @@ import {
 	startOneSync,
 } from "./bank-import-run";
 import { type BankSetup, bankSetup, providerFor } from "./bank-setup";
+import { clearedCheck, isClearedSince, stopIfCleared } from "./cleared-since";
 import { getDb } from "./db";
 import { notifyHousehold } from "./notify";
 import { draftPlan } from "./plan-draft-after-import";
@@ -53,7 +55,14 @@ export class ImportWorkflow extends WorkflowEntrypoint<Env, BankImportParams> {
 		}
 		const db = createDb(this.env.DB);
 		try {
-			await runBankImport(event.payload, step, importDeps(db, setup));
+			const cleared = clearedCheck(db, event.payload.householdId, event.timestamp);
+			await runBankImport(
+				event.payload,
+				stopIfCleared(step, cleared, (message) => new NonRetryableError(message)),
+				importDeps(db, setup),
+			);
+		} catch (error) {
+			if (!isClearedSince(error)) throw error;
 		} finally {
 			// The Bank Connection is let go however the run ended; a sync asked for meanwhile runs now.
 			await step.do("release", async () => {

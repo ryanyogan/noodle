@@ -1,21 +1,29 @@
 import {
+	clearedSince,
 	countHouseholdRows,
 	type Db,
+	finishFreshStart,
+	freshStartRunAt,
+	GRACE_PERIOD_MS,
 	type HouseholdTableName,
 	learnedMerchants,
 	linkedBankConnectionIds,
 	recordLearnedMerchant,
+	scheduleFreshStart,
+	startFreshStartRun,
 } from "@noodle/db";
 import { buildSeed, type SeedOptions, type SeedRows, writeSeed } from "@noodle/db/seed";
 import { testDb } from "@noodle/db/test-db";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { BankConnectionProvider } from "./bank-connection";
 import { vectorId } from "./categorize-model";
+import { CLEARED_SINCE, clearedCheck, isClearedSince, stopIfCleared } from "./cleared-since";
 import {
 	type ClearDeps,
 	clearAgentStorage,
 	clearHousehold,
 	filePrefixes,
+	runClearStep,
 } from "./fresh-start-clear";
 
 // A fresh start clears the Household from every store (#63): D1, R2, Vectorize and the Agent's
@@ -62,6 +70,7 @@ let files: Map<string, string>;
 let vectors: Set<string>;
 let storages: Map<string, Storage>;
 let removed: string[];
+const uploads = new Map<string, Date>();
 
 const provider = {
 	remove: async (credential: string) => {
@@ -79,11 +88,16 @@ const deps = (): ClearDeps => ({
 	db,
 	files: {
 		list: async (o?: R2ListOptions) => {
-			const keys = [...files.keys()].filter((k) => k.startsWith(o?.prefix ?? "")).sort();
+			// The cursor is the last key listed, as R2's moves past keys (deleting doesn't shift it).
+			const keys = [...files.keys()]
+				.filter((k) => k.startsWith(o?.prefix ?? "") && (!o?.cursor || k > o.cursor))
+				.sort();
 			const limit = o?.limit ?? 1000;
+			const page = keys.slice(0, limit);
 			return {
-				objects: keys.slice(0, limit).map((key) => ({ key })),
+				objects: page.map((key) => ({ key, uploaded: uploads.get(key) ?? new Date(0) })),
 				truncated: keys.length > limit,
+				cursor: page.at(-1),
 				delimitedPrefixes: [],
 			} as unknown as R2Objects;
 		},
@@ -195,5 +209,70 @@ describe("Delete Household", () => {
 		expect(filesOf(a)).toEqual([]);
 		expect(vectorsOf(a)).toEqual([]);
 		expect(await counts(b)).toEqual(theirs);
+	});
+});
+
+describe("the sweep after a clear", () => {
+	it("removes files uploaded before the clear finished and keeps those uploaded after", async () => {
+		const clearedAt = new Date("2026-10-01T12:00:00Z");
+		files.set(`${a}/old.pdf`, "old");
+		uploads.set(`${a}/old.pdf`, new Date("2026-10-01T11:59:00Z"));
+		files.set(`${a}/new.pdf`, "new");
+		uploads.set(`${a}/new.pdf`, new Date("2026-10-01T12:01:00Z"));
+		await runClearStep(deps(), "files", a, "fresh-start", clearedAt);
+		expect(filesOf(a)).toEqual([`${a}/new.pdf`]);
+		expect(filesOf(b)).toHaveLength(1011);
+	});
+});
+
+describe("work begun before a fresh start", () => {
+	const fresh = (id: string, now: number) =>
+		scheduleFreshStart(db, {
+			id,
+			householdId: a,
+			level: "fresh-start",
+			requestedBy: "x",
+			runAt: now,
+			now,
+		});
+
+	it("is cleared while the clear runs, and after it finished, but not by one finished before", async () => {
+		const began = Date.parse("2026-10-01T12:00:00Z");
+		expect(await clearedSince(db, a, began)).toBe(false);
+		await fresh("FS1", began - 60_000);
+		await startFreshStartRun(db, "FS1");
+		expect(await clearedSince(db, a, began)).toBe(true);
+		expect(await clearedSince(db, b, began)).toBe(false);
+		await finishFreshStart(db, "FS1", began - 1000);
+		expect(await clearedSince(db, a, began)).toBe(false);
+		expect(await clearedSince(db, a, began - 5000)).toBe(true);
+	});
+
+	it("stops a Workflow before its next write once the Household was cleared", async () => {
+		const began = new Date(Date.now() - 60_000);
+		const writes: string[] = [];
+		const step = { do: async (_name: string, callback: () => Promise<void>) => callback() };
+		const guarded = stopIfCleared(step, clearedCheck(db, a, began));
+		await guarded.do("first", async () => {
+			writes.push("first");
+		});
+		await fresh("FS2", began.getTime());
+		await startFreshStartRun(db, "FS2");
+		await finishFreshStart(db, "FS2", Date.now());
+		const second = guarded.do("second", async () => {
+			writes.push("second");
+		});
+		await expect(second).rejects.toThrow(CLEARED_SINCE);
+		await second.catch((error) => expect(isClearedSince(error)).toBe(true));
+		expect(writes).toEqual(["first"]);
+	});
+});
+
+describe("when a fresh start runs", () => {
+	it("runs at once with one Parent and a day later with two", () => {
+		const now = Date.parse("2026-10-01T12:00:00Z");
+		expect(freshStartRunAt(now, 0)).toBe(now);
+		expect(freshStartRunAt(now, 1)).toBe(now + GRACE_PERIOD_MS);
+		expect(GRACE_PERIOD_MS).toBe(24 * 60 * 60 * 1000);
 	});
 });

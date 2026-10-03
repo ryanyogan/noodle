@@ -1,4 +1,5 @@
 import { env, WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
+import { NonRetryableError } from "cloudflare:workflows";
 import {
 	createDb,
 	type Db,
@@ -9,6 +10,7 @@ import {
 } from "@noodle/db";
 import { dayKeyAt, PERK_RECHECK_DAYS } from "@noodle/domain";
 import { ulid } from "ulid";
+import { clearedCheck, isClearedSince, stopIfCleared } from "./cleared-since";
 import { getDb } from "./db";
 import { insightDeps } from "./insights-nightly";
 import { lookForHouseholdInsights } from "./insights-run";
@@ -44,7 +46,17 @@ function researchDeps(db: Db): PerkResearchDeps {
 
 export class PerkResearchWorkflow extends WorkflowEntrypoint<Env, PerkResearchParams> {
 	override async run(event: Readonly<WorkflowEvent<PerkResearchParams>>, step: WorkflowStep) {
-		await runPerkResearch(event.payload, step, researchDeps(createDb(this.env.DB)));
+		const db = createDb(this.env.DB);
+		const cleared = clearedCheck(db, event.payload.householdId, event.timestamp);
+		try {
+			await runPerkResearch(
+				event.payload,
+				stopIfCleared(step, cleared, (message) => new NonRetryableError(message)),
+				researchDeps(db),
+			);
+		} catch (error) {
+			if (!isClearedSince(error)) throw error;
+		}
 	}
 }
 

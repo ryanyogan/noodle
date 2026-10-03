@@ -1,4 +1,5 @@
 import { env, WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
+import { NonRetryableError } from "cloudflare:workflows";
 import {
 	closeMonth as closeMonthInDb,
 	createDb,
@@ -8,6 +9,7 @@ import {
 } from "@noodle/db";
 import { monthCloseProposal, monthState } from "@noodle/domain";
 import { queueAi } from "./ai-queue";
+import { clearedCheck, isClearedSince, stopIfCleared } from "./cleared-since";
 import { getDb } from "./db";
 import { loadMonth } from "./month";
 import {
@@ -39,14 +41,23 @@ async function loadEndedMonth(db: Db, params: MonthCloseParams): Promise<EndedMo
 }
 
 export class MonthCloseWorkflow extends WorkflowEntrypoint<Env, MonthCloseParams> {
-	override run(event: Readonly<WorkflowEvent<MonthCloseParams>>, step: WorkflowStep) {
+	override async run(event: Readonly<WorkflowEvent<MonthCloseParams>>, step: WorkflowStep) {
 		const db = createDb(this.env.DB);
 		const deps: MonthCloseDeps = {
 			loadEndedMonth: (params) => loadEndedMonth(db, params),
 			closeMonth: (input) => closeMonthInDb(db, input),
 			notify: notifyHousehold,
 		};
-		return runMonthClose(event.payload, step, deps);
+		const cleared = clearedCheck(db, event.payload.householdId, event.timestamp);
+		try {
+			return await runMonthClose(
+				event.payload,
+				stopIfCleared(step, cleared, (message) => new NonRetryableError(message)),
+				deps,
+			);
+		} catch (error) {
+			if (!isClearedSince(error)) throw error;
+		}
 	}
 }
 

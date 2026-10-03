@@ -1,4 +1,5 @@
 import { env, WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
+import { NonRetryableError } from "cloudflare:workflows";
 import { clerkClient } from "@clerk/tanstack-react-start/server";
 import { createDb, findMembershipByClerkUser, loadExportData } from "@noodle/db";
 import type { DayKey } from "@noodle/domain";
@@ -10,6 +11,7 @@ import {
 	exportFiles,
 	exportKey,
 } from "../export-files";
+import { clearedCheck, isClearedSince, stopIfCleared } from "./cleared-since";
 import { getDb } from "./db";
 import { type ExportParams, pendingKey } from "./export";
 import { notifyHousehold } from "./notify";
@@ -116,14 +118,23 @@ export async function buildExport(params: ExportParams, now: Date): Promise<stri
 export class ExportWorkflow extends WorkflowEntrypoint<Env, ExportParams> {
 	override async run(event: Readonly<WorkflowEvent<ExportParams>>, step: WorkflowStep) {
 		const params = event.payload;
-		const key = await step.do("build the ZIP", { retries: { limit: 2, delay: "10 seconds" } }, () =>
-			buildExport(params, new Date()),
-		);
-		await step.do("tell the Household", async () => {
-			await env.STATEMENTS.delete(pendingKey(params.householdId, params.id));
-			await notifyHousehold(params.householdId, ["export"]);
-		});
-		return key;
+		const cleared = clearedCheck(createDb(this.env.DB), params.householdId, event.timestamp);
+		const guarded = stopIfCleared(step, cleared, (message) => new NonRetryableError(message));
+		try {
+			const key = await guarded.do(
+				"build the ZIP",
+				{ retries: { limit: 2, delay: "10 seconds" } },
+				() => buildExport(params, new Date()),
+			);
+			await guarded.do("tell the Household", async () => {
+				await env.STATEMENTS.delete(pendingKey(params.householdId, params.id));
+				await notifyHousehold(params.householdId, ["export"]);
+			});
+			return key;
+		} catch (error) {
+			if (!isClearedSince(error)) throw error;
+			return null;
+		}
 	}
 }
 

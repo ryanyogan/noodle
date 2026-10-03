@@ -5,8 +5,10 @@ import {
 	type WorkflowStep,
 	waitUntil,
 } from "cloudflare:workers";
+import { NonRetryableError } from "cloudflare:workflows";
 import { createDb, type Db } from "@noodle/db";
 import { categorizeImported } from "./categorize";
+import { clearedCheck, isClearedSince, stopIfCleared } from "./cleared-since";
 import { getDb } from "./db";
 import { notifyHousehold } from "./notify";
 import { draftPlan } from "./plan-draft-after-import";
@@ -32,7 +34,17 @@ const setupDeps = (db: Db, wait: SetupDeps["wait"]): SetupDeps => ({
 
 export class SetupWorkflow extends WorkflowEntrypoint<Env, SetupParams> {
 	override async run(event: Readonly<WorkflowEvent<SetupParams>>, step: WorkflowStep) {
-		await runSetup(event.payload, step, setupDeps(createDb(this.env.DB), WORKFLOW_WAIT));
+		const db = createDb(this.env.DB);
+		const cleared = clearedCheck(db, event.payload.householdId, event.timestamp);
+		try {
+			await runSetup(
+				event.payload,
+				stopIfCleared(step, cleared, (message) => new NonRetryableError(message)),
+				setupDeps(db, WORKFLOW_WAIT),
+			);
+		} catch (error) {
+			if (!isClearedSince(error)) throw error;
+		}
 	}
 }
 

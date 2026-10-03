@@ -3,6 +3,7 @@ import {
 	cancelFreshStart as cancelScheduled,
 	countHouseholdData,
 	type FreshStart,
+	freshStartRunAt,
 	linkedBankNames,
 	listParents,
 	loadActiveFreshStart,
@@ -79,9 +80,6 @@ export const getFreshStartStatus = createServerFn({ method: "GET" })
 		statusOf(await loadActiveFreshStart(getDb(), context.household.id)),
 	);
 
-/** How long the other Parent has to cancel: a day. A Household with one Parent skips it. */
-export const GRACE_PERIOD_MS = 24 * 60 * 60 * 1000;
-
 /**
  * Schedules a fresh start or Delete Household and starts its Workflow. With both Parents in, it
  * waits 24 hours, during which either can cancel, and the other Parent gets a Nudge; with one
@@ -100,7 +98,7 @@ export const startFreshStart = createServerFn({ method: "POST" })
 			householdId,
 			level: data.level,
 			requestedBy: context.parent.id,
-			runAt: others.length > 0 ? now + GRACE_PERIOD_MS : now,
+			runAt: freshStartRunAt(now, others.length),
 			now,
 		});
 		if (created) {

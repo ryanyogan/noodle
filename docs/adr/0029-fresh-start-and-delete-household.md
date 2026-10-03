@@ -23,7 +23,7 @@ The Fresh start Workflow runs these steps, each retried and each safe to run aga
 4. **Clear files** in R2 under `{householdId}/`, `receipts/{householdId}/` and `exports/{householdId}/`, a page of a thousand at a time.
 5. **Clear rows** in D1, as above.
 
-Then it waits two minutes and **sweeps**: steps 2 to 5 again.
+The fresh start is **done at "cleared"**, right after step 5: its row is marked done with theA Workflow's instances can't be found by Household, so they aren't terminated. Instead each one that writes for a Household (Import, Month-close, Perk research, Setup, download) checks before every step whether that Household is being cleared, or had a fresh start finish after the instance began (`clearedSince(db, householdId, startedAt)` in packages/db; `stopIfCleared` wraps the Workflow's step). If so the step throws a NonRetryableError that the Workflow catches, and it stops quietly without writing. The Agent's background AI checks the same before looking for Insights. An Import also stops once its Bank Connection is disconnected (step 1), and background AI and Nudges lose what they held (step 2).e Agent's storage aren't swept, since neither can tell what was written after the clear.
 
 ## Workflows already running
 

@@ -1,5 +1,5 @@
 import { merchantKey } from "@noodle/domain";
-import { and, count, desc, eq, getTableColumns, inArray, ne } from "drizzle-orm";
+import { and, count, desc, eq, getTableColumns, gt, inArray, ne, or } from "drizzle-orm";
 import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
 import { REMOVED_CREDENTIAL } from "./bank-connections";
 import type { Db } from "./index";
@@ -320,4 +320,38 @@ export async function countHouseholdRows(
 		out[name] = row?.n ?? 0;
 	}
 	return out as Record<HouseholdTableName, number>;
+}
+
+/** How long the other Parent has to cancel: a day. A Household with one Parent skips it. */
+export const GRACE_PERIOD_MS = 24 * 60 * 60 * 1000;
+
+/** When a fresh start asked for at `now` runs: at once with one Parent, a day later with two. */
+export function freshStartRunAt(now: number, otherParents: number): number {
+	return otherParents > 0 ? now + GRACE_PERIOD_MS : now;
+}
+
+/**
+ * Whether the Household is being cleared, or a fresh start finished after `startedAt`: background
+ * work that began before then checks this before each write and stops, so nothing it wrote for
+ * the old Household lands in the new one (ADR-0029).
+ */
+export async function clearedSince(
+	db: Db,
+	householdId: string,
+	startedAt: number,
+): Promise<boolean> {
+	const [row] = await db
+		.select({ id: s.freshStarts.id })
+		.from(s.freshStarts)
+		.where(
+			and(
+				eq(s.freshStarts.householdId, householdId),
+				or(
+					eq(s.freshStarts.status, "running"),
+					and(eq(s.freshStarts.status, "done"), gt(s.freshStarts.finishedAt, new Date(startedAt))),
+				),
+			),
+		)
+		.limit(1);
+	return row !== undefined;
 }

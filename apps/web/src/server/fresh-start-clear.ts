@@ -44,9 +44,6 @@ export const CLEAR_STEPS = [
 
 export type ClearStep = (typeof CLEAR_STEPS)[number]["key"];
 
-/** Run again after work already in flight has finished, to catch anything it wrote meanwhile. */
-export const SWEEP_STEPS: ClearStep[] = ["background", "merchants", "files", "rows"];
-
 /** Where the Household's files live in R2: statements, Receipts' emails, and downloads. */
 export const filePrefixes = (householdId: string) => [
 	`${householdId}/`,
@@ -72,14 +69,18 @@ async function removeBanks(deps: ClearDeps, householdId: string) {
 	}
 }
 
-async function clearFiles(deps: ClearDeps, householdId: string) {
+/** The Household's files, or only those uploaded before `before` (the sweep after a clear). */
+async function clearFiles(deps: ClearDeps, householdId: string, before?: Date) {
 	for (const prefix of filePrefixes(householdId)) {
-		// Each page is listed from the start again: the last one's objects are gone.
+		let cursor: string | undefined;
 		for (;;) {
-			const page = await deps.files.list({ prefix, limit: PAGE });
-			if (page.objects.length === 0) break;
-			await deps.files.delete(page.objects.map((object) => object.key));
+			const page = await deps.files.list({ prefix, limit: PAGE, cursor });
+			const keys = page.objects
+				.filter((object) => !before || object.uploaded < before)
+				.map((object) => object.key);
+			if (keys.length > 0) await deps.files.delete(keys);
 			if (!page.truncated) break;
+			cursor = page.cursor;
 		}
 	}
 }
@@ -96,18 +97,19 @@ export async function runClearStep(
 	step: ClearStep,
 	householdId: string,
 	level: ClearLevel,
+	/** Files only: keep what was uploaded at or after this. */
+	before?: Date,
 ): Promise<void> {
 	if (step === "banks") await removeBanks(deps, householdId);
 	else if (step === "background") await deps.agent(householdId).clearHousehold();
 	else if (step === "merchants") await forgetMerchants(deps, householdId);
-	else if (step === "files") await clearFiles(deps, householdId);
+	else if (step === "files") await clearFiles(deps, householdId, before);
 	else await clearHouseholdRows(deps.db, householdId, level);
 }
 
-/** Every step, then the sweep: what the Workflow does, without its waits and progress. */
+/** Every step: what the Workflow does, without its waits, progress and sweep. */
 export async function clearHousehold(deps: ClearDeps, householdId: string, level: ClearLevel) {
 	for (const { key } of CLEAR_STEPS) await runClearStep(deps, key, householdId, level);
-	for (const key of SWEEP_STEPS) await runClearStep(deps, key, householdId, level);
 }
 
 /** The Agent's part: its held Nudges, background AI, model budget and alarm all go. */

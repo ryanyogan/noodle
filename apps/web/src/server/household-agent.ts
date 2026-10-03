@@ -1,6 +1,11 @@
 import { DurableObject, env } from "cloudflare:workers";
 import { clerkClient } from "@clerk/tanstack-react-start/server";
-import { findMembershipByClerkUser, listMembers, loadNudgeRecipients } from "@noodle/db";
+import {
+	clearedSince,
+	findMembershipByClerkUser,
+	listMembers,
+	loadNudgeRecipients,
+} from "@noodle/db";
 import { type DayKey, dayKeyAt } from "@noodle/domain";
 import { type HouseholdChange, householdChangesMessage } from "../household-changes";
 import { AI_BUDGET, budgetedInsightModel, ModelBudget, STUB_AI_BUDGET } from "./ai-budget";
@@ -101,7 +106,7 @@ export class HouseholdAgent extends DurableObject<Env> {
 				__AI_STUB__ ? STUB_AI_BUDGET : AI_BUDGET,
 			);
 			try {
-				return await this.runAi(batch, budget);
+				return await this.runAi(batch, budget, Date.now());
 			} finally {
 				await budget.save();
 			}
@@ -114,13 +119,19 @@ export class HouseholdAgent extends DurableObject<Env> {
 		}
 	}
 
-	private runAi(batch: Parameters<Parameters<AiCoalescer["run"]>[0]>[0], budget: ModelBudget) {
+	private runAi(
+		batch: Parameters<Parameters<AiCoalescer["run"]>[0]>[0],
+		budget: ModelBudget,
+		startedAt: number,
+	) {
 		return runAiBatch(
 			{
 				...categorizeDeps(),
 				budget,
 				refreshInsights: async (within) => {
 					const deps = insightDeps();
+					// Cleared while this ran (a fresh start): nothing to look at, nothing to write.
+					if (await clearedSince(deps.db, batch.householdId, startedAt)) return 0;
 					const household = await loadNudgeRecipients(deps.db, batch.householdId);
 					if (!household) return 0;
 					return lookForHouseholdInsights(
