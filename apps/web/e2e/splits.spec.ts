@@ -121,7 +121,7 @@ test("splitting a Quick Add spends each Split from its own Bucket, For its own M
 	await expect(bucketRow(page, "Hockey")).toContainText("$70 spent");
 
 	// Leo cost only his Split.
-	await page.goto("/household");
+	await page.goto("/reports?view=people");
 	await expect(
 		page.getByRole("region", { name: "Leo", exact: true }).getByRole("row", { name: /^Total/ }),
 	).toHaveText(/Total\$70\$70/);
