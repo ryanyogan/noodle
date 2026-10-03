@@ -9,6 +9,7 @@ import { savedBy, signedInPage } from "./session";
 const sizes = [
 	{
 		name: "393 px phone",
+		tag: ["@phone"],
 		options: {
 			viewport: { width: 393, height: 852 },
 			deviceScaleFactor: 2,
@@ -16,7 +17,7 @@ const sizes = [
 			hasTouch: true,
 		},
 	},
-	{ name: "1440 desktop", options: { viewport: { width: 1440, height: 900 } } },
+	{ name: "1440 desktop", tag: [], options: { viewport: { width: 1440, height: 900 } } },
 ] as const;
 
 async function axe(page: Page, where: string) {
@@ -42,9 +43,9 @@ async function axe(page: Page, where: string) {
 }
 
 for (const size of sizes) {
-	test(`axe finds no violations in the wizard or on the joined screen, ${size.name}`, async ({
-		browser,
-	}) => {
+	test(`axe finds no violations in the wizard or on the joined screen, ${size.name}`, {
+		tag: [...size.tag],
+	}, async ({ browser }) => {
 		test.setTimeout(240_000);
 		const parent = await createTestParent();
 		try {

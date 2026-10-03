@@ -154,7 +154,9 @@ test("key information starts above the fold", async ({ browser }) => {
 	console.log(`FOLD\n${lines.join("\n")}`);
 });
 
-test("a starter household's Get started starts above the fold", async ({ browser }) => {
+test("a starter household's Get started starts above the fold", { tag: "@phone" }, async ({
+	browser,
+}) => {
 	// Just made, no Plan yet: there is no Free to Spend, so Get started is the page's key information.
 	for (const [width, height] of [
 		[393, 852],

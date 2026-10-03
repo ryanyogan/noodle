@@ -64,7 +64,9 @@ test("answers cite the Household's figures and link to the screens with more", a
 	await expect(page.getByTestId("affordability-verdict")).toContainText("trip, $2,000");
 });
 
-test("a failed answer can be retried, from the phone's This Month header", async ({ browser }) => {
+test("a failed answer can be retried, from the phone's This Month header", {
+	tag: "@phone",
+}, async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email, {
 		viewport: { width: 393, height: 852 },
 		isMobile: true,

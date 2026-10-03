@@ -159,9 +159,9 @@ test("a card is paid off with a payoff Goal: added from what's owed, funded, pai
 	await page.context().close();
 });
 
-test("on a phone, a payoff Goal is added from Goals, loses progress to new charges, and starts again", async ({
-	browser,
-}) => {
+test("on a phone, a payoff Goal is added from Goals, loses progress to new charges, and starts again", {
+	tag: "@phone",
+}, async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email, {
 		viewport: { width: 393, height: 852 },
 		isMobile: true,

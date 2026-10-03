@@ -162,7 +162,7 @@ test("an archived Bucket can be restored to the Plan", async ({ browser }) => {
 	await page.context().close();
 });
 
-test("a Bucket's page works on a phone", async ({ browser }) => {
+test("a Bucket's page works on a phone", { tag: "@phone" }, async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email, {
 		viewport: { width: 393, height: 852 },
 		isMobile: true,

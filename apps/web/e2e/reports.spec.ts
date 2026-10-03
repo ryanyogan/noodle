@@ -95,7 +95,7 @@ test("Big expenses are the one-offs over a threshold the Parent picks", async ({
 	await expect(largest.getByText("Dentist")).toHaveCount(0);
 });
 
-test("Phones reach Reports from This Month", async ({ browser }) => {
+test("Phones reach Reports from This Month", { tag: "@phone" }, async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email, {
 		viewport: { width: 393, height: 852 },
 		isMobile: true,

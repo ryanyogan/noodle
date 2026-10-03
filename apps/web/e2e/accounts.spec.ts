@@ -89,9 +89,9 @@ test("Accounts are their own area, and each Goal names the Account holding it", 
 	await expect(page.locator("[data-slot=detail-title]")).toContainText("Joint Savings");
 });
 
-test("on a phone, Accounts is reached from Transactions and the Household page", async ({
-	browser,
-}) => {
+test("on a phone, Accounts is reached from Transactions and the Household page", {
+	tag: "@phone",
+}, async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email, { ...phone, colorScheme: "dark" });
 	await createPlannedHousehold(page, plan);
 	const tabs = page.getByRole("navigation", { name: "Main" });

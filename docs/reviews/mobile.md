@@ -245,6 +245,18 @@ sideways scroll, tap targets, axe on each page, a busy Transactions month flung 
 no blank gaps and frames inside budget (phone-long-list), and Upload statement, Connect a bank and
 Close month start to finish (phone-flows).
 
+Tagged `@phone` (phone-only tests that sign in through `signedInPage` with phone options, so they
+run on chromium-mobile and webkit-iphone instead of desktop Chrome): quick-add, plan-area, glossary
+and transactions (one test each), accounts, months, master-detail (the two "a phone shows..."
+tests), above-the-fold (the starter household), ask, reports, payoff-goals, bucket-page,
+explore-outcomes, and setup-a11y's 393 px run (its 1440 run stays desktop).
+
+Stay on desktop Chrome with phone steps (they set up at desktop width, or check desktop and phone
+in one test, then shrink the viewport or open a second phone context): above-the-fold's "key
+information" and Review card tests, master-detail's Transaction, Rule and Scenario tests, reports'
+"no Report view is wider than a phone", and review's "a card changed in Review makes a Rule". These
+run in Chromium only, so their phone steps are never checked in WebKit.
+
 ## Only on a real iPhone
 
 - Real keyboard feel: the keys and the sheet riding above the keyboard are set and tested in

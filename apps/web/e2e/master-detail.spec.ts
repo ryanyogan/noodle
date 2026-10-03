@@ -143,7 +143,7 @@ test("a Bucket's and a Commitment's old addresses go to the new ones", async ({ 
 	await page.context().close();
 });
 
-test("a phone shows the list, then the item with Back", async ({ browser }) => {
+test("a phone shows the list, then the item with Back", { tag: "@phone" }, async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email, phone);
 	await household(page);
 	// The list is the page, with Add Buckets in its sticky bar.
@@ -254,7 +254,9 @@ test("Goals and Accounts keep their list beside the picked item", async ({ brows
 	await page.context().close();
 });
 
-test("a phone shows Goals or Accounts, then the item with Back", async ({ browser }) => {
+test("a phone shows Goals or Accounts, then the item with Back", { tag: "@phone" }, async ({
+	browser,
+}) => {
 	test.slow();
 	const page = await signedInPage(browser, parent.email, phone);
 	await withGoals(page);

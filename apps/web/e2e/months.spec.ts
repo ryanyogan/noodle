@@ -152,7 +152,7 @@ test("a Bucket that carries over carries what's left into next month; a resets m
 	);
 });
 
-test("swiping on a phone moves between months", async ({ browser }) => {
+test("swiping on a phone moves between months", { tag: "@phone" }, async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email, phone);
 	await createPlannedHousehold(page, plan);
 	const { current, next } = monthsAround(page);

@@ -73,7 +73,9 @@ test("a change that empties the Projected balance is flagged, and the warning le
 	await expect(projectedBalance.getByRole("row").nth(1)).toContainText(/\$3,400\s*\$3,400$/);
 });
 
-test("on a phone, tapping a month shows it in full under the chart", async ({ browser }) => {
+test("on a phone, tapping a month shows it in full under the chart", { tag: "@phone" }, async ({
+	browser,
+}) => {
 	const page = await signedInPage(browser, parent.email, {
 		viewport: { width: 393, height: 852 },
 		isMobile: true,
