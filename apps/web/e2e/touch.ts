@@ -5,7 +5,8 @@ import type { Locator, Page } from "@playwright/test";
  *
  * Chromium gets real touches through CDP, so the browser decides between scrolling and the app's
  * pointer handlers as a phone would. Playwright's WebKit can only tap, so there the same drag is
- * dispatched as touch and pointer events on the element under the finger: enough for the sheet's
+ * dispatched as pointer events (and touch events, where the browser can make them) on the element
+ * under the finger: enough for the sheet's
  * drag-to-close, but WebKit won't scroll for it.
  */
 export async function swipe(page: Page, from: Locator, dy: number, steps = 10) {
@@ -57,8 +58,13 @@ export async function swipe(page: Page, from: Locator, dy: number, steps = 10) {
 						clientY: at,
 					}),
 				);
-				if (typeof Touch === "function") {
-					const t = new Touch({ identifier: 1, target, clientX: x, clientY: at });
+				// Desktop WebKit (Playwright's) has a Touch function that throws "Illegal constructor",
+				// having no touch support. The sheet listens for pointer events anyway.
+				let t: Touch | undefined;
+				try {
+					t = new Touch({ identifier: 1, target, clientX: x, clientY: at });
+				} catch {}
+				if (t) {
 					target.dispatchEvent(
 						new TouchEvent(`touch${kind}`, {
 							bubbles: true,

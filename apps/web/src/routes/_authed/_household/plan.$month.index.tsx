@@ -399,12 +399,12 @@ function Waterfall({ state, current }: { state: MonthState; current: boolean }) 
 					);
 				})}
 				<li className="grid gap-2.5 px-(--card-pad) py-3.5">
-					<div className="flex items-center justify-between gap-4 text-sm font-semibold">
+					<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm font-semibold">
 						<span className="inline-flex items-center gap-1">
 							Free to Spend
 							<TermHelp term="free-to-spend" />
 						</span>
-						<span className={cn("tabular-nums", overBy > 0 && "text-over")}>
+						<span className={cn("ms-auto tabular-nums", overBy > 0 && "text-over")}>
 							{formatMoney(state.freeToSpend)}
 						</span>
 					</div>
@@ -464,7 +464,8 @@ function WaterfallStep({
 				"has-focus-visible:outline-2 has-focus-visible:-outline-offset-2 has-focus-visible:outline-ring",
 			)}
 		>
-			<div className="flex items-center justify-between gap-4 text-sm">
+			{/* Wraps at large text, the amount staying at the end, so a long label can't widen the page. */}
+			<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">
 				<Link
 					to={to}
 					params={{ month }}
@@ -474,7 +475,7 @@ function WaterfallStep({
 					{label}
 				</Link>
 				{help ? <span className="relative z-10 me-auto -ms-2">{help}</span> : null}
-				<span className="flex items-center gap-1.5 tabular-nums">
+				<span className="ms-auto flex items-center gap-1.5 tabular-nums">
 					{amount}
 					<ChevronRight aria-hidden="true" className="size-4 text-subtle-foreground" />
 				</span>

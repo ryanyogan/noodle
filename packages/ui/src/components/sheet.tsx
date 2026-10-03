@@ -145,7 +145,10 @@ function useDragToClose(close: () => void) {
 			if (event.button !== 0 || window.matchMedia("(min-width: 64rem)").matches) return;
 			if ((event.target as HTMLElement).closest("button, a, input, [role=button]")) return;
 			start.current = event.clientY;
-			event.currentTarget.setPointerCapture(event.pointerId);
+			// Capture fails for a pointer the browser no longer counts as down; the drag still works.
+			try {
+				event.currentTarget.setPointerCapture(event.pointerId);
+			} catch {}
 		},
 		onPointerMove: (event: React.PointerEvent<HTMLElement>) => {
 			const sheet = sheetOf(event.currentTarget);

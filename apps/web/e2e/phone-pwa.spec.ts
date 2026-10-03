@@ -110,15 +110,29 @@ for (const look of looks) {
 	});
 }
 
-// #52 row 144: Back in another sheet with something typed asks first. It does on a desktop
-// (sheet-leave.spec.ts) but not here on a phone: Back leaves without asking. For phase d of #66.
-test.fixme("Back asks first in a sheet with something typed, on a phone", async ({ browser }) => {
+// #52 row 144: Back in another sheet with something typed asks first, as on a desktop
+// (sheet-leave.spec.ts).
+test("Back asks first in a sheet with something typed, on a phone", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
 	await installed(page);
 	// Into Accounts by a link, so Back stays in the app (a fresh page load would leave it).
 	await page.goto("/goals");
-	await page.getByRole("link", { name: "Go to Accounts" }).click(clientRendered);
+	// Only once React has the link: a click before hydration loads Accounts as a new document, and
+	// Back to another document can't ask with the app's dialog.
+	const toAccounts = page.getByRole("link", { name: "Go to Accounts" });
+	await expect(toAccounts).toBeVisible(clientRendered);
+	await toAccounts.evaluate(
+		(a) =>
+			new Promise<void>((done) => {
+				const check = () =>
+					Object.keys(a).some((k) => k.startsWith("__reactProps$"))
+						? done()
+						: setTimeout(check, 50);
+				check();
+			}),
+	);
+	await toAccounts.click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts", clientRendered);
 	await page.getByLabel("Name").fill("Everyday Checking");
 	await page.getByRole("button", { name: "Add Account" }).click();
