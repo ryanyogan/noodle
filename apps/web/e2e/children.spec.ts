@@ -1,7 +1,12 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { clientRendered, createPlannedHousehold, signedInPage } from "./session";
+import {
+	clientRendered,
+	createPlannedHousehold,
+	pickQuickAddBucket,
+	signedInPage,
+} from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -53,9 +58,7 @@ async function quickAdd(page: Page, amount: string, bucket: string, forName?: st
 			.getByRole("radio", { name: forName })
 			.click();
 	}
-	await sheet(page)
-		.getByRole("button", { name: new RegExp(`^${bucket}`) })
-		.click();
+	await pickQuickAddBucket(sheet(page), bucket);
 	await expect(sheet(page)).toBeHidden();
 }
 

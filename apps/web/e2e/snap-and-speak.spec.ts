@@ -31,7 +31,7 @@ const plan = {
 };
 
 const sheet = (page: Page) => page.getByRole("dialog", { name: "Quick Add" });
-const picks = (page: Page) => sheet(page).getByRole("list", { name: "Add to" });
+const picks = (page: Page) => sheet(page).getByRole("listbox", { name: "Add to" });
 const list = (page: Page) => page.getByRole("list", { name: /^Transactions in / });
 const editSheet = (page: Page) =>
 	page
@@ -94,11 +94,11 @@ test("a snapped Receipt fills in Quick Add and is attached to what's saved", asy
 	await expect(sheet(page)).toContainText("Receipt from Corner Market, dated");
 	await expect(sheet(page)).toContainText("Check it, then tap a Bucket to add it");
 	await expect(sheet(page).getByLabel("Note")).toHaveValue("Corner Market");
-	const first = picks(page).getByRole("listitem").first();
+	const first = picks(page).getByRole("option").first();
 	await expect(first).toContainText("Groceries");
 	await expect(first).toContainText("Suggested");
 
-	await first.getByRole("button").click();
+	await first.click();
 	await expect(sheet(page)).toBeHidden();
 	await expect(page.getByRole("status").filter({ hasText: "added to" })).toHaveText(
 		"$7.79 added to Groceries",
@@ -175,7 +175,7 @@ test("a Receipt dated last month is added to last month's Plan, or today when it
 	// Last month had no Plan, so it's dated today, in this month's.
 	await snap("4.29");
 	await expect(sheet(page)).toContainText(`${lastMonth.name} has no Plan, so it’s added today`);
-	await picks(page).getByRole("listitem").first().getByRole("button").click();
+	await picks(page).getByRole("option").first().click();
 	await expect(page.getByRole("status").filter({ hasText: "added to" })).toHaveText(
 		"$4.29 added to Groceries",
 	);
@@ -186,11 +186,11 @@ test("a Receipt dated last month is added to last month's Plan, or today when it
 	await page.reload();
 	await snap("6.10");
 	await expect(sheet(page)).toContainText(`, so it’s added to ${lastMonth.name}`);
-	const first = picks(page).getByRole("listitem").first();
+	const first = picks(page).getByRole("option").first();
 	await expect(first).toContainText("Groceries");
 	// Last month's Groceries, not this month's ($795.71 left).
 	await expect(first).toContainText("$800 left · Suggested");
-	await first.getByRole("button").click();
+	await first.click();
 	await expect(page.getByRole("status").filter({ hasText: "added to" })).toHaveText(
 		"$6.10 added to Groceries",
 	);
@@ -220,10 +220,10 @@ test("a phrase typed where there's no speech recognition fills in Quick Add", as
 
 	await expect(sheet(page).getByRole("status", { name: "Amount" })).toHaveText("$12.50");
 	await expect(sheet(page).getByLabel("Note")).toHaveValue("a burrito");
-	const first = picks(page).getByRole("listitem").first();
+	const first = picks(page).getByRole("option").first();
 	await expect(first).toContainText("Eating out");
 	await expect(first).toContainText("Suggested");
-	await first.getByRole("button").click();
+	await first.click();
 	await expect(page.getByRole("status").filter({ hasText: "added to" })).toHaveText(
 		"$12.50 added to Eating out",
 	);
@@ -265,10 +265,10 @@ test("a phrase said aloud fills in Quick Add", async ({ browser }) => {
 
 	await expect(sheet(page).getByRole("status", { name: "Amount" })).toHaveText("$40");
 	await expect(sheet(page).getByLabel("Note")).toHaveValue("pizza after hockey");
-	const first = picks(page).getByRole("listitem").first();
+	const first = picks(page).getByRole("option").first();
 	await expect(first).toContainText("Eating out");
 	await expect(first).toContainText("Suggested");
-	await first.getByRole("button").click();
+	await first.click();
 	await expect(page.getByRole("status").filter({ hasText: "added to" })).toHaveText(
 		"$40 added to Eating out",
 	);

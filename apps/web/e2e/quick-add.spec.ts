@@ -32,7 +32,7 @@ async function quickAdd(page: Page, amount: string, bucket: string, note?: strin
 	await page.keyboard.type(amount);
 	if (note) await sheet(page).getByLabel("Note").fill(note);
 	await sheet(page)
-		.getByRole("button", { name: new RegExp(`^${bucket}`) })
+		.getByRole("option", { name: new RegExp(`^${bucket}`) })
 		.click();
 	await expect(sheet(page)).toBeHidden();
 }
@@ -64,7 +64,7 @@ test("a Quick Add drains its Bucket at once and is saved", async ({ browser }) =
 test("Buckets are offered most likely first", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, plan);
-	const picks = sheet(page).getByRole("listitem");
+	const picks = sheet(page).getByRole("option");
 
 	await page.keyboard.press("q");
 	await expect(picks.first()).toContainText("Groceries");
@@ -255,5 +255,51 @@ test("on a small phone, the amount, six Buckets and the keypad fit without scrol
 	await expect(sheet(page)).toBeHidden();
 	await expect(bucketRow(page, "Gifts")).toContainText("$9 spent");
 	await expect(bucketRow(page, "Pet supplies")).toContainText("$0 spent");
+	await page.context().close();
+});
+
+test("on a computer, the keyboard alone files an amount: q, digits, letters, arrows and Enter", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, plan);
+	const find = sheet(page).getByRole("combobox", { name: "Find a Bucket" });
+	const options = sheet(page).getByRole("option");
+
+	// q 2 4 Enter files $24 to the most likely Bucket.
+	await page.keyboard.press("q");
+	await expect(options.first()).toHaveAttribute("aria-selected", "true");
+	await expect(options.first()).toContainText("Groceries");
+	await page.keyboard.type("24");
+	await expect(sheet(page).getByRole("button", { name: "Add $24 to Groceries" })).toBeVisible();
+	await page.keyboard.press("Enter");
+	await expect(sheet(page)).toBeHidden();
+	await expect(bucketRow(page, "Groceries")).toContainText("$24 spent");
+
+	// Letters go to Find a Bucket; ↓/↑ move the highlight; Esc clears the search, then closes.
+	await page.keyboard.press("q");
+	await page.keyboard.type("12hock");
+	await expect(find).toBeFocused();
+	await expect(find).toHaveValue("hock");
+	await expect(options.first()).toContainText("Hockey");
+	await page.keyboard.press("ArrowDown");
+	await page.keyboard.press("ArrowUp");
+	await expect(find).toHaveAttribute(
+		"aria-activedescendant",
+		(await options.first().getAttribute("id")) ?? "",
+	);
+	await page.keyboard.press("Escape");
+	await expect(find).toHaveValue("");
+	await expect(sheet(page)).toBeVisible();
+	await page.keyboard.type("hock");
+	await expect(sheet(page).getByRole("button", { name: "Add $12 to Hockey" })).toBeVisible();
+	await page.keyboard.press("Enter");
+	await expect(sheet(page)).toBeHidden();
+	await expect(bucketRow(page, "Hockey")).toContainText("$12 spent");
+
+	await page.keyboard.press("q");
+	await expect(options.first()).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(sheet(page)).toBeHidden();
 	await page.context().close();
 });

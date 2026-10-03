@@ -395,7 +395,20 @@ export async function uploadStatement(
 export async function pickQuickAddBucket(sheet: Locator, name: string) {
 	const startsWith = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
 	const grid = sheet.getByRole("list", { name: "Add to" });
-	await expect(grid.getByRole("listitem").first()).toBeVisible();
+	const options = sheet.getByRole("listbox", { name: "Add to" }).getByRole("option");
+	await expect(grid.getByRole("listitem").or(options).first()).toBeVisible();
+	// A computer: Find a Bucket filters the list, and a click adds (or, with no amount, puts it first).
+	const find = sheet.getByRole("combobox", { name: "Find a Bucket" });
+	if (await find.isVisible()) {
+		await find.fill(name);
+		// By accessible name: the row's monogram tile is aria-hidden, so the name starts with the Bucket's.
+		await sheet
+			.getByRole("listbox", { name: "Add to" })
+			.getByRole("option", { name: startsWith })
+			.first()
+			.click();
+		return;
+	}
 	const tile = grid.getByRole("button", { name: startsWith });
 	if ((await tile.count()) > 0) {
 		await tile.first().click();

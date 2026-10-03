@@ -4,9 +4,9 @@ import {
 	accountKindLabel,
 	choose,
 	createPlannedHousehold,
+	pickQuickAddBucket,
 	reloadUntil,
 	signedInPage,
-	pickQuickAddBucket,
 } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
@@ -144,6 +144,8 @@ test("paying the card from checking is one Transfer, which counts nowhere", asyn
 });
 
 test("money back linked as a Refund goes back to the purchase's Bucket", async ({ browser }) => {
+	// A Quick Add, a statement, and the Refund linked and unlinked: over 30 s on a busy machine.
+	test.slow();
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Gear", "300"]] });
 	const thisMonth = page.url();

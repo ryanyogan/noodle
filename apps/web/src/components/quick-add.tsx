@@ -82,6 +82,7 @@ export function QuickAdd({ timeZone, parentId }: { timeZone: string; parentId: s
 	const router = useRouter();
 	const quickAdd = useQuickAdd();
 	const content = useRef<HTMLDivElement>(null);
+	const stepBack = useRef<(() => boolean) | null>(null);
 
 	useEffect(() => {
 		if (!open) openedInApp = false;
@@ -133,6 +134,10 @@ export function QuickAdd({ timeZone, parentId }: { timeZone: string; parentId: s
 				// 375×667 without scrolling (ADR-0031).
 				className="gap-3 max-lg:max-h-[calc(var(--visible-height,100dvh)-8px-var(--safe-top))]"
 				// Focus the sheet, not the note field, so the phone keyboard stays down.
+				// Esc steps back first (More Buckets, then a typed search), and only then closes.
+				onEscapeKeyDown={(event) => {
+					if (stepBack.current?.()) event.preventDefault();
+				}}
 				onOpenAutoFocus={(event) => {
 					event.preventDefault();
 					content.current?.focus();
@@ -141,6 +146,7 @@ export function QuickAdd({ timeZone, parentId }: { timeZone: string; parentId: s
 				<SheetHeader title="Quick Add" />
 				<Suspense fallback={<QuickAddPending />}>
 					<QuickAddForm
+						stepBack={stepBack}
 						timeZone={timeZone}
 						parentId={parentId}
 						onAdd={(variables) => {
@@ -185,8 +191,11 @@ function typed(amount: string, key: string): string | null {
 function QuickAddForm({
 	timeZone,
 	parentId,
+	stepBack,
 	onAdd,
 }: {
+	/** What Esc does before it closes: set by the form, asked by the sheet. */
+	stepBack: RefObject<(() => boolean) | null>;
 	timeZone: string;
 	/** The signed-in Parent: the other Parent's Personal Allowance isn't theirs to spend from. */
 	parentId: string;
@@ -277,6 +286,47 @@ function QuickAddForm({
 	const grid = useRef<HTMLUListElement>(null);
 	useFlip(grid, orderKey);
 
+	// Computers: a Find box over a listbox of the likely Buckets, or of what the letters match
+	// (ADR-0031). The highlight follows ↑/↓; Enter and the Add button add to it.
+	const [query, setQuery] = useState("");
+	const [active, setActive] = useState(0);
+	const find = useRef<HTMLInputElement>(null);
+	const listId = useId();
+	const finding = query.trim() !== "";
+	const options: { bucket: BucketState; hint?: string }[] = finding
+		? matchBuckets(query, buckets, rules).map((match) => ({
+				bucket: match.bucket,
+				hint: match.via === "rule" ? `via your ${match.pattern} Rule` : undefined,
+			}))
+		: (ranked.length <= CELLS ? ranked : ranked.slice(0, CELLS - 1)).map((choice) => ({
+				bucket: choice.bucket,
+				hint: reasonHint[choice.reason],
+			}));
+	const unlisted = finding ? 0 : ranked.length - options.length;
+	const activeAt = Math.min(active, Math.max(0, options.length - 1));
+	const highlighted = options[activeAt]?.bucket;
+	const optionId = (id: string) => `${listId}-${id}`;
+	const highlightedId = highlighted?.id;
+	useEffect(() => {
+		if (highlightedId)
+			document.getElementById(`${listId}-${highlightedId}`)?.scrollIntoView({ block: "nearest" });
+	}, [highlightedId, listId]);
+	// Keys pressed with nothing focused, read by the handler below (set up once).
+	const desktopKeys = useRef<(event: KeyboardEvent) => void>(() => {});
+	useEffect(
+		() => () => {
+			stepBack.current = null;
+		},
+		[stepBack],
+	);
+	function filter(next: string) {
+		setQuery(next);
+		setActive(0);
+	}
+	function move(by: number) {
+		setActive(Math.max(0, Math.min(options.length - 1, activeAt + by)));
+	}
+
 	/** Fills the form in with what was read, for the Parent to check before they save it. */
 	function fill(draft: CaptureDraft) {
 		const said = draft.amountCents === null ? null : typedAmount(draft.amountCents);
@@ -330,7 +380,7 @@ function QuickAddForm({
 			if (/^[\d.]$/.test(event.key) || event.key === "Backspace") {
 				event.preventDefault();
 				press(event.key);
-			}
+			} else desktopKeys.current(event);
 		}
 		document.addEventListener("keydown", onKeyDown);
 		return () => document.removeEventListener("keydown", onKeyDown);
@@ -362,6 +412,44 @@ function QuickAddForm({
 		setPicked(bucket.id);
 		setPage("main");
 	}
+
+	/** On a computer: add to the highlighted (or clicked) Bucket; with no amount, it goes first. */
+	function choose(bucket: BucketState | undefined) {
+		if (!bucket) return;
+		if (cents > 0) return add(bucket);
+		shake();
+		setSuggested(null);
+		setPicked(bucket.id);
+		filter("");
+	}
+
+	desktopKeys.current = (event) => {
+		if (page !== "main" || !window.matchMedia("(min-width: 64rem)").matches) return;
+		// A focused button, link or the For picker keeps its own keys.
+		if ((event.target as HTMLElement).closest("button, a, [role=radio], [role=checkbox]")) return;
+		if (/^[a-z]$/i.test(event.key)) {
+			event.preventDefault();
+			filter(event.key);
+			find.current?.focus();
+		} else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+			event.preventDefault();
+			move(event.key === "ArrowDown" ? 1 : -1);
+		} else if (event.key === "Enter") {
+			event.preventDefault();
+			choose(highlighted);
+		}
+	};
+	stepBack.current = () => {
+		if (page === "more") {
+			setPage("main");
+			return true;
+		}
+		if (query) {
+			filter("");
+			return true;
+		}
+		return false;
+	};
 
 	if (attached) {
 		const { transaction } = attached;
@@ -431,11 +519,19 @@ function QuickAddForm({
 						{fraction === undefined ? null : `.${fraction}`}
 					</output>
 					<p className="min-h-[1.4em] text-[13px] text-subtle-foreground">
-						{cents === 0
-							? "Type an amount"
-							: filled
-								? "Check it, then tap a Bucket to add it"
-								: "Tap a Bucket to add it"}
+						{/* A phone taps a tile; a computer picks a row or types to find one (ADR-0031). */}
+						{cents === 0 ? (
+							"Type an amount"
+						) : (
+							<>
+								<span className="lg:hidden">
+									{filled ? "Check it, then tap a Bucket to add it" : "Tap a Bucket to add it"}
+								</span>
+								<span className="max-lg:hidden">
+									{filled ? "Check it, then pick a Bucket" : "Pick a Bucket, or type to find one"}
+								</span>
+							</>
+						)}
 					</p>
 				</div>
 				{/* The note sits over the Buckets and steers them: "costco" puts Groceries first. */}
@@ -472,7 +568,7 @@ function QuickAddForm({
 				<ul
 					ref={grid}
 					aria-label="Add to"
-					className="grid grid-cols-2 grid-rows-[repeat(3,3.125rem)] gap-2"
+					className="grid grid-cols-2 grid-rows-[repeat(3,3.125rem)] gap-2 lg:hidden"
 					onPointerDownCapture={hold}
 				>
 					{shown.map(({ bucket, reason }) => (
@@ -508,6 +604,102 @@ function QuickAddForm({
 						</li>
 					)}
 				</ul>
+				{/* Computers: Find a Bucket over six rows at a fixed height, so the sheet never scrolls.
+				    Letters filter, ↑/↓ move, Enter adds; digits with the box empty type the amount. */}
+				<div className="grid gap-2 max-lg:hidden">
+					<div className="relative">
+						<Search
+							aria-hidden="true"
+							strokeWidth={1.75}
+							className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-subtle-foreground"
+						/>
+						<Input
+							ref={find}
+							role="combobox"
+							aria-label="Find a Bucket"
+							aria-controls={listId}
+							aria-expanded="true"
+							aria-autocomplete="list"
+							aria-activedescendant={highlighted ? optionId(highlighted.id) : undefined}
+							placeholder="Find a Bucket"
+							autoComplete="off"
+							className="ps-9"
+							value={query}
+							onChange={(event) => filter(event.currentTarget.value)}
+							onKeyDown={(event) => {
+								if (!query && (/^[\d.]$/.test(event.key) || event.key === "Backspace")) {
+									event.preventDefault();
+									press(event.key);
+								} else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+									event.preventDefault();
+									move(event.key === "ArrowDown" ? 1 : -1);
+								} else if (event.key === "Enter") {
+									event.preventDefault();
+									choose(highlighted);
+								}
+							}}
+						/>
+					</div>
+					<div className="flex h-66 flex-col">
+						<div
+							id={listId}
+							role="listbox"
+							aria-label="Add to"
+							className="min-h-0 overflow-y-auto overscroll-contain"
+						>
+							{options.map(({ bucket, hint }, at) => (
+								<div
+									key={bucket.id}
+									id={optionId(bucket.id)}
+									role="option"
+									aria-selected={at === activeAt}
+									tabIndex={-1}
+									// The Find box keeps focus; a click adds, as Enter does.
+									onMouseDown={(event) => event.preventDefault()}
+									onMouseMove={() => setActive(at)}
+									onClick={() => choose(bucket)}
+									onKeyDown={() => undefined}
+									className="flex h-11 cursor-pointer items-center gap-3 rounded-lg px-2 aria-selected:bg-muted"
+								>
+									<Tile
+										bucket={asBucketColor(bucket.color)}
+										aria-hidden="true"
+										className="size-7 shrink-0 rounded-[9px] text-xs"
+									>
+										{monogram(bucket.name)}
+									</Tile>
+									<span className="min-w-0 flex-1 truncate text-sm font-medium">{bucket.name}</span>
+									{/* "$800 left · Suggested", as the phone's tile reads. */}
+									<span className="max-w-[60%] shrink-0 truncate text-xs text-subtle-foreground tabular-nums">
+										{formatMoney(Math.max(0, bucket.left))} left
+										{hint ? <span className="text-muted-foreground"> · {hint}</span> : null}
+									</span>
+								</div>
+							))}
+						</div>
+						{unlisted > 0 ? (
+							<p className="flex h-11 shrink-0 items-center gap-3 px-2 text-sm text-subtle-foreground">
+								<Ellipsis className="mx-1.5 size-4" strokeWidth={2} aria-hidden="true" />
+								{unlisted} more — type to find
+							</p>
+						) : null}
+						{options.length === 0 ? (
+							<p className="px-2 py-3 text-sm text-muted-foreground">
+								No Bucket matches “{query.trim()}”.
+							</p>
+						) : null}
+					</div>
+					<Button
+						type="button"
+						aria-disabled={cents === 0}
+						onClick={() => choose(highlighted)}
+						className="aria-disabled:opacity-60"
+					>
+						<span className="truncate">
+							{cents > 0 ? `Add ${formatMoney(cents)}` : "Add"} to {highlighted?.name ?? "a Bucket"}
+						</span>
+					</Button>
+				</div>
 				<ForLine members={members} value={forMemberIds} onChange={setForMemberIds} />
 			</div>
 			{/* Phones: the keypad stays at the bottom, in thumb reach. With the keyboard up for the
@@ -669,7 +861,7 @@ function MoreBuckets({
 	useEffect(() => search.current?.focus(), []);
 	const matches = matchBuckets(query, buckets, rules);
 	return (
-		<div className="grid content-start gap-3 max-lg:min-h-[min(34rem,70dvh)]">
+		<div className="flex min-h-0 flex-col gap-3 max-lg:h-[min(34rem,70dvh)] lg:max-h-[min(36rem,75dvh)]">
 			<div className="flex items-center gap-1">
 				<Button
 					type="button"
@@ -705,19 +897,22 @@ function MoreBuckets({
 					}}
 				/>
 			</div>
-			{matches.length === 0 ? (
-				<p className="text-sm text-muted-foreground">No Bucket matches “{query.trim()}”.</p>
-			) : null}
-			<MoreSection
-				title="Household"
-				matches={matches.filter((m) => m.bucket.owner === undefined)}
-				onPick={onPick}
-			/>
-			<MoreSection
-				title="My Personal Allowance"
-				matches={matches.filter((m) => m.bucket.owner !== undefined)}
-				onPick={onPick}
-			/>
+			{/* A long list scrolls inside itself, under the search. */}
+			<div className="-mx-1 grid min-h-0 flex-1 content-start gap-3 overflow-y-auto overscroll-contain px-1">
+				{matches.length === 0 ? (
+					<p className="text-sm text-muted-foreground">No Bucket matches “{query.trim()}”.</p>
+				) : null}
+				<MoreSection
+					title="Household"
+					matches={matches.filter((m) => m.bucket.owner === undefined)}
+					onPick={onPick}
+				/>
+				<MoreSection
+					title="My Personal Allowance"
+					matches={matches.filter((m) => m.bucket.owner !== undefined)}
+					onPick={onPick}
+				/>
+			</div>
 		</div>
 	);
 }
