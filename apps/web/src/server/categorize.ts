@@ -1,5 +1,6 @@
 import { env, waitUntil } from "cloudflare:workers";
 import type { Viewer } from "@noodle/db";
+import { queueAi } from "./ai-queue";
 import {
 	memoryMerchants,
 	stubClassifier,
@@ -9,7 +10,6 @@ import {
 import {
 	type CategorizeDeps,
 	type CategorizeResult,
-	categorizeCapture,
 	categorizeImport,
 	describeResult,
 	lookAgainAtReview,
@@ -18,17 +18,16 @@ import {
 import { getDb } from "./db";
 import { notifyHousehold } from "./notify";
 
-// Categorization in the Worker. It runs after the upload has responded (waitUntil), not in it:
-// the Import has already landed and the Parent sees its Transactions at once, while embedding,
-// Vectorize, and the model take a few seconds for a statement. When it's done, the Household's
-// screens are told to refetch, so filed Transactions appear with their marker. A statement's
-// merchants go to the model in parallel prompts of ten, inside waitUntil's 30 seconds. A Bank
-// Connection's Imports are categorized in the Import Workflow, which awaits it.
+// Categorization in the Worker. New Transactions (an upload, a bank sync, a Quick Add or receipt)
+// are filed by background AI (ADR-0027): the write sends the Household's Agent an event, and the
+// Agent files everything new in one run about a minute later, then tells the Household's screens
+// to refetch, so filed Transactions appear with their marker. Setup's first history is still
+// categorized in its Workflow, which shows that step. "Look again" in Review runs here directly.
 
 /** The fake merchant index for AI_MODEL=stub, kept for as long as the dev server runs. */
 const stubMerchants = memoryMerchants();
 
-function categorizeDeps(): CategorizeDeps {
+export function categorizeDeps(): CategorizeDeps {
 	if (__AI_STUB__) return { db: getDb(), classifier: stubClassifier, merchants: stubMerchants };
 	return {
 		db: getDb(),
@@ -36,11 +35,6 @@ function categorizeDeps(): CategorizeDeps {
 		// Typed as the Vectorize beta binding by `wrangler types`; the index is a current one.
 		merchants: vectorizeMerchants(env.AI, env.AI_GATEWAY_ID, env.MERCHANTS as unknown as Vectorize),
 	};
-}
-
-/** Categorizes an Import for the Parent who brought it in, after the response has gone. */
-export function categorizeAfterImport(viewer: Viewer, importId: string): void {
-	waitUntil(categorizeImported(viewer, importId));
 }
 
 /**
@@ -64,23 +58,6 @@ export async function categorizeImported(viewer: Viewer, importId: string): Prom
 }
 
 /**
- * Categorizes a captured Quick Add for the Parent who captured it. The ingest Queue's consumer
- * already runs apart from any response, so this is awaited, not deferred. Never throws: a capture
- * it can't file stays unassigned, like one it isn't sure of.
- */
-export async function categorizeCaptured(
-	viewer: Viewer,
-	transactionId: string,
-): Promise<CategorizeResult> {
-	try {
-		return await categorizeCapture(categorizeDeps(), viewer, transactionId);
-	} catch (error) {
-		console.error("Couldn’t categorize a captured Quick Add", error);
-		return { filed: 0, review: 0, months: [], methods: { rule: 0, similar: 0, model: 0, none: 0 } };
-	}
-}
-
-/**
  * Looks again at what waits in Review that this Parent imported, against the Plan as it is now,
  * and tells the Household when anything changed. Throws, for a Parent who asked to see it fail.
  */
@@ -96,16 +73,6 @@ export async function lookAgain(viewer: Viewer): Promise<CategorizeResult> {
 	return result;
 }
 
-/** Looks again after the Plan changed (a Bucket added), after the response has gone. */
-export function lookAgainAfterPlanChange(viewer: Viewer): void {
-	waitUntil(
-		lookAgain(viewer).then(
-			() => undefined,
-			(error: unknown) => console.error("Couldn’t look again at Review", error),
-		),
-	);
-}
-
 /**
  * A Parent changed or confirmed a Transaction: it leaves categorization now, and an imported one's
  * merchant is learned for its Bucket after the response has gone. Never fails the edit.
@@ -114,6 +81,8 @@ export async function afterAssignment(viewer: Viewer, transactionId: string): Pr
 	try {
 		const { teach } = await settleAssignment(categorizeDeps(), viewer, transactionId);
 		waitUntil(teach().catch((error: unknown) => console.error("Couldn’t learn a merchant", error)));
+		// A learning signal for background AI's later steps (ADR-0027).
+		await queueAi({ ...viewer, kind: "filed-by-hand", ids: [transactionId] });
 	} catch (error) {
 		console.error("Couldn’t settle a Transaction’s categorization", error);
 	}

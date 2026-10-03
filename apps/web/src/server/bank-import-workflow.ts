@@ -1,6 +1,7 @@
 import { env, WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { createDb, type Db, loadBankConnectionsToSync } from "@noodle/db";
 import { ulid } from "ulid";
+import { queueAi } from "./ai-queue";
 import { openCredential } from "./bank-credential";
 import {
 	type BankImportDeps,
@@ -12,7 +13,6 @@ import {
 	startOneSync,
 } from "./bank-import-run";
 import { type BankSetup, bankSetup, providerFor } from "./bank-setup";
-import { categorizeImported } from "./categorize";
 import { getDb } from "./db";
 import { notifyHousehold } from "./notify";
 import { draftPlan } from "./plan-draft-after-import";
@@ -34,7 +34,8 @@ function importDeps(db: Db, setup: BankSetup): BankImportDeps {
 		},
 		openCredential: async ({ householdId, id, credential }) =>
 			openCredential(await setup.key(), credential, { householdId, connectionId: id }),
-		categorize: categorizeImported,
+		// Filed by background AI once the sync settles (ADR-0027).
+		categorize: (viewer, importId) => queueAi({ ...viewer, kind: "imported", ids: [importId] }),
 		draftPlan,
 		notify: notifyHousehold,
 		newId: ulid,

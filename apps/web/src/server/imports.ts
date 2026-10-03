@@ -5,7 +5,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { ulid } from "ulid";
 import { z } from "zod";
 import type { HouseholdChange } from "../household-changes";
-import { categorizeAfterImport } from "./categorize";
+import { queueAi } from "./ai-queue";
 import { getDb } from "./db";
 import { householdMiddleware } from "./household";
 import { notifyHousehold } from "./notify";
@@ -107,7 +107,7 @@ export const uploadStatement = createServerFn({ method: "POST" })
 		await notifyHousehold(household.id, changes);
 		// New history, wherever it came from, is categorized and may draft the first Plan.
 		const viewer = { householdId: household.id, memberId: context.parent.id };
-		categorizeAfterImport(viewer, data.importId);
+		await queueAi({ ...viewer, kind: "imported", ids: [data.importId] });
 		draftPlanAfterImport(viewer, household.timeZone);
 		return { ok: true, import: result.import };
 	});

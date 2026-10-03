@@ -13,6 +13,7 @@ import {
 import { monthKeyAt } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { queueAi } from "./ai-queue";
 import { lookAgain } from "./categorize";
 import { getDb } from "./db";
 import { householdMiddleware, viewerOf } from "./household";
@@ -120,6 +121,8 @@ export const saveRule = createServerFn({ method: "POST" })
 			...(filed > 0 ? (["months", "for-earlier", "bucket-uses"] as const) : []),
 		];
 		if (changes.length > 0) await notifyHousehold(context.household.id, changes);
+		// What waits in Review may now match it.
+		await queueAi({ ...viewerOf(context), kind: "rule-added" });
 		return { filed };
 	});
 
@@ -138,6 +141,7 @@ export const editRule = createServerFn({ method: "POST" })
 		}
 		// Even a private one: it may have just left the Household's Rules.
 		await notifyHousehold(context.household.id, ["rules"]);
+		await queueAi({ ...viewerOf(context), kind: "rule-added" });
 	});
 
 /** Deletes a Rule. What it already filed stays where it is. Idempotent. */

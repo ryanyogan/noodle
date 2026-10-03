@@ -21,7 +21,7 @@ import {
 } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { lookAgainAfterPlanChange } from "./categorize";
+import { queueAi } from "./ai-queue";
 import { getDb } from "./db";
 import { type HouseholdSummary, householdMiddleware, viewerOf } from "./household";
 import { monthKeySchema } from "./month";
@@ -79,7 +79,7 @@ export const addBucket = createServerFn({ method: "POST" })
 		});
 		await notifyHousehold(context.household.id, ["months"]);
 		// A new Bucket may fit what waits in Review.
-		lookAgainAfterPlanChange(viewerOf(context));
+		await queueAi({ ...viewerOf(context), kind: "buckets-changed" });
 	});
 
 /**
@@ -123,7 +123,7 @@ export const addBuckets = createServerFn({ method: "POST" })
 		}
 		await notifyHousehold(context.household.id, ["months"]);
 		// New Buckets may fit what waits in Review.
-		lookAgainAfterPlanChange(viewerOf(context));
+		await queueAi({ ...viewerOf(context), kind: "buckets-changed" });
 	});
 
 export const updateBucket = createServerFn({ method: "POST" })
@@ -143,6 +143,8 @@ export const updateBucket = createServerFn({ method: "POST" })
 			...data,
 		});
 		await notifyHousehold(context.household.id, ["months"]);
+		// A renamed Bucket may now fit what waits in Review.
+		if (data.name !== undefined) await queueAi({ ...viewerOf(context), kind: "buckets-changed" });
 	});
 
 /** Adds the signed-in Parent's Personal Allowance to the Plan from `month` onward. */
@@ -166,7 +168,7 @@ export const addPersonalAllowance = createServerFn({ method: "POST" })
 		});
 		await notifyHousehold(context.household.id, ["months"]);
 		// The new Personal Allowance may fit what waits in Review.
-		lookAgainAfterPlanChange(viewerOf(context));
+		await queueAi({ ...viewerOf(context), kind: "buckets-changed" });
 	});
 
 /** Sets a Bucket's allowance from `month` onward, or just for `month`. */
@@ -223,6 +225,8 @@ export const archiveBucket = createServerFn({ method: "POST" })
 			...data,
 		});
 		await notifyHousehold(context.household.id, ["months"]);
+		// What Review guessed into it needs another home.
+		await queueAi({ ...viewerOf(context), kind: "buckets-changed" });
 	});
 
 /** Brings an archived Bucket back into the Plan from `month` on, with its allowance. */
@@ -238,7 +242,7 @@ export const restoreBucket = createServerFn({ method: "POST" })
 		});
 		await notifyHousehold(context.household.id, ["months"]);
 		// The restored Bucket may fit what waits in Review.
-		if (restored) lookAgainAfterPlanChange(viewerOf(context));
+		if (restored) await queueAi({ ...viewerOf(context), kind: "buckets-changed" });
 		return { ok: restored };
 	});
 

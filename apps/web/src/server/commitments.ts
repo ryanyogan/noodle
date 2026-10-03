@@ -19,6 +19,7 @@ import {
 } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { queueAi } from "./ai-queue";
 import { getDb } from "./db";
 import { householdMiddleware, viewerOf } from "./household";
 import { monthKeySchema } from "./month";
@@ -51,6 +52,12 @@ export const addCommitment = createServerFn({ method: "POST" })
 			...data,
 		});
 		await notifyHousehold(context.household.id, ["months"]);
+		await queueAi({
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			kind: "commitment-changed",
+			ids: [data.commitmentId],
+		});
 	});
 
 /** Renames a Commitment, and sets what it expects from `month` onward, or just for `month`. */
@@ -65,6 +72,12 @@ export const updateCommitment = createServerFn({ method: "POST" })
 			...data,
 		});
 		await notifyHousehold(context.household.id, ["months"]);
+		await queueAi({
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			kind: "commitment-changed",
+			ids: [data.commitmentId],
+		});
 	});
 
 export const endCommitment = createServerFn({ method: "POST" })
@@ -78,6 +91,12 @@ export const endCommitment = createServerFn({ method: "POST" })
 			...data,
 		});
 		await notifyHousehold(context.household.id, ["months"]);
+		await queueAi({
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			kind: "commitment-changed",
+			ids: [data.commitmentId],
+		});
 	});
 
 /**

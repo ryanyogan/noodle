@@ -1,8 +1,8 @@
 import { env } from "cloudflare:workers";
 import { findReceiptAddress, listParents } from "@noodle/db";
 import { ulid } from "ulid";
+import { queueAi } from "./ai-queue";
 import { verifiedEmails } from "./auth";
-import { categorizeCaptured } from "./categorize";
 import { getDb } from "./db";
 import { notifyHousehold } from "./notify";
 import { fileReceiptEmail, type ReceiptMessage, receiveReceiptEmail } from "./receipt-email";
@@ -63,7 +63,8 @@ export async function consumeReceipt(message: ReceiptMessage): Promise<void> {
 			},
 			thumbnail: receiptThumbnail,
 			newId: ulid,
-			categorize: categorizeCaptured,
+			categorize: (viewer, transactionId) =>
+				queueAi({ ...viewer, kind: "captured", ids: [transactionId] }),
 		},
 		message,
 	);

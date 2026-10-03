@@ -1,8 +1,11 @@
 import { DurableObject, env } from "cloudflare:workers";
 import { clerkClient } from "@clerk/tanstack-react-start/server";
-import { findMembershipByClerkUser } from "@noodle/db";
+import { findMembershipByClerkUser, listMembers } from "@noodle/db";
 import type { DayKey } from "@noodle/domain";
 import { type HouseholdChange, householdChangesMessage } from "../household-changes";
+import { AiCoalescer, type AiEvent, COALESCE, STUB_COALESCE } from "./ai-coalescer";
+import { runAiBatch } from "./ai-run";
+import { categorizeDeps } from "./categorize";
 import { getDb } from "./db";
 import { type HouseholdEvent, HouseholdNudges } from "./nudge-agent";
 import type { ScheduledNudge } from "./nudge-content";
@@ -11,14 +14,17 @@ import type { ScheduledNudge } from "./nudge-content";
  * The Household Agent (ADR-0007): one per Household, named by its ID. Both Parents' open screens
  * hold a hibernating WebSocket to it, and after a write lands in D1 it tells them what changed.
  * It holds no Household data, so it can sleep between writes without dropping anyone. It also
- * decides the Household's Nudges, waking on its alarm to send them.
+ * decides the Household's Nudges, waking on its alarm to send them, and runs its background AI
+ * (ADR-0027): events from writes are held a short while, then filed in one run on the same alarm.
  */
 export class HouseholdAgent extends DurableObject<Env> {
 	private readonly nudges: HouseholdNudges;
+	private readonly ai: AiCoalescer;
 
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
 		this.nudges = new HouseholdNudges(ctx.storage);
+		this.ai = new AiCoalescer(ctx.storage, __AI_STUB__ ? STUB_COALESCE : COALESCE);
 		// Screens ping to keep their connection alive and to notice when it silently drops;
 		// the runtime answers without waking the Agent.
 		ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
@@ -57,9 +63,35 @@ export class HouseholdAgent extends DurableObject<Env> {
 		return this.nudges.checkIn(householdId, week, nudges);
 	}
 
-	/** Decides and sends Nudges; retried by the runtime if it throws. */
+	/** Holds an event for the next background AI run (queueAi). */
+	async queueAi(event: AiEvent): Promise<void> {
+		await this.ai.queue(event);
+	}
+
+	/**
+	 * The one alarm, shared: runs background AI when it's due (never throws; it retries itself),
+	 * then decides and sends Nudges, retried by the runtime if that throws.
+	 */
 	override async alarm(): Promise<void> {
-		await this.nudges.run();
+		await this.ai.run((batch) =>
+			runAiBatch(
+				{
+					...categorizeDeps(),
+					parents: async (householdId) =>
+						(await listMembers(getDb(), householdId))
+							.filter((member) => member.kind === "parent" && !member.removed)
+							.map((member) => member.id),
+					notify: (changes) => this.notify(batch.householdId, changes),
+				},
+				batch,
+			),
+		);
+		try {
+			await this.nudges.run();
+		} finally {
+			// Nudges set the alarm for their own next time; bring it forward for the next AI run.
+			await this.ai.wake();
+		}
 	}
 
 	// Screens send nothing but pings, which the auto-response answers.

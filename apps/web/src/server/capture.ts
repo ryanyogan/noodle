@@ -3,8 +3,8 @@ import { addCapture, findCaptureToken } from "@noodle/db";
 import { type DayKey, dayKeyAt, parseCapturedAmount } from "@noodle/domain";
 import { ulid } from "ulid";
 import { z } from "zod";
+import { queueAi } from "./ai-queue";
 import { type BankImportMessage, startBankImport } from "./bank-import-workflow";
-import { categorizeCaptured } from "./categorize";
 import { getDb } from "./db";
 import { notifyHousehold } from "./notify";
 import type { ReceiptMessage } from "./receipt-email";
@@ -15,7 +15,7 @@ import { idFor } from "./stable-id";
 // the payment's merchant and amount to CAPTURE_PATH (/api/capture) with their capture token. The Worker checks
 // the token and what was sent, puts the capture on the ingest Queue, and answers 202 at once; the
 // Queue's consumer writes it as that Parent's Quick Add (addCapture), files it the way an Import's
-// lines are (categorizeCaptured), and tells the Household.
+// lines are (by background AI, ADR-0027), and tells the Household.
 
 /** A capture waiting on the ingest Queue, checked and ready to write. */
 export type CaptureMessage = {
@@ -162,10 +162,10 @@ export async function consumeIngest(batch: MessageBatch<IngestMessage>): Promise
 			const { householdId, memberId, transactionId } = message.body;
 			const result = await addCapture(db, { ...message.body, newId: ulid });
 			if (result.ok) {
-				// Filed like an Import's lines: Rule, else a similar merchant, else the model when
-				// it's sure; otherwise flagged for Review. A capture categorized before is skipped.
-				const categorized = await categorizeCaptured({ householdId, memberId }, transactionId);
-				if (result.added || result.matchedMonths.length > 0 || categorized.filed > 0) {
+				// Filed like an Import's lines by background AI shortly: Rule, else a similar merchant,
+				// else the model when it's sure; otherwise flagged for Review.
+				await queueAi({ householdId, memberId, kind: "captured", ids: [transactionId] });
+				if (result.added || result.matchedMonths.length > 0) {
 					// Every month: what's left can roll into later ones.
 					await notifyHousehold(
 						householdId,

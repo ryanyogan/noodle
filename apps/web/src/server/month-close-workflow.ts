@@ -7,6 +7,7 @@ import {
 	loadEmergencyGoalId,
 } from "@noodle/db";
 import { monthCloseProposal, monthState } from "@noodle/domain";
+import { queueAi } from "./ai-queue";
 import { getDb } from "./db";
 import { loadMonth } from "./month";
 import {
@@ -55,5 +56,9 @@ export async function startMonthCloses(now: Date): Promise<void> {
 	// createBatch takes up to 100 at a time, and skips instances that already exist.
 	for (let i = 0; i < due.length; i += 100) {
 		await env.MONTH_CLOSE.createBatch(due.slice(i, i + 100));
+	}
+	// A new month's Plan may fit what waits in Review; each Household's is taken once a month.
+	for (const { params } of due) {
+		await queueAi({ householdId: params.householdId, kind: "month-started", ids: [params.month] });
 	}
 }
