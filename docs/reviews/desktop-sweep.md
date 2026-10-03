@@ -142,7 +142,7 @@ Patterns to adopt: one primary action per page header; summary, then list, then 
 
 ## This Month (73c)
 
-Looked at 393, 1440 (closed and with each To do row open), 1920 and 2560.
+Looked at: 1440 closed (after the To do card), 393 with To do open (the phone view, unchanged; its length is for #74), and 1440 at 73c2. Measured only: 1920 and 2560 (rail 600px vs main 610px). Not yet looked at: 1440 with the To do rows open after 73c5's flattening.
 
 What moved where:
 
