@@ -7,6 +7,7 @@ import {
 	createPlannedHousehold,
 	reloadUntil,
 	signedInPage,
+	switchTo,
 	waitForReview,
 } from "./session";
 
@@ -208,6 +209,62 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	await expect(edit).toBeHidden();
 	await expect(page.getByText(/Nothing unassigned matches corner gas/i)).toBeVisible();
 	await expect(page.getByRole("link", { name: /^corner gas, Fun, / })).toBeVisible();
+});
+
+test("a Rule files a merchant's statement line to a Commitment", async ({ browser }) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, {
+		baseline: "5,000",
+		buckets: [["Groceries", "1,200"]],
+	});
+	const thisMonth = page.url();
+
+	// A monthly Commitment, due this month.
+	await switchTo(page, "Plan");
+	await page
+		.getByRole("region", { name: "From take-home pay to Free to Spend" })
+		.getByRole("link", { name: "Commitments", exact: true })
+		.click();
+	const form = page.getByRole("form", { name: "Add a Commitment" });
+	await form.getByLabel("New Commitment").fill("Widget Club");
+	await form.getByLabel("Amount due").fill("19.99");
+	await form.getByRole("button", { name: "Add Commitment" }).click();
+	await expect(page.getByRole("button", { name: "Edit Widget Club" })).toBeVisible();
+
+	await uploadStatement(page, [["ACME WIDGETS LLC", "19.99"]], true);
+	await waitForReview(page, new URL("/review", thisMonth).href, "1 of 1");
+
+	// A Rule that files the merchant to the Commitment files the waiting line at once.
+	await page.getByRole("link", { name: "Rules" }).click();
+	await page.getByRole("button", { name: "Add Rule" }).click();
+	const add = page.getByRole("dialog", { name: "Add a Rule" });
+	await add.getByLabel("Merchant").fill("Acme Widgets");
+	await choose(add, "Files to", "Widget Club");
+	await add.getByRole("button", { name: "Add Rule and file what matches" }).click();
+	await expect(add).toBeHidden();
+	await expect(page.getByText("Rule saved. Filed 1 more in Widget Club.")).toBeVisible();
+	await expect(
+		page.getByRole("link", { name: /^acme widgets, Widget Club, For Everyone, Filed 1 so far$/ }),
+	).toBeVisible();
+
+	// A Bucket Rule beside it, to see the two kinds of row together.
+	await page.getByRole("button", { name: "Add Rule" }).click();
+	await add.getByLabel("Merchant").fill("Corner Market");
+	await choose(add, "Files to", "Groceries");
+	await add.getByRole("button", { name: "Add Rule and file what matches" }).click();
+	await expect(add).toBeHidden();
+	await expect(page.getByRole("link", { name: /^corner market, Groceries, / })).toBeVisible();
+
+	// Nothing waits in Review, and Transactions says the Rule filed it.
+	await sectionTabs(page, "Review pages").getByRole("link", { name: "Review" }).click();
+	await expect(page.getByText("Nothing to review")).toBeVisible();
+	await page.goto(thisMonth.replace(/\/month\/(\d{4}-\d{2}).*$/, "/transactions/$1"));
+	await expect(
+		page.getByRole("button", {
+			name: /^Acme Widgets[^,]*, \$19\.99, Widget Club \(filed automatically\), For Everyone, from Visa$/,
+		}),
+	).toBeVisible();
 });
 
 test("Review confirms a merchant's cards, or all with a suggestion, with one Undo, and says when a month has no Plan", async ({

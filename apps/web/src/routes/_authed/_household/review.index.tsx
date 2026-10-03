@@ -297,10 +297,10 @@ function ReviewPage() {
 		}
 	}
 
-	/** "Always file <merchant> in <Bucket>?", after a card is filed in a Bucket. */
+	/** "Always file <merchant> in <Bucket>?", after a card is filed in a Bucket or a Commitment. */
 	function offerRule(
 		item: ReviewItem,
-		bucket: Pick<PlanBucket, "id" | "name" | "owner">,
+		bucket: RuleTarget,
 		forMemberIds: string[],
 	) {
 		// One offer, not two: once background AI suggests this very Rule (ADR-0027), its card below
@@ -331,7 +331,9 @@ function ReviewPage() {
 		saveRule.mutate({
 			ruleId: ulid(),
 			pattern: item.merchant,
-			bucketId: bucket.id,
+			// A Commitment Rule files there instead of a Bucket (ADR-0030).
+			bucketId: bucket.commitment ? null : bucket.id,
+			commitmentId: bucket.commitment ? bucket.id : null,
 			bucketName: bucket.name,
 			forMemberIds,
 		});
@@ -384,6 +386,7 @@ function ReviewPage() {
 			failed([item]),
 		);
 		if (bucket) offerRule(item, bucket, item.for);
+		else if (name) offerRule(item, { id, name, owner: undefined, commitment: true }, item.for);
 	}
 
 	function changed(item: ReviewItem, next: TransactionChange["next"], buckets: PlanBucket[]) {
@@ -950,9 +953,11 @@ function openPicker(item: ReviewItem) {
 const pickerId = (item: ReviewItem) => `review-pick-${item.id}`;
 
 type Way = "right" | "left" | "down";
+/** Where an offered Rule files: a Bucket, or a Commitment (shared, so no owner). */
+type RuleTarget = Pick<PlanBucket, "id" | "name" | "owner"> & { commitment?: true };
 type RuleOffer = {
 	item: ReviewItem;
-	bucket: Pick<PlanBucket, "id" | "name" | "owner">;
+	bucket: RuleTarget;
 	forMemberIds: string[];
 };
 
