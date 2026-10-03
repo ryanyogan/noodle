@@ -139,3 +139,19 @@ Patterns to adopt: one primary action per page header; summary, then list, then 
 - **Review and Insights.** Measured only, not looked at by eye: no truncation at 1440 or 1920; cards 16px radius, 20px padding; the empty state is still `40px 24px`, left for the shared EmptyState padding in 73h. Insights' density was left as is: one column of cards plus the empty state.
 - **Guard.** desktop-scroll.spec.ts's alignment check now also covers /review, /reports, /reports?view=spending and /insights.
 - Still open: the Transactions list card stays as tall as the virtualizer's estimate, leaving empty space under short months; the rail's Bucket/For selects showed no value text in the headless screenshots (check headed).
+
+## This Month (73c)
+
+Looked at 393, 1440 (closed and with each To do row open), 1920 and 2560.
+
+What moved where:
+
+- **Bills** has its This month / Coming up switch at every size; the rail's separate Coming up section is gone (and its code with it).
+- **The stat row** is gone; Free to Spend's card says the same.
+- **Goals** are off This Month; they live on Goals and Plan.
+- **Income** sits in the main column under Bills. On a phone the reading order is now Buckets, Income, Free to Spend, To do (visually the phone still shows Free to Spend and the To do strip first).
+- **From 1920** the main column and the rail each get their own wrapper, so neither stretches past a readable width.
+- **Cover help** shows only on the first overspent Bucket row, not on every one.
+- **To do** is one card in the rail: a collapsed row per prompt with a status line ("2 Buckets and Extra income to decide", "3 of 4 done", "$2,328 in October to place"), its heading lined up with Free to Spend's. An opened row shows its content inside the same card: Close September's leftovers are plain rows between the card's own dividers (no card inside the card), its heading is not repeated (it stays for screen readers, and its help moves to the start of the text), and the Extra income line takes the rail's full width with its choice underneath. The phone is unchanged.
+
+Extra income shows two amounts, and both are right: **$1,426** in the Close September row is September's Extra income nobody has decided on yet; **$2,328** in the Extra income row is October's, $8,528 received less the $6,200 usual take-home pay.
