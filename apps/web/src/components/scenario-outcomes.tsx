@@ -1094,7 +1094,7 @@ export function CompareChart({
 						content={<MoneyTooltip labelOf={(month) => monthLong(month as MonthKey)} />}
 						{...tooltipProps}
 					/>
-					<ChartLegend content={<ChartLegendContent />} />
+					<ChartLegend itemSorter={null} content={<ChartLegendContent />} />
 					{values.some((v) => v < 0) ? <ReferenceLine y={0} stroke="var(--border-strong)" /> : null}
 					<Line
 						dataKey="plan"

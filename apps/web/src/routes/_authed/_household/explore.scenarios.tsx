@@ -25,7 +25,7 @@ import { z } from "zod";
 import { ListBesideDetail, masterDetailItem } from "../../../components/master-detail";
 import { HORIZON_LABEL, type Projected, useKeptScenarios } from "../../../components/scenario-view";
 import { SectionPending } from "../../../components/section-layout";
-import { formatMoney, formatWholeMoney, shortDayAt, shortMonth } from "../../../format";
+import { formatWholeMoney, shortDayAt, shortMonth } from "../../../format";
 import { goalsQuery, planAheadQuery, scenariosQuery } from "../../../queries";
 
 // The Household's saved Scenarios, each with its headline outcome, who made it, when it last
@@ -219,18 +219,27 @@ function Compare({
 	};
 	const rows: {
 		label: string;
-		value: (p: Projection) => string;
+		value: (p: Projection) => React.ReactNode;
 		over?: (p: Projection) => boolean;
 	}[] = [
 		{
 			label: `Free to Spend, ${HORIZON_LABEL}`,
-			value: (p) => formatMoney(p.freeToSpend),
+			value: (p) => formatWholeMoney(p.freeToSpend),
 			over: (p) => p.freeToSpend < 0,
 		},
 		{
 			label: "Lowest projected balance",
 			value: (p) =>
-				p.lowest ? `${formatMoney(p.lowest.amount)} in ${shortMonth(p.lowest.month)}` : "—",
+				p.lowest ? (
+					<>
+						{formatWholeMoney(p.lowest.amount)}
+						<span className="block font-normal text-muted-foreground text-xs">
+							in {shortMonth(p.lowest.month)}
+						</span>
+					</>
+				) : (
+					"—"
+				),
 			over: (p) => (p.lowest?.amount ?? 0) < 0,
 		},
 		...goals.map((g) => ({
@@ -247,9 +256,9 @@ function Compare({
 		}));
 
 	return (
-		<Section aria-labelledby="compare">
+		<Section aria-labelledby="compare" className="min-w-0">
 			<SectionHeader id="compare" title="Compare" />
-			<Card>
+			<Card className="min-w-0">
 				<CardContent>
 					<Table className="text-sm">
 						<TableCaption className="sr-only">
@@ -257,7 +266,7 @@ function Compare({
 						</TableCaption>
 						<TableHeader>
 							<TableRow className="border-0">
-								<TableHead scope="col">
+								<TableHead scope="col" className="min-w-40">
 									<span className="sr-only">Number</span>
 								</TableHead>
 								{columns.map((c) => (
@@ -272,7 +281,7 @@ function Compare({
 								<TableRow key={row.label} className="border-0 border-t">
 									<th
 										scope="row"
-										className="py-2 pe-3 text-start font-normal text-muted-foreground"
+										className="min-w-40 py-2 pe-3 text-start align-top font-normal text-muted-foreground"
 									>
 										{row.label}
 									</th>
