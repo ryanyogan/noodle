@@ -33,7 +33,7 @@ import {
 	useMonthState,
 } from "../../queries";
 import { addCommitment, endCommitment, updateCommitment } from "../../server/commitments";
-import { addAccount, addGoal, setEmergencyGoal } from "../../server/goals";
+import { addAccount, addGoal, setEmergencyGoal, updateAccountBalance } from "../../server/goals";
 import {
 	addBucket,
 	addPersonalAllowance,
@@ -1029,12 +1029,30 @@ function GoalStep({
 	const [owed, setOwed] = useState<"credit-card" | "loan">("credit-card");
 	// Money for a Goal can stay in a savings Account the Household already has (from a bank or a
 	// statement), so setup doesn't add a second one.
-	const savings = useSuspenseQuery(goalsQuery()).data.accounts.filter(
-		(account) => account.kind === "savings",
-	);
+	const goalsData = useSuspenseQuery(goalsQuery()).data;
+	const savings = goalsData.accounts.filter((account) => account.kind === "savings");
 	const [keptIn, setKeptIn] = useState(() => savings[0]?.id ?? "new");
+	// Likewise a card or loan already in Noodle can be the one paid off (ADR-0019), unless it has an
+	// active payoff Goal already.
+	const owing = goalsData.accounts.filter(
+		(account) =>
+			(account.kind === "credit-card" || account.kind === "loan") &&
+			!goalsData.goals.some(
+				(g) => g.accountId === account.id && g.kind === "payoff" && !g.completed && !g.archived,
+			),
+	);
+	const [paidOff, setPaidOff] = useState(() => owing[0]?.id ?? "new");
+	const owingAccount = kind === "payoff" ? owing.find((a) => a.id === paidOff) : undefined;
+	const choosePaidOff = (value: string) => {
+		setPaidOff(value);
+		const owed = owing.find((a) => a.id === value)?.latestBalance?.amount;
+		setTarget(owed && owed > 0 ? formatMoneyInput(owed) : "");
+	};
 	const targetCents = parseDollars(target);
-	const goalName = kind === "emergency" ? "Emergency fund" : name.trim();
+	const goalName =
+		kind === "emergency"
+			? "Emergency fund"
+			: (owingAccount?.name.trim().slice(0, 40) ?? name.trim());
 	const ready = !!kind && !!goalName && targetCents !== null && targetCents > 0;
 	const threeMonths = billsMonthly(answers.bills ?? []) * 3;
 
@@ -1043,7 +1061,7 @@ function GoalStep({
 			if (added) return onNext(added);
 			if (!kind || !ready || targetCents === null) return;
 			const existing =
-				kind === "payoff" ? undefined : savings.find((account) => account.id === keptIn);
+				kind === "payoff" ? owingAccount : savings.find((account) => account.id === keptIn);
 			const goal: SetupGoal = {
 				kind,
 				goalId: ulid(),
@@ -1054,8 +1072,20 @@ function GoalStep({
 				accountName:
 					existing?.name.trim().slice(0, 40) || (kind === "payoff" ? goalName : "Savings"),
 				targetCents,
-				accountKind: kind === "payoff" ? owed : "savings",
+				accountKind:
+					kind === "payoff"
+						? owingAccount?.kind === "loan" || owingAccount?.kind === "credit-card"
+							? owingAccount.kind
+							: owed
+						: "savings",
 			};
+			if (owingAccount && owingAccount.latestBalance?.amount !== targetCents) {
+				// The Goal's target is what's owed now (read on the server), so what the Parent typed
+				// becomes the card's or loan's balance first.
+				await updateAccountBalance({
+					data: { balanceId: goal.balanceId, accountId: owingAccount.id, amountCents: targetCents },
+				});
+			}
 			if (!existing) {
 				await addAccount({
 					data: {
@@ -1111,7 +1141,10 @@ function GoalStep({
 				<>
 					<RadioGroup
 						value={kind ?? ""}
-						onValueChange={(value) => setKind(value as SetupGoalKind)}
+						onValueChange={(value) => {
+							setKind(value as SetupGoalKind);
+							if (value === "payoff" && !target && paidOff !== "new") choosePaidOff(paidOff);
+						}}
 						aria-label="What kind of Goal?"
 					>
 						{GOAL_KINDS.map((choice) => (
@@ -1124,7 +1157,33 @@ function GoalStep({
 							/>
 						))}
 					</RadioGroup>
-					{kind === "payoff" ? (
+					{kind === "payoff" && owing.length > 0 ? (
+						<fieldset className="grid gap-3">
+							<legend className="pb-3 text-sm font-medium">Which card or loan?</legend>
+							<RadioGroup
+								value={paidOff}
+								onValueChange={choosePaidOff}
+								aria-label="Which card or loan?"
+							>
+								{owing.map((account) => (
+									<RadioGroupCard
+										key={account.id}
+										id={`${id}-off-${account.id}`}
+										value={account.id}
+										label={account.name}
+										description={`A ${account.kind === "loan" ? "loan" : "credit card"} you already have.`}
+									/>
+								))}
+								<RadioGroupCard
+									id={`${id}-off-new`}
+									value="new"
+									label="Another card or loan"
+									description="Noodle adds it."
+								/>
+							</RadioGroup>
+						</fieldset>
+					) : null}
+					{kind === "payoff" && !owingAccount ? (
 						<RadioGroup
 							value={owed}
 							onValueChange={(value) => setOwed(value as "credit-card" | "loan")}
@@ -1161,9 +1220,15 @@ function GoalStep({
 							</RadioGroup>
 						</fieldset>
 					) : null}
-					{kind && kind !== "emergency" ? (
+					{kind && kind !== "emergency" && !owingAccount ? (
 						<Field
-							label={kind === "payoff" ? "Which card or loan?" : "What for?"}
+							label={
+								kind !== "payoff"
+									? "What for?"
+									: owing.length > 0
+										? "What’s it called?"
+										: "Which card or loan?"
+							}
 							htmlFor={`${id}-name`}
 						>
 							<Input

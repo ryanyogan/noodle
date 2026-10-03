@@ -94,3 +94,66 @@ for (const size of sizes) {
 		}
 	});
 }
+
+/** Creates a Household and goes to Take-home pay on the given spending path. */
+async function spendingPath(page: Page, path: RegExp) {
+	await page.goto("/welcome");
+	await page.getByLabel("Household name").fill("The Checkers");
+	await page.getByLabel("Your name").fill("Alex");
+	await page.getByRole("button", { name: "Create Household" }).click();
+	await expect(page).toHaveURL(/\/setup$/);
+	await page.getByRole("radio", { name: path }).check();
+	const saved = savedBy(page, "saveSetup");
+	await page.getByRole("button", { name: "Continue", exact: true }).click();
+	await saved;
+	await expect(page.getByText("Step 2 of 7")).toBeVisible();
+}
+
+for (const size of sizes) {
+	test(`axe finds no violations on the statement and bank cards, ${size.name}`, {
+		tag: [...size.tag],
+	}, async ({ browser }) => {
+		test.setTimeout(240_000);
+		const parent = await createTestParent();
+		const other = await createTestParent();
+		try {
+			// The statement card: naming the Account, choosing the file, and once it's in.
+			const page = await signedInPage(browser, parent.email, size.options);
+			await spendingPath(page, /Upload a statement/);
+			await axe(page, "statement card");
+			await page.getByLabel("Which account is this from?").fill("Checking");
+			await page.getByRole("button", { name: "Choose the statement" }).click();
+			await expect(page.getByLabel("Statement file")).toBeAttached();
+			await axe(page, "statement card, choosing the file");
+			await page.getByLabel("Statement file").setInputFiles({
+				name: "checking.csv",
+				mimeType: "text/csv",
+				buffer: Buffer.from(
+					"Transaction Date,Description,Debit,Credit\n09/02/2026,COSTCO WHSE #0123,180.00,\n09/03/2026,CHIPOTLE 1234,21.50,",
+				),
+			});
+			await expect(page.getByRole("button", { name: "Clear" })).toBeVisible();
+			await axe(page, "statement card, file chosen");
+			await page.getByRole("button", { name: /^Import \d+ lines$/ }).click();
+			await expect(page.getByText("checking.csv is in for Checking")).toBeVisible();
+			await axe(page, "statement card, imported");
+			await page.context().close();
+
+			// The bank card: before connecting, Choose Accounts, and once connected.
+			const bank = await signedInPage(browser, other.email, size.options);
+			await spendingPath(bank, /Connect a bank/);
+			await axe(bank, "bank card");
+			await bank.getByRole("button", { name: "Connect your bank" }).click();
+			const choose = bank.getByRole("dialog", { name: "Which of these do you have already?" });
+			await expect(choose).toBeVisible();
+			await axe(bank, "Choose Accounts");
+			await choose.getByRole("button", { name: "Start bringing them in" }).click();
+			await expect(bank.getByText("First Platypus Bank is connected")).toBeVisible();
+			await axe(bank, "bank card, connected");
+			await bank.context().close();
+		} finally {
+			await parent.remove();
+			await other.remove();
+		}
+	});
+}

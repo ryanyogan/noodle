@@ -237,7 +237,7 @@ export function StatementsSection({
  * The balance a statement's closing balance offers: when it's from the day the balance was entered
  * or later, and says something else. Null when there's nothing to offer.
  */
-function balanceOffer(
+export function balanceOffer(
 	account: AccountView,
 	closing: ClosingBalance | null,
 	timeZone: string,
@@ -401,7 +401,8 @@ export function UploadForm({
 	const lines = statement?.lines.length ?? 0;
 	return (
 		<form onSubmit={onSubmit} className="grid gap-4">
-			<div className="flex flex-wrap items-center gap-3">
+			{/* One line on a phone too: the file's name gives way (truncated) before Clear wraps. */}
+			<div className="flex items-center gap-3">
 				<input
 					ref={input}
 					id={`${id}-file`}
@@ -416,6 +417,7 @@ export function UploadForm({
 					type="button"
 					variant={file ? "outline" : "default"}
 					disabled={!hydrated || upload.isPending}
+					className="shrink-0"
 					onClick={() => input.current?.click()}
 				>
 					<FileUp />
@@ -427,6 +429,7 @@ export function UploadForm({
 						type="button"
 						variant="ghost"
 						size="sm"
+						className="shrink-0"
 						disabled={upload.isPending}
 						onClick={() => {
 							upload.reset();

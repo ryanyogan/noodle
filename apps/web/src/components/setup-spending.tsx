@@ -8,16 +8,17 @@ import { OptionSelect } from "@noodle/ui/components/select";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { Spinner } from "@noodle/ui/components/spinner";
 import { Tile } from "@noodle/ui/components/tile";
-import { useHydrated } from "@tanstack/react-router";
+import { useHydrated, useRouteContext } from "@tanstack/react-router";
 import { FileUp, Landmark } from "lucide-react";
 import { type FormEvent, Suspense, useId, useState } from "react";
 import { ulid } from "ulid";
-import { accountKindName, useAddAccount, useGoals } from "../goals";
+import { formatMoney, shortDay } from "../format";
+import { accountKindName, useAddAccount, useGoals, useUpdateAccountBalance } from "../goals";
 import { backgroundStatus, type SetupJobView } from "../setup";
 import { importSummary } from "../statements";
 import { useConnectBank } from "./bank-connections";
 import { SaveFailed } from "./plan-editing";
-import { type Draft, NO_DRAFT, UploadForm } from "./statements";
+import { balanceOffer, type Draft, NO_DRAFT, UploadForm } from "./statements";
 
 // How spending comes in during the get-started wizard (#53), without leaving it: connecting a bank
 // (Plaid Link, then Choose Accounts, ADR-0020) or uploading one Account's statement. Both use what
@@ -130,6 +131,15 @@ export function SetupStatementCard({ jobs }: { jobs: SetupJobView[] }) {
 	const [draft, setDraft] = useState<Draft>(NO_DRAFT);
 	const [imported, setImported] = useState<(ImportRecord & { accountName: string }) | null>(null);
 	const account = accounts.find((a) => a.id === accountId) ?? null;
+	const { timeZone } = useRouteContext({ from: "/_authed/setup" }).household;
+	const updateBalance = useUpdateAccountBalance();
+	// The statement's closing balance, offered as the Account's (as on the Account's page) until
+	// the Parent uses it or keeps what Noodle has.
+	const [balanceAnswered, setBalanceAnswered] = useState(false);
+	const offer =
+		imported && account && !balanceAnswered
+			? balanceOffer(account, imported.closingBalance, timeZone)
+			: null;
 	const read = jobs.some((job) => job.job === "history" && job.status === "done");
 
 	if (imported) {
@@ -139,6 +149,47 @@ export function SetupStatementCard({ jobs }: { jobs: SetupJobView[] }) {
 					{imported.fileName ?? "Your statement"} is in for {imported.accountName}
 				</p>
 				<p className="text-muted-foreground">{importSummary(imported)}.</p>
+				{offer && account && imported.closingBalance ? (
+					<div className="grid gap-2 rounded-md border p-3">
+						<p className="text-muted-foreground">
+							It ends {offer.owing ? "owing" : "at"}{" "}
+							<span className="font-medium text-foreground tabular-nums">
+								{formatMoney(offer.amount)}
+							</span>{" "}
+							on {shortDay(imported.closingBalance.date)}.{" "}
+							{account.balance === null
+								? `${account.name} has no ${account.holdsMoney ? "balance" : "amount owed"} yet.`
+								: `Noodle has ${formatMoney(account.balance)}${account.holdsMoney ? "" : " owed"}.`}
+						</p>
+						<div className="flex flex-wrap gap-2">
+							<Button
+								type="button"
+								size="sm"
+								disabled={!hydrated}
+								onClick={() => {
+									updateBalance.mutate({
+										balanceId: ulid(),
+										accountId: account.id,
+										amountCents: offer.amount,
+									});
+									setBalanceAnswered(true);
+								}}
+							>
+								Use {formatMoney(offer.amount)} {offer.owing ? "as what’s owed" : "as the balance"}
+							</Button>
+							{account.balance !== null ? (
+								<Button
+									type="button"
+									size="sm"
+									variant="outline"
+									onClick={() => setBalanceAnswered(true)}
+								>
+									Keep {formatMoney(account.balance)}
+								</Button>
+							) : null}
+						</div>
+					</div>
+				) : null}
 				<Reading jobs={jobs} />
 				<Button
 					type="button"
@@ -147,6 +198,7 @@ export function SetupStatementCard({ jobs }: { jobs: SetupJobView[] }) {
 					className="justify-self-start"
 					onClick={() => {
 						setImported(null);
+						setBalanceAnswered(false);
 						setAccountId(null);
 						setFrom(accountId ?? "new");
 					}}
@@ -182,8 +234,9 @@ export function SetupStatementCard({ jobs }: { jobs: SetupJobView[] }) {
 		return (
 			<Card className="grid gap-3 p-(--card-pad) text-sm">
 				{heading}
-				<div className="flex flex-wrap items-center justify-between gap-2">
-					<p className="text-muted-foreground">
+				{/* Side by side on a phone too: the words wrap, "Another account" stays at the right. */}
+				<div className="flex items-start justify-between gap-2">
+					<p className="min-w-0 text-muted-foreground">
 						A CSV, OFX or QFX file from your bank for{" "}
 						<span className="font-medium text-foreground">{account.name}</span>.
 					</p>
@@ -191,6 +244,7 @@ export function SetupStatementCard({ jobs }: { jobs: SetupJobView[] }) {
 						type="button"
 						variant="ghost"
 						size="sm"
+						className="-my-1 shrink-0"
 						onClick={() => {
 							setDraft(NO_DRAFT);
 							setAccountId(null);

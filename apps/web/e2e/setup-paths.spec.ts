@@ -166,3 +166,41 @@ test("bank: connecting the fake bank runs the Setup Workflow to the end", async 
 	// Left to plan counts down from the pay the Parent typed, whatever the bank suggested.
 	await expect(page.getByText(/Left to plan:/)).toContainText("$");
 });
+
+test("goal: a pay-off Goal can be for a card already added, without adding another", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await begin(browser, /Upload a statement/);
+	// The statement card adds the card as an Account.
+	await page.getByLabel("Which account is this from?").fill("Visa");
+	const kindSelect = page.getByLabel("Kind");
+	if ((await kindSelect.evaluate((e) => e.tagName)) === "SELECT") {
+		await kindSelect.selectOption({ label: "Credit card" });
+	} else {
+		await kindSelect.click();
+		await page.getByRole("option", { name: "Credit card" }).click();
+	}
+	await page.getByRole("button", { name: "Choose the statement" }).click();
+	await expect(page.getByLabel("Statement file")).toBeAttached();
+	await page.getByRole("textbox", { name: PAY }).fill("5,000");
+	await next(page, 3);
+	await next(page, 4);
+	await next(page, 5);
+
+	await page.getByRole("radio", { name: /Pay off a card or loan/ }).check();
+	await expect(page.getByRole("radio", { name: /Visa/ })).toBeChecked();
+	// The card is named already; only what's owed is asked.
+	await expect(page.getByRole("textbox", { name: "What’s it called?" })).toHaveCount(0);
+	await page.getByRole("textbox", { name: "What’s owed on it now?" }).fill("1,200");
+	const saved = savedBy(page, "saveSetup");
+	await page.getByRole("button", { name: "Add Goal", exact: true }).click();
+	await saved;
+	await expect(page.getByText("Step 6 of 7")).toBeVisible();
+
+	await page.goto("/accounts");
+	await expect(page.getByText("Visa", { exact: true })).toHaveCount(1);
+	await page.goto("/goals");
+	await expect(page.getByText("Visa").first()).toBeVisible();
+	await expect(page.getByText(/\$1,200/).first()).toBeVisible();
+});
