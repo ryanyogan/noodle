@@ -51,7 +51,12 @@ async function phonePage(browser: Browser) {
 }
 
 async function open(page: Page, path: string) {
-	await page.goto(path);
+	// In WebKit the last page's client redirect (/transactions to /transactions/<month>) can land
+	// after its header shows, cutting this navigation short: go again once it has.
+	await page.goto(path).catch((error: Error) => {
+		if (!error.message.includes("interrupted by another navigation")) throw error;
+		return page.goto(path);
+	});
 	await expect(page.locator("[data-slot=page-header]:visible").first()).toBeVisible(clientRendered);
 	await page.evaluate(() => document.fonts.ready);
 }

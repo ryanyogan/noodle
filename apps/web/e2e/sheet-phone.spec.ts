@@ -53,7 +53,8 @@ test("a sheet on a phone keeps the page's place and its Save in view", async ({ 
 	expect(before).toBeGreaterThan(0);
 
 	const sheet = page.getByRole("dialog", { name: "Gifts" });
-	await expect(sheet.getByRole("button", { name: "Save" })).toBeInViewport({ ratio: 1 });
+	// 0.99, not 1: WebKit lays the sheet out on fractional pixels, leaving Save 0.9999 in view.
+	await expect(sheet.getByRole("button", { name: "Save" })).toBeInViewport({ ratio: 0.99 });
 
 	await page.keyboard.press("Escape");
 	await expect(sheet).toBeHidden();
