@@ -85,3 +85,42 @@ describe("Review's card stack", () => {
 		expect(ids(stackOrder([b], state))).toEqual(["b"]);
 	});
 });
+
+describe("one Undo history: a toast's Undo and the stack's", () => {
+	test("a toast's Undo of an earlier decision takes it out of the history, so the stack's Undo can't return it again", () => {
+		const state = run(
+			{ type: "decided", items: [a] },
+			{ type: "decided", items: [b] },
+			// The toast for a, still showing, is undone.
+			{ type: "returned", items: [a] },
+		);
+		expect(state.history).toEqual([[b]]);
+		expect(state.done).toBe(1);
+		expect(state.top).toBe("a");
+		// The stack's Undo now returns b, not a again.
+		const after = stackReducer(state, { type: "undone" });
+		expect(after.top).toBe("b");
+		expect(after.history).toEqual([]);
+		expect(after.done).toBe(0);
+		expect(ids(stackOrder(cards, after))).toEqual(["b", "a", "c"]);
+	});
+
+	test("a batch's toast Undo returns the whole batch as one", () => {
+		const state = run(
+			{ type: "decided", items: [c] },
+			{ type: "decided", items: [a, b] },
+			{ type: "returned", items: [a, b] },
+		);
+		expect(state.history).toEqual([[c]]);
+		expect(state.done).toBe(1);
+		expect(state.top).toBe("a");
+	});
+
+	test("returning a card that was already returned changes nothing but the top", () => {
+		const once = run({ type: "decided", items: [a] }, { type: "undone" });
+		const twice = stackReducer(once, { type: "returned", items: [a] });
+		expect(twice.history).toEqual([]);
+		expect(twice.done).toBe(0);
+		expect(twice.top).toBe("a");
+	});
+});

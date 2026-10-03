@@ -21,7 +21,9 @@ export type StackEvent<T extends { id: string }> =
 	/** The last decision undone: its cards go back, the first on top. */
 	| { type: "undone" }
 	/** A save failed: its cards are back in Review, the first on top. */
-	| { type: "failed"; items: T[] };
+	| { type: "failed"; items: T[] }
+	/** Cards put back by an Undo (the stack's or a toast's), wherever they are in the history. */
+	| { type: "returned"; items: T[] };
 
 export const startStack = <T extends { id: string }>(): StackState<T> => ({
 	skipped: [],
@@ -61,7 +63,8 @@ export function stackReducer<T extends { id: string }>(
 				done: Math.max(0, state.done - last.length),
 			};
 		}
-		case "failed": {
+		case "failed":
+		case "returned": {
 			const ids = new Set(event.items.map((item) => item.id));
 			const history = state.history
 				.map((entry) => entry.filter((item) => !ids.has(item.id)))

@@ -90,11 +90,15 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 
 	// Picked from the card's own month's Buckets, it's filed there.
 	await choose(card(page), "Where ACME WIDGETS LLC goes", "Fun");
-	await expect(status(page, "$19.99 (ACME WIDGETS LLC) filed in Fun")).toBeVisible();
+	// Sort says so beside the card, and offers the Rule there rather than in a toast over it.
+	await expect(page.getByTestId("review-said")).toHaveText(
+		"Filed ACME WIDGETS LLC in Fun. All sorted.",
+	);
 	await expect(page.getByText("Nothing to review")).toBeVisible();
 
 	// And made a Rule of it.
-	const offer = status(page, /Always file “acme widgets.*” in Fun\?/);
+	const offer = page.getByTestId("review-rule-offer");
+	await expect(offer).toContainText(/Always file “acme widgets.*” in Fun\?/);
 	await offer.getByRole("button", { name: "Always file" }).click();
 	await expect(page.getByText(/Rule saved/)).toBeVisible();
 
@@ -125,7 +129,8 @@ test("a card changed in Review makes a Rule that files the merchant's next state
 	// → confirms the guess; Undo puts the card back.
 	await page.keyboard.press("ArrowRight");
 	await expect(page.getByText("Nothing to review")).toBeVisible();
-	await status(page, "filed in Gas").getByRole("button", { name: "Undo" }).click();
+	// Sort's own Undo (no toast over the card).
+	await page.getByRole("main").getByRole("button", { name: "Undo" }).click();
 	await expect(card(page).getByRole("heading", { name: "CORNER GAS MART" })).toBeVisible();
 
 	// On a phone, a tap on Confirm files it.

@@ -259,6 +259,14 @@
 	--animate-dialog-out: dialog-in 160ms cubic-bezier(0.4, 0, 1, 1) reverse both;
 	--animate-side-in: side-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 	--animate-side-out: side-in 220ms cubic-bezier(0.4, 0, 1, 1) reverse both;
+	/* Review's card stack (#68): a decided card flies off, the next comes up from behind, a card
+	   that can't go that way shakes its head, and the finish gives a small burst. */
+	--animate-fly-right: fly-right 300ms cubic-bezier(0.4, 0, 1, 1) both;
+	--animate-fly-left: fly-left 300ms cubic-bezier(0.4, 0, 1, 1) both;
+	--animate-fly-down: fly-down 260ms cubic-bezier(0.4, 0, 1, 1) both;
+	--animate-card-in: card-in 260ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+	--animate-wobble: wobble 360ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+	--animate-burst: burst 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 
 	@keyframes fade-in {
 		from {
@@ -282,6 +290,50 @@
 		}
 	}
 
+	@keyframes fly-right {
+		to {
+			opacity: 0;
+			transform: translateX(110%) rotate(10deg);
+		}
+	}
+	@keyframes fly-left {
+		to {
+			opacity: 0;
+			transform: translateX(-110%) rotate(-10deg);
+		}
+	}
+	@keyframes fly-down {
+		to {
+			opacity: 0;
+			transform: translateY(40%) scale(0.94);
+		}
+	}
+	@keyframes card-in {
+		from {
+			opacity: 0.6;
+			transform: translateY(10px) scale(0.96);
+		}
+	}
+	@keyframes wobble {
+		20%,
+		60% {
+			transform: translateX(-8px);
+		}
+		40%,
+		80% {
+			transform: translateX(8px);
+		}
+	}
+	@keyframes burst {
+		from {
+			opacity: 1;
+			transform: rotate(var(--burst-angle)) translateY(0) scale(1);
+		}
+		to {
+			opacity: 0;
+			transform: rotate(var(--burst-angle)) translateY(-64px) scale(0.4);
+		}
+	}
 	@keyframes bar-grow {
 		from {
 			transform: scaleX(0);

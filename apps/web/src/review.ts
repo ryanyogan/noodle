@@ -63,6 +63,8 @@ export type ReviewDecision = {
 	next: TransactionEdit | null;
 	/** Where it went, for the message: a Bucket's name; null when it was split. */
 	placeName: string | null;
+	/** Said beside the card rather than in a toast (Review's Sort). */
+	quiet?: boolean;
 };
 
 const changeOf = ({ item, next }: ReviewDecision): TransactionChange => ({
@@ -76,7 +78,12 @@ const changeOf = ({ item, next }: ReviewDecision): TransactionChange => ({
  * month and lists before the server answers, with an Undo in the toast. A failure puts it all
  * back and offers a retry.
  */
-export function useReviewDecision() {
+export function useReviewDecision({
+	onUndo,
+}: {
+	/** A toast's Undo, through the caller's own history (Review's stack), so the two agree. */
+	onUndo?: (items: ReviewItem[]) => void;
+} = {}) {
 	const queryClient = useQueryClient();
 	const returnCard = useReturnToReview();
 	const decide = useMutation({
@@ -101,10 +108,15 @@ export function useReviewDecision() {
 		},
 		onSuccess: (_data, decision) => {
 			const label = transactionLabel(decision.item);
+			// Sort says so beside the card, with its own Undo; a toast would sit over the next one.
+			if (decision.quiet) return;
 			if (!decision.next) return toast(`${label} deleted`);
 			toast(decision.placeName ? `${label} filed in ${decision.placeName}` : `${label} split`, {
 				tone: "success",
-				action: { label: "Undo", onClick: () => returnCard.mutate(decision.item) },
+				action: {
+					label: "Undo",
+					onClick: () => (onUndo ? onUndo([decision.item]) : returnCard.mutate(decision.item)),
+				},
 			});
 		},
 		onSettled: () => refetchAfterChange(queryClient),
@@ -116,7 +128,12 @@ export function useReviewDecision() {
  * Confirms several cards at once, each in its suggestion: they leave the stack and land in their
  * months at once, with one Undo that puts them all back. A failure puts back what wasn't saved.
  */
-export function useConfirmAll() {
+export function useConfirmAll({
+	onUndo,
+}: {
+	/** The toast's Undo, through the caller's own history, as useReviewDecision's. */
+	onUndo?: (items: ReviewItem[]) => void;
+} = {}) {
 	const queryClient = useQueryClient();
 	const returnCard = useReturnToReview();
 	const confirmAll = useMutation({
@@ -152,6 +169,7 @@ export function useConfirmAll() {
 				action: {
 					label: "Undo",
 					onClick: () => {
+						if (onUndo) return onUndo(decisions.map((decision) => decision.item));
 						for (const decision of decisions) returnCard.mutate(decision.item);
 					},
 				},

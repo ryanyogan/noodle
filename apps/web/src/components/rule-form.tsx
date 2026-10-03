@@ -22,8 +22,11 @@ export function RuleForm({
 	members,
 	onDone,
 	inline = false,
+	start,
 }: {
 	rule: RuleRow | null;
+	/** A new Rule's merchant words, Bucket and For to start from (Review's card). */
+	start?: { pattern: string; bucketId?: string; for?: For };
 	buckets: PlanBucket[];
 	members: MemberSummary[];
 	onDone: () => void;
@@ -35,9 +38,11 @@ export function RuleForm({
 	const remove = useDeleteRule();
 	const apply = useApplyRule();
 	const add = useSaveRule();
-	const [pattern, setPattern] = useState(rule?.pattern ?? "");
-	const [bucketId, setBucketId] = useState(rule?.bucketId ?? buckets[0]?.id ?? "");
-	const [forIds, setForIds] = useState<For>(rule?.for ?? []);
+	const [pattern, setPattern] = useState(rule?.pattern ?? start?.pattern ?? "");
+	const [bucketId, setBucketId] = useState(
+		rule?.bucketId ?? start?.bucketId ?? buckets[0]?.id ?? "",
+	);
+	const [forIds, setForIds] = useState<For>(rule?.for ?? start?.for ?? []);
 	const [deleting, setDeleting] = useState(false);
 	const [missing, setMissing] = useState(false);
 	// Its Bucket stays pickable after leaving the Plan.

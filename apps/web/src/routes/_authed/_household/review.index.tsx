@@ -13,6 +13,7 @@ import { Combobox } from "@noodle/ui/components/combobox";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Kbd } from "@noodle/ui/components/kbd";
 import type { Choices } from "@noodle/ui/components/select";
+import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
 import { toast } from "@noodle/ui/components/toast";
 import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
@@ -24,17 +25,29 @@ import {
 	CheckCheck,
 	Layers,
 	List,
+	ListPlus,
 	Pencil,
 	RefreshCw,
 	SkipForward,
 	Sparkles,
+	Split as SplitIcon,
 	Undo2,
+	Wallet,
 } from "lucide-react";
-import { Suspense, useEffect, useReducer, useState } from "react";
+import {
+	type CSSProperties,
+	type ReactNode,
+	Suspense,
+	useEffect,
+	useReducer,
+	useRef,
+	useState,
+} from "react";
 import { ulid } from "ulid";
 import { z } from "zod";
 import { asBucketColor, monogram } from "../../../buckets";
 import { ReviewMatchOffer } from "../../../components/match-section";
+import { RuleForm } from "../../../components/rule-form";
 import { SectionPending } from "../../../components/section-layout";
 import { SwipeCard } from "../../../components/swipe-card";
 import { TermHelp } from "../../../components/term-help";
@@ -141,8 +154,9 @@ function ReviewPage() {
 			});
 		} else setChanging(item);
 	};
-	const decide = useReviewDecision();
-	const confirmAll = useConfirmAll();
+	// A toast's Undo goes through the stack's history too, so the two never disagree.
+	const decide = useReviewDecision({ onUndo: putBack });
+	const confirmAll = useConfirmAll({ onUndo: putBack });
 	const returnCard = useReturnToReview();
 	const saveRule = useSaveRule();
 	const lookAgain = useLookAgain();
@@ -162,12 +176,85 @@ function ReviewPage() {
 	const failed = (items: ReviewItem[]) => ({
 		onError: () => dispatch({ type: "failed", items }),
 	});
+	/** What Sort last did, said beside the card and to a screen reader. */
+	const [said, say] = useState("");
+	/** "Always file …?", offered beside the card in Sort rather than in a toast over it. */
+	const [offer, setOffer] = useState<RuleOffer | null>(null);
+	/** The card flying off the top, drawn over the next one for a moment. */
+	const [leaving, setLeaving] = useState<{ item: ReviewItem; way: Way } | null>(null);
+	const [wobbling, setWobbling] = useState(false);
+	const [splitting, setSplitting] = useState(false);
+	const [ruling, setRuling] = useState<ReviewItem | null>(null);
+	/** After a decision in Sort, focus goes to the next card (or the finish). */
+	const focusNext = useRef(false);
+	const topId = sorting ? (order[0]?.id ?? null) : null;
+	useEffect(() => {
+		if (!focusNext.current) return;
+		focusNext.current = false;
+		const frame = requestAnimationFrame(() =>
+			document.getElementById(topId ? "review-top" : "review-finish")?.focus(),
+		);
+		return () => cancelAnimationFrame(frame);
+	}, [topId]);
+
+	const planOf = (item: ReviewItem) =>
+		queryClient.getQueryData(monthQuery(monthOfTransaction(item)).queryKey)?.plan;
+	/** A card from a month with nothing to file in: it can only be skipped. */
+	function stuck(item: ReviewItem) {
+		const plan = planOf(item);
+		if (!plan) return false;
+		const places = placesIn(plan, parentId);
+		return places.buckets.length === 0 && places.commitments.length === 0;
+	}
+	/** A card that can't go that way shakes its head (with motion) and says why. */
+	function shake() {
+		if (!reduced) setWobbling(true);
+	}
+	function nope(item: ReviewItem) {
+		const name = monthName(monthOfTransaction(item));
+		say(
+			planOf(item)?.baseline === null
+				? `${name} has no Plan yet, so ${labelOf(item)} can only be skipped.`
+				: `${name}’s Plan has no Buckets yet, so ${labelOf(item)} can only be skipped.`,
+		);
+		shake();
+	}
+
+	/** Puts decided cards back in Review, the first on top: the stack's Undo and a toast's. */
+	function putBack(items: ReviewItem[]) {
+		for (const item of items) returnCard.mutate(item);
+		dispatch({ type: "returned", items });
+		setOffer(null);
+		setLeaving(null);
+		const first = items[0];
+		if (!first || !sorting) return;
+		focusNext.current = true;
+		say(`${labelOf(first)} is back on top.`);
+	}
 
 	function undo() {
 		const last = stack.history.at(-1);
 		if (!last || !canUndo) return;
-		for (const item of last) returnCard.mutate(item);
-		dispatch({ type: "undone" });
+		putBack(last);
+	}
+
+	/** Records a decision; in Sort the card flies off, focus moves on and it's said. */
+	function decided(items: ReviewItem[], what: string, way: Way = "right") {
+		dispatch({ type: "decided", items });
+		if (!sorting) return;
+		const ids = new Set(items.map((item) => item.id));
+		const left = order.filter((item) => !ids.has(item.id)).length;
+		setOffer(null);
+		focusNext.current = true;
+		say(`${what} ${left > 0 ? `${left} left.` : "All sorted."}`);
+		const first = items[0];
+		if (!reduced && first && items.length === 1 && first.id === order[0]?.id) {
+			setLeaving({ item: first, way });
+		}
+		// A small buzz at the end of the stack, on a phone that can.
+		if (left === 0 && !reduced && window.matchMedia("(pointer: coarse)").matches) {
+			navigator.vibrate?.(30);
+		}
 	}
 
 	/** "Always file <merchant> in <Bucket>?", after a card is filed in a Bucket. */
@@ -176,21 +263,27 @@ function ReviewPage() {
 		bucket: Pick<PlanBucket, "id" | "name" | "owner">,
 		forMemberIds: string[],
 	) {
+		if (sorting) return setOffer({ item, bucket, forMemberIds });
+		toast(ruleQuestion({ item, bucket, forMemberIds }), {
+			tone: "success",
+			action: { label: "Always file", onClick: () => takeRule({ item, bucket, forMemberIds }) },
+		});
+	}
+
+	function ruleQuestion({ item, bucket, forMemberIds }: RuleOffer) {
 		const only = bucket.owner === parentId ? " Only you will see this Rule." : "";
 		const forWhom = forMemberIds.length > 0 ? `, For ${forLabel(members, forMemberIds)}` : "";
-		toast(`Always file “${item.merchant}” in ${bucket.name}${forWhom}?${only}`, {
-			tone: "success",
-			action: {
-				label: "Always file",
-				onClick: () =>
-					saveRule.mutate({
-						ruleId: ulid(),
-						pattern: item.merchant,
-						bucketId: bucket.id,
-						bucketName: bucket.name,
-						forMemberIds,
-					}),
-			},
+		return `Always file “${item.merchant}” in ${bucket.name}${forWhom}?${only}`;
+	}
+
+	function takeRule({ item, bucket, forMemberIds }: RuleOffer) {
+		setOffer(null);
+		saveRule.mutate({
+			ruleId: ulid(),
+			pattern: item.merchant,
+			bucketId: bucket.id,
+			bucketName: bucket.name,
+			forMemberIds,
 		});
 	}
 
@@ -202,11 +295,16 @@ function ReviewPage() {
 	}
 
 	function confirm(item: ReviewItem) {
+		if (stuck(item)) return nope(item);
 		const decision = confirmed(item);
-		if (!decision || !item.guess) return openPicker(item);
+		if (!decision || !item.guess) {
+			// Nothing to confirm: a shake, and the picker.
+			shake();
+			return openPicker(item);
+		}
 		moveOn(item);
-		dispatch({ type: "decided", items: [item] });
-		decide.mutate(decision, failed([item]));
+		decided([item], `Filed ${labelOf(item)} in ${item.guess.name}.`);
+		decide.mutate({ ...decision, quiet: sorting }, failed([item]));
 		const { bucketId, name } = item.guess;
 		const plan = queryClient.getQueryData(monthQuery(monthOfTransaction(item)).queryKey)?.plan;
 		const owner = plan?.buckets.find((b) => b.id === bucketId)?.owner;
@@ -220,9 +318,10 @@ function ReviewPage() {
 		const bucket = kind === "bucket" ? plan.buckets.find((b) => b.id === id) : undefined;
 		const name = bucket?.name ?? plan.commitments.find((c) => c.id === id)?.name ?? null;
 		moveOn(item);
-		dispatch({ type: "decided", items: [item] });
+		decided([item], `Filed ${labelOf(item)} in ${name ?? "its Commitment"}.`, "left");
 		decide.mutate(
 			{
+				quiet: sorting,
 				item,
 				next: {
 					amountCents: item.amountCents,
@@ -239,7 +338,8 @@ function ReviewPage() {
 
 	function changed(item: ReviewItem, next: TransactionChange["next"], buckets: PlanBucket[]) {
 		setChanging(null);
-		const decision: ReviewDecision = { item, next, placeName: null };
+		setSplitting(false);
+		const decision: ReviewDecision = { item, next, placeName: null, quiet: sorting };
 		const assigned = next && "assignment" in next ? next.assignment : null;
 		const bucket =
 			assigned && "bucketId" in assigned
@@ -249,7 +349,14 @@ function ReviewPage() {
 			decision.placeName = bucket?.name ?? "its Commitment";
 		}
 		moveOn(item);
-		dispatch({ type: "decided", items: [item] });
+		decided(
+			[item],
+			!next
+				? `Deleted ${labelOf(item)}.`
+				: decision.placeName
+					? `Filed ${labelOf(item)} in ${decision.placeName}.`
+					: `Split ${labelOf(item)}.`,
+		);
 		decide.mutate(decision, failed([item]));
 		if (bucket && next && "assignment" in next) offerRule(item, bucket, next.forMemberIds);
 	}
@@ -258,20 +365,62 @@ function ReviewPage() {
 		const decisions = items.flatMap((item) => confirmed(item) ?? []);
 		if (decisions.length === 0) return;
 		const taken = decisions.map((decision) => decision.item);
-		dispatch({ type: "decided", items: taken });
+		decided(taken, `Filed ${taken.length} where Noodle suggested.`);
 		confirmAll.mutate(decisions, failed(taken));
 	}
 
 	function skip(item: ReviewItem) {
-		if (sorting) return dispatch({ type: "skipped", id: item.id });
+		if (sorting) {
+			if (order.length < 2) return;
+			dispatch({ type: "skipped", id: item.id });
+			setOffer(null);
+			focusNext.current = true;
+			say(`Skipped ${labelOf(item)}. It’s at the back.`);
+			if (!reduced) setLeaving({ item, way: "down" });
+			return;
+		}
 		const at = cards.findIndex((card) => card.id === item.id);
 		setCursor((cards[at + 1] ?? cards[0])?.id ?? null);
 	}
 
-	// → or Enter confirms, ← changes, ↓ skips, Z (or ⌘Z) undoes in Sort; not while typing or
-	// while the editor is open.
+	/** ←, or a swipe left: the picker, unless there's nowhere to file it. */
+	function pickAnother(item: ReviewItem) {
+		if (stuck(item)) return nope(item);
+		openPicker(item);
+	}
+
+	/** Splits the card, in the editor's Splits. */
+	function splitCard(item: ReviewItem) {
+		if (stuck(item)) return nope(item);
+		setSplitting(true);
+		setChanging(item);
+	}
+
+	/** The Parent's own Personal Allowance in the card's month, if they have one. */
+	const allowanceOf = (item: ReviewItem) =>
+		planOf(item)?.buckets.find((bucket) => bucket.owner === parentId);
+
+	/** Files the card in the Parent's own Personal Allowance: only they will see it. */
+	function markAllowance(item: ReviewItem) {
+		if (stuck(item)) return nope(item);
+		const plan = planOf(item);
+		const allowance = allowanceOf(item);
+		if (!plan || !allowance) {
+			say(`You don’t have a Personal Allowance in ${monthName(monthOfTransaction(item))}.`);
+			return shake();
+		}
+		file(item, `bucket:${allowance.id}`, plan);
+	}
+
+	function makeRule(item: ReviewItem) {
+		if (stuck(item)) return nope(item);
+		setRuling(item);
+	}
+
+	// → or Enter confirms, ← changes, ↓ skips, Z (or ⌘Z) undoes in Sort, and S splits, P files in
+	// the Parent's Personal Allowance, R makes a Rule; not while typing or a sheet is open.
 	useEffect(() => {
-		if (changing) return;
+		if (changing || ruling) return;
 		function onKey(event: KeyboardEvent) {
 			const target = event.target as HTMLElement | null;
 			const typing = target?.closest(
@@ -281,6 +430,20 @@ function ReviewPage() {
 				if (event.shiftKey || (event.metaKey && event.ctrlKey)) return;
 				event.preventDefault();
 				return undo();
+			}
+			const letter = event.key.toLowerCase();
+			const card = sorting && !typing && !event.metaKey && !event.ctrlKey && !event.altKey;
+			const byLetter =
+				letter === "s"
+					? splitCard
+					: letter === "p"
+						? markAllowance
+						: letter === "r"
+							? makeRule
+							: null;
+			if (card && byLetter && order[0]) {
+				event.preventDefault();
+				return byLetter(order[0]);
 			}
 			if (!active || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
 			if (typing) return;
@@ -292,7 +455,7 @@ function ReviewPage() {
 				event.key === "ArrowRight" || event.key === "Enter"
 					? confirm
 					: event.key === "ArrowLeft"
-						? openPicker
+						? pickAnother
 						: event.key === "ArrowDown"
 							? skip
 							: null;
@@ -303,6 +466,30 @@ function ReviewPage() {
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
 	});
+
+	// What Sort last did and the Rule it offers, under the card or the finish.
+	const sortNote = (
+		<>
+			<p
+				role="status"
+				data-testid="review-said"
+				className="min-h-5 text-center text-sm text-muted-foreground"
+			>
+				{said}
+			</p>
+			{offer ? (
+				<div
+					data-testid="review-rule-offer"
+					className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-surface-2 px-3 py-2 text-sm"
+				>
+					<span className="min-w-0">{ruleQuestion(offer)}</span>
+					<Button variant="outline" size="sm" disabled={!hydrated} onClick={() => takeRule(offer)}>
+						Always file
+					</Button>
+				</div>
+			) : null}
+		</>
+	);
 
 	return (
 		<>
@@ -369,22 +556,22 @@ function ReviewPage() {
 						</div>
 						{sorting && order[0] ? (
 							<div data-testid="review-stack" className="grid gap-3">
-								<p className="text-sm text-muted-foreground tabular-nums">
+								<h2 className="text-sm font-normal text-muted-foreground tabular-nums">
 									{stack.done + 1} of {stack.done + order.length}
-								</p>
+								</h2>
 								<ReviewMatchOffer key={order[0].id} transaction={order[0]} />
-								<div className="relative pb-4">
+								<div className="relative pb-5">
 									{/* The cards waiting behind this one, as edges. */}
 									{order.length > 2 ? (
 										<div
 											aria-hidden="true"
-											className="absolute inset-x-6 bottom-0 h-12 rounded-2xl bg-card/60 ring-1 ring-border"
+											className="absolute inset-x-6 top-6 bottom-0 rounded-2xl bg-card/70 shadow-card ring-1 ring-border"
 										/>
 									) : null}
 									{order.length > 1 ? (
 										<div
 											aria-hidden="true"
-											className="absolute inset-x-3 bottom-2 h-12 rounded-2xl bg-card ring-1 ring-border"
+											className="absolute inset-x-3 top-3 bottom-2.5 rounded-2xl bg-card shadow-card ring-1 ring-border"
 										/>
 									) : null}
 									<SwipeCard
@@ -394,42 +581,106 @@ function ReviewPage() {
 										rightLabel={order[0].guess ? `${order[0].guess.name} ✓` : "Pick where it goes"}
 										leftLabel="Pick another"
 										onRight={() => confirm(order[0] as ReviewItem)}
-										onLeft={() => openPicker(order[0] as ReviewItem)}
+										onLeft={() => pickAnother(order[0] as ReviewItem)}
 									>
-										<ReviewCard
-											item={order[0]}
-											today={today}
-											members={members}
-											parentId={parentId}
-											current
-											hydrated={hydrated}
-											sameMerchant={[]}
-											onFocus={() => {}}
-											onConfirm={() => confirm(order[0] as ReviewItem)}
-											onPick={(value, plan) => file(order[0] as ReviewItem, value, plan)}
-											onEdit={() => onEdit(order[0] as ReviewItem)}
-											onConfirmAll={(items) => confirmEach(items)}
-										/>
+										<div
+											className={cn("rounded-2xl", wobbling && "motion-safe:animate-wobble")}
+											onAnimationEnd={(event) => {
+												if (event.animationName === "wobble") setWobbling(false);
+											}}
+										>
+											{/* Focus rests here after each decision; its name says what the card is. */}
+											<section
+												id="review-top"
+												tabIndex={-1}
+												aria-label={cardName(order[0])}
+												className="rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-safe:animate-card-in"
+											>
+												<ReviewCard
+													item={order[0]}
+													today={today}
+													members={members}
+													parentId={parentId}
+													current
+													hydrated={hydrated}
+													sameMerchant={[]}
+													onFocus={() => {}}
+													onConfirm={() => confirm(order[0] as ReviewItem)}
+													onPick={(value, plan) => file(order[0] as ReviewItem, value, plan)}
+													onEdit={() => onEdit(order[0] as ReviewItem)}
+													onConfirmAll={(items) => confirmEach(items)}
+													actions={
+														stuck(order[0]) ? null : (
+															<CardActions
+																hydrated={hydrated}
+																allowance={allowanceOf(order[0]) !== undefined}
+																onSplit={() => splitCard(order[0] as ReviewItem)}
+																onAllowance={() => markAllowance(order[0] as ReviewItem)}
+																onRule={() => makeRule(order[0] as ReviewItem)}
+															/>
+														)
+													}
+												/>
+											</section>
+										</div>
 									</SwipeCard>
+									{leaving ? (
+										<div
+											key={`${leaving.item.id}-${leaving.way}`}
+											aria-hidden="true"
+											inert
+											className={cn(
+												"pointer-events-none absolute inset-x-0 top-0 z-10",
+												leaving.way === "right" && "animate-fly-right",
+												leaving.way === "left" && "animate-fly-left",
+												leaving.way === "down" && "animate-fly-down",
+											)}
+											onAnimationEnd={() => setLeaving(null)}
+										>
+											<ReviewCard
+												item={leaving.item}
+												today={today}
+												members={members}
+												parentId={parentId}
+												current
+												ghost
+												hydrated={hydrated}
+												sameMerchant={[]}
+												onFocus={() => {}}
+												onConfirm={() => {}}
+												onPick={() => {}}
+												onEdit={() => {}}
+												onConfirmAll={() => {}}
+											/>
+										</div>
+									) : null}
 								</div>
 								<div className="grid grid-cols-2 gap-2">
 									<Button
 										variant="outline"
 										disabled={!hydrated || order.length < 2}
+										aria-keyshortcuts="ArrowDown"
 										onClick={() => skip(order[0] as ReviewItem)}
 									>
 										<SkipForward />
 										Skip
 									</Button>
-									<Button variant="outline" disabled={!hydrated || !canUndo} onClick={undo}>
+									<Button
+										variant="outline"
+										aria-keyshortcuts="Z"
+										disabled={!hydrated || !canUndo}
+										onClick={undo}
+									>
 										<Undo2 />
 										Undo
 									</Button>
 								</div>
+								{sortNote}
 								<p className="hidden text-center text-xs text-muted-foreground lg:block">
 									<Key name="Right arrow">→</Key> or <Key>Enter</Key> to confirm,{" "}
 									<Key name="Left arrow">←</Key> to pick another, <Key name="Down arrow">↓</Key> to
-									skip, <Key>Z</Key> to undo
+									skip, <Key>Z</Key> to undo, <Key>S</Key> to split, <Key>P</Key> for your Personal
+									Allowance, <Key>R</Key> to make a Rule
 								</p>
 								{hydrated && !reduced ? (
 									<p className="text-center text-xs text-muted-foreground lg:hidden">
@@ -484,44 +735,74 @@ function ReviewPage() {
 						)}
 					</>
 				) : (
-					<Card className="p-0">
-						<EmptyState
-							icon={<CheckCheck />}
-							title={stack.done > 0 ? "All sorted" : "Nothing to review"}
-							description={`${stack.done > 0 ? `Nothing to review now. You did ${stack.done}. ` : ""}${
-								queue.filedOnItsOwn > 0
-									? `Noodle filed ${queue.filedOnItsOwn} on its own this month.`
-									: "Noodle filed everything on its own."
-							} Anything it isn’t sure about waits here for you.`}
-							action={
-								<div className="flex flex-wrap justify-center gap-2">
-									{stack.history.length > 0 ? (
-										<Button variant="outline" size="sm" disabled={!canUndo} onClick={undo}>
-											<Undo2 />
-											Undo
+					<div id="review-finish" tabIndex={-1} className="relative rounded-2xl outline-none">
+						{stack.done > 0 && !reduced ? <Burst /> : null}
+						<Card className="p-0">
+							<EmptyState
+								icon={<CheckCheck />}
+								title={stack.done > 0 ? "All sorted" : "Nothing to review"}
+								description={`${stack.done > 0 ? `Nothing to review now. You did ${stack.done}. ` : ""}${
+									queue.filedOnItsOwn > 0
+										? `Noodle filed ${queue.filedOnItsOwn} on its own this month.`
+										: "Noodle filed everything on its own."
+								} Anything it isn’t sure about waits here for you.`}
+								action={
+									<div className="flex flex-wrap justify-center gap-2">
+										{stack.history.length > 0 ? (
+											<Button variant="outline" size="sm" disabled={!canUndo} onClick={undo}>
+												<Undo2 />
+												Undo
+											</Button>
+										) : null}
+										<Button variant="outline" size="sm" asChild>
+											<Link to="/transactions">See Transactions</Link>
 										</Button>
-									) : null}
-									<Button variant="outline" size="sm" asChild>
-										<Link to="/transactions">See Transactions</Link>
-									</Button>
-								</div>
-							}
-						/>
-					</Card>
+									</div>
+								}
+							/>
+						</Card>
+						{sorting ? <div className="mt-3 grid gap-3">{sortNote}</div> : null}
+					</div>
 				)}
 			</div>
 			{changing ? (
 				<Suspense fallback={null}>
 					<ChangeSheet
+						splitting={splitting}
 						item={changing}
 						today={today}
 						members={members}
 						parentId={parentId}
 						onChange={(next, buckets) => changed(changing, next, buckets)}
-						onClose={() => setChanging(null)}
+						onClose={() => {
+							setChanging(null);
+							setSplitting(false);
+						}}
 					/>
 				</Suspense>
 			) : null}
+			<Sheet open={ruling !== null} onOpenChange={(open) => (open ? undefined : setRuling(null))}>
+				<SheetContent>
+					<SheetHeader
+						title="Make a Rule"
+						description="New statement lines whose merchant contains these words are filed on their own."
+					/>
+					{ruling ? (
+						<RuleForm
+							key={ruling.id}
+							rule={null}
+							buckets={(planOf(ruling)?.buckets ?? []).filter((b) => canAssign(b, parentId))}
+							members={members}
+							start={{
+								pattern: ruling.merchant,
+								bucketId: ruling.guess?.bucketId,
+								for: ruling.for,
+							}}
+							onDone={() => setRuling(null)}
+						/>
+					) : null}
+				</SheetContent>
+			</Sheet>
 		</>
 	);
 }
@@ -534,6 +815,83 @@ function openPicker(item: ReviewItem) {
 }
 
 const pickerId = (item: ReviewItem) => `review-pick-${item.id}`;
+
+type Way = "right" | "left" | "down";
+type RuleOffer = {
+	item: ReviewItem;
+	bucket: Pick<PlanBucket, "id" | "name" | "owner">;
+	forMemberIds: string[];
+};
+
+const labelOf = (item: ReviewItem) => item.note ?? item.merchant;
+
+/** The top card's name for a screen reader: what, how much, and the suggestion. */
+const cardName = (item: ReviewItem) =>
+	`${labelOf(item)}, ${formatMoney(item.amountCents)}, ${
+		item.guess ? `suggested ${item.guess.name}` : "no suggestion"
+	}`;
+
+/** The top card's other actions: split it, file it in the Parent's own Personal Allowance, or make a Rule. */
+function CardActions({
+	hydrated,
+	allowance,
+	onSplit,
+	onAllowance,
+	onRule,
+}: {
+	hydrated: boolean;
+	allowance: boolean;
+	onSplit: () => void;
+	onAllowance: () => void;
+	onRule: () => void;
+}) {
+	return (
+		<div className="-mx-2 flex flex-wrap gap-1 border-t border-border pt-2">
+			<Button
+				variant="ghost"
+				size="sm"
+				aria-keyshortcuts="S"
+				disabled={!hydrated}
+				onClick={onSplit}
+			>
+				<SplitIcon />
+				Split
+			</Button>
+			{allowance ? (
+				<Button
+					variant="ghost"
+					size="sm"
+					aria-keyshortcuts="P"
+					disabled={!hydrated}
+					onClick={onAllowance}
+				>
+					<Wallet />
+					Personal Allowance
+				</Button>
+			) : null}
+			<Button variant="ghost" size="sm" aria-keyshortcuts="R" disabled={!hydrated} onClick={onRule}>
+				<ListPlus />
+				Make a Rule
+			</Button>
+		</div>
+	);
+}
+
+/** A small burst at the end of the stack; only drawn with motion. */
+function Burst() {
+	return (
+		<div aria-hidden="true" className="pointer-events-none absolute top-12 left-1/2 z-10">
+			{Array.from({ length: 10 }, (_, at) => (
+				<span
+					// biome-ignore lint/suspicious/noArrayIndexKey: a fixed ring of dots
+					key={at}
+					style={{ "--burst-angle": `${at * 36}deg` } as CSSProperties}
+					className="absolute -ml-1 size-2 animate-burst rounded-full bg-primary even:bg-ring"
+				/>
+			))}
+		</div>
+	);
+}
 
 /** A key in the hint, with words for a screen reader where it's a symbol. */
 function Key({ children, name }: { children: string; name?: string }) {
@@ -587,6 +945,8 @@ function ReviewCard({
 	onPick,
 	onEdit,
 	onConfirmAll,
+	ghost = false,
+	actions,
 }: {
 	item: ReviewItem;
 	today: string;
@@ -600,6 +960,10 @@ function ReviewCard({
 	onPick: (value: string, plan: Plan) => void;
 	onEdit: () => void;
 	onConfirmAll: (items: ReviewItem[]) => void;
+	/** A copy flying off the stack: not a card to find or act on. */
+	ghost?: boolean;
+	/** More it can do, under it (Sort's top card). */
+	actions?: ReactNode;
 }) {
 	const month = monthOfTransaction(item);
 	const plan = useQuery(monthQuery(month)).data?.plan;
@@ -630,7 +994,7 @@ function ReviewCard({
 	return (
 		<article
 			aria-labelledby={headingId}
-			data-testid="review-card"
+			data-testid={ghost ? undefined : "review-card"}
 			data-current={current || undefined}
 			onFocusCapture={onFocus}
 			className={cn(
@@ -737,6 +1101,7 @@ function ReviewCard({
 					Confirm all {sameMerchant.length} from “{item.merchant}”
 				</Button>
 			) : null}
+			{actions}
 		</article>
 	);
 }
@@ -749,6 +1114,7 @@ function ChangeSheet({
 	parentId,
 	onChange,
 	onClose,
+	splitting,
 }: {
 	item: ReviewItem;
 	today: string;
@@ -756,6 +1122,7 @@ function ChangeSheet({
 	parentId: string;
 	onChange: (next: TransactionChange["next"], buckets: PlanBucket[]) => void;
 	onClose: () => void;
+	splitting: boolean;
 }) {
 	const data = useSuspenseQuery(monthQuery(monthOfTransaction(item))).data;
 	// The other Parent's Personal Allowance isn't this Parent's to assign to.
@@ -770,6 +1137,7 @@ function ChangeSheet({
 			parentId={parentId}
 			onChange={(next) => onChange(next, plan.buckets)}
 			onClose={onClose}
+			splitting={splitting}
 		/>
 	);
 }

@@ -118,7 +118,9 @@ export function SwipeCard({
 			className={cn(
 				"relative rounded-2xl",
 				enabled && "touch-pan-y",
-				dx === 0 && "transition-transform duration-(--duration-fast) ease-standard",
+				// Springs back when let go short.
+				dx === 0 &&
+					"motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-[cubic-bezier(0.34,1.56,0.64,1)]",
 				dx !== 0 && "select-none",
 			)}
 		>

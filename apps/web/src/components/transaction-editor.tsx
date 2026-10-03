@@ -82,6 +82,7 @@ export function TransactionEditor({
 	parentId,
 	onChange,
 	onClose,
+	splitting = false,
 }: {
 	/** The Transaction being edited; the sheet is open while there is one. */
 	transaction: TransactionRow | null;
@@ -92,6 +93,8 @@ export function TransactionEditor({
 	parentId: string;
 	onChange: (next: TransactionChange["next"]) => void;
 	onClose: () => void;
+	/** Opens on splitting it, as Review's card's Split does. */
+	splitting?: boolean;
 }) {
 	return (
 		<Sheet open={transaction !== null} onOpenChange={(open) => (open ? undefined : onClose())}>
@@ -105,6 +108,7 @@ export function TransactionEditor({
 						parentId={parentId}
 						onChange={onChange}
 						onClose={onClose}
+						splitting={splitting}
 						heading={(title, description) => (
 							<SheetHeader title={title} description={description} />
 						)}
@@ -129,6 +133,7 @@ export function TransactionBody({
 	onClose,
 	heading,
 	inline = false,
+	splitting = false,
 }: {
 	transaction: TransactionRow;
 	today: string;
@@ -139,6 +144,8 @@ export function TransactionBody({
 	onClose: () => void;
 	heading: (title: string, description: string) => ReactNode;
 	inline?: boolean;
+	/** Opens on splitting it, as Review's card's Split does. */
+	splitting?: boolean;
 }) {
 	const day = dayName(transaction.date, today);
 	if (transaction.partlyPrivate) {
@@ -174,6 +181,7 @@ export function TransactionBody({
 				onChange={onChange}
 				onClose={onClose}
 				inline={inline}
+				splitting={splitting}
 			/>
 		</>
 	);
@@ -233,6 +241,7 @@ function EditForm({
 	onChange,
 	onClose,
 	inline,
+	splitting,
 }: {
 	transaction: TransactionRow;
 	plan: Pick<Plan, "buckets" | "commitments">;
@@ -241,6 +250,7 @@ function EditForm({
 	onClose: () => void;
 	/** In a pane, not a sheet: Cancel closes the pane. */
 	inline: boolean;
+	splitting: boolean;
 }) {
 	const hydrated = useHydrated();
 	const [amount, setAmount] = useState(formatMoneyInput(transaction.amountCents));
@@ -248,7 +258,14 @@ function EditForm({
 	const [forMemberIds, setForMemberIds] = useState(transaction.for);
 	// The Splits while it's split; null while it's assigned as a whole.
 	const [splits, setSplits] = useState<DraftSplit[] | null>(
-		transaction.splits.length > 0 ? transaction.splits.map(draftOf) : null,
+		transaction.splits.length > 0
+			? transaction.splits.map(draftOf)
+			: splitting
+				? [
+						{ ...blankSplit(), assignment: assignmentValue(transaction), for: transaction.for },
+						blankSplit(),
+					]
+				: null,
 	);
 	const [invalid, setInvalid] = useState<"amount" | "assignment" | "splits" | null>(null);
 	const [confirmDelete, setConfirmDelete] = useState(false);
