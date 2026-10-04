@@ -33,7 +33,7 @@ import { startPerkRechecks } from "./server/perk-research-workflow";
 import { handlePlaidWebhook, PLAID_WEBHOOK_PATH } from "./server/plaid-webhook";
 import { handlePlaidWebhookMove, PLAID_WEBHOOK_MOVE_PATH } from "./server/plaid-webhook-move";
 import { handleReceiptEmail } from "./server/receipt-worker";
-import { runNightlySnapshots } from "./server/snapshots";
+import { runNightlySnapshots } from "./server/snapshot-nightly";
 
 // The Backup Workflow (also exported) exports the whole database to noodle-backups every night (#79).
 export { BackupWorkflow } from "./server/backup-workflow";

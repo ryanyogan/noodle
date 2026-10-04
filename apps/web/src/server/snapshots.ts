@@ -15,12 +15,14 @@ import {
 	newestMigration,
 	readSnapshot,
 	type SnapshotDeps,
-	takeNightlySnapshots,
 	takeSnapshot,
 } from "./snapshot-store";
 
 // Household snapshots (#78, ADR-0035): the history and "Take a snapshot" in Household → Your data.
 // Either Parent of the Household (householdMiddleware); a snapshot's contents are never sent.
+// Only server functions are exported here: the Household page imports this file, and anything
+// else exported would pull `cloudflare:workers` into the browser (the cron's step is in
+// snapshot-nightly.ts).
 
 async function snapshotDeps(): Promise<SnapshotDeps> {
 	return { db: getDb(), bucket: env.BACKUPS, migration: await newestMigration(env.DB) };
@@ -161,9 +163,3 @@ export const getRestoreStatus = createServerFn({ method: "GET" })
 					: "The restore stopped part way. Your data from just before is in the snapshot taken first; restore that one, or try again.",
 		};
 	});
-
-/** The nightly cron's step: a snapshot of every Household, then pruning (ADR-0035). */
-export async function runNightlySnapshots(now: Date) {
-	const result = await takeNightlySnapshots(await snapshotDeps(), now);
-	console.log("Nightly snapshots", JSON.stringify(result));
-}
