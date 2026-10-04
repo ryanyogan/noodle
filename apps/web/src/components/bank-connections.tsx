@@ -834,6 +834,8 @@ function ConnectionRow({
 
 	return (
 		<ListRow
+			// Phones: the row is several lines tall with its buttons, so the bank's icon stays by its name.
+			className="max-sm:items-start"
 			leading={
 				<Tile aria-hidden="true">
 					<Landmark />
