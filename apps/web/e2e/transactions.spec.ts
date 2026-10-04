@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
+import { ulid } from "ulid";
 import { createTestParent } from "./parents";
 import {
 	accountKindLabel,
@@ -211,7 +212,7 @@ test("at 1440 a long list draws every row as the page scrolls, and its card ends
 	const created = await createPlannedHousehold(page, plan);
 	if (!created) throw new Error("The Household wasn't made directly, so its IDs aren't known");
 	const { householdId, parentId, month, bucketIds } = created;
-	// 60 rows over a few days, oldest "Row 01": more than a page of 50 and several windows tall.
+	// 60 rows over a few days: more than a page of 50 and several windows tall.
 	const file = join(mkdtempSync(join(tmpdir(), "noodle-transactions-")), "seed.sql");
 	const sql = (value: string) => `'${value.replaceAll("'", "''")}'`;
 	const days = Math.min(new Date().getDate(), 4);
@@ -220,8 +221,8 @@ test("at 1440 a long list draws every row as the page scrolls, and its card ends
 		Array.from({ length: 60 }, (_, index) => {
 			const day = String(1 + (index % days)).padStart(2, "0");
 			const note = `Row ${String(index + 1).padStart(2, "0")}`;
-			// IDs sort with the rows, so "Row 01" on day 1 is the list's last row.
-			const id = `01SEEDROW${String(index).padStart(3, "0")}${parentId.slice(-14)}`;
+			// A real ULID: the list's next page is asked for by the last row's ID, which is checked.
+			const id = ulid();
 			return `insert into transactions (id, household_id, source, date, amount_cents, bucket_id, note, created_by_member_id) values (${sql(id)}, ${sql(householdId)}, 'quick-add', ${sql(`${month}-${day}`)}, ${1_000 + index}, ${sql(bucketIds.Groceries ?? "")}, ${sql(note)}, ${sql(parentId)});`;
 		}).join("\n"),
 	);

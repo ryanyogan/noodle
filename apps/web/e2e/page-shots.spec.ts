@@ -78,7 +78,11 @@ async function settled(page: Page) {
 	await expect(page.locator("h1:visible, [data-slot=page-header]:visible").first()).toBeVisible({
 		timeout: 30_000,
 	});
-	await expect(page.locator("[data-slot=skeleton]:visible")).toHaveCount(0, { timeout: 20_000 });
+	// A long list's "loading more" row stays a skeleton until it's scrolled to: not waited for.
+	await expect(page.locator("[data-slot=skeleton]:visible:not([data-loading-more] *)")).toHaveCount(
+		0,
+		{ timeout: 20_000 },
+	);
 	await page.evaluate(() => document.fonts.ready);
 	// Charts and sheets finish their entrance.
 	await page.waitForTimeout(600);
@@ -391,8 +395,11 @@ for (const viewport of viewports) {
 				if (shot.tall) {
 					// To the end and back first, as a Parent would scroll: rows that only draw near the
 					// screen have then all had their turn.
-					await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-					await page.waitForTimeout(400);
+					for (let pages = 0; pages < 10; pages++) {
+						await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+						await page.waitForTimeout(600);
+						if ((await page.locator("[data-loading-more]").count()) === 0) break;
+					}
 					await page.evaluate(() => window.scrollTo(0, 0));
 					await page.waitForTimeout(400);
 					const height = await page.evaluate(() => document.documentElement.scrollHeight);

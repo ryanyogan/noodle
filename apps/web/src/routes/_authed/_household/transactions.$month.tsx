@@ -803,7 +803,12 @@ function TransactionList({
 					}
 					if (item.kind === "more") {
 						return (
-							<li key={virtual.key} {...position} ref={drawAll ? more : virtualizer.measureElement}>
+							<li
+								key={virtual.key}
+								{...position}
+								ref={drawAll ? more : virtualizer.measureElement}
+								data-loading-more
+							>
 								<span role="status" className="sr-only">
 									Loading more Transactions…
 								</span>
