@@ -52,8 +52,8 @@ export function MonthCloseSection({
 	const goalChoices = goals.map((g) => ({ value: g.id, label: g.name }));
 	return (
 		<Section aria-labelledby="month-close">
-			{/* From lg this sits in a To do row that already says "Close September", so the heading
-			    is only for screen readers and its help moves to the start of the text (#73). */}
+			{/* From lg this sits in a To do row that already says "Close September" and holds its
+			    help, so the heading is only for screen readers (#73). */}
 			<div className="lg:sr-only">
 				<SectionHeader
 					id="month-close"
@@ -66,9 +66,6 @@ export function MonthCloseSection({
 				/>
 			</div>
 			<p className="px-1 pb-3 text-sm text-muted-foreground">
-				<span className="max-lg:hidden">
-					<TermHelp term="month-close" />{" "}
-				</span>
 				{name} has ended.{" "}
 				{proposal.leftovers.length > 0
 					? goals.length > 0

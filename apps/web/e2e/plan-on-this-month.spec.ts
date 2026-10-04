@@ -84,7 +84,8 @@ test("This Month shows the Plan: Free to Spend worked out and how last month end
 	await expect(breakdown.getByRole("listitem").filter({ hasText: "Free to Spend" })).toContainText(
 		"$3,150",
 	);
-	await expect(freeToSpend.getByRole("link", { name: "Plan" })).toBeVisible();
+	// No second link to the Plan here: the Sidebar has it (#73).
+	await expect(freeToSpend.getByRole("link", { name: "Plan" })).toHaveCount(0);
 
 	// Goals aren't on This Month any more (#73): they're on the Goals page, and the breakdown
 	// above has their funding.
@@ -98,9 +99,8 @@ test("This Month shows the Plan: Free to Spend worked out and how last month end
 	);
 	await page.setViewportSize({ width: 1280, height: 800 });
 
-	// The breakdown opens the Plan's waterfall.
-	await freeToSpend.getByRole("link", { name: "Plan" }).click();
-	await expect(page).toHaveURL(new RegExp(`/plan/${month}#plan-waterfall$`));
+	// The Plan has the waterfall the breakdown sums up.
+	await page.goto(`/plan/${month}#plan-waterfall`);
 	await expect(
 		page.getByRole("region", { name: "From take-home pay to Free to Spend" }),
 	).toBeVisible();

@@ -257,9 +257,12 @@ function ThisMonth() {
 								) : null}
 							</div>
 						</div>
-						<div className="contents min-[105rem]:grid min-[105rem]:min-w-0 min-[105rem]:content-start min-[105rem]:gap-(--layout-gap)">
-							<div className="order-11 grid gap-3 empty:hidden lg:order-none">
-								{state.commitments.length > 0 ? (
+						{/* From 1440px Bills and Income sit side by side under Buckets, so the main column isn't
+						    far longer than the rail (#73); from 1680px they stack again, beside Buckets. One
+						    alone takes the whole width. */}
+						<div className="contents min-[90rem]:grid min-[90rem]:min-w-0 min-[90rem]:grid-cols-2 min-[90rem]:items-start min-[90rem]:gap-(--layout-gap) min-[105rem]:grid-cols-1 min-[105rem]:content-start">
+							{state.commitments.length > 0 ? (
+								<div className="order-11 grid min-w-0 gap-3 only:col-span-full lg:order-none">
 									<Bills
 										month={month}
 										asOf={state.asOf}
@@ -267,18 +270,18 @@ function ThisMonth() {
 										commitments={commitments}
 										notDue={notDue}
 									/>
-								) : null}
-							</div>
-							<div className="order-12 grid gap-3 empty:hidden lg:order-none">
-								{state.baseline !== null && (month === current || monthIncome.length > 0) ? (
+								</div>
+							) : null}
+							{state.baseline !== null && (month === current || monthIncome.length > 0) ? (
+								<div className="order-12 grid min-w-0 gap-3 only:col-span-full lg:order-none">
 									<MonthIncome
 										month={month}
 										asOf={state.asOf}
 										baseline={state.baseline}
 										income={monthIncome}
 									/>
-								) : null}
-							</div>
+								</div>
+							) : null}
 						</div>
 					</SplitMain>
 					<SplitRail>
@@ -296,6 +299,7 @@ function ThisMonth() {
 										closeStatus !== null && {
 											label: `Close ${monthName(addMonths(month, -1))}`,
 											status: closeStatus,
+											help: <TermHelp term="month-close" />,
 											content: (
 												<ClosePreviousMonth
 													month={addMonths(month, -1)}
@@ -310,7 +314,7 @@ function ThisMonth() {
 												label: "Get started",
 												status: `${getStarted.filter((step) => step.done).length} of ${getStarted.length} done`,
 												action: <ContinueSetup />,
-												content: <GetStarted steps={getStarted} />,
+												content: <GetStarted steps={getStarted} inToDo />,
 											},
 										isCurrent &&
 											suggested.length > 0 && {
@@ -329,6 +333,7 @@ function ThisMonth() {
 											month <= current && {
 												label: "Extra income",
 												status: `${formatMoney(state.windfallLeft)} in ${monthName(month)} to place`,
+												help: <TermHelp term="extra-income" />,
 												content: (
 													<ExtraIncomeSection
 														left={state.windfallLeft}
@@ -633,24 +638,15 @@ function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck |
 }
 
 /**
- * Free to Spend worked out as a short list, take-home pay then "− $2,100 Commitments" and each
- * other part that takes something; it opens the Plan's waterfall.
+ * Where take-home pay goes, as one bar and its legend. The Sidebar's Plan has the waterfall, and
+ * "Adjust the Plan" above shows when the Plan is over, so there is no second Plan link here (#73).
  */
 function Breakdown({ state, baseline }: { state: MonthState; baseline: number }) {
 	const id = useId();
 	return (
 		<div className="grid gap-2.5 border-t px-(--card-pad) py-3">
-			<p className="flex justify-between gap-3 text-[13px] text-muted-foreground tabular-nums">
-				<span id={id}>Where {formatMoney(baseline)} take-home pay goes</span>
-				<Link
-					to="/plan/$month"
-					params={{ month: state.month }}
-					hash="plan-waterfall"
-					className="inline-flex shrink-0 items-center font-medium text-foreground underline decoration-border-strong underline-offset-3 hover:decoration-foreground max-lg:hidden"
-				>
-					Plan
-					<ChevronRight aria-hidden="true" className="size-3.5" />
-				</Link>
+			<p id={id} className="text-[13px] text-muted-foreground tabular-nums">
+				Where {formatMoney(baseline)} take-home pay goes
 			</p>
 			<MonthGlance state={state} labelledBy={id} />
 		</div>
@@ -909,7 +905,8 @@ function useGetStartedSteps(state: MonthState) {
 		},
 		{
 			done: accounts.length > 0,
-			title: "Add an Account or a bank",
+			// Short, so it isn't cut off beside its button at 320px (#74); a bank is added there too.
+			title: "Add your Accounts",
 			link: <Link to="/accounts">Add an Account</Link>,
 		},
 		{
@@ -958,22 +955,31 @@ function DismissSetup() {
 	);
 }
 
-function GetStarted({ steps }: { steps: ReturnType<typeof useGetStartedSteps> }) {
+function GetStarted({
+	steps,
+	inToDo = false,
+}: {
+	steps: ReturnType<typeof useGetStartedSteps>;
+	/** In a To do row, which from lg already says "Get started" and how many are done. */
+	inToDo?: boolean;
+}) {
 	const setup = useSuspenseQuery(setupQuery()).data;
 	const left = steps.filter((step) => !step.done).length;
 	const asked = continueSetupShown(setup);
 	if (left === 0 && !asked) return null;
 	return (
 		<Section aria-labelledby="get-started">
-			<SectionHeader
-				id="get-started"
-				title="Get started"
-				action={
-					<span className="text-[13px] text-muted-foreground tabular-nums">
-						{steps.length - left} of {steps.length} done
-					</span>
-				}
-			/>
+			<div className={cn(inToDo && "lg:sr-only")}>
+				<SectionHeader
+					id="get-started"
+					title="Get started"
+					action={
+						<span className="text-[13px] text-muted-foreground tabular-nums">
+							{steps.length - left} of {steps.length} done
+						</span>
+					}
+				/>
+			</div>
 			{!asked ? null : (
 				// The get-started wizard (#53) is the main way in; the list below is for what it skipped.
 				<Card className="flex flex-wrap items-center justify-between gap-3 p-(--card-pad) text-sm">
