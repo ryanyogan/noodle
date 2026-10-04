@@ -6,6 +6,8 @@ import {
 	type Locator,
 	type Page,
 } from "@playwright/test";
+import { clerkRetry } from "./clerk-retry";
+import { timed } from "./timing";
 
 /**
  * The budget for the first expect after a full page load (goto, reload) of a route that renders
@@ -34,12 +36,21 @@ export async function openToDo(page: Page, label: string) {
 	await expect(row).toHaveAttribute("aria-expanded", "true");
 }
 
-/** A fresh browser context signed in as `email`. */
-export async function signedInPage(
-	browser: Browser,
-	email: string,
-	options: BrowserContextOptions = {},
-): Promise<Page> {
+/** What `browser.newContext` takes as `storageState`, when it is not a file. */
+export type SavedSession = Exclude<NonNullable<BrowserContextOptions["storageState"]>, string>;
+
+// Parents whose session is kept by their worker (e2e/worker-parent.ts): `signedInPage` starts
+// from that session's cookies instead of signing in again.
+const sharedSessions = new Map<string, () => Promise<SavedSession>>();
+
+/** From now on `signedInPage` for `email` starts from `session()` (null: signs in again). */
+export function shareSession(email: string, session: (() => Promise<SavedSession>) | null) {
+	if (session) sharedSessions.set(email, session);
+	else sharedSessions.delete(email);
+}
+
+/** A new browser context that keeps Clerk's cookies in every engine. */
+export async function openContext(browser: Browser, options: BrowserContextOptions = {}) {
 	const context = await browser.newContext(options);
 	// Clerk's dev instance writes `__client_uat` with `Domain=localhost`, which Playwright's WebKit
 	// rejects, so the Worker saw a session token without it, sent every page to Clerk's handshake
@@ -61,11 +72,31 @@ export async function signedInPage(
 			});
 		});
 	}
+	return context;
+}
+
+/** Opens the sign-in page and signs `email` in there. */
+export async function signIn(page: Page, email: string) {
+	// `/` would redirect here anyway: sign-in is the one page that loads Clerk without signing in.
+	await timed("sign-in-page", () => page.goto("/sign-in"));
+	await timed("sign-in", () => clerkRetry(() => clerk.signIn({ page, emailAddress: email })));
+}
+
+/**
+ * A fresh browser context signed in as `email`. A Parent kept by the worker (the `sharedParent`
+ * fixture) is already signed in: the context starts from that session, on a blank page.
+ */
+export async function signedInPage(
+	browser: Browser,
+	email: string,
+	options: BrowserContextOptions = {},
+): Promise<Page> {
+	const shared = sharedSessions.get(email);
+	const storageState = shared ? await timed("session-state", shared) : undefined;
+	const context = await openContext(browser, storageState ? { ...options, storageState } : options);
 	const page = await context.newPage();
 	await setupClerkTestingToken({ page });
-	// `/` would redirect here anyway: sign-in is the one page that loads Clerk without signing in.
-	await page.goto("/sign-in");
-	await clerk.signIn({ page, emailAddress: email });
+	if (!shared) await signIn(page, email);
 	return page;
 }
 
@@ -125,9 +156,11 @@ async function createHouseholdDirectly(
 	body: { householdName: string; parentName: string; plan?: DevPlan } & HouseholdOptions,
 ) {
 	const timeZone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
-	const response = await page.request.post("/api/dev/household", {
-		data: { ...body, viaUi: undefined, timeZone },
-	});
+	const response = await timed("household-make", () =>
+		page.request.post("/api/dev/household", {
+			data: { ...body, viaUi: undefined, timeZone },
+		}),
+	);
 	expect(response.ok(), await response.text()).toBe(true);
 	const created = (await response.json()) as {
 		householdId: string;
@@ -138,11 +171,13 @@ async function createHouseholdDirectly(
 		commitmentIds: Record<string, string>;
 		childIds: Record<string, string>;
 	};
-	await page.goto(created.url);
-	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("This Month");
+	await timed("household-open", async () => {
+		await page.goto(created.url);
+		await expect(page.locator("[data-slot=page-header]:visible")).toContainText("This Month");
+	});
 	// The UI path left the page hydrated by clicking through it; a fresh load isn't yet, and a key
 	// pressed (Quick Add's "q") or a button clicked before then does nothing.
-	await page.waitForLoadState("networkidle");
+	await timed("household-idle", () => page.waitForLoadState("networkidle"));
 	return created;
 }
 

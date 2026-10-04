@@ -1,5 +1,7 @@
 import { createClerkClient } from "@clerk/backend";
 import { ulid } from "ulid";
+import { clerkRetry, deleteClerkUser } from "./clerk-retry";
+import { timed } from "./timing";
 
 // Each test gets a brand-new Parent, so no Household state leaks between runs.
 export async function createTestParent() {
@@ -7,17 +9,23 @@ export async function createTestParent() {
 	if (!secretKey)
 		throw new Error("CLERK_SECRET_KEY is required for E2E (set it in apps/web/.dev.vars)");
 	const clerk = createClerkClient({ secretKey });
-	const email = `e2e-${ulid().toLowerCase()}+clerk_test@example.com`;
-	const user = await clerk.users.createUser({
-		emailAddress: [email],
-		password: `Noodle-${ulid()}!`,
-		firstName: "Alex",
-		skipPasswordChecks: true,
-	});
+	// A new address each try: a 5xx may still have made the user, and the address would be taken.
+	let email = "";
+	const user = await timed("parent-make", () =>
+		clerkRetry(() => {
+			email = newTestEmail();
+			return clerk.users.createUser({
+				emailAddress: [email],
+				password: `Noodle-${ulid()}!`,
+				firstName: "Alex",
+				skipPasswordChecks: true,
+			});
+		}),
+	);
 	return {
 		email,
 		userId: user.id,
-		remove: () => clerk.users.deleteUser(user.id),
+		remove: () => timed("parent-remove", () => deleteClerkUser(clerk, user.id)),
 	};
 }
 
@@ -31,8 +39,8 @@ export async function removeTestUserByEmail(email: string) {
 	const secretKey = process.env.CLERK_SECRET_KEY;
 	if (!secretKey) return;
 	const clerk = createClerkClient({ secretKey });
-	const { data } = await clerk.users.getUserList({ emailAddress: [email] });
-	for (const user of data) await clerk.users.deleteUser(user.id).catch(() => {});
+	const { data } = await clerkRetry(() => clerk.users.getUserList({ emailAddress: [email] }));
+	for (const user of data) await deleteClerkUser(clerk, user.id).catch(() => {});
 }
 
 const TEST_PARENT_EMAIL = /^e2e-[0-9a-z]{26}\+clerk_test@example\.com$/;
@@ -47,13 +55,15 @@ export async function removeStaleTestParents() {
 	const secretKey = process.env.CLERK_SECRET_KEY;
 	if (!secretKey) return 0;
 	const clerk = createClerkClient({ secretKey });
-	const { data } = await clerk.users.getUserList({ limit: 200, orderBy: "created_at" });
+	const { data } = await clerkRetry(() =>
+		clerk.users.getUserList({ limit: 200, orderBy: "created_at" }),
+	);
 	const stale = data.filter(
 		(user) =>
 			user.createdAt < Date.now() - STALE_AFTER_MS &&
 			user.emailAddresses.length === 1 &&
 			TEST_PARENT_EMAIL.test(user.emailAddresses[0]?.emailAddress ?? ""),
 	);
-	for (const user of stale) await clerk.users.deleteUser(user.id).catch(() => {});
+	for (const user of stale) await deleteClerkUser(clerk, user.id).catch(() => {});
 	return stale.length;
 }
