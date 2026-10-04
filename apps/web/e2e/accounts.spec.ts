@@ -1,6 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
+import {
+	accountKindLabel,
+	choose,
+	createPlannedHousehold,
+	openFromMore,
+	signedInPage,
+} from "./session";
 
 // Accounts have their own area: every Account and Bank Connection at /accounts, each Account's
 // page under it, and Goals keeping only Goals, each naming the Account that holds it.
@@ -89,7 +95,7 @@ test("Accounts are their own area, and each Goal names the Account holding it", 
 	await expect(page.locator("[data-slot=detail-title]")).toContainText("Joint Savings");
 });
 
-test("on a phone, Accounts is reached from Transactions and the Household page", {
+test("on a phone, Accounts is reached from More in the tab bar", {
 	tag: "@phone",
 }, async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email, { ...phone, colorScheme: "dark" });
@@ -97,18 +103,16 @@ test("on a phone, Accounts is reached from Transactions and the Household page",
 	const tabs = page.getByRole("navigation", { name: "Main" });
 	await expect(tabs.getByRole("link", { name: "Accounts" })).toHaveCount(0);
 
-	await tabs.getByRole("link", { name: "Transactions" }).click();
-	await expect(header(page)).toContainText("Transactions");
-	await page.getByRole("link", { name: "Accounts", exact: true }).click();
+	await openFromMore(page, "Accounts");
 	await expect(heading(page)).toHaveText("Accounts");
-	// Accounts sits with Transactions in the tab bar.
-	await expect(tabs.getByRole("link", { name: "Transactions" })).toHaveClass(
-		/(^|\s)text-foreground(\s|$)/,
-	);
+	// Accounts is one of More's pages: More is marked, and no header carries a second link to it.
+	await expect(tabs.getByRole("link", { name: "More" })).toHaveAttribute("aria-current", "true");
 	const width = await page.evaluate(() => document.documentElement.scrollWidth);
 	expect(width).toBeLessThanOrEqual(393);
 
-	await tabs.getByRole("link", { name: "Household" }).click();
-	await page.getByRole("link", { name: "Accounts", exact: true }).click();
-	await expect(heading(page)).toHaveText("Accounts");
+	await tabs.getByRole("link", { name: "Transactions" }).click();
+	await expect(header(page)).toContainText("Transactions");
+	await expect(
+		page.getByRole("main").getByRole("link", { name: "Accounts", exact: true }),
+	).toHaveCount(0);
 });

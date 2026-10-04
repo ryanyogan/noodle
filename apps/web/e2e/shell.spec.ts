@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createHousehold, serverFn, signedInPage } from "./session";
+import { createHousehold, openFromMore, serverFn, signedInPage } from "./session";
 
 // Screenshot regression for the app shell and its components, in both appearances,
 // at iPhone and desktop sizes. Update baselines with `bun run e2e --update-snapshots`.
@@ -68,7 +68,12 @@ for (const [screen, device] of Object.entries(screens)) {
 				mask: dynamic(page),
 			});
 
-			await nav.getByRole("link", { name: "Household" }).click();
+			// A phone's tab bar ends in More, which has Household settings; the Sidebar links to it.
+			if (await nav.getByRole("link", { name: "More", exact: true }).isVisible()) {
+				await openFromMore(page, "Household settings");
+			} else {
+				await nav.getByRole("link", { name: "Household" }).click();
+			}
 			await expect(page.getByRole("heading", { name: "Parents" })).toBeVisible();
 			await settle(page);
 			await expect(page).toHaveScreenshot(`household-${screen}-${colorScheme}.png`, {

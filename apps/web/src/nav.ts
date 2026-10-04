@@ -16,8 +16,8 @@ import {
 	UsersRound,
 } from "lucide-react";
 
-// The app's navigation, once: the desktop sidebar renders every group, and the phone tab bar
-// renders the items with a `tab`. Which item is current comes from the router matching `to` and
+// The app's navigation, once: the desktop sidebar renders every group, the phone tab bar renders
+// the items with a `tab`, and its last item, More, opens a sheet with all the others (#74). Which item is current comes from the router matching `to` and
 // `within` (app-shell's useIsCurrent), never from comparing path strings.
 
 type To = NonNullable<LinkProps["to"]>;
@@ -36,10 +36,10 @@ export type NavItem = {
 	/** What to show beside it: how many Transactions wait in Review, or a Check-in not yet done. */
 	badge?: "review" | "check-in";
 	/**
-	 * In the phone tab bar, which has room for four. `within` adds the destinations that are
-	 * reached through this one on a phone, so its tab is current there.
+	 * In the phone tab bar, under this short label. The bar has room for three and More: every
+	 * item without a `tab` is in the More sheet (#74).
 	 */
-	tab?: { label: string; within?: To[] };
+	tab?: { label: string };
 };
 
 export type NavGroup = { label: string; items: NavItem[] };
@@ -52,8 +52,7 @@ export const navGroups: NavGroup[] = [
 				label: "This Month",
 				icon: CalendarDays,
 				to: "/month",
-				// On a phone the Plan is reached from This Month (its Month and Plan switch).
-				tab: { label: "Month", within: ["/plan"] },
+				tab: { label: "Month" },
 			},
 			{
 				label: "Transactions",
@@ -61,7 +60,7 @@ export const navGroups: NavGroup[] = [
 				to: "/transactions",
 				within: ["/review"],
 				badge: "review",
-				tab: { label: "Transactions", within: ["/accounts"] },
+				tab: { label: "Transactions" },
 			},
 			{ label: "Accounts", icon: Landmark, to: "/accounts" },
 		],
@@ -70,8 +69,7 @@ export const navGroups: NavGroup[] = [
 		label: "Planning",
 		items: [
 			{ label: "Plan", icon: SlidersHorizontal, to: "/plan" },
-			// On a phone Explore is reached from Goals, which it plans ahead.
-			{ label: "Goals", icon: Target, to: "/goals", tab: { label: "Goals", within: ["/explore"] } },
+			{ label: "Goals", icon: Target, to: "/goals", tab: { label: "Goals" } },
 			{ label: "Explore", icon: Telescope, to: "/explore" },
 		],
 	},
@@ -88,24 +86,17 @@ export const navGroups: NavGroup[] = [
 	{
 		label: "Household",
 		items: [
-			// Weekly. On a phone it's reached from This Month's card on the day, its Nudge and email,
-			// and Household settings.
+			// Weekly. On a phone it's in More, and on This Month's card on the day, its Nudge and email.
 			{ label: "Check-in", icon: CalendarCheck, to: "/check-in", badge: "check-in" },
-			// The tab keeps the short name: "Household settings" doesn't fit four tabs at 320 px.
-			{
-				label: "Household settings",
-				icon: UsersRound,
-				to: "/household",
-				tab: { label: "Household" },
-			},
-			// Not a destination: it opens over the page. On a phone it's the help icon in the row above
-			// This Month's header, and every term's help popover.
+			{ label: "Household settings", icon: UsersRound, to: "/household" },
+			// Not a destination: it opens over the page. On a phone it's in More, and every term's
+			// help popover.
 			{ label: "Glossary", icon: BookOpen, action: "glossary" },
 		],
 	},
 ];
 
-/** The phone tab bar's destinations, in the sidebar's order. */
+/** The phone tab bar's destinations, in the sidebar's order. More follows them. */
 export const tabItems = navGroups
 	.flatMap((group) => group.items)
 	.filter((item): item is NavItem & { tab: NonNullable<NavItem["tab"]> } => item.tab !== undefined);
@@ -116,3 +107,8 @@ declare module "@tanstack/react-router" {
 		wide?: boolean;
 	}
 }
+
+/** What the phone's More sheet lists: every destination that isn't a tab, in the sidebar's groups. */
+export const moreGroups: NavGroup[] = navGroups
+	.map((group) => ({ ...group, items: group.items.filter((item) => item.tab === undefined) }))
+	.filter((group) => group.items.length > 0);

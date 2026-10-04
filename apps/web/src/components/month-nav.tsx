@@ -1,27 +1,11 @@
 import { addMonths, type MonthKey } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@noodle/ui/components/dropdown-menu";
 import { LinkTab, LinkTabs } from "@noodle/ui/components/tabs";
 import { WithTooltip } from "@noodle/ui/components/tooltip";
 import { Link, useNavigate } from "@tanstack/react-router";
-import {
-	ChartColumn,
-	ChevronLeft,
-	ChevronRight,
-	CircleHelp,
-	CreditCard,
-	Ellipsis,
-	Lightbulb,
-	MessageCircleQuestionMark,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { type TouchEvent, useRef } from "react";
 import { monthName } from "../format";
-import { openGlossary } from "./glossary";
 
 /** The two views of a month: what's happening in it, and its Plan. */
 type MonthView = "/month/$month" | PlanView;
@@ -36,53 +20,13 @@ export type PlanView =
 	| "/plan/$month/year";
 
 /**
- * On phones, the row above a month's page header: a switch between the month and its Plan (the
- * tab bar has no Plan tab), then one More menu with Reports, Insights, Credit card perks, Ask and the Glossary (#74: three
- * look-alike icons were one too many; #80: Insights and Perks were otherwise out of reach on a
- * phone). On a computer the Sidebar has all of them, so the row
- * isn't there (#73).
+ * On phones, the second row of a month's header, under the title (#74): the switch between the
+ * month and its Plan. On a computer the Sidebar has both, so the row isn't there (#73).
  */
-export function MonthTopRow({ month, current }: { month: MonthKey; current: "month" | "plan" }) {
+export function MonthSwitchRow({ month, current }: { month: MonthKey; current: "month" | "plan" }) {
 	return (
-		<div className="mb-3 flex max-w-2xl items-center justify-between gap-3 lg:hidden">
+		<div className="mb-4 flex lg:hidden">
 			<MonthPlanSwitch month={month} current={current} />
-			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<Button variant="ghost" size="icon" aria-label="More">
-						<Ellipsis className="size-5" />
-					</Button>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent>
-					<DropdownMenuItem asChild>
-						<Link to="/reports">
-							<ChartColumn />
-							Reports
-						</Link>
-					</DropdownMenuItem>
-					<DropdownMenuItem asChild>
-						<Link to="/insights">
-							<Lightbulb />
-							Insights
-						</Link>
-					</DropdownMenuItem>
-					<DropdownMenuItem asChild>
-						<Link to="/insights/perks">
-							<CreditCard />
-							Credit card perks
-						</Link>
-					</DropdownMenuItem>
-					<DropdownMenuItem asChild>
-						<Link to="/ask">
-							<MessageCircleQuestionMark />
-							Ask
-						</Link>
-					</DropdownMenuItem>
-					<DropdownMenuItem onSelect={() => openGlossary()}>
-						<CircleHelp />
-						Glossary…
-					</DropdownMenuItem>
-				</DropdownMenuContent>
-			</DropdownMenu>
 		</div>
 	);
 }

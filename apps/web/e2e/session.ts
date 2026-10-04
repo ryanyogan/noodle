@@ -425,15 +425,45 @@ export async function pickQuickAddBucket(sheet: Locator, name: string) {
 	await sheet.getByRole("button", { name: startsWith }).first().click();
 }
 
-/**
- * On a phone, This Month's top row keeps Reports, Insights, Credit card perks, Ask and the
- * Glossary in one More (⋯) menu
- * beside the Month/Plan switch. Opens it and chooses `item`.
- */
-export async function openFromMore(
-	page: Page,
-	item: "Reports" | "Insights" | "Credit card perks" | "Ask" | "Glossary…",
-) {
-	await page.getByRole("button", { name: "More" }).click();
-	await page.getByRole("menuitem", { name: item, exact: true }).click();
+/** What the phone's More sheet lists (#74): everything that isn't a tab, in the Sidebar's groups. */
+export const moreItems = [
+	"Review",
+	"Accounts",
+	"Plan",
+	"Explore",
+	"Reports",
+	"Insights",
+	"Credit card perks",
+	"Ask",
+	"Check-in",
+	"Household settings",
+	"Glossary",
+] as const;
+
+/** The phone's More sheet, opened from the tab bar's last item. */
+export async function openMore(page: Page) {
+	const sheet = page.getByRole("dialog", { name: "More" });
+	// Pressed again until it opens: a press before hydration only changes the address.
+	await expect(async () => {
+		if (!(await sheet.isVisible())) {
+			await page
+				.getByRole("navigation", { name: "Main" })
+				.getByRole("link", { name: "More", exact: true })
+				.click({ timeout: 2_000 });
+		}
+		await expect(sheet).toBeVisible({ timeout: 2_000 });
+	}).toPass({ timeout: 20_000 });
+	return sheet;
+}
+
+/** An item of the More sheet: a link, or the Glossary's button. Names start with the item's words (a count or "not done" may follow). */
+export function moreItem(sheet: Locator, item: (typeof moreItems)[number]) {
+	return sheet.getByRole(item === "Glossary" ? "button" : "link", { name: new RegExp(`^${item}`) });
+}
+
+/** On a phone, opens More from the tab bar and chooses `item`. */
+export async function openFromMore(page: Page, item: (typeof moreItems)[number]) {
+	const sheet = await openMore(page);
+	await moreItem(sheet, item).click();
+	await expect(sheet).toBeHidden();
 }

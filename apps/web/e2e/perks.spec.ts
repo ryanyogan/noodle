@@ -4,7 +4,9 @@ import { expectSectionHeaderKept, markSectionHeader } from "./section";
 import {
 	choose,
 	createPlannedHousehold,
+	moreItem,
 	openFromMore,
+	openMore,
 	pickQuickAddBucket,
 	signedInPage,
 	switchTo,
@@ -166,7 +168,7 @@ test("a card added by hand covers a cost already paid; a page that can't be read
 	await expect(overlap).toHaveCount(0);
 });
 
-test("Phones reach Insights and Credit card perks from This Month's More menu", {
+test("Phones reach Insights and Credit card perks from More in the tab bar", {
 	tag: "@phone",
 }, async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email, {
@@ -179,19 +181,12 @@ test("Phones reach Insights and Credit card perks from This Month's More menu", 
 	await expect(page).toHaveURL(/\/insights$/);
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Insights");
 
-	await page.goBack();
-	await page.getByRole("button", { name: "More" }).click();
-	await expect(page.getByRole("menuitem")).toHaveText([
-		"Reports",
-		"Insights",
-		"Credit card perks",
-		"Ask",
-		"Glossary…",
-	]);
-	if (process.env.SHOT_DIR) {
-		await page.screenshot({ path: `${process.env.SHOT_DIR}/more-menu-393.png` });
-	}
-	await page.getByRole("menuitem", { name: "Credit card perks", exact: true }).click();
+	// More is marked while the page is one of its own, and the sheet marks the page.
+	const more = page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "More" });
+	await expect(more).toHaveAttribute("aria-current", "true");
+	const sheet = await openMore(page);
+	await expect(moreItem(sheet, "Insights")).toHaveAttribute("aria-current", "page");
+	await moreItem(sheet, "Credit card perks").click();
 	await expect(page).toHaveURL(/\/insights\/perks$/);
 	await expect(page.getByText("No Perk Sources yet")).toBeVisible();
 	await page.context().close();

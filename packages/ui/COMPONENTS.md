@@ -36,7 +36,7 @@ Never let the CLI overwrite a file here.
 | Command, Combobox | shadcn, by hand (#47) | cmdk 1.1.1. Combobox = Popover + Command with OptionSelect's props, for long or grouped lists. |
 | Calendar, DatePicker | shadcn, by hand (#47) | react-day-picker 10.0.2 (exact). DatePicker = Popover + Calendar in place of `<input type="date">`: a field-sized trigger reading "Oct 1, 2026", month and year dropdowns, `min`/`max`, Clear unless `required`, values stay yyyy-mm-dd (hidden input when `name`). Day buttons carry `data-day` (yyyy-mm-dd); specs use `pickDate()`. |
 | Separator | shadcn, by hand (#55) | Decorative by default. |
-| Sidebar | shadcn, by hand (#55) | The desktop sidebar: groups, menu buttons, a badge, a trigger. Collapses to an icon rail only (`rail:` variant, `--sidebar-width-icon`), remembered per device in localStorage and set on `<html>` before first paint by `sidebarStateScript`; Ctrl/⌘+B toggles. No mobile Sheet variant: phones keep the tab bar. A menu button's `tooltip` shows only in the rail. |
+| Sidebar | shadcn, by hand (#55) | The desktop sidebar: groups, menu buttons, a badge, a trigger. Collapses to an icon rail only (`rail:` variant, `--sidebar-width-icon`), remembered per device in localStorage and set on `<html>` before first paint by `sidebarStateScript`; Ctrl/⌘+B toggles. No mobile Sheet variant: phones keep the tab bar, whose last item, More, opens a Sheet with every destination that isn't a tab (below, "The phone header and More"). A menu button's `tooltip` shows only in the rail. |
 | Sheet | Noodle's own, on Radix Dialog | A bottom sheet on phones and a centred dialog on desktop: forms and lists to pick from. `SheetFooter stick` keeps the footer's buttons in view on a desktop too (phones always stick), for a long list like Add Buckets. |
 | Slider | shadcn, by hand (#47) | One thumb, named, with its value in words. |
 | Spinner | shadcn, by hand (#47) | Decorative unless given a `label`. |
@@ -95,6 +95,16 @@ One scroll per region: `apps/web/e2e/desktop-scroll.spec.ts` fails a page with a
 - **One "?" per heading.** A section's help is its heading's `help`. A legend or a row's explanation is not another "?" floating beside it: it goes into that help, a Term link, or under the card (This Month's bars' key).
 - **Tab strips.** `TabsList` and `LinkTabs` share one behaviour: when they don't fit they scroll sideways with no scrollbar, fade the edge that has more, snap to tabs, and scroll the current tab into view without scrolling the page. Don't add `overflow-x-auto` to a tab strip.
 - **Scrollbars.** Only the Sidebar and MasterDetail's panes scroll on their own (the page scrolls otherwise). Their bar is thin, shows only on hover or focus, and takes `--border-strong` (so it follows light and dark). Panes keep `scrollbar-gutter: stable` from lg, so content doesn't jump when a pane starts to scroll.
+
+## The phone header and More (#74)
+
+Below lg every page starts the same way. `PageHeader` (and `SectionLayout`, which wraps it) draws it; a page never builds its own, and `apps/web/e2e/phone-header.spec.ts` walks every page at 393 to check it.
+
+- **Row 1: eyebrow and title.** The eyebrow is the small line over the h1 and says the section (the Sidebar group, or the area: "Planning" over Goals, "Transactions" over Review, "This Month" over October). Every page has one. The row is 52px tall (`min-h-13`), starts on the 16px gutter, 16px under the top of the page (plus `--safe-top`, the notch, in the installed app; the shell's `<main>` adds it), and has 16px under it.
+- **At most one action on the right** of row 1 (Add Account, Add Goal, Export CSV, Review with its count). A page with a month also has the previous and next arrows there. No links to other pages: those are in More.
+- **Row 2 (optional): the page's tabs or switch**, always under the title, never above it and never instead of it: Month | Plan (`MonthSwitchRow`, passed as `SectionLayout`'s `switcher`), Review | Rules, Reports', Explore's and Insights' tabs (`SectionLayout`'s `tabs`). The Plan has both a switch and tabs: the switch, then the tabs, both under the title. A page with nothing to switch has no second row.
+- **Nothing above the title.** No hamburger, no "⋯" menu of pages, no back arrow to another section.
+- **More.** The tab bar is Month, Transactions, Quick Add, Goals, More. More opens a bottom Sheet (`app-shell.tsx`, `MoreTab`) listing every `nav.ts` item without a `tab`, in the Sidebar's groups, plus Review with its count, and the signed-in Parent with Manage account and Sign out. The current page is marked (`aria-current="page"`), and More itself is marked while the page is one of its items. The sheet is open while the address ends in `#more`, so Back closes it; picking a page replaces that entry; dragging the grabber or header down closes it; its bottom padding includes `--safe-bottom`. Add a destination to `nav.ts` and it appears in the Sidebar and in More; give it a `tab` only if it replaces one of the three.
 
 ## Control sizes
 

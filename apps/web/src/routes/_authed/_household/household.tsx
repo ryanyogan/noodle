@@ -73,19 +73,7 @@ function HouseholdPage() {
 	});
 	return (
 		<>
-			<PageHeader
-				eyebrow="Household settings"
-				title={household.name}
-				actions={
-					// On phones Accounts lives here and on Transactions; the sidebar has its own link.
-					<Button variant="outline" size="sm" asChild className="lg:hidden">
-						<Link to="/accounts">
-							<Landmark />
-							Accounts
-						</Link>
-					</Button>
-				}
-			/>
+			<PageHeader eyebrow="Household settings" title={household.name} />
 			{/* A settings page (#69): one column of groups, each a short heading over what a Parent sets. */}
 			<PageLayout width="reading">
 				<div className="grid gap-10">

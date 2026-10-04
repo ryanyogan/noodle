@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { createPlannedHousehold, openFromMore, signedInPage } from "./session";
 
 // A term the Parents keep is explained where it first appears: a "?" beside it opens a sentence
 // and a link to the Glossary, by mouse, by keyboard and by touch (ADR-0018). The Glossary lists
@@ -102,12 +102,11 @@ test("on a phone, a term's help opens with a tap and fits the screen", { tag: "@
 	await glossary.getByRole("button", { name: "Close" }).tap();
 	await expect(glossary).toBeHidden();
 
-	// The Glossary is in the More menu in the row above This Month's header, not in the tab bar.
+	// The Glossary is in the More sheet, opened from the tab bar's last item.
 	await expect(
 		page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Glossary" }),
 	).toHaveCount(0);
-	await page.getByRole("button", { name: "More" }).tap();
-	await page.getByRole("menuitem", { name: "Glossary…" }).tap();
+	await openFromMore(page, "Glossary");
 	await expect(glossary).toBeVisible();
 	const sheet = await glossary.boundingBox();
 	expect(sheet).not.toBeNull();

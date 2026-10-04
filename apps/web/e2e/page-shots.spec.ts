@@ -6,7 +6,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { ulid } from "ulid";
 import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { createPlannedHousehold, openMore, signedInPage } from "./session";
 
 // Pictures of every page with one realistic Household, for looking at a redesign without a browser
 // on the machine: .github/workflows/shots.yml runs this on GitHub and uploads the PNGs. Not a test
@@ -39,7 +39,13 @@ const enabled = !!process.env.PAGE_SHOTS;
 // One worker, in order, and no second try: the Household is made once, in beforeAll.
 test.describe.configure({ mode: "default", retries: 0 });
 
-type Shot = { name: string; path: string; ready?: (page: Page) => Promise<void> };
+type Shot = {
+	name: string;
+	path: string;
+	ready?: (page: Page) => Promise<void>;
+	/** Only at phone widths, and only what's in the window (a sheet over the page). */
+	phoneSheet?: boolean;
+};
 
 let parent: Awaited<ReturnType<typeof createTestParent>> | undefined;
 let shots: Shot[] = [];
@@ -339,6 +345,14 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "26-check-in", path: "/check-in" },
 		{ name: "27-household-settings", path: "/household" },
 		{ name: "28-glossary", path: "/glossary" },
+		{
+			name: "29-more-sheet",
+			path: "/reports",
+			phoneSheet: true,
+			ready: async (page) => {
+				await openMore(page);
+			},
+		},
 	];
 	mkdirSync(OUT, { recursive: true });
 	writeFileSync(
@@ -368,6 +382,7 @@ for (const viewport of viewports) {
 		mkdirSync(dir, { recursive: true });
 		const failures: string[] = [];
 		for (const shot of shots) {
+			if (shot.phoneSheet && !phone) continue;
 			try {
 				await page.goto(shot.path);
 				await settled(page);
@@ -377,7 +392,7 @@ for (const viewport of viewports) {
 				}
 				await page.screenshot({
 					path: join(dir, `${shot.name}.png`),
-					fullPage: true,
+					fullPage: !shot.phoneSheet,
 					animations: "disabled",
 				});
 			} catch (error) {

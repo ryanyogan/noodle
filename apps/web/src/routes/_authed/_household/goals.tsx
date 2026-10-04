@@ -58,7 +58,7 @@ function GoalsPage() {
 	if (goals.length === 0 && !canAddGoal) {
 		return (
 			<>
-				<PageHeader title="Goals" />
+				<PageHeader eyebrow="Planning" title="Goals" />
 				<div className="grid max-w-2xl gap-4">
 					<EmptyState
 						icon={<Target />}
@@ -73,21 +73,7 @@ function GoalsPage() {
 
 	return (
 		<>
-			<PageHeader
-				title="Goals"
-				actions={
-					<>
-						{/* On phones Explore lives here; the sidebar has its own link. */}
-						<Button variant="outline" size="sm" asChild className="lg:hidden">
-							<Link to="/explore">
-								<Telescope />
-								Explore
-							</Link>
-						</Button>
-						{canAddGoal ? addGoalButton : null}
-					</>
-				}
-			/>
+			<PageHeader eyebrow="Planning" title="Goals" actions={canAddGoal ? addGoalButton : null} />
 			<ListBesideDetail
 				picked={picked !== undefined}
 				listFills

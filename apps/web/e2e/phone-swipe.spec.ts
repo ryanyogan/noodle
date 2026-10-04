@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage, switchTo } from "./session";
+import { createPlannedHousehold, openFromMore, signedInPage, switchTo } from "./session";
 import { realTouch, swipe } from "./touch";
 
 // Swiping a sheet closed on a phone (packages/ui's Sheet): a drag down from the grabber or the
@@ -43,8 +43,7 @@ test("a short drag keeps the sheet and its list's place, and a swipe in the list
 }) => {
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
-	await page.getByRole("button", { name: "More" }).click();
-	await page.getByRole("menuitem", { name: "Glossary…" }).click();
+	await openFromMore(page, "Glossary");
 	await expect(glossary(page)).toBeVisible();
 	const list = listOf(page);
 	const scrollTop = () => list.evaluate((el) => Math.round(el.scrollTop));

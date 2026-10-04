@@ -34,6 +34,7 @@ function InsightsLayout() {
 	];
 	return (
 		<SectionLayout
+			eyebrow="Understand"
 			title={onPerks ? "Credit card perks" : "Insights"}
 			tabsLabel="Insights pages"
 			tabs={tabs}
