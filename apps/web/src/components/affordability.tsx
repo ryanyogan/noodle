@@ -438,7 +438,7 @@ export function CommitmentRoles({
 								</span>
 							</span>
 							<OptionSelect
-								className="w-40 shrink-0"
+								className="w-36 shrink-0 sm:w-40"
 								aria-label={`${c.name} is`}
 								value={roles[c.id] ?? "stays"}
 								onValueChange={(value) => onRole(c.id, value as CommitmentRole)}

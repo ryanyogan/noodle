@@ -340,7 +340,19 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "17-goals", path: "/goals" },
 		{ name: "18-goal", path: `/goals/${ids.vacation}` },
 		{ name: "19-explore", path: "/explore" },
+		// A Scenario not saved yet, with one change: the outline, Your changes and the outcomes (#74).
+		{ name: "19a-explore-with-a-change", path: "/explore?lever=baseline:1020000" },
 		{ name: "20-can-we-afford-it", path: "/explore/afford" },
+		{
+			// The Car Check: cash, loan and lease side by side, with its Commitments open (#74).
+			name: "20a-afford-car",
+			path: "/explore/afford?kind=car",
+			ready: async (page) => {
+				const edit = page.getByRole("button", { name: "Edit Commitments" });
+				if ((await edit.count()) > 0) await edit.first().click({ timeout: 15_000 });
+			},
+		},
+		{ name: "20b-afford-anything", path: "/explore/afford?kind=anything" },
 		{ name: "21-scenarios", path: "/explore/scenarios" },
 		...(scenarioPath ? [{ name: "22-scenario", path: scenarioPath }] : []),
 		{ name: "23-reports", path: "/reports" },
