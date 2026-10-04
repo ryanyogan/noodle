@@ -23,13 +23,7 @@ import { BudgetBar, BudgetBarKey } from "@noodle/ui/components/budget-bar";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
-import {
-	PageLayout,
-	SectionGrid,
-	SplitLayout,
-	SplitMain,
-	SplitRail,
-} from "@noodle/ui/components/layout";
+import { PageLayout, SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Tile } from "@noodle/ui/components/tile";
@@ -1059,12 +1053,12 @@ function GetStarted({
 					{list}
 				</>
 			) : (
-				// On its own, from xl the card and the steps sit side by side across the page (#73); below
-				// xl they stack as close as before.
-				<SectionGrid className="max-xl:gap-3">
+				// On its own, the card and then the steps each take the page's width, as the sections of
+				// a planned month do (#73).
+				<div className="grid min-w-0 gap-3">
 					{finish}
 					{list}
-				</SectionGrid>
+				</div>
 			)}
 		</Section>
 	);
