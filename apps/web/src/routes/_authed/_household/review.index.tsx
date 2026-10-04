@@ -1290,7 +1290,11 @@ function ReviewCard({
 				<div className="flex items-center gap-2 max-[359px]:flex-wrap">
 					<Combobox
 						id={pickerId(item)}
-						className="min-w-0 flex-1"
+						// On the narrowest phones, with a suggestion, the picker has the row under Confirm and Edit.
+						className={cn(
+							"min-w-0 flex-1",
+							item.guess && "max-[359px]:order-last max-[359px]:basis-full",
+						)}
 						aria-label={`Where ${labelOf(item)} goes`}
 						disabled={!hydrated || !places}
 						placeholder={item.guess ? "Pick another…" : "Pick where it goes"}
@@ -1309,8 +1313,9 @@ function ReviewCard({
 					</Button>
 					{item.guess ? (
 						<Button
-							// On the narrowest phones Confirm has the card's width, above the picker.
-							className="max-[359px]:order-first max-[359px]:w-full"
+							// On the narrowest phones Confirm comes first and shares its row with Edit; the
+							// picker goes under them, so no button is left on a row alone.
+							className="max-[359px]:order-first max-[359px]:flex-1"
 							disabled={!hydrated}
 							onClick={onConfirm}
 						>
