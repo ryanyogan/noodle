@@ -300,7 +300,7 @@ function DoNow({ entries }: { entries: PerkEntry[] }) {
 					<p className="border-t px-(--card-pad) py-3 text-sm">
 						<a
 							href="#perk-sources"
-							className="font-medium text-primary underline-offset-4 hover:underline max-lg:inline-flex max-lg:min-h-11 max-lg:items-center"
+							className="font-medium text-brand underline-offset-4 hover:underline max-lg:inline-flex max-lg:min-h-11 max-lg:items-center"
 						>
 							{more} more to use
 						</a>
@@ -382,7 +382,7 @@ function PerkRow({ entry, doNow = false }: { entry: PerkEntry; doNow?: boolean }
 			/>
 			{line && !doNow ? (
 				<p className="flex items-center gap-1.5 text-sm">
-					{used ? <Check aria-hidden="true" className="size-4 shrink-0 text-primary" /> : null}
+					{used ? <Check aria-hidden="true" className="size-4 shrink-0 text-brand" /> : null}
 					<span className="min-w-0 break-words">{line}</span>
 				</p>
 			) : null}

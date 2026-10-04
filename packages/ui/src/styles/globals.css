@@ -1,8 +1,8 @@
 /*
  * Noodle design tokens: the single source of colour, type, spacing, radii, and motion.
- * Palette: Soft stone (#75, ADR-0036): a soft greige page, an off-white card with a faint sage cast
- * and green-grey ink in light; a green-stone graphite that steps up, with pale stone text, in dark.
- * The blue accent stays.
+ * Palette: Indigo (#83, ADR-0038): a near-white page, white cards, cool neutral greys, hairline
+ * borders and near-black ink in light; a near-black ground with a slight cool cast that steps up,
+ * with off-white text, in dark. One indigo accent, which is also the main button's fill.
  * Approved in #2 (round 2 prototype). Every component reads these through Tailwind utilities
  * (bg-card, text-muted-foreground, bg-pace, …) or the raw custom properties.
  */
@@ -42,38 +42,38 @@
 	color-scheme: light;
 
 	/* Surfaces */
-	--background: #eff0ec;
-	--card: #f9faf7;
-	--surface-2: #ebede7;
-	--surface-3: #e1e4dc;
-	--border: #dfe2d9;
-	--border-strong: #cbcfc4;
+	--background: #f7f7f8;
+	--card: #ffffff;
+	--surface-2: #f2f2f4;
+	--surface-3: #e8e8eb;
+	--border: #e7e7ea;
+	--border-strong: #d4d4d9;
 
 	/* Text */
-	--foreground: #1a1e1b;
-	--muted-foreground: #535a54;
+	--foreground: #16171a;
+	--muted-foreground: #595b63;
 	/* Hints and secondary figures: at least 4.5:1 (WCAG 1.4.3) on card, background, surface-2 and surface-3. */
-	--subtle-foreground: #606761;
+	--subtle-foreground: #656770;
 
 	/* The one accent, plus the two reserved state colours */
-	--brand: #3c60da;
-	--brand-soft: rgb(60 96 218 / 0.1);
-	/* Pace fill at least 3:1 on the bar track (--surface-3): 3.21:1. */
-	--pace: #b46c00;
-	--pace-soft: rgb(180 108 0 / 0.12);
+	--brand: #4f5ad4;
+	--brand-soft: rgb(79 90 212 / 0.1);
+	/* Pace fill at least 3:1 on the bar track (--surface-3): 3.26:1. */
+	--pace: #b86e00;
+	--pace-soft: rgb(184 110 0 / 0.12);
 	--pace-foreground: #85590a;
-	--over: #c43738;
-	--over-soft: rgb(196 55 56 / 0.1);
+	--over: #cb363c;
+	--over-soft: rgb(203 54 60 / 0.1);
 	/* Over as text on --over-soft (badges): at least 4.5:1. */
-	--over-foreground: #b02f2f;
+	--over-foreground: #b02f33;
 
-	/* Faint glows behind the page */
-	--glow-1: rgb(60 96 218 / 0.06);
-	--glow-2: rgb(180 108 0 / 0.05);
+	/* The ground is flat: one faint accent wash at the top of the page, no second glow. */
+	--glow-1: rgb(79 90 212 / 0.05);
+	--glow-2: transparent;
 
-	--scrim: rgb(26 30 27 / 0.36);
-	--elevation-card: 0 1px 2px rgb(26 30 27 / 0.05), 0 1px 1px rgb(26 30 27 / 0.03);
-	--elevation-pop: 0 12px 32px -8px rgb(26 30 27 / 0.22), 0 2px 6px rgb(26 30 27 / 0.06);
+	--scrim: rgb(22 23 26 / 0.4);
+	--elevation-card: 0 1px 2px rgb(22 23 26 / 0.05), 0 1px 1px rgb(22 23 26 / 0.03);
+	--elevation-pop: 0 12px 32px -8px rgb(22 23 26 / 0.2), 0 2px 6px rgb(22 23 26 / 0.06);
 	--card-highlight: inset 0 0 0 0 transparent;
 
 	/* Bucket identity, assigned in this order (colour-blind validated in #2); tiles and meters only. */
@@ -91,11 +91,11 @@
 	 * comparison period. Sequential shading steps the brand into the card; diverging runs from
 	 * the brand (under Plan) through a grey midpoint to --over. Buckets keep their own colours.
 	 */
-	--chart-spend: #3d4540;
+	--chart-spend: #33353c;
 	--chart-income: var(--brand);
-	--chart-compare: #cfd3ca;
+	--chart-compare: #d5d6db;
 	/* Allowance bars beside spending: at least 3:1 against the card and the spent bar. */
-	--chart-allowance: #8a928b;
+	--chart-allowance: #7f828b;
 	--chart-net: var(--foreground);
 	--chart-grid: var(--border);
 	--chart-mid: var(--surface-3);
@@ -108,8 +108,11 @@
 	--card-foreground: var(--foreground);
 	--popover: var(--card);
 	--popover-foreground: var(--foreground);
-	--primary: var(--foreground);
-	--primary-foreground: var(--card);
+	/* The main button is the accent with white text (ADR-0038); dark gives --primary its own darker fill. */
+	--primary: var(--brand);
+	/* Hover and press: a step darker in both modes, so the white text only gains contrast. */
+	--primary-hover: color-mix(in oklab, var(--primary) 88%, var(--foreground));
+	--primary-foreground: #ffffff;
 	--secondary: var(--surface-2);
 	--secondary-foreground: var(--foreground);
 	--muted: var(--surface-2);
@@ -117,7 +120,7 @@
 	--accent-foreground: var(--foreground);
 	--destructive: var(--over);
 	/* Input, Select and Textarea borders: at least 3:1 (WCAG 1.4.11) on the card, surface-2 and the page. */
-	--input: #83877d;
+	--input: #86888f;
 	--ring: var(--brand);
 
 	/* Motion durations (easings live in @theme as ease-standard / ease-spring) */
@@ -179,29 +182,32 @@
 @media (prefers-color-scheme: dark) {
 	:root {
 		color-scheme: dark;
-		--background: #121513;
-		--card: #191d1a;
-		--surface-2: #202521;
-		--surface-3: #282e29;
-		--border: #262c27;
-		--border-strong: #363d37;
-		--foreground: #e9ede8;
-		--muted-foreground: #a7afa7;
-		--subtle-foreground: #8d968e;
-		--brand: #7c9bff;
-		--brand-soft: rgb(124 155 255 / 0.14);
+		--background: #0c0d10;
+		--card: #141519;
+		--surface-2: #1b1c21;
+		--surface-3: #24262c;
+		--border: #22242a;
+		--border-strong: #32353d;
+		--foreground: #f0f1f3;
+		--muted-foreground: #a4a7b0;
+		--subtle-foreground: #8b8e98;
+		--brand: #8e96ff;
+		--brand-soft: rgb(142 150 255 / 0.16);
+		/* The main button's fill: darker than --brand so its white text is at least 4.5:1 (4.97:1). */
+		--primary: #5a64d6;
+		--primary-hover: color-mix(in oklab, var(--primary) 88%, var(--background));
 		--pace: #f5b23a;
 		--pace-soft: rgb(245 178 58 / 0.14);
 		--pace-foreground: #f5c46a;
 		--over: #f07171;
 		--over-soft: rgb(240 113 113 / 0.14);
 		--over-foreground: #f38383;
-		--glow-1: rgb(124 155 255 / 0.08);
-		--glow-2: rgb(245 178 58 / 0.05);
-		--scrim: rgb(4 6 5 / 0.6);
+		--glow-1: rgb(142 150 255 / 0.07);
+		--glow-2: transparent;
+		--scrim: rgb(0 0 0 / 0.62);
 		--elevation-card: 0 1px 2px rgb(0 0 0 / 0.4);
-		--elevation-pop: 0 16px 40px -8px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(233 237 232 / 0.05);
-		--card-highlight: inset 0 1px 0 rgb(233 237 232 / 0.04);
+		--elevation-pop: 0 16px 40px -8px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.06);
+		--card-highlight: inset 0 1px 0 rgb(255 255 255 / 0.04);
 		--bucket-1: #3987e5;
 		--bucket-2: #a95cc0;
 		--bucket-3: #2aa3bd;
@@ -210,10 +216,10 @@
 		--bucket-6: #199e70;
 		--bucket-7: #c47a36;
 		--bucket-8: #d55181;
-		--chart-spend: #bac3bb;
-		--chart-compare: #333a34;
-		--chart-allowance: #626b63;
-		--input: #6a716b;
+		--chart-spend: #c3c6ce;
+		--chart-compare: #30333a;
+		--chart-allowance: #6a6d77;
+		--input: #6c6f79;
 	}
 }
 
@@ -241,6 +247,7 @@
 	--color-popover-foreground: var(--popover-foreground);
 	--color-primary: var(--primary);
 	--color-primary-foreground: var(--primary-foreground);
+	--color-primary-hover: var(--primary-hover);
 	--color-secondary: var(--secondary);
 	--color-secondary-foreground: var(--secondary-foreground);
 	--color-muted: var(--muted);

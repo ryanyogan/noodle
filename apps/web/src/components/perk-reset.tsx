@@ -38,7 +38,7 @@ export function PerkResetLine({ line, className }: { line?: string | null; class
 		<p className={cn("text-sm", className)}>
 			<Link
 				to="/insights/perks"
-				className="font-medium text-primary underline-offset-4 hover:underline max-lg:inline-flex max-lg:min-h-11 max-lg:items-center"
+				className="font-medium text-brand underline-offset-4 hover:underline max-lg:inline-flex max-lg:min-h-11 max-lg:items-center"
 			>
 				{text}
 			</Link>

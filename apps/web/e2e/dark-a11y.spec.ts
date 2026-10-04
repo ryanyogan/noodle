@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { clientRendered, createHousehold, signedInPage } from "./session";
 
-// Warm paper (#75): axe on the main pages at desktop width in dark mode (the specs mostly run light).
+// Dark mode (#75, #83): axe on the main pages at desktop width in dark mode (the specs mostly run light).
 const pages = ["/month", "/accounts", "/goals", "/reports", "/plan", "/transactions", "/household"];
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;

@@ -77,7 +77,7 @@ export const clerkAppearance = {
 			background: "var(--primary)",
 			color: "var(--primary-foreground)",
 			border: "1px solid transparent",
-			"&:hover": { background: "color-mix(in oklab, var(--primary) 88%, var(--brand))" },
+			"&:hover": { background: "var(--primary-hover)" },
 			"&:active": { transform: "scale(0.98)" },
 		}),
 		buttonArrowIcon: { display: "none" },
