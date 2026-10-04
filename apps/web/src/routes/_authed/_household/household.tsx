@@ -101,7 +101,7 @@ function HouseholdPage() {
 										meta={
 											// The email on its own line: beside "Parent" it wrapped or not by its
 											// length, so the row's height changed from one Parent to the next.
-											<span className="flex min-w-0 flex-col">
+											<span className="flex w-full min-w-0 flex-col">
 												<span>Parent</span>
 												{parent.email ? (
 													// One line, cut short when long (the whole address on hover), so every
