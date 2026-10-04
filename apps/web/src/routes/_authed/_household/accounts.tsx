@@ -302,9 +302,12 @@ function AccountItem({ account }: { account: AccountView }) {
 						{accountSourceText(source, true)}
 					</span>
 					{needsLogin ? (
-						<Badge variant="over" className="ms-1.5 align-middle">
-							Log in again
-						</Badge>
+						<>
+							{" "}
+							<Badge variant="over" className="align-middle">
+								Log in again
+							</Badge>
+						</>
 					) : null}
 					{split ? (
 						<span className={cn("block", split.over && "text-over")}>{split.text}</span>
