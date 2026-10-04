@@ -75,6 +75,9 @@ export function PlanMasterDetail({
 	return (
 		<MasterDetail
 			className="max-w-2xl lg:max-w-none"
+			// Nothing picked: the list takes the wide column and the add form and hint the rail's
+			// width, rather than a narrow list beside an empty pane (#73).
+			data-list-fills={picked ? undefined : "true"}
 			listLabel={listLabel}
 			detailLabel={picked ? `${noun} details` : `${listLabel}: add and about`}
 			emptyStacks

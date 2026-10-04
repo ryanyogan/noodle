@@ -73,19 +73,22 @@ test("the list stays put, keeps its scroll and marks its item while the detail c
 	await expect(list(page)).toHaveAttribute("aria-label", "Buckets");
 	await axe(page, "Buckets, nothing picked");
 
-	// The same node, scrolled to its end, through three items.
-	const top = await list(page).evaluate((pane) => {
+	// The page scrolls as one (no pane scrolls on its own, #73). Picking from far down the list
+	// keeps the same node and the page where it was.
+	await list(page).evaluate((pane) => {
 		pane.dataset.kept = "yes";
-		pane.scrollTop = pane.scrollHeight;
-		return pane.scrollTop;
 	});
+	await row(page, "Fund 12").scrollIntoViewIfNeeded();
+	const top = await page.evaluate(() => window.scrollY);
 	expect(top).toBeGreaterThan(0);
 	await row(page, "Fund 12").click();
 	await expect(page).toHaveURL(new RegExp(`/plan/${month}/buckets/[0-9A-Z]{26}$`));
 	await expect(title(page)).toHaveText("Fund 12");
 	await expect(picked(page)).toHaveText("Fund 12");
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
-	expect(await list(page).evaluate((pane) => pane.scrollTop)).toBe(top);
+	expect(Math.abs((await page.evaluate(() => window.scrollY)) - top)).toBeLessThanOrEqual(2);
+	// The Bucket stays in view beside the list, its top inside the window.
+	expect((await detail(page).boundingBox())?.y ?? -1).toBeGreaterThanOrEqual(0);
 	await axe(page, "A Bucket beside its list");
 
 	// The list beside it is the way between Buckets (#73): no Back and no previous and next here.

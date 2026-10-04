@@ -213,7 +213,7 @@ function Pane({ className, ...props }: React.ComponentProps<"section">) {
 			className={cn(
 				// relative: something absolutely placed inside (an sr-only label) is clipped by the pane
 				// too. Otherwise its containing block is outside the pane, and it lengthens the page.
-				"min-w-0 lg:relative lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain",
+				"min-w-0 lg:relative",
 				"focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
 				className,
 			)}
@@ -223,10 +223,12 @@ function Pane({ className, ...props }: React.ComponentProps<"section">) {
 }
 
 /**
- * A list beside the item picked from it. From lg the two are full-height panes under the page's
- * header and each scrolls on its own, so the list keeps its place while the detail changes; the
- * page itself doesn't scroll. Below lg it shows one level at a time: the list, or (once there is a
- * `detail`) the detail, as ordinary page content.
+ * A list beside the item picked from it. From lg the page scrolls as one (no pane scrolls on its
+ * own, #73): the list is as long as it is, and the picked item sits beside it, its top level with
+ * the list's first row, and stays in view (sticky) as the list scrolls. Only an item taller than
+ * the window scrolls inside its own column. Picking an item from far down the list keeps the page
+ * where it was. Below lg it shows one level at a time: the list, or (once there is a `detail`) the
+ * detail, as ordinary page content.
  *
  * `empty` fills the detail pane at lg while nothing is picked ("Pick a Bucket to see it").
  */
@@ -255,31 +257,25 @@ function MasterDetail({
 	/** Names the detail pane, e.g. "Bucket". */
 	detailLabel: string;
 }) {
-	const ref = React.useRef<HTMLDivElement>(null);
 	const picked = detail !== null && detail !== undefined && detail !== false;
-	// The panes fill what's left of the window under the header, whose height varies by section.
-	// Held in state and rendered into `style`, so a re-render or a new node keeps it.
-	const [top, setTop] = React.useState<number>();
-	React.useEffect(() => {
-		const root = ref.current;
-		if (!root) return;
-		const measure = () => setTop(root.getBoundingClientRect().top + window.scrollY);
-		measure();
-		// The header above can change height once the fonts load, without resizing the parent.
-		document.fonts?.ready.then(measure);
-		const observer = new ResizeObserver(measure);
-		if (root.parentElement) observer.observe(root.parentElement);
-		// The section's header sits outside that parent; a change in it shows in the page's height.
-		observer.observe(document.documentElement);
-		window.addEventListener("resize", measure);
-		return () => {
-			observer.disconnect();
-			window.removeEventListener("resize", measure);
+	// The router puts the window back at the top on every navigation. Beside the list (lg) that
+	// would lose the Parent's place in it, so for a moment after a pick from the list a jump to
+	// the top is undone.
+	const keepPlace = (event: React.MouseEvent<HTMLDivElement>) => {
+		const item = (event.target as HTMLElement).closest("[data-md-item]");
+		const y = window.scrollY;
+		if (!item || y === 0 || !window.matchMedia("(min-width: 1024px)").matches) return;
+		const stop = () => window.removeEventListener("scroll", restore);
+		// The router may reset more than once (again when the item's data arrives), so each jump to
+		// the top in that moment is undone, not only the first.
+		const restore = () => {
+			if (window.scrollY === 0) window.scrollTo({ top: y });
 		};
-	}, []);
+		window.addEventListener("scroll", restore);
+		window.setTimeout(stop, 1200);
+	};
 	return (
 		<div
-			ref={ref}
 			data-slot="master-detail"
 			data-picked={picked}
 			className={cn(
@@ -288,15 +284,11 @@ function MasterDetail({
 				// A list that fills while nothing is picked (Goals' cards): the list takes the wide column
 				// and the overview the rail's width (#73L, ADR-0033).
 				"lg:data-[list-fills=true]:grid-cols-[minmax(0,1fr)_var(--rail-width)]",
-				// The shell's bottom padding at lg is 3rem, so the panes end where a page would.
-				"lg:h-[calc(100dvh-var(--master-detail-top,11rem)-3rem)] lg:min-h-80",
+				"lg:items-start",
 				className,
 			)}
-			style={
-				top === undefined
-					? style
-					: ({ "--master-detail-top": `${top}px`, ...style } as React.CSSProperties)
-			}
+			style={style}
+			onClickCapture={keepPlace}
 			{...props}
 		>
 			<Pane
@@ -309,14 +301,20 @@ function MasterDetail({
 			<Pane
 				data-slot="master-detail-detail"
 				aria-label={detailLabel}
-				className={cn("@container/detail", !picked && !emptyStacks && "max-lg:hidden")}
+				className={cn(
+					"@container/detail",
+					// Stays beside the list as the page scrolls; scrolls itself only when taller than the
+					// window (3rem: the sticky inset above and below).
+					"lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto lg:overscroll-contain",
+					!picked && !emptyStacks && "max-lg:hidden",
+				)}
 			>
 				{picked ? (
 					detail
 				) : (
 					<div
 						data-slot="master-detail-empty"
-						className={cn("grid", emptyStacks ? "content-start" : "h-full place-items-center")}
+						className={cn("grid", emptyStacks ? "content-start" : "place-items-center lg:min-h-40")}
 					>
 						{empty}
 					</div>
