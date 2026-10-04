@@ -43,7 +43,8 @@ test("a short drag keeps the sheet and its list's place, and a swipe in the list
 }) => {
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
-	await page.getByRole("button", { name: "Glossary" }).first().click();
+	await page.getByRole("button", { name: "More" }).click();
+	await page.getByRole("menuitem", { name: "Glossary…" }).click();
 	await expect(glossary(page)).toBeVisible();
 	const list = listOf(page);
 	const scrollTop = () => list.evaluate((el) => Math.round(el.scrollTop));

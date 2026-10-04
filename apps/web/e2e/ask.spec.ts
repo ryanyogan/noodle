@@ -1,7 +1,13 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { currentTab } from "./section";
-import { createPlannedHousehold, pickQuickAddBucket, serverFn, signedInPage } from "./session";
+import {
+	createPlannedHousehold,
+	openFromMore,
+	pickQuickAddBucket,
+	serverFn,
+	signedInPage,
+} from "./session";
 
 // Ask runs against its deterministic fake model here (AI_MODEL=stub in playwright.config.ts):
 // it picks a tool from the question's keywords and answers with the tool's own sentence, so these
@@ -73,7 +79,7 @@ test("a failed answer can be retried, from the phone's This Month header", {
 		hasTouch: true,
 	});
 	await createPlannedHousehold(page, plan);
-	await page.getByRole("link", { name: "Ask", exact: true }).click();
+	await openFromMore(page, "Ask");
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ask");
 
 	const askHousehold = serverFn("askHousehold");

@@ -102,11 +102,12 @@ test("on a phone, a term's help opens with a tap and fits the screen", { tag: "@
 	await glossary.getByRole("button", { name: "Close" }).tap();
 	await expect(glossary).toBeHidden();
 
-	// The help icon sits in the row above This Month's header, not in the tab bar.
+	// The Glossary is in the More menu in the row above This Month's header, not in the tab bar.
 	await expect(
 		page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Glossary" }),
 	).toHaveCount(0);
-	await page.getByRole("button", { name: "Glossary" }).tap();
+	await page.getByRole("button", { name: "More" }).tap();
+	await page.getByRole("menuitem", { name: "Glossary…" }).tap();
 	await expect(glossary).toBeVisible();
 	const sheet = await glossary.boundingBox();
 	expect(sheet).not.toBeNull();

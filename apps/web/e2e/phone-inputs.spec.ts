@@ -82,12 +82,13 @@ test("fields on a phone bring up the right keyboard", async ({ browser }) => {
 	await page.keyboard.press("Escape");
 	await expect(amount).toBeHidden();
 
-	// The Glossary's search: its button sits above This Month's header on a phone. Pressed again
+	// The Glossary's search: it's in the More menu above This Month's header on a phone. Pressed again
 	// until it opens, since a press before hydration does nothing.
 	await page.goto("/");
 	const glossary = page.getByRole("dialog", { name: "Glossary" });
 	await expect(async () => {
-		await page.getByRole("button", { name: "Glossary" }).click();
+		await page.getByRole("button", { name: "More" }).click();
+		await page.getByRole("menuitem", { name: "Glossary…" }).click({ timeout: 1_000 });
 		await expect(glossary).toBeVisible({ timeout: 1_000 });
 	}).toPass(clientRendered);
 	await expect(glossary.getByRole("searchbox")).toHaveAttribute("enterkeyhint", "search");

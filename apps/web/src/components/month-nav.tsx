@@ -1,12 +1,25 @@
 import { addMonths, type MonthKey } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@noodle/ui/components/dropdown-menu";
 import { LinkTab, LinkTabs } from "@noodle/ui/components/tabs";
 import { WithTooltip } from "@noodle/ui/components/tooltip";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ChartColumn, ChevronLeft, ChevronRight, MessageCircleQuestionMark } from "lucide-react";
+import {
+	ChartColumn,
+	ChevronLeft,
+	ChevronRight,
+	CircleHelp,
+	Ellipsis,
+	MessageCircleQuestionMark,
+} from "lucide-react";
 import { type TouchEvent, useRef } from "react";
 import { monthName } from "../format";
-import { GlossaryButton } from "./glossary";
+import { openGlossary } from "./glossary";
 
 /** The two views of a month: what's happening in it, and its Plan. */
 type MonthView = "/month/$month" | PlanView;
@@ -22,26 +35,39 @@ export type PlanView =
 
 /**
  * On phones, the row above a month's page header: a switch between the month and its Plan (the
- * tab bar has no Plan tab), then Reports, Ask and the Glossary. On a computer the Sidebar has all
- * of them, so the row isn't there (#73).
+ * tab bar has no Plan tab), then one More menu with Reports, Ask and the Glossary (#74: three
+ * look-alike icons were one too many). On a computer the Sidebar has all of them, so the row
+ * isn't there (#73).
  */
 export function MonthTopRow({ month, current }: { month: MonthKey; current: "month" | "plan" }) {
 	return (
 		<div className="mb-3 flex max-w-2xl items-center justify-between gap-3 lg:hidden">
 			<MonthPlanSwitch month={month} current={current} />
-			<div className="flex items-center gap-1">
-				<Button variant="ghost" size="icon" asChild>
-					<Link to="/reports" aria-label="Reports">
-						<ChartColumn className="size-5" />
-					</Link>
-				</Button>
-				<Button variant="ghost" size="icon" asChild>
-					<Link to="/ask" aria-label="Ask">
-						<MessageCircleQuestionMark className="size-5" />
-					</Link>
-				</Button>
-				<GlossaryButton />
-			</div>
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button variant="ghost" size="icon" aria-label="More">
+						<Ellipsis className="size-5" />
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent>
+					<DropdownMenuItem asChild>
+						<Link to="/reports">
+							<ChartColumn />
+							Reports
+						</Link>
+					</DropdownMenuItem>
+					<DropdownMenuItem asChild>
+						<Link to="/ask">
+							<MessageCircleQuestionMark />
+							Ask
+						</Link>
+					</DropdownMenuItem>
+					<DropdownMenuItem onSelect={() => openGlossary()}>
+						<CircleHelp />
+						Glossary…
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
 		</div>
 	);
 }
@@ -61,7 +87,7 @@ export function MonthPlanSwitch({
 	return (
 		<LinkTabs aria-label="Month and Plan">
 			{options.map((option) => (
-				<LinkTab key={option.key} asChild className="h-7 min-w-16">
+				<LinkTab key={option.key} asChild className="min-w-16">
 					<Link
 						activeOptions={{ exact: true }}
 						to={option.to}

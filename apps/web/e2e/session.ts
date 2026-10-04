@@ -424,3 +424,12 @@ export async function pickQuickAddBucket(sheet: Locator, name: string) {
 	await sheet.getByRole("searchbox", { name: "Find a Bucket" }).fill(name);
 	await sheet.getByRole("button", { name: startsWith }).first().click();
 }
+
+/**
+ * On a phone, This Month's top row keeps Reports, Ask and the Glossary in one More (⋯) menu
+ * beside the Month/Plan switch. Opens it and chooses `item`.
+ */
+export async function openFromMore(page: Page, item: "Reports" | "Ask" | "Glossary…") {
+	await page.getByRole("button", { name: "More" }).click();
+	await page.getByRole("menuitem", { name: item, exact: true }).click();
+}

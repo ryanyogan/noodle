@@ -234,6 +234,7 @@ function ThisMonth() {
 											title="Buckets"
 											count={buckets.length}
 											help={<TermHelp term="bucket" />}
+											action={<BarKey phone />}
 										/>
 										<BarKey />
 										<List>{buckets.map(bucketRow)}</List>
@@ -779,17 +780,24 @@ function BucketRow({
 
 /**
  * The bars' key beside the Pace "?": shown the first few views, then only inside the "?" popover
- * once it's been learned (#64, ADR-0018).
+ * once it's been learned (#64, ADR-0018). On a phone it's always in the popover: inline it took
+ * two lines above the first Bucket (#74).
  */
-function BarKey() {
+function BarKey({ phone = false }: { phone?: boolean }) {
 	const learned = useLearned("bar-key");
+	const inPopover = <BudgetBarKey className="mt-1 grid gap-1.5" />;
+	if (phone) {
+		// At the end of the Buckets header, so the key costs no line of its own.
+		return (
+			<div className="lg:hidden">
+				<TermHelp term="pace" extra={inPopover} />
+			</div>
+		);
+	}
 	return (
-		<div className="-mt-1 flex items-center gap-1 px-1">
+		<div className="-mt-1 flex items-center gap-1 px-1 max-lg:hidden">
 			{learned ? null : <BudgetBarKey />}
-			<TermHelp
-				term="pace"
-				extra={learned ? <BudgetBarKey className="mt-1 grid gap-1.5" /> : undefined}
-			/>
+			<TermHelp term="pace" extra={learned ? inPopover : undefined} />
 		</div>
 	);
 }

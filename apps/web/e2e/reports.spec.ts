@@ -6,6 +6,7 @@ import {
 	choose,
 	clientRendered,
 	createPlannedHousehold,
+	openFromMore,
 	pickQuickAddBucket,
 	signedInPage,
 } from "./session";
@@ -109,7 +110,7 @@ test("Phones reach Reports from This Month", { tag: "@phone" }, async ({ browser
 		hasTouch: true,
 	});
 	await createPlannedHousehold(page, plan);
-	await page.getByRole("link", { name: "Reports" }).click();
+	await openFromMore(page, "Reports");
 	await expect(header(page)).toContainText("Overview");
 });
 
