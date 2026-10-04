@@ -204,3 +204,38 @@ Not done (left for a later phase):
 - **ChartCard's biome-ignore** now sits above the element, where biome applies it (it was a no-op on the attribute and biome failed).
 - **Not done:** shell.spec baselines changed (household-desktop-{dark,light}, household-iphone-{dark,light}, month-iphone-{dark,light}, reports-iphone-light) but were not looked at, so they were restored, not committed; CI's shell.spec will fail until they are regenerated and looked at. reports.spec's "Big expenses" test failed (Flights to Denver not found in the largest list) and needs checking against 73h's ChartCard change.
 
+
+## ADR-0033 rollout as it stands (2026-10-04, 73y and 73z)
+
+Read from the page code and `git log`, not re-measured. The shell caps the page at `--shell-max` (1200, 1440 from 1440, 1680 from 1920) and starts it at the gutter beside the Sidebar; routes marked `wide` use `--shell-max-wide`. No pane scrolls on its own: a rail or a picked item's pane stays in view (sticky, 24px from the top) only while it fits the window.
+
+| Page | Layout pieces in use | State |
+| --- | --- | --- |
+| This Month | `PageLayout`, `SplitLayout stack="children"` | Rolled out. Get started (new Household) is stacked full width (73y). |
+| Plan › Overview | `SplitLayout`, `SectionGrid` (two columns from 1920) | Rolled out. |
+| Plan › Goal funding | `SplitLayout stack="children"` | Rolled out. |
+| Plan › Year | `SectionGrid` | Rolled out. |
+| Bucket, Commitment, Goal, Account, kept Scenario | `MasterDetail` pane with `DetailColumns` (Commitment, Goal, Account, Scenario); the Bucket page uses `StatGrid` | Rolled out. The Goal's side column is held in view again (73z). |
+| Transactions | `SplitLayout stack="rail"` | Rolled out. One list for every month length (73z). |
+| Review | `MasterDetail`, `SectionGrid columns={3}` | Rolled out. |
+| Reports | `PageLayout` on the wide cap | The model the others follow. |
+| Insights, Perks | `SplitLayout`; `SectionGrid` | Rolled out. |
+| Explore, Can we afford it? | `SplitLayout` | Rolled out; Explore's editors as collapsed sections are still not started (see 73f). |
+| Household | `PageLayout` (reading width below xl), `SectionGrid` | Rolled out: two columns that end near the same line. |
+| Check-in | step list (240px) beside one card | The card takes the full width beside the steps (73y). |
+| Accounts list, Goals list, Glossary, Ask, wizard | none of the above pieces in the route file | Not checked in this pass. |
+
+### 73y (2026-10-04)
+
+- **Household's Danger zone** says what each button does: "Start fresh can be put back. Deleting can't.", then one paragraph each (Start fresh takes a snapshot first and can be put back from Snapshots for up to 90 days; Delete Household removes everything, with one last snapshot kept 30 days).
+- **Check-in** card: the `lg:max-w-4xl` cap is gone, so the card runs the full width beside the step list. Looked at 1920. Open: rows are about 1300px wide there (name left, amount right); cap and centre if that reads too wide.
+- **Get started** on This Month (new Household): the "Finish setting up" card and the step list are stacked, each the page's width, instead of side by side.
+- **Explore › Goal paths**: "Reached in Mar 2027" (was "Reached Mar 2027"); the "· new" mark sits outside the truncating name, so a long name is cut and the mark and the month stay whole. Not looked at (the shot showed the Free to Spend tab).
+- **No change needed**: the Bucket page's stat grids (already `StatGrid`), the one-off form's Name label.
+
+### 73z (2026-10-04)
+
+- **Transactions has one list.** A month past 300 items used to switch to a windowed list (`useWindowVirtualizer`: rows placed by hand against the window's scroll, the card as tall as an estimate). That path had no test, and the shorter path beside it was already the one every real month took. It is removed, with its dependency (`@tanstack/react-virtual`): every loaded row is drawn in the page's flow, 50 more load as the end nears the screen, and the page is the only thing that scrolls (ADR-0033). Why this is enough: a row is a few lines of text with no work of its own (one lookup of its Bucket and its Member), rows arrive a page at a time, and a busy family month is a few hundred rows; a thousand rows is about 20 pages of scrolling before all are in the page. New spec `e2e/transactions-long-month.spec.ts`: a 400-row month at 1440 loads every row by scrolling the page, no ancestor of the list scrolls, no row is absolutely placed, the list is as tall as its rows, and the last row opens beside the list. This also closes 73g's "the list card stays as tall as the virtualizer's estimate". Not measured: frame times with 1,000 rows on a phone (`phone-long-list.spec.ts` still guards a busy month there).
+- **Goal page** (desktop.md "Desktop: 672px, with History below the fold"): the right column (progress card, Emergencies, Finish) is held in view (`sticky`, 24px from the top, the same inset as `SplitRail`) while a long History scrolls with the page. It is held only while all of it, plus the inset above and below, fits the window (measured on the column, re-measured when it or the window changes size); taller than that it scrolls with the page, so nothing is out of reach and it never scrolls on its own. In a narrow pane (one column) nothing sticks.
+- **Household, Child edit** (desktop.md "Child edit expands inline"): already closed on main by c931a1b: a Child's pencil opens the shared Sheet with Name, colour, Save and Remove (Remove asks in an AlertDialog). No change in this phase.
+- Proposal, not made here (shared file): `packages/ui/COMPONENTS.md` line 197 still says "long lists are virtualized (Transactions)"; it should say Transactions loads 50 rows at a time as the page scrolls.

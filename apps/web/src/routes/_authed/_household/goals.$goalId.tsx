@@ -32,7 +32,7 @@ import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group
 import { cn } from "@noodle/ui/lib/utils";
 import { createFileRoute, Link, notFound, useHydrated } from "@tanstack/react-router";
 import { ChevronDown, Pencil } from "lucide-react";
-import { type FormEvent, type ReactNode, useId, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { ulid } from "ulid";
 import {
 	AmountInput,
@@ -175,9 +175,10 @@ function GoalDetails({
 				}
 			/>
 			<DetailColumns className="gap-8">
-				{/* In a wide pane the progress card and what to do sit beside History, and the page scrolls as
-				    one (#73); on a phone, History comes before Emergencies and Finish. */}
-				<div className="grid gap-8 @max-3xl/detail:contents @3xl/detail:col-start-2 @3xl/detail:row-start-1">
+				{/* In a wide pane the progress card and what to do sit beside History and stay in view while
+				    a long History scrolls with the page (#73); on a phone, History comes before Emergencies
+				    and Finish. */}
+				<GoalSide>
 					<Card role="region" aria-labelledby="goal-saved">
 						<div className="grid gap-3 p-(--card-pad)">
 							<div className="grid gap-1">
@@ -376,7 +377,7 @@ function GoalDetails({
 							</Section>
 						)}
 					</div>
-				</div>
+				</GoalSide>
 				<div className="grid min-w-0 gap-8 @max-3xl/detail:order-1 @3xl/detail:col-start-1 @3xl/detail:row-start-1">
 					<Section aria-labelledby="goal-history">
 						<SectionHeader id="goal-history" title="History" count={goal.changes.length} />
@@ -525,6 +526,43 @@ function GoalDetails({
  * How the Goal is doing, in words: on track, behind (Pace) or past due (over), and what's still
  * to go. The numbers beneath say the rest.
  */
+/** The space kept above and below the held column: the shell's top padding at lg, as SplitRail keeps. */
+const SIDE_INSET = 24;
+
+/**
+ * The Goal's progress card and what to do with it. In a wide pane they sit beside History and stay
+ * in view (sticky) while a long History scrolls with the page, but only while all of them fit the
+ * window: taller than that they scroll with the page too, so nothing is ever out of reach and no
+ * column scrolls on its own (ADR-0033). In a narrow pane the box dissolves into the one column.
+ */
+function GoalSide({ children }: { children: ReactNode }) {
+	const ref = useRef<HTMLDivElement>(null);
+	const [fits, setFits] = useState(false);
+	useEffect(() => {
+		const side = ref.current;
+		if (!side) return;
+		const measure = () => setFits(side.offsetHeight + SIDE_INSET * 2 <= window.innerHeight);
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(side);
+		window.addEventListener("resize", measure);
+		return () => {
+			observer.disconnect();
+			window.removeEventListener("resize", measure);
+		};
+	}, []);
+	return (
+		<div
+			ref={ref}
+			data-slot="goal-side"
+			data-fits={fits}
+			className="grid gap-8 @max-3xl/detail:contents @3xl/detail:col-start-2 @3xl/detail:row-start-1 @3xl/detail:data-[fits=true]:sticky @3xl/detail:data-[fits=true]:top-6"
+		>
+			{children}
+		</div>
+	);
+}
+
 function GoalStatus({ goal, month }: { goal: GoalView; month: MonthKey }) {
 	const { progress } = goal;
 	const parts: ReactNode[] = [];
