@@ -105,11 +105,16 @@ export function DangerZone({ householdName }: { householdName: string }) {
 			variant="destructive"
 			className="grid gap-3 rounded-(--radius-card) p-(--card-pad)"
 		>
-			<AlertTitle>These clear your Household for good</AlertTitle>
+			<AlertTitle>Start fresh can be put back. Deleting can’t.</AlertTitle>
 			<AlertDescription className="grid gap-3">
 				<p>
 					Start fresh clears every Transaction, bank connection, Bucket, Goal and file, and keeps
-					your Household, its Parents and Children. Delete Household removes all of it.
+					your Household, its Parents and Children. Noodle takes a snapshot first: for up to{" "}
+					{SNAPSHOT_KEPT_DAYS} days you can put your Household back from Snapshots.
+				</p>
+				<p>
+					Delete Household removes all of it, and that can’t be undone. Noodle keeps one last
+					snapshot for {FINAL_SNAPSHOT_DAYS} days, then deletes it.
 				</p>
 				{isWaiting(data) ? (
 					<Scheduled status={data} />
