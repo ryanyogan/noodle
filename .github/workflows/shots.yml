@@ -11,6 +11,11 @@ name: Page shots
 #   gh run download <run id> --name page-shots-1440 --dir <somewhere>
 #
 # The PNGs land at <somewhere>/<width>/<nn-name>.png, beside seed-notes.txt.
+#
+# Dark pictures: run it by hand with theme=dark; the artifact is then "page-shots-<width>-dark":
+#
+#   gh workflow run shots.yml --ref shots-<id> -f widths=1440 -f theme=dark
+#   gh run download <run id> --name page-shots-1440-dark --dir <somewhere>
 
 on:
   push:
@@ -86,6 +91,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: page-shots-${{ matrix.width }}
+          name: page-shots-${{ matrix.width }}${{ inputs.theme == 'dark' && '-dark' || '' }}
           path: apps/web/test-results/page-shots
           if-no-files-found: warn
