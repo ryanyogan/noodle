@@ -171,6 +171,7 @@ export const getScenarios = createServerFn({ method: "GET" })
 			getDb(),
 			context.household.id,
 			monthKeyAt(new Date(), context.household.timeZone),
+			context.parent.id,
 		),
 	);
 

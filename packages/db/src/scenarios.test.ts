@@ -26,7 +26,7 @@ import {
 	setTakeHomePay,
 	updateCommitment,
 } from "./index";
-import { scenarios } from "./schema";
+import { members, scenarios } from "./schema";
 import { testDb } from "./test-db";
 
 const householdId = "household";
@@ -639,5 +639,57 @@ describe("applyChanges: v2 Changes", () => {
 			planAhead(await loadPlanRecords(db, householdId, "2028-08"), [], month, 24),
 		);
 		expect(outcome(after)).toEqual(outcome(scenario));
+	});
+});
+
+describe("Scenarios keep another Parent's Personal Allowance private (#51, ADR-0003)", () => {
+	beforeEach(async () => {
+		await db.insert(members).values({
+			id: "sam",
+			householdId,
+			kind: "parent",
+			name: "Sam",
+			clerkUserId: "clerk-sam",
+		});
+		await addPersonalAllowance(db, {
+			householdId,
+			memberId: parentId,
+			bucketId: "parent-pa",
+			name: "Fun money for the boat",
+			color: 2,
+			month,
+			allowanceCents: 20_000,
+		});
+		await saveScenario(db, {
+			householdId,
+			memberId: parentId,
+			scenarioId: "s1",
+			name: "Boat",
+			levers: [
+				{ kind: "allowance", bucketId: "parent-pa", amount: 31_400, fromMonth: month },
+				{ kind: "allowance", bucketId: "groceries", amount: 100_000, fromMonth: month },
+			],
+		});
+	});
+
+	it("saves whose Personal Allowance a Change is to, and only for a Personal Allowance", async () => {
+		const [row] = await db.select({ levers: scenarios.levers }).from(scenarios);
+		const saved = (row?.levers as { levers: ScenarioChange[] } | undefined)?.levers ?? [];
+		expect(saved.map((l) => l.subjectOwner)).toEqual([parentId, undefined]);
+	});
+
+	it("names it for its own Parent, and never for the other, archived too", async () => {
+		const [mine] = await loadScenarios(db, householdId, month, parentId);
+		expect(mine?.levers.map((l) => l.subjectName)).toEqual(["Fun money for the boat", "Groceries"]);
+		await archiveBucket(db, { householdId, memberId: parentId, bucketId: "parent-pa", month });
+		for (const viewed of [month, "2026-10" as MonthKey]) {
+			const [theirs] = await loadScenarios(db, householdId, viewed, "sam");
+			const payload = JSON.stringify(theirs);
+			expect(payload).not.toContain("Fun money");
+			expect(payload).not.toContain("boat");
+			expect(theirs?.levers[0]).toMatchObject({ kind: "allowance", subjectOwner: parentId });
+			expect(theirs?.levers[0]?.subjectName).toBeUndefined();
+			expect(theirs?.levers[1]?.subjectName).toBe("Groceries");
+		}
 	});
 });

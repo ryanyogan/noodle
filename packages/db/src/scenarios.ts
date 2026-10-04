@@ -62,12 +62,15 @@ export type ScenarioRecord = {
 
 /**
  * The Household's Scenarios, most recently changed first. `month` is the Household's current
- * month, which v1 Changes held from.
+ * month, which v1 Changes held from. Read for `viewerId`, a Change to another Parent's Personal
+ * Allowance comes without its subject's name (ADR-0003), archived or gone too: its owner says
+ * whose it is, so it reads "Personal Allowance changed".
  */
 export async function loadScenarios(
 	db: Db,
 	householdId: string,
 	month: MonthKey,
+	viewerId?: string,
 ): Promise<ScenarioRecord[]> {
 	const creator = alias(members, "creator");
 	const applier = alias(members, "applier");
@@ -93,10 +96,20 @@ export async function loadScenarios(
 	);
 	return rows.map((row, i) => ({
 		...row,
-		levers: levers[i] ?? [],
+		levers: (levers[i] ?? []).map((change) =>
+			viewerId === undefined ? change : forViewer(change, viewerId),
+		),
 		updatedAt: row.updatedAt.getTime(),
 		appliedAt: row.appliedAt?.getTime() ?? null,
 	}));
+}
+
+/** The Change as `viewerId` may read it: another Parent's Personal Allowance goes unnamed. */
+function forViewer(change: ScenarioChange, viewerId: string): ScenarioChange {
+	if (subjectOf(change)?.kind !== "bucket") return change;
+	if (change.subjectOwner === undefined || change.subjectOwner === viewerId) return change;
+	const { subjectName: _name, ...unnamed } = change;
+	return unnamed;
 }
 
 type ScenarioInput = {
