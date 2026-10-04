@@ -107,6 +107,12 @@ function usePhone() {
 	);
 }
 
+/**
+ * A line's own actions (End, Undo, Archive, Remove): quiet words beside the desktop's inline
+ * editor; outlined buttons in a phone's sheet, where a bare word doesn't read as something to press.
+ */
+const actionVariant = (wide: boolean) => (wide ? "ghost" : "outline");
+
 /** How many unchanged lines a group needs before a phone folds them away. */
 const FOLD_FROM = 2;
 
@@ -556,25 +562,35 @@ function Group({
 				</Sheet>
 			) : null}
 			{lines && lines.length > 0 ? (
-				<>
-					{folds && summary ? <p className="text-sm text-muted-foreground">{summary}</p> : null}
-					{shown && shown.length > 0 ? <List>{shown.map((line) => line.node)}</List> : null}
-					{folds ? (
-						<Button
-							type="button"
-							variant="outline"
-							className="w-full"
-							aria-expanded={all}
-							onClick={() => {
-								if (all) setKept(new Set(changedKeys.split(" ")));
-								setAll(!all);
-							}}
+				folds ? (
+					// Folded, the group is still a card like the lines it stands for: the lines this
+					// Scenario changes, then a last row with what the Plan has and the way to the rest.
+					<List>
+						{shown?.map((line) => line.node)}
+						<li
+							key="fold"
+							className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-(--card-pad) py-2.5"
 						>
-							{all ? "Show fewer" : `Show all ${lines.length}`}
-							<span className="sr-only"> {title}</span>
-						</Button>
-					) : null}
-				</>
+							{summary ? <p className="text-sm text-muted-foreground">{summary}</p> : null}
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="ms-auto"
+								aria-expanded={all}
+								onClick={() => {
+									if (all) setKept(new Set(changedKeys.split(" ")));
+									setAll(!all);
+								}}
+							>
+								{all ? "Show fewer" : `Show all ${lines.length}`}
+								<span className="sr-only"> {title}</span>
+							</Button>
+						</li>
+					</List>
+				) : (
+					<List>{lines.map((line) => line.node)}</List>
+				)
 			) : (
 				children
 			)}
@@ -829,7 +845,7 @@ function CommitmentLine({
 							{terms ? (
 								<Button
 									type="button"
-									variant="ghost"
+									variant={actionVariant(edit.wide)}
 									size="sm"
 									onClick={() => edit.unset(`terms:${id}`)}
 								>
@@ -839,7 +855,7 @@ function CommitmentLine({
 							{ended ? null : (
 								<Button
 									type="button"
-									variant="ghost"
+									variant={actionVariant(edit.wide)}
 									size="sm"
 									onClick={() =>
 										edit.set({ kind: "end-commitment", commitmentId: id, fromMonth: edit.month })
@@ -889,7 +905,7 @@ function BucketLine({
 		archived || bucket.owner ? null : (
 			<Button
 				type="button"
-				variant="ghost"
+				variant={actionVariant(edit.wide)}
 				size="sm"
 				onClick={() => edit.set({ kind: "archive-bucket", bucketId: id, fromMonth: edit.month })}
 			>
@@ -1060,7 +1076,7 @@ function GoalLine({
 							<LineActions>
 								<Button
 									type="button"
-									variant="ghost"
+									variant={actionVariant(edit.wide)}
 									size="sm"
 									onClick={() => edit.unset(`goal:${goal.id}`)}
 								>
@@ -1103,7 +1119,7 @@ function AddedLine({
 					<LineActions>
 						<Button
 							type="button"
-							variant="ghost"
+							variant={actionVariant(edit.wide)}
 							size="sm"
 							onClick={() => edit.unset(changeTarget(lever))}
 						>
@@ -1590,12 +1606,13 @@ function ChangeRange({
 	/** More actions beside Undo. */
 	children?: ReactNode;
 }) {
+	const wide = useWide();
 	return (
 		<div className="flex flex-wrap items-center gap-2">
 			{label ? <span className="text-[13px] font-medium">{label}</span> : null}
 			<RangeChips name={name} lever={lever} month={month} onChange={onChange} />
 			<LineActions>
-				<Button type="button" variant="ghost" size="sm" onClick={onUndo}>
+				<Button type="button" variant={actionVariant(wide)} size="sm" onClick={onUndo}>
 					Undo<span className="sr-only"> {undoing}</span>
 				</Button>
 				{children}
@@ -1640,7 +1657,7 @@ function GoalDate({
 }
 
 function LineActions({ children }: { children: ReactNode }) {
-	return <div className="-me-2.5 ms-auto flex items-center gap-1">{children}</div>;
+	return <div className="ms-auto flex items-center gap-1 max-lg:gap-2 lg:-me-2.5">{children}</div>;
 }
 
 function Empty({ children }: { children: string }) {

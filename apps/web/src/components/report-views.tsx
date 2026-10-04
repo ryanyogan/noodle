@@ -1575,23 +1575,33 @@ function CashFlowView({ data, nav, tables, names }: ViewProps<"cash-flow">) {
 			renderRow={(row, bar) => {
 				const name = nameOf.get(row.key) ?? "";
 				const area = areaOf(row.key);
-				// A row with nowhere to drill keeps the same shape, so amounts and bars line up.
+				// The chevron sits on the amount's line, so every bar runs to the card's padding. A row
+				// with nowhere to drill keeps the chevron's space, so the amounts stay in one column.
 				return (
-					<DrillRow
+					<RowButton
 						onClick={() => area && nav.area(area)}
 						disabled={!area}
-						label={`${name}: ${formatMoney(row.amount)}`}
+						aria-label={`${name}: ${formatMoney(row.amount)}`}
+						className="group -mx-2 w-[calc(100%+1rem)] px-2"
 					>
 						<span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-1.5">
-							<span className="flex items-baseline gap-3">
+							<span className="flex items-baseline gap-2">
 								<span className="min-w-0 flex-1 text-sm font-medium break-words">{name}</span>
 								<span className="shrink-0 text-sm font-semibold tabular-nums">
 									{formatMoney(row.amount)}
 								</span>
+								{area ? (
+									<ChevronRight
+										aria-hidden="true"
+										className="size-4 shrink-0 self-center text-subtle-foreground transition-transform duration-(--duration-fast) group-hover:translate-x-0.5"
+									/>
+								) : (
+									<span className="size-4 shrink-0" />
+								)}
 							</span>
 							{bar}
 						</span>
-					</DrillRow>
+					</RowButton>
 				);
 			}}
 		/>
