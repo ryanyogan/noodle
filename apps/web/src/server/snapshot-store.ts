@@ -155,7 +155,15 @@ type ListedBucket = {
 };
 
 /** Removes deleted Households' last snapshots once they are 30 days old (by when R2 took them). */
-export async function pruneFinalSnapshots(bucket: ListedBucket, now: Date): Promise<string[]> {
+export async function pruneFinalSnapshots(
+	bucket: ListedBucket,
+	now: Date,
+	/**
+	 * Called for each deleted Household before its last snapshot goes, to delete the statement and
+	 * Receipt files kept for it. If it throws, the snapshot stays and the next night tries again.
+	 */
+	onExpire?: (householdId: string) => Promise<void>,
+): Promise<string[]> {
 	const cutoff = now.getTime() - FINAL_SNAPSHOT_DAYS * 86_400_000;
 	const gone: string[] = [];
 	let cursor: string | undefined;
@@ -164,6 +172,12 @@ export async function pruneFinalSnapshots(bucket: ListedBucket, now: Date): Prom
 		const keys = page.objects
 			.filter((object) => object.uploaded.getTime() <= cutoff)
 			.map((object) => object.key);
+		if (onExpire) {
+			const householdIds = new Set(
+				keys.map((key) => key.slice(FINAL_SNAPSHOT_PREFIX.length).split("/")[0] ?? ""),
+			);
+			for (const householdId of householdIds) if (householdId) await onExpire(householdId);
+		}
 		if (keys.length > 0) await bucket.delete(keys);
 		gone.push(...keys);
 		if (!page.truncated) break;

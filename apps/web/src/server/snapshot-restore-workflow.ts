@@ -3,6 +3,7 @@ import { NonRetryableError } from "cloudflare:workflows";
 import { clerkClient } from "@clerk/tanstack-react-start/server";
 import {
 	clearForRestore,
+	learnedMerchantBuckets,
 	linkedBankConnectionIds,
 	listParents,
 	RESTORED_BY_INSERT,
@@ -12,14 +13,19 @@ import {
 	restoreTable,
 	snapshotRefusal,
 } from "@noodle/db";
+import { referencedFiles } from "@noodle/domain";
 import { disconnectBankConnection } from "./bank-disconnect";
+import { categorizeDeps } from "./categorize";
 import { getDb } from "./db";
 import { sendEmail } from "./email/send";
 import { emailHtml } from "./email/templates";
+import { holdFiles } from "./file-holds";
+import { filePrefixes, runClearStep } from "./fresh-start-clear";
 import { clearDeps } from "./fresh-start-workflow";
+import { relearnBatches, relearnMerchants } from "./merchant-rebuild";
 import { notifyHousehold } from "./notify";
 import type { NudgeDelivery } from "./nudge-delivery";
-import { newestMigration, readSnapshot } from "./snapshot-store";
+import { newestMigration, readSnapshot, snapshotKey } from "./snapshot-store";
 
 // Restoring a Household snapshot (#78, ADR-0035). The Parent's typed confirmation and the
 // "Before restore" snapshot happen before this starts (snapshots.ts). Then, a step at a time, each
@@ -109,6 +115,22 @@ export class SnapshotRestoreWorkflow extends WorkflowEntrypoint<Env, RestorePara
 		await step.do("stop background work", RETRY, () =>
 			env.HOUSEHOLD_AGENT.getByName(householdId).clearHousehold(),
 		);
+		// The merchant index forgets what the Household taught it, while the rows that say which
+		// merchants those are still exist; it is built again from the restored rows at the end.
+		await step.do("forget merchants", RETRY, () =>
+			runClearStep(clearDeps(householdId), "merchants", householdId, "fresh-start"),
+		);
+		// Files the rows about to go refer to stay in R2 for the "Before restore" snapshot (its id
+		// is this instance's); noted, so the nightly run deletes them once no snapshot needs them.
+		await step.do("note files the snapshots still need", RETRY, async () => {
+			const before = await readSnapshot(env.BACKUPS, snapshotKey(householdId, event.instanceId));
+			if (!before) return;
+			await holdFiles(
+				env.BACKUPS,
+				householdId,
+				referencedFiles(before.tables, filePrefixes(householdId)),
+			);
+		});
 		await step.do("clear the Household's rows", RETRY, () => clearForRestore(getDb(), householdId));
 		await step.do("put back members", RETRY, async () =>
 			restoreMembers(getDb(), householdId, (await load(key)).tables.members ?? []),
@@ -166,6 +188,23 @@ export class SnapshotRestoreWorkflow extends WorkflowEntrypoint<Env, RestorePara
 				JSON.stringify({ householdId, snapshot: event.payload.snapshotId }),
 			);
 		});
+		// Last, and never failing the restore: the merchant index learns again what the restored
+		// rows say the Household taught it (each merchant's vector is written over, so a retry or a
+		// second run changes nothing). If the model is down, merchants are learned again one by one
+		// as Transactions are assigned.
+		try {
+			const learned = await step.do("find merchants to learn again", RETRY, () =>
+				learnedMerchantBuckets(getDb(), householdId),
+			);
+			for (const [i, batch] of relearnBatches(learned).entries()) {
+				await step.do(`learn merchants again ${i + 1}`, RETRY, async () => {
+					await relearnMerchants(categorizeDeps().merchants, householdId, batch);
+				});
+			}
+			console.log("Merchant index rebuilt", JSON.stringify({ householdId, n: learned.length }));
+		} catch (error) {
+			console.error(`Couldn’t rebuild the merchant index for ${householdId}`, error);
+		}
 		return { ok: true };
 	}
 }
