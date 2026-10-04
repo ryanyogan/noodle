@@ -1223,10 +1223,10 @@ export function FlowSankey({
 		kind === "source"
 			? "var(--chart-income)"
 			: kind === "hub"
-				? "var(--chart-net)"
+				? "var(--chart-flow-hub)"
 				: key === "out:saved"
 					? "var(--chart-income)"
-					: "var(--chart-spend)";
+					: "var(--chart-flow-out)";
 	return (
 		<ChartContainer config={{}} className="aspect-auto h-80 w-full lg:h-96">
 			<Sankey

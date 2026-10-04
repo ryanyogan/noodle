@@ -99,6 +99,10 @@
 	--chart-net: var(--foreground);
 	--chart-grid: var(--border);
 	--chart-mid: var(--surface-3);
+	/* Cash flow's middle (Household) and right-hand nodes: ink in light; in dark the two quieter
+	   text greys, so they aren't the brightest things on the page. */
+	--chart-flow-hub: var(--chart-net);
+	--chart-flow-out: var(--chart-spend);
 	--chart-seq-1: color-mix(in oklab, var(--brand) 14%, var(--card));
 	--chart-seq-2: color-mix(in oklab, var(--brand) 34%, var(--card));
 	--chart-seq-3: color-mix(in oklab, var(--brand) 60%, var(--card));
@@ -121,6 +125,8 @@
 	--destructive: var(--over);
 	/* Input, Select and Textarea borders: at least 3:1 (WCAG 1.4.11) on the card, surface-2 and the page. */
 	--input: #86888f;
+	/* An off Switch's track; its edge is --input. */
+	--switch-track: var(--surface-3);
 	--ring: var(--brand);
 
 	/* Motion durations (easings live in @theme as ease-standard / ease-spring) */
@@ -217,9 +223,13 @@
 		--bucket-7: #c47a36;
 		--bucket-8: #d55181;
 		--chart-spend: #c3c6ce;
-		--chart-compare: #30333a;
+		/* A quiet reference series (Explore's Plan bars, a comparison period): 3.1:1 on the card. */
+		--chart-compare: #626570;
 		--chart-allowance: #6a6d77;
 		--input: #6c6f79;
+		--switch-track: var(--input);
+		--chart-flow-hub: var(--muted-foreground);
+		--chart-flow-out: var(--subtle-foreground);
 	}
 }
 
@@ -259,6 +269,7 @@
 	--color-border: var(--border);
 	--color-border-strong: var(--border-strong);
 	--color-input: var(--input);
+	--color-switch-track: var(--switch-track);
 	--color-ring: var(--ring);
 	--color-surface-2: var(--surface-2);
 	--color-surface-3: var(--surface-3);

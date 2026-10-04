@@ -6,6 +6,9 @@ import { cn } from "#lib/utils";
 // system's tokens, at the size the app's own switch had (40×24): a setting that takes effect at
 // once. It's a button with role=switch; name it with a <label htmlFor>.
 //
+// Off, its edge is `--input` (at least 3:1 on a card, ADR-0038) and its track `--switch-track`: the
+// light grey step in light; in dark the same grey as the edge, so the dark thumb shows on it (3.6:1).
+//
 // Below lg its tap area is a 44×44 ::after box centred on it (#74). `inset: calc(50% - 22px)`
 // centres it whatever the control's size or border (a negative inset is measured from inside the
 // border, which left it 42px and off-centre), and `z-1` keeps it over the positioned elements that
@@ -16,7 +19,7 @@ function Switch({ className, ...props }: React.ComponentProps<typeof SwitchPrimi
 		<SwitchPrimitive.Root
 			data-slot="switch"
 			className={cn(
-				"peer group/switch relative inline-flex h-6 w-10 shrink-0 max-lg:z-1 max-lg:after:absolute max-lg:after:inset-[calc(50%-22px)] items-center rounded-full border border-border-strong bg-surface-3 p-0.5",
+				"peer group/switch relative inline-flex h-6 w-10 shrink-0 max-lg:z-1 max-lg:after:absolute max-lg:after:inset-[calc(50%-22px)] items-center rounded-full border border-input bg-switch-track p-0.5",
 				"transition-colors duration-(--duration-fast) ease-standard",
 				"focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
 				"disabled:cursor-not-allowed disabled:opacity-50",
