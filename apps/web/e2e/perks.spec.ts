@@ -4,6 +4,7 @@ import { expectSectionHeaderKept, markSectionHeader } from "./section";
 import {
 	choose,
 	createPlannedHousehold,
+	openFromMore,
 	pickQuickAddBucket,
 	signedInPage,
 	switchTo,
@@ -163,4 +164,52 @@ test("a card added by hand covers a cost already paid; a page that can't be read
 	await expect(card).toHaveCount(0);
 	await page.goto("/insights");
 	await expect(overlap).toHaveCount(0);
+});
+
+test("Phones reach Insights and Credit card perks from This Month's More menu", {
+	tag: "@phone",
+}, async ({ browser }) => {
+	const page = await signedInPage(browser, parent.email, {
+		viewport: { width: 393, height: 852 },
+		isMobile: true,
+		hasTouch: true,
+	});
+	await createPlannedHousehold(page, { baseline: "9,000", buckets: [["Groceries", "1,200"]] });
+	await openFromMore(page, "Insights");
+	await expect(page).toHaveURL(/\/insights$/);
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Insights");
+
+	await page.goBack();
+	await page.getByRole("button", { name: "More" }).click();
+	await expect(page.getByRole("menuitem")).toHaveText([
+		"Reports",
+		"Insights",
+		"Credit card perks",
+		"Ask",
+		"Glossary…",
+	]);
+	if (process.env.SHOT_DIR) {
+		await page.screenshot({ path: `${process.env.SHOT_DIR}/more-menu-393.png` });
+	}
+	await page.getByRole("menuitem", { name: "Credit card perks", exact: true }).click();
+	await expect(page).toHaveURL(/\/insights\/perks$/);
+	await expect(page.getByText("No Perk Sources yet")).toBeVisible();
+	await page.context().close();
+});
+
+test("the Sidebar has Credit card perks of its own, beside Insights", async ({ browser }) => {
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "9,000", buckets: [["Groceries", "1,200"]] });
+	const nav = page.getByRole("navigation", { name: "Main" });
+	await expect(nav.getByRole("group", { name: "Understand" }).getByRole("link")).toHaveText([
+		"Reports",
+		"Insights",
+		"Credit card perks",
+		"Ask",
+	]);
+	await nav.getByRole("link", { name: "Credit card perks" }).click();
+	await expect(page).toHaveURL(/\/insights\/perks$/);
+	await expect(page.getByText("No Perk Sources yet")).toBeVisible();
+	await expect(nav.locator("[aria-current=page]")).toHaveText("Credit card perks");
+	await page.context().close();
 });

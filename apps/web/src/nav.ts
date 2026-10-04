@@ -4,6 +4,7 @@ import {
 	CalendarCheck,
 	CalendarDays,
 	ChartColumn,
+	CreditCard,
 	Landmark,
 	Lightbulb,
 	List,
@@ -30,6 +31,8 @@ export type NavItem = {
 	action?: "glossary";
 	/** Routes that belong to this destination though they aren't under `to`: current there too. */
 	within?: To[];
+	/** Routes under `to` that are a destination of their own: not current there. */
+	except?: To[];
 	/** What to show beside it: how many Transactions wait in Review, or a Check-in not yet done. */
 	badge?: "review" | "check-in";
 	/**
@@ -76,7 +79,9 @@ export const navGroups: NavGroup[] = [
 		label: "Understand",
 		items: [
 			{ label: "Reports", icon: ChartColumn, to: "/reports" },
-			{ label: "Insights", icon: Lightbulb, to: "/insights" },
+			{ label: "Insights", icon: Lightbulb, to: "/insights", except: ["/insights/perks"] },
+			// Perks are a tab of Insights, but Parents look for them by name (#80): their own entry.
+			{ label: "Credit card perks", icon: CreditCard, to: "/insights/perks" },
 			{ label: "Ask", icon: MessageCircleQuestionMark, to: "/ask" },
 		],
 	},

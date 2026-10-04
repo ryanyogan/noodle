@@ -164,7 +164,8 @@ test("the sidebar marks the section you're in, collapses to a rail, and holds th
 		["/review", "Transactions"],
 		["/review/rules", "Transactions"],
 		["/explore/afford", "Explore"],
-		["/insights/perks", "Insights"],
+		["/insights", "Insights"],
+		["/insights/perks", "Credit card perks"],
 	] as const) {
 		await page.goto(path);
 		await expect(current).toHaveText(label);

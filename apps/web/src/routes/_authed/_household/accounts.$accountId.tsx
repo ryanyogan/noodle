@@ -67,12 +67,14 @@ import {
 	useRenameAccount,
 	useUpdateAccountBalance,
 } from "../../../goals";
+import { perkSourcesForAccount } from "../../../perks";
 import {
 	accountImportsQuery,
 	bankConnectionsQuery,
 	goalsQuery,
 	membersQuery,
 	monthQuery,
+	perkSourcesQuery,
 } from "../../../queries";
 import { unpairBankAccount } from "../../../server/bank-connections";
 import { accountTransactionsQuery, type TransactionRow } from "../../../transactions";
@@ -88,6 +90,7 @@ export const Route = createFileRoute("/_authed/_household/accounts/$accountId")(
 		await Promise.all([
 			context.queryClient.ensureInfiniteQueryData(accountTransactionsQuery(params.accountId)),
 			context.queryClient.ensureQueryData(membersQuery()),
+			context.queryClient.ensureQueryData(perkSourcesQuery()),
 		]);
 	},
 	pendingComponent: DetailPending,
@@ -356,7 +359,10 @@ function AccountDetails({ account }: { account: AccountView }) {
 							</List>
 						</Section>
 					) : (
-						<PayOffSection account={account} />
+						<>
+							<PayOffSection account={account} />
+							<CardPerks account={account} />
+						</>
 					)}
 				</div>
 				<div className="grid min-w-0 gap-8 @3xl:col-start-1 @3xl:row-start-1">
@@ -639,6 +645,28 @@ function AccountTransactions({ account }: { account: AccountView }) {
 				parentId={parentId}
 				onClose={() => setEditing(null)}
 			/>
+		</Section>
+	);
+}
+
+/** A credit card's Perks, when it has any: a way to them from the card (#80). */
+function CardPerks({ account }: { account: AccountView }) {
+	const sources = perkSourcesForAccount(account, useSuspenseQuery(perkSourcesQuery()).data);
+	const count = sources.reduce((sum, source) => sum + source.perks.length, 0);
+	if (count === 0) return null;
+	const names = sources.map((source) => source.name).join(", ");
+	const meta = `${count} ${count === 1 ? "Perk" : "Perks"} · ${names}`;
+	return (
+		<Section aria-labelledby="account-perks">
+			<SectionHeader id="account-perks" title="Perks" help={<TermHelp term="perk-source" />} />
+			<List>
+				<LinkRow
+					link={(props) => <Link to="/insights/perks" {...props} />}
+					label={`Perks for this card, ${meta}`}
+					title="Perks for this card"
+					meta={meta}
+				/>
+			</List>
 		</Section>
 	);
 }

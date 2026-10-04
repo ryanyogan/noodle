@@ -48,6 +48,7 @@ function useIsCurrent(where: "sidebar" | "tabs") {
 	const matchRoute = useMatchRoute();
 	return (item: NavItem) => {
 		if (!item.to) return false;
+		if (item.except?.some((to) => matchRoute({ to, fuzzy: true }) !== false)) return false;
 		const routes = [item.to, ...(item.within ?? [])];
 		if (where === "tabs") routes.push(...(item.tab?.within ?? []));
 		return routes.some((to) => matchRoute({ to, fuzzy: true }) !== false);

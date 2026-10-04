@@ -1,5 +1,5 @@
 import type { PerkSourceItem } from "@noodle/db";
-import type { PerkSourceKind } from "@noodle/domain";
+import { catalogEntryFor, type PerkSourceKind } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ulid } from "ulid";
@@ -94,4 +94,26 @@ export function useUpdatePerkSource() {
 		onError: () => toast("Couldn’t save that. Try again.", { tone: "error" }),
 		onSettled: refetch,
 	});
+}
+
+/**
+ * The confirmed credit-card Perk Sources with Perks that are this card Account's: the one Noodle
+ * spotted in its name, or one the catalog knows as the same card.
+ */
+export function perkSourcesForAccount(
+	account: { name: string; kind: string },
+	sources: PerkSourceItem[],
+): PerkSourceItem[] {
+	if (account.kind !== "credit-card") return [];
+	const name = account.name.trim();
+	const entry = catalogEntryFor(name);
+	return sources.filter(
+		(source) =>
+			source.status === "confirmed" &&
+			source.kind === "credit-card" &&
+			source.perks.length > 0 &&
+			(source.seenIn === name ||
+				source.name.trim().toLowerCase() === name.toLowerCase() ||
+				(entry !== undefined && catalogEntryFor(source.name) === entry)),
+	);
 }
