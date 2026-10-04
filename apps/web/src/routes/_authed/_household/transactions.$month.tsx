@@ -46,7 +46,7 @@ import { Suspense, useEffect, useId, useLayoutEffect, useRef, useState } from "r
 import { z } from "zod";
 import { QuickAddLink } from "../../../components/app-shell";
 import { type FilterOption, FilterSelect } from "../../../components/filter-select";
-import { DetailPending } from "../../../components/master-detail";
+import { DetailPending, sectionHeaderOverItem } from "../../../components/master-detail";
 import { TransactionEditor } from "../../../components/transaction-editor";
 import {
 	TRANSACTION_COLUMNS,
@@ -174,6 +174,8 @@ function TransactionsPage() {
 		<>
 			<PageHeader
 				eyebrow="Transactions"
+				// On a phone a Transaction opened at its own address has its own header (#74).
+				className={sectionHeaderOverItem}
 				title={sameYear ? monthName(month) : `${monthName(month)} ${month.slice(0, 4)}`}
 				actions={
 					<div className="flex flex-wrap items-center justify-end gap-1">
