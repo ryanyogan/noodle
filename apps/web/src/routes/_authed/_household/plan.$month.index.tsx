@@ -12,7 +12,7 @@ import { Alert, AlertDescription } from "@noodle/ui/components/alert";
 import { BudgetBar } from "@noodle/ui/components/budget-bar";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
-import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
+import { SectionGrid, SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
 import { List } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { cn } from "@noodle/ui/lib/utils";
@@ -91,14 +91,18 @@ function PlanOverview() {
 							</span>
 						</Card>
 					)}
-					{month === current ? <PlanHealth folded /> : null}
-					{/* Until take-home pay is set, the rest is all zeros: setting up comes first. */}
-					{settingUp && state.baseline === null ? null : (
-						<div className="grid gap-3">
-							<Waterfall state={state} current={month === current} />
-							<LumpCallout lumps={lumpsIn(state)} month={month} />
-						</div>
-					)}
+					{/* From 1920 the main column has room for two: what to check beside the Plan's
+					    waterfall, rather than two blocks a metre wide (#73). Narrower, one under the other. */}
+					<SectionGrid className="empty:hidden xl:grid-cols-[minmax(0,1fr)] min-[120rem]:grid-cols-2">
+						{month === current ? <PlanHealth folded /> : null}
+						{/* Until take-home pay is set, the rest is all zeros: setting up comes first. */}
+						{settingUp && state.baseline === null ? null : (
+							<div className="grid gap-3 only:col-span-full">
+								<Waterfall state={state} current={month === current} />
+								<LumpCallout lumps={lumpsIn(state)} month={month} />
+							</div>
+						)}
+					</SectionGrid>
 				</SplitMain>
 				{settingUp && state.baseline === null ? null : (
 					<SplitRail>
@@ -448,6 +452,8 @@ function Bar({ bar, tone }: { bar: BarSpan; tone: "step" | "total" | "over" }) {
 
 /** How many changes What changed shows before "Show all". */
 const CHANGES_FOLDED = 3;
+/** How many the rail shows at lg, where the Plan beside it is taller (#73). */
+const CHANGES_FOLDED_WIDE = 6;
 
 /**
  * What changed in this month's Plan since the month before, item by item, and who changed it.
@@ -458,7 +464,7 @@ function WhatChanged({ month, first }: { month: MonthKey; first: MonthKey | null
 	const groups = whatChanged(data.changes, month);
 	// Folded to the first few (#73), so the rail stays about as tall as the Plan beside it.
 	const [all, setAll] = useState(false);
-	const shown = all ? groups : groups.slice(0, CHANGES_FOLDED);
+	const shown = all ? groups : groups.slice(0, CHANGES_FOLDED_WIDE);
 	// Nothing to compare with yet: the Household's first month, or no Plan changes at all.
 	const fresh = data.historyStart === null || first === null || month <= first;
 	return (
@@ -472,8 +478,15 @@ function WhatChanged({ month, first }: { month: MonthKey; first: MonthKey | null
 				</p>
 			) : (
 				<List>
-					{shown.map((group) => (
-						<li key={group.key} className="grid gap-0.5 px-(--card-pad) py-3">
+					{shown.map((group, index) => (
+						<li
+							key={group.key}
+							className={cn(
+								"grid gap-0.5 px-(--card-pad) py-3",
+								// A phone folds to the first three; the rail has room for six.
+								!all && index >= CHANGES_FOLDED && "max-lg:hidden",
+							)}
+						>
 							<p className="text-sm font-medium">{groupTitle(group)}</p>
 							{group.kind === "personal-allowance" ? null : (
 								<p className="text-sm">{describeGroup(group)}</p>
@@ -487,7 +500,10 @@ function WhatChanged({ month, first }: { month: MonthKey; first: MonthKey | null
 				<Button
 					variant="ghost"
 					size="sm"
-					className="self-start justify-self-start"
+					className={cn(
+						"self-start justify-self-start",
+						groups.length <= CHANGES_FOLDED_WIDE && "lg:hidden",
+					)}
 					aria-expanded={all}
 					onClick={() => setAll(!all)}
 				>
