@@ -487,23 +487,15 @@
 }
 
 /*
- * Scrollbars (#73). The Sidebar and MasterDetail's panes scroll on their own; their bar is thin and
- * shows only while the pointer or focus is in them, in the theme's border colour (light and dark).
- * A pane keeps its gutter, so its content doesn't jump sideways when it starts to scroll.
+ * Scrollbars (#73). The Sidebar is the one region that scrolls on its own; its bar is thin and
+ * shows only while the pointer or focus is in it, in the theme's border colour (light and dark).
  */
 @layer base {
-	[data-slot="sidebar-content"],
-	[data-scroll-pane] {
+	[data-slot="sidebar-content"] {
 		scrollbar-width: thin;
 		scrollbar-color: transparent transparent;
 	}
-	[data-slot="sidebar-content"]:is(:hover, :focus-within),
-	[data-scroll-pane]:is(:hover, :focus-within) {
+	[data-slot="sidebar-content"]:is(:hover, :focus-within) {
 		scrollbar-color: var(--border-strong) transparent;
-	}
-	@media (min-width: 64rem) {
-		[data-scroll-pane] {
-			scrollbar-gutter: stable;
-		}
 	}
 }

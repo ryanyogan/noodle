@@ -44,6 +44,11 @@ type Shot = {
 	ready?: (page: Page) => Promise<void>;
 	/** Only at phone widths, and only what's in the window (a sheet over the page). */
 	phoneSheet?: boolean;
+	/**
+	 * The page draws only the rows in the window (Transactions): the window is made as tall as the
+	 * page for the picture, or the rows below the fold come out as an empty card.
+	 */
+	tall?: boolean;
 };
 
 let parent: Awaited<ReturnType<typeof createTestParent>> | undefined;
@@ -66,7 +71,11 @@ async function settled(page: Page) {
 	await expect(page.locator("h1:visible, [data-slot=page-header]:visible").first()).toBeVisible({
 		timeout: 30_000,
 	});
-	await expect(page.locator("[data-slot=skeleton]:visible")).toHaveCount(0, { timeout: 20_000 });
+	// A long list's "loading more" row stays a skeleton until it's scrolled to: not waited for.
+	await expect(page.locator("[data-slot=skeleton]:visible:not([data-loading-more] *)")).toHaveCount(
+		0,
+		{ timeout: 20_000 },
+	);
 	await page.evaluate(() => document.fonts.ready);
 	// Charts and sheets finish their entrance.
 	await page.waitForTimeout(600);
@@ -317,8 +326,12 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "07-plan-commitment", path: `/plan/${month}/commitments/${firstCommitment}` },
 		{ name: "08-plan-goal-funding", path: `/plan/${month}/goals` },
 		{ name: "09-plan-year", path: `/plan/${month}/year` },
-		{ name: "10-transactions", path: `/transactions/${month}` },
-		{ name: "11-transaction-open", path: `/transactions/${month}/${ids.openTransaction}` },
+		{ name: "10-transactions", path: `/transactions/${month}`, tall: true },
+		{
+			name: "11-transaction-open",
+			path: `/transactions/${month}/${ids.openTransaction}`,
+			tall: true,
+		},
 		{ name: "12-review-cards", path: "/review" },
 		{ name: "13-review-list", path: "/review?view=list" },
 		{ name: "14-rules", path: "/review/rules" },
@@ -381,11 +394,26 @@ for (const viewport of viewports) {
 					await shot.ready(page);
 					await settled(page);
 				}
+				if (shot.tall) {
+					// To the end and back first, as a Parent would scroll: rows that only draw near the
+					// screen have then all had their turn.
+					for (let pages = 0; pages < 10; pages++) {
+						await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+						await page.waitForTimeout(600);
+						if ((await page.locator("[data-loading-more]").count()) === 0) break;
+					}
+					await page.evaluate(() => window.scrollTo(0, 0));
+					await page.waitForTimeout(400);
+					const height = await page.evaluate(() => document.documentElement.scrollHeight);
+					await page.setViewportSize({ width: viewport.width, height: Math.min(height, 12_000) });
+					await page.waitForTimeout(500);
+				}
 				await page.screenshot({
 					path: join(dir, `${shot.name}.png`),
 					fullPage: !shot.phoneSheet,
 					animations: "disabled",
 				});
+				if (shot.tall) await page.setViewportSize(viewport);
 			} catch (error) {
 				failures.push(`${shot.name} (${shot.path}): ${String(error).split("\n")[0]}`);
 				// What it looked like when it gave up, if the page is still there.

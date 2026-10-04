@@ -60,9 +60,9 @@ describe("MasterDetail", () => {
 		expect(tag(html, "master-detail-detail")).not.toContain("max-lg:hidden");
 	});
 
-	it("marks both panes as the regions allowed to scroll, and names them", () => {
+	it("names both panes, and neither scrolls on its own", () => {
 		const html = renderToStaticMarkup(h(MasterDetail, { ...labels, list: "a", detail: "b" }));
-		expect(html.match(/data-scroll-pane/g)).toHaveLength(2);
+		expect(html).not.toMatch(/data-scroll-pane|overflow-y|max-h-/);
 		expect(tag(html, "master-detail-list")).toContain('aria-label="Buckets"');
 		expect(tag(html, "master-detail-detail")).toContain('aria-label="Bucket"');
 	});

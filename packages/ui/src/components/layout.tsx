@@ -174,49 +174,32 @@ function SplitRail({ className, ...props }: React.ComponentProps<"div">) {
 	);
 }
 
-const FOCUSABLE =
-	'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
-
 /**
- * One of MasterDetail's panes. While it scrolls and holds nothing that takes focus, it takes focus
- * itself, so the keyboard can scroll it (WCAG 2.1.1; axe's scrollable-region-focusable).
+ * One of MasterDetail's panes. No pane scrolls on its own (#73): one that fits in the window stays
+ * in view (sticky) while its longer neighbour scrolls with the page, and one taller than the window
+ * simply flows with the page, so its end is reached by scrolling the page.
  */
 function Pane({ className, ...props }: React.ComponentProps<"section">) {
 	const ref = React.useRef<HTMLElement>(null);
-	const [focusable, setFocusable] = React.useState(false);
+	const [fits, setFits] = React.useState(true);
 	React.useEffect(() => {
 		const pane = ref.current;
 		if (!pane) return;
-		const measure = () =>
-			setFocusable(
-				pane.scrollHeight > pane.clientHeight + 1 &&
-					getComputedStyle(pane).overflowY === "auto" &&
-					!pane.querySelector(FOCUSABLE),
-			);
+		const measure = () => setFits(pane.offsetHeight + RAIL_INSET * 2 <= window.innerHeight);
 		measure();
 		const resized = new ResizeObserver(measure);
 		resized.observe(pane);
-		const changed = new MutationObserver(measure);
-		changed.observe(pane, { childList: true, subtree: true });
 		window.addEventListener("resize", measure);
 		return () => {
 			resized.disconnect();
-			changed.disconnect();
 			window.removeEventListener("resize", measure);
 		};
 	}, []);
 	return (
 		<section
 			ref={ref}
-			data-scroll-pane=""
-			tabIndex={focusable ? 0 : undefined}
-			className={cn(
-				// relative: something absolutely placed inside (an sr-only label) is clipped by the pane
-				// too. Otherwise its containing block is outside the pane, and it lengthens the page.
-				"min-w-0 lg:relative",
-				"focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
-				className,
-			)}
+			data-fits={fits}
+			className={cn("min-w-0 lg:data-[fits=true]:sticky lg:data-[fits=true]:top-6", className)}
 			{...props}
 		/>
 	);
@@ -225,11 +208,15 @@ function Pane({ className, ...props }: React.ComponentProps<"section">) {
 /**
  * A list beside the item picked from it. From lg the page scrolls as one (no pane scrolls on its
  * own, #73): the list is as long as it is, and the picked item sits beside it, its top level with
- * the list's first row, and stays in view (sticky) as the list scrolls. Only an item taller than
- * the window scrolls inside its own column. Picking an item from far down the list keeps its row
+ * the list's first row, and stays in view (sticky) as the list scrolls. An item taller than the
+ * window isn't held: it flows with the page, and the list stays in view instead if it is the
+ * shorter one. Picking an item from far down the list keeps its row
  * where it was in the window: the row's link must not reset the window's scroll
  * (`resetScroll={false}`), and the window follows the row if the list changes shape. Below lg it shows one level at a time: the list, or (once there is a `detail`) the
  * detail, as ordinary page content.
+ *
+ * An item taller than the window can't be held beside its row, so picking one takes the window to
+ * the item's start (just under the top of the window) instead of leaving it above the fold.
  *
  * `empty` fills the detail pane at lg while nothing is picked ("Pick a Bucket to see it").
  */
@@ -285,7 +272,12 @@ function MasterDetail({
 	// shape around it when an item opens (it narrows, and its column headings go), so the window is
 	// moved by however far the row moved. A scroll of the Parent's own ends it.
 	const root = React.useRef<HTMLDivElement>(null);
-	const held = React.useRef<{ item: HTMLElement; top: number; until: number } | null>(null);
+	const held = React.useRef<{
+		item: HTMLElement;
+		top: number;
+		until: number;
+		shown?: boolean;
+	} | null>(null);
 	const hold = (event: React.MouseEvent<HTMLDivElement>) => {
 		onClickCapture?.(event);
 		const item = (event.target as HTMLElement).closest<HTMLElement>("[data-md-item]");
@@ -307,8 +299,11 @@ function MasterDetail({
 			window.removeEventListener("keydown", letGo);
 		};
 	}, []);
-	// After every render: the list's shape may change on any of them while the item opens.
-	React.useLayoutEffect(() => {
+	// An item that fits the window is held beside its row. One taller than the window can't be: the
+	// row would keep its place while the item's start sat above the window, so the window goes to the
+	// item's start instead, just under the top. The panes start level with this grid's top, which is
+	// measured rather than the pane, since a pane that was sticky a moment ago isn't where it will be.
+	const settle = React.useCallback(() => {
 		const kept = held.current;
 		if (!kept) return;
 		if (Date.now() > kept.until) {
@@ -321,9 +316,30 @@ function MasterDetail({
 					"[data-slot=master-detail-list] [data-md-item][aria-current]",
 				);
 		if (!item) return;
+		const pane = root.current?.querySelector<HTMLElement>("[data-slot=master-detail-detail]");
+		const open =
+			item.closest("[aria-current]") !== null || item.querySelector("[aria-current]") !== null;
+		if (open && pane && pane.offsetHeight + RAIL_INSET * 2 > window.innerHeight) {
+			kept.shown = true;
+			const above = (root.current?.getBoundingClientRect().top ?? RAIL_INSET) - RAIL_INSET;
+			if (above < -1) window.scrollBy({ top: above, behavior: "instant" });
+			return;
+		}
+		// Once the window has gone to a tall item's start it isn't taken back to the row.
+		if (kept.shown) return;
 		const moved = item.getBoundingClientRect().top - kept.top;
 		if (Math.abs(moved) > 1) window.scrollBy({ top: moved, behavior: "instant" });
-	});
+	}, []);
+	// After every render: the list's shape may change on any of them while the item opens.
+	React.useLayoutEffect(settle);
+	// And whenever a pane changes size: the item's own content arrives without this rendering again.
+	React.useEffect(() => {
+		const grid = root.current;
+		if (!grid) return;
+		const resized = new ResizeObserver(settle);
+		for (const pane of grid.children) resized.observe(pane);
+		return () => resized.disconnect();
+	}, [settle]);
 	return (
 		<div
 			ref={root}
@@ -359,9 +375,6 @@ function MasterDetail({
 				aria-label={detailLabel}
 				className={cn(
 					"@container/detail",
-					// Stays beside the list as the page scrolls; scrolls itself only when taller than the
-					// window (3rem: the sticky inset above and below).
-					"lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto lg:overscroll-contain",
 					!picked && !emptyStacks && "max-lg:hidden",
 					!picked && listOnly && "lg:hidden",
 				)}

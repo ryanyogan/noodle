@@ -3,7 +3,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
-import { PageLayout } from "@noodle/ui/components/layout";
+import { PageLayout, SectionGrid } from "@noodle/ui/components/layout";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionGroup, SectionHeader } from "@noodle/ui/components/section";
@@ -11,7 +11,7 @@ import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/compon
 import { Tile } from "@noodle/ui/components/tile";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated, useRouter } from "@tanstack/react-router";
-import { Landmark, Pencil, Plus, UserRoundMinus } from "lucide-react";
+import { Pencil, Plus, UserRoundMinus } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram, nextBucketColor } from "../../../buckets";
@@ -74,82 +74,89 @@ function HouseholdPage() {
 	return (
 		<>
 			<PageHeader eyebrow="Household settings" title={household.name} />
-			{/* A settings page (#69): one column of groups, each a short heading over what a Parent sets. */}
-			<PageLayout width="reading">
-				<div className="grid gap-10">
-					<SectionGroup id="household" title="Household">
-						<HouseholdDetails household={household} />
-					</SectionGroup>
-					<SectionGroup id="people" title="People">
-						<Section aria-labelledby="parents">
-							<SectionHeader id="parents" title="Parents" count={data.parents.length} />
-							<List>
-								{data.parents.map((parent) => (
-									<ListRow
-										key={parent.id}
-										leading={<Tile>{parent.name.charAt(0).toUpperCase()}</Tile>}
-										title={parent.name}
-										meta={
-											// The email on its own line: beside "Parent" it wrapped or not by its
-											// length, so the row's height changed from one Parent to the next.
-											<span className="flex w-full min-w-0 flex-col">
-												<span>Parent</span>
-												{parent.email ? (
-													// One line, cut short when long (the whole address on hover), so every
-													// Parent's row is the same height whatever the address.
-													<span className="min-w-0 truncate" title={parent.email}>
-														{parent.email}
-													</span>
-												) : null}
-											</span>
-										}
-									/>
-								))}
-							</List>
-						</Section>
-						{data.hasAllParents ? null : (
-							<Section aria-labelledby="invite">
-								<SectionHeader id="invite" title="Invite the other Parent" />
-								<InviteOtherParent invite={data.invite} />
-							</Section>
-						)}
-						<Section aria-labelledby="children">
-							<SectionHeader id="children" title="Children" count={children.length} />
-							<SaveFailed change={remove} />
-							{children.length > 0 ? (
+			{/* A settings page (#69): groups, each a short heading over what a Parent sets. One column
+			    at the reading width below xl; from xl two columns of groups that use the page's width
+			    (#73), in reading order down the left then the right, with the Danger zone last across
+			    both. */}
+			<PageLayout className="max-xl:max-w-(--reading-width)">
+				<SectionGrid className="gap-y-10">
+					<div className="grid gap-10">
+						<SectionGroup id="household" title="Household">
+							<HouseholdDetails household={household} />
+						</SectionGroup>
+						<SectionGroup id="people" title="People">
+							<Section aria-labelledby="parents">
+								<SectionHeader id="parents" title="Parents" count={data.parents.length} />
 								<List>
-									{children.map((child) => (
-										<ChildRow
-											key={child.id}
-											child={child}
-											onRemove={(memberId) => remove.mutate({ memberId })}
+									{data.parents.map((parent) => (
+										<ListRow
+											key={parent.id}
+											leading={<Tile>{parent.name.charAt(0).toUpperCase()}</Tile>}
+											title={parent.name}
+											meta={
+												// The email on its own line: beside "Parent" it wrapped or not by its
+												// length, so the row's height changed from one Parent to the next.
+												<span className="flex w-full min-w-0 flex-col">
+													<span>Parent</span>
+													{parent.email ? (
+														// One line, cut short when long (the whole address on hover), so every
+														// Parent's row is the same height whatever the address.
+														<span className="min-w-0 truncate" title={parent.email}>
+															{parent.email}
+														</span>
+													) : null}
+												</span>
+											}
 										/>
 									))}
 								</List>
-							) : null}
-							<AddChild members={members} />
-						</Section>
-					</SectionGroup>
-					<SectionGroup id="reminders" title="Reminders">
-						<CheckInSettings />
-						<NudgeSettings />
-					</SectionGroup>
-					<SectionGroup id="bringing-in" title="Bringing in spending">
-						<ReceiptSettings />
-						<CaptureSettings />
-					</SectionGroup>
-					<SectionGroup id="setup" title="Setup">
-						<RunSetupAgain />
-					</SectionGroup>
-					<SectionGroup id="your-data" title="Your data">
-						<DataDownload />
-						<HouseholdSnapshots householdName={household.name} />
-					</SectionGroup>
-					<SectionGroup id="danger-zone" title="Danger zone">
+							</Section>
+							{data.hasAllParents ? null : (
+								<Section aria-labelledby="invite">
+									<SectionHeader id="invite" title="Invite the other Parent" />
+									<InviteOtherParent invite={data.invite} />
+								</Section>
+							)}
+							<Section aria-labelledby="children">
+								<SectionHeader id="children" title="Children" count={children.length} />
+								<SaveFailed change={remove} />
+								{children.length > 0 ? (
+									<List>
+										{children.map((child) => (
+											<ChildRow
+												key={child.id}
+												child={child}
+												onRemove={(memberId) => remove.mutate({ memberId })}
+											/>
+										))}
+									</List>
+								) : null}
+								<AddChild members={members} />
+							</Section>
+						</SectionGroup>
+						<SectionGroup id="reminders" title="Reminders">
+							<CheckInSettings />
+							<NudgeSettings />
+						</SectionGroup>
+					</div>
+					<div className="grid gap-10">
+						<SectionGroup id="bringing-in" title="Bringing in spending">
+							<ReceiptSettings />
+							<CaptureSettings />
+						</SectionGroup>
+						<SectionGroup id="setup" title="Setup">
+							<RunSetupAgain />
+						</SectionGroup>
+						<SectionGroup id="your-data" title="Your data">
+							<DataDownload />
+							<HouseholdSnapshots householdName={household.name} />
+						</SectionGroup>
+					</div>
+					<SectionGroup id="danger-zone" title="Danger zone" className="col-span-full">
 						<DangerZone householdName={household.name} />
 					</SectionGroup>
 					{/* The sidebar has the account button from lg; a phone has it here. */}
-					<SectionGroup id="account" title="Account" className="lg:hidden">
+					<SectionGroup id="account" title="Account" className="col-span-full lg:hidden">
 						<Card className="flex items-center gap-3 p-(--card-pad) text-sm text-muted-foreground">
 							<UserButton
 								appearance={{
@@ -159,7 +166,7 @@ function HouseholdPage() {
 							Manage your sign-in or sign out.
 						</Card>
 					</SectionGroup>
-				</div>
+				</SectionGrid>
 			</PageLayout>
 		</>
 	);
