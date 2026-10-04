@@ -232,3 +232,14 @@ The smallest OKLab distance (x100) between any two Bucket colours, and which pai
 
 - **75b:** the Parent picks one (or asks for a mix, say Warm paper light with Tinted night dark).
 - **75c:** implement it through the tokens only, re-run the dataviz validator on the Bucket and chart palettes in both modes, set `theme-color` and the iOS status bar per mode, add the hard-coded-colour check, axe colour-contrast on every page in both modes, screenshot baselines, an ADR and the token docs in COMPONENTS.md.
+
+## 5. Phase 75b: Warm paper applied
+
+The Parent picked **Warm paper** for both light and dark (#75). What changed:
+
+- **`globals.css`**: every value in the Warm paper columns above, light and dark, under the same token names: surfaces, borders, the three text levels, brand, Pace, Over, `--chart-spend`, `--chart-compare`, `--chart-allowance`, and light `--bucket-3` (`#058ca5`). The other Buckets are unchanged. The tints that are built from those colours follow them: `--brand-soft`, `--pace-soft`, `--over-soft` and the two page glows keep their old opacity on the new colour; light `--scrim` and the light shadows use the warm ink (`rgb(33 29 23 / …)`) instead of blue-black; dark `--scrim` is a warm black, and the dark pop outline and card highlight are a warm white at the same low opacity. Aliases (`--primary`, `--ring`, `--input`, the chart aliases) are unchanged, so they follow.
+- **Browser bar**: `theme-color` in `routes/__root.tsx` is `#f3efe7` in light and `#15120e` in dark (the page colour of each), and the manifest's `theme_color` and `background_color` are `#f3efe7`. The iOS `apple-mobile-web-app-status-bar-style` stays `black-translucent`: the page draws under the status bar, so the bar shows the page's own colour in both modes.
+- **Hard-coded colours**: outside `globals.css` the app had none in components or pages. The ones left on purpose: `public/favicon.svg` (the mark, which can't read CSS variables; its colours are the logo's), and `server/email/templates.ts` (email HTML can't use the app's CSS; its brand blue `#3e63dd` and grey are the email's own). Both are for 75c's colour lint to allow by name.
+- **Screenshots**: Playwright's per-pixel threshold (0.2) is wider than the step from the old cool tones to Warm paper, so `--update-snapshots=changed` kept the old images while passing. Every baseline was rewritten with `--update-snapshots=all` so the stored images show the new palette.
+
+Left for 75c: the dataviz validator on the Bucket and chart palettes in both modes; a separate, darker `--input` token (input border on card is 1.53:1 light, 1.43:1 dark); the Pace marker on the track in light (2.19:1, next to the "Ahead" words); the hard-coded-colour lint; axe on every page in both modes; an ADR.

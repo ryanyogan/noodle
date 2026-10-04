@@ -56,6 +56,10 @@ Never let the CLI overwrite a file here.
 | Field, FormError | Noodle's own | A labelled control with its hint or error. `FormError` is the error under a form: the destructive Alert with `role="alert"`, laid out as a row so a "Try again" Button can sit beside the words. |
 | List, PageHeader, Section, SectionGroup, Tile, EmptyState, Logo | Noodle's own | ListRow `below` sits under the title and trailing columns; `belowFull` widens it to the whole row, under the leading tile, for a form opened in the row. SectionGroup puts Sections under one short heading (Household's People, Reminders, Setup) and drops their headings to h3. |
 
+## Palette (#75)
+
+The colours are **Warm paper**, picked by the Parent in #75: in light, an off-white paper page (`--background #f3efe7`), a cream card (`--card #fbf9f4`, never pure white) and warm ink (`--foreground #211d17`); in dark, warm brown-blacks that step up (`#15120e` page, `#1d1a15` card, `#24201a`/`#2d2821` surfaces) with cream text (`#f2ece2`). The blue accent (`--brand`), marigold Pace and red Over stay, tuned to the new grounds; Bucket colours are unchanged except light `--bucket-3` (`#058ca5`, to stay 3:1 on the warmer track). Every value, and its measured contrast, is in `docs/reviews/theme.md`. The browser bar (`theme-color` in `routes/__root.tsx`, and the manifest) matches the page colour of each mode. Components never name a colour: they use the token utilities (`bg-card`, `text-muted-foreground`, `bg-bucket-3`, …), so a palette change is a value change in `globals.css` only.
+
 ## The page grid
 
 `components/layout.tsx`. A page below the shared header (`SectionLayout` or `PageHeader`) is one of three layouts, so rail widths, gutters and column tops are the same on every page. Don't write a two-column `lg:grid-cols-[…]` template in a page: `apps/web/src/layout-grids.test.ts` fails on a new one (its list of exceptions is for grids inside one card). ADR-0024 has the reasons.
