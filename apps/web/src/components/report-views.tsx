@@ -1542,7 +1542,7 @@ function CashFlowView({ data, nav, tables, names }: ViewProps<"cash-flow">) {
 	return (
 		<div className="grid gap-4 lg:gap-6">
 			<Card>
-				<StatGrid size="lg" className="grid-cols-3 gap-4 p-(--card-pad)">
+				<StatGrid size="lg" className="grid-cols-2 gap-4 p-(--card-pad) sm:grid-cols-3">
 					<ReportStat label="Came in" value={formatMoney(data.earned)} />
 					<ReportStat index={1} label="Went out" value={formatMoney(data.spent)} />
 					<ReportStat index={2} label="To Goals" value={formatMoney(data.goals)} />
