@@ -243,3 +243,14 @@ The Parent picked **Warm paper** for both light and dark (#75). What changed:
 - **Screenshots**: Playwright's per-pixel threshold (0.2) is wider than the step from the old cool tones to Warm paper, so `--update-snapshots=changed` kept the old images while passing. Every baseline was rewritten with `--update-snapshots=all` so the stored images show the new palette.
 
 Left for 75c: the dataviz validator on the Bucket and chart palettes in both modes; a separate, darker `--input` token (input border on card is 1.53:1 light, 1.43:1 dark); the Pace marker on the track in light (2.19:1, next to the "Ahead" words); the hard-coded-colour lint; axe on every page in both modes; an ADR.
+
+## 6. Phase 75c: finishing Warm paper
+
+Decision recorded in ADR-0034 (Warm paper, and every colour through a token).
+
+- **`--input`** is its own token now, no longer `--border-strong`: `#8f8574` light (3.46:1 on the card, 3.06 on surface-2, 3.17 on the page) and `#7a705f` dark (3.56, 3.32, 3.83). Input, Select and Textarea draw their border with `border-input`; Select's hover goes to `muted-foreground` so it still darkens.
+- **Pace** in light is `#a86c06` (was `#cf8a0c`): 3.32:1 on the bar track (`--surface-3`, was 2.19) and 4.15 on the card. `--pace-soft` and the second page glow follow it. Dark Pace is unchanged (7.66 on the track).
+- **Dataviz validator** (`validate_palette.js`, adjacent pairs, against the card). Before: light failed colour-blind separation (Bucket 2 `#a347ba` against Bucket 3, deutan 5.3); dark failed it (Bucket 2 `#c27ad6` against Bucket 1, protan 3.1) and the lightness band (Bucket 2 at L 0.689). Only Bucket 2 changed, order kept: light `#8e3fa8`, dark `#a95cc0`. After: every check passes in both modes; the worst colour-blind pair is in the 6–8 warning band (light Bucket 6 and 7, deutan 6.1; dark Bucket 1 and 2, deutan 6.5; dark tritan 6.4), which is allowed because every Bucket's name sits beside its colour.
+- **Chart palette** (spend ink, income brand, allowance grey): colour-blind separation and contrast pass in both modes (worst 22.6 light, 15.6 dark). Spend and allowance fail the validator's chroma and lightness checks because they are neutrals on purpose, not categorical hues.
+- **Hard-coded colours**: `apps/web/src/hard-coded-colours.test.ts` fails on a written colour under `apps/web/src` or `packages/ui/src` outside `globals.css`. Allowed by name, with reasons: the theme-color metas in `__root.tsx`, the email templates, the logo's dot, Recharts' default-stroke selectors in `chart.tsx`, and three AI files whose `#0482` are store numbers.
+- **Still to do**: axe on every page in both modes (see the 75c handoff for the runs), screenshot baselines after these token changes (`--update-snapshots=all`), and warming the favicon and the email brand.
