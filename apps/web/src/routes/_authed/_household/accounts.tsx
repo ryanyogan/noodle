@@ -90,7 +90,6 @@ function AccountsPage() {
 				listFills
 				noun="Account"
 				listLabel="Accounts"
-				hint="Pick an Account to see it here."
 				aside={<AccountTotals accounts={accounts} />}
 				list={
 					<>

@@ -93,7 +93,6 @@ function GoalsPage() {
 				listFills
 				noun="Goal"
 				listLabel="Goals"
-				hint="Pick a Goal to see it here."
 				aside={
 					active.length + payingOff.length > 0 ? (
 						<GoalsSummary

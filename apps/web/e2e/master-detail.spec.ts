@@ -74,19 +74,23 @@ test("the list stays put, keeps its scroll and marks its item while the detail c
 	await axe(page, "Buckets, nothing picked");
 
 	// The page scrolls as one (no pane scrolls on its own, #73). Picking from far down the list
-	// keeps the same node and the page where it was.
+	// keeps the same node and the row where it was in the window. (The window's own scroll may
+	// change: the list loses its column headings as it narrows beside the Bucket.)
 	await list(page).evaluate((pane) => {
 		pane.dataset.kept = "yes";
 	});
 	await row(page, "Fund 12").scrollIntoViewIfNeeded();
-	const top = await page.evaluate(() => window.scrollY);
-	expect(top).toBeGreaterThan(0);
+	expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+	const top = (await row(page, "Fund 12").boundingBox())?.y ?? -1;
 	await row(page, "Fund 12").click();
 	await expect(page).toHaveURL(new RegExp(`/plan/${month}/buckets/[0-9A-Z]{26}$`));
 	await expect(title(page)).toHaveText("Fund 12");
 	await expect(picked(page)).toHaveText("Fund 12");
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
-	expect(Math.abs((await page.evaluate(() => window.scrollY)) - top)).toBeLessThanOrEqual(2);
+	expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+	expect(Math.abs(((await row(page, "Fund 12").boundingBox())?.y ?? -1) - top)).toBeLessThanOrEqual(
+		2,
+	);
 	// The Bucket stays in view beside the list, its top inside the window.
 	expect((await detail(page).boundingBox())?.y ?? -1).toBeGreaterThanOrEqual(0);
 	await axe(page, "A Bucket beside its list");
@@ -191,7 +195,6 @@ test("Goals and Accounts keep their list beside the picked item", async ({ brows
 
 	// Nothing picked: the right pane holds the summary.
 	await expect(list(page)).toHaveAttribute("aria-label", "Goals");
-	await expect(detail(page)).toContainText("Pick a Goal to see it here.");
 	await expect(detail(page)).toContainText("A month to stay on track");
 	await axe(page, "Goals, nothing picked");
 	await list(page).evaluate((pane) => {
@@ -224,7 +227,7 @@ test("Goals and Accounts keep their list beside the picked item", async ({ brows
 	await expect(page.getByRole("link", { name: "Back to Goals" })).toHaveCount(0);
 	await page.getByRole("link", { name: "Goals", exact: true }).first().click();
 	await expect(page).toHaveURL(/\/goals$/);
-	await expect(detail(page)).toContainText("Pick a Goal to see it here.");
+	await expect(detail(page)).toContainText("A month to stay on track");
 
 	// Accounts: the same, with Bank Connections under the list and the totals beside it.
 	await page.goto("/accounts");

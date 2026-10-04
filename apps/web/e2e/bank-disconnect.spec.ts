@@ -120,7 +120,7 @@ test("disconnecting keeps the Accounts by hand, and connecting again pairs with 
 	// while the Account's page is still leaving, Connect a bank's sheet went with it.
 	await accountsLink(page).click();
 	await expect(page).toHaveURL(/\/accounts$/);
-	await expect(page.getByText("Pick an Account to see it here.")).toBeVisible();
+	await expect(page.getByRole("region", { name: "Totals" })).toBeVisible();
 	await connectBank(page);
 	await expect(chooseSheet(page).getByLabel("Plaid Checking ••0000")).toHaveText(
 		"Same as Plaid Checking ••0000",

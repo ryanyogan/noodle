@@ -208,8 +208,11 @@ export function ListBesideDetail({
 	noun: string;
 	/** Names the list pane, e.g. "Goals". */
 	listLabel: string;
-	/** Says what the right pane is for while nothing is picked, e.g. "Pick a Goal to see it here." */
-	hint: string;
+	/**
+	 * Says what the right pane is for while nothing is picked, e.g. "Pick a Rule to change it here."
+	 * Left out where the list fills the page: its cards say they open.
+	 */
+	hint?: string;
 	list: ReactNode;
 	/** The right pane while nothing is picked; on phones it comes before the list. */
 	aside?: ReactNode;
@@ -246,7 +249,7 @@ export function ListBesideDetail({
 			empty={
 				<div className={cn("grid w-full content-start gap-4", !asideFills && "lg:max-w-md")}>
 					{aside}
-					<p className="px-1 text-sm text-muted-foreground max-lg:hidden">{hint}</p>
+					{hint ? <p className="px-1 text-sm text-muted-foreground max-lg:hidden">{hint}</p> : null}
 				</div>
 			}
 		/>
