@@ -1,10 +1,7 @@
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { ulid } from "ulid";
 import { createTestParent } from "./parents";
+import { seedSql } from "./seed-sql";
 import { choose, createPlannedHousehold, openToDo, savedBy, signedInPage } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
@@ -36,7 +33,7 @@ const q = (value: string) => `'${value.replaceAll("'", "''")}'`;
  * Review, a new Insight, $250 of income beyond take-home pay, and a second Parent, Sam, who has
  * already done this week's (`week`).
  */
-function seedCheckIn(clerkUserId: string, week: string) {
+async function seedCheckIn(clerkUserId: string, week: string) {
 	const household = `(select household_id from members where clerk_user_id = ${q(clerkUserId)})`;
 	const member = `(select id from members where clerk_user_id = ${q(clerkUserId)})`;
 	const transaction = ulid();
@@ -49,17 +46,13 @@ function seedCheckIn(clerkUserId: string, week: string) {
 		`insert into members (id, household_id, kind, name) values (${q(sam)}, ${household}, 'parent', 'Sam');`,
 		`insert into check_ins (household_id, member_id, week) values (${household}, ${q(sam)}, ${q(week)});`,
 	];
-	const file = join(mkdtempSync(join(tmpdir(), "noodle-check-in-")), "seed.sql");
-	writeFileSync(file, statements.join("\n"));
-	execFileSync("bunx", ["wrangler", "d1", "execute", "noodle", "--local", `--file=${file}`], {
-		stdio: "ignore",
-	});
+	await seedSql(statements);
 }
 
 test("a seeded Check-in walks Review, Insights and Extra income to a done state", async ({
 	browser,
 }) => {
-	// Planning the month and seeding through wrangler take most of the default budget.
+	// Planning the month and seeding take most of the default budget.
 	test.slow();
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
@@ -77,7 +70,7 @@ test("a seeded Check-in walks Review, Insights and Extra income to a done state"
 		await saved;
 	}
 
-	seedCheckIn(parent.userId, day);
+	await seedCheckIn(parent.userId, day);
 
 	// On the day, This Month says so, and the sidebar marks it until it's done.
 	await page.getByRole("link", { name: "This Month", exact: true }).click();
@@ -135,7 +128,7 @@ test("a seeded Check-in walks Review, Insights and Extra income to a done state"
  * gift in his Personal Allowance with a leftover Review row, and a Transaction waiting in Review
  * whose kept guess is his Personal Allowance.
  */
-function seedPrivateReview(clerkUserId: string, day: string) {
+async function seedPrivateReview(clerkUserId: string, day: string) {
 	const household = `(select household_id from members where clerk_user_id = ${q(clerkUserId)})`;
 	const jordan = `(select id from members where household_id = ${household} and name = 'Jordan')`;
 	const allowance = `(select id from buckets where owner_member_id = ${jordan})`;
@@ -147,11 +140,7 @@ function seedPrivateReview(clerkUserId: string, day: string) {
 		`insert into transactions (id, household_id, source, date, amount_cents, note, created_by_member_id) values (${q(hardware)}, ${household}, 'quick-add', ${q(day)}, 1800, 'Corner Hardware', ${jordan});`,
 		`insert into categorizations (transaction_id, household_id, member_id, outcome, merchant, bucket_id) values (${q(hardware)}, ${household}, ${jordan}, 'review', 'Corner Hardware', ${allowance});`,
 	];
-	const file = join(mkdtempSync(join(tmpdir(), "noodle-check-in-")), "seed.sql");
-	writeFileSync(file, statements.join("\n"));
-	execFileSync("bunx", ["wrangler", "d1", "execute", "noodle", "--local", `--file=${file}`], {
-		stdio: "ignore",
-	});
+	await seedSql(statements);
 }
 
 test("the other Parent's Check-in lists nothing from a Personal Allowance in Review", async ({
@@ -175,7 +164,7 @@ test("the other Parent's Check-in lists nothing from a Personal Allowance in Rev
 		await saved;
 	}
 
-	seedPrivateReview(parent.userId, day);
+	await seedPrivateReview(parent.userId, day);
 
 	// Everything this Parent's browser is sent from here on.
 	const bodies: Promise<string>[] = [];

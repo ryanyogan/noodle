@@ -151,7 +151,7 @@ async function busyHousehold(page: Page) {
 			["Fun", "250"],
 		],
 	});
-	seedReportHistory(parent.userId, 8);
+	await seedReportHistory(parent.userId, 8);
 	// An Account and a Goal in it, so Goals and Accounts have a list and an item to show.
 	await page.goto("/accounts");
 	await page.getByLabel("Name").fill("Joint Savings");

@@ -27,7 +27,7 @@ const toast = (page: Page, text: RegExp) => page.getByRole("status").filter({ ha
 test("on a phone a statement comes in, a bank connects and last month closes", async ({
 	browser,
 }) => {
-	// Planning the month, seeding through wrangler and three flows: past the 30 s default.
+	// Planning the month, seeding and three flows: past the 30 s default.
 	test.setTimeout(120_000);
 	const page = await signedInPage(browser, parent.email, phone);
 	await createPlannedHousehold(page, {
@@ -38,7 +38,7 @@ test("on a phone a statement comes in, a bank connects and last month closes", a
 		],
 	});
 	// Last month planned and spent, so it waits to be closed.
-	seedReportHistory(parent.userId, 2);
+	await seedReportHistory(parent.userId, 2);
 
 	// Upload statement: to a new Visa Account, through the desktop helper, from Transactions,
 	// whose header links to Accounts on a phone.

@@ -56,7 +56,7 @@ test("fields on a phone bring up the right keyboard", async ({ browser }) => {
 			["Eating out", "300"],
 		],
 	});
-	seedReportHistory(parent.userId, 1);
+	await seedReportHistory(parent.userId, 1);
 
 	// Add an Account: a name and a balance.
 	await page.goto("/accounts");

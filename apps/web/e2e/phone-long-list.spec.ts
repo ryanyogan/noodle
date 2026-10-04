@@ -34,7 +34,7 @@ test("a busy month flings without blank gaps or long frames", async ({ browser }
 			["Fun", "250"],
 		],
 	});
-	seedReportHistory(parent.userId, 2);
+	await seedReportHistory(parent.userId, 2);
 	// Last month, which is full: this month's rows stop at today, too few to scroll far.
 	await page.goto("/transactions");
 	const title = page.getByRole("heading", { level: 1 });

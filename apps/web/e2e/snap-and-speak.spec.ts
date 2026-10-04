@@ -1,10 +1,7 @@
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { deflateSync } from "node:zlib";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
+import { seedSql } from "./seed-sql";
 import { createPlannedHousehold, signedInPage } from "./session";
 
 // Snap and speak in Quick Add: a photo of a paper Receipt, or a phrase said or typed, is read by
@@ -119,18 +116,14 @@ test("a snapped Receipt fills in Quick Add and is attached to what's saved", asy
 const q = (value: string) => `'${value.replaceAll("'", "''")}'`;
 
 /** Moves the Household's Plan (its take-home pay, Buckets and allowances) back to start in `month`. */
-function planFrom(clerkUserId: string, month: string) {
+async function planFrom(clerkUserId: string, month: string) {
 	const household = `(select household_id from members where clerk_user_id = ${q(clerkUserId)})`;
 	const statements = [
 		`update baselines set month = ${q(month)} where household_id = ${household};`,
 		`update buckets set from_month = ${q(month)} where household_id = ${household};`,
 		`update bucket_allowances set month = ${q(month)} where household_id = ${household};`,
 	];
-	const file = join(mkdtempSync(join(tmpdir(), "noodle-snap-")), "seed.sql");
-	writeFileSync(file, statements.join("\n"));
-	execFileSync("bunx", ["wrangler", "d1", "execute", "noodle", "--local", `--file=${file}`], {
-		stdio: "ignore",
-	});
+	await seedSql(statements);
 }
 
 /** The last day of last month, in the browser's (and so the Household's) time zone. */
@@ -147,7 +140,7 @@ function lastMonthsLastDay() {
 test("a Receipt dated last month is added to last month's Plan, or today when it had none", async ({
 	browser,
 }) => {
-	// Planning the month and seeding through wrangler take most of the default budget.
+	// Planning the month and seeding take most of the default budget.
 	test.slow();
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, plan);
@@ -182,7 +175,7 @@ test("a Receipt dated last month is added to last month's Plan, or today when it
 	await savedIn(thisMonth, /^Corner Market, \$4\.29/);
 
 	// With a Plan last month, it's offered last month's Buckets and saved there.
-	planFrom(parent.userId, lastMonth.day.slice(0, 7));
+	await planFrom(parent.userId, lastMonth.day.slice(0, 7));
 	await page.reload();
 	await snap("6.10");
 	await expect(sheet(page)).toContainText(`, so it’s added to ${lastMonth.name}`);

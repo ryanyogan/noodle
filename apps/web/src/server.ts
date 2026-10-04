@@ -18,6 +18,7 @@ import { startBankSyncs } from "./server/bank-import-workflow";
 import { consumeIngest, handleCapture, type IngestMessage } from "./server/capture";
 import { startCheckIns } from "./server/check-in-weekly";
 import { DEV_HOUSEHOLD_PATH, handleDevHousehold } from "./server/dev-household";
+import { DEV_SQL_PATH, handleDevSql } from "./server/dev-sql";
 import {
 	DEV_INVITE_AGE_PATH,
 	DEV_OUTBOX_PATH,
@@ -63,6 +64,8 @@ export default {
 		if (__AI_STUB__ && pathname === DEV_INVITE_AGE_PATH) return handleDevInviteAge(request);
 		// A Household made in one request for E2E, as the signed-in user; not in production builds.
 		if (__AI_STUB__ && pathname === DEV_HOUSEHOLD_PATH) return handleDevHousehold(request);
+		// E2E seeds the local D1 through the Worker; not in production builds.
+		if (__AI_STUB__ && pathname === DEV_SQL_PATH) return handleDevSql(request);
 		return handler.fetch(request);
 	},
 	queue(batch) {

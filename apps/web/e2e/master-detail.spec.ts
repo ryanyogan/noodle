@@ -291,7 +291,7 @@ test("a Transaction opens beside its month's list, which keeps its place", async
 			["Fun", "250"],
 		],
 	});
-	seedReportHistory(parent.userId, 8);
+	await seedReportHistory(parent.userId, 8);
 	await page.goto("/transactions");
 	const rows = page.locator("[data-slot=list-row] > button");
 	const pane = page.locator("[data-slot=transaction-detail]");
@@ -349,7 +349,7 @@ test("a Transaction's address shows it whatever the list has loaded, and is a pa
 	test.slow();
 	const page = await signedInPage(browser, parent.email, desktop);
 	await createPlannedHousehold(page, { baseline: "6200", buckets: [["Groceries", "800"]] });
-	seedReportHistory(parent.userId, 2);
+	await seedReportHistory(parent.userId, 2);
 	await page.goto("/transactions");
 	const rows = page.locator("[data-slot=list-row] > button");
 	const paneTitle = page.locator("[data-slot=transaction-detail] [data-slot=detail-title]");

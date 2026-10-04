@@ -1,10 +1,7 @@
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
+import { seedSql } from "./seed-sql";
 import { clientRendered, createPlannedHousehold, signedInPage } from "./session";
 
 // The phone crowding check (#65): on a busy household whose Bucket names are 12 characters long
@@ -35,20 +32,15 @@ test.afterEach(async () => {
 });
 
 /** Renames the seeded Buckets to 12-character names, straight in the local D1. */
-function renameBuckets(clerkUserId: string) {
+async function renameBuckets(clerkUserId: string) {
 	const q = (value: string) => `'${value.replaceAll("'", "''")}'`;
 	const household = `(select household_id from members where clerk_user_id = ${q(clerkUserId)})`;
-	const file = join(mkdtempSync(join(tmpdir(), "noodle-crowding-")), "rename.sql");
-	writeFileSync(
-		file,
+	await seedSql(
 		NAMES.map(
 			([from, to]) =>
 				`update buckets set name = ${q(to)} where household_id = ${household} and name = ${q(from)};`,
-		).join("\n"),
+		),
 	);
-	execFileSync("bunx", ["wrangler", "d1", "execute", "noodle", "--local", `--file=${file}`], {
-		stdio: "ignore",
-	});
 }
 
 /** Text cut short (ellipsis, clamp or clipped), how many characters still show, and small controls. */
@@ -150,8 +142,8 @@ test("phone rows aren't crowded at 320 wide", async ({ browser }) => {
 			["Fun", "250"],
 		],
 	});
-	seedReportHistory(parent.userId, 2);
-	renameBuckets(parent.userId);
+	await seedReportHistory(parent.userId, 2);
+	await renameBuckets(parent.userId);
 	await look(page, "320x640", true);
 	if (OUT) {
 		const p393 = await signedInPage(browser, parent.email, {

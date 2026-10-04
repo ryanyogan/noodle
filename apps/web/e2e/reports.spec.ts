@@ -42,7 +42,7 @@ test("Reports: change the period, then drill from a Bucket to its Transactions",
 }) => {
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, plan);
-	seedReportHistory(parent.userId);
+	await seedReportHistory(parent.userId);
 
 	await page.getByRole("link", { name: "Reports" }).click();
 	await expect(header(page)).toContainText("Overview");
@@ -78,7 +78,7 @@ test("Reports: change the period, then drill from a Bucket to its Transactions",
 test("Big expenses are the one-offs over a threshold the Parent picks", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, plan);
-	seedReportHistory(parent.userId);
+	await seedReportHistory(parent.userId);
 
 	await page.getByRole("link", { name: "Reports" }).click();
 	await expect(header(page)).toContainText("Overview");
@@ -119,7 +119,7 @@ test("no Report view is wider than a phone, and a long merchant name stays in it
 }) => {
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, plan);
-	seedReportHistory(parent.userId, 12);
+	await seedReportHistory(parent.userId, 12);
 	// A merchant as the bank writes it: one long unbroken line.
 	const longName = "SQ *EL CHILITO TACOS & BREAKFAST BAR ON MANOR ROAD AUSTIN TX 78722";
 	await page.getByRole("link", { name: "Quick Add" }).click();
@@ -173,7 +173,7 @@ test("no Report view is wider than a phone, and a long merchant name stays in it
 test("Reports › Goals says the month a Goal was completed", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, plan);
-	seedReportHistory(parent.userId);
+	await seedReportHistory(parent.userId);
 
 	// A savings Account with a Goal on it, completed today.
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
