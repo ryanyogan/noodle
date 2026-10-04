@@ -72,6 +72,16 @@ export function masterDetailKeys(event: KeyboardEvent<HTMLElement>) {
 	items[to]?.focus();
 }
 
+/**
+ * On the section's header (its `PageHeader`, or the header and tabs of a `SectionLayout`). On a
+ * phone an open item is a page of its own with its own header (`DetailHeader`: Back returns to the
+ * list), so the section's header isn't drawn over it: its h1 stays for screen readers, and its
+ * actions and tabs, which belong to the list, go (#74). From lg, where the list is beside the item,
+ * nothing changes. `DetailHeader` and `DetailPending` carry `data-item-page`.
+ */
+export const sectionHeaderOverItem =
+	"max-lg:[main:has([data-item-page])_&]:sr-only max-lg:[main:has([data-item-page])_&_:is(a,button,nav)]:hidden";
+
 /** The item before and after `id` in the list's order. */
 export function neighbours(ids: readonly string[], id: string) {
 	const at = ids.indexOf(id);
@@ -118,7 +128,8 @@ export function DetailPager({
 
 /**
  * The detail's header: Back to the list, what the item is, its actions, and previous and next.
- * Its title is an h2, under the section's h1. On a phone it follows the phone header's rule
+ * Its title is an h2, under the section's h1 (which a phone keeps for screen readers only:
+ * `sectionHeaderOverItem`). On a phone it follows the phone header's rule
  * (COMPONENTS.md, #74): one row at least 52px tall on the 16px gutter with Back, the eyebrow and
  * title, and previous/next; at most one action, which drops under the row when it doesn't fit.
  */
@@ -146,6 +157,7 @@ export function DetailHeader({
 	return (
 		<header
 			data-slot="detail-header"
+			data-item-page=""
 			className="mb-6 flex flex-wrap items-center gap-x-2 gap-y-1 max-lg:mb-4 max-lg:min-h-13 max-lg:gap-x-1"
 		>
 			{/* Phones: the arrow's glyph, not its 44px box, sits on the 16px gutter. */}
@@ -187,7 +199,7 @@ export function DetailHeader({
 /** An item that's slow to load: a skeleton in the detail pane, while the list stays as it is. */
 export function DetailPending() {
 	return (
-		<div role="status" aria-label="Loading" data-slot="detail-pending">
+		<div role="status" aria-label="Loading" data-slot="detail-pending" data-item-page="">
 			{/* As DetailHeader: the same space under it, then the blocks in the columns the item's page
 			    uses, so nothing moves when it arrives. */}
 			<div className="mb-6 grid gap-2">

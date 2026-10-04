@@ -28,7 +28,11 @@ import {
 	balanceLabel,
 	LinkRow,
 } from "../../../components/goals";
-import { ListBesideDetail, masterDetailItem } from "../../../components/master-detail";
+import {
+	ListBesideDetail,
+	masterDetailItem,
+	sectionHeaderOverItem,
+} from "../../../components/master-detail";
 import { SaveFailed } from "../../../components/plan-editing";
 import { type AccountView, accountKindName, useAddAccount, useGoals } from "../../../goals";
 import { bankConnectionsQuery, goalsQuery } from "../../../queries";
@@ -76,6 +80,7 @@ function AccountsPage() {
 			<PageHeader
 				eyebrow="Day to day"
 				title="Accounts"
+				className={sectionHeaderOverItem}
 				actions={
 					<Button type="button" size="sm" disabled={!hydrated} onClick={() => setAdding(true)}>
 						<Plus />
@@ -189,7 +194,8 @@ function AccountTotals({ accounts }: { accounts: AccountView[] }) {
 		<Section aria-labelledby="account-totals">
 			<SectionHeader id="account-totals" title="Totals" />
 			<Card className="grid gap-3 p-(--card-pad)">
-				<StatGrid className="grid-cols-[repeat(auto-fit,minmax(min(100%,8.5rem),1fr))]">
+				{/* Phones: two across even at 320, so the Accounts start a screen sooner (#74). */}
+				<StatGrid className="grid-cols-[repeat(auto-fit,minmax(min(100%,8.5rem),1fr))] max-sm:grid-cols-[repeat(auto-fit,minmax(min(100%,6.75rem),1fr))]">
 					{rows.map((row) => (
 						<Stat
 							key={row.label}
