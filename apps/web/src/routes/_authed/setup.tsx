@@ -363,6 +363,8 @@ function HelloStep({
 							key={choice.value}
 							id={`${id}-${choice.value}`}
 							value={choice.value}
+							// The same padding as the wizard's other cards (#73).
+							className="p-(--card-pad)"
 							label={
 								<span className="flex items-center gap-2">
 									{choice.label}

@@ -1,6 +1,7 @@
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
+import { PageHeader } from "@noodle/ui/components/page-header";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { Spinner } from "@noodle/ui/components/spinner";
 import { type ErrorComponentProps, Link, useRouter } from "@tanstack/react-router";
@@ -61,6 +62,8 @@ export function PageError({ error }: ErrorComponentProps) {
 	}, [error]);
 	return (
 		<div role="alert" className="animate-enter">
+			{/* A heading where every page has one, so the layout doesn't jump when a page fails (#73). */}
+			<PageHeader title="Something went wrong" />
 			<EmptyState
 				icon={<TriangleAlert />}
 				title="This page didn’t load"

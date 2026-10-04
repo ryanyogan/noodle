@@ -23,7 +23,13 @@ import { BudgetBar, BudgetBarKey } from "@noodle/ui/components/budget-bar";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
-import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
+import {
+	PageLayout,
+	SectionGrid,
+	SplitLayout,
+	SplitMain,
+	SplitRail,
+} from "@noodle/ui/components/layout";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Tile } from "@noodle/ui/components/tile";
@@ -388,11 +394,10 @@ function ThisMonth() {
 					</SplitRail>
 				</SplitLayout>
 			) : month === current ? (
-				<SplitLayout>
-					<SplitMain>
-						<GetStarted steps={getStarted} />
-					</SplitMain>
-				</SplitLayout>
+				// Nothing planned yet: no rail to sit beside, so Get started has the page's width (#73).
+				<PageLayout>
+					<GetStarted steps={getStarted} />
+				</PageLayout>
 			) : (
 				<EmptyState
 					icon={<CalendarDays />}
@@ -983,6 +988,58 @@ function GetStarted({
 	const left = steps.filter((step) => !step.done).length;
 	const asked = continueSetupShown(setup);
 	if (left === 0 && !asked) return null;
+	const finish = !asked ? null : (
+		// The get-started wizard (#53) is the main way in; the list below is for what it skipped.
+		<Card className="flex flex-wrap items-center justify-between gap-3 p-(--card-pad) text-sm">
+			<div className="grid gap-0.5">
+				<p className="font-medium">Finish setting up</p>
+				<p className="text-muted-foreground">
+					You’re on step {setup.step} of {SETUP_STEP_COUNT}. It picks up where you left off.
+				</p>
+			</div>
+			<div className="flex flex-wrap items-center gap-2">
+				<DismissSetup />
+				{/* In the To do strip, from lg its row has it, closed or open. On its own it is always
+				    here: the one thing the card is for is never hidden (#73). */}
+				<ContinueSetup className={cn(inToDo && "lg:hidden")} />
+			</div>
+		</Card>
+	);
+	const list = (
+		<List aria-label="Steps to get started">
+			{steps.map((step) => (
+				<ListRow
+					key={step.title}
+					aria-label={`${step.title}${step.done ? ", done" : ""}`}
+					leading={
+						<span
+							aria-hidden="true"
+							className={cn(
+								"grid size-6 place-items-center rounded-full border text-xs",
+								step.done
+									? "border-transparent bg-foreground text-card"
+									: "border-border-strong text-transparent",
+							)}
+						>
+							<Check className="size-3.5" strokeWidth={2.5} />
+						</span>
+					}
+					title={
+						<span className={cn(step.done && "text-muted-foreground line-through")}>
+							{step.title}
+						</span>
+					}
+					trailing={
+						step.done ? null : (
+							<Button asChild variant="outline" size="sm">
+								{step.link}
+							</Button>
+						)
+					}
+				/>
+			))}
+		</List>
+	);
 	return (
 		<Section aria-labelledby="get-started">
 			<div className={cn(inToDo && "lg:sr-only")}>
@@ -996,55 +1053,19 @@ function GetStarted({
 					}
 				/>
 			</div>
-			{!asked ? null : (
-				// The get-started wizard (#53) is the main way in; the list below is for what it skipped.
-				<Card className="flex flex-wrap items-center justify-between gap-3 p-(--card-pad) text-sm">
-					<div className="grid gap-0.5">
-						<p className="font-medium">Finish setting up</p>
-						<p className="text-muted-foreground">
-							You’re on step {setup.step} of {SETUP_STEP_COUNT}. It picks up where you left off.
-						</p>
-					</div>
-					<div className="flex flex-wrap items-center gap-2">
-						<DismissSetup />
-						{/* From lg the To do row has it, closed or open. */}
-						<ContinueSetup className="lg:hidden" />
-					</div>
-				</Card>
+			{inToDo ? (
+				<>
+					{finish}
+					{list}
+				</>
+			) : (
+				// On its own, from xl the card and the steps sit side by side across the page (#73); below
+				// xl they stack as close as before.
+				<SectionGrid className="max-xl:gap-3">
+					{finish}
+					{list}
+				</SectionGrid>
 			)}
-			<List aria-label="Steps to get started">
-				{steps.map((step) => (
-					<ListRow
-						key={step.title}
-						aria-label={`${step.title}${step.done ? ", done" : ""}`}
-						leading={
-							<span
-								aria-hidden="true"
-								className={cn(
-									"grid size-6 place-items-center rounded-full border text-xs",
-									step.done
-										? "border-transparent bg-foreground text-card"
-										: "border-border-strong text-transparent",
-								)}
-							>
-								<Check className="size-3.5" strokeWidth={2.5} />
-							</span>
-						}
-						title={
-							<span className={cn(step.done && "text-muted-foreground line-through")}>
-								{step.title}
-							</span>
-						}
-						trailing={
-							step.done ? null : (
-								<Button asChild variant="outline" size="sm">
-									{step.link}
-								</Button>
-							)
-						}
-					/>
-				))}
-			</List>
 		</Section>
 	);
 }

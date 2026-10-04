@@ -64,9 +64,9 @@ test("Household settings is settings only, grouped under short headings (#69)", 
 		await expect(page.getByRole("heading", { level: 2 })).toHaveText([
 			"Household",
 			"People",
-			"Reminders",
 			"Bringing in spending",
 			"Setup",
+			"Reminders",
 			"Your data",
 			"Danger zone",
 		]);
