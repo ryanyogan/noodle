@@ -35,31 +35,6 @@ export async function openToDo(page: Page, label: string) {
 	await expect(row).toHaveAttribute("aria-expanded", "true");
 }
 
-/**
- * Waits until React has taken over the page that was just loaded and its effects have run, so a
- * click or a key pressed next is not lost. React writes a `__reactFiber$…` key on each element as
- * it hydrates it; the page header is inside the route, so it is among the last. The effects (key
- * handlers and the like) run in tasks queued right after, and an idle callback comes after those.
- * Unlike `networkidle` this doesn't sit through Clerk's calls and another half second of quiet.
- */
-export async function hydrated(page: Page) {
-	await page.waitForFunction(() => {
-		const headers = [...document.querySelectorAll("[data-slot=page-header]")];
-		return (
-			headers.length > 0 &&
-			headers.every((header) => Object.keys(header).some((key) => key.startsWith("__reactFiber$")))
-		);
-	});
-	await page.evaluate(
-		() =>
-			new Promise<void>((done) => {
-				// Safari has no requestIdleCallback.
-				if ("requestIdleCallback" in window) requestIdleCallback(() => done(), { timeout: 2_000 });
-				else setTimeout(done, 250);
-			}),
-	);
-}
-
 /** A fresh browser context signed in as `email`. */
 export async function signedInPage(
 	browser: Browser,
@@ -172,7 +147,7 @@ async function createHouseholdDirectly(
 	});
 	// The UI path left the page hydrated by clicking through it; a fresh load isn't yet, and a key
 	// pressed (Quick Add's "q") or a button clicked before then does nothing.
-	await timed("household-idle", () => hydrated(page));
+	await timed("household-idle", () => page.waitForLoadState("networkidle"));
 	return created;
 }
 
