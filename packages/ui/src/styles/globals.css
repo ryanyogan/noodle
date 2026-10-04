@@ -1,7 +1,8 @@
 /*
  * Noodle design tokens: the single source of colour, type, spacing, radii, and motion.
- * Palette: Warm paper (#75): an off-white paper page, a cream card and warm ink in light; warm
- * brown-blacks that step up, with cream text, in dark. The blue accent stays.
+ * Palette: Soft stone (#75, ADR-0036): a soft greige page, an off-white card with a faint sage cast
+ * and green-grey ink in light; a green-stone graphite that steps up, with pale stone text, in dark.
+ * The blue accent stays.
  * Approved in #2 (round 2 prototype). Every component reads these through Tailwind utilities
  * (bg-card, text-muted-foreground, bg-pace, …) or the raw custom properties.
  */
@@ -41,44 +42,44 @@
 	color-scheme: light;
 
 	/* Surfaces */
-	--background: #f3efe7;
-	--card: #fbf9f4;
-	--surface-2: #f0ebe2;
-	--surface-3: #e7e0d3;
-	--border: #e5dfd3;
-	--border-strong: #d4cbba;
+	--background: #eff0ec;
+	--card: #f9faf7;
+	--surface-2: #ebede7;
+	--surface-3: #e1e4dc;
+	--border: #dfe2d9;
+	--border-strong: #cbcfc4;
 
 	/* Text */
-	--foreground: #211d17;
-	--muted-foreground: #5d5548;
+	--foreground: #1a1e1b;
+	--muted-foreground: #535a54;
 	/* Hints and secondary figures: at least 4.5:1 (WCAG 1.4.3) on card, background, surface-2 and surface-3. */
-	--subtle-foreground: #6b6254;
+	--subtle-foreground: #606761;
 
 	/* The one accent, plus the two reserved state colours */
-	--brand: #3b5ccc;
-	--brand-soft: rgb(59 92 204 / 0.1);
-	/* Pace fill at least 3:1 on the bar track (--surface-3): 3.32:1. */
-	--pace: #a86c06;
-	--pace-soft: rgb(168 108 6 / 0.12);
-	--pace-foreground: #85560a;
-	--over: #c23b32;
-	--over-soft: rgb(194 59 50 / 0.1);
+	--brand: #3c60da;
+	--brand-soft: rgb(60 96 218 / 0.1);
+	/* Pace fill at least 3:1 on the bar track (--surface-3): 3.21:1. */
+	--pace: #b46c00;
+	--pace-soft: rgb(180 108 0 / 0.12);
+	--pace-foreground: #85590a;
+	--over: #c43738;
+	--over-soft: rgb(196 55 56 / 0.1);
 	/* Over as text on --over-soft (badges): at least 4.5:1. */
-	--over-foreground: #a8322a;
+	--over-foreground: #b02f2f;
 
 	/* Faint glows behind the page */
-	--glow-1: rgb(59 92 204 / 0.06);
-	--glow-2: rgb(168 108 6 / 0.05);
+	--glow-1: rgb(60 96 218 / 0.06);
+	--glow-2: rgb(180 108 0 / 0.05);
 
-	--scrim: rgb(33 29 23 / 0.36);
-	--elevation-card: 0 1px 2px rgb(33 29 23 / 0.05), 0 1px 1px rgb(33 29 23 / 0.03);
-	--elevation-pop: 0 12px 32px -8px rgb(33 29 23 / 0.22), 0 2px 6px rgb(33 29 23 / 0.06);
+	--scrim: rgb(26 30 27 / 0.36);
+	--elevation-card: 0 1px 2px rgb(26 30 27 / 0.05), 0 1px 1px rgb(26 30 27 / 0.03);
+	--elevation-pop: 0 12px 32px -8px rgb(26 30 27 / 0.22), 0 2px 6px rgb(26 30 27 / 0.06);
 	--card-highlight: inset 0 0 0 0 transparent;
 
 	/* Bucket identity, assigned in this order (colour-blind validated in #2); tiles and meters only. */
 	--bucket-1: #2a78d6;
 	--bucket-2: #8e3fa8;
-	--bucket-3: #058ca5;
+	--bucket-3: #038ca5;
 	--bucket-4: #008300;
 	--bucket-5: #4a3aa7;
 	--bucket-6: #138a5f;
@@ -90,11 +91,11 @@
 	 * comparison period. Sequential shading steps the brand into the card; diverging runs from
 	 * the brand (under Plan) through a grey midpoint to --over. Buckets keep their own colours.
 	 */
-	--chart-spend: #4a4237;
+	--chart-spend: #3d4540;
 	--chart-income: var(--brand);
-	--chart-compare: #d8cfbf;
+	--chart-compare: #cfd3ca;
 	/* Allowance bars beside spending: at least 3:1 against the card and the spent bar. */
-	--chart-allowance: #988e7e;
+	--chart-allowance: #8a928b;
 	--chart-net: var(--foreground);
 	--chart-grid: var(--border);
 	--chart-mid: var(--surface-3);
@@ -116,7 +117,7 @@
 	--accent-foreground: var(--foreground);
 	--destructive: var(--over);
 	/* Input, Select and Textarea borders: at least 3:1 (WCAG 1.4.11) on the card, surface-2 and the page. */
-	--input: #8f8574;
+	--input: #83877d;
 	--ring: var(--brand);
 
 	/* Motion durations (easings live in @theme as ease-standard / ease-spring) */
@@ -178,29 +179,29 @@
 @media (prefers-color-scheme: dark) {
 	:root {
 		color-scheme: dark;
-		--background: #15120e;
-		--card: #1d1a15;
-		--surface-2: #24201a;
-		--surface-3: #2d2821;
-		--border: #2b261f;
-		--border-strong: #3c352b;
-		--foreground: #f2ece2;
-		--muted-foreground: #b9ae9d;
-		--subtle-foreground: #9a8f7f;
-		--brand: #8fa5f7;
-		--brand-soft: rgb(143 165 247 / 0.14);
-		--pace: #f0b04a;
-		--pace-soft: rgb(240 176 74 / 0.14);
-		--pace-foreground: #f3c477;
-		--over: #ee7b6e;
-		--over-soft: rgb(238 123 110 / 0.14);
-		--over-foreground: #f2897d;
-		--glow-1: rgb(143 165 247 / 0.08);
-		--glow-2: rgb(240 176 74 / 0.05);
-		--scrim: rgb(8 6 3 / 0.6);
+		--background: #121513;
+		--card: #191d1a;
+		--surface-2: #202521;
+		--surface-3: #282e29;
+		--border: #262c27;
+		--border-strong: #363d37;
+		--foreground: #e9ede8;
+		--muted-foreground: #a7afa7;
+		--subtle-foreground: #8d968e;
+		--brand: #7c9bff;
+		--brand-soft: rgb(124 155 255 / 0.14);
+		--pace: #f5b23a;
+		--pace-soft: rgb(245 178 58 / 0.14);
+		--pace-foreground: #f5c46a;
+		--over: #f07171;
+		--over-soft: rgb(240 113 113 / 0.14);
+		--over-foreground: #f38383;
+		--glow-1: rgb(124 155 255 / 0.08);
+		--glow-2: rgb(245 178 58 / 0.05);
+		--scrim: rgb(4 6 5 / 0.6);
 		--elevation-card: 0 1px 2px rgb(0 0 0 / 0.4);
-		--elevation-pop: 0 16px 40px -8px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 240 220 / 0.05);
-		--card-highlight: inset 0 1px 0 rgb(255 240 220 / 0.04);
+		--elevation-pop: 0 16px 40px -8px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(233 237 232 / 0.05);
+		--card-highlight: inset 0 1px 0 rgb(233 237 232 / 0.04);
 		--bucket-1: #3987e5;
 		--bucket-2: #a95cc0;
 		--bucket-3: #2aa3bd;
@@ -209,10 +210,10 @@
 		--bucket-6: #199e70;
 		--bucket-7: #c47a36;
 		--bucket-8: #d55181;
-		--chart-spend: #cdc1af;
-		--chart-compare: #3a342b;
-		--chart-allowance: #6f6656;
-		--input: #7a705f;
+		--chart-spend: #bac3bb;
+		--chart-compare: #333a34;
+		--chart-allowance: #626b63;
+		--input: #6a716b;
 	}
 }
 
