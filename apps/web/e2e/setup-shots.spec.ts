@@ -91,6 +91,13 @@ for (const name of ["hello", "buckets"] as const) {
 					.toBe(0);
 				// The primary button stays on screen, whatever the step's length.
 				await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeInViewport();
+				// No hover or focus left over from the walk: step 3's Skip is tapped where step 4's Skip then
+				// sits, and a retry walks the wizard when a first attempt found it already at Buckets. The
+				// picture must be the same whichever way the step was reached.
+				await page.mouse.move(0, 0);
+				await page.evaluate(() => {
+					if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+				});
 				await expect.soft(page).toHaveScreenshot(`setup-${name}-${screen}-${colorScheme}.png`, {
 					fullPage: true,
 				});
