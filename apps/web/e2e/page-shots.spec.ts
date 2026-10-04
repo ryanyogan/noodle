@@ -301,11 +301,16 @@ test.beforeAll(async ({ browser }) => {
 		{
 			name: "02-this-month-to-do-open",
 			path: `/month/${month}`,
-			// From lg up each To do prompt is a closed row: open the first. On a phone they already show.
+			// From lg up each To do prompt is a closed row: open the first. On a phone the strip itself
+			// opens. Only the buttons on screen: the phone's strip is in the page (hidden) at lg too,
+			// and a click on it would wait until the test ran out.
 			ready: async (page) => {
-				const row = page.getByRole("region", { name: "To do" }).locator("button[aria-expanded]");
+				const row = page
+					.getByRole("region", { name: "To do" })
+					.locator("button[aria-expanded]:visible");
 				if ((await row.count()) === 0) return;
-				if ((await row.first().getAttribute("aria-expanded")) !== "true") await row.first().click();
+				if ((await row.first().getAttribute("aria-expanded")) !== "true")
+					await row.first().click({ timeout: 15_000 });
 			},
 		},
 		{ name: "03-plan-overview", path: `/plan/${month}` },
