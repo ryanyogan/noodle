@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { getDb } from "./db";
-import { newestMigration, pruneFinalSnapshots, takeNightlySnapshots } from "./snapshot-store";
+import { releaseAllHeldFiles } from "./file-holds";
+import { newestMigration, takeNightlySnapshots } from "./snapshot-store";
 
 /**
  * The nightly cron's step: a snapshot of every Household, then pruning (ADR-0035), and the end of
@@ -12,11 +13,16 @@ export async function runNightlySnapshots(now: Date) {
 	const deps = { db: getDb(), bucket: env.BACKUPS, migration: await newestMigration(env.DB) };
 	const result = await takeNightlySnapshots(deps, now);
 	console.log("Nightly snapshots", JSON.stringify(result));
-	// Deleted Households' last snapshots, once their 30 days are up.
+	// After pruning: statement and Receipt files a clear left for snapshots go once no kept
+	// snapshot needs them, and deleted Households' last snapshots (with the files left for them)
+	// once their 30 days are up.
 	try {
-		const gone = await pruneFinalSnapshots(env.BACKUPS, now);
-		if (gone.length > 0) console.log("Last snapshots removed", JSON.stringify({ n: gone.length }));
+		const result = await releaseAllHeldFiles(
+			{ db: deps.db, backups: env.BACKUPS, files: env.STATEMENTS },
+			now,
+		);
+		console.log("Held files", JSON.stringify(result));
 	} catch (error) {
-		console.error("Couldn’t remove deleted Households’ last snapshots", error);
+		console.error("Couldn’t release files held for snapshots", error);
 	}
 }

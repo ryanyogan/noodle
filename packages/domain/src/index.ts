@@ -147,6 +147,7 @@ export {
 	incomeCheck,
 	receivedIn,
 } from "./extra-income";
+export * from "./file-holds";
 export {
 	type AttributedSpend,
 	type For,

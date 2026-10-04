@@ -6,6 +6,7 @@ import {
 	linkedBankConnectionIds,
 	removeBankConnection,
 } from "@noodle/db";
+import { splitFilesForClear } from "@noodle/domain";
 import type { BankConnectionProvider } from "./bank-connection";
 import { disconnectBankConnection } from "./bank-disconnect";
 import { vectorId } from "./categorize-model";
@@ -21,6 +22,16 @@ export type ClearDeps = {
 	files: Pick<R2Bucket, "list" | "delete">;
 	/** The BACKUPS bucket, for the Household's snapshots (ADR-0035); a Delete Household removes them. */
 	backups?: Pick<R2Bucket, "list" | "delete">;
+	/**
+	 * Files kept snapshots still refer to (ADR-0035): a clear leaves them, and notes them so the
+	 * nightly run deletes them once no snapshot needs them. Absent, nothing is held.
+	 */
+	holds?: {
+		/** The files the snapshots that outlive this clear refer to. */
+		needed(householdId: string, level: ClearLevel): Promise<Set<string>>;
+		/** Notes files a Fresh start left behind for its snapshots. */
+		hold(householdId: string, keys: string[]): Promise<void>;
+	};
 	/** The MERCHANTS index. */
 	merchants: { deleteByIds(ids: string[]): Promise<unknown> };
 	/** The Household's Agent. */
@@ -82,20 +93,46 @@ async function clearSnapshotFiles(bucket: Pick<R2Bucket, "list" | "delete">, hou
 	}
 }
 
-/** The Household's files, or only those uploaded before `before` (the sweep after a clear). */
-async function clearFiles(deps: ClearDeps, householdId: string, before?: Date) {
+/**
+ * Deletes the Household's files, or only those uploaded before `before` (the sweep after a
+ * clear), leaving the ones in `needed`. Returns the files it left for that reason.
+ */
+export async function clearHouseholdFiles(
+	files: ClearDeps["files"],
+	householdId: string,
+	options: { before?: Date; needed?: ReadonlySet<string> } = {},
+): Promise<string[]> {
+	const needed = options.needed ?? new Set<string>();
+	const held: string[] = [];
 	for (const prefix of filePrefixes(householdId)) {
 		let cursor: string | undefined;
 		for (;;) {
-			const page = await deps.files.list({ prefix, limit: PAGE, cursor });
-			const keys = page.objects
-				.filter((object) => !before || object.uploaded < before)
-				.map((object) => object.key);
-			if (keys.length > 0) await deps.files.delete(keys);
+			const page = await files.list({ prefix, limit: PAGE, cursor });
+			const { hold, remove } = splitFilesForClear(
+				page.objects
+					.filter((object) => !options.before || object.uploaded < options.before)
+					.map((object) => object.key),
+				needed,
+			);
+			held.push(...hold);
+			if (remove.length > 0) await files.delete(remove);
 			if (!page.truncated) break;
 			cursor = page.cursor;
 		}
 	}
+	return held;
+}
+
+/**
+ * The clear's files step. A file a snapshot that outlives the clear refers to stays (ADR-0035):
+ * after a Fresh start, its own snapshots; after Delete Household, the one last snapshot, if kept.
+ */
+async function clearFiles(deps: ClearDeps, householdId: string, level: ClearLevel, before?: Date) {
+	const needed = await deps.holds?.needed(householdId, level);
+	const held = await clearHouseholdFiles(deps.files, householdId, { before, needed });
+	// Delete Household keeps no list: its last snapshot's end takes every file left (the nightly
+	// run), and the list would go with the Household's snapshots below anyway.
+	if (level === "fresh-start" && held.length > 0) await deps.holds?.hold(householdId, held);
 }
 
 async function forgetMerchants(deps: ClearDeps, householdId: string) {
@@ -117,7 +154,7 @@ export async function runClearStep(
 	else if (step === "background") await deps.agent(householdId).clearHousehold();
 	else if (step === "merchants") await forgetMerchants(deps, householdId);
 	else if (step === "files") {
-		await clearFiles(deps, householdId, before);
+		await clearFiles(deps, householdId, level, before);
 		if (level === "delete" && deps.backups) await clearSnapshotFiles(deps.backups, householdId);
 	} else await clearHouseholdRows(deps.db, householdId, level);
 }
