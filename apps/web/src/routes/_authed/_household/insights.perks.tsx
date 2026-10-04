@@ -367,13 +367,13 @@ function PerkRow({ entry, doNow = false }: { entry: PerkEntry; doNow?: boolean }
 					doNow ? null : `Checked ${shortDayAt(perk.checkedAt)}`,
 				]}
 			/>
-			{line ? (
+			{line && !doNow ? (
 				<p className="flex items-center gap-1.5 text-sm">
 					{used ? <Check aria-hidden="true" className="size-4 shrink-0 text-primary" /> : null}
 					<span className="min-w-0 break-words">{line}</span>
 				</p>
 			) : null}
-			{doNow ? <p className="text-sm text-muted-foreground">{stepFor(entry)}</p> : null}
+			{doNow && marking ? <p className="text-sm text-muted-foreground">{stepFor(entry)}</p> : null}
 			{marking ? (
 				<form onSubmit={save} className="grid gap-2 rounded-xl bg-surface-2 p-3">
 					<Field label="Note (optional)" htmlFor={noteId}>
@@ -396,7 +396,10 @@ function PerkRow({ entry, doNow = false }: { entry: PerkEntry; doNow?: boolean }
 					</div>
 				</form>
 			) : (
-				<div className="flex flex-wrap gap-2">
+				<div className={doNow ? "flex items-center gap-3" : "flex flex-wrap gap-2"}>
+					{doNow ? (
+						<p className="min-w-0 flex-1 text-sm text-muted-foreground">{stepFor(entry)}</p>
+					) : null}
 					{!doNow && (perk.valueCents === null || perk.renews === null) ? (
 						<PerkValue perk={perk} />
 					) : null}

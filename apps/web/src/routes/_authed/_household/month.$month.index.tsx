@@ -53,6 +53,7 @@ import {
 } from "../../../components/extra-income";
 import { MonthCloseSection, MonthEndSection } from "../../../components/month-close";
 import { MonthGlance, monthSentence } from "../../../components/month-glance";
+import { PerkResetLine, usePerkResetSoon } from "../../../components/perk-reset";
 import { TermHelp } from "../../../components/term-help";
 import { ToDo, type ToDoItem } from "../../../components/to-do";
 import { type CoverVariables, useCovers } from "../../../covers";
@@ -163,6 +164,7 @@ function ThisMonth() {
 		}) satisfies CoverVariables;
 	const current = monthOfDay(state.asOf);
 	const isCurrent = month === current;
+	const perkLine = usePerkResetSoon();
 	// What the To do strip holds is decided here, from the same data each prompt reads.
 	const getStarted = useGetStartedSteps(state);
 	const setupState = useSuspenseQuery(setupQuery()).data;
@@ -345,6 +347,12 @@ function ThisMonth() {
 														}
 													/>
 												),
+											},
+										isCurrent &&
+											perkLine !== null && {
+												label: "Perk to use",
+												open: true,
+												content: <PerkResetLine line={perkLine} />,
 											},
 										isCurrent &&
 											chipsShow(chips) && {

@@ -1122,6 +1122,8 @@ export const perks = sqliteTable(
 		valueCents: integer("value_cents"),
 		/** How often it renews, as the page says. */
 		renews: text("renews", { enum: PERK_RENEWALS }),
+		/** A Parent typed the value and renewal; a re-check keeps them (#80). */
+		valueByHand: integer("value_by_hand", { mode: "boolean" }).notNull().default(false),
 	},
 	(t) => [uniqueIndex("perks_source_key_idx").on(t.perkSourceId, t.key)],
 );

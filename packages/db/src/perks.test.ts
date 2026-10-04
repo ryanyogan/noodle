@@ -13,10 +13,11 @@ import {
 	recordInsights,
 	recordPerkSourceSuggestions,
 	saveResearch,
+	setPerkValue,
 	updatePerkSource,
 	type Viewer,
 } from "./index";
-import { members } from "./schema";
+import { accounts, members } from "./schema";
 import { testDb } from "./test-db";
 
 const householdId = "household";
@@ -305,5 +306,78 @@ describe("Perks behind Insights", () => {
 		// Removing the Perk Source takes the Perk Overlap with it.
 		await decidePerkSource(db, alex, { id, status: "dismissed" });
 		expect(await loadInsights(db, alex)).toEqual([]);
+	});
+});
+
+describe("A credit card's perks", () => {
+	it("count only charges on that card's own Account", async () => {
+		const amex: PerkSourceSuggestion = {
+			catalogKey: "amex-platinum",
+			name: "Amex Platinum",
+			kind: "credit-card",
+			page: "https://www.americanexpress.com/platinum",
+			seenIn: "Amex Platinum",
+			private: false,
+		};
+		await recordPerkSourceSuggestions(db, alex, [amex], newId);
+		const [source] = await loadPerkSources(db, alex);
+		const id = source?.id as string;
+		await decidePerkSource(db, alex, { id, status: "confirmed" });
+		await saveResearch(db, {
+			householdId,
+			perkSourceId: id,
+			checkedAt,
+			outcome: {
+				research: "done",
+				sourceUrl: amex.page,
+				perks: [
+					perk({ name: "Uber Cash", kind: "cost", matches: "Uber", quote: "$15 in Uber Cash" }),
+				],
+			},
+			newId,
+		});
+		await db.insert(accounts).values([
+			{ id: "acct-amex", householdId, name: "Amex Platinum", kind: "credit-card" },
+			{ id: "acct-other", householdId, name: "Chase Sapphire", kind: "credit-card" },
+		]);
+		const [loaded] = await loadPerkSources(db, alex, {
+			asOf: "2026-10-04",
+			spends: [
+				{ date: "2026-10-01", note: "Uber trip", accountId: "acct-other" },
+				{ date: "2026-10-02", note: "Uber trip", accountId: null },
+				{ date: "2026-10-03", note: "Uber trip", accountId: "acct-amex" },
+			],
+		});
+		expect(loaded?.perks[0]?.spentOn).toEqual(["2026-10-03"]);
+	});
+});
+
+describe("setPerkValue", () => {
+	it("keeps a value and renewal a Parent typed when the page is checked again", async () => {
+		const id = await confirmedTMobile();
+		const research = (fields: Partial<FoundPerk>) =>
+			saveResearch(db, {
+				householdId,
+				perkSourceId: id,
+				checkedAt,
+				outcome: { research: "done", sourceUrl: tMobile.page, perks: [perk(fields)] },
+				newId,
+			});
+		await research({});
+		const [before] = await loadPerkSources(db, alex);
+		const perkId = before?.perks[0]?.id as string;
+		expect(await setPerkValue(db, alex, { id: perkId, valueCents: 500, renews: "monthly" })).toBe(
+			true,
+		);
+
+		await research({ valueCents: 999, renews: "yearly" });
+		const [after] = await loadPerkSources(db, alex);
+		expect(after?.perks[0]).toMatchObject({ id: perkId, valueCents: 500, renews: "monthly" });
+
+		// Cleared by hand, the page's value fills it again.
+		await setPerkValue(db, alex, { id: perkId, valueCents: null, renews: null });
+		await research({ valueCents: 999, renews: "yearly" });
+		const [cleared] = await loadPerkSources(db, alex);
+		expect(cleared?.perks[0]).toMatchObject({ valueCents: 999, renews: "yearly" });
 	});
 });

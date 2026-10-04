@@ -431,7 +431,15 @@ export async function saveResearch(
 			return db
 				.insert(perks)
 				.values({ id: input.newId(), householdId, perkSourceId, key: perkKey(perk), ...fields })
-				.onConflictDoUpdate({ target: [perks.perkSourceId, perks.key], set: fields });
+				.onConflictDoUpdate({
+					target: [perks.perkSourceId, perks.key],
+					// A value and renewal a Parent typed stay; the page's only fill the rest (#80).
+					set: {
+						...fields,
+						valueCents: sql`case when ${perks.valueByHand} then ${perks.valueCents} else excluded.value_cents end`,
+						renews: sql`case when ${perks.valueByHand} then ${perks.renews} else excluded.renews end`,
+					},
+				});
 		}),
 	]);
 }
@@ -574,7 +582,11 @@ export async function setPerkValue(
 	if (!row) return false;
 	await db
 		.update(perks)
-		.set({ valueCents: input.valueCents, renews: input.renews ?? null })
+		.set({
+			valueCents: input.valueCents,
+			renews: input.renews ?? null,
+			valueByHand: input.valueCents !== null || input.renews != null,
+		})
 		.where(eq(perks.id, input.id));
 	return true;
 }

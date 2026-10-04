@@ -1,0 +1,1 @@
+ALTER TABLE `perks` ADD `value_by_hand` integer DEFAULT false NOT NULL;
