@@ -608,6 +608,8 @@ function ReviewPage() {
 			<Button
 				variant="outline"
 				size="sm"
+				// On a phone in the list it has the second row; the count and the tools keep the first.
+				className={cn(!sorting && "max-sm:order-last")}
 				disabled={!hydrated || confirmAll.isPending}
 				onClick={() => confirmEach(guessed)}
 			>
@@ -627,7 +629,9 @@ function ReviewPage() {
 		fromEarlier.length > 1 ? (
 			<Button
 				variant="outline"
-				size="sm"
+				size="wrap"
+				// Its long name wraps inside the button on a narrow phone, never off the page.
+				className={cn(!sorting && "max-sm:order-last")}
 				disabled={!hydrated || fileWithout.isPending}
 				onClick={() => fileAsTheyAre(fromEarlier)}
 			>
@@ -642,11 +646,12 @@ function ReviewPage() {
 				size={sorting ? "icon" : "sm"}
 				aria-label={sorting ? "Look again" : undefined}
 				title={sorting ? "Look again" : undefined}
+				className={cn(!sorting && "max-sm:ms-auto")}
 				disabled={!hydrated || lookAgain.isPending}
 				onClick={() => lookAgain.mutate()}
 			>
 				<RefreshCw />
-				{sorting ? null : "Look again"}
+				{sorting ? null : <span className="max-sm:sr-only">Look again</span>}
 			</Button>
 		) : null;
 	const viewToggle = (
@@ -655,9 +660,7 @@ function ReviewPage() {
 			variant="segmented"
 			size="sm"
 			aria-label="Show"
-			className={
-				sorting ? "shrink-0" : "grid w-full grid-cols-2 sm:ml-auto sm:flex sm:w-auto lg:w-full"
-			}
+			className={sorting ? "shrink-0" : "shrink-0 sm:ml-auto sm:flex sm:w-auto lg:w-full"}
 			value={sorting ? "sort" : "list"}
 			disabled={!hydrated}
 			onValueChange={(value) => {
@@ -672,11 +675,11 @@ function ReviewPage() {
 		>
 			<ToggleGroupItem value="sort" className="min-w-0">
 				<Layers aria-hidden="true" />
-				<span className={cn(sorting && "max-sm:sr-only")}>One by one</span>
+				<span className="max-sm:sr-only">One by one</span>
 			</ToggleGroupItem>
 			<ToggleGroupItem value="list" className="min-w-0">
 				<List aria-hidden="true" />
-				<span className={cn(sorting && "max-sm:sr-only")}>List</span>
+				<span className="max-sm:sr-only">List</span>
 			</ToggleGroupItem>
 		</ToggleGroup>
 	);
@@ -844,8 +847,12 @@ function ReviewPage() {
 									<p className="flex items-start gap-1 text-sm text-muted-foreground">
 										<span>
 											Noodle wasn’t sure where to file these. Confirm its suggestion or pick
-											another. A card’s pencil opens it beside the list, to split it, change its
-											note or say who it was For.
+											another.
+											<span className="max-sm:hidden">
+												{" "}
+												A card’s pencil opens it beside the list, to split it, change its note or
+												say who it was For.
+											</span>
 										</span>
 										<TermHelp term="review" className="mt-0.5" />
 									</p>
@@ -1205,11 +1212,14 @@ function ReviewCard({
 		>
 			<div className="flex items-start justify-between gap-3">
 				<div className="grid min-w-0 gap-0.5">
-					<p className="text-xs text-muted-foreground">
+					<p className="truncate text-xs text-muted-foreground">
 						{dayName(item.date, today)}
 						{item.importedFrom ? ` · ${item.importedFrom}` : ""}
 					</p>
-					<h3 id={headingId} className="truncate text-base font-semibold">
+					<h3
+						id={headingId}
+						className="text-base font-semibold max-sm:line-clamp-2 max-sm:wrap-anywhere sm:truncate"
+					>
 						{labelOf(item)}
 					</h3>
 					{item.for.length > 0 ? (
@@ -1272,7 +1282,7 @@ function ReviewCard({
 					</div>
 				</div>
 			) : (
-				<div className="flex items-center gap-2">
+				<div className="flex items-center gap-2 max-[359px]:flex-wrap">
 					<Combobox
 						id={pickerId(item)}
 						className="min-w-0 flex-1"
@@ -1293,7 +1303,12 @@ function ReviewCard({
 						<Pencil />
 					</Button>
 					{item.guess ? (
-						<Button disabled={!hydrated} onClick={onConfirm}>
+						<Button
+							// On the narrowest phones Confirm has the card's width, above the picker.
+							className="max-[359px]:order-first max-[359px]:w-full"
+							disabled={!hydrated}
+							onClick={onConfirm}
+						>
 							<Check />
 							Confirm
 						</Button>
@@ -1303,6 +1318,8 @@ function ReviewCard({
 			{onFileWithout && !empty ? (
 				<Button
 					variant="link"
+					// Wraps on a narrow phone rather than running off the card.
+					size="wrap"
 					className="justify-self-start px-0"
 					disabled={!hydrated}
 					onClick={onFileWithout}
@@ -1313,6 +1330,8 @@ function ReviewCard({
 			{sameMerchant.length > 1 ? (
 				<Button
 					variant="link"
+					// Wraps on a narrow phone rather than running off the card.
+					size="wrap"
 					className="justify-self-start px-0"
 					disabled={!hydrated}
 					onClick={() => onConfirmAll(sameMerchant)}
