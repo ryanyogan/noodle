@@ -1,6 +1,8 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import {
+	accountKindLabel,
+	choose,
 	createPlannedHousehold,
 	moreItem,
 	moreItems,
@@ -88,6 +90,147 @@ test("every page has the same header: eyebrow and title first, tabs under it, no
 			await page.evaluate(() => document.documentElement.scrollWidth),
 			`${path}: sideways scroll`,
 		).toBeLessThanOrEqual(page.viewportSize()?.width ?? 393);
+	}
+	await page.context().close();
+});
+
+/**
+ * An item's page (`DetailHeader`) keeps the same rule under its section's header: one row at least
+ * as tall as the page's, on the gutter, with Back (its arrow on the gutter), the title and
+ * previous/next; at most one action; anything to switch comes under it.
+ */
+async function expectDetailHeader(page: Page, what: string) {
+	const width = page.viewportSize()?.width ?? 393;
+	const header = page.locator("[data-slot=detail-header]:visible");
+	await expect(header, what).toHaveCount(1);
+	await expect(page.locator("[data-slot=skeleton]:visible"), what).toHaveCount(0);
+	const back = header.locator("[data-slot=detail-back]").getByRole("link");
+	await expect(back, what).toHaveAccessibleName(/^Back to /);
+	const box = await header.boundingBox();
+	const title = await header.locator("[data-slot=detail-title]").boundingBox();
+	const arrow = await back.boundingBox();
+	if (!box || !title || !arrow) throw new Error(`${what}: no header`);
+	expect(Math.round(box.x), `${what}: header starts at the gutter`).toBe(GUTTER);
+	expect(Math.round(box.height), `${what}: header height`).toBeGreaterThanOrEqual(HEADER_HEIGHT);
+	// The arrow's 20px glyph, in the middle of its 44px link, starts on the gutter.
+	expect(
+		Math.abs(arrow.x + arrow.width / 2 - 10 - GUTTER),
+		`${what}: Back's arrow is on the gutter`,
+	).toBeLessThanOrEqual(1);
+	// Back and the title share the first row, and so do previous and next.
+	const beside = (other: { y: number; height: number }) =>
+		other.y < title.y + title.height && other.y + other.height > title.y - 20;
+	expect(title.x, `${what}: the title is after Back`).toBeGreaterThanOrEqual(
+		arrow.x + arrow.width - 1,
+	);
+	expect(beside(arrow), `${what}: Back is on the title's row`).toBe(true);
+	const pager = header.locator("[data-slot=detail-pager]:visible");
+	if ((await pager.count()) > 0) {
+		const arrows = await pager.boundingBox();
+		if (!arrows) throw new Error(`${what}: no previous and next`);
+		expect(beside(arrows), `${what}: previous and next are on the title's row`).toBe(true);
+		expect(arrows.x, `${what}: previous and next are right of the title`).toBeGreaterThanOrEqual(
+			title.x,
+		);
+	}
+	expect(
+		await header.locator("[data-slot=detail-actions]").locator("a:visible, button:visible").count(),
+		`${what}: at most one action`,
+	).toBeLessThanOrEqual(1);
+	const strips = page
+		.locator("[data-slot=master-detail-detail]")
+		.locator("[data-slot=link-tabs]:visible, [role=tablist]:visible");
+	for (const strip of await strips.all()) {
+		const top = (await strip.boundingBox())?.y ?? 0;
+		expect(top, `${what}: tabs above the item's title`).toBeGreaterThanOrEqual(box.y + box.height);
+	}
+	expect(
+		await page.evaluate(() => document.documentElement.scrollWidth),
+		`${what}: sideways scroll`,
+	).toBeLessThanOrEqual(width);
+}
+
+test("an item's page has the same header: Back, title and arrows on one row, one action", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	const items: [what: string, path: string][] = [];
+	const keep = (what: string) => items.push([what, new URL(page.url()).pathname]);
+
+	// A Bucket (the Household's own).
+	await page.goto("/plan");
+	await expect(page).toHaveURL(/\/plan\/\d{4}-\d{2}$/);
+	const month = new URL(page.url()).pathname.split("/").pop();
+	await page.goto(`/plan/${month}/buckets`);
+	const list = page.locator("[data-slot=master-detail-list]");
+	await list.getByRole("link", { name: "Groceries", exact: true }).click();
+	await expect(page).toHaveURL(/\/buckets\/[0-9A-Z]{26}$/);
+	keep("a Bucket");
+
+	// A Commitment.
+	await page.goto(`/plan/${month}/commitments`);
+	const form = page.getByRole("form", { name: "Add a Commitment" });
+	await form.getByLabel("New Commitment").fill("Phones");
+	await form.getByLabel("Amount due").fill("120");
+	await form.getByRole("button", { name: "Add Commitment" }).click();
+	await expect(page.getByRole("button", { name: "Edit Phones" })).toBeVisible();
+	await list.getByRole("link", { name: "Phones", exact: true }).click();
+	await expect(page).toHaveURL(/\/commitments\/[0-9A-Z]{26}$/);
+	keep("a Commitment");
+
+	// An Account.
+	await page.goto("/accounts");
+	await page.getByLabel("Name").fill("Joint Savings");
+	await choose(page, "Kind", accountKindLabel("savings"));
+	await page.getByLabel("Balance now").fill("8,000");
+	await page.getByRole("button", { name: "Add Account" }).click();
+	await list.getByRole("link", { name: /^Joint Savings, / }).click();
+	await expect(page).toHaveURL(/\/accounts\/[0-9A-Z]{26}$/);
+	keep("an Account");
+
+	// Two Goals, so the second has previous and next.
+	await page.goto("/goals");
+	for (const name of ["Trip", "Car"]) {
+		await page.getByRole("button", { name: "Add Goal" }).click();
+		const add = page.getByRole("dialog", { name: "Add a Goal" });
+		await add.getByLabel("Name").fill(name);
+		await add.getByLabel("Target", { exact: true }).fill("3,000");
+		await add.getByRole("button", { name: "Add Goal" }).click();
+		await expect(add).toBeHidden();
+		await expect(list.getByRole("link", { name: new RegExp(`^${name}, `) })).toBeVisible();
+	}
+	await list.getByRole("link", { name: /^Car, / }).click();
+	await expect(page).toHaveURL(/\/goals\/[0-9A-Z]{26}$/);
+	await expect(page.locator("[data-slot=detail-pager]:visible")).toHaveCount(1);
+	keep("a Goal");
+
+	// A Scenario: a raise.
+	await page.goto("/explore?lever=baseline:600000");
+	await expect(page.getByRole("region", { name: "Your changes" })).toContainText("Income", {
+		timeout: 30_000,
+	});
+	await page.getByLabel("Name", { exact: true }).fill("Raise");
+	await page.getByRole("button", { name: "Save Scenario" }).click();
+	await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Raise");
+	await page.goto("/explore/scenarios");
+	await page.getByRole("link", { name: "Raise", exact: true }).first().click();
+	await expect(page).toHaveURL(/\/explore\/scenarios\/[^/]+$/);
+	// The header's one action; Rename and Delete come after the Scenario.
+	const header = page.locator("[data-slot=detail-header]:visible");
+	await expect(header.getByRole("link", { name: "Open in Explore" })).toBeVisible();
+	await expect(header.getByRole("button", { name: "Rename" })).toHaveCount(0);
+	await expect(page.getByRole("button", { name: "Rename" })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Delete" })).toBeVisible();
+	keep("a Scenario");
+
+	const height = page.viewportSize()?.height ?? 852;
+	for (const width of [393, 320]) {
+		await page.setViewportSize({ width, height });
+		for (const [what, path] of items) {
+			await page.goto(path);
+			await expectDetailHeader(page, `${what} at ${width}`);
+		}
 	}
 	await page.context().close();
 });

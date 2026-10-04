@@ -56,6 +56,25 @@ function ScenarioPane() {
 		);
 	}
 	const { scenario } = found;
+	// Rename and Delete: in the header from lg; on a phone the header keeps its one action (Open in
+	// Explore) and these come after the Scenario (#74).
+	const manage = (
+		<>
+			<Button
+				variant="ghost"
+				size="sm"
+				onClick={() => {
+					setName(scenario.name);
+					setDialog("rename");
+				}}
+			>
+				Rename
+			</Button>
+			<Button variant="ghost" size="sm" onClick={() => setDialog("delete")}>
+				Delete
+			</Button>
+		</>
+	);
 	return (
 		<>
 			<DetailHeader
@@ -64,19 +83,7 @@ function ScenarioPane() {
 				leading={back}
 				actions={
 					<>
-						<Button
-							variant="ghost"
-							size="sm"
-							onClick={() => {
-								setName(scenario.name);
-								setDialog("rename");
-							}}
-						>
-							Rename
-						</Button>
-						<Button variant="ghost" size="sm" onClick={() => setDialog("delete")}>
-							Delete
-						</Button>
+						<div className="flex items-center gap-1 max-lg:hidden">{manage}</div>
 						<Button asChild size="sm">
 							<Link to="/explore" search={{ scenario: scenario.id, years }}>
 								Open in Explore
@@ -94,6 +101,7 @@ function ScenarioPane() {
 				}
 			/>
 			<ScenarioView key={scenario.id} projected={found} kept={kept} />
+			<div className="mt-6 flex justify-end gap-1 lg:hidden">{manage}</div>
 			<AlertDialog open={dialog === "rename"} onOpenChange={(open) => !open && setDialog(null)}>
 				<AlertDialogContent>
 					<AlertDialogHeader>

@@ -118,7 +118,9 @@ export function DetailPager({
 
 /**
  * The detail's header: Back to the list, what the item is, its actions, and previous and next.
- * Its title is an h2, under the section's h1.
+ * Its title is an h2, under the section's h1. On a phone it follows the phone header's rule
+ * (COMPONENTS.md, #74): one row at least 52px tall on the 16px gutter with Back, the eyebrow and
+ * title, and previous/next; at most one action, which drops under the row when it doesn't fit.
  */
 export function DetailHeader({
 	eyebrow,
@@ -142,12 +144,22 @@ export function DetailHeader({
 }) {
 	const phoneOnly = listBeside ? "lg:hidden" : undefined;
 	return (
-		<header data-slot="detail-header" className="mb-6 flex flex-wrap items-center gap-x-2 gap-y-1">
-			{leading ? <div className={cn("flex", phoneOnly)}>{leading}</div> : null}
+		<header
+			data-slot="detail-header"
+			className="mb-6 flex flex-wrap items-center gap-x-2 gap-y-1 max-lg:mb-4 max-lg:min-h-13 max-lg:gap-x-1"
+		>
+			{/* Phones: the arrow's glyph, not its 44px box, sits on the 16px gutter. */}
+			{leading ? (
+				<div data-slot="detail-back" className={cn("flex max-lg:-ms-3", phoneOnly)}>
+					{leading}
+				</div>
+			) : null}
 			{/* At least ~12 characters of title: past that the actions drop to their own row (#65). */}
-			<div className="min-w-0 flex-1 basis-36">
+			<div className="min-w-0 flex-1 basis-32 lg:basis-36">
 				{eyebrow ? (
-					<p className="text-[13px] font-medium text-muted-foreground">{eyebrow}</p>
+					<p data-slot="detail-eyebrow" className="text-[13px] font-medium text-muted-foreground">
+						{eyebrow}
+					</p>
 				) : null}
 				<h2
 					data-slot="detail-title"
@@ -156,10 +168,18 @@ export function DetailHeader({
 					{title}
 				</h2>
 			</div>
-			<div className="ms-auto flex items-center gap-1">
-				{actions}
-				{pager ? <div className={cn("flex", phoneOnly)}>{pager}</div> : null}
-			</div>
+			{/* Previous and next stay on the title's row at 320 (they come before the actions, which
+			    may drop under it); from lg they are last. */}
+			{pager ? (
+				<div className={cn("flex lg:order-last", !actions && "max-lg:-me-2", phoneOnly)}>
+					{pager}
+				</div>
+			) : null}
+			{actions ? (
+				<div data-slot="detail-actions" className="ms-auto flex items-center gap-1">
+					{actions}
+				</div>
+			) : null}
 		</header>
 	);
 }
