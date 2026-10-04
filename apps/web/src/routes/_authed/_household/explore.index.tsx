@@ -709,9 +709,9 @@ function ScenarioBar({
 						Delete “{draft.name}”? The Plan doesn’t change.
 					</Confirm>
 				) : null}
-				{/* On a phone the actions are a grid of two, so none wraps alone; an odd one out (the first:
-				    Save, or Saved) takes the whole first row (#74). */}
-				<div className="flex flex-wrap items-center gap-2 max-sm:grid max-sm:grid-cols-2 max-sm:[&>:first-child:nth-last-child(odd)]:col-span-2">
+				{/* On a phone the actions are a grid of two, so none wraps alone: "Saved" is a line of its own
+				    above the buttons, and when the buttons are an odd number the first takes a whole row (#74). */}
+				<div className="flex flex-wrap items-center gap-2 max-sm:grid max-sm:grid-cols-2 max-sm:[&>:first-child:nth-last-child(odd)]:col-span-2 max-sm:[&>[data-status]:nth-last-child(even)+*]:col-span-2">
 					{/* Save shows only once there's something to save; a kept Scenario says it's saved. */}
 					{dirty ? (
 						<Button
@@ -726,7 +726,10 @@ function ScenarioBar({
 							{saved ? "Save" : "Save Scenario"}
 						</Button>
 					) : saved ? (
-						<span className="inline-flex h-8 items-center gap-1 px-1 text-[13px] text-muted-foreground max-sm:h-11 max-sm:justify-center">
+						<span
+							data-status
+							className="inline-flex h-8 items-center gap-1 px-1 text-[13px] text-muted-foreground max-sm:col-span-2 max-sm:h-auto max-sm:px-0"
+						>
 							<Check className="size-4" aria-hidden="true" />
 							Saved
 						</span>
@@ -988,21 +991,21 @@ function Totals({
 					<TableRow className="border-0">
 						<TableHead
 							scope="col"
-							className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-3 pb-2 text-[13px]"
+							className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-3 pb-2 text-[13px] max-sm:pe-2"
 						>
 							<span className="sr-only">Total</span>
 						</TableHead>
 						<TableHead
 							scope="col"
 							numeric
-							className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-3 pb-2 text-[13px]"
+							className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-3 pb-2 text-[13px] max-sm:px-2"
 						>
 							Plan
 						</TableHead>
 						<TableHead
 							scope="col"
 							numeric
-							className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-3 pb-2 text-[13px]"
+							className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-3 pb-2 text-[13px] max-sm:ps-2"
 						>
 							Scenario
 						</TableHead>
@@ -1013,14 +1016,14 @@ function Totals({
 						<TableRow key={row.label} className="border-0 border-t">
 							<th
 								scope="row"
-								className="px-(--card-pad) py-2.5 text-start font-normal text-muted-foreground"
+								className="px-(--card-pad) py-2.5 text-start font-normal text-muted-foreground max-sm:pe-2"
 							>
 								{row.label}
 							</th>
 							<TableCell
 								numeric
 								className={cn(
-									"px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) py-2.5",
+									"px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) py-2.5 max-sm:px-2",
 									row.plan < 0 && "text-over",
 								)}
 							>
@@ -1029,7 +1032,7 @@ function Totals({
 							<TableCell
 								numeric
 								className={cn(
-									"px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) py-2.5 font-semibold",
+									"px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) py-2.5 font-semibold max-sm:ps-2",
 									row.scenario < 0 && "text-over",
 								)}
 							>
