@@ -1043,7 +1043,7 @@ function GrowthLine({ lever, edit }: { lever: ScenarioChange | undefined; edit: 
 					</label>
 					{growth ? (
 						<>
-							<div className="grid grid-cols-2 gap-3">
+							<div className="grid gap-3 sm:grid-cols-2">
 								{pct("incomePct", "Income, % a year")}
 								{pct("costsPct", "Costs, % a year")}
 							</div>
@@ -1278,7 +1278,7 @@ function OneOffFields({
 // ---------------------------------------------------------------------------------------------
 // Controls
 
-/** An amount on a slider, and typed. */
+/** An amount on a slider, and typed: side by side from sm, the slider above the field on a phone (#74). */
 function AmountField({
 	label,
 	value,
@@ -1295,7 +1295,7 @@ function AmountField({
 }) {
 	const max = Math.max(sliderMax(reference), value);
 	return (
-		<div className="grid grid-cols-[minmax(0,1fr)_7.5rem] items-center gap-3">
+		<div className="grid items-center gap-3 sm:grid-cols-[minmax(0,1fr)_7.5rem]">
 			<Slider
 				label={label}
 				valueText={formatMoney(value)}
