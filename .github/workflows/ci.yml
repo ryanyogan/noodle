@@ -92,7 +92,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4]
     # Playwright's image already has Chromium, WebKit and their system libraries, so no job installs
     # them. Keep its tag equal to @playwright/test in apps/web/package.json.
     container:
@@ -122,7 +122,7 @@ jobs:
           AI_MODEL: stub
       # Phone tests run in e2e-phone. A branch that breaks everything stops after five failures
       # instead of running each test to its timeout, twice.
-      - run: bun run e2e --project=chromium --shard=${{ matrix.shard }}/3 --workers=3 --max-failures=5
+      - run: bun run e2e --project=chromium --shard=${{ matrix.shard }}/4 --workers=3 --max-failures=5
         working-directory: apps/web
       - name: Slowest 20 tests
         if: ${{ !cancelled() }}
