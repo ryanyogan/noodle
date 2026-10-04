@@ -11,6 +11,7 @@ import {
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import { DetailColumns } from "@noodle/ui/components/layout";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Stat, StatGrid } from "@noodle/ui/components/stat";
@@ -85,6 +86,17 @@ function CommitmentPage() {
 		return <DetailHeader listBeside eyebrow="Commitment" title="Commitment" leading={back} />;
 	const terms = currentTerms(data, id, month);
 	const ended = commitment.endedFromMonth !== null && commitment.endedFromMonth <= month;
+	const hasCharges = matchCharges(data, id, data.charges).length > 0;
+	const nextDues = (
+		<div className="min-w-0 @max-3xl/detail:order-1">
+			<NextDues data={data} id={id} ended={ended} />
+		</div>
+	);
+	const charges = (
+		<div className="min-w-0 @max-3xl/detail:order-2">
+			<Charges data={data} id={id} />
+		</div>
+	);
 	return (
 		<>
 			<DetailHeader
@@ -133,17 +145,13 @@ function CommitmentPage() {
 				/>
 			) : null}
 			{changes.failed ? <div className="mb-8">{changes.failed}</div> : null}
-			{/* From a 42rem pane (1440 beside the list): the cost across the top, Next due beside Terms
-			    history, then Charges across the bottom. */}
-			{/* In a wide pane, Charges take the main column; the cost, Next due and Terms history a right rail
-			    (#47). Phones keep the reading order. */}
-			<div className="grid gap-8 @2xl:grid-cols-2 @2xl:items-start @2xl:gap-x-6 @5xl:grid-cols-[minmax(0,1fr)_var(--rail-width)] @5xl:grid-rows-[auto_auto_1fr]">
+			{/* The cost across the top. Beneath it, in a pane wide enough, two columns that both start
+			    with a heading: Charges beside Next due and Terms history. With no Charges yet, their note
+			    goes under Next due, so no column is left nearly empty (#73). Phones keep the reading
+			    order: the cost, Next due, Charges, Terms history. */}
+			<DetailColumns className="gap-8">
 				{terms ? (
-					<Card
-						role="region"
-						aria-labelledby="commitment-cost"
-						className="@2xl:col-span-full @5xl:col-span-1 @5xl:col-start-2 @5xl:row-start-1"
-					>
+					<Card role="region" aria-labelledby="commitment-cost" className="col-span-full">
 						<div className="grid gap-1 p-(--card-pad)">
 							<h2 id="commitment-cost" className="text-[13px] font-medium text-muted-foreground">
 								{ended ? "What it cost a year" : "Cost a year"}
@@ -184,20 +192,18 @@ function CommitmentPage() {
 						)}
 					</Card>
 				) : null}
-				<div className="min-w-0 @2xl:col-start-1 @2xl:row-start-2 @5xl:col-start-2 @5xl:row-start-2">
-					<NextDues data={data} id={id} ended={ended} />
+				<div className="grid min-w-0 gap-8 @max-3xl/detail:contents">
+					{hasCharges ? charges : nextDues}
+					{hasCharges ? null : charges}
 				</div>
-				<div className="min-w-0 @2xl:col-span-full @2xl:row-start-3 @5xl:col-span-1 @5xl:col-start-1 @5xl:row-span-3 @5xl:row-start-1">
-					<Charges data={data} id={id} />
+				<div className="grid min-w-0 gap-8 @max-3xl/detail:contents">
+					{hasCharges ? nextDues : null}
+					<Section aria-labelledby="terms-history" className="min-w-0 @max-3xl/detail:order-3">
+						<SectionHeader id="terms-history" title="Terms history" />
+						<PlanHistoryList month={month} targetId={id} />
+					</Section>
 				</div>
-				<Section
-					aria-labelledby="terms-history"
-					className="min-w-0 @2xl:col-start-2 @2xl:row-start-2 @5xl:col-start-2 @5xl:row-start-3"
-				>
-					<SectionHeader id="terms-history" title="Terms history" />
-					<PlanHistoryList month={month} targetId={id} />
-				</Section>
-			</div>
+			</DetailColumns>
 		</>
 	);
 }

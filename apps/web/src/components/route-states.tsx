@@ -14,7 +14,9 @@ import { useEffect, useState } from "react";
 export function PagePending() {
 	return (
 		<div role="status" aria-label="Loading" className="animate-enter">
-			<div className="mb-6 grid gap-2 lg:mb-8">
+			{/* The header's own height and space under it (PageHeader), so the page doesn't move when it
+			    arrives. */}
+			<div className="mb-4 grid min-h-13 content-center gap-2 lg:mb-8 lg:min-h-0">
 				<Skeleton className="h-3.5 w-20" />
 				<Skeleton className="h-7 w-44 lg:h-8" />
 			</div>

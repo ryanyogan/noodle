@@ -135,7 +135,7 @@ function SetupWizard() {
 	const back = step > 1 ? () => void go(step - 1) : undefined;
 
 	return (
-		<main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col px-(--gutter) pt-[calc(var(--safe-top)+20px)]">
+		<main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col lg:max-w-2xl px-(--gutter) pt-[calc(var(--safe-top)+20px)]">
 			<header className="grid gap-5 pb-6">
 				<div className="flex items-center justify-between gap-4">
 					<Logo />
@@ -267,7 +267,9 @@ function StepFrame({
 					</form>
 				)}
 			</div>
-			<div className="sticky bottom-0 z-10 mt-auto grid gap-2 border-t border-border bg-background py-3 pb-[calc(var(--safe-bottom)+12px)]">
+			{/* On a phone the buttons stay at the bottom of the screen. On a computer they follow the
+			    step's last field, and still stay in view while a long step scrolls (#73). */}
+			<div className="sticky bottom-0 z-10 mt-auto grid gap-2 lg:mt-0 border-t border-border bg-background py-3 pb-[calc(var(--safe-bottom)+12px)]">
 				{aside}
 				<div className="flex items-center gap-2">
 					{onBack ? (

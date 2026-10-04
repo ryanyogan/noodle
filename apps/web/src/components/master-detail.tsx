@@ -1,6 +1,6 @@
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
-import { MasterDetail } from "@noodle/ui/components/layout";
+import { DetailColumns, MasterDetail } from "@noodle/ui/components/layout";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { cn } from "@noodle/ui/lib/utils";
 import { Link, type LinkOptions, Outlet } from "@tanstack/react-router";
@@ -187,21 +187,30 @@ export function DetailHeader({
 /** An item that's slow to load: a skeleton in the detail pane, while the list stays as it is. */
 export function DetailPending() {
 	return (
-		<div role="status" aria-label="Loading" data-slot="detail-pending" className="grid gap-8">
-			<div className="grid gap-2">
+		<div role="status" aria-label="Loading" data-slot="detail-pending">
+			{/* As DetailHeader: the same space under it, then the blocks in the columns the item's page
+			    uses, so nothing moves when it arrives. */}
+			<div className="mb-6 grid gap-2">
 				<Skeleton className="h-3.5 w-20" />
-				<Skeleton className="h-7 w-48" />
+				<Skeleton className="h-7 w-48 lg:h-8" />
 			</div>
-			<Card className="grid gap-3 p-(--card-pad)">
-				<Skeleton className="h-3.5 w-24" />
-				<Skeleton className="h-10 w-36" />
-				<Skeleton className="h-3.5 w-52" />
-			</Card>
-			<Card className="grid gap-3 p-(--card-pad)">
-				<Skeleton className="h-4 w-full" />
-				<Skeleton className="h-4 w-4/5" />
-				<Skeleton className="h-4 w-3/5" />
-			</Card>
+			<DetailColumns className="gap-8">
+				<Card className="col-span-full grid gap-3 p-(--card-pad)">
+					<Skeleton className="h-3.5 w-24" />
+					<Skeleton className="h-10 w-36" />
+					<Skeleton className="h-3.5 w-52" />
+				</Card>
+				{[0, 1].map((column) => (
+					<div key={column} className="grid gap-3">
+						<Skeleton className="h-4 w-28" />
+						<Card className="grid gap-3 p-(--card-pad)">
+							<Skeleton className="h-4 w-full" />
+							<Skeleton className="h-4 w-4/5" />
+							<Skeleton className="h-4 w-3/5" />
+						</Card>
+					</div>
+				))}
+			</DetailColumns>
 		</div>
 	);
 }

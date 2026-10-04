@@ -52,7 +52,7 @@ export function StarterBucketPicker({
 						const label = row.name.trim() || "New Bucket";
 						return (
 							<li key={row.key}>
-								<Card className="grid gap-2 p-3" data-bucket={row.key}>
+								<Card className="grid gap-2 p-(--card-pad)" data-bucket={row.key}>
 									<div className="flex items-center gap-2">
 										<Input
 											aria-label={`Name of ${label}`}
