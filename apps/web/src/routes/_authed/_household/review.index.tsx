@@ -15,7 +15,7 @@ import { Card } from "@noodle/ui/components/card";
 import { Combobox } from "@noodle/ui/components/combobox";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Kbd } from "@noodle/ui/components/kbd";
-import { MasterDetail } from "@noodle/ui/components/layout";
+import { MasterDetail, SectionGrid } from "@noodle/ui/components/layout";
 import type { Choices } from "@noodle/ui/components/select";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
@@ -785,13 +785,16 @@ function ReviewPage() {
 						className="max-w-xl lg:max-w-none"
 						listLabel="Cards to review"
 						detailLabel={editingItem ? "Transaction" : "About Review"}
+						// Until a card is opened the cards have the page's width, side by side (#73).
+						listOnly
 						list={
 							<div className="grid min-w-0 content-start gap-5">
 								<div className="grid gap-3">
 									<p className="flex items-start gap-1 text-sm text-muted-foreground">
 										<span>
 											Noodle wasn’t sure where to file these. Confirm its suggestion or pick
-											another.
+											another. A card’s pencil opens it beside the list, to split it, change its
+											note or say who it was For.
 										</span>
 										<TermHelp term="review" className="mt-0.5" />
 									</p>
@@ -814,28 +817,30 @@ function ReviewPage() {
 											{monthName(month)}
 											{month.slice(0, 4) === current.slice(0, 4) ? "" : ` ${month.slice(0, 4)}`}
 										</h2>
-										{items.map((item) => {
-											const same = guessed.filter((other) => other.merchant === item.merchant);
-											return (
-												<div key={item.id} className="grid gap-3">
-													{item.id === top.id ? <ReviewMatchOffer transaction={item} /> : null}
-													<ReviewCard
-														item={item}
-														today={today}
-														members={members}
-														parentId={parentId}
-														current={item.id === top.id}
-														hydrated={hydrated}
-														sameMerchant={item.guess && same.length > 1 ? same : []}
-														onFocus={() => setCursor(item.id)}
-														onConfirm={() => confirm(item)}
-														onPick={(value, plan) => file(item, value, plan)}
-														onEdit={() => onEdit(item)}
-														onConfirmAll={(items) => confirmEach(items)}
-													/>
-												</div>
-											);
-										})}
+										<ReviewCards wide={!editingItem}>
+											{items.map((item) => {
+												const same = guessed.filter((other) => other.merchant === item.merchant);
+												return (
+													<div key={item.id} className="grid gap-3">
+														{item.id === top.id ? <ReviewMatchOffer transaction={item} /> : null}
+														<ReviewCard
+															item={item}
+															today={today}
+															members={members}
+															parentId={parentId}
+															current={item.id === top.id}
+															hydrated={hydrated}
+															sameMerchant={item.guess && same.length > 1 ? same : []}
+															onFocus={() => setCursor(item.id)}
+															onConfirm={() => confirm(item)}
+															onPick={(value, plan) => file(item, value, plan)}
+															onEdit={() => onEdit(item)}
+															onConfirmAll={(items) => confirmEach(items)}
+														/>
+													</div>
+												);
+											})}
+										</ReviewCards>
 									</section>
 								))}
 								<p className="hidden text-center text-xs text-muted-foreground lg:block">
@@ -858,11 +863,6 @@ function ReviewPage() {
 									/>
 								</Suspense>
 							) : undefined
-						}
-						empty={
-							<p className="max-w-sm px-1 text-center text-sm text-muted-foreground">
-								A card’s pencil opens it here, to split it, change its note or say who it was For.
-							</p>
 						}
 					/>
 				) : (
@@ -1323,5 +1323,19 @@ function ChangeSheet({
 			onClose={onClose}
 			splitting={splitting}
 		/>
+	);
+}
+
+/**
+ * A month's cards in the list view: side by side across the page (two columns, three from 1680)
+ * until one is opened, then one column beside it.
+ */
+function ReviewCards({ wide, children }: { wide: boolean; children: ReactNode }) {
+	return wide ? (
+		<SectionGrid columns={3} className="gap-3">
+			{children}
+		</SectionGrid>
+	) : (
+		<div className="grid gap-3">{children}</div>
 	);
 }
