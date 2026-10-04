@@ -53,6 +53,8 @@ type Shot = {
 	ready?: (page: Page) => Promise<void>;
 	/** Only at phone widths, and only what's in the window (a sheet over the page). */
 	phoneSheet?: boolean;
+	/** Only at phone widths, the whole page: what only a phone shows (a folded group opened). */
+	phone?: boolean;
 	/**
 	 * The page draws only the rows in the window (Transactions): the window is made as tall as the
 	 * page for the picture, or the rows below the fold come out as an empty card.
@@ -152,11 +154,68 @@ async function openLine(page: Page, title: string) {
 	const sheet = page.getByRole("dialog", { name: title });
 	// The row only answers once the page is hydrated.
 	await expect(async () => {
+		// On a phone a long group is folded once the page is hydrated: its lines are behind
+		// "Show all N …", so every group is opened first (nothing to press from 640 up).
+		for (const all of await page.getByRole("button", { name: /^Show all \d+ / }).all())
+			await all.click({ timeout: 2000 });
 		if (!(await sheet.isVisible()))
-			await page.getByRole("button", { name: `Edit ${title}` }).click();
+			await page.getByRole("button", { name: `Edit ${title}` }).click({ timeout: 2000 });
 		await expect(sheet).toBeVisible({ timeout: 2000 });
 	}).toPass({ timeout: 20_000 });
 	return sheet;
+}
+
+/**
+ * DIAGNOSTIC (74af, to be removed): the page once more with motion NOT reduced, and what its first
+ * chart does for three seconds (frames drawn, the chart's width, the line's dashes, the bars),
+ * written beside the pictures with a picture of where it ended up.
+ */
+async function chartNotes(page: Page, shot: Shot, dir: string) {
+	await page.emulateMedia({ reducedMotion: "no-preference" });
+	try {
+		await page.goto(shot.path);
+		await expect(page.locator(".recharts-wrapper").first()).toBeVisible({ timeout: 30_000 });
+		const notes = await page.evaluate(
+			() =>
+				new Promise<string[]>((resolve) => {
+					const out: string[] = [];
+					const start = performance.now();
+					let frames = 0;
+					const count = () => {
+						frames++;
+						requestAnimationFrame(count);
+					};
+					requestAnimationFrame(count);
+					const read = () => {
+						const wrap = document.querySelector(".recharts-wrapper");
+						const line = document.querySelector<SVGPathElement>(".recharts-line-curve");
+						const bars = [...document.querySelectorAll(".recharts-bar-rectangle path")];
+						out.push(
+							[
+								`${Math.round(performance.now() - start)}ms`,
+								`frames=${frames}`,
+								`width=${wrap?.getBoundingClientRect().width ?? "-"}`,
+								`dash=${line?.getAttribute("stroke-dasharray") ?? "-"}`,
+								`length=${line ? Math.round(line.getTotalLength()) : "-"}`,
+								`bars=${bars.length}`,
+								`tallest=${Math.round(Math.max(0, ...bars.map((b) => b.getBoundingClientRect().height)))}`,
+								document.visibilityState,
+								`reduce=${matchMedia("(prefers-reduced-motion: reduce)").matches}`,
+							].join(" "),
+						);
+						if (out.length >= 30) resolve(out);
+						else setTimeout(read, 100);
+					};
+					read();
+				}),
+		);
+		writeFileSync(join(dir, `${shot.name}.chart-notes.txt`), `${notes.join("\n")}\n`);
+		await page.screenshot({ path: join(dir, `${shot.name}-moving.png`), animations: "disabled" });
+	} catch (error) {
+		writeFileSync(join(dir, `${shot.name}.chart-notes.txt`), `${String(error)}\n`);
+	} finally {
+		await page.emulateMedia({ reducedMotion: "reduce" });
+	}
 }
 
 /** Tries one part of the seeding; a failure is noted and the rest goes on. */
@@ -466,6 +525,9 @@ test.beforeAll(async ({ browser }) => {
 					await page.waitForTimeout(400);
 				}
 				await expect(confirm).toBeVisible();
+				// Pressing Skip scrolls the page to it: back to the top, so the picture is what a Parent
+				// sees on arriving, and whether Skip and Undo clear the bottom bar there.
+				await page.evaluate(() => window.scrollTo(0, 0));
 			},
 		},
 		{ name: "13-review-list", path: "/review?view=list" },
@@ -489,6 +551,23 @@ test.beforeAll(async ({ browser }) => {
 			phoneSheet: true,
 			ready: async (page) => {
 				await openLine(page, "Electricity");
+			},
+		},
+		{
+			// A folded group opened on a phone: every Commitment under its summary, and "Show fewer" (#74).
+			name: "19d-explore-group-open",
+			path: "/explore",
+			phone: true,
+			ready: async (page) => {
+				const fewer = page.getByRole("button", { name: "Show fewer Commitments" });
+				// The group only folds, and its button only answers, once the page is hydrated.
+				await expect(async () => {
+					if (!(await fewer.isVisible()))
+						await page
+							.getByRole("button", { name: /^Show all \d+ Commitments$/ })
+							.click({ timeout: 2000 });
+					await expect(fewer).toBeVisible({ timeout: 2000 });
+				}).toPass({ timeout: 20_000 });
 			},
 		},
 		{
@@ -586,6 +665,9 @@ for (const viewport of viewports) {
 		const device: Parameters<typeof signedInPage>[2] = {
 			viewport,
 			colorScheme,
+			// Charts and cards are pictured as they end up, not part-way through their entrance: with
+			// less motion asked for, nothing animates in (the charts' useAnimation, src/motion.ts).
+			reducedMotion: "reduce",
 			isMobile: phone,
 			hasTouch: phone,
 			deviceScaleFactor: phone ? 2 : 1,
@@ -597,7 +679,7 @@ for (const viewport of viewports) {
 		mkdirSync(dir, { recursive: true });
 		const failures: string[] = [];
 		for (const shot of shots) {
-			if (shot.phoneSheet && !phone) continue;
+			if ((shot.phoneSheet || shot.phone) && !phone) continue;
 			let page = main;
 			try {
 				if (shot.fresh) {
@@ -635,6 +717,8 @@ for (const viewport of viewports) {
 					animations: "disabled",
 				});
 				if (shot.tall) await page.setViewportSize(viewport);
+				if (shot.name === "19-explore" || shot.name === "22-scenario")
+					await chartNotes(page, shot, dir);
 			} catch (error) {
 				failures.push(`${shot.name} (${shot.path}): ${String(error).split("\n")[0]}`);
 				// What it looked like when it gave up, if the page is still there.
