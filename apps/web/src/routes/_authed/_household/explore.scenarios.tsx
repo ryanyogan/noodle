@@ -23,7 +23,14 @@ import { Layers } from "lucide-react";
 import { lazy, Suspense } from "react";
 import { z } from "zod";
 import { ListBesideDetail, masterDetailItem } from "../../../components/master-detail";
-import { HORIZON_LABEL, type Projected, useKeptScenarios } from "../../../components/scenario-view";
+import {
+	HorizonToggle,
+	type HorizonYears,
+	type Projected,
+	useKeptScenarios,
+	yearsParam,
+	yearsSearch,
+} from "../../../components/scenario-view";
 import { SectionPending } from "../../../components/section-layout";
 import { formatWholeMoney, shortDayAt, shortMonth } from "../../../format";
 import { goalsQuery, planAheadQuery, scenariosQuery } from "../../../queries";
@@ -44,8 +51,11 @@ const MAX_COMPARED = 3;
 export const Route = createFileRoute("/_authed/_household/explore/scenarios")({
 	ssr: "data-only",
 	pendingComponent: SectionPending,
-	// `compare`: the Scenarios compared, as comma-separated IDs.
-	validateSearch: z.object({ compare: z.string().max(200).optional().catch(undefined) }),
+	// `compare`: the Scenarios compared, as comma-separated IDs. `years`: how far ahead (2 unset).
+	validateSearch: z.object({
+		compare: z.string().max(200).optional().catch(undefined),
+		years: yearsSearch,
+	}),
 	loader: ({ context }) =>
 		Promise.all([
 			context.queryClient.ensureQueryData(planAheadQuery()),
@@ -57,9 +67,9 @@ export const Route = createFileRoute("/_authed/_household/explore/scenarios")({
 
 function ScenariosPage() {
 	const { parentId } = Route.useRouteContext();
-	const { plan, projected, subjects, goals } = useKeptScenarios(parentId);
-	const navigate = useNavigate();
 	const search = Route.useSearch();
+	const { plan, projected, subjects, goals, horizon } = useKeptScenarios(parentId, search.years);
+	const navigate = useNavigate();
 	// The Scenario open beside the list.
 	const picked = useParams({ strict: false, select: (params) => params.id });
 
@@ -70,8 +80,11 @@ function ScenariosPage() {
 	// Ticking keeps whatever is open beside the list; "Compare" below shows the comparison.
 	const toggle = (id: string) => {
 		const next = compared.includes(id) ? compared.filter((c) => c !== id) : [...compared, id];
-		const compare = next.length > 0 ? next.join(",") : undefined;
-		const stay = { search: { compare }, replace: true, resetScroll: false } as const;
+		go({ compare: next.length > 0 ? next.join(",") : undefined, years: search.years });
+	};
+	// Stays on whatever is open beside the list.
+	const go = (next: { compare?: string; years?: HorizonYears }) => {
+		const stay = { search: next, replace: true, resetScroll: false } as const;
 		if (picked) {
 			void navigate({ to: "/explore/scenarios/$id", params: { id: picked }, ...stay });
 		} else void navigate({ to: "/explore/scenarios", ...stay });
@@ -104,14 +117,19 @@ function ScenariosPage() {
 						plan={plan}
 						compared={compared.flatMap((id) => projected.find((p) => p.scenario.id === id) ?? [])}
 						goals={goals}
+						horizonLabel={horizon.label}
 					/>
 				) : undefined
 			}
 			list={
 				<Section aria-labelledby="saved">
 					<SectionHeader id="saved" title="Saved" count={projected.length} />
+					<HorizonToggle
+						years={horizon.years}
+						onYears={(years) => go({ compare: search.compare, years: yearsParam(years) })}
+					/>
 					<p className="-mt-1 text-[13px] text-muted-foreground">
-						Each against the Plan over {HORIZON_LABEL}. Tick up to {MAX_COMPARED} to compare them
+						Each against the Plan over {horizon.label}. Tick up to {MAX_COMPARED} to compare them
 						side by side with the Plan.
 					</p>
 					{compared.length > 0 ? (
@@ -198,10 +216,12 @@ function Compare({
 	plan,
 	compared,
 	goals,
+	horizonLabel,
 }: {
 	plan: Projection;
 	compared: Projected[];
 	goals: readonly { id: string; name: string }[];
+	horizonLabel: string;
 }) {
 	const columns = [
 		{ key: "plan", name: "Plan", projection: plan },
@@ -223,7 +243,7 @@ function Compare({
 		over?: (p: Projection) => boolean;
 	}[] = [
 		{
-			label: `Free to Spend, ${HORIZON_LABEL}`,
+			label: `Free to Spend, ${horizonLabel}`,
 			value: (p) => formatWholeMoney(p.freeToSpend),
 			over: (p) => p.freeToSpend < 0,
 		},

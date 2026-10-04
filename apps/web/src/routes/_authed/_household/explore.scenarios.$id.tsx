@@ -32,7 +32,8 @@ function ScenarioPane() {
 	const { id } = Route.useParams();
 	const { parentId } = Route.useRouteContext();
 	const navigate = Route.useNavigate();
-	const kept = useKeptScenarios(parentId);
+	const { years } = Route.useSearch();
+	const kept = useKeptScenarios(parentId, years);
 	const save = useSaveScenario();
 	const remove = useDeleteScenario();
 	const [dialog, setDialog] = useState<"rename" | "delete" | null>(null);
@@ -77,7 +78,7 @@ function ScenarioPane() {
 							Delete
 						</Button>
 						<Button asChild size="sm">
-							<Link to="/explore" search={{ scenario: scenario.id }}>
+							<Link to="/explore" search={{ scenario: scenario.id, years }}>
 								Open in Explore
 							</Link>
 						</Button>

@@ -13,6 +13,7 @@ import {
 	addGoal,
 	addPersonalAllowance,
 	applyChanges,
+	archiveBucket,
 	createHouseholdForParent,
 	type Db,
 	deleteScenario,
@@ -133,6 +134,42 @@ describe("Scenarios", () => {
 		await save("s1", "Ours");
 		await deleteScenario(db, { householdId, scenarioId: "s1" });
 		expect(await loadScenarios(db, householdId, month)).toEqual([]);
+	});
+});
+
+describe("Scenarios keep their Changes' subjects' names (#51)", () => {
+	it("names each Change by its subject as it is now, archived too, and keeps the saved name once it's gone", async () => {
+		await saveScenario(db, {
+			householdId,
+			memberId: parentId,
+			scenarioId: "s1",
+			name: "Names",
+			levers: [
+				{ kind: "allowance", bucketId: "groceries", amount: 100_000, fromMonth: month },
+				{ kind: "end-commitment", commitmentId: "streaming", fromMonth: month },
+				{ kind: "goal", goalId: "car", target: 1_000_000, targetDate: null, fromMonth: month },
+				{
+					kind: "allowance",
+					bucketId: "deleted",
+					amount: 5_000,
+					fromMonth: month,
+					subjectName: "Eating out",
+				},
+				{ kind: "allowance", bucketId: "never", amount: 5_000, fromMonth: month },
+			],
+		});
+		await archiveBucket(db, { householdId, memberId: parentId, bucketId: "groceries", month });
+		const [scenario] = await loadScenarios(db, householdId, month);
+		expect(scenario?.levers.map((l) => l.subjectName)).toEqual([
+			"Groceries",
+			"Streaming",
+			"Car",
+			"Eating out",
+			undefined,
+		]);
+		// Saved with them, so a subject deleted later still has its name.
+		const [row] = await db.select({ levers: scenarios.levers }).from(scenarios);
+		expect(JSON.stringify(row?.levers)).toContain('"subjectName":"Groceries"');
 	});
 });
 
@@ -284,7 +321,7 @@ describe("Scenarios as versioned JSON", () => {
 	it("saves v2 Changes as { version: 2, levers }", async () => {
 		await save("s1", "Ours");
 		const [row] = await db.select({ levers: scenarios.levers }).from(scenarios);
-		expect(row?.levers).toEqual({
+		expect(row?.levers).toMatchObject({
 			version: 2,
 			levers: [{ kind: "allowance", bucketId: "groceries", amount: 100_000, fromMonth: month }],
 		});
@@ -308,7 +345,7 @@ describe("Scenarios as versioned JSON", () => {
 			],
 		});
 		const [scenario] = await loadScenarios(db, householdId, "2026-11");
-		expect(scenario?.levers).toEqual([
+		expect(scenario?.levers).toMatchObject([
 			{ kind: "allowance", bucketId: "groceries", amount: 90_000, fromMonth: "2026-11" },
 			{
 				kind: "add-commitment",

@@ -24,12 +24,19 @@ export type ScenarioChangeRange = {
  */
 export type ScenarioChangeMute = { muted?: boolean };
 
+/**
+ * The name of the Bucket, Commitment or Goal a Change changes, as the Household last had it (kept
+ * as the Scenario is saved and loaded): it names the Change once its subject is archived or gone.
+ */
+export type ScenarioChangeSubjectName = { subjectName?: string };
+
 /** Whether a one-off takes money out (a roof repair) or brings it in (a bonus). */
 export type OneOffFlow = "expense" | "income";
 
 /** A single adjustable quantity in a Scenario (v2: every Change has a range). */
 export type ScenarioChange = ScenarioChangeRange &
 	ScenarioChangeMute &
+	ScenarioChangeSubjectName &
 	(
 		| {
 				/** Income from `fromMonth`: a raise, a job change, parental leave. */

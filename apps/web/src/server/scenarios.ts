@@ -57,6 +57,7 @@ const ranged = <S extends z.ZodRawShape>(shape: S) =>
 		fromMonth: monthKeySchema,
 		untilMonth: monthKeySchema.optional(),
 		muted: z.boolean().optional(),
+		subjectName: z.string().max(100).optional(),
 	});
 
 const changeV2Schema = z.discriminatedUnion("kind", [

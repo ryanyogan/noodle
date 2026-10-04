@@ -86,6 +86,10 @@ function rangeWords(scenarioChange: ScenarioChange, month: MonthKey): string {
 export const goalWords = (target: Cents, targetDate: DayKey | null) =>
 	`${money(target)} ${targetDate ? `by ${shortMonthName(monthOfDay(targetDate))}` : "with no date"}`;
 
+/** "Eating out (archived)": a Change's subject by its saved name once it's gone, else `fallback`. */
+const archived = (scenarioChange: ScenarioChange, fallback: string) =>
+	scenarioChange.subjectName ? `${scenarioChange.subjectName} (archived)` : fallback;
+
 /** The name of a Commitment a Change adds, if one does. */
 const addedCommitment = (changes: readonly ScenarioChange[], id: string) =>
 	changes.find(
@@ -129,7 +133,10 @@ export function describeChange(
 				? described(
 						`${bucket.name} ${money(bucket.allowance)} → ${money(scenarioChange.amount)} a month${range}`,
 					)
-				: described(`A Bucket’s allowance ${money(scenarioChange.amount)} a month${range}`, true);
+				: described(
+						`${archived(scenarioChange, "A Bucket’s allowance")} ${money(scenarioChange.amount)} a month${range}`,
+						true,
+					);
 		}
 		case "commitment-terms": {
 			const commitment = subjects.commitments.find((c) => c.id === scenarioChange.commitmentId);
@@ -137,7 +144,10 @@ export function describeChange(
 			if (!commitment) {
 				const amount =
 					scenarioChange.amount === undefined ? "new terms" : money(scenarioChange.amount);
-				return described(`A Commitment’s ${amount}${due}${range}`, true);
+				return described(
+					`${archived(scenarioChange, "A Commitment’s")} ${amount}${due}${range}`,
+					true,
+				);
 			}
 			const before = `${money(commitment.amount)} ${cadenceWords[commitment.cadence]}`;
 			const after = `${money(scenarioChange.amount ?? commitment.amount)} ${cadenceWords[scenarioChange.cadence ?? commitment.cadence]}`;
@@ -156,7 +166,7 @@ export function describeChange(
 			const added = addedCommitment(changes, scenarioChange.commitmentId);
 			return added
 				? described(`${added.name} → ended${range}`)
-				: described(`A Commitment ended${range}`, true);
+				: described(`${archived(scenarioChange, "A Commitment")} ended${range}`, true);
 		}
 		case "add-commitment": {
 			const term = scenarioChange.months === null ? "" : ` for ${scenarioChange.months} months`;
@@ -178,14 +188,19 @@ export function describeChange(
 			const added = addedBucket(changes, scenarioChange.bucketId);
 			return added
 				? described(`${added.name} → archived${range}`)
-				: described(`A Bucket archived${range}`, true);
+				: described(
+						scenarioChange.subjectName
+							? `${archived(scenarioChange, "")}${range}`
+							: `A Bucket archived${range}`,
+						true,
+					);
 		}
 		case "goal": {
 			const goal = subjects.goals.find((g) => g.id === scenarioChange.goalId);
 			const after = goalWords(scenarioChange.target, scenarioChange.targetDate);
 			return goal
 				? described(`${goal.name} ${goalWords(goal.target, goal.targetDate)} → ${after}${range}`)
-				: described(`A Goal ${after}${range}`, true);
+				: described(`${archived(scenarioChange, "A Goal")} ${after}${range}`, true);
 		}
 		case "add-goal":
 			return described(
@@ -216,14 +231,14 @@ export function changeName(
 			return (
 				subjects.buckets.find((b) => b.id === scenarioChange.bucketId)?.name ??
 				addedBucket(changes, scenarioChange.bucketId)?.name ??
-				"A Bucket"
+				archived(scenarioChange, "A Bucket")
 			);
 		case "commitment-terms":
 		case "end-commitment":
 			return (
 				subjects.commitments.find((c) => c.id === scenarioChange.commitmentId)?.name ??
 				addedCommitment(changes, scenarioChange.commitmentId)?.name ??
-				"A Commitment"
+				archived(scenarioChange, "A Commitment")
 			);
 		case "goal":
 			return (
@@ -232,7 +247,7 @@ export function changeName(
 					(l): l is ScenarioChangeOf<"add-goal"> =>
 						l.kind === "add-goal" && l.goalId === scenarioChange.goalId,
 				)?.name ??
-				"A Goal"
+				archived(scenarioChange, "A Goal")
 			);
 		case "add-commitment":
 		case "one-off":

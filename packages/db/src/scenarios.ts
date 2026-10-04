@@ -86,9 +86,14 @@ export async function loadScenarios(
 		.leftJoin(applier, eq(applier.id, scenarios.appliedByMemberId))
 		.where(eq(scenarios.householdId, householdId))
 		.orderBy(desc(scenarios.updatedAt), desc(scenarios.id));
-	return rows.map((row) => ({
+	const levers = await withSubjectNames(
+		db,
+		householdId,
+		rows.map((row) => readScenarioChanges(row.levers, month)),
+	);
+	return rows.map((row, i) => ({
 		...row,
-		levers: readScenarioChanges(row.levers, month),
+		levers: levers[i] ?? [],
 		updatedAt: row.updatedAt.getTime(),
 		appliedAt: row.appliedAt?.getTime() ?? null,
 	}));
@@ -138,7 +143,73 @@ function scenarioWrite(db: Db, input: ScenarioInput, applied: boolean) {
  * Scenario ID changes nothing.
  */
 export async function saveScenario(db: Db, input: ScenarioInput): Promise<void> {
-	await scenarioWrite(db, input, false);
+	const [levers = input.levers] = await withSubjectNames(db, input.householdId, [input.levers]);
+	await scenarioWrite(db, { ...input, levers }, false);
+}
+
+/** Where a Change's subject is kept (a Bucket, Commitment or Goal) and its ID; none for the rest. */
+function subjectOf(
+	change: ScenarioChange,
+): { kind: "bucket" | "commitment" | "goal"; id: string } | null {
+	switch (change.kind) {
+		case "allowance":
+		case "archive-bucket":
+			return { kind: "bucket", id: change.bucketId };
+		case "commitment-terms":
+		case "end-commitment":
+			return { kind: "commitment", id: change.commitmentId };
+		case "goal":
+			return { kind: "goal", id: change.goalId };
+		default:
+			return null;
+	}
+}
+
+/**
+ * Each Change named by its subject as the Household has it now, archived or not (#51), so the
+ * Change still says what it changed once its Bucket, Commitment or Goal is archived. A subject no
+ * longer stored at all keeps the name the Change was last saved with.
+ */
+export async function withSubjectNames(
+	db: Db,
+	householdId: string,
+	lists: readonly ScenarioChange[][],
+): Promise<ScenarioChange[][]> {
+	const wanted = new Set(lists.flat().flatMap((change) => subjectOf(change)?.kind ?? []));
+	if (wanted.size === 0) return lists.map((list) => list);
+	const none = Promise.resolve([] as { id: string; name: string }[]);
+	const [bucketNames, commitmentNames, goalNames] = await Promise.all([
+		wanted.has("bucket")
+			? db
+					.select({ id: buckets.id, name: buckets.name })
+					.from(buckets)
+					.where(eq(buckets.householdId, householdId))
+			: none,
+		wanted.has("commitment")
+			? db
+					.select({ id: commitments.id, name: commitments.name })
+					.from(commitments)
+					.where(eq(commitments.householdId, householdId))
+			: none,
+		wanted.has("goal")
+			? db
+					.select({ id: goals.id, name: goals.name })
+					.from(goals)
+					.where(eq(goals.householdId, householdId))
+			: none,
+	]);
+	const names = {
+		bucket: new Map(bucketNames.map((r) => [r.id, r.name])),
+		commitment: new Map(commitmentNames.map((r) => [r.id, r.name])),
+		goal: new Map(goalNames.map((r) => [r.id, r.name])),
+	};
+	return lists.map((list) =>
+		list.map((change) => {
+			const subject = subjectOf(change);
+			const name = subject ? names[subject.kind].get(subject.id) : undefined;
+			return name ? { ...change, subjectName: name } : change;
+		}),
+	);
 }
 
 export async function deleteScenario(
@@ -168,7 +239,7 @@ type Batch = BatchItem<"sqlite">[];
  * upgraded first. With `scenario`, the Scenario `scenarioId` is saved as it is and marked
  * applied by `memberId` in the same batch.
  */
-export async function applyChanges(
+async function applyNamed(
 	db: Db,
 	input: {
 		householdId: string;
@@ -492,3 +563,14 @@ const termsWrite = (
 			set: { amountCents: terms.amount, cadence: terms.cadence, dueDate: terms.dueDate },
 		});
 };
+
+/** applyChanges (see applyNamed), the Scenario saved with its Changes' subjects named (#51). */
+export async function applyChanges(db: Db, input: Parameters<typeof applyNamed>[1]) {
+	const scenario = input.scenario && {
+		...input.scenario,
+		levers:
+			(await withSubjectNames(db, input.householdId, [input.scenario.levers]))[0] ??
+			input.scenario.levers,
+	};
+	return applyNamed(db, { ...input, scenario });
+}

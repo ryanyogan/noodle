@@ -5,7 +5,6 @@ import {
 	changeName,
 	describeChange,
 	holdsMoney,
-	MAX_PROJECTION_MONTHS,
 	type MonthKey,
 	moneyFreed,
 	type OutcomeWarning,
@@ -56,7 +55,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "@noodle/ui/components/table";
-import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { cn } from "@noodle/ui/lib/utils";
 import { useMutationState, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -78,6 +76,13 @@ import { Confirm } from "../../../components/plan-editing";
 import { changeId, ScenarioChanges, useDebounced } from "../../../components/scenario-changes";
 import type { Outcome } from "../../../components/scenario-outcomes";
 import { ScenarioOutcome, ScenarioOutline } from "../../../components/scenario-outline";
+import {
+	HorizonToggle,
+	type HorizonYears,
+	horizonOf,
+	yearsParam,
+	yearsSearch,
+} from "../../../components/scenario-view";
 import { SectionPending } from "../../../components/section-layout";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney, formatWholeMoney, shortDayAt, shortMonth } from "../../../format";
@@ -124,6 +129,8 @@ export const Route = createFileRoute("/_authed/_household/explore/")({
 			.optional()
 			.catch(undefined),
 		end: z.string().optional().catch(undefined),
+		// How far ahead: 1, 2, 3 or 5 years, 2 when unset.
+		years: yearsSearch,
 	}),
 	loader: ({ context }) =>
 		Promise.all([
@@ -134,13 +141,6 @@ export const Route = createFileRoute("/_authed/_household/explore/")({
 	component: ExplorePage,
 });
 
-const HORIZONS = [
-	{ months: 12, label: "1 year" },
-	{ months: 24, label: "2 years" },
-	{ months: 36, label: "3 years" },
-	{ months: MAX_PROJECTION_MONTHS, label: "5 years" },
-] as const;
-
 /** The Scenario being explored; it isn't saved until a Parent saves it. */
 type Draft = { id: string; name: string; levers: ScenarioChange[] };
 
@@ -150,8 +150,12 @@ const freshDraft = (scenarios: ScenarioRecord[]): Draft => ({
 	levers: [],
 });
 
-const sameChanges = (a: ScenarioChange[], b: ScenarioChange[]) =>
-	JSON.stringify(a) === JSON.stringify(b);
+/** Whether two lists of Changes are the same, leaving out their subjects' saved names. */
+const sameChanges = (a: ScenarioChange[], b: ScenarioChange[]) => {
+	const plain = (changes: ScenarioChange[]) =>
+		JSON.stringify(changes.map(({ subjectName: _name, ...change }) => change));
+	return plain(a) === plain(b);
+};
 
 type ExploreSearch = { scenario?: string; lever?: string | string[]; end?: string };
 
@@ -267,7 +271,16 @@ function Explore({ search }: { search: ExploreSearch }) {
 	const goals = useMemo(() => projectionGoals(goalsData), [goalsData]);
 	const plan = useMemo(() => planForMonth(records, month), [records, month]);
 
-	const [horizon, setHorizon] = useState<number>(24);
+	// How far ahead, from the link (`years`), so a link reopens the same horizon.
+	const navigate = Route.useNavigate();
+	const { years } = Route.useSearch();
+	const { months: horizon, label: horizonLabel, years: horizonYears } = horizonOf(years);
+	const setYears = (next: HorizonYears) =>
+		void navigate({
+			search: (prev) => ({ ...prev, years: yearsParam(next) }),
+			replace: true,
+			resetScroll: false,
+		});
 	const ahead = useMemo(
 		() => planAhead(records, goals, month, horizon),
 		[records, goals, month, horizon],
@@ -317,7 +330,6 @@ function Explore({ search }: { search: ExploreSearch }) {
 		[],
 	);
 
-	const horizonLabel = HORIZONS.find((h) => h.months === horizon)?.label ?? "";
 	// Recomputed only when the deferred Changes (or the horizon) change.
 	const planProjection = useMemo(() => project(ahead), [ahead]);
 	const scenarioProjection = useMemo(
@@ -416,19 +428,7 @@ function Explore({ search }: { search: ExploreSearch }) {
 				    the window (what SplitRail does, whichever column it is in); taller, it scrolls with the
 				    page. On phones its parts sit in the page, the totals last. */}
 				<SplitRail>
-					<ToggleGroup
-						type="single"
-						aria-label="Look ahead"
-						value={String(horizon)}
-						onValueChange={(value) => setHorizon(Number(value))}
-						className="flex-wrap"
-					>
-						{HORIZONS.map((h) => (
-							<ToggleGroupItem key={h.months} value={String(h.months)} variant="segmented">
-								{h.label}
-							</ToggleGroupItem>
-						))}
-					</ToggleGroup>
+					<HorizonToggle years={horizonYears} onYears={setYears} />
 					<Summary
 						plan={planProjection}
 						scenario={scenarioProjection}

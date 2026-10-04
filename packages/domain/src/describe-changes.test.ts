@@ -214,3 +214,53 @@ describe("describeChange", () => {
 		).toBe(false);
 	});
 });
+
+describe("a Change whose Bucket, Commitment or Goal is gone (#51)", () => {
+	const gone: ScenarioChangeSubjects = { ...subjects, buckets: [], commitments: [], goals: [] };
+	const fromMonth = "2026-09";
+	it("is named by its subject's saved name, marked archived", () => {
+		const allowance: ScenarioChange = {
+			kind: "allowance",
+			bucketId: "eating-out",
+			amount: 30_000,
+			fromMonth,
+			subjectName: "Eating out",
+		};
+		const described = describeChange(allowance, gone);
+		expect(described.gone).toBe(true);
+		expect(described.text).toMatch(/^Eating out \(archived\) \$300/);
+		expect(changeName(allowance, gone)).toBe("Eating out (archived)");
+		expect(
+			describeChange(
+				{ kind: "end-commitment", commitmentId: "daycare", fromMonth, subjectName: "Daycare" },
+				gone,
+			).text,
+		).toBe("Daycare (archived) ended");
+		expect(
+			describeChange(
+				{ kind: "archive-bucket", bucketId: "eating-out", fromMonth, subjectName: "Eating out" },
+				gone,
+			).text,
+		).toBe("Eating out (archived)");
+		const goal: ScenarioChange = {
+			kind: "goal",
+			goalId: "college",
+			target: 100_000,
+			targetDate: null,
+			fromMonth,
+			subjectName: "College",
+		};
+		expect(describeChange(goal, gone).text).toMatch(/^College \(archived\) /);
+		expect(changeName(goal, gone)).toBe("College (archived)");
+	});
+	it("reads as before without a saved name, and by its current name while its subject is there", () => {
+		const allowance: ScenarioChange = {
+			kind: "allowance",
+			bucketId: "groceries",
+			amount: 30_000,
+			fromMonth,
+		};
+		expect(changeName(allowance, gone)).toBe("A Bucket");
+		expect(changeName({ ...allowance, subjectName: "Food" }, subjects)).toBe("Groceries");
+	});
+});
