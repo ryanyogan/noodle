@@ -89,12 +89,17 @@ test("a seeded Check-in walks Review, Insights and Extra income to a done state"
 	// Sweeps has nothing in it (last month had no Plan), so it's skipped.
 	await expect(page.getByText("1 of 3")).toBeVisible();
 	await expect(page.getByRole("heading", { name: "1 Transaction in Review" })).toBeVisible();
+	await expect(page.getByRole("list", { name: "Waiting in Review" })).toContainText(
+		"Corner Hardware",
+	);
 	await expect(page.getByRole("link", { name: "Open full page" })).toBeVisible();
 	await page.getByRole("button", { name: "Skip for now" }).click();
 
 	await expect(page.getByText("2 of 3")).toBeVisible();
 	await expect(page.getByRole("heading", { name: "1 new Insight" })).toBeVisible();
-	await expect(page.getByText("Internet went up $10")).toBeVisible();
+	const newInsights = page.getByRole("list", { name: "New Insights" });
+	await expect(newInsights).toContainText("Internet went up $10");
+	await expect(newInsights).toContainText("It was $60 and is $70 now.");
 	// Leaving to look at the Insight and coming Back picks up at the same card.
 	await page.getByRole("link", { name: "Open full page" }).click();
 	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Insights");
@@ -119,4 +124,69 @@ test("a seeded Check-in walks Review, Insights and Extra income to a done state"
 	await page.reload();
 	await expect(page.getByText("You’re done for this week")).toBeVisible();
 	await expect(page.getByRole("button", { name: "Skip for now" })).toBeHidden();
+});
+
+/**
+ * The other Parent's Personal Allowance in a Check-in, written straight into the local D1: Jordan's
+ * gift in his Personal Allowance with a leftover Review row, and a Transaction waiting in Review
+ * whose kept guess is his Personal Allowance.
+ */
+function seedPrivateReview(clerkUserId: string, day: string) {
+	const household = `(select household_id from members where clerk_user_id = ${q(clerkUserId)})`;
+	const jordan = `(select id from members where household_id = ${household} and name = 'Jordan')`;
+	const allowance = `(select id from buckets where owner_member_id = ${jordan})`;
+	const gift = ulid();
+	const hardware = ulid();
+	const statements = [
+		`insert into transactions (id, household_id, source, date, amount_cents, note, bucket_id, created_by_member_id) values (${q(gift)}, ${household}, 'quick-add', ${q(day)}, 4200, 'Birthday gift for Sam', ${allowance}, ${jordan});`,
+		`insert into categorizations (transaction_id, household_id, member_id, outcome, merchant) values (${q(gift)}, ${household}, ${jordan}, 'review', 'Secret Gift Shop');`,
+		`insert into transactions (id, household_id, source, date, amount_cents, note, created_by_member_id) values (${q(hardware)}, ${household}, 'quick-add', ${q(day)}, 1800, 'Corner Hardware', ${jordan});`,
+		`insert into categorizations (transaction_id, household_id, member_id, outcome, merchant, bucket_id) values (${q(hardware)}, ${household}, ${jordan}, 'review', 'Corner Hardware', ${allowance});`,
+	];
+	const file = join(mkdtempSync(join(tmpdir(), "noodle-check-in-")), "seed.sql");
+	writeFileSync(file, statements.join("\n"));
+	execFileSync("bunx", ["wrangler", "d1", "execute", "noodle", "--local", `--file=${file}`], {
+		stdio: "ignore",
+	});
+}
+
+test("the other Parent's Check-in lists nothing from a Personal Allowance in Review", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	// Jordan, the other Parent, never signs in here; his Personal Allowance is what must not show.
+	await createPlannedHousehold(page, {
+		baseline: "5,000",
+		buckets: [["Groceries", "1,200"]],
+		otherParent: { name: "Jordan", personalAllowanceCents: 15_000 },
+	});
+	const { day, weekday } = today();
+	await page.getByRole("link", { name: /^Household( settings)?$/ }).click();
+	const saved = savedBy(page, "setCheckInDay");
+	await choose(page, "Check-in day", weekday);
+	await saved;
+
+	seedPrivateReview(parent.userId, day);
+
+	// Everything this Parent's browser is sent from here on.
+	const bodies: Promise<string>[] = [];
+	page.on("response", (response) => {
+		const type = response.request().resourceType();
+		if (type === "fetch" || type === "document") bodies.push(response.text().catch(() => ""));
+	});
+	await page.getByRole("link", { name: "This Month", exact: true }).click();
+	await page
+		.getByRole("navigation", { name: "Main" })
+		.getByRole("link", { name: /^Check-in/ })
+		.click();
+	await expect(page.getByRole("heading", { name: "1 Transaction in Review" })).toBeVisible();
+	const waiting = page.getByRole("list", { name: "Waiting in Review" });
+	await expect(waiting.getByRole("listitem")).toHaveCount(1);
+	await expect(waiting).toContainText("Corner Hardware");
+	await expect(waiting).not.toContainText(/gift|Personal Allowance/i);
+	for (const body of await Promise.all(bodies)) {
+		expect(body).not.toContain("Birthday gift");
+		expect(body).not.toContain("Secret Gift Shop");
+	}
 });

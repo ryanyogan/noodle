@@ -169,7 +169,9 @@ const REVIEW_SHOWN = 5;
  * other Parent's Personal Allowance shows; no guesses, since deciding happens in Review.
  */
 function ReviewDetails() {
-	const review = useQuery(reviewQuery()).data;
+	// Read again on opening the step, like the Check-in itself: the sidebar's Review badge keeps
+	// this query fresh for a while, and what it held may be from before the card's count.
+	const review = useQuery({ ...reviewQuery(), refetchOnMount: "always" }).data;
 	if (!review || review.items.length === 0) return null;
 	const shown = review.items.slice(0, REVIEW_SHOWN);
 	const more = review.total - shown.length;
@@ -197,7 +199,10 @@ function ReviewDetails() {
  * titles show until the Insights themselves arrive.
  */
 function InsightDetails({ titles }: { titles: string[] }) {
-	const insights = useQuery(insightsQuery()).data?.filter((insight) => insight.status === "new");
+	// Read again on opening the step, as the Review step is: an earlier read may predate them.
+	const insights = useQuery({ ...insightsQuery(), refetchOnMount: "always" }).data?.filter(
+		(insight) => insight.status === "new",
+	);
 	return (
 		<ul aria-label="New Insights" className="border-t [&>li+li]:border-t">
 			{insights && insights.length > 0
