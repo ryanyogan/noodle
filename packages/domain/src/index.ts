@@ -295,6 +295,7 @@ export {
 	SAME_LINE_DAYS,
 	suggestPairings,
 } from "./pairing";
+export * from "./perk-standing";
 export {
 	type CatalogEntry,
 	catalogEntryFor,

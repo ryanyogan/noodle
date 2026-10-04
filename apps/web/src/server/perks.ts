@@ -1,11 +1,15 @@
 import {
 	addPerkSource as addPerkSourceInDb,
+	addPerkUse,
 	decidePerkSource as decidePerkSourceInDb,
+	loadInsightSpends,
 	loadPerkSources,
 	type PerkSourceItem,
+	removePerkUse as removePerkUseInDb,
+	setPerkSourceFee as setPerkSourceFeeInDb,
 	updatePerkSource as updatePerkSourceInDb,
 } from "@noodle/db";
-import { PERK_SOURCE_KINDS } from "@noodle/domain";
+import { addDays, dayKeyAt, PERK_SOURCE_KINDS } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getDb } from "./db";
@@ -33,7 +37,56 @@ const research = (household: HouseholdSummary, perkSourceId: string) =>
 /** The Perk Sources the Parent may read that weren't dismissed, suggestions first, with their Perks. */
 export const getPerkSources = createServerFn({ method: "GET" })
 	.middleware([householdMiddleware])
-	.handler(({ context }): Promise<PerkSourceItem[]> => loadPerkSources(getDb(), viewerOf(context)));
+	.handler(async ({ context }): Promise<PerkSourceItem[]> => {
+		const db = getDb();
+		const viewer = viewerOf(context);
+		const asOf = dayKeyAt(new Date(), context.household.timeZone);
+		// Four years back: a Perk that renews every four years may have been used that long ago.
+		const spends = await loadInsightSpends(db, viewer, addDays(asOf, -4 * 366));
+		return loadPerkSources(db, viewer, { asOf, spends });
+	});
+
+/** A Parent marks a Perk used today, by hand, with a short note. */
+export const markPerkUsed = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			id: ulidSchema,
+			perkId: z.string().min(1).max(64),
+			note: z.string().trim().max(120).nullable(),
+		}),
+	)
+	.handler(async ({ data, context }) => {
+		const on = dayKeyAt(new Date(), context.household.timeZone);
+		const stored = await addPerkUse(getDb(), viewerOf(context), {
+			...data,
+			note: data.note || null,
+			on,
+		});
+		if (stored) await notifyHousehold(context.household.id, ["perks"]);
+	});
+
+/** Takes back a use marked by hand. */
+export const removePerkUse = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ id: ulidSchema }))
+	.handler(async ({ data, context }) => {
+		if (await removePerkUseInDb(getDb(), viewerOf(context), data.id)) {
+			await notifyHousehold(context.household.id, ["perks"]);
+		}
+	});
+
+/** A Parent says what a card's annual fee is, or clears it. */
+export const setPerkSourceFee = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({ id: ulidSchema, annualFeeCents: z.number().int().min(0).max(1_000_000).nullable() }),
+	)
+	.handler(async ({ data, context }) => {
+		if (await setPerkSourceFeeInDb(getDb(), viewerOf(context), data)) {
+			await notifyHousehold(context.household.id, ["perks"]);
+		}
+	});
 
 /** Confirms a suggested Perk Source (and researches its Perks), or dismisses or removes one. */
 export const decidePerkSource = createServerFn({ method: "POST" })

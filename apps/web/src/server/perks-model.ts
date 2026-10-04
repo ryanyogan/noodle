@@ -1,5 +1,5 @@
 import { AI_MODELS } from "@noodle/ai";
-import type { FoundPerk, PerkSourceKind } from "@noodle/domain";
+import { type FoundPerk, PERK_RENEWALS, type PerkSourceKind } from "@noodle/domain";
 import { z } from "zod";
 
 // Reading a Perk Source's Perks: its benefits page is fetched, reduced to text, and a model
@@ -96,6 +96,8 @@ const perksAnswer = z.object({
 				matches: z.string(),
 				tiers: z.array(z.string()).default([]),
 				quote: z.string(),
+				value: z.number().positive().nullable().optional().catch(null),
+				renews: z.enum(PERK_RENEWALS).nullable().optional().catch(null),
 			}),
 		)
 		.default([]),
@@ -113,7 +115,15 @@ function jsonOf(text: string): unknown {
 /** The model's answer, shaped; the run checks each Perk against the page. */
 export function readPerksAnswer(text: string): PerksRead {
 	const parsed = perksAnswer.safeParse(jsonOf(text));
-	return parsed.success ? parsed.data : { tiers: [], perks: [] };
+	if (!parsed.success) return { tiers: [], perks: [] };
+	return {
+		tiers: parsed.data.tiers,
+		perks: parsed.data.perks.map(({ value, renews, ...perk }) => ({
+			...perk,
+			...(value ? { valueCents: Math.round(value * 100) } : {}),
+			...(renews ? { renews } : {}),
+		})),
+	};
 }
 
 const READ_SYSTEM = `You read one web page for a US household's budgeting app and list the
@@ -127,10 +137,13 @@ and leave out anything the page doesn't state. List two kinds of benefit:
 For each: "name" (short, as the page names it), "kind", "matches" (the service or cost as it would
 appear on a card statement: one or two words, e.g. "Netflix", "TSA PreCheck", "Global Entry"),
 "tiers" (the plan or card tiers named on the page that include it; [] if every tier or the page
-names no tiers), and "quote" (up to twenty words copied exactly from the page that say so). Also
+names no tiers), "quote" (up to twenty words copied exactly from the page that say so),
+"value" (the dollar amount the quote itself states for it, as a number; null if it states none)
+and "renews" ("monthly", "quarterly", "yearly", "every-4-years" or "per-trip", as the page says;
+null if it doesn't say). Also
 list "tiers": every plan or card tier the page offers with different benefits. Leave out points,
 cash back, discounts on the product itself, and perks with no statement name. Answer in JSON only:
-{"tiers": [], "perks": [{"name","kind","matches","tiers","quote"}]}.`;
+{"tiers": [], "perks": [{"name","kind","matches","tiers","quote","value","renews"}]}.`;
 
 /** The answer's text, from a chat completion or a Responses-style output. */
 function textOf(out: unknown): string {
@@ -159,6 +172,8 @@ const PERKS_SCHEMA = {
 					matches: { type: "string" },
 					tiers: { type: "array", items: { type: "string" } },
 					quote: { type: "string" },
+					value: { type: ["number", "null"] },
+					renews: { type: ["string", "null"], enum: [...PERK_RENEWALS, null] },
 				},
 				required: ["name", "kind", "matches", "tiers", "quote"],
 			},
@@ -214,6 +229,21 @@ Get a statement credit for the TSA PreCheck or Global Entry application fee ever
 Complimentary DashPass membership when you activate by the end of the year.
 ${"Terms apply to every benefit on this page. ".repeat(10)}`;
 
+/** A premium card's page, with credits that renew each month, each year, every four years and each stay. */
+const STUB_PREMIUM_PAGE = `Platinum card benefits.
+$15 in Uber Cash every month for rides or eats in the U.S.
+Up to $200 in statement credits each calendar year for incidental airline fees.
+A $120 statement credit for the Global Entry application fee every four years.
+Up to $100 hotel credit on each stay of two nights or more.
+${"Terms apply to every benefit on this page. ".repeat(10)}`;
+
+/** A travel card's page: a yearly travel credit, a monthly DoorDash credit and DashPass. */
+const STUB_TRAVEL_PAGE = `Reserve card benefits.
+Up to $300 in annual travel credit as reimbursement for travel purchases each year.
+$10 monthly DoorDash credit on non-restaurant orders.
+Complimentary DashPass membership when you activate by the end of the year.
+${"Terms apply to every benefit on this page. ".repeat(10)}`;
+
 /** What the fake model reads in each fake page. */
 const STUB_READS: Record<string, PerksRead> = {
 	[STUB_PLAN_PAGE]: {
@@ -240,6 +270,78 @@ const STUB_READS: Record<string, PerksRead> = {
 				matches: "Apple TV+",
 				tiers: ["Go5G Plus"],
 				quote: "Apple TV+ is on us with Go5G Plus.",
+			},
+		],
+	},
+	[STUB_PREMIUM_PAGE]: {
+		tiers: [],
+		perks: [
+			{
+				name: "Uber Cash",
+				kind: "cost",
+				matches: "Uber",
+				tiers: [],
+				quote: "$15 in Uber Cash every month for rides or eats in the U.S.",
+				valueCents: 1500,
+				renews: "monthly",
+			},
+			{
+				name: "Airline fee credit",
+				kind: "cost",
+				matches: "Airline fee",
+				tiers: [],
+				quote: "Up to $200 in statement credits each calendar year for incidental airline fees.",
+				valueCents: 20000,
+				renews: "yearly",
+			},
+			{
+				name: "Global Entry credit",
+				kind: "cost",
+				matches: "Global Entry",
+				tiers: [],
+				quote: "A $120 statement credit for the Global Entry application fee every four years.",
+				valueCents: 12000,
+				renews: "every-4-years",
+			},
+			{
+				name: "Hotel credit",
+				kind: "cost",
+				matches: "Hotel",
+				tiers: [],
+				quote: "Up to $100 hotel credit on each stay of two nights or more.",
+				valueCents: 10000,
+				renews: "per-trip",
+			},
+		],
+	},
+	[STUB_TRAVEL_PAGE]: {
+		tiers: [],
+		perks: [
+			{
+				name: "Annual travel credit",
+				kind: "cost",
+				matches: "Travel",
+				tiers: [],
+				quote:
+					"Up to $300 in annual travel credit as reimbursement for travel purchases each year.",
+				valueCents: 30000,
+				renews: "yearly",
+			},
+			{
+				name: "DoorDash credit",
+				kind: "cost",
+				matches: "DoorDash",
+				tiers: [],
+				quote: "$10 monthly DoorDash credit on non-restaurant orders.",
+				valueCents: 1000,
+				renews: "monthly",
+			},
+			{
+				name: "DashPass",
+				kind: "service",
+				matches: "DashPass",
+				tiers: [],
+				quote: "Complimentary DashPass membership",
 			},
 		],
 	},
@@ -275,7 +377,13 @@ export const stubPerkReader: PerkReader = {
 		if (url.includes("missing")) return { url, failed: 404 };
 		return {
 			url,
-			text: new URL(url).hostname.endsWith("t-mobile.com") ? STUB_PLAN_PAGE : STUB_CARD_PAGE,
+			text: new URL(url).hostname.endsWith("t-mobile.com")
+				? STUB_PLAN_PAGE
+				: url.includes("premium")
+					? STUB_PREMIUM_PAGE
+					: url.includes("travel-card")
+						? STUB_TRAVEL_PAGE
+						: STUB_CARD_PAGE,
 		};
 	},
 	async readPerks(_source, text) {

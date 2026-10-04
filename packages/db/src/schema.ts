@@ -4,6 +4,7 @@ import {
 	type DraftLabels,
 	INSIGHT_KINDS,
 	PERK_KINDS,
+	PERK_RENEWALS,
 	PERK_SOURCE_KINDS,
 	PLAN_CHANGE_KINDS,
 	type PlanChangeValue,
@@ -1085,6 +1086,8 @@ export const perkSources = sqliteTable(
 			.default("idle"),
 		/** When its page was last read for Perks, whatever came of it. */
 		checkedAt: integer("checked_at", { mode: "timestamp_ms" }),
+		/** Its annual fee, as a Parent typed it. */
+		annualFeeCents: integer("annual_fee_cents"),
 		fingerprint: text("fingerprint").notNull(),
 		decidedByMemberId: text("decided_by_member_id").references(() => members.id),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
@@ -1115,9 +1118,31 @@ export const perks = sqliteTable(
 		quote: text("quote").notNull(),
 		sourceUrl: text("source_url").notNull(),
 		checkedAt: integer("checked_at", { mode: "timestamp_ms" }).notNull(),
+		/** What it's worth, in cents, when the page's quote states it. */
+		valueCents: integer("value_cents"),
+		/** How often it renews, as the page says. */
+		renews: text("renews", { enum: PERK_RENEWALS }),
 	},
 	(t) => [uniqueIndex("perks_source_key_idx").on(t.perkSourceId, t.key)],
 );
+
+// A Perk a Parent marked used by hand: the day, who, and a short note. Kept by the Perk's ID,
+// which a re-check keeps; the uses of a Perk that's gone are never read.
+export const perkUses = sqliteTable("perk_uses", {
+	id: text("id").primaryKey(),
+	householdId: text("household_id")
+		.notNull()
+		.references(() => households.id),
+	perkId: text("perk_id").notNull(),
+	memberId: text("member_id")
+		.notNull()
+		.references(() => members.id),
+	usedOn: text("used_on").notNull(),
+	note: text("note"),
+	createdAt: integer("created_at", { mode: "timestamp_ms" })
+		.notNull()
+		.default(sql`(unixepoch() * 1000)`),
+});
 
 // A Receipt: an itemized record of a purchase a Parent sent in (a forwarded email; later a
 // photo), kept in R2 (`file_key`, with a small image of it at `thumbnail_key` when it's a

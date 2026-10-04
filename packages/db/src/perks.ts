@@ -1,16 +1,20 @@
 import {
 	catalogEntryFor,
+	type DayKey,
 	type FoundPerk,
 	type InsightPerk,
+	mentions,
 	type PerkKind,
+	type PerkRenewal,
 	type PerkSourceKind,
 	type PerkSourceSuggestion,
+	type PerkUse,
 	perkKey,
 } from "@noodle/domain";
 import { and, desc, eq, inArray, isNull, lt, ne, notInArray, or, type SQL, sql } from "drizzle-orm";
 import type { Db } from "./index";
 import type { Viewer } from "./privacy";
-import { accounts, perkSources, perks } from "./schema";
+import { accounts, perkSources, perks, perkUses } from "./schema";
 
 // Perk Sources and their Perks in D1. A suggestion seen only in a Parent's own Personal Allowance
 // is stored as theirs alone, like an Insight (ADR-0003), and so are its Perks and the Perk
@@ -84,6 +88,13 @@ export type PerkItem = {
 	quote: string;
 	sourceUrl: string;
 	checkedAt: number;
+	/** What it's worth, in cents, when its page's quote states it. */
+	valueCents: number | null;
+	renews: PerkRenewal | null;
+	/** The uses Parents marked by hand, latest first. */
+	uses: PerkUse[];
+	/** Days the Household paid for what it covers. */
+	spentOn: DayKey[];
 };
 
 export type PerkSourceItem = {
@@ -99,11 +110,19 @@ export type PerkSourceItem = {
 	checkedAt: number | null;
 	/** Seen only in the Viewer's own Personal Allowance: nobody else sees it. */
 	private: boolean;
+	/** Its annual fee, as a Parent typed it. */
+	annualFeeCents: number | null;
+	/** The Household's today, when it was loaded for the Perks page. */
+	asOf: DayKey | null;
 	perks: PerkItem[];
 };
 
 /** The Perk Sources `viewer` may read that weren't dismissed, suggestions first, with their Perks. */
-export async function loadPerkSources(db: Db, viewer: Viewer): Promise<PerkSourceItem[]> {
+export async function loadPerkSources(
+	db: Db,
+	viewer: Viewer,
+	look?: { asOf: DayKey; spends: { date: DayKey; note: string }[] },
+): Promise<PerkSourceItem[]> {
 	const rows = await db
 		.select()
 		.from(perkSources)
@@ -122,6 +141,23 @@ export async function loadPerkSources(db: Db, viewer: Viewer): Promise<PerkSourc
 					.from(perks)
 					.where(inArray(perks.perkSourceId, ids))
 					.orderBy(perks.kind, perks.name);
+	const uses =
+		found.length === 0
+			? []
+			: await db
+					.select()
+					.from(perkUses)
+					.where(
+						and(
+							eq(perkUses.householdId, viewer.householdId),
+							inArray(
+								perkUses.perkId,
+								found.map((perk) => perk.id),
+							),
+						),
+					)
+					.orderBy(desc(perkUses.usedOn), desc(perkUses.createdAt));
+	const spends = look?.spends ?? [];
 	return rows.map((row) => ({
 		id: row.id,
 		name: row.name,
@@ -134,6 +170,8 @@ export async function loadPerkSources(db: Db, viewer: Viewer): Promise<PerkSourc
 		research: row.research,
 		checkedAt: row.checkedAt?.getTime() ?? null,
 		private: row.ownerMemberId !== null,
+		annualFeeCents: row.annualFeeCents,
+		asOf: look?.asOf ?? null,
 		perks: found
 			.filter((perk) => perk.perkSourceId === row.id)
 			.map((perk) => ({
@@ -144,6 +182,12 @@ export async function loadPerkSources(db: Db, viewer: Viewer): Promise<PerkSourc
 				quote: perk.quote,
 				sourceUrl: perk.sourceUrl,
 				checkedAt: perk.checkedAt.getTime(),
+				valueCents: perk.valueCents,
+				renews: perk.renews,
+				uses: uses
+					.filter((use) => use.perkId === perk.id)
+					.map((use) => ({ id: use.id, on: use.usedOn as DayKey, note: use.note })),
+				spentOn: spends.filter((s) => mentions(s.note, perk.matches)).map((s) => s.date),
 			})),
 	}));
 }
@@ -353,6 +397,8 @@ export async function saveResearch(
 				quote: perk.quote,
 				sourceUrl: outcome.sourceUrl,
 				checkedAt,
+				valueCents: perk.valueCents ?? null,
+				renews: perk.renews ?? null,
 			};
 			return db
 				.insert(perks)
@@ -421,6 +467,59 @@ export async function loadPerksById(
 		quote: perk.quote,
 		sourceUrl: perk.sourceUrl,
 		checkedAt: perk.checkedAt.getTime(),
+		valueCents: perk.valueCents,
+		renews: perk.renews,
+		uses: [],
+		spentOn: [],
 		sourceName,
 	}));
+}
+
+/** A Parent marks a Perk they may read used on `on`, with a short note. Returns whether it was stored. */
+export async function addPerkUse(
+	db: Db,
+	viewer: Viewer,
+	input: { id: string; perkId: string; on: DayKey; note: string | null },
+): Promise<boolean> {
+	const [perk] = await db
+		.select({ id: perks.id })
+		.from(perks)
+		.innerJoin(perkSources, eq(perkSources.id, perks.perkSourceId))
+		.where(and(readableBy(viewer), eq(perks.id, input.perkId)));
+	if (!perk) return false;
+	await db
+		.insert(perkUses)
+		.values({
+			id: input.id,
+			householdId: viewer.householdId,
+			perkId: input.perkId,
+			memberId: viewer.memberId,
+			usedOn: input.on,
+			note: input.note,
+		})
+		.onConflictDoNothing();
+	return true;
+}
+
+/** Takes back a use marked by hand. Returns whether it was there. */
+export async function removePerkUse(db: Db, viewer: Viewer, id: string): Promise<boolean> {
+	const gone = await db
+		.delete(perkUses)
+		.where(and(eq(perkUses.householdId, viewer.householdId), eq(perkUses.id, id)))
+		.returning({ id: perkUses.id });
+	return gone.length > 0;
+}
+
+/** A Parent says what a Perk Source's annual fee is, or clears it. Returns whether it changed. */
+export async function setPerkSourceFee(
+	db: Db,
+	viewer: Viewer,
+	input: { id: string; annualFeeCents: number | null },
+): Promise<boolean> {
+	const changed = await db
+		.update(perkSources)
+		.set({ annualFeeCents: input.annualFeeCents })
+		.where(and(readableBy(viewer), eq(perkSources.id, input.id)))
+		.returning({ id: perkSources.id });
+	return changed.length > 0;
 }
