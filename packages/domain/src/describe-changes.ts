@@ -25,14 +25,18 @@ export type ScenarioChangeSubjects = {
 /** What the other Parent's Personal Allowance reads as, wherever a Change changes it. */
 export const OTHER_PERSONAL_ALLOWANCE = "Personal Allowance";
 
-/** The Bucket a Change changes, if it's the other Parent's Personal Allowance. */
-const othersAllowance = (subjects: ScenarioChangeSubjects, bucketId: string) => {
-	const bucket = subjects.buckets.find((b) => b.id === bucketId);
-	return bucket?.owner !== undefined &&
-		subjects.viewer !== undefined &&
-		bucket.owner !== subjects.viewer
-		? bucket
-		: undefined;
+/**
+ * Whether a Change changes the other Parent's Personal Allowance: by its Bucket's owner while the
+ * Plan has it, else by the owner saved with the Change, so an archived or deleted one stays hidden.
+ */
+const othersAllowance = (
+	subjects: ScenarioChangeSubjects,
+	scenarioChange: ScenarioChange & { bucketId: string },
+) => {
+	const owner =
+		subjects.buckets.find((b) => b.id === scenarioChange.bucketId)?.owner ??
+		scenarioChange.subjectOwner;
+	return owner !== undefined && subjects.viewer !== undefined && owner !== subjects.viewer;
 };
 
 export type ScenarioChangeDescription = {
@@ -115,7 +119,7 @@ export function describeChange(
 	const described = (text: string, gone = false): ScenarioChangeDescription => ({ text, gone });
 	if (
 		(scenarioChange.kind === "allowance" || scenarioChange.kind === "archive-bucket") &&
-		othersAllowance(subjects, scenarioChange.bucketId)
+		othersAllowance(subjects, scenarioChange)
 	) {
 		return described(`${OTHER_PERSONAL_ALLOWANCE} changed`);
 	}
@@ -227,7 +231,7 @@ export function changeName(
 			return "Income";
 		case "allowance":
 		case "archive-bucket":
-			if (othersAllowance(subjects, scenarioChange.bucketId)) return OTHER_PERSONAL_ALLOWANCE;
+			if (othersAllowance(subjects, scenarioChange)) return OTHER_PERSONAL_ALLOWANCE;
 			return (
 				subjects.buckets.find((b) => b.id === scenarioChange.bucketId)?.name ??
 				addedBucket(changes, scenarioChange.bucketId)?.name ??

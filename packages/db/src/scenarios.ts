@@ -177,11 +177,11 @@ export async function withSubjectNames(
 ): Promise<ScenarioChange[][]> {
 	const wanted = new Set(lists.flat().flatMap((change) => subjectOf(change)?.kind ?? []));
 	if (wanted.size === 0) return lists.map((list) => list);
-	const none = Promise.resolve([] as { id: string; name: string }[]);
+	const none = Promise.resolve([] as { id: string; name: string; owner?: string | null }[]);
 	const [bucketNames, commitmentNames, goalNames] = await Promise.all([
 		wanted.has("bucket")
 			? db
-					.select({ id: buckets.id, name: buckets.name })
+					.select({ id: buckets.id, name: buckets.name, owner: buckets.ownerMemberId })
 					.from(buckets)
 					.where(eq(buckets.householdId, householdId))
 			: none,
@@ -198,6 +198,7 @@ export async function withSubjectNames(
 					.where(eq(goals.householdId, householdId))
 			: none,
 	]);
+	const owners = new Map(bucketNames.flatMap((r) => (r.owner ? [[r.id, r.owner] as const] : [])));
 	const names = {
 		bucket: new Map(bucketNames.map((r) => [r.id, r.name])),
 		commitment: new Map(commitmentNames.map((r) => [r.id, r.name])),
@@ -207,7 +208,11 @@ export async function withSubjectNames(
 		list.map((change) => {
 			const subject = subjectOf(change);
 			const name = subject ? names[subject.kind].get(subject.id) : undefined;
-			return name ? { ...change, subjectName: name } : change;
+			if (!subject || !name) return change;
+			const owner = subject.kind === "bucket" ? owners.get(subject.id) : undefined;
+			return owner
+				? { ...change, subjectName: name, subjectOwner: owner }
+				: { ...change, subjectName: name };
 		}),
 	);
 }

@@ -1,5 +1,5 @@
 import { Button } from "@noodle/ui/components/button";
-import { createFileRoute, Link, linkOptions } from "@tanstack/react-router";
+import { createFileRoute, Link, linkOptions, useSearch } from "@tanstack/react-router";
 import { ChevronLeft } from "lucide-react";
 import { SectionLayout, type SectionTab } from "../../../components/section-layout";
 
@@ -11,13 +11,18 @@ export const Route = createFileRoute("/_authed/_household/explore")({
 	component: ExploreLayout,
 });
 
-const EXPLORE_TABS: SectionTab[] = [
-	{ label: "Explore", link: linkOptions({ to: "/explore" }) },
-	{ label: "Can we afford it?", link: linkOptions({ to: "/explore/afford" }) },
-	{ label: "Scenarios", link: linkOptions({ to: "/explore/scenarios" }) },
-];
+/** The tabs, keeping the horizon (`?years=`) on the pages that look ahead by it. */
+const exploreTabs = (years: 1 | 2 | 3 | 5 | undefined): SectionTab[] => {
+	const search = { years };
+	return [
+		{ label: "Explore", link: linkOptions({ to: "/explore", search }) },
+		{ label: "Can we afford it?", link: linkOptions({ to: "/explore/afford" }) },
+		{ label: "Scenarios", link: linkOptions({ to: "/explore/scenarios", search }) },
+	];
+};
 
 function ExploreLayout() {
+	const { years } = useSearch({ strict: false });
 	return (
 		<SectionLayout
 			title="Explore"
@@ -29,7 +34,7 @@ function ExploreLayout() {
 				</Button>
 			}
 			tabsLabel="Explore pages"
-			tabs={EXPLORE_TABS}
+			tabs={exploreTabs(years)}
 		/>
 	);
 }

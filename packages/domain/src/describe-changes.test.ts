@@ -263,4 +263,32 @@ describe("a Change whose Bucket, Commitment or Goal is gone (#51)", () => {
 		expect(changeName(allowance, gone)).toBe("A Bucket");
 		expect(changeName({ ...allowance, subjectName: "Food" }, subjects)).toBe("Groceries");
 	});
+	it("never shows the other Parent's archived or deleted Personal Allowance, by name or amount (ADR-0003)", () => {
+		const theirs = { subjectName: "Sam’s fun money", subjectOwner: "sam" };
+		const allowance: ScenarioChange = {
+			kind: "allowance",
+			bucketId: "sam-allowance",
+			amount: 12_345,
+			fromMonth,
+			...theirs,
+		};
+		const archive: ScenarioChange = {
+			kind: "archive-bucket",
+			bucketId: "sam-allowance",
+			fromMonth,
+			...theirs,
+		};
+		for (const change of [allowance, archive]) {
+			for (const viewer of ["alex"]) {
+				const described = describeChange(change, { ...gone, viewer });
+				expect(described.text).toBe("Personal Allowance changed");
+				expect(described.text).not.toMatch(/Sam|123/);
+				expect(changeName(change, { ...gone, viewer })).toBe("Personal Allowance");
+			}
+		}
+		// Its owner still reads it by its saved name.
+		expect(describeChange(allowance, { ...gone, viewer: "sam" }).text).toMatch(
+			/^Sam’s fun money \(archived\) \$123\.45/,
+		);
+	});
 });

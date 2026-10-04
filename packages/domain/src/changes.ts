@@ -28,7 +28,14 @@ export type ScenarioChangeMute = { muted?: boolean };
  * The name of the Bucket, Commitment or Goal a Change changes, as the Household last had it (kept
  * as the Scenario is saved and loaded): it names the Change once its subject is archived or gone.
  */
-export type ScenarioChangeSubjectName = { subjectName?: string };
+export type ScenarioChangeSubjectName = {
+	subjectName?: string;
+	/**
+	 * Set when the subject is a Personal Allowance: the Parent it belongs to, saved with the name so
+	 * neither is shown to the other Parent once the Bucket is gone (ADR-0003).
+	 */
+	subjectOwner?: string;
+};
 
 /** Whether a one-off takes money out (a roof repair) or brings it in (a bonus). */
 export type OneOffFlow = "expense" | "income";
