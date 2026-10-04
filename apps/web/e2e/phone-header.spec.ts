@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
+import { seedReportHistory } from "./reports-seed";
 import {
 	accountKindLabel,
 	choose,
@@ -252,6 +253,69 @@ test("an item's page has the same header: Back, title and arrows on one row, one
 		}
 	}
 	await page.context().close();
+});
+
+test("a Transaction opened at its own address has one header, its own", async ({ browser }) => {
+	test.slow();
+	// A Household of its own: the seeded history brings Commitments the other tests don't expect.
+	const owner = await createTestParent();
+	const page = await signedInPage(browser, owner.email);
+	try {
+		await createPlannedHousehold(page, {
+			baseline: "6200",
+			buckets: [
+				["Groceries", "800"],
+				["Eating out", "300"],
+				["Kids", "400"],
+				["Fun", "250"],
+			],
+		});
+		await seedReportHistory(owner.userId, 1);
+		// A row opens the Transaction's own address only beside the list, from lg; on a phone that
+		// address is reached by a link from elsewhere. So take it from a wide window.
+		const height = page.viewportSize()?.height ?? 852;
+		await page.setViewportSize({ width: 1280, height });
+		await page.goto("/transactions");
+		await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
+		await page.locator("[data-slot=list-row] > button").first().click();
+		await expect(page).toHaveURL(/\/transactions\/\d{4}-\d{2}\/[0-9A-Z]{26}/);
+		const path = new URL(page.url()).pathname;
+
+		for (const width of [393, 320]) {
+			const what = `a Transaction at ${width}`;
+			await page.setViewportSize({ width, height });
+			await page.goto(path);
+			const header = page.locator("[data-slot=detail-header]:visible");
+			await expect(header, what).toHaveCount(1);
+			await expect(page.locator("[data-slot=skeleton]:visible"), what).toHaveCount(0);
+			await expect(
+				header.locator("[data-slot=detail-back]").getByRole("link"),
+				what,
+			).toHaveAccessibleName(/^Back to /);
+			// The month's header (its title, Review, previous and next month) isn't drawn over it,
+			// though its h1 is still there to be read out.
+			await expect(page.getByRole("heading", { level: 1 }), what).toHaveCount(1);
+			const section = page.locator("[data-slot=page-header]").first();
+			expect(
+				(await section.boundingBox())?.height ?? 0,
+				`${what}: the month's header takes no room`,
+			).toBeLessThanOrEqual(1);
+			await expect(section.locator("a:visible, button:visible"), what).toHaveCount(0);
+			// The Transaction's card starts at the top of the page, its header just inside it.
+			const box = await header.boundingBox();
+			expect(
+				box?.y ?? 0,
+				`${what}: the Transaction's header is the first thing`,
+			).toBeLessThanOrEqual(GUTTER + 24);
+			expect(
+				await page.evaluate(() => document.documentElement.scrollWidth),
+				`${what}: sideways scroll`,
+			).toBeLessThanOrEqual(width);
+		}
+	} finally {
+		await page.context().close();
+		await owner.remove();
+	}
 });
 
 const DESTINATIONS: Record<Exclude<(typeof moreItems)[number], "Glossary">, RegExp> = {

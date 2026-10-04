@@ -1051,7 +1051,8 @@ function CardActions({
 	onRule: () => void;
 }) {
 	return (
-		<div className="-mx-2 flex flex-wrap gap-1 border-t border-border pt-2">
+		// One row on a phone (#74): the shorter words are shown, the whole name is still read out.
+		<div className="-mx-2 flex flex-wrap gap-1 border-t border-border pt-2 max-[359px]:[&>button]:px-2">
 			<Button
 				variant="ghost"
 				size="sm"
@@ -1071,12 +1072,16 @@ function CardActions({
 					onClick={onAllowance}
 				>
 					<Wallet />
-					Personal Allowance
+					<span>
+						<span className="max-sm:sr-only">Personal </span>Allowance
+					</span>
 				</Button>
 			) : null}
 			<Button variant="ghost" size="sm" aria-keyshortcuts="R" disabled={!hydrated} onClick={onRule}>
 				<ListPlus />
-				Make a Rule
+				<span>
+					<span className="max-sm:sr-only">Make a </span>Rule
+				</span>
 			</Button>
 		</div>
 	);
