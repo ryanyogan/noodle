@@ -1,5 +1,17 @@
 import { merchantKey } from "@noodle/domain";
-import { and, count, desc, eq, getTableColumns, gt, inArray, ne, or } from "drizzle-orm";
+import {
+	and,
+	count,
+	desc,
+	eq,
+	getTableColumns,
+	gt,
+	inArray,
+	isNotNull,
+	isNull,
+	ne,
+	or,
+} from "drizzle-orm";
 import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
 import { REMOVED_CREDENTIAL } from "./bank-connections";
 import type { Db } from "./index";
@@ -215,6 +227,57 @@ export async function learnedMerchants(db: Db, householdId: string): Promise<str
 	}
 	keys.delete("");
 	return [...keys];
+}
+
+/**
+ * What the Household's merchant index should hold, read from its rows alone (#78, ADR-0035), so
+ * the index can be built again after a snapshot is restored: each merchant it learned
+ * (`merchant_vectors`) with the Bucket of the newest imported Transaction a Parent settled for it,
+ * which is what `loadCorrection` taught when they did. A Transaction background AI filed and no
+ * Parent confirmed teaches nothing, as before; a learned merchant with no such Transaction left
+ * is skipped.
+ */
+export async function learnedMerchantBuckets(
+	db: Db,
+	householdId: string,
+): Promise<{ merchant: string; bucketId: string }[]> {
+	const learned = new Set(
+		(
+			await db
+				.select({ merchant: s.merchantVectors.merchant })
+				.from(s.merchantVectors)
+				.where(eq(s.merchantVectors.householdId, householdId))
+		).map((row) => row.merchant),
+	);
+	if (learned.size === 0) return [];
+	const rows = await db
+		.select({
+			cleanName: s.transactions.merchant,
+			note: s.transactions.note,
+			bucketId: s.transactions.bucketId,
+		})
+		.from(s.transactions)
+		.leftJoin(s.categorizations, eq(s.categorizations.transactionId, s.transactions.id))
+		.where(
+			and(
+				eq(s.transactions.householdId, householdId),
+				eq(s.transactions.source, "import"),
+				isNotNull(s.transactions.bucketId),
+				isNull(s.categorizations.transactionId),
+			),
+		)
+		.orderBy(desc(s.transactions.date), desc(s.transactions.id));
+	const buckets = new Map<string, string>();
+	for (const row of rows) {
+		const merchant =
+			(row.cleanName ? merchantKey(row.cleanName) : null) ||
+			(row.note ? merchantKey(row.note) : null);
+		if (!merchant || !row.bucketId || !learned.has(merchant) || buckets.has(merchant)) continue;
+		buckets.set(merchant, row.bucketId);
+	}
+	return [...buckets]
+		.map(([merchant, bucketId]) => ({ merchant, bucketId }))
+		.sort((x, y) => x.merchant.localeCompare(y.merchant));
 }
 
 // --- The fresh start's own record -------------------------------------------------------------
