@@ -157,6 +157,7 @@ export function ChartCard({
 		<div
 			className={cn("grid min-w-0 grid-rows-[auto_1fr] gap-3", className)}
 			aria-labelledby={titleId}
+			// biome-ignore lint/a11y/useSemanticElements: a named group of a chart and its title, not a form's fieldset.
 			role="group"
 		>
 			<div className="flex flex-wrap items-end justify-between gap-3">
