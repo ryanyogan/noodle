@@ -227,7 +227,14 @@ function ThisMonth() {
 								/>
 							) : null}
 						</div>
-						<div className="contents min-[105rem]:grid min-[105rem]:min-w-0 min-[105rem]:content-start min-[105rem]:gap-(--layout-gap)">
+						{/* A box of its own from lg (not `contents`), so the column starts with Buckets, level
+						    with Free to Spend in the rail. */}
+						<div
+							className={cn(
+								"contents lg:min-w-0 lg:content-start lg:gap-(--layout-gap)",
+								buckets.length + allowances.length > 0 ? "lg:grid" : "lg:hidden",
+							)}
+						>
 							<div className="order-8 grid gap-3 empty:hidden lg:order-none">
 								{buckets.length > 0 ? (
 									<Section aria-labelledby="buckets">
