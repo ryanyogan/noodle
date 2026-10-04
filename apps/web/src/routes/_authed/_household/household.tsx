@@ -21,6 +21,7 @@ import { ColourPicker } from "../../../components/colour-picker";
 import { DataDownload } from "../../../components/data-download";
 import { DangerZone } from "../../../components/fresh-start";
 import { HouseholdDetails } from "../../../components/household-details";
+import { HouseholdSnapshots } from "../../../components/household-snapshots";
 import { InviteOtherParent } from "../../../components/invite-other-parent";
 import { NudgeSettings } from "../../../components/nudge-settings";
 import { Confirm, SaveFailed } from "../../../components/plan-editing";
@@ -152,6 +153,7 @@ function HouseholdPage() {
 					</SectionGroup>
 					<SectionGroup id="your-data" title="Your data">
 						<DataDownload />
+						<HouseholdSnapshots />
 					</SectionGroup>
 					<SectionGroup id="danger-zone" title="Danger zone">
 						<DangerZone householdName={household.name} />
