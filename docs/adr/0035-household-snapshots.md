@@ -15,7 +15,7 @@ The nightly whole-database backup (ADR-0032) is for the operator: it restores al
 
 - **By hand:** Household → Your data → Snapshots → "Take a snapshot", with an optional note. Either Parent.
 - **Nightly:** the nightly cron (`0 9 * * *`) takes one for every Household straight after starting the Backup Workflow, a Household at a time, each failure logged and the rest carrying on. A Household that already has a nightly snapshot for that UTC day is skipped, so a retried cron doesn't double up. It isn't a step in the Backup Workflow: that Workflow stops at once while the export token is missing (ADR-0032), and the whole-database backup stays exactly as it was.
-- **Before risky actions** (later phases): Fresh start, Delete Household, restoring a snapshot (kind `before-restore`), a bulk Rule apply, statement imports that replace data.
+- **Before risky actions:** Fresh start (`before-fresh-start`), Delete Household (its one last snapshot, below), restoring a snapshot (`before-restore`), and a bulk Rule apply (`before-rule-apply`, below). Statement imports that replace data: no such path exists yet.
 
 ## Keeping them
 
@@ -23,9 +23,23 @@ Pruned after each nightly run, per Household (`snapshotsToPrune`, unit-tested):
 
 - the newest 14 nightly snapshots;
 - of older nightly ones, the newest in each of the 8 most recent weeks;
-- manual and before-action snapshots for 90 days, at most the newest 20.
+- manual and before-action snapshots for 90 days, at most the newest 20;
+- snapshots taken before a bulk Rule apply for 90 days, at most the newest 3, counted on their own (Before applying a Rule, below).
 
 Pruning deletes the R2 object, then its row. Nothing under `households/` is bucket-locked or lifecycle-expired; the app's pruning is the only thing that removes them (and Delete Household, below).
+
+## Before applying a Rule
+
+Applying a Rule to what's already imported files many Transactions at once, and is the one bulk change a Parent can't easily undo. So a snapshot of kind `before-rule-apply` ("Before applying a Rule" in the history, restorable like any other) is taken first.
+
+- **Its own cap (decided 2026-10-04, #78):** the newest 3 are kept, for 90 days, counted apart from every other kind. A Parent who applies twenty Rules in an evening would otherwise push every snapshot they took by hand out of the shared "newest 20"; this way neither kind can ever evict the other. Three, because only the last few applies are worth undoing and each is a whole copy of the Household; 90 days, like the other before-action kinds.
+- **Bulk** means the Rule is about to file more than one Transaction (`BULK_RULE_APPLY = 2`). One Transaction is undone from its own card, so none is taken; nor when nothing matches.
+- **Where:** `applyRuleWithSnapshot` (`apps/web/src/server/snapshot-store.ts`), which both "apply" paths use: saving a Rule with "apply", and applying one from Rules. The database's `applyRule` calls it back once it knows how many Transactions it will file, before it files any.
+- **If the snapshot can't be taken, nothing is filed** and the Parent is told to try again, as a Fresh start stops when its snapshot fails. (A Rule saved with "apply" is itself saved by then; it just hasn't been applied.)
+- **Pruned at once:** straight after the apply, that kind alone is pruned to its cap (the nightly run would do the same); snapshots of other kinds aren't looked at then. A failed prune is logged and left for the night.
+- **No note** names the Rule: it may be a Parent's private one, and the history is the same for both Parents. The row says which Parent applied it.
+- **No migration:** `household_snapshots.kind` is plain text with no CHECK in the database; the list of kinds lives in the code's schema only.
+- **Not covered:** Transactions that categorization files by a Rule on its own (after an import, or "Look again"); those are not a Parent applying a Rule.
 
 ## Privacy
 

@@ -354,6 +354,12 @@ export async function applyRule(
 	db: Db,
 	viewer: Viewer,
 	ruleId: string,
+	/**
+	 * `beforeFiling` is called once with how many Transactions are about to be filed, before any
+	 * is (never with 0). If it throws, nothing is filed: the snapshot taken before a bulk apply
+	 * (ADR-0035) hangs off it.
+	 */
+	options: { beforeFiling?: (matched: number) => Promise<void> } = {},
 ): Promise<{ filed: number; months: string[] }> {
 	const rule = (await loadRules(db, viewer)).find((r) => r.id === ruleId);
 	if (!rule) return { filed: 0, months: [] };
@@ -401,6 +407,7 @@ export async function applyRule(
 		});
 	}
 	if (decisions.length === 0) return { filed: 0, months: [] };
+	await options.beforeFiling?.(decisions.length);
 	await fileCategorizations(db, viewer, decisions);
 	const filed = await db
 		.select({ date: transactions.date })

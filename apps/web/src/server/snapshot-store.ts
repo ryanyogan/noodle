@@ -1,4 +1,5 @@
 import {
+	applyRule,
 	type Db,
 	deleteSnapshotRows,
 	exportHouseholdRows,
@@ -10,6 +11,7 @@ import {
 	type SnapshotFile,
 	type SnapshotKind,
 	snapshotsToPrune,
+	type Viewer,
 } from "@noodle/db";
 import { households } from "@noodle/db/schema";
 import { ulid } from "ulid";
@@ -186,9 +188,18 @@ export async function pruneFinalSnapshots(
 	return gone;
 }
 
-/** Deletes the snapshots the retention rules no longer keep: the file first, then its row. */
-export async function pruneSnapshots(deps: SnapshotDeps, householdId: string, now: Date) {
-	const snapshots = await listHouseholdSnapshots(deps.db, householdId);
+/**
+ * Deletes the snapshots the retention rules no longer keep: the file first, then its row. With
+ * `only`, just that kind is looked at (what a bulk Rule apply does straight after taking its own).
+ */
+export async function pruneSnapshots(
+	deps: SnapshotDeps,
+	householdId: string,
+	now: Date,
+	only?: SnapshotKind,
+) {
+	const all = await listHouseholdSnapshots(deps.db, householdId);
+	const snapshots = only ? all.filter((snap) => snap.kind === only) : all;
 	const prune = new Set(snapshotsToPrune(snapshots, now));
 	const gone = snapshots.filter((snap) => prune.has(snap.id));
 	if (gone.length === 0) return [];
@@ -199,6 +210,53 @@ export async function pruneSnapshots(deps: SnapshotDeps, householdId: string, no
 		gone.map((snap) => snap.id),
 	);
 	return gone.map((snap) => snap.id);
+}
+
+/** A Rule about to file this many Transactions at once, or more, is a bulk apply. */
+export const BULK_RULE_APPLY = 2;
+
+/**
+ * Applies a Rule to what's unassigned that it matches. When that is more than one Transaction, a
+ * "Before applying a Rule" snapshot is taken first (ADR-0035), so the Parent can put things back:
+ * if it can't be taken this throws and nothing is filed, as a Fresh start stops when its snapshot
+ * fails. Then that kind alone is pruned to its own cap; a Parent's own snapshots are never looked
+ * at. The snapshot carries no note: the Rule may be a Parent's private one.
+ */
+export async function applyRuleWithSnapshot(
+	deps: SnapshotDeps,
+	viewer: Viewer,
+	ruleId: string,
+	now: Date,
+) {
+	const taken: { id: string | null } = { id: null };
+	const result = await applyRule(deps.db, viewer, ruleId, {
+		beforeFiling: async (matched) => {
+			if (matched < BULK_RULE_APPLY) return;
+			try {
+				const row = await takeSnapshot(deps, {
+					householdId: viewer.householdId,
+					kind: "before-rule-apply",
+					takenBy: viewer.memberId,
+					now,
+				});
+				taken.id = row.id;
+			} catch (error) {
+				console.error("Couldn’t take a snapshot before applying a Rule", error);
+				throw new Error(
+					"Noodle couldn’t take a snapshot first, so the Rule wasn’t applied. Try again in a moment.",
+				);
+			}
+		},
+	});
+	if (taken.id) {
+		// Already filed: a failed tidy-up is left for the nightly run.
+		try {
+			await pruneSnapshots(deps, viewer.householdId, now, "before-rule-apply");
+		} catch (error) {
+			console.error("Couldn’t prune the snapshots taken before applying a Rule", error);
+		}
+	}
+	return { ...result, snapshotId: taken.id };
 }
 
 const startOfUtcDay = (now: Date) =>

@@ -125,4 +125,37 @@ describe("keeping snapshots", () => {
 		];
 		expect(snapshotsToPrune(mixed, now)).toEqual([]);
 	});
+
+	it("keeps the newest 3 taken before applying a Rule, for 90 days, counted on their own", () => {
+		const rules = Array.from({ length: 5 }, (_, i) => snap(`r${i}`, "before-rule-apply", i));
+		expect(snapshotsToPrune(rules, now)).toEqual(["r3", "r4"]);
+		expect(
+			snapshotsToPrune(
+				[snap("old", "before-rule-apply", 91), snap("recent", "before-rule-apply", 89)],
+				now,
+			),
+		).toEqual(["old"]);
+	});
+
+	it("never prunes a Parent's own to make room for ones before a Rule, nor the other way", () => {
+		// 20 of a Parent's own (and other before-action ones), all older than 30 newer Rule ones.
+		const own = Array.from({ length: 20 }, (_, i) =>
+			snap(`m${i}`, i % 2 ? "manual" : "before-restore", 40 + i),
+		);
+		const rules = Array.from({ length: 30 }, (_, i) => snap(`r${i}`, "before-rule-apply", i));
+		const pruned = snapshotsToPrune([...own, ...rules], now);
+		expect(pruned).toEqual(rules.slice(3).map((r) => r.id));
+		// And 25 newer ones of a Parent's own leave the 3 older Rule ones alone.
+		const newer = Array.from({ length: 25 }, (_, i) => snap(`m${i}`, "manual", i));
+		const olderRules = Array.from({ length: 3 }, (_, i) =>
+			snap(`r${i}`, "before-rule-apply", 50 + i),
+		);
+		expect(snapshotsToPrune([...newer, ...olderRules], now)).toEqual([
+			"m20",
+			"m21",
+			"m22",
+			"m23",
+			"m24",
+		]);
+	});
 });

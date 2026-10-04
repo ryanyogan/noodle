@@ -119,6 +119,7 @@ export const SNAPSHOT_RETENTION = {
 	weekly: 8,
 	byHandDays: 90,
 	byHandMax: 20,
+	beforeRuleApplyMax: 3,
 } as const;
 
 /** How long Delete Household's last snapshot is kept, unless the Parent asked for none. */
@@ -136,6 +137,8 @@ function weekOf(ms: number): number {
 /**
  * Which snapshots to delete: keep the newest 14 nightly, then the newest nightly in each of the 8
  * most recent weeks before those; and manual and before-action ones for 90 days, at most 20.
+ * Snapshots taken before a bulk Rule apply are counted on their own (90 days, at most 3): they
+ * never push out a Parent's own, and a Parent's own never push them out.
  */
 export function snapshotsToPrune(
 	snapshots: { id: string; kind: SnapshotKind; createdAt: Date }[],
@@ -154,9 +157,17 @@ export function snapshotsToPrune(
 		else prune.push(snap.id);
 	}
 	const cutoff = now.getTime() - SNAPSHOT_RETENTION.byHandDays * DAY_MS;
-	const byHand = newestFirst.filter((snap) => snap.kind !== "nightly");
-	for (const [i, snap] of byHand.entries()) {
-		if (i >= SNAPSHOT_RETENTION.byHandMax || snap.createdAt.getTime() < cutoff) prune.push(snap.id);
+	const beforeRuleApply = newestFirst.filter((snap) => snap.kind === "before-rule-apply");
+	const byHand = newestFirst.filter(
+		(snap) => snap.kind !== "nightly" && snap.kind !== "before-rule-apply",
+	);
+	for (const [group, max] of [
+		[byHand, SNAPSHOT_RETENTION.byHandMax],
+		[beforeRuleApply, SNAPSHOT_RETENTION.beforeRuleApplyMax],
+	] as const) {
+		for (const [i, snap] of group.entries()) {
+			if (i >= max || snap.createdAt.getTime() < cutoff) prune.push(snap.id);
+		}
 	}
 	return prune;
 }

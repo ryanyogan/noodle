@@ -1,5 +1,5 @@
+import { env } from "cloudflare:workers";
 import {
-	applyRule as applyRuleInDb,
 	countFiledOnItsOwn,
 	deleteRule as deleteRuleInDb,
 	editRule as editRuleInDb,
@@ -10,6 +10,7 @@ import {
 	type RuleRow,
 	returnToReview as returnToReviewInDb,
 	saveRule as saveRuleInDb,
+	type Viewer,
 } from "@noodle/db";
 import { monthKeyAt } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
@@ -21,11 +22,25 @@ import { householdMiddleware, viewerOf } from "./household";
 import { monthKeySchema } from "./month";
 import { notifyHousehold } from "./notify";
 import { ulidSchema } from "./schemas";
+import { applyRuleWithSnapshot, newestMigration } from "./snapshot-store";
 
 // Review and Rules. Review is read for the Parent looking, like every read of Transactions
 // (ADR-0003); confirming or changing a card is an ordinary Transaction edit (server/transactions),
 // which settles its categorization and teaches its merchant. A Rule into a Parent's own Personal
 // Allowance is theirs alone, so saving one doesn't tell the other Parent's screens anything.
+
+/**
+ * Applies a Rule; when it is about to file more than one Transaction, a snapshot is taken first
+ * (ADR-0035), and nothing is filed if that fails. Not exported: this file is imported by pages.
+ */
+async function applyRuleInDb(_db: ReturnType<typeof getDb>, viewer: Viewer, ruleId: string) {
+	return applyRuleWithSnapshot(
+		{ db: _db, bucket: env.BACKUPS, migration: await newestMigration(env.DB) },
+		viewer,
+		ruleId,
+		new Date(),
+	);
+}
 
 /** How many cards Review sends at once; its count says how many wait in all. */
 const REVIEW_CARDS = 100;

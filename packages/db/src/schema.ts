@@ -1365,7 +1365,15 @@ export const householdSnapshots = sqliteTable(
 		id: text("id").primaryKey(),
 		householdId: text("household_id").notNull(),
 		kind: text("kind", {
-			enum: ["nightly", "manual", "before-restore", "before-fresh-start", "before-delete"],
+			// No CHECK in the database: a new kind needs no migration (ADR-0035).
+			enum: [
+				"nightly",
+				"manual",
+				"before-restore",
+				"before-fresh-start",
+				"before-delete",
+				"before-rule-apply",
+			],
 		}).notNull(),
 		takenBy: text("taken_by"),
 		note: text("note"),

@@ -25,7 +25,13 @@ async function snapshotDeps(): Promise<SnapshotDeps> {
 
 export type SnapshotSummary = {
 	id: string;
-	kind: "nightly" | "manual" | "before-restore" | "before-fresh-start" | "before-delete";
+	kind:
+		| "nightly"
+		| "manual"
+		| "before-restore"
+		| "before-fresh-start"
+		| "before-delete"
+		| "before-rule-apply";
 	takenBy: string | null;
 	note: string | null;
 	bytes: number;
