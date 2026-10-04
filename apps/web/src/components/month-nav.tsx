@@ -14,7 +14,9 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	CircleHelp,
+	CreditCard,
 	Ellipsis,
+	Lightbulb,
 	MessageCircleQuestionMark,
 } from "lucide-react";
 import { type TouchEvent, useRef } from "react";
@@ -35,8 +37,9 @@ export type PlanView =
 
 /**
  * On phones, the row above a month's page header: a switch between the month and its Plan (the
- * tab bar has no Plan tab), then one More menu with Reports, Ask and the Glossary (#74: three
- * look-alike icons were one too many). On a computer the Sidebar has all of them, so the row
+ * tab bar has no Plan tab), then one More menu with Reports, Insights, Credit card perks, Ask and the Glossary (#74: three
+ * look-alike icons were one too many; #80: Insights and Perks were otherwise out of reach on a
+ * phone). On a computer the Sidebar has all of them, so the row
  * isn't there (#73).
  */
 export function MonthTopRow({ month, current }: { month: MonthKey; current: "month" | "plan" }) {
@@ -54,6 +57,18 @@ export function MonthTopRow({ month, current }: { month: MonthKey; current: "mon
 						<Link to="/reports">
 							<ChartColumn />
 							Reports
+						</Link>
+					</DropdownMenuItem>
+					<DropdownMenuItem asChild>
+						<Link to="/insights">
+							<Lightbulb />
+							Insights
+						</Link>
+					</DropdownMenuItem>
+					<DropdownMenuItem asChild>
+						<Link to="/insights/perks">
+							<CreditCard />
+							Credit card perks
 						</Link>
 					</DropdownMenuItem>
 					<DropdownMenuItem asChild>
