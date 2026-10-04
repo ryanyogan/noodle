@@ -11,13 +11,19 @@ import { openCredential } from "./bank-credential";
 import { bankSetup, providerFor } from "./bank-setup";
 import { getDb } from "./db";
 import { CLEAR_STEPS, type ClearDeps, runClearStep } from "./fresh-start-clear";
-import { newestMigration, takeSnapshot } from "./snapshot-store";
+import { newestMigration, takeFinalSnapshot, takeSnapshot } from "./snapshot-store";
 
 // The Fresh start Workflow (#63, ADR-0029): waits out the grace period, then clears the Household
 // a step at a time, each retried, telling open screens how far it has got through the Agent, and
 // two minutes later sweeps files uploaded before the clear finished.
 
-export type FreshStartParams = { id: string; householdId: string; level: ClearLevel };
+export type FreshStartParams = {
+	id: string;
+	householdId: string;
+	level: ClearLevel;
+	/** Delete Household only: the Parent ticked "Also delete backups", so no last snapshot is kept. */
+	deleteBackups?: boolean;
+};
 
 /** What open screens are told as it goes ("Clearing Transactions and the Plan… 5 of 6"). */
 export type FreshStartProgress = {
@@ -70,7 +76,7 @@ async function report(householdId: string, progress: FreshStartProgress) {
 
 export class FreshStartWorkflow extends WorkflowEntrypoint<Env, FreshStartParams> {
 	override async run(event: Readonly<WorkflowEvent<FreshStartParams>>, step: WorkflowStep) {
-		const { id, householdId, level } = event.payload;
+		const { id, householdId, level, deleteBackups } = event.payload;
 		const runAt = await step.do("read the schedule", async () => {
 			const freshStart = await loadFreshStart(getDb(), id);
 			return freshStart?.status === "scheduled" ? freshStart.runAt.getTime() : null;
@@ -81,7 +87,7 @@ export class FreshStartWorkflow extends WorkflowEntrypoint<Env, FreshStartParams
 		if (runAt > Date.now()) await step.sleepUntil("wait out the grace period", new Date(runAt));
 		if (!(await step.do("start", () => startFreshStartRun(getDb(), id)))) return "cancelled";
 		// A Fresh start can be undone: a snapshot first, under the fresh start's own id so a retried
-		// step doesn't take a second (ADR-0035). Delete Household keeps nothing, so takes none.
+		// step doesn't take a second (ADR-0035).
 		if (level === "fresh-start") {
 			await step.do("take a snapshot first", RETRY, async () => {
 				const db = getDb();
@@ -89,6 +95,17 @@ export class FreshStartWorkflow extends WorkflowEntrypoint<Env, FreshStartParams
 				await takeSnapshot(
 					{ db, bucket: env.BACKUPS, migration: await newestMigration(env.DB) },
 					{ householdId, kind: "before-fresh-start", now: new Date(), id },
+				);
+			});
+		}
+		// Delete Household keeps one last snapshot for 30 days, outside the Household's own prefix
+		// (which the clear empties), unless the Parent ticked "Also delete backups". The same key on
+		// a retry, so it is written over, not doubled.
+		if (level === "delete" && !deleteBackups) {
+			await step.do("keep one last snapshot", RETRY, async () => {
+				await takeFinalSnapshot(
+					{ db: getDb(), bucket: env.BACKUPS, migration: await newestMigration(env.DB) },
+					{ householdId, now: new Date(), id },
 				);
 			});
 		}

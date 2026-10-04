@@ -2,10 +2,15 @@ import { type Db, listHouseholdSnapshots, type SnapshotFile } from "@noodle/db";
 import { buildSeed, type SeedOptions, writeSeed } from "@noodle/db/seed";
 import { testDb } from "@noodle/db/test-db";
 import { beforeEach, describe, expect, it } from "vitest";
+import { type ClearDeps, runClearStep } from "./fresh-start-clear";
 import {
+	FINAL_SNAPSHOT_PREFIX,
+	finalSnapshotKey,
 	gunzipJson,
+	pruneFinalSnapshots,
 	type SnapshotBucket,
 	snapshotKey,
+	takeFinalSnapshot,
 	takeNightlySnapshots,
 	takeSnapshot,
 } from "./snapshot-store";
@@ -88,4 +93,101 @@ describe("the nightly snapshots", () => {
 		expect(files.size).toBe(22);
 		for (const snap of kept) expect(files.has(snap.key)).toBe(true);
 	}, 60_000);
+});
+
+describe("Delete Household's last snapshot", () => {
+	const deletedAt = new Date("2026-10-04T15:00:00Z");
+	const days = (n: number) => new Date(deletedAt.getTime() + n * 86_400_000);
+	/** The bucket as R2 lists it: each file with when it was uploaded (when the fake took it). */
+	let uploaded: Map<string, Date>;
+	let clock: Date;
+	const listed = {
+		async put(key: string, value: Uint8Array) {
+			files.set(key, value);
+			uploaded.set(key, clock);
+		},
+		async delete(keys: string | string[]) {
+			for (const key of Array.isArray(keys) ? keys : [keys]) files.delete(key);
+		},
+		async list({
+			prefix,
+			limit = 1000,
+			cursor,
+		}: {
+			prefix: string;
+			limit?: number;
+			cursor?: string;
+		}) {
+			const keys = [...files.keys()].filter((key) => key.startsWith(prefix)).sort();
+			const from = cursor ? Number(cursor) : 0;
+			const page = keys.slice(from, from + limit);
+			const truncated = from + limit < keys.length;
+			return {
+				objects: page.map((key) => ({ key, uploaded: uploaded.get(key) as Date })),
+				truncated,
+				cursor: truncated ? String(from + limit) : undefined,
+			};
+		},
+	};
+	const listedDeps = () => ({ db, bucket: listed, migration: "0048_household_snapshots" });
+
+	beforeEach(() => {
+		uploaded = new Map();
+		clock = deletedAt;
+	});
+
+	it("is kept outside the Household's own prefix, with no row in the history", async () => {
+		const kept = await takeFinalSnapshot(listedDeps(), { householdId, now: deletedAt, id: "FS1" });
+		expect(kept.key).toBe(finalSnapshotKey(householdId, "FS1"));
+		expect(kept.key.startsWith(FINAL_SNAPSHOT_PREFIX)).toBe(true);
+		expect(kept.deleteAfter).toEqual(days(30));
+		const file = await gunzipJson<SnapshotFile>(files.get(kept.key) as Uint8Array);
+		expect(file.householdId).toBe(householdId);
+		expect(file.tables.transactions?.length).toBeGreaterThan(50);
+		expect(await listHouseholdSnapshots(db, householdId)).toEqual([]);
+		// A retried step writes the same file again, not a second.
+		await takeFinalSnapshot(listedDeps(), { householdId, now: deletedAt, id: "FS1" });
+		expect(files.size).toBe(1);
+	});
+
+	it("outlives the delete, which removes every other snapshot of the Household", async () => {
+		const nightly = await takeSnapshot(listedDeps(), {
+			householdId,
+			kind: "nightly",
+			now: deletedAt,
+		});
+		const kept = await takeFinalSnapshot(listedDeps(), { householdId, now: deletedAt, id: "FS1" });
+		const clear = {
+			db,
+			files: listed,
+			backups: listed,
+			merchants: { deleteByIds: async () => undefined },
+			agent: () => ({ clearHousehold: async () => undefined }),
+			bank: null,
+		} as unknown as ClearDeps;
+		await runClearStep(clear, "files", householdId, "delete");
+		expect(files.has(nightly.key)).toBe(false);
+		expect([...files.keys()]).toEqual([kept.key]);
+	});
+
+	it("is removed by the nightly run once 30 days old, and not a day sooner", async () => {
+		const old = await takeFinalSnapshot(listedDeps(), { householdId, now: deletedAt, id: "FS1" });
+		clock = days(10);
+		const newer = await takeFinalSnapshot(listedDeps(), {
+			householdId: "OTHER",
+			now: clock,
+			id: "FS2",
+		});
+		const nightly = await takeSnapshot(listedDeps(), {
+			householdId,
+			kind: "nightly",
+			now: deletedAt,
+		});
+		expect(await pruneFinalSnapshots(listed, days(29))).toEqual([]);
+		expect(await pruneFinalSnapshots(listed, days(30))).toEqual([old.key]);
+		expect([...files.keys()].sort()).toEqual([newer.key, nightly.key].sort());
+		expect(await pruneFinalSnapshots(listed, days(40))).toEqual([newer.key]);
+		// A living Household's snapshots are never touched by it.
+		expect([...files.keys()]).toEqual([nightly.key]);
+	});
 });

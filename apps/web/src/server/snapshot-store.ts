@@ -2,6 +2,7 @@ import {
 	type Db,
 	deleteSnapshotRows,
 	exportHouseholdRows,
+	FINAL_SNAPSHOT_DAYS,
 	hasNightlySince,
 	listHouseholdSnapshots,
 	recordSnapshot,
@@ -100,6 +101,75 @@ export async function takeSnapshot(
 		JSON.stringify({ id, householdId: input.householdId, kind: input.kind, bytes: row.bytes }),
 	);
 	return row;
+}
+
+/** Where a deleted Household's last snapshot waits out its 30 days: not under `households/`. */
+export const FINAL_SNAPSHOT_PREFIX = "deleted-households/";
+export const finalSnapshotKey = (householdId: string, id: string) =>
+	`${FINAL_SNAPSHOT_PREFIX}${householdId}/${id}.json.gz`;
+
+/**
+ * Delete Household's last snapshot (ADR-0035): the same file as any snapshot, but with no row in
+ * the history (the rows go with the Household) and under its own prefix, which the clear doesn't
+ * empty. No Parent can reach it; the operator can put it back by hand until the nightly run
+ * removes it 30 days on.
+ */
+export async function takeFinalSnapshot(
+	deps: SnapshotDeps,
+	input: { householdId: string; now: Date; id: string },
+) {
+	const { tables } = await exportHouseholdRows(deps.db, input.householdId);
+	const file: SnapshotFile = {
+		format: SNAPSHOT_FORMAT,
+		householdId: input.householdId,
+		takenAt: input.now.toISOString(),
+		migration: deps.migration,
+		tables,
+	};
+	const body = await gzipJson(file);
+	const key = finalSnapshotKey(input.householdId, input.id);
+	const deleteAfter = new Date(input.now.getTime() + FINAL_SNAPSHOT_DAYS * 86_400_000);
+	await deps.bucket.put(key, body, {
+		httpMetadata: { contentType: "application/gzip" },
+		customMetadata: {
+			householdId: input.householdId,
+			kind: "before-delete",
+			format: String(SNAPSHOT_FORMAT),
+			deleteAfter: deleteAfter.toISOString(),
+		},
+	});
+	console.log(
+		"Last snapshot kept",
+		JSON.stringify({ householdId: input.householdId, key, bytes: body.byteLength, deleteAfter }),
+	);
+	return { key, bytes: body.byteLength, deleteAfter };
+}
+
+type ListedBucket = {
+	list(options: { prefix: string; limit?: number; cursor?: string }): Promise<{
+		objects: { key: string; uploaded: Date }[];
+		truncated: boolean;
+		cursor?: string;
+	}>;
+	delete(keys: string | string[]): Promise<unknown>;
+};
+
+/** Removes deleted Households' last snapshots once they are 30 days old (by when R2 took them). */
+export async function pruneFinalSnapshots(bucket: ListedBucket, now: Date): Promise<string[]> {
+	const cutoff = now.getTime() - FINAL_SNAPSHOT_DAYS * 86_400_000;
+	const gone: string[] = [];
+	let cursor: string | undefined;
+	for (;;) {
+		const page = await bucket.list({ prefix: FINAL_SNAPSHOT_PREFIX, limit: 1000, cursor });
+		const keys = page.objects
+			.filter((object) => object.uploaded.getTime() <= cutoff)
+			.map((object) => object.key);
+		if (keys.length > 0) await bucket.delete(keys);
+		gone.push(...keys);
+		if (!page.truncated) break;
+		cursor = page.cursor;
+	}
+	return gone;
 }
 
 /** Deletes the snapshots the retention rules no longer keep: the file first, then its row. */

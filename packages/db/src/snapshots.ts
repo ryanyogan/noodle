@@ -121,6 +121,9 @@ export const SNAPSHOT_RETENTION = {
 	byHandMax: 20,
 } as const;
 
+/** How long Delete Household's last snapshot is kept, unless the Parent asked for none. */
+export const FINAL_SNAPSHOT_DAYS = 30;
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** The Monday (UTC) that starts a moment's week, as a key. */

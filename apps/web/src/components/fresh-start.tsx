@@ -22,6 +22,11 @@ import { restartSetup } from "../server/setup";
 
 type Level = "fresh-start" | "delete";
 
+// ADR-0035's numbers (SNAPSHOT_RETENTION.byHandDays and FINAL_SNAPSHOT_DAYS in @noodle/db, which
+// the browser's copy doesn't load).
+const SNAPSHOT_KEPT_DAYS = 90;
+const FINAL_SNAPSHOT_DAYS = 30;
+
 /** "tomorrow 3:12 PM": when a scheduled fresh start runs, in the Parent's own time. */
 export function whenItRuns(runAt: number, now: Date = new Date()): string {
 	const at = new Date(runAt);
@@ -151,13 +156,16 @@ function FreshStartSheet({
 	const hydrated = useHydrated();
 	const nameId = useId();
 	const banksId = useId();
+	const backupsId = useId();
 	const [step, setStep] = useState<1 | 2>(1);
 	const [typed, setTyped] = useState("");
 	const [disconnect, setDisconnect] = useState(false);
+	const [deleteBackups, setDeleteBackups] = useState(false);
 	const counts = useQuery(freshStartCountsQuery());
 	const banks = counts.data?.banks ?? [];
 	const start = useMutation({
-		mutationFn: () => startFreshStart({ data: { level } }),
+		mutationFn: () =>
+			startFreshStart({ data: { level, deleteBackups: level === "delete" && deleteBackups } }),
 		onSuccess: (status) => {
 			if (!status) return;
 			queryClient.setQueryData(freshStartQuery().queryKey, status);
@@ -237,7 +245,20 @@ function FreshStartSheet({
 								</Link>{" "}
 								to keep a copy.
 							</p>
-							<p className="font-medium">This can’t be undone.</p>
+							{level === "delete" ? (
+								<p>
+									<span className="font-medium">This can’t be undone.</span> Noodle keeps one last
+									snapshot for {FINAL_SNAPSHOT_DAYS} days in case you write to us, then deletes it.
+									You can’t put it back yourself. On the next step you can choose to delete it too.
+								</p>
+							) : (
+								<p>
+									<span className="font-medium">Noodle takes a snapshot first.</span> For up to{" "}
+									{SNAPSHOT_KEPT_DAYS} days you can put your Household back from Snapshots in
+									Household settings. Statement and receipt files don’t come back, and banks need
+									connecting again.
+								</p>
+							)}
 						</div>
 						<SheetFooter className="max-lg:grid-cols-2">
 							<Button type="button" variant="outline" onClick={onClose}>
@@ -276,6 +297,26 @@ function FreshStartSheet({
 									onCheckedChange={(checked) => setDisconnect(checked === true)}
 								/>
 								<span>Disconnect {joined(banks)} from Noodle</span>
+							</label>
+						) : null}
+						{level === "delete" ? (
+							<label
+								htmlFor={backupsId}
+								className="flex cursor-pointer items-start gap-2 py-1 text-sm"
+							>
+								<Checkbox
+									id={backupsId}
+									checked={deleteBackups}
+									onCheckedChange={(checked) => setDeleteBackups(checked === true)}
+								/>
+								<span>
+									Also delete backups
+									<span className="block text-muted-foreground">
+										{deleteBackups
+											? "Nothing is kept."
+											: `One last snapshot is kept for ${FINAL_SNAPSHOT_DAYS} days, then deleted.`}
+									</span>
+								</span>
 							</label>
 						) : null}
 						{start.isError ? <FormError>We couldn’t start it. Please try again.</FormError> : null}

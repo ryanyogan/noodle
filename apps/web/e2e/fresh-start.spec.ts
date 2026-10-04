@@ -50,7 +50,12 @@ async function confirmInSheets(page: Page, action: "Start fresh" | "Delete House
 	await expect(sheet).toBeVisible();
 	await expect(sheet.getByRole("list", { name: "What will be cleared" })).toBeVisible();
 	await expect(sheet.getByRole("link", { name: "Download everything first" })).toBeVisible();
-	await expect(sheet).toContainText("This can’t be undone.");
+	// Start fresh takes a snapshot first (#78); Delete Household keeps one for 30 days at most.
+	await expect(sheet).toContainText(
+		action === "Start fresh"
+			? "Noodle takes a snapshot first. For up to 90 days you can put your Household back from Snapshots"
+			: "This can’t be undone. Noodle keeps one last snapshot for 30 days",
+	);
 	return sheet;
 }
 
@@ -91,6 +96,16 @@ test("a single Parent starts fresh: counts, typed name, progress, All cleared, t
 	});
 	await page.getByRole("button", { name: "Set up your Household" }).click();
 	await expect(page).toHaveURL(/\/setup/);
+
+	// The snapshot taken first is in the history, holding what was cleared.
+	await page.goto("/household");
+	await expect(
+		page
+			.getByRole("region", { name: "Snapshots" })
+			.getByRole("list", { name: "Snapshot history" })
+			.getByRole("listitem")
+			.filter({ hasText: "Before Fresh start" }),
+	).toContainText("1 Transaction,");
 
 	const transactions = await page.request.get("/transactions");
 	expect(await transactions.text()).not.toContain("Farmers market");
@@ -152,6 +167,9 @@ test("a single Parent deletes the Household and lands on /welcome", async ({ bro
 	const sheet = await confirmInSheets(page, "Delete Household");
 	await sheet.getByRole("button", { name: "Continue" }).click();
 	await sheet.getByLabel("Type “The Rinks”").fill("The Rinks");
+	await expect(sheet).toContainText("One last snapshot is kept for 30 days, then deleted.");
+	await sheet.getByLabel("Also delete backups").check();
+	await expect(sheet).toContainText("Nothing is kept.");
 	await sheet.getByRole("button", { name: "Delete Household" }).click();
 	await expect(page).toHaveURL(/\/welcome/, { timeout: 90_000 });
 });

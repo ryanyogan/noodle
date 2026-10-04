@@ -87,7 +87,9 @@ export const getFreshStartStatus = createServerFn({ method: "GET" })
  */
 export const startFreshStart = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
-	.validator(z.object({ level: z.enum(["fresh-start", "delete"]) }))
+	.validator(
+		z.object({ level: z.enum(["fresh-start", "delete"]), deleteBackups: z.boolean().optional() }),
+	)
 	.handler(async ({ data, context }) => {
 		const householdId = context.household.id;
 		const now = Date.now();
@@ -104,7 +106,13 @@ export const startFreshStart = createServerFn({ method: "POST" })
 		if (created) {
 			await env.FRESH_START.create({
 				id: freshStart.id,
-				params: { id: freshStart.id, householdId, level: freshStart.level },
+				params: {
+					id: freshStart.id,
+					householdId,
+					level: freshStart.level,
+					// Delete Household keeps one last snapshot for 30 days unless the Parent said not to.
+					deleteBackups: freshStart.level === "delete" && data.deleteBackups === true,
+				},
 			});
 			const what = freshStart.level === "delete" ? "delete the Household" : "start fresh";
 			for (const other of others) {
