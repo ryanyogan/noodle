@@ -118,7 +118,9 @@
 		{ "name": "noodle-export", "binding": "EXPORT", "class_name": "ExportWorkflow" },
 		{ "name": "noodle-fresh-start", "binding": "FRESH_START", "class_name": "FreshStartWorkflow" },
 		// The nightly whole-database backup, started first by the 09:00 UTC cron (ADR-0032).
-		{ "name": "noodle-backup", "binding": "BACKUP", "class_name": "BackupWorkflow" }
+		{ "name": "noodle-backup", "binding": "BACKUP", "class_name": "BackupWorkflow" },
+		// Restoring a Household snapshot (#78, ADR-0035).
+		{ "name": "noodle-restore", "binding": "RESTORE", "class_name": "SnapshotRestoreWorkflow" }
 	],
 	"triggers": { "crons": ["0 * 1-3 * *", "0 9 * * *"] },
 	// Invites to the other Parent and the Check-in's email summary go out through Cloudflare Email

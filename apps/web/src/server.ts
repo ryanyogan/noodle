@@ -44,6 +44,7 @@ export { HouseholdAgent } from "./server/household-agent";
 export { MonthCloseWorkflow } from "./server/month-close-workflow";
 export { PerkResearchWorkflow } from "./server/perk-research-workflow";
 export { SetupWorkflow } from "./server/setup-workflow";
+export { SnapshotRestoreWorkflow } from "./server/snapshot-restore-workflow";
 
 /**
  * The nightly cron: Bank Connections' daily sync, Insights, Perk re-checks, then Check-ins

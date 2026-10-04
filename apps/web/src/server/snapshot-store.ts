@@ -142,3 +142,26 @@ export async function takeNightlySnapshots(deps: SnapshotDeps, now: Date) {
 	}
 	return { taken, failed };
 }
+
+/** The newest migration applied, so a snapshot says which schema its rows fit (ADR-0035). */
+export async function newestMigration(db: D1Database): Promise<string | null> {
+	try {
+		return (
+			(await db
+				.prepare("SELECT name FROM d1_migrations ORDER BY id DESC LIMIT 1")
+				.first<string>("name")) ?? null
+		);
+	} catch {
+		return null;
+	}
+}
+
+/** A snapshot's file, unzipped; null when it's gone from the bucket. */
+export async function readSnapshot(
+	bucket: { get(key: string): Promise<{ arrayBuffer(): Promise<ArrayBuffer> } | null> },
+	key: string,
+): Promise<SnapshotFile | null> {
+	const object = await bucket.get(key);
+	if (!object) return null;
+	return gunzipJson<SnapshotFile>(new Uint8Array(await object.arrayBuffer()));
+}
