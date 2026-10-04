@@ -21,7 +21,13 @@ function tokens(from: number): Record<string, string> {
 }
 
 const light = tokens(0);
-const dark = { ...light, ...tokens(css.indexOf("@media (prefers-color-scheme: dark)")) };
+// The rule itself, with its brace: `@custom-variant dark (@media (prefers-color-scheme: dark))` comes
+// first in the file, and finding that one read the light block twice.
+const dark = { ...light, ...tokens(css.indexOf("@media (prefers-color-scheme: dark) {")) };
+
+it("reads the dark tokens, not the light ones again", () => {
+	expect(dark.card).not.toBe(light.card);
+});
 
 const luminance = (hex: string) => {
 	const [r, g, b] = [1, 3, 5].map((i) => {
@@ -77,8 +83,35 @@ describe.each([
 		}
 	});
 
+	it("an empty Checkbox, Radio or off Switch has an edge of at least 3:1 where it sits (ADR-0038)", () => {
+		// They're drawn with --input on a card, the page or a raised row (surface-2).
+		for (const surface of ["card", "background", "surface-2"]) {
+			expect(contrast(t.input as string, t[surface] as string)).toBeGreaterThanOrEqual(3);
+		}
+	});
+
 	it("the Over badge's text is at least 4.5:1 on its tint, over a card", () => {
 		const badge = tint(t.over as string, overAlpha, t.card as string);
 		expect(contrast(t["over-foreground"] as string, badge)).toBeGreaterThanOrEqual(4.5);
+	});
+});
+
+describe("chart contrast, dark theme (#73)", () => {
+	it("the comparison series (Explore's Plan bars) is at least 3:1 on the card, and quieter than the Scenario's", () => {
+		const compare = dark["chart-compare"] as string;
+		expect(contrast(compare, dark.card as string)).toBeGreaterThanOrEqual(3);
+		expect(contrast(dark.brand as string, dark.card as string)).toBeGreaterThan(
+			contrast(compare, dark.card as string) * 2,
+		);
+	});
+
+	it("an off Switch's dark thumb (the card colour) is at least 3:1 on its track (--input)", () => {
+		expect(contrast(dark.card as string, dark.input as string)).toBeGreaterThanOrEqual(3);
+	});
+
+	it("Cash flow's nodes (the two quieter text greys) are at least 3:1 on the card", () => {
+		for (const node of ["muted-foreground", "subtle-foreground"]) {
+			expect(contrast(dark[node] as string, dark.card as string)).toBeGreaterThanOrEqual(3);
+		}
 	});
 });

@@ -6,13 +6,15 @@ import { cn } from "#lib/utils";
 // shadcn/ui's Checkbox (https://ui.shadcn.com/docs/components/checkbox), radix-nova, on this
 // design system's tokens: checked takes the primary fill, as Switch and the primary Button do. It's
 // a button with role=checkbox; name it with a <label htmlFor> or by wrapping it in a <label>.
+// An empty box is drawn by its border alone, so the border is `--input` (at least 3:1, ADR-0038).
+// Radio and Switch do the same.
 
 function Checkbox({ className, ...props }: React.ComponentProps<typeof CheckboxPrimitive.Root>) {
 	return (
 		<CheckboxPrimitive.Root
 			data-slot="checkbox"
 			className={cn(
-				"peer relative grid size-4.5 max-lg:z-1 max-lg:after:absolute max-lg:after:inset-[calc(50%-22px)] shrink-0 place-items-center rounded-[5px] border border-border-strong bg-card",
+				"peer relative grid size-4.5 max-lg:z-1 max-lg:after:absolute max-lg:after:inset-[calc(50%-22px)] shrink-0 place-items-center rounded-[5px] border border-input bg-card",
 				"transition-colors duration-(--duration-fast) ease-standard",
 				// A 24px target around the 18px box (WCAG 2.5.8); below lg 44px, centred and kept over what
 				// follows it, as Switch's is.
