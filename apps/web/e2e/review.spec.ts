@@ -1,6 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page, test } from "@playwright/test";
-import { createTestParent } from "./parents";
+import { expect, type Page } from "@playwright/test";
 import { currentTab, expectSectionHeaderKept, markSectionHeader, sectionTabs } from "./section";
 import {
 	accountKindLabel,
@@ -11,18 +10,15 @@ import {
 	switchTo,
 	waitForReview,
 } from "./session";
+import { type SharedParent, test } from "./worker-parent";
 
 // Categorization runs with its deterministic fake (AI_MODEL=stub, see vite.config.ts): it knows
 // nothing about ACME, and guesses Gas, unsure, for a merchant with "gas" in its name.
 
-let parent: Awaited<ReturnType<typeof createTestParent>>;
+let parent: SharedParent;
 
-test.beforeEach(async () => {
-	parent = await createTestParent();
-});
-
-test.afterEach(async () => {
-	await parent?.remove();
+test.beforeEach(async ({ sharedParent }) => {
+	parent = sharedParent;
 });
 
 const card = (page: Page) => page.getByTestId("review-card");

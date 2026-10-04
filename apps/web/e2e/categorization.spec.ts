@@ -1,5 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
-import { createTestParent } from "./parents";
+import { expect, type Page } from "@playwright/test";
 import {
 	accountKindLabel,
 	addBucketsInSheet,
@@ -8,18 +7,15 @@ import {
 	reloadUntil,
 	signedInPage,
 } from "./session";
+import { type SharedParent, test } from "./worker-parent";
 
 // Categorization runs with its deterministic fake (AI_MODEL=stub, see vite.config.ts): it knows
 // Costco is groceries and Shell is gas, and nothing about ACME.
 
-let parent: Awaited<ReturnType<typeof createTestParent>>;
+let parent: SharedParent;
 
-test.beforeEach(async () => {
-	parent = await createTestParent();
-});
-
-test.afterEach(async () => {
-	await parent?.remove();
+test.beforeEach(async ({ sharedParent }) => {
+	parent = sharedParent;
 });
 
 const editSheet = (page: Page) =>

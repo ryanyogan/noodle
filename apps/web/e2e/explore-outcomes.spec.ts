@@ -1,15 +1,11 @@
-import { expect, type Page, test } from "@playwright/test";
-import { createTestParent } from "./parents";
+import { expect, type Page } from "@playwright/test";
 import { clientRendered, createPlannedHousehold, signedInPage } from "./session";
+import { type SharedParent, test } from "./worker-parent";
 
-let parent: Awaited<ReturnType<typeof createTestParent>>;
+let parent: SharedParent;
 
-test.beforeEach(async () => {
-	parent = await createTestParent();
-});
-
-test.afterEach(async () => {
-	await parent?.remove();
+test.beforeEach(async ({ sharedParent }) => {
+	parent = sharedParent;
 });
 
 async function type(page: Page, label: string, value: string) {

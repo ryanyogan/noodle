@@ -1,5 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
-import { createTestParent } from "./parents";
+import { expect, type Page } from "@playwright/test";
 import {
 	accountKindLabel,
 	choose,
@@ -7,20 +6,17 @@ import {
 	serverFn,
 	signedInPage,
 } from "./session";
+import { type SharedParent, test } from "./worker-parent";
 
 // The Credit card perks page with two cards' worth of perks (AI_MODEL=stub, see perks-model.ts):
 // a "premium" page with $15 Uber Cash each month, a $200 airline fee credit each year, a $120
 // Global Entry credit every four years and a $100 hotel credit each stay; a "travel-card" page
 // with a $300 travel credit each year, a $10 DoorDash credit each month and DashPass.
 
-let parent: Awaited<ReturnType<typeof createTestParent>>;
+let parent: SharedParent;
 
-test.beforeEach(async () => {
-	parent = await createTestParent();
-});
-
-test.afterEach(async () => {
-	await parent?.remove();
+test.beforeEach(async ({ sharedParent }) => {
+	parent = sharedParent;
 });
 
 async function addCard(page: Page, name: string, pageUrl: string, fee: string, perks: number) {

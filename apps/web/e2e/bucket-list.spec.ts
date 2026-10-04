@@ -1,19 +1,15 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page, test } from "@playwright/test";
-import { createTestParent } from "./parents";
+import { expect, type Page } from "@playwright/test";
 import { createPlannedHousehold, savedBy, signedInPage } from "./session";
+import { type SharedParent, test } from "./worker-parent";
 
 // The Plan's Buckets list (#57): amounts and names changed in place, with how far a change
 // reaches; Buckets moved by keyboard and by drag, said aloud and saved; Left to plan in view.
 
-let parent: Awaited<ReturnType<typeof createTestParent>>;
+let parent: SharedParent;
 
-test.beforeEach(async () => {
-	parent = await createTestParent();
-});
-
-test.afterEach(async () => {
-	await parent?.remove();
+test.beforeEach(async ({ sharedParent }) => {
+	parent = sharedParent;
 });
 
 const monthKey = (offset = 0) => {

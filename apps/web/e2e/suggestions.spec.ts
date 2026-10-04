@@ -1,6 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page, test } from "@playwright/test";
-import { createTestParent } from "./parents";
+import { expect, type Page } from "@playwright/test";
 import {
 	createPlannedHousehold,
 	reloadUntil,
@@ -8,19 +7,16 @@ import {
 	uploadStatement,
 	waitForReview,
 } from "./session";
+import { type SharedParent, test } from "./worker-parent";
 
 // Suggestions (#58, ADR-0027, #76): a statement with months of a real bill gets a Commitment
 // suggestion under Plan › Commitments after the background run, saying why. Never on This Month.
 // Add creates the Commitment; Not now sticks. Bucket suggestions show under Plan › Buckets.
 
-let parent: Awaited<ReturnType<typeof createTestParent>>;
+let parent: SharedParent;
 
-test.beforeEach(async () => {
-	parent = await createTestParent();
-});
-
-test.afterEach(async () => {
-	await parent?.remove();
+test.beforeEach(async ({ sharedParent }) => {
+	parent = sharedParent;
 });
 
 const shots =

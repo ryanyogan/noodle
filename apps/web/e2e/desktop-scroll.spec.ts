@@ -1,6 +1,5 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { misaligned } from "./alignment";
-import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
 import {
 	accountKindLabel,
@@ -9,6 +8,7 @@ import {
 	createPlannedHousehold,
 	signedInPage,
 } from "./session";
+import { type SharedParent, test } from "./worker-parent";
 
 // Guards the desktop's one scroll per region (#67): the page scrolls, and nothing scrolls inside
 // it. A rail with its own scrollbar inside a scrolling page is what this catches. Allowed:
@@ -69,14 +69,10 @@ const aligned = [
 	"/review/rules",
 ];
 
-let parent: Awaited<ReturnType<typeof createTestParent>>;
+let parent: SharedParent;
 
-test.beforeEach(async () => {
-	parent = await createTestParent();
-});
-
-test.afterEach(async () => {
-	await parent?.remove();
+test.beforeEach(async ({ sharedParent }) => {
+	parent = sharedParent;
 });
 
 /** Scrolling elements nested in another scrolling region, and split columns whose tops differ. */

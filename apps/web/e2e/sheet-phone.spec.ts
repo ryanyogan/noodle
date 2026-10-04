@@ -1,19 +1,15 @@
-import { expect, test } from "@playwright/test";
-import { createTestParent } from "./parents";
+import { expect } from "@playwright/test";
 import { createPlannedHousehold, signedInPage, switchTo } from "./session";
+import { type SharedParent, test } from "./worker-parent";
 
 // Sheets on a phone (packages/ui's Sheet): the page underneath stays where it was while one is
 // open and after it closes, the primary action shows without scrolling, and Esc closes it. Quick
 // Add keeps what was typed if it closes without adding.
 
-let parent: Awaited<ReturnType<typeof createTestParent>>;
+let parent: SharedParent;
 
-test.beforeEach(async () => {
-	parent = await createTestParent();
-});
-
-test.afterEach(async () => {
-	await parent?.remove();
+test.beforeEach(async ({ sharedParent }) => {
+	parent = sharedParent;
 });
 
 const pageScroll = (page: import("@playwright/test").Page) => page.evaluate(() => window.scrollY);

@@ -1,20 +1,16 @@
-import { expect, type Page, test } from "@playwright/test";
-import { createTestParent } from "./parents";
+import { expect, type Page } from "@playwright/test";
 import { createPlannedHousehold, openFromMore, signedInPage, switchTo } from "./session";
 import { realTouch, swipe } from "./touch";
+import { type SharedParent, test } from "./worker-parent";
 
 // Swiping a sheet closed on a phone (packages/ui's Sheet): a drag down from the grabber or the
 // header closes it; a short drag doesn't, and leaves the place in a list inside it; a swipe that
 // starts in the list scrolls the list rather than closing the sheet.
 
-let parent: Awaited<ReturnType<typeof createTestParent>>;
+let parent: SharedParent;
 
-test.beforeEach(async () => {
-	parent = await createTestParent();
-});
-
-test.afterEach(async () => {
-	await parent?.remove();
+test.beforeEach(async ({ sharedParent }) => {
+	parent = sharedParent;
 });
 
 const quickAdd = (page: Page) => page.getByRole("dialog", { name: "Quick Add" });

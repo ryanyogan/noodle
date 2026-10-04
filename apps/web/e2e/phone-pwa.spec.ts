@@ -1,21 +1,17 @@
-import { expect, test } from "@playwright/test";
-import { createTestParent } from "./parents";
+import { expect } from "@playwright/test";
 import { installed, looks, notch } from "./phone";
 import { clientRendered, createPlannedHousehold, signedInPage, switchTo } from "./session";
+import { type SharedParent, test } from "./worker-parent";
 
 // The installed app on an iPhone with a notch: the tab bar sits above the home indicator, the page
 // and its sticky headers start below the status bar, the page doesn't rubber-band under the fixed
 // bars, and Back closes Quick Add but asks before throwing away what was typed in another sheet
 // (#52 row 144).
 
-let parent: Awaited<ReturnType<typeof createTestParent>>;
+let parent: SharedParent;
 
-test.beforeEach(async () => {
-	parent = await createTestParent();
-});
-
-test.afterEach(async () => {
-	await parent?.remove();
+test.beforeEach(async ({ sharedParent }) => {
+	parent = sharedParent;
 });
 
 for (const look of looks) {

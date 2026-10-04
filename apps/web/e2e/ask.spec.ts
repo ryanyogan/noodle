@@ -1,5 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
-import { createTestParent } from "./parents";
+import { expect, type Page } from "@playwright/test";
 import { currentTab } from "./section";
 import {
 	createPlannedHousehold,
@@ -8,19 +7,16 @@ import {
 	serverFn,
 	signedInPage,
 } from "./session";
+import { type SharedParent, test } from "./worker-parent";
 
 // Ask runs against its deterministic fake model here (AI_MODEL=stub in playwright.config.ts):
 // it picks a tool from the question's keywords and answers with the tool's own sentence, so these
 // tests check the real tools, streaming, figures and links, never a live model.
 
-let parent: Awaited<ReturnType<typeof createTestParent>>;
+let parent: SharedParent;
 
-test.beforeEach(async () => {
-	parent = await createTestParent();
-});
-
-test.afterEach(async () => {
-	await parent?.remove();
+test.beforeEach(async ({ sharedParent }) => {
+	parent = sharedParent;
 });
 
 const plan = {

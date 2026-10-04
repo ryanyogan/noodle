@@ -1,20 +1,16 @@
-import { expect, type Page, test } from "@playwright/test";
-import { createTestParent } from "./parents";
+import { expect, type Page } from "@playwright/test";
 import { clientRendered, createHousehold, savedBy, signedInPage } from "./session";
+import { type SharedParent, test } from "./worker-parent";
 
 // Plaid Link's edges (#71), against the fake Plaid (AI_MODEL=stub) and its stand-in Link, which
 // `noodle.fake-link` in sessionStorage steers: a bank that logs the Parent in on its own page and
 // comes back by /bank/return, from Accounts and from the get-started wizard; Link closing with an
 // error; a link token that expired; and the same bank linked twice.
 
-let parent: Awaited<ReturnType<typeof createTestParent>>;
+let parent: SharedParent;
 
-test.beforeEach(async () => {
-	parent = await createTestParent();
-});
-
-test.afterEach(async () => {
-	await parent?.remove();
+test.beforeEach(async ({ sharedParent }) => {
+	parent = sharedParent;
 });
 
 const toast = (page: Page, text: string) => page.getByRole("status").filter({ hasText: text });

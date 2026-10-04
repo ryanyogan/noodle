@@ -1,17 +1,13 @@
-import { expect, test } from "@playwright/test";
+import { expect } from "@playwright/test";
 import { ulid } from "ulid";
-import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
 import { createPlannedHousehold, signedInPage } from "./session";
+import { type SharedParent, test } from "./worker-parent";
 
-let parent: Awaited<ReturnType<typeof createTestParent>>;
+let parent: SharedParent;
 
-test.beforeEach(async () => {
-	parent = await createTestParent();
-});
-
-test.afterEach(async () => {
-	await parent?.remove();
+test.beforeEach(async ({ sharedParent }) => {
+	parent = sharedParent;
 });
 
 const monthName = (month: string) =>

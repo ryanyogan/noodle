@@ -1,6 +1,5 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { signFakeWebhook } from "../src/server/plaid-fake-webhook-key";
-import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
 import {
 	accountKindLabel,
@@ -9,20 +8,17 @@ import {
 	pickQuickAddBucket,
 	signedInPage,
 } from "./session";
+import { type SharedParent, test } from "./worker-parent";
 
 // Connecting a bank pairs with the Accounts already there (ADR-0020), against the fake Plaid API
 // (AI_MODEL=stub). A card kept with a statement and a Quick Add is chosen as the bank's card: it
 // stays the same Account, the statement's line isn't brought in again, the Quick Add is Matched
 // with the bank's copy, and a reconnect keeps the pairing. Stopping brings nothing in after.
 
-let parent: Awaited<ReturnType<typeof createTestParent>>;
+let parent: SharedParent;
 
-test.beforeEach(async () => {
-	parent = await createTestParent();
-});
-
-test.afterEach(async () => {
-	await parent?.remove();
+test.beforeEach(async ({ sharedParent }) => {
+	parent = sharedParent;
 });
 
 const toast = (page: Page, text: string) => page.getByRole("status").filter({ hasText: text });

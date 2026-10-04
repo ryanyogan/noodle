@@ -1,21 +1,17 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page, test } from "@playwright/test";
-import { createTestParent } from "./parents";
+import { expect, type Page } from "@playwright/test";
 import { createPlannedHousehold, signedInPage } from "./session";
+import { type SharedParent, test } from "./worker-parent";
 
 // ADR-0031's guard: a real Household's 30 Buckets, plus both Parents' Personal Allowances, never
 // make Quick Add scroll. The common save (an amount, then the likely Bucket) fits a 375×667 phone
 // and a 1280×720 computer; the rest is a search away; a Rule's merchant steers the order; and the
 // other Parent's Personal Allowance never shows.
 
-let parent: Awaited<ReturnType<typeof createTestParent>>;
+let parent: SharedParent;
 
-test.beforeEach(async () => {
-	parent = await createTestParent();
-});
-
-test.afterEach(async () => {
-	await parent?.remove();
+test.beforeEach(async ({ sharedParent }) => {
+	parent = sharedParent;
 });
 
 const names = [

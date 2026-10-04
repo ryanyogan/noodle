@@ -1,18 +1,14 @@
-import { expect, test } from "@playwright/test";
-import { createTestParent } from "./parents";
+import { expect } from "@playwright/test";
 import { createPlannedHousehold, signedInPage } from "./session";
+import { type SharedParent, test } from "./worker-parent";
 
 // Back with a sheet open (#47): a sheet isn't a history entry, so Back leaves the page; when
 // something was typed in the sheet, the app asks first rather than throw it away.
 
-let parent: Awaited<ReturnType<typeof createTestParent>>;
+let parent: SharedParent;
 
-test.beforeEach(async () => {
-	parent = await createTestParent();
-});
-
-test.afterEach(async () => {
-	await parent?.remove();
+test.beforeEach(async ({ sharedParent }) => {
+	parent = sharedParent;
 });
 
 test("Back asks before throwing away what was typed in a sheet", async ({ browser }) => {

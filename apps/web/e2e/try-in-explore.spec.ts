@@ -1,5 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
-import { createTestParent } from "./parents";
+import { expect, type Page } from "@playwright/test";
 import { expectSectionHeaderKept, markSectionHeader, sectionTabs } from "./section";
 import {
 	clientRendered,
@@ -8,19 +7,16 @@ import {
 	signedInPage,
 	switchTo,
 } from "./session";
+import { type SharedParent, test } from "./worker-parent";
 
 // "Try in Explore" from Insights and Ask, with their deterministic fake models (AI_MODEL=stub):
 // each saves a Scenario with the change it suggests and opens it, and the Plan stays as it was
 // until a Parent applies one.
 
-let parent: Awaited<ReturnType<typeof createTestParent>>;
+let parent: SharedParent;
 
-test.beforeEach(async () => {
-	parent = await createTestParent();
-});
-
-test.afterEach(async () => {
-	await parent?.remove();
+test.beforeEach(async ({ sharedParent }) => {
+	parent = sharedParent;
 });
 
 const waterfall = (page: Page) =>

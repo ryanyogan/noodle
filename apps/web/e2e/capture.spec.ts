@@ -1,20 +1,16 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { expect, test } from "@playwright/test";
-import { createTestParent } from "./parents";
+import { expect } from "@playwright/test";
 import { createPlannedHousehold, signedInPage } from "./session";
+import { type SharedParent, test } from "./worker-parent";
 
 // Tap to capture: a Parent makes their capture token on the Household page, and what the iPhone
 // Shortcut sends (the fixture, as Get Contents of URL posts it) becomes their Quick Add.
 
-let parent: Awaited<ReturnType<typeof createTestParent>>;
+let parent: SharedParent;
 
-test.beforeEach(async () => {
-	parent = await createTestParent();
-});
-
-test.afterEach(async () => {
-	await parent?.remove();
+test.beforeEach(async ({ sharedParent }) => {
+	parent = sharedParent;
 });
 
 const shortcutRequest = JSON.parse(
