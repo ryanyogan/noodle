@@ -28,7 +28,10 @@ export default defineConfig({
 	retries: process.env.CI ? 1 : 0,
 	// A CI runner is several times slower than a laptop; specs with two Parents ran past 30 s there.
 	timeout: process.env.CI ? 60_000 : 30_000,
-	reporter: process.env.CI ? "github" : "list",
+	// CI also writes every test's time as JSON; the workflow lists the slowest 20 in the job summary.
+	reporter: process.env.CI
+		? [["github"], ["json", { outputFile: "playwright-report/report.json" }]]
+		: "list",
 	use: {
 		baseURL: `http://localhost:${port}`,
 		trace: "retain-on-failure",

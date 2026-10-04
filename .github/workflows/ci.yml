@@ -2,6 +2,8 @@ name: CI
 
 on:
   push:
+    # Screenshot pushes (shots-** branches) start only the Page shots workflow, not the whole suite.
+    branches-ignore: ["shots-**"]
     # A change to docs alone doesn't need the app tested.
     paths-ignore: ["docs/**", "**/*.md"]
   pull_request:
@@ -14,6 +16,10 @@ on:
         description: Also run the WebKit iPhone jobs
         type: boolean
         default: true
+
+env:
+  # Where bun keeps downloaded packages; each job restores it from the cache, keyed on bun.lock.
+  BUN_INSTALL_CACHE_DIR: /tmp/bun-cache
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -65,6 +71,11 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
+      - uses: actions/cache@v4
+        with:
+          path: /tmp/bun-cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run lint
@@ -101,6 +112,11 @@ jobs:
       - uses: actions/checkout@v5
       # setup-bun needs unzip, which the image lacks; npm's bun package is the same binary.
       - run: npm install -g "$(node -p 'require("./package.json").packageManager')"
+      - uses: actions/cache@v4
+        with:
+          path: /tmp/bun-cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
       - run: bun install --frozen-lockfile
       # The browsers are cached by Playwright version; only their system libraries install each run.
       - name: Write dev keys for the local Worker
@@ -116,9 +132,38 @@ jobs:
         working-directory: apps/web
         env:
           AI_MODEL: stub
-      # Phone tests run in e2e-phone.
-      - run: bun run e2e --project=chromium --shard=${{ matrix.shard }}/3 --workers=3
+      # Phone tests run in e2e-phone. A branch that breaks everything stops after five failures
+      # instead of running each test to its timeout, twice.
+      - run: bun run e2e --project=chromium --shard=${{ matrix.shard }}/3 --workers=3 --max-failures=5
         working-directory: apps/web
+      - name: Slowest 20 tests
+        if: ${{ !cancelled() }}
+        working-directory: apps/web
+        run: |
+          node -e '
+            const fs = require("fs");
+            if (!fs.existsSync("playwright-report/report.json")) process.exit(0);
+            const report = JSON.parse(fs.readFileSync("playwright-report/report.json", "utf8"));
+            const rows = [];
+            const walk = (suite) => {
+              for (const spec of suite.specs ?? [])
+                for (const test of spec.tests ?? [])
+                  for (const [attempt, result] of (test.results ?? []).entries())
+                    rows.push({ ms: result.duration, status: result.status, attempt, name: `${spec.file}:${spec.line} ${spec.title}` });
+              for (const child of suite.suites ?? []) walk(child);
+            };
+            for (const suite of report.suites ?? []) walk(suite);
+            rows.sort((a, b) => b.ms - a.ms);
+            const total = rows.reduce((sum, row) => sum + row.ms, 0);
+            const lines = [
+              `### Slowest 20 of ${rows.length} test runs (${(total / 1000).toFixed(0)} s of test time, ${(report.stats.duration / 1000).toFixed(0)} s wall)`,
+              "",
+              "| Seconds | Result | Test |",
+              "|---:|---|---|",
+              ...rows.slice(0, 20).map((row) => `| ${(row.ms / 1000).toFixed(1)} | ${row.status}${row.attempt ? " (retry)" : ""} | ${row.name.replaceAll("|", "/")} |`),
+            ];
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
+          '
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -147,6 +192,11 @@ jobs:
       - uses: actions/checkout@v5
       # setup-bun needs unzip, which the image lacks; npm's bun package is the same binary.
       - run: npm install -g "$(node -p 'require("./package.json").packageManager')"
+      - uses: actions/cache@v4
+        with:
+          path: /tmp/bun-cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
       - run: bun install --frozen-lockfile
       - name: Write dev keys for the local Worker
         working-directory: apps/web
@@ -162,6 +212,34 @@ jobs:
       # test run to its timeout, twice.
       - run: bun run e2e --project=${{ matrix.project }} --max-failures=3 --workers=3
         working-directory: apps/web
+      - name: Slowest 20 tests
+        if: ${{ !cancelled() }}
+        working-directory: apps/web
+        run: |
+          node -e '
+            const fs = require("fs");
+            if (!fs.existsSync("playwright-report/report.json")) process.exit(0);
+            const report = JSON.parse(fs.readFileSync("playwright-report/report.json", "utf8"));
+            const rows = [];
+            const walk = (suite) => {
+              for (const spec of suite.specs ?? [])
+                for (const test of spec.tests ?? [])
+                  for (const [attempt, result] of (test.results ?? []).entries())
+                    rows.push({ ms: result.duration, status: result.status, attempt, name: `${spec.file}:${spec.line} ${spec.title}` });
+              for (const child of suite.suites ?? []) walk(child);
+            };
+            for (const suite of report.suites ?? []) walk(suite);
+            rows.sort((a, b) => b.ms - a.ms);
+            const total = rows.reduce((sum, row) => sum + row.ms, 0);
+            const lines = [
+              `### Slowest 20 of ${rows.length} test runs (${(total / 1000).toFixed(0)} s of test time, ${(report.stats.duration / 1000).toFixed(0)} s wall)`,
+              "",
+              "| Seconds | Result | Test |",
+              "|---:|---|---|",
+              ...rows.slice(0, 20).map((row) => `| ${(row.ms / 1000).toFixed(1)} | ${row.status}${row.attempt ? " (retry)" : ""} | ${row.name.replaceAll("|", "/")} |`),
+            ];
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
+          '
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -185,6 +263,11 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
+      - uses: actions/cache@v4
+        with:
+          path: /tmp/bun-cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
       - run: bun install --frozen-lockfile
       # The Time Travel bookmark just before migrating, so a bad migration can be rolled back to
       # exactly here (docs/runbooks/restore.md).
