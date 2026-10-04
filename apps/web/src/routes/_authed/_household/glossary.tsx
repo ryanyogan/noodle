@@ -27,8 +27,12 @@ function GlossaryPage() {
 					</p>
 					<GlossarySearch query={query} onQueryChange={setQuery} />
 				</div>
-				<Card className="min-w-0 p-2 lg:max-w-3xl">
-					<GlossaryList query={query} />
+				{/* From 1680 px the words run in two columns, A to Z down each, so the page uses its width (#73). */}
+				<Card className="min-w-0 p-2 lg:max-w-3xl min-[105rem]:max-w-none">
+					<GlossaryList
+						query={query}
+						className="min-[105rem]:block min-[105rem]:columns-2 min-[105rem]:gap-x-2 min-[105rem]:[&>*]:break-inside-avoid"
+					/>
 				</Card>
 			</div>
 		</>
