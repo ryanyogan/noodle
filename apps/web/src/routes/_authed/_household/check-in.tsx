@@ -67,31 +67,49 @@ function CheckInPage() {
 			<div
 				className={cn(
 					"grid gap-4",
-					// The card grows with the window up to 48rem, so a wide screen isn't half empty (#73).
+					// The steps beside the card, which takes the rest of the page's width, so a wide screen
+					// isn't half empty (#73).
 					view.cards.length > 0 &&
-						"lg:grid-cols-[240px_minmax(0,48rem)] lg:items-start lg:gap-(--layout-gap)",
+						"lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start lg:gap-(--layout-gap)",
 				)}
 			>
-				{view.cards.length > 0 ? (
-					<StepList aria-label="Check-in steps" className="hidden lg:block">
-						{view.cards.map((card) => (
-							<StepListItem
-								key={card.kind}
-								state={
-									step.kind === "card" && step.card.kind === card.kind
-										? "current"
-										: done || past.includes(card.kind)
-											? "done"
-											: "todo"
-								}
-							>
-								{checkInCardTitle[card.kind]}
-							</StepListItem>
-						))}
-					</StepList>
-				) : null}
-				<div className="grid max-w-3xl gap-3">
+				{/* Above both columns, so the steps and the card start on one line. */}
+				<div className="empty:hidden lg:col-span-full">
 					<PerkResetLine />
+				</div>
+				{view.cards.length > 0 ? (
+					<div className="hidden gap-3 lg:grid">
+						{/* A line over the steps, as "1 of 4" is over the card: both columns start alike. */}
+						{step.kind === "card" ? (
+							<p className="text-sm text-muted-foreground">This week</p>
+						) : null}
+						<StepList aria-label="Check-in steps">
+							{view.cards.map((card) => (
+								<StepListItem
+									key={card.kind}
+									// The control radius, and room for the step's own line under its name.
+									className="items-start rounded-(--radius-control) py-2.5 [&>span[aria-hidden]]:mt-1.5 [&>svg]:mt-0.5"
+									state={
+										step.kind === "card" && step.card.kind === card.kind
+											? "current"
+											: done || past.includes(card.kind)
+												? "done"
+												: "todo"
+									}
+								>
+									<span className="grid min-w-0">
+										<span>{checkInCardTitle[card.kind]}</span>
+										{/* What waits in the step, in the Household's own figures. */}
+										<span className="truncate text-[13px] font-normal text-muted-foreground">
+											{checkInLine(card)}
+										</span>
+									</span>
+								</StepListItem>
+							))}
+						</StepList>
+					</div>
+				) : null}
+				<div className={cn("grid max-w-3xl gap-3", view.cards.length > 0 && "lg:max-w-none")}>
 					{step.kind === "card" ? (
 						<p className="text-sm text-muted-foreground tabular-nums">
 							{step.position} of {step.of}

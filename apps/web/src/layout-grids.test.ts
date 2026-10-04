@@ -15,7 +15,7 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
 	},
 	"routes/_authed/_household/check-in.tsx": {
 		count: 1,
-		why: "the Check-in's steps beside one card at reading width, not a main and a rail",
+		why: "the Check-in's steps, narrower than a rail, beside its one card",
 	},
 };
 
