@@ -34,9 +34,12 @@ export function CarriesOverHelp() {
 export function StarterBucketPicker({
 	rows,
 	onChange,
+	twoAcross,
 }: {
 	rows: BucketRow[];
 	onChange: (rows: BucketRow[]) => void;
+	/** From 1440 wide the cards sit two across, for a caller whose column is two cards wide. */
+	twoAcross?: boolean;
 }) {
 	const id = useId();
 	const edit = (key: string, change: Partial<BucketRow>) =>
@@ -44,7 +47,10 @@ export function StarterBucketPicker({
 	const removed = rows.filter((row) => !row.kept);
 	return (
 		<div className="grid gap-3">
-			<ul className="grid gap-2" aria-label="Buckets">
+			<ul
+				className={`grid gap-2 ${twoAcross ? "min-[90rem]:grid-cols-2 min-[90rem]:gap-4" : ""}`}
+				aria-label="Buckets"
+			>
 				{rows
 					.filter((row) => row.kept)
 					.map((row, i) => {
@@ -52,7 +58,10 @@ export function StarterBucketPicker({
 						const label = row.name.trim() || "New Bucket";
 						return (
 							<li key={row.key}>
-								<Card className="grid gap-2 p-(--card-pad)" data-bucket={row.key}>
+								<Card
+									className="grid h-full content-start gap-2 p-(--card-pad)"
+									data-bucket={row.key}
+								>
 									<div className="flex items-center gap-2">
 										<Input
 											aria-label={`Name of ${label}`}
