@@ -1575,23 +1575,23 @@ function CashFlowView({ data, nav, tables, names }: ViewProps<"cash-flow">) {
 			renderRow={(row, bar) => {
 				const name = nameOf.get(row.key) ?? "";
 				const area = areaOf(row.key);
-				const body = (
-					<span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-1.5">
-						<span className="flex items-baseline gap-3">
-							<span className="min-w-0 flex-1 text-sm font-medium break-words">{name}</span>
-							<span className="shrink-0 text-sm font-semibold tabular-nums">
-								{formatMoney(row.amount)}
+				// A row with nowhere to drill keeps the same shape, so amounts and bars line up.
+				return (
+					<DrillRow
+						onClick={() => area && nav.area(area)}
+						disabled={!area}
+						label={`${name}: ${formatMoney(row.amount)}`}
+					>
+						<span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-1.5">
+							<span className="flex items-baseline gap-3">
+								<span className="min-w-0 flex-1 text-sm font-medium break-words">{name}</span>
+								<span className="shrink-0 text-sm font-semibold tabular-nums">
+									{formatMoney(row.amount)}
+								</span>
 							</span>
+							{bar}
 						</span>
-						{bar}
-					</span>
-				);
-				return area ? (
-					<DrillRow onClick={() => nav.area(area)} label={`${name}: ${formatMoney(row.amount)}`}>
-						{body}
 					</DrillRow>
-				) : (
-					<div className="flex min-h-11 items-center py-2">{body}</div>
 				);
 			}}
 		/>
