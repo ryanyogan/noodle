@@ -11,6 +11,16 @@ import { sectionHeaderOverItem } from "./master-detail";
 export type SectionTab = { label: string; link: LinkProps; badge?: ReactNode };
 
 /**
+ * Whether another tab's address sits beneath this one's ("/plan/$month" above
+ * "/plan/$month/buckets"): such a tab is the section's first page, and is current on that page only.
+ * Every other tab is also current on the pages beneath it.
+ */
+export function holdsOtherTabs(tab: SectionTab, tabs: SectionTab[]): boolean {
+	const path = String(tab.link.to ?? "").replace(/\/$/, "");
+	return tabs.some((other) => other !== tab && String(other.link.to ?? "").startsWith(`${path}/`));
+}
+
+/**
  * A section with sibling pages (the Plan's parts, and so on): one header and one row of tabs that
  * stay put, and the current page beneath them. It belongs on the section's layout route, so going
  * between tabs changes only what's below them: the header isn't re-mounted, and the page keeps
@@ -47,12 +57,14 @@ export function SectionLayout({
 					<LinkTabs aria-label={tabsLabel} className="mb-6">
 						{tabs.map((tab) => (
 							<LinkTab key={tab.label} asChild>
-								{/* The link marks itself current (aria-current="page") on its own page only, whatever
-								    the page's search (`?lever=`, `?kind=`): exact matching alone compares that too. A tab
-							    leaves the scroll where it is: only the part below the tabs changes. */}
+								{/* The link marks itself current (aria-current="page") on its own page and on the pages
+								    beneath it (Buckets on a Bucket's page), whatever the page's search (`?lever=`,
+								    `?kind=`). The section's first page, which the others sit beneath, is current on its
+								    own page only, so there is always one current tab and never two. A tab leaves the
+								    scroll where it is: only the part below the tabs changes. */}
 								<Link
 									{...tab.link}
-									activeOptions={{ exact: true, includeSearch: false }}
+									activeOptions={{ exact: holdsOtherTabs(tab, tabs), includeSearch: false }}
 									resetScroll={false}
 								>
 									{tab.label}

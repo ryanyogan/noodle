@@ -82,6 +82,10 @@ test("the list stays put, keeps its scroll and marks its item while the detail c
 	await expect(title(page)).toHaveText("Fund 12");
 	await expect(picked(page)).toHaveText("Fund 12");
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
+	// The Buckets tab stays the current one on a Bucket's page, and it is the only one (#73).
+	await expect(page.locator("nav[aria-label='Plan pages'] [aria-current=page]")).toHaveText(
+		"Buckets",
+	);
 	// This Bucket is taller than the window, so it can't be held beside its row: the window goes
 	// to the Bucket's start, just under the top, rather than leaving that above the fold.
 	await expect(detail(page)).toHaveAttribute("data-fits", "false");

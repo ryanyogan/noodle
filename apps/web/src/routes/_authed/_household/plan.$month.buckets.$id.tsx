@@ -10,6 +10,7 @@ import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { Stat, StatGrid } from "@noodle/ui/components/stat";
 import { toast } from "@noodle/ui/components/toast";
+import { cn } from "@noodle/ui/lib/utils";
 import {
 	useMutation,
 	useQuery,
@@ -73,6 +74,12 @@ export const Route = createFileRoute("/_authed/_household/plan/$month/buckets/$i
 /** How many of this month's Transactions the page lists before "See all". */
 const RECENT_TRANSACTIONS = 5;
 
+/**
+ * On the column beside the chart: its heading row is as tall as the chart's (a 15px title over a
+ * 13px line, 2px apart, at the page's 1.45 line height), so the cards under the two start level.
+ */
+const BESIDE_CHART = "@2xl:[&_[data-slot=section-header]]:min-h-[42.6px]";
+
 function BucketPage() {
 	const { id } = Route.useParams();
 	const { parentId, month } = Route.useRouteContext();
@@ -93,6 +100,8 @@ function BucketPage() {
 	const open = isOpenTo(record, parentId);
 	const personal = Boolean(record.owner);
 	const archived = !current && record.fromMonth <= month;
+	// The chart shows only once the Bucket has been in the Plan in one of the months.
+	const charted = data.months.some((m) => m.inPlan);
 	const shared = state.buckets.filter((b) => b.owner === undefined).map((b) => b.id);
 	// Its last allowance, to restore it with. A Bucket archived in the month it started was in no
 	// month's Plan, so its Plan history (newest first) gives the amount it had.
@@ -161,7 +170,9 @@ function BucketPage() {
 					)}
 				</div>
 				<div className="@max-2xl:contents @2xl:grid @2xl:min-w-0 @2xl:gap-8">
-					<div className="grid min-w-0 gap-8 @max-2xl:order-2">
+					{/* Side by side, the heading here is as tall as the chart's two-line one beside it, so the
+					    two cards start on the same line. */}
+					<div className={cn("grid min-w-0 gap-8 @max-2xl:order-2", charted && BESIDE_CHART)}>
 						{open ? (
 							<BucketTransactions
 								month={month}
