@@ -133,11 +133,20 @@ jobs:
             if (!fs.existsSync("playwright-report/report.json")) process.exit(0);
             const report = JSON.parse(fs.readFileSync("playwright-report/report.json", "utf8"));
             const rows = [];
+            const steps = {};
             const walk = (suite) => {
               for (const spec of suite.specs ?? [])
                 for (const test of spec.tests ?? [])
                   for (const [attempt, result] of (test.results ?? []).entries())
+                  {
                     rows.push({ ms: result.duration, status: result.status, attempt, name: `${spec.file}:${spec.line} ${spec.title}` });
+                    for (const out of result.stdout ?? [])
+                      for (const [, label, ms] of (out.text ?? "").matchAll(/TIMING (\S+) (\d+)/g)) {
+                        steps[label] ??= { count: 0, ms: 0 };
+                        steps[label].count += 1;
+                        steps[label].ms += Number(ms);
+                      }
+                  }
               for (const child of suite.suites ?? []) walk(child);
             };
             for (const suite of report.suites ?? []) walk(suite);
@@ -153,6 +162,7 @@ jobs:
             fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
             // The same in the log, where `gh run view --log` can read it (40 rows: grep SLOW).
             console.log(`SLOWSUM ${rows.length} runs, ${(total / 1000).toFixed(0)} s of test time, ${(report.stats.duration / 1000).toFixed(0)} s wall`);
+            for (const [label, step] of Object.entries(steps)) console.log(`STEP ${label} ${step.count} times, ${(step.ms / 1000).toFixed(0)} s, ${(step.ms / step.count).toFixed(0)} ms each`);
             for (const row of rows.slice(0, 40)) console.log(`SLOW ${(row.ms / 1000).toFixed(1)} ${row.status}${row.attempt ? "(retry)" : ""} ${row.name}`);
           '
       - uses: actions/upload-artifact@v4
@@ -207,11 +217,20 @@ jobs:
             if (!fs.existsSync("playwright-report/report.json")) process.exit(0);
             const report = JSON.parse(fs.readFileSync("playwright-report/report.json", "utf8"));
             const rows = [];
+            const steps = {};
             const walk = (suite) => {
               for (const spec of suite.specs ?? [])
                 for (const test of spec.tests ?? [])
                   for (const [attempt, result] of (test.results ?? []).entries())
+                  {
                     rows.push({ ms: result.duration, status: result.status, attempt, name: `${spec.file}:${spec.line} ${spec.title}` });
+                    for (const out of result.stdout ?? [])
+                      for (const [, label, ms] of (out.text ?? "").matchAll(/TIMING (\S+) (\d+)/g)) {
+                        steps[label] ??= { count: 0, ms: 0 };
+                        steps[label].count += 1;
+                        steps[label].ms += Number(ms);
+                      }
+                  }
               for (const child of suite.suites ?? []) walk(child);
             };
             for (const suite of report.suites ?? []) walk(suite);
@@ -227,6 +246,7 @@ jobs:
             fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
             // The same in the log, where `gh run view --log` can read it (40 rows: grep SLOW).
             console.log(`SLOWSUM ${rows.length} runs, ${(total / 1000).toFixed(0)} s of test time, ${(report.stats.duration / 1000).toFixed(0)} s wall`);
+            for (const [label, step] of Object.entries(steps)) console.log(`STEP ${label} ${step.count} times, ${(step.ms / 1000).toFixed(0)} s, ${(step.ms / step.count).toFixed(0)} ms each`);
             for (const row of rows.slice(0, 40)) console.log(`SLOW ${(row.ms / 1000).toFixed(1)} ${row.status}${row.attempt ? "(retry)" : ""} ${row.name}`);
           '
       - uses: actions/upload-artifact@v4

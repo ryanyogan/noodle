@@ -6,6 +6,7 @@ import {
 	type Locator,
 	type Page,
 } from "@playwright/test";
+import { timed } from "./timing";
 
 /**
  * The budget for the first expect after a full page load (goto, reload) of a route that renders
@@ -64,8 +65,8 @@ export async function signedInPage(
 	const page = await context.newPage();
 	await setupClerkTestingToken({ page });
 	// `/` would redirect here anyway: sign-in is the one page that loads Clerk without signing in.
-	await page.goto("/sign-in");
-	await clerk.signIn({ page, emailAddress: email });
+	await timed("sign-in-page", () => page.goto("/sign-in"));
+	await timed("sign-in", () => clerk.signIn({ page, emailAddress: email }));
 	return page;
 }
 
@@ -125,9 +126,11 @@ async function createHouseholdDirectly(
 	body: { householdName: string; parentName: string; plan?: DevPlan } & HouseholdOptions,
 ) {
 	const timeZone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
-	const response = await page.request.post("/api/dev/household", {
-		data: { ...body, viaUi: undefined, timeZone },
-	});
+	const response = await timed("household-make", () =>
+		page.request.post("/api/dev/household", {
+			data: { ...body, viaUi: undefined, timeZone },
+		}),
+	);
 	expect(response.ok(), await response.text()).toBe(true);
 	const created = (await response.json()) as {
 		householdId: string;
@@ -138,11 +141,13 @@ async function createHouseholdDirectly(
 		commitmentIds: Record<string, string>;
 		childIds: Record<string, string>;
 	};
-	await page.goto(created.url);
-	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("This Month");
+	await timed("household-open", async () => {
+		await page.goto(created.url);
+		await expect(page.locator("[data-slot=page-header]:visible")).toContainText("This Month");
+	});
 	// The UI path left the page hydrated by clicking through it; a fresh load isn't yet, and a key
 	// pressed (Quick Add's "q") or a button clicked before then does nothing.
-	await page.waitForLoadState("networkidle");
+	await timed("household-idle", () => page.waitForLoadState("networkidle"));
 	return created;
 }
 
