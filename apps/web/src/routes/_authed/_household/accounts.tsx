@@ -185,11 +185,10 @@ function AccountTotals({ accounts }: { accounts: AccountView[] }) {
 		{ label: "Not set aside", value: notSetAside, show: cash.length > 0, over: notSetAside < 0 },
 	].filter((row) => row.show);
 	return (
-		<Card role="region" aria-labelledby="account-totals">
-			<div className="grid gap-3 p-(--card-pad)">
-				<h2 id="account-totals" className="text-[13px] font-medium text-muted-foreground">
-					Totals
-				</h2>
+		// The heading sits outside the card, so the card starts level with the first Account's (#73).
+		<Section aria-labelledby="account-totals">
+			<SectionHeader id="account-totals" title="Totals" />
+			<Card className="grid gap-3 p-(--card-pad)">
 				<StatGrid className="grid-cols-[repeat(auto-fit,minmax(min(100%,8.5rem),1fr))]">
 					{rows.map((row) => (
 						<Stat
@@ -206,8 +205,8 @@ function AccountTotals({ accounts }: { accounts: AccountView[] }) {
 						{missing === 1 ? " it isn’t" : " they aren’t"} counted.
 					</p>
 				) : null}
-			</div>
-		</Card>
+			</Card>
+		</Section>
 	);
 }
 

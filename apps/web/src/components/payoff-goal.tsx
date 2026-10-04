@@ -5,6 +5,7 @@ import { Card } from "@noodle/ui/components/card";
 import { DatePicker } from "@noodle/ui/components/date-picker";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
+import { DetailColumns } from "@noodle/ui/components/layout";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { MetaParts } from "@noodle/ui/components/meta-parts";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
@@ -106,9 +107,9 @@ export function PayoffGoalDetails({
 					)
 				}
 			/>
-			{/* At lg, what's owed stays in a right rail beside the funding history (#47). */}
-			<div className="grid gap-8 @3xl:grid-cols-[minmax(0,1fr)_320px] @3xl:items-start">
-				<div className="grid min-w-0 gap-8 @3xl:col-start-2 @3xl:row-start-1">
+			{/* In a wide pane, what's owed sits beside the funding history (#47, #73). */}
+			<DetailColumns className="gap-8">
+				<div className="grid min-w-0 gap-8 @3xl/detail:col-start-2 @3xl/detail:row-start-1">
 					<Card role="region" aria-labelledby="payoff-owed">
 						<div className="grid gap-3 p-(--card-pad)">
 							<div className="grid gap-1">
@@ -234,7 +235,7 @@ export function PayoffGoalDetails({
 					)}
 				</div>
 
-				<div className="grid min-w-0 gap-8 @3xl:col-start-1 @3xl:row-start-1">
+				<div className="grid min-w-0 gap-8 @3xl/detail:col-start-1 @3xl/detail:row-start-1">
 					<PayoffHistory
 						goal={goal}
 						month={month}
@@ -291,7 +292,7 @@ export function PayoffGoalDetails({
 						</Section>
 					)}
 				</div>
-			</div>
+			</DetailColumns>
 
 			<FundGoalSheet
 				goal={sheet === "fund" ? goal : null}

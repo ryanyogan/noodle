@@ -326,28 +326,32 @@ function GoalsSummary({ goals, emergency }: { goals: GoalView[]; emergency: Goal
 	const setAside = saving.reduce((sum, g) => sum + g.progress.saved, 0);
 	const monthly = goals.reduce((sum, g) => sum + (g.progress.monthly ?? 0), 0);
 	return (
-		<Card aria-label="Goals summary" className="grid gap-4 p-(--card-pad)">
-			<StatGrid className="grid-cols-2">
-				<Stat
-					label={`Set aside across ${saving.length} Goal${saving.length === 1 ? "" : "s"}`}
-					value={<Money cents={setAside} />}
-				/>
-				<Stat label="A month to stay on track" value={<Money cents={monthly} />} />
-			</StatGrid>
-			{emergency ? (
-				<p className="text-[13px] text-muted-foreground">
-					Your emergency fund is{" "}
-					<Link
-						to="/goals/$goalId"
-						params={{ goalId: emergency.id }}
-						className="font-medium text-foreground hover:underline"
-					>
-						{emergency.name}
-					</Link>
-					.
-				</p>
-			) : null}
-		</Card>
+		// Under a heading of its own, so its card starts level with the first Goal's (#73).
+		<Section aria-labelledby="goals-summary">
+			<SectionHeader id="goals-summary" title="In all" />
+			<Card className="grid gap-4 p-(--card-pad)">
+				<StatGrid className="grid-cols-2">
+					<Stat
+						label={`Set aside across ${saving.length} Goal${saving.length === 1 ? "" : "s"}`}
+						value={<Money cents={setAside} />}
+					/>
+					<Stat label="A month to stay on track" value={<Money cents={monthly} />} />
+				</StatGrid>
+				{emergency ? (
+					<p className="text-[13px] text-muted-foreground">
+						Your emergency fund is{" "}
+						<Link
+							to="/goals/$goalId"
+							params={{ goalId: emergency.id }}
+							className="font-medium text-foreground hover:underline"
+						>
+							{emergency.name}
+						</Link>
+						.
+					</p>
+				) : null}
+			</Card>
+		</Section>
 	);
 }
 

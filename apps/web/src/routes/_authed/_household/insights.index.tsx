@@ -12,6 +12,7 @@ import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout"
 import { ListRow } from "@noodle/ui/components/list";
 import { Spinner } from "@noodle/ui/components/spinner";
 import { toast } from "@noodle/ui/components/toast";
+import { cn } from "@noodle/ui/lib/utils";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { Check, ChevronRight, Lightbulb, Lock, RefreshCw, Telescope } from "lucide-react";
@@ -74,36 +75,48 @@ function InsightsPage() {
 	return (
 		<SplitLayout>
 			<SplitMain>
-				<div className="grid max-w-3xl gap-4">
-					<SaveFailed change={end} />
-					{insights.length > 0 ? <div className="flex justify-end">{lookNow}</div> : null}
-					{insights.length === 0 ? (
-						<EmptyState
-							icon={<Lightbulb />}
-							title="No Insights right now"
-							description="Each night Noodle looks over your spending and Commitments for things like paying twice for the same service or a price that went up. Nothing changes until you act."
-							action={lookNow}
-						/>
-					) : (
-						insights.map((insight) => (
-							<InsightCard
-								key={insight.id}
-								insight={insight}
-								current={current}
-								onEnd={(commitment) =>
-									end.mutate(
-										{ commitmentId: commitment.id, month: current },
-										{
-											onSuccess: () => {
-												toast(`${commitment.name} leaves the Plan from ${monthName(current)} on.`);
-												void queryClient.invalidateQueries({ queryKey: insightsQuery().queryKey });
-											},
-										},
-									)
-								}
+				{/* Insights two across once their column is wide enough (1920 px windows), so it is used (#73). */}
+				<div className="@container min-w-0">
+					<div
+						className={cn(
+							"grid grid-cols-[minmax(0,1fr)] items-start gap-4 [&>:not([data-slot=card])]:col-span-full",
+							insights.length > 1 && "@5xl:grid-cols-2",
+						)}
+					>
+						<SaveFailed change={end} />
+						{insights.length > 0 ? <div className="flex justify-end">{lookNow}</div> : null}
+						{insights.length === 0 ? (
+							<EmptyState
+								icon={<Lightbulb />}
+								title="No Insights right now"
+								description="Each night Noodle looks over your spending and Commitments for things like paying twice for the same service or a price that went up. Nothing changes until you act."
+								action={lookNow}
 							/>
-						))
-					)}
+						) : (
+							insights.map((insight) => (
+								<InsightCard
+									key={insight.id}
+									insight={insight}
+									current={current}
+									onEnd={(commitment) =>
+										end.mutate(
+											{ commitmentId: commitment.id, month: current },
+											{
+												onSuccess: () => {
+													toast(
+														`${commitment.name} leaves the Plan from ${monthName(current)} on.`,
+													);
+													void queryClient.invalidateQueries({
+														queryKey: insightsQuery().queryKey,
+													});
+												},
+											},
+										)
+									}
+								/>
+							))
+						)}
+					</div>
 				</div>
 			</SplitMain>
 			<SplitRail className="max-lg:hidden">
