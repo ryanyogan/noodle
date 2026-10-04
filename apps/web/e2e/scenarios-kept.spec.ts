@@ -135,3 +135,57 @@ test("a Scenario opened from a link is kept, applied with a preview, and compare
 	await expect(currentTab(page, "Explore pages")).toHaveText("Scenarios", clientRendered);
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
+
+test("a kept Scenario still names a Bucket archived since, marked archived", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await createPlannedHousehold(page, {
+		baseline: "5,000",
+		buckets: [
+			["Groceries", "1,200"],
+			["Hockey", "400"],
+		],
+	});
+
+	// Hockey's page, for its id.
+	await page.goto("/plan");
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Buckets", exact: true })
+		.click();
+	await page.getByRole("link", { name: "Hockey", exact: true }).click();
+	await expect(page.locator("[data-slot=detail-header]")).toContainText("Hockey");
+	const bucketPage = page.url();
+	const bucketId = new URL(bucketPage).pathname.split("/").pop();
+
+	// A Scenario that cuts Hockey to $250 a month, kept.
+	await page.goto(`/explore?lever=allowance:${bucketId}:25000`);
+	await expect(changes(page)).toContainText("Hockey", clientRendered);
+	await page.getByLabel("Name", { exact: true }).fill("Less hockey");
+	await page.getByRole("button", { name: "Save Scenario" }).click();
+	await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Less hockey");
+
+	// Hockey is archived.
+	await page.goto(bucketPage);
+	await page.getByRole("button", { name: "Edit", exact: true }).click();
+	await page
+		.getByRole("dialog", { name: "Hockey" })
+		.getByRole("button", { name: "Archive", exact: true })
+		.click();
+	await page.getByRole("alertdialog").getByRole("button", { name: "Archive Hockey" }).click();
+	await expect(page.locator("[data-slot=detail-header]")).toContainText("Archived Bucket");
+
+	// The kept Scenario still says which Bucket it changed.
+	await page.goto("/explore/scenarios");
+	await saved(page, "Less hockey").getByRole("link", { name: "Less hockey" }).click();
+	await expect(page.locator("[data-slot=detail-title]")).toHaveText("Less hockey");
+	await expect(page.getByText(/Hockey \(archived\)/).first()).toBeVisible();
+	if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT, fullPage: true });
+
+	// Opened in Explore, the Change reads the same.
+	await page.getByRole("link", { name: "Open in Explore" }).click();
+	await expect(changes(page)).toContainText("Hockey (archived)", clientRendered);
+});
