@@ -115,7 +115,7 @@ function PerksPage() {
 			) : null}
 			{/* Summary first, with what to do now beside it on a wide screen. */}
 			{cards.some((card) => card.entries.length > 0) || doNow.length > 0 ? (
-				<SectionGrid>
+				<SectionGrid className="xl:items-stretch">
 					{cards.some((card) => card.entries.length > 0) ? (
 						<YearSummary cards={cards} year={asOf.slice(0, 4)} />
 					) : null}
@@ -156,11 +156,19 @@ function PerksPage() {
 	);
 }
 
-type CardSums = { used: number; available: number; fee: number | null };
+type CardSums = {
+	used: number;
+	available: number;
+	fee: number | null;
+	perks: number;
+	toUse: number;
+};
 const sumsOf = (source: PerkSourceItem, entries: PerkEntry[]): CardSums => ({
 	used: sum(entries.map((e) => e.standing.usedThisYearCents)),
 	available: sum(entries.map((e) => e.standing.yearlyValueCents ?? 0)),
 	fee: source.annualFeeCents,
+	perks: entries.length,
+	toUse: entries.filter((e) => perkDoNow(e.standing, e.perk.renews)).length,
 });
 
 function Meter({ used, available, label }: { used: number; available: number; label: string }) {
@@ -189,10 +197,10 @@ function YearSummary({
 	const available = sum(rows.map((r) => r.available));
 	const fees = sum(rows.map((r) => r.fee ?? 0));
 	return (
-		<Section aria-labelledby="perks-this-year">
+		<Section aria-labelledby="perks-this-year" className="grid-rows-[auto_1fr]">
 			<SectionHeader id="perks-this-year" title={`This year (${year})`} />
 			<Card>
-				<div className="grid gap-5 p-(--card-pad)">
+				<div className="grid h-full content-between gap-5 p-(--card-pad)">
 					<dl className="grid gap-4 sm:grid-cols-3">
 						<div className="grid gap-1">
 							<dt className="text-[13px] text-muted-foreground">Value used</dt>
@@ -232,6 +240,11 @@ function YearSummary({
 									available={row.available}
 									label={`${row.source.name} this year`}
 								/>
+								<span className="text-[13px] text-muted-foreground">
+									{row.perks} {row.perks === 1 ? "perk" : "perks"}
+									{row.toUse > 0 ? ` · ${row.toUse} to use now` : " · all used for now"}
+									{row.available > row.used ? ` · ${usd(row.available - row.used)} left` : ""}
+								</span>
 							</li>
 						))}
 					</ul>
@@ -275,10 +288,10 @@ function DoNow({ entries }: { entries: PerkEntry[] }) {
 	const shown = entries.slice(0, DO_NOW_SHOWN);
 	const more = entries.length - shown.length;
 	return (
-		<Section aria-labelledby="perks-do-now">
+		<Section aria-labelledby="perks-do-now" className="grid-rows-[auto_1fr]">
 			<SectionHeader id="perks-do-now" title="Do now" count={entries.length} />
-			<Card className="p-0">
-				<ul aria-label="Do now" className="[&>li+li]:border-t">
+			<Card className="flex flex-col p-0">
+				<ul aria-label="Do now" className="flex-1 [&>li+li]:border-t">
 					{shown.map((entry) => (
 						<PerkRow key={entry.perk.id} entry={entry} doNow />
 					))}
