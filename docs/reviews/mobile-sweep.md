@@ -1,5 +1,7 @@
 # Mobile sweep (#74)
 
+The sections below are in the order the phases ran, and later phases overtook some of the earlier ones (the top row's More menu and the Month and Plan switch are both gone). For each page as it is on main now, what was looked at, and what is left, read "Where #74 stands" at the end.
+
 ## 74a: audit and research (2026-10-03, partly done; measured in 74b below)
 
 How it was meant to work: a throwaway spec (`zz-mobile-audit.spec.ts`, not committed) on `chromium-mobile`, with above-the-fold.spec's busy Household (`createPlannedHousehold` with $6,200 take-home pay and four Buckets, 8 months of `seedReportHistory`, Joint Savings, a Trip Goal). It visits 26 phone pages at 393x852 (the tab bar pages, the six Plan pages, Goals, Explore, Afford, Scenarios, four Reports views, Insights, Perks, Review, Rules, Check-in, Household, Glossary, Ask, `/setup`), then the first Bucket, Commitment, Goal, Account and Transaction, then 8 sheets (Quick Add, To do, Add Goal, Filters, Add Bucket, Add Commitment, Upload, Invite), then the main four at 320 and 430. In the browser it measures: duplicate link destinations by region (tab bar, header, tabs, main, sheet); the left edges of headings, cards, rows, sections and tab strips, with neighbouring edges 2 to 11 px apart flagged; the right gutters; every card's padding, radius, border and shadow; elements past the right edge outside a scroller; every scroll container and its scrollbar width; `bg-primary` buttons and whether they sit in the bottom half of the first screen; and targets under 44 px.
@@ -150,3 +152,73 @@ Patterns to adopt: one key figure at the top, one list under it, short lists wit
 - **74g: Explore, Afford, Scenarios, Reports, Insights.**
 - **74h: Household, Check-in, Glossary, Ask, wizard, every sheet; 200% text and landscape.**
 - **74i: guard.** 393 light and dark baselines for every page, the alignment check, axe, overflow and target-size on chromium-mobile and WebKit (WebKit needs a machine that can launch it).
+
+The phases did not run under these names after 74e. 74j and 74k did the shell; 74m, 74n, 74p, 74q and 74r did most of 74f and part of 74g; 74h and 74i have not run. See below.
+
+## Where #74 stands (2026-10-04, phases 74d2 to 74r)
+
+Put together from the phase handoffs (74d2 to 74d4, 74j, 74k, 74m, 74n, 74p, 74q, 74r, and 73m2, 73r, 73u and 73x where they touched the phone) and `git log --grep '#74'` on main at 3db1a29. Nothing was rendered or measured for this section. Only what is on main is recorded as changed. **Looked at** means someone opened the picture, and how much of it is said where the handoff said it ("top 1,300px"); **read** means from the code only; a picture taken and not opened is **not looked at**.
+
+**Pictures.** From 74j on the pictures come from the Page shots workflow on GitHub (`e2e/page-shots.spec.ts`), at 393 and 320. Numbers such as 11, 15 and 24 are that spec's picture names. Nothing has been pictured at 430 since 74d.
+
+**Palette.** The colours are now Indigo (ADR-0038). The looks below were at pages in the palettes before it, so they are looks at layout. The phone comparison pictures (This Month and Household, light and dark; Reports, light) were redrawn in Indigo under #83 (34a25d0), and no #74 phase has opened them since.
+
+### Not on main
+
+**74d3 and 74d4** made To do one card of rows on a phone, put one Cover action in the Buckets header in place of a Cover button per overspent Bucket, and let the Get started steps wrap. Those commits (8e7534a, 7607423, c36fd07) stayed on `ticket-74d`: the desktop tests were never run on them, and main has moved on under them (dc9545b, 5e5e39f, 513fbca). On main a phone still shows To do as a strip that opens each prompt as its own block, and each overspent Bucket has its own Cover button. What 74d4 saw in its own pictures, for whoever picks it up: closed To do was fine at 320, 393 and 430; open, "Get started / 2 of 4 done" showed twice; the header's Cover fits at 320 beside two "?" and is a little crowded.
+
+### Overtaken since the sections above were written
+
+- **More is in the tab bar** (9d7231a, c6e2a82): Month, Transactions, Quick Add, Goals, More. More opens a sheet with every other page, Household settings, your account and Sign out. 74d's More menu in the top row is gone, and so are 74a's findings 3 and 6. Household is no longer a tab.
+- **No Month and Plan switch** (a41dbc5): This Month is a tab and the Plan is in More. This closes the Plan duplicates in 74b's finding 8, and 74e's decision to keep the switch no longer applies.
+- **Tap areas** (f41c111): the help button, the switch and the tick box have a centred 44 by 44 area that nothing covers, with a test on Household, This Month, the Plan and Accounts. This closes the item 74c left open.
+- **Header links moved into More** (c1613a3, 673a1fc): "Back to Goals" on Explore, the Accounts icon on Transactions, the Accounts button on Household.
+
+### The shell and the pieces pages share
+
+- **Every page starts the same way** (c1613a3): a small section line and the title at the 16px gutter, in a header at least 52px tall, with the page's tabs under it. `phone-header.spec.ts` walks every page and reaches each from More (b46640b).
+- **An open item** (a Transaction, Goal, Account, Bucket, Commitment, Scenario or Rule) has one header: Back, its name and the previous and next arrows on one row, with one action, which drops under at 320 (c9ec045). The section's header above it is read out, not shown (8184688, 5161485, a8040f4, 9678ffc).
+- **The For choices** wrap onto a second line below 640px, three and two at 320 (54ff9fa). They are used in the Transaction editor, Quick Add and the Rule form.
+- Looked at: the More sheet at 393 and 320 after c6e2a82 (74j): names wrap to two lines, and the whole sheet with Sign out fits 320 by 640. The headers of 01, 03, 12, 15, 17 and 19 at 393 and of 03, 10, 15 and 23 at 320 (74j, when the Plan still had the switch under its title). The phone comparison pictures of This Month and Household, light and dark, with no switch row (74k).
+- Not looked at: dark, apart from those two comparison pictures. The installed app's notch. The For choices in Quick Add and the Rule form. Household's switches after f41c111.
+
+### Per page
+
+| Page | On main since the sections above | Looked at | Not looked at, or read only |
+| --- | --- | --- | --- |
+| This Month | With To do open, the strip no longer lists the prompts' names beside "To do", so each is said once; the step is "Add your Accounts" (it was cut off at 320); no "Plan ›" in Free to Spend (dc9545b). Income reads after Bills (513fbca). | The header at 393 (74j) and the comparison pictures (74k). | To do open at 393 and 320 since dc9545b: 73m2 looked at nothing, so the 320 cut-off is fixed by reading only. |
+| The Plan's pages | No switch (a41dbc5). Left to plan stays at the top through the whole Buckets list (e093b6f). | 03 at 393 and 320 (74j), before the switch went. | Every Plan page since a41dbc5. 73r's risk: Left to plan may come unstuck at the very end of the Buckets page. |
+| A Bucket, Commitment, Goal, Account, Scenario, Rule | One header (above). A Scenario's Rename and Delete sit in a row after the Scenario (c9ec045). | 05 and 18 at 393 and 320, 16 at both, 22 at both: the top 850 to 1,000px (74n, 74p). | 07, a Commitment. A Rule. A cash Account. The Scenario's Rename and Delete row. 05 at 393 after 8184688. |
+| Transactions | A pending or waiting row takes two lines from 390px (8a5a4a1). The editor's Delete, Cancel and Save may wrap. | 10 at 393 and 320, the top 2,600px (74m). | A row with a Pending or Waiting for bank badge after 8a5a4a1: below the part looked at. |
+| An open Transaction | One header, its own (9678ffc). Under 360px the title is 16px so it fits on one line (31cc709). | 11 at 393 and 320 (74n, 74q, 74r): Back, "Yesterday / Edit Transaction" and the arrows on one row; all five For choices show. | |
+| Review, Rules | The list starts sooner: one sentence, then "N to review" with icon buttons, then the bulk action. A merchant's name shows on two lines. Long buttons wrap. Below 360px Confirm takes the card's full width above the picker (1fe8ce4). Split, Allowance and Rule fit one row (a0e4d4c). | 12, 13 and 14 at 393 and 320, the top 2,600px (74m); 12 again at both (74q). | 13 since a0e4d4c. In the full-page picture Skip and Undo sit under the tab bar (74m); not checked on a real screen height. |
+| Accounts, an Account | The balance card keeps Update and its words inside the card (9c6e976). Totals two across; a bank's icon beside its name (75161d9). A card's long name wraps whole with "owed" under the figure (3dff69d). With no balance, "yet" goes under "No balance" (31cc709). | 15 at 320 (74q the top 2,600px, 74r the top 1,300px) and at 393 the top 1,300px (74p, 74q). 16 at both (74p). | Cards and loans at 393. **An Account with no balance: the seeded Household has none, so "No balance / yet" has never been seen.** 15 at 393 after 31cc709. |
+| Goals | Nothing changed on the page. | 17 at 320 and 393, the top 1,300px (74q): rows whole, nothing cut. | |
+| Reports | Cash flow's figures sit two across below 640px (31cc709). | 23, the Overview, at 320, whole (74q). | **Cash flow: no picture is taken of it.** Spending, Trends and Merchants on a phone. 23 at 393. By design and left for a decision: the money-flow chart is at least 36rem wide inside its own sideways scroller (it has a table as well), and the day grid scrolls in its own box. |
+| Insights, Perks | An Insight's "End … in the Plan…" button is whole, on its own full-width row (31cc709). | 24 at 320 (the top 850px) and 393 (the top 750px) (74r). Perks at 393, whole, under #80 (73q). | Perks at 320. |
+| Explore, Can we afford it?, Scenarios | Nothing changed. | 19's header at 393 (74j). | Read only (74r). At 393 "Same as the Plan over 2 years" shows twice on Explore (73q2, from an older picture). |
+| Check-in, Household, Glossary, Ask, the setup wizard | Nothing changed for the phone on purpose. Two desktop changes reach it: Household reads Bringing in spending and Setup before Reminders (a2c58c5), and the wizard's Bill and Bucket cards pad 16px, not 12 (92ddba3). | Household's comparison pictures (74k), before a2c58c5. | Read only (74r). Household since a2c58c5. The wizard since 92ddba3. |
+| Sheets | The More sheet (above). | The More sheet. | The insides of every other sheet were never measured (74b's probe missed them) and have not been looked at since. |
+
+### Still to do
+
+74s and 74t were running when this was written and had no commit yet. They are working on some of items 1 to 9; those are marked in progress, not done, and nothing of theirs is on main.
+
+| | What | State |
+| --- | --- | --- |
+| 1 | **Review at 320:** Confirm is on its own full-width row above the picker, so a card's actions take two rows. That was done on purpose below 360px (1fe8ce4); 74q and 74r both doubted it. | In progress (74s/74t). |
+| 2 | **Insights at 320:** "Not useful" drops alone onto a third row, right-aligned (at 393 it is on the second). | In progress (74s/74t). |
+| 3 | **Can we afford it? at 320:** the paired fields (Rate and Term, Property tax a year, Value lost a year) are two columns of about 120px, so labels wrap; the comparison table is at least 20rem wide and scrolls sideways in its own box. Read, not pictured. | In progress (74s/74t). |
+| 4 | **Small buttons that are a page's only action** (`size="sm"`: Scenarios' empty "Explore", "Compare N selected", the wizard's "Set up later"): their tap height on a phone has not been verified. | In progress (74s/74t). |
+| 5 | **Phone pictures that are missing.** 74r reported none for Cash flow, an Account with no balance, Explore, Scenarios, Check-in, Household, the Glossary and setup. `page-shots.spec.ts` does list Explore, Can we afford it?, Scenarios, a Scenario, Check-in, Household settings and the Glossary (19 to 22, 26 to 28), so those are drawn at 393 and 320; no #74 phase opened them, beyond 19's header at 393 and the top of 22. Cash flow, an Account with no balance and setup have no picture at all. | In progress (74s/74t). |
+| 6 | **200% text** with the new header, More sheet, Review list and Accounts cards. `phone-large-text.spec.ts` is older than the sweep; no #74 phase reports running it or looking at a page at 200%. | In progress (74s/74t). |
+| 7 | **Landscape.** Nothing done, nothing looked at. | In progress (74s/74t). |
+| 8 | **393 comparison pictures for every page, light and dark** (74i). `shell.spec.ts` has five: This Month and Household, light and dark, and Reports, light. | In progress (74s/74t). |
+| 9 | **The rest of 74i:** the alignment check on phones (first blocks' left edges within 1px), and the checks on WebKit. | In progress (74s/74t). |
+| 10 | **This Month** (74d's list): To do as one card of rows, each with its action showing; one Cover action; Income collapsed or under "More this month"; "Add income" as the only button in a section heading; literal card padding to `--card-pad`. The first two exist, unmerged (see "Not on main"). | Open. |
+| 11 | **The Plan's pages** (74e's list): Add Buckets is out of thumb reach in the bar at the top; a Bucket's and a Commitment's pages are about two screens; the Year has not been measured with a full year. | Open. |
+| 12 | **74b's proposals nobody has started:** Check-in one step at a time with Continue in a sticky footer; the wizard the same; the Glossary's search held above its list; Household as three groups; Ask's composer pinned above the tab bar; Explore's editors as collapsed sections (also open on the desktop). | Open. |
+| 13 | Look at what was changed and never opened: To do open at 393 and 320; every Plan page since the switch went; a Commitment, a Rule and a cash Account as an item page; a pending Transaction's row; Household's new reading order; the wizard's cards. | Open. |
+| 14 | Dark on a phone, beyond the two comparison pictures. 430 since 74d. | Open. |
+| 15 | Page lengths have not been re-measured since 74b (This Month 2.3 screens, Household 4.3, the Glossary 4.6, Transactions 2.9). | Open. |
+| 16 | Tests that passed only on a second try in 74n, causes not read: `phone-crowding.spec.ts:130` (rows at 320) and `phone-pwa.spec.ts:22`. | Open. |
