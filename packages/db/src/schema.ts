@@ -1354,3 +1354,29 @@ export const freshStarts = sqliteTable(
 	},
 	(t) => [index("fresh_starts_household_idx").on(t.householdId, t.createdAt)],
 );
+
+// A Household snapshot (#78, ADR-0035): one Household's rows from every household-scoped table,
+// gzipped JSON in noodle-backups at `key`. This row is what the history shows (kind, who, when,
+// the note, size, the migration it fits and rows per table); the contents are never shown.
+// `taken_by` is the Parent who took one by hand, or who asked for the action it came before.
+export const householdSnapshots = sqliteTable(
+	"household_snapshots",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id").notNull(),
+		kind: text("kind", {
+			enum: ["nightly", "manual", "before-restore", "before-fresh-start", "before-delete"],
+		}).notNull(),
+		takenBy: text("taken_by"),
+		note: text("note"),
+		key: text("key").notNull(),
+		bytes: integer("bytes").notNull(),
+		format: integer("format").notNull(),
+		migration: text("migration"),
+		rowCounts: text("row_counts", { mode: "json" }).$type<Record<string, number>>().notNull(),
+		createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+	},
+	(t) => [index("household_snapshots_household_idx").on(t.householdId, t.createdAt)],
+);
+
+export type HouseholdSnapshot = typeof householdSnapshots.$inferSelect;
