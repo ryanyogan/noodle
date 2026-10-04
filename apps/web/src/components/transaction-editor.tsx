@@ -678,6 +678,6 @@ function Remainder({ remainder }: { remainder: number | null }) {
  * view at the bottom while the form scrolls, the keyboard up or not (#52 row 147).
  */
 function EditorActions({ inline, children }: { inline: boolean; children: ReactNode }) {
-	if (inline) return <div className="flex items-center gap-2">{children}</div>;
+	if (inline) return <div className="flex flex-wrap items-center gap-2">{children}</div>;
 	return <SheetFooter className="flex items-center gap-2">{children}</SheetFooter>;
 }

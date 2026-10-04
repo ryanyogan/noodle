@@ -231,8 +231,9 @@ export function TransactionItem({
 				<span
 					className={cn(
 						"col-start-2 row-start-2 truncate text-[13px] text-muted-foreground sm:col-span-2 sm:col-start-1",
-						// On a phone, badges get the second line and the detail a full third line (320 px).
-						"max-sm:peer-[:not(:empty)]/badges:col-span-2 max-sm:peer-[:not(:empty)]/badges:col-start-1 max-sm:peer-[:not(:empty)]/badges:row-start-3",
+						// On the narrowest phones badges get the second line and the detail a full third line
+						// (320 px); from 390 they share the second line, so a month of rows is shorter (#74).
+						"max-[389px]:peer-[:not(:empty)]/badges:col-span-2 max-[389px]:peer-[:not(:empty)]/badges:col-start-1 max-[389px]:peer-[:not(:empty)]/badges:row-start-3",
 						columns && "xl:sr-only",
 					)}
 				>
