@@ -41,6 +41,9 @@ import { goalsQuery, planAheadQuery, scenariosQuery } from "../../../queries";
 // against the Plan.
 // Like Explore, it renders only in the browser (data-only SSR), and its charts load lazily.
 
+/** "Oct 4", never broken between the month and the day when a row's meta wraps. */
+const day = (at: number) => shortDayAt(at).replace(" ", "\u00A0");
+
 const CompareChart = lazy(() =>
 	import("../../../components/scenario-outcomes").then((m) => ({ default: m.CompareChart })),
 );
@@ -175,9 +178,9 @@ function ScenariosPage() {
 											<MetaParts
 												parts={[
 													scenario.createdBy ? `Made by ${scenario.createdBy}` : null,
-													`Changed ${shortDayAt(scenario.updatedAt)}`,
+													`Changed ${day(scenario.updatedAt)}`,
 													scenario.appliedAt
-														? `Applied ${shortDayAt(scenario.appliedAt)}${scenario.appliedBy ? ` by ${scenario.appliedBy}` : ""}`
+														? `Applied ${day(scenario.appliedAt)}${scenario.appliedBy ? ` by ${scenario.appliedBy}` : ""}`
 														: null,
 												]}
 											/>
@@ -239,7 +242,9 @@ function Compare({
 	};
 	const rows: {
 		label: string;
-		value: (p: Projection) => React.ReactNode;
+		value: (p: Projection) => string;
+		/** A few quiet words after the value ("in Mar 2027"). */
+		note?: (p: Projection) => string | null;
 		over?: (p: Projection) => boolean;
 	}[] = [
 		{
@@ -249,17 +254,8 @@ function Compare({
 		},
 		{
 			label: "Lowest projected balance",
-			value: (p) =>
-				p.lowest ? (
-					<>
-						{formatWholeMoney(p.lowest.amount)}
-						<span className="block font-normal text-muted-foreground text-xs">
-							in {shortMonth(p.lowest.month)}
-						</span>
-					</>
-				) : (
-					"—"
-				),
+			value: (p) => (p.lowest ? formatWholeMoney(p.lowest.amount) : "—"),
+			note: (p) => (p.lowest ? `in ${shortMonth(p.lowest.month)}` : null),
 			over: (p) => (p.lowest?.amount ?? 0) < 0,
 		},
 		...goals.map((g) => ({
@@ -280,47 +276,100 @@ function Compare({
 			<SectionHeader id="compare" title="Compare" />
 			<Card className="min-w-0">
 				<CardContent>
-					<Table className="text-sm">
-						<TableCaption className="sr-only">
-							Key numbers, the Plan against each Scenario
-						</TableCaption>
-						<TableHeader>
-							<TableRow className="border-0">
-								<TableHead scope="col" className="min-w-24 sm:min-w-40">
-									<span className="sr-only">Number</span>
-								</TableHead>
-								{columns.map((c) => (
-									<TableHead key={c.key} scope="col" numeric className="max-w-32 whitespace-normal">
-										{c.name}
+					{/* A phone has no room for a column per Scenario: each number is a short list instead,
+					    the Plan first, a name on the left (wrapping, never cut) and its value on the right. */}
+					<div className="sm:hidden">
+						{rows.map((row) => (
+							<div key={row.label} className="border-t py-3 first:border-0 first:pt-0 last:pb-0">
+								<h3 className="text-[13px] text-muted-foreground">{row.label}</h3>
+								<dl className="mt-1.5 grid gap-1.5 text-sm">
+									{columns.map((c) => {
+										const note = row.note?.(c.projection);
+										return (
+											<div key={c.key} className="flex items-baseline justify-between gap-4">
+												<dt
+													className={cn(
+														"min-w-0 [overflow-wrap:anywhere]",
+														c.key === "plan" && "text-muted-foreground",
+													)}
+												>
+													{c.name}
+												</dt>
+												<dd
+													className={cn(
+														"shrink-0 text-end tabular-nums",
+														c.key === "plan" ? "text-muted-foreground" : "font-medium",
+														row.over?.(c.projection) && "text-over",
+													)}
+												>
+													{row.value(c.projection)}
+													{note ? (
+														<span className="font-normal text-muted-foreground text-xs">
+															{" "}
+															{note}
+														</span>
+													) : null}
+												</dd>
+											</div>
+										);
+									})}
+								</dl>
+							</div>
+						))}
+					</div>
+					<div className="max-sm:hidden">
+						<Table className="text-sm">
+							<TableCaption className="sr-only">
+								Key numbers, the Plan against each Scenario
+							</TableCaption>
+							<TableHeader>
+								<TableRow className="border-0">
+									<TableHead scope="col" className="min-w-24 sm:min-w-40">
+										<span className="sr-only">Number</span>
 									</TableHead>
-								))}
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{rows.map((row) => (
-								<TableRow key={row.label} className="border-0 border-t">
-									<th
-										scope="row"
-										className="min-w-24 py-2 sm:min-w-40 pe-3 text-start align-top font-normal text-muted-foreground"
-									>
-										{row.label}
-									</th>
 									{columns.map((c) => (
-										<TableCell
+										<TableHead
 											key={c.key}
+											scope="col"
 											numeric
-											className={cn(
-												c.key === "plan" ? "text-muted-foreground" : "font-medium",
-												row.over?.(c.projection) && "text-over",
-											)}
+											className="max-w-32 whitespace-normal"
 										>
-											{row.value(c.projection)}
-										</TableCell>
+											{c.name}
+										</TableHead>
 									))}
 								</TableRow>
-							))}
-						</TableBody>
-					</Table>
+							</TableHeader>
+							<TableBody>
+								{rows.map((row) => (
+									<TableRow key={row.label} className="border-0 border-t">
+										<th
+											scope="row"
+											className="min-w-24 py-2 sm:min-w-40 pe-3 text-start align-top font-normal text-muted-foreground"
+										>
+											{row.label}
+										</th>
+										{columns.map((c) => (
+											<TableCell
+												key={c.key}
+												numeric
+												className={cn(
+													c.key === "plan" ? "text-muted-foreground" : "font-medium",
+													row.over?.(c.projection) && "text-over",
+												)}
+											>
+												{row.value(c.projection)}
+												{row.note?.(c.projection) ? (
+													<span className="block font-normal text-muted-foreground text-xs">
+														{row.note(c.projection)}
+													</span>
+												) : null}
+											</TableCell>
+										))}
+									</TableRow>
+								))}
+							</TableBody>
+						</Table>
+					</div>
 				</CardContent>
 			</Card>
 			<div className="grid gap-4 lg:grid-cols-2 lg:items-start">
