@@ -1,13 +1,17 @@
-import { expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { ulid } from "ulid";
+import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
 import { choose, createPlannedHousehold, openToDo, savedBy, signedInPage } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
