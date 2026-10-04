@@ -1,5 +1,6 @@
 import { useClerk, useUser } from "@clerk/tanstack-react-start";
 import { Avatar, AvatarFallback, AvatarImage } from "@noodle/ui/components/avatar";
+import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import {
 	DropdownMenu,
@@ -11,6 +12,7 @@ import {
 } from "@noodle/ui/components/dropdown-menu";
 import { Kbd } from "@noodle/ui/components/kbd";
 import { Logo } from "@noodle/ui/components/logo";
+import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import {
 	Sidebar,
 	SidebarContent,
@@ -31,10 +33,26 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@noodle/ui/components/t
 import { useHydrated } from "@noodle/ui/lib/hydrated";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useMatches, useMatchRoute, useRouteContext } from "@tanstack/react-router";
-import { ChevronsUpDown, LogOut, Plus, Settings, UserRound } from "lucide-react";
-import { type ComponentProps, type ReactNode, useId } from "react";
-import { type NavGroup, type NavItem, navGroups, tabItems } from "../nav";
+import {
+	Link,
+	useLocation,
+	useMatches,
+	useMatchRoute,
+	useNavigate,
+	useRouteContext,
+	useRouter,
+} from "@tanstack/react-router";
+import {
+	ChevronsUpDown,
+	Ellipsis,
+	ListChecks,
+	LogOut,
+	Plus,
+	Settings,
+	UserRound,
+} from "lucide-react";
+import { type ComponentProps, type ReactNode, useEffect, useId } from "react";
+import { moreGroups, type NavGroup, type NavItem, navGroups, tabItems } from "../nav";
 import { checkInStatusQuery, membersQuery, reviewQuery } from "../queries";
 import { openGlossary } from "./glossary";
 import { markQuickAddOpened, quickAddSearch } from "./quick-add";
@@ -42,20 +60,19 @@ import { markQuickAddOpened, quickAddSearch } from "./quick-add";
 /**
  * Whether a destination is current, by the router's own matching: on its route or any page under
  * it (This Month on every month, Plan on every Plan page), and on the routes `within` it (Review
- * within Transactions). The tab bar also counts what's reached through a tab on a phone.
+ * within Transactions).
  */
-function useIsCurrent(where: "sidebar" | "tabs") {
+function useIsCurrent() {
 	const matchRoute = useMatchRoute();
 	return (item: NavItem) => {
 		if (!item.to) return false;
 		if (item.except?.some((to) => matchRoute({ to, fuzzy: true }) !== false)) return false;
 		const routes = [item.to, ...(item.within ?? [])];
-		if (where === "tabs") routes.push(...(item.tab?.within ?? []));
 		return routes.some((to) => matchRoute({ to, fuzzy: true }) !== false);
 	};
 }
 
-/** The authenticated app frame: a sidebar on desktop, a bottom tab bar on phones. */
+/** The authenticated app frame: a sidebar on desktop, a bottom tab bar (ending in More) on phones. */
 export function AppShell({
 	householdName,
 	children,
@@ -89,7 +106,7 @@ export function AppShell({
 				>
 					{children}
 				</main>
-				<TabBar />
+				<TabBar householdName={householdName} />
 			</div>
 		</SidebarProvider>
 	);
@@ -157,7 +174,7 @@ function AppSidebar({ householdName }: { householdName: string }) {
 
 function NavGroupSection({ group }: { group: NavGroup }) {
 	const labelId = useId();
-	const isCurrent = useIsCurrent("sidebar");
+	const isCurrent = useIsCurrent();
 	return (
 		<SidebarGroup aria-labelledby={labelId}>
 			<SidebarGroupLabel id={labelId}>{group.label}</SidebarGroupLabel>
@@ -226,29 +243,42 @@ function ReviewBadge() {
 	);
 }
 
-/** The signed-in Parent, with their Household: opens the account menu. */
-function ParentMenu({ householdName }: { householdName: string }) {
+/** The signed-in Parent's name and picture, which arrive after the page's HTML: they wait for hydration. */
+function useSignedInParent() {
 	const { parentId } = useRouteContext({ from: "/_authed/_household" });
 	const { isLoaded, user } = useUser();
-	const clerk = useClerk();
 	const members = useQuery(membersQuery()).data;
-	// The Parent's name and picture arrive after the page's HTML, so they wait for hydration.
 	const hydrated = useHydrated();
 	const name = hydrated
 		? (members?.find((member) => member.id === parentId)?.name ?? user?.fullName ?? undefined)
 		: undefined;
+	return { name, imageUrl: hydrated ? user?.imageUrl : undefined, ready: hydrated && isLoaded };
+}
+
+function ParentAvatar({
+	name,
+	imageUrl,
+}: {
+	name: string | undefined;
+	imageUrl: string | undefined;
+}) {
+	return (
+		<Avatar>
+			{imageUrl ? <AvatarImage src={imageUrl} alt="" /> : null}
+			<AvatarFallback>{name?.trim().charAt(0).toUpperCase() ?? ""}</AvatarFallback>
+		</Avatar>
+	);
+}
+
+/** The signed-in Parent, with their Household: opens the account menu. */
+function ParentMenu({ householdName }: { householdName: string }) {
+	const clerk = useClerk();
+	const { name, imageUrl, ready } = useSignedInParent();
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<SidebarMenuButton
-					size="lg"
-					data-parent-menu=""
-					data-ready={hydrated && isLoaded ? "true" : undefined}
-				>
-					<Avatar>
-						{hydrated && user?.imageUrl ? <AvatarImage src={user.imageUrl} alt="" /> : null}
-						<AvatarFallback>{name?.trim().charAt(0).toUpperCase() ?? ""}</AvatarFallback>
-					</Avatar>
+				<SidebarMenuButton size="lg" data-parent-menu="" data-ready={ready ? "true" : undefined}>
+					<ParentAvatar name={name} imageUrl={imageUrl} />
 					<span className="sr-only">Account menu,</span>
 					<span className="grid min-w-0 flex-1 text-[13px] leading-tight rail:sr-only">
 						<span className="truncate font-medium text-foreground">{name ?? " "}</span>
@@ -301,9 +331,9 @@ export function QuickAddLink(props: Omit<ComponentProps<"a">, "href">) {
 	);
 }
 
-function TabBar() {
+function TabBar({ householdName }: { householdName: string }) {
 	// Quick Add sits in the middle of the bar, in easy reach of either thumb, with the
-	// destinations split either side of it.
+	// destinations split either side of it. More is always last (bottom right).
 	const half = Math.ceil(tabItems.length / 2);
 	return (
 		<nav
@@ -324,13 +354,20 @@ function TabBar() {
 				<Plus className="size-5.5" strokeWidth={2.2} aria-hidden="true" />
 				<span className="sr-only">Quick Add</span>
 			</QuickAddLink>
-			<TabGroup items={tabItems.slice(half)} />
+			<TabGroup items={tabItems.slice(half)}>
+				<MoreTab householdName={householdName} />
+			</TabGroup>
 		</nav>
 	);
 }
 
-function TabGroup({ items }: { items: typeof tabItems }) {
-	const isCurrent = useIsCurrent("tabs");
+const tabClass = cn(
+	"grid h-(--tabbar-height) min-w-0 place-content-center justify-items-center gap-1 rounded-lg text-[11px] font-medium text-subtle-foreground",
+	"transition-colors duration-(--duration-fast) ease-standard",
+);
+
+function TabGroup({ items, children }: { items: typeof tabItems; children?: ReactNode }) {
+	const isCurrent = useIsCurrent();
 	return (
 		<div className="grid auto-cols-fr grid-flow-col">
 			{items.map((item) => (
@@ -339,16 +376,179 @@ function TabGroup({ items }: { items: typeof tabItems }) {
 					to={item.to}
 					activeOptions={{ exact: true }}
 					aria-current={isCurrent(item) ? "page" : undefined}
-					className={cn(
-						"grid h-(--tabbar-height) min-w-0 place-content-center justify-items-center gap-1 rounded-lg text-[11px] font-medium text-subtle-foreground",
-						"transition-colors duration-(--duration-fast) ease-standard",
-						isCurrent(item) && "text-foreground",
-					)}
+					className={cn(tabClass, isCurrent(item) && "text-foreground")}
 				>
 					<item.icon className="size-5.5" strokeWidth={1.75} aria-hidden="true" />
 					{item.tab.label}
 				</Link>
 			))}
+			{children}
 		</div>
+	);
+}
+
+/** The More sheet is open while the address ends in this, so Back closes it. */
+const MORE_HASH = "more";
+/** Whether the open sheet was opened from the tab on this page: closing it then goes Back. */
+let moreOpenedHere = false;
+
+/**
+ * The tab bar's last item (#74). It opens a sheet with everything that isn't a tab, grouped as the
+ * Sidebar is, and the signed-in Parent. It is marked while the current page is one of those.
+ */
+function MoreTab({ householdName }: { householdName: string }) {
+	const isCurrent = useIsCurrent();
+	const hydrated = useHydrated();
+	const router = useRouter();
+	const navigate = useNavigate();
+	const open = useLocation({ select: (location) => location.hash === MORE_HASH }) && hydrated;
+	const within = moreGroups.some((group) => group.items.some(isCurrent));
+	useEffect(() => {
+		if (!open) moreOpenedHere = false;
+	}, [open]);
+	const close = () => {
+		if (moreOpenedHere) router.history.back();
+		// Opened by its address (a reload, a shared link): there is no entry of ours to go back to.
+		else void navigate({ to: ".", search: (prev) => prev, replace: true, resetScroll: false });
+	};
+	return (
+		<>
+			<Link
+				to="."
+				search={(prev) => prev}
+				hash={MORE_HASH}
+				resetScroll={false}
+				aria-haspopup="dialog"
+				aria-expanded={open}
+				aria-current={within ? "true" : undefined}
+				data-more-tab=""
+				className={cn(tabClass, (within || open) && "text-foreground")}
+				onClick={() => {
+					moreOpenedHere = true;
+				}}
+			>
+				<Ellipsis className="size-5.5" strokeWidth={1.75} aria-hidden="true" />
+				More
+			</Link>
+			<Sheet open={open} onOpenChange={(next) => (next ? undefined : close())}>
+				<SheetContent aria-describedby={undefined} data-more-sheet="">
+					<SheetHeader title="More" />
+					<nav aria-label="More" className="grid gap-4">
+						{moreGroups.map((group, index) => (
+							<MoreGroup key={group.label} group={group} review={index === 0} onGlossary={close} />
+						))}
+					</nav>
+					<MoreAccount householdName={householdName} close={close} />
+				</SheetContent>
+			</Sheet>
+		</>
+	);
+}
+
+/** A row of the More sheet: 44px tall, the current page on the raised ground. */
+const moreRow =
+	"min-w-0 justify-start gap-2.5 px-3 text-sm font-medium aria-[current=page]:bg-surface-2";
+
+function MoreGroup({
+	group,
+	review,
+	onGlossary,
+}: {
+	group: NavGroup;
+	/** Review goes first in this group: on a computer it is the count beside Transactions. */
+	review: boolean;
+	onGlossary: () => void;
+}) {
+	const labelId = useId();
+	const isCurrent = useIsCurrent();
+	const matchRoute = useMatchRoute();
+	const waiting = useQuery(reviewQuery()).data?.total ?? 0;
+	return (
+		<section aria-labelledby={labelId} className="grid gap-1">
+			<p id={labelId} className="px-3 text-xs font-medium text-subtle-foreground">
+				{group.label}
+			</p>
+			<div className="grid grid-cols-2 gap-1">
+				{review ? (
+					<Button asChild variant="ghost" className={moreRow}>
+						{/* `replace`: the sheet's own entry becomes the page, so Back returns to where More was opened. */}
+						<Link
+							to="/review"
+							replace
+							aria-current={
+								matchRoute({ to: "/review", fuzzy: true }) !== false ? "page" : undefined
+							}
+						>
+							<ListChecks strokeWidth={1.75} aria-hidden="true" />
+							<span className="truncate">Review</span>
+							{waiting > 0 ? (
+								<Badge variant="count" className="ms-auto">
+									{waiting}
+									<span className="sr-only"> to review</span>
+								</Badge>
+							) : null}
+						</Link>
+					</Button>
+				) : null}
+				{group.items.map((item) =>
+					item.to ? (
+						<Button key={item.label} asChild variant="ghost" className={moreRow}>
+							<Link to={item.to} replace aria-current={isCurrent(item) ? "page" : undefined}>
+								<item.icon strokeWidth={1.75} aria-hidden="true" />
+								<span className="truncate">{item.label}</span>
+								{item.badge === "check-in" ? <CheckInBadge /> : null}
+							</Link>
+						</Button>
+					) : (
+						<Button
+							key={item.label}
+							variant="ghost"
+							className={moreRow}
+							aria-haspopup="dialog"
+							onClick={() => {
+								onGlossary();
+								openGlossary();
+							}}
+						>
+							<item.icon strokeWidth={1.75} aria-hidden="true" />
+							<span className="truncate">{item.label}</span>
+						</Button>
+					),
+				)}
+			</div>
+		</section>
+	);
+}
+
+/** The signed-in Parent at the foot of the More sheet: their account, and signing out. */
+function MoreAccount({ householdName, close }: { householdName: string; close: () => void }) {
+	const clerk = useClerk();
+	const { name, imageUrl } = useSignedInParent();
+	return (
+		<section aria-label="Your account" className="grid gap-3 border-t pt-4">
+			<div className="flex min-w-0 items-center gap-3 px-3">
+				<ParentAvatar name={name} imageUrl={imageUrl} />
+				<span className="grid min-w-0 flex-1 text-sm leading-tight">
+					<span className="truncate font-medium text-foreground">{name ?? " "}</span>
+					<span className="truncate text-xs text-subtle-foreground">{householdName}</span>
+				</span>
+			</div>
+			<div className="grid grid-cols-2 gap-2">
+				<Button
+					variant="outline"
+					onClick={() => {
+						close();
+						clerk.openUserProfile();
+					}}
+				>
+					<UserRound aria-hidden="true" />
+					Manage account
+				</Button>
+				<Button variant="outline" onClick={() => void clerk.signOut({ redirectUrl: "/" })}>
+					<LogOut aria-hidden="true" />
+					Sign out
+				</Button>
+			</div>
+		</section>
 	);
 }
