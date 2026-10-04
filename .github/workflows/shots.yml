@@ -1,0 +1,65 @@
+name: Page shots
+
+# Pictures of every page with one realistic Household (apps/web/e2e/page-shots.spec.ts), for looking
+# at a redesign from a machine that can't run a browser. Push a branch named shots-<anything>, or
+# run it from the Actions tab, then download the "page-shots" artifact:
+#
+#   git push origin HEAD:shots-<id>
+#   gh run list --workflow=shots.yml --branch=shots-<id> --limit 1
+#   gh run watch <run id> --exit-status
+#   gh run download <run id> --name page-shots --dir <somewhere>
+#
+# The PNGs land at <somewhere>/<width>/<nn-name>.png.
+
+on:
+  push:
+    branches: ["shots-**"]
+  workflow_dispatch:
+    inputs:
+      widths:
+        description: "Widths, comma-separated (empty: 1024,1440,1920,393,320)"
+        type: string
+        default: ""
+      theme:
+        description: Theme
+        type: choice
+        options: [light, dark]
+        default: light
+
+concurrency:
+  group: shots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Playwright's image already has Chromium and its system libraries. Keep its tag equal to
+    # @playwright/test in apps/web/package.json.
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --ipc=host
+    env:
+      CI: "true"
+      PAGE_SHOTS: "1"
+      PAGE_SHOTS_WIDTHS: ${{ inputs.widths }}
+      PAGE_SHOTS_THEME: ${{ inputs.theme || 'light' }}
+    steps:
+      - uses: actions/checkout@v5
+      # setup-bun needs unzip, which the image lacks; npm's bun package is the same binary.
+      - run: npm install -g "$(node -p 'require("./package.json").packageManager')"
+      - run: bun install --frozen-lockfile
+      - name: Write dev keys for the local Worker
+        working-directory: apps/web
+        run: |
+          printf 'VITE_CLERK_PUBLISHABLE_KEY=%s\nCLERK_SECRET_KEY=%s\n' \
+            "${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" "${{ secrets.CLERK_SECRET_KEY }}" > .dev.vars
+          bun scripts/vapid-keys.ts >> .dev.vars
+      - run: bun run e2e --project=chromium page-shots.spec.ts
+        working-directory: apps/web
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: page-shots
+          path: apps/web/test-results/page-shots
+          if-no-files-found: warn
