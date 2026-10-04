@@ -832,7 +832,6 @@ function ConnectionRow({
 
 	return (
 		<ListRow
-			stackTrailing
 			leading={
 				<Tile aria-hidden="true">
 					<Landmark />

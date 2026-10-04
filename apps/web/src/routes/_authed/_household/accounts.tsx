@@ -1,4 +1,5 @@
 import { accountLabel } from "@noodle/domain";
+import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
@@ -288,15 +289,23 @@ function AccountItem({ account }: { account: AccountView }) {
 			// On a card the name keeps to one line, cut short only when it's very long.
 			title={<span className="@2xl:block @2xl:truncate">{account.name}</span>}
 			trailingOnTitle
+			// On a card the balance takes its own line, so the kind and bank line can wrap beside nothing.
+			trailingClassName="@2xl:col-start-2 @2xl:row-start-2 @2xl:justify-items-start @2xl:text-start"
 			meta={
 				// Kind and source on one line, how it splits on the next, so a phone reads it in two.
-				<span className="min-w-0 @2xl:max-w-full">
-					<span className="@2xl:block @2xl:truncate">
+				// A lapsed bank login is said once, on its Bank Connection; here only a small badge.
+				<span className="min-w-0">
+					<span>
 						{accountKindName[account.kind]}
 						{accountLabel(account) === account.name ? null : ` ••${account.mask}`}
 						{" · "}
-						<span className={cn(needsLogin && "text-over")}>{accountSourceText(source, true)}</span>
+						{accountSourceText(source, true)}
 					</span>
+					{needsLogin ? (
+						<Badge variant="over" className="ms-1.5 align-middle">
+							Log in again
+						</Badge>
+					) : null}
 					{split ? (
 						<span className={cn("block", split.over && "text-over")}>{split.text}</span>
 					) : null}

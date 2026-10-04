@@ -53,8 +53,11 @@ function SectionHeader({
 	const Heading = React.useContext(SectionLevel) === 3 ? "h3" : "h2";
 	return (
 		<div data-slot="section-header" className="flex min-h-7 items-center justify-between gap-3">
-			<div className="inline-flex min-w-0 items-center gap-1">
-				<Heading id={id} className="inline-flex items-center gap-2 text-sm font-semibold">
+			<div className="flex min-w-0 flex-wrap items-center gap-1">
+				<Heading
+					id={id}
+					className="inline-flex min-w-0 flex-wrap items-center gap-x-2 text-sm font-semibold"
+				>
 					{title}
 					{count ? <Badge variant="count">{count}</Badge> : null}
 				</Heading>

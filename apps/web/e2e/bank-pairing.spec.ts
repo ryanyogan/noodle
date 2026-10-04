@@ -164,7 +164,7 @@ test("connecting pairs with the card already there, and counts nothing twice", a
 	});
 	await accountsLink(page).click();
 	await expect(page.getByRole("link", { name: /^Costco Anywhere Visa, / })).toContainText(
-		"First Platypus Bank needs you to log in again",
+		"Log in again",
 	);
 	await page.getByRole("link", { name: /^Costco Anywhere Visa, / }).click();
 	await expect(page.getByRole("button", { name: "Upload statement" })).toBeVisible();
