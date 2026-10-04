@@ -633,15 +633,16 @@ function HistoryRow({
 	onUndo?: () => void;
 }) {
 	const hydrated = useHydrated();
+	// The month is the heading the row sits under, so a row says it only as part of a day (#73).
 	const when = change.date
 		? change.date.slice(0, 4) === today.slice(0, 4)
 			? shortDay(change.date)
 			: fullDay(change.date)
-		: monthName(change.month);
+		: null;
 	return (
 		<ListRow
 			title={changeTitle(change)}
-			meta={change.note ? `${when} · ${change.note}` : when}
+			meta={[when, change.note].filter(Boolean).join(" · ") || undefined}
 			trailing={
 				<span className="flex items-center gap-2">
 					<span
@@ -703,9 +704,7 @@ function SweepsRow({ sweeps }: { sweeps: GoalChange[] }) {
 								className="ms-1 inline size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
 							/>
 						</span>
-						<span className="text-[13px] text-muted-foreground">
-							{monthName(sweeps[0]?.month ?? "")} · Swept when the month closed
-						</span>
+						<span className="text-[13px] text-muted-foreground">Swept when the month closed</span>
 					</span>
 					<span className="text-sm font-semibold tabular-nums">+{formatMoney(total)}</span>
 				</CollapsibleTrigger>

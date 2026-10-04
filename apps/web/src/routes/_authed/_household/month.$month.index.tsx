@@ -1000,7 +1000,16 @@ function GetStarted({
 		</Card>
 	);
 	const list = (
-		<List aria-label="Steps to get started">
+		<List
+			aria-label="Steps to get started"
+			// On its own on a wide screen the steps sit two by two inside their card, so a step's
+			// button is near its words instead of a screen's width away (#73). Below xl, and in the
+			// To do strip, it is the same one-column list as before.
+			className={cn(
+				!inToDo &&
+					"xl:grid xl:grid-cols-2 xl:[&>li:nth-child(2)]:border-t-0 xl:[&>li:nth-child(even)]:border-s",
+			)}
+		>
 			{steps.map((step) => (
 				<ListRow
 					key={step.title}

@@ -226,13 +226,15 @@ function AccountDetails({ account }: { account: AccountView }) {
 								{/* The button drops under the figure when the two don't fit on a line (320px phones, #74). */}
 								<div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
 									<div className="grid min-w-0 gap-1">
+										{/* The same words as its row on Accounts, not a dash (#73). */}
 										<p
-											className={cn(
-												"text-[2.25rem] font-[650] leading-[1.05] tracking-[-0.035em] tabular-nums",
-												account.balance === null && "text-subtle-foreground",
-											)}
+											className={
+												account.balance === null
+													? "py-1 text-xl font-medium leading-tight text-subtle-foreground"
+													: "text-[2.25rem] font-[650] leading-[1.05] tracking-[-0.035em] tabular-nums"
+											}
 										>
-											{account.balance === null ? "—" : formatMoney(account.balance)}
+											{account.balance === null ? "No balance yet" : formatMoney(account.balance)}
 										</p>
 									</div>
 									{typesBalance ? (
