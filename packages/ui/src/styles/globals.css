@@ -139,7 +139,12 @@
 	--safe-right: env(safe-area-inset-right, 0px);
 	/* The page grid (components/layout.tsx): one gutter, and one width for each kind of column. */
 	--layout-gap: 32px;
-	/* 320px from 1024 to 1280, so the main column stays the wider one there; 360px above (#73). */
+	/* The page's cap grows with the window (#73L, ADR-0033): 1200px below 1440, 1440px from 1440,
+	   1680px from 1920. A data-dense route (`staticData.wide`, Reports and Explore) gets the wide cap. */
+	--shell-max: 1200px;
+	--shell-max-wide: 1440px;
+	/* 320px from 1024 to 1280, so the main column stays the wider one there; then it widens with
+	   the window (360, 380, 440), as does the list pane (360, 400, 460). */
 	--rail-width: 320px;
 	--list-pane-width: 360px;
 	--reading-width: 48rem;
@@ -148,6 +153,23 @@
 @media (min-width: 80rem) {
 	:root {
 		--rail-width: 360px;
+	}
+}
+
+@media (min-width: 90rem) {
+	:root {
+		--shell-max: 1440px;
+		--rail-width: 380px;
+		--list-pane-width: 400px;
+	}
+}
+
+@media (min-width: 120rem) {
+	:root {
+		--shell-max: 1680px;
+		--shell-max-wide: 1800px;
+		--rail-width: 440px;
+		--list-pane-width: 460px;
 	}
 }
 
