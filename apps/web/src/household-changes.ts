@@ -27,6 +27,9 @@ import {
 	viewerQuery,
 } from "./queries";
 
+/** The snapshot history in Household settings (`snapshotsQuery`, which lives beside its page). */
+export const snapshotsKey = ["snapshots"] as const;
+
 /** Where a Parent's open screen connects to their Household Agent. */
 export const HOUSEHOLD_AGENT_PATH = "/api/household-agent";
 
@@ -77,6 +80,8 @@ const changedQueries = {
 	setup: setupQuery().queryKey,
 	/** Every Report; also refetched for any change to what Reports sum (see `queryKeysFor`). */
 	reports: reportsKey,
+	/** The snapshot history: one was taken before a Rule filed several Transactions (ADR-0035). */
+	snapshots: snapshotsKey,
 } satisfies Record<string, QueryKey>;
 
 /**

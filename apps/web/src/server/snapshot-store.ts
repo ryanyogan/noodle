@@ -15,6 +15,7 @@ import {
 } from "@noodle/db";
 import { households } from "@noodle/db/schema";
 import { ulid } from "ulid";
+import type { HouseholdChange } from "../household-changes";
 
 // Household snapshots (#78, ADR-0035): taking one into noodle-backups, pruning, and the nightly
 // run, with the bucket passed in so tests can fake it. The server functions are snapshots.ts.
@@ -258,6 +259,23 @@ export async function applyRuleWithSnapshot(
 	}
 	return { ...result, snapshotId: taken.id };
 }
+
+type RuleApplied = { filed: number; snapshotId: string | null };
+
+/** What an apply tells the page: how many it filed, and whether a snapshot was taken first. */
+export const ruleApplyOutcome = ({ filed, snapshotId }: RuleApplied) => ({
+	filed,
+	snapshot: snapshotId !== null,
+});
+
+/**
+ * What an apply changed, for the Household's open screens (ADR-0007): every month when it filed
+ * anything, and the snapshot history when one was taken first, so it shows for both Parents.
+ */
+export const changesAfterRuleApply = ({ filed, snapshotId }: RuleApplied): HouseholdChange[] => [
+	...(filed > 0 ? (["months", "for-earlier", "bucket-uses"] as const) : []),
+	...(snapshotId ? (["snapshots"] as const) : []),
+];
 
 const startOfUtcDay = (now: Date) =>
 	new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));

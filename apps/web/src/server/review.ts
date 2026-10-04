@@ -22,7 +22,12 @@ import { householdMiddleware, viewerOf } from "./household";
 import { monthKeySchema } from "./month";
 import { notifyHousehold } from "./notify";
 import { ulidSchema } from "./schemas";
-import { applyRuleWithSnapshot, newestMigration } from "./snapshot-store";
+import {
+	applyRuleWithSnapshot,
+	changesAfterRuleApply,
+	newestMigration,
+	ruleApplyOutcome,
+} from "./snapshot-store";
 
 // Review and Rules. Review is read for the Parent looking, like every read of Transactions
 // (ADR-0003); confirming or changing a card is an ordinary Transaction edit (server/transactions),
@@ -133,7 +138,7 @@ const ruleSchema = z.object({
  * "Always file this merchant in this Bucket": states a Rule, replacing this Parent's (or the
  * Household's) Rule for the same pattern. With `apply`, it also files what's still unassigned
  * that it matches, like the rest of Review's cards for that merchant. Idempotent by `ruleId`, a
- * client ULID. Returns how many it filed.
+ * client ULID. Returns how many it filed, and whether a snapshot was taken first (ADR-0035).
  */
 export const saveRule = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
@@ -149,17 +154,17 @@ export const saveRule = createServerFn({ method: "POST" })
 			forMemberIds: data.forMemberIds,
 		});
 		if (!result.ok) throw new Error("That isn’t yours to file into.");
-		const { filed } = data.apply
+		const applied = data.apply
 			? await applyRuleInDb(getDb(), viewerOf(context), result.ruleId)
-			: { filed: 0 };
+			: { filed: 0, snapshotId: null };
 		const changes = [
 			...(result.private ? [] : (["rules"] as const)),
-			...(filed > 0 ? (["months", "for-earlier", "bucket-uses"] as const) : []),
+			...changesAfterRuleApply(applied),
 		];
 		if (changes.length > 0) await notifyHousehold(context.household.id, changes);
 		// What waits in Review may now match it.
 		await queueAi({ ...viewerOf(context), kind: "rule-added" });
-		return { filed };
+		return ruleApplyOutcome(applied);
 	});
 
 /** Changes a Rule's pattern, Bucket, and For. */
@@ -189,7 +194,10 @@ export const deleteRule = createServerFn({ method: "POST" })
 		await notifyHousehold(context.household.id, ["rules"]);
 	});
 
-/** Files everything still unassigned that a Rule matches. Returns how many it filed. */
+/**
+ * Files everything still unassigned that a Rule matches. Returns how many it filed, and whether a
+ * snapshot was taken first (ADR-0035).
+ */
 export const applyRule = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ ruleId: ulidSchema }))
@@ -197,7 +205,7 @@ export const applyRule = createServerFn({ method: "POST" })
 		const result = await applyRuleInDb(getDb(), viewerOf(context), data.ruleId);
 		await notifyHousehold(
 			context.household.id,
-			result.filed > 0 ? ["months", "for-earlier", "bucket-uses", "rules"] : ["months"],
+			result.filed > 0 ? [...changesAfterRuleApply(result), "rules"] : ["months"],
 		);
-		return { filed: result.filed };
+		return ruleApplyOutcome(result);
 	});

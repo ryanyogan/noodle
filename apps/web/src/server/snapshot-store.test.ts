@@ -12,10 +12,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { type ClearDeps, runClearStep } from "./fresh-start-clear";
 import {
 	applyRuleWithSnapshot,
+	changesAfterRuleApply,
 	FINAL_SNAPSHOT_PREFIX,
 	finalSnapshotKey,
 	gunzipJson,
 	pruneFinalSnapshots,
+	ruleApplyOutcome,
 	type SnapshotBucket,
 	snapshotKey,
 	takeFinalSnapshot,
@@ -274,6 +276,14 @@ describe("a snapshot before applying a Rule", () => {
 		expect(before.map((t) => t.bucket_id)).toEqual([null, null, null]);
 		const after = (await db.select().from(transactions)).filter((t) => ids.includes(t.id));
 		expect(after.map((t) => t.bucketId)).toEqual([like.bucketId, like.bucketId, like.bucketId]);
+		// The page is told one was taken, and both Parents' snapshot history refetches.
+		expect(ruleApplyOutcome(result)).toEqual({ filed: 3, snapshot: true });
+		expect(changesAfterRuleApply(result)).toEqual([
+			"months",
+			"for-earlier",
+			"bucket-uses",
+			"snapshots",
+		]);
 	});
 
 	it("takes none when the Rule files one Transaction, or nothing", async () => {
@@ -282,6 +292,11 @@ describe("a snapshot before applying a Rule", () => {
 		expect(one).toMatchObject({ filed: 1, snapshotId: null });
 		const again = await applyRuleWithSnapshot(deps(), viewer, "rule-zzone", now);
 		expect(again).toMatchObject({ filed: 0, snapshotId: null });
+		// Nothing is said about a snapshot, and the snapshot history is left alone.
+		expect(ruleApplyOutcome(one)).toEqual({ filed: 1, snapshot: false });
+		expect(changesAfterRuleApply(one)).toEqual(["months", "for-earlier", "bucket-uses"]);
+		expect(ruleApplyOutcome(again)).toEqual({ filed: 0, snapshot: false });
+		expect(changesAfterRuleApply(again)).toEqual([]);
 		expect(await ofRule()).toEqual([]);
 		expect(files.size).toBe(0);
 	});

@@ -1,9 +1,11 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import {
 	everyHouseholdChange,
 	householdChangesMessage,
 	parseHouseholdChanges,
 	queryKeysFor,
+	snapshotsKey,
 } from "./household-changes";
 
 describe("queryKeysFor", () => {
@@ -77,7 +79,19 @@ describe("queryKeysFor", () => {
 			["month", "plan-draft"],
 			["setup"],
 			["reports"],
+			["snapshots"],
 		]);
+	});
+
+	test("a snapshot taken before a Rule was applied refetches the snapshot history, and nothing else", () => {
+		expect(queryKeysFor(["snapshots"])).toEqual([["snapshots"]]);
+		expect(parseHouseholdChanges(householdChangesMessage(["snapshots"]))).toEqual(["snapshots"]);
+		// The history's own query is declared beside its page; the two keys must stay the same.
+		const page = readFileSync(
+			new URL("./components/household-snapshots.tsx", import.meta.url),
+			"utf8",
+		);
+		expect(page).toContain(`queryKey: ${JSON.stringify(snapshotsKey)}`);
 	});
 });
 

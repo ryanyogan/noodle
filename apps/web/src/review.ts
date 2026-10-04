@@ -7,6 +7,7 @@ import {
 	useMutation,
 	useQueryClient,
 } from "@tanstack/react-query";
+import { snapshotsKey } from "./household-changes";
 import { monthChangeKey } from "./plan-changes";
 import { monthQuery, reviewQuery, rulesQuery } from "./queries";
 import { reviewWrites } from "./review-stack";
@@ -359,6 +360,46 @@ export type RuleInput = {
 	forMemberIds: string[];
 };
 
+/** What applying a Rule did: how many it filed, and whether a snapshot was taken first. */
+export type RuleApplied = { filed: number; snapshot: boolean };
+
+/**
+ * Said after a Rule filed more than one Transaction: Noodle took a snapshot first (ADR-0035), and
+ * where to put things back from.
+ */
+export const SNAPSHOT_FIRST =
+	"Noodle took a snapshot first, so you can put things back from Snapshots in Household settings.";
+
+/** What's said once a Rule from Rules was applied to what's still unassigned. */
+export const ruleAppliedMessage = (
+	{ filed, snapshot }: RuleApplied,
+	rule: { pattern: string; bucketName: string },
+) =>
+	filed === 0
+		? `Nothing unassigned matches ${rule.pattern}`
+		: snapshot
+			? `Filed ${filed} in ${rule.bucketName}. ${SNAPSHOT_FIRST}`
+			: `Filed ${filed} in ${rule.bucketName}`;
+
+/** What's said once a Rule was saved, and applied to what's still unassigned. */
+export const ruleSavedMessage = (
+	{ filed, snapshot }: RuleApplied,
+	rule: { pattern: string; bucketName: string },
+) =>
+	filed === 0
+		? `Rule saved: ${rule.pattern} goes in ${rule.bucketName}`
+		: snapshot
+			? `Rule saved. Filed ${filed} more in ${rule.bucketName}. ${SNAPSHOT_FIRST}`
+			: `Rule saved. Filed ${filed} more in ${rule.bucketName}.`;
+
+/**
+ * After an apply that took a snapshot, this Parent's snapshot history refetches, as it does after
+ * taking one by hand. The other Parent's does through the Household's live updates ("snapshots").
+ */
+export function refetchSnapshotsAfterApply(queryClient: QueryClient, applied: RuleApplied) {
+	if (applied.snapshot) void queryClient.invalidateQueries({ queryKey: snapshotsKey });
+}
+
 /**
  * "Always file <merchant> in <Bucket>": states a Rule and files the rest of the stack's cards it
  * matches, which leave the stack at once.
@@ -390,12 +431,9 @@ export function useSaveRule() {
 				action: { label: "Retry", onClick: () => save.mutate(rule) },
 			});
 		},
-		onSuccess: ({ filed }, rule) => {
-			toast(
-				filed > 0
-					? `Rule saved. Filed ${filed} more in ${rule.bucketName}.`
-					: `Rule saved: ${rule.pattern} goes in ${rule.bucketName}`,
-			);
+		onSuccess: (applied, rule) => {
+			toast(ruleSavedMessage(applied, rule));
+			refetchSnapshotsAfterApply(queryClient, applied);
 		},
 		onSettled: () =>
 			Promise.all([
@@ -488,7 +526,6 @@ export function useDeleteRule() {
 	return remove;
 }
 
-/** Files everything still unassigned that a Rule matches, wherever it is. */
 /** "Look again": categorizes what waits in Review once more, against the Plan as it is now. */
 export function useLookAgain() {
 	const queryClient = useQueryClient();
@@ -513,6 +550,11 @@ export function useLookAgain() {
 	});
 }
 
+/**
+ * Files everything still unassigned that a Rule matches, wherever it is. Not in `reviewWrites`:
+ * the server only ever files a Transaction that is still unassigned when it writes, so an apply
+ * that crosses a decision can't take it back.
+ */
 export function useApplyRule() {
 	const queryClient = useQueryClient();
 	return useMutation({
@@ -522,12 +564,10 @@ export function useApplyRule() {
 			toast(`Couldn’t file what matches ${rule.pattern}. Try again in a moment.`, {
 				tone: "error",
 			}),
-		onSuccess: ({ filed }, rule) =>
-			toast(
-				filed === 0
-					? `Nothing unassigned matches ${rule.pattern}`
-					: `Filed ${filed} in ${rule.bucketName}`,
-			),
+		onSuccess: (applied, rule) => {
+			toast(ruleAppliedMessage(applied, rule));
+			refetchSnapshotsAfterApply(queryClient, applied);
+		},
 		onSettled: () =>
 			Promise.all([
 				refetchAfterChange(queryClient),
