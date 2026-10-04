@@ -321,4 +321,4 @@ WCAG 2.x ratios from a script over the shipped values; soft badge fills are comp
 
 ### Screenshots
 
-The baselines under `apps/web/e2e/*-snapshots/` were replaced with the images CI drew in Soft stone (see the 75e handoff for which were looked at).
+The baselines under `apps/web/e2e/*-snapshots/` were replaced with the images CI drew in Soft stone with `--update-snapshots=all` in a one-off job on the `ci-75` branch, since the specs pass against the old images (ADR-0034, rule 6). Looked at before they went in: This Month (desktop light and dark, phone dark), Household settings (phone light), Reports (desktop light), setup Buckets (desktop dark, phone light) and sign-in (desktop light, phone dark).
