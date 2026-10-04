@@ -15,6 +15,8 @@ type ToastOptions = {
 	 * long enough to notice a mistake.
 	 */
 	sticky?: boolean;
+	/** Replaces a toast still showing with the same id, so doing a thing twice shows one toast. */
+	id?: string;
 };
 
 /**
@@ -29,7 +31,10 @@ function toast(message: string, options: ToastOptions = { tone: "success" }) {
 			: options.action
 				? 6_000
 				: 2_400;
-	sonner.custom((id) => <ToastBody id={id} message={message} {...options} />, { duration });
+	sonner.custom((id) => <ToastBody id={id as string} message={message} {...options} />, {
+		duration,
+		id: options.id,
+	});
 }
 
 function ToastBody({

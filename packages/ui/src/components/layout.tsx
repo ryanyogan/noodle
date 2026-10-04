@@ -5,7 +5,8 @@ import { cn } from "#lib/utils";
  * The page grid (#67). Every page below the shared header is one of three layouts, so widths,
  * gutters and column tops are the same everywhere. The numbers are tokens in globals.css:
  * `--layout-gap` (the one gutter, between columns and between a column's blocks), `--rail-width`,
- * `--list-pane-width` and `--reading-width`. The shell caps the whole page (1200 px, 1440 px wide).
+ * `--list-pane-width` and `--reading-width`. The shell caps the whole page with `--shell-max` (1200, 1440 from 1440 px, 1680 from
+ * 1920 px; ADR-0033), and the rail and list pane widen with the window too.
  *
  * One scroll per region: the page scrolls. Nothing in PageLayout or SplitLayout scrolls on its
  * own. MasterDetail's two panes are the one exception, because they are side-by-side full-height
@@ -37,6 +38,50 @@ function PageLayout({
 				"gap-(--layout-gap)",
 				width === "reading" && "max-w-(--reading-width)",
 				columns === 2 && "lg:grid-cols-2 lg:items-start",
+				className,
+			)}
+			{...props}
+		/>
+	);
+}
+
+/**
+ * Sections side by side (#73L, ADR-0033): related sections of a page in one grid, so a wide window
+ * shows them next to each other instead of one long column. One column below xl (1280 px), two
+ * from xl, and with `columns={3}` three from 1680 px. Each cell's top is a section heading, so the
+ * headings of a row line up. Usable inside PageLayout, SplitMain or a detail pane.
+ */
+function SectionGrid({
+	columns = 2,
+	className,
+	...props
+}: React.ComponentProps<"div"> & { columns?: 2 | 3 }) {
+	return (
+		<div
+			data-slot="section-grid"
+			className={cn(
+				"grid grid-cols-[minmax(0,1fr)] items-start gap-(--layout-gap)",
+				"xl:grid-cols-2",
+				columns === 3 && "min-[105rem]:grid-cols-3",
+				className,
+			)}
+			{...props}
+		/>
+	);
+}
+
+/**
+ * The picked item's blocks in two columns once its pane is wide enough (48 rem of pane, measured
+ * on the pane itself, not the window), one column otherwise. A span-2 block (`col-span-full`)
+ * keeps the full width (the item's header, a chart).
+ */
+function DetailColumns({ className, ...props }: React.ComponentProps<"div">) {
+	return (
+		<div
+			data-slot="detail-columns"
+			className={cn(
+				"grid grid-cols-[minmax(0,1fr)] items-start gap-(--layout-gap)",
+				"@3xl/detail:grid-cols-2",
 				className,
 			)}
 			{...props}
@@ -240,6 +285,9 @@ function MasterDetail({
 			className={cn(
 				"grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[var(--list-pane-width)_minmax(0,1fr)] lg:gap-(--layout-gap)",
 				emptyStacks && !picked && "max-lg:gap-(--layout-gap)",
+				// A list that fills while nothing is picked (Goals' cards): the list takes the wide column
+				// and the overview the rail's width (#73L, ADR-0033).
+				"lg:data-[list-fills=true]:grid-cols-[minmax(0,1fr)_var(--rail-width)]",
 				// The shell's bottom padding at lg is 3rem, so the panes end where a page would.
 				"lg:h-[calc(100dvh-var(--master-detail-top,11rem)-3rem)] lg:min-h-80",
 				className,
@@ -261,7 +309,7 @@ function MasterDetail({
 			<Pane
 				data-slot="master-detail-detail"
 				aria-label={detailLabel}
-				className={cn(!picked && !emptyStacks && "max-lg:hidden")}
+				className={cn("@container/detail", !picked && !emptyStacks && "max-lg:hidden")}
 			>
 				{picked ? (
 					detail
@@ -278,4 +326,4 @@ function MasterDetail({
 	);
 }
 
-export { MasterDetail, PageLayout, SplitLayout, SplitMain, SplitRail };
+export { DetailColumns, MasterDetail, PageLayout, SectionGrid, SplitLayout, SplitMain, SplitRail };

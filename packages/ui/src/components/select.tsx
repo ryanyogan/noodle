@@ -31,9 +31,9 @@ function SelectValue(props: React.ComponentProps<typeof SelectPrimitive.Value>) 
 
 /** The trigger look, shared with Combobox so both read as one kind of field. */
 const selectTriggerClass = [
-	"flex w-full min-w-0 items-center justify-between gap-1.5 border border-border bg-surface-2 text-start whitespace-nowrap text-foreground select-none",
+	"flex w-full min-w-0 items-center justify-between gap-1.5 border border-input bg-surface-2 text-start whitespace-nowrap text-foreground select-none",
 	"transition-[border-color,background-color,box-shadow] duration-(--duration-fast) ease-standard",
-	"hover:border-border-strong focus-visible:border-ring focus-visible:bg-card focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-brand-soft",
+	"hover:border-muted-foreground focus-visible:border-ring focus-visible:bg-card focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-brand-soft",
 	"disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-over aria-invalid:ring-3 aria-invalid:ring-over-soft",
 	"data-placeholder:text-subtle-foreground",
 	// 16px on phones so iOS Safari doesn't zoom, as Input.

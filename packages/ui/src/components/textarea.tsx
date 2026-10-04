@@ -13,7 +13,7 @@ function Textarea({ className, autoComplete, ...props }: React.ComponentProps<"t
 			data-slot="textarea"
 			className={cn(
 				// 16px on phones so iOS Safari doesn't zoom on focus.
-				"field-sizing-content min-h-20 w-full min-w-0 rounded-xl border border-border bg-surface-2 px-3 py-2 text-base text-foreground lg:text-sm",
+				"field-sizing-content min-h-20 w-full min-w-0 rounded-xl border border-input bg-surface-2 px-3 py-2 text-base text-foreground lg:text-sm",
 				"transition-[border-color,background-color,box-shadow] duration-(--duration-fast) ease-standard",
 				"placeholder:text-subtle-foreground",
 				"focus-visible:border-ring focus-visible:bg-card focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-brand-soft",

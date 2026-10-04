@@ -34,6 +34,7 @@ export async function loadInsightSpends(
 			amount: transactions.amountCents,
 			note: sql<string>`coalesce(${transactions.note}, '')`,
 			commitmentId: transactions.commitmentId,
+			accountId: transactions.accountId,
 			private: ownAllowance(viewer.memberId),
 		})
 		.from(transactions)

@@ -627,6 +627,7 @@ export {
 } from "./nudges";
 export {
 	addPerkSource,
+	addPerkUse,
 	decidePerkSource,
 	loadAccountNames,
 	loadInsightPerks,
@@ -639,7 +640,10 @@ export {
 	type PerkSourceToResearch,
 	perkSourcesToRecheck,
 	recordPerkSourceSuggestions,
+	removePerkUse,
 	saveResearch,
+	setPerkSourceFee,
+	setPerkValue,
 	updatePerkSource,
 } from "./perks";
 export {

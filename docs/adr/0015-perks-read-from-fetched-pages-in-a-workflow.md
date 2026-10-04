@@ -9,3 +9,7 @@ Research runs in the Perk research Workflow (`PERK_RESEARCH`), one instance per 
 Perk Sources seen only in a Parent's own Personal Allowance are theirs alone, like Insights (ADR-0003), and so are their Perks and the Overlaps resting on them. Detection is plain code over spending, Commitment names and Account names, matched to the catalog; nothing is sent to a model to find them.
 
 Considered: letting the model answer from what it knows (fast, but stale or invented Perks with no source, which a Parent can't check), a search API to find each product's page (another vendor and key, and search results are no better a source than the product's own page), and Browser Rendering for pages built by script (kept as a follow-up: a Parent can link a readable page meanwhile).
+
+## Exception: a Perk's value (#80)
+
+The research model now also reports a Perk's value and how often it renews, so the Credit card perks page can weigh what was used against the annual fee. A value is kept only when the Perk's quote, the page's own words, states that exact dollar figure (`perksOnPage`); otherwise it is dropped and the Perk has no value. So an amount on the page is still always the benefits page's, never the model's. When the page states none (DashPass), a Parent may type the value and how often it renews by hand.

@@ -53,6 +53,7 @@ import {
 } from "../../../components/extra-income";
 import { MonthCloseSection, MonthEndSection } from "../../../components/month-close";
 import { MonthGlance, monthSentence } from "../../../components/month-glance";
+import { PerkResetLine, usePerkResetSoon } from "../../../components/perk-reset";
 import { TermHelp } from "../../../components/term-help";
 import { ToDo, type ToDoItem } from "../../../components/to-do";
 import { type CoverVariables, useCovers } from "../../../covers";
@@ -163,6 +164,7 @@ function ThisMonth() {
 		}) satisfies CoverVariables;
 	const current = monthOfDay(state.asOf);
 	const isCurrent = month === current;
+	const perkLine = usePerkResetSoon();
 	// What the To do strip holds is decided here, from the same data each prompt reads.
 	const getStarted = useGetStartedSteps(state);
 	const setupState = useSuspenseQuery(setupQuery()).data;
@@ -209,11 +211,11 @@ function ThisMonth() {
 				// One column on phones, in reading order; from lg the money at a glance sits in a
 				// right rail. The columns are `contents` on phones so `order` interleaves them.
 				<SplitLayout stack="children">
-					{/* From 1920px wide two columns, each its own stack so a short Bills doesn't leave a gap
+					{/* From 1680px wide two columns, each its own stack so a short Bills doesn't leave a gap
 					    under it: Buckets and Personal Allowances left, Bills and Income right. Below that the
 					    column wrappers are `contents`, so `order` still interleaves on phones. */}
-					<SplitMain className="min-[1920px]:grid-cols-2 min-[1920px]:items-start">
-						<div className="order-6 grid gap-3 empty:hidden lg:order-none min-[1920px]:col-span-full">
+					<SplitMain className="min-[105rem]:grid-cols-2 min-[105rem]:items-start">
+						<div className="order-6 grid gap-3 empty:hidden lg:order-none min-[105rem]:col-span-full">
 							{month < current ? (
 								<MonthEndSection
 									month={month}
@@ -225,7 +227,7 @@ function ThisMonth() {
 								/>
 							) : null}
 						</div>
-						<div className="contents min-[1920px]:grid min-[1920px]:min-w-0 min-[1920px]:content-start min-[1920px]:gap-(--layout-gap)">
+						<div className="contents min-[105rem]:grid min-[105rem]:min-w-0 min-[105rem]:content-start min-[105rem]:gap-(--layout-gap)">
 							<div className="order-8 grid gap-3 empty:hidden lg:order-none">
 								{buckets.length > 0 ? (
 									<Section aria-labelledby="buckets">
@@ -233,11 +235,12 @@ function ThisMonth() {
 											id="buckets"
 											title="Buckets"
 											count={buckets.length}
-											help={<TermHelp term="bucket" />}
-											action={<BarKey phone />}
+											help={<TermHelp term="bucket" extra={<BucketsHelpExtra />} />}
 										/>
-										<BarKey />
 										<List>{buckets.map(bucketRow)}</List>
+										{/* Under the list, not between the heading and the card, so the card's top is level
+										    with Free to Spend's in the rail (#73L). */}
+										<BarKey />
 									</Section>
 								) : null}
 							</div>
@@ -254,7 +257,7 @@ function ThisMonth() {
 								) : null}
 							</div>
 						</div>
-						<div className="contents min-[1920px]:grid min-[1920px]:min-w-0 min-[1920px]:content-start min-[1920px]:gap-(--layout-gap)">
+						<div className="contents min-[105rem]:grid min-[105rem]:min-w-0 min-[105rem]:content-start min-[105rem]:gap-(--layout-gap)">
 							<div className="order-11 grid gap-3 empty:hidden lg:order-none">
 								{state.commitments.length > 0 ? (
 									<Bills
@@ -344,6 +347,12 @@ function ThisMonth() {
 														}
 													/>
 												),
+											},
+										isCurrent &&
+											perkLine !== null && {
+												label: "Perk to use",
+												open: true,
+												content: <PerkResetLine line={perkLine} />,
 											},
 										isCurrent &&
 											chipsShow(chips) && {
@@ -783,21 +792,26 @@ function BucketRow({
  * once it's been learned (#64, ADR-0018). On a phone it's always in the popover: inline it took
  * two lines above the first Bucket (#74).
  */
-function BarKey({ phone = false }: { phone?: boolean }) {
+function BarKey() {
 	const learned = useLearned("bar-key");
-	const inPopover = <BudgetBarKey className="mt-1 grid gap-1.5" />;
-	if (phone) {
-		// At the end of the Buckets header, so the key costs no line of its own.
-		return (
-			<div className="lg:hidden">
-				<TermHelp term="pace" extra={inPopover} />
-			</div>
-		);
-	}
+	// Under the list, without a "?" of its own: the Buckets heading's help says it too (#73L).
+	if (learned) return null;
 	return (
 		<div className="-mt-1 flex items-center gap-1 px-1 max-lg:hidden">
-			{learned ? null : <BudgetBarKey />}
-			<TermHelp term="pace" extra={learned ? inPopover : undefined} />
+			<BudgetBarKey />
+		</div>
+	);
+}
+
+/** In the Buckets heading's help: the bars' key and what Cover does, so neither needs a "?" of its own (#73L). */
+function BucketsHelpExtra() {
+	return (
+		<div className="mt-1 grid gap-1.5">
+			<BudgetBarKey className="grid gap-1.5" />
+			<p className="text-muted-foreground">
+				The line on a bar is today's Pace. An overspent Bucket has a Cover button: it brings the
+				Bucket back to $0 from another Bucket or Free to Spend.
+			</p>
 		</div>
 	);
 }
@@ -828,10 +842,10 @@ function CoverButton({
 			{explain ? (
 				<span className="flex items-center gap-1 text-xs text-muted-foreground">
 					{/* On a phone the "?" says it (#65). */}
+					{/* No "?" here: the Buckets heading's help says what Cover does (#73L). */}
 					<span className="max-sm:hidden">
 						Bring it back to $0 from another Bucket or Free to Spend.
 					</span>
-					<TermHelp term="cover" />
 				</span>
 			) : null}
 		</div>

@@ -1,4 +1,5 @@
 import { addDays, type DayKey } from "./month";
+import type { PerkRenewal } from "./perk-standing";
 
 // Perk Sources and their Perks. Spotting a likely Perk Source is plain code over the Household's
 // spending and Accounts, matched against a short catalog of well-known products; a Parent
@@ -197,6 +198,10 @@ export type FoundPerk = {
 	tiers: string[];
 	/** The page's own words saying so. */
 	quote: string;
+	/** What it's worth, in cents, as the quote states it. */
+	valueCents?: number;
+	/** How often it renews, as the page says. */
+	renews?: PerkRenewal;
 };
 
 /** Plain words to compare: lowercased, punctuation as spaces, runs of space as one. */
@@ -246,10 +251,21 @@ export function perksOnPage(found: FoundPerk[], pageText: string): FoundPerk[] {
 				matches,
 				tiers: [...new Set(perk.tiers.map((t) => t.trim()).filter(Boolean))],
 				quote: quote.slice(0, 280),
+				...(valueOnPage(perk.valueCents, quote) ? { valueCents: perk.valueCents } : {}),
+				...(perk.renews ? { renews: perk.renews } : {}),
 			},
 		];
 	});
 }
+
+/** A value counts only when the quote states that very dollar figure: "$15 in Uber Cash". */
+const valueOnPage = (cents: number | undefined, quote: string) => {
+	if (cents === undefined || !Number.isInteger(cents) || cents <= 0) return false;
+	const figures = [...quote.matchAll(/\$\s?([\d,]+(?:\.\d{1,2})?)/g)].map((m) =>
+		Math.round(Number((m[1] ?? "").replace(/,/g, "")) * 100),
+	);
+	return figures.includes(cents);
+};
 
 /** A Perk's identity within its Perk Source, stable across re-checks: its kind and statement name. */
 export const perkKey = (perk: Pick<FoundPerk, "kind" | "matches">) =>

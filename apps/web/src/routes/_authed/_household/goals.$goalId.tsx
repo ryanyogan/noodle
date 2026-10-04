@@ -553,8 +553,8 @@ function GoalStatus({ goal, month }: { goal: GoalView; month: MonthKey }) {
 
 function FinishRow({ text, action }: { text: string; action: ReactNode }) {
 	return (
-		<div className="flex items-center justify-between gap-4">
-			<p className="text-sm text-muted-foreground">{text}</p>
+		<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+			<p className="flex-[1_1_16rem] text-sm text-muted-foreground">{text}</p>
 			{action}
 		</div>
 	);

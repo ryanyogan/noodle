@@ -36,7 +36,8 @@ export function accountSourceText(source: AccountSource, brief = false): string 
 	switch (source.kind) {
 		case "connected": {
 			const bank = source.connection.institution ?? "the bank";
-			if (source.needsLogin) return `${bank} needs you to log in again`;
+			// A row in a list leaves the lapsed login to its Bank Connection, which says it once.
+			if (source.needsLogin && !brief) return `${bank} needs you to log in again`;
 			if (source.connection.status === "choosing") return `Connecting to ${bank}`;
 			const at = source.connection.lastImportedAt;
 			if (brief || !at) return `Connected · ${bank}`;

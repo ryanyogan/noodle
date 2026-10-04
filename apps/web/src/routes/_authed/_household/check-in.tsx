@@ -18,6 +18,7 @@ import { Check, ChevronRight } from "lucide-react";
 import { useEffect } from "react";
 import { z } from "zod";
 import { checkInCardTitle, checkInLine, checkInSummary } from "../../../check-in";
+import { PerkResetLine } from "../../../components/perk-reset";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney, fullDay, monthName, shortDay } from "../../../format";
 import { checkInQuery, insightsQuery, reviewQuery } from "../../../queries";
@@ -88,6 +89,7 @@ function CheckInPage() {
 					</StepList>
 				) : null}
 				<div className="grid max-w-2xl gap-3">
+					<PerkResetLine />
 					{step.kind === "card" ? (
 						<p className="text-sm text-muted-foreground tabular-nums">
 							{step.position} of {step.of}

@@ -1,8 +1,8 @@
 import { accountLabel } from "@noodle/domain";
+import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
-import { List } from "@noodle/ui/components/list";
 import { Money } from "@noodle/ui/components/money";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
@@ -12,7 +12,7 @@ import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated, useParams } from "@tanstack/react-router";
 import { Landmark, Plus } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { accountSource, accountSourceText } from "../../../account-source";
 import {
 	BankConnections,
@@ -82,10 +82,12 @@ function AccountsPage() {
 					</Button>
 				}
 			/>
-			{/* The Accounts and Bank Connections on the left; the picked Account beside them, or the
-			    totals while none is picked (#67). On phones the totals come first. */}
+			{/* The Accounts and Bank Connections on the left; the picked Account beside them (#67). While
+			    none is picked they take the wide column and the totals the side one (#73). On phones the
+			    totals come first. */}
 			<ListBesideDetail
 				picked={picked !== undefined}
+				listFills
 				noun="Account"
 				listLabel="Accounts"
 				hint="Pick an Account to see it here."
@@ -133,12 +135,32 @@ function AccountGroup({
 	return (
 		<Section aria-labelledby={id}>
 			<SectionHeader id={id} title={title} count={accounts.length} />
-			<List>
+			<AccountList>
 				{accounts.map((account) => (
 					<AccountItem key={account.id} account={account} />
 				))}
-			</List>
+			</AccountList>
 		</Section>
+	);
+}
+
+/**
+ * One group's Accounts: a list in the narrow pane beside a picked Account, a grid of cards (two or
+ * three across, by the room there is) while the list has the wide column (#73), as Goals do. In
+ * the grid the list's card steps aside (`contents`) and each row becomes a card of its own.
+ */
+function AccountList({ children }: { children: ReactNode }) {
+	return (
+		<div className="@container min-w-0">
+			<Card className="@2xl:contents">
+				<ul
+					data-slot="list"
+					className="[&>li+li]:border-t @2xl:grid @2xl:grid-cols-2 @5xl:grid-cols-3 @2xl:items-stretch @2xl:gap-3 @2xl:[&>li]:grid @2xl:[&>li]:overflow-hidden @2xl:[&>li]:rounded-(--radius-card) @2xl:[&>li]:border @2xl:[&>li]:bg-card @2xl:[&>li]:shadow-xs"
+				>
+					{children}
+				</ul>
+			</Card>
+		</div>
 	);
 }
 
@@ -264,15 +286,29 @@ function AccountItem({ account }: { account: AccountView }) {
 					<Icon />
 				</Tile>
 			}
-			title={account.name}
+			// On a card the name keeps to one line, cut short only when it's very long.
+			title={<span className="@2xl:block @2xl:truncate">{account.name}</span>}
 			trailingOnTitle
+			// On a card the balance takes its own line, so the kind and bank line can wrap beside nothing.
+			trailingClassName="@2xl:col-start-2 @2xl:row-start-2 @2xl:justify-items-start @2xl:text-start"
 			meta={
 				// Kind and source on one line, how it splits on the next, so a phone reads it in two.
-				<span>
-					{accountKindName[account.kind]}
-					{accountLabel(account) === account.name ? null : ` ••${account.mask}`}
-					{" · "}
-					<span className={cn(needsLogin && "text-over")}>{accountSourceText(source, true)}</span>
+				// A lapsed bank login is said once, on its Bank Connection; here only a small badge.
+				<span className="min-w-0">
+					<span>
+						{accountKindName[account.kind]}
+						{accountLabel(account) === account.name ? null : ` ••${account.mask}`}
+						{" · "}
+						{accountSourceText(source, true)}
+					</span>
+					{needsLogin ? (
+						<>
+							{" "}
+							<Badge variant="over" className="align-middle">
+								Log in again
+							</Badge>
+						</>
+					) : null}
 					{split ? (
 						<span className={cn("block", split.over && "text-over")}>{split.text}</span>
 					) : null}
@@ -281,7 +317,7 @@ function AccountItem({ account }: { account: AccountView }) {
 			trailing={
 				<span
 					className={cn(
-						"text-sm tabular-nums",
+						"text-sm tabular-nums @2xl:text-base",
 						account.balance === null ? "text-subtle-foreground" : "font-semibold",
 					)}
 				>

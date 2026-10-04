@@ -1,10 +1,18 @@
 import type { PerkSourceItem } from "@noodle/db";
-import { catalogEntryFor, type PerkSourceKind } from "@noodle/domain";
+import { catalogEntryFor, type PerkRenewal, type PerkSourceKind } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ulid } from "ulid";
 import { insightsQuery, perkSourcesQuery } from "./queries";
-import { addPerkSource, decidePerkSource, updatePerkSource } from "./server/perks";
+import {
+	addPerkSource,
+	decidePerkSource,
+	markPerkUsed,
+	removePerkUse,
+	setPerkSourceFee,
+	setPerkValue,
+	updatePerkSource,
+} from "./server/perks";
 
 // Acting on Perk Sources from the screen. Each change that researches a Perk Source waits for
 // the server, which starts the research (or, with the fakes, does it at once); the page then
@@ -116,4 +124,58 @@ export function perkSourcesForAccount(
 				source.name.trim().toLowerCase() === name.toLowerCase() ||
 				(entry !== undefined && catalogEntryFor(source.name) === entry)),
 	);
+}
+
+/** Takes back a use marked by hand. */
+export function useRemovePerkUse() {
+	const refetch = useRefetchPerks();
+	return useMutation({
+		mutationFn: (use: { id: string }) => removePerkUse({ data: use }),
+		onError: () => toast("Couldn’t take that back. Try again.", { tone: "error" }),
+		onSettled: refetch,
+	});
+}
+
+export const newPerkUseId = () => ulid();
+
+/** Marks a Perk used today, with a short note; the toast can take it back. */
+export function useMarkPerkUsed() {
+	const refetch = useRefetchPerks();
+	return useMutation({
+		mutationFn: (use: { id: string; perkId: string; name: string; note: string | null }) =>
+			markPerkUsed({ data: { id: use.id, perkId: use.perkId, note: use.note } }),
+		onError: (_error, use) => toast(`Couldn’t mark ${use.name} used.`, { tone: "error" }),
+		onSuccess: (_data, use) =>
+			toast(`${use.name} marked used`, { tone: "success", id: `perk-used-${use.perkId}` }),
+		onSettled: refetch,
+	});
+}
+
+/** Says what a card's annual fee is, or clears it. */
+export function useSetAnnualFee() {
+	const refetch = useRefetchPerks();
+	return useMutation({
+		mutationFn: (fee: { id: string; annualFeeCents: number | null }) =>
+			setPerkSourceFee({ data: fee }),
+		onError: () => toast("Couldn’t save the annual fee. Try again.", { tone: "error" }),
+		onSettled: refetch,
+	});
+}
+
+/** A Parent types a perk's value and how often it renews, when its page states none. */
+export function useSetPerkValue() {
+	const refetch = useRefetchPerks();
+	return useMutation({
+		mutationFn: (perk: {
+			id: string;
+			name: string;
+			valueCents: number | null;
+			renews: PerkRenewal | null;
+		}) =>
+			setPerkValue({
+				data: { id: perk.id, valueCents: perk.valueCents, renews: perk.renews },
+			}),
+		onError: (_error, perk) => toast(`Couldn’t save the value of ${perk.name}.`, { tone: "error" }),
+		onSettled: refetch,
+	});
 }

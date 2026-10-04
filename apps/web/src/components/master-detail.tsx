@@ -196,6 +196,7 @@ export function ListBesideDetail({
 	list,
 	aside,
 	asideFills,
+	listFills,
 }: {
 	/** An item's route is showing. */
 	picked: boolean;
@@ -213,10 +214,17 @@ export function ListBesideDetail({
 	 * takes the pane's width, and on phones it comes after the list.
 	 */
 	asideFills?: boolean;
+	/**
+	 * While nothing is picked the list takes the wide column and the aside the rail's width, so a
+	 * list of cards (Goals) fills the window; once an item is picked it's the narrow list pane again
+	 * (#73L, ADR-0033).
+	 */
+	listFills?: boolean;
 }) {
 	return (
 		<MasterDetail
-			className={asideFills ? undefined : "max-lg:[&>[data-slot=master-detail-detail]]:order-first"}
+			className={cn(!asideFills && "max-lg:[&>[data-slot=master-detail-detail]]:order-first")}
+			data-list-fills={listFills && !picked ? "true" : undefined}
 			listLabel={listLabel}
 			detailLabel={picked ? `${noun} details` : `${listLabel} overview`}
 			emptyStacks={Boolean(aside)}
