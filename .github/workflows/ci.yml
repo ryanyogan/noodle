@@ -6,9 +6,8 @@ on:
     paths-ignore: ["docs/**", "**/*.md"]
   pull_request:
     paths-ignore: ["docs/**", "**/*.md"]
-  # Nightly: the WebKit iPhone jobs, which don't run on every push.
-  schedule:
-    - cron: "17 9 * * *"
+  # The WebKit iPhone jobs run only when asked for from the Actions tab (no nightly run: it cost
+  # about 30 runner minutes a night whether anything changed or not).
   workflow_dispatch:
     inputs:
       webkit:
@@ -26,7 +25,7 @@ jobs:
   # - tested: this exact commit already passed CI on another branch (the wizard-53 run before
   #   main), so main skips E2E and goes straight to deploy;
   # - phone: which phone projects run. Chromium as an iPhone 15 on every push; WebKit as iPhone 15
-  #   and SE only nightly or when asked for from the Actions tab.
+  #   and SE only when asked for from the Actions tab.
   gate:
     runs-on: ubuntu-latest
     # Reading earlier runs needs actions: read; the default token can't (403).
@@ -47,7 +46,6 @@ jobs:
             [ "$count" -gt 0 ] && tested=true
           fi
           case "${{ github.event_name }}" in
-            schedule) phone='["webkit-iphone","webkit-iphone-se"]' ;;
             workflow_dispatch)
               if [ "${{ inputs.webkit }}" = "true" ]; then
                 phone='["chromium-mobile","webkit-iphone","webkit-iphone-se"]'
@@ -61,7 +59,6 @@ jobs:
           echo "Already passed on another branch: $tested; phone projects: $phone"
 
   check:
-    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -75,7 +72,7 @@ jobs:
 
   e2e:
     needs: gate
-    if: needs.gate.outputs.tested != 'true' && github.event_name != 'schedule'
+    if: needs.gate.outputs.tested != 'true'
     runs-on: ubuntu-latest
     # Six runners at once, one worker each: a private repo's runner has 2 vCPUs, so one runner ran
     # every spec in series (12+ minutes), and two workers on one runner starved the dev server.
