@@ -1,15 +1,19 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
+import { createTestParent } from "./parents";
 import { createPlannedHousehold, pickQuickAddBucket, signedInPage, switchTo } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
 // Mobile Safari zooms the page when a field under 16 px gets focus. On a phone, portrait and
 // landscape (both below lg), every field on the main pages and sheets is at least 16 px. Buttons
 // that open a list (a Select's trigger) can't take typing, so they don't zoom and aren't checked.
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 /** Fields that would zoom on focus: visible, typeable, and under 16 px. */

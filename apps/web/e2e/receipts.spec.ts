@@ -1,16 +1,20 @@
-import { expect, type Locator, type Page } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
+import { createTestParent } from "./parents";
 import { createPlannedHousehold, signedInPage } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
 // Forwarded Receipts: a Parent gets the Household's Receipt address on the Household page, and a
 // receipt email they forward there (delivered to the Worker's email handler as Email Routing
 // would, through the dev server's local email endpoint) becomes a Quick Add split across the
 // Buckets its lines are for, read by the deterministic fake model.
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 const list = (page: Page) => page.getByRole("list", { name: /^Transactions in / });

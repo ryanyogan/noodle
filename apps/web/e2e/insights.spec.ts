@@ -1,14 +1,18 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
+import { createTestParent } from "./parents";
 import { createPlannedHousehold, signedInPage, switchTo } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
 // Insights run with their deterministic fake model here (AI_MODEL=stub in playwright.config.ts):
 // it groups Disney+ and Hulu as one service family and adds "(stub)" to each title it words.
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 const commitmentRow = (page: Page, name: string) =>

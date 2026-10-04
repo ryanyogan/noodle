@@ -1,9 +1,9 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { signFakeWebhook } from "../src/server/plaid-fake-webhook-key";
+import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
 import { createPlannedHousehold, signedInPage } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
 // Disconnecting a bank (#61), against the fake Plaid API: asked first in plain words, its
 // Accounts and Transactions stay, kept by hand, nothing more comes in (a webhook for it is
@@ -11,10 +11,14 @@ import { type SharedParent, test } from "./worker-parent";
 
 const SHOTS = process.env.SHOTS_DIR;
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 const toast = (page: Page, text: string | RegExp) =>

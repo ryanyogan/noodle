@@ -1,4 +1,5 @@
-import { expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { createTestParent } from "./parents";
 import {
 	accountKindLabel,
 	choose,
@@ -6,16 +7,19 @@ import {
 	signedInPage,
 	switchTo,
 } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
 // Every sheet shares packages/ui's Sheet, so one Plan sheet and one Accounts sheet stand for all:
 // on desktop the first field takes focus when a sheet opens, and closing it (Esc, Close, or
 // saving) puts focus back on the control that opened it (WAI-ARIA APG, dialog pattern).
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 test("a sheet focuses its first field, and gives focus back to what opened it", async ({

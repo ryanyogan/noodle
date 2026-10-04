@@ -1,15 +1,19 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
+import { createTestParent } from "./parents";
 import { accountKindLabel, choose, createPlannedHousehold, savedBy, signedInPage } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
 // Paying off a credit card or loan with a payoff Goal (ADR-0019): its target is what's owed when
 // it's added, it's funded from Free to Spend like any Goal, and it's paid down as what's owed
 // comes down (from a statement, or a balance a Parent enters) until it's paid off at $0.
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 const plan = { baseline: "5,000", buckets: [["Groceries", "1,200"]] as [string, string][] };

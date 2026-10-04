@@ -1,15 +1,19 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
+import { createTestParent } from "./parents";
 import { createPlannedHousehold, openFromMore, signedInPage } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
 // A term the Parents keep is explained where it first appears: a "?" beside it opens a sentence
 // and a link to the Glossary, by mouse, by keyboard and by touch (ADR-0018). The Glossary lists
 // every term, with the word a renamed one used to be.
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 const plan = { baseline: "5,000", buckets: [["Groceries", "1,200"]] as [string, string][] };

@@ -1,11 +1,15 @@
-import { expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { createTestParent } from "./parents";
 import { clientRendered, createPlannedHousehold, signedInPage } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 test("how far ahead Explore and the Scenarios look is in the link, 2 years unless picked (#51)", async ({

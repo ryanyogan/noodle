@@ -1,16 +1,20 @@
 import { join } from "node:path";
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
+import { createTestParent } from "./parents";
 import { savedBy, signedInPage } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
 // The get-started wizard's statement and bank paths (#53), with the fakes (AI_MODEL=stub): Hello
 // starts the Setup Workflow, the header reports its jobs, and once the plan draft lands the steps
 // fill in, marked "Suggested from your spending", without replacing what a Parent typed.
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 const PAY = "What lands in your account in a normal month, after tax?";

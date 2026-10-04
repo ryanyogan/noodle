@@ -1,4 +1,5 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
+import { createTestParent } from "./parents";
 import {
 	accountKindLabel,
 	choose,
@@ -6,15 +7,18 @@ import {
 	openFromMore,
 	signedInPage,
 } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
 // Accounts have their own area: every Account and Bank Connection at /accounts, each Account's
 // page under it, and Goals keeping only Goals, each naming the Account that holds it.
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 const plan = { baseline: "5,000", buckets: [["Groceries", "1,200"]] as [string, string][] };

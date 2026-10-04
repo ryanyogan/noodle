@@ -1,14 +1,18 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { uploadHistory } from "./history";
+import { createTestParent } from "./parents";
 import { createHousehold, savedBy, signedInPage, switchTo } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
 // The Plan's Add Buckets sheet (#57): the starter list, ticked and priced, added in one save.
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 /** Opens this month's Plan on its Buckets page, waits for it to hydrate, and opens the sheet. */

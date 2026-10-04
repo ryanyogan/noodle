@@ -1,4 +1,5 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
+import { createTestParent } from "./parents";
 import {
 	choose,
 	clientRendered,
@@ -7,12 +8,15 @@ import {
 	serverFn,
 	signedInPage,
 } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 const quickAddSheet = (page: Page) => page.getByRole("dialog", { name: "Quick Add" });

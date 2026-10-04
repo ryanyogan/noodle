@@ -1,4 +1,5 @@
-import { expect, type Page, type Route } from "@playwright/test";
+import { expect, type Page, type Route, test } from "@playwright/test";
+import { createTestParent } from "./parents";
 import {
 	choose,
 	createPlannedHousehold,
@@ -8,12 +9,15 @@ import {
 	signedInPage,
 	switchTo,
 } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 const waterfall = (page: Page) =>

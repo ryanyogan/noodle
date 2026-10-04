@@ -1,17 +1,21 @@
 import { deflateSync } from "node:zlib";
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
+import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
 import { createPlannedHousehold, signedInPage } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
 // Snap and speak in Quick Add: a photo of a paper Receipt, or a phrase said or typed, is read by
 // the deterministic fake models into the amount, a suggested Bucket and a note, for the Parent to
 // check and save. The fake Receipt model reads the text a PNG carries in a "Receipt" text chunk.
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 const plan = {

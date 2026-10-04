@@ -1,16 +1,20 @@
-import { expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { createTestParent } from "./parents";
 import { looks } from "./phone";
 import { createPlannedHousehold, signedInPage, switchTo } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
 // Reading order on a phone, standing in for VoiceOver's swipe order: This Month and Quick Add read
 // top to bottom with their labels. The snapshots name the structure, not every word, so they only
 // change when the order or a label does.
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 for (const look of looks) {

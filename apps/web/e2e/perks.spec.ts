@@ -1,4 +1,5 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
+import { createTestParent } from "./parents";
 import { expectSectionHeaderKept, markSectionHeader } from "./section";
 import {
 	choose,
@@ -10,7 +11,6 @@ import {
 	signedInPage,
 	switchTo,
 } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
 // Perk research runs inline with its fakes here (AI_MODEL=stub in playwright.config.ts): any
 // t-mobile.com page is a phone plan's whose Perks depend on the plan (Netflix with Go5G and Go5G
@@ -18,10 +18,14 @@ import { type SharedParent, test } from "./worker-parent";
 // card's (a TSA PreCheck credit, DashPass). The fake model also "remembers" Apple TV+, which the
 // page doesn't say: it must never show.
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 const sourceCard = (page: Page, name: string) => page.getByRole("article", { name });

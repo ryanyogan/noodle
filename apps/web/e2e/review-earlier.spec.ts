@@ -1,17 +1,21 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
+import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
 import { createPlannedHousehold, signedInPage, uploadStatement, waitForReview } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
 // Review for Transactions from earlier months (#82, ADR-0037): one from a month with no Plan, or
 // from a month that is over, can be filed without a Bucket, one at a time or all at once; and the
 // count of what waits goes down after every decision, in Sort, in the list, on the Review tab and
 // beside Transactions in the Sidebar.
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 const desktop = { viewport: { width: 1440, height: 900 } };

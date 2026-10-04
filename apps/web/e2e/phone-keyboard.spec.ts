@@ -1,17 +1,21 @@
-import { expect, type Locator, type Page } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { visibleBottom, withKeyboard } from "./keyboard";
+import { createTestParent } from "./parents";
 import { createPlannedHousehold, signedInPage } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
 // Typing in a sheet with the iPhone keyboard up (#52 rows 143 and 147): the sheet sits above the
 // keyboard, its primary button can be seen, the page underneath doesn't jump, and what was typed
 // is kept. The keyboard is emulated by shrinking the visual viewport (see keyboard.ts). Runs on
 // the phone projects, so the browser and screen come from the project (iPhone 15, iPhone SE).
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 /** An iPhone keyboard with the suggestions bar is about 336 px tall in portrait. */

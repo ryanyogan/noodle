@@ -1,18 +1,22 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { signFakeWebhook } from "../src/server/plaid-fake-webhook-key";
+import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
 import { createHousehold, signedInPage } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
 // Connecting a bank through Plaid Link, against the fake Plaid API (AI_MODEL=stub): its Accounts
 // appear at once, and the Import Workflow, started from the ingest Queue, brings in their
 // Transactions. Then Plaid's webhooks, signed with the fake's key: new transactions sync the
 // bank (a pending charge posts in its place), and a lapsed login waits for a reconnect.
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 const toast = (page: Page, text: string) => page.getByRole("status").filter({ hasText: text });

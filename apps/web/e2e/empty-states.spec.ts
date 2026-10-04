@@ -1,16 +1,20 @@
-import { expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { createTestParent } from "./parents";
 import { currentTab } from "./section";
 import { clientRendered, createHousehold, signedInPage } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
 // A Household made a minute ago, with nothing planned: every page says what it's for and where
 // to start, instead of a table of zeros or verdicts worked out from nothing (docs/seed-data.md,
 // "Pages without a proper empty state in fresh").
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 test("a new Household's pages say where to start", async ({ browser }) => {
