@@ -2,9 +2,8 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { ulid } from "ulid";
-import { createTestParent } from "./parents";
 import {
 	accountKindLabel,
 	choose,
@@ -14,15 +13,12 @@ import {
 	serverFn,
 	signedInPage,
 } from "./session";
+import { type SharedParent, test } from "./worker-parent";
 
-let parent: Awaited<ReturnType<typeof createTestParent>>;
+let parent: SharedParent;
 
-test.beforeEach(async () => {
-	parent = await createTestParent();
-});
-
-test.afterEach(async () => {
-	await parent?.remove();
+test.beforeEach(async ({ sharedParent }) => {
+	parent = sharedParent;
 });
 
 const plan = {
