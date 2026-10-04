@@ -1,6 +1,11 @@
 import { addMonths, type MonthKey, monthKeyAt, monthOfDay } from "@noodle/domain";
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { MonthLinks, MonthTopRow, monthTitle, useMonthSwipe } from "../../../components/month-nav";
+import {
+	MonthLinks,
+	MonthSwitchRow,
+	monthTitle,
+	useMonthSwipe,
+} from "../../../components/month-nav";
 import { SectionLayout, SectionPending } from "../../../components/section-layout";
 import { closingWeek } from "../../../month-close";
 import { goalsQuery, monthQuery, reviewQuery, useMonthState } from "../../../queries";
@@ -30,7 +35,7 @@ export const Route = createFileRoute("/_authed/_household/month/$month")({
 });
 
 /**
- * The same header as the Plan's layout (on phones the Month and Plan switch; the title, previous and next in
+ * The same header as the Plan's layout (on phones the title, then the Month and Plan switch under it; previous and next in
  * the same places), so going between a month and its Plan reads as a change of tab.
  */
 function MonthLayout() {
@@ -41,7 +46,7 @@ function MonthLayout() {
 	return (
 		<SectionLayout
 			{...swipe}
-			top={<MonthTopRow month={month} current="month" />}
+			switcher={<MonthSwitchRow month={month} current="month" />}
 			eyebrow={month === current ? "This Month" : "Month"}
 			title={monthTitle(month, current)}
 			actions={<MonthLinks to="/month/$month" month={month} first={state.firstMonth} />}
@@ -57,7 +62,7 @@ function MonthPending() {
 	const current = monthKeyAt(new Date(), household.timeZone);
 	return (
 		<SectionLayout
-			top={<MonthTopRow month={month} current="month" />}
+			switcher={<MonthSwitchRow month={month} current="month" />}
 			eyebrow={month === current ? "This Month" : "Month"}
 			title={monthTitle(month, current)}
 			// Until the month loads, the first month with a Plan isn't known: both ways stay open.

@@ -2,8 +2,10 @@ import type * as React from "react";
 import { cn } from "#lib/utils";
 
 /**
- * The top of every screen: an optional eyebrow (a line above the h1, not part of it), the title
- * (the page's only h1), and actions.
+ * The top of every screen: the eyebrow (a line above the h1, not part of it: the section), the
+ * title (the page's only h1), and actions. On a phone this is row 1 of the one header (#74): the
+ * same height on every page (52px: eyebrow and title), on the 16px gutter, with at most one
+ * action and the month arrows on the right. A page's tabs or switch are row 2, under it.
  * `leading`/`trailing` sit either side of the title (e.g. previous/next month).
  */
 function PageHeader({
@@ -27,7 +29,7 @@ function PageHeader({
 			className={cn(
 				// Wraps: when a title word and the actions don't fit on one line (320 px phones), the actions
 				// drop to their own row instead of squeezing the title mid-word.
-				"mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 lg:mb-8",
+				"mb-4 flex min-h-13 flex-wrap items-center justify-between gap-x-4 gap-y-3 lg:mb-8 lg:min-h-0",
 				className,
 			)}
 		>

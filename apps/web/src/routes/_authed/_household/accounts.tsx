@@ -55,7 +55,7 @@ function AccountsPage() {
 	if (accounts.length === 0) {
 		return (
 			<>
-				<PageHeader title="Accounts" />
+				<PageHeader eyebrow="Day to day" title="Accounts" />
 				<div className="grid max-w-3xl gap-6">
 					<EmptyState
 						icon={<Landmark />}
@@ -74,6 +74,7 @@ function AccountsPage() {
 	return (
 		<>
 			<PageHeader
+				eyebrow="Day to day"
 				title="Accounts"
 				actions={
 					<Button type="button" size="sm" disabled={!hydrated} onClick={() => setAdding(true)}>

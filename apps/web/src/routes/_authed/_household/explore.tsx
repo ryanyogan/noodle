@@ -25,14 +25,8 @@ function ExploreLayout() {
 	const { years } = useSearch({ strict: false });
 	return (
 		<SectionLayout
+			eyebrow="Planning"
 			title="Explore"
-			leading={
-				<Button variant="ghost" size="icon" asChild className="lg:hidden">
-					<Link to="/goals" aria-label="Back to Goals">
-						<ChevronLeft className="size-5" />
-					</Link>
-				</Button>
-			}
 			tabsLabel="Explore pages"
 			tabs={exploreTabs(years)}
 		/>
