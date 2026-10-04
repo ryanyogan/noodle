@@ -107,7 +107,8 @@ test("Review sorts one card at a time: confirm, pick another, skip and undo, by 
 	await expect(focusedCard(page)).toBeFocused();
 	await expect(stack(page)).toContainText("1 of 3");
 
-	// Confirm by →, Undo by Z.
+	// Confirm by →, Undo by Z. Undo is off only because nothing is left to undo: it doesn't wait
+	// for a save, and the next decision is made while the Undo is still saving (#84).
 	await expect(stack(page).getByRole("button", { name: "Undo" })).toBeDisabled();
 	await page.keyboard.press("ArrowRight");
 	await expect(stack(page)).toContainText("2 of 3");
@@ -131,6 +132,9 @@ test("Review sorts one card at a time: confirm, pick another, skip and undo, by 
 	await expect(stack(page).getByRole("button", { name: "Undo" })).toBeDisabled();
 	await pick(page, `Where ${gas} goes`, "Groceries");
 	await expect(stack(page)).toContainText("2 of 3");
+	await expect(stack(page).getByRole("button", { name: "Undo" })).toBeEnabled();
+	// The decision was sent after the Undo before it; it stands once both are saved.
+	await expect(stack(page)).toHaveAttribute("data-saving", "false");
 	await page.reload();
 	await expect(stack(page)).toContainText("1 of 2");
 });

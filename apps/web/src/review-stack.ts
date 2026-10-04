@@ -25,6 +25,22 @@ export type StackEvent<T extends { id: string }> =
 	/** Cards put back by an Undo (the stack's or a toast's), wherever they are in the history. */
 	| { type: "returned"; items: T[] };
 
+/**
+ * Undo is there whenever something was decided this visit. It doesn't wait for a save: Review's
+ * writes go to the server one at a time, in the order they were made (`reviewWrites`), so an Undo
+ * pressed while its decision is still saving is sent after it, and no flag can leave it stuck off.
+ */
+export const canUndo = <T extends { id: string }>(state: StackState<T>) => state.history.length > 0;
+
+/**
+ * Every write Review makes (a decision, a batch, an Undo's return, a Rule that files cards) shares
+ * this scope, so each is sent only once the one before it has answered (#84). Without it, a card
+ * decided while its Undo was still saving raced it to the server: whichever was written last won,
+ * so a slow return could quietly unfile what the Parent had just filed. The card still leaves or
+ * comes back on screen at once (ADR-0006); only the request waits.
+ */
+export const reviewWrites = { id: "review-writes" } as const;
+
 export const startStack = <T extends { id: string }>(): StackState<T> => ({
 	skipped: [],
 	top: null,

@@ -75,7 +75,13 @@ import {
 	useReviewDecision,
 	useSaveRule,
 } from "../../../review";
-import { stackOrder, stackProgress, stackReducer, startStack } from "../../../review-stack";
+import {
+	canUndo as hasUndo,
+	stackOrder,
+	stackProgress,
+	stackReducer,
+	startStack,
+} from "../../../review-stack";
 import { monthOfTransaction, type TransactionChange } from "../../../transactions";
 
 export const Route = createFileRoute("/_authed/_household/review/")({
@@ -188,13 +194,15 @@ function ReviewPage() {
 	const progress = stackProgress(stack, queue.total);
 	/** The card the keys act on: the stack's top, or the list's outlined card. */
 	const active = sorting ? (order[0] ?? null) : top;
-	// Undo waits for the save it would undo, so the two can't cross.
-	const canUndo =
-		stack.history.length > 0 &&
-		!decide.isPending &&
-		!confirmAll.isPending &&
-		!fileWithout.isPending &&
-		!returnCard.isPending;
+	// Undo doesn't wait for a save: Review's writes are sent one at a time, in order (#84).
+	const canUndo = hasUndo(stack);
+	/** A write is still on its way (each waits for the one before, so the last covers the rest). */
+	const saving =
+		decide.isPending ||
+		confirmAll.isPending ||
+		fileWithout.isPending ||
+		returnCard.isPending ||
+		saveRule.isPending;
 	/** A failed save: its cards are back in Review, and back on top of the stack. */
 	const failed = (items: ReviewItem[]) => ({
 		onError: () => {
@@ -690,7 +698,11 @@ function ReviewPage() {
 			<div className={cn("grid gap-5", !(top && !sorting) && "max-w-xl")}>
 				{top && sorting && order[0] ? (
 					// The narrowest phones are short too: less air, so Skip and Undo stay above the bottom bar.
-					<div data-testid="review-stack" className="grid gap-3 max-[359px]:gap-1.5">
+					<div
+						data-testid="review-stack"
+						data-saving={saving}
+						className="grid gap-3 max-[359px]:gap-1.5"
+					>
 						{/* One row above the card: how far along, what Review is, and the rest of its tools. */}
 						<div className="flex flex-wrap items-center gap-x-2 gap-y-1 max-[359px]:gap-x-1">
 							<h2 className="text-sm font-normal text-muted-foreground tabular-nums">

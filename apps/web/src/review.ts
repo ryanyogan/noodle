@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-query";
 import { monthChangeKey } from "./plan-changes";
 import { monthQuery, reviewQuery, rulesQuery } from "./queries";
+import { reviewWrites } from "./review-stack";
 import {
 	applyRule,
 	deleteRule,
@@ -34,7 +35,8 @@ export type { ReviewItem, RuleRow };
 
 // Review's writes (ADR-0006). Deciding a card is an ordinary Transaction change: it leaves the
 // stack and lands in its month at once, with an Undo that puts it back. A Rule stated from a
-// card can file the rest of the stack's cards for that merchant too.
+// card can file the rest of the stack's cards for that merchant too. These writes are sent one
+// at a time, in the order they were made (`reviewWrites`), so a decision and an Undo never cross.
 
 /** Review's cards in the order the server sends them: oldest first. */
 const byDate = (a: ReviewItem, b: ReviewItem) =>
@@ -89,6 +91,7 @@ export function useReviewDecision({
 	const returnCard = useReturnToReview();
 	const decide = useMutation({
 		mutationKey: monthChangeKey,
+		scope: reviewWrites,
 		mutationFn: (decision: ReviewDecision) => saveTransactionChange(changeOf(decision)),
 		onMutate: async (decision) => {
 			const putBack = await takeCards(queryClient, (item) => item.id === decision.item.id);
@@ -141,6 +144,7 @@ export function useConfirmAll({
 	const returnCard = useReturnToReview();
 	const confirmAll = useMutation({
 		mutationKey: monthChangeKey,
+		scope: reviewWrites,
 		mutationFn: async (decisions: ReviewDecision[]) => {
 			// One at a time: each is an ordinary Transaction change.
 			for (const decision of decisions) await saveTransactionChange(changeOf(decision));
@@ -200,6 +204,7 @@ export function useFileWithoutBucket({
 	const returnCard = useReturnToReview();
 	const file = useMutation({
 		mutationKey: monthChangeKey,
+		scope: reviewWrites,
 		mutationFn: ({ items }: { items: ReviewItem[]; quiet?: boolean }) =>
 			fileWithoutBucket({ data: { transactionIds: items.map((item) => item.id) } }),
 		onMutate: async ({ items }) => {
@@ -277,6 +282,7 @@ export function useReturnToReview() {
 	const queryClient = useQueryClient();
 	const returnCard = useMutation({
 		mutationKey: monthChangeKey,
+		scope: reviewWrites,
 		mutationFn: (item: ReviewItem) =>
 			returnToReview({
 				data: {
@@ -361,6 +367,7 @@ export function useSaveRule() {
 	const queryClient = useQueryClient();
 	const save = useMutation({
 		mutationKey: monthChangeKey,
+		scope: reviewWrites,
 		mutationFn: (rule: RuleInput & { bucketName: string }) =>
 			saveRule({
 				data: {
