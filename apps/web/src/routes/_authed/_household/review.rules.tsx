@@ -5,6 +5,7 @@ import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { List } from "@noodle/ui/components/list";
 import { MetaParts } from "@noodle/ui/components/meta-parts";
+import { SectionHeader } from "@noodle/ui/components/section";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
@@ -59,23 +60,31 @@ function RulesPage() {
 				picked={picked !== undefined}
 				noun="Rule"
 				listLabel="Rules"
-				hint="Pick a Rule to change it here."
+				// Nothing picked: the Rules take the wide column and what a Rule does the rail's width,
+				// rather than a narrow list beside an empty pane (#73).
+				listFills
+				aside={
+					<p className="text-sm text-muted-foreground">
+						A Rule files each new statement line whose merchant contains its words. What it filed
+						stays put when you change or delete it.
+					</p>
+				}
 				list={
 					<div className="grid gap-4">
-						<div className="flex flex-wrap items-start justify-between gap-3">
-							<p className="max-w-prose text-sm text-muted-foreground">
-								A Rule files each new statement line whose merchant contains its words. What it
-								filed stays put when you change or delete it.
-							</p>
-							<Button
-								size="sm"
-								disabled={!hydrated || buckets.length === 0}
-								onClick={() => setAdding(true)}
-							>
-								<Plus />
-								Add Rule
-							</Button>
-						</div>
+						<SectionHeader
+							title="Your Rules"
+							count={rules.length}
+							action={
+								<Button
+									size="sm"
+									disabled={!hydrated || buckets.length === 0}
+									onClick={() => setAdding(true)}
+								>
+									<Plus />
+									Add Rule
+								</Button>
+							}
+						/>
 						<Card className="p-0">
 							{rules.length === 0 ? (
 								<EmptyState
