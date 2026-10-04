@@ -69,9 +69,13 @@ test("a seeded Check-in walks Review, Insights and Extra income to a done state"
 	await page.getByRole("link", { name: /^Household( settings)?$/ }).click();
 	const checkInDay = page.getByRole("combobox", { name: "Check-in day" });
 	await expect(checkInDay).toHaveText("Sunday");
-	const saved = savedBy(page, "setCheckInDay");
-	await choose(page, "Check-in day", weekday);
-	await saved;
+	// On a Sunday (CI's clock is UTC, so a US evening can be Sunday there) it already is, and
+	// choosing it again changes nothing, so there's no save to wait for.
+	if (weekday !== "Sunday") {
+		const saved = savedBy(page, "setCheckInDay");
+		await choose(page, "Check-in day", weekday);
+		await saved;
+	}
 
 	seedCheckIn(parent.userId, day);
 

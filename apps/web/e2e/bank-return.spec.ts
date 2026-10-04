@@ -74,7 +74,9 @@ test("it comes back to the get-started wizard, in a browser that kept nothing", 
 	await page.getByRole("button", { name: "Connect your bank" }).click();
 	await returned;
 
-	await expect(page).toHaveURL(/\/setup$/);
+	// The return page finishes in the browser after it hydrates (here after asking the server for
+	// the Link too), which can take a while on CI: the same budget as the return to Accounts.
+	await expect(page).toHaveURL(/\/setup$/, clientRendered);
 	await chooseSheet(page).getByRole("button", { name: "Start bringing them in" }).click();
 	await expect(
 		page.locator("[data-slot=card]").filter({ hasText: "First Platypus Bank is connected" }),

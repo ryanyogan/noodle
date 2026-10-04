@@ -39,7 +39,9 @@ test("how far ahead Explore and the Scenarios look is in the link, 2 years unles
 	await expect(ahead.getByText("3 years", { exact: true })).toHaveAttribute("data-state", "on");
 	await page.getByRole("link", { name: "Raise", exact: true }).click();
 	await expect(page).toHaveURL(/\/explore\/scenarios\/[^?]+\?.*years=3/);
-	await expect(page.getByText("Against the Plan over 3 years")).toBeVisible();
+	// The Scenario's own line; the Scenarios list's "Each against the Plan over 3 years" can still
+	// be in the document beside it.
+	await expect(page.getByText(/^Against the Plan over 3 years/)).toBeVisible();
 	await expect(page.getByText("Free to Spend, 3 years").first()).toBeVisible();
 	await page.getByRole("link", { name: "Open in Explore" }).click();
 	await expect(page).toHaveURL(/\/explore\?.*years=3/);
