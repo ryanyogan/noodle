@@ -67,9 +67,8 @@ function CheckInPage() {
 			<div
 				className={cn(
 					"grid gap-4",
-					// The steps beside the card, which takes the rest of the page's width up to a width its
-					// rows still read well at: on the widest screens a name and its amount don't drift apart
-					// (#73).
+					// The steps beside the card, which takes the rest of the page's width, as a list does on
+					// any other page: nothing is left empty beside it on the widest screens (#73).
 					view.cards.length > 0 &&
 						"lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start lg:gap-(--layout-gap)",
 				)}
@@ -111,7 +110,7 @@ function CheckInPage() {
 						</StepList>
 					</div>
 				) : null}
-				<div className={cn("grid max-w-3xl gap-3", view.cards.length > 0 && "lg:max-w-4xl")}>
+				<div className={cn("grid max-w-3xl gap-3", view.cards.length > 0 && "lg:max-w-none")}>
 					{step.kind === "card" ? (
 						<p className="text-sm text-muted-foreground tabular-nums">
 							{step.position} of {step.of}
