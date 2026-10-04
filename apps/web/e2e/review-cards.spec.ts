@@ -441,13 +441,15 @@ test("on a desktop the list opens a card beside it", async ({ browser }) => {
 	const list = page.locator("[data-slot=master-detail-list]");
 	const detail = page.locator("[data-slot=master-detail-detail]");
 	await expect(list.getByTestId("review-card")).toHaveCount(3);
-	await expect(detail).toContainText("A card’s pencil opens it here");
+	// Nothing opened: no pane beside the cards, and the intro says what the pencil does.
+	await expect(detail).toBeHidden();
+	await expect(list).toContainText("A card’s pencil opens it beside the list");
 	await list.getByRole("button", { name: /^Edit ACME/i }).click();
 	await expect(detail.locator("[data-slot=detail-title]")).toHaveText("Edit Transaction");
 	// The list stays beside it.
 	await expect(list.getByTestId("review-card")).toHaveCount(3);
 	await detail.getByRole("button", { name: "Close" }).click();
-	await expect(detail).toContainText("A card’s pencil opens it here");
+	await expect(detail).toBeHidden();
 });
 
 /** How far the page itself scrolls, and the elements reaching past the window (for the message). */
@@ -470,7 +472,7 @@ function overflow(page: Page) {
 	});
 }
 
-test("on a desktop Review with cards fills the window and the page doesn't scroll, in both views", async ({
+test("on a desktop Review one by one fills the window without scrolling, and the list's cards fill the page's width until one is opened", async ({
 	browser,
 }) => {
 	test.slow();
@@ -478,31 +480,37 @@ test("on a desktop Review with cards fills the window and the page doesn't scrol
 		viewport: { width: 1440, height: 900 },
 	});
 	await setUp(page);
-	for (const path of ["/review", "/review?view=list"]) {
-		await page.goto(path);
-		await expect(page.getByTestId("review-card").first()).toBeVisible();
-		await page.evaluate(() => document.fonts.ready);
-		// The list view's panes are sized once the page has measured the header above them.
-		if (path.includes("list")) {
-			await expect(page.locator("[data-slot=master-detail]")).toHaveAttribute(
-				"style",
-				/--master-detail-top/,
-			);
-		}
-		const found = await overflow(page);
-		expect
-			.soft(found.extra, `${path}: the page scrolls; past the window: ${found.past.join(", ")}`)
-			.toBeLessThanOrEqual(1);
-	}
-	// Opening a card beside the list doesn't move the page.
+	await page.goto("/review");
+	await expect(page.getByTestId("review-card").first()).toBeVisible();
+	await page.evaluate(() => document.fonts.ready);
+	const found = await overflow(page);
+	expect
+		.soft(found.extra, `/review: the page scrolls; past the window: ${found.past.join(", ")}`)
+		.toBeLessThanOrEqual(1);
+
+	// The list: the page scrolls as one when there are many cards (#73), so nothing is asserted
+	// about its length. Until a card is opened there is no pane beside the list: the cards have the
+	// page's width, side by side, and nothing reaches past the window sideways.
+	await page.goto("/review?view=list");
+	await expect(page.getByTestId("review-card").first()).toBeVisible();
 	const list = page.locator("[data-slot=master-detail-list]");
 	const detail = page.locator("[data-slot=master-detail-detail]");
+	await expect(detail).toBeHidden();
+	const wide = (await list.boundingBox())?.width ?? 0;
+	expect(wide, "the list of cards has the page's width").toBeGreaterThan(900);
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+		),
+		"the list view scrolls sideways",
+	).toBeLessThanOrEqual(1);
+
+	// Opening a card puts it beside the list, which narrows to one column of cards.
 	await list.getByRole("button", { name: /^Edit ACME/i }).click();
 	await expect(detail.locator("[data-slot=detail-title]")).toHaveText("Edit Transaction");
-	const opened = await overflow(page);
-	expect(opened.scrollTop, "opening a card scrolled the page").toBe(0);
+	expect((await list.boundingBox())?.width ?? wide).toBeLessThan(wide / 2);
 	expect(
-		opened.extra,
-		`the page scrolls with a card open; past the window: ${opened.past.join(", ")}`,
-	).toBeLessThanOrEqual(1);
+		(await detail.boundingBox())?.y ?? -1,
+		"the opened card is in the window",
+	).toBeGreaterThanOrEqual(0);
 });

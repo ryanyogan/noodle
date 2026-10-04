@@ -133,14 +133,16 @@ function CommitmentPage() {
 				/>
 			) : null}
 			{changes.failed ? <div className="mb-8">{changes.failed}</div> : null}
+			{/* From a 42rem pane (1440 beside the list): the cost across the top, Next due beside Terms
+			    history, then Charges across the bottom. */}
 			{/* In a wide pane, Charges take the main column; the cost, Next due and Terms history a right rail
 			    (#47). Phones keep the reading order. */}
-			<div className="grid gap-8 @5xl:grid-cols-[minmax(0,1fr)_var(--rail-width)] @5xl:grid-rows-[auto_auto_1fr] @5xl:items-start">
+			<div className="grid gap-8 @2xl:grid-cols-2 @2xl:items-start @2xl:gap-x-6 @5xl:grid-cols-[minmax(0,1fr)_var(--rail-width)] @5xl:grid-rows-[auto_auto_1fr]">
 				{terms ? (
 					<Card
 						role="region"
 						aria-labelledby="commitment-cost"
-						className="@5xl:col-start-2 @5xl:row-start-1"
+						className="@2xl:col-span-full @5xl:col-span-1 @5xl:col-start-2 @5xl:row-start-1"
 					>
 						<div className="grid gap-1 p-(--card-pad)">
 							<h2 id="commitment-cost" className="text-[13px] font-medium text-muted-foreground">
@@ -182,15 +184,15 @@ function CommitmentPage() {
 						)}
 					</Card>
 				) : null}
-				<div className="min-w-0 @5xl:col-start-2 @5xl:row-start-2">
+				<div className="min-w-0 @2xl:col-start-1 @2xl:row-start-2 @5xl:col-start-2 @5xl:row-start-2">
 					<NextDues data={data} id={id} ended={ended} />
 				</div>
-				<div className="min-w-0 @5xl:col-start-1 @5xl:row-span-3 @5xl:row-start-1">
+				<div className="min-w-0 @2xl:col-span-full @2xl:row-start-3 @5xl:col-span-1 @5xl:col-start-1 @5xl:row-span-3 @5xl:row-start-1">
 					<Charges data={data} id={id} />
 				</div>
 				<Section
 					aria-labelledby="terms-history"
-					className="min-w-0 @5xl:col-start-2 @5xl:row-start-3"
+					className="min-w-0 @2xl:col-start-2 @2xl:row-start-2 @5xl:col-start-2 @5xl:row-start-3"
 				>
 					<SectionHeader id="terms-history" title="Terms history" />
 					<PlanHistoryList month={month} targetId={id} />

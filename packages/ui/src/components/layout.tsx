@@ -213,7 +213,7 @@ function Pane({ className, ...props }: React.ComponentProps<"section">) {
 			className={cn(
 				// relative: something absolutely placed inside (an sr-only label) is clipped by the pane
 				// too. Otherwise its containing block is outside the pane, and it lengthens the page.
-				"min-w-0 lg:relative lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain",
+				"min-w-0 lg:relative",
 				"focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
 				className,
 			)}
@@ -223,10 +223,12 @@ function Pane({ className, ...props }: React.ComponentProps<"section">) {
 }
 
 /**
- * A list beside the item picked from it. From lg the two are full-height panes under the page's
- * header and each scrolls on its own, so the list keeps its place while the detail changes; the
- * page itself doesn't scroll. Below lg it shows one level at a time: the list, or (once there is a
- * `detail`) the detail, as ordinary page content.
+ * A list beside the item picked from it. From lg the page scrolls as one (no pane scrolls on its
+ * own, #73): the list is as long as it is, and the picked item sits beside it, its top level with
+ * the list's first row, and stays in view (sticky) as the list scrolls. Only an item taller than
+ * the window scrolls inside its own column. Picking an item from far down the list keeps the page
+ * where it was: the row's link must not reset the window's scroll (`resetScroll={false}`). Below lg it shows one level at a time: the list, or (once there is a `detail`) the
+ * detail, as ordinary page content.
  *
  * `empty` fills the detail pane at lg while nothing is picked ("Pick a Bucket to see it").
  */
@@ -237,6 +239,8 @@ function MasterDetail({
 	emptyStacks,
 	listLabel,
 	detailLabel,
+	narrowList,
+	listOnly,
 	className,
 	style,
 	...props
@@ -250,53 +254,50 @@ function MasterDetail({
 	 * the top of its pane, and below lg it follows the list instead of being left out.
 	 */
 	emptyStacks?: boolean;
+	/**
+	 * The list's rows are a name and an amount (the Plan's Buckets and Commitments): beside an item
+	 * the list takes 22rem below 1920, which leaves the item room for two columns at 1440.
+	 */
+	narrowList?: boolean;
+	/**
+	 * While nothing is picked there is no detail pane from lg: the list has the page's width (Review's
+	 * cards, side by side), and `empty` isn't shown.
+	 */
+	listOnly?: boolean;
 	/** Names the list pane, e.g. "Buckets". */
 	listLabel: string;
 	/** Names the detail pane, e.g. "Bucket". */
 	detailLabel: string;
 }) {
-	const ref = React.useRef<HTMLDivElement>(null);
 	const picked = detail !== null && detail !== undefined && detail !== false;
-	// The panes fill what's left of the window under the header, whose height varies by section.
-	// Held in state and rendered into `style`, so a re-render or a new node keeps it.
-	const [top, setTop] = React.useState<number>();
+	// A row's link doesn't send the window back to the top (the app's row links ask the router not
+	// to), so beside the list (lg) the Parent keeps their place in it. Below lg the item is a page of
+	// its own, so opening one starts it at the top.
+	const wasPicked = React.useRef(picked);
 	React.useEffect(() => {
-		const root = ref.current;
-		if (!root) return;
-		const measure = () => setTop(root.getBoundingClientRect().top + window.scrollY);
-		measure();
-		// The header above can change height once the fonts load, without resizing the parent.
-		document.fonts?.ready.then(measure);
-		const observer = new ResizeObserver(measure);
-		if (root.parentElement) observer.observe(root.parentElement);
-		// The section's header sits outside that parent; a change in it shows in the page's height.
-		observer.observe(document.documentElement);
-		window.addEventListener("resize", measure);
-		return () => {
-			observer.disconnect();
-			window.removeEventListener("resize", measure);
-		};
-	}, []);
+		const opened = picked && !wasPicked.current;
+		wasPicked.current = picked;
+		if (opened && !window.matchMedia("(min-width: 1024px)").matches) window.scrollTo({ top: 0 });
+	}, [picked]);
 	return (
 		<div
-			ref={ref}
 			data-slot="master-detail"
 			data-picked={picked}
 			className={cn(
-				"grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[var(--list-pane-width)_minmax(0,1fr)] lg:gap-(--layout-gap)",
+				"grid grid-cols-[minmax(0,1fr)] lg:gap-(--layout-gap)",
+				listOnly && !picked
+					? null
+					: narrowList
+						? "lg:grid-cols-[22rem_minmax(0,1fr)] min-[120rem]:grid-cols-[var(--list-pane-width)_minmax(0,1fr)]"
+						: "lg:grid-cols-[var(--list-pane-width)_minmax(0,1fr)]",
 				emptyStacks && !picked && "max-lg:gap-(--layout-gap)",
 				// A list that fills while nothing is picked (Goals' cards): the list takes the wide column
 				// and the overview the rail's width (#73L, ADR-0033).
 				"lg:data-[list-fills=true]:grid-cols-[minmax(0,1fr)_var(--rail-width)]",
-				// The shell's bottom padding at lg is 3rem, so the panes end where a page would.
-				"lg:h-[calc(100dvh-var(--master-detail-top,11rem)-3rem)] lg:min-h-80",
+				"lg:items-start",
 				className,
 			)}
-			style={
-				top === undefined
-					? style
-					: ({ "--master-detail-top": `${top}px`, ...style } as React.CSSProperties)
-			}
+			style={style}
 			{...props}
 		>
 			<Pane
@@ -309,14 +310,21 @@ function MasterDetail({
 			<Pane
 				data-slot="master-detail-detail"
 				aria-label={detailLabel}
-				className={cn("@container/detail", !picked && !emptyStacks && "max-lg:hidden")}
+				className={cn(
+					"@container/detail",
+					// Stays beside the list as the page scrolls; scrolls itself only when taller than the
+					// window (3rem: the sticky inset above and below).
+					"lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto lg:overscroll-contain",
+					!picked && !emptyStacks && "max-lg:hidden",
+					!picked && listOnly && "lg:hidden",
+				)}
 			>
 				{picked ? (
 					detail
 				) : (
 					<div
 						data-slot="master-detail-empty"
-						className={cn("grid", emptyStacks ? "content-start" : "h-full place-items-center")}
+						className={cn("grid", emptyStacks ? "content-start" : "place-items-center lg:min-h-40")}
 					>
 						{empty}
 					</div>

@@ -4,6 +4,7 @@ import { MasterDetail, SplitLayout, SplitMain, SplitRail } from "@noodle/ui/comp
 import { cn } from "@noodle/ui/lib/utils";
 import { Outlet, useParams } from "@tanstack/react-router";
 import { type ReactNode, Suspense } from "react";
+import { monthName } from "../format";
 import { DetailPending, masterDetailKeys, selectedRow } from "./master-detail";
 
 /**
@@ -46,24 +47,89 @@ export function PlanSubPage({
 }
 
 /**
+ * The top of a pane beside another: a small line over a figure. It has the type and the space of
+ * an item's `DetailHeader`, so the list's first card and the picked item's first card start on the
+ * same line (#73). On phones it is one quiet line above the list.
+ */
+export function PaneHeader({ eyebrow, title }: { eyebrow: ReactNode; title: ReactNode }) {
+	return (
+		<div data-slot="pane-header" className="min-w-0 max-lg:mb-3 lg:mb-6">
+			<p className="text-[13px] font-medium text-muted-foreground max-lg:hidden">{eyebrow}</p>
+			<p className="tabular-nums max-lg:px-1 max-lg:text-sm max-lg:text-muted-foreground lg:text-2xl lg:font-semibold lg:tracking-[-0.02em]">
+				{title}
+			</p>
+		</div>
+	);
+}
+
+/** A card of totals for the rail: each line a label and its figure, the figures in one column. */
+export function TotalsCard({
+	label,
+	lines,
+	children,
+}: {
+	/** Names the card for a screen reader, e.g. "Buckets this month". */
+	label: string;
+	lines: { label: ReactNode; value: ReactNode; tone?: "over" | "strong" }[];
+	/** Above the lines: a bar, say. */
+	children?: ReactNode;
+}) {
+	return (
+		<Card role="group" aria-label={label} className="grid gap-4 p-(--card-pad)">
+			{children}
+			<dl className="grid gap-2.5 text-sm">
+				{lines.map((line, index) => (
+					<div
+						// biome-ignore lint/suspicious/noArrayIndexKey: the lines are fixed and never reorder.
+						key={index}
+						className={cn(
+							"flex items-baseline justify-between gap-4",
+							line.tone === "strong" && "border-t pt-2.5 font-medium",
+						)}
+					>
+						<dt className={line.tone === "strong" ? undefined : "text-muted-foreground"}>
+							{line.label}
+						</dt>
+						<dd
+							className={cn(
+								"font-medium tabular-nums",
+								line.tone === "over" && "text-over-foreground",
+							)}
+						>
+							{line.value}
+						</dd>
+					</div>
+				))}
+			</dl>
+		</Card>
+	);
+}
+
+/**
  * A part of a month's Plan whose items have pages of their own (Buckets, Commitments): the list
  * on the left and, from lg, the picked item beside it (its route is this one's child). With
- * nothing picked, the right pane holds what the page's rail held (the add form, the explainer), so
- * those stay one step away: Back, or the tab, returns to them. On phones the list is the page,
- * with the rail's parts after it, and an item is a page with Back.
+ * nothing picked the list takes the wide column, each row with its figures in columns, and the
+ * rail holds the part's totals (`overview`), then the add form and the explainer (`aside`). On
+ * phones the list is the page, with the rail's parts after it, and an item is a page with Back.
  */
 export function PlanMasterDetail({
 	editable,
 	summary,
+	overviewHeader,
+	overview,
 	aside,
 	noun,
 	listLabel,
 	children,
 }: {
 	editable: boolean;
-	/** A line above the list, e.g. what this part of the Plan takes. */
+	/** The figure above the list, e.g. what this part of the Plan takes. */
 	summary?: ReactNode;
-	/** The right pane while nothing is picked; on phones it follows the list. */
+	/** The figure above the rail while nothing is picked, e.g. what's been spent. */
+	overviewHeader?: { eyebrow: ReactNode; title: ReactNode };
+	/** The part's totals, first in the rail while nothing is picked. */
+	overview?: ReactNode;
+	/** After the totals while nothing is picked; on phones it follows the list. */
 	aside?: ReactNode;
 	/** What an item is called, e.g. "Bucket". */
 	noun: string;
@@ -71,27 +137,37 @@ export function PlanMasterDetail({
 	listLabel: string;
 	children: ReactNode;
 }) {
-	const picked = useParams({ strict: false, select: (params) => params.id });
+	const { id: picked, month } = useParams({
+		strict: false,
+		select: (params) => ({ id: params.id, month: params.month }),
+	});
 	return (
 		<MasterDetail
 			className="max-w-2xl lg:max-w-none"
+			// Beside an item the list needs only a name and an amount: it gives the item the room for
+			// two columns at 1440.
+			narrowList
+			// Nothing picked: the list takes the wide column and the totals and add form the rail's
+			// width, rather than a narrow list beside an empty pane (#73).
+			data-list-fills={picked ? undefined : "true"}
 			listLabel={listLabel}
-			detailLabel={picked ? `${noun} details` : `${listLabel}: add and about`}
+			detailLabel={picked ? `${noun} details` : `${listLabel}: totals, add and about`}
 			emptyStacks
 			onKeyDown={masterDetailKeys}
 			list={
-				// A container, so a row can tell the narrow list pane beside an item (360 px) from a
-				// list with the page's width, and drop what doesn't fit (a Commitment's yearly figure).
-				<div className={cn("@container grid min-w-0 content-start gap-8", selectedRow)}>
-					{summary || !editable ? (
-						<div className="grid gap-3">
-							{editable ? null : <PlanEnded />}
-							{summary ? (
-								<p className="px-1 text-sm text-muted-foreground tabular-nums">{summary}</p>
-							) : null}
-						</div>
+				// A container, so a row can tell the narrow list pane beside an item from a list with the
+				// page's width, and show its figures in columns only where they fit.
+				<div className={cn("@container min-w-0", selectedRow)}>
+					{summary ? (
+						<PaneHeader
+							eyebrow={month ? `${monthName(month)}’s Plan` : "The Plan"}
+							title={summary}
+						/>
 					) : null}
-					{children}
+					<div className="grid min-w-0 content-start gap-8">
+						{editable ? null : <PlanEnded />}
+						{children}
+					</div>
 				</div>
 			}
 			detail={
@@ -104,11 +180,15 @@ export function PlanMasterDetail({
 				) : undefined
 			}
 			empty={
-				<div className="grid w-full content-start gap-4 lg:max-w-md">
-					{aside}
-					<p className="px-1 text-sm text-muted-foreground max-lg:hidden">
-						Pick a {noun} to see it here.
-					</p>
+				<div className="w-full min-w-0">
+					{overview && overviewHeader ? <PaneHeader {...overviewHeader} /> : null}
+					<div className="grid content-start gap-4">
+						{overview}
+						{aside}
+						<p className="px-1 text-sm text-muted-foreground max-lg:hidden">
+							Pick a {noun} to see it here.
+						</p>
+					</div>
 				</div>
 			}
 		/>

@@ -10,6 +10,7 @@ import {
 	parseDollars,
 	yearlyCost,
 } from "@noodle/domain";
+import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { DatePicker } from "@noodle/ui/components/date-picker";
@@ -39,7 +40,7 @@ import {
 	withNewCommitment,
 	withoutCommitment,
 } from "../commitments";
-import { formatMoney, formatMoneyInput, fullDay, monthName } from "../format";
+import { formatMoney, formatMoneyInput, fullDay, monthName, shortDay } from "../format";
 import { usePlanChange } from "../plan-changes";
 import { addCommitment, endCommitment, updateCommitment } from "../server/commitments";
 import { CommitmentLink } from "./commitment-list";
@@ -103,6 +104,9 @@ export function CommitmentEditor({
 			}
 			trailing={
 				<div className="flex items-center gap-1">
+					<span className="me-2 hidden w-36 justify-end @2xl:flex">
+						<PaidState commitment={commitment} />
+					</span>
 					<span
 						aria-hidden={monthly || undefined}
 						className="me-3 hidden w-32 text-end text-[13px] text-subtle-foreground @lg:block"
@@ -136,6 +140,32 @@ export function CommitmentEditor({
 				</div>
 			}
 		/>
+	);
+}
+
+/** Where a Commitment stands this month, for its column in a wide list. */
+function PaidState({ commitment }: { commitment: CommitmentState }) {
+	const { status, dueDates, charges, difference } = commitment;
+	if (status === "not-due") {
+		return <span className="text-[13px] text-subtle-foreground">Not due this month</span>;
+	}
+	if (status === "paid") return <Badge dot>Paid</Badge>;
+	if (status === "differs") {
+		return (
+			<Badge variant={difference > 0 ? "over" : "default"} dot>
+				{difference > 0 ? `${formatMoney(difference)} more` : `${formatMoney(-difference)} less`}
+			</Badge>
+		);
+	}
+	const next = dueDates[charges];
+	return (
+		<span className="text-[13px] text-muted-foreground">
+			{charges > 0
+				? `${charges} of ${dueDates.length} paid`
+				: next
+					? `Due ${shortDay(next)}`
+					: "Due"}
+		</span>
 	);
 }
 

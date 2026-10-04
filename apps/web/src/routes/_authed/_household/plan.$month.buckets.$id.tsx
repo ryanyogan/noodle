@@ -144,10 +144,11 @@ function BucketPage() {
 					) : undefined
 				}
 			/>
-			{/* In a wide pane: this month and its Transactions on the left; how it's gone over time on the right.
-			    On phones the two columns' parts interleave, in the order they always had. */}
-			<div className="grid max-w-2xl gap-8 lg:max-w-none @3xl:max-w-none @3xl:grid-cols-2 @3xl:items-start @3xl:gap-6">
-				<div className="@max-3xl:contents @3xl:grid @3xl:min-w-0 @3xl:gap-8">
+			{/* This month across the top. Beneath it, in a pane wide enough (from 1440 beside the list):
+			    its Transactions on the left, how it's gone over time on the right, so the figures sit
+			    beside the history. On phones the parts interleave, in the order they always had. */}
+			<div className="grid max-w-2xl gap-8 lg:max-w-none @2xl:grid-cols-2 @2xl:items-start @2xl:gap-x-6">
+				<div className="grid min-w-0 gap-8 @2xl:col-span-full">
 					{changes.failed}
 					{current ? (
 						<ThisMonth bucket={current} />
@@ -158,7 +159,9 @@ function BucketPage() {
 								: `It joins the Plan in ${monthName(record.fromMonth)}.`}
 						</Card>
 					)}
-					<div className="grid min-w-0 gap-8 @max-3xl:order-2">
+				</div>
+				<div className="@max-2xl:contents @2xl:grid @2xl:min-w-0 @2xl:gap-8">
+					<div className="grid min-w-0 gap-8 @max-2xl:order-2">
 						{open ? (
 							<BucketTransactions
 								month={month}
@@ -176,11 +179,11 @@ function BucketPage() {
 						)}
 					</div>
 				</div>
-				<div className="@max-3xl:contents @3xl:grid @3xl:min-w-0 @3xl:gap-8">
-					<div className="grid min-w-0 gap-8 @max-3xl:order-1">
+				<div className="@max-2xl:contents @2xl:grid @2xl:min-w-0 @2xl:gap-8">
+					<div className="grid min-w-0 gap-8 @max-2xl:order-1">
 						<History months={data.months} color={current?.color ?? record.color} />
 					</div>
-					<div className="grid min-w-0 gap-8 @max-3xl:order-3">
+					<div className="grid min-w-0 gap-8 @max-2xl:order-3">
 						<Section aria-labelledby="allowance-history">
 							<SectionHeader id="allowance-history" title="Allowance history" />
 							<PlanHistoryList month={month} targetId={id} />
