@@ -131,7 +131,8 @@ function TransactionPane() {
 				heading={(title) => (
 					<DetailHeader
 						eyebrow={dayName(transaction.date, data.asOf)}
-						title={title}
+						// Under 360 the title sits between Back and the arrows: a step smaller keeps it on one line.
+						title={<span className="max-[359px]:text-base">{title}</span>}
 						leading={back}
 						pager={
 							<DetailPager

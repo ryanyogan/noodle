@@ -323,8 +323,8 @@ function AccountItem({ account }: { account: AccountView }) {
 			trailing={
 				<span
 					className={cn(
-						"text-sm tabular-nums @2xl:text-base",
-						account.balance === null ? "text-subtle-foreground" : "font-semibold",
+						"text-sm tabular-nums max-sm:text-end @2xl:text-base",
+						account.balance === null ? "text-subtle-foreground max-sm:text-xs" : "font-semibold",
 					)}
 				>
 					{account.balance !== null && !account.holdsMoney ? (
@@ -334,6 +334,11 @@ function AccountItem({ account }: { account: AccountView }) {
 							<span className="max-sm:block max-sm:text-xs max-sm:font-normal max-sm:text-muted-foreground">
 								owed
 							</span>
+						</>
+					) : account.balance === null ? (
+						// On a phone "yet" goes under, as "owed" does: the name has the room.
+						<>
+							No balance <span className="max-sm:block">yet</span>
 						</>
 					) : (
 						balanceLabel(account)

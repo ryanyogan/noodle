@@ -189,6 +189,8 @@ function InsightCard({
 			key={commitment.id}
 			variant={insight.status === "new" && live.length === 1 ? "default" : "outline"}
 			size="wrap"
+			// On a phone it takes the row to itself, so its words show whole; the others go under it.
+			className="max-sm:w-full max-sm:justify-center"
 			disabled={!hydrated}
 			onClick={() => setEnding(commitment)}
 		>
