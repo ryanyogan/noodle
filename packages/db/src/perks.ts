@@ -121,7 +121,7 @@ export type PerkSourceItem = {
 export async function loadPerkSources(
 	db: Db,
 	viewer: Viewer,
-	look?: { asOf: DayKey; spends: { date: DayKey; note: string }[] },
+	look?: { asOf: DayKey; spends: { date: DayKey; note: string; accountId?: string | null }[] },
 ): Promise<PerkSourceItem[]> {
 	const rows = await db
 		.select()
@@ -158,6 +158,32 @@ export async function loadPerkSources(
 					)
 					.orderBy(desc(perkUses.usedOn), desc(perkUses.createdAt));
 	const spends = look?.spends ?? [];
+	// A card's perk counts only charges on that card's own Account (#80): "Hotel" on another
+	// card isn't this card's hotel credit used. Other Perk Sources count any of the spending.
+	const cardAccounts = look
+		? await db
+				.select({ id: accounts.id, name: accounts.name })
+				.from(accounts)
+				.where(and(eq(accounts.householdId, viewer.householdId), eq(accounts.kind, "credit-card")))
+		: [];
+	const spendsFor = (row: (typeof rows)[number]) => {
+		if (row.kind !== "credit-card") return spends;
+		const entry = catalogEntryFor(row.name);
+		const own = new Set(
+			cardAccounts
+				.filter((account) => {
+					const name = account.name.trim();
+					return (
+						name === row.seenIn ||
+						name.toLowerCase() === row.name.trim().toLowerCase() ||
+						(entry !== undefined && catalogEntryFor(name) === entry)
+					);
+				})
+				.map((account) => account.id),
+		);
+		return spends.filter((s) => s.accountId != null && own.has(s.accountId));
+	};
+	const spendsBySource = new Map(rows.map((row) => [row.id, spendsFor(row)]));
 	return rows.map((row) => ({
 		id: row.id,
 		name: row.name,
@@ -187,7 +213,9 @@ export async function loadPerkSources(
 				uses: uses
 					.filter((use) => use.perkId === perk.id)
 					.map((use) => ({ id: use.id, on: use.usedOn as DayKey, note: use.note })),
-				spentOn: spends.filter((s) => mentions(s.note, perk.matches)).map((s) => s.date),
+				spentOn: (spendsBySource.get(row.id) ?? [])
+					.filter((s) => mentions(s.note, perk.matches))
+					.map((s) => s.date),
 			})),
 	}));
 }
@@ -522,4 +550,31 @@ export async function setPerkSourceFee(
 		.where(and(readableBy(viewer), eq(perkSources.id, input.id)))
 		.returning({ id: perkSources.id });
 	return changed.length > 0;
+}
+
+/**
+ * A Parent types a perk's value and how often it renews, when its benefits page states none.
+ * Only a perk of a Perk Source they may read. Returns whether it changed.
+ */
+export async function setPerkValue(
+	db: Db,
+	viewer: Viewer,
+	input: {
+		id: string;
+		valueCents: number | null;
+		renews: (typeof perks.$inferInsert)["renews"];
+	},
+): Promise<boolean> {
+	const [row] = await db
+		.select({ id: perks.id })
+		.from(perks)
+		.innerJoin(perkSources, eq(perks.perkSourceId, perkSources.id))
+		.where(and(eq(perks.id, input.id), readableBy(viewer)))
+		.limit(1);
+	if (!row) return false;
+	await db
+		.update(perks)
+		.set({ valueCents: input.valueCents, renews: input.renews ?? null })
+		.where(eq(perks.id, input.id));
+	return true;
 }

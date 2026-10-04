@@ -2,7 +2,9 @@ import {
 	addDays,
 	byDoNow,
 	type DayKey,
+	PERK_RENEWALS,
 	PERK_SOURCE_KINDS,
+	type PerkRenewal,
 	type PerkSourceKind,
 	type PerkStanding,
 	perkDoNow,
@@ -41,6 +43,7 @@ import {
 	useMarkPerkUsed,
 	useRemovePerkUse,
 	useSetAnnualFee,
+	useSetPerkValue,
 	useUpdatePerkSource,
 } from "../../../perks";
 import { perkSourcesQuery } from "../../../queries";
@@ -238,25 +241,59 @@ function YearSummary({
 	);
 }
 
-/** The one step that gets the most out of a perk now. */
-function stepFor({ perk, source, standing }: PerkEntry): string {
-	const resets = standing.period?.resets;
-	if (resets) return `Use it by ${shortDay(addDays(resets, -1))}, then mark it used.`;
-	if (perk.kind === "service") return `Turn on ${perk.name} with ${source.name}.`;
-	return `Pay for ${perk.matches} with ${source.name}; the credit comes back.`;
+/**
+ * What to do with a perk, in plain words from its name and kind: "Book a hotel stay with Amex
+ * Platinum", "Pay for Global Entry with …", "Spend Uber Cash".
+ */
+function actionFor({ perk, source }: PerkEntry): string {
+	const what = `${perk.name} ${perk.matches}`.toLowerCase();
+	const card = source.name;
+	if (/\bcash\b/.test(what)) return `Spend ${perk.name}`;
+	if (perk.kind === "service") return `Turn on ${perk.name} with ${card}`;
+	if (/hotel|resort|\bstay/.test(what)) return `Book a hotel stay with ${card}`;
+	if (/airline|flight|baggage/.test(what)) return `Pay an airline fee with ${card}`;
+	if (/doordash/.test(what)) return `Order on DoorDash with ${card}`;
+	if (/dining|restaurant/.test(what)) return `Eat out with ${card}`;
+	if (/travel/.test(what)) return `Pay for travel with ${card}`;
+	const thing = perk.name.replace(/\s+(statement credit|credit|fee credit)$/i, "");
+	return `Pay for ${thing} with ${card}`;
 }
 
-/** Perks about to reset unused, or never used: the soonest first. */
+/** The one step that gets the most out of a perk now. */
+function stepFor(entry: PerkEntry): string {
+	const resets = entry.standing.period?.resets;
+	const action = actionFor(entry);
+	if (resets) return `${action} by ${shortDay(addDays(resets, -1))}, then mark it used.`;
+	return entry.perk.kind === "cost" ? `${action}; the credit comes back.` : `${action}.`;
+}
+
+/** Do now shows the few most urgent; every perk is in its card below, once. */
+const DO_NOW_SHOWN = 3;
+
+/** The most urgent perks (about to reset unused, or never used), and how many more there are. */
 function DoNow({ entries }: { entries: PerkEntry[] }) {
+	const shown = entries.slice(0, DO_NOW_SHOWN);
+	const more = entries.length - shown.length;
 	return (
 		<Section aria-labelledby="perks-do-now">
 			<SectionHeader id="perks-do-now" title="Do now" count={entries.length} />
 			<Card className="p-0">
 				<ul aria-label="Do now" className="[&>li+li]:border-t">
-					{entries.map((entry) => (
+					{shown.map((entry) => (
 						<PerkRow key={entry.perk.id} entry={entry} doNow />
 					))}
 				</ul>
+				{more > 0 ? (
+					<p className="border-t px-(--card-pad) py-3 text-sm">
+						<a
+							href="#perk-sources"
+							className="font-medium text-primary underline-offset-4 hover:underline max-lg:inline-flex max-lg:min-h-11 max-lg:items-center"
+						>
+							{more} more to use
+						</a>
+						<span className="text-muted-foreground"> in the cards below</span>
+					</p>
+				) : null}
 			</Card>
 		</Section>
 	);
@@ -360,6 +397,9 @@ function PerkRow({ entry, doNow = false }: { entry: PerkEntry; doNow?: boolean }
 				</form>
 			) : (
 				<div className="flex flex-wrap gap-2">
+					{!doNow && (perk.valueCents === null || perk.renews === null) ? (
+						<PerkValue perk={perk} />
+					) : null}
 					{used?.how === "by-hand" && used.id ? (
 						<Button
 							variant="ghost"
@@ -385,6 +425,81 @@ function PerkRow({ entry, doNow = false }: { entry: PerkEntry; doNow?: boolean }
 				</div>
 			)}
 		</li>
+	);
+}
+
+/**
+ * A perk's value and how often it renews, typed by a Parent when its page states none (DashPass).
+ * The button opens a small form in the row.
+ */
+function PerkValue({ perk }: { perk: PerkItem }) {
+	const set = useSetPerkValue();
+	const hydrated = useHydrated();
+	const id = useId();
+	const [open, setOpen] = useState(false);
+	const [renews, setRenews] = useState<PerkRenewal>(perk.renews ?? "monthly");
+	if (!open) {
+		return (
+			<Button
+				variant="ghost"
+				size="sm"
+				aria-label={`Add the value of ${perk.name}`}
+				disabled={!hydrated}
+				onClick={() => setOpen(true)}
+			>
+				Add its value
+			</Button>
+		);
+	}
+	const save = (event: FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		const text = String(new FormData(event.currentTarget).get("value") ?? "").replace(
+			/[$,\s]/g,
+			"",
+		);
+		const dollars = text === "" ? null : Number(text);
+		if (dollars !== null && (!Number.isFinite(dollars) || dollars < 0)) return;
+		set.mutate({
+			id: perk.id,
+			name: perk.name,
+			valueCents: dollars === null ? null : Math.round(dollars * 100),
+			renews,
+		});
+		setOpen(false);
+	};
+	return (
+		<form onSubmit={save} className="grid w-full gap-2 rounded-xl bg-surface-2 p-3">
+			<div className="grid gap-2 sm:grid-cols-2">
+				<Field label="Value" htmlFor={`${id}-value`}>
+					<Input
+						id={`${id}-value`}
+						name="value"
+						inputMode="decimal"
+						maxLength={10}
+						placeholder="$0"
+						defaultValue={perk.valueCents !== null ? String(perk.valueCents / 100) : ""}
+						className="bg-card"
+					/>
+				</Field>
+				<Field label="How often it renews" htmlFor={`${id}-renews`}>
+					<OptionSelect
+						id={`${id}-renews`}
+						value={renews}
+						onValueChange={(value) => setRenews(value as PerkRenewal)}
+						choices={PERK_RENEWALS.map((r) => ({ value: r, label: perkRenewalLabel[r] }))}
+					/>
+				</Field>
+			</div>
+			<div className="flex flex-wrap gap-2">
+				<Button type="submit" size="sm" disabled={!hydrated || set.isPending}>
+					<Check />
+					Save
+				</Button>
+				<Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+					Cancel
+				</Button>
+			</div>
+		</form>
 	);
 }
 

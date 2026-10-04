@@ -1,5 +1,5 @@
 import type { PerkSourceItem } from "@noodle/db";
-import { catalogEntryFor, type PerkSourceKind } from "@noodle/domain";
+import { catalogEntryFor, type PerkRenewal, type PerkSourceKind } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ulid } from "ulid";
@@ -10,6 +10,7 @@ import {
 	markPerkUsed,
 	removePerkUse,
 	setPerkSourceFee,
+	setPerkValue,
 	updatePerkSource,
 } from "./server/perks";
 
@@ -144,7 +145,8 @@ export function useMarkPerkUsed() {
 		mutationFn: (use: { id: string; perkId: string; name: string; note: string | null }) =>
 			markPerkUsed({ data: { id: use.id, perkId: use.perkId, note: use.note } }),
 		onError: (_error, use) => toast(`Couldn’t mark ${use.name} used.`, { tone: "error" }),
-		onSuccess: (_data, use) => toast(`${use.name} marked used`),
+		onSuccess: (_data, use) =>
+			toast(`${use.name} marked used`, { tone: "success", id: `perk-used-${use.perkId}` }),
 		onSettled: refetch,
 	});
 }
@@ -156,6 +158,24 @@ export function useSetAnnualFee() {
 		mutationFn: (fee: { id: string; annualFeeCents: number | null }) =>
 			setPerkSourceFee({ data: fee }),
 		onError: () => toast("Couldn’t save the annual fee. Try again.", { tone: "error" }),
+		onSettled: refetch,
+	});
+}
+
+/** A Parent types a perk's value and how often it renews, when its page states none. */
+export function useSetPerkValue() {
+	const refetch = useRefetchPerks();
+	return useMutation({
+		mutationFn: (perk: {
+			id: string;
+			name: string;
+			valueCents: number | null;
+			renews: PerkRenewal | null;
+		}) =>
+			setPerkValue({
+				data: { id: perk.id, valueCents: perk.valueCents, renews: perk.renews },
+			}),
+		onError: (_error, perk) => toast(`Couldn’t save the value of ${perk.name}.`, { tone: "error" }),
 		onSettled: refetch,
 	});
 }

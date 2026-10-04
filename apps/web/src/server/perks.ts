@@ -7,9 +7,10 @@ import {
 	type PerkSourceItem,
 	removePerkUse as removePerkUseInDb,
 	setPerkSourceFee as setPerkSourceFeeInDb,
+	setPerkValue as setPerkValueInDb,
 	updatePerkSource as updatePerkSourceInDb,
 } from "@noodle/db";
-import { addDays, dayKeyAt, PERK_SOURCE_KINDS } from "@noodle/domain";
+import { addDays, dayKeyAt, PERK_RENEWALS, PERK_SOURCE_KINDS } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getDb } from "./db";
@@ -84,6 +85,22 @@ export const setPerkSourceFee = createServerFn({ method: "POST" })
 	)
 	.handler(async ({ data, context }) => {
 		if (await setPerkSourceFeeInDb(getDb(), viewerOf(context), data)) {
+			await notifyHousehold(context.household.id, ["perks"]);
+		}
+	});
+
+/** A Parent types a perk's value and how often it renews, when its page states none. */
+export const setPerkValue = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			id: z.string().min(1).max(64),
+			valueCents: z.number().int().min(0).max(10_000_000).nullable(),
+			renews: z.enum(PERK_RENEWALS).nullable(),
+		}),
+	)
+	.handler(async ({ data, context }) => {
+		if (await setPerkValueInDb(getDb(), viewerOf(context), data)) {
 			await notifyHousehold(context.household.id, ["perks"]);
 		}
 	});

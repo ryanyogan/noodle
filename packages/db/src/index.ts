@@ -643,6 +643,7 @@ export {
 	removePerkUse,
 	saveResearch,
 	setPerkSourceFee,
+	setPerkValue,
 	updatePerkSource,
 } from "./perks";
 export {

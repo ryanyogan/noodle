@@ -31,6 +31,8 @@ export const isOnce = (kind: InsightKind) => kind === "duplicate-charge" || kind
 
 /** A Transaction an Insight may rest on, as the Viewer sees it. `amount` is money spent. */
 export type InsightSpend = {
+	/** The Account it was charged to, when known (a card's perks count only its own). */
+	accountId?: string | null;
 	id: string;
 	date: DayKey;
 	amount: Cents;
