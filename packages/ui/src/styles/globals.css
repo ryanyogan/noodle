@@ -1,5 +1,7 @@
 /*
  * Noodle design tokens: the single source of colour, type, spacing, radii, and motion.
+ * Palette: Warm paper (#75): an off-white paper page, a cream card and warm ink in light; warm
+ * brown-blacks that step up, with cream text, in dark. The blue accent stays.
  * Approved in #2 (round 2 prototype). Every component reads these through Tailwind utilities
  * (bg-card, text-muted-foreground, bg-pace, …) or the raw custom properties.
  */
@@ -39,43 +41,43 @@
 	color-scheme: light;
 
 	/* Surfaces */
-	--background: #f4f5f7;
-	--card: #ffffff;
-	--surface-2: #f2f4f7;
-	--surface-3: #e9ecf1;
-	--border: #e5e8ed;
-	--border-strong: #d6dae1;
+	--background: #f3efe7;
+	--card: #fbf9f4;
+	--surface-2: #f0ebe2;
+	--surface-3: #e7e0d3;
+	--border: #e5dfd3;
+	--border-strong: #d4cbba;
 
 	/* Text */
-	--foreground: #0e1525;
-	--muted-foreground: #545e70;
+	--foreground: #211d17;
+	--muted-foreground: #5d5548;
 	/* Hints and secondary figures: at least 4.5:1 (WCAG 1.4.3) on card, background, surface-2 and surface-3. */
-	--subtle-foreground: #616a7c;
+	--subtle-foreground: #6b6254;
 
 	/* The one accent, plus the two reserved state colours */
-	--brand: #3e63dd;
-	--brand-soft: rgb(62 99 221 / 0.1);
-	--pace: #e0940a;
-	--pace-soft: rgb(224 148 10 / 0.12);
-	--pace-foreground: #8a5b06;
-	--over: #cc3d3d;
-	--over-soft: rgb(204 61 61 / 0.1);
+	--brand: #3b5ccc;
+	--brand-soft: rgb(59 92 204 / 0.1);
+	--pace: #cf8a0c;
+	--pace-soft: rgb(207 138 12 / 0.12);
+	--pace-foreground: #85560a;
+	--over: #c23b32;
+	--over-soft: rgb(194 59 50 / 0.1);
 	/* Over as text on --over-soft (badges): at least 4.5:1. */
-	--over-foreground: #b42f2f;
+	--over-foreground: #a8322a;
 
 	/* Faint glows behind the page */
-	--glow-1: rgb(62 99 221 / 0.07);
-	--glow-2: rgb(242 162 12 / 0.05);
+	--glow-1: rgb(59 92 204 / 0.06);
+	--glow-2: rgb(207 138 12 / 0.05);
 
-	--scrim: rgb(14 21 37 / 0.36);
-	--elevation-card: 0 1px 2px rgb(14 21 37 / 0.04), 0 1px 1px rgb(14 21 37 / 0.02);
-	--elevation-pop: 0 12px 32px -8px rgb(14 21 37 / 0.22), 0 2px 6px rgb(14 21 37 / 0.06);
+	--scrim: rgb(33 29 23 / 0.36);
+	--elevation-card: 0 1px 2px rgb(33 29 23 / 0.05), 0 1px 1px rgb(33 29 23 / 0.03);
+	--elevation-pop: 0 12px 32px -8px rgb(33 29 23 / 0.22), 0 2px 6px rgb(33 29 23 / 0.06);
 	--card-highlight: inset 0 0 0 0 transparent;
 
 	/* Bucket identity, assigned in this order (colour-blind validated in #2); tiles and meters only. */
 	--bucket-1: #2a78d6;
 	--bucket-2: #a347ba;
-	--bucket-3: #0e8fa8;
+	--bucket-3: #058ca5;
 	--bucket-4: #008300;
 	--bucket-5: #4a3aa7;
 	--bucket-6: #138a5f;
@@ -87,11 +89,11 @@
 	 * comparison period. Sequential shading steps the brand into the card; diverging runs from
 	 * the brand (under Plan) through a grey midpoint to --over. Buckets keep their own colours.
 	 */
-	--chart-spend: #3a4659;
+	--chart-spend: #4a4237;
 	--chart-income: var(--brand);
-	--chart-compare: #c9d0da;
+	--chart-compare: #d8cfbf;
 	/* Allowance bars beside spending: at least 3:1 against the card and the spent bar. */
-	--chart-allowance: #8a94a6;
+	--chart-allowance: #988e7e;
 	--chart-net: var(--foreground);
 	--chart-grid: var(--border);
 	--chart-mid: var(--surface-3);
@@ -152,29 +154,29 @@
 @media (prefers-color-scheme: dark) {
 	:root {
 		color-scheme: dark;
-		--background: #090c12;
-		--card: #10141c;
-		--surface-2: #161b25;
-		--surface-3: #1d2330;
-		--border: #1c2230;
-		--border-strong: #283041;
-		--foreground: #eceff4;
-		--muted-foreground: #a0a8b7;
-		--subtle-foreground: #838b9c;
-		--brand: #7c9bff;
-		--brand-soft: rgb(124 155 255 / 0.14);
-		--pace: #f5b23a;
-		--pace-soft: rgb(245 178 58 / 0.14);
-		--pace-foreground: #f5c46a;
-		--over: #f07171;
-		--over-soft: rgb(240 113 113 / 0.14);
-		--over-foreground: #f07171;
-		--glow-1: rgb(124 155 255 / 0.1);
-		--glow-2: rgb(245 178 58 / 0.05);
-		--scrim: rgb(0 0 0 / 0.6);
+		--background: #15120e;
+		--card: #1d1a15;
+		--surface-2: #24201a;
+		--surface-3: #2d2821;
+		--border: #2b261f;
+		--border-strong: #3c352b;
+		--foreground: #f2ece2;
+		--muted-foreground: #b9ae9d;
+		--subtle-foreground: #9a8f7f;
+		--brand: #8fa5f7;
+		--brand-soft: rgb(143 165 247 / 0.14);
+		--pace: #f0b04a;
+		--pace-soft: rgb(240 176 74 / 0.14);
+		--pace-foreground: #f3c477;
+		--over: #ee7b6e;
+		--over-soft: rgb(238 123 110 / 0.14);
+		--over-foreground: #f2897d;
+		--glow-1: rgb(143 165 247 / 0.08);
+		--glow-2: rgb(240 176 74 / 0.05);
+		--scrim: rgb(8 6 3 / 0.6);
 		--elevation-card: 0 1px 2px rgb(0 0 0 / 0.4);
-		--elevation-pop: 0 16px 40px -8px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.04);
-		--card-highlight: inset 0 1px 0 rgb(255 255 255 / 0.03);
+		--elevation-pop: 0 16px 40px -8px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 240 220 / 0.05);
+		--card-highlight: inset 0 1px 0 rgb(255 240 220 / 0.04);
 		--bucket-1: #3987e5;
 		--bucket-2: #c27ad6;
 		--bucket-3: #2aa3bd;
@@ -183,9 +185,9 @@
 		--bucket-6: #199e70;
 		--bucket-7: #c47a36;
 		--bucket-8: #d55181;
-		--chart-spend: #b9c2d0;
-		--chart-compare: #323b4d;
-		--chart-allowance: #5c6679;
+		--chart-spend: #cdc1af;
+		--chart-compare: #3a342b;
+		--chart-allowance: #6f6656;
 	}
 }
 
