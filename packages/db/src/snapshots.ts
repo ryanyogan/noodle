@@ -1,6 +1,11 @@
-import { and, desc, eq, getTableColumns, gte, inArray } from "drizzle-orm";
+import { and, count, desc, eq, getTableColumns, gte, inArray, sql } from "drizzle-orm";
 import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
-import { HOUSEHOLD_TABLES, type HouseholdTableName, householdColumn } from "./fresh-start";
+import {
+	clearHouseholdRows,
+	HOUSEHOLD_TABLES,
+	type HouseholdTableName,
+	householdColumn,
+} from "./fresh-start";
 import type { Db } from "./index";
 import * as s from "./schema";
 
@@ -151,4 +156,145 @@ export function snapshotsToPrune(
 		if (i >= SNAPSHOT_RETENTION.byHandMax || snap.createdAt.getTime() < cutoff) prune.push(snap.id);
 	}
 	return prune;
+}
+
+// Restoring a snapshot (#78, ADR-0035). Only rows with this Household's id are ever touched: the
+// clear and every delete are scoped to it, and a snapshot row for another Household is refused.
+
+/** Why a snapshot file can't be restored here, in words a Parent can read; null when it can. */
+export function snapshotRefusal(
+	file: Pick<SnapshotFile, "format" | "householdId" | "migration">,
+	householdId: string,
+	currentMigration: string | null,
+): string | null {
+	if (file.householdId !== householdId) return "This snapshot belongs to another Household.";
+	if (file.format !== SNAPSHOT_FORMAT)
+		return "This snapshot was saved in a shape this version of Noodle can’t read, so it can’t be restored.";
+	// No mapper from an older schema exists yet: until one does, an older snapshot is refused.
+	if (file.migration !== currentMigration)
+		return "This snapshot was taken before Noodle’s last update changed how data is stored, so it can’t be restored. Restore a newer one.";
+	return null;
+}
+
+/** Tables put back by inserting rows; the Household and its members are updated in place instead. */
+export const RESTORED_BY_INSERT = SNAPSHOT_TABLES.filter(
+	(name) => name !== "households" && name !== "members",
+);
+
+/** D1 binds at most 100 values in one statement. */
+const MAX_BOUND = 100;
+
+function storedColumns(name: HouseholdTableName): string[] {
+	return Object.values(getTableColumns(HOUSEHOLD_TABLES[name]) as Record<string, SQLiteColumn>).map(
+		(column) => column.name,
+	);
+}
+
+function ownedBy(name: HouseholdTableName, row: SnapshotRow, householdId: string): boolean {
+	return row[name === "households" ? "id" : "household_id"] === householdId;
+}
+
+function refuseOthers(name: HouseholdTableName, rows: SnapshotRow[], householdId: string) {
+	if (rows.some((row) => !ownedBy(name, row, householdId)))
+		throw new Error(`Snapshot rows in ${name} belong to another Household`);
+}
+
+function insertStatement(
+	name: HouseholdTableName,
+	columns: string[],
+	rows: SnapshotRow[],
+	upsert: boolean,
+) {
+	const cols = sql.join(
+		columns.map((c) => sql.identifier(c)),
+		sql`, `,
+	);
+	const values = sql.join(
+		rows.map(
+			(row) =>
+				sql`(${sql.join(
+					columns.map((c) => sql`${row[c] ?? null}`),
+					sql`, `,
+				)})`,
+		),
+		sql`, `,
+	);
+	const update = upsert
+		? sql` ON CONFLICT (${sql.identifier("id")}) DO UPDATE SET ${sql.join(
+				columns
+					.filter((c) => c !== "id")
+					.map((c) => sql`${sql.identifier(c)} = excluded.${sql.identifier(c)}`),
+				sql`, `,
+			)}`
+		: sql``;
+	return sql`INSERT INTO ${HOUSEHOLD_TABLES[name]} (${cols}) VALUES ${values}${update}`;
+}
+
+async function insertRows(
+	db: Db,
+	name: HouseholdTableName,
+	rows: SnapshotRow[],
+	householdId: string,
+	upsert = false,
+) {
+	refuseOthers(name, rows, householdId);
+	const columns = storedColumns(name);
+	const per = Math.max(1, Math.floor(MAX_BOUND / columns.length));
+	for (let i = 0; i < rows.length; i += per)
+		await db.run(insertStatement(name, columns, rows.slice(i, i + per), upsert));
+}
+
+/** How many rows the Household has in a table now. */
+export async function countTableRows(db: Db, name: HouseholdTableName, householdId: string) {
+	const [row] = await db
+		.select({ n: count() })
+		.from(HOUSEHOLD_TABLES[name])
+		.where(eq(householdColumn(name), householdId));
+	return row?.n ?? 0;
+}
+
+/** Step 1: clear the Household's data the way Fresh start does (the Household and members stay). */
+export async function clearForRestore(db: Db, householdId: string) {
+	await clearHouseholdRows(db, householdId, "fresh-start");
+}
+
+/** Step 2: the snapshot's members, added or updated by id. Nobody in the Household now is removed. */
+export async function restoreMembers(db: Db, householdId: string, rows: SnapshotRow[]) {
+	await insertRows(db, "members", rows, householdId, true);
+}
+
+/**
+ * Step 3, one table at a time (parents before children): the Household's rows in it are deleted,
+ * then the snapshot's inserted in batches, so a retried step starts over cleanly. Throws when the
+ * count afterwards doesn't match the snapshot's.
+ */
+export async function restoreTable(
+	db: Db,
+	householdId: string,
+	name: HouseholdTableName,
+	rows: SnapshotRow[],
+): Promise<number> {
+	refuseOthers(name, rows, householdId);
+	await db.delete(HOUSEHOLD_TABLES[name]).where(eq(householdColumn(name), householdId));
+	await insertRows(db, name, rows, householdId);
+	const n = await countTableRows(db, name, householdId);
+	if (n !== rows.length)
+		throw new Error(`Restored ${n} of ${rows.length} rows in ${name}; expected them all`);
+	return n;
+}
+
+/** Step 4: the Household's own row (its settings and emergency Goal), last, once its Goals exist. */
+export async function restoreHouseholdRow(db: Db, householdId: string, rows: SnapshotRow[]) {
+	const [row] = rows;
+	if (!row || rows.length !== 1) throw new Error("A snapshot holds exactly one Household row");
+	await insertRows(db, "households", [row], householdId, true);
+}
+
+/** Every step at once: for tests and small Households. The Workflow runs them one by one. */
+export async function restoreHouseholdRows(db: Db, householdId: string, file: SnapshotFile) {
+	await clearForRestore(db, householdId);
+	await restoreMembers(db, householdId, file.tables.members ?? []);
+	for (const name of RESTORED_BY_INSERT)
+		await restoreTable(db, householdId, name, file.tables[name] ?? []);
+	await restoreHouseholdRow(db, householdId, file.tables.households ?? []);
 }
