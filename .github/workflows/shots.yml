@@ -2,14 +2,15 @@ name: Page shots
 
 # Pictures of every page with one realistic Household (apps/web/e2e/page-shots.spec.ts), for looking
 # at a redesign from a machine that can't run a browser. Push a branch named shots-<anything>, or
-# run it from the Actions tab, then download the "page-shots" artifact:
+# run it from the Actions tab. Each width is a job of its own with its own Household (about ten
+# minutes side by side, where one job took over 45), and uploads a "page-shots-<width>" artifact:
 #
 #   git push origin HEAD:shots-<id>
 #   gh run list --workflow=shots.yml --branch=shots-<id> --limit 1
-#   gh run watch <run id> --exit-status
-#   gh run download <run id> --name page-shots --dir <somewhere>
+#   gh run watch <run id> -i 60 --exit-status
+#   gh run download <run id> --name page-shots-1440 --dir <somewhere>
 #
-# The PNGs land at <somewhere>/<width>/<nn-name>.png.
+# The PNGs land at <somewhere>/<width>/<nn-name>.png, beside seed-notes.txt.
 
 on:
   push:
@@ -31,9 +32,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  shots:
+  # The widths asked for (all five when none are), as the matrix below.
+  widths:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 2
+    outputs:
+      list: ${{ steps.list.outputs.list }}
+    steps:
+      - id: list
+        env:
+          WIDTHS: ${{ inputs.widths }}
+        run: |
+          echo "list=$(printf '%s' "${WIDTHS:-1024,1440,1920,393,320}" | tr -d ' ' | jq -Rc 'split(",") | map(select(length > 0))')" >> "$GITHUB_OUTPUT"
+
+  shots:
+    needs: widths
+    name: shots (${{ matrix.width }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        width: ${{ fromJSON(needs.widths.outputs.list) }}
     # Playwright's image already has Chromium and its system libraries. Keep its tag equal to
     # @playwright/test in apps/web/package.json.
     container:
@@ -42,7 +62,7 @@ jobs:
     env:
       CI: "true"
       PAGE_SHOTS: "1"
-      PAGE_SHOTS_WIDTHS: ${{ inputs.widths }}
+      PAGE_SHOTS_WIDTHS: ${{ matrix.width }}
       PAGE_SHOTS_THEME: ${{ inputs.theme || 'light' }}
     steps:
       - uses: actions/checkout@v5
@@ -60,6 +80,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: page-shots
+          name: page-shots-${{ matrix.width }}
           path: apps/web/test-results/page-shots
           if-no-files-found: warn
