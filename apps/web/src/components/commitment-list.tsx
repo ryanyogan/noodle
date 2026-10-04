@@ -74,27 +74,30 @@ export function CommitmentsList({
 	return (
 		<>
 			{commitments.length > 0 ? (
-				<List>
-					{commitments.map((commitment) => (
-						<CommitmentRow
-							month={month}
-							key={commitment.id}
-							commitment={commitment}
-							onPay={
-								canPay && commitment.charges < commitment.dueDates.length
-									? (amountCents) =>
-											payment.mutate({
-												transactionId: ulid(),
-												commitmentId: commitment.id,
-												commitmentName: commitment.name,
-												amountCents,
-												date: asOf,
-											} satisfies PaymentVariables)
-									: undefined
-							}
-						/>
-					))}
-				</List>
+				// Two columns of rows where the section is wide enough (#73): read across, in due order.
+				<div className="@container">
+					<List className="@2xl:grid @2xl:grid-cols-2 @2xl:[&>li:nth-child(2)]:border-t-0 @2xl:[&>li:nth-child(odd)]:border-e">
+						{commitments.map((commitment) => (
+							<CommitmentRow
+								month={month}
+								key={commitment.id}
+								commitment={commitment}
+								onPay={
+									canPay && commitment.charges < commitment.dueDates.length
+										? (amountCents) =>
+												payment.mutate({
+													transactionId: ulid(),
+													commitmentId: commitment.id,
+													commitmentName: commitment.name,
+													amountCents,
+													date: asOf,
+												} satisfies PaymentVariables)
+										: undefined
+								}
+							/>
+						))}
+					</List>
+				</div>
 			) : null}
 			{notDue.length > 0 ? <NotThisMonth month={month} commitments={notDue} /> : null}
 		</>
@@ -166,6 +169,9 @@ function CommitmentRow({
 	onPay?: (amountCents: number) => void;
 }) {
 	const differs = differsBy(commitment);
+	const hydrated = useHydrated();
+	// The amount form opens under the row; until then "Record payment" sits on the bill's own line.
+	const [paying, setPaying] = useState(false);
 	return (
 		<ListRow
 			aria-label={`${commitment.name}: ${formatMoney(commitment.actual)} paid of ${formatMoney(
@@ -181,6 +187,18 @@ function CommitmentRow({
 							{differs}
 						</Badge>
 					) : null}
+					{onPay && !paying ? (
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="-my-1 px-2 text-[13px]"
+							disabled={!hydrated}
+							onClick={() => setPaying(true)}
+						>
+							Record payment
+						</Button>
+					) : null}
 				</>
 			}
 			trailing={
@@ -193,7 +211,11 @@ function CommitmentRow({
 					</span>
 				</>
 			}
-			below={onPay ? <RecordPayment commitment={commitment} onPay={onPay} /> : undefined}
+			below={
+				onPay && paying ? (
+					<RecordPayment commitment={commitment} onPay={onPay} onClose={() => setPaying(false)} />
+				) : undefined
+			}
 		/>
 	);
 }
@@ -202,13 +224,13 @@ function CommitmentRow({
 function RecordPayment({
 	commitment,
 	onPay,
+	onClose,
 }: {
 	commitment: CommitmentState;
 	onPay: (amountCents: number) => void;
+	onClose: () => void;
 }) {
-	const hydrated = useHydrated();
 	const id = useId();
-	const [open, setOpen] = useState(false);
 	const [invalid, setInvalid] = useState(false);
 
 	function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -217,23 +239,9 @@ function RecordPayment({
 		setInvalid(!amountCents);
 		if (!amountCents) return;
 		onPay(amountCents);
-		setOpen(false);
+		onClose();
 	}
 
-	if (!open) {
-		return (
-			<Button
-				type="button"
-				variant="ghost"
-				size="sm"
-				className="-ms-2.5"
-				disabled={!hydrated}
-				onClick={() => setOpen(true)}
-			>
-				Record payment
-			</Button>
-		);
-	}
 	return (
 		<form onSubmit={onSubmit} className="flex flex-wrap items-center gap-2">
 			<label htmlFor={id} className="sr-only">
@@ -261,7 +269,7 @@ function RecordPayment({
 			<Button type="submit" size="sm">
 				Record
 			</Button>
-			<Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+			<Button type="button" variant="ghost" size="sm" onClick={onClose}>
 				Cancel
 			</Button>
 		</form>
