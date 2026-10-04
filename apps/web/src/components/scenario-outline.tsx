@@ -499,6 +499,7 @@ function Line({
 	leading,
 	badge,
 	meta,
+	restatesValue = false,
 	value,
 	changed,
 	wide,
@@ -508,12 +509,15 @@ function Line({
 	leading?: ReactNode;
 	badge?: ReactNode;
 	meta: ReactNode;
+	/** The meta says the Plan's value: unchanged, it repeats `value`, so a phone's row leaves it out. */
+	restatesValue?: boolean;
 	value: string;
 	changed: boolean;
 	wide: boolean;
 	editor: ReactNode;
 }) {
 	const [open, setOpen] = useState(false);
+	const rowMeta = restatesValue && !changed ? <span className="max-sm:hidden">{meta}</span> : meta;
 	const shown = (
 		<span
 			className={cn(
@@ -532,7 +536,9 @@ function Line({
 		if (changed) setExpanded(true);
 	}, [changed]);
 	if (!editor) {
-		return <ListRow leading={leading} title={title} badge={badge} meta={meta} trailing={shown} />;
+		return (
+			<ListRow leading={leading} title={title} badge={badge} meta={rowMeta} trailing={shown} />
+		);
 	}
 	if (wide) {
 		return (
@@ -540,7 +546,7 @@ function Line({
 				leading={leading}
 				title={title}
 				badge={badge}
-				meta={meta}
+				meta={rowMeta}
 				trailing={
 					<RowButton
 						variant="value"
@@ -568,7 +574,7 @@ function Line({
 			leading={leading}
 			title={title}
 			badge={badge}
-			meta={meta}
+			meta={rowMeta}
 			trailing={
 				<>
 					<RowButton
@@ -683,6 +689,7 @@ function CommitmentLine({
 			title={name}
 			badge={<Mark lever={ended ?? terms ?? undefined} />}
 			meta={`Plan ${formatMoney(commitment.amount)} ${cadenceWords[commitment.cadence]}`}
+			restatesValue
 			value={
 				ended && ended.fromMonth <= edit.month && !ended.untilMonth
 					? "Ended"
@@ -806,7 +813,12 @@ function BucketLine({
 			<Line
 				title={name}
 				leading={leading}
-				meta="Personal Allowance · only its Parent changes it"
+				// The name already says Personal Allowance: a phone's row keeps only the rest (#74).
+				meta={
+					<span>
+						<span className="max-sm:hidden">Personal Allowance · </span>only its Parent changes it
+					</span>
+				}
 				value={`${formatMoney(bucket.allowance)} a month`}
 				changed={false}
 				wide={edit.wide}
@@ -820,6 +832,7 @@ function BucketLine({
 			leading={leading}
 			badge={<Mark lever={archived ?? allowance ?? undefined} />}
 			meta={`Plan ${formatMoney(bucket.allowance)} a month`}
+			restatesValue
 			value={
 				archived && archived.fromMonth <= edit.month && !archived.untilMonth
 					? "Archived"
@@ -900,6 +913,7 @@ function GoalLine({
 						? `Plan ${formatMoney(goal.target)} by ${fullDay(goal.targetDate)}`
 						: `Plan ${formatMoney(goal.target)}, no date`
 			}
+			restatesValue
 			value={
 				payoff
 					? targetDate
