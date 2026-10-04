@@ -50,7 +50,8 @@ ${PLAID_FRAME} {
 		justify-content: space-between;
 		height: calc(${TOP} + ${BAR});
 		padding: ${TOP} max(0.5rem, ${RIGHT}) 0 max(1rem, ${LEFT});
-		border-bottom: 1px solid var(--border);
+		/* A line drawn inside the bar, so Close keeps its full height. */
+		box-shadow: inset 0 -1px 0 var(--border);
 		font-size: 0.875rem;
 		font-weight: 500;
 	}
