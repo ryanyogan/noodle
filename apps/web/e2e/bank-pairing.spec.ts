@@ -1,7 +1,7 @@
-import { execFileSync } from "node:child_process";
 import { expect, type Page, test } from "@playwright/test";
 import { signFakeWebhook } from "../src/server/plaid-fake-webhook-key";
 import { createTestParent } from "./parents";
+import { seedSql } from "./seed-sql";
 import {
 	accountKindLabel,
 	choose,
@@ -38,17 +38,12 @@ const usDate = (at: Date) => `${at.getUTCMonth() + 1}/${at.getUTCDate()}/${at.ge
 const monthOf = (at: Date) => at.toISOString().slice(0, 7);
 
 /** The fake Plaid Item behind the Parent's Bank Connection. */
-function itemIdOf(clerkUserId: string): string {
+async function itemIdOf(clerkUserId: string): Promise<string> {
 	const sql = `select b.external_id as item from bank_connections b join members m on m.household_id = b.household_id where m.clerk_user_id = '${clerkUserId.replaceAll("'", "''")}'`;
-	const output = execFileSync(
-		"bunx",
-		["wrangler", "d1", "execute", "noodle", "--local", "--json", `--command=${sql}`],
-		{ encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
-	);
-	const [{ results }] = JSON.parse(output) as [{ results: { item: string }[] }];
+	const [results = []] = await seedSql([sql]);
 	const item = results[0]?.item;
 	if (!item) throw new Error("No Bank Connection for the Parent");
-	return item;
+	return String(item);
 }
 
 async function plaidWebhook(page: Page, payload: Record<string, unknown>) {
@@ -159,7 +154,7 @@ test("connecting pairs with the card already there, and counts nothing twice", a
 	await plaidWebhook(page, {
 		webhook_type: "ITEM",
 		webhook_code: "ERROR",
-		item_id: itemIdOf(parent.userId),
+		item_id: await itemIdOf(parent.userId),
 		error: { error_code: "ITEM_LOGIN_REQUIRED" },
 	});
 	await accountsLink(page).click();

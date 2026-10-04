@@ -1,8 +1,8 @@
-import { execFileSync } from "node:child_process";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { signFakeWebhook } from "../src/server/plaid-fake-webhook-key";
 import { createTestParent } from "./parents";
+import { seedSql } from "./seed-sql";
 import { createPlannedHousehold, signedInPage } from "./session";
 
 // Disconnecting a bank (#61), against the fake Plaid API: asked first in plain words, its
@@ -30,15 +30,14 @@ const accountsLink = (page: Page) => page.getByRole("link", { name: "Accounts", 
 const checking = (page: Page) => page.getByRole("link", { name: /^Plaid Checking/ });
 
 /** One value from the local D1, for the Parent's Household. */
-function d1(clerkUserId: string, select: string, from: string): string | number | null {
+async function d1(
+	clerkUserId: string,
+	select: string,
+	from: string,
+): Promise<string | number | null> {
 	const id = clerkUserId.replaceAll("'", "''");
 	const sql = `select ${select} as v from ${from} x join members m on m.household_id = x.household_id where m.clerk_user_id = '${id}'`;
-	const output = execFileSync(
-		"bunx",
-		["wrangler", "d1", "execute", "noodle", "--local", "--json", `--command=${sql}`],
-		{ encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
-	);
-	const [{ results }] = JSON.parse(output) as [{ results: { v: string | number | null }[] }];
+	const [results = []] = await seedSql([sql]);
 	return results[0]?.v ?? null;
 }
 
@@ -64,8 +63,8 @@ test("disconnecting keeps the Accounts by hand, and connecting again pairs with 
 	const connection = bankConnections(page).getByRole("listitem");
 	await expect(connection).toContainText("Up to date");
 	await expect(connection).toContainText(/Brought in \d+ Transactions/);
-	const item = String(d1(parent.userId, "x.external_id", "bank_connections"));
-	const transactions = Number(d1(parent.userId, "count(*)", "transactions"));
+	const item = String(await d1(parent.userId, "x.external_id", "bank_connections"));
+	const transactions = Number(await d1(parent.userId, "count(*)", "transactions"));
 	expect(transactions).toBeGreaterThan(0);
 	const accounts = await page.getByRole("link", { name: /••\d{4}, / }).count();
 
@@ -89,8 +88,8 @@ test("disconnecting keeps the Accounts by hand, and connecting again pairs with 
 	// The Accounts and their Transactions stay, kept by hand; the token is gone.
 	await expect(bankConnections(page).getByRole("listitem")).toHaveCount(0);
 	await expect(page.getByRole("link", { name: /••\d{4}, / })).toHaveCount(accounts);
-	expect(Number(d1(parent.userId, "count(*)", "transactions"))).toBe(transactions);
-	expect(d1(parent.userId, "x.credential", "bank_connections")).toBe("");
+	expect(Number(await d1(parent.userId, "count(*)", "transactions"))).toBe(transactions);
+	expect(await d1(parent.userId, "x.credential", "bank_connections")).toBe("");
 	await checking(page).click();
 	await expect(
 		page
@@ -114,7 +113,7 @@ test("disconnecting keeps the Accounts by hand, and connecting again pairs with 
 	});
 	expect(answer.ok()).toBe(true);
 	await page.waitForTimeout(1500);
-	expect(Number(d1(parent.userId, "count(*)", "transactions"))).toBe(transactions);
+	expect(Number(await d1(parent.userId, "count(*)", "transactions"))).toBe(transactions);
 
 	// Connecting the same bank again pairs with the same Accounts. Back on Accounts first: pressed
 	// while the Account's page is still leaving, Connect a bank's sheet went with it.
@@ -130,5 +129,5 @@ test("disconnecting keeps the Accounts by hand, and connecting again pairs with 
 	await expect(page.getByRole("link", { name: /••\d{4}, / })).toHaveCount(accounts);
 	await expect(checking(page)).toContainText("Connected · First Platypus Bank");
 	// Nothing came in twice.
-	expect(Number(d1(parent.userId, "count(*)", "transactions"))).toBe(transactions);
+	expect(Number(await d1(parent.userId, "count(*)", "transactions"))).toBe(transactions);
 });

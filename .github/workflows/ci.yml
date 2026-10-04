@@ -2,6 +2,8 @@ name: CI
 
 on:
   push:
+    # Screenshot pushes (shots-** branches) start only the Page shots workflow, not the whole suite.
+    branches-ignore: ["shots-**"]
     # A change to docs alone doesn't need the app tested.
     paths-ignore: ["docs/**", "**/*.md"]
   pull_request:
@@ -69,17 +71,28 @@ jobs:
       - run: bun run typecheck
       - run: bun run lint
       - run: bun run test
+      # The production build (no AI_MODEL) must leave out E2E's dev-only routes (/api/dev/household,
+      # /api/dev/outbox, …): they're behind __AI_STUB__, so the bundler drops them.
+      - name: Production build has no dev-only routes
+        working-directory: apps/web
+        run: |
+          bun run build
+          if grep -rl "/api/dev/" dist; then echo "Dev-only routes are in the production build"; exit 1; fi
 
   e2e:
     needs: gate
     if: needs.gate.outputs.tested != 'true'
     runs-on: ubuntu-latest
-    # Six runners at once, one worker each: a private repo's runner has 2 vCPUs, so one runner ran
-    # every spec in series (12+ minutes), and two workers on one runner starved the dev server.
+    # Four runners at once, three workers each, against the built Worker (E2E_SERVER=build, #81):
+    # the dev server compiled pages on demand and starved a second worker, so it took six runners of
+    # one worker each. Specs seed the local D1 through the Worker (/api/dev/sql); when they opened
+    # its SQLite file from a second process, three workers got SQLITE_BUSY.
+    # Measured and left out: caching bun's packages (install takes 2 s, saving the cache 26 s) and
+    # building once in a job of its own (the build takes 8 s; a job before the shards costs more).
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6]
+        shard: [1, 2, 3, 4]
     # Playwright's image already has Chromium, WebKit and their system libraries, so no job installs
     # them. Keep its tag equal to @playwright/test in apps/web/package.json.
     container:
@@ -87,6 +100,7 @@ jobs:
       options: --ipc=host
     env:
       CI: "true"
+      E2E_SERVER: build
     steps:
       - uses: actions/checkout@v5
       # setup-bun needs unzip, which the image lacks; npm's bun package is the same binary.
@@ -100,9 +114,44 @@ jobs:
             "${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" "${{ secrets.CLERK_SECRET_KEY }}" > .dev.vars
           # Throwaway VAPID keys for Nudges; nothing is really pushed in E2E.
           bun scripts/vapid-keys.ts >> .dev.vars
-      # Phone tests run in e2e-phone.
-      - run: bun run e2e --project=chromium --shard=${{ matrix.shard }}/6
+      # Built once, with the stub AI and E2E's dev-only routes; vite preview serves it (and copies
+      # .dev.vars in, so the keys must be written first).
+      - run: bun run build
         working-directory: apps/web
+        env:
+          AI_MODEL: stub
+      # Phone tests run in e2e-phone. A branch that breaks everything stops after five failures
+      # instead of running each test to its timeout, twice.
+      - run: bun run e2e --project=chromium --shard=${{ matrix.shard }}/4 --workers=3 --max-failures=5
+        working-directory: apps/web
+      - name: Slowest 20 tests
+        if: ${{ !cancelled() }}
+        working-directory: apps/web
+        run: |
+          node -e '
+            const fs = require("fs");
+            if (!fs.existsSync("playwright-report/report.json")) process.exit(0);
+            const report = JSON.parse(fs.readFileSync("playwright-report/report.json", "utf8"));
+            const rows = [];
+            const walk = (suite) => {
+              for (const spec of suite.specs ?? [])
+                for (const test of spec.tests ?? [])
+                  for (const [attempt, result] of (test.results ?? []).entries())
+                    rows.push({ ms: result.duration, status: result.status, attempt, name: `${spec.file}:${spec.line} ${spec.title}` });
+              for (const child of suite.suites ?? []) walk(child);
+            };
+            for (const suite of report.suites ?? []) walk(suite);
+            rows.sort((a, b) => b.ms - a.ms);
+            const total = rows.reduce((sum, row) => sum + row.ms, 0);
+            const lines = [
+              `### Slowest 20 of ${rows.length} test runs (${(total / 1000).toFixed(0)} s of test time, ${(report.stats.duration / 1000).toFixed(0)} s wall)`,
+              "",
+              "| Seconds | Result | Test |",
+              "|---:|---|---|",
+              ...rows.slice(0, 20).map((row) => `| ${(row.ms / 1000).toFixed(1)} | ${row.status}${row.attempt ? " (retry)" : ""} | ${row.name.replaceAll("|", "/")} |`),
+            ];
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
+          '
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -126,6 +175,7 @@ jobs:
       options: --ipc=host
     env:
       CI: "true"
+      E2E_SERVER: build
     steps:
       - uses: actions/checkout@v5
       # setup-bun needs unzip, which the image lacks; npm's bun package is the same binary.
@@ -137,10 +187,42 @@ jobs:
           printf 'VITE_CLERK_PUBLISHABLE_KEY=%s\nCLERK_SECRET_KEY=%s\n' \
             "${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" "${{ secrets.CLERK_SECRET_KEY }}" > .dev.vars
           bun scripts/vapid-keys.ts >> .dev.vars
+      - run: bun run build
+        working-directory: apps/web
+        env:
+          AI_MODEL: stub
       # A failure that hits every test (sign-in, say) stops after three instead of letting each
       # test run to its timeout, twice.
-      - run: bun run e2e --project=${{ matrix.project }} --max-failures=3
+      - run: bun run e2e --project=${{ matrix.project }} --max-failures=3 --workers=3
         working-directory: apps/web
+      - name: Slowest 20 tests
+        if: ${{ !cancelled() }}
+        working-directory: apps/web
+        run: |
+          node -e '
+            const fs = require("fs");
+            if (!fs.existsSync("playwright-report/report.json")) process.exit(0);
+            const report = JSON.parse(fs.readFileSync("playwright-report/report.json", "utf8"));
+            const rows = [];
+            const walk = (suite) => {
+              for (const spec of suite.specs ?? [])
+                for (const test of spec.tests ?? [])
+                  for (const [attempt, result] of (test.results ?? []).entries())
+                    rows.push({ ms: result.duration, status: result.status, attempt, name: `${spec.file}:${spec.line} ${spec.title}` });
+              for (const child of suite.suites ?? []) walk(child);
+            };
+            for (const suite of report.suites ?? []) walk(suite);
+            rows.sort((a, b) => b.ms - a.ms);
+            const total = rows.reduce((sum, row) => sum + row.ms, 0);
+            const lines = [
+              `### Slowest 20 of ${rows.length} test runs (${(total / 1000).toFixed(0)} s of test time, ${(report.stats.duration / 1000).toFixed(0)} s wall)`,
+              "",
+              "| Seconds | Result | Test |",
+              "|---:|---|---|",
+              ...rows.slice(0, 20).map((row) => `| ${(row.ms / 1000).toFixed(1)} | ${row.status}${row.attempt ? " (retry)" : ""} | ${row.name.replaceAll("|", "/")} |`),
+            ];
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
+          '
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

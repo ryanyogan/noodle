@@ -12,6 +12,8 @@ const aiStub = process.env.AI_MODEL === "stub";
 export default defineConfig({
 	// PORT lets several checkouts (git worktrees) run the app and its E2E side by side.
 	server: { port: Number(process.env.PORT ?? 5173), strictPort: true },
+	// `vite preview` serves the built Worker locally; CI's E2E runs against it (E2E_SERVER=build).
+	preview: { port: Number(process.env.PORT ?? 5173), strictPort: true },
 	define: { __AI_STUB__: JSON.stringify(aiStub) },
 	plugins: [
 		cloudflare({
@@ -21,7 +23,19 @@ export default defineConfig({
 			// (a parallel worktree) goes without it so it can start alongside the others.
 			inspectorPort: process.env.PORT ? false : undefined,
 		}),
-		tanstackStart(),
+		tanstackStart({
+			// A build's server function ids are hashes; E2E finds calls by the function's name
+			// (e2e/session.ts serverFn), as the dev server's ids allow. So the test build (AI_MODEL=stub)
+			// names them the same way; production keeps the hashes.
+			serverFns: aiStub
+				? {
+						generateFunctionId: ({ filename, functionName }) =>
+							Buffer.from(JSON.stringify({ file: filename, export: functionName })).toString(
+								"base64url",
+							),
+					}
+				: undefined,
+		}),
 		react(),
 		tailwindcss(),
 	],

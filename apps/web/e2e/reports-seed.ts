@@ -1,8 +1,5 @@
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { ulid } from "ulid";
+import { seedSql } from "./seed-sql";
 
 // Months of history for Reports, written straight into the local D1 the dev server uses: entering
 // half a year of Transactions through Quick Add would take minutes per test. Call it after
@@ -64,7 +61,7 @@ const monthOf = (monthsAgo: number, day: number) => {
 const q = (value: string) => `'${value.replaceAll("'", "''")}'`;
 
 /** Seeds `months` months of spending and income (this month included) for the Parent's Household. */
-export function seedReportHistory(clerkUserId: string, months = 6) {
+export async function seedReportHistory(clerkUserId: string, months = 6) {
 	const household = `(select household_id from members where clerk_user_id = ${q(clerkUserId)})`;
 	const member = `(select id from members where clerk_user_id = ${q(clerkUserId)})`;
 	const bucket = (name: string) =>
@@ -115,9 +112,5 @@ export function seedReportHistory(clerkUserId: string, months = 6) {
 			),
 		).flat(),
 	];
-	const file = join(mkdtempSync(join(tmpdir(), "noodle-reports-")), "seed.sql");
-	writeFileSync(file, statements.join("\n"));
-	execFileSync("bunx", ["wrangler", "d1", "execute", "noodle", "--local", `--file=${file}`], {
-		stdio: "ignore",
-	});
+	await seedSql(statements);
 }

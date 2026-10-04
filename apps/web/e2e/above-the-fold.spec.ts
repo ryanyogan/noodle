@@ -42,7 +42,7 @@ async function busy(page: Page) {
 			["Fun", "250"],
 		],
 	});
-	seedReportHistory(parent.userId, 8);
+	await seedReportHistory(parent.userId, 8);
 	await page.goto("/accounts");
 	await page.getByLabel("Name").fill("Joint Savings");
 	await choose(page, "Kind", accountKindLabel("savings"));

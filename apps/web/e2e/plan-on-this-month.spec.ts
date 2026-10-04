@@ -1,10 +1,7 @@
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { ulid } from "ulid";
 import { createTestParent } from "./parents";
+import { seedSql } from "./seed-sql";
 import { createPlannedHousehold, signedInPage } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
@@ -36,7 +33,7 @@ const q = (value: string) => `'${value.replaceAll("'", "''")}'`;
  * into this month. Both stay in the Plan this month. Trip ($1,200 by three months from now) has
  * $100 of Goal funding this month, and Rainy day (no target date) $50.
  */
-function seedLastMonth(clerkUserId: string, month: string) {
+async function seedLastMonth(clerkUserId: string, month: string) {
 	const household = `(select household_id from members where clerk_user_id = ${q(clerkUserId)})`;
 	const member = `(select id from members where clerk_user_id = ${q(clerkUserId)})`;
 	const last = addMonths(month, -1);
@@ -56,23 +53,19 @@ function seedLastMonth(clerkUserId: string, month: string) {
 		`insert into moves (id, household_id, kind, month, amount_cents, created_by_member_id, to_goal_id) values (${q(ulid())}, ${household}, 'goal-funding', ${q(month)}, 5000, ${member}, ${q(rainy)});`,
 		`insert into month_closes (id, household_id, month, decided_by_member_id) values (${q(ulid())}, ${household}, ${q(last)}, ${member});`,
 	];
-	const file = join(mkdtempSync(join(tmpdir(), "noodle-plan-on-month-")), "seed.sql");
-	writeFileSync(file, statements.join("\n"));
-	execFileSync("bunx", ["wrangler", "d1", "execute", "noodle", "--local", `--file=${file}`], {
-		stdio: "ignore",
-	});
+	await seedSql(statements);
 }
 
 test("This Month shows the Plan: Free to Spend worked out and how last month ended", async ({
 	browser,
 }) => {
-	// Planning the month and seeding through wrangler take most of the default budget.
+	// Planning the month and seeding take most of the default budget.
 	test.slow();
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
 	const month = /\/month\/(\d{4}-\d{2})/.exec(page.url())?.[1];
 	if (!month) throw new Error(`No month in ${page.url()}`);
-	seedLastMonth(parent.userId, month);
+	await seedLastMonth(parent.userId, month);
 	await page.reload();
 
 	// Free to Spend, worked out part by part from take-home pay.

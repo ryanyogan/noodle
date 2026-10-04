@@ -8,6 +8,13 @@ config({ path: ".dev.vars", quiet: true });
 const port = Number(process.env.PORT ?? 5173);
 
 /**
+ * E2E_SERVER=build (CI, and `bun run e2e:build`) serves the Worker already built with
+ * `AI_MODEL=stub vite build` through `vite preview`: pages are ready, not compiled on demand, so
+ * several workers can share it. Otherwise the tests start (or reuse) the Vite dev server.
+ */
+const againstBuild = process.env.E2E_SERVER === "build";
+
+/**
  * Phone tests: every test in a phone-*.spec.ts or sheet-phone.spec.ts file, and any other test
  * tagged `@phone` (`test("…", { tag: "@phone" }, …)`). Playwright matches `grep` against the
  * project name, file name, describe and test titles, and tags joined by spaces.
@@ -21,7 +28,10 @@ export default defineConfig({
 	retries: process.env.CI ? 1 : 0,
 	// A CI runner is several times slower than a laptop; specs with two Parents ran past 30 s there.
 	timeout: process.env.CI ? 60_000 : 30_000,
-	reporter: process.env.CI ? "github" : "list",
+	// CI also writes every test's time as JSON; the workflow lists the slowest 20 in the job summary.
+	reporter: process.env.CI
+		? [["github"], ["json", { outputFile: "playwright-report/report.json" }]]
+		: "list",
 	use: {
 		baseURL: `http://localhost:${port}`,
 		trace: "retain-on-failure",
@@ -62,7 +72,7 @@ export default defineConfig({
 		},
 	],
 	webServer: {
-		command: "bun run db:migrate:local && bun run dev",
+		command: `bun run db:migrate:local && bun run ${againstBuild ? "preview" : "dev"}`,
 		// Ask answers with its deterministic fake, never the live model (see vite.config.ts).
 		env: { AI_MODEL: "stub" },
 		url: `http://localhost:${port}`,

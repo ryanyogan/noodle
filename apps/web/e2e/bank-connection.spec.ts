@@ -1,7 +1,7 @@
-import { execFileSync } from "node:child_process";
 import { expect, type Page, test } from "@playwright/test";
 import { signFakeWebhook } from "../src/server/plaid-fake-webhook-key";
 import { createTestParent } from "./parents";
+import { seedSql } from "./seed-sql";
 import { createHousehold, signedInPage } from "./session";
 
 // Connecting a bank through Plaid Link, against the fake Plaid API (AI_MODEL=stub): its Accounts
@@ -36,17 +36,12 @@ async function connectBank(page: Page, accounts = 4) {
 }
 
 /** The fake Plaid Item behind the Parent's Bank Connection. */
-function itemIdOf(clerkUserId: string): string {
+async function itemIdOf(clerkUserId: string): Promise<string> {
 	const sql = `select b.external_id as item from bank_connections b join members m on m.household_id = b.household_id where m.clerk_user_id = '${clerkUserId.replaceAll("'", "''")}'`;
-	const output = execFileSync(
-		"bunx",
-		["wrangler", "d1", "execute", "noodle", "--local", "--json", `--command=${sql}`],
-		{ encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
-	);
-	const [{ results }] = JSON.parse(output) as [{ results: { item: string }[] }];
+	const [results = []] = await seedSql([sql]);
 	const item = results[0]?.item;
 	if (!item) throw new Error("No Bank Connection for the Parent");
-	return item;
+	return String(item);
 }
 
 /** A webhook from (the fake) Plaid, signed as Plaid signs one. */
@@ -118,7 +113,7 @@ test("Plaid's webhooks sync the bank, and a lapsed login is reconnected", async 
 	await connectBank(page);
 	const connection = bankConnections(page).getByRole("listitem");
 	await expect(connection).toContainText("4 Accounts · Up to date");
-	const itemId = itemIdOf(parent.userId);
+	const itemId = await itemIdOf(parent.userId);
 
 	// Netflix is still pending at the bank, and says so.
 	await nav(page).getByRole("link", { name: "Transactions" }).click();
@@ -169,7 +164,7 @@ test("a bank that's down, has a new account, or was revoked says so on its row",
 	await connectBank(page);
 	const connection = bankConnections(page).getByRole("listitem");
 	await expect(connection).toContainText("4 Accounts · Up to date · Last updated");
-	const itemId = itemIdOf(parent.userId);
+	const itemId = await itemIdOf(parent.userId);
 	const item = (webhook_code: string, more: Record<string, unknown> = {}) =>
 		plaidWebhook(page, { webhook_type: "ITEM", webhook_code, item_id: itemId, ...more });
 
