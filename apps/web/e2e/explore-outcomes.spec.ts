@@ -113,3 +113,50 @@ test("on a phone, tapping a month shows it in full under the chart", { tag: "@ph
 	await projectedBalance.getByRole("button", { name: /^Close / }).click();
 	await expect(projectedBalance.getByRole("button", { name: /^Close / })).toBeHidden();
 });
+
+test("on a phone, the result comes first and long groups fold to what the Scenario changes", {
+	tag: "@phone",
+}, async ({ browser }) => {
+	const page = await signedInPage(browser, parent.email, {
+		viewport: { width: 393, height: 852 },
+		isMobile: true,
+		hasTouch: true,
+	});
+	await createPlannedHousehold(page, {
+		baseline: "5,000",
+		buckets: [
+			["Groceries", "1,200"],
+			["Hockey", "400"],
+			["Fun", "200"],
+		],
+	});
+	await page.goto("/explore");
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Explore", clientRendered);
+
+	// How it plays out is above the outline, in the page and so in reading order.
+	const top = async (name: string) =>
+		(await page.getByRole("heading", { name, exact: true }).boundingBox())?.y ?? Number.NaN;
+	expect(await top("How it plays out")).toBeLessThan(await top("Income"));
+
+	// Buckets says what the Plan has; its lines are behind Show all, and Add is still there.
+	const all = page.getByRole("button", { name: /^Show all \d+ Buckets$/ });
+	await expect(all).toHaveAttribute("aria-expanded", "false");
+	await expect(page.getByText(/^\d+ in the Plan · \$[\d,]+ a month$/)).toBeVisible();
+	await expect(page.getByRole("button", { name: "Add Bucket" })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Edit Hockey" })).toBeHidden();
+	const box = await all.boundingBox();
+	expect(box?.height).toBeGreaterThanOrEqual(44);
+
+	await all.click();
+	await page.getByRole("button", { name: "Edit Hockey" }).click();
+	await type(page, "Hockey allowance", "300");
+	await page.keyboard.press("Escape");
+	await expect(page.getByRole("dialog")).toBeHidden();
+
+	// Folded again, the changed line stays and the others go.
+	const fewer = page.getByRole("button", { name: "Show fewer Buckets" });
+	await expect(fewer).toHaveAttribute("aria-expanded", "true");
+	await fewer.click();
+	await expect(page.getByRole("button", { name: "Edit Hockey" })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Edit Groceries" })).toBeHidden();
+});
