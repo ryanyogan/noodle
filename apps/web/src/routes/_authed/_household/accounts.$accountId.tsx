@@ -10,6 +10,7 @@ import {
 } from "@noodle/ui/components/dropdown-menu";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
+import { DetailColumns } from "@noodle/ui/components/layout";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import {
@@ -211,9 +212,9 @@ function AccountDetails({ account }: { account: AccountView }) {
 				/>
 			) : null}
 			{/* In a wide pane: Transactions and statements on the left; the balance, what's set aside and the
-			    payoff plan in a rail on the right that stays put (#47). Phones keep the rail first. */}
-			<div className="grid gap-8 @3xl:grid-cols-[minmax(0,1fr)_320px] @3xl:items-start">
-				<div className="grid min-w-0 gap-8 @3xl:col-start-2 @3xl:row-start-1">
+			    payoff plan beside them on the right (#47, #73). Phones keep the figures first. */}
+			<DetailColumns>
+				<div className="grid min-w-0 gap-8 @3xl/detail:col-start-2 @3xl/detail:row-start-1">
 					<Card role="region" aria-labelledby="account-balance">
 						<div className="grid gap-3 p-(--card-pad)">
 							<div className="flex items-start justify-between gap-4">
@@ -359,7 +360,7 @@ function AccountDetails({ account }: { account: AccountView }) {
 						<PayOffSection account={account} />
 					)}
 				</div>
-				<div className="grid min-w-0 gap-8 @3xl:col-start-1 @3xl:row-start-1">
+				<div className="grid min-w-0 gap-8 @3xl/detail:col-start-1 @3xl/detail:row-start-1">
 					<AccountTransactions account={account} />
 					<StatementsSection
 						account={account}
@@ -373,7 +374,7 @@ function AccountDetails({ account }: { account: AccountView }) {
 						}
 					/>
 				</div>
-			</div>
+			</DetailColumns>
 
 			<AmountSheet
 				open={sheet === "balance"}
