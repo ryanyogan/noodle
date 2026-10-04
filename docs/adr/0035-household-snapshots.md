@@ -33,10 +33,22 @@ A snapshot holds both Parents' data, including each one's Personal Allowance. So
 
 Either Parent may take or (later) restore one; a restore will tell both.
 
-## Restore (later phase)
+## Restore
 
-"Restore this snapshot" replaces the Household's rows with the snapshot's: behind a typed confirmation like Fresh start's, first taking a `before-restore` snapshot, then clearing with Fresh start's machinery and inserting in batches in a Workflow, checking counts. It touches only rows with this Household's id. The merchant index and the Household Agent's state are rebuilt, not restored. A snapshot from an older migration is mapped forward or refused with a clear message.
+"Restore" on a snapshot in the history replaces the Household's rows with the snapshot's. Either Parent may.
+
+- **Confirmation:** a sheet says what happens, then the Parent types the Household's name (checked again on the server), as Fresh start does.
+- **Refused plainly, before anything is touched,** when the file belongs to another Household, has another `format`, or was taken under another `migration` than the newest applied. There is no mapper from an older schema yet, so an older snapshot is refused ("taken before Noodle's last update changed how data is stored") and the history marks it "Can't be restored". A mapper can be added per migration when one is worth writing. Also refused while a Fresh start is scheduled or running, or another restore is under way.
+- **Before restore:** a `before-restore` snapshot is taken first, in the request. Its id is the restore Workflow's instance id, which is how the page follows progress.
+- **The Workflow** (`noodle-restore`, `SnapshotRestoreWorkflow`), each step retried alone: check the file; disconnect banks linked since the snapshot (their rows are about to go, and a link left behind would keep running at the bank); clear the Household Agent's held work; clear the Household's rows as a Fresh start does (the Household, its members, its Fresh starts and its snapshot list stay); put back members; put back each table, parents before children; put back the Household's own row (its settings and emergency Goal) last.
+- **Batches and counts:** rows go in with the column names they were stored under, as many rows per statement as D1's 100 bound values allow. Each table's step deletes the Household's rows in it first, so a retry starts clean, and fails when the count afterwards isn't the snapshot's.
+- **Only this Household:** every delete is scoped to the Household's id, and a snapshot row carrying another Household's id is refused before anything is deleted (unit-tested with two Households in one database).
+- **Members are added or updated, never removed:** a Parent who joined after the snapshot keeps their way in. The Household's name and settings go back to the snapshot's.
+- **Files are not touched:** statements and receipts stay in R2, so the restored rows' keys still resolve, unless a Fresh start cleared them in between (below).
+- **Not restored:** the snapshot list and Fresh starts. The merchant index is not rebuilt yet: it is keyed by Household and merchant, so entries learned before still match; merchants forgotten by a Fresh start are learned again as Transactions are categorized.
+- **Telling people:** open screens refetch; the other Parent gets a Nudge and an email (their verified address in Clerk, the path the Check-in email uses). The Parent who restored sees it finish on the page.
+- **If it stops part way** (retries used up), the page says so; the `before-restore` snapshot holds what was there, and restoring either one again starts clean.
 
 ## Fresh start and Delete Household
 
-A Fresh start keeps `household_snapshots` (with the Household and its members), so the history survives it and a Fresh start can be undone. Delete Household removes the rows and, so its privacy promise holds, the snapshot files too. Keeping one final snapshot for 30 days unless the Parent ticks "also delete backups", and deferring statement and receipt file deletion past the retention window, are the restore phase's to decide; until then nothing is kept after a Delete Household.
+A Fresh start keeps `household_snapshots` (with the Household and its members), so the history survives it, and its Workflow takes a `before-fresh-start` snapshot before it clears anything, so a Fresh start can be undone. Its statement and receipt files are still deleted at once, so after restoring that snapshot the Transactions are back but their source files are not; deferring file deletion past the retention window is still to do. Delete Household takes no snapshot, since it would be deleted with the rest. Delete Household removes the rows and, so its privacy promise holds, the snapshot files too. Keeping one final snapshot for 30 days unless the Parent ticks "also delete backups", and deferring statement and receipt file deletion past the retention window, are still to decide; until then nothing is kept after a Delete Household.
