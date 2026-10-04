@@ -185,9 +185,6 @@ export function PlanMasterDetail({
 					<div className="grid content-start gap-4">
 						{overview}
 						{aside}
-						<p className="px-1 text-sm text-muted-foreground max-lg:hidden">
-							Pick a {noun} to see it here.
-						</p>
 					</div>
 				</div>
 			}

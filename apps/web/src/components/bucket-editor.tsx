@@ -151,6 +151,8 @@ export function BucketEditor({
 							className={cn(
 								"text-sm font-medium tabular-nums",
 								spending && `${COLUMN.allowance} @2xl:px-2 @2xl:text-end`,
+								// The padding of the button a Parent's own row has here, so the amounts line up.
+								setBy && "px-2",
 							)}
 						>
 							{formatMoney(bucket.allowance)}
@@ -242,7 +244,8 @@ export function BucketEditor({
 const COLUMN = {
 	allowance: "@2xl:w-24 @2xl:justify-end",
 	figure: "w-20 px-2 text-end tabular-nums",
-	bar: "w-28 px-2 @4xl:w-56",
+	// The bar takes what a wider list has to spare.
+	bar: "w-28 px-2 @3xl:w-44 @4xl:w-64 @5xl:w-96 @6xl:w-[30rem]",
 };
 
 /** Heads the columns of the rows beneath it, in a list wide enough to show them. */

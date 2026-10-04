@@ -69,7 +69,7 @@ test("the list stays put, keeps its scroll and marks its item while the detail c
 	await household(page);
 
 	// Nothing picked: the right pane holds what the rail held.
-	await expect(detail(page)).toContainText("Pick a Bucket to see it here.");
+	await expect(detail(page)).toHaveAttribute("aria-label", "Buckets: totals, add and about");
 	await expect(list(page)).toHaveAttribute("aria-label", "Buckets");
 	await axe(page, "Buckets, nothing picked");
 
@@ -117,7 +117,7 @@ test("the list stays put, keeps its scroll and marks its item while the detail c
 	// The Buckets tab closes the item: the add form is one step away.
 	await page.getByRole("link", { name: "Buckets", exact: true }).click();
 	await expect(page).toHaveURL(new RegExp(`/plan/${month}/buckets$`));
-	await expect(detail(page)).toContainText("Pick a Bucket to see it here.");
+	await expect(detail(page)).toHaveAttribute("aria-label", "Buckets: totals, add and about");
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
 	await page.context().close();
 });
