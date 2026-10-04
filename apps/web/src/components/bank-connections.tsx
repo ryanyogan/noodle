@@ -13,6 +13,7 @@ import {
 	SheetHeader,
 } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
+import { Spinner } from "@noodle/ui/components/spinner";
 import { Tile } from "@noodle/ui/components/tile";
 import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
@@ -22,7 +23,6 @@ import { Landmark, Plus, Unplug } from "lucide-react";
 import { type FormEvent, useEffect, useId, useState } from "react";
 import { ulid } from "ulid";
 import {
-	type LinkError,
 	type LinkedBank,
 	LOGGED_LINK_EVENTS,
 	type LoggedLinkEvent,
@@ -30,6 +30,13 @@ import {
 	linkExitMessage,
 	linkTokenExpired,
 } from "../bank-link";
+import { bankLinkFrame, rememberLinkOpener } from "../bank-link-frame";
+import {
+	type LinkOutcome,
+	type PlaidEventMetadata,
+	type PlaidGlobal,
+	runLink,
+} from "../bank-link-run";
 import { formatMoney } from "../format";
 import { accountKindName } from "../goals";
 import { bankConnectionsQuery, goalsQuery } from "../queries";
@@ -59,41 +66,14 @@ import { TermHelp } from "./term-help";
 // Workflow then brings in their recent Transactions, without doubling what statements brought. Link runs in Plaid's own frame; the page only ever sees Link's
 // one-time public token, which the Worker exchanges. When a bank wants the Parent to log in again,
 // its row says so, and Reconnect opens Link for that same login (update mode), so it stays the
-// same Item on Plaid's plan rather than using another (ADR-0017).
+// same Item on Plaid's plan rather than using another (ADR-0017). Link is opened once, when it has
+// loaded, and held inside the phone's safe area with a Close of Noodle's own (bank-link-run.ts,
+// bank-link-frame.ts, #70).
 
 /** The bank a Parent linked in Plaid Link, with Link's one-time public token for it. */
 type Linked = LinkedBank & { publicToken: string };
 
 type LinkMode = "connect" | "reconnect";
-
-/** How Link ended: with a bank linked, or closed (with Plaid's error when something went wrong). */
-type LinkOutcome =
-	| { kind: "linked"; linked: Linked }
-	| { kind: "exit"; error: LinkError | null; institution: string | null };
-
-type PlaidInstitution = { name?: string | null; institution_id?: string | null } | null;
-type PlaidEventMetadata = {
-	link_session_id?: string | null;
-	request_id?: string | null;
-	error_type?: string | null;
-	error_code?: string | null;
-	exit_status?: string | null;
-	view_name?: string | null;
-	institution_id?: string | null;
-};
-type PlaidLinkHandler = { open: () => void; destroy: () => void };
-type PlaidGlobal = {
-	create: (config: {
-		token: string;
-		receivedRedirectUri?: string;
-		onSuccess: (
-			publicToken: string,
-			metadata: { institution?: PlaidInstitution; accounts?: { mask?: string | null }[] | null },
-		) => void;
-		onExit: (error: LinkError | null, metadata: { institution?: PlaidInstitution }) => void;
-		onEvent: (eventName: string, metadata: PlaidEventMetadata) => void;
-	}) => PlaidLinkHandler;
-};
 
 // Plaid serves Link from this rolling "stable" URL and updates it in place (it asks that Link not
 // be pinned or self-hosted), so it's loaded without an integrity hash: a fixed one would break on
@@ -154,36 +134,15 @@ type LinkOptions = {
 	receivedRedirectUri?: string;
 };
 
-/** Opens Plaid Link with the link token, and says how it ended. */
+/**
+ * Opens Plaid Link with the link token, and says how it ended. Link is opened once it has loaded,
+ * inside Noodle's frame for it; on /bank/return there's no Back step, as that page leaves at once.
+ */
 async function linkWithPlaid(token: string, options: LinkOptions): Promise<LinkOutcome> {
 	const plaid = await loadPlaidLink();
-	return new Promise((resolve) => {
-		const handler = plaid.create({
-			token,
-			...(options.receivedRedirectUri ? { receivedRedirectUri: options.receivedRedirectUri } : {}),
-			onSuccess: (publicToken, metadata) => {
-				handler.destroy();
-				resolve({
-					kind: "linked",
-					linked: {
-						publicToken,
-						institution: metadata.institution?.name?.trim() || null,
-						institutionId: metadata.institution?.institution_id || null,
-						masks: (metadata.accounts ?? []).flatMap((a) => (a.mask ? [a.mask] : [])),
-					},
-				});
-			},
-			onExit: (error, metadata) => {
-				handler.destroy();
-				resolve({
-					kind: "exit",
-					error: error ?? null,
-					institution: metadata?.institution?.name?.trim() || null,
-				});
-			},
-			onEvent: (eventName, metadata) => logLinkEvent(options.mode, eventName, metadata ?? {}),
-		});
-		handler.open();
+	return runLink(plaid, token, bankLinkFrame({ back: !options.receivedRedirectUri }), {
+		receivedRedirectUri: options.receivedRedirectUri,
+		onEvent: (eventName, metadata) => logLinkEvent(options.mode, eventName, metadata),
 	});
 }
 
@@ -192,7 +151,7 @@ async function linkWithPlaid(token: string, options: LinkOptions): Promise<LinkO
 // (getBankLinkSession), for when the bank comes back in a browser that hasn't got this.
 const LINK_KEY = "noodle.bank-link";
 const AFTER_KEY = "noodle.bank-after";
-/** E2E's switch for its stand-in Link: "oauth", "oauth-lost", "error" or "expired". */
+/** E2E's switch for its stand-in Link: "oauth", "oauth-lost", "error", "expired" or "window". */
 const FAKE_LINK_KEY = "noodle.fake-link";
 
 function stored<T>(key: string): T | null {
@@ -230,12 +189,18 @@ const FAKE_BANK = "First Platypus Bank";
  * bank whose accounts are plaid-fake.ts's. FAKE_LINK_KEY makes it act as a bank that logs the
  * Parent in on its own page (it leaves for /bank/return, where it then finishes; "oauth-lost"
  * also drops what this tab kept, as a different browser would), as one that doesn't respond, or
- * as a link token that expired once.
+ * as a link token that expired once. "window" is Link as a Parent sees it: a frame over the whole
+ * window that stays until it's closed (fakePlaidWindow).
  */
 async function linkWithFake(token: string, options: LinkOptions): Promise<LinkOutcome> {
 	const ids = { link_session_id: "fake-link-session", request_id: "fake-request" };
 	const act = options.receivedRedirectUri ? null : stored<string>(FAKE_LINK_KEY);
 	logLinkEvent(options.mode, "OPEN", ids);
+	if (act === "window") {
+		return runLink(fakePlaidWindow(), token, bankLinkFrame(), {
+			onEvent: (eventName, metadata) => logLinkEvent(options.mode, eventName, metadata),
+		});
+	}
 	if (act === "error") {
 		const error = { error_type: "INSTITUTION_ERROR", error_code: "INSTITUTION_NOT_RESPONDING" };
 		logLinkEvent(options.mode, "EXIT", { ...ids, ...error });
@@ -267,6 +232,42 @@ async function linkWithFake(token: string, options: LinkOptions): Promise<LinkOu
 	};
 }
 
+/**
+ * E2E's stand-in for Link's own window, sized as Plaid sizes it: a frame fixed over the whole
+ * window by inline styles, with the page's scrolling locked. It says it has loaded a moment after
+ * it's made, never links a bank, and (unlike Plaid) leaves the scroll lock on when it exits, so a
+ * test sees that Noodle puts the page back itself.
+ */
+function fakePlaidWindow(): PlaidGlobal {
+	return {
+		create: (config) => {
+			let frame: HTMLIFrameElement | null = null;
+			const remove = () => {
+				frame?.remove();
+				frame = null;
+			};
+			window.setTimeout(() => config.onLoad?.(), 0);
+			return {
+				open: () => {
+					frame = document.createElement("iframe");
+					frame.id = "plaid-link-iframe-1";
+					frame.title = "Plaid Link";
+					frame.style.cssText =
+						"position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;border:0;display:block;z-index:2147483647";
+					document.body.style.overflow = "hidden";
+					document.body.appendChild(frame);
+					config.onEvent("OPEN", { link_session_id: "fake-link-session" });
+				},
+				exit: () => {
+					remove();
+					window.setTimeout(() => config.onExit(null, null), 0);
+				},
+				destroy: remove,
+			};
+		},
+	};
+}
+
 /** Opens Link, or E2E's stand-in for it, with the link token. */
 const openLink = (setUp: BankConnectionsData["setUp"], token: string, options: LinkOptions) =>
 	setUp === "fake" ? linkWithFake(token, options) : linkWithPlaid(token, options);
@@ -282,6 +283,7 @@ async function linkHere(
 	connectionId: string | null,
 	newAccounts = false,
 ): Promise<LinkOutcome | { kind: "not-started" }> {
+	rememberLinkOpener();
 	const returnTo = window.location.pathname;
 	let outcome: LinkOutcome | null = null;
 	for (let attempt = 0; attempt < 2; attempt++) {
@@ -598,7 +600,7 @@ export function BankConnections({ bank }: { bank: ConnectBank }) {
 				disabled={!hydrated || connect.isPending}
 				onClick={() => connect.mutate()}
 			>
-				{quiet ? <Plus /> : null}
+				{connect.isPending ? <Spinner /> : quiet ? <Plus /> : null}
 				Connect a bank
 			</Button>
 		) : null;
