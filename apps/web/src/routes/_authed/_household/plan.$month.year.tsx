@@ -3,6 +3,7 @@ import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
+import { SectionGrid } from "@noodle/ui/components/layout";
 import { List } from "@noodle/ui/components/list";
 import { Money } from "@noodle/ui/components/money";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
@@ -53,6 +54,10 @@ const FIGURES: { key: keyof YearFigures; label: string }[] = [
 	{ key: "freeToSpend", label: "Free to Spend" },
 ];
 
+/** How the year's table reads: the Plan on top, what happened beneath. */
+const READING =
+	"Each month’s Plan, from take-home pay down to Free to Spend, as the Plan shows it. Months over or under way show what actually happened beneath it: income received, spending, and Goal funding. Beneath Free to Spend, that’s the income received less the spending and Goal funding, so this month it’s only what’s come in so far. Later months are the Plan as it stands, with each dated Goal funded what it needs.";
+
 function YearPage() {
 	const { year, month: shown } = Route.useRouteContext();
 	const data = useSuspenseQuery(yearQuery(year)).data;
@@ -88,41 +93,48 @@ function YearPage() {
 				/>
 			) : (
 				<div className="grid gap-8">
-					<p className="max-w-prose text-[13px] text-muted-foreground max-md:hidden">
-						Each month’s Plan, from take-home pay down to Free to Spend, as the Plan shows it.
-						Months over or under way show what actually happened beneath it: income received,
-						spending, and Goal funding. Beneath Free to Spend, that’s the income received less the
-						spending and Goal funding, so this month it’s only what’s come in so far. Later months
-						are the Plan as it stands, with each dated Goal funded what it needs.
-					</p>
-					{start > 0 && months[0] ? (
-						<p className="text-[13px] text-muted-foreground">
-							Nothing was planned before {monthName(months[0].month)}.
-						</p>
-					) : null}
-					<div className="grid gap-3 max-md:hidden">
-						<YearLegend />
+					{/* The table starts right under the year, at the page's width; how to read it sits
+					    below, beside the Lumpy months, instead of a narrow paragraph over an empty half (#73). */}
+					<div className="grid gap-8 md:gap-3">
+						<div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 max-md:contents">
+							<YearLegend />
+							{start > 0 && months[0] ? (
+								<p className="text-[13px] text-muted-foreground">
+									Nothing was planned before {monthName(months[0].month)}.
+								</p>
+							) : null}
+						</div>
 						<YearTable months={months} />
+						<YearList months={months} />
 					</div>
-					<YearList months={months} />
 					{lumpy.length > 0 ? (
-						<Section aria-labelledby="year-lumpy">
-							<SectionHeader
-								id="year-lumpy"
-								title="Lumpy months"
-								help={<TermHelp term="lumpy-month" />}
-							/>
-							<List>
-								{lumpy.map(({ month, lumps }) => (
-									<li key={month} className="grid gap-0.5 px-(--card-pad) py-3">
-										{/* The month's name in the table above is its link (#73). */}
-										<p className="text-sm font-medium">{monthName(month)}</p>
-										<p className="text-[13px] text-muted-foreground">{lumpText(lumps, month)}</p>
-									</li>
-								))}
-							</List>
-						</Section>
-					) : null}
+						<SectionGrid>
+							<Section aria-labelledby="year-lumpy">
+								<SectionHeader
+									id="year-lumpy"
+									title="Lumpy months"
+									help={<TermHelp term="lumpy-month" />}
+								/>
+								<List>
+									{lumpy.map(({ month, lumps }) => (
+										<li key={month} className="grid gap-0.5 px-(--card-pad) py-3">
+											{/* The month's name in the table above is its link (#73). */}
+											<p className="text-sm font-medium">{monthName(month)}</p>
+											<p className="text-[13px] text-muted-foreground">{lumpText(lumps, month)}</p>
+										</li>
+									))}
+								</List>
+							</Section>
+							<Section aria-labelledby="year-reading" className="max-md:hidden">
+								<SectionHeader id="year-reading" title="How to read this year" />
+								<Card className="p-(--card-pad) text-[13px] text-muted-foreground">
+									<p className="max-w-prose">{READING}</p>
+								</Card>
+							</Section>
+						</SectionGrid>
+					) : (
+						<p className="max-w-prose text-[13px] text-muted-foreground max-md:hidden">{READING}</p>
+					)}
 				</div>
 			)}
 		</>
