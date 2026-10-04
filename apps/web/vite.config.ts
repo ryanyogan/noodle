@@ -23,7 +23,19 @@ export default defineConfig({
 			// (a parallel worktree) goes without it so it can start alongside the others.
 			inspectorPort: process.env.PORT ? false : undefined,
 		}),
-		tanstackStart(),
+		tanstackStart({
+			// A build's server function ids are hashes; E2E finds calls by the function's name
+			// (e2e/session.ts serverFn), as the dev server's ids allow. So the test build (AI_MODEL=stub)
+			// names them the same way; production keeps the hashes.
+			serverFns: aiStub
+				? {
+						generateFunctionId: ({ filename, functionName }) =>
+							Buffer.from(JSON.stringify({ file: filename, export: functionName })).toString(
+								"base64url",
+							),
+					}
+				: undefined,
+		}),
 		react(),
 		tailwindcss(),
 	],
