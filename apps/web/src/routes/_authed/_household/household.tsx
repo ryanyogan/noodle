@@ -134,12 +134,13 @@ function HouseholdPage() {
 								<AddChild members={members} />
 							</Section>
 						</SectionGroup>
+					</div>
+					{/* Reminders heads the right column, so the two columns end near the same line (#73). */}
+					<div className="grid gap-10">
 						<SectionGroup id="reminders" title="Reminders">
 							<CheckInSettings />
 							<NudgeSettings />
 						</SectionGroup>
-					</div>
-					<div className="grid gap-10">
 						<SectionGroup id="bringing-in" title="Bringing in spending">
 							<ReceiptSettings />
 							<CaptureSettings />
