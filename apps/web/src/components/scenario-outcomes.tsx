@@ -853,14 +853,19 @@ function GoalPath({ name, goalId }: { name: string; goalId: string }) {
 		...(planned ? { plan: { label: "Plan", color: "var(--subtle-foreground)" } } : {}),
 	};
 	const reached = (month: MonthKey | null) =>
-		month ? `Reached ${shortMonth(month)}` : "Not reached yet";
+		month ? `Reached in ${shortMonth(month)}` : "Not reached yet";
 	return (
 		<figure className="grid min-w-0 gap-1">
 			<figcaption className="flex items-baseline justify-between gap-x-2 text-[13px]">
-				{/* One line, so a long name doesn't push its chart below its neighbour's. */}
-				<span className="min-w-0 truncate font-medium" title={name}>
-					{name}
-					{goal.added ? <span className="font-normal text-muted-foreground"> · new</span> : null}
+				{/* One line, so a long name doesn't push its chart below its neighbour's: the name is cut
+				    short, and "new" and when it's reached stay whole beside it. */}
+				<span className="flex min-w-0 items-baseline gap-1 font-medium">
+					<span className="min-w-0 truncate" title={name}>
+						{name}
+					</span>
+					{goal.added ? (
+						<span className="shrink-0 font-normal text-muted-foreground">· new</span>
+					) : null}
 				</span>
 				<span className="shrink-0 text-muted-foreground tabular-nums">
 					{reached(goal.reachedIn)}
