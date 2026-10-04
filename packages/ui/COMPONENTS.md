@@ -194,6 +194,6 @@ desktop density stays as it was. One approach everywhere: `max-lg:` sizes in the
 ## Not added, and why
 
 - **ScrollArea**: one scroll per region (ADR-0024). The sidebar and sheets use the browser's own scrolling, and nothing has needed a styled scrollbar.
-- **Pagination**: long lists are virtualized (Transactions) or show the latest, with a "Show N older" button (a Goal's History).
+- **Pagination**: Transactions is one list whose rows load 50 at a time as you reach the end (no virtualizer); a Goal's History shows the latest, with a "Show N older" button.
 - **Accordion**: Collapsible covers the single disclosures the app has.
 - **Drawer**: phones get the bottom Sheet today. #48 (mobile) may move some menus and selects into a Drawer. Select, DropdownMenu and Popover are plain Radix parts, so a phone variant can wrap them without changing the app's calls.

@@ -2,7 +2,7 @@
 
 ## Summary (2026-10-01, #47 closed)
 
-Of the 253 rows: **228 fixed**, **20 partly fixed**, **1 won't fix in #47** (row 227), **2 moved to #50** (Review rework: rows 217 and 222, plus the rest of 218; since fixed in #50), **2 still open**. A row's number (as used in #47's commits, #50 and #51) is its line number in this file before this summary was added; today it sits 11 lines lower.
+Of the 253 rows: **230 fixed**, **18 partly fixed**, **1 won't fix in #47** (row 227), **2 moved to #50** (Review rework: rows 217 and 222, plus the rest of 218; since fixed in #50), **2 still open**. A row's number (as used in #47's commits, #50 and #51) is its line number in this file before this summary was added; today it sits 11 lines lower.
 
 Follow-ups:
 
@@ -251,13 +251,13 @@ Checked and fine on these pages:
 | Goal page | "A month $1,109 · This month $859 left" next to $250 of funding, and "Behind" never says by how much or what to do | med | "To reach $9,000 by Feb 28 you need $1,109 a month; $250 funded this month → Fund $859" | 4 | fixed (a3f2622) |
 | Goal page | Emergencies and Finish copy is jargon ("Fresh-start leftovers are Swept into it … at month-close", "releases its Earmark to Unclaimed") | high | Plain copy per decisions.md, plus Term popovers | 2 | fixed (264a14f) |
 | Goal page | Archive uses the inline, non-modal Confirm | med | AlertDialog | 5 | fixed (8b27a39) |
-| Goal page | Desktop: 672px, with History below the fold | med | Left: dated History. Right, sticky: progress card, stats, actions, Account; Finish and Emergency as small cards under it | 6 | partly fixed (99b4c7d): History on the left, progress card, actions, Account, Emergencies and Finish on the right at lg; the right column is not sticky (taller than the viewport); fixed (#51): the right column sticks from @3xl and scrolls on its own when taller than the screen |
+| Goal page | Desktop: 672px, with History below the fold | med | Left: dated History. Right, sticky: progress card, stats, actions, Account; Finish and Emergency as small cards under it | 6 | fixed (99b4c7d, 5b8299f): History on the left, progress card, actions, Account, Emergencies and Finish on the right at lg; the right column sticks from @3xl and scrolls on its own when taller than the screen |
 | Goal page (payoff) | Needs a payoff variant | high | Per payoff-plan.md model A: "Paid down $X of $Y · still owed $Z"; Fund = planned card payment; no Spend/Set aside/Release; a Paid off state with Complete and "Start again from today's balance"; balance points shown in History; links to and from the card's Account page | 3 | fixed (306a46c) |
 | Goal sheets (Fund/Spend/Set aside/Release) | Focus lands on Close and goes to body on close. Descriptions are jargon ("Moves money from this month's Free to Spend into the Goal's Earmark") | med | Focus the amount; restore focus; "Plans $X of this month's Free to Spend for this Goal" | 4 | fixed (01753e6, 264a14f) |
 | Household | Long single column (~2,700px at 1440) mixing people, a spending report and six settings blocks | med | lg two columns: left, People (Parents, Children, Invite) and What each Child cost; right, Settings (Check-in, Nudges, Tap to capture, Forward receipts). Or Tabs: People · Costs · Notifications · Capture | 6 | fixed (d931128): two columns at lg |
 | Household | "Invite the other Parent" still shows once both Parents have joined | low | Hide it when complete; show each Parent's email in the list | 4 | fixed (4c420f7) |
 | Household | Nudge toggles look instant but the block ends with Save; quiet-hours time inputs show greyed while off | med | Save toggles instantly, or mark them unsaved; hide the times until Quiet hours is on | 4 | fixed (4c420f7) |
-| Household | Child edit expands inline (aria-expanded), unlike the sheets used elsewhere; Remove uses the inline Confirm | low | One pattern (a sheet), with AlertDialog for Remove | 5 | partly fixed (8b27a39): Remove asks in an AlertDialog; Child edit is still inline; fixed (c931a1b): a Child's pencil opens a sheet with Name, colour, Save and Remove |
+| Household | Child edit expands inline (aria-expanded), unlike the sheets used elsewhere; Remove uses the inline Confirm | low | One pattern (a sheet), with AlertDialog for Remove | 5 | fixed (8b27a39, c931a1b): Remove asks in an AlertDialog; a Child's pencil opens a sheet with Name, colour, Save and Remove |
 | Household | "What each Child cost" is a raw `<table>` (household:375) | low | shadcn Table with a caption | 5 | fixed (17bd401) |
 | Household | Jargon: "When income beyond the Baseline starts or grows a month's Windfall", "ahead of Pace" | med | "When you're paid more than your usual take-home pay"; "being spent faster than the month is going" | 2 | fixed (264a14f) |
 | Household (shell) | The sidebar footer truncates the 40-character Household name on every page, with no tooltip | low | Wrap to 2 lines, or a Tooltip | 6 | fixed (60d8a65): two lines, full name on hover |
