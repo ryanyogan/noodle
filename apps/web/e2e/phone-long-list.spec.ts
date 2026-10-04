@@ -5,7 +5,7 @@ import { clientRendered, createPlannedHousehold, signedInPage } from "./session"
 import { swipe } from "./touch";
 
 // A busy Transactions month on a phone (#66): flung with a touch and scrolled with a wheel, the
-// virtualized list never shows a blank gap and the frames keep up. Long tasks come from the
+// list never shows a blank gap and the frames keep up. Long tasks come from the
 // Performance API where the browser has them (Chromium); every browser counts frame gaps.
 
 const phone = {
