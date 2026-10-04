@@ -55,11 +55,16 @@ export const test = base.extend<{ sharedParent: SharedParent }, { workerSession:
 			};
 
 			/**
-			 * The session's cookies with a token made just now: the one Clerk leaves in the cookie
-			 * lasts a minute, and a worker runs for several. Signed out (the session ended)? Signs
-			 * in again.
+			 * The session's cookies with a token made in the last 25 seconds: the one Clerk leaves in
+			 * the cookie lasts a minute, and a worker runs for several. A test's first request goes out
+			 * at once, and from then on its own page keeps the token fresh. Asking Clerk for a token
+			 * took 0.9 s, so tests that start close together share one. Signed out (the session ended)?
+			 * Signs in again.
 			 */
+			let kept: { session: SavedSession; at: number } | null = null;
 			const session = async (): Promise<SavedSession> => {
+				if (kept && Date.now() - kept.at < 25_000) return kept.session;
+				const at = Date.now();
 				let token = await freshToken();
 				if (!token) {
 					await signIn(keeper, parent.email);
@@ -69,12 +74,16 @@ export const test = base.extend<{ sharedParent: SharedParent }, { workerSession:
 				if (!token) throw new Error("The worker's Parent could not be signed in");
 				const fresh = token;
 				const saved = await context.storageState();
-				return {
-					...saved,
-					cookies: saved.cookies.map((cookie) =>
-						/^__session(_|$)/.test(cookie.name) ? { ...cookie, value: fresh } : cookie,
-					),
+				kept = {
+					at,
+					session: {
+						...saved,
+						cookies: saved.cookies.map((cookie) =>
+							/^__session(_|$)/.test(cookie.name) ? { ...cookie, value: fresh } : cookie,
+						),
+					},
 				};
+				return kept.session;
 			};
 
 			const reset = () =>
