@@ -16,7 +16,7 @@ export function PhoneMore({ label, children }: { label: string; children: ReactN
 			<Button
 				type="button"
 				variant="link"
-				className="min-h-11 justify-self-start sm:hidden"
+				className="h-auto min-h-11 justify-self-start px-0! text-left whitespace-normal sm:hidden"
 				aria-expanded={open}
 				aria-controls={id}
 				onClick={() => setOpen((was) => !was)}

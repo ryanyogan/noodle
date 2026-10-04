@@ -108,7 +108,7 @@ export function DangerZone({ householdName }: { householdName: string }) {
 		>
 			<AlertTitle>Start fresh can be put back. Deleting can’t.</AlertTitle>
 			<AlertDescription className="grid gap-3">
-				<PhoneMore label="More about starting fresh and deleting">
+				<PhoneMore label="More about these two">
 					<p>
 						Start fresh clears every Transaction, bank connection, Bucket and Goal, and keeps your
 						Household, its Parents and Children. Noodle takes a snapshot first: for up to{" "}
