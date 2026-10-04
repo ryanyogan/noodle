@@ -65,7 +65,7 @@ export function DataDownload() {
 					</div>
 				</div>
 				{state?.state === "ready" ? (
-					<Button asChild variant="outline" className="justify-self-start">
+					<Button asChild variant="outline" className="sm:justify-self-start">
 						<a href={`/download-your-data/${state.id}.zip`} download>
 							Download (ready until {readyUntil(state.expiresAt)})
 						</a>
@@ -73,7 +73,7 @@ export function DataDownload() {
 				) : (
 					<Button
 						variant="outline"
-						className="justify-self-start"
+						className="sm:justify-self-start"
 						disabled={!hydrated || !state || state.state === "preparing" || prepare.isPending}
 						onClick={() => prepare.mutate()}
 					>

@@ -19,6 +19,7 @@ import {
 	startFreshStart,
 } from "../server/fresh-start";
 import { restartSetup } from "../server/setup";
+import { PhoneMore } from "./phone-more";
 
 type Level = "fresh-start" | "delete";
 
@@ -107,19 +108,22 @@ export function DangerZone({ householdName }: { householdName: string }) {
 		>
 			<AlertTitle>Start fresh can be put back. Deleting can’t.</AlertTitle>
 			<AlertDescription className="grid gap-3">
-				<p>
-					Start fresh clears every Transaction, bank connection, Bucket, Goal and file, and keeps
-					your Household, its Parents and Children. Noodle takes a snapshot first: for up to{" "}
-					{SNAPSHOT_KEPT_DAYS} days you can put your Household back from Snapshots.
-				</p>
-				<p>
-					Delete Household removes all of it, and that can’t be undone. Noodle keeps one last
-					snapshot for {FINAL_SNAPSHOT_DAYS} days, then deletes it.
-				</p>
+				<PhoneMore label="More about these two">
+					<p>
+						Start fresh clears every Transaction, bank connection, Bucket and Goal, and keeps your
+						Household, its Parents and Children. Noodle takes a snapshot first: for up to{" "}
+						{SNAPSHOT_KEPT_DAYS} days you can put your Household back from Snapshots, statement and
+						Receipt files included. Banks need connecting again.
+					</p>
+					<p>
+						Delete Household removes all of it, and that can’t be undone. Noodle keeps one last
+						snapshot for {FINAL_SNAPSHOT_DAYS} days, then deletes it.
+					</p>
+				</PhoneMore>
 				{isWaiting(data) ? (
 					<Scheduled status={data} />
 				) : (
-					<div className="flex flex-wrap gap-2">
+					<div className="grid gap-2 sm:flex sm:flex-wrap">
 						<Button
 							variant="outline"
 							disabled={!hydrated || Boolean(data)}
@@ -253,15 +257,15 @@ function FreshStartSheet({
 							{level === "delete" ? (
 								<p>
 									<span className="font-medium">This can’t be undone.</span> Noodle keeps one last
-									snapshot for {FINAL_SNAPSHOT_DAYS} days in case you write to us, then deletes it.
-									You can’t put it back yourself. On the next step you can choose to delete it too.
+									snapshot for {FINAL_SNAPSHOT_DAYS} days, then deletes it. You can’t put it back
+									yourself. On the next step you can choose to delete it too.
 								</p>
 							) : (
 								<p>
 									<span className="font-medium">Noodle takes a snapshot first.</span> For up to{" "}
 									{SNAPSHOT_KEPT_DAYS} days you can put your Household back from Snapshots in
-									Household settings. Statement and receipt files don’t come back, and banks need
-									connecting again.
+									Household settings. Statement and Receipt files come back with it: Noodle keeps
+									them for as long as a snapshot needs them. Banks need connecting again.
 								</p>
 							)}
 						</div>

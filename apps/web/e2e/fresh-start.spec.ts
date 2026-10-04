@@ -54,8 +54,12 @@ async function confirmInSheets(page: Page, action: "Start fresh" | "Delete House
 	await expect(sheet).toContainText(
 		action === "Start fresh"
 			? "Noodle takes a snapshot first. For up to 90 days you can put your Household back from Snapshots"
-			: "This can’t be undone. Noodle keeps one last snapshot for 30 days",
+			: "This can’t be undone. Noodle keeps one last snapshot for 30 days, then deletes it. You can’t put it back yourself.",
 	);
+	// The files a kept snapshot refers to are kept too, so they come back with it (ADR-0035).
+	if (action === "Start fresh") {
+		await expect(sheet).toContainText("Statement and Receipt files come back with it");
+	}
 	return sheet;
 }
 

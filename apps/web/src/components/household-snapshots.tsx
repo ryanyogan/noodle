@@ -18,6 +18,7 @@ import {
 	type SnapshotSummary,
 	takeSnapshotNow,
 } from "../server/snapshots";
+import { PhoneMore } from "./phone-more";
 
 // Household → Your data → Snapshots (#78, ADR-0035): the history, and taking one by hand. A
 // snapshot holds both Parents' data, so only when, who, the note, size and a few counts are shown.
@@ -200,11 +201,13 @@ export function HouseholdSnapshots({ householdName }: { householdName: string })
 							A copy of everything in your Household, kept so it can be put back. Noodle takes one
 							every night; take one yourself before a big change.
 						</p>
-						<p className="text-muted-foreground">
-							Snapshots hold both Parents’ data, so what’s in them is never shown or downloaded.
-							Nightly ones are kept for 14 days, then one a week for 8 weeks; ones you take, for 90
-							days.
-						</p>
+						<PhoneMore label="More about snapshots">
+							<p className="text-muted-foreground">
+								Snapshots hold both Parents’ data, so what’s in them is never shown or downloaded.
+								Nightly ones are kept for 14 days, then one a week for 8 weeks; ones you take, for
+								90 days.
+							</p>
+						</PhoneMore>
 					</div>
 				</div>
 				<form
