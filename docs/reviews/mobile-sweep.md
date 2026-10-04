@@ -90,6 +90,19 @@ Not done in 74c (from the shell plan above): the top row's icons into one More m
 
 Tests: chromium-mobile shell-adjacent specs (phone-overflow, phone-crowding, quick-add-many, sheet-phone) and chromium (plan-on-this-month, shell, add-buckets) pass; no baseline changed.
 
+### 74d: This Month on a phone (2026-10-03)
+
+Measured before and after on `chromium-mobile` (throwaway `zz-74d` spec; a Planned household with three Buckets, no Bills, To do = Get started and To look at). Screenshots at 393, 320 and 430, To do closed and open, and the More menu open at 393, looked at.
+- **Top row**: Reports, Ask and the Glossary are one **More** menu (⋯) beside the Month/Plan switch: items Reports, Ask, Glossary… (the last opens the Glossary sheet). The row now has three targets instead of five. Desktop has no top row (Sidebar unchanged).
+- **Bars' key**: below lg it no longer sits inline above the Buckets (it took two lines at 393); the Pace "?" sits at the end of the Buckets header and its popover always holds the key. From lg nothing changed (key inline until learned).
+- **Month/Plan switch**: lost its `h-7` override, so it uses the same trigger as every other segmented control (Bills' Month/Coming up). Measured height 44 both before and after (the trigger's phone hit size), so the visible change is small.
+- **Length** (scrollHeight, this household): 393 closed 1075 → 1031 px (1.26 → 1.21 screens), first Bucket 608 → 564; 320 closed 1135 → 1071; 430 closed 1075 → 1031; To do open 393 1416 → 1392, 320 1472 → 1448. A fuller household (74b's 2.3 screens) gains the same 44 px; the big wins are still to do (below).
+- **Seen, not fixed**: in the More menu at 393 the page's month chevrons show faintly through the menu's top-right (check the popover's background or the chevrons' z-index); with To do open at 320 "Add an Account or a bank" truncates to "Add an Account or …" beside its button.
+
+Not done in 74d, in order: To do on phones as one card of rows with a visible primary action each (open To do still adds ~360 px here); one Cover action instead of a Cover button per overspent Bucket; Income below a "More this month" disclosure or collapsed; "Add income" as the only section-header button; card literal padding to `--card-pad` on This Month.
+
+Tests: chromium-mobile and chromium: glossary, phone-inputs, phone-swipe, phone-reading-order, shell, ask, reports pass (the phone Ask and Reports tests now reach them through More, via the e2e helper `openFromMore`; no shell baseline changed). `bun run test`, typecheck and biome clean.
+
 ### What others do (research)
 
 - **Apple HIG / iOS 26:** the tab bar is a floating, inset pill of the primary destinations; Liquid Glass is only for the navigation layer floating above content, never for content itself. Sheets take detents (medium, large) and adapt their look by height. Lay content out on the system layout margins (16 pt on most iPhones, 20 pt on Max/Plus widths). [learnui.design: iOS 26 design guidelines](https://www.learnui.design/blog/ios-design-guidelines-templates.html), [WWDC25: Build a UIKit app with the new design](https://developer.apple.com/videos/play/wwdc2025/284/), [createwithswift: Liquid Glass hierarchy](https://www.createwithswift.com/liquid-glass-redefining-design-through-hierarchy-harmony-and-consistency/)
