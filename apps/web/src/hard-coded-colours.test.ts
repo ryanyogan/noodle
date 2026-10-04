@@ -2,14 +2,14 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// Guards the colour tokens (#75, ADR-0034; Soft stone, ADR-0036): every colour comes from the tokens in
+// Guards the colour tokens (#75, ADR-0034; Indigo, ADR-0038): every colour comes from the tokens in
 // packages/ui/src/styles/globals.css, so light and dark change in one place. A hex, rgb(), hsl(),
 // oklch(), oklab(), lab(), lch() or hwb() colour written anywhere else under apps/web/src or
 // packages/ui/src fails here. Use a token (bg-card, text-muted-foreground, var(--pace), …); if a
 // file really can't read CSS variables, add it below with the reason.
 const ALLOWED: Record<string, string> = {
 	"apps/web/src/routes/__root.tsx":
-		"the theme-color metas: the browser reads them before any CSS, one per mode (#eff0ec / #121513)",
+		"the theme-color metas: the browser reads them before any CSS, one per mode (#f7f7f8 / #0c0d10)",
 	"apps/web/src/server/email/templates.ts":
 		"email HTML can't use the app's CSS; the email's own brand",
 	"packages/ui/src/components/logo.tsx": "the mark's marigold dot, the logo's own colour",

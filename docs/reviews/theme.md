@@ -322,3 +322,76 @@ WCAG 2.x ratios from a script over the shipped values; soft badge fills are comp
 ### Screenshots
 
 The baselines under `apps/web/e2e/*-snapshots/` were replaced with the images CI drew in Soft stone with `--update-snapshots=all` in a one-off job on the `ci-75` branch, since the specs pass against the old images (ADR-0034, rule 6). Looked at before they went in: This Month (desktop light and dark, phone dark), Household settings (phone light), Reports (desktop light), setup Buckets (desktop dark, phone light) and sign-in (desktop light, phone dark).
+
+## 8. Phase 83b: Indigo replaces Soft stone
+
+On 2026-10-04 the Parent chose **Indigo** from the three Linear-style directions of #83 (Indigo, Violet, Ink). Recorded in ADR-0038, which supersedes ADR-0036; ADR-0034's token rules are unchanged.
+
+- **`globals.css`**: every colour token, light and dark, takes Indigo's value. Bucket colours are the same validated set. The tints follow their colours (`--brand-soft` 10% light and 16% dark, `--pace-soft`, `--over-soft`); the light scrim and shadows use the new ink (`rgb(22 23 26 / …)`); the dark scrim is black and the dark pop outline and card highlight are white at low opacity.
+- **The main button is the accent**: `--primary` is `var(--brand)` light and `#5a64d6` dark, `--primary-foreground` is `#ffffff`, and the new `--primary-hover` is 12% towards the ink (light) or the page (dark), so hover only darkens the fill. The Button and the sign-in button use it; before, hover mixed `--primary` with `--brand`, which are now one colour in light.
+- **Flat ground**: `--glow-2` is `transparent`; `--glow-1` is the accent at 5% light and 7% dark.
+- **Nudges made by the proposal's script** (OKLCH lightness only): light `--subtle-foreground` `#6a6c75` -> `#656770`, light `--over` `#cf3a3f` -> `#cb363c`; light Pace, Pace text and Over text re-picked by hand (`#b86e00`, `#85590a`, `#b02f33`); dark Pace and Over are Soft stone's.
+- **One more, found measuring the shipped file**: light `--input` `#8a8c94` -> `#86888f` (on surface-2 3.00 -> 3.17, on the card 3.35 -> 3.54, on the page 3.13 -> 3.31).
+- **Accent words on Perks** used `text-primary`, which in dark is now the button fill (3.67:1 on the card, too low for text); they use `text-brand` (6.91:1).
+- **Browser bar**: `theme-color` is `#f7f7f8` light and `#0c0d10` dark; the manifest's `theme_color` and `background_color` are `#f7f7f8`.
+
+### Measured contrast, as shipped
+
+WCAG 2.x ratios from a script that reads the shipped `globals.css`; soft fills are composited on the card first. Nothing is under its threshold. Tightest: dark allowance bar beside the spent bar 3.02, hint text on surface-3 4.61 light and 4.62 dark, light field border on surface-2 3.17. A field on surface-3 is not a required surface (ADR-0034 rule 3).
+
+| Pair | Needs | Indigo light | Indigo dark |
+|---|---|---|---|
+| Body text on page | 4.5:1 | 16.74 | 17.19 |
+| Body text on card | 4.5:1 | 17.92 | 16.14 |
+| Body text on surface-2 | 4.5:1 | 16.03 | 15.05 |
+| Muted text on card | 4.5:1 | 6.77 | 7.59 |
+| Muted text on page | 4.5:1 | 6.32 | 8.08 |
+| Muted text on surface-2 | 4.5:1 | 6.06 | 7.07 |
+| Muted text on surface-3 | 4.5:1 | 5.54 | 6.29 |
+| Muted text on a selected row (brand-soft on card) | 4.5:1 | 5.88 | 5.86 |
+| Subtle text on card | 4.5:1 | 5.63 | 5.58 |
+| Subtle text on page | 4.5:1 | 5.26 | 5.94 |
+| Subtle text on surface-2 | 4.5:1 | 5.04 | 5.20 |
+| Subtle text on surface-3 | 4.5:1 | 4.61 | 4.62 |
+| Main button text (white on `--primary`) | 4.5:1 | 5.61 | 4.97 |
+| Main button fill, checked box and switch on card | 3:1 | 5.61 | 3.67 |
+| Main button fill on page | 3:1 | 5.24 | 3.91 |
+| Brand text on card | 4.5:1 | 5.61 | 6.91 |
+| Brand text on page | 4.5:1 | 5.24 | 7.36 |
+| Brand text on surface-2 | 4.5:1 | 5.01 | 6.44 |
+| Brand text on its soft fill | 4.5:1 | 4.87 | 5.34 |
+| Pace badge text | 4.5:1 | 5.31 | 8.60 |
+| Over badge text | 4.5:1 | 5.50 | 6.01 |
+| Over text on card (`--over-foreground`) | 4.5:1 | 6.36 | 7.28 |
+| Over (`--over`) as text on card | 4.5:1 | 5.08 | 6.35 |
+| Over (`--over`) as text on page | 4.5:1 | 4.75 | 6.76 |
+| Over (`--over`) as text on surface-2 | 4.5:1 | 4.55 | 5.92 |
+| Focus ring on page | 3:1 | 5.24 | 7.36 |
+| Focus ring on card | 3:1 | 5.61 | 6.91 |
+| Over bar on bar track | 3:1 | 4.16 | 5.26 |
+| Worst Bucket on bar track | 3:1 | 3.24 | 3.59 |
+| Worst Bucket on card | 3:1 | 3.96 | 4.33 |
+| Allowance bar on card | 3:1 | 3.84 | 3.53 |
+| Allowance bar vs spend bar | 3:1 | 3.19 | 3.02 |
+| Spend bar on card | 3:1 | 12.24 | 10.68 |
+| Pace marker on bar track | 3:1 | 3.26 | 8.15 |
+| Input border on card | 3:1 | 3.54 | 3.64 |
+| Input border on surface-2 | 3:1 | 3.17 | 3.39 |
+| Input border on page | 3:1 | 3.31 | 3.87 |
+| Input border on surface-3 (info) | - | 2.90 | 3.02 |
+| Hairline on card (info) | - | 1.23 | 1.18 |
+| Stronger line on card (info) | - | 1.48 | 1.49 |
+| Card vs page step (info) | - | 1.07 | 1.07 |
+
+The main button's hover fill with white text is about 6.5:1 light and 5.9:1 dark (the mix worked out in sRGB; the browser mixes in OKLab, which differs a little but stays darker than the resting fill).
+
+### Dataviz validator, as shipped
+
+`validate_palette.js`, adjacent pairs, against the Indigo card of each mode.
+
+- **Buckets, light** (`#ffffff`): lightness band, chroma floor, normal-vision floor (worst 15.7, Bucket 7 and 8) and contrast all pass; colour-blind separation is in the 6–8 warning band (worst Bucket 6 and 7, deutan 6.1; tritan 7.7).
+- **Buckets, dark** (`#141519`): all pass; colour-blind separation in the warning band (worst Bucket 1 and 2, deutan 6.5; tritan 6.4); normal-vision worst 15.3 (Bucket 7 and 8).
+- The same numbers as on Soft stone, since the colours are the same and only the surface moved. The warning band is allowed for the reason ADR-0034 gives: a Bucket's name is always beside its colour.
+- **Chart palette** (spend, income, allowance): colour-blind separation and contrast pass (worst 18.1 light, 17.2 dark). Spend and allowance fail the chroma and lightness checks because they are neutrals on purpose, as before.
+- **Accent, Pace, Over**: in dark, separation passes (worst Pace and Over, 13.3 deutan, 17.9 normal). In light, Pace `#b86e00` and Over `#cb363c` are 13.1 apart for normal vision and 5.6 for deutan, under the validator's floors for a categorical set. They are state colours, not categories: each always comes with its word (Ahead, Over) or a marker's position, never colour alone. The accent is far from both (at least 24 in every simulation).
+- The accent sits near Bucket 5 (`#4a3aa7` / `#9085e9`) in hue. Buckets are tiles and meters with their name beside them, and the accent is buttons and links, so the two do not stand for the same thing in one place.

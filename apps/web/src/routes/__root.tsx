@@ -50,8 +50,8 @@ function RootShell({ children }: { children: ReactNode }) {
 				<head>
 					<HeadContent />
 					{/* Rendered here, not in head(): head() keeps one meta per name, and there are two. */}
-					<meta name="theme-color" media="(prefers-color-scheme: light)" content="#eff0ec" />
-					<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121513" />
+					<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f7f7f8" />
+					<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0c0d10" />
 					{/* Before first paint, so a sidebar collapsed on this device renders collapsed. */}
 					{/* biome-ignore lint/security/noDangerouslySetInnerHtml: a constant from packages/ui, no user input. */}
 					<script dangerouslySetInnerHTML={{ __html: sidebarStateScript }} />

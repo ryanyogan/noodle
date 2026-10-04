@@ -1,6 +1,6 @@
 # Soft stone replaces Warm paper
 
-Status: accepted (#75, 2026-10-04). Supersedes the palette choice in ADR-0034; keeps its token rules.
+Status: superseded by ADR-0038 (Indigo, #83, 2026-10-04). Was accepted in #75 on 2026-10-04. Superseded the palette choice in ADR-0034; keeps its token rules.
 
 ## Context
 

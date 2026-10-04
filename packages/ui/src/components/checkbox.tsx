@@ -4,7 +4,7 @@ import type * as React from "react";
 import { cn } from "#lib/utils";
 
 // shadcn/ui's Checkbox (https://ui.shadcn.com/docs/components/checkbox), radix-nova, on this
-// design system's tokens: checked takes the primary ink, as Switch and the primary Button do. It's
+// design system's tokens: checked takes the primary fill, as Switch and the primary Button do. It's
 // a button with role=checkbox; name it with a <label htmlFor> or by wrapping it in a <label>.
 
 function Checkbox({ className, ...props }: React.ComponentProps<typeof CheckboxPrimitive.Root>) {
