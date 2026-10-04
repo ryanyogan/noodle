@@ -95,7 +95,7 @@ export function DangerZone({ householdName }: { householdName: string }) {
 	const { data } = useQuery(freshStartQuery());
 	const [level, setLevel] = useState<Level | null>(null);
 	return (
-		<Alert role="group" variant="destructive" className="grid gap-3">
+		<Alert role="group" variant="destructive" className="grid gap-3 rounded-(--radius-card) p-(--card-pad)">
 			<AlertTitle>These clear your Household for good</AlertTitle>
 			<AlertDescription className="grid gap-3">
 				<p>
