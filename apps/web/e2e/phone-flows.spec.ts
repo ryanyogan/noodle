@@ -40,8 +40,8 @@ test("on a phone a statement comes in, a bank connects and last month closes", a
 	// Last month planned and spent, so it waits to be closed.
 	await seedReportHistory(parent.userId, 2);
 
-	// Upload statement: to a new Visa Account, through the desktop helper, from Transactions,
-	// whose header links to Accounts on a phone.
+	// Upload statement: to a new Visa Account, through the desktop helper, from Transactions:
+	// on a phone it reaches Accounts through More.
 	await page.goto("/transactions");
 	await uploadStatement(
 		page,

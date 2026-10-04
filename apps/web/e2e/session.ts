@@ -371,7 +371,9 @@ export async function uploadStatement(
 	lines: [what: string, amount: string, date?: string][],
 	addAccount = false,
 ) {
-	await page.getByRole("link", { name: "Accounts", exact: true }).click();
+	// On a phone Accounts is in More (#74); on a computer it is in the Sidebar.
+	if ((page.viewportSize()?.width ?? 1280) < 1024) await openFromMore(page, "Accounts");
+	else await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	if (addAccount) {
 		await page.getByLabel("Name").fill("Visa");
