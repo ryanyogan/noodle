@@ -243,7 +243,7 @@ async function axe(page: Page, what: string) {
 	).toEqual([]);
 }
 
-test("a card splits, makes a Rule, can't be filed from a month with no Plan, and Sort passes axe", async ({
+test("a card splits, makes a Rule, has no Bucket to go in from a month with no Plan, and Sort passes axe", async ({
 	browser,
 }) => {
 	test.slow();
@@ -273,7 +273,9 @@ test("a card splits, makes a Rule, can't be filed from a month with no Plan, and
 	const old = await topName(page);
 	await focusedCard(page).focus();
 	await page.keyboard.press("ArrowRight");
-	await expect(said(page)).toContainText(`has no Plan yet, so ${old} can only be skipped.`);
+	await expect(said(page)).toContainText(
+		`has no Plan yet. File ${old} without a Bucket, or skip it.`,
+	);
 	await expect(top(page).getByRole("heading", { level: 3 })).toHaveText(old);
 	await expect(top(page).getByRole("button", { name: "Split" })).toHaveCount(0);
 	await page.keyboard.press("ArrowLeft");
