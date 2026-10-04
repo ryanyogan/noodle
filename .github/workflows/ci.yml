@@ -69,17 +69,25 @@ jobs:
       - run: bun run typecheck
       - run: bun run lint
       - run: bun run test
+      # The production build (no AI_MODEL) must leave out E2E's dev-only routes (/api/dev/household,
+      # /api/dev/outbox, …): they're behind __AI_STUB__, so the bundler drops them.
+      - name: Production build has no dev-only routes
+        working-directory: apps/web
+        run: |
+          bun run build
+          if grep -rl "/api/dev/" dist; then echo "Dev-only routes are in the production build"; exit 1; fi
 
   e2e:
     needs: gate
     if: needs.gate.outputs.tested != 'true'
     runs-on: ubuntu-latest
-    # Six runners at once, one worker each: a private repo's runner has 2 vCPUs, so one runner ran
-    # every spec in series (12+ minutes), and two workers on one runner starved the dev server.
+    # Three runners at once, three workers each, against the built Worker (E2E_SERVER=build, #81):
+    # the dev server compiled pages on demand and starved a second worker, so it took six runners of
+    # one worker each. A public repo's runner has 4 vCPUs.
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6]
+        shard: [1, 2, 3]
     # Playwright's image already has Chromium, WebKit and their system libraries, so no job installs
     # them. Keep its tag equal to @playwright/test in apps/web/package.json.
     container:
@@ -87,6 +95,7 @@ jobs:
       options: --ipc=host
     env:
       CI: "true"
+      E2E_SERVER: build
     steps:
       - uses: actions/checkout@v5
       # setup-bun needs unzip, which the image lacks; npm's bun package is the same binary.
@@ -100,8 +109,14 @@ jobs:
             "${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" "${{ secrets.CLERK_SECRET_KEY }}" > .dev.vars
           # Throwaway VAPID keys for Nudges; nothing is really pushed in E2E.
           bun scripts/vapid-keys.ts >> .dev.vars
+      # Built once, with the stub AI and E2E's dev-only routes; vite preview serves it (and copies
+      # .dev.vars in, so the keys must be written first).
+      - run: bun run build
+        working-directory: apps/web
+        env:
+          AI_MODEL: stub
       # Phone tests run in e2e-phone.
-      - run: bun run e2e --project=chromium --shard=${{ matrix.shard }}/6
+      - run: bun run e2e --project=chromium --shard=${{ matrix.shard }}/3 --workers=3
         working-directory: apps/web
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -126,6 +141,7 @@ jobs:
       options: --ipc=host
     env:
       CI: "true"
+      E2E_SERVER: build
     steps:
       - uses: actions/checkout@v5
       # setup-bun needs unzip, which the image lacks; npm's bun package is the same binary.
@@ -137,9 +153,13 @@ jobs:
           printf 'VITE_CLERK_PUBLISHABLE_KEY=%s\nCLERK_SECRET_KEY=%s\n' \
             "${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" "${{ secrets.CLERK_SECRET_KEY }}" > .dev.vars
           bun scripts/vapid-keys.ts >> .dev.vars
+      - run: bun run build
+        working-directory: apps/web
+        env:
+          AI_MODEL: stub
       # A failure that hits every test (sign-in, say) stops after three instead of letting each
       # test run to its timeout, twice.
-      - run: bun run e2e --project=${{ matrix.project }} --max-failures=3
+      - run: bun run e2e --project=${{ matrix.project }} --max-failures=3 --workers=3
         working-directory: apps/web
       - uses: actions/upload-artifact@v4
         if: failure()

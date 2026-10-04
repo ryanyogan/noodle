@@ -12,6 +12,8 @@ const aiStub = process.env.AI_MODEL === "stub";
 export default defineConfig({
 	// PORT lets several checkouts (git worktrees) run the app and its E2E side by side.
 	server: { port: Number(process.env.PORT ?? 5173), strictPort: true },
+	// `vite preview` serves the built Worker locally; CI's E2E runs against it (E2E_SERVER=build).
+	preview: { port: Number(process.env.PORT ?? 5173), strictPort: true },
 	define: { __AI_STUB__: JSON.stringify(aiStub) },
 	plugins: [
 		cloudflare({
