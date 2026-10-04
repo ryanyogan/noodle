@@ -515,7 +515,6 @@ export {
 	undoExtraIncome,
 } from "./extra-income";
 export * from "./fresh-start";
-export * from "./snapshots";
 export {
 	type AccountRecord,
 	addAccount,
@@ -745,6 +744,7 @@ export {
 	saveSetupJob,
 	saveSetupProgress,
 } from "./setup";
+export * from "./snapshots";
 export {
 	decideSuggestion,
 	householdTimeZone,

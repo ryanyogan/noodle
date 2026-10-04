@@ -37,6 +37,7 @@ export function clearDeps(householdId: string): ClearDeps {
 	return {
 		db: getDb(),
 		files: env.STATEMENTS,
+		backups: env.BACKUPS,
 		// Under AI_MODEL=stub (dev and E2E) background AI learns nothing into the index (its
 		// stand-in keeps no vectors), so there is nothing to forget, and the index is remote.
 		merchants: __AI_STUB__

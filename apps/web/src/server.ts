@@ -33,6 +33,7 @@ import { startPerkRechecks } from "./server/perk-research-workflow";
 import { handlePlaidWebhook, PLAID_WEBHOOK_PATH } from "./server/plaid-webhook";
 import { handlePlaidWebhookMove, PLAID_WEBHOOK_MOVE_PATH } from "./server/plaid-webhook-move";
 import { handleReceiptEmail } from "./server/receipt-worker";
+import { runNightlySnapshots } from "./server/snapshots";
 
 // The Backup Workflow (also exported) exports the whole database to noodle-backups every night (#79).
 export { BackupWorkflow } from "./server/backup-workflow";
@@ -83,6 +84,10 @@ export default {
 				console.error("Couldn’t check last night’s backup", error),
 			);
 			await startBackup(now).catch((error) => console.error("Couldn’t start the backup", error));
+			// Each Household's own snapshot, separate from the whole-database backup (ADR-0035).
+			await runNightlySnapshots(now).catch((error) =>
+				console.error("Couldn’t take the nightly snapshots", error),
+			);
 			await startBankSyncs(now).catch((error) =>
 				console.error("Couldn’t start Bank Connections’ daily sync", error),
 			);

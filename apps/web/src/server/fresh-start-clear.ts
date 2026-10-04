@@ -9,6 +9,7 @@ import {
 import type { BankConnectionProvider } from "./bank-connection";
 import { disconnectBankConnection } from "./bank-disconnect";
 import { vectorId } from "./categorize-model";
+import { snapshotPrefix } from "./snapshot-store";
 
 // Clearing a Household's data from every store (#63, ADR-0029), one step at a time so the Fresh
 // start Workflow can retry each and report progress. Every step is idempotent: run again, it finds
@@ -18,6 +19,8 @@ export type ClearDeps = {
 	db: Db;
 	/** The STATEMENTS bucket: statements, Receipts and downloads. */
 	files: Pick<R2Bucket, "list" | "delete">;
+	/** The BACKUPS bucket, for the Household's snapshots (ADR-0035); a Delete Household removes them. */
+	backups?: Pick<R2Bucket, "list" | "delete">;
 	/** The MERCHANTS index. */
 	merchants: { deleteByIds(ids: string[]): Promise<unknown> };
 	/** The Household's Agent. */
@@ -69,6 +72,16 @@ async function removeBanks(deps: ClearDeps, householdId: string) {
 	}
 }
 
+/** A deleted Household's snapshot files (ADR-0035): nothing of it is kept after Delete Household. */
+async function clearSnapshotFiles(bucket: Pick<R2Bucket, "list" | "delete">, householdId: string) {
+	for (;;) {
+		const page = await bucket.list({ prefix: snapshotPrefix(householdId), limit: PAGE });
+		const keys = page.objects.map((object) => object.key);
+		if (keys.length > 0) await bucket.delete(keys);
+		if (!page.truncated || keys.length === 0) break;
+	}
+}
+
 /** The Household's files, or only those uploaded before `before` (the sweep after a clear). */
 async function clearFiles(deps: ClearDeps, householdId: string, before?: Date) {
 	for (const prefix of filePrefixes(householdId)) {
@@ -103,8 +116,10 @@ export async function runClearStep(
 	if (step === "banks") await removeBanks(deps, householdId);
 	else if (step === "background") await deps.agent(householdId).clearHousehold();
 	else if (step === "merchants") await forgetMerchants(deps, householdId);
-	else if (step === "files") await clearFiles(deps, householdId, before);
-	else await clearHouseholdRows(deps.db, householdId, level);
+	else if (step === "files") {
+		await clearFiles(deps, householdId, before);
+		if (level === "delete" && deps.backups) await clearSnapshotFiles(deps.backups, householdId);
+	} else await clearHouseholdRows(deps.db, householdId, level);
 }
 
 /** Every step: what the Workflow does, without its waits, progress and sweep. */
