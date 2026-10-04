@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
 
 // The Credit card perks page with two cards' worth of perks (AI_MODEL=stub, see perks-model.ts):
 // a "premium" page with $15 Uber Cash each month, a $200 airline fee credit each year, a $120
@@ -54,7 +54,7 @@ test("Do now puts the perks about to reset first, and a perk marked used by hand
 }) => {
 	test.slow();
 	const page = await signedInPage(browser, parent.email);
-	const { amex } = await twoCards(page);
+	const { amex, sapphire } = await twoCards(page);
 
 	const summary = page.getByRole("region", { name: /^This year/ });
 	await expect(summary).toContainText("Annual fees");
@@ -67,9 +67,11 @@ test("Do now puts the perks about to reset first, and a perk marked used by hand
 	const items = doNow.getByRole("listitem");
 	await expect(items.first()).toHaveAccessibleName("Uber Cash");
 	await expect(items.nth(1)).toHaveAccessibleName("DoorDash credit");
-	await expect(items.last()).toHaveAccessibleName("DashPass");
+	// Only the three most urgent: every perk is in its card below, once.
+	await expect(items).toHaveCount(3);
+	await expect(page.getByRole("link", { name: "4 more to use" })).toBeVisible();
 	await expect(items.first()).toContainText("Amex Platinum");
-	await expect(items.first()).toContainText(/Use it by \w+ \d+, then mark it used\./);
+	await expect(items.first()).toContainText(/Spend Uber Cash by \w+ \d+, then mark it used\./);
 
 	const uber = amex.getByRole("listitem", { name: "Uber Cash" });
 	await expect(uber).toContainText("$15");
@@ -82,11 +84,21 @@ test("Do now puts the perks about to reset first, and a perk marked used by hand
 	await expect(uber).toContainText(/^.*Used \w+ \d+/);
 	await expect(items.first()).toHaveAccessibleName("DoorDash credit");
 	await expect(doNow.getByRole("listitem", { name: "Uber Cash" })).toHaveCount(0);
+	await expect(page.getByRole("link", { name: "3 more to use" })).toBeVisible();
 	await expect(summary).toContainText("$15 of $830");
 
 	// Taken back, it's to do again.
 	await uber.getByRole("button", { name: "Undo Uber Cash used" }).click();
 	await expect(items.first()).toHaveAccessibleName("Uber Cash");
+
+	// DashPass's page states no value: a Parent types it.
+	const dashPass = sapphire.getByRole("listitem", { name: "DashPass" });
+	await dashPass.getByRole("button", { name: "Add the value of DashPass" }).click();
+	await dashPass.getByLabel("Value", { exact: true }).fill("10");
+	await choose(dashPass, "How often it renews", "Every month");
+	await dashPass.getByRole("button", { name: "Save" }).click();
+	await expect(dashPass).toContainText("$10");
+	await expect(summary).toContainText("$0 of $950");
 
 	if (process.env.SHOT_DIR) {
 		await uber.getByRole("button", { name: "Mark Uber Cash used" }).click();
@@ -116,4 +128,29 @@ test("on a phone each perk is its own row with no sideways scroll", { tag: "@pho
 	if (process.env.SHOT_DIR) {
 		await page.screenshot({ path: `${process.env.SHOT_DIR}/perks-393.png`, fullPage: true });
 	}
+});
+
+test("a credit card's Account page links to its perks, under the page's own header", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "9,000", buckets: [["Groceries", "1,200"]] });
+	await page.goto("/insights/perks");
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Credit card perks");
+	await addCard(page, "Amex Platinum", "https://example.com/premium-card", "695", 4);
+
+	await page.goto("/accounts");
+	await page.getByLabel("Name").fill("Amex Platinum");
+	await choose(page, "Kind", accountKindLabel("credit-card"));
+	await page.getByLabel("Owed now").fill("0");
+	await page.getByRole("button", { name: "Add Account" }).click();
+	await page.getByRole("link", { name: /^Amex Platinum, Credit card, / }).click();
+	const link = page.getByRole("link", { name: /^Perks for this card, 4 Perks/ });
+	await expect(link).toBeVisible();
+	await link.click();
+	await expect(page).toHaveURL(/\/insights\/perks$/);
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Credit card perks");
+	await expect(page.getByRole("article", { name: "Amex Platinum" })).toBeVisible();
+	await page.context().close();
 });
