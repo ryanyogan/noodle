@@ -56,13 +56,14 @@ function ScenarioPane() {
 		);
 	}
 	const { scenario } = found;
-	// Rename and Delete: in the header from lg; on a phone the header keeps its one action (Open in
-	// Explore) and these come after the Scenario (#74).
+	// Rename and Delete: in the header from lg; below that they come after the Scenario, and on a
+	// phone they are outlined and share the row so they aren't missed (#74).
 	const manage = (
 		<>
 			<Button
 				variant="ghost"
 				size="sm"
+				className="max-sm:border-border-strong"
 				onClick={() => {
 					setName(scenario.name);
 					setDialog("rename");
@@ -70,10 +71,20 @@ function ScenarioPane() {
 			>
 				Rename
 			</Button>
-			<Button variant="ghost" size="sm" onClick={() => setDialog("delete")}>
+			<Button
+				variant="ghost"
+				size="sm"
+				className="max-sm:border-border-strong"
+				onClick={() => setDialog("delete")}
+			>
 				Delete
 			</Button>
 		</>
+	);
+	const openInExplore = (
+		<Link to="/explore" search={{ scenario: scenario.id, years }}>
+			Open in Explore
+		</Link>
 	);
 	return (
 		<>
@@ -84,10 +95,8 @@ function ScenarioPane() {
 				actions={
 					<>
 						<div className="flex items-center gap-1 max-lg:hidden">{manage}</div>
-						<Button asChild size="sm">
-							<Link to="/explore" search={{ scenario: scenario.id, years }}>
-								Open in Explore
-							</Link>
+						<Button asChild size="sm" className="max-sm:hidden">
+							{openInExplore}
 						</Button>
 					</>
 				}
@@ -100,8 +109,15 @@ function ScenarioPane() {
 					/>
 				}
 			/>
+			{/* A phone's header has no room for it beside the title and the pager: there it is the
+			    page's one full-width action, under the header (#74). */}
+			<Button asChild size="sm" className="mb-4 w-full sm:hidden">
+				{openInExplore}
+			</Button>
 			<ScenarioView key={scenario.id} projected={found} kept={kept} />
-			<div className="mt-6 flex justify-end gap-1 lg:hidden">{manage}</div>
+			<div className="mt-6 flex justify-end gap-1 max-sm:grid max-sm:grid-cols-2 max-sm:gap-2 lg:hidden">
+				{manage}
+			</div>
 			<AlertDialog open={dialog === "rename"} onOpenChange={(open) => !open && setDialog(null)}>
 				<AlertDialogContent>
 					<AlertDialogHeader>

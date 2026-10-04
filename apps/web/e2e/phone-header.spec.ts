@@ -236,9 +236,10 @@ test("an item's page has the same header: Back, title and arrows on one row, one
 	await page.goto("/explore/scenarios");
 	await page.getByRole("link", { name: "Raise", exact: true }).first().click();
 	await expect(page).toHaveURL(/\/explore\/scenarios\/[^/]+$/);
-	// The header's one action; Rename and Delete come after the Scenario.
+	// Open in Explore is in the header from 640, and under it across a phone; Rename and Delete
+	// come after the Scenario.
 	const header = page.locator("[data-slot=detail-header]:visible");
-	await expect(header.getByRole("link", { name: "Open in Explore" })).toBeVisible();
+	await expect(page.getByRole("link", { name: "Open in Explore" })).toBeVisible();
 	await expect(header.getByRole("button", { name: "Rename" })).toHaveCount(0);
 	await expect(page.getByRole("button", { name: "Rename" })).toBeVisible();
 	await expect(page.getByRole("button", { name: "Delete" })).toBeVisible();

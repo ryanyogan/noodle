@@ -709,7 +709,9 @@ function ScenarioBar({
 						Delete “{draft.name}”? The Plan doesn’t change.
 					</Confirm>
 				) : null}
-				<div className="flex flex-wrap items-center gap-2">
+				{/* On a phone the actions are a grid of two, so none wraps alone; an odd one out (the first:
+				    Save, or Saved) takes the whole first row (#74). */}
+				<div className="flex flex-wrap items-center gap-2 max-sm:grid max-sm:grid-cols-2 max-sm:[&>:first-child:nth-last-child(odd)]:col-span-2">
 					{/* Save shows only once there's something to save; a kept Scenario says it's saved. */}
 					{dirty ? (
 						<Button
@@ -724,7 +726,7 @@ function ScenarioBar({
 							{saved ? "Save" : "Save Scenario"}
 						</Button>
 					) : saved ? (
-						<span className="inline-flex h-8 items-center gap-1 px-1 text-[13px] text-muted-foreground">
+						<span className="inline-flex h-8 items-center gap-1 px-1 text-[13px] text-muted-foreground max-sm:h-11 max-sm:justify-center">
 							<Check className="size-4" aria-hidden="true" />
 							Saved
 						</span>
@@ -743,6 +745,7 @@ function ScenarioBar({
 							type="button"
 							size="sm"
 							variant="ghost"
+							className="max-sm:border-border-strong"
 							onClick={() => onDraft({ ...draft, levers: [] })}
 						>
 							Reset<span className="sr-only"> all changes</span>
@@ -753,7 +756,7 @@ function ScenarioBar({
 							type="button"
 							size="sm"
 							variant="ghost"
-							className="ms-auto"
+							className="max-sm:border-border-strong sm:ms-auto"
 							onClick={() => setConfirming("delete")}
 						>
 							Delete
@@ -1061,6 +1064,8 @@ function GoalsReached({
 		<Section aria-labelledby="goals-reached">
 			<SectionHeader id="goals-reached" title="Goals reached" />
 			<Card>
+				{/* On a phone the columns sit closer, so the table fits its card and its right edge keeps
+				    the card's padding, as the Free to Spend table above does (#74). */}
 				<Table className="text-sm">
 					<TableCaption className="sr-only">
 						When each Goal is reached, the Plan against this Scenario
@@ -1069,21 +1074,21 @@ function GoalsReached({
 						<TableRow className="border-0">
 							<TableHead
 								scope="col"
-								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-3 pb-2 text-[13px]"
+								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-3 pb-2 text-[13px] max-sm:pe-2"
 							>
 								Goal
 							</TableHead>
 							<TableHead
 								scope="col"
 								numeric
-								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-3 pb-2 text-[13px]"
+								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-3 pb-2 text-[13px] max-sm:px-2"
 							>
 								Plan
 							</TableHead>
 							<TableHead
 								scope="col"
 								numeric
-								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-3 pb-2 text-[13px]"
+								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) h-auto pt-3 pb-2 text-[13px] max-sm:ps-2"
 							>
 								Scenario
 							</TableHead>
@@ -1094,7 +1099,10 @@ function GoalsReached({
 							const funding = monthly(scenario, goal.id);
 							return (
 								<TableRow key={goal.id} className="border-0 border-t">
-									<th scope="row" className="px-(--card-pad) py-2.5 text-start font-normal">
+									<th
+										scope="row"
+										className="px-(--card-pad) py-2.5 text-start font-normal max-sm:pe-2"
+									>
 										<span className="block">{goal.name}</span>
 										{funding ? (
 											<span className="block text-[13px] text-muted-foreground">
@@ -1104,13 +1112,13 @@ function GoalsReached({
 									</th>
 									<TableCell
 										numeric
-										className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) py-2.5 text-muted-foreground"
+										className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) py-2.5 text-muted-foreground max-sm:px-2"
 									>
 										{reached(plan, goal.id)}
 									</TableCell>
 									<TableCell
 										numeric
-										className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) py-2.5 font-semibold"
+										className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) py-2.5 font-semibold max-sm:ps-2"
 									>
 										{reached(scenario, goal.id)}
 									</TableCell>

@@ -977,6 +977,11 @@ export default function ScenarioOutcomes({
 	);
 }
 
+const phoneTabs = {
+	list: "max-sm:grid max-sm:w-full max-sm:auto-cols-fr max-sm:grid-flow-col",
+	tab: "max-sm:min-w-0 max-sm:px-1 max-sm:text-center max-sm:text-xs max-sm:leading-tight max-sm:text-balance max-sm:whitespace-normal",
+};
+
 /**
  * Every outcome chart as Tabs (Free to Spend, Projected balance, each month, Goal paths), so they
  * fit beside the Changes in one pane: one chart at a time, each the same size.
@@ -992,11 +997,23 @@ export function OutcomeTabs({
 	return (
 		<OutcomeProvider value={outcome}>
 			<Tabs defaultValue="free-to-spend" className="grid-cols-[minmax(0,1fr)]">
-				<TabsList aria-label="Charts">
-					<TabsTrigger value="free-to-spend">Free to Spend</TabsTrigger>
-					<TabsTrigger value="projected-balance">Projected balance</TabsTrigger>
-					<TabsTrigger value="each-month">Each month</TabsTrigger>
-					{hasGoals ? <TabsTrigger value="goal-paths">Goal paths</TabsTrigger> : null}
+				{/* On a phone the tabs share the width and a name may take two lines, so every one can be
+				    read without scrolling the strip (#74). */}
+				<TabsList aria-label="Charts" className={phoneTabs.list}>
+					<TabsTrigger value="free-to-spend" className={phoneTabs.tab}>
+						Free to Spend
+					</TabsTrigger>
+					<TabsTrigger value="projected-balance" className={phoneTabs.tab}>
+						Projected balance
+					</TabsTrigger>
+					<TabsTrigger value="each-month" className={phoneTabs.tab}>
+						Each month
+					</TabsTrigger>
+					{hasGoals ? (
+						<TabsTrigger value="goal-paths" className={phoneTabs.tab}>
+							Goal paths
+						</TabsTrigger>
+					) : null}
 				</TabsList>
 				<TabsContent value="free-to-spend">
 					<FreeToSpendChart title="Free to Spend each month" />
