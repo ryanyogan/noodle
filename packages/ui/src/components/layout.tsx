@@ -239,6 +239,8 @@ function MasterDetail({
 	emptyStacks,
 	listLabel,
 	detailLabel,
+	narrowList,
+	listOnly,
 	className,
 	style,
 	...props
@@ -252,6 +254,16 @@ function MasterDetail({
 	 * the top of its pane, and below lg it follows the list instead of being left out.
 	 */
 	emptyStacks?: boolean;
+	/**
+	 * The list's rows are a name and an amount (the Plan's Buckets and Commitments): beside an item
+	 * the list takes 22rem below 1920, which leaves the item room for two columns at 1440.
+	 */
+	narrowList?: boolean;
+	/**
+	 * While nothing is picked there is no detail pane from lg: the list has the page's width (Review's
+	 * cards, side by side), and `empty` isn't shown.
+	 */
+	listOnly?: boolean;
 	/** Names the list pane, e.g. "Buckets". */
 	listLabel: string;
 	/** Names the detail pane, e.g. "Bucket". */
@@ -272,7 +284,12 @@ function MasterDetail({
 			data-slot="master-detail"
 			data-picked={picked}
 			className={cn(
-				"grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[var(--list-pane-width)_minmax(0,1fr)] lg:gap-(--layout-gap)",
+				"grid grid-cols-[minmax(0,1fr)] lg:gap-(--layout-gap)",
+				listOnly && !picked
+					? null
+					: narrowList
+						? "lg:grid-cols-[22rem_minmax(0,1fr)] min-[120rem]:grid-cols-[var(--list-pane-width)_minmax(0,1fr)]"
+						: "lg:grid-cols-[var(--list-pane-width)_minmax(0,1fr)]",
 				emptyStacks && !picked && "max-lg:gap-(--layout-gap)",
 				// A list that fills while nothing is picked (Goals' cards): the list takes the wide column
 				// and the overview the rail's width (#73L, ADR-0033).
@@ -299,6 +316,7 @@ function MasterDetail({
 					// window (3rem: the sticky inset above and below).
 					"lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto lg:overscroll-contain",
 					!picked && !emptyStacks && "max-lg:hidden",
+					!picked && listOnly && "lg:hidden",
 				)}
 			>
 				{picked ? (

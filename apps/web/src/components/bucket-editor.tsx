@@ -1,4 +1,11 @@
-import { type MonthKey, type PlanBucket, type PlanScope, parseDollars } from "@noodle/domain";
+import {
+	type BucketState,
+	type MonthKey,
+	type PlanBucket,
+	type PlanScope,
+	parseDollars,
+} from "@noodle/domain";
+import { BudgetBar } from "@noodle/ui/components/budget-bar";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field, FormError } from "@noodle/ui/components/field";
@@ -7,12 +14,13 @@ import { ListRow } from "@noodle/ui/components/list";
 import { RadioGroup, RadioGroupCard } from "@noodle/ui/components/radio-group";
 import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
+import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useHydrated } from "@tanstack/react-router";
 import { Archive, Pencil, Plus } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useId, useState } from "react";
 import { ulid } from "ulid";
-import { asBucketColor, monogram, nextBucketColor } from "../buckets";
+import { asBucketColor, barState, monogram, nextBucketColor } from "../buckets";
 import { formatMoney, formatMoneyInput, monthName } from "../format";
 import {
 	usePlanChange,
@@ -54,9 +62,15 @@ export function BucketEditor({
 	handle,
 	dragged,
 	onDraft,
+	figures,
 }: {
 	month: MonthKey;
-	bucket: PlanBucket;
+	bucket: PlanBucket | BucketState;
+	/**
+	 * In a list with the page's width, the row is a line of a table: allowance, spent so far, what's
+	 * left and its bar, each in its own column (`BucketColumns` heads them). Needs the month's state.
+	 */
+	figures?: boolean;
 	editable: boolean;
 	was?: number;
 	/** The handle that moves it in the list, before its tile. */
@@ -75,6 +89,7 @@ export function BucketEditor({
 	const [inline, setInline] = useState(false);
 	const color = asBucketColor(bucket.color);
 	const changes = useBucketChanges(month);
+	const spending = figures && "spent" in bucket ? bucket : undefined;
 	function closeInline() {
 		setInline(false);
 		onDraft?.(null);
@@ -126,16 +141,56 @@ export function BucketEditor({
 							disabled={!hydrated}
 							aria-label={`Change ${bucket.name}: ${formatMoney(bucket.allowance)}`}
 							aria-expanded={inline}
-							className="px-2 font-medium tabular-nums"
+							className={cn("px-2 font-medium tabular-nums", spending && COLUMN.allowance)}
 							onClick={() => (inline ? closeInline() : setInline(true))}
 						>
 							{formatMoney(bucket.allowance)}
 						</Button>
 					) : (
-						<span className="text-sm font-medium tabular-nums">
+						<span
+							className={cn(
+								"text-sm font-medium tabular-nums",
+								spending && `${COLUMN.allowance} @2xl:px-2 @2xl:text-end`,
+							)}
+						>
 							{formatMoney(bucket.allowance)}
 						</span>
 					)}
+					{spending ? (
+						<>
+							<span
+								className={cn("hidden text-sm text-muted-foreground @2xl:block", COLUMN.figure)}
+							>
+								<span className="sr-only">Spent </span>
+								{formatMoney(spending.spent)}
+							</span>
+							<span
+								className={cn(
+									"hidden text-sm font-medium @2xl:block",
+									COLUMN.figure,
+									spending.left < 0 && "text-over-foreground",
+								)}
+							>
+								<span className="sr-only">Left </span>
+								{formatMoney(spending.left)}
+							</span>
+							<div className={cn("hidden @2xl:block", COLUMN.bar)}>
+								<BudgetBar
+									bucket={color}
+									value={spending.spent}
+									max={spending.available}
+									marker={1 - spending.pace.leftShare}
+									state={barState(spending.status)}
+									label={`${bucket.name} this month`}
+									valueText={`${formatMoney(spending.spent)} spent of ${formatMoney(spending.available)}, ${
+										spending.left < 0
+											? `${formatMoney(-spending.left)} over`
+											: `${formatMoney(spending.left)} left`
+									}`}
+								/>
+							</div>
+						</>
+					) : null}
 					{editable ? (
 						<Button
 							variant="ghost"
@@ -180,6 +235,30 @@ export function BucketEditor({
 				) : undefined
 			}
 		/>
+	);
+}
+
+/** The widths of a row's columns in a wide list, shared with the line that heads them. */
+const COLUMN = {
+	allowance: "@2xl:w-24 @2xl:justify-end",
+	figure: "w-20 px-2 text-end tabular-nums",
+	bar: "w-28 px-2 @4xl:w-56",
+};
+
+/** Heads the columns of the rows beneath it, in a list wide enough to show them. */
+export function BucketColumns({ pencil }: { pencil: boolean }) {
+	return (
+		<div
+			aria-hidden="true"
+			data-slot="bucket-columns"
+			className="hidden items-center justify-end gap-1 px-(--card-pad) text-xs font-medium text-subtle-foreground @2xl:flex"
+		>
+			<span className="w-24 px-2 text-end">Allowance</span>
+			<span className={COLUMN.figure}>Spent</span>
+			<span className={COLUMN.figure}>Left</span>
+			<span className={COLUMN.bar}>This month</span>
+			{pencil ? <span className="size-8 shrink-0" /> : null}
+		</div>
 	);
 }
 

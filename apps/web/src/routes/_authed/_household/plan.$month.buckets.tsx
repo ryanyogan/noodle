@@ -1,4 +1,5 @@
 import { monthOfDay } from "@noodle/domain";
+import { BudgetBar } from "@noodle/ui/components/budget-bar";
 import { Card } from "@noodle/ui/components/card";
 import { List } from "@noodle/ui/components/list";
 import { Money } from "@noodle/ui/components/money";
@@ -9,11 +10,11 @@ import { useState } from "react";
 import { AddBuckets } from "../../../components/add-buckets";
 import { AddPersonalAllowance, BucketEditor } from "../../../components/bucket-editor";
 import { BucketList } from "../../../components/bucket-list";
-import { PlanMasterDetail } from "../../../components/plan-page";
+import { PlanMasterDetail, TotalsCard } from "../../../components/plan-page";
 import { SectionPending } from "../../../components/section-layout";
 import { Suggested } from "../../../components/suggested";
 import { TermHelp } from "../../../components/term-help";
-import { formatMoney } from "../../../format";
+import { formatMoney, monthName } from "../../../format";
 import { usePlanChanges } from "../../../plan-changes";
 import {
 	membersQuery,
@@ -51,6 +52,10 @@ function PlanBuckets() {
 		0,
 	);
 	const left = state.freeToSpend - typed;
+	const personal = allowances.reduce((sum, b) => sum + b.allowance, 0);
+	const spent = state.buckets.reduce((sum, b) => sum + b.spent, 0);
+	const available = state.buckets.reduce((sum, b) => sum + b.available, 0);
+	const over = state.buckets.reduce((sum, b) => sum + Math.max(0, -b.left), 0);
 	const onDraft = (bucketId: string, cents: number | null) =>
 		setDrafts(({ [bucketId]: _, ...rest }) =>
 			cents === null ? rest : { ...rest, [bucketId]: cents },
@@ -71,6 +76,52 @@ function PlanBuckets() {
 							</>
 						) : null}
 					</>
+				) : undefined
+			}
+			overviewHeader={{
+				eyebrow: `Buckets in ${monthName(month)}`,
+				title: (
+					<>
+						<Money cents={spent} /> spent
+					</>
+				),
+			}}
+			overview={
+				state.buckets.length > 0 ? (
+					<TotalsCard
+						label={`Buckets in ${monthName(month)}: totals`}
+						lines={[
+							...(state.baseline == null
+								? []
+								: [{ label: "Take-home pay", value: formatMoney(state.baseline) }]),
+							{ label: "Shared Buckets", value: formatMoney(shared) },
+							...(allowances.length > 0
+								? [{ label: "Personal Allowances", value: formatMoney(personal) }]
+								: []),
+							{ label: "Spent so far", value: formatMoney(spent) },
+							...(over > 0
+								? [
+										{
+											label: "Over, across Buckets",
+											value: formatMoney(over),
+											tone: "over" as const,
+										},
+									]
+								: []),
+							{
+								label: "Left in Buckets",
+								value: formatMoney(state.leftInBuckets),
+								tone: "strong" as const,
+							},
+						]}
+					>
+						<BudgetBar
+							value={spent}
+							max={available}
+							label={`All Buckets in ${monthName(month)}`}
+							valueText={`${formatMoney(spent)} spent of ${formatMoney(available)}`}
+						/>
+					</TotalsCard>
 				) : undefined
 			}
 		>
@@ -105,6 +156,7 @@ function PlanBuckets() {
 						editable={state.editable}
 						was={changes.allowances}
 						onDraft={onDraft}
+						figures
 					/>
 				) : state.editable ? (
 					<p className="px-1 text-sm text-muted-foreground">
@@ -136,6 +188,7 @@ function PlanBuckets() {
 									key={bucket.id}
 									month={month}
 									bucket={bucket}
+									figures
 									// Each Parent sets their own; the other's shows its amount.
 									editable={state.editable && bucket.owner === parentId}
 									was={changes.allowances[bucket.id]}

@@ -1,10 +1,10 @@
-import type { MonthKey, PlanBucket } from "@noodle/domain";
+import type { BucketState, MonthKey, PlanBucket } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { List } from "@noodle/ui/components/list";
 import { useHydrated } from "@tanstack/react-router";
 import { GripVertical } from "lucide-react";
 import { type KeyboardEvent, type PointerEvent, useId, useRef, useState } from "react";
-import { BucketEditor, useBucketChanges } from "./bucket-editor";
+import { BucketColumns, BucketEditor, useBucketChanges } from "./bucket-editor";
 
 /**
  * The Plan's shared Buckets, in order. Each row's handle moves it: dragged by mouse or touch, or
@@ -18,9 +18,12 @@ export function BucketList({
 	editable,
 	was,
 	onDraft,
+	figures,
 }: {
 	month: MonthKey;
-	buckets: PlanBucket[];
+	buckets: (PlanBucket | BucketState)[];
+	/** In a wide list each row shows its allowance, spent, left and bar in columns. */
+	figures?: boolean;
 	editable: boolean;
 	was: Record<string, number | undefined>;
 	/** A Bucket's amount while it's being typed in the list, or null when it's put away. */
@@ -90,10 +93,12 @@ export function BucketList({
 
 	return (
 		<div ref={listRef} className="grid gap-2">
+			{figures ? <BucketColumns pencil={editable} /> : null}
 			<List>
 				{shown.map((bucket) => (
 					<BucketEditor
 						key={bucket.id}
+						figures={figures}
 						month={month}
 						bucket={bucket}
 						editable={editable}

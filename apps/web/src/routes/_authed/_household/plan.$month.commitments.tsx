@@ -19,7 +19,7 @@ import {
 	CommitmentEditor,
 	useCommitmentChanges,
 } from "../../../components/commitment-editor";
-import { PlanMasterDetail } from "../../../components/plan-page";
+import { PlanMasterDetail, TotalsCard } from "../../../components/plan-page";
 import { SectionPending } from "../../../components/section-layout";
 import { Suggested } from "../../../components/suggested";
 import { TermHelp } from "../../../components/term-help";
@@ -49,6 +49,8 @@ function PlanCommitments() {
 	// Due this month first; the rest (a yearly bill due in spring, say) folded away below.
 	const due = state.commitments.filter((c) => c.dueDates.length > 0);
 	const notDue = state.commitments.filter((c) => c.dueDates.length === 0);
+	const paid = state.commitments.reduce((sum, c) => sum + c.actual, 0);
+	const toPay = due.reduce((sum, c) => sum + Math.max(0, c.expected - c.actual), 0);
 	const average = state.commitments.reduce((sum, c) => sum + monthlyEquivalent(c), 0);
 	// Folded unless nothing's due this month; one just added or moved there opens it, so it shows.
 	const [showNotDue, setShowNotDue] = useState(due.length === 0);
@@ -127,6 +129,30 @@ function PlanCommitments() {
 					<>
 						<Money cents={state.committed} /> expected this month
 					</>
+				) : undefined
+			}
+			overviewHeader={{
+				eyebrow: `Commitments in ${monthName(month)}`,
+				title: (
+					<>
+						<Money cents={paid} /> paid
+					</>
+				),
+			}}
+			overview={
+				state.commitments.length > 0 ? (
+					<TotalsCard
+						label={`Commitments in ${monthName(month)}: totals`}
+						lines={[
+							{ label: "Expected this month", value: formatMoney(state.committed) },
+							{ label: "Paid so far", value: formatMoney(paid) },
+							{
+								label: "Paid in full",
+								value: `${due.filter((c) => c.charges >= c.dueDates.length).length} of ${due.length}`,
+							},
+							{ label: "Still to pay", value: formatMoney(toPay), tone: "strong" },
+						]}
+					/>
 				) : undefined
 			}
 			aside={aside}
