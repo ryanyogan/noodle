@@ -10,7 +10,7 @@ import { toast } from "@noodle/ui/components/toast";
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useHydrated } from "@tanstack/react-router";
 import { Camera, History, Moon } from "lucide-react";
-import { type FormEvent, useEffect, useId, useState } from "react";
+import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import {
 	getRestoreStatus,
 	getSnapshots,
@@ -155,7 +155,9 @@ export function HouseholdSnapshots({ householdName }: { householdName: string })
 	}, [restoreState, queryClient]);
 	const hydrated = useHydrated();
 	const noteId = useId();
-	const [note, setNote] = useState("");
+	// The note is read from the form when it is sent, not kept in state: what a Parent types
+	// before the page has finished loading would otherwise be wiped.
+	const formRef = useRef<HTMLFormElement>(null);
 	const [showAll, setShowAll] = useState(false);
 	const snapshots = useQuery(snapshotsQuery());
 	const take = useMutation({
@@ -165,7 +167,7 @@ export function HouseholdSnapshots({ householdName }: { householdName: string })
 				toast(result.reason, { tone: "error" });
 				return;
 			}
-			setNote("");
+			formRef.current?.reset();
 			toast("Snapshot taken.");
 			void queryClient.invalidateQueries({ queryKey: snapshotsQuery().queryKey });
 		},
@@ -173,7 +175,8 @@ export function HouseholdSnapshots({ householdName }: { householdName: string })
 	});
 	function onSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		take.mutate({ note: note.trim() || undefined });
+		const note = String(new FormData(event.currentTarget).get("note") ?? "").trim();
+		take.mutate({ note: note || undefined });
 	}
 	const list = snapshots.data ?? [];
 	const shown = showAll ? list : list.slice(0, SHOWN);
@@ -202,17 +205,20 @@ export function HouseholdSnapshots({ householdName }: { householdName: string })
 						</p>
 					</div>
 				</div>
-				<form onSubmit={onSubmit} className="flex flex-col gap-2 sm:flex-row sm:items-end">
+				<form
+					ref={formRef}
+					onSubmit={onSubmit}
+					className="flex flex-col gap-2 sm:flex-row sm:items-end"
+				>
 					<div className="grid min-w-0 flex-1 gap-1">
 						<label htmlFor={noteId} className="text-sm font-medium">
 							Note <span className="font-normal text-muted-foreground">(optional)</span>
 						</label>
 						<Input
 							id={noteId}
-							value={note}
+							name="note"
 							maxLength={200}
 							placeholder="Before we change the Plan"
-							onChange={(event) => setNote(event.target.value)}
 						/>
 					</div>
 					<Button type="submit" variant="outline" disabled={!hydrated || take.isPending}>

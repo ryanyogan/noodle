@@ -21,7 +21,7 @@ import { ColourPicker } from "../../../components/colour-picker";
 import { DataDownload } from "../../../components/data-download";
 import { DangerZone } from "../../../components/fresh-start";
 import { HouseholdDetails } from "../../../components/household-details";
-import { HouseholdSnapshots } from "../../../components/household-snapshots";
+import { HouseholdSnapshots, snapshotsQuery } from "../../../components/household-snapshots";
 import { InviteOtherParent } from "../../../components/invite-other-parent";
 import { NudgeSettings } from "../../../components/nudge-settings";
 import { Confirm, SaveFailed } from "../../../components/plan-editing";
@@ -55,6 +55,8 @@ export const Route = createFileRoute("/_authed/_household/household")({
 			context.queryClient.ensureQueryData(checkInQuery()),
 			context.queryClient.ensureQueryData(captureTokenQuery()),
 			context.queryClient.ensureQueryData(receiptAddressQuery()),
+			// The snapshot history comes with the page, so it doesn't pop in and move what's below.
+			context.queryClient.prefetchQuery(snapshotsQuery()),
 		]);
 	},
 	component: HouseholdPage,
