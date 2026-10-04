@@ -4,6 +4,7 @@ import { Skeleton } from "@noodle/ui/components/skeleton";
 import { LinkTab, LinkTabs } from "@noodle/ui/components/tabs";
 import { Link, type LinkProps, Outlet } from "@tanstack/react-router";
 import type { ComponentProps, ReactNode } from "react";
+import { sectionHeaderOverItem } from "./master-detail";
 
 /** One page of a section: its tab's words and where it goes (build `link` with `linkOptions`). */
 /** `badge` sits after the label, e.g. how many wait in Review. */
@@ -39,7 +40,8 @@ export function SectionLayout({
 } & Omit<ComponentProps<"div">, "title" | "children">) {
 	return (
 		<div data-slot="section-layout" {...props}>
-			<div data-slot="section-layout-header">
+			{/* On a phone an open item (a Bucket, a Commitment, a Scenario, a Rule) has its own header. */}
+			<div data-slot="section-layout-header" className={sectionHeaderOverItem}>
 				<PageHeader eyebrow={eyebrow} title={title} leading={leading} actions={actions} />
 				{tabs ? (
 					<LinkTabs aria-label={tabsLabel} className="mb-6">

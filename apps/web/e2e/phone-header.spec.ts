@@ -95,7 +95,7 @@ test("every page has the same header: eyebrow and title first, tabs under it, no
 });
 
 /**
- * An item's page (`DetailHeader`) keeps the same rule under its section's header: one row at least
+ * An item's page (`DetailHeader`) keeps the same rule, in place of its section's header: one row at least
  * as tall as the page's, on the gutter, with Back (its arrow on the gutter), the title and
  * previous/next; at most one action; anything to switch comes under it.
  */
@@ -112,6 +112,21 @@ async function expectDetailHeader(page: Page, what: string) {
 	if (!box || !title || !arrow) throw new Error(`${what}: no header`);
 	expect(Math.round(box.x), `${what}: header starts at the gutter`).toBe(GUTTER);
 	expect(Math.round(box.height), `${what}: header height`).toBeGreaterThanOrEqual(HEADER_HEIGHT);
+	// It is the page's only header: the section's (its title, its action, its tabs) isn't drawn over
+	// an open item, though its h1 is still there to be read out.
+	expect(Math.round(box.y), `${what}: the item's header is the first thing`).toBe(GUTTER);
+	const section = page.locator("[data-slot=page-header]");
+	await expect(page.getByRole("heading", { level: 1 }), what).toHaveCount(1);
+	const sectionBox = await section.boundingBox();
+	expect(
+		sectionBox?.height ?? 0,
+		`${what}: the section's header takes no room`,
+	).toBeLessThanOrEqual(1);
+	await expect(section.locator("a:visible, button:visible"), what).toHaveCount(0);
+	await expect(
+		page.locator("[data-slot=section-layout-header] [data-slot=link-tabs]:visible"),
+		what,
+	).toHaveCount(0);
 	// The arrow's 20px glyph, in the middle of its 44px link, starts on the gutter.
 	expect(
 		Math.abs(arrow.x + arrow.width / 2 - 10 - GUTTER),

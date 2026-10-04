@@ -14,7 +14,11 @@ import { Landmark, Plus, Target } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { z } from "zod";
 import { AddGoalSheet, GoalProgressBar, GoalSummary, LinkRow } from "../../../components/goals";
-import { ListBesideDetail, masterDetailItem } from "../../../components/master-detail";
+import {
+	ListBesideDetail,
+	masterDetailItem,
+	sectionHeaderOverItem,
+} from "../../../components/master-detail";
 import { SaveFailed } from "../../../components/plan-editing";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney } from "../../../format";
@@ -73,7 +77,12 @@ function GoalsPage() {
 
 	return (
 		<>
-			<PageHeader eyebrow="Planning" title="Goals" actions={canAddGoal ? addGoalButton : null} />
+			<PageHeader
+				eyebrow="Planning"
+				title="Goals"
+				className={sectionHeaderOverItem}
+				actions={canAddGoal ? addGoalButton : null}
+			/>
 			<ListBesideDetail
 				picked={picked !== undefined}
 				listFills

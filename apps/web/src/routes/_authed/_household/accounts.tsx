@@ -28,7 +28,11 @@ import {
 	balanceLabel,
 	LinkRow,
 } from "../../../components/goals";
-import { ListBesideDetail, masterDetailItem } from "../../../components/master-detail";
+import {
+	ListBesideDetail,
+	masterDetailItem,
+	sectionHeaderOverItem,
+} from "../../../components/master-detail";
 import { SaveFailed } from "../../../components/plan-editing";
 import { type AccountView, accountKindName, useAddAccount, useGoals } from "../../../goals";
 import { bankConnectionsQuery, goalsQuery } from "../../../queries";
@@ -76,6 +80,7 @@ function AccountsPage() {
 			<PageHeader
 				eyebrow="Day to day"
 				title="Accounts"
+				className={sectionHeaderOverItem}
 				actions={
 					<Button type="button" size="sm" disabled={!hydrated} onClick={() => setAdding(true)}>
 						<Plus />
