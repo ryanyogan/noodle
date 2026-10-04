@@ -17,10 +17,6 @@ on:
         type: boolean
         default: true
 
-env:
-  # Where bun keeps downloaded packages; each job restores it from the cache, keyed on bun.lock.
-  BUN_INSTALL_CACHE_DIR: /tmp/bun-cache
-
 concurrency:
   group: ci-${{ github.ref }}
   # Never cancel main mid-deploy; other branches only need their newest push tested.
@@ -71,11 +67,6 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
-      - uses: actions/cache@v4
-        with:
-          path: /tmp/bun-cache
-          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: bun-${{ runner.os }}-
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run lint
@@ -92,14 +83,16 @@ jobs:
     needs: gate
     if: needs.gate.outputs.tested != 'true'
     runs-on: ubuntu-latest
-    # Three runners at once, three workers each, against the built Worker (E2E_SERVER=build, #81):
+    # Four runners at once, three workers each, against the built Worker (E2E_SERVER=build, #81):
     # the dev server compiled pages on demand and starved a second worker, so it took six runners of
     # one worker each. Specs seed the local D1 through the Worker (/api/dev/sql); when they opened
     # its SQLite file from a second process, three workers got SQLITE_BUSY.
+    # Measured and left out: caching bun's packages (install takes 2 s, saving the cache 26 s) and
+    # building once in a job of its own (the build takes 8 s; a job before the shards costs more).
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4]
     # Playwright's image already has Chromium, WebKit and their system libraries, so no job installs
     # them. Keep its tag equal to @playwright/test in apps/web/package.json.
     container:
@@ -112,11 +105,6 @@ jobs:
       - uses: actions/checkout@v5
       # setup-bun needs unzip, which the image lacks; npm's bun package is the same binary.
       - run: npm install -g "$(node -p 'require("./package.json").packageManager')"
-      - uses: actions/cache@v4
-        with:
-          path: /tmp/bun-cache
-          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: bun-${{ runner.os }}-
       - run: bun install --frozen-lockfile
       # The browsers are cached by Playwright version; only their system libraries install each run.
       - name: Write dev keys for the local Worker
@@ -134,7 +122,7 @@ jobs:
           AI_MODEL: stub
       # Phone tests run in e2e-phone. A branch that breaks everything stops after five failures
       # instead of running each test to its timeout, twice.
-      - run: bun run e2e --project=chromium --shard=${{ matrix.shard }}/3 --workers=3 --max-failures=5
+      - run: bun run e2e --project=chromium --shard=${{ matrix.shard }}/4 --workers=3 --max-failures=5
         working-directory: apps/web
       - name: Slowest 20 tests
         if: ${{ !cancelled() }}
@@ -192,11 +180,6 @@ jobs:
       - uses: actions/checkout@v5
       # setup-bun needs unzip, which the image lacks; npm's bun package is the same binary.
       - run: npm install -g "$(node -p 'require("./package.json").packageManager')"
-      - uses: actions/cache@v4
-        with:
-          path: /tmp/bun-cache
-          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: bun-${{ runner.os }}-
       - run: bun install --frozen-lockfile
       - name: Write dev keys for the local Worker
         working-directory: apps/web
@@ -263,11 +246,6 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
-      - uses: actions/cache@v4
-        with:
-          path: /tmp/bun-cache
-          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: bun-${{ runner.os }}-
       - run: bun install --frozen-lockfile
       # The Time Travel bookmark just before migrating, so a bad migration can be rolled back to
       # exactly here (docs/runbooks/restore.md).
