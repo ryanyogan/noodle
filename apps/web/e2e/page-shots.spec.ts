@@ -5,7 +5,13 @@ import { ulid } from "ulid";
 import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
 import { seedSql } from "./seed-sql";
-import { createPlannedHousehold, openMore, signedInPage } from "./session";
+import {
+	createHousehold,
+	createPlannedHousehold,
+	openMore,
+	savedBy,
+	signedInPage,
+} from "./session";
 
 // Pictures of every page with one realistic Household, for looking at a redesign without a browser
 // on the machine: .github/workflows/shots.yml runs this on GitHub and uploads the PNGs. Not a test
@@ -17,6 +23,9 @@ import { createPlannedHousehold, openMore, signedInPage } from "./session";
 //
 // Each PNG is the full page, at test-results/page-shots/<width>/<name>.png. A page that fails is
 // noted in <width>/failures.txt and the rest still get their picture.
+//
+// A second Household, just made and with setup not finished, is there only for the pictures marked
+// `fresh`: This Month's get-started list and the first steps of the setup wizard (#73).
 
 const VIEWPORTS = [
 	{ width: 1024, height: 768 },
@@ -49,9 +58,18 @@ type Shot = {
 	 * page for the picture, or the rows below the fold come out as an empty card.
 	 */
 	tall?: boolean;
+	/** Pictured as the second Parent, whose Household is new and hasn't finished setup. */
+	fresh?: boolean;
+	/**
+	 * Scrolled this far down first, and only what's in the window: what stays put while a long page
+	 * scrolls (a Goal's side column beside its History).
+	 */
+	scrolledTo?: number;
 };
 
 let parent: Awaited<ReturnType<typeof createTestParent>> | undefined;
+/** The Parent of the new Household that hasn't finished setup. */
+let freshParent: Awaited<ReturnType<typeof createTestParent>> | undefined;
 let shots: Shot[] = [];
 /** What the seeding couldn't do: written beside the pictures so a missing section is explained. */
 const seedNotes: string[] = [];
@@ -96,6 +114,35 @@ async function addCard(page: Page, name: string, pageUrl: string, fee: string, p
 	await card.getByRole("button", { name: "Save fee" }).click();
 	await expect(card).toContainText(`annual fee $${fee}`);
 	return card;
+}
+
+/**
+ * Walks the setup wizard forward to step `wanted`, as setup-shots.spec.ts does: by hand, $6,000
+ * take-home pay, later steps skipped. A wizard already at or past that step is left where it is
+ * (a second width in the same run finds it where the first one left it).
+ */
+async function toSetupStep(page: Page, wanted: number) {
+	const label = page.getByText(/Step \d of 7/).first();
+	await expect(label).toBeVisible({ timeout: 30_000 });
+	const proceed = page.getByRole("button", { name: "Continue", exact: true });
+	for (let turn = 1; turn < wanted; turn++) {
+		const at = Number((await label.innerText()).match(/Step (\d)/)?.[1] ?? wanted);
+		if (at >= wanted) return;
+		if (at === 1) {
+			// The choice only counts once the page is hydrated.
+			await expect(async () => {
+				await page.getByRole("radio", { name: /by hand/ }).click();
+				await expect(proceed).toBeEnabled({ timeout: 1000 });
+			}).toPass({ timeout: 20_000 });
+		}
+		if (at === 2)
+			await page.getByRole("textbox", { name: /What lands in your account/ }).fill("6,000");
+		const saved = savedBy(page, "saveSetup");
+		if (at <= 2) await proceed.click({ timeout: 15_000 });
+		else await page.getByRole("button", { name: "Skip" }).click({ timeout: 15_000 });
+		await saved;
+		await expect(page.getByText(`Step ${at + 1} of 7`)).toBeVisible({ timeout: 15_000 });
+	}
 }
 
 /** Tries one part of the seeding; a failure is noted and the rest goes on. */
@@ -171,6 +218,8 @@ test.beforeAll(async ({ browser }) => {
 		emergency: ulid(),
 		vacation: ulid(),
 		car: ulid(),
+		college: ulid(),
+		roof: ulid(),
 		openTransaction: ulid(),
 	};
 	const bucket = (name: string) => q(bucketIds[name] ?? "");
@@ -197,6 +246,21 @@ test.beforeAll(async ({ browser }) => {
 			`insert into account_balances (id, household_id, account_id, amount_cents, created_by_member_id) values (${q(ulid())}, ${h}, ${q(id)}, ${cents}, ${m});`,
 		);
 	}
+	// An Account nobody has given a balance yet ("No balance yet").
+	statements.push(
+		`insert into accounts (id, household_id, name, kind, bank_connection_id, external_id, mask) values (${q(ids.college)}, ${h}, 'College savings', 'savings', null, null, null);`,
+	);
+	// A Goal with a long History, as goal-side-sticky.spec.ts seeds it: three small fundings a month
+	// for 14 months, so the twelve months shown are far taller than the window (#73).
+	const longAgo = 14;
+	statements.push(
+		`insert into goals (id, household_id, account_id, name, target_cents, target_date, from_month) values (${q(ids.roof)}, ${h}, ${q(ids.savings)}, 'New roof', 900000, null, ${q(dayOf(longAgo - 1, 1).slice(0, 7))});`,
+		...Array.from(
+			{ length: longAgo * 3 },
+			(_, i) =>
+				`insert into moves (id, household_id, kind, month, amount_cents, created_by_member_id, to_goal_id) values (${q(ulid())}, ${h}, 'goal-funding', ${q(dayOf(Math.floor(i / 3), 1).slice(0, 7))}, ${1_000 + (i % 3) * 500}, ${m}, ${q(ids.roof)});`,
+		),
+	);
 	// Three Goals on the savings Account, funded a little each month.
 	const goals: [id: string, name: string, target: number, date: string | null, monthly: number][] =
 		[
@@ -300,6 +364,32 @@ test.beforeAll(async ({ browser }) => {
 	});
 	await page.context().close();
 
+	// The second Household: made, and nothing else. Its Parent hasn't been through the setup wizard.
+	await attempt("A Household that hasn't finished setup", async () => {
+		freshParent = await createTestParent();
+		const freshPage = await signedInPage(browser, freshParent.email, {
+			viewport: { width: 1440, height: 900 },
+			colorScheme,
+		});
+		await createHousehold(freshPage, "The Parkers", "Jo");
+		await freshPage.context().close();
+	});
+	const fresh: Shot[] = freshParent
+		? [
+				// Nothing planned: the get-started list on its own, and the way back into the wizard.
+				{ name: "30-fresh-this-month-get-started", path: `/month/${month}`, fresh: true },
+				// The wizard's first four steps. Each walks on from where the one before left it.
+				...["31-setup-step-1", "32-setup-step-2", "33-setup-step-3", "34-setup-step-4"].map(
+					(name, index): Shot => ({
+						name,
+						path: "/setup",
+						fresh: true,
+						ready: (page) => toSetupStep(page, index + 1),
+					}),
+				),
+			]
+		: [];
+
 	const firstBucket = bucketIds.Groceries;
 	const firstCommitment = commitmentIds.Electricity;
 	shots = [
@@ -337,8 +427,13 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "14-rules", path: "/review/rules" },
 		{ name: "15-accounts", path: "/accounts" },
 		{ name: "16-account-credit-card", path: `/accounts/${ids.sapphire}` },
+		{ name: "16a-account-no-balance", path: `/accounts/${ids.college}` },
 		{ name: "17-goals", path: "/goals" },
 		{ name: "18-goal", path: `/goals/${ids.vacation}` },
+		// A long History: the whole page, then the window after scrolling 700px, where the side column
+		// (progress and actions) should still be in view on a wide screen (#73).
+		{ name: "18a-goal-long-history", path: `/goals/${ids.roof}` },
+		{ name: "18b-goal-long-history-scrolled", path: `/goals/${ids.roof}`, scrolledTo: 700 },
 		{ name: "19-explore", path: "/explore" },
 		// A Scenario not saved yet, with one change: the outline, Your changes and the outcomes (#74).
 		{ name: "19a-explore-with-a-change", path: "/explore?lever=baseline:1020000" },
@@ -356,6 +451,7 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "21-scenarios", path: "/explore/scenarios" },
 		...(scenarioPath ? [{ name: "22-scenario", path: scenarioPath }] : []),
 		{ name: "23-reports", path: "/reports" },
+		{ name: "23a-reports-cash-flow", path: "/reports?view=cash-flow" },
 		{ name: "24-insights", path: "/insights" },
 		{ name: "25-credit-card-perks", path: "/insights/perks" },
 		{ name: "26-check-in", path: "/check-in" },
@@ -369,6 +465,7 @@ test.beforeAll(async ({ browser }) => {
 				await openMore(page);
 			},
 		},
+		...fresh,
 	];
 	mkdirSync(OUT, { recursive: true });
 	writeFileSync(
@@ -379,6 +476,7 @@ test.beforeAll(async ({ browser }) => {
 
 test.afterAll(async () => {
 	await parent?.remove();
+	await freshParent?.remove();
 });
 
 for (const viewport of viewports) {
@@ -387,19 +485,28 @@ for (const viewport of viewports) {
 		test.setTimeout(900_000);
 		if (!parent) throw new Error("No Parent: beforeAll didn't finish");
 		const phone = viewport.width < 1024;
-		const page = await signedInPage(browser, parent.email, {
+		const device: Parameters<typeof signedInPage>[2] = {
 			viewport,
 			colorScheme,
 			isMobile: phone,
 			hasTouch: phone,
 			deviceScaleFactor: phone ? 2 : 1,
-		});
+		};
+		const main = await signedInPage(browser, parent.email, device);
+		// Signed in only when there is something to picture as the second Parent.
+		let freshPage: Page | undefined;
 		const dir = join(OUT, String(viewport.width));
 		mkdirSync(dir, { recursive: true });
 		const failures: string[] = [];
 		for (const shot of shots) {
 			if (shot.phoneSheet && !phone) continue;
+			let page = main;
 			try {
+				if (shot.fresh) {
+					if (!freshParent) throw new Error("No second Household");
+					freshPage ??= await signedInPage(browser, freshParent.email, device);
+					page = freshPage;
+				}
 				await page.goto(shot.path);
 				await settled(page);
 				if (shot.ready) {
@@ -420,9 +527,13 @@ for (const viewport of viewports) {
 					await page.setViewportSize({ width: viewport.width, height: Math.min(height, 12_000) });
 					await page.waitForTimeout(500);
 				}
+				if (shot.scrolledTo) {
+					await page.evaluate((y) => window.scrollTo(0, y), shot.scrolledTo);
+					await page.waitForTimeout(400);
+				}
 				await page.screenshot({
 					path: join(dir, `${shot.name}.png`),
-					fullPage: !shot.phoneSheet,
+					fullPage: !shot.phoneSheet && !shot.scrolledTo,
 					animations: "disabled",
 				});
 				if (shot.tall) await page.setViewportSize(viewport);
@@ -434,7 +545,8 @@ for (const viewport of viewports) {
 					.catch(() => {});
 			}
 		}
-		await page.context().close();
+		await main.context().close();
+		await freshPage?.context().close();
 		if (failures.length > 0) writeFileSync(join(dir, "failures.txt"), `${failures.join("\n")}\n`);
 		expect(failures, "pages that couldn't be pictured").toEqual([]);
 		expect(seedNotes, "data that couldn't be seeded").toEqual([]);
