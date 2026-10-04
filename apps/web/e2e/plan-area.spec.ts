@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, savedBy, signedInPage, switchTo } from "./session";
+import { createPlannedHousehold, openFromMore, savedBy, signedInPage, switchTo } from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -55,21 +55,28 @@ test("on a computer, the Plan is in the sidebar", async ({ browser }) => {
 	await page.context().close();
 });
 
-test("on a phone, the Plan is a switch away from This Month", { tag: "@phone" }, async ({
+test("on a phone, the Plan is in More and This Month is a tab", { tag: "@phone" }, async ({
 	browser,
 }) => {
 	const page = await signedInPage(browser, parent.email, phone);
 	await createPlannedHousehold(page, plan);
 	const { name } = shownMonth(page);
 
+	// No switch between the two in either header (#74): the Plan is in More, This Month in the tab bar.
 	const views = page.getByRole("navigation", { name: "Month and Plan" });
-	await expect(views.getByRole("link", { name: "Month" })).toHaveAttribute("aria-current", "page");
-	await views.getByRole("link", { name: "Plan" }).click();
+	await expect(views).toHaveCount(0);
+	await openFromMore(page, "Plan");
+	await expect(page).toHaveURL(/\/plan\/\d{4}-\d{2}$/);
 	await expect(heading(page)).toHaveText(name);
-	await expect(views.getByRole("link", { name: "Plan" })).toHaveAttribute("aria-current", "page");
 	await expect(waterfall(page)).toContainText("Free to Spend$4,400");
+	await expect(views).toHaveCount(0);
+	// Under the title, only the Plan's own pages.
+	await expect(page.getByRole("navigation", { name: "Plan pages" })).toBeVisible();
 
-	await views.getByRole("link", { name: "Month" }).click();
+	await page
+		.getByRole("navigation", { name: "Main" })
+		.getByRole("link", { name: "Month", exact: true })
+		.click();
 	await expect(header(page)).toContainText("This Month");
 	await page.context().close();
 });

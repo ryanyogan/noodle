@@ -1,6 +1,5 @@
 import { addMonths, type MonthKey } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
-import { LinkTab, LinkTabs } from "@noodle/ui/components/tabs";
 import { WithTooltip } from "@noodle/ui/components/tooltip";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -18,48 +17,6 @@ export type PlanView =
 	| "/plan/$month/buckets"
 	| "/plan/$month/goals"
 	| "/plan/$month/year";
-
-/**
- * On phones, the second row of a month's header, under the title (#74): the switch between the
- * month and its Plan. On a computer the Sidebar has both, so the row isn't there (#73).
- */
-export function MonthSwitchRow({ month, current }: { month: MonthKey; current: "month" | "plan" }) {
-	return (
-		<div className="mb-4 flex lg:hidden">
-			<MonthPlanSwitch month={month} current={current} />
-		</div>
-	);
-}
-
-/** A quiet segmented control between a month and its Plan. */
-export function MonthPlanSwitch({
-	month,
-	current,
-}: {
-	month: MonthKey;
-	current: "month" | "plan";
-}) {
-	const options = [
-		{ key: "month", label: "Month", to: "/month/$month" },
-		{ key: "plan", label: "Plan", to: "/plan/$month" },
-	] as const;
-	return (
-		<LinkTabs aria-label="Month and Plan">
-			{options.map((option) => (
-				<LinkTab key={option.key} asChild className="min-w-16">
-					<Link
-						activeOptions={{ exact: true }}
-						to={option.to}
-						params={{ month }}
-						aria-current={option.key === current ? "page" : undefined}
-					>
-						{option.label}
-					</Link>
-				</LinkTab>
-			))}
-		</LinkTabs>
-	);
-}
 
 /**
  * A chevron to an adjacent month of the same view; its data preloads on hover or touch (the

@@ -1,11 +1,6 @@
 import { addMonths, type MonthKey, monthKeyAt, monthOfDay } from "@noodle/domain";
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import {
-	MonthLinks,
-	MonthSwitchRow,
-	monthTitle,
-	useMonthSwipe,
-} from "../../../components/month-nav";
+import { MonthLinks, monthTitle, useMonthSwipe } from "../../../components/month-nav";
 import { SectionLayout, SectionPending } from "../../../components/section-layout";
 import { closingWeek } from "../../../month-close";
 import { goalsQuery, monthQuery, reviewQuery, useMonthState } from "../../../queries";
@@ -46,7 +41,6 @@ function MonthLayout() {
 	return (
 		<SectionLayout
 			{...swipe}
-			switcher={<MonthSwitchRow month={month} current="month" />}
 			eyebrow={month === current ? "This Month" : "Month"}
 			title={monthTitle(month, current)}
 			actions={<MonthLinks to="/month/$month" month={month} first={state.firstMonth} />}
@@ -62,7 +56,6 @@ function MonthPending() {
 	const current = monthKeyAt(new Date(), household.timeZone);
 	return (
 		<SectionLayout
-			switcher={<MonthSwitchRow month={month} current="month" />}
 			eyebrow={month === current ? "This Month" : "Month"}
 			title={monthTitle(month, current)}
 			// Until the month loads, the first month with a Plan isn't known: both ways stay open.

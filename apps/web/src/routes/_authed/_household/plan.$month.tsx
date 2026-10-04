@@ -2,7 +2,6 @@ import { type MonthKey, monthKeyAt, monthOfDay } from "@noodle/domain";
 import { createFileRoute, linkOptions, notFound, useLocation } from "@tanstack/react-router";
 import {
 	MonthLinks,
-	MonthSwitchRow,
 	monthTitle,
 	type PlanView,
 	useMonthSwipe,
@@ -62,7 +61,6 @@ function PlanLayout() {
 	return (
 		<SectionLayout
 			{...swipe}
-			switcher={<MonthSwitchRow month={month} current="plan" />}
 			eyebrow="Plan"
 			title={monthTitle(month, monthOfDay(state.asOf))}
 			actions={<MonthLinks to={to} month={month} first={state.firstMonth} />}
@@ -80,7 +78,6 @@ function PlanPending() {
 	const to = usePlanPage();
 	return (
 		<SectionLayout
-			switcher={<MonthSwitchRow month={month} current="plan" />}
 			eyebrow="Plan"
 			title={monthTitle(month, monthKeyAt(new Date(), household.timeZone))}
 			// Until the month loads, the first month with a Plan isn't known: both ways stay open.

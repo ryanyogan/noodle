@@ -57,7 +57,9 @@ async function open(page: Page, path: string) {
 		if (!error.message.includes("interrupted by another navigation")) throw error;
 		return page.goto(path);
 	});
-	await expect(page.locator("[data-slot=page-header]:visible").first()).toBeVisible(clientRendered);
+	await expect(page.locator("[data-slot=page-header]:visible").first(), path).toBeVisible(
+		clientRendered,
+	);
 	await page.evaluate(() => document.fonts.ready);
 }
 

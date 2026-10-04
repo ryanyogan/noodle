@@ -33,9 +33,6 @@ for (const look of looks) {
       - heading /\\w+/ [level=1]
       - button "Previous month"
       - link /^Next month/
-      - navigation "Month and Plan":
-        - link "Month"
-        - link "Plan"
       - region /^Buckets/:
         - heading /^Buckets/ [level=2]
         - list:

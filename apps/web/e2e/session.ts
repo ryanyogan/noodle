@@ -181,14 +181,17 @@ export const savedBy = (page: Page, name: string) =>
 
 /** Switches between a month's This Month and its Plan, from either one's overview. */
 export async function switchTo(page: Page, view: "Month" | "Plan") {
-	// On a computer the Sidebar goes there; the switch above the header is on phones only (#73).
-	// By its accessible name, so the collapsed rail (1024-1279px, labels sr-only) works too.
+	// On a computer the Sidebar goes there, by its accessible name, so the collapsed rail
+	// (1024-1279px, labels sr-only) works too. On a phone This Month is the tab bar's first tab and
+	// the Plan is in More (#74): there is no switch between them.
 	const wide = (page.viewportSize()?.width ?? 1280) >= 1024;
 	const link = wide
 		? page
 				.locator("[data-slot=sidebar]")
 				.getByRole("link", { name: view === "Month" ? "This Month" : "Plan", exact: true })
-		: page.getByRole("navigation", { name: "Month and Plan" }).getByRole("link", { name: view });
+		: page
+				.getByRole("navigation", { name: "Main" })
+				.getByRole("link", { name: "Month", exact: true });
 	// While the other one loads, React keeps the page being left in the document, hidden, beside the
 	// pending header: look at the one that shows.
 	const header = page.locator("[data-slot=page-header]:visible");
@@ -197,7 +200,8 @@ export async function switchTo(page: Page, view: "Month" | "Plan") {
 	// short), so wait for it, and click again if the header still hasn't changed.
 	await page.waitForLoadState("networkidle");
 	await expect(async () => {
-		await link.click({ timeout: 5_000 });
+		if (wide || view === "Month") await link.click({ timeout: 5_000 });
+		else await openFromMore(page, "Plan");
 		await expect(header).toContainText(title, { timeout: 5_000 });
 	}).toPass({ timeout: 20_000 });
 }

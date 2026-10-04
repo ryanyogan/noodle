@@ -16,7 +16,6 @@ export type SectionTab = { label: string; link: LinkProps; badge?: ReactNode };
  * its scroll position.
  */
 export function SectionLayout({
-	switcher,
 	eyebrow,
 	title,
 	leading,
@@ -26,11 +25,6 @@ export function SectionLayout({
 	children = <Outlet />,
 	...props
 }: {
-	/**
-	 * The header's second row on a phone, under the title and above any tabs (#74): the switch
-	 * between a month and its Plan. Never above the title.
-	 */
-	switcher?: ReactNode;
 	eyebrow?: ReactNode;
 	title: ReactNode;
 	/** Beside the title, e.g. a back link on phones. */
@@ -47,7 +41,6 @@ export function SectionLayout({
 		<div data-slot="section-layout" {...props}>
 			<div data-slot="section-layout-header">
 				<PageHeader eyebrow={eyebrow} title={title} leading={leading} actions={actions} />
-				{switcher}
 				{tabs ? (
 					<LinkTabs aria-label={tabsLabel} className="mb-6">
 						{tabs.map((tab) => (
