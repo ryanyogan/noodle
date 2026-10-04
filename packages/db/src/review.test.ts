@@ -9,7 +9,7 @@ import {
 	createHouseholdForParent,
 	setTakeHomePay,
 } from "./index";
-import { loadReview, returnToReview } from "./review";
+import { fileWithoutBucket, loadReview, returnToReview } from "./review";
 import { applyRule, deleteRule, editRule, listRules, loadRules, saveRule } from "./rules";
 import {
 	categorizations,
@@ -618,5 +618,71 @@ describe("Rules into a Commitment", () => {
 		});
 		expect(await reviewIds()).toEqual(["t2"]);
 		expect((await listRules(db, alex)).find((r) => r.id === "r1")?.matched).toBe(1);
+	});
+});
+
+describe("filing without a Bucket (#82)", () => {
+	it("a bank Transaction from a month before the Plan has no Bucket it can be filed in", async () => {
+		// August: the Plan starts in September, so nothing is assignable there. This is why the card
+		// could only be skipped.
+		await imported("old", "acme widgets", { outcome: "review" }, "2026-08-15");
+		const result = await updateTransaction(db, {
+			householdId,
+			memberId: "alex",
+			transactionId: "old",
+			amountCents: 4_200,
+			assignment: { bucketId: "groceries" },
+			note: "acme widgets",
+			forMemberIds: [],
+		});
+		expect(result.ok).toBe(false);
+		expect(await reviewIds()).toEqual(["old"]);
+	});
+
+	it("takes them out of Review, still unassigned, and the count goes down", async () => {
+		await imported("old", "acme widgets", { outcome: "review" }, "2026-08-15");
+		await imported("older", "corner deli", { outcome: "review" }, "2025-12-02");
+		await imported("now", "lego store", { outcome: "review", bucketId: "fun", confidence: 0.6 });
+		expect((await loadReview(db, alex, 50)).total).toBe(3);
+
+		expect((await fileWithoutBucket(db, alex, ["old"])).filed).toEqual(["old"]);
+		expect((await loadReview(db, alex, 50)).total).toBe(2);
+		// Either Parent may, as with any card.
+		expect((await fileWithoutBucket(db, sam, ["older", "now"])).filed.sort()).toEqual([
+			"now",
+			"older",
+		]);
+		expect((await loadReview(db, alex, 50)).total).toBe(0);
+
+		const rows = await db.select().from(transactions);
+		expect(rows.map((row) => [row.bucketId, row.commitmentId, row.goalId])).toEqual([
+			[null, null, null],
+			[null, null, null],
+			[null, null, null],
+		]);
+		// Again: nothing left to file.
+		expect((await fileWithoutBucket(db, alex, ["old", "older"])).filed).toEqual([]);
+	});
+
+	it("leaves alone what isn't waiting, and another Household's", async () => {
+		await imported("filed", "costco", { outcome: "filed", bucketId: "groceries" });
+		await imported("old", "acme widgets", { outcome: "review" }, "2026-08-15");
+		const stranger = { householdId: "other", memberId: "nobody" };
+		expect((await fileWithoutBucket(db, stranger, ["old"])).filed).toEqual([]);
+		expect((await fileWithoutBucket(db, alex, ["filed", "missing"])).filed).toEqual([]);
+		expect(await db.select().from(categorizations)).toHaveLength(2);
+		expect(await reviewIds()).toEqual(["old"]);
+	});
+
+	it("can be undone: the card goes back to Review", async () => {
+		await imported("old", "acme widgets", { outcome: "review" }, "2026-08-15");
+		await fileWithoutBucket(db, alex, ["old"]);
+		await returnToReview(db, alex, {
+			transactionId: "old",
+			merchant: "acme widgets",
+			guess: null,
+			forMemberIds: [],
+		});
+		expect(await reviewIds()).toEqual(["old"]);
 	});
 });
