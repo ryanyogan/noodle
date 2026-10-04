@@ -1,6 +1,6 @@
 # Mobile sweep (#74)
 
-## 74a: audit and research (2026-10-03, partly done)
+## 74a: audit and research (2026-10-03, partly done; measured in 74b below)
 
 How it was meant to work: a throwaway spec (`zz-mobile-audit.spec.ts`, not committed) on `chromium-mobile`, with above-the-fold.spec's busy Household (`createPlannedHousehold` with $6,200 take-home pay and four Buckets, 8 months of `seedReportHistory`, Joint Savings, a Trip Goal). It visits 26 phone pages at 393x852 (the tab bar pages, the six Plan pages, Goals, Explore, Afford, Scenarios, four Reports views, Insights, Perks, Review, Rules, Check-in, Household, Glossary, Ask, `/setup`), then the first Bucket, Commitment, Goal, Account and Transaction, then 8 sheets (Quick Add, To do, Add Goal, Filters, Add Bucket, Add Commitment, Upload, Invite), then the main four at 320 and 430. In the browser it measures: duplicate link destinations by region (tab bar, header, tabs, main, sheet); the left edges of headings, cards, rows, sections and tab strips, with neighbouring edges 2 to 11 px apart flagged; the right gutters; every card's padding, radius, border and shadow; elements past the right edge outside a scroller; every scroll container and its scrollbar width; `bg-primary` buttons and whether they sit in the bottom half of the first screen; and targets under 44 px.
 
@@ -24,7 +24,32 @@ So the per-page table below is the **checklist for 74b**, with the This Month fi
 9. **"Add income"** is an outlined button at the right of the Income heading, the only section with a header button; Buckets and Bills put their action in the rows.
 10. **Measurement harness:** `networkidle` must not be used against the dev server; write results incrementally.
 
-### Per page (to measure in 74b unless filled in)
+## 74b: measured (2026-10-03)
+
+The audit spec ran on `chromium-mobile` (1 worker, no `networkidle`, JSON written after every page) in four chunks: the 26 pages at 393x852; the detail pages; the sheets; This Month, Transactions, Accounts and Plan at 320 and 430 plus a Household email check. The busy Household was the one above. Each page was measured about 1.3 s after `main` appeared. Looked at: the 393 shots of Reports and Household (and This Month in 74a).
+
+Limits, so nothing below claims more than this:
+- **Reports** was measured while still a loading skeleton (see finding 1); the loaded Reports views were not measured.
+- **Sheets:** the probe's dialog selector (`[role=dialog]:last-of-type`) missed, so it measured the page behind. Only each sheet's box, the page's primary buttons and the scroll containers are sheet findings. To do and Invite are not dialogs (inline); Add Commitment opened no dialog within 5 s; the Account upload had no button named Upload/statement.
+- **A Transaction:** the Transactions list had no link matching `/transactions/<month>/<id>`, so no detail page was measured.
+- Left edge 17 px is a row's content inside a card's 1 px border, and 33 px is card padding; those are not offsets.
+
+### Measured findings
+
+1. **Reports' loading skeleton widens the page to 512 px.** On all four Reports views the layout viewport measured 512 wide (`innerWidth` and `scrollWidth` 512 at a 393 device width): the phone zooms the page out. The shot shows the skeleton's tab pills and cards running to x=512 and no page header yet. Check the loaded views in 74g; the skeleton itself needs `min-w-0`/the 16 px gutter.
+2. **Page title 2 px in.** Every page's header starts at 16 px, but its `h1` starts at 18 px (This Month, Plan, Insights, Glossary, Ask, a Goal and the rest: one element at 18 on every page with a header). Everything else starts at 16 (or 17/33 inside cards). 74c: the title to 16.
+3. **Household email overflows its card** (confirmed by measurement with main's markup from ebe8ec0, `min-w-0 truncate`, applied in the page; this branch still has the wrapping markup). With the test Parent's 53-character email the span is 386 px wide, from x=81 to x=467, while the card ends at 377: it is clipped by the card's `overflow-hidden`, and no ellipsis shows because the span itself is as wide as its text (`scrollWidth` = `clientWidth` = 386). The cause is one level up: the meta `div.flex.flex-wrap` (text-[13px]) is a grid item with `min-width: auto`, so it grows to the email (386) inside its 267 px `div.grid.min-w-0`. Fix: `min-w-0` (or `w-full min-w-0`) on that meta div, or `minmax(0,1fr)` on its grid. On this branch (wrapping markup) the span is 270 px wide and fits.
+4. **No other horizontal overflow.** Every other page at 393, 320 and 430 measured `scrollWidth` = viewport width and nothing past the right edge outside a scroller.
+5. **One scroll container per page.** The only inner scroller on any page is the Plan pages' tab strip (`nav.link-tabs`, x, `scrollbar-width: none`, 0 px bar). The **Add Buckets** sheet has its own vertical scroller (`div.sheet-content`) with `scrollbar-width: auto` and a measured 2 px bar: a visible scrollbar inside a sheet.
+6. **Primary actions in the top row.** `bg-primary` buttons at y=16–60 (the page header): Add Account (Accounts, an Account), Add Goal (Goals, a Goal). Mid-screen, top half: Add Buckets (y=284), Add Rule (235), Ask (382), Add money on a Goal (317). Household's Invite is at y=909 (below the first screen) and Get an address / Set up at 2,300+. In thumb reach: Connect a bank (641), Perks' Add (807–851, the band where the fixed tab bar sits; whether it is covered was not checked), the wizard's Continue (796), and the sticky sheet footers: Add Goal and Add Buckets (796–840), Filters' Apply (796–840).
+7. **Targets under 44 px.** Every glossary help (?) button is 24x24 (1–4 per page on Month, Plan, Accounts, Buckets, a Goal, Check-in…). Household's four notification switches are 40x24. The wizard's choice buttons are 18x18 (radios 13x13); Add Buckets' tick boxes are 18x18. This Month's card link "Plan" is 42x19 (42x38 at 320). Selects at 1x1 are the hidden native selects behind the custom ones (not targets).
+8. **Duplicate destinations** (Skip to content and the section's own tab excluded): This Month's card "Plan" = the Plan switch (also at 320 and 430); on every Plan page the switch's "Plan" and the "Overview" tab both go to the Plan; Commitments' "1 lumpy month ahead" = the Year tab; Year's "October" row = the Plan; Goal funding's "All Goals and their progress" = the tab bar's Goals; Explore, Afford, Scenarios and a Goal have "Back to Goals" in the header = the tab bar's Goals; a Bucket's and a Commitment's "Back to …" = their Plan tab; Review's empty "See Transactions" = the tab bar (an empty state's one action, allowed). With the To do panel open, the Plan is linked four times (switch, "Plan", "6 Plan changes this month", "2 things to check in the Plan") and Invite = the tab bar's Household.
+9. **Card styles in use:** radius 16, 1 px `rgb(229,232,237)` border and a shadow everywhere. Padding: 0 (list cards, rows pad themselves), 16 px (form and figure cards: Plan's figure, Accounts, Goals, Explore, Household's seven), 32/16 (empty states: Insights, Perks, Review, Rules), 8 px (Glossary). None uses the 20 px `--card-pad` the cross-cutting rule names, so 74c decides 16 or 20 for phones.
+10. **Page lengths** (screens of 852): Glossary 4.6, Household 4.3, Plan › Year 3.4, Transactions 2.9 (2.9 at 320), This Month 2.3 (2.5 at 320, 3.9 with To do open), a Bucket 2.0, a Commitment 1.9, Commitments 1.7, Plan 1.5; the rest about one screen.
+11. **Sheets' heights** (box at 393x852): Quick Add 649 px (from y=203), Add Goal 755 (from 97), Filters 415 (from 437), Add Buckets 784 (from 68).
+12. **320 and 430** show the same left edges, duplicates and targets as 393; nothing overflows at 320.
+
+### Per page (filled in by 74b where measured)
 
 For each: duplicates; crowding; alignment Δ; overflow and scroll containers; card styles; primary action position; targets under 44 px; proposed phone representation (one key figure, one list, one primary action in thumb reach).
 
@@ -33,22 +58,22 @@ For each: duplicates; crowding; alignment Δ; overflow and scroll containers; ca
 | Tab bar | Month, Transactions, + (Quick Add), Goals, Household. Fixed, bottom. | Keep. It and the page header are the only global entry points. |
 | Top row (Month/Plan switch, Reports, Ask, Glossary) | Finding 3. | Switch stays (73d's reason). Reports, Ask and Glossary go into one "More" menu button (one icon), or Glossary moves under Household. |
 | This Month | Findings 1–9. | Figure: Free to Spend. List: Buckets (rows open the Bucket; one Cover action in the header when any are over). Bills and Income behind a "This month's money" disclosure or Bills only, Income on Plan › Income. Action: Quick Add (tab bar). |
-| Transactions | Shot, to measure. | Figure: the month total. List: the virtualised list. Action: Quick Add; Filters as a chip row, Review button keeps its count. |
-| A Transaction | Shot, to measure. | Pushed page or full sheet with a sticky Save footer. |
-| Accounts / an Account | Shot, to measure. | Figure: net total. List: Accounts. Action: Add Account at the bottom of the list. "Back to Accounts" stays (phone only, per 73e). |
-| Plan › Overview | Shot, to measure. | Figure: Free to Spend. List: the waterfall rows (no links, 73d). Things to check as rows of the same card. |
-| Plan › Income, Commitments, Buckets, Goal funding, Year | Shot, to measure. | One list each; its add button as the last row of the list, not top right. Year: one row per month. |
-| A Bucket / a Commitment | Shot, to measure. | Figure: left this month. List: its Transactions. Action: Edit. Back/Next stay on phones. |
-| Goals / a Goal | Shot, to measure. | Figure: total saved. List: Goals. Action: Add Goal (sheet). |
-| Explore, Afford, Scenarios | Shot, to measure. | Figure: the outcome sentence. One chart with the segmented control scrolling with an edge fade. Editors as collapsed sections with totals (73f left this open). |
-| Reports (Overview, Spending, Trends, Merchants) | Shot, to measure. | One headline figure per view, one chart, one list. Tabs scroll with an edge fade. |
-| Insights, Perks | Shot, to measure. | One list of cards; EmptyState padding token. |
-| Review, Rules | Shot, to measure (Review has no waiting Transactions in this Household). | Review: the card stack, Skip/Undo in reach (above-the-fold.spec already checks). |
-| Check-in | Shot, to measure. | One step at a time, Continue in a sticky footer. |
-| Household | Shot, to measure. | The three groups from the desktop sweep (People, Money, Notifications and data) as list sections; danger zone last. |
-| Glossary, Ask | Shot, to measure. | Glossary: search sticky above one list (#66). Ask: composer pinned above the tab bar. |
-| Get-started wizard (`/setup`) | Shot, to measure. | One question per screen, Continue in a sticky footer. |
-| Sheets | Quick Add shot. Others to open in 74b (run 1 stalled in this pass). | Content-sized up to 92% (#48), primary action in a sticky footer, no visible scrollbar, one scroll area. |
+| Transactions | 2.9 screens at 320/393/430; no overflow, no duplicates, no target under 44 px; title 2 px in (finding 2). | Figure: the month total. List: the virtualised list. Action: Quick Add; Filters as a chip row, Review button keeps its count. |
+| A Transaction | Not measured (no detail link found by the probe). | Pushed page or full sheet with a sticky Save footer. |
+| Accounts / an Account | Add Account is a `bg-primary` button in the header row (y=16–60) on both; Connect a bank at y=641 (763 at 320). 24 px help button. One card at 16 px padding, two at 0. | Figure: net total. List: Accounts. Action: Add Account at the bottom of the list. "Back to Accounts" stays (phone only, per 73e). |
+| Plan › Overview | 1.5 screens. Switch "Plan" and the Overview tab both go to the Plan. Tab strip scrolls sideways, no bar. Two 24 px help buttons. Same at 320/430. | Figure: Free to Spend. List: the waterfall rows (no links, 73d). Things to check as rows of the same card. |
+| Plan › Income, Commitments, Buckets, Goal funding, Year | Plan/Overview duplicate on each. Commitments: "1 lumpy month ahead" = Year tab. Goal funding: "All Goals and their progress" = tab bar Goals. Year: 3.4 screens, its October row = the Plan. Buckets: Add Buckets at y=284; its sheet has a visible 2 px scrollbar and 18 px tick boxes. | One list each; its add button as the last row of the list, not top right. Year: one row per month. |
+| A Bucket / a Commitment | 2.0 / 1.9 screens. "Back to Buckets/Commitments" duplicates the Plan tab (phone-only Back is an allowed exception). | Figure: left this month. List: its Transactions. Action: Edit. Back/Next stay on phones. |
+| Goals / a Goal | Add Goal in the header row (y=16–60) on both; a Goal's Add money at y=317. "Back to Goals" = tab bar Goals. Add Goal sheet 755 px with its button at the bottom (796–840). | Figure: total saved. List: Goals. Action: Add Goal (sheet). |
+| Explore, Afford, Scenarios | One screen each at this data; "Back to Goals" in the header = tab bar Goals; one element starts at 66 px. | Figure: the outcome sentence. One chart with the segmented control scrolling with an edge fade. Editors as collapsed sections with totals (73f left this open). |
+| Reports (Overview, Spending, Trends, Merchants) | Loading skeleton widens the layout to 512 px (finding 1). Loaded views not measured. | One headline figure per view, one chart, one list. Tabs scroll with an edge fade. |
+| Insights, Perks | Empty-state cards pad 32/16. Perks' Add at y=807–851. Title 2 px in. | One list of cards; EmptyState padding token. |
+| Review, Rules | Review empty here; "See Transactions" = tab bar (allowed). Add Rule at y=235 (top half). | Review: the card stack, Skip/Undo in reach (above-the-fold.spec already checks). |
+| Check-in | One screen; one 24 px help button. | One step at a time, Continue in a sticky footer. |
+| Household | Looked at. 4.3 screens, 12 cards (7 at 16 px padding, 5 at 0). Invite at y=909, below the first screen. Four notification switches 40x24. Long email clipped past the card (finding 3). | The three groups from the desktop sweep (People, Money, Notifications and data) as list sections; danger zone last. |
+| Glossary, Ask | Glossary 4.6 screens, card padding 8 px. Ask's button at y=382 (top half). Both titles 2 px in. | Glossary: search sticky above one list (#66). Ask: composer pinned above the tab bar. |
+| Get-started wizard (`/setup`) | No page header; Continue at y=796 (thumb); choice buttons 18x18, radios 13x13. | One question per screen, Continue in a sticky footer. |
+| Sheets | Heights in finding 11; Add Buckets' visible scrollbar (finding 5); To do, Invite inline, Add Commitment and Upload not opened. Insides not measured (selector missed). | Content-sized up to 92% (#48), primary action in a sticky footer, no visible scrollbar, one scroll area. |
 
 ### What others do (research)
 
