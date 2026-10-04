@@ -260,8 +260,8 @@ function TransactionsPage() {
 						<section
 							aria-label="Transaction details"
 							data-slot="transaction-detail"
-							data-scroll-pane=""
-							className="@container min-w-0 lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto lg:overscroll-contain"
+							// No scroll of its own (#73): an editor taller than the window flows with the page.
+							className="@container min-w-0"
 						>
 							<Suspense fallback={<DetailPending />}>
 								<Outlet />

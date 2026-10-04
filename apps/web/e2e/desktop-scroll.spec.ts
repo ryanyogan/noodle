@@ -12,7 +12,7 @@ import {
 
 // Guards the desktop's one scroll per region (#67): the page scrolls, and nothing scrolls inside
 // it. A rail with its own scrollbar inside a scrolling page is what this catches. Allowed:
-// MasterDetail's panes (`data-scroll-pane`), the sidebar, open sheets, dialogs, menus and popovers,
+// the sidebar, open sheets, dialogs, menus and popovers,
 // text areas, and things that only scroll sideways (tab strips, wide tables).
 const desktop = { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 } as const;
 
@@ -104,8 +104,6 @@ function measure(page: Page) {
 				if (el.closest("[aria-hidden=true],[inert]")) return false;
 				const box = el.getBoundingClientRect();
 				if (box.width <= 1 || box.height <= 1 || !scrollsY(el)) return false;
-				// A MasterDetail pane may scroll; something scrolling inside one may not.
-				if (el.matches("[data-scroll-pane]")) return false;
 				return pageScrolls || insideScroller(el);
 			})
 			.map(name);
@@ -174,7 +172,7 @@ test("no desktop page has a region that scrolls inside another", async ({ browse
 	const page = await signedInPage(browser, parent.email, desktop);
 	await busyHousehold(page);
 	await walk(page, migrated);
-	// An item beside its list (67b, 67c): only MasterDetail's panes scroll. The busy Household
+	// An item beside its list (67b, 67c): the page scrolls, not a pane (#73). The busy Household
 	// has no Commitment, so that one is walked only when there is one.
 	const lists = [`/plan/${month}/buckets`, `/plan/${month}/commitments`, "/goals", "/accounts"];
 	for (const path of lists) {
