@@ -1,0 +1,46 @@
+# TEMPORARY (base2, #73/#74): redraws the shell and setup comparison pictures the way CI draws
+# them, and uploads them. Deleted in the commit that brings the pictures in.
+name: Snapshots base2
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["ci-base2-shots"]
+
+jobs:
+  redraw:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --ipc=host
+    env:
+      CI: "true"
+      E2E_SERVER: build
+    steps:
+      - uses: actions/checkout@v5
+      - run: npm install -g "$(node -p 'require("./package.json").packageManager')"
+      - run: bun install --frozen-lockfile
+      - name: Write dev keys for the local Worker
+        working-directory: apps/web
+        run: |
+          printf 'VITE_CLERK_PUBLISHABLE_KEY=%s\nCLERK_SECRET_KEY=%s\n' \
+            "${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" "${{ secrets.CLERK_SECRET_KEY }}" > .dev.vars
+          bun scripts/vapid-keys.ts >> .dev.vars
+      - run: bun run build
+        working-directory: apps/web
+        env:
+          AI_MODEL: stub
+      - run: bun run e2e --project=chromium --workers=2 --update-snapshots=all e2e/shell.spec.ts e2e/setup-shots.spec.ts
+        working-directory: apps/web
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: base2-snapshots
+          path: |
+            apps/web/e2e/shell.spec.ts-snapshots
+            apps/web/e2e/setup-shots.spec.ts-snapshots
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: base2-traces
+          path: apps/web/test-results
