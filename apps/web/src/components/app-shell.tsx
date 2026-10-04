@@ -418,6 +418,9 @@ function MoreTab({ householdName }: { householdName: string }) {
 				search={(prev) => prev}
 				hash={MORE_HASH}
 				resetScroll={false}
+				// The router calls a link to the page it's on current ("page"). This one is that only
+				// while its sheet is open (the address ends in #more), behind the sheet.
+				activeOptions={{ exact: true, includeHash: true }}
 				aria-haspopup="dialog"
 				aria-expanded={open}
 				aria-current={within ? "true" : undefined}
@@ -433,7 +436,7 @@ function MoreTab({ householdName }: { householdName: string }) {
 			<Sheet open={open} onOpenChange={(next) => (next ? undefined : close())}>
 				<SheetContent aria-describedby={undefined} data-more-sheet="">
 					<SheetHeader title="More" />
-					<nav aria-label="More" className="grid gap-4">
+					<nav aria-label="More" className="grid gap-2">
 						{moreGroups.map((group, index) => (
 							<MoreGroup key={group.label} group={group} review={index === 0} onGlossary={close} />
 						))}
@@ -447,7 +450,7 @@ function MoreTab({ householdName }: { householdName: string }) {
 
 /** A row of the More sheet: 44px tall, the current page on the raised ground. */
 const moreRow =
-	"min-w-0 justify-start gap-2.5 px-3 text-sm font-medium aria-[current=page]:bg-surface-2";
+	"min-w-0 justify-start gap-2.5 px-3 text-left text-sm leading-tight font-medium whitespace-normal aria-[current=page]:bg-surface-2";
 
 function MoreGroup({
 	group,
@@ -480,7 +483,7 @@ function MoreGroup({
 							}
 						>
 							<ListChecks strokeWidth={1.75} aria-hidden="true" />
-							<span className="truncate">Review</span>
+							<span className="line-clamp-2">Review</span>
 							{waiting > 0 ? (
 								<Badge variant="count" className="ms-auto">
 									{waiting}
@@ -495,7 +498,7 @@ function MoreGroup({
 						<Button key={item.label} asChild variant="ghost" className={moreRow}>
 							<Link to={item.to} replace aria-current={isCurrent(item) ? "page" : undefined}>
 								<item.icon strokeWidth={1.75} aria-hidden="true" />
-								<span className="truncate">{item.label}</span>
+								<span className="line-clamp-2">{item.label}</span>
 								{item.badge === "check-in" ? <CheckInBadge /> : null}
 							</Link>
 						</Button>
@@ -511,7 +514,7 @@ function MoreGroup({
 							}}
 						>
 							<item.icon strokeWidth={1.75} aria-hidden="true" />
-							<span className="truncate">{item.label}</span>
+							<span className="line-clamp-2">{item.label}</span>
 						</Button>
 					),
 				)}
@@ -525,30 +528,28 @@ function MoreAccount({ householdName, close }: { householdName: string; close: (
 	const clerk = useClerk();
 	const { name, imageUrl } = useSignedInParent();
 	return (
-		<section aria-label="Your account" className="grid gap-3 border-t pt-4">
-			<div className="flex min-w-0 items-center gap-3 px-3">
+		<section aria-label="Your account" className="flex items-center gap-2 border-t pt-3">
+			{/* One row, so the whole sheet fits a 320 by 640 window: the Parent opens their account. */}
+			<Button
+				variant="ghost"
+				className="min-w-0 flex-1 justify-start gap-3 px-3 text-left"
+				onClick={() => {
+					close();
+					clerk.openUserProfile();
+				}}
+			>
 				<ParentAvatar name={name} imageUrl={imageUrl} />
-				<span className="grid min-w-0 flex-1 text-sm leading-tight">
-					<span className="truncate font-medium text-foreground">{name ?? " "}</span>
-					<span className="truncate text-xs text-subtle-foreground">{householdName}</span>
+				<span className="grid min-w-0 text-sm leading-tight">
+					<span className="truncate font-medium text-foreground">{name ?? householdName}</span>
+					<span className="truncate text-xs font-normal text-subtle-foreground">
+						Manage account
+					</span>
 				</span>
-			</div>
-			<div className="grid grid-cols-2 gap-2">
-				<Button
-					variant="outline"
-					onClick={() => {
-						close();
-						clerk.openUserProfile();
-					}}
-				>
-					<UserRound aria-hidden="true" />
-					Manage account
-				</Button>
-				<Button variant="outline" onClick={() => void clerk.signOut({ redirectUrl: "/" })}>
-					<LogOut aria-hidden="true" />
-					Sign out
-				</Button>
-			</div>
+			</Button>
+			<Button variant="outline" onClick={() => void clerk.signOut({ redirectUrl: "/" })}>
+				<LogOut aria-hidden="true" />
+				Sign out
+			</Button>
 		</section>
 	);
 }
