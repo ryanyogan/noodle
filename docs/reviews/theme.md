@@ -254,3 +254,71 @@ Decision recorded in ADR-0034 (Warm paper, and every colour through a token).
 - **Chart palette** (spend ink, income brand, allowance grey): colour-blind separation and contrast pass in both modes (worst 22.6 light, 15.6 dark). Spend and allowance fail the validator's chroma and lightness checks because they are neutrals on purpose, not categorical hues.
 - **Hard-coded colours**: `apps/web/src/hard-coded-colours.test.ts` fails on a written colour under `apps/web/src` or `packages/ui/src` outside `globals.css`. Allowed by name, with reasons: the theme-color metas in `__root.tsx`, the email templates, the logo's dot, Recharts' default-stroke selectors in `chart.tsx`, and three AI files whose `#0482` are store numbers.
 - **Still to do**: axe on every page in both modes (see the 75c handoff for the runs), screenshot baselines after these token changes (`--update-snapshots=all`), and warming the favicon and the email brand.
+
+## 7. Phase 75e: Soft stone replaces Warm paper
+
+On 2026-10-04 the Parent chose **Soft stone** (direction B) for both modes, after using Warm paper: the quiet one, less cream. Recorded in ADR-0036; ADR-0034's token rules are unchanged.
+
+- **`globals.css`**: every Soft stone value from the table in section 3, light and dark, including its nudges (`--subtle-foreground`, `--chart-allowance`). The tints follow their colours at the same opacity (`--brand-soft`, `--pace-soft`, `--over-soft`, the page glows); the light scrim and shadows use the stone ink (`rgb(26 30 27 / …)`); the dark scrim is a green-black and the dark pop outline and card highlight are the stone text colour at the same low opacity.
+- **The fixes Warm paper got after its proposal, worked out again for Soft stone** (same method: only OKLCH lightness moves):
+  - `--input`: `#83877d` light, `#6a716b` dark (the proposal's `--border-strong` was 1.51 and 1.53 on the card).
+  - Light `--pace`: `#d98f0a` -> `#b46c00` (2.07 -> 3.21 on the bar track). Dark Pace unchanged.
+  - `--bucket-2`: the validated `#8e3fa8` light and `#a95cc0` dark are kept.
+  - Light `--bucket-3`: `#0b8ea7` -> `#038ca5` (3.00 -> 3.08 on the track, so it isn't sitting on the line).
+- **Two more, found by measuring text on every surface, not only the card**: light `--brand` `#3e63dd` -> `#3c60da` (on surface-2 4.41 -> 4.59, on its soft fill 4.35 -> 4.53) and light `--over` `#c93c3c` -> `#c43738` (on the page 4.37 -> 4.64, on surface-2 4.24 -> 4.51).
+- **Browser bar**: `theme-color` is `#eff0ec` light and `#121513` dark; the manifest's `theme_color` and `background_color` are `#eff0ec`.
+
+### Measured contrast, as shipped
+
+WCAG 2.x ratios from a script over the shipped values; soft badge fills are composited on the card first. Nothing is under its threshold.
+
+| Pair | Needs | Soft stone light | Soft stone dark |
+|---|---|---|---|
+| Body text on page | 4.5:1 | 14.73 | 15.53 |
+| Body text on card | 4.5:1 | 16.09 | 14.40 |
+| Body text on surface-2 | 4.5:1 | 14.29 | 13.16 |
+| Muted text on card | 4.5:1 | 6.78 | 7.58 |
+| Muted text on page | 4.5:1 | 6.20 | 8.17 |
+| Muted text on surface-2 | 4.5:1 | 6.02 | 6.92 |
+| Muted text on surface-3 | 4.5:1 | 5.52 | 6.17 |
+| Subtle text on card | 4.5:1 | 5.55 | 5.59 |
+| Subtle text on page | 4.5:1 | 5.08 | 6.03 |
+| Subtle text on surface-2 | 4.5:1 | 4.93 | 5.11 |
+| Subtle text on surface-3 | 4.5:1 | 4.52 | 4.55 |
+| Primary button text (card on foreground) | 4.5:1 | 16.09 | 14.40 |
+| Brand text on card | 4.5:1 | 5.17 | 6.49 |
+| Brand text on page | 4.5:1 | 4.73 | 6.99 |
+| Brand text on surface-2 | 4.5:1 | 4.59 | 5.93 |
+| Brand text on its soft fill | 4.5:1 | 4.53 | 5.14 |
+| Pace badge text | 4.5:1 | 5.07 | 7.90 |
+| Over badge text | 4.5:1 | 5.25 | 5.56 |
+| Over text on card (`--over-foreground`) | 4.5:1 | 6.09 | 6.81 |
+| Over (`--over`) as text on card | 4.5:1 | 5.07 | 5.93 |
+| Over (`--over`) as text on page | 4.5:1 | 4.64 | 6.39 |
+| Over (`--over`) as text on surface-2 | 4.5:1 | 4.51 | 5.42 |
+| Focus ring on page | 3:1 | 4.73 | 6.99 |
+| Focus ring on card | 3:1 | 5.17 | 6.49 |
+| Over bar on bar track | 3:1 | 4.13 | 4.83 |
+| Worst Bucket on bar track | 3:1 | 3.08 | 3.29 |
+| Worst Bucket on card | 3:1 | 3.78 | 4.04 |
+| Allowance bar on card | 3:1 | 3.05 | 3.09 |
+| Allowance bar vs spend bar | 3:1 | 3.09 | 3.05 |
+| Spend bar on card | 3:1 | 9.44 | 9.42 |
+| Pace marker on bar track | 3:1 | 3.21 | 7.48 |
+| Input border on card | 3:1 | 3.50 | 3.40 |
+| Input border on surface-2 | 3:1 | 3.11 | 3.11 |
+| Input border on page | 3:1 | 3.20 | 3.67 |
+| Card vs page step (info) | - | 1.09 | 1.08 |
+
+### Dataviz validator, as shipped
+
+`validate_palette.js`, adjacent pairs, against the Soft stone card of each mode.
+
+- **Buckets, light** (`#f9faf7`): lightness band, chroma floor, normal-vision floor (worst 15.7, Bucket 7 and 8) and contrast all pass; colour-blind separation is in the 6–8 warning band (worst Bucket 6 and 7, deutan 6.1; tritan 7.7).
+- **Buckets, dark** (`#191d1a`): all pass; colour-blind separation in the warning band (worst Bucket 1 and 2, deutan 6.5; tritan 6.4); normal-vision worst 15.3 (Bucket 7 and 8).
+- The warning band is allowed for the reason ADR-0034 gives: a Bucket's name is always beside its colour.
+- **Chart palette** (spend, income, allowance): colour-blind separation and contrast pass (worst 21.7 light, 17.3 dark). Spend and allowance fail the chroma and lightness checks because they are neutrals on purpose, as before.
+
+### Screenshots
+
+The baselines under `apps/web/e2e/*-snapshots/` were replaced with the images CI drew in Soft stone (see the 75e handoff for which were looked at).

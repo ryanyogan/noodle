@@ -1,6 +1,6 @@
 # Warm paper, and every colour through a token
 
-Status: accepted (#75, October 2026)
+Status: the palette (Warm paper) is superseded by ADR-0036 (Soft stone, 2026-10-04); the six token rules below still stand (#75, October 2026)
 
 ## Context
 
