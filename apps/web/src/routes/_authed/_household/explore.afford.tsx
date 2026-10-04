@@ -212,7 +212,11 @@ function CheckLayout({
 			<SplitRail className="@container/answer">{answer}</SplitRail>
 			<SplitMain>
 				<p className="sticky top-[var(--safe-top)] z-10 -mx-(--gutter) flex items-baseline justify-between gap-3 bg-background/85 px-(--gutter) py-2 backdrop-blur-xl lg:hidden">
-					<VerdictLabel verdict={verdict} className="font-semibold" />
+					{/* On a phone the word sits on the summary's baseline, its icon nudged to the word's middle (#74). */}
+					<VerdictLabel
+						verdict={verdict}
+						className="font-semibold max-sm:items-baseline max-sm:[&>svg]:translate-y-0.5"
+					/>
 					<span className="truncate text-sm text-muted-foreground tabular-nums">{summary}</span>
 				</p>
 				<Card className="grid min-w-0 gap-7 p-(--card-pad)">{children}</Card>

@@ -500,6 +500,7 @@ function Line({
 	badge,
 	meta,
 	restatesValue = false,
+	unit,
 	value,
 	changed,
 	wide,
@@ -511,6 +512,8 @@ function Line({
 	meta: ReactNode;
 	/** The meta says the Plan's value: unchanged, it repeats `value`, so a phone's row leaves it out. */
 	restatesValue?: boolean;
+	/** What `value` is per ("a month") when only the hidden meta said so: a phone's unchanged row adds it. */
+	unit?: string;
 	value: string;
 	changed: boolean;
 	wide: boolean;
@@ -526,6 +529,7 @@ function Line({
 			)}
 		>
 			{value}
+			{restatesValue && !changed && unit ? <span className="sm:hidden"> {unit}</span> : null}
 			{changed ? <span className="sr-only"> (changed)</span> : null}
 		</span>
 	);
@@ -816,7 +820,8 @@ function BucketLine({
 				// The name already says Personal Allowance: a phone's row keeps only the rest (#74).
 				meta={
 					<span>
-						<span className="max-sm:hidden">Personal Allowance · </span>only its Parent changes it
+						<span className="max-sm:hidden">Personal Allowance · </span>
+						<span className="max-sm:capitalize">only</span> its Parent changes it
 					</span>
 				}
 				value={`${formatMoney(bucket.allowance)} a month`}
@@ -833,6 +838,7 @@ function BucketLine({
 			badge={<Mark lever={archived ?? allowance ?? undefined} />}
 			meta={`Plan ${formatMoney(bucket.allowance)} a month`}
 			restatesValue
+			unit="a month"
 			value={
 				archived && archived.fromMonth <= edit.month && !archived.untilMonth
 					? "Archived"
