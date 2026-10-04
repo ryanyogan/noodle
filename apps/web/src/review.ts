@@ -394,11 +394,12 @@ export const ruleSavedMessage = (
 
 /**
  * How the toast after an apply shows. With the snapshot sentence it is some 25 words, far more
- * than a plain toast's 2.4 seconds allow, so it stays until it's dismissed; a second apply
- * replaces it rather than stacking over the page. Without the sentence, a plain toast as before.
+ * than a plain toast's 2.4 seconds allow, so it stays ten seconds: long enough to read, without
+ * sitting over Sort's Skip and Undo on a small phone until it's dismissed. A second apply replaces
+ * it rather than stacking over the page. Without the sentence, a plain toast as before.
  */
 export const ruleToastOptions = ({ snapshot }: RuleApplied) =>
-	snapshot ? { tone: "success" as const, sticky: true, id: "rule-snapshot" } : undefined;
+	snapshot ? { tone: "success" as const, duration: 10_000, id: "rule-snapshot" } : undefined;
 
 /**
  * After an apply that took a snapshot, this Parent's snapshot history refetches, as it does after

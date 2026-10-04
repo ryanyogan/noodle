@@ -15,24 +15,46 @@ type ToastOptions = {
 	 * long enough to notice a mistake.
 	 */
 	sticky?: boolean;
-	/** Replaces a toast still showing with the same id, so doing a thing twice shows one toast. */
+	/**
+	 * How long it stays, in milliseconds, instead of its kind's usual time: for a message too long
+	 * to read in a couple of seconds that shouldn't sit over the page until dismissed. A sticky
+	 * toast ignores it.
+	 */
+	duration?: number;
+	/**
+	 * Replaces a toast still showing with the same id, so doing a thing twice shows one toast,
+	 * which then stays for its time again.
+	 */
 	id?: string;
 };
 
 /**
+ * How long a toast stays, in milliseconds: until dismissed when sticky, else the time asked for,
+ * else by kind (an error 10 s, one with an action 6 s, any other 2.4 s).
+ */
+function toastDuration({
+	tone,
+	action,
+	sticky,
+	duration,
+}: Pick<ToastOptions, "tone" | "action" | "sticky" | "duration">) {
+	if (sticky) return Number.POSITIVE_INFINITY;
+	// Only a real length of time counts: Sonner reads 0 as its own default and never closes Infinity.
+	if (duration !== undefined && Number.isFinite(duration) && duration > 0) return duration;
+	if (tone === "error") return 10_000;
+	return action ? 6_000 : 2_400;
+}
+
+/**
  * Shows a short message at the bottom of the screen. Toasts with an action stay long enough to
- * use it; errors stay longest; a sticky one stays until it's dismissed.
+ * use it; errors stay longest; a sticky one stays until it's dismissed; `duration` sets another
+ * time for one that isn't sticky.
  */
 function toast(message: string, options: ToastOptions = { tone: "success" }) {
-	const duration = options.sticky
-		? Number.POSITIVE_INFINITY
-		: options.tone === "error"
-			? 10_000
-			: options.action
-				? 6_000
-				: 2_400;
+	// Sonner counts the time down itself, so it still waits while a toast is hovered, held or the
+	// tab is hidden, and starts again when a toast is replaced by one with the same id.
 	sonner.custom((id) => <ToastBody id={id as string} message={message} {...options} />, {
-		duration,
+		duration: toastDuration(options),
 		id: options.id,
 	});
 }
@@ -110,4 +132,4 @@ function Toaster({ className }: { className?: string }) {
 	);
 }
 
-export { Toaster, toast };
+export { Toaster, toast, toastDuration };

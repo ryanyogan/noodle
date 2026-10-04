@@ -42,12 +42,10 @@ describe("what's said after a Rule is applied", () => {
 });
 
 describe("how long what's said after a Rule is applied stays up", () => {
-	test("until it's dismissed when it says a snapshot was taken, one at a time", () => {
-		expect(ruleToastOptions({ filed: 12, snapshot: true })).toEqual({
-			tone: "success",
-			sticky: true,
-			id: "rule-snapshot",
-		});
+	test("ten seconds when it says a snapshot was taken, one at a time, and not until dismissed", () => {
+		const options = ruleToastOptions({ filed: 12, snapshot: true });
+		expect(options).toEqual({ tone: "success", duration: 10_000, id: "rule-snapshot" });
+		expect(options).not.toHaveProperty("sticky");
 	});
 
 	test("as any short toast when no snapshot was taken", () => {
