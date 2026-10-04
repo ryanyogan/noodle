@@ -64,7 +64,7 @@ function ListRow({
 					{badge}
 				</div>
 				{meta ? (
-					<div className="flex flex-wrap items-center gap-1.5 text-[13px] text-muted-foreground">
+					<div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[13px] text-muted-foreground">
 						{meta}
 					</div>
 				) : null}

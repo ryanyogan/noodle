@@ -33,7 +33,8 @@ function PageHeader({
 		>
 			<div className="flex max-w-full items-center gap-1">
 				{leading}
-				<div className="min-w-0 px-0.5">
+				{/* Phones: the title on the 16 px gutter like everything under it (74c). */}
+				<div className="min-w-0 lg:px-0.5">
 					{eyebrow ? (
 						<p data-slot="page-eyebrow" className="text-[13px] font-medium text-muted-foreground">
 							{eyebrow}

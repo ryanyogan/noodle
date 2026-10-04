@@ -593,15 +593,20 @@ function ReportCrumbs({
 /** The page's shape while a Report loads: header, tabs, options, headline numbers and a chart. */
 function ReportsPending() {
 	return (
-		<div role="status" aria-label="Loading" className="grid gap-4 animate-enter lg:gap-5">
+		<div
+			role="status"
+			aria-label="Loading"
+			className="grid grid-cols-[minmax(0,1fr)] gap-4 animate-enter lg:gap-5"
+		>
 			{/* With the gap, the header's own margin below it (mb-6, lg:mb-8). */}
 			<div className="mb-2 grid gap-2 lg:mb-3">
 				<Skeleton className="h-3.5 w-16" />
 				<Skeleton className="h-7 w-40 lg:h-8" />
 			</div>
 			<Skeleton className="h-9 w-full max-w-2xl rounded-xl" />
-			<div className="flex gap-2">
-				<Skeleton className="h-9 w-44 rounded-xl" />
+			{/* The option pills are cut at the edge, never wider than a phone (74c). */}
+			<div className="flex gap-2 overflow-hidden">
+				<Skeleton className="h-9 w-44 shrink-0 rounded-xl" />
 				<Skeleton className="h-9 w-52 rounded-xl" />
 				<Skeleton className="h-9 w-24 rounded-xl" />
 			</div>

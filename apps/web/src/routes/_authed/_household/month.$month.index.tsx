@@ -636,7 +636,7 @@ function Breakdown({ state, baseline }: { state: MonthState; baseline: number })
 					to="/plan/$month"
 					params={{ month: state.month }}
 					hash="plan-waterfall"
-					className="inline-flex shrink-0 items-center font-medium text-foreground underline decoration-border-strong underline-offset-3 hover:decoration-foreground"
+					className="inline-flex shrink-0 items-center font-medium text-foreground underline decoration-border-strong underline-offset-3 hover:decoration-foreground max-lg:hidden"
 				>
 					Plan
 					<ChevronRight aria-hidden="true" className="size-3.5" />

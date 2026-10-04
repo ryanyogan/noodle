@@ -68,6 +68,8 @@ function SheetContent({
 				data-slot="sheet-content"
 				className={cn(
 					"fixed z-41 grid gap-4 overflow-y-auto overscroll-contain bg-card shadow-pop outline-none",
+					// Phones and tablets: one scroll area with no drawn bar, as touch overlay bars are (74c).
+					"max-lg:[scrollbar-width:none]",
 					// Phones: from the bottom edge (or the top of the keyboard), as tall as its content up
 					// to 92% of what's visible, clear of the status bar and home indicator.
 					"inset-x-0 bottom-(--keyboard-inset,0px) rounded-t-3xl border border-b-0",
