@@ -395,3 +395,46 @@ The main button's hover fill with white text is about 6.5:1 light and 5.9:1 dark
 - **Chart palette** (spend, income, allowance): colour-blind separation and contrast pass (worst 18.1 light, 17.2 dark). Spend and allowance fail the chroma and lightness checks because they are neutrals on purpose, as before.
 - **Accent, Pace, Over**: in dark, separation passes (worst Pace and Over, 13.3 deutan, 17.9 normal). In light, Pace `#b86e00` and Over `#cb363c` are 13.1 apart for normal vision and 5.6 for deutan, under the validator's floors for a categorical set. They are state colours, not categories: each always comes with its word (Ahead, Over) or a marker's position, never colour alone. The accent is far from both (at least 24 in every simulation).
 - The accent sits near Bucket 5 (`#4a3aa7` / `#9085e9`) in hue. Buckets are tiles and meters with their name beside them, and the accent is buttons and links, so the two do not stand for the same thing in one place.
+
+## 9. Phase 73ah: the controls' edge and three dark chart values
+
+73af looked at every page in dark at 1440 for #73 and found empty tick boxes, unchosen options and off switches almost invisible, Explore's "Plan" bars very dim, and Cash flow's nodes the brightest things on the page. 73ah changed the following (0ecd7f1). ADR-0038 has a sentence on it under Hairlines and a bullet under Consequences. The values below were checked against `globals.css`; the ratios are 73ah's.
+
+- **Checkbox, Radio and Switch**: their edge is `border-input`, where it was `border-border-strong`, in both themes. No token changed value: `--input` is `#86888f` light and `#6c6f79` dark, as in section 8. The edge was `#d4d4d9` light and `#32353d` dark. So in light too an empty box, an unchosen option and an off switch now have the line a text field has, which ADR-0038 asks for.
+- **`--switch-track`** (new, with `--color-switch-track`): an off Switch's track. Light `var(--surface-3)` (`#e8e8eb`), the colour it had; dark `var(--input)` (`#6c6f79`), where it was surface-3 (`#24262c`, 1.2:1 on the card). Ticked and on states are untouched.
+- **`--chart-compare`**, dark only: `#30333a` -> `#626570`. Light is `#d5d6db`, unchanged. It is the comparison series: Explore's "Plan" bars, Reports' "Comparison" and "One-off" bars, Cash flow's bands (at 0.55) and the "Goals" part of This Month's glance.
+- **`--chart-flow-hub` and `--chart-flow-out`** (new): the fill of Cash flow's Household node and of its destinations. Light `var(--chart-net)` and `var(--chart-spend)`, the colours they had. Dark `var(--muted-foreground)` (`#a4a7b0`; it was `#f0f1f3`) and `var(--subtle-foreground)` (`#8b8e98`; it was `#c3c6ce`).
+- **The contrast script** (`apps/web/src/contrast.test.ts`) had been reading the light block for every "dark" check: it looked for `@media (prefers-color-scheme: dark)` and first met the `@custom-variant dark` line. It now finds the rule with its brace, and checks that dark is not light. The dark checks that were there pass on the real dark values. New checks: `--input` at 3:1 or more on the card, the page and surface-2 in both themes; dark `--chart-compare` at 3:1 or more on the card and under half the Scenario line's contrast; the dark thumb on an off track at 3:1 or more; the flow nodes at 3:1 or more.
+- **Not changed**: Reports' "Left over" and "Spent" legend keys in dark (`#f0f1f3` and `#c3c6ce`, 1.51:1 apart). Dark `--chart-spend` must stay 3:1 from `--chart-allowance` (3.02 now), which must stay 3:1 from the card (3.53), so Spent cannot go darker, and Left over is already ink. It needs a different mark in the legend, not a token.
+
+### Measured contrast, as shipped
+
+WCAG 2.x ratios from 73ah's handoff. A dash in a column means 73ah gave no number there: the light chart and track colours did not change.
+
+| Pair | Needs | Indigo light | Indigo dark |
+|---|---|---|---|
+| Control edge (`--input`) on card | 3:1 | 3.54 | 3.64 |
+| Control edge on page | 3:1 | 3.31 | 3.87 |
+| Control edge on surface-2 | 3:1 | 3.17 | 3.39 |
+| Control edge before (`--border-strong`) on card (info) | - | 1.48 | 1.49 |
+| Off switch thumb (`--card`) on its track (`--switch-track`) | 3:1 | - | 3.64 |
+| Off switch track before (surface-3) on card (info) | - | - | 1.2 |
+| Comparison series (`--chart-compare`) on card | 3:1 | - | 3.14 |
+| Comparison series on page (info) | - | - | 3.34 |
+| Comparison series on surface-2 (info) | - | - | 2.93 |
+| Comparison series before (`#30333a`) on card (info) | - | - | 1.44 |
+| Scenario line on card, which the comparison series must stay under half of | - | - | 6.91 |
+| Cash flow's Household node (`--chart-flow-hub`) on card | 3:1 | - | 7.59 |
+| Cash flow's destinations (`--chart-flow-out`) on card | 3:1 | - | 5.58 |
+| Household node before (`#f0f1f3`) on card (info) | - | - | 16.1 |
+| Destinations before (`#c3c6ce`) on card (info) | - | - | 10.7 |
+| Cash flow's bands on card, about `#3f4149` (info) | - | - | 1.79 |
+| Bands before, `#23262b` (info) | - | - | 1.20 |
+| Glance's "Goals" part beside "Spent from Buckets" (`--chart-allowance`) (info) | - | - | 1.13 |
+| Reports' "Left over" key beside "Spent" (info) | - | - | 1.51 |
+
+Tightest: the comparison series on the card, 3.14, and on surface-2 it is under 3:1 (2.93), which is not a surface a chart is drawn on in the pictures looked at. The glance's Goals part and Spent from Buckets are close in dark; they are separated by the striped "Left in Buckets" part and a gap, and nobody has looked at them since the change.
+
+### Looked at
+
+Dark at 1440 only, as full-size crops (73ah): setup's step 3 (eight empty boxes plainly outlined), Household's Nudges (the off switch a grey pill with a dark thumb), Explore's Free to Spend chart (Plan bars a readable mid grey, the Scenario line leading), Cash flow (nodes mid grey, bands a visible slate) and Reports' overview (unchanged). Not looked at by 73ah: light, where no pictures were drawn; step 1's unchosen options; phone widths; tick boxes and options on other pages; This Month's glance in dark. Since then ci227 opened the comparison pictures CI drew and saw off switches with their edge in Household on a phone, light and dark, and in setup's Buckets at 1440, light and dark. If the darker edge reads too heavy in light, the lever is the class in the three components, not the token.
