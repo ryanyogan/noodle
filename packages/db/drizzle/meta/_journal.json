@@ -337,6 +337,13 @@
       "when": 1791094009517,
       "tag": "0047_perk_value_by_hand",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "6",
+      "when": 1791120470263,
+      "tag": "0048_household_snapshots",
+      "breakpoints": true
     }
   ]
 }

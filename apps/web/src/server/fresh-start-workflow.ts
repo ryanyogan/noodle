@@ -2,6 +2,7 @@ import { env, WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "
 import {
 	type ClearLevel,
 	finishFreshStart,
+	listHouseholdSnapshots,
 	loadFreshStart,
 	setFreshStartProgress,
 	startFreshStartRun,
@@ -10,6 +11,7 @@ import { openCredential } from "./bank-credential";
 import { bankSetup, providerFor } from "./bank-setup";
 import { getDb } from "./db";
 import { CLEAR_STEPS, type ClearDeps, runClearStep } from "./fresh-start-clear";
+import { newestMigration, takeSnapshot } from "./snapshot-store";
 
 // The Fresh start Workflow (#63, ADR-0029): waits out the grace period, then clears the Household
 // a step at a time, each retried, telling open screens how far it has got through the Agent, and
@@ -37,6 +39,7 @@ export function clearDeps(householdId: string): ClearDeps {
 	return {
 		db: getDb(),
 		files: env.STATEMENTS,
+		backups: env.BACKUPS,
 		// Under AI_MODEL=stub (dev and E2E) background AI learns nothing into the index (its
 		// stand-in keeps no vectors), so there is nothing to forget, and the index is remote.
 		merchants: __AI_STUB__
@@ -77,6 +80,18 @@ export class FreshStartWorkflow extends WorkflowEntrypoint<Env, FreshStartParams
 		// refuses one: "You can't sleep until a time in the past").
 		if (runAt > Date.now()) await step.sleepUntil("wait out the grace period", new Date(runAt));
 		if (!(await step.do("start", () => startFreshStartRun(getDb(), id)))) return "cancelled";
+		// A Fresh start can be undone: a snapshot first, under the fresh start's own id so a retried
+		// step doesn't take a second (ADR-0035). Delete Household keeps nothing, so takes none.
+		if (level === "fresh-start") {
+			await step.do("take a snapshot first", RETRY, async () => {
+				const db = getDb();
+				if ((await listHouseholdSnapshots(db, householdId)).some((snap) => snap.id === id)) return;
+				await takeSnapshot(
+					{ db, bucket: env.BACKUPS, migration: await newestMigration(env.DB) },
+					{ householdId, kind: "before-fresh-start", now: new Date(), id },
+				);
+			});
+		}
 		const steps = CLEAR_STEPS.length + 1;
 		for (const [i, { key, label }] of CLEAR_STEPS.entries()) {
 			await step.do(label, RETRY, async () => {

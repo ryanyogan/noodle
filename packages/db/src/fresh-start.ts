@@ -66,15 +66,20 @@ export const HOUSEHOLD_TABLES = {
 	planDraftDecisions: s.planDraftDecisions,
 	bankLinkSessions: s.bankLinkSessions,
 	freshStarts: s.freshStarts,
+	householdSnapshots: s.householdSnapshots,
 } satisfies Record<string, SQLiteTable>;
 
 export type HouseholdTableName = keyof typeof HOUSEHOLD_TABLES;
 
-/** What a fresh start keeps: the Household, its Parents and Children, and the fresh start's own record. */
+/**
+ * What a fresh start keeps: the Household, its Parents and Children, the fresh start's own record,
+ * and the Household's snapshots (ADR-0035), so a fresh start can be undone.
+ */
 export const KEPT_ON_FRESH_START: ReadonlySet<HouseholdTableName> = new Set([
 	"households",
 	"members",
 	"freshStarts",
+	"householdSnapshots",
 ]);
 
 /** The tables a level clears, in the order to clear them (children first). */
