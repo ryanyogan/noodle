@@ -65,6 +65,8 @@ type Shot = {
 	 * scrolls (a Goal's side column beside its History).
 	 */
 	scrolledTo?: number;
+	/** Only what's in the window, at every width: what a Parent sees without scrolling. */
+	window?: boolean;
 };
 
 let parent: Awaited<ReturnType<typeof createTestParent>> | undefined;
@@ -143,6 +145,18 @@ async function toSetupStep(page: Page, wanted: number) {
 		await saved;
 		await expect(page.getByText(`Step ${at + 1} of 7`)).toBeVisible({ timeout: 15_000 });
 	}
+}
+
+/** Opens one line of Explore's outline: on a phone its editor comes up in a sheet. */
+async function openLine(page: Page, title: string) {
+	const sheet = page.getByRole("dialog", { name: title });
+	// The row only answers once the page is hydrated.
+	await expect(async () => {
+		if (!(await sheet.isVisible()))
+			await page.getByRole("button", { name: `Edit ${title}` }).click();
+		await expect(sheet).toBeVisible({ timeout: 2000 });
+	}).toPass({ timeout: 20_000 });
+	return sheet;
 }
 
 /** Tries one part of the seeding; a failure is noted and the rest goes on. */
@@ -362,6 +376,20 @@ test.beforeAll(async ({ browser }) => {
 		await expect(link).toBeVisible({ timeout: 20_000 });
 		scenarioPath = await link.getAttribute("href");
 	});
+	// A second one to compare it with: a pay cut to $8,800 a month (#74).
+	await attempt("A second Scenario", async () => {
+		await page.goto("/explore?lever=baseline:880000");
+		await expect(page.getByRole("region", { name: "Your changes" })).toContainText("Income", {
+			timeout: 30_000,
+		});
+		await page.getByLabel("Name", { exact: true }).fill("Pay cut");
+		await page.getByRole("button", { name: "Save Scenario" }).click();
+		await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Pay cut");
+		await page.goto("/explore/scenarios");
+		await expect(page.getByRole("link", { name: "Pay cut", exact: true }).first()).toBeVisible({
+			timeout: 20_000,
+		});
+	});
 	await page.context().close();
 
 	// The second Household: made, and nothing else. Its Parent hasn't been through the setup wizard.
@@ -423,6 +451,23 @@ test.beforeAll(async ({ browser }) => {
 			tall: true,
 		},
 		{ name: "12-review-cards", path: "/review" },
+		{
+			// One by one, with a card on top that has a suggestion, so Confirm shows: what's on screen
+			// without scrolling (#74). Skipping only sends a card to the back.
+			name: "12a-review-card-suggested",
+			path: "/review",
+			window: true,
+			ready: async (page) => {
+				const stack = page.getByTestId("review-stack");
+				const confirm = stack.getByTestId("review-card").getByRole("button", { name: "Confirm" });
+				for (let skipped = 0; skipped < 6; skipped++) {
+					if (await confirm.isVisible()) break;
+					await stack.getByRole("button", { name: "Skip" }).click({ timeout: 15_000 });
+					await page.waitForTimeout(400);
+				}
+				await expect(confirm).toBeVisible();
+			},
+		},
 		{ name: "13-review-list", path: "/review?view=list" },
 		{ name: "14-rules", path: "/review/rules" },
 		{ name: "15-accounts", path: "/accounts" },
@@ -437,6 +482,27 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "19-explore", path: "/explore" },
 		// A Scenario not saved yet, with one change: the outline, Your changes and the outcomes (#74).
 		{ name: "19a-explore-with-a-change", path: "/explore?lever=baseline:1020000" },
+		{
+			// A Commitment's editor, in its sheet on a phone: the amount slider above its money field (#74).
+			name: "19b-explore-line-open",
+			path: "/explore",
+			phoneSheet: true,
+			ready: async (page) => {
+				await openLine(page, "Electricity");
+			},
+		},
+		{
+			// Raises and inflation switched on in its sheet: the two % fields, one to a row (#74).
+			name: "19c-explore-growth-open",
+			path: "/explore",
+			phoneSheet: true,
+			ready: async (page) => {
+				const sheet = await openLine(page, "Raises & inflation");
+				const on = sheet.getByRole("switch", { name: "Model raises and inflation" });
+				if ((await on.getAttribute("aria-checked")) !== "true") await on.click({ timeout: 15_000 });
+				await expect(sheet.getByLabel("Income, % a year")).toBeVisible({ timeout: 15_000 });
+			},
+		},
 		{ name: "20-can-we-afford-it", path: "/explore/afford" },
 		{
 			// The Car Check: cash, loan and lease side by side, with its Commitments open (#74).
@@ -449,12 +515,44 @@ test.beforeAll(async ({ browser }) => {
 		},
 		{ name: "20b-afford-anything", path: "/explore/afford?kind=anything" },
 		{ name: "21-scenarios", path: "/explore/scenarios" },
+		{
+			// Both Scenarios ticked: Compare, side by side with the Plan (#74).
+			name: "21a-scenarios-compare",
+			path: "/explore/scenarios",
+			ready: async (page) => {
+				for (const name of ["Sam’s raise", "Pay cut"]) {
+					const tick = page.getByRole("checkbox", { name: `Compare “${name}”` });
+					await expect(async () => {
+						if (!(await tick.isChecked())) await tick.click();
+						await expect(tick).toBeChecked({ timeout: 2000 });
+					}).toPass({ timeout: 20_000 });
+				}
+				await expect(page.getByRole("link", { name: "Compare 2 selected" })).toBeVisible({
+					timeout: 15_000,
+				});
+			},
+		},
 		...(scenarioPath ? [{ name: "22-scenario", path: scenarioPath }] : []),
 		{ name: "23-reports", path: "/reports" },
 		{ name: "23a-reports-cash-flow", path: "/reports?view=cash-flow" },
 		{ name: "24-insights", path: "/insights" },
 		{ name: "25-credit-card-perks", path: "/insights/perks" },
 		{ name: "26-check-in", path: "/check-in" },
+		{
+			// The card's footer ("Open full page", "Skip for now"), scrolled clear of a phone's bottom
+			// bar: only what's in the window (#74).
+			name: "26a-check-in-footer",
+			path: "/check-in",
+			window: true,
+			ready: async (page) => {
+				const skip = page
+					.getByRole("main")
+					.getByRole("button", { name: /^Skip (for now|and finish)$/ });
+				await expect(skip.first()).toBeVisible({ timeout: 15_000 });
+				await skip.first().evaluate((button) => button.scrollIntoView({ block: "center" }));
+				await page.waitForTimeout(400);
+			},
+		},
 		{ name: "27-household-settings", path: "/household" },
 		{ name: "28-glossary", path: "/glossary" },
 		{
@@ -533,7 +631,7 @@ for (const viewport of viewports) {
 				}
 				await page.screenshot({
 					path: join(dir, `${shot.name}.png`),
-					fullPage: !shot.phoneSheet && !shot.scrolledTo,
+					fullPage: !shot.phoneSheet && !shot.scrolledTo && !shot.window,
 					animations: "disabled",
 				});
 				if (shot.tall) await page.setViewportSize(viewport);
