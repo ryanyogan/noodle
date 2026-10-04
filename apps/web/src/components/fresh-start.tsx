@@ -19,6 +19,7 @@ import {
 	startFreshStart,
 } from "../server/fresh-start";
 import { restartSetup } from "../server/setup";
+import { PhoneMore } from "./phone-more";
 
 type Level = "fresh-start" | "delete";
 
@@ -107,19 +108,21 @@ export function DangerZone({ householdName }: { householdName: string }) {
 		>
 			<AlertTitle>Start fresh can be put back. Deleting can’t.</AlertTitle>
 			<AlertDescription className="grid gap-3">
-				<p>
-					Start fresh clears every Transaction, bank connection, Bucket, Goal and file, and keeps
-					your Household, its Parents and Children. Noodle takes a snapshot first: for up to{" "}
-					{SNAPSHOT_KEPT_DAYS} days you can put your Household back from Snapshots.
-				</p>
-				<p>
-					Delete Household removes all of it, and that can’t be undone. Noodle keeps one last
-					snapshot for {FINAL_SNAPSHOT_DAYS} days, then deletes it.
-				</p>
+				<PhoneMore label="More about starting fresh and deleting">
+					<p>
+						Start fresh clears every Transaction, bank connection, Bucket, Goal and file, and keeps
+						your Household, its Parents and Children. Noodle takes a snapshot first: for up to{" "}
+						{SNAPSHOT_KEPT_DAYS} days you can put your Household back from Snapshots.
+					</p>
+					<p>
+						Delete Household removes all of it, and that can’t be undone. Noodle keeps one last
+						snapshot for {FINAL_SNAPSHOT_DAYS} days, then deletes it.
+					</p>
+				</PhoneMore>
 				{isWaiting(data) ? (
 					<Scheduled status={data} />
 				) : (
-					<div className="flex flex-wrap gap-2">
+					<div className="grid gap-2 sm:flex sm:flex-wrap">
 						<Button
 							variant="outline"
 							disabled={!hydrated || Boolean(data)}

@@ -88,7 +88,7 @@ export function HouseholdDetails({ household }: { household: HouseholdSummary })
 					<Button
 						type="submit"
 						variant="outline"
-						className="justify-self-start sm:col-span-2"
+						className="sm:col-span-2 sm:justify-self-start"
 						disabled={!hydrated || !trimmed || !dirty || save.isPending}
 					>
 						Save

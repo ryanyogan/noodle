@@ -406,7 +406,7 @@ function RunSetupAgain() {
 			<Button
 				type="button"
 				variant="outline"
-				className="justify-self-start"
+				className="sm:justify-self-start"
 				disabled={!hydrated || again.isPending || again.isSuccess}
 				onClick={() => again.mutate()}
 			>
