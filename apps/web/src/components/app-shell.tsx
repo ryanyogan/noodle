@@ -79,7 +79,8 @@ export function AppShell({
 					// Focus lands here when a sheet closes and the control that opened it is gone.
 					tabIndex={-1}
 					className={cn(
-						"mx-auto w-full max-w-[1200px] px-(--gutter) outline-none",
+						// Starts at the gutter beside the Sidebar; on wide screens the leftover space goes on the right (#73).
+						"w-full max-w-[1200px] px-(--gutter) outline-none",
 						wide && "max-w-[1440px]",
 						"pt-[calc(var(--safe-top)+16px)] pb-[calc(var(--tabbar-height)+var(--safe-bottom)+32px)]",
 						"lg:pt-6 lg:pb-12",
