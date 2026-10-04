@@ -10,8 +10,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getDb } from "./db";
 import { householdMiddleware } from "./household";
+import { notifyHousehold } from "./notify";
 import type { RestoreOutput } from "./snapshot-restore-workflow";
-import { newestMigration, readSnapshot, type SnapshotDeps, takeSnapshot } from "./snapshot-store";
+import {
+	newestMigration,
+	readSnapshot,
+	type SnapshotDeps,
+	takeSnapshotAndTell,
+} from "./snapshot-store";
 
 // Household snapshots (#78, ADR-0035): the history and "Take a snapshot" in Household → Your data.
 // Either Parent of the Household (householdMiddleware); a snapshot's contents are never sent.
@@ -80,13 +86,12 @@ export const takeSnapshotNow = createServerFn({ method: "POST" })
 		if (latest && latest.kind === "manual" && now.getTime() - latest.createdAt.getTime() < 60_000) {
 			return { ok: false as const, reason: "One was just taken. Try again in a minute." };
 		}
-		const row = await takeSnapshot(await snapshotDeps(), {
-			householdId,
-			kind: "manual",
-			takenBy: context.parent.id,
-			note: data.note,
-			now,
-		});
+		// The other Parent's open Household page shows it too.
+		const row = await takeSnapshotAndTell(
+			await snapshotDeps(),
+			{ householdId, kind: "manual", takenBy: context.parent.id, note: data.note, now },
+			notifyHousehold,
+		);
 		return { ok: true as const, id: row.id };
 	});
 
@@ -123,13 +128,17 @@ export const restoreSnapshot = createServerFn({ method: "POST" })
 		if (!file) return { ok: false as const, reason: "That snapshot’s file is gone." };
 		const refusal = snapshotRefusal(file, householdId, deps.migration);
 		if (refusal) return { ok: false as const, reason: refusal };
-		const before = await takeSnapshot(deps, {
-			householdId,
-			kind: "before-restore",
-			takenBy: context.parent.id,
-			note: `Before restoring the snapshot from ${snapshot.createdAt.toISOString().slice(0, 10)}`,
-			now: new Date(),
-		});
+		const before = await takeSnapshotAndTell(
+			deps,
+			{
+				householdId,
+				kind: "before-restore",
+				takenBy: context.parent.id,
+				note: `Before restoring the snapshot from ${snapshot.createdAt.toISOString().slice(0, 10)}`,
+				now: new Date(),
+			},
+			notifyHousehold,
+		);
 		await env.RESTORE.create({
 			id: before.id,
 			params: {

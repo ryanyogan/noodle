@@ -25,7 +25,7 @@ import { clearDeps } from "./fresh-start-workflow";
 import { relearnBatches, relearnMerchants } from "./merchant-rebuild";
 import { notifyHousehold } from "./notify";
 import type { NudgeDelivery } from "./nudge-delivery";
-import { newestMigration, readSnapshot, snapshotKey } from "./snapshot-store";
+import { changesAfterRestore, newestMigration, readSnapshot, snapshotKey } from "./snapshot-store";
 
 // Restoring a Household snapshot (#78, ADR-0035). The Parent's typed confirmation and the
 // "Before restore" snapshot happen before this starts (snapshots.ts). Then, a step at a time, each
@@ -148,19 +148,7 @@ export class SnapshotRestoreWorkflow extends WorkflowEntrypoint<Env, RestorePara
 
 		// Every open screen refetches; the other Parent gets a Nudge and an email.
 		await step.do("tell the Household", async () => {
-			await notifyHousehold(householdId, [
-				"months",
-				"members",
-				"parents",
-				"goals",
-				"bank-connections",
-				"rules",
-				"insights",
-				"perks",
-				"check-in",
-				"setup",
-				"reports",
-			]);
+			await notifyHousehold(householdId, changesAfterRestore);
 			const parents = await listParents(getDb(), householdId);
 			const by = parents.find((parent) => parent.id === parentId)?.name ?? "A Parent";
 			const title = `${by} restored the snapshot from ${day(takenAt)}`;

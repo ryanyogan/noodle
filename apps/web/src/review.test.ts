@@ -5,6 +5,7 @@ import {
 	refetchSnapshotsAfterApply,
 	ruleAppliedMessage,
 	ruleSavedMessage,
+	ruleToastOptions,
 	SNAPSHOT_FIRST,
 } from "./review";
 
@@ -37,6 +38,21 @@ describe("what's said after a Rule is applied", () => {
 		expect(ruleSavedMessage({ filed: 0, snapshot: false }, rule)).toBe(
 			"Rule saved: costco goes in Groceries",
 		);
+	});
+});
+
+describe("how long what's said after a Rule is applied stays up", () => {
+	test("until it's dismissed when it says a snapshot was taken, one at a time", () => {
+		expect(ruleToastOptions({ filed: 12, snapshot: true })).toEqual({
+			tone: "success",
+			sticky: true,
+			id: "rule-snapshot",
+		});
+	});
+
+	test("as any short toast when no snapshot was taken", () => {
+		expect(ruleToastOptions({ filed: 1, snapshot: false })).toBeUndefined();
+		expect(ruleToastOptions({ filed: 0, snapshot: false })).toBeUndefined();
 	});
 });
 

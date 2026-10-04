@@ -8,10 +8,11 @@ import {
 import { accounts, buckets, members, transactions } from "@noodle/db/schema";
 import { buildSeed, type SeedOptions, writeSeed } from "@noodle/db/seed";
 import { testDb } from "@noodle/db/test-db";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type ClearDeps, runClearStep } from "./fresh-start-clear";
 import {
 	applyRuleWithSnapshot,
+	changesAfterRestore,
 	changesAfterRuleApply,
 	FINAL_SNAPSHOT_PREFIX,
 	finalSnapshotKey,
@@ -23,6 +24,7 @@ import {
 	takeFinalSnapshot,
 	takeNightlySnapshots,
 	takeSnapshot,
+	takeSnapshotAndTell,
 } from "./snapshot-store";
 
 // Household snapshots (#78, ADR-0035): one Household's rows, gzipped into noodle-backups at
@@ -80,6 +82,57 @@ describe("taking a snapshot", () => {
 		const [listed] = await listHouseholdSnapshots(db, householdId);
 		expect(listed).toMatchObject({ id: row.id, kind: "manual", note: "before the new Rules" });
 		expect(listed?.rowCounts.transactions).toBeGreaterThan(50);
+	});
+});
+
+describe("telling the Household's open screens about a snapshot", () => {
+	const now = new Date("2026-10-04T15:00:00Z");
+
+	// The three places a snapshot is taken for a Parent outside a Rule apply (snapshots.ts and
+	// fresh-start-workflow.ts all go through takeSnapshotAndTell).
+	it.each([
+		["taken by hand", { kind: "manual", note: "Before the big shop" }],
+		["taken before a restore", { kind: "before-restore", note: "Before restoring" }],
+		["taken before a Fresh start", { kind: "before-fresh-start", id: "fresh-start-1" }],
+	] as const)(
+		"sends the snapshot history once for one %s, after it's recorded",
+		async (_, input) => {
+			const recordedWhenTold: number[] = [];
+			const tell = vi.fn(async () => {
+				recordedWhenTold.push((await listHouseholdSnapshots(db, householdId)).length);
+			});
+			const row = await takeSnapshotAndTell(deps(), { householdId, now, ...input }, tell);
+			expect(tell).toHaveBeenCalledExactlyOnceWith(householdId, ["snapshots"]);
+			// Told once the row is there: a screen that refetches at once finds it.
+			expect(recordedWhenTold).toEqual([1]);
+			expect(row.kind).toBe(input.kind);
+			expect((await listHouseholdSnapshots(db, householdId)).map((s) => s.id)).toEqual([row.id]);
+		},
+	);
+
+	it("sends nothing when the snapshot couldn't be taken", async () => {
+		const tell = vi.fn(async () => {});
+		const failing = {
+			...deps(),
+			bucket: {
+				...bucket,
+				put: async () => {
+					throw new Error("R2 is down");
+				},
+			},
+		};
+		await expect(
+			takeSnapshotAndTell(failing, { householdId, kind: "manual", now }, tell),
+		).rejects.toThrow("R2 is down");
+		expect(tell).not.toHaveBeenCalled();
+	});
+
+	it("sends the snapshot history after a restore, with everything else a restore changes", () => {
+		expect(changesAfterRestore).toContain("snapshots");
+		expect(changesAfterRestore).toEqual(
+			expect.arrayContaining(["months", "members", "parents", "goals", "rules", "reports"]),
+		);
+		expect(new Set(changesAfterRestore).size).toBe(changesAfterRestore.length);
 	});
 });
 

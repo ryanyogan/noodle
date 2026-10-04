@@ -12,7 +12,8 @@ import { bankSetup, providerFor } from "./bank-setup";
 import { getDb } from "./db";
 import { fileHolds } from "./file-holds";
 import { CLEAR_STEPS, type ClearDeps, runClearStep } from "./fresh-start-clear";
-import { newestMigration, takeFinalSnapshot, takeSnapshot } from "./snapshot-store";
+import { notifyHousehold } from "./notify";
+import { newestMigration, takeFinalSnapshot, takeSnapshotAndTell } from "./snapshot-store";
 
 // The Fresh start Workflow (#63, ADR-0029): waits out the grace period, then clears the Household
 // a step at a time, each retried, telling open screens how far it has got through the Agent, and
@@ -94,9 +95,11 @@ export class FreshStartWorkflow extends WorkflowEntrypoint<Env, FreshStartParams
 			await step.do("take a snapshot first", RETRY, async () => {
 				const db = getDb();
 				if ((await listHouseholdSnapshots(db, householdId)).some((snap) => snap.id === id)) return;
-				await takeSnapshot(
+				// Told to the Household's open screens, so the history shows it for both Parents.
+				await takeSnapshotAndTell(
 					{ db, bucket: env.BACKUPS, migration: await newestMigration(env.DB) },
 					{ householdId, kind: "before-fresh-start", now: new Date(), id },
+					notifyHousehold,
 				);
 			});
 		}

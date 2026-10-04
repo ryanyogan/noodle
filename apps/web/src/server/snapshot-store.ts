@@ -277,6 +277,42 @@ export const changesAfterRuleApply = ({ filed, snapshotId }: RuleApplied): House
 	...(snapshotId ? (["snapshots"] as const) : []),
 ];
 
+/** Tells the Household's open screens what changed (notify.ts), passed in so tests can watch. */
+export type TellHousehold = (householdId: string, changes: HouseholdChange[]) => Promise<unknown>;
+
+/**
+ * Takes a snapshot and tells the Household's open screens, so the history shows it for both
+ * Parents straight away: one taken by hand, before a restore, or before a Fresh start.
+ */
+export async function takeSnapshotAndTell(
+	deps: SnapshotDeps,
+	input: Parameters<typeof takeSnapshot>[1],
+	tell: TellHousehold,
+) {
+	const row = await takeSnapshot(deps, input);
+	await tell(input.householdId, ["snapshots"]);
+	return row;
+}
+
+/**
+ * What a restore changed, for the Household's open screens: everything they show, and the
+ * snapshot history (the "Before a restore" one, and what the nightly run may have pruned since).
+ */
+export const changesAfterRestore: HouseholdChange[] = [
+	"months",
+	"members",
+	"parents",
+	"goals",
+	"bank-connections",
+	"rules",
+	"insights",
+	"perks",
+	"check-in",
+	"setup",
+	"reports",
+	"snapshots",
+];
+
 const startOfUtcDay = (now: Date) =>
 	new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 

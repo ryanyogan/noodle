@@ -393,6 +393,14 @@ export const ruleSavedMessage = (
 			: `Rule saved. Filed ${filed} more in ${rule.bucketName}.`;
 
 /**
+ * How the toast after an apply shows. With the snapshot sentence it is some 25 words, far more
+ * than a plain toast's 2.4 seconds allow, so it stays until it's dismissed; a second apply
+ * replaces it rather than stacking over the page. Without the sentence, a plain toast as before.
+ */
+export const ruleToastOptions = ({ snapshot }: RuleApplied) =>
+	snapshot ? { tone: "success" as const, sticky: true, id: "rule-snapshot" } : undefined;
+
+/**
  * After an apply that took a snapshot, this Parent's snapshot history refetches, as it does after
  * taking one by hand. The other Parent's does through the Household's live updates ("snapshots").
  */
@@ -432,7 +440,7 @@ export function useSaveRule() {
 			});
 		},
 		onSuccess: (applied, rule) => {
-			toast(ruleSavedMessage(applied, rule));
+			toast(ruleSavedMessage(applied, rule), ruleToastOptions(applied));
 			refetchSnapshotsAfterApply(queryClient, applied);
 		},
 		onSettled: () =>
@@ -565,7 +573,7 @@ export function useApplyRule() {
 				tone: "error",
 			}),
 		onSuccess: (applied, rule) => {
-			toast(ruleAppliedMessage(applied, rule));
+			toast(ruleAppliedMessage(applied, rule), ruleToastOptions(applied));
 			refetchSnapshotsAfterApply(queryClient, applied);
 		},
 		onSettled: () =>
