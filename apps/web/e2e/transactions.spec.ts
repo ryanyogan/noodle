@@ -1,3 +1,7 @@
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import {
@@ -199,24 +203,66 @@ test("the list filters by Bucket and by who it was For", async ({ browser }) => 
 	await page.context().close();
 });
 
-test("at 1440 the list’s card ends with its last row", async ({ browser }) => {
+test("at 1440 a long list draws every row as the page scrolls, and its card ends with the last one", async ({
+	browser,
+}) => {
 	const page = await signedInPage(browser, parent.email);
 	await page.setViewportSize({ width: 1440, height: 900 });
-	await setUp(page);
-	await openTransactions(page);
-	await expect(list(page).getByRole("button")).toHaveCount(2);
-	// No empty stretch under the last row (#73): the card is as tall as its rows.
+	const created = await createPlannedHousehold(page, plan);
+	if (!created) throw new Error("The Household wasn't made directly, so its IDs aren't known");
+	const { householdId, parentId, month, bucketIds } = created;
+	// 60 rows over a few days, oldest "Row 01": more than a page of 50 and several windows tall.
+	const file = join(mkdtempSync(join(tmpdir(), "noodle-transactions-")), "seed.sql");
+	const sql = (value: string) => `'${value.replaceAll("'", "''")}'`;
+	const days = Math.min(new Date().getDate(), 4);
+	writeFileSync(
+		file,
+		Array.from({ length: 60 }, (_, index) => {
+			const day = String(1 + (index % days)).padStart(2, "0");
+			const note = `Row ${String(index + 1).padStart(2, "0")}`;
+			// IDs sort with the rows, so "Row 01" on day 1 is the list's last row.
+			const id = `01SEEDROW${String(index).padStart(3, "0")}${parentId.slice(-14)}`;
+			return `insert into transactions (id, household_id, source, date, amount_cents, bucket_id, note, created_by_member_id) values (${sql(id)}, ${sql(householdId)}, 'quick-add', ${sql(`${month}-${day}`)}, ${1_000 + index}, ${sql(bucketIds.Groceries ?? "")}, ${sql(note)}, ${sql(parentId)});`;
+		}).join("\n"),
+	);
+	execFileSync("bunx", ["wrangler", "d1", "execute", "noodle", "--local", `--file=${file}`], {
+		stdio: "pipe",
+	});
+	await page.goto(`/transactions/${month}`);
+	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Transactions");
+	const rows = list(page).getByRole("button");
+	await expect(rows.first()).toBeVisible();
+
+	// To the end of the page, again each time a page of rows loads, until all 60 are there.
+	await expect
+		.poll(
+			async () => {
+				await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+				return rows.count();
+			},
+			{ timeout: 20_000 },
+		)
+		.toBe(60);
+	await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+	// The oldest day's rows are drawn and on screen, not a blank stretch of card (#73).
+	const oldest = list(page).getByRole("listitem").last();
+	await expect(oldest).toContainText(/Row/i);
+	await expect(oldest).toBeInViewport();
+	// No empty stretch under the last row: the card ends within a row of it.
 	await expect
 		.poll(() =>
 			list(page).evaluate((ul) => {
-				const rows = [...ul.querySelectorAll("li")];
-				const last = Math.max(...rows.map((li) => li.getBoundingClientRect().bottom));
-				const height = rows.at(-1)?.getBoundingClientRect().height ?? 0;
+				const items = [...ul.querySelectorAll("li")];
+				const last = Math.max(...items.map((li) => li.getBoundingClientRect().bottom));
+				const height = items.at(-1)?.getBoundingClientRect().height ?? 0;
 				const card = (ul.parentElement ?? ul).getBoundingClientRect().bottom;
 				return card - last <= height;
 			}),
 		)
 		.toBe(true);
+	// Back at the top the newest rows are still drawn.
+	await page.evaluate(() => window.scrollTo(0, 0));
+	await expect(rows.first()).toBeInViewport();
 	await page.context().close();
 });
 

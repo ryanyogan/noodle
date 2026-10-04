@@ -389,6 +389,12 @@ for (const viewport of viewports) {
 					await settled(page);
 				}
 				if (shot.tall) {
+					// To the end and back first, as a Parent would scroll: rows that only draw near the
+					// screen have then all had their turn.
+					await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+					await page.waitForTimeout(400);
+					await page.evaluate(() => window.scrollTo(0, 0));
+					await page.waitForTimeout(400);
 					const height = await page.evaluate(() => document.documentElement.scrollHeight);
 					await page.setViewportSize({ width: viewport.width, height: Math.min(height, 12_000) });
 					await page.waitForTimeout(500);

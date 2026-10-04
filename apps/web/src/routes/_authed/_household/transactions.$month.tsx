@@ -227,8 +227,8 @@ function TransactionsPage() {
 					</div>
 				}
 			/>
-			{/* lg: the list takes the width and the page scrolls (the list is virtualized against the
-			    window). The rail holds the filters and the total, or the Transaction picked from the
+			{/* lg: the list takes the width and the page scrolls (a very long list is virtualized
+			    against the window). The rail holds the filters and the total, or the Transaction picked from the
 			    list; a Transaction taller than the window scrolls in its pane, so it stays beside its row. */}
 			<SplitLayout stack="rail" className="max-lg:gap-4">
 				<SplitMain className={cn(picked && "max-lg:hidden")}>
@@ -574,9 +574,18 @@ function itemsOf(transactions: TransactionRow[], more: boolean, byDay: boolean):
 const useIsomorphicLayoutEffect = typeof document === "undefined" ? useEffect : useLayoutEffect;
 
 /**
- * The month's Transactions, newest first, grouped by day. Only the rows near the screen are
- * rendered (the page scrolls, not the list), so thousands of rows stay fast; reaching the end
- * loads the next page.
+ * Up to this many items (rows and day labels) the list draws every one, in the normal flow: a
+ * month of a family's spending is a few hundred rows, which a browser lays out without help, and
+ * the card is then exactly as tall as its rows whatever the window does (#73: the windowed list
+ * left the rows past the first screenful undrawn at 1440). Longer lists draw only the rows near
+ * the screen.
+ */
+const DRAW_ALL_UP_TO = 300;
+
+/**
+ * The month's Transactions, newest first, grouped by day. The page scrolls, not the list. Up to
+ * DRAW_ALL_UP_TO items every row is drawn; past that only the rows near the screen are, so
+ * thousands of rows stay fast. Reaching the end loads the next page.
  */
 function TransactionList({
 	month,
@@ -610,7 +619,9 @@ function TransactionList({
 	const byAmount = sort === "largest" || sort === "smallest";
 	const items = itemsOf(transactions, hasNextPage, !byAmount);
 	const hydrated = useHydrated();
+	const drawAll = items.length <= DRAW_ALL_UP_TO;
 	const list = useRef<HTMLUListElement>(null);
+	const more = useRef<HTMLLIElement>(null);
 	// Where the list starts on the page; 0 until measured, as on the server.
 	const [scrollMargin, setScrollMargin] = useState(0);
 	useIsomorphicLayoutEffect(() => {
@@ -631,7 +642,8 @@ function TransactionList({
 		};
 	}, []);
 	const virtualizer = useWindowVirtualizer({
-		count: items.length,
+		// Nothing to window while every row is drawn.
+		count: drawAll ? 0 : items.length,
 		estimateSize: (index) => (items[index]?.kind === "day" ? 32 : 65),
 		getItemKey: (index) => {
 			const item = items[index];
@@ -655,10 +667,30 @@ function TransactionList({
 	const lastIndex = virtualItems.at(-1)?.index ?? 0;
 
 	useEffect(() => {
+		if (drawAll) return;
 		if (lastIndex >= items.length - 1 && hasNextPage && !isFetchingNextPage) {
 			void fetchNextPage();
 		}
-	}, [lastIndex, items.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+	}, [drawAll, lastIndex, items.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+	// With every row drawn, the next page loads when the "loading more" row nears the screen.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: items.length re-observes the row, which stays in view when a page adds rows above it
+	useEffect(() => {
+		const row = more.current;
+		if (!drawAll || !row || !hasNextPage || isFetchingNextPage) return;
+		if (typeof IntersectionObserver === "undefined") {
+			void fetchNextPage();
+			return;
+		}
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries.some((entry) => entry.isIntersecting)) void fetchNextPage();
+			},
+			{ rootMargin: "600px 0px" },
+		);
+		observer.observe(row);
+		return () => observer.disconnect();
+	}, [drawAll, items.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
 	if (transactions.length === 0) {
 		return filtered ? (
@@ -734,17 +766,26 @@ function TransactionList({
 				ref={list}
 				aria-label={`Transactions in ${monthName(month)}`}
 				className="relative"
-				style={{ height: virtualizer.getTotalSize() }}
+				style={drawAll ? undefined : { height: virtualizer.getTotalSize() }}
 			>
-				{virtualItems.map((virtual) => {
+				{(drawAll
+					? items.map((_, index) => ({
+							index,
+							key: virtualizer.options.getItemKey(index),
+							start: 0,
+						}))
+					: virtualItems
+				).map((virtual) => {
 					const item = items[virtual.index];
 					if (!item) return null;
-					const position = {
-						ref: virtualizer.measureElement,
-						"data-index": virtual.index,
-						className: "absolute inset-x-0 top-0",
-						style: { transform: `translateY(${virtual.start - scrollMargin}px)` },
-					};
+					const position = drawAll
+						? { "data-index": virtual.index }
+						: {
+								ref: virtualizer.measureElement,
+								"data-index": virtual.index,
+								className: "absolute inset-x-0 top-0",
+								style: { transform: `translateY(${virtual.start - scrollMargin}px)` },
+							};
 					if (item.kind === "day") {
 						return (
 							<ListGroupLabel key={virtual.key} {...position}>
@@ -762,7 +803,7 @@ function TransactionList({
 					}
 					if (item.kind === "more") {
 						return (
-							<li key={virtual.key} {...position}>
+							<li key={virtual.key} {...position} ref={drawAll ? more : virtualizer.measureElement}>
 								<span role="status" className="sr-only">
 									Loading more Transactions…
 								</span>
