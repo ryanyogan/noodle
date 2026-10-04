@@ -226,8 +226,9 @@ function Pane({ className, ...props }: React.ComponentProps<"section">) {
  * A list beside the item picked from it. From lg the page scrolls as one (no pane scrolls on its
  * own, #73): the list is as long as it is, and the picked item sits beside it, its top level with
  * the list's first row, and stays in view (sticky) as the list scrolls. Only an item taller than
- * the window scrolls inside its own column. Picking an item from far down the list keeps the page
- * where it was: the row's link must not reset the window's scroll (`resetScroll={false}`). Below lg it shows one level at a time: the list, or (once there is a `detail`) the
+ * the window scrolls inside its own column. Picking an item from far down the list keeps its row
+ * where it was in the window: the row's link must not reset the window's scroll
+ * (`resetScroll={false}`), and the window follows the row if the list changes shape. Below lg it shows one level at a time: the list, or (once there is a `detail`) the
  * detail, as ordinary page content.
  *
  * `empty` fills the detail pane at lg while nothing is picked ("Pick a Bucket to see it").
@@ -243,6 +244,7 @@ function MasterDetail({
 	listOnly,
 	className,
 	style,
+	onClickCapture,
 	...props
 }: Omit<React.ComponentProps<"div">, "children"> & {
 	list: React.ReactNode;
@@ -279,10 +281,55 @@ function MasterDetail({
 		wasPicked.current = picked;
 		if (opened && !window.matchMedia("(min-width: 1024px)").matches) window.scrollTo({ top: 0 });
 	}, [picked]);
+	// Beside the list (lg) the row that was picked stays where it was in the window. The list changes
+	// shape around it when an item opens (it narrows, and its column headings go), so the window is
+	// moved by however far the row moved. A scroll of the Parent's own ends it.
+	const root = React.useRef<HTMLDivElement>(null);
+	const held = React.useRef<{ item: HTMLElement; top: number; until: number } | null>(null);
+	const hold = (event: React.MouseEvent<HTMLDivElement>) => {
+		onClickCapture?.(event);
+		const item = (event.target as HTMLElement).closest<HTMLElement>("[data-md-item]");
+		held.current =
+			item && window.matchMedia("(min-width: 1024px)").matches
+				? { item, top: item.getBoundingClientRect().top, until: Date.now() + 4000 }
+				: null;
+	};
+	React.useEffect(() => {
+		const letGo = () => {
+			held.current = null;
+		};
+		window.addEventListener("wheel", letGo, { passive: true });
+		window.addEventListener("touchmove", letGo, { passive: true });
+		window.addEventListener("keydown", letGo);
+		return () => {
+			window.removeEventListener("wheel", letGo);
+			window.removeEventListener("touchmove", letGo);
+			window.removeEventListener("keydown", letGo);
+		};
+	}, []);
+	// After every render: the list's shape may change on any of them while the item opens.
+	React.useLayoutEffect(() => {
+		const kept = held.current;
+		if (!kept) return;
+		if (Date.now() > kept.until) {
+			held.current = null;
+			return;
+		}
+		const item = kept.item.isConnected
+			? kept.item
+			: root.current?.querySelector<HTMLElement>(
+					"[data-slot=master-detail-list] [data-md-item][aria-current]",
+				);
+		if (!item) return;
+		const moved = item.getBoundingClientRect().top - kept.top;
+		if (Math.abs(moved) > 1) window.scrollBy({ top: moved, behavior: "instant" });
+	});
 	return (
 		<div
+			ref={root}
 			data-slot="master-detail"
 			data-picked={picked}
+			onClickCapture={hold}
 			className={cn(
 				"grid grid-cols-[minmax(0,1fr)] lg:gap-(--layout-gap)",
 				listOnly && !picked
