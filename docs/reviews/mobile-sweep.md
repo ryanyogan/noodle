@@ -103,6 +103,23 @@ Not done in 74d, in order: To do on phones as one card of rows with a visible pr
 
 Tests: chromium-mobile and chromium: glossary, phone-inputs, phone-swipe, phone-reading-order, shell, ask, reports pass (the phone Ask and Reports tests now reach them through More, via the e2e helper `openFromMore`; no shell baseline changed). `bun run test`, typecheck and biome clean.
 
+### 74e: the Plan pages and detail pages on a phone (2026-10-03, partly done)
+
+Measured on `chromium-mobile` (throwaway `zz-74e` spec; a Planned household with $6,200 take-home pay and two Buckets, no history). Year at 393 and 320 and the Add Buckets sheet at 393 looked at.
+- **Year on a phone is one row per month** (the 74b proposal): the month's name (its link to that month's Plan, as before), its badges, and its Free to Spend on the right, with "So far"/"Actual" beneath for months under or over way, under one "Month / Free to Spend" key. The other figures (take-home pay, Commitments, Buckets, Goal funding) are on each month's Plan, one tap away. The long explanation of the table's two lines is hidden below md (it describes the table, which a phone doesn't show), and so is the empty legend wrapper that left a double gap. A row is about 57 px against about 170 px before (five figures in two columns), so 74b's 3.4 screens for a busy year come to roughly 1.3 (12 rows ≈ 690 px plus the header); this household's three months fit one screen at 393 and 320. md and up (the table) is unchanged.
+- **Add Buckets' tick boxes**: on the starter rows the box and the Bucket's name are one `<label>` at least 44 px tall, so the whole start of the row ticks it. `elementFromPoint` 15 px right of the box, and 9 px below it, now lands inside the label (74c found the next row there); a tap 80 px in on the name ticks the box. The own-Bucket row keeps its box and name field apart (the field is typed in).
+- **Page lengths at 393** (this household, scrollHeight): Overview 1,121, Income 852, Commitments 852, Buckets 911, Goal funding 852, Year 852 (320: 852).
+
+Decided, no change (with the reason, per the link rule):
+- **Plan switch and the Overview tab** both go to the Plan: kept. The Overview tab is the section's first tab, an allowed exception, and the switch is the phone's way into the Plan (73d); dropping the tab would leave the tab strip with no way back to the Overview from Income…Year.
+- **Year's month rows** link to their month's Plan; for this month that equals Overview. A list row opening its item is the pattern, so kept.
+- **Commitments' "1 lumpy month ahead"** leads to the Year tab: kept as desktop decided (#73), a count that opens its list; revisit with the desktop sweep if it should become plain text.
+- **Card padding**: on these pages the cards already pad through `--card-pad` (a Commitment's rows card is padding 0 with padded rows); the only literal `p-3` card is the get-started wizard's starter list (`starter-buckets.tsx`), which belongs to the wizard phase.
+
+Not done in 74e: Add Buckets is still in the sticky "Left to plan" bar at the top of Buckets (y≈284; it stays in view while scrolling, so it isn't hidden, but it is out of thumb reach; the options are the bar at the bottom above the tab bar, or the button as the list's last row); a Bucket's and a Commitment's pages (2.0 / 1.9 screens) not yet cut; Year not yet measured with a full year of history.
+
+Tests (all pass): chromium: plan, plan-area, plan-history, plan-year, plan-summaries, commitments, commitments-full, bucket-page, bucket-list, add-buckets, master-detail (31 with setup). chromium-mobile: every phone-* spec plus the @phone tests in the same list (27 with setup and zz-74e). No baselines changed.
+
 ### What others do (research)
 
 - **Apple HIG / iOS 26:** the tab bar is a floating, inset pill of the primary destinations; Liquid Glass is only for the navigation layer floating above content, never for content itself. Sheets take detents (medium, large) and adapt their look by height. Lay content out on the system layout margins (16 pt on most iPhones, 20 pt on Max/Plus widths). [learnui.design: iOS 26 design guidelines](https://www.learnui.design/blog/ios-design-guidelines-templates.html), [WWDC25: Build a UIKit app with the new design](https://developer.apple.com/videos/play/wwdc2025/284/), [createwithswift: Liquid Glass hierarchy](https://www.createwithswift.com/liquid-glass-redefining-design-through-hierarchy-harmony-and-consistency/)
