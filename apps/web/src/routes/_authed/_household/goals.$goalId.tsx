@@ -174,7 +174,7 @@ function GoalDetails({
 					)
 				}
 			/>
-			<DetailColumns className="gap-8">
+			<DetailColumns>
 				{/* In a wide pane the progress card and what to do sit beside History and stay in view while
 				    a long History scrolls with the page (#73); on a phone, History comes before Emergencies
 				    and Finish. */}
@@ -286,7 +286,7 @@ function GoalDetails({
 						<SaveFailed change={claim} />
 					)}
 
-					<div className="grid gap-8 @max-3xl/detail:order-2">
+					<div className="grid gap-(--layout-gap) @max-3xl/detail:order-2">
 						{active ? (
 							<Section aria-labelledby="goal-emergency">
 								<SectionHeader
@@ -378,7 +378,7 @@ function GoalDetails({
 						)}
 					</div>
 				</GoalSide>
-				<div className="grid min-w-0 gap-8 @max-3xl/detail:order-1 @3xl/detail:col-start-1 @3xl/detail:row-start-1">
+				<div className="grid min-w-0 gap-(--layout-gap) @max-3xl/detail:order-1 @3xl/detail:col-start-1 @3xl/detail:row-start-1">
 					<Section aria-labelledby="goal-history">
 						<SectionHeader id="goal-history" title="History" count={goal.changes.length} />
 						{goal.changes.length > 0 ? (
@@ -556,7 +556,7 @@ function GoalSide({ children }: { children: ReactNode }) {
 			ref={ref}
 			data-slot="goal-side"
 			data-fits={fits}
-			className="grid gap-8 @max-3xl/detail:contents @3xl/detail:col-start-2 @3xl/detail:row-start-1 @3xl/detail:data-[fits=true]:sticky @3xl/detail:data-[fits=true]:top-6"
+			className="grid gap-(--layout-gap) @max-3xl/detail:contents @3xl/detail:col-start-2 @3xl/detail:row-start-1 @3xl/detail:data-[fits=true]:sticky @3xl/detail:data-[fits=true]:top-6"
 		>
 			{children}
 		</div>
