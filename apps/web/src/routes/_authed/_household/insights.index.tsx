@@ -327,12 +327,19 @@ function InsightCard({
 					{ending.name} leaves the Plan from {monthName(current)} on. Earlier months keep it.
 				</Confirm>
 			) : null}
-			<div className="flex flex-wrap items-center gap-2 border-t px-(--card-pad) py-2.5">
+			{/* On the narrowest phones the buttons are a little tighter and "Try in Explore" shows as
+			    "Explore" (still read out whole), so "Not useful" shares the last row (#74). */}
+			<div className="flex flex-wrap items-center gap-2 border-t px-(--card-pad) py-2.5 max-[359px]:[&>button]:px-2">
 				{insight.status === "new" && offersEnding ? endButtons : null}
 				{insight.status === "new" ? (
 					<Button
 						size="sm"
 						variant={offersEnding ? "outline" : "default"}
+						className={cn(
+							"max-[359px]:[&>svg]:hidden",
+							// Longer words with something to try: the row to itself, the others under it.
+							acknowledge !== "Got it" && tries.length > 0 && "max-[359px]:w-full",
+						)}
 						disabled={!hydrated}
 						onClick={() => decide.mutate({ insight, status: "accepted" })}
 					>
@@ -349,7 +356,13 @@ function InsightCard({
 						onClick={() => tryInExplore(change)}
 					>
 						<Telescope />
-						{tries.length === 1 ? "Try in Explore" : `Try “${change.name}”`}
+						{tries.length === 1 ? (
+							<span>
+								<span className="max-[359px]:sr-only">Try in </span>Explore
+							</span>
+						) : (
+							`Try “${change.name}”`
+						)}
 					</Button>
 				))}
 				<Button
