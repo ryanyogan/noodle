@@ -609,15 +609,15 @@ function ReviewPage() {
 				variant="outline"
 				size="sm"
 				// On a phone in the list it has the second row; the count and the tools keep the first.
-				className={cn(!sorting && "max-sm:order-last")}
+				className={cn(!sorting ? "max-sm:order-last" : "max-[359px]:px-2")}
 				disabled={!hydrated || confirmAll.isPending}
 				onClick={() => confirmEach(guessed)}
 			>
 				<CheckCheck />
-				{/* On a phone in Sort, "All 3", so the row above the card stays one row. */}
+				{/* On a phone in Sort, "All 3" (just "3" on the narrowest), so the row above the card stays one row. */}
 				<span className={cn(sorting && "max-sm:sr-only")}>Confirm all </span>
 				{sorting ? (
-					<span aria-hidden="true" className="sm:hidden">
+					<span aria-hidden="true" className="max-[359px]:hidden sm:hidden">
 						All{" "}
 					</span>
 				) : null}
@@ -689,21 +689,22 @@ function ReviewPage() {
 		<>
 			<div className={cn("grid gap-5", !(top && !sorting) && "max-w-xl")}>
 				{top && sorting && order[0] ? (
-					<div data-testid="review-stack" className="grid gap-3">
+					// The narrowest phones are short too: less air, so Skip and Undo stay above the bottom bar.
+					<div data-testid="review-stack" className="grid gap-3 max-[359px]:gap-1.5">
 						{/* One row above the card: how far along, what Review is, and the rest of its tools. */}
-						<div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+						<div className="flex flex-wrap items-center gap-x-2 gap-y-1 max-[359px]:gap-x-1">
 							<h2 className="text-sm font-normal text-muted-foreground tabular-nums">
 								{progress.at} of {progress.of}
 							</h2>
 							<TermHelp term="review" />
-							<div className="ms-auto flex items-center gap-2">
+							<div className="ms-auto flex items-center gap-2 max-[359px]:gap-1">
 								{confirmAllButton}
 								{lookAgainButton}
 								{viewToggle}
 							</div>
 						</div>
 						<ReviewMatchOffer key={order[0].id} transaction={order[0]} />
-						<div className="relative pb-5">
+						<div className="relative pb-5 max-[359px]:pb-2">
 							{/* The cards waiting behind this one, as edges. */}
 							{order.length > 2 ? (
 								<div
@@ -714,7 +715,7 @@ function ReviewPage() {
 							{order.length > 1 ? (
 								<div
 									aria-hidden="true"
-									className="absolute inset-x-3 top-3 bottom-2.5 rounded-2xl bg-card shadow-card ring-1 ring-border"
+									className="absolute inset-x-3 top-3 bottom-2.5 max-[359px]:bottom-1 rounded-2xl bg-card shadow-card ring-1 ring-border"
 								/>
 							) : null}
 							<SwipeCard
@@ -1052,7 +1053,7 @@ function CardActions({
 }) {
 	return (
 		// One row on a phone (#74): the shorter words are shown, the whole name is still read out.
-		<div className="-mx-2 flex flex-wrap gap-1 border-t border-border pt-2 max-[359px]:[&>button]:px-2">
+		<div className="-mx-2 flex flex-wrap gap-1 border-t border-border pt-2 max-[359px]:-mb-2 max-[359px]:pt-1 max-[359px]:[&>button]:px-2">
 			<Button
 				variant="ghost"
 				size="sm"
@@ -1211,13 +1212,15 @@ function ReviewCard({
 			data-current={current || undefined}
 			onFocusCapture={onFocus}
 			className={cn(
-				"grid gap-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border sm:gap-4 sm:p-5",
+				"grid gap-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border max-[359px]:gap-1.5 max-[359px]:p-3 sm:gap-4 sm:p-5",
 				current && "ring-2 ring-ring",
 			)}
 		>
 			<div className="flex items-start justify-between gap-3">
 				<div className="grid min-w-0 gap-0.5">
-					<p className="truncate text-xs text-muted-foreground">
+					{/* On a phone a long Account name goes to a second line rather than being cut mid-word;
+					    the narrowest have no height to spare for it. */}
+					<p className="text-xs text-muted-foreground max-[359px]:truncate min-[360px]:max-sm:line-clamp-2 sm:truncate">
 						{dayName(item.date, today)}
 						{item.importedFrom ? ` · ${item.importedFrom}` : ""}
 					</p>
@@ -1238,7 +1241,7 @@ function ReviewCard({
 					<Badge>{item.guess ? "We weren’t sure" : "New merchant"}</Badge>
 				</div>
 			</div>
-			<div className="flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5">
+			<div className="flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5 max-[359px]:py-1.5">
 				{item.guess ? (
 					<>
 						<Tile aria-hidden="true" bucket={bucket ? asBucketColor(bucket.color) : undefined}>
@@ -1313,9 +1316,9 @@ function ReviewCard({
 					</Button>
 					{item.guess ? (
 						<Button
-							// On the narrowest phones Confirm comes first and shares its row with Edit; the
-							// picker goes under them, so no button is left on a row alone.
-							className="max-[359px]:order-first max-[359px]:flex-1"
+							// On a phone Confirm comes first. On the narrowest it shares its row with Edit and
+							// the picker goes under them, so no button is left on a row alone.
+							className="max-sm:order-first max-[359px]:flex-1"
 							disabled={!hydrated}
 							onClick={onConfirm}
 						>
