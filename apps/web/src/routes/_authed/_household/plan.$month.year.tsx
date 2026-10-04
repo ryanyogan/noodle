@@ -88,7 +88,7 @@ function YearPage() {
 				/>
 			) : (
 				<div className="grid gap-8">
-					<p className="max-w-prose text-[13px] text-muted-foreground">
+					<p className="max-w-prose text-[13px] text-muted-foreground max-md:hidden">
 						Each month’s Plan, from take-home pay down to Free to Spend, as the Plan shows it.
 						Months over or under way show what actually happened beneath it: income received,
 						spending, and Goal funding. Beneath Free to Spend, that’s the income received less the
@@ -100,7 +100,7 @@ function YearPage() {
 							Nothing was planned before {monthName(months[0].month)}.
 						</p>
 					) : null}
-					<div className="grid gap-3">
+					<div className="grid gap-3 max-md:hidden">
 						<YearLegend />
 						<YearTable months={months} />
 					</div>
@@ -305,73 +305,46 @@ function YearTable({ months }: { months: YearMonth[] }) {
 	);
 }
 
-/** On a phone: a month to a row, its figures listed down with what actually happened beside them. */
+/**
+ * On a phone (#74): one row per month, its Free to Spend on the right with what actually happened
+ * beneath it. The rest of each month's figures are on its Plan, which the month's name opens.
+ */
 function YearList({ months }: { months: YearMonth[] }) {
 	return (
-		<div className="md:hidden">
+		<div className="grid gap-2 md:hidden">
+			<p
+				aria-hidden="true"
+				className="flex justify-between gap-3 px-(--card-pad) text-xs text-muted-foreground"
+			>
+				<span>Month</span>
+				<span>Free to Spend</span>
+			</p>
 			<List aria-label="The Plan month by month">
 				{months.map((month) => (
-					<li key={month.month} className={cn("grid gap-2 px-(--card-pad) py-3.5")}>
-						<div className="flex items-center justify-between gap-3">
-							<span className="flex min-w-0 flex-wrap items-center gap-1.5">
-								<Link
-									to="/plan/$month"
-									params={{ month: month.month }}
-									className="inline-flex min-h-11 min-w-11 items-center text-sm font-medium lg:min-h-6"
-								>
-									{monthName(month.month)}
-								</Link>
-								<MonthBadges month={month} />
-							</span>
-						</div>
-						{/* Plan and actual in two right-aligned columns, headed, so the figures line up (#48). */}
-						<dl
-							className={cn(
-								"grid gap-x-4 gap-y-1 text-[13px] tabular-nums",
-								month.actual
-									? "grid-cols-[minmax(0,1fr)_auto_auto]"
-									: "grid-cols-[minmax(0,1fr)_auto]",
-							)}
-						>
+					<li
+						key={month.month}
+						className="flex items-center justify-between gap-3 px-(--card-pad) py-1.5"
+					>
+						<span className="flex min-w-0 flex-wrap items-center gap-1.5">
+							<Link
+								to="/plan/$month"
+								params={{ month: month.month }}
+								className="inline-flex min-h-11 min-w-11 items-center text-sm font-medium"
+							>
+								{monthName(month.month)}
+							</Link>
+							<MonthBadges month={month} />
+						</span>
+						<span className="shrink-0 text-end text-sm font-medium tabular-nums">
+							<span className="sr-only">Free to Spend: </span>
+							<Amount cents={month.plan.freeToSpend} />
 							{month.actual ? (
-								<div
-									aria-hidden="true"
-									className="col-span-full grid grid-cols-subgrid text-xs text-muted-foreground"
-								>
-									<span />
-									<span className="text-end">Plan</span>
-									<span className="text-end">{month.when === "current" ? "So far" : "Actual"}</span>
-								</div>
+								<span className="block text-xs font-normal text-muted-foreground">
+									{month.when === "current" ? "So far " : "Actual "}
+									<Amount cents={month.actual.freeToSpend} />
+								</span>
 							) : null}
-							{FIGURES.map((f) => (
-								<div
-									key={f.key}
-									className={cn(
-										"col-span-full grid grid-cols-subgrid items-baseline",
-										f.key === "freeToSpend" && "font-medium",
-									)}
-								>
-									<dt className={cn(f.key !== "freeToSpend" && "text-muted-foreground")}>
-										{f.label}
-									</dt>
-									<dd className="text-end">
-										{f.key === "baseline" && month.noBaseline ? (
-											<span className="text-muted-foreground">Not set</span>
-										) : (
-											<Amount cents={month.plan[f.key]} />
-										)}
-									</dd>
-									{month.actual ? (
-										<dd className="text-end text-muted-foreground">
-											<span className="sr-only">
-												Actual{month.when === "current" ? " so far" : ""}:{" "}
-											</span>
-											<Amount cents={month.actual[f.key]} />
-										</dd>
-									) : null}
-								</div>
-							))}
-						</dl>
+						</span>
 					</li>
 				))}
 			</List>
