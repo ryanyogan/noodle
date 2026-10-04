@@ -479,7 +479,7 @@ function HomeCheck({ context, form, onForm }: FormProps<HomeForm>) {
 				/>
 			</FieldGroup>
 			<FieldGroup legend="The mortgage">
-				<div className="grid grid-cols-2 gap-4">
+				<div className="grid gap-4 sm:grid-cols-2">
 					<PercentField
 						label="Rate"
 						value={form.rate}
@@ -500,7 +500,7 @@ function HomeCheck({ context, form, onForm }: FormProps<HomeForm>) {
 					max={5}
 					onChange={(pmiRate) => set({ pmiRate })}
 				/>
-				<div className="grid grid-cols-2 gap-4">
+				<div className="grid gap-4 sm:grid-cols-2">
 					<PercentField
 						label="Property tax a year"
 						value={form.propertyTaxRate}
@@ -671,7 +671,7 @@ function CarCheck({ context, form, onForm }: FormProps<CarForm>) {
 					value={form.loan.downPayment}
 					onChange={(downPayment) => set({ loan: { ...form.loan, downPayment } })}
 				/>
-				<div className="grid grid-cols-2 gap-4">
+				<div className="grid gap-4 sm:grid-cols-2">
 					<PercentField
 						label="Rate"
 						value={form.loan.rate}
@@ -690,7 +690,7 @@ function CarCheck({ context, form, onForm }: FormProps<CarForm>) {
 				</div>
 			</FieldGroup>
 			<FieldGroup legend="Lease">
-				<div className="grid grid-cols-2 gap-4">
+				<div className="grid gap-4 sm:grid-cols-2">
 					<MoneyField
 						label="A month"
 						value={form.lease.monthly}
@@ -713,7 +713,7 @@ function CarCheck({ context, form, onForm }: FormProps<CarForm>) {
 				/>
 			</FieldGroup>
 			<FieldGroup legend="Comparing">
-				<div className="grid grid-cols-2 gap-4">
+				<div className="grid gap-4 sm:grid-cols-2">
 					<PercentField
 						label="Value lost a year"
 						value={form.depreciationRate}
@@ -768,35 +768,41 @@ function CarComparison({
 	];
 	return (
 		<div className="grid gap-2">
-			<Table className="min-w-[20rem] text-sm">
-				<TableCaption className="mt-0 mb-1.5 caption-top text-start font-medium">
+			{/* Below sm the table has no room for a label and three amounts on one line (it used to
+			    scroll sideways at 320): each row is its label, then the three amounts under the three
+			    column headings. From sm up it is the table it was. */}
+			<Table className="text-sm max-sm:block max-sm:text-[13px] sm:min-w-[20rem]">
+				<TableCaption className="mt-0 mb-1.5 caption-top text-start font-medium max-sm:block">
 					Over {years === 1 ? "1 year" : `${years} years`}
 				</TableCaption>
-				<TableHeader>
-					<TableRow className="border-0">
-						<td />
+				<TableHeader className="max-sm:block">
+					<TableRow className="border-0 max-sm:grid max-sm:grid-cols-3">
+						<td className="max-sm:hidden" />
 						{ways.map((w) => (
 							<TableHead
 								key={w}
 								scope="col"
 								numeric
-								className={cn("h-auto pb-1.5", w === way && "text-foreground")}
+								className={cn("h-auto pb-1.5 max-sm:px-0", w === way && "text-foreground")}
 							>
 								{wayName[w]}
 							</TableHead>
 						))}
 					</TableRow>
 				</TableHeader>
-				<TableBody>
+				<TableBody className="max-sm:block">
 					{rows.map((row) => (
 						<TableRow
 							key={row.label}
-							className={cn(row.total ? "border-t font-semibold" : "border-0")}
+							className={cn(
+								"max-sm:grid max-sm:grid-cols-3",
+								row.total ? "border-t font-semibold" : "border-0",
+							)}
 						>
 							<th
 								scope="row"
 								className={cn(
-									"py-1.5 text-start font-normal",
+									"py-1.5 text-start font-normal max-sm:col-span-3 max-sm:pb-0",
 									!row.total && "text-muted-foreground",
 								)}
 							>
@@ -806,7 +812,10 @@ function CarComparison({
 								<TableCell
 									key={w}
 									numeric
-									className={cn("py-1.5", w !== way && "text-muted-foreground")}
+									className={cn(
+										"py-1.5 max-sm:px-0 max-sm:pt-0.5",
+										w !== way && "text-muted-foreground",
+									)}
 								>
 									{row.value(w)}
 								</TableCell>

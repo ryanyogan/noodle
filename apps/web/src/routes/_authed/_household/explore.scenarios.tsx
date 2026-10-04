@@ -286,7 +286,7 @@ function Compare({
 						</TableCaption>
 						<TableHeader>
 							<TableRow className="border-0">
-								<TableHead scope="col" className="min-w-40">
+								<TableHead scope="col" className="min-w-24 sm:min-w-40">
 									<span className="sr-only">Number</span>
 								</TableHead>
 								{columns.map((c) => (
@@ -301,7 +301,7 @@ function Compare({
 								<TableRow key={row.label} className="border-0 border-t">
 									<th
 										scope="row"
-										className="min-w-40 py-2 pe-3 text-start align-top font-normal text-muted-foreground"
+										className="min-w-24 py-2 sm:min-w-40 pe-3 text-start align-top font-normal text-muted-foreground"
 									>
 										{row.label}
 									</th>
