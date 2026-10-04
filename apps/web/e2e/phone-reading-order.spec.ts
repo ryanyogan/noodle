@@ -30,12 +30,12 @@ for (const look of looks) {
 		await switchTo(page, "Month");
 
 		await expect(page.getByRole("main")).toMatchAriaSnapshot(`
-      - navigation "Month and Plan":
-        - link "Month"
-        - link "Plan"
       - heading /\\w+/ [level=1]
       - button "Previous month"
       - link /^Next month/
+      - navigation "Month and Plan":
+        - link "Month"
+        - link "Plan"
       - region /^Buckets/:
         - heading /^Buckets/ [level=2]
         - list:
