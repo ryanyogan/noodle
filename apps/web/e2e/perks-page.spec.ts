@@ -1,6 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { accountKindLabel, choose, createPlannedHousehold, signedInPage } from "./session";
+import {
+	accountKindLabel,
+	choose,
+	createPlannedHousehold,
+	serverFn,
+	signedInPage,
+} from "./session";
 
 // The Credit card perks page with two cards' worth of perks (AI_MODEL=stub, see perks-model.ts):
 // a "premium" page with $15 Uber Cash each month, a $200 airline fee credit each year, a $120
@@ -128,6 +134,64 @@ test("on a phone each perk is its own row with no sideways scroll", { tag: "@pho
 	if (process.env.SHOT_DIR) {
 		await page.screenshot({ path: `${process.env.SHOT_DIR}/perks-393.png`, fullPage: true });
 	}
+});
+
+/**
+ * Moves the day the perks are read on ("asOf") to four days before the month ends (or keeps today
+ * when that is later), so the monthly credits reset within a week whatever today is. Only the perks
+ * server function's answer changes.
+ */
+async function fourDaysBeforeMonthEnds(page: Page) {
+	await page.route(serverFn("getPerkSources"), async (route) => {
+		const response = await route.fetch();
+		const body = (await response.text()).replace(
+			// Every day in the answer (asOf, and any use) moves the same way, so they stay in order.
+			/"(\d{4})-(\d{2})-(\d{2})(\\?)"/g,
+			(_, y: string, m: string, d: string, slash: string) => {
+				const last = new Date(Date.UTC(Number(y), Number(m), 0)).getUTCDate();
+				const day = Math.max(Number(d), last - 4);
+				return `"${y}-${m}-${String(day).padStart(2, "0")}${slash}"`;
+			},
+		);
+		await route.fulfill({ response, body });
+	});
+}
+
+test("a perk resetting within a week is a To do on This Month and a line on the Check-in", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "9,000", buckets: [["Groceries", "1,200"]] });
+	await page.goto("/insights/perks");
+	await addCard(page, "Amex Platinum", "https://example.com/premium-card", "695", 4);
+	await fourDaysBeforeMonthEnds(page);
+
+	// Uber Cash ($15 each month) is the soonest to reset, unused.
+	const line = /^Uber Cash resets in \d+ days? — use it$/;
+	await page.goto("/");
+	const toDo = page.getByRole("region", { name: "To do" });
+	const onMonth = (page.viewportSize()?.width ?? 0) >= 1024 ? toDo : page;
+	await expect(onMonth.getByRole("link", { name: line })).toBeVisible();
+	await onMonth.getByRole("link", { name: line }).click();
+	await expect(page).toHaveURL(/\/insights\/perks$/);
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Credit card perks");
+
+	await page.goto("/check-in");
+	const onCheckIn = page.getByRole("link", { name: line });
+	await expect(onCheckIn).toBeVisible();
+	await onCheckIn.click();
+	await expect(page).toHaveURL(/\/insights\/perks$/);
+
+	// Used, it asks no more.
+	const amex = page.getByRole("article", { name: "Amex Platinum" });
+	const uber = amex.getByRole("listitem", { name: "Uber Cash" });
+	await uber.getByRole("button", { name: "Mark Uber Cash used" }).click();
+	await uber.getByRole("button", { name: "Save" }).click();
+	await expect(uber).toContainText(/Used \w+ \d+/);
+	await page.goto("/check-in");
+	await expect(page.getByRole("link", { name: /^Uber Cash resets/ })).toHaveCount(0);
+	await page.context().close();
 });
 
 test("a credit card's Account page links to its perks, under the page's own header", async ({
