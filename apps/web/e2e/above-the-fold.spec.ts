@@ -7,6 +7,7 @@ import {
 	clientRendered,
 	createHousehold,
 	createPlannedHousehold,
+	reloadUntil,
 	signedInPage,
 	uploadStatement,
 	waitForReview,
@@ -236,4 +237,73 @@ test("Review's card, its Skip and Undo and what it says fit a phone's first scre
 			}
 		}
 	}
+	// The narrowest phone (#74), 320x640, with a suggestion on the card (the tallest everyday card):
+	// Confirm, Skip and Undo are all in the window above the bottom bar before any scroll, and the
+	// row above the card (how far along, Confirm all, Look again, the view switch) is one row.
+	await page.setViewportSize({ width: 320, height: 640 });
+	const stack = page.getByTestId("review-stack");
+	const confirmAll = stack.getByRole("button", { name: /^Confirm all \d+ with a suggestion$/ });
+	// Both gas stations guessed: the guesses come a moment after the names.
+	await reloadUntil(page, "/review", async () => {
+		await expect(confirmAll).toBeVisible({ timeout: 3_000 });
+	});
+	const skip = stack.getByRole("button", { name: "Skip" });
+	await expect(skip).toBeEnabled(clientRendered);
+	// Skipping only sends a card to the back: skipped until the one on top has a suggestion.
+	const confirm = stack.getByTestId("review-card").getByRole("button", {
+		name: "Confirm",
+		exact: true,
+	});
+	await expect(async () => {
+		if (!(await confirm.isVisible())) await skip.click({ timeout: 2_000 });
+		await expect(confirm).toBeVisible({ timeout: 2_000 });
+	}).toPass({ timeout: 20_000 });
+	const tools: [string, Locator][] = [
+		["counter", stack.getByRole("heading", { level: 2, name: /^\d+ of \d+$/ })],
+		["Confirm all", confirmAll],
+		["Look again", stack.getByRole("button", { name: "Look again" })],
+		["view switch", page.locator('[aria-label="Show"]:visible')],
+	];
+	const buttons: [string, Locator][] = [
+		["Confirm", confirm],
+		["Skip", skip],
+		["Undo", stack.getByRole("button", { name: "Undo" })],
+	];
+	// Retried while the card that came to the top settles (a skipped card slides away).
+	await expect(async () => {
+		// A decision moves focus to the new top card, which can scroll the window: back to the top.
+		await page.evaluate(() => window.scrollTo(0, 0));
+		expect(await page.evaluate(() => window.scrollY)).toBe(0);
+		const bar = await page.locator('nav[aria-label="Main"]:visible').last().boundingBox();
+		expect(bar, "the bottom bar at 320x640").not.toBeNull();
+		const fold = Math.min(640, bar?.y ?? 640);
+		for (const [label, locator] of buttons) {
+			const box = await locator.boundingBox({ timeout: 2_000 });
+			if (!box) throw new Error(`${label} at 320x640: not laid out`);
+			console.log(
+				`FOLD | 320x640 | Review Sort, suggested | ${label} | ${Math.round(box.y)}-${Math.round(box.y + box.height)} of ${Math.round(fold)} |`,
+			);
+			expect(box.y, `${label} at 320x640`).toBeGreaterThanOrEqual(0);
+			expect(Math.round(box.y + box.height), `${label} at 320x640`).toBeLessThanOrEqual(fold);
+			expect(box.x, `${label} at 320x640`).toBeGreaterThanOrEqual(0);
+			expect(box.x + box.width, `${label} at 320x640`).toBeLessThanOrEqual(321);
+			await expect(locator, `${label} at 320x640`).toBeInViewport({ ratio: 0.99, timeout: 2_000 });
+		}
+		const row: { label: string; top: number; bottom: number }[] = [];
+		for (const [label, locator] of tools) {
+			const box = await locator.boundingBox({ timeout: 2_000 });
+			if (!box) throw new Error(`${label} at 320x640: not laid out`);
+			expect(box.x, `${label} at 320x640`).toBeGreaterThanOrEqual(0);
+			expect(box.x + box.width, `${label} at 320x640`).toBeLessThanOrEqual(321);
+			row.push({ label, top: box.y, bottom: box.y + box.height });
+		}
+		// One row: every one of them overlaps every other from top to bottom.
+		const lowestTop = Math.max(...row.map((r) => r.top));
+		const highestBottom = Math.min(...row.map((r) => r.bottom));
+		expect(
+			lowestTop,
+			`the row above the card wraps at 320: ${row.map((r) => `${r.label} ${Math.round(r.top)}-${Math.round(r.bottom)}`).join(", ")}`,
+		).toBeLessThan(highestBottom);
+	}).toPass({ timeout: 15_000 });
+	if (OUT) await page.screenshot({ path: `${OUT}/320x640-Review Sort, suggested.png` });
 });
