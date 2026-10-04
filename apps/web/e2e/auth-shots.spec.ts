@@ -38,9 +38,8 @@ for (const [screen, device] of Object.entries(screens)) {
 				await setupClerkTestingToken({ page });
 				await page.goto(path);
 				await settle(page);
-				await expect(page).toHaveScreenshot(`${name}-${screen}-${colorScheme}.png`, {
+				await expect.soft(page).toHaveScreenshot(`${name}-${screen}-${colorScheme}.png`, {
 					fullPage: true,
-					maxDiffPixelRatio: 0.01,
 				});
 				await context.close();
 			});

@@ -16,7 +16,9 @@ const screens = {
 } as const;
 const schemes = ["light", "dark"] as const;
 
-test.describe.configure({ mode: "serial" });
+// In order and in one worker (the tests share a Household), but a failure doesn't skip the rest:
+// one run reports every stale picture.
+test.describe.configure({ mode: "default" });
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -89,7 +91,7 @@ for (const name of ["hello", "buckets"] as const) {
 					.toBe(0);
 				// The primary button stays on screen, whatever the step's length.
 				await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeInViewport();
-				await expect(page).toHaveScreenshot(`setup-${name}-${screen}-${colorScheme}.png`, {
+				await expect.soft(page).toHaveScreenshot(`setup-${name}-${screen}-${colorScheme}.png`, {
 					fullPage: true,
 				});
 				await page.context().close();

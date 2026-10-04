@@ -37,8 +37,16 @@ export default defineConfig({
 		trace: "retain-on-failure",
 	},
 	expect: {
-		// Absorbs anti-aliasing differences between machines, not layout changes.
-		toHaveScreenshot: { maxDiffPixelRatio: 0.01, animations: "disabled", caret: "hide" },
+		// Absorbs anti-aliasing noise between runs, not a change of layout or of palette (#73).
+		// `threshold` is how far one pixel's colour may be off before it counts as different:
+		// Playwright's default 0.2 let the whole Soft stone palette pass against Warm paper pictures.
+		// `maxDiffPixelRatio` is how many such pixels may differ: 0.2% of the picture.
+		toHaveScreenshot: {
+			threshold: 0.05,
+			maxDiffPixelRatio: 0.002,
+			animations: "disabled",
+			caret: "hide",
+		},
 	},
 	projects: [
 		{ name: "setup", testMatch: /global\.setup\.ts/ },

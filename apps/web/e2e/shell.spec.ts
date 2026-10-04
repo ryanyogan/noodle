@@ -16,7 +16,9 @@ const screens = {
 } as const;
 const schemes = ["light", "dark"] as const;
 
-test.describe.configure({ mode: "serial" });
+// In order and in one worker (the tests share a Household), but a failure doesn't skip the rest:
+// one run reports every stale picture.
+test.describe.configure({ mode: "default" });
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -63,7 +65,7 @@ for (const [screen, device] of Object.entries(screens)) {
 			await expect(page.locator("[data-slot=page-header]:visible")).toContainText("This Month");
 			await expect(nav).toBeVisible();
 			await settle(page);
-			await expect(page).toHaveScreenshot(`month-${screen}-${colorScheme}.png`, {
+			await expect.soft(page).toHaveScreenshot(`month-${screen}-${colorScheme}.png`, {
 				fullPage: true,
 				mask: dynamic(page),
 			});
@@ -76,7 +78,7 @@ for (const [screen, device] of Object.entries(screens)) {
 			}
 			await expect(page.getByRole("heading", { name: "Parents" })).toBeVisible();
 			await settle(page);
-			await expect(page).toHaveScreenshot(`household-${screen}-${colorScheme}.png`, {
+			await expect.soft(page).toHaveScreenshot(`household-${screen}-${colorScheme}.png`, {
 				fullPage: true,
 				mask: dynamic(page),
 			});
@@ -257,7 +259,7 @@ for (const [screen, device] of Object.entries(screens)) {
 		});
 		await settle(page);
 		await page.evaluate(() => window.scrollTo(0, 0));
-		await expect(page).toHaveScreenshot(`reports-${screen}-light.png`, {
+		await expect.soft(page).toHaveScreenshot(`reports-${screen}-light.png`, {
 			fullPage: true,
 			mask: dynamic(page),
 		});
