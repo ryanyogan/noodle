@@ -49,7 +49,7 @@ import {
 } from "react";
 import { ulid } from "ulid";
 import { asBucketColor, monogram } from "../buckets";
-import { formatMoney, fullDay, shortMonth } from "../format";
+import { formatMoney, formatWholeMoney, fullDay, shortMonth } from "../format";
 import { changeTarget, withChange, withoutChange } from "../scenarios";
 import { MoneyInput } from "./money-input";
 
@@ -201,7 +201,7 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 						) : null,
 					onAdd: addNew,
 				}}
-				summary={`${plan.commitments.length} in the Plan · ${formatMoney(plan.commitments.reduce((sum, commitment) => sum + monthlyEquivalent(commitment), 0))} a month`}
+				summary={`${plan.commitments.length} in the Plan · ${formatWholeMoney(plan.commitments.reduce((sum, commitment) => sum + monthlyEquivalent(commitment), 0))} a month`}
 				lines={[
 					...plan.commitments.map((commitment) => ({
 						key: commitment.id,
@@ -262,7 +262,7 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 						) : null,
 					onAdd: addNew,
 				}}
-				summary={`${plan.buckets.length} in the Plan · ${formatMoney(plan.buckets.reduce((sum, bucket) => sum + bucket.allowance, 0))} a month`}
+				summary={`${plan.buckets.length} in the Plan · ${formatWholeMoney(plan.buckets.reduce((sum, bucket) => sum + bucket.allowance, 0))} a month`}
 				lines={[
 					...plan.buckets.map((bucket) => ({
 						key: bucket.id,
@@ -331,7 +331,7 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 						) : null,
 					onAdd: addNew,
 				}}
-				summary={`${goals.length} in the Plan · ${formatMoney(goals.reduce((sum, goal) => sum + goal.target, 0))} in targets`}
+				summary={`${goals.length} in the Plan · ${formatWholeMoney(goals.reduce((sum, goal) => sum + goal.target, 0))} in targets`}
 				lines={[
 					...goals.map((goal) => ({
 						key: goal.id,
