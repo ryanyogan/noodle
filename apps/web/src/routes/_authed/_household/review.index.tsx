@@ -690,7 +690,7 @@ function ReviewPage() {
 			<div className={cn("grid gap-5", !(top && !sorting) && "max-w-xl")}>
 				{top && sorting && order[0] ? (
 					// The narrowest phones are short too: less air, so Skip and Undo stay above the bottom bar.
-					<div data-testid="review-stack" className="grid gap-3 max-[359px]:gap-2">
+					<div data-testid="review-stack" className="grid gap-3 max-[359px]:gap-1.5">
 						{/* One row above the card: how far along, what Review is, and the rest of its tools. */}
 						<div className="flex flex-wrap items-center gap-x-2 gap-y-1 max-[359px]:gap-x-1">
 							<h2 className="text-sm font-normal text-muted-foreground tabular-nums">
@@ -704,7 +704,7 @@ function ReviewPage() {
 							</div>
 						</div>
 						<ReviewMatchOffer key={order[0].id} transaction={order[0]} />
-						<div className="relative pb-5 max-[359px]:pb-3">
+						<div className="relative pb-5 max-[359px]:pb-2">
 							{/* The cards waiting behind this one, as edges. */}
 							{order.length > 2 ? (
 								<div
@@ -715,7 +715,7 @@ function ReviewPage() {
 							{order.length > 1 ? (
 								<div
 									aria-hidden="true"
-									className="absolute inset-x-3 top-3 bottom-2.5 max-[359px]:bottom-1.5 rounded-2xl bg-card shadow-card ring-1 ring-border"
+									className="absolute inset-x-3 top-3 bottom-2.5 max-[359px]:bottom-1 rounded-2xl bg-card shadow-card ring-1 ring-border"
 								/>
 							) : null}
 							<SwipeCard
@@ -1053,7 +1053,7 @@ function CardActions({
 }) {
 	return (
 		// One row on a phone (#74): the shorter words are shown, the whole name is still read out.
-		<div className="-mx-2 flex flex-wrap gap-1 border-t border-border pt-2 max-[359px]:[&>button]:px-2">
+		<div className="-mx-2 flex flex-wrap gap-1 border-t border-border pt-2 max-[359px]:-mb-2 max-[359px]:pt-1 max-[359px]:[&>button]:px-2">
 			<Button
 				variant="ghost"
 				size="sm"
@@ -1212,14 +1212,15 @@ function ReviewCard({
 			data-current={current || undefined}
 			onFocusCapture={onFocus}
 			className={cn(
-				"grid gap-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border max-[359px]:gap-2 max-[359px]:p-3 sm:gap-4 sm:p-5",
+				"grid gap-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border max-[359px]:gap-1.5 max-[359px]:p-3 sm:gap-4 sm:p-5",
 				current && "ring-2 ring-ring",
 			)}
 		>
 			<div className="flex items-start justify-between gap-3">
 				<div className="grid min-w-0 gap-0.5">
-					{/* On a phone a long Account name goes to a second line rather than being cut mid-word. */}
-					<p className="text-xs text-muted-foreground max-sm:line-clamp-2 sm:truncate">
+					{/* On a phone a long Account name goes to a second line rather than being cut mid-word;
+					    the narrowest have no height to spare for it. */}
+					<p className="text-xs text-muted-foreground max-[359px]:truncate min-[360px]:max-sm:line-clamp-2 sm:truncate">
 						{dayName(item.date, today)}
 						{item.importedFrom ? ` · ${item.importedFrom}` : ""}
 					</p>
@@ -1240,7 +1241,7 @@ function ReviewCard({
 					<Badge>{item.guess ? "We weren’t sure" : "New merchant"}</Badge>
 				</div>
 			</div>
-			<div className="flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5 max-[359px]:py-2">
+			<div className="flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5 max-[359px]:py-1.5">
 				{item.guess ? (
 					<>
 						<Tile aria-hidden="true" bucket={bucket ? asBucketColor(bucket.color) : undefined}>
