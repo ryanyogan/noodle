@@ -75,6 +75,21 @@ For each: duplicates; crowding; alignment Δ; overflow and scroll containers; ca
 | Get-started wizard (`/setup`) | No page header; Continue at y=796 (thumb); choice buttons 18x18, radios 13x13. | One question per screen, Continue in a sticky footer. |
 | Sheets | Heights in finding 11; Add Buckets' visible scrollbar (finding 5); To do, Invite inline, Add Commitment and Upload not opened. Insides not measured (selector missed). | Content-sized up to 92% (#48), primary action in a sticky footer, no visible scrollbar, one scroll area. |
 
+### 74c: shell and shared components (2026-10-03)
+
+Fixed in the shared components, measured after at 393x852 on `chromium-mobile` (throwaway `zz-74c` spec; This Month, Household, Reports and the Add Buckets sheet looked at):
+- **Household email** (finding 3): `ListRow`'s meta row has `min-w-0`, so a long email truncates with an ellipsis. The 53-character email's span now ends at x=348, inside the card's 377; `text-overflow: ellipsis`, truncated.
+- **Reports' loading skeleton** (finding 1): its grid column is `minmax(0,1fr)` and the option pills are cut at the edge (`overflow-hidden`), so the pills' widths no longer widen the page. Sampled every 100 ms through loading (the skeleton seen): `innerWidth` and `scrollWidth` stay 393.
+- **Page title** (finding 2): `PageHeader`'s title block lost its 2 px side padding below lg; the h1 starts at 16 px on This Month, Household and Reports. Desktop keeps it (no desktop baseline moved).
+- **Card padding** (finding 9): `--card-pad` is already 16 px below lg and 20 px from lg; recorded in COMPONENTS.md that cards pad only through the token. Cards with literal padding are converted page by page (74d–74h), not here.
+- **Small targets** (finding 7): the help (?) button, Switch and Checkbox already carry a 44 px `::after` hit area below lg (`button` `help` variant, `switch.tsx`, `checkbox.tsx`). Probed with `elementFromPoint` 9–21 px outside the box: a tap above or left of the control hits it, but **below and right it hits a later positioned element** (the next row's control or text) on the help buttons, Household's switches and Add Buckets' boxes. Open for 74h: check what covers them (likely the next row's own hit area where rows are under 44 px apart) and either space the rows or make the whole row the label.
+- **Add Buckets' scrollbar** (finding 5): sheets have `scrollbar-width: none` below lg. The "2 px bar" 74b measured is the sheet's 1 px side borders (offsetWidth − clientWidth stays 2 with no bar).
+- **This Month's "Plan ›"** (finding 8): hidden below lg; the Month/Plan switch is the phone's way to the Plan. Desktop keeps it (plan-on-this-month clicks it at 1280). The Plan/Overview duplicate on Plan pages is per page (74e).
+
+Not done in 74c (from the shell plan above): the top row's icons into one More menu, the tab-bar bottom padding token, the tab strips' edge fade, and the alignment check in phone-overflow.spec. Those stay shell work for the next phase.
+
+Tests: chromium-mobile shell-adjacent specs (phone-overflow, phone-crowding, quick-add-many, sheet-phone) and chromium (plan-on-this-month, shell, add-buckets) pass; no baseline changed.
+
 ### What others do (research)
 
 - **Apple HIG / iOS 26:** the tab bar is a floating, inset pill of the primary destinations; Liquid Glass is only for the navigation layer floating above content, never for content itself. Sheets take detents (medium, large) and adapt their look by height. Lay content out on the system layout margins (16 pt on most iPhones, 20 pt on Max/Plus widths). [learnui.design: iOS 26 design guidelines](https://www.learnui.design/blog/ios-design-guidelines-templates.html), [WWDC25: Build a UIKit app with the new design](https://developer.apple.com/videos/play/wwdc2025/284/), [createwithswift: Liquid Glass hierarchy](https://www.createwithswift.com/liquid-glass-redefining-design-through-hierarchy-harmony-and-consistency/)
