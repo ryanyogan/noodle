@@ -1,0 +1,39 @@
+name: Shell baselines (temporary)
+
+# One-off (#74): redraws every shell.spec.ts baseline in CI's Playwright image and uploads them.
+# Deleted in the commit that brings the pictures in.
+on:
+  push:
+    branches: ["ci-main"]
+
+jobs:
+  baselines:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --ipc=host
+    env:
+      CI: "true"
+      E2E_SERVER: build
+    steps:
+      - uses: actions/checkout@v5
+      - run: npm install -g "$(node -p 'require("./package.json").packageManager')"
+      - run: bun install --frozen-lockfile
+      - name: Write dev keys for the local Worker
+        working-directory: apps/web
+        run: |
+          printf 'VITE_CLERK_PUBLISHABLE_KEY=%s\nCLERK_SECRET_KEY=%s\n' \
+            "${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" "${{ secrets.CLERK_SECRET_KEY }}" > .dev.vars
+          bun scripts/vapid-keys.ts >> .dev.vars
+      - run: bun run build
+        working-directory: apps/web
+        env:
+          AI_MODEL: stub
+      - run: bun run e2e --project=chromium shell.spec.ts --update-snapshots=all
+        working-directory: apps/web
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shell-baselines
+          path: apps/web/e2e/shell.spec.ts-snapshots
