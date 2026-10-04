@@ -117,9 +117,13 @@ async function expectDetailHeader(page: Page, what: string) {
 	expect(Math.round(box.y), `${what}: the item's header is the first thing`).toBe(GUTTER);
 	const section = page.locator("[data-slot=page-header]");
 	await expect(page.getByRole("heading", { level: 1 }), what).toHaveCount(1);
-	const sectionBox = await section.boundingBox();
+	// What is read out only is a 1px box: the header itself, or the header and tabs' wrapper.
+	const readOut = page
+		.locator("[data-slot=section-layout-header], [data-slot=page-header]")
+		.first();
+	const readOutBox = await readOut.boundingBox();
 	expect(
-		sectionBox?.height ?? 0,
+		readOutBox?.height ?? 0,
 		`${what}: the section's header takes no room`,
 	).toBeLessThanOrEqual(1);
 	await expect(section.locator("a:visible, button:visible"), what).toHaveCount(0);

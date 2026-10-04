@@ -48,10 +48,19 @@ function crowding(page: Page) {
 	return page.evaluate(() => {
 		const width = window.innerWidth;
 		const cut: string[] = [];
+		// Kept for screen readers only (`sr-only`, by class or by a variant such as the section's
+		// header over an open item, #74): not on screen, so not cut short.
+		const readOutOnly = (el: Element) => {
+			for (let at: Element | null = el; at; at = at.parentElement) {
+				if (getComputedStyle(at).clipPath === "inset(50%)") return true;
+			}
+			return false;
+		};
 		for (const el of document.querySelectorAll<HTMLElement>("body *")) {
 			if (el.closest("[aria-hidden=true],[inert],.sr-only")) continue;
 			const style = getComputedStyle(el);
 			if (style.visibility === "hidden" || style.display === "none") continue;
+			if (readOutOnly(el)) continue;
 			const clips =
 				style.textOverflow === "ellipsis" ||
 				style.webkitLineClamp !== "none" ||
@@ -68,6 +77,7 @@ function crowding(page: Page) {
 		// A word split over two lines (a title squeezed by its actions) is cut too.
 		for (const el of document.querySelectorAll<HTMLElement>("h1, h2, h3, [data-slot=list-row]")) {
 			if (el.closest("[aria-hidden=true],[inert],.sr-only") || !el.checkVisibility()) continue;
+			if (readOutOnly(el)) continue;
 			const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
 			for (let node = walker.nextNode(); node; node = walker.nextNode()) {
 				for (const word of (node.textContent ?? "").matchAll(/\S{2,}/g)) {
