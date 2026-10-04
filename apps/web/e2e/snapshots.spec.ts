@@ -44,6 +44,8 @@ test("a Parent takes a snapshot, adds a Transaction, restores the snapshot, and 
 	// Something changes after the snapshot.
 	await page.goto("/month");
 	await quickAdd(page, "310.00", "Groceries", "Warehouse run");
+	// Transactions lists each one by its note; This Month shows only totals.
+	await page.goto("/transactions");
 	await expect(page.getByText("Warehouse run").first()).toBeVisible();
 
 	await page.goto("/household");
@@ -67,7 +69,7 @@ test("a Parent takes a snapshot, adds a Transaction, restores the snapshot, and 
 		timeout: 120_000,
 	});
 
-	await page.goto("/month");
+	await page.goto("/transactions");
 	await expect(page.getByText("Farmers market").first()).toBeVisible();
 	await expect(page.getByText("Warehouse run")).toHaveCount(0);
 });
