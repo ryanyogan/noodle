@@ -89,14 +89,14 @@ test("a seeded Check-in walks Review, Insights and Extra income to a done state"
 	// Sweeps has nothing in it (last month had no Plan), so it's skipped.
 	await expect(page.getByText("1 of 3")).toBeVisible();
 	await expect(page.getByRole("heading", { name: "1 Transaction in Review" })).toBeVisible();
-	await expect(page.getByRole("link", { name: "Open Review" })).toBeVisible();
+	await expect(page.getByRole("link", { name: "Open full page" })).toBeVisible();
 	await page.getByRole("button", { name: "Skip for now" }).click();
 
 	await expect(page.getByText("2 of 3")).toBeVisible();
 	await expect(page.getByRole("heading", { name: "1 new Insight" })).toBeVisible();
 	await expect(page.getByText("Internet went up $10")).toBeVisible();
 	// Leaving to look at the Insight and coming Back picks up at the same card.
-	await page.getByRole("link", { name: "Open Insights" }).click();
+	await page.getByRole("link", { name: "Open full page" }).click();
 	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Insights");
 	await page.goBack();
 	await expect(page.getByText("2 of 3")).toBeVisible();

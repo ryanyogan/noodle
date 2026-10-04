@@ -1,4 +1,9 @@
-import { type CheckInCard, type CheckInCardKind, checkInStep } from "@noodle/domain";
+import {
+	type CheckInCard,
+	type CheckInCardKind,
+	checkInStep,
+	displayMerchant,
+} from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card, CardContent, CardFooter } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
@@ -7,15 +12,15 @@ import { PageHeader } from "@noodle/ui/components/page-header";
 import { StepList, StepListItem } from "@noodle/ui/components/stepper";
 import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
-import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Check, ChevronRight } from "lucide-react";
 import { useEffect } from "react";
 import { z } from "zod";
 import { checkInCardTitle, checkInLine, checkInSummary } from "../../../check-in";
 import { TermHelp } from "../../../components/term-help";
-import { formatMoney, fullDay, monthName } from "../../../format";
-import { checkInQuery } from "../../../queries";
+import { formatMoney, fullDay, monthName, shortDay } from "../../../format";
+import { checkInQuery, insightsQuery, reviewQuery } from "../../../queries";
 import { type CheckInView, completeCheckIn } from "../../../server/check-in";
 
 export const Route = createFileRoute("/_authed/_household/check-in")({
@@ -155,21 +160,69 @@ function CheckInCardView({
 	);
 }
 
-/** What's behind a card's line: the Insights' titles, the leftovers, the Extra income's months. */
-function CardDetails({ card }: { card: CheckInCard }) {
-	switch (card.kind) {
-		case "review":
-			return null;
-		case "insights":
-			return (
-				<ul className="border-t [&>li+li]:border-t">
-					{card.titles.map((title, index) => (
+/** How many waiting Transactions the Review step lists before "N more". */
+const REVIEW_SHOWN = 5;
+
+/**
+ * The Review step's waiting Transactions, read-only: the oldest few, what and how much, then how
+ * many more. Read as the Review page reads them, for this Parent (ADR-0003), so nothing in the
+ * other Parent's Personal Allowance shows; no guesses, since deciding happens in Review.
+ */
+function ReviewDetails() {
+	const review = useQuery(reviewQuery()).data;
+	if (!review || review.items.length === 0) return null;
+	const shown = review.items.slice(0, REVIEW_SHOWN);
+	const more = review.total - shown.length;
+	return (
+		<ul aria-label="Waiting in Review" className="border-t [&>li+li]:border-t">
+			{shown.map((item) => (
+				<ListRow
+					key={item.id}
+					title={item.merchantName ?? displayMerchant(item.note ?? item.merchant)}
+					meta={shortDay(item.date)}
+					trailing={<span className="text-sm tabular-nums">{formatMoney(item.amountCents)}</span>}
+				/>
+			))}
+			{more > 0 ? (
+				<li className="px-4 py-2.5 text-sm text-muted-foreground">
+					{more} more {more === 1 ? "waits" : "wait"} in Review
+				</li>
+			) : null}
+		</ul>
+	);
+}
+
+/**
+ * The Insights step's new Insights, read-only: each one's title and what it says. The card's
+ * titles show until the Insights themselves arrive.
+ */
+function InsightDetails({ titles }: { titles: string[] }) {
+	const insights = useQuery(insightsQuery()).data?.filter((insight) => insight.status === "new");
+	return (
+		<ul aria-label="New Insights" className="border-t [&>li+li]:border-t">
+			{insights && insights.length > 0
+				? insights.map((insight) => (
+						<li key={insight.id} className="grid gap-0.5 px-4 py-3">
+							<p className="text-sm font-medium">{insight.title}</p>
+							<p className="text-sm text-muted-foreground">{insight.body}</p>
+						</li>
+					))
+				: titles.map((title, index) => (
 						// Titles can repeat; their order is stable for the card's life.
 						// biome-ignore lint/suspicious/noArrayIndexKey: see above
 						<ListRow key={index} title={title} />
 					))}
-				</ul>
-			);
+		</ul>
+	);
+}
+
+/** What's behind a card's line: what waits in Review, the Insights, the leftovers, the Extra income. */
+function CardDetails({ card }: { card: CheckInCard }) {
+	switch (card.kind) {
+		case "review":
+			return <ReviewDetails />;
+		case "insights":
+			return <InsightDetails titles={card.titles} />;
 		case "sweeps":
 			return (
 				<ul className="border-t [&>li+li]:border-t">
@@ -213,13 +266,13 @@ function CardLink({ card }: { card: CheckInCard }) {
 		case "review":
 			return (
 				<Button asChild variant="outline">
-					<Link to="/review">{label("Open Review")}</Link>
+					<Link to="/review">{label("Open full page")}</Link>
 				</Button>
 			);
 		case "insights":
 			return (
 				<Button asChild variant="outline">
-					<Link to="/insights">{label("Open Insights")}</Link>
+					<Link to="/insights">{label("Open full page")}</Link>
 				</Button>
 			);
 		case "sweeps":
