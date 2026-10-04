@@ -11,12 +11,7 @@ import { z } from "zod";
 import { getDb } from "./db";
 import { householdMiddleware } from "./household";
 import type { RestoreOutput } from "./snapshot-restore-workflow";
-import {
-	newestMigration,
-	readSnapshot,
-	type SnapshotDeps,
-	takeSnapshot,
-} from "./snapshot-store";
+import { newestMigration, readSnapshot, type SnapshotDeps, takeSnapshot } from "./snapshot-store";
 
 // Household snapshots (#78, ADR-0035): the history and "Take a snapshot" in Household → Your data.
 // Either Parent of the Household (householdMiddleware); a snapshot's contents are never sent.
