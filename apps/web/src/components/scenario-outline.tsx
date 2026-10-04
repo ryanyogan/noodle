@@ -501,6 +501,7 @@ function Line({
 	meta,
 	restatesValue = false,
 	unit,
+	shortUnit,
 	value,
 	changed,
 	wide,
@@ -514,6 +515,8 @@ function Line({
 	restatesValue?: boolean;
 	/** What `value` is per ("a month") when only the hidden meta said so: a phone's unchanged row adds it. */
 	unit?: string;
+	/** `unit` for the narrowest phones (below 360), where the long one would break a name mid-word. */
+	shortUnit?: string;
 	value: string;
 	changed: boolean;
 	wide: boolean;
@@ -529,7 +532,12 @@ function Line({
 			)}
 		>
 			{value}
-			{restatesValue && !changed && unit ? <span className="sm:hidden"> {unit}</span> : null}
+			{restatesValue && !changed && unit ? (
+				<>
+					<span className={cn("sm:hidden", shortUnit && "max-[359px]:hidden")}> {unit}</span>
+					{shortUnit ? <span className="min-[360px]:hidden">{shortUnit}</span> : null}
+				</>
+			) : null}
 			{changed ? <span className="sr-only"> (changed)</span> : null}
 		</span>
 	);
@@ -839,6 +847,7 @@ function BucketLine({
 			meta={`Plan ${formatMoney(bucket.allowance)} a month`}
 			restatesValue
 			unit="a month"
+			shortUnit="/mo"
 			value={
 				archived && archived.fromMonth <= edit.month && !archived.untilMonth
 					? "Archived"
