@@ -39,7 +39,16 @@ const enabled = !!process.env.PAGE_SHOTS;
 // One worker, in order, and no second try: the Household is made once, in beforeAll.
 test.describe.configure({ mode: "default", retries: 0 });
 
-type Shot = { name: string; path: string; ready?: (page: Page) => Promise<void> };
+type Shot = {
+	name: string;
+	path: string;
+	ready?: (page: Page) => Promise<void>;
+	/**
+	 * The page draws only the rows in the window (Transactions): the window is made as tall as the
+	 * page for the picture, or the rows below the fold come out as an empty card.
+	 */
+	tall?: boolean;
+};
 
 let parent: Awaited<ReturnType<typeof createTestParent>> | undefined;
 let shots: Shot[] = [];
@@ -320,8 +329,12 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "07-plan-commitment", path: `/plan/${month}/commitments/${firstCommitment}` },
 		{ name: "08-plan-goal-funding", path: `/plan/${month}/goals` },
 		{ name: "09-plan-year", path: `/plan/${month}/year` },
-		{ name: "10-transactions", path: `/transactions/${month}` },
-		{ name: "11-transaction-open", path: `/transactions/${month}/${ids.openTransaction}` },
+		{ name: "10-transactions", path: `/transactions/${month}`, tall: true },
+		{
+			name: "11-transaction-open",
+			path: `/transactions/${month}/${ids.openTransaction}`,
+			tall: true,
+		},
 		{ name: "12-review-cards", path: "/review" },
 		{ name: "13-review-list", path: "/review?view=list" },
 		{ name: "14-rules", path: "/review/rules" },
@@ -375,11 +388,17 @@ for (const viewport of viewports) {
 					await shot.ready(page);
 					await settled(page);
 				}
+				if (shot.tall) {
+					const height = await page.evaluate(() => document.documentElement.scrollHeight);
+					await page.setViewportSize({ width: viewport.width, height: Math.min(height, 12_000) });
+					await page.waitForTimeout(500);
+				}
 				await page.screenshot({
 					path: join(dir, `${shot.name}.png`),
 					fullPage: true,
 					animations: "disabled",
 				});
+				if (shot.tall) await page.setViewportSize(viewport);
 			} catch (error) {
 				failures.push(`${shot.name} (${shot.path}): ${String(error).split("\n")[0]}`);
 				// What it looked like when it gave up, if the page is still there.

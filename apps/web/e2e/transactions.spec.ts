@@ -199,6 +199,27 @@ test("the list filters by Bucket and by who it was For", async ({ browser }) => 
 	await page.context().close();
 });
 
+test("at 1440 the list’s card ends with its last row", async ({ browser }) => {
+	const page = await signedInPage(browser, parent.email);
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await setUp(page);
+	await openTransactions(page);
+	await expect(list(page).getByRole("button")).toHaveCount(2);
+	// No empty stretch under the last row (#73): the card is as tall as its rows.
+	await expect
+		.poll(() =>
+			list(page).evaluate((ul) => {
+				const rows = [...ul.querySelectorAll("li")];
+				const last = Math.max(...rows.map((li) => li.getBoundingClientRect().bottom));
+				const height = rows.at(-1)?.getBoundingClientRect().height ?? 0;
+				const card = (ul.parentElement ?? ul).getBoundingClientRect().bottom;
+				return card - last <= height;
+			}),
+		)
+		.toBe(true);
+	await page.context().close();
+});
+
 test("at xl, Date and Amount sort the list", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email);
 	await page.setViewportSize({ width: 1440, height: 900 });
