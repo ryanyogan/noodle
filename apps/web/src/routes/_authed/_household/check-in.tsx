@@ -67,7 +67,9 @@ function CheckInPage() {
 			<div
 				className={cn(
 					"grid gap-4",
-					view.cards.length > 0 && "lg:grid-cols-[240px_minmax(0,42rem)] lg:items-start lg:gap-8",
+					// The card grows with the window up to 48rem, so a wide screen isn't half empty (#73).
+					view.cards.length > 0 &&
+						"lg:grid-cols-[240px_minmax(0,48rem)] lg:items-start lg:gap-(--layout-gap)",
 				)}
 			>
 				{view.cards.length > 0 ? (
@@ -88,7 +90,7 @@ function CheckInPage() {
 						))}
 					</StepList>
 				) : null}
-				<div className="grid max-w-2xl gap-3">
+				<div className="grid max-w-3xl gap-3">
 					<PerkResetLine />
 					{step.kind === "card" ? (
 						<p className="text-sm text-muted-foreground tabular-nums">
