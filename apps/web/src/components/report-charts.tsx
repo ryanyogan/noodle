@@ -154,10 +154,10 @@ export function ChartCard({
 	const titleId = useId();
 	return (
 		// The heading row sits above the card, as everywhere else (#73: headings outside cards).
+		// biome-ignore lint/a11y/useSemanticElements: a named group of a chart and its title, not a form's fieldset.
 		<div
 			className={cn("grid min-w-0 grid-rows-[auto_1fr] gap-3", className)}
 			aria-labelledby={titleId}
-			// biome-ignore lint/a11y/useSemanticElements: a named group of a chart and its title, not a form's fieldset.
 			role="group"
 		>
 			<div className="flex flex-wrap items-end justify-between gap-3">
