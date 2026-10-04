@@ -210,7 +210,7 @@ function ReviewDetails() {
 				/>
 			))}
 			{more > 0 ? (
-				<li className="px-4 py-2.5 text-sm text-muted-foreground">
+				<li className="px-(--card-pad) py-2.5 text-sm text-muted-foreground">
 					{more} more {more === 1 ? "waits" : "wait"} in Review
 				</li>
 			) : null}
@@ -231,7 +231,7 @@ function InsightDetails({ titles }: { titles: string[] }) {
 		<ul aria-label="New Insights" className="border-t [&>li+li]:border-t">
 			{insights && insights.length > 0
 				? insights.map((insight) => (
-						<li key={insight.id} className="grid gap-0.5 px-4 py-3">
+						<li key={insight.id} className="grid gap-0.5 px-(--card-pad) py-3">
 							<p className="text-sm font-medium">{insight.title}</p>
 							<p className="text-sm text-muted-foreground">{insight.body}</p>
 						</li>
