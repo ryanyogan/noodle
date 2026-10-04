@@ -10,6 +10,7 @@ import {
 	type ScenarioChangeImpact,
 	type ScenarioChangeSubjects,
 } from "@noodle/domain";
+import { DetailColumns } from "@noodle/ui/components/layout";
 import { Money } from "@noodle/ui/components/money";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Skeleton } from "@noodle/ui/components/skeleton";
@@ -128,7 +129,7 @@ export function useKeptScenarios(parentId: string, years?: HorizonYears) {
 
 type Kept = ReturnType<typeof useKeptScenarios>;
 
-/** One kept Scenario: its headline numbers, its Changes, and its outcome charts against the Plan. */
+/** One kept Scenario: its headline numbers, its outcome charts against the Plan, and its Changes. */
 export function ScenarioView({
 	projected: { scenario, projection, freed },
 	kept: { ahead, plan, subjects, goals, horizon },
@@ -169,8 +170,12 @@ export function ScenarioView({
 		[goals, levers],
 	);
 	return (
-		<div className="grid gap-8">
-			<StatGrid layout="cards" className="@md:grid-cols-2" aria-label="Against the Plan">
+		<DetailColumns className="gap-8">
+			<StatGrid
+				layout="cards"
+				className="col-span-full @md:grid-cols-2"
+				aria-label="Against the Plan"
+			>
 				<Stat
 					label={`Free to Spend, ${horizon.label}`}
 					value={<Money cents={freed} whole signed />}
@@ -193,7 +198,7 @@ export function ScenarioView({
 					}
 				/>
 			</StatGrid>
-			<p className="-mt-4 px-1 text-[13px] text-muted-foreground">
+			<p className="col-span-full -mt-4 px-1 text-[13px] text-muted-foreground">
 				{[
 					`Against the Plan over ${horizon.label}`,
 					scenario.createdBy ? `Made by ${scenario.createdBy}` : null,
@@ -205,19 +210,22 @@ export function ScenarioView({
 					.filter(Boolean)
 					.join(" · ")}
 			</p>
-			<ScenarioChanges
-				impacts={impacts}
-				levers={levers}
-				subjects={subjects}
-				goalNames={goalNames}
-				horizonLabel={horizon.label}
-			/>
-			<Section aria-labelledby="scenario-outcome">
+			{/* The outcome first, then the Changes that make it; side by side in a wide pane (#73). */}
+			<Section aria-labelledby="scenario-outcome" className="min-w-0">
 				<SectionHeader id="scenario-outcome" title="Outcome" />
 				<Suspense fallback={<Skeleton className="h-72 w-full rounded-xl" />}>
 					<OutcomeTabs outcome={outcome} goalNames={goalNames} />
 				</Suspense>
 			</Section>
-		</div>
+			<div className="min-w-0">
+				<ScenarioChanges
+					impacts={impacts}
+					levers={levers}
+					subjects={subjects}
+					goalNames={goalNames}
+					horizonLabel={horizon.label}
+				/>
+			</div>
+		</DetailColumns>
 	);
 }

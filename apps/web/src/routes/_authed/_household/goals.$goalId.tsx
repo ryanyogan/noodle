@@ -17,6 +17,7 @@ import {
 import { DatePicker } from "@noodle/ui/components/date-picker";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
+import { DetailColumns } from "@noodle/ui/components/layout";
 import { List, ListGroupLabel, ListRow } from "@noodle/ui/components/list";
 import { MetaParts } from "@noodle/ui/components/meta-parts";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
@@ -173,9 +174,10 @@ function GoalDetails({
 					)
 				}
 			/>
-			<div className="grid gap-8 @3xl:grid-cols-[minmax(0,1fr)_320px] @3xl:items-start">
-				{/* Right from a laptop up: the progress card and what to do; on a phone, History comes before Emergencies and Finish. */}
-				<div className="grid gap-8 @max-3xl:contents @3xl:sticky @3xl:top-6 @3xl:col-start-2 @3xl:row-start-1 @3xl:-m-1 @3xl:max-h-[calc(100dvh-3rem)] @3xl:overflow-y-auto @3xl:overscroll-contain @3xl:p-1">
+			<DetailColumns className="gap-8">
+				{/* In a wide pane the progress card and what to do sit beside History, and the page scrolls as
+				    one (#73); on a phone, History comes before Emergencies and Finish. */}
+				<div className="grid gap-8 @max-3xl/detail:contents @3xl/detail:col-start-2 @3xl/detail:row-start-1">
 					<Card role="region" aria-labelledby="goal-saved">
 						<div className="grid gap-3 p-(--card-pad)">
 							<div className="grid gap-1">
@@ -283,7 +285,7 @@ function GoalDetails({
 						<SaveFailed change={claim} />
 					)}
 
-					<div className="grid gap-8 @max-3xl:order-2">
+					<div className="grid gap-8 @max-3xl/detail:order-2">
 						{active ? (
 							<Section aria-labelledby="goal-emergency">
 								<SectionHeader
@@ -375,7 +377,7 @@ function GoalDetails({
 						)}
 					</div>
 				</div>
-				<div className="grid min-w-0 gap-8 @max-3xl:order-1 @3xl:col-start-1 @3xl:row-start-1">
+				<div className="grid min-w-0 gap-8 @max-3xl/detail:order-1 @3xl/detail:col-start-1 @3xl/detail:row-start-1">
 					<Section aria-labelledby="goal-history">
 						<SectionHeader id="goal-history" title="History" count={goal.changes.length} />
 						{goal.changes.length > 0 ? (
@@ -437,7 +439,7 @@ function GoalDetails({
 						)}
 					</Section>
 				</div>
-			</div>
+			</DetailColumns>
 
 			<AddMoneySheet
 				open={sheet === "add"}
