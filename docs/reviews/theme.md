@@ -433,7 +433,7 @@ WCAG 2.x ratios from 73ah's handoff. A dash in a column means 73ah gave no numbe
 | Glance's "Goals" part beside "Spent from Buckets" (`--chart-allowance`) (info) | - | - | 1.13 |
 | Reports' "Left over" key beside "Spent" (info) | - | - | 1.51 |
 
-Tightest: the comparison series on the card, 3.14, and on surface-2 it is under 3:1 (2.93), which is not a surface a chart is drawn on in the pictures looked at. The glance's Goals part and Spent from Buckets are close in dark; they are separated by the striped "Left in Buckets" part and a gap, and nobody has looked at them since the change.
+Tightest: the comparison series on the card, 3.14, and on surface-2 it is under 3:1 (2.93); the contrast script checks it on the card only, and whether any chart sits on surface-2 was not checked. The glance's Goals part and Spent from Buckets are close in dark; they are separated by the striped "Left in Buckets" part and a gap, and nobody has looked at them since the change.
 
 ### Looked at
 
