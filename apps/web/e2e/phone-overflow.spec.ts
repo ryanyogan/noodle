@@ -19,6 +19,7 @@ const pages = [
 	"/plan",
 	"/goals",
 	"/reports",
+	"/reports?view=cash-flow",
 	"/explore",
 	"/explore/scenarios",
 	"/explore/afford",
