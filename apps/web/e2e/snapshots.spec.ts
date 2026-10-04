@@ -1,6 +1,11 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, pickQuickAddBucket, signedInPage } from "./session";
+import {
+	createPlannedHousehold,
+	enterJoinedHousehold,
+	pickQuickAddBucket,
+	signedInPage,
+} from "./session";
 
 // Household snapshots (#78, ADR-0035): take one in Household → Your data, change something,
 // restore it behind the typed Household name, and what was there is back.
@@ -72,4 +77,56 @@ test("a Parent takes a snapshot, adds a Transaction, restores the snapshot, and 
 	await page.goto("/transactions");
 	await expect(page.getByText("Farmers market").first()).toBeVisible();
 	await expect(page.getByText("Warehouse run")).toHaveCount(0);
+});
+
+test("when one Parent restores a snapshot, the other Parent is emailed about it", async ({
+	browser,
+}) => {
+	test.setTimeout(240_000);
+	const first = await createTestParent();
+	const second = await createTestParent();
+	parents.push(first, second);
+	const alex = await signedInPage(browser, first.email);
+	await createPlannedHousehold(alex, { baseline: "5,000", buckets: [["Groceries", "600"]] });
+	await alex.goto("/household");
+	await alex.getByLabel("Their email").fill(second.email);
+	await alex.getByRole("button", { name: /^Invite/ }).click();
+	await expect(alex.getByText(`Invited ${second.email}`)).toBeVisible();
+	const sam = await signedInPage(browser, second.email);
+	await sam.goto("/welcome");
+	await sam.getByLabel("Your name").fill("Sam");
+	await sam.getByRole("button", { name: "Join The Rinks" }).click();
+	await enterJoinedHousehold(sam);
+
+	await alex.goto("/household");
+	const snapshots = alex.getByRole("region", { name: "Snapshots" });
+	await snapshots.getByLabel("Note").fill("Before Sam’s changes");
+	await snapshots.getByRole("button", { name: "Take a snapshot" }).click();
+	const taken = snapshots
+		.getByRole("list", { name: "Snapshot history" })
+		.getByRole("listitem")
+		.filter({ hasText: "Before Sam’s changes" });
+	await taken.getByRole("button", { name: /^Restore the snapshot from/ }).click();
+	const sheet = alex.getByRole("dialog", { name: "Restore this snapshot?" });
+	await sheet.getByLabel("Type “The Rinks”").fill("The Rinks");
+	await sheet.getByRole("button", { name: "Restore" }).click();
+	await expect(alex.getByText("Restored. Your Household is back to how it was.")).toBeVisible({
+		timeout: 120_000,
+	});
+
+	// Sam hears by email (the dev outbox keeps it); the Nudge goes to Sam's devices, which a test
+	// browser isn't. Alex, who restored, gets neither.
+	const restoreEmails = async (to: string) => {
+		const response = await alex.request.get(`/api/dev/outbox?to=${encodeURIComponent(to)}`);
+		expect(response.ok()).toBe(true);
+		const emails = (await response.json()) as { subject: string; text: string }[];
+		return emails.filter((email) => / restored the snapshot from /.test(email.subject));
+	};
+	await expect.poll(async () => (await restoreEmails(second.email)).length).toBe(1);
+	const [email] = await restoreEmails(second.email);
+	expect(email?.text).toContain("Your Household’s data is back to how it was then.");
+	expect(await restoreEmails(first.email)).toHaveLength(0);
+	// Sam is still in the Household after the restore.
+	await sam.goto("/household");
+	await expect(sam.getByRole("region", { name: "Snapshots" })).toContainText("Before a restore");
 });
