@@ -34,6 +34,7 @@ import {
 	sectionHeaderOverItem,
 } from "../../../components/master-detail";
 import { SaveFailed } from "../../../components/plan-editing";
+import { formatMoney } from "../../../format";
 import { type AccountView, accountKindName, useAddAccount, useGoals } from "../../../goals";
 import { bankConnectionsQuery, goalsQuery } from "../../../queries";
 
@@ -326,7 +327,17 @@ function AccountItem({ account }: { account: AccountView }) {
 						account.balance === null ? "text-subtle-foreground" : "font-semibold",
 					)}
 				>
-					{balanceLabel(account)}
+					{account.balance !== null && !account.holdsMoney ? (
+						// On a phone "owed" goes under the figure, so a long name has the room to wrap whole.
+						<>
+							{formatMoney(account.balance)}{" "}
+							<span className="max-sm:block max-sm:text-xs max-sm:font-normal max-sm:text-muted-foreground">
+								owed
+							</span>
+						</>
+					) : (
+						balanceLabel(account)
+					)}
 				</span>
 			}
 		/>
