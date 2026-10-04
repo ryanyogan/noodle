@@ -227,7 +227,7 @@ function Pane({ className, ...props }: React.ComponentProps<"section">) {
  * own, #73): the list is as long as it is, and the picked item sits beside it, its top level with
  * the list's first row, and stays in view (sticky) as the list scrolls. Only an item taller than
  * the window scrolls inside its own column. Picking an item from far down the list keeps the page
- * where it was. Below lg it shows one level at a time: the list, or (once there is a `detail`) the
+ * where it was: the row's link must not reset the window's scroll (`resetScroll={false}`). Below lg it shows one level at a time: the list, or (once there is a `detail`) the
  * detail, as ordinary page content.
  *
  * `empty` fills the detail pane at lg while nothing is picked ("Pick a Bucket to see it").
@@ -258,22 +258,15 @@ function MasterDetail({
 	detailLabel: string;
 }) {
 	const picked = detail !== null && detail !== undefined && detail !== false;
-	// The router puts the window back at the top on every navigation. Beside the list (lg) that
-	// would lose the Parent's place in it, so for a moment after a pick from the list a jump to
-	// the top is undone.
-	const keepPlace = (event: React.MouseEvent<HTMLDivElement>) => {
-		const item = (event.target as HTMLElement).closest("[data-md-item]");
-		const y = window.scrollY;
-		if (!item || y === 0 || !window.matchMedia("(min-width: 1024px)").matches) return;
-		const stop = () => window.removeEventListener("scroll", restore);
-		// The router may reset more than once (again when the item's data arrives), so each jump to
-		// the top in that moment is undone, not only the first.
-		const restore = () => {
-			if (window.scrollY === 0) window.scrollTo({ top: y });
-		};
-		window.addEventListener("scroll", restore);
-		window.setTimeout(stop, 1200);
-	};
+	// A row's link doesn't send the window back to the top (the app's row links ask the router not
+	// to), so beside the list (lg) the Parent keeps their place in it. Below lg the item is a page of
+	// its own, so opening one starts it at the top.
+	const wasPicked = React.useRef(picked);
+	React.useEffect(() => {
+		const opened = picked && !wasPicked.current;
+		wasPicked.current = picked;
+		if (opened && !window.matchMedia("(min-width: 1024px)").matches) window.scrollTo({ top: 0 });
+	}, [picked]);
 	return (
 		<div
 			data-slot="master-detail"
@@ -288,7 +281,6 @@ function MasterDetail({
 				className,
 			)}
 			style={style}
-			onClickCapture={keepPlace}
 			{...props}
 		>
 			<Pane

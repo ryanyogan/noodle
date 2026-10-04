@@ -15,8 +15,12 @@ import { type KeyboardEvent, type ReactNode, Suspense } from "react";
 // being shown with aria-current, which is what the highlight and the keys read: nothing else
 // needs to know which item is picked.
 
-/** Spread on a row's link to its item, so the keys can find it and the row can show it's picked. */
-export const masterDetailItem = { "data-md-item": "" } as const;
+/**
+ * Spread on a row's link to its item, so the keys can find it and the row can show it's picked.
+ * The link leaves the window's scroll alone, so picking from far down the list keeps the Parent's
+ * place in it (on a phone, where the item is a page of its own, `MasterDetail` starts it at the top).
+ */
+export const masterDetailItem = { "data-md-item": "", resetScroll: false } as const;
 
 /** On the list's wrapper: the picked item's row stands out. */
 export const selectedRow =
