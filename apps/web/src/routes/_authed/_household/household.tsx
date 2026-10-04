@@ -153,7 +153,7 @@ function HouseholdPage() {
 					</SectionGroup>
 					<SectionGroup id="your-data" title="Your data">
 						<DataDownload />
-						<HouseholdSnapshots />
+						<HouseholdSnapshots householdName={household.name} />
 					</SectionGroup>
 					<SectionGroup id="danger-zone" title="Danger zone">
 						<DangerZone householdName={household.name} />
