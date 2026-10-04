@@ -57,7 +57,7 @@ export function MonthGlance({
 	className?: string;
 }) {
 	const segments = monthSegments(state);
-	const total = segments.reduce((sum, s) => sum + s.amount, 0);
+	const total = segments.reduce((sum, s) => sum + Math.max(0, s.amount), 0);
 	if (total <= 0) return null;
 	return (
 		<div className={cn("grid gap-2.5", className)}>
@@ -81,7 +81,9 @@ export function MonthGlance({
 					<li key={s.key} className="flex items-center gap-2">
 						<span aria-hidden="true" className={cn("size-2.5 shrink-0 rounded-sm", s.className)} />
 						<span className="flex-1">{s.label}</span>
-						<span className="font-medium text-foreground">{formatMoney(s.amount)}</span>
+						<span className={cn("font-medium text-foreground", s.amount < 0 && "text-over")}>
+							{formatMoney(s.amount)}
+						</span>
 					</li>
 				))}
 			</ul>
@@ -92,7 +94,11 @@ export function MonthGlance({
 const STRIPES =
 	"bg-[image:repeating-linear-gradient(135deg,transparent_0_3px,color-mix(in_oklab,var(--card)_55%,transparent)_3px_5px)]";
 
-function monthSegments(state: MonthState): Segment[] {
+/**
+ * The bar's parts, in order. Free to Spend is always listed, with the amount the card's headline
+ * says: below zero when the Plan is over take-home pay (it then has no part of the bar).
+ */
+export function monthSegments(state: MonthState): Segment[] {
 	// What Buckets have spent and have left, as This Month counts them ("Left in Buckets"). With
 	// money carried over from last month these can add up to a little more than the Plan gave them.
 	let bucketsSpent = 0;
@@ -127,7 +133,7 @@ function monthSegments(state: MonthState): Segment[] {
 		{
 			key: "free",
 			label: "Free to Spend",
-			amount: Math.max(0, state.freeToSpend),
+			amount: state.freeToSpend,
 			className: "bg-brand",
 		},
 	].filter((s) => s.amount > 0 || s.key === "free");

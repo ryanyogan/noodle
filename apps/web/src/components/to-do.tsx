@@ -10,12 +10,15 @@ import { type ReactNode, useId, useState } from "react";
  * One prompt in the strip: what the closed strip calls it, a one-line status for its row from lg
  * ("2 of 4 done"), and the prompt itself. From lg, `action` sits at the end of the closed row, so
  * the one thing the prompt is for ("Continue setup") needs no click to open it first; `open` shows
- * the prompt under its name with no row to click, for one that is only links (the chips).
+ * the prompt under its name with no row to click, for one that is only links (the chips). `help`
+ * is the prompt's one "?" from lg: it sits at the end of its row while the row is open, so the
+ * prompt's own text carries none (#73).
  */
 export type ToDoItem = {
 	label: string;
 	status?: string;
 	action?: ReactNode;
+	help?: ReactNode;
 	open?: boolean;
 	content: ReactNode;
 };
@@ -46,8 +49,9 @@ export function ToDo({ className, items }: { className?: string; items: ToDoItem
 			>
 				<span className="text-sm font-semibold">To do</span>
 				<Badge variant="count">{items.length}</Badge>
+				{/* Open, each prompt names itself just below, so the names aren't said twice (#74). */}
 				<span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
-					{items.map((item) => item.label).join(" · ")}
+					{open ? null : items.map((item) => item.label).join(" · ")}
 				</span>
 				<ChevronDown
 					aria-hidden="true"
@@ -96,6 +100,7 @@ export function ToDo({ className, items }: { className?: string; items: ToDoItem
 												)}
 											/>
 										</RowButton>
+										{shown && item.help ? <div className="shrink-0 pe-2">{item.help}</div> : null}
 										{item.action ? (
 											<div className="shrink-0 pe-4 empty:hidden">{item.action}</div>
 										) : null}

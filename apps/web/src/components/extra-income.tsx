@@ -202,21 +202,40 @@ export function ExtraIncomeSection({
 	const hydrated = useHydrated();
 	return (
 		<Section aria-labelledby="extra-income">
-			<SectionHeader
-				id="extra-income"
-				title="Extra income"
-				help={<TermHelp term="extra-income" />}
-				action={
-					<Button variant="outline" size="sm" disabled={!hydrated} onClick={onChoose}>
-						Choose where
-					</Button>
-				}
-			/>
+			{/* From lg this sits in a To do row that already says "Extra income" and holds its help,
+			    so the heading is only for screen readers and "Choose where" follows the text (#73). */}
+			<div className="lg:sr-only">
+				<SectionHeader
+					id="extra-income"
+					title="Extra income"
+					help={
+						<span className="lg:hidden">
+							<TermHelp term="extra-income" />
+						</span>
+					}
+					action={
+						<Button
+							variant="outline"
+							size="sm"
+							className="lg:hidden"
+							disabled={!hydrated}
+							onClick={onChoose}
+						>
+							Choose where
+						</Button>
+					}
+				/>
+			</div>
 			<p className="px-1 pb-3 text-sm text-muted-foreground">
 				<span className="font-medium text-foreground tabular-nums">{formatMoney(left)}</span> came
 				in above your usual take-home pay{monthName ? ` in ${monthName}` : ""}. Decide where it
 				goes, so it doesn’t drift into everyday spending.
 			</p>
+			<div className="px-1 pb-3 max-lg:hidden">
+				<Button variant="outline" size="sm" disabled={!hydrated} onClick={onChoose}>
+					Choose where
+				</Button>
+			</div>
 			{suggestions.length > 0 ? (
 				<List aria-label="Suggestions">
 					{suggestions.slice(0, 3).map((s) => (
