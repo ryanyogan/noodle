@@ -113,7 +113,8 @@ export function CommitmentEditor({
 					>
 						{formatMoney(yearlyCost(commitment))} a year
 					</span>
-					<span className="text-sm font-medium tabular-nums">
+					{/* In the wide list the amount keeps one width, so the columns before it line up down the list. */}
+					<span className="text-end text-sm font-medium tabular-nums @lg:min-w-24">
 						{monthly
 							? formatMoney(commitment.amount)
 							: `${formatMoney(monthlyEquivalent(commitment))}/mo`}
