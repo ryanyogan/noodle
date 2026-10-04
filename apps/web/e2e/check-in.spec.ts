@@ -167,9 +167,13 @@ test("the other Parent's Check-in lists nothing from a Personal Allowance in Rev
 	});
 	const { day, weekday } = today();
 	await page.getByRole("link", { name: /^Household( settings)?$/ }).click();
-	const saved = savedBy(page, "setCheckInDay");
-	await choose(page, "Check-in day", weekday);
-	await saved;
+	await expect(page.getByRole("combobox", { name: "Check-in day" })).toHaveText("Sunday");
+	// Sunday is already the Check-in day, so on a Sunday (UTC on CI) there's no save to wait for.
+	if (weekday !== "Sunday") {
+		const saved = savedBy(page, "setCheckInDay");
+		await choose(page, "Check-in day", weekday);
+		await saved;
+	}
 
 	seedPrivateReview(parent.userId, day);
 
