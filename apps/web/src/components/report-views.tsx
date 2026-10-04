@@ -1539,6 +1539,63 @@ function PeopleView({ report, data, names, nav, tables, search }: ViewProps<"peo
 function CashFlowView({ data, nav, tables, names }: ViewProps<"cash-flow">) {
 	if (data.flow.nodes.length === 0) return <NothingYet />;
 	const nodes = data.flow.nodes.map((n) => ({ ...n, name: flowName(names, n) }));
+	// The area a destination drills into, if it has one a Parent may open.
+	const areaOf = (key: string) => {
+		const target = key.slice(4);
+		return key.startsWith("out:") &&
+			/^(bucket|commitment|goal):|^unassigned$/.test(target) &&
+			!names.isPrivate(target)
+			? target
+			: undefined;
+	};
+	// What each node took in or gave out, for the phone's lists (the same links the chart draws).
+	const totals = nodes.map((_, i) =>
+		data.flow.links.reduce((sum, l) => sum + (l.source === i || l.target === i ? l.value : 0), 0),
+	);
+	const ranked = (kind: "source" | "destination") =>
+		nodes
+			.map((n, i) => ({
+				key: n.key,
+				name: n.name,
+				amount: totals[i] ?? 0,
+				color:
+					kind === "source" || n.key === "out:saved" ? "var(--chart-income)" : "var(--chart-spend)",
+				kind: n.kind,
+			}))
+			.filter((n) => n.kind === kind && n.amount > 0)
+			.sort((a, b) => b.amount - a.amount);
+	const sources = ranked("source");
+	const destinations = ranked("destination");
+	const top = Math.max(1, ...sources.map((r) => r.amount), ...destinations.map((r) => r.amount));
+	const nameOf = new Map(nodes.map((n) => [n.key, n.name]));
+	const flowRows = (rows: typeof sources) => (
+		<RankedBars
+			rows={rows}
+			max={top}
+			renderRow={(row, bar) => {
+				const name = nameOf.get(row.key) ?? "";
+				const area = areaOf(row.key);
+				const body = (
+					<span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-1.5">
+						<span className="flex items-baseline gap-3">
+							<span className="min-w-0 flex-1 text-sm font-medium break-words">{name}</span>
+							<span className="shrink-0 text-sm font-semibold tabular-nums">
+								{formatMoney(row.amount)}
+							</span>
+						</span>
+						{bar}
+					</span>
+				);
+				return area ? (
+					<DrillRow onClick={() => nav.area(area)} label={`${name}: ${formatMoney(row.amount)}`}>
+						{body}
+					</DrillRow>
+				) : (
+					<div className="flex min-h-11 items-center py-2">{body}</div>
+				);
+			}}
+		/>
+	);
 	return (
 		<div className="grid gap-4 lg:gap-6">
 			<Card>
@@ -1553,19 +1610,26 @@ function CashFlowView({ data, nav, tables, names }: ViewProps<"cash-flow">) {
 				description="From income, through the Household, to Buckets, Goals and savings"
 				table={tables.flow}
 			>
-				<div className="-mx-(--card-pad) overflow-x-auto px-(--card-pad)">
+				{/* A phone is too narrow for the flow chart and its labels: there, the same amounts as
+				    two ranked lists, every name and amount in full, bars to one scale. */}
+				<div className="grid gap-4 sm:hidden" data-slot="cash-flow-lists">
+					<section className="grid gap-1" aria-label="Came in from">
+						<h3 className="text-[13px] font-medium text-muted-foreground">Came in from</h3>
+						{flowRows(sources)}
+					</section>
+					<section className="grid gap-1" aria-label="Went to">
+						<h3 className="text-[13px] font-medium text-muted-foreground">Went to</h3>
+						{flowRows(destinations)}
+					</section>
+				</div>
+				<div className="-mx-(--card-pad) hidden overflow-x-auto px-(--card-pad) sm:block">
 					<div className="min-w-[36rem]">
 						<FlowSankey
 							nodes={nodes}
 							links={data.flow.links}
 							onSelect={(key) => {
-								const target = key.slice(4);
-								if (
-									key.startsWith("out:") &&
-									/^(bucket|commitment|goal):|^unassigned$/.test(target) &&
-									!names.isPrivate(target)
-								)
-									nav.area(target);
+								const area = areaOf(key);
+								if (area) nav.area(area);
 							}}
 						/>
 					</div>
