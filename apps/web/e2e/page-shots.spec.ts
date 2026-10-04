@@ -165,59 +165,6 @@ async function openLine(page: Page, title: string) {
 	return sheet;
 }
 
-/**
- * DIAGNOSTIC (74af, to be removed): the page once more with motion NOT reduced, and what its first
- * chart does for three seconds (frames drawn, the chart's width, the line's dashes, the bars),
- * written beside the pictures with a picture of where it ended up.
- */
-async function chartNotes(page: Page, shot: Shot, dir: string) {
-	await page.emulateMedia({ reducedMotion: "no-preference" });
-	try {
-		await page.goto(shot.path);
-		await expect(page.locator(".recharts-wrapper").first()).toBeVisible({ timeout: 30_000 });
-		const notes = await page.evaluate(
-			() =>
-				new Promise<string[]>((resolve) => {
-					const out: string[] = [];
-					const start = performance.now();
-					let frames = 0;
-					const count = () => {
-						frames++;
-						requestAnimationFrame(count);
-					};
-					requestAnimationFrame(count);
-					const read = () => {
-						const wrap = document.querySelector(".recharts-wrapper");
-						const line = document.querySelector<SVGPathElement>(".recharts-line-curve");
-						const bars = [...document.querySelectorAll(".recharts-bar-rectangle path")];
-						out.push(
-							[
-								`${Math.round(performance.now() - start)}ms`,
-								`frames=${frames}`,
-								`width=${wrap?.getBoundingClientRect().width ?? "-"}`,
-								`dash=${line?.getAttribute("stroke-dasharray") ?? "-"}`,
-								`length=${line ? Math.round(line.getTotalLength()) : "-"}`,
-								`bars=${bars.length}`,
-								`tallest=${Math.round(Math.max(0, ...bars.map((b) => b.getBoundingClientRect().height)))}`,
-								document.visibilityState,
-								`reduce=${matchMedia("(prefers-reduced-motion: reduce)").matches}`,
-							].join(" "),
-						);
-						if (out.length >= 30) resolve(out);
-						else setTimeout(read, 100);
-					};
-					read();
-				}),
-		);
-		writeFileSync(join(dir, `${shot.name}.chart-notes.txt`), `${notes.join("\n")}\n`);
-		await page.screenshot({ path: join(dir, `${shot.name}-moving.png`), animations: "disabled" });
-	} catch (error) {
-		writeFileSync(join(dir, `${shot.name}.chart-notes.txt`), `${String(error)}\n`);
-	} finally {
-		await page.emulateMedia({ reducedMotion: "reduce" });
-	}
-}
-
 /** Tries one part of the seeding; a failure is noted and the rest goes on. */
 async function attempt(what: string, run: () => Promise<void>) {
 	try {
@@ -717,8 +664,6 @@ for (const viewport of viewports) {
 					animations: "disabled",
 				});
 				if (shot.tall) await page.setViewportSize(viewport);
-				if (shot.name === "19-explore" || shot.name === "22-scenario")
-					await chartNotes(page, shot, dir);
 			} catch (error) {
 				failures.push(`${shot.name} (${shot.path}): ${String(error).split("\n")[0]}`);
 				// What it looked like when it gave up, if the page is still there.
