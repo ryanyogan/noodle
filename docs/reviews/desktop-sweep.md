@@ -1,5 +1,7 @@
 # Desktop sweep (#73)
 
+The sections below are in the order the phases ran, and later phases overtook some of the earlier ones. For each page as it is on main now, what was looked at, and what is left, read "Where #73 stands" at the end.
+
 ## 73a: audit and research (2026-10-03)
 
 How it was done: a throwaway Playwright spec signed in as a fresh Parent with a busy Household (`createPlannedHousehold` with $6,200 take-home pay and four Buckets, `seedReportHistory` for 8 months, a Joint Savings Account, a Trip Goal). It visited every desktop page at 1024, 1440 and 1920 wide (1024, 1280, 1440, 1680, 1920 and 2560 for This Month, Transactions, Plan and Reports), took full-page screenshots, and measured each page in the browser:
@@ -238,4 +240,75 @@ Read from the page code and `git log`, not re-measured. The shell caps the page 
 - **Transactions has one list.** A month past 300 items used to switch to a windowed list (`useWindowVirtualizer`: rows placed by hand against the window's scroll, the card as tall as an estimate). That path had no test, and the shorter path beside it was already the one every real month took. It is removed, with its dependency (`@tanstack/react-virtual`): every loaded row is drawn in the page's flow, 50 more load as the end nears the screen, and the page is the only thing that scrolls (ADR-0033). Why this is enough: a row is a few lines of text with no work of its own (one lookup of its Bucket and its Member), rows arrive a page at a time, and a busy family month is a few hundred rows; a thousand rows is about 20 pages of scrolling before all are in the page. New spec `e2e/transactions-long-month.spec.ts`: a 400-row month at 1440 loads every row by scrolling the page, no ancestor of the list scrolls, no row is absolutely placed, the list is as tall as its rows, and the last row opens beside the list. This also closes 73g's "the list card stays as tall as the virtualizer's estimate". Not measured: frame times with 1,000 rows on a phone (`phone-long-list.spec.ts` still guards a busy month there).
 - **Goal page** (desktop.md "Desktop: 672px, with History below the fold"): the right column (progress card, Emergencies, Finish) is held in view (`sticky`, 24px from the top, the same inset as `SplitRail`) while a long History scrolls with the page. It is held only while all of it, plus the inset above and below, fits the window (measured on the column, re-measured when it or the window changes size); taller than that it scrolls with the page, so nothing is out of reach and it never scrolls on its own. In a narrow pane (one column) nothing sticks.
 - **Household, Child edit** (desktop.md "Child edit expands inline"): already closed on main by c931a1b: a Child's pencil opens the shared Sheet with Name, colour, Save and Remove (Remove asks in an AlertDialog). No change in this phase.
-- Proposal, not made here (shared file): `packages/ui/COMPONENTS.md` line 197 still says "long lists are virtualized (Transactions)"; it should say Transactions loads 50 rows at a time as the page scrolls.
+- Proposal, not made in 73z (shared file): `packages/ui/COMPONENTS.md` line 197 said "long lists are virtualized (Transactions)". Done since: on main it says Transactions is one list whose rows load 50 at a time, with no virtualizer.
+
+## Where #73 stands (2026-10-04, phases 73i to 73z)
+
+Put together from the phase handoffs (73i, 73L to 73L6, 73m, 73m2, 73p, 73p2, 73q, 73q2, 73r to 73z) and `git log --grep '#73'` on main at 3db1a29. Nothing was rendered or measured for this section. Only what is on main is recorded as changed. The words are used as above:
+
+- **looked at**: someone opened the picture;
+- **measured**: numbers were read in the browser, and nobody opened the picture;
+- **read**: from the code only;
+- **not looked at**: a picture may have been taken, and nobody opened it.
+
+**Pictures.** From 73r on the pictures come from the Page shots workflow on GitHub (`e2e/page-shots.spec.ts`: 28 pages plus the phone's More sheet, one job per width, 1024, 1440, 1920, 393 and 320 by default), not from this machine. Numbers such as 01, 10 and 27 below are that spec's picture names. 2560 is not one of its widths.
+
+**Palette.** The colours are now Indigo (ADR-0038). Warm paper (ADR-0034) and Soft stone (ADR-0036) came before it, and most of the looks recorded in this file were at pages in one of those two. They are looks at layout, not at the present colours. The comparison pictures of sign-in, setup, This Month, Household, Reports and Quick Add were redrawn in Indigo under #83 (34a25d0); no #73 phase has opened them since. 73x's note that the sign-in page's left panel "reads blue-grey beside the stone page" was made on Soft stone and has not been checked in Indigo.
+
+### Overtaken since the sections above were written
+
+- **Phones no longer have the Month and Plan switch** (73d kept it): the tab bar ends in More, and the Plan is in More (#74, a41dbc5).
+- **This Month from 1920** (73c, 73L): the main column is one column at every width now. Income sits in the rail under To do from 1024, and Bills are two columns inside the main column (5e5e39f). The three columns 73L5 looked at at 1920 are gone.
+- **A kept Scenario** shows its outcome before its Changes (58bde14); 73f listed that as not done.
+- **List-and-detail pages** (73e): no pane scrolls on its own any more (243d3f1, 2213abe). "Pick a … to see it here" is gone from Goals, Accounts, Buckets, Commitments and Rules (e73591d, 30503e5, b14a655); Scenarios keeps its hint.
+- **The six comparison pictures** 73y and 73z left to redraw (Household desktop and phone, This Month desktop, light and dark) were redrawn with the Indigo ones (34a25d0).
+
+### The layout the pages share (73L, 73p, 73r, 73s, 73u)
+
+- **Widths grow with the window** (ADR-0033, 2cabc15): the page cap is 1200, 1440 from 1440 and 1680 from 1920 (1440 and 1800 on wide routes); the side column is 320, 360, 380 and 440; the list beside an item is 360, 400 and 460. `SectionGrid` and `DetailColumns` are the two shared pieces.
+- **One scroll** (243d3f1, 2213abe, fe9d44b): a list beside an item scrolls with the page. Each pane measures itself and is held in view only while it fits the window. The scrollbar styling for panes is removed.
+- **Picking an item** (7a85ace, fdb3fba, bc4fc9f): the window is not sent to the top. An item that fits the window stays beside the row that was clicked; an item taller than the window starts 24px under the top. master-detail.spec checks the taller case. The case where the item fits has no test now.
+- **Loading and failed pages** (fbe2d57, c4b0c27): a placeholder has the header's space and the page's columns; a failed page has a heading.
+- Looked at for these: Buckets at 1920 and a Bucket at 1440 after 243d3f1 (73p); 05 a Bucket at 1440 after 2213abe (73s: it flows with the page, nothing scrolls inside). Not looked at: keeping your place on a pick, in a browser, at any width (tests only); loading and failed pages (no picture covers them).
+
+### Per page
+
+| Page | On main since the sections above | Looked at | Not looked at, or measured only |
+| --- | --- | --- | --- |
+| This Month | One "?" on the Buckets heading, the bars' key under the list (2cabc15). No "Plan ›" in Free to Spend; its legend shows the headline's amount when the Plan is over (it showed $0 under -$1,166); one "?" per open To do row; the step is "Add your Accounts" (dc9545b). Buckets a block of its own (9c831db). Income in the rail, Bills in two columns, Record payment on the bill's line (5e5e39f). | 01 at 1440 after 5e5e39f (73s): the page is 2,192px tall (was 2,805); the rail ends near 1,200 and the main column near 2,130, so the rail is about 54% of it, short of the 60% aimed for. | 1920 and 1024 after 5e5e39f. 02, the To do rows open, at any width since dc9545b (73m2 looked at nothing). |
+| This Month, new Household | Continue setup shows without opening anything (01165e2). The "Finish setting up" card and the steps are stacked, each the page's width (412f020; 73x had them side by side). | 1440, light (73x, then 73y). | 1920. Dark. Get started alone, after the wizard is dismissed: 73x saw the list take the left half from 1280, and nobody has looked since 412f020. |
+| Plan › Overview, Goal funding, Year | Overview: what to check beside the waterfall from 1920, What changed lists six (bd64226). Goal funding: funded this month and Free to Spend in the side column (efdff82). Year: the table first, how to read it below beside Lumpy months (3c45020). | 03, 08 and 09 at 1440 and 1920 (73v). | 1024. Goal funding has little under its list; left as it is. |
+| Plan › Buckets, a Bucket | The list fills the page until one is picked (243d3f1). Allowance, Spent, Left and the bar in columns, totals in the side column (e8703aa). A Bucket's page starts level with the list, two columns from a 42rem pane (d31db8b). The other Parent's Personal Allowance lines up, wider bars on wider lists (30503e5). Left to plan stays at the top through the whole list (e093b6f). | 04 and 05 at 1440 (73s): the bars are still 112px there, as the list is about 700px. A Bucket at 1440 (73y): one ruled stat grid. | 04 at 1920, where the wider bars apply: never seen. 05 at 1920. 1024. |
+| Plan › Commitments, a Commitment | Paid state in its own column, totals in the side column (e8703aa). The cost across the top, Charges beside Next due and Terms history (d66f551). | 07 at 1440 and 1920 (73w): at 1920 Next due and Terms history start on one line; at 1440 it is one column. The seed has no Charges. | 06, the list, at any width since e8703aa. A Commitment with Charges. 73v saw the side card start about 13px above "Charges" at 1920 before d66f551; not re-measured. |
+| Transactions | One list for every month: rows are drawn in the page and load 50 at a time (f08b655, then bc402e4 removed the second, windowed list for months past 300 rows along with its dependency). `transactions-long-month.spec.ts` loads a 400-row month at 1440. | 10 at 1440 (73t, 73z): every row drawn, the card ends at the last row. 11, a Transaction open, at 1920 (73t). | 10 at 1920; 11 at 1440. The 400-row month by eye (the test only). Frame times with about 1,000 rows on a phone: not measured. |
+| Review, Rules | Review's list shows its cards two and three across until one is opened (d90fa0c). Rules fill the page until one is picked, Add Rule beside the heading (b14a655). | 14 at 1440 (73t). | 13, Review's list, at any width since d90fa0c (73p looked at it before the change only); a card opened from far down the list. 12. 14 at 1920. |
+| Accounts, an Account | Cards two or three across with Totals beside them (deae23a). The balance on its own line; "Log in again" as a badge, the sentence once on the Bank Connection (e798845, e1298fa). A Bank Connection's buttons wrap under its name (473ca69). Balance has a heading like Transactions (086e49e). Totals under its own heading (a2984d2). | Accounts and an Account at 1440 and 1920 (73L5); an Account at 1920 after 086e49e (73L6): the two headings and the two cards start on one line. | Accounts since a2984d2: 73q measured the Totals card 13px above the first heading at 1440 before it, and nobody has looked or measured after. 1024 with a Bank Connection. Two Bank Connections: the test bank never connected a second one, so only one has ever been pictured. |
+| Goals, a Goal | A grid of cards with the summary beside it (473ca69), under the heading "In all" (a2984d2). A Goal's figures beside its History in two even columns (58bde14). The side column held in view while History scrolls (5b8299f). | Goals at 1920 (73L2) and 1440 (73L5), a Goal at 1920 (73L5): all before 58bde14 and 5b8299f. 18 at 1440 (73z): the pane is about 680px, so it is one column and the held column does not apply. | **A Goal at 1920 since 58bde14: the two columns and the held side column have never been seen working.** A Goal that pays off a card. Whether "In all" is the right heading. |
+| A kept Scenario | Outcome charts first, Changes beside them when there is room (58bde14). | Nothing. | Every width. 73q2's worry: the charts in half a pane, about 640px at 1920, may be tight. |
+| Explore, Can we afford it? | Goal paths say "Reached in" a month, and a long name keeps its "new" mark (cb9cac4). No layout change since 73f. | Explore at 1920 (73y), on the Free to Spend tab. | The Goal paths tab, so cb9cac4 itself. At 393 "Same as the Plan over 2 years" shows twice (73q2, from an older picture). |
+| Insights, Perks, Glossary | From 1680 the Glossary runs in two columns; Insights sit two across when their column is 64rem or more and there are two or more (9683cc5). Perks was redone under #80. | Nothing since. | The Glossary at 1680 and up, with a word picked and with a search. Insights two across. Perks' top at 1440 and 1920: measured only (the summary and Do now end on one line: both 429px tall at 1440, 409 at 1920). |
+| Check-in | The card takes the width beside the steps (cfc4b8f, 4ca535f, 36640bd, then fadc927 removed the cap). Each step shows its own line, in full (4ca535f, 36640bd). "N more" starts where the rows start (4b90839). | 26 at 1440 and 1920 (73v, 73w); 1920 after fadc927 (73y): no empty band. | 1440 after fadc927. 4b90839. |
+| Household | Two columns, the Danger zone last across both (6274e4a). Left: Household, People, Bringing in spending, Setup. Right: Reminders, Your data (a2c58c5). The Danger zone says "Start fresh can be put back. Deleting can't." with a paragraph each (44ef76e); the old line, "These clear your Household for good", is no longer in the code. | Light at 1440 (73x): the left column ends near 1,558px, the right near 1,450. The Danger zone at 1920 (73y) and 1440 (73z). | Dark. The phone, whose reading order changed with a2c58c5. A Child's edit sheet, open. |
+| Sign-in, the setup wizard | Sign-in's fields have the border every field has (c218057). The wizard is a little wider, its buttons follow the last field, and its cards share one padding (92ddba3, 171a116). | Sign-in and the wizard's first step, desktop, light (73x). | The wizard's other steps. Sign-up. Dark. |
+| Accounts and Goals lists, Glossary, Ask, the wizard against ADR-0033 | | | Not checked (73z). |
+
+### Still to do
+
+73aa was running when this was written and had no commit yet. The first seven items are the ones known to be open when it started, and it is working on some of them; they are marked in progress, not done, and nothing of 73aa's is on main.
+
+| | What | State |
+| --- | --- | --- |
+| 1 | **A Goal at 1920.** Open one with a long History and scroll: the side column should stay in view. Never seen (it does not apply at 1440). No test covers it. | In progress (73aa). |
+| 2 | **2560.** Last looked at in 73a (This Month), before all of the above. 73h2 took This Month, Plan, Reports and Scenarios there and did not open them. Not a width the Page shots draw. | In progress (73aa). |
+| 3 | **Check-in rows at 1920** are about 1,300px wide, the name at the left and the amount at the right. Cap and centre the card if that reads too wide; an earlier phase capped it on purpose (36640bd). The 240px step column is still a literal, not a token. | In progress (73aa). |
+| 4 | **Explore's editors as collapsed sections** showing their totals. Not started since 73f. Many specs click rows inside the editors. | In progress (73aa). |
+| 5 | **Transactions past 300 rows.** The old windowed list is gone and a test covers a 400-row month (bc402e4). Left: the look by eye, and frame times on a phone. | Code on main; the look in progress (73aa). |
+| 6 | **Get started.** The card and the steps are the page's width (412f020). Left: the look at 1920, and the list alone once the wizard is dismissed, which 73x saw at half width. | Code on main; the look in progress (73aa). |
+| 7 | **Household's Danger zone.** The copy is right for Start fresh now (44ef76e). Left: dark. | Code on main; looked at, light, at 1440 and 1920. |
+| 8 | Look at what was changed and never opened: the To do rows open on This Month; Review's list; the Commitments list; Buckets at 1920; a kept Scenario; Accounts and Goals since a2984d2; the Glossary and Insights at 1920; the Goal paths tab. | Open. |
+| 9 | This Month at 1440: the rail is about 54% of the main column's height. | Open. |
+| 10 | Household at 1440: the columns end about 108px apart. | Open; judged near enough in 73x. |
+| 11 | Explore's chart control as a select below about 480px (73f). | Open. |
+| 12 | Dark at desktop widths: no page has been looked at in dark in any #73 phase. | Open. |
+| 13 | 1024 since ADR-0033: only Accounts was looked at, from a picture older than the changes (73q2). | Open. |
+| 14 | A test for an item that fits the window keeping its place on a pick. `e2e/alignment.ts` skips a wrapper with `display: contents`. | Open. |
