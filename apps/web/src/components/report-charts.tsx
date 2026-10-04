@@ -153,14 +153,15 @@ export function ChartCard({
 	const [asTable, setAsTable] = useState(false);
 	const titleId = useId();
 	return (
-		<Card
-			className={cn("grid min-w-0 content-start gap-4 p-(--card-pad)", className)}
+		// The heading row sits above the card, as everywhere else (#73: headings outside cards).
+		<div
+			className={cn("grid min-w-0 grid-rows-[auto_1fr] gap-3", className)}
 			aria-labelledby={titleId}
 			role="group"
 		>
-			<div className="flex flex-wrap items-start justify-between gap-3">
+			<div className="flex flex-wrap items-end justify-between gap-3">
 				<div className="grid min-w-0 flex-1 basis-40 gap-0.5">
-					<h2 id={titleId} className="text-sm font-semibold">
+					<h2 id={titleId} className="text-[15px] font-semibold">
 						{title}
 					</h2>
 					{description ? <p className="text-[13px] text-muted-foreground">{description}</p> : null}
@@ -179,8 +180,10 @@ export function ChartCard({
 					) : null}
 				</div>
 			</div>
-			{asTable && table ? <DataTable table={table} /> : children}
-		</Card>
+			<Card className="grid min-w-0 content-start gap-4 p-(--card-pad)">
+				{asTable && table ? <DataTable table={table} /> : children}
+			</Card>
+		</div>
 	);
 }
 

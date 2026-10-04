@@ -17,7 +17,12 @@ function EmptyState({
 	className?: string;
 }) {
 	return (
-		<Card className={cn("flex flex-col items-center gap-3 px-6 py-10 text-center", className)}>
+		<Card
+			className={cn(
+				"flex flex-col items-center gap-3 px-(--card-pad) py-[calc(var(--card-pad)*2)] text-center",
+				className,
+			)}
+		>
 			{icon ? (
 				<span className="grid size-10 place-items-center rounded-xl bg-surface-2 text-muted-foreground [&_svg]:size-5">
 					{icon}
