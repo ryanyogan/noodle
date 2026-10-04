@@ -136,6 +136,61 @@ test("tap targets on a 393 px phone are at least 24 × 24", async ({ browser }) 
 	await page.context().close();
 });
 
+// The "?" help button, Switch and Checkbox are smaller than 44 px and carry a 44 × 44 `::after`
+// tap area (#74). It has to be centred on the control and on top: a tap 20 px to any side of the
+// control's middle must reach it (or a neighbour of the same kind whose own area starts there),
+// not the row or card that follows.
+test("help buttons, switches and tick boxes have a centred 44 × 44 tap area nothing covers", async ({
+	browser,
+}) => {
+	test.setTimeout(120_000);
+	const page = await phonePage(browser);
+	let probed = 0;
+	for (const path of ["/household", "/month", "/plan", "/accounts"]) {
+		await open(page, path);
+		const found = await page.evaluate(() => {
+			const selector = "[data-slot=switch],[data-slot=checkbox],[data-slot=button][data-size=help]";
+			const px = (v: string) => (v.endsWith("px") ? Number.parseFloat(v) : Number.NaN);
+			const wrong: string[] = [];
+			let count = 0;
+			for (const el of document.querySelectorAll<HTMLElement>(selector)) {
+				if (el.offsetParent === null || el.closest("[aria-hidden=true],[inert]")) continue;
+				count++;
+				el.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
+				const name = `${el.dataset.slot} "${(el.getAttribute("aria-label") ?? el.id).slice(0, 40)}"`;
+				// The area's size: the control's inside (what its insets are measured from) less the insets.
+				const after = getComputedStyle(el, "::after");
+				const width = el.clientWidth - px(after.left) - px(after.right);
+				const height = el.clientHeight - px(after.top) - px(after.bottom);
+				if (!(width >= 44 && height >= 44) || Math.abs(px(after.left) - px(after.right)) > 0.5)
+					wrong.push(`${name}: tap area ${width} × ${height}, ${after.left} / ${after.right}`);
+				const box = el.getBoundingClientRect();
+				const x = box.left + box.width / 2;
+				const y = box.top + box.height / 2;
+				for (const [dx, dy, side] of [
+					[-20, 0, "left of"],
+					[20, 0, "right of"],
+					[0, -20, "above"],
+					[0, 20, "below"],
+				] as const) {
+					if (x + dx < 0 || y + dy < 0 || x + dx >= innerWidth || y + dy >= innerHeight) continue;
+					const hit = document.elementFromPoint(x + dx, y + dy);
+					if (hit === el || (hit && el.contains(hit)) || hit?.closest(selector)) continue;
+					wrong.push(
+						`${name}: a tap ${side} it lands on <${hit?.tagName.toLowerCase()}> "${(hit?.textContent ?? "").trim().slice(0, 30)}"`,
+					);
+				}
+			}
+			return { count, wrong };
+		});
+		probed += found.count;
+		expect.soft(found.wrong, `${path}: tap areas`).toEqual([]);
+		if (path === "/household") expect(found.count, "Household's switches").toBeGreaterThan(0);
+	}
+	expect(probed).toBeGreaterThan(0);
+	await page.context().close();
+});
+
 test("axe finds no violations on a 393 px phone, light and dark", async ({ browser }) => {
 	test.setTimeout(240_000);
 	const page = await phonePage(browser);
