@@ -43,7 +43,10 @@
 		// need the PLAID_CLIENT_ID, PLAID_SECRET and BANK_CONNECTION_KEY secrets (server/bank-setup.ts);
 		// without them the Accounts page says Plaid isn't set up. For production, set "production"
 		// and replace PLAID_SECRET with the production secret.
-		"PLAID_ENV": "sandbox",
+		"PLAID_ENV": "production",
+		// The practice (Sandbox) Bank Connections were ended at the switch (#70), so Accounts says
+		// "Connect your real bank" once. Remove when the Household has connected its real banks.
+		"PLAID_SANDBOX_RETIRED": "true",
 		// The nightly backup (ADR-0032) calls the D1 export API for this account and database, with
 		// the D1_EXPORT_TOKEN secret, and emails failures to BACKUP_ALERT_TO (a var or secret; unset,
 		// failures are only logged).
