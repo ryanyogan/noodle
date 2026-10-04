@@ -52,10 +52,12 @@ const COMMITMENTS = [
 /** A deterministic wobble, so screenshots don't change between runs. */
 const wobble = (seed: number) => 0.7 + ((seed * 7919) % 61) / 100;
 
+// Today as the browser sees it (local time): in the evening west of UTC, the UTC date is already
+// tomorrow, and a Transaction dated tomorrow falls outside the Reports period.
 const monthOf = (monthsAgo: number, day: number) => {
 	const now = new Date();
-	const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - monthsAgo, 1));
-	const last = monthsAgo === 0 ? now.getUTCDate() : 28;
+	const date = new Date(Date.UTC(now.getFullYear(), now.getMonth() - monthsAgo, 1));
+	const last = monthsAgo === 0 ? now.getDate() : 28;
 	return `${date.toISOString().slice(0, 8)}${String(Math.min(day, last)).padStart(2, "0")}`;
 };
 
