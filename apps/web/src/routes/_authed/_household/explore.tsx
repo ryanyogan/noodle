@@ -1,6 +1,4 @@
-import { Button } from "@noodle/ui/components/button";
-import { createFileRoute, Link, linkOptions, useSearch } from "@tanstack/react-router";
-import { ChevronLeft } from "lucide-react";
+import { createFileRoute, linkOptions, useSearch } from "@tanstack/react-router";
 import { SectionLayout, type SectionTab } from "../../../components/section-layout";
 
 // Explore's pages: trying changes on the Plan, the Checks, and the saved Scenarios. The header

@@ -10,7 +10,7 @@ import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Stat, StatGrid } from "@noodle/ui/components/stat";
 import { cn } from "@noodle/ui/lib/utils";
 import { createFileRoute, Link, useHydrated, useParams } from "@tanstack/react-router";
-import { Landmark, Plus, Target, Telescope } from "lucide-react";
+import { Landmark, Plus, Target } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { z } from "zod";
 import { AddGoalSheet, GoalProgressBar, GoalSummary, LinkRow } from "../../../components/goals";
