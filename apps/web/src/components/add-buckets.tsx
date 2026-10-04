@@ -366,27 +366,38 @@ function SheetRow({
 			data-starter={row.key}
 		>
 			<div className="flex items-center gap-3">
-				<Checkbox
-					id={`${id}-tick`}
-					checked={row.kept}
-					onCheckedChange={(checked) => onEdit({ kept: checked === true })}
-					{...(custom ? { "aria-label": `Add ${label}` } : {})}
-				/>
 				{custom ? (
-					<Input
-						ref={(el) => {
-							if (focus && el && document.activeElement !== el && !el.value) el.focus();
-						}}
-						aria-label="Name of your own Bucket"
-						value={row.name}
-						maxLength={40}
-						placeholder="Name, like Hockey"
-						onChange={(event) => onEdit({ name: event.currentTarget.value, kept: true })}
-						className="min-w-0 flex-1"
-					/>
+					<>
+						<Checkbox
+							id={`${id}-tick`}
+							checked={row.kept}
+							onCheckedChange={(checked) => onEdit({ kept: checked === true })}
+							aria-label={`Add ${label}`}
+						/>
+						<Input
+							ref={(el) => {
+								if (focus && el && document.activeElement !== el && !el.value) el.focus();
+							}}
+							aria-label="Name of your own Bucket"
+							value={row.name}
+							maxLength={40}
+							placeholder="Name, like Hockey"
+							onChange={(event) => onEdit({ name: event.currentTarget.value, kept: true })}
+							className="min-w-0 flex-1"
+						/>
+					</>
 				) : (
-					<label htmlFor={`${id}-tick`} className="min-w-0 flex-1 truncate text-sm font-medium">
-						{row.name}
+					// The box and the name are one label, so the whole start of the row ticks it (#74).
+					<label
+						htmlFor={`${id}-tick`}
+						className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-sm font-medium"
+					>
+						<Checkbox
+							id={`${id}-tick`}
+							checked={row.kept}
+							onCheckedChange={(checked) => onEdit({ kept: checked === true })}
+						/>
+						<span className="min-w-0 truncate">{row.name}</span>
 					</label>
 				)}
 				<AmountInput
