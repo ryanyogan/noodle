@@ -172,10 +172,12 @@ function CheckInCardView({
 				) : null}
 			</CardContent>
 			<CardDetails card={card} />
-			<CardFooter className="justify-between">
+			{/* At 320 the two were a few pixels wider than the card, which then scrolled sideways under
+			    them: the quiet one's words end at the card's padding, and a longer pair wraps. */}
+			<CardFooter className="justify-between max-sm:flex-wrap max-sm:gap-2">
 				<CardLink card={card} />
 				{/* A card is only here while something on it waits: moving on leaves it for later. */}
-				<Button variant="ghost" onClick={onNext}>
+				<Button variant="ghost" className="max-sm:-me-2.5" onClick={onNext}>
 					{last ? "Skip and finish" : "Skip for now"}
 				</Button>
 			</CardFooter>
