@@ -426,7 +426,8 @@ function Explore({ search }: { search: ExploreSearch }) {
 			<SplitLayout stack="children">
 				{/* Beside the Changes, the outcome takes the wide column and stays in view while it fits
 				    the window (what SplitRail does, whichever column it is in); taller, it scrolls with the
-				    page. On phones its parts sit in the page, the totals last. */}
+				    page. Below lg its parts sit in the page: the totals last from 640, and on a phone before
+				    the Changes, where they are in the page (so read) first (#74). */}
 				<SplitRail>
 					<HorizonToggle years={horizonYears} onYears={setYears} />
 					<Summary
@@ -438,7 +439,7 @@ function Explore({ search }: { search: ExploreSearch }) {
 					<Suspense fallback={<OutcomeTabsSkeleton />}>
 						<OutcomeTabs outcome={outcome} goalNames={goalNames} />
 					</Suspense>
-					<Section aria-labelledby="outcomes" className="max-lg:order-last">
+					<Section aria-labelledby="outcomes" className="sm:max-lg:order-last">
 						<SectionHeader id="outcomes" title="How it plays out" />
 						<Totals
 							plan={planProjection}

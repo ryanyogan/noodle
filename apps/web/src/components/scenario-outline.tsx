@@ -8,6 +8,7 @@ import {
 	lastDayOf,
 	MAX_PROJECTION_MONTHS,
 	type MonthKey,
+	monthlyEquivalent,
 	monthOfDay,
 	type Plan,
 	type ProjectionGoal,
@@ -90,6 +91,27 @@ function useWide() {
 		() => true,
 	);
 }
+
+const phoneQuery = "(max-width: 639.98px)";
+
+/** Below 640 the long groups fold to their changed lines (#74). */
+function usePhone() {
+	return useSyncExternalStore(
+		(onChange) => {
+			const query = window.matchMedia(phoneQuery);
+			query.addEventListener("change", onChange);
+			return () => query.removeEventListener("change", onChange);
+		},
+		() => window.matchMedia(phoneQuery).matches,
+		() => false,
+	);
+}
+
+/** How many unchanged lines a group needs before a phone folds them away. */
+const FOLD_FROM = 2;
+
+/** One line of a group that can fold: a phone always shows the changed ones. */
+type FoldLine = { key: string; changed: boolean; node: ReactNode };
 
 /**
  * The Scenario's outcome as it stands ("Frees $9,600 over 2 years"), shown in a phone's sheet so
@@ -179,10 +201,13 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 						) : null,
 					onAdd: addNew,
 				}}
-			>
-				{plan.commitments.length > 0 || added("add-commitment").length > 0 ? (
-					<List>
-						{plan.commitments.map((commitment) => (
+				summary={`${plan.commitments.length} in the Plan · ${formatMoney(plan.commitments.reduce((sum, commitment) => sum + monthlyEquivalent(commitment), 0))} a month`}
+				lines={[
+					...plan.commitments.map((commitment) => ({
+						key: commitment.id,
+						changed:
+							byTarget.has(`terms:${commitment.id}`) || byTarget.has(`commitment:${commitment.id}`),
+						node: (
 							<CommitmentLine
 								key={commitment.id}
 								commitment={commitment}
@@ -190,8 +215,12 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 								ended={byTarget.get(`commitment:${commitment.id}`)}
 								edit={edit}
 							/>
-						))}
-						{added("add-commitment").map((scenarioChange) => (
+						),
+					})),
+					...added("add-commitment").map((scenarioChange) => ({
+						key: scenarioChange.commitmentId,
+						changed: true,
+						node: (
 							<AddedLine
 								key={scenarioChange.commitmentId}
 								lever={scenarioChange}
@@ -207,11 +236,11 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 									/>
 								)}
 							/>
-						))}
-					</List>
-				) : (
-					<Empty>No Commitments in the Plan yet.</Empty>
-				)}
+						),
+					})),
+				]}
+			>
+				<Empty>No Commitments in the Plan yet.</Empty>
 			</Group>
 
 			<Group
@@ -233,10 +262,13 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 						) : null,
 					onAdd: addNew,
 				}}
-			>
-				{plan.buckets.length > 0 || added("add-bucket").length > 0 ? (
-					<List>
-						{plan.buckets.map((bucket) => (
+				summary={`${plan.buckets.length} in the Plan · ${formatMoney(plan.buckets.reduce((sum, bucket) => sum + bucket.allowance, 0))} a month`}
+				lines={[
+					...plan.buckets.map((bucket) => ({
+						key: bucket.id,
+						changed:
+							byTarget.has(`bucket:${bucket.id}`) || byTarget.has(`archive-bucket:${bucket.id}`),
+						node: (
 							<BucketLine
 								key={bucket.id}
 								bucket={bucket}
@@ -245,8 +277,12 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 								archived={byTarget.get(`archive-bucket:${bucket.id}`)}
 								edit={edit}
 							/>
-						))}
-						{added("add-bucket").map((scenarioChange) => (
+						),
+					})),
+					...added("add-bucket").map((scenarioChange) => ({
+						key: scenarioChange.bucketId,
+						changed: true,
+						node: (
 							<AddedLine
 								key={scenarioChange.bucketId}
 								lever={scenarioChange}
@@ -262,11 +298,11 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 									/>
 								)}
 							/>
-						))}
-					</List>
-				) : (
-					<Empty>No Buckets in the Plan yet.</Empty>
-				)}
+						),
+					})),
+				]}
+			>
+				<Empty>No Buckets in the Plan yet.</Empty>
 			</Group>
 
 			<Group
@@ -295,18 +331,24 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 						) : null,
 					onAdd: addNew,
 				}}
-			>
-				{goals.length > 0 || added("add-goal").length > 0 ? (
-					<List>
-						{goals.map((goal) => (
+				summary={`${goals.length} in the Plan · ${formatMoney(goals.reduce((sum, goal) => sum + goal.target, 0))} in targets`}
+				lines={[
+					...goals.map((goal) => ({
+						key: goal.id,
+						changed: byTarget.has(`goal:${goal.id}`),
+						node: (
 							<GoalLine
 								key={goal.id}
 								goal={goal}
 								lever={byTarget.get(`goal:${goal.id}`)}
 								edit={edit}
 							/>
-						))}
-						{added("add-goal").map((scenarioChange) => (
+						),
+					})),
+					...added("add-goal").map((scenarioChange) => ({
+						key: scenarioChange.goalId,
+						changed: true,
+						node: (
 							<AddedLine
 								key={scenarioChange.goalId}
 								lever={scenarioChange}
@@ -323,11 +365,11 @@ export const ScenarioOutline = memo(function ScenarioOutline({
 									/>
 								)}
 							/>
-						))}
-					</List>
-				) : (
-					<Empty>No Goals yet.</Empty>
-				)}
+						),
+					})),
+				]}
+			>
+				<Empty>No Goals yet.</Empty>
 			</Group>
 
 			<Group
@@ -399,21 +441,49 @@ type Adding = {
 	onAdd: (scenarioChange: ScenarioChange) => void;
 };
 
-/** A group of the outline, with its Add button and the form for a new one. */
+/**
+ * A group of the outline, with its Add button and the form for a new one. Given `lines`, a phone
+ * (below 640) shows what the Plan has in a sentence and only the lines this Scenario changes; the
+ * rest are behind "Show all". Without lines to show, its children say so.
+ */
 function Group({
 	id,
 	title,
 	wide,
 	add,
+	summary,
+	lines,
 	children,
 }: {
 	id: string;
 	title: string;
 	wide: boolean;
 	add?: Adding;
+	/** What the Plan has here, in a few words: said on a phone, where the lines fold. */
+	summary?: string;
+	lines?: FoldLine[];
 	children: ReactNode;
 }) {
 	const [draft, setDraft] = useState<ScenarioChange | null>(null);
+	const phone = usePhone();
+	const [all, setAll] = useState(false);
+	// A line that was changed and is put back stays where it is (its sheet may be open) until the
+	// group is folded again.
+	const changedKeys = (lines ?? [])
+		.filter((line) => line.changed)
+		.map((line) => line.key)
+		.join(" ");
+	const [kept, setKept] = useState<ReadonlySet<string>>(() => new Set());
+	useEffect(() => {
+		setKept((current) => {
+			const next = new Set(current);
+			for (const key of changedKeys.split(" ")) if (key) next.add(key);
+			return next.size === current.size ? current : next;
+		});
+	}, [changedKeys]);
+	const folds = phone && (lines ?? []).filter((line) => !line.changed).length >= FOLD_FROM;
+	const shown =
+		folds && !all ? (lines ?? []).filter((line) => line.changed || kept.has(line.key)) : lines;
 	const name = draft && "name" in draft ? draft.name.trim() : "";
 	const label = `New ${add?.noun ?? ""}`;
 	const form =
@@ -485,7 +555,29 @@ function Group({
 					</SheetContent>
 				</Sheet>
 			) : null}
-			{children}
+			{lines && lines.length > 0 ? (
+				<>
+					{folds && summary ? <p className="text-sm text-muted-foreground">{summary}</p> : null}
+					{shown && shown.length > 0 ? <List>{shown.map((line) => line.node)}</List> : null}
+					{folds ? (
+						<Button
+							type="button"
+							variant="outline"
+							className="w-full"
+							aria-expanded={all}
+							onClick={() => {
+								if (all) setKept(new Set(changedKeys.split(" ")));
+								setAll(!all);
+							}}
+						>
+							{all ? "Show fewer" : `Show all ${lines.length}`}
+							<span className="sr-only"> {title}</span>
+						</Button>
+					) : null}
+				</>
+			) : (
+				children
+			)}
 		</Section>
 	);
 }
