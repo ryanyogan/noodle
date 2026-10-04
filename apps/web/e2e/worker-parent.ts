@@ -1,5 +1,5 @@
 import { setupClerkTestingToken } from "@clerk/testing/playwright";
-import { test as base, expect } from "@playwright/test";
+import { type BrowserContext, test as base, expect } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { openContext, type SavedSession, shareSession, signIn } from "./session";
 import { timed } from "./timing";
@@ -22,7 +22,12 @@ type ClerkInPage = {
 	};
 };
 
-type WorkerSession = { parent: SharedParent; reset: () => Promise<void> };
+type WorkerSession = {
+	parent: SharedParent;
+	reset: () => Promise<void>;
+	/** The worker's own context, which stays open between tests. */
+	keeper: BrowserContext;
+};
 
 export const test = base.extend<{ sharedParent: SharedParent }, { workerSession: WorkerSession }>({
 	workerSession: [
@@ -88,22 +93,32 @@ export const test = base.extend<{ sharedParent: SharedParent }, { workerSession:
 
 			const reset = () =>
 				timed("household-reset", async () => {
-					const response = await keeper.request.post("/api/dev/reset-household", {
-						data: { clerkUserId: parent.userId },
-					});
+					const post = () =>
+						keeper.request.post("/api/dev/reset-household", {
+							data: { clerkUserId: parent.userId },
+						});
+					// The server may have closed the idle connection this is sent on (ECONNRESET): removing
+					// the Household twice does no harm, so it is sent again.
+					const response = await post().catch(post).catch(post);
 					expect(response.ok(), await response.text()).toBe(true);
 				});
 
 			shareSession(parent.email, session);
-			await use({ parent: { email: parent.email, userId: parent.userId }, reset });
+			await use({ parent: { email: parent.email, userId: parent.userId }, reset, keeper: context });
 			shareSession(parent.email, null);
 			await context.close();
 			await parent.remove();
 		},
 		{ scope: "worker" },
 	],
-	sharedParent: async ({ workerSession }, use) => {
+	sharedParent: async ({ workerSession, browser }, use) => {
 		await workerSession.reset();
 		await use(workerSession.parent);
+		// A page a test leaves open stays signed in as this Parent, so it would join the next test's
+		// Household, follow its live updates and load the server; a Parent of its own was deleted,
+		// which left such a page with nothing to do.
+		for (const context of browser.contexts()) {
+			if (context !== workerSession.keeper) await context.close().catch(() => {});
+		}
 	},
 });
