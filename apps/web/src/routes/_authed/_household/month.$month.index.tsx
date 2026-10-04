@@ -212,7 +212,8 @@ function ThisMonth() {
 				// right rail. The columns are `contents` on phones so `order` interleaves them.
 				<SplitLayout stack="children">
 					{/* Buckets, then Bills, each the main column's full width (Bills' rows in two columns
-					    where they fit). Income sits in the rail under To do from lg, so the rail isn't far
+					    where they fit). Income sits in the rail under To do from lg (on phones it follows Bills
+					    here, as before), so the rail isn't far
 					    shorter than this column (#73). */}
 					<SplitMain>
 						<div className="order-6 grid gap-3 empty:hidden lg:order-none">
@@ -272,6 +273,17 @@ function ThisMonth() {
 									current={month === current}
 									commitments={commitments}
 									notDue={notDue}
+								/>
+							</div>
+						) : null}
+						{/* Income on a phone: after Bills, in reading order. From lg it is the rail's instead. */}
+						{state.baseline !== null && (month === current || monthIncome.length > 0) ? (
+							<div className="order-12 grid min-w-0 gap-3 lg:hidden">
+								<MonthIncome
+									month={month}
+									asOf={state.asOf}
+									baseline={state.baseline}
+									income={monthIncome}
 								/>
 							</div>
 						) : null}
@@ -361,9 +373,10 @@ function ThisMonth() {
 								/>
 							)}
 						</WithClosePrevious>
-						{/* Last in the rail from lg; on phones it keeps its place after Bills. */}
+						{/* From lg Income is last in the rail (#73). Below lg this one is hidden: the one after Bills
+						    in the main column is shown, so a phone reads Income before Free to Spend. */}
 						{state.baseline !== null && (month === current || monthIncome.length > 0) ? (
-							<div className="order-12 grid min-w-0 gap-3 lg:order-none">
+							<div className="hidden min-w-0 gap-3 lg:grid">
 								<MonthIncome
 									month={month}
 									asOf={state.asOf}
