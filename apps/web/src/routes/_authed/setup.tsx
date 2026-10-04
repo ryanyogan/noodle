@@ -135,7 +135,14 @@ function SetupWizard() {
 	const back = step > 1 ? () => void go(step - 1) : undefined;
 
 	return (
-		<main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col lg:max-w-2xl px-(--gutter) pt-[calc(var(--safe-top)+20px)]">
+		<main
+			className={`mx-auto flex min-h-dvh w-full max-w-xl flex-col lg:max-w-2xl px-(--gutter) pt-[calc(var(--safe-top)+20px)] ${
+				// Buckets is the one long step: from 1440 wide its cards go two across, so the column
+				// is two cards (37rem each) and their gap wide, still centred (#73). Every other step
+				// keeps the narrow column.
+				step === 4 ? "min-[90rem]:max-w-[calc(75rem+2*var(--gutter))]" : ""
+			}`}
+		>
 			<header className="grid gap-5 pb-6">
 				<div className="flex items-center justify-between gap-4">
 					<Logo />
@@ -256,7 +263,7 @@ function StepFrame({
 			<div className="grid gap-5 pb-6">
 				<div className="grid gap-2">
 					<h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.03em]">{title}</h1>
-					{intro ? <p className="text-[15px] text-muted-foreground">{intro}</p> : null}
+					{intro ? <p className="max-w-2xl text-[15px] text-muted-foreground">{intro}</p> : null}
 				</div>
 				{lead}
 				{formless ? (
@@ -495,7 +502,7 @@ function TakeHomePayStep({
 				</Card>
 			) : (
 				<div>
-					<Button type="button" variant="link" onClick={() => setBiweekly(true)}>
+					<Button type="button" variant="outline" size="sm" onClick={() => setBiweekly(true)}>
 						Paid every two weeks?
 					</Button>
 				</div>
@@ -990,7 +997,7 @@ function BucketsStep({
 		>
 			<SuggestLater jobs={jobs} />
 			<CarriesOverHelp />
-			<StarterBucketPicker rows={rows} onChange={setRows} />
+			<StarterBucketPicker rows={rows} onChange={setRows} twoAcross />
 			{save.isError ? (
 				<FormError>We couldn’t save your Buckets. Please try again.</FormError>
 			) : null}
