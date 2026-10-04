@@ -660,7 +660,7 @@ function ReviewPage() {
 			variant="segmented"
 			size="sm"
 			aria-label="Show"
-			className={sorting ? "shrink-0" : "shrink-0 sm:ml-auto sm:flex sm:w-auto lg:w-full"}
+			className={sorting ? "shrink-0" : "shrink-0 sm:ml-auto sm:flex sm:w-auto"}
 			value={sorting ? "sort" : "list"}
 			disabled={!hydrated}
 			onValueChange={(value) => {

@@ -346,7 +346,7 @@ function ThisMonth({ bucket }: { bucket: BucketState }) {
 				/>
 				{parts ? <p className="text-xs text-muted-foreground tabular-nums">{parts}</p> : null}
 			</div>
-			<StatGrid layout="ruled" wrapLast className="grid-cols-2 sm:grid-cols-3">
+			<StatGrid layout="ruled" wrapLast className="grid-cols-2 @md:grid-cols-3">
 				<Stat label="Spent" value={formatMoney(bucket.spent)} />
 				<Stat
 					label="Even spending by today"

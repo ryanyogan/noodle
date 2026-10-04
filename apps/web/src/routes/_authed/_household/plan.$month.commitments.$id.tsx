@@ -166,7 +166,7 @@ function CommitmentPage() {
 								</span>
 							</p>
 						</div>
-						<StatGrid layout="ruled" wrapLast className="grid-cols-2 sm:grid-cols-3">
+						<StatGrid layout="ruled" wrapLast className="grid-cols-2 @md:grid-cols-3">
 							<Stat label="Each payment" value={formatMoney(terms.amount)} />
 							<Stat label="Schedule" value={termsSchedule(terms)} />
 							<Stat
