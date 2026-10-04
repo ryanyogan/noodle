@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { incomeSpendConfig } from "./components/report-charts";
 
 // Text tokens against every surface they're drawn on, in both themes: WCAG 2.2 AA (1.4.3) needs
 // 4.5:1 for normal text. The tokens live in packages/ui's globals.css.
@@ -113,5 +114,41 @@ describe("chart contrast, dark theme (#73)", () => {
 		for (const node of ["muted-foreground", "subtle-foreground"]) {
 			expect(contrast(dark[node] as string, dark.card as string)).toBeGreaterThanOrEqual(3);
 		}
+	});
+});
+
+// Two pairs of chart marks that no dark grey can separate: there the mark changes, not the colour.
+describe("chart marks told apart by shape, dark theme (#73)", () => {
+	const darkAt = css.indexOf("@media (prefers-color-scheme: dark) {");
+
+	it("the glance's Goals part is hollow in dark: its edge is at least 3:1 on the card, and the card inside it at least 3:1 from the parts beside it", () => {
+		const block = css.slice(darkAt);
+		expect(block).toMatch(/--chart-goal:\s*transparent;/);
+		expect(block).toMatch(/--chart-goal-edge:\s*var\(--chart-compare\);/);
+		expect(contrast(dark["chart-compare"] as string, dark.card as string)).toBeGreaterThanOrEqual(
+			3,
+		);
+		// "Spent from Buckets" and "Left in Buckets" before it, Free to Spend after it.
+		for (const beside of ["chart-allowance", "brand"]) {
+			expect(contrast(dark.card as string, dark[beside] as string)).toBeGreaterThanOrEqual(3);
+		}
+		// Why a fill won't do: the comparison grey is nearly the Bucket parts' grey.
+		expect(
+			contrast(dark["chart-compare"] as string, dark["chart-allowance"] as string),
+		).toBeLessThan(1.5);
+	});
+
+	it("the glance's Goals part is still the filled comparison grey in light, with no edge", () => {
+		const block = css.slice(0, darkAt);
+		expect(block).toMatch(/--chart-goal:\s*var\(--chart-compare\);/);
+		expect(block).toMatch(/--chart-goal-edge:\s*transparent;/);
+	});
+
+	it("Reports' Left over has a line for its legend key, where Earned and Spent have squares", () => {
+		// Ink beside the Spent grey is under 3:1 in dark, so two squares would read as one series.
+		expect(contrast(dark.foreground as string, dark["chart-spend"] as string)).toBeLessThan(3);
+		expect(incomeSpendConfig.net.icon).toBeTypeOf("function");
+		expect("icon" in incomeSpendConfig.spent).toBe(false);
+		expect("icon" in incomeSpendConfig.earned).toBe(false);
 	});
 });

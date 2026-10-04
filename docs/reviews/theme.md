@@ -405,7 +405,7 @@ The main button's hover fill with white text is about 6.5:1 light and 5.9:1 dark
 - **`--chart-compare`**, dark only: `#30333a` -> `#626570`. Light is `#d5d6db`, unchanged. It is the comparison series: Explore's "Plan" bars, Reports' "Comparison" and "One-off" bars, Cash flow's bands (at 0.55) and the "Goals" part of This Month's glance.
 - **`--chart-flow-hub` and `--chart-flow-out`** (new): the fill of Cash flow's Household node and of its destinations. Light `var(--chart-net)` and `var(--chart-spend)`, the colours they had. Dark `var(--muted-foreground)` (`#a4a7b0`; it was `#f0f1f3`) and `var(--subtle-foreground)` (`#8b8e98`; it was `#c3c6ce`).
 - **The contrast script** (`apps/web/src/contrast.test.ts`) had been reading the light block for every "dark" check: it looked for `@media (prefers-color-scheme: dark)` and first met the `@custom-variant dark` line. It now finds the rule with its brace, and checks that dark is not light. The dark checks that were there pass on the real dark values. New checks: `--input` at 3:1 or more on the card, the page and surface-2 in both themes; dark `--chart-compare` at 3:1 or more on the card and under half the Scenario line's contrast; the dark thumb on an off track at 3:1 or more; the flow nodes at 3:1 or more.
-- **Not changed**: Reports' "Left over" and "Spent" legend keys in dark (`#f0f1f3` and `#c3c6ce`, 1.51:1 apart). Dark `--chart-spend` must stay 3:1 from `--chart-allowance` (3.02 now), which must stay 3:1 from the card (3.53), so Spent cannot go darker, and Left over is already ink. It needs a different mark in the legend, not a token.
+- **Not changed**: Reports' "Left over" and "Spent" legend keys in dark (`#f0f1f3` and `#c3c6ce`, 1.51:1 apart). Dark `--chart-spend` must stay 3:1 from `--chart-allowance` (3.02 now), which must stay 3:1 from the card (3.53), so Spent cannot go darker, and Left over is already ink. It needs a different mark in the legend, not a token. 73ai gave it one (below).
 
 ### Measured contrast, as shipped
 
@@ -433,8 +433,30 @@ WCAG 2.x ratios from 73ah's handoff. A dash in a column means 73ah gave no numbe
 | Glance's "Goals" part beside "Spent from Buckets" (`--chart-allowance`) (info) | - | - | 1.13 |
 | Reports' "Left over" key beside "Spent" (info) | - | - | 1.51 |
 
-Tightest: the comparison series on the card, 3.14, and on surface-2 it is under 3:1 (2.93); the contrast script checks it on the card only, and whether any chart sits on surface-2 was not checked. The glance's Goals part and Spent from Buckets are close in dark; they are separated by the striped "Left in Buckets" part and a gap, and nobody has looked at them since the change.
+Tightest: the comparison series on the card, 3.14, and on surface-2 it is under 3:1 (2.93); the contrast script checks it on the card only, and whether any chart sits on surface-2 was not checked. The glance's Goals part and Spent from Buckets are close in dark; they are separated by the striped "Left in Buckets" part and a gap, and 73ai looked and made the Goals part hollow in dark (below).
 
 ### Looked at
 
 Dark at 1440 only, as full-size crops (73ah): setup's step 3 (eight empty boxes plainly outlined), Household's Nudges (the off switch a grey pill with a dark thumb), Explore's Free to Spend chart (Plan bars a readable mid grey, the Scenario line leading), Cash flow (nodes mid grey, bands a visible slate) and Reports' overview (unchanged). Not looked at by 73ah: light, where no pictures were drawn; step 1's unchosen options; phone widths; tick boxes and options on other pages; This Month's glance in dark. Since then ci227 opened the comparison pictures CI drew and saw off switches with their edge in Household on a phone, light and dark, and in setup's Buckets at 1440, light and dark. If the darker edge reads too heavy in light, the lever is the class in the three components, not the token.
+
+### Phase 73ai: two marks where a colour could not do it, and a look at light
+
+Two pairs of dark chart marks were too close and no grey could part them, so the mark changed and the colours stayed. Light is drawn as before except for one legend key.
+
+- **This Month's glance, the "Goals" part, dark only.** It was filled with `--chart-compare` (`#626570`), 1.13:1 from "Spent from Buckets" and "Left in Buckets" (`--chart-allowance`, `#6a6d77`); in the picture the two legend squares looked the same. No fill works: it would need 3:1 from the card and from the Bucket grey, and the only room is between the Bucket grey and Commitments, which are 3.02 apart. In dark the part is now hollow: the card shows through and a 1.5px edge draws it, in the bar and in the legend key. Two new tokens swap per theme: `--chart-goal` (the fill: `var(--chart-compare)` light, `transparent` dark) and `--chart-goal-edge` (`transparent` light, `var(--chart-compare)` dark). In light the part is the same filled `#d5d6db` with no edge.
+- **Reports' "Left over" legend key, both themes.** The overview chart's legend had three squares; in dark "Left over" (ink, `#f0f1f3`) and "Spent" (`#c3c6ce`) were 1.51:1 apart. "Left over" is the dashed line with dots, so its key is now a short line through a hollow dot, the series' own shape; Earned and Spent, the bars, keep squares. The line in the chart is unchanged. The key is the same in light, where it replaces an ink square.
+- **The contrast script** checks: the dark Goals tokens are the hollow pair and the light ones the filled pair; the edge is 3:1 or more on the card; the card inside the part is 3:1 or more from the Bucket grey and from Free to Spend's indigo; "Left over" has a key of its own and the bars do not.
+
+| Pair | Needs | Indigo light | Indigo dark |
+|---|---|---|---|
+| Goals part's edge (`--chart-compare`) on card | 3:1 | no edge | 3.14 |
+| Inside of the Goals part (card) beside "Left in Buckets" and "Spent from Buckets" (`--chart-allowance`) | 3:1 | - | 3.53 |
+| Inside of the Goals part (card) beside Free to Spend (`--brand`) | 3:1 | - | 6.91 |
+| Goals part as a fill beside the Bucket grey, before (info) | - | - | 1.13 |
+| "Left over" key beside "Spent" key, by colour (info; now told apart by shape) | - | - | 1.51 |
+
+Comparison pictures: none should change. The Household in `shell.spec.ts` has no take-home pay, so its This Month has no glance bar, and its Reports says "Nothing to report yet", so no chart or legend is drawn in `month-*` or `reports-*-light`.
+
+Looked at, 1440, full-size crops. Dark before (run 37238169201): the glance's "Spent from Buckets" and "Goals" keys read as the same grey; Reports' "Left over" and "Spent" keys as two near-white squares. Dark after (run 37238720453, at cfca9cb): the Goals part is an outlined empty box between the striped part and the indigo end, and its key an outlined square; the Reports legend reads square, line with dot, square. Light after (run 37238412045): the glance is as it was, a filled light grey Goals part with no edge; the Reports legend has the line key in ink.
+
+Light, the controls' edge (`--input`, `#86888f`), same run: setup's Bills (eight empty boxes: a thin mid grey line, plainly boxes, quieter than the labels), setup's first step (three unchosen options, the same line on a circle), setup's Buckets (off "Carries over" switches beside name and amount fields: the switch's edge and the fields' edge are the same line and weight, and the one switch that is on is solid indigo and leads without the off ones looking faint) and Household's Nudges (one off switch among three on, the same line as the From and Until fields under it). Nothing reads heavier than a text field or competes with the ticked state; nothing was changed. Kept Scenarios' compare page was opened too, but both of its boxes were ticked, so it shows no empty box. Not looked at: phone widths, and the glance when "Left in Buckets" is zero (the hollow part then sits straight after "Spent from Buckets") or when Free to Spend is zero or less (the hollow part is then last, and the bar's rounded end clips its edge).

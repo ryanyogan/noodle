@@ -240,6 +240,36 @@ const axisProps = {
 } as const;
 
 /**
+ * The legend key of a series drawn as a line with dots: a short line through a hollow dot, where a
+ * bar's key is a square. "Left over" (ink) and "Spent" are 1.51:1 apart in dark, too close for two
+ * squares to be told apart by shade, so the key takes the series' shape instead of a colour.
+ */
+function LineKey() {
+	return (
+		<span aria-hidden="true" data-legend-key="line" className="inline-flex shrink-0">
+			<svg width="20" height="8" viewBox="0 0 20 8" fill="none" role="presentation">
+				<path d="M0 4h6M14 4h6" stroke="var(--chart-net)" strokeWidth="2" />
+				<circle
+					cx="10"
+					cy="4"
+					r="2.5"
+					fill="var(--card)"
+					stroke="var(--chart-net)"
+					strokeWidth="2"
+				/>
+			</svg>
+		</span>
+	);
+}
+
+/** Reports' overview chart: Earned and Spent are bars (square keys), Left over is the line. */
+export const incomeSpendConfig = {
+	spent: { label: "Spent", color: "var(--chart-spend)" },
+	earned: { label: "Earned", color: "var(--chart-income)" },
+	net: { label: "Left over", color: "var(--chart-net)", icon: LineKey },
+} satisfies ChartConfig;
+
+/**
  * Spending and income per period as paired bars, with what was left (income less spending) as a
  * line. One axis: all three are dollars.
  */
@@ -257,11 +287,7 @@ export function IncomeSpendChart({
 	const animation = useAnimation();
 	const { onPointerDownCapture, select } = useTapToReveal(onSelect);
 	const rows = data.map((d) => ({ ...d, net: d.earned - d.spent }));
-	const config = {
-		spent: { label: "Spent", color: "var(--chart-spend)" },
-		earned: { label: "Earned", color: "var(--chart-income)" },
-		net: { label: "Left over", color: "var(--chart-net)" },
-	} satisfies ChartConfig;
+	const config = incomeSpendConfig;
 	return (
 		<ChartContainer
 			config={config}

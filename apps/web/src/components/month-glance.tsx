@@ -37,7 +37,7 @@ type Segment = {
 	label: string;
 	amount: number;
 	/** The swatch and segment: neutral inks (ADR-0008 keeps hue for Buckets and Pace), told apart by
-	 * shade, a stripe and the legend's order, which is the bar's order. */
+	 * shade, a stripe, a hollow part (Goals, in dark) and the legend's order, which is the bar's order. */
 	className: string;
 };
 
@@ -94,6 +94,11 @@ export function MonthGlance({
 const STRIPES =
 	"bg-[image:repeating-linear-gradient(135deg,transparent_0_3px,color-mix(in_oklab,var(--card)_55%,transparent)_3px_5px)]";
 
+// Goals: the comparison grey in light. In dark that grey is 1.13:1 from "Spent from Buckets", so the
+// part is hollow there (the card shows through, 3.5:1 from the Bucket parts) and drawn by its edge.
+// The two tokens swap per theme in globals.css, so light is drawn exactly as before.
+const GOALS = "bg-(--chart-goal) shadow-[inset_0_0_0_1.5px_var(--chart-goal-edge)]";
+
 /**
  * The bar's parts, in order. Free to Spend is always listed, with the amount the card's headline
  * says: below zero when the Plan is over take-home pay (it then has no part of the bar).
@@ -128,7 +133,7 @@ export function monthSegments(state: MonthState): Segment[] {
 			key: "goals",
 			label: "Goals",
 			amount: state.fundedGoals,
-			className: "bg-chart-compare",
+			className: GOALS,
 		},
 		{
 			key: "free",

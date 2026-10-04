@@ -103,6 +103,10 @@
 	   text greys, so they aren't the brightest things on the page. */
 	--chart-flow-hub: var(--chart-net);
 	--chart-flow-out: var(--chart-spend);
+	/* The "Goals" part of This Month's glance bar: filled here; in dark a hollow part drawn by its edge,
+	 * because no grey is 3:1 from both the card and the Bucket parts beside it. */
+	--chart-goal: var(--chart-compare);
+	--chart-goal-edge: transparent;
 	--chart-seq-1: color-mix(in oklab, var(--brand) 14%, var(--card));
 	--chart-seq-2: color-mix(in oklab, var(--brand) 34%, var(--card));
 	--chart-seq-3: color-mix(in oklab, var(--brand) 60%, var(--card));
@@ -230,6 +234,8 @@
 		--switch-track: var(--input);
 		--chart-flow-hub: var(--muted-foreground);
 		--chart-flow-out: var(--subtle-foreground);
+		--chart-goal: transparent;
+		--chart-goal-edge: var(--chart-compare);
 	}
 }
 
