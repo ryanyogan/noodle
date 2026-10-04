@@ -61,6 +61,7 @@ jobs:
       options: --ipc=host
     env:
       CI: "true"
+      E2E_SERVER: build
       PAGE_SHOTS: "1"
       PAGE_SHOTS_WIDTHS: ${{ matrix.width }}
       PAGE_SHOTS_THEME: ${{ inputs.theme || 'light' }}
@@ -75,6 +76,11 @@ jobs:
           printf 'VITE_CLERK_PUBLISHABLE_KEY=%s\nCLERK_SECRET_KEY=%s\n' \
             "${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" "${{ secrets.CLERK_SECRET_KEY }}" > .dev.vars
           bun scripts/vapid-keys.ts >> .dev.vars
+      # Against the built Worker, as CI's E2E (#81): stub AI and the dev-only routes the spec seeds through.
+      - run: bun run build
+        working-directory: apps/web
+        env:
+          AI_MODEL: stub
       - run: bun run e2e --project=chromium page-shots.spec.ts
         working-directory: apps/web
       - uses: actions/upload-artifact@v4

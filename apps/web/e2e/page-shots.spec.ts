@@ -1,11 +1,10 @@
-import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { ulid } from "ulid";
 import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
+import { seedSql } from "./seed-sql";
 import { createPlannedHousehold, openMore, signedInPage } from "./session";
 
 // Pictures of every page with one realistic Household, for looking at a redesign without a browser
@@ -53,14 +52,6 @@ let shots: Shot[] = [];
 const seedNotes: string[] = [];
 
 const q = (value: string) => `'${value.replaceAll("'", "''")}'`;
-
-function runSql(statements: string[]) {
-	const file = join(mkdtempSync(join(tmpdir(), "noodle-page-shots-")), "seed.sql");
-	writeFileSync(file, statements.join("\n"));
-	execFileSync("bunx", ["wrangler", "d1", "execute", "noodle", "--local", `--file=${file}`], {
-		stdio: "pipe",
-	});
-}
 
 /** A day `monthsAgo` months back, never after today. */
 function dayOf(monthsAgo: number, day: number) {
@@ -269,7 +260,7 @@ test.beforeAll(async ({ browser }) => {
 		`insert into insights (id, household_id, kind, title, body, yearly_impact_cents, transaction_ids, commitment_ids, fingerprint) values (${q(ulid())}, ${h}, 'duplicate-service', 'Spotify and Amazon Prime may overlap', 'Amazon Prime includes Amazon Music; Spotify is $17 a month on its own.', 20400, '[]', '[]', ${q(ulid())});`,
 		`insert into insights (id, household_id, kind, title, body, yearly_impact_cents, transaction_ids, commitment_ids, fingerprint) values (${q(ulid())}, ${h}, 'unused', 'The Gym hasn’t been visited lately', 'Nothing near the gym in three months; it’s $45 a month.', 54000, '[]', ${q(JSON.stringify([commitmentIds.Gym].filter(Boolean)))}, ${q(ulid())});`,
 	);
-	runSql(statements);
+	await seedSql(statements);
 
 	// Two credit cards with their Perks, one of them used.
 	await attempt("Credit card perks", async () => {
