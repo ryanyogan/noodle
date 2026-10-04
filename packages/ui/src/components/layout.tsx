@@ -215,6 +215,9 @@ function Pane({ className, ...props }: React.ComponentProps<"section">) {
  * (`resetScroll={false}`), and the window follows the row if the list changes shape. Below lg it shows one level at a time: the list, or (once there is a `detail`) the
  * detail, as ordinary page content.
  *
+ * An item taller than the window can't be held beside its row, so picking one takes the window to
+ * the item's start (just under the top of the window) instead of leaving it above the fold.
+ *
  * `empty` fills the detail pane at lg while nothing is picked ("Pick a Bucket to see it").
  */
 function MasterDetail({
@@ -269,7 +272,12 @@ function MasterDetail({
 	// shape around it when an item opens (it narrows, and its column headings go), so the window is
 	// moved by however far the row moved. A scroll of the Parent's own ends it.
 	const root = React.useRef<HTMLDivElement>(null);
-	const held = React.useRef<{ item: HTMLElement; top: number; until: number } | null>(null);
+	const held = React.useRef<{
+		item: HTMLElement;
+		top: number;
+		until: number;
+		shown?: boolean;
+	} | null>(null);
 	const hold = (event: React.MouseEvent<HTMLDivElement>) => {
 		onClickCapture?.(event);
 		const item = (event.target as HTMLElement).closest<HTMLElement>("[data-md-item]");
@@ -291,8 +299,11 @@ function MasterDetail({
 			window.removeEventListener("keydown", letGo);
 		};
 	}, []);
-	// After every render: the list's shape may change on any of them while the item opens.
-	React.useLayoutEffect(() => {
+	// An item that fits the window is held beside its row. One taller than the window can't be: the
+	// row would keep its place while the item's start sat above the window, so the window goes to the
+	// item's start instead, just under the top. The panes start level with this grid's top, which is
+	// measured rather than the pane, since a pane that was sticky a moment ago isn't where it will be.
+	const settle = React.useCallback(() => {
 		const kept = held.current;
 		if (!kept) return;
 		if (Date.now() > kept.until) {
@@ -305,9 +316,30 @@ function MasterDetail({
 					"[data-slot=master-detail-list] [data-md-item][aria-current]",
 				);
 		if (!item) return;
+		const pane = root.current?.querySelector<HTMLElement>("[data-slot=master-detail-detail]");
+		const open =
+			item.closest("[aria-current]") !== null || item.querySelector("[aria-current]") !== null;
+		if (open && pane && pane.offsetHeight + RAIL_INSET * 2 > window.innerHeight) {
+			kept.shown = true;
+			const above = (root.current?.getBoundingClientRect().top ?? RAIL_INSET) - RAIL_INSET;
+			if (above < -1) window.scrollBy({ top: above, behavior: "instant" });
+			return;
+		}
+		// Once the window has gone to a tall item's start it isn't taken back to the row.
+		if (kept.shown) return;
 		const moved = item.getBoundingClientRect().top - kept.top;
 		if (Math.abs(moved) > 1) window.scrollBy({ top: moved, behavior: "instant" });
-	});
+	}, []);
+	// After every render: the list's shape may change on any of them while the item opens.
+	React.useLayoutEffect(settle);
+	// And whenever a pane changes size: the item's own content arrives without this rendering again.
+	React.useEffect(() => {
+		const grid = root.current;
+		if (!grid) return;
+		const resized = new ResizeObserver(settle);
+		for (const pane of grid.children) resized.observe(pane);
+		return () => resized.disconnect();
+	}, [settle]);
 	return (
 		<div
 			ref={root}

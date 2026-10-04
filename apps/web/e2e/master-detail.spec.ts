@@ -74,25 +74,25 @@ test("the list stays put, keeps its scroll and marks its item while the detail c
 	await axe(page, "Buckets, nothing picked");
 
 	// The page scrolls as one (no pane scrolls on its own, #73). Picking from far down the list
-	// keeps the same node and the row where it was in the window. (The window's own scroll may
-	// change: the list loses its column headings as it narrows beside the Bucket.)
+	// keeps the same node. (A Bucket that fits the window is held beside its row, which stays where
+	// it was; this one is taller, see below.)
 	await list(page).evaluate((pane) => {
 		pane.dataset.kept = "yes";
 	});
 	await row(page, "Fund 12").scrollIntoViewIfNeeded();
 	expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
-	const top = (await row(page, "Fund 12").boundingBox())?.y ?? -1;
 	await row(page, "Fund 12").click();
 	await expect(page).toHaveURL(new RegExp(`/plan/${month}/buckets/[0-9A-Z]{26}$`));
 	await expect(title(page)).toHaveText("Fund 12");
 	await expect(picked(page)).toHaveText("Fund 12");
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
-	expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
-	expect(Math.abs(((await row(page, "Fund 12").boundingBox())?.y ?? -1) - top)).toBeLessThanOrEqual(
-		2,
-	);
-	// The Bucket stays in view beside the list, its top inside the window.
-	expect((await detail(page).boundingBox())?.y ?? -1).toBeGreaterThanOrEqual(0);
+	// This Bucket is taller than the window, so it can't be held beside its row: the window goes
+	// to the Bucket's start, just under the top, rather than leaving that above the fold.
+	await expect(detail(page)).toHaveAttribute("data-fits", "false");
+	await expect
+		.poll(async () => (await detail(page).boundingBox())?.y ?? -1)
+		.toBeGreaterThanOrEqual(0);
+	expect((await detail(page).boundingBox())?.y ?? -1).toBeLessThanOrEqual(48);
 	await axe(page, "A Bucket beside its list");
 
 	// The list beside it is the way between Buckets (#73): no Back and no previous and next here.
