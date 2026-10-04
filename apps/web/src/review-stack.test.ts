@@ -1,5 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { type StackState, stackOrder, stackReducer, startStack } from "./review-stack";
+import {
+	type StackState,
+	stackOrder,
+	stackProgress,
+	stackReducer,
+	startStack,
+} from "./review-stack";
 
 type Card = { id: string };
 const a = { id: "a" };
@@ -122,5 +128,34 @@ describe("one Undo history: a toast's Undo and the stack's", () => {
 		expect(twice.history).toEqual([]);
 		expect(twice.done).toBe(0);
 		expect(twice.top).toBe("a");
+	});
+});
+
+describe("Sort's count (#82)", () => {
+	test("goes up by one with each decision while the whole stays put", () => {
+		// 3 waiting; each decision takes one from what waits.
+		expect(stackProgress(startStack<Card>(), 3)).toEqual({ at: 1, of: 3 });
+		const one = run({ type: "decided", items: [a] });
+		expect(stackProgress(one, 2)).toEqual({ at: 2, of: 3 });
+		const two = stackReducer(one, { type: "decided", items: [b] });
+		expect(stackProgress(two, 1)).toEqual({ at: 3, of: 3 });
+	});
+
+	test("counts everything waiting, not only the cards loaded", () => {
+		// 250 wait, 100 are loaded: deciding one leaves 249, never "2 of 101".
+		const one = run({ type: "decided", items: [a] });
+		expect(stackProgress(one, 249)).toEqual({ at: 2, of: 250 });
+	});
+
+	test("a skip changes nothing, and an Undo takes it back", () => {
+		const skipped = run({ type: "skipped", id: "a" });
+		expect(stackProgress(skipped, 3)).toEqual({ at: 1, of: 3 });
+		const undone = run({ type: "decided", items: [a] }, { type: "returned", items: [a] });
+		expect(stackProgress(undone, 3)).toEqual({ at: 1, of: 3 });
+	});
+
+	test("a batch counts each of its cards", () => {
+		const batch = run({ type: "decided", items: [a, b] });
+		expect(stackProgress(batch, 1)).toEqual({ at: 3, of: 3 });
 	});
 });

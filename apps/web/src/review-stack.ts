@@ -96,3 +96,12 @@ export function stackOrder<T extends { id: string }>(items: T[], state: StackSta
 	if (top > 0) order.unshift(...order.splice(top, 1));
 	return order;
 }
+
+/**
+ * Where Sort is, "3 of 12": the card on top among everything this visit has seen. `waiting` is
+ * how many wait in Review in all (not only the cards loaded), so the second number stays put as
+ * cards are decided and the first goes up by one each time (#82).
+ */
+export function stackProgress<T extends { id: string }>(state: StackState<T>, waiting: number) {
+	return { at: state.done + 1, of: state.done + Math.max(waiting, 1) };
+}

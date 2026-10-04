@@ -3,6 +3,7 @@ import {
 	countFiledOnItsOwn,
 	deleteRule as deleteRuleInDb,
 	editRule as editRuleInDb,
+	fileWithoutBucket as fileWithoutBucketInDb,
 	listRules,
 	loadReview,
 	type ReviewQueue,
@@ -80,6 +81,23 @@ export const returnToReview = createServerFn({ method: "POST" })
 		await returnToReviewInDb(getDb(), viewerOf(context), data);
 		// Every month: what's left can roll into later ones.
 		await notifyHousehold(context.household.id, ["months", "for-earlier", "bucket-uses"]);
+	});
+
+/** How many cards one "File all" takes: what Review sends at once. */
+const FILE_AT_ONCE = REVIEW_CARDS;
+
+/**
+ * "File without a Bucket" (ADR-0037): the Transactions leave Review and stay unassigned, so no
+ * month's figures change, a closed month's included. Idempotent. Returns how many it filed.
+ */
+export const fileWithoutBucket = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ transactionIds: z.array(ulidSchema).min(1).max(FILE_AT_ONCE) }))
+	.handler(async ({ data, context }) => {
+		const { filed } = await fileWithoutBucketInDb(getDb(), viewerOf(context), data.transactionIds);
+		// Review's count lives under every month's key; no month's spending changed.
+		if (filed.length > 0) await notifyHousehold(context.household.id, ["months"]);
+		return { filed: filed.length };
 	});
 
 /** The Rules this Parent may see: the Household's and their own private ones. */

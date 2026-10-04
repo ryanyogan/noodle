@@ -194,6 +194,7 @@ _Avoid_: Alert, push, reminder
 
 **Review**:
 The set of Transactions whose assignment is uncertain and awaits a Parent's confirmation.
+A Parent can always decide one: confirm or pick within its own month's Plan, or **file it without a Bucket** (it leaves Review unassigned and changes no month's figures), which is how Transactions from months before the Plan, or from a month that's over, are cleared.
 _Avoid_: Inbox, queue, uncategorized
 
 **Rule**:

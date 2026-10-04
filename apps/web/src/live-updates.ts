@@ -10,6 +10,7 @@ import {
 	queryKeysFor,
 } from "./household-changes";
 import { monthChangeKey } from "./plan-changes";
+import { reviewQuery } from "./queries";
 
 /** How often an open connection is checked; phones drop sockets without closing them. */
 const PING_EVERY_MS = 25_000;
@@ -30,6 +31,7 @@ export function useLiveUpdates() {
 		const connection = connect({
 			onChanges: refetcher.refetch,
 			onReconnect: () => refetcher.refetch(everyHouseholdChange),
+			onFirstConnect: () => void catchUpOnReview(queryClient, refetcher.refetch),
 			// A fresh start (#63): its progress, and "everything changed" once the Agent is cleared.
 			onFreshStart: setFreshStartProgress,
 			onReload: () => void queryClient.invalidateQueries(),
@@ -39,6 +41,37 @@ export function useLiveUpdates() {
 			refetcher.stop();
 		};
 	}, [queryClient]);
+}
+
+/**
+ * The first connection's catch-up (#82). The page was read on the server a moment before this
+ * screen could hear the Household Agent, and background categorization often finishes in exactly
+ * that gap (a statement or a bank just came in, and the Parent opened Review), so its "refetch"
+ * was never heard and Review's count stayed as it was until a reload. Reads what waits in Review
+ * once more; only if that differs from what the page had is everything else spending touches
+ * refetched too, so an ordinary page load costs one small read.
+ */
+export async function catchUpOnReview(
+	queryClient: QueryClient,
+	refetch: (changes: readonly HouseholdChange[]) => void,
+) {
+	const { queryKey } = reviewQuery();
+	const before = queryClient.getQueryData(queryKey);
+	// Nothing read it yet, or a decision is being saved (which refetches when it settles).
+	if (!before || queryClient.isMutating({ mutationKey: monthChangeKey }) > 0) return;
+	await queryClient.invalidateQueries({ queryKey, exact: true });
+	const after = queryClient.getQueryData(queryKey);
+	if (!after || after === before) return;
+	const same =
+		after.total === before.total &&
+		after.items.length === before.items.length &&
+		after.items.every(
+			(item, at) =>
+				item.id === before.items[at]?.id &&
+				item.guess?.bucketId === before.items[at]?.guess?.bucketId &&
+				item.merchantName === before.items[at]?.merchantName,
+		);
+	if (!same) refetch(["months", "for-earlier", "bucket-uses"]);
 }
 
 /**
@@ -106,11 +139,14 @@ function parseOtherMessage(
 function connect({
 	onChanges,
 	onReconnect,
+	onFirstConnect,
 	onFreshStart,
 	onReload,
 }: {
 	onChanges: (changes: HouseholdChange[]) => void;
 	onReconnect: () => void;
+	/** Open for the first time: whatever changed since the page was read was never heard. */
+	onFirstConnect: () => void;
 	onFreshStart: (progress: FreshStartProgress) => void;
 	onReload: () => void;
 }) {
@@ -159,6 +195,7 @@ function connect({
 			attempts = 0;
 			// Changes made while disconnected were never heard, so catch up on everything.
 			if (connectedBefore) onReconnect();
+			else onFirstConnect();
 			connectedBefore = true;
 			pingTimer = setInterval(ping, PING_EVERY_MS);
 		};

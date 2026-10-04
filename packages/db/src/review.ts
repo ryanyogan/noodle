@@ -282,6 +282,38 @@ export async function returnToReview(
 	]);
 }
 
+/**
+ * Files Transactions waiting in Review without a Bucket (ADR-0037): each leaves Review and stays
+ * unassigned, as it was while it waited, so no month's figures change, a closed month's included.
+ * Only what waits for `viewer`; anything else is left alone. Idempotent. Returns the IDs it filed.
+ */
+export async function fileWithoutBucket(
+	db: Db,
+	viewer: Viewer,
+	transactionIds: string[],
+): Promise<{ filed: string[] }> {
+	if (transactionIds.length === 0) return { filed: [] };
+	const asked = sql`(select value from json_each(${JSON.stringify(transactionIds)}))`;
+	// Read first, then deleted by ID: `waiting` reads the Transaction beside its categorization.
+	const rows = await db
+		.select({ id: transactions.id })
+		.from(categorizations)
+		.innerJoin(transactions, eq(transactions.id, categorizations.transactionId))
+		.where(and(waiting(viewer), sql`${transactions.id} in ${asked}`));
+	const filed = rows.map((row) => row.id);
+	if (filed.length === 0) return { filed };
+	await db
+		.delete(categorizations)
+		.where(
+			and(
+				eq(categorizations.householdId, viewer.householdId),
+				eq(categorizations.outcome, "review"),
+				sql`${categorizations.transactionId} in (select value from json_each(${JSON.stringify(filed)}))`,
+			),
+		);
+	return { filed };
+}
+
 /** How many of the Household's Transactions dated in `month` categorization filed on its own. */
 export async function countFiledOnItsOwn(
 	db: Db,

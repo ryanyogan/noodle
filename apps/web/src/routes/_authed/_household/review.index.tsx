@@ -25,6 +25,7 @@ import { cn } from "@noodle/ui/lib/utils";
 import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated, useNavigate } from "@tanstack/react-router";
 import {
+	Archive,
 	Check,
 	CheckCheck,
 	Layers,
@@ -68,12 +69,13 @@ import {
 	type ReviewDecision,
 	type ReviewItem,
 	useConfirmAll,
+	useFileWithoutBucket,
 	useLookAgain,
 	useReturnToReview,
 	useReviewDecision,
 	useSaveRule,
 } from "../../../review";
-import { stackOrder, stackReducer, startStack } from "../../../review-stack";
+import { stackOrder, stackProgress, stackReducer, startStack } from "../../../review-stack";
 import { monthOfTransaction, type TransactionChange } from "../../../transactions";
 
 export const Route = createFileRoute("/_authed/_household/review/")({
@@ -168,6 +170,7 @@ function ReviewPage() {
 	// A toast's Undo goes through the stack's history too, so the two never disagree.
 	const decide = useReviewDecision({ onUndo: putBack });
 	const confirmAll = useConfirmAll({ onUndo: putBack });
+	const fileWithout = useFileWithoutBucket({ onUndo: putBack });
 	const returnCard = useReturnToReview();
 	const saveRule = useSaveRule();
 	const lookAgain = useLookAgain();
@@ -178,11 +181,20 @@ function ReviewPage() {
 	const top = cards.find((item) => item.id === cursor) ?? cards[0] ?? null;
 	const guessed = cards.filter((item) => item.guess);
 	const order = stackOrder(cards, stack);
+	/** From a month before this one: it can be filed without a Bucket (ADR-0037). */
+	const earlier = (item: ReviewItem) => monthOfTransaction(item) < current;
+	const fromEarlier = cards.filter(earlier);
+	/** Where Sort is: every card waiting counts, not only the ones loaded. */
+	const progress = stackProgress(stack, queue.total);
 	/** The card the keys act on: the stack's top, or the list's outlined card. */
 	const active = sorting ? (order[0] ?? null) : top;
 	// Undo waits for the save it would undo, so the two can't cross.
 	const canUndo =
-		stack.history.length > 0 && !decide.isPending && !confirmAll.isPending && !returnCard.isPending;
+		stack.history.length > 0 &&
+		!decide.isPending &&
+		!confirmAll.isPending &&
+		!fileWithout.isPending &&
+		!returnCard.isPending;
 	/** A failed save: its cards are back in Review, and back on top of the stack. */
 	const failed = (items: ReviewItem[]) => ({
 		onError: () => {
@@ -235,7 +247,7 @@ function ReviewPage() {
 
 	const planOf = (item: ReviewItem) =>
 		queryClient.getQueryData(monthQuery(monthOfTransaction(item)).queryKey)?.plan;
-	/** A card from a month with nothing to file in: it can only be skipped. */
+	/** A card from a month with nothing to file in: filed without a Bucket, or skipped. */
 	function stuck(item: ReviewItem) {
 		const plan = planOf(item);
 		if (!plan) return false;
@@ -250,8 +262,8 @@ function ReviewPage() {
 		const name = monthName(monthOfTransaction(item));
 		say(
 			planOf(item)?.baseline === null
-				? `${name} has no Plan yet, so ${labelOf(item)} can only be skipped.`
-				: `${name}’s Plan has no Buckets yet, so ${labelOf(item)} can only be skipped.`,
+				? `${name} has no Plan yet. File ${labelOf(item)} without a Bucket, or skip it.`
+				: `${name}’s Plan has no Buckets yet. File ${labelOf(item)} without a Bucket, or skip it.`,
 		);
 		shake();
 	}
@@ -281,7 +293,11 @@ function ReviewPage() {
 		dispatch({ type: "decided", items });
 		if (!sorting) return;
 		const ids = new Set(items.map((item) => item.id));
-		const left = order.filter((item) => !ids.has(item.id)).length;
+		// Of everything waiting, not only the cards loaded.
+		const left = Math.max(
+			order.filter((item) => !ids.has(item.id)).length,
+			queue.total - order.filter((item) => ids.has(item.id)).length,
+		);
 		setOffer(null);
 		// 3 in a row, then every 5th.
 		run.current = suggested ? run.current + 1 : 0;
@@ -422,6 +438,21 @@ function ReviewPage() {
 		const taken = decisions.map((decision) => decision.item);
 		decided(taken, `Filed ${taken.length} where Noodle suggested.`);
 		confirmAll.mutate(decisions, failed(taken));
+	}
+
+	/** Files cards without a Bucket: out of Review, still unassigned (ADR-0037). */
+	function fileAsTheyAre(items: ReviewItem[]) {
+		const [first] = items;
+		if (!first) return;
+		if (items.length === 1) moveOn(first);
+		else setCursor(null);
+		decided(
+			items,
+			items.length === 1
+				? `Filed ${labelOf(first)} without a Bucket.`
+				: `Filed ${items.length} without a Bucket.`,
+		);
+		fileWithout.mutate({ items, quiet: sorting }, failed(items));
 	}
 
 	function skip(item: ReviewItem) {
@@ -592,6 +623,18 @@ function ReviewPage() {
 				<span className={cn(sorting && "max-sm:sr-only")}> with a suggestion</span>
 			</Button>
 		) : null;
+	const fileEarlierButton =
+		fromEarlier.length > 1 ? (
+			<Button
+				variant="outline"
+				size="sm"
+				disabled={!hydrated || fileWithout.isPending}
+				onClick={() => fileAsTheyAre(fromEarlier)}
+			>
+				<Archive />
+				File all {fromEarlier.length} from before {monthName(current)} without a Bucket
+			</Button>
+		) : null;
 	const lookAgainButton =
 		queue.total > 0 ? (
 			<Button
@@ -647,7 +690,7 @@ function ReviewPage() {
 						{/* One row above the card: how far along, what Review is, and the rest of its tools. */}
 						<div className="flex flex-wrap items-center gap-x-2 gap-y-1">
 							<h2 className="text-sm font-normal text-muted-foreground tabular-nums">
-								{stack.done + 1} of {stack.done + order.length}
+								{progress.at} of {progress.of}
 							</h2>
 							<TermHelp term="review" />
 							<div className="ms-auto flex items-center gap-2">
@@ -706,6 +749,11 @@ function ReviewPage() {
 											onPick={(value, plan) => file(order[0] as ReviewItem, value, plan)}
 											onEdit={() => onEdit(order[0] as ReviewItem)}
 											onConfirmAll={(items) => confirmEach(items)}
+											onFileWithout={
+												earlier(order[0]) || stuck(order[0])
+													? () => fileAsTheyAre([order[0] as ReviewItem])
+													: undefined
+											}
 											actions={
 												stuck(order[0]) ? null : (
 													<CardActions
@@ -772,6 +820,9 @@ function ReviewPage() {
 								Undo
 							</Button>
 						</div>
+						{fileEarlierButton && earlier(order[0]) ? (
+							<div className="grid">{fileEarlierButton}</div>
+						) : null}
 						{sortNote}
 						<p className="hidden text-center text-xs text-muted-foreground lg:block">
 							<Key name="Right arrow">→</Key> or <Key>Enter</Key> to confirm,{" "}
@@ -799,7 +850,11 @@ function ReviewPage() {
 										<TermHelp term="review" className="mt-0.5" />
 									</p>
 									<div className="flex flex-wrap items-center gap-2">
+										<p data-testid="review-waiting" className="text-sm font-medium tabular-nums">
+											{queue.total} to review
+										</p>
 										{confirmAllButton}
+										{fileEarlierButton}
 										{lookAgainButton}
 										{viewToggle}
 									</div>
@@ -836,6 +891,11 @@ function ReviewPage() {
 															onPick={(value, plan) => file(item, value, plan)}
 															onEdit={() => onEdit(item)}
 															onConfirmAll={(items) => confirmEach(items)}
+															onFileWithout={
+																earlier(item) || stuck(item)
+																	? () => fileAsTheyAre([item])
+																	: undefined
+															}
 														/>
 													</div>
 												);
@@ -1083,6 +1143,7 @@ function ReviewCard({
 	onPick,
 	onEdit,
 	onConfirmAll,
+	onFileWithout,
 	ghost = false,
 	actions,
 }: {
@@ -1098,6 +1159,8 @@ function ReviewCard({
 	onPick: (value: string, plan: Plan) => void;
 	onEdit: () => void;
 	onConfirmAll: (items: ReviewItem[]) => void;
+	/** Files it without a Bucket: offered for an earlier month, or one with nothing to file in. */
+	onFileWithout?: () => void;
 	/** A copy flying off the stack: not a card to find or act on. */
 	ghost?: boolean;
 	/** More it can do, under it (Sort's top card). */
@@ -1191,14 +1254,22 @@ function ReviewCard({
 				<div className="grid gap-2 text-sm sm:flex sm:items-center sm:justify-between">
 					<p>
 						{plan?.baseline === null
-							? `${name} has no Plan yet, so there’s nowhere to file this.`
-							: `${name}’s Plan has no Buckets yet, so there’s nowhere to file this.`}
+							? `${name} has no Plan yet, so there’s no Bucket to file this in. Filing it without one changes nothing in ${name}.`
+							: `${name}’s Plan has no Buckets yet, so there’s no Bucket to file this in.`}
 					</p>
-					<Button variant="outline" size="sm" asChild>
-						<Link to="/plan/$month/buckets" params={{ month }}>
-							Set up {name}’s Plan
-						</Link>
-					</Button>
+					<div className="flex flex-wrap items-center gap-2">
+						<Button variant="ghost" size="sm" asChild>
+							<Link to="/plan/$month/buckets" params={{ month }}>
+								Set up {name}’s Plan
+							</Link>
+						</Button>
+						{onFileWithout ? (
+							<Button size="sm" disabled={!hydrated} onClick={onFileWithout}>
+								<Archive />
+								File without a Bucket
+							</Button>
+						) : null}
+					</div>
 				</div>
 			) : (
 				<div className="flex items-center gap-2">
@@ -1229,6 +1300,16 @@ function ReviewCard({
 					) : null}
 				</div>
 			)}
+			{onFileWithout && !empty ? (
+				<Button
+					variant="link"
+					className="justify-self-start px-0"
+					disabled={!hydrated}
+					onClick={onFileWithout}
+				>
+					{name} is over: file without a Bucket
+				</Button>
+			) : null}
 			{sameMerchant.length > 1 ? (
 				<Button
 					variant="link"

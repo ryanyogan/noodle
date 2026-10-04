@@ -13,6 +13,7 @@ import {
 	applyRule,
 	deleteRule,
 	editRule,
+	fileWithoutBucket,
 	lookAgainAtReview,
 	returnToReview,
 	saveRule,
@@ -183,6 +184,61 @@ export function useConfirmAll({
 		onSettled: () => refetchAfterChange(queryClient),
 	});
 	return confirmAll;
+}
+
+/**
+ * Files cards without a Bucket (ADR-0037): they leave Review at once and stay unassigned, so no
+ * month's figures change. One Undo puts them all back. A failure puts them back and offers a retry.
+ */
+export function useFileWithoutBucket({
+	onUndo,
+}: {
+	/** The toast's Undo, through the caller's own history, as useReviewDecision's. */
+	onUndo?: (items: ReviewItem[]) => void;
+} = {}) {
+	const queryClient = useQueryClient();
+	const returnCard = useReturnToReview();
+	const file = useMutation({
+		mutationKey: monthChangeKey,
+		mutationFn: ({ items }: { items: ReviewItem[]; quiet?: boolean }) =>
+			fileWithoutBucket({ data: { transactionIds: items.map((item) => item.id) } }),
+		onMutate: async ({ items }) => {
+			const ids = new Set(items.map((item) => item.id));
+			return { putBack: await takeCards(queryClient, (item) => ids.has(item.id)) };
+		},
+		onError: (_error, variables, context) => {
+			context?.putBack();
+			if (variables.quiet) return;
+			const [first] = variables.items;
+			toast(
+				variables.items.length === 1 && first
+					? `Couldn’t file ${transactionLabel(first)}, so it’s back in Review.`
+					: `Couldn’t file all ${variables.items.length}, so they’re back in Review.`,
+				{ tone: "error", action: { label: "Retry", onClick: () => file.mutate(variables) } },
+			);
+		},
+		onSuccess: (_data, { items, quiet }) => {
+			if (quiet) return;
+			const [first] = items;
+			toast(
+				items.length === 1 && first
+					? `${transactionLabel(first)} filed without a Bucket`
+					: `Filed ${items.length} without a Bucket`,
+				{
+					tone: "success",
+					action: {
+						label: "Undo",
+						onClick: () => {
+							if (onUndo) return onUndo(items);
+							for (const item of items) returnCard.mutate(item);
+						},
+					},
+				},
+			);
+		},
+		onSettled: () => refetchAfterChange(queryClient),
+	});
+	return file;
 }
 
 /** A list's pages with a Transaction back as Review has it: unassigned, unsplit. */
