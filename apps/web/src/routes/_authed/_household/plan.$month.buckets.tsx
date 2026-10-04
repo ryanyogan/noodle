@@ -125,30 +125,32 @@ function PlanBuckets() {
 				) : undefined
 			}
 		>
+			{state.editable ? (
+				// Stays in view while Buckets and Personal Allowances are added and changed (a bar across the
+				// top on a phone). It is the list's own child, not the Buckets block's, so it sticks for as
+				// long as any of the list is on screen; -mb-5 leaves the Buckets 12px under it.
+				<div className="sticky top-[var(--safe-top)] z-10 -mb-5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-(--radius-control) border bg-card/90 px-3 py-2 backdrop-blur-xl max-lg:-mx-1">
+					<p aria-live="polite" className="text-sm text-muted-foreground">
+						Left to plan <TermHelp term="free-to-spend" />{" "}
+						<span
+							className={`font-medium tabular-nums ${left < 0 ? "text-over-foreground" : "text-foreground"}`}
+						>
+							{formatMoney(left)}
+						</span>
+						{stillToSet.map((name) => (
+							<span key={name}> · still to set: {name}’s Personal Allowance</span>
+						))}
+					</p>
+					<AddBuckets
+						month={month}
+						buckets={state.buckets}
+						freeToSpend={state.freeToSpend}
+						parentId={parentId}
+						parentName={nameOf(parentId)}
+					/>
+				</div>
+			) : null}
 			<div className="grid gap-3">
-				{state.editable ? (
-					// Stays in view while Buckets are added and changed (a bar across the top on a phone).
-					<div className="sticky top-[var(--safe-top)] z-10 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-(--radius-control) border bg-card/90 px-3 py-2 backdrop-blur-xl max-lg:-mx-1">
-						<p aria-live="polite" className="text-sm text-muted-foreground">
-							Left to plan <TermHelp term="free-to-spend" />{" "}
-							<span
-								className={`font-medium tabular-nums ${left < 0 ? "text-over-foreground" : "text-foreground"}`}
-							>
-								{formatMoney(left)}
-							</span>
-							{stillToSet.map((name) => (
-								<span key={name}> · still to set: {name}’s Personal Allowance</span>
-							))}
-						</p>
-						<AddBuckets
-							month={month}
-							buckets={state.buckets}
-							freeToSpend={state.freeToSpend}
-							parentId={parentId}
-							parentName={nameOf(parentId)}
-						/>
-					</div>
-				) : null}
 				{buckets.length > 0 ? (
 					<BucketList
 						month={month}
