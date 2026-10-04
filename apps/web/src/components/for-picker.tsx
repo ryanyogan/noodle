@@ -9,6 +9,7 @@ import { pickableMembers } from "../members";
  * Who spending was For, as a segmented control: Everyone (the whole Household), then each Child,
  * then each Parent. One tap picks one Member (a radio group); with `multiple`, taps add or remove
  * Members and Everyone clears them (toggle buttons). Removed Children only show while they're picked.
+ * On a phone the choices wrap onto more lines rather than run off the side.
  */
 export function ForPicker({
 	members,
@@ -29,11 +30,11 @@ export function ForPicker({
 	const items = (
 		<>
 			<ToggleGroupItem value={everyone} className={itemClass}>
-				Everyone
+				<span className="truncate">Everyone</span>
 			</ToggleGroupItem>
 			{options.map((member) => (
 				<ToggleGroupItem key={member.id} value={member.id} className={itemClass}>
-					{member.name}
+					<span className="truncate">{member.name}</span>
 				</ToggleGroupItem>
 			))}
 		</>
@@ -77,5 +78,9 @@ export function ForPicker({
 	);
 }
 
-const trackClass = "flex w-full overflow-x-auto rounded-xl p-0.75 [scrollbar-width:none]";
-const itemClass = "h-7.5 flex-[1_0_auto] rounded-[9px] px-3";
+// From sm the choices share one line (and scroll inside it if a big family doesn't fit). On a
+// phone they wrap into equal columns instead, three across at 320, so none is cut off at the
+// edge (#74); a long name is cut with an ellipsis inside its own choice.
+const trackClass =
+	"flex w-full overflow-x-auto rounded-xl p-0.75 [scrollbar-width:none] max-sm:grid max-sm:grid-cols-[repeat(auto-fit,minmax(5rem,1fr))] max-sm:overflow-x-visible";
+const itemClass = "h-7.5 min-w-0 flex-[1_0_auto] rounded-[9px] px-3 max-sm:px-2";
