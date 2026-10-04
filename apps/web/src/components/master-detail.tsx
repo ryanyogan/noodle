@@ -80,7 +80,7 @@ export function masterDetailKeys(event: KeyboardEvent<HTMLElement>) {
  * nothing changes. `DetailHeader` and `DetailPending` carry `data-item-page`.
  */
 export const sectionHeaderOverItem =
-	"max-lg:[main:has([data-item-page])_&]:sr-only max-lg:[main:has([data-item-page])_&_:is(a,button,nav)]:hidden";
+	"max-lg:[main:has([data-item-page])_&]:sr-only max-lg:[main:has([data-item-page])_&]:min-h-0 max-lg:[main:has([data-item-page])_&_:is(a,button,nav)]:hidden";
 
 /** The item before and after `id` in the list's order. */
 export function neighbours(ids: readonly string[], id: string) {
