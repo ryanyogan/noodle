@@ -104,10 +104,10 @@ function HouseholdPage() {
 											<span className="flex min-w-0 flex-col">
 												<span>Parent</span>
 												{parent.email ? (
-													// Breaks at the @ rather than mid-word on a phone.
-													<span className="min-w-0 break-words">
-														{parent.email.split("@")[0]}
-														<wbr />@{parent.email.split("@").slice(1).join("@")}
+													// One line, cut short when long (the whole address on hover), so every
+													// Parent's row is the same height whatever the address.
+													<span className="min-w-0 truncate" title={parent.email}>
+														{parent.email}
 													</span>
 												) : null}
 											</span>
