@@ -67,8 +67,9 @@ function CheckInPage() {
 			<div
 				className={cn(
 					"grid gap-4",
-					// The steps beside the card, which takes the rest of the page's width, so a wide screen
-					// isn't half empty (#73).
+					// The steps beside the card, which takes the rest of the page's width up to a width its
+					// rows still read well at: on the widest screens a name and its amount don't drift apart
+					// (#73).
 					view.cards.length > 0 &&
 						"lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start lg:gap-(--layout-gap)",
 				)}
@@ -99,8 +100,9 @@ function CheckInPage() {
 								>
 									<span className="grid min-w-0">
 										<span>{checkInCardTitle[card.kind]}</span>
-										{/* What waits in the step, in the Household's own figures. */}
-										<span className="truncate text-[13px] font-normal text-muted-foreground">
+										{/* What waits in the step, in the Household's own figures: whole, on a second
+										    line when it's long ("$944.47 to Sweep from September"). */}
+										<span className="text-pretty text-[13px] font-normal text-muted-foreground">
 											{checkInLine(card)}
 										</span>
 									</span>
@@ -109,7 +111,7 @@ function CheckInPage() {
 						</StepList>
 					</div>
 				) : null}
-				<div className={cn("grid max-w-3xl gap-3", view.cards.length > 0 && "lg:max-w-none")}>
+				<div className={cn("grid max-w-3xl gap-3", view.cards.length > 0 && "lg:max-w-4xl")}>
 					{step.kind === "card" ? (
 						<p className="text-sm text-muted-foreground tabular-nums">
 							{step.position} of {step.of}
