@@ -517,7 +517,7 @@ function Line({
 	unit?: string;
 	/** `unit` for the narrowest phones (below 360), where the long one would break a name mid-word. */
 	shortUnit?: string;
-	value: string;
+	value: ReactNode;
 	changed: boolean;
 	wide: boolean;
 	editor: ReactNode;
@@ -832,7 +832,14 @@ function BucketLine({
 						<span className="max-sm:capitalize">only</span> its Parent changes it
 					</span>
 				}
-				value={`${formatMoney(bucket.allowance)} a month`}
+				// As its neighbours: "/mo" on the narrowest phones, where "a month" costs the row a line.
+				value={
+					<>
+						{formatMoney(bucket.allowance)}
+						<span className="max-[359px]:hidden"> a month</span>
+						<span className="min-[360px]:hidden">/mo</span>
+					</>
+				}
 				changed={false}
 				wide={edit.wide}
 				editor={null}

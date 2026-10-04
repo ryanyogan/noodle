@@ -1071,7 +1071,9 @@ export function CompareChart({
 	plan: readonly Cents[];
 	scenarios: readonly { id: string; name: string; values: readonly Cents[] }[];
 }) {
-	const animation = useAnimation();
+	// No entrance: ticking a Scenario redraws every line, and a line growing in again each time
+	// reads as the numbers changing. The lines are simply there (#74).
+	const animation = { isAnimationActive: false } as const;
 	const shown = scenarios.slice(0, COMPARED.length);
 	const rows = months.map((month, i) => ({
 		month,
