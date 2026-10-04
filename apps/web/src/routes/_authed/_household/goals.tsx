@@ -90,6 +90,7 @@ function GoalsPage() {
 			/>
 			<ListBesideDetail
 				picked={picked !== undefined}
+				listFills
 				noun="Goal"
 				listLabel="Goals"
 				hint="Pick a Goal to see it here."
@@ -213,7 +214,8 @@ function GoalsPage() {
 }
 
 /**
- * Goals as one list card, or a 2-column grid of Goal cards when the list itself is wide (#51):
+ * Goals as one list card, or a grid of Goal cards (2 columns, 3 from 64 rem) when the list itself
+ * is wide (#51; while nothing is picked the list fills the page, #73L):
  * a container query, not a viewport one, since beside a Goal the list is the narrow master pane.
  * In the grid the list's card steps aside (`contents`) and each row becomes a card of its own.
  */
@@ -223,7 +225,7 @@ function GoalList({ children }: { children: ReactNode }) {
 			<Card className="@2xl:contents">
 				<ul
 					data-slot="list"
-					className="[&>li+li]:border-t @2xl:grid @2xl:grid-cols-2 @2xl:items-stretch @2xl:gap-3 @2xl:[&>li]:grid @2xl:[&>li]:overflow-hidden @2xl:[&>li]:rounded-(--radius-card) @2xl:[&>li]:border @2xl:[&>li]:bg-card @2xl:[&>li]:shadow-xs"
+					className="[&>li+li]:border-t @2xl:grid @2xl:grid-cols-2 @5xl:grid-cols-3 @2xl:items-stretch @2xl:gap-3 @2xl:[&>li]:grid @2xl:[&>li]:overflow-hidden @2xl:[&>li]:rounded-(--radius-card) @2xl:[&>li]:border @2xl:[&>li]:bg-card @2xl:[&>li]:shadow-xs"
 				>
 					{children}
 				</ul>

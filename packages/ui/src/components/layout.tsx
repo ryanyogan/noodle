@@ -285,6 +285,9 @@ function MasterDetail({
 			className={cn(
 				"grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[var(--list-pane-width)_minmax(0,1fr)] lg:gap-(--layout-gap)",
 				emptyStacks && !picked && "max-lg:gap-(--layout-gap)",
+				// A list that fills while nothing is picked (Goals' cards): the list takes the wide column
+				// and the overview the rail's width (#73L, ADR-0033).
+				"lg:data-[list-fills=true]:grid-cols-[minmax(0,1fr)_var(--rail-width)]",
 				// The shell's bottom padding at lg is 3rem, so the panes end where a page would.
 				"lg:h-[calc(100dvh-var(--master-detail-top,11rem)-3rem)] lg:min-h-80",
 				className,

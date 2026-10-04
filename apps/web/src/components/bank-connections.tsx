@@ -841,7 +841,7 @@ function ConnectionRow({
 			title={connection.institution ?? "Bank"}
 			meta={
 				<>
-					<span>
+					<span className="min-w-0 [overflow-wrap:anywhere]">
 						{count === 1 ? "1 Account" : `${count} Accounts`}
 						{" · "}
 						<span className={cn(status.failed && "text-over")} suppressHydrationWarning>
@@ -849,7 +849,9 @@ function ConnectionRow({
 						</span>
 					</span>
 					{count > 0 ? (
-						<span className="basis-full">{connection.accounts.map((a) => a.name).join(", ")}</span>
+						<span className="min-w-0 basis-full [overflow-wrap:anywhere]">
+							{connection.accounts.map((a) => a.name).join(", ")}
+						</span>
 					) : null}
 					{connection.brought.transactions > 0 ? (
 						<span className="basis-full">
@@ -886,32 +888,30 @@ function ConnectionRow({
 							{connection.notice}
 						</span>
 					) : null}
+					<div className="flex min-w-0 basis-full flex-wrap items-center gap-2 pt-1 empty:hidden">
+						{trailing}
+						{setUp ? (
+							<Button
+								type="button"
+								size="sm"
+								variant="ghost"
+								disabled={!hydrated}
+								onClick={() => setDisconnecting(true)}
+								aria-label={`Disconnect ${connection.institution ?? "the bank"}`}
+							>
+								<Unplug />
+								Disconnect
+							</Button>
+						) : null}
+						{disconnecting ? (
+							<DisconnectBankDialog
+								connectionId={connection.id}
+								institution={connection.institution}
+								onCancel={() => setDisconnecting(false)}
+							/>
+						) : null}
+					</div>
 				</>
-			}
-			trailing={
-				<div className="flex flex-wrap items-center gap-2">
-					{trailing}
-					{setUp ? (
-						<Button
-							type="button"
-							size="sm"
-							variant="ghost"
-							disabled={!hydrated}
-							onClick={() => setDisconnecting(true)}
-							aria-label={`Disconnect ${connection.institution ?? "the bank"}`}
-						>
-							<Unplug />
-							Disconnect
-						</Button>
-					) : null}
-					{disconnecting ? (
-						<DisconnectBankDialog
-							connectionId={connection.id}
-							institution={connection.institution}
-							onCancel={() => setDisconnecting(false)}
-						/>
-					) : null}
-				</div>
 			}
 		/>
 	);
