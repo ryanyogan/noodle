@@ -34,7 +34,7 @@ export function SetupBills({
 					const label = row.name.trim() || "New bill";
 					return (
 						<li key={row.key}>
-							<Card className="grid gap-2 p-3" data-bill={row.key}>
+							<Card className="grid gap-2 p-(--card-pad)" data-bill={row.key}>
 								<div className="flex items-center gap-3">
 									<Checkbox
 										id={`${rowId}-tick`}
