@@ -81,14 +81,14 @@ jobs:
     needs: gate
     if: needs.gate.outputs.tested != 'true'
     runs-on: ubuntu-latest
-    # Four runners at once, two workers each, against the built Worker (E2E_SERVER=build, #81): the
-    # dev server compiled pages on demand and starved a second worker, so it took six runners of one
-    # worker each. Three workers were quicker still, but the local D1 then answered some queries
-    # with SQLITE_BUSY (a failed test and three flaky ones in one run).
+    # Three runners at once, three workers each, against the built Worker (E2E_SERVER=build, #81):
+    # the dev server compiled pages on demand and starved a second worker, so it took six runners of
+    # one worker each. Specs seed the local D1 through the Worker (/api/dev/sql); when they opened
+    # its SQLite file from a second process, three workers got SQLITE_BUSY.
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3]
     # Playwright's image already has Chromium, WebKit and their system libraries, so no job installs
     # them. Keep its tag equal to @playwright/test in apps/web/package.json.
     container:
@@ -117,7 +117,7 @@ jobs:
         env:
           AI_MODEL: stub
       # Phone tests run in e2e-phone.
-      - run: bun run e2e --project=chromium --shard=${{ matrix.shard }}/4 --workers=2
+      - run: bun run e2e --project=chromium --shard=${{ matrix.shard }}/3 --workers=3
         working-directory: apps/web
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -160,7 +160,7 @@ jobs:
           AI_MODEL: stub
       # A failure that hits every test (sign-in, say) stops after three instead of letting each
       # test run to its timeout, twice.
-      - run: bun run e2e --project=${{ matrix.project }} --max-failures=3 --workers=2
+      - run: bun run e2e --project=${{ matrix.project }} --max-failures=3 --workers=3
         working-directory: apps/web
       - uses: actions/upload-artifact@v4
         if: failure()
