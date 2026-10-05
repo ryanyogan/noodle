@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, type Page } from "@playwright/test";
@@ -438,6 +438,24 @@ test("a Transaction from the bank is renamed, its others follow when asked, and 
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, plan);
 	// An Account with a statement in it: two lines from the same coffee shop ("STUMPTOWN COFFEE").
+	// Dated today: the Plan's Buckets are this month's, so an earlier month has none to assign to.
+	const today = await page.evaluate(() =>
+		new Date().toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" }),
+	);
+	const statement = readFileSync(
+		join(
+			import.meta.dirname,
+			"..",
+			"..",
+			"..",
+			"packages",
+			"domain",
+			"fixtures",
+			"statements",
+			"checking.csv",
+		),
+		"utf8",
+	).replace(/\b\d\d\/\d\d\/\d{4}\b/g, today);
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	await page.getByLabel("Name").fill("Everyday Checking");
@@ -450,25 +468,13 @@ test("a Transaction from the bank is renamed, its others follow when asked, and 
 	const upload = page.getByRole("dialog", { name: "Upload a statement" });
 	await upload
 		.getByLabel("Statement file")
-		.setInputFiles(
-			join(
-				import.meta.dirname,
-				"..",
-				"..",
-				"..",
-				"packages",
-				"domain",
-				"fixtures",
-				"statements",
-				"checking.csv",
-			),
-		);
+		.setInputFiles({ name: "checking.csv", mimeType: "text/csv", buffer: Buffer.from(statement) });
 	await upload.getByRole("button", { name: "Import 6 lines" }).click();
 	await expect(upload).toBeHidden();
 
 	const called = (name: string) =>
 		page.getByRole("button", { name: new RegExp(`^${name}, \\$4\\.50,`, "i") });
-	await reloadUntil(page, page.url().replace(/\/accounts\/.*$/, "/transactions/2026-09"), () =>
+	await reloadUntil(page, page.url().replace(/\/accounts\/.*$/, "/transactions"), () =>
 		expect(called("Stumptown Coffee")).toHaveCount(2, { timeout: 2_000 }),
 	);
 	// Rows open their detail once the page is hydrated.
