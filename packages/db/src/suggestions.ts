@@ -14,10 +14,11 @@ import {
 	suggestionKey,
 } from "@noodle/domain";
 import { and, eq, gt, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
-
+import type { BatchItem } from "drizzle-orm/batch";
+import { commitmentAdd } from "./commitments";
 import { counts } from "./counting";
 import type { Db } from "./index";
-import { loadPlanRecords } from "./plan";
+import { bucketAdd, loadPlanRecords } from "./plan";
 import type { Viewer } from "./privacy";
 import {
 	buckets,
@@ -396,14 +397,8 @@ export async function loadOpenSuggestion(db: Db, viewer: Viewer, id: string) {
 	return row;
 }
 
-/** Accepts or dismisses a suggestion `viewer` may read. Idempotent. */
-export async function decideSuggestion(
-	db: Db,
-	viewer: Viewer,
-	id: string,
-	status: "accepted" | "dismissed",
-): Promise<void> {
-	await db
+const decided = (db: Db, viewer: Viewer, id: string, status: "accepted" | "dismissed") =>
+	db
 		.update(suggestions)
 		.set({ status, decidedByMemberId: viewer.memberId, updatedAt: new Date() })
 		.where(
@@ -413,4 +408,34 @@ export async function decideSuggestion(
 				or(isNull(suggestions.memberId), eq(suggestions.memberId, viewer.memberId)),
 			),
 		);
+
+/** Accepts or dismisses a suggestion `viewer` may read. Idempotent. */
+export async function decideSuggestion(
+	db: Db,
+	viewer: Viewer,
+	id: string,
+	status: "accepted" | "dismissed",
+): Promise<void> {
+	await decided(db, viewer, id, status);
+}
+
+/**
+ * Adds the Commitment or Bucket a suggestion suggests and marks the suggestion accepted, in one
+ * batch (#76): both land or neither does, so a request that stops part-way can't leave the bill in
+ * the Plan and still suggested. Idempotent per `commitmentId` / `bucketId`, like the adds
+ * themselves: a second call with the same ID adds nothing.
+ */
+export async function acceptSuggestionAdding(
+	db: Db,
+	viewer: Viewer,
+	id: string,
+	adds:
+		| { commitment: Parameters<typeof commitmentAdd>[1] }
+		| { bucket: Parameters<typeof bucketAdd>[1] },
+): Promise<void> {
+	const writes: BatchItem<"sqlite">[] =
+		"commitment" in adds
+			? [...commitmentAdd(db, adds.commitment)]
+			: [...bucketAdd(db, adds.bucket)];
+	await db.batch([decided(db, viewer, id, "accepted"), ...writes]);
 }

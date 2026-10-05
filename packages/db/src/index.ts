@@ -748,6 +748,7 @@ export {
 } from "./setup";
 export * from "./snapshots";
 export {
+	acceptSuggestionAdding,
 	decideSuggestion,
 	householdTimeZone,
 	loadLearnInputs,

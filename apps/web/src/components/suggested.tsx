@@ -84,19 +84,24 @@ export function Suggested({
 	const queryClient = useQueryClient();
 	const { data } = useQuery(suggestionsQuery());
 	const [editing, setEditing] = useState<string | null>(null);
+	// Every decision still on its way, not only the latest: each row stays hidden while its own
+	// request is in flight (and until the list is read again), and comes back only if it failed.
+	const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
 	const decide = useMutation({
 		mutationFn: (variables: Decision) => decideSuggestion({ data: variables }),
-		onSettled: () =>
-			Promise.all([
-				queryClient.invalidateQueries({ queryKey: ["suggestions"] }),
-				queryClient.invalidateQueries({ queryKey: ["rules"] }),
-			]),
+		onMutate: ({ suggestionId }) => setPending((ids) => new Set(ids).add(suggestionId)),
+		onSettled: async (_data, _error, { suggestionId }) => {
+			try {
+				await Promise.all([
+					queryClient.invalidateQueries({ queryKey: ["suggestions"] }),
+					queryClient.invalidateQueries({ queryKey: ["rules"] }),
+				]);
+			} finally {
+				setPending((ids) => new Set([...ids].filter((id) => id !== suggestionId)));
+			}
+		},
 	});
-	const open = (data ?? []).filter(
-		(item) =>
-			(!kinds || kinds.includes(item.kind)) &&
-			!(decide.isPending && decide.variables?.suggestionId === item.id),
-	);
+	const open = stillOpen(data ?? [], kinds, pending);
 	if (open.length === 0) return null;
 	return (
 		<Card
@@ -160,6 +165,13 @@ export function Suggested({
 		</Card>
 	);
 }
+
+/** The suggestions a page shows: its kinds, less those with a decision on its way. */
+export const stillOpen = <T extends Pick<SuggestionItem, "id" | "kind">>(
+	items: T[],
+	kinds: SuggestionItem["kind"][] | undefined,
+	pending: ReadonlySet<string>,
+): T[] => items.filter((item) => (!kinds || kinds.includes(item.kind)) && !pending.has(item.id));
 
 const editable = (item: SuggestionItem) =>
 	item.kind === "new-bucket" || item.kind === "new-commitment";
