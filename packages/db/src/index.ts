@@ -588,11 +588,16 @@ export {
 	updateChild,
 } from "./members";
 export {
+	countSameMerchant,
 	hasUnnamedMerchants,
 	loadMerchantNames,
+	loadParentNames,
 	loadUnnamedNotes,
+	nameSameMerchant,
 	nameTransactions,
+	PARENT_NAME,
 	saveMerchantNames,
+	saveParentName,
 } from "./merchants";
 export {
 	type CloseMonthInput,

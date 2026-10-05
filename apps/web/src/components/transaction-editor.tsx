@@ -1,4 +1,11 @@
-import { type DayKey, type For, type Plan, parseDollars, splitRemainder } from "@noodle/domain";
+import {
+	cleanMerchant,
+	type DayKey,
+	type For,
+	type Plan,
+	parseDollars,
+	splitRemainder,
+} from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Combobox } from "@noodle/ui/components/combobox";
 import { Field, FormError } from "@noodle/ui/components/field";
@@ -27,7 +34,7 @@ import type {
 	TransactionEdit,
 	TransactionRow,
 } from "../transactions";
-import { useEditFormKey } from "../transactions";
+import { nameOf, useEditFormKey } from "../transactions";
 import { ForPicker } from "./for-picker";
 import { AmountInput } from "./goals";
 import { MatchSection } from "./match-section";
@@ -282,6 +289,13 @@ function EditForm({
 	);
 	const [invalid, setInvalid] = useState<"amount" | "assignment" | "splits" | null>(null);
 	const [confirmDelete, setConfirmDelete] = useState(false);
+	// One from a bank or a statement has a name apart from the bank's wording (its note), which
+	// is kept and shown under it (#95). A by-hand one's name is its note, as the Parent typed it.
+	const fromBank = transaction.importedFrom !== null;
+	const banksWording = fromBank ? (transaction.note ?? "").trim() : "";
+	const banksName = banksWording ? cleanMerchant(banksWording).name : "";
+	const calledNow = nameOf(transaction);
+	const [name, setName] = useState(calledNow);
 	const amountCents = parseDollars(amount);
 	const remainder =
 		splits && amountCents
@@ -319,8 +333,11 @@ function EditForm({
 
 	/** What the form says now, or null after flagging what's wrong with it. */
 	function edited(): TransactionEdit | null {
-		const note =
-			String(form.current ? (new FormData(form.current).get("note") ?? "") : "").trim() || null;
+		const typed = String(form.current ? (new FormData(form.current).get("note") ?? "") : "").trim();
+		// The bank's wording is never edited; an emptied name goes back to the bank's.
+		const renamed = name.trim() || banksName;
+		const note = fromBank ? transaction.note : typed || null;
+		const naming = fromBank && renamed && renamed !== calledNow ? { name: renamed } : {};
 		if (!amountCents) {
 			setInvalid("amount");
 			return null;
@@ -345,14 +362,20 @@ function EditForm({
 				setInvalid("splits");
 				return null;
 			}
-			return { amountCents, note, splits: edits };
+			return { amountCents, note, ...naming, splits: edits };
 		}
 		const whole = assignmentOf(assignment);
 		if (!whole) {
 			setInvalid("assignment");
 			return null;
 		}
-		return { amountCents, assignment: whole, note, forMemberIds: [...forMemberIds].sort() };
+		return {
+			amountCents,
+			assignment: whole,
+			note,
+			...naming,
+			forMemberIds: [...forMemberIds].sort(),
+		};
 	}
 
 	/** Whether anything was changed in the form since it opened. */
@@ -360,7 +383,7 @@ function EditForm({
 		const note = String(form.current ? (new FormData(form.current).get("note") ?? "") : "").trim();
 		return (
 			amount !== formatMoneyInput(transaction.amountCents) ||
-			note !== (transaction.note ?? "") ||
+			(fromBank ? name.trim() !== calledNow : note !== (transaction.note ?? "")) ||
 			(splits === null
 				? transaction.splits.length > 0 ||
 					assignment !== assignmentValue(transaction) ||
@@ -417,6 +440,46 @@ function EditForm({
 	return (
 		// Checked on Save, with what's wrong said beside it, rather than by the browser's own bubble.
 		<form ref={form} onSubmit={save} noValidate className="grid gap-4">
+			<div className="grid gap-1.5">
+				<Field label="Name" htmlFor="transaction-name">
+					{fromBank ? (
+						<Input
+							id="transaction-name"
+							maxLength={80}
+							autoComplete="off"
+							placeholder={banksName || "Give it a name"}
+							value={name}
+							onChange={(event) => setName(event.target.value)}
+						/>
+					) : (
+						<Input
+							id="transaction-name"
+							name="note"
+							maxLength={80}
+							autoComplete="off"
+							placeholder="Add a name (optional)"
+							defaultValue={transaction.note ?? ""}
+						/>
+					)}
+				</Field>
+				{banksWording && name.trim() !== banksWording ? (
+					<p className="min-w-0 break-words text-muted-foreground text-sm">
+						From your bank: {banksWording}
+					</p>
+				) : null}
+				{banksName && name.trim() !== banksName ? (
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						className="justify-self-start"
+						disabled={!hydrated}
+						onClick={() => setName(banksName)}
+					>
+						Use the bank’s name
+					</Button>
+				) : null}
+			</div>
 			<div className="grid gap-3 sm:grid-cols-2">
 				<Field label="Amount" htmlFor="transaction-amount">
 					<AmountInput
@@ -526,16 +589,6 @@ function EditForm({
 					</Button>
 				</>
 			)}
-			<Field label="Note" htmlFor="transaction-note">
-				<Input
-					id="transaction-note"
-					name="note"
-					maxLength={80}
-					autoComplete="off"
-					placeholder="Add a note (optional)"
-					defaultValue={transaction.note ?? ""}
-				/>
-			</Field>
 			<ReceiptSection transaction={transaction} plan={plan} members={members} onChange={onChange} />
 			<MatchSection
 				transaction={transaction}

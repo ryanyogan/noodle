@@ -110,7 +110,8 @@ test("a bank statement comes in once, as Transactions to assign and income", asy
 	const editor = page
 		.locator("[role=dialog], [data-slot=transaction-detail]")
 		.filter({ has: page.getByRole("heading", { name: "Edit Transaction" }) });
-	await expect(editor.getByLabel("Note")).toHaveValue("TRADER JOE'S #552 PORTLAND OR");
+	await expect(editor.getByLabel("Name")).toHaveValue("Trader Joe's");
+	await expect(editor.getByText("From your bank: TRADER JOE'S #552 PORTLAND OR")).toBeVisible();
 	await page.keyboard.press("Escape");
 	await expect(editor).toBeHidden();
 	await page.keyboard.press("Escape");

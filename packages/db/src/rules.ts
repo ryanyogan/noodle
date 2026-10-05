@@ -1,4 +1,10 @@
-import { type DayKey, ruleFor as matchingRule, merchantKey, type Rule } from "@noodle/domain";
+import {
+	type DayKey,
+	ruleFor as matchingRule,
+	merchantKey,
+	type Rule,
+	ruleKeys,
+} from "@noodle/domain";
 import { and, asc, eq, gt, isNull, ne, or, type SQL, sql } from "drizzle-orm";
 import { type CategorizationDecision, fileCategorizations } from "./categorize";
 import { counts } from "./counting";
@@ -387,9 +393,13 @@ export async function applyRule(
 	const decisions: (CategorizationDecision & { date: DayKey })[] = [];
 	for (const row of rows) {
 		const merchant = row.merchant ?? (row.note ? merchantKey(row.note) : null);
-		// A Rule stated for the raw text ("costco whse") still matches once the line is named "Costco".
-		const raw = row.note ? merchantKey(row.note) : null;
-		if (!merchant || !(matchingRule([rule], merchant) || (raw && matchingRule([rule], raw))))
+		// A Rule stated for the raw text ("costco whse") still matches once the line is named
+		// "Costco", and one stated for "Costco" still matches once a Parent calls it something else.
+		const raws = row.note ? ruleKeys({ note: row.note }) : [];
+		if (
+			!merchant ||
+			!(matchingRule([rule], merchant) || raws.some((raw) => matchingRule([rule], raw)))
+		)
 			continue;
 		decisions.push({
 			transactionId: row.id,

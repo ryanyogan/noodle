@@ -10,6 +10,7 @@ import {
 	clientRendered,
 	createPlannedHousehold,
 	pickQuickAddBucket,
+	reloadUntil,
 	serverFn,
 	signedInPage,
 } from "./session";
@@ -103,7 +104,7 @@ test("editing a Transaction reassigns its spending on This Month at once", async
 		.getByRole("toolbar", { name: "For" })
 		.getByRole("button", { name: "Leo" })
 		.click();
-	await editSheet(page).getByLabel("Note").fill("Skates");
+	await editSheet(page).getByLabel("Name").fill("Skates");
 	await editSheet(page).getByRole("button", { name: "Save" }).click();
 	await expect(editSheet(page)).toBeHidden();
 	await expect(row(page, "Skates")).toHaveAccessibleName("Skates, $70, Hockey, For Leo");
@@ -378,7 +379,7 @@ test("an Account lists its Transactions, and Transactions filters by it", async 
 	await list(page)
 		.getByRole("button", { name: /^Chipotle, \$12,/ })
 		.click();
-	await editSheet(page).getByLabel("Note").fill("Chipotle lunch");
+	await editSheet(page).getByLabel("Name").fill("Chipotle lunch");
 	const possible = editSheet(page).getByRole("region", { name: "Possible match" });
 	await possible.getByRole("button", { name: /^Match with chipotle( 1234)?, \$14\.40/i }).click();
 	await expect(editSheet(page)).toBeHidden();
@@ -420,5 +421,96 @@ test("on a phone, Transactions is in the tab bar either side of Quick Add", {
 		() => document.documentElement.scrollWidth > window.innerWidth,
 	);
 	expect(overflows).toBe(false);
+	await page.context().close();
+});
+
+test("a Transaction from the bank is renamed, its others follow when asked, and the bank's name comes back", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, plan);
+	// An Account with a statement in it: two lines from the same coffee shop ("STUMPTOWN COFFEE").
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
+	await page.getByLabel("Name").fill("Everyday Checking");
+	await choose(page, "Kind", accountKindLabel("checking"));
+	await page.getByLabel("Balance now").fill("2,500");
+	await page.getByRole("button", { name: "Add Account" }).click();
+	await page.getByRole("link", { name: /^Everyday Checking, / }).click();
+	await expect(page.locator("[data-slot=detail-title]")).toContainText("Everyday Checking");
+	await page.getByRole("button", { name: "Upload statement" }).click();
+	const upload = page.getByRole("dialog", { name: "Upload a statement" });
+	await upload
+		.getByLabel("Statement file")
+		.setInputFiles(
+			join(
+				import.meta.dirname,
+				"..",
+				"..",
+				"..",
+				"packages",
+				"domain",
+				"fixtures",
+				"statements",
+				"checking.csv",
+			),
+		);
+	await upload.getByRole("button", { name: "Import 6 lines" }).click();
+	await expect(upload).toBeHidden();
+
+	const called = (name: string) =>
+		page.getByRole("button", { name: new RegExp(`^${name}, \\$4\\.50,`, "i") });
+	await reloadUntil(page, page.url().replace(/\/accounts\/.*$/, "/transactions/2026-09"), () =>
+		expect(called("Stumptown Coffee")).toHaveCount(2, { timeout: 2_000 }),
+	);
+	// Rows open their detail once the page is hydrated.
+	await expect(page.getByLabel("Bucket")).toBeEnabled();
+
+	// The name is the first field; the bank's own wording stays underneath once it differs.
+	await called("Stumptown Coffee").first().click();
+	await expect(editSheet(page).getByLabel("Name")).toHaveValue("Stumptown Coffee");
+	await editSheet(page).getByLabel("Name").fill("Morning coffee");
+	await expect(editSheet(page).getByText("From your bank: STUMPTOWN COFFEE")).toBeVisible();
+	await choose(editSheet(page), "Assigned to", "Groceries");
+	await editSheet(page).getByRole("button", { name: "Save" }).click();
+	await expect(editSheet(page)).toBeHidden();
+	await expect(called("Morning coffee")).toHaveCount(1);
+
+	// Offered once, in plain words; taking it renames the other and is remembered.
+	const offer = page
+		.getByRole("status")
+		.filter({ hasText: "Call every Stumptown Coffee “Morning coffee”? 1 other" });
+	await expect(offer).toBeVisible();
+	await offer.getByRole("button", { name: "Rename all" }).click();
+	await expect(
+		page.getByRole("status").filter({ hasText: "1 more now called “Morning coffee”" }),
+	).toBeVisible();
+	await expect(called("Morning coffee")).toHaveCount(2);
+	await page.reload();
+	await expect(called("Morning coffee")).toHaveCount(2);
+	await expect(called("Stumptown Coffee")).toHaveCount(0);
+	// Found by its new name and by the bank's wording.
+	await page.getByLabel("Search notes and merchants").fill("morning");
+	await expect(called("Morning coffee")).toHaveCount(2);
+	await page.getByLabel("Search notes and merchants").fill("stumptown");
+	await expect(called("Morning coffee")).toHaveCount(2);
+	await page.getByLabel("Search notes and merchants").fill("");
+
+	// "Use the bank's name" puts one back; the other keeps the Parent's.
+	await expect(page.getByLabel("Bucket")).toBeEnabled();
+	await page
+		.getByRole("button", { name: /^Morning coffee, \$4\.50, Groceries/ })
+		.first()
+		.click();
+	await expect(editSheet(page).getByText("From your bank: STUMPTOWN COFFEE")).toBeVisible();
+	await editSheet(page).getByRole("button", { name: "Use the bank’s name" }).click();
+	await expect(editSheet(page).getByLabel("Name")).toHaveValue("Stumptown Coffee");
+	await editSheet(page).getByRole("button", { name: "Save" }).click();
+	await expect(editSheet(page)).toBeHidden();
+	await expect(called("Stumptown Coffee")).toHaveCount(1);
+	await expect(called("Morning coffee")).toHaveCount(1);
+	await page.reload();
+	await expect(called("Stumptown Coffee")).toHaveCount(1);
+	await expect(called("Morning coffee")).toHaveCount(1);
 	await page.context().close();
 });

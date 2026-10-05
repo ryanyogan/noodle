@@ -2,16 +2,23 @@ import {
 	addAccount,
 	addBucket,
 	addPersonalAllowance,
+	countSameMerchant,
 	createHouseholdForParent,
 	type Db,
 	importStatement,
+	loadMerchantNames,
+	loadParentNames,
+	nameSameMerchant,
+	PARENT_NAME,
+	saveMerchantNames,
 	saveRule,
 	setTakeHomePay,
 	updateBucket,
+	updateTransaction,
 } from "@noodle/db";
 import { categorizations, members, transactions } from "@noodle/db/schema";
 import { testDb } from "@noodle/db/test-db";
-import type { StatementLine } from "@noodle/domain";
+import { bankMerchantKey, cleanMerchant, type StatementLine } from "@noodle/domain";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { HouseholdChange } from "../household-changes";
 import { ModelBudget } from "./ai-budget";
@@ -381,5 +388,139 @@ describe("a background AI run keeps to the day's model budget", () => {
 		);
 		expect(refreshed).toBe(1);
 		expect(again.shouldRefreshInsights()).toBe(false);
+	});
+});
+
+describe("a name a Parent gave (#95)", () => {
+	const amex = (ref: string) => `AMERICAN EXPRESS ACH PMT ${ref} WEB ID: 2005032111`;
+	const imported = (id: string) =>
+		batchOf({ householdId, kind: "imported", memberId: "alex", ids: [id] });
+	const fromBank = async () =>
+		(await db.select().from(transactions))
+			.filter((t) => t.source === "import")
+			.sort((a, b) => (a.note ?? "").localeCompare(b.note ?? ""));
+	const run = (id: string, namer = stubNamer) =>
+		runAiBatch({ ...deps(namingModel().classifier), namer }, imported(id));
+	const rename = (
+		row: { id: string; amountCents: number; note: string | null },
+		name: string,
+		expectedVersion: number,
+	) =>
+		updateTransaction(db, {
+			householdId,
+			memberId: "alex",
+			transactionId: row.id,
+			amountCents: row.amountCents,
+			assignment: { bucketId: "groceries" },
+			note: row.note,
+			forMemberIds: [],
+			expectedVersion,
+			name,
+		});
+
+	it("renames one on the version it was made on, and keeps the bank's wording", async () => {
+		await run(await importLines("alex", [line(amex("M8054"), 250), line(amex("M9120"), 80)]));
+		const [one, other] = await fromBank();
+		expect([one?.merchant, other?.merchant]).toEqual([
+			"American Express payment",
+			"American Express payment",
+		]);
+		if (!one || !other) throw new Error("not imported");
+
+		expect(await rename(one, "Amex card", one.version)).toEqual({
+			ok: true,
+			version: one.version + 1,
+		});
+		// The same change again lands the same (a retry), and one made on the old version is refused.
+		expect(await rename(one, "Amex card", one.version)).toEqual({
+			ok: true,
+			version: one.version + 1,
+		});
+		expect(await rename(one, "Something else", one.version)).toEqual({
+			ok: false,
+			reason: "changed-elsewhere",
+		});
+		const [renamed, untouched] = await fromBank();
+		expect(renamed).toMatchObject({ merchant: "Amex card", note: amex("M8054") });
+		expect(untouched).toMatchObject({
+			merchant: "American Express payment",
+			version: other.version,
+		});
+	});
+
+	it("is given to the merchant's others, remembered for later Imports, and never AI's to change", async () => {
+		await run(await importLines("alex", [line(amex("M8054"), 250), line(amex("M9120"), 80)]));
+		await run(await importLines("alex", [line("COSTCO WHSE #1042 SEATTLE WA", 120)]));
+		const [one] = await fromBank();
+		if (!one) throw new Error("not imported");
+		await rename(one, "Amex card", one.version);
+		const same = { householdId, memberId: "alex", transactionId: one.id, name: "Amex card" };
+		expect(await countSameMerchant(db, same)).toBe(1);
+		expect(await nameSameMerchant(db, same)).toBe(1);
+		expect(await countSameMerchant(db, same)).toBe(0);
+		expect((await fromBank()).map((t) => t.merchant)).toEqual(["Amex card", "Amex card", "Costco"]);
+
+		// A later line from the merchant takes the Parent's name without the model being asked.
+		const asked: string[][] = [];
+		const namer = {
+			name: async (raws: string[]) => {
+				asked.push(raws);
+				return new Map(raws.map((raw) => [raw, "American Express"]));
+			},
+		};
+		await run(await importLines("alex", [line(amex("M7777"), 40)]), namer);
+		expect(asked).toEqual([]);
+		expect((await fromBank()).map((t) => t.merchant)).toEqual([
+			"Amex card",
+			"Amex card",
+			"Amex card",
+			"Costco",
+		]);
+
+		// Background AI's names can't be kept over a Parent's.
+		const key = bankMerchantKey(amex("M8054"));
+		await saveMerchantNames(db, householdId, [
+			{ raw: PARENT_NAME + key, name: "American Express" },
+		]);
+		expect((await loadParentNames(db, householdId)).get(key)).toBe("Amex card");
+		// The Parent's next name for it replaces their last.
+		await nameSameMerchant(db, { ...same, name: "Amex" });
+		expect((await loadParentNames(db, householdId)).get(key)).toBe("Amex");
+	});
+
+	it("leaves the merchant's Rule working: the next line is still filed by it", async () => {
+		await run(await importLines("alex", [line(amex("M8054"), 250)]));
+		await saveRule(db, {
+			id: "rule-amex",
+			householdId,
+			memberId: "alex",
+			pattern: "American Express payment",
+			bucketId: "fun",
+		});
+		const [one] = await fromBank();
+		if (!one) throw new Error("not imported");
+		await rename(one, "Amex card", one.version);
+		await nameSameMerchant(db, {
+			householdId,
+			memberId: "alex",
+			transactionId: one.id,
+			name: "Amex card",
+		});
+
+		await run(await importLines("alex", [line(amex("M9120"), 80)]));
+		const next = (await fromBank()).find((t) => t.note === amex("M9120"));
+		expect(next).toMatchObject({ merchant: "Amex card", bucketId: "fun" });
+		expect((await outcomes())[amex("M9120")]).toEqual({ bucketId: "fun", outcome: "filed" });
+	});
+
+	it("drops a name the model made up for the cleaner's, and doesn't keep it", async () => {
+		const raw = "MRKTPLC SVCS 88123";
+		const namer = {
+			name: async (raws: string[]) => new Map(raws.map((r) => [r, "Sunrise Bakery"])),
+		};
+		await run(await importLines("alex", [line(raw, 9)]), namer);
+		const [named] = await fromBank();
+		expect(named?.merchant).toBe(cleanMerchant(raw).name);
+		expect((await loadMerchantNames(db, householdId, [raw])).size).toBe(0);
 	});
 });

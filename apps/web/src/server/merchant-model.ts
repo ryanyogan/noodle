@@ -1,5 +1,5 @@
 import { AI_MODELS } from "@noodle/ai";
-import { cleanMerchant } from "@noodle/domain";
+import { cleanMerchant, plausibleMerchantName } from "@noodle/domain";
 
 // Merchant names the normaliser couldn't settle, from the model (ADR-0027): one batched,
 // schema-validated prompt per background run, on the small classify model.
@@ -14,7 +14,10 @@ export const LEFTOVERS_PER_RUN = 40;
 
 const SYSTEM = `You clean US card and bank statement lines into the merchant's everyday name, as a person
 would say it: "COSTCO WHSE #1042 SEATTLE WA" is "Costco", "SQ *BLUE BOTTLE OAKLAND" is "Blue Bottle".
-Drop payment processors, store numbers, towns, states, phone numbers and reference codes. Use normal
+Drop payment processors, store numbers, towns, states, phone numbers and reference codes ("WEB ID:
+2005032111", "M8054"). Keep the brand. A line that pays a card or a bill ("ACH PMT", "AUTOPAY",
+"E-PAYMENT") is the brand and the word payment: "AMERICAN EXPRESS ACH PMT M8054 WEB ID: 2005032111"
+is "American Express payment". Never invent a merchant the line doesn't name. Use normal
 capitalisation. If you can't tell, give the line's readable words. Answer every line, in JSON only.`;
 
 export function namePrompt(raws: string[]): string {
@@ -59,8 +62,8 @@ export function readNames(text: string, raws: string[]): Map<string, string> {
 		const index = typeof line === "string" ? /^l(\d+)$/.exec(line) : null;
 		const raw = index ? raws[Number(index[1]) - 1] : undefined;
 		const clean = typeof name === "string" ? name.replace(/\s+/g, " ").trim().slice(0, 40) : "";
-		// Not a code or number: a name has letters.
-		if (raw && /[a-z]/i.test(clean)) names.set(raw, clean);
+		// Not a code, a number, or a merchant the line never named.
+		if (raw && plausibleMerchantName(raw, clean)) names.set(raw, clean);
 	}
 	return names;
 }

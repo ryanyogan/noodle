@@ -19,6 +19,7 @@ import {
 	merchantKey,
 	type Rule,
 	ruleFor,
+	ruleKeys,
 } from "@noodle/domain";
 import {
 	type Classification,
@@ -142,8 +143,14 @@ export async function decideRows<R extends Rule & { id: string }>(
 	const merchantOf = new Map(
 		rows.map((row) => [row.id, merchantKey(row.merchant ?? row.note ?? "")]),
 	);
-	const ruleOf = (merchant: string, row: Uncategorized) =>
-		ruleFor(rules, merchant) ?? ruleFor(rules, merchantKey(row.note ?? ""));
+	// Also by the bank's own merchant, so a Rule outlives a Parent's rename (#95, ADR-0043).
+	const ruleOf = (merchant: string, row: Uncategorized) => {
+		for (const key of [merchant, ...ruleKeys({ note: row.note })]) {
+			const rule = ruleFor(rules, key);
+			if (rule) return rule;
+		}
+		return undefined;
+	};
 	const byMerchant = new Map<string, Uncategorized>();
 	for (const row of rows) {
 		const merchant = merchantOf.get(row.id) as string;
