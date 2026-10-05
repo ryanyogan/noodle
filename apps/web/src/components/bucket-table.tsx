@@ -90,10 +90,10 @@ const HANDLE_TRACK = "max-sm:[--bucket-handle:1.75rem]";
  */
 /**
  * In a stacked row (a phone) a table without handles starts its tile and the line under it where
- * the Buckets table over it starts its own: after the handle's track and the gap (issue 98). Not
- * on the narrowest phone, where a long name needs the room.
+ * the Buckets table over it starts its own: after the handle's track and the gap (issue 98). On
+ * the narrowest phone too: a long name wraps there, as a Bucket's does.
  */
-const STACKED_INDENT = "@[20rem]/dt:@max-2xl/dt:ps-[calc(var(--bucket-handle,2.75rem)+0.75rem)]";
+const STACKED_INDENT = "@max-2xl/dt:ps-[calc(var(--bucket-handle,2.75rem)+0.75rem)]";
 
 /**
  * The line under a Bucket's name starts with the name, not with the tile beside it: past the tile
