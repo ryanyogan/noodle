@@ -7,7 +7,7 @@ import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { Link, useHydrated, useNavigate, useParams } from "@tanstack/react-router";
 import { GripVertical, Pencil } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { asBucketColor, barState, monogram } from "../buckets";
 import { formatMoney } from "../format";
 import { BucketSheet, useBucketChanges } from "./bucket-editor";
@@ -62,6 +62,8 @@ function Summary({
 	);
 }
 
+const anyone = () => true;
+
 const sum = (buckets: readonly BucketState[], of: (bucket: BucketState) => number) =>
 	buckets.reduce((total, bucket) => total + of(bucket), 0);
 
@@ -84,7 +86,7 @@ export function BucketTable({
 	label,
 	buckets,
 	editable,
-	canEdit = () => true,
+	canEdit = anyone,
 	setBy,
 	reorder = false,
 	was,
@@ -122,197 +124,201 @@ export function BucketTable({
 	const [sheet, setSheet] = useState<{ id: string; open: boolean } | null>(null);
 	const inSheet = sheet ? buckets.find((bucket) => bucket.id === sheet.id) : undefined;
 	const shown = moving.ids.flatMap((id) => buckets.find((bucket) => bucket.id === id) ?? []);
-	const mine = (bucket: BucketState) => editable && canEdit(bucket);
 	const handles = reorder && editable && buckets.length > 1;
-	const totals = buckets.length > 1;
 
-	/** Opens the sheet from a control in the row, which keeps the focus so it comes back to it. */
-	const edit = (bucket: BucketState, opener: HTMLElement) => {
-		opener.focus({ preventScroll: true });
-		setSheet({ id: bucket.id, open: true });
-	};
+	// Built again only when what they show changes, not when a row opens or the sheet does.
+	const columns = useMemo<DataTableColumn<BucketState>[]>(() => {
+		const mine = (bucket: BucketState) => editable && canEdit(bucket);
+		const totals = buckets.length > 1;
 
-	const columns: DataTableColumn<BucketState>[] = [
-		{
-			id: "bucket",
-			header: "Bucket",
-			// Wide enough that a name reads beside its tile; with it, Pace shows from a 768px table.
-			min: 12,
-			width: "minmax(0,2fr)",
-			stacked: "title",
-			cell: (bucket) => {
-				const before = was[bucket.id];
-				const setter = setBy?.(bucket);
-				const note =
-					before != null
-						? `Changed this month · was ${formatMoney(before)}`
-						: setter
-							? `${setter} sets this`
-							: null;
-				return (
-					<div className="flex min-w-0 items-center gap-3">
-						<Tile bucket={asBucketColor(bucket.color)}>{monogram(bucket.name)}</Tile>
-						<div className="grid min-w-0">
-							<Link
-								to="/plan/$month/buckets/$id"
-								params={{ month, id: bucket.id }}
-								className="truncate font-medium hover:underline"
-								{...masterDetailItem}
-							>
-								{bucket.name}
-							</Link>
-							{note ? (
-								<span className="truncate text-[13px] text-muted-foreground">{note}</span>
-							) : null}
+		/** Opens the sheet from a control in the row, which keeps the focus so it comes back to it. */
+		const edit = (bucket: BucketState, opener: HTMLElement) => {
+			opener.focus({ preventScroll: true });
+			setSheet({ id: bucket.id, open: true });
+		};
+
+		return [
+			{
+				id: "bucket",
+				header: "Bucket",
+				// Wide enough that a name reads beside its tile; with it, Pace shows from a 768px table.
+				min: 12,
+				width: "minmax(0,2fr)",
+				stacked: "title",
+				cell: (bucket) => {
+					const before = was[bucket.id];
+					const setter = setBy?.(bucket);
+					const note =
+						before != null
+							? `Changed this month · was ${formatMoney(before)}`
+							: setter
+								? `${setter} sets this`
+								: null;
+					return (
+						<div className="flex min-w-0 items-center gap-3">
+							<Tile bucket={asBucketColor(bucket.color)}>{monogram(bucket.name)}</Tile>
+							<div className="grid min-w-0">
+								<Link
+									to="/plan/$month/buckets/$id"
+									params={{ month, id: bucket.id }}
+									className="truncate font-medium hover:underline"
+									{...masterDetailItem}
+								>
+									{bucket.name}
+								</Link>
+								{note ? (
+									<span className="truncate text-[13px] text-muted-foreground">{note}</span>
+								) : null}
+							</div>
 						</div>
-					</div>
-				);
+					);
+				},
+				footer: totals ? "Total" : undefined,
 			},
-			footer: totals ? "Total" : undefined,
-		},
-		{
-			id: "allowance",
-			header: "Allowance",
-			min: 6,
-			width: "6rem",
-			align: "end",
-			stacked: "hidden",
-			cell: (bucket) =>
-				mine(bucket) ? (
-					// A shortcut for a mouse: the pencil is the control a keyboard meets for the same sheet.
-					<Button
-						type="button"
-						variant="ghost"
-						size="sm"
-						tabIndex={-1}
-						disabled={!hydrated}
-						aria-haspopup="dialog"
-						data-bucket-amount=""
-						// The figure as the other columns write theirs, not a button's smaller, quieter words.
-						className="-me-2 px-2 text-sm font-medium text-foreground tabular-nums"
-						onClick={(event) => edit(bucket, event.currentTarget)}
-					>
-						{formatMoney(bucket.allowance)}
-					</Button>
-				) : (
-					<span className="font-medium">{formatMoney(bucket.allowance)}</span>
-				),
-			footer: totals ? formatMoney(sum(buckets, (b) => b.allowance)) : undefined,
-		},
-		{
-			id: "spent",
-			header: "Spent",
-			min: 5.5,
-			width: "5.5rem",
-			align: "end",
-			priority: 2,
-			stacked: "hidden",
-			className: "text-muted-foreground",
-			cell: (bucket) => formatMoney(bucket.spent),
-			footer: totals ? formatMoney(sum(buckets, (b) => b.spent)) : undefined,
-		},
-		{
-			id: "left",
-			header: "Left",
-			min: 5.5,
-			width: "5.5rem",
-			align: "end",
-			priority: 2,
-			stacked: "value",
-			cell: (bucket) => <Left cents={bucket.left} />,
-			footer: totals ? <Left cents={sum(buckets, (b) => b.left)} /> : undefined,
-		},
-		{
-			// Only in a stacked row: the columns that have no room there, in a line under the name.
-			id: "summary",
-			header: "This month",
-			min: 0,
-			wide: false,
-			stacked: "secondary",
-			cell: (bucket) => (
-				<Summary
-					allowance={bucket.allowance}
-					spent={bucket.spent}
-					left={bucket.left}
-					rolling={bucket.rolling}
-				/>
-			),
-			footer: totals ? (
-				<Summary
-					allowance={sum(buckets, (b) => b.allowance)}
-					spent={sum(buckets, (b) => b.spent)}
-					left={sum(buckets, (b) => b.left)}
-				/>
-			) : undefined,
-		},
-		{
-			id: "pace",
-			header: "Pace",
-			min: 5,
-			width: "minmax(5rem,1fr)",
-			priority: 3,
-			stacked: "hidden",
-			// Clear of the figure before it, which ends where this column would begin.
-			headerClassName: "ps-4",
-			cell: (bucket) => (
-				<div className="w-full min-w-0 ps-4">
-					<BudgetBar
-						bucket={asBucketColor(bucket.color)}
-						value={bucket.spent}
-						max={bucket.available}
-						marker={1 - bucket.pace.leftShare}
-						state={barState(bucket.status)}
-						label={`${bucket.name} this month`}
-						valueText={`${formatMoney(bucket.spent)} spent of ${formatMoney(bucket.available)}, ${
-							bucket.left < 0
-								? `${formatMoney(-bucket.left)} over`
-								: `${formatMoney(bucket.left)} left`
-						}`}
+			{
+				id: "allowance",
+				header: "Allowance",
+				min: 6,
+				width: "6rem",
+				align: "end",
+				stacked: "hidden",
+				cell: (bucket) =>
+					mine(bucket) ? (
+						// A shortcut for a mouse: the pencil is the control a keyboard meets for the same sheet.
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							tabIndex={-1}
+							disabled={!hydrated}
+							aria-haspopup="dialog"
+							data-bucket-amount=""
+							// The figure as the other columns write theirs, not a button's smaller, quieter words.
+							className="-me-2 px-2 text-sm font-medium text-foreground tabular-nums"
+							onClick={(event) => edit(bucket, event.currentTarget)}
+						>
+							{formatMoney(bucket.allowance)}
+						</Button>
+					) : (
+						<span className="font-medium">{formatMoney(bucket.allowance)}</span>
+					),
+				footer: totals ? formatMoney(sum(buckets, (b) => b.allowance)) : undefined,
+			},
+			{
+				id: "spent",
+				header: "Spent",
+				min: 5.5,
+				width: "5.5rem",
+				align: "end",
+				priority: 2,
+				stacked: "hidden",
+				className: "text-muted-foreground",
+				cell: (bucket) => formatMoney(bucket.spent),
+				footer: totals ? formatMoney(sum(buckets, (b) => b.spent)) : undefined,
+			},
+			{
+				id: "left",
+				header: "Left",
+				min: 5.5,
+				width: "5.5rem",
+				align: "end",
+				priority: 2,
+				stacked: "value",
+				cell: (bucket) => <Left cents={bucket.left} />,
+				footer: totals ? <Left cents={sum(buckets, (b) => b.left)} /> : undefined,
+			},
+			{
+				// Only in a stacked row: the columns that have no room there, in a line under the name.
+				id: "summary",
+				header: "This month",
+				min: 0,
+				wide: false,
+				stacked: "secondary",
+				cell: (bucket) => (
+					<Summary
+						allowance={bucket.allowance}
+						spent={bucket.spent}
+						left={bucket.left}
+						rolling={bucket.rolling}
 					/>
-				</div>
-			),
-		},
-		{
-			id: "end",
-			header: "End of month",
-			min: 7,
-			width: "7rem",
-			priority: 4,
-			stacked: "hidden",
-			cell: (bucket) =>
-				bucket.rolling ? (
-					"Carries over"
-				) : (
-					<span className="text-muted-foreground">Resets monthly</span>
 				),
-		},
-		{
-			id: "edit",
-			header: "Edit",
-			headerHidden: true,
-			min: 2.25,
-			width: "2.25rem",
-			align: "end",
-			stacked: "trailing",
-			// A month that has ended, or a table with nothing of the viewer's, has no pencils at all.
-			hidden: !buckets.some(mine),
-			cell: (bucket) =>
-				mine(bucket) ? (
-					<Button
-						type="button"
-						variant="ghost"
-						size="icon"
-						disabled={!hydrated}
-						aria-label={`Edit ${bucket.name}`}
-						aria-haspopup="dialog"
-						data-bucket-edit=""
-						onClick={(event) => edit(bucket, event.currentTarget)}
-					>
-						<Pencil />
-					</Button>
-				) : null,
-		},
-	];
+				footer: totals ? (
+					<Summary
+						allowance={sum(buckets, (b) => b.allowance)}
+						spent={sum(buckets, (b) => b.spent)}
+						left={sum(buckets, (b) => b.left)}
+					/>
+				) : undefined,
+			},
+			{
+				id: "pace",
+				header: "Pace",
+				min: 5,
+				width: "minmax(5rem,1fr)",
+				priority: 3,
+				stacked: "hidden",
+				// Clear of the figure before it, which ends where this column would begin.
+				headerClassName: "ps-4",
+				cell: (bucket) => (
+					<div className="w-full min-w-0 ps-4">
+						<BudgetBar
+							bucket={asBucketColor(bucket.color)}
+							value={bucket.spent}
+							max={bucket.available}
+							marker={1 - bucket.pace.leftShare}
+							state={barState(bucket.status)}
+							label={`${bucket.name} this month`}
+							valueText={`${formatMoney(bucket.spent)} spent of ${formatMoney(bucket.available)}, ${
+								bucket.left < 0
+									? `${formatMoney(-bucket.left)} over`
+									: `${formatMoney(bucket.left)} left`
+							}`}
+						/>
+					</div>
+				),
+			},
+			{
+				id: "end",
+				header: "End of month",
+				min: 7,
+				width: "7rem",
+				priority: 4,
+				stacked: "hidden",
+				cell: (bucket) =>
+					bucket.rolling ? (
+						"Carries over"
+					) : (
+						<span className="text-muted-foreground">Resets monthly</span>
+					),
+			},
+			{
+				id: "edit",
+				header: "Edit",
+				headerHidden: true,
+				min: 2.25,
+				width: "2.25rem",
+				align: "end",
+				stacked: "trailing",
+				// A month that has ended, or a table with nothing of the viewer's, has no pencils at all.
+				hidden: !buckets.some(mine),
+				cell: (bucket) =>
+					mine(bucket) ? (
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							disabled={!hydrated}
+							aria-label={`Edit ${bucket.name}`}
+							aria-haspopup="dialog"
+							data-bucket-edit=""
+							onClick={(event) => edit(bucket, event.currentTarget)}
+						>
+							<Pencil />
+						</Button>
+					) : null,
+			},
+		];
+	}, [buckets, editable, canEdit, setBy, was, hydrated, month]);
 
 	return (
 		<div className="grid gap-3">

@@ -324,3 +324,47 @@ describe("DataTable", () => {
 		expect(loading).not.toContain("data-dt-row");
 	});
 });
+
+describe("a cell's place in the tree", () => {
+	// There is no DOM in these tests to hold a cell's node and compare it after a second render, so
+	// this checks what keeps the node. A cell is drawn by the table itself while it draws the row,
+	// not as a component made from the column's `cell` function: such a component is a new one
+	// whenever the page hands over a new columns array, and React then throws away every cell's
+	// nodes, and the focus in them, on each render. Drawn as components, every row's props would
+	// be asked for first and the cells only afterwards.
+	it("draws a row's cells while it draws the row, whatever columns array it is given", () => {
+		const drawn: string[] = [];
+		const make = (): DataTableColumn<Line>[] => [
+			{
+				id: "name",
+				header: "Name",
+				min: 10,
+				footer: "Total",
+				cell: (line) => {
+					drawn.push(`cell ${line.id}`);
+					return line.name;
+				},
+			},
+		];
+		const render = () =>
+			renderToStaticMarkup(
+				h(DataTable<Line>, {
+					label: "Buckets",
+					columns: make(),
+					data: lines,
+					getRowId: (line) => line.id,
+					rowProps: (line) => {
+						drawn.push(`row ${line.id}`);
+						return {};
+					},
+				}),
+			);
+		const first = render();
+		const order = lines.flatMap((line) => [`row ${line.id}`, `cell ${line.id}`]);
+		expect(drawn).toEqual(order);
+		// A new but equal columns array draws the same thing the same way.
+		expect(render()).toBe(first);
+		expect(drawn).toEqual([...order, ...order]);
+		expect(first).toContain("Total");
+	});
+});

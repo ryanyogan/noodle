@@ -170,6 +170,8 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 		await expect(sam.getByText("only its Parent sees what’s spent from it")).toBeVisible();
 		await expect(sam.getByRole("main")).not.toContainText("Target run");
 		await expect(sam.getByRole("button", { name: "Edit Bucket", exact: true })).toHaveCount(0);
+		// At this width the Bucket is a drawer over the dimmed page: closed before going elsewhere.
+		await sam.getByRole("link", { name: "Close Bucket" }).click();
 		await nav(sam).getByRole("link", { name: "This Month" }).click();
 
 		// Sam's Quick Add offers his own Personal Allowance, never Alex's.

@@ -142,7 +142,9 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 	await editBucket(page, "Kids’ hockey");
 	await expect(page.getByRole("radio", { name: "Green" })).toBeChecked();
 	await page.keyboard.press("Escape");
-	await page.getByRole("link", { name: "Buckets", exact: true }).click();
+	await expect(page.getByRole("dialog", { name: "Kids’ hockey" })).toBeHidden();
+	// The Bucket is a drawer over the dimmed page here: its Close goes back to the list.
+	await page.getByRole("link", { name: "Close Bucket" }).click();
 	await backToPlan(page);
 	await expect(freeToSpend(page)).toHaveText("Free to Spend$7,349.50");
 
@@ -165,7 +167,7 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 	await page.getByRole("button", { name: "Archive", exact: true }).click();
 	await page.getByRole("button", { name: "Archive Groceries" }).click();
 	await expect(page.locator("[data-slot=detail-header]")).toContainText("Archived Bucket");
-	await page.getByRole("link", { name: "Buckets", exact: true }).click();
+	await page.getByRole("link", { name: "Close Bucket" }).click();
 	await expect(page.getByRole("button", { name: "Edit Groceries" })).toHaveCount(0);
 	await backToPlan(page);
 	await expect(freeToSpend(page)).toHaveText("Free to Spend$8,600");

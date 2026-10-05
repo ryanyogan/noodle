@@ -267,13 +267,16 @@ function DataTable<TData extends RowData>({
 		return { tiers, stacked, vars };
 	}, [shown, hasSelection, leadingWidth, leadingMin]);
 
+	// The library is told which columns there are, not how to draw them. Its own renderer makes a
+	// component of a column's `cell` function, so a page that builds its columns in its render (a
+	// new function each time) would have every cell taken out and put back on each render, and
+	// with it whatever had the focus there: a row's link, or the button a sheet returns to. The
+	// table calls `cell` itself, inside the row, so a cell's nodes last as long as its row does.
 	const defs = React.useMemo<ColumnDef<Features, TData>[]>(
 		() =>
 			columns.map((column) => ({
 				id: column.id,
 				header: column.header,
-				cell: (context) => column.cell(context.row.original, context.row.index),
-				footer: () => column.footer ?? null,
 			})),
 		[columns],
 	);
@@ -503,7 +506,7 @@ function DataTable<TData extends RowData>({
 									</Button>
 								) : (
 									<span className={cn("truncate", column.headerHidden && "sr-only")}>
-										<table.FlexRender header={header} />
+										{column.header}
 									</span>
 								)}
 							</div>
@@ -605,7 +608,7 @@ function DataTable<TData extends RowData>({
 															: undefined
 													}
 												>
-													<table.FlexRender cell={cell} />
+													{column.cell(row.original, index)}
 												</div>
 											);
 										})}
@@ -647,7 +650,7 @@ function DataTable<TData extends RowData>({
 											: undefined
 									}
 								>
-									<table.FlexRender footer={footer} />
+									{column.footer ?? null}
 								</div>
 							);
 						})}

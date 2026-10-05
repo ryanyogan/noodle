@@ -75,7 +75,9 @@ test("a sheet focuses its first field, and gives focus back to what opened it", 
 	await expect(sheet).toBeHidden();
 	await expect(editPage).toBeFocused();
 
-	// A sheet on another page, opened from the header.
+	// A sheet on another page, opened from the header. The Bucket is a drawer over the dimmed page
+	// at this width, so it is closed first.
+	await page.getByRole("link", { name: "Close Bucket" }).click();
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await page.getByLabel("Name").fill("Everyday Checking");
 	await choose(page, "Kind", accountKindLabel("checking"));
