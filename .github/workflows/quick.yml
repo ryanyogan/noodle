@@ -1,0 +1,76 @@
+name: Quick E2E
+
+# Runs only the named spec files, on one runner, in about three minutes: the check for a change to
+# one page. The whole suite (CI) still runs on a ci-* branch before anything reaches main.
+#
+#   git push origin HEAD:refs/heads/q-92b
+#   gh workflow run quick.yml --ref q-92b -f specs="e2e/review.spec.ts e2e/phone-review-fit.spec.ts" -f projects="chromium webkit-iphone"
+#
+# q-** branches start no other workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      specs:
+        description: Spec files under apps/web (space separated), each optionally with :line
+        type: string
+        required: true
+      projects:
+        description: Playwright projects (space separated). Phone specs need chromium-mobile or webkit-iphone
+        type: string
+        default: chromium
+      grep:
+        description: Only tests whose title matches this (optional)
+        type: string
+        default: ""
+
+concurrency:
+  group: quick-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Keep the tag equal to @playwright/test in apps/web/package.json (as in ci.yml).
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --ipc=host
+    env:
+      CI: "true"
+      E2E_SERVER: build
+    steps:
+      - uses: actions/checkout@v5
+      - run: npm install -g "$(node -p 'require("./package.json").packageManager')"
+      - run: bun install --frozen-lockfile
+      # One of three pools of reused test Parents (e2e/parents.ts), by run number, so three quick
+      # runs side by side don't reset each other's Households.
+      - run: echo "E2E_POOL=q$(( GITHUB_RUN_NUMBER % 3 ))" >> "$GITHUB_ENV"
+      - name: Write dev keys for the local Worker
+        working-directory: apps/web
+        run: |
+          printf 'VITE_CLERK_PUBLISHABLE_KEY=%s\nCLERK_SECRET_KEY=%s\n' \
+            "${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" "${{ secrets.CLERK_SECRET_KEY }}" > .dev.vars
+          bun scripts/vapid-keys.ts >> .dev.vars
+      - run: bun run build
+        working-directory: apps/web
+        env:
+          AI_MODEL: stub
+      - name: Run the named specs
+        working-directory: apps/web
+        env:
+          SPECS: ${{ inputs.specs }}
+          PROJECTS: ${{ inputs.projects }}
+          GREP: ${{ inputs.grep }}
+        run: |
+          args=""
+          for project in $PROJECTS; do args="$args --project=$project"; done
+          if [ -n "$GREP" ]; then
+            bun run e2e $SPECS $args --workers=2 --grep "$GREP"
+          else
+            bun run e2e $SPECS $args --workers=2
+          fi
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: quick-traces
+          path: apps/web/test-results
