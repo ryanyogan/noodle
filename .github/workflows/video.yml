@@ -1,0 +1,96 @@
+name: Intro video
+
+# The intro video's footage (#54): stills of the real app with one realistic Household, taken by
+# apps/web/e2e/video-capture.spec.ts on a computer and a phone, then (once apps/video is in the
+# repo) the video rendered from them. Nothing here runs on a Parent's machine or on real data.
+# Run it from the Actions tab, or push a branch named video-<anything>:
+#
+#   git push origin HEAD:video-<id>
+#   gh run list --workflow=video.yml --branch=video-<id> --limit 1
+#   gh run watch <run id> -i 60 --exit-status
+#   gh run download <run id> --name video-footage --dir <somewhere>
+#
+# The artifact "video-footage" holds <name>-desktop.png (1440×900 at 2x) and <name>-phone.png
+# (393×852 at 3x) for each of the 16 stills, and footage.json: where each still's subject sits.
+
+on:
+  push:
+    branches: ["video-**"]
+  workflow_dispatch:
+
+concurrency:
+  group: video-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Playwright's image already has Chromium and its system libraries. Keep its tag equal to
+    # @playwright/test in apps/web/package.json.
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --ipc=host
+    env:
+      CI: "true"
+      E2E_SERVER: build
+    steps:
+      - uses: actions/checkout@v5
+      # setup-bun needs unzip, which the image lacks; npm's bun package is the same binary.
+      - run: npm install -g "$(node -p 'require("./package.json").packageManager')"
+      - run: bun install --frozen-lockfile
+      - name: Write dev keys for the local Worker
+        working-directory: apps/web
+        run: |
+          printf 'VITE_CLERK_PUBLISHABLE_KEY=%s\nCLERK_SECRET_KEY=%s\n' \
+            "${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" "${{ secrets.CLERK_SECRET_KEY }}" > .dev.vars
+          bun scripts/vapid-keys.ts >> .dev.vars
+      # Against the built Worker, as CI's E2E (#81): stub AI and the dev-only routes the spec seeds through.
+      - run: bun run build
+        working-directory: apps/web
+        env:
+          AI_MODEL: stub
+      - run: bun run video:capture
+        working-directory: apps/web
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: video-footage
+          path: apps/web/test-results/video-footage
+          if-no-files-found: warn
+
+  # RENDER (phase 54c): written before apps/video existed and NOT yet run. Every step after the
+  # check is skipped until apps/video/package.json is in the checkout. Check the script names
+  # (render, captions) and the output folder (apps/video/out) against the package when it lands.
+  render:
+    needs: capture
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # The same image: Remotion's headless Chrome needs the system libraries it already has.
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --ipc=host
+    steps:
+      - uses: actions/checkout@v5
+      - id: video
+        run: |
+          if [ -f apps/video/package.json ]; then echo "exists=true" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.video.outputs.exists == 'true'
+        run: npm install -g "$(node -p 'require("./package.json").packageManager')"
+      - if: steps.video.outputs.exists == 'true'
+        run: bun install --frozen-lockfile
+      - if: steps.video.outputs.exists == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: video-footage
+          path: apps/video/public/footage
+      - if: steps.video.outputs.exists == 'true'
+        run: bun run --cwd apps/video render
+      - if: steps.video.outputs.exists == 'true'
+        run: bun run --cwd apps/video captions
+      - if: steps.video.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: intro-video
+          path: apps/video/out
+          if-no-files-found: error

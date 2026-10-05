@@ -2,8 +2,9 @@ name: CI
 
 on:
   push:
-    # Screenshot pushes (shots-** branches) start only the Page shots workflow, not the whole suite.
-    branches-ignore: ["shots-**"]
+    # Screenshot and footage pushes (shots-** and video-** branches) start only the Page shots or
+    # Intro video workflow, not the whole suite.
+    branches-ignore: ["shots-**", "video-**"]
     # A change to docs alone doesn't need the app tested.
     paths-ignore: ["docs/**", "**/*.md"]
   pull_request:
