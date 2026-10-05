@@ -20,9 +20,10 @@ test.afterEach(async () => {
 	await parent?.remove();
 });
 
-const waterfall = (page: Page) =>
-	page.getByRole("region", { name: "From take-home pay to Free to Spend" });
-const freeToSpend = (page: Page) => waterfall(page).getByRole("listitem").last();
+const waterfall = (page: Page) => page.getByRole("region", { name: "Where take-home pay goes" });
+/** The last row under the bar: "Free to Spend" and its amount, without its share. */
+const freeToSpend = (page: Page) =>
+	waterfall(page).getByRole("listitem").last().locator("[data-slot=plan-split-figure]");
 const expected = (page: Page, total: string) => page.getByText(`${total} expected this month`);
 const edit = (page: Page, commitment: string) =>
 	page.getByRole("button", { name: `Edit ${commitment}` });

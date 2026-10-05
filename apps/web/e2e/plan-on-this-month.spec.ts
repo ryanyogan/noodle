@@ -94,9 +94,7 @@ test("This Month shows the Plan: Free to Spend worked out and how last month end
 
 	// The Plan has the waterfall the breakdown sums up.
 	await page.goto(`/plan/${month}#plan-waterfall`);
-	await expect(
-		page.getByRole("region", { name: "From take-home pay to Free to Spend" }),
-	).toBeVisible();
+	await expect(page.getByRole("region", { name: "Where take-home pay goes" })).toBeVisible();
 
 	// Last month shows how it ended: the Sweep, what rolled over, and who closed it.
 	const last = addMonths(month, -1);

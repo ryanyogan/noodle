@@ -1,15 +1,11 @@
 import {
 	addMonths,
-	freeToSpendParts,
 	lumpsIn,
 	type MonthKey,
-	type MonthState,
 	monthOfDay,
 	parseDollars,
 	whatChanged,
 } from "@noodle/domain";
-import { Alert, AlertDescription } from "@noodle/ui/components/alert";
-import { BudgetBar } from "@noodle/ui/components/budget-bar";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { SectionGrid, SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
@@ -31,9 +27,9 @@ import {
 	groupTitle,
 	HistoryStart,
 } from "../../../components/plan-history";
-import { PlanEnded, planParts } from "../../../components/plan-page";
+import { PlanEnded } from "../../../components/plan-page";
+import { PlanSplit } from "../../../components/plan-split";
 import { SectionPending } from "../../../components/section-layout";
-import { TermHelp } from "../../../components/term-help";
 import { formatMoney, monthName } from "../../../format";
 import { useGoals } from "../../../goals";
 import { usePlanChange, withTakeHomePay } from "../../../plan-changes";
@@ -91,14 +87,14 @@ function PlanOverview() {
 							</span>
 						</Card>
 					)}
-					{/* From 1920 the main column has room for two: what to check beside the Plan's
-					    waterfall, rather than two blocks a metre wide (#73). Narrower, one under the other. */}
+					{/* From 1920 the main column has room for two: what to check beside where
+					    take-home pay goes, rather than two blocks a metre wide (#73). Narrower, one under the other. */}
 					<SectionGrid className="empty:hidden xl:grid-cols-[minmax(0,1fr)] min-[120rem]:grid-cols-2">
 						{month === current ? <PlanHealth folded /> : null}
 						{/* Until take-home pay is set, the rest is all zeros: setting up comes first. */}
 						{settingUp && state.baseline === null ? null : (
 							<div className="grid gap-3 only:col-span-full">
-								<Waterfall state={state} current={month === current} />
+								<PlanSplit state={state} current={month === current} />
 								<LumpCallout lumps={lumpsIn(state)} month={month} />
 							</div>
 						)}
@@ -329,124 +325,6 @@ function TakeHomePayForm({ month }: { month: MonthKey }) {
 			</div>
 			<SaveFailed change={change} />
 		</form>
-	);
-}
-
-/**
- * How take-home pay becomes Free to Spend: each part of the Plan takes its share in turn. The
- * rows are figures, not links: the tabs above open each part (#73). The bars run waterfall-style
- * on one scale, from take-home pay down.
- */
-function Waterfall({ state, current }: { state: MonthState; current: boolean }) {
-	const takeHomePay = state.baseline ?? 0;
-	// Goal funding shows in the current month, where it can still happen, or once it did.
-	const steps = freeToSpendParts(state)
-		.filter(({ part, amount }) => part !== "goal-funding" || amount > 0 || current)
-		.map(({ part, amount }) => ({ ...planParts[part], part, amount }));
-	// One scale for every bar: from Free to Spend (when it's below zero) up to take-home pay.
-	const low = Math.min(0, state.freeToSpend);
-	const high = Math.max(0, takeHomePay);
-	const bar = (from: number, to: number) =>
-		state.baseline === null || high === low
-			? null
-			: { left: (from - low) / (high - low), width: (to - from) / (high - low) };
-	const overBy = -state.freeToSpend;
-	let left = takeHomePay;
-	return (
-		<Section aria-labelledby="plan-waterfall">
-			<SectionHeader id="plan-waterfall" title="From take-home pay to Free to Spend" />
-			<List>
-				<WaterfallStep
-					label="Take-home pay"
-					help={<TermHelp term="take-home-pay" />}
-					amount={state.baseline === null ? "Not set" : formatMoney(takeHomePay)}
-					bar={bar(0, takeHomePay)}
-					tone="total"
-				/>
-				{steps.map((step) => {
-					const before = left;
-					left -= step.amount;
-					return (
-						<WaterfallStep
-							key={step.label}
-							label={step.label}
-							help={step.part === "covers" ? <TermHelp term="cover" /> : undefined}
-							amount={step.amount > 0 ? `−${formatMoney(step.amount)}` : formatMoney(0)}
-							bar={bar(Math.max(left, low), before)}
-						/>
-					);
-				})}
-				<li className="grid gap-2.5 px-(--card-pad) py-3.5">
-					<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm font-semibold">
-						<span className="inline-flex items-center gap-1">
-							Free to Spend
-							<TermHelp term="free-to-spend" />
-						</span>
-						<span className={cn("ms-auto tabular-nums", overBy > 0 && "text-over")}>
-							{formatMoney(state.freeToSpend)}
-						</span>
-					</div>
-					<Bar
-						bar={bar(Math.min(0, state.freeToSpend), Math.max(0, state.freeToSpend))}
-						tone={overBy > 0 ? "over" : "total"}
-					/>
-				</li>
-			</List>
-			{overBy > 0 ? (
-				<Alert variant="destructive">
-					<AlertDescription>
-						{state.committed > 0
-							? `Your Commitments and Buckets add up to ${formatMoney(overBy)} more than your take-home pay. Lower an amount, or raise your take-home pay if it has gone up.`
-							: `Your Buckets add up to ${formatMoney(overBy)} more than your take-home pay. Lower an allowance, or raise your take-home pay if it has gone up.`}
-					</AlertDescription>
-				</Alert>
-			) : null}
-		</Section>
-	);
-}
-
-type BarSpan = { left: number; width: number } | null;
-
-function WaterfallStep({
-	label,
-	help,
-	amount,
-	bar,
-	tone = "step",
-}: {
-	label: string;
-	help?: ReactNode;
-	amount: string;
-	bar: BarSpan;
-	tone?: "step" | "total";
-}) {
-	return (
-		<li className="grid gap-2.5 px-(--card-pad) py-3.5">
-			{/* Wraps at large text, the amount staying at the end, so a long label can't widen the page. */}
-			<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">
-				<span className="font-medium">{label}</span>
-				{help ? <span className="me-auto -ms-2">{help}</span> : null}
-				<span className="ms-auto tabular-nums">{amount}</span>
-			</div>
-			<Bar bar={bar} tone={tone} />
-		</li>
-	);
-}
-
-/**
- * One step's share of take-home pay, placed where it falls on the way down: the one bar with a
- * floating start. Decorative, since the amount beside it says the same.
- */
-function Bar({ bar, tone }: { bar: BarSpan; tone: "step" | "total" | "over" }) {
-	if (!bar) return null;
-	return (
-		<BudgetBar
-			start={bar.left}
-			value={bar.width}
-			max={1}
-			fill={tone === "total" ? "var(--foreground)" : "var(--muted-foreground)"}
-			state={tone === "over" ? "over" : undefined}
-		/>
 	);
 }
 

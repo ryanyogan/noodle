@@ -12,8 +12,7 @@ test.afterEach(async () => {
 	await parent?.remove();
 });
 
-const waterfall = (page: Page) =>
-	page.getByRole("region", { name: "From take-home pay to Free to Spend" });
+const waterfall = (page: Page) => page.getByRole("region", { name: "Where take-home pay goes" });
 const health = (page: Page) => page.getByRole("region", { name: "Things to check" });
 const addForm = (page: Page) => page.getByRole("form", { name: "Add a Commitment" });
 

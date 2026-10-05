@@ -123,8 +123,8 @@ test("a Goal is funded from Free to Spend and spent from what it has set aside, 
 	await page.goto(thisMonth);
 	await expect(freeToSpend(page).getByText("$3,150", { exact: true }).first()).toBeVisible();
 	await switchTo(page, "Plan");
-	const waterfall = page.getByRole("region", { name: "From take-home pay to Free to Spend" });
-	await expect(waterfall).toContainText("Goal funding−$250");
+	const waterfall = page.getByRole("region", { name: "Where take-home pay goes" });
+	await expect(waterfall).toContainText("Goal funding$250");
 	await expect(waterfall).toContainText("Free to Spend$3,150");
 	await page
 		.getByRole("navigation", { name: "Plan pages" })

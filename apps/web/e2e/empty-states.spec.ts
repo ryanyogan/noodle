@@ -36,7 +36,7 @@ test("a new Household's pages say where to start", async ({ browser }) => {
 
 	// The Plan: setting up comes first, not a waterfall of zeros; its Goals step leads somewhere.
 	await page.goto(`/plan/${month}`);
-	const waterfall = page.getByRole("region", { name: "From take-home pay to Free to Spend" });
+	const waterfall = page.getByRole("region", { name: "Where take-home pay goes" });
 	await expect(page.getByRole("region", { name: "Set up the Plan" })).toBeVisible();
 	await expect(waterfall).toHaveCount(0);
 	await expect(page.getByRole("region", { name: "What changed" })).toHaveCount(0);
