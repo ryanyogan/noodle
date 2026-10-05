@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page } from "@playwright/test";
 import { ulid } from "ulid";
 import {
@@ -299,6 +300,119 @@ test("at xl, Date and Amount sort the list", async ({ browser }) => {
 	await page.getByRole("button", { name: "Date, newest first" }).click();
 	await expect(page).toHaveURL(/sort=oldest/);
 	await expect(rows).toHaveText([/Costco/, /Pro Hockey Life/, /Ice time/]);
+	await page.context().close();
+});
+
+test("at xl, Name, Assigned to and Account sort the list, and the column says which way", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await setUp(page);
+	await quickAdd(page, "40", "Hockey", "Ice time", "Leo");
+	await openTransactions(page);
+	const rows = list(page).getByRole("button");
+	const header = (name: RegExp) => page.getByRole("columnheader", { name });
+	await expect(page.getByRole("columnheader")).toHaveCount(6);
+	await expect(header(/^Date/)).toHaveAttribute("aria-sort", "descending");
+	await expect(header(/name$/i)).not.toHaveAttribute("aria-sort");
+
+	await page.getByRole("button", { name: "Sort by name" }).click();
+	await expect(page).toHaveURL(/sort=name-az/);
+	await expect(header(/^Name/)).toHaveAttribute("aria-sort", "ascending");
+	await expect(header(/date$/i)).not.toHaveAttribute("aria-sort");
+	await expect(rows).toHaveText([/Costco/, /Ice time/, /Pro Hockey Life/]);
+	await page.getByRole("button", { name: "Name, A to Z" }).click();
+	await expect(page).toHaveURL(/sort=name-za/);
+	await expect(header(/^Name/)).toHaveAttribute("aria-sort", "descending");
+	await expect(rows).toHaveText([/Pro Hockey Life/, /Ice time/, /Costco/]);
+	// The order is in the address, so a reload keeps it.
+	await page.reload();
+	await expect(header(/^Name/)).toHaveAttribute("aria-sort", "descending");
+	await expect(rows).toHaveText([/Pro Hockey Life/, /Ice time/, /Costco/]);
+
+	// Groceries before Hockey; the two in Groceries stay oldest first.
+	await page.getByRole("button", { name: "Sort by assigned to" }).click();
+	await expect(page).toHaveURL(/sort=assigned-az/);
+	await expect(header(/^Assigned to/)).toHaveAttribute("aria-sort", "ascending");
+	await expect(rows).toHaveText([/Costco/, /Pro Hockey Life/, /Ice time/]);
+	await page.getByRole("button", { name: "Sort by account" }).click();
+	await expect(page).toHaveURL(/sort=account-az/);
+	await expect(header(/^Account/)).toHaveAttribute("aria-sort", "ascending");
+	await expect(rows).toHaveCount(3);
+	// Sorting isn't filtering: the total stays the month's.
+	await expect(page.getByTestId("month-total")).toHaveText("$190.49");
+	const results = await new AxeBuilder({ page })
+		.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+		.analyze();
+	expect(results.violations.map((violation) => violation.id)).toEqual([]);
+	await page.context().close();
+});
+
+test("on a phone, a Sort menu beside Filters orders the list and the address keeps it", {
+	tag: "@phone",
+}, async ({ browser }) => {
+	const page = await signedInPage(browser, parent.email, {
+		viewport: { width: 393, height: 852 },
+		isMobile: true,
+		hasTouch: true,
+	});
+	// The Household is made at desktop width, where the helpers' links are.
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await setUp(page);
+	await page.setViewportSize({ width: 393, height: 852 });
+	await page.goto("/transactions");
+	const rows = list(page).getByRole("button");
+	await expect(rows).toHaveText([/Pro Hockey Life/, /Costco/]);
+	// No column names to sort by at this width.
+	await expect(page.getByRole("columnheader")).toHaveCount(0);
+
+	const sort = page.getByRole("combobox", { name: "Sort", exact: true });
+	await expect(sort).toHaveText("Newest first");
+	const box = await sort.boundingBox();
+	expect(box?.height).toBeGreaterThanOrEqual(44);
+	await sort.click();
+	const options = page.getByRole("listbox").getByRole("option");
+	await expect(options).toHaveText([
+		"Newest first",
+		"Oldest first",
+		"Largest first",
+		"Smallest first",
+		"Name A–Z",
+		"Name Z–A",
+		"Assigned to A–Z",
+		"Assigned to Z–A",
+		"Account A–Z",
+		"Account Z–A",
+	]);
+	const open = await new AxeBuilder({ page })
+		.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+		.analyze();
+	expect(open.violations.map((violation) => violation.id)).toEqual([]);
+	await options.filter({ hasText: "Name A–Z" }).click();
+	await expect(page.getByRole("listbox")).toBeHidden();
+	await expect(page).toHaveURL(/sort=name-az/);
+	await expect(sort).toHaveText("Name A–Z");
+	await expect(rows).toHaveText([/Costco/, /Pro Hockey Life/]);
+
+	await page.reload();
+	await expect(page).toHaveURL(/sort=name-az/);
+	await expect(sort).toHaveText("Name A–Z");
+	await expect(rows).toHaveText([/Costco/, /Pro Hockey Life/]);
+	await choose(page, "Sort", "Largest first");
+	await expect(page).toHaveURL(/sort=largest/);
+	await expect(rows).toHaveText([/Costco/, /Pro Hockey Life/]);
+	await choose(page, "Sort", "Newest first");
+	await expect(page).not.toHaveURL(/sort=/);
+
+	// Nothing scrolls sideways, down to the narrowest phone.
+	for (const width of [393, 320]) {
+		await page.setViewportSize({ width, height: 852 });
+		await expect(sort).toBeVisible();
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth),
+		).toBe(false);
+	}
 	await page.context().close();
 });
 

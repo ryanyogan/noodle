@@ -488,11 +488,60 @@ export type TransactionRow = {
 	version: number;
 };
 
-/** Where a page of the list starts: after this Transaction, going back in time. */
-export type TransactionCursor = { date: DayKey; id: string; amountCents?: number };
+/**
+ * Where a page of the list starts: after this Transaction, in the list's order. `amountCents` is
+ * there for a list by amount, and `key` (what the row sorts on, as the Viewer may see it) for one
+ * by name, by what it's assigned to or by Account.
+ */
+export type TransactionCursor = { date: DayKey; id: string; amountCents?: number; key?: string };
 
-/** How a list of Transactions is ordered: by date (newest first by default) or by amount. */
-export type TransactionSort = "newest" | "oldest" | "largest" | "smallest";
+/**
+ * How a list of Transactions is ordered: by date (newest first by default), by amount, by name,
+ * by what it's assigned to, or by Account. Rows the order can't tell apart go by date and then by
+ * ID, in the order's own direction, so the other direction is the same list backwards.
+ */
+export type TransactionSort =
+	| "newest"
+	| "oldest"
+	| "largest"
+	| "smallest"
+	| "name-az"
+	| "name-za"
+	| "assigned-az"
+	| "assigned-za"
+	| "account-az"
+	| "account-za";
+
+/**
+ * What a list by name, by what it's assigned to or by Account sorts on: lower-case text, never
+ * NULL (a keyset comparison never matches NULL), and only ever what `viewer` is shown.
+ *
+ * - Name: the name the row carries (a Parent's, or the one it was given when it came in), else
+ *   its note or the bank's wording. A Transaction split partly into the other Parent's Personal
+ *   Allowance shows no name, so it sorts as one with none: where it lands says nothing about it.
+ *   Only the first 200 characters count; the date and the ID settle the rest.
+ * - Assigned to: the Bucket's, Commitment's or Goal's name. Unassigned ones sort as "" (first
+ *   from A to Z) and split ones as " " (straight after them, before every name).
+ * - Account: the label the row shows, the Account it came in from or its Matched copy's; a Quick
+ *   Add with neither sorts as "".
+ */
+function textSortKey(viewer: Viewer, by: "name" | "assigned" | "account"): SQL<string> {
+	if (by === "name") {
+		return sql<string>`case when ${partlyPrivate(viewer)} then '' else substr(lower(coalesce(nullif(trim(${transactions.merchant}), ''), trim(${transactions.note}), '')), 1, 200) end`;
+	}
+	if (by === "assigned") {
+		return sql<string>`case when ${isSplit} then ' ' else lower(coalesce(
+			(select ${buckets.name} from ${buckets} where ${buckets.id} = ${transactions.bucketId}),
+			(select ${commitments.name} from ${commitments} where ${commitments.id} = ${transactions.commitmentId}),
+			${goals.name}, '')) end`;
+	}
+	return sql<string>`lower(coalesce(
+		case when ${transactions.source} = 'import' then ${accountLabelSql} end,
+		(select a.name from matches m
+			join transactions c on c.id = m.imported_id join accounts a on a.id = c.account_id
+			where m.quick_add_id = ${transactions.id} and m.removed_at is null),
+		''))`;
+}
 
 /** Transactions with For rows, optionally only those For one Member. */
 const hasForRows = (memberId?: string) =>
@@ -602,24 +651,42 @@ export async function loadTransactionsPage(
 			? sql`(not ${partly} and (${transactions.note} like ${`%${likeEscaped(search)}%`} escape '!' or ${transactions.merchant} like ${`%${likeEscaped(search)}%`} escape '!'))`
 			: undefined,
 	);
-	// Keyset paging: past the previous page's last row in the list's order (its ID breaks ties).
+	// Keyset paging: past the previous page's last row in the list's order. Rows the order can't
+	// tell apart go by date and then by ID, so no page repeats or skips one.
 	const byAmount = sort === "largest" || sort === "smallest";
-	const descending = sort === "newest" || sort === "largest";
-	const key = byAmount ? amount : transactions.date;
+	const byText =
+		sort === "name-az" || sort === "name-za"
+			? "name"
+			: sort === "assigned-az" || sort === "assigned-za"
+				? "assigned"
+				: sort === "account-az" || sort === "account-za"
+					? "account"
+					: null;
+	const descending = sort === "newest" || sort === "largest" || sort.endsWith("-za");
+	const textKey = byText ? textSortKey(viewer, byText) : null;
+	const key = textKey ?? (byAmount ? amount : null);
 	const past = (column: SQLWrapper, value: unknown) =>
 		descending ? sql`${column} < ${value}` : sql`${column} > ${value}`;
-	const after = query.after
-		? byAmount && query.after.amountCents === undefined
-			? undefined
-			: or(
-					past(key, byAmount ? query.after.amountCents : query.after.date),
-					and(
-						sql`${key} = ${byAmount ? query.after.amountCents : query.after.date}`,
-						past(transactions.id, query.after.id),
-					),
-				)
-		: undefined;
-	const order = descending ? [desc(key), desc(transactions.id)] : [asc(key), asc(transactions.id)];
+	const pastByDate = (from: TransactionCursor) =>
+		or(
+			past(transactions.date, from.date),
+			and(eq(transactions.date, from.date), past(transactions.id, from.id)),
+		);
+	// A cursor made for another order has nothing to continue from here, so it's left alone.
+	const from = textKey ? query.after?.key : byAmount ? query.after?.amountCents : undefined;
+	const after = !query.after
+		? undefined
+		: !key
+			? pastByDate(query.after)
+			: from === undefined
+				? undefined
+				: or(past(key, from), and(sql`${key} = ${from}`, pastByDate(query.after)));
+	const direction = descending ? desc : asc;
+	const order = [
+		...(key ? [direction(key)] : []),
+		direction(transactions.date),
+		direction(transactions.id),
+	];
 	const isTransfer = sql`exists (select 1 from transfers x where (x.out_transaction_id = ${transactions.id}
 		or x.in_transaction_id = ${transactions.id}) and x.removed_at is null)`;
 	const totalQuery =
@@ -664,6 +731,7 @@ export async function loadTransactionsPage(
 				where r.refund_transaction_id = ${transactions.id} and r.removed_at is null)`,
 			autoFiled: categorizations.method,
 			version: transactions.version,
+			sortKey: textKey ?? sql<string | null>`null`,
 		})
 		.from(transactions)
 		.leftJoin(goals, eq(goals.id, transactions.goalId))
@@ -747,7 +815,7 @@ export async function loadTransactionsPage(
 	return {
 		// Dates are always written as DayKeys.
 		transactions: page.map(
-			({ goalId, goalName, transfer, ...row }) =>
+			({ goalId, goalName, transfer, sortKey: _sortKey, ...row }) =>
 				({
 					...row,
 					transfer: transfer ? JSON.parse(transfer) : null,
@@ -758,7 +826,12 @@ export async function loadTransactionsPage(
 		),
 		next:
 			rows.length > query.limit && last
-				? { date: last.date as DayKey, id: last.id, amountCents: last.amountCents }
+				? {
+						date: last.date as DayKey,
+						id: last.id,
+						amountCents: last.amountCents,
+						...(last.sortKey === null ? {} : { key: last.sortKey }),
+					}
 				: null,
 		total,
 	};
@@ -1414,7 +1487,7 @@ function selectedBy(viewer: Viewer, selection: TransactionSelection): SQL {
 		matching(viewer, all.bucketId, all.forMember),
 		all.accountId ? inAccount(all.accountId) : undefined,
 		search
-			? sql`(not ${partlyPrivate(viewer)} and ${transactions.note} like ${`%${likeEscaped(search)}%`} escape '!')`
+			? sql`(not ${partlyPrivate(viewer)} and (${transactions.note} like ${`%${likeEscaped(search)}%`} escape '!' or ${transactions.merchant} like ${`%${likeEscaped(search)}%`} escape '!'))`
 			: undefined,
 		selection.except?.length ? notInArray(transactions.id, idList(selection.except)) : undefined,
 	) as SQL;

@@ -132,7 +132,18 @@ export type TransactionsPage = {
 };
 
 /** How the list is ordered; newest first when left out. */
-export const transactionSortSchema = z.enum(["newest", "oldest", "largest", "smallest"]);
+export const transactionSortSchema = z.enum([
+	"newest",
+	"oldest",
+	"largest",
+	"smallest",
+	"name-az",
+	"name-za",
+	"assigned-az",
+	"assigned-za",
+	"account-az",
+	"account-za",
+]);
 
 /** What a Transactions search looks for in notes, at most this long. */
 export const SEARCH_MAX = 60;
@@ -153,7 +164,13 @@ export const getTransactions = createServerFn({ method: "GET" })
 			search: z.string().trim().max(SEARCH_MAX).optional(),
 			sort: transactionSortSchema.optional(),
 			after: z
-				.object({ date: dayKeySchema, id: ulidSchema, amountCents: z.number().int().optional() })
+				.object({
+					date: dayKeySchema,
+					id: ulidSchema,
+					amountCents: z.number().int().optional(),
+					// What the last row sorted on, in a list by name, by what it's assigned to or by Account.
+					key: z.string().max(500).optional(),
+				})
 				.optional(),
 		}),
 	)
