@@ -1,0 +1,3 @@
+# Footage is captured by `bun run --cwd apps/web video:capture` and the renders by `bun run render`.
+public/footage/
+out/
