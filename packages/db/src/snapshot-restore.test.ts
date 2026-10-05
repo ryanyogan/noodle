@@ -136,33 +136,33 @@ describe("restoring a snapshot", () => {
 		expect(await exportHouseholdRows(db, theirs)).toEqual(theirsBefore);
 	});
 
-	it("refuses another Household's snapshot, another format, or an older schema, plainly", () => {
+	it("refuses another Household's snapshot, another format, or a newer schema, plainly", () => {
 		const file = fileOf(ours, {});
 		expect(snapshotRefusal(file, ours, "0048_household_snapshots")).toBeNull();
 		expect(snapshotRefusal(file, theirs, "0048_household_snapshots")).toMatch(/another Household/);
 		expect(snapshotRefusal({ ...file, format: 99 }, ours, "0048_household_snapshots")).toMatch(
 			/can’t read/,
 		);
-		expect(snapshotRefusal(file, ours, "0049_something_newer")).toMatch(
-			/before Noodle’s last update/,
-		);
+		// Taken under an older migration: carried forward (ADR-0048, snapshot-carry.test.ts).
+		expect(snapshotRefusal(file, ours, "0049_something_newer")).toBeNull();
+		expect(snapshotRefusal(file, ours, "0047_perk_value_by_hand.sql")).toMatch(/newer version/);
 	});
 
-	it("refuses a snapshot from before Transactions had a version, rather than restore rows without one (#85)", async () => {
+	it("restores a snapshot from before Transactions had a version, each starting at 0 (issue 88)", async () => {
 		const { tables } = await exportHouseholdRows(db, ours);
 		// As a snapshot taken before 0049 holds them: no `version` on its Transactions.
 		const old = (tables.transactions ?? []).map(({ version: _version, ...row }) => row);
 		expect(old.length).toBeGreaterThan(50);
 		const file = { ...fileOf(ours, { ...tables, transactions: old }) };
 		expect(file.migration).toBe("0048_household_snapshots");
-		// Both ways into a restore (the server function and the Workflow's first step) ask this.
-		expect(snapshotRefusal(file, ours, "0049_transaction_version")).toBe(
-			"This snapshot was taken before Noodle’s last update changed how data is stored, so it can’t be restored. Restore a newer one.",
-		);
-		// The same file names, as D1 records them, are refused too.
-		expect(snapshotRefusal(file, ours, "0049_transaction_version.sql")).not.toBeNull();
-		// And were such rows ever let through, the database refuses them: no Transaction is written
-		// with no version.
-		await expect(restoreTable(db, ours, "transactions", old)).rejects.toThrow();
+		// Both ways into a restore (the server function and the Workflow's first step) ask this,
+		// with the file names as D1 records them.
+		expect(snapshotRefusal(file, ours, "0049_transaction_version.sql")).toBeNull();
+		await restoreHouseholdRows(db, ours, file);
+		const after = await db
+			.select()
+			.from(s.transactions)
+			.where(eq(s.transactions.householdId, ours));
+		expect(after.every((row) => row.version === 0)).toBe(true);
 	});
 });

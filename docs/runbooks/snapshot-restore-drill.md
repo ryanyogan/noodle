@@ -84,7 +84,9 @@ Also check, by hand:
 - An imported Transaction's statement and a Receipt's picture still open (their files weren't deleted).
 - A second Household in the same local database, if you have one, has identical rows before and after (`grep` its id in both `.sorted` files).
 - Restoring the "Before a restore" snapshot brings back the state from step 3.
-- If a migration is added between taking a snapshot and restoring it, the restore is refused plainly and the row says "Can’t be restored": there is no mapper from an older schema (ADR-0035). Run the drill on one schema.
+- A migration added between taking a snapshot and restoring it doesn't stop the restore when it only adds columns or tables (ADR-0048): the row still offers "Restore", new columns take their defaults and new tables come back empty, so the dump differs from step 1's in exactly those columns. Run the plain drill on one schema.
+- To drill the carry itself: take the snapshot, `git switch` to a commit with a later migration, `bun run db:migrate:local`, restore. Expect the sheet to list anything that comes back differently (after 0052: "every Account in it comes back unarchived"), and the `INSERT` lines to match apart from the added columns. A snapshot taken on the later schema and restored after switching back is refused: "taken with a newer version of Noodle".
+- `bun run test` fails (`snapshot-carry.test.ts`) when a migration since 0048 does more than add and has no transform in `packages/db/src/snapshot-carry.ts`. Write the transform; never skip the test.
 
 Clean up: `rm -r .tmp-shots/*.sql .tmp-shots/*.sorted` (they hold the Household's data).
 

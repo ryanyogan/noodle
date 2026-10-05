@@ -111,6 +111,9 @@ function RestoreSheet({
 						</li>
 						<li>Noodle takes a snapshot of how things are now first, so you can come back.</li>
 						<li>A bank linked since then is disconnected.</li>
+						{snapshot.carryNotes.map((note) => (
+							<li key={note}>{note}</li>
+						))}
 						<li>The other Parent is told.</li>
 					</ul>
 					<Field label={`Type “${householdName}”`} htmlFor={nameId}>
@@ -308,7 +311,7 @@ export function HouseholdSnapshots({ householdName }: { householdName: string })
 			) : null}
 			{[latest, ...earlier].some((snapshot) => snapshot && !snapshot.restorable) ? (
 				<p className="text-sm text-muted-foreground">
-					A snapshot taken before Noodle’s last update changed how data is stored can’t be restored.
+					A snapshot taken with a newer version of Noodle than this one can’t be restored.
 				</p>
 			) : null}
 			{restoring ? (
