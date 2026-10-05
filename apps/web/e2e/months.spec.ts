@@ -166,6 +166,22 @@ test("a Bucket that carries over carries what's left into next month; a resets m
 	);
 });
 
+test("a link tapped while the page is still loading goes there", { tag: "@phone" }, async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email, phone);
+	await createPlannedHousehold(page, plan);
+	const { current, next } = monthsAround(page);
+
+	// As soon as the page's HTML is in and before its scripts are: Safari's engine stopped those
+	// scripts for the link's page, and the router answered by reloading this one instead.
+	await page.goto(page.url(), { waitUntil: "commit" });
+	await page.getByRole("link", { name: "Next month" }).click();
+	await expect(page).toHaveURL(new RegExp(`/month/${next.key}$`));
+	await expect(heading(page)).toHaveText(title(next, current.year));
+	await page.context().close();
+});
+
 test("swiping on a phone moves between months", { tag: "@phone" }, async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email, phone);
 	await createPlannedHousehold(page, plan);
