@@ -296,8 +296,9 @@ export function ListBesideDetail({
 	/** Names the list pane, e.g. "Goals". */
 	listLabel: string;
 	/**
-	 * Says what the right pane is for while nothing is picked, e.g. "Pick a Scenario to see it here."
-	 * Left out where the list fills the page: its cards say they open.
+	 * Says what the right pane is for while it is empty, e.g. "Tick Scenarios to compare them here."
+	 * Left out where the list fills the page: its cards say they open. With `panel` it shows only
+	 * for an `asideFills` page with no aside, from lg.
 	 */
 	hint?: string;
 	list: ReactNode;
@@ -339,8 +340,14 @@ export function ListBesideDetail({
 	if (panel)
 		return (
 			<ListWithPanel
-				// Phones: the section's totals come before the list, as they did.
-				className={cn(!asideFills && "max-lg:[&>[data-slot=master-detail-aside]]:order-first")}
+				className={cn(
+					asideFills
+						? // A phone has no use for the hint alone.
+							"max-lg:[&>[data-slot=master-detail-aside]:has(>[data-hint-only])]:hidden"
+						: // Phones: the section's totals come before the list, as they did.
+							"max-lg:[&>[data-slot=master-detail-aside]]:order-first",
+				)}
+				asideFills={asideFills}
 				size={panel.size}
 				itemKey={panel.itemKey}
 				listLabel={listLabel}
@@ -357,7 +364,15 @@ export function ListBesideDetail({
 					</Button>
 				}
 				list={shownList}
-				aside={aside ? <div className="grid w-full content-start gap-4">{aside}</div> : undefined}
+				aside={
+					aside ? (
+						<div className="grid w-full content-start gap-4">{aside}</div>
+					) : asideFills && hint ? (
+						<p data-hint-only="" className="px-1 text-sm text-muted-foreground">
+							{hint}
+						</p>
+					) : undefined
+				}
 				detail={detail}
 			/>
 		);

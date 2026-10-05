@@ -18,9 +18,9 @@ import { ScenarioView, useKeptScenarios } from "../../../components/scenario-vie
 import { useDeleteScenario, useSaveScenario } from "../../../scenarios";
 
 /**
- * A kept Scenario beside the Scenarios list (#67): read here (its Changes and its outcome against
- * the Plan), changed in Explore. A page with Back on a phone. `?compare=` is the list's, and is
- * kept while moving between Scenarios.
+ * A kept Scenario in the panel over the Scenarios page (issue 107): read here (its Changes and
+ * its outcome against the Plan), changed in Explore. A page with Back on a phone. `?compare=` is
+ * the list's, and is kept while moving between Scenarios.
  */
 export const Route = createFileRoute("/_authed/_household/explore/scenarios/$id")({
 	ssr: "data-only",
@@ -50,14 +50,16 @@ function ScenarioPane() {
 	if (!found) {
 		return (
 			<>
-				<DetailHeader title="Scenario" leading={back} />
+				<DetailHeader title="Scenario" leading={back} inPanel />
 				<p className="text-sm text-muted-foreground">This Scenario isn’t here any more.</p>
 			</>
 		);
 	}
 	const { scenario } = found;
-	// Rename and Delete: in the header from lg; below that they come after the Scenario, and on a
-	// phone they are outlined and share the row so they aren't missed (#74).
+	// Rename and Delete: from lg on the line under the header, across from Open in Explore (the
+	// header of a panel has room for the title, previous/next and Close only); below that they come
+	// after the Scenario, and on a phone they are outlined and share the row so they aren't missed
+	// (#74).
 	const manage = (
 		<>
 			<Button
@@ -92,14 +94,7 @@ function ScenarioPane() {
 				eyebrow={scenario.appliedAt ? "Scenario · applied to the Plan" : "Scenario"}
 				title={scenario.name}
 				leading={back}
-				actions={
-					<>
-						<div className="flex items-center gap-1 max-lg:hidden">{manage}</div>
-						<Button asChild size="sm" className="max-sm:hidden">
-							{openInExplore}
-						</Button>
-					</>
-				}
+				inPanel
 				pager={
 					<DetailPager
 						ids={kept.projected.map((p) => p.scenario.id)}
@@ -109,11 +104,13 @@ function ScenarioPane() {
 					/>
 				}
 			/>
-			{/* A phone's header has no room for it beside the title and the pager: there it is the
-			    page's one full-width action, under the header (#74). */}
-			<Button asChild size="sm" className="mb-4 w-full sm:hidden">
-				{openInExplore}
-			</Button>
+			{/* The Scenario's one action, under the header: full width on a phone (#74). */}
+			<div className="mb-4 flex flex-wrap items-center gap-2">
+				<Button asChild size="sm" className="max-sm:w-full">
+					{openInExplore}
+				</Button>
+				<div className="ms-auto flex items-center gap-1 max-lg:hidden">{manage}</div>
+			</div>
 			<ScenarioView key={scenario.id} projected={found} kept={kept} />
 			<div className="mt-6 flex justify-end gap-1 max-sm:grid max-sm:grid-cols-2 max-sm:gap-2 lg:hidden">
 				{manage}
