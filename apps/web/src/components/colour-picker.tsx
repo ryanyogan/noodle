@@ -28,7 +28,7 @@ export function ColourPicker({
 				onValueChange={(next) => onChange(Number(next))}
 				// On a phone the eight share one row, each as wide as the row allows (44px at most):
 				// at a fixed 44px the eighth dropped to a row of its own.
-				className="flex flex-wrap gap-2 max-lg:grid max-lg:grid-cols-[repeat(8,minmax(0,2.75rem))] max-lg:gap-1.5"
+				className="flex flex-wrap gap-2 max-lg:flex-nowrap max-lg:items-start max-lg:gap-1.5"
 			>
 				{bucketColors.map((option) => (
 					<RadioGroupPrimitiveItem
@@ -36,7 +36,7 @@ export function ColourPicker({
 						value={String(option.value)}
 						aria-label={option.name}
 						className={cn(
-							"block size-8 rounded-full max-lg:aspect-square max-lg:size-auto max-lg:w-full ring-offset-2 ring-offset-card transition-shadow duration-(--duration-fast)",
+							"block size-8 rounded-full max-lg:aspect-square max-lg:size-auto max-lg:max-w-11 max-lg:min-w-0 max-lg:flex-1 ring-offset-2 ring-offset-card transition-shadow duration-(--duration-fast)",
 							"data-[state=checked]:ring-2 data-[state=checked]:ring-foreground",
 							"focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring",
 						)}
