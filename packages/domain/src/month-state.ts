@@ -37,6 +37,9 @@ export type Move = {
  */
 export type GoalFunding = { goalId: string; amount: Cents; month: MonthKey; windfall?: boolean };
 
+/** Extra income a Parent added to its month's Free to Spend: no Bucket or Goal takes it. */
+export type ExtraToFree = { amount: Cents; month: MonthKey };
+
 /** A Sweep: a Move of a Bucket that resets monthly's leftover at the end of `month` into a Goal. */
 export type Sweep = { bucketId: string; goalId: string; amount: Cents; month: MonthKey };
 
@@ -104,13 +107,18 @@ export type MonthState = Omit<Plan, "buckets" | "commitments"> & {
 	movedToBuckets: Cents;
 	/** Moved from Free to Spend into Goals this month (Goal funding). */
 	fundedGoals: Cents;
-	/** Negative when the Plan assigns more than take-home pay. */
+	/**
+	 * Take-home pay, plus any Extra income a Parent added (`extraToFreeToSpend`), not assigned to
+	 * anything. Negative when the Plan assigns more than that.
+	 */
 	freeToSpend: Cents;
+	/** Extra income a Parent added to this month's Free to Spend. */
+	extraToFreeToSpend: Cents;
 	/** Income received this month. */
 	received: Cents;
 	/** Income received this month beyond take-home pay. */
 	windfall: Cents;
-	/** The Extra income not yet Moved to a Goal or Bucket, awaiting a decision. */
+	/** The Extra income not yet Moved to a Goal, a Bucket or Free to Spend, awaiting a decision. */
 	windfallLeft: Cents;
 	/** What's left across Buckets, not counting any Bucket's overspending. */
 	leftInBuckets: Cents;
@@ -140,6 +148,7 @@ export function monthState({
 	goalFunding = [],
 	sweeps = [],
 	income = [],
+	extraToFree = [],
 	asOf,
 }: {
 	plan: Plan;
@@ -152,6 +161,8 @@ export function monthState({
 	sweeps?: Sweep[];
 	/** Income received; only this month's counts. */
 	income?: Income[];
+	/** Extra income added to Free to Spend; only this month's counts. */
+	extraToFree?: ExtraToFree[];
 	asOf: DayKey;
 }): MonthState {
 	const days = daysInMonth(plan.month);
@@ -181,6 +192,12 @@ export function monthState({
 		if (funding.month !== plan.month) continue;
 		if (funding.windfall) extraIncomeDecided += funding.amount;
 		else fundedGoals += funding.amount;
+	}
+	let extraToFreeToSpend = 0;
+	for (const extra of extraToFree) {
+		if (extra.month !== plan.month) continue;
+		extraToFreeToSpend += extra.amount;
+		extraIncomeDecided += extra.amount;
 	}
 	const received = receivedIn(income, plan.month);
 	const { windfall, pending } = extraIncomeOf({
@@ -249,7 +266,8 @@ export function monthState({
 		committed: totalCommitments(plan),
 		movedToBuckets,
 		fundedGoals,
-		freeToSpend: freeToSpend(plan) - movedToBuckets - fundedGoals,
+		freeToSpend: freeToSpend(plan) - movedToBuckets - fundedGoals + extraToFreeToSpend,
+		extraToFreeToSpend,
 		received,
 		windfall,
 		windfallLeft: pending,

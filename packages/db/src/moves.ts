@@ -125,8 +125,9 @@ function committedSql(householdId: string, month: MonthKey): SQL {
 }
 
 /**
- * Free to Spend this month: take-home pay less Commitments, allowances, and Moves out of it (a
- * Extra income Move comes from the Extra income, not from it).
+ * Free to Spend this month: take-home pay, plus Extra income a Parent added to it, less
+ * Commitments, allowances, and Moves out of it (an Extra income Move to a Bucket or Goal comes
+ * from the Extra income, not from it).
  */
 export function freeToSpendSql(householdId: string, month: MonthKey): SQL {
 	return sql`(coalesce((select b.amount_cents from baselines b
@@ -137,7 +138,10 @@ export function freeToSpendSql(householdId: string, month: MonthKey): SQL {
 			where p.household_id = ${householdId} and ${inPlanSql("p", month)}), 0)
 		- coalesce((select sum(m.amount_cents) from moves m
 			where m.household_id = ${householdId} and m.month = ${month}
-			and m.from_bucket_id is null and m.kind <> 'windfall'), 0))`;
+			and m.from_bucket_id is null and m.kind <> 'windfall'), 0)
+		+ coalesce((select sum(m.amount_cents) from moves m
+			where m.household_id = ${householdId} and m.month = ${month}
+			and m.kind = 'windfall' and m.to_bucket_id is null and m.to_goal_id is null), 0))`;
 }
 
 /** Guards a write to only land if the Bucket belongs to the Household and is in `month`'s Plan. */

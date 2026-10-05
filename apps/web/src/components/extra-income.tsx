@@ -188,10 +188,13 @@ export function ExtraIncomeSection({
 	goals,
 	onSend,
 	onChoose,
+	onAddToFree,
 	monthName,
 }: {
 	/** The Extra income still to decide. */
 	left: Cents;
+	/** Adds all that's left to the month's Free to Spend, in one tap. */
+	onAddToFree: () => void;
 	/** The month it came in, so it isn't mistaken for the last month's, decided at its Close. */
 	monthName?: string;
 	suggestions: ExtraIncomeSuggestion[];
@@ -228,11 +231,25 @@ export function ExtraIncomeSection({
 			</div>
 			<p className="px-1 pb-3 text-sm text-muted-foreground">
 				<span className="font-medium text-foreground tabular-nums">{formatMoney(left)}</span> came
-				in above your usual take-home pay{monthName ? ` in ${monthName}` : ""}. Decide where it
-				goes, so it doesn’t drift into everyday spending.
+				in above your usual take-home pay{monthName ? ` in ${monthName}` : ""}. Add it to Free to
+				Spend to use it, or choose a Goal or Bucket for it.
 			</p>
-			<div className="px-1 pb-3 max-lg:hidden">
-				<Button variant="outline" size="sm" disabled={!hydrated} onClick={onChoose}>
+			<div className="flex flex-wrap gap-2 px-1 pb-3">
+				<Button
+					size="sm"
+					disabled={!hydrated}
+					aria-label={`Add ${formatMoney(left)} to Free to Spend`}
+					onClick={onAddToFree}
+				>
+					Add to Free to Spend
+				</Button>
+				<Button
+					variant="outline"
+					size="sm"
+					className="max-lg:hidden"
+					disabled={!hydrated}
+					onClick={onChoose}
+				>
 					Choose where
 				</Button>
 			</div>
@@ -240,7 +257,7 @@ export function ExtraIncomeSection({
 				<List aria-label="Suggestions">
 					{suggestions.slice(0, 3).map((s) => (
 						<ListRow
-							key={`${s.to.kind}-${s.to.kind === "goal" ? s.to.goalId : s.to.bucketId}`}
+							key={destinationValue(s.to)}
 							title={s.name}
 							meta={reasonText(s, goals)}
 							trailing={
@@ -268,10 +285,16 @@ export type ExtraIncomePlaces = {
 	buckets: Pick<BucketState, "id" | "name">[];
 };
 
-const destinationValue = (to: ExtraIncomeDestination) =>
-	to.kind === "goal" ? `goal:${to.goalId}` : `bucket:${to.bucketId}`;
+const FREE_TO_SPEND = "free-to-spend";
 
-/** Sends some of the Extra income to a Goal or Bucket the Parent picks. */
+const destinationValue = (to: ExtraIncomeDestination) =>
+	to.kind === "goal"
+		? `goal:${to.goalId}`
+		: to.kind === "bucket"
+			? `bucket:${to.bucketId}`
+			: FREE_TO_SPEND;
+
+/** Sends some of the Extra income to Free to Spend, or a Goal or Bucket the Parent picks. */
 export function ExtraIncomeSheet({
 	open,
 	onOpenChange,
@@ -291,7 +314,7 @@ export function ExtraIncomeSheet({
 				<SheetContent>
 					<SheetHeader
 						title="Send the Extra income"
-						description="Sets it aside for a Goal or adds it to a Bucket. Free to Spend stays as it is."
+						description="Add it to Free to Spend to use this month, set it aside for a Goal, or add it to a Bucket."
 					/>
 					<ExtraIncomeForm left={left} places={places} onSend={onSend} />
 				</SheetContent>
@@ -315,7 +338,7 @@ function ExtraIncomeForm({
 		? destinationValue({ kind: "goal", goalId: places.goals[0].id })
 		: places.buckets[0]
 			? destinationValue({ kind: "bucket", bucketId: places.buckets[0].id })
-			: "";
+			: FREE_TO_SPEND;
 	const [destination, setDestination] = useState(first);
 	const [amount, setAmount] = useState(() => formatMoneyInput(left));
 	const cents = parseDollars(amount);
@@ -325,6 +348,10 @@ function ExtraIncomeForm({
 	function onSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		if (!valid || cents === null) return;
+		if (destination === FREE_TO_SPEND) {
+			onSend({ kind: "free-to-spend" }, "Free to Spend", cents);
+			return;
+		}
 		const [kind, placeId = ""] = destination.split(":");
 		const place =
 			kind === "goal"
@@ -348,6 +375,10 @@ function ExtraIncomeForm({
 					onValueChange={setDestination}
 					searchPlaceholder="Find a Goal or Bucket"
 					choices={[
+						{
+							label: "This month",
+							choices: [{ value: FREE_TO_SPEND, label: "Free to Spend" }],
+						},
 						...(places.goals.length > 0
 							? [
 									{

@@ -137,6 +137,7 @@ export {
 	shortMonthName,
 } from "./describe-changes";
 export {
+	EXTRA_INCOME_FROM,
 	type ExtraIncomeDestination,
 	type ExtraIncomeSuggestion,
 	extraIncomeOf,
@@ -257,6 +258,7 @@ export {
 	type Charge,
 	type CommitmentState,
 	type CommitmentStatus,
+	type ExtraToFree,
 	type GoalFunding,
 	type MonthState,
 	type Move,

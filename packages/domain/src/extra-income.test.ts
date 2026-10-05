@@ -307,3 +307,57 @@ describe("extraIncomeSuggestions", () => {
 		).toEqual([]);
 	});
 });
+
+describe("a few dollars above take-home pay (#86)", () => {
+	it("is the usual pay, not Extra income, up to $25", () => {
+		expect(extraIncomeOf({ baseline: 600_000, received: 600_437, decided: 0 })).toEqual({
+			windfall: 0,
+			pending: 0,
+		});
+		expect(extraIncomeOf({ baseline: 600_000, received: 602_500, decided: 0 }).windfall).toBe(0);
+	});
+
+	it("is all Extra income once it's more than $25", () => {
+		expect(extraIncomeOf({ baseline: 600_000, received: 602_501, decided: 0 })).toEqual({
+			windfall: 2_501,
+			pending: 2_501,
+		});
+	});
+});
+
+describe("monthState: Extra income added to Free to Spend (#86)", () => {
+	const income = [paid("2026-10-02", 300_000), paid("2026-10-16", 380_000)];
+
+	it("leaves Free to Spend alone until a Parent adds it", () => {
+		const state = monthState({ plan: planOf("2026-10"), spending: [], income, asOf: "2026-10-20" });
+		expect(state.windfallLeft).toBe(80_000);
+		expect(state.extraToFreeToSpend).toBe(0);
+		expect(state.freeToSpend).toBe(
+			monthState({ plan: planOf("2026-10"), spending: [], asOf: "2026-10-20" }).freeToSpend,
+		);
+	});
+
+	it("raises Free to Spend by what was added, and takes it off what's left to decide", () => {
+		const before = monthState({
+			plan: planOf("2026-10"),
+			spending: [],
+			income,
+			asOf: "2026-10-20",
+		});
+		const state = monthState({
+			plan: planOf("2026-10"),
+			spending: [],
+			income,
+			extraToFree: [
+				{ amount: 50_000, month: "2026-10" },
+				// Another month's is not this month's.
+				{ amount: 70_000, month: "2026-09" },
+			],
+			asOf: "2026-10-20",
+		});
+		expect(state.freeToSpend).toBe(before.freeToSpend + 50_000);
+		expect(state.extraToFreeToSpend).toBe(50_000);
+		expect(state.windfall).toBe(80_000);
+		expect(state.windfallLeft).toBe(30_000);
+	});
+});

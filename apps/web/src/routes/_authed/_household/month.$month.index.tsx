@@ -325,6 +325,15 @@ function ThisMonth() {
 														suggestions={suggestions}
 														goals={activeGoals}
 														onChoose={() => setChoosingExtraIncome(true)}
+														onAddToFree={() =>
+															extraIncomes.decide.mutate({
+																moveId: ulid(),
+																month,
+																to: { kind: "free-to-spend" },
+																toName: "Free to Spend",
+																amountCents: state.windfallLeft,
+															})
+														}
 														onSend={(s) =>
 															extraIncomes.decide.mutate({
 																moveId: ulid(),
@@ -641,7 +650,10 @@ function Breakdown({ state, baseline }: { state: MonthState; baseline: number })
 	return (
 		<div className="grid gap-2.5 border-t px-(--card-pad) py-3">
 			<p id={id} className="text-[13px] text-muted-foreground tabular-nums">
-				Where {formatMoney(baseline)} take-home pay goes
+				Where {formatMoney(baseline)} take-home pay
+				{state.extraToFreeToSpend > 0
+					? ` and ${formatMoney(state.extraToFreeToSpend)} Extra income go`
+					: " goes"}
 			</p>
 			<MonthGlance state={state} labelledBy={id} />
 		</div>

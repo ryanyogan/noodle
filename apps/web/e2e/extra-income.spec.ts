@@ -92,6 +92,38 @@ test("income beyond take-home pay is Extra income, sent to the emergency Goal", 
 	);
 });
 
+test("Extra income is added to Free to Spend in one tap; a few dollars over is not Extra income", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
+	await expect(freeToSpend(page).getByText("$3,800", { exact: true }).first()).toBeVisible();
+
+	// A fixed pay that lands a few dollars over raises nothing to do (#86).
+	await addIncome(page, "5,010", "Paychecks");
+	await expect(income(page)).toContainText("$5,010 received of $5,000 usual take-home pay");
+	await expect(page.getByRole("region", { name: "To do" }).getByText("Extra income")).toHaveCount(
+		0,
+	);
+
+	// Pay that came in well above is Extra income, and one tap makes it Free to Spend.
+	await addIncome(page, "990", "Extra shifts");
+	await openToDo(page, "Extra income");
+	await expect(extraIncome(page)).toContainText("$1,000 came in above your usual take-home pay");
+	await extraIncome(page).getByRole("button", { name: "Add $1,000 to Free to Spend" }).click();
+	await expect(page.getByRole("status").filter({ hasText: "of the Extra income" })).toContainText(
+		"$1,000 of the Extra income to Free to Spend",
+	);
+	await expect(extraIncome(page)).toBeHidden();
+	await expect(freeToSpend(page).getByText("$4,800", { exact: true }).first()).toBeVisible();
+
+	// It stuck.
+	await page.reload();
+	await expect(freeToSpend(page).getByText("$4,800", { exact: true }).first()).toBeVisible();
+	await expect(extraIncome(page)).toBeHidden();
+	await page.context().close();
+});
+
 test("income removed by mistake comes back with Undo", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });

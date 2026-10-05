@@ -1,7 +1,7 @@
 import { type MonthKey, monthState, planForMonth } from "@noodle/domain";
 import { type SQL, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
-import { extraIncomeLeftSql } from "./extra-income";
+import { extraIncomeLeftSql, loadExtraToFree } from "./extra-income";
 import {
 	addAccount,
 	addBucket,
@@ -255,5 +255,92 @@ describe("the emergency Goal", () => {
 		);
 		await setEmergencyGoal(db, { householdId, goalId: null });
 		expect((await loadGoals(db, { householdId, memberId: parentId })).emergencyGoalId).toBeNull();
+	});
+});
+
+describe("Extra income added to Free to Spend (#86)", () => {
+	const toFree = (moveId: string, amountCents: number) =>
+		decideExtraIncome(db, {
+			householdId,
+			moveId,
+			month,
+			to: { kind: "free-to-spend" },
+			amountCents,
+			createdByMemberId: parentId,
+		});
+
+	/** The month as the domain derives it, with what was added to Free to Spend. */
+	async function stateWithFree() {
+		const records = await loadPlanRecords(db, householdId, month);
+		return monthState({
+			plan: planForMonth(records, month),
+			spending: [],
+			moves: await loadMoves(db, householdId, month),
+			goalFunding: await loadGoalFunding(db, householdId, month),
+			extraToFree: await loadExtraToFree(db, householdId, month),
+			income: await loadIncome(db, householdId, month, "2026-11"),
+			asOf: "2026-10-20",
+		});
+	}
+
+	beforeEach(async () => {
+		await receive("pay-1", "2026-10-02", 300_000);
+		await receive("pay-2", "2026-10-16", 380_000);
+	});
+
+	it("raises Free to Spend by what was added, once per ID, as the domain works it out", async () => {
+		const before = (await scalar(freeToSpendSql(householdId, month))) ?? 0;
+		expect(await toFree("free-1", 50_000)).toEqual({ ok: true });
+		expect(await toFree("free-1", 50_000)).toEqual({ ok: true });
+		expect(await scalar(freeToSpendSql(householdId, month))).toBe(before + 50_000);
+		expect(await scalar(extraIncomeLeftSql(householdId, month))).toBe(30_000);
+		const state = await stateWithFree();
+		expect(state.freeToSpend).toBe(before + 50_000);
+		expect(state.windfallLeft).toBe(30_000);
+		// Neither a Bucket's Move nor a Goal's funding.
+		expect(await loadMoves(db, householdId, month)).toEqual([]);
+		expect(await loadGoalFunding(db, householdId, month)).toEqual([]);
+	});
+
+	it("can then fund a Goal from Free to Spend", async () => {
+		const before = (await scalar(freeToSpendSql(householdId, month))) ?? 0;
+		await toFree("free-1", 80_000);
+		const result = await fundGoal(db, {
+			householdId,
+			moveId: "fund-1",
+			goalId: "trip",
+			month,
+			amountCents: before + 80_000,
+			createdByMemberId: parentId,
+		});
+		expect(result.ok).toBe(true);
+		expect(await scalar(freeToSpendSql(householdId, month))).toBe(0);
+	});
+
+	it("is refused beyond what's left of the Extra income", async () => {
+		expect(await toFree("free-1", 80_001)).toEqual({ ok: false, reason: "refused" });
+		expect(await loadExtraToFree(db, householdId, month)).toEqual([]);
+	});
+
+	it("is undone, putting it back with the Extra income", async () => {
+		const before = await scalar(freeToSpendSql(householdId, month));
+		await toFree("free-1", 80_000);
+		expect(await undoExtraIncome(db, { householdId, moveId: "free-1", month })).toEqual({
+			ok: true,
+		});
+		expect(await scalar(freeToSpendSql(householdId, month))).toBe(before);
+		expect(await scalar(extraIncomeLeftSql(householdId, month))).toBe(80_000);
+	});
+});
+
+describe("a few dollars above take-home pay (#86)", () => {
+	it("is not Extra income up to $25, in SQL as in the domain", async () => {
+		await receive("pay-1", "2026-10-02", 300_000);
+		await receive("pay-2", "2026-10-16", 302_500);
+		expect(await scalar(extraIncomeLeftSql(householdId, month))).toBe(0);
+		expect((await state()).windfallLeft).toBe(0);
+		await receive("pay-3", "2026-10-17", 1);
+		expect(await scalar(extraIncomeLeftSql(householdId, month))).toBe(2_501);
+		expect((await state()).windfallLeft).toBe(2_501);
 	});
 });
