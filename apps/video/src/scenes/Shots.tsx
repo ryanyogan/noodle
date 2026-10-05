@@ -14,7 +14,7 @@ import {
 	useCurrentFrame,
 	useVideoConfig,
 } from "remotion";
-import { FOCUS, footageFile, type Rect, type StillName } from "../footage";
+import { focusFor, footageFile, type Rect, type StillName } from "../footage";
 import { CLAMP, fontFamily, money, useEnter, useLayout } from "../parts";
 import { BUCKET, frames, SCENES, type Shot } from "../story";
 import { tokens } from "../tokens";
@@ -51,33 +51,35 @@ function Stage({ children }: { children: ReactNode }) {
 }
 
 /**
- * How far to move in on a focus: until it takes about four fifths of the stage, never more than
- * half as big again, and never so far that part of the focus leaves the stage (the still grows
- * about the focus's middle, so a focus near an edge allows less).
+ * How far to move in on a focus: until it takes about four fifths of the stage, and never more
+ * than half as big again (the stills have the pixels for that, so nothing is blown up soft).
  */
-function zoomFor(focus: Rect | undefined): number {
+function zoomFor(focus: Rect | undefined, most: number): number {
 	if (!focus) return 1.04;
-	const cx = focus.x + focus.w / 2;
-	const cy = focus.y + focus.h / 2;
-	const fill = 0.8 / Math.max(focus.w, focus.h);
-	const stayInside = Math.min(
-		(2 * cx) / focus.w,
-		(2 * (1 - cx)) / focus.w,
-		(2 * cy) / focus.h,
-		(2 * (1 - cy)) / focus.h,
-	);
-	return Math.max(1.04, Math.min(1.5, fill, stayInside * 0.96));
+	return Math.max(1.04, Math.min(most, 0.8 / Math.max(focus.w, focus.h)));
+}
+
+/** The part of the still in view at `scale`: centred on (cx, cy) as far as the still's edges allow. */
+function windowAt(scale: number, cx: number, cy: number) {
+	const size = 1 / scale;
+	const clamp = (value: number) => Math.min(1 - size, Math.max(0, value));
+	return { x: clamp(cx - size / 2), y: clamp(cy - size / 2) };
 }
 
 function StillShot({ still, ring }: { still: StillName; ring: boolean }) {
 	const { cut } = useLayout();
-	const focus = FOCUS[still][cut];
+	const focus = focusFor(still, cut);
 	const move = useEnter(FADE, 70);
 	const ringIn = useEnter(FADE + 14, 20);
-	const scale = 1 + (zoomFor(focus) - 1) * move;
-	const origin = focus
-		? `${(focus.x + focus.w / 2) * 100}% ${(focus.y + focus.h / 2) * 100}%`
-		: "50% 50%";
+	// A phone's still is already shown large, and moving in far on it cuts its lines of text off at the sides.
+	const scale = 1 + (zoomFor(focus, cut === "phone" ? 1.12 : 1.5) - 1) * move;
+	const view = windowAt(
+		scale,
+		focus ? focus.x + focus.w / 2 : 0.5,
+		focus ? focus.y + focus.h / 2 : 0.5,
+	);
+	// A ring round nearly the whole still points at nothing.
+	const ringed = ring && focus && focus.w * focus.h < 0.7;
 	return (
 		<Stage>
 			{/* The ring is inside the layer that grows, so it stays on its subject; its line is thinned to match. */}
@@ -85,8 +87,8 @@ function StillShot({ still, ring }: { still: StillName; ring: boolean }) {
 				style={{
 					position: "absolute",
 					inset: 0,
-					transform: `scale(${scale})`,
-					transformOrigin: origin,
+					transform: `translate(${-view.x * scale * 100}%, ${-view.y * scale * 100}%) scale(${scale})`,
+					transformOrigin: "0 0",
 				}}
 			>
 				{/* A still that is missing stops the render: Img waits for the file and throws when it can't load. */}
@@ -94,7 +96,7 @@ function StillShot({ still, ring }: { still: StillName; ring: boolean }) {
 					src={staticFile(footageFile(still, cut))}
 					style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }}
 				/>
-				{ring && focus ? (
+				{ringed ? (
 					<div
 						style={{
 							position: "absolute",

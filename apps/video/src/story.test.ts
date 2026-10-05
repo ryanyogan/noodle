@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { timestamp, toScript, toVtt } from "./captions";
-import { FOCUS, STILLS } from "./footage";
+import { type Cut, FOCUS, focusFor, focusFromBox, STILLS } from "./footage";
 import { BUCKET, CUES, FRAMES, PLAN, SCENES, SECONDS } from "./story";
 import { cssTokens } from "./tokens";
 
@@ -61,8 +61,8 @@ describe("the story", () => {
 				if (shot.kind !== "still") continue;
 				expect(STILLS).toContain(shot.still);
 				if (shot.ring) {
-					expect(FOCUS[shot.still].desktop, shot.still).toBeDefined();
-					expect(FOCUS[shot.still].phone, shot.still).toBeDefined();
+					expect(focusFor(shot.still, "desktop"), shot.still).toBeDefined();
+					expect(focusFor(shot.still, "phone"), shot.still).toBeDefined();
 				}
 			}
 		}
@@ -77,6 +77,28 @@ describe("the story", () => {
 				expect(rect.y + rect.h, name).toBeLessThanOrEqual(1);
 			}
 		}
+	});
+
+	it("takes a measured subject over the guess, with room round it, inside the still", () => {
+		const cuts: Cut[] = ["desktop", "phone"];
+		for (const name of STILLS) {
+			for (const cut of cuts) {
+				const rect = focusFor(name, cut);
+				if (!rect) continue;
+				expect(rect.x, name).toBeGreaterThanOrEqual(0);
+				expect(rect.y, name).toBeGreaterThanOrEqual(0);
+				expect(rect.x + rect.w, name).toBeLessThanOrEqual(1);
+				expect(rect.y + rect.h, name).toBeLessThanOrEqual(1);
+			}
+		}
+		const sheet = focusFromBox({ x: 0, y: 0.238, width: 1, height: 0.762 }, "phone");
+		expect(sheet?.x).toBeGreaterThan(0);
+		expect((sheet?.x ?? 0) + (sheet?.w ?? 0)).toBeLessThan(1);
+		const button = focusFromBox({ x: 0.5, y: 0.5, width: 0.1, height: 0.04 }, "desktop");
+		expect(button?.x).toBeLessThan(0.5);
+		expect(button?.w).toBeGreaterThan(0.1);
+		expect(focusFromBox(undefined, "desktop")).toBeUndefined();
+		expect(focusFromBox({ x: 0.2, y: 0.2, width: 0, height: 0 }, "desktop")).toBeUndefined();
 	});
 
 	it("draws a Plan and a Bucket that add up", () => {
