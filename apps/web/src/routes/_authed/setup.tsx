@@ -441,7 +441,7 @@ function TakeHomePayStep({
 		<StepFrame
 			title="Take-home pay"
 			lead={<SpendingCard path={path} jobs={jobs} />}
-			intro="Your usual monthly pay after taxes and deductions. Add both Parents’ pay together. The Plan is built on it."
+			intro="Your usual monthly pay after taxes and deductions. Add both Parents’ pay together. The Plan is built on it. If someone’s pay varies, enter the amount you can count on (the lowest it usually is): more than that shows up as Extra income, to add to Free to Spend or send to a Goal."
 			primary="Continue"
 			onBack={onBack}
 			pending={set.isPending}

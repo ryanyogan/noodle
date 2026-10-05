@@ -3,11 +3,16 @@ import {
 	type DayKey,
 	extraIncomeOf,
 	extraIncomeSuggestions,
+	freeToSpendAfterLowering,
 	type Income,
 	incomeCheck,
+	lowerTakeHomePay,
+	lowerTakeHomePayChange,
 	type MonthKey,
 	monthState,
 	type Plan,
+	restoreAfterJust,
+	undoLowerTakeHomePay,
 } from "./index";
 
 const planOf = (month: MonthKey, takeHomePay: number | null = 600_000): Plan => ({
@@ -359,5 +364,79 @@ describe("monthState: Extra income added to Free to Spend (#86)", () => {
 		expect(state.extraToFreeToSpend).toBe(50_000);
 		expect(state.windfall).toBe(80_000);
 		expect(state.windfallLeft).toBe(30_000);
+	});
+});
+
+describe("lowerTakeHomePay", () => {
+	const month: MonthKey = "2026-10";
+	const low = [paid("2026-10-01", 300_000), paid("2026-10-15", 240_000)];
+	const step = (income: Income[], asOf: DayKey, baseline: number | null = 600_000) =>
+		lowerTakeHomePay({ baseline, income, month, asOf });
+
+	it("lowers this month's take-home pay to the Income received so far", () => {
+		expect(step(low, "2026-10-20")).toEqual({
+			was: 600_000,
+			to: 540_000,
+			short: 60_000,
+			prompt: false,
+		});
+	});
+
+	it("is offered on This Month only in the month's last five days", () => {
+		expect(step(low, "2026-10-26")?.prompt).toBe(false);
+		expect(step(low, "2026-10-27")?.prompt).toBe(true);
+		expect(step(low, "2026-10-31")?.prompt).toBe(true);
+	});
+
+	it("isn't offered for a few dollars short: the same $25 as Extra income", () => {
+		expect(step([paid("2026-10-01", 597_500)], "2026-10-31")).toBeNull();
+		expect(step([paid("2026-10-01", 597_499)], "2026-10-31")?.short).toBe(2_501);
+		expect(step([paid("2026-10-01", 600_000)], "2026-10-31")).toBeNull();
+		expect(step([paid("2026-10-01", 700_000)], "2026-10-31")).toBeNull();
+	});
+
+	it("needs take-home pay, some Income this month, and the current month", () => {
+		expect(step(low, "2026-10-31", null)).toBeNull();
+		expect(step([], "2026-10-31")).toBeNull();
+		// Last month's Income is not this month's.
+		expect(step([paid("2026-09-30", 540_000)], "2026-10-31")).toBeNull();
+		// An ended month's Plan is closed, and a month ahead has no Income yet.
+		expect(step(low, "2026-11-02")).toBeNull();
+		expect(step(low, "2026-09-30")).toBeNull();
+	});
+
+	it("says what Free to Spend becomes, as the month's state then has it", () => {
+		const offer = step(low, "2026-10-31");
+		if (!offer) throw new Error("expected the step");
+		const state = (takeHomePay: number) =>
+			monthState({ plan: planOf(month, takeHomePay), spending: [], asOf: "2026-10-31" });
+		expect(freeToSpendAfterLowering(state(offer.was).freeToSpend, offer)).toBe(
+			state(offer.to).freeToSpend,
+		);
+		// Below zero when the Plan no longer fits: the Plan's own "more than your take-home pay" line takes over.
+		expect(freeToSpendAfterLowering(50_000, offer)).toBe(-10_000);
+	});
+
+	it("changes this month only, and Undo puts back what it was", () => {
+		const offer = step(low, "2026-10-31");
+		if (!offer) throw new Error("expected the step");
+		const change = lowerTakeHomePayChange(month, offer);
+		expect(change).toEqual({ month, amountCents: 540_000, scope: "just" });
+		expect(undoLowerTakeHomePay(month, offer)).toEqual({
+			month,
+			amountCents: 600_000,
+			scope: "just",
+		});
+		// What "just" writes beside it: November goes back to the amount they can count on.
+		const series = [{ month: "2026-08" as MonthKey, amountCents: 600_000 }];
+		expect(restoreAfterJust(series, change.month)).toEqual({
+			month: "2026-11",
+			amountCents: 600_000,
+		});
+		// Once lowered there's nothing left to lower, and Income isn't behind.
+		expect(step(low, "2026-10-31", change.amountCents)).toBeNull();
+		expect(
+			incomeCheck({ baseline: change.amountCents, income: low, month, asOf: "2026-10-31" })?.below,
+		).toBe(false);
 	});
 });

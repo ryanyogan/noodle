@@ -1,4 +1,4 @@
-import { type MonthKey, monthOfDay, type PlanScope } from "@noodle/domain";
+import { lowerTakeHomePay, type MonthKey, monthOfDay, type PlanScope } from "@noodle/domain";
 import { BudgetBar } from "@noodle/ui/components/budget-bar";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
@@ -8,6 +8,7 @@ import { createFileRoute, useHydrated } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
 import { useState } from "react";
 import { MonthIncome } from "../../../components/extra-income";
+import { LowerTakeHomePayNote, useLowerTakeHomePay } from "../../../components/lower-take-home-pay";
 import { SaveFailed } from "../../../components/plan-editing";
 import { PlanSubPage } from "../../../components/plan-page";
 import { ChangedNote, PlanAmountForm } from "../../../components/plan-scope-field";
@@ -30,12 +31,29 @@ function PlanIncome() {
 	const state = useMonthState(month);
 	const _current = monthOfDay(state.asOf);
 	const received = state.income.filter((i) => monthOfDay(i.date) === month);
+	// A low month: always here for the current month, quietly; This Month says it in its last days.
+	const lowering = useLowerTakeHomePay(month);
+	const lower = state.editable
+		? lowerTakeHomePay({ baseline: state.baseline, income: state.income, month, asOf: state.asOf })
+		: null;
 	return (
 		<PlanSubPage
 			editable={state.editable}
 			aside={<TakeHomePayNote baseline={state.baseline} received={received} />}
 		>
 			<TakeHomePayEditor month={month} baseline={state.baseline} editable={state.editable} />
+			{lower ? (
+				<Card className="p-(--card-pad)">
+					<LowerTakeHomePayNote
+						quiet
+						month={month}
+						step={lower}
+						freeToSpend={state.freeToSpend}
+						pending={lowering.pending}
+						onLower={() => lowering.lower(lower, state.freeToSpend)}
+					/>
+				</Card>
+			) : null}
 			{/* The same income list as This Month's, with Add income and the same row actions. */}
 			{state.baseline !== null ? (
 				<MonthIncome month={month} asOf={state.asOf} baseline={state.baseline} income={received} />
@@ -133,7 +151,7 @@ function TakeHomePayEditor({
 								<SheetContent>
 									<SheetHeader
 										title="Take-home pay"
-										description="Your usual monthly pay after taxes and deductions: what lands in your account. The Plan is built on it."
+										description="Your usual monthly pay after taxes and deductions: what lands in your account. If someone’s pay varies, enter the amount you can count on (the lowest it usually is); more than that shows up as Extra income."
 									/>
 									<PlanAmountForm
 										month={month}
