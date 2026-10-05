@@ -1,8 +1,18 @@
-import { type Db, deleteSnapshotRows, recordSnapshot, SNAPSHOT_FORMAT } from "@noodle/db";
+import {
+	clearHouseholdRows,
+	type Db,
+	deleteSnapshotRows,
+	exportHouseholdRows,
+	recordSnapshot,
+	restoreHouseholdRows,
+	SNAPSHOT_FORMAT,
+	type SnapshotFile,
+} from "@noodle/db";
 import { buildSeed, type SeedOptions, writeSeed } from "@noodle/db/seed";
 import { testDb } from "@noodle/db/test-db";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+	deleteFilesUnlessHeld,
 	fileHolds,
 	type HoldBucket,
 	heldFilesKey,
@@ -216,5 +226,96 @@ describe("Delete Household", () => {
 		await backups.bucket.put(finalSnapshotKey(h, "fs1"), await fileOf([a], clock));
 		expect(await release(new Date(clock.getTime() + 31 * DAY))).toMatchObject({ lastSnapshots: 1 });
 		expect(stored()).toEqual([OTHER, a, b, download, receipt].sort());
+	});
+});
+
+describe("deleting a file by hand (a refused upload, or an Import removed)", () => {
+	const byHand = (keys: string[]) =>
+		deleteFilesUnlessHeld(
+			{ db, backups: backups.bucket, files: statements.bucket as unknown as ClearDeps["files"] },
+			h,
+			keys,
+		);
+
+	it("deletes it at once when no snapshot refers to it", async () => {
+		await snapshotOf("s1", [b]);
+		expect(await byHand([a])).toEqual({ removed: [a], held: [] });
+		expect(stored()).toEqual([OTHER, b, download, receipt].sort());
+		expect(backups.data.has(heldFilesKey(h))).toBe(false);
+	});
+
+	it("keeps it while a snapshot refers to it, and notes it", async () => {
+		await snapshotOf("s1", [a]);
+		expect(await byHand([a, b])).toEqual({ removed: [b], held: [a] });
+		expect(stored()).toEqual([OTHER, a, download, receipt].sort());
+		expect(await readHeldFiles(backups.bucket, h)).toEqual([a]);
+	});
+
+	it("lets it go the night its last snapshot has expired or been deleted", async () => {
+		await snapshotOf("s1", [a]);
+		await snapshotOf("s2", [a]);
+		await byHand([a]);
+
+		await expire("s1");
+		expect(await release(clock)).toMatchObject({ removed: 0, failed: 0 });
+		expect(stored()).toContain(a);
+
+		await expire("s2");
+		expect(await release(clock)).toMatchObject({ removed: 1, failed: 0 });
+		expect(stored()).not.toContain(a);
+		expect(backups.data.has(heldFilesKey(h))).toBe(false);
+	});
+
+	it("deletes nothing while a snapshot's file can't be read", async () => {
+		await snapshotOf("s1", []);
+		await backups.bucket.put(snapshotKey(h, "s1"), "not a snapshot");
+		expect(await byHand([a])).toEqual({ removed: [], held: [a] });
+		expect(stored()).toContain(a);
+		expect(await readHeldFiles(backups.bucket, h)).toEqual([a]);
+	});
+
+	it("has the Import and its file both there after the snapshot is restored", async () => {
+		// A snapshot of the Household as it is, with an Import that has a statement file.
+		const before = await exportHouseholdRows(db, h);
+		const fileKey = String(before.tables.imports?.find((row) => row.file_key)?.file_key);
+		expect(fileKey.startsWith(`${h}/`)).toBe(true);
+		await statements.bucket.put(fileKey, "the statement");
+		const file: SnapshotFile = {
+			format: SNAPSHOT_FORMAT,
+			householdId: h,
+			takenAt: clock.toISOString(),
+			migration: null,
+			tables: before.tables,
+		};
+		const key = snapshotKey(h, "s1");
+		await backups.bucket.put(key, await gzipJson(file));
+		await recordSnapshot(db, {
+			id: "s1",
+			householdId: h,
+			kind: "manual",
+			takenBy: null,
+			note: null,
+			key,
+			bytes: 1,
+			format: SNAPSHOT_FORMAT,
+			migration: null,
+			rowCounts: before.rowCounts,
+			createdAt: clock,
+		});
+
+		// The Import's row goes (here with every other row: nothing removes one Import alone yet)
+		// and its file is deleted by hand.
+		await clearHouseholdRows(db, h, "fresh-start");
+		expect(await byHand([fileKey])).toEqual({ removed: [], held: [fileKey] });
+
+		await restoreHouseholdRows(db, h, file);
+		const after = await exportHouseholdRows(db, h);
+		expect(after.tables.imports).toEqual(before.tables.imports);
+		expect(stored()).toContain(fileKey);
+
+		// And once the snapshot has expired the file stays: the Import's row needs it again.
+		await expire("s1");
+		expect(await release(clock)).toMatchObject({ removed: 0, failed: 0 });
+		expect(stored()).toContain(fileKey);
 	});
 });

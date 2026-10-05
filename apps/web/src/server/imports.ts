@@ -97,7 +97,15 @@ export const uploadStatement = createServerFn({ method: "POST" })
 			newId: ulid,
 		});
 		if (!result.ok) {
-			await env.STATEMENTS.delete(fileKey);
+			// Nothing was imported, so the file just written goes, unless a kept snapshot refers to
+			// it: an upload tried again after a Fresh start carries the id of an Import the snapshot
+			// has, and a restore must find that Import's file (#78, ADR-0035).
+			const { deleteFilesUnlessHeld } = await import("./file-holds");
+			await deleteFilesUnlessHeld(
+				{ db: getDb(), backups: env.BACKUPS, files: env.STATEMENTS },
+				household.id,
+				[fileKey],
+			);
 			return result;
 		}
 		const changes: HouseholdChange[] = [
