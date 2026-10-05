@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { timestamp, toScript, toVtt } from "./captions";
 import { type Cut, FOCUS, focusFor, focusFromBox, STILLS } from "./footage";
-import { BUCKET, CUES, FRAMES, PLAN, SCENES, SECONDS } from "./story";
+import { bucketOn, CUES, FRAMES, PLAN, SCENES, SECONDS } from "./story";
 import { cssTokens } from "./tokens";
 
 const here = import.meta.dirname;
@@ -104,7 +104,8 @@ describe("the story", () => {
 	it("draws a Plan and a Bucket that add up", () => {
 		const assigned = PLAN.steps.reduce((sum, step) => sum + step.amount, 0);
 		expect(PLAN.takeHomePay - assigned).toBe(PLAN.freeToSpend);
-		expect(BUCKET.spent).toBeLessThan(BUCKET.available);
+		const bar = bucketOn(new Date(2026, 9, 18));
+		expect(bar.spent).toBeLessThan(bar.available * bar.pace);
 	});
 });
 

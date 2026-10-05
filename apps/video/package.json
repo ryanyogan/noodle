@@ -12,7 +12,7 @@
 		"render": "bun run footage:check && bun run footage:boxes && bun run captions && bun run render:wide && bun run render:vertical && bun run render:poster",
 		"render:wide": "remotion render src/index.ts Intro out/intro.mp4 --codec=h264 --crf=22 --muted",
 		"render:vertical": "remotion render src/index.ts IntroVertical out/intro-vertical.mp4 --codec=h264 --crf=22 --muted",
-		"render:poster": "remotion still src/index.ts Intro out/poster.png --frame=100"
+		"render:poster": "remotion still src/index.ts Intro out/poster.png --frame=100 && remotion still src/index.ts IntroVertical out/poster-vertical.png --frame=100"
 	},
 	"dependencies": {
 		"@remotion/cli": "4.0.532",

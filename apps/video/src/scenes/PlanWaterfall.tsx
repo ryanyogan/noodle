@@ -24,6 +24,8 @@ type RowProps = {
 function Row({ label, amount, start, share, fill, at, takesAway, strong }: RowProps) {
 	const enter = useEnter(at, 24);
 	const grow = useEnter(at + 6, 36);
+	// The vertical cut has the height for bigger rows.
+	const big = useLayout().vertical ? 1.35 : 1;
 	const shown = money(amount * grow);
 	return (
 		<div style={{ opacity: enter, transform: `translateY(${(1 - enter) * 14}px)` }}>
@@ -32,8 +34,8 @@ function Row({ label, amount, start, share, fill, at, takesAway, strong }: RowPr
 					display: "flex",
 					justifyContent: "space-between",
 					alignItems: "baseline",
-					marginBottom: 14,
-					fontSize: strong ? 48 : 40,
+					marginBottom: 14 * big,
+					fontSize: (strong ? 48 : 40) * big,
 					lineHeight: 1.2,
 				}}
 			>
@@ -51,7 +53,7 @@ function Row({ label, amount, start, share, fill, at, takesAway, strong }: RowPr
 			<div
 				style={{
 					position: "relative",
-					height: strong ? 28 : 22,
+					height: (strong ? 28 : 22) * big,
 					borderRadius: 999,
 					backgroundColor: tokens.surface3,
 					overflow: "hidden",
@@ -118,10 +120,10 @@ export function PlanWaterfall() {
 			>
 				<div
 					style={{
-						width: vertical ? 920 : 1180,
+						width: vertical ? 960 : 1180,
 						display: "flex",
 						flexDirection: "column",
-						gap: vertical ? 56 : 36,
+						gap: vertical ? 88 : 36,
 					}}
 				>
 					<Row

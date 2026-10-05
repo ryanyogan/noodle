@@ -60,6 +60,8 @@ type Still = {
 	subject?: (page: Page) => Locator;
 	/** Where the subject is scrolled to first (left where it is when not given). */
 	scroll?: "center" | "nearest";
+	/** The still is taken even when its subject can't be found (the video then uses its own guess). */
+	optional?: boolean;
 	/** Taken after every other still on both screens: it changes what the others would show. */
 	last?: boolean;
 };
@@ -189,6 +191,43 @@ async function openCloseMonth(page: Page) {
 		await closed.first().click({ timeout: 15_000 });
 		await page.waitForTimeout(400);
 	}
+	// The last two leftovers are sent to a Goal, so the still shows a Sweep being chosen. Nothing is
+	// saved until the month is closed, which the capture never does.
+	const choices = page.getByRole("combobox", { name: /leftover goes$/ });
+	try {
+		const count = await choices.count();
+		for (const index of [count - 2, count - 1]) {
+			if (index < 0) continue;
+			await choices.nth(index).click({ timeout: 5000 });
+			await page
+				.getByRole("option", { name: /Hawaii trip/ })
+				.first()
+				.click({ timeout: 5000 });
+			await page.waitForTimeout(300);
+		}
+	} catch {
+		// The still is taken with the leftovers as they are.
+		await page.keyboard.press("Escape").catch(() => {});
+	}
+}
+
+/** What Explore is asked in the video: something the Hawaii trip Goal has already set aside enough for. */
+const AFFORD = { name: "Flights to Hawaii", priceCents: 160_000 };
+
+/** Puts the Hawaii trip Goal's money toward the Check, so its answer is "Comfortable". */
+async function useGoalMoney(page: Page) {
+	const goal = page.getByRole("checkbox", { name: /Hawaii trip/ });
+	try {
+		await expect(async () => {
+			if ((await goal.getAttribute("aria-checked", { timeout: 3000 })) !== "true")
+				await goal.click({ timeout: 3000 });
+			await expect(page.getByTestId("affordability-verdict")).toContainText("Comfortable", {
+				timeout: 3000,
+			});
+		}).toPass({ timeout: 20_000 });
+	} catch {
+		// The still is taken with the answer as it stands.
+	}
 }
 
 /** What the test Parent's sign-in address is shown as in a still. */
@@ -295,6 +334,14 @@ test.beforeAll(async ({ browser }) => {
 		// Spend is a comfortable, ordinary amount and nothing explains why it is lower.
 		`update commitment_terms set cadence = 'monthly', amount_cents = 4000 where household_id = ${h} and commitment_id in (select id from commitments where household_id = ${h} and name = 'Life insurance');`,
 		`update commitment_terms set cadence = 'monthly', amount_cents = 1499 where household_id = ${h} and commitment_id in (select id from commitments where household_id = ${h} and name = 'Amazon Prime');`,
+		// The yearly car insurance would take one month ahead below zero, which the Plan would warn
+		// about: it becomes a monthly one too.
+		`update commitment_terms set cadence = 'monthly', amount_cents = 9600 where household_id = ${h} and commitment_id in (select id from commitments where household_id = ${h} and name = 'Car insurance');`,
+		// The two dated Goals get targets their monthly funding reaches in time, so both are on track.
+		`update goals set target_cents = 400000 where household_id = ${h} and id = ${q(ids.vacation)};`,
+		`update goals set target_cents = 750000 where household_id = ${h} and id = ${q(ids.car)};`,
+		// Earlier months' Kids spending comes down under its allowance (the seed has it over most months).
+		`update transactions set amount_cents = cast(amount_cents * 0.55 as integer) where household_id = ${h} and bucket_id = ${q(bucketIds.Kids ?? "")} and date < ${q(`${month}-01`)};`,
 	];
 	const now = new Date();
 	const today = now.getDate();
@@ -313,10 +360,11 @@ test.beforeAll(async ({ browser }) => {
 			);
 		}
 	}
-	// Two Costco lines waiting in Review with a suggestion: one for each screen's "Always file" still.
+	// Two Costco lines waiting in Review with a suggestion, dated today so they are the cards on top:
+	// one for each screen's "Always file" still.
 	for (const [cents, day] of [
-		[7_312, 3],
-		[5_486, 4],
+		[7_312, 31],
+		[5_486, 31],
 	] as const) {
 		const id = ulid();
 		statements.push(
@@ -337,7 +385,13 @@ test.beforeAll(async ({ browser }) => {
 
 	const thisMonth = `/month/${month}`;
 	stills = [
-		{ name: "plan-overview", path: `/plan/${month}` },
+		{
+			name: "plan-overview",
+			path: `/plan/${month}`,
+			subject: (page) => page.locator("section[aria-labelledby=plan-waterfall]"),
+			scroll: "center",
+			optional: true,
+		},
 		{
 			name: "month",
 			path: thisMonth,
@@ -372,7 +426,8 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "goal", path: `/goals/${ids.vacation}` },
 		{
 			name: "explore-afford",
-			path: "/explore/afford",
+			path: `/explore/afford?kind=anything&name=${encodeURIComponent(AFFORD.name)}&price=${AFFORD.priceCents}`,
+			ready: useGoalMoney,
 			subject: (page) => page.getByTestId("affordability-verdict"),
 			scroll: "nearest",
 		},
@@ -382,6 +437,7 @@ test.beforeAll(async ({ browser }) => {
 			path: thisMonth,
 			ready: openCloseMonth,
 			subject: closeButton,
+			optional: true,
 			scroll: "center",
 		},
 		{
@@ -442,7 +498,14 @@ async function take(browser: Browser, screen: Screen, list: Still[]) {
 				await still.ready(page);
 				await settled(page);
 			}
-			const subject = still.subject?.(page);
+			let subject = still.subject?.(page);
+			if (subject && still.optional) {
+				const seen = await subject.waitFor({ state: "visible", timeout: 15_000 }).then(
+					() => true,
+					() => false,
+				);
+				if (!seen) subject = undefined;
+			}
 			if (subject) {
 				await expect(subject).toBeVisible({ timeout: 15_000 });
 				if (still.scroll) {

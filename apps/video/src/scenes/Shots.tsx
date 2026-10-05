@@ -14,9 +14,9 @@ import {
 	useCurrentFrame,
 	useVideoConfig,
 } from "remotion";
-import { focusFor, footageFile, type Rect, type StillName } from "../footage";
+import { focusFor, footageFile, type Rect, type StillName, VIEWPORT } from "../footage";
 import { CLAMP, fontFamily, money, useEnter, useLayout } from "../parts";
-import { BUCKET, frames, SCENES, type Shot } from "../story";
+import { bucketOn, frames, SCENES, type Shot } from "../story";
 import { tokens } from "../tokens";
 
 /** How long one shot takes to fade in over the last, in frames. */
@@ -27,17 +27,23 @@ export const SHOTS: Shot[] = SCENES.flatMap((scene) => scene.shots);
 export const SHOTS_FROM = frames(SHOTS[0]?.from ?? 0);
 export const SHOTS_TO = frames(SHOTS.at(-1)?.to ?? 0);
 
-/** The frame every shot sits in: the footage's shape, with the app's card edge and shadow. */
-function Stage({ children }: { children: ReactNode }) {
+/**
+ * The frame every shot sits in, with the app's card edge and shadow. `card` is for a drawing: in
+ * the vertical cut it is a wide card in the middle of the stage instead of a phone's tall shape.
+ */
+function Stage({ children, card = false }: { children: ReactNode; card?: boolean }) {
 	const { width, top, stageWidth, stageHeight, vertical } = useLayout();
+	const wide = card && vertical;
+	const boxWidth = wide ? width - 100 : stageWidth;
+	const boxHeight = wide ? 720 : stageHeight;
 	return (
 		<div
 			style={{
 				position: "absolute",
-				top,
-				left: (width - stageWidth) / 2,
-				width: stageWidth,
-				height: stageHeight,
+				top: top + (stageHeight - boxHeight) / 2,
+				left: (width - boxWidth) / 2,
+				width: boxWidth,
+				height: boxHeight,
 				borderRadius: vertical ? 40 : 22,
 				overflow: "hidden",
 				backgroundColor: tokens.card,
@@ -50,51 +56,73 @@ function Stage({ children }: { children: ReactNode }) {
 	);
 }
 
-/**
- * How far to move in on a focus: until it takes about four fifths of the stage, and never more
- * than half as big again (the stills have the pixels for that, so nothing is blown up soft).
- */
-function zoomFor(focus: Rect | undefined, most: number): number {
-	if (!focus) return 1.04;
-	return Math.max(1.04, Math.min(most, 0.8 / Math.max(focus.w, focus.h)));
-}
+/** How much of the stage's width and height a subject may take once the camera has moved in. */
+const FILL = { w: 0.8, h: 0.86 };
 
-/** The part of the still in view at `scale`: centred on (cx, cy) as far as the still's edges allow. */
-function windowAt(scale: number, cx: number, cy: number) {
-	const size = 1 / scale;
-	const clamp = (value: number) => Math.min(1 - size, Math.max(0, value));
-	return { x: clamp(cx - size / 2), y: clamp(cy - size / 2) };
+/**
+ * The camera on a still, `move` (0 to 1) of the way in on its focus. The still is drawn as wide as
+ * the stage times the scale; where the stage is flatter than the still (the wide cut) only a band
+ * of its height shows. Gives the still's size and place in the stage in px, and `tall` when the
+ * focus is too tall to fit in the band (it is then shown from its top).
+ */
+function camera(
+	focus: Rect | undefined,
+	stage: { width: number; height: number },
+	shape: number,
+	most: number,
+	move: number,
+) {
+	// The share of the still's height in view when it is exactly as wide as the stage.
+	const band = Math.min(1, stage.height / (stage.width * shape));
+	const end = focus
+		? Math.max(1.04, Math.min(most, FILL.w / focus.w, (FILL.h * band) / focus.h))
+		: 1.04;
+	const tall = !!focus && focus.h > band / end;
+	const scale = 1 + (end - 1) * move;
+	const w = 1 / scale;
+	const h = band / scale;
+	const clamp = (value: number, size: number) => Math.min(1 - size, Math.max(0, value));
+	const x = clamp((focus ? focus.x + focus.w / 2 : 0.5) - w / 2, w);
+	// A page with no subject is read from its top, and so is a subject taller than the band.
+	const y = clamp(!focus ? 0 : tall ? focus.y - 0.02 : focus.y + focus.h / 2 - h / 2, h);
+	const width = stage.width * scale;
+	const height = width * shape;
+	return { width, height, left: -x * width, top: -y * height, tall };
 }
 
 function StillShot({ still, ring }: { still: StillName; ring: boolean }) {
-	const { cut } = useLayout();
+	const { cut, stageWidth, stageHeight } = useLayout();
 	const focus = focusFor(still, cut);
 	const move = useEnter(FADE, 70);
 	const ringIn = useEnter(FADE + 14, 20);
-	// A phone's still is already shown large, and moving in far on it cuts its lines of text off at the sides.
-	const scale = 1 + (zoomFor(focus, cut === "phone" ? 1.12 : 1.5) - 1) * move;
-	const view = windowAt(
-		scale,
-		focus ? focus.x + focus.w / 2 : 0.5,
-		focus ? focus.y + focus.h / 2 : 0.5,
+	// A phone's still is already shown large, and moving in far on it cuts its lines of text off at
+	// the sides. A computer's still fills the stage's width, so a little is enough there too.
+	const view = camera(
+		focus,
+		{ width: stageWidth, height: stageHeight },
+		VIEWPORT[cut].height / VIEWPORT[cut].width,
+		cut === "phone" ? 1.12 : 1.2,
+		move,
 	);
-	// A ring round nearly the whole still points at nothing.
-	const ringed = ring && focus && focus.w * focus.h < 0.7;
+	// A ring round nearly the whole still points at nothing, and one that runs out of view is half a ring.
+	const ringed = ring && focus && !view.tall && focus.w * focus.h < 0.7;
 	return (
 		<Stage>
-			{/* The ring is inside the layer that grows, so it stays on its subject; its line is thinned to match. */}
+			{/* The ring is inside the layer that moves, so it stays on its subject. */}
 			<div
 				style={{
 					position: "absolute",
-					inset: 0,
-					transform: `translate(${-view.x * scale * 100}%, ${-view.y * scale * 100}%) scale(${scale})`,
-					transformOrigin: "0 0",
+					left: 0,
+					top: 0,
+					width: view.width,
+					height: view.height,
+					transform: `translate(${view.left}px, ${view.top}px)`,
 				}}
 			>
 				{/* A still that is missing stops the render: Img waits for the file and throws when it can't load. */}
 				<Img
 					src={staticFile(footageFile(still, cut))}
-					style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }}
+					style={{ display: "block", width: "100%", height: "100%" }}
 				/>
 				{ringed ? (
 					<div
@@ -105,9 +133,9 @@ function StillShot({ still, ring }: { still: StillName; ring: boolean }) {
 							width: `${focus.w * 100}%`,
 							height: `${focus.h * 100}%`,
 							boxSizing: "border-box",
-							border: `${4 / scale}px solid ${tokens.brand}`,
-							borderRadius: 16 / scale,
-							boxShadow: `0 0 0 ${8 / scale}px ${tokens.brandSoft}`,
+							border: `4px solid ${tokens.brand}`,
+							borderRadius: 16,
+							boxShadow: `0 0 0 8px ${tokens.brandSoft}`,
 							opacity: ringIn,
 						}}
 					/>
@@ -117,15 +145,20 @@ function StillShot({ still, ring }: { still: StillName; ring: boolean }) {
 	);
 }
 
-/** A Bucket's bar filling as money is spent, with the Pace line, in the look of the app's own bar. */
+/**
+ * A Bucket's bar filling as money is spent, with the Pace line, in the look and the colour of the
+ * app's own Groceries bar, and with that row's numbers on the day the video is made.
+ */
 function BucketShot() {
 	const { vertical } = useLayout();
 	const spend = useEnter(FADE + 6, 50);
 	const paceIn = useEnter(FADE + 40, 20);
-	const spent = BUCKET.spent * spend;
-	const size = vertical ? 44 : 48;
+	const bucket = bucketOn(new Date());
+	const spent = bucket.spent * spend;
+	const size = vertical ? 60 : 56;
+	const small = vertical ? 42 : 38;
 	return (
-		<Stage>
+		<Stage card>
 			<AbsoluteFill
 				style={{
 					fontFamily,
@@ -134,7 +167,7 @@ function BucketShot() {
 					justifyContent: "center",
 				}}
 			>
-				<div style={{ width: "80%" }}>
+				<div style={{ width: vertical ? "84%" : "72%" }}>
 					<div
 						style={{
 							display: "flex",
@@ -145,26 +178,26 @@ function BucketShot() {
 							letterSpacing: "-0.02em",
 						}}
 					>
-						<span style={{ display: "flex", alignItems: "center", gap: 18 }}>
+						<span style={{ display: "flex", alignItems: "center", gap: 20 }}>
 							<span
 								style={{
 									width: size,
 									height: size,
 									borderRadius: tokens.radiusControl,
-									backgroundColor: tokens.bucketGreen,
+									backgroundColor: tokens.bucketBlue,
 								}}
 							/>
-							{BUCKET.name}
+							{bucket.name}
 						</span>
 						<span style={{ fontVariantNumeric: "tabular-nums" }}>
-							{money(BUCKET.available - spent)} left
+							{money(bucket.available - spent)} left
 						</span>
 					</div>
 					<div
 						style={{
 							position: "relative",
-							height: 24,
-							marginTop: 96,
+							height: 32,
+							marginTop: 120,
 							borderRadius: 999,
 							backgroundColor: tokens.surface3,
 						}}
@@ -175,20 +208,20 @@ function BucketShot() {
 								top: 0,
 								bottom: 0,
 								left: 0,
-								width: `${(spent / BUCKET.available) * 100}%`,
+								width: `${(spent / bucket.available) * 100}%`,
 								borderRadius: 999,
-								backgroundColor: tokens.bucketGreen,
+								backgroundColor: tokens.bucketBlue,
 							}}
 						/>
 						<div
 							style={{
 								position: "absolute",
-								left: `${BUCKET.pace * 100}%`,
-								top: -12,
-								bottom: -12,
-								width: 4,
-								marginLeft: -2,
-								borderRadius: 2,
+								left: `${bucket.pace * 100}%`,
+								top: -14,
+								bottom: -14,
+								width: 5,
+								marginLeft: -2.5,
+								borderRadius: 3,
 								backgroundColor: tokens.foreground,
 								opacity: paceIn,
 							}}
@@ -196,11 +229,11 @@ function BucketShot() {
 						<div
 							style={{
 								position: "absolute",
-								left: `${BUCKET.pace * 100}%`,
-								bottom: 46,
+								left: `${bucket.pace * 100}%`,
+								bottom: 56,
 								transform: "translateX(-50%)",
 								whiteSpace: "nowrap",
-								fontSize: 34,
+								fontSize: small,
 								fontWeight: 500,
 								color: tokens.mutedForeground,
 								opacity: paceIn,
@@ -211,13 +244,13 @@ function BucketShot() {
 					</div>
 					<div
 						style={{
-							marginTop: 30,
-							fontSize: 34,
+							marginTop: 36,
+							fontSize: small,
 							color: tokens.mutedForeground,
 							fontVariantNumeric: "tabular-nums",
 						}}
 					>
-						{money(spent)} spent of {money(BUCKET.available)}
+						{money(spent)} spent of {money(bucket.available)}
 					</div>
 				</div>
 			</AbsoluteFill>
