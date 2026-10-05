@@ -1026,6 +1026,9 @@ export const categorizations = sqliteTable(
 		reason: text("reason"),
 		// The Commitment a Rule filed it to, in place of a Bucket (ADR-0030).
 		commitmentId: text("commitment_id").references(() => commitments.id),
+		// When a Parent put it back in Review with Undo (issue 105): theirs to decide from then on,
+		// so a look again leaves it alone. Null again once it's filed.
+		returnedAt: integer("returned_at", { mode: "timestamp_ms" }),
 	},
 	(t) => [index("categorizations_household_idx").on(t.householdId, t.outcome)],
 );

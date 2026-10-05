@@ -9,7 +9,7 @@ import {
 	createHouseholdForParent,
 	setTakeHomePay,
 } from "./index";
-import { fileWithoutBucket, loadReview, returnToReview } from "./review";
+import { fileWithoutBucket, loadReview, loadReviewToLookAgain, returnToReview } from "./review";
 import { applyRule, deleteRule, editRule, listRules, loadRules, saveRule } from "./rules";
 import {
 	categorizations,
@@ -286,6 +286,87 @@ describe("clearing Review", () => {
 		expect((await loadReview(db, alex, 50)).items).toEqual([
 			expect.objectContaining({ id: "t2", guess: null }),
 		]);
+	});
+});
+
+describe("a card a Parent put back with Undo waits for the Parent (issue 105)", () => {
+	const lookedAgain = async (viewer = alex) =>
+		(await loadReviewToLookAgain(db, viewer)).map((row) => row.id);
+	const putBack = (id: string, merchant: string) =>
+		returnToReview(db, alex, { transactionId: id, merchant, guess: null, forMemberIds: [] });
+	const mark = async (id: string) =>
+		(await db.select().from(categorizations)).find((c) => c.transactionId === id)?.returnedAt;
+
+	async function filedByHand(id: string, note: string) {
+		const filed = await updateTransaction(db, {
+			householdId,
+			memberId: "alex",
+			transactionId: id,
+			amountCents: 4_200,
+			assignment: { bucketId: "fun" },
+			note,
+			forMemberIds: [],
+		});
+		expect(filed.ok).toBe(true);
+		await settleCategorization(db, householdId, id);
+	}
+
+	it("a look again skips it, and still takes the cards no one has decided", async () => {
+		await imported("t1", "acme widgets", { outcome: "review" });
+		await imported("t2", "acme widgets", { outcome: "review" });
+		expect(await lookedAgain()).toEqual(["t1", "t2"]);
+
+		await filedByHand("t1", "acme widgets");
+		await putBack("t1", "acme widgets");
+
+		expect(await reviewIds()).toEqual(["t1", "t2"]);
+		expect(await lookedAgain()).toEqual(["t2"]);
+		expect(await mark("t1")).toBeInstanceOf(Date);
+		expect(await mark("t2")).toBeNull();
+	});
+
+	it("stays put back when the Undo is sent twice, and when it never left Review", async () => {
+		await imported("t1", "acme widgets", { outcome: "review" });
+		await putBack("t1", "acme widgets");
+		await putBack("t1", "acme widgets");
+		expect(await lookedAgain()).toEqual([]);
+	});
+
+	it("loses the mark with its row when the Parent files it by hand", async () => {
+		await imported("t1", "acme widgets", { outcome: "review" });
+		await putBack("t1", "acme widgets");
+		await filedByHand("t1", "acme widgets");
+		expect(await db.select().from(categorizations)).toEqual([]);
+	});
+
+	it("a Rule the Parent makes still files it, and that clears the mark", async () => {
+		await imported("t1", "acme widgets", { outcome: "review" });
+		await putBack("t1", "acme widgets");
+		await saveRule(db, {
+			id: "rule-acme",
+			householdId,
+			memberId: "alex",
+			pattern: "Acme Widgets",
+			bucketId: "fun",
+		});
+		expect(await applyRule(db, alex, "rule-acme")).toMatchObject({ filed: 1 });
+		const [row] = await db.select().from(transactions).where(eqId("t1"));
+		expect(row?.bucketId).toBe("fun");
+		expect(await mark("t1")).toBeNull();
+	});
+
+	it("a new guess for it (the Parent's own Look again is not one) keeps the mark", async () => {
+		await imported("t1", "acme widgets", { outcome: "review" });
+		await putBack("t1", "acme widgets");
+		await fileCategorizations(db, alex, [
+			{
+				transactionId: "t1",
+				merchant: "acme widgets",
+				categorization: { outcome: "review", method: "model", bucketId: "fun", confidence: 0.5 },
+			},
+		]);
+		expect(await mark("t1")).toBeInstanceOf(Date);
+		expect(await lookedAgain()).toEqual([]);
 	});
 });
 
