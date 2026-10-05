@@ -14,6 +14,7 @@ import {
 	pickAll,
 	pickedCount,
 	SNAPSHOT_BEFORE_DELETE,
+	selectAllLabel,
 	selectionOf,
 	stayingFacts,
 	transactionsCount,
@@ -60,10 +61,18 @@ export function SelectionBar({
 	const upToMonth = useQuery(summaryQuery({ all: matchingAll(month, filters, true) })).data?.count;
 	const count = pickedCount(picking, picking.all?.andEarlier ? upToMonth : inMonth);
 	const name = monthName(month);
+	const offerMonth =
+		inMonth !== undefined && inMonth > 0 && !(picking.all && !picking.all.andEarlier);
+	const offerEarlier =
+		upToMonth !== undefined && upToMonth > (inMonth ?? 0) && !picking.all?.andEarlier;
+	// On a phone the two share a line.
+	const everything = "max-sm:min-w-0 max-sm:flex-1 max-sm:justify-center max-sm:text-center";
 	return (
 		<section
 			aria-label="Selecting Transactions"
-			className="sticky top-2 z-20 grid gap-2 rounded-2xl border border-border-strong bg-card p-3 shadow-sm"
+			// Over the list on a phone. From lg it sits under the table and stays at the foot of the
+			// window, so the first tick doesn't push the rows down from under the pointer.
+			className="sticky top-2 z-20 grid gap-2 rounded-2xl border border-border-strong bg-card p-3 shadow-sm max-sm:gap-1.5 max-sm:p-2.5 lg:top-auto lg:bottom-4 lg:order-last"
 		>
 			<div className="flex flex-wrap items-center justify-between gap-2">
 				<p role="status" className="text-sm font-semibold tabular-nums">
@@ -79,24 +88,47 @@ export function SelectionBar({
 					</Button>
 				</div>
 			</div>
-			<div className="flex flex-wrap gap-2">
-				{inMonth !== undefined && inMonth > 0 && !(picking.all && !picking.all.andEarlier) ? (
-					<Button variant="outline" size="wrap" onClick={() => onPick(pickAll(false))}>
-						{filtered
-							? `Select all ${inMonth.toLocaleString("en-US")} that match in ${name}`
-							: `Select all ${inMonth.toLocaleString("en-US")} in ${name}`}
-					</Button>
-				) : null}
-				{upToMonth !== undefined && upToMonth > (inMonth ?? 0) && !picking.all?.andEarlier ? (
-					<Button variant="outline" size="wrap" onClick={() => onPick(pickAll(true))}>
-						{filtered
-							? `Select all ${upToMonth.toLocaleString("en-US")} that match in ${name} and every month before`
-							: `Select all ${upToMonth.toLocaleString("en-US")} in ${name} and every month before`}
-					</Button>
-				) : null}
-			</div>
-			<p className="text-xs text-muted-foreground">
-				Tap Transactions to select them. Goal spending can’t be selected: it changes from its Goal.
+			{offerMonth || offerEarlier ? (
+				// A phone: the two side by side in few words, not two full-width lines (issue 115).
+				<div className="flex gap-2 sm:flex-wrap">
+					{offerMonth ? (
+						<Button
+							variant="outline"
+							size="wrap"
+							className={everything}
+							onClick={() => onPick(pickAll(false))}
+						>
+							<span className="sm:hidden">
+								{selectAllLabel(inMonth ?? 0, name, { filtered, andEarlier: false, short: true })}
+							</span>
+							<span className="max-sm:hidden">
+								{selectAllLabel(inMonth ?? 0, name, { filtered, andEarlier: false })}
+							</span>
+						</Button>
+					) : null}
+					{offerEarlier ? (
+						<Button
+							variant="outline"
+							size="wrap"
+							className={everything}
+							onClick={() => onPick(pickAll(true))}
+						>
+							<span className="sm:hidden">
+								{selectAllLabel(upToMonth ?? 0, name, { filtered, andEarlier: true, short: true })}
+							</span>
+							<span className="max-sm:hidden">
+								{selectAllLabel(upToMonth ?? 0, name, { filtered, andEarlier: true })}
+							</span>
+						</Button>
+					) : null}
+				</div>
+			) : null}
+			<p className="text-xs text-muted-foreground lg:hidden">
+				Tap a row to select it. Goal spending can’t be selected.
+			</p>
+			<p className="text-xs text-muted-foreground max-lg:hidden">
+				Tick Transactions to select them; hold Shift to take a run of rows. Goal spending can’t be
+				selected: it changes from its Goal.
 			</p>
 		</section>
 	);
