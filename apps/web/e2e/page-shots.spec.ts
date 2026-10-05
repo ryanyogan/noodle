@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { ulid } from "ulid";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
 import { choose, createHousehold, openMore, savedBy, signedInPage } from "./session";
@@ -235,7 +236,36 @@ test.beforeAll(async ({ browser }) => {
 		colorScheme,
 	});
 
-	const { month, bucketIds, commitmentIds, ids } = await seedShotsHousehold(page, parent.userId);
+	const { householdId, parentId, month, bucketIds, commitmentIds, ids } = await seedShotsHousehold(
+		page,
+		parent.userId,
+	);
+
+	// Two more payments waiting in Review, beside the Amex one (a card Noodle follows): one to a
+	// card kept by hand that a Commitment pays down, and one to a card that isn't in Noodle at all.
+	await attempt("Review's card payments", async () => {
+		const h = q(householdId);
+		const m = q(parentId);
+		const discover = q(ulid());
+		const paying = q(ulid());
+		const statements = [
+			`insert into accounts (id, household_id, name, kind, bank_connection_id, external_id, mask) values (${discover}, ${h}, 'Discover it', 'credit-card', null, null, null);`,
+			`insert into account_balances (id, household_id, account_id, amount_cents, created_by_member_id) values (${q(ulid())}, ${h}, ${discover}, 312000, ${m});`,
+			`insert into commitments (id, household_id, name, from_month, account_id) values (${paying}, ${h}, 'Discover payment', ${q(month)}, ${discover});`,
+			`insert into commitment_terms (household_id, commitment_id, month, amount_cents, cadence, due_date) values (${h}, ${paying}, ${q(month)}, 60000, 'monthly', ${q(`${month}-01`)});`,
+		];
+		for (const [line, cents] of [
+			["DISCOVER E-PAYMENT 7731 WEB", 25_000],
+			["CITI CARD ONLINE PAYMENT", 18_000],
+		] as const) {
+			const id = q(ulid());
+			statements.push(
+				`insert into transactions (id, household_id, source, date, amount_cents, note, merchant, account_id, created_by_member_id) values (${id}, ${h}, 'import', ${q(`${month}-01`)}, ${cents}, ${q(line)}, ${q(line)}, ${q(ids.checking)}, ${m});`,
+				`insert into categorizations (transaction_id, household_id, member_id, outcome, method, bucket_id, confidence, merchant) values (${id}, ${h}, ${m}, 'review', 'none', null, null, ${q(line)});`,
+			);
+		}
+		await seedSql(statements);
+	});
 
 	// Two credit cards with their Perks, one of them used.
 	await attempt("Credit card perks", async () => {
@@ -566,6 +596,34 @@ test.beforeAll(async ({ browser }) => {
 				await page.evaluate(() => window.scrollTo(0, 0));
 			},
 		},
+		// One by one, what's in the window, with each of the other two payments on top: one to a card
+		// Noodle doesn't follow (the tallest card: does Skip still clear the bottom bar?), and one a
+		// Commitment pays down.
+		...(
+			[
+				["12c-review-card-payment-not-followed", "not-followed", "link", "Make it a Commitment"],
+				["12d-review-card-payment-commitment", "commitment", "button", "Confirm"],
+			] as const
+		).map(
+			([name, kind, role, action]): Shot => ({
+				name,
+				path: "/review",
+				window: true,
+				ready: async (page) => {
+					const stack = page.getByTestId("review-stack");
+					const first = stack
+						.locator(`[data-testid=review-card][data-payment=${kind}]`)
+						.getByRole(role, { name: action });
+					for (let skipped = 0; skipped < 10; skipped++) {
+						if (await first.isVisible()) break;
+						await stack.getByRole("button", { name: "Skip" }).click({ timeout: 15_000 });
+						await page.waitForTimeout(400);
+					}
+					await expect(first).toBeVisible();
+					await page.evaluate(() => window.scrollTo(0, 0));
+				},
+			}),
+		),
 		{ name: "13-review-list", path: "/review?view=list" },
 		{ name: "14-rules", path: "/review/rules" },
 		{ name: "15-accounts", path: "/accounts" },
