@@ -88,7 +88,7 @@ describe("rowView", () => {
 		const v = view({ bucketId: null, transfer: { from: "Checking", to: "Visa" } });
 		expect(v).toMatchObject({
 			kind: "transfer",
-			assigned: "Transfer",
+			assigned: "Transfer · Checking → Visa",
 			who: "",
 			detail: "Transfer · Checking → Visa",
 			label: `Costco, ${money}, Transfer, Checking to Visa`,

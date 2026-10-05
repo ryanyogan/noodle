@@ -83,7 +83,10 @@ export function CommitmentEditor({
 	const monthly = commitment.cadence === "monthly";
 	return (
 		<ListRow
-			leading={<Tile>{monogram(commitment.name)}</Tile>}
+			// On the narrowest phones (under 360px) the letter tile goes: with it, "Monthly · due
+			// Oct 1" broke onto two lines and every row was four lines tall (issue 115).
+			className="max-[22.5rem]:grid-cols-[minmax(0,1fr)_auto]"
+			leading={<Tile className="max-[22.5rem]:hidden">{monogram(commitment.name)}</Tile>}
 			title={<CommitmentLink month={month} commitment={commitment} />}
 			meta={
 				<>

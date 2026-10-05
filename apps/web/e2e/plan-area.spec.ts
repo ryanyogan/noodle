@@ -414,6 +414,8 @@ test("on the narrowest phone the Plan's first page has the split and the Buckets
 	await expect(waterfall(page).getByRole("button", { name: "Show the parts" })).toBeVisible();
 	await expect(page.getByRole("button", { name: "Add Buckets", exact: true })).toHaveCount(1);
 	await expect(page.getByRole("button", { name: "Add Buckets", exact: true })).toBeInViewport();
+	// The one under the table is for wider windows (issue 115).
+	await expect(page.getByRole("button", { name: "Add another Bucket" })).toHaveCount(0);
 	await expect(page.locator("[data-slot=left-to-plan]")).toHaveCount(0);
 	const split = await waterfall(page).boundingBox();
 	const buckets = await page.getByRole("grid", { name: "Buckets", exact: true }).boundingBox();

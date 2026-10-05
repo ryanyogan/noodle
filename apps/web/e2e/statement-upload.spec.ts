@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import {
 	accountKindLabel,
@@ -43,6 +43,17 @@ async function chooseStatement(page: Page, file: string) {
 }
 
 const toast = (page: Page, text: string) => page.getByRole("status").filter({ hasText: text });
+
+/**
+ * What a Parent can read in a Transaction's row: each part is on show, in its own column on a
+ * wide table or on the row's one detail line on a narrow one (the copy not in use is hidden).
+ */
+async function says(page: Page, control: Locator, parts: string[]) {
+	const row = page.getByRole("row").filter({ has: control }).first();
+	for (const part of parts) {
+		await expect(row.getByText(part).filter({ visible: true }).first()).toBeVisible();
+	}
+}
 
 test("a bank statement comes in once, as Transactions to assign and income", async ({
 	browser,
@@ -101,9 +112,7 @@ test("a bank statement comes in once, as Transactions to assign and income", asy
 		name: /^Stumptown Coffee, \$4\.50, Unassigned, For Everyone, from Everyday Checking ••3210$/i,
 	});
 	await expect(coffee).toHaveCount(2);
-	await expect(
-		page.getByText("Unassigned · Everyone · Everyday Checking ••3210").first(),
-	).toBeVisible();
+	await says(page, coffee.first(), ["Unassigned", "Everyone", "Everyday Checking", "••3210"]);
 	// The bank's own text is kept as the note: rows open their detail once the page is hydrated.
 	await expect(page.getByLabel("Bucket")).toBeEnabled();
 	await traderJoes.click();
@@ -144,11 +153,9 @@ test("money back onto a card is listed but counts nowhere", async ({ browser }) 
 	await reloadUntil(page, page.url().replace(/\/accounts\/.*$/, "/transactions/2026-09"), () =>
 		expect(netflix).toBeVisible({ timeout: 2_000 }),
 	);
-	const refund = page
-		.getByRole("listitem")
-		.filter({ has: page.getByRole("button", { name: /^REI\b/i }) });
-	await expect(refund).toContainText("Money back · Visa");
-	await expect(refund).toContainText("−$24.99");
+	const rei = page.getByRole("button", { name: /^REI\b/i });
+	const refund = page.getByRole("row").filter({ has: rei });
+	await says(page, rei, ["Money back", "Visa", "••1111", "−$24.99"]);
 	// It opens its Transfer and Refund link, not the editor.
 	await expect(refund.getByRole("button")).toHaveAccessibleName(
 		/^REI[^,]*, −\$24\.99, Money back, from Visa ••1111$/i,
