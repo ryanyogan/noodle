@@ -24,9 +24,9 @@ The table is a Household table, so a Fresh start clears it and a snapshot holds 
 
 Not covered: the same real charge arriving under another ID from another source (deleted as a bank line, then brought in by a statement, or the other way round). Pairing across sources compares rows that are there (ADR-0020), and the row is gone.
 
-### One delete can be undone for a few seconds
+### One delete can be undone for ten seconds
 
-Deleting one says so at once with an Undo ("Deleted. It won't come back when your bank syncs." for an imported one), and the delete is sent when the Undo has gone, six seconds later, or when the page is put away. Undo is never sending it. If the page is closed in those seconds and the request doesn't leave, the Transaction is still there next time: the safe way to fail. A refetch in those seconds can show the row again until the delete lands.
+Deleting one says so at once with an Undo ("Deleted. It won't come back when your bank syncs." for an imported one), and the delete is sent when the Undo has gone, ten seconds later (the same time as every Undo), or when the page is put away. Undo is never sending it. The send follows the toast itself, not a clock of its own: while the toast waits (the pointer is over it, it is held, or the keyboard is in the toasts) the delete waits with it, so Undo never shows for a delete that has already been sent. If the page is closed in those seconds and the request doesn't leave, the Transaction is still there next time: the safe way to fail. A refetch in those seconds can show the row again until the delete lands.
 
 ### Select mode and "all that match"
 

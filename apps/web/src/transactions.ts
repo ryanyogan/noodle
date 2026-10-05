@@ -501,14 +501,15 @@ export function useTransactionChange() {
 	});
 	/**
 	 * A delete leaves the screen at once and is said with an Undo; it is sent when the Undo has
-	 * gone (or the page is put away), so Undo is simply never sending it (#97, ADR-0045).
+	 * gone (or the page is put away), so Undo is simply never sending it (#97, ADR-0045). "Gone" is
+	 * the toast's own end, not a clock beside it: while the toast waits (hovered, held, Alt+T) the
+	 * delete waits too, so Undo is never showing for a delete already sent.
 	 */
 	const deleteWithUndo = (variables: TransactionChange) => {
 		let settled = false;
 		const rollback = applyTransactionChange(queryClient, variables);
 		const done = () => {
 			settled = true;
-			clearTimeout(timer);
 			document.removeEventListener("visibilitychange", onHide);
 		};
 		const send = () => {
@@ -523,19 +524,15 @@ export function useTransactionChange() {
 		const onHide = () => {
 			if (document.visibilityState === "hidden") send();
 		};
-		const timer = setTimeout(send, UNDO_DELETE_MS);
 		document.addEventListener("visibilitychange", onHide);
 		toast(deletedMessage(variables), {
 			tone: "success",
-			duration: UNDO_DELETE_MS,
-			action: {
-				label: "Undo",
-				onClick: () => {
-					if (settled) return;
-					done();
-					void rollback.then((putBack) => putBack());
-				},
+			undo: () => {
+				if (settled) return;
+				done();
+				void rollback.then((putBack) => putBack());
 			},
+			onGone: send,
 		});
 	};
 	return {
@@ -544,9 +541,6 @@ export function useTransactionChange() {
 			variables.next === null ? deleteWithUndo(variables) : change.mutate(variables),
 	};
 }
-
-/** How long a deleted Transaction can be put back with Undo, before the delete is sent. */
-export const UNDO_DELETE_MS = 6000;
 
 /** What is said when a Transaction is deleted: an imported one won't be brought in again. */
 export const deletedMessage = ({

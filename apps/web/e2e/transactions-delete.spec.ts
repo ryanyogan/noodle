@@ -216,9 +216,11 @@ test("a deleted bank line can be put back with Undo, and once deleted doesn't co
 		const confirm = page.getByRole("alertdialog");
 		await expect(confirm).toContainText("it won’t come back when your bank syncs");
 		await confirm.getByRole("button", { name: "Delete Transaction" }).click();
+		// Off the toasts: one under the pointer waits, and the delete waits with it.
+		await page.mouse.move(0, 0);
 	};
 
-	// Undo within a few seconds: it never left.
+	// Undo within ten seconds: it never left.
 	await deleteIt();
 	const deleted = toast(page, "Deleted. It won’t come back when your bank syncs.");
 	await expect(deleted).toBeVisible();
@@ -231,7 +233,7 @@ test("a deleted bank line can be put back with Undo, and once deleted doesn't co
 	await deleteIt();
 	await expect(netflix).toHaveCount(0);
 	expect((await sent).ok()).toBe(true);
-	await expect(deleted).toHaveCount(0, { timeout: 15_000 });
+	await expect(deleted).toHaveCount(0, { timeout: 20_000 });
 
 	// The bank says there's news: Netflix posted in place of the pending charge, Target is pending.
 	const [results = []] = await seedSql([
