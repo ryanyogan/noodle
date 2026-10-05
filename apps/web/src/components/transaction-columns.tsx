@@ -18,6 +18,9 @@ import type { TransactionRow } from "../transactions";
 export type TransactionTableRow = { transaction: TransactionRow; view: RowView };
 
 const pill = "h-4.5 px-1.5 text-[11px]";
+// A tile with no Bucket colour is the same grey as a selected or open row: there it takes the
+// card's ground, so the square is still a square.
+const plainTile = "[[data-selected]_&]:bg-card [[aria-current=true]_&]:bg-card";
 // The name is the row's control: as small as its words, so the row around it stays a row.
 const nameControl =
 	"col-span-2 h-auto min-h-6 max-w-full min-w-0 justify-start justify-self-start rounded-sm p-0 text-start text-sm font-medium hover:bg-transparent sm:col-span-1";
@@ -44,33 +47,41 @@ function NameCell({
 	const picking = checked !== undefined && !transaction.goal;
 	return (
 		<span className="flex min-w-0 flex-1 items-center gap-3">
-			{picking ? (
-				<span
-					aria-hidden="true"
-					data-slot="pick-mark"
-					className={cn(
-						"grid size-5 shrink-0 place-items-center rounded-md border",
-						checked
-							? "border-primary bg-primary text-primary-foreground"
-							: "border-border-strong bg-card",
-					)}
-				>
-					{checked ? <Check className="size-3.5" /> : null}
-				</span>
-			) : null}
-			{view.kind === "transfer" ? (
-				<Tile aria-hidden="true">
-					<ArrowLeftRight className="size-4" />
-				</Tile>
-			) : view.kind === "split" ? (
-				<Tile aria-hidden="true">
-					<SplitIcon className="size-4" />
-				</Tile>
-			) : (
-				<Tile aria-hidden="true" bucket={view.assignment.color ?? undefined}>
-					{view.kind === "goal" ? <Target /> : monogram(view.assignment.name)}
-				</Tile>
-			)}
+			{/* Stacked rows (a phone) have no checkbox column: while selecting, the tick rides on the
+			    tile's corner, so the row keeps its place and the Bucket its colour (issue 115). */}
+			<span className="relative flex shrink-0">
+				{view.kind === "transfer" ? (
+					<Tile aria-hidden="true" className={plainTile}>
+						<ArrowLeftRight className="size-4" />
+					</Tile>
+				) : view.kind === "split" ? (
+					<Tile aria-hidden="true" className={plainTile}>
+						<SplitIcon className="size-4" />
+					</Tile>
+				) : (
+					<Tile
+						aria-hidden="true"
+						bucket={view.assignment.color ?? undefined}
+						className={view.assignment.color ? undefined : plainTile}
+					>
+						{view.kind === "goal" ? <Target /> : monogram(view.assignment.name)}
+					</Tile>
+				)}
+				{picking ? (
+					<span
+						aria-hidden="true"
+						data-slot="pick-mark"
+						className={cn(
+							"absolute -end-1 -bottom-1 grid size-4 place-items-center rounded-full border @2xl/dt:hidden",
+							checked
+								? "border-primary bg-primary text-primary-foreground"
+								: "border-border-strong bg-card",
+						)}
+					>
+						{checked ? <Check className="size-3" /> : null}
+					</span>
+				) : null}
+			</span>
 			{/* The marks follow the name, or start the second line on phones so the name keeps its
 			    room: one copy, placed by the grid. */}
 			<span className="grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] items-center gap-y-0.5 sm:grid-cols-[minmax(0,max-content)_1fr]">
@@ -91,7 +102,6 @@ function NameCell({
 						size="sm"
 						className={nameControl}
 						aria-label={view.label}
-						aria-pressed={picking ? checked : undefined}
 						aria-current={open ? "true" : undefined}
 						onClick={() => onEdit(transaction)}
 					>

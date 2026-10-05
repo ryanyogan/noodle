@@ -117,7 +117,8 @@ export function rowView(
 	const assigned = transaction.goal
 		? `${assignment.name} Goal`
 		: transfer
-			? "Transfer"
+			? // Its Accounts, or that it's between the Parents: the Account column names only this side.
+				detail
 			: refund
 				? `Refund · ${assignment.name}`
 				: moneyBack

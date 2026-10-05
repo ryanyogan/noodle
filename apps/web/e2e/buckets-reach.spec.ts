@@ -38,8 +38,10 @@ async function reachAndEdit(page: Page) {
 	await expect(page).toHaveURL(planBucketsUrl);
 	await expect(page.locator("h2#buckets")).toBeInViewport();
 	await expect(page.getByRole("button", { name: "Add Buckets", exact: true })).toBeEnabled();
-	// Adding is beside the heading and under the table.
-	await expect(page.getByRole("button", { name: "Add another Bucket" })).toBeVisible();
+	// Adding is beside the heading and, from 640 wide, under the table too (issue 115).
+	const under = page.getByRole("button", { name: "Add another Bucket" });
+	if ((page.viewportSize()?.width ?? 0) >= 640) await expect(under).toBeVisible();
+	else await expect(under).toBeHidden();
 	await expect.poll(() => names(page)).toEqual(["Groceries", "Gas", "Fun"]);
 
 	// Its amount: the row's pencil opens the Bucket's one sheet, amount first.

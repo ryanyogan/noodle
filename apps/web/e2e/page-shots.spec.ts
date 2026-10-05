@@ -184,15 +184,22 @@ async function pressFor(button: Locator, shown: Locator) {
 	}).toPass({ timeout: 20_000 });
 }
 
-/** Transactions in Select mode with its first three rows picked: the selection's bar is up. */
+/**
+ * Transactions with its first three rows selected and the selection's bar up: by the checkbox
+ * column where the table has one, else (a phone) by the Select button and a tap on each row.
+ */
 async function selectThree(page: Page) {
 	const bar = page.getByRole("region", { name: "Selecting Transactions" });
-	await pressFor(page.locator("button:visible", { hasText: /^Select$/ }).first(), bar);
-	const rows = page
+	const body = page
 		.getByRole("grid", { name: /^Transactions in / })
-		.locator("[data-slot=data-table-body]")
-		.locator("[data-slot=list-row]")
-		.getByRole("button");
+		.locator("[data-slot=data-table-body]");
+	const boxes = body.getByRole("checkbox");
+	if (await boxes.first().isVisible()) {
+		for (let row = 0; row < 3; row++) await boxes.nth(row).click({ timeout: 15_000 });
+		return bar;
+	}
+	await pressFor(page.locator("button:visible", { hasText: /^Select$/ }).first(), bar);
+	const rows = body.locator("[data-slot=list-row]").getByRole("button");
 	for (let row = 0; row < 3; row++) await rows.nth(row).click({ timeout: 15_000 });
 	return bar;
 }

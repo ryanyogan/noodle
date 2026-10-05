@@ -53,7 +53,19 @@ export function PlanGoals({ state, title = "Goals" }: { state: MonthState; title
 									{goal.name}
 								</Link>
 							}
-							meta={goalThisMonth(goal)}
+							// Under the name and the button, at the row's whole width: beside a Fund button
+							// the figures took three lines on a phone (issue 115). They break between the
+							// month's part and the Goal's, not inside one.
+							below={
+								<p className="-mt-2 flex flex-wrap gap-x-1.5 text-[13px] text-muted-foreground">
+									{goalThisMonth(goal).map((part, i, parts) => (
+										<span key={part}>
+											{part}
+											{i < parts.length - 1 ? " ·" : ""}
+										</span>
+									))}
+								</p>
+							}
 							trailing={
 								// A paid-off card needs no more payments; it's completed on its page.
 								goal.kind === "payoff" && goal.progress.status === "reached" ? (
@@ -283,9 +295,9 @@ function GoalThisMonthRow({ goal, onFund }: { goal: GoalView; onFund: () => void
 
 /**
  * A Goal this month, the same way for every row: what's funded this month (or still to fund),
- * then how far it has come. "$500 funded this month · $25,249 of $30,000 set aside".
+ * then how far it has come. "$500 funded this month · $25,249 of $30,000 set aside", in its parts.
  */
-function goalThisMonth({ kind, progress, target }: GoalView): string {
+function goalThisMonth({ kind, progress, target }: GoalView): string[] {
 	const sofar =
 		kind === "payoff"
 			? progress.status === "reached"
@@ -302,6 +314,6 @@ function goalThisMonth({ kind, progress, target }: GoalView): string {
 					? `${formatMoney(progress.fundedThisMonth)} funded, ${formatMoney(progress.leftThisMonth)} to go this month`
 					: `${formatMoney(progress.leftThisMonth)} to fund this month`
 				: `${formatMoney(progress.fundedThisMonth)} funded this month`;
-	const text = [month, sofar].filter(Boolean).join(" · ");
-	return text.charAt(0).toUpperCase() + text.slice(1);
+	const parts = [month, sofar].filter((part) => part !== null);
+	return parts.map((part, i) => (i === 0 ? part.charAt(0).toUpperCase() + part.slice(1) : part));
 }

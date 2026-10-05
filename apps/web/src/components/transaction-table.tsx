@@ -7,10 +7,28 @@ import { type Ref, useMemo } from "react";
 import { dayName, formatMoney } from "../format";
 import type { MemberSummary } from "../members";
 import { rowView } from "../transaction-row";
+import {
+	canPick,
+	headerCheckOf,
+	isPicked,
+	nothingPicked,
+	type Picking,
+	pickAll,
+	setPicked,
+} from "../transaction-selection";
 import { dayTotals, sortsByDate, tableSortOf, transactionSortOf } from "../transaction-table";
 import type { TransactionRow, TransactionSort } from "../transactions";
 import { type TransactionTableRow, transactionColumns } from "./transaction-columns";
 import { waitingForBank } from "./transaction-list";
+
+/**
+ * Whether the table's rows are stacked (a phone, or the narrow list beside an open Transaction):
+ * no header and no checkbox column, so while selecting a tap on a row is what selects it.
+ */
+export function tableIsStacked(): boolean {
+	const head = document.querySelector('[data-slot="data-table-head"]');
+	return !head || head.getClientRects().length === 0;
+}
 
 /**
  * The month's Transactions as a table (issue 99): real columns once it is wide enough, the same
@@ -30,7 +48,8 @@ export function TransactionTable({
 	members,
 	bringsIn,
 	open,
-	checked,
+	picking,
+	onPick,
 	onEdit,
 }: {
 	label: string;
@@ -47,8 +66,10 @@ export function TransactionTable({
 	bringsIn: boolean;
 	/** The Transaction open beside the table. */
 	open: string | undefined;
-	/** While the list is selecting: whether a Transaction is selected. Left out otherwise. */
-	checked: ((transaction: TransactionRow) => boolean) | undefined;
+	/** 97a's selection, which the checkboxes read and change; null when nothing is being selected. */
+	picking: Picking | null;
+	/** A tick, a range, or the header's checkbox: the selection as it should be now. */
+	onPick: (next: Picking) => void;
 	onEdit: (transaction: TransactionRow) => void;
 }) {
 	const navigate = useNavigate();
@@ -62,6 +83,10 @@ export function TransactionTable({
 		[transactions, plan, members, today, bringsIn],
 	);
 	const totals = useMemo(() => dayTotals(transactions, more), [transactions, more]);
+	const selectable = useMemo(() => transactions.filter(canPick).length, [transactions]);
+	const checked = picking
+		? (transaction: TransactionRow) => canPick(transaction) && isPicked(picking, transaction.id)
+		: undefined;
 	const columns = transactionColumns({ dated: !byDate, open, checked, onEdit });
 	return (
 		// Clipped to the card's corners, so a row's hover and the open row's ground follow them.
@@ -83,10 +108,25 @@ export function TransactionTable({
 						: onEdit(transaction)
 				}
 				isOpen={(row) => row.transaction.id === open}
-				rowProps={({ transaction }, index) => ({
+				// The checkbox column, Space, Shift+arrows and Ctrl+A over 97a's selection. The table
+				// keeps none of its own: "all that match, except these" covers rows not loaded yet.
+				selection={{
+					isSelected: ({ transaction }) => checked?.(transaction) ?? false,
+					canSelect: ({ transaction }) => canPick(transaction),
+					rowLabel: ({ transaction, view }) =>
+						canPick(transaction)
+							? `Select ${view.title}, ${view.amount}`
+							: `${view.title} is Goal spending and can’t be selected: it changes from its Goal`,
+					all: headerCheckOf(picking, more ? undefined : selectable),
+					allLabel: `Select all ${label}`,
+					onSelect: ({ ids, on }) => onPick(setPicked(picking ?? nothingPicked, ids, on)),
+					onSelectAll: (on) => onPick(on ? pickAll(false) : nothingPicked),
+					// A phone selects from the Select button, by tapping rows.
+					stacked: false,
+				}}
+				rowProps={(_row, index) => ({
 					"data-slot": "list-row",
 					"data-index": index,
-					"data-selected": checked?.(transaction) || undefined,
 				})}
 				groupBefore={
 					byDate

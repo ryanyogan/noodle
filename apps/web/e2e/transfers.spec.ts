@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import {
 	accountKindLabel,
@@ -20,6 +20,17 @@ test.afterEach(async () => {
 });
 
 const toast = (page: Page, text: string) => page.getByRole("status").filter({ hasText: text });
+
+/**
+ * What a Parent can read in a Transaction's row: each part is on show, in its own column on a
+ * wide table or on the row's one detail line on a narrow one (the copy not in use is hidden).
+ */
+async function says(page: Page, control: Locator, parts: string[]) {
+	const row = page.getByRole("row").filter({ has: control }).first();
+	for (const part of parts) {
+		await expect(row.getByText(part).filter({ visible: true }).first()).toBeVisible();
+	}
+}
 const bucketRow = (page: Page, name: string) =>
 	page.getByRole("listitem", { name: new RegExp(`^${name}: `) });
 
@@ -101,7 +112,9 @@ test("paying the card from checking is one Transfer, which counts nowhere", asyn
 
 	// Both sides are listed as the Transfer; neither can be assigned to a Bucket.
 	await openTransactions(page, thisMonth);
-	await expect(page.getByText("Transfer · Checking → Visa")).toHaveCount(2);
+	await expect(page.getByText("Transfer · Checking → Visa").filter({ visible: true })).toHaveCount(
+		2,
+	);
 	// Listed by the clean name once the background run has named it.
 	const payment = page.getByRole("button", {
 		name: "Online Payment, $500, Transfer, Checking to Visa",
@@ -139,8 +152,16 @@ test("paying the card from checking is one Transfer, which counts nowhere", asyn
 	await expect(toast(page, "marked as a Transfer")).toContainText(
 		/^(AUTOPAY PAYMENT - THANK YOU|Autopay Payment Thank You) marked/i,
 	);
-	await expect(page.getByText("Transfer · Checking → Visa")).toHaveCount(2);
-	await expect(page.getByText("Unassigned · Everyone · Checking")).toHaveCount(1);
+	await expect(page.getByText("Transfer · Checking → Visa").filter({ visible: true })).toHaveCount(
+		2,
+	);
+	// Only the corner store is left to assign.
+	const unassigned = page.getByRole("button", {
+		name: /, Unassigned, For Everyone, from Checking$/,
+	});
+	await expect(unassigned).toHaveCount(1);
+	// Who it's For is in the row's name: the For column needs a wider table than this window's.
+	await says(page, unassigned, ["Unassigned", "Checking"]);
 });
 
 test("a payment to a card Noodle doesn't follow is the spending: Review offers a Commitment or connecting the card, and a Transfer second", async ({
@@ -199,7 +220,9 @@ test("a payment to a card Noodle doesn't follow is the spending: Review offers a
 
 	// It counts nowhere: a Transfer out of checking, with no other side.
 	await openTransactions(page, thisMonth);
-	await expect(page.getByText("Transfer out of Checking").first()).toBeVisible();
+	await expect(
+		page.getByText("Transfer out of Checking").filter({ visible: true }).first(),
+	).toBeVisible();
 });
 
 test("money back linked as a Refund goes back to the purchase's Bucket", async ({ browser }) => {
@@ -241,7 +264,7 @@ test("money back linked as a Refund goes back to the purchase's Bucket", async (
 		name: "REI, −$24.99, Refund, Gear, from Visa",
 	});
 	await expect(refund).toBeVisible();
-	await expect(page.getByText("Refund · Gear · Visa")).toBeVisible();
+	await says(page, refund, ["Refund · Gear", "Visa"]);
 
 	await page.goto(thisMonth);
 	await expect(bucketRow(page, "Gear")).toContainText("$55.01 spent");
@@ -256,7 +279,7 @@ test("money back linked as a Refund goes back to the purchase's Bucket", async (
 	).toContainText("REI jacket");
 	await page.getByRole("button", { name: "Unlink Refund" }).click();
 	await expect(toast(page, "REI unlinked")).toBeVisible();
-	await expect(page.getByText("Money back · Visa")).toBeVisible();
+	await says(page, moneyBack, ["Money back", "Visa"]);
 	await page.goto(thisMonth);
 	await expect(bucketRow(page, "Gear")).toContainText("$80 spent");
 });
