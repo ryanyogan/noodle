@@ -105,7 +105,9 @@ test("on a 375×667 phone with 30 Buckets, the common save needs no scrolling, a
 		more,
 		keypad.getByRole("button", { name: "Delete" }),
 	]) {
-		await expect(shown).toBeInViewport({ ratio: 1 });
+		// All of it, but for a sliver: WebKit lays the two columns out in 64ths of a pixel and
+		// reports a tile as 99.99% in view when its edge falls on one.
+		await expect(shown).toBeInViewport({ ratio: 0.999 });
 	}
 	await noScroll(page);
 	await expect(sheet(page).getByText(THEIRS)).toHaveCount(0);

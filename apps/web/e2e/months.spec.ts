@@ -79,15 +79,29 @@ async function setCarriesOver(page: Page, bucket: string) {
 /** Swipes across the page on a touch screen: negative `dx` is leftward. */
 async function swipe(page: Page, dx: number) {
 	await page.getByRole("heading", { level: 1 }).evaluate((target, dx) => {
-		const touch = (x: number) => new Touch({ identifier: 1, target, clientX: x, clientY: 400 });
-		const start = touch(200);
-		const end = touch(200 + dx);
-		target.dispatchEvent(
-			new TouchEvent("touchstart", { bubbles: true, touches: [start], changedTouches: [start] }),
-		);
-		target.dispatchEvent(
-			new TouchEvent("touchend", { bubbles: true, touches: [], changedTouches: [end] }),
-		);
+		// Playwright's WebKit is the desktop build: its Touch can't be constructed ("Illegal
+		// constructor"), though Mobile Safari's can. There the same two events carry plain points,
+		// which is all the page reads from them (clientX and clientY).
+		const fire = (type: "touchstart" | "touchend", x: number) => {
+			const point = { identifier: 1, target, clientX: x, clientY: 400 };
+			const touches = type === "touchstart" ? [point] : [];
+			let event: Event;
+			try {
+				const touch = new Touch(point);
+				event = new TouchEvent(type, {
+					bubbles: true,
+					touches: type === "touchstart" ? [touch] : [],
+					changedTouches: [touch],
+				});
+			} catch {
+				event = new Event(type, { bubbles: true });
+				Object.defineProperty(event, "touches", { value: touches });
+				Object.defineProperty(event, "changedTouches", { value: [point] });
+			}
+			target.dispatchEvent(event);
+		};
+		fire("touchstart", 200);
+		fire("touchend", 200 + dx);
 	}, dx);
 }
 

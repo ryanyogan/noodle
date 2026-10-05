@@ -106,9 +106,34 @@ export async function signedInPage(
 	const context = await openContext(browser, storageState ? { ...options, storageState } : options);
 	shared?.opened(context);
 	const page = await context.newPage();
+	patientGoto(page);
 	await setupClerkTestingToken({ page });
 	if (!shared) await signIn(page, email);
 	return page;
+}
+
+/**
+ * Makes `page.goto` go again, once, when the page it is leaving reloads itself under it.
+ *
+ * A test leaves a page sooner than a person could: while the page is still fetching the script of
+ * the route it shows. WebKit drops that fetch as the next page is asked for, the router takes the
+ * failed import for an old deploy's missing file and reloads the page (once per tab, by design),
+ * and Playwright's WebKit then reports the test's own navigation as "interrupted by another
+ * navigation" to the address it was leaving. Chromium lets the new navigation win. The reload has
+ * landed by the time the error is thrown, and the router doesn't reload a second time.
+ */
+function patientGoto(page: Page) {
+	const goto = page.goto.bind(page);
+	page.goto = async (url, options) => {
+		try {
+			return await goto(url, options);
+		} catch (error) {
+			if (!(error instanceof Error) || !error.message.includes("interrupted by another navigation"))
+				throw error;
+			await page.waitForLoadState("domcontentloaded");
+			return goto(url, options);
+		}
+	};
 }
 
 /** From the get-started wizard a new Household lands on, leaves it for This Month. */
