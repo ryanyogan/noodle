@@ -3,7 +3,7 @@ import { buckets, commitments, rules, suggestions } from "@noodle/db/schema";
 import { testDb } from "@noodle/db/test-db";
 import { isValid } from "ulid";
 import { beforeEach, describe, expect, it } from "vitest";
-import { addedId, applyDecision } from "./suggestions";
+import { addedId, applyDecision } from "./suggestion-decision";
 
 // Deciding a suggestion (#76): Add lands once however often it's sent, the decision is durable
 // before anything optional happens, and "Not now" sticks.
