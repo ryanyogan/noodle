@@ -18,7 +18,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Kbd } from "@noodle/ui/components/kbd";
-import { MasterDetail, SectionGrid } from "@noodle/ui/components/layout";
+import { SectionGrid } from "@noodle/ui/components/layout";
 import type { ChoiceGroup } from "@noodle/ui/components/select";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
@@ -42,7 +42,6 @@ import {
 	Split as SplitIcon,
 	Undo2,
 	Wallet,
-	X,
 } from "lucide-react";
 import {
 	type CSSProperties,
@@ -58,7 +57,6 @@ import { ulid } from "ulid";
 import { z } from "zod";
 import { asBucketColor, monogram } from "../../../buckets";
 import { BucketPicker, NewBucketStep } from "../../../components/bucket-picker";
-import { DetailHeader, DetailPending } from "../../../components/master-detail";
 import { ReviewMatchOffer } from "../../../components/match-section";
 import {
 	BETWEEN_US_WHY,
@@ -74,7 +72,7 @@ import { SectionPending } from "../../../components/section-layout";
 import { Suggested } from "../../../components/suggested";
 import { SwipeCard } from "../../../components/swipe-card";
 import { TermHelp } from "../../../components/term-help";
-import { TransactionBody, TransactionEditor } from "../../../components/transaction-editor";
+import { TransactionEditor } from "../../../components/transaction-editor";
 import { dayName, formatMoney, monthName } from "../../../format";
 import { forLabel, type MemberSummary } from "../../../members";
 import { useReducedMotion } from "../../../motion";
@@ -193,18 +191,9 @@ function ReviewPage() {
 	const sorting = Route.useSearch().view !== "list";
 	const reduced = useReducedMotion();
 	const navigate = useNavigate();
-	// From lg the list's card opens beside the list, and Sort's at the Transaction's own address
-	// beside its month's list (#67); on a phone, in a sheet here.
-	const [editing, setEditing] = useState<ReviewItem | null>(null);
-	const onEdit = (item: ReviewItem) => {
-		if (window.matchMedia("(min-width: 1024px)").matches) {
-			if (!sorting) return setEditing(item);
-			void navigate({
-				to: "/transactions/$month/$transactionId",
-				params: { month: monthOfTransaction(item), transactionId: item.id },
-			});
-		} else setChanging(item);
-	};
+	// Opening a card is a task, not an item with an address: its editor is a sheet over Review at
+	// every width, from the list and from Sort alike (issue 107).
+	const onEdit = (item: ReviewItem) => setChanging(item);
 	// A toast's Undo goes through the stack's history too, so the two never disagree.
 	const decide = useReviewDecision({ onUndo: putBack });
 	const confirmAll = useConfirmAll({ onUndo: putBack });
@@ -614,7 +603,6 @@ function ReviewPage() {
 
 	function changed(item: ReviewItem, next: TransactionEdit | null, buckets: PlanBucket[]) {
 		setChanging(null);
-		setEditing(null);
 		setSplitting(false);
 		const decision: ReviewDecision = { item, next, placeName: null, quiet: sorting };
 		const assigned = next && "assignment" in next ? next.assignment : null;
@@ -893,7 +881,6 @@ function ReviewPage() {
 			disabled={!hydrated}
 			onValueChange={(value) => {
 				if (!value) return;
-				setEditing(null);
 				void navigate({
 					to: "/review",
 					search: value === "list" ? { view: "list" } : {},
@@ -911,7 +898,6 @@ function ReviewPage() {
 			</ToggleGroupItem>
 		</ToggleGroup>
 	);
-	const editingItem = editing ? (cards.find((card) => card.id === editing.id) ?? null) : null;
 
 	return (
 		<>
@@ -1094,114 +1080,91 @@ function ReviewPage() {
 						</p>
 					</div>
 				) : top ? (
-					<MasterDetail
-						className="max-w-xl lg:max-w-none"
-						listLabel="Cards to review"
-						detailLabel={editingItem ? "Transaction" : "About Review"}
-						// Until a card is opened the cards have the page's width, side by side (#73).
-						listOnly
-						list={
-							<div className="grid min-w-0 content-start gap-5">
-								<div className="grid gap-3">
-									<p className="flex items-start gap-1 text-sm text-muted-foreground">
-										<span>
-											Noodle wasn’t sure where to file these. Confirm its suggestion or pick
-											another.
-											<span className="max-sm:hidden">
-												{" "}
-												A card’s pencil opens it beside the list, to split it, change its note or
-												say who it was For.
-											</span>
-										</span>
-										<TermHelp term="review" className="mt-0.5" />
-									</p>
-									<div className="flex flex-wrap items-center gap-2">
-										<p data-testid="review-waiting" className="text-sm font-medium tabular-nums">
-											{queue.total} to review
-										</p>
-										{confirmAllButton}
-										{fileEarlierButton}
-										{lookAgainButton}
-										{viewToggle}
-									</div>
-								</div>
-								{months.map(([month, items]) => (
-									<section
-										key={month}
-										aria-labelledby={`review-month-${month}`}
-										className="grid min-w-0 gap-3 *:min-w-0"
-									>
-										<h2
-											id={`review-month-${month}`}
-											className="text-sm font-semibold text-muted-foreground"
-										>
-											{monthName(month)}
-											{month.slice(0, 4) === current.slice(0, 4) ? "" : ` ${month.slice(0, 4)}`}
-										</h2>
-										<ReviewCards wide={!editingItem}>
-											{items.map((item) => {
-												const same = guessed.filter((other) => other.merchant === item.merchant);
-												return (
-													<div key={item.id} className="grid min-w-0 gap-3 *:min-w-0">
-														{item.id === top.id ? <ReviewMatchOffer transaction={item} /> : null}
-														<ReviewCard
-															item={item}
-															today={today}
-															members={members}
-															parentId={parentId}
-															current={item.id === top.id}
-															hydrated={hydrated}
-															sameMerchant={item.guess && same.length > 1 ? same : []}
-															onFocus={() => setCursor(item.id)}
-															payment={paymentOf(item)}
-															thisMonth={current}
-															caution={cautionFor(item)}
-															onPayment={() => markPayment(item)}
-															between={betweenOf(item)}
-															onBetweenUs={() => markPayment(item, "between-us")}
-															onConfirm={() => confirm(item)}
-															onPick={(value, plan) => file(item, value, plan)}
-															onCreate={
-																earlier(item)
-																	? undefined
-																	: (name, plan) => setCreating({ item, name, plan })
-															}
-															onEdit={() => onEdit(item)}
-															onConfirmAll={(items) => confirmEach(items)}
-															onFileWithout={
-																earlier(item) || stuck(item)
-																	? () => fileAsTheyAre([item])
-																	: undefined
-															}
-														/>
-													</div>
-												);
-											})}
-										</ReviewCards>
-									</section>
-								))}
-								<p className="hidden text-center text-xs text-muted-foreground lg:block">
-									<Key name="Right arrow">→</Key> or <Key>Enter</Key> to confirm,{" "}
-									<Key name="Left arrow">←</Key> to change, <Key name="Down arrow">↓</Key> to skip
+					<section
+						aria-label="Cards to review"
+						data-slot="review-list"
+						// The cards have the page's width, side by side (#73).
+						className="grid max-w-xl min-w-0 content-start gap-5 lg:max-w-none"
+					>
+						<div className="grid gap-3">
+							<p className="flex items-start gap-1 text-sm text-muted-foreground">
+								<span>
+									Noodle wasn’t sure where to file these. Confirm its suggestion or pick another.
+									<span className="max-sm:hidden">
+										{" "}
+										A card’s pencil opens it, to split it, change its note or say who it was For.
+									</span>
+								</span>
+								<TermHelp term="review" className="mt-0.5" />
+							</p>
+							<div className="flex flex-wrap items-center gap-2">
+								<p data-testid="review-waiting" className="text-sm font-medium tabular-nums">
+									{queue.total} to review
 								</p>
+								{confirmAllButton}
+								{fileEarlierButton}
+								{lookAgainButton}
+								{viewToggle}
 							</div>
-						}
-						detail={
-							editingItem ? (
-								<Suspense fallback={<DetailPending />}>
-									<ChangePane
-										key={editingItem.id}
-										item={editingItem}
-										today={today}
-										members={members}
-										parentId={parentId}
-										onChange={(next, buckets) => changed(editingItem, next, buckets)}
-										onClose={() => setEditing(null)}
-									/>
-								</Suspense>
-							) : undefined
-						}
-					/>
+						</div>
+						{months.map(([month, items]) => (
+							<section
+								key={month}
+								aria-labelledby={`review-month-${month}`}
+								className="grid min-w-0 gap-3 *:min-w-0"
+							>
+								<h2
+									id={`review-month-${month}`}
+									className="text-sm font-semibold text-muted-foreground"
+								>
+									{monthName(month)}
+									{month.slice(0, 4) === current.slice(0, 4) ? "" : ` ${month.slice(0, 4)}`}
+								</h2>
+								<SectionGrid columns={3} className="gap-3">
+									{items.map((item) => {
+										const same = guessed.filter((other) => other.merchant === item.merchant);
+										return (
+											<div key={item.id} className="grid min-w-0 gap-3 *:min-w-0">
+												{item.id === top.id ? <ReviewMatchOffer transaction={item} /> : null}
+												<ReviewCard
+													item={item}
+													today={today}
+													members={members}
+													parentId={parentId}
+													current={item.id === top.id}
+													hydrated={hydrated}
+													sameMerchant={item.guess && same.length > 1 ? same : []}
+													onFocus={() => setCursor(item.id)}
+													payment={paymentOf(item)}
+													thisMonth={current}
+													caution={cautionFor(item)}
+													onPayment={() => markPayment(item)}
+													between={betweenOf(item)}
+													onBetweenUs={() => markPayment(item, "between-us")}
+													onConfirm={() => confirm(item)}
+													onPick={(value, plan) => file(item, value, plan)}
+													onCreate={
+														earlier(item)
+															? undefined
+															: (name, plan) => setCreating({ item, name, plan })
+													}
+													onEdit={() => onEdit(item)}
+													onConfirmAll={(items) => confirmEach(items)}
+													onFileWithout={
+														earlier(item) || stuck(item) ? () => fileAsTheyAre([item]) : undefined
+													}
+												/>
+											</div>
+										);
+									})}
+								</SectionGrid>
+							</section>
+						))}
+						<p className="hidden text-center text-xs text-muted-foreground lg:block">
+							<Key name="Right arrow">→</Key> or <Key>Enter</Key> to confirm,{" "}
+							<Key name="Left arrow">←</Key> to change, <Key name="Down arrow">↓</Key> to skip
+						</p>
+					</section>
 				) : (
 					<div id="review-finish" tabIndex={-1} className="relative rounded-2xl outline-none">
 						{stack.done > 0 && !reduced ? <Burst /> : null}
@@ -1929,52 +1892,6 @@ function ReviewCard({
 	);
 }
 
-/** The list's card's Transaction editor beside the list, from lg, against its own month's Plan. */
-function ChangePane({
-	item,
-	today,
-	members,
-	parentId,
-	onChange,
-	onClose,
-}: {
-	item: ReviewItem;
-	today: DayKey;
-	members: MemberSummary[];
-	parentId: string;
-	onChange: (next: TransactionEdit | null, buckets: PlanBucket[]) => void;
-	onClose: () => void;
-}) {
-	const data = useSuspenseQuery(monthQuery(monthOfTransaction(item))).data;
-	// The other Parent's Personal Allowance isn't this Parent's to assign to.
-	const plan = { ...data.plan, buckets: data.plan.buckets.filter((b) => canAssign(b, parentId)) };
-	return (
-		<Card className="p-(--card-pad)">
-			<TransactionBody
-				inline
-				transaction={{ ...item, bucketId: item.guess?.bucketId ?? null }}
-				today={today}
-				plan={plan}
-				members={members}
-				parentId={parentId}
-				heading={(title) => (
-					<DetailHeader
-						eyebrow={dayName(item.date, today)}
-						title={title}
-						leading={
-							<Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
-								<X className="size-5" />
-							</Button>
-						}
-					/>
-				)}
-				onClose={onClose}
-				onChange={(next) => onChange(next, plan.buckets)}
-			/>
-		</Card>
-	);
-}
-
 /** The Transaction editor for a card, against its own month's Plan. */
 function ChangeSheet({
 	item,
@@ -2007,20 +1924,8 @@ function ChangeSheet({
 			onChange={(next) => onChange(next, plan.buckets)}
 			onClose={onClose}
 			splitting={splitting}
+			// Centred from lg: Review has no list to keep beside it.
+			layout="wide"
 		/>
-	);
-}
-
-/**
- * A month's cards in the list view: side by side across the page (two columns, three from 1680)
- * until one is opened, then one column beside it.
- */
-function ReviewCards({ wide, children }: { wide: boolean; children: ReactNode }) {
-	return wide ? (
-		<SectionGrid columns={3} className="gap-3">
-			{children}
-		</SectionGrid>
-	) : (
-		<div className="grid gap-3">{children}</div>
 	);
 }

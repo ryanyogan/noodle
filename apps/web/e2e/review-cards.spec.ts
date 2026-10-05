@@ -589,25 +589,51 @@ test("Confirm all in Sort is said beside the stack with one Undo, and confirming
 	await expect(page.getByTestId("review-streak")).toHaveCount(0);
 });
 
-test("on a desktop the list opens a card beside it", async ({ browser }) => {
+test("on a desktop the list opens a card in a centred sheet, and the cards stay as they were", async ({
+	browser,
+}) => {
 	test.slow();
 	const page = await signedInPage(browser, parent.email, {
 		viewport: { width: 1440, height: 900 },
 	});
 	await setUp(page);
 	await page.goto("/review?view=list");
-	const list = page.locator("[data-slot=master-detail-list]");
-	const detail = page.locator("[data-slot=master-detail-detail]");
+	const list = page.locator("[data-slot=review-list]");
 	await expect(list.getByTestId("review-card")).toHaveCount(3);
-	// Nothing opened: no pane beside the cards, and the intro says what the pencil does.
-	await expect(detail).toBeHidden();
-	await expect(list).toContainText("A card’s pencil opens it beside the list");
+	await expect(list).toContainText("A card’s pencil opens it, to split it");
+	const wide = (await list.boundingBox())?.width ?? 0;
 	await list.getByRole("button", { name: /^Edit ACME/i }).click();
-	await expect(detail.locator("[data-slot=detail-title]")).toHaveText("Edit Transaction");
-	// The list stays beside it.
+	const sheet = page
+		.getByRole("dialog")
+		.filter({ has: page.getByRole("heading", { name: "Edit Transaction" }) });
+	await expect(sheet).toBeVisible();
+	// Centred in the window and no wider than a form needs; Save is there without scrolling.
+	await expect
+		.poll(async () => {
+			const box = await sheet.boundingBox();
+			return box ? Math.abs(box.x + box.width / 2 - 720) : 999;
+		})
+		.toBeLessThanOrEqual(2);
+	expect((await sheet.boundingBox())?.width ?? 999).toBeLessThanOrEqual(560);
+	await expect(sheet.getByRole("button", { name: "Save" })).toBeInViewport({ ratio: 1 });
+	// Everything the card's editor offers is in it.
+	for (const name of ["Split", "Delete", "Cancel"])
+		await expect(sheet.getByRole("button", { name, exact: true })).toBeVisible();
+	// The cards behind it keep their width, and Esc closes it and leaves Review where it was.
+	expect((await list.boundingBox())?.width ?? 0).toBe(wide);
+	await page.keyboard.press("Escape");
+	await expect(sheet).toBeHidden();
 	await expect(list.getByTestId("review-card")).toHaveCount(3);
-	await detail.getByRole("button", { name: "Close" }).click();
-	await expect(detail).toBeHidden();
+	expect(new URL(page.url()).pathname).toBe("/review");
+
+	// One by one: the card's pencil opens the same sheet, without leaving Review.
+	await page.goto("/review");
+	await expect(top(page)).toBeVisible();
+	await top(page)
+		.getByRole("button", { name: /^Edit /i })
+		.click();
+	await expect(sheet).toBeVisible();
+	expect(new URL(page.url()).pathname).toBe("/review");
 });
 
 /** How far the page itself scrolls, and the elements reaching past the window (for the message). */
@@ -630,7 +656,7 @@ function overflow(page: Page) {
 	});
 }
 
-test("on a desktop Review one by one fills the window without scrolling, and the list's cards fill the page's width until one is opened", async ({
+test("on a desktop Review one by one fills the window without scrolling, and the list's cards fill the page's width", async ({
 	browser,
 }) => {
 	test.slow();
@@ -647,13 +673,11 @@ test("on a desktop Review one by one fills the window without scrolling, and the
 		.toBeLessThanOrEqual(1);
 
 	// The list: the page scrolls as one when there are many cards (#73), so nothing is asserted
-	// about its length. Until a card is opened there is no pane beside the list: the cards have the
-	// page's width, side by side, and nothing reaches past the window sideways.
+	// about its length. The cards have the page's width, side by side, and nothing reaches past the
+	// window sideways.
 	await page.goto("/review?view=list");
 	await expect(page.getByTestId("review-card").first()).toBeVisible();
-	const list = page.locator("[data-slot=master-detail-list]");
-	const detail = page.locator("[data-slot=master-detail-detail]");
-	await expect(detail).toBeHidden();
+	const list = page.locator("[data-slot=review-list]");
 	const wide = (await list.boundingBox())?.width ?? 0;
 	expect(wide, "the list of cards has the page's width").toBeGreaterThan(900);
 	expect(
@@ -662,15 +686,6 @@ test("on a desktop Review one by one fills the window without scrolling, and the
 		),
 		"the list view scrolls sideways",
 	).toBeLessThanOrEqual(1);
-
-	// Opening a card puts it beside the list, which narrows to one column of cards.
-	await list.getByRole("button", { name: /^Edit ACME/i }).click();
-	await expect(detail.locator("[data-slot=detail-title]")).toHaveText("Edit Transaction");
-	expect((await list.boundingBox())?.width ?? wide).toBeLessThan(wide / 2);
-	expect(
-		(await detail.boundingBox())?.y ?? -1,
-		"the opened card is in the window",
-	).toBeGreaterThanOrEqual(0);
 });
 
 /** Skips until the card with no suggestion (ACME, which the fake never guesses) is on top. */

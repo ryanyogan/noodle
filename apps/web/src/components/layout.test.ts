@@ -1,4 +1,4 @@
-import { MasterDetail, SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
+import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -34,36 +34,5 @@ describe("SplitLayout", () => {
 		);
 		expect(tag(html, "split-main")).toContain("contents lg:grid");
 		expect(tag(html, "split-rail")).toContain("contents lg:grid");
-	});
-});
-
-describe("MasterDetail", () => {
-	const labels = { listLabel: "Buckets", detailLabel: "Bucket" };
-
-	it("shows the list and the empty state while nothing is picked", () => {
-		const html = renderToStaticMarkup(
-			h(MasterDetail, { ...labels, list: "Groceries", empty: "Pick a Bucket to see it" }),
-		);
-		expect(html).toContain("Pick a Bucket to see it");
-		// On phones only the list shows.
-		expect(tag(html, "master-detail-list")).not.toContain("max-lg:hidden");
-		expect(tag(html, "master-detail-detail")).toContain("max-lg:hidden");
-	});
-
-	it("shows the detail, and on phones only the detail, once one is picked", () => {
-		const html = renderToStaticMarkup(
-			h(MasterDetail, { ...labels, list: "Groceries", detail: "Groceries this month", empty: "x" }),
-		);
-		expect(html).toContain("Groceries this month");
-		expect(html).not.toContain("master-detail-empty");
-		expect(tag(html, "master-detail-list")).toContain("max-lg:hidden");
-		expect(tag(html, "master-detail-detail")).not.toContain("max-lg:hidden");
-	});
-
-	it("names both panes, and neither scrolls on its own", () => {
-		const html = renderToStaticMarkup(h(MasterDetail, { ...labels, list: "a", detail: "b" }));
-		expect(html).not.toMatch(/data-scroll-pane|overflow-y|max-h-/);
-		expect(tag(html, "master-detail-list")).toContain('aria-label="Buckets"');
-		expect(tag(html, "master-detail-detail")).toContain('aria-label="Bucket"');
 	});
 });

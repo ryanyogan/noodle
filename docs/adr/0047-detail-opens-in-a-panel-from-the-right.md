@@ -1,6 +1,6 @@
 # A picked item opens in a panel from the right, and the list keeps its width
 
-Status: accepted for Plan › Commitments (2026-10-05, issue 107, phase 107a; width, drawer and look revised the same day in 107a2 after the first pictures); the other lists move to it one at a time. Amends ADR-0033 (the list pane's widths go as pages move) and ADR-0024 (one more thing may scroll on its own).
+Status: accepted, and in use on every list whose items have addresses but Transactions: the Plan's Commitments and Buckets, Rules, Goals, Accounts and Scenarios (2026-10-05, issue 107, phases 107a to 107f). Review's cards open in a centred sheet instead, since a card has no address (107g). `MasterDetail` was removed in 107h. Amends ADR-0033 (the list pane's widths go as pages move) and ADR-0024 (one more thing may scroll on its own).
 
 ## Context
 
@@ -40,5 +40,5 @@ In the code: `DetailPanel` and `ListWithPanel` in `packages/ui/src/components/de
 - The Ask Noodle button in the window's bottom right corner is drawn over the panel (`z-31`, marked `data-over-panel`), and the panel's bottom padding (64 px) keeps the end of an item clear of it.
 - Beside the list, a control of the page whose middle is under the panel (the rail's add form, the month's arrows) leaves the tab order while the panel is open (`data-panel-covered`, `tabindex="-1"`) and returns when it closes, so keyboard focus is never out of sight under the panel. It is still there for a screen reader. The page is measured again when elements come or go while the panel is open. As a drawer this is not used: the whole page is inert instead.
 - As a drawer the page behind can still be scrolled with the wheel over the scrim (no scroll lock, so nothing shifts when a scrollbar would go); nothing on it can be used.
-- Until the last page has moved, both layouts exist: `MasterDetail` (the item beside a narrowed list) and `ListWithPanel`. When the last one has moved, `MasterDetail`'s pane mode, `narrowList`, `--list-pane-width`, the scroll holding in `layout.tsx`, `DetailHeader`'s `listBeside` and `Sheet layout="side"` go, and this ADR's status and ADR-0033's list pane line are updated.
+- The last page moved on 2026-10-05 and `MasterDetail` went with it (phase 107h): its pane mode, `narrowList`, `listOnly`, the scroll holding in `layout.tsx` and `DetailHeader`'s `listBeside`. Kept, because they still have a use: `--list-pane-width` (the list's column in a `ListWithPanel` with `asideFills`, Scenarios beside Compare) and `Sheet layout="side"` (the Transaction editor opened from a list of Transactions, and a statement's lines). Transactions still shows an open Transaction in its SplitLayout's rail until its own move.
 - `desktop-scroll.spec.ts` lets the panel scroll, as it does sheets.
