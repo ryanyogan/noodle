@@ -115,7 +115,7 @@ const count = async (table: string) => {
 
 describe("splitting a Transaction", () => {
 	it("spends each Split from its own Bucket, For its own Members, instead of the whole", async () => {
-		expect(await splitCostco()).toEqual({ ok: true });
+		expect(await splitCostco()).toMatchObject({ ok: true });
 		const spending = await loadSpending(db, viewer, month);
 		expect(spending).toEqual([
 			{ id: "costco", bucketId: "groceries", amount: 18_000, date: "2026-09-12", for: [] },
@@ -135,7 +135,7 @@ describe("splitting a Transaction", () => {
 
 	it("is idempotent: a retry lands the same Splits once", async () => {
 		await splitCostco();
-		expect(await splitCostco()).toEqual({ ok: true });
+		expect(await splitCostco()).toMatchObject({ ok: true });
 		expect(await count("splits")).toBe(2);
 		expect(await count("split_for")).toBe(1);
 	});
@@ -151,7 +151,7 @@ describe("splitting a Transaction", () => {
 				],
 				26_000,
 			),
-		).toEqual({ ok: true });
+		).toMatchObject({ ok: true });
 		expect((await page()).transactions[0]?.splits.map((s) => s.id)).toEqual(["s3", "s4", "s5"]);
 		expect(await count("split_for")).toBe(3);
 		expect(await loadCharges(db, viewer, month)).toEqual([
@@ -257,7 +257,7 @@ describe("removing Splits", () => {
 				note: "Costco",
 				forMemberIds: ["leo"],
 			}),
-		).toEqual({ ok: true });
+		).toMatchObject({ ok: true });
 		expect(await count("splits")).toBe(0);
 		expect(await count("split_for")).toBe(0);
 		expect(await loadSpending(db, viewer, month)).toEqual([
@@ -369,14 +369,14 @@ describe("a merchant's clean name when the note is edited", () => {
 	});
 
 	it("stays while the note does", async () => {
-		expect(await edit("Costco")).toEqual({ ok: true });
+		expect(await edit("Costco")).toMatchObject({ ok: true });
 		expect(await merchant()).toBe("Costco");
 	});
 
 	it("is cleared when the note changes, so the next run names it again", async () => {
-		expect(await edit("Costco gas")).toEqual({ ok: true });
+		expect(await edit("Costco gas")).toMatchObject({ ok: true });
 		expect(await merchant()).toBeNull();
-		expect(await edit("Costco gas")).toEqual({ ok: true });
+		expect(await edit("Costco gas")).toMatchObject({ ok: true });
 		expect(await merchant()).toBeNull();
 	});
 

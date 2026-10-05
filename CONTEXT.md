@@ -127,6 +127,7 @@ _Avoid_: Bank, card (as a generic term)
 
 **Transaction**:
 A single movement of real money in or out of an Account. It is assigned as a whole, or through Splits, to Buckets, Commitments, or Goals.
+A Parent's change to one is made on the version of it they were looking at: if it has changed on another screen since (the other Parent's, another tab, the bank), the change is left out and they are shown how it looks now (ADR-0041).
 _Avoid_: Expense, entry, purchase
 
 **Split**:

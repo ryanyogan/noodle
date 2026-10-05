@@ -173,6 +173,7 @@ export async function importStatement(
 						capturedVia: sql<string | null>`null`.as("captured_via"),
 						pending: sql<boolean>`${lineField("pending")}`.as("pending"),
 						merchant: sql<string | null>`null`.as("merchant"),
+						version: sql<number>`0`.as("version"),
 					})
 					.from(sql`json_each(${JSON.stringify(spending)})`)
 					.where(theImport),

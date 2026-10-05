@@ -701,6 +701,7 @@ export async function linkRefund(
 				bucketId: assignment.bucketId,
 				commitmentId: assignment.commitmentId,
 				goalId: assignment.goalId,
+				version: sql`${transactions.version} + 1`,
 			})
 			.where(
 				and(eq(transactions.id, self.id), eq(transactions.householdId, householdId), theRefund),
@@ -770,7 +771,12 @@ export async function unlinkRefund(db: Db, viewer: Viewer, refundId: string): Pr
 			),
 		db
 			.update(transactions)
-			.set({ bucketId: null, commitmentId: null, goalId: null })
+			.set({
+				bucketId: null,
+				commitmentId: null,
+				goalId: null,
+				version: sql`${transactions.version} + 1`,
+			})
 			.where(and(eq(transactions.householdId, householdId), unlinked)),
 	]);
 	return refundOutcome(db, viewer, refundId, true);

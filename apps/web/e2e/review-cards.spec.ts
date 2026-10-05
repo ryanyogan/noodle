@@ -218,6 +218,71 @@ test("an edit from Transactions made while a Review decision is still waiting to
 	await page.context().close();
 });
 
+test("an edit made on a Transaction that another screen has changed since is left out, and says so", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, {
+		baseline: "5,000",
+		buckets: [
+			["Groceries", "1,200"],
+			["Hockey", "400"],
+		],
+	});
+	const thisMonth = page.url();
+	await uploadStatement(page, [["ACME WIDGETS LLC", "19.99"]], true);
+	await waitForReview(page, new URL("/review", thisMonth).href, "1 of 1");
+
+	/** Opens the Transaction's edit sheet from the Transactions list. */
+	const open = async (screen: Page) => {
+		const row = screen
+			.getByRole("list", { name: /^Transactions in / })
+			.getByRole("button", { name: /, \$19\.99, / });
+		await row.click();
+		const sheet = screen
+			.locator("[role=dialog], [data-slot=transaction-detail]")
+			.filter({ has: screen.getByRole("heading", { name: "Edit Transaction" }) });
+		await expect(sheet).toBeVisible();
+		return { row, sheet };
+	};
+
+	await page
+		.getByRole("navigation", { name: "Main" })
+		.getByRole("link", { name: "Transactions" })
+		.click();
+	await page.waitForURL(/\/transactions\//);
+	const list = page.url();
+	// This screen has the Transaction open, as it was. From here it hears nothing new about it, as
+	// a phone in a pocket wouldn't: what it shows stays the old version.
+	const mine = await open(page);
+	await page.route(serverFn("getTransactions"), (route) => route.abort());
+	await page.route(serverFn("getTransaction"), (route) => route.abort());
+
+	// A second screen in the same Household files it in Hockey.
+	const other = await signedInPage(browser, parent.email);
+	await other.goto(list);
+	const theirs = await open(other);
+	await choose(theirs.sheet, "Assigned to", "Hockey");
+	await theirs.sheet.getByRole("button", { name: "Save" }).click();
+	await expect(status(other, "saved")).toBeVisible();
+	await expect(theirs.row).toHaveAccessibleName(/, Hockey, /);
+
+	// The first screen now saves its own change, made on the old version: it is left out, the
+	// Parent is told, and the row shows what the other screen did.
+	await choose(mine.sheet, "Assigned to", "Groceries");
+	await mine.sheet.getByRole("button", { name: "Save" }).click();
+	await expect(status(page, "changed on another screen")).toBeVisible();
+	await expect(mine.row).toHaveAccessibleName(/, Hockey, /);
+
+	await page.unroute(serverFn("getTransactions"));
+	await page.unroute(serverFn("getTransaction"));
+	await page.reload();
+	await expect(mine.row).toHaveAccessibleName(/, Hockey, /);
+	await other.context().close();
+	await page.context().close();
+});
+
 test("a failed save puts the card back on top and says so, and the end of the stack says all sorted", async ({
 	browser,
 }) => {

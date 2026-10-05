@@ -23,7 +23,7 @@ import {
 	transfers,
 } from "./schema";
 import { testDb } from "./test-db";
-import { updateTransaction } from "./transactions";
+import { deleteTransaction, splitTransaction, updateTransaction } from "./transactions";
 
 const householdId = "household";
 const month = "2026-09";
@@ -684,5 +684,148 @@ describe("filing without a Bucket (#82)", () => {
 			forMemberIds: [],
 		});
 		expect(await reviewIds()).toEqual(["old"]);
+	});
+});
+
+describe("a Transaction's version: two screens never quietly overwrite each other (#85, ADR-0041)", () => {
+	const versionOf = async (id: string) =>
+		(await db.select({ version: transactions.version }).from(transactions).where(eqId(id)))[0]
+			?.version;
+	const edit = (memberId: string, bucketId: string, expectedVersion?: number, note = "costco") =>
+		updateTransaction(db, {
+			householdId,
+			memberId,
+			transactionId: "t1",
+			amountCents: 4_200,
+			assignment: { bucketId },
+			note,
+			forMemberIds: [],
+			expectedVersion,
+		});
+
+	it("starts at 0, is read with the list's and Review's rows, and goes up by one with each change", async () => {
+		await imported("t1", "costco", { outcome: "review" });
+		expect(await versionOf("t1")).toBe(0);
+		expect((await loadReview(db, alex, 50)).items[0]?.version).toBe(0);
+		expect(await edit("alex", "groceries", 0)).toEqual({ ok: true, version: 1 });
+		expect(await edit("alex", "fun", 1)).toEqual({ ok: true, version: 2 });
+		expect(await versionOf("t1")).toBe(2);
+	});
+
+	it("refuses a change made on a version that has moved on, and leaves the other Parent's change alone", async () => {
+		await imported("t1", "costco", { outcome: "review" });
+		// Both Parents have it open at version 0. Sam saves first.
+		expect(await edit("sam", "fun", 0, "costco run")).toEqual({ ok: true, version: 1 });
+		await db.insert(transactionFor).values({ transactionId: "t1", memberId: "maya", householdId });
+		expect(await edit("alex", "groceries", 0)).toEqual({ ok: false, reason: "changed-elsewhere" });
+		const [row] = await db.select().from(transactions).where(eqId("t1"));
+		expect([row?.bucketId, row?.note, row?.version]).toEqual(["fun", "costco run", 1]);
+		// Its For is Sam's too: nothing of the refused change was written.
+		expect((await db.select().from(transactionFor)).map((f) => f.memberId)).toEqual(["maya"]);
+		// On what is there now, Alex's change lands.
+		expect(await edit("alex", "groceries", 1)).toEqual({ ok: true, version: 2 });
+	});
+
+	it("a retry of a change that already landed is still that change, not a refusal", async () => {
+		await imported("t1", "costco", { outcome: "review" });
+		expect(await edit("alex", "groceries", 0)).toEqual({ ok: true, version: 1 });
+		expect(await edit("alex", "groceries", 0)).toEqual({ ok: true, version: 1 });
+		expect(await versionOf("t1")).toBe(1);
+	});
+
+	it("still says when it isn't in the Plan, and a writer that names no version is never refused", async () => {
+		await imported("t1", "costco", { outcome: "review" });
+		expect(await edit("alex", "sam-pa", 0)).toEqual({ ok: false, reason: "not-in-plan" });
+		expect(await versionOf("t1")).toBe(0);
+		expect(await edit("alex", "fun")).toEqual({ ok: true, version: 1 });
+		expect(await edit("alex", "groceries")).toEqual({ ok: true, version: 2 });
+	});
+
+	it("guards a split and a delete the same way", async () => {
+		await imported("t1", "costco", { outcome: "review" });
+		const split = (expectedVersion: number) =>
+			splitTransaction(db, {
+				householdId,
+				memberId: "alex",
+				transactionId: "t1",
+				amountCents: 4_200,
+				note: "costco",
+				splits: [
+					{ id: "s1", amountCents: 4_000, assignment: { bucketId: "groceries" }, forMemberIds: [] },
+					{ id: "s2", amountCents: 200, assignment: { bucketId: "fun" }, forMemberIds: [] },
+				],
+				expectedVersion,
+			});
+		expect(await edit("sam", "fun", 0)).toEqual({ ok: true, version: 1 });
+		expect(await split(0)).toEqual({ ok: false, reason: "changed-elsewhere" });
+		expect(await db.select().from(splits)).toEqual([]);
+		expect(await split(1)).toEqual({ ok: true, version: 2 });
+		expect(await split(1)).toEqual({ ok: true, version: 2 });
+
+		const remove = (expectedVersion: number) =>
+			deleteTransaction(db, { householdId, memberId: "sam", transactionId: "t1", expectedVersion });
+		expect(await remove(1)).toEqual({ ok: false, reason: "changed-elsewhere" });
+		expect(await versionOf("t1")).toBe(2);
+		expect((await db.select().from(splits)).length).toBe(2);
+		expect(await remove(2)).toEqual({ ok: true, version: null });
+		expect(await versionOf("t1")).toBeUndefined();
+		// Deleted already: a retry is not a refusal. A change to what is gone is.
+		expect(await remove(2)).toEqual({ ok: true, version: null });
+		expect(await edit("alex", "fun", 2)).toEqual({ ok: false, reason: "changed-elsewhere" });
+	});
+
+	it("an Undo back into Review is refused once the other Parent has changed it since", async () => {
+		await imported("t1", "costco", { outcome: "review" });
+		const undo = (expectedVersion: number) =>
+			returnToReview(db, alex, {
+				transactionId: "t1",
+				merchant: "costco",
+				guess: null,
+				forMemberIds: [],
+				expectedVersion,
+			});
+		expect(await edit("alex", "groceries", 0)).toEqual({ ok: true, version: 1 });
+		await settleCategorization(db, householdId, "t1");
+		expect(await edit("sam", "fun", 1)).toEqual({ ok: true, version: 2 });
+		expect(await undo(1)).toEqual({ ok: false, reason: "changed-elsewhere" });
+		expect((await db.select().from(transactions).where(eqId("t1")))[0]?.bucketId).toBe("fun");
+		expect(await reviewIds()).toEqual([]);
+		// On what is there now it goes back, and again on a retry.
+		expect(await undo(2)).toEqual({ ok: true, version: 3 });
+		expect(await undo(2)).toEqual({ ok: true, version: 3 });
+		expect(await reviewIds()).toEqual(["t1"]);
+	});
+
+	it("filing without a Bucket moves the version on, so a card for it on another screen is refused", async () => {
+		await imported("t1", "costco", { outcome: "review" });
+		await imported("t2", "corner deli", { outcome: "review" });
+		expect(await fileWithoutBucket(db, sam, ["t1"])).toEqual({
+			filed: ["t1"],
+			versions: { t1: 1 },
+		});
+		expect(await versionOf("t2")).toBe(0);
+		expect(await edit("alex", "groceries", 0)).toEqual({ ok: false, reason: "changed-elsewhere" });
+		// A second ask files nothing and moves nothing.
+		expect(await fileWithoutBucket(db, sam, ["t1"])).toEqual({ filed: [], versions: {} });
+		expect(await versionOf("t1")).toBe(1);
+	});
+
+	it("a Rule that files it in the background moves the version on and is never refused itself", async () => {
+		await imported("t1", "costco", { outcome: "review" });
+		const saved = await saveRule(db, {
+			id: "r1",
+			householdId,
+			memberId: "sam",
+			pattern: "costco",
+			bucketId: "groceries",
+			commitmentId: null,
+			forMemberIds: [],
+		});
+		expect(saved.ok).toBe(true);
+		await applyRule(db, sam, "r1");
+		const [row] = await db.select().from(transactions).where(eqId("t1"));
+		expect([row?.bucketId, row?.version]).toEqual(["groceries", 1]);
+		// Alex's card for it, still at version 0, no longer writes over what the Rule did.
+		expect(await edit("alex", "fun", 0)).toEqual({ ok: false, reason: "changed-elsewhere" });
 	});
 });

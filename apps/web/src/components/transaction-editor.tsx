@@ -27,6 +27,7 @@ import type {
 	TransactionEdit,
 	TransactionRow,
 } from "../transactions";
+import { useEditFormKey } from "../transactions";
 import { ForPicker } from "./for-picker";
 import { AmountInput } from "./goals";
 import { MatchSection } from "./match-section";
@@ -154,6 +155,8 @@ export function TransactionBody({
 	splitting?: boolean;
 }) {
 	const day = dayName(transaction.date, today);
+	// Starts the form again, on the fresh values, when another screen changes it meanwhile (#85).
+	const formKey = useEditFormKey(transaction);
 	if (transaction.partlyPrivate) {
 		return (
 			<>
@@ -180,7 +183,7 @@ export function TransactionBody({
 			{heading("Edit Transaction", day)}
 			<EditForm
 				// A fresh form for each Transaction opened.
-				key={transaction.id}
+				key={formKey}
 				transaction={transaction}
 				plan={plan}
 				members={members}

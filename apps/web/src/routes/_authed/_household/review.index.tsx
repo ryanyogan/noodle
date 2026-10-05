@@ -82,6 +82,7 @@ import {
 	stackReducer,
 	startStack,
 } from "../../../review-stack";
+import { ChangedElsewhere } from "../../../transaction-versions";
 import { monthOfTransaction, type TransactionChange } from "../../../transactions";
 
 export const Route = createFileRoute("/_authed/_household/review/")({
@@ -205,13 +206,16 @@ function ReviewPage() {
 		saveRule.isPending;
 	/** A failed save: its cards are back in Review, and back on top of the stack. */
 	const failed = (items: ReviewItem[]) => ({
-		onError: () => {
+		onError: (error: unknown) => {
 			dispatch({ type: "failed", items });
 			if (!sorting) return;
 			// Said beside the card rather than in a toast over its buttons; it's on top to try again.
 			run.current = 0;
 			setStreak(null);
 			focusNext.current = true;
+			// Another screen changed it first (ADR-0041): nothing failed to save, and the one message
+			// about it is already said, so what Sort said of the decision is only taken back.
+			if (error instanceof ChangedElsewhere) return say("");
 			const [first] = items;
 			say(
 				items.length === 1 && first
@@ -222,6 +226,18 @@ function ReviewPage() {
 	});
 	/** What Sort last did, said beside the card and to a screen reader. */
 	const [said, say] = useState("");
+	/**
+	 * Cards of a batch that another screen changed first, so they were left as they are (ADR-0041):
+	 * not done here and not this visit's to undo. The batch's own message says how many.
+	 */
+	function leftOut(items: ReviewItem[]) {
+		if (items.length === 0) return;
+		dispatch({ type: "returned", items });
+		if (!sorting) return;
+		run.current = 0;
+		setStreak(null);
+		say("");
+	}
 	/** Suggestions confirmed one after another in Sort, for a small "5 in a row!". */
 	const run = useRef(0);
 	const [streak, setStreak] = useState<number | null>(null);
@@ -445,7 +461,10 @@ function ReviewPage() {
 		if (decisions.length === 0) return;
 		const taken = decisions.map((decision) => decision.item);
 		decided(taken, `Filed ${taken.length} where Noodle suggested.`);
-		confirmAll.mutate(decisions, failed(taken));
+		confirmAll.mutate(decisions, {
+			...failed(taken),
+			onSuccess: ({ skipped }) => leftOut(skipped.map((decision) => decision.item)),
+		});
 	}
 
 	/** Files cards without a Bucket: out of Review, still unassigned (ADR-0037). */
@@ -460,7 +479,13 @@ function ReviewPage() {
 				? `Filed ${labelOf(first)} without a Bucket.`
 				: `Filed ${items.length} without a Bucket.`,
 		);
-		fileWithout.mutate({ items, quiet: sorting }, failed(items));
+		fileWithout.mutate(
+			{ items, quiet: sorting },
+			{
+				...failed(items),
+				onSuccess: ({ versions }) => leftOut(items.filter((item) => !(item.id in versions))),
+			},
+		);
 	}
 
 	function skip(item: ReviewItem) {
