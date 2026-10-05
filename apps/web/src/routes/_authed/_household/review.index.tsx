@@ -1322,12 +1322,14 @@ type PaymentCaution = { place: string; onTransfer: () => void; onAnyway: () => v
 
 /** Said once when a likely card payment is filed in a Bucket or a Commitment anyway. */
 const PAYMENT_FILED = "Card payments usually aren’t spending.";
-/** Why a card payment goes in no Bucket, on its card. */
-const PAYMENT_WHY =
-	"What you bought on the card is already in your Buckets, so the payment itself isn’t spending.";
-/** Why a payment to a card Noodle can't see into is planned like a bill. */
-const NOT_FOLLOWED_WHY =
-	"Noodle can’t see what was bought on this card, so the payment is the spending.";
+/**
+ * Why, as the second line of a payment card's panel, naming the card when the line does: a card
+ * payment goes in no Bucket, or a payment to a card Noodle can't see into is planned like a bill.
+ */
+const paymentWhy = (payment: Exclude<PaymentCase, { kind: "commitment" }>) =>
+	payment.kind === "followed"
+		? `What you bought on ${payment.card ?? "the card"} is already in your Buckets, so the payment itself isn’t spending.`
+		: `Noodle can’t see what was bought on ${payment.card ?? "this card"}, so the payment is the spending.`;
 
 /** The top card's other actions: split it, file it in the Parent's own Personal Allowance, or make a Rule. */
 function CardActions({
@@ -1537,7 +1539,14 @@ function ReviewCard({
 					</p>
 					<h3
 						id={headingId}
-						className="text-base font-semibold max-sm:line-clamp-2 max-sm:wrap-anywhere sm:truncate"
+						className={cn(
+							"text-base font-semibold max-sm:wrap-anywhere sm:truncate",
+							// A payment card has more on it: on the shortest phones its name keeps to one line.
+							// Each width has one rule of its own, so neither depends on which is written last.
+							payment
+								? "max-[359px]:line-clamp-1 min-[360px]:max-sm:line-clamp-2"
+								: "max-sm:line-clamp-2",
+						)}
 					>
 						{labelOf(item)}
 					</h3>
@@ -1565,35 +1574,53 @@ function ReviewCard({
 			<div className="flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5 max-[359px]:py-1.5">
 				{payment?.kind === "commitment" ? (
 					<>
-						<Tile aria-hidden="true">{monogram(payment.commitment)}</Tile>
+						{/* The narrowest phones are the shortest: the words get the tile's width there. */}
+						<div className="shrink-0 max-[359px]:hidden">
+							<Tile aria-hidden="true">{monogram(payment.commitment)}</Tile>
+						</div>
 						<div className="grid min-w-0 flex-1">
 							<span className="text-sm font-medium wrap-anywhere">
 								Payment to {payment.account}
 							</span>
 							<span className="text-xs text-muted-foreground wrap-anywhere">
-								Files in {payment.commitment} · pays down what’s owed
+								Files in {payment.commitment}
+								<span className="max-[359px]:sr-only"> · pays down what’s owed</span>
 							</span>
 						</div>
 					</>
 				) : payment ? (
 					<>
-						<Tile aria-hidden="true">
-							{payment.kind === "followed" ? <ArrowLeftRight /> : <Wallet />}
-						</Tile>
+						{/* The narrowest phones are the shortest: there the why says it alone, in the tile's
+						    width as well, and the title is only read out. */}
+						<div className="shrink-0 max-[359px]:hidden">
+							<Tile aria-hidden="true">
+								{payment.kind === "followed" ? <ArrowLeftRight /> : <Wallet />}
+							</Tile>
+						</div>
 						<div className="grid min-w-0 flex-1">
-							<span className="text-sm font-medium wrap-anywhere">
+							<span className="text-sm font-medium wrap-anywhere max-[359px]:sr-only">
 								{payment.kind === "followed"
 									? "Card payment — not spending"
 									: "Payment to a card Noodle doesn’t follow"}
 							</span>
-							{/* With no card named, a card Noodle doesn't follow has it all said in its title. */}
-							{payment.card || payment.kind === "followed" ? (
-								<span className="text-xs text-muted-foreground wrap-anywhere">
-									{payment.card
-										? `Looks like a payment to ${payment.card}`
-										: "Looks like a payment to a credit card"}
-								</span>
-							) : null}
+							<span
+								className="text-xs text-muted-foreground wrap-anywhere"
+								data-testid="review-payment-why"
+							>
+								{paymentWhy(payment)}
+								{payment.kind === "not-followed" ? (
+									// On the narrowest phones this choice is here, not on a row of its own.
+									<>
+										{" "}
+										<Link
+											to="/accounts"
+											className="-my-1 inline-block py-1 font-medium whitespace-nowrap text-foreground underline underline-offset-2 min-[360px]:hidden"
+										>
+											Connect the card
+										</Link>
+									</>
+								) : null}
+							</span>
 						</div>
 						<TermHelp term="card-payment" />
 					</>
@@ -1625,14 +1652,6 @@ function ReviewCard({
 					</>
 				)}
 			</div>
-			{payment && payment.kind !== "commitment" ? (
-				<p
-					className="text-[13px] text-muted-foreground wrap-anywhere"
-					data-testid="review-payment-why"
-				>
-					{payment.kind === "followed" ? PAYMENT_WHY : NOT_FOLLOWED_WHY}
-				</p>
-			) : null}
 			{caution ? (
 				// A Bucket was picked for a payment to a card Noodle follows: asked before it's filed.
 				<div data-testid="review-payment-caution" className="grid gap-2">
@@ -1691,7 +1710,12 @@ function ReviewCard({
 						className={cn(
 							"min-w-0 flex-1",
 							item.guess && "max-[359px]:order-last max-[359px]:basis-full",
-							payment && "max-sm:order-last max-sm:basis-full",
+							payment && "max-sm:order-last",
+							// On the narrowest phones "It’s a card payment" shares the picker's row. Each
+							// width has one rule of its own, so neither depends on which is written last.
+							payment?.kind === "not-followed"
+								? "max-[359px]:basis-[30%] min-[360px]:max-sm:basis-full"
+								: payment && "max-sm:basis-full",
 						)}
 						aria-label={`Where ${labelOf(item)} goes`}
 						disabled={!hydrated || !places}
@@ -1742,7 +1766,10 @@ function ReviewCard({
 					{payment?.kind === "not-followed" ? (
 						// The payment is the spending, so it's planned like a bill: the Commitment's form
 						// opens with this line's name and amount, and the card to pay down ready.
-						<Button className="max-sm:order-first max-sm:min-w-0 max-sm:flex-1" asChild>
+						<Button
+							className="max-sm:order-first max-sm:min-w-0 max-sm:grow max-sm:shrink max-[359px]:basis-[70%] min-[360px]:max-sm:basis-0"
+							asChild
+						>
 							<Link
 								to="/plan/$month/commitments"
 								params={{ month: thisMonth }}
@@ -1754,6 +1781,18 @@ function ReviewCard({
 							>
 								Make it a Commitment
 							</Link>
+						</Button>
+					) : null}
+					{payment?.kind === "not-followed" ? (
+						// The narrowest phones are the shortest too: there the card's last choice sits beside
+						// the picker, so Skip and Undo stay above the bottom bar. Wider, it has its own row.
+						<Button
+							variant="outline"
+							className="order-last shrink-0 px-2 text-xs min-[360px]:hidden"
+							disabled={!hydrated}
+							onClick={onPayment}
+						>
+							It’s a card payment
 						</Button>
 					) : null}
 					{item.guess ? (
@@ -1772,18 +1811,15 @@ function ReviewCard({
 			)}
 			{payment?.kind === "not-followed" && !caution ? (
 				// Its other two ways out: see into the card, or say the payment isn't spending after all.
-				<div className="flex flex-wrap gap-2">
-					{/* On the narrowest phones the two share 264px: less padding and smaller words fit both. */}
-					<Button
-						variant="outline"
-						className="max-sm:flex-auto max-[359px]:px-2 max-[359px]:text-xs"
-						asChild
-					>
+				// The narrowest phones have no height for this row: there "Connect the card" ends the why
+				// above and "It’s a card payment" sits beside the picker.
+				<div className="flex flex-wrap gap-2 max-[359px]:hidden">
+					<Button variant="outline" className="max-sm:flex-auto" asChild>
 						<Link to="/accounts">Connect the card</Link>
 					</Button>
 					<Button
 						variant="outline"
-						className="max-sm:flex-auto max-[359px]:px-2 max-[359px]:text-xs"
+						className="max-sm:flex-auto"
 						disabled={!hydrated}
 						onClick={onPayment}
 					>

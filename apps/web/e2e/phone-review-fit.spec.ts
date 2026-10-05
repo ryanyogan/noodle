@@ -17,7 +17,9 @@ import {
 // it. The card that was: a likely card payment, whose long "It’s a card payment" button sat beside
 // the picker and Edit on one row. Every kind of payment card is here (ADR-0050): one a Commitment
 // pays down (Confirm), one to a card Noodle follows (a Transfer), one to a card it doesn't ("Make
-// it a Commitment", with two more choices on a row under the picker). Also a suggestion, a
+// it a Commitment", with two more choices on a row under the picker; on the narrowest phones one
+// ends the card's why and the other sits beside the picker). On the shortest phone (320×640) each
+// of them leaves Skip and Undo above the bottom bar with nothing scrolled. Also a suggestion, a
 // merchant with a long name, and one whose name is a single long word. Categorization runs with its fake (AI_MODEL=stub): it guesses Gas
 // for a merchant with "gas" in its name.
 
@@ -130,6 +132,39 @@ function misfits(page: Page) {
 	});
 }
 
+/**
+ * Where Skip and Undo end, and where the screen's room for them does (the top of the bar fixed to
+ * its bottom, or the screen's own edge), with the page and everything around the stack scrolled
+ * back to the top.
+ */
+function skipAndUndo(page: Page) {
+	return page.evaluate(() => {
+		const stack = document.querySelector("[data-testid=review-stack]");
+		for (let el: Element | null = stack; el; el = el.parentElement) el.scrollTop = 0;
+		window.scrollTo(0, 0);
+		const tall = window.innerHeight;
+		let floor = tall;
+		for (const el of document.querySelectorAll("body *")) {
+			const style = getComputedStyle(el);
+			if (style.position !== "fixed" && style.position !== "sticky") continue;
+			if (style.visibility === "hidden" || style.display === "none") continue;
+			const box = el.getBoundingClientRect();
+			if (
+				box.height > 0 &&
+				box.bottom >= tall - 1 &&
+				box.top > tall / 2 &&
+				box.width >= window.innerWidth * 0.9
+			) {
+				floor = Math.min(floor, box.top);
+			}
+		}
+		const bottoms = [...(stack?.querySelectorAll("button") ?? [])]
+			.filter((button) => ["Skip", "Undo"].includes((button.textContent ?? "").trim()))
+			.map((button) => Math.round(button.getBoundingClientRect().bottom));
+		return { floor: Math.round(floor), bottoms };
+	});
+}
+
 async function axe(page: Page, what: string) {
 	const { violations } = await new AxeBuilder({ page }).analyze();
 	expect(
@@ -218,10 +253,39 @@ test("on a phone no Review card is wider than the screen: every kind of payment 
 				expect(picker.y, `${width}: the picker is under the button`).toBeGreaterThanOrEqual(
 					button.y + button.height,
 				);
-				expect(picker.width, `${width}: the picker has the card's width`).toBeGreaterThan(
-					inside.width - 40,
-				);
-				if (kind === "not-followed") {
+				// On the narrowest phones a card Noodle doesn't follow has its other two choices folded in:
+				// "Connect the card" ends the why, and "It’s a card payment" is beside the picker.
+				const folded = kind === "not-followed" && width < 360;
+				if (folded) {
+					await expect(
+						top.getByTestId("review-payment-why").getByRole("link", { name: "Connect the card" }),
+					).toBeVisible();
+					const beside = await top
+						.getByRole("button", { name: "It’s a card payment" })
+						.boundingBox();
+					expect(beside?.y, `${width}: under the first action`).toBeGreaterThanOrEqual(
+						button.y + button.height,
+					);
+					expect(beside?.x, `${width}: beside the picker`).toBeGreaterThanOrEqual(
+						picker.x + picker.width,
+					);
+				} else {
+					expect(picker.width, `${width}: the picker has the card's width`).toBeGreaterThan(
+						inside.width - 40,
+					);
+				}
+				if (height === 640) {
+					// The shortest phone: Skip and Undo are on the screen, above its bottom bar, unscrolled.
+					const fit = await skipAndUndo(page);
+					expect(fit.bottoms, `${width}×${height}: Skip and Undo are there`).toHaveLength(2);
+					for (const bottom of fit.bottoms) {
+						expect(
+							bottom,
+							`${width}×${height}: a ${kind} payment leaves Skip and Undo above ${fit.floor} without scrolling`,
+						).toBeLessThanOrEqual(fit.floor);
+					}
+				}
+				if (kind === "not-followed" && !folded) {
 					// Its other two choices are under the picker, inside the card.
 					const others = await Promise.all([
 						top.getByRole("link", { name: "Connect the card" }).boundingBox(),

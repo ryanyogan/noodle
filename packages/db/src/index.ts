@@ -509,6 +509,8 @@ export {
 	linkCommitment,
 	loadCharges,
 	loadChargesBetween,
+	loadPaymentHistory,
+	type PaymentHistory,
 	updateCommitment,
 } from "./commitments";
 export {

@@ -315,6 +315,13 @@ export {
 	SAME_LINE_DAYS,
 	suggestPairings,
 } from "./pairing";
+export {
+	PAYMENT_HISTORY_MONTHS,
+	type PaymentLine,
+	type PaymentSuggestion,
+	paymentsTo,
+	suggestPayment,
+} from "./payment-history";
 export * from "./perk-standing";
 export * from "./perk-worth";
 export {
@@ -389,8 +396,10 @@ export {
 	suggestBuckets,
 } from "./plan-draft";
 export {
+	cardsNowFollowed,
 	HEALTH_HABIT_MONTHS,
 	HEALTH_MONTHS_AHEAD,
+	type HealthCard,
 	type HealthGoal,
 	type PlanWarning,
 	planHealth,
