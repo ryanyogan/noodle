@@ -3,7 +3,7 @@ import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 // Guards the page grid (ADR-0024): a page's columns come from PageLayout, SplitLayout or
-// MasterDetail in packages/ui, never from a column template written in the page. A new
+// ListWithPanel in packages/ui, never from a column template written in the page. A new
 // `lg:grid-cols-[…]` under apps/web/src fails here. If it really is a grid inside one card or one
 // row, add it below with the reason; if it lays out a page, use one of the three layouts.
 const ALLOWED: Record<string, { count: number; why: string }> = {
@@ -42,7 +42,7 @@ describe("page grids", () => {
 			.map(([file, count]) => `${file}: ${count} (allowed ${ALLOWED[file]?.count ?? 0})`);
 		expect(
 			extra,
-			"use PageLayout, SplitLayout or MasterDetail (packages/ui/COMPONENTS.md)",
+			"use PageLayout, SplitLayout or ListWithPanel (packages/ui/COMPONENTS.md)",
 		).toEqual([]);
 	});
 

@@ -2,15 +2,15 @@ import * as React from "react";
 import { cn } from "#lib/utils";
 
 /*
- * The page grid (#67). Every page below the shared header is one of three layouts, so widths,
+ * The page grid (#67). Every page below the shared header is one of these layouts, or a list with
+ * its picked item in a panel (`ListWithPanel` in detail-panel.tsx, ADR-0047), so widths,
  * gutters and column tops are the same everywhere. The numbers are tokens in globals.css:
  * `--layout-gap` (the one gutter, between columns and between a column's blocks), `--rail-width`,
  * `--list-pane-width` and `--reading-width`. The shell caps the whole page with `--shell-max` (1200, 1440 from 1440 px, 1680 from
  * 1920 px; ADR-0033), and the rail and list pane widen with the window too.
  *
  * One scroll per region: the page scrolls. Nothing in PageLayout or SplitLayout scrolls on its
- * own. MasterDetail's two panes are the one exception, because they are side-by-side full-height
- * regions and the page itself then doesn't scroll.
+ * own; the one thing that does is the panel an item opens in (ADR-0047).
  */
 
 /** The space kept above and below a sticky rail, matching the shell's top padding at lg (pt-6). */
@@ -175,7 +175,7 @@ function SplitRail({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 /**
- * One of MasterDetail's panes. No pane scrolls on its own (#73): one that fits in the window stays
+ * A column of `ListWithPanel` (its list, its aside). No pane scrolls on its own (#73): one that fits in the window stays
  * in view (sticky) while its longer neighbour scrolls with the page, and one taller than the window
  * simply flows with the page, so its end is reached by scrolling the page.
  */
@@ -205,198 +205,8 @@ function Pane({ className, ...props }: React.ComponentProps<"section">) {
 	);
 }
 
-/**
- * A list beside the item picked from it. From lg the page scrolls as one (no pane scrolls on its
- * own, #73): the list is as long as it is, and the picked item sits beside it, its top level with
- * the list's first row, and stays in view (sticky) as the list scrolls. An item taller than the
- * window isn't held: it flows with the page, and the list stays in view instead if it is the
- * shorter one. Picking an item from far down the list keeps its row
- * where it was in the window: the row's link must not reset the window's scroll
- * (`resetScroll={false}`), and the window follows the row if the list changes shape. Below lg it shows one level at a time: the list, or (once there is a `detail`) the
- * detail, as ordinary page content.
- *
- * An item taller than the window can't be held beside its row, so picking one takes the window to
- * the item's start (just under the top of the window) instead of leaving it above the fold.
- *
- * `empty` fills the detail pane at lg while nothing is picked ("Pick a Bucket to see it").
- */
-function MasterDetail({
-	list,
-	detail,
-	empty,
-	emptyStacks,
-	listLabel,
-	detailLabel,
-	narrowList,
-	listOnly,
-	className,
-	style,
-	onClickCapture,
-	...props
-}: Omit<React.ComponentProps<"div">, "children"> & {
-	list: React.ReactNode;
-	/** The picked item, e.g. the detail route's outlet. Null or undefined when nothing is picked. */
-	detail?: React.ReactNode;
-	empty?: React.ReactNode;
-	/**
-	 * `empty` is part of the page rather than a placeholder (the list's add form, say): it starts at
-	 * the top of its pane, and below lg it follows the list instead of being left out.
-	 */
-	emptyStacks?: boolean;
-	/**
-	 * The list's rows are a name and an amount (the Plan's Buckets and Commitments): beside an item
-	 * the list takes 22rem below 1920, which leaves the item room for two columns at 1440.
-	 */
-	narrowList?: boolean;
-	/**
-	 * While nothing is picked there is no detail pane from lg: the list has the page's width (Review's
-	 * cards, side by side), and `empty` isn't shown.
-	 */
-	listOnly?: boolean;
-	/** Names the list pane, e.g. "Buckets". */
-	listLabel: string;
-	/** Names the detail pane, e.g. "Bucket". */
-	detailLabel: string;
-}) {
-	const picked = detail !== null && detail !== undefined && detail !== false;
-	// A row's link doesn't send the window back to the top (the app's row links ask the router not
-	// to), so beside the list (lg) the Parent keeps their place in it. Below lg the item is a page of
-	// its own, so opening one starts it at the top.
-	const wasPicked = React.useRef(picked);
-	React.useEffect(() => {
-		const opened = picked && !wasPicked.current;
-		wasPicked.current = picked;
-		if (opened && !window.matchMedia("(min-width: 1024px)").matches) window.scrollTo({ top: 0 });
-	}, [picked]);
-	// Beside the list (lg) the row that was picked stays where it was in the window. The list changes
-	// shape around it when an item opens (it narrows, and its column headings go), so the window is
-	// moved by however far the row moved. A scroll of the Parent's own ends it.
-	const root = React.useRef<HTMLDivElement>(null);
-	const held = React.useRef<{
-		item: HTMLElement;
-		top: number;
-		until: number;
-		shown?: boolean;
-	} | null>(null);
-	const hold = (event: React.MouseEvent<HTMLDivElement>) => {
-		onClickCapture?.(event);
-		const item = (event.target as HTMLElement).closest<HTMLElement>("[data-md-item]");
-		held.current =
-			item && window.matchMedia("(min-width: 1024px)").matches
-				? { item, top: item.getBoundingClientRect().top, until: Date.now() + 4000 }
-				: null;
-	};
-	React.useEffect(() => {
-		const letGo = () => {
-			held.current = null;
-		};
-		window.addEventListener("wheel", letGo, { passive: true });
-		window.addEventListener("touchmove", letGo, { passive: true });
-		window.addEventListener("keydown", letGo);
-		return () => {
-			window.removeEventListener("wheel", letGo);
-			window.removeEventListener("touchmove", letGo);
-			window.removeEventListener("keydown", letGo);
-		};
-	}, []);
-	// An item that fits the window is held beside its row. One taller than the window can't be: the
-	// row would keep its place while the item's start sat above the window, so the window goes to the
-	// item's start instead, just under the top. The panes start level with this grid's top, which is
-	// measured rather than the pane, since a pane that was sticky a moment ago isn't where it will be.
-	const settle = React.useCallback(() => {
-		const kept = held.current;
-		if (!kept) return;
-		if (Date.now() > kept.until) {
-			held.current = null;
-			return;
-		}
-		const item = kept.item.isConnected
-			? kept.item
-			: root.current?.querySelector<HTMLElement>(
-					"[data-slot=master-detail-list] [data-md-item][aria-current]",
-				);
-		if (!item) return;
-		const pane = root.current?.querySelector<HTMLElement>("[data-slot=master-detail-detail]");
-		const open =
-			item.closest("[aria-current]") !== null || item.querySelector("[aria-current]") !== null;
-		if (open && pane && pane.offsetHeight + RAIL_INSET * 2 > window.innerHeight) {
-			kept.shown = true;
-			const above = (root.current?.getBoundingClientRect().top ?? RAIL_INSET) - RAIL_INSET;
-			if (above < -1) window.scrollBy({ top: above, behavior: "instant" });
-			return;
-		}
-		// Once the window has gone to a tall item's start it isn't taken back to the row.
-		if (kept.shown) return;
-		const moved = item.getBoundingClientRect().top - kept.top;
-		if (Math.abs(moved) > 1) window.scrollBy({ top: moved, behavior: "instant" });
-	}, []);
-	// After every render: the list's shape may change on any of them while the item opens.
-	React.useLayoutEffect(settle);
-	// And whenever a pane changes size: the item's own content arrives without this rendering again.
-	React.useEffect(() => {
-		const grid = root.current;
-		if (!grid) return;
-		const resized = new ResizeObserver(settle);
-		for (const pane of grid.children) resized.observe(pane);
-		return () => resized.disconnect();
-	}, [settle]);
-	return (
-		<div
-			ref={root}
-			data-slot="master-detail"
-			data-picked={picked}
-			onClickCapture={hold}
-			className={cn(
-				"grid grid-cols-[minmax(0,1fr)] lg:gap-(--layout-gap)",
-				listOnly && !picked
-					? null
-					: narrowList
-						? "lg:grid-cols-[22rem_minmax(0,1fr)] min-[120rem]:grid-cols-[var(--list-pane-width)_minmax(0,1fr)]"
-						: "lg:grid-cols-[var(--list-pane-width)_minmax(0,1fr)]",
-				emptyStacks && !picked && "max-lg:gap-(--layout-gap)",
-				// A list that fills while nothing is picked (Goals' cards): the list takes the wide column
-				// and the overview the rail's width (#73L, ADR-0033).
-				"lg:data-[list-fills=true]:grid-cols-[minmax(0,1fr)_var(--rail-width)]",
-				"lg:items-start",
-				className,
-			)}
-			style={style}
-			{...props}
-		>
-			<Pane
-				data-slot="master-detail-list"
-				aria-label={listLabel}
-				className={cn(picked && "max-lg:hidden")}
-			>
-				{list}
-			</Pane>
-			<Pane
-				data-slot="master-detail-detail"
-				aria-label={detailLabel}
-				className={cn(
-					"@container/detail",
-					!picked && !emptyStacks && "max-lg:hidden",
-					!picked && listOnly && "lg:hidden",
-				)}
-			>
-				{picked ? (
-					detail
-				) : (
-					<div
-						data-slot="master-detail-empty"
-						className={cn("grid", emptyStacks ? "content-start" : "place-items-center lg:min-h-40")}
-					>
-						{empty}
-					</div>
-				)}
-			</Pane>
-		</div>
-	);
-}
-
 export {
 	DetailColumns,
-	MasterDetail,
 	PageLayout,
 	Pane as MasterDetailPane,
 	SectionGrid,
