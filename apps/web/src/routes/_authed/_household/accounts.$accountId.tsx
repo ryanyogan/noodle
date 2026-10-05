@@ -34,9 +34,10 @@ import {
 	Link,
 	notFound,
 	useHydrated,
+	useNavigate,
 	useRouteContext,
 } from "@tanstack/react-router";
-import { Ellipsis, Pencil, Unplug } from "lucide-react";
+import { Archive, Ellipsis, Pencil, Unplug } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
 import { accountSource, accountSourceText } from "../../../account-source";
@@ -77,7 +78,7 @@ import {
 	monthQuery,
 	perkSourcesQuery,
 } from "../../../queries";
-import { unpairBankAccount } from "../../../server/bank-connections";
+import { archiveAccount, unpairBankAccount } from "../../../server/bank-connections";
 import { accountTransactionsQuery, type TransactionRow } from "../../../transactions";
 
 export const Route = createFileRoute("/_authed/_household/accounts/$accountId")({
@@ -98,6 +99,9 @@ export const Route = createFileRoute("/_authed/_household/accounts/$accountId")(
 	component: AccountPage,
 });
 
+/** The More area's buttons: a full 44px to press, and a long bank name wraps inside at 320px. */
+const moreButton = "h-auto min-h-11 max-w-full whitespace-normal py-2 text-start";
+
 function AccountPage() {
 	const { accountId } = Route.useParams();
 	const account = useGoals().accounts.find((a) => a.id === accountId);
@@ -112,7 +116,9 @@ function AccountDetails({ account }: { account: AccountView }) {
 	const hydrated = useHydrated();
 	const rename = useRenameAccount();
 	const updateBalance = useUpdateAccountBalance();
-	const [sheet, setSheet] = useState<"balance" | "rename" | "unpair" | "disconnect" | null>(null);
+	const [sheet, setSheet] = useState<
+		"balance" | "rename" | "unpair" | "disconnect" | "archive" | null
+	>(null);
 	const { connections } = useSuspenseQuery(bankConnectionsQuery()).data;
 	const { timeZone } = useRouteContext({ from: "/_authed/_household" }).household;
 	const source = accountSource(account, connections);
@@ -120,14 +126,54 @@ function AccountDetails({ account }: { account: AccountView }) {
 	// A live bank balance isn't typed over, unless the bank has stopped bringing it in.
 	const typesBalance = !connected || connected.needsLogin || account.balance === null;
 	const queryClient = useQueryClient();
+	const navigate = useNavigate();
+	const bankName = connected?.connection.institution ?? "the bank";
+	// The only Account syncing with its bank: stopping it disconnects the bank too (ADR-0046).
+	const lastLinked = connected?.connection.accounts.length === 1;
+	// Goals kept in it (or paying it off) that aren't archived: it can't be archived while they are.
+	const goalsHere = useGoals().goals.filter(
+		(goal) => goal.accountId === account.id && goal.state !== "archived",
+	);
+	const refresh = () => {
+		void queryClient.invalidateQueries({ queryKey: goalsQuery().queryKey });
+		void queryClient.invalidateQueries({ queryKey: bankConnectionsQuery().queryKey });
+	};
+	const bankSaidNo = `Couldn’t stop syncing with ${bankName} just now. Nothing changed. Try again.`;
 	const unpair = useMutation({
 		mutationFn: () => unpairBankAccount({ data: { accountId: account.id } }),
-		onSuccess: () => {
-			toast(`${account.name} is kept by hand or by statements now.`);
-			void queryClient.invalidateQueries({ queryKey: goalsQuery().queryKey });
-			void queryClient.invalidateQueries({ queryKey: bankConnectionsQuery().queryKey });
+		onSuccess: (result) => {
+			refresh();
+			if (!result.ok) {
+				if (result.reason !== "not-found") toast(bankSaidNo, { tone: "error" });
+				return;
+			}
+			toast(
+				result.disconnected
+					? `${bankName} is disconnected. ${account.name} is kept by hand or by statements now.`
+					: `${account.name} is kept by hand or by statements now.`,
+			);
 		},
-		onError: () => toast("Couldn’t stop bringing it in. Try again.", { tone: "error" }),
+		onError: () => toast(bankSaidNo, { tone: "error" }),
+	});
+	const archive = useMutation({
+		mutationFn: () => archiveAccount({ data: { accountId: account.id } }),
+		onSuccess: async (result) => {
+			refresh();
+			if (!result.ok) {
+				if (result.reason === "goals") {
+					toast(`${result.goals.join(", ")} is kept in it. Archive the Goal first.`, {
+						tone: "error",
+					});
+				} else if (result.reason === "bank" || result.reason === "not-set-up") {
+					toast(bankSaidNo, { tone: "error" });
+				}
+				return;
+			}
+			// No Undo here: Restore, under Archived on Accounts, is the way back.
+			toast(`${account.name} is archived. Restore it under Archived on Accounts.`);
+			await navigate({ to: "/accounts" });
+		},
+		onError: () => toast("Couldn’t archive it. Nothing changed. Try again.", { tone: "error" }),
 	});
 	const close = (open: boolean) => {
 		if (!open) setSheet(null);
@@ -168,14 +214,6 @@ function AccountDetails({ account }: { account: AccountView }) {
 									<Pencil />
 									Rename…
 								</DropdownMenuItem>
-								<DropdownMenuItem
-									variant="destructive"
-									disabled={unpair.isPending}
-									onSelect={() => setSheet("unpair")}
-								>
-									<Unplug />
-									Stop bringing in…
-								</DropdownMenuItem>
 								<DropdownMenuItem variant="destructive" onSelect={() => setSheet("disconnect")}>
 									<Unplug />
 									Disconnect {connected.connection.institution ?? "the bank"}…
@@ -198,13 +236,29 @@ function AccountDetails({ account }: { account: AccountView }) {
 			/>
 			{sheet === "unpair" && connected ? (
 				<Confirm
-					confirmLabel={`Stop bringing in from ${connected.connection.institution ?? "the bank"}`}
+					confirmLabel={`Stop syncing with ${bankName}`}
 					onConfirm={() => unpair.mutate()}
 					onCancel={() => setSheet(null)}
 				>
-					{account.name} stays, with its Goals, balance and Transactions. Noodle stops bringing in
-					its new Transactions and balance; you can upload statements or update it by hand, or
-					choose it again from the Bank Connection on Accounts.
+					{account.name} stays, with its balance and Goals. Its Transactions stay. Nothing new comes
+					in from {bankName}; you can upload statements or update it by hand.{" "}
+					{lastLinked
+						? `It’s the only Account syncing with ${bankName}, so ${bankName} is disconnected too. To sync again, connect ${bankName} on Accounts and choose this Account.`
+						: `Your other Accounts at ${bankName} keep syncing. To sync this one again, press Accounts beside ${bankName} on the Accounts page and choose it.`}
+				</Confirm>
+			) : null}
+			{sheet === "archive" ? (
+				<Confirm
+					confirmLabel="Archive this Account"
+					onConfirm={() => archive.mutate()}
+					onCancel={() => setSheet(null)}
+				>
+					{account.name} leaves Accounts, the pickers and the totals. Its Transactions stay, and
+					past months still count them.{" "}
+					{connected
+						? `Nothing new comes in from ${bankName}${lastLinked ? `, and ${bankName} is disconnected, as this is its only Account here` : ""}. `
+						: ""}
+					You can bring it back with Restore, under Archived on Accounts.
 				</Confirm>
 			) : null}
 			{sheet === "disconnect" && connected ? (
@@ -380,6 +434,56 @@ function AccountDetails({ account }: { account: AccountView }) {
 								: null
 						}
 					/>
+					{/* Last on a phone, and quiet: what a Parent does once, not every visit (ADR-0046). */}
+					<Section aria-labelledby="account-more">
+						<SectionHeader id="account-more" title="More" />
+						<Card className="grid gap-4 p-(--card-pad)">
+							{connected ? (
+								<div className="grid min-w-0 justify-items-start gap-1.5">
+									<Button
+										type="button"
+										variant="outline"
+										className={moreButton}
+										disabled={!hydrated || unpair.isPending}
+										onClick={() => setSheet("unpair")}
+									>
+										<Unplug />
+										Stop syncing with {bankName}
+									</Button>
+									<p className="text-[13px] text-muted-foreground">
+										Its Transactions stay. Nothing new comes in from {bankName}.
+									</p>
+								</div>
+							) : null}
+							<div className="grid min-w-0 justify-items-start gap-1.5">
+								{goalsHere.length > 0 ? (
+									<p className="text-sm text-muted-foreground">
+										{goalsHere.map((goal) => goal.name).join(", ")}{" "}
+										{goalsHere.length === 1 ? "is a Goal" : "are Goals"} kept in this Account, so it
+										can’t be archived yet. Archive{" "}
+										{goalsHere.length === 1 ? "that Goal" : "those Goals"} first.
+									</p>
+								) : (
+									<>
+										<Button
+											type="button"
+											variant="outline"
+											className={moreButton}
+											disabled={!hydrated || archive.isPending}
+											onClick={() => setSheet("archive")}
+										>
+											<Archive />
+											Archive this Account
+										</Button>
+										<p className="text-[13px] text-muted-foreground">
+											Takes it off Accounts, the pickers and the totals. Its Transactions stay, and
+											you can restore it.
+										</p>
+									</>
+								)}
+							</div>
+						</Card>
+					</Section>
 				</div>
 			</DetailColumns>
 

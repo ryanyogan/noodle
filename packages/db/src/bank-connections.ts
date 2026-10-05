@@ -188,6 +188,7 @@ export async function chooseBankAccounts(
 								bankConnectionId: bankConnections.id,
 								externalId: sql<string>`${account.externalId}`.as("external_id"),
 								mask: sql<string | null>`${accountMask(account.mask)}`.as("mask"),
+								archivedAt: sql<Date | null>`null`.as("archived_at"),
 							})
 							.from(bankConnections)
 							.where(and(theConnection, notYetPaired)),
@@ -211,6 +212,8 @@ export async function chooseBankAccounts(
 							eq(accounts.id, choice.accountId),
 							eq(accounts.householdId, householdId),
 							isNull(accounts.bankConnectionId),
+							// Not an archived Account: it's restored first (ADR-0046).
+							isNull(accounts.archivedAt),
 							sameSide,
 							notYetPaired,
 							sql`exists (select 1 from ${bankConnections} where ${theConnection})`,
@@ -280,21 +283,24 @@ export async function loadPairableAccounts(
 	db: Db,
 	householdId: string,
 ): Promise<PairableAccount[]> {
-	return db
-		.select({
-			id: accounts.id,
-			name: accounts.name,
-			kind: accounts.kind,
-			bankConnectionId: accounts.bankConnectionId,
-			externalId: accounts.externalId,
-			// Spelled out: inside a select's fields Drizzle leaves column names unqualified.
-			statementDigits: sql<string | null>`(select i.account_digits from imports i
+	return (
+		db
+			.select({
+				id: accounts.id,
+				name: accounts.name,
+				kind: accounts.kind,
+				bankConnectionId: accounts.bankConnectionId,
+				externalId: accounts.externalId,
+				// Spelled out: inside a select's fields Drizzle leaves column names unqualified.
+				statementDigits: sql<string | null>`(select i.account_digits from imports i
 				where i.account_id = "accounts"."id" and i.account_digits is not null
 				order by i.created_at desc, i.id desc limit 1)`,
-		})
-		.from(accounts)
-		.where(eq(accounts.householdId, householdId))
-		.orderBy(asc(accounts.createdAt), asc(accounts.id));
+			})
+			.from(accounts)
+			// An archived Account isn't offered: restore it first to sync it again (ADR-0046).
+			.where(and(eq(accounts.householdId, householdId), isNull(accounts.archivedAt)))
+			.orderBy(asc(accounts.createdAt), asc(accounts.id))
+	);
 }
 
 /** A chosen Account's balance, as its Bank Connection reported it; only once it's paired with it. */
@@ -428,7 +434,12 @@ export async function loadBankConnectionToImport(
 			.select({ id: accounts.id, externalId: accounts.externalId })
 			.from(accounts)
 			.where(
-				and(eq(accounts.bankConnectionId, connectionId), eq(accounts.householdId, householdId)),
+				and(
+					eq(accounts.bankConnectionId, connectionId),
+					eq(accounts.householdId, householdId),
+					// Nothing is read for an archived Account (ADR-0046).
+					isNull(accounts.archivedAt),
+				),
 			),
 	]);
 	const [row] = rows;
@@ -534,6 +545,7 @@ export async function refreshBankBalances(
 								eq(accounts.id, accountId),
 								eq(accounts.householdId, input.householdId),
 								eq(accounts.bankConnectionId, input.connectionId),
+								isNull(accounts.archivedAt),
 								// The latest balance, if any, isn't this one already.
 								sql`(select ${accountBalances.amountCents} from ${accountBalances}
 								where ${accountBalances.accountId} = ${accounts.id}

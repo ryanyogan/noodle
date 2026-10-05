@@ -187,11 +187,18 @@ test("connecting pairs with the card already there, and counts nothing twice", a
 	await page.keyboard.press("Enter");
 	await expect(page.getByRole("menuitem", { name: "Rename…" })).toBeFocused();
 	await page.keyboard.press("ArrowDown");
-	await expect(page.getByRole("menuitem", { name: "Stop bringing in…" })).toBeFocused();
-	await page.keyboard.press("Enter");
+	await expect(
+		page.getByRole("menuitem", { name: "Disconnect First Platypus Bank…" }),
+	).toBeFocused();
+	await page.keyboard.press("Escape");
+	// Stopping one Account is in the More section at the bottom of its page (ADR-0046).
+	await page
+		.getByRole("region", { name: "More" })
+		.getByRole("button", { name: "Stop syncing with First Platypus Bank" })
+		.click();
 	await page
 		.getByRole("alertdialog")
-		.getByRole("button", { name: "Stop bringing in from First Platypus Bank" })
+		.getByRole("button", { name: "Stop syncing with First Platypus Bank" })
 		.click();
 	await expect(
 		page.locator("[data-slot=master-detail-detail]").getByText(/^From statements · last /),

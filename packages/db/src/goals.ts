@@ -23,6 +23,7 @@ import {
 	type SQL,
 	sql,
 } from "drizzle-orm";
+import type { ArchivedAccount } from "./account-archive";
 import { counts, countsRaw } from "./counting";
 import type { Db } from "./index";
 import { freeToSpendSql } from "./moves";
@@ -253,6 +254,8 @@ export const goalInsert = (
 					and(
 						ownAccount(input.householdId, input.accountId),
 						inArray(accounts.kind, ["checking", "savings"]),
+						// Not an archived Account (ADR-0046).
+						isNull(accounts.archivedAt),
 					),
 				),
 		)
@@ -286,6 +289,7 @@ export async function addGoal(
 		and(
 			ownAccount(input.householdId, input.accountId),
 			inArray(accounts.kind, ["checking", "savings"]),
+			isNull(accounts.archivedAt),
 			notExists(db.select({ id: goals.id }).from(goals).where(eq(goals.id, input.goalId))),
 		),
 		{
@@ -417,6 +421,7 @@ export async function addPayoffGoal(
 	const guard = and(
 		ownAccount(input.householdId, input.accountId),
 		inArray(accounts.kind, ["credit-card", "loan"]),
+		isNull(accounts.archivedAt),
 		sql`${input.targetCents} > 0`,
 		sql`${latestBalanceSql(sql`${accounts.id}`)} = ${input.targetCents}`,
 		notExists(
@@ -790,6 +795,11 @@ export type GoalRecords = {
 	owed: (BalanceUpdate & { accountId: string })[];
 	/** The Goal the Household keeps for emergencies, if it has marked one. */
 	emergencyGoalId: string | null;
+	/**
+	 * The Accounts a Parent archived (ADR-0046), the latest first: in none of `accounts`' lists,
+	 * pickers or totals, listed only to be restored.
+	 */
+	archivedAccounts: ArchivedAccount[];
 };
 
 /**
@@ -808,6 +818,7 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 		wholeRows,
 		splitRows,
 		householdRows,
+		archivedRows,
 	] = await db.batch([
 		db
 			.select({
@@ -821,7 +832,8 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 					where i.account_id = "accounts"."id" and i.source <> 'bank')`,
 			})
 			.from(accounts)
-			.where(eq(accounts.householdId, householdId))
+			// Archived Accounts are out of every list, picker and total built from these (ADR-0046).
+			.where(and(eq(accounts.householdId, householdId), isNull(accounts.archivedAt)))
 			.orderBy(asc(accounts.createdAt), asc(accounts.id)),
 		db
 			.select({
@@ -890,6 +902,17 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 			.select({ emergencyGoalId: households.emergencyGoalId })
 			.from(households)
 			.where(eq(households.id, householdId)),
+		db
+			.select({
+				id: accounts.id,
+				name: accounts.name,
+				mask: accounts.mask,
+				kind: accounts.kind,
+				archivedAt: accounts.archivedAt,
+			})
+			.from(accounts)
+			.where(and(eq(accounts.householdId, householdId), isNotNull(accounts.archivedAt)))
+			.orderBy(desc(accounts.archivedAt), asc(accounts.id)),
 	]);
 	const spendingRows = [
 		...wholeRows,
@@ -957,6 +980,10 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 			.filter((row) => accountRows.some((a) => a.id === row.accountId && !holdsMoney(a.kind)))
 			.map((row) => ({ accountId: row.accountId, amount: row.amount, at: row.at.getTime() })),
 		emergencyGoalId: householdRows[0]?.emergencyGoalId ?? null,
+		archivedAccounts: archivedRows.map((row) => ({
+			...row,
+			archivedAt: row.archivedAt?.getTime() ?? 0,
+		})),
 	};
 }
 

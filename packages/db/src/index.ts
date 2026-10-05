@@ -419,6 +419,7 @@ export async function acceptInvite(
 	return membership ? { ok: true, membership } : { ok: false, reason: "invite-unusable" };
 }
 
+export * from "./account-archive";
 export {
 	type AddBankConnectionResult,
 	addBankConnection,

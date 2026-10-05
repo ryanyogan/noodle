@@ -332,6 +332,12 @@ export const accounts = sqliteTable(
 		externalId: text("external_id"),
 		/** The account number's last four digits, from the bank or a statement; null until known. */
 		mask: text("mask"),
+		/**
+		 * When a Parent archived it (issue 94); null while it's in use. An archived Account is out of
+		 * the Accounts list, the pickers and the totals, and nothing new is brought into it; its
+		 * Transactions stay as they are.
+		 */
+		archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
 	},
 	(t) => [
 		index("accounts_household_idx").on(t.householdId),
