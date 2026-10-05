@@ -54,9 +54,9 @@ function Stage({ children }: { children: ReactNode }) {
  * How far to move in on a focus: until it takes about four fifths of the stage, and never more
  * than half as big again (the stills have the pixels for that, so nothing is blown up soft).
  */
-function zoomFor(focus: Rect | undefined): number {
+function zoomFor(focus: Rect | undefined, most: number): number {
 	if (!focus) return 1.04;
-	return Math.max(1.04, Math.min(1.5, 0.8 / Math.max(focus.w, focus.h)));
+	return Math.max(1.04, Math.min(most, 0.8 / Math.max(focus.w, focus.h)));
 }
 
 /** The part of the still in view at `scale`: centred on (cx, cy) as far as the still's edges allow. */
@@ -71,7 +71,8 @@ function StillShot({ still, ring }: { still: StillName; ring: boolean }) {
 	const focus = focusFor(still, cut);
 	const move = useEnter(FADE, 70);
 	const ringIn = useEnter(FADE + 14, 20);
-	const scale = 1 + (zoomFor(focus) - 1) * move;
+	// A phone's still is already shown large, and moving in far on it cuts its lines of text off at the sides.
+	const scale = 1 + (zoomFor(focus, cut === "phone" ? 1.12 : 1.5) - 1) * move;
 	const view = windowAt(
 		scale,
 		focus ? focus.x + focus.w / 2 : 0.5,

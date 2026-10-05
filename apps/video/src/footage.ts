@@ -96,8 +96,8 @@ export const FOCUS: Record<StillName, Partial<Record<Cut, Rect>>> = {
 		phone: { x: 0.04, y: 0.14, w: 0.92, h: 0.44 },
 	},
 	goal: {
-		// tune after first render: the Goal's progress
-		desktop: { x: 0.2, y: 0.12, w: 0.56, h: 0.3 },
+		// The "Set aside" card: on a computer the Goal opens beside the list of Goals (read off the first render)
+		desktop: { x: 0.49, y: 0.185, w: 0.485, h: 0.25 },
 		phone: { x: 0.04, y: 0.1, w: 0.92, h: 0.28 },
 	},
 	"explore-afford": {
@@ -106,8 +106,8 @@ export const FOCUS: Record<StillName, Partial<Record<Cut, Rect>>> = {
 		phone: { x: 0.04, y: 0.14, w: 0.92, h: 0.4 },
 	},
 	"check-in": {
-		// tune after first render: the Check-in's card
-		desktop: { x: 0.26, y: 0.16, w: 0.48, h: 0.56 },
+		// The Check-in's card, to the right of its list of steps (read off the first render)
+		desktop: { x: 0.385, y: 0.165, w: 0.59, h: 0.6 },
 		phone: { x: 0.04, y: 0.12, w: 0.92, h: 0.56 },
 	},
 	"close-month": {
