@@ -7,6 +7,8 @@
  * so scripts and tests can read the list.
  */
 
+import measured from "./measured.json";
+
 export type Cut = "desktop" | "phone";
 
 /** A part of a still, as fractions (0–1) of its width and height. */
@@ -18,7 +20,6 @@ export const VIEWPORT: Record<Cut, { width: number; height: number; scale: numbe
 };
 
 export const STILLS = [
-	"setup-hello",
 	"plan-overview",
 	"month",
 	"month-bucket",
@@ -39,12 +40,11 @@ export const STILLS = [
 export type StillName = (typeof STILLS)[number];
 
 /**
- * Where each still's subject is: the camera moves in on it and the highlight ring is drawn round
- * it. Every rectangle is a guess made without seeing the footage. A still without one is shown
- * whole, with a slight move in on its middle.
+ * Where each still's subject is when the capture didn't measure it: the camera moves in on it and
+ * the highlight ring is drawn round it. These are guesses; `focusFor` prefers the measured box. A
+ * still without either is shown whole, with a slight move in on its middle.
  */
 export const FOCUS: Record<StillName, Partial<Record<Cut, Rect>>> = {
-	"setup-hello": {},
 	"plan-overview": {
 		// tune after first render: the Plan's steps down to Free to Spend
 		desktop: { x: 0.2, y: 0.14, w: 0.5, h: 0.62 },
@@ -121,6 +121,35 @@ export const FOCUS: Record<StillName, Partial<Record<Cut, Rect>>> = {
 		phone: { x: 0.04, y: 0.3, w: 0.92, h: 0.24 },
 	},
 };
+
+/** A subject's box as the capture measures it: fractions of the window. */
+type Box = { x: number; y: number; width: number; height: number };
+
+/** How much room the ring leaves round a measured subject, and how near a still's edge it may go, in CSS px. */
+const ROOM = 10;
+const EDGE = 6;
+
+/** A measured box as a focus: a little room round it, kept inside the still. Undefined if it is empty. */
+export function focusFromBox(box: Box | undefined, cut: Cut): Rect | undefined {
+	if (!box || !(box.width > 0) || !(box.height > 0)) return undefined;
+	const { width, height } = VIEWPORT[cut];
+	const left = Math.max(EDGE / width, box.x - ROOM / width);
+	const top = Math.max(EDGE / height, box.y - ROOM / height);
+	const right = Math.min(1 - EDGE / width, box.x + box.width + ROOM / width);
+	const bottom = Math.min(1 - EDGE / height, box.y + box.height + ROOM / height);
+	if (right <= left || bottom <= top) return undefined;
+	return { x: left, y: top, w: right - left, h: bottom - top };
+}
+
+/**
+ * Where a still's subject is. The capture writes each subject's place to footage.json, which
+ * `bun run footage:boxes` copies to src/measured.json before a render, so the ring lands on the
+ * real element; a still it has no box for falls back to the guess in FOCUS.
+ */
+export function focusFor(name: StillName, cut: Cut): Rect | undefined {
+	const boxes: Record<string, Box | undefined> = measured;
+	return focusFromBox(boxes[`${name}-${cut}`], cut) ?? FOCUS[name][cut];
+}
 
 /** The still's file under `public/`, which is also what `staticFile()` takes. */
 export function footageFile(name: StillName, cut: Cut): string {

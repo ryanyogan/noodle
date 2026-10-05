@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+	type Browser,
 	type BrowserContextOptions,
 	expect,
 	type Locator,
@@ -24,6 +25,10 @@ import { dayOf, q, seedShotsHousehold } from "./shots-household";
 // <name>-phone.png (393×852 at 3x). footage.json beside them says where each still's subject sits,
 // as fractions of the window, for the video's zooms. A still that fails is noted in failures.txt
 // and the rest are still taken.
+//
+// What the video must show is an ordinary, calm month, whatever day the stills are taken on: this
+// month's spending is rewritten to sit a little under Pace in every Bucket, and no still shows the
+// made-up sign-in address of the test Parent.
 
 const OUT = join("test-results", "video-footage");
 const enabled = !!process.env.VIDEO_FOOTAGE;
@@ -55,6 +60,8 @@ type Still = {
 	subject?: (page: Page) => Locator;
 	/** Where the subject is scrolled to first (left where it is when not given). */
 	scroll?: "center" | "nearest";
+	/** Taken after every other still on both screens: it changes what the others would show. */
+	last?: boolean;
 };
 
 type Box = { x: number; y: number; width: number; height: number };
@@ -137,7 +144,7 @@ async function chooseStatement(page: Page) {
 
 /**
  * Confirms the suggestion on a Review card, so Sort offers to "Always file" that merchant: a
- * Trader Joe's line when one comes up, else the first card with a suggestion.
+ * Costco line when one comes up, else the first card with a suggestion.
  */
 async function offerRule(page: Page) {
 	const stack = page.getByTestId("review-stack");
@@ -147,7 +154,7 @@ async function offerRule(page: Page) {
 	const turns = (await page.getByTestId("review-card").count()) > 0 ? 12 : 0;
 	let found = false;
 	for (let turn = 0; turn < turns && !found; turn++) {
-		found = (await confirm.isVisible()) && /trader joe/i.test(await card.innerText());
+		found = (await confirm.isVisible()) && /costco/i.test(await card.innerText());
 		if (!found) {
 			await skip.click({ timeout: 15_000 });
 			await page.waitForTimeout(400);
@@ -184,6 +191,83 @@ async function openCloseMonth(page: Page) {
 	}
 }
 
+/** What the test Parent's sign-in address is shown as in a still. */
+const SHOWN_EMAIL = "alex@therinks.family";
+
+/** Swaps any test sign-in address on the page for an ordinary one, just for the picture. */
+async function hideTestAddresses(page: Page) {
+	await page.evaluate((shown) => {
+		const test = /[\w.-]+\+clerk_test@[\w.-]+/g;
+		const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+		for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+			if (node.nodeValue && test.test(node.nodeValue))
+				node.nodeValue = node.nodeValue.replace(test, shown);
+			test.lastIndex = 0;
+		}
+		for (const input of document.querySelectorAll("input")) {
+			if (test.test(input.value)) input.value = input.value.replace(test, shown);
+			test.lastIndex = 0;
+		}
+	}, SHOWN_EMAIL);
+}
+
+/**
+ * This month's everyday spending, as a share of where Pace is today: every Bucket a little under
+ * it and none ahead, so This Month reads "On track" on any day of the month. Each line is
+ * [merchant, share of the Bucket's spending, Account].
+ */
+const CALM_MONTH: [
+	bucket: string,
+	allowanceDollars: number,
+	ofPace: number,
+	lines: [merchant: string, share: number, account: "checking" | "sapphire" | "amex"][],
+][] = [
+	[
+		"Groceries",
+		1100,
+		0.9,
+		[
+			["Costco", 0.5, "sapphire"],
+			["Trader Joe's", 0.3, "sapphire"],
+			["Safeway", 0.2, "checking"],
+		],
+	],
+	[
+		"Eating out",
+		350,
+		0.8,
+		[
+			["Chipotle", 0.45, "sapphire"],
+			["Pizza night", 0.35, "amex"],
+			["Blue Bottle", 0.2, "sapphire"],
+		],
+	],
+	[
+		"Kids",
+		450,
+		0.7,
+		[
+			["Target", 0.6, "sapphire"],
+			["School supplies", 0.4, "checking"],
+		],
+	],
+	["Fun", 300, 0.6, [["Bookshop", 1, "amex"]]],
+	["Gas", 240, 0.85, [["Shell", 1, "sapphire"]]],
+	[
+		"Household",
+		200,
+		0.75,
+		[
+			["Home Depot", 0.6, "amex"],
+			["Target", 0.4, "sapphire"],
+		],
+	],
+	["Pets", 90, 0.85, [["Chewy", 1, "sapphire"]]],
+	["Health", 120, 0.5, [["CVS Pharmacy", 1, "sapphire"]]],
+	["Alex’s Personal Allowance", 150, 0.8, [["Bike shop", 1, "checking"]]],
+	["Sam’s Personal Allowance", 150, 0.5, [["Yarn store", 1, "checking"]]],
+];
+
 test.beforeAll(async ({ browser }) => {
 	if (!enabled) return;
 	test.setTimeout(600_000);
@@ -203,24 +287,46 @@ test.beforeAll(async ({ browser }) => {
 	const statements = [
 		// The bank is connected and was read two hours ago (the page shots leave it asking to log in).
 		`update bank_connections set status = 'ready', notice = null, last_imported_at = ${Date.now() - 2 * 3_600_000} where household_id = ${h};`,
-		// The history's big one-off purchases land in this month's first days and put Buckets far over
-		// before the month has begun: this month keeps only its everyday spending.
-		`delete from transactions where household_id = ${h} and source = 'quick-add' and bucket_id is not null and amount_cents >= 25000 and date >= ${q(`${month}-01`)};`,
+		// The seed clamps every day of this month to today, so early in a month a whole month of
+		// spending sits in its first days and every Bucket is ahead or over. This month's spending
+		// from Buckets is taken out here and written again below, a little under Pace.
+		`delete from transactions where household_id = ${h} and bucket_id is not null and date >= ${q(`${month}-01`)};`,
+		// The two yearly Commitments that fall due this month become small monthly ones, so Free to
+		// Spend is a comfortable, ordinary amount and nothing explains why it is lower.
+		`update commitment_terms set cadence = 'monthly', amount_cents = 4000 where household_id = ${h} and commitment_id in (select id from commitments where household_id = ${h} and name = 'Life insurance');`,
+		`update commitment_terms set cadence = 'monthly', amount_cents = 1499 where household_id = ${h} and commitment_id in (select id from commitments where household_id = ${h} and name = 'Amazon Prime');`,
 	];
-	// Two grocery lines waiting in Review with a suggestion: one for each screen's "Always file" still.
+	const now = new Date();
+	const today = now.getDate();
+	const gone = today / new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+	let line = 0;
+	for (const [name, allowance, ofPace, lines] of CALM_MONTH) {
+		const bucketId = bucketIds[name];
+		if (!bucketId) continue;
+		for (const [merchant, share, account] of lines) {
+			line++;
+			const cents = Math.round(allowance * 100 * gone * ofPace * share) - (line % 3);
+			// Nothing so small it looks made up: early in a month the smaller Buckets are just unspent.
+			if (cents < 600) continue;
+			statements.push(
+				`insert into transactions (id, household_id, source, date, amount_cents, bucket_id, note, merchant, account_id, created_by_member_id) values (${q(ulid())}, ${h}, 'import', ${q(dayOf(0, 1 + ((line * 3) % today)))}, ${cents}, ${q(bucketId)}, ${q(merchant)}, ${q(merchant)}, ${q(ids[account])}, ${m});`,
+			);
+		}
+	}
+	// Two Costco lines waiting in Review with a suggestion: one for each screen's "Always file" still.
 	for (const [cents, day] of [
 		[7_312, 3],
 		[5_486, 4],
 	] as const) {
 		const id = ulid();
 		statements.push(
-			`insert into transactions (id, household_id, source, date, amount_cents, note, merchant, account_id, created_by_member_id) values (${q(id)}, ${h}, 'import', ${q(dayOf(0, day))}, ${cents}, 'TRADER JOE''S #152', 'TRADER JOE''S #152', ${q(ids.sapphire)}, ${m});`,
-			`insert into categorizations (transaction_id, household_id, member_id, outcome, method, bucket_id, confidence, merchant) values (${q(id)}, ${h}, ${m}, 'review', 'model', ${q(bucketIds.Groceries ?? "")}, 0.62, 'TRADER JOE''S #152');`,
+			`insert into transactions (id, household_id, source, date, amount_cents, note, merchant, account_id, created_by_member_id) values (${q(id)}, ${h}, 'import', ${q(dayOf(0, day))}, ${cents}, 'COSTCO WHSE #482', 'COSTCO WHSE #482', ${q(ids.sapphire)}, ${m});`,
+			`insert into categorizations (transaction_id, household_id, member_id, outcome, method, bucket_id, confidence, merchant) values (${q(id)}, ${h}, ${m}, 'review', 'model', ${q(bucketIds.Groceries ?? "")}, 0.62, 'COSTCO WHSE #482');`,
 		);
 	}
 	await seedSql(statements);
 
-	// The second Household: made, and nothing else, so its wizard opens on Hello.
+	// The second Household: made, and nothing else, so it still has the other Parent to invite.
 	freshParent = await createTestParent();
 	const freshPage = await signedInPage(browser, freshParent.email, {
 		viewport: { width: 1440, height: 900 },
@@ -231,15 +337,6 @@ test.beforeAll(async ({ browser }) => {
 
 	const thisMonth = `/month/${month}`;
 	stills = [
-		{
-			name: "setup-hello",
-			path: "/setup",
-			fresh: true,
-			ready: async (page) => {
-				await expect(page.getByText("Step 1 of 7").first()).toBeVisible({ timeout: 30_000 });
-			},
-			subject: (page) => page.locator("[data-slot=intro-video]"),
-		},
 		{ name: "plan-overview", path: `/plan/${month}` },
 		{
 			name: "month",
@@ -291,12 +388,15 @@ test.beforeAll(async ({ browser }) => {
 			name: "household-invite",
 			path: "/household",
 			fresh: true,
-			subject: (page) => page.getByLabel("Their email"),
+			// The whole invite, or just its email box if the section can't be found.
+			subject: (page) =>
+				page.locator("[aria-labelledby=invite]").or(page.getByLabel("Their email")).first(),
 			scroll: "center",
 		},
-		// Last: it files a line, which the stills before it would otherwise show as spent.
+		// Last, after both screens' other stills: it files a line, which they would show as spent.
 		{
 			name: "review-rule",
+			last: true,
 			path: "/review",
 			ready: offerRule,
 			subject: (page) => page.getByTestId("review-rule-offer"),
@@ -313,67 +413,105 @@ test.afterAll(async () => {
 		writeFileSync(join(OUT, "footage.json"), `${JSON.stringify(subjects, null, "\t")}\n`);
 });
 
+type Screen = (typeof screens)[number];
+
+/** Takes `list` at one screen size and returns the stills that couldn't be taken. */
+async function take(browser: Browser, screen: Screen, list: Still[]) {
+	if (!parent || !freshParent) throw new Error("No Parents: beforeAll didn't finish");
+	const device: BrowserContextOptions = {
+		...screen.device,
+		colorScheme: "light",
+		reducedMotion: "reduce",
+		// Household settings then offers Nudges instead of saying the browser blocks them.
+		permissions: ["notifications"],
+	};
+	const viewport = device.viewport ?? { width: 1440, height: 900 };
+	const main = await signedInPage(browser, parent.email, device);
+	const freshPage = list.some((still) => still.fresh)
+		? await signedInPage(browser, freshParent.email, device)
+		: undefined;
+	const failures: string[] = [];
+	const round = (value: number) => Math.round(value * 1000) / 1000;
+	for (const still of list) {
+		const page = still.fresh && freshPage ? freshPage : main;
+		const file = `${still.name}-${screen.name}`;
+		try {
+			await page.goto(still.path);
+			await settled(page);
+			if (still.ready) {
+				await still.ready(page);
+				await settled(page);
+			}
+			const subject = still.subject?.(page);
+			if (subject) {
+				await expect(subject).toBeVisible({ timeout: 15_000 });
+				if (still.scroll) {
+					await subject.evaluate(
+						(element, block) => element.scrollIntoView({ block, behavior: "instant" }),
+						still.scroll,
+					);
+					await page.waitForTimeout(400);
+				}
+				const box = await subject.boundingBox();
+				if (box)
+					subjects[file] = {
+						x: round(box.x / viewport.width),
+						y: round(box.y / viewport.height),
+						width: round(box.width / viewport.width),
+						height: round(box.height / viewport.height),
+					};
+			}
+			await hideTestAddresses(page);
+			// Nothing that looks like a test address may be in a still: better no still than that.
+			expect(await page.locator("body").innerText()).not.toMatch(/clerk_test|e2e-/i);
+			await page.screenshot({
+				path: join(OUT, `${file}.png`),
+				animations: "disabled",
+				caret: "hide",
+				// No toast over the page and no focus ring on whatever was last pressed.
+				style:
+					"[data-slot=toast] { visibility: hidden !important; } :focus-visible { outline: none !important; --tw-ring-shadow: 0 0 #0000 !important; }",
+			});
+		} catch (error) {
+			failures.push(`${file} (${still.path}): ${String(error).split("\n")[0]}`);
+			await page.screenshot({ path: join(OUT, `${file}.FAILED.png`) }).catch(() => {});
+		}
+	}
+	await main.context().close();
+	await freshPage?.context().close();
+	if (failures.length > 0)
+		writeFileSync(join(OUT, `failures-${screen.name}.txt`), `${failures.join("\n")}\n`, {
+			flag: "a",
+		});
+	return failures;
+}
+
 for (const screen of screens) {
 	test(`video footage, ${screen.name} size`, async ({ browser }) => {
 		test.skip(!enabled, "Runs only with VIDEO_FOOTAGE set (see .github/workflows/video.yml)");
 		test.setTimeout(900_000);
-		if (!parent || !freshParent) throw new Error("No Parents: beforeAll didn't finish");
-		const device: BrowserContextOptions = {
-			...screen.device,
-			colorScheme: "light",
-			reducedMotion: "reduce",
-		};
-		const viewport = device.viewport ?? { width: 1440, height: 900 };
-		const main = await signedInPage(browser, parent.email, device);
-		const freshPage = await signedInPage(browser, freshParent.email, device);
-		const failures: string[] = [];
-		const round = (value: number) => Math.round(value * 1000) / 1000;
-		for (const still of stills) {
-			const page = still.fresh ? freshPage : main;
-			const file = `${still.name}-${screen.name}`;
-			try {
-				await page.goto(still.path);
-				await settled(page);
-				if (still.ready) {
-					await still.ready(page);
-					await settled(page);
-				}
-				const subject = still.subject?.(page);
-				if (subject) {
-					await expect(subject).toBeVisible({ timeout: 15_000 });
-					if (still.scroll) {
-						await subject.evaluate(
-							(element, block) => element.scrollIntoView({ block, behavior: "instant" }),
-							still.scroll,
-						);
-						await page.waitForTimeout(400);
-					}
-					const box = await subject.boundingBox();
-					if (box)
-						subjects[file] = {
-							x: round(box.x / viewport.width),
-							y: round(box.y / viewport.height),
-							width: round(box.width / viewport.width),
-							height: round(box.height / viewport.height),
-						};
-				}
-				await page.screenshot({
-					path: join(OUT, `${file}.png`),
-					animations: "disabled",
-					caret: "hide",
-					// No toast over the page and no focus ring on whatever was last pressed.
-					style:
-						"[data-slot=toast] { visibility: hidden !important; } :focus-visible { outline: none !important; --tw-ring-shadow: 0 0 #0000 !important; }",
-				});
-			} catch (error) {
-				failures.push(`${file} (${still.path}): ${String(error).split("\n")[0]}`);
-				await page.screenshot({ path: join(OUT, `${file}.FAILED.png`) }).catch(() => {});
-			}
-		}
-		await main.context().close();
-		await freshPage.context().close();
-		if (failures.length > 0)
-			writeFileSync(join(OUT, `failures-${screen.name}.txt`), `${failures.join("\n")}\n`);
+		const failures = await take(
+			browser,
+			screen,
+			stills.filter((still) => !still.last),
+		);
 		expect(failures, "stills that couldn't be taken").toEqual([]);
 	});
 }
+
+// After both sizes: these stills change the Household (Review files a line), and the computer and
+// the phone must show the same numbers everywhere else.
+test("video footage, the stills that change things", async ({ browser }) => {
+	test.skip(!enabled, "Runs only with VIDEO_FOOTAGE set (see .github/workflows/video.yml)");
+	test.setTimeout(600_000);
+	const failures: string[] = [];
+	for (const screen of screens)
+		failures.push(
+			...(await take(
+				browser,
+				screen,
+				stills.filter((still) => still.last),
+			)),
+		);
+	expect(failures, "stills that couldn't be taken").toEqual([]);
+});

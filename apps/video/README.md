@@ -77,7 +77,6 @@ The video is cut from stills of the app; nothing is recorded by hand. The captur
 
 | Name | Shows |
 |---|---|
-| `setup-hello` | The get-started wizard's Hello step (captured, not used in this version) |
 | `plan-overview` | The Plan |
 | `month` | This Month, with Free to Spend |
 | `month-bucket` | This Month, with a Bucket's bar and Pace in view |

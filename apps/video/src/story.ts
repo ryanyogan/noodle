@@ -108,7 +108,7 @@ export const SCENES: Scene[] = [
 				to: 29,
 				text: "Noodle files them for you.\nReview asks only about the ones it isn't sure of.",
 			},
-			{ from: 29, to: 32, text: "“Always file Costco here” makes a Rule." },
+			{ from: 29, to: 32, text: "“Always file Costco in Groceries” makes a Rule." },
 		],
 		shots: [
 			{ kind: "still", from: 22, to: 24, still: "accounts-bank", ring: true },
@@ -117,7 +117,7 @@ export const SCENES: Scene[] = [
 			{ kind: "still", from: 29, to: 32, still: "review-rule", ring: true },
 		],
 		narration:
-			"Connect a bank, and Transactions arrive by themselves. Noodle files them, and Review asks only about the ones it isn't sure of. Choose “Always file Costco here” and that's a Rule.",
+			"Connect a bank, and Transactions arrive by themselves. Noodle files them, and Review asks only about the ones it isn't sure of. Choose “Always file Costco in Groceries” and that's a Rule.",
 	},
 	{
 		id: "without-plaid",

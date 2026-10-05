@@ -33,13 +33,13 @@ On screen:
 
 ## 0:22–0:32 · With Plaid
 
-Connect a bank, and Transactions arrive by themselves. Noodle files them, and Review asks only about the ones it isn't sure of. Choose “Always file Costco here” and that's a Rule.
+Connect a bank, and Transactions arrive by themselves. Noodle files them, and Review asks only about the ones it isn't sure of. Choose “Always file Costco in Groceries” and that's a Rule.
 
 On screen:
 
 - 0:22–0:25.5: Connect a bank, and Transactions arrive by themselves.
 - 0:25.5–0:29: Noodle files them for you. Review asks only about the ones it isn't sure of.
-- 0:29–0:32: “Always file Costco here” makes a Rule.
+- 0:29–0:32: “Always file Costco in Groceries” makes a Rule.
 
 ## 0:32–0:42 · Without Plaid
 

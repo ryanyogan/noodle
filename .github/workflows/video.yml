@@ -59,38 +59,37 @@ jobs:
           path: apps/web/test-results/video-footage
           if-no-files-found: warn
 
-  # RENDER (phase 54c): written before apps/video existed and NOT yet run. Every step after the
-  # check is skipped until apps/video/package.json is in the checkout. Check the script names
-  # (render, captions) and the output folder (apps/video/out) against the package when it lands.
+  # The video itself: apps/video (Remotion) cuts the stills into out/intro.mp4 (1920×1080),
+  # out/intro-vertical.mp4 (1080×1920), out/poster.png and out/intro.vtt. See apps/video/README.md.
   render:
     needs: capture
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    # The same image: Remotion's headless Chrome needs the system libraries it already has.
+    timeout-minutes: 45
+    # The same image: it has node (the remotion CLI runs under it) and the system libraries
+    # Remotion's own headless Chrome needs.
     container:
       image: mcr.microsoft.com/playwright:v1.63.0-noble
       options: --ipc=host
     steps:
       - uses: actions/checkout@v5
-      - id: video
-        run: |
-          if [ -f apps/video/package.json ]; then echo "exists=true" >> "$GITHUB_OUTPUT"; fi
-      - if: steps.video.outputs.exists == 'true'
-        run: npm install -g "$(node -p 'require("./package.json").packageManager')"
-      - if: steps.video.outputs.exists == 'true'
-        run: bun install --frozen-lockfile
-      - if: steps.video.outputs.exists == 'true'
-        uses: actions/download-artifact@v4
+      - run: npm install -g "$(node -p 'require("./package.json").packageManager')"
+      - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@v4
         with:
           name: video-footage
           path: apps/video/public/footage
-      - if: steps.video.outputs.exists == 'true'
-        run: bun run --cwd apps/video render
-      - if: steps.video.outputs.exists == 'true'
-        run: bun run --cwd apps/video captions
-      - if: steps.video.outputs.exists == 'true'
-        uses: actions/upload-artifact@v4
+      - name: Download Remotion's headless Chrome
+        working-directory: apps/video
+        run: bunx remotion browser ensure
+      # footage:check, footage:boxes, captions, then both cuts and the poster.
+      - run: bun run --cwd apps/video render
+      - run: ls -l apps/video/out
+      - uses: actions/upload-artifact@v4
         with:
           name: intro-video
-          path: apps/video/out
+          path: |
+            apps/video/out/intro.mp4
+            apps/video/out/intro-vertical.mp4
+            apps/video/out/poster.png
+            apps/video/out/intro.vtt
           if-no-files-found: error
