@@ -76,9 +76,10 @@ export const uploadStatement = createServerFn({ method: "POST" })
 		const { household } = context;
 		const { format, statement } = readStatement(data.content, data.csvMapping);
 		if (statement.lines.length === 0) return { ok: false, reason: "nothing-to-import" };
-		// Kept per Household and Account; a retry writes the same object again.
+		// Kept per Household and Account. A retry finds its file already there and leaves it be.
 		const fileKey = `${household.id}/${data.accountId}/${data.importId}.${format}`;
-		await env.STATEMENTS.put(fileKey, data.content, {
+		const { putStatementFileOnce } = await import("./file-holds");
+		await putStatementFileOnce(env.STATEMENTS, fileKey, data.content, {
 			httpMetadata: { contentType: format === "ofx" ? "application/x-ofx" : "text/csv" },
 			customMetadata: { fileName: data.fileName },
 		});
@@ -97,9 +98,10 @@ export const uploadStatement = createServerFn({ method: "POST" })
 			newId: ulid,
 		});
 		if (!result.ok) {
-			// Nothing was imported, so the file just written goes, unless a kept snapshot refers to
-			// it: an upload tried again after a Fresh start carries the id of an Import the snapshot
-			// has, and a restore must find that Import's file (#78, ADR-0035).
+			// Nothing was imported, so the file goes, unless a kept snapshot refers to it: an upload
+			// tried again after a Fresh start carries the id of an Import the snapshot has, and a
+			// restore must find that Import's file (#78, ADR-0035). One that was already there and
+			// isn't held was left by an earlier refused try, and goes too.
 			const { deleteFilesUnlessHeld } = await import("./file-holds");
 			await deleteFilesUnlessHeld(
 				{ db: getDb(), backups: env.BACKUPS, files: env.STATEMENTS },
