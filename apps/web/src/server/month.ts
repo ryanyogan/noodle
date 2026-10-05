@@ -103,8 +103,20 @@ export async function loadMonth(
 	month: MonthKey,
 ): Promise<MonthData> {
 	const viewer = viewerOf({ household, parent: { id: parentId } });
+	const now = new Date();
+	const current = monthKeyAt(now, household.timeZone);
+	// What depends on the Plan's records (what rolled over, and what Free to Spend was carried;
+	// issue 113) is read as soon as they arrive, alongside the rest, not after all of it.
+	const planRecords = loadPlanRecords(db, household.id, month);
+	const derived = planRecords.then((loaded) =>
+		Promise.all([
+			loadRolledOver(db, household.id, loaded, month),
+			loadFreeCarryMonths(db, viewer, loaded, month, current),
+		]),
+	);
 	const [
 		records,
+		[rolledOver, carried],
 		spending,
 		charges,
 		moves,
@@ -115,7 +127,8 @@ export async function loadMonth(
 		extraToFree,
 		betweenUs,
 	] = await Promise.all([
-		loadPlanRecords(db, household.id, month),
+		planRecords,
+		derived,
 		loadSpending(db, viewer, month),
 		loadCharges(db, viewer, month),
 		loadMoves(db, household.id, month),
@@ -125,12 +138,6 @@ export async function loadMonth(
 		loadIncome(db, household.id, addMonths(month, -1), addMonths(month, 1)),
 		loadExtraToFree(db, household.id, month),
 		loadBetweenUsIncome(db, household.id, month, addMonths(month, 1)),
-	]);
-	const now = new Date();
-	const current = monthKeyAt(now, household.timeZone);
-	const [rolledOver, carried] = await Promise.all([
-		loadRolledOver(db, household.id, records, month),
-		loadFreeCarryMonths(db, viewer, records, month, current),
 	]);
 	const own = carried.find((m) => m.month === month);
 	const freeBuiltUp = carried

@@ -91,6 +91,8 @@ async function setAllowance(page: Page, bucket: string, amount: string) {
 test("a Parent plans the month and This Month shows Free to Spend and each Bucket", async ({
 	browser,
 }) => {
+	// About 21 s of steps on a quiet machine: on a busy one the default 30 s ran out at the last.
+	test.slow();
 	const page = await signedInPage(browser, parent.email);
 	await openPlan(page);
 
