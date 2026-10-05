@@ -62,10 +62,12 @@ async function opened(page: Page, name: string) {
 
 /** The panel's box once it has slid in: flush with the window's right edge. */
 async function settled(page: Page, windowWidth: number) {
+	// Not rounded: in the last frames of the slide the panel is a fraction of a pixel short of the
+	// edge, and its box a fraction wider than it will be at rest.
 	await expect
 		.poll(async () => {
 			const box = await panel(page).boundingBox();
-			return box ? Math.round(box.x + box.width) : -1;
+			return box ? box.x + box.width : -1;
 		})
 		.toBe(windowWidth);
 	const box = await panel(page).boundingBox();

@@ -18,7 +18,7 @@ import {
 	TableRow,
 } from "@noodle/ui/components/table";
 import { cn } from "@noodle/ui/lib/utils";
-import { createFileRoute, Link, useNavigate, useParams } from "@tanstack/react-router";
+import { createFileRoute, Link, linkOptions, useNavigate, useParams } from "@tanstack/react-router";
 import { Layers } from "lucide-react";
 import { lazy, Suspense } from "react";
 import { z } from "zod";
@@ -36,9 +36,10 @@ import { formatWholeMoney, shortDayAt, shortMonth } from "../../../format";
 import { goalsQuery, planAheadQuery, scenariosQuery } from "../../../queries";
 
 // The Household's saved Scenarios, each with its headline outcome, who made it, when it last
-// changed and whether it was applied. From lg the picked one shows beside the list (its route is
-// this one's child, #67); with none picked, the right pane is Compare: up to three side by side
-// against the Plan.
+// changed and whether it was applied. Beside the list is Compare: up to three side by side against
+// the Plan. From lg a picked Scenario (this route's child) opens in a panel from the window's right
+// edge, over Compare, and the list and Compare stay as they are (issue 107); on a phone it is a
+// page with Back.
 // Like Explore, it renders only in the browser (data-only SSR), and its charts load lazily.
 
 /** "Oct 4", never broken between the month and the day when a row's meta wraps. */
@@ -73,19 +74,19 @@ function ScenariosPage() {
 	const search = Route.useSearch();
 	const { plan, projected, subjects, goals, horizon } = useKeptScenarios(parentId, search.years);
 	const navigate = useNavigate();
-	// The Scenario open beside the list.
+	// The Scenario open in the panel.
 	const picked = useParams({ strict: false, select: (params) => params.id });
 
 	const compared = (search.compare ?? "")
 		.split(",")
 		.filter((id) => projected.some((p) => p.scenario.id === id))
 		.slice(0, MAX_COMPARED);
-	// Ticking keeps whatever is open beside the list; "Compare" below shows the comparison.
+	// Ticking keeps whatever is open in the panel; "Compare" below shows the comparison.
 	const toggle = (id: string) => {
 		const next = compared.includes(id) ? compared.filter((c) => c !== id) : [...compared, id];
 		go({ compare: next.length > 0 ? next.join(",") : undefined, years: search.years });
 	};
-	// Stays on whatever is open beside the list.
+	// Stays on whatever is open in the panel.
 	const go = (next: { compare?: string; years?: HorizonYears }) => {
 		const stay = { search: next, replace: true, resetScroll: false } as const;
 		if (picked) {
@@ -112,7 +113,13 @@ function ScenariosPage() {
 			picked={picked !== undefined}
 			noun="Scenario"
 			listLabel="Scenarios"
-			hint="Pick a Scenario to see it here, or tick some to compare them."
+			// What is compared stays in the address while a Scenario opens and closes.
+			panel={{
+				size: "wide",
+				close: linkOptions({ to: "/explore/scenarios", search: true }),
+				itemKey: picked,
+			}}
+			hint="Tick Scenarios in the list to compare them here."
 			asideFills
 			aside={
 				compared.length > 0 ? (

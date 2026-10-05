@@ -376,6 +376,7 @@ function ListWithPanel({
 	itemKey,
 	size,
 	besideFrom = "xl",
+	asideFills,
 	listLabel,
 	asideLabel,
 	detailLabel,
@@ -396,6 +397,12 @@ function ListWithPanel({
 	 * beside it only from there (a table that needs the room). The item is a drawer until then.
 	 */
 	besideFrom?: BesideFrom;
+	/**
+	 * The aside is the page's working area rather than a rail (Scenarios' Compare): from lg it has
+	 * the wide column and the list the list pane's width, item open or not, so neither changes shape
+	 * when one opens. The panel is then over the aside's right-hand part.
+	 */
+	asideFills?: boolean;
 	/** Names the list pane, e.g. "Commitments". */
 	listLabel: string;
 	/** Names the rail, e.g. "Commitments: totals, add and about". */
@@ -412,11 +419,13 @@ function ListWithPanel({
 			data-picked={picked}
 			className={cn(
 				"grid grid-cols-[minmax(0,1fr)] gap-(--layout-gap) lg:items-start",
-				aside
-					? besideFrom === "late"
-						? "min-[90rem]:grid-cols-[minmax(0,1fr)_var(--rail-width)]"
-						: "lg:grid-cols-[minmax(0,1fr)_var(--rail-width)]"
-					: null,
+				asideFills
+					? "lg:grid-cols-[var(--list-pane-width)_minmax(0,1fr)]"
+					: aside
+						? besideFrom === "late"
+							? "min-[90rem]:grid-cols-[minmax(0,1fr)_var(--rail-width)]"
+							: "lg:grid-cols-[minmax(0,1fr)_var(--rail-width)]"
+						: null,
 				className,
 			)}
 			{...props}
