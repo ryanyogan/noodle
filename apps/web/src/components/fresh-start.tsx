@@ -252,7 +252,10 @@ function FreshStartSheet({
 								>
 									Download everything first
 								</Link>{" "}
-								to keep a copy.
+								to keep a copy.{" "}
+								{level === "delete"
+									? "Save it to your phone or computer: a download left in Noodle is deleted too."
+									: "Save it to your phone or computer: a download left in Noodle is cleared too, and doesn’t come back with a snapshot."}
 							</p>
 							{level === "delete" ? (
 								<p>
