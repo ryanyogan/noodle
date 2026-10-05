@@ -35,13 +35,24 @@ const records: PlanRecords = {
 	commitments: [],
 	commitmentTerms: [],
 };
-const none: Pick<CarryInputs, "actual" | "outOfFree" | "extraToFree"> = {
+const none: Pick<CarryInputs, "actual" | "incomeReceived" | "outOfFree" | "extraToFree"> = {
 	actual: [],
+	incomeReceived: [],
 	outOfFree: [],
 	extraToFree: [],
 };
+/** Income was received in every month given an actual, unless the test says which months had any. */
+const received = (actual: CarryInputs["actual"]) =>
+	actual.map(({ month }) => ({ month, amount: 1 }));
 const walk = (current: MonthKey, to: MonthKey, inputs: Partial<typeof none> = {}) =>
-	freeCarryMonths({ records, current, ...none, ...inputs, to });
+	freeCarryMonths({
+		records,
+		current,
+		...none,
+		incomeReceived: received(inputs.actual ?? []),
+		...inputs,
+		to,
+	});
 
 describe("Free to Spend carried over (issue 113)", () => {
 	it("starts at the first month with a Plan, which is carried nothing", () => {
@@ -75,6 +86,10 @@ describe("Free to Spend carried over (issue 113)", () => {
 				{ month: "2026-08", amount: 60_000 },
 				{ month: "2026-09", amount: 60_000 },
 			],
+			incomeReceived: [
+				{ month: "2026-08", amount: 500_000 },
+				{ month: "2026-09", amount: 500_000 },
+			],
 			month: "2026-10",
 		});
 		expect(carried).toBe(120_000);
@@ -106,6 +121,39 @@ describe("Free to Spend carried over (issue 113)", () => {
 		});
 		expect(months[1]).toMatchObject({ ended: true, own: -30_000, left: 30_000 });
 		expect(months[2]).toMatchObject({ ended: false, carriedIn: 30_000, own: 60_000 });
+	});
+
+	it("an ended month with no income recorded hands on only what it was carried", () => {
+		// A Household that only uses Quick Add: $4,000 spent in September and no income recorded,
+		// so its actual is −$4,000. It must not become a shortfall that grows every month.
+		const actual = [
+			{ month: "2026-08" as const, amount: 60_000 },
+			{ month: "2026-09" as const, amount: -400_000 },
+		];
+		const quickAddOnly = walk("2026-10", "2026-10", {
+			actual,
+			incomeReceived: [{ month: "2026-08", amount: 500_000 }],
+		});
+		expect(quickAddOnly[1]).toMatchObject({ ended: true, carriedIn: 60_000, own: 0, left: 60_000 });
+		expect(quickAddOnly[2]).toMatchObject({ carriedIn: 60_000, left: 120_000 });
+		// With $1 of income recorded the month is on the books: it hands on its actual.
+		const onTheBooks = walk("2026-10", "2026-10", {
+			actual,
+			incomeReceived: [
+				{ month: "2026-08", amount: 500_000 },
+				{ month: "2026-09", amount: 100 },
+			],
+		});
+		expect(onTheBooks[1]).toMatchObject({ own: -400_000, left: -340_000 });
+		// Income recorded and taken back out again (a total of zero) is no income.
+		const netZero = walk("2026-10", "2026-10", {
+			actual,
+			incomeReceived: [
+				{ month: "2026-08", amount: 500_000 },
+				{ month: "2026-09", amount: 0 },
+			],
+		});
+		expect(netZero[1]).toMatchObject({ own: 0, left: 60_000 });
 	});
 
 	it("the Household's month uses its Plan figure, with its Moves and Extra income", () => {

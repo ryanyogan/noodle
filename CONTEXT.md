@@ -107,7 +107,7 @@ Money in the current Plan not yet assigned to any Commitment, Bucket, or Goal: t
 _Avoid_: Unallocated, leftover, safe-to-spend
 
 **Carried over** (Free to Spend that is carried over):
-What a month actually ended with (income received, less its spending and Goal funding, plus what it was itself carried) counts in the next month's Free to Spend, whether money was left or the month ended short. It starts at the first month with a Plan, needs no setting, and is worked out from the months themselves, never stored (ADR-0054). Months ahead chain the same way from their Plan figures, so a month that earlier months cover is not shown short.
+What a month actually ended with (income received, less its spending and Goal funding, plus what it was itself carried) counts in the next month's Free to Spend, whether money was left or the month ended short. An ended month with no income recorded hands on only what it was carried. It starts at the first month with a Plan, needs no setting, and is worked out from the months themselves, never stored (ADR-0054). Months ahead chain the same way from their Plan figures, so a month that earlier months cover is not shown short.
 The app shows the two parts, "$1,846 this month · $6,710 carried over from October", or for a shortfall "$230 short carried over from September". Sending what is left to a Goal is Goal funding, not a Sweep.
 _Avoid_: Builds up, Keep back, Rollover, Sweep, savings pot, surplus
 

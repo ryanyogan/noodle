@@ -203,6 +203,45 @@ describe("Free to Spend carried over (issue 113)", () => {
 		expect(seen).toEqual([0, 70_000, -50_000, -100_000, 0, 60_000, 60_000]);
 	});
 
+	it("an ended month with no income recorded hands on only what it was carried (Quick Add only)", async () => {
+		// September: $4,000 spent, no income recorded. Its own figure counts as nothing.
+		await spend("2026-09", 400_000);
+		expect(
+			(await walk(current)).slice(-2).map((m) => [m.month, m.carriedIn, m.own, m.left]),
+		).toEqual([
+			["2026-09", 60_000, 0, 60_000],
+			["2026-10", 60_000, 55_000, 115_000],
+		]);
+		// The guards' SQL is given the same carry, so it agrees with monthState.
+		const sqlAgrees = async (carried: number) => {
+			const records = await loadPlanRecords(db, householdId, current);
+			const [moves, goalFunding, extraToFree, freeCarriedIn] = await Promise.all([
+				loadMoves(db, householdId, current),
+				loadGoalFunding(db, householdId, current),
+				loadExtraToFree(db, householdId, current),
+				loadFreeCarriedIn(db, viewer, records, current, current),
+			]);
+			expect(freeCarriedIn).toBe(carried);
+			const state = monthState({
+				plan: planForMonth(records, current),
+				spending: [],
+				moves,
+				goalFunding,
+				extraToFree,
+				freeCarriedIn,
+				asOf: `${current}-15` as DayKey,
+			});
+			expect(await evaluate(freeToSpendSql(householdId, current, freeCarriedIn))).toBe(
+				state.freeToSpend,
+			);
+		};
+		await sqlAgrees(60_000);
+		// $1 of income recorded puts the month on the books: income less spending, −$3,999.
+		await earn("2026-09", 100);
+		expect((await walk(current)).at(-2)).toMatchObject({ own: -399_900, left: -339_900 });
+		await sqlAgrees(-339_900);
+	});
+
 	it("Goal funding and a Cover may use what was carried over, and no more", async () => {
 		// October has $550 of its own and $600 carried over.
 		expect((await fund("too-much", current, 120_000, 60_000)).ok).toBe(false);

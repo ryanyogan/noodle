@@ -32,7 +32,8 @@ const firstOf = (month: MonthKey) => `${month}-01` as DayKey;
  * Whatever the number of months, this is three round trips: the months' Moves grouped by month
  * (one statement), and for the ended months the same two reads Plan › Year's "Actual" makes,
  * spending grouped by month and Target (one batch) and income grouped by month, so what an ended
- * month hands on is the Actual Free to Spend the Parent sees there. The viewer only decides which
+ * month hands on is the Actual Free to Spend the Parent sees there (nothing of its own when no
+ * income was recorded in it). The viewer only decides which
  * spending arrives as a private total; the sum is the same for both Parents.
  */
 export async function loadFreeCarryMonths(
@@ -86,6 +87,7 @@ export async function loadFreeCarryMonths(
 		records,
 		current,
 		actual,
+		incomeReceived: actuals.income,
 		outOfFree: byMonth("outOfFree"),
 		extraToFree: byMonth("extraToFree"),
 		to: through,

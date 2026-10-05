@@ -9,6 +9,9 @@ import { freeToSpend, type PlanRecords, planForMonth } from "./plan";
 //
 // - An ended month hands on what it actually ended with: what was carried into it plus its Actual
 //   Free to Spend (see actualFigures in year.ts), not what its Plan said would be left.
+// - An ended month with no income recorded hands on only what it was carried: its own figure
+//   counts as nothing. A Household that only uses Quick Add and never records income would
+//   otherwise be short by a whole month of spending more every month.
 // - The Household's month and the months ahead hand on their Plan figure plus what they carried.
 
 /** A month's total of something, e.g. everything Moved out of Free to Spend in it. */
@@ -45,6 +48,11 @@ export type FreeCarryMonth = {
 	own: Cents;
 	/** What it hands on to the next month: `carriedIn + own`, whatever the sign. */
 	left: Cents;
+	/**
+	 * Set on an ended month in which no income was recorded: its spending and Goal funding are
+	 * left out (`own` is zero), so it hands on exactly what it was carried.
+	 */
+	noIncome?: true;
 };
 
 export type CarryInputs = {
@@ -54,6 +62,11 @@ export type CarryInputs = {
 	current: MonthKey;
 	/** Per ended month walked, its Actual Free to Spend (a month with none counts as zero). */
 	actual: readonly MonthAmount[];
+	/**
+	 * Per ended month walked, the income received in it. A month with none, or a total of zero or
+	 * less, has no income recorded and its actual is not used.
+	 */
+	incomeReceived: readonly MonthAmount[];
 	/**
 	 * Per month not yet over, everything Moved out of Free to Spend (Covers from it and Goal
 	 * funding, never Moves of Extra income). Ended months' are not read.
@@ -71,6 +84,7 @@ export function freeCarryMonths({
 	records,
 	current,
 	actual,
+	incomeReceived,
 	outOfFree,
 	extraToFree,
 	to,
@@ -78,17 +92,23 @@ export function freeCarryMonths({
 	const from = firstCarryMonth(records, to);
 	if (from === null) return [];
 	const actuals = totals(actual);
+	const income = totals(incomeReceived);
 	const out = totals(outOfFree);
 	const extra = totals(extraToFree);
 	const months: FreeCarryMonth[] = [];
 	let carriedIn = 0;
 	for (let month = from; month <= to; month = addMonths(month, 1)) {
 		const ended = month < current;
-		const own = ended
-			? (actuals.get(month) ?? 0)
-			: freeToSpend(planForMonth(records, month)) - (out.get(month) ?? 0) + (extra.get(month) ?? 0);
+		const noIncome = ended && (income.get(month) ?? 0) <= 0;
+		const own = noIncome
+			? 0
+			: ended
+				? (actuals.get(month) ?? 0)
+				: freeToSpend(planForMonth(records, month)) -
+					(out.get(month) ?? 0) +
+					(extra.get(month) ?? 0);
 		const left = carriedIn + own;
-		months.push({ month, ended, carriedIn, own, left });
+		months.push({ month, ended, carriedIn, own, left, ...(noIncome ? { noIncome } : {}) });
 		carriedIn = left;
 	}
 	return months;
