@@ -17,9 +17,17 @@ import type { BucketState } from "./month-state";
 export type Income = { amount: Cents; date: DayKey };
 
 /**
- * A month's Extra income: the income received in it beyond take-home pay, and how much of that is
- * still awaiting a decision once `decided` (Moved to Goals or Buckets) is taken off. There is no
- * Extra income without take-home pay, since there's nothing to be beyond.
+ * Income above take-home pay by no more than this ($25) is the usual pay landing a few dollars
+ * different, not Extra income: it raises no To do, Nudge or Check-in card (#86). Once income is
+ * more than this above take-home pay, all of the difference is Extra income.
+ */
+export const EXTRA_INCOME_FROM: Cents = 2_500;
+
+/**
+ * A month's Extra income: the income received in it beyond take-home pay (when that's more than
+ * EXTRA_INCOME_FROM), and how much of that is still awaiting a decision once `decided` (Moved to
+ * Goals, Buckets or Free to Spend) is taken off. There is no Extra income without take-home pay,
+ * since there's nothing to be beyond.
  */
 export function extraIncomeOf({
 	baseline,
@@ -29,10 +37,11 @@ export function extraIncomeOf({
 	baseline: Cents | null;
 	/** Income received in the month. */
 	received: Cents;
-	/** Extra income already Moved to Goals or Buckets. */
+	/** Extra income already Moved to Goals, Buckets or Free to Spend. */
 	decided: Cents;
 }): { windfall: Cents; pending: Cents } {
-	const extraIncome = baseline === null ? 0 : Math.max(0, received - baseline);
+	const beyond = baseline === null ? 0 : received - baseline;
+	const extraIncome = beyond > EXTRA_INCOME_FROM ? beyond : 0;
 	return { windfall: extraIncome, pending: Math.max(0, extraIncome - decided) };
 }
 
@@ -102,10 +111,14 @@ export function incomeCheck({
 	return { received, expected, short, below };
 }
 
-/** Where Extra income can go: what a Goal has set aside, or a Bucket this month. */
+/**
+ * Where Extra income can go: what a Goal has set aside, a Bucket this month, or the month's Free
+ * to Spend (a Parent's own choice, never by default: ADR-0001).
+ */
 export type ExtraIncomeDestination =
 	| { kind: "goal"; goalId: string }
-	| { kind: "bucket"; bucketId: string };
+	| { kind: "bucket"; bucketId: string }
+	| { kind: "free-to-spend" };
 
 export type ExtraIncomeSuggestion = {
 	to: ExtraIncomeDestination;

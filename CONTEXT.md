@@ -94,6 +94,7 @@ _Avoid_: Baseline, expected income, salary, budgeted income, gross income
 
 **Extra income**:
 Income received beyond the Take-home pay in a month (a third paycheck, a bonus, a refund), awaiting a decision on where it goes.
+Income up to $25 above the Take-home pay is the usual pay landing a few dollars different, not Extra income. A Parent sends Extra income to a Goal, to a Bucket, or adds it to that month's Free to Spend; it never gets there on its own.
 _Avoid_: Windfall, surplus, bonus
 
 **Free to Spend**:

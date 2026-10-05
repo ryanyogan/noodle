@@ -510,6 +510,7 @@ export {
 	decideExtraIncome,
 	type IncomeRecord,
 	type IncomeWriteResult,
+	loadExtraToFree,
 	loadIncome,
 	removeIncome,
 	undoExtraIncome,

@@ -63,10 +63,23 @@ export const withoutIncome = (data: MonthData, { incomeId }: { incomeId: string 
 	income: data.income.filter((i) => i.id !== incomeId),
 });
 
-/** A month's inputs with Extra income Move in them: into a Bucket's Moves, or a Goal's funding. */
+/**
+ * A month's inputs with Extra income Move in them: into a Bucket's Moves, a Goal's funding, or
+ * what's been added to Free to Spend.
+ */
 export function withExtraIncome(data: MonthData, v: ExtraIncomeVariables): MonthData {
 	const { moveId: id, month, amountCents: amount, to } = v;
-	if (data.moves.some((m) => m.id === id) || data.goalFunding.some((f) => f.id === id)) return data;
+	const toFree = data.extraToFree ?? [];
+	if (
+		data.moves.some((m) => m.id === id) ||
+		data.goalFunding.some((f) => f.id === id) ||
+		toFree.some((e) => e.id === id)
+	) {
+		return data;
+	}
+	if (to.kind === "free-to-spend") {
+		return { ...data, extraToFree: [...toFree, { id, amount, month }] };
+	}
 	return to.kind === "goal"
 		? {
 				...data,
@@ -88,6 +101,7 @@ export const withoutExtraIncome = (data: MonthData, { moveId }: { moveId: string
 	...data,
 	moves: data.moves.filter((m) => m.id !== moveId),
 	goalFunding: data.goalFunding.filter((f) => f.id !== moveId),
+	extraToFree: (data.extraToFree ?? []).filter((e) => e.id !== moveId),
 });
 
 /** The server refused Extra income Move: the Extra income had less left, or the destination can't take it. */

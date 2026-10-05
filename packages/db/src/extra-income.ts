@@ -1,15 +1,16 @@
-import type { Cents, DayKey, ExtraIncomeDestination, MonthKey } from "@noodle/domain";
-import { addMonths } from "@noodle/domain";
+import type { Cents, DayKey, ExtraIncomeDestination, ExtraToFree, MonthKey } from "@noodle/domain";
+import { addMonths, EXTRA_INCOME_FROM } from "@noodle/domain";
 import { and, eq, gte, isNotNull, isNull, lt, type SQL, sql } from "drizzle-orm";
 import { incomeCounts, incomeCountsRaw } from "./counting";
 import { setAsideSql } from "./goals";
 import type { Db } from "./index";
 import { bucketInPlan } from "./moves";
 import { assignableBy } from "./privacy";
-import { buckets, goals, income, moves, transfers } from "./schema";
+import { buckets, goals, households, income, moves, transfers } from "./schema";
 
 // Income, and Extra income Moves: income beyond a month's take-home pay Moved deliberately to a Goal or a
-// Bucket (ADR-0001), never silently into Free to Spend. Every query is scoped by household_id.
+// Bucket (ADR-0001), never silently into Free to Spend: a Parent may add it there on purpose, which
+// is a `windfall` Move with neither a Bucket nor a Goal (#86). Every query is scoped by household_id.
 
 /** Income with its ID and note. */
 export type IncomeRecord = { id: string; amount: Cents; date: DayKey; note: string | null };
@@ -84,9 +85,13 @@ const decidedSql = (householdId: string, month: MonthKey) =>
 	sql`coalesce((select sum(m.amount_cents) from moves m
 		where m.household_id = ${householdId} and m.month = ${month} and m.kind = 'windfall'), 0)`;
 
-/** The month's income beyond its take-home pay; 0 without take-home pay. */
+/**
+ * The month's income beyond its take-home pay, once that's more than EXTRA_INCOME_FROM; 0 without
+ * take-home pay.
+ */
 const extraIncomeSql = (householdId: string, month: MonthKey, lessReceived: SQL | Cents = 0) =>
-	sql`coalesce(max(0, ${receivedSql(householdId, month)} - ${lessReceived} - ${takeHomePaySql(householdId, month)}), 0)`;
+	sql`coalesce((select case when x.beyond > ${EXTRA_INCOME_FROM} then x.beyond else 0 end
+		from (select ${receivedSql(householdId, month)} - ${lessReceived} - ${takeHomePaySql(householdId, month)} as beyond) x), 0)`;
 
 /** What's left of the month's Extra income to decide. */
 export function extraIncomeLeftSql(householdId: string, month: MonthKey): SQL {
@@ -134,10 +139,10 @@ export async function removeIncome(
 }
 
 /**
- * Moves `amountCents` of `month`'s Extra income to what a Goal has set aside or a Bucket. Idempotent per
- * `moveId`. Refused unless, at write time, the Extra income still has that much left, and the Goal is
- * the Household's and active, or the Bucket is in the month's Plan and isn't the other Parent's
- * Personal Allowance.
+ * Moves `amountCents` of `month`'s Extra income to what a Goal has set aside, a Bucket, or the
+ * month's Free to Spend. Idempotent per `moveId`. Refused unless, at write time, the Extra income
+ * still has that much left, and the Goal is the Household's and active, or the Bucket is in the
+ * month's Plan and isn't the other Parent's Personal Allowance (Free to Spend can always take it).
  */
 export async function decideExtraIncome(
 	db: Db,
@@ -178,33 +183,62 @@ export function insertExtraIncomeMove(db: Db, input: ExtraIncomeMoveInput, guard
 		toGoalId,
 	});
 	const enough = sql`${extraIncomeLeftSql(householdId, month)} >= ${input.amountCents}`;
+	const nowhere = sql<string | null>`null`;
 	const select =
-		to.kind === "goal"
+		to.kind === "free-to-spend"
 			? db
-					.select(row(goals.householdId, sql<string | null>`null`.as("to_bucket_id"), goals.id))
-					.from(goals)
-					.where(
-						and(
-							eq(goals.id, to.goalId),
-							eq(goals.householdId, householdId),
-							isNull(goals.completedAt),
-							isNull(goals.archivedAt),
-							enough,
-							guard,
-						),
-					)
-			: db
-					.select(row(buckets.householdId, buckets.id, sql<string | null>`null`.as("to_goal_id")))
-					.from(buckets)
-					.where(
-						and(
-							bucketInPlan(householdId, to.bucketId, month),
-							assignableBy(input.createdByMemberId ?? ""),
-							enough,
-							guard,
-						),
-					);
+					.select(row(households.id, nowhere.as("to_bucket_id"), nowhere.as("to_goal_id")))
+					.from(households)
+					.where(and(eq(households.id, householdId), enough, guard))
+			: to.kind === "goal"
+				? db
+						.select(row(goals.householdId, sql<string | null>`null`.as("to_bucket_id"), goals.id))
+						.from(goals)
+						.where(
+							and(
+								eq(goals.id, to.goalId),
+								eq(goals.householdId, householdId),
+								isNull(goals.completedAt),
+								isNull(goals.archivedAt),
+								enough,
+								guard,
+							),
+						)
+				: db
+						.select(row(buckets.householdId, buckets.id, sql<string | null>`null`.as("to_goal_id")))
+						.from(buckets)
+						.where(
+							and(
+								bucketInPlan(householdId, to.bucketId, month),
+								assignableBy(input.createdByMemberId ?? ""),
+								enough,
+								guard,
+							),
+						);
 	return db.insert(moves).select(select).onConflictDoNothing({ target: moves.id });
+}
+
+/** Extra income a Parent added to `month`'s Free to Spend, oldest first. */
+export async function loadExtraToFree(
+	db: Db,
+	householdId: string,
+	month: MonthKey,
+): Promise<(ExtraToFree & { id: string })[]> {
+	const rows = await db
+		.select({ id: moves.id, amount: moves.amountCents, month: moves.month })
+		.from(moves)
+		.where(
+			and(
+				eq(moves.householdId, householdId),
+				eq(moves.month, month),
+				eq(moves.kind, "windfall"),
+				isNull(moves.toBucketId),
+				isNull(moves.toGoalId),
+			),
+		)
+		.orderBy(moves.id);
+	// Months are always written as MonthKeys.
+	return rows as (ExtraToFree & { id: string })[];
 }
 
 /**

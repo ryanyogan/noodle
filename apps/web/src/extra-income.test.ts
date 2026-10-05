@@ -63,3 +63,27 @@ describe("optimistic income and Extra income Moves", () => {
 		expect(monthState(withoutExtraIncome(both, { moveId: "a" })).windfallLeft).toBe(100_000);
 	});
 });
+
+describe("Extra income added to Free to Spend (#86)", () => {
+	const toFree = {
+		moveId: "to-free",
+		month: "2026-09" as const,
+		to: { kind: "free-to-spend" as const },
+		toName: "Free to Spend",
+		amountCents: 30_000,
+	};
+	const withBonus = withIncome(month, bonus);
+
+	test("raises Free to Spend at once, and once per ID", () => {
+		const before = monthState(withBonus);
+		const after = monthState(withExtraIncome(withExtraIncome(withBonus, toFree), toFree));
+		expect(after.freeToSpend).toBe(before.freeToSpend + 30_000);
+		expect(after.windfallLeft).toBe(before.windfallLeft - 30_000);
+	});
+
+	test("Undo takes it back out", () => {
+		const undone = monthState(withoutExtraIncome(withExtraIncome(withBonus, toFree), toFree));
+		expect(undone.freeToSpend).toBe(monthState(withBonus).freeToSpend);
+		expect(undone.windfallLeft).toBe(monthState(withBonus).windfallLeft);
+	});
+});

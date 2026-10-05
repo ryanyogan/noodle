@@ -4,6 +4,7 @@ import {
 	type Db,
 	type IncomeRecord,
 	loadCharges,
+	loadExtraToFree,
 	loadGoalFunding,
 	loadIncome,
 	loadMonthClose,
@@ -21,6 +22,7 @@ import {
 	type Cents,
 	type DayKey,
 	dayKeyAt,
+	type ExtraToFree,
 	firstPlanMonth,
 	type GoalFunding,
 	type MonthKey,
@@ -58,6 +60,8 @@ export type MonthData = {
 	rolledOver: Record<string, Cents>;
 	/** Moves from Free to Spend into what Goals have set aside. */
 	goalFunding: (GoalFunding & { id: string })[];
+	/** Extra income a Parent added to the month's Free to Spend. */
+	extraToFree?: (ExtraToFree & { id: string })[];
 	/** Buckets that reset monthly' leftovers Swept into Goals as the month closed. */
 	sweeps: PlanSweep[];
 	/** How the month was closed (see month-close), or null while it hasn't been. */
@@ -82,7 +86,7 @@ export async function loadMonth(
 	month: MonthKey,
 ): Promise<MonthData> {
 	const viewer = viewerOf({ household, parent: { id: parentId } });
-	const [records, spending, charges, moves, goalFunding, sweeps, closed, income] =
+	const [records, spending, charges, moves, goalFunding, sweeps, closed, income, extraToFree] =
 		await Promise.all([
 			loadPlanRecords(db, household.id, month),
 			loadSpending(db, viewer, month),
@@ -92,6 +96,7 @@ export async function loadMonth(
 			loadSweeps(db, household.id, month),
 			loadMonthClose(db, household.id, month),
 			loadIncome(db, household.id, addMonths(month, -1), addMonths(month, 1)),
+			loadExtraToFree(db, household.id, month),
 		]);
 	const rolledOver = await loadRolledOver(db, household.id, records, month);
 	const now = new Date();
@@ -104,6 +109,7 @@ export async function loadMonth(
 		moves,
 		rolledOver,
 		goalFunding,
+		extraToFree,
 		sweeps,
 		closed,
 		income,

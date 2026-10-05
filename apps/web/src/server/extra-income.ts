@@ -92,7 +92,8 @@ export const removeIncome = createServerFn({ method: "POST" })
 export type ExtraIncomeOutcome = { ok: true } | { ok: false; left: Cents };
 
 /**
- * Moves `amountCents` of a month's Extra income to what a Goal has set aside or one of the month's Buckets.
+ * Moves `amountCents` of a month's Extra income to what a Goal has set aside, one of the month's
+ * Buckets, or the month's Free to Spend.
  * Refused unless the Extra income still has that much left, and the destination can take it.
  */
 export const decideExtraIncome = createServerFn({ method: "POST" })
@@ -104,6 +105,7 @@ export const decideExtraIncome = createServerFn({ method: "POST" })
 			to: z.discriminatedUnion("kind", [
 				z.object({ kind: z.literal("goal"), goalId: ulidSchema }),
 				z.object({ kind: z.literal("bucket"), bucketId: ulidSchema }),
+				z.object({ kind: z.literal("free-to-spend") }),
 			]),
 			amountCents: amountSchema,
 		}),
