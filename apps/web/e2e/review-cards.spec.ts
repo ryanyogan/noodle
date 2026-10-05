@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import {
+	choose,
 	createPlannedHousehold,
 	enterJoinedHousehold,
 	serverFn,
@@ -137,6 +138,81 @@ test("Review sorts one card at a time: confirm, pick another, skip and undo, by 
 	await expect(stack(page)).toHaveAttribute("data-saving", "false");
 	await page.reload();
 	await expect(stack(page)).toContainText("1 of 2");
+});
+
+test("an edit from Transactions made while a Review decision is still waiting to save is the one that stands", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	const lines: [string, string][] = [
+		["CORNER GAS MART", "40.00"],
+		["VALLEY GAS STOP", "30.00"],
+	];
+	await createPlannedHousehold(page, {
+		baseline: "5,000",
+		buckets: [
+			["Groceries", "1,200"],
+			["Gas", "300"],
+			["Hockey", "400"],
+		],
+	});
+	const thisMonth = page.url();
+	await uploadStatement(page, lines, true);
+	await waitForReview(page, new URL("/review", thisMonth).href, "1 of 2");
+
+	// The first card's save is slow: it doesn't reach the server until the test lets it.
+	let release = () => {};
+	const held = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	let calls = 0;
+	let answered = 0;
+	await page.route(serverFn("updateTransaction"), async (route) => {
+		calls += 1;
+		if (calls === 1) await held;
+		await route.continue();
+	});
+	page.on("response", (response) => {
+		if (serverFn("updateTransaction")(new URL(response.url()))) answered += 1;
+	});
+
+	const first = await topName(page);
+	await pick(page, `Where ${first} goes`, "Gas");
+	await expect(stack(page)).toContainText("2 of 2");
+	// The second card is filed in Groceries; its save waits behind the first.
+	const second = await topName(page);
+	const amount = lines.find(([what]) =>
+		what.toLowerCase().includes((second.toLowerCase().split(" ")[0] ?? second).trim()),
+	)?.[1];
+	expect(amount).toBeDefined();
+	await pick(page, `Where ${second} goes`, "Groceries");
+	await expect(stack(page)).toHaveAttribute("data-saving", "true");
+
+	// Without leaving the app, the same Transaction is moved to Hockey from Transactions.
+	await page
+		.getByRole("navigation", { name: "Main" })
+		.getByRole("link", { name: "Transactions" })
+		.click();
+	const row = page
+		.getByRole("list", { name: /^Transactions in / })
+		.getByRole("button", { name: new RegExp(`, \\$${Number(amount)}, `) });
+	await row.click();
+	const editSheet = page
+		.locator("[role=dialog], [data-slot=transaction-detail]")
+		.filter({ has: page.getByRole("heading", { name: "Edit Transaction" }) });
+	await expect(editSheet).toBeVisible();
+	await choose(editSheet, "Assigned to", "Hockey");
+	await editSheet.getByRole("button", { name: "Save" }).click();
+	await expect(row).toHaveAccessibleName(/, Hockey, /);
+
+	// The slow save answers; the decision and then the edit follow it, in the order they were made.
+	release();
+	await expect.poll(() => answered, { timeout: 30_000 }).toBe(3);
+	await expect(status(page, "saved")).toBeVisible();
+	await page.reload();
+	await expect(row).toHaveAccessibleName(/, Hockey, /);
+	await page.context().close();
 });
 
 test("a failed save puts the card back on top and says so, and the end of the stack says all sorted", async ({

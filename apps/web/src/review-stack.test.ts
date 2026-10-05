@@ -271,3 +271,94 @@ describe("a decision made while an Undo is still saving (#84)", () => {
 		expect(server.filedIn).toBeNull();
 	});
 });
+
+describe("an edit from the Transactions sheet while a Review decision waits its turn (#85)", () => {
+	const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+	/**
+	 * A server where the last write to land wins. An earlier Review write (another card's) answers
+	 * only when the test lets it; this Transaction's decision and its edit land as soon as sent.
+	 */
+	function household(editScope: typeof reviewWrites | undefined) {
+		const queryClient = new QueryClient();
+		const server = { filedIn: null as string | null, sent: [] as string[], landEarlier: () => {} };
+		const earlier = new MutationObserver(queryClient, {
+			mutationKey: ["month-change"],
+			scope: reviewWrites,
+			mutationFn: () => {
+				server.sent.push("earlier");
+				return new Promise<void>((resolve) => {
+					server.landEarlier = resolve;
+				});
+			},
+		});
+		const decide = new MutationObserver(queryClient, {
+			mutationKey: ["month-change"],
+			scope: reviewWrites,
+			mutationFn: async () => {
+				server.sent.push("decision");
+				server.filedIn = "groceries";
+			},
+		});
+		const edit = new MutationObserver(queryClient, {
+			mutationKey: ["month-change"],
+			scope: editScope,
+			mutationFn: async () => {
+				server.sent.push("edit");
+				server.filedIn = "hockey";
+			},
+		});
+		return { queryClient, server, earlier, decide, edit };
+	}
+
+	test("in Review's queue the edit is sent after the decision made before it, so it stands", async () => {
+		const { queryClient, server, earlier, decide, edit } = household(reviewWrites);
+		const first = earlier.mutate();
+		const decided = decide.mutate();
+		const edited = edit.mutate();
+		await tick();
+		// Both wait behind the slow write, and count as saving while they do.
+		expect(server.sent).toEqual(["earlier"]);
+		expect(edit.getCurrentResult().isPending).toBe(true);
+		expect(queryClient.isMutating({ mutationKey: ["month-change"] })).toBe(3);
+		server.landEarlier();
+		await Promise.all([first, decided, edited]);
+		expect(server.sent).toEqual(["earlier", "decision", "edit"]);
+		expect(server.filedIn).toBe("hockey");
+		expect(queryClient.isMutating()).toBe(0);
+	});
+
+	test("two edits to one Transaction are sent in the order they were made", async () => {
+		const queryClient = new QueryClient();
+		const server = { note: "", sent: [] as string[], landFirst: () => {} };
+		const edit = (note: string, slow: boolean) =>
+			new MutationObserver(queryClient, {
+				scope: reviewWrites,
+				mutationFn: async () => {
+					server.sent.push(note);
+					if (slow) await new Promise<void>((resolve) => (server.landFirst = resolve));
+					server.note = note;
+				},
+			});
+		const first = edit("first", true).mutate();
+		const second = edit("second", false).mutate();
+		await tick();
+		expect(server.sent).toEqual(["first"]);
+		server.landFirst();
+		await Promise.all([first, second]);
+		expect(server.note).toBe("second");
+	});
+
+	test("what the queue prevents: sent at once, the edit lands first and the decision overwrites it", async () => {
+		const { server, earlier, decide, edit } = household(undefined);
+		const first = earlier.mutate();
+		const decided = decide.mutate();
+		const edited = edit.mutate();
+		await edited;
+		expect(server.sent).toEqual(["earlier", "edit"]);
+		server.landEarlier();
+		await Promise.all([first, decided]);
+		expect(server.sent).toEqual(["earlier", "edit", "decision"]);
+		expect(server.filedIn).toBe("groceries");
+	});
+});
