@@ -157,6 +157,10 @@ test("Plan health flags a Commitment that pays down a card Noodle has begun to f
 	await purchase(page, "American Express", "38.50");
 	await purchase(page, "Discover", "21.00");
 	await reloadUntil(page, plan, () => expect(rows).toHaveCount(2, { timeout: 3_000 }));
+	// Under where the pay goes the list is one line until it is opened.
+	const things = page.getByRole("button", { name: /^Things to check/ });
+	await hydrated(things);
+	await things.click();
 	const amex = rows.filter({ hasText: "American Express" });
 	const discover = rows.filter({ hasText: "Discover payment" });
 	await expect(amex).toContainText(
