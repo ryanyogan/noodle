@@ -10,7 +10,7 @@ import {
 import { ulid } from "ulid";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
-import { createHousehold, openToDo, signedInPage } from "./session";
+import { createHousehold, signedInPage } from "./session";
 import { dayOf, q, seedShotsHousehold } from "./shots-household";
 
 // The stills the intro video zooms into (#54): the real app with the page shots' Household, on a
@@ -163,6 +163,27 @@ async function offerRule(page: Page) {
 	});
 }
 
+/** The button that closes last month, inside its To do prompt. */
+const closeButton = (page: Page) =>
+	page
+		.locator("button:not([aria-expanded]):visible")
+		.filter({ hasText: /^Close [A-Z][a-z]+$/ })
+		.last();
+
+/**
+ * Opens This Month's To do until last month's close shows: on a phone the To do strip first, then
+ * (at any size) the first prompt still closed, which is the month to close.
+ */
+async function openCloseMonth(page: Page) {
+	const closed = page
+		.getByRole("region", { name: "To do" })
+		.locator("button[aria-expanded=false]:visible");
+	for (let turn = 0; turn < 3 && !(await closeButton(page).isVisible()); turn++) {
+		await closed.first().click({ timeout: 15_000 });
+		await page.waitForTimeout(400);
+	}
+}
+
 test.beforeAll(async ({ browser }) => {
 	if (!enabled) return;
 	test.setTimeout(600_000);
@@ -182,6 +203,9 @@ test.beforeAll(async ({ browser }) => {
 	const statements = [
 		// The bank is connected and was read two hours ago (the page shots leave it asking to log in).
 		`update bank_connections set status = 'ready', notice = null, last_imported_at = ${Date.now() - 2 * 3_600_000} where household_id = ${h};`,
+		// The history's big one-off purchases land in this month's first days and put Buckets far over
+		// before the month has begun: this month keeps only its everyday spending.
+		`delete from transactions where household_id = ${h} and source = 'quick-add' and bucket_id is not null and amount_cents >= 25000 and date >= ${q(`${month}-01`)};`,
 	];
 	// Two grocery lines waiting in Review with a suggestion: one for each screen's "Always file" still.
 	for (const [cents, day] of [
@@ -236,13 +260,6 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "transactions", path: `/transactions/${month}` },
 		{ name: "review", path: "/review", subject: (page) => page.getByTestId("review-stack") },
 		{
-			name: "review-rule",
-			path: "/review",
-			ready: offerRule,
-			subject: (page) => page.getByTestId("review-rule-offer"),
-			scroll: "center",
-		},
-		{
 			name: "quick-add",
 			path: thisMonth,
 			ready: openQuickAdd,
@@ -266,13 +283,8 @@ test.beforeAll(async ({ browser }) => {
 		{
 			name: "close-month",
 			path: thisMonth,
-			// From lg up the prompt is a closed To do row; on a phone it already shows.
-			ready: (page) => openToDo(page, "Close"),
-			subject: (page) =>
-				page
-					.locator("button:not([aria-expanded]):visible")
-					.filter({ hasText: /^Close [A-Z][a-z]+$/ })
-					.last(),
+			ready: openCloseMonth,
+			subject: closeButton,
 			scroll: "center",
 		},
 		{
@@ -280,6 +292,14 @@ test.beforeAll(async ({ browser }) => {
 			path: "/household",
 			fresh: true,
 			subject: (page) => page.getByLabel("Their email"),
+			scroll: "center",
+		},
+		// Last: it files a line, which the stills before it would otherwise show as spent.
+		{
+			name: "review-rule",
+			path: "/review",
+			ready: offerRule,
+			subject: (page) => page.getByTestId("review-rule-offer"),
 			scroll: "center",
 		},
 	];
