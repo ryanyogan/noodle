@@ -8,6 +8,7 @@ import { useHydrated } from "@tanstack/react-router";
 import { Download } from "lucide-react";
 import { exportStatusQuery } from "../queries";
 import { prepareExport } from "../server/export";
+import { PhoneMore } from "./phone-more";
 
 /** "3:40 PM tomorrow": when a download stops working, in the Parent's own time. */
 export function readyUntil(expiresAt: number, now: Date = new Date()): string {
@@ -58,10 +59,12 @@ export function DataDownload() {
 							A ZIP file with your Transactions, Accounts, Plan by month, Plan changes and Rules as
 							spreadsheets, plus your statements and receipts.
 						</p>
-						<p className="text-muted-foreground">
-							The other Parent’s Personal Allowance isn’t included, only its total each month. The
-							link works for 24 hours, and only for you.
-						</p>
+						<PhoneMore label="More about this file">
+							<p className="text-muted-foreground">
+								The other Parent’s Personal Allowance isn’t included, only its total each month. The
+								link works for 24 hours, and only for you.
+							</p>
+						</PhoneMore>
 					</div>
 				</div>
 				{state?.state === "ready" ? (
