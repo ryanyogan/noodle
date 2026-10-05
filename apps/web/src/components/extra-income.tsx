@@ -235,13 +235,9 @@ export function ExtraIncomeSection({
 				Spend to use it, or choose a Goal or Bucket for it.
 			</p>
 			<div className="flex flex-wrap gap-2 px-1 pb-3">
-				<Button
-					size="sm"
-					disabled={!hydrated}
-					aria-label={`Add ${formatMoney(left)} to Free to Spend`}
-					onClick={onAddToFree}
-				>
-					Add to Free to Spend
+				{/* The amount is in the words, so the name read out is the one seen; it may wrap (#74). */}
+				<Button size="wrap" disabled={!hydrated} onClick={onAddToFree}>
+					Add {formatMoney(left)} to Free to Spend
 				</Button>
 				<Button
 					variant="outline"
@@ -334,12 +330,8 @@ function ExtraIncomeForm({
 }) {
 	const hydrated = useHydrated();
 	const id = useId();
-	const first = places.goals[0]
-		? destinationValue({ kind: "goal", goalId: places.goals[0].id })
-		: places.buckets[0]
-			? destinationValue({ kind: "bucket", bucketId: places.buckets[0].id })
-			: FREE_TO_SPEND;
-	const [destination, setDestination] = useState(first);
+	// Free to Spend first: Extra income is there to be used unless the Parent picks a place (#86).
+	const [destination, setDestination] = useState(FREE_TO_SPEND);
 	const [amount, setAmount] = useState(() => formatMoneyInput(left));
 	const cents = parseDollars(amount);
 	const tooMuch = cents !== null && cents > left;
