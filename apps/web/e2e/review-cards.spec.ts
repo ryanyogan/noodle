@@ -241,11 +241,14 @@ test("an edit made on a Transaction that another screen has changed since is lef
 		const row = screen
 			.getByRole("list", { name: /^Transactions in / })
 			.getByRole("button", { name: /, \$19\.99, / });
-		await row.click();
 		const sheet = screen
 			.locator("[role=dialog], [data-slot=transaction-detail]")
 			.filter({ has: screen.getByRole("heading", { name: "Edit Transaction" }) });
-		await expect(sheet).toBeVisible();
+		// Pressed again until it opens: a press before a freshly loaded page has hydrated is lost.
+		await expect(async () => {
+			if (!(await sheet.isVisible())) await row.click();
+			await expect(sheet).toBeVisible({ timeout: 2_000 });
+		}).toPass();
 		return { row, sheet };
 	};
 
@@ -725,8 +728,11 @@ test("a card's picker creates a Bucket by the name typed, with an allowance, and
 	// Create and file: the Bucket is added, then the card is filed there like any other, and the
 	// same Rule is offered as for a Bucket that was already there.
 	const added = page.waitForResponse((r) => serverFn("addBucket")(new URL(r.url())));
+	// The filing that follows is saved before Undo is pressed, as it would be for a Parent.
+	const filed = page.waitForResponse((r) => serverFn("updateTransaction")(new URL(r.url())));
 	await step.getByRole("button", { name: "Create and file here" }).click();
 	expect((await added).ok()).toBe(true);
+	expect((await filed).ok()).toBe(true);
 	await expect(step).toBeHidden();
 	await expect(said(page)).toHaveText("Filed Acme Widgets in Widgets. 2 left.");
 	await expect(page.getByTestId("review-rule-offer")).toContainText(
