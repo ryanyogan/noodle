@@ -132,7 +132,7 @@ export function QuickAdd({ timeZone, parentId }: { timeZone: string; parentId: s
 				aria-describedby={undefined}
 				// Phones: the large detent, so the amount, the six Buckets and the keypad all fit at
 				// 375×667 without scrolling (ADR-0031).
-				className="gap-3 max-lg:max-h-[calc(var(--visible-height,100dvh)-8px-var(--safe-top))]"
+				className="gap-3 [--key:3rem] max-lg:max-h-[calc(var(--visible-height,100dvh)-8px-var(--safe-top))]"
 				// Focus the sheet, not the note field, so the phone keyboard stays down.
 				// Esc steps back first (More Buckets, then a typed search), and only then closes.
 				onEscapeKeyDown={(event) => {
@@ -502,7 +502,17 @@ function QuickAddForm({
 	const [whole = "", fraction] = amount.split(".");
 	return (
 		<>
-			<div className="grid gap-2">
+			{/* On a screen too short for all of it, the sheet scrolls under the keypad, which stays put.
+			    Each control's scroll margin is the keypad's height (four keys, their gaps, its padding
+			    and border), so one that takes focus or is scrolled to stops above the keypad, not
+			    behind it: "For" was out of reach there (issue 110). No keypad with the keyboard up. */}
+			<div
+				className={cn(
+					"grid gap-2",
+					"max-lg:[&_:is(button,input)]:scroll-mb-[calc(4*var(--key)+27px+var(--safe-bottom))]",
+					"max-lg:[[data-keyboard]_&_:is(button,input)]:scroll-mb-0",
+				)}
+			>
 				<div className="grid justify-items-center gap-1">
 					<output
 						ref={display}
@@ -981,7 +991,7 @@ function Key({
 	children: ReactNode;
 }) {
 	return (
-		<RowButton variant="key" aria-label={label} onClick={onPress} className="h-12">
+		<RowButton variant="key" aria-label={label} onClick={onPress} className="h-(--key)">
 			{children}
 		</RowButton>
 	);

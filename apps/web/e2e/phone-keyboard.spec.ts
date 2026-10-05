@@ -82,6 +82,72 @@ test("Quick Add stays above the keyboard while a note is typed", async ({ browse
 	await page.context().close();
 });
 
+// Issue 110: on a screen too short for the whole sheet, "For" sat behind the keypad, which stays
+// at the bottom while the rest scrolls under it. Being inside the sheet's box it counted as in
+// view, so neither focus nor a scroll to it brought it out.
+test("Quick Add's For can be reached and changed on a short screen, and with the keyboard up", async ({
+	browser,
+}) => {
+	for (const width of [393, 320]) {
+		const page = await signedInPage(browser, parent.email, {
+			viewport: { width, height: 500 },
+			isMobile: true,
+			hasTouch: true,
+		});
+		if (width === 393) {
+			await createPlannedHousehold(page, {
+				baseline: "5,000",
+				buckets: [
+					["Groceries", "1,200"],
+					["Gas", "200"],
+					["Dining out", "300"],
+					["Kids", "150"],
+					["Household", "250"],
+					["Fun money", "100"],
+					["Pet supplies", "80"],
+				],
+			});
+		} else await page.goto("/month");
+		await page.getByRole("link", { name: "Quick Add" }).first().click();
+		const sheet = page.getByRole("dialog", { name: "Quick Add" });
+		const keypad = sheet.getByRole("group", { name: "Keypad" });
+		await keypad.getByRole("button", { name: "4", exact: true }).click();
+		const forLine = sheet.getByRole("button", { name: /^For: / });
+		const choices = sheet.getByRole("radiogroup", { name: "For" });
+
+		// The keypad is showing: For comes to rest between the top of the sheet and the keypad.
+		const clearOfKeypad = async () => {
+			await expect(async () => {
+				const box = await forLine.boundingBox();
+				const top = (await keypad.boundingBox())?.y ?? 0;
+				expect(box?.y ?? -1).toBeGreaterThanOrEqual(0);
+				expect((box?.y ?? 0) + (box?.height ?? Number.POSITIVE_INFINITY)).toBeLessThanOrEqual(top);
+			}).toPass({ timeout: 3000 });
+		};
+		await forLine.focus();
+		await clearOfKeypad();
+		await forLine.tap();
+		const someone = choices.getByRole("radio").nth(1);
+		const name = (await someone.textContent()) ?? "";
+		expect(name.trim()).not.toBe("");
+		await someone.tap();
+		await expect(forLine).toHaveText(`For: ${name.trim()}`);
+		// Back at the top, a scroll to it (as a screen reader's swipe does) brings it out too.
+		await sheet.evaluate((el) => el.scrollTo(0, 0));
+		await forLine.evaluate((el) => el.scrollIntoView({ block: "nearest" }));
+		await clearOfKeypad();
+
+		// With the keyboard up for the note, the keypad is gone and For is above the keyboard.
+		const keyboardGone = await withKeyboard(page, 240);
+		await sheet.getByLabel("Note").click();
+		await expect(keypad).toBeHidden();
+		await forLine.scrollIntoViewIfNeeded();
+		await expectAboveKeyboard(page, forLine);
+		await keyboardGone();
+		await page.context().close();
+	}
+});
+
 test("Edit Transaction stays above the keyboard with Save in view", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });

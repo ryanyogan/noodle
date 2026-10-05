@@ -971,7 +971,7 @@ function useGetStartedSteps(state: MonthState) {
 	const { accounts } = useGoals();
 	const members = useSuspenseQuery(membersQuery()).data;
 	const parents = members.filter((m) => m.kind === "parent" && !m.removed).length;
-	const steps: { done: boolean; title: string; link: ReactNode }[] = [
+	const steps: { done: boolean; title: string; shown?: ReactNode; link: ReactNode }[] = [
 		{
 			done: state.baseline !== null,
 			title: "Set your take-home pay",
@@ -994,7 +994,18 @@ function useGetStartedSteps(state: MonthState) {
 			done: accounts.length > 0,
 			// Short, so it isn't cut off beside its button at 320px (#74); a bank is added there too.
 			title: "Add your Accounts",
-			link: <Link to="/accounts">Add an Account</Link>,
+			// Shorter still to the eye at 320px, where it took two lines beside its button (issue 110):
+			// "Add Accounts" and "Add", read out in full.
+			shown: (
+				<>
+					Add <span className="max-[359px]:sr-only">your </span>Accounts
+				</>
+			),
+			link: (
+				<Link to="/accounts">
+					Add<span className="max-[359px]:sr-only"> an Account</span>
+				</Link>
+			),
 		},
 		{
 			done: parents > 1,
@@ -1101,7 +1112,7 @@ function GetStarted({
 					}
 					title={
 						<span className={cn(step.done && "text-muted-foreground line-through")}>
-							{step.title}
+							{step.shown ?? step.title}
 						</span>
 					}
 					trailing={
