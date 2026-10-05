@@ -245,7 +245,7 @@ function YearTable({ months }: { months: YearMonth[] }) {
 					<TableRow>
 						<TableHead
 							scope="col"
-							className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad)"
+							className="px-2 first:ps-(--card-pad) last:pe-(--card-pad) xl:px-(--card-pad)"
 						>
 							Month
 						</TableHead>
@@ -254,7 +254,7 @@ function YearTable({ months }: { months: YearMonth[] }) {
 								key={f.key}
 								scope="col"
 								numeric
-								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad)"
+								className="px-2 first:ps-(--card-pad) last:pe-(--card-pad) xl:px-(--card-pad)"
 							>
 								{f.label}
 							</TableHead>
@@ -267,7 +267,10 @@ function YearTable({ months }: { months: YearMonth[] }) {
 							key={month.month}
 							className={cn("align-top", month.when === "current" && "font-medium")}
 						>
-							<th scope="row" className="px-(--card-pad) py-2.5 text-start font-medium">
+							<th
+								scope="row"
+								className="ps-(--card-pad) pe-2 py-2.5 text-start xl:pe-(--card-pad) font-medium"
+							>
 								<span className="flex flex-wrap items-center gap-1.5">
 									<Link
 										to="/plan/$month"
@@ -288,7 +291,7 @@ function YearTable({ months }: { months: YearMonth[] }) {
 								<TableCell
 									key={f.key}
 									numeric
-									className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) py-2.5"
+									className="px-2 first:ps-(--card-pad) last:pe-(--card-pad) xl:px-(--card-pad) py-2.5"
 								>
 									<Figure month={month} figure={f.key} />
 								</TableCell>
@@ -298,14 +301,14 @@ function YearTable({ months }: { months: YearMonth[] }) {
 				</TableBody>
 				<TableFooter>
 					<TableRow className="font-semibold">
-						<th scope="row" className="px-(--card-pad) py-2.5 text-start">
+						<th scope="row" className="ps-(--card-pad) pe-2 py-2.5 text-start xl:pe-(--card-pad)">
 							Planned for the year
 						</th>
 						{FIGURES.map((f) => (
 							<TableCell
 								key={f.key}
 								numeric
-								className="px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad) py-2.5"
+								className="px-2 first:ps-(--card-pad) last:pe-(--card-pad) xl:px-(--card-pad) py-2.5"
 							>
 								<Amount cents={total(f.key)} />
 							</TableCell>
