@@ -222,6 +222,8 @@ test("a snapshot one Parent takes shows in the other Parent's list without a rel
 
 	// A second one takes the first's place for Sam, still as the only row, and the button that
 	// holds the rest appears with the new count (#88).
+	// A snapshot by hand can only be taken once a minute ("One was just taken"), so this one waits.
+	await alex.waitForTimeout(61_000);
 	await snapshots.getByLabel("Note").fill("And again");
 	await snapshots.getByRole("button", { name: "Take a snapshot" }).click();
 	const samRows = samSnapshots
