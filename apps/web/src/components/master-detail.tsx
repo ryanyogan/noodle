@@ -1,10 +1,12 @@
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import { ListWithPanel } from "@noodle/ui/components/detail-panel";
 import { DetailColumns, MasterDetail } from "@noodle/ui/components/layout";
 import { Skeleton } from "@noodle/ui/components/skeleton";
+import type { DetailPanelSize } from "@noodle/ui/lib/detail-panel";
 import { cn } from "@noodle/ui/lib/utils";
-import { Link, type LinkOptions, Outlet } from "@tanstack/react-router";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { Link, type LinkOptions, Outlet, useNavigate } from "@tanstack/react-router";
+import { ChevronDown, ChevronUp, X } from "lucide-react";
 import { type KeyboardEvent, type ReactNode, Suspense } from "react";
 
 // What every list-beside-its-item page shares (#67), next to `MasterDetail` in @noodle/ui: the
@@ -135,6 +137,13 @@ export function DetailPager({
 }
 
 /**
+ * In a panel, where the header's controls start: as far down as the panel's Close (`detail-close`
+ * in @noodle/ui's DetailPanel), so the three are on one line however many lines the title takes
+ * (issue 107).
+ */
+const inPanelLine = "lg:mt-2.5";
+
+/**
  * The detail's header: Back to the list, what the item is, its actions, and previous and next.
  * Its title is an h2, under the section's h1 (which a phone keeps for screen readers only:
  * `sectionHeaderOverItem`). On a phone it follows the phone header's rule
@@ -174,8 +183,9 @@ export function DetailHeader({
 			data-item-page=""
 			className={cn(
 				"mb-6 flex flex-wrap items-center gap-x-2 gap-y-1 max-lg:mb-4 max-lg:min-h-13 max-lg:gap-x-1",
-				// Room for the panel's Close, which sits in this corner.
-				inPanel && "lg:pe-10",
+				// Room for the panel's Close, which sits in this corner. Previous/next and the actions
+				// start on Close's line (`inPanelLine`) rather than the middle of a title that wraps.
+				inPanel && "lg:items-start lg:pe-10",
 			)}
 		>
 			{/* Phones: the arrow's glyph, not its 44px box, sits on the 16px gutter. */}
@@ -208,12 +218,22 @@ export function DetailHeader({
 			{/* Previous and next stay on the title's row at 320 (they come before the actions, which
 			    may drop under it); from lg they are last. */}
 			{pager ? (
-				<div className={cn("flex lg:order-last", !actions && "max-lg:-me-2", phoneOnly)}>
+				<div
+					className={cn(
+						"flex lg:order-last",
+						!actions && "max-lg:-me-2",
+						phoneOnly,
+						inPanel && inPanelLine,
+					)}
+				>
 					{pager}
 				</div>
 			) : null}
 			{actions ? (
-				<div data-slot="detail-actions" className="ms-auto flex items-center gap-1">
+				<div
+					data-slot="detail-actions"
+					className={cn("ms-auto flex items-center gap-1", inPanel && inPanelLine)}
+				>
 					{actions}
 				</div>
 			) : null}
@@ -267,6 +287,7 @@ export function ListBesideDetail({
 	aside,
 	asideFills,
 	listFills,
+	panel,
 }: {
 	/** An item's route is showing. */
 	picked: boolean;
@@ -275,8 +296,9 @@ export function ListBesideDetail({
 	/** Names the list pane, e.g. "Goals". */
 	listLabel: string;
 	/**
-	 * Says what the right pane is for while nothing is picked, e.g. "Pick a Rule to change it here."
-	 * Left out where the list fills the page: its cards say they open.
+	 * Says what the right pane is for while it is empty, e.g. "Tick Scenarios to compare them here."
+	 * Left out where the list fills the page: its cards say they open. With `panel` it shows only
+	 * for an `asideFills` page with no aside, from lg.
 	 */
 	hint?: string;
 	list: ReactNode;
@@ -293,7 +315,67 @@ export function ListBesideDetail({
 	 * (#73L, ADR-0033).
 	 */
 	listFills?: boolean;
+	/**
+	 * From lg the picked item opens in a panel from the window's right edge, over the page, and the
+	 * list and the aside stay as they are with nothing picked (issue 107, ADR-0047). `close` is the
+	 * list's own address. Without it, the item sits beside a narrowed list, as before.
+	 */
+	panel?: {
+		size?: DetailPanelSize;
+		close: LinkOptions /** The picked item's id. */;
+		itemKey?: string;
+	};
 }) {
+	const navigate = useNavigate();
+	const shownList = (
+		<div className={cn("grid min-w-0 content-start gap-8", selectedRow)}>{list}</div>
+	);
+	const detail = picked ? (
+		<div className="@container">
+			<Suspense fallback={<DetailPending />}>
+				<Outlet />
+			</Suspense>
+		</div>
+	) : undefined;
+	if (panel)
+		return (
+			<ListWithPanel
+				className={cn(
+					asideFills
+						? // A phone has no use for the hint alone.
+							"max-lg:[&>[data-slot=master-detail-aside]:has(>[data-hint-only])]:hidden"
+						: // Phones: the section's totals come before the list, as they did.
+							"max-lg:[&>[data-slot=master-detail-aside]]:order-first",
+				)}
+				asideFills={asideFills}
+				size={panel.size}
+				itemKey={panel.itemKey}
+				listLabel={listLabel}
+				asideLabel={`${listLabel} overview`}
+				detailLabel={`${noun} details`}
+				onKeyDown={panelKeys}
+				onClose={() => navigate({ ...panel.close, resetScroll: false })}
+				close={
+					// A link, so it works before the page has hydrated.
+					<Button variant="ghost" size="icon" asChild className="bg-background">
+						<Link {...panel.close} resetScroll={false} aria-label={`Close ${noun}`}>
+							<X />
+						</Link>
+					</Button>
+				}
+				list={shownList}
+				aside={
+					aside ? (
+						<div className="grid w-full content-start gap-4">{aside}</div>
+					) : asideFills && hint ? (
+						<p data-hint-only="" className="px-1 text-sm text-muted-foreground">
+							{hint}
+						</p>
+					) : undefined
+				}
+				detail={detail}
+			/>
+		);
 	return (
 		<MasterDetail
 			className={cn(!asideFills && "max-lg:[&>[data-slot=master-detail-detail]]:order-first")}
@@ -302,16 +384,8 @@ export function ListBesideDetail({
 			detailLabel={picked ? `${noun} details` : `${listLabel} overview`}
 			emptyStacks={Boolean(aside)}
 			onKeyDown={masterDetailKeys}
-			list={<div className={cn("grid min-w-0 content-start gap-8", selectedRow)}>{list}</div>}
-			detail={
-				picked ? (
-					<div className="@container">
-						<Suspense fallback={<DetailPending />}>
-							<Outlet />
-						</Suspense>
-					</div>
-				) : undefined
-			}
+			list={shownList}
+			detail={detail}
 			empty={
 				<div className={cn("grid w-full content-start gap-4", !asideFills && "lg:max-w-md")}>
 					{aside}

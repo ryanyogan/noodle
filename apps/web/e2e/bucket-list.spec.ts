@@ -361,13 +361,14 @@ test("A Bucket is dragged by its handle under a finger, and the rest of the row 
 	await openBuckets(page);
 	const sent = reordersSent(page);
 
-	// The handle is a thumb's size, and is the one part of the row that doesn't scroll.
+	// The handle is a thumb's height and, on a phone, 36 wide so the Bucket's name has room
+	// (issue 115); it is the one part of the row that doesn't scroll.
 	const handle = handleOf(page, "Groceries");
 	await handle.scrollIntoViewIfNeeded();
 	const size = await handle.boundingBox();
 	const height = (await row(page, "Groceries").boundingBox())?.height;
 	if (!size || !height) throw new Error("No rows to drag");
-	expect(size.width).toBeGreaterThanOrEqual(44);
+	expect(size.width).toBeGreaterThanOrEqual(36);
 	expect(size.height).toBeGreaterThanOrEqual(44);
 	expect(await handle.evaluate((el) => getComputedStyle(el).touchAction)).toBe("none");
 	expect(await row(page, "Groceries").evaluate((el) => getComputedStyle(el).touchAction)).not.toBe(

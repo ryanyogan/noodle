@@ -107,9 +107,7 @@ function AccountPage() {
 	const { accountId } = Route.useParams();
 	const account = useGoals().accounts.find((a) => a.id === accountId);
 	if (!account)
-		return (
-			<DetailHeader listBeside eyebrow="Account" title="Account" leading={<BackToAccounts />} />
-		);
+		return <DetailHeader inPanel eyebrow="Account" title="Account" leading={<BackToAccounts />} />;
 	return <AccountDetails account={account} />;
 }
 
@@ -229,7 +227,7 @@ function AccountDetails({ account }: { account: AccountView }) {
 	return (
 		<>
 			<DetailHeader
-				listBeside
+				inPanel
 				eyebrow={`${accountKindName[account.kind]} Account`}
 				title={account.name}
 				leading={<BackToAccounts />}
