@@ -158,3 +158,26 @@ export const withOrder = (data: MonthData, { bucketIds }: { bucketIds: string[] 
 
 export const withoutBucket = (data: MonthData, { bucketId }: { bucketId: string }) =>
 	mapPlan(data, (plan) => ({ ...plan, buckets: plan.buckets.filter((b) => b.id !== bucketId) }));
+
+// Free to Spend at the end of the month (issue 113): whether it builds up, and what is kept back.
+
+export const withFreeBuildsUp = (data: MonthData, { buildsUp }: { buildsUp: boolean }) => ({
+	...data,
+	freeBuildsUp: buildsUp,
+});
+
+export const withFreeKeepBack = (data: MonthData, { amountCents }: { amountCents: number }) => ({
+	...data,
+	freeKeepBack: amountCents,
+});
+
+/** A month's Free to Spend setting, and what the months before it carried over. */
+export const useFreeCarry = (month: MonthKey) =>
+	useSuspenseQuery({
+		...monthQuery(month),
+		select: (data) => ({
+			buildsUp: data.freeBuildsUp ?? false,
+			keepBack: data.freeKeepBack ?? 0,
+			builtUp: data.freeBuiltUp ?? [],
+		}),
+	}).data;

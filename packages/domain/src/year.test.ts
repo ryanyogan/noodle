@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MonthKey, PlanRecords, ProjectionGoal, SpendCell, YearActuals } from "./index";
-import { monthState, planForMonth, yearGrid } from "./index";
+import { freeCarryMonths, monthState, planForMonth, yearGrid } from "./index";
 
 const records: PlanRecords = {
 	baselines: [{ month: "2026-02", amount: 800_000 }],
@@ -232,5 +232,62 @@ describe("yearGrid", () => {
 	it("shows an earlier year entirely past", () => {
 		const last = grid(2025);
 		expect(last.every((m) => m.when === "past" && m.noBaseline)).toBe(true);
+	});
+});
+
+describe("yearGrid with Free to Spend that builds up (issue 113)", () => {
+	const records: PlanRecords = {
+		baselines: [{ month: "2026-07", amount: 500_000 }],
+		buckets: [],
+		allowances: [],
+		rolling: [],
+		commitments: [],
+		commitmentTerms: [],
+		freeCarries: [{ month: "2026-07", carries: true }],
+	};
+	const none = { spending: [], income: [], goalFunding: [] };
+	const freeCarry = freeCarryMonths({
+		records,
+		outOfFree: [{ month: "2026-08", amount: 100_000 }],
+		extraToFree: [],
+		from: "2026-07",
+		to: "2026-09",
+	});
+	const months = yearGrid({
+		year: 2026,
+		current: "2026-09",
+		records,
+		goals: [],
+		actuals: { ...none, goalFunding: [{ month: "2026-08", amount: 100_000 }] },
+		freeCarry,
+	});
+	const at = (month: MonthKey) => months.find((m) => m.month === month);
+
+	it("shows what each month begun was carried, and counts it in Free to Spend", () => {
+		expect(at("2026-07")).toMatchObject({ carriedIn: 0, plan: { freeToSpend: 500_000 } });
+		expect(at("2026-08")).toMatchObject({ carriedIn: 500_000, plan: { freeToSpend: 900_000 } });
+		expect(at("2026-09")).toMatchObject({ carriedIn: 900_000, plan: { freeToSpend: 1_400_000 } });
+	});
+
+	it("agrees with This Month's Free to Spend", () => {
+		const state = monthState({
+			plan: planForMonth(records, "2026-09"),
+			spending: [],
+			freeCarriedIn: 900_000,
+			asOf: "2026-09-15",
+		});
+		expect(at("2026-09")?.plan.freeToSpend).toBe(state.freeToSpend);
+	});
+
+	it("carries nothing into months ahead, which are projected each on its own", () => {
+		expect(at("2026-10")).toMatchObject({ carriedIn: 0, plan: { freeToSpend: 500_000 } });
+	});
+
+	it("carries nothing when no carry is given", () => {
+		const plain = yearGrid({ year: 2026, current: "2026-09", records, goals: [], actuals: none });
+		expect(plain.find((m) => m.month === "2026-09")).toMatchObject({
+			carriedIn: 0,
+			plan: { freeToSpend: 500_000 },
+		});
 	});
 });

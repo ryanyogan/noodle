@@ -66,6 +66,7 @@ import { formatMoney, monthName, shortDay } from "../../../format";
 import { type GoalView, useGoals } from "../../../goals";
 import { useLearned } from "../../../learned";
 import { closingWeek, useCloseMonth } from "../../../month-close";
+import { useFreeCarry } from "../../../plan-changes";
 import { PLAN_BUCKETS_HASH } from "../../../plan-pages";
 import {
 	checkInStatusQuery,
@@ -641,6 +642,8 @@ function FreeToSpend({
 	const overPlanned = state.freeToSpend < 0;
 	// An ended month has no days left, and what wasn't planned is simply what it ended with.
 	const ended = state.month < monthOfDay(state.asOf);
+	// Free to Spend that builds up (issue 113): what came in from last month, and how it grew.
+	const carry = useFreeCarry(state.month);
 	return (
 		<Section aria-labelledby="free-to-spend">
 			<SectionHeader
@@ -670,6 +673,8 @@ function FreeToSpend({
 								{formatMoney(-state.freeToSpend)} more than your take-home pay.{" "}
 								<PlanLink month={state.month}>Adjust the Plan</PlanLink>
 							</>
+						) : ended && carry.buildsUp && state.freeToSpend > 0 ? (
+							<>Carried over into {monthName(addMonths(state.month, 1))}</>
 						) : ended ? (
 							<>Left unplanned at the end of {monthName(state.month)}</>
 						) : (
@@ -678,6 +683,24 @@ function FreeToSpend({
 							))
 						)}
 					</p>
+					{state.freeCarriedIn > 0 ? (
+						<p data-slot="free-carried-in" className="text-sm text-muted-foreground tabular-nums">
+							Includes {formatMoney(state.freeCarriedIn)} carried over from{" "}
+							{monthName(addMonths(state.month, -1))}
+						</p>
+					) : null}
+					{carry.builtUp.length > 1 && state.freeCarriedIn > 0 ? (
+						<ul
+							aria-label="What Free to Spend carried over, month by month"
+							className="flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] text-muted-foreground tabular-nums"
+						>
+							{carry.builtUp.map((m) => (
+								<li key={m.month}>
+									{monthName(m.month).slice(0, 3)} {formatMoney(m.amount)}
+								</li>
+							))}
+						</ul>
+					) : null}
 					{lower?.prompt ? (
 						<LowerTakeHomePayNote
 							className="mt-2 rounded-xl bg-surface-2 px-3 py-2.5"
@@ -709,14 +732,22 @@ function Breakdown({ state, baseline }: { state: MonthState; baseline: number })
 	return (
 		<div className="grid gap-2.5 border-t px-(--card-pad) py-3">
 			<p id={id} className="text-[13px] text-muted-foreground tabular-nums">
-				Where {formatMoney(baseline)} take-home pay
-				{state.extraToFreeToSpend > 0
-					? ` and ${formatMoney(state.extraToFreeToSpend)} Extra income go`
-					: " goes"}
+				{breakdownLabel(baseline, state.extraToFreeToSpend, state.freeCarriedIn)}
 			</p>
 			<MonthGlance state={state} labelledBy={id} />
 		</div>
 	);
+}
+
+/** "Where $5,000 take-home pay goes", with Extra income added and what was carried over, if any. */
+function breakdownLabel(baseline: number, extra: number, carried: number) {
+	const added = [
+		...(extra > 0 ? [`${formatMoney(extra)} Extra income`] : []),
+		...(carried > 0 ? [`${formatMoney(carried)} carried over`] : []),
+	];
+	const pay = `Where ${formatMoney(baseline)} take-home pay`;
+	if (added.length === 0) return `${pay} goes`;
+	return added.length === 1 ? `${pay} and ${added[0]} go` : `${pay}, ${added.join(" and ")} go`;
 }
 
 function PlanLink({ month, children }: { month: MonthState["month"]; children: string }) {

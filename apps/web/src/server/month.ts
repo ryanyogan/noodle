@@ -7,7 +7,8 @@ import {
 	loadBetweenUsIncome,
 	loadCharges,
 	loadExtraToFree,
-	loadFreeCarriedIn,
+	loadFreeCarryMonths,
+	loadFreeToSpendKeepBack,
 	loadGoalFunding,
 	loadIncome,
 	loadMonthClose,
@@ -27,6 +28,7 @@ import {
 	dayKeyAt,
 	type ExtraToFree,
 	firstPlanMonth,
+	freeCarries,
 	type GoalFunding,
 	type MonthKey,
 	monthKeyAt,
@@ -66,6 +68,15 @@ export type MonthData = {
 	 * or 0 when it starts fresh. Like `rolledOver`, it depends only on earlier months.
 	 */
 	freeCarriedIn?: Cents;
+	/** Whether this month's Free to Spend builds up into the next (else it starts fresh). */
+	freeBuildsUp?: boolean;
+	/** The Household's "Keep back" amount. */
+	freeKeepBack?: Cents;
+	/**
+	 * What each of the last months (six at most, oldest first, ending with last month) carried
+	 * over, for the unbroken run of months building up before this one.
+	 */
+	freeBuiltUp?: { month: MonthKey; amount: Cents }[];
 	/** Moves from Free to Spend into what Goals have set aside. */
 	goalFunding: (GoalFunding & { id: string })[];
 	/** Extra income a Parent added to the month's Free to Spend. */
@@ -119,10 +130,18 @@ export async function loadMonth(
 		loadExtraToFree(db, household.id, month),
 		loadBetweenUsIncome(db, household.id, month, addMonths(month, 1)),
 	]);
-	const [rolledOver, freeCarriedIn] = await Promise.all([
+	const [rolledOver, carried, freeKeepBack] = await Promise.all([
 		loadRolledOver(db, household.id, records, month),
-		loadFreeCarriedIn(db, household.id, records, month),
+		loadFreeCarryMonths(db, household.id, records, addMonths(month, -1)),
+		loadFreeToSpendKeepBack(db, household.id),
 	]);
+	const freeBuiltUp: NonNullable<MonthData["freeBuiltUp"]> = [];
+	for (let i = carried.length - 1; i >= 0 && freeBuiltUp.length < 6; i--) {
+		const earlier = carried[i];
+		if (!earlier?.carries) break;
+		freeBuiltUp.unshift({ month: earlier.month, amount: earlier.carriedOut });
+	}
+	const freeCarriedIn = carried[carried.length - 1]?.carriedOut ?? 0;
 	const now = new Date();
 	const current = monthKeyAt(now, household.timeZone);
 	return {
@@ -133,6 +152,9 @@ export async function loadMonth(
 		moves,
 		rolledOver,
 		freeCarriedIn,
+		freeBuildsUp: freeCarries(records, month),
+		freeKeepBack,
+		freeBuiltUp,
 		goalFunding,
 		extraToFree,
 		sweeps,

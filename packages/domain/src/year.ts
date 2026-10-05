@@ -44,6 +44,12 @@ export type YearMonth = {
 	/** No take-home pay was set for the month. */
 	noBaseline: boolean;
 	plan: YearFigures;
+	/**
+	 * What the month before carried into this month's Free to Spend when it builds up (issue 113);
+	 * counted in `plan.freeToSpend`. Zero when it starts fresh, and for months ahead, which are
+	 * projected each on its own.
+	 */
+	carriedIn: Cents;
 	/** What happened, so far for the current month; null for months ahead. */
 	actual: YearFigures | null;
 	/** The Commitments that make the month lumpy (see lumpsIn); empty when it isn't. */
@@ -99,12 +105,15 @@ export function yearGrid({
 	records,
 	goals,
 	actuals,
+	freeCarry = [],
 }: {
 	year: number;
 	current: MonthKey;
 	records: PlanRecords;
 	goals: ProjectionGoal[];
 	actuals: YearActuals;
+	/** Per month begun, what was carried into its Free to Spend (see freeCarryMonths). */
+	freeCarry?: readonly { month: MonthKey; carriedIn: Cents }[];
 }): YearMonth[] {
 	const first = `${String(year).padStart(4, "0")}-01` as MonthKey;
 	const last = addMonths(first, 11);
@@ -122,6 +131,7 @@ export function yearGrid({
 			const goalFunding = actual?.goalFunding ?? 0;
 			const covers = sumIn(actuals.covers ?? [], month);
 			const extraToFree = sumIn(actuals.extraToFree ?? [], month);
+			const carriedIn = freeCarry.find((m) => m.month === month)?.carriedIn ?? 0;
 			return {
 				month,
 				when,
@@ -131,8 +141,9 @@ export function yearGrid({
 					commitments: totalCommitments(plan),
 					allowances: plan.buckets.reduce((sum, b) => sum + b.allowance, 0) + covers,
 					goalFunding,
-					freeToSpend: freeToSpend(plan) - goalFunding - covers + extraToFree,
+					freeToSpend: freeToSpend(plan) - goalFunding - covers + extraToFree + carriedIn,
 				},
+				carriedIn,
 				actual,
 				lumps,
 			};
@@ -151,6 +162,7 @@ export function yearGrid({
 				goalFunding: p?.goalFunding ?? 0,
 				freeToSpend: p?.freeToSpend ?? 0,
 			},
+			carriedIn: 0,
 			actual,
 			lumps,
 		};

@@ -148,15 +148,26 @@ export function shareText(row: Pick<SplitRow, "share" | "amount">): string {
 
 /**
  * The chart's takeaway, in one or two short sentences. `extra` is Extra income sent to Free to
- * Spend this month, which is on top of take-home pay.
+ * Spend this month, which is on top of take-home pay, as is what was carried over.
  */
-export function splitSentence(split: PlanSplit, extra = 0): string {
+export function splitSentence(
+	split: PlanSplit,
+	extra = 0,
+	/** What last month's Free to Spend carried over (issue 113), and that month's name. */
+	carried?: { amount: number; from: string },
+): string {
 	const { income, planned, left, overBy } = split;
 	if (income === null)
 		return "Take-home pay isn’t set for this month, so there is nothing to divide up.";
+	const added = [
+		...(extra > 0 ? [`${formatMoney(extra)} Extra income`] : []),
+		...(carried && carried.amount > 0
+			? [`${formatMoney(carried.amount)} carried over from ${carried.from}`]
+			: []),
+	];
 	const pay =
-		extra > 0
-			? `the ${formatMoney(income)} you have this month (take-home pay plus ${formatMoney(extra)} Extra income)`
+		added.length > 0
+			? `the ${formatMoney(income)} you have this month (take-home pay plus ${added.join(" and ")})`
 			: `your ${formatMoney(income)} take-home pay`;
 	if (overBy > 0) {
 		return `${formatMoney(planned)} is planned, ${formatMoney(overBy)} more than ${pay}.`;

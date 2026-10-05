@@ -176,7 +176,12 @@ export {
 	freeCarrySince,
 	type MonthAmount,
 } from "./free-carry";
-export { allowancesByKind, freeToSpendParts, type PlanPart } from "./free-to-spend";
+export {
+	allowancesByKind,
+	freeToSpendParts,
+	freeToSpendSources,
+	type PlanPart,
+} from "./free-to-spend";
 export {
 	ACCOUNT_KINDS,
 	type AccountKind,

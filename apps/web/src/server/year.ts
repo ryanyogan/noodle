@@ -4,6 +4,7 @@ import {
 	type GoalRecords,
 	loadBucketMonths,
 	loadExtraToFree,
+	loadFreeCarryMonths,
 	loadGoals,
 	loadIncome,
 	loadIncomeCells,
@@ -87,10 +88,15 @@ export const getYear = createServerFn({ method: "GET" })
 			hasActuals ? loadMovesBetween(db, household.id, first, actualUntil) : [],
 			hasActuals ? loadExtraToFree(db, household.id, first, actualUntil) : [],
 		]);
+		// What each month begun was carried, when Free to Spend builds up (issue 113).
+		const freeCarry = hasActuals
+			? await loadFreeCarryMonths(db, household.id, records, last < current ? last : current)
+			: [];
 		const months = yearGrid({
 			year: data.year,
 			current,
 			records,
+			freeCarry,
 			goals: projectionGoals(goals, current),
 			actuals: {
 				spending: spending ? mergeCells(spending.cells, spending.privateMonths) : [],

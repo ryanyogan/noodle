@@ -1,12 +1,18 @@
-import { freeToSpendParts, type MonthState, type PlanPart } from "@noodle/domain";
+import {
+	addMonths,
+	freeToSpendParts,
+	freeToSpendSources,
+	type MonthState,
+	type PlanPart,
+} from "@noodle/domain";
 import { Alert, AlertDescription } from "@noodle/ui/components/alert";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { cn } from "@noodle/ui/lib/utils";
 import { useHydrated } from "@tanstack/react-router";
-import { useId, useState } from "react";
-import { formatMoney } from "../format";
+import { type ReactNode, useId, useState } from "react";
+import { formatMoney, monthName } from "../format";
 import { planSplit, type SplitRow, shareText, splitSentence } from "../plan-split";
 import { planParts } from "./plan-page";
 import { TermHelp } from "./term-help";
@@ -65,23 +71,41 @@ const CELLS = [
  * rest. One list either way. Given a month with typed allowances (`withDraftAllowances`), it
  * shows that.
  */
-export function PlanSplit({ state, current }: { state: MonthState; current: boolean }) {
+export function PlanSplit({
+	state,
+	current,
+	footer,
+}: {
+	state: MonthState;
+	current: boolean;
+	/** A last line of the card: what happens to Free to Spend at the end of the month. */
+	footer?: ReactNode;
+}) {
 	// Goal funding shows in the current month, where it can still happen, or once it did.
 	const parts = freeToSpendParts(state)
 		.filter(({ part, amount }) => part !== "goal-funding" || amount > 0 || current)
 		.map(({ part, amount }) => ({ key: part, label: planParts[part].label, amount }));
 	// Extra income a Parent sent to Free to Spend is on top of take-home pay.
 	const extra = state.baseline === null ? 0 : state.extraToFreeToSpend;
+	// So is what last month's Free to Spend carried over, when it builds up (issue 113).
+	const carried = state.baseline === null ? 0 : freeToSpendSources(state).carriedOver;
 	const split = planSplit({
-		income: state.baseline === null ? null : state.baseline + extra,
+		income: state.baseline === null ? null : state.baseline + extra + carried,
 		parts,
 		left: state.freeToSpend,
 	});
 	const over = split.overBy > 0;
 	const drawn = [...split.parts, split.free].filter((row) => row.width > 0);
-	const payLabel = extra > 0 ? "Take-home pay and Extra income" : "Take-home pay";
+	const payLabel =
+		carried > 0
+			? extra > 0
+				? "Take-home pay, Extra income and carried over"
+				: "Take-home pay and carried over"
+			: extra > 0
+				? "Take-home pay and Extra income"
+				: "Take-home pay";
 	// What a share is a share of, for a screen reader, which can't see the column it sits in.
-	const shareOf = extra > 0 ? "take-home pay and Extra income" : "take-home pay";
+	const shareOf = payLabel.toLowerCase().replace("extra income", "Extra income");
 	// In a narrow card the parts other than Free to Spend wait behind a button.
 	const [open, setOpen] = useState(false);
 	const hydrated = useHydrated();
@@ -96,7 +120,10 @@ export function PlanSplit({ state, current }: { state: MonthState; current: bool
 			<Card className="@container/split">
 				<div className="grid gap-3 p-(--card-pad)">
 					<p data-slot="plan-split-sentence" className="text-sm text-pretty">
-						{splitSentence(split, extra)}
+						{splitSentence(split, extra, {
+							amount: carried,
+							from: monthName(addMonths(state.month, -1)),
+						})}
 					</p>
 					{split.income === null ? null : (
 						<div className="grid gap-1.5">
@@ -183,6 +210,7 @@ export function PlanSplit({ state, current }: { state: MonthState; current: bool
 						</Button>
 					</div>
 				) : null}
+				{footer}
 			</Card>
 			{over ? (
 				<Alert variant="destructive">

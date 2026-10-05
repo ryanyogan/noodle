@@ -1,14 +1,17 @@
 import {
 	type Cents,
+	type FreeCarryMonth,
 	freeCarriedIn,
+	freeCarryMonths,
 	freeCarrySince,
 	type MonthAmount,
 	type MonthKey,
 	type PlanRecords,
 } from "@noodle/domain";
-import { and, eq, gte, isNull, lt, ne, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, lt, lte, ne, sql } from "drizzle-orm";
 import type { Db } from "./index";
 import { loadPlanRecords } from "./plan";
+import { inForce, logChange } from "./plan-log";
 import { freeToSpendCarry, households, moves } from "./schema";
 
 // Free to Spend that builds up (issue 113, ADR-0054): the setting's rows, and the amounts the
@@ -87,15 +90,100 @@ export async function loadFreeCarriedInto(
  */
 export async function setFreeToSpendCarry(
 	db: Db,
-	input: { householdId: string; month: MonthKey; carries: boolean },
+	input: {
+		householdId: string;
+		month: MonthKey;
+		carries: boolean;
+		/** The Parent changing it: with one, the change is logged in the Plan's history (ADR-0014). */
+		memberId?: string;
+	},
 ): Promise<void> {
-	await db
+	const { memberId, ...row } = input;
+	const write = db
 		.insert(freeToSpendCarry)
-		.values(input)
+		.values(row)
 		.onConflictDoUpdate({
 			target: [freeToSpendCarry.householdId, freeToSpendCarry.month],
 			set: { carries: input.carries },
 		});
+	if (memberId === undefined) {
+		await write;
+		return;
+	}
+	const was = inForce(
+		freeToSpendCarry,
+		freeToSpendCarry.carries,
+		freeToSpendCarry.month,
+		sql`${freeToSpendCarry.householdId} = ${input.householdId}`,
+		input.month,
+	);
+	// Logged only when it really changes, so a retried write logs once.
+	const log = logChange(
+		db,
+		households,
+		and(
+			eq(households.id, input.householdId),
+			sql`coalesce(${was}, 0) is not ${input.carries ? 1 : 0}`,
+		),
+		{
+			householdId: input.householdId,
+			memberId,
+			kind: "free-carry",
+			targetId: FREE_TO_SPEND_TARGET,
+			month: input.month,
+			before: { buildsUp: !input.carries },
+			after: { buildsUp: input.carries },
+		},
+	);
+	await db.batch([log, write]);
+}
+
+/** What a Plan change to Free to Spend's setting is filed under; it is no Bucket, Commitment or Goal. */
+export const FREE_TO_SPEND_TARGET = "free-to-spend";
+
+/**
+ * Free to Spend month by month (see freeCarryMonths in @noodle/domain) from the first month a
+ * Parent set it to build up through `through`: what each month was carried and carried on. Empty,
+ * with no query, for a Household that never turned building up on. `records` must reach `through`.
+ */
+export async function loadFreeCarryMonths(
+	db: Db,
+	householdId: string,
+	records: PlanRecords,
+	through: MonthKey,
+): Promise<FreeCarryMonth[]> {
+	const from = (records.freeCarries ?? [])
+		.filter((record) => record.carries)
+		.reduce<MonthKey | null>((min, r) => (min === null || r.month < min ? r.month : min), null);
+	if (from === null || from > through) return [];
+	const inRange = and(
+		eq(moves.householdId, householdId),
+		gte(moves.month, from),
+		lte(moves.month, through),
+	);
+	const total = { month: moves.month, amount: sql<number>`sum(${moves.amountCents})` };
+	// The same two sums as loadFreeCarriedIn.
+	const [outOfFree, extraToFree] = await Promise.all([
+		db
+			.select(total)
+			.from(moves)
+			.where(and(inRange, isNull(moves.fromBucketId), ne(moves.kind, "windfall")))
+			.groupBy(moves.month),
+		db
+			.select(total)
+			.from(moves)
+			.where(
+				and(inRange, eq(moves.kind, "windfall"), isNull(moves.toBucketId), isNull(moves.toGoalId)),
+			)
+			.groupBy(moves.month),
+	]);
+	return freeCarryMonths({
+		records,
+		outOfFree: outOfFree as MonthAmount[],
+		extraToFree: extraToFree as MonthAmount[],
+		from,
+		to: through,
+	});
 }
 
 /** The Household's "Keep back" amount: 0 until a Parent sets one. */

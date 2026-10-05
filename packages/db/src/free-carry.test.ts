@@ -13,8 +13,10 @@ import {
 	loadExtraToFree,
 	loadFreeCarriedIn,
 	loadFreeCarriedInto,
+	loadFreeCarryMonths,
 	loadFreeToSpendKeepBack,
 	loadGoalFunding,
+	loadPlanChanges,
 	loadPlanRecords,
 	setAllowance,
 	setFreeToSpendCarry,
@@ -302,5 +304,50 @@ describe("a fresh start", () => {
 				.where(eq(s.freeToSpendCarry.householdId, householdId)),
 		).toEqual([]);
 		expect(await loadFreeToSpendKeepBack(db, householdId)).toBe(0);
+	});
+});
+
+describe("the setting in the Plan's history, and the months it built up (issue 113)", () => {
+	const viewer = { householdId, memberId: parentId };
+
+	it("logs turning it on once, and turning it off, as Plan changes to Free to Spend", async () => {
+		const on = { householdId, memberId: parentId, month: "2026-09" as MonthKey, carries: true };
+		await setFreeToSpendCarry(db, on);
+		// A retry changes nothing, so it logs nothing.
+		await setFreeToSpendCarry(db, on);
+		await setFreeToSpendCarry(db, { ...on, month: "2026-10", carries: false });
+		const { changes } = await loadPlanChanges(db, viewer, { month: "2026-09" });
+		const logged = changes.filter((c) => c.kind === "free-carry");
+		expect(logged).toHaveLength(1);
+		expect(logged[0]).toMatchObject({
+			targetId: "free-to-spend",
+			month: "2026-09",
+			before: { buildsUp: false },
+			after: { buildsUp: true },
+		});
+		const october = await loadPlanChanges(db, viewer, { month: "2026-10" });
+		expect(october.changes.filter((c) => c.kind === "free-carry")).toMatchObject([
+			{ before: { buildsUp: true }, after: { buildsUp: false } },
+		]);
+	});
+
+	it("walks the months from when it was turned on, agreeing with what is carried in", async () => {
+		expect(
+			await loadFreeCarryMonths(
+				db,
+				householdId,
+				await loadPlanRecords(db, householdId, "2026-11"),
+				"2026-11",
+			),
+		).toEqual([]);
+		await setFreeToSpendCarry(db, { householdId, month: "2026-09", carries: true });
+		const records = await loadPlanRecords(db, householdId, "2026-11");
+		const months = await loadFreeCarryMonths(db, householdId, records, "2026-11");
+		expect(months.map((m) => m.month)).toEqual(["2026-09", "2026-10", "2026-11"]);
+		expect(months[0]).toMatchObject({ carriedIn: 0, carriedOut: months[1]?.carriedIn });
+		expect(months[1]?.carriedOut).toBe(
+			await loadFreeCarriedIn(db, householdId, records, "2026-11"),
+		);
+		expect(months[2]?.carriedIn).toBe(months[1]?.carriedOut);
 	});
 });

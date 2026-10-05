@@ -21,7 +21,7 @@ import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { CalendarRange, ChevronLeft, ChevronRight } from "lucide-react";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { lumpText } from "../../../components/coming-up";
 import { SectionPending } from "../../../components/section-layout";
 import { TermHelp } from "../../../components/term-help";
@@ -237,6 +237,9 @@ function YearLegend() {
 /** From a tablet up: the months as rows of one table, the Plan's figures across. */
 function YearTable({ months }: { months: YearMonth[] }) {
 	const total = (key: keyof YearFigures) => months.reduce((sum, m) => sum + m.plan[key], 0);
+	// Only a Household whose Free to Spend builds up has anything carried over (issue 113).
+	const carries = months.some((m) => m.carriedIn > 0);
+	const cell = "px-2 first:ps-(--card-pad) last:pe-(--card-pad) xl:px-(--card-pad)";
 	return (
 		<Card className="max-md:hidden">
 			<Table>
@@ -250,14 +253,16 @@ function YearTable({ months }: { months: YearMonth[] }) {
 							Month
 						</TableHead>
 						{FIGURES.map((f) => (
-							<TableHead
-								key={f.key}
-								scope="col"
-								numeric
-								className="px-2 first:ps-(--card-pad) last:pe-(--card-pad) xl:px-(--card-pad)"
-							>
-								{f.label}
-							</TableHead>
+							<Fragment key={f.key}>
+								{carries && f.key === "freeToSpend" ? (
+									<TableHead scope="col" numeric className={cell}>
+										Carried over
+									</TableHead>
+								) : null}
+								<TableHead scope="col" numeric className={cell}>
+									{f.label}
+								</TableHead>
+							</Fragment>
 						))}
 					</TableRow>
 				</TableHeader>
@@ -288,13 +293,20 @@ function YearTable({ months }: { months: YearMonth[] }) {
 								) : null}
 							</th>
 							{FIGURES.map((f) => (
-								<TableCell
-									key={f.key}
-									numeric
-									className="px-2 first:ps-(--card-pad) last:pe-(--card-pad) xl:px-(--card-pad) py-2.5"
-								>
-									<Figure month={month} figure={f.key} />
-								</TableCell>
+								<Fragment key={f.key}>
+									{carries && f.key === "freeToSpend" ? (
+										<TableCell numeric className={cn(cell, "py-2.5")}>
+											{month.carriedIn > 0 ? (
+												<Amount cents={month.carriedIn} />
+											) : (
+												<span className="text-muted-foreground">–</span>
+											)}
+										</TableCell>
+									) : null}
+									<TableCell numeric className={cn(cell, "py-2.5")}>
+										<Figure month={month} figure={f.key} />
+									</TableCell>
+								</Fragment>
 							))}
 						</TableRow>
 					))}
@@ -305,13 +317,13 @@ function YearTable({ months }: { months: YearMonth[] }) {
 							Planned for the year
 						</th>
 						{FIGURES.map((f) => (
-							<TableCell
-								key={f.key}
-								numeric
-								className="px-2 first:ps-(--card-pad) last:pe-(--card-pad) xl:px-(--card-pad) py-2.5"
-							>
-								<Amount cents={total(f.key)} />
-							</TableCell>
+							<Fragment key={f.key}>
+								{/* Carried money is the same dollars month after month: it has no yearly total. */}
+								{carries && f.key === "freeToSpend" ? <TableCell className={cell} /> : null}
+								<TableCell numeric className={cn(cell, "py-2.5")}>
+									<Amount cents={total(f.key)} />
+								</TableCell>
+							</Fragment>
 						))}
 					</TableRow>
 				</TableFooter>
@@ -353,6 +365,11 @@ function YearList({ months }: { months: YearMonth[] }) {
 						<span className="shrink-0 text-end text-sm font-medium tabular-nums">
 							<span className="sr-only">Free to Spend: </span>
 							<Amount cents={month.plan.freeToSpend} />
+							{month.carriedIn > 0 ? (
+								<span className="block text-xs font-normal text-muted-foreground">
+									<Amount cents={month.carriedIn} /> carried over
+								</span>
+							) : null}
 							{month.actual ? (
 								<span className="block text-xs font-normal text-muted-foreground">
 									{month.when === "current" ? "So far " : "Actual "}
