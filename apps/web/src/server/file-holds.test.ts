@@ -16,6 +16,7 @@ import {
 	fileHolds,
 	type HoldBucket,
 	heldFilesKey,
+	putStatementFileOnce,
 	readHeldFiles,
 	releaseAllHeldFiles,
 } from "./file-holds";
@@ -264,6 +265,28 @@ describe("deleting a file by hand (a refused upload, or an Import removed)", () 
 		expect(await release(clock)).toMatchObject({ removed: 1, failed: 0 });
 		expect(stored()).not.toContain(a);
 		expect(backups.data.has(heldFilesKey(h))).toBe(false);
+	});
+
+	it("an upload tried again never writes over the file a snapshot refers to", async () => {
+		await snapshotOf("s1", [a]);
+		const files = {
+			head: async (key: string) => (statements.data.has(key) ? {} : null),
+			put: (key: string, value: string) => statements.bucket.put(key, value),
+		};
+		const text = (key: string) => new TextDecoder().decode(statements.data.get(key)?.body);
+		const kept = text(a);
+
+		// The same Import id again after a Fresh start, with whatever the browser sends this time.
+		expect(await putStatementFileOnce(files, a, "another statement's lines")).toBe(false);
+		expect(text(a)).toBe(kept);
+		// Refused (its Account is gone), so the file would go: it stays, for the snapshot.
+		expect(await byHand([a])).toEqual({ removed: [], held: [a] });
+		expect(text(a)).toBe(kept);
+
+		// A new upload has a key of its own and is written.
+		const fresh = `${h}/account/new-import.csv`;
+		expect(await putStatementFileOnce(files, fresh, "date,amount")).toBe(true);
+		expect(text(fresh)).toBe("date,amount");
 	});
 
 	it("deletes nothing while a snapshot's file can't be read", async () => {

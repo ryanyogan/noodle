@@ -158,6 +158,29 @@ export async function deleteFilesUnlessHeld(
 	return { removed: split.remove, held: split.hold };
 }
 
+/** As much of the STATEMENTS bucket as an upload needs. */
+export type UploadBucket<Options> = {
+	head(key: string): Promise<unknown | null>;
+	put(key: string, value: string, options?: Options): Promise<unknown>;
+};
+
+/**
+ * Keeps an uploaded statement's file, unless one is already kept under its key. A key carries the
+ * Import's own id, so a file found there is this same upload sent again, or, after a Fresh start,
+ * the file a kept snapshot refers to: that one is what a restore must find, so it is never written
+ * over, whatever the upload tried again carries (issue 88). Returns whether it wrote.
+ */
+export async function putStatementFileOnce<Options>(
+	files: UploadBucket<Options>,
+	key: string,
+	content: string,
+	options?: Options,
+): Promise<boolean> {
+	if (await files.head(key)) return false;
+	await files.put(key, content, options);
+	return true;
+}
+
 /**
  * The nightly run's part, after snapshots are pruned: every living Household's held files, then
  * deleted Households' last snapshots that are 30 days old, each with the files left for it. One

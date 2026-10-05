@@ -172,6 +172,7 @@ function FreshStartSheet({
 	const [deleteBackups, setDeleteBackups] = useState(false);
 	const counts = useQuery(freshStartCountsQuery());
 	const banks = counts.data?.banks ?? [];
+	const others = counts.data?.otherParents ?? [];
 	const start = useMutation({
 		mutationFn: () =>
 			startFreshStart({ data: { level, deleteBackups: level === "delete" && deleteBackups } }),
@@ -262,6 +263,7 @@ function FreshStartSheet({
 									{items.map((item) => (
 										<li key={item}>{item}</li>
 									))}
+									{level === "delete" ? <li>Every snapshot in Snapshots</li> : null}
 									<li>Every month’s Plan, its changes, and Noodle’s notes on your spending</li>
 								</ul>
 							)}
@@ -302,6 +304,15 @@ function FreshStartSheet({
 				) : (
 					<form onSubmit={onSubmit} className="grid gap-4">
 						<SheetHeader title={title} description="Type the Household’s name to confirm." />
+						{/* When it happens, said before it's confirmed and not only in the toast after
+						    (issue 88): a day's wait with two Parents, at once with one. */}
+						<p className="text-sm">
+							{others.length > 0
+								? `This happens in 24 hours. ${joined(others)} is told now, and either of you can cancel it until then.`
+								: level === "delete"
+									? "This happens as soon as you confirm, and can’t be stopped once it starts."
+									: "This happens as soon as you confirm."}
+						</p>
 						<Field label={`Type “${householdName}”`} htmlFor={nameId}>
 							<Input
 								id={nameId}
@@ -335,7 +346,7 @@ function FreshStartSheet({
 									onCheckedChange={(checked) => setDeleteBackups(checked === true)}
 								/>
 								<span>
-									Also delete backups
+									Also delete the last snapshot
 									<span className="block text-muted-foreground">
 										{deleteBackups
 											? "Nothing is kept."
