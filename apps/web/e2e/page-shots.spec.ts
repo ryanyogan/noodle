@@ -1,9 +1,10 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
+import { seedSql } from "./seed-sql";
 import { choose, createHousehold, openMore, savedBy, signedInPage } from "./session";
-import { seedIncomeHousehold, seedShotsHousehold } from "./shots-household";
+import { q, seedIncomeHousehold, seedShotsHousehold } from "./shots-household";
 
 // Pictures of every page with one realistic Household, for looking at a redesign without a browser
 // on the machine: .github/workflows/shots.yml runs this on GitHub and uploads the PNGs. Not a test
@@ -165,6 +166,23 @@ async function openLine(page: Page, title: string) {
 		await expect(sheet).toBeVisible({ timeout: 2000 });
 	}).toPass({ timeout: 20_000 });
 	return sheet;
+}
+
+/** Presses `button` until `shown` is there: a button only answers once the page is hydrated. */
+async function pressFor(button: Locator, shown: Locator) {
+	await expect(async () => {
+		if (!(await shown.isVisible())) await button.click({ timeout: 2000 });
+		await expect(shown).toBeVisible({ timeout: 2000 });
+	}).toPass({ timeout: 20_000 });
+}
+
+/** Transactions in Select mode with its first three rows picked: the selection's bar is up. */
+async function selectThree(page: Page) {
+	const bar = page.getByRole("region", { name: "Selecting Transactions" });
+	await pressFor(page.locator("button:visible", { hasText: /^Select$/ }).first(), bar);
+	const rows = page.getByRole("list", { name: /^Transactions in / }).getByRole("button");
+	for (let row = 0; row < 3; row++) await rows.nth(row).click({ timeout: 15_000 });
+	return bar;
 }
 
 /** Tries one part of the seeding; a failure is noted and the rest goes on. */
@@ -360,6 +378,20 @@ test.beforeAll(async ({ browser }) => {
 					await expect(page.getByRole("dialog")).toBeVisible({ timeout: 15_000 });
 				},
 			},
+			{
+				// Groceries planned far above take-home pay: Plan's overview for an over-planned month.
+				// Last of this Household's pictures: the Plan stays that way.
+				name: "03a-plan-overview-over-planned",
+				path: `/plan/${seeded.month}`,
+				small: true,
+				ready: async (page) => {
+					await seedSql([
+						`update bucket_allowances set amount_cents = 480000 where bucket_id = ${q(seeded.bucketIds.Groceries ?? "")};`,
+					]);
+					await page.reload();
+					await settled(page);
+				},
+			},
 		];
 	});
 
@@ -393,6 +425,8 @@ test.beforeAll(async ({ browser }) => {
 	const firstCommitment = commitmentIds.Electricity;
 	shots = [
 		{ name: "01-this-month", path: `/month/${month}` },
+		// Part-way down on a computer: where the round Ask Noodle button sits over the page.
+		{ name: "01e-this-month-scrolled", path: `/month/${month}`, scrolledTo: 500 },
 		{
 			name: "02-this-month-to-do-open",
 			path: `/month/${month}`,
@@ -410,16 +444,81 @@ test.beforeAll(async ({ browser }) => {
 		},
 		{ name: "03-plan-overview", path: `/plan/${month}` },
 		{ name: "04-plan-buckets", path: `/plan/${month}/buckets` },
+		{
+			// A Bucket's sheet, opened from its row: Allowance, from when, Name. What's in the window.
+			name: "04a-bucket-sheet",
+			path: `/plan/${month}/buckets`,
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: "Edit Groceries", exact: true }),
+					page.getByRole("dialog", { name: "Groceries", exact: true }),
+				);
+			},
+		},
+		{
+			// The same sheet scrolled to its end: More (colour, carries over, moving it, archiving it).
+			name: "04a2-bucket-sheet-more",
+			path: `/plan/${month}/buckets`,
+			window: true,
+			ready: async (page) => {
+				const sheet = page.getByRole("dialog", { name: "Groceries", exact: true });
+				await pressFor(page.getByRole("button", { name: "Edit Groceries", exact: true }), sheet);
+				await sheet
+					.getByRole("button", { name: /Archive/ })
+					.first()
+					.scrollIntoViewIfNeeded({ timeout: 15_000 });
+			},
+		},
 		{ name: "05-plan-bucket", path: `/plan/${month}/buckets/${firstBucket}` },
 		{ name: "06-plan-commitments", path: `/plan/${month}/commitments` },
 		{ name: "07-plan-commitment", path: `/plan/${month}/commitments/${firstCommitment}` },
 		{ name: "08-plan-goal-funding", path: `/plan/${month}/goals` },
 		{ name: "09-plan-year", path: `/plan/${month}/year` },
 		{ name: "10-transactions", path: `/transactions/${month}`, tall: true },
+		// The top of the list as a Parent arrives: search, Filters, Sort and Select above the rows.
+		{ name: "10a-transactions-window", path: `/transactions/${month}`, window: true },
+		{
+			name: "10b-transactions-select",
+			path: `/transactions/${month}`,
+			window: true,
+			ready: async (page) => {
+				await selectThree(page);
+			},
+		},
+		{
+			// Delete in the selection's bar: the confirming sheet, open and not confirmed.
+			name: "10c-transactions-delete-sheet",
+			path: `/transactions/${month}`,
+			window: true,
+			ready: async (page) => {
+				const bar = await selectThree(page);
+				await bar.getByRole("button", { name: "Delete" }).click({ timeout: 15_000 });
+				await expect(page.getByRole("dialog", { name: /^Delete \d+ Transactions\?$/ })).toBeVisible(
+					{
+						timeout: 15_000,
+					},
+				);
+			},
+		},
+		// Part-way down a long page on a computer: where the round Ask Noodle button sits over it.
+		{ name: "10d-transactions-scrolled", path: `/transactions/${month}`, scrolledTo: 600 },
 		{
 			name: "11-transaction-open",
 			path: `/transactions/${month}/${ids.openTransaction}`,
 			tall: true,
+		},
+		{
+			// The editor with a name of the Parent's own typed in, not saved. What's in the window.
+			name: "11a-transaction-name",
+			path: `/transactions/${month}/${ids.openTransaction}`,
+			window: true,
+			ready: async (page) => {
+				await page
+					.getByLabel("Name", { exact: true })
+					.first()
+					.fill("Weekly shop", { timeout: 15_000 });
+			},
 		},
 		{ name: "12-review-cards", path: "/review" },
 		{
@@ -464,6 +563,16 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "13-review-list", path: "/review?view=list" },
 		{ name: "14-rules", path: "/review/rules" },
 		{ name: "15-accounts", path: "/accounts" },
+		{
+			name: "15a-accounts-archived-open",
+			path: "/accounts",
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: /^Archived/ }),
+					page.getByRole("list", { name: "Archived Accounts" }),
+				);
+			},
+		},
 		{ name: "16-account-credit-card", path: `/accounts/${ids.sapphire}` },
 		{ name: "16a-account-no-balance", path: `/accounts/${ids.college}` },
 		{ name: "17-goals", path: "/goals" },
@@ -556,6 +665,32 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "23i-reports-income", path: "/reports?view=income" },
 		{ name: "24-insights", path: "/insights" },
 		{ name: "25-credit-card-perks", path: "/insights/perks" },
+		{
+			name: "25a-perks-row-open",
+			path: "/insights/perks",
+			ready: async (page) => {
+				const row = page
+					.getByRole("article", { name: "Amex Platinum" })
+					.locator("h3")
+					.getByRole("button");
+				await expect(async () => {
+					if ((await row.getAttribute("aria-expanded")) !== "true")
+						await row.click({ timeout: 2000 });
+					await expect(row).toHaveAttribute("aria-expanded", "true", { timeout: 2000 });
+				}).toPass({ timeout: 20_000 });
+			},
+		},
+		{
+			name: "25b-perks-add-sheet",
+			path: "/insights/perks",
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: "Add a card or membership" }),
+					page.getByRole("dialog", { name: "Add a card or membership" }),
+				);
+			},
+		},
 		{ name: "26-check-in", path: "/check-in" },
 		{
 			// The card's footer ("Open full page", "Skip for now"), scrolled clear of a phone's bottom
@@ -587,6 +722,18 @@ test.beforeAll(async ({ browser }) => {
 			path: "/household",
 			window: true,
 			ready: (page) => openDangerSheet(page, "Delete Household"),
+		},
+		{
+			// The Parent's own name and colour, in its sheet. What's in the window.
+			name: "27c-your-name-and-colour",
+			path: "/household",
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: "Edit your name and colour" }),
+					page.getByRole("dialog", { name: "Your name and colour" }),
+				);
+			},
 		},
 		{ name: "28-glossary", path: "/glossary" },
 		{

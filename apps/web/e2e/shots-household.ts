@@ -186,7 +186,7 @@ export async function seedShotsHousehold(page: Page, userId: string) {
 		["TST* THE RUSTY ANCHOR", 8_640, 5, "Eating out"],
 		["PAYPAL *STEAMGAMES", 2_999, 6, null],
 		["CITY OF OAKLAND PARKING", 1_200, 7, null],
-		["AMEX EPAYMENT ACH PMT", 42_000, 8, null, ids.checking],
+		["AMEX EPAYMENT ACH PMT", 40_000, 8, null, ids.checking],
 	];
 	for (const [merchant, cents, day, guess, account = ids.sapphire] of review) {
 		const id = ulid();
@@ -195,6 +195,12 @@ export async function seedShotsHousehold(page: Page, userId: string) {
 			`insert into categorizations (transaction_id, household_id, member_id, outcome, method, bucket_id, confidence, merchant) values (${q(id)}, ${h}, ${m}, 'review', ${guess ? "'model'" : "'none'"}, ${guess ? bucket(guess) : "null"}, ${guess ? "0.62" : "null"}, ${q(merchant)});`,
 		);
 	}
+	// An archived Account: Accounts folds it away under "Archived".
+	const archivedId = ulid();
+	statements.push(
+		`insert into accounts (id, household_id, name, kind, bank_connection_id, external_id, mask, archived_at) values (${q(archivedId)}, ${h}, 'Old Wells Fargo Checking', 'checking', null, null, null, ${Date.now() - 20 * 86_400_000});`,
+		`insert into account_balances (id, household_id, account_id, amount_cents, created_by_member_id) values (${q(ulid())}, ${h}, ${q(archivedId)}, 0, ${m});`,
+	);
 	// Extra income this month, and three Insights.
 	statements.push(
 		`insert into income (id, household_id, date, amount_cents, note, created_by_member_id) values (${q(ulid())}, ${h}, ${q(dayOf(0, 2))}, 184000, 'Tax refund', ${m});`,

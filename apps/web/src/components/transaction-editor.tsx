@@ -472,7 +472,8 @@ function EditForm({
 						type="button"
 						variant="ghost"
 						size="sm"
-						className="justify-self-start"
+						// Its words start under the line above, not a button's padding further in.
+						className="-ml-2.5 justify-self-start"
 						disabled={!hydrated}
 						onClick={() => setName(banksName)}
 					>

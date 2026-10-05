@@ -84,7 +84,7 @@ jobs:
     needs: gate
     if: needs.gate.outputs.tested != 'true'
     runs-on: ubuntu-latest
-    # Four runners at once, three workers each, against the built Worker (E2E_SERVER=build, #81):
+    # Six runners at once, three workers each, against the built Worker (E2E_SERVER=build, #81):
     # the dev server compiled pages on demand and starved a second worker, so it took six runners of
     # one worker each. Specs seed the local D1 through the Worker (/api/dev/sql); when they opened
     # its SQLite file from a second process, three workers got SQLITE_BUSY.
@@ -93,7 +93,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6]
     # Playwright's image already has Chromium, WebKit and their system libraries, so no job installs
     # them. Keep its tag equal to @playwright/test in apps/web/package.json.
     container:
@@ -102,6 +102,8 @@ jobs:
     env:
       CI: "true"
       E2E_SERVER: build
+      # Names this runner's pool of reused test Parents (e2e/parents.ts, #108).
+      E2E_POOL: s${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v5
       # setup-bun needs unzip, which the image lacks; npm's bun package is the same binary.
@@ -121,9 +123,10 @@ jobs:
         working-directory: apps/web
         env:
           AI_MODEL: stub
-      # Phone tests run in e2e-phone. A branch that breaks everything stops after five failures
-      # instead of running each test to its timeout, twice.
-      - run: bun run e2e --project=chromium --shard=${{ matrix.shard }}/4 --workers=3 --max-failures=5
+      # Phone tests run in e2e-phone. On main a commit that breaks everything stops after five
+      # failures instead of running each test to its timeout, twice; other branches (ci-*) run
+      # every test, so one run reports all that is broken.
+      - run: bun run e2e --project=chromium --shard=${{ matrix.shard }}/6 --workers=3 ${{ github.ref == 'refs/heads/main' && '--max-failures=5' || '' }}
         working-directory: apps/web
       - name: Slowest 20 tests
         if: ${{ !cancelled() }}
@@ -172,8 +175,8 @@ jobs:
           name: playwright-traces-${{ matrix.shard }}
           path: apps/web/test-results
 
-  # The phone tests (phone-*.spec.ts, sheet-phone.spec.ts and tests tagged @phone), once per phone
-  # project the gate chose.
+  # The phone tests (phone-*.spec.ts, sheet-phone.spec.ts and tests tagged @phone), on two runners
+  # per phone project the gate chose.
   e2e-phone:
     needs: gate
     if: needs.gate.outputs.tested != 'true'
@@ -182,6 +185,7 @@ jobs:
       fail-fast: false
       matrix:
         project: ${{ fromJSON(needs.gate.outputs.phone) }}
+        shard: [1, 2]
     # Playwright's image already has Chromium, WebKit and their system libraries, so no job installs
     # them. Keep its tag equal to @playwright/test in apps/web/package.json.
     container:
@@ -190,6 +194,8 @@ jobs:
     env:
       CI: "true"
       E2E_SERVER: build
+      # Names this runner's pool of reused test Parents (e2e/parents.ts, #108).
+      E2E_POOL: s${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v5
       # setup-bun needs unzip, which the image lacks; npm's bun package is the same binary.
@@ -205,9 +211,9 @@ jobs:
         working-directory: apps/web
         env:
           AI_MODEL: stub
-      # A failure that hits every test (sign-in, say) stops after three instead of letting each
-      # test run to its timeout, twice.
-      - run: bun run e2e --project=${{ matrix.project }} --max-failures=3 --workers=3
+      # On main a failure that hits every test (sign-in, say) stops after three instead of letting
+      # each test run to its timeout, twice; other branches run every test.
+      - run: bun run e2e --project=${{ matrix.project }} --shard=${{ matrix.shard }}/2 --workers=3 ${{ github.ref == 'refs/heads/main' && '--max-failures=3' || '' }}
         working-directory: apps/web
       - name: Slowest 20 tests
         if: ${{ !cancelled() }}
@@ -253,7 +259,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-traces-${{ matrix.project }}
+          name: playwright-traces-${{ matrix.project }}-${{ matrix.shard }}
           path: apps/web/test-results
 
   deploy:

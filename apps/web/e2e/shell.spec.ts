@@ -23,7 +23,9 @@ test.describe.configure({ mode: "default" });
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
 test.beforeAll(async ({ browser }) => {
-	parent = await createTestParent();
+	// A Parent of this file's own, signed in by each test: one test signs out, which would end the
+	// session the worker keeps for a pooled Parent.
+	parent = await createTestParent({ fresh: true });
 	const page = await signedInPage(browser, parent.email);
 	await createHousehold(page, "The Rinks", "Alex");
 	await page.context().close();

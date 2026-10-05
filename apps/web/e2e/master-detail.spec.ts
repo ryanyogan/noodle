@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
+import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
 import {
 	accountKindLabel,
@@ -8,7 +9,6 @@ import {
 	createPlannedHousehold,
 	signedInPage,
 } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
 // Guards the list beside its item (#67): the list stays mounted and keeps its scroll while the
 // detail changes, old addresses still arrive, a phone shows one level at a time, and the keys
@@ -26,10 +26,14 @@ const month = new Intl.DateTimeFormat("en-CA", {
 
 const names = Array.from({ length: 12 }, (_, i) => `Fund ${String(i + 1).padStart(2, "0")}`);
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 const list = (page: Page) => page.locator("[data-slot=master-detail-list]");
