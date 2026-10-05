@@ -225,7 +225,9 @@ test("on a small phone, the amount, six Buckets and the keypad fit without scrol
 		more,
 		keypad.getByRole("button", { name: "Delete" }),
 	]) {
-		await expect(shown).toBeInViewport({ ratio: 1 });
+		// All of it, but for a sliver: WebKit lays the two columns out in 64ths of a pixel and
+		// reports a tile as 99.99% in view when its edge falls on one.
+		await expect(shown).toBeInViewport({ ratio: 0.999 });
 	}
 	expect(await sheet(page).evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(
 		0,

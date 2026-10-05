@@ -69,6 +69,8 @@ async function setCarriesOver(page: Page, bucket: string) {
 	await expect(page.getByRole("region", { name: /^(Left|Over) this month$/ })).toContainText(
 		"Carries over",
 	);
+	// At this width the Bucket is a drawer over the dimmed page: closed before going elsewhere.
+	await page.getByRole("link", { name: "Close Bucket" }).click();
 	await page
 		.getByRole("navigation", { name: "Main" })
 		.getByRole("link", { name: "This Month" })
@@ -79,15 +81,29 @@ async function setCarriesOver(page: Page, bucket: string) {
 /** Swipes across the page on a touch screen: negative `dx` is leftward. */
 async function swipe(page: Page, dx: number) {
 	await page.getByRole("heading", { level: 1 }).evaluate((target, dx) => {
-		const touch = (x: number) => new Touch({ identifier: 1, target, clientX: x, clientY: 400 });
-		const start = touch(200);
-		const end = touch(200 + dx);
-		target.dispatchEvent(
-			new TouchEvent("touchstart", { bubbles: true, touches: [start], changedTouches: [start] }),
-		);
-		target.dispatchEvent(
-			new TouchEvent("touchend", { bubbles: true, touches: [], changedTouches: [end] }),
-		);
+		// Playwright's WebKit is the desktop build: its Touch can't be constructed ("Illegal
+		// constructor"), though Mobile Safari's can. There the same two events carry plain points,
+		// which is all the page reads from them (clientX and clientY).
+		const fire = (type: "touchstart" | "touchend", x: number) => {
+			const point = { identifier: 1, target, clientX: x, clientY: 400 };
+			const touches = type === "touchstart" ? [point] : [];
+			let event: Event;
+			try {
+				const touch = new Touch(point);
+				event = new TouchEvent(type, {
+					bubbles: true,
+					touches: type === "touchstart" ? [touch] : [],
+					changedTouches: [touch],
+				});
+			} catch {
+				event = new Event(type, { bubbles: true });
+				Object.defineProperty(event, "touches", { value: touches });
+				Object.defineProperty(event, "changedTouches", { value: [point] });
+			}
+			target.dispatchEvent(event);
+		};
+		fire("touchstart", 200);
+		fire("touchend", 200 + dx);
 	}, dx);
 }
 
@@ -150,6 +166,22 @@ test("a Bucket that carries over carries what's left into next month; a resets m
 	await expect(bucketRow(page, "Groceries")).toHaveAccessibleName(
 		"Groceries: $1,200 left of $1,200",
 	);
+});
+
+test("a link tapped while the page is still loading goes there", { tag: "@phone" }, async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email, phone);
+	await createPlannedHousehold(page, plan);
+	const { current, next } = monthsAround(page);
+
+	// As soon as the page's HTML is in and before its scripts are: Safari's engine stopped those
+	// scripts for the link's page, and the router answered by reloading this one instead.
+	await page.goto(page.url(), { waitUntil: "commit" });
+	await page.getByRole("link", { name: "Next month" }).click();
+	await expect(page).toHaveURL(new RegExp(`/month/${next.key}$`));
+	await expect(heading(page)).toHaveText(title(next, current.year));
+	await page.context().close();
 });
 
 test("swiping on a phone moves between months", { tag: "@phone" }, async ({ browser }) => {

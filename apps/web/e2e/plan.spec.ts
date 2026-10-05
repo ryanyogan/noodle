@@ -31,7 +31,9 @@ const waterfall = (page: Page) => page.getByRole("region", { name: "Where take-h
 const freeToSpend = (page: Page) =>
 	waterfall(page).getByRole("listitem").last().locator("[data-slot=plan-split-figure]");
 const bucketRow = (page: Page, bucket: string) =>
-	page.getByRole("listitem").filter({ has: page.getByRole("button", { name: `Edit ${bucket}` }) });
+	page
+		.locator("[data-bucket-row]")
+		.filter({ has: page.getByRole("button", { name: `Edit ${bucket}` }) });
 
 async function setTakeHomePay(page: Page, amount: string) {
 	await page.getByRole("textbox", { name: "Take-home pay" }).fill(amount);
@@ -123,23 +125,26 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 	await details.getByRole("button", { name: "Save", exact: true }).click();
 	await expect(details).toBeHidden();
 	await expect(page.locator("[data-slot=detail-header]")).toContainText("Kids’ hockey");
-	// Moved in the list, by its handle and the arrow keys; saved at once.
-	await page.getByRole("link", { name: "Buckets", exact: true }).click();
+	// Moved in the list, by its handle and the arrow keys; saved at once. At this width the Bucket
+	// is a drawer over the dimmed page, so it is closed first.
+	await page.getByRole("link", { name: "Close Bucket" }).click();
 	const moved = savedBy(page, "reorderBuckets");
 	await page.getByRole("button", { name: "Move Kids’ hockey" }).focus();
 	await page.keyboard.press("ArrowUp");
 	await moved;
-	await expect(page.getByRole("main").getByRole("listitem").first()).toContainText("Kids’ hockey");
+	await expect(page.locator("[data-bucket-row]").first()).toContainText("Kids’ hockey");
 
 	// Everything above was saved, not just shown.
 	await page.reload();
-	await expect(page.getByRole("main").getByRole("listitem").first()).toContainText("Kids’ hockey");
+	await expect(page.locator("[data-bucket-row]").first()).toContainText("Kids’ hockey");
 	await expect(bucketRow(page, "Groceries")).toContainText("$1,250.50");
 	await openBucket(page, "Kids’ hockey");
 	await editBucket(page, "Kids’ hockey");
 	await expect(page.getByRole("radio", { name: "Green" })).toBeChecked();
 	await page.keyboard.press("Escape");
-	await page.getByRole("link", { name: "Buckets", exact: true }).click();
+	await expect(page.getByRole("dialog", { name: "Kids’ hockey" })).toBeHidden();
+	// The Bucket is a drawer over the dimmed page here: its Close goes back to the list.
+	await page.getByRole("link", { name: "Close Bucket" }).click();
 	await backToPlan(page);
 	await expect(freeToSpend(page)).toHaveText("Free to Spend$7,349.50");
 
@@ -162,7 +167,7 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 	await page.getByRole("button", { name: "Archive", exact: true }).click();
 	await page.getByRole("button", { name: "Archive Groceries" }).click();
 	await expect(page.locator("[data-slot=detail-header]")).toContainText("Archived Bucket");
-	await page.getByRole("link", { name: "Buckets", exact: true }).click();
+	await page.getByRole("link", { name: "Close Bucket" }).click();
 	await expect(page.getByRole("button", { name: "Edit Groceries" })).toHaveCount(0);
 	await backToPlan(page);
 	await expect(freeToSpend(page)).toHaveText("Free to Spend$8,600");

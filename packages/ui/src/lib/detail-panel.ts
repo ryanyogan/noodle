@@ -17,6 +17,14 @@ export const PANEL_FROM = 1024;
  */
 export const PANEL_BESIDE_FROM = 1280;
 
+/**
+ * The same for a page that gives its list the whole page up to here and keeps its rail under the
+ * list (a table that needs the room for its columns): with no rail beside the list there is
+ * nothing for the panel to cover but the list, so the item stays a drawer until the rail is beside
+ * it. The styles switch on `min-[90rem]`.
+ */
+export const PANEL_BESIDE_FROM_LATE = 1440;
+
 /** The narrowest panel that still reads: `--detail-panel-min`. */
 export const PANEL_MIN = 400;
 
@@ -107,9 +115,12 @@ export function panelAt(
 }
 
 /** Which mode the styles are in for a window this wide (they switch on breakpoints). */
-export function panelMode(windowWidth: number): DetailPanelMode {
+export function panelMode(
+	windowWidth: number,
+	besideFrom: number = PANEL_BESIDE_FROM,
+): DetailPanelMode {
 	if (windowWidth < PANEL_FROM) return "page";
-	return windowWidth < PANEL_BESIDE_FROM ? "drawer" : "beside";
+	return windowWidth < besideFrom ? "drawer" : "beside";
 }
 
 /**

@@ -34,7 +34,9 @@ const wanted = (process.env.PAGE_SHOTS_WIDTHS ?? "")
 	.filter(Boolean);
 // Pictured only when asked for by width: the widest desktop window, where the page stops growing (#73).
 // And the widest phone, where a row that only just fits the others has room to go wrong.
+// And a common laptop, between the steps the others stand on.
 const ON_REQUEST = [
+	{ width: 1280, height: 800 },
 	{ width: 2560, height: 1440 },
 	{ width: 430, height: 932 },
 ];
@@ -499,6 +501,14 @@ test.beforeAll(async ({ browser }) => {
 					.first()
 					.scrollIntoViewIfNeeded({ timeout: 15_000 });
 			},
+		},
+		// The Buckets table as the window shows it, and a Bucket picked from it: in its panel beside
+		// the table, a drawer over it on a smaller window, a page on a phone.
+		{ name: "04w-plan-buckets-window", path: `/plan/${month}/buckets`, window: true },
+		{
+			name: "05w-plan-bucket-window",
+			path: `/plan/${month}/buckets/${firstBucket}`,
+			window: true,
 		},
 		{ name: "05-plan-bucket", path: `/plan/${month}/buckets/${firstBucket}` },
 		{ name: "06-plan-commitments", path: `/plan/${month}/commitments` },

@@ -1,29 +1,18 @@
-import {
-	type BucketState,
-	type MonthKey,
-	type PlanBucket,
-	type PlanScope,
-	parseDollars,
-} from "@noodle/domain";
-import { BudgetBar } from "@noodle/ui/components/budget-bar";
+import { type MonthKey, type PlanBucket, type PlanScope, parseDollars } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
-import { ListRow } from "@noodle/ui/components/list";
 import { RadioGroup, RadioGroupCard } from "@noodle/ui/components/radio-group";
 import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
-import { Tile } from "@noodle/ui/components/tile";
-import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Link, useHydrated } from "@tanstack/react-router";
-import { Archive, ArrowDown, ArrowUp, Pencil, Plus } from "lucide-react";
-import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { useHydrated } from "@tanstack/react-router";
+import { Archive, ArrowDown, ArrowUp, Plus } from "lucide-react";
+import { type FormEvent, type ReactNode, useEffect, useId, useState } from "react";
 import { ulid } from "ulid";
 import { nudged, placeOf } from "../bucket-order";
-import { opensBucketSheet } from "../bucket-row-click";
-import { asBucketColor, barState, monogram, nextBucketColor } from "../buckets";
-import { formatMoney, formatMoneyInput, monthName } from "../format";
+import { nextBucketColor } from "../buckets";
+import { formatMoneyInput, monthName } from "../format";
 import {
 	usePlanChange,
 	withAllowance,
@@ -44,217 +33,9 @@ import {
 } from "../server/plan";
 import { ColourPicker } from "./colour-picker";
 import { AmountInput } from "./goals";
-import { masterDetailItem } from "./master-detail";
 import { Confirm, SaveFailed } from "./plan-editing";
 import { PlanHistoryDisclosure } from "./plan-history";
-import { ChangedNote, PlanScopeField } from "./plan-scope-field";
-
-/**
- * A Bucket (or Personal Allowance) in the Plan: its allowance, and the one Bucket sheet that
- * changes it (#98), the same one its page opens. The row opens it wherever it is chosen (its
- * amount, its figures, its pencil); only its name, which leads to its page, and its handle do
- * something else. `was` is its allowance the month before, when this month changed it.
- */
-export function BucketEditor({
-	month,
-	bucket,
-	editable,
-	was,
-	order,
-	setBy,
-	handle,
-	dragged,
-	onDraft,
-	figures,
-}: {
-	month: MonthKey;
-	bucket: PlanBucket | BucketState;
-	/**
-	 * In a list with the page's width, the row is a line of a table: allowance, spent so far, what's
-	 * left and its bar, each in its own column (`BucketColumns` heads them). Needs the month's state.
-	 */
-	figures?: boolean;
-	editable: boolean;
-	was?: number;
-	/** The handle that moves it in the list, before its tile. */
-	handle?: ReactNode;
-	/** Whether it's being dragged to a new place. */
-	dragged?: boolean;
-	/** Its amount while typed in its sheet (for Left to plan), or null once put away. */
-	onDraft?: (cents: number | null) => void;
-	/** Who sets this one, when it isn't the viewer (the other Parent's Personal Allowance). */
-	setBy?: string;
-	/** The shared Buckets' IDs in order, for moving this one; a Personal Allowance has none. */
-	order: string[];
-}) {
-	const hydrated = useHydrated();
-	const [open, setOpen] = useState(false);
-	const color = asBucketColor(bucket.color);
-	const changes = useBucketChanges(month);
-	const spending = figures && "spent" in bucket ? bucket : undefined;
-	const opens = editable && hydrated;
-	// Whether the press now under way began where the row opens its sheet: the click that ends a
-	// drag by the handle lands on the row, and mustn't open it.
-	const pressed = useRef(false);
-	return (
-		<ListRow
-			data-bucket-row={bucket.id}
-			data-dragged={dragged || undefined}
-			className={cn(opens && "cursor-pointer", dragged && "relative z-1 bg-surface-2 shadow-pop")}
-			// The whole row is the pencil's hit area, for a thumb or a mouse; the pencil is the one
-			// control a keyboard or screen reader meets, and takes focus so it comes back to it when
-			// the sheet closes.
-			onPointerDown={(event) => {
-				pressed.current = opens && opensBucketSheet(event.target, event.currentTarget);
-			}}
-			onClick={(event) => {
-				const began = pressed.current;
-				pressed.current = false;
-				if (!began || !opens || !opensBucketSheet(event.target, event.currentTarget)) return;
-				event.currentTarget
-					.querySelector<HTMLElement>("[data-bucket-edit]")
-					?.focus({ preventScroll: true });
-				setOpen(true);
-			}}
-			leading={
-				handle ? (
-					<div className="flex items-center gap-1">
-						{handle}
-						<Tile bucket={color}>{monogram(bucket.name)}</Tile>
-					</div>
-				) : (
-					<Tile bucket={color}>{monogram(bucket.name)}</Tile>
-				)
-			}
-			title={
-				<Link
-					to="/plan/$month/buckets/$id"
-					params={{ month, id: bucket.id }}
-					className="hover:underline"
-					{...masterDetailItem}
-				>
-					{bucket.name}
-				</Link>
-			}
-			meta={
-				// Only the choice that isn't the default is named (most Buckets reset monthly).
-				bucket.rolling ? (
-					<>
-						<span>Carries over</span>
-						<ChangedNote was={was} />
-					</>
-				) : was != null ? (
-					<span>Changed this month · was {formatMoney(was)}</span>
-				) : setBy ? (
-					<span>{setBy} sets this</span>
-				) : undefined
-			}
-			trailing={
-				<div className="flex items-center gap-1">
-					<span
-						className={cn(
-							"text-sm font-medium tabular-nums",
-							spending && `${COLUMN.allowance} @2xl:px-2 @2xl:text-end`,
-							// Clear of the pencil beside it (or the space kept for one), so amounts line up.
-							(editable || setBy) && "px-2",
-						)}
-					>
-						{formatMoney(bucket.allowance)}
-					</span>
-					{spending ? (
-						<>
-							<span
-								className={cn("hidden text-sm text-muted-foreground @2xl:block", COLUMN.figure)}
-							>
-								<span className="sr-only">Spent </span>
-								{formatMoney(spending.spent)}
-							</span>
-							<span
-								className={cn(
-									"hidden text-sm font-medium @2xl:block",
-									COLUMN.figure,
-									spending.left < 0 && "text-over-foreground",
-								)}
-							>
-								<span className="sr-only">Left </span>
-								{formatMoney(spending.left)}
-							</span>
-							<div className={cn("hidden @2xl:block", COLUMN.bar)}>
-								<BudgetBar
-									bucket={color}
-									value={spending.spent}
-									max={spending.available}
-									marker={1 - spending.pace.leftShare}
-									state={barState(spending.status)}
-									label={`${bucket.name} this month`}
-									valueText={`${formatMoney(spending.spent)} spent of ${formatMoney(spending.available)}, ${
-										spending.left < 0
-											? `${formatMoney(-spending.left)} over`
-											: `${formatMoney(spending.left)} left`
-									}`}
-								/>
-							</div>
-						</>
-					) : null}
-					{editable ? (
-						<Button
-							variant="ghost"
-							size="icon"
-							type="button"
-							disabled={!hydrated}
-							aria-label={`Edit ${bucket.name}`}
-							aria-haspopup="dialog"
-							data-bucket-edit=""
-							onClick={() => setOpen(true)}
-						>
-							<Pencil />
-						</Button>
-					) : setBy ? (
-						// Keeps the pencil's space, so its amount lines up with the viewer's own.
-						<span aria-hidden="true" className="size-8 shrink-0" />
-					) : null}
-					<BucketSheet
-						month={month}
-						bucket={bucket}
-						order={order}
-						open={open}
-						onOpenChange={setOpen}
-						changes={changes}
-						onDraft={onDraft}
-						withHistory
-						amountFirst
-					/>
-				</div>
-			}
-			below={changes.failed ?? undefined}
-		/>
-	);
-}
-
-/** The widths of a row's columns in a wide list, shared with the line that heads them. */
-const COLUMN = {
-	allowance: "@2xl:w-24 @2xl:justify-end",
-	figure: "w-20 px-2 text-end tabular-nums",
-	// The bar takes what a wider list has to spare.
-	bar: "w-28 px-2 @3xl:w-44 @4xl:w-64 @5xl:w-96 @6xl:w-[30rem]",
-};
-
-/** Heads the columns of the rows beneath it, in a list wide enough to show them. */
-export function BucketColumns({ pencil }: { pencil: boolean }) {
-	return (
-		<div
-			aria-hidden="true"
-			data-slot="bucket-columns"
-			className="hidden items-center justify-end gap-1 px-(--card-pad) text-xs font-medium text-subtle-foreground @2xl:flex"
-		>
-			<span className="w-24 px-2 text-end">Allowance</span>
-			<span className={COLUMN.figure}>Spent</span>
-			<span className={COLUMN.figure}>Left</span>
-			<span className={COLUMN.bar}>This month</span>
-			{pencil ? <span className="size-8 shrink-0" /> : null}
-		</div>
-	);
-}
+import { PlanScopeField } from "./plan-scope-field";
 
 /** The writes the Bucket sheet makes, kept by whatever opens it so a failure outlives the sheet. */
 export function useBucketChanges(month: MonthKey) {

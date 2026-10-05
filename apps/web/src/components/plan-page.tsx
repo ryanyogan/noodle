@@ -145,7 +145,15 @@ export function PlanMasterDetail({
 	 * list keeps its width and columns (issue 107, ADR-0047). `close` is the list's own address. Without it, the
 	 * item sits beside a narrowed list, as before.
 	 */
-	panel?: { size?: DetailPanelSize; close: LinkOptions };
+	panel?: {
+		size?: DetailPanelSize;
+		close: LinkOptions;
+		/**
+		 * The list is a table that needs the page's width: the rail is under it up to 1440 and beside
+		 * it from there, and a picked item is a drawer until then.
+		 */
+		besideFrom?: "xl" | "late";
+	};
 	children: ReactNode;
 }) {
 	const { id: picked, month } = useParams({
@@ -174,7 +182,13 @@ export function PlanMasterDetail({
 		</div>
 	) : undefined;
 	const rail = (
-		<div className="w-full min-w-0">
+		// Under a list that keeps the page's width, the rail is no wider than it is beside one.
+		<div
+			className={cn(
+				"w-full min-w-0",
+				panel?.besideFrom === "late" && "lg:max-[90rem]:max-w-(--rail-width)",
+			)}
+		>
 			{overview && overviewHeader ? <PaneHeader {...overviewHeader} /> : null}
 			<div className="grid content-start gap-4">
 				{overview}
@@ -190,6 +204,7 @@ export function PlanMasterDetail({
 			<ListWithPanel
 				className="max-w-2xl lg:max-w-none"
 				size={panel.size}
+				besideFrom={panel.besideFrom}
 				listLabel={listLabel}
 				asideLabel={railLabel}
 				detailLabel={`${noun} details`}

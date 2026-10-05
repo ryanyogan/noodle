@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { createPlannedHousehold, hydrated, signedInPage } from "./session";
 
 // Guards the picked item's panel (issue 107, ADR-0047), on Plan › Commitments, the first page to
 // use it: on a computer a Commitment opens in a panel on the window's right edge, over the rail,
@@ -49,6 +49,9 @@ async function household(page: Page) {
 	});
 	await page.goto(`/plan/${month}/commitments`);
 	await expect(row(page, "Rent")).toBeVisible();
+	// Hydrated: a row clicked before then is a plain link, which loads the Commitment as a whole new
+	// page (it still opens, but nothing of the page before is kept, the list included).
+	await hydrated(row(page, "Rent"));
 }
 
 /** Open, and hydrated: Edit in a Commitment's header is off until then. */
@@ -366,5 +369,175 @@ test("on a phone a Commitment is still a page with Back", { tag: "@phone" }, asy
 	await expect(page).toHaveURL(listAddress);
 	await expect(row(page, "Rent")).toBeVisible();
 	await expect(panel(page)).toHaveCount(0);
+	await page.context().close();
+});
+
+// Plan › Buckets, the first table in the panel's list (issue 107): the row itself opens the Bucket.
+const bucketAddress = new RegExp(`/plan/${month}/buckets/[0-9A-Z]{26}$`);
+const bucketsAddress = new RegExp(`/plan/${month}/buckets$`);
+const bucketRow = (page: Page, name: string) =>
+	page.locator("[data-bucket-row]").filter({ has: page.getByRole("link", { name, exact: true }) });
+
+async function buckets(page: Page) {
+	await createPlannedHousehold(page, {
+		baseline: "9,000",
+		buckets: [
+			["Groceries", "800"],
+			["Gas", "200"],
+			["Fun", "100"],
+		],
+	});
+	await page.goto(`/plan/${month}/buckets`);
+	await expect(page.getByRole("button", { name: "Edit Gas", exact: true })).toBeEnabled();
+}
+
+test("a Bucket's row opens it in the panel and the table keeps its width and every column", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email, at(1440));
+	await buckets(page);
+	const table = page.getByRole("grid", { name: "Buckets", exact: true });
+	// At 1440 the totals are beside the table, which has room for its figures and a name that
+	// reads; Pace and End of month need more.
+	for (const name of ["Bucket", "Allowance", "Spent", "Left"]) {
+		await expect(table.getByRole("columnheader", { name, exact: true })).toBeVisible();
+	}
+	await expect(table.getByRole("columnheader", { name: "Pace", exact: true })).toBeHidden();
+	await expect(table.getByRole("columnheader", { name: "End of month" })).toBeHidden();
+	const name = await bucketRow(page, "Gas").locator("[data-column=bucket]").boundingBox();
+	expect(name?.width ?? 0, "the name's column").toBeGreaterThanOrEqual(192);
+	// The totals are the table's last row.
+	const foot = table.locator("[data-slot=data-table-foot]");
+	await expect(foot).toContainText("Total");
+	await expect(foot).toContainText("$1,100");
+	await axe(page, "The Buckets table");
+	const listBefore = await list(page).boundingBox();
+	const tableBefore = await table.boundingBox();
+
+	// A click on the row itself (here its Spent figure) opens the Bucket, at its own address.
+	await bucketRow(page, "Gas").locator("[data-column=spent]").click();
+	await expect(page).toHaveURL(bucketAddress);
+	await expect(title(page)).toHaveText("Gas");
+	await expect(page.getByRole("region", { name: "Bucket details" })).toBeVisible();
+	await expect(page.getByRole("dialog")).toHaveCount(0);
+	const box = await settled(page, 1440);
+	expect(box.width).toBe(436);
+	// The list and the table are exactly where and as wide as they were, with the same columns, and
+	// nothing of the table is under the panel.
+	expect(await list(page).boundingBox()).toEqual(listBefore);
+	expect(await table.boundingBox()).toEqual(tableBefore);
+	await expect(table.getByRole("columnheader", { name: "Left", exact: true })).toBeVisible();
+	await expect(bucketRow(page, "Gas")).toHaveAttribute("aria-current", "true");
+	const under = await table.evaluate((node, left) => {
+		const out: string[] = [];
+		for (const part of node.querySelectorAll<HTMLElement>(
+			"[role=gridcell], [role=columnheader], a[href], button",
+		)) {
+			const at = part.getBoundingClientRect();
+			if (at.width === 0 || at.height === 0) continue;
+			if (at.right > left + 0.5) out.push(`${part.textContent?.trim().slice(0, 30)}: ${at.right}`);
+		}
+		return out;
+	}, box.x);
+	expect(under, "parts of the table under the panel").toEqual([]);
+	await axe(page, "A Bucket in its panel");
+
+	// Esc closes it.
+	await page.keyboard.press("Escape");
+	await expect(page).toHaveURL(bucketsAddress);
+	await expect(panel(page)).toHaveCount(0);
+
+	// Enter on a row in focus opens it too.
+	await bucketRow(page, "Fun").focus();
+	await page.keyboard.press("Enter");
+	await expect(page).toHaveURL(bucketAddress);
+	await expect(title(page)).toHaveText("Fun");
+	await page.keyboard.press("Escape");
+	await expect(panel(page)).toHaveCount(0);
+
+	// The pencil opens the sheet, not the panel, and focus comes back to it.
+	const pencil = page.getByRole("button", { name: "Edit Gas", exact: true });
+	await pencil.click();
+	const sheet = page.getByRole("dialog", { name: "Gas", exact: true });
+	await expect(sheet.getByRole("textbox", { name: "Allowance", exact: true })).toBeFocused();
+	await expect(page).toHaveURL(bucketsAddress);
+	await page.keyboard.press("Escape");
+	await expect(sheet).toBeHidden();
+	await expect(pencil).toBeFocused();
+
+	// So does the allowance in its column. A click inside the sheet is not a click on the row.
+	const amount = bucketRow(page, "Gas").locator("[data-bucket-amount]");
+	await amount.click();
+	await expect(sheet.getByRole("textbox", { name: "Allowance", exact: true })).toBeFocused();
+	await sheet.locator("[data-slot=bucket-more]").getByText("More", { exact: true }).click();
+	await expect(page).toHaveURL(bucketsAddress);
+	await page.keyboard.press("Escape");
+	await expect(sheet).toBeHidden();
+	await expect(amount).toBeFocused();
+	await expect(panel(page)).toHaveCount(0);
+	await page.context().close();
+});
+
+test("Buckets is a table from 1024 with the totals under it; a Bucket is a drawer there and a page with Back on a phone", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email, at(1024));
+	await buckets(page);
+	const table = page.getByRole("grid", { name: "Buckets", exact: true });
+	const totals = page.locator("[data-slot=master-detail-aside]");
+	// Up to 1440 the table has the page's width and the totals are under it: a real table on a
+	// small laptop (its figures in columns), and every column on a common one.
+	for (const [width, columns, missing] of [
+		[1024, ["Bucket", "Allowance", "Spent", "Left"], ["Pace", "End of month"]],
+		[1280, ["Bucket", "Allowance", "Spent", "Left", "Pace", "End of month"], []],
+	] as const) {
+		await page.setViewportSize({ width, height: 800 });
+		for (const name of columns) {
+			await expect(table.getByRole("columnheader", { name, exact: true })).toBeVisible();
+		}
+		for (const name of missing) {
+			await expect(table.getByRole("columnheader", { name, exact: true })).toBeHidden();
+		}
+		const tableBox = await table.boundingBox();
+		const totalsBox = await totals.boundingBox();
+		if (!tableBox || !totalsBox) throw new Error("no table or no totals");
+		expect(totalsBox.y, `the totals are under the table at ${width}`).toBeGreaterThan(
+			tableBox.y + tableBox.height - 1,
+		);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+			width,
+		);
+		// With no rail beside the table, a Bucket is a drawer over the dimmed page.
+		await bucketRow(page, "Gas").locator("[data-column=spent]").click();
+		await expect(page).toHaveURL(bucketAddress);
+		await expect(title(page)).toHaveText("Gas");
+		expect((await settled(page, width)).width).toBe(480);
+		await expect(panel(page)).toHaveAttribute("role", "dialog");
+		await expect(page.locator("[data-panel-scrim]")).toBeVisible();
+		await page.keyboard.press("Escape");
+		await expect(page).toHaveURL(bucketsAddress);
+		await expect(panel(page)).toHaveCount(0);
+	}
+
+	// The narrowest phone: the same table, stacked; a row opens the Bucket's page, with Back.
+	await page.setViewportSize({ width: 320, height: 700 });
+	await page.goto(`/plan/${month}/buckets`);
+	await expect(page.getByRole("button", { name: "Edit Gas", exact: true })).toBeEnabled();
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+	await axe(page, "The Buckets table at 320");
+	// With no room beside the name, what's left leads the line under it.
+	const under = bucketRow(page, "Gas").locator("[data-column=summary]");
+	await expect(under).toContainText("$200 left of $200");
+	await expect(
+		bucketRow(page, "Gas").getByRole("link", { name: "Gas", exact: true }),
+	).toBeVisible();
+	await under.click();
+	await expect(page).toHaveURL(bucketAddress);
+	await expect(page.getByRole("link", { name: "Back to Buckets" })).toBeVisible();
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+	await page.getByRole("link", { name: "Back to Buckets" }).click();
+	await expect(page).toHaveURL(bucketsAddress);
 	await page.context().close();
 });

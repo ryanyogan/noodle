@@ -4,9 +4,10 @@ import { createTestParent } from "./parents";
 import { createPlannedHousehold, savedBy, serverFn, signedInPage } from "./session";
 import { realTouch, swipe } from "./touch";
 
-// The Plan's Buckets list (#57, #98): a row opens the one Bucket sheet, where its amount (with how
-// far the change reaches) and name change; Buckets moved by keyboard and by drag, said aloud and
-// saved; Left to plan follows what's typed. Dragging (issue 106): down as well as up, from the
+// The Plan's Buckets table (#57, #98, issue 107): a row's allowance or pencil opens the one Bucket
+// sheet, where its amount (with how far the change reaches) and name change; the row itself opens
+// the Bucket's page; Buckets moved by keyboard and by drag, said aloud and saved; Left to plan
+// follows what's typed. Dragging (issue 106): down as well as up, from the
 // smallest movement, under a finger, saved once per drop.
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
@@ -38,11 +39,16 @@ const names = (page: Page) =>
 const row = (page: Page, name: string) =>
 	page.locator("[data-bucket-row]").filter({ has: page.getByRole("link", { name, exact: true }) });
 
-/** Opens a Bucket's sheet by its amount in the list, as a tap anywhere on its row does. */
+/** Opens a Bucket's sheet by its allowance in the table (its own column, in a wide list). */
 async function openByAmount(page: Page, name: string, amount: string) {
-	await row(page, name).getByText(amount, { exact: true }).first().click();
+	const cell = row(page, name).locator("[data-bucket-amount]");
+	await expect(cell).toHaveText(amount);
+	await cell.click();
 	return page.getByRole("dialog", { name, exact: true });
 }
+
+/** Wide enough (the list is 700 px at 1440) for the table to show its columns. */
+const wide = { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 } as const;
 
 async function axe(page: Page, label: string) {
 	const { violations } = await new AxeBuilder({ page })
@@ -58,7 +64,7 @@ test("Buckets are changed in one sheet from the list, with either reach, and mov
 	browser,
 }) => {
 	test.setTimeout(180_000);
-	const page = await signedInPage(browser, parent.email);
+	const page = await signedInPage(browser, parent.email, wide);
 	await createPlannedHousehold(page, {
 		baseline: "9,000",
 		buckets: [
@@ -147,8 +153,9 @@ test("Buckets are changed in one sheet from the list, with either reach, and mov
 	await saved;
 	await expect(said).toHaveText("Gas moved to position 1 of 3");
 	expect(await names(page)).toEqual(["Gas", "Fun money", "Groceries"]);
-	// Letting go of the handle on a row didn't open that row's sheet.
+	// Letting go of the handle on a row opened neither that row's sheet nor its page.
 	await expect(page.getByRole("dialog")).toHaveCount(0);
+	await expect(page).toHaveURL(/\/buckets$/);
 
 	// All of it was saved: the order, both amounts, and next month's.
 	await page.reload();
@@ -159,10 +166,22 @@ test("Buckets are changed in one sheet from the list, with either reach, and mov
 	await expect(row(page, "Groceries")).toContainText("$900");
 	await expect(row(page, "Gas")).toContainText("$200");
 
-	// Phone width: the Buckets page and the sheet.
+	// Phone width: the Buckets page and the sheet. The same table, its rows stacked; the pencil is a
+	// thumb's size and nothing scrolls sideways, down to the narrowest phone.
 	await page.setViewportSize({ width: 393, height: 852 });
 	await openBuckets(page);
 	await axe(page, "Buckets page at 393");
+	await expect(page.getByRole("grid", { name: "Buckets", exact: true })).toBeVisible();
+	await expect(row(page, "Gas")).toContainText("$250 left");
+	const pencil = await page.getByRole("button", { name: "Edit Gas", exact: true }).boundingBox();
+	expect(pencil?.width ?? 0).toBeGreaterThanOrEqual(44);
+	expect(pencil?.height ?? 0).toBeGreaterThanOrEqual(44);
+	await page.setViewportSize({ width: 320, height: 700 });
+	await openBuckets(page);
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+	await axe(page, "Buckets page at 320");
+	await page.setViewportSize({ width: 393, height: 852 });
+	await openBuckets(page);
 	await page.getByRole("button", { name: "Add Buckets", exact: true }).click();
 	const sheet = page.getByRole("dialog", { name: "Add Buckets" });
 	await expect(sheet).toBeVisible();
@@ -229,7 +248,7 @@ test("A Bucket is dragged by its handle, down as well as up, from the smallest m
 	browser,
 }) => {
 	test.setTimeout(180_000);
-	const page = await signedInPage(browser, parent.email);
+	const page = await signedInPage(browser, parent.email, wide);
 	await createPlannedHousehold(page, { baseline: "9,000", buckets: four });
 	await openBuckets(page);
 	const sent = reordersSent(page);
@@ -259,7 +278,9 @@ test("A Bucket is dragged by its handle, down as well as up, from the smallest m
 	expect(await names(page)).toEqual(["Gas", "Fun", "Gifts", "Groceries"]);
 	await expect(row(page, "Groceries")).not.toHaveAttribute("data-dragged", "true");
 	expect(sent.count).toBe(1);
+	// The click that ends a drag lands on the row, and opens neither its sheet nor its page.
 	await expect(page.getByRole("dialog")).toHaveCount(0);
+	await expect(page).toHaveURL(/\/buckets$/);
 
 	// A slow drag, a px at a time: it starts after a few px, and moves one place past half a row.
 	box = await handleOf(page, "Gas").boundingBox();
@@ -301,6 +322,7 @@ test("A Bucket is dragged by its handle, down as well as up, from the smallest m
 	await page.mouse.up();
 	expect(await names(page)).toEqual(["Fun", "Gas", "Gifts", "Groceries"]);
 	await expect(page.getByRole("dialog")).toHaveCount(0);
+	await expect(page).toHaveURL(/\/buckets$/);
 
 	// The arrow keys still move it. By now anything the clicks or the Escape had sent would have
 	// been counted: three drops and moves, three saves.
@@ -352,12 +374,13 @@ test("A Bucket is dragged by its handle under a finger, and the rest of the row 
 	expect(await names(page)).toEqual(["Gas", "Fun", "Groceries", "Gifts"]);
 	expect(sent.count).toBe(1);
 	await expect(page.getByRole("dialog")).toHaveCount(0);
+	await expect(page).toHaveURL(/\/buckets$/);
 
 	// A finger anywhere else on the row scrolls the page and moves nothing. Only Chromium's touches
 	// are real enough to scroll (see `swipe`).
 	if (realTouch(page)) {
 		await page.setViewportSize({ width: 393, height: 480 });
-		const body = row(page, "Gas").getByText("$200", { exact: true }).first();
+		const body = row(page, "Gas").getByText("$200 left", { exact: true });
 		const before = (await body.boundingBox())?.y;
 		if (before === undefined) throw new Error("No row to touch");
 		await swipe(page, body, -160);

@@ -196,6 +196,8 @@ test("a low month: take-home pay is lowered to what came in, for this month only
 	await expect(takeHomePay).toContainText("$5,000");
 	await lower.click();
 	await expect(takeHomePay).toContainText("$4,400");
+	// The figure changes at once, before the server has it; the message comes when it is saved.
+	await expect(lowered).toContainText("Free to Spend is $3,200");
 
 	// It's saved, Free to Spend follows, and next month keeps the pay they can count on.
 	await page.reload();

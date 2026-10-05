@@ -163,7 +163,8 @@ test("steady pet spending is suggested as a Bucket under Plan › Buckets and in
 	await row.getByRole("textbox").fill("150");
 	await sheet.getByRole("button", { name: /^Add \d+ Buckets?$/ }).click();
 	await expect(page.getByRole("button", { name: "Edit Pets" })).toBeVisible();
-	await expect(page.getByText("$150").first()).toBeVisible();
+	// The table writes a figure once for its column and once for a stacked row; one of them shows.
+	await expect(page.getByText("$150").filter({ visible: true }).first()).toBeVisible();
 
 	// Taken, not left for the next run to drop: gone from under the list at once.
 	await expect(page.getByText("A Bucket for Pets")).toHaveCount(0);
