@@ -25,11 +25,16 @@ const scrollY = (page: Page) => page.evaluate(() => window.scrollY);
 
 /** The element is wholly inside what the keyboard leaves visible. */
 async function expectAboveKeyboard(page: Page, locator: Locator) {
-	const bottom = await visibleBottom(page);
-	const box = await locator.boundingBox();
-	expect(box, "it is on screen").not.toBeNull();
-	expect(box?.y ?? -1).toBeGreaterThanOrEqual(0);
-	expect((box?.y ?? 0) + (box?.height ?? Number.POSITIVE_INFINITY)).toBeLessThanOrEqual(bottom + 1);
+	// A sheet slides up as it opens: measured again until it has come to rest.
+	await expect(async () => {
+		const bottom = await visibleBottom(page);
+		const box = await locator.boundingBox();
+		expect(box, "it is on screen").not.toBeNull();
+		expect(box?.y ?? -1).toBeGreaterThanOrEqual(0);
+		expect((box?.y ?? 0) + (box?.height ?? Number.POSITIVE_INFINITY)).toBeLessThanOrEqual(
+			bottom + 1,
+		);
+	}).toPass({ timeout: 3000 });
 }
 
 test("Quick Add stays above the keyboard while a note is typed", async ({ browser }) => {

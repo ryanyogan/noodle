@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { ulid } from "ulid";
 import { signFakeWebhook } from "../src/server/plaid-fake-webhook-key";
+import { continueToBank } from "./bank-history";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
 import {
@@ -111,7 +112,12 @@ test("select all that match a search, read the facts, delete, and find a snapsho
 	await expect(sheet).toContainText(
 		"Money in (pay and other deposits) isn’t in this list and stays.",
 	);
-	await expect(list(page).getByRole("button")).toHaveCount(3);
+	// The sheet is over the page, so the list behind it is hidden from roles: count it all the same.
+	await expect(
+		page
+			.getByRole("list", { name: /^Transactions in /, includeHidden: true })
+			.getByRole("button", { includeHidden: true }),
+	).toHaveCount(3);
 
 	await sheet.getByRole("button", { name: "Delete 5 Transactions" }).click();
 	await expect(toast(page, "Deleted 5 Transactions.")).toHaveText(
@@ -142,7 +148,7 @@ test("select all that match a search, read the facts, delete, and find a snapsho
 	await expect(taken.getByRole("button", { name: /^Restore the snapshot from/ })).toBeVisible();
 });
 
-test("on a phone, Select is in the header and two tapped Transactions are deleted together", {
+test("on a phone, Select is above the list and two tapped Transactions are deleted together", {
 	tag: "@phone",
 }, async ({ browser }) => {
 	test.slow();
@@ -193,6 +199,7 @@ test("a deleted bank line can be put back with Undo, and once deleted doesn't co
 	await createHousehold(page, "The Rinks", "Alex");
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await page.getByRole("button", { name: "Connect a bank" }).click();
+	await continueToBank(page);
 	await page
 		.getByRole("dialog", { name: "Which of these do you have already?" })
 		.getByRole("button", { name: "Start bringing them in" })

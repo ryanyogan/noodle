@@ -208,7 +208,9 @@ function TransactionsPage() {
 							<Button
 								variant="outline"
 								size="sm"
-								className="me-1"
+								// A phone's header has room for one action and the month arrows: there, Select
+								// is over the list instead.
+								className="me-1 max-sm:hidden"
 								disabled={!hydrated}
 								onClick={() => setPicking(nothingPicked)}
 							>
@@ -276,7 +278,19 @@ function TransactionsPage() {
 								onCancel={() => setPicking(null)}
 							/>
 						</div>
-					) : null}
+					) : (
+						// On a phone Select is here, where the selection's bar takes its place.
+						<div className="mb-2 flex justify-end sm:hidden">
+							<Button
+								variant="outline"
+								size="sm"
+								disabled={!hydrated}
+								onClick={() => setPicking(nothingPicked)}
+							>
+								Select
+							</Button>
+						</div>
+					)}
 					<TransactionList
 						picking={picking}
 						month={month}
