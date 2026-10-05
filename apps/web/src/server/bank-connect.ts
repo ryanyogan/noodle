@@ -44,6 +44,8 @@ export async function connectInstitution(
 		handoff: BankHandoff;
 		/** The provider's ID for the institution, kept to spot the same bank linked again. */
 		institutionId?: string | null;
+		/** The first day its Imports keep, as the Parent chose before Link; none keeps everything. */
+		historyStart?: string | null;
 	},
 ): Promise<ConnectInstitutionResult> {
 	const { householdId, connectionId } = input;
@@ -58,6 +60,7 @@ export async function connectInstitution(
 		externalId: link.externalId,
 		institution: link.institution,
 		institutionId: input.institutionId ?? null,
+		historyStart: input.historyStart ?? null,
 		credential: await sealCredential(deps.key, link.credential, { householdId, connectionId }),
 		createdByMemberId: input.memberId,
 	});

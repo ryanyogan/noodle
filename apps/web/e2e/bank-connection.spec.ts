@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { signFakeWebhook } from "../src/server/plaid-fake-webhook-key";
+import { continueToBank, historySheet } from "./bank-history";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
 import { createHousehold, signedInPage } from "./session";
@@ -28,6 +29,7 @@ const chooseSheet = (page: Page) =>
 /** Connects the fake bank, keeping Noodle's suggestion for each of its accounts. */
 async function connectBank(page: Page, accounts = 4) {
 	await page.getByRole("button", { name: "Connect a bank" }).click();
+	await continueToBank(page);
 	await chooseSheet(page).getByRole("button", { name: "Start bringing them in" }).click();
 	await expect(
 		toast(page, `Bringing in ${accounts} Accounts from First Platypus Bank.`),
@@ -56,6 +58,37 @@ async function plaidWebhook(page: Page, payload: Record<string, unknown>, signed
 	});
 }
 
+test("a Parent chooses how far back, and nothing older comes in", async ({ browser }) => {
+	const page = await signedInPage(browser, parent.email);
+	await createHousehold(page, "The Rinks", "Alex");
+	await page.getByRole("link", { name: "Accounts", exact: true }).click();
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
+
+	// Asked once, before the bank's own window: this month only is chosen to begin with.
+	await page.getByRole("button", { name: "Connect a bank" }).click();
+	const howFar = historySheet(page);
+	await expect(howFar.getByRole("radio")).toHaveCount(6);
+	await expect(howFar.getByRole("radio", { name: /^This month only/ })).toBeChecked();
+	await expect(howFar).toContainText(
+		"Older spending stays at your bank. You can’t change this later for this connection.",
+	);
+	await continueToBank(page, "Last 90 days");
+	await chooseSheet(page).getByRole("button", { name: "Start bringing them in" }).click();
+	await expect(toast(page, "Bringing in 4 Accounts from First Platypus Bank.")).toBeVisible();
+	await expect(bankConnections(page).getByRole("listitem")).toContainText(
+		"4 Accounts · Up to date",
+	);
+
+	// The fake bank has Safeway 45 days back on checking, which comes in beside Kroger and the
+	// rent. REI, 100 days back, wasn't asked for; Blockbuster, 400 days back, the bank sent
+	// anyway, and Noodle kept it out. With "Last 30 days" this line says 2 Transactions.
+	await page.getByRole("link", { name: /^Plaid Checking ••0000, / }).click();
+	await expect(page.locator("[data-slot=detail-title]")).toContainText("Plaid Checking");
+	const imports = page.getByRole("list", { name: "Imported statements" });
+	await expect(imports.getByRole("listitem")).toHaveCount(1);
+	await expect(imports).toContainText("3 Transactions and 1 deposit as income");
+});
+
 test("a Parent connects a bank, and its Accounts and Transactions come in", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email);
 	await createHousehold(page, "The Rinks", "Alex");
@@ -64,6 +97,7 @@ test("a Parent connects a bank, and its Accounts and Transactions come in", asyn
 
 	// Nothing's here yet, so each account there is added as a new Account.
 	await page.getByRole("button", { name: "Connect a bank" }).click();
+	await continueToBank(page);
 	await expect(chooseSheet(page).getByLabel("Plaid Checking ••0000")).toHaveText(
 		"Add as a new Account",
 	);
@@ -95,6 +129,7 @@ test("a Parent connects a bank, and its Accounts and Transactions come in", asyn
 	// The same login again is refused rather than doubled.
 	await page.getByRole("link", { name: "Accounts", exact: true }).click();
 	await bankConnections(page).getByRole("button", { name: "Connect a bank" }).click();
+	await continueToBank(page);
 	// Noodle sees it's the same bank and accounts, and offers to reconnect instead (#71). A Parent
 	// who says it's a different login goes on, and the same Item is still refused.
 	await page

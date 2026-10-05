@@ -153,7 +153,8 @@ _Avoid_: Sync, upload, feed
 
 **Bank Connection**:
 An ongoing authorized link to a financial institution that produces Imports automatically: when the institution says there's news, and at least daily. When its login lapses it waits for a Parent to reconnect (log in again) and brings in nothing meanwhile.
-Each is one login at one institution and covers every account under that login. Reconnecting keeps the same Bank Connection. It goes through Plaid (ADR-0017), which counts each one against a small allowance.
+Each is one login at one institution and covers every account under that login. Reconnecting keeps the same Bank Connection.
+A Parent chooses **how far back** it goes when they connect it: this month only (a fresh start, recommended) or the last 30, 60, 90, 120 or 365 days. No Import from it keeps a Transaction dated before that start, and the start can't be changed afterwards (ADR-0017). One connected before this was asked keeps everything. It goes through Plaid (ADR-0017), which counts each one against a small allowance.
 Connecting asks, for each account there, which Account the Household already has it as (Noodle suggests one by name, kind and last digits), or adds it as a new Account, or leaves it out (ADR-0020). An Account paired this way keeps everything on it; its bank's lines that a statement already brought in aren't added again. Stopping keeps the Account, kept by hand or by statements again.
 _Avoid_: Integration, link, Plaid (as a domain term)
 

@@ -226,3 +226,32 @@ describe("Plaid's webhook key under production keys", () => {
 		]);
 	});
 });
+
+describe("createLinkToken and how far back (#89)", () => {
+	const days = async (options: Parameters<typeof createLinkToken>[2]) => {
+		let body: Record<string, unknown> = {};
+		const transport: PlaidTransport = async (_path, sentBody) => {
+			body = sentBody;
+			return { link_token: "link-sandbox-1" };
+		};
+		await createLinkToken(transport, "household-1", options);
+		return body.transactions;
+	};
+
+	it("asks Plaid for the days the Parent chose", async () => {
+		expect(await days({ historyDays: 5 })).toEqual({ days_requested: 5 });
+		expect(await days({ historyDays: 120 })).toEqual({ days_requested: 120 });
+	});
+
+	it("never asks for fewer than 1 day or more than Plaid's 730, and only whole days", async () => {
+		expect(await days({ historyDays: 0 })).toEqual({ days_requested: 1 });
+		expect(await days({ historyDays: -3 })).toEqual({ days_requested: 1 });
+		expect(await days({ historyDays: 9_999 })).toEqual({ days_requested: 730 });
+		expect(await days({ historyDays: 12.7 })).toEqual({ days_requested: 12 });
+		expect(await days({ historyDays: Number.NaN })).toEqual({ days_requested: 365 });
+	});
+
+	it("names no days in update mode: the Item's span is set already", async () => {
+		expect(await days({ accessToken: "access-1", historyDays: 30 })).toBeUndefined();
+	});
+});

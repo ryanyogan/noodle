@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { continueToBank } from "./bank-history";
 import { createTestParent } from "./parents";
 import { clientRendered, createHousehold, savedBy, signedInPage } from "./session";
 
@@ -42,6 +43,7 @@ test("a bank that logs in on its own page comes back to Accounts", async ({ brow
 	await fakeLink(page, "oauth");
 	const returned = bankReturn(page);
 	await page.getByRole("button", { name: "Connect a bank" }).click();
+	await continueToBank(page);
 	await returned;
 
 	// Back where it started, with Choose Accounts open as after any Link. The return page finishes
@@ -72,6 +74,7 @@ test("it comes back to the get-started wizard, in a browser that kept nothing", 
 	await fakeLink(page, "oauth-lost");
 	const returned = bankReturn(page);
 	await page.getByRole("button", { name: "Connect your bank" }).click();
+	await continueToBank(page);
 	await returned;
 
 	// The return page finishes in the browser after it hydrates (here after asking the server for
@@ -106,6 +109,7 @@ test("Link closing with an error says so in plain words, and trying again works"
 	await toAccounts(page);
 	await fakeLink(page, "error");
 	await page.getByRole("button", { name: "Connect a bank" }).click();
+	await continueToBank(page);
 	const alert = page.getByRole("alert").filter({ hasText: "First Platypus Bank" });
 	await expect(alert).toContainText(
 		"First Platypus Bank didn’t respond. Try again, or upload a statement instead.",
@@ -123,6 +127,7 @@ test("an expired link token gets a new one, and Link reopens", async ({ browser 
 	await toAccounts(page);
 	await fakeLink(page, "expired");
 	await page.getByRole("button", { name: "Connect a bank" }).click();
+	await continueToBank(page);
 	await expect(chooseSheet(page)).toBeVisible();
 });
 
@@ -130,12 +135,14 @@ test("linking the same bank again offers to reconnect it instead", async ({ brow
 	const page = await signedInPage(browser, parent.email);
 	await toAccounts(page);
 	await page.getByRole("button", { name: "Connect a bank" }).click();
+	await continueToBank(page);
 	await chooseSheet(page).getByRole("button", { name: "Start bringing them in" }).click();
 	await expect(toast(page, "Bringing in 4 Accounts from First Platypus Bank.")).toBeVisible();
 	const connection = bankConnections(page).getByRole("listitem");
 	await expect(connection).toContainText("4 Accounts · Up to date");
 
 	await bankConnections(page).getByRole("button", { name: "Connect a bank" }).click();
+	await continueToBank(page);
 	const offer = page.getByRole("dialog", {
 		name: "You’ve already connected First Platypus Bank. Reconnect it instead?",
 	});

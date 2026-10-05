@@ -16,6 +16,7 @@ import {
 } from "@noodle/db";
 import type { BankLine, Cents } from "@noodle/domain";
 import { ulid } from "ulid";
+import { withinBankHistory } from "../bank-history";
 import type { HouseholdChange } from "../household-changes";
 import { type BankConnectionProvider, BankProviderError } from "./bank-connection";
 import { plaidNotSetUp } from "./plaid";
@@ -224,7 +225,13 @@ async function readRound(
 	credential: string,
 	round: number,
 ): Promise<Read> {
-	const changes = await provider.changes(credential, connection.cursor);
+	const read = await provider.changes(credential, connection.cursor);
+	// Nothing dated before the day the Parent chose when connecting is kept, on the first Import
+	// or any later one, whatever the provider sent (#89). Lines it dropped still go.
+	const changes = {
+		...read,
+		lines: read.lines.filter((line) => withinBankHistory(line.date, connection.historyStart)),
+	};
 	const last = changes.complete || round === MAX_ROUNDS;
 	const reported = last ? await provider.accounts(credential) : [];
 	return {

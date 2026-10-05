@@ -14,10 +14,12 @@ import {
 	saveBankWebhookUrl,
 	unpairAccount,
 } from "@noodle/db";
+import { dayKeyAt } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestUrl } from "@tanstack/react-start/server";
 import { monotonicFactory, ulid } from "ulid";
 import { z } from "zod";
+import { bankHistorySchema, bankHistorySpan, DEFAULT_BANK_HISTORY } from "../bank-history";
 import { BANK_RETURN_PATH, duplicateOf, type KnownBank, sameBank } from "../bank-link";
 import {
 	applyBankChoices,
@@ -131,15 +133,24 @@ function nullIfNotSetUp(error: unknown): null {
 	return null;
 }
 
-/** A link token for Plaid Link, for this Household, made when the Parent presses Connect. */
+/**
+ * A link token for Plaid Link, for this Household, made when the Parent presses Connect. It asks
+ * Plaid for as many days as the Parent chose, counted on the Household's own calendar, and the
+ * first day to keep is noted with the Link in progress, for connectBank.
+ */
 export const startBankLink = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
-	.validator(z.object({ returnTo: returnToSchema }))
+	.validator(z.object({ returnTo: returnToSchema, history: bankHistorySchema }))
 	.handler(async ({ data, context }): Promise<StartBankLinkResult> => {
 		const plaid = bankSetup()?.plaid;
 		if (!plaid) return { ok: false, reason: "not-set-up" };
+		const span = bankHistorySpan(data.history, dayKeyAt(new Date(), context.household.timeZone));
 		const linkToken = await plaid
-			.linkToken(context.household.id, { webhook: webhookUrl(), redirectUri: redirectUri() })
+			.linkToken(context.household.id, {
+				webhook: webhookUrl(),
+				redirectUri: redirectUri(),
+				historyDays: span.days,
+			})
 			.catch(nullIfNotSetUp);
 		if (!linkToken) return { ok: false, reason: "not-set-up" };
 		await saveBankLinkSession(getDb(), {
@@ -148,6 +159,7 @@ export const startBankLink = createServerFn({ method: "POST" })
 			linkToken,
 			returnTo: data.returnTo,
 			connectionId: null,
+			historyStart: span.start,
 			now: new Date(),
 		});
 		return { ok: true, linkToken };
@@ -358,6 +370,13 @@ export const connectBank = createServerFn({ method: "POST" })
 		const setup = bankSetup();
 		if (!setup) return { ok: false, reason: "not-set-up" };
 		const { household, parent } = context;
+		// The first day to keep is the one noted when this Link's token was made (startBankLink),
+		// which is what Plaid was asked for; the browser isn't asked again. With no note left (it
+		// expired, or was for a reconnect), it's this month only, as when none is chosen.
+		const session = await loadBankLinkSession(getDb(), household.id, parent.id, new Date());
+		const historyStart =
+			(session?.connectionId === null ? session.historyStart : null) ??
+			bankHistorySpan(DEFAULT_BANK_HISTORY, dayKeyAt(new Date(), household.timeZone)).start;
 		await clearBankLinkSession(getDb(), parent.id);
 		const result = await connectInstitution(
 			{ db: getDb(), provider: setup.plaid.provider, key: await setup.key() },
@@ -367,6 +386,7 @@ export const connectBank = createServerFn({ method: "POST" })
 				connectionId: data.connectionId,
 				handoff: { token: data.publicToken, institution: data.institution },
 				institutionId: data.institutionId,
+				historyStart,
 			},
 		);
 		if (result.ok) {

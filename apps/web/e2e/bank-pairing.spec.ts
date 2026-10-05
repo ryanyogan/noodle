@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { signFakeWebhook } from "../src/server/plaid-fake-webhook-key";
+import { continueToBank } from "./bank-history";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
 import {
@@ -103,6 +104,7 @@ test("connecting pairs with the card already there, and counts nothing twice", a
 	// Connecting asks which of the bank's accounts the Household has: the card is suggested.
 	await accountsLink(page).click();
 	await bankConnections(page).getByRole("button", { name: "Connect a bank" }).click();
+	await continueToBank(page);
 	const picks = chooseSheet(page);
 	const card = picks.getByLabel("Costco Anywhere Visa ••3333");
 	await expect(card).toHaveText("Same as Costco Anywhere Visa");

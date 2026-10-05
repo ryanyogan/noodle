@@ -55,14 +55,22 @@ beforeEach(async () => {
 const plaid = () => plaidProvider(fakePlaidTransport(today));
 
 /** Connects the fake Item and adds every account there as a new Account, as a Parent might. */
-async function connect(provider: BankConnectionProvider = plaid(), id = connectionId) {
+async function connect(
+	provider: BankConnectionProvider = plaid(),
+	id = connectionId,
+	link: { token?: string; historyStart?: string } = {},
+) {
 	const connected = await connectInstitution(
 		{ db, provider, key },
 		{
 			householdId,
 			memberId: parentId,
 			connectionId: id,
-			handoff: { token: "public-fake-household", institution: "First Platypus Bank" },
+			handoff: {
+				token: link.token ?? "public-fake-household",
+				institution: "First Platypus Bank",
+			},
+			historyStart: link.historyStart,
 		},
 	);
 	if (!connected.ok) return connected;
@@ -477,5 +485,81 @@ describe("the Import Workflow", () => {
 
 	it("does nothing for a Bank Connection that's gone", async () => {
 		expect(await runBankImport(params, inlineStep, deps().importDeps)).toBe("gone");
+	});
+});
+
+describe("how far back a Bank Connection goes (#89)", () => {
+	// `today` is 20 September 2026: 90 days back is 22 June.
+	it("keeps the start the Parent chose, and brings in what's inside it", async () => {
+		await connect(plaid(), connectionId, {
+			token: "public-fake-household~d90",
+			historyStart: "2026-06-22",
+		});
+		expect((await loadBankConnectionToImport(db, householdId, connectionId))?.historyStart).toBe(
+			"2026-06-22",
+		);
+		expect(await runBankImport(params, inlineStep, deps().importDeps)).toBe("done");
+		const { transactions: notes } = await landed();
+		// Safeway was 45 days back. The bank sent Blockbuster, 400 days back, regardless.
+		expect(notes).toEqual([...FIRST_SPENDING, "Safeway"].sort());
+	});
+
+	it("keeps nothing dated before the start on the first Import, whatever the bank sends", async () => {
+		// Plaid was asked for a year and sent it all; the start is 10 September.
+		await connect(plaid(), connectionId, {
+			token: "public-fake-household~d365",
+			historyStart: "2026-09-10",
+		});
+		expect(await runBankImport(params, inlineStep, deps().importDeps)).toBe("done");
+		const { transactions: notes } = await landed();
+		expect(notes).toContain("Evergreen Property Rent");
+		expect(notes).toContain("Kroger");
+		for (const older of ["Chipotle", "Auto Loan Payment", "Safeway", "REI", "Blockbuster"]) {
+			expect(notes).not.toContain(older);
+		}
+	});
+
+	it("keeps nothing dated before the start on a later Import either", async () => {
+		await connect(plaid(), connectionId, { historyStart: "2026-09-10" });
+		expect(await runBankImport(params, inlineStep, deps().importDeps)).toBe("done");
+		const line = (bankId: string, date: string, description: string) => ({
+			accountExternalId: "fake-checking",
+			bankId,
+			date: date as DayKey,
+			amount: -1_234,
+			description,
+			pending: false,
+			replaces: null,
+		});
+		const later: BankConnectionProvider = {
+			...plaid(),
+			changes: async () => ({
+				lines: [
+					line("late-old", "2026-09-09", "Old Gym"),
+					line("late-edge", "2026-09-10", "Edge Diner"),
+					line("late-new", "2026-09-20", "New Cafe"),
+				],
+				removed: [],
+				cursor: "later-cursor",
+				complete: true,
+			}),
+		};
+		expect(
+			await runBankImport({ ...params, runId: "run-2" }, inlineStep, deps(later).importDeps),
+		).toBe("done");
+		const { transactions: notes } = await landed();
+		expect(notes).toContain("New Cafe");
+		expect(notes).toContain("Edge Diner");
+		expect(notes).not.toContain("Old Gym");
+	});
+
+	it("keeps everything for a Bank Connection made before the choice was asked", async () => {
+		await connect(plaid(), connectionId, { token: "public-fake-household~d365" });
+		expect((await loadBankConnectionToImport(db, householdId, connectionId))?.historyStart).toBe(
+			null,
+		);
+		expect(await runBankImport(params, inlineStep, deps().importDeps)).toBe("done");
+		const { transactions: notes } = await landed();
+		expect(notes).toEqual(expect.arrayContaining(["Safeway", "REI", "Blockbuster"]));
 	});
 });
