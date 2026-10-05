@@ -181,6 +181,46 @@ describe("the Review queue", () => {
 		]);
 	});
 
+	it("never guesses a Bucket that isn't in the Plan of the Transaction's own month", async () => {
+		// Learned from October's filings, then guessed for a September line: Confirm could never
+		// save it, since a Transaction is only filed in a Bucket of its own month's Plan.
+		await addBucket(db, {
+			householdId,
+			memberId: "alex",
+			bucketId: "hippos",
+			name: "Hippos",
+			color: 3,
+			month: "2026-10",
+			allowanceCents: 50_000,
+		});
+		const guess = { outcome: "review", bucketId: "hippos", confidence: 0.9 } as const;
+		await imported("september", "duil mortongro", guess, "2026-09-14");
+		await imported("october", "duil mortongro", guess, "2026-10-02");
+
+		// What Confirm on the September card would do with such a guess: refused, every time.
+		expect(
+			await updateTransaction(db, {
+				householdId,
+				memberId: "alex",
+				transactionId: "september",
+				amountCents: 4_200,
+				assignment: { bucketId: "hippos" },
+				note: "duil mortongro",
+				forMemberIds: [],
+				expectedVersion: 0,
+			}),
+		).toEqual({ ok: false, reason: "not-in-plan" });
+
+		expect((await loadReview(db, alex, 50)).items).toEqual([
+			// Still waiting, with nothing to confirm: the picker offers September's Buckets.
+			expect.objectContaining({ id: "september", guess: null }),
+			expect.objectContaining({
+				id: "october",
+				guess: expect.objectContaining({ bucketId: "hippos", name: "Hippos" }),
+			}),
+		]);
+	});
+
 	it("keeps the total while showing at most `limit`", async () => {
 		for (const id of ["a", "b", "c"]) await imported(id, id, { outcome: "review" });
 		expect(await loadReview(db, alex, 2)).toMatchObject({

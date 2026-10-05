@@ -1,5 +1,5 @@
 import type { DayKey, GuessMethod, MonthKey } from "@noodle/domain";
-import { and, asc, count, eq, isNull, or, type SQL, sql } from "drizzle-orm";
+import { and, asc, count, eq, gt, isNull, lte, or, type SQL, sql } from "drizzle-orm";
 import { accountLabelSql } from "./account-label";
 import type { Uncategorized } from "./categorize";
 import { counts } from "./counting";
@@ -63,6 +63,9 @@ const waiting = (viewer: Viewer) =>
 		sql`not exists (select 1 from ${splits} where ${splits.transactionId} = ${transactions.id})`,
 	) as SQL;
 
+/** The month of the enclosing query's Transaction, as a MonthKey. */
+const monthOfTransaction = sql<string>`substr(${transactions.date}, 1, 7)`;
+
 /** What waits in Review for `viewer`: the oldest `limit` Transactions, and how many in all. */
 export async function loadReview(db: Db, viewer: Viewer, limit: number): Promise<ReviewQueue> {
 	const [rows, [total]] = await Promise.all([
@@ -87,13 +90,17 @@ export async function loadReview(db: Db, viewer: Viewer, limit: number): Promise
 			.from(categorizations)
 			.innerJoin(transactions, eq(transactions.id, categorizations.transactionId))
 			.leftJoin(accounts, eq(accounts.id, transactions.accountId))
-			// Never another Parent's Personal Allowance as a guess, whatever was kept.
+			// Never another Parent's Personal Allowance as a guess, whatever was kept. Nor a Bucket
+			// that isn't in the Plan of the Transaction's own month (one added since, or archived by
+			// then): it can't be filed there, so Confirm on such a guess was refused every time.
 			.leftJoin(
 				buckets,
 				and(
 					eq(buckets.id, categorizations.bucketId),
 					eq(buckets.householdId, viewer.householdId),
 					or(isNull(buckets.ownerMemberId), eq(buckets.ownerMemberId, viewer.memberId)),
+					lte(buckets.fromMonth, monthOfTransaction),
+					or(isNull(buckets.archivedFromMonth), gt(buckets.archivedFromMonth, monthOfTransaction)),
 				),
 			)
 			.where(waiting(viewer))
