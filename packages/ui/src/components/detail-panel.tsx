@@ -4,6 +4,8 @@ import {
 	closesOnEscape,
 	type DetailPanelMode,
 	type DetailPanelSize,
+	PANEL_BESIDE_FROM,
+	PANEL_BESIDE_FROM_LATE,
 	panelMode,
 	returnsFocus,
 	returnTarget,
@@ -30,7 +32,19 @@ import { cn } from "#lib/utils";
  * for fixed boxes (transform, filter, contain, container-type): keep it out of `@container`s.
  */
 
-const mode = (): DetailPanelMode => panelMode(window.innerWidth);
+/**
+ * From where the rail is beside the list, and so the panel too: `xl`, or `late` (1440) for a page
+ * whose list has the page's whole width until then, with the rail under it. Up to there the item
+ * is a drawer.
+ */
+type BesideFrom = "xl" | "late";
+const BESIDE_FROM: Record<BesideFrom, number> = {
+	xl: PANEL_BESIDE_FROM,
+	late: PANEL_BESIDE_FROM_LATE,
+};
+
+const mode = (besideFrom: BesideFrom = "xl"): DetailPanelMode =>
+	panelMode(window.innerWidth, BESIDE_FROM[besideFrom]);
 const wide = () => mode() !== "page";
 
 // Whether the Parent's last move was a key: an item opened from the keyboard shows the ring on its
@@ -72,6 +86,7 @@ const rowsOf = (root: Element | null) =>
 
 function DetailPanel({
 	size = "default",
+	besideFrom = "xl",
 	label,
 	itemKey,
 	onClose,
@@ -82,6 +97,8 @@ function DetailPanel({
 }: Omit<React.ComponentProps<"section">, "aria-label"> & {
 	/** `default` is a form's worth (a Transaction, a Rule); `wide` a page's worth (a Commitment). */
 	size?: DetailPanelSize;
+	/** From where it is beside the list rather than a drawer. Default `xl`; see `BesideFrom`. */
+	besideFrom?: BesideFrom;
 	/** Names the region, e.g. "Commitment details". */
 	label: string;
 	/** The open item's id. When it changes, focus moves to the item's title. */
@@ -98,11 +115,11 @@ function DetailPanel({
 	// Known once the window is: the server's HTML is the same for every width.
 	const [shown, setShown] = React.useState<DetailPanelMode | null>(null);
 	React.useLayoutEffect(() => {
-		const read = () => setShown(mode());
+		const read = () => setShown(mode(besideFrom));
 		read();
 		window.addEventListener("resize", read);
 		return () => window.removeEventListener("resize", read);
-	}, []);
+	}, [besideFrom]);
 	const drawer = shown === "drawer";
 	// The open item's row, remembered while it is marked, since the mark goes as the panel closes.
 	const row = React.useRef<HTMLElement | null>(null);
@@ -272,7 +289,10 @@ function DetailPanel({
 				// would not know to put it back on the item's row.
 				onMouseDown={(event) => event.preventDefault()}
 				onClick={() => closing.current()}
-				className="fixed inset-0 z-35 hidden animate-fade-in bg-scrim lg:max-xl:block"
+				className={cn(
+					"fixed inset-0 z-35 hidden animate-fade-in bg-scrim",
+					besideFrom === "late" ? "lg:max-[90rem]:block" : "lg:max-xl:block",
+				)}
 			/>
 			<section
 				ref={ref}
@@ -295,8 +315,13 @@ function DetailPanel({
 					"lg:animate-side-in",
 					// A drawer from lg (over its scrim and the Ask Noodle button, under sheets); from xl
 					// what is to the right of the list column.
-					"lg:max-xl:z-35 lg:w-[min(var(--detail-panel-drawer),100%)]",
-					size === "wide" ? "xl:w-detail-panel-wide" : "xl:w-detail-panel",
+					"lg:w-[min(var(--detail-panel-drawer),100%)]",
+					besideFrom === "late"
+						? [
+								"lg:max-[90rem]:z-35",
+								size === "wide" ? "min-[90rem]:w-detail-panel-wide" : "min-[90rem]:w-detail-panel",
+							]
+						: ["lg:max-xl:z-35", size === "wide" ? "xl:w-detail-panel-wide" : "xl:w-detail-panel"],
 					className,
 				)}
 				{...props}
@@ -334,6 +359,7 @@ function ListWithPanel({
 	detail,
 	itemKey,
 	size,
+	besideFrom = "xl",
 	listLabel,
 	asideLabel,
 	detailLabel,
@@ -349,6 +375,11 @@ function ListWithPanel({
 	detail?: React.ReactNode;
 	itemKey?: string;
 	size?: DetailPanelSize;
+	/**
+	 * `late`: the list has the page's whole width up to 1440 with the rail under it, and the rail is
+	 * beside it only from there (a table that needs the room). The item is a drawer until then.
+	 */
+	besideFrom?: BesideFrom;
 	/** Names the list pane, e.g. "Commitments". */
 	listLabel: string;
 	/** Names the rail, e.g. "Commitments: totals, add and about". */
@@ -365,7 +396,11 @@ function ListWithPanel({
 			data-picked={picked}
 			className={cn(
 				"grid grid-cols-[minmax(0,1fr)] gap-(--layout-gap) lg:items-start",
-				aside ? "lg:grid-cols-[minmax(0,1fr)_var(--rail-width)]" : null,
+				aside
+					? besideFrom === "late"
+						? "min-[90rem]:grid-cols-[minmax(0,1fr)_var(--rail-width)]"
+						: "lg:grid-cols-[minmax(0,1fr)_var(--rail-width)]"
+					: null,
 				className,
 			)}
 			{...props}
@@ -381,7 +416,12 @@ function ListWithPanel({
 				<MasterDetailPane
 					data-slot="master-detail-aside"
 					aria-label={asideLabel}
-					className={cn("@container/detail", picked && "max-lg:hidden")}
+					className={cn(
+						"@container/detail",
+						// Under the list it is part of the page's flow: it doesn't stay put as a rail does.
+						besideFrom === "late" && "lg:max-[90rem]:static!",
+						picked && "max-lg:hidden",
+					)}
 				>
 					{aside}
 				</MasterDetailPane>
@@ -389,6 +429,7 @@ function ListWithPanel({
 			{picked ? (
 				<DetailPanel
 					size={size}
+					besideFrom={besideFrom}
 					label={detailLabel}
 					itemKey={itemKey}
 					onClose={onClose}

@@ -153,12 +153,12 @@ test("the Bucket sheet opens on its amount and stays above the keyboard with Sav
 	const keyboardGone = await withKeyboard(page, keyboardHeight);
 	const before = await scrollY(page);
 
-	// Choosing the row's amount opens the one Bucket sheet (#98) with the amount ready to type.
+	// The row's pencil opens the one Bucket sheet with the amount ready to type (the row itself
+	// opens the Bucket's page, issue 107).
 	await page
 		.locator("[data-bucket-row]")
 		.filter({ has: page.getByRole("link", { name: "Groceries", exact: true }) })
-		.getByText("$1,200", { exact: true })
-		.first()
+		.getByRole("button", { name: "Edit Groceries", exact: true })
 		.click();
 	const sheet = page.getByRole("dialog", { name: "Groceries", exact: true });
 	const amount = sheet.getByRole("textbox", { name: "Allowance", exact: true });

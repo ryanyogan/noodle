@@ -28,7 +28,9 @@ const header = (page: Page) => page.locator("[data-slot=page-header]:visible");
 const planTabs = (page: Page) => page.getByRole("navigation", { name: "Plan pages" });
 const waterfall = (page: Page) => page.getByRole("region", { name: "Where take-home pay goes" });
 const planRow = (page: Page, bucket: string) =>
-	page.getByRole("listitem").filter({ has: page.getByRole("button", { name: `Edit ${bucket}` }) });
+	page
+		.locator("[data-bucket-row]")
+		.filter({ has: page.getByRole("button", { name: `Edit ${bucket}` }) });
 
 /** The month the page shows, from its URL, and its name ("September"). */
 function shownMonth(page: Page) {

@@ -1,14 +1,36 @@
-/** A control inside a Bucket's row that does something of its own when chosen. */
-const OWN_CONTROL = "a, button, input, select, textarea, label";
+/** The handle that moves a Bucket in the list. */
+const HANDLE = "[data-reorder]";
+/** What opens the Bucket sheet: the pencil, and the allowance in its column. */
+const SHEET = "[data-bucket-edit], [data-bucket-amount]";
+/** Any other control in a row, with a job of its own. */
+const OWN_CONTROL = "button, input, select, textarea, label";
+const ROW = "[data-bucket-row]";
+
+/** What a click in the Buckets table does. */
+export type BucketClick = "panel" | "sheet" | "nothing";
+
+/** Whether a press began on a Bucket's handle: whatever follows is a move, never an opening. */
+export function beginsOnHandle(target: EventTarget | null): boolean {
+	if (target === null || !("closest" in target)) return false;
+	return (target as Element).closest(HANDLE) !== null;
+}
 
 /**
- * Whether a press or click in a Bucket's row is for opening its sheet (#98): it landed in the row
- * itself, not in the sheet (a portal, whose events React bubbles to the row too), and not on a
- * control with a job of its own: the name's link to the Bucket's page, the handle that moves it,
- * the pencil (which opens the sheet itself) or a retry.
+ * What a click in the Buckets table is for (issue 107). A row opens the Bucket's own page, in the
+ * panel beside the list: its name, its figures, the space between them. Its pencil and its
+ * allowance open the one Bucket sheet instead. Nothing opens for a click that ends a press begun on
+ * the handle (a drag's last click lands on the row), for another control, or for a click in the
+ * sheet, which is not inside the list on the page although React hands its events to the list.
  */
-export function opensBucketSheet(target: EventTarget | null, row: Pick<Node, "contains">) {
-	if (target === null || !("closest" in target)) return false;
+export function bucketClick(
+	target: EventTarget | null,
+	list: Pick<Node, "contains">,
+	beganOnHandle: boolean,
+): BucketClick {
+	if (target === null || !("closest" in target)) return "nothing";
 	const element = target as Element;
-	return row.contains(element) && element.closest(OWN_CONTROL) === null;
+	if (beganOnHandle || !list.contains(element)) return "nothing";
+	if (element.closest(SHEET) !== null) return "sheet";
+	if (element.closest(OWN_CONTROL) !== null) return "nothing";
+	return element.closest(ROW) !== null ? "panel" : "nothing";
 }

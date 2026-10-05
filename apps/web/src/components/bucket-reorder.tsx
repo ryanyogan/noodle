@@ -1,10 +1,6 @@
-import type { BucketState, MonthKey, PlanBucket } from "@noodle/domain";
-import { Button } from "@noodle/ui/components/button";
-import { List } from "@noodle/ui/components/list";
-import { useHydrated } from "@tanstack/react-router";
-import { GripVertical } from "lucide-react";
 import {
 	type KeyboardEvent,
+	type MouseEvent as ReactMouseEvent,
 	type PointerEvent as ReactPointerEvent,
 	useEffect,
 	useId,
@@ -20,7 +16,7 @@ import {
 	type RowBox,
 	shifts,
 } from "../bucket-drag";
-import { BucketColumns, BucketEditor, useBucketChanges } from "./bucket-editor";
+import { beginsOnHandle, bucketClick } from "../bucket-row-click";
 
 /** A press on a handle, from pointer down until it's dropped, cancelled or let go unmoved. */
 type Drag = {
@@ -63,37 +59,27 @@ function scrollerOf(element: Element): Element {
 }
 
 /**
- * The Plan's shared Buckets, in order. Each row's handle moves it: dragged by mouse or touch, or
- * by the up and down arrow keys once focused. Where it lands is said aloud ("Groceries moved to
- * position 2 of 8") and saved once, at the drop. Plain pointer events cover mouse, pen and touch, so
- * no drag library is needed.
+ * Moving the Plan's shared Buckets by their handles: dragged by mouse or touch, or by the up and
+ * down arrow keys (Home, End) once a handle is focused. Where a Bucket lands is said aloud
+ * ("Groceries moved to position 2 of 8") and saved once, at the drop. Plain pointer events cover
+ * mouse, pen and touch, so no drag library is needed.
  *
- * While a row is dragged the rows stay where they are in the page and are only shifted on screen
- * (issue 106). Putting them in their new order as the pointer passed took the dragged row out of
- * the page and back whenever it went down the list, and a browser stops sending a press to a
- * handle that has left the page: the drag died after one row, half the time. The page, not the
+ * The rows are whatever under `listRef` carries `data-bucket-row` (the Buckets table gives its rows
+ * that attribute). While one is dragged they stay where they are in the page and are only shifted
+ * on screen (issue 106). Putting them in their new order as the pointer passed took the dragged row
+ * out of the page and back whenever it went down the list, and a browser stops sending a press to
+ * a handle that has left the page: the drag died after one row, half the time. The page, not the
  * handle, listens for the rest of the press, so nothing that happens to the handle can lose it.
  */
-export function BucketList({
-	month,
+export function useBucketReorder({
 	buckets,
-	editable,
-	was,
-	onDraft,
-	figures,
+	reorder,
 }: {
-	month: MonthKey;
-	buckets: (PlanBucket | BucketState)[];
-	/** In a wide list each row shows its allowance, spent, left and bar in columns. */
-	figures?: boolean;
-	editable: boolean;
-	was: Record<string, number | undefined>;
-	/** A Bucket's amount while it's being typed in the list, or null when it's put away. */
-	onDraft: (bucketId: string, cents: number | null) => void;
+	buckets: readonly { id: string; name: string }[];
+	/** Saves the new order; `settled` once the Plan has it, or has refused it. */
+	reorder: (ids: string[], settled: () => void) => void;
 }) {
-	const hydrated = useHydrated();
 	const hintId = useId();
-	const changes = useBucketChanges(month);
 	const listRef = useRef<HTMLDivElement>(null);
 	const drag = useRef<Drag | null>(null);
 	/** The Bucket being dragged, for its row's raised look. */
@@ -101,12 +87,13 @@ export function BucketList({
 	/** The order just dropped, shown until the Plan has it (or has refused it). */
 	const [dropped, setDropped] = useState<string[] | null>(null);
 	const [said, setSaid] = useState("");
+	/** Whether the press now under way began on a handle: the click that ends it opens nothing. */
+	const onHandle = useRef(false);
 	const known = new Set(buckets.map((b) => b.id));
 	const ids =
 		dropped && dropped.length === known.size && dropped.every((id) => known.has(id))
 			? dropped
 			: buckets.map((b) => b.id);
-	const shown = ids.flatMap((id) => buckets.find((b) => b.id === id) ?? []);
 	const nameOf = (id: string) => buckets.find((b) => b.id === id)?.name ?? "Bucket";
 
 	function save(next: string[], id: string) {
@@ -115,7 +102,7 @@ export function BucketList({
 			return;
 		}
 		setDropped(next);
-		changes.reorder.mutate({ bucketIds: next }, { onSettled: () => setDropped(null) });
+		reorder(next, () => setDropped(null));
 		setSaid(`${nameOf(id)} moved to position ${next.indexOf(id) + 1} of ${next.length}`);
 	}
 
@@ -288,55 +275,45 @@ export function BucketList({
 	}, [orderNow]);
 	useEffect(() => () => finishRef.current(false), []);
 
-	return (
-		<div ref={listRef} className="grid gap-2">
-			{figures ? <BucketColumns pencil={editable} /> : null}
-			<List>
-				{shown.map((bucket) => (
-					<BucketEditor
-						key={bucket.id}
-						figures={figures}
-						month={month}
-						bucket={bucket}
-						editable={editable}
-						was={was[bucket.id]}
-						order={ids}
-						onDraft={(cents) => onDraft(bucket.id, cents)}
-						dragged={lifted === bucket.id}
-						handle={
-							editable && buckets.length > 1 ? (
-								<Button
-									type="button"
-									variant="ghost"
-									size="icon"
-									data-reorder={bucket.id}
-									disabled={!hydrated}
-									aria-label={`Move ${bucket.name}`}
-									aria-describedby={hintId}
-									// 32 px square with a mouse, 44 px under a thumb (the Button's icon size). Only
-									// the handle refuses to scroll: a touch anywhere else on the row scrolls the page.
-									className="-ms-2 cursor-grab touch-none select-none [-webkit-touch-callout:none] active:cursor-grabbing"
-									onKeyDown={(event) => onKeyDown(event, bucket.id)}
-									onPointerDown={(event) => onPointerDown(event, bucket.id)}
-									// A long press mustn't bring up a menu in the middle of a drag.
-									onContextMenu={(event) => {
-										if (drag.current) event.preventDefault();
-									}}
-								>
-									<GripVertical />
-								</Button>
-							) : null
-						}
-					/>
-				))}
-			</List>
-			<p id={hintId} hidden>
-				Drag to move it, or press the up or down arrow key.
-			</p>
-			<p aria-live="assertive" className="sr-only" data-testid="reorder-said">
-				{said}
-			</p>
-			{changes.failed}
-		</div>
-	);
+	return {
+		/** The Buckets' IDs in the order to show them: the saved order, or the one just dropped. */
+		ids,
+		/** Goes on the element around the rows. */
+		listRef,
+		/** The Bucket being dragged, if any. */
+		lifted,
+		/** What was last done, for a live region. */
+		said,
+		/** The id of the hint a handle is described by; the caller renders the hint. */
+		hintId,
+		/**
+		 * For the element around the rows, before any row hears of it: a press that began on a handle
+		 * is a move, so the click that ends it (which lands on the row once the row has followed the
+		 * pointer) opens nothing. A click from the keyboard has no press and is left alone.
+		 */
+		guard: {
+			onPointerDownCapture: (event: ReactPointerEvent<HTMLElement>) => {
+				onHandle.current = beginsOnHandle(event.target);
+			},
+			onClickCapture: (event: ReactMouseEvent<HTMLElement>) => {
+				const began = onHandle.current;
+				onHandle.current = false;
+				if (!began || event.detail === 0) return;
+				if (bucketClick(event.target, event.currentTarget, began) !== "nothing") return;
+				event.preventDefault();
+				event.stopPropagation();
+			},
+		},
+		/** What a Bucket's handle needs besides its look and its name. */
+		handleProps: (id: string) => ({
+			"data-reorder": id,
+			"aria-describedby": hintId,
+			onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => onKeyDown(event, id),
+			onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => onPointerDown(event, id),
+			// A long press mustn't bring up a menu in the middle of a drag.
+			onContextMenu: (event: ReactMouseEvent<HTMLButtonElement>) => {
+				if (drag.current) event.preventDefault();
+			},
+		}),
+	};
 }

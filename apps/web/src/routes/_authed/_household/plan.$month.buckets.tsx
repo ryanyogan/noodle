@@ -1,15 +1,14 @@
 import { monthOfDay } from "@noodle/domain";
 import { BudgetBar } from "@noodle/ui/components/budget-bar";
 import { Card } from "@noodle/ui/components/card";
-import { List } from "@noodle/ui/components/list";
 import { Money } from "@noodle/ui/components/money";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, linkOptions } from "@tanstack/react-router";
 import { useState } from "react";
 import { AddBuckets } from "../../../components/add-buckets";
-import { AddPersonalAllowance, BucketEditor } from "../../../components/bucket-editor";
-import { BucketList } from "../../../components/bucket-list";
+import { AddPersonalAllowance } from "../../../components/bucket-editor";
+import { BucketTable } from "../../../components/bucket-table";
 import { PlanMasterDetail, TotalsCard } from "../../../components/plan-page";
 import { SectionPending } from "../../../components/section-layout";
 import { Suggested } from "../../../components/suggested";
@@ -64,6 +63,14 @@ function PlanBuckets() {
 		<PlanMasterDetail
 			noun="Bucket"
 			listLabel="Buckets"
+			// A Bucket opens in a panel from the right; the table keeps its width and every column. The
+			// table has the page's whole width up to 1440, with the totals under it; from there they
+			// are beside it and the panel covers them.
+			panel={{
+				size: "wide",
+				besideFrom: "late",
+				close: linkOptions({ to: "/plan/$month/buckets", params: { month } }),
+			}}
 			editable={state.editable}
 			summary={
 				buckets.length > 0 ? (
@@ -152,34 +159,32 @@ function PlanBuckets() {
 			) : null}
 			<div className="grid gap-3">
 				{buckets.length > 0 ? (
-					<>
-						<BucketList
-							month={month}
-							buckets={buckets}
-							editable={state.editable}
-							was={changes.allowances}
-							onDraft={onDraft}
-							figures
-						/>
-						{state.editable ? (
-							// Under the list (#98): how a Bucket is changed, and Add without scrolling back up a
-							// long list. Its own words, so the bar's Add Buckets stays the one of that name.
-							<div className="grid gap-3 px-1">
-								<p data-slot="bucket-how" className="text-[13px] text-muted-foreground">
-									Choose a Bucket to change its amount, name, colour and more.
-								</p>
-								<AddBuckets
-									month={month}
-									buckets={state.buckets}
-									freeToSpend={state.freeToSpend}
-									parentId={parentId}
-									parentName={nameOf(parentId)}
-									label="Add another Bucket"
-									variant="outline"
-								/>
-							</div>
-						) : null}
-					</>
+					<BucketTable
+						month={month}
+						label="Buckets"
+						buckets={buckets}
+						editable={state.editable}
+						reorder
+						was={changes.allowances}
+						onDraft={onDraft}
+						foot={
+							state.editable ? (
+								// Under the table: Add without scrolling back up a long list. Its own words, so the
+								// bar's Add Buckets stays the one of that name.
+								<div className="px-1">
+									<AddBuckets
+										month={month}
+										buckets={state.buckets}
+										freeToSpend={state.freeToSpend}
+										parentId={parentId}
+										parentName={nameOf(parentId)}
+										label="Add another Bucket"
+										variant="outline"
+									/>
+								</div>
+							) : null
+						}
+					/>
 				) : state.editable ? (
 					<p className="px-1 text-sm text-muted-foreground">
 						An allowance for each kind of everyday spending, like Groceries, Fun, or Hockey, tracked
@@ -204,26 +209,21 @@ function PlanBuckets() {
 						help={<TermHelp term="personal-allowance" />}
 					/>
 					{allowances.length > 0 ? (
-						<List>
-							{allowances.map((bucket) => (
-								<BucketEditor
-									key={bucket.id}
-									month={month}
-									bucket={bucket}
-									figures
-									// Each Parent sets their own; the other's shows its amount.
-									editable={state.editable && bucket.owner === parentId}
-									was={changes.allowances[bucket.id]}
-									order={[]}
-									onDraft={(cents) => onDraft(bucket.id, cents)}
-									setBy={
-										state.editable && bucket.owner !== parentId && bucket.owner
-											? nameOf(bucket.owner)
-											: undefined
-									}
-								/>
-							))}
-						</List>
+						<BucketTable
+							month={month}
+							label="Personal Allowances"
+							buckets={allowances}
+							editable={state.editable}
+							// Each Parent sets their own; the other's shows its figures.
+							canEdit={(bucket) => bucket.owner === parentId}
+							setBy={(bucket) =>
+								state.editable && bucket.owner !== parentId && bucket.owner
+									? nameOf(bucket.owner)
+									: undefined
+							}
+							was={changes.allowances}
+							onDraft={onDraft}
+						/>
 					) : null}
 					{state.editable && !allowances.some((b) => b.owner === parentId) ? (
 						<AddPersonalAllowance month={month} parentId={parentId} buckets={state.buckets} />

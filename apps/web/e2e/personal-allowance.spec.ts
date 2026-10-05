@@ -46,7 +46,8 @@ async function openPlanBuckets(page: Page) {
 }
 
 /** A Bucket's row in the Plan. */
-const planRow = (page: Page, name: string) => page.getByRole("listitem").filter({ hasText: name });
+const planRow = (page: Page, name: string) =>
+	page.locator("[data-bucket-row]").filter({ hasText: name });
 
 /** Sets up the signed-in Parent's Personal Allowance from the Plan; ends on This Month. */
 async function setUpPersonalAllowance(page: Page, amount: string, name: string) {
@@ -169,6 +170,8 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 		await expect(sam.getByText("only its Parent sees what’s spent from it")).toBeVisible();
 		await expect(sam.getByRole("main")).not.toContainText("Target run");
 		await expect(sam.getByRole("button", { name: "Edit Bucket", exact: true })).toHaveCount(0);
+		// At this width the Bucket is a drawer over the dimmed page: closed before going elsewhere.
+		await sam.getByRole("link", { name: "Close Bucket" }).click();
 		await nav(sam).getByRole("link", { name: "This Month" }).click();
 
 		// Sam's Quick Add offers his own Personal Allowance, never Alex's.
