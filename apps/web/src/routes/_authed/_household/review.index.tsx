@@ -1586,11 +1586,14 @@ function ReviewCard({
 									? "Card payment — not spending"
 									: "Payment to a card Noodle doesn’t follow"}
 							</span>
-							<span className="text-xs text-muted-foreground wrap-anywhere">
-								{payment.card
-									? `Looks like a payment to ${payment.card}`
-									: "Looks like a payment to a credit card"}
-							</span>
+							{/* With no card named, a card Noodle doesn't follow has it all said in its title. */}
+							{payment.card || payment.kind === "followed" ? (
+								<span className="text-xs text-muted-foreground wrap-anywhere">
+									{payment.card
+										? `Looks like a payment to ${payment.card}`
+										: "Looks like a payment to a credit card"}
+								</span>
+							) : null}
 						</div>
 						<TermHelp term="card-payment" />
 					</>
@@ -1770,12 +1773,17 @@ function ReviewCard({
 			{payment?.kind === "not-followed" && !caution ? (
 				// Its other two ways out: see into the card, or say the payment isn't spending after all.
 				<div className="flex flex-wrap gap-2">
-					<Button variant="outline" className="max-sm:flex-1" asChild>
+					{/* On the narrowest phones the two share 264px: less padding and smaller words fit both. */}
+					<Button
+						variant="outline"
+						className="max-sm:flex-auto max-[359px]:px-2 max-[359px]:text-xs"
+						asChild
+					>
 						<Link to="/accounts">Connect the card</Link>
 					</Button>
 					<Button
 						variant="outline"
-						className="max-sm:flex-1"
+						className="max-sm:flex-auto max-[359px]:px-2 max-[359px]:text-xs"
 						disabled={!hydrated}
 						onClick={onPayment}
 					>

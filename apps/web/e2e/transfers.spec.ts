@@ -173,7 +173,6 @@ test("a payment to a card Noodle doesn't follow is the spending: Review offers a
 	await reloadUntil(page, new URL("/review?view=list", thisMonth).href, () =>
 		expect(payment).toHaveCount(1, { timeout: 2_000 }),
 	);
-	await expect(payment).toContainText("Looks like a payment to a credit card");
 	await expect(payment.getByTestId("review-payment-why")).toContainText(
 		"Noodle can’t see what was bought on this card, so the payment is the spending.",
 	);
