@@ -1335,7 +1335,11 @@ function TrendsView({ report, data, names, nav, tables }: ViewProps<"trends">) {
 					onSelect={(p) => nav.month(monthOfPeriod(p))}
 				/>
 			</ChartCard>
-			<ChartCard title="Every day" description="The stronger the colour, the more that day cost" table={tables.daily}>
+			<ChartCard
+				title="Every day"
+				description="The stronger the colour, the more that day cost"
+				table={tables.daily}
+			>
 				<CalendarHeatmap
 					days={data.daily}
 					from={report.range.from}
