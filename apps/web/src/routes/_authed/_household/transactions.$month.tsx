@@ -500,9 +500,8 @@ function Filters({
 							<span className="truncate max-[22.5rem]:hidden">
 								<SelectValue>{sortLabel(filters.sort ?? "newest")}</SelectValue>
 							</span>
-							<span aria-hidden="true" className="min-[22.5625rem]:hidden">
-								Sort
-							</span>
+							{/* The word is drawn by CSS, so the trigger's text is the order alone. */}
+							<span aria-hidden="true" className="after:content-['Sort'] min-[22.5625rem]:hidden" />
 						</span>
 					</SelectTrigger>
 					<SelectContent>
