@@ -305,6 +305,7 @@ function filingStatements(
 						createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
 						reason: sql<string | null>`${field("reason")}`.as("reason"),
 						commitmentId: sql<string | null>`${field("commitmentId")}`.as("commitment_id"),
+						returnedAt: sql<Date | null>`null`.as("returned_at"),
 					})
 					.from(sql`json_each(${rows})`)
 					.where(
@@ -324,6 +325,9 @@ function filingStatements(
 					confidence: sql`excluded.confidence`,
 					reason: sql`excluded.reason`,
 					commitmentId: sql`excluded.commitment_id`,
+					// Filed, it's no longer a card a Parent put back; with only a new guess it still is.
+					returnedAt: sql`case when excluded.outcome = 'filed' then null
+						else ${categorizations.returnedAt} end`,
 				},
 				setWhere: sql`${categorizations.outcome} = 'review'`,
 			}),

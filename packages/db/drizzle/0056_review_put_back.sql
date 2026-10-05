@@ -1,0 +1,1 @@
+ALTER TABLE `categorizations` ADD `returned_at` integer;

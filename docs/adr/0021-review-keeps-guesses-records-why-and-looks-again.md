@@ -20,6 +20,7 @@ In production every Review card had no guess. Categorization ran, but it threw a
 - The model is asked for a short `why`, which adds roughly 15 tokens per merchant. A prompt of ten still finishes well inside waitUntil's 30 seconds.
 - Adding a Bucket can cost one model run over the viewer's Review rows.
 - An undo (returnToReview) keeps the guess's method and reason, but still drops a Personal Allowance guess.
+- A card a Parent put back with Undo is theirs to decide (#105): `returnToReview` marks its row (`categorizations.returned_at`, migration 0056) and a look again, in the background or from the button, skips it. Otherwise what the undone filing taught (its merchant, or a Bucket or Rule made on the way) files it again about a minute later, under the Parent's eyes. The mark goes when the Parent files it (the row is deleted) or a Rule they make files it (`applyRule`); a new guess alone keeps it.
 
 ## Addendum: the Review page (phase 2)
 

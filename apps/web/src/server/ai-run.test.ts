@@ -10,6 +10,7 @@ import {
 	loadParentNames,
 	nameSameMerchant,
 	PARENT_NAME,
+	returnToReview,
 	saveMerchantNames,
 	saveRule,
 	setTakeHomePay,
@@ -220,6 +221,39 @@ describe("a background AI run", () => {
 
 		// Sam's Review row, looked at again in Sam's view, with the Household Rule.
 		expect((await outcomes())["ZZ MART #12"]).toEqual({ bucketId: "groceries", outcome: "filed" });
+	});
+
+	it("leaves a card a Parent put back with Undo in Review, whatever it has learned since (issue 105)", async () => {
+		const model = namingModel();
+		const importId = await importLines("alex", [line("ZZ MART #12", 12), line("ZZ MART #40", 30)]);
+		const run = (batch: AiBatch) => runAiBatch(deps(model.classifier), batch);
+		await run(batchOf({ householdId, memberId: "alex", kind: "imported", ids: [importId] }));
+		const rows = await db.select().from(transactions);
+		const putBack = rows.find((row) => row.note === "ZZ MART #12");
+
+		// Alex's Undo of a filing, then a Rule for the same merchant.
+		await returnToReview(
+			db,
+			{ householdId, memberId: "alex" },
+			{
+				transactionId: putBack?.id as string,
+				merchant: "zz mart",
+				guess: null,
+				forMemberIds: [],
+			},
+		);
+		await saveRule(db, {
+			id: "rule-zz",
+			householdId,
+			memberId: "alex",
+			pattern: "ZZ Mart",
+			bucketId: "groceries",
+		});
+		await run(batchOf({ householdId, memberId: "alex", kind: "rule-added" }));
+
+		const after = await outcomes();
+		expect(after["ZZ MART #12"]).toEqual({ bucketId: null, outcome: "review" });
+		expect(after["ZZ MART #40"]).toEqual({ bucketId: "groceries", outcome: "filed" });
 	});
 
 	it("does nothing, and tells no one, when nothing's new", async () => {

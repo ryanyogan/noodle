@@ -168,7 +168,9 @@ const LOOK_AGAIN_ROWS = 200;
 /**
  * What waits in Review that `viewer` imported, oldest first: what categorization looks at again
  * for them once the Plan has changed. The other Parent's are theirs to look at again, with their
- * Rules and Personal Allowance.
+ * Rules and Personal Allowance. Never one a Parent put back with Undo (issue 105): they said no
+ * to where it was filed, and what that filing taught would only file it there again. It waits
+ * for a Parent to file it, or for a Rule they make.
  */
 export async function loadReviewToLookAgain(db: Db, viewer: Viewer): Promise<Uncategorized[]> {
 	const rows = await db
@@ -181,7 +183,13 @@ export async function loadReviewToLookAgain(db: Db, viewer: Viewer): Promise<Unc
 		})
 		.from(categorizations)
 		.innerJoin(transactions, eq(transactions.id, categorizations.transactionId))
-		.where(and(waiting(viewer), eq(categorizations.memberId, viewer.memberId)))
+		.where(
+			and(
+				waiting(viewer),
+				eq(categorizations.memberId, viewer.memberId),
+				isNull(categorizations.returnedAt),
+			),
+		)
 		.orderBy(asc(transactions.date), asc(transactions.id))
 		.limit(LOOK_AGAIN_ROWS);
 	return rows as Uncategorized[];
@@ -189,7 +197,8 @@ export async function loadReviewToLookAgain(db: Db, viewer: Viewer): Promise<Unc
 
 /**
  * Puts a Transaction a Parent just decided back in Review (their undo): unassigned as a whole,
- * without Splits, For `forMemberIds` again, with categorization's guess as it was. Only one
+ * without Splits, For `forMemberIds` again, with categorization's guess as it was, and marked as
+ * put back, so background AI doesn't file it again by itself (`loadReviewToLookAgain`). Only one
  * `viewer` may change (changeableBy), not a Goal's spending, and only a Household Bucket as the
  * guess. Idempotent.
  */
@@ -267,6 +276,7 @@ export async function returnToReview(
 						createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
 						reason: sql<string | null>`${reason}`.as("reason"),
 						commitmentId: sql<string | null>`null`.as("commitment_id"),
+						returnedAt: sql<Date>`(unixepoch() * 1000)`.as("returned_at"),
 					})
 					.from(sql`(select 1)`)
 					.where(theirs),
@@ -280,6 +290,7 @@ export async function returnToReview(
 					commitmentId: sql`null`,
 					confidence: sql`excluded.confidence`,
 					reason: sql`excluded.reason`,
+					returnedAt: sql`excluded.returned_at`,
 				},
 			}),
 		// Last: every write before it is guarded by the version this one moves on from.

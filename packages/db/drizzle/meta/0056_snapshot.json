@@ -1,0 +1,6060 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "f26578c9-422b-40cb-81e1-d99c41349d0c",
+  "prevId": "d4e1e4d9-a6f9-418d-ac11-f2f06435ce72",
+  "tables": {
+    "account_balances": {
+      "name": "account_balances",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_by_member_id": {
+          "name": "created_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "as_of": {
+          "name": "as_of",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "account_balances_account_idx": {
+          "name": "account_balances_account_idx",
+          "columns": [
+            "account_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "account_balances_household_id_households_id_fk": {
+          "name": "account_balances_household_id_households_id_fk",
+          "tableFrom": "account_balances",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "account_balances_account_id_accounts_id_fk": {
+          "name": "account_balances_account_id_accounts_id_fk",
+          "tableFrom": "account_balances",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "account_balances_created_by_member_id_members_id_fk": {
+          "name": "account_balances_created_by_member_id_members_id_fk",
+          "tableFrom": "account_balances",
+          "tableTo": "members",
+          "columnsFrom": [
+            "created_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "accounts": {
+      "name": "accounts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "bank_connection_id": {
+          "name": "bank_connection_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "external_id": {
+          "name": "external_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "mask": {
+          "name": "mask",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "accounts_household_idx": {
+          "name": "accounts_household_idx",
+          "columns": [
+            "household_id"
+          ],
+          "isUnique": false
+        },
+        "accounts_bank_external_idx": {
+          "name": "accounts_bank_external_idx",
+          "columns": [
+            "bank_connection_id",
+            "external_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "accounts_household_id_households_id_fk": {
+          "name": "accounts_household_id_households_id_fk",
+          "tableFrom": "accounts",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "accounts_bank_connection_id_bank_connections_id_fk": {
+          "name": "accounts_bank_connection_id_bank_connections_id_fk",
+          "tableFrom": "accounts",
+          "tableTo": "bank_connections",
+          "columnsFrom": [
+            "bank_connection_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "bank_connections": {
+      "name": "bank_connections",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "external_id": {
+          "name": "external_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "institution": {
+          "name": "institution",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "institution_id": {
+          "name": "institution_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "credential": {
+          "name": "credential",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "cursor": {
+          "name": "cursor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "history_start": {
+          "name": "history_start",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'importing'"
+        },
+        "last_imported_at": {
+          "name": "last_imported_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "notice": {
+          "name": "notice",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_webhook_at": {
+          "name": "last_webhook_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "webhook_url": {
+          "name": "webhook_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "new_accounts": {
+          "name": "new_accounts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "sync_started_at": {
+          "name": "sync_started_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "sync_pending": {
+          "name": "sync_pending",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "created_by_member_id": {
+          "name": "created_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {
+        "bank_connections_external_idx": {
+          "name": "bank_connections_external_idx",
+          "columns": [
+            "household_id",
+            "provider",
+            "external_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "bank_connections_household_id_households_id_fk": {
+          "name": "bank_connections_household_id_households_id_fk",
+          "tableFrom": "bank_connections",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "bank_connections_created_by_member_id_members_id_fk": {
+          "name": "bank_connections_created_by_member_id_members_id_fk",
+          "tableFrom": "bank_connections",
+          "tableTo": "members",
+          "columnsFrom": [
+            "created_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "bank_line_pairs": {
+      "name": "bank_line_pairs",
+      "columns": {
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "bank_key": {
+          "name": "bank_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "row_id": {
+          "name": "row_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {
+        "bank_line_pairs_row_idx": {
+          "name": "bank_line_pairs_row_idx",
+          "columns": [
+            "row_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "bank_line_pairs_household_id_households_id_fk": {
+          "name": "bank_line_pairs_household_id_households_id_fk",
+          "tableFrom": "bank_line_pairs",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "bank_line_pairs_account_id_accounts_id_fk": {
+          "name": "bank_line_pairs_account_id_accounts_id_fk",
+          "tableFrom": "bank_line_pairs",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "bank_line_pairs_account_id_bank_key_pk": {
+          "columns": [
+            "account_id",
+            "bank_key"
+          ],
+          "name": "bank_line_pairs_account_id_bank_key_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "bank_link_sessions": {
+      "name": "bank_link_sessions",
+      "columns": {
+        "member_id": {
+          "name": "member_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "link_token": {
+          "name": "link_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "return_to": {
+          "name": "return_to",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "connection_id": {
+          "name": "connection_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "history_start": {
+          "name": "history_start",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "baselines": {
+      "name": "baselines",
+      "columns": {
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "month": {
+          "name": "month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "baselines_household_id_households_id_fk": {
+          "name": "baselines_household_id_households_id_fk",
+          "tableFrom": "baselines",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "baselines_household_id_month_pk": {
+          "columns": [
+            "household_id",
+            "month"
+          ],
+          "name": "baselines_household_id_month_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "bucket_allowances": {
+      "name": "bucket_allowances",
+      "columns": {
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "bucket_id": {
+          "name": "bucket_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "month": {
+          "name": "month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "bucket_allowances_household_idx": {
+          "name": "bucket_allowances_household_idx",
+          "columns": [
+            "household_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "bucket_allowances_household_id_households_id_fk": {
+          "name": "bucket_allowances_household_id_households_id_fk",
+          "tableFrom": "bucket_allowances",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "bucket_allowances_bucket_id_buckets_id_fk": {
+          "name": "bucket_allowances_bucket_id_buckets_id_fk",
+          "tableFrom": "bucket_allowances",
+          "tableTo": "buckets",
+          "columnsFrom": [
+            "bucket_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "bucket_allowances_bucket_id_month_pk": {
+          "columns": [
+            "bucket_id",
+            "month"
+          ],
+          "name": "bucket_allowances_bucket_id_month_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "bucket_rolling": {
+      "name": "bucket_rolling",
+      "columns": {
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "bucket_id": {
+          "name": "bucket_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "month": {
+          "name": "month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "rolling": {
+          "name": "rolling",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "bucket_rolling_household_idx": {
+          "name": "bucket_rolling_household_idx",
+          "columns": [
+            "household_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "bucket_rolling_household_id_households_id_fk": {
+          "name": "bucket_rolling_household_id_households_id_fk",
+          "tableFrom": "bucket_rolling",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "bucket_rolling_bucket_id_buckets_id_fk": {
+          "name": "bucket_rolling_bucket_id_buckets_id_fk",
+          "tableFrom": "bucket_rolling",
+          "tableTo": "buckets",
+          "columnsFrom": [
+            "bucket_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "bucket_rolling_bucket_id_month_pk": {
+          "columns": [
+            "bucket_id",
+            "month"
+          ],
+          "name": "bucket_rolling_bucket_id_month_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "buckets": {
+      "name": "buckets",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "color": {
+          "name": "color",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "from_month": {
+          "name": "from_month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "archived_from_month": {
+          "name": "archived_from_month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "owner_member_id": {
+          "name": "owner_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "buckets_household_idx": {
+          "name": "buckets_household_idx",
+          "columns": [
+            "household_id"
+          ],
+          "isUnique": false
+        },
+        "buckets_one_personal_allowance": {
+          "name": "buckets_one_personal_allowance",
+          "columns": [
+            "owner_member_id"
+          ],
+          "isUnique": true,
+          "where": "\"buckets\".\"owner_member_id\" is not null"
+        }
+      },
+      "foreignKeys": {
+        "buckets_household_id_households_id_fk": {
+          "name": "buckets_household_id_households_id_fk",
+          "tableFrom": "buckets",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "buckets_owner_member_id_members_id_fk": {
+          "name": "buckets_owner_member_id_members_id_fk",
+          "tableFrom": "buckets",
+          "tableTo": "members",
+          "columnsFrom": [
+            "owner_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "capture_tokens": {
+      "name": "capture_tokens",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "capture_tokens_token_hash_unique": {
+          "name": "capture_tokens_token_hash_unique",
+          "columns": [
+            "token_hash"
+          ],
+          "isUnique": true
+        },
+        "capture_tokens_live_idx": {
+          "name": "capture_tokens_live_idx",
+          "columns": [
+            "member_id"
+          ],
+          "isUnique": true,
+          "where": "\"capture_tokens\".\"revoked_at\" is null"
+        }
+      },
+      "foreignKeys": {
+        "capture_tokens_household_id_households_id_fk": {
+          "name": "capture_tokens_household_id_households_id_fk",
+          "tableFrom": "capture_tokens",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "capture_tokens_member_id_members_id_fk": {
+          "name": "capture_tokens_member_id_members_id_fk",
+          "tableFrom": "capture_tokens",
+          "tableTo": "members",
+          "columnsFrom": [
+            "member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "categorizations": {
+      "name": "categorizations",
+      "columns": {
+        "transaction_id": {
+          "name": "transaction_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "method": {
+          "name": "method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "bucket_id": {
+          "name": "bucket_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "confidence": {
+          "name": "confidence",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "merchant": {
+          "name": "merchant",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "commitment_id": {
+          "name": "commitment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "returned_at": {
+          "name": "returned_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "categorizations_household_idx": {
+          "name": "categorizations_household_idx",
+          "columns": [
+            "household_id",
+            "outcome"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "categorizations_transaction_id_transactions_id_fk": {
+          "name": "categorizations_transaction_id_transactions_id_fk",
+          "tableFrom": "categorizations",
+          "tableTo": "transactions",
+          "columnsFrom": [
+            "transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "categorizations_household_id_households_id_fk": {
+          "name": "categorizations_household_id_households_id_fk",
+          "tableFrom": "categorizations",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "categorizations_member_id_members_id_fk": {
+          "name": "categorizations_member_id_members_id_fk",
+          "tableFrom": "categorizations",
+          "tableTo": "members",
+          "columnsFrom": [
+            "member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "categorizations_bucket_id_buckets_id_fk": {
+          "name": "categorizations_bucket_id_buckets_id_fk",
+          "tableFrom": "categorizations",
+          "tableTo": "buckets",
+          "columnsFrom": [
+            "bucket_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "categorizations_commitment_id_commitments_id_fk": {
+          "name": "categorizations_commitment_id_commitments_id_fk",
+          "tableFrom": "categorizations",
+          "tableTo": "commitments",
+          "columnsFrom": [
+            "commitment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "check_ins": {
+      "name": "check_ins",
+      "columns": {
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "week": {
+          "name": "week",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {
+        "check_ins_household_week_idx": {
+          "name": "check_ins_household_week_idx",
+          "columns": [
+            "household_id",
+            "week"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "check_ins_household_id_households_id_fk": {
+          "name": "check_ins_household_id_households_id_fk",
+          "tableFrom": "check_ins",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "check_ins_member_id_members_id_fk": {
+          "name": "check_ins_member_id_members_id_fk",
+          "tableFrom": "check_ins",
+          "tableTo": "members",
+          "columnsFrom": [
+            "member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "check_ins_member_id_week_pk": {
+          "columns": [
+            "member_id",
+            "week"
+          ],
+          "name": "check_ins_member_id_week_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "commitment_terms": {
+      "name": "commitment_terms",
+      "columns": {
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "commitment_id": {
+          "name": "commitment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "month": {
+          "name": "month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "cadence": {
+          "name": "cadence",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "commitment_terms_household_idx": {
+          "name": "commitment_terms_household_idx",
+          "columns": [
+            "household_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "commitment_terms_household_id_households_id_fk": {
+          "name": "commitment_terms_household_id_households_id_fk",
+          "tableFrom": "commitment_terms",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "commitment_terms_commitment_id_commitments_id_fk": {
+          "name": "commitment_terms_commitment_id_commitments_id_fk",
+          "tableFrom": "commitment_terms",
+          "tableTo": "commitments",
+          "columnsFrom": [
+            "commitment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "commitment_terms_commitment_id_month_pk": {
+          "columns": [
+            "commitment_id",
+            "month"
+          ],
+          "name": "commitment_terms_commitment_id_month_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "commitments": {
+      "name": "commitments",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "from_month": {
+          "name": "from_month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ended_from_month": {
+          "name": "ended_from_month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "carried_balance": {
+          "name": "carried_balance",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        }
+      },
+      "indexes": {
+        "commitments_household_idx": {
+          "name": "commitments_household_idx",
+          "columns": [
+            "household_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "commitments_household_id_households_id_fk": {
+          "name": "commitments_household_id_households_id_fk",
+          "tableFrom": "commitments",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "commitments_account_id_accounts_id_fk": {
+          "name": "commitments_account_id_accounts_id_fk",
+          "tableFrom": "commitments",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "csv_mappings": {
+      "name": "csv_mappings",
+      "columns": {
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "mapping": {
+          "name": "mapping",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "csv_mappings_account_id_accounts_id_fk": {
+          "name": "csv_mappings_account_id_accounts_id_fk",
+          "tableFrom": "csv_mappings",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "csv_mappings_household_id_households_id_fk": {
+          "name": "csv_mappings_household_id_households_id_fk",
+          "tableFrom": "csv_mappings",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "deleted_bank_lines": {
+      "name": "deleted_bank_lines",
+      "columns": {
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "external_id": {
+          "name": "external_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "deleted_bank_lines_household_id_households_id_fk": {
+          "name": "deleted_bank_lines_household_id_households_id_fk",
+          "tableFrom": "deleted_bank_lines",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "deleted_bank_lines_account_id_accounts_id_fk": {
+          "name": "deleted_bank_lines_account_id_accounts_id_fk",
+          "tableFrom": "deleted_bank_lines",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "deleted_bank_lines_account_id_external_id_pk": {
+          "columns": [
+            "account_id",
+            "external_id"
+          ],
+          "name": "deleted_bank_lines_account_id_external_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "earmark_claims": {
+      "name": "earmark_claims",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "goal_id": {
+          "name": "goal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "month": {
+          "name": "month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_by_member_id": {
+          "name": "created_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {
+        "earmark_claims_goal_idx": {
+          "name": "earmark_claims_goal_idx",
+          "columns": [
+            "goal_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "earmark_claims_household_id_households_id_fk": {
+          "name": "earmark_claims_household_id_households_id_fk",
+          "tableFrom": "earmark_claims",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "earmark_claims_goal_id_goals_id_fk": {
+          "name": "earmark_claims_goal_id_goals_id_fk",
+          "tableFrom": "earmark_claims",
+          "tableTo": "goals",
+          "columnsFrom": [
+            "goal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "earmark_claims_created_by_member_id_members_id_fk": {
+          "name": "earmark_claims_created_by_member_id_members_id_fk",
+          "tableFrom": "earmark_claims",
+          "tableTo": "members",
+          "columnsFrom": [
+            "created_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "fresh_starts": {
+      "name": "fresh_starts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "level": {
+          "name": "level",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "requested_by": {
+          "name": "requested_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "run_at": {
+          "name": "run_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "step": {
+          "name": "step",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "steps": {
+          "name": "steps",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cancelled_by": {
+          "name": "cancelled_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "fresh_starts_household_idx": {
+          "name": "fresh_starts_household_idx",
+          "columns": [
+            "household_id",
+            "created_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "goals": {
+      "name": "goals",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "target_cents": {
+          "name": "target_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "target_date": {
+          "name": "target_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "from_month": {
+          "name": "from_month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'save'"
+        }
+      },
+      "indexes": {
+        "goals_household_idx": {
+          "name": "goals_household_idx",
+          "columns": [
+            "household_id"
+          ],
+          "isUnique": false
+        },
+        "goals_one_payoff_per_account": {
+          "name": "goals_one_payoff_per_account",
+          "columns": [
+            "account_id"
+          ],
+          "isUnique": true,
+          "where": "\"goals\".\"kind\" = 'payoff' and \"goals\".\"completed_at\" is null and \"goals\".\"archived_at\" is null"
+        }
+      },
+      "foreignKeys": {
+        "goals_household_id_households_id_fk": {
+          "name": "goals_household_id_households_id_fk",
+          "tableFrom": "goals",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "goals_account_id_accounts_id_fk": {
+          "name": "goals_account_id_accounts_id_fk",
+          "tableFrom": "goals",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "household_snapshots": {
+      "name": "household_snapshots",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "taken_by": {
+          "name": "taken_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "bytes": {
+          "name": "bytes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "format": {
+          "name": "format",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "migration": {
+          "name": "migration",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "row_counts": {
+          "name": "row_counts",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "household_snapshots_household_idx": {
+          "name": "household_snapshots_household_idx",
+          "columns": [
+            "household_id",
+            "created_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "households": {
+      "name": "households",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "time_zone": {
+          "name": "time_zone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'UTC'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "emergency_goal_id": {
+          "name": "emergency_goal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "check_in_day": {
+          "name": "check_in_day",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "receipt_address": {
+          "name": "receipt_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "households_receipt_address_unique": {
+          "name": "households_receipt_address_unique",
+          "columns": [
+            "receipt_address"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "households_emergency_goal_id_goals_id_fk": {
+          "name": "households_emergency_goal_id_goals_id_fk",
+          "tableFrom": "households",
+          "tableTo": "goals",
+          "columnsFrom": [
+            "emergency_goal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "imports": {
+      "name": "imports",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "file_name": {
+          "name": "file_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "file_key": {
+          "name": "file_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "account_digits": {
+          "name": "account_digits",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "transaction_count": {
+          "name": "transaction_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "income_count": {
+          "name": "income_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "duplicate_count": {
+          "name": "duplicate_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "first_date": {
+          "name": "first_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_date": {
+          "name": "last_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "closing_balance_cents": {
+          "name": "closing_balance_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "closing_balance_date": {
+          "name": "closing_balance_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_by_member_id": {
+          "name": "created_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "bank_connection_id": {
+          "name": "bank_connection_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "imports_account_idx": {
+          "name": "imports_account_idx",
+          "columns": [
+            "account_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "imports_household_id_households_id_fk": {
+          "name": "imports_household_id_households_id_fk",
+          "tableFrom": "imports",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "imports_account_id_accounts_id_fk": {
+          "name": "imports_account_id_accounts_id_fk",
+          "tableFrom": "imports",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "imports_created_by_member_id_members_id_fk": {
+          "name": "imports_created_by_member_id_members_id_fk",
+          "tableFrom": "imports",
+          "tableTo": "members",
+          "columnsFrom": [
+            "created_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "imports_bank_connection_id_bank_connections_id_fk": {
+          "name": "imports_bank_connection_id_bank_connections_id_fk",
+          "tableFrom": "imports",
+          "tableTo": "bank_connections",
+          "columnsFrom": [
+            "bank_connection_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "income": {
+      "name": "income",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "date": {
+          "name": "date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_by_member_id": {
+          "name": "created_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "import_id": {
+          "name": "import_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "external_id": {
+          "name": "external_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "income_household_date_idx": {
+          "name": "income_household_date_idx",
+          "columns": [
+            "household_id",
+            "date"
+          ],
+          "isUnique": false
+        },
+        "income_account_external_idx": {
+          "name": "income_account_external_idx",
+          "columns": [
+            "account_id",
+            "external_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "income_household_id_households_id_fk": {
+          "name": "income_household_id_households_id_fk",
+          "tableFrom": "income",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "income_created_by_member_id_members_id_fk": {
+          "name": "income_created_by_member_id_members_id_fk",
+          "tableFrom": "income",
+          "tableTo": "members",
+          "columnsFrom": [
+            "created_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "income_account_id_accounts_id_fk": {
+          "name": "income_account_id_accounts_id_fk",
+          "tableFrom": "income",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "income_import_id_imports_id_fk": {
+          "name": "income_import_id_imports_id_fk",
+          "tableFrom": "income",
+          "tableTo": "imports",
+          "columnsFrom": [
+            "import_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "insights": {
+      "name": "insights",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "owner_member_id": {
+          "name": "owner_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "yearly_impact_cents": {
+          "name": "yearly_impact_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "transaction_ids": {
+          "name": "transaction_ids",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "commitment_ids": {
+          "name": "commitment_ids",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "perk_ids": {
+          "name": "perk_ids",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'new'"
+        },
+        "fingerprint": {
+          "name": "fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "decided_by_member_id": {
+          "name": "decided_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {
+        "insights_household_fingerprint_idx": {
+          "name": "insights_household_fingerprint_idx",
+          "columns": [
+            "household_id",
+            "fingerprint"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "insights_household_id_households_id_fk": {
+          "name": "insights_household_id_households_id_fk",
+          "tableFrom": "insights",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "insights_owner_member_id_members_id_fk": {
+          "name": "insights_owner_member_id_members_id_fk",
+          "tableFrom": "insights",
+          "tableTo": "members",
+          "columnsFrom": [
+            "owner_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "insights_decided_by_member_id_members_id_fk": {
+          "name": "insights_decided_by_member_id_members_id_fk",
+          "tableFrom": "insights",
+          "tableTo": "members",
+          "columnsFrom": [
+            "decided_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "invites": {
+      "name": "invites",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "invited_by_member_id": {
+          "name": "invited_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "accepted_by_member_id": {
+          "name": "accepted_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "sends_that_day": {
+          "name": "sends_that_day",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        }
+      },
+      "indexes": {
+        "invites_token_hash_idx": {
+          "name": "invites_token_hash_idx",
+          "columns": [
+            "token_hash"
+          ],
+          "isUnique": true
+        },
+        "invites_one_open_per_household": {
+          "name": "invites_one_open_per_household",
+          "columns": [
+            "household_id"
+          ],
+          "isUnique": true,
+          "where": "\"invites\".\"accepted_by_member_id\" is null"
+        },
+        "invites_email_idx": {
+          "name": "invites_email_idx",
+          "columns": [
+            "email"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "invites_household_id_households_id_fk": {
+          "name": "invites_household_id_households_id_fk",
+          "tableFrom": "invites",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "invites_invited_by_member_id_members_id_fk": {
+          "name": "invites_invited_by_member_id_members_id_fk",
+          "tableFrom": "invites",
+          "tableTo": "members",
+          "columnsFrom": [
+            "invited_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "invites_accepted_by_member_id_members_id_fk": {
+          "name": "invites_accepted_by_member_id_members_id_fk",
+          "tableFrom": "invites",
+          "tableTo": "members",
+          "columnsFrom": [
+            "accepted_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "matches": {
+      "name": "matches",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quick_add_id": {
+          "name": "quick_add_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "imported_id": {
+          "name": "imported_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_by_member_id": {
+          "name": "created_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "removed_at": {
+          "name": "removed_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "removed_by_member_id": {
+          "name": "removed_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "matches_household_idx": {
+          "name": "matches_household_idx",
+          "columns": [
+            "household_id"
+          ],
+          "isUnique": false
+        },
+        "matches_one_per_quick_add": {
+          "name": "matches_one_per_quick_add",
+          "columns": [
+            "quick_add_id"
+          ],
+          "isUnique": true,
+          "where": "\"matches\".\"removed_at\" is null"
+        },
+        "matches_one_per_imported": {
+          "name": "matches_one_per_imported",
+          "columns": [
+            "imported_id"
+          ],
+          "isUnique": true,
+          "where": "\"matches\".\"removed_at\" is null"
+        }
+      },
+      "foreignKeys": {
+        "matches_household_id_households_id_fk": {
+          "name": "matches_household_id_households_id_fk",
+          "tableFrom": "matches",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "matches_quick_add_id_transactions_id_fk": {
+          "name": "matches_quick_add_id_transactions_id_fk",
+          "tableFrom": "matches",
+          "tableTo": "transactions",
+          "columnsFrom": [
+            "quick_add_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "matches_imported_id_transactions_id_fk": {
+          "name": "matches_imported_id_transactions_id_fk",
+          "tableFrom": "matches",
+          "tableTo": "transactions",
+          "columnsFrom": [
+            "imported_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "matches_created_by_member_id_members_id_fk": {
+          "name": "matches_created_by_member_id_members_id_fk",
+          "tableFrom": "matches",
+          "tableTo": "members",
+          "columnsFrom": [
+            "created_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "matches_removed_by_member_id_members_id_fk": {
+          "name": "matches_removed_by_member_id_members_id_fk",
+          "tableFrom": "matches",
+          "tableTo": "members",
+          "columnsFrom": [
+            "removed_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "members": {
+      "name": "members",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "clerk_user_id": {
+          "name": "clerk_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "color": {
+          "name": "color",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "removed_at": {
+          "name": "removed_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "members_clerk_user_id_unique": {
+          "name": "members_clerk_user_id_unique",
+          "columns": [
+            "clerk_user_id"
+          ],
+          "isUnique": true
+        },
+        "members_household_idx": {
+          "name": "members_household_idx",
+          "columns": [
+            "household_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "members_household_id_households_id_fk": {
+          "name": "members_household_id_households_id_fk",
+          "tableFrom": "members",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "merchant_names": {
+      "name": "merchant_names",
+      "columns": {
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "raw": {
+          "name": "raw",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "merchant_names_household_id_households_id_fk": {
+          "name": "merchant_names_household_id_households_id_fk",
+          "tableFrom": "merchant_names",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "merchant_names_household_id_raw_pk": {
+          "columns": [
+            "household_id",
+            "raw"
+          ],
+          "name": "merchant_names_household_id_raw_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "merchant_vectors": {
+      "name": "merchant_vectors",
+      "columns": {
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "merchant": {
+          "name": "merchant",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "merchant_vectors_household_id_households_id_fk": {
+          "name": "merchant_vectors_household_id_households_id_fk",
+          "tableFrom": "merchant_vectors",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "merchant_vectors_household_id_merchant_pk": {
+          "columns": [
+            "household_id",
+            "merchant"
+          ],
+          "name": "merchant_vectors_household_id_merchant_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "month_closes": {
+      "name": "month_closes",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "month": {
+          "name": "month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "decided_by_member_id": {
+          "name": "decided_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {
+        "month_closes_household_month_idx": {
+          "name": "month_closes_household_month_idx",
+          "columns": [
+            "household_id",
+            "month"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "month_closes_household_id_households_id_fk": {
+          "name": "month_closes_household_id_households_id_fk",
+          "tableFrom": "month_closes",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "month_closes_decided_by_member_id_members_id_fk": {
+          "name": "month_closes_decided_by_member_id_members_id_fk",
+          "tableFrom": "month_closes",
+          "tableTo": "members",
+          "columnsFrom": [
+            "decided_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "moves": {
+      "name": "moves",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "month": {
+          "name": "month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "from_bucket_id": {
+          "name": "from_bucket_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "to_bucket_id": {
+          "name": "to_bucket_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_by_member_id": {
+          "name": "created_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "to_goal_id": {
+          "name": "to_goal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "moves_household_month_idx": {
+          "name": "moves_household_month_idx",
+          "columns": [
+            "household_id",
+            "month"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "moves_household_id_households_id_fk": {
+          "name": "moves_household_id_households_id_fk",
+          "tableFrom": "moves",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "moves_from_bucket_id_buckets_id_fk": {
+          "name": "moves_from_bucket_id_buckets_id_fk",
+          "tableFrom": "moves",
+          "tableTo": "buckets",
+          "columnsFrom": [
+            "from_bucket_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "moves_to_bucket_id_buckets_id_fk": {
+          "name": "moves_to_bucket_id_buckets_id_fk",
+          "tableFrom": "moves",
+          "tableTo": "buckets",
+          "columnsFrom": [
+            "to_bucket_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "moves_created_by_member_id_members_id_fk": {
+          "name": "moves_created_by_member_id_members_id_fk",
+          "tableFrom": "moves",
+          "tableTo": "members",
+          "columnsFrom": [
+            "created_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "moves_to_goal_id_goals_id_fk": {
+          "name": "moves_to_goal_id_goals_id_fk",
+          "tableFrom": "moves",
+          "tableTo": "goals",
+          "columnsFrom": [
+            "to_goal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "nudge_preferences": {
+      "name": "nudge_preferences",
+      "columns": {
+        "member_id": {
+          "name": "member_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "bucket_pace": {
+          "name": "bucket_pace",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "other_parent_quick_adds": {
+          "name": "other_parent_quick_adds",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "windfalls": {
+          "name": "windfalls",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quiet_start": {
+          "name": "quiet_start",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "quiet_end": {
+          "name": "quiet_end",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "time_zone": {
+          "name": "time_zone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "nudge_preferences_member_id_members_id_fk": {
+          "name": "nudge_preferences_member_id_members_id_fk",
+          "tableFrom": "nudge_preferences",
+          "tableTo": "members",
+          "columnsFrom": [
+            "member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "nudge_preferences_household_id_households_id_fk": {
+          "name": "nudge_preferences_household_id_households_id_fk",
+          "tableFrom": "nudge_preferences",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "perk_pages": {
+      "name": "perk_pages",
+      "columns": {
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "final_url": {
+          "name": "final_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "via": {
+          "name": "via",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fetched_at": {
+          "name": "fetched_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "perk_sources": {
+      "name": "perk_sources",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "owner_member_id": {
+          "name": "owner_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "catalog_key": {
+          "name": "catalog_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "plan": {
+          "name": "plan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "plan_options": {
+          "name": "plan_options",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "page_url": {
+          "name": "page_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "seen_in": {
+          "name": "seen_in",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "research": {
+          "name": "research",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'idle'"
+        },
+        "checked_at": {
+          "name": "checked_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "annual_fee_cents": {
+          "name": "annual_fee_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "fingerprint": {
+          "name": "fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "decided_by_member_id": {
+          "name": "decided_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {
+        "perk_sources_household_fingerprint_idx": {
+          "name": "perk_sources_household_fingerprint_idx",
+          "columns": [
+            "household_id",
+            "fingerprint"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "perk_sources_household_id_households_id_fk": {
+          "name": "perk_sources_household_id_households_id_fk",
+          "tableFrom": "perk_sources",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "perk_sources_owner_member_id_members_id_fk": {
+          "name": "perk_sources_owner_member_id_members_id_fk",
+          "tableFrom": "perk_sources",
+          "tableTo": "members",
+          "columnsFrom": [
+            "owner_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "perk_sources_decided_by_member_id_members_id_fk": {
+          "name": "perk_sources_decided_by_member_id_members_id_fk",
+          "tableFrom": "perk_sources",
+          "tableTo": "members",
+          "columnsFrom": [
+            "decided_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "perk_uses": {
+      "name": "perk_uses",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "perk_id": {
+          "name": "perk_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "used_on": {
+          "name": "used_on",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "perk_uses_household_id_households_id_fk": {
+          "name": "perk_uses_household_id_households_id_fk",
+          "tableFrom": "perk_uses",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "perk_uses_member_id_members_id_fk": {
+          "name": "perk_uses_member_id_members_id_fk",
+          "tableFrom": "perk_uses",
+          "tableTo": "members",
+          "columnsFrom": [
+            "member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "perks": {
+      "name": "perks",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "perk_source_id": {
+          "name": "perk_source_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "matches": {
+          "name": "matches",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quote": {
+          "name": "quote",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_url": {
+          "name": "source_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "checked_at": {
+          "name": "checked_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "value_cents": {
+          "name": "value_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "renews": {
+          "name": "renews",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "value_by_hand": {
+          "name": "value_by_hand",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        }
+      },
+      "indexes": {
+        "perks_source_key_idx": {
+          "name": "perks_source_key_idx",
+          "columns": [
+            "perk_source_id",
+            "key"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "perks_household_id_households_id_fk": {
+          "name": "perks_household_id_households_id_fk",
+          "tableFrom": "perks",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "perks_perk_source_id_perk_sources_id_fk": {
+          "name": "perks_perk_source_id_perk_sources_id_fk",
+          "tableFrom": "perks",
+          "tableTo": "perk_sources",
+          "columnsFrom": [
+            "perk_source_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "plan_changes": {
+      "name": "plan_changes",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "target_id": {
+          "name": "target_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "month": {
+          "name": "month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "before": {
+          "name": "before",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "after": {
+          "name": "after",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "owner_member_id": {
+          "name": "owner_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "scenario_id": {
+          "name": "scenario_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {
+        "plan_changes_household_month_idx": {
+          "name": "plan_changes_household_month_idx",
+          "columns": [
+            "household_id",
+            "month"
+          ],
+          "isUnique": false
+        },
+        "plan_changes_household_target_idx": {
+          "name": "plan_changes_household_target_idx",
+          "columns": [
+            "household_id",
+            "target_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "plan_changes_household_id_households_id_fk": {
+          "name": "plan_changes_household_id_households_id_fk",
+          "tableFrom": "plan_changes",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "plan_changes_member_id_members_id_fk": {
+          "name": "plan_changes_member_id_members_id_fk",
+          "tableFrom": "plan_changes",
+          "tableTo": "members",
+          "columnsFrom": [
+            "member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "plan_changes_owner_member_id_members_id_fk": {
+          "name": "plan_changes_owner_member_id_members_id_fk",
+          "tableFrom": "plan_changes",
+          "tableTo": "members",
+          "columnsFrom": [
+            "owner_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "plan_draft_decisions": {
+      "name": "plan_draft_decisions",
+      "columns": {
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "decision": {
+          "name": "decision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "decided_at": {
+          "name": "decided_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "plan_draft_decisions_household_id_households_id_fk": {
+          "name": "plan_draft_decisions_household_id_households_id_fk",
+          "tableFrom": "plan_draft_decisions",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "plan_draft_decisions_member_id_members_id_fk": {
+          "name": "plan_draft_decisions_member_id_members_id_fk",
+          "tableFrom": "plan_draft_decisions",
+          "tableTo": "members",
+          "columnsFrom": [
+            "member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "plan_draft_decisions_household_id_key_pk": {
+          "columns": [
+            "household_id",
+            "key"
+          ],
+          "name": "plan_draft_decisions_household_id_key_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "plan_drafts": {
+      "name": "plan_drafts",
+      "columns": {
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "labels": {
+          "name": "labels",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "finished_by_member_id": {
+          "name": "finished_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "plan_drafts_household_id_households_id_fk": {
+          "name": "plan_drafts_household_id_households_id_fk",
+          "tableFrom": "plan_drafts",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "plan_drafts_finished_by_member_id_members_id_fk": {
+          "name": "plan_drafts_finished_by_member_id_members_id_fk",
+          "tableFrom": "plan_drafts",
+          "tableTo": "members",
+          "columnsFrom": [
+            "finished_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "push_subscriptions": {
+      "name": "push_subscriptions",
+      "columns": {
+        "endpoint": {
+          "name": "endpoint",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "p256dh": {
+          "name": "p256dh",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "auth": {
+          "name": "auth",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {
+        "push_subscriptions_member_idx": {
+          "name": "push_subscriptions_member_idx",
+          "columns": [
+            "member_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "push_subscriptions_household_id_households_id_fk": {
+          "name": "push_subscriptions_household_id_households_id_fk",
+          "tableFrom": "push_subscriptions",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "push_subscriptions_member_id_members_id_fk": {
+          "name": "push_subscriptions_member_id_members_id_fk",
+          "tableFrom": "push_subscriptions",
+          "tableTo": "members",
+          "columnsFrom": [
+            "member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "receipts": {
+      "name": "receipts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "transaction_id": {
+          "name": "transaction_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "file_key": {
+          "name": "file_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "thumbnail_key": {
+          "name": "thumbnail_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "merchant": {
+          "name": "merchant",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "date": {
+          "name": "date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "total_cents": {
+          "name": "total_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "lines": {
+          "name": "lines",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {
+        "receipts_household_idx": {
+          "name": "receipts_household_idx",
+          "columns": [
+            "household_id"
+          ],
+          "isUnique": false
+        },
+        "receipts_transaction_idx": {
+          "name": "receipts_transaction_idx",
+          "columns": [
+            "transaction_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "receipts_household_id_households_id_fk": {
+          "name": "receipts_household_id_households_id_fk",
+          "tableFrom": "receipts",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "receipts_member_id_members_id_fk": {
+          "name": "receipts_member_id_members_id_fk",
+          "tableFrom": "receipts",
+          "tableTo": "members",
+          "columnsFrom": [
+            "member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "receipts_transaction_id_transactions_id_fk": {
+          "name": "receipts_transaction_id_transactions_id_fk",
+          "tableFrom": "receipts",
+          "tableTo": "transactions",
+          "columnsFrom": [
+            "transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "refunds": {
+      "name": "refunds",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "refund_transaction_id": {
+          "name": "refund_transaction_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "original_transaction_id": {
+          "name": "original_transaction_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_by_member_id": {
+          "name": "created_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "removed_at": {
+          "name": "removed_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "removed_by_member_id": {
+          "name": "removed_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "refunds_household_idx": {
+          "name": "refunds_household_idx",
+          "columns": [
+            "household_id"
+          ],
+          "isUnique": false
+        },
+        "refunds_original_idx": {
+          "name": "refunds_original_idx",
+          "columns": [
+            "original_transaction_id"
+          ],
+          "isUnique": false
+        },
+        "refunds_one_per_refund": {
+          "name": "refunds_one_per_refund",
+          "columns": [
+            "refund_transaction_id"
+          ],
+          "isUnique": true,
+          "where": "\"refunds\".\"removed_at\" is null"
+        }
+      },
+      "foreignKeys": {
+        "refunds_household_id_households_id_fk": {
+          "name": "refunds_household_id_households_id_fk",
+          "tableFrom": "refunds",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "refunds_refund_transaction_id_transactions_id_fk": {
+          "name": "refunds_refund_transaction_id_transactions_id_fk",
+          "tableFrom": "refunds",
+          "tableTo": "transactions",
+          "columnsFrom": [
+            "refund_transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "refunds_original_transaction_id_transactions_id_fk": {
+          "name": "refunds_original_transaction_id_transactions_id_fk",
+          "tableFrom": "refunds",
+          "tableTo": "transactions",
+          "columnsFrom": [
+            "original_transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "refunds_created_by_member_id_members_id_fk": {
+          "name": "refunds_created_by_member_id_members_id_fk",
+          "tableFrom": "refunds",
+          "tableTo": "members",
+          "columnsFrom": [
+            "created_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "refunds_removed_by_member_id_members_id_fk": {
+          "name": "refunds_removed_by_member_id_members_id_fk",
+          "tableFrom": "refunds",
+          "tableTo": "members",
+          "columnsFrom": [
+            "removed_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "rule_for": {
+      "name": "rule_for",
+      "columns": {
+        "rule_id": {
+          "name": "rule_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "rule_for_rule_id_rules_id_fk": {
+          "name": "rule_for_rule_id_rules_id_fk",
+          "tableFrom": "rule_for",
+          "tableTo": "rules",
+          "columnsFrom": [
+            "rule_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "rule_for_member_id_members_id_fk": {
+          "name": "rule_for_member_id_members_id_fk",
+          "tableFrom": "rule_for",
+          "tableTo": "members",
+          "columnsFrom": [
+            "member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "rule_for_household_id_households_id_fk": {
+          "name": "rule_for_household_id_households_id_fk",
+          "tableFrom": "rule_for",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "rule_for_rule_id_member_id_pk": {
+          "columns": [
+            "rule_id",
+            "member_id"
+          ],
+          "name": "rule_for_rule_id_member_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "rules": {
+      "name": "rules",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "pattern": {
+          "name": "pattern",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "bucket_id": {
+          "name": "bucket_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_by_member_id": {
+          "name": "created_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "owner_member_id": {
+          "name": "owner_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "matched_count": {
+          "name": "matched_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "commitment_id": {
+          "name": "commitment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "rules_household_pattern_owner_idx": {
+          "name": "rules_household_pattern_owner_idx",
+          "columns": [
+            "household_id",
+            "pattern",
+            "coalesce(\"owner_member_id\", '')"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "rules_household_id_households_id_fk": {
+          "name": "rules_household_id_households_id_fk",
+          "tableFrom": "rules",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "rules_bucket_id_buckets_id_fk": {
+          "name": "rules_bucket_id_buckets_id_fk",
+          "tableFrom": "rules",
+          "tableTo": "buckets",
+          "columnsFrom": [
+            "bucket_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "rules_created_by_member_id_members_id_fk": {
+          "name": "rules_created_by_member_id_members_id_fk",
+          "tableFrom": "rules",
+          "tableTo": "members",
+          "columnsFrom": [
+            "created_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "rules_owner_member_id_members_id_fk": {
+          "name": "rules_owner_member_id_members_id_fk",
+          "tableFrom": "rules",
+          "tableTo": "members",
+          "columnsFrom": [
+            "owner_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "rules_commitment_id_commitments_id_fk": {
+          "name": "rules_commitment_id_commitments_id_fk",
+          "tableFrom": "rules",
+          "tableTo": "commitments",
+          "columnsFrom": [
+            "commitment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "rules_one_target": {
+          "name": "rules_one_target",
+          "value": "(bucket_id is null) <> (commitment_id is null)"
+        }
+      }
+    },
+    "scenarios": {
+      "name": "scenarios",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "levers": {
+          "name": "levers",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_by_member_id": {
+          "name": "created_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "applied_at": {
+          "name": "applied_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "applied_by_member_id": {
+          "name": "applied_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "scenarios_household_idx": {
+          "name": "scenarios_household_idx",
+          "columns": [
+            "household_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "scenarios_household_id_households_id_fk": {
+          "name": "scenarios_household_id_households_id_fk",
+          "tableFrom": "scenarios",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "scenarios_created_by_member_id_members_id_fk": {
+          "name": "scenarios_created_by_member_id_members_id_fk",
+          "tableFrom": "scenarios",
+          "tableTo": "members",
+          "columnsFrom": [
+            "created_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "scenarios_applied_by_member_id_members_id_fk": {
+          "name": "scenarios_applied_by_member_id_members_id_fk",
+          "tableFrom": "scenarios",
+          "tableTo": "members",
+          "columnsFrom": [
+            "applied_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "setup_jobs": {
+      "name": "setup_jobs",
+      "columns": {
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "job": {
+          "name": "job",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "setup_jobs_household_id_households_id_fk": {
+          "name": "setup_jobs_household_id_households_id_fk",
+          "tableFrom": "setup_jobs",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "setup_jobs_household_id_job_pk": {
+          "columns": [
+            "household_id",
+            "job"
+          ],
+          "name": "setup_jobs_household_id_job_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "setup_progress": {
+      "name": "setup_progress",
+      "columns": {
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "step": {
+          "name": "step",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "answers": {
+          "name": "answers",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
+        },
+        "skipped": {
+          "name": "skipped",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "setup_progress_household_id_households_id_fk": {
+          "name": "setup_progress_household_id_households_id_fk",
+          "tableFrom": "setup_progress",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "split_for": {
+      "name": "split_for",
+      "columns": {
+        "split_id": {
+          "name": "split_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "split_for_household_member_idx": {
+          "name": "split_for_household_member_idx",
+          "columns": [
+            "household_id",
+            "member_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "split_for_split_id_splits_id_fk": {
+          "name": "split_for_split_id_splits_id_fk",
+          "tableFrom": "split_for",
+          "tableTo": "splits",
+          "columnsFrom": [
+            "split_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "split_for_member_id_members_id_fk": {
+          "name": "split_for_member_id_members_id_fk",
+          "tableFrom": "split_for",
+          "tableTo": "members",
+          "columnsFrom": [
+            "member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "split_for_household_id_households_id_fk": {
+          "name": "split_for_household_id_households_id_fk",
+          "tableFrom": "split_for",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "split_for_split_id_member_id_pk": {
+          "columns": [
+            "split_id",
+            "member_id"
+          ],
+          "name": "split_for_split_id_member_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "splits": {
+      "name": "splits",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "transaction_id": {
+          "name": "transaction_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "bucket_id": {
+          "name": "bucket_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "commitment_id": {
+          "name": "commitment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "goal_id": {
+          "name": "goal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "splits_household_transaction_idx": {
+          "name": "splits_household_transaction_idx",
+          "columns": [
+            "household_id",
+            "transaction_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "splits_household_id_households_id_fk": {
+          "name": "splits_household_id_households_id_fk",
+          "tableFrom": "splits",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "splits_transaction_id_transactions_id_fk": {
+          "name": "splits_transaction_id_transactions_id_fk",
+          "tableFrom": "splits",
+          "tableTo": "transactions",
+          "columnsFrom": [
+            "transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "splits_bucket_id_buckets_id_fk": {
+          "name": "splits_bucket_id_buckets_id_fk",
+          "tableFrom": "splits",
+          "tableTo": "buckets",
+          "columnsFrom": [
+            "bucket_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "splits_commitment_id_commitments_id_fk": {
+          "name": "splits_commitment_id_commitments_id_fk",
+          "tableFrom": "splits",
+          "tableTo": "commitments",
+          "columnsFrom": [
+            "commitment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "splits_goal_id_goals_id_fk": {
+          "name": "splits_goal_id_goals_id_fk",
+          "tableFrom": "splits",
+          "tableTo": "goals",
+          "columnsFrom": [
+            "goal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "suggestions": {
+      "name": "suggestions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'open'"
+        },
+        "payload": {
+          "name": "payload",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "evidence": {
+          "name": "evidence",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fingerprint": {
+          "name": "fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "decided_by_member_id": {
+          "name": "decided_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {
+        "suggestions_household_key_idx": {
+          "name": "suggestions_household_key_idx",
+          "columns": [
+            "household_id",
+            "key"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "suggestions_household_id_households_id_fk": {
+          "name": "suggestions_household_id_households_id_fk",
+          "tableFrom": "suggestions",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "suggestions_member_id_members_id_fk": {
+          "name": "suggestions_member_id_members_id_fk",
+          "tableFrom": "suggestions",
+          "tableTo": "members",
+          "columnsFrom": [
+            "member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "suggestions_decided_by_member_id_members_id_fk": {
+          "name": "suggestions_decided_by_member_id_members_id_fk",
+          "tableFrom": "suggestions",
+          "tableTo": "members",
+          "columnsFrom": [
+            "decided_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "transaction_for": {
+      "name": "transaction_for",
+      "columns": {
+        "transaction_id": {
+          "name": "transaction_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "transaction_for_household_member_idx": {
+          "name": "transaction_for_household_member_idx",
+          "columns": [
+            "household_id",
+            "member_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "transaction_for_transaction_id_transactions_id_fk": {
+          "name": "transaction_for_transaction_id_transactions_id_fk",
+          "tableFrom": "transaction_for",
+          "tableTo": "transactions",
+          "columnsFrom": [
+            "transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transaction_for_member_id_members_id_fk": {
+          "name": "transaction_for_member_id_members_id_fk",
+          "tableFrom": "transaction_for",
+          "tableTo": "members",
+          "columnsFrom": [
+            "member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transaction_for_household_id_households_id_fk": {
+          "name": "transaction_for_household_id_households_id_fk",
+          "tableFrom": "transaction_for",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "transaction_for_transaction_id_member_id_pk": {
+          "columns": [
+            "transaction_id",
+            "member_id"
+          ],
+          "name": "transaction_for_transaction_id_member_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "transactions": {
+      "name": "transactions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "date": {
+          "name": "date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "bucket_id": {
+          "name": "bucket_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_by_member_id": {
+          "name": "created_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "commitment_id": {
+          "name": "commitment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "goal_id": {
+          "name": "goal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "import_id": {
+          "name": "import_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "external_id": {
+          "name": "external_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "captured_via": {
+          "name": "captured_via",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "pending": {
+          "name": "pending",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "merchant": {
+          "name": "merchant",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "transactions_household_date_idx": {
+          "name": "transactions_household_date_idx",
+          "columns": [
+            "household_id",
+            "date"
+          ],
+          "isUnique": false
+        },
+        "transactions_account_external_idx": {
+          "name": "transactions_account_external_idx",
+          "columns": [
+            "account_id",
+            "external_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "transactions_household_id_households_id_fk": {
+          "name": "transactions_household_id_households_id_fk",
+          "tableFrom": "transactions",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transactions_bucket_id_buckets_id_fk": {
+          "name": "transactions_bucket_id_buckets_id_fk",
+          "tableFrom": "transactions",
+          "tableTo": "buckets",
+          "columnsFrom": [
+            "bucket_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transactions_created_by_member_id_members_id_fk": {
+          "name": "transactions_created_by_member_id_members_id_fk",
+          "tableFrom": "transactions",
+          "tableTo": "members",
+          "columnsFrom": [
+            "created_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transactions_commitment_id_commitments_id_fk": {
+          "name": "transactions_commitment_id_commitments_id_fk",
+          "tableFrom": "transactions",
+          "tableTo": "commitments",
+          "columnsFrom": [
+            "commitment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transactions_account_id_accounts_id_fk": {
+          "name": "transactions_account_id_accounts_id_fk",
+          "tableFrom": "transactions",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transactions_goal_id_goals_id_fk": {
+          "name": "transactions_goal_id_goals_id_fk",
+          "tableFrom": "transactions",
+          "tableTo": "goals",
+          "columnsFrom": [
+            "goal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transactions_import_id_imports_id_fk": {
+          "name": "transactions_import_id_imports_id_fk",
+          "tableFrom": "transactions",
+          "tableTo": "imports",
+          "columnsFrom": [
+            "import_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "transfers": {
+      "name": "transfers",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "out_transaction_id": {
+          "name": "out_transaction_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "in_transaction_id": {
+          "name": "in_transaction_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "in_income_id": {
+          "name": "in_income_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_by_member_id": {
+          "name": "created_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        },
+        "removed_at": {
+          "name": "removed_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "removed_by_member_id": {
+          "name": "removed_by_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "other_account_id": {
+          "name": "other_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "transfers_household_idx": {
+          "name": "transfers_household_idx",
+          "columns": [
+            "household_id"
+          ],
+          "isUnique": false
+        },
+        "transfers_one_per_out": {
+          "name": "transfers_one_per_out",
+          "columns": [
+            "out_transaction_id"
+          ],
+          "isUnique": true,
+          "where": "\"transfers\".\"removed_at\" is null"
+        },
+        "transfers_one_per_in": {
+          "name": "transfers_one_per_in",
+          "columns": [
+            "in_transaction_id"
+          ],
+          "isUnique": true,
+          "where": "\"transfers\".\"removed_at\" is null"
+        },
+        "transfers_one_per_income": {
+          "name": "transfers_one_per_income",
+          "columns": [
+            "in_income_id"
+          ],
+          "isUnique": true,
+          "where": "\"transfers\".\"removed_at\" is null"
+        }
+      },
+      "foreignKeys": {
+        "transfers_household_id_households_id_fk": {
+          "name": "transfers_household_id_households_id_fk",
+          "tableFrom": "transfers",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transfers_out_transaction_id_transactions_id_fk": {
+          "name": "transfers_out_transaction_id_transactions_id_fk",
+          "tableFrom": "transfers",
+          "tableTo": "transactions",
+          "columnsFrom": [
+            "out_transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transfers_in_transaction_id_transactions_id_fk": {
+          "name": "transfers_in_transaction_id_transactions_id_fk",
+          "tableFrom": "transfers",
+          "tableTo": "transactions",
+          "columnsFrom": [
+            "in_transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transfers_in_income_id_income_id_fk": {
+          "name": "transfers_in_income_id_income_id_fk",
+          "tableFrom": "transfers",
+          "tableTo": "income",
+          "columnsFrom": [
+            "in_income_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transfers_created_by_member_id_members_id_fk": {
+          "name": "transfers_created_by_member_id_members_id_fk",
+          "tableFrom": "transfers",
+          "tableTo": "members",
+          "columnsFrom": [
+            "created_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transfers_removed_by_member_id_members_id_fk": {
+          "name": "transfers_removed_by_member_id_members_id_fk",
+          "tableFrom": "transfers",
+          "tableTo": "members",
+          "columnsFrom": [
+            "removed_by_member_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transfers_other_account_id_accounts_id_fk": {
+          "name": "transfers_other_account_id_accounts_id_fk",
+          "tableFrom": "transfers",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "other_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {
+      "rules_household_pattern_owner_idx": {
+        "columns": {
+          "coalesce(\"owner_member_id\", '')": {
+            "isExpression": true
+          }
+        }
+      }
+    }
+  }
+}
