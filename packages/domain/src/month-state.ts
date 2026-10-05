@@ -108,10 +108,13 @@ export type MonthState = Omit<Plan, "buckets" | "commitments"> & {
 	/** Moved from Free to Spend into Goals this month (Goal funding). */
 	fundedGoals: Cents;
 	/**
-	 * Take-home pay, plus any Extra income a Parent added (`extraToFreeToSpend`), not assigned to
-	 * anything. Negative when the Plan assigns more than that.
+	 * Take-home pay, plus any Extra income a Parent added (`extraToFreeToSpend`) and what earlier
+	 * months carried in (`freeCarriedIn`), not assigned to anything. Negative when the Plan assigns
+	 * more than that.
 	 */
 	freeToSpend: Cents;
+	/** Carried in from last month's Free to Spend, when it builds up (see free-carry.ts); else 0. */
+	freeCarriedIn: Cents;
 	/** Extra income a Parent added to this month's Free to Spend. */
 	extraToFreeToSpend: Cents;
 	/** Income received this month. */
@@ -135,7 +138,7 @@ const PACE_TOLERANCE = 0.03;
  * Moves shift money between Buckets and Free to Spend; Goal funding takes it out of Free to
  * Spend; a Sweep takes a Bucket's leftover into a Goal; income beyond take-home pay is the
  * Extra income, and Moves from it add to Buckets and Goals without touching Free to Spend; what rolled over from last month (see `rolledOver`) adds to a Bucket without touching
- * Free to Spend. Spending, charges, and Moves outside the
+ * Free to Spend; what last month's Free to Spend carried in (`freeCarriedIn`) adds to it. Spending, charges, and Moves outside the
  * month, or involving a Bucket or Commitment not in the Plan, are ignored. The server and the client's optimistic updates both call this, so the numbers a
  * Parent sees before and after a save are the same.
  */
@@ -149,6 +152,7 @@ export function monthState({
 	sweeps = [],
 	income = [],
 	extraToFree = [],
+	freeCarriedIn = 0,
 	asOf,
 }: {
 	plan: Plan;
@@ -163,6 +167,8 @@ export function monthState({
 	income?: Income[];
 	/** Extra income added to Free to Spend; only this month's counts. */
 	extraToFree?: ExtraToFree[];
+	/** What last month's Free to Spend carried in (see freeCarriedIn in free-carry.ts). */
+	freeCarriedIn?: Cents;
 	asOf: DayKey;
 }): MonthState {
 	const days = daysInMonth(plan.month);
@@ -266,7 +272,9 @@ export function monthState({
 		committed: totalCommitments(plan),
 		movedToBuckets,
 		fundedGoals,
-		freeToSpend: freeToSpend(plan) - movedToBuckets - fundedGoals + extraToFreeToSpend,
+		freeToSpend:
+			freeToSpend(plan) - movedToBuckets - fundedGoals + extraToFreeToSpend + freeCarriedIn,
+		freeCarriedIn,
 		extraToFreeToSpend,
 		received,
 		windfall,

@@ -184,6 +184,7 @@ function asTakenUnder(tag: string, tables: SnapshotTables): SnapshotTables {
 const DEFAULTS: Record<string, number> = {
 	"transactions.version": 0,
 	"commitments.carried_balance": 0,
+	"households.free_to_spend_keep_cents": 0,
 };
 
 describe("restoring a snapshot taken under an older migration", () => {
@@ -215,7 +216,18 @@ describe("restoring a snapshot taken under an older migration", () => {
 		await db
 			.insert(s.deletedBankLines)
 			.values({ householdId: ours, accountId: account?.id as string, externalId: "line-1" });
+		// Free to Spend that builds up, and the amount kept back (0057, issue 113).
+		await db.insert(s.freeToSpendCarry).values([
+			{ householdId: ours, month: "2026-06", carries: true },
+			{ householdId: ours, month: "2026-09", carries: false },
+		]);
+		await db
+			.update(s.households)
+			.set({ freeToSpendKeepCents: 10_000 })
+			.where(eq(s.households.id, ours));
 		now = (await exportHouseholdRows(db, ours)).tables;
+		expect(now.freeToSpendCarry).toHaveLength(2);
+		expect(now.households?.[0]?.free_to_spend_keep_cents).toBe(10_000);
 		expect(now.transactions?.length).toBeGreaterThan(50);
 		expect(now.accounts?.length).toBeGreaterThan(1);
 		expect(now.deletedBankLines).toHaveLength(1);
@@ -228,6 +240,7 @@ describe("restoring a snapshot taken under an older migration", () => {
 		"0051_deleted_bank_lines",
 		"0052_account_archive",
 		"0053_perk_pages",
+		"0056_review_put_back",
 	])("one from %s lands whole, with defaults where it has nothing to say", async (tag) => {
 		const file: SnapshotFile = {
 			format: SNAPSHOT_FORMAT,
@@ -268,6 +281,9 @@ describe("restoring a snapshot taken under an older migration", () => {
 		);
 		const after = (await exportHouseholdRows(db, ours)).tables;
 		expect(after).toEqual(expected);
+		// Taken before 0057: Free to Spend starts fresh and nothing is kept back.
+		expect(after.freeToSpendCarry).toEqual([]);
+		expect(after.households?.[0]?.free_to_spend_keep_cents).toBe(0);
 		// Put today's back for the next one.
 		await restoreHouseholdRows(db, ours, { ...file, migration: newest, tables: now });
 		expect((await exportHouseholdRows(db, ours)).tables).toEqual(now);

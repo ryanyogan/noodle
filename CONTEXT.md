@@ -103,8 +103,14 @@ Income up to $25 above the Take-home pay is the usual pay landing a few dollars 
 _Avoid_: Windfall, surplus, bonus
 
 **Free to Spend**:
-Money in the current Plan not yet assigned to any Commitment, Bucket, or Goal: the Take-home pay, plus any Extra income a Parent added, less what's assigned.
+Money in the current Plan not yet assigned to any Commitment, Bucket, or Goal: the Take-home pay, plus any Extra income a Parent added and anything carried over from last month, less what's assigned.
 _Avoid_: Unallocated, leftover, safe-to-spend
+
+**Builds up** (Free to Spend that builds up):
+What a month's Free to Spend ends with, when above zero, is carried over into the next month's. Off until a Parent turns it on, and from that month only; otherwise Free to Spend **starts fresh** each month. A month that ends below zero carries nothing. What is carried is worked out from the months themselves, never stored (ADR-0054).
+The Household's **Keep back** amount is what of a month's leftover is not offered to a Goal when the month closes; it builds up like the rest.
+The app says "builds up" and "carried over". Sending the leftover to a Goal is Goal funding, not a Sweep.
+_Avoid_: Rollover, Sweep, savings pot, surplus
 
 **Move**:
 A reassignment of planned money from one place in the Plan to another, without any real money leaving an Account. Cover, Sweep, and Goal funding are all Moves.
@@ -296,7 +302,7 @@ _Avoid_: Tag, assignee, owner
 ## Relationships
 
 - A **Household** has one **Plan** per month, two **Parents**, and any number of **Children**.
-- A **Plan** contains **Commitments**, **Buckets**, and **Goals**; whatever remains is **Free to Spend**.
+- A **Plan** contains **Commitments**, **Buckets**, and **Goals**; whatever remains is **Free to Spend**, which starts fresh each month unless the Household has it **Build up**.
 - An **Account** is paired with at most one account at one **Bank Connection**.
 - A **Transaction** belongs to one **Account** and is assigned whole or via **Splits**; each carries a **For**.
 - A **Goal**'s money is **Set aside** on exactly one **Account**.

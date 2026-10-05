@@ -8,6 +8,7 @@ import {
 	fundGoal as fundGoalInDb,
 	type GoalRecords,
 	type GoalWriteResult,
+	loadFreeCarriedInto,
 	loadGoals,
 	owedNow,
 	renameAccount as renameAccountInDb,
@@ -323,6 +324,8 @@ export const fundGoal = createServerFn({ method: "POST" })
 		const result = await fundGoalInDb(db, {
 			householdId: household.id,
 			createdByMemberId: context.parent.id,
+			// Free to Spend that builds up has last month's leftover to fund from (issue 113).
+			freeCarriedInCents: await loadFreeCarriedInto(db, household.id, data.month),
 			...data,
 		});
 		if (!result.ok) {

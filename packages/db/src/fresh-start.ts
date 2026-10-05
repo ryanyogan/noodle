@@ -40,6 +40,7 @@ export const HOUSEHOLD_TABLES = {
 	buckets: s.buckets,
 	bucketAllowances: s.bucketAllowances,
 	bucketRolling: s.bucketRolling,
+	freeToSpendCarry: s.freeToSpendCarry,
 	// Before Commitments: one may pay down a card or loan (commitments.account_id, issue 93).
 	bankConnections: s.bankConnections,
 	accounts: s.accounts,
@@ -111,7 +112,8 @@ export function householdColumn(name: HouseholdTableName): SQLiteColumn {
 
 /**
  * Deletes the Household's rows from every table the level clears, children first, after the
- * emergency Goal pointer. Each delete is idempotent, so a retried or repeated run is safe.
+ * emergency Goal pointer and the "Keep back" amount, which live on the Household's own row and
+ * belong to the Plan being cleared. Each delete is idempotent, so a retried or repeated run is safe.
  */
 export async function clearHouseholdRows(
 	db: Db,
@@ -120,7 +122,7 @@ export async function clearHouseholdRows(
 ): Promise<void> {
 	await db
 		.update(s.households)
-		.set({ emergencyGoalId: null })
+		.set({ emergencyGoalId: null, freeToSpendKeepCents: 0 })
 		.where(eq(s.households.id, householdId));
 	for (const name of tablesToClear(level)) {
 		await db.delete(HOUSEHOLD_TABLES[name]).where(eq(householdColumn(name), householdId));

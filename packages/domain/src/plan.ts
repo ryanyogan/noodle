@@ -19,6 +19,11 @@ export type PlanRecords = {
 	 * later months until set again. A Bucket with none set is resets monthly.
 	 */
 	rolling: { bucketId: string; month: MonthKey; rolling: boolean }[];
+	/**
+	 * Whether Free to Spend builds up (true) or starts fresh each month (false) holds, once set for
+	 * a month, for later months until set again. With none set it starts fresh (see free-carry.ts).
+	 */
+	freeCarries?: { month: MonthKey; carries: boolean }[];
 };
 
 export type BucketRecord = {

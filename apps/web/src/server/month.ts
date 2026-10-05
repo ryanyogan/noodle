@@ -7,6 +7,7 @@ import {
 	loadBetweenUsIncome,
 	loadCharges,
 	loadExtraToFree,
+	loadFreeCarriedIn,
 	loadGoalFunding,
 	loadIncome,
 	loadMonthClose,
@@ -60,6 +61,11 @@ export type MonthData = {
 	 * Plan change this month only changes what rolls into later ones.
 	 */
 	rolledOver: Record<string, Cents>;
+	/**
+	 * What last month's Free to Spend carried into this one, when it builds up (issue 113); absent
+	 * or 0 when it starts fresh. Like `rolledOver`, it depends only on earlier months.
+	 */
+	freeCarriedIn?: Cents;
 	/** Moves from Free to Spend into what Goals have set aside. */
 	goalFunding: (GoalFunding & { id: string })[];
 	/** Extra income a Parent added to the month's Free to Spend. */
@@ -113,7 +119,10 @@ export async function loadMonth(
 		loadExtraToFree(db, household.id, month),
 		loadBetweenUsIncome(db, household.id, month, addMonths(month, 1)),
 	]);
-	const rolledOver = await loadRolledOver(db, household.id, records, month);
+	const [rolledOver, freeCarriedIn] = await Promise.all([
+		loadRolledOver(db, household.id, records, month),
+		loadFreeCarriedIn(db, household.id, records, month),
+	]);
 	const now = new Date();
 	const current = monthKeyAt(now, household.timeZone);
 	return {
@@ -123,6 +132,7 @@ export async function loadMonth(
 		charges,
 		moves,
 		rolledOver,
+		freeCarriedIn,
 		goalFunding,
 		extraToFree,
 		sweeps,

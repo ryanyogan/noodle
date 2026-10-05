@@ -167,6 +167,15 @@ export {
 	type SpendTotal,
 	shares,
 } from "./for";
+export {
+	aboveKeepBack,
+	type FreeCarryMonth,
+	freeCarriedIn,
+	freeCarries,
+	freeCarryMonths,
+	freeCarrySince,
+	type MonthAmount,
+} from "./free-carry";
 export { allowancesByKind, freeToSpendParts, type PlanPart } from "./free-to-spend";
 export {
 	ACCOUNT_KINDS,

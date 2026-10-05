@@ -59,7 +59,7 @@ export const coverBucket = createServerFn({ method: "POST" })
 			});
 			const left = leftToMove(state, data.fromBucketId);
 			if (left === null || !state.buckets.some((b) => b.id === data.toBucketId)) return null;
-			return { left, fromRolledOver };
+			return { left, fromRolledOver, freeCarriedIn: month.freeCarriedIn ?? 0 };
 		};
 		const now = await leftNow();
 		if (now === null) throw new Error("That Bucket isn’t in this month’s Plan.");
@@ -73,6 +73,8 @@ export const coverBucket = createServerFn({ method: "POST" })
 			amountCents: data.amountCents,
 			// Earlier months are closed, so what rolled into the source can't change meanwhile.
 			fromRolledOverCents: now.fromRolledOver,
+			// The guard's Free to Spend must count what earlier months carried in, as `left` does.
+			freeCarriedInCents: now.freeCarriedIn,
 			createdByMemberId: context.parent.id,
 		});
 		// Another write got there between the check and this one.

@@ -530,6 +530,13 @@ export {
 	removeIncome,
 	undoExtraIncome,
 } from "./extra-income";
+export {
+	loadFreeCarriedIn,
+	loadFreeCarriedInto,
+	loadFreeToSpendKeepBack,
+	setFreeToSpendCarry,
+	setFreeToSpendKeepBack,
+} from "./free-carry";
 export * from "./fresh-start";
 export {
 	type AccountRecord,

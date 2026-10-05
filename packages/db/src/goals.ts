@@ -726,6 +726,8 @@ export async function fundGoal(
 		goalId: string;
 		month: MonthKey;
 		amountCents: Cents;
+		/** What earlier months carried into `month`'s Free to Spend (see loadFreeCarriedIn). */
+		freeCarriedInCents?: Cents;
 		createdByMemberId: string;
 	},
 ): Promise<GoalWriteResult> {
@@ -753,7 +755,7 @@ export async function fundGoal(
 						ownGoal(householdId, input.goalId),
 						isNull(goals.completedAt),
 						isNull(goals.archivedAt),
-						sql`${freeToSpendSql(householdId, month)} >= ${input.amountCents}`,
+						sql`${freeToSpendSql(householdId, month, input.freeCarriedInCents)} >= ${input.amountCents}`,
 					),
 				),
 		)

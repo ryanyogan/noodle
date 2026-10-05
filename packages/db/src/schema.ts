@@ -46,6 +46,9 @@ export const households = sqliteTable("households", {
 	// What goes after the + of the Household's Receipt address (`receipts+<this>@…`): random, so
 	// the address can't be guessed; made the first time a Parent asks for it.
 	receiptAddress: text("receipt_address").unique(),
+	// "Keep back" (issue 113, ADR-0054): what of a month's leftover Free to Spend is not offered to
+	// a Goal when the month closes. It only shapes that offer; it never changes Free to Spend.
+	freeToSpendKeepCents: integer("free_to_spend_keep_cents").notNull().default(0),
 });
 
 export const members = sqliteTable(
@@ -192,6 +195,22 @@ export const bucketRolling = sqliteTable(
 		primaryKey({ columns: [t.bucketId, t.month] }),
 		index("bucket_rolling_household_idx").on(t.householdId),
 	],
+);
+
+// Whether the Household's Free to Spend builds up (true) or starts fresh each month (false),
+// effective-dated like a Bucket's `bucket_rolling`: a row holds for later months until the next.
+// No row at or before a month means it starts fresh. What is carried is derived from these rows
+// and the months' own records, never stored (issue 113, ADR-0054).
+export const freeToSpendCarry = sqliteTable(
+	"free_to_spend_carry",
+	{
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		month: text("month").notNull(),
+		carries: integer("carries", { mode: "boolean" }).notNull(),
+	},
+	(t) => [primaryKey({ columns: [t.householdId, t.month] })],
 );
 
 // A recurring obligation in the Plan from `from_month` until (once ended) `ended_from_month`.
