@@ -1540,9 +1540,12 @@ function ReviewCard({
 					<h3
 						id={headingId}
 						className={cn(
-							"text-base font-semibold max-sm:line-clamp-2 max-sm:wrap-anywhere sm:truncate",
+							"text-base font-semibold max-sm:wrap-anywhere sm:truncate",
 							// A payment card has more on it: on the shortest phones its name keeps to one line.
-							payment && "max-[359px]:line-clamp-1",
+							// Each width has one rule of its own, so neither depends on which is written last.
+							payment
+								? "max-[359px]:line-clamp-1 min-[360px]:max-sm:line-clamp-2"
+								: "max-sm:line-clamp-2",
 						)}
 					>
 						{labelOf(item)}
@@ -1707,9 +1710,12 @@ function ReviewCard({
 						className={cn(
 							"min-w-0 flex-1",
 							item.guess && "max-[359px]:order-last max-[359px]:basis-full",
-							payment && "max-sm:order-last max-sm:basis-full",
-							// On the narrowest phones "It’s a card payment" shares the picker's row.
-							payment?.kind === "not-followed" && "max-[359px]:basis-[30%]",
+							payment && "max-sm:order-last",
+							// On the narrowest phones "It’s a card payment" shares the picker's row. Each
+							// width has one rule of its own, so neither depends on which is written last.
+							payment?.kind === "not-followed"
+								? "max-[359px]:basis-[30%] min-[360px]:max-sm:basis-full"
+								: payment && "max-sm:basis-full",
 						)}
 						aria-label={`Where ${labelOf(item)} goes`}
 						disabled={!hydrated || !places}
@@ -1761,7 +1767,7 @@ function ReviewCard({
 						// The payment is the spending, so it's planned like a bill: the Commitment's form
 						// opens with this line's name and amount, and the card to pay down ready.
 						<Button
-							className="max-sm:order-first max-sm:min-w-0 max-sm:flex-1 max-[359px]:basis-[70%]"
+							className="max-sm:order-first max-sm:min-w-0 max-sm:grow max-sm:shrink max-[359px]:basis-[70%] min-[360px]:max-sm:basis-0"
 							asChild
 						>
 							<Link

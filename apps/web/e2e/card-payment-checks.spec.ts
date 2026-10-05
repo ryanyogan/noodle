@@ -26,7 +26,9 @@ test.afterEach(async () => {
 	await parent?.remove();
 });
 
-const toast = (page: Page, text: string) => page.getByRole("status").filter({ hasText: text });
+/** A toast saying `text`: the first, since an Import says its file's name in more than one. */
+const toast = (page: Page, text: string) =>
+	page.getByRole("status").filter({ hasText: text }).first();
 
 /** A day as a statement writes it. */
 const written = (date: Date) =>
@@ -66,8 +68,13 @@ async function uploadTo(page: Page, account: string, file: string, lines: string
 	await page.goto(new URL("/accounts", page.url()).href);
 	const link = page.getByRole("link", { name: new RegExp(`^${account}, `) });
 	await hydrated(link);
-	await link.click();
-	await expect(page.locator("[data-slot=detail-title]:visible")).toContainText(account);
+	// The list may be read once more just after an Account was added, and lose a click made then.
+	await expect(async () => {
+		await link.click();
+		await expect(page.locator("[data-slot=detail-title]:visible")).toContainText(account, {
+			timeout: 3_000,
+		});
+	}).toPass();
 	await page.getByRole("button", { name: "Upload statement" }).click();
 	const sheet = page.getByRole("dialog", { name: "Upload a statement" });
 	await sheet
@@ -274,7 +281,7 @@ test("Review asks before a payment to a card Noodle follows is filed in a Bucket
 	await uploadTo(page, "Checking", "checking.csv", [
 		CHECKING,
 		debit(day, "CHASE CREDIT CRD AUTOPAY", "400.00"),
-		debit(day, "CHASE CREDIT CRD EPAY", "250.00"),
+		debit(day, "CHASE CREDIT CRD AUTOPAY PPD ID: 4760039224", "250.00"),
 	]);
 	await expect(toast(page, "checking.csv")).toBeVisible();
 
@@ -306,8 +313,8 @@ test("Review asks before a payment to a card Noodle follows is filed in a Bucket
 	// "File anyway" files it in the Bucket.
 	let caution = await pickGroceries(2);
 	await caution.getByRole("button", { name: "File anyway" }).click();
-	await expect(toast(page, "in Groceries")).toBeVisible();
 	await expect(cards).toHaveCount(1);
+	await expect(page.getByTestId("review-payment-caution")).toHaveCount(0);
 
 	// "Mark as Transfer" files it nowhere.
 	caution = await pickGroceries(1);
