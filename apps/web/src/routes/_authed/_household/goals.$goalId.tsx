@@ -644,6 +644,19 @@ function HistoryRow({
 			meta={[when, change.note].filter(Boolean).join(" · ") || undefined}
 			trailing={
 				<span className="flex items-center gap-2">
+					{/* Undo sits before the amount, so every amount in the History ends on the same right edge (issue 73). */}
+					{onUndo ? (
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							disabled={!hydrated}
+							aria-label="Undo funding"
+							onClick={onUndo}
+						>
+							Undo
+						</Button>
+					) : null}
 					<span
 						className={cn(
 							"text-sm font-semibold tabular-nums",
@@ -653,19 +666,6 @@ function HistoryRow({
 						{change.amount >= 0 ? "+" : ""}
 						{formatMoney(change.amount)}
 					</span>
-					{onUndo ? (
-						<Button
-							type="button"
-							variant="ghost"
-							size="sm"
-							className="-me-2.5"
-							disabled={!hydrated}
-							aria-label="Undo funding"
-							onClick={onUndo}
-						>
-							Undo
-						</Button>
-					) : null}
 				</span>
 			}
 		/>
