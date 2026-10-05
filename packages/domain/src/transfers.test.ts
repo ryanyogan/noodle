@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { cleanMerchant } from "./merchant-name";
 import {
 	type DayKey,
 	likelyCardPayment,
@@ -9,6 +8,7 @@ import {
 	type TransferSide,
 	transferPairs,
 } from "./index";
+import { cleanMerchant } from "./merchant-name";
 
 const side = (id: string, date: DayKey, amount: number, accountId: string): TransferSide => ({
 	id,
