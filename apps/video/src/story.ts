@@ -136,7 +136,7 @@ export const SCENES: Scene[] = [
 		shots: [
 			{ kind: "still", from: 32, to: 35.5, still: "quick-add", ring: true },
 			{ kind: "still", from: 35.5, to: 39, still: "import-statement", ring: true },
-			{ kind: "still", from: 39, to: 42, still: "plan-overview" },
+			{ kind: "still", from: 39, to: 42, still: "plan-overview", ring: true },
 		],
 		narration:
 			"No bank connected? Quick Add takes a few seconds. You can also upload a statement, or forward a receipt by email. It's the same Plan, with a bit more typing.",
@@ -217,5 +217,14 @@ export const PLAN = {
 	freeToSpend: 1050,
 } as const;
 
-/** The Bucket the bar is drawn for, in dollars. Pace is a share of the month gone by. */
-export const BUCKET = { name: "Groceries", available: 600, spent: 280, pace: 0.55 } as const;
+/**
+ * The Bucket the bar is drawn for, in dollars: the Groceries row of the `month-bucket` still, whose
+ * spending the capture writes at `ofPace` of Pace (CALM_MONTH in video-capture.spec.ts).
+ */
+export const BUCKET = { name: "Groceries", available: 1100, ofPace: 0.9 } as const;
+
+/** The drawn bar on `day`, the day the stills were taken: Pace is the share of the month gone by. */
+export function bucketOn(day: Date) {
+	const pace = day.getDate() / new Date(day.getFullYear(), day.getMonth() + 1, 0).getDate();
+	return { ...BUCKET, pace, spent: BUCKET.available * pace * BUCKET.ofPace };
+}

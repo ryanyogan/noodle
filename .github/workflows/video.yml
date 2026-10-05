@@ -60,7 +60,7 @@ jobs:
           if-no-files-found: warn
 
   # The video itself: apps/video (Remotion) cuts the stills into out/intro.mp4 (1920×1080),
-  # out/intro-vertical.mp4 (1080×1920), out/poster.png and out/intro.vtt. See apps/video/README.md.
+  # out/intro-vertical.mp4 (1080×1920), out/poster.png, out/poster-vertical.png and out/intro.vtt. See apps/video/README.md.
   render:
     needs: capture
     runs-on: ubuntu-latest
@@ -91,5 +91,6 @@ jobs:
             apps/video/out/intro.mp4
             apps/video/out/intro-vertical.mp4
             apps/video/out/poster.png
+            apps/video/out/poster-vertical.png
             apps/video/out/intro.vtt
           if-no-files-found: error

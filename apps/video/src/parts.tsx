@@ -32,7 +32,11 @@ export function useLayout() {
 	const captionHeight = vertical ? 330 : 190;
 	const top = vertical ? 70 : 48;
 	const stageHeight = height - top - captionHeight;
-	const stageWidth = Math.round((stageHeight * VIEWPORT[cut].width) / VIEWPORT[cut].height);
+	// The phone cut's stage has a phone still's own shape. The wide cut's is flatter than a computer
+	// still, so a still fills most of the frame's width and the camera shows a band of its height.
+	const stageWidth = vertical
+		? Math.round((stageHeight * VIEWPORT[cut].width) / VIEWPORT[cut].height)
+		: Math.round(width * 0.88);
 	return { width, height, vertical, cut, captionHeight, top, stageHeight, stageWidth };
 }
 
