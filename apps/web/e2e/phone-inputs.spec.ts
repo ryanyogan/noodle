@@ -35,8 +35,10 @@ const wrongKeyboards = (page: Page) =>
 				if (el.inputMode !== "email") wrong.push(`${name(el)}: inputmode ${el.inputMode}`);
 				if (el.getAttribute("autocapitalize") !== "none") wrong.push(`${name(el)}: capitalizes`);
 			}
-			if (el.type === "search" && el.enterKeyHint !== "search")
-				wrong.push(`${name(el)}: enterkeyhint ${el.enterKeyHint}`);
+			// The attribute, not `el.enterKeyHint`: Playwright's WebKit build has no such property
+			// (Mobile Safari has had it since iOS 13.4), and the keyboard reads the attribute.
+			if (el.type === "search" && el.getAttribute("enterkeyhint") !== "search")
+				wrong.push(`${name(el)}: enterkeyhint ${el.getAttribute("enterkeyhint")}`);
 			// A money field: the "$" sits just before it.
 			const money = el.previousElementSibling?.textContent?.trim() === "$";
 			if (money && el.inputMode !== "decimal") wrong.push(`${name(el)}: inputmode ${el.inputMode}`);
