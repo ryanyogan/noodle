@@ -133,6 +133,28 @@ export async function fileCategorizations(
 	decisions: CategorizationDecision[],
 ): Promise<void> {
 	if (decisions.length === 0) return;
+	const batch: BatchItem<"sqlite">[] = [];
+	for (let i = 0; i < decisions.length; i += FILED_PER_STATEMENT)
+		batch.push(...filingStatements(db, viewer, decisions.slice(i, i + FILED_PER_STATEMENT)));
+	await db.batch(batch as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+}
+
+/**
+ * How many decisions one statement carries. They travel as one JSON value, and D1 caps a bound
+ * value at 2 MB: a decision is some 200 bytes, more with a long reason, so a thousand stay well
+ * under it however many a Rule files at once (issue 88).
+ */
+export const FILED_PER_STATEMENT = 1_000;
+
+/**
+ * The statements that file one lot of decisions, in the order they must run: a lot's own
+ * categorizations are written last, since "newly filed" is read from their absence.
+ */
+function filingStatements(
+	db: Db,
+	viewer: Viewer,
+	decisions: CategorizationDecision[],
+): BatchItem<"sqlite">[] {
 	const { householdId, memberId } = viewer;
 	// One JSON parameter for all of them: D1 caps a statement's bound parameters at 100.
 	const rows = JSON.stringify(
@@ -151,25 +173,38 @@ export async function fileCategorizations(
 		})),
 	);
 	const field = (name: string) => sql`json_extract(value, ${`$.${name}`})`;
-	const chosen = sql`(select ${field("bucketId")} from json_each(${rows})
-		where ${field("id")} = ${transactions.id} and ${field("outcome")} = 'filed')`;
+	// The Transactions bound for one Bucket (or Commitment), as a JSON list of IDs. Each update
+	// names its target outright and finds its Transactions in that list, which SQLite reads once.
+	// Looking every unassigned Transaction's decision up in the JSON instead made the work grow
+	// with the square of how many were filed: a Rule over 4,000 took a minute (issue 88).
+	const bound = (target: "bucketId" | "commitmentId") => {
+		const ids = new Map<string, string[]>();
+		for (const { transactionId, categorization } of decisions) {
+			const to = categorization.outcome === "filed" ? categorization[target] : null;
+			if (to) ids.set(to, [...(ids.get(to) ?? []), transactionId]);
+		}
+		return [...ids].map(([to, list]) => ({
+			to,
+			among: sql`${transactions.id} in (select value from json_each(${JSON.stringify(list)}))`,
+		}));
+	};
 	const month = sql`substr(${transactions.date}, 1, 7)`;
-	const intoBucket = sql`exists (select 1 from ${buckets} where ${and(
-		sql`${buckets.id} = ${chosen}`,
-		eq(buckets.householdId, householdId),
-		assignableBy(memberId),
-		lte(buckets.fromMonth, month),
-		or(isNull(buckets.archivedFromMonth), sql`${buckets.archivedFromMonth} > ${month}`),
-	)})`;
+	const intoBucket = (bucketId: string) =>
+		sql`exists (select 1 from ${buckets} where ${and(
+			eq(buckets.id, bucketId),
+			eq(buckets.householdId, householdId),
+			assignableBy(memberId),
+			lte(buckets.fromMonth, month),
+			or(isNull(buckets.archivedFromMonth), sql`${buckets.archivedFromMonth} > ${month}`),
+		)})`;
 	// A Rule's Commitment (ADR-0030): one of the Household's, in the Plan for that month.
-	const chosenCommitment = sql`(select ${field("commitmentId")} from json_each(${rows})
-		where ${field("id")} = ${transactions.id} and ${field("outcome")} = 'filed')`;
-	const intoCommitment = sql`exists (select 1 from ${commitments} where ${and(
-		sql`${commitments.id} = ${chosenCommitment}`,
-		eq(commitments.householdId, householdId),
-		lte(commitments.fromMonth, month),
-		or(isNull(commitments.endedFromMonth), sql`${commitments.endedFromMonth} > ${month}`),
-	)})`;
+	const intoCommitment = (commitmentId: string) =>
+		sql`exists (select 1 from ${commitments} where ${and(
+			eq(commitments.id, commitmentId),
+			eq(commitments.householdId, householdId),
+			lte(commitments.fromMonth, month),
+			or(isNull(commitments.endedFromMonth), sql`${commitments.endedFromMonth} > ${month}`),
+		)})`;
 	const filedAsDecided = sql`exists (select 1 from ${transactions} where ${transactions.id} = ${field("id")}
 		and (${transactions.bucketId} = ${field("bucketId")} or ${transactions.commitmentId} = ${field("commitmentId")}))`;
 	// Filed by this batch: in its Bucket (or Commitment) now, and not categorized as filed before.
@@ -186,33 +221,28 @@ export async function fileCategorizations(
 	const withFor = decisions.some(
 		({ categorization }) => categorization.outcome === "filed" && categorization.for?.length,
 	);
+	const unassigned = and(
+		changeableBy(viewer),
+		isNull(transactions.bucketId),
+		isNull(transactions.commitmentId),
+		isNull(transactions.goalId),
+		sql`not exists (select 1 from ${splits} where ${splits.transactionId} = ${transactions.id})`,
+	);
+	// Buckets first: a decision naming both lands in its Bucket, and in its Commitment only when
+	// the Bucket wouldn't take it.
 	const batch: BatchItem<"sqlite">[] = [
-		db
-			.update(transactions)
-			.set({ bucketId: chosen, version: sql`${transactions.version} + 1` })
-			.where(
-				and(
-					changeableBy(viewer),
-					isNull(transactions.bucketId),
-					isNull(transactions.commitmentId),
-					isNull(transactions.goalId),
-					sql`not exists (select 1 from ${splits} where ${splits.transactionId} = ${transactions.id})`,
-					intoBucket,
-				),
-			),
-		db
-			.update(transactions)
-			.set({ commitmentId: chosenCommitment, version: sql`${transactions.version} + 1` })
-			.where(
-				and(
-					changeableBy(viewer),
-					isNull(transactions.bucketId),
-					isNull(transactions.commitmentId),
-					isNull(transactions.goalId),
-					sql`not exists (select 1 from ${splits} where ${splits.transactionId} = ${transactions.id})`,
-					intoCommitment,
-				),
-			),
+		...bound("bucketId").map(({ to, among }) =>
+			db
+				.update(transactions)
+				.set({ bucketId: to, version: sql`${transactions.version} + 1` })
+				.where(and(among, unassigned, intoBucket(to))),
+		),
+		...bound("commitmentId").map(({ to, among }) =>
+			db
+				.update(transactions)
+				.set({ commitmentId: to, version: sql`${transactions.version} + 1` })
+				.where(and(among, unassigned, intoCommitment(to))),
+		),
 	];
 	if (withFor) {
 		// A Rule's For, for what it just filed that isn't For anyone yet (ADR-0011).
@@ -298,7 +328,7 @@ export async function fileCategorizations(
 				setWhere: sql`${categorizations.outcome} = 'review'`,
 			}),
 	);
-	await db.batch(batch as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+	return batch;
 }
 
 /**
