@@ -47,7 +47,7 @@ async function cover(page: Page, bucket: string, source: string) {
 	await expect(sheet).toBeHidden();
 }
 
-test("an overspent Bucket is covered back to zero from another Bucket, and undone from the Bucket", async ({
+test("an overspent Bucket is covered back to zero from another Bucket, and undone from the Bucket’s page", async ({
 	browser,
 }) => {
 	const page = await signedInPage(browser, parent.email);
@@ -90,11 +90,32 @@ test("an overspent Bucket is covered back to zero from another Bucket, and undon
 	await expect(bucketRow(page, "Hockey")).toHaveAccessibleName(
 		/^Hockey: \$0 left of \$450(, ahead of pace)?$/,
 	);
-	await expect(bucketRow(page, "Hockey")).toContainText("Covered $50 from Groceries");
+	// This Month says money moved, and no more: the Covers and their Undo are on each Bucket's own
+	// page (#87).
+	await expect(bucketRow(page, "Hockey")).toContainText("$400 planned + $50 moved in");
+	await expect(bucketRow(page, "Groceries")).toContainText("$1,200 planned − $50 moved out");
+	const buckets = page.getByRole("region", { name: /^Buckets/ });
+	await expect(buckets.getByText(/Covered \$50/)).toHaveCount(0);
+	await expect(buckets.getByRole("button", { name: /^Undo/ })).toHaveCount(0);
 
-	await bucketRow(page, "Hockey")
-		.getByRole("button", { name: "Undo Cover from Groceries" })
-		.click();
+	// The Bucket the money came out of lists it.
+	const covers = page.getByRole("region", { name: /^Covers in / });
+	await bucketRow(page, "Groceries").getByRole("link", { name: "Groceries" }).click();
+	await expect(covers.getByRole("listitem")).toHaveText(/\$50 went to cover Hockey/);
+	await expect(covers.getByRole("button", { name: "Undo Cover of Hockey" })).toBeVisible();
+
+	// And so does the Bucket it covered, where it is undone.
+	await page.goto("/month");
+	await bucketRow(page, "Hockey").getByRole("link", { name: "Hockey" }).click();
+	await expect(covers.getByRole("listitem")).toHaveText(/Covered \$50 from Groceries/);
+	await covers.getByRole("button", { name: "Undo Cover from Groceries" }).click();
+	await expect(page.getByRole("status").filter({ hasText: "Undone" })).toContainText(
+		"the money is back in Groceries",
+	);
+	await expect(covers).toHaveCount(0);
+
+	// This Month follows.
+	await page.goto("/month");
 	await expect(bucketRow(page, "Hockey")).toHaveAccessibleName(
 		/^Hockey: \$0 left of \$400, over by \$50$/,
 	);

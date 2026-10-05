@@ -3,6 +3,7 @@ import {
 	type BucketState,
 	type CoverSource,
 	coverSources,
+	type MonthKey,
 	type MonthState,
 	parseDollars,
 } from "@noodle/domain";
@@ -13,14 +14,17 @@ import {
 	CollapsibleTrigger,
 } from "@noodle/ui/components/collapsible";
 import { Input } from "@noodle/ui/components/input";
+import { List, ListRow } from "@noodle/ui/components/list";
 import { RowButton } from "@noodle/ui/components/row-button";
+import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
 import { Link, useHydrated } from "@tanstack/react-router";
 import { ChevronRight, Wallet } from "lucide-react";
 import { useId, useState } from "react";
+import type { BucketCover } from "../bucket-covers";
 import { asBucketColor, monogram } from "../buckets";
-import { formatMoney, formatMoneyInput } from "../format";
+import { formatMoney, formatMoneyInput, monthName } from "../format";
 
 /** What a Cover's source is called: a Bucket's name, or Free to Spend. */
 export const sourceName = (bucket: Pick<BucketState, "name"> | null | undefined) =>
@@ -213,49 +217,73 @@ function SourcePick({
 	);
 }
 
-/** This month's Covers into a Bucket, each of which can be undone. */
-export function CoversInto({
-	moves,
+/**
+ * A month's Covers that involve a Bucket, on its own page (#87): money that came into it and
+ * money that went out of it to cover another, each with its Undo. Nothing when there are none.
+ */
+export function BucketCovers({
+	month,
+	covers,
 	buckets,
+	canUndo,
 	onUndo,
 }: {
-	moves: PlanMove[];
+	month: MonthKey;
+	covers: BucketCover[];
+	/** The month's Buckets, for the names on both sides. */
 	buckets: BucketState[];
-	/** Absent when the Covers can no longer be undone. */
-	onUndo?: (move: PlanMove, fromName: string) => void;
+	/** Whether this Parent may still undo it. */
+	canUndo: (move: PlanMove) => boolean;
+	onUndo: (move: PlanMove, names: { fromName: string; toName: string }) => void;
 }) {
 	const hydrated = useHydrated();
+	if (covers.length === 0) return null;
+	const nameOf = (id: string) => buckets.find((b) => b.id === id)?.name ?? "another Bucket";
+	const heading = `Covers in ${monthName(month)}`;
 	return (
-		<ul className="grid gap-1">
-			{moves.map((move) => {
-				const from =
-					move.fromBucketId === null
-						? sourceName(null)
-						: (buckets.find((b) => b.id === move.fromBucketId)?.name ?? "another Bucket");
-				return (
-					<li
-						key={move.id}
-						className="flex min-h-7.5 items-center justify-between gap-2 text-[13px] text-muted-foreground"
-					>
-						<span>
-							Covered {formatMoney(move.amount)} from {from}
-						</span>
-						{onUndo ? (
-							<Button
-								variant="ghost"
-								size="sm"
-								type="button"
-								className="-me-2.5"
-								disabled={!hydrated}
-								aria-label={`Undo Cover from ${from}`}
-								onClick={() => onUndo(move, from)}
-							>
-								Undo
-							</Button>
-						) : null}
-					</li>
-				);
-			})}
-		</ul>
+		<Section aria-labelledby="bucket-covers">
+			<SectionHeader id="bucket-covers" title={heading} />
+			<List aria-label={heading}>
+				{covers.map(({ move, direction }) => {
+					const fromName =
+						move.fromBucketId === null
+							? move.windfall
+								? "Extra income"
+								: sourceName(null)
+							: nameOf(move.fromBucketId);
+					const toName = nameOf(move.toBucketId);
+					return (
+						<ListRow
+							key={move.id}
+							title={
+								direction === "into"
+									? `Covered ${formatMoney(move.amount)} from ${fromName}`
+									: `${formatMoney(move.amount)} went to cover ${toName}`
+							}
+							trailing={
+								canUndo(move) ? (
+									<Button
+										variant="ghost"
+										size="sm"
+										type="button"
+										// A full-size tap area on a phone (#74).
+										className="-me-2.5 max-lg:min-h-11"
+										disabled={!hydrated}
+										aria-label={
+											direction === "into"
+												? `Undo Cover from ${fromName}`
+												: `Undo Cover of ${toName}`
+										}
+										onClick={() => onUndo(move, { fromName, toName })}
+									>
+										Undo
+									</Button>
+								) : undefined
+							}
+						/>
+					);
+				})}
+			</List>
+		</Section>
 	);
 }
