@@ -1,5 +1,5 @@
 import { MutationObserver, QueryClient } from "@tanstack/react-query";
-import { describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import {
 	canUndo,
 	reviewWrites,
@@ -9,6 +9,21 @@ import {
 	stackReducer,
 	startStack,
 } from "./review-stack";
+import {
+	CHANGED_ELSEWHERE,
+	ChangedElsewhere,
+	expectedVersionOf,
+	forgetVersions,
+	formSeen,
+	leftAsTheyAre,
+	noteVersion,
+	settleWrite,
+	type WriteAnswer,
+} from "./transaction-versions";
+import { sayChangedElsewhere } from "./transactions";
+
+const said = vi.hoisted(() => ({ toast: vi.fn() }));
+vi.mock("@noodle/ui/components/toast", () => ({ toast: said.toast }));
 
 type Card = { id: string };
 const a = { id: "a" };
@@ -360,5 +375,169 @@ describe("an edit from the Transactions sheet while a Review decision waits its 
 		await Promise.all([first, decided]);
 		expect(server.sent).toEqual(["earlier", "edit", "decision"]);
 		expect(server.filedIn).toBe("groceries");
+	});
+});
+
+describe("the version carried across writes waiting their turn (#85, ADR-0041)", () => {
+	const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+	type Row = { id: string; version: number; filedIn: string | null };
+
+	beforeEach(() => {
+		forgetVersions();
+		said.toast.mockClear();
+	});
+
+	/**
+	 * A server that guards like the real one: a write lands only on the version it names, moves it
+	 * on by one, and answers the new one; otherwise it answers the row as it is. The first write
+	 * answers only when the test lets it, so the others wait their turn behind it.
+	 */
+	function household() {
+		const queryClient = new QueryClient();
+		const row: Row = { id: "t1", version: 0, filedIn: null };
+		const server = { row, sent: [] as [string, number][], held: true, land: () => {} };
+		const write = async (filedIn: string, expected: number): Promise<WriteAnswer<Row>> => {
+			server.sent.push([filedIn, expected]);
+			if (server.held) await new Promise<void>((resolve) => (server.land = resolve));
+			server.held = false;
+			if (row.version !== expected) return { status: "changed-elsewhere", current: { ...row } };
+			row.version += 1;
+			row.filedIn = filedIn;
+			return { status: "saved", version: row.version };
+		};
+		/** A change made from `seen`: the row as the screen had it when the Parent made the change. */
+		const change = (filedIn: string, seen: Pick<Row, "id" | "version">, atSendTime = true) =>
+			new MutationObserver(queryClient, {
+				mutationKey: ["month-change"],
+				scope: reviewWrites,
+				mutationFn: async () =>
+					settleWrite(
+						seen.id,
+						await write(filedIn, atSendTime ? expectedVersionOf(seen) : seen.version),
+					),
+			});
+		return { server, change };
+	}
+
+	test("each queued change to one Transaction goes with the version the one before it left", async () => {
+		const { server, change } = household();
+		// All three made from the same row on screen, at version 0, before any has answered.
+		const seen = { id: "t1", version: 0 };
+		const writes = ["groceries", "fun", "hockey"].map((place) => change(place, seen).mutate());
+		await tick();
+		expect(server.sent).toEqual([["groceries", 0]]);
+		server.land();
+		await Promise.all(writes);
+		expect(server.sent).toEqual([
+			["groceries", 0],
+			["fun", 1],
+			["hockey", 2],
+		]);
+		expect(server.row).toEqual({ id: "t1", version: 3, filedIn: "hockey" });
+	});
+
+	test("what that prevents: with the version it saw when queued, this screen refuses its own second change", async () => {
+		const { server, change } = household();
+		const seen = { id: "t1", version: 0 };
+		const first = change("groceries", seen, false).mutate();
+		const second = change("hockey", seen, false).mutate();
+		await tick();
+		server.land();
+		await first;
+		await expect(second).rejects.toBeInstanceOf(ChangedElsewhere);
+		expect(server.row.filedIn).toBe("groceries");
+	});
+
+	test("an Undo goes with the version its decision left, not the card's", async () => {
+		const { server, change } = household();
+		const card = { id: "t1", version: 0 };
+		const decided = change("groceries", card).mutate();
+		const undone = change("review", card).mutate();
+		await tick();
+		server.land();
+		await Promise.all([decided, undone]);
+		expect(server.sent).toEqual([
+			["groceries", 0],
+			["review", 1],
+		]);
+	});
+
+	test("changed on another screen first: every change waiting for it is refused, none written over it", async () => {
+		const { server, change } = household();
+		const seen = { id: "t1", version: 0 };
+		const first = change("groceries", seen).mutate();
+		const second = change("fun", seen).mutate();
+		await tick();
+		// The other Parent's change lands while this screen's first is on its way.
+		server.row.version = 1;
+		server.row.filedIn = "hockey";
+		server.land();
+		const refused = await first.catch((error: unknown) => error);
+		expect(refused).toBeInstanceOf(ChangedElsewhere);
+		expect((refused as ChangedElsewhere<Row>).current).toEqual({
+			id: "t1",
+			version: 1,
+			filedIn: "hockey",
+		});
+		expect((refused as Error).message).toBe(CHANGED_ELSEWHERE);
+		// The second doesn't catch up to the server's version and overwrite what it never saw.
+		await expect(second).rejects.toBeInstanceOf(ChangedElsewhere);
+		expect(server.sent).toEqual([
+			["groceries", 0],
+			["fun", 0],
+		]);
+		expect(server.row).toEqual({ id: "t1", version: 1, filedIn: "hockey" });
+		// Once the screen shows the row as it is now, a change made on it lands.
+		await change("fun", { id: "t1", version: 1 }).mutate();
+		expect(server.row).toEqual({ id: "t1", version: 2, filedIn: "fun" });
+	});
+
+	test("the newer of the row's version and this screen's last write is sent", () => {
+		expect(expectedVersionOf({ id: "t1", version: 2 })).toBe(2);
+		noteVersion("t1", 4);
+		expect(expectedVersionOf({ id: "t1", version: 2 })).toBe(4);
+		// Refetched after the other Parent's change: the row is ahead of this screen's last write.
+		expect(expectedVersionOf({ id: "t1", version: 6 })).toBe(6);
+		expect(expectedVersionOf({ id: "t2", version: 0 })).toBe(0);
+		// Deleted: nothing is remembered for it.
+		settleWrite("t1", { status: "saved", version: null });
+		expect(expectedVersionOf({ id: "t1", version: 2 })).toBe(2);
+	});
+
+	test("an open form starts again when another screen changes its Transaction, not for this screen's own save", () => {
+		const opened = { id: "t1", version: 2, elsewhere: 0 };
+		expect(formSeen(opened, { id: "t1", version: 2 })).toBe(opened);
+		// The other Parent's change arrives while the form is open.
+		expect(formSeen(opened, { id: "t1", version: 3 })).toEqual({
+			id: "t1",
+			version: 3,
+			elsewhere: 1,
+		});
+		// This screen's own save answered 3: the refetched row at 3 is no news.
+		noteVersion("t1", 3);
+		expect(formSeen(opened, { id: "t1", version: 3 }).elsewhere).toBe(0);
+		// Its own save and then the other Parent's: 4 is news.
+		expect(formSeen(opened, { id: "t1", version: 4 }).elsewhere).toBe(1);
+		// Another Transaction opened in the same pane starts from nothing.
+		expect(formSeen({ ...opened, elsewhere: 2 }, { id: "t2", version: 0 })).toEqual({
+			id: "t2",
+			version: 0,
+			elsewhere: 0,
+		});
+	});
+
+	test("says it once for changes refused one after another, and counts what a batch left alone", () => {
+		sayChangedElsewhere(100_000);
+		sayChangedElsewhere(101_000);
+		sayChangedElsewhere(104_999);
+		expect(said.toast.mock.calls).toEqual([[CHANGED_ELSEWHERE]]);
+		sayChangedElsewhere(105_000);
+		expect(said.toast).toHaveBeenCalledTimes(2);
+		expect(CHANGED_ELSEWHERE).toBe(
+			"This Transaction was changed on another screen. Here’s how it looks now.",
+		);
+		expect(leftAsTheyAre(0)).toBe("");
+		expect(leftAsTheyAre(1)).toBe("1 was changed elsewhere and left as it is.");
+		expect(leftAsTheyAre(3)).toBe("3 were changed elsewhere and left as they are.");
 	});
 });

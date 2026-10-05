@@ -14,7 +14,7 @@ import {
 	transactionFor,
 	transactions,
 } from "./schema";
-import type { TransactionRow } from "./transactions";
+import type { TransactionRow, TransactionWriteResult } from "./transactions";
 
 // Review: the Transactions categorization wasn't sure of, waiting for a Parent to confirm its guess
 // or say otherwise. A Transaction waits in Review while its categorization says so and it's still
@@ -68,6 +68,7 @@ export async function loadReview(db: Db, viewer: Viewer, limit: number): Promise
 	const [rows, [total]] = await Promise.all([
 		db
 			.select({
+				version: transactions.version,
 				id: transactions.id,
 				date: transactions.date,
 				amountCents: transactions.amountCents,
@@ -142,6 +143,7 @@ export async function loadReview(db: Db, viewer: Viewer, limit: number): Promise
 			splits: [],
 			partlyPrivate: false,
 			autoFiled: null,
+			version: row.version,
 			merchant: row.merchant,
 			merchantName: row.merchantName,
 			guess:
@@ -204,14 +206,21 @@ export async function returnToReview(
 			reason?: string | null;
 		} | null;
 		forMemberIds: string[];
+		/** The version the Parent last had of it: left alone if it has moved on (ADR-0041). */
+		expectedVersion?: number;
 	},
-): Promise<void> {
+): Promise<TransactionWriteResult> {
 	const { householdId } = viewer;
 	const { transactionId } = input;
+	const asExpected =
+		input.expectedVersion === undefined
+			? undefined
+			: eq(transactions.version, input.expectedVersion);
 	const theirs = sql`exists (select 1 from ${transactions} where ${and(
 		eq(transactions.id, transactionId),
 		changeableBy(viewer),
 		isNull(transactions.goalId),
+		asExpected,
 	)})`;
 	const guess = input.guess
 		? sql`(select ${buckets.id} from ${buckets} where ${buckets.id} = ${input.guess.bucketId}
@@ -241,12 +250,6 @@ export async function returnToReview(
 					),
 			)
 			.onConflictDoNothing(),
-		db
-			.update(transactions)
-			.set({ bucketId: null, commitmentId: null })
-			.where(
-				and(eq(transactions.id, transactionId), changeableBy(viewer), isNull(transactions.goalId)),
-			),
 		db
 			.insert(categorizations)
 			.select(
@@ -279,7 +282,36 @@ export async function returnToReview(
 					reason: sql`excluded.reason`,
 				},
 			}),
+		// Last: every write before it is guarded by the version this one moves on from.
+		db
+			.update(transactions)
+			.set({ bucketId: null, commitmentId: null, version: sql`${transactions.version} + 1` })
+			.where(
+				and(
+					eq(transactions.id, transactionId),
+					changeableBy(viewer),
+					isNull(transactions.goalId),
+					asExpected,
+				),
+			),
 	]);
+	const [row] = await db
+		.select({
+			version: transactions.version,
+			waits: sql<number>`${transactions.bucketId} is null and ${transactions.commitmentId} is null
+				and exists (select 1 from ${categorizations} where ${categorizations.transactionId} = ${transactions.id}
+				and ${categorizations.outcome} = 'review')`,
+		})
+		.from(transactions)
+		.where(and(eq(transactions.id, transactionId), eq(transactions.householdId, householdId)));
+	if (input.expectedVersion === undefined) return { ok: true, version: row?.version ?? null };
+	if (!row) return { ok: false, reason: "changed-elsewhere" };
+	// One on and waiting in Review: it landed, now or on an earlier try. Unmoved: it wasn't theirs
+	// to change, as before. Anything else was changed on another screen first, and is left alone.
+	const landed = row.version === input.expectedVersion + 1 && Boolean(row.waits);
+	return landed || row.version === input.expectedVersion
+		? { ok: true, version: row.version }
+		: { ok: false, reason: "changed-elsewhere" };
 }
 
 /**
@@ -291,8 +323,8 @@ export async function fileWithoutBucket(
 	db: Db,
 	viewer: Viewer,
 	transactionIds: string[],
-): Promise<{ filed: string[] }> {
-	if (transactionIds.length === 0) return { filed: [] };
+): Promise<{ filed: string[]; versions: Record<string, number> }> {
+	if (transactionIds.length === 0) return { filed: [], versions: {} };
 	const asked = sql`(select value from json_each(${JSON.stringify(transactionIds)}))`;
 	// Read first, then deleted by ID: `waiting` reads the Transaction beside its categorization.
 	const rows = await db
@@ -301,17 +333,39 @@ export async function fileWithoutBucket(
 		.innerJoin(transactions, eq(transactions.id, categorizations.transactionId))
 		.where(and(waiting(viewer), sql`${transactions.id} in ${asked}`));
 	const filed = rows.map((row) => row.id);
-	if (filed.length === 0) return { filed };
-	await db
-		.delete(categorizations)
-		.where(
-			and(
-				eq(categorizations.householdId, viewer.householdId),
-				eq(categorizations.outcome, "review"),
-				sql`${categorizations.transactionId} in (select value from json_each(${JSON.stringify(filed)}))`,
+	if (filed.length === 0) return { filed, versions: {} };
+	const theFiled = sql`(select value from json_each(${JSON.stringify(filed)}))`;
+	const ofTheFiled = and(
+		eq(transactions.householdId, viewer.householdId),
+		sql`${transactions.id} in ${theFiled}`,
+	);
+	await db.batch([
+		// It left Review: a decision made on another screen's card for it is refused (ADR-0041).
+		db
+			.update(transactions)
+			.set({ version: sql`${transactions.version} + 1` })
+			.where(
+				and(
+					ofTheFiled,
+					sql`exists (select 1 from ${categorizations} where ${categorizations.transactionId} = ${transactions.id}
+						and ${categorizations.outcome} = 'review')`,
+				),
 			),
-		);
-	return { filed };
+		db
+			.delete(categorizations)
+			.where(
+				and(
+					eq(categorizations.householdId, viewer.householdId),
+					eq(categorizations.outcome, "review"),
+					sql`${categorizations.transactionId} in ${theFiled}`,
+				),
+			),
+	]);
+	const after = await db
+		.select({ id: transactions.id, version: transactions.version })
+		.from(transactions)
+		.where(ofTheFiled);
+	return { filed, versions: Object.fromEntries(after.map((row) => [row.id, row.version])) };
 }
 
 /** How many of the Household's Transactions dated in `month` categorization filed on its own. */

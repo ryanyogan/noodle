@@ -251,9 +251,9 @@ describe("Personal Allowance privacy: writes", () => {
 				note: null,
 				forMemberIds: [],
 			});
-		expect(await move("alex-pa")).toEqual({ ok: true });
+		expect(await move("alex-pa")).toMatchObject({ ok: true });
 		expect(await transactionIds(sam)).toEqual(["coffee"]);
-		expect(await move("groceries")).toEqual({ ok: true });
+		expect(await move("groceries")).toMatchObject({ ok: true });
 		expect(await transactionIds(sam)).toEqual(["milk", "coffee"]);
 	});
 
@@ -335,7 +335,7 @@ describe("Personal Allowance privacy: writes", () => {
 			});
 		expect(await cover("sam", null, "alex-pa")).toEqual({ ok: false, reason: "refused" });
 		expect(await cover("sam", "alex-pa", "groceries")).toEqual({ ok: false, reason: "refused" });
-		expect(await cover("alex", "alex-pa", "groceries")).toEqual({ ok: true });
+		expect(await cover("alex", "alex-pa", "groceries")).toMatchObject({ ok: true });
 	});
 });
 
@@ -368,7 +368,7 @@ describe("Personal Allowance privacy: Splits", () => {
 				[part("target-gift", 3_000, "alex-pa"), part("target-food", 7_000, "groceries", "sam")],
 				"Target: gift for Sam",
 			),
-		).toEqual({ ok: true });
+		).toMatchObject({ ok: true });
 	});
 
 	it("folds a Split in the other Parent's Personal Allowance into its total", async () => {
@@ -409,6 +409,7 @@ describe("Personal Allowance privacy: Splits", () => {
 			transfer: null,
 			refundOf: null,
 			autoFiled: null,
+			version: 1,
 			for: [],
 			splits: [
 				{

@@ -265,6 +265,8 @@ function changeWrites(
 				date: change.date,
 				amountCents: change.amount,
 				pending: change.pending,
+				// A Parent's change made on what the bank said before is refused, not this (ADR-0041).
+				version: sql`${transactions.version} + 1`,
 			})
 			.where(stillAsRead(householdId, accountId, row)),
 	];
