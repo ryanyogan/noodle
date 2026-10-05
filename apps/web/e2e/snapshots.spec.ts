@@ -130,3 +130,74 @@ test("when one Parent restores a snapshot, the other Parent is emailed about it"
 	await sam.goto("/household");
 	await expect(sam.getByRole("region", { name: "Snapshots" })).toContainText("Before a restore");
 });
+
+/**
+ * Watches the page's connections to its Household Agent; call before it loads. The returned
+ * function waits until one is open: it answers the ping a screen sends on coming back into view.
+ * (As in live-updates.spec.ts.)
+ */
+function watchHouseholdAgent(page: Page) {
+	let answered = false;
+	page.on("websocket", (socket) => {
+		if (!socket.url().endsWith("/api/household-agent")) return;
+		socket.on("framereceived", (frame) => {
+			if (frame.payload === "pong") answered = true;
+		});
+	});
+	return () =>
+		expect
+			.poll(async () => {
+				await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+				return answered;
+			})
+			.toBe(true);
+}
+
+test("a snapshot one Parent takes shows in the other Parent's list without a reload", async ({
+	browser,
+}) => {
+	test.setTimeout(240_000);
+	const first = await createTestParent();
+	const second = await createTestParent();
+	parents.push(first, second);
+	const alex = await signedInPage(browser, first.email);
+	await createPlannedHousehold(alex, { baseline: "5,000", buckets: [["Groceries", "600"]] });
+	await alex.goto("/household");
+	await alex.getByLabel("Their email").fill(second.email);
+	await alex.getByRole("button", { name: /^Invite/ }).click();
+	await expect(alex.getByText(`Invited ${second.email}`)).toBeVisible();
+	const sam = await signedInPage(browser, second.email);
+	await sam.goto("/welcome");
+	await sam.getByLabel("Your name").fill("Sam");
+	await sam.getByRole("button", { name: "Join The Rinks" }).click();
+	await enterJoinedHousehold(sam);
+
+	// Sam has Household settings open, connected to the Household's live updates, and stays there.
+	const connected = watchHouseholdAgent(sam);
+	await sam.goto("/household");
+	const samSnapshots = sam.getByRole("region", { name: "Snapshots" });
+	await expect(samSnapshots.getByRole("button", { name: "Take a snapshot" })).toBeVisible();
+	await expect(samSnapshots).not.toContainText("Seen by Sam");
+	await connected();
+	await sam.evaluate(() => {
+		(window as { loadedOnce?: boolean }).loadedOnce = true;
+	});
+
+	await alex.goto("/household");
+	const snapshots = alex.getByRole("region", { name: "Snapshots" });
+	await snapshots.getByLabel("Note").fill("Seen by Sam");
+	await snapshots.getByRole("button", { name: "Take a snapshot" }).click();
+	const history = (page: Page) =>
+		page
+			.getByRole("region", { name: "Snapshots" })
+			.getByRole("list", { name: "Snapshot history" })
+			.getByRole("listitem")
+			.filter({ hasText: "Seen by Sam" });
+	await expect(history(alex)).toHaveCount(1);
+
+	// It shows for Sam by itself: the page was never loaded again.
+	await expect(history(sam)).toHaveCount(1);
+	expect(await sam.evaluate(() => (window as { loadedOnce?: boolean }).loadedOnce === true)).toBe(
+		true,
+	);
+});

@@ -5,8 +5,11 @@ import type { Db } from "./index";
 import * as s from "./schema";
 import { buildSeed, type SeedOptions, writeSeed } from "./seed";
 import {
+	clearForRestore,
 	exportHouseholdRows,
+	RESTORED_BY_INSERT,
 	restoreHouseholdRows,
+	restoreMembers,
 	restoreTable,
 	SNAPSHOT_FORMAT,
 	type SnapshotFile,
@@ -98,6 +101,39 @@ describe("restoring a snapshot", () => {
 		// Refused before anything was deleted, on either side.
 		expect((await exportHouseholdRows(db, ours)).tables).toEqual(before.tables);
 		expect((await exportHouseholdRows(db, theirs)).tables).toEqual(tables);
+	});
+
+	it("stopped part way, is whole again from the “Before restore” snapshot, and can be tried again", async () => {
+		const older = await exportHouseholdRows(db, ours);
+		// Changes since that snapshot, then the snapshot a restore takes first.
+		await db.update(s.households).set({ name: "Since" }).where(eq(s.households.id, ours));
+		await db.update(s.members).set({ name: "Since" }).where(eq(s.members.householdId, ours));
+		await db
+			.update(s.transactions)
+			.set({ note: "Since the snapshot" })
+			.where(eq(s.transactions.householdId, ours));
+		const beforeRestore = await exportHouseholdRows(db, ours);
+		expect(beforeRestore.tables).not.toEqual(older.tables);
+		const theirsBefore = await exportHouseholdRows(db, theirs);
+
+		// The Workflow's steps in order, as far as half the tables; then it stops (retries used up).
+		await clearForRestore(db, ours);
+		await restoreMembers(db, ours, older.tables.members ?? []);
+		const present = RESTORED_BY_INSERT.filter((name) => (older.tables[name] ?? []).length > 0);
+		expect(present.length).toBeGreaterThan(3);
+		for (const name of present.slice(0, Math.ceil(present.length / 2)))
+			await restoreTable(db, ours, name, older.tables[name] ?? []);
+		const partWay = await exportHouseholdRows(db, ours);
+		expect(partWay.rowCounts).not.toEqual(older.rowCounts);
+		expect(partWay.rowCounts).not.toEqual(beforeRestore.rowCounts);
+
+		// What was there just before the restore comes back whole.
+		await restoreHouseholdRows(db, ours, fileOf(ours, beforeRestore.tables));
+		expect((await exportHouseholdRows(db, ours)).tables).toEqual(beforeRestore.tables);
+		// And the restore that stopped starts clean when asked for again.
+		await restoreHouseholdRows(db, ours, fileOf(ours, older.tables));
+		expect((await exportHouseholdRows(db, ours)).tables).toEqual(older.tables);
+		expect(await exportHouseholdRows(db, theirs)).toEqual(theirsBefore);
 	});
 
 	it("refuses another Household's snapshot, another format, or an older schema, plainly", () => {
