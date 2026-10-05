@@ -50,6 +50,7 @@ _Avoid_: Alerts, budget score
 
 **Bucket**:
 A monthly allowance for discretionary, variable spending (Hockey, Fun, Life, Groceries), tracked as "amount left." Every Bucket either Resets monthly or Carries over.
+A Bucket leaves the Plan by being **archived** from a month on: earlier months keep it, with everything filed in it, and "Restore to the Plan" brings it back. Only one that nothing points at can be **deleted** instead, as if it had never been added: no Transaction or Split filed in it, no money Moved in or out, no Rule, and no place in an earlier month's Plan. A Personal Allowance is neither: its Parent sets it to $0.
 _Avoid_: Envelope, category, budget line
 
 **Carries over** (a Bucket that carries over):

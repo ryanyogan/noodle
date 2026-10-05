@@ -3,8 +3,11 @@ import {
 	addBuckets as addBucketsInDb,
 	addPersonalAllowance as addPersonalAllowanceInDb,
 	archiveBucket as archiveBucketInDb,
+	type BucketDeleteBlocker,
+	bucketDeleteBlockers,
 	bucketsWithAllowanceChanges,
 	decideSuggestion as decideSuggestionInDb,
+	deleteBucket as deleteBucketInDb,
 	loadOpenSuggestion,
 	loadPlanChanges,
 	parentsWithPersonalAllowance,
@@ -287,6 +290,44 @@ export const archiveBucket = createServerFn({ method: "POST" })
 		await notifyHousehold(context.household.id, ["months"]);
 		// What Review guessed into it needs another home.
 		await queueAi({ ...viewerOf(context), kind: "buckets-changed" });
+	});
+
+/**
+ * What stops a Bucket being deleted (issue 98); empty when nothing does. One that has ever had
+ * anything filed in it, money Moved in or out, a Rule, or a place in an earlier month's Plan is
+ * archived instead, so nothing that happened changes.
+ */
+export const getBucketDeleteBlockers = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ bucketId: ulidSchema }))
+	.handler(async ({ data, context }): Promise<BucketDeleteBlocker[]> => {
+		const { household } = context;
+		const blockers = await bucketDeleteBlockers(getDb(), {
+			householdId: household.id,
+			bucketId: data.bucketId,
+			thisMonth: monthKeyAt(new Date(), household.timeZone),
+		});
+		if (blockers === null) throw new Error("That Bucket isn’t in this Household.");
+		return blockers;
+	});
+
+/** Deletes a Bucket nothing points at; any other is left as it is and `blockers` says why. */
+export const deleteBucket = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ bucketId: ulidSchema }))
+	.handler(async ({ data, context }) => {
+		const { household } = context;
+		const result = await deleteBucketInDb(getDb(), {
+			householdId: household.id,
+			bucketId: data.bucketId,
+			thisMonth: monthKeyAt(new Date(), household.timeZone),
+		});
+		if (result.deleted) {
+			await notifyHousehold(household.id, ["months"]);
+			// What Review guessed into it needs another home.
+			await queueAi({ ...viewerOf(context), kind: "buckets-changed" });
+		}
+		return result;
 	});
 
 /** Brings an archived Bucket back into the Plan from `month` on, with its allowance. */

@@ -15,7 +15,12 @@ import { getForTotalsEarlierInYear, getMembers } from "./server/members";
 import { getMonth, type MonthData } from "./server/month";
 import { getNudgeSettings } from "./server/nudges";
 import { getPerkSources } from "./server/perks";
-import { getAllowanceOwners, getEditedAllowances, getPlanHistory } from "./server/plan";
+import {
+	getAllowanceOwners,
+	getBucketDeleteBlockers,
+	getEditedAllowances,
+	getPlanHistory,
+} from "./server/plan";
 import { getPlanDraft } from "./server/plan-draft";
 import { getReceiptAddress } from "./server/receipts";
 import { getReport, type ReportRequest } from "./server/reports";
@@ -146,6 +151,16 @@ export const planHistoryQuery = (month: MonthKey, targetId?: string) =>
 	queryOptions({
 		queryKey: [...monthsKey, month, "plan-history", targetId ?? null],
 		queryFn: () => getPlanHistory({ data: targetId === undefined ? { month } : { targetId } }),
+	});
+
+/**
+ * What stops a Bucket being deleted (issue 98). Under every month's key: filing a Transaction or
+ * a Cover changes the answer.
+ */
+export const bucketDeleteBlockersQuery = (bucketId: string) =>
+	queryOptions({
+		queryKey: [...monthsKey, "bucket-delete-blockers", bucketId],
+		queryFn: () => getBucketDeleteBlockers({ data: { bucketId } }),
 	});
 
 /**

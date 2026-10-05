@@ -469,6 +469,12 @@ export {
 	markIncomeTransfer,
 } from "./between-us";
 export {
+	BUCKET_DELETE_BLOCKERS,
+	type BucketDeleteBlocker,
+	bucketDeleteBlockers,
+	deleteBucket,
+} from "./bucket-delete";
+export {
 	addCapture,
 	type CaptureResult,
 	type CaptureTokenSummary,
