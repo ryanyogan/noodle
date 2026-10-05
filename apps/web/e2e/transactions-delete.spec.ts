@@ -155,7 +155,7 @@ test("select all that match a search, read the facts, delete, and find a snapsho
 		page
 			.getByRole("grid", { name: /^Transactions in /, includeHidden: true })
 			.locator("[data-slot=data-table-body]")
-			.getByRole("button", { includeHidden: true }),
+			.locator("button:not([role=checkbox]):not([data-cell])"),
 	).toHaveCount(3);
 
 	await sheet.getByRole("button", { name: "Delete 5 Transactions" }).click();

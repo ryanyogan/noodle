@@ -147,7 +147,15 @@ export function AssignedCell({
 	const editing = cells.editing?.id === transaction.id && cells.editing.column === "assigned";
 	if (editing) {
 		return (
-			<span data-cell-editor="" className="min-w-0 flex-1">
+			// biome-ignore lint/a11y/noStaticElementInteractions: it takes no clicks of its own, it only keeps the list's from the row
+			// biome-ignore lint/a11y/useKeyWithClickEvents: as above: nothing here is pressed
+			<span
+				data-cell-editor=""
+				className="min-w-0 flex-1"
+				// The list is drawn outside the row, but its clicks still come up through it: a
+				// choice made there is not a click on the row.
+				onClick={(event) => event.stopPropagation()}
+			>
 				<BucketPicker
 					defaultOpen
 					value={assignedValue(transaction)}
