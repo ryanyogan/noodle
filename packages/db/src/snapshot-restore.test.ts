@@ -147,4 +147,22 @@ describe("restoring a snapshot", () => {
 			/before Noodle’s last update/,
 		);
 	});
+
+	it("refuses a snapshot from before Transactions had a version, rather than restore rows without one (#85)", async () => {
+		const { tables } = await exportHouseholdRows(db, ours);
+		// As a snapshot taken before 0049 holds them: no `version` on its Transactions.
+		const old = (tables.transactions ?? []).map(({ version: _version, ...row }) => row);
+		expect(old.length).toBeGreaterThan(50);
+		const file = { ...fileOf(ours, { ...tables, transactions: old }) };
+		expect(file.migration).toBe("0048_household_snapshots");
+		// Both ways into a restore (the server function and the Workflow's first step) ask this.
+		expect(snapshotRefusal(file, ours, "0049_transaction_version")).toBe(
+			"This snapshot was taken before Noodle’s last update changed how data is stored, so it can’t be restored. Restore a newer one.",
+		);
+		// The same file names, as D1 records them, are refused too.
+		expect(snapshotRefusal(file, ours, "0049_transaction_version.sql")).not.toBeNull();
+		// And were such rows ever let through, the database refuses them: no Transaction is written
+		// with no version.
+		await expect(restoreTable(db, ours, "transactions", old)).rejects.toThrow();
+	});
 });

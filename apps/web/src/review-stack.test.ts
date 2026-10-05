@@ -541,3 +541,20 @@ describe("the version carried across writes waiting their turn (#85, ADR-0041)",
 		expect(leftAsTheyAre(3)).toBe("3 were changed elsewhere and left as they are.");
 	});
 });
+
+describe("a batch with cards another screen changed first (#85, ADR-0041)", () => {
+	test("what was left as it is isn't counted as done, and Undo puts back only what was filed", () => {
+		const c = { id: "c" };
+		const filed = stackReducer(startStack<Card>(), { type: "decided", items: [a, b, c] });
+		expect(filed.done).toBe(3);
+		const left = stackReducer(filed, { type: "returned", items: [b] });
+		expect(left.done).toBe(2);
+		expect(left.history).toEqual([[a, c]]);
+		// One decided on the other screen is no longer waiting: the stack is just what still waits.
+		expect(stackOrder([{ id: "d" }], left).map((card) => card.id)).toEqual(["d"]);
+		// A batch left out whole leaves nothing of this visit's to undo.
+		const none = stackReducer(filed, { type: "returned", items: [a, b, c] });
+		expect(none.done).toBe(0);
+		expect(canUndo(none)).toBe(false);
+	});
+});
