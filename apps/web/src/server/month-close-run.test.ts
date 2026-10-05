@@ -112,6 +112,8 @@ describe("runMonthClose", () => {
 				],
 				// The Extra income is always left for the Parents.
 				windfall: [],
+				// The Free to Spend the month ended with is kept: nothing is sent.
+				freeToSpend: [],
 			},
 		]);
 		expect(notified).toEqual([{ householdId: "household-1", changes: ["goals", "month:2026-08"] }]);

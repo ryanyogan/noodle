@@ -7,6 +7,7 @@ import {
 	addGoal,
 	addIncome,
 	addQuickAdd,
+	closeMonth,
 	createHouseholdForParent,
 	type Db,
 	fundGoal,
@@ -263,5 +264,39 @@ describe("Free to Spend carried over (issue 113)", () => {
 			createdByMemberId: parentId,
 		});
 		expect(await loadMoves(db, householdId, current)).toHaveLength(1);
+	});
+
+	it("Free to Spend sent to a Goal as a month is closed lowers what is carried over by that amount", async () => {
+		// August ended with $600. Kept: closing writes nothing and the carry is as it was.
+		const close = (closeId: string, month: MonthKey, cents: number, goalId = "braces") =>
+			closeMonth(db, {
+				householdId,
+				closeId,
+				month,
+				decidedByMemberId: parentId,
+				sweeps: [],
+				windfall: [],
+				freeToSpend: cents > 0 ? [{ moveId: `${closeId}:free:0`, goalId, amountCents: cents }] : [],
+			});
+		expect((await close("kept", "2026-07", 0)).ok).toBe(true);
+		expect((await walk(current)).at(-1)).toMatchObject({ carriedIn: 60_000 });
+		// Sent: $250 of August's $600 is Goal funding dated in August.
+		expect((await close("sent", "2026-08", 25_000)).ok).toBe(true);
+		expect(await loadGoalFunding(db, householdId, "2026-08")).toMatchObject([
+			{ id: "sent:free:0", goalId: "braces", amount: 25_000, month: "2026-08" },
+		]);
+		expect(
+			(await walk(current)).slice(-3).map((m) => [m.month, m.carriedIn, m.own, m.left]),
+		).toEqual([
+			["2026-08", 0, 35_000, 35_000],
+			["2026-09", 35_000, 0, 35_000],
+			["2026-10", 35_000, 55_000, 90_000],
+		]);
+		// A month closes once: a second decision sends nothing.
+		expect((await close("again", "2026-08", 10_000)).ok).toBe(false);
+		expect(await loadGoalFunding(db, householdId, "2026-08")).toHaveLength(1);
+		// Not to a Goal that is not the Household's: the month closes and the money stays.
+		expect((await close("nowhere", "2026-06", 5_000, "no-such-goal")).ok).toBe(true);
+		expect(await loadGoalFunding(db, householdId, "2026-06")).toEqual([]);
 	});
 });

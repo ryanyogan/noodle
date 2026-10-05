@@ -26,7 +26,8 @@ const amountSchema = z.number().int().min(1).max(MAX_CENTS);
 
 /**
  * The Parents' decision for a month that has ended: which leftovers are Swept into which Goals,
- * and where the pending Extra income goes. Everything left out stays where it is. Refused once the
+ * where the pending Extra income goes, and which Goal, if any, the Free to Spend it ended with is
+ * sent to as Goal funding. Everything left out stays where it is. Refused once the
  * month is closed, and when the decision no longer fits what the month has left.
  */
 export const closeMonth = createServerFn({ method: "POST" })
@@ -41,6 +42,11 @@ export const closeMonth = createServerFn({ method: "POST" })
 			windfall: z.array(
 				z.object({ moveId: ulidSchema, goalId: ulidSchema, amountCents: amountSchema }),
 			),
+			/** Free to Spend the month ended with, sent to Goals; left out, it stays carried over. */
+			freeToSpend: z
+				.array(z.object({ goalId: ulidSchema, amountCents: amountSchema }))
+				.max(10)
+				.default([]),
 		}),
 	)
 	.handler(async ({ data, context }): Promise<CloseMonthOutcome> => {
@@ -58,8 +64,10 @@ export const closeMonth = createServerFn({ method: "POST" })
 				amount: s.amountCents,
 			})),
 			windfall: data.windfall.map((w) => ({ goalId: w.goalId, amount: w.amountCents })),
+			freeToSpend: data.freeToSpend.map((f) => ({ goalId: f.goalId, amount: f.amountCents })),
 		};
-		if (!fitsProposal(monthCloseProposal(monthState(month)), decision)) {
+		const proposal = monthCloseProposal(monthState(month), month.freeLeftToSend ?? 0);
+		if (!fitsProposal(proposal, decision)) {
 			return { ok: false, reason: "changed" };
 		}
 		const result = await closeMonthInDb(

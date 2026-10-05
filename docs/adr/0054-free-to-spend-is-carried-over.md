@@ -19,6 +19,7 @@ Each month's Free to Spend was worked out from that month alone ([ADR-0001](0001
 - **The screen shows the two parts**, so the month still reads fresh: "$1,846 this month · $6,710 carried over from October", or "$1,846 this month · $230 short carried over from September". The words are "carried over" and "short".
 - `monthState` takes `freeCarriedIn` and adds it to `freeToSpend`. The write guards' SQL twin, `freeToSpendSql`, takes the same amount, so a Cover or Goal funding can use carried-in money and is refused sooner after a shortfall.
 - Sending what a month left to a Goal is ordinary Goal funding dated in the ended month, which lowers what it hands on with no extra rule.
+- **The month-end decision** (phase 113c): "Close <Month>" has one row, "Free to Spend · $412 left", when the ended month hands on more than zero, had income recorded, and the Household has an active Goal. **Keep it in Free to Spend** is preselected and writes nothing; **Send to <Goal>** (the emergency Goal first, then savings Goals, then payoff Goals) writes the whole amount as Goal funding inside the close batch (`closeMonth`, Move ID `<closeId>:free:<n>`, which is how "How <Month> ended" tells it from the month's other funding). A month with only this to decide is offered for closing in the first week; the Month-close Workflow does not wait for it and its defaults never send it, so after a week it is simply kept.
 
 This amends ADR-0001's "the remainder": a month's remainder now includes what earlier months handed on.
 

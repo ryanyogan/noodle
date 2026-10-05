@@ -55,6 +55,23 @@ describe("optimistic month-close", () => {
 		expect(withMonthClosed(closed, decision)).toBe(closed);
 	});
 
+	test("Free to Spend sent to a Goal shows as Goal funding at once, and less is carried over", () => {
+		const ended: MonthData = { ...month, freeHandedOn: 41_200, freeLeftToSend: 41_200 };
+		const sent = withMonthClosed(ended, {
+			...decision,
+			sweeps: [],
+			windfall: [],
+			freeToSpend: [{ goalId: "trip", amountCents: 41_200 }],
+		});
+		expect(sent.goalFunding).toEqual([
+			{ id: "close:free:0", goalId: "trip", amount: 41_200, month: august },
+		]);
+		expect(sent).toMatchObject({ freeHandedOn: 0, freeLeftToSend: 0 });
+		// Kept: nothing is written and what is carried over stays.
+		const kept = withMonthClosed(ended, { ...decision, sweeps: [], windfall: [] });
+		expect(kept).toMatchObject({ goalFunding: [], freeHandedOn: 41_200 });
+	});
+
 	test("This Month asks to close the month before during its first week only", () => {
 		expect(closingWeek("2026-09" as MonthKey, "2026-09-01")).toBe(true);
 		expect(closingWeek("2026-09" as MonthKey, "2026-09-07")).toBe(true);

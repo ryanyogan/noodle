@@ -124,7 +124,7 @@ A Move of the month-end leftover of a Bucket that resets monthly into a Goal.
 _Avoid_: Rollover, save leftovers
 
 **Month-close**:
-Deciding, once a month has ended, where the leftovers of its Buckets that reset monthly are Swept and where its pending Extra income goes: by a Parent in the next month's first week, or by the defaults when nobody does. The ended month then shows how it ended: its Sweeps, the Extra income it sent to Goals, what each Bucket that carries over took into the next month, and who closed it.
+Deciding, once a month has ended, where the leftovers of its Buckets that reset monthly are Swept and where its pending Extra income goes, and whether the Free to Spend it ended with stays carried over (the default; nothing is written) or is sent to a Goal as Goal funding dated in that month: by a Parent in the next month's first week, or by the defaults when nobody does. The ended month then shows how it ended: its Sweeps, the Extra income it sent to Goals, what each Bucket that carries over took into the next month, and who closed it.
 The app says "Close <Month>" and "How <Month> ended".
 _Avoid_: Rollover, reconciliation, closing the books
 

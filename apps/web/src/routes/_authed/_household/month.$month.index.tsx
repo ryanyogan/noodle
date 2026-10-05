@@ -17,7 +17,7 @@ import {
 	monthCloseProposal,
 	monthEnd,
 	monthOfDay,
-	nothingToClose,
+	nothingToDecide,
 	whatChanged,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
@@ -101,6 +101,7 @@ export const Route = createFileRoute("/_authed/_household/month/$month/")({
 function ThisMonth() {
 	const { month, parentId } = Route.useRouteContext();
 	const state = useMonthState(month);
+	const freeKept = useFreeCarry(month).handedOn ?? 0;
 	const { cover } = useCovers();
 	// The overspent Bucket being covered, by ID, so the sheet follows its latest state.
 	const [covering, setCovering] = useState<string | null>(null);
@@ -215,6 +216,7 @@ function ThisMonth() {
 								<MonthEndSection
 									month={month}
 									end={monthEnd(state, state)}
+									freeKept={freeKept}
 									closed={state.closed}
 									parentId={parentId}
 									goals={goals.goals}
@@ -306,7 +308,7 @@ function ThisMonth() {
 						</div>
 						{/* Under Free to Spend at every size: on a phone a closed strip, from lg open in the
 						    rail, so the prompts never push Buckets down. */}
-						<WithClosePrevious month={month} asOf={state.asOf}>
+						<WithClosePrevious month={month} asOf={state.asOf} hasGoal={activeGoals.length > 0}>
 							{(closeStatus) => (
 								<ToDo
 									className="order-2 lg:order-none"
@@ -539,14 +541,19 @@ function Chip({
 function WithClosePrevious({
 	month,
 	asOf,
+	hasGoal,
 	children,
 }: {
 	month: MonthKey;
 	asOf: DayKey;
+	/** Whether there is an active Goal that Free to Spend left could be sent to. */
+	hasGoal: boolean;
 	children: (status: string | null) => ReactNode;
 }) {
 	return closingWeek(month, asOf) ? (
-		<PreviousMonthOpen month={addMonths(month, -1)}>{children}</PreviousMonthOpen>
+		<PreviousMonthOpen month={addMonths(month, -1)} hasGoal={hasGoal}>
+			{children}
+		</PreviousMonthOpen>
 	) : (
 		children(null)
 	);
@@ -554,24 +561,29 @@ function WithClosePrevious({
 
 function PreviousMonthOpen({
 	month,
+	hasGoal,
 	children,
 }: {
 	month: MonthKey;
+	hasGoal: boolean;
 	children: (status: string | null) => ReactNode;
 }) {
 	const state = useMonthState(month);
-	const proposal = monthCloseProposal(state);
-	return children(state.closed || nothingToClose(proposal) ? null : closeStatus(proposal));
+	const proposal = monthCloseProposal(state, useFreeCarry(month).leftToSend);
+	return children(
+		state.closed || nothingToDecide(proposal, hasGoal) ? null : closeStatus(proposal, hasGoal),
+	);
 }
 
 /** The Close row's line from lg: "2 Buckets and Extra income to decide". */
-function closeStatus(proposal: MonthCloseProposal) {
+function closeStatus(proposal: MonthCloseProposal, hasGoal: boolean) {
 	const n = proposal.leftovers.length;
 	const parts = [
 		n > 0 && `${n} ${n === 1 ? "Bucket" : "Buckets"}`,
+		hasGoal && (proposal.freeToSpend ?? 0) > 0 && "Free to Spend",
 		proposal.windfall > 0 && "Extra income",
 	].filter(Boolean);
-	return `${parts.join(" and ")} to decide`;
+	return `${new Intl.ListFormat("en", { type: "conjunction" }).format(parts as string[])} to decide`;
 }
 
 /** The month before, while it waits to be closed and has something to decide. */
@@ -589,8 +601,8 @@ function ClosePreviousMonth({
 	const state = useMonthState(month);
 	const close = useCloseMonth();
 	const extraIncomes = useExtraIncomes();
-	const proposal = monthCloseProposal(state);
-	if (state.closed || nothingToClose(proposal)) return null;
+	const proposal = monthCloseProposal(state, useFreeCarry(month).leftToSend);
+	if (state.closed || nothingToDecide(proposal, goals.length > 0)) return null;
 	return (
 		<MonthCloseSection
 			proposal={proposal}
@@ -620,6 +632,10 @@ function ClosePreviousMonth({
 					windfall: choice.windfallGoalId
 						? [{ moveId: ulid(), goalId: choice.windfallGoalId, amountCents: proposal.windfall }]
 						: [],
+					freeToSpend:
+						choice.freeGoalId && proposal.freeToSpend
+							? [{ goalId: choice.freeGoalId, amountCents: proposal.freeToSpend }]
+							: [],
 				});
 			}}
 		/>

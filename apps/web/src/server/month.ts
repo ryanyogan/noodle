@@ -73,6 +73,11 @@ export type MonthData = {
 	freeBuiltUp?: { month: MonthKey; amount: Cents }[];
 	/** For an ended month, what it handed on to the next: what it actually ended with. */
 	freeHandedOn?: Cents;
+	/**
+	 * For an ended month that ended with Free to Spend above zero and had income recorded: that
+	 * amount, which closing the month can send to a Goal (see monthCloseProposal).
+	 */
+	freeLeftToSend?: Cents;
 	/** Moves from Free to Spend into what Goals have set aside. */
 	goalFunding: (GoalFunding & { id: string })[];
 	/** Extra income a Parent added to the month's Free to Spend. */
@@ -155,6 +160,7 @@ export async function loadMonth(
 		freeCarriedIn,
 		freeBuiltUp,
 		...(own?.ended ? { freeHandedOn: own.left } : {}),
+		...(own?.ended && !own.noIncome && own.left > 0 ? { freeLeftToSend: own.left } : {}),
 		goalFunding,
 		extraToFree,
 		sweeps,

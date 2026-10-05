@@ -119,7 +119,7 @@ export const glossary = {
 	"month-close": {
 		term: "Closing a month",
 		short:
-			"After a month ends, deciding where its leftovers and Extra income go. If nobody does in the first week, Noodle uses the suggestions.",
+			"After a month ends, deciding where its leftovers and Extra income go, and whether what is left in Free to Spend stays there, carried over, or goes to a Goal. If nobody does in the first week, Noodle uses the suggestions and Free to Spend stays carried over.",
 		more: "The app says “Close August”, and afterwards shows how August ended.",
 	},
 	review: {

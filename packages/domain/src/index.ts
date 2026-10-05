@@ -271,6 +271,7 @@ export {
 	monthsBetween,
 } from "./month";
 export {
+	closeFreeMoveId,
 	defaultDecision,
 	fitsProposal,
 	type Leftover,
@@ -280,6 +281,7 @@ export {
 	monthCloseProposal,
 	monthEnd,
 	nothingToClose,
+	nothingToDecide,
 	quietEnd,
 } from "./month-close";
 export {

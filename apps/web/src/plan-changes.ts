@@ -169,5 +169,6 @@ export const useFreeCarry = (month: MonthKey) =>
 		select: (data) => ({
 			builtUp: data.freeBuiltUp ?? [],
 			handedOn: data.freeHandedOn ?? null,
+			leftToSend: data.freeLeftToSend ?? 0,
 		}),
 	}).data;
