@@ -9,12 +9,13 @@ on:
     paths-ignore: ["docs/**", "**/*.md"]
   pull_request:
     paths-ignore: ["docs/**", "**/*.md"]
-  # The WebKit iPhone jobs run only when asked for from the Actions tab (no nightly run: it cost
-  # about 30 runner minutes a night whether anything changed or not).
+  # WebKit as an iPhone 15 runs on every push (the Parents use the app in Safari on an iPhone, and
+  # a Safari-only break went unseen while this ran only on request). The iPhone SE job still runs
+  # only when asked for from the Actions tab.
   workflow_dispatch:
     inputs:
       webkit:
-        description: Also run the WebKit iPhone jobs
+        description: Also run the WebKit iPhone SE job
         type: boolean
         default: true
 
@@ -27,8 +28,8 @@ jobs:
   # Decides what this run tests:
   # - tested: this exact commit already passed CI on another branch (the wizard-53 run before
   #   main), so main skips E2E and goes straight to deploy;
-  # - phone: which phone projects run. Chromium as an iPhone 15 on every push; WebKit as iPhone 15
-  #   and SE only when asked for from the Actions tab.
+  # - phone: which phone projects run. Chromium and WebKit as an iPhone 15 on every push; WebKit as
+  #   an iPhone SE only when asked for from the Actions tab.
   gate:
     runs-on: ubuntu-latest
     # Reading earlier runs needs actions: read; the default token can't (403).
@@ -53,9 +54,9 @@ jobs:
               if [ "${{ inputs.webkit }}" = "true" ]; then
                 phone='["chromium-mobile","webkit-iphone","webkit-iphone-se"]'
               else
-                phone='["chromium-mobile"]'
+                phone='["chromium-mobile","webkit-iphone"]'
               fi ;;
-            *) phone='["chromium-mobile"]' ;;
+            *) phone='["chromium-mobile","webkit-iphone"]' ;;
           esac
           echo "tested=$tested" >> "$GITHUB_OUTPUT"
           echo "phone=$phone" >> "$GITHUB_OUTPUT"
@@ -194,8 +195,10 @@ jobs:
     env:
       CI: "true"
       E2E_SERVER: build
-      # Names this runner's pool of reused test Parents (e2e/parents.ts, #108).
-      E2E_POOL: s${{ matrix.shard }}
+      # Names this runner's pool of reused test Parents (e2e/parents.ts, #108). Chromium's phone
+      # jobs share s1 and s2 with the desktop shards; the WebKit jobs have a pool of their own (wk1
+      # and wk2, 12 Parents), so a WebKit job never holds a Parent a Chromium job is using.
+      E2E_POOL: ${{ matrix.project == 'chromium-mobile' && 's' || 'wk' }}${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v5
       # setup-bun needs unzip, which the image lacks; npm's bun package is the same binary.
