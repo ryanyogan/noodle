@@ -44,7 +44,11 @@ test("prepare, download and open the ZIP; another Household's link is refused", 
 
 	await page.goto("/household");
 	const section = page.getByRole("region", { name: "Download your data" });
-	await expect(section).toContainText("The other Parent’s Personal Allowance isn’t included");
+	// On a phone the second paragraph waits behind a button.
+	await section.getByRole("button", { name: "More about this file" }).click();
+	await expect(
+		section.getByText("The other Parent’s Personal Allowance isn’t included"),
+	).toBeVisible();
 	await section.getByRole("button", { name: "Prepare download" }).click();
 	const ready = section.getByRole("link", { name: /^Download \(ready until .* tomorrow\)$/ });
 	await expect(ready).toBeVisible({ timeout: 60_000 });

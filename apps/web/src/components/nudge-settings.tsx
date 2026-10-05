@@ -14,6 +14,7 @@ import { type ReactNode, useEffect, useId, useState } from "react";
 import { type PushDeviceState, pushDeviceState, turnOffPush, turnOnPush } from "../push-device";
 import { nudgeSettingsQuery } from "../queries";
 import { saveNudgePreferences, sendTestNudge } from "../server/nudges";
+import { PhoneMore } from "./phone-more";
 
 /** The viewer's own Nudges: this device, and which Nudges they want when. */
 export function NudgeSettings() {
@@ -22,7 +23,10 @@ export function NudgeSettings() {
 		<Section aria-labelledby="nudges">
 			<SectionHeader id="nudges" title="Nudges" />
 			<ThisDevice vapidPublicKey={vapidPublicKey} />
-			<NudgePreferencesForm saved={preferences} />
+			{/* On a phone the four switches and quiet hours wait behind a button: the page is long (#74). */}
+			<PhoneMore label="Choose which Nudges you get">
+				<NudgePreferencesForm saved={preferences} />
+			</PhoneMore>
 		</Section>
 	);
 }
