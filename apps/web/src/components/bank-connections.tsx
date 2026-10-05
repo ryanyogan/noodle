@@ -678,7 +678,6 @@ export const CONNECT_EXPLAINED =
 export function BankConnections({ bank }: { bank: ConnectBank }) {
 	const hydrated = useHydrated();
 	const { setUp, plaid, connections } = bank;
-	const realBank = useSuspenseQuery(bankConnectionsQuery()).data.connectRealBank === true;
 	const connect = { isPending: bank.pending, mutate: bank.start };
 
 	const connectButton = (quiet: boolean) =>
@@ -703,16 +702,6 @@ export function BankConnections({ bank }: { bank: ConnectBank }) {
 				count={connections.length}
 				help={<TermHelp term="bank-connection" />}
 			/>
-			{realBank ? (
-				<Alert>
-					<AlertDescription>
-						<strong className="font-medium text-foreground">Connect your real bank.</strong> Until
-						now Noodle used Plaid’s practice bank, so those Bank Connections have ended. Your
-						Accounts and their Transactions are all still here. Connect your real bank to bring in
-						new ones.
-					</AlertDescription>
-				</Alert>
-			) : null}
 			{connections.length > 0 ? (
 				<>
 					<List aria-label="Bank Connections">

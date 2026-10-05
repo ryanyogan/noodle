@@ -2,6 +2,8 @@ import { env, WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "
 import { NonRetryableError } from "cloudflare:workflows";
 import { clerkClient } from "@clerk/tanstack-react-start/server";
 import {
+	carriedTables,
+	carryRefusal,
 	clearForRestore,
 	learnedMerchantBuckets,
 	linkedBankConnectionIds,
@@ -86,14 +88,20 @@ export class SnapshotRestoreWorkflow extends WorkflowEntrypoint<Env, RestorePara
 		const { householdId, key, takenAt, parentId } = event.payload;
 		const checked = await step.do("check the snapshot", async () => {
 			const file = await load(key);
-			const reason = snapshotRefusal(file, householdId, await newestMigration(env.DB));
-			const tables = Object.entries(file.tables)
+			// The newest migration now, kept for every later step: a snapshot taken under an older
+			// one is carried up to it (ADR-0048), the same way each time.
+			const migration = await newestMigration(env.DB);
+			const refused = snapshotRefusal(file, householdId, migration);
+			if (refused) return { reason: refused, tables: [], banks: [], migration };
+			const carried = carriedTables(file, migration);
+			const tables = Object.entries(carried)
 				.filter(([, rows]) => rows.length > 0)
 				.map(([name]) => name);
-			const banks = (file.tables.bankConnections ?? []).map((row) => String(row.id));
-			return { reason, tables, banks };
+			const banks = (carried.bankConnections ?? []).map((row) => String(row.id));
+			return { reason: carryRefusal(carried), tables, banks, migration };
 		});
 		if (checked.reason) return { ok: false, reason: checked.reason };
+		const tablesOf = async () => carriedTables(await load(key), checked.migration);
 
 		// A bank linked since the snapshot would be left linked with nothing pointing at it.
 		await step.do("disconnect banks the snapshot doesn't have", RETRY, async () => {
@@ -133,17 +141,17 @@ export class SnapshotRestoreWorkflow extends WorkflowEntrypoint<Env, RestorePara
 		});
 		await step.do("clear the Household's rows", RETRY, () => clearForRestore(getDb(), householdId));
 		await step.do("put back members", RETRY, async () =>
-			restoreMembers(getDb(), householdId, (await load(key)).tables.members ?? []),
+			restoreMembers(getDb(), householdId, (await tablesOf()).members ?? []),
 		);
 		const present = new Set(checked.tables);
 		for (const name of RESTORED_BY_INSERT) {
 			if (!present.has(name)) continue;
 			await step.do(`put back ${name}`, RETRY, async () =>
-				restoreTable(getDb(), householdId, name, (await load(key)).tables[name] ?? []),
+				restoreTable(getDb(), householdId, name, (await tablesOf())[name] ?? []),
 			);
 		}
 		await step.do("put back the Household", RETRY, async () =>
-			restoreHouseholdRow(getDb(), householdId, (await load(key)).tables.households ?? []),
+			restoreHouseholdRow(getDb(), householdId, (await tablesOf()).households ?? []),
 		);
 
 		// Every open screen refetches; the other Parent gets a Nudge and an email.

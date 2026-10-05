@@ -1,11 +1,15 @@
 import type { PlanPart } from "@noodle/domain";
+import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import { ListWithPanel } from "@noodle/ui/components/detail-panel";
 import { MasterDetail, SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
+import type { DetailPanelSize } from "@noodle/ui/lib/detail-panel";
 import { cn } from "@noodle/ui/lib/utils";
-import { Outlet, useParams } from "@tanstack/react-router";
+import { Link, type LinkOptions, Outlet, useNavigate, useParams } from "@tanstack/react-router";
+import { X } from "lucide-react";
 import { type ReactNode, Suspense } from "react";
 import { monthName } from "../format";
-import { DetailPending, masterDetailKeys, selectedRow } from "./master-detail";
+import { DetailPending, masterDetailKeys, panelKeys, selectedRow } from "./master-detail";
 
 /**
  * One part of a month's Plan, below the Plan's header and tabs (which its layout route owns): the
@@ -120,6 +124,7 @@ export function PlanMasterDetail({
 	aside,
 	noun,
 	listLabel,
+	panel,
 	children,
 }: {
 	editable: boolean;
@@ -135,12 +140,75 @@ export function PlanMasterDetail({
 	noun: string;
 	/** Names the list pane, e.g. "Buckets". */
 	listLabel: string;
+	/**
+	 * From lg the picked item opens in a panel from the window's right edge, over the page, and the
+	 * list keeps its width and columns (issue 107, ADR-0047). `close` is the list's own address. Without it, the
+	 * item sits beside a narrowed list, as before.
+	 */
+	panel?: { size?: DetailPanelSize; close: LinkOptions };
 	children: ReactNode;
 }) {
 	const { id: picked, month } = useParams({
 		strict: false,
 		select: (params) => ({ id: params.id, month: params.month }),
 	});
+	const navigate = useNavigate();
+	const list = (
+		// A container, so a row can tell the narrow list pane beside an item from a list with the
+		// page's width, and show its figures in columns only where they fit.
+		<div className={cn("@container min-w-0", selectedRow)}>
+			{summary ? (
+				<PaneHeader eyebrow={month ? `${monthName(month)}’s Plan` : "The Plan"} title={summary} />
+			) : null}
+			<div className="grid min-w-0 content-start gap-8">
+				{editable ? null : <PlanEnded />}
+				{children}
+			</div>
+		</div>
+	);
+	const detail = picked ? (
+		<div className="@container">
+			<Suspense fallback={<DetailPending />}>
+				<Outlet />
+			</Suspense>
+		</div>
+	) : undefined;
+	const rail = (
+		<div className="w-full min-w-0">
+			{overview && overviewHeader ? <PaneHeader {...overviewHeader} /> : null}
+			<div className="grid content-start gap-4">
+				{overview}
+				{aside}
+			</div>
+		</div>
+	);
+	const railLabel = `${listLabel}: totals, add and about`;
+	// The picked item opens in a panel from the right (issue 107, ADR-0047): the list and the rail
+	// stay exactly as they are with nothing picked, under it.
+	if (panel)
+		return (
+			<ListWithPanel
+				className="max-w-2xl lg:max-w-none"
+				size={panel.size}
+				listLabel={listLabel}
+				asideLabel={railLabel}
+				detailLabel={`${noun} details`}
+				itemKey={picked}
+				onKeyDown={panelKeys}
+				onClose={() => navigate({ ...panel.close, resetScroll: false })}
+				close={
+					// A link, so it works before the page has hydrated.
+					<Button variant="ghost" size="icon" asChild className="bg-background">
+						<Link {...panel.close} resetScroll={false} aria-label={`Close ${noun}`}>
+							<X />
+						</Link>
+					</Button>
+				}
+				list={list}
+				aside={rail}
+				detail={detail}
+			/>
+		);
 	return (
 		<MasterDetail
 			className="max-w-2xl lg:max-w-none"
@@ -151,43 +219,12 @@ export function PlanMasterDetail({
 			// width, rather than a narrow list beside an empty pane (#73).
 			data-list-fills={picked ? undefined : "true"}
 			listLabel={listLabel}
-			detailLabel={picked ? `${noun} details` : `${listLabel}: totals, add and about`}
+			detailLabel={picked ? `${noun} details` : railLabel}
 			emptyStacks
 			onKeyDown={masterDetailKeys}
-			list={
-				// A container, so a row can tell the narrow list pane beside an item from a list with the
-				// page's width, and show its figures in columns only where they fit.
-				<div className={cn("@container min-w-0", selectedRow)}>
-					{summary ? (
-						<PaneHeader
-							eyebrow={month ? `${monthName(month)}’s Plan` : "The Plan"}
-							title={summary}
-						/>
-					) : null}
-					<div className="grid min-w-0 content-start gap-8">
-						{editable ? null : <PlanEnded />}
-						{children}
-					</div>
-				</div>
-			}
-			detail={
-				picked ? (
-					<div className="@container">
-						<Suspense fallback={<DetailPending />}>
-							<Outlet />
-						</Suspense>
-					</div>
-				) : undefined
-			}
-			empty={
-				<div className="w-full min-w-0">
-					{overview && overviewHeader ? <PaneHeader {...overviewHeader} /> : null}
-					<div className="grid content-start gap-4">
-						{overview}
-						{aside}
-					</div>
-				</div>
-			}
+			list={list}
+			detail={detail}
+			empty={rail}
 		/>
 	);
 }

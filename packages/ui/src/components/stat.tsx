@@ -18,7 +18,8 @@ const StatContext = React.createContext<{ layout: StatLayout; size: StatSize }>(
 /**
  * - `spaced` (the default): figures with a gap between them, inside a card's padding.
  * - `ruled`: a strip along the bottom of a card, a rule above it and between its figures.
- *   `wrapLast` puts the last of three on its own row on a phone.
+ *   `wrapLast` puts the last of three on its own row where there is room for two (a phone, a
+ *   narrow panel): pair it with `grid-cols-2 @md:grid-cols-3`.
  * - `cards`: each figure is its own Card.
  *
  * Columns come from `className` (`grid-cols-2`, `sm:grid-cols-3`, …).
@@ -78,7 +79,9 @@ function Stat({
 				size === "sm" ? "gap-0.5" : "gap-1",
 				layout === "ruled" && [
 					"border-s px-(--card-pad) py-3 first:border-s-0",
-					"max-sm:group-data-wrap-last/stat-grid:last:col-span-full max-sm:group-data-wrap-last/stat-grid:last:border-s-0 max-sm:group-data-wrap-last/stat-grid:last:border-t",
+					// By the container, as the columns are (`@md:grid-cols-3`): a narrow panel in a wide
+					// window wraps the last one too.
+					"@max-md:group-data-wrap-last/stat-grid:last:col-span-full @max-md:group-data-wrap-last/stat-grid:last:border-s-0 @max-md:group-data-wrap-last/stat-grid:last:border-t",
 				],
 				layout === "cards" && "p-(--card-pad)",
 				className,

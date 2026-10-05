@@ -42,7 +42,7 @@ import {
 import { getDb } from "./db";
 import { householdMiddleware } from "./household";
 import { notifyHousehold } from "./notify";
-import { connectRealBankShown, plaidNotSetUp } from "./plaid";
+import { plaidNotSetUp } from "./plaid";
 import { PLAID_WEBHOOK_PATH } from "./plaid-webhook";
 import { ulidSchema } from "./schemas";
 
@@ -65,12 +65,6 @@ export type BankConnectionsData = {
 	/** The providers a Parent can connect through. */
 	providers: BankProvider[];
 	connections: BankConnectionSummary[];
-	/**
-	 * Accounts shows "Connect your real bank" once: after the switch to production Plaid
-	 * (PLAID_SANDBOX_RETIRED, set with it) ended the practice Bank Connections, until one is
-	 * connected again.
-	 */
-	connectRealBank?: boolean;
 };
 
 /** The Household's Bank Connections, and whether a Parent can connect one. */
@@ -79,12 +73,10 @@ export const getBankConnections = createServerFn({ method: "GET" })
 	.handler(async ({ context }): Promise<BankConnectionsData> => {
 		const setup = bankSetup();
 		const connections = await loadBankConnections(getDb(), context.household.id);
-		const { PLAID_SANDBOX_RETIRED } = env as unknown as { PLAID_SANDBOX_RETIRED?: string };
 		return {
 			setUp: setup?.mode ?? null,
 			providers: setup ? setUpProviders(setup) : [],
 			connections,
-			connectRealBank: connectRealBankShown(PLAID_SANDBOX_RETIRED, connections),
 		};
 	});
 
