@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { choose, createHousehold, openMore, openToDo, savedBy, signedInPage } from "./session";
+import { choose, createHousehold, openMore, savedBy, signedInPage } from "./session";
 import { seedIncomeHousehold, seedShotsHousehold } from "./shots-household";
 
 // Pictures of every page with one realistic Household, for looking at a redesign without a browser
@@ -181,10 +181,14 @@ async function openDangerSheet(page: Page, action: "Start fresh" | "Delete House
  * then on the page).
  */
 async function openToDoRow(page: Page, label: string) {
-	if ((page.viewportSize()?.width ?? 0) >= 1024) return openToDo(page, label);
-	const strip = page
-		.getByRole("region", { name: "To do" })
-		.locator("button[aria-expanded]:visible");
+	const toDo = page.getByRole("region", { name: "To do" });
+	// By the start of the row's name: "Close September" also says "… and Extra income to decide".
+	const strip =
+		(page.viewportSize()?.width ?? 0) >= 1024
+			? toDo
+					.getByRole("button", { name: new RegExp(`^${label}`) })
+					.and(page.locator("[aria-expanded]"))
+			: toDo.locator("button[aria-expanded]:visible");
 	// The strip only answers once the page is hydrated.
 	await expect(async () => {
 		if ((await strip.first().getAttribute("aria-expanded")) !== "true")
@@ -310,7 +314,7 @@ test.beforeAll(async ({ browser }) => {
 				path: thisMonth,
 				small: true,
 				ready: async (page) => {
-					await openToDoRow(page, "Close ");
+					await openToDoRow(page, "Close");
 					await choose(page, "Where the Extra income goes", "Leave it in the account");
 				},
 			},
