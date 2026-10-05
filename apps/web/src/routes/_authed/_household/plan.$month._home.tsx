@@ -218,8 +218,12 @@ function PlanHome() {
 								foot={
 									state.editable ? (
 										// Under the table: Add without scrolling back up a long list. Its own words,
-										// so the heading's Add Buckets stays the one of that name.
-										<div className="px-1">{addBuckets("Add another Bucket", "under")}</div>
+										// so the heading's Add Buckets stays the one of that name. Not on a phone
+										// (issue 115): one way to add there, the heading's, which every month's Plan
+										// has in the same place and which is the page's filled button.
+										<div className="px-1 max-sm:hidden">
+											{addBuckets("Add another Bucket", "under")}
+										</div>
 									) : null
 								}
 							/>
