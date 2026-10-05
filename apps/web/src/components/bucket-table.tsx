@@ -64,8 +64,13 @@ function Summary({
 
 const anyone = () => true;
 
-/** The handle's column: its track, and the least it reads at in rem (32 px a mouse, 44 a thumb). */
-const HANDLE = { width: "2.75rem", min: 2 };
+/**
+ * The handle's column: its track, and the least it reads at in rem (32 px a mouse, 44 a thumb).
+ * On a phone the track is 28px, so a name has the room: the handle is still 36 × 44 under a thumb
+ * (issue 115). `HANDLE_TRACK` goes on the table's wrapper.
+ */
+const HANDLE = { width: "var(--bucket-handle, 2.75rem)", min: 2 };
+const HANDLE_TRACK = "max-sm:[--bucket-handle:1.75rem]";
 
 /**
  * Whether the shared Buckets' table has handles: a month that can change, with more than one to
@@ -178,7 +183,8 @@ export function BucketTable({
 								<Link
 									to="/plan/$month/buckets/$id"
 									params={{ month, id: bucket.id }}
-									className="truncate font-medium hover:underline @max-2xl/dt:[overflow-wrap:anywhere] @max-2xl/dt:whitespace-normal"
+									// A stacked row's name wraps, at a hyphen when one word is longer than the line.
+									className="truncate font-medium hover:underline @max-2xl/dt:[overflow-wrap:anywhere] @max-2xl/dt:whitespace-normal @max-2xl/dt:hyphens-auto"
 									{...masterDetailItem}
 								>
 									{bucket.name}
@@ -340,7 +346,7 @@ export function BucketTable({
 	return (
 		// One column no wider than its place: what is under the table (a button's words, which don't
 		// shrink) must not widen the table at large text.
-		<div className="grid grid-cols-[minmax(0,1fr)] gap-3">
+		<div className={cn("grid grid-cols-[minmax(0,1fr)] gap-3", HANDLE_TRACK)}>
 			<div ref={moving.listRef} {...moving.guard}>
 				{/* Clipped to the card's corners, so a row's hover and the open row's ground follow them. */}
 				<Card className="overflow-clip">
@@ -367,7 +373,7 @@ export function BucketTable({
 												aria-label={`Move ${bucket.name}`}
 												// Only the handle refuses to scroll: a touch anywhere else on the row scrolls
 												// the page.
-												className="-ms-2 cursor-grab touch-none select-none [-webkit-touch-callout:none] active:cursor-grabbing"
+												className="-ms-2 cursor-grab touch-none max-sm:w-9 select-none [-webkit-touch-callout:none] active:cursor-grabbing"
 												{...moving.handleProps(bucket.id)}
 											>
 												<GripVertical />

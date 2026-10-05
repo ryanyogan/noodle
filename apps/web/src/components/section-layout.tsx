@@ -62,7 +62,7 @@ export function SectionLayout({
 			<div data-slot="section-layout-header" className={sectionHeaderOverItem}>
 				<PageHeader eyebrow={eyebrow} title={title} leading={leading} actions={actions} />
 				{tabs ? (
-					<LinkTabs aria-label={tabsLabel} className="mb-6">
+					<LinkTabs aria-label={tabsLabel} className="mb-3 lg:mb-6">
 						{tabs.map((tab) => (
 							<LinkTab key={tab.label} asChild>
 								{/* The link marks itself current (aria-current="page") on its own page and on the pages
