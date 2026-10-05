@@ -140,10 +140,7 @@ export function useReviewDecision({
 			if (!decision.next) return toast(`${label} deleted`);
 			toast(decision.placeName ? `${label} filed in ${decision.placeName}` : `${label} split`, {
 				tone: "success",
-				action: {
-					label: "Undo",
-					onClick: () => (onUndo ? onUndo([decision.item]) : returnCard.mutate(decision.item)),
-				},
+				undo: () => (onUndo ? onUndo([decision.item]) : returnCard.mutate(decision.item)),
 			});
 		},
 		onSettled: () => refetchAfterChange(queryClient),
@@ -214,12 +211,9 @@ export function useConfirmAll({
 					: `Filed ${decisions.length} where Noodle suggested`,
 				{
 					tone: "success",
-					action: {
-						label: "Undo",
-						onClick: () => {
-							if (onUndo) return onUndo(decisions.map((decision) => decision.item));
-							for (const decision of decisions) returnCard.mutate(decision.item);
-						},
+					undo: () => {
+						if (onUndo) return onUndo(decisions.map((decision) => decision.item));
+						for (const decision of decisions) returnCard.mutate(decision.item);
 					},
 				},
 			);
@@ -280,12 +274,9 @@ export function useFileWithoutBucket({
 					: `Filed ${items.length} without a Bucket`,
 				{
 					tone: "success",
-					action: {
-						label: "Undo",
-						onClick: () => {
-							if (onUndo) return onUndo(items);
-							for (const item of items) returnCard.mutate(item);
-						},
+					undo: () => {
+						if (onUndo) return onUndo(items);
+						for (const item of items) returnCard.mutate(item);
 					},
 				},
 			);

@@ -149,8 +149,7 @@ export function useIncome() {
 		onSuccess: (_data, v) =>
 			toast(`${formatMoney(v.amountCents)} of income removed`, {
 				tone: "success",
-				action: { label: "Undo", onClick: () => record.mutate(v) },
-				sticky: true,
+				undo: () => record.mutate(v),
 			}),
 		onSettled: () => refetchMonthsOnceSettled(queryClient),
 	});
@@ -174,8 +173,7 @@ export function useIncome() {
 		onSuccess: (_data, v) => {
 			toast(`${formatMoney(v.amountCents)} of income recorded`, {
 				tone: "success",
-				action: { label: "Undo", onClick: () => remove.mutate(v) },
-				sticky: true,
+				undo: () => remove.mutate(v),
 			});
 		},
 		onSettled: () => refetchMonthsOnceSettled(queryClient),
@@ -279,11 +277,10 @@ export function useExtraIncomes() {
 			}
 		},
 		onSuccess: (_data, v) => {
-			// Sent in one click, so its Undo stays until the Parent dismisses it.
+			// Sent in one click, so it's said with an Undo.
 			toast(`${formatMoney(v.amountCents)} of the Extra income to ${v.toName}`, {
 				tone: "success",
-				action: { label: "Undo", onClick: () => undo.mutate(v) },
-				sticky: true,
+				undo: () => undo.mutate(v),
 			});
 		},
 		onSettled,
