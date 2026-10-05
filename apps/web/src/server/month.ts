@@ -1,8 +1,10 @@
 import {
+	type BetweenUsIncome,
 	type BucketSpend,
 	type CommitmentCharge,
 	type Db,
 	type IncomeRecord,
+	loadBetweenUsIncome,
 	loadCharges,
 	loadExtraToFree,
 	loadGoalFunding,
@@ -68,6 +70,8 @@ export type MonthData = {
 	closed: MonthCloseRecord | null;
 	/** Income received this month and last (last month's sets what's expected by now). */
 	income: IncomeRecord[];
+	/** This month's income a Parent marked as between the two of them: listed, never counted. */
+	betweenUs?: BetweenUsIncome[];
 	asOf: DayKey;
 	/** Past months' Plans are closed; this month and later can be changed. */
 	editable: boolean;
@@ -86,18 +90,29 @@ export async function loadMonth(
 	month: MonthKey,
 ): Promise<MonthData> {
 	const viewer = viewerOf({ household, parent: { id: parentId } });
-	const [records, spending, charges, moves, goalFunding, sweeps, closed, income, extraToFree] =
-		await Promise.all([
-			loadPlanRecords(db, household.id, month),
-			loadSpending(db, viewer, month),
-			loadCharges(db, viewer, month),
-			loadMoves(db, household.id, month),
-			loadGoalFunding(db, household.id, month),
-			loadSweeps(db, household.id, month),
-			loadMonthClose(db, household.id, month),
-			loadIncome(db, household.id, addMonths(month, -1), addMonths(month, 1)),
-			loadExtraToFree(db, household.id, month),
-		]);
+	const [
+		records,
+		spending,
+		charges,
+		moves,
+		goalFunding,
+		sweeps,
+		closed,
+		income,
+		extraToFree,
+		betweenUs,
+	] = await Promise.all([
+		loadPlanRecords(db, household.id, month),
+		loadSpending(db, viewer, month),
+		loadCharges(db, viewer, month),
+		loadMoves(db, household.id, month),
+		loadGoalFunding(db, household.id, month),
+		loadSweeps(db, household.id, month),
+		loadMonthClose(db, household.id, month),
+		loadIncome(db, household.id, addMonths(month, -1), addMonths(month, 1)),
+		loadExtraToFree(db, household.id, month),
+		loadBetweenUsIncome(db, household.id, month, addMonths(month, 1)),
+	]);
 	const rolledOver = await loadRolledOver(db, household.id, records, month);
 	const now = new Date();
 	const current = monthKeyAt(now, household.timeZone);
@@ -113,6 +128,7 @@ export async function loadMonth(
 		sweeps,
 		closed,
 		income,
+		betweenUs,
 		asOf: dayKeyAt(now, household.timeZone),
 		editable: month >= current,
 		firstMonth: firstPlanMonth(records, current),

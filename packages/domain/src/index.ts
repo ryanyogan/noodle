@@ -47,6 +47,7 @@ export {
 	planBankSync,
 	resplit,
 } from "./bank-sync";
+export { looksPersonToPerson } from "./between-us";
 export { parseCapturedAmount } from "./capture";
 export * from "./card-issuers";
 export {

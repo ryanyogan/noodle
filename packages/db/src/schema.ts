@@ -716,6 +716,11 @@ export const transfers = sqliteTable(
 			.default(sql`(unixepoch() * 1000)`),
 		removedAt: integer("removed_at", { mode: "timestamp_ms" }),
 		removedByMemberId: text("removed_by_member_id").references(() => members.id),
+		// Why a one-sided Transfer is one, when a Parent said: 'between-us' is money one Parent
+		// moved to the other, whose own Account isn't in Noodle (ADR-0052). Null for the rest.
+		reason: text("reason", { enum: ["between-us"] }),
+		// The Account on the side Noodle can't see, once a Parent names it. Nothing writes it yet.
+		otherAccountId: text("other_account_id").references(() => accounts.id),
 	},
 	(t) => [
 		index("transfers_household_idx").on(t.householdId),

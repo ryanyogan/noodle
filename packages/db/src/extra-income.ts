@@ -81,7 +81,7 @@ const takeHomePaySql = (householdId: string, month: MonthKey) =>
 		where b.household_id = ${householdId} and b.month <= ${month}
 		order by b.month desc limit 1)`;
 
-const decidedSql = (householdId: string, month: MonthKey) =>
+export const decidedSql = (householdId: string, month: MonthKey) =>
 	sql`coalesce((select sum(m.amount_cents) from moves m
 		where m.household_id = ${householdId} and m.month = ${month} and m.kind = 'windfall'), 0)`;
 
@@ -89,7 +89,11 @@ const decidedSql = (householdId: string, month: MonthKey) =>
  * The month's income beyond its take-home pay, once that's more than EXTRA_INCOME_FROM; 0 without
  * take-home pay.
  */
-const extraIncomeSql = (householdId: string, month: MonthKey, lessReceived: SQL | Cents = 0) =>
+export const extraIncomeSql = (
+	householdId: string,
+	month: MonthKey,
+	lessReceived: SQL | Cents = 0,
+) =>
 	sql`coalesce((select case when x.beyond > ${EXTRA_INCOME_FROM} then x.beyond else 0 end
 		from (select ${receivedSql(householdId, month)} - ${lessReceived} - ${takeHomePaySql(householdId, month)} as beyond) x), 0)`;
 
