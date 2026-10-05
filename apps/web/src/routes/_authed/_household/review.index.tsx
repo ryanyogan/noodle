@@ -1503,13 +1503,21 @@ function ReviewCard({
 					</div>
 				</div>
 			) : (
-				<div className="flex items-center gap-2 max-[359px]:flex-wrap">
+				<div
+					className={cn(
+						"flex items-center gap-2 max-[359px]:flex-wrap",
+						payment && "max-sm:flex-wrap",
+					)}
+				>
 					<BucketPicker
 						id={pickerId(item)}
 						// On the narrowest phones, with a suggestion, the picker has the row under Confirm and Edit.
+						// A card payment's button is long: on every phone the picker goes under it, or the
+						// card grows wider than the screen.
 						className={cn(
 							"min-w-0 flex-1",
-							(item.guess || payment) && "max-[359px]:order-last max-[359px]:basis-full",
+							item.guess && "max-[359px]:order-last max-[359px]:basis-full",
+							payment && "max-sm:order-last max-sm:basis-full",
 						)}
 						aria-label={`Where ${labelOf(item)} goes`}
 						disabled={!hydrated || !places}
@@ -1532,7 +1540,7 @@ function ReviewCard({
 					</Button>
 					{payment ? (
 						<Button
-							className="max-sm:order-first max-[359px]:flex-1"
+							className="max-sm:order-first max-sm:min-w-0 max-sm:flex-1"
 							disabled={!hydrated}
 							onClick={onPayment}
 						>
