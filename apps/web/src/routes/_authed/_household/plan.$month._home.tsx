@@ -174,7 +174,9 @@ function PlanHome() {
 				{month === current ? <PlanHealth folded /> : null}
 			</SectionGrid>
 			{/* The Buckets, where the split's Buckets figure is changed, then Personal Allowances. */}
-			<div className="grid min-w-0 gap-3">
+			{/* One column no wider than the page: at large text a heading's own least width would
+			    otherwise widen the column, and the page with it. */}
+			<div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
 				{buckets.length > 0 || !state.editable ? (
 					<>
 						<SectionHeader
