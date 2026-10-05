@@ -74,6 +74,26 @@ test("a Parent takes a snapshot, adds a Transaction, restores the snapshot, and 
 		timeout: 120_000,
 	});
 
+	// At rest only the newest snapshot shows (#88): the one taken by hand is behind the button,
+	// which says how many there are, opens the rest after itself and folds them away again.
+	await expect(before).toHaveCount(1);
+	await expect(history.getByRole("listitem")).toHaveCount(1);
+	await expect(snapshots.getByRole("listitem")).toHaveCount(1);
+	const all = snapshots.getByRole("button", { name: "Show all 2 snapshots" });
+	await expect(all).toHaveAttribute("aria-expanded", "false");
+	await all.click();
+	const fewer = snapshots.getByRole("button", { name: "Show fewer" });
+	await expect(fewer).toHaveAttribute("aria-expanded", "true");
+	const earlier = snapshots.getByRole("list", { name: "Earlier snapshots" }).getByRole("listitem");
+	await expect(earlier).toHaveCount(1);
+	await expect(earlier).toContainText("Before the big shop");
+	await expect(earlier.getByRole("button", { name: /^Restore the snapshot from/ })).toBeVisible();
+	// The newest stays where it was, first.
+	await expect(history.getByRole("listitem")).toContainText("Before a restore");
+	await fewer.click();
+	await expect(snapshots.getByRole("listitem")).toHaveCount(1);
+	await expect(all).toHaveAttribute("aria-expanded", "false");
+
 	await page.goto("/transactions");
 	await expect(page.getByText("Farmers market").first()).toBeVisible();
 	await expect(page.getByText("Warehouse run")).toHaveCount(0);
@@ -197,6 +217,20 @@ test("a snapshot one Parent takes shows in the other Parent's list without a rel
 
 	// It shows for Sam by itself: the page was never loaded again.
 	await expect(history(sam)).toHaveCount(1);
+	// With only one snapshot there is nothing to unfold, so no button.
+	await expect(samSnapshots.getByRole("button", { name: /^Show all/ })).toHaveCount(0);
+
+	// A second one takes the first's place for Sam, still as the only row, and the button that
+	// holds the rest appears with the new count (#88).
+	await snapshots.getByLabel("Note").fill("And again");
+	await snapshots.getByRole("button", { name: "Take a snapshot" }).click();
+	const samRows = samSnapshots
+		.getByRole("list", { name: "Snapshot history" })
+		.getByRole("listitem");
+	await expect(samRows).toContainText("And again");
+	await expect(samRows).toHaveCount(1);
+	await expect(samSnapshots.getByRole("listitem")).toHaveCount(1);
+	await expect(samSnapshots.getByRole("button", { name: "Show all 2 snapshots" })).toBeVisible();
 	expect(await sam.evaluate(() => (window as { loadedOnce?: boolean }).loadedOnce === true)).toBe(
 		true,
 	);

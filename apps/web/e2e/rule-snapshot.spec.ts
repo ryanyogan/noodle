@@ -105,6 +105,8 @@ test("a Rule that files one Transaction takes no snapshot and doesn't say it did
 	await snapshots.getByRole("button", { name: "Take a snapshot" }).click();
 	const rows = snapshotHistory(page).getByRole("listitem");
 	await expect(rows.filter({ hasText: "By hand" })).toHaveCount(1);
+	// Only the newest snapshot shows at rest (#88), so also: nothing is folded away behind it.
+	await expect(snapshots.getByRole("button", { name: /^Show all/ })).toHaveCount(0);
 	await expect(rows.filter({ hasText: "Before applying a Rule" })).toHaveCount(0);
 });
 

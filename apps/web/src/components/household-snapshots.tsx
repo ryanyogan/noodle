@@ -7,9 +7,10 @@ import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
 import { toast } from "@noodle/ui/components/toast";
+import { cn } from "@noodle/ui/lib/utils";
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useHydrated } from "@tanstack/react-router";
-import { Camera, History, Moon } from "lucide-react";
+import { Camera, ChevronDown, History, Moon } from "lucide-react";
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import {
 	getRestoreStatus,
@@ -18,16 +19,16 @@ import {
 	type SnapshotSummary,
 	takeSnapshotNow,
 } from "../server/snapshots";
+import { foldSnapshots } from "../snapshot-fold";
 import { PhoneMore } from "./phone-more";
 
 // Household → Your data → Snapshots (#78, ADR-0035): the history, and taking one by hand. A
 // snapshot holds both Parents' data, so only when, who, the note, size and a few counts are shown.
-// Restore sits behind a typed confirmation, like Fresh start.
+// Restore sits behind a typed confirmation, like Fresh start. At rest only the newest snapshot
+// shows, at every width; the rest are behind "Show all N snapshots" (#88, at the Parent's request).
 
 export const snapshotsQuery = () =>
 	queryOptions({ queryKey: ["snapshots"], queryFn: () => getSnapshots() });
-
-const SHOWN = 8;
 
 export function kindLabel(snapshot: Pick<SnapshotSummary, "kind" | "takenBy">): string {
 	switch (snapshot.kind) {
@@ -161,7 +162,9 @@ export function HouseholdSnapshots({ householdName }: { householdName: string })
 	// The note is read from the form when it is sent, not kept in state: what a Parent types
 	// before the page has finished loading would otherwise be wiped.
 	const formRef = useRef<HTMLFormElement>(null);
+	// Not remembered: every visit starts folded.
 	const [showAll, setShowAll] = useState(false);
+	const earlierId = useId();
 	const snapshots = useQuery(snapshotsQuery());
 	const take = useMutation({
 		mutationFn: (data: { note?: string }) => takeSnapshotNow({ data }),
@@ -182,7 +185,40 @@ export function HouseholdSnapshots({ householdName }: { householdName: string })
 		take.mutate({ note: note || undefined });
 	}
 	const list = snapshots.data ?? [];
-	const shown = showAll ? list : list.slice(0, SHOWN);
+	const { latest, earlier, label: foldLabel } = foldSnapshots(list, showAll);
+	const row = (snapshot: SnapshotSummary) => (
+		<ListRow
+			key={snapshot.id}
+			leading={<Tile>{snapshot.kind === "nightly" ? <Moon /> : <Camera />}</Tile>}
+			title={kindLabel(snapshot)}
+			trailing={
+				snapshot.restorable ? (
+					<Button
+						variant="ghost"
+						aria-label={`Restore the snapshot from ${when(snapshot.createdAt)}`}
+						disabled={!hydrated || restoreState === "running"}
+						onClick={() => setRestoring(snapshot)}
+					>
+						Restore
+					</Button>
+				) : (
+					<span className="text-sm text-muted-foreground">Can’t be restored</span>
+				)
+			}
+			meta={
+				<span className="flex w-full min-w-0 flex-col">
+					<span>
+						{when(snapshot.createdAt)} · {sizeLabel(snapshot.bytes)}
+					</span>
+					<span>
+						{plural(snapshot.counts.transactions, "Transaction")},{" "}
+						{plural(snapshot.counts.buckets, "Bucket")}, {plural(snapshot.counts.goals, "Goal")}
+					</span>
+					{snapshot.note ? <span className="truncate">“{snapshot.note}”</span> : null}
+				</span>
+			}
+		/>
+	);
 
 	return (
 		<Section aria-labelledby="snapshots">
@@ -245,53 +281,30 @@ export function HouseholdSnapshots({ householdName }: { householdName: string })
 					No snapshots yet. The first nightly one is taken tonight.
 				</p>
 			) : (
-				<List aria-label="Snapshot history">
-					{shown.map((snapshot) => (
-						<ListRow
-							key={snapshot.id}
-							leading={<Tile>{snapshot.kind === "nightly" ? <Moon /> : <Camera />}</Tile>}
-							title={kindLabel(snapshot)}
-							trailing={
-								snapshot.restorable ? (
-									<Button
-										variant="ghost"
-										aria-label={`Restore the snapshot from ${when(snapshot.createdAt)}`}
-										disabled={!hydrated || restoreState === "running"}
-										onClick={() => setRestoring(snapshot)}
-									>
-										Restore
-									</Button>
-								) : (
-									<span className="text-sm text-muted-foreground">Can’t be restored</span>
-								)
-							}
-							meta={
-								<span className="flex w-full min-w-0 flex-col">
-									<span>
-										{when(snapshot.createdAt)} · {sizeLabel(snapshot.bytes)}
-									</span>
-									<span>
-										{plural(snapshot.counts.transactions, "Transaction")},{" "}
-										{plural(snapshot.counts.buckets, "Bucket")},{" "}
-										{plural(snapshot.counts.goals, "Goal")}
-									</span>
-									{snapshot.note ? <span className="truncate">“{snapshot.note}”</span> : null}
-								</span>
-							}
-						/>
-					))}
-				</List>
+				<List aria-label="Snapshot history">{latest ? row(latest) : null}</List>
 			)}
-			{list.length > SHOWN ? (
-				<Button
-					variant="ghost"
-					className="justify-self-start"
-					onClick={() => setShowAll((all) => !all)}
-				>
-					{showAll ? "Show fewer" : `Show all ${list.length}`}
-				</Button>
+			{foldLabel ? (
+				<>
+					<Button
+						type="button"
+						variant="link"
+						className="min-h-11 justify-self-start px-0!"
+						aria-expanded={showAll}
+						aria-controls={showAll ? earlierId : undefined}
+						onClick={() => setShowAll((all) => !all)}
+					>
+						{foldLabel}
+						<ChevronDown className={cn("transition-transform", showAll && "rotate-180")} />
+					</Button>
+					{/* The rest follow the button, so a screen reader meets them straight after it. */}
+					{showAll ? (
+						<div id={earlierId} className="contents">
+							<List aria-label="Earlier snapshots">{earlier.map(row)}</List>
+						</div>
+					) : null}
+				</>
 			) : null}
-			{list.some((snapshot) => !snapshot.restorable) ? (
+			{[latest, ...earlier].some((snapshot) => snapshot && !snapshot.restorable) ? (
 				<p className="text-sm text-muted-foreground">
 					A snapshot taken before Noodle’s last update changed how data is stored can’t be restored.
 				</p>

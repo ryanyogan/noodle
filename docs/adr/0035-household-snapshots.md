@@ -10,6 +10,7 @@ The whole-database way back (D1 Time Travel, ADR-0039; when this was written, al
 - Files (statements, receipts) are referenced by their R2 keys, not copied.
 - The file starts `{"format":1,"householdId":…,"takenAt":…,"migration":…,"tables":{…}}`. `format` changes when the file's shape changes; `migration` (the newest `d1_migrations` name) says which schema the rows fit, so a restore can map an older snapshot forward or refuse it plainly.
 - A `household_snapshots` row holds what the history shows: kind, who took it, when, the note, bytes, migration and rows per table. Its contents are never shown.
+- **The list shows the latest one (decided 2026-10-05, #88, at the Parent's request):** in Household settings, at every width, Snapshots shows only the newest snapshot as one row (when, kind, Restore or "Can't be restored"); the rest are behind one button, "Show all N snapshots", which opens them in place ("Show fewer" folds them again; not remembered between visits). Newest first is never reordered, live updates change the row and the count in place, and with one snapshot or none there is no button.
 
 ## When
 
