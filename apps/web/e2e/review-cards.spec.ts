@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { STUB_COALESCE } from "../src/server/ai-coalescer";
 import { createTestParent } from "./parents";
 import {
 	choose,
@@ -738,6 +739,14 @@ test("a card's picker creates a Bucket by the name typed, with an allowance, and
 	await expect(page.getByTestId("review-rule-offer")).toContainText(
 		/Always file “Acme Widgets.*” in Widgets\?/,
 	);
+
+	// A new Bucket has background AI look again at what waits in Review, a moment after the last
+	// change (a minute for a Parent; a third of a second under the stub, three seconds at most).
+	// The filing just taught it that Acme Widgets goes in Widgets, and an Undo doesn't unteach
+	// that: a look again that finds the card back in Review files it there itself. So it is let
+	// run first, while the card is filed, as it would not yet have run for a Parent who undoes
+	// and picks again straight away.
+	await page.waitForTimeout(STUB_COALESCE.maxWaitMs + 2000);
 
 	// Undo puts the card back, as for any filing; the Bucket stays, now a choice in the picker.
 	await stack(page).getByRole("button", { name: "Undo" }).click();
