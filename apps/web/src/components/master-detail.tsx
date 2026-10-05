@@ -185,56 +185,70 @@ export function DetailHeader({
 				"mb-6 flex flex-wrap items-center gap-x-2 gap-y-1 max-lg:mb-4 max-lg:min-h-13 max-lg:gap-x-1",
 				// Room for the panel's Close, which sits in this corner. Previous/next and the actions
 				// start on Close's line (`inPanelLine`) rather than the middle of a title that wraps.
-				inPanel && "lg:items-start lg:pe-10",
+				// Over the ground DetailPanel puts behind Close once it is scrolled, so the header goes
+				// out over it rather than vanishing at the first pixel.
+				inPanel && "lg:relative lg:z-20 lg:items-start lg:pe-10",
 			)}
 		>
 			{/* Phones: the arrow's glyph, not its 44px box, sits on the 16px gutter. */}
 			{leading ? (
 				<div
 					data-slot="detail-back"
-					className={cn("flex max-lg:-ms-3", inPanel ? "lg:hidden" : phoneOnly)}
+					// On the title's line when the action has dropped under the title: at the top, 4px down,
+					// which is the middle of a one-line header (44px in 52px).
+					className={cn(
+						"flex max-lg:mt-1 max-lg:-ms-3 max-lg:self-start",
+						inPanel ? "lg:hidden" : phoneOnly,
+					)}
 				>
 					{leading}
 				</div>
 			) : null}
-			{/* At least ~12 characters of title: past that the actions drop to their own row (#65). */}
-			<div className="min-w-0 flex-1 basis-32 lg:basis-36">
-				{eyebrow ? (
-					<p data-slot="detail-eyebrow" className="text-[13px] font-medium text-muted-foreground">
-						{eyebrow}
-					</p>
+			{/* A phone (issue 115): the title and its one action are a pair that wraps on its own, after
+			    Back and before previous/next. The action is beside the title while the title fits on
+			    one line there; otherwise it goes under the title, starting at the title's left edge.
+			    From lg the pair is not a box (`contents`): the header lays its parts out as before. */}
+			<div className="flex min-w-0 flex-1 basis-32 flex-wrap items-center gap-x-1 gap-y-1 lg:contents">
+				{/* From lg, at least ~12 characters of title: past that the actions drop to their own row
+			    (#65). */}
+				<div className="min-w-0 flex-auto lg:flex-1 lg:basis-36">
+					{eyebrow ? (
+						<p data-slot="detail-eyebrow" className="text-[13px] font-medium text-muted-foreground">
+							{eyebrow}
+						</p>
+					) : null}
+					<h2
+						data-slot="detail-title"
+						// Focus lands here when the item opens in a panel (ADR-0047). The app's ring, around the
+						// words only, and only when the panel was opened from the keyboard: DetailPanel marks
+						// the title then. Focus moved here after a click or a page load draws nothing.
+						tabIndex={-1}
+						className="w-fit max-w-full rounded-sm text-xl font-semibold tracking-[-0.02em] text-balance break-words outline-none data-keyboard-open:focus:outline-offset-2 data-keyboard-open:focus:[outline:2px_solid_var(--ring)] lg:text-2xl"
+					>
+						{title}
+					</h2>
+				</div>
+				{actions ? (
+					<div
+						data-slot="detail-actions"
+						className={cn("flex items-center gap-1 lg:ms-auto", inPanel && inPanelLine)}
+					>
+						{actions}
+					</div>
 				) : null}
-				<h2
-					data-slot="detail-title"
-					// Focus lands here when the item opens in a panel (ADR-0047). The app's ring, around the
-					// words only, and only when the panel was opened from the keyboard: DetailPanel marks
-					// the title then. Focus moved here after a click or a page load draws nothing.
-					tabIndex={-1}
-					className="w-fit max-w-full rounded-sm text-xl font-semibold tracking-[-0.02em] text-balance break-words outline-none data-keyboard-open:focus:outline-offset-2 data-keyboard-open:focus:[outline:2px_solid_var(--ring)] lg:text-2xl"
-				>
-					{title}
-				</h2>
 			</div>
-			{/* Previous and next stay on the title's row at 320 (they come before the actions, which
-			    may drop under it); from lg they are last. */}
+			{/* Previous and next stay on the title's row at 320 (the action may drop under the title,
+			    inside the pair); from lg they are last. */}
 			{pager ? (
 				<div
 					className={cn(
-						"flex lg:order-last",
+						"flex max-lg:mt-1 max-lg:self-start lg:order-last",
 						!actions && "max-lg:-me-2",
 						phoneOnly,
 						inPanel && inPanelLine,
 					)}
 				>
 					{pager}
-				</div>
-			) : null}
-			{actions ? (
-				<div
-					data-slot="detail-actions"
-					className={cn("ms-auto flex items-center gap-1", inPanel && inPanelLine)}
-				>
-					{actions}
 				</div>
 			) : null}
 		</header>
