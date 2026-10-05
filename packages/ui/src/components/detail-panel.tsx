@@ -143,19 +143,35 @@ function DetailPanel({
 	// Opening an item puts focus on its title, so a keyboard or screen reader lands in what just
 	// opened rather than having to cross the rest of the list. Focus already in the panel (previous
 	// and next in its header) stays, and so does focus in a sheet that is open over the page.
+	// An item that is still loading has no title yet: the panel takes focus meanwhile and hands it
+	// to the title when it arrives, unless the Parent has moved it somewhere else by then.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: runs again for each item opened
 	React.useEffect(() => {
 		const panel = ref.current;
 		if (!panel || !wide() || panel.contains(document.activeElement)) return;
 		if (layerOpen()) return;
-		const title = panel.querySelector<HTMLElement>("[data-slot=detail-title][tabindex]");
-		const to = title ?? panel;
-		// The ring is for an item opened from the keyboard only (see `byKeyboard`).
-		if (byKeyboard) {
-			to.setAttribute("data-keyboard-open", "");
-			to.addEventListener("blur", () => to.removeAttribute("data-keyboard-open"), { once: true });
-		} else to.removeAttribute("data-keyboard-open");
-		to.focus({ preventScroll: true });
+		// The ring is for an item opened from the keyboard only (see `byKeyboard`): read now, since
+		// the title may arrive after other keys or clicks.
+		const keyboard = byKeyboard;
+		const land = (to: HTMLElement) => {
+			if (keyboard) {
+				to.setAttribute("data-keyboard-open", "");
+				to.addEventListener("blur", () => to.removeAttribute("data-keyboard-open"), { once: true });
+			} else to.removeAttribute("data-keyboard-open");
+			to.focus({ preventScroll: true });
+		};
+		const find = () => panel.querySelector<HTMLElement>("[data-slot=detail-title][tabindex]");
+		const title = find();
+		land(title ?? panel);
+		if (title) return;
+		const watch = new MutationObserver(() => {
+			const arrived = find();
+			if (!arrived) return;
+			watch.disconnect();
+			if (document.activeElement === panel) land(arrived);
+		});
+		watch.observe(panel, { childList: true, subtree: true });
+		return () => watch.disconnect();
 	}, [itemKey]);
 
 	// Esc closes, from the panel or the list, unless something nearer has a use for the key.
@@ -360,6 +376,7 @@ function ListWithPanel({
 	itemKey,
 	size,
 	besideFrom = "xl",
+	asideFills,
 	listLabel,
 	asideLabel,
 	detailLabel,
@@ -380,6 +397,12 @@ function ListWithPanel({
 	 * beside it only from there (a table that needs the room). The item is a drawer until then.
 	 */
 	besideFrom?: BesideFrom;
+	/**
+	 * The aside is the page's working area rather than a rail (Scenarios' Compare): from lg it has
+	 * the wide column and the list the list pane's width, item open or not, so neither changes shape
+	 * when one opens. The panel is then over the aside's right-hand part.
+	 */
+	asideFills?: boolean;
 	/** Names the list pane, e.g. "Commitments". */
 	listLabel: string;
 	/** Names the rail, e.g. "Commitments: totals, add and about". */
@@ -396,11 +419,13 @@ function ListWithPanel({
 			data-picked={picked}
 			className={cn(
 				"grid grid-cols-[minmax(0,1fr)] gap-(--layout-gap) lg:items-start",
-				aside
-					? besideFrom === "late"
-						? "min-[90rem]:grid-cols-[minmax(0,1fr)_var(--rail-width)]"
-						: "lg:grid-cols-[minmax(0,1fr)_var(--rail-width)]"
-					: null,
+				asideFills
+					? "lg:grid-cols-[var(--list-pane-width)_minmax(0,1fr)]"
+					: aside
+						? besideFrom === "late"
+							? "min-[90rem]:grid-cols-[minmax(0,1fr)_var(--rail-width)]"
+							: "lg:grid-cols-[minmax(0,1fr)_var(--rail-width)]"
+						: null,
 				className,
 			)}
 			{...props}

@@ -314,7 +314,8 @@ test("at xl, Name, Assigned to and Account sort the list, and the column says wh
 	await openTransactions(page);
 	const rows = list(page).getByRole("button");
 	const header = (name: RegExp) => page.getByRole("columnheader", { name });
-	await expect(page.getByRole("columnheader")).toHaveCount(6);
+	// The checkbox column and the six columns of words.
+	await expect(page.getByRole("columnheader")).toHaveCount(7);
 	await expect(header(/^Date/)).toHaveAttribute("aria-sort", "descending");
 	await expect(header(/name$/i)).not.toHaveAttribute("aria-sort");
 
