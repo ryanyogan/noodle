@@ -106,7 +106,7 @@ function BucketPage() {
 	const back = <BackToBuckets month={month} />;
 	const record = data.bucket;
 	// A Bucket only goes away if another Parent's change removes it; the loader 404s on reload.
-	if (!record) return <DetailHeader listBeside eyebrow="Bucket" title="Bucket" leading={back} />;
+	if (!record) return <DetailHeader inPanel eyebrow="Bucket" title="Bucket" leading={back} />;
 	// This month's Bucket, with any edit not saved yet; none once it's archived (or not started).
 	const current = state.buckets.find((b) => b.id === id);
 	const open = isOpenTo(record, parentId);
@@ -129,7 +129,7 @@ function BucketPage() {
 	return (
 		<>
 			<DetailHeader
-				listBeside
+				inPanel
 				pager={
 					<DetailPager
 						ids={state.buckets.filter((b) => isOpenTo(b, parentId) || b.owner).map((b) => b.id)}

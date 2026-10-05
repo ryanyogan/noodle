@@ -31,7 +31,9 @@ const waterfall = (page: Page) => page.getByRole("region", { name: "Where take-h
 const freeToSpend = (page: Page) =>
 	waterfall(page).getByRole("listitem").last().locator("[data-slot=plan-split-figure]");
 const bucketRow = (page: Page, bucket: string) =>
-	page.getByRole("listitem").filter({ has: page.getByRole("button", { name: `Edit ${bucket}` }) });
+	page
+		.locator("[data-bucket-row]")
+		.filter({ has: page.getByRole("button", { name: `Edit ${bucket}` }) });
 
 async function setTakeHomePay(page: Page, amount: string) {
 	await page.getByRole("textbox", { name: "Take-home pay" }).fill(amount);
@@ -129,11 +131,11 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 	await page.getByRole("button", { name: "Move Kids’ hockey" }).focus();
 	await page.keyboard.press("ArrowUp");
 	await moved;
-	await expect(page.getByRole("main").getByRole("listitem").first()).toContainText("Kids’ hockey");
+	await expect(page.locator("[data-bucket-row]").first()).toContainText("Kids’ hockey");
 
 	// Everything above was saved, not just shown.
 	await page.reload();
-	await expect(page.getByRole("main").getByRole("listitem").first()).toContainText("Kids’ hockey");
+	await expect(page.locator("[data-bucket-row]").first()).toContainText("Kids’ hockey");
 	await expect(bucketRow(page, "Groceries")).toContainText("$1,250.50");
 	await openBucket(page, "Kids’ hockey");
 	await editBucket(page, "Kids’ hockey");

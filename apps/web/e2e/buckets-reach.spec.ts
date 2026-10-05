@@ -3,9 +3,9 @@ import { createTestParent } from "./parents";
 import { createPlannedHousehold, savedBy, signedInPage } from "./session";
 
 // Finding and changing Buckets (#98): This Month's Buckets heading leads to the list where they
-// are added, changed, moved and archived; a row opens the one Bucket sheet, where its amount
-// changes and it moves without dragging; and a Bucket's own page opens the same sheet from
-// "Edit Bucket".
+// are added, changed, moved and archived; a row's pencil opens the one Bucket sheet, where its
+// amount changes and it moves without dragging; and a Bucket's own page (which the row itself
+// opens, issue 107) opens the same sheet from "Edit Bucket".
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -36,18 +36,15 @@ async function reachAndEdit(page: Page) {
 	await page.getByRole("link", { name: "Edit Buckets", exact: true }).click();
 	await expect(page).toHaveURL(/\/plan\/\d{4}-\d{2}\/buckets$/);
 	await expect(page.getByRole("button", { name: "Add Buckets", exact: true })).toBeEnabled();
-	// Adding is at the top and under the list, and the list says how a Bucket is changed.
+	// Adding is at the top and under the table.
 	await expect(page.getByRole("button", { name: "Add another Bucket" })).toBeVisible();
-	await expect(page.locator("[data-slot=bucket-how]")).toHaveText(
-		"Choose a Bucket to change its amount, name, colour and more.",
-	);
 	await expect.poll(() => names(page)).toEqual(["Groceries", "Gas", "Fun"]);
 
-	// Its amount: choosing it in the row opens the Bucket's one sheet, amount first.
+	// Its amount: the row's pencil opens the Bucket's one sheet, amount first.
 	const gasRow = page
 		.locator("[data-bucket-row]")
 		.filter({ has: page.getByRole("link", { name: "Gas", exact: true }) });
-	await gasRow.getByText("$200", { exact: true }).first().click();
+	await gasRow.getByRole("button", { name: "Edit Gas", exact: true }).click();
 	const sheet = page.getByRole("dialog", { name: "Gas", exact: true });
 	const amount = sheet.getByRole("textbox", { name: "Allowance", exact: true });
 	await expect(amount).toBeFocused();
@@ -58,8 +55,8 @@ async function reachAndEdit(page: Page) {
 	await allowanceSaved;
 	await expect(sheet).toBeHidden();
 	await expect(gasRow).toContainText("$250");
-	// The amount in the row is words, not a second editor: the pencil is the row's one button
-	// besides its handle.
+	// In a list this narrow (a phone, or beside the rail at 1280) the row is stacked: the pencil is
+	// its one button besides its handle. The allowance is a button only where it has its own column.
 	await expect(gasRow.getByRole("button")).toHaveCount(2);
 
 	// Moved from the same sheet, opened by the pencil, with no dragging.

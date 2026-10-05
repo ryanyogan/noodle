@@ -46,7 +46,8 @@ async function openPlanBuckets(page: Page) {
 }
 
 /** A Bucket's row in the Plan. */
-const planRow = (page: Page, name: string) => page.getByRole("listitem").filter({ hasText: name });
+const planRow = (page: Page, name: string) =>
+	page.locator("[data-bucket-row]").filter({ hasText: name });
 
 /** Sets up the signed-in Parent's Personal Allowance from the Plan; ends on This Month. */
 async function setUpPersonalAllowance(page: Page, amount: string, name: string) {
