@@ -137,6 +137,13 @@ export function DetailPager({
 }
 
 /**
+ * In a panel, where the header's controls start: as far down as the panel's Close (`detail-close`
+ * in @noodle/ui's DetailPanel), so the three are on one line however many lines the title takes
+ * (issue 107).
+ */
+const inPanelLine = "lg:mt-2.5";
+
+/**
  * The detail's header: Back to the list, what the item is, its actions, and previous and next.
  * Its title is an h2, under the section's h1 (which a phone keeps for screen readers only:
  * `sectionHeaderOverItem`). On a phone it follows the phone header's rule
@@ -176,8 +183,9 @@ export function DetailHeader({
 			data-item-page=""
 			className={cn(
 				"mb-6 flex flex-wrap items-center gap-x-2 gap-y-1 max-lg:mb-4 max-lg:min-h-13 max-lg:gap-x-1",
-				// Room for the panel's Close, which sits in this corner.
-				inPanel && "lg:pe-10",
+				// Room for the panel's Close, which sits in this corner. Previous/next and the actions
+				// start on Close's line (`inPanelLine`) rather than the middle of a title that wraps.
+				inPanel && "lg:items-start lg:pe-10",
 			)}
 		>
 			{/* Phones: the arrow's glyph, not its 44px box, sits on the 16px gutter. */}
@@ -210,12 +218,22 @@ export function DetailHeader({
 			{/* Previous and next stay on the title's row at 320 (they come before the actions, which
 			    may drop under it); from lg they are last. */}
 			{pager ? (
-				<div className={cn("flex lg:order-last", !actions && "max-lg:-me-2", phoneOnly)}>
+				<div
+					className={cn(
+						"flex lg:order-last",
+						!actions && "max-lg:-me-2",
+						phoneOnly,
+						inPanel && inPanelLine,
+					)}
+				>
 					{pager}
 				</div>
 			) : null}
 			{actions ? (
-				<div data-slot="detail-actions" className="ms-auto flex items-center gap-1">
+				<div
+					data-slot="detail-actions"
+					className={cn("ms-auto flex items-center gap-1", inPanel && inPanelLine)}
+				>
 					{actions}
 				</div>
 			) : null}
