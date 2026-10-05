@@ -187,7 +187,7 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 
 		// Sam's Transactions: Alex's Groceries purchases, nothing from Alex's Personal Allowance.
 		await openTransactions(sam);
-		await expect(list(sam).getByRole("button")).toHaveCount(2);
+		await expect(list(sam).locator("button:not([role=checkbox]):not([data-cell])")).toHaveCount(2);
 		await expect(list(sam).getByRole("button", { name: /^Milk,/ })).toHaveAccessibleName(
 			"Milk, $10, Groceries, For Everyone",
 		);

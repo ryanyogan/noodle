@@ -68,6 +68,7 @@ import {
 } from "../../../transaction-selection";
 import { escapeStep } from "../../../transaction-table";
 import {
+	type TransactionChange,
 	type TransactionFilters,
 	type TransactionRow,
 	type TransactionSort,
@@ -163,6 +164,7 @@ function TransactionsPage() {
 				overlay: Boolean(
 					document.querySelector("[role=dialog],[role=alertdialog],[role=listbox],[role=menu]"),
 				),
+				cell: Boolean(target?.closest("[data-cell-editor]")),
 				typing: Boolean(target?.closest("input, textarea, select, [contenteditable]")),
 				open: Boolean(picked),
 				selecting,
@@ -316,6 +318,7 @@ function TransactionsPage() {
 								picked={picked}
 								onSort={(sort) => onChange({ sort })}
 								onEdit={onEdit}
+								onCellChange={change.mutate}
 							/>
 						</div>
 					</SplitMain>
@@ -665,7 +668,10 @@ function TransactionList({
 	onPick,
 	onSort,
 	onEdit,
+	onCellChange,
 }: {
+	/** A rename or refile made in a cell of the table. */
+	onCellChange: (change: TransactionChange) => void;
 	/** Select mode's selection; null when the list isn't selecting. */
 	picking: Picking | null;
 	/** A tick in the table: the selection as it should be now. */
@@ -756,6 +762,7 @@ function TransactionList({
 			picking={picking}
 			onPick={onPick}
 			onEdit={onEdit}
+			onChange={onCellChange}
 		/>
 	);
 }

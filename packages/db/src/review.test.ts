@@ -23,7 +23,12 @@ import {
 	transfers,
 } from "./schema";
 import { testDb } from "./test-db";
-import { deleteTransaction, splitTransaction, updateTransaction } from "./transactions";
+import {
+	deleteTransaction,
+	renameTransaction,
+	splitTransaction,
+	updateTransaction,
+} from "./transactions";
 
 const householdId = "household";
 const month = "2026-09";
@@ -948,5 +953,94 @@ describe("a Transaction's version: two screens never quietly overwrite each othe
 		expect([row?.bucketId, row?.version]).toEqual(["groceries", 1]);
 		// Alex's card for it, still at version 0, no longer writes over what the Rule did.
 		expect(await edit("alex", "fun", 0)).toEqual({ ok: false, reason: "changed-elsewhere" });
+	});
+});
+
+describe("renaming a Transaction without changing anything else (issue 99)", () => {
+	const rowOf = async (id: string) => (await db.select().from(transactions).where(eqId(id)))[0];
+	const rename = (transactionId: string, name: string, expectedVersion?: number, who = alex) =>
+		renameTransaction(db, { ...who, transactionId, name, expectedVersion });
+
+	it("an imported line takes the name and keeps the bank's wording; a retry lands the same", async () => {
+		await imported("t1", "COSTCO WHSE #1042");
+		expect(await rename("t1", "Big shop", 0)).toEqual({ ok: true, version: 1 });
+		// The same request again (a retry after a lost answer): nothing more changes.
+		expect(await rename("t1", "Big shop", 0)).toEqual({ ok: true, version: 1 });
+		expect(await rowOf("t1")).toMatchObject({
+			note: "COSTCO WHSE #1042",
+			merchant: "Big shop",
+			bucketId: null,
+			amountCents: 4_200,
+			version: 1,
+		});
+	});
+
+	it("a by-hand one's name is its note, and its merchant name is left to be worked out again", async () => {
+		await db.insert(transactions).values({
+			id: "q1",
+			householdId,
+			source: "quick-add",
+			date: "2026-09-10",
+			amountCents: 1_500,
+			note: "lunch",
+			merchant: "Lunch",
+			bucketId: "fun",
+			createdByMemberId: "alex",
+		});
+		expect(await rename("q1", "Team lunch", 0)).toEqual({ ok: true, version: 1 });
+		expect(await rowOf("q1")).toMatchObject({
+			note: "Team lunch",
+			merchant: null,
+			bucketId: "fun",
+			amountCents: 1_500,
+		});
+	});
+
+	it("keeps a split Transaction's Splits and For", async () => {
+		await imported("t1", "costco");
+		const split = await splitTransaction(db, {
+			...alex,
+			transactionId: "t1",
+			amountCents: 4_200,
+			note: "costco",
+			splits: [
+				{
+					id: "s1",
+					amountCents: 3_000,
+					assignment: { bucketId: "groceries" },
+					forMemberIds: ["maya"],
+				},
+				{ id: "s2", amountCents: 1_200, assignment: { bucketId: "fun" }, forMemberIds: [] },
+			],
+			expectedVersion: 0,
+		});
+		expect(split).toMatchObject({ ok: true });
+		expect(await rename("t1", "Costco run", 1)).toEqual({ ok: true, version: 2 });
+		expect(await db.select().from(splits)).toHaveLength(2);
+		expect(await rowOf("t1")).toMatchObject({ merchant: "Costco run", note: "costco" });
+	});
+
+	it("is refused on a version that has moved on, and changes nothing", async () => {
+		await imported("t1", "costco");
+		expect(await rename("t1", "First", 0)).toEqual({ ok: true, version: 1 });
+		expect(await rename("t1", "Second", 0)).toEqual({ ok: false, reason: "changed-elsewhere" });
+		expect(await rowOf("t1")).toMatchObject({ merchant: "First", version: 1 });
+	});
+
+	it("not another Household's, not in the other Parent's Personal Allowance, not Goal spending", async () => {
+		await imported("t1", "costco");
+		expect(
+			await renameTransaction(db, {
+				householdId: "another",
+				memberId: "alex",
+				transactionId: "t1",
+				name: "Theirs",
+				expectedVersion: 0,
+			}),
+		).toMatchObject({ ok: false });
+		await db.update(transactions).set({ bucketId: "sam-pa" }).where(eqId("t1"));
+		expect(await rename("t1", "Peek", 0)).toEqual({ ok: false, reason: "not-editable" });
+		expect(await rename("t1", "Sam's", 0, sam)).toEqual({ ok: true, version: 1 });
+		expect(await rowOf("t1")).toMatchObject({ merchant: "Sam's" });
 	});
 });

@@ -124,7 +124,8 @@ export function rowView(
 				: moneyBack
 					? "Money back"
 					: split
-						? `Split across ${transaction.splits.length}`
+						? // The names when they fit; the cell cuts the rest off.
+							`Split · ${[...new Set(transaction.splits.map((s) => assignmentOf(s, plan).name))].join(", ")}`
 						: assignment.name;
 	const account = transaction.importedFrom ?? transaction.matchedIn ?? "Quick Add";
 	const [, accountName = account, accountDigits = ""] = /^(.*?)( ••\d{4})$/.exec(account) ?? [];

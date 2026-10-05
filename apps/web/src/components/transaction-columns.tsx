@@ -7,8 +7,10 @@ import { Link } from "@tanstack/react-router";
 import { ArrowLeftRight, Check, Sparkles, Split as SplitIcon, Target } from "lucide-react";
 import { monogram } from "../buckets";
 import { shortDay } from "../format";
+import { cellEdits } from "../transaction-cells";
 import type { RowView } from "../transaction-row";
 import type { TransactionRow } from "../transactions";
+import { AssignedCell, type CellEdits, NameEditor, RenameButton } from "./transaction-cells";
 
 // The Transactions table's columns (issue 99): Date, Name, Assigned to, For, Account, Amount.
 // The table drops For and then Account as its own width narrows, and on a phone stacks each row
@@ -35,7 +37,10 @@ function NameCell({
 	open,
 	checked,
 	onEdit,
+	cells,
 }: {
+	/** Renaming in the cell (issue 99); left out where the list doesn't offer it. */
+	cells: CellEdits | undefined;
 	row: TransactionTableRow;
 	/** A stacked row says its day too: the list isn't grouped by day. */
 	dated: boolean;
@@ -45,6 +50,8 @@ function NameCell({
 	onEdit: (transaction: TransactionRow) => void;
 }) {
 	const picking = checked !== undefined && !transaction.goal;
+	const renames = cells && cellEdits(transaction).name !== null ? cells : null;
+	const renaming = renames?.editing?.id === transaction.id && renames.editing.column === "name";
 	return (
 		<span className="flex min-w-0 flex-1 items-center gap-3">
 			{/* Stacked rows (a phone) have no checkbox column: while selecting, the tick rides on the
@@ -82,9 +89,25 @@ function NameCell({
 					</span>
 				) : null}
 			</span>
+			{renames && renaming ? (
+				<NameEditor
+					transaction={transaction}
+					title={view.title}
+					onSave={(typed, byKey) => {
+						renames.stop(byKey);
+						renames.rename(transaction, typed);
+					}}
+					onCancel={() => renames.stop(true)}
+				/>
+			) : null}
 			{/* The marks follow the name, or start the second line on phones so the name keeps its
 			    room: one copy, placed by the grid. */}
-			<span className="grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] items-center gap-y-0.5 sm:grid-cols-[minmax(0,max-content)_1fr]">
+			<span
+				className={cn(
+					"grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] items-center gap-y-0.5 sm:grid-cols-[minmax(0,max-content)_1fr]",
+					renaming && "hidden",
+				)}
+			>
 				{transaction.goal ? (
 					<Button asChild variant="ghost" size="sm" className={nameControl}>
 						<Link
@@ -143,6 +166,9 @@ function NameCell({
 					{view.detail}
 				</span>
 			</span>
+			{renames && !renaming ? (
+				<RenameButton title={view.title} onClick={() => renames.start(transaction, "name")} />
+			) : null}
 		</span>
 	);
 }
@@ -154,7 +180,10 @@ export function transactionColumns({
 	open,
 	checked,
 	onEdit,
+	cells,
 }: {
+	/** Renaming and refiling in the cell (issue 99). */
+	cells?: CellEdits;
 	dated: boolean;
 	/** The Transaction open beside the table. */
 	open: string | undefined;
@@ -187,6 +216,7 @@ export function transactionColumns({
 					open={row.transaction.id === open}
 					checked={checked?.(row.transaction)}
 					onEdit={onEdit}
+					cells={cells}
 				/>
 			),
 		},
@@ -197,7 +227,18 @@ export function transactionColumns({
 			width: "minmax(0,1.3fr)",
 			stacked: "hidden",
 			sortable: { said: AZ },
-			cell: ({ view }) => <span className="truncate">{view.assigned}</span>,
+			// A row with one Bucket or none is refiled here; any other kind opens, as its row does.
+			cell: ({ transaction, view }) =>
+				cells && cellEdits(transaction).refile ? (
+					<AssignedCell
+						transaction={transaction}
+						title={view.title}
+						assigned={view.assigned}
+						cells={cells}
+					/>
+				) : (
+					<span className="truncate">{view.assigned}</span>
+				),
 		},
 		{
 			id: "for",

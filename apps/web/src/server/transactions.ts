@@ -10,6 +10,7 @@ import {
 	loadTransactionsPage,
 	loadUnfiledReceipt,
 	nameSameMerchant as nameSameMerchantInDb,
+	renameTransaction as renameTransactionInDb,
 	splitTransaction as splitTransactionInDb,
 	summarizeDeletion,
 	type TransactionCursor,
@@ -267,6 +268,39 @@ export const updateTransaction = createServerFn({ method: "POST" })
 			"for-earlier",
 			"bucket-uses",
 		]);
+		return saved(result.version);
+	});
+
+/**
+ * Changes only what a Transaction is called (issue 99: the Name cell of the Transactions table),
+ * for the rows a whole-assignment edit can't take. `month` is the Transaction's own, so the right
+ * month's lists refresh. Idempotent, so the client can retry it safely.
+ */
+export const renameTransaction = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			transactionId: ulidSchema,
+			month: monthKeySchema,
+			name: z.string().trim().min(1).max(80),
+			expectedVersion: versionSchema,
+		}),
+	)
+	.handler(async ({ data, context }): Promise<TransactionWriteAnswer> => {
+		const result = await renameTransactionInDb(getDb(), {
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			transactionId: data.transactionId,
+			name: data.name,
+			expectedVersion: data.expectedVersion,
+		});
+		if (!result.ok) {
+			if (result.reason === "changed-elsewhere")
+				return changedElsewhere(viewerOf(context), data.transactionId);
+			throw new Error("That Transaction can’t be renamed here.");
+		}
+		// The lists live under their month.
+		await notifyHousehold(context.household.id, ["months"]);
 		return saved(result.version);
 	});
 
