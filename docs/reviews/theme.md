@@ -487,3 +487,77 @@ WCAG 2.x ratios, oklab mix, from 73an's script.
 Tightest: the counted bars beside the quiet ones in dark, 3.02 (the same pair 73ah kept at 3:1); light step 2 beside step 1, 1.40.
 
 Comparison pictures: none should change. No strict picture shows Trends, Big expenses, People, Income or Explore; `reports-*-light` is a brand-new Household's Reports, which says "Nothing to report yet".
+
+## 11. Phase 75f: dark cards one step further off the page
+
+Two look passes (73aj at 1440, 74am at 393) found that in dark the cards were "held by their hairline, not their fill": the card was 1.07:1 from the page while its edge was 1.18:1 on it, and the Transactions list and the wizard cards read as outlines. On 2026-10-05 the Parent agreed to one more step between page and card in dark. Light is unchanged. Recorded as a dated note in ADR-0038.
+
+- **Which lever.** The card is lifted; the page stays `#0c0d10`. Darkening the page cannot do it alone: with the old card, a pure black page is exactly 1.15:1, so the ground would have to lose its cool near-black and the browser bar and manifest would move with it. Sharing the step between the two does not save a token either: the comparison grey must be 3:1 on the card and had room for a 1.046 lift only, so it moves in any split that keeps the page off black.
+- **Surfaces** (dark only): `--card` `#141519` -> `#1c1d21`, `--surface-2` `#1b1c21` -> `#232429`, `--surface-3` `#24262c` -> `#292b31`, `--border` `#22242a` -> `#2a2c32`, `--border-strong` `#32353d` -> `#383b43`. Same cast as before (blue a few points above red and green). The card is now about where surface-2 was. The inner steps are 1.09 and 1.09; surface-3 was 1.12 above surface-2 and gives up a little so hint text on it needs the smallest move.
+- **Two colours moved to keep their pairs** (lightness only): `--subtle-foreground` `#8b8e98` -> `#8f929c` (on the new surface-3 the old value was 4.33:1; now 4.55) and `--chart-compare` `#626570` -> `#676a75` (on the new card the old value was 2.90:1; now 3.12). Cash flow's destinations follow the hint grey (`--chart-flow-out`).
+- **Not moved**: the page, `theme-color` (`#0c0d10`, the page colour) and the manifest (light values), `--input`, the text ink and secondary grey, the accent, Pace, Over, the Buckets, the heat cells' `--heat-top` (65 in dark) and the sequential scale's shares (32 / 52 / 74 %): every test in `apps/web/src/contrast.test.ts` passes on the new card without them.
+- **Popovers, menus, dialogs and sheets** are `--popover` = `--card` with `--elevation-pop` (a deep shadow and a 6% white outline) over `--scrim`, as before; over the page they now stand 1.15:1 off it by fill as well. Over a card they are the card's colour, as before, and rely on the shadow and outline.
+- **The Sidebar** is the card at 55% over the page: 1.03:1 from the page before, 1.07:1 now, with its edge line 1.39:1 on the page.
+
+### Measured contrast, before and after (dark)
+
+WCAG 2.x ratios from a script over the old and new values; soft fills are composited on the card first; the sequential steps are mixed in oklab. "After" uses the new hint and comparison greys.
+
+| Pair | Needs | Before | After |
+|---|---|---|---|
+| Card vs page | 1.15 wanted | 1.07 | 1.15 |
+| Surface-2 vs card | about 1.08 | 1.07 | 1.09 |
+| Surface-3 vs surface-2 | about 1.08 | 1.12 | 1.09 |
+| Surface-3 vs card (info) | - | 1.21 | 1.19 |
+| Surface-2 vs page (info) | - | 1.14 | 1.25 |
+| Hairline on card (info) | - | 1.18 | 1.21 |
+| Hairline on page (info) | - | 1.25 | 1.39 |
+| Hairline on surface-2 (info) | - | 1.10 | 1.11 |
+| Stronger line on card (info) | - | 1.49 | 1.50 |
+| Sidebar (card at 55%) vs page (info) | - | 1.03 | 1.07 |
+| Body text on card | 4.5:1 | 16.14 | 14.90 |
+| Body text on surface-2 | 4.5:1 | 15.05 | 13.70 |
+| Body text on surface-3 | 4.5:1 | 13.38 | 12.52 |
+| Muted text on card | 4.5:1 | 7.59 | 7.00 |
+| Muted text on surface-2 | 4.5:1 | 7.07 | 6.44 |
+| Muted text on surface-3 | 4.5:1 | 6.29 | 5.88 |
+| Muted text on a selected row (brand-soft on card) | 4.5:1 | 5.86 | 5.37 |
+| Hint text on page | 4.5:1 | 5.94 | 6.25 |
+| Hint text on card | 4.5:1 | 5.58 | 5.42 |
+| Hint text on surface-2 | 4.5:1 | 5.20 | 4.99 |
+| Hint text on surface-3 | 4.5:1 | 4.62 | 4.55 |
+| Hint text on a selected row (info; not a pair the script checks) | - | 4.31 | 4.16 |
+| Main button fill, checked box and switch on card | 3:1 | 3.67 | 3.39 |
+| Brand text on card | 4.5:1 | 6.91 | 6.38 |
+| Brand text on surface-2 | 4.5:1 | 6.44 | 5.87 |
+| Brand text on its soft fill | 4.5:1 | 5.34 | 4.90 |
+| Pace badge text | 4.5:1 | 8.60 | 7.81 |
+| Over badge text | 4.5:1 | 6.01 | 5.47 |
+| Over text on card (`--over-foreground`) | 4.5:1 | 7.28 | 6.72 |
+| Over (`--over`) as text on card | 4.5:1 | 6.35 | 5.86 |
+| Over (`--over`) as text on surface-2 | 4.5:1 | 5.92 | 5.39 |
+| Over bar on bar track | 3:1 | 5.26 | 4.92 |
+| Pace marker on bar track | 3:1 | 8.15 | 7.62 |
+| Worst Bucket on bar track | 3:1 | 3.59 | 3.35 |
+| Worst Bucket on card | 3:1 | 4.33 | 3.99 |
+| Allowance bar on card (also the card inside the hollow Goals part) | 3:1 | 3.53 | 3.26 |
+| Allowance bar vs spend bar | 3:1 | 3.02 | 3.02 |
+| Spend bar on card | 3:1 | 10.68 | 9.85 |
+| Comparison series (`--chart-compare`) on card | 3:1 | 3.14 | 3.12 |
+| Comparison series on surface-2 (info) | - | 2.93 | 2.87 |
+| Half the Scenario line's contrast, which the comparison series must stay under | - | 3.46 | 3.19 |
+| Field and control edge (`--input`) on card | 3:1 | 3.64 | 3.36 |
+| Field edge on surface-2 | 3:1 | 3.39 | 3.09 |
+| Field edge on page | 3:1 | 3.87 | 3.87 |
+| Field edge on surface-3 (info) | - | 3.02 | 2.82 |
+| Off switch thumb (card) on its track (`--input`) | 3:1 | 3.64 | 3.36 |
+| Cash flow's Household node on card | 3:1 | 7.59 | 7.00 |
+| Cash flow's destinations on card | 3:1 | 5.58 | 5.42 |
+| Empty day (`--surface-2`) on card (info) | - | 1.07 | 1.09 |
+| Sequential step 1 beside an empty day | 1.5:1 | 1.56 | 1.56 |
+| Step 2 beside step 1, 3 beside 2, 4 beside 3 | 1.3:1 | 1.53, 1.61, 1.68 | 1.50, 1.55, 1.62 |
+| Steps 1 to 4 on card (info) | - | 1.67, 2.56, 4.11, 6.91 | 1.70, 2.54, 3.94, 6.38 |
+
+Tightest now: allowance beside spend 3.02 (unchanged), field edge on surface-2 3.09, comparison series on the card 3.12 (and it must stay under 3.19), hint text on surface-3 4.55. The heat cells were not tabulated here: their tests (ink at least 4.5:1 on every strength, the strongest cell at least 3:1 off the card) pass on the new card with `--heat-top` 65. A finding that is older than this change: hint text on a selected row's tint was 4.31:1 and is 4.16:1; no check covers that pair and whether hint text is drawn on a selected row was not looked into.
+
+Comparison pictures: every strict `*-dark-*` baseline changes (sign-in and sign-up, setup Hello and Buckets, This Month and Household, desktop and iPhone); they are redrawn from CI's pictures, not here.

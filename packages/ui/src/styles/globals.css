@@ -195,14 +195,14 @@
 	:root {
 		color-scheme: dark;
 		--background: #0c0d10;
-		--card: #141519;
-		--surface-2: #1b1c21;
-		--surface-3: #24262c;
-		--border: #22242a;
-		--border-strong: #32353d;
+		--card: #1c1d21;
+		--surface-2: #232429;
+		--surface-3: #292b31;
+		--border: #2a2c32;
+		--border-strong: #383b43;
 		--foreground: #f0f1f3;
 		--muted-foreground: #a4a7b0;
-		--subtle-foreground: #8b8e98;
+		--subtle-foreground: #8f929c;
 		--brand: #8e96ff;
 		--brand-soft: rgb(142 150 255 / 0.16);
 		/* The main button's fill: darker than --brand so its white text is at least 4.5:1 (4.97:1). */
@@ -230,9 +230,9 @@
 		--bucket-8: #d55181;
 		--chart-spend: #c3c6ce;
 		/* A quiet reference series (Explore's Plan bars, a comparison period): 3.1:1 on the card. */
-		--chart-compare: #626570;
+		--chart-compare: #676a75;
 		--chart-allowance: #6a6d77;
-		/* Dark's own low steps: 1.56:1 from an empty cell, then 1.53, 1.61, 1.68 between steps. */
+		/* Dark's own low steps: 1.56:1 from an empty cell, then 1.50, 1.55, 1.62 between steps. */
 		--chart-seq-1: color-mix(in oklab, var(--brand) 32%, var(--card));
 		--chart-seq-2: color-mix(in oklab, var(--brand) 52%, var(--card));
 		--chart-seq-3: color-mix(in oklab, var(--brand) 74%, var(--card));
