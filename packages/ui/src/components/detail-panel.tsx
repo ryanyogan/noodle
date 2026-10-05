@@ -268,6 +268,9 @@ function DetailPanel({
 			<div
 				data-panel-scrim=""
 				aria-hidden="true"
+				// The press must not take focus out of the drawer (to the page's <main>), or closing
+				// would not know to put it back on the item's row.
+				onMouseDown={(event) => event.preventDefault()}
 				onClick={() => closing.current()}
 				className="fixed inset-0 z-35 hidden animate-fade-in bg-scrim lg:max-xl:block"
 			/>
