@@ -99,7 +99,7 @@ test("no field on the main phone pages is small enough to zoom", async ({ browse
 	const edit = page.getByRole("dialog").filter({
 		has: page.getByRole("heading", { name: "Edit Transaction" }),
 	});
-	await expect(edit.getByLabel("Note")).toBeVisible();
+	await expect(edit.getByLabel("Name")).toBeVisible();
 	await expectNoZoom(page, "Edit Transaction");
 	await page.keyboard.press("Escape");
 	await expect(edit).toBeHidden();

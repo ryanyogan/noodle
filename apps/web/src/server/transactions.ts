@@ -1,11 +1,13 @@
 import {
 	addQuickAdd as addQuickAddInDb,
+	countSameMerchant,
 	deleteTransaction as deleteTransactionInDb,
 	loadBucketUses,
 	loadRules,
 	loadTransaction,
 	loadTransactionsPage,
 	loadUnfiledReceipt,
+	nameSameMerchant as nameSameMerchantInDb,
 	splitTransaction as splitTransactionInDb,
 	type TransactionCursor,
 	type TransactionRow,
@@ -210,6 +212,7 @@ export const updateTransaction = createServerFn({ method: "POST" })
 			amountCents: z.number().int().min(1).max(MAX_CENTS),
 			assignment: assignmentSchema,
 			note: z.string().trim().max(80).optional(),
+			name: z.string().trim().min(1).max(80).optional(),
 			forMemberIds: z.array(ulidSchema).max(20),
 			expectedVersion: versionSchema,
 		}),
@@ -222,6 +225,7 @@ export const updateTransaction = createServerFn({ method: "POST" })
 			amountCents: data.amountCents,
 			assignment: data.assignment,
 			note: data.note || null,
+			name: data.name,
 			forMemberIds: data.forMemberIds,
 			expectedVersion: data.expectedVersion,
 		});
@@ -259,6 +263,7 @@ export const splitTransaction = createServerFn({ method: "POST" })
 				expectedVersion: versionSchema,
 				amountCents: z.number().int().min(1).max(MAX_CENTS),
 				note: z.string().trim().max(80).optional(),
+				name: z.string().trim().min(1).max(80).optional(),
 				splits: z
 					.array(
 						z.object({
@@ -287,6 +292,7 @@ export const splitTransaction = createServerFn({ method: "POST" })
 			transactionId: data.transactionId,
 			amountCents: data.amountCents,
 			note: data.note || null,
+			name: data.name,
 			splits: data.splits,
 			expectedVersion: data.expectedVersion,
 		});
@@ -335,4 +341,45 @@ export const deleteTransaction = createServerFn({ method: "POST" })
 			"bucket-uses",
 		]);
 		return saved(null);
+	});
+
+const sameMerchantSchema = z.object({
+	transactionId: ulidSchema,
+	name: z.string().trim().min(1).max(80),
+});
+
+/**
+ * How many other Transactions from the same merchant as this imported one could take the name a
+ * Parent just gave it (#95): only those theirs to change.
+ */
+export const getSameMerchant = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.validator(sameMerchantSchema)
+	.handler(async ({ data, context }) => ({
+		others: await countSameMerchant(getDb(), {
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			transactionId: data.transactionId,
+			name: data.name,
+		}),
+	}));
+
+/**
+ * Calls every other Transaction from the same merchant by the name a Parent gave this one, and
+ * remembers it for the merchant's later Imports (ADR-0043). The bank's wording is kept, so Rules
+ * still match. Idempotent.
+ */
+export const nameSameMerchant = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(sameMerchantSchema)
+	.handler(async ({ data, context }) => {
+		const renamed = await nameSameMerchantInDb(getDb(), {
+			householdId: context.household.id,
+			memberId: context.parent.id,
+			transactionId: data.transactionId,
+			name: data.name,
+		});
+		if (renamed === null) throw new Error("Only a Transaction from your bank has a name to share.");
+		await notifyHousehold(context.household.id, ["months", "for-earlier", "bucket-uses"]);
+		return { renamed };
 	});

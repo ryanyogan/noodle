@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { cleanMerchant, displayMerchant, merchantGroup } from "./merchant-name";
+import { merchantKey } from "./categorize";
+import {
+	bankMerchantKey,
+	cleanMerchant,
+	displayMerchant,
+	merchantGroup,
+	merchantNameFor,
+	plausibleMerchantName,
+	ruleKeys,
+} from "./merchant-name";
 
 // Anonymised-looking statement lines, as banks and card files write them, and the names a Parent
 // would say. `null` means the rules shouldn't settle it alone (it goes to the model).
@@ -118,5 +127,100 @@ describe("merchantGroup", () => {
 	it("keeps no note as its own group", () => {
 		expect(merchantGroup("")).toBe("");
 		expect(merchantGroup("  ")).toBe("");
+	});
+});
+
+// #95: what the Parents' own bank sends, and typical ACH and card lines from US banks.
+describe("bank wording a Parent shouldn't have to read", () => {
+	const AMEX = "AMERICAN EXPRESS ACH PMT M8054 WEB ID: 2005032111";
+
+	it.each([
+		[AMEX, "American Express payment"],
+		["CPC CHECKING", "CPC Checking"],
+		["Mark Vend Co", "Mark Vend"],
+		["Affirm", "Affirm"],
+		["DISCOVER E-PAYMENT 4421 WEB ID: 2510020270", "Discover payment"],
+		["CAPITAL ONE CRCARDPMT 3KD92JS8 WEB ID: 9279744980", "Capital One payment"],
+		["CHASE CREDIT CRD AUTOPAY PPD ID: 4760039224", "Chase Credit Card autopay"],
+		["GEICO AUTO PMT 800-841-3000", "Geico Auto payment"],
+		["ALLY AUTO PAYMENT", "Ally Auto payment"],
+		["Auto Loan Payment", "Auto Loan Payment"],
+		["CITY OF PORTLAND WATER ONLINE PMT 5551", "City of Portland Water payment"],
+		["NAVIENT PPD ID: 1234567890", "Navient"],
+		[
+			"PUGET SOUND ENERGY DES:BILLPAY ID:XXXXX12345 INDN:ALEX RINK CO ID:XXXXX41234 WEB",
+			"Puget Sound Energy",
+		],
+		[
+			"ORIG CO NAME:VERIZON WIRELESS ORIG ID:9783397101 DESC DATE:250914 CO ENTRY DESCR:PAYMENTS SEC:WEB TRACE#:021000021234567 EED:250914",
+			"Verizon",
+		],
+		["T-MOBILE PCS SVC 1234567 WEB ID: 0000450304", "T-Mobile"],
+		["NETFLIX.COM 866-579-7172 CA", "Netflix"],
+		["SPOTIFY USA 877-778-1161 NY", "Spotify"],
+		["AMZN Mktp US*2K4TY8AB3 Amzn.com/bill WA", "Amazon"],
+		["WM SUPERCENTER #2481 AUSTIN TX", "Walmart"],
+		["TRADER JOE'S #552 PORTLAND OR", "Trader Joe's"],
+		["SHELL OIL 57444212309 HOUSTON TX", "Shell"],
+		["STUMPTOWN COFFEE", "Stumptown Coffee"],
+	])("%s is %s, with no model", (raw, name) => {
+		expect(cleanMerchant(raw)).toEqual({ name, sure: true });
+	});
+
+	it("shows the same before background AI has named the line", () => {
+		expect(displayMerchant(AMEX)).toBe("American Express payment");
+		expect(displayMerchant("CPC CHECKING")).toBe("CPC Checking");
+		// A line already in mixed case shows as the bank wrote it.
+		expect(displayMerchant("Mark Vend Co")).toBe("Mark Vend Co");
+	});
+
+	it("knows a merchant by the bank's wording, whatever reference the line carries", () => {
+		const other = "AMERICAN EXPRESS ACH PMT M9120 WEB ID: 2005032111";
+		expect(bankMerchantKey(other)).toBe(bankMerchantKey(AMEX));
+		expect(bankMerchantKey("COSTCO WHSE #1042 SEATTLE WA")).toBe(
+			bankMerchantKey("COSTCO WHSE 0456"),
+		);
+		expect(bankMerchantKey("COSTCO WHSE #1042")).not.toBe(bankMerchantKey(AMEX));
+		// Zelle isn't one merchant: each person paid is their own.
+		expect(bankMerchantKey("Zelle payment to John Smith 1234")).not.toBe(
+			bankMerchantKey("Zelle payment to Mary Jones 5678"),
+		);
+	});
+
+	it("takes a Parent's name over AI's, AI's over the cleaner's, and the cleaner's over the raw text", () => {
+		const ai = "Amex payment for American Express";
+		expect(merchantNameFor(AMEX, { parent: "Amex card", ai })).toEqual({
+			name: "Amex card",
+			by: "parent",
+		});
+		expect(merchantNameFor(AMEX, { ai })).toEqual({ name: ai, by: "ai" });
+		expect(merchantNameFor(AMEX, { ai: "Chase payment" })).toEqual({
+			name: "American Express payment",
+			by: "cleaner",
+		});
+		expect(merchantNameFor(AMEX, {})).toEqual({ name: "American Express payment", by: "cleaner" });
+		expect(merchantNameFor("Affirm", {})).toEqual({ name: "Affirm", by: "raw" });
+	});
+
+	it("keeps a model's name only when it reads as that line's merchant", () => {
+		expect(plausibleMerchantName(AMEX, "American Express payment")).toBe(true);
+		expect(plausibleMerchantName("CKO*PATREON* MEMBERSHIP", "Patreon")).toBe(true);
+		expect(plausibleMerchantName("MRKTPLC SVCS 88123", "Marketplace Services")).toBe(true);
+		expect(plausibleMerchantName("AMZN MKTP US", "Amazon")).toBe(true);
+		// A merchant the line never named; "payment" alone is shared with every such line.
+		expect(plausibleMerchantName(AMEX, "Chase payment")).toBe(false);
+		expect(plausibleMerchantName(AMEX, "2005032111")).toBe(false);
+		expect(plausibleMerchantName(AMEX, "M8054")).toBe(false);
+		expect(plausibleMerchantName(AMEX, AMEX)).toBe(false);
+		expect(plausibleMerchantName(AMEX, "American Express ACH PMT")).toBe(false);
+		expect(plausibleMerchantName(AMEX, "")).toBe(false);
+	});
+
+	it("still finds a Rule by the bank's merchant once a Parent has renamed the line", () => {
+		const keys = ruleKeys({ merchant: "Amex card", note: AMEX });
+		expect(keys[0]).toBe(merchantKey("Amex card"));
+		expect(keys).toContain(merchantKey("American Express payment"));
+		expect(keys).toContain(merchantKey(AMEX));
+		expect(ruleKeys({ merchant: null, note: null })).toEqual([]);
 	});
 });

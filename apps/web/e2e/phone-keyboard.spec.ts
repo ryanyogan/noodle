@@ -102,7 +102,7 @@ test("Edit Transaction stays above the keyboard with Save in view", async ({ bro
 	const keyboardGone = await withKeyboard(page, keyboardHeight);
 	const before = await scrollY(page);
 
-	const note = sheet.getByLabel("Note");
+	const note = sheet.getByLabel("Name");
 	await note.click();
 	await page.keyboard.press("End");
 	await page.keyboard.type(" for the week");

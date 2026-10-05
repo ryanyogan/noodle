@@ -128,7 +128,8 @@ _Avoid_: Bank, card (as a generic term)
 **Transaction**:
 A single movement of real money in or out of an Account. It is assigned as a whole, or through Splits, to Buckets, Commitments, or Goals.
 A Parent's change to one is made on the version of it they were looking at: if it has changed on another screen since (the other Parent's, another tab, the bank), the change is left out and they are shown how it looks now (ADR-0041).
-_Avoid_: Expense, entry, purchase
+A Transaction's **name** is what the lists show it by. One added by hand is named by what the Parent typed. One from a bank or a statement keeps the **bank's wording** ("AMERICAN EXPRESS ACH PMT M8054 WEB ID: 2005032111") untouched underneath, and is named, strongest first: by the name a Parent gave its merchant, by the name background AI settled, by the bank's wording cleaned ("American Express payment"). A Parent can rename any Transaction; "Use the bank's name" puts the cleaned wording back. After renaming one from a bank they are asked once whether to call the merchant's others the same, which is then remembered for later Imports. Rules and Review go by the bank's wording, so a rename never unfiles anything (ADR-0043).
+_Avoid_: Expense, entry, purchase; description, payee, memo (for the name or the bank's wording)
 
 **Split**:
 A portion of one Transaction with its own amount, assignment, and For (e.g. one Costco trip split across Groceries and Hockey).

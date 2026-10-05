@@ -597,7 +597,7 @@ export async function loadTransactionsPage(
 		matching(viewer, query.bucketId, query.forMember),
 		query.accountId ? inAccount(query.accountId) : undefined,
 		search
-			? sql`(not ${partly} and ${transactions.note} like ${`%${likeEscaped(search)}%`} escape '!')`
+			? sql`(not ${partly} and (${transactions.note} like ${`%${likeEscaped(search)}%`} escape '!' or ${transactions.merchant} like ${`%${likeEscaped(search)}%`} escape '!'))`
 			: undefined,
 	);
 	// Keyset paging: past the previous page's last row in the list's order (its ID breaks ties).
@@ -879,7 +879,7 @@ function goalPartsFit(householdId: string, transactionId: string, parts: SplitIn
  * Parent's Personal Allowance (privacy.ts), and not Goal spending, which changes only through its
  * Goal.
  */
-const editableBy = (householdId: string, memberId: string) =>
+export const editableBy = (householdId: string, memberId: string) =>
 	and(changeableBy({ householdId, memberId }), isNull(transactions.goalId)) as SQL;
 
 /**
@@ -935,6 +935,23 @@ const keptMerchant = (note: string | null) =>
 	sql<string | null>`case when ${transactions.note} is ${note} then ${transactions.merchant} end`;
 
 /**
+ * An imported line's name once a Parent has changed it to `name` (#95): its note, the bank's own
+ * wording, stays as it is. Anything else keeps to keptMerchant: a by-hand one's name is its note.
+ */
+const namedMerchant = (note: string | null, name: string | undefined) =>
+	name === undefined
+		? keptMerchant(note)
+		: sql<
+				string | null
+			>`case when ${transactions.source} = 'import' then ${name} else ${keptMerchant(note)} end`;
+
+/** True once an imported line goes by the `name` a change gave it (for the landed check). */
+const namedAs = (name: string | undefined) =>
+	name === undefined
+		? undefined
+		: sql`(${transactions.source} <> 'import' or ${transactions.merchant} is ${name})`;
+
+/**
  * Changes a Transaction's amount, assignment, note, and For, all at once, assigning it as a whole
  * (so any Splits it had are removed), for the Parent `memberId`. Idempotent: it sets values, so a
  * retry lands the same. The Transaction only changes if, at write time, it is the Household's and
@@ -957,6 +974,8 @@ export async function updateTransaction(
 		undecided?: boolean;
 		/** The version the Parent made this change on: refused if it has moved on (ADR-0041). */
 		expectedVersion?: number;
+		/** The name a Parent gave an imported line; its note (the bank's wording) is kept. */
+		name?: string;
 	},
 ): Promise<TransactionEditResult> {
 	const bucketId = "bucketId" in input.assignment ? input.assignment.bucketId : null;
@@ -974,6 +993,7 @@ export async function updateTransaction(
 		sql`${transactions.bucketId} is ${bucketId}`,
 		sql`${transactions.commitmentId} is ${commitmentId}`,
 		sql`${transactions.note} is ${input.note}`,
+		namedAs(input.name),
 		pastVersion(input.expectedVersion),
 	)})`;
 	const update = db
@@ -983,7 +1003,7 @@ export async function updateTransaction(
 			bucketId,
 			commitmentId,
 			note: input.note,
-			merchant: keptMerchant(input.note),
+			merchant: namedMerchant(input.note, input.name),
 			version: sql`${transactions.version} + 1`,
 		})
 		.where(
@@ -1067,6 +1087,8 @@ export async function splitTransaction(
 		undecided?: boolean;
 		/** The version the Parent made this change on: refused if it has moved on (ADR-0041). */
 		expectedVersion?: number;
+		/** The name a Parent gave an imported line; its note (the bank's wording) is kept. */
+		name?: string;
 	},
 ): Promise<TransactionEditResult> {
 	const { householdId, memberId, transactionId } = input;
@@ -1091,6 +1113,7 @@ export async function splitTransaction(
 		isNull(transactions.bucketId),
 		isNull(transactions.commitmentId),
 		sql`${transactions.note} is ${input.note}`,
+		namedAs(input.name),
 		pastVersion(input.expectedVersion),
 	)})`;
 	const undecided = input.undecided
@@ -1108,7 +1131,7 @@ export async function splitTransaction(
 			bucketId: null,
 			commitmentId: null,
 			note: input.note,
-			merchant: keptMerchant(input.note),
+			merchant: namedMerchant(input.note, input.name),
 			version: sql`${transactions.version} + 1`,
 		})
 		.where(and(theTransaction, allAssignable, undecided, atVersion(input.expectedVersion)));

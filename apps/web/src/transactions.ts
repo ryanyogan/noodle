@@ -5,7 +5,7 @@ import type {
 	TransactionRow,
 	TransactionSort,
 } from "@noodle/db";
-import { assignedParts, type MonthKey } from "@noodle/domain";
+import { assignedParts, displayMerchant, type MonthKey } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import {
 	type InfiniteData,
@@ -23,8 +23,10 @@ import { reviewWrites } from "./review-stack";
 import type { MonthData } from "./server/month";
 import {
 	deleteTransaction,
+	getSameMerchant,
 	getTransaction,
 	getTransactions,
+	nameSameMerchant,
 	splitTransaction,
 	type TransactionsPage,
 	updateTransaction,
@@ -118,10 +120,15 @@ export type SplitEdit = {
  * New values for what a Parent can edit on a Transaction: its amount and note, and either one
  * assignment and For for the whole of it, or Splits that add up to the amount.
  */
-export type TransactionEdit = { amountCents: number; note: string | null } & (
-	| { assignment: Assignment; forMemberIds: string[] }
-	| { splits: SplitEdit[] }
-);
+export type TransactionEdit = {
+	amountCents: number;
+	note: string | null;
+	/**
+	 * The name a Parent gave one from their bank, only when they changed it (#95). Its note, the
+	 * bank's own wording, is sent back as it was; a by-hand one's name is its note.
+	 */
+	name?: string;
+} & ({ assignment: Assignment; forMemberIds: string[] } | { splits: SplitEdit[] });
 
 /** A change to one Transaction: new values for what a Parent can edit, or `null` to delete it. */
 export type TransactionChange = {
@@ -181,6 +188,7 @@ function editedRow(row: TransactionRow, next: TransactionEdit): TransactionRow {
 			...row,
 			amountCents: next.amountCents,
 			note: next.note,
+			merchantName: next.name ?? row.merchantName,
 			// A split Transaction is assigned, and For, only through its Splits.
 			bucketId: null,
 			commitmentId: null,
@@ -205,6 +213,7 @@ function editedRow(row: TransactionRow, next: TransactionEdit): TransactionRow {
 		bucketId: "bucketId" in next.assignment ? next.assignment.bucketId : null,
 		commitmentId: "commitmentId" in next.assignment ? next.assignment.commitmentId : null,
 		note: next.note,
+		merchantName: next.name ?? row.merchantName,
 		for: next.forMemberIds,
 		splits: [],
 		// A Parent has changed or confirmed it: it's no longer categorization's.
@@ -247,6 +256,7 @@ export async function saveTransactionChange({ transaction, next }: TransactionCh
 						month,
 						amountCents: next.amountCents,
 						note: next.note ?? undefined,
+						name: next.name,
 						splits: next.splits,
 						expectedVersion,
 					},
@@ -259,6 +269,7 @@ export async function saveTransactionChange({ transaction, next }: TransactionCh
 							amountCents: next.amountCents,
 							assignment: next.assignment,
 							note: next.note ?? undefined,
+							name: next.name,
 							forMemberIds: next.forMemberIds,
 							expectedVersion,
 						},
@@ -267,6 +278,59 @@ export async function saveTransactionChange({ transaction, next }: TransactionCh
 						data: { transactionId: transaction.id, month, expectedVersion },
 					});
 	settleWrite(transaction.id, answer);
+	// Renamed, and saved: the same name is offered for the merchant's other Transactions (#95).
+	if (next?.name && transaction.importedFrom) void offerSameName(transaction, next.name);
+}
+
+/** What an imported Transaction is called: its name once it has one, else the bank's wording cleaned. */
+export const nameOf = (transaction: Pick<TransactionRow, "merchantName" | "note">) =>
+	transaction.merchantName ?? (transaction.note ? displayMerchant(transaction.note) : "");
+
+/** Refreshes this screen's lists once the others are renamed; other screens hear by live updates. */
+let sameNameApplied: () => void = () => {};
+
+/** What the offer to share a name asks, in plain words. */
+export const sameNameOffer = (was: string, name: string, others: number) =>
+	others > 0
+		? `Call every ${was} “${name}”? ${others} ${others === 1 ? "other" : "others"}`
+		: `Call ${was} “${name}” from now on?`;
+
+/**
+ * Offers, once, to call the merchant's other Transactions by the name a Parent just gave this one
+ * and to remember it for what the bank sends later (ADR-0043). Nothing else is renamed unless
+ * they take it. Every screen then hears of it the usual way (the Household's live updates). Never
+ * throws: the rename itself is already saved.
+ */
+export async function offerSameName(transaction: TransactionRow, name: string) {
+	const was = nameOf(transaction);
+	if (!was || was === name) return;
+	try {
+		const { others } = await getSameMerchant({ data: { transactionId: transaction.id, name } });
+		toast(sameNameOffer(was, name, others), {
+			tone: "success",
+			duration: 15_000,
+			action: {
+				label: others > 0 ? "Rename all" : "Remember",
+				onClick: async () => {
+					try {
+						const { renamed } = await nameSameMerchant({
+							data: { transactionId: transaction.id, name },
+						});
+						sameNameApplied();
+						toast(
+							renamed > 0
+								? `${renamed} more now called “${name}”, and new ones from your bank will be too.`
+								: `New ones from your bank will be called “${name}”.`,
+						);
+					} catch {
+						toast(`Couldn’t rename the others. Nothing else was changed.`, { tone: "error" });
+					}
+				},
+			},
+		});
+	} catch {
+		// The offer is a nicety: without it the one rename stands.
+	}
 }
 
 /** How long before the same "changed on another screen" message may be said again. */
@@ -396,6 +460,12 @@ export function refetchAfterChange(queryClient: QueryClient) {
  */
 export function useTransactionChange() {
 	const queryClient = useQueryClient();
+	useEffect(() => {
+		sameNameApplied = () => void refetchAfterChange(queryClient);
+		return () => {
+			sameNameApplied = () => {};
+		};
+	}, [queryClient]);
 	const change = useMutation({
 		mutationKey: monthChangeKey,
 		scope: reviewWrites,

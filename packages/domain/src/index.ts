@@ -228,10 +228,15 @@ export {
 	withinMatchWindow,
 } from "./matching";
 export {
+	bankMerchantKey,
 	type CleanMerchant,
 	cleanMerchant,
 	displayMerchant,
+	type MerchantNameBy,
 	merchantGroup,
+	merchantNameFor,
+	plausibleMerchantName,
+	ruleKeys,
 } from "./merchant-name";
 export { type Cents, MAX_CENTS, parseDollars } from "./money";
 export {
