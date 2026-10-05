@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
 	type DayKey,
+	likelyCardPayment,
 	likelyOriginals,
+	looksLikeCardPayment,
 	type RefundSide,
 	type TransferSide,
 	transferPairs,
@@ -76,5 +78,74 @@ describe("likelyOriginals: what money back might be a Refund for", () => {
 			purchase("newer", "2026-09-01", 5_000, "Jacket"),
 		]);
 		expect(offered.map((p) => p.id)).toEqual(["newer", "older"]);
+	});
+});
+
+describe("card payments by their words (#91)", () => {
+	it("knows a credit card's payment line from a bill, a purchase or a loan", () => {
+		for (const text of [
+			"CHASE CREDIT CRD AUTOPAY PPD ID: 4760039224",
+			"Payment to Chase card ending in 4321 10/02",
+			"AMEX EPAYMENT ACH PMT",
+			"CITI CARD ONLINE PAYMENT",
+			"CAPITAL ONE CRCARDPMT",
+			"DISCOVER E-PAYMENT",
+			"BARCLAYCARD US CREDITCARD",
+			"WF CREDIT CARD AUTO PAY",
+		])
+			expect(looksLikeCardPayment(text), text).toBe(true);
+		for (const text of [
+			"T-MOBILE AUTOPAY",
+			"NATL GAS CO AUTOPAY",
+			"ONLINE PAYMENT",
+			"CHASE MORTGAGE PAYMENT",
+			"CAPITAL ONE AUTO FINANCE CARPAY",
+			"HONDA FINANCIAL LOAN PAYMENT",
+			"DEBIT CARD PURCHASE NETFLIX",
+			"POS DEBIT CITI BIKE PAYMENT",
+			"ZELLE PAYMENT TO J DOE",
+			"TRADER JOE'S #123",
+			"",
+			null,
+		])
+			expect(looksLikeCardPayment(text), String(text)).toBe(false);
+	});
+
+	it("names the Household's card when the line's words fit exactly one", () => {
+		const cards = [{ name: "Chase Sapphire" }, { name: "Costco Visa" }];
+		const out = (text: string, amountCents = 50_000) => ({ text, amountCents });
+		expect(likelyCardPayment(out("CHASE CREDIT CRD AUTOPAY"), cards)).toEqual({
+			card: "Chase Sapphire",
+		});
+		// Only "payment" in its words, but it names a card of the Household's.
+		expect(likelyCardPayment(out("VISA ONLINE PAYMENT"), [{ name: "Visa" }])).toEqual({
+			card: "Visa",
+		});
+		// Two cards fit equally: likely, with no card named.
+		expect(
+			likelyCardPayment(out("CHASE CREDIT CRD AUTOPAY"), [
+				{ name: "Chase Sapphire" },
+				{ name: "Chase Freedom" },
+			]),
+		).toEqual({ card: null });
+		// A card Noodle doesn't follow.
+		expect(likelyCardPayment(out("AMEX EPAYMENT ACH PMT"), cards)).toEqual({ card: null });
+		expect(likelyCardPayment(out("AMEX EPAYMENT ACH PMT"))).toEqual({ card: null });
+	});
+
+	it("leaves purchases, bills, plain payments and money back alone", () => {
+		const cards = [{ name: "Chase Sapphire" }, { name: "Costco Visa" }];
+		for (const text of [
+			"COSTCO WHSE #1234",
+			"T-MOBILE AUTOPAY",
+			"ONLINE PAYMENT",
+			"CHASE MORTGAGE PAYMENT",
+		])
+			expect(likelyCardPayment({ text, amountCents: 12_000 }, cards), text).toBeNull();
+		// Money back onto the card is its other side, never spending waiting in Review.
+		expect(
+			likelyCardPayment({ text: "PAYMENT THANK YOU", amountCents: -50_000 }, cards),
+		).toBeNull();
+		expect(likelyCardPayment({ text: null, amountCents: 100 }, cards)).toBeNull();
 	});
 });

@@ -8,6 +8,7 @@ import {
 	type DayKey,
 	type HandFiling,
 	isMoneyMovement,
+	looksLikeCardPayment,
 	type SpendLine,
 	spotBuckets,
 	spotCommitments,
@@ -363,5 +364,22 @@ describe("isMoneyMovement", () => {
 			expect(isMoneyMovement(name)).toBe(true);
 		for (const name of ["Planet Fitness", "Spotify", "Paypal Netflix"])
 			expect(isMoneyMovement(name)).toBe(false);
+	});
+
+	it("never takes a payment to a credit card for a bill, whatever the bank calls it (#91)", () => {
+		for (const name of [
+			"Chase Credit Crd Autopay",
+			"Amex Epayment",
+			"Citi Card Online Payment",
+			"Capital One Crcardpmt",
+			"Discover E-Payment",
+			"Barclaycard Us Creditcard",
+		]) {
+			expect(isMoneyMovement(name)).toBe(true);
+			expect(billKindOf(name)).toBeNull();
+		}
+		// A loan's regular payment is a real bill: it can still be suggested as a Commitment.
+		for (const name of ["Honda Financial Loan Payment", "Chase Mortgage Payment"])
+			expect(looksLikeCardPayment(name)).toBe(false);
 	});
 });

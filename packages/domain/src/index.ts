@@ -508,7 +508,9 @@ export {
 } from "./statements";
 export * from "./suggestions";
 export {
+	likelyCardPayment,
 	likelyOriginals,
+	looksLikeCardPayment,
 	REFUND_WINDOW_DAYS,
 	type RefundSide,
 	TRANSFER_WINDOW_DAYS,
