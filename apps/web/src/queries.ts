@@ -4,7 +4,7 @@ import { getBankConnections } from "./server/bank-connections";
 import { getBucket } from "./server/buckets";
 import { getCaptureToken } from "./server/capture-tokens";
 import { getCheckIn, getCheckInStatus } from "./server/check-in";
-import { getCommitments, getFollowedCards } from "./server/commitments";
+import { getCommitments, getFollowedCards, getPaymentSuggestion } from "./server/commitments";
 import { getExportStatus } from "./server/export";
 import { getFreshStartCounts, getFreshStartStatus } from "./server/fresh-start";
 import { getGoals } from "./server/goals";
@@ -354,6 +354,16 @@ export const suggestionsQuery = () =>
  * The credit cards Noodle follows, for the "Pays down" choice on a Commitment. Under the Goals
  * key: a statement or a Bank Connection that changes an Account changes this too.
  */
+/**
+ * What a Commitment paying down this card or loan might be set at, from its last three months of
+ * payments. Under the Goals key, like the cards Noodle follows.
+ */
+export const paymentSuggestionQuery = (accountId: string) =>
+	queryOptions({
+		queryKey: ["goals", "payment-suggestion", accountId],
+		queryFn: () => getPaymentSuggestion({ data: { accountId } }),
+	});
+
 export const followedCardsQuery = () =>
 	queryOptions({
 		queryKey: ["goals", "followed-cards"],

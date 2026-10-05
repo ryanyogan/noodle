@@ -77,7 +77,7 @@ A Goal to pay a credit card or loan down to $0 (ADR-0019). Its target is what wa
 _Avoid_: Debt goal, pay-down goal, debt snowball
 
 **Pays down** (on a Commitment):
-The label for the credit card or loan a Commitment's payments bring down ("Pays down American Express"); "Nothing" when it has none. A card Noodle follows can be chosen only with "This is a set payment on a balance I'm carrying". On the Commitment's page its Charges read "Payments", with "Still owed" beside them.
+The label for the credit card or loan a Commitment's payments bring down ("Pays down American Express"); "Nothing" when it has none. A card Noodle follows can be chosen only with "This is a set payment on a balance I'm carrying". On the Commitment's page its Charges read "Payments", with "Still owed" beside them. Bills on This Month carry the same "Pays down" line. When the add form has a card or loan chosen, it offers a monthly amount from the payments to it over the last three full months ("About $2,300 a month across 9 payments", with "Use $2,300"); nothing is offered when payments fall in fewer than two of those months. If the card later becomes one Noodle follows and the Commitment isn't for a carried balance, **Plan health** lists it under "Things to check" ("American Express is connected now, so its payments would count twice.") with "End this Commitment" and "Keep it: it's for a balance I'm carrying".
 _Avoid_: Paid to, linked account
 
 **What's owed** (on a credit card or loan):

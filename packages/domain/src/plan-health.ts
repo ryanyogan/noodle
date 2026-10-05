@@ -16,6 +16,9 @@ import { planAhead, project } from "./scenario";
 // - A dated Goal that won't reach its target by its date at the pace of its last 6 months
 //   (projectedCompletion). A Goal added this month hasn't had time to show a pace.
 //   A payoff Goal's pace is how far what's owed has come down since it was added (ADR-0019).
+// - A Commitment that pays down a credit card Noodle has since begun to follow (ADR-0050): what's
+//   bought on the card is in the Buckets now, so its payments would count twice, unless the
+//   Commitment is a set payment on a balance being carried.
 //
 // Every Commitment has a due date (the Plan can't store one without), so none is flagged for it.
 
@@ -52,7 +55,57 @@ export type PlanWarning =
 			targetDate: DayKey;
 			/** When it gets there at its recent pace; null when it isn't growing. */
 			reachedIn: MonthKey | null;
+	  }
+	| {
+			kind: "card-followed";
+			commitmentId: string;
+			/** The Commitment's name. */
+			name: string;
+			accountId: string;
+			/** The card's name. */
+			account: string;
+			/** It syncs with its bank; otherwise its purchases were imported lately. */
+			connected: boolean;
 	  };
+
+/** A credit card of the Household's, as Plan health reads it. */
+export type HealthCard = {
+	id: string;
+	name: string;
+	connected: boolean;
+	/** Noodle sees what's bought on it: connected, or with purchases imported lately. */
+	followed: boolean;
+};
+
+/**
+ * The Commitments that pay down a card Noodle now follows without being a set payment on a balance
+ * being carried: each would count the card's purchases a second time. A loan is never followed.
+ */
+export function cardsNowFollowed(
+	commitments: readonly {
+		id: string;
+		name: string;
+		accountId?: string | null;
+		carriedBalance?: boolean;
+	}[],
+	cards: readonly HealthCard[],
+): Extract<PlanWarning, { kind: "card-followed" }>[] {
+	const followed = new Map(cards.filter((card) => card.followed).map((card) => [card.id, card]));
+	return commitments.flatMap((commitment) => {
+		const card = commitment.accountId ? followed.get(commitment.accountId) : undefined;
+		if (!card || commitment.carriedBalance) return [];
+		return [
+			{
+				kind: "card-followed" as const,
+				commitmentId: commitment.id,
+				name: commitment.name,
+				accountId: card.id,
+				account: card.name,
+				connected: card.connected,
+			},
+		];
+	});
+}
 
 export type HealthGoal = {
 	id: string;
@@ -78,6 +131,7 @@ export function planHealth({
 	changes,
 	income,
 	spent,
+	cards = [],
 }: {
 	asOf: DayKey;
 	parentId: string;
@@ -86,6 +140,8 @@ export function planHealth({
 	changes: readonly SetAsideChange[];
 	income: readonly Income[];
 	spent: readonly { bucketId: string; month: MonthKey; amount: Cents }[];
+	/** The Household's credit cards in use; left out, no Commitment is checked against them. */
+	cards?: readonly HealthCard[];
 }): PlanWarning[] {
 	const month = monthOfDay(asOf);
 	const warnings: PlanWarning[] = [];
@@ -159,5 +215,7 @@ export function planHealth({
 			reachedIn,
 		});
 	}
+
+	warnings.push(...cardsNowFollowed(planForMonth(records, month).commitments, cards));
 	return warnings;
 }

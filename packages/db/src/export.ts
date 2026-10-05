@@ -6,6 +6,7 @@ import {
 	planForMonth,
 } from "@noodle/domain";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { owedNow } from "./goals";
 import type { Db } from "./index";
 import { listMembers, type MemberSummary } from "./members";
 import { loadPlanRecords } from "./plan";
@@ -26,6 +27,12 @@ export type ExportAccount = {
 	balanceCents: number | null;
 	/** When the balance was last set, in ms since the epoch. */
 	balanceAt: number | null;
+	/**
+	 * What's owed on a credit card or loan now, as the app shows it: for one kept by hand, the
+	 * balance less the payments filed since in Commitments that pay it down (ADR-0050). Null for
+	 * an Account that holds money, or with no balance.
+	 */
+	owedCents: number | null;
 };
 
 /** A stored statement or receipt file, and the path it takes in the ZIP. */
@@ -181,6 +188,14 @@ export async function loadExportData(
 	for (const row of balanceRows) {
 		if (!latestBalance.has(row.accountId)) latestBalance.set(row.accountId, row);
 	}
+	const owed = new Map<string, number | null>();
+	for (const account of accountRows) {
+		if (account.kind !== "credit-card" && account.kind !== "loan") continue;
+		owed.set(
+			account.id,
+			await owedNow(db, { householdId: viewer.householdId, accountId: account.id }),
+		);
+	}
 	const accountName = new Map(accountRows.map((a) => [a.id, a.name]));
 	const visible = new Set(transactions.map((t) => t.id));
 	const files: ExportFile[] = [
@@ -215,6 +230,7 @@ export async function loadExportData(
 				...a,
 				balanceCents: balance?.amountCents ?? null,
 				balanceAt: balance ? balance.at.getTime() : null,
+				owedCents: owed.get(a.id) ?? null,
 			};
 		}),
 		transactions,

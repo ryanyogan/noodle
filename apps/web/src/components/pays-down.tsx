@@ -9,9 +9,9 @@ import { Link } from "@tanstack/react-router";
 import { type KeyboardEvent, useState } from "react";
 import { ulid } from "ulid";
 import { needsCarriedTick, paysDownAccounts, paysDownHint } from "../commitments";
-import { formatMoney } from "../format";
+import { formatMoney, formatMoneyInput } from "../format";
 import { type AddAccountVariables, useAddAccount, withAccount } from "../goals";
-import { followedCardsQuery, goalsQuery } from "../queries";
+import { followedCardsQuery, goalsQuery, paymentSuggestionQuery } from "../queries";
 import { AmountInput } from "./goals";
 import { SaveFailed } from "./plan-editing";
 
@@ -34,11 +34,14 @@ export function PaysDownField({
 	inCard = false,
 	invalid = false,
 	startAdding = false,
+	suggest = false,
 }: {
 	id: string;
 	initial?: { accountId?: string | null | undefined; carriedBalance?: boolean | undefined };
 	/** Opens with "Add a card or loan…" ready: the Commitment is for a card Noodle doesn't have. */
 	startAdding?: boolean;
+	/** Offers an amount from the last three months of payments to the card or loan chosen. */
+	suggest?: boolean;
 	inCard?: boolean;
 	/** The form was submitted without the tick a followed card needs. */
 	invalid?: boolean;
@@ -145,6 +148,7 @@ export function PaysDownField({
 					]}
 				/>
 			</Field>
+			{suggest && chosen ? <PaymentSuggestionLine accountId={chosen.id} /> : null}
 			<Input
 				type="hidden"
 				readOnly
@@ -253,4 +257,41 @@ export function PaysDownNote({ accountId }: { accountId: string }) {
 		goals?.accounts.find((account) => account.id === accountId)?.name ??
 		goals?.archivedAccounts.find((account) => account.id === accountId)?.name;
 	return name ? <span className="basis-full text-subtle-foreground">Pays down {name}</span> : null;
+}
+
+/**
+ * "About $2,300 a month across 9 payments", with a button that puts it in the form's "Amount due":
+ * what the payments to this card or loan came to over the last three full months. Nothing with
+ * too little history.
+ */
+function PaymentSuggestionLine({ accountId }: { accountId: string }) {
+	const suggestion = useQuery(paymentSuggestionQuery(accountId)).data;
+	if (!suggestion) return null;
+	const amount = formatMoney(suggestion.amountCents);
+	return (
+		<div
+			data-testid="payment-suggestion"
+			className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground"
+		>
+			<span className="min-w-0">
+				{suggestion.exact ? "" : "About "}
+				{amount} a month across {suggestion.payments} payments
+			</span>
+			<Button
+				type="button"
+				variant="outline"
+				size="sm"
+				className="max-lg:min-h-11"
+				onClick={(event) => {
+					// The form's fields are its own (uncontrolled): the amount is written straight in.
+					const field = event.currentTarget.form?.elements.namedItem("amount");
+					if (!(field instanceof HTMLInputElement)) return;
+					field.value = formatMoneyInput(suggestion.amountCents);
+					field.focus();
+				}}
+			>
+				Use {amount}
+			</Button>
+		</div>
+	);
 }
