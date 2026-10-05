@@ -124,12 +124,10 @@ test("a single Parent starts fresh: counts, typed name, progress, All cleared, t
 		.getByRole("region", { name: "Danger zone" })
 		.getByRole("button", { name: "Start fresh" })
 		.click();
-	await expect(
-		page
-			.getByRole("dialog", { name: "Start fresh?" })
-			.getByRole("listitem")
-			.filter({ hasText: /^0 Transactions$/ }),
-	).toBeVisible();
+	// Nothing is left to count, and the sheet lists only what there is (#78).
+	const again = page.getByRole("dialog", { name: "Start fresh?" });
+	await expect(again.getByRole("listitem").first()).toBeVisible();
+	await expect(again.getByRole("listitem").filter({ hasText: /Transactions?$/ })).toHaveCount(0);
 });
 
 test("with both Parents in, it waits a day; the other Parent sees it and cancels", async ({
