@@ -158,6 +158,40 @@ export function rangeIds(ordered: readonly string[], anchor: string | null, id: 
 	return ordered.slice(Math.min(from, to), Math.max(from, to) + 1);
 }
 
+/** The row a range starts from, and what it was set to. */
+export type RangeAnchor = { id: string; on: boolean };
+
+/**
+ * Shift+Up or Shift+Down: the focus goes from one row to the next and the selection follows it.
+ * Going away from the anchor, the rows from the anchor to the new row take the anchor's state;
+ * coming back towards it, the row left behind gives that state up. With no anchor (or one that
+ * has left the list) the row the focus leaves becomes the anchor, selected. `ordered` is the rows
+ * that can be selected; null when the new row isn't one of them.
+ */
+export function extendIds(
+	ordered: readonly string[],
+	anchor: RangeAnchor | null,
+	from: string,
+	to: string,
+): { anchor: RangeAnchor; ids: string[]; on: boolean } | null {
+	const t = ordered.indexOf(to);
+	if (t === -1) return null;
+	const f = ordered.indexOf(from);
+	const a = anchor ? ordered.indexOf(anchor.id) : -1;
+	if (!anchor || a === -1) {
+		const start = f === -1 ? to : from;
+		return { anchor: { id: start, on: true }, ids: rangeIds(ordered, start, to), on: true };
+	}
+	if (f !== -1 && Math.abs(t - a) < Math.abs(f - a)) {
+		return {
+			anchor,
+			ids: t < f ? ordered.slice(t + 1, f + 1) : ordered.slice(f, t),
+			on: !anchor.on,
+		};
+	}
+	return { anchor, ids: rangeIds(ordered, anchor.id, to), on: anchor.on };
+}
+
 /** What the header's checkbox says. */
 export type HeaderCheck = "all" | "some" | "none";
 
