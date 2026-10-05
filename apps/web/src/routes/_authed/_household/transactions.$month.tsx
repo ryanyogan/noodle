@@ -219,8 +219,9 @@ function TransactionsPage() {
 								size="sm"
 								// A phone's header has room for one action and the month arrows: there, Select
 								// is beside Filters and Sort instead.
-								// From xl the table always has its checkbox column, and a tick starts selecting.
-								className="me-1 max-sm:hidden xl:hidden"
+								// From 1400 the table has its checkbox column even beside an open Transaction, and a
+								// tick starts selecting. Narrower, the list beside one is stacked: this is the way in.
+								className="me-1 max-sm:hidden min-[1400px]:hidden"
 								disabled={!hydrated}
 								onClick={() => setPicking(nothingPicked)}
 							>
