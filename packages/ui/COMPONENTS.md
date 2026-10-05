@@ -142,7 +142,7 @@ One scroll per region: `apps/web/e2e/desktop-scroll.spec.ts` fails a page with a
 - **Widths grow with the window (73L, ADR-0033).** The shell's cap is `--shell-max`: 1200 px below 1440, 1440 px from 1440, 1680 px from 1920; a `wide` route takes `--shell-max-wide` (1440, 1800 from 1920). The rail is 320 / 360 (≥1280) / 380 (≥1440) / 440 (≥1920) px and the list pane 360 / 400 (≥1440) / 460 (≥1920) px. Never write a width of your own; change a token.
 - **Sections side by side.** Related sections go in a `SectionGrid` (one column, two from 1280, three from 1680 with `columns={3}`), each cell starting with its `SectionHeader`, so headings in a row line up. A picked item's page puts its blocks in `DetailColumns`, which goes to two columns when the detail pane (a `@container/detail`) is at least 48 rem wide; a block that needs the width takes `col-span-full`.
 - **One "?" per heading.** A section's help is its heading's `help`. A legend or a row's explanation is not another "?" floating beside it: it goes into that help, a Term link, or under the card (This Month's bars' key).
-- **Tab strips.** `TabsList` and `LinkTabs` share one behaviour: when they don't fit they scroll sideways with no scrollbar, fade the edge that has more, snap to tabs, and scroll the current tab into view without scrolling the page. Don't add `overflow-x-auto` to a tab strip.
+- **Tab strips.** `TabsList` and `LinkTabs` share one behaviour: when they don't fit they scroll sideways with no scrollbar, fade the edge that has more, snap to tabs, and scroll the current tab into view without scrolling the page. Don't add `overflow-x-auto` to a tab strip. On a phone the strip is one row whatever the number of tabs: a 40px track of 36px tabs, each with a 44px tap area (issue 115); a section's tabs (`SectionLayout`) have 16px over them and 12px under.
 - **Scrollbars.** Only the Sidebar scrolls on its own (the page scrolls otherwise). Its bar is thin, shows only on hover or focus, and takes `--border-strong` (so it follows light and dark).
 
 ## The phone header and More (#74)
@@ -226,7 +226,7 @@ desktop density stays as it was. One approach everywhere: `max-lg:` sizes in the
 - Button: `default`, `sm`, `icon` and `icon-sm` become `max-lg:h-11` / `max-lg:size-11` (`lg` is already 44).
 - Input, SelectTrigger (all sizes), Combobox and DatePicker triggers: `max-lg:h-11`. Select and
   dropdown items: `max-lg:min-h-11`.
-- TabsTrigger / LinkTab and Toggle / ToggleGroup items: `max-lg:h-11`.
+- Toggle / ToggleGroup items: `max-lg:h-11`. TabsTrigger / LinkTab: 36 px (`max-lg:h-9`) with a 44 px tall tap area from an `::after` box (issue 115).
 - Sheet Close: `max-lg:size-11`. Calendar cells: 40 px below `lg` (7 × 44 doesn't fit a 320 px phone).
 - Controls that stay visually small (Checkbox, Radio, Switch, TermHelp's "?") get a 44 px hit area
   from an `::after` box (`max-lg:after:absolute max-lg:after:-inset-…`). Keep 8 px or more between
