@@ -13,7 +13,6 @@ import { HOUSEHOLD_AGENT_PATH } from "./household-changes";
 // each. Moving Items' webhooks to the app's address has an endpoint of its own, for an admin. The Setup Workflow (also
 // exported) does a new Household's slow setup work while the get-started wizard goes on. The Export
 // Workflow (also exported) builds a Parent's "Download your data" ZIP; the nightly cron sweeps old ones.
-import { checkLastNight, startBackup } from "./server/backup-workflow";
 import { startBankSyncs } from "./server/bank-import-workflow";
 import { consumeIngest, handleCapture, type IngestMessage } from "./server/capture";
 import { startCheckIns } from "./server/check-in-weekly";
@@ -38,8 +37,6 @@ import { handlePlaidWebhookMove, PLAID_WEBHOOK_MOVE_PATH } from "./server/plaid-
 import { handleReceiptEmail } from "./server/receipt-worker";
 import { runNightlySnapshots } from "./server/snapshot-nightly";
 
-// The Backup Workflow (also exported) exports the whole database to noodle-backups every night (#79).
-export { BackupWorkflow } from "./server/backup-workflow";
 export { ImportWorkflow } from "./server/bank-import-workflow";
 export { ExportWorkflow } from "./server/export-workflow";
 export { FreshStartWorkflow } from "./server/fresh-start-workflow";
@@ -50,7 +47,7 @@ export { SetupWorkflow } from "./server/setup-workflow";
 export { SnapshotRestoreWorkflow } from "./server/snapshot-restore-workflow";
 
 /**
- * The nightly cron: Bank Connections' daily sync, Insights, Perk re-checks, then Check-ins
+ * The nightly cron: Household snapshots, Bank Connections' daily sync, Insights, Perk re-checks, then Check-ins
  * (wrangler.jsonc); the other is Month-close's.
  */
 const NIGHTLY_CRON = "0 9 * * *";
@@ -91,13 +88,8 @@ export default {
 	async scheduled(controller) {
 		const now = new Date(controller.scheduledTime);
 		if (controller.cron === NIGHTLY_CRON) {
-			// The whole-database backup first, at the quietest hour (ADR-0032), after checking last
-			// night's is there.
-			await checkLastNight(now).catch((error) =>
-				console.error("Couldn’t check last night’s backup", error),
-			);
-			await startBackup(now).catch((error) => console.error("Couldn’t start the backup", error));
-			// Each Household's own snapshot, separate from the whole-database backup (ADR-0035).
+			// Each Household's own snapshot first, at the quietest hour (ADR-0035). There is no nightly
+			// export of the whole database: D1 Time Travel covers that (ADR-0039).
 			await runNightlySnapshots(now).catch((error) =>
 				console.error("Couldn’t take the nightly snapshots", error),
 			);

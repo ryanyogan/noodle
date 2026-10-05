@@ -1,5 +1,7 @@
 # Nightly D1 backup to R2, in a Workflow, with Time Travel bookmarks
 
+Status: superseded by ADR-0039 (2026-10-04). The nightly export never completed in production (the D1 export API refused the token) and was removed; D1 Time Travel, the bookmark before each migration (below, still in place) and Household snapshots (ADR-0035) protect the data now. The rest is kept as the record of what was built.
+
 Production has one D1 database, `noodle`. D1 Time Travel restores it to any minute in the last 30 days, but it lives inside the same database and account: a bad migration found late, a bug that quietly writes bad data for weeks, or an account mistake has no way back. So every night a whole-database export is kept outside the database, in its own R2 bucket, and the deploy records a Time Travel bookmark before each remote migration (#79).
 
 ## The Backup Workflow, not a GitHub Actions cron
@@ -34,5 +36,7 @@ The Worker calls the API with a user API token in the `D1_EXPORT_TOKEN` secret, 
 There's no size cap rule in R2; the manifest's `bytes` is the thing to watch. At about a few MB a night this costs nothing worth counting.
 
 ## Time Travel bookmarks
+
+Status: superseded by ADR-0039 (2026-10-04). The nightly export never completed in production (the D1 export API refused the token) and was removed; D1 Time Travel, the bookmark before each migration (below, still in place) and Household snapshots (ADR-0035) protect the data now. The rest is kept as the record of what was built.
 
 The deploy job runs `wrangler d1 time-travel info noodle` before `db:migrate:remote` and writes the bookmark to the job log and summary, so a bad migration can be rolled back to exactly the moment before it. How to restore either way is `docs/runbooks/restore.md`.

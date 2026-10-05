@@ -18,8 +18,6 @@ interface __BaseEnv_Env {
 	EMAIL_FROM: "hello@noodle.yogan.dev";
 	AI_GATEWAY_ID: "default";
 	PLAID_ENV: "sandbox";
-	BACKUP_ACCOUNT_ID: "8ad084035b854467eb9d93ae3363d40b";
-	BACKUP_DATABASE_ID: "dc862efc-c574-409a-a2c2-05fa98807dac";
 	VITE_CLERK_PUBLISHABLE_KEY: string;
 	CLERK_SECRET_KEY: string;
 	VAPID_PUBLIC_KEY: string;
@@ -35,7 +33,6 @@ interface __BaseEnv_Env {
 	SETUP: Workflow<Parameters<import("./src/server").SetupWorkflow['run']>[0]['payload']>;
 	EXPORT: Workflow<Parameters<import("./src/server").ExportWorkflow['run']>[0]['payload']>;
 	FRESH_START: Workflow<Parameters<import("./src/server").FreshStartWorkflow['run']>[0]['payload']>;
-	BACKUP: Workflow<Parameters<import("./src/server").BackupWorkflow['run']>[0]['payload']>;
 	RESTORE: Workflow<Parameters<import("./src/server").SnapshotRestoreWorkflow['run']>[0]['payload']>;
 }
 declare namespace Cloudflare {
@@ -50,7 +47,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "CLERK_SIGN_IN_URL" | "CLERK_SIGN_UP_URL" | "APP_ORIGIN" | "EMAIL_FROM" | "AI_GATEWAY_ID" | "PLAID_ENV" | "BACKUP_ACCOUNT_ID" | "BACKUP_DATABASE_ID" | "VITE_CLERK_PUBLISHABLE_KEY" | "CLERK_SECRET_KEY" | "VAPID_PUBLIC_KEY" | "VAPID_PRIVATE_KEY" | "VAPID_SUBJECT" | "PLAID_CLIENT_ID" | "PLAID_SECRET" | "BANK_CONNECTION_KEY">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "CLERK_SIGN_IN_URL" | "CLERK_SIGN_UP_URL" | "APP_ORIGIN" | "EMAIL_FROM" | "AI_GATEWAY_ID" | "PLAID_ENV" | "VITE_CLERK_PUBLISHABLE_KEY" | "CLERK_SECRET_KEY" | "VAPID_PUBLIC_KEY" | "VAPID_PRIVATE_KEY" | "VAPID_SUBJECT" | "PLAID_CLIENT_ID" | "PLAID_SECRET" | "BANK_CONNECTION_KEY">> {}
 }
 
 // Begin runtime types

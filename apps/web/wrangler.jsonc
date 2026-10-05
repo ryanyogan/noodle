@@ -51,12 +51,7 @@
 		"PLAID_ENV": "production",
 		// The practice (Sandbox) Bank Connections were ended at the switch (#70), so Accounts says
 		// "Connect your real bank" once. Remove when the Household has connected its real banks.
-		"PLAID_SANDBOX_RETIRED": "true",
-		// The nightly backup (ADR-0032) calls the D1 export API for this account and database, with
-		// the D1_EXPORT_TOKEN secret, and emails failures to BACKUP_ALERT_TO (a var or secret; unset,
-		// failures are only logged).
-		"BACKUP_ACCOUNT_ID": "8ad084035b854467eb9d93ae3363d40b",
-		"BACKUP_DATABASE_ID": "dc862efc-c574-409a-a2c2-05fa98807dac"
+		"PLAID_SANDBOX_RETIRED": "true"
 	},
 	// Workers AI, for Ask and categorization (ADR-0012). It has no local simulator: `vite dev` calls
 	// the real service with the logged-in account, unless AI_MODEL=stub (as E2E runs) swaps in
@@ -76,8 +71,8 @@
 	],
 	// Statement files Parents upload for their Accounts, one object per Import (ADR-0005), and each
 	// forwarded Receipt's email, under receipts/ (ADR-0016).
-	// Nightly D1 dumps and manifests (ADR-0032): d1/YYYY/MM/DD.sql kept 30 days, d1/monthly/ kept
-	// 370, and a bucket lock on d1/ for 14 days (lifecycle and lock rules set with wrangler).
+	// noodle-backups holds each Household's snapshots (households/, deleted-households/; ADR-0035).
+	// The whole database is not copied there: D1 Time Travel is its way back (ADR-0039).
 	"r2_buckets": [
 		{ "binding": "STATEMENTS", "bucket_name": "noodle-statements" },
 		{ "binding": "BACKUPS", "bucket_name": "noodle-backups" }
@@ -109,7 +104,7 @@
 	// Closing each Household's month: the hourly cron on the 1st to 3rd starts one Month-close
 	// Workflow per Household once its own 1st has begun; each waits up to a week for the Parents'
 	// decision, then applies the defaults. Every night at 09:00 UTC (early morning across the US),
-	// another cron looks for Insights in every Household, then starts the weekly Check-in wherever
+	// another cron takes each Household's snapshot, looks for Insights in every Household, then starts the weekly Check-in wherever
 	// it's Check-in day (server.ts dispatches by cron), and re-checks Perks a month old. The Perk
 	// research Workflow reads a Perk Source's benefits page when a Parent confirms or adds one. The
 	// Import Workflow reads a Bank Connection's Transactions, started from the ingest Queue. The Setup
@@ -125,8 +120,6 @@
 		{ "name": "noodle-setup", "binding": "SETUP", "class_name": "SetupWorkflow" },
 		{ "name": "noodle-export", "binding": "EXPORT", "class_name": "ExportWorkflow" },
 		{ "name": "noodle-fresh-start", "binding": "FRESH_START", "class_name": "FreshStartWorkflow" },
-		// The nightly whole-database backup, started first by the 09:00 UTC cron (ADR-0032).
-		{ "name": "noodle-backup", "binding": "BACKUP", "class_name": "BackupWorkflow" },
 		// Restoring a Household snapshot (#78, ADR-0035).
 		{ "name": "noodle-restore", "binding": "RESTORE", "class_name": "SnapshotRestoreWorkflow" }
 	],
