@@ -96,5 +96,10 @@ describe("where it shows", () => {
 		expect(ready).toContain('data-slot="intro-video"');
 		expect(ready).toContain(INTRO_BUTTON_LABEL);
 		expect(ready).not.toContain("coming soon");
+		// On a phone the sentence goes and the button stands alone, so the step fits the screen.
+		expect(ready).toMatch(
+			/<span class="max-sm:hidden">New to Noodle\? See how it works first\.<\/span>/,
+		);
+		expect(ready).toMatch(/<button[^>]*class="[^"]*max-sm:w-full/);
 	});
 });
