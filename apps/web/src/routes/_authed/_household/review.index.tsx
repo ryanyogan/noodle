@@ -789,13 +789,22 @@ function ReviewPage() {
 
 	return (
 		<>
-			<div className={cn("grid gap-5", !(top && !sorting) && "max-w-xl")}>
+			<div
+				className={cn(
+					"grid gap-5 *:min-w-0",
+					!(top && !sorting) && "max-w-xl",
+					// On a phone the stack is cut at the screen's edges: a card dragged or flying off
+					// sideways must never make the page wider than the screen, or iOS Safari lets the page
+					// slide sideways with it.
+					top && sorting && "max-sm:-mx-(--gutter) max-sm:overflow-x-clip max-sm:px-(--gutter)",
+				)}
+			>
 				{top && sorting && order[0] ? (
 					// The narrowest phones are short too: less air, so Skip and Undo stay above the bottom bar.
 					<div
 						data-testid="review-stack"
 						data-saving={saving}
-						className="grid gap-3 max-[359px]:gap-1.5"
+						className="grid gap-3 *:min-w-0 max-[359px]:gap-1.5"
 					>
 						{/* One row above the card: how far along, what Review is, and the rest of its tools. */}
 						<div className="flex flex-wrap items-center gap-x-2 gap-y-1 max-[359px]:gap-x-1">
@@ -992,7 +1001,7 @@ function ReviewPage() {
 									<section
 										key={month}
 										aria-labelledby={`review-month-${month}`}
-										className="grid gap-3"
+										className="grid min-w-0 gap-3 *:min-w-0"
 									>
 										<h2
 											id={`review-month-${month}`}
@@ -1005,7 +1014,7 @@ function ReviewPage() {
 											{items.map((item) => {
 												const same = guessed.filter((other) => other.merchant === item.merchant);
 												return (
-													<div key={item.id} className="grid gap-3">
+													<div key={item.id} className="grid min-w-0 gap-3 *:min-w-0">
 														{item.id === top.id ? <ReviewMatchOffer transaction={item} /> : null}
 														<ReviewCard
 															item={item}
@@ -1393,7 +1402,8 @@ function ReviewCard({
 			data-current={current || undefined}
 			onFocusCapture={onFocus}
 			className={cn(
-				"grid gap-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border max-[359px]:gap-1.5 max-[359px]:p-3 sm:gap-4 sm:p-5",
+				// Its rows shrink with it: a row that can't (a long button beside the picker) wraps instead.
+				"grid min-w-0 gap-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border *:min-w-0 max-[359px]:gap-1.5 max-[359px]:p-3 sm:gap-4 sm:p-5",
 				current && "ring-2 ring-ring",
 			)}
 		>
@@ -1431,8 +1441,8 @@ function ReviewCard({
 							<ArrowLeftRight />
 						</Tile>
 						<div className="grid min-w-0 flex-1">
-							<span className="text-sm font-medium">Card payment — not spending</span>
-							<span className="text-xs text-muted-foreground">
+							<span className="text-sm font-medium wrap-anywhere">Card payment — not spending</span>
+							<span className="text-xs text-muted-foreground wrap-anywhere">
 								{payment.card
 									? `Looks like a payment to ${payment.card}`
 									: "Looks like a payment to a credit card"}
@@ -1447,10 +1457,12 @@ function ReviewCard({
 						</Tile>
 						<div className="grid min-w-0 flex-1">
 							<span className="truncate text-sm font-medium">{item.guess.name}</span>
-							<span className="text-xs text-muted-foreground">{suggestionWhy(item.guess)}</span>
+							<span className="text-xs text-muted-foreground wrap-anywhere">
+								{suggestionWhy(item.guess)}
+							</span>
 						</div>
 						{item.guess.confidence !== null ? (
-							<span className="text-xs text-muted-foreground tabular-nums">
+							<span className="shrink-0 text-xs text-muted-foreground tabular-nums">
 								{Math.round(item.guess.confidence * 100)}% sure
 							</span>
 						) : null}
@@ -1460,14 +1472,17 @@ function ReviewCard({
 						<Tile aria-hidden="true">
 							<Sparkles />
 						</Tile>
-						<p className="text-sm font-medium">
+						<p className="min-w-0 text-sm font-medium">
 							{empty ? "No suggestion" : "No suggestion — pick where it goes"}
 						</p>
 					</>
 				)}
 			</div>
 			{payment ? (
-				<p className="text-[13px] text-muted-foreground" data-testid="review-payment-why">
+				<p
+					className="text-[13px] text-muted-foreground wrap-anywhere"
+					data-testid="review-payment-why"
+				>
 					{PAYMENT_WHY}
 					{payment.card ? null : (
 						<>
@@ -1503,13 +1518,21 @@ function ReviewCard({
 					</div>
 				</div>
 			) : (
-				<div className="flex items-center gap-2 max-[359px]:flex-wrap">
+				<div
+					className={cn(
+						"flex items-center gap-2 max-[359px]:flex-wrap",
+						// "It’s a card payment" is long: on any phone it has the first row with Edit, and the
+						// picker the whole row under them, so the card is never wider than the screen.
+						payment && "max-sm:flex-wrap",
+					)}
+				>
 					<BucketPicker
 						id={pickerId(item)}
 						// On the narrowest phones, with a suggestion, the picker has the row under Confirm and Edit.
 						className={cn(
 							"min-w-0 flex-1",
-							(item.guess || payment) && "max-[359px]:order-last max-[359px]:basis-full",
+							item.guess && "max-[359px]:order-last max-[359px]:basis-full",
+							payment && "max-sm:order-last max-sm:basis-full",
 						)}
 						aria-label={`Where ${labelOf(item)} goes`}
 						disabled={!hydrated || !places}
@@ -1532,7 +1555,7 @@ function ReviewCard({
 					</Button>
 					{payment ? (
 						<Button
-							className="max-sm:order-first max-[359px]:flex-1"
+							className="max-sm:order-first max-sm:min-w-0 max-sm:flex-1"
 							disabled={!hydrated}
 							onClick={onPayment}
 						>

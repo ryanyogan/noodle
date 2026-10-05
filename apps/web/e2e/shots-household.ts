@@ -171,19 +171,27 @@ export async function seedShotsHousehold(page: Page, userId: string) {
 	statements.push(
 		`insert into transactions (id, household_id, source, date, amount_cents, bucket_id, note, merchant, account_id, created_by_member_id) values (${q(ids.openTransaction)}, ${h}, 'import', ${q(dayOf(0, 3))}, 18462, ${bucket("Groceries")}, 'Whole Foods', 'Whole Foods', ${q(ids.sapphire)}, ${m});`,
 	);
-	// Six lines waiting in Review: three with a guess, three with none.
-	const review: [merchant: string, cents: number, day: number, guess: string | null][] = [
+	// Seven lines waiting in Review: three with a guess, three with none, and a payment to the Amex
+	// out of checking, which Review offers as a card payment.
+	const review: [
+		merchant: string,
+		cents: number,
+		day: number,
+		guess: string | null,
+		account?: string,
+	][] = [
 		["AMZN Mktp US*2K4L81", 3_499, 2, "Household"],
 		["SQ *BLUE DOOR COFFEE", 1_150, 3, "Eating out"],
 		["VENMO PAYMENT 1029", 6_000, 4, null],
 		["TST* THE RUSTY ANCHOR", 8_640, 5, "Eating out"],
 		["PAYPAL *STEAMGAMES", 2_999, 6, null],
 		["CITY OF OAKLAND PARKING", 1_200, 7, null],
+		["AMEX EPAYMENT ACH PMT", 42_000, 8, null, ids.checking],
 	];
-	for (const [merchant, cents, day, guess] of review) {
+	for (const [merchant, cents, day, guess, account = ids.sapphire] of review) {
 		const id = ulid();
 		statements.push(
-			`insert into transactions (id, household_id, source, date, amount_cents, note, merchant, account_id, created_by_member_id) values (${q(id)}, ${h}, 'import', ${q(dayOf(0, day))}, ${cents}, ${q(merchant)}, ${q(merchant)}, ${q(ids.sapphire)}, ${m});`,
+			`insert into transactions (id, household_id, source, date, amount_cents, note, merchant, account_id, created_by_member_id) values (${q(id)}, ${h}, 'import', ${q(dayOf(0, day))}, ${cents}, ${q(merchant)}, ${q(merchant)}, ${q(account)}, ${m});`,
 			`insert into categorizations (transaction_id, household_id, member_id, outcome, method, bucket_id, confidence, merchant) values (${q(id)}, ${h}, ${m}, 'review', ${guess ? "'model'" : "'none'"}, ${guess ? bucket(guess) : "null"}, ${guess ? "0.62" : "null"}, ${q(merchant)});`,
 		);
 	}
