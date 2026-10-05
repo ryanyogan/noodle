@@ -260,7 +260,7 @@ test("at 1440 a long list draws every row as the page scrolls, and its card ends
 	await expect
 		.poll(() =>
 			list(page).evaluate((ul) => {
-				const items = [...ul.querySelectorAll("li")];
+				const items = [...ul.querySelectorAll("[data-slot=list-row]")];
 				const last = Math.max(...items.map((li) => li.getBoundingClientRect().bottom));
 				const height = items.at(-1)?.getBoundingClientRect().height ?? 0;
 				const card = (ul.parentElement ?? ul).getBoundingClientRect().bottom;
