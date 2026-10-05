@@ -4,8 +4,10 @@ import {
 	type DayKey,
 	likelyOriginals,
 	type MonthKey,
+	merchantKey,
 	REFUND_WINDOW_DAYS,
 	type RefundSide,
+	ruleFor,
 	TRANSFER_WINDOW_DAYS,
 	type TransferSide,
 	transferPairs,
@@ -31,9 +33,11 @@ import { changeableBy, type Viewer, visibleTo } from "./privacy";
 import {
 	accounts,
 	buckets,
+	commitments,
 	income,
 	members,
 	refunds,
+	rules,
 	splitFor,
 	splits,
 	transactionFor,
@@ -108,7 +112,12 @@ const transferable = and(
 /** Income that could be the arriving side of a Transfer: imported, and not already one. */
 const transferableIncome = and(isNotNull(income.accountId), incomeCounts()) as SQL;
 
-type Side = TransferSide & { income: boolean };
+type Side = TransferSide & {
+	income: boolean;
+	/** Money out only: the bank's wording, which a Rule is matched against. */
+	merchant?: string | null;
+	note?: string | null;
+};
 
 /** Transferable Transactions (money out, or money back as a positive amount) and income. */
 async function loadSides(
@@ -128,7 +137,11 @@ async function loadSides(
 	});
 	const [outs, backs, received] = await db.batch([
 		db
-			.select(side(sql<number>`${transactions.amountCents}`))
+			.select({
+				...side(sql<number>`${transactions.amountCents}`),
+				merchant: transactions.merchant,
+				note: transactions.note,
+			})
 			.from(transactions)
 			.where(
 				and(
@@ -228,7 +241,7 @@ export async function detectTransfers(
 	to: DayKey,
 	newId: () => string,
 ): Promise<{ marked: number; months: string[] }> {
-	const [{ outs, ins }, refusedRows] = await Promise.all([
+	const [{ outs: leaving, ins }, refusedRows, ruleRows] = await Promise.all([
 		loadSides(
 			db,
 			householdId,
@@ -243,7 +256,29 @@ export async function detectTransfers(
 			})
 			.from(transfers)
 			.where(and(eq(transfers.householdId, householdId), isNotNull(transfers.removedAt))),
+		// The Household's own Rules: a Parent's private one files only in their Personal Allowance.
+		db
+			.select({
+				pattern: rules.pattern,
+				bucketId: rules.bucketId,
+				commitmentId: rules.commitmentId,
+				ended: commitments.endedFromMonth,
+			})
+			.from(rules)
+			.leftJoin(commitments, eq(commitments.id, rules.commitmentId))
+			.where(and(eq(rules.householdId, householdId), isNull(rules.ownerMemberId))),
 	]);
+	// Money out that a Rule files in a Commitment is that Commitment's payment, not a Transfer
+	// (ADR-0050): paired with its other side (a connected loan's "payment received") it would count
+	// nowhere, the Rule would never see it, and the Commitment would never show paid. It's left
+	// for categorization, which runs next and files it.
+	const toCommitment = (out: Side) => {
+		const rule = ruleFor(ruleRows, merchantKey(out.merchant ?? out.note ?? ""));
+		return !!rule?.commitmentId && (rule.ended === null || rule.ended > out.date.slice(0, 7));
+	};
+	const outs = ruleRows.some((rule) => rule.commitmentId)
+		? leaving.filter((out) => !toCommitment(out))
+		: leaving;
 	if (outs.length === 0 || ins.length === 0) return { marked: 0, months: [] };
 	const refused = new Set(refusedRows.map((row) => `${row.outId}|${row.inId}`));
 	const pairs = transferPairs(outs, ins, (o, i) => refused.has(`${o}|${i}`));

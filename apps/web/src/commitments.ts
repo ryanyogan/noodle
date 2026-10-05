@@ -316,3 +316,11 @@ export function useCommitmentPayment() {
 	});
 	return payment;
 }
+
+/**
+ * "$1,450 of $2,300 paid": a Commitment that pays down a card or loan, partly paid. Several
+ * payments a month are the usual thing there, so it says how far along it is, not how far off
+ * (ADR-0050). Null for any other Commitment, and once it's paid in full or over.
+ */
+export const partPaid = ({ accountId, difference, actual, expected }: CommitmentState) =>
+	accountId && difference < 0 ? `${formatMoney(actual)} of ${formatMoney(expected)} paid` : null;

@@ -1,8 +1,9 @@
-import type { PlanCommitment } from "@noodle/domain";
+import type { CommitmentState, PlanCommitment } from "@noodle/domain";
 import { describe, expect, it } from "vitest";
 import {
 	type CommitmentVariables,
 	needsCarriedTick,
+	partPaid,
 	paysDownAccounts,
 	paysDownHint,
 	paysDownRefusal,
@@ -242,5 +243,26 @@ describe("a card or loan added from the Commitment form", () => {
 			"amex",
 			"new",
 		]);
+	});
+});
+
+describe("a Commitment that pays down a card or loan, partly paid", () => {
+	const state = (over: Partial<CommitmentState>) =>
+		({
+			accountId: "amex",
+			actual: 145_000,
+			expected: 230_000,
+			difference: -85_000,
+			...over,
+		}) as CommitmentState;
+
+	it("says how far along it is rather than how far off", () => {
+		expect(partPaid(state({}))).toBe("$1,450 of $2,300 paid");
+	});
+
+	it("is left as it was when it's paid over, paid exactly, or pays nothing down", () => {
+		expect(partPaid(state({ actual: 250_000, difference: 20_000 }))).toBeNull();
+		expect(partPaid(state({ actual: 230_000, difference: 0 }))).toBeNull();
+		expect(partPaid(state({ accountId: undefined }))).toBeNull();
 	});
 });

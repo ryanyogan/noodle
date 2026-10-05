@@ -21,22 +21,30 @@ import { ChevronRight } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
 import { monogram } from "../buckets";
-import { cadenceNames, type PaymentVariables, useCommitmentPayment } from "../commitments";
+import {
+	cadenceNames,
+	type PaymentVariables,
+	partPaid,
+	useCommitmentPayment,
+} from "../commitments";
 import { formatMoney, formatMoneyInput, fullDay, shortDay } from "../format";
 import { masterDetailItem } from "./master-detail";
 
 const list = new Intl.ListFormat("en-US", { style: "long", type: "conjunction" });
 
 /** How a Commitment's charge differs from what was expected, or null when it doesn't. */
-const differsBy = ({ difference }: CommitmentState) =>
-	difference > 0
-		? `${formatMoney(difference)} more than expected`
-		: difference < 0
-			? `${formatMoney(-difference)} less than expected`
+const differsBy = (commitment: CommitmentState) =>
+	commitment.difference > 0
+		? `${formatMoney(commitment.difference)} more than expected`
+		: commitment.difference < 0 && !partPaid(commitment)
+			? `${formatMoney(-commitment.difference)} less than expected`
 			: null;
 
-/** "Due Oct 2, 16, and 30", "1 of 3 paid · next due Oct 16", "Paid". */
-function progress({ dueDates, charges }: CommitmentState) {
+/** "Due Oct 2, 16, and 30", "1 of 3 paid · next due Oct 16", "Paid", "$1,450 of $2,300 paid". */
+function progress(commitment: CommitmentState) {
+	const { dueDates, charges } = commitment;
+	const part = partPaid(commitment);
+	if (part) return part;
 	if (charges === 0) return `Due ${list.format(dueDates.map(shortDay))}`;
 	const next = dueDates[charges];
 	return next ? `${charges} of ${dueDates.length} paid · next due ${shortDay(next)}` : "Paid";
