@@ -460,6 +460,25 @@ test.beforeAll(async ({ browser }) => {
 				);
 			},
 		},
+		...[
+			// A little more than now: the sheet says what Free to Spend would be, and the split
+			// behind it follows.
+			{ name: "04a3-bucket-sheet-changed", typed: "1,000" },
+			// Far more than there is: both say the month is over-planned.
+			{ name: "04a4-bucket-sheet-over", typed: "9,000" },
+		].map(({ name, typed }) => ({
+			name,
+			path: `/plan/${month}`,
+			window: true,
+			ready: async (page: Page) => {
+				const sheet = page.getByRole("dialog", { name: "Groceries", exact: true });
+				await pressFor(page.getByRole("button", { name: "Edit Groceries", exact: true }), sheet);
+				await sheet.getByRole("textbox", { name: "Allowance", exact: true }).fill(typed);
+				await expect(sheet.locator("[data-slot=free-to-spend-after]")).toBeVisible({
+					timeout: 15_000,
+				});
+			},
+		})),
 		{
 			// The same sheet scrolled to its end: More (colour, carries over, moving it, archiving it).
 			name: "04a2-bucket-sheet-more",
