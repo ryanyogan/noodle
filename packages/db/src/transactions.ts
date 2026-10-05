@@ -468,7 +468,7 @@ export type TransactionRow = {
 	 * For a side of a Transfer (which counts nowhere): the Accounts the money left and arrived in,
 	 * each null when that side isn't imported.
 	 */
-	transfer: { from: string | null; to: string | null } | null;
+	transfer: { from: string | null; to: string | null; reason: "between-us" | null } | null;
 	/** For money back linked as a Refund: the purchase's note, or "" when it has none. */
 	refundOf: string | null;
 	for: string[];
@@ -719,7 +719,7 @@ export async function loadTransactionsPage(
 				where m.quick_add_id = ${transactions.id} and m.removed_at is null)`,
 			transfer: sql<
 				string | null
-			>`(select json_object('from', ao.name, 'to', coalesce(ai.name, ic.name))
+			>`(select json_object('from', ao.name, 'to', coalesce(ai.name, ic.name), 'reason', x.reason)
 				from transfers x
 				left join transactions o on o.id = x.out_transaction_id left join accounts ao on ao.id = o.account_id
 				left join transactions n on n.id = x.in_transaction_id left join accounts ai on ai.id = n.account_id

@@ -143,8 +143,16 @@ describe("Transfers on Import", () => {
 		expect(result.ok && result.import.transferCount).toBe(1);
 
 		const rows = await listed();
-		expect(rows.get("AUTOPAY VISA")?.transfer).toEqual({ from: "Checking", to: "Visa" });
-		expect(rows.get("PAYMENT THANK YOU")?.transfer).toEqual({ from: "Checking", to: "Visa" });
+		expect(rows.get("AUTOPAY VISA")?.transfer).toEqual({
+			from: "Checking",
+			to: "Visa",
+			reason: null,
+		});
+		expect(rows.get("PAYMENT THANK YOU")?.transfer).toEqual({
+			from: "Checking",
+			to: "Visa",
+			reason: null,
+		});
 		expect(rows.get("REI")?.transfer).toBeNull();
 		// Even assigned to a Bucket, a Transfer's side isn't spending.
 		await assignToGear(await idOf("AUTOPAY VISA"));
@@ -292,7 +300,11 @@ describe("Transfers on Import", () => {
 		expect(await markTransfer(db, viewer, { transferId: "t-1", transactionId: venmo })).toEqual(
 			marked,
 		);
-		expect((await listed()).get("VENMO")?.transfer).toEqual({ from: "Checking", to: null });
+		expect((await listed()).get("VENMO")?.transfer).toEqual({
+			from: "Checking",
+			to: null,
+			reason: null,
+		});
 		// A Quick Add is spending, never a Transfer.
 		await addQuickAdd(db, {
 			householdId,

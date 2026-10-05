@@ -1,4 +1,4 @@
-import { looksLikeCardPayment } from "@noodle/domain";
+import { looksLikeCardPayment, looksPersonToPerson } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Skeleton } from "@noodle/ui/components/skeleton";
@@ -78,10 +78,11 @@ export function TransferSection({
 	const label = transaction.merchantName || transaction.note || "Transaction";
 
 	if (transfer.kind === "transfer") {
+		const betweenUs = transfer.reason === "between-us" && !transfer.peer;
 		return (
 			<section aria-labelledby="transfer-heading" className="grid gap-2">
 				<h3 id="transfer-heading" className="text-xs font-medium text-subtle-foreground">
-					{transfer.peer ? "Other side" : "Transfer"}
+					{transfer.peer ? "Other side" : betweenUs ? "Between us" : "Transfer"}
 				</h3>
 				{transfer.peer ? (
 					<List>
@@ -89,8 +90,9 @@ export function TransferSection({
 					</List>
 				) : null}
 				<p className="text-[13px] text-muted-foreground">
-					{transfer.automatic ? "Found automatically" : "Marked"}: money moving between your own
-					Accounts, so it counts nowhere.
+					{betweenUs
+						? "Marked: money one of you moved to the other. It isn’t Income and it isn’t spending."
+						: `${transfer.automatic ? "Found automatically" : "Marked"}: money moving between your own Accounts, so it counts nowhere.`}
 				</p>
 				<Button
 					type="button"
@@ -117,26 +119,47 @@ export function TransferSection({
 			<p className="text-[13px] text-muted-foreground">
 				{looksLikeCardPayment(transaction.note || transaction.merchantName)
 					? "Looks like a card payment. What you bought on the card is already in your Buckets, so the payment itself isn’t spending: mark it as a Transfer and it counts nowhere."
-					: "Money moving between your own Accounts, like paying the card? A Transfer counts nowhere."}
+					: looksPersonToPerson(transaction.note || transaction.merchantName)
+						? "Looks like money sent to a person. If it went to the other Parent, it’s between you: money one of you moved to the other isn’t spending."
+						: "Money moving between your own Accounts, like paying the card? A Transfer counts nowhere. Money one of you moved to the other is between you, and isn’t spending either."}
 			</p>
-			<Button
-				type="button"
-				variant="secondary"
-				size="sm"
-				className="justify-self-start"
-				disabled={!hydrated}
-				onClick={() => {
-					change.mutate({
-						kind: "mark",
-						transferId: ulid(),
-						transactionId: transaction.id,
-						label,
-					});
-					onDone();
-				}}
-			>
-				Mark as Transfer
-			</Button>
+			<div className="flex flex-wrap gap-2">
+				<Button
+					type="button"
+					variant="secondary"
+					size="sm"
+					disabled={!hydrated}
+					onClick={() => {
+						change.mutate({
+							kind: "mark",
+							transferId: ulid(),
+							transactionId: transaction.id,
+							label,
+						});
+						onDone();
+					}}
+				>
+					Mark as Transfer
+				</Button>
+				<Button
+					type="button"
+					variant="secondary"
+					size="sm"
+					disabled={!hydrated}
+					onClick={() => {
+						change.mutate({
+							kind: "mark",
+							transferId: ulid(),
+							transactionId: transaction.id,
+							label,
+							reason: "between-us",
+						});
+						onDone();
+					}}
+				>
+					It’s between us
+				</Button>
+			</div>
 		</section>
 	);
 }

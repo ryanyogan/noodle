@@ -248,3 +248,19 @@ export async function seedIncomeHousehold(page: Page) {
 		]);
 	return { month, bucketIds, setIncome };
 }
+
+/**
+ * Money between the two Parents, for the "Between us" pictures: a $1,500 Zelle from Sam that came
+ * in looking like Income, and $400 sent to Sam out of `accountId`, in no Bucket yet. Gives back
+ * the money-out line's id. Kept out of seedShotsHousehold so the intro video's figures stay put.
+ */
+export async function seedBetweenUs(householdId: string, parentId: string, accountId: string) {
+	const h = q(householdId);
+	const m = q(parentId);
+	const sent = ulid();
+	await seedSql([
+		`insert into income (id, household_id, date, amount_cents, note, created_by_member_id) values (${q(ulid())}, ${h}, ${q(dayOf(0, 3))}, 150000, 'Zelle from Sam', ${m});`,
+		`insert into transactions (id, household_id, source, date, amount_cents, note, merchant, account_id, created_by_member_id) values (${q(sent)}, ${h}, 'import', ${q(dayOf(0, 4))}, 40000, 'Zelle to Sam', 'Zelle to Sam', ${q(accountId)}, ${m});`,
+	]);
+	return sent;
+}

@@ -1,10 +1,12 @@
 import {
+	type IncomeTransferResult,
 	linkRefund as link,
 	loadRefund,
 	loadTransfer,
 	type MoneyPeer,
 	type MoneyResult,
 	markTransfer as mark,
+	markIncomeTransfer as markIncome,
 	type RefundView,
 	type TransferView,
 	unlinkRefund as unlink,
@@ -22,7 +24,7 @@ import { ulidSchema } from "./schemas";
 // (importStatement); a Parent marks or unmarks one, and links money back to its purchase as a
 // Refund or unlinks it.
 
-export type { MoneyPeer, MoneyResult, RefundView, TransferView };
+export type { IncomeTransferResult, MoneyPeer, MoneyResult, RefundView, TransferView };
 
 /** A Transaction's Transfer and Refund link, or what a Parent may do about either. */
 export const getTransactionMoney = createServerFn({ method: "GET" })
@@ -45,12 +47,34 @@ const moneyChanges = (months: string[]): HouseholdChange[] => [
 	"bucket-uses",
 ];
 
-/** Marks an imported Transaction as a Transfer. Idempotent per `transferId`. */
+/**
+ * Marks an imported Transaction as a Transfer; with `reason`, as money between the two Parents
+ * when only this side is in Noodle. Idempotent per `transferId`.
+ */
 export const markTransfer = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
-	.validator(z.object({ transferId: ulidSchema, transactionId: ulidSchema }))
+	.validator(
+		z.object({
+			transferId: ulidSchema,
+			transactionId: ulidSchema,
+			reason: z.literal("between-us").optional(),
+		}),
+	)
 	.handler(async ({ data, context }): Promise<MoneyResult> => {
 		const result = await mark(getDb(), viewerOf(context), data);
+		if (result.ok) await notifyHousehold(context.household.id, moneyChanges(result.months));
+		return result;
+	});
+
+/**
+ * Marks income as money from the other Parent ("Between us"): no longer Income or Extra income.
+ * Refused while Extra income already decided in its month needs it. Idempotent per `transferId`.
+ */
+export const markIncomeTransfer = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ transferId: ulidSchema, incomeId: ulidSchema }))
+	.handler(async ({ data, context }): Promise<IncomeTransferResult> => {
+		const result = await markIncome(getDb(), viewerOf(context), data);
 		if (result.ok) await notifyHousehold(context.household.id, moneyChanges(result.months));
 		return result;
 	});
