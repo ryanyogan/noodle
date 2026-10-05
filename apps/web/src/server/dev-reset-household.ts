@@ -1,18 +1,24 @@
 import { env } from "cloudflare:workers";
 import { z } from "zod";
+import { clearOutbox } from "./email/outbox";
 import { CLEAR_STEPS, runClearStep } from "./fresh-start-clear";
 import { clearDeps } from "./fresh-start-workflow";
 
-// A Parent back to having no Household, for E2E (#81): a worker signs one Parent in once and
-// every test starts from /welcome, so between tests the Household that Parent made (or joined)
-// goes, with everything in it, through the same steps as Delete Household. Only with
-// AI_MODEL=stub (server.ts), so not in production builds.
+// A Parent back to having no Household, for E2E (#81, and issue 108): a worker keeps a few Parents signed
+// in and hands them to one test after another, so between tests the Household that Parent made
+// (or joined) goes, with everything in it, through the same steps as Delete Household, and so do
+// the emails "sent" to the Parent's address. Only with AI_MODEL=stub (server.ts), so not in
+// production builds (dev-routes.test.ts).
 
 export const DEV_RESET_HOUSEHOLD_PATH = "/api/dev/reset-household";
 
-const devResetSchema = z.object({ clerkUserId: z.string().trim().min(1).max(100) });
+const devResetSchema = z.object({
+	clerkUserId: z.string().trim().min(1).max(100),
+	/** The Parent's address: its dev outbox is emptied too. */
+	email: z.string().trim().min(3).max(320).optional(),
+});
 
-/** POST {clerkUserId}: deletes the Household that Clerk user is a Parent of, if there is one. */
+/** POST {clerkUserId, email?}: deletes the Household that Clerk user is a Parent of, if there is one. */
 export async function handleDevResetHousehold(request: Request): Promise<Response> {
 	if (request.method !== "POST") return new Response("POST only", { status: 405 });
 	const parsed = devResetSchema.safeParse(await request.json().catch(() => null));
@@ -36,6 +42,11 @@ export async function handleDevResetHousehold(request: Request): Promise<Respons
 					skipped.push(`${key}: ${error instanceof Error ? error.message : String(error)}`);
 				}
 			}
+		}
+		if (parsed.data.email) {
+			await clearOutbox(env.STATEMENTS, parsed.data.email).catch((error: unknown) => {
+				skipped.push(`outbox: ${error instanceof Error ? error.message : String(error)}`);
+			});
 		}
 		return Response.json({ cleared: results.length, skipped });
 	} catch (error) {

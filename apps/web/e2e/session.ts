@@ -1,6 +1,7 @@
 import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
 import {
 	type Browser,
+	type BrowserContext,
 	type BrowserContextOptions,
 	expect,
 	type Locator,
@@ -39,13 +40,20 @@ export async function openToDo(page: Page, label: string) {
 /** What `browser.newContext` takes as `storageState`, when it is not a file. */
 export type SavedSession = Exclude<NonNullable<BrowserContextOptions["storageState"]>, string>;
 
-// Parents whose session is kept by their worker (e2e/worker-parent.ts): `signedInPage` starts
-// from that session's cookies instead of signing in again.
-const sharedSessions = new Map<string, () => Promise<SavedSession>>();
+/** A Parent whose session is kept by their worker (the pool in e2e/parents.ts). */
+export type SharedSession = {
+	/** The session's cookies, fresh enough for a new context in `browser`. */
+	session: (browser: Browser) => Promise<SavedSession>;
+	/** Told of each context `signedInPage` opens, so it can be closed when the Parent is given back. */
+	opened: (context: BrowserContext) => void;
+};
 
-/** From now on `signedInPage` for `email` starts from `session()` (null: signs in again). */
-export function shareSession(email: string, session: (() => Promise<SavedSession>) | null) {
-	if (session) sharedSessions.set(email, session);
+// `signedInPage` starts from a shared session's cookies instead of signing in again.
+const sharedSessions = new Map<string, SharedSession>();
+
+/** From now on `signedInPage` for `email` starts from `shared.session()` (null: signs in again). */
+export function shareSession(email: string, shared: SharedSession | null) {
+	if (shared) sharedSessions.set(email, shared);
 	else sharedSessions.delete(email);
 }
 
@@ -83,8 +91,8 @@ export async function signIn(page: Page, email: string) {
 }
 
 /**
- * A fresh browser context signed in as `email`. A Parent kept by the worker (the `sharedParent`
- * fixture) is already signed in: the context starts from that session, on a blank page.
+ * A fresh browser context signed in as `email`. A pooled Parent (`createTestParent`) is already
+ * signed in by its worker: the context starts from that session, on a blank page.
  */
 export async function signedInPage(
 	browser: Browser,
@@ -92,8 +100,11 @@ export async function signedInPage(
 	options: BrowserContextOptions = {},
 ): Promise<Page> {
 	const shared = sharedSessions.get(email);
-	const storageState = shared ? await timed("session-state", shared) : undefined;
+	const storageState = shared
+		? await timed("session-state", () => shared.session(browser))
+		: undefined;
 	const context = await openContext(browser, storageState ? { ...options, storageState } : options);
+	shared?.opened(context);
 	const page = await context.newPage();
 	await setupClerkTestingToken({ page });
 	if (!shared) await signIn(page, email);
