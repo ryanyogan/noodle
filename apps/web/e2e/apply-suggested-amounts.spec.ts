@@ -64,7 +64,7 @@ async function raisePay(page: Page, month: string) {
 }
 
 async function allowanceOf(page: Page, month: string, bucket: string) {
-	await page.goto(`/plan/${month}/buckets`);
+	await page.goto(`/plan/${month}#buckets`);
 	await page.getByRole("button", { name: `Edit ${bucket}` }).click();
 	const sheet = page.getByRole("dialog", { name: bucket });
 	const value = await sheet.getByRole("textbox", { name: "Allowance", exact: true }).inputValue();
@@ -88,7 +88,7 @@ test("Apply all gives the starter Buckets their share of new take-home pay and l
 		await raisePay(page, month);
 
 		// Gas changed by hand.
-		await page.goto(`/plan/${month}/buckets`);
+		await page.goto(`/plan/${month}#buckets`);
 		await page.getByRole("button", { name: "Edit Gas" }).click();
 		const sheet = page.getByRole("dialog", { name: "Gas" });
 		await sheet.getByRole("textbox", { name: "Allowance", exact: true }).fill("450");

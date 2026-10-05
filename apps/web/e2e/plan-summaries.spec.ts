@@ -28,10 +28,16 @@ test("Plan summaries show Money, a whole history has no History starts, a Commit
 			],
 		});
 		const month = monthKey();
-		await page.goto(`/plan/${month}/buckets`);
+		await page.goto(`/plan/${month}#buckets`);
 		await expect(page.getByRole("button", { name: "Move Fun" })).toBeEnabled();
 		// The summary's amount is a Money: tabular, never broken.
-		await expect(page.locator("[data-slot=money]").first()).toHaveText("$1,650");
+		await expect(
+			page
+				.locator("[data-slot=section-header]")
+				.filter({ has: page.locator("h2#buckets") })
+				.locator("[data-slot=money]")
+				.first(),
+		).toHaveText("$1,650");
 
 		// Mid-drag, for the review: Fun's handle held over Groceries.
 		const grip = await page.getByRole("button", { name: "Move Fun" }).boundingBox();

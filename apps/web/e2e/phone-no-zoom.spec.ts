@@ -1,6 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, pickQuickAddBucket, signedInPage, switchTo } from "./session";
+import {
+	createPlannedHousehold,
+	openPlanBuckets,
+	pickQuickAddBucket,
+	signedInPage,
+	switchTo,
+} from "./session";
 
 // Mobile Safari zooms the page when a field under 16 px gets focus. On a phone, portrait and
 // landscape (both below lg), every field on the main pages and sheets is at least 16 px. Buttons
@@ -106,10 +112,7 @@ test("no field on the main phone pages is small enough to zoom", async ({ browse
 
 	await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Month" }).click();
 	await switchTo(page, "Plan");
-	await page
-		.getByRole("navigation", { name: "Plan pages" })
-		.getByRole("link", { name: "Buckets", exact: true })
-		.click();
+	await openPlanBuckets(page);
 	await expect(page.getByRole("button", { name: "Edit Gifts" })).toBeVisible();
 	await expectNoZoom(page, "Plan Buckets");
 	await page.getByRole("button", { name: "Edit Gifts" }).click();

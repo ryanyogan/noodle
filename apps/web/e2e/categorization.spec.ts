@@ -133,7 +133,7 @@ test("Review looks again once the Plan has a Bucket for what waits there", async
 	await expect(page.getByText("Looked again: still no suggestions")).toBeVisible();
 
 	// The stub knows Shell is gas, and suggests (unsure) a Bucket named in the merchant.
-	await page.goto(thisMonth.replace(/\/month\/(\d{4}-\d{2}).*$/, "/plan/$1/buckets"));
+	await page.goto(thisMonth.replace(/\/month\/(\d{4}-\d{2}).*$/, "/plan/$1#buckets"));
 	await addBucketsInSheet(page, [
 		["Gas", "300"],
 		["Acme", "50"],

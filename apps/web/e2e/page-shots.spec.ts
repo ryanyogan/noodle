@@ -444,12 +444,14 @@ test.beforeAll(async ({ browser }) => {
 					await row.first().click({ timeout: 15_000 });
 			},
 		},
+		// The Plan's first page, whole: the take-home split, the Buckets table under it, Personal
+		// Allowances, the totals and what changed. Then what the window shows of it on arriving.
 		{ name: "03-plan-overview", path: `/plan/${month}` },
-		{ name: "04-plan-buckets", path: `/plan/${month}/buckets` },
+		{ name: "03w-plan-overview-window", path: `/plan/${month}`, window: true },
 		{
 			// A Bucket's sheet, opened from its row: Allowance, from when, Name. What's in the window.
 			name: "04a-bucket-sheet",
-			path: `/plan/${month}/buckets`,
+			path: `/plan/${month}#buckets`,
 			window: true,
 			ready: async (page) => {
 				await pressFor(
@@ -461,7 +463,7 @@ test.beforeAll(async ({ browser }) => {
 		{
 			// The same sheet scrolled to its end: More (colour, carries over, moving it, archiving it).
 			name: "04a2-bucket-sheet-more",
-			path: `/plan/${month}/buckets`,
+			path: `/plan/${month}#buckets`,
 			window: true,
 			ready: async (page) => {
 				const sheet = page.getByRole("dialog", { name: "Groceries", exact: true });
@@ -472,9 +474,9 @@ test.beforeAll(async ({ browser }) => {
 					.scrollIntoViewIfNeeded({ timeout: 15_000 });
 			},
 		},
-		// The Buckets table as the window shows it, and a Bucket picked from it: in its panel beside
+		// The Buckets on that page as the window shows them, and a Bucket picked from the table: in its panel beside
 		// the table, a drawer over it on a smaller window, a page on a phone.
-		{ name: "04w-plan-buckets-window", path: `/plan/${month}/buckets`, window: true },
+		{ name: "04w-plan-buckets-window", path: `/plan/${month}#buckets`, window: true },
 		{
 			name: "05w-plan-bucket-window",
 			path: `/plan/${month}/buckets/${firstBucket}`,

@@ -8,11 +8,19 @@ import { sectionHeaderOverItem } from "./master-detail";
 
 /** One page of a section: its tab's words and where it goes (build `link` with `linkOptions`). */
 /** `badge` sits after the label, e.g. how many wait in Review. */
-export type SectionTab = { label: string; link: LinkProps; badge?: ReactNode };
+/**
+ * `current` marks the tab as the current one on an address its own link doesn't answer to: the
+ * Plan's first tab while a Bucket is open over its page (`/plan/$month/buckets/$id`).
+ */
+export type SectionTab = { label: string; link: LinkProps; badge?: ReactNode; current?: boolean };
+
+/** `aria-current` for a tab the page says is current; otherwise the link decides for itself. */
+export const tabCurrent = (tab: SectionTab): "page" | undefined =>
+	tab.current ? "page" : undefined;
 
 /**
  * Whether another tab's address sits beneath this one's ("/plan/$month" above
- * "/plan/$month/buckets"): such a tab is the section's first page, and is current on that page only.
+ * "/plan/$month/income"): such a tab is the section's first page, and is current on that page only.
  * Every other tab is also current on the pages beneath it.
  */
 export function holdsOtherTabs(tab: SectionTab, tabs: SectionTab[]): boolean {
@@ -58,7 +66,7 @@ export function SectionLayout({
 						{tabs.map((tab) => (
 							<LinkTab key={tab.label} asChild>
 								{/* The link marks itself current (aria-current="page") on its own page and on the pages
-								    beneath it (Buckets on a Bucket's page), whatever the page's search (`?lever=`,
+								    beneath it (Commitments on a Commitment's page), whatever the page's search (`?lever=`,
 								    `?kind=`). The section's first page, which the others sit beneath, is current on its
 								    own page only, so there is always one current tab and never two. A tab leaves the
 								    scroll where it is: only the part below the tabs changes. */}

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage, switchTo } from "./session";
+import { createPlannedHousehold, openPlanBuckets, signedInPage, switchTo } from "./session";
 
 // Sheets on a phone (packages/ui's Sheet): the page underneath stays where it was while one is
 // open and after it closes, the primary action shows without scrolling, and Esc closes it. Quick
@@ -33,12 +33,9 @@ test("a sheet on a phone keeps the page's place and its Save in view", async ({ 
 		],
 	});
 	await switchTo(page, "Plan");
-	await page
-		.getByRole("navigation", { name: "Plan pages" })
-		.getByRole("link", { name: "Buckets", exact: true })
-		.click();
+	await openPlanBuckets(page);
 
-	// Short enough that the Buckets page scrolls; the page's place is taken as the tap lands.
+	// Short enough that the Plan's page scrolls; the page's place is taken as the tap lands.
 	await page.setViewportSize({ width: 393, height: 600 });
 	await page.evaluate(() => {
 		window.scrollTo(0, document.documentElement.scrollHeight);

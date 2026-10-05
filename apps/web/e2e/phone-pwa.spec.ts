@@ -1,7 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { installed, looks, notch } from "./phone";
-import { clientRendered, createPlannedHousehold, signedInPage, switchTo } from "./session";
+import {
+	clientRendered,
+	createPlannedHousehold,
+	openPlanBuckets,
+	signedInPage,
+	switchTo,
+} from "./session";
 
 // The installed app on an iPhone with a notch: the tab bar sits above the home indicator, the page
 // and its sticky headers start below the status bar, the page doesn't rubber-band under the fixed
@@ -76,13 +82,10 @@ for (const look of looks) {
 			]),
 		).toEqual(["none", "none"]);
 
-		// A sticky header (the Buckets toolbar) sticks below the status bar, not under it.
+		// A sticky header (the bar over the Plan's Buckets) sticks below the status bar, not under it.
 		await switchTo(page, "Plan");
-		await page
-			.getByRole("navigation", { name: "Plan pages" })
-			.getByRole("link", { name: "Buckets", exact: true })
-			.click();
-		const sticky = page.locator("main .sticky").first();
+		await openPlanBuckets(page);
+		const sticky = page.locator("[data-slot=left-to-plan]");
 		await expect(sticky).toBeVisible();
 		await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
 		const box = await sticky.boundingBox();

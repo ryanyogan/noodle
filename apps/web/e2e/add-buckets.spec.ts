@@ -18,7 +18,7 @@ test.afterEach(async () => {
 /** Opens this month's Plan on its Buckets page, waits for it to hydrate, and opens the sheet. */
 async function openSheet(page: Page) {
 	const month = page.url().match(/\/month\/(\d{4}-\d{2})/)?.[1];
-	if (month) await page.goto(`/plan/${month}/buckets`);
+	if (month) await page.goto(`/plan/${month}#buckets`);
 	const open = page.getByRole("button", { name: "Add Buckets", exact: true });
 	await expect(open).toBeEnabled();
 	await open.focus();

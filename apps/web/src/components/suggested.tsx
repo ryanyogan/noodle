@@ -16,7 +16,7 @@ import { CommitmentFormErrors, readCommitment, ScheduleFields } from "./commitme
 // The "Suggested" card (ADR-0027): what background AI spotted, with its evidence in plain words, to
 // add with one tap or put away. Never on This Month (#76): each shows in context, only the kinds
 // that page is about (Rules on Review, Commitments under Plan › Commitments, Buckets under
-// Plan › Buckets). Quiet, and gone when
+// the Buckets on the Plan's first page). Quiet, and gone when
 // there's nothing. Add on a new Bucket or Commitment opens its terms first, filled in, so the Parent
 // can change the name, amount or schedule before it goes in the Plan.
 

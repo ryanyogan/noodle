@@ -1,7 +1,14 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, openFromMore, savedBy, signedInPage, switchTo } from "./session";
+import {
+	createPlannedHousehold,
+	openFromMore,
+	openPlanBuckets,
+	savedBy,
+	signedInPage,
+	switchTo,
+} from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -139,8 +146,8 @@ test("the steps from take-home pay to Free to Spend are figures, and the tabs op
 	const { name } = shownMonth(page);
 	await switchTo(page, "Plan");
 
-	// A Personal Allowance is its own step.
-	await planTabs(page).getByRole("link", { name: "Buckets", exact: true }).click();
+	// A Personal Allowance is its own step, under the Buckets on the Plan's first page.
+	await openPlanBuckets(page);
 	await page.getByLabel("Your Personal Allowance").fill("150");
 	await page.getByRole("button", { name: "Set up Personal Allowance" }).click();
 	await expect(page.getByRole("button", { name: "Edit Alex’s Personal Allowance" })).toBeVisible();
@@ -154,8 +161,6 @@ test("the steps from take-home pay to Free to Spend are figures, and the tabs op
 	for (const [step, tab] of [
 		["Take-home pay", "Income"],
 		["Commitments", "Commitments"],
-		["Buckets", "Buckets"],
-		["Personal Allowances", "Buckets"],
 		["Goal funding", "Goal funding"],
 	]) {
 		await expect(waterfall(page)).toContainText(step as string);
@@ -172,6 +177,11 @@ test("the steps from take-home pay to Free to Spend are figures, and the tabs op
 			.click();
 		await expect(heading(page)).toHaveText(name);
 	}
+	// Buckets and Personal Allowances have no tab: they are under the split, on this page.
+	await expect(planTabs(page).getByRole("link", { name: "Buckets", exact: true })).toHaveCount(0);
+	await expect(waterfall(page)).toContainText("Buckets");
+	await expect(page.getByRole("grid", { name: "Buckets", exact: true })).toBeVisible();
+	await expect(page.getByRole("grid", { name: "Personal Allowances", exact: true })).toBeVisible();
 	await expect(waterfall(page)).toContainText("Personal Allowances$150");
 	await expect(waterfall(page)).toContainText("Free to Spend$4,250");
 	await page.context().close();
@@ -182,7 +192,7 @@ test("a change to just this month leaves next month's Plan as it was", async ({ 
 	await createPlannedHousehold(page, plan);
 	const { name, next } = shownMonth(page);
 	await switchTo(page, "Plan");
-	await planTabs(page).getByRole("link", { name: "Buckets", exact: true }).click();
+	await openPlanBuckets(page);
 
 	await page.getByRole("button", { name: "Edit Groceries" }).click();
 	const sheet = page.getByRole("dialog", { name: "Groceries" });
@@ -210,11 +220,7 @@ test("a change to just this month leaves next month's Plan as it was", async ({ 
 	await switchTo(page, "Plan");
 	await page.getByRole("link", { name: "Next month" }).click();
 	await expect(header(page)).toContainText(next);
-	await planTabs(page).getByRole("link", { name: "Buckets", exact: true }).click();
-	await expect(planTabs(page).getByRole("link", { name: "Buckets" })).toHaveAttribute(
-		"aria-current",
-		"page",
-	);
+	await openPlanBuckets(page);
 	await expect(heading(page)).toHaveText(next);
 	await expect(planRow(page, "Groceries")).toContainText("$1,200");
 	await expect(planRow(page, "Groceries")).toContainText("Changed this month · was $1,500");
@@ -250,7 +256,6 @@ test("going between the Plan's tabs changes only what's below them", async ({ br
 	for (const [tab, path] of [
 		["Income", "/income"],
 		["Commitments", "/commitments"],
-		["Buckets", "/buckets"],
 		["Goal funding", "/goals"],
 		["Year", "/year"],
 		["Overview", ""],
@@ -269,16 +274,135 @@ test("going between the Plan's tabs changes only what's below them", async ({ br
 	}
 
 	// The next month opens on the same tab.
-	await planTabs(page).getByRole("link", { name: "Buckets" }).click();
+	await planTabs(page).getByRole("link", { name: "Commitments" }).click();
 	await page.getByRole("link", { name: "Next month" }).click();
-	await expect(page).toHaveURL(/\/plan\/\d{4}-\d{2}\/buckets$/);
+	await expect(page).toHaveURL(/\/plan\/\d{4}-\d{2}\/commitments$/);
 	await expect(heading(page)).toHaveText(next);
-	await expect(planTabs(page).getByRole("link", { name: "Buckets" })).toHaveAttribute(
+	await expect(planTabs(page).getByRole("link", { name: "Commitments" })).toHaveAttribute(
 		"aria-current",
 		"page",
 	);
 	await page.goBack();
-	await expect(page).toHaveURL(new RegExp(`/plan/${month}/buckets$`));
+	await expect(page).toHaveURL(new RegExp(`/plan/${month}/commitments$`));
+	await page.context().close();
+});
+
+test("the take-home split and the Buckets table are one page, and the old Buckets address opens it", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email, {
+		viewport: { width: 1440, height: 900 },
+	});
+	await createPlannedHousehold(page, plan);
+	await switchTo(page, "Plan");
+	const month = /\/plan\/(\d{4}-\d{2})/.exec(page.url())?.[1] as string;
+	const table = page.getByRole("grid", { name: "Buckets", exact: true });
+	const current = planTabs(page).locator("[aria-current]");
+
+	// One page: the split on top, the Buckets table under it in the same column, then Personal
+	// Allowances. The tabs are the other parts of the Plan; Buckets isn't one.
+	await expect(waterfall(page)).toBeVisible();
+	await expect(table).toBeVisible();
+	await expect(planTabs(page).getByRole("link")).toHaveText([
+		"Overview",
+		"Income",
+		"Commitments",
+		"Goal funding",
+		"Year",
+	]);
+	const split = await waterfall(page).boundingBox();
+	const buckets = await table.boundingBox();
+	const allowances = await page.locator("#personal-allowances").boundingBox();
+	if (!split || !buckets || !allowances) throw new Error("no split, table or allowances");
+	expect(buckets.y, "the table is under the split").toBeGreaterThan(split.y + split.height - 1);
+	expect(Math.abs(buckets.x - split.x), "in the same column").toBeLessThanOrEqual(1);
+	expect(allowances.y, "Personal Allowances under the table").toBeGreaterThan(
+		buckets.y + buckets.height - 1,
+	);
+	// From 1440 the totals and what changed are beside that column, not under it.
+	const rail = await page.locator("[data-slot=master-detail-aside]").boundingBox();
+	expect(rail?.x ?? 0, "the rail is beside the page").toBeGreaterThan(split.x + split.width - 1);
+	await expect(page.getByRole("region", { name: "What changed" })).toBeVisible();
+	const { violations } = await new AxeBuilder({ page }).analyze();
+	expect(
+		violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`),
+		"the Plan's first page: axe violations",
+	).toEqual([]);
+
+	// The old Buckets address, in bookmarks and old links, opens this page at its Buckets.
+	await page.goto(`/plan/${month}/buckets`);
+	await expect(page).toHaveURL(new RegExp(`/plan/${month}#buckets$`));
+	await expect(page.locator("h2#buckets")).toBeInViewport();
+	await expect(waterfall(page)).toBeAttached();
+	await expect(current).toHaveText("Overview");
+	// The anchors This Month links to are all on this page.
+	for (const id of ["plan-waterfall", "what-changed", "buckets", "personal-allowances"]) {
+		await expect(page.locator(`#${id}`), `#${id}`).toHaveCount(1);
+	}
+
+	// A Bucket keeps its address, opens over the page, and the first tab is still the current one
+	// (and the only one). The page under it is the same node: it did not load again.
+	await expect(page.getByRole("button", { name: "Edit Hockey", exact: true })).toBeEnabled();
+	await waterfall(page).evaluate((node) => {
+		(node as Element & { kept?: boolean }).kept = true;
+	});
+	await table.getByRole("link", { name: "Hockey", exact: true }).click();
+	await expect(page).toHaveURL(new RegExp(`/plan/${month}/buckets/[0-9A-Z]{26}$`));
+	await expect(page.locator("[data-slot=detail-header]")).toContainText("Hockey");
+	await expect(current).toHaveCount(1);
+	await expect(current).toHaveText("Overview");
+	await expect(current).toHaveAttribute("aria-current", "page");
+	await expect(waterfall(page)).toBeVisible();
+	await expect(table).toBeVisible();
+	expect(
+		await waterfall(page).evaluate((node) => (node as Element & { kept?: boolean }).kept === true),
+		"the split stayed mounted while the Bucket opened",
+	).toBe(true);
+	// Closing it leaves the page where it was, at an address with no hash.
+	await page.getByRole("link", { name: "Close Bucket" }).click();
+	await expect(page).toHaveURL(new RegExp(`/plan/${month}$`));
+	expect(
+		await waterfall(page).evaluate((node) => (node as Element & { kept?: boolean }).kept === true),
+		"and while it closed",
+	).toBe(true);
+	await page.context().close();
+});
+
+test("on the narrowest phone the Plan's first page has the split and the Buckets, and nothing sideways", {
+	tag: "@phone",
+}, async ({ browser }) => {
+	const page = await signedInPage(browser, parent.email, {
+		viewport: { width: 320, height: 700 },
+		isMobile: true,
+		hasTouch: true,
+	});
+	await createPlannedHousehold(page, plan);
+	await page.goto("/plan");
+	await expect(page).toHaveURL(/\/plan\/\d{4}-\d{2}$/);
+	const month = new URL(page.url()).pathname.split("/").pop() as string;
+	await expect(waterfall(page)).toBeVisible();
+	await expect(page.getByRole("button", { name: "Edit Hockey", exact: true })).toBeEnabled();
+	await expect(planTabs(page).getByRole("link", { name: "Buckets", exact: true })).toHaveCount(0);
+	const split = await waterfall(page).boundingBox();
+	const buckets = await page.getByRole("grid", { name: "Buckets", exact: true }).boundingBox();
+	if (!split || !buckets) throw new Error("no split or no table");
+	expect(buckets.y, "the table is under the split").toBeGreaterThan(split.y + split.height - 1);
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+	const { violations } = await new AxeBuilder({ page }).analyze();
+	expect(
+		violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`),
+		"the Plan's first page at 320: axe violations",
+	).toEqual([]);
+	// The old address lands on the Buckets here too; a Bucket is a page of its own with Back.
+	await page.goto(`/plan/${month}/buckets`);
+	await expect(page).toHaveURL(new RegExp(`/plan/${month}#buckets$`));
+	await expect(page.locator("h2#buckets")).toBeInViewport();
+	await page.getByRole("link", { name: "Hockey", exact: true }).click();
+	await expect(page).toHaveURL(new RegExp(`/plan/${month}/buckets/[0-9A-Z]{26}$`));
+	await page.getByRole("link", { name: "Back to Buckets" }).click();
+	await expect(page).toHaveURL(new RegExp(`/plan/${month}#buckets$`));
+	await expect(page.getByRole("button", { name: "Edit Hockey", exact: true })).toBeVisible();
 	await page.context().close();
 });
 

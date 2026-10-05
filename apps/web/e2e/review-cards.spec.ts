@@ -504,7 +504,7 @@ test("a card filed in a Personal Allowance never reaches the other Parent", asyn
 		await createPlannedHousehold(alex, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
 		const thisMonth = alex.url();
 		const month = new Date().toLocaleDateString("en-CA").slice(0, 7);
-		await alex.goto(new URL(`/plan/${month}/buckets`, thisMonth).href);
+		await alex.goto(new URL(`/plan/${month}#buckets`, thisMonth).href);
 		await alex.getByLabel("Your Personal Allowance").fill("100");
 		await alex.getByRole("button", { name: "Set up Personal Allowance" }).click();
 		await expect(alex.getByRole("button", { name: "Set up Personal Allowance" })).toHaveCount(0);
@@ -760,7 +760,7 @@ test("a card's picker creates a Bucket by the name typed, with an allowance, and
 	await expect(page.getByRole("main")).toContainText("Widgets");
 
 	// Plan › Buckets: the Bucket, with its allowance and what was filed in it.
-	await page.goto(thisMonth.replace(/\/month\/(\d{4}-\d{2}).*$/, "/plan/$1/buckets"));
+	await page.goto(thisMonth.replace(/\/month\/(\d{4}-\d{2}).*$/, "/plan/$1#buckets"));
 	const row = page.locator("[data-bucket-row]").filter({ hasText: "Widgets" });
 	await expect(row).toHaveCount(1);
 	await expect

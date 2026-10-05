@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, savedBy, serverFn, signedInPage } from "./session";
+import { createPlannedHousehold, planHomeUrl, savedBy, serverFn, signedInPage } from "./session";
 import { realTouch, swipe } from "./touch";
 
 // The Plan's Buckets table (#57, #98, issue 107): a row's allowance or pencil opens the one Bucket
@@ -27,7 +27,7 @@ const monthKey = (offset = 0) => {
 };
 
 async function openBuckets(page: Page, month = monthKey()) {
-	await page.goto(`/plan/${month}/buckets`);
+	await page.goto(`/plan/${month}#buckets`);
 	await expect(page.getByRole("button", { name: "Add Buckets", exact: true })).toBeEnabled();
 }
 
@@ -155,7 +155,7 @@ test("Buckets are changed in one sheet from the list, with either reach, and mov
 	expect(await names(page)).toEqual(["Gas", "Fun money", "Groceries"]);
 	// Letting go of the handle on a row opened neither that row's sheet nor its page.
 	await expect(page.getByRole("dialog")).toHaveCount(0);
-	await expect(page).toHaveURL(/\/buckets$/);
+	await expect(page).toHaveURL(planHomeUrl);
 
 	// All of it was saved: the order, both amounts, and next month's.
 	await page.reload();
@@ -280,7 +280,7 @@ test("A Bucket is dragged by its handle, down as well as up, from the smallest m
 	expect(sent.count).toBe(1);
 	// The click that ends a drag lands on the row, and opens neither its sheet nor its page.
 	await expect(page.getByRole("dialog")).toHaveCount(0);
-	await expect(page).toHaveURL(/\/buckets$/);
+	await expect(page).toHaveURL(planHomeUrl);
 
 	// A slow drag, a px at a time: it starts after a few px, and moves one place past half a row.
 	box = await handleOf(page, "Gas").boundingBox();
@@ -322,7 +322,7 @@ test("A Bucket is dragged by its handle, down as well as up, from the smallest m
 	await page.mouse.up();
 	expect(await names(page)).toEqual(["Fun", "Gas", "Gifts", "Groceries"]);
 	await expect(page.getByRole("dialog")).toHaveCount(0);
-	await expect(page).toHaveURL(/\/buckets$/);
+	await expect(page).toHaveURL(planHomeUrl);
 
 	// The arrow keys still move it. By now anything the clicks or the Escape had sent would have
 	// been counted: three drops and moves, three saves.
@@ -374,7 +374,7 @@ test("A Bucket is dragged by its handle under a finger, and the rest of the row 
 	expect(await names(page)).toEqual(["Gas", "Fun", "Groceries", "Gifts"]);
 	expect(sent.count).toBe(1);
 	await expect(page.getByRole("dialog")).toHaveCount(0);
-	await expect(page).toHaveURL(/\/buckets$/);
+	await expect(page).toHaveURL(planHomeUrl);
 
 	// A finger anywhere else on the row scrolls the page and moves nothing. Only Chromium's touches
 	// are real enough to scroll (see `swipe`).

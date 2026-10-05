@@ -3,6 +3,7 @@ import { createTestParent } from "./parents";
 import {
 	addBucketsInSheet,
 	createHousehold,
+	openPlanBuckets,
 	savedBy,
 	serverFn,
 	signedInPage,
@@ -42,8 +43,9 @@ async function setTakeHomePay(page: Page, amount: string) {
 
 /** Opens the part of the Plan a step of the overview's waterfall is, from the Plan's tabs. */
 async function openStep(page: Page, step: string) {
-	const tab =
-		step === "Take-home pay" ? "Income" : step === "Personal Allowances" ? "Buckets" : step;
+	// Buckets and Personal Allowances are on the Plan's first page, under the split.
+	if (step === "Buckets" || step === "Personal Allowances") return openPlanBuckets(page);
+	const tab = step === "Take-home pay" ? "Income" : step;
 	await page
 		.getByRole("navigation", { name: "Plan pages" })
 		.getByRole("link", { name: tab, exact: true })
@@ -63,7 +65,7 @@ async function addBucket(page: Page, name: string, amount: string) {
 	await addBucketsInSheet(page, [[name, amount]]);
 }
 
-/** Opens a Bucket's page from the Plan's Buckets. */
+/** Opens a Bucket's page from the Buckets on the Plan's first page. */
 async function openBucket(page: Page, bucket: string) {
 	await page.getByRole("link", { name: bucket, exact: true }).click();
 	await expect(page.locator("[data-slot=detail-header]")).toContainText(bucket);

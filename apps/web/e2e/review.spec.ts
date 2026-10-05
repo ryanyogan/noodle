@@ -316,7 +316,7 @@ test("Review confirms a merchant's cards, or all with a suggestion, with one Und
 	await expect(acme.getByRole("button", { name: "File without a Bucket" })).toBeVisible();
 	await expect(acme.getByRole("link", { name: /^Set up .*’s Plan$/ })).toHaveAttribute(
 		"href",
-		/\/plan\/\d{4}-\d{2}\/buckets$/,
+		/\/plan\/\d{4}-\d{2}#buckets$/,
 	);
 
 	// Both of one merchant's cards at once; one Undo puts both back.

@@ -5,18 +5,10 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { type TouchEvent, useRef } from "react";
 import { monthName } from "../format";
+import type { PlanView } from "../plan-pages";
 
 /** The two views of a month: what's happening in it, and its Plan. */
 type MonthView = "/month/$month" | PlanView;
-
-/** A page of a month's Plan: the overview, or one of its parts. */
-export type PlanView =
-	| "/plan/$month"
-	| "/plan/$month/income"
-	| "/plan/$month/commitments"
-	| "/plan/$month/buckets"
-	| "/plan/$month/goals"
-	| "/plan/$month/year";
 
 /**
  * A chevron to an adjacent month of the same view; its data preloads on hover or touch (the

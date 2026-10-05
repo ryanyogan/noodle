@@ -66,6 +66,7 @@ import { formatMoney, monthName, shortDay } from "../../../format";
 import { type GoalView, useGoals } from "../../../goals";
 import { useLearned } from "../../../learned";
 import { closingWeek, useCloseMonth } from "../../../month-close";
+import { PLAN_BUCKETS_HASH } from "../../../plan-pages";
 import {
 	checkInStatusQuery,
 	commitmentsQuery,
@@ -242,8 +243,9 @@ function ThisMonth() {
 													// A plain link as tall as the heading from lg (44px on a phone), so
 													// the card under it stays level with Free to Spend's in the rail (#73L).
 													<Link
-														to="/plan/$month/buckets"
+														to="/plan/$month"
 														params={{ month }}
+														hash={PLAN_BUCKETS_HASH}
 														className="-me-1 inline-flex min-h-7 shrink-0 items-center gap-1.5 rounded-md px-1 text-[13px] font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring max-lg:min-h-11 [&_svg]:size-3.5"
 													>
 														<Pencil aria-hidden="true" />
@@ -960,7 +962,7 @@ function useGetStartedSteps(state: MonthState) {
 			done: state.buckets.length > 0,
 			title: "Add Buckets for everyday spending",
 			link: (
-				<Link to="/plan/$month/buckets" params={{ month: state.month }}>
+				<Link to="/plan/$month" params={{ month: state.month }} hash={PLAN_BUCKETS_HASH}>
 					Add Buckets
 				</Link>
 			),

@@ -4,6 +4,7 @@ import {
 	choose,
 	createPlannedHousehold,
 	enterJoinedHousehold,
+	openPlanBuckets,
 	pickQuickAddBucket,
 	serverFn,
 	signedInPage,
@@ -34,15 +35,9 @@ async function quickAdd(page: Page, amount: string, bucket: string, note: string
 }
 
 /** Opens this month's Buckets in the Plan, from This Month. */
-async function openPlanBuckets(page: Page) {
+async function openBuckets(page: Page) {
 	await switchTo(page, "Plan");
-	await page
-		.getByRole("navigation", { name: "Plan pages" })
-		.getByRole("link", { name: "Buckets", exact: true })
-		.click();
-	await expect(page.locator("nav[aria-label='Plan pages'] [aria-current=page]")).toHaveText(
-		"Buckets",
-	);
+	await openPlanBuckets(page);
 }
 
 /** A Bucket's row in the Plan. */
@@ -52,7 +47,7 @@ const planRow = (page: Page, name: string) =>
 /** Sets up the signed-in Parent's Personal Allowance from the Plan; ends on This Month. */
 async function setUpPersonalAllowance(page: Page, amount: string, name: string) {
 	await nav(page).getByRole("link", { name: "This Month" }).click();
-	await openPlanBuckets(page);
+	await openBuckets(page);
 	await page.getByLabel("Your Personal Allowance").fill(amount);
 	await page.getByRole("button", { name: "Set up Personal Allowance" }).click();
 	await expect(page.getByRole("button", { name: `Edit ${name}` })).toBeVisible();
@@ -103,7 +98,7 @@ test("a Personal Allowance's Transactions never reach the other Parent; its tota
 
 		// Each Parent sets their own; each sees the other's amount but can't change it.
 		await setUpPersonalAllowance(alex, "150", ALEX_PA);
-		await openPlanBuckets(sam);
+		await openBuckets(sam);
 		await expect(planRow(sam, ALEX_PA)).toContainText("$150");
 		await expect(sam.getByRole("button", { name: `Edit ${ALEX_PA}` })).toHaveCount(0);
 		await setUpPersonalAllowance(sam, "100", SAM_PA);

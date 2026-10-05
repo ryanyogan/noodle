@@ -3,6 +3,7 @@ import { createTestParent } from "./parents";
 import {
 	createPlannedHousehold,
 	enterJoinedHousehold,
+	openPlanBuckets,
 	pickQuickAddBucket,
 	signedInPage,
 	switchTo,
@@ -122,10 +123,7 @@ test("each Parent's screen shows the other's changes without a reload", async ({
 
 		// Sam raises Hockey's allowance, and Alex's This Month follows.
 		await switchTo(sam, "Plan");
-		await sam
-			.getByRole("navigation", { name: "Plan pages" })
-			.getByRole("link", { name: "Buckets", exact: true })
-			.click();
+		await openPlanBuckets(sam);
 		await sam.getByRole("button", { name: "Edit Hockey" }).click();
 		const hockey = sam.getByRole("dialog", { name: "Hockey" });
 		await hockey.getByRole("textbox", { name: "Allowance", exact: true }).fill("500");

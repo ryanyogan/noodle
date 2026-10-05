@@ -371,7 +371,8 @@ test("on a phone a Commitment is still a page with Back", { tag: "@phone" }, asy
 
 // Plan › Buckets, the first table in the panel's list (issue 107): the row itself opens the Bucket.
 const bucketAddress = new RegExp(`/plan/${month}/buckets/[0-9A-Z]{26}$`);
-const bucketsAddress = new RegExp(`/plan/${month}/buckets$`);
+// Closing a Bucket leaves the Plan's first page, with no hash (the page stays where it is).
+const bucketsAddress = new RegExp(`/plan/${month}$`);
 const bucketRow = (page: Page, name: string) =>
 	page.locator("[data-bucket-row]").filter({ has: page.getByRole("link", { name, exact: true }) });
 
@@ -384,7 +385,7 @@ async function buckets(page: Page) {
 			["Fun", "100"],
 		],
 	});
-	await page.goto(`/plan/${month}/buckets`);
+	await page.goto(`/plan/${month}#buckets`);
 	await expect(page.getByRole("button", { name: "Edit Gas", exact: true })).toBeEnabled();
 }
 
@@ -520,7 +521,7 @@ test("Buckets is a table from 1024 with the totals under it; a Bucket is a drawe
 
 	// The narrowest phone: the same table, stacked; a row opens the Bucket's page, with Back.
 	await page.setViewportSize({ width: 320, height: 700 });
-	await page.goto(`/plan/${month}/buckets`);
+	await page.goto(`/plan/${month}#buckets`);
 	await expect(page.getByRole("button", { name: "Edit Gas", exact: true })).toBeEnabled();
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 	await axe(page, "The Buckets table at 320");

@@ -66,6 +66,7 @@ import { TransactionBody, TransactionEditor } from "../../../components/transact
 import { dayName, formatMoney, monthName } from "../../../format";
 import { forLabel, type MemberSummary } from "../../../members";
 import { useReducedMotion } from "../../../motion";
+import { PLAN_BUCKETS_HASH } from "../../../plan-pages";
 import {
 	goalsQuery,
 	membersQuery,
@@ -1505,7 +1506,7 @@ function ReviewCard({
 					</p>
 					<div className="flex flex-wrap items-center gap-2">
 						<Button variant="ghost" size="sm" asChild>
-							<Link to="/plan/$month/buckets" params={{ month }}>
+							<Link to="/plan/$month" params={{ month }} hash={PLAN_BUCKETS_HASH}>
 								Set up {name}’s Plan
 							</Link>
 						</Button>

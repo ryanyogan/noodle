@@ -252,6 +252,27 @@ export async function switchTo(page: Page, view: "Month" | "Plan") {
 	}).toPass({ timeout: 20_000 });
 }
 
+/** The Plan's first page, as the old Buckets address and links to the Buckets open it. */
+export const planBucketsUrl = /\/plan\/\d{4}-\d{2}#buckets$/;
+/** The Plan's first page with or without the hash: where closing a Bucket leaves the address. */
+export const planHomeUrl = /\/plan\/\d{4}-\d{2}(#buckets)?$/;
+
+/**
+ * Opens the Buckets on the Plan's first page, from any of the Plan's pages. They had a tab of
+ * their own until the first page took them in under the take-home split (issue 109). Leaves a
+ * Bucket that is open as it is (the first tab is the current one there too).
+ */
+export async function openPlanBuckets(page: Page) {
+	const first = page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Overview", exact: true });
+	await expect(first).toBeVisible();
+	if ((await first.getAttribute("aria-current")) !== "page") await first.click();
+	await expect(first).toHaveAttribute("aria-current", "page");
+	// The heading the old address's hash points at.
+	await expect(page.locator("h2#buckets")).toBeVisible();
+}
+
 /**
  * Creates a Household and plans this month: take-home pay and Buckets with allowances ("1,200"),
  * in order, and any Commitments. Ends on This Month. With `viaUi` it sets up the Plan through the
@@ -288,20 +309,16 @@ export async function createPlannedHousehold(
 	const takeHomePaySaved = savedBy(page, "setTakeHomePay");
 	await page.getByRole("button", { name: "Set take-home pay" }).click();
 	await takeHomePaySaved;
+	// The step's link goes down the same page, to the Buckets under the take-home split.
 	await page.getByRole("link", { name: "Add Buckets" }).click();
-	await expect(page.locator("nav[aria-label='Plan pages'] [aria-current=page]")).toHaveText(
-		"Buckets",
-	);
+	await expect(page).toHaveURL(planBucketsUrl);
+	await openPlanBuckets(page);
 	await addBucketsInSheet(page, buckets);
-	await page
-		.getByRole("navigation", { name: "Plan pages" })
-		.getByRole("link", { name: "Overview" })
-		.click();
 	await switchTo(page, "Month");
 }
 
 /**
- * Adds `buckets` (name, monthly amount) to the Plan from its Buckets page, through the Add Buckets
+ * Adds `buckets` (name, monthly amount) to the Plan from its first page, through the Add Buckets
  * sheet: a starter row when one has the name, otherwise "Add your own". Only these are added.
  */
 export async function addBucketsInSheet(page: Page, buckets: [name: string, allowance: string][]) {

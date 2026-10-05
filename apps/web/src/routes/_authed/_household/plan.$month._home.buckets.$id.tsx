@@ -40,6 +40,7 @@ import { TermHelp } from "../../../components/term-help";
 import { EditTransactionSheet, TransactionItem } from "../../../components/transaction-list";
 import { useCovers } from "../../../covers";
 import { formatMoney, monthName } from "../../../format";
+import { PLAN_BUCKETS_HASH } from "../../../plan-pages";
 import {
 	bucketQuery,
 	membersQuery,
@@ -61,7 +62,7 @@ const isOpenTo = (bucket: Pick<BucketRecord, "owner">, parentId: string) =>
 // month and its allowance history, and everything about it the Plan doesn't set (name, colour,
 // carries over, order, archiving). The other Parent's Personal Allowance shows its totals only
 // (ADR-0003): its Transactions are never fetched, and the server wouldn't return them anyway.
-export const Route = createFileRoute("/_authed/_household/plan/$month/buckets/$id")({
+export const Route = createFileRoute("/_authed/_household/plan/$month/_home/buckets/$id")({
 	loader: async ({ context, params }) => {
 		if (!ulidSchema.safeParse(params.id).success) throw notFound();
 		const data = await context.queryClient.ensureQueryData(bucketQuery(params.id));
@@ -337,7 +338,12 @@ function RestoreSheet({
 function BackToBuckets({ month }: { month: MonthKey }) {
 	return (
 		<Button variant="ghost" size="icon" asChild>
-			<Link to="/plan/$month/buckets" params={{ month }} aria-label="Back to Buckets">
+			<Link
+				to="/plan/$month"
+				params={{ month }}
+				hash={PLAN_BUCKETS_HASH}
+				aria-label="Back to Buckets"
+			>
 				<ChevronLeft className="size-5" />
 			</Link>
 		</Button>

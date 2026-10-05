@@ -64,7 +64,7 @@ test("Plan › Buckets says whose Personal Allowance is still to set, until they
 		await sam.getByRole("button", { name: "Join The Pair" }).click();
 		await expect(sam).toHaveURL(/\/joined$/);
 
-		await page.goto(`/plan/${month}/buckets`);
+		await page.goto(`/plan/${month}#buckets`);
 		const note = page.getByText("still to set: Sam’s Personal Allowance");
 		await expect(note.first()).toBeVisible();
 		await shots(page, "still-to-set");

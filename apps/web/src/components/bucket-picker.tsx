@@ -160,7 +160,7 @@ type NewBucket = { bucketId: string; name: string; color: number; allowanceCents
 /**
  * The one step between "Create Bucket “Vet”" and the Transaction being filed there (#90): the
  * name, what the Bucket gets each month, and what that leaves Free to Spend. It writes the Plan's
- * own "add a Bucket" change (the same one Plan › Buckets writes), from this month on, and only
+ * own "add a Bucket" change (the same one the Plan’s Buckets write), from this month on, and only
  * then hands the Bucket back to be filed in. If the Bucket can't be made, the step stays open and
  * says so, and nothing is filed.
  */

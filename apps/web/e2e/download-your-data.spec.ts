@@ -5,6 +5,7 @@ import { createTestParent } from "./parents";
 import {
 	createPlannedHousehold,
 	enterJoinedHousehold,
+	openPlanBuckets,
 	pickQuickAddBucket,
 	signedInPage,
 	switchTo,
@@ -136,10 +137,7 @@ test("the other Parent's download has Alex's Personal Allowance only as its mont
 		.getByRole("link", { name: "This Month" })
 		.click();
 	await switchTo(alex, "Plan");
-	await alex
-		.getByRole("navigation", { name: "Plan pages" })
-		.getByRole("link", { name: "Buckets", exact: true })
-		.click();
+	await openPlanBuckets(alex);
 	await alex.getByLabel("Your Personal Allowance").fill("150");
 	await alex.getByRole("button", { name: "Set up Personal Allowance" }).click();
 	await expect(alex.getByRole("button", { name: "Edit Alex’s Personal Allowance" })).toBeVisible();

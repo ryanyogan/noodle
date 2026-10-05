@@ -124,6 +124,7 @@ export function PlanMasterDetail({
 	aside,
 	noun,
 	listLabel,
+	railLabel = `${listLabel}: totals, add and about`,
 	panel,
 	children,
 }: {
@@ -140,6 +141,8 @@ export function PlanMasterDetail({
 	noun: string;
 	/** Names the list pane, e.g. "Buckets". */
 	listLabel: string;
+	/** Names the rail, where it holds something other than the list's totals and its add form. */
+	railLabel?: string;
 	/**
 	 * From lg the picked item opens in a panel from the window's right edge, over the page, and the
 	 * list keeps its width and columns (issue 107, ADR-0047). `close` is the list's own address. Without it, the
@@ -196,7 +199,6 @@ export function PlanMasterDetail({
 			</div>
 		</div>
 	);
-	const railLabel = `${listLabel}: totals, add and about`;
 	// The picked item opens in a panel from the right (issue 107, ADR-0047): the list and the rail
 	// stay exactly as they are with nothing picked, under it.
 	if (panel)
@@ -220,7 +222,8 @@ export function PlanMasterDetail({
 					</Button>
 				}
 				list={list}
-				aside={rail}
+				// With nothing for the rail (a Plan still being set up), the list has the page's width.
+				aside={overview || aside ? rail : undefined}
 				detail={detail}
 			/>
 		);
@@ -244,24 +247,13 @@ export function PlanMasterDetail({
 	);
 }
 
-/** Each part of the Plan on the way from take-home pay to Free to Spend: its name and its page. */
-export const planParts: Record<
-	PlanPart,
-	{
-		label: string;
-		to: "/plan/$month/commitments" | "/plan/$month/buckets" | "/plan/$month/goals";
-		hash?: string;
-	}
-> = {
-	commitments: { label: "Commitments", to: "/plan/$month/commitments" },
-	buckets: { label: "Buckets", to: "/plan/$month/buckets" },
-	"personal-allowances": {
-		label: "Personal Allowances",
-		to: "/plan/$month/buckets",
-		hash: "personal-allowances",
-	},
-	"goal-funding": { label: "Goal funding", to: "/plan/$month/goals" },
-	covers: { label: "Covers", to: "/plan/$month/buckets" },
+/** Each part of the Plan on the way from take-home pay to Free to Spend: its name. */
+export const planParts: Record<PlanPart, { label: string }> = {
+	commitments: { label: "Commitments" },
+	buckets: { label: "Buckets" },
+	"personal-allowances": { label: "Personal Allowances" },
+	"goal-funding": { label: "Goal funding" },
+	covers: { label: "Covers" },
 };
 
 /** A past month's Plan is closed. */

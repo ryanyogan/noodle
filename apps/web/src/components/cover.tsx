@@ -25,6 +25,7 @@ import { useId, useState } from "react";
 import type { BucketCover } from "../bucket-covers";
 import { asBucketColor, monogram } from "../buckets";
 import { formatMoney, formatMoneyInput, monthName } from "../format";
+import { PLAN_BUCKETS_HASH } from "../plan-pages";
 
 /** What a Cover's source is called: a Bucket's name, or Free to Spend. */
 export const sourceName = (bucket: Pick<BucketState, "name"> | null | undefined) =>
@@ -154,7 +155,7 @@ function CoverForm({
 					Nothing else has money left this month. Raising {bucket.name}’s allowance in the Plan
 					would bring it back to zero.
 					<Button variant="outline" size="sm" asChild>
-						<Link to="/plan/$month/buckets" params={{ month: state.month }}>
+						<Link to="/plan/$month" params={{ month: state.month }} hash={PLAN_BUCKETS_HASH}>
 							Edit Plan
 						</Link>
 					</Button>

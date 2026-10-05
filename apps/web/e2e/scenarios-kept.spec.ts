@@ -6,6 +6,7 @@ import {
 	choose,
 	clientRendered,
 	createPlannedHousehold,
+	openPlanBuckets,
 	signedInPage,
 } from "./session";
 
@@ -152,10 +153,7 @@ test("a kept Scenario still names a Bucket archived since, marked archived", asy
 
 	// Hockey's page, for its id.
 	await page.goto("/plan");
-	await page
-		.getByRole("navigation", { name: "Plan pages" })
-		.getByRole("link", { name: "Buckets", exact: true })
-		.click();
+	await openPlanBuckets(page);
 	await page.getByRole("link", { name: "Hockey", exact: true }).click();
 	await expect(page.locator("[data-slot=detail-header]")).toContainText("Hockey");
 	const bucketPage = page.url();

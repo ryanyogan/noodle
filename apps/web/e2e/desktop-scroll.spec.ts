@@ -29,7 +29,6 @@ const migrated = [
 	"/explore/scenarios",
 	`/plan/${month}`,
 	`/plan/${month}/commitments`,
-	`/plan/${month}/buckets`,
 	`/plan/${month}/goals`,
 	`/plan/${month}/income`,
 	`/plan/${month}/year`,
@@ -62,7 +61,7 @@ const aligned = [
 	"/reports?view=spending",
 	"/insights",
 	// The list-and-detail pages (73e).
-	`/plan/${month}/buckets`,
+	`/plan/${month}#buckets`,
 	`/plan/${month}/commitments`,
 	"/goals",
 	"/accounts",
@@ -174,7 +173,7 @@ test("no desktop page has a region that scrolls inside another", async ({ browse
 	await walk(page, migrated);
 	// An item beside its list (67b, 67c): the page scrolls, not a pane (#73). The busy Household
 	// has no Commitment, so that one is walked only when there is one.
-	const lists = [`/plan/${month}/buckets`, `/plan/${month}/commitments`, "/goals", "/accounts"];
+	const lists = [`/plan/${month}#buckets`, `/plan/${month}/commitments`, "/goals", "/accounts"];
 	for (const path of lists) {
 		await page.goto(path);
 		const item = page.locator("[data-slot=master-detail-list] [data-md-item]").first();

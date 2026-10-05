@@ -4,6 +4,7 @@ import {
 	accountKindLabel,
 	choose,
 	createPlannedHousehold,
+	openPlanBuckets,
 	signedInPage,
 	switchTo,
 } from "./session";
@@ -28,10 +29,7 @@ test("a sheet focuses its first field, and gives focus back to what opened it", 
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
 	await switchTo(page, "Plan");
-	await page
-		.getByRole("navigation", { name: "Plan pages" })
-		.getByRole("link", { name: "Buckets", exact: true })
-		.click();
+	await openPlanBuckets(page);
 
 	// Esc: back to the pencil that opened it.
 	const edit = page.getByRole("button", { name: "Edit Groceries" });

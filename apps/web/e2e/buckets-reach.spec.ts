@@ -1,6 +1,6 @@
 import { type Browser, expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, savedBy, signedInPage } from "./session";
+import { createPlannedHousehold, planBucketsUrl, savedBy, signedInPage } from "./session";
 
 // Finding and changing Buckets (#98): This Month's Buckets heading leads to the list where they
 // are added, changed, moved and archived; a row's pencil opens the one Bucket sheet, where its
@@ -34,7 +34,9 @@ async function reachAndEdit(page: Page) {
 
 	// One tap from This Month, on the Buckets heading.
 	await page.getByRole("link", { name: "Edit Buckets", exact: true }).click();
-	await expect(page).toHaveURL(/\/plan\/\d{4}-\d{2}\/buckets$/);
+	// It opens the Plan's first page at its Buckets, under the take-home split.
+	await expect(page).toHaveURL(planBucketsUrl);
+	await expect(page.locator("h2#buckets")).toBeInViewport();
 	await expect(page.getByRole("button", { name: "Add Buckets", exact: true })).toBeEnabled();
 	// Adding is at the top and under the table.
 	await expect(page.getByRole("button", { name: "Add another Bucket" })).toBeVisible();

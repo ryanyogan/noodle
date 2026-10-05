@@ -182,7 +182,7 @@ test("an item's page has the same header: Back, title and arrows on one row, one
 	await page.goto("/plan");
 	await expect(page).toHaveURL(/\/plan\/\d{4}-\d{2}$/);
 	const month = new URL(page.url()).pathname.split("/").pop();
-	await page.goto(`/plan/${month}/buckets`);
+	await page.goto(`/plan/${month}#buckets`);
 	const list = page.locator("[data-slot=master-detail-list]");
 	await list.getByRole("link", { name: "Groceries", exact: true }).click();
 	await expect(page).toHaveURL(/\/buckets\/[0-9A-Z]{26}$/);

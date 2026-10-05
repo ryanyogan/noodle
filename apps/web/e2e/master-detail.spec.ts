@@ -48,7 +48,7 @@ async function household(page: Page) {
 		baseline: "9,000",
 		buckets: names.map((name) => [name, "50"] as [string, string]),
 	});
-	await page.goto(`/plan/${month}/buckets`);
+	await page.goto(`/plan/${month}#buckets`);
 	await expect(row(page, "Fund 01")).toBeVisible();
 	// Hydrated: a node marked before then could be replaced by the client's render.
 	await expect(page.getByRole("button", { name: "Edit Fund 01" })).toBeEnabled();
@@ -70,10 +70,12 @@ test("the list stays put, keeps its scroll and marks its item while the detail c
 	await household(page);
 
 	// Nothing picked: the rail is beside the list, and there is no panel.
-	await expect(rail(page)).toHaveAttribute("aria-label", "Buckets: totals, add and about");
+	await expect(rail(page)).toHaveAttribute("aria-label", "Buckets’ totals and what changed");
 	await expect(detail(page)).toHaveCount(0);
 	const widthBefore = (await list(page).boundingBox())?.width;
-	await expect(list(page)).toHaveAttribute("aria-label", "Buckets");
+	// The list pane is the Plan's first page: the take-home split with the Buckets under it.
+	await expect(list(page)).toHaveAttribute("aria-label", "The Plan");
+	await expect(list(page).getByRole("region", { name: "Where take-home pay goes" })).toBeVisible();
 	await axe(page, "Buckets, nothing picked");
 
 	// The page scrolls as one (no pane scrolls on its own, #73). Picking from far down the list
@@ -88,10 +90,12 @@ test("the list stays put, keeps its scroll and marks its item while the detail c
 	await expect(title(page)).toHaveText("Fund 12");
 	await expect(picked(page)).toHaveText("Fund 12");
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
-	// The Buckets tab stays the current one on a Bucket's page, and it is the only one (#73).
+	// The first tab stays the current one on a Bucket's address, and it is the only one (#73): the
+	// Bucket is open over that tab's page.
 	await expect(page.locator("nav[aria-label='Plan pages'] [aria-current=page]")).toHaveText(
-		"Buckets",
+		"Overview",
 	);
+	await expect(page.locator("nav[aria-label='Plan pages'] [aria-current]")).toHaveCount(1);
 	// The Bucket is in a panel on the window's right edge (issue 107), the height of the window;
 	// the list is as wide as it was.
 	await expect(detail(page)).toHaveAttribute("aria-label", "Bucket details");
@@ -105,7 +109,7 @@ test("the list stays put, keeps its scroll and marks its item while the detail c
 
 	// Esc closes the panel and goes back to the row; ↑ and ↓ move along the rows; Enter opens.
 	await page.keyboard.press("Escape");
-	await expect(page).toHaveURL(new RegExp(`/plan/${month}/buckets$`));
+	await expect(page).toHaveURL(new RegExp(`/plan/${month}$`));
 	await expect(detail(page)).toHaveCount(0);
 	await expect(row(page, "Fund 12")).toBeFocused();
 	await page.keyboard.press("ArrowUp");
@@ -119,10 +123,13 @@ test("the list stays put, keeps its scroll and marks its item while the detail c
 	await expect(picked(page)).toHaveText("Fund 11");
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
 
-	// The Buckets tab closes the item: the add form is one step away.
-	await page.getByRole("link", { name: "Buckets", exact: true }).click();
-	await expect(page).toHaveURL(new RegExp(`/plan/${month}/buckets$`));
-	await expect(rail(page)).toHaveAttribute("aria-label", "Buckets: totals, add and about");
+	// The page's own tab closes the item: Add Buckets is one step away.
+	await page
+		.getByRole("navigation", { name: "Plan pages" })
+		.getByRole("link", { name: "Overview", exact: true })
+		.click();
+	await expect(page).toHaveURL(new RegExp(`/plan/${month}$`));
+	await expect(rail(page)).toHaveAttribute("aria-label", "Buckets’ totals and what changed");
 	await expect(detail(page)).toHaveCount(0);
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
 	await page.context().close();

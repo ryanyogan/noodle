@@ -1,6 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, serverFn, signedInPage, switchTo } from "./session";
+import {
+	createPlannedHousehold,
+	openPlanBuckets,
+	serverFn,
+	signedInPage,
+	switchTo,
+} from "./session";
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -89,10 +95,7 @@ test("Quick Add opens over any screen, and Back closes it without reloading the 
 	// A half-typed Personal Allowance in the Plan survives opening and closing Quick Add (a Bucket
 	// changes in a sheet, which Quick Add can't open over).
 	await switchTo(page, "Plan");
-	await page
-		.getByRole("navigation", { name: "Plan pages" })
-		.getByRole("link", { name: "Buckets", exact: true })
-		.click();
+	await openPlanBuckets(page);
 	const typed = page.getByLabel("Your Personal Allowance");
 	await typed.fill("75");
 	await page.getByRole("link", { name: "Quick Add" }).click();

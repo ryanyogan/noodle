@@ -147,7 +147,7 @@ test("the Bucket sheet opens on its amount and stays above the keyboard with Sav
 	});
 	const now = new Date();
 	await page.goto(
-		`/plan/${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}/buckets`,
+		`/plan/${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}#buckets`,
 	);
 	await expect(page.getByRole("button", { name: "Add Buckets", exact: true })).toBeEnabled();
 	const keyboardGone = await withKeyboard(page, keyboardHeight);
