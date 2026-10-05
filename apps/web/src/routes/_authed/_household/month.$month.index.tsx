@@ -690,16 +690,17 @@ function FreeToSpend({
 						</p>
 					) : null}
 					{carry.builtUp.length > 1 && state.freeCarriedIn > 0 ? (
-						<ul
-							aria-label="What Free to Spend carried over, month by month"
-							className="flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] text-muted-foreground tabular-nums"
-						>
-							{carry.builtUp.map((m) => (
-								<li key={m.month}>
-									{monthName(m.month).slice(0, 3)} {formatMoney(m.amount)}
-								</li>
-							))}
-						</ul>
+						<div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] text-muted-foreground tabular-nums">
+							{/* The list's name says the same to a screen reader. */}
+							<span aria-hidden="true">Built up:</span>
+							<ul aria-label="What Free to Spend carried over, month by month" className="contents">
+								{carry.builtUp.map((m) => (
+									<li key={m.month}>
+										{monthName(m.month).slice(0, 3)} {formatMoney(m.amount)}
+									</li>
+								))}
+							</ul>
+						</div>
 					) : null}
 					{lower?.prompt ? (
 						<LowerTakeHomePayNote
@@ -731,7 +732,7 @@ function Breakdown({ state, baseline }: { state: MonthState; baseline: number })
 	const id = useId();
 	return (
 		<div className="grid gap-2.5 border-t px-(--card-pad) py-3">
-			<p id={id} className="text-[13px] text-muted-foreground tabular-nums">
+			<p id={id} className="text-[13px] text-balance text-muted-foreground tabular-nums">
 				{breakdownLabel(baseline, state.extraToFreeToSpend, state.freeCarriedIn)}
 			</p>
 			<MonthGlance state={state} labelledBy={id} />

@@ -236,10 +236,16 @@ function YearLegend() {
 
 /** From a tablet up: the months as rows of one table, the Plan's figures across. */
 function YearTable({ months }: { months: YearMonth[] }) {
-	const total = (key: keyof YearFigures) => months.reduce((sum, m) => sum + m.plan[key], 0);
+	// Carried-over money is the same dollars counted again in the next month's Free to Spend, so the
+	// year's total leaves it out: the row still reads take-home pay less every part (issue 113).
+	const total = (key: keyof YearFigures) =>
+		months.reduce((sum, m) => sum + m.plan[key] - (key === "freeToSpend" ? m.carriedIn : 0), 0);
 	// Only a Household whose Free to Spend builds up has anything carried over (issue 113).
 	const carries = months.some((m) => m.carriedIn > 0);
 	const cell = "px-2 first:ps-(--card-pad) last:pe-(--card-pad) xl:px-(--card-pad)";
+	// With the extra column the headings no longer fit on one line at 1024, and the last column
+	// (Free to Spend) was cut off: below the wide layout they may wrap instead.
+	const head = cn(cell, carries && "max-xl:py-1.5 max-xl:leading-tight max-xl:whitespace-normal");
 	return (
 		<Card className="max-md:hidden">
 			<Table>
@@ -255,11 +261,11 @@ function YearTable({ months }: { months: YearMonth[] }) {
 						{FIGURES.map((f) => (
 							<Fragment key={f.key}>
 								{carries && f.key === "freeToSpend" ? (
-									<TableHead scope="col" numeric className={cell}>
+									<TableHead scope="col" numeric className={head}>
 										Carried over
 									</TableHead>
 								) : null}
-								<TableHead scope="col" numeric className={cell}>
+								<TableHead scope="col" numeric className={head}>
 									{f.label}
 								</TableHead>
 							</Fragment>
