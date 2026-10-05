@@ -29,7 +29,8 @@ const plan = {
 
 const sheet = (page: Page) => page.getByRole("dialog", { name: "Quick Add" });
 const picks = (page: Page) => sheet(page).getByRole("listbox", { name: "Add to" });
-const list = (page: Page) => page.getByRole("grid", { name: /^Transactions in / });
+const list = (page: Page) =>
+	page.getByRole("grid", { name: /^Transactions in / }).locator("[data-slot=data-table-body]");
 const editSheet = (page: Page) =>
 	page
 		.locator("[role=dialog], [data-slot=transaction-detail]")

@@ -17,7 +17,8 @@ test.afterEach(async () => {
 	await parent?.remove();
 });
 
-const list = (page: Page) => page.getByRole("grid", { name: /^Transactions in / });
+const list = (page: Page) =>
+	page.getByRole("grid", { name: /^Transactions in / }).locator("[data-slot=data-table-body]");
 const editSheet = (page: Page) =>
 	page
 		.locator("[role=dialog], [data-slot=transaction-detail]")

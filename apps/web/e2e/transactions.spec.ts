@@ -40,7 +40,8 @@ const editSheet = (page: Page) =>
 		.locator("[role=dialog], [data-slot=transaction-detail]")
 		.filter({ has: page.getByRole("heading", { name: "Edit Transaction" }) });
 const nav = (page: Page) => page.getByRole("navigation", { name: "Main" });
-const list = (page: Page) => page.getByRole("grid", { name: /^Transactions in / });
+const list = (page: Page) =>
+	page.getByRole("grid", { name: /^Transactions in / }).locator("[data-slot=data-table-body]");
 const row = (page: Page, title: string) =>
 	list(page).getByRole("button", { name: new RegExp(`^${title},`) });
 const bucketRow = (page: Page, name: string) =>

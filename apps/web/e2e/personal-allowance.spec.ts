@@ -16,7 +16,8 @@ const editSheet = (page: Page) =>
 	page
 		.locator("[role=dialog], [data-slot=transaction-detail]")
 		.filter({ has: page.getByRole("heading", { name: "Edit Transaction" }) });
-const list = (page: Page) => page.getByRole("grid", { name: /^Transactions in / });
+const list = (page: Page) =>
+	page.getByRole("grid", { name: /^Transactions in / }).locator("[data-slot=data-table-body]");
 const bucketRow = (page: Page, name: string) =>
 	page.getByRole("listitem", { name: new RegExp(`^${name}: `) });
 

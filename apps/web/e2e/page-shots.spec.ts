@@ -185,6 +185,7 @@ async function selectThree(page: Page) {
 	await pressFor(page.locator("button:visible", { hasText: /^Select$/ }).first(), bar);
 	const rows = page
 		.getByRole("grid", { name: /^Transactions in / })
+		.locator("[data-slot=data-table-body]")
 		.locator("[data-slot=list-row]")
 		.getByRole("button");
 	for (let row = 0; row < 3; row++) await rows.nth(row).click({ timeout: 15_000 });

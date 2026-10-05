@@ -25,7 +25,8 @@ test.afterEach(async () => {
 });
 
 const q = (value: string) => `'${value.replaceAll("'", "''")}'`;
-const list = (page: Page) => page.getByRole("grid", { name: /^Transactions in / });
+const list = (page: Page) =>
+	page.getByRole("grid", { name: /^Transactions in / }).locator("[data-slot=data-table-body]");
 const row = (page: Page, title: string) =>
 	list(page).getByRole("button", { name: new RegExp(`^${title},`, "i") });
 const bar = (page: Page) => page.getByRole("region", { name: "Selecting Transactions" });
