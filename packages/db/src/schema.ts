@@ -385,6 +385,27 @@ export const bankLinePairs = sqliteTable(
 	],
 );
 
+// A line a Parent deleted from an Account (ADR-0045): the ID its Transaction was kept under there
+// (`transactions.external_id`: a statement line's, or `id:<bank ID>` for a Bank Connection's).
+// An Import leaves these out, so a deleted line doesn't come back with the next sync or when the
+// same statement is uploaded again. Only the ID is kept, nothing else about the Transaction.
+export const deletedBankLines = sqliteTable(
+	"deleted_bank_lines",
+	{
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		accountId: text("account_id")
+			.notNull()
+			.references(() => accounts.id),
+		externalId: text("external_id").notNull(),
+		deletedAt: integer("deleted_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [primaryKey({ columns: [t.accountId, t.externalId] })],
+);
+
 // A batch of Transactions brought in from an Account: from a statement file a Parent uploaded
 // (kept in R2 under `file_key`), or read from its Bank Connection ("bank"). Its lines land as
 // Transactions (money out, and money back on a card or loan) and income (money into a checking or
@@ -1384,6 +1405,7 @@ export const householdSnapshots = sqliteTable(
 				"before-fresh-start",
 				"before-delete",
 				"before-rule-apply",
+				"before-transactions-delete",
 			],
 		}).notNull(),
 		takenBy: text("taken_by"),

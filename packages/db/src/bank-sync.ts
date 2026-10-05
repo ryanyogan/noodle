@@ -9,6 +9,7 @@ import {
 } from "@noodle/domain";
 import { and, asc, eq, inArray, type SQL, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
+import { bankLinesNotDeleted } from "./deleted-lines";
 import { importStatement } from "./imports";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
@@ -97,12 +98,17 @@ export async function syncBankLines(
 		for (const month of [...matched.months, ...moved.months]) months.add(month);
 	}
 
+	// Lines a Parent deleted stay deleted, a pending one's posted copy too (ADR-0045).
+	const kept = await bankLinesNotDeleted(db, { householdId, accountId, lines: plan.add });
+	if (kept.writes.length > 0) {
+		await db.batch(kept.writes as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+	}
 	// Lines a statement already brought in (or an earlier Bank Connection) aren't brought in again.
 	const notHere = await bankLinesNotHere(db, {
 		householdId,
 		accountId,
 		connectionId: input.connectionId,
-		lines: plan.add,
+		lines: kept.add,
 	});
 	if (notHere.writes.length > 0) {
 		await db.batch(notHere.writes as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);

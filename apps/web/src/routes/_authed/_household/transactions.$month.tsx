@@ -53,6 +53,7 @@ import {
 	useBringsSpendingIn,
 	waitingForBank,
 } from "../../../components/transaction-list";
+import { DeleteSelectedSheet, SelectionBar } from "../../../components/transaction-selection";
 import { dayName, formatMoney, monthName } from "../../../format";
 import { type AccountView, useGoals } from "../../../goals";
 import { type MemberSummary, pickableMembers } from "../../../members";
@@ -60,6 +61,12 @@ import { goalsQuery, membersQuery, monthQuery, reviewQuery } from "../../../quer
 import { monthKeySchema } from "../../../server/month";
 import { ulidSchema } from "../../../server/schemas";
 import { forFilterSchema, SEARCH_MAX, transactionSortSchema } from "../../../server/transactions";
+import {
+	isPicked,
+	nothingPicked,
+	type Picking,
+	togglePicked,
+} from "../../../transaction-selection";
 import {
 	type TransactionFilters,
 	type TransactionRow,
@@ -116,10 +123,16 @@ function TransactionsPage() {
 	const members = useSuspenseQuery(membersQuery()).data;
 	const { accounts } = useGoals();
 	const [editing, setEditing] = useState<TransactionRow | null>(null);
+	// Select mode (#97): what is selected, by ID or as "all that match", never by rows on screen.
+	const [picking, setPicking] = useState<Picking | null>(null);
+	const [confirming, setConfirming] = useState(false);
+	const hydrated = useHydrated();
 	// The Transaction open in the pane beside the list (its route is this one's child).
 	const picked = useParams({ strict: false, select: (params) => params.transactionId });
 	// From lg a Transaction opens beside the list, at its own address; on a phone, in a sheet.
 	const onEdit = (transaction: TransactionRow) => {
+		// While selecting, a tap selects (or unselects) instead of opening.
+		if (picking) return setPicking(togglePicked(picking, transaction.id));
 		if (window.matchMedia("(min-width: 1024px)").matches) {
 			void navigate({
 				to: "/transactions/$month/$transactionId",
@@ -158,6 +171,12 @@ function TransactionsPage() {
 	// The order isn't a filter: every Transaction is still there.
 	const { sort: _sort, ...narrowing } = filters;
 	const filtered = Object.values(narrowing).some((value) => value !== undefined);
+	// Another month or other filters: "all that match" would mean something else, so start again.
+	const shown = JSON.stringify([month, narrowing]);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: `shown` is what resets the selection
+	useEffect(() => {
+		setPicking((was) => (was ? nothingPicked : was));
+	}, [shown]);
 	const onChange = (next: TransactionFilters) =>
 		void navigate({
 			search: (prev) => ({
@@ -178,6 +197,17 @@ function TransactionsPage() {
 				title={sameYear ? monthName(month) : `${monthName(month)} ${month.slice(0, 4)}`}
 				actions={
 					<div className="flex flex-wrap items-center justify-end gap-1">
+						{picking ? null : (
+							<Button
+								variant="outline"
+								size="sm"
+								className="me-1"
+								disabled={!hydrated}
+								onClick={() => setPicking(nothingPicked)}
+							>
+								Select
+							</Button>
+						)}
 						<Button variant="outline" size="sm" className="me-2" asChild>
 							<Link
 								to="/review"
@@ -227,7 +257,21 @@ function TransactionsPage() {
 			    list; a Transaction taller than the window scrolls in its pane, so it stays beside its row. */}
 			<SplitLayout stack="rail" className="max-lg:gap-4">
 				<SplitMain className={cn(picked && "max-lg:hidden")}>
+					{picking ? (
+						<div className="mb-2">
+							<SelectionBar
+								month={month}
+								filters={filters}
+								filtered={filtered}
+								picking={picking}
+								onPick={setPicking}
+								onDelete={() => setConfirming(true)}
+								onCancel={() => setPicking(null)}
+							/>
+						</div>
+					) : null}
 					<TransactionList
+						picking={picking}
 						month={month}
 						filters={filters}
 						today={asOf}
@@ -265,6 +309,17 @@ function TransactionsPage() {
 					) : null}
 				</SplitRail>
 			</SplitLayout>
+			<DeleteSelectedSheet
+				open={confirming}
+				picking={picking}
+				month={month}
+				filters={filters}
+				onClose={() => setConfirming(false)}
+				onDeleted={() => {
+					setConfirming(false);
+					setPicking(null);
+				}}
+			/>
 			<TransactionEditor
 				transaction={editing}
 				today={asOf}
@@ -581,9 +636,12 @@ function TransactionList({
 	members,
 	filtered,
 	picked,
+	picking,
 	onSort,
 	onEdit,
 }: {
+	/** Select mode's selection; null when the list isn't selecting. */
+	picking: Picking | null;
 	month: MonthKey;
 	filters: TransactionFilters;
 	today: DayKey;
@@ -740,6 +798,7 @@ function TransactionList({
 							columns
 							dated={byAmount}
 							selected={item.transaction.id === picked}
+							checked={picking ? isPicked(picking, item.transaction.id) : undefined}
 							onEdit={onEdit}
 						/>
 					);
