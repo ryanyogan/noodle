@@ -125,8 +125,9 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 	await details.getByRole("button", { name: "Save", exact: true }).click();
 	await expect(details).toBeHidden();
 	await expect(page.locator("[data-slot=detail-header]")).toContainText("Kids’ hockey");
-	// Moved in the list, by its handle and the arrow keys; saved at once.
-	await page.getByRole("link", { name: "Buckets", exact: true }).click();
+	// Moved in the list, by its handle and the arrow keys; saved at once. At this width the Bucket
+	// is a drawer over the dimmed page, so it is closed first.
+	await page.getByRole("link", { name: "Close Bucket" }).click();
 	const moved = savedBy(page, "reorderBuckets");
 	await page.getByRole("button", { name: "Move Kids’ hockey" }).focus();
 	await page.keyboard.press("ArrowUp");

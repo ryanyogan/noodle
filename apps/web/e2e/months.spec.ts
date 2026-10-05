@@ -69,6 +69,8 @@ async function setCarriesOver(page: Page, bucket: string) {
 	await expect(page.getByRole("region", { name: /^(Left|Over) this month$/ })).toContainText(
 		"Carries over",
 	);
+	// At this width the Bucket is a drawer over the dimmed page: closed before going elsewhere.
+	await page.getByRole("link", { name: "Close Bucket" }).click();
 	await page
 		.getByRole("navigation", { name: "Main" })
 		.getByRole("link", { name: "This Month" })

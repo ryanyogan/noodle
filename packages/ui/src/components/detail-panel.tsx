@@ -416,7 +416,12 @@ function ListWithPanel({
 				<MasterDetailPane
 					data-slot="master-detail-aside"
 					aria-label={asideLabel}
-					className={cn("@container/detail", picked && "max-lg:hidden")}
+					className={cn(
+						"@container/detail",
+						// Under the list it is part of the page's flow: it doesn't stay put as a rail does.
+						besideFrom === "late" && "lg:max-[90rem]:static!",
+						picked && "max-lg:hidden",
+					)}
 				>
 					{aside}
 				</MasterDetailPane>
