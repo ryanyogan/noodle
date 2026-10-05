@@ -4,7 +4,7 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
 import { choose, createHousehold, openMore, savedBy, signedInPage } from "./session";
-import { q, seedIncomeHousehold, seedShotsHousehold } from "./shots-household";
+import { q, seedBetweenUs, seedIncomeHousehold, seedShotsHousehold } from "./shots-household";
 
 // Pictures of every page with one realistic Household, for looking at a redesign without a browser
 // on the machine: .github/workflows/shots.yml runs this on GitHub and uploads the PNGs. Not a test
@@ -237,7 +237,48 @@ test.beforeAll(async ({ browser }) => {
 		colorScheme,
 	});
 
-	const { month, bucketIds, commitmentIds, ids } = await seedShotsHousehold(page, parent.userId);
+	const { householdId, parentId, month, bucketIds, commitmentIds, ids } = await seedShotsHousehold(
+		page,
+		parent.userId,
+	);
+	// Money between the two Parents: a deposit from Sam among the Income, and a line sent to Sam.
+	let sentToSam = "";
+	await attempt("Money between the two Parents", async () => {
+		sentToSam = await seedBetweenUs(householdId, parentId, ids.checking);
+	});
+	/** Plan › Income with the Zelle from Sam counted as Income (`marked` false) or between us. */
+	const zelleFromSam = async (page: Page, marked: boolean) => {
+		const region = page.locator('section[aria-label="Between us"]:visible').first();
+		const hint = page.getByText("From the other Parent? It’s between us").first();
+		if (marked) {
+			await expect(async () => {
+				if (!(await region.isVisible())) {
+					await page
+						.getByRole("button", { name: "Actions for $1,500 of income" })
+						.first()
+						.click({ timeout: 2000 });
+					await page
+						.getByRole("menuitem", { name: "It’s between us · not Income" })
+						.click({ timeout: 2000 });
+				}
+				await expect(region).toBeVisible({ timeout: 5000 });
+			}).toPass({ timeout: 30_000 });
+			// The toast has gone before the picture: it would sit over the rows on a phone.
+			await expect(page.getByRole("status").filter({ hasText: "is between you" })).toHaveCount(0, {
+				timeout: 20_000,
+			});
+		} else {
+			await expect(async () => {
+				if (await region.isVisible())
+					await region
+						.getByRole("button", { name: "Count $1,500 as Income" })
+						.click({ timeout: 2000 });
+				await expect(hint).toBeVisible({ timeout: 5000 });
+			}).toPass({ timeout: 30_000 });
+		}
+		const shown = marked ? region : hint;
+		await shown.evaluate((node) => node.scrollIntoView({ block: "center" }));
+	};
 
 	// Two credit cards with their Perks, one of them used.
 	await attempt("Credit card perks", async () => {
@@ -762,6 +803,32 @@ test.beforeAll(async ({ browser }) => {
 		},
 		...small,
 		...fresh,
+		// Money between the two Parents, last: marking it changes the month's Income for good.
+		{
+			// The deposit from Sam among the Income, with the line under it that says what it may be.
+			name: "40-income-from-the-other-parent",
+			path: `/plan/${month}/income`,
+			window: true,
+			ready: (page) => zelleFromSam(page, false),
+		},
+		{
+			// Marked: out of the Income total and listed under "Between us" with "Count as Income".
+			name: "41-income-between-us",
+			path: `/plan/${month}/income`,
+			window: true,
+			ready: (page) => zelleFromSam(page, true),
+		},
+		{
+			// Money sent to Sam, in no Bucket: "Mark as Transfer" and "It’s between us" side by side.
+			name: "42-transaction-between-us",
+			path: `/transactions/${month}/${sentToSam}`,
+			window: true,
+			ready: async (page) => {
+				const button = page.getByRole("button", { name: "It’s between us" }).first();
+				await expect(button).toBeVisible({ timeout: 15_000 });
+				await button.evaluate((node) => node.scrollIntoView({ block: "center" }));
+			},
+		},
 	];
 	mkdirSync(OUT, { recursive: true });
 	writeFileSync(
