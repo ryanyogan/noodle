@@ -7,6 +7,7 @@ import {
 	enterJoinedHousehold,
 	serverFn,
 	signedInPage,
+	toCents,
 	uploadStatement,
 	waitForReview,
 } from "./session";
@@ -71,6 +72,7 @@ async function setUp(
 	const thisMonth = page.url();
 	await uploadStatement(page, lines, true);
 	await waitForReview(page, new URL("/review", thisMonth).href, `1 of ${lines.length}`);
+	return thisMonth;
 }
 
 test("Review sorts one card at a time: confirm, pick another, skip and undo, by button and by key", async ({
@@ -663,4 +665,123 @@ test("on a desktop Review one by one fills the window without scrolling, and the
 		(await detail.boundingBox())?.y ?? -1,
 		"the opened card is in the window",
 	).toBeGreaterThanOrEqual(0);
+});
+
+/** Skips until the card with no suggestion (ACME, which the fake never guesses) is on top. */
+async function toAcme(page: Page) {
+	for (let i = 0; i < 3; i++) {
+		const name = await topName(page);
+		if (name === "Acme Widgets") break;
+		await stack(page).getByRole("button", { name: "Skip" }).click();
+		await expect(top(page).getByRole("heading", { level: 3 })).not.toHaveText(name);
+	}
+	await expect(top(page).getByRole("heading", { level: 3 })).toHaveText("Acme Widgets");
+}
+
+test("a card's picker creates a Bucket by the name typed, with an allowance, and files the card there", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	const thisMonth = await setUp(page);
+	await toAcme(page);
+
+	// The Create row is last, under what partly matches, and never the row Enter would pick while
+	// a real match is listed. A name the picker already has, whatever its capitals, gets no row.
+	await top(page).getByRole("combobox", { name: "Where Acme Widgets goes", exact: true }).click();
+	const find = page.getByPlaceholder("Find a Bucket");
+	const options = page.getByRole("listbox").getByRole("option");
+	await find.fill("gro");
+	await expect(options).toHaveText(["Groceries", "Create Bucket “gro”"]);
+	await expect(options.first()).toHaveAttribute("data-selected", "true");
+	await find.fill(" GAS ");
+	await expect(options).toHaveText(["Gas"]);
+	await find.fill("Widgets");
+	await expect(options).toHaveText(["Create Bucket “Widgets”"]);
+	await page.keyboard.press("Enter");
+
+	// One step: the name as typed, the allowance suggested from the Transaction ($19.99 → $20),
+	// and what it does to Free to Spend. Nothing is made or filed yet.
+	const step = page.getByRole("dialog", { name: "New Bucket" });
+	await expect(step).toContainText("Acme Widgets ($19.99) will be filed in it.");
+	await expect(step.getByLabel("Name")).toHaveValue("Widgets");
+	const allowance = step.getByLabel("Allowance each month");
+	await expect(allowance).toHaveValue("20");
+	await expect(stack(page)).toContainText("1 of 3");
+
+	// A name the Plan already has is turned down.
+	await step.getByLabel("Name").fill("gas");
+	await step.getByRole("button", { name: "Create and file here" }).click();
+	await expect(step).toContainText("Your Plan already has “Gas”. Pick another name.");
+	await step.getByLabel("Name").fill("Widgets");
+
+	await allowance.fill("50");
+	const left = step.getByTestId("new-bucket-left");
+	await expect(left).toHaveText(/^Free to Spend goes from \S+ to \S+\.$/);
+	const [, before, after] = /from (\S+) to (\S+)\.$/.exec(await left.innerText()) ?? [];
+	if (!before || !after) throw new Error("no Free to Spend line");
+	expect(toCents(before) - toCents(after)).toBe(5000);
+
+	// Create and file: the Bucket is added, then the card is filed there like any other, and the
+	// same Rule is offered as for a Bucket that was already there.
+	const added = page.waitForResponse((r) => serverFn("addBucket")(new URL(r.url())));
+	await step.getByRole("button", { name: "Create and file here" }).click();
+	expect((await added).ok()).toBe(true);
+	await expect(step).toBeHidden();
+	await expect(said(page)).toHaveText("Filed Acme Widgets in Widgets. 2 left.");
+	await expect(page.getByTestId("review-rule-offer")).toContainText(
+		/Always file “Acme Widgets.*” in Widgets\?/,
+	);
+
+	// Undo puts the card back, as for any filing; the Bucket stays, now a choice in the picker.
+	await stack(page).getByRole("button", { name: "Undo" }).click();
+	await expect(top(page).getByRole("heading", { level: 3 })).toHaveText("Acme Widgets");
+	await pick(page, "Where Acme Widgets goes", "Widgets");
+	await expect(said(page)).toHaveText("Filed Acme Widgets in Widgets. 2 left.");
+
+	// This Month: Free to Spend is down by the allowance, and the Bucket is there.
+	await page.goto(thisMonth);
+	await expect(page.getByRole("region", { name: "Free to Spend" })).toContainText(after);
+	await expect(page.getByRole("main")).toContainText("Widgets");
+
+	// Plan › Buckets: the Bucket, with its allowance and what was filed in it.
+	await page.goto(thisMonth.replace(/\/month\/(\d{4}-\d{2}).*$/, "/plan/$1/buckets"));
+	const row = page.locator("[data-bucket-row]").filter({ hasText: "Widgets" });
+	await expect(row).toHaveCount(1);
+	await expect
+		.poll(() =>
+			row.evaluate((el) =>
+				[el.textContent, ...[...el.querySelectorAll("input")].map((input) => input.value)].join(
+					" ",
+				),
+			),
+		)
+		.toMatch(/(?<![\d.,])50(?![\d,])/);
+	await expect.poll(() => row.evaluate((el) => el.textContent ?? "")).toMatch(/19\.99|30\.01/);
+});
+
+test("on a phone a card's picker creates a Bucket with the suggested allowance and files the card there", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await setUp(page);
+	await page.setViewportSize({ width: 393, height: 852 });
+	await toAcme(page);
+
+	await top(page).getByRole("combobox", { name: "Where Acme Widgets goes", exact: true }).click();
+	await page.getByPlaceholder("Find a Bucket").fill("Vet");
+	await page.getByRole("listbox").getByRole("option", { name: "Create Bucket “Vet”" }).click();
+
+	const step = page.getByRole("dialog", { name: "New Bucket" });
+	await expect(step.getByLabel("Name")).toHaveValue("Vet");
+	await expect(step.getByLabel("Allowance each month")).toHaveValue("20");
+	await expect(step.getByTestId("new-bucket-left")).toHaveText(
+		/^Free to Spend goes from \S+ to \S+\.$/,
+	);
+	// The one button that does it is on screen without scrolling.
+	await expect(step.getByRole("button", { name: "Create and file here" })).toBeInViewport();
+	await step.getByRole("button", { name: "Create and file here" }).click();
+	await expect(step).toBeHidden();
+	await expect(said(page)).toHaveText("Filed Acme Widgets in Vet. 2 left.");
 });

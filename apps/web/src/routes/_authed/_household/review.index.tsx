@@ -12,11 +12,10 @@ import {
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
-import { Combobox } from "@noodle/ui/components/combobox";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Kbd } from "@noodle/ui/components/kbd";
 import { MasterDetail, SectionGrid } from "@noodle/ui/components/layout";
-import type { Choices } from "@noodle/ui/components/select";
+import type { ChoiceGroup } from "@noodle/ui/components/select";
 import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
 import { toast } from "@noodle/ui/components/toast";
@@ -52,6 +51,7 @@ import {
 import { ulid } from "ulid";
 import { z } from "zod";
 import { asBucketColor, monogram } from "../../../buckets";
+import { BucketPicker, NewBucketStep } from "../../../components/bucket-picker";
 import { DetailHeader, DetailPending } from "../../../components/master-detail";
 import { ReviewMatchOffer } from "../../../components/match-section";
 import { RuleForm } from "../../../components/rule-form";
@@ -158,6 +158,10 @@ function ReviewPage() {
 	const today = useSuspenseQuery(monthQuery(current)).data.asOf;
 	const [cursor, setCursor] = useState<string | null>(null);
 	const [changing, setChanging] = useState<ReviewItem | null>(null);
+	/** A Bucket being made from a card's picker, to file that card in (#90). */
+	const [creating, setCreating] = useState<{ item: ReviewItem; name: string; plan: Plan } | null>(
+		null,
+	);
 	const [stack, dispatch] = useReducer(stackReducer<ReviewItem>, startStack<ReviewItem>());
 	const sorting = Route.useSearch().view !== "list";
 	const reduced = useReducedMotion();
@@ -788,6 +792,12 @@ function ReviewPage() {
 											onFocus={() => {}}
 											onConfirm={() => confirm(order[0] as ReviewItem)}
 											onPick={(value, plan) => file(order[0] as ReviewItem, value, plan)}
+											onCreate={
+												earlier(order[0])
+													? undefined
+													: (name, plan) =>
+															setCreating({ item: order[0] as ReviewItem, name, plan })
+											}
 											onEdit={() => onEdit(order[0] as ReviewItem)}
 											onConfirmAll={(items) => confirmEach(items)}
 											onFileWithout={
@@ -934,6 +944,11 @@ function ReviewPage() {
 															onFocus={() => setCursor(item.id)}
 															onConfirm={() => confirm(item)}
 															onPick={(value, plan) => file(item, value, plan)}
+															onCreate={
+																earlier(item)
+																	? undefined
+																	: (name, plan) => setCreating({ item, name, plan })
+															}
 															onEdit={() => onEdit(item)}
 															onConfirmAll={(items) => confirmEach(items)}
 															onFileWithout={
@@ -1003,6 +1018,27 @@ function ReviewPage() {
 				{/* Rules background AI would add, from what this Parent keeps filing by hand: quiet, below. */}
 				<Suggested kinds={["rule"]} className="max-w-xl" />
 			</div>
+			{creating ? (
+				<Suspense fallback={null}>
+					<NewBucketStep
+						month={monthOfTransaction(creating.item)}
+						name={creating.name}
+						what={labelOf(creating.item)}
+						amountCents={creating.item.amountCents}
+						buckets={creating.plan.buckets}
+						taken={[...creating.plan.buckets, ...creating.plan.commitments].map((p) => p.name)}
+						onCancel={() => setCreating(null)}
+						onCreated={(bucket) => {
+							// The Bucket is in the Plan: now the usual filing, with its Undo and its Rule offer.
+							setCreating(null);
+							file(creating.item, `bucket:${bucket.id}`, {
+								...creating.plan,
+								buckets: [...creating.plan.buckets, bucket],
+							});
+						}}
+					/>
+				</Suspense>
+			) : null}
 			{changing ? (
 				<Suspense fallback={null}>
 					<ChangeSheet
@@ -1191,6 +1227,7 @@ function ReviewCard({
 	onFocus,
 	onConfirm,
 	onPick,
+	onCreate,
 	onEdit,
 	onConfirmAll,
 	onFileWithout,
@@ -1207,6 +1244,8 @@ function ReviewCard({
 	onFocus: () => void;
 	onConfirm: () => void;
 	onPick: (value: string, plan: Plan) => void;
+	/** Makes a Bucket by the name typed in the picker, and files it there. Not for an earlier month. */
+	onCreate?: (name: string, plan: Plan) => void;
 	onEdit: () => void;
 	onConfirmAll: (items: ReviewItem[]) => void;
 	/** Files it without a Bucket: offered for an earlier month, or one with nothing to file in. */
@@ -1222,7 +1261,7 @@ function ReviewCard({
 	const bucket = plan?.buckets.find((b) => b.id === item.guess?.bucketId);
 	const headingId = `review-${item.id}`;
 	const empty = places !== null && places.buckets.length === 0 && places.commitments.length === 0;
-	const choices: Choices = places
+	const choices: ChoiceGroup[] = places
 		? [
 				{
 					label: "Buckets",
@@ -1328,7 +1367,7 @@ function ReviewCard({
 				</div>
 			) : (
 				<div className="flex items-center gap-2 max-[359px]:flex-wrap">
-					<Combobox
+					<BucketPicker
 						id={pickerId(item)}
 						// On the narrowest phones, with a suggestion, the picker has the row under Confirm and Edit.
 						className={cn(
@@ -1341,6 +1380,7 @@ function ReviewCard({
 						searchPlaceholder="Find a Bucket"
 						choices={choices}
 						onValueChange={(value) => plan && onPick(value, plan)}
+						onCreate={onCreate && plan ? (name) => onCreate(name, plan) : undefined}
 					/>
 					<Button
 						variant="ghost"
