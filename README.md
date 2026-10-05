@@ -20,6 +20,8 @@ clerk link && (cd apps/web && clerk env pull --file .dev.vars)   # or copy .dev.
 (cd apps/web && bun run db:migrate:local && bun run dev)          # http://localhost:5173
 ```
 
+Bank Connections locally: nothing is needed for the fake Plaid, which is what E2E uses (`AI_MODEL=stub bun run dev`): it stands in for Plaid and for Plaid Link and calls nothing. Without it, and without Plaid's secrets, Accounts says Plaid isn't set up and everything else works. To try real Plaid Link against Plaid's Sandbox (free practice banks), add `PLAID_CLIENT_ID`, the **Sandbox** `PLAID_SECRET`, a `BANK_CONNECTION_KEY` (`openssl rand -base64 32`) and `PLAID_ENV=sandbox` to `apps/web/.dev.vars`; `PLAID_ENV` is needed because `wrangler.jsonc` says `"production"` for the deployed app. Never put the production secret in `.dev.vars`.
+
 Seed data: `cd apps/web && bun run seed <fresh|starter|busy>` replaces the local D1 with a just-created Household, one two weeks in, or eight months of heavy use, and prints the Parent logins. It never touches remote D1. See `docs/seed-data.md` for what each scenario holds and how to sign in.
 
 Checks: `bun run typecheck`, `bun run lint`, `bun run test` (unit), `cd apps/web && bun run e2e` (Playwright against a local Worker + local D1; creates and deletes a throwaway Clerk user per test). The E2E suite includes screenshot tests of the app shell; after an intentional visual change, run `bun run e2e --update-snapshots` and review the new images before committing.
@@ -35,7 +37,7 @@ The Worker is `noodle` (https://noodle.yogan.dev, also at https://noodle.ryanyog
 One-time setup, not automated:
 
 - Worker secrets: `wrangler secret put CLERK_SECRET_KEY` and `wrangler secret put VITE_CLERK_PUBLISHABLE_KEY` (run in `apps/web`). Without them every request returns 500.
-- Bank Connections (Plaid, ADR-0017): `wrangler secret put` `PLAID_CLIENT_ID`, `PLAID_SECRET` and `BANK_CONNECTION_KEY` (`openssl rand -base64 32`). `PLAID_ENV` in `wrangler.jsonc` is `"sandbox"`, and `PLAID_SECRET` is the Sandbox secret. To move to Plaid's Trial plan (production), set `PLAID_ENV` to `"production"` and replace `PLAID_SECRET` with the production secret. Without the three secrets the Accounts page says Plaid isn't set up. Local development and E2E use Sandbox or the fake Plaid.
+- Bank Connections (Plaid, ADR-0017): `wrangler secret put` `PLAID_CLIENT_ID`, `PLAID_SECRET` and `BANK_CONNECTION_KEY` (`openssl rand -base64 32`; never replace it once Bank Connections exist). The deployed app is on Plaid's production environment (Trial plan): `PLAID_ENV` in `wrangler.jsonc` is `"production"`, and `PLAID_SECRET` is the production secret. Without the three secrets the Accounts page says Plaid isn't set up. The dashboard steps a production Plaid team needs (redirect URI, OAuth banks, a Data Transparency Messaging use case) and how to rotate the secret are in `docs/runbooks/plaid-production.md`.
 - GitHub Actions secrets: `VITE_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` (Clerk dev instance, for E2E; `gh secret set -f apps/web/.dev.vars` sets both), `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` (for deploy).
 
 ## Verified versions (2026-09-28)
