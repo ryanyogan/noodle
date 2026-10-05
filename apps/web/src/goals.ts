@@ -1,4 +1,4 @@
-import type { AccountRecord, GoalChange, GoalRecord } from "@noodle/db";
+import type { AccountRecord, ArchivedAccount, GoalChange, GoalRecord } from "@noodle/db";
 import {
 	type AccountKind,
 	accountBalance,
@@ -43,7 +43,7 @@ import {
 } from "./server/goals";
 import type { MonthData } from "./server/month";
 
-export type { AccountRecord, GoalChange, GoalRecord, GoalsData };
+export type { AccountRecord, ArchivedAccount, GoalChange, GoalRecord, GoalsData };
 
 // ---------------------------------------------------------------------------------------------
 // Views: what the Goal and Account screens show, derived from the cached records with
@@ -88,6 +88,8 @@ export type GoalsView = {
 	accounts: AccountView[];
 	/** In the order they were added. */
 	goals: GoalView[];
+	/** Accounts a Parent archived (ADR-0046), the latest first: listed only to be restored. */
+	archivedAccounts: ArchivedAccount[];
 };
 
 export const goalState = (goal: Pick<GoalRecord, "completed" | "archived">): GoalState =>
@@ -160,6 +162,7 @@ export const goalsView = (data: GoalsData): GoalsView => ({
 	asOf: data.asOf,
 	accounts: data.accounts.map((account) => accountView(data, account)),
 	goals: data.goals.map((goal) => goalView(data, goal)),
+	archivedAccounts: data.archivedAccounts,
 });
 
 /** Every Account and Goal, derived from the cached records. */

@@ -1,17 +1,29 @@
-import { accountLabel } from "@noodle/domain";
+import { accountLabel, dayKeyAt } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@noodle/ui/components/collapsible";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Money } from "@noodle/ui/components/money";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Stat, StatGrid } from "@noodle/ui/components/stat";
 import { Tile } from "@noodle/ui/components/tile";
+import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
-import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, useHydrated, useParams } from "@tanstack/react-router";
-import { Landmark, Plus } from "lucide-react";
+import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import {
+	createFileRoute,
+	Link,
+	useHydrated,
+	useParams,
+	useRouteContext,
+} from "@tanstack/react-router";
+import { ChevronRight, Landmark, Plus } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { accountSource, accountSourceText } from "../../../account-source";
 import {
@@ -34,9 +46,16 @@ import {
 	sectionHeaderOverItem,
 } from "../../../components/master-detail";
 import { SaveFailed } from "../../../components/plan-editing";
-import { formatMoney } from "../../../format";
-import { type AccountView, accountKindName, useAddAccount, useGoals } from "../../../goals";
+import { formatMoney, shortDay } from "../../../format";
+import {
+	type AccountView,
+	type ArchivedAccount,
+	accountKindName,
+	useAddAccount,
+	useGoals,
+} from "../../../goals";
 import { bankConnectionsQuery, goalsQuery } from "../../../queries";
+import { restoreAccount } from "../../../server/bank-connections";
 
 export const Route = createFileRoute("/_authed/_household/accounts")({
 	loader: ({ context }) =>
@@ -49,7 +68,7 @@ export const Route = createFileRoute("/_authed/_household/accounts")({
 
 function AccountsPage() {
 	const hydrated = useHydrated();
-	const { accounts } = useGoals();
+	const { accounts, archivedAccounts } = useGoals();
 	const [adding, setAdding] = useState(false);
 	const picked = useParams({ strict: false, select: (params) => params.accountId });
 	const addAccount = useAddAccount();
@@ -71,6 +90,7 @@ function AccountsPage() {
 					<AddAccountForm onAdd={(account) => addAccount.mutate(account)} />
 					<SaveFailed change={addAccount} />
 					{bank.connections.length > 0 ? <BankConnections bank={bank} /> : bank.chooseSheet}
+					<ArchivedAccounts accounts={archivedAccounts} />
 				</div>
 			</>
 		);
@@ -104,6 +124,7 @@ function AccountsPage() {
 						<AccountGroup id="accounts-cash" title="Cash" accounts={cash} />
 						<AccountGroup id="accounts-owed" title="Cards and loans" accounts={owing} />
 						<BankConnections bank={bank} />
+						<ArchivedAccounts accounts={archivedAccounts} />
 					</>
 				}
 			/>
@@ -147,6 +168,69 @@ function AccountGroup({
 				))}
 			</AccountList>
 		</Section>
+	);
+}
+
+/**
+ * The Accounts a Parent archived (ADR-0046), folded away at the bottom: each with Restore, which
+ * puts it back in the list, the pickers and the totals. Nothing while there are none.
+ */
+function ArchivedAccounts({ accounts }: { accounts: ArchivedAccount[] }) {
+	const queryClient = useQueryClient();
+	const { timeZone } = useRouteContext({ from: "/_authed/_household" }).household;
+	const restore = useMutation({
+		mutationFn: (account: ArchivedAccount) => restoreAccount({ data: { accountId: account.id } }),
+		onSuccess: (_result, account) => {
+			toast(`${account.name} is back in Accounts, kept by hand or by statements.`);
+			void queryClient.invalidateQueries({ queryKey: goalsQuery().queryKey });
+			void queryClient.invalidateQueries({ queryKey: bankConnectionsQuery().queryKey });
+		},
+		onError: () => toast("Couldn’t restore it. Try again.", { tone: "error" }),
+	});
+	if (accounts.length === 0) return null;
+	return (
+		<Collapsible className="group grid min-w-0 gap-3">
+			<CollapsibleTrigger className="flex min-h-11 items-center gap-2 justify-self-start rounded-md pe-3 text-sm font-medium text-muted-foreground hover:text-foreground">
+				<ChevronRight
+					aria-hidden="true"
+					className="size-4 transition-transform group-data-[state=open]:rotate-90"
+				/>
+				Archived
+				<span className="tabular-nums">{accounts.length}</span>
+			</CollapsibleTrigger>
+			<CollapsibleContent>
+				<Card>
+					<ul aria-label="Archived Accounts" className="[&>li+li]:border-t">
+						{accounts.map((account) => (
+							<li
+								key={account.id}
+								className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-(--card-pad) py-3"
+							>
+								<div className="grid min-w-0 gap-0.5">
+									<p className="text-sm font-medium [overflow-wrap:anywhere]">
+										{accountLabel(account)}
+									</p>
+									<p className="text-[13px] text-muted-foreground">
+										{accountKindName[account.kind]} · Archived{" "}
+										{shortDay(dayKeyAt(new Date(account.archivedAt), timeZone))}
+									</p>
+								</div>
+								<Button
+									type="button"
+									variant="outline"
+									className="min-h-11"
+									disabled={restore.isPending}
+									aria-label={`Restore ${account.name}`}
+									onClick={() => restore.mutate(account)}
+								>
+									Restore
+								</Button>
+							</li>
+						))}
+					</ul>
+				</Card>
+			</CollapsibleContent>
+		</Collapsible>
 	);
 }
 

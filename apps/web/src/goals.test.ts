@@ -15,6 +15,7 @@ import type { MonthData } from "./server/month";
 
 const goals: GoalsData = {
 	emergencyGoalId: null,
+	archivedAccounts: [],
 	month: "2026-09",
 	asOf: "2026-09-15",
 	accounts: [

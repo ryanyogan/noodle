@@ -7,7 +7,7 @@ import {
 	holdsMoney,
 	planBankSync,
 } from "@noodle/domain";
-import { and, asc, eq, inArray, type SQL, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, type SQL, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { importStatement } from "./imports";
 import type { Db } from "./index";
@@ -37,7 +37,7 @@ export type BankSyncResult = {
 
 /**
  * Syncs one of a Bank Connection's Accounts with the provider's `lines` and `removed` line IDs.
- * Null when the Account is gone or isn't the Bank Connection's. New lines land as the Import
+ * Null when the Account is gone, archived, or isn't the Bank Connection's (unlinked: ADR-0046). New lines land as the Import
  * `importId`, idempotently, as importStatement's do.
  */
 export async function syncBankLines(
@@ -62,6 +62,8 @@ export async function syncBankLines(
 				eq(accounts.id, accountId),
 				eq(accounts.householdId, householdId),
 				eq(accounts.bankConnectionId, input.connectionId),
+				// Nothing new is brought into an archived Account (ADR-0046).
+				isNull(accounts.archivedAt),
 			),
 		);
 	if (!account) return null;

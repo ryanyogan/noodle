@@ -43,7 +43,7 @@ export function loadAccountNames(
 	return db
 		.select({ name: accounts.name, kind: accounts.kind })
 		.from(accounts)
-		.where(eq(accounts.householdId, householdId));
+		.where(and(eq(accounts.householdId, householdId), isNull(accounts.archivedAt)));
 }
 
 /**

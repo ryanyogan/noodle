@@ -6,7 +6,7 @@ import {
 	type StatementLine,
 	statementLineIds,
 } from "@noodle/domain";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
 import { statementLinesBanked } from "./same-lines";
@@ -84,7 +84,14 @@ export async function importStatement(
 	const [account] = await db
 		.select({ kind: accounts.kind })
 		.from(accounts)
-		.where(and(eq(accounts.id, accountId), eq(accounts.householdId, householdId)));
+		.where(
+			and(
+				eq(accounts.id, accountId),
+				eq(accounts.householdId, householdId),
+				// Nothing new is brought into an archived Account (ADR-0046).
+				isNull(accounts.archivedAt),
+			),
+		);
 	if (!account) return { ok: false, reason: "no-account" };
 
 	const ids = statementLineIds(input.lines);

@@ -123,7 +123,8 @@ _Avoid_: Rollover, reconciliation, closing the books
 
 **Account**:
 A real-world place money lives or is owed: a checking/savings account, credit card, line of credit, or loan.
-_Avoid_: Bank, card (as a generic term)
+A Parent can **archive** one they no longer use (ADR-0046): it leaves the Accounts list, the pickers and the totals, and nothing new is brought into it. Its Transactions and history stay as they are, so past months don't change. "Restore", under Archived on Accounts, brings it back. An Account a Goal that isn't archived is kept in can't be archived until the Goal is.
+_Avoid_: Bank, card (as a generic term); delete, close, hide (for archive)
 
 **Transaction**:
 A single movement of real money in or out of an Account. It is assigned as a whole, or through Splits, to Buckets, Commitments, or Goals.
@@ -157,6 +158,7 @@ An ongoing authorized link to a financial institution that produces Imports auto
 Each is one login at one institution and covers every account under that login. Reconnecting keeps the same Bank Connection.
 A Parent chooses **how far back** it goes when they connect it: this month only (a fresh start, recommended) or the last 30, 60, 90, 120 or 365 days. No Import from it keeps a Transaction dated before that start, and the start can't be changed afterwards (ADR-0017). One connected before this was asked keeps everything. It goes through Plaid (ADR-0017), which counts each one against a small allowance.
 Connecting asks, for each account there, which Account the Household already has it as (Noodle suggests one by name, kind and last digits), or adds it as a new Account, or leaves it out (ADR-0020). An Account paired this way keeps everything on it; its bank's lines that a statement already brought in aren't added again. Stopping keeps the Account, kept by hand or by statements again.
+A Parent can **stop syncing** one Account (unlink it; ADR-0046): that Account is kept by hand or by statements from then on, with all its Transactions, and the Bank Connection's other Accounts go on syncing. Stopping the last one disconnects the Bank Connection. To sync it again the Parent chooses it for the Bank Connection again, or connects the bank again; nothing already there is added twice.
 _Avoid_: Integration, link, Plaid (as a domain term)
 
 **Pending**:

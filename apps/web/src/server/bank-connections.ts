@@ -10,9 +10,9 @@ import {
 	loadBankLinkSession,
 	markBankConnectionReconnected,
 	markBankNewAccounts,
+	restoreAccount as restoreAccountInDb,
 	saveBankLinkSession,
 	saveBankWebhookUrl,
-	unpairAccount,
 } from "@noodle/db";
 import { dayKeyAt } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
@@ -33,6 +33,12 @@ import { openCredential } from "./bank-credential";
 import { disconnectBankConnection } from "./bank-disconnect";
 import type { BankImportMessage } from "./bank-import-workflow";
 import { type BankSetup, bankSetup, providerFor, setUpProviders } from "./bank-setup";
+import {
+	type ArchiveAccountFnResult,
+	archiveAccountAndUnlink,
+	type UnlinkBankAccountResult,
+	unlinkBankAccount,
+} from "./bank-unlink";
 import { getDb } from "./db";
 import { householdMiddleware } from "./household";
 import { notifyHousehold } from "./notify";
@@ -467,17 +473,70 @@ export const chooseBankAccountsFn = createServerFn({ method: "POST" })
 		return { ok: true, accounts: result.accounts, refused: result.refused };
 	});
 
+/** What unlinking and archiving need of the bank: only there when Plaid is set up. */
+function unlinkDeps(householdId: string) {
+	const setup = bankSetup();
+	return {
+		db: getDb(),
+		bank: setup
+			? {
+					providerFor: (provider: BankProvider) => providerFor(setup, provider),
+					openCredential: async (connection: { id: string; credential: string }) =>
+						openCredential(await setup.key(), connection.credential, {
+							householdId,
+							connectionId: connection.id,
+						}),
+				}
+			: null,
+	};
+}
+
 /**
- * Stops bringing an Account in from its Bank Connection (ADR-0020). The Account and everything on
- * it stay; it's kept by hand or by statements again.
+ * Stops syncing one Account with its bank (ADR-0020, ADR-0046). The Account and everything on it
+ * stay; it's kept by hand or by statements again, and the Bank Connection's other Accounts go on
+ * syncing. When it was the last one, the Bank Connection is disconnected too.
  */
 export const unpairBankAccount = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ accountId: ulidSchema }))
+	.handler(async ({ data, context }): Promise<UnlinkBankAccountResult> => {
+		const householdId = context.household.id;
+		const result = await unlinkBankAccount(unlinkDeps(householdId), {
+			householdId,
+			accountId: data.accountId,
+		});
+		if (result.ok) await notifyHousehold(householdId, ["goals", "bank-connections"]);
+		return result;
+	});
+
+/**
+ * Archives an Account (ADR-0046): out of the Accounts list, the pickers and the totals, with its
+ * Transactions and history kept. One that still syncs with its bank is unlinked first. Refused,
+ * naming them, while a Goal that isn't archived is kept in it.
+ */
+export const archiveAccount = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ accountId: ulidSchema }))
+	.handler(async ({ data, context }): Promise<ArchiveAccountFnResult> => {
+		const householdId = context.household.id;
+		const result = await archiveAccountAndUnlink(unlinkDeps(householdId), {
+			householdId,
+			accountId: data.accountId,
+		});
+		// Even when refused part-way (the bank said no), what the screens show may have moved.
+		await notifyHousehold(householdId, ["goals", "bank-connections"]);
+		return result;
+	});
+
+/** Brings an archived Account back to Accounts, kept by hand. */
+export const restoreAccount = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ accountId: ulidSchema }))
 	.handler(async ({ data, context }): Promise<{ ok: boolean }> => {
-		const done = await unpairAccount(getDb(), context.household.id, data.accountId);
-		if (done) await notifyHousehold(context.household.id, ["goals", "bank-connections"]);
-		return { ok: done };
+		const householdId = context.household.id;
+		const ok = await restoreAccountInDb(getDb(), { householdId, accountId: data.accountId });
+		if (ok) await notifyHousehold(householdId, ["goals", "bank-connections"]);
+		return { ok };
 	});
 
 export type DisconnectBankFnResult =
