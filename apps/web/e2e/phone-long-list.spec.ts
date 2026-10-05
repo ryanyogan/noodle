@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
 import { clientRendered, createPlannedHousehold, signedInPage } from "./session";
-import { swipe } from "./touch";
+import { realTouch, swipe } from "./touch";
 
 // A busy Transactions month on a phone (#66): flung with a touch and scrolled with a wheel, the
 // list never shows a blank gap and the frames keep up. Long tasks come from the
@@ -88,19 +88,24 @@ test("a busy month flings without blank gaps or long frames", async ({ browser }
 			return found;
 		});
 
+	// Playwright has no mouse wheel in mobile WebKit ("Mouse wheel is not supported"), and its
+	// swipe can't scroll there either: the page is scrolled by script instead, which still makes
+	// the list draw the rows for wherever it lands.
+	const wheel = (dy: number) =>
+		realTouch(page) ? page.mouse.wheel(0, dy) : page.evaluate((dy) => window.scrollBy(0, dy), dy);
 	const start = await page.evaluate(() => window.scrollY);
 	for (let i = 0; i < 4; i++) {
 		// A quick flick up (Chromium scrolls with it; elsewhere the wheel below does the work).
 		await swipe(page, rows.nth(2), -360, 3);
 		expect(await gaps(), `after flick ${i + 1}`).toEqual([]);
 		await page.mouse.move(196, 500);
-		await page.mouse.wheel(0, 900);
+		await wheel(900);
 		await page.waitForTimeout(150);
 		expect(await gaps(), `after wheel ${i + 1}`).toEqual([]);
 	}
 	expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(start + 1000);
 	// And back up in one go.
-	await page.mouse.wheel(0, -20000);
+	await wheel(-20000);
 	await page.waitForTimeout(300);
 	expect(await gaps(), "back at the top").toEqual([]);
 

@@ -28,8 +28,11 @@ jobs:
   # Decides what this run tests:
   # - tested: this exact commit already passed CI on another branch (the wizard-53 run before
   #   main), so main skips E2E and goes straight to deploy;
-  # - phone: which phone projects run. Chromium and WebKit as an iPhone 15 on every push; WebKit as
-  #   an iPhone SE only when asked for from the Actions tab.
+  # - phone: the phone jobs, each a project, its shard and its pool of reused test Parents
+  #   (e2e/parents.ts). Chromium as an iPhone 15 on two runners (pools s1 and s2, shared with the
+  #   desktop shards of the same number) and WebKit as an iPhone 15 on three (wk1 to wk3, its own
+  #   18 Parents) on every push; WebKit as an iPhone SE on one (se1, 6 Parents) only when asked
+  #   for from the Actions tab.
   gate:
     runs-on: ubuntu-latest
     # Reading earlier runs needs actions: read; the default token can't (403).
@@ -49,15 +52,13 @@ jobs:
               --jq '[.workflow_runs[] | select(.name == "CI" and .head_branch != "main")] | length')
             [ "$count" -gt 0 ] && tested=true
           fi
-          case "${{ github.event_name }}" in
-            workflow_dispatch)
-              if [ "${{ inputs.webkit }}" = "true" ]; then
-                phone='["chromium-mobile","webkit-iphone","webkit-iphone-se"]'
-              else
-                phone='["chromium-mobile","webkit-iphone"]'
-              fi ;;
-            *) phone='["chromium-mobile","webkit-iphone"]' ;;
-          esac
+          job() { printf '{"project":"%s","shard":%s,"of":%s,"pool":"%s"}' "$1" "$2" "$3" "$4$2"; }
+          phone="$(job chromium-mobile 1 2 s),$(job chromium-mobile 2 2 s)"
+          phone="$phone,$(job webkit-iphone 1 3 wk),$(job webkit-iphone 2 3 wk),$(job webkit-iphone 3 3 wk)"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.webkit }}" = "true" ]; then
+            phone="$phone,$(job webkit-iphone-se 1 1 se)"
+          fi
+          phone="[$phone]"
           echo "tested=$tested" >> "$GITHUB_OUTPUT"
           echo "phone=$phone" >> "$GITHUB_OUTPUT"
           echo "Already passed on another branch: $tested; phone projects: $phone"
@@ -176,17 +177,17 @@ jobs:
           name: playwright-traces-${{ matrix.shard }}
           path: apps/web/test-results
 
-  # The phone tests (phone-*.spec.ts, sheet-phone.spec.ts and tests tagged @phone), on two runners
-  # per phone project the gate chose.
+  # The phone tests (phone-*.spec.ts, sheet-phone.spec.ts and tests tagged @phone): one runner for
+  # each job the gate listed.
   e2e-phone:
     needs: gate
     if: needs.gate.outputs.tested != 'true'
+    name: e2e-phone (${{ matrix.project }}, ${{ matrix.shard }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        project: ${{ fromJSON(needs.gate.outputs.phone) }}
-        shard: [1, 2]
+        include: ${{ fromJSON(needs.gate.outputs.phone) }}
     # Playwright's image already has Chromium, WebKit and their system libraries, so no job installs
     # them. Keep its tag equal to @playwright/test in apps/web/package.json.
     container:
@@ -195,10 +196,8 @@ jobs:
     env:
       CI: "true"
       E2E_SERVER: build
-      # Names this runner's pool of reused test Parents (e2e/parents.ts, #108). Chromium's phone
-      # jobs share s1 and s2 with the desktop shards; the WebKit jobs have a pool of their own (wk1
-      # and wk2, 12 Parents), so a WebKit job never holds a Parent a Chromium job is using.
-      E2E_POOL: ${{ matrix.project == 'chromium-mobile' && 's' || 'wk' }}${{ matrix.shard }}
+      # Names this runner's pool of reused test Parents (e2e/parents.ts, #108): the gate chose it.
+      E2E_POOL: ${{ matrix.pool }}
     steps:
       - uses: actions/checkout@v5
       # setup-bun needs unzip, which the image lacks; npm's bun package is the same binary.
@@ -216,7 +215,7 @@ jobs:
           AI_MODEL: stub
       # On main a failure that hits every test (sign-in, say) stops after three instead of letting
       # each test run to its timeout, twice; other branches run every test.
-      - run: bun run e2e --project=${{ matrix.project }} --shard=${{ matrix.shard }}/2 --workers=3 ${{ github.ref == 'refs/heads/main' && '--max-failures=3' || '' }}
+      - run: bun run e2e --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.of }} --workers=3 ${{ github.ref == 'refs/heads/main' && '--max-failures=3' || '' }}
         working-directory: apps/web
       - name: Slowest 20 tests
         if: ${{ !cancelled() }}
