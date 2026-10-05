@@ -73,6 +73,14 @@ export function masterDetailKeys(event: KeyboardEvent<HTMLElement>) {
 }
 
 /**
+ * `onKeyDown` where the picked item opens in a `DetailPanel` (issue 107): the list's keys as above.
+ * Esc is the panel's own: it closes the item and puts focus back on its row.
+ */
+export function panelKeys(event: KeyboardEvent<HTMLElement>) {
+	if (event.key !== "Escape") masterDetailKeys(event);
+}
+
+/**
  * On the section's header (its `PageHeader`, or the header and tabs of a `SectionLayout`). On a
  * phone an open item is a page of its own with its own header (`DetailHeader`: Back returns to the
  * list), so the section's header isn't drawn over it: its h1 stays for screen readers, and its
@@ -140,6 +148,7 @@ export function DetailHeader({
 	actions,
 	pager,
 	listBeside,
+	inPanel,
 }: {
 	eyebrow?: ReactNode;
 	title: ReactNode;
@@ -152,17 +161,29 @@ export function DetailHeader({
 	 * Back and previous/next show only below lg, where the item is a page of its own.
 	 */
 	listBeside?: boolean;
+	/**
+	 * From lg the item is in a `DetailPanel` over the page (issue 107): the panel has its own Close,
+	 * so Back shows only below lg, where the item is a page; previous and next show at every width.
+	 */
+	inPanel?: boolean;
 }) {
 	const phoneOnly = listBeside ? "lg:hidden" : undefined;
 	return (
 		<header
 			data-slot="detail-header"
 			data-item-page=""
-			className="mb-6 flex flex-wrap items-center gap-x-2 gap-y-1 max-lg:mb-4 max-lg:min-h-13 max-lg:gap-x-1"
+			className={cn(
+				"mb-6 flex flex-wrap items-center gap-x-2 gap-y-1 max-lg:mb-4 max-lg:min-h-13 max-lg:gap-x-1",
+				// Room for the panel's Close, which sits in this corner.
+				inPanel && "lg:pe-10",
+			)}
 		>
 			{/* Phones: the arrow's glyph, not its 44px box, sits on the 16px gutter. */}
 			{leading ? (
-				<div data-slot="detail-back" className={cn("flex max-lg:-ms-3", phoneOnly)}>
+				<div
+					data-slot="detail-back"
+					className={cn("flex max-lg:-ms-3", inPanel ? "lg:hidden" : phoneOnly)}
+				>
 					{leading}
 				</div>
 			) : null}
@@ -175,7 +196,9 @@ export function DetailHeader({
 				) : null}
 				<h2
 					data-slot="detail-title"
-					className="text-xl font-semibold tracking-[-0.02em] text-balance break-words lg:text-2xl"
+					// Focus lands here when the item opens in a panel (issue 107).
+					tabIndex={-1}
+					className="rounded-sm text-xl font-semibold tracking-[-0.02em] text-balance break-words outline-none focus-visible:ring-2 focus-visible:ring-ring lg:text-2xl"
 				>
 					{title}
 				</h2>
