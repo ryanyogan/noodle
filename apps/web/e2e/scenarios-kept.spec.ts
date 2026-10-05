@@ -123,7 +123,7 @@ test("a Scenario opened from a link is kept, applied with a preview, and compare
 	await expect(numbers.getByRole("row", { name: /^New roof reached/ })).toBeVisible();
 	await expect(page.getByRole("group", { name: "Projected balance" })).toBeVisible();
 
-	// It opens a kept Scenario beside the list, and from there in Explore to carry on with it.
+	// It opens a kept Scenario in the panel over Compare, and from there in Explore to carry on with it.
 	await saved(page, "Pay cut").getByRole("link", { name: "Pay cut" }).click();
 	await expect(page.locator("[data-slot=detail-title]")).toHaveText("Pay cut");
 	await expect(page).toHaveURL(/\/explore\/scenarios\/[0-9A-Z]{26}\?compare=/);

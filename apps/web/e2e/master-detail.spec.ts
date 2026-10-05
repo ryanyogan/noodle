@@ -507,7 +507,7 @@ test("a Rule opens in a panel over the Rules page, and is a page with Back on a 
 	await page.context().close();
 });
 
-test("a kept Scenario opens beside the Scenarios list, and Compare still works", async ({
+test("a kept Scenario opens in a panel over Compare, which stays, and is a page on a phone", async ({
 	browser,
 }) => {
 	test.slow();
@@ -533,12 +533,22 @@ test("a kept Scenario opens beside the Scenarios list, and Compare still works",
 		pane.dataset.kept = "yes";
 	});
 
-	// Nothing picked: ticking a Scenario compares it with the Plan in the right pane.
+	// Nothing ticked: the wide column beside the list says what it is for.
+	await expect(rail(page)).toHaveAttribute("aria-label", "Scenarios overview");
+	await expect(rail(page)).toHaveText("Tick Scenarios in the list to compare them here.");
+	// Ticking a Scenario compares it with the Plan there.
 	await page.getByRole("checkbox", { name: "Compare “Raise”" }).check();
 	await expect(numbers.getByRole("columnheader")).toHaveText(["Number", "Plan", "Raise"]);
 	await expect(page).toHaveURL(/\/explore\/scenarios\?compare=[0-9A-Z]{26}$/);
+	// Its charts load after the numbers: measured once they are in.
+	await expect(rail(page).getByRole("group", { name: "Projected balance" })).toBeVisible();
+	const listBefore = await list(page).boundingBox();
+	const compareBefore = await rail(page).boundingBox();
+	// Compare is the wide column, not a rail: wider than the list.
+	expect(compareBefore?.width ?? 0).toBeGreaterThan(listBefore?.width ?? 0);
 
-	// Picked: the Scenario is read beside the list, at its own address, with what's compared kept.
+	// Picked: the Scenario opens in a panel on the window's right edge, at its own address, with
+	// what's compared kept. The list and Compare are where and as wide as they were.
 	await row(page, "Pay cut").click();
 	await expect(page).toHaveURL(/\/explore\/scenarios\/[0-9A-Z]{26}\?compare=[0-9A-Z]{26}$/);
 	await expect(title(page)).toHaveText("Pay cut");
@@ -548,10 +558,48 @@ test("a kept Scenario opens beside the Scenarios list, and Compare still works",
 	);
 	await expect(detail(page).getByRole("link", { name: "Open in Explore" })).toBeVisible();
 	await expect(detail(page).getByRole("tab", { name: "Projected balance" })).toBeVisible();
-	await expect(numbers).toHaveCount(0);
+	await expect(page.getByRole("region", { name: "Scenario details" })).toBeVisible();
+	await expect(detail(page)).toHaveCSS("position", "fixed");
+	await expect
+		.poll(async () => {
+			const box = await detail(page).boundingBox();
+			return box ? Math.round(box.x + box.width) : -1;
+		})
+		.toBe(1440);
+	const panelBox = await detail(page).boundingBox();
+	expect(await list(page).boundingBox()).toEqual(listBefore);
+	const compareAfter = await rail(page).boundingBox();
+	expect([compareAfter?.x, compareAfter?.y, compareAfter?.width]).toEqual([
+		compareBefore?.x,
+		compareBefore?.y,
+		compareBefore?.width,
+	]);
+	// The panel is over Compare's right-hand part only: none of the list is under it, and Compare's
+	// first columns still show beside it.
+	expect((listBefore?.x ?? 0) + (listBefore?.width ?? 0)).toBeLessThanOrEqual(panelBox?.x ?? 0);
+	expect(compareBefore?.x ?? 0).toBeLessThan((panelBox?.x ?? 0) - 100);
+	await expect(numbers.getByRole("columnheader")).toHaveText(["Number", "Plan", "Raise"]);
 	await expect(page.getByRole("checkbox", { name: "Compare “Raise”" })).toBeChecked();
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
-	await axe(page, "A Scenario beside the list");
+	await expect(title(page)).toBeFocused();
+	await expect(page.getByRole("link", { name: "Back to Scenarios" })).toBeHidden();
+	await axe(page, "A Scenario in its panel");
+	// Close and Esc go back to the list with what's compared kept, and focus returns to the row.
+	const close = detail(page).getByRole("link", { name: "Close Scenario" });
+	await expect(close).toBeVisible();
+	await close.click();
+	await expect(page).toHaveURL(/\/explore\/scenarios\?compare=[0-9A-Z]{26}$/);
+	await expect(detail(page)).toHaveCount(0);
+	await expect(numbers.getByRole("columnheader")).toHaveText(["Number", "Plan", "Raise"]);
+	await row(page, "Pay cut").click();
+	await expect(title(page)).toHaveText("Pay cut");
+	await expect(title(page)).toBeFocused();
+	await page.keyboard.press("Escape");
+	await expect(detail(page)).toHaveCount(0);
+	await expect(page).toHaveURL(/\/explore\/scenarios\?compare=[0-9A-Z]{26}$/);
+	await expect(row(page, "Pay cut")).toBeFocused();
+	await row(page, "Pay cut").click();
+	await expect(title(page)).toHaveText("Pay cut");
 
 	// Ticking another keeps the Scenario open; the other Scenario is one step away.
 	await page.getByRole("checkbox", { name: "Compare “Pay cut”" }).check();
@@ -580,6 +628,9 @@ test("a kept Scenario opens beside the Scenarios list, and Compare still works",
 	await page.goto(`${address}?compare=`);
 	await expect(title(page)).toHaveText("Raise", clientRendered);
 	await expect(list(page)).toBeHidden();
+	await expect(rail(page)).toBeHidden();
+	await expect(detail(page)).toHaveCSS("position", "static");
+	await expect(detail(page).getByRole("link", { name: "Close Scenario" })).toBeHidden();
 	expect(await overflow(page)).toBeLessThanOrEqual(393);
 	await axe(page, "A Scenario on a phone");
 	await page.getByRole("link", { name: "Back to Scenarios" }).click();

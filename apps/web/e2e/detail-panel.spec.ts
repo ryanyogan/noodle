@@ -62,10 +62,12 @@ async function opened(page: Page, name: string) {
 
 /** The panel's box once it has slid in: flush with the window's right edge. */
 async function settled(page: Page, windowWidth: number) {
+	// Not rounded: in the last frames of the slide the panel is a fraction of a pixel short of the
+	// edge, and its box a fraction wider than it will be at rest.
 	await expect
 		.poll(async () => {
 			const box = await panel(page).boundingBox();
-			return box ? Math.round(box.x + box.width) : -1;
+			return box ? box.x + box.width : -1;
 		})
 		.toBe(windowWidth);
 	const box = await panel(page).boundingBox();
@@ -284,6 +286,38 @@ test("beside the list the panel covers the rail and none of the list's columns",
 		await page.context().close();
 	}
 });
+
+// A Commitment that takes a while to arrive (its history is fetched as it opens) shows a skeleton
+// first, with no title to put focus on. Focus must still end on the title, not stay on the panel:
+// this failed about one run in three on a busy machine before the panel waited for the title.
+for (const width of [1440, 1024]) {
+	test(`at ${width} a Commitment that is slow to load still gets focus on its title`, async ({
+		browser,
+	}) => {
+		test.slow();
+		const page = await signedInPage(browser, parent.email, at(width));
+		await household(page);
+		// Nothing was loaded ahead by the pointer passing over the row: every fetch from here is slow.
+		await page.route(
+			(url) => url.pathname.includes("/_serverFn/"),
+			async (route) => {
+				await new Promise((done) => setTimeout(done, 3000));
+				await route.continue().catch(() => {});
+			},
+		);
+		await row(page, "Rent").focus();
+		await page.keyboard.press("Enter");
+		const pending = panel(page).locator("[data-slot=detail-pending]");
+		await expect(pending).toBeVisible();
+		await expect(panel(page)).toBeFocused();
+		await opened(page, "Rent");
+		await expect(pending).toHaveCount(0);
+		await expect(title(page)).toBeFocused();
+		// Opened from the keyboard, so the title shows where focus is.
+		await expect(title(page)).toHaveAttribute("data-keyboard-open");
+		await page.unroute((url) => url.pathname.includes("/_serverFn/")).catch(() => {});
+	});
+}
 
 test("at 1024 a Commitment is a drawer over a dimmed page, closed by Esc or a click outside", async ({
 	browser,
