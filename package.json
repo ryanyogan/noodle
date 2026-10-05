@@ -14,7 +14,8 @@
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
 		"test": "turbo run test",
-		"e2e": "turbo run e2e"
+		"e2e": "turbo run e2e",
+		"video": "bun run --cwd apps/web video:capture && bun run --cwd apps/video render"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.14",
