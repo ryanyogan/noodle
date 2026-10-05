@@ -1,4 +1,4 @@
-import { looksLikeCardPayment, looksPersonToPerson } from "@noodle/domain";
+import { looksLikeCardPayment, looksPersonToPerson, parentNamedIn } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { Skeleton } from "@noodle/ui/components/skeleton";
@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useHydrated } from "@tanstack/react-router";
 import { ulid } from "ulid";
 import { formatMoney, shortDay } from "../format";
+import { membersQuery } from "../queries";
 import type { TransactionRow } from "../transactions";
 import {
 	type MoneyPeer,
@@ -15,6 +16,7 @@ import {
 	transferDetail,
 	useMoneyChange,
 } from "../transfers";
+import { parentNames } from "./review-between-us";
 
 /**
  * Money back, or a side of a Transfer, in its detail: what it came in as, then its Transfer and
@@ -73,6 +75,7 @@ export function TransferSection({
 	const hydrated = useHydrated();
 	const { data } = useQuery({ ...moneyQuery(transaction), enabled: view === undefined });
 	const change = useMoneyChange();
+	const { data: members } = useQuery(membersQuery());
 	const transfer = view ?? data?.transfer;
 	if (!transfer || (transfer.kind === "none" && !transfer.markable)) return null;
 	const label = transaction.merchantName || transaction.note || "Transaction";
@@ -111,6 +114,11 @@ export function TransferSection({
 		);
 	}
 
+	// The Parent the bank's wording names, for money out: the hint then says who.
+	const named =
+		transaction.amountCents > 0
+			? parentNamedIn(transaction.note || transaction.merchantName, parentNames(members ?? []))
+			: null;
 	return (
 		<section aria-labelledby="transfer-heading" className="grid gap-2">
 			<h3 id="transfer-heading" className="text-xs font-medium text-subtle-foreground">
@@ -119,9 +127,11 @@ export function TransferSection({
 			<p className="text-[13px] text-muted-foreground">
 				{looksLikeCardPayment(transaction.note || transaction.merchantName)
 					? "Looks like a card payment. What you bought on the card is already in your Buckets, so the payment itself isn’t spending: mark it as a Transfer and it counts nowhere."
-					: looksPersonToPerson(transaction.note || transaction.merchantName)
-						? "Looks like money sent to a person. If it went to the other Parent, it’s between you: money one of you moved to the other isn’t spending."
-						: "Money moving between your own Accounts, like paying the card? A Transfer counts nowhere. Money one of you moved to the other is between you, and isn’t spending either."}
+					: named
+						? `Looks like money sent to ${named}. That’s between you: money one of you moved to the other isn’t spending.`
+						: looksPersonToPerson(transaction.note || transaction.merchantName)
+							? "Looks like money sent to a person. If it went to the other Parent, it’s between you: money one of you moved to the other isn’t spending."
+							: "Money moving between your own Accounts, like paying the card? A Transfer counts nowhere. Money one of you moved to the other is between you, and isn’t spending either."}
 			</p>
 			<div className="flex flex-wrap gap-2">
 				<Button

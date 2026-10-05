@@ -89,7 +89,9 @@ export type RefundView =
 	| { kind: "unlinked"; likely: MoneyPeer[] }
 	| { kind: "none" };
 
-export type MoneyResult = { ok: true; months: string[] } | { ok: false; reason: "refused" };
+export type MoneyResult =
+	/** `paired`: a mark found its other side, so it is a plain Transfer between two Accounts. */
+	{ ok: true; months: string[]; paired?: true } | { ok: false; reason: "refused" };
 
 /** Money back (the enclosing query's Transaction) is linked to a purchase as its Refund. */
 const inRefund = () =>
@@ -490,7 +492,8 @@ export async function markTransfer(
 				),
 		)
 		.onConflictDoNothing();
-	return transferOutcome(db, viewer, input.transferId, false);
+	const outcome = await transferOutcome(db, viewer, input.transferId, false);
+	return outcome.ok && peer ? { ...outcome, paired: true } : outcome;
 }
 
 /**

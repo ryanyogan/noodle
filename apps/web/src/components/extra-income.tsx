@@ -8,6 +8,7 @@ import {
 	looksPersonToPerson,
 	type MonthKey,
 	monthOfDay,
+	parentNamedIn,
 	parseDollars,
 } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
@@ -37,8 +38,9 @@ import { ulid } from "ulid";
 import { useBetweenUs, useIncome } from "../extra-income";
 import { formatMoney, formatMoneyInput, shortDay } from "../format";
 import type { GoalView } from "../goals";
-import { monthQuery } from "../queries";
+import { membersQuery, monthQuery } from "../queries";
 import { AmountInput, AmountSheet } from "./goals";
+import { parentNames } from "./review-between-us";
 import { TermHelp } from "./term-help";
 
 /**
@@ -136,6 +138,8 @@ export function IncomeSection({
 	onRemove: (income: IncomeRecord) => void;
 }) {
 	const hydrated = useHydrated();
+	// The Parents' names: a deposit naming one of them reads as money between the two.
+	const names = parentNames(useQuery(membersQuery()).data ?? []);
 	const received = income.reduce((sum, i) => sum + i.amount, 0);
 	const between = betweenUs.reduce((sum, i) => sum + i.amount, 0);
 	return (
@@ -162,8 +166,12 @@ export function IncomeSection({
 							key={entry.id}
 							title={entry.note ?? "Income"}
 							meta={
-								onBetweenUs && looksPersonToPerson(entry.note)
-									? `${shortDay(entry.date)} · From the other Parent? It’s between us`
+								onBetweenUs && looksPersonToPerson(entry.note, names)
+									? `${shortDay(entry.date)} · ${
+											parentNamedIn(entry.note, names)
+												? `From ${parentNamedIn(entry.note, names)}? It’s between us`
+												: "From the other Parent? It’s between us"
+										}`
 									: shortDay(entry.date)
 							}
 							trailing={

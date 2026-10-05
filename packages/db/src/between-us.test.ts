@@ -261,6 +261,28 @@ describe("money out to the other Parent", () => {
 		expect((await listed()).get(ZELLE_OUT)?.transfer).toBeNull();
 	});
 
+	it("marked as between us while its other side is in Noodle pairs, and says it paired", async () => {
+		await importInto("savings", "i-2", [line("2026-09-20", -30_000, "TRANSFER TO CHECKING")]);
+		await importInto("checking", "i-3", [line("2026-09-20", 30_000, "TRANSFER FROM SAVINGS")]);
+		const id = (await listed()).get("TRANSFER TO CHECKING")?.id ?? "";
+		const found = await loadTransfer(db, viewer, id);
+		// A Parent unmarks the pair Noodle found, then says the money out was between the two.
+		await unmarkTransfer(db, viewer, found.kind === "transfer" ? found.transferId : "");
+		expect(
+			await markTransfer(db, viewer, {
+				transferId: "t-1",
+				transactionId: id,
+				reason: "between-us",
+			}),
+		).toEqual({ ok: true, months: [month], paired: true });
+		expect(await loadTransfer(db, viewer, id)).toMatchObject({
+			kind: "transfer",
+			from: "Savings",
+			to: "Checking",
+			reason: null,
+		});
+	});
+
 	it("marked as a plain Transfer keeps no reason", async () => {
 		const id = (await listed()).get(ZELLE_OUT)?.id ?? "";
 		await markTransfer(db, viewer, { transferId: "t-1", transactionId: id });
