@@ -25,7 +25,7 @@ import { Suggested } from "../../../components/suggested";
 import { TermHelp } from "../../../components/term-help";
 import { formatMoney, monthName } from "../../../format";
 import { usePlanChanges } from "../../../plan-changes";
-import { commitmentsQuery, suggestionsQuery, useMonthState } from "../../../queries";
+import { commitmentsQuery, goalsQuery, suggestionsQuery, useMonthState } from "../../../queries";
 
 export const Route = createFileRoute("/_authed/_household/plan/$month/commitments")({
 	// Lumpy months ahead read every Commitment's schedule; Suggested is in the first paint.
@@ -33,6 +33,8 @@ export const Route = createFileRoute("/_authed/_household/plan/$month/commitment
 		Promise.all([
 			context.queryClient.ensureQueryData(commitmentsQuery()),
 			context.queryClient.ensureQueryData(suggestionsQuery()),
+			// The names behind "Pays down American Express" on a row.
+			context.queryClient.ensureQueryData(goalsQuery()),
 		]),
 	pendingComponent: SectionPending,
 	component: PlanCommitments,

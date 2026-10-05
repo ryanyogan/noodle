@@ -186,6 +186,7 @@ export {
 	type OwedPayment,
 	owedFor,
 	owedOn,
+	owedOverTime,
 	type ProgressGoal,
 	paidDownOf,
 	payoffProgress,

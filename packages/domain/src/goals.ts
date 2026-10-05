@@ -392,3 +392,30 @@ export function attributeWithdrawal(
 	if (account.earmarked <= 0 || withdrawal.amount <= notSetAside) return { kind: "unclaimed" };
 	return { kind: "review", fromEarmarks: withdrawal.amount - notSetAside };
 }
+
+/**
+ * What was owed on a card or loan over time (ADR-0050), oldest first: each balance on its day
+ * (`balances`, in the order they were recorded) and, for an Account kept by hand, what was left
+ * after each payment filed in a Commitment that pays it down, until the next balance supersedes
+ * it. A payment on a balance's own day is taken as already in it. Its last point is `owedOn`.
+ */
+export function owedOverTime(
+	balances: readonly { amount: Cents; day: DayKey }[],
+	payments: readonly OwedPayment[],
+	connected: boolean,
+): { amount: Cents; day: DayKey }[] {
+	const byDay = [...payments].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+	return balances.flatMap((balance, i) => {
+		const next = balances[i + 1];
+		let owed = balance.amount;
+		const after = connected
+			? []
+			: byDay
+					.filter((p) => p.date > balance.day && (next === undefined || p.date < next.day))
+					.map((p) => {
+						owed -= p.amount;
+						return { amount: owed, day: p.date };
+					});
+		return [{ amount: balance.amount, day: balance.day }, ...after];
+	});
+}

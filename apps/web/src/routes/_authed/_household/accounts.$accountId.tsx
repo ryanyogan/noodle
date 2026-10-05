@@ -1,4 +1,4 @@
-import { dayKeyAt, monthOfDay } from "@noodle/domain";
+import { addDays, type DayKey, dayKeyAt, monthOfDay } from "@noodle/domain";
 import { BudgetBar } from "@noodle/ui/components/budget-bar";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
@@ -38,7 +38,7 @@ import {
 	useRouteContext,
 } from "@tanstack/react-router";
 import { Archive, Ellipsis, Pencil, Unplug } from "lucide-react";
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, Fragment, useId, useState } from "react";
 import { ulid } from "ulid";
 import { accountSource, accountSourceText } from "../../../account-source";
 import { DisconnectBankDialog } from "../../../components/bank-connections";
@@ -60,7 +60,7 @@ import {
 	useBringsSpendingIn,
 	waitingForBank,
 } from "../../../components/transaction-list";
-import { formatMoney, shortDay } from "../../../format";
+import { formatMoney, fullDay, shortDay } from "../../../format";
 import {
 	type AccountView,
 	accountKindName,
@@ -73,6 +73,7 @@ import { perkSourcesForAccount } from "../../../perks";
 import {
 	accountImportsQuery,
 	bankConnectionsQuery,
+	commitmentsQuery,
 	goalsQuery,
 	membersQuery,
 	monthQuery,
@@ -127,6 +128,7 @@ function AccountDetails({ account }: { account: AccountView }) {
 	const typesBalance = !connected || connected.needsLogin || account.balance === null;
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
+	const { asOf } = useGoals();
 	const bankName = connected?.connection.institution ?? "the bank";
 	// The only Account syncing with its bank: stopping it disconnects the bank too (ADR-0046).
 	const lastLinked = connected?.connection.accounts.length === 1;
@@ -165,9 +167,31 @@ function AccountDetails({ account }: { account: AccountView }) {
 						tone: "error",
 					});
 				} else if (result.reason === "commitments") {
+					// Straight to the Commitment, where "Pays down" can be changed or it can be ended.
+					const one = result.commitments.length === 1;
+					const paying = queryClient
+						.getQueryData(commitmentsQuery().queryKey)
+						?.commitments.find(
+							(c) => c.accountId === account.id && result.commitments.includes(c.name),
+						);
+					const month = monthOfDay(asOf);
 					toast(
-						`${result.commitments.join(", ")} pays it down. End the Commitment, or change what it pays down, first.`,
-						{ tone: "error" },
+						one
+							? `${result.commitments[0]} pays it down. End the Commitment, or change what it pays down, first.`
+							: `${result.commitments.join(", ")} pay it down. End them, or change what they pay down, first.`,
+						{
+							tone: "error",
+							action: {
+								label: one && paying ? `Open ${paying.name}` : "Open Commitments",
+								onClick: () =>
+									void (one && paying
+										? navigate({
+												to: "/plan/$month/commitments/$id",
+												params: { month, id: paying.id },
+											})
+										: navigate({ to: "/plan/$month/commitments", params: { month } })),
+							},
+						},
 					);
 				} else if (result.reason === "bank" || result.reason === "not-set-up") {
 					toast(bankSaidNo, { tone: "error" });
@@ -190,6 +214,17 @@ function AccountDetails({ account }: { account: AccountView }) {
 		account.latestBalance && account.balance !== null
 			? account.latestBalance.amount - account.balance
 			: 0;
+	const balanceDay = account.latestBalance
+		? (account.latestBalance.day ?? dayKeyAt(new Date(account.latestBalance.at), timeZone))
+		: null;
+	// Paid down by hand for more than 35 days: what was bought or charged in interest since the
+	// balance was entered isn't in the figure, and only a Parent can bring it in.
+	const stale =
+		owes &&
+		!connected &&
+		spentSince > 0 &&
+		balanceDay !== null &&
+		addDays(balanceDay, STALE_AFTER_DAYS) < asOf;
 
 	return (
 		<>
@@ -321,14 +356,13 @@ function AccountDetails({ account }: { account: AccountView }) {
 									{!connected && account.latestBalance ? (
 										<>
 											{" · "}
-											{owes ? "owed" : "balance"} as of{" "}
-											{shortDay(
-												account.latestBalance.day ??
-													dayKeyAt(new Date(account.latestBalance.at), timeZone),
-											)}
-											{spentSince > 0
-												? `, less ${formatMoney(spentSince)} ${owes ? "paid since" : "spent from Goals since"}`
-												: ""}
+											{owes && spentSince > 0
+												? `${formatMoney(account.latestBalance.amount)} on ${shortDay(balanceDay ?? asOf)}, less ${formatMoney(spentSince)} paid since.`
+												: `${owes ? "owed" : "balance"} as of ${shortDay(balanceDay ?? asOf)}${
+														spentSince > 0
+															? `, less ${formatMoney(spentSince)} spent from Goals since`
+															: ""
+													}`}
 										</>
 									) : null}
 									{connected?.needsLogin ? (
@@ -349,6 +383,11 @@ function AccountDetails({ account }: { account: AccountView }) {
 								) : connected && spentSince > 0 ? (
 									<p className="text-sm text-muted-foreground">
 										Less {formatMoney(spentSince)} spent from Goals since the bank last said.
+									</p>
+								) : null}
+								{stale ? (
+									<p className="text-sm text-muted-foreground">
+										New charges and interest aren’t in this. Update what’s owed.
 									</p>
 								) : null}
 								<StatementBalanceNote
@@ -431,6 +470,7 @@ function AccountDetails({ account }: { account: AccountView }) {
 					) : (
 						<>
 							<PayOffSection account={account} />
+							<PaidDown account={account} connected={connected !== null} balanceDay={balanceDay} />
 							<CardPerks account={account} />
 						</>
 					)}
@@ -625,6 +665,109 @@ function PayOffSection({ account }: { account: AccountView }) {
 					addGoal.mutate(variables);
 				}}
 			/>
+		</Section>
+	);
+}
+
+/** After this long, a card or loan paid down by hand says its figure misses new charges. */
+const STALE_AFTER_DAYS = 35;
+
+/** How many of a card or loan's payments its page lists before "Show all". */
+const ACCOUNT_PAYMENTS = 6;
+
+/**
+ * The payments filed in Commitments that pay this card or loan down (ADR-0050), newest first,
+ * with the Commitments themselves: where "Pays down" is changed. Kept by hand, each says whether
+ * it came off what's owed (dated after the balance) or was already in it. Nothing until a
+ * Commitment pays the Account down.
+ */
+function PaidDown({
+	account,
+	connected,
+	balanceDay,
+}: {
+	account: AccountView;
+	connected: boolean;
+	balanceDay: DayKey | null;
+}) {
+	const hydrated = useHydrated();
+	const data = useSuspenseQuery(goalsQuery()).data;
+	// Names only: the page doesn't wait for every Commitment's year of charges.
+	const commitments = useQuery(commitmentsQuery()).data?.commitments ?? [];
+	const [showAll, setShowAll] = useState(false);
+	const payments = data.payments.filter((p) => p.accountId === account.id).reverse();
+	const paying = commitments.filter(
+		(c) =>
+			c.accountId === account.id && (c.endedFromMonth === null || c.endedFromMonth > data.month),
+	);
+	if (payments.length === 0 && paying.length === 0) return null;
+	const nameOf = (id: string) => commitments.find((c) => c.id === id)?.name ?? "a Commitment";
+	const when = (day: DayKey) =>
+		day.slice(0, 4) === data.asOf.slice(0, 4) ? shortDay(day) : fullDay(day);
+	return (
+		<Section aria-labelledby="account-payments">
+			<SectionHeader id="account-payments" title="Payments" count={payments.length} />
+			<p className="px-1 text-sm text-muted-foreground">
+				{paying.length > 0 ? (
+					<>
+						Paid down by{" "}
+						{paying.map((c, i) => (
+							<Fragment key={c.id}>
+								{i > 0 ? ", " : ""}
+								<Link
+									to="/plan/$month/commitments/$id"
+									params={{ month: data.month, id: c.id }}
+									className="font-medium text-foreground underline underline-offset-3"
+								>
+									{c.name}
+								</Link>
+							</Fragment>
+						))}
+						.{" "}
+					</>
+				) : null}
+				{connected
+					? "Its bank keeps what’s owed up to date."
+					: "A payment dated after what’s owed was last updated comes off it."}
+			</p>
+			{payments.length > 0 ? (
+				<List aria-label={`Payments to ${account.name}`}>
+					{payments.slice(0, showAll ? undefined : ACCOUNT_PAYMENTS).map((payment) => (
+						<ListRow
+							key={payment.id}
+							title={`Payment · ${nameOf(payment.commitmentId)}`}
+							meta={`${when(payment.date)}${
+								connected || balanceDay === null
+									? ""
+									: payment.date > balanceDay
+										? " · came off what’s owed"
+										: " · already in what’s owed"
+							}`}
+							trailing={
+								<span className="text-sm font-semibold tabular-nums">
+									{formatMoney(payment.amount)}
+								</span>
+							}
+						/>
+					))}
+				</List>
+			) : (
+				<Card className="p-(--card-pad) text-sm text-muted-foreground">
+					Payments filed in {paying.length === 1 ? paying[0]?.name : "them"} show here.
+				</Card>
+			)}
+			{payments.length > ACCOUNT_PAYMENTS && !showAll ? (
+				<Button
+					type="button"
+					variant="ghost"
+					size="sm"
+					className="justify-self-start"
+					disabled={!hydrated}
+					onClick={() => setShowAll(true)}
+				>
+					Show all {payments.length} payments
+				</Button>
+			) : null}
 		</Section>
 	);
 }

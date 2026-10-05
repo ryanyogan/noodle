@@ -76,6 +76,10 @@ _Avoid_: Sinking fund, savings bucket, pot
 A Goal to pay a credit card or loan down to $0 (ADR-0019). Its target is what was owed when it was added; it's **paid down** by how far what's owed has come down since (never below $0), and it's **paid off** when what's owed reaches $0, after which a Parent completes it. Its funding is a plan for extra payments, on top of any regular payment Commitment; nothing is Set aside for it. A card payment (a Transfer) shows in it once the card's balance does. A card or loan has at most one active payoff Goal.
 _Avoid_: Debt goal, pay-down goal, debt snowball
 
+**Pays down** (on a Commitment):
+The label for the credit card or loan a Commitment's payments bring down ("Pays down American Express"); "Nothing" when it has none. A card Noodle follows can be chosen only with "This is a set payment on a balance I'm carrying". On the Commitment's page its Charges read "Payments", with "Still owed" beside them.
+_Avoid_: Paid to, linked account
+
 **What's owed** (on a credit card or loan):
 The card's or loan's balance as Noodle knows it: the latest one its bank brought in, a Parent entered, or a Parent took from a statement. On an Account kept by hand, the payments filed since that balance's day in a Commitment that pays it down come off it (ADR-0050); a payment on the balance's own day is taken as already in it, and a connected Account's is always its bank's.
 _Avoid_: Debt, principal, outstanding balance

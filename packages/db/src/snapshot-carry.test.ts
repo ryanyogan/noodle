@@ -181,7 +181,10 @@ function asTakenUnder(tag: string, tables: SnapshotTables): SnapshotTables {
 }
 
 /** What a column added since the snapshot holds once restored: the table's default, else nothing. */
-const DEFAULTS: Record<string, number> = { "transactions.version": 0 };
+const DEFAULTS: Record<string, number> = {
+	"transactions.version": 0,
+	"commitments.carried_balance": 0,
+};
 
 describe("restoring a snapshot taken under an older migration", () => {
 	let db: Db;
@@ -200,6 +203,14 @@ describe("restoring a snapshot taken under an older migration", () => {
 			.update(s.bankConnections)
 			.set({ historyStart: "2026-01-01" })
 			.where(eq(s.bankConnections.householdId, ours));
+		await db
+			.update(s.commitments)
+			.set({ carriedBalance: true })
+			.where(eq(s.commitments.householdId, ours));
+		await db
+			.update(s.accountBalances)
+			.set({ asOf: "2026-09-01" })
+			.where(eq(s.accountBalances.householdId, ours));
 		const [account] = await db.select().from(s.accounts).where(eq(s.accounts.householdId, ours));
 		await db
 			.insert(s.deletedBankLines)
@@ -216,6 +227,7 @@ describe("restoring a snapshot taken under an older migration", () => {
 		"0050_bank_history_start",
 		"0051_deleted_bank_lines",
 		"0052_account_archive",
+		"0053_perk_pages",
 	])("one from %s lands whole, with defaults where it has nothing to say", async (tag) => {
 		const file: SnapshotFile = {
 			format: SNAPSHOT_FORMAT,
@@ -225,8 +237,8 @@ describe("restoring a snapshot taken under an older migration", () => {
 			tables: asTakenUnder(tag, now),
 		};
 		const added = addedAfter(tag);
-		// 0053 added only perk_pages, which isn't a Household's.
-		expect(added.tables.size + added.columns.size > 0).toBe(tag !== "0052_account_archive");
+		// 0054 added columns to Commitments and balances, so every older snapshot lacks something.
+		expect(added.tables.size + added.columns.size > 0).toBe(true);
 		// D1 records the file's name; the snapshot's own row holds whichever it was given.
 		expect(snapshotRefusal(file, ours, `${newest}.sql`)).toBeNull();
 		const carried = carriedTables(file, `${newest}.sql`);

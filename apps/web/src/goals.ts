@@ -78,7 +78,15 @@ export type GoalView = GoalRecord & {
 	 * A payoff Goal's card or loan: what's owed now (null without a balance), and every balance
 	 * since the one before the Goal was added, newest first. Null for a savings Goal.
 	 */
-	payoff: { owed: Cents | null; history: BalanceUpdate[] } | null;
+	payoff: {
+		owed: Cents | null;
+		history: BalanceUpdate[];
+		/**
+		 * Payments filed in Commitments that pay its card or loan down (ADR-0050) since the Goal
+		 * began, newest first.
+		 */
+		payments: { id: string; amount: Cents; date: DayKey }[];
+	} | null;
 };
 
 export type GoalsView = {
@@ -138,7 +146,17 @@ export function goalView(data: GoalsData, goal: GoalRecord): GoalView {
 		account: data.accounts.find((a) => a.id === goal.accountId) ?? null,
 		progress: goalProgress({ ...goal, owed }, data.changes, data.month),
 		changes: data.changes.filter((c) => c.goalId === goal.id).reverse(),
-		payoff: goal.kind === "payoff" ? { owed, history: owedHistory(data, goal) } : null,
+		payoff:
+			goal.kind === "payoff"
+				? {
+						owed,
+						history: owedHistory(data, goal),
+						payments: data.payments
+							.filter((p) => p.accountId === goal.accountId && p.date >= `${goal.fromMonth}-01`)
+							.map(({ id, amount, date }) => ({ id, amount, date }))
+							.reverse(),
+					}
+				: null,
 	};
 }
 
@@ -156,7 +174,7 @@ function owedHistory(data: GoalsData, goal: GoalRecord): BalanceUpdate[] {
 	});
 	return points
 		.slice(startsAt)
-		.map(({ amount, at }) => ({ amount, at }))
+		.map(({ amount, at, day }) => ({ amount, at, ...(day ? { day } : {}) }))
 		.reverse();
 }
 

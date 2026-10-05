@@ -34,7 +34,7 @@ import { CommitmentSheet, useCommitmentChanges } from "../../../components/commi
 import { DetailHeader, DetailPager, DetailPending } from "../../../components/master-detail";
 import { PlanHistoryList } from "../../../components/plan-history";
 import { formatMoney, fullDay, monthName } from "../../../format";
-import { commitmentsQuery, planHistoryQuery, useMonthState } from "../../../queries";
+import { commitmentsQuery, goalsQuery, planHistoryQuery, useMonthState } from "../../../queries";
 import { COMMITMENT_MONTHS, type CommitmentsData } from "../../../server/commitments";
 
 // A Commitment's page: what it costs, when it's next due, the charges that paid it, when it ends
@@ -56,7 +56,11 @@ export const Route = createFileRoute("/_authed/_household/plan/$month/commitment
 			});
 			if (!has(await queryClient.fetchQuery(commitmentsQuery()))) throw notFound();
 		}
-		await context.queryClient.ensureQueryData(planHistoryQuery(context.month, params.id));
+		await Promise.all([
+			context.queryClient.ensureQueryData(planHistoryQuery(context.month, params.id)),
+			// The card or loan it pays down, and what's still owed on it.
+			context.queryClient.ensureQueryData(goalsQuery()),
+		]);
 	},
 	pendingComponent: DetailPending,
 	component: CommitmentPage,
@@ -69,6 +73,7 @@ function CommitmentPage() {
 	const { id } = Route.useParams();
 	const hydrated = useHydrated();
 	const data = useSuspenseQuery(commitmentsQuery()).data;
+	const accounts = useSuspenseQuery(goalsQuery()).data;
 	const { month } = Route.useRouteContext();
 	const inPlan = useMonthState(month).commitments;
 	// The list's order: due this month first.
@@ -87,6 +92,11 @@ function CommitmentPage() {
 	const terms = currentTerms(data, id, month);
 	const ended = commitment.endedFromMonth !== null && commitment.endedFromMonth <= month;
 	const hasCharges = matchCharges(data, id, data.charges).length > 0;
+	// The card or loan it pays down (ADR-0050); one archived since is named, with nothing to open.
+	const paysDownId = commitment.accountId ?? null;
+	const paysDown = accounts.accounts.find((a) => a.id === paysDownId) ?? null;
+	const paysDownName =
+		paysDown?.name ?? accounts.archivedAccounts.find((a) => a.id === paysDownId)?.name ?? null;
 	const nextDues = (
 		<div className="min-w-0 @max-3xl/detail:order-1">
 			<NextDues data={data} id={id} ended={ended} />
@@ -94,7 +104,7 @@ function CommitmentPage() {
 	);
 	const charges = (
 		<div className="min-w-0 @max-3xl/detail:order-2">
-			<Charges data={data} id={id} />
+			<Charges data={data} id={id} month={month} payments={paysDownId !== null} />
 		</div>
 	);
 	return (
@@ -138,6 +148,8 @@ function CommitmentPage() {
 						amount: terms.amount,
 						cadence: terms.cadence,
 						dueDate: terms.dueDate,
+						accountId: commitment.accountId,
+						carriedBalance: commitment.carriedBalance,
 					}}
 					open={editing}
 					onOpenChange={setEditing}
@@ -180,6 +192,41 @@ function CommitmentPage() {
 								}
 							/>
 						</StatGrid>
+						{paysDownName !== null ? (
+							// Its own strip, one figure wide: it reads the same on a phone and in the narrow panel.
+							<StatGrid layout="ruled" className="grid-cols-1">
+								<Stat
+									label="Still owed"
+									value={
+										paysDown ? (
+											<Link
+												to="/accounts/$accountId"
+												params={{ accountId: paysDown.id }}
+												aria-label={
+													paysDown.owed === null
+														? `Add what’s owed on ${paysDown.name}`
+														: `Still owed ${formatMoney(Math.max(0, paysDown.owed))} on ${paysDown.name}`
+												}
+												className="inline-flex items-center underline underline-offset-3 max-lg:min-h-11"
+											>
+												{paysDown.owed === null
+													? "Add what’s owed"
+													: formatMoney(Math.max(0, paysDown.owed))}
+											</Link>
+										) : (
+											"—"
+										)
+									}
+									note={
+										paysDown === null
+											? `Pays down ${paysDownName}, which is archived.`
+											: paysDown.bankConnectionId !== null
+												? `Pays down ${paysDownName}. Its bank keeps what’s owed up to date.`
+												: `Pays down ${paysDownName}. Each payment filed here brings it down.`
+									}
+								/>
+							</StatGrid>
+						) : null}
 						{ended ? null : (
 							<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t px-(--card-pad) py-2.5 text-[13px] text-muted-foreground">
 								<p className="py-1">Try it in Explore: nothing in the Plan changes.</p>
@@ -273,18 +320,37 @@ function NextDues({ data, id, ended }: { data: CommitmentsData; id: string; ende
 	);
 }
 
-function Charges({ data, id }: { data: CommitmentsData; id: string }) {
+function Charges({
+	data,
+	id,
+	month,
+	payments,
+}: {
+	data: CommitmentsData;
+	id: string;
+	month: MonthKey;
+	/** It pays down a card or loan: what's filed in it are payments, and the month's are counted. */
+	payments: boolean;
+}) {
 	const charges = matchCharges(data, id, data.charges);
+	const inMonth = charges.filter((charge) => charge.date.slice(0, 7) === month);
 	return (
 		<Section aria-labelledby="charges">
 			<SectionHeader
 				id="charges"
-				title="Charges"
+				title={payments ? "Payments" : "Charges"}
 				count={charges.length}
 				action={
 					<span className="text-[13px] text-muted-foreground">Last {COMMITMENT_MONTHS} months</span>
 				}
 			/>
+			{payments && inMonth.length > 0 ? (
+				<p className="px-1 text-[13px] text-muted-foreground">
+					{inMonth.length === 1 ? "1 payment" : `${inMonth.length} payments`}{" "}
+					{month === data.asOf.slice(0, 7) ? "this month" : `in ${monthName(month)}`},{" "}
+					{formatMoney(inMonth.reduce((sum, charge) => sum + charge.amount, 0))} in all.
+				</p>
+			) : null}
 			{charges.length > 0 ? (
 				// A table from sm (#47): one line a Charge, its due and paid days side by side. On phones a
 				// list (#48): the day it was paid and its amount, and the due day and status only when they
@@ -322,7 +388,7 @@ function Charges({ data, id }: { data: CommitmentsData; id: string }) {
 					</ul>
 					<Table className="max-sm:hidden">
 						<TableCaption className="sr-only">
-							Charges in the last {COMMITMENT_MONTHS} months
+							{payments ? "Payments" : "Charges"} in the last {COMMITMENT_MONTHS} months
 						</TableCaption>
 						<TableHeader>
 							<TableRow>

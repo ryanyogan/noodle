@@ -1127,7 +1127,12 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 		changes,
 		owed: balanceRows
 			.filter((row) => accountRows.some((a) => a.id === row.accountId && !holdsMoney(a.kind)))
-			.map((row) => ({ accountId: row.accountId, amount: row.amount, at: row.at.getTime() })),
+			.map((row) => ({
+				accountId: row.accountId,
+				amount: row.amount,
+				at: row.at.getTime(),
+				day: balanceDay(row, timeZone),
+			})),
 		payments,
 		emergencyGoalId: householdRows[0]?.emergencyGoalId ?? null,
 		archivedAccounts: archivedRows.map((row) => ({
