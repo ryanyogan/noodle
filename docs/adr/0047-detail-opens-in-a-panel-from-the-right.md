@@ -24,7 +24,7 @@ Every item already has its own address (a child route of its list, rendered thro
   | `--detail-panel-width-wide` | 480 | 560 | 640 | 800 | a page's worth: a Commitment, a Bucket, a Goal, an Account |
 
   At 1024 the page beside the open Sidebar is 776 px, so a 480 px panel leaves about 300 px of the list showing: enough to read and click names. One rule at every desktop width; no second, modal behaviour below 1280.
-- **Layers and look.** `z-30`: over the page's sticky bars (`z-10`), under sheets (`z-40`), so a sheet opened from the panel (Edit) opens over it. The page's background, a left border, the pop shadow, 24 px of padding. It slides in when an item opens (`animate-side-in`, which the reduced-motion rule switches off) and does not move again while going from item to item; closing is instant.
+- **Layers and look.** `z-30`: over the page's sticky bars (`z-10`), under sheets (`z-40`), so a sheet opened from the panel (Edit) opens over it. The page's background, a left border in the stronger border colour (the shadow alone does not show in the dark theme), the pop shadow, 24 px of padding. It slides in when an item opens (`animate-side-in`, which the reduced-motion rule switches off) and does not move again while going from item to item; closing is instant.
 - **The panel may scroll on its own** (an exception to ADR-0024's one scroll per region, as sheets are): it is a fixed layer the height of the window.
 - **Panel or Sheet.** A panel is something with its own address. A Sheet is a task with no address (add, edit, pick, confirm). A panel may open a Sheet; a Sheet never opens a panel; a link in a panel to another item changes what the panel shows.
 

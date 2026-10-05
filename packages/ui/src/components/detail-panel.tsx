@@ -189,7 +189,7 @@ function DetailPanel({
 				"lg:fixed lg:inset-y-0 lg:right-0 lg:z-30 lg:overflow-y-auto lg:overscroll-contain",
 				// The bottom padding keeps the end of the item clear of the Ask Noodle button, which stays
 				// in the window's corner over the panel.
-				"lg:rounded-l-3xl lg:border-l lg:bg-background lg:p-6 lg:pb-16 lg:shadow-pop",
+				"lg:rounded-l-3xl lg:border-l lg:border-border-strong lg:bg-background lg:p-6 lg:pb-16 lg:shadow-pop",
 				// Slides in when an item opens; going from item to item it stays where it is.
 				"lg:animate-side-in",
 				size === "wide" ? "lg:w-(--detail-panel-width-wide)" : "lg:w-(--detail-panel-width)",
@@ -202,7 +202,9 @@ function DetailPanel({
 				// item's header leaves the corner free (`DetailHeader inPanel`).
 				<div
 					data-slot="detail-close"
-					className="sticky top-6 z-10 flex h-0 justify-end max-lg:hidden"
+					// Sticks at the panel's own padding (a scroller's padding already insets what sticks in
+					// it); the margin puts the control on the middle line of the item's header.
+					className="sticky top-0 z-10 flex h-0 justify-end max-lg:hidden [&>*]:mt-2.5"
 				>
 					{close}
 				</div>
