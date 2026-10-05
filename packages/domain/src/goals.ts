@@ -35,20 +35,46 @@ export function paidDownOf(target: Cents, owed: Cents | null): Cents {
 }
 
 /**
- * What's owed now on a payoff Goal's card or loan: its latest balance (Goal spending only ever
- * comes out of checking or savings, so nothing comes off it in between). Null for a savings Goal,
- * or until the Account has a balance.
+ * What's owed now on a payoff Goal's card or loan: the Account's `owed` (owedOn). Null for a
+ * savings Goal, or until the Account has a balance.
  */
 export function owedFor(
 	goal: { kind: GoalKind; accountId: string },
-	accounts: readonly { id: string; latestBalance: BalanceUpdate | null }[],
+	accounts: readonly { id: string; owed: Cents | null }[],
 ): Cents | null {
 	if (goal.kind !== "payoff") return null;
-	return accounts.find((a) => a.id === goal.accountId)?.latestBalance?.amount ?? null;
+	return accounts.find((a) => a.id === goal.accountId)?.owed ?? null;
 }
 
-/** A balance a Parent entered for an Account, and when it was recorded (ms). */
-export type BalanceUpdate = { amount: Cents; at: number };
+/**
+ * A balance a Parent entered for an Account, and when it was recorded (ms). `day` is the day it
+ * was true: a statement's closing date or the day it was typed, else the day it was recorded in
+ * the Household's time zone.
+ */
+export type BalanceUpdate = { amount: Cents; at: number; day?: DayKey };
+
+/** A payment filed in a Commitment that pays down a card or loan, and the day it was made. */
+export type OwedPayment = { amount: Cents; date: DayKey };
+
+/**
+ * What's owed on a credit card or loan (ADR-0050, amending ADR-0019). Kept by hand: its latest
+ * balance less the payments filed in Commitments that pay it down and dated after the balance's
+ * day. A payment on that very day is taken as already in the balance, and a later statement or
+ * typed balance supersedes every payment before it. Connected: the bank's balance, and nothing
+ * comes off it. Null until the Account has a balance; below 0 when it was overpaid.
+ */
+export function owedOn(
+	latest: { amount: Cents; day: DayKey } | null,
+	payments: readonly OwedPayment[],
+	connected: boolean,
+): Cents | null {
+	if (latest === null) return null;
+	if (connected) return latest.amount;
+	return payments.reduce(
+		(owed, payment) => (payment.date > latest.day ? owed - payment.amount : owed),
+		latest.amount,
+	);
+}
 
 /** Money out recorded against an Account (Goal spending), and when it was recorded (ms). */
 export type AccountWithdrawal = { amount: Cents; at: number };
@@ -156,7 +182,7 @@ export type GoalProgress = {
 /** Goals with what's owed now on each payoff Goal's card or loan (owedFor), for goalProgress. */
 export const withOwed = <G extends { kind: GoalKind; accountId: string }>(
 	goals: readonly G[],
-	accounts: readonly { id: string; latestBalance: BalanceUpdate | null }[],
+	accounts: readonly { id: string; owed: Cents | null }[],
 ): (G & { owed: Cents | null })[] => goals.map((g) => ({ ...g, owed: owedFor(g, accounts) }));
 
 /**

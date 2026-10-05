@@ -50,6 +50,13 @@ export function describeValues(before: PlanChangeValue | null, after: PlanChange
 	if (after.dueDate !== undefined) {
 		parts.push(fromTo(was.dueDate, after.dueDate, (d) => `due ${shortDay(d)}`));
 	}
+	if (after.paysDown !== undefined) {
+		// A Commitment's card or loan (ADR-0050).
+		const from = was.paysDown ?? null;
+		if (after.paysDown === null)
+			parts.push(from ? `No longer pays down ${from}` : "Pays down nothing");
+		else parts.push(from ? `Pays down ${from} → ${after.paysDown}` : `Pays down ${after.paysDown}`);
+	}
 	if (after.target !== undefined) {
 		parts.push(`Target ${fromTo(was.target, after.target, formatMoney)}`);
 	}

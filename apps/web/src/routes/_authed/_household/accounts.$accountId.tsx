@@ -164,6 +164,11 @@ function AccountDetails({ account }: { account: AccountView }) {
 					toast(`${result.goals.join(", ")} is kept in it. Archive the Goal first.`, {
 						tone: "error",
 					});
+				} else if (result.reason === "commitments") {
+					toast(
+						`${result.commitments.join(", ")} pays it down. End the Commitment, or change what it pays down, first.`,
+						{ tone: "error" },
+					);
 				} else if (result.reason === "bank" || result.reason === "not-set-up") {
 					toast(bankSaidNo, { tone: "error" });
 				}
@@ -179,7 +184,8 @@ function AccountDetails({ account }: { account: AccountView }) {
 		if (!open) setSheet(null);
 	};
 	const owes = !account.holdsMoney;
-	// Goal spending recorded since the last balance update has already come off the balance.
+	// Goal spending recorded since the last balance update has already come off the balance; so
+	// have a card or loan's payments filed in a Commitment that pays it down (ADR-0050).
 	const spentSince =
 		account.latestBalance && account.balance !== null
 			? account.latestBalance.amount - account.balance
@@ -316,9 +322,12 @@ function AccountDetails({ account }: { account: AccountView }) {
 										<>
 											{" · "}
 											{owes ? "owed" : "balance"} as of{" "}
-											{shortDay(dayKeyAt(new Date(account.latestBalance.at), timeZone))}
+											{shortDay(
+												account.latestBalance.day ??
+													dayKeyAt(new Date(account.latestBalance.at), timeZone),
+											)}
 											{spentSince > 0
-												? `, less ${formatMoney(spentSince)} spent from Goals since`
+												? `, less ${formatMoney(spentSince)} ${owes ? "paid since" : "spent from Goals since"}`
 												: ""}
 										</>
 									) : null}
@@ -344,8 +353,13 @@ function AccountDetails({ account }: { account: AccountView }) {
 								) : null}
 								<StatementBalanceNote
 									account={account}
-									onUse={(amountCents) =>
-										updateBalance.mutate({ balanceId: ulid(), accountId: account.id, amountCents })
+									onUse={(amountCents, asOf) =>
+										updateBalance.mutate({
+											balanceId: ulid(),
+											accountId: account.id,
+											amountCents,
+											asOf,
+										})
 									}
 								/>
 								{account.holdsMoney && account.balance !== null ? (

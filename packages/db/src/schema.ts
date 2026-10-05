@@ -210,6 +210,17 @@ export const commitments = sqliteTable(
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()
 			.default(sql`(unixepoch() * 1000)`),
+		/**
+		 * The credit card or loan its payments pay down (issue 93, ADR-0050); null for none. On an
+		 * Account kept by hand each payment filed here brings what's owed down (owedOn in
+		 * @noodle/domain).
+		 */
+		accountId: text("account_id").references((): AnySQLiteColumn => accounts.id),
+		/**
+		 * A Parent said this is a set payment on a balance they're carrying: what lets it pay down a
+		 * card Noodle follows, whose purchases are already counted in Buckets.
+		 */
+		carriedBalance: integer("carried_balance", { mode: "boolean" }).notNull().default(false),
 	},
 	(t) => [index("commitments_household_idx").on(t.householdId)],
 );
@@ -362,6 +373,12 @@ export const accountBalances = sqliteTable(
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()
 			.default(sql`(unixepoch() * 1000)`),
+		/**
+		 * The day the balance was true ("YYYY-MM-DD"): a statement's closing date, or the day a Parent
+		 * typed it. Null for a bank's balance and for rows from before issue 93, which count as of
+		 * `created_at`'s day in the Household's time zone.
+		 */
+		asOf: text("as_of"),
 	},
 	(t) => [index("account_balances_account_idx").on(t.accountId)],
 );

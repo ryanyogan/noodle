@@ -27,6 +27,7 @@ const goals: GoalsData = {
 			bankConnectionId: null,
 			lastStatementDate: null,
 			latestBalance: { amount: 1_000_000, at: 1 },
+			owed: null,
 		},
 		{
 			id: "visa",
@@ -36,12 +37,14 @@ const goals: GoalsData = {
 			bankConnectionId: null,
 			lastStatementDate: null,
 			latestBalance: { amount: 50_000, at: 1 },
+			owed: 50_000,
 		},
 	],
 	withdrawals: [],
 	goals: [],
 	changes: [],
 	owed: [{ accountId: "visa", amount: 50_000, at: 1 }],
+	payments: [],
 };
 
 const braces = {

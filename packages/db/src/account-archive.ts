@@ -1,13 +1,15 @@
 import type { AccountKind } from "@noodle/domain";
-import { and, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gt, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { Db } from "./index";
-import { accounts, goals } from "./schema";
+import { accounts, commitments, goals } from "./schema";
 
 // Archiving an Account (ADR-0046): a Parent puts an Account they no longer use out of the way.
 // It leaves the Accounts list, the pickers and the totals, and nothing new is brought into it;
 // its Transactions, statements, balances and history stay exactly as they are, so past months
 // read as they did. Restore brings it back. An Account a Goal that isn't archived is kept in
-// can't be archived: the Goal's money would be in an Account no screen shows. An Account still
+// can't be archived: the Goal's money would be in an Account no screen shows. Nor can one a
+// Commitment still in the Plan pays down (ADR-0050): its payments would bring down what's owed on
+// a card or loan no screen shows. An Account still
 // syncing with its bank is unlinked first (the web's unlinkBankAccount), so what the bank sends
 // while it's archived is never half-read.
 
@@ -21,6 +23,16 @@ const goalsOn = (db: Db, accountId: string) =>
 		.from(goals)
 		.where(and(eq(goals.accountId, accountId), isNull(goals.archivedAt)));
 
+/** A Commitment still in the Plan in `month` that pays this Account down (ADR-0050). */
+const paysItDown = (accountId: string, month: string) =>
+	and(
+		eq(commitments.accountId, accountId),
+		or(isNull(commitments.endedFromMonth), gt(commitments.endedFromMonth, month)),
+	);
+
+/** The month archiving judges "still in the Plan" by: the UTC one, close enough for a guard. */
+const monthOf = (now: Date) => now.toISOString().slice(0, 7);
+
 /** An Account as archiving and unlinking read it. */
 export type AccountToArchive = {
 	id: string;
@@ -32,6 +44,8 @@ export type AccountToArchive = {
 	siblings: number;
 	/** The names of the Goals, not archived, that are kept in it or pay it off. */
 	goals: string[];
+	/** The names of the Commitments still in the Plan that pay it down. */
+	commitments: string[];
 };
 
 /** One of the Household's Accounts, for archiving or unlinking it; null when it isn't theirs. */
@@ -39,8 +53,9 @@ export async function loadAccountToArchive(
 	db: Db,
 	householdId: string,
 	accountId: string,
+	now: Date = new Date(),
 ): Promise<AccountToArchive | null> {
-	const [rows, goalRows] = await db.batch([
+	const [rows, goalRows, commitmentRows] = await db.batch([
 		db
 			.select({
 				id: accounts.id,
@@ -65,6 +80,11 @@ export async function loadAccountToArchive(
 				),
 			)
 			.orderBy(asc(goals.createdAt), asc(goals.id)),
+		db
+			.select({ name: commitments.name })
+			.from(commitments)
+			.where(and(eq(commitments.householdId, householdId), paysItDown(accountId, monthOf(now))))
+			.orderBy(asc(commitments.createdAt), asc(commitments.id)),
 	]);
 	const [row] = rows;
 	if (!row) return null;
@@ -75,6 +95,7 @@ export async function loadAccountToArchive(
 		bankConnectionId: row.bankConnectionId,
 		siblings: row.bankConnectionId === null ? 0 : Number(row.siblings),
 		goals: goalRows.map((goal) => goal.name),
+		commitments: commitmentRows.map((commitment) => commitment.name),
 	};
 }
 
@@ -86,32 +107,43 @@ export type ArchiveAccountResult =
 	 * already.
 	 */
 	| { ok: false; reason: "not-found" | "connected" }
-	| { ok: false; reason: "goals"; goals: string[] };
+	| { ok: false; reason: "goals"; goals: string[] }
+	/** A Commitment still in the Plan pays it down (named in `commitments`): ADR-0050. */
+	| { ok: false; reason: "commitments"; commitments: string[] };
 
 /**
  * Archives one of the Household's Accounts, under one guarded write: only while it isn't
- * archived, doesn't sync with a bank, and no Goal that isn't archived is kept in it.
+ * archived, doesn't sync with a bank, no Goal that isn't archived is kept in it, and no
+ * Commitment still in the Plan pays it down.
  */
 export async function archiveAccount(
 	db: Db,
 	input: { householdId: string; accountId: string; now?: Date },
 ): Promise<ArchiveAccountResult> {
+	const now = input.now ?? new Date();
 	const written = await db
 		.update(accounts)
-		.set({ archivedAt: input.now ?? new Date() })
+		.set({ archivedAt: now })
 		.where(
 			and(
 				ownAccount(input.householdId, input.accountId),
 				isNull(accounts.archivedAt),
 				isNull(accounts.bankConnectionId),
 				sql`not exists ${goalsOn(db, input.accountId)}`,
+				sql`not exists ${db
+					.select({ id: commitments.id })
+					.from(commitments)
+					.where(paysItDown(input.accountId, monthOf(now)))}`,
 			),
 		)
 		.returning({ id: accounts.id });
 	if (written.length > 0) return { ok: true };
-	const account = await loadAccountToArchive(db, input.householdId, input.accountId);
+	const account = await loadAccountToArchive(db, input.householdId, input.accountId, now);
 	if (!account || account.archived) return { ok: false, reason: "not-found" };
 	if (account.goals.length > 0) return { ok: false, reason: "goals", goals: account.goals };
+	if (account.commitments.length > 0) {
+		return { ok: false, reason: "commitments", commitments: account.commitments };
+	}
 	return { ok: false, reason: account.bankConnectionId ? "connected" : "not-found" };
 }
 

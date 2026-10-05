@@ -29,7 +29,7 @@ One change a Parent made to the Plan (the Take-home pay, an allowance, Resets mo
 _Avoid_: Edit, audit entry, revision
 
 **Commitment**:
-A fixed obligation the Household has signed up to and pays on a schedule, usually monthly: rent or mortgage, a car payment or other loan, insurance, utilities (electric, gas, water, trash), phone, internet and TV, childcare and tuition, memberships and subscriptions. It is not day-to-day spending that happens to repeat, like fast food, coffee, groceries, fuel or small shop purchases: those belong in Buckets.
+A fixed obligation the Household has signed up to and pays on a schedule, usually monthly: rent or mortgage, a car payment or other loan, insurance, utilities (electric, gas, water, trash), phone, internet and TV, childcare and tuition, memberships and subscriptions. It is not day-to-day spending that happens to repeat, like fast food, coffee, groceries, fuel or small shop purchases: those belong in Buckets. A Commitment may **pay down** one credit card or loan (ADR-0050): each payment filed in it then brings **what's owed** on that Account down, when the Account is kept by hand. A card Noodle follows (it syncs with its bank, or its purchases were imported in the last 60 days) can only be paid down this way as a balance the Household is carrying, since paying such a card is a Transfer.
 _Avoid_: Bill, fixed expense, recurring
 
 **Coming up**:
@@ -77,7 +77,7 @@ A Goal to pay a credit card or loan down to $0 (ADR-0019). Its target is what wa
 _Avoid_: Debt goal, pay-down goal, debt snowball
 
 **What's owed** (on a credit card or loan):
-The card's or loan's balance as Noodle knows it: the latest one its bank brought in, a Parent entered, or a Parent took from a statement.
+The card's or loan's balance as Noodle knows it: the latest one its bank brought in, a Parent entered, or a Parent took from a statement. On an Account kept by hand, the payments filed since that balance's day in a Commitment that pays it down come off it (ADR-0050); a payment on the balance's own day is taken as already in it, and a connected Account's is always its bank's.
 _Avoid_: Debt, principal, outstanding balance
 
 **Set aside**:

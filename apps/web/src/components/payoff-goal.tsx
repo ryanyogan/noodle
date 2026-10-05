@@ -81,8 +81,8 @@ export function PayoffGoalDetails({
 	const close = (open: boolean) => {
 		if (!open) setSheet(null);
 	};
-	const saveOwed = (amountCents: Cents) =>
-		updateOwed.mutate({ balanceId: ulid(), accountId: goal.accountId, amountCents });
+	const saveOwed = (amountCents: Cents, asOf?: DayKey) =>
+		updateOwed.mutate({ balanceId: ulid(), accountId: goal.accountId, amountCents, asOf });
 
 	return (
 		<>

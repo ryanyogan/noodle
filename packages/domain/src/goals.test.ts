@@ -12,6 +12,7 @@ import {
 	type MonthKey,
 	monthState,
 	owedFor,
+	owedOn,
 	paidDownOf,
 	projectionGoalOf,
 	type SetAsideChange,
@@ -424,15 +425,42 @@ describe("payoff Goals (ADR-0019)", () => {
 
 	describe("owedFor", () => {
 		const accounts = [
-			{ id: "visa", latestBalance: { amount: 45_000, at: 1 } },
-			{ id: "new-card", latestBalance: null },
+			{ id: "visa", owed: 45_000 },
+			{ id: "new-card", owed: null },
 		];
-		it("is the card's latest balance", () => {
+		it("is what's owed on the card", () => {
 			expect(owedFor({ kind: "payoff", accountId: "visa" }, accounts)).toBe(45_000);
 		});
 		it("is null without a balance, and for a savings Goal", () => {
 			expect(owedFor({ kind: "payoff", accountId: "new-card" }, accounts)).toBeNull();
 			expect(owedFor({ kind: "save", accountId: "visa" }, accounts)).toBeNull();
+		});
+	});
+
+	describe("owedOn", () => {
+		const latest = { amount: 200_000, day: "2026-10-01" as DayKey };
+		const paid = (date: string, amount: number) => ({ date: date as DayKey, amount });
+		it("is the latest balance less the payments dated after its day", () => {
+			const payments = [paid("2026-10-05", 50_000), paid("2026-10-19", 26_000)];
+			expect(owedOn(latest, payments, false)).toBe(124_000);
+		});
+		it("takes a payment on the balance's own day, or before it, as already in the balance", () => {
+			const payments = [paid("2026-10-01", 50_000), paid("2026-09-28", 30_000)];
+			expect(owedOn(latest, payments, false)).toBe(200_000);
+		});
+		it("lets a later balance supersede the payments before it", () => {
+			const payments = [paid("2026-10-05", 50_000), paid("2026-11-03", 40_000)];
+			const statement = { amount: 180_000, day: "2026-10-31" as DayKey };
+			expect(owedOn(statement, payments, false)).toBe(140_000);
+		});
+		it("is the bank's balance for a connected Account, whatever was paid", () => {
+			expect(owedOn(latest, [paid("2026-10-05", 50_000)], true)).toBe(200_000);
+		});
+		it("is null without a balance, and below 0 when overpaid", () => {
+			expect(owedOn(null, [paid("2026-10-05", 50_000)], false)).toBeNull();
+			expect(owedOn({ ...latest, amount: 10_000 }, [paid("2026-10-05", 50_000)], false)).toBe(
+				-40_000,
+			);
 		});
 	});
 
