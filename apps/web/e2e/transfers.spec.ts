@@ -143,6 +143,56 @@ test("paying the card from checking is one Transfer, which counts nowhere", asyn
 	await expect(page.getByText("Unassigned · Everyone · Checking")).toHaveCount(1);
 });
 
+test("a payment to a card Noodle doesn't follow is offered in Review as a card payment, and one tap marks it a Transfer (#91)", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
+	const thisMonth = page.url();
+	const day = await today(page);
+
+	// Only checking is in Noodle: the card's own side never comes in, so nothing pairs.
+	await uploadStatement(
+		page,
+		{ name: "Checking", kind: "checking", balance: "2,500" },
+		"checking.csv",
+		[
+			"Details,Posting Date,Description,Amount,Type,Balance,Check or Slip #",
+			`DEBIT,${day},"AMEX EPAYMENT ACH PMT",-400.00,ACH_DEBIT,2100.00,`,
+			`DEBIT,${day},"CORNER STORE #1",-30.00,DEBIT_CARD,2070.00,`,
+		],
+	);
+	await expect(toast(page, "checking.csv: 2 Transactions")).toBeVisible();
+
+	// In Review it's a card payment first, with why, and a Bucket second.
+	const payment = page
+		.getByTestId("review-card")
+		.filter({ hasText: "Card payment — not spending" });
+	await reloadUntil(page, new URL("/review?view=list", thisMonth).href, () =>
+		expect(payment).toHaveCount(1, { timeout: 2_000 }),
+	);
+	await expect(payment).toContainText("Looks like a payment to a credit card");
+	await expect(payment.getByTestId("review-payment-why")).toContainText(
+		"What you bought on the card is already in your Buckets, so the payment itself isn’t spending.",
+	);
+	await expect(payment.getByRole("link", { name: "add it in Accounts" })).toBeVisible();
+	await expect(payment.getByRole("button", { name: "Confirm" })).toHaveCount(0);
+	await expect(payment.getByRole("combobox", { name: /^Where .+ goes$/ })).toBeVisible();
+	// The corner store is an ordinary card.
+	await expect(page.getByTestId("review-card")).toHaveCount(2);
+
+	const mark = payment.getByRole("button", { name: "It’s a card payment" });
+	await expect(mark).toBeEnabled();
+	await mark.click();
+	await expect(toast(page, "marked as a Transfer")).toBeVisible();
+	await expect(page.getByTestId("review-card")).toHaveCount(1);
+
+	// It counts nowhere: a Transfer out of checking, with no other side.
+	await openTransactions(page, thisMonth);
+	await expect(page.getByText("Transfer out of Checking").first()).toBeVisible();
+});
+
 test("money back linked as a Refund goes back to the purchase's Bucket", async ({ browser }) => {
 	// A Quick Add, a statement, and the Refund linked and unlinked: over 30 s on a busy machine.
 	test.slow();

@@ -137,6 +137,7 @@ _Avoid_: Line item, sub-transaction
 
 **Transfer**:
 A Transaction pair that moves real money between two of the Household's own Accounts (e.g. paying the credit card). Never counts as spending.
+Paying the card is a Transfer, never a Bucket's spending: what was bought on the card was filed when it was bought. Where only one side is in Noodle (the other Account isn't followed), a Parent marks that side alone; a line whose words say it pays a credit card is offered as one in Review, never marked or filed on its own (#91).
 _Avoid_: Payment, Move
 
 **Refund**:

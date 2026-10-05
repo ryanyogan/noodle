@@ -16,6 +16,7 @@ import {
 import {
 	decideCategorization,
 	type GuessMethod,
+	looksLikeCardPayment,
 	merchantKey,
 	type Rule,
 	ruleFor,
@@ -156,8 +157,13 @@ export async function decideRows<R extends Rule & { id: string }>(
 		const merchant = merchantOf.get(row.id) as string;
 		if (!byMerchant.has(merchant)) byMerchant.set(merchant, row);
 	}
+	// A line that says it pays a credit card is a Transfer, not spending (#91): unless a Rule of the
+	// Parent's own files it, it's never filed or given a Bucket as a guess, and waits in Review,
+	// where the card offers the Transfer (or pairs with the card's side once that's imported).
+	const cardPayment = (row: Uncategorized) =>
+		looksLikeCardPayment(row.note) || looksLikeCardPayment(row.merchant);
 	const unruled = [...byMerchant.entries()]
-		.filter(([merchant, row]) => !ruleOf(merchant, row))
+		.filter(([merchant, row]) => !ruleOf(merchant, row) && !cardPayment(row))
 		.map(([merchant]) => merchant);
 
 	const similar = await nearest(deps.merchants, householdId, unruled, choosable);
@@ -184,6 +190,9 @@ export async function decideRows<R extends Rule & { id: string }>(
 		const merchant = merchantOf.get(row.id) as string;
 		const guess = modelled.get(merchant);
 		const rule = ruleOf(merchant, row);
+		if (!rule && cardPayment(row)) {
+			return { transactionId: row.id, merchant, categorization: decideCategorization({}) };
+		}
 		const categorization = decideCategorization({
 			rule,
 			similar: similar.get(merchant),

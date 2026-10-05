@@ -82,3 +82,80 @@ export function likelyOriginals(
 		.slice(0, limit)
 		.map(({ purchase }) => purchase);
 }
+
+// Card payments, by their words (#91).
+// Paying the credit card is a Transfer: what was bought on the card was filed when it was bought,
+// so the payment in a Bucket would count it twice. When both sides are imported the pair is found
+// by amount and date (transferPairs). When only the checking side is here (the card isn't in
+// Noodle, or its side hasn't come in yet), the line's own words are the only evidence. They're
+// enough to suggest a Transfer and to keep the line from being filed on its own, never enough to
+// mark it without a Parent.
+
+/** Words for paying something: "PAYMENT", "PYMT", "EPAYMENT", "AUTOPAY", "CRCARDPMT". */
+const PAYMENT_WORDS =
+	/\b(e-?payments?|e-?pay|payments?|pymts?|pmts?|autopay|auto ?pay)\b|crcardpmt|creditcard/i;
+/** Words only a credit card's payment has: "CREDIT CRD", "CARD ENDING IN", "CARDMEMBER SERV". */
+const CREDIT_CARD_WORDS =
+	/\bcredit ?ca?rd\b|\bcrd\b|crcardpmt|creditcard|\bcardmember\b|\bcard (srvc|services?|online|ending|e-?payment|payment|pymt|pmt|autopay)\b|\bbarclaycard\b|\bapple ?card\b/i;
+/** Card issuers whose payment lines name only themselves: "AMEX EPAYMENT", "DISCOVER E-PAYMENT". */
+const CARD_ISSUERS =
+	/\b(amex|american express|citi|citibank|capital one|discover|barclays|synchrony)\b/i;
+/** A purchase made with a card, a loan or a bill, or money sent to a person: never a card payment. */
+const NOT_A_CARD_PAYMENT =
+	/\b(mortgage|mtg|loan|lease|auto finance|carpay|insurance|rent|debit|checkcard|check card|pos|purchases?|gift ?cards?|zelle|venmo|paypal|cash app)\b/i;
+/** Words in an Account's name that don't tell one card from another. */
+const PLAIN_ACCOUNT_WORDS = new Set([
+	"card",
+	"cards",
+	"credit",
+	"bank",
+	"account",
+	"rewards",
+	"cash",
+	"the",
+	"and",
+	"checking",
+	"savings",
+]);
+
+const wordsOf = (text: string) => text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+
+/**
+ * Whether a bank line's words say it pays a credit card ("CHASE CREDIT CRD AUTOPAY", "AMEX
+ * EPAYMENT", "CITI CARD ONLINE PAYMENT"). A bill paid by autopay ("T-MOBILE AUTOPAY") or a loan's
+ * payment isn't one.
+ */
+export function looksLikeCardPayment(text: string | null | undefined): boolean {
+	if (!text || NOT_A_CARD_PAYMENT.test(text) || !PAYMENT_WORDS.test(text)) return false;
+	return CREDIT_CARD_WORDS.test(text) || CARD_ISSUERS.test(text);
+}
+
+/**
+ * Money out that is likely a payment to a credit card, and the card when the line's words name
+ * exactly one of the Household's (`cards`, by their names): null when it isn't likely. A line that
+ * only says "ONLINE PAYMENT" counts when it names one of those cards ("VISA ONLINE PAYMENT").
+ */
+export function likelyCardPayment(
+	line: { text: string | null | undefined; amountCents: Cents },
+	cards: { name: string }[] = [],
+): { card: string | null } | null {
+	const text = line.text ?? "";
+	if (line.amountCents <= 0 || NOT_A_CARD_PAYMENT.test(text) || !PAYMENT_WORDS.test(text)) {
+		return null;
+	}
+	const said = new Set(wordsOf(text));
+	const scored = cards
+		.map((card) => ({
+			name: card.name,
+			score: wordsOf(card.name).filter(
+				(word) => word.length >= 3 && !PLAIN_ACCOUNT_WORDS.has(word) && said.has(word),
+			).length,
+		}))
+		.filter((card) => card.score > 0)
+		.sort((a, b) => b.score - a.score);
+	const [best, next] = scored;
+	const named = best && (!next || next.score < best.score) ? best.name : null;
+	if (named) return { card: named };
+	// Two of the Household's cards fit equally, or none does: likely only by its own words.
+	return scored.length > 0 || looksLikeCardPayment(text) ? { card: null } : null;
+}

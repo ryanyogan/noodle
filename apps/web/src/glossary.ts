@@ -82,6 +82,12 @@ export const glossary = {
 			"A Goal to get a credit card or loan down to $0. It starts from what’s owed today; as the balance comes down, so does what’s left to pay. Each month you plan extra payments from Free to Spend.",
 		more: "Your regular payment stays a Commitment; the Goal is extra, on top. The card’s payment (from checking) shows once the card’s balance does: when the bank brings it in, you update it, or you use a statement’s. New charges take the balance back up, and the Goal shows it. At $0 it’s paid off, and you complete it.",
 	},
+	"card-payment": {
+		term: "Paying the card",
+		short:
+			"Paying a credit card from checking is a Transfer: money moving between your own Accounts. It isn’t spending, so it goes in no Bucket.",
+		more: "What you bought on the card was filed in your Buckets when you bought it, so the payment in a Bucket would count it twice. When checking and the card are both in Noodle, the two sides are paired on their own. When only one is, say so in Review: “It’s a card payment”. If the card isn’t in Noodle, what’s bought on it isn’t counted anywhere until you connect or add it in Accounts. Paying down a balance from before your Plan? Make its regular payment a Commitment and file the payment there; a Goal to pay it off is for anything extra.",
+	},
 	"set-aside": {
 		term: "Set aside",
 		short:
