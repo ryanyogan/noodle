@@ -129,7 +129,7 @@ test("an Insight and an Ask answer open as Scenarios in Explore, leaving the Pla
 	await expectSectionHeaderKept(page);
 
 	// Ask offers the change it projected, built from its tool, not from the model's words.
-	await page.getByRole("link", { name: "Ask", exact: true }).click();
+	await page.getByRole("link", { name: "Ask Noodle" }).click();
 	await page.getByLabel("Question").fill("What if we cancel Disney+?");
 	await page.getByLabel("Question").press("Enter");
 	await expect(
