@@ -3,8 +3,9 @@ import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { createPlannedHousehold, savedBy, signedInPage } from "./session";
 
-// The Plan's Buckets list (#57): amounts and names changed in place, with how far a change
-// reaches; Buckets moved by keyboard and by drag, said aloud and saved; Left to plan in view.
+// The Plan's Buckets list (#57, #98): a row opens the one Bucket sheet, where its amount (with how
+// far the change reaches) and name change; Buckets moved by keyboard and by drag, said aloud and
+// saved; Left to plan follows what's typed.
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -32,6 +33,15 @@ const names = (page: Page) =>
 		.locator("[data-bucket-row]")
 		.evaluateAll((rows) => rows.map((row) => row.querySelector("a")?.textContent ?? ""));
 
+const row = (page: Page, name: string) =>
+	page.locator("[data-bucket-row]").filter({ has: page.getByRole("link", { name, exact: true }) });
+
+/** Opens a Bucket's sheet by its amount in the list, as a tap anywhere on its row does. */
+async function openByAmount(page: Page, name: string, amount: string) {
+	await row(page, name).getByText(amount, { exact: true }).first().click();
+	return page.getByRole("dialog", { name, exact: true });
+}
+
 async function axe(page: Page, label: string) {
 	const { violations } = await new AxeBuilder({ page })
 		.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
@@ -42,7 +52,7 @@ async function axe(page: Page, label: string) {
 	).toEqual([]);
 }
 
-test("Buckets are changed in the list, with either reach, and moved by keyboard and drag", async ({
+test("Buckets are changed in one sheet from the list, with either reach, and moved by keyboard and drag", async ({
 	browser,
 }) => {
 	test.setTimeout(180_000);
@@ -59,10 +69,10 @@ test("Buckets are changed in the list, with either reach, and moved by keyboard 
 	const left = page.getByText(/^Left to plan/);
 	await expect(left).toContainText("$7,900");
 
-	// From this month on: Left to plan follows the typing, Enter saves.
-	await page.getByRole("button", { name: "Change Groceries: $800" }).click();
-	const groceries = page.getByRole("form", { name: "Change Groceries" });
-	const amount = groceries.getByRole("textbox", { name: "Allowance" });
+	// From this month on: the row's amount opens the sheet on its amount, Left to plan follows the
+	// typing, Enter saves.
+	const groceries = await openByAmount(page, "Groceries", "$800");
+	const amount = groceries.getByRole("textbox", { name: "Allowance", exact: true });
 	await expect(amount).toBeFocused();
 	await page.keyboard.type("900");
 	await expect(left).toContainText("$7,800");
@@ -71,32 +81,36 @@ test("Buckets are changed in the list, with either reach, and moved by keyboard 
 	await page.keyboard.press("Enter");
 	await saved;
 	await expect(groceries).toBeHidden();
-	await expect(page.getByRole("button", { name: "Change Groceries: $900" })).toBeVisible();
+	await expect(row(page, "Groceries")).toContainText("$900");
 
-	// Just this month.
-	await page.getByRole("button", { name: "Change Gas: $200" }).click();
-	const gas = page.getByRole("form", { name: "Change Gas" });
-	await gas.getByRole("textbox", { name: "Allowance" }).fill("250");
+	// Just this month, from the pencil: the same sheet.
+	await page.getByRole("button", { name: "Edit Gas", exact: true }).click();
+	const gas = page.getByRole("dialog", { name: "Gas", exact: true });
+	await gas.getByRole("textbox", { name: "Allowance", exact: true }).fill("250");
 	await gas.getByRole("radio", { name: /^Just / }).click();
 	saved = savedBy(page, "setAllowance");
-	await gas.getByRole("textbox", { name: "Allowance" }).press("Enter");
+	await gas.getByRole("textbox", { name: "Allowance", exact: true }).press("Enter");
 	await saved;
-	await expect(page.getByRole("button", { name: "Change Gas: $250" })).toBeVisible();
+	await expect(gas).toBeHidden();
+	await expect(row(page, "Gas")).toContainText("$250");
 
-	// Escape puts it away unsaved, and Left to plan goes back.
-	await page.getByRole("button", { name: "Change Fun: $100" }).click();
+	// Escape asks before throwing away what was typed; discarded, Left to plan goes back.
+	const fun = await openByAmount(page, "Fun", "$100");
+	await expect(fun.getByRole("textbox", { name: "Allowance", exact: true })).toBeFocused();
 	await page.keyboard.type("999");
+	await expect(left).toContainText("$6,851");
 	await page.keyboard.press("Escape");
-	await expect(page.getByRole("form", { name: "Change Fun" })).toBeHidden();
-	await expect(page.getByRole("button", { name: "Change Fun: $100" })).toBeVisible();
+	await page
+		.getByRole("alertdialog", { name: "Discard changes" })
+		.getByRole("button", { name: "Discard changes" })
+		.click();
+	await expect(fun).toBeHidden();
+	await expect(row(page, "Fun")).toContainText("$100");
 	await expect(left).toContainText("$7,750");
 
-	// The name changes in place too.
-	await page.getByRole("button", { name: "Change Fun: $100" }).click();
-	await page
-		.getByRole("form", { name: "Change Fun" })
-		.getByRole("textbox", { name: "Name" })
-		.fill("Fun money");
+	// The name changes in the same sheet.
+	await openByAmount(page, "Fun", "$100");
+	await fun.getByRole("textbox", { name: "Name" }).fill("Fun money");
 	saved = savedBy(page, "updateBucket");
 	await page.keyboard.press("Enter");
 	await saved;
@@ -131,15 +145,17 @@ test("Buckets are changed in the list, with either reach, and moved by keyboard 
 	await saved;
 	await expect(said).toHaveText("Gas moved to position 1 of 3");
 	expect(await names(page)).toEqual(["Gas", "Fun money", "Groceries"]);
+	// Letting go of the handle on a row didn't open that row's sheet.
+	await expect(page.getByRole("dialog")).toHaveCount(0);
 
 	// All of it was saved: the order, both amounts, and next month's.
 	await page.reload();
 	await expect(page.locator("[data-bucket-row]").first()).toContainText("Gas");
 	expect(await names(page)).toEqual(["Gas", "Fun money", "Groceries"]);
-	await expect(page.getByRole("button", { name: "Change Gas: $250" })).toBeVisible();
+	await expect(row(page, "Gas")).toContainText("$250");
 	await openBuckets(page, monthKey(1));
-	await expect(page.getByRole("button", { name: "Change Groceries: $900" })).toBeVisible();
-	await expect(page.getByRole("button", { name: "Change Gas: $200" })).toBeVisible();
+	await expect(row(page, "Groceries")).toContainText("$900");
+	await expect(row(page, "Gas")).toContainText("$200");
 
 	// Phone width: the Buckets page and the sheet.
 	await page.setViewportSize({ width: 393, height: 852 });
@@ -168,10 +184,17 @@ test("Buckets are changed in the list, with either reach, and moved by keyboard 
 			for (const colorScheme of ["light", "dark"] as const) {
 				await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
 				await openBuckets(page);
-				await page.getByRole("button", { name: "Change Groceries: $900" }).click();
-				await page.keyboard.type("950");
+				await page.getByRole("button", { name: "Edit Groceries", exact: true }).click();
+				await page
+					.getByRole("dialog", { name: "Groceries", exact: true })
+					.getByRole("textbox", { name: "Allowance", exact: true })
+					.fill("950");
 				await page.screenshot({ path: `${process.env.SHOTS}/list-${width}-${colorScheme}.png` });
 				await page.keyboard.press("Escape");
+				await page
+					.getByRole("alertdialog", { name: "Discard changes" })
+					.getByRole("button", { name: "Discard changes" })
+					.click();
 				await page.getByRole("button", { name: "Add Buckets", exact: true }).click();
 				await expect(sheet).toBeVisible();
 				await page.screenshot({ path: `${process.env.SHOTS}/sheet-${width}-${colorScheme}.png` });

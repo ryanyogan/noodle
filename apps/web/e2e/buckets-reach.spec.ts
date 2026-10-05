@@ -3,8 +3,9 @@ import { createTestParent } from "./parents";
 import { createPlannedHousehold, savedBy, signedInPage } from "./session";
 
 // Finding and changing Buckets (#98): This Month's Buckets heading leads to the list where they
-// are added, changed, moved and archived; a Bucket moves without dragging from its sheet; and a
-// Bucket's own page says "Edit Bucket".
+// are added, changed, moved and archived; a row opens the one Bucket sheet, where its amount
+// changes and it moves without dragging; and a Bucket's own page opens the same sheet from
+// "Edit Bucket".
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -37,22 +38,33 @@ async function reachAndEdit(page: Page) {
 	await expect(page.getByRole("button", { name: "Add Buckets", exact: true })).toBeEnabled();
 	// Adding is at the top and under the list, and the list says how a Bucket is changed.
 	await expect(page.getByRole("button", { name: "Add another Bucket" })).toBeVisible();
-	await expect(page.locator("[data-slot=bucket-how]")).toContainText("To change a Bucket");
+	await expect(page.locator("[data-slot=bucket-how]")).toHaveText(
+		"Choose a Bucket to change its amount, name, colour and more.",
+	);
 	await expect.poll(() => names(page)).toEqual(["Groceries", "Gas", "Fun"]);
 
-	// Its amount, right in the list.
-	await page.getByRole("button", { name: "Change Gas: $200" }).click();
-	const form = page.getByRole("form", { name: "Change Gas" });
-	await form.getByRole("textbox", { name: "Allowance" }).fill("250");
-	await expect(form.getByRole("radio", { name: /^From .* on$/ })).toBeChecked();
+	// Its amount: choosing it in the row opens the Bucket's one sheet, amount first.
+	const gasRow = page
+		.locator("[data-bucket-row]")
+		.filter({ has: page.getByRole("link", { name: "Gas", exact: true }) });
+	await gasRow.getByText("$200", { exact: true }).first().click();
+	const sheet = page.getByRole("dialog", { name: "Gas", exact: true });
+	const amount = sheet.getByRole("textbox", { name: "Allowance", exact: true });
+	await expect(amount).toBeFocused();
+	await amount.fill("250");
+	await expect(sheet.getByRole("radio", { name: /^From .* on$/ })).toBeChecked();
 	const allowanceSaved = savedBy(page, "setAllowance");
-	await form.getByRole("button", { name: "Save", exact: true }).click();
+	await sheet.getByRole("button", { name: "Save", exact: true }).click();
 	await allowanceSaved;
-	await expect(page.getByRole("button", { name: "Change Gas: $250" })).toBeVisible();
+	await expect(sheet).toBeHidden();
+	await expect(gasRow).toContainText("$250");
+	// The amount in the row is words, not a second editor: the pencil is the row's one button
+	// besides its handle.
+	await expect(gasRow.getByRole("button")).toHaveCount(2);
 
-	// Moved from its sheet, with no dragging.
+	// Moved from the same sheet, opened by the pencil, with no dragging.
 	await page.getByRole("button", { name: "Edit Gas", exact: true }).click();
-	const sheet = page.getByRole("dialog", { name: "Gas" });
+	await expect(sheet.locator("[data-slot=bucket-more]")).toContainText("More");
 	await expect(sheet).toContainText("2 of 3 in the list");
 	const moved = savedBy(page, "reorderBuckets");
 	await sheet.getByRole("button", { name: "Move up" }).click();
@@ -84,7 +96,7 @@ async function open(browser: Browser, phone: boolean) {
 	);
 }
 
-test("Buckets are one tap from This Month, changed in the list and moved from the sheet", async ({
+test("Buckets are one tap from This Month, and changed and moved from one sheet", async ({
 	browser,
 }) => {
 	test.setTimeout(120_000);
