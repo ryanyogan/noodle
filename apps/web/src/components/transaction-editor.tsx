@@ -30,7 +30,6 @@ import type {
 	Assignment,
 	SplitEdit,
 	SplitRow,
-	TransactionChange,
 	TransactionEdit,
 	TransactionRow,
 } from "../transactions";
@@ -105,7 +104,7 @@ export function TransactionEditor({
 	members: MemberSummary[];
 	/** The Parent looking. */
 	parentId: string;
-	onChange: (next: TransactionChange["next"]) => void;
+	onChange: (next: TransactionEdit | null) => void;
 	onClose: () => void;
 	/** Opens on splitting it, as Review's card's Split does. */
 	splitting?: boolean;
@@ -154,7 +153,7 @@ export function TransactionBody({
 	plan: Pick<Plan, "buckets" | "commitments">;
 	members: MemberSummary[];
 	parentId: string;
-	onChange: (next: TransactionChange["next"]) => void;
+	onChange: (next: TransactionEdit | null) => void;
 	onClose: () => void;
 	heading: (title: string, description: string) => ReactNode;
 	inline?: boolean;
@@ -264,7 +263,7 @@ function EditForm({
 	transaction: TransactionRow;
 	plan: Pick<Plan, "buckets" | "commitments">;
 	members: MemberSummary[];
-	onChange: (next: TransactionChange["next"]) => void;
+	onChange: (next: TransactionEdit | null) => void;
 	onClose: () => void;
 	/** In a pane, not a sheet: Cancel closes the pane. */
 	inline: boolean;

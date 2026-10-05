@@ -59,8 +59,17 @@ export function BucketPicker({
 	choices,
 	onValueChange,
 	onCreate,
+	value,
+	defaultOpen = false,
+	onClose,
 	"aria-label": label,
 }: {
+	/** What is chosen to begin with (a table cell shows what the row is assigned to). */
+	value?: string;
+	/** Open as soon as it is on the page: a table cell puts it there when it is asked for. */
+	defaultOpen?: boolean;
+	/** The list has closed, with or without a choice. */
+	onClose?: () => void;
 	id?: string;
 	className?: string;
 	disabled?: boolean;
@@ -73,9 +82,9 @@ export function BucketPicker({
 	"aria-label": string;
 }) {
 	const hydrated = useHydrated();
-	const [open, setOpen] = useState(false);
+	const [open, setOpen] = useState(defaultOpen);
 	const [search, setSearch] = useState("");
-	const [current, setCurrent] = useState("");
+	const [current, setCurrent] = useState(value ?? "");
 	const all = flatChoices(choices);
 	const chosen = all.find((c) => c.value === current);
 	const shown = choices
@@ -88,6 +97,7 @@ export function BucketPicker({
 	const close = () => {
 		setOpen(false);
 		setSearch("");
+		onClose?.();
 	};
 	return (
 		<Popover open={open} onOpenChange={(next) => (next ? setOpen(true) : close())}>

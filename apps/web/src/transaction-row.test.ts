@@ -77,7 +77,7 @@ describe("rowView", () => {
 		});
 		expect(v).toMatchObject({
 			kind: "split",
-			assigned: "Split across 2",
+			assigned: "Split · Groceries, Rent",
 			detail: "Split across 2 · Groceries, Rent",
 			label: `Costco, ${money}, Split across 2: Groceries, Rent`,
 			autoFiled: false,

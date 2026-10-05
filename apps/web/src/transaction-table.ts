@@ -51,16 +51,20 @@ export function dayTotals(
 
 /**
  * What Esc does on the Transactions page, one thing at a time (issue 99): a menu, picker or sheet
- * that is open takes it itself; then the open Transaction closes; then the selection ends, unless
- * the key was pressed in a field (Esc there is the field's, e.g. clearing the search).
+ * that is open takes it itself; then a cell being edited gives up its edit (the field's own doing:
+ * "cell" only says nothing else happens); then the open Transaction closes; then the selection
+ * ends, unless the key was pressed in a field (Esc there is the field's, e.g. clearing the search).
  */
 export function escapeStep(at: {
 	overlay: boolean;
+	/** The key was pressed in a cell's editor. */
+	cell?: boolean;
 	typing: boolean;
 	open: boolean;
 	selecting: boolean;
-}): "nothing" | "close" | "unselect" {
+}): "nothing" | "cell" | "close" | "unselect" {
 	if (at.overlay) return "nothing";
+	if (at.cell) return "cell";
 	if (at.open) return "close";
 	return at.selecting && !at.typing ? "unselect" : "nothing";
 }
