@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 // file really can't read CSS variables, add it below with the reason.
 const ALLOWED: Record<string, string> = {
 	"apps/web/src/routes/__root.tsx":
-		"the theme-color metas: the browser reads them before any CSS, one per mode (#f7f7f8 / #0c0d10)",
+		"the theme-color metas: the browser reads them before any CSS, one per mode (#f7f7f8 / #080a0f)",
 	"apps/web/src/server/email/templates.ts":
 		"email HTML can't use the app's CSS; the email's own brand",
 	"packages/ui/src/components/logo.tsx": "the mark's marigold dot, the logo's own colour",

@@ -631,7 +631,7 @@ function DataTable<TData extends RowData>({
 										className={cn(
 											ROW_GRID,
 											"min-h-14 border-t border-border py-2 first:border-t-0 @2xl/dt:min-h-11 @2xl/dt:py-1.5",
-											"data-selected:bg-surface-2 aria-[current=true]:bg-surface-2 aria-[current=true]:shadow-[inset_2px_0_0_var(--color-primary)]",
+											"data-selected:bg-selected aria-[current=true]:bg-selected aria-[current=true]:shadow-[inset_2px_0_0_var(--color-primary)]",
 											"focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
 											onOpen && "cursor-pointer hover:bg-surface-2/60",
 											rowClassName,

@@ -326,7 +326,7 @@ function DetailPanel({
 					// A raised surface with an edge that reads in both themes: the stronger border, and
 					// a shadow thrown left. The bottom padding keeps the end of the item clear of the Ask
 					// Noodle button, which stays in the window's corner over the panel.
-					"lg:rounded-l-3xl lg:border-l lg:border-border-strong lg:bg-popover lg:p-6 lg:pb-16 lg:shadow-side",
+					"lg:rounded-l-3xl lg:border-l lg:border-border-strong lg:bg-card lg:p-6 lg:pb-16 lg:shadow-side",
 					// Slides in when an item opens; going from item to item it stays where it is.
 					"lg:animate-side-in",
 					// A drawer from lg (over its scrim and the Ask Noodle button, under sheets); from xl
