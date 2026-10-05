@@ -765,6 +765,7 @@ export {
 	saveSetupJob,
 	saveSetupProgress,
 } from "./setup";
+export * from "./snapshot-carry";
 export * from "./snapshots";
 export {
 	acceptSuggestionAdding,

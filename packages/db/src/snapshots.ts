@@ -182,7 +182,17 @@ export function snapshotsToPrune(
 // Restoring a snapshot (#78, ADR-0035). Only rows with this Household's id are ever touched: the
 // clear and every delete are scoped to it, and a snapshot row for another Household is refused.
 
-/** Why a snapshot file can't be restored here, in words a Parent can read; null when it can. */
+/** A migration's place in the order they're applied: the number its name starts with. */
+export function migrationNumber(name: string | null): number | null {
+	const match = name ? /^(\d+)_/.exec(name) : null;
+	return match ? Number(match[1]) : null;
+}
+
+/**
+ * Why a snapshot can't be restored here, going by what its row says, in words a Parent can read;
+ * null when it can. One taken under an older migration is carried forward (ADR-0048); whether its
+ * rows then fit is `carryRefusal`'s to say, once the file is read.
+ */
 export function snapshotRefusal(
 	file: Pick<SnapshotFile, "format" | "householdId" | "migration">,
 	householdId: string,
@@ -191,9 +201,14 @@ export function snapshotRefusal(
 	if (file.householdId !== householdId) return "This snapshot belongs to another Household.";
 	if (file.format !== SNAPSHOT_FORMAT)
 		return "This snapshot was saved in a shape this version of Noodle can’t read, so it can’t be restored.";
-	// No mapper from an older schema exists yet: until one does, an older snapshot is refused.
-	if (file.migration !== currentMigration)
-		return "This snapshot was taken before Noodle’s last update changed how data is stored, so it can’t be restored. Restore a newer one.";
+	if (file.migration === currentMigration) return null;
+	const taken = migrationNumber(file.migration);
+	const now = migrationNumber(currentMigration);
+	if (taken === null || now === null)
+		return "Noodle can’t tell which of its updates this snapshot was taken under, so it can’t be restored.";
+	// A database rolled back to before the snapshot: its rows may hold what this schema lacks.
+	if (taken > now)
+		return "This snapshot was taken with a newer version of Noodle than the one running now, so it can’t be restored.";
 	return null;
 }
 
@@ -259,7 +274,10 @@ async function insertRows(
 	upsert = false,
 ) {
 	refuseOthers(name, rows, householdId);
-	const columns = storedColumns(name);
+	// Only the columns the snapshot's rows have: one added by a migration since then is left to
+	// the table's default (ADR-0048). A column the table lacks never gets here (carryRefusal).
+	const columns = storedColumns(name).filter((column) => rows.some((row) => column in row));
+	if (columns.length === 0) return;
 	const per = Math.max(1, Math.floor(MAX_BOUND / columns.length));
 	for (let i = 0; i < rows.length; i += per)
 		await db.run(insertStatement(name, columns, rows.slice(i, i + per), upsert));

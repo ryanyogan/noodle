@@ -26,5 +26,5 @@ Both Parents use Noodle at the same time on their own phones. Changing a Transac
 
 - A change made on an old version is never written. The Parent has to make it again on what is there now; nothing redoes it for them.
 - The message says "another screen" for the bank's sync and for a Rule too. It is true enough and one message is easier to learn than three.
-- Restoring a Household snapshot (ADR-0035) puts versions back to what they were in the snapshot. A screen left open across a restore may have a change refused once, then is right again after its refetch.
+- Restoring a Household snapshot (ADR-0035) puts versions back to what they were in the snapshot. A screen left open across a restore may have a change refused once, then is right again after its refetch. A snapshot from before versions existed is restored with every version at 0 (ADR-0048).
 - Every `insert … select` into `transactions` lists the column (`0 as version`): Drizzle fills those by position.

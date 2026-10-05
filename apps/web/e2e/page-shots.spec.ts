@@ -469,6 +469,12 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "05-plan-bucket", path: `/plan/${month}/buckets/${firstBucket}` },
 		{ name: "06-plan-commitments", path: `/plan/${month}/commitments` },
 		{ name: "07-plan-commitment", path: `/plan/${month}/commitments/${firstCommitment}` },
+		// The same Commitment as the window shows it: on a computer, in its panel over the list.
+		{
+			name: "07b-plan-commitment-window",
+			path: `/plan/${month}/commitments/${firstCommitment}`,
+			window: true,
+		},
 		{ name: "08-plan-goal-funding", path: `/plan/${month}/goals` },
 		{ name: "09-plan-year", path: `/plan/${month}/year` },
 		{ name: "10-transactions", path: `/transactions/${month}`, tall: true },

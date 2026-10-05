@@ -83,7 +83,7 @@ function CommitmentPage() {
 	const back = <BackToCommitments month={month} />;
 	// A Commitment only goes away if another Parent's change removes it; the loader 404s on reload.
 	if (!commitment)
-		return <DetailHeader listBeside eyebrow="Commitment" title="Commitment" leading={back} />;
+		return <DetailHeader inPanel eyebrow="Commitment" title="Commitment" leading={back} />;
 	const terms = currentTerms(data, id, month);
 	const ended = commitment.endedFromMonth !== null && commitment.endedFromMonth <= month;
 	const hasCharges = matchCharges(data, id, data.charges).length > 0;
@@ -100,7 +100,7 @@ function CommitmentPage() {
 	return (
 		<>
 			<DetailHeader
-				listBeside
+				inPanel
 				pager={
 					<DetailPager
 						ids={order}

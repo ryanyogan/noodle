@@ -1,5 +1,7 @@
 # Plaid is the only Bank Connection provider, on its Trial plan
 
+Status: accepted, and in production since 2026-10-05 (issue 70): the deployed app runs against Plaid's production environment, and the first real Bank Connection (Chase, OAuth, from a phone) was made that day. How it was switched, and how to look after it (rotating the secret, the Data Transparency Messaging use case Link needs), is `docs/runbooks/plaid-production.md`.
+
 Bank Connections go through Plaid and nothing else. SimpleFIN (#18) was added as a fallback in case Plaid production access was slow to come. It isn't: Plaid's Trial plan gives new US accounts free production access with no business registration or sales process. It allows up to 10 Items, with uncapped calls against connected Items, and covers Transactions, Balance and Liabilities. OAuth works at Chase, Bank of America, Wells Fargo, Capital One, Citi and Amex. One Household needs far fewer than 10 Items. A second provider was a second thing to maintain and test and a second way into the Bank Connections UI, so it was removed (#45). Production held no SimpleFIN Bank Connections when it went.
 
 The provider-neutral seam stays (`apps/web/src/server/bank-connection.ts`): Plaid is its one implementation, and nothing past it speaks Plaid. `bank_connections.provider` is narrowed to `"plaid"` in Drizzle only; the column is plain text in D1, so there was no migration. `notice` stays too: it now holds the `display_message` Plaid puts on an error for the end user, and a read that works clears it.
@@ -10,10 +12,10 @@ What an Item is shapes how the app behaves:
 - Removing an Item (`/item/remove`) does not give its slot back.
 - Reconnecting must use Link's update mode, which keeps the same Item. A fresh Link would use another slot. Reconnect in the app does this; don't add a "remove and connect again" path.
 - A joint account both Parents log into counts as two Items if both link it. Warning a Parent before they link an institution the Household already has is a possible follow-up.
-- Development and E2E stay on Sandbox, which is free and unlimited. E2E (AI_MODEL=stub) uses a fake Plaid on top of that.
+- Development stays on Sandbox, which is free and unlimited (its own secret and `PLAID_ENV=sandbox` in `.dev.vars`). E2E, and any copy run with AI_MODEL=stub, uses a fake Plaid and calls nothing.
 - Moving from Trial to Pay-as-you-go is one-way.
 
-Production today runs against Sandbox: `PLAID_ENV` is `"sandbox"` in `wrangler.jsonc`, with the Sandbox `PLAID_SECRET`. Moving to the Trial plan means setting `PLAID_ENV` to `"production"` and replacing the `PLAID_SECRET` Worker secret with the production one (`wrangler secret put PLAID_SECRET`). `PLAID_CLIENT_ID` and `BANK_CONNECTION_KEY` stay. Access tokens are per environment, so Bank Connections made against Sandbox stop working after the switch and are connected again.
+The deployed app runs against production: `PLAID_ENV` is `"production"` in `wrangler.jsonc`, and the `PLAID_SECRET` Worker secret is the production one (`wrangler secret put PLAID_SECRET`). Until 2026-10-05 it ran against Sandbox with the Sandbox secret; `PLAID_CLIENT_ID` and `BANK_CONNECTION_KEY` were the same before and after. Access tokens are per environment, so the Bank Connections made against Sandbox stopped working at the switch and were ended; their practice Accounts stay until a Parent archives them (ADR-0046).
 
 ## Link, ready for production keys (#71)
 
@@ -36,12 +38,13 @@ Production today runs against Sandbox: `PLAID_ENV` is `"sandbox"` in `wrangler.j
 - **What's logged and shown.** One `plaid-webhook` JSON line per webhook: type, code, `item_id`, any error code, and the outcome (`synced`, `marked`, `ignored`, `rejected`, `failed`). Nothing from an Account or a Transaction. Each Bank Connection keeps when its last webhook came (`last_webhook_at`) and when it was last read (`last_imported_at`), and its row on Accounts says "Last updated 2 hours ago".
 - **Trying it against Sandbox.** `apps/web/scripts/plaid-sandbox-webhook.ts` calls `/sandbox/item/fire_webhook` and `/sandbox/item/reset_login`, so the deployed endpoint can be exercised with Plaid's real signatures. It only talks to sandbox.plaid.com.
 
-## Production, ready for the switch (#70)
+## Production (#70, switched 2026-10-05)
 
 - **History.** (Since #89 the Parent chooses the span, a year at most; see "How far back" below.) A new link asks for a year of Transactions (`HISTORY_DAYS` = 365 in `server/plaid.ts`), not 90 days: the plan draft and Bucket suggestions (#53, #58) see a whole year's seasons, without the slower first import of Plaid's most (730). The Import Workflow reads at most 8 pages of 500 in one step and reads on from the saved cursor over up to ten rounds a minute apart, so no step pages through the whole history.
 - **Fails closed.** A secret that doesn't fit `PLAID_ENV` (`INVALID_API_KEYS`, `UNAUTHORIZED_ENVIRONMENT`) makes Connect and Reconnect say Plaid isn't set up, and a sync says the same on the Bank Connection; never an error page. Missing secrets already did.
 - **Plain words for Plaid's errors.** `INSTITUTION_DOWN`, `INSTITUTION_NOT_RESPONDING`, `RATE_LIMIT_EXCEEDED` (any code of that type) and `PRODUCT_NOT_READY` put a sentence asking nothing of the Parent on the Bank Connection when Plaid wrote none for them; Plaid's `error_message` is never shown. The Workflow retries each read four times with exponential backoff from 30 seconds, and the next good read clears the notice.
-- **The switch** is `docs/runbooks/plaid-production.md`: the Parent's dashboard steps and secret, then `scripts/plaid-retire-sandbox.sql` (Disconnect's database half, for Bank Connections made before the switch) and `PLAID_SANDBOX_RETIRED`, which shows "Connect your real bank" on Accounts until one is.
+- **The switch** is recorded in `docs/runbooks/plaid-production.md`: the Parent's dashboard steps and secret, then `scripts/plaid-retire-sandbox.sql` (Disconnect's database half, for Bank Connections made before the switch). A `PLAID_SANDBOX_RETIRED` var showed "Connect your real bank" on Accounts from the switch until the first real bank was connected; it and the message are gone.
+- **Data Transparency Messaging.** Production refuses a link token until the Link customization in Plaid's dashboard has at least one Data Transparency Messaging use case; Sandbox doesn't. The app can only say "Couldn't connect account" for it, so it's a dashboard step in the runbook.
 - **Cost.** Plaid bills Transactions per connected Item per month (the Trial plan allows 10 Items), so each extra login at the same bank costs one; the duplicate rule above steers a Parent to Reconnect instead. The rate is on the dashboard's billing page; check it there rather than trusting a number written here. Noodle never calls `/accounts/balance/get`, which is billed per call: balances come with `/accounts/get` and the sync.
 
 ## How far back, chosen by the Parent (#89, 2026-10-05)

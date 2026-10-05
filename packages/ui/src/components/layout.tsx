@@ -394,4 +394,13 @@ function MasterDetail({
 	);
 }
 
-export { DetailColumns, MasterDetail, PageLayout, SectionGrid, SplitLayout, SplitMain, SplitRail };
+export {
+	DetailColumns,
+	MasterDetail,
+	PageLayout,
+	Pane as MasterDetailPane,
+	SectionGrid,
+	SplitLayout,
+	SplitMain,
+	SplitRail,
+};

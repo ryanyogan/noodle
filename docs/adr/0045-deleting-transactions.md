@@ -51,4 +51,4 @@ The Transactions page lists Transactions only. Deposits into a checking or savin
 
 - A deleted bank line can't be brought back by syncing again. The way back is the snapshot (many) or Undo (one).
 - An Import's own count of what it added is what it added then; it isn't reduced when its Transactions are deleted later.
-- A snapshot is restorable only under the migration it was taken with (ADR-0035), so a later migration ends the way back for snapshots taken before it, these included.
+- A snapshot outlives later migrations that only add columns or tables (ADR-0048), these included; a migration that does more needs a transform, and a test fails until it has one. (Before ADR-0048 any later migration ended the way back.)
