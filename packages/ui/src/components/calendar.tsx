@@ -62,7 +62,7 @@ function Calendar({
 					defaults.dropdowns,
 				),
 				dropdown_root: cn(
-					"relative rounded-(--cell-radius) border border-border bg-surface-2",
+					"relative rounded-(--cell-radius) border border-border bg-menu-hover",
 					"has-focus-visible:border-ring has-focus-visible:ring-3 has-focus-visible:ring-brand-soft",
 					defaults.dropdown_root,
 				),
@@ -86,11 +86,11 @@ function Calendar({
 					"[&:first-child[data-selected=true]_button]:rounded-l-(--cell-radius) [&:last-child[data-selected=true]_button]:rounded-r-(--cell-radius)",
 					defaults.day,
 				),
-				range_start: cn("rounded-l-(--cell-radius) bg-surface-2", defaults.range_start),
+				range_start: cn("rounded-l-(--cell-radius) bg-menu-hover", defaults.range_start),
 				range_middle: cn("rounded-none", defaults.range_middle),
-				range_end: cn("rounded-r-(--cell-radius) bg-surface-2", defaults.range_end),
+				range_end: cn("rounded-r-(--cell-radius) bg-menu-hover", defaults.range_end),
 				today: cn(
-					"rounded-(--cell-radius) bg-surface-2 font-medium text-foreground data-[selected=true]:rounded-none",
+					"rounded-(--cell-radius) bg-menu-hover font-medium text-foreground data-[selected=true]:rounded-none",
 					defaults.today,
 				),
 				outside: cn("text-subtle-foreground aria-selected:text-muted-foreground", defaults.outside),
@@ -149,7 +149,7 @@ function CalendarDayButton({
 				"data-[selected-single=true]:bg-primary data-[selected-single=true]:font-medium data-[selected-single=true]:text-primary-foreground",
 				"data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground",
 				"data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground",
-				"data-[range-middle=true]:rounded-none data-[range-middle=true]:bg-surface-2",
+				"data-[range-middle=true]:rounded-none data-[range-middle=true]:bg-menu-hover",
 				defaults.day,
 				className,
 			)}

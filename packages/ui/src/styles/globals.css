@@ -122,6 +122,8 @@
 	/* shadcn role names, mapped onto the tokens above */
 	--card-foreground: var(--foreground);
 	--popover: var(--card);
+	/* The row under the pointer or the keys in a menu, a select or a calendar: one step up from the menu. */
+	--menu-hover: var(--surface-2);
 	--popover-foreground: var(--foreground);
 	/* The main button is the accent with white text (ADR-0038); dark gives --primary its own darker fill. */
 	--primary: var(--brand);
@@ -219,6 +221,9 @@
 		--border-strong: #343b4c;
 		/* A picked or current row: the accent, faintly, on the card. */
 		--selected: #20283a;
+		/* A menu over a card is one step lighter than the card, so it reads as its own layer (issue 116). */
+		--popover: var(--surface-2);
+		--menu-hover: var(--surface-3);
 		--foreground: #e9ecf3;
 		--muted-foreground: #a3aaba;
 		--subtle-foreground: #8b93a5;
@@ -287,6 +292,7 @@
 	--color-card: var(--card);
 	--color-card-foreground: var(--card-foreground);
 	--color-popover: var(--popover);
+	--color-menu-hover: var(--menu-hover);
 	--color-popover-foreground: var(--popover-foreground);
 	--color-primary: var(--primary);
 	--color-primary-foreground: var(--primary-foreground);
