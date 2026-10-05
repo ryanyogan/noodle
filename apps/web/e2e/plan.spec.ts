@@ -96,7 +96,6 @@ test("a Parent plans the month and This Month shows Free to Spend and each Bucke
 
 	await setTakeHomePay(page, "9,000");
 	await expect(freeToSpend(page)).toHaveText("Free to Spend$9,000");
-	await page.getByRole("link", { name: "Add Buckets" }).click();
 	await addBucket(page, "Groceries", "1,200");
 	await expect(page.getByText("$1,200 in Buckets")).toBeVisible();
 	await addBucket(page, "Hockey", "400");
@@ -185,7 +184,6 @@ test("a failed save is undone and can be retried", async ({ browser }) => {
 	await openPlan(page);
 	await setTakeHomePay(page, "5,000");
 	await expect(freeToSpend(page)).toHaveText("Free to Spend$5,000");
-	await page.getByRole("link", { name: "Add Buckets" }).click();
 	await addBucket(page, "Fun", "300");
 	await expect(page.getByText("$300 in Buckets")).toBeVisible();
 
@@ -210,7 +208,6 @@ test("a failed save is undone and can be retried", async ({ browser }) => {
 test("adding a Bucket twice with the same ID creates one Bucket", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email);
 	await openPlan(page);
-	await page.getByRole("link", { name: "Add Buckets" }).click();
 	// Deliver the request to the server twice, as a retry after a lost response would.
 	await page.route(serverFn("addBuckets"), async (route) => {
 		await route.fetch();

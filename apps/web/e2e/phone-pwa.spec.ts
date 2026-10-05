@@ -82,14 +82,13 @@ for (const look of looks) {
 			]),
 		).toEqual(["none", "none"]);
 
-		// A sticky header (the bar over the Plan's Buckets) sticks below the status bar, not under it.
+		// The Plan's Buckets no longer have a bar that sticks under the status bar (issue 109): the
+		// page has nothing sticky of its own left to hide there.
 		await switchTo(page, "Plan");
 		await openPlanBuckets(page);
-		const sticky = page.locator("[data-slot=left-to-plan]");
-		await expect(sticky).toBeVisible();
-		await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-		const box = await sticky.boundingBox();
-		expect(Math.round(box?.y ?? 0)).toBeGreaterThanOrEqual(notch.top);
+		await expect(page.locator("[data-slot=left-to-plan]")).toHaveCount(0);
+		const heading = await page.locator("h2#buckets").boundingBox();
+		expect(Math.round(heading?.y ?? 0)).toBeGreaterThanOrEqual(notch.top);
 	});
 
 	test(`Back closes Quick Add${look.name}`, async ({ browser }) => {

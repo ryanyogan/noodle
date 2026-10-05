@@ -1,12 +1,12 @@
 import {
 	addMonths,
+	freeToSpendParts,
 	lumpsIn,
 	type MonthKey,
 	monthOfDay,
 	parseDollars,
 	whatChanged,
 } from "@noodle/domain";
-import { BudgetBar } from "@noodle/ui/components/budget-bar";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { SectionGrid } from "@noodle/ui/components/layout";
@@ -16,11 +16,11 @@ import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, linkOptions, useHydrated } from "@tanstack/react-router";
-import { Check } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
-import { AddBuckets } from "../../../components/add-buckets";
+import { AddBucketsSheet } from "../../../components/add-buckets";
 import { AddPersonalAllowance } from "../../../components/bucket-editor";
-import { BucketTable } from "../../../components/bucket-table";
+import { BucketTable, bucketsHaveHandles } from "../../../components/bucket-table";
 import { LumpCallout } from "../../../components/coming-up";
 import { AmountInput } from "../../../components/goals";
 import { PlanDraftSection } from "../../../components/plan-draft";
@@ -32,7 +32,7 @@ import {
 	groupTitle,
 	HistoryStart,
 } from "../../../components/plan-history";
-import { PlanMasterDetail, TotalsCard } from "../../../components/plan-page";
+import { PlanMasterDetail } from "../../../components/plan-page";
 import { PlanSplit } from "../../../components/plan-split";
 import { SectionPending } from "../../../components/section-layout";
 import { Suggested } from "../../../components/suggested";
@@ -41,6 +41,7 @@ import { formatMoney, monthName } from "../../../format";
 import { useGoals } from "../../../goals";
 import { usePlanChange, usePlanChanges, withTakeHomePay } from "../../../plan-changes";
 import { PLAN_BUCKETS_HASH } from "../../../plan-pages";
+import { withDraftAllowances } from "../../../plan-split";
 import {
 	goalsQuery,
 	membersQuery,
@@ -53,8 +54,10 @@ import {
 } from "../../../queries";
 import { setTakeHomePay } from "../../../server/plan";
 
-// The Plan's first page (issue 109): where take-home pay goes, with the Buckets table directly
-// under it in the same column, then Personal Allowances. It is a layout with no address of its
+// The Plan's first page (issue 109, ADR-0053): where take-home pay goes, in short, with the
+// Buckets table directly under it in the same column, then Personal Allowances. One set of
+// figures: the split is the summary (it follows an allowance as it is typed), the table is where
+// it is changed and its last row is the Buckets' totals. It is a layout with no address of its
 // own (`_home`): `/plan/$month` and a Bucket's `/plan/$month/buckets/$id` are both its children,
 // so the page stays mounted, with its scroll and what was typed, while a Bucket opens over it (a
 // panel from 1440, a drawer from 1024, a page of its own on a phone).
@@ -80,219 +83,151 @@ function PlanHome() {
 	const { month, parentId } = Route.useRouteContext();
 	const state = useMonthState(month);
 	const changes = usePlanChanges(month);
+	const hydrated = useHydrated();
 	const current = monthOfDay(state.asOf);
 	const buckets = state.buckets.filter((b) => b.owner === undefined);
 	const allowances = state.buckets.filter((b) => b.owner !== undefined);
 	const settingUp = state.editable && (state.baseline === null || buckets.length === 0);
 	// Until take-home pay is set, the split is all zeros: setting up comes first.
 	const unpaid = settingUp && state.baseline === null;
-	const shared = buckets.reduce((sum, b) => sum + b.allowance, 0);
+	// What the Buckets take, as the split counts it: the heading says the split's own figure, and
+	// the table's last row adds up the same Buckets.
+	const shared = freeToSpendParts(state).find(({ part }) => part === "buckets")?.amount ?? 0;
 	const members = useSuspenseQuery(membersQuery()).data;
 	const nameOf = (id: string) => members.find((m) => m.id === id)?.name;
 	// Another Parent's Personal Allowance isn't in this Plan (ADR-0003); only whether one exists is.
 	const stillToSet = useAllowancesStillToSet(parentId);
-	// Amounts being typed in a Bucket's sheet, so Left to plan follows before they're saved.
+	// Amounts being typed in a Bucket's sheet: the split is drawn as if they were saved, so its bar,
+	// its Buckets figure and Free to Spend follow the typing. Put away with the sheet.
 	const [drafts, setDrafts] = useState<Record<string, number>>({});
-	const typed = state.buckets.reduce(
-		(sum, b) => sum + (drafts[b.id] === undefined ? 0 : (drafts[b.id] ?? 0) - b.allowance),
-		0,
-	);
-	const left = state.freeToSpend - typed;
-	const personal = allowances.reduce((sum, b) => sum + b.allowance, 0);
-	const spent = state.buckets.reduce((sum, b) => sum + b.spent, 0);
-	const available = state.buckets.reduce((sum, b) => sum + b.available, 0);
-	const over = state.buckets.reduce((sum, b) => sum + Math.max(0, -b.left), 0);
 	const onDraft = (bucketId: string, cents: number | null) =>
 		setDrafts(({ [bucketId]: _, ...rest }) =>
 			cents === null ? rest : { ...rest, [bucketId]: cents },
 		);
+	const typed = withDraftAllowances(state, drafts);
+	// One Add Buckets sheet for the page, whichever control opens it.
+	const [adding, setAdding] = useState(false);
+	const addBuckets = (label: string, look: "heading" | "step" | "under") => (
+		<Button
+			type="button"
+			variant={look === "heading" ? undefined : "outline"}
+			size={look === "under" ? undefined : "sm"}
+			className="justify-self-start"
+			disabled={!hydrated}
+			onClick={() => setAdding(true)}
+		>
+			<Plus />
+			{label}
+		</Button>
+	);
 	return (
 		<PlanMasterDetail
 			noun="Bucket"
 			listLabel="The Plan"
-			railLabel="Buckets’ totals and what changed"
+			railLabel="What changed in the Plan"
 			// A Bucket opens in a panel from the right; the page keeps its width and the table every
-			// column. The page has the whole width up to 1440, with the totals and what changed under
-			// it; from there they are beside it and the panel covers them. Closing leaves the page
-			// where it is scrolled, so the address has no hash.
+			// column. The page has the whole width up to 1440, with what changed under it; from there
+			// that is beside it and the panel covers it. Closing leaves the page where it is scrolled,
+			// so the address has no hash.
 			panel={{
 				size: "wide",
 				besideFrom: "late",
 				close: linkOptions({ to: "/plan/$month", params: { month } }),
 			}}
 			editable={state.editable}
-			// The rail: the Buckets' totals, then what changed. Each under a heading as tall as the
-			// split's, so the first cards of the two columns start on one line from 1440.
-			overview={
-				state.buckets.length > 0 ? (
-					<Section aria-labelledby="plan-bucket-totals">
-						<SectionHeader id="plan-bucket-totals" title={`Buckets in ${monthName(month)}`} />
-						<TotalsCard
-							label={`Buckets in ${monthName(month)}: totals`}
-							lines={[
-								...(state.baseline == null
-									? []
-									: [{ label: "Take-home pay", value: formatMoney(state.baseline) }]),
-								{ label: "Shared Buckets", value: formatMoney(shared) },
-								...(allowances.length > 0
-									? [{ label: "Personal Allowances", value: formatMoney(personal) }]
-									: []),
-								{ label: "Spent so far", value: formatMoney(spent) },
-								...(over > 0
-									? [
-											{
-												label: "Over, across Buckets",
-												value: formatMoney(over),
-												tone: "over" as const,
-											},
-										]
-									: []),
-								{
-									label: "Left in Buckets",
-									value: formatMoney(state.leftInBuckets),
-									tone: "strong" as const,
-								},
-							]}
-						>
-							<BudgetBar
-								value={spent}
-								max={available}
-								label={`All Buckets in ${monthName(month)}`}
-								valueText={`${formatMoney(spent)} spent of ${formatMoney(available)}`}
-							/>
-						</TotalsCard>
-					</Section>
-				) : undefined
-			}
-			aside={
-				unpaid ? undefined : (
-					<div className="mt-4 first:mt-0">
-						<WhatChanged month={month} first={state.firstMonth} />
-					</div>
-				)
-			}
+			// The rail is what changed, and nothing else: the Plan's figures are the split's, and the
+			// Buckets' totals are the table's last row.
+			aside={unpaid ? undefined : <WhatChanged month={month} first={state.firstMonth} />}
 		>
 			{state.editable && month === current ? (
 				<PlanDraftSection planned={state.buckets.map((b) => b.name)} />
 			) : null}
-			{settingUp ? <SetUp state={state} current={month === current} /> : null}
-			{/* On a phone, Free to Spend first (#65). */}
-			{unpaid ? null : (
-				<Card className="flex items-baseline justify-between gap-3 p-(--card-pad) lg:hidden">
-					<span className="text-sm font-medium text-muted-foreground">Free to Spend</span>
-					<span
-						className={cn(
-							"text-2xl font-semibold tracking-tight tabular-nums",
-							state.freeToSpend < 0 && "text-over",
-						)}
-					>
-						{formatMoney(state.freeToSpend)}
-					</span>
-				</Card>
-			)}
+			{settingUp ? (
+				<SetUp
+					state={state}
+					current={month === current}
+					// With no Buckets yet there is no Buckets section below: this is the one Add Buckets.
+					addBuckets={buckets.length === 0 ? addBuckets("Add Buckets", "step") : undefined}
+				/>
+			) : null}
+			{state.editable ? (
+				<AddBucketsSheet
+					month={month}
+					buckets={state.buckets}
+					freeToSpend={state.freeToSpend}
+					parentId={parentId}
+					parentName={nameOf(parentId)}
+					open={adding}
+					onOpenChange={setAdding}
+				/>
+			) : null}
 			{/* Where take-home pay goes, on top. From 1920 the column has room for two: what to check
 			    sits beside it rather than two blocks a metre wide (#73). Narrower, it is under it. */}
 			<SectionGrid className="empty:hidden xl:grid-cols-[minmax(0,1fr)] min-[120rem]:grid-cols-2">
 				{unpaid ? null : (
 					<div className="grid gap-3 only:col-span-full">
-						<PlanSplit state={state} current={month === current} />
+						<PlanSplit state={typed} current={month === current} />
 						<LumpCallout lumps={lumpsIn(state)} month={month} />
 					</div>
 				)}
 				{month === current ? <PlanHealth folded /> : null}
 			</SectionGrid>
-			{/* The Buckets, where the split's Buckets figure is changed, then Personal Allowances. One
-			    block, so the bar under the heading stays in view for as long as either is on screen. */}
+			{/* The Buckets, where the split's Buckets figure is changed, then Personal Allowances. */}
 			<div className="grid min-w-0 gap-3">
-				<SectionHeader
-					id={PLAN_BUCKETS_HASH}
-					title="Buckets"
-					count={buckets.length}
-					action={
-						buckets.length > 0 ? (
-							<p className="min-w-0 text-end text-[13px] text-muted-foreground tabular-nums">
-								<Money cents={shared} /> in Buckets
-								{state.movedToBuckets > 0 ? (
-									<>
-										{" · "}
-										<Money cents={state.movedToBuckets} /> Covered from Free to Spend
-									</>
-								) : null}
-							</p>
-						) : undefined
-					}
-				/>
-				{state.editable ? (
-					// Stays in view while Buckets and Personal Allowances are added and changed (a bar across
-					// the top on a phone).
-					<div
-						data-slot="left-to-plan"
-						className="sticky top-[var(--safe-top)] z-10 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-(--radius-control) border bg-card/90 px-3 py-2 backdrop-blur-xl max-lg:-mx-1"
-					>
-						<p aria-live="polite" className="text-sm text-muted-foreground">
-							Left to plan <TermHelp term="free-to-spend" />{" "}
-							<span
-								className={`font-medium tabular-nums ${left < 0 ? "text-over-foreground" : "text-foreground"}`}
-							>
-								{formatMoney(left)}
-							</span>
-							{stillToSet.map((name) => (
-								<span key={name}> · still to set: {name}’s Personal Allowance</span>
-							))}
-						</p>
-						<AddBuckets
-							month={month}
-							buckets={state.buckets}
-							freeToSpend={state.freeToSpend}
-							parentId={parentId}
-							parentName={nameOf(parentId)}
-						/>
-					</div>
-				) : null}
-				{buckets.length > 0 ? (
-					<BucketTable
-						month={month}
-						label="Buckets"
-						buckets={buckets}
-						editable={state.editable}
-						reorder
-						was={changes.allowances}
-						onDraft={onDraft}
-						foot={
-							state.editable ? (
-								// Under the table: Add without scrolling back up a long list. Its own words, so the
-								// bar's Add Buckets stays the one of that name.
-								<div className="px-1">
-									<AddBuckets
-										month={month}
-										buckets={state.buckets}
-										freeToSpend={state.freeToSpend}
-										parentId={parentId}
-										parentName={nameOf(parentId)}
-										label="Add another Bucket"
-										variant="outline"
-									/>
+				{buckets.length > 0 || !state.editable ? (
+					<>
+						<SectionHeader
+							id={PLAN_BUCKETS_HASH}
+							title="Buckets"
+							count={buckets.length}
+							action={
+								<div className="flex min-w-0 items-center gap-3">
+									{buckets.length > 0 ? (
+										// The split's Buckets figure again, and the table's last row. A phone has no
+										// room for it beside the button; both of the others are on its page.
+										<p
+											data-slot="buckets-total"
+											className="min-w-0 text-end text-[13px] text-muted-foreground tabular-nums max-sm:hidden"
+										>
+											<Money cents={shared} /> in Buckets
+										</p>
+									) : null}
+									{state.editable ? addBuckets("Add Buckets", "heading") : null}
 								</div>
-							) : null
-						}
-					/>
-				) : state.editable ? (
-					<p className="px-1 text-sm text-muted-foreground">
-						An allowance for each kind of everyday spending, like Groceries, Fun, or Hockey, tracked
-						as what’s left.
-					</p>
-				) : (
-					<Card className="p-(--card-pad) text-sm text-muted-foreground">
-						No Buckets in this month’s Plan.
-					</Card>
-				)}
+							}
+						/>
+						{buckets.length > 0 ? (
+							<BucketTable
+								month={month}
+								label="Buckets"
+								buckets={buckets}
+								editable={state.editable}
+								reorder
+								was={changes.allowances}
+								onDraft={onDraft}
+								freeToSpend={state.freeToSpend}
+								foot={
+									state.editable ? (
+										// Under the table: Add without scrolling back up a long list. Its own words,
+										// so the heading's Add Buckets stays the one of that name.
+										<div className="px-1">{addBuckets("Add another Bucket", "under")}</div>
+									) : null
+								}
+							/>
+						) : (
+							<Card className="p-(--card-pad) text-sm text-muted-foreground">
+								No Buckets in this month’s Plan.
+							</Card>
+						)}
+					</>
+				) : null}
 				{/* Under the list (#76), on this month only: adding one writes this month's Plan. */}
 				{state.editable && month === current ? <Suggested kinds={["new-bucket"]} /> : null}
 				{allowances.length > 0 || state.editable ? (
 					<Section
 						id="personal-allowances"
 						aria-labelledby="plan-personal-allowances"
-						className="mt-5"
+						className="mt-5 first:mt-0"
 					>
 						<SectionHeader
 							id="plan-personal-allowances"
@@ -306,6 +241,8 @@ function PlanHome() {
 								label="Personal Allowances"
 								buckets={allowances}
 								editable={state.editable}
+								// Room where the Buckets' handles are, so the figures of the two tables line up.
+								indent={bucketsHaveHandles(buckets, state.editable)}
 								// Each Parent sets their own; the other's shows its figures.
 								canEdit={(bucket) => bucket.owner === parentId}
 								setBy={(bucket) =>
@@ -315,7 +252,13 @@ function PlanHome() {
 								}
 								was={changes.allowances}
 								onDraft={onDraft}
+								freeToSpend={state.freeToSpend}
 							/>
+						) : null}
+						{state.editable && stillToSet.length > 0 ? (
+							<p data-slot="still-to-set" className="px-1 text-[13px] text-muted-foreground">
+								{stillToSet.map((name) => `Still to set: ${name}’s Personal Allowance`).join(" · ")}
+							</p>
 						) : null}
 						{state.editable && !allowances.some((b) => b.owner === parentId) ? (
 							<AddPersonalAllowance month={month} parentId={parentId} buckets={state.buckets} />
@@ -328,10 +271,19 @@ function PlanHome() {
 }
 
 /**
- * Setting up a month's Plan, step by step: take-home pay right here, Buckets further down this
- * page, Commitments and Goals on their own pages. Each step says when it's done.
+ * Setting up a month's Plan, step by step: take-home pay right here, Buckets in the sheet this
+ * page opens, Commitments and Goals on their own pages. Each step says when it's done.
  */
-function SetUp({ state, current }: { state: PlanState; current: boolean }) {
+function SetUp({
+	state,
+	current,
+	addBuckets,
+}: {
+	state: PlanState;
+	current: boolean;
+	/** What opens the Add Buckets sheet, while there are no Buckets. */
+	addBuckets?: ReactNode;
+}) {
 	const { month } = state;
 	// With no draft yet, statements are the quickest start: the Plan is drafted from them.
 	const { data: draft } = useQuery({ ...planDraftQuery(), enabled: current });
@@ -385,6 +337,8 @@ function SetUp({ state, current }: { state: PlanState; current: boolean }) {
 					/>
 					<Step
 						number={3}
+						// Until there are Buckets this step is where links to the Plan's Buckets land.
+						id={buckets.length === 0 ? PLAN_BUCKETS_HASH : undefined}
 						title="Buckets"
 						done={buckets.length > 0}
 						description={
@@ -394,15 +348,7 @@ function SetUp({ state, current }: { state: PlanState; current: boolean }) {
 									)} a month`
 								: "An allowance for each kind of everyday spending, like Groceries or Fun."
 						}
-						// The Buckets are further down this page.
-						action={
-							<StepLink
-								to="/plan/$month"
-								hash={PLAN_BUCKETS_HASH}
-								month={month}
-								label="Add Buckets"
-							/>
-						}
+						action={addBuckets}
 					/>
 					<Step
 						number={4}
@@ -448,6 +394,7 @@ const count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
 
 function Step({
 	number,
+	id,
 	title,
 	description,
 	done,
@@ -456,6 +403,7 @@ function Step({
 	children,
 }: {
 	number: number;
+	id?: string;
 	title: string;
 	description: string;
 	done: boolean;
@@ -464,7 +412,10 @@ function Step({
 	children?: ReactNode;
 }) {
 	return (
-		<li className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-3 px-(--card-pad) py-3.5">
+		<li
+			id={id}
+			className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-3 px-(--card-pad) py-3.5"
+		>
 			<span
 				aria-hidden="true"
 				className={cn(
@@ -495,18 +446,16 @@ function Step({
 
 function StepLink({
 	to,
-	hash,
 	month,
 	label,
 }: {
-	to: "/plan/$month" | "/plan/$month/commitments" | "/plan/$month/goals";
-	hash?: string;
+	to: "/plan/$month/commitments" | "/plan/$month/goals";
 	month: MonthKey;
 	label: string;
 }) {
 	return (
 		<Button variant="outline" size="sm" className="justify-self-start" asChild>
-			<Link to={to} params={{ month }} hash={hash}>
+			<Link to={to} params={{ month }}>
 				{label}
 			</Link>
 		</Button>

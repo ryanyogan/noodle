@@ -1,11 +1,13 @@
 import { describe, expect, test } from "vitest";
 import {
 	barWidths,
+	freeToSpendAfter,
 	MIN_WIDTH,
 	planSplit,
 	shareText,
 	splitSentence,
 	wholeShares,
+	withDraftAllowances,
 } from "./plan-split";
 
 const sum = (list: number[]) => list.reduce((total, n) => total + n, 0);
@@ -130,5 +132,63 @@ describe("where take-home pay goes", () => {
 		expect(splitSentence(planSplit({ income: 900_000, parts: parts(400_000, 500_000) }))).toBe(
 			"All of your $9,000 take-home pay is planned. Nothing is left as Free to Spend.",
 		);
+	});
+});
+
+describe("allowances being typed in a Bucket's sheet", () => {
+	const month = {
+		baseline: 600000,
+		freeToSpend: 440000,
+		buckets: [
+			{ id: "groceries", name: "Groceries", allowance: 120000 },
+			{ id: "hockey", name: "Hockey", allowance: 40000 },
+		],
+	};
+
+	test("puts the typed allowance in place of the saved one and takes the difference from Free to Spend", () => {
+		const typed = withDraftAllowances(month, { hockey: 50000 });
+		expect(typed.buckets.map((b) => b.allowance)).toEqual([120000, 50000]);
+		expect(typed.freeToSpend).toBe(430000);
+		// Everything else is the month's own, and the month itself is not changed.
+		expect(typed.baseline).toBe(600000);
+		expect(typed.buckets[0]).toBe(month.buckets[0]);
+		expect(month.buckets[1]?.allowance).toBe(40000);
+		expect(month.freeToSpend).toBe(440000);
+	});
+
+	test("gives money back when an allowance is lowered, and goes below zero when too much is typed", () => {
+		expect(withDraftAllowances(month, { groceries: 0 }).freeToSpend).toBe(560000);
+		expect(withDraftAllowances(month, { groceries: 600000 }).freeToSpend).toBe(-40000);
+		expect(withDraftAllowances(month, { groceries: 100000, hockey: 70000 }).freeToSpend).toBe(
+			430000,
+		);
+	});
+
+	test("is the very same month with nothing typed, the saved amount typed, or a Bucket it doesn't have", () => {
+		expect(withDraftAllowances(month, {})).toBe(month);
+		expect(withDraftAllowances(month, { hockey: 40000 })).toBe(month);
+		expect(withDraftAllowances(month, { gone: 99900 })).toBe(month);
+		expect(withDraftAllowances(month, { hockey: Number.NaN })).toBe(month);
+	});
+
+	test("keeps the split's parts and Free to Spend adding up to the pay", () => {
+		const typed = withDraftAllowances(month, { hockey: 90000 });
+		const buckets = typed.buckets.reduce((sum, b) => sum + b.allowance, 0);
+		const split = planSplit({
+			income: typed.baseline,
+			parts: [{ key: "buckets", label: "Buckets", amount: buckets }],
+			left: typed.freeToSpend,
+		});
+		expect(split.planned + split.left).toBe(600000);
+		expect(split.parts[0]?.amount).toBe(210000);
+		expect(split.free.amount).toBe(390000);
+	});
+
+	test("says in the sheet what Free to Spend will be, only once the amount differs", () => {
+		expect(freeToSpendAfter(440000, 40000, 50000)).toBe(430000);
+		expect(freeToSpendAfter(440000, 40000, 0)).toBe(480000);
+		expect(freeToSpendAfter(440000, 40000, 500000)).toBe(-20000);
+		expect(freeToSpendAfter(440000, 40000, 40000)).toBeNull();
+		expect(freeToSpendAfter(440000, 40000, null)).toBeNull();
 	});
 });

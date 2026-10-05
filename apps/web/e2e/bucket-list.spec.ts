@@ -6,8 +6,8 @@ import { realTouch, swipe } from "./touch";
 
 // The Plan's Buckets table (#57, #98, issue 107): a row's allowance or pencil opens the one Bucket
 // sheet, where its amount (with how far the change reaches) and name change; the row itself opens
-// the Bucket's page; Buckets moved by keyboard and by drag, said aloud and saved; Left to plan
-// follows what's typed. Dragging (issue 106): down as well as up, from the
+// the Bucket's page; Buckets moved by keyboard and by drag, said aloud and saved; the take-home
+// split above the table, and a line in the sheet, follow what's typed. Dragging (issue 106): down as well as up, from the
 // smallest movement, under a finger, saved once per drop.
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
@@ -74,16 +74,23 @@ test("Buckets are changed in one sheet from the list, with either reach, and mov
 		],
 	});
 	await openBuckets(page);
-	const left = page.getByText(/^Left to plan/);
+	// Free to Spend in the take-home split above the table: the sheet dims it, so it is read here
+	// by where it is, and the sheet says the same figure itself.
+	const left = page.locator(
+		"section[aria-labelledby=plan-waterfall] [data-part=free] [data-slot=plan-split-figure]",
+	);
+	const afterThis = page.locator("[data-slot=free-to-spend-after]");
 	await expect(left).toContainText("$7,900");
+	await expect(page.getByText("Left to plan")).toHaveCount(0);
 
-	// From this month on: the row's amount opens the sheet on its amount, Left to plan follows the
-	// typing, Enter saves.
+	// From this month on: the row's amount opens the sheet on its amount, Free to Spend follows the
+	// typing in the split and in the sheet, Enter saves.
 	const groceries = await openByAmount(page, "Groceries", "$800");
 	const amount = groceries.getByRole("textbox", { name: "Allowance", exact: true });
 	await expect(amount).toBeFocused();
 	await page.keyboard.type("900");
 	await expect(left).toContainText("$7,800");
+	await expect(afterThis).toHaveText("Free to Spend after this: $7,800");
 	await expect(groceries.getByRole("radio", { name: /^From .* on$/ })).toBeChecked();
 	let saved = savedBy(page, "setAllowance");
 	await page.keyboard.press("Enter");
@@ -102,11 +109,12 @@ test("Buckets are changed in one sheet from the list, with either reach, and mov
 	await expect(gas).toBeHidden();
 	await expect(row(page, "Gas")).toContainText("$250");
 
-	// Escape asks before throwing away what was typed; discarded, Left to plan goes back.
+	// Escape asks before throwing away what was typed; discarded, Free to Spend goes back.
 	const fun = await openByAmount(page, "Fun", "$100");
 	await expect(fun.getByRole("textbox", { name: "Allowance", exact: true })).toBeFocused();
 	await page.keyboard.type("999");
 	await expect(left).toContainText("$6,851");
+	await expect(afterThis).toHaveText("Free to Spend after this: $6,851");
 	await page.keyboard.press("Escape");
 	await page
 		.getByRole("alertdialog", { name: "Discard changes" })

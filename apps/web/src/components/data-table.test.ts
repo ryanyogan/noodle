@@ -368,3 +368,55 @@ describe("a cell's place in the tree", () => {
 		expect(first).toContain("Total");
 	});
 });
+
+describe("a table under one that has a leading slot", () => {
+	const handle = { width: "2.75rem", min: 2 };
+	const base = { columns, data: lines, getRowId: (line: Line) => line.id };
+	const indented = renderToStaticMarkup(
+		h(DataTable<Line>, { ...base, label: "Personal Allowances", indent: handle }),
+	);
+	const withHandles = renderToStaticMarkup(
+		h(DataTable<Line>, {
+			...base,
+			label: "Buckets",
+			leading: { header: "Order", ...handle, render: (line) => `grip ${line.id}` },
+		}),
+	);
+	const templates = (html: string) => html.match(/--dt-cols-\d:[^;"]*/g) ?? [];
+
+	it("holds the slot's room open where rows are columns, and not in a stacked row", () => {
+		const root = tags(indented, "table")[0] ?? "";
+		expect(root).toContain("--dt-stack:[main] minmax(0,1fr) [val] auto [mainend]");
+		expect(root).toContain("--dt-cols-0:2.75rem minmax(10rem,1fr) 6rem");
+		// One in the header, one a row, one in the totals: hidden until the rows are columns, and
+		// not a cell.
+		const spacers = indented.match(/<div [^>]*data-slot="data-table-indent"[^>]*>/g) ?? [];
+		expect(spacers).toHaveLength(lines.length + 2);
+		for (const spacer of spacers) {
+			expect(spacer).toContain('aria-hidden="true"');
+			expect(spacer).toContain('class="hidden @2xl/dt:block"');
+			expect(spacer).not.toContain("role=");
+		}
+	});
+
+	it("has the same columns at every width as the table with the slot", () => {
+		expect(templates(indented)).toHaveLength(TABLE_TIERS.length);
+		expect(templates(indented)).toEqual(templates(withHandles));
+	});
+
+	it("has no spacer without the prop, or beside a real leading slot", () => {
+		const plain = renderToStaticMarkup(h(DataTable<Line>, { ...base, label: "Plain" }));
+		expect(plain).not.toContain("data-table-indent");
+		expect(tags(plain, "table")[0]).toContain("--dt-cols-0:minmax(10rem,1fr) 6rem");
+		const both = renderToStaticMarkup(
+			h(DataTable<Line>, {
+				...base,
+				label: "Both",
+				indent: handle,
+				leading: { header: "Order", ...handle, render: () => "grip" },
+			}),
+		);
+		expect(both).not.toContain("data-table-indent");
+		expect(templates(both)).toEqual(templates(withHandles));
+	});
+});

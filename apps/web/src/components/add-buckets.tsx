@@ -50,14 +50,20 @@ type AddBucketsChange = {
 	personal?: Omit<NewBucket, "rolling">;
 };
 
-export function AddBuckets({
+/**
+ * The Add Buckets sheet. It has no button of its own: on the Plan's first page more than one
+ * control opens it (a step of setting up, the Buckets heading, under the table), and it stays
+ * where the page puts it while those come and go, so a save that fails still has somewhere to say
+ * so.
+ */
+export function AddBucketsSheet({
 	month,
 	buckets,
 	freeToSpend,
 	parentId,
 	parentName,
-	label = "Add Buckets",
-	variant,
+	open,
+	onOpenChange: setOpen,
 }: {
 	month: MonthKey;
 	buckets: PlanBucket[];
@@ -65,28 +71,15 @@ export function AddBuckets({
 	freeToSpend: number;
 	parentId: string;
 	parentName: string | undefined;
-	/** The button's words, when a page has a second one (under a long list). The sheet is the same. */
-	label?: string;
-	variant?: "outline";
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
 }) {
-	const hydrated = useHydrated();
-	const [open, setOpen] = useState(false);
 	const add = usePlanChange(month, {
 		save: ({ owner: _, ...data }: AddBucketsChange) => addBuckets({ data }),
 		apply: withNewBuckets,
 	});
 	return (
-		<div className="grid gap-2">
-			<Button
-				type="button"
-				variant={variant}
-				className="justify-self-start"
-				disabled={!hydrated}
-				onClick={() => setOpen(true)}
-			>
-				<Plus />
-				{label}
-			</Button>
+		<>
 			<SaveFailed change={add} />
 			<Sheet open={open} onOpenChange={setOpen}>
 				{open ? (
@@ -109,7 +102,7 @@ export function AddBuckets({
 					</SheetContent>
 				) : null}
 			</Sheet>
-		</div>
+		</>
 	);
 }
 

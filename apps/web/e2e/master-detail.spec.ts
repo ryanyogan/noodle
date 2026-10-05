@@ -70,7 +70,7 @@ test("the list stays put, keeps its scroll and marks its item while the detail c
 	await household(page);
 
 	// Nothing picked: the rail is beside the list, and there is no panel.
-	await expect(rail(page)).toHaveAttribute("aria-label", "Buckets’ totals and what changed");
+	await expect(rail(page)).toHaveAttribute("aria-label", "What changed in the Plan");
 	await expect(detail(page)).toHaveCount(0);
 	const widthBefore = (await list(page).boundingBox())?.width;
 	// The list pane is the Plan's first page: the take-home split with the Buckets under it.
@@ -129,7 +129,7 @@ test("the list stays put, keeps its scroll and marks its item while the detail c
 		.getByRole("link", { name: "Overview", exact: true })
 		.click();
 	await expect(page).toHaveURL(new RegExp(`/plan/${month}$`));
-	await expect(rail(page)).toHaveAttribute("aria-label", "Buckets’ totals and what changed");
+	await expect(rail(page)).toHaveAttribute("aria-label", "What changed in the Plan");
 	await expect(detail(page)).toHaveCount(0);
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
 	await page.context().close();
@@ -160,7 +160,7 @@ test("a Bucket's and a Commitment's old addresses go to the new ones", async ({ 
 test("a phone shows the list, then the item with Back", { tag: "@phone" }, async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email, phone);
 	await household(page);
-	// The list is the page, with Add Buckets in its sticky bar.
+	// The list is the page, with Add Buckets beside the Buckets heading.
 	await expect(page.getByRole("button", { name: "Add Buckets" })).toBeVisible();
 	await list(page).evaluate((pane) => {
 		pane.dataset.kept = "yes";

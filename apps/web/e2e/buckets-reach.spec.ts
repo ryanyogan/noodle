@@ -38,7 +38,7 @@ async function reachAndEdit(page: Page) {
 	await expect(page).toHaveURL(planBucketsUrl);
 	await expect(page.locator("h2#buckets")).toBeInViewport();
 	await expect(page.getByRole("button", { name: "Add Buckets", exact: true })).toBeEnabled();
-	// Adding is at the top and under the table.
+	// Adding is beside the heading and under the table.
 	await expect(page.getByRole("button", { name: "Add another Bucket" })).toBeVisible();
 	await expect.poll(() => names(page)).toEqual(["Groceries", "Gas", "Fun"]);
 

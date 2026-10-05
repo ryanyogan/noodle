@@ -445,7 +445,7 @@ test.beforeAll(async ({ browser }) => {
 			},
 		},
 		// The Plan's first page, whole: the take-home split, the Buckets table under it, Personal
-		// Allowances, the totals and what changed. Then what the window shows of it on arriving.
+		// Allowances and what changed. Then what the window shows of it on arriving.
 		{ name: "03-plan-overview", path: `/plan/${month}` },
 		{ name: "03w-plan-overview-window", path: `/plan/${month}`, window: true },
 		{

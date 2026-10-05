@@ -1,8 +1,11 @@
 import { freeToSpendParts, type MonthState, type PlanPart } from "@noodle/domain";
 import { Alert, AlertDescription } from "@noodle/ui/components/alert";
+import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { cn } from "@noodle/ui/lib/utils";
+import { useHydrated } from "@tanstack/react-router";
+import { useId, useState } from "react";
 import { formatMoney } from "../format";
 import { planSplit, type SplitRow, shareText, splitSentence } from "../plan-split";
 import { planParts } from "./plan-page";
@@ -38,9 +41,15 @@ type Ink = keyof typeof INK;
 /**
  * Where take-home pay goes: one bar that is the whole pay, split in the Plan's order into
  * Commitments, Buckets, Goal funding and what's left, Free to Spend. The sentence above says the
- * takeaway and the rows under the bar are the real content (name, amount, share, in the bar's
- * order), so the bar itself is hidden from screen readers. The rows are figures, not links: the
+ * takeaway and the parts under the bar are the real content (name, amount, share, in the bar's
+ * order), so the bar itself is hidden from screen readers. The parts are figures, not links: the
  * tabs right above open each part (#73).
+ *
+ * It is the top of the Plan's first page, with the Buckets table under it (issue 109), so it is
+ * short. In a card of 36rem or more the parts are cells in a row under the bar; in a narrower one
+ * (a phone) they are rows, of which only Free to Spend shows until "Show the parts" opens the
+ * rest. One list either way. Given a month with typed allowances (`withDraftAllowances`), it
+ * shows that.
  */
 export function PlanSplit({ state, current }: { state: MonthState; current: boolean }) {
 	// Goal funding shows in the current month, where it can still happen, or once it did.
@@ -59,6 +68,10 @@ export function PlanSplit({ state, current }: { state: MonthState; current: bool
 	const payLabel = extra > 0 ? "Take-home pay and Extra income" : "Take-home pay";
 	// What a share is a share of, for a screen reader, which can't see the column it sits in.
 	const shareOf = extra > 0 ? "take-home pay and Extra income" : "take-home pay";
+	// In a narrow card the parts other than Free to Spend wait behind a button.
+	const [open, setOpen] = useState(false);
+	const hydrated = useHydrated();
+	const listId = useId();
 	return (
 		<Section aria-labelledby="plan-waterfall">
 			<SectionHeader
@@ -66,7 +79,7 @@ export function PlanSplit({ state, current }: { state: MonthState; current: bool
 				title="Where take-home pay goes"
 				help={<TermHelp term="free-to-spend" />}
 			/>
-			<Card>
+			<Card className="@container/split">
 				<div className="grid gap-3 p-(--card-pad)">
 					<p data-slot="plan-split-sentence" className="text-sm text-pretty">
 						{splitSentence(split, extra)}
@@ -115,11 +128,18 @@ export function PlanSplit({ state, current }: { state: MonthState; current: bool
 					)}
 				</div>
 				<ul
+					id={listId}
 					aria-label="Where take-home pay goes, part by part"
-					className="border-t [&>li+li]:border-t"
+					className="@xl/split:grid @xl/split:grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] @xl/split:gap-x-4 @xl/split:gap-y-3 @xl/split:px-(--card-pad) @xl/split:pb-(--card-pad)"
 				>
 					{split.parts.map((row) => (
-						<SplitRowItem key={row.key} row={row} ink={row.key as Ink} of={shareOf} />
+						<SplitRowItem
+							key={row.key}
+							row={row}
+							ink={row.key as Ink}
+							of={shareOf}
+							folded={!open}
+						/>
 					))}
 					<SplitRowItem
 						row={split.free}
@@ -129,6 +149,23 @@ export function PlanSplit({ state, current }: { state: MonthState; current: bool
 						over={over}
 					/>
 				</ul>
+				{split.parts.length > 0 ? (
+					// Only where the parts are rows: as cells they are all on show.
+					<div className="border-t px-(--card-pad) py-1 @xl/split:hidden">
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="-mx-2 min-h-9"
+							aria-expanded={open}
+							aria-controls={listId}
+							disabled={!hydrated}
+							onClick={() => setOpen(!open)}
+						>
+							{open ? "Hide the parts" : "Show the parts"}
+						</Button>
+					</div>
+				) : null}
 			</Card>
 			{over ? (
 				<Alert variant="destructive">
@@ -174,38 +211,59 @@ function Stack({
 	);
 }
 
-/** A part's row: its swatch, name, amount and share of the pay, in the bar's order. */
+/**
+ * A part: its swatch, name, amount and share of the pay, in the bar's order. A row in a narrow
+ * card; from 36rem a cell, the name over its amount with the share beside it. The same elements
+ * in the same order both ways. `folded` keeps a row put away until the parts are shown; a cell is
+ * never put away.
+ */
 function SplitRowItem({
 	row,
 	ink,
 	of,
 	total = false,
 	over = false,
+	folded = false,
 }: {
 	row: SplitRow;
 	ink: Ink;
 	of: string;
 	total?: boolean;
 	over?: boolean;
+	folded?: boolean;
 }) {
 	const share = shareText(row);
 	return (
 		<li
 			data-part={row.key}
 			className={cn(
-				"grid grid-cols-[auto_minmax(0,1fr)_auto_2.75rem] items-center gap-x-3 px-(--card-pad) py-3 text-sm",
+				"grid-cols-[auto_minmax(0,1fr)_auto_2.75rem] items-center gap-x-3 border-t px-(--card-pad) py-3 text-sm",
+				"@xl/split:flex @xl/split:flex-wrap @xl/split:items-baseline @xl/split:gap-x-2 @xl/split:gap-y-0.5 @xl/split:border-t-0 @xl/split:p-0",
+				folded ? "hidden" : "grid",
 				total && "font-semibold",
 			)}
 		>
-			<span aria-hidden="true" className={cn("size-3 rounded-sm", INK[ink])} />
+			<span aria-hidden="true" className={cn("size-3 shrink-0 rounded-sm", INK[ink])} />
 			{/* Name then amount, with nothing between them: what a Parent reads, and what tests read. */}
 			<span data-slot="plan-split-figure" className="contents">
-				<span className={cn("min-w-0", !total && "font-medium")}>{row.label}</span>
-				<span className={cn("text-end tabular-nums", over && "text-over-foreground")}>
+				<span
+					className={cn(
+						"min-w-0 @xl/split:w-[calc(100%-1.25rem)] @xl/split:text-[13px]",
+						!total && "font-medium",
+					)}
+				>
+					{row.label}
+				</span>
+				<span
+					className={cn(
+						"text-end tabular-nums @xl/split:text-start @xl/split:text-base @xl/split:font-semibold",
+						over && "text-over-foreground",
+					)}
+				>
 					{formatMoney(row.amount)}
 				</span>
 			</span>
-			<span className="text-end text-[13px] font-normal text-muted-foreground tabular-nums">
+			<span className="text-end text-[13px] font-normal text-muted-foreground tabular-nums @xl/split:text-start">
 				{share === "" ? null : (
 					<>
 						{share}

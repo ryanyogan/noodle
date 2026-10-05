@@ -94,6 +94,12 @@ test("the overview says where take-home pay goes in words, as parts of one whole
 		"Goal funding$00% of take-home pay",
 		"Free to Spend$4,40073% of take-home pay",
 	]);
+	// With room (a card of 36rem or more) the parts are cells in one row under the bar, all on show.
+	await expect(waterfall(page).getByRole("button", { name: "Show the parts" })).toBeHidden();
+	const tops = await rows
+		.getByRole("listitem")
+		.evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().top)));
+	expect(new Set(tops).size, "the parts are in one row").toBe(1);
 	// One "?" for the section, on its heading.
 	await expect(waterfall(page).getByRole("button", { name: /^What’s/ })).toHaveCount(1);
 
@@ -105,8 +111,17 @@ test("the overview says where take-home pay goes in words, as parts of one whole
 		violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`),
 	).toEqual([]);
 
-	// On the narrowest phone nothing runs off the side, and the rows are still all there.
+	// On the narrowest phone the parts are rows, and all but Free to Spend wait behind a button.
+	// Opened, they are all there, and nothing runs off the side.
 	await page.setViewportSize({ width: 320, height: 720 });
+	await expect(rows.getByRole("listitem")).toHaveText(["Free to Spend$4,40073% of take-home pay"]);
+	const show = waterfall(page).getByRole("button", { name: "Show the parts" });
+	await expect(show).toHaveAttribute("aria-expanded", "false");
+	await show.click();
+	await expect(waterfall(page).getByRole("button", { name: "Hide the parts" })).toHaveAttribute(
+		"aria-expanded",
+		"true",
+	);
 	await expect(rows.getByRole("listitem")).toHaveCount(4);
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 	await page.context().close();
@@ -320,10 +335,16 @@ test("the take-home split and the Buckets table are one page, and the old Bucket
 	expect(allowances.y, "Personal Allowances under the table").toBeGreaterThan(
 		buckets.y + buckets.height - 1,
 	);
-	// From 1440 the totals and what changed are beside that column, not under it.
+	// From 1440 what changed is beside that column, not under it, and it is all the rail holds.
 	const rail = await page.locator("[data-slot=master-detail-aside]").boundingBox();
 	expect(rail?.x ?? 0, "the rail is beside the page").toBeGreaterThan(split.x + split.width - 1);
 	await expect(page.getByRole("region", { name: "What changed" })).toBeVisible();
+	await expect(page.locator("[data-slot=master-detail-aside]").getByRole("heading")).toHaveText([
+		"What changed",
+	]);
+	// The first Bucket is on the first screen, under the split.
+	expect(await page.evaluate(() => window.scrollY)).toBe(0);
+	await expect(table.locator("[data-slot=data-table-row]").first()).toBeInViewport({ ratio: 1 });
 	const { violations } = await new AxeBuilder({ page }).analyze();
 	expect(
 		violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`),
@@ -384,6 +405,15 @@ test("on the narrowest phone the Plan's first page has the split and the Buckets
 	await expect(waterfall(page)).toBeVisible();
 	await expect(page.getByRole("button", { name: "Edit Hockey", exact: true })).toBeEnabled();
 	await expect(planTabs(page).getByRole("link", { name: "Buckets", exact: true })).toHaveCount(0);
+	// The split is short here: the sentence, the bar and Free to Spend, the other parts behind a
+	// button. One Add Buckets, beside the heading, and no bar stuck over the list.
+	await expect(waterfall(page).getByRole("listitem")).toHaveText([
+		"Free to Spend$4,40073% of take-home pay",
+	]);
+	await expect(waterfall(page).getByRole("button", { name: "Show the parts" })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Add Buckets", exact: true })).toHaveCount(1);
+	await expect(page.getByRole("button", { name: "Add Buckets", exact: true })).toBeInViewport();
+	await expect(page.locator("[data-slot=left-to-plan]")).toHaveCount(0);
 	const split = await waterfall(page).boundingBox();
 	const buckets = await page.getByRole("grid", { name: "Buckets", exact: true }).boundingBox();
 	if (!split || !buckets) throw new Error("no split or no table");
@@ -403,6 +433,121 @@ test("on the narrowest phone the Plan's first page has the split and the Buckets
 	await page.getByRole("link", { name: "Back to Buckets" }).click();
 	await expect(page).toHaveURL(new RegExp(`/plan/${month}#buckets$`));
 	await expect(page.getByRole("button", { name: "Edit Hockey", exact: true })).toBeVisible();
+	await page.context().close();
+});
+
+test("the Plan's first page is short: the Buckets start on the first screen, the split follows typing, and the totals are the table's last row", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email, {
+		viewport: { width: 1280, height: 720 },
+	});
+	await createPlannedHousehold(page, plan);
+	await switchTo(page, "Plan");
+	const table = page.getByRole("grid", { name: "Buckets", exact: true });
+	const firstRow = table.locator("[data-slot=data-table-row]").first();
+	const figure = (part: string) =>
+		waterfall(page).locator(`[data-part=${part}] [data-slot=plan-split-figure]`);
+
+	// Without scrolling, the first Bucket is on the screen under the split, in a small window and
+	// in a larger one.
+	for (const viewport of [
+		{ width: 1440, height: 900 },
+		{ width: 1280, height: 720 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.evaluate(() => window.scrollTo(0, 0));
+		await expect(firstRow, `${viewport.width}x${viewport.height}`).toBeInViewport({ ratio: 1 });
+	}
+
+	// What went (issue 109): the bar stuck over the list with its second name for Free to Spend,
+	// and the card of totals. One Add Buckets; the rail is what changed, under the page here.
+	await expect(page.locator("[data-slot=left-to-plan]")).toHaveCount(0);
+	await expect(page.getByText("Left to plan")).toHaveCount(0);
+	await expect(page.getByText("Left in Buckets")).toHaveCount(0);
+	await expect(page.getByRole("group", { name: /totals$/ })).toHaveCount(0);
+	await expect(page.getByRole("button", { name: "Add Buckets", exact: true })).toHaveCount(1);
+	await expect(page.getByRole("button", { name: "Add another Bucket" })).toHaveCount(1);
+	const rail = page.locator("[data-slot=master-detail-aside]");
+	await expect(rail.getByRole("heading")).toHaveText(["What changed"]);
+	const railBox = await rail.boundingBox();
+	const tableBox = await table.boundingBox();
+	if (!railBox || !tableBox) throw new Error("no rail or no table");
+	expect(railBox.y, "below 1440 the rail is under the page").toBeGreaterThan(
+		tableBox.y + tableBox.height - 1,
+	);
+
+	// One number in three places: the split's Buckets, the heading, the table's last row.
+	const foot = table.locator("[data-slot=data-table-foot]");
+	await expect(figure("buckets")).toHaveText("Buckets$1,600");
+	await expect(page.locator("[data-slot=buckets-total]")).toHaveText("$1,600 in Buckets");
+	await expect(foot.locator("[data-column=bucket]")).toHaveText("Total");
+	await expect(foot.locator("[data-column=allowance]")).toHaveText("$1,600");
+	await expect(foot.locator("[data-column=left]")).toContainText("$1,600");
+
+	// Typing an allowance in the sheet: the split behind it follows, and the sheet says Free to
+	// Spend itself, since the page is dimmed.
+	await page.getByRole("button", { name: "Edit Hockey", exact: true }).click();
+	const sheet = page.getByRole("dialog", { name: "Hockey", exact: true });
+	const amount = sheet.getByRole("textbox", { name: "Allowance", exact: true });
+	const after = sheet.locator("[data-slot=free-to-spend-after]");
+	await expect(amount).toBeVisible();
+	await expect(after).toBeHidden();
+	await amount.fill("500");
+	await expect(after).toHaveText("Free to Spend after this: $4,300");
+	await expect(figure("free")).toHaveText("Free to Spend$4,300");
+	await expect(figure("buckets")).toHaveText("Buckets$1,700");
+	await expect(waterfall(page).locator("[data-slot=plan-split-sentence]")).toHaveText(
+		"$1,700 of your $6,000 take-home pay is planned. $4,300 is Free to Spend.",
+	);
+	// More than there is: both say so.
+	await amount.fill("5,000");
+	await expect(after).toHaveText(
+		/^Free to Spend after this: \S\$200\. More is planned than you have this month\.$/,
+	);
+	await expect(figure("free")).toHaveText(/^Free to Spend\S\$200$/);
+	// Put away unsaved, the figures are the saved ones again.
+	await page.keyboard.press("Escape");
+	await page
+		.getByRole("alertdialog", { name: "Discard changes" })
+		.getByRole("button", { name: "Discard changes" })
+		.click();
+	await expect(sheet).toBeHidden();
+	await expect(figure("free")).toHaveText("Free to Spend$4,400");
+	await expect(figure("buckets")).toHaveText("Buckets$1,600");
+
+	// A Personal Allowance's figures are in line with the Buckets' above it: its table has no
+	// handles, and holds their room open where rows are columns.
+	const allowances = page.locator("#personal-allowances");
+	await allowances.getByRole("textbox").fill("100");
+	const added = savedBy(page, "addPersonalAllowance");
+	await allowances.getByRole("button", { name: "Set up Personal Allowance" }).click();
+	await added;
+	const own = page.getByRole("grid", { name: "Personal Allowances", exact: true });
+	await expect(own.locator("[data-slot=data-table-row]")).toHaveCount(1);
+	const edge = async (grid: typeof table, column: string) => {
+		const box = await grid
+			.locator(`[data-slot=data-table-row] [data-column=${column}]`)
+			.first()
+			.boundingBox();
+		if (!box) throw new Error(`no ${column} cell`);
+		return box.x + box.width;
+	};
+	for (const width of [1280, 1440]) {
+		await page.setViewportSize({ width, height: 900 });
+		for (const column of ["allowance", "left"]) {
+			expect(
+				Math.abs((await edge(table, column)) - (await edge(own, column))),
+				`${column} at ${width}`,
+			).toBeLessThanOrEqual(1);
+		}
+	}
+	const { violations } = await new AxeBuilder({ page }).analyze();
+	expect(
+		violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`),
+		"the Plan's first page with both tables: axe violations",
+	).toEqual([]);
 	await page.context().close();
 });
 

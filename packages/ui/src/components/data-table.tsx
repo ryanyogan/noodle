@@ -134,6 +134,12 @@ type DataTableProps<TData extends RowData> = Omit<
 		min?: number;
 		render: (row: TData, index: number) => React.ReactNode;
 	};
+	/**
+	 * An empty track before the first column, from `@2xl` only, for a table with no `leading` slot
+	 * that sits under one that has it: give it that slot's `width` and `min` and the columns of the
+	 * two line up, and drop at the same widths. A stacked row is not indented. Ignored with `leading`.
+	 */
+	indent?: { width: string; min: number };
 	/** A full-width row before this one: a day's label and total. Null for none. */
 	groupBefore?: (row: TData, previous: TData | undefined) => React.ReactNode;
 	/** Extra attributes for a row's element (`data-*`, a ref for a drag to measure). */
@@ -220,6 +226,7 @@ function DataTable<TData extends RowData>({
 	onOpen,
 	isOpen,
 	leading,
+	indent,
 	groupBefore,
 	rowProps,
 	empty,
@@ -246,12 +253,21 @@ function DataTable<TData extends RowData>({
 	const hasSelection = Boolean(selection);
 	const leadingMin = leading ? (leading.min ?? 2.75) : 0;
 	const leadingWidth = leading ? (leading.width ?? `${leadingMin}rem`) : null;
+	// Room held open where a neighbouring table has its leading slot; this table has none.
+	const indentWidth = !leading && indent ? indent.width : null;
+	const indentMin = indentWidth && indent ? indent.min : 0;
 	const layout = React.useMemo(() => {
 		const reserved =
-			2.5 + (hasSelection ? 2 + COLUMN_GAP : 0) + (leadingWidth ? leadingMin + COLUMN_GAP : 0);
+			2.5 +
+			(hasSelection ? 2 + COLUMN_GAP : 0) +
+			(leadingWidth ? leadingMin + COLUMN_GAP : 0) +
+			(indentWidth ? indentMin + COLUMN_GAP : 0);
 		const tiers = columnTiers(shown, { reserved });
 		const stacked = stackedLayout(shown);
-		const before = [...(hasSelection ? ["2rem"] : []), ...(leadingWidth ? [leadingWidth] : [])];
+		const before = [
+			...(hasSelection ? ["2rem"] : []),
+			...(leadingWidth ? [leadingWidth] : indentWidth ? [indentWidth] : []),
+		];
 		const vars: Record<string, string | number> = {
 			"--dt-stack": stackedTemplate({
 				select: hasSelection,
@@ -265,7 +281,11 @@ function DataTable<TData extends RowData>({
 			vars[`--dt-cols-${tier}`] = gridTemplate(shown, tiers, tier, before);
 		}
 		return { tiers, stacked, vars };
-	}, [shown, hasSelection, leadingWidth, leadingMin]);
+	}, [shown, hasSelection, leadingWidth, leadingMin, indentWidth, indentMin]);
+	// Takes the indent's track in the header, each row and the totals; gone where rows are stacked.
+	const spacer = indentWidth ? (
+		<div aria-hidden="true" data-slot="data-table-indent" className="hidden @2xl/dt:block" />
+	) : null;
 
 	// The library is told which columns there are, not how to draw them. Its own renderer makes a
 	// component of a column's `cell` function, so a page that builds its columns in its render (a
@@ -453,6 +473,7 @@ function DataTable<TData extends RowData>({
 							<span className="sr-only">{leading.header}</span>
 						</div>
 					) : null}
+					{spacer}
 					{headers.map((header) => {
 						const column = byId.get(header.column.id);
 						if (!column || column.wide === false) return null;
@@ -592,6 +613,7 @@ function DataTable<TData extends RowData>({
 												{leading.render(row.original, index)}
 											</div>
 										) : null}
+										{spacer}
 										{row.getVisibleCells().map((cell) => {
 											const column = byId.get(cell.column.id);
 											if (!column) return null;
@@ -632,6 +654,7 @@ function DataTable<TData extends RowData>({
 					<div role={ROLE.row} className={cn(ROW_GRID, "min-h-11 py-2")}>
 						{selection ? <div role={cellRole} className={BEFORE.select} /> : null}
 						{leading ? <div role={cellRole} className={BEFORE.leading} /> : null}
+						{spacer}
 						{footers.map((footer) => {
 							const column = byId.get(footer.column.id);
 							if (!column) return null;

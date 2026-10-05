@@ -64,6 +64,17 @@ function Summary({
 
 const anyone = () => true;
 
+/** The handle's column: its track, and the least it reads at in rem (32 px a mouse, 44 a thumb). */
+const HANDLE = { width: "2.75rem", min: 2 };
+
+/**
+ * Whether the shared Buckets' table has handles: a month that can change, with more than one to
+ * put in order. The Personal Allowances table under it holds the same room open when it does
+ * (`indent`), so the two tables' figures are in one line.
+ */
+export const bucketsHaveHandles = (buckets: readonly BucketState[], editable: boolean) =>
+	editable && buckets.length > 1;
+
 const sum = (buckets: readonly BucketState[], of: (bucket: BucketState) => number) =>
 	buckets.reduce((total, bucket) => total + of(bucket), 0);
 
@@ -89,8 +100,10 @@ export function BucketTable({
 	canEdit = anyone,
 	setBy,
 	reorder = false,
+	indent = false,
 	was,
 	onDraft,
+	freeToSpend,
 	foot,
 }: {
 	month: MonthKey;
@@ -105,10 +118,14 @@ export function BucketTable({
 	setBy?: (bucket: BucketState) => string | undefined;
 	/** Rows have a handle and can be moved: the shared Buckets. */
 	reorder?: boolean;
+	/** No handles here, but room for them from the width where rows are columns: see `bucketsHaveHandles`. */
+	indent?: boolean;
 	/** Each Bucket's allowance the month before, when this month changed it. */
 	was: Record<string, number | undefined>;
 	/** A Bucket's amount while it's typed in its sheet, or null once it's put away. */
 	onDraft: (bucketId: string, cents: number | null) => void;
+	/** The month's Free to Spend as saved, for the sheet's "Free to Spend after this". */
+	freeToSpend?: number;
 	/** Under the table: what adds a Bucket. */
 	foot?: ReactNode;
 }) {
@@ -124,7 +141,7 @@ export function BucketTable({
 	const [sheet, setSheet] = useState<{ id: string; open: boolean } | null>(null);
 	const inSheet = sheet ? buckets.find((bucket) => bucket.id === sheet.id) : undefined;
 	const shown = moving.ids.flatMap((id) => buckets.find((bucket) => bucket.id === id) ?? []);
-	const handles = reorder && editable && buckets.length > 1;
+	const handles = reorder && bucketsHaveHandles(buckets, editable);
 
 	// Built again only when what they show changes, not when a row opens or the sheet does.
 	const columns = useMemo<DataTableColumn<BucketState>[]>(() => {
@@ -331,15 +348,14 @@ export function BucketTable({
 						data={shown}
 						getRowId={(bucket) => bucket.id}
 						surface="card"
-						// A short list under the page's own sticky bar: the header scrolls with its rows.
+						// A short list in the middle of a page: the header scrolls with its rows.
 						stickyHeader={false}
+						indent={indent ? HANDLE : undefined}
 						leading={
 							handles
 								? {
 										header: "Order",
-										// 32 px square with a mouse, 44 px under a thumb (the Button's icon size).
-										min: 2,
-										width: "2.75rem",
+										...HANDLE,
 										render: (bucket) => (
 											<Button
 												type="button"
@@ -398,6 +414,7 @@ export function BucketTable({
 					onOpenChange={(open) => setSheet({ id: inSheet.id, open })}
 					changes={changes}
 					onDraft={(cents) => onDraft(inSheet.id, cents)}
+					freeToSpend={freeToSpend}
 					withHistory
 					amountFirst
 				/>

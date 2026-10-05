@@ -12,7 +12,7 @@ import { type FormEvent, type ReactNode, useEffect, useId, useState } from "reac
 import { ulid } from "ulid";
 import { nudged, placeOf } from "../bucket-order";
 import { nextBucketColor } from "../buckets";
-import { formatMoneyInput, monthName } from "../format";
+import { formatMoney, formatMoneyInput, monthName } from "../format";
 import {
 	usePlanChange,
 	withAllowance,
@@ -22,6 +22,7 @@ import {
 	withOrder,
 	withoutBucket,
 } from "../plan-changes";
+import { freeToSpendAfter } from "../plan-split";
 import { membersQuery } from "../queries";
 import {
 	addPersonalAllowance,
@@ -90,6 +91,7 @@ export function BucketSheet({
 	onOpenChange,
 	changes,
 	onDraft,
+	freeToSpend,
 	withHistory = false,
 	amountFirst = false,
 }: {
@@ -99,8 +101,13 @@ export function BucketSheet({
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	changes: BucketChanges;
-	/** Its amount while it's typed (for the list's Left to plan), or null once put away. */
+	/** Its amount while it's typed (the page's split follows it), or null once put away. */
 	onDraft?: (cents: number | null) => void;
+	/**
+	 * The month's Free to Spend as saved. With it the sheet says what Free to Spend will be once
+	 * the typed amount is saved: the page that shows it is dimmed behind the sheet.
+	 */
+	freeToSpend?: number;
 	withHistory?: boolean;
 	/**
 	 * Opened from the list, where the amount is what a Parent most often came to change: it takes
@@ -137,6 +144,7 @@ export function BucketSheet({
 						bucket={bucket}
 						changes={changes}
 						onDraft={onDraft}
+						freeToSpend={freeToSpend}
 						amountFirst={amountFirst}
 						onDirty={setDirty}
 						onCancel={() => (dirty ? setConfirmDiscard(true) : close())}
@@ -173,6 +181,7 @@ function BucketForm({
 	bucket,
 	changes,
 	onDraft,
+	freeToSpend,
 	amountFirst,
 	onDirty,
 	onCancel,
@@ -183,6 +192,7 @@ function BucketForm({
 	bucket: PlanBucket;
 	changes: BucketChanges;
 	onDraft?: (cents: number | null) => void;
+	freeToSpend?: number;
 	amountFirst: boolean;
 	onDirty: (dirty: boolean) => void;
 	onCancel: () => void;
@@ -207,6 +217,8 @@ function BucketForm({
 		rolling: rolling !== bucket.rolling,
 	};
 	const dirty = Object.values(changed).some(Boolean);
+	const after =
+		freeToSpend === undefined ? null : freeToSpendAfter(freeToSpend, bucket.allowance, cents);
 	useEffect(() => onDirty(dirty), [dirty, onDirty]);
 
 	function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -246,6 +258,26 @@ function BucketForm({
 					}}
 				/>
 			</Field>
+			{/* Always there, so a screen reader hears the figure as it changes; empty until it does. */}
+			<p
+				data-slot="free-to-spend-after"
+				aria-live="polite"
+				className="-mt-2 text-[13px] text-muted-foreground tabular-nums empty:hidden"
+			>
+				{after === null ? null : (
+					<>
+						Free to Spend after this:{" "}
+						<span
+							className={
+								after < 0 ? "font-medium text-over-foreground" : "font-medium text-foreground"
+							}
+						>
+							{formatMoney(after)}
+						</span>
+						{after < 0 ? ". More is planned than you have this month." : null}
+					</>
+				)}
+			</p>
 			{changed.allowance && cents !== null ? (
 				<PlanScopeField
 					month={month}

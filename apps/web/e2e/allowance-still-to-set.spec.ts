@@ -3,7 +3,7 @@ import { createTestParent } from "./parents";
 import { enterJoinedHousehold, savedBy, signedInPage } from "./session";
 
 // A Parent's decision in #72: a Personal Allowance is never made up for the other Parent, so
-// Plan › Buckets says whose is still to set until they set it, and drops the note live.
+// The Plan's Personal Allowances say whose is still to set until they set it, and drop the note live.
 
 const PAY = "What lands in your account in a normal month, after tax?";
 

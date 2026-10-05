@@ -270,7 +270,8 @@ export async function openPlanBuckets(page: Page) {
 	if ((await first.getAttribute("aria-current")) !== "page") await first.click();
 	await expect(first).toHaveAttribute("aria-current", "page");
 	// The heading the old address's hash points at.
-	await expect(page.locator("h2#buckets")).toBeVisible();
+	// (With no Buckets yet it is the step of setting up that adds them.)
+	await expect(page.locator("#buckets")).toBeVisible();
 }
 
 /**
@@ -309,9 +310,7 @@ export async function createPlannedHousehold(
 	const takeHomePaySaved = savedBy(page, "setTakeHomePay");
 	await page.getByRole("button", { name: "Set take-home pay" }).click();
 	await takeHomePaySaved;
-	// The step's link goes down the same page, to the Buckets under the take-home split.
-	await page.getByRole("link", { name: "Add Buckets" }).click();
-	await expect(page).toHaveURL(planBucketsUrl);
+	// The step's own button opens the Add Buckets sheet in place.
 	await openPlanBuckets(page);
 	await addBucketsInSheet(page, buckets);
 	await switchTo(page, "Month");

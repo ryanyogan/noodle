@@ -165,3 +165,37 @@ export function splitSentence(split: PlanSplit, extra = 0): string {
 	if (left === 0) return `All of ${pay} is planned. Nothing is left as Free to Spend.`;
 	return `${formatMoney(planned)} of ${pay} is planned. ${formatMoney(left)} is Free to Spend.`;
 }
+
+/**
+ * A month as it would be with the allowances being typed in a Bucket's sheet (`drafts`, by Bucket
+ * id, in cents): each typed allowance in place of the saved one, and Free to Spend less what was
+ * added. The split is drawn from this, so its bar, its Buckets figure and Free to Spend follow the
+ * typing with no call to the server. Only allowances and Free to Spend change; a draft for a
+ * Bucket that isn't in the month is ignored. With nothing typed it is the same object.
+ */
+export function withDraftAllowances<
+	S extends { buckets: readonly { id: string; allowance: number }[]; freeToSpend: number },
+>(state: S, drafts: Readonly<Record<string, number | undefined>>): S {
+	let typed = 0;
+	const buckets = state.buckets.map((bucket) => {
+		const draft = drafts[bucket.id];
+		if (draft === undefined || !Number.isFinite(draft) || draft === bucket.allowance) return bucket;
+		typed += draft - bucket.allowance;
+		return { ...bucket, allowance: draft };
+	});
+	if (typed === 0) return state;
+	return { ...state, buckets, freeToSpend: state.freeToSpend - typed };
+}
+
+/**
+ * Free to Spend once the amount typed in a Bucket's sheet is saved, for the line under the field.
+ * Null while there is nothing to say: no amount, or the one the Bucket already has.
+ */
+export function freeToSpendAfter(
+	freeToSpend: number,
+	allowance: number,
+	typed: number | null,
+): number | null {
+	if (typed === null || !Number.isFinite(typed) || typed === allowance) return null;
+	return freeToSpend - (typed - allowance);
+}
