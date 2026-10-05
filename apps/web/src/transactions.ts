@@ -136,6 +136,8 @@ export type TransactionChange = {
 	/** What it's called in messages: its transactionLabel from before the change. */
 	label: string;
 	next: TransactionEdit | null;
+	/** A delete the Parent was already told about, with its Undo: nothing more is said when it lands. */
+	quiet?: boolean;
 };
 
 /** The month a Transaction is in. */
@@ -492,12 +494,62 @@ export function useTransactionChange() {
 			);
 		},
 		onSuccess: (_data, variables) => {
+			if (variables.quiet) return;
 			toast(variables.next ? `${variables.label} saved` : `${variables.label} deleted`);
 		},
 		onSettled: () => refetchAfterChange(queryClient),
 	});
-	return change;
+	/**
+	 * A delete leaves the screen at once and is said with an Undo; it is sent when the Undo has
+	 * gone (or the page is put away), so Undo is simply never sending it (#97, ADR-0045). "Gone" is
+	 * the toast's own end, not a clock beside it: while the toast waits (hovered, held, Alt+T) the
+	 * delete waits too, so Undo is never showing for a delete already sent.
+	 */
+	const deleteWithUndo = (variables: TransactionChange) => {
+		let settled = false;
+		const rollback = applyTransactionChange(queryClient, variables);
+		const done = () => {
+			settled = true;
+			document.removeEventListener("visibilitychange", onHide);
+		};
+		const send = () => {
+			if (settled) return;
+			done();
+			// If it can't be deleted it is put back as it was, and the usual message offers a retry.
+			change.mutate(
+				{ ...variables, quiet: true },
+				{ onError: () => void rollback.then((putBack) => putBack()) },
+			);
+		};
+		const onHide = () => {
+			if (document.visibilityState === "hidden") send();
+		};
+		document.addEventListener("visibilitychange", onHide);
+		toast(deletedMessage(variables), {
+			tone: "success",
+			undo: () => {
+				if (settled) return;
+				done();
+				void rollback.then((putBack) => putBack());
+			},
+			onGone: send,
+		});
+	};
+	return {
+		...change,
+		mutate: (variables: TransactionChange) =>
+			variables.next === null ? deleteWithUndo(variables) : change.mutate(variables),
+	};
 }
+
+/** What is said when a Transaction is deleted: an imported one won't be brought in again. */
+export const deletedMessage = ({
+	transaction,
+	label,
+}: Pick<TransactionChange, "transaction" | "label">) =>
+	transaction.importedFrom
+		? "Deleted. It won’t come back when your bank syncs."
+		: `${label} deleted`;
 
 /** "$12.50 (Costco)" or "$12.50": how a Transaction is named in messages. */
 export const transactionLabel = (transaction: Pick<TransactionRow, "amountCents" | "note">) =>

@@ -6,7 +6,8 @@ import {
 	type StatementLine,
 	statementLineIds,
 } from "@noodle/domain";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { deletedLineKeys } from "./deleted-lines";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
 import { statementLinesBanked } from "./same-lines";
@@ -84,7 +85,14 @@ export async function importStatement(
 	const [account] = await db
 		.select({ kind: accounts.kind })
 		.from(accounts)
-		.where(and(eq(accounts.id, accountId), eq(accounts.householdId, householdId)));
+		.where(
+			and(
+				eq(accounts.id, accountId),
+				eq(accounts.householdId, householdId),
+				// Nothing new is brought into an archived Account (ADR-0046).
+				isNull(accounts.archivedAt),
+			),
+		);
 	if (!account) return { ok: false, reason: "no-account" };
 
 	const ids = statementLineIds(input.lines);
@@ -102,11 +110,13 @@ export async function importStatement(
 					})),
 					ids,
 				});
+	// Lines a Parent deleted from the Account stay out (ADR-0045).
+	const deleted = await deletedLineKeys(db, householdId, accountId, ids);
 	const toIncome = holdsMoney(account.kind);
 	const spending: ImportRow[] = [];
 	const received: ImportRow[] = [];
 	input.lines.forEach((line, i) => {
-		if (banked.has(i)) return;
+		if (banked.has(i) || deleted.has(ids[i] as string)) return;
 		const row = {
 			id: input.newId(),
 			date: line.date,

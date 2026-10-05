@@ -1,5 +1,5 @@
-import { toastDuration, UNDO_TOAST_MS } from "@noodle/ui/components/toast";
-import { describe, expect, it } from "vitest";
+import { toastDuration, UNDO_TOAST_MS, undoOrGone } from "@noodle/ui/components/toast";
+import { describe, expect, it, vi } from "vitest";
 
 // How long a toast stays (#78): by kind unless a time is asked for, and a sticky one always
 // until it's dismissed.
@@ -40,5 +40,39 @@ describe("how long a toast stays", () => {
 		expect(toastDuration({ tone: "success", duration: -5 })).toBe(2_400);
 		expect(toastDuration({ tone: "success", duration: Number.NaN })).toBe(2_400);
 		expect(toastDuration({ tone: "error", duration: Number.POSITIVE_INFINITY })).toBe(10_000);
+	});
+});
+
+// A change sent only once its Undo has gone (#97): the toast leaving and Undo never both happen.
+describe("an Undo, or the toast going without it", () => {
+	it("says the toast has gone once, however often Sonner reports it", () => {
+		const undo = vi.fn();
+		const onGone = vi.fn();
+		const latch = undoOrGone(undo, onGone);
+		latch.gone();
+		latch.gone();
+		expect(onGone).toHaveBeenCalledTimes(1);
+		// Pressed while the toast is on its way out: too late, the change has been sent.
+		latch.undo();
+		expect(undo).not.toHaveBeenCalled();
+	});
+
+	it("never says it has gone after Undo, which closes the toast itself", () => {
+		const undo = vi.fn();
+		const onGone = vi.fn();
+		const latch = undoOrGone(undo, onGone);
+		latch.undo();
+		latch.undo();
+		latch.gone();
+		expect(undo).toHaveBeenCalledTimes(1);
+		expect(onGone).not.toHaveBeenCalled();
+	});
+
+	it("needs nothing to follow: an Undo alone still runs once", () => {
+		const undo = vi.fn();
+		const latch = undoOrGone(undo);
+		latch.gone();
+		latch.undo();
+		expect(undo).not.toHaveBeenCalled();
 	});
 });

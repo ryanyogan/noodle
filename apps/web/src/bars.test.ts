@@ -27,6 +27,10 @@ const DRAWN_ALLOWED: Record<string, { count: number; why: string }> = {
 		count: 1,
 		why: "the Month glance: one stacked bar of where take-home pay goes, several segments, which BudgetBar (one fill) can't draw",
 	},
+	"components/plan-split.tsx": {
+		count: 1,
+		why: "the Plan overview's one bar (#102): take-home pay split into the Plan's parts and Free to Spend, several segments, which BudgetBar (one fill) can't draw",
+	},
 };
 const DRAWN = /\bflexGrow:|\bwidth:\s*(?:`|pct\(|[\w.]+\s*\*\s*100)|translateX\(|scaleX\(/g;
 const RETIRED = /@noodle\/ui\/components\/(?:meter|progress)["']/;

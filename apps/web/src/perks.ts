@@ -8,6 +8,7 @@ import {
 	addPerkSource,
 	decidePerkSource,
 	markPerkUsed,
+	nameCard,
 	removePerkUse,
 	setPerkSourceFee,
 	setPerkValue,
@@ -24,7 +25,7 @@ export type { PerkSourceItem };
 export function researchStatus(source: Pick<PerkSourceItem, "research">): string | null {
 	switch (source.research) {
 		case "researching":
-			return "Checking its Perks…";
+			return "Reading its perks…";
 		case "needs-plan":
 			return "Which plan is it? Its Perks depend on the plan.";
 		case "needs-link":
@@ -104,12 +105,22 @@ export function useUpdatePerkSource() {
 	});
 }
 
+/** Says which card a linked card is, from its issuer's list or by name. */
+export function useNameCard() {
+	const refetch = useRefetchPerks();
+	return useMutation({
+		mutationFn: (change: { id: string; product: string }) => nameCard({ data: change }),
+		onError: () => toast("Couldn’t save that. Try again.", { tone: "error" }),
+		onSettled: refetch,
+	});
+}
+
 /**
  * The confirmed credit-card Perk Sources with Perks that are this card Account's: the one Noodle
  * spotted in its name, or one the catalog knows as the same card.
  */
 export function perkSourcesForAccount(
-	account: { name: string; kind: string },
+	account: { id?: string; name: string; kind: string },
 	sources: PerkSourceItem[],
 ): PerkSourceItem[] {
 	if (account.kind !== "credit-card") return [];
@@ -120,7 +131,8 @@ export function perkSourcesForAccount(
 			source.status === "confirmed" &&
 			source.kind === "credit-card" &&
 			source.perks.length > 0 &&
-			(source.seenIn === name ||
+			(("id" in account && source.card?.accountId === account.id) ||
+				source.seenIn === name ||
 				source.name.trim().toLowerCase() === name.toLowerCase() ||
 				(entry !== undefined && catalogEntryFor(source.name) === entry)),
 	);

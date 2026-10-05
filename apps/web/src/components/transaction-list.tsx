@@ -12,7 +12,7 @@ import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeftRight, Sparkles, Split as SplitIcon, Target } from "lucide-react";
+import { ArrowLeftRight, Check, Sparkles, Split as SplitIcon, Target } from "lucide-react";
 import type { ComponentProps } from "react";
 import { asBucketColor, monogram } from "../buckets";
 import { formatMoney, shortDay } from "../format";
@@ -94,6 +94,7 @@ export function TransactionItem({
 	dated = false,
 	columns = false,
 	selected = false,
+	checked,
 	onEdit,
 	className,
 	...props
@@ -109,8 +110,14 @@ export function TransactionItem({
 	columns?: boolean;
 	/** Open in the pane beside the list. */
 	selected?: boolean;
+	/**
+	 * While the list is selecting (#97): whether this one is selected. Its button then toggles it
+	 * (the caller's `onEdit`) and says so. Left out when the list isn't selecting.
+	 */
+	checked?: boolean;
 	onEdit: (transaction: TransactionRow) => void;
 }) {
+	const picking = checked !== undefined && !transaction.goal;
 	const split = transaction.splits.length > 0;
 	const day = dated ? `${shortDay(transaction.date)} · ` : "";
 	const assignment = assignmentOf(transaction, plan);
@@ -271,10 +278,23 @@ export function TransactionItem({
 	return (
 		<li
 			data-slot="list-row"
-			data-selected={selected || undefined}
-			className={`${className ?? ""} data-selected:bg-surface-2 data-selected:shadow-[inset_2px_0_0_var(--color-primary)]`}
+			data-selected={selected || (picking && checked) || undefined}
+			className={`${className ?? ""}${picking ? " relative" : ""} data-selected:bg-surface-2 data-selected:shadow-[inset_2px_0_0_var(--color-primary)]`}
 			{...props}
 		>
+			{picking ? (
+				<span
+					aria-hidden="true"
+					data-slot="pick-mark"
+					className={`pointer-events-none absolute start-(--card-pad) top-1/2 z-1 grid size-5 -translate-y-1/2 place-items-center rounded-md border ${
+						checked
+							? "border-primary bg-primary text-primary-foreground"
+							: "border-border-strong bg-card"
+					}`}
+				>
+					{checked ? <Check className="size-3.5" /> : null}
+				</span>
+			) : null}
 			{transaction.goal ? (
 				<RowButton asChild variant="list" className={rowClassName}>
 					<Link
@@ -288,7 +308,8 @@ export function TransactionItem({
 			) : (
 				<RowButton
 					variant="list"
-					className={rowClassName}
+					className={picking ? `${rowClassName} ps-12` : rowClassName}
+					aria-pressed={picking ? checked : undefined}
 					aria-label={
 						transfer
 							? `${spokenTitle}, ${amount}, ${detail.replace(" · ", ", ").replace(" → ", " to ")}`

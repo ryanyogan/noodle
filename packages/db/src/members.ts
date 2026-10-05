@@ -1,11 +1,11 @@
 import { and, eq, isNull } from "drizzle-orm";
 import type { Db } from "./index";
-import { members } from "./schema";
+import { buckets, members } from "./schema";
 
 // The Household's Members. Children are added by a Parent and never sign in. Every query is
 // scoped by household_id; Member IDs from the client are only ever used together with it.
 
-/** A Member as the app shows them. `color` is set only for Children. */
+/** A Member as the app shows them. A Parent has no `color` until they pick one. */
 export type MemberSummary = {
 	id: string;
 	name: string;
@@ -68,6 +68,57 @@ export async function updateChild(
 	};
 	if (Object.keys(set).length === 0) return;
 	await db.update(members).set(set).where(ownChild(input.householdId, input.memberId));
+}
+
+/**
+ * Renames or recolours a Parent, who changes only themself (issue 104): `byParentId` is the Parent
+ * signed in, and a change to anyone else is refused (false, nothing written). `bucketRenames`
+ * carries their Personal Allowance along when it still has a name made from theirs
+ * ("Alex’s Personal Allowance"); one they named themself is left alone.
+ */
+export async function updateParent(
+	db: Db,
+	input: {
+		householdId: string;
+		memberId: string;
+		byParentId: string;
+		name?: string;
+		color?: number;
+		bucketRenames?: { from: string; to: string }[];
+	},
+): Promise<boolean> {
+	if (input.memberId !== input.byParentId) return false;
+	const own = and(
+		eq(members.id, input.memberId),
+		eq(members.householdId, input.householdId),
+		eq(members.kind, "parent"),
+	);
+	const found = await db.select({ id: members.id }).from(members).where(own).limit(1);
+	if (found.length === 0) return false;
+	const set = {
+		...(input.name === undefined ? {} : { name: input.name }),
+		...(input.color === undefined ? {} : { color: input.color }),
+	};
+	if (Object.keys(set).length === 0) return true;
+	const renames = (input.name === undefined ? [] : (input.bucketRenames ?? [])).filter(
+		({ from, to }) => from !== to,
+	);
+	await db.batch([
+		db.update(members).set(set).where(own),
+		...renames.map(({ from, to }) =>
+			db
+				.update(buckets)
+				.set({ name: to })
+				.where(
+					and(
+						eq(buckets.householdId, input.householdId),
+						eq(buckets.ownerMemberId, input.memberId),
+						eq(buckets.name, from),
+					),
+				),
+		),
+	]);
+	return true;
 }
 
 /**

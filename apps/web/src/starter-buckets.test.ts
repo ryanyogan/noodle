@@ -2,6 +2,7 @@ import type { DraftBucket } from "@noodle/domain";
 import { describe, expect, test } from "vitest";
 import {
 	belongsOn,
+	personalRenames,
 	personalShare,
 	sheetStarters,
 	startingBuckets,
@@ -112,5 +113,24 @@ describe("where a suggested Bucket lands in the sheet (#58)", () => {
 	test("a starter someone typed in keeps only its own name", () => {
 		expect(dining && belongsOn({ ...dining, touched: true }, "Restaurants")).toBe(false);
 		expect(dining && belongsOn({ ...dining, touched: true }, "Dining out")).toBe(true);
+	});
+});
+
+describe("a Parent's Personal Allowance follows their new name (issue 104)", () => {
+	test("both names made from theirs are carried over", () => {
+		expect(personalRenames("Alex", "Alexandra")).toEqual([
+			{ from: "Alex’s money", to: "Alexandra’s money" },
+			{ from: "Alex’s Personal Allowance", to: "Alexandra’s Personal Allowance" },
+		]);
+	});
+
+	test("the Plan's name uses the first name only", () => {
+		expect(personalRenames("Alex Rink", "Alex Stone")).toEqual([
+			{ from: "Alex Rink’s money", to: "Alex Stone’s money" },
+		]);
+	});
+
+	test("the same name renames nothing", () => {
+		expect(personalRenames("Alex", "Alex")).toEqual([]);
 	});
 });

@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import { createPlannedHousehold, openFromMore, savedBy, signedInPage, switchTo } from "./session";
@@ -25,8 +26,7 @@ const phone = { viewport: { width: 393, height: 852 }, isMobile: true, hasTouch:
 const heading = (page: Page) => page.getByRole("heading", { level: 1 });
 const header = (page: Page) => page.locator("[data-slot=page-header]:visible");
 const planTabs = (page: Page) => page.getByRole("navigation", { name: "Plan pages" });
-const waterfall = (page: Page) =>
-	page.getByRole("region", { name: "From take-home pay to Free to Spend" });
+const waterfall = (page: Page) => page.getByRole("region", { name: "Where take-home pay goes" });
 const planRow = (page: Page, bucket: string) =>
 	page.getByRole("listitem").filter({ has: page.getByRole("button", { name: `Edit ${bucket}` }) });
 
@@ -52,6 +52,54 @@ test("on a computer, the Plan is in the sidebar", async ({ browser }) => {
 	await expect(page).toHaveURL(/\/plan\/\d{4}-\d{2}$/);
 	await expect(heading(page)).toHaveText(name);
 	await expect(waterfall(page)).toContainText("Free to Spend$4,400");
+	await page.context().close();
+});
+
+test("the overview says where take-home pay goes in words, as parts of one whole (#102)", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, plan);
+	const month = /\/(\d{4}-\d{2})/.exec(page.url())?.[1];
+	await page.goto(`/plan/${month}`);
+
+	// The takeaway, in a sentence: no legend to hunt for.
+	await expect(waterfall(page).locator("[data-slot=plan-split-sentence]")).toHaveText(
+		"$1,600 of your $6,000 take-home pay is planned. $4,400 is Free to Spend.",
+	);
+	// One bar, named as the whole of take-home pay; it is decoration, the rows are the content.
+	await expect(waterfall(page)).toContainText("Take-home pay$6,000");
+	const bar = waterfall(page).locator("[data-slot=plan-split-bar]");
+	await expect(bar).toHaveCount(1);
+	await expect(bar).toHaveAttribute("aria-hidden", "true");
+	await expect(bar.locator("[data-segment]")).toHaveCount(2);
+
+	// A row for every part, in the bar's order, each with its amount and its share. The shares add
+	// up to 100, and a part with nothing in it still has its row.
+	const rows = waterfall(page).getByRole("list", {
+		name: "Where take-home pay goes, part by part",
+	});
+	await expect(rows.getByRole("listitem")).toHaveText([
+		"Commitments$00% of take-home pay",
+		"Buckets$1,60027% of take-home pay",
+		"Goal funding$00% of take-home pay",
+		"Free to Spend$4,40073% of take-home pay",
+	]);
+	// One "?" for the section, on its heading.
+	await expect(waterfall(page).getByRole("button", { name: /^What’s/ })).toHaveCount(1);
+
+	const { violations } = await new AxeBuilder({ page })
+		.include("section[aria-labelledby=plan-waterfall]")
+		.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+		.analyze();
+	expect(
+		violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`),
+	).toEqual([]);
+
+	// On the narrowest phone nothing runs off the side, and the rows are still all there.
+	await page.setViewportSize({ width: 320, height: 720 });
+	await expect(rows.getByRole("listitem")).toHaveCount(4);
+	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 	await page.context().close();
 });
 
@@ -122,7 +170,7 @@ test("the steps from take-home pay to Free to Spend are figures, and the tabs op
 			.click();
 		await expect(heading(page)).toHaveText(name);
 	}
-	await expect(waterfall(page)).toContainText("Personal Allowances−$150");
+	await expect(waterfall(page)).toContainText("Personal Allowances$150");
 	await expect(waterfall(page)).toContainText("Free to Spend$4,250");
 	await page.context().close();
 });

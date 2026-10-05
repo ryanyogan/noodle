@@ -30,6 +30,30 @@ test.afterEach(async () => {
 
 const sourceCard = (page: Page, name: string) => page.getByRole("article", { name });
 
+/** Opens a Perk Source's row (one is open at a time) and returns its card. */
+async function openSource(page: Page, name: string) {
+	const card = sourceCard(page, name);
+	const row = card.locator("h3").getByRole("button");
+	await expect(row).toBeEnabled();
+	if ((await row.getAttribute("aria-expanded")) !== "true") await row.click();
+	await expect(row).toHaveAttribute("aria-expanded", "true");
+	return card;
+}
+
+/** Adds a card or membership by name from the page's one button, with its benefits page if given. */
+async function addSource(page: Page, name: string, pageUrl?: string) {
+	await page.getByRole("button", { name: "Add a card or membership" }).click();
+	const sheet = page.getByRole("dialog", { name: "Add a card or membership" });
+	await sheet.getByLabel("Card or membership").fill(name);
+	if (pageUrl) {
+		await sheet.getByRole("button", { name: "I have a link to its benefits page" }).click();
+		await sheet.getByLabel("Benefits page (optional)").fill(pageUrl);
+	}
+	await sheet.getByRole("button", { name: "Add and read its perks" }).click();
+	await expect(sheet).toBeHidden();
+	return openSource(page, name);
+}
+
 async function addCommitment(page: Page, name: string, due: string) {
 	const form = page.getByRole("form", { name: "Add a Commitment" });
 	await form.getByLabel("New Commitment").fill(name);
@@ -74,7 +98,7 @@ test("a phone plan among the Commitments is confirmed, asks for its plan, and fi
 	await expect(page.getByRole("heading", { name: /^Perk Sources/ })).toBeFocused();
 
 	// Its Perks depend on the plan: it asks rather than guessing.
-	const card = sourceCard(page, "T-Mobile");
+	const card = await openSource(page, "T-Mobile");
 	await expect(card).toContainText("Which plan is it?");
 	await expect(card.getByRole("listitem")).toHaveCount(0);
 	await choose(card, "Plan", "Go5G Plus");
@@ -86,6 +110,11 @@ test("a phone plan among the Commitments is confirmed, asks for its plan, and fi
 	await expect(perks).toContainText("Netflix Standard with ads");
 	await expect(perks).toContainText("Hulu (With Ads)");
 	await expect(perks).not.toContainText("Apple TV+");
+	// Where each comes from is behind its own button.
+	await perks
+		.getByRole("button", { name: /^Where .+ comes from$/ })
+		.first()
+		.click();
 	await expect(perks.getByRole("link", { name: "Source" }).first()).toHaveAttribute(
 		"href",
 		"https://www.t-mobile.com/cell-phone-plans",
@@ -123,23 +152,19 @@ test("a card added by hand covers a cost already paid; a page that can't be read
 	await page.goto("/perks");
 	await expect(page).toHaveURL(/\/insights\/perks$/);
 	await expect(page.getByText("No Perk Sources yet")).toBeVisible();
-	const add = page.getByRole("region", { name: "Add a Perk Source" });
-	await add.getByLabel("Name").fill("Chase Sapphire");
-	await choose(add, "Kind", "Credit card");
-	await add.getByRole("button", { name: "Add" }).click();
-
 	// The catalog knows its page; its Perks are the same whichever card.
-	const card = sourceCard(page, "Chase Sapphire");
+	const card = await addSource(page, "Chase Sapphire");
 	const perks = card.getByRole("list", { name: "Chase Sapphire Perks" });
 	await expect(perks.getByRole("listitem")).toHaveCount(2);
 	await expect(perks).toContainText("TSA PreCheck or Global Entry fee credit");
+	await perks
+		.getByRole("button", { name: "Where TSA PreCheck or Global Entry fee credit comes from" })
+		.click();
 	await expect(perks).toContainText("A cost it pays for");
 
 	// A card Noodle doesn't know, with a page that can't be found.
-	await add.getByLabel("Name").fill("Credit union card");
-	await add.getByLabel("Benefits page (optional)").fill("https://example.com/missing");
-	await add.getByRole("button", { name: "Add" }).click();
-	const union = sourceCard(page, "Credit union card");
+	const union = await addSource(page, "Credit union card", "https://example.com/missing");
+	await expect(union.locator("h3")).toContainText("Couldn’t read");
 	await expect(union).toContainText("Couldn’t read its benefits page.");
 	await union.getByLabel("Benefits page").fill("https://example.com/benefits");
 	await union.getByRole("button", { name: "Read it" }).click();
@@ -158,6 +183,7 @@ test("a card added by hand covers a cost already paid; a page that can't be read
 
 	// Removing the card takes its Perks and the Overlap resting on them.
 	await page.goto("/perks");
+	await openSource(page, "Chase Sapphire");
 	await card.getByRole("button", { name: "Remove" }).click();
 	await page
 		.getByRole("alertdialog")

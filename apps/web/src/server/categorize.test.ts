@@ -296,6 +296,26 @@ describe("categorizing an Import", () => {
 		expect(model.merchantsAsked()).toEqual(["netflix"]);
 	});
 
+	it("never files a payment to a credit card on its own, however sure the model is: it waits in Review with no Bucket guessed (#91)", async () => {
+		const model = fakeModel({
+			chase: { bucketId: "fun", confidence: 0.99 },
+			mobile: { bucketId: "fun", confidence: 0.99 },
+		});
+		const importId = await importLines("alex", [
+			line("CHASE CREDIT CRD AUTOPAY PPD ID: 4760039224", 500),
+			line("T-MOBILE AUTOPAY", 80),
+		]);
+
+		const result = await categorizeImport(deps(model.classifier), alex, importId);
+
+		// The phone bill is a bill; only the card payment is held back, and the model isn't asked.
+		expect(result).toMatchObject({ filed: 1, review: 1 });
+		expect(model.merchantsAsked().join(" ")).not.toContain("chase");
+		const review = await loadReview(db, alex, 10);
+		expect(review.items).toHaveLength(1);
+		expect(review.items[0]).toMatchObject({ amountCents: 50_000, bucketId: null, guess: null });
+	});
+
 	it("sends Review what it can't file when the model fails", async () => {
 		const failing: Classifier = {
 			classify: async () => {

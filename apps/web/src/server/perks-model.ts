@@ -1,5 +1,5 @@
 import { AI_MODELS } from "@noodle/ai";
-import { type FoundPerk, PERK_RENEWALS, type PerkSourceKind } from "@noodle/domain";
+import { type FoundPerk, PERK_KINDS, PERK_RENEWALS, type PerkSourceKind } from "@noodle/domain";
 import { z } from "zod";
 
 // Reading a Perk Source's Perks: its benefits page is fetched, reduced to text, and a model
@@ -92,7 +92,7 @@ const perksAnswer = z.object({
 		.array(
 			z.object({
 				name: z.string(),
-				kind: z.enum(["service", "cost"]),
+				kind: z.enum(PERK_KINDS),
 				matches: z.string(),
 				tiers: z.array(z.string()).default([]),
 				quote: z.string(),
@@ -129,11 +129,16 @@ export function readPerksAnswer(text: string): PerksRead {
 const READ_SYSTEM = `You read one web page for a US household's budgeting app and list the
 benefits it says come with a product the household holds (a phone plan, credit card, membership
 or insurance policy). Use only the page's text: never add what you remember about the product,
-and leave out anything the page doesn't state. List two kinds of benefit:
+and leave out anything the page doesn't state. List every benefit the page states, the most
+valuable first, of three kinds:
 - "service": a subscription or service included at no extra cost (e.g. Netflix, Hulu, Apple TV+,
   a DashPass membership).
 - "cost": a cost it pays for, credits or reimburses (e.g. a TSA PreCheck or Global Entry fee
   credit, cell phone protection, rental car insurance).
+- "earn": a kind of purchase that earns more than the card's base rate (e.g. "4X points at
+  restaurants", "3% cash back at U.S. supermarkets"). Its "matches" is the kind of purchase in one
+  or two plain words ("Dining", "Groceries", "Travel", "Gas", "Streaming", "Drugstores"), its quote
+  must state the rate, and its "value" is null.
 For each: "name" (short, as the page names it), "kind", "matches" (the service or cost as it would
 appear on a card statement: one or two words, e.g. "Netflix", "TSA PreCheck", "Global Entry"),
 "tiers" (the plan or card tiers named on the page that include it; [] if every tier or the page
@@ -141,8 +146,9 @@ names no tiers), "quote" (up to twenty words copied exactly from the page that s
 "value" (the dollar amount the quote itself states for it, as a number; null if it states none)
 and "renews" ("monthly", "quarterly", "yearly", "every-4-years" or "per-trip", as the page says;
 null if it doesn't say). Also
-list "tiers": every plan or card tier the page offers with different benefits. Leave out points,
-cash back, discounts on the product itself, and perks with no statement name. Answer in JSON only:
+list "tiers": every plan or card tier the page offers with different benefits. Leave out welcome
+bonuses, the base rate on everything else, discounts on the product itself, and perks with no
+statement name. Answer in JSON only:
 {"tiers": [], "perks": [{"name","kind","matches","tiers","quote","value","renews"}]}.`;
 
 /** The answer's text, from a chat completion or a Responses-style output. */
@@ -168,7 +174,7 @@ const PERKS_SCHEMA = {
 				type: "object",
 				properties: {
 					name: { type: "string" },
-					kind: { type: "string", enum: ["service", "cost"] },
+					kind: { type: "string", enum: [...PERK_KINDS] },
 					matches: { type: "string" },
 					tiers: { type: "array", items: { type: "string" } },
 					quote: { type: "string" },
@@ -241,6 +247,14 @@ ${"Terms apply to every benefit on this page. ".repeat(10)}`;
 const STUB_TRAVEL_PAGE = `Reserve card benefits.
 Up to $300 in annual travel credit as reimbursement for travel purchases each year.
 $10 monthly DoorDash credit on non-restaurant orders.
+Complimentary DashPass membership when you activate by the end of the year.
+${"Terms apply to every benefit on this page. ".repeat(10)}`;
+
+/** A rewards card's page: what it earns more on, a monthly credit and DashPass. */
+const STUB_REWARDS_PAGE = `Preferred card benefits.
+Earn 3x points on dining, including eligible delivery services and takeout.
+Earn 3x points on groceries bought online.
+$10 monthly Kroger credit when you pay with your card.
 Complimentary DashPass membership when you activate by the end of the year.
 ${"Terms apply to every benefit on this page. ".repeat(10)}`;
 
@@ -345,6 +359,49 @@ const STUB_READS: Record<string, PerksRead> = {
 			},
 		],
 	},
+	[STUB_REWARDS_PAGE]: {
+		tiers: [],
+		perks: [
+			{
+				name: "3x on dining",
+				kind: "earn",
+				matches: "Dining",
+				tiers: [],
+				quote: "Earn 3x points on dining, including eligible delivery services and takeout.",
+			},
+			{
+				name: "3x on groceries",
+				kind: "earn",
+				matches: "Groceries",
+				tiers: [],
+				quote: "Earn 3x points on groceries bought online.",
+			},
+			{
+				name: "Kroger credit",
+				kind: "cost",
+				matches: "Kroger",
+				tiers: [],
+				quote: "$10 monthly Kroger credit when you pay with your card.",
+				valueCents: 1000,
+				renews: "monthly",
+			},
+			{
+				name: "DashPass",
+				kind: "service",
+				matches: "DashPass",
+				tiers: [],
+				quote: "Complimentary DashPass membership",
+			},
+			{
+				// A rate the page doesn't state: the run must drop it.
+				name: "5x on travel",
+				kind: "earn",
+				matches: "Travel",
+				tiers: [],
+				quote: "Earn 5x points on travel booked through the portal.",
+			},
+		],
+	},
 	[STUB_CARD_PAGE]: {
 		tiers: [],
 		perks: [
@@ -383,7 +440,9 @@ export const stubPerkReader: PerkReader = {
 					? STUB_PREMIUM_PAGE
 					: url.includes("travel-card")
 						? STUB_TRAVEL_PAGE
-						: STUB_CARD_PAGE,
+						: url.includes("sapphire/preferred")
+							? STUB_REWARDS_PAGE
+							: STUB_CARD_PAGE,
 		};
 	},
 	async readPerks(_source, text) {

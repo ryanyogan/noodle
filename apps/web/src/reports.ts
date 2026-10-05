@@ -106,7 +106,7 @@ export function namesOf(meta: ReportMeta) {
 	const buckets = new Map(meta.buckets.map((b) => [b.id, b]));
 	const commitments = new Map(meta.commitments.map((c) => [c.id, c.name]));
 	const goals = new Map(meta.goals.map((g) => [g.id, g.name]));
-	const accounts = new Map(meta.accounts.map((a) => [a.id, a.name]));
+	const accounts = new Map([...meta.accounts, ...meta.archivedAccounts].map((a) => [a.id, a.name]));
 	const members = new Map(meta.members.map((m) => [m.id, m.name]));
 	const split = (key: string) => [key.slice(0, key.indexOf(":")), key.slice(key.indexOf(":") + 1)];
 	const label = (key: string): string => {

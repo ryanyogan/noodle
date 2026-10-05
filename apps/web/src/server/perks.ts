@@ -2,8 +2,10 @@ import {
 	addPerkSource as addPerkSourceInDb,
 	addPerkUse,
 	decidePerkSource as decidePerkSourceInDb,
+	ensureCardPerkSources,
 	loadInsightSpends,
 	loadPerkSources,
+	nameCardProduct,
 	type PerkSourceItem,
 	removePerkUse as removePerkUseInDb,
 	setPerkSourceFee as setPerkSourceFeeInDb,
@@ -12,6 +14,7 @@ import {
 } from "@noodle/db";
 import { addDays, dayKeyAt, PERK_RENEWALS, PERK_SOURCE_KINDS } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
+import { ulid } from "ulid";
 import { z } from "zod";
 import { getDb } from "./db";
 import { type HouseholdSummary, householdMiddleware, viewerOf } from "./household";
@@ -42,9 +45,31 @@ export const getPerkSources = createServerFn({ method: "GET" })
 		const db = getDb();
 		const viewer = viewerOf(context);
 		const asOf = dayKeyAt(new Date(), context.household.timeZone);
+		// Every credit card a Bank Connection brought in has a Perk Source of its own: made
+		// here when it's missing, and researched at once when the bank's name for it says which card.
+		try {
+			const added = await ensureCardPerkSources(db, {
+				householdId: viewer.householdId,
+				newId: ulid,
+			});
+			for (const { id } of added) await research(context.household, id);
+		} catch (error) {
+			console.error("Couldn’t add Perk Sources for linked cards", error);
+		}
 		// Four years back: a Perk that renews every four years may have been used that long ago.
 		const spends = await loadInsightSpends(db, viewer, addDays(asOf, -4 * 366));
 		return loadPerkSources(db, viewer, { asOf, spends });
+	});
+
+/** A Parent says which card a linked card is ("Which Chase card is this?"): then it's researched. */
+export const nameCard = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ id: ulidSchema, product: z.string().trim().min(1).max(80) }))
+	.handler(async ({ data, context }) => {
+		const changed = await nameCardProduct(getDb(), viewerOf(context), data);
+		if (!changed) return;
+		await notifyHousehold(context.household.id, ["perks", "insights"]);
+		await research(context.household, data.id);
 	});
 
 /** A Parent marks a Perk used today, by hand, with a short note. */

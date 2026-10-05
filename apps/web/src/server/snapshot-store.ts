@@ -2,6 +2,7 @@ import {
 	applyRule,
 	type Db,
 	deleteSnapshotRows,
+	deleteTransactions,
 	exportHouseholdRows,
 	FINAL_SNAPSHOT_DAYS,
 	hasNightlySince,
@@ -11,6 +12,7 @@ import {
 	type SnapshotFile,
 	type SnapshotKind,
 	snapshotsToPrune,
+	type TransactionSelection,
 	type Viewer,
 } from "@noodle/db";
 import { households } from "@noodle/db/schema";
@@ -259,6 +261,56 @@ export async function applyRuleWithSnapshot(
 	}
 	return { ...result, snapshotId: taken.id };
 }
+
+/**
+ * Deletes the Transactions a Parent selected (ADR-0045). A "Before deleting Transactions"
+ * snapshot is taken first, however few they are: if it can't be taken this throws and nothing is
+ * deleted. None is taken when nothing matches. Then that kind alone is pruned to its own cap.
+ */
+export async function deleteTransactionsWithSnapshot(
+	deps: SnapshotDeps,
+	viewer: Viewer,
+	selection: TransactionSelection,
+	now: Date,
+) {
+	const taken: { id: string | null } = { id: null };
+	const result = await deleteTransactions(deps.db, viewer, selection, {
+		beforeDeleting: async () => {
+			try {
+				const row = await takeSnapshot(deps, {
+					householdId: viewer.householdId,
+					kind: "before-transactions-delete",
+					takenBy: viewer.memberId,
+					now,
+				});
+				taken.id = row.id;
+			} catch (error) {
+				console.error("Couldn’t take a snapshot before deleting Transactions", error);
+				throw new Error(
+					"Noodle couldn’t take a snapshot first, so nothing was deleted. Try again in a moment.",
+				);
+			}
+		},
+	});
+	if (taken.id) {
+		// Already deleted: a failed tidy-up is left for the nightly run.
+		try {
+			await pruneSnapshots(deps, viewer.householdId, now, "before-transactions-delete");
+		} catch (error) {
+			console.error("Couldn’t prune the snapshots taken before deleting Transactions", error);
+		}
+	}
+	return { ...result, snapshotId: taken.id };
+}
+
+/** What a bulk delete changed, for the Household's open screens (ADR-0007). */
+export const changesAfterBulkDelete = (result: {
+	deleted: number;
+	snapshotId: string | null;
+}): HouseholdChange[] => [
+	...(result.deleted > 0 ? (["months", "for-earlier", "bucket-uses"] as const) : []),
+	...(result.snapshotId ? (["snapshots"] as const) : []),
+];
 
 type RuleApplied = { filed: number; snapshotId: string | null };
 

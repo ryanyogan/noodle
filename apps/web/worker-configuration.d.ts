@@ -28,6 +28,7 @@ interface __BaseEnv_Env {
 	BANK_CONNECTION_KEY: string;
 	HOUSEHOLD_AGENT: DurableObjectNamespace<import("./src/server").HouseholdAgent>;
 	MONTH_CLOSE: Workflow<Parameters<import("./src/server").MonthCloseWorkflow['run']>[0]['payload']>;
+	BROWSER: import("./src/server/perk-page").BrowserBinding;
 	PERK_RESEARCH: Workflow<Parameters<import("./src/server").PerkResearchWorkflow['run']>[0]['payload']>;
 	IMPORT: Workflow<Parameters<import("./src/server").ImportWorkflow['run']>[0]['payload']>;
 	SETUP: Workflow<Parameters<import("./src/server").SetupWorkflow['run']>[0]['payload']>;

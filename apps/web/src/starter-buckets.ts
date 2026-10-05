@@ -90,6 +90,26 @@ export const STARTER_BUCKETS: {
 export const personalName = (parentName: string | null | undefined) =>
 	parentName ? `${parentName.trim().slice(0, 30)}’s money` : "My money";
 
+/**
+ * The names a Parent's Personal Allowance is given from their own name: "Alex’s money" in setup,
+ * "Alex’s Personal Allowance" on the Plan and on joining.
+ */
+const namesFromParent = (parentName: string) => [
+	personalName(parentName),
+	`${parentName.trim().split(/\s+/)[0]}’s Personal Allowance`,
+];
+
+/**
+ * When a Parent changes their name (issue 104): what their Personal Allowance is renamed from and
+ * to, so one still named after them follows. One they named themself matches neither.
+ */
+export function personalRenames(oldName: string, newName: string): { from: string; to: string }[] {
+	const to = namesFromParent(newName);
+	return namesFromParent(oldName)
+		.map((from, i) => ({ from, to: to[i] ?? from }))
+		.filter(({ from, to }) => from !== to);
+}
+
 const norm = (name: string) => name.trim().toLowerCase();
 
 /** The list to start from: what was saved, or the starter Buckets, with no amounts yet. */

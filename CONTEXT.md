@@ -123,12 +123,14 @@ _Avoid_: Rollover, reconciliation, closing the books
 
 **Account**:
 A real-world place money lives or is owed: a checking/savings account, credit card, line of credit, or loan.
-_Avoid_: Bank, card (as a generic term)
+A Parent can **archive** one they no longer use (ADR-0046): it leaves the Accounts list, the pickers and the totals, and nothing new is brought into it. Its Transactions and history stay as they are, so past months don't change. "Restore", under Archived on Accounts, brings it back. An Account a Goal that isn't archived is kept in can't be archived until the Goal is.
+_Avoid_: Bank, card (as a generic term); delete, close, hide (for archive)
 
 **Transaction**:
 A single movement of real money in or out of an Account. It is assigned as a whole, or through Splits, to Buckets, Commitments, or Goals.
 A Parent's change to one is made on the version of it they were looking at: if it has changed on another screen since (the other Parent's, another tab, the bank), the change is left out and they are shown how it looks now (ADR-0041).
 A Transaction's **name** is what the lists show it by. One added by hand is named by what the Parent typed. One from a bank or a statement keeps the **bank's wording** ("AMERICAN EXPRESS ACH PMT M8054 WEB ID: 2005032111") untouched underneath, and is named, strongest first: by the name a Parent gave its merchant, by the name background AI settled, by the bank's wording cleaned ("American Express payment"). A Parent can rename any Transaction; "Use the bank's name" puts the cleaned wording back. After renaming one from a bank they are asked once whether to call the merchant's others the same, which is then remembered for later Imports. Rules and Review go by the bank's wording, so a rename never unfiles anything (ADR-0043).
+Any Transaction a Parent may change can be deleted, one at a time (with an Undo for ten seconds) or many at once from the Transactions page's **Select** mode: these ones, or everything the filters match in a month or up to the end of it. Before many go, Noodle states what that touches and takes a snapshot ("Before deleting Transactions"). One that came from a bank or a statement is never brought in again (ADR-0045). Goal spending is deleted only from its Goal; money in (income) is not a Transaction and is removed from Income.
 _Avoid_: Expense, entry, purchase; description, payee, memo (for the name or the bank's wording)
 
 **Split**:
@@ -137,6 +139,7 @@ _Avoid_: Line item, sub-transaction
 
 **Transfer**:
 A Transaction pair that moves real money between two of the Household's own Accounts (e.g. paying the credit card). Never counts as spending.
+Paying the card is a Transfer, never a Bucket's spending: what was bought on the card was filed when it was bought. Where only one side is in Noodle (the other Account isn't followed), a Parent marks that side alone; a line whose words say it pays a credit card is offered as one in Review, never marked or filed on its own (#91).
 _Avoid_: Payment, Move
 
 **Refund**:
@@ -151,6 +154,7 @@ _Avoid_: Manual entry, pending
 
 **Import**:
 A batch of Transactions brought in from an Account, whether from a statement file or a Bank Connection.
+It leaves out lines already in the Account and lines a Parent deleted from it (ADR-0045).
 _Avoid_: Sync, upload, feed
 
 **Bank Connection**:
@@ -158,6 +162,7 @@ An ongoing authorized link to a financial institution that produces Imports auto
 Each is one login at one institution and covers every account under that login. Reconnecting keeps the same Bank Connection.
 A Parent chooses **how far back** it goes when they connect it: this month only (a fresh start, recommended) or the last 30, 60, 90, 120 or 365 days. No Import from it keeps a Transaction dated before that start, and the start can't be changed afterwards (ADR-0017). One connected before this was asked keeps everything. It goes through Plaid (ADR-0017), which counts each one against a small allowance.
 Connecting asks, for each account there, which Account the Household already has it as (Noodle suggests one by name, kind and last digits), or adds it as a new Account, or leaves it out (ADR-0020). An Account paired this way keeps everything on it; its bank's lines that a statement already brought in aren't added again. Stopping keeps the Account, kept by hand or by statements again.
+A Parent can **stop syncing** one Account (unlink it; ADR-0046): that Account is kept by hand or by statements from then on, with all its Transactions, and the Bank Connection's other Accounts go on syncing. Stopping the last one disconnects the Bank Connection. To sync it again the Parent chooses it for the Bank Connection again, or connects the bank again; nothing already there is added twice.
 _Avoid_: Integration, link, Plaid (as a domain term)
 
 **Pending**:
@@ -227,11 +232,11 @@ Paying twice for the same benefit: two services that serve the same need, a serv
 _Avoid_: Double spending, duplicate
 
 **Perk Source**:
-A confirmed product the Household holds that bundles benefits: a phone plan, credit card, membership, or insurance policy.
+A confirmed product the Household holds that bundles benefits: a phone plan, credit card, membership, or insurance policy. A credit card a Bank Connection brings in is one by itself, without a Parent adding it; when the bank doesn't say which card it is, a Parent is asked once ("Which Chase card is this?") (ADR-0044).
 _Avoid_: Provider, card, subscription
 
 **Perk**:
-A specific benefit included with a Perk Source, with the link it came from and the date it was last checked.
+A specific benefit included with a Perk Source: a service it includes, a cost it pays back, or a kind of purchase it earns more on. Each has the link it came from, the page's own words, and the date it was last checked. A card's Perks are listed most valuable first, and "Worth using" sets them against the Household's own spending: credits that went unused, charges on other Accounts the card would pay back, and the kinds of purchases it earns more on. Only ever about a card the Household already has.
 _Avoid_: Benefit, reward, feature
 
 ### Exploring

@@ -14,6 +14,13 @@ import { Input } from "@noodle/ui/components/input";
 import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
 import { List, ListGroupLabel } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@noodle/ui/components/select";
 import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import { cn } from "@noodle/ui/lib/utils";
@@ -53,6 +60,7 @@ import {
 	useBringsSpendingIn,
 	waitingForBank,
 } from "../../../components/transaction-list";
+import { DeleteSelectedSheet, SelectionBar } from "../../../components/transaction-selection";
 import { dayName, formatMoney, monthName } from "../../../format";
 import { type AccountView, useGoals } from "../../../goals";
 import { type MemberSummary, pickableMembers } from "../../../members";
@@ -60,6 +68,12 @@ import { goalsQuery, membersQuery, monthQuery, reviewQuery } from "../../../quer
 import { monthKeySchema } from "../../../server/month";
 import { ulidSchema } from "../../../server/schemas";
 import { forFilterSchema, SEARCH_MAX, transactionSortSchema } from "../../../server/transactions";
+import {
+	isPicked,
+	nothingPicked,
+	type Picking,
+	togglePicked,
+} from "../../../transaction-selection";
 import {
 	type TransactionFilters,
 	type TransactionRow,
@@ -116,10 +130,16 @@ function TransactionsPage() {
 	const members = useSuspenseQuery(membersQuery()).data;
 	const { accounts } = useGoals();
 	const [editing, setEditing] = useState<TransactionRow | null>(null);
+	// Select mode (#97): what is selected, by ID or as "all that match", never by rows on screen.
+	const [picking, setPicking] = useState<Picking | null>(null);
+	const [confirming, setConfirming] = useState(false);
+	const hydrated = useHydrated();
 	// The Transaction open in the pane beside the list (its route is this one's child).
 	const picked = useParams({ strict: false, select: (params) => params.transactionId });
 	// From lg a Transaction opens beside the list, at its own address; on a phone, in a sheet.
 	const onEdit = (transaction: TransactionRow) => {
+		// While selecting, a tap selects (or unselects) instead of opening.
+		if (picking) return setPicking(togglePicked(picking, transaction.id));
 		if (window.matchMedia("(min-width: 1024px)").matches) {
 			void navigate({
 				to: "/transactions/$month/$transactionId",
@@ -158,6 +178,12 @@ function TransactionsPage() {
 	// The order isn't a filter: every Transaction is still there.
 	const { sort: _sort, ...narrowing } = filters;
 	const filtered = Object.values(narrowing).some((value) => value !== undefined);
+	// Another month or other filters: "all that match" would mean something else, so start again.
+	const shown = JSON.stringify([month, narrowing]);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: `shown` is what resets the selection
+	useEffect(() => {
+		setPicking((was) => (was ? nothingPicked : was));
+	}, [shown]);
 	const onChange = (next: TransactionFilters) =>
 		void navigate({
 			search: (prev) => ({
@@ -178,6 +204,19 @@ function TransactionsPage() {
 				title={sameYear ? monthName(month) : `${monthName(month)} ${month.slice(0, 4)}`}
 				actions={
 					<div className="flex flex-wrap items-center justify-end gap-1">
+						{picking ? null : (
+							<Button
+								variant="outline"
+								size="sm"
+								// A phone's header has room for one action and the month arrows: there, Select
+								// is over the list instead.
+								className="me-1 max-sm:hidden"
+								disabled={!hydrated}
+								onClick={() => setPicking(nothingPicked)}
+							>
+								Select
+							</Button>
+						)}
 						<Button variant="outline" size="sm" className="me-2" asChild>
 							<Link
 								to="/review"
@@ -227,7 +266,33 @@ function TransactionsPage() {
 			    list; a Transaction taller than the window scrolls in its pane, so it stays beside its row. */}
 			<SplitLayout stack="rail" className="max-lg:gap-4">
 				<SplitMain className={cn(picked && "max-lg:hidden")}>
+					{picking ? (
+						<div className="mb-2">
+							<SelectionBar
+								month={month}
+								filters={filters}
+								filtered={filtered}
+								picking={picking}
+								onPick={setPicking}
+								onDelete={() => setConfirming(true)}
+								onCancel={() => setPicking(null)}
+							/>
+						</div>
+					) : (
+						// On a phone Select is here, where the selection's bar takes its place.
+						<div className="mb-2 flex justify-end sm:hidden">
+							<Button
+								variant="outline"
+								size="sm"
+								disabled={!hydrated}
+								onClick={() => setPicking(nothingPicked)}
+							>
+								Select
+							</Button>
+						</div>
+					)}
 					<TransactionList
+						picking={picking}
 						month={month}
 						filters={filters}
 						today={asOf}
@@ -265,6 +330,17 @@ function TransactionsPage() {
 					) : null}
 				</SplitRail>
 			</SplitLayout>
+			<DeleteSelectedSheet
+				open={confirming}
+				picking={picking}
+				month={month}
+				filters={filters}
+				onClose={() => setConfirming(false)}
+				onDeleted={() => {
+					setConfirming(false);
+					setPicking(null);
+				}}
+			/>
 			<TransactionEditor
 				transaction={editing}
 				today={asOf}
@@ -394,6 +470,26 @@ function Filters({
 						</span>
 					) : null}
 				</Button>
+				{/* Below xl the list has no column names to sort by, so the orders are a menu here. */}
+				<Select
+					value={filters.sort ?? "newest"}
+					disabled={!hydrated}
+					onValueChange={(sort) => onChange({ sort: sort as TransactionSort })}
+				>
+					<SelectTrigger aria-label="Sort" className="min-w-0 max-w-full xl:hidden">
+						<span className="flex min-w-0 items-center gap-2">
+							<ArrowUpDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+							<SelectValue />
+						</span>
+					</SelectTrigger>
+					<SelectContent>
+						{SORTS.map(([value, label]) => (
+							<SelectItem key={value} value={value}>
+								{label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 			</div>
 			<div className="grid gap-2 max-lg:hidden">
 				<FilterSelect
@@ -581,9 +677,12 @@ function TransactionList({
 	members,
 	filtered,
 	picked,
+	picking,
 	onSort,
 	onEdit,
 }: {
+	/** Select mode's selection; null when the list isn't selecting. */
+	picking: Picking | null;
 	month: MonthKey;
 	filters: TransactionFilters;
 	today: DayKey;
@@ -601,9 +700,9 @@ function TransactionList({
 	const bringsIn = useBringsSpendingIn();
 	const transactions = data.pages.flatMap((page) => page.transactions);
 	const sort = filters.sort ?? "newest";
-	// By amount, days mix, so there are no day labels and each row says its date.
-	const byAmount = sort === "largest" || sort === "smallest";
-	const items = itemsOf(transactions, hasNextPage, !byAmount);
+	// In any order but by date, days mix, so there are no day labels and each row says its date.
+	const byDate = sort === "newest" || sort === "oldest";
+	const items = itemsOf(transactions, hasNextPage, byDate);
 	const hydrated = useHydrated();
 	const more = useRef<HTMLLIElement>(null);
 
@@ -660,41 +759,70 @@ function TransactionList({
 
 	return (
 		<div className="grid gap-2">
-			{/* The columns’ names at xl; each row says them to a screen reader itself. Date and
-			    Amount sort the list (on the server, as it loads a page at a time). */}
-			<div
-				className={cn(
-					"hidden items-center gap-x-3 px-(--card-pad) text-xs font-medium text-subtle-foreground xl:grid 2xl:gap-x-4",
-					TRANSACTION_COLUMNS,
-				)}
-			>
-				<span className="col-span-2 flex items-center gap-4">
-					<SortButton
-						label="Date"
-						state={sort === "newest" ? "newest first" : sort === "oldest" ? "oldest first" : null}
-						descending={sort !== "oldest"}
+			{/* The columns’ names at xl; each row says them to a screen reader itself. All but For
+			    sort the list (on the server, as it loads a page at a time). A row of column headers,
+			    so the one in use can say which way it sorts (aria-sort). */}
+			{/* biome-ignore lint/a11y/useSemanticElements: the header is laid out on the rows' grid, which a <table> can't be, and its buttons take the focus */}
+			<div role="table" aria-label="Sort Transactions by column" className="hidden xl:block">
+				{/* biome-ignore lint/a11y/useSemanticElements: the header is laid out on the rows' grid, which a <table> can't be, and its buttons take the focus */}
+				{/* biome-ignore lint/a11y/useFocusableInteractive: the header is laid out on the rows' grid, which a <table> can't be, and its buttons take the focus */}
+				<div
+					role="row"
+					className={cn(
+						"grid items-center gap-x-3 px-(--card-pad) text-xs font-medium text-subtle-foreground 2xl:gap-x-4",
+						TRANSACTION_COLUMNS,
+					)}
+				>
+					<span className="col-span-2 flex min-w-0 items-center gap-2">
+						<SortHeader
+							label="Date"
+							sort={sort}
+							first="newest"
+							second="oldest"
+							disabled={!hydrated}
+							onSort={onSort}
+							className="-ms-2"
+						/>
+						<SortHeader
+							label="Name"
+							sort={sort}
+							first="name-az"
+							second="name-za"
+							disabled={!hydrated}
+							onSort={onSort}
+						/>
+					</span>
+					<SortHeader
+						label="Assigned to"
+						sort={sort}
+						first="assigned-az"
+						second="assigned-za"
 						disabled={!hydrated}
-						onClick={() => onSort(sort === "newest" ? "oldest" : "newest")}
+						onSort={onSort}
 						className="-ms-2"
 					/>
-					{/* Beside the rail at 1280 the Date button fills this column, so its name waits for room. */}
-					<span aria-hidden="true" className="max-[87.5rem]:hidden">
-						Description
-					</span>
-				</span>
-				<span aria-hidden="true">Assigned to</span>
-				<span aria-hidden="true">For</span>
-				<span aria-hidden="true">Account</span>
-				<SortButton
-					label="Amount"
-					state={
-						sort === "largest" ? "largest first" : sort === "smallest" ? "smallest first" : null
-					}
-					descending={sort !== "smallest"}
-					disabled={!hydrated}
-					onClick={() => onSort(sort === "largest" ? "smallest" : "largest")}
-					className="-me-2 justify-self-end"
-				/>
+					{/* biome-ignore lint/a11y/useSemanticElements: the header is laid out on the rows' grid, which a <table> can't be, and its buttons take the focus */}
+					{/* biome-ignore lint/a11y/useFocusableInteractive: For doesn't sort the list, so there's nothing to focus */}
+					<span role="columnheader">For</span>
+					<SortHeader
+						label="Account"
+						sort={sort}
+						first="account-az"
+						second="account-za"
+						disabled={!hydrated}
+						onSort={onSort}
+						className="-ms-2"
+					/>
+					<SortHeader
+						label="Amount"
+						sort={sort}
+						first="largest"
+						second="smallest"
+						disabled={!hydrated}
+						onSort={onSort}
+						className="-me-2 justify-self-end"
+					/>
+				</div>
 			</div>
 			<List aria-label={`Transactions in ${monthName(month)}`}>
 				{items.map((item, index) => {
@@ -738,8 +866,9 @@ function TransactionList({
 							members={members}
 							waiting={waitingForBank(item.transaction, today, bringsIn)}
 							columns
-							dated={byAmount}
+							dated={!byDate}
 							selected={item.transaction.id === picked}
+							checked={picking ? isPicked(picking, item.transaction.id) : undefined}
 							onEdit={onEdit}
 						/>
 					);
@@ -749,43 +878,87 @@ function TransactionList({
 	);
 }
 
+/** Every order the list can be in, as the Sort menu words them. */
+const SORTS: [TransactionSort, string][] = [
+	["newest", "Newest first"],
+	["oldest", "Oldest first"],
+	["largest", "Largest first"],
+	["smallest", "Smallest first"],
+	["name-az", "Name A–Z"],
+	["name-za", "Name Z–A"],
+	["assigned-az", "Assigned to A–Z"],
+	["assigned-za", "Assigned to Z–A"],
+	["account-az", "Account A–Z"],
+	["account-za", "Account Z–A"],
+];
+
+/** How a column's button says the order it's in. */
+const SORT_SAID: Record<TransactionSort, string> = {
+	newest: "newest first",
+	oldest: "oldest first",
+	largest: "largest first",
+	smallest: "smallest first",
+	"name-az": "A to Z",
+	"name-za": "Z to A",
+	"assigned-az": "A to Z",
+	"assigned-za": "Z to A",
+	"account-az": "A to Z",
+	"account-za": "Z to A",
+};
+
+/** The orders that run downwards: newest, largest and Z first. */
+const DESCENDING: TransactionSort[] = ["newest", "largest", "name-za", "assigned-za", "account-za"];
+
 /**
- * A column name that sorts the list by it: says the order it's in when it's the one sorting, and
- * flips that order when pressed again.
+ * A column's name as a button that sorts the list by it: `first` when another column sorts it,
+ * then `second` and back. The header says which way the list runs (aria-sort), and the button's
+ * name says it in words; only the column's name shows, so every column fits beside the rail.
  */
-function SortButton({
+function SortHeader({
 	label,
-	state,
-	descending,
+	sort,
+	first,
+	second,
 	disabled,
-	onClick,
+	onSort,
 	className,
 }: {
 	label: string;
-	/** The order, when this column sorts the list. */
-	state: string | null;
-	descending: boolean;
+	/** The list's order now. */
+	sort: TransactionSort;
+	first: TransactionSort;
+	second: TransactionSort;
 	disabled: boolean;
-	onClick: () => void;
+	onSort: (sort: TransactionSort) => void;
 	className?: string;
 }) {
-	const Icon = state === null ? ArrowUpDown : descending ? ArrowDown : ArrowUp;
+	const mine = sort === first || sort === second;
+	const descending = DESCENDING.includes(sort);
+	const Icon = !mine ? ArrowUpDown : descending ? ArrowDown : ArrowUp;
 	return (
-		<Button
-			type="button"
-			variant="ghost"
-			size="sm"
-			disabled={disabled}
-			aria-pressed={state !== null}
-			onClick={onClick}
-			className={cn(
-				"gap-1 px-2 text-xs font-medium",
-				state === null ? "text-subtle-foreground" : "text-foreground",
-				className,
-			)}
+		// biome-ignore lint/a11y/useSemanticElements: the header is laid out on the rows' grid, which a <table> can't be, and its buttons take the focus
+		// biome-ignore lint/a11y/useFocusableInteractive: the button inside is what takes the focus
+		<span
+			role="columnheader"
+			aria-sort={mine ? (descending ? "descending" : "ascending") : undefined}
+			className={cn("flex min-w-0", className)}
 		>
-			{state === null ? `Sort by ${label.toLowerCase()}` : `${label}, ${state}`}
-			<Icon aria-hidden="true" className="size-3.5" />
-		</Button>
+			<Button
+				type="button"
+				variant="ghost"
+				size="sm"
+				disabled={disabled}
+				aria-pressed={mine}
+				aria-label={mine ? `${label}, ${SORT_SAID[sort]}` : `Sort by ${label.toLowerCase()}`}
+				onClick={() => onSort(sort === first ? second : first)}
+				className={cn(
+					"min-w-0 gap-1 px-2 text-xs font-medium",
+					mine ? "text-foreground" : "text-subtle-foreground",
+				)}
+			>
+				<span className="truncate">{label}</span>
+				<Icon aria-hidden="true" className="size-3.5 shrink-0" />
+			</Button>
+		</span>
 	);
 }

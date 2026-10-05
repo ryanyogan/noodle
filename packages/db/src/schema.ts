@@ -62,7 +62,8 @@ export const members = sqliteTable(
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()
 			.default(sql`(unixepoch() * 1000)`),
-		// Set only for Children: 1–8, their identity colour (--bucket-N).
+		// 1–8, their identity colour (--bucket-N). A Child always has one; a Parent has one once
+		// they pick it (issue 104), and is drawn plain until then.
 		color: integer("color"),
 		// A removed Child leaves the Household's pickers, but Transactions For them keep it.
 		removedAt: integer("removed_at", { mode: "timestamp_ms" }),
@@ -331,6 +332,12 @@ export const accounts = sqliteTable(
 		externalId: text("external_id"),
 		/** The account number's last four digits, from the bank or a statement; null until known. */
 		mask: text("mask"),
+		/**
+		 * When a Parent archived it (issue 94); null while it's in use. An archived Account is out of
+		 * the Accounts list, the pickers and the totals, and nothing new is brought into it; its
+		 * Transactions stay as they are.
+		 */
+		archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
 	},
 	(t) => [
 		index("accounts_household_idx").on(t.householdId),
@@ -383,6 +390,27 @@ export const bankLinePairs = sqliteTable(
 		primaryKey({ columns: [t.accountId, t.bankKey] }),
 		uniqueIndex("bank_line_pairs_row_idx").on(t.rowId),
 	],
+);
+
+// A line a Parent deleted from an Account (ADR-0045): the ID its Transaction was kept under there
+// (`transactions.external_id`: a statement line's, or `id:<bank ID>` for a Bank Connection's).
+// An Import leaves these out, so a deleted line doesn't come back with the next sync or when the
+// same statement is uploaded again. Only the ID is kept, nothing else about the Transaction.
+export const deletedBankLines = sqliteTable(
+	"deleted_bank_lines",
+	{
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		accountId: text("account_id")
+			.notNull()
+			.references(() => accounts.id),
+		externalId: text("external_id").notNull(),
+		deletedAt: integer("deleted_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [primaryKey({ columns: [t.accountId, t.externalId] })],
 );
 
 // A batch of Transactions brought in from an Account: from a statement file a Parent uploaded
@@ -1157,6 +1185,19 @@ export const perkUses = sqliteTable("perk_uses", {
 		.default(sql`(unixepoch() * 1000)`),
 });
 
+// A benefits page as it was last read: its text, when, and whether a plain fetch or a real
+// browser (Browser Rendering) got it, so research soon after (a Parent picking a plan tier, a
+// second Household with the same card) doesn't fetch or render it again. Public pages only, kept
+// by address: nothing here belongs to a Household.
+export const perkPages = sqliteTable("perk_pages", {
+	url: text("url").primaryKey(),
+	/** Where it ended up, after redirects. */
+	finalUrl: text("final_url").notNull(),
+	text: text("text").notNull(),
+	via: text("via", { enum: ["fetch", "browser"] }).notNull(),
+	fetchedAt: integer("fetched_at", { mode: "timestamp_ms" }).notNull(),
+});
+
 // A Receipt: an itemized record of a purchase a Parent sent in (a forwarded email; later a
 // photo), kept in R2 (`file_key`, with a small image of it at `thumbnail_key` when it's a
 // picture) and read by a model into `lines` (ReceiptLine from @noodle/domain, as JSON). It's
@@ -1384,6 +1425,7 @@ export const householdSnapshots = sqliteTable(
 				"before-fresh-start",
 				"before-delete",
 				"before-rule-apply",
+				"before-transactions-delete",
 			],
 		}).notNull(),
 		takenBy: text("taken_by"),

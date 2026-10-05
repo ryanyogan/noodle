@@ -1,12 +1,13 @@
 import {
 	addDays,
 	byDoNow,
+	byPerkValue,
 	type DayKey,
+	earnRate,
 	PERK_RENEWALS,
-	PERK_SOURCE_KINDS,
 	type PerkRenewal,
-	type PerkSourceKind,
 	type PerkStanding,
+	perkCategoryLabel,
 	perkDoNow,
 	perkRenewalLabel,
 	perkSourceKindLabel,
@@ -22,23 +23,32 @@ import { Input } from "@noodle/ui/components/input";
 import { SectionGrid } from "@noodle/ui/components/layout";
 import { List, ListRow } from "@noodle/ui/components/list";
 import { MetaParts } from "@noodle/ui/components/meta-parts";
+import { RowButton } from "@noodle/ui/components/row-button";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { OptionSelect } from "@noodle/ui/components/select";
 import { Spinner } from "@noodle/ui/components/spinner";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useHydrated } from "@tanstack/react-router";
-import { Check, ExternalLink, Gift, Lock, RefreshCw } from "lucide-react";
+import {
+	Check,
+	ChevronDown,
+	ChevronRight,
+	ExternalLink,
+	Gift,
+	Lock,
+	Plus,
+	RefreshCw,
+} from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
+import { AddPerkSourceSheet, WhichCardSheet } from "../../../components/perk-source-picker";
 import { Confirm } from "../../../components/plan-editing";
 import { SectionPending } from "../../../components/section-layout";
 import { TermHelp } from "../../../components/term-help";
 import { shortDay, shortDayAt } from "../../../format";
 import {
-	newPerkSourceId,
 	newPerkUseId,
 	type PerkSourceItem,
 	researchStatus,
-	useAddPerkSource,
 	useDecidePerkSource,
 	useMarkPerkUsed,
 	useRemovePerkUse,
@@ -46,6 +56,7 @@ import {
 	useSetPerkValue,
 	useUpdatePerkSource,
 } from "../../../perks";
+import { groupPerks, sourceHeadline, sourceState, sourceStateLabel } from "../../../perks-view";
 import { perkSourcesQuery } from "../../../queries";
 
 export const Route = createFileRoute("/_authed/_household/insights/perks")({
@@ -74,16 +85,30 @@ const usd = (cents: number) => {
 
 const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
 
+/** Something to do now: never what a card earns more on, which isn't used up or reset. */
+const toDoNow = (entry: PerkEntry) =>
+	entry.perk.kind !== "earn" && perkDoNow(entry.standing, entry.perk.renews);
+
+/** A card shows its most valuable perks; the rest fold under "Show all N perks". */
+const PERKS_SHOWN = 5;
+
+/** A list opens on its first few rows; the rest are behind "Show all". */
+const FEW = 3;
+
 /**
  * Credit card perks: what the Household's cards (and phone plans and memberships) include, read
- * from each one's own benefits page. First this year's sums (value used against value
- * available, and against the annual fees), then what to do now (perks about to reset unused, or
- * never used), then each card with its perks: value, how often it renews, when it resets, and
- * whether it was used this period (marked by hand, or a matching charge). Noodle suggests the
- * Perk Sources it spots; a Parent confirms each, or adds their own.
+ * from each one's own benefits page. The page opens short (issue 101): one button to add a card or
+ * membership, this year's sums, the few perks worth using now, the ones Noodle spotted to
+ * confirm, then one row per Perk Source. A row opens that Perk Source alone: its perks (value, how
+ * often each renews, whether it was used), what's worth using, and what a Parent can do with it.
  */
 function PerksPage() {
 	const sources = useSuspenseQuery(perkSourcesQuery()).data;
+	const hydrated = useHydrated();
+	const [adding, setAdding] = useState(false);
+	const [allSuggested, setAllSuggested] = useState(false);
+	// Which Perk Source is open: one at a time. Untouched, a lone one is open, as there's no list.
+	const [picked, setPicked] = useState<string | null | undefined>(undefined);
 	const suggested = sources.filter((s) => s.status === "suggested");
 	const confirmed = sources.filter((s) => s.status === "confirmed");
 	const asOf = sources[0]?.asOf ?? (new Date().toISOString().slice(0, 10) as DayKey);
@@ -100,40 +125,64 @@ function PerksPage() {
 	}));
 	const doNow = cards
 		.flatMap((card) => card.entries)
-		.filter((entry) => perkDoNow(entry.standing, entry.perk.renews))
+		.filter(toDoNow)
 		.sort(byDoNow);
+	const lone = confirmed.length === 1 ? (confirmed[0]?.id ?? null) : null;
+	const openId = picked === undefined ? lone : picked;
+	/** From "Worth using now": opens the perk's Perk Source and goes to its row. */
+	const goTo = (id: string) => {
+		setPicked(id);
+		requestAnimationFrame(() => document.getElementById(`perk-source-${id}-row`)?.focus());
+	};
 	return (
 		<div className="grid gap-(--layout-gap)">
+			<div className="flex justify-end">
+				<Button className="max-lg:w-full" disabled={!hydrated} onClick={() => setAdding(true)}>
+					<Plus />
+					Add a card or membership
+				</Button>
+			</div>
+			<AddPerkSourceSheet open={adding} onOpenChange={setAdding} />
 			{sources.length === 0 ? (
 				<Card className="p-0">
 					<EmptyState
 						icon={<Gift />}
 						title="No Perk Sources yet"
-						description="Credit cards, phone plans and memberships often include services or pay for costs. Noodle suggests the ones it spots in your spending each night, or add one below."
+						description="Credit cards, phone plans and memberships often include services or pay for costs. Noodle suggests the ones it spots in your spending each night, or add one with the button above."
 					/>
 				</Card>
 			) : null}
-			{/* Summary first, with what to do now beside it on a wide screen. */}
+			{/* Summary first, with what's worth using now beside it on a wide screen. */}
 			{cards.some((card) => card.entries.length > 0) || doNow.length > 0 ? (
 				<SectionGrid className="xl:items-stretch">
 					{cards.some((card) => card.entries.length > 0) ? (
 						<YearSummary cards={cards} year={asOf.slice(0, 4)} />
 					) : null}
-					{doNow.length > 0 ? <DoNow entries={doNow} /> : null}
+					{doNow.length > 0 ? <WorthNow entries={doNow} onOpen={goTo} /> : null}
 				</SectionGrid>
 			) : null}
 			{suggested.length > 0 ? (
 				<SectionGrid>
-					{suggested.length > 0 ? (
-						<Section aria-labelledby="perks-to-confirm">
-							<SectionHeader id="perks-to-confirm" title="To confirm" count={suggested.length} />
-							<List>
-								{suggested.map((source) => (
-									<Suggestion key={source.id} source={source} />
-								))}
-							</List>
-						</Section>
-					) : null}
+					<Section aria-labelledby="perks-to-confirm">
+						<SectionHeader id="perks-to-confirm" title="To confirm" count={suggested.length} />
+						<List>
+							{(allSuggested ? suggested : suggested.slice(0, FEW)).map((source) => (
+								<Suggestion key={source.id} source={source} />
+							))}
+						</List>
+						{suggested.length > FEW ? (
+							<div>
+								<Button
+									variant="ghost"
+									size="sm"
+									aria-expanded={allSuggested}
+									onClick={() => setAllSuggested(!allSuggested)}
+								>
+									{allSuggested ? "Show fewer" : `Show all ${suggested.length} to confirm`}
+								</Button>
+							</div>
+						) : null}
+					</Section>
 				</SectionGrid>
 			) : null}
 			{confirmed.length > 0 ? (
@@ -144,14 +193,19 @@ function PerksPage() {
 						count={confirmed.length}
 						help={<TermHelp term="perk-source" />}
 					/>
-					<SectionGrid>
+					<Card className="min-w-0 p-0 [&>article+article]:border-t">
 						{cards.map(({ source, entries }) => (
-							<PerkSourceCard key={source.id} source={source} entries={entries} />
+							<PerkSourceRow
+								key={source.id}
+								source={source}
+								entries={entries}
+								open={openId === source.id}
+								onToggle={() => setPicked(openId === source.id ? null : source.id)}
+							/>
 						))}
-					</SectionGrid>
+					</Card>
 				</Section>
 			) : null}
-			<AddPerkSource />
 		</div>
 	);
 }
@@ -168,7 +222,7 @@ const sumsOf = (source: PerkSourceItem, entries: PerkEntry[]): CardSums => ({
 	available: sum(entries.map((e) => e.standing.yearlyValueCents ?? 0)),
 	fee: source.annualFeeCents,
 	perks: entries.length,
-	toUse: entries.filter((e) => perkDoNow(e.standing, e.perk.renews)).length,
+	toUse: entries.filter(toDoNow).length,
 });
 
 function Meter({ used, available, label }: { used: number; available: number; label: string }) {
@@ -200,18 +254,21 @@ function YearSummary({
 		<Section aria-labelledby="perks-this-year" className="grid-rows-[auto_1fr]">
 			<SectionHeader id="perks-this-year" title={`This year (${year})`} />
 			<Card>
-				<div className="grid h-full content-between gap-5 p-(--card-pad)">
+				<div className="grid h-full content-start gap-5 p-(--card-pad)">
 					<dl className="grid gap-4 sm:grid-cols-3">
 						<div className="grid gap-1">
 							<dt className="text-[13px] text-muted-foreground">Value used</dt>
-							<dd className="text-2xl font-semibold tabular-nums">
-								{usd(used)}
-								<span className="text-sm font-normal text-muted-foreground">
-									{" "}
-									of {usd(available)}
+							{/* The meter is part of the value: a list of terms holds only terms and values. */}
+							<dd className="grid gap-1">
+								<span className="text-2xl font-semibold tabular-nums">
+									{usd(used)}
+									<span className="text-sm font-normal text-muted-foreground">
+										{" "}
+										of {usd(available)}
+									</span>
 								</span>
+								<Meter used={used} available={available} label="Value used this year" />
 							</dd>
-							<Meter used={used} available={available} label="Value used this year" />
 						</div>
 						<div className="grid content-start gap-1">
 							<dt className="text-[13px] text-muted-foreground">Annual fees</dt>
@@ -225,29 +282,6 @@ function YearSummary({
 							</dd>
 						</div>
 					</dl>
-					<ul aria-label="Each card this year" className="grid gap-3 border-t pt-4">
-						{rows.map((row) => (
-							<li key={row.source.id} className="grid gap-1.5">
-								<div className="flex flex-wrap items-baseline justify-between gap-x-3">
-									<span className="min-w-0 break-words font-medium">{row.source.name}</span>
-									<span className="text-sm tabular-nums text-muted-foreground">
-										{usd(row.used)} of {usd(row.available)} used
-										{row.fee !== null ? ` · fee ${usd(row.fee)}` : ""}
-									</span>
-								</div>
-								<Meter
-									used={row.used}
-									available={row.available}
-									label={`${row.source.name} this year`}
-								/>
-								<span className="text-[13px] text-muted-foreground">
-									{row.perks} {row.perks === 1 ? "perk" : "perks"}
-									{row.toUse > 0 ? ` · ${row.toUse} to use now` : " · all used for now"}
-									{row.available > row.used ? ` · ${usd(row.available - row.used)} left` : ""}
-								</span>
-							</li>
-						))}
-					</ul>
 				</div>
 			</Card>
 		</Section>
@@ -280,32 +314,51 @@ function stepFor(entry: PerkEntry): string {
 	return entry.perk.kind === "cost" ? `${action}; the credit comes back.` : `${action}.`;
 }
 
-/** Do now shows the few most urgent; every perk is in its card below, once. */
-const DO_NOW_SHOWN = 3;
-
-/** The most urgent perks (about to reset unused, or never used), and how many more there are. */
-function DoNow({ entries }: { entries: PerkEntry[] }) {
-	const shown = entries.slice(0, DO_NOW_SHOWN);
-	const more = entries.length - shown.length;
+/**
+ * The perks most worth using now (about to reset unused, or never used), the few most urgent
+ * first; each line opens its Perk Source, where it can be marked used.
+ */
+function WorthNow({ entries, onOpen }: { entries: PerkEntry[]; onOpen: (id: string) => void }) {
+	const [all, setAll] = useState(false);
+	const shown = all ? entries : entries.slice(0, FEW);
 	return (
-		<Section aria-labelledby="perks-do-now" className="grid-rows-[auto_1fr]">
-			<SectionHeader id="perks-do-now" title="Do now" count={entries.length} />
+		<Section aria-labelledby="perks-worth-now" className="grid-rows-[auto_1fr]">
+			<SectionHeader id="perks-worth-now" title="Worth using now" count={entries.length} />
 			<Card className="flex flex-col p-0">
-				<ul aria-label="Do now" className="flex-1 [&>li+li]:border-t">
+				<ul aria-label="Worth using now" className="flex-1 [&>li+li]:border-t">
 					{shown.map((entry) => (
-						<PerkRow key={entry.perk.id} entry={entry} doNow />
+						<li key={entry.perk.id} aria-label={entry.perk.name}>
+							<RowButton
+								className="rounded-none px-(--card-pad) py-3 focus-visible:-outline-offset-2"
+								onClick={() => onOpen(entry.source.id)}
+							>
+								<span className="grid min-w-0 flex-1 gap-0.5">
+									<span className="flex items-baseline justify-between gap-3">
+										<span className="min-w-0 break-words font-medium">{entry.perk.name}</span>
+										{entry.perk.valueCents !== null ? (
+											<span className="shrink-0 font-semibold tabular-nums">
+												{usd(entry.perk.valueCents)}
+											</span>
+										) : null}
+									</span>
+									<span className="min-w-0 break-words text-[13px] text-muted-foreground">
+										{entry.source.name} · {stepFor(entry)}
+									</span>
+								</span>
+								<ChevronRight
+									aria-hidden="true"
+									className="size-4 shrink-0 text-muted-foreground"
+								/>
+							</RowButton>
+						</li>
 					))}
 				</ul>
-				{more > 0 ? (
-					<p className="border-t px-(--card-pad) py-3 text-sm">
-						<a
-							href="#perk-sources"
-							className="font-medium text-brand underline-offset-4 hover:underline max-lg:inline-flex max-lg:min-h-11 max-lg:items-center"
-						>
-							{more} more to use
-						</a>
-						<span className="text-muted-foreground"> in the cards below</span>
-					</p>
+				{entries.length > FEW ? (
+					<div className="border-t px-(--card-pad) py-1.5">
+						<Button variant="ghost" size="sm" aria-expanded={all} onClick={() => setAll(!all)}>
+							{all ? "Show fewer" : `Show all ${entries.length}`}
+						</Button>
+					</div>
 				) : null}
 			</Card>
 		</Section>
@@ -337,15 +390,30 @@ function usedLine({ perk, standing }: PerkEntry): string {
 	return `Not used ${periodWord[perk.renews] ?? ""}${left}`;
 }
 
-function PerkRow({ entry, doNow = false }: { entry: PerkEntry; doNow?: boolean }) {
-	const { perk, source, standing } = entry;
+const kindWords = (perk: PerkItem) =>
+	perk.kind === "earn"
+		? "Earns more here"
+		: perk.kind === "service"
+			? "A service it includes"
+			: "A cost it pays for";
+
+/**
+ * One perk: its name with its value at the right, how often it renews, and whether it was used.
+ * The page's own words for it and the link to them are behind "Where this comes from".
+ */
+function PerkRow({ entry }: { entry: PerkEntry }) {
+	const { perk, standing } = entry;
 	const mark = useMarkPerkUsed();
 	const remove = useRemovePerkUse();
 	const hydrated = useHydrated();
 	const noteId = useId();
+	const fromId = useId();
 	const [marking, setMarking] = useState(false);
+	const [from, setFrom] = useState(false);
 	const used = standing.usedThisPeriod;
-	const line = usedLine(entry);
+	const earns = perk.kind === "earn";
+	const rate = earns ? earnRate(perk.quote) : null;
+	const line = earns ? "" : usedLine(entry);
 	const save = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		const note = String(new FormData(event.currentTarget).get("note") ?? "").trim() || null;
@@ -353,42 +421,28 @@ function PerkRow({ entry, doNow = false }: { entry: PerkEntry; doNow?: boolean }
 		setMarking(false);
 	};
 	return (
-		<li aria-label={perk.name} className="grid gap-1.5 px-(--card-pad) py-3">
+		<li aria-label={perk.name} className="grid gap-1.5 py-3">
 			<div className="flex items-baseline justify-between gap-3">
 				<span className="min-w-0 break-words font-medium">{perk.name}</span>
 				{perk.valueCents !== null ? (
 					<span className="shrink-0 font-semibold tabular-nums">{usd(perk.valueCents)}</span>
+				) : rate ? (
+					<span className="shrink-0 font-semibold tabular-nums">{rate}</span>
 				) : null}
 			</div>
 			<MetaParts
-				parts={[
-					doNow ? source.name : null,
-					perk.renews ? perkRenewalLabel[perk.renews] : null,
-					doNow ? null : perk.kind === "service" ? "A service it includes" : "A cost it pays for",
-					doNow ? null : (
-						<a
-							key="source"
-							href={perk.sourceUrl}
-							target="_blank"
-							rel="noreferrer"
-							className="inline-flex items-center gap-1 underline-offset-4 hover:text-foreground hover:underline max-lg:min-h-11"
-						>
-							Source
-							<ExternalLink aria-hidden="true" className="size-3" />
-						</a>
-					),
-					doNow ? null : `Checked ${shortDayAt(perk.checkedAt)}`,
-				]}
+				className="text-[13px] text-muted-foreground"
+				parts={[perk.renews ? perkRenewalLabel[perk.renews] : null, earns ? kindWords(perk) : null]}
 			/>
-			{line && !doNow ? (
+			{line ? (
 				<p className="flex items-center gap-1.5 text-sm">
 					{used ? <Check aria-hidden="true" className="size-4 shrink-0 text-brand" /> : null}
 					<span className="min-w-0 break-words">{line}</span>
 				</p>
 			) : null}
-			{doNow && marking ? <p className="text-sm text-muted-foreground">{stepFor(entry)}</p> : null}
 			{marking ? (
 				<form onSubmit={save} className="grid gap-2 rounded-xl bg-surface-2 p-3">
+					<p className="text-sm text-muted-foreground">{stepFor(entry)}</p>
 					<Field label="Note (optional)" htmlFor={noteId}>
 						<Input
 							id={noteId}
@@ -409,13 +463,19 @@ function PerkRow({ entry, doNow = false }: { entry: PerkEntry; doNow?: boolean }
 					</div>
 				</form>
 			) : (
-				<div className={doNow ? "flex items-center gap-3" : "flex flex-wrap gap-2"}>
-					{doNow ? (
-						<p className="min-w-0 flex-1 text-sm text-muted-foreground">{stepFor(entry)}</p>
-					) : null}
-					{!doNow && (perk.valueCents === null || perk.renews === null) ? (
-						<PerkValue perk={perk} />
-					) : null}
+				<div className="-ms-2.5 flex flex-wrap gap-x-1 gap-y-2">
+					{earns || used ? null : (
+						<Button
+							variant="outline"
+							size="sm"
+							className="ms-2.5"
+							aria-label={`Mark ${perk.name} used`}
+							disabled={!hydrated}
+							onClick={() => setMarking(true)}
+						>
+							Mark used
+						</Button>
+					)}
 					{used?.how === "by-hand" && used.id ? (
 						<Button
 							variant="ghost"
@@ -427,19 +487,44 @@ function PerkRow({ entry, doNow = false }: { entry: PerkEntry; doNow?: boolean }
 							Undo
 						</Button>
 					) : null}
-					{used ? null : (
-						<Button
-							variant="outline"
-							size="sm"
-							aria-label={`Mark ${perk.name} used`}
-							disabled={!hydrated}
-							onClick={() => setMarking(true)}
-						>
-							Mark used
-						</Button>
-					)}
+					{!earns && (perk.valueCents === null || perk.renews === null) ? (
+						<PerkValue perk={perk} />
+					) : null}
+					<Button
+						variant="ghost"
+						size="sm"
+						aria-expanded={from}
+						aria-controls={fromId}
+						aria-label={`Where ${perk.name} comes from`}
+						disabled={!hydrated}
+						onClick={() => setFrom(!from)}
+					>
+						Where this comes from
+					</Button>
 				</div>
 			)}
+			{from ? (
+				<div id={fromId} className="grid gap-1.5 rounded-xl bg-surface-2 p-3 text-[13px]">
+					{perk.quote.trim() ? <p className="min-w-0 break-words">“{perk.quote.trim()}”</p> : null}
+					<MetaParts
+						className="text-muted-foreground"
+						parts={[
+							kindWords(perk),
+							<a
+								key="source"
+								href={perk.sourceUrl}
+								target="_blank"
+								rel="noreferrer"
+								className="inline-flex items-center gap-1 underline underline-offset-4 hover:text-foreground max-lg:min-h-11"
+							>
+								Source
+								<ExternalLink aria-hidden="true" className="size-3" />
+							</a>,
+							`Checked ${shortDayAt(perk.checkedAt)}`,
+						]}
+					/>
+				</div>
+			) : null}
 		</li>
 	);
 }
@@ -606,34 +691,129 @@ function Suggestion({ source }: { source: PerkSourceItem }) {
 	);
 }
 
-function PerkSourceCard({ source, entries }: { source: PerkSourceItem; entries: PerkEntry[] }) {
+/**
+ * One Perk Source: a short row (its name and last digits, one line on where it stands, what its
+ * perks are worth in a year) that opens its details below it, one Perk Source at a time.
+ */
+function PerkSourceRow({
+	source,
+	entries,
+	open,
+	onToggle,
+}: {
+	source: PerkSourceItem;
+	entries: PerkEntry[];
+	open: boolean;
+	onToggle: () => void;
+}) {
+	const hydrated = useHydrated();
+	const titleId = `perk-source-${source.id}`;
+	const sums = sumsOf(source, entries);
+	// The most valuable first: by what each is worth in a year, then credits before the rest.
+	const ordered = byPerkValue(
+		entries.map((entry) => ({ ...entry.perk, entry })),
+		(perk) => perk.entry.standing.yearlyValueCents ?? perk.valueCents,
+	).map((perk) => perk.entry);
+	const state = sourceState(source);
+	const stateLabel = state ? sourceStateLabel[state] : null;
+	return (
+		<article aria-labelledby={titleId} className="min-w-0">
+			<h3 className="text-[15px] leading-snug">
+				<RowButton
+					id={`${titleId}-row`}
+					aria-expanded={open}
+					aria-controls={`${titleId}-details`}
+					disabled={!hydrated}
+					className="rounded-none px-(--card-pad) py-3.5 focus-visible:-outline-offset-2"
+					onClick={onToggle}
+				>
+					<span className="grid min-w-0 flex-1 gap-1">
+						<span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+							<span id={titleId} className="min-w-0 break-words font-semibold">
+								{source.name}
+								{source.card?.mask ? (
+									<span className="font-normal text-muted-foreground"> ••{source.card.mask}</span>
+								) : null}
+							</span>
+							{stateLabel ? (
+								<Badge variant={state === "unreadable" ? "over" : "pace"}>{stateLabel}</Badge>
+							) : null}
+							<PrivateBadge source={source} />
+						</span>
+						<span className="flex min-w-0 items-center gap-1.5 text-[13px] font-normal text-muted-foreground">
+							{state === "reading" ? <Spinner /> : null}
+							<span className="min-w-0 break-words">
+								{sourceHeadline(source, {
+									names: ordered.map((entry) => entry.perk.name),
+									toUse: sums.toUse,
+								})}
+							</span>
+						</span>
+					</span>
+					{sums.available > 0 ? (
+						<span className="grid shrink-0 text-end">
+							<span className="font-semibold tabular-nums">{usd(sums.available)}</span>
+							<span className="text-xs font-normal text-muted-foreground">a year</span>
+						</span>
+					) : null}
+					<ChevronDown
+						aria-hidden="true"
+						className={`size-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
+					/>
+				</RowButton>
+			</h3>
+			{open ? (
+				<PerkSourceDetails
+					id={`${titleId}-details`}
+					source={source}
+					ordered={ordered}
+					sums={sums}
+				/>
+			) : null}
+		</article>
+	);
+}
+
+/** What a Perk Source's row opens: where it stands, what's worth using, its perks, what to do. */
+function PerkSourceDetails({
+	id,
+	source,
+	ordered,
+	sums,
+}: {
+	id: string;
+	source: PerkSourceItem;
+	ordered: PerkEntry[];
+	sums: CardSums;
+}) {
 	const decide = useDecidePerkSource();
 	const update = useUpdatePerkSource();
 	const hydrated = useHydrated();
 	const [removing, setRemoving] = useState(false);
-	const titleId = `perk-source-${source.id}`;
+	const [naming, setNaming] = useState(false);
+	const [showAll, setShowAll] = useState(false);
 	const status = researchStatus(source);
 	const busy = !hydrated || update.isPending || decide.isPending;
-	const sums = sumsOf(source, entries);
+	const shown = showAll ? ordered : ordered.slice(0, PERKS_SHOWN);
+	const groups = groupPerks(shown.map((entry) => ({ ...entry.perk, entry })));
+	const card = source.card;
+	const asking = card?.needsProduct === true;
+	const about = [
+		kindAndPlan(source),
+		card && card.accountName.trim() !== source.name ? `Account “${card.accountName.trim()}”` : null,
+		source.checkedAt && source.research === "done"
+			? `Checked ${shortDayAt(source.checkedAt)}`
+			: null,
+	]
+		.filter(Boolean)
+		.join(" · ");
 	return (
-		<Card role="article" aria-labelledby={titleId} className="min-w-0">
-			<div className="grid gap-2 p-(--card-pad)">
-				<div className="flex flex-wrap items-center gap-2">
-					<h3 id={titleId} className="min-w-0 break-words text-[15px] font-semibold leading-snug">
-						{source.name}
-					</h3>
-					<PrivateBadge source={source} />
-				</div>
-				<p className="text-[13px] text-muted-foreground">
-					{[
-						kindAndPlan(source),
-						source.checkedAt && source.research === "done"
-							? `Checked ${shortDayAt(source.checkedAt)}`
-							: null,
-					]
-						.filter(Boolean)
-						.join(" · ")}
-				</p>
+		<div
+			id={id}
+			className="grid gap-x-(--layout-gap) gap-y-4 border-t px-(--card-pad) py-4 lg:grid-cols-2"
+		>
+			<div className="grid min-w-0 content-start gap-3">
+				<p className="break-words text-[13px] text-muted-foreground">{about}</p>
 				{sums.available > 0 ? (
 					<div className="grid gap-1.5">
 						<p className="text-sm tabular-nums">
@@ -647,7 +827,20 @@ function PerkSourceCard({ source, entries }: { source: PerkSourceItem; entries: 
 						/>
 					</div>
 				) : null}
-				{status ? (
+				{asking && card ? (
+					<div className="grid gap-2 rounded-xl bg-surface-2 p-3">
+						<p className="break-words text-sm">
+							The bank calls this card “{card.accountName.trim()}” and doesn’t say which card it is,
+							so Noodle can’t look up its perks yet.
+						</p>
+						<div>
+							<Button disabled={busy} onClick={() => setNaming(true)}>
+								Say which card it is
+							</Button>
+						</div>
+					</div>
+				) : null}
+				{status && !asking ? (
 					<p role="status" className="text-sm">
 						{status}
 					</p>
@@ -655,29 +848,85 @@ function PerkSourceCard({ source, entries }: { source: PerkSourceItem; entries: 
 				{source.research === "needs-plan" && source.planOptions.length > 0 ? (
 					<PlanPicker source={source} disabled={busy} />
 				) : null}
-				{source.research === "needs-link" || source.research === "unreadable" ? (
+				{!asking && (source.research === "needs-link" || source.research === "unreadable") ? (
 					<PageLink source={source} disabled={busy} />
 				) : null}
+				{source.worth.length > 0 ? (
+					<div className="grid gap-2">
+						<h4 id={`${id}-worth`} className="text-[13px] font-semibold">
+							Worth using
+						</h4>
+						<ul aria-labelledby={`${id}-worth`} className="grid gap-2.5">
+							{source.worth.map((line) => (
+								<li key={line.key} className="grid gap-0.5 text-sm">
+									<span className="min-w-0 break-words">{line.text}</span>
+									{line.evidence.length > 0 ? (
+										<span className="min-w-0 break-words text-[13px] text-muted-foreground">
+											{line.evidence
+												.map((e) => `${shortDay(e.date)} ${e.note} ${usd(e.amountCents)}`)
+												.join(" · ")}
+										</span>
+									) : null}
+								</li>
+							))}
+						</ul>
+					</div>
+				) : null}
 			</div>
-			{entries.length > 0 ? (
-				<ul aria-label={`${source.name} Perks`} className="border-t [&>li+li]:border-t">
-					{entries.map((entry) => (
-						<PerkRow key={entry.perk.id} entry={entry} />
+			{ordered.length > 0 ? (
+				<div className="grid min-w-0 content-start gap-1">
+					{groups.map((group) => (
+						<div key={group.category ?? "all"} className="grid gap-0.5">
+							<h4 className="text-[13px] font-semibold">
+								{group.category ? perkCategoryLabel[group.category] : "Perks"}
+							</h4>
+							<ul
+								aria-label={`${source.name} ${group.category ? perkCategoryLabel[group.category] : "Perks"}`}
+								className="[&>li+li]:border-t"
+							>
+								{group.perks.map((perk) => (
+									<PerkRow key={perk.id} entry={perk.entry} />
+								))}
+							</ul>
+						</div>
 					))}
-				</ul>
+					{ordered.length > PERKS_SHOWN ? (
+						<div className="-ms-2.5 border-t pt-1.5">
+							<Button
+								variant="ghost"
+								size="sm"
+								aria-expanded={showAll}
+								onClick={() => setShowAll(!showAll)}
+							>
+								{showAll ? "Show fewer" : `Show all ${ordered.length} perks`}
+							</Button>
+						</div>
+					) : null}
+				</div>
 			) : null}
-			<div className="grid gap-3 border-t px-(--card-pad) py-2.5">
-				{source.kind === "credit-card" ? <AnnualFee source={source} disabled={busy} /> : null}
+			<div className="grid min-w-0 gap-3 border-t pt-3 lg:col-span-2">
+				{source.kind === "credit-card" ? (
+					<div className="max-w-sm">
+						<AnnualFee source={source} disabled={busy} />
+					</div>
+				) : null}
 				<div className="flex flex-wrap items-center gap-2">
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={busy || source.research === "researching"}
-						onClick={() => update.mutate({ id: source.id })}
-					>
-						{update.isPending ? <Spinner /> : <RefreshCw />}
-						Check again
-					</Button>
+					{asking ? null : (
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={busy || source.research === "researching"}
+							onClick={() => update.mutate({ id: source.id })}
+						>
+							{update.isPending ? <Spinner /> : <RefreshCw />}
+							Check again
+						</Button>
+					)}
+					{card && !asking ? (
+						<Button variant="ghost" size="sm" disabled={busy} onClick={() => setNaming(true)}>
+							Change which card
+						</Button>
+					) : null}
 					{source.pageUrl ? (
 						<a
 							href={source.pageUrl}
@@ -712,7 +961,8 @@ function PerkSourceCard({ source, entries }: { source: PerkSourceItem; entries: 
 					</Confirm>
 				) : null}
 			</div>
-		</Card>
+			{card ? <WhichCardSheet source={source} open={naming} onOpenChange={setNaming} /> : null}
+		</div>
 	);
 }
 
@@ -815,77 +1065,5 @@ function PageLink({ source, disabled }: { source: PerkSourceItem; disabled: bool
 				</div>
 			</Field>
 		</form>
-	);
-}
-
-/** A Perk Source of the Household's own: a name, what it is, and optionally its plan and page. */
-function AddPerkSource() {
-	const add = useAddPerkSource();
-	const hydrated = useHydrated();
-	const id = useId();
-	const [kind, setKind] = useState<PerkSourceKind>("credit-card");
-	const submit = (event: FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
-		const form = event.currentTarget;
-		const data = new FormData(form);
-		const text = (key: string) => String(data.get(key) ?? "").trim() || null;
-		const name = text("name");
-		if (!name) return;
-		add.mutate(
-			{ id: newPerkSourceId(), name, kind, plan: text("plan"), pageUrl: text("pageUrl") },
-			{ onSuccess: () => form.reset() },
-		);
-	};
-	return (
-		<Section aria-labelledby="add-perk-source" className="max-w-3xl">
-			<SectionHeader id="add-perk-source" title="Add a Perk Source" />
-			<Card>
-				<form onSubmit={submit} className="grid gap-4 p-(--card-pad)">
-					<div className="grid gap-4 sm:grid-cols-2">
-						<Field label="Name" htmlFor={`${id}-name`}>
-							<Input
-								id={`${id}-name`}
-								name="name"
-								required
-								maxLength={80}
-								placeholder="e.g. Chase Sapphire"
-							/>
-						</Field>
-						<Field label="Kind" htmlFor={`${id}-kind`}>
-							<OptionSelect
-								id={`${id}-kind`}
-								value={kind}
-								onValueChange={(value) => setKind(value as PerkSourceKind)}
-								choices={PERK_SOURCE_KINDS.map((k) => ({
-									value: k,
-									label: perkSourceKindLabel[k],
-								}))}
-							/>
-						</Field>
-						<Field label="Plan (optional)" htmlFor={`${id}-plan`}>
-							<Input id={`${id}-plan`} name="plan" maxLength={80} placeholder="e.g. Preferred" />
-						</Field>
-						<Field
-							label="Benefits page (optional)"
-							htmlFor={`${id}-page`}
-							hint="Needed unless Noodle knows it already."
-						>
-							<Input
-								id={`${id}-page`}
-								name="pageUrl"
-								type="url"
-								pattern="https://.*"
-								placeholder="https://"
-							/>
-						</Field>
-					</div>
-					<div>
-						<Button type="submit" disabled={!hydrated || add.isPending}>
-							Add
-						</Button>
-					</div>
-				</form>
-			</Card>
-		</Section>
 	);
 }

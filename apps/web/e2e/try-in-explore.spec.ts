@@ -23,8 +23,7 @@ test.afterEach(async () => {
 	await parent?.remove();
 });
 
-const waterfall = (page: Page) =>
-	page.getByRole("region", { name: "From take-home pay to Free to Spend" });
+const waterfall = (page: Page) => page.getByRole("region", { name: "Where take-home pay goes" });
 const changes = (page: Page) => page.getByRole("region", { name: "Your changes" });
 const scenarioName = (page: Page) => page.getByLabel("Name", { exact: true });
 const saved = (page: Page, name: string) =>

@@ -86,24 +86,22 @@ test("Quick Add opens over any screen, and Back closes it without reloading the 
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, plan);
 
-	// A half-typed Bucket name in the Plan survives opening and closing Quick Add.
+	// A half-typed Personal Allowance in the Plan survives opening and closing Quick Add (a Bucket
+	// changes in a sheet, which Quick Add can't open over).
 	await switchTo(page, "Plan");
 	await page
 		.getByRole("navigation", { name: "Plan pages" })
 		.getByRole("link", { name: "Buckets", exact: true })
 		.click();
-	await page.getByRole("button", { name: "Change Hockey: $400" }).click();
-	const name = page
-		.getByRole("form", { name: "Change Hockey" })
-		.getByRole("textbox", { name: "Name" });
-	await name.fill("Gifts");
+	const typed = page.getByLabel("Your Personal Allowance");
+	await typed.fill("75");
 	await page.getByRole("link", { name: "Quick Add" }).click();
 	await expect(sheet(page)).toBeVisible();
 	await expect(page).toHaveURL(/sheet=quick-add/);
 	await page.goBack();
 	await expect(sheet(page)).toBeHidden();
 	await expect(page).not.toHaveURL(/sheet=/);
-	await expect(name).toHaveValue("Gifts");
+	await expect(typed).toHaveValue("75");
 
 	// From the Household screen, adding closes the sheet and stays there.
 	await page

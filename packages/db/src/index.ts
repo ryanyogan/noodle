@@ -419,6 +419,7 @@ export async function acceptInvite(
 	return membership ? { ok: true, membership } : { ok: false, reason: "invite-unusable" };
 }
 
+export * from "./account-archive";
 export {
 	type AddBankConnectionResult,
 	addBankConnection,
@@ -586,6 +587,7 @@ export {
 	type MemberSummary,
 	removeChild,
 	updateChild,
+	updateParent,
 } from "./members";
 export {
 	countSameMerchant,
@@ -635,10 +637,14 @@ export {
 	addPerkSource,
 	addPerkUse,
 	decidePerkSource,
+	ensureCardPerkSources,
 	loadAccountNames,
 	loadInsightPerks,
+	loadPerkPage,
 	loadPerkSources,
 	loadPerkSourceToResearch,
+	nameCardProduct,
+	type PerkCard,
 	type PerkItem,
 	type PerkResearch,
 	type PerkResearchOutcome,
@@ -647,6 +653,7 @@ export {
 	perkSourcesToRecheck,
 	recordPerkSourceSuggestions,
 	removePerkUse,
+	savePerkPage,
 	saveResearch,
 	setPerkSourceFee,
 	setPerkValue,
@@ -769,7 +776,9 @@ export {
 	type Assignment,
 	addQuickAdd,
 	type BucketSpend,
+	type DeletionSummary,
 	deleteTransaction,
+	deleteTransactions,
 	loadBucketUses,
 	loadSpending,
 	loadSpendingBetween,
@@ -781,9 +790,11 @@ export {
 	type SplitInput,
 	type SplitRow,
 	splitTransaction,
+	summarizeDeletion,
 	type TransactionCursor,
 	type TransactionEditResult,
 	type TransactionRow,
+	type TransactionSelection,
 	type TransactionSort,
 	type TransactionWriteResult,
 	transactionVersion,

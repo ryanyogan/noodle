@@ -1,6 +1,8 @@
+import { env } from "cloudflare:workers";
 import {
 	addQuickAdd as addQuickAddInDb,
 	countSameMerchant,
+	type DeletionSummary,
 	deleteTransaction as deleteTransactionInDb,
 	loadBucketUses,
 	loadRules,
@@ -9,6 +11,7 @@ import {
 	loadUnfiledReceipt,
 	nameSameMerchant as nameSameMerchantInDb,
 	splitTransaction as splitTransactionInDb,
+	summarizeDeletion,
 	type TransactionCursor,
 	type TransactionRow,
 	updateTransaction as updateTransactionInDb,
@@ -30,6 +33,11 @@ import { householdMiddleware, viewerOf } from "./household";
 import { monthKeySchema } from "./month";
 import { notifyHousehold } from "./notify";
 import { ulidSchema } from "./schemas";
+import {
+	changesAfterBulkDelete,
+	deleteTransactionsWithSnapshot,
+	newestMigration,
+} from "./snapshot-store";
 
 /** How far back Quick Add looks to order Buckets by likelihood. */
 const LIKELY_WINDOW_DAYS = 90;
@@ -124,7 +132,18 @@ export type TransactionsPage = {
 };
 
 /** How the list is ordered; newest first when left out. */
-export const transactionSortSchema = z.enum(["newest", "oldest", "largest", "smallest"]);
+export const transactionSortSchema = z.enum([
+	"newest",
+	"oldest",
+	"largest",
+	"smallest",
+	"name-az",
+	"name-za",
+	"assigned-az",
+	"assigned-za",
+	"account-az",
+	"account-za",
+]);
 
 /** What a Transactions search looks for in notes, at most this long. */
 export const SEARCH_MAX = 60;
@@ -145,7 +164,13 @@ export const getTransactions = createServerFn({ method: "GET" })
 			search: z.string().trim().max(SEARCH_MAX).optional(),
 			sort: transactionSortSchema.optional(),
 			after: z
-				.object({ date: dayKeySchema, id: ulidSchema, amountCents: z.number().int().optional() })
+				.object({
+					date: dayKeySchema,
+					id: ulidSchema,
+					amountCents: z.number().int().optional(),
+					// What the last row sorted on, in a list by name, by what it's assigned to or by Account.
+					key: z.string().max(500).optional(),
+				})
 				.optional(),
 		}),
 	)
@@ -382,4 +407,59 @@ export const nameSameMerchant = createServerFn({ method: "POST" })
 		if (renamed === null) throw new Error("Only a Transaction from your bank has a name to share.");
 		await notifyHousehold(context.household.id, ["months", "for-earlier", "bucket-uses"]);
 		return { renamed };
+	});
+
+/** The most Transactions picked one by one in a single delete; "all that match" has no such list. */
+export const PICKED_MAX = 1000;
+
+/**
+ * Transactions picked on the Transactions page: these ones, or all the page's filters match in a
+ * month (and, with `andEarlier`, every month before it) except some.
+ */
+const selectionSchema = z
+	.object({
+		ids: z.array(z.string().min(1).max(64)).max(PICKED_MAX).optional(),
+		all: z
+			.object({
+				month: monthKeySchema,
+				andEarlier: z.boolean().optional(),
+				bucketId: ulidSchema.optional(),
+				forMember: forFilterSchema.optional(),
+				accountId: ulidSchema.optional(),
+				search: z.string().trim().max(SEARCH_MAX).optional(),
+			})
+			.optional(),
+		except: z.array(z.string().min(1).max(64)).max(PICKED_MAX).optional(),
+	})
+	.refine((selection) => (selection.ids === undefined) !== (selection.all === undefined));
+
+export type { DeletionSummary };
+
+/** What deleting a selection would touch, counted now, for the confirm sheet. Changes nothing. */
+export const getDeletionSummary = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(selectionSchema)
+	.handler(
+		({ data, context }): Promise<DeletionSummary> =>
+			summarizeDeletion(getDb(), viewerOf(context), data),
+	);
+
+/**
+ * Deletes the selected Transactions that are this Parent's to delete, as they are now, after a
+ * "Before deleting Transactions" snapshot (ADR-0045): nothing goes if that can't be taken. Says
+ * how many went. Safe to retry: what is already gone is not counted or deleted again.
+ */
+export const deleteTransactions = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(selectionSchema)
+	.handler(async ({ data, context }): Promise<{ deleted: number; snapshot: boolean }> => {
+		const result = await deleteTransactionsWithSnapshot(
+			{ db: getDb(), bucket: env.BACKUPS, migration: await newestMigration(env.DB) },
+			viewerOf(context),
+			data,
+			new Date(),
+		);
+		const changes = changesAfterBulkDelete(result);
+		if (changes.length > 0) await notifyHousehold(context.household.id, changes);
+		return { deleted: result.deleted, snapshot: result.snapshotId !== null };
 	});
