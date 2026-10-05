@@ -18,7 +18,7 @@ import {
 // of anything, so the normal E2E run skips it: it runs only with PAGE_SHOTS set.
 //
 //   PAGE_SHOTS=1                    run it
-//   PAGE_SHOTS_WIDTHS=1440,393      only these widths (default: all five)
+//   PAGE_SHOTS_WIDTHS=1440,393      only these widths (default: all five; 2560 only when asked for)
 //   PAGE_SHOTS_THEME=dark           the dark theme (default: light)
 //
 // Each PNG is the full page, at test-results/page-shots/<width>/<name>.png. A page that fails is
@@ -38,7 +38,12 @@ const wanted = (process.env.PAGE_SHOTS_WIDTHS ?? "")
 	.split(",")
 	.map((width) => Number(width.trim()))
 	.filter(Boolean);
-const viewports = VIEWPORTS.filter(({ width }) => wanted.length === 0 || wanted.includes(width));
+// Pictured only when asked for by width: the widest desktop window, where the page stops growing (#73).
+const ON_REQUEST = [{ width: 2560, height: 1440 }];
+const viewports = [
+	...VIEWPORTS.filter(({ width }) => wanted.length === 0 || wanted.includes(width)),
+	...ON_REQUEST.filter(({ width }) => wanted.includes(width)),
+];
 const colorScheme = process.env.PAGE_SHOTS_THEME === "dark" ? "dark" : "light";
 const OUT = join("test-results", "page-shots");
 
