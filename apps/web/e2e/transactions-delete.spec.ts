@@ -25,7 +25,8 @@ test.afterEach(async () => {
 });
 
 const q = (value: string) => `'${value.replaceAll("'", "''")}'`;
-const list = (page: Page) => page.getByRole("list", { name: /^Transactions in / });
+const list = (page: Page) =>
+	page.getByRole("grid", { name: /^Transactions in / }).locator("[data-slot=data-table-body]");
 const row = (page: Page, title: string) =>
 	list(page).getByRole("button", { name: new RegExp(`^${title},`, "i") });
 const bar = (page: Page) => page.getByRole("region", { name: "Selecting Transactions" });
@@ -115,7 +116,8 @@ test("select all that match a search, read the facts, delete, and find a snapsho
 	// The sheet is over the page, so the list behind it is hidden from roles: count it all the same.
 	await expect(
 		page
-			.getByRole("list", { name: /^Transactions in /, includeHidden: true })
+			.getByRole("grid", { name: /^Transactions in /, includeHidden: true })
+			.locator("[data-slot=data-table-body]")
 			.getByRole("button", { includeHidden: true }),
 	).toHaveCount(3);
 

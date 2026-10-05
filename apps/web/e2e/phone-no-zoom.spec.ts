@@ -97,7 +97,9 @@ test("no field on the main phone pages is small enough to zoom", async ({ browse
 		.getByRole("navigation", { name: "Main" })
 		.getByRole("link", { name: "Transactions" })
 		.click();
-	const list = page.getByRole("list", { name: /^Transactions in / });
+	const list = page
+		.getByRole("grid", { name: /^Transactions in / })
+		.locator("[data-slot=data-table-body]");
 	await expect(list.getByRole("button", { name: /^Costco,/ })).toBeVisible();
 	await expectNoZoom(page, "Transactions");
 

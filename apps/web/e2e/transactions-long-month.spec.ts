@@ -92,7 +92,7 @@ test("a 400-row month draws every row, scrolls with the page and opens a row", a
 	expect(measured.pageHeight).toBeGreaterThan(measured.listHeight);
 
 	// The last row, far down the page, opens beside the list.
-	const last = rows.last().locator("> button");
+	const last = rows.last().locator("button");
 	await last.scrollIntoViewIfNeeded();
 	await last.click();
 	await expect(
