@@ -161,7 +161,7 @@ export function AssignedCell({
 					value={assignedValue(transaction)}
 					className="w-full"
 					placeholder="Unassigned"
-					searchPlaceholder="Search or create a Bucket"
+					searchPlaceholder="Search or create"
 					aria-label={`File ${title} in`}
 					choices={cells.choices}
 					onClose={() => cells.stop(true)}
