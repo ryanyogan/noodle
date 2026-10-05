@@ -305,16 +305,18 @@ test("a Transaction opens beside its month's list, which keeps its place", async
 	});
 	await seedReportHistory(parent.userId, 8);
 	await page.goto("/transactions");
-	const rows = page.locator("[data-slot=list-row] > button");
+	const rows = page.locator("[data-slot=list-row] button");
 	const pane = page.locator("[data-slot=transaction-detail]");
-	const marked = page.locator("[data-slot=list-row] > button[aria-current]");
+	const marked = page.locator("[data-slot=list-row] button[aria-current]");
 	// Hydrated: before then a press on a row does nothing.
 	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
 	await expect(rows.first()).toBeVisible();
 
 	// Nothing picked: the rail holds the filters and the month's total.
-	await expect(page.locator("[data-slot=split-rail]").getByTestId("month-total")).toBeVisible();
-	await expect(page.locator("[data-slot=split-rail]").getByLabel("Bucket")).toBeVisible();
+	await expect(
+		page.locator("[data-slot=transaction-filters]").getByTestId("month-total"),
+	).toBeVisible();
+	await expect(page.locator("[data-slot=transaction-filters]").getByLabel("Bucket")).toBeVisible();
 	await expect(pane).toHaveCount(0);
 
 	// Picked from part-way down: it opens in the rail at its own address, and the page stays put.
@@ -349,7 +351,9 @@ test("a Transaction opens beside its month's list, which keeps its place", async
 	await page.keyboard.press("Escape");
 	await expect(pane).toHaveCount(0);
 	await expect(page).toHaveURL(/\/transactions\/\d{4}-\d{2}$/);
-	await expect(page.locator("[data-slot=split-rail]").getByTestId("month-total")).toBeVisible();
+	await expect(
+		page.locator("[data-slot=transaction-filters]").getByTestId("month-total"),
+	).toBeVisible();
 	await page.context().close();
 });
 
@@ -363,7 +367,7 @@ test("a Transaction's address shows it whatever the list has loaded, and is a pa
 	await createPlannedHousehold(page, { baseline: "6200", buckets: [["Groceries", "800"]] });
 	await seedReportHistory(parent.userId, 2);
 	await page.goto("/transactions");
-	const rows = page.locator("[data-slot=list-row] > button");
+	const rows = page.locator("[data-slot=list-row] button");
 	const paneTitle = page.locator("[data-slot=transaction-detail] [data-slot=detail-title]");
 	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
 	await rows.first().click();

@@ -29,7 +29,7 @@ const splitFields = (page: Page, n: number) =>
 const remainder = (page: Page) => editSheet(page).getByRole("status");
 const save = (page: Page) => editSheet(page).getByRole("button", { name: "Save" });
 const nav = (page: Page) => page.getByRole("navigation", { name: "Main" });
-const list = (page: Page) => page.getByRole("list", { name: /^Transactions in / });
+const list = (page: Page) => page.getByRole("grid", { name: /^Transactions in / });
 const costco = (page: Page) => list(page).getByRole("button", { name: /^Costco,/ });
 const bucketRow = (page: Page, name: string) =>
 	page.getByRole("listitem", { name: new RegExp(`^${name}: `) });

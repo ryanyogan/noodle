@@ -97,7 +97,7 @@ test("Edit Transaction stays above the keyboard with Save in view", async ({ bro
 		.getByRole("link", { name: "Transactions" })
 		.click();
 	await page
-		.getByRole("list", { name: /^Transactions in / })
+		.getByRole("grid", { name: /^Transactions in / })
 		.getByRole("button", { name: /^Costco,/ })
 		.click();
 	const sheet = page.getByRole("dialog").filter({
@@ -127,7 +127,7 @@ test("Edit Transaction stays above the keyboard with Save in view", async ({ bro
 	await sheet.getByRole("button", { name: "Save" }).click();
 	await expect(sheet).toBeHidden();
 	await expect(
-		page.getByRole("list", { name: /^Transactions in / }).getByRole("button", {
+		page.getByRole("grid", { name: /^Transactions in / }).getByRole("button", {
 			name: /^Costco for the week, \$12\.50/,
 		}),
 	).toBeVisible();

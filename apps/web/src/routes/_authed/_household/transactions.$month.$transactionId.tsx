@@ -50,7 +50,7 @@ function TransactionPane() {
 	// address was the first one opened: the list stays where it was scrolled to, and focus returns
 	// to the row, as it does when a sheet closes. Esc does the same from the list's route.
 	const close = useCallback(() => {
-		document.querySelector<HTMLElement>('[data-slot="list-row"] > button[aria-current]')?.focus();
+		document.querySelector<HTMLElement>('[data-slot="list-row"] button[aria-current]')?.focus();
 		void navigate({
 			to: "/transactions/$month",
 			params: { month },
@@ -69,7 +69,7 @@ function TransactionPane() {
 				aria-label="Back to Transactions"
 				onClick={() =>
 					document
-						.querySelector<HTMLElement>('[data-slot="list-row"] > button[aria-current]')
+						.querySelector<HTMLElement>('[data-slot="list-row"] button[aria-current]')
 						?.focus()
 				}
 			>

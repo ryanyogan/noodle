@@ -40,7 +40,7 @@ const editSheet = (page: Page) =>
 		.locator("[role=dialog], [data-slot=transaction-detail]")
 		.filter({ has: page.getByRole("heading", { name: "Edit Transaction" }) });
 const nav = (page: Page) => page.getByRole("navigation", { name: "Main" });
-const list = (page: Page) => page.getByRole("list", { name: /^Transactions in / });
+const list = (page: Page) => page.getByRole("grid", { name: /^Transactions in / });
 const row = (page: Page, title: string) =>
 	list(page).getByRole("button", { name: new RegExp(`^${title},`) });
 const bucketRow = (page: Page, name: string) =>
@@ -94,7 +94,7 @@ test("editing a Transaction reassigns its spending on This Month at once", async
 	await openTransactions(page);
 
 	// Newest first, under the day they happened.
-	await expect(list(page).getByRole("listitem").first()).toHaveText(/^Today/);
+	await expect(list(page).locator("[data-slot=data-table-group]").first()).toHaveText(/^Today/);
 	await expect(list(page).getByRole("button")).toHaveCount(2);
 	await expect(list(page).getByRole("button").first()).toHaveAccessibleName(
 		"Pro Hockey Life, $64.99, Groceries, For Everyone",
@@ -252,7 +252,7 @@ test("at 1440 a long list draws every row as the page scrolls, and its card ends
 		.toBe(60);
 	await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
 	// The oldest day's rows are drawn and on screen, not a blank stretch of card (#73).
-	const oldest = list(page).getByRole("listitem").last();
+	const oldest = list(page).locator("[data-slot=list-row]").last();
 	await expect(oldest).toContainText(/Row/i);
 	await expect(oldest).toBeInViewport();
 	// No empty stretch under the last row: the card ends within a row of it.

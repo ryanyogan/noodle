@@ -201,7 +201,7 @@ test("an edit from Transactions made while a Review decision is still waiting to
 		.getByRole("link", { name: "Transactions" })
 		.click();
 	const row = page
-		.getByRole("list", { name: /^Transactions in / })
+		.getByRole("grid", { name: /^Transactions in / })
 		.getByRole("button", { name: new RegExp(`, \\$${Number(amount)}, `) });
 	await row.click();
 	const editSheet = page
@@ -240,7 +240,7 @@ test("an edit made on a Transaction that another screen has changed since is lef
 	/** Opens the Transaction's edit sheet from the Transactions list. */
 	const open = async (screen: Page) => {
 		const row = screen
-			.getByRole("list", { name: /^Transactions in / })
+			.getByRole("grid", { name: /^Transactions in / })
 			.getByRole("button", { name: /, \$19\.99, / });
 		const sheet = screen
 			.locator("[role=dialog], [data-slot=transaction-detail]")

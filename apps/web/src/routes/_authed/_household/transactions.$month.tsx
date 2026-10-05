@@ -12,7 +12,6 @@ import { Button } from "@noodle/ui/components/button";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Input } from "@noodle/ui/components/input";
 import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
-import { List, ListGroupLabel } from "@noodle/ui/components/list";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import {
 	Select,
@@ -22,7 +21,6 @@ import {
 	SelectValue,
 } from "@noodle/ui/components/select";
 import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
-import { Skeleton } from "@noodle/ui/components/skeleton";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import {
@@ -35,8 +33,6 @@ import {
 	useParams,
 } from "@tanstack/react-router";
 import {
-	ArrowDown,
-	ArrowUp,
 	ArrowUpDown,
 	ChevronLeft,
 	ChevronRight,
@@ -54,14 +50,10 @@ import { QuickAddLink } from "../../../components/app-shell";
 import { type FilterOption, FilterSelect } from "../../../components/filter-select";
 import { DetailPending, sectionHeaderOverItem } from "../../../components/master-detail";
 import { TransactionEditor } from "../../../components/transaction-editor";
-import {
-	TRANSACTION_COLUMNS,
-	TransactionItem,
-	useBringsSpendingIn,
-	waitingForBank,
-} from "../../../components/transaction-list";
+import { useBringsSpendingIn } from "../../../components/transaction-list";
 import { DeleteSelectedSheet, SelectionBar } from "../../../components/transaction-selection";
-import { dayName, formatMoney, monthName } from "../../../format";
+import { TransactionTable } from "../../../components/transaction-table";
+import { formatMoney, monthName } from "../../../format";
 import { type AccountView, useGoals } from "../../../goals";
 import { type MemberSummary, pickableMembers } from "../../../members";
 import { goalsQuery, membersQuery, monthQuery, reviewQuery } from "../../../queries";
@@ -84,6 +76,8 @@ import {
 } from "../../../transactions";
 
 export const Route = createFileRoute("/_authed/_household/transactions/$month")({
+	// A table of many columns: the page takes the wide cap, as Reports does.
+	staticData: { wide: true },
 	validateSearch: z.object({
 		bucket: ulidSchema.optional().catch(undefined),
 		for: forFilterSchema.optional().catch(undefined),
@@ -160,7 +154,7 @@ function TransactionsPage() {
 			if (document.querySelector("[role=dialog],[role=alertdialog],[role=listbox],[role=menu]")) {
 				return;
 			}
-			document.querySelector<HTMLElement>('[data-slot="list-row"] > button[aria-current]')?.focus();
+			document.querySelector<HTMLElement>('[data-slot="list-row"] button[aria-current]')?.focus();
 			void navigate({
 				to: "/transactions/$month",
 				params: { month },
@@ -209,7 +203,7 @@ function TransactionsPage() {
 								variant="outline"
 								size="sm"
 								// A phone's header has room for one action and the month arrows: there, Select
-								// is over the list instead.
+								// is beside Filters and Sort instead.
 								className="me-1 max-sm:hidden"
 								disabled={!hydrated}
 								onClick={() => setPicking(nothingPicked)}
@@ -261,75 +255,67 @@ function TransactionsPage() {
 					</div>
 				}
 			/>
-			{/* lg: the list takes the width and the page scrolls, with every loaded row drawn.
-			    The rail holds the filters and the total, or the Transaction picked from the
-			    list; a Transaction taller than the window scrolls in its pane, so it stays beside its row. */}
-			<SplitLayout stack="rail" className="max-lg:gap-4">
-				<SplitMain className={cn(picked && "max-lg:hidden")}>
-					{picking ? (
-						<div className="mb-2">
-							<SelectionBar
-								month={month}
-								filters={filters}
-								filtered={filtered}
-								picking={picking}
-								onPick={setPicking}
-								onDelete={() => setConfirming(true)}
-								onCancel={() => setPicking(null)}
-							/>
-						</div>
-					) : (
-						// On a phone Select is here, where the selection's bar takes its place.
-						<div className="mb-2 flex justify-end sm:hidden">
-							<Button
-								variant="outline"
-								size="sm"
-								disabled={!hydrated}
-								onClick={() => setPicking(nothingPicked)}
-							>
-								Select
-							</Button>
-						</div>
-					)}
-					<TransactionList
-						picking={picking}
+			{/* The filters and the month's total are a bar over the table (issue 99), which takes the
+			    page's width, every loaded row drawn and the page scrolling. From lg a Transaction
+			    picked from it opens in the rail beside it; a Transaction taller than the window
+			    scrolls with the page. */}
+			<div className="grid gap-4">
+				<div data-slot="transaction-filters" className={cn(picked && "max-lg:hidden")}>
+					<Filters
 						month={month}
-						filters={filters}
-						today={asOf}
 						plan={plan}
 						members={members}
+						accounts={accounts}
+						filters={filters}
 						filtered={filtered}
-						picked={picked}
-						onSort={(sort) => onChange({ sort })}
-						onEdit={onEdit}
+						onChange={onChange}
+						onSelect={picking ? undefined : () => setPicking(nothingPicked)}
 					/>
-				</SplitMain>
-				<SplitRail>
-					<div className={cn(picked && "hidden")}>
-						<Filters
+				</div>
+				<SplitLayout className={cn("max-lg:gap-4", !picked && "lg:grid-cols-1")}>
+					<SplitMain className={cn(picked && "max-lg:hidden")}>
+						{picking ? (
+							<div className="mb-2">
+								<SelectionBar
+									month={month}
+									filters={filters}
+									filtered={filtered}
+									picking={picking}
+									onPick={setPicking}
+									onDelete={() => setConfirming(true)}
+									onCancel={() => setPicking(null)}
+								/>
+							</div>
+						) : null}
+						<TransactionList
+							picking={picking}
 							month={month}
+							filters={filters}
+							today={asOf}
 							plan={plan}
 							members={members}
-							accounts={accounts}
-							filters={filters}
 							filtered={filtered}
-							onChange={onChange}
+							picked={picked}
+							onSort={(sort) => onChange({ sort })}
+							onEdit={onEdit}
 						/>
-					</div>
+					</SplitMain>
 					{picked ? (
-						<section
-							aria-label="Transaction details"
-							data-slot="transaction-detail"
-							// No scroll of its own (#73): an editor taller than the window flows with the page.
-							className="@container min-w-0"
-						>
-							<Suspense fallback={<DetailPending />}>
-								<Outlet />
-							</Suspense>
-						</section>
+						<SplitRail>
+							<section
+								aria-label="Transaction details"
+								data-slot="transaction-detail"
+								// No scroll of its own: an editor taller than the window flows with the page.
+								className="@container min-w-0"
+							>
+								<Suspense fallback={<DetailPending />}>
+									<Outlet />
+								</Suspense>
+							</section>
+						</SplitRail>
 					) : null}
-				</SplitRail>
-			</SplitLayout>
+				</SplitLayout>
+			</div>
 			<DeleteSelectedSheet
 				open={confirming}
 				picking={picking}
@@ -373,6 +359,7 @@ function Filters({
 	filters,
 	filtered,
 	onChange,
+	onSelect,
 }: {
 	month: MonthKey;
 	plan: Pick<Plan, "buckets">;
@@ -381,6 +368,8 @@ function Filters({
 	filters: TransactionFilters;
 	filtered: boolean;
 	onChange: (filters: TransactionFilters) => void;
+	/** Starts selecting, from the phone's Select button. Left out while selecting. */
+	onSelect?: () => void;
 }) {
 	// The list's own query (already loaded): its first page carries the month's total.
 	const total = useSuspenseInfiniteQuery(transactionsQuery(month, filters)).data.pages[0]?.total;
@@ -419,10 +408,10 @@ function Filters({
 		] as const
 	).flatMap(([key, label]) => (label === undefined ? [] : [{ key, label }]));
 	return (
-		<div className="grid gap-2">
+		<div className="grid gap-2 lg:flex lg:flex-wrap lg:items-end lg:gap-3">
 			{total !== null && total !== undefined ? (
-				// The month's total heads the rail on a wide screen, as big as a headline (#65).
-				<p className="flex items-baseline justify-between gap-3 px-1 text-sm lg:grid lg:justify-start lg:gap-0.5 lg:pb-2">
+				// From lg the month's total ends the bar, as big as a headline.
+				<p className="flex items-baseline justify-between gap-3 px-1 text-sm lg:order-last lg:ms-auto lg:grid lg:justify-items-end lg:gap-0.5">
 					<span className="text-muted-foreground">
 						{filtered ? "Total for these filters" : `Spent in ${monthName(month)}`}
 					</span>
@@ -434,9 +423,9 @@ function Filters({
 					</span>
 				</p>
 			) : null}
-			{/* With large text, Filters wraps below rather than squeeze the search to a few letters. */}
-			<div className="flex flex-wrap gap-2">
-				<div className="relative min-w-0 flex-[1_1_10rem]">
+			{/* A phone: the search on a line of its own, then Filters, Sort and Select on the next. */}
+			<div className="flex flex-wrap gap-2 lg:flex-[1_1_14rem]">
+				<div className="relative min-w-0 flex-[1_1_10rem] max-sm:basis-full">
 					<label htmlFor="filter-search" className="sr-only">
 						Search notes and merchants
 					</label>
@@ -476,7 +465,7 @@ function Filters({
 					disabled={!hydrated}
 					onValueChange={(sort) => onChange({ sort: sort as TransactionSort })}
 				>
-					<SelectTrigger aria-label="Sort" className="min-w-0 max-w-full xl:hidden">
+					<SelectTrigger aria-label="Sort" className="min-w-0 max-w-full max-sm:flex-1 xl:hidden">
 						<span className="flex min-w-0 items-center gap-2">
 							<ArrowUpDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
 							<SelectValue />
@@ -490,8 +479,14 @@ function Filters({
 						))}
 					</SelectContent>
 				</Select>
+				{/* A phone's header has room for one action and the month arrows: Select is here. */}
+				{onSelect ? (
+					<Button variant="outline" disabled={!hydrated} onClick={onSelect} className="sm:hidden">
+						Select
+					</Button>
+				) : null}
 			</div>
-			<div className="grid gap-2 max-lg:hidden">
+			<div className="gap-3 max-lg:hidden lg:grid lg:flex-[3_1_26rem] lg:auto-cols-fr lg:grid-flow-col">
 				<FilterSelect
 					id="filter-bucket"
 					label="Bucket"
@@ -632,36 +627,6 @@ function FiltersForm({
 	);
 }
 
-type Item =
-	| { kind: "day"; day: DayKey; total: number | null }
-	| { kind: "transaction"; transaction: TransactionRow }
-	| { kind: "more" };
-
-/** The loaded Transactions as the list shows them: each day's label, then its Transactions. */
-function itemsOf(transactions: TransactionRow[], more: boolean, byDay: boolean): Item[] {
-	const items: Item[] = [];
-	let label = null as Extract<Item, { kind: "day" }> | null;
-	for (const transaction of transactions) {
-		if (!byDay) {
-			items.push({ kind: "transaction", transaction });
-			continue;
-		}
-		if (transaction.date !== label?.day) {
-			label = { kind: "day", day: transaction.date, total: 0 };
-			items.push(label);
-		}
-		// What the day spent: a Transfer's sides count nowhere; money back takes off.
-		if (!transaction.transfer && label.total !== null) label.total += transaction.amountCents;
-		items.push({ kind: "transaction", transaction });
-	}
-	// The last day may go on in the next page: no total until it's all here.
-	if (more) {
-		if (label) label.total = null;
-		items.push({ kind: "more" });
-	}
-	return items;
-}
-
 /**
  * The month's Transactions, newest first, grouped by day. The page scrolls, not the list, and
  * every loaded row is drawn in the normal flow, so the card is exactly as tall as its rows
@@ -700,14 +665,10 @@ function TransactionList({
 	const bringsIn = useBringsSpendingIn();
 	const transactions = data.pages.flatMap((page) => page.transactions);
 	const sort = filters.sort ?? "newest";
-	// In any order but by date, days mix, so there are no day labels and each row says its date.
-	const byDate = sort === "newest" || sort === "oldest";
-	const items = itemsOf(transactions, hasNextPage, byDate);
-	const hydrated = useHydrated();
-	const more = useRef<HTMLLIElement>(null);
+	const more = useRef<HTMLDivElement>(null);
 
 	// The next page loads when the "loading more" row nears the screen.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: items.length re-observes the row, which stays in view when a page adds rows above it
+	// biome-ignore lint/correctness/useExhaustiveDependencies: transactions.length re-observes the row, which stays in view when a page adds rows above it
 	useEffect(() => {
 		const row = more.current;
 		if (!row || !hasNextPage || isFetchingNextPage) return;
@@ -723,7 +684,7 @@ function TransactionList({
 		);
 		observer.observe(row);
 		return () => observer.disconnect();
-	}, [items.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+	}, [transactions.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
 	if (transactions.length === 0) {
 		return filtered ? (
@@ -758,123 +719,21 @@ function TransactionList({
 	}
 
 	return (
-		<div className="grid gap-2">
-			{/* The columns’ names at xl; each row says them to a screen reader itself. All but For
-			    sort the list (on the server, as it loads a page at a time). A row of column headers,
-			    so the one in use can say which way it sorts (aria-sort). */}
-			{/* biome-ignore lint/a11y/useSemanticElements: the header is laid out on the rows' grid, which a <table> can't be, and its buttons take the focus */}
-			<div role="table" aria-label="Sort Transactions by column" className="hidden xl:block">
-				{/* biome-ignore lint/a11y/useSemanticElements: the header is laid out on the rows' grid, which a <table> can't be, and its buttons take the focus */}
-				{/* biome-ignore lint/a11y/useFocusableInteractive: the header is laid out on the rows' grid, which a <table> can't be, and its buttons take the focus */}
-				<div
-					role="row"
-					className={cn(
-						"grid items-center gap-x-3 px-(--card-pad) text-xs font-medium text-subtle-foreground 2xl:gap-x-4",
-						TRANSACTION_COLUMNS,
-					)}
-				>
-					<span className="col-span-2 flex min-w-0 items-center gap-2">
-						<SortHeader
-							label="Date"
-							sort={sort}
-							first="newest"
-							second="oldest"
-							disabled={!hydrated}
-							onSort={onSort}
-							className="-ms-2"
-						/>
-						<SortHeader
-							label="Name"
-							sort={sort}
-							first="name-az"
-							second="name-za"
-							disabled={!hydrated}
-							onSort={onSort}
-						/>
-					</span>
-					<SortHeader
-						label="Assigned to"
-						sort={sort}
-						first="assigned-az"
-						second="assigned-za"
-						disabled={!hydrated}
-						onSort={onSort}
-						className="-ms-2"
-					/>
-					{/* biome-ignore lint/a11y/useSemanticElements: the header is laid out on the rows' grid, which a <table> can't be, and its buttons take the focus */}
-					{/* biome-ignore lint/a11y/useFocusableInteractive: For doesn't sort the list, so there's nothing to focus */}
-					<span role="columnheader">For</span>
-					<SortHeader
-						label="Account"
-						sort={sort}
-						first="account-az"
-						second="account-za"
-						disabled={!hydrated}
-						onSort={onSort}
-						className="-ms-2"
-					/>
-					<SortHeader
-						label="Amount"
-						sort={sort}
-						first="largest"
-						second="smallest"
-						disabled={!hydrated}
-						onSort={onSort}
-						className="-me-2 justify-self-end"
-					/>
-				</div>
-			</div>
-			<List aria-label={`Transactions in ${monthName(month)}`}>
-				{items.map((item, index) => {
-					if (item.kind === "day") {
-						return (
-							<ListGroupLabel key={`day-${item.day}`} data-index={index}>
-								<span className="flex items-baseline justify-between gap-3">
-									<span>{dayName(item.day, today)}</span>
-									{item.total !== null ? (
-										<span className="tabular-nums">
-											<span className="sr-only">Spent </span>
-											{formatMoney(item.total)}
-										</span>
-									) : null}
-								</span>
-							</ListGroupLabel>
-						);
-					}
-					if (item.kind === "more") {
-						return (
-							<li key="more" ref={more} data-index={index} data-loading-more>
-								<span role="status" className="sr-only">
-									Loading more Transactions…
-								</span>
-								<div aria-hidden="true" className="flex items-center gap-3 px-(--card-pad) py-3.5">
-									<Skeleton className="size-9 rounded-xl" />
-									<div className="grid flex-1 gap-2">
-										<Skeleton className="h-3.5 w-1/3" />
-										<Skeleton className="h-3 w-1/2" />
-									</div>
-								</div>
-							</li>
-						);
-					}
-					return (
-						<TransactionItem
-							key={item.transaction.id}
-							data-index={index}
-							transaction={item.transaction}
-							plan={plan}
-							members={members}
-							waiting={waitingForBank(item.transaction, today, bringsIn)}
-							columns
-							dated={!byDate}
-							selected={item.transaction.id === picked}
-							checked={picking ? isPicked(picking, item.transaction.id) : undefined}
-							onEdit={onEdit}
-						/>
-					);
-				})}
-			</List>
-		</div>
+		<TransactionTable
+			label={`Transactions in ${monthName(month)}`}
+			transactions={transactions}
+			more={hasNextPage}
+			moreRef={more}
+			sort={sort}
+			onSort={onSort}
+			today={today}
+			plan={plan}
+			members={members}
+			bringsIn={bringsIn}
+			open={picked}
+			checked={picking ? (transaction) => isPicked(picking, transaction.id) : undefined}
+			onEdit={onEdit}
+		/>
 	);
 }
 
@@ -891,74 +750,3 @@ const SORTS: [TransactionSort, string][] = [
 	["account-az", "Account A–Z"],
 	["account-za", "Account Z–A"],
 ];
-
-/** How a column's button says the order it's in. */
-const SORT_SAID: Record<TransactionSort, string> = {
-	newest: "newest first",
-	oldest: "oldest first",
-	largest: "largest first",
-	smallest: "smallest first",
-	"name-az": "A to Z",
-	"name-za": "Z to A",
-	"assigned-az": "A to Z",
-	"assigned-za": "Z to A",
-	"account-az": "A to Z",
-	"account-za": "Z to A",
-};
-
-/** The orders that run downwards: newest, largest and Z first. */
-const DESCENDING: TransactionSort[] = ["newest", "largest", "name-za", "assigned-za", "account-za"];
-
-/**
- * A column's name as a button that sorts the list by it: `first` when another column sorts it,
- * then `second` and back. The header says which way the list runs (aria-sort), and the button's
- * name says it in words; only the column's name shows, so every column fits beside the rail.
- */
-function SortHeader({
-	label,
-	sort,
-	first,
-	second,
-	disabled,
-	onSort,
-	className,
-}: {
-	label: string;
-	/** The list's order now. */
-	sort: TransactionSort;
-	first: TransactionSort;
-	second: TransactionSort;
-	disabled: boolean;
-	onSort: (sort: TransactionSort) => void;
-	className?: string;
-}) {
-	const mine = sort === first || sort === second;
-	const descending = DESCENDING.includes(sort);
-	const Icon = !mine ? ArrowUpDown : descending ? ArrowDown : ArrowUp;
-	return (
-		// biome-ignore lint/a11y/useSemanticElements: the header is laid out on the rows' grid, which a <table> can't be, and its buttons take the focus
-		// biome-ignore lint/a11y/useFocusableInteractive: the button inside is what takes the focus
-		<span
-			role="columnheader"
-			aria-sort={mine ? (descending ? "descending" : "ascending") : undefined}
-			className={cn("flex min-w-0", className)}
-		>
-			<Button
-				type="button"
-				variant="ghost"
-				size="sm"
-				disabled={disabled}
-				aria-pressed={mine}
-				aria-label={mine ? `${label}, ${SORT_SAID[sort]}` : `Sort by ${label.toLowerCase()}`}
-				onClick={() => onSort(sort === first ? second : first)}
-				className={cn(
-					"min-w-0 gap-1 px-2 text-xs font-medium",
-					mine ? "text-foreground" : "text-subtle-foreground",
-				)}
-			>
-				<span className="truncate">{label}</span>
-				<Icon aria-hidden="true" className="size-3.5 shrink-0" />
-			</Button>
-		</span>
-	);
-}

@@ -1,11 +1,4 @@
-import {
-	canAssign,
-	type DayKey,
-	daysBetween,
-	displayMerchant,
-	MATCH_WINDOW,
-	type Plan,
-} from "@noodle/domain";
+import { canAssign, type DayKey, daysBetween, MATCH_WINDOW, type Plan } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { RowButton } from "@noodle/ui/components/row-button";
 import { Tile } from "@noodle/ui/components/tile";
@@ -14,51 +7,24 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeftRight, Check, Sparkles, Split as SplitIcon, Target } from "lucide-react";
 import type { ComponentProps } from "react";
-import { asBucketColor, monogram } from "../buckets";
-import { formatMoney, shortDay } from "../format";
+import { monogram } from "../buckets";
+import { shortDay } from "../format";
 import { useGoals } from "../goals";
-import { forLabel, type MemberSummary } from "../members";
+import type { MemberSummary } from "../members";
 import { membersQuery, monthQuery } from "../queries";
+import { rowView } from "../transaction-row";
 import {
 	monthOfTransaction,
 	type TransactionRow,
 	transactionLabel,
 	useTransactionChange,
 } from "../transactions";
-import { transferDetail } from "../transfers";
 import { TransactionEditor } from "./transaction-editor";
 
 // One Transaction as a row, the same everywhere it's listed (Transactions, an Account's page, a
 // Bucket's page), and the editor a row opens, with its own month's Plan to assign it to.
 
-/**
- * The Transactions page's columns at xl (#47): the tile, what it was, what it's assigned to, who
- * it was For, its Account, and the amount. Shared by its rows and the header above them. For keeps
- * room for "Everyone" at 1280 wide, beside the rail (#73).
- */
-export const TRANSACTION_COLUMNS =
-	"xl:grid-cols-[2.25rem_minmax(0,2fr)_minmax(0,1.3fr)_minmax(4.5rem,0.8fr)_minmax(0,1.3fr)_6rem]";
-
-/** What a Transaction or Split is assigned to, by name, with its Bucket's colour. */
-export function assignmentOf(
-	transaction: Pick<TransactionRow, "bucketId" | "commitmentId"> &
-		Partial<Pick<TransactionRow, "goal">>,
-	plan: Pick<Plan, "buckets" | "commitments">,
-) {
-	if (transaction.goal) return { name: transaction.goal.name, color: null };
-	if (transaction.bucketId) {
-		const bucket = plan.buckets.find((b) => b.id === transaction.bucketId);
-		return {
-			name: bucket?.name ?? "An archived Bucket",
-			color: bucket ? asBucketColor(bucket.color) : null,
-		};
-	}
-	if (transaction.commitmentId) {
-		const commitment = plan.commitments.find((c) => c.id === transaction.commitmentId);
-		return { name: commitment?.name ?? "An ended Commitment", color: null };
-	}
-	return { name: "Unassigned", color: null };
-}
+export { assignmentOf } from "../transaction-row";
 
 /**
  * Whether the Household brings spending in from any Account (a bank, or statements), so a recent
@@ -92,7 +58,6 @@ export function TransactionItem({
 	members,
 	waiting = false,
 	dated = false,
-	columns = false,
 	selected = false,
 	checked,
 	onEdit,
@@ -106,8 +71,6 @@ export function TransactionItem({
 	waiting?: boolean;
 	/** Says its day too, for a list that isn't grouped by day. */
 	dated?: boolean;
-	/** At xl, lays the row out in TRANSACTION_COLUMNS instead of a second line. */
-	columns?: boolean;
 	/** Open in the pane beside the list. */
 	selected?: boolean;
 	/**
@@ -118,59 +81,15 @@ export function TransactionItem({
 	onEdit: (transaction: TransactionRow) => void;
 }) {
 	const picking = checked !== undefined && !transaction.goal;
-	const split = transaction.splits.length > 0;
 	const day = dated ? `${shortDay(transaction.date)} · ` : "";
-	const assignment = assignmentOf(transaction, plan);
-	const title =
-		transaction.merchantName ||
-		(transaction.note && displayMerchant(transaction.note)) ||
-		(transaction.goal
-			? "Goal spending"
-			: transaction.commitmentId
-				? "Payment"
-				: transaction.importedFrom
-					? "Imported"
-					: "Quick Add");
-	const who = forLabel(members, transaction.for);
-	const amount = formatMoney(transaction.amountCents);
-	// A pending charge may still change, or go, until the bank posts it (and its copy takes its place).
-	const spokenTitle = transaction.pending ? `${title} (pending)` : title;
-	// Where an imported Transaction came from, or a Quick Add's bank copy, after what it's assigned to.
-	const from = transaction.importedFrom
-		? ` · ${transaction.importedFrom}`
-		: transaction.matchedIn
-			? ` · Matched in ${transaction.matchedIn}`
-			: "";
-	const spokenFrom = transaction.importedFrom
-		? `, from ${transaction.importedFrom}`
-		: transaction.matchedIn
-			? `, Matched in ${transaction.matchedIn}`
-			: waiting
-				? ", waiting for the bank’s copy"
-				: "";
-	// A side of a Transfer counts nowhere; so does money back onto a card or loan until it's
-	// linked as a Refund. Either opens its Transfer and Refund link instead of the editor.
-	const { transfer } = transaction;
-	const moneyBack = transaction.amountCents < 0;
-	const refund = transaction.refundOf !== null;
-	// Filed by categorization and not yet looked at: marked, so a Parent can tap to check it.
-	const autoFiled = transaction.autoFiled !== null && !split && !transfer && !refund && !moneyBack;
-	const detail = transaction.goal
-		? `From the ${assignment.name} Goal`
-		: transfer
-			? transferDetail(transfer)
-			: refund
-				? `Refund · ${assignment.name}${from}`
-				: moneyBack
-					? `Money back${from}`
-					: split
-						? `Split across ${transaction.splits.length} · ${[
-								...new Set(transaction.splits.map((s) => assignmentOf(s, plan).name)),
-							].join(", ")}${from}`
-						: `${assignment.name} · ${who}${from}`;
-	const rowClassName = columns
-		? cn(TRANSACTION_COLUMNS, "xl:gap-x-3 xl:py-3 2xl:gap-x-4")
-		: undefined;
+	const { title, amount, detail, assignment, autoFiled, label, kind } = rowView(
+		transaction,
+		plan,
+		members,
+		waiting,
+	);
+	const split = kind === "split";
+	const transfer = kind === "transfer";
 	const pill = "h-4.5 px-1.5 text-[11px]";
 	const badges = (
 		<>
@@ -196,23 +115,6 @@ export function TransactionItem({
 			) : null}
 		</>
 	);
-	// The xl columns say the second line's parts apart; the line itself stays for screen readers
-	// and find-in-page.
-	const columnAssigned = transaction.goal
-		? `${assignment.name} Goal`
-		: transfer
-			? "Transfer"
-			: refund
-				? `Refund · ${assignment.name}`
-				: moneyBack
-					? "Money back"
-					: split
-						? `Split across ${transaction.splits.length}`
-						: assignment.name;
-	const columnFor = transfer || transaction.goal || moneyBack ? "" : who;
-	const columnAccount = transaction.importedFrom ?? transaction.matchedIn ?? "Quick Add";
-	const [, accountName = columnAccount, accountDigits = ""] =
-		/^(.*?)( ••\d{4})$/.exec(columnAccount) ?? [];
 	const content = (
 		<>
 			{transfer ? (
@@ -241,37 +143,12 @@ export function TransactionItem({
 						// On the narrowest phones badges get the second line and the detail a full third line
 						// (320 px); from 390 they share the second line, so a month of rows is shorter (#74).
 						"max-[389px]:peer-[:not(:empty)]/badges:col-span-2 max-[389px]:peer-[:not(:empty)]/badges:col-start-1 max-[389px]:peer-[:not(:empty)]/badges:row-start-3",
-						columns && "xl:sr-only",
 					)}
 				>
 					{day}
 					{detail}
 				</span>
-				{/* At xl the second line is for screen readers; a dated row still shows its date. */}
-				{columns && dated ? (
-					<span
-						aria-hidden="true"
-						className="col-span-2 row-start-2 hidden text-[13px] text-muted-foreground xl:block"
-					>
-						{shortDay(transaction.date)}
-					</span>
-				) : null}
 			</span>
-			{columns ? (
-				<>
-					<span className="hidden truncate text-sm xl:block">{columnAssigned}</span>
-					<span className="hidden truncate text-sm text-muted-foreground xl:block">
-						{columnFor}
-					</span>
-					{/* A narrow column shortens the name, never the last four digits. */}
-					<span className="hidden min-w-0 text-sm text-muted-foreground xl:flex">
-						<span className="truncate">{accountName}</span>
-						{accountDigits ? (
-							<span className="shrink-0 whitespace-pre">{accountDigits}</span>
-						) : null}
-					</span>
-				</>
-			) : null}
 			<span className="text-end text-sm font-semibold tabular-nums">{amount}</span>
 		</>
 	);
@@ -296,31 +173,17 @@ export function TransactionItem({
 				</span>
 			) : null}
 			{transaction.goal ? (
-				<RowButton asChild variant="list" className={rowClassName}>
-					<Link
-						to="/goals/$goalId"
-						params={{ goalId: transaction.goal.id }}
-						aria-label={`${spokenTitle}, ${amount}, from the ${assignment.name} Goal`}
-					>
+				<RowButton asChild variant="list">
+					<Link to="/goals/$goalId" params={{ goalId: transaction.goal.id }} aria-label={label}>
 						{content}
 					</Link>
 				</RowButton>
 			) : (
 				<RowButton
 					variant="list"
-					className={picking ? `${rowClassName} ps-12` : rowClassName}
+					className={picking ? "ps-12" : undefined}
 					aria-pressed={picking ? checked : undefined}
-					aria-label={
-						transfer
-							? `${spokenTitle}, ${amount}, ${detail.replace(" · ", ", ").replace(" → ", " to ")}`
-							: refund
-								? `${spokenTitle}, ${amount}, Refund, ${assignment.name}${spokenFrom}`
-								: moneyBack
-									? `${spokenTitle}, ${amount}, Money back${spokenFrom}`
-									: split
-										? `${spokenTitle}, ${amount}, ${detail.replace(" · ", ": ")}`
-										: `${spokenTitle}, ${amount}, ${assignment.name}${autoFiled ? " (filed automatically)" : ""}, For ${who}${spokenFrom}`
-					}
+					aria-label={label}
 					aria-current={selected ? "true" : undefined}
 					onClick={() => onEdit(transaction)}
 				>

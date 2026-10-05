@@ -183,7 +183,10 @@ async function pressFor(button: Locator, shown: Locator) {
 async function selectThree(page: Page) {
 	const bar = page.getByRole("region", { name: "Selecting Transactions" });
 	await pressFor(page.locator("button:visible", { hasText: /^Select$/ }).first(), bar);
-	const rows = page.getByRole("list", { name: /^Transactions in / }).getByRole("button");
+	const rows = page
+		.getByRole("grid", { name: /^Transactions in / })
+		.locator("[data-slot=list-row]")
+		.getByRole("button");
 	for (let row = 0; row < 3; row++) await rows.nth(row).click({ timeout: 15_000 });
 	return bar;
 }
