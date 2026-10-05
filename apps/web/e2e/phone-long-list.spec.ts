@@ -74,7 +74,12 @@ test("a busy month flings without blank gaps or long frames", async ({ browser }
 				window.innerHeight,
 				document.querySelector("[data-index]")?.parentElement?.getBoundingClientRect().bottom ?? 0,
 			);
-			const boxes = [...document.querySelectorAll("[data-index]")]
+			// Day labels and the "loading more" mark are rows of the table too, between the Transactions.
+			const boxes = [
+				...document.querySelectorAll(
+					"[data-index], [data-slot=data-table-group], [data-slot=data-table-more]",
+				),
+			]
 				.map((el) => el.getBoundingClientRect())
 				.filter((box) => box.bottom > top && box.top < bottom)
 				.sort((a, b) => a.top - b.top);

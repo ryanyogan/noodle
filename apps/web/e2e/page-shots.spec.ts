@@ -14,6 +14,7 @@ import { q, seedBetweenUs, seedIncomeHousehold, seedShotsHousehold } from "./sho
 //   PAGE_SHOTS=1                    run it
 //   PAGE_SHOTS_WIDTHS=1440,393      only these widths (default: all five; 2560 only when asked for)
 //   PAGE_SHOTS_THEME=dark           the dark theme (default: light)
+//   PAGE_SHOTS_ONLY=10,26           only the pictures whose name starts with one of these
 //
 // Each PNG is the full page, at test-results/page-shots/<width>/<name>.png. A page that fails is
 // noted in <width>/failures.txt and the rest still get their picture.
@@ -44,6 +45,10 @@ const viewports = [
 	...VIEWPORTS.filter(({ width }) => wanted.length === 0 || wanted.includes(width)),
 	...ON_REQUEST.filter(({ width }) => wanted.includes(width)),
 ];
+const only = (process.env.PAGE_SHOTS_ONLY ?? "")
+	.split(",")
+	.map((name) => name.trim())
+	.filter(Boolean);
 const colorScheme = process.env.PAGE_SHOTS_THEME === "dark" ? "dark" : "light";
 const OUT = join("test-results", "page-shots");
 
@@ -927,6 +932,7 @@ for (const viewport of viewports) {
 		const failures: string[] = [];
 		for (const shot of shots) {
 			if ((shot.phoneSheet || shot.phone) && !phone) continue;
+			if (only.length > 0 && !only.some((name) => shot.name.startsWith(name))) continue;
 			let page = main;
 			try {
 				if (shot.fresh) {

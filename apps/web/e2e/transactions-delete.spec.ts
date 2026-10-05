@@ -117,6 +117,7 @@ test("select all that match a search, read the facts, delete, and find a snapsho
 	await expect(
 		page
 			.getByRole("grid", { name: /^Transactions in /, includeHidden: true })
+			.locator("[data-slot=data-table-body]")
 			.getByRole("button", { includeHidden: true }),
 	).toHaveCount(3);
 
