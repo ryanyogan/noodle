@@ -200,15 +200,19 @@ async function withGoals(page: Page) {
 	}
 }
 
-test("Goals and Accounts keep their list beside the picked item", async ({ browser }) => {
+test("Goals and Accounts open the picked item in a panel and the list keeps its width", async ({
+	browser,
+}) => {
 	test.slow();
 	const page = await signedInPage(browser, parent.email, desktop);
 	await withGoals(page);
 	const goal = (name: string) => list(page).getByRole("link", { name: new RegExp(`^${name}, `) });
 
-	// Nothing picked: the right pane holds the summary.
+	// The rail holds the summary, picked or not; no panel until a Goal is picked (issue 107).
 	await expect(list(page)).toHaveAttribute("aria-label", "Goals");
-	await expect(detail(page)).toContainText("A month to stay on track");
+	await expect(rail(page)).toContainText("A month to stay on track");
+	await expect(detail(page)).toHaveCount(0);
+	const listBox = await list(page).boundingBox();
 	await axe(page, "Goals, nothing picked");
 	await list(page).evaluate((pane) => {
 		pane.dataset.kept = "yes";
@@ -220,10 +224,18 @@ test("Goals and Accounts keep their list beside the picked item", async ({ brows
 	await expect(picked(page)).toHaveAccessibleName(/^Trip, /);
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
 	await expect(detail(page)).toHaveAttribute("aria-label", "Goal details");
-	await axe(page, "A Goal beside its list");
+	await expect(detail(page)).toHaveAttribute("data-panel", "wide");
+	// The cards keep their width and place; the panel is over the rail, at the window's top.
+	expect(await list(page).boundingBox()).toEqual(listBox);
+	const panelBox = await detail(page).boundingBox();
+	expect(panelBox?.y).toBe(0);
+	expect(panelBox?.x).toBeGreaterThanOrEqual((listBox?.x ?? 0) + (listBox?.width ?? 0));
+	await axe(page, "A Goal in its panel");
 
-	// The other Goal is one step away in the list, not repeated in the header; Esc returns to the row.
-	await expect(detail(page).locator("[data-slot=detail-pager]")).toBeHidden();
+	// The other Goal is one step away in the list or by the header's next; Esc closes the panel and
+	// returns to the row.
+	await expect(detail(page).locator("[data-slot=detail-pager]")).toBeVisible();
+	await expect(page.getByRole("link", { name: "Close Goal" })).toBeVisible();
 	await list(page)
 		.getByRole("link", { name: /^Car, / })
 		.click();
@@ -231,26 +243,32 @@ test("Goals and Accounts keep their list beside the picked item", async ({ brows
 	await expect(picked(page)).toHaveAccessibleName(/^Car, /);
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
 	await page.keyboard.press("Escape");
+	await expect(page).toHaveURL(/\/goals$/);
+	await expect(detail(page)).toHaveCount(0);
 	await expect(goal("Car")).toBeFocused();
 
-	// A deep link shows the list and the item together.
+	// A deep link shows the list with the item's panel open; Close is the way back, not Back.
+	await goal("Car").click();
+	await expect(title(page)).toHaveText("Car");
 	await page.reload();
 	await expect(title(page)).toHaveText("Car");
 	await expect(picked(page)).toHaveAccessibleName(/^Car, /);
-	await expect(page.getByRole("link", { name: "Back to Goals" })).toHaveCount(0);
-	await page.getByRole("link", { name: "Goals", exact: true }).first().click();
+	await expect(page.getByRole("link", { name: "Back to Goals" })).toBeHidden();
+	await page.getByRole("link", { name: "Close Goal" }).click();
 	await expect(page).toHaveURL(/\/goals$/);
-	await expect(detail(page)).toContainText("A month to stay on track");
+	await expect(detail(page)).toHaveCount(0);
+	await expect(rail(page)).toContainText("A month to stay on track");
 
-	// Accounts: the same, with Bank Connections under the list and the totals beside it.
+	// Accounts: the same, with Bank Connections under the list and the totals in the rail.
 	await page.goto("/accounts");
 	await expect(page.getByRole("button", { name: "Add Account" })).toBeEnabled();
 	await expect(list(page)).toHaveAttribute("aria-label", "Accounts");
-	await expect(detail(page).getByRole("region", { name: "Totals" })).toBeVisible();
+	await expect(rail(page).getByRole("region", { name: "Totals" })).toBeVisible();
 	await axe(page, "Accounts, nothing picked");
 	await list(page).evaluate((pane) => {
 		pane.dataset.kept = "yes";
 	});
+	const accountsBox = await list(page).boundingBox();
 	await list(page)
 		.getByRole("link", { name: /^Joint Savings, / })
 		.click();
@@ -258,16 +276,21 @@ test("Goals and Accounts keep their list beside the picked item", async ({ brows
 	await expect(title(page)).toHaveText("Joint Savings");
 	await expect(picked(page)).toHaveAccessibleName(/^Joint Savings, /);
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
-	await axe(page, "An Account beside its list");
+	await expect(detail(page)).toHaveAttribute("aria-label", "Account details");
+	await expect(detail(page)).toHaveAttribute("data-panel", "wide");
+	expect(await list(page).boundingBox()).toEqual(accountsBox);
+	await axe(page, "An Account in its panel");
 
-	// Its old address under Goals still arrives, with the list beside it.
+	// Its old address under Goals still arrives, with the list under its panel.
 	const id = new URL(page.url()).pathname.split("/").pop();
 	await page.goto(`/goals/accounts/${id}`);
 	await expect(page).toHaveURL(new RegExp(`/accounts/${id}$`));
 	await expect(title(page)).toHaveText("Joint Savings");
 	await expect(picked(page)).toHaveAccessibleName(/^Joint Savings, /);
-	await page.getByRole("link", { name: "Accounts", exact: true }).first().click();
-	await expect(detail(page).getByRole("region", { name: "Totals" })).toBeVisible();
+	await page.getByRole("link", { name: "Close Account" }).click();
+	await expect(page).toHaveURL(/\/accounts$/);
+	await expect(detail(page)).toHaveCount(0);
+	await expect(rail(page).getByRole("region", { name: "Totals" })).toBeVisible();
 	await page.context().close();
 });
 
@@ -287,6 +310,11 @@ test("a phone shows Goals or Accounts, then the item with Back", { tag: "@phone"
 		await item.click();
 		await expect(title(page)).toHaveText(name);
 		await expect(list(page)).toBeHidden();
+		// A page of its own, not a layer: it starts under the app's header and scrolls with the window.
+		await expect(detail(page)).toHaveCSS("position", "static");
+		await expect(
+			page.getByRole("link", { name: `Close ${name === "Trip" ? "Goal" : "Account"}` }),
+		).toBeHidden();
 		await axe(page, `${name} on a phone`);
 		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
 			393,
@@ -401,7 +429,7 @@ test("a Transaction's address shows it whatever the list has loaded, and is a pa
 	await page.context().close();
 });
 
-test("a Rule opens beside the Rules list, and is a page with Back on a phone", async ({
+test("a Rule opens in a panel over the Rules page, and is a page with Back on a phone", async ({
 	browser,
 }) => {
 	test.slow();
@@ -427,7 +455,9 @@ test("a Rule opens beside the Rules list, and is a page with Back on a phone", a
 		pane.dataset.kept = "yes";
 	});
 
-	// Picked: its editor is in the right pane at its own address; the list is the same node.
+	// Picked: its editor is in the panel at its own address; the list is the same node, as wide.
+	await expect(detail(page)).toHaveCount(0);
+	const listBox = await list(page).boundingBox();
 	await items.first().click();
 	await expect(page).toHaveURL(/\/review\/rules\/[0-9A-Z]{26}$/);
 	const editor = page.getByRole("region", { name: "Rule details" });
@@ -435,12 +465,14 @@ test("a Rule opens beside the Rules list, and is a page with Back on a phone", a
 	await expect(picked(page)).toHaveCount(1);
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
 	await expect(items).toHaveCount(2);
-	await axe(page, "A Rule beside the list");
+	await expect(editor).toHaveAttribute("data-panel", "default");
+	expect(await list(page).boundingBox()).toEqual(listBox);
+	await axe(page, "A Rule in its panel");
 
-	// The other Rule is one step away in the list beside it (no pager in the header at desktop).
+	// The other Rule is one step away in the list, or by the header's next.
 	const first = page.url();
 	const firstTitle = await title(page).innerText();
-	await expect(editor.getByRole("link", { name: "Next Rule" })).toHaveCount(0);
+	await expect(editor.getByRole("link", { name: "Next Rule" })).toBeVisible();
 	await list(page).locator("[data-md-item]:not([aria-current])").click();
 	await expect(page).not.toHaveURL(first);
 	await expect(title(page)).not.toHaveText(firstTitle);
@@ -451,6 +483,13 @@ test("a Rule opens beside the Rules list, and is a page with Back on a phone", a
 	await page.keyboard.press("Enter");
 	await expect(page).toHaveURL(first);
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
+	// Esc closes the panel and returns to the Rule's row.
+	await page.keyboard.press("Escape");
+	await expect(page).toHaveURL(/\/review\/rules$/);
+	await expect(editor).toHaveCount(0);
+	await expect(items.first()).toBeFocused();
+	await items.first().click();
+	await expect(page).toHaveURL(first);
 
 	// A deep link shows both; on a phone it is a page with Back.
 	await page.reload();

@@ -87,7 +87,7 @@ export function PayoffGoalDetails({
 	return (
 		<>
 			<DetailHeader
-				listBeside
+				inPanel
 				eyebrow="Paying off"
 				title={goal.name}
 				leading={<BackToGoals />}
