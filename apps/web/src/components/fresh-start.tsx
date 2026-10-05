@@ -123,7 +123,7 @@ export function DangerZone({ householdName }: { householdName: string }) {
 				{isWaiting(data) ? (
 					<Scheduled status={data} />
 				) : (
-					<div className="grid gap-2 sm:flex sm:flex-wrap">
+					<div className="grid gap-4 sm:flex sm:flex-wrap sm:gap-2">
 						<Button
 							variant="outline"
 							disabled={!hydrated || Boolean(data)}

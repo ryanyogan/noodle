@@ -791,7 +791,8 @@ function ReviewPage() {
 				<p
 					role="status"
 					data-testid="review-said"
-					className="line-clamp-2 min-w-0 text-center text-sm text-muted-foreground"
+					// One line on a phone (issue 110): under a tall card a second line ran under the bottom bar.
+					className="line-clamp-2 min-w-0 text-center text-sm text-muted-foreground max-sm:line-clamp-1"
 				>
 					{said}
 					{streak !== null ? <span className="sr-only"> {streak} in a row!</span> : null}
@@ -1859,13 +1860,16 @@ function ReviewCard({
 					{payment?.kind === "not-followed" ? (
 						// The narrowest phones are the shortest too: there the card's last choice sits beside
 						// the picker, so Skip and Undo stay above the bottom bar. Wider, it has its own row.
+						// It reads "Card payment" there, so the picker beside it has room for its words
+						// (issue 110: it read "Or pick a …"); a row of its own pushed Skip under the bar.
 						<Button
 							variant="outline"
 							className="order-last shrink-0 px-2 text-xs min-[360px]:hidden"
+							aria-label="It’s a card payment"
 							disabled={!hydrated}
 							onClick={onPayment}
 						>
-							It’s a card payment
+							Card payment
 						</Button>
 					) : null}
 					{item.guess ? (

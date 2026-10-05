@@ -538,7 +538,7 @@ function QuickAddForm({
 				<SnapAndSpeak onPhrase={fill} onSnap={snapped}>
 					<Input
 						aria-label="Note"
-						placeholder="Where or what? (optional)"
+						placeholder="Where or what?"
 						maxLength={80}
 						autoComplete="off"
 						enterKeyHint="done"
@@ -602,7 +602,10 @@ function QuickAddForm({
 								<Tile aria-hidden="true" className="row-span-2 size-8 rounded-[10px]">
 									<Ellipsis className="size-4" strokeWidth={2} />
 								</Tile>
-								<span className="truncate text-[13px] leading-tight font-medium">More Buckets</span>
+								<span className="truncate text-[13px] leading-tight font-medium">
+									{/* "More" on the narrowest phones, where "More Buckets" was cut short (issue 110). */}
+									More<span className="max-[359px]:sr-only"> Buckets</span>
+								</span>
 								<span className="truncate text-xs text-subtle-foreground tabular-nums">
 									{ranked.length - shown.length} more
 								</span>

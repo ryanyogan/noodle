@@ -516,7 +516,7 @@ function AddChild({ members }: { members: MemberSummary[] }) {
 							autoComplete="off"
 							placeholder="Their name"
 						/>
-						<Button type="submit" variant="secondary" disabled={!hydrated}>
+						<Button type="submit" variant="outline" disabled={!hydrated}>
 							<Plus />
 							Add Child
 						</Button>

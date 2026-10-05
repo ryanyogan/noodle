@@ -791,7 +791,9 @@ function BucketRow({
 						</Badge>
 					) : null}
 					{bucket.rolling ? <Badge>Carries over</Badge> : null}
-					<span>
+					{/* On a phone "spent" always has its own line, so every row with a badge reads alike
+					    (issue 110: at 320 px it fitted beside "Ahead" in some rows and wrapped in others). */}
+					<span className="max-sm:basis-full">
 						{formatMoney(bucket.spent)} spent{isPrivate ? " · Private" : ""}
 					</span>
 				</>
@@ -813,6 +815,9 @@ function BucketRow({
 								of {formatMoney(bucket.available)}
 							</span>
 						) : null}
+						{/* On a phone Cover is a link under how far over it is, level with "spent", not a
+						    button under the bar (issue 110). Beside the "Over" badge it wrapped in some rows. */}
+						{onCover ? <CoverLink name={bucket.name} onCover={onCover} /> : null}
 					</span>
 					<ChevronRight
 						aria-hidden="true"
@@ -837,7 +842,7 @@ function BucketRow({
 					/>
 					{parts ? <p className="text-xs text-muted-foreground tabular-nums">{parts}</p> : null}
 					{onCover ? (
-						<div className="relative z-10">
+						<div className="relative z-10 max-sm:hidden">
 							<CoverButton name={bucket.name} onCover={onCover} explain={explainCover} />
 						</div>
 					) : null}
@@ -873,6 +878,24 @@ function BucketsHelpExtra() {
 				Bucket back to $0 from another Bucket or Free to Spend.
 			</p>
 		</div>
+	);
+}
+
+/** Cover on a phone: a link under the row's figures, 44 px tall to the thumb. */
+function CoverLink({ name, onCover }: { name: string; onCover: () => void }) {
+	const hydrated = useHydrated();
+	return (
+		<Button
+			type="button"
+			variant="link"
+			size="sm"
+			className="relative z-10 -my-3 font-semibold text-foreground underline underline-offset-2 sm:hidden"
+			disabled={!hydrated}
+			aria-label={`Cover ${name}`}
+			onClick={onCover}
+		>
+			Cover
+		</Button>
 	);
 }
 

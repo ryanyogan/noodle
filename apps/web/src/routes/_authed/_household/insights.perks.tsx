@@ -650,6 +650,28 @@ function Suggestion({ source }: { source: PerkSourceItem }) {
 			})
 			.catch(() => {});
 	};
+	// Both choices, beside the text from a tablet up and under it on a phone (issue 110): beside it at
+	// 320 px they cut "Membership" short and broke the line under it over four lines.
+	const choices = (
+		<>
+			<Button
+				variant="ghost"
+				size="sm"
+				disabled={busy}
+				onClick={(event) => decideAndMoveOn("dismissed", event.currentTarget)}
+			>
+				Not ours
+			</Button>
+			<Button
+				size="sm"
+				disabled={busy}
+				onClick={(event) => decideAndMoveOn("confirmed", event.currentTarget)}
+			>
+				<Check />
+				Confirm
+			</Button>
+		</>
+	);
 	return (
 		<ListRow
 			aria-label={source.name}
@@ -667,26 +689,8 @@ function Suggestion({ source }: { source: PerkSourceItem }) {
 					]}
 				/>
 			}
-			trailing={
-				<div className="flex items-center gap-2">
-					<Button
-						variant="ghost"
-						size="sm"
-						disabled={busy}
-						onClick={(event) => decideAndMoveOn("dismissed", event.currentTarget)}
-					>
-						Not ours
-					</Button>
-					<Button
-						size="sm"
-						disabled={busy}
-						onClick={(event) => decideAndMoveOn("confirmed", event.currentTarget)}
-					>
-						<Check />
-						Confirm
-					</Button>
-				</div>
-			}
+			trailing={<div className="flex items-center gap-2 max-sm:hidden">{choices}</div>}
+			below={<div className="flex justify-end gap-2 sm:hidden">{choices}</div>}
 		/>
 	);
 }
