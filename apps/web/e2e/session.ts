@@ -546,3 +546,34 @@ export async function openFromMore(page: Page, item: (typeof moreItems)[number])
 	await moreItem(sheet, item).click();
 	await expect(sheet).toBeHidden();
 }
+
+/**
+ * Waits until React has taken over `target` (hydrated it). Before then a link is only a plain
+ * link: a click on it loads a whole new page, so anything marked or measured on the page before
+ * the click is gone, and a button does nothing. It asks React itself: the node's fiber is in the
+ * tree React has committed, not the one it is still building.
+ */
+export async function hydrated(target: Locator) {
+	await expect
+		.poll(
+			() =>
+				target.first().evaluate((node) => {
+					type Fiber = {
+						return: Fiber | null;
+						alternate: Fiber | null;
+						tag: number;
+						stateNode: { current?: Fiber } | null;
+					};
+					const key = Object.keys(node).find((name) => name.startsWith("__reactFiber$"));
+					const fiber = key ? (node as unknown as Record<string, Fiber>)[key] : undefined;
+					const committed = (from: Fiber | null | undefined) => {
+						let top = from;
+						while (top?.return) top = top.return;
+						return !!top && top.tag === 3 && top.stateNode?.current === top;
+					};
+					return committed(fiber) || committed(fiber?.alternate);
+				}),
+			clientRendered,
+		)
+		.toBe(true);
+}
