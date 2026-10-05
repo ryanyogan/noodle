@@ -18,9 +18,10 @@ import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useHydrated } from "@tanstack/react-router";
 import { Archive, ArrowDown, ArrowUp, Pencil, Plus } from "lucide-react";
-import { type FormEvent, type ReactNode, useEffect, useId, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { ulid } from "ulid";
 import { nudged, placeOf } from "../bucket-order";
+import { opensBucketSheet } from "../bucket-row-click";
 import { asBucketColor, barState, monogram, nextBucketColor } from "../buckets";
 import { formatMoney, formatMoneyInput, monthName } from "../format";
 import {
@@ -49,9 +50,10 @@ import { PlanHistoryDisclosure } from "./plan-history";
 import { ChangedNote, PlanScopeField } from "./plan-scope-field";
 
 /**
- * A Bucket (or Personal Allowance) in the Plan: its allowance, and the Bucket sheet to change it,
- * the same one its page opens. `was` is its allowance the month before, when this month changed
- * it.
+ * A Bucket (or Personal Allowance) in the Plan: its allowance, and the one Bucket sheet that
+ * changes it (#98), the same one its page opens. The row opens it wherever it is chosen (its
+ * amount, its figures, its pencil); only its name, which leads to its page, and its handle do
+ * something else. `was` is its allowance the month before, when this month changed it.
  */
 export function BucketEditor({
 	month,
@@ -78,7 +80,7 @@ export function BucketEditor({
 	handle?: ReactNode;
 	/** Whether it's being dragged to a new place. */
 	dragged?: boolean;
-	/** Its amount while typed in the list (for Left to plan), or null once put away. */
+	/** Its amount while typed in its sheet (for Left to plan), or null once put away. */
 	onDraft?: (cents: number | null) => void;
 	/** Who sets this one, when it isn't the viewer (the other Parent's Personal Allowance). */
 	setBy?: string;
@@ -87,18 +89,32 @@ export function BucketEditor({
 }) {
 	const hydrated = useHydrated();
 	const [open, setOpen] = useState(false);
-	const [inline, setInline] = useState(false);
 	const color = asBucketColor(bucket.color);
 	const changes = useBucketChanges(month);
 	const spending = figures && "spent" in bucket ? bucket : undefined;
-	function closeInline() {
-		setInline(false);
-		onDraft?.(null);
-	}
+	const opens = editable && hydrated;
+	// Whether the press now under way began where the row opens its sheet: the click that ends a
+	// drag by the handle lands on the row, and mustn't open it.
+	const pressed = useRef(false);
 	return (
 		<ListRow
 			data-bucket-row={bucket.id}
-			className={dragged ? "relative z-1 bg-surface-2 shadow-pop" : undefined}
+			className={cn(opens && "cursor-pointer", dragged && "relative z-1 bg-surface-2 shadow-pop")}
+			// The whole row is the pencil's hit area, for a thumb or a mouse; the pencil is the one
+			// control a keyboard or screen reader meets, and takes focus so it comes back to it when
+			// the sheet closes.
+			onPointerDown={(event) => {
+				pressed.current = opens && opensBucketSheet(event.target, event.currentTarget);
+			}}
+			onClick={(event) => {
+				const began = pressed.current;
+				pressed.current = false;
+				if (!began || !opens || !opensBucketSheet(event.target, event.currentTarget)) return;
+				event.currentTarget
+					.querySelector<HTMLElement>("[data-bucket-edit]")
+					?.focus({ preventScroll: true });
+				setOpen(true);
+			}}
 			leading={
 				handle ? (
 					<div className="flex items-center gap-1">
@@ -134,31 +150,16 @@ export function BucketEditor({
 			}
 			trailing={
 				<div className="flex items-center gap-1">
-					{editable && onDraft ? (
-						<Button
-							variant="ghost"
-							size="sm"
-							type="button"
-							disabled={!hydrated}
-							aria-label={`Change ${bucket.name}: ${formatMoney(bucket.allowance)}`}
-							aria-expanded={inline}
-							className={cn("px-2 font-medium tabular-nums", spending && COLUMN.allowance)}
-							onClick={() => (inline ? closeInline() : setInline(true))}
-						>
-							{formatMoney(bucket.allowance)}
-						</Button>
-					) : (
-						<span
-							className={cn(
-								"text-sm font-medium tabular-nums",
-								spending && `${COLUMN.allowance} @2xl:px-2 @2xl:text-end`,
-								// The padding of the button a Parent's own row has here, so the amounts line up.
-								setBy && "px-2",
-							)}
-						>
-							{formatMoney(bucket.allowance)}
-						</span>
-					)}
+					<span
+						className={cn(
+							"text-sm font-medium tabular-nums",
+							spending && `${COLUMN.allowance} @2xl:px-2 @2xl:text-end`,
+							// Clear of the pencil beside it (or the space kept for one), so amounts line up.
+							(editable || setBy) && "px-2",
+						)}
+					>
+						{formatMoney(bucket.allowance)}
+					</span>
 					{spending ? (
 						<>
 							<span
@@ -201,6 +202,8 @@ export function BucketEditor({
 							type="button"
 							disabled={!hydrated}
 							aria-label={`Edit ${bucket.name}`}
+							aria-haspopup="dialog"
+							data-bucket-edit=""
 							onClick={() => setOpen(true)}
 						>
 							<Pencil />
@@ -216,27 +219,13 @@ export function BucketEditor({
 						open={open}
 						onOpenChange={setOpen}
 						changes={changes}
+						onDraft={onDraft}
 						withHistory
+						amountFirst
 					/>
 				</div>
 			}
-			belowFull={inline}
-			below={
-				inline || changes.failed ? (
-					<div className="grid gap-2">
-						{inline ? (
-							<InlineBucketForm
-								month={month}
-								bucket={bucket}
-								changes={changes}
-								onDraft={(cents) => onDraft?.(cents)}
-								onDone={closeInline}
-							/>
-						) : null}
-						{changes.failed}
-					</div>
-				) : undefined
-			}
+			below={changes.failed ?? undefined}
 		/>
 	);
 }
@@ -263,103 +252,6 @@ export function BucketColumns({ pencil }: { pencil: boolean }) {
 			<span className={COLUMN.bar}>This month</span>
 			{pencil ? <span className="size-8 shrink-0" /> : null}
 		</div>
-	);
-}
-
-/**
- * A Bucket's name and amount, changed right in the list: Enter saves, Escape puts it away. A new
- * amount asks how far it reaches, as the sheet does, and is saved as a Plan change.
- */
-function InlineBucketForm({
-	month,
-	bucket,
-	changes,
-	onDraft,
-	onDone,
-}: {
-	month: MonthKey;
-	bucket: PlanBucket;
-	changes: BucketChanges;
-	onDraft: (cents: number | null) => void;
-	onDone: () => void;
-}) {
-	const id = useId();
-	const [name, setName] = useState(bucket.name);
-	const [amount, setAmount] = useState(() => formatMoneyInput(bucket.allowance));
-	const [scope, setScope] = useState<PlanScope>("from-on");
-	const cents = parseDollars(amount);
-	const trimmed = name.trim();
-	const changedAmount = cents !== null && cents !== bucket.allowance;
-
-	function onSubmit(event: FormEvent<HTMLFormElement>) {
-		event.preventDefault();
-		if (trimmed === "" || cents === null) return;
-		if (trimmed !== bucket.name) changes.details.mutate({ bucketId: bucket.id, name: trimmed });
-		if (changedAmount) {
-			changes.allowance.mutate({ bucketId: bucket.id, month, amountCents: cents, scope });
-		}
-		onDone();
-	}
-
-	return (
-		<form
-			onSubmit={onSubmit}
-			noValidate
-			aria-label={`Change ${bucket.name}`}
-			className="col-span-full grid gap-3 rounded-xl bg-surface-2 p-3"
-			onKeyDown={(event) => {
-				if (event.key !== "Escape") return;
-				event.preventDefault();
-				event.stopPropagation();
-				onDone();
-			}}
-		>
-			<div className="grid grid-cols-[minmax(0,1fr)_8rem] gap-2">
-				<Field label="Name" htmlFor={`${id}-name`}>
-					<Input
-						id={`${id}-name`}
-						maxLength={40}
-						autoComplete="off"
-						enterKeyHint="done"
-						value={name}
-						aria-invalid={trimmed === "" || undefined}
-						onChange={(event) => setName(event.currentTarget.value)}
-					/>
-				</Field>
-				<Field label="Allowance" htmlFor={`${id}-amount`}>
-					<AmountInput
-						id={`${id}-amount`}
-						// Opened to change the amount, so it starts there.
-						autoFocus
-						enterKeyHint="done"
-						value={amount}
-						aria-invalid={cents === null || undefined}
-						onFocus={(event) => event.currentTarget.select()}
-						onChange={(event) => {
-							const value = event.currentTarget.value;
-							setAmount(value);
-							onDraft(parseDollars(value));
-						}}
-					/>
-				</Field>
-			</div>
-			{changedAmount ? (
-				<PlanScopeField
-					month={month}
-					current={bucket.allowance}
-					scope={scope}
-					onScopeChange={setScope}
-				/>
-			) : null}
-			<div className="flex justify-end gap-2">
-				<Button type="button" variant="ghost" size="sm" onClick={onDone}>
-					Cancel
-				</Button>
-				<Button type="submit" size="sm" disabled={trimmed === "" || cents === null}>
-					Save
-				</Button>
-			</div>
-		</form>
 	);
 }
 
@@ -403,9 +295,10 @@ export function useBucketChanges(month: MonthKey) {
 export type BucketChanges = ReturnType<typeof useBucketChanges>;
 
 /**
- * The Bucket sheet, the one place a Bucket changes: its name, allowance (from this month on, or
- * just this month), colour, and whether it carries over, saved together by one Save; then moving
- * and archiving it, which act at once. Closing it with unsaved changes asks first.
+ * The Bucket sheet, the one place a Bucket changes (#98), most used first: its allowance (from
+ * this month on, or just this month) and name; then, under "More", its colour and whether it
+ * carries over, all saved together by one Save (Enter saves too); then moving it, its Plan
+ * history and archiving it, which act at once. Closing it with unsaved changes asks first.
  */
 export function BucketSheet({
 	month,
@@ -414,7 +307,9 @@ export function BucketSheet({
 	open,
 	onOpenChange,
 	changes,
+	onDraft,
 	withHistory = false,
+	amountFirst = false,
 }: {
 	month: MonthKey;
 	bucket: PlanBucket;
@@ -422,13 +317,22 @@ export function BucketSheet({
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	changes: BucketChanges;
+	/** Its amount while it's typed (for the list's Left to plan), or null once put away. */
+	onDraft?: (cents: number | null) => void;
 	withHistory?: boolean;
+	/**
+	 * Opened from the list, where the amount is what a Parent most often came to change: it takes
+	 * focus on a phone too (keyboard up), as it did when the amount was typed in the list. On
+	 * desktop a sheet's first field, the amount, has focus anyway.
+	 */
+	amountFirst?: boolean;
 }) {
 	const [dirty, setDirty] = useState(false);
 	const [confirmDiscard, setConfirmDiscard] = useState(false);
 	const close = () => {
 		setDirty(false);
 		setConfirmDiscard(false);
+		onDraft?.(null);
 		onOpenChange(false);
 	};
 	return (
@@ -450,17 +354,21 @@ export function BucketSheet({
 						month={month}
 						bucket={bucket}
 						changes={changes}
+						onDraft={onDraft}
+						amountFirst={amountFirst}
 						onDirty={setDirty}
 						onCancel={() => (dirty ? setConfirmDiscard(true) : close())}
 						onSaved={close}
 					>
-						{withHistory ? <PlanHistoryDisclosure month={month} targetId={bucket.id} /> : null}
 						<BucketActions
 							month={month}
 							bucket={bucket}
 							order={order}
 							changes={changes}
 							onArchived={close}
+							history={
+								withHistory ? <PlanHistoryDisclosure month={month} targetId={bucket.id} /> : null
+							}
 						/>
 					</BucketForm>
 					{confirmDiscard ? (
@@ -482,6 +390,8 @@ function BucketForm({
 	month,
 	bucket,
 	changes,
+	onDraft,
+	amountFirst,
 	onDirty,
 	onCancel,
 	onSaved,
@@ -490,10 +400,12 @@ function BucketForm({
 	month: MonthKey;
 	bucket: PlanBucket;
 	changes: BucketChanges;
+	onDraft?: (cents: number | null) => void;
+	amountFirst: boolean;
 	onDirty: (dirty: boolean) => void;
 	onCancel: () => void;
 	onSaved: () => void;
-	/** History and the Bucket's other actions: above the footer, so Save stays last. */
+	/** Moving it, its history and archiving it: the end of "More", above the footer. */
 	children?: ReactNode;
 }) {
 	const hydrated = useHydrated();
@@ -542,7 +454,14 @@ function BucketForm({
 					placeholder="0"
 					value={amount}
 					aria-invalid={errors.amount || undefined}
-					onChange={(event) => setAmount(event.currentTarget.value)}
+					data-autofocus={amountFirst ? "" : undefined}
+					// What's typed replaces the amount, as it did when it was typed in the list.
+					onFocus={(event) => event.currentTarget.select()}
+					onChange={(event) => {
+						const value = event.currentTarget.value;
+						setAmount(value);
+						onDraft?.(parseDollars(value));
+					}}
 				/>
 			</Field>
 			{changed.allowance && cents !== null ? (
@@ -563,18 +482,22 @@ function BucketForm({
 					onChange={(event) => setName(event.currentTarget.value)}
 				/>
 			</Field>
-			<ColourPicker value={color} onChange={setColor} />
-			<CarriesOverField
-				name={`${id}-rolling`}
-				rolling={rolling}
-				onChange={setRolling}
-				hint={changed.rolling ? `From ${monthName(month)} on.` : undefined}
-			/>
 			{errors.name ? <FormError>Give the Bucket a name.</FormError> : null}
 			{errors.amount ? (
 				<FormError>Enter the allowance as a dollar amount, like 250 or 85.50.</FormError>
 			) : null}
-			{children}
+			{/* Used less often, so quieter and last; nothing is hidden behind another tap. */}
+			<div data-slot="bucket-more" className="grid gap-4 border-t pt-4">
+				<p className="text-[13px] font-medium text-muted-foreground">More</p>
+				<ColourPicker value={color} onChange={setColor} />
+				<CarriesOverField
+					name={`${id}-rolling`}
+					rolling={rolling}
+					onChange={setRolling}
+					hint={changed.rolling ? `From ${monthName(month)} on.` : undefined}
+				/>
+				{children}
+			</div>
 			<SheetFooter className="max-lg:grid-cols-2">
 				<Button type="button" variant="outline" onClick={onCancel}>
 					Cancel
@@ -626,33 +549,38 @@ export function CarriesOverField({
 	);
 }
 
-/** Moving and archiving a Bucket: they act at once, apart from the form's Save. */
+/**
+ * The end of the sheet's "More": moving a Bucket, its Plan history, and archiving it. Moving and
+ * archiving act at once, apart from the form's Save.
+ */
 function BucketActions({
 	month,
 	bucket,
 	order,
 	changes,
 	onArchived,
+	history,
 }: {
 	month: MonthKey;
 	bucket: PlanBucket;
 	order: string[];
 	changes: BucketChanges;
 	onArchived: () => void;
+	/** Its Plan history, where the sheet shows it: between moving and archiving. */
+	history?: ReactNode;
 }) {
 	const [confirmArchive, setConfirmArchive] = useState(false);
 	const index = order.indexOf(bucket.id);
 	// A Personal Allowance has its own section, and stays in the Plan: its Parent sets it to zero
 	// rather than archiving it.
-	if (bucket.owner !== undefined || index < 0) return null;
+	if (bucket.owner !== undefined || index < 0) return history ?? null;
 	const move = (by: -1 | 1) => {
 		const next = nudged(order, bucket.id, by);
 		if (next !== order) changes.reorder.mutate({ bucketIds: next });
 	};
 
 	return (
-		<div className="grid gap-2 border-t pt-4">
-			<p className="text-[13px] text-muted-foreground">These happen at once.</p>
+		<>
 			{/* Moving it without dragging: the list's handle needs a steady thumb on a phone (#98). */}
 			{order.length > 1 ? (
 				<div className="flex flex-wrap items-center gap-2">
@@ -681,11 +609,15 @@ function BucketActions({
 					</p>
 				</div>
 			) : null}
-			<div className="flex flex-wrap items-center gap-2">
+			{history}
+			<div className="flex flex-wrap items-center gap-x-3 gap-y-1">
 				<Button type="button" variant="ghost" size="sm" onClick={() => setConfirmArchive(true)}>
 					<Archive />
 					Archive
 				</Button>
+				<p className="text-[13px] text-muted-foreground">
+					{order.length > 1 ? "Moving and archiving happen at once." : "Archiving happens at once."}
+				</p>
 			</div>
 			{confirmArchive ? (
 				<Confirm
@@ -699,7 +631,7 @@ function BucketActions({
 					{bucket.name} leaves the Plan from {monthName(month)} on. Earlier months keep it.
 				</Confirm>
 			) : null}
-		</div>
+		</>
 	);
 }
 

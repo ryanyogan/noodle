@@ -52,9 +52,11 @@ import {
 	buckets,
 	categorizations,
 	commitments,
+	deletedBankLines,
 	goals,
 	matches,
 	members,
+	monthCloses,
 	receipts,
 	refunds,
 	splitFor,
@@ -1255,12 +1257,11 @@ export async function deleteTransaction(
 		editableBy(input.householdId, input.memberId),
 		atVersion(input.expectedVersion),
 	) as SQL;
-	await db.batch(
-		transactionDeletes(db, { ...input, theTransaction }) as [
-			BatchItem<"sqlite">,
-			...BatchItem<"sqlite">[],
-		],
-	);
+	await db.batch([
+		// A bank or statement line's ID is remembered, so an Import never brings it back (ADR-0045).
+		rememberDeletedLines(db, theTransaction),
+		...transactionDeletes(db, { ...input, theTransaction }),
+	]);
 	if (input.expectedVersion === undefined) return { ok: true, version: null };
 	// Gone is deleted, now or on an earlier try; still there at another version was changed elsewhere.
 	const version = await transactionVersion(db, input.householdId, input.transactionId);
@@ -1355,4 +1356,296 @@ export function transactionDeletes(
 			),
 		db.delete(transactions).where(theTransaction),
 	];
+}
+
+/**
+ * Remembers the line IDs of the imported Transactions `these` (a guard on the transactions table)
+ * as deleted from their Accounts, in the batch that deletes them (ADR-0045).
+ */
+function rememberDeletedLines(db: Db, these: SQL) {
+	return db
+		.insert(deletedBankLines)
+		.select(
+			db
+				.select({
+					// Selected in the table's column order: insert … select is positional.
+					householdId: sql<string>`${transactions.householdId}`.as("household_id"),
+					accountId: sql<string>`${transactions.accountId}`.as("account_id"),
+					externalId: sql<string>`${transactions.externalId}`.as("external_id"),
+					deletedAt: sql<Date>`(unixepoch() * 1000)`.as("deleted_at"),
+				})
+				.from(transactions)
+				.where(and(these, isNotNull(transactions.accountId), isNotNull(transactions.externalId))),
+		)
+		.onConflictDoNothing();
+}
+
+/**
+ * Transactions picked on the Transactions page: by ID (`ids`), or every one its filters match
+ * (`all`: a month, or that month and every month before it) but `except`.
+ */
+export type TransactionSelection = {
+	ids?: string[];
+	all?: {
+		month: MonthKey;
+		/** Every earlier month too: "everything up to the end of <month>". */
+		andEarlier?: boolean;
+		bucketId?: string;
+		forMember?: string;
+		accountId?: string;
+		search?: string;
+	};
+	except?: string[];
+};
+
+const idList = (ids: string[]) => sql`(select value from json_each(${JSON.stringify(ids)}))`;
+
+/** The selection as the list shows it to `viewer`: the same filters `loadTransactionsPage` applies. */
+function selectedBy(viewer: Viewer, selection: TransactionSelection): SQL {
+	const { all } = selection;
+	if (!all) {
+		return and(visibleTo(viewer), inArray(transactions.id, idList(selection.ids ?? []))) as SQL;
+	}
+	const search = all.search?.trim();
+	return and(
+		visibleTo(viewer),
+		all.andEarlier ? undefined : gte(transactions.date, `${all.month}-01`),
+		lt(transactions.date, nextMonthStart(all.month)),
+		matching(viewer, all.bucketId, all.forMember),
+		all.accountId ? inAccount(all.accountId) : undefined,
+		search
+			? sql`(not ${partlyPrivate(viewer)} and ${transactions.note} like ${`%${likeEscaped(search)}%`} escape '!')`
+			: undefined,
+		selection.except?.length ? notInArray(transactions.id, idList(selection.except)) : undefined,
+	) as SQL;
+}
+
+/** What deleting a selection would do, for the Parent to read before they confirm (ADR-0045). */
+export type DeletionSummary = {
+	/** How many would be deleted. */
+	count: number;
+	firstDate: DayKey | null;
+	lastDate: DayKey | null;
+	totalCents: Cents;
+	/** The names of the Accounts they are in. */
+	accounts: string[];
+	/** Of them: assigned to a Bucket or a Commitment, as a whole or through Splits. */
+	filed: number;
+	split: number;
+	/** One side of a Transfer: the other side stays, as an ordinary Transaction again. */
+	transfers: number;
+	/** A purchase with a Refund, or the Refund itself. */
+	refunds: number;
+	/** With a Receipt, which stays, unattached. */
+	receipts: number;
+	/** In a month that has been closed. */
+	closedMonths: number;
+	/** Brought in from a bank or a statement: they won't be brought in again. */
+	imported: number;
+	/** Selected but not this Parent's to delete here: Goal spending. They stay. */
+	staying: number;
+};
+
+const transferSide = sql`exists (select 1 from transfers x where (x.out_transaction_id = ${transactions.id}
+	or x.in_transaction_id = ${transactions.id}) and x.removed_at is null)`;
+const refundSide = sql`exists (select 1 from refunds r where (r.original_transaction_id = ${transactions.id}
+	or r.refund_transaction_id = ${transactions.id}) and r.removed_at is null)`;
+const hasReceipt = sql`exists (select 1 from ${receipts} where ${receipts.transactionId} = ${transactions.id})`;
+const inClosedMonth = sql`exists (select 1 from ${monthCloses} where ${monthCloses.householdId} = ${transactions.householdId}
+	and ${monthCloses.month} = substr(${transactions.date}, 1, 7))`;
+
+/** The facts about a selection, counted from the rows as they are now. Changes nothing. */
+export async function summarizeDeletion(
+	db: Db,
+	viewer: Viewer,
+	selection: TransactionSelection,
+): Promise<DeletionSummary> {
+	const picked = selectedBy(viewer, selection);
+	const editable = editableBy(viewer.householdId, viewer.memberId);
+	const deletable = and(picked, editable);
+	const n = (when: SQL) =>
+		sql<number>`coalesce(sum(case when ${when} then 1 else 0 end), 0)`.mapWith(Number);
+	const [[facts], [every], accountRows] = await db.batch([
+		db
+			.select({
+				count: sql<number>`count(*)`.mapWith(Number),
+				firstDate: sql<string | null>`min(${transactions.date})`,
+				lastDate: sql<string | null>`max(${transactions.date})`,
+				totalCents: sql<number>`coalesce(sum(${transactions.amountCents}), 0)`.mapWith(Number),
+				filed: n(
+					sql`(${transactions.bucketId} is not null or ${transactions.commitmentId} is not null or ${isSplit})`,
+				),
+				split: n(isSplit),
+				transfers: n(transferSide),
+				refunds: n(refundSide),
+				receipts: n(hasReceipt),
+				closedMonths: n(inClosedMonth),
+				imported: n(sql`${transactions.importId} is not null`),
+			})
+			.from(transactions)
+			.where(deletable),
+		db
+			.select({ count: sql<number>`count(*)`.mapWith(Number) })
+			.from(transactions)
+			.where(picked),
+		db
+			.selectDistinct({ name: accounts.name })
+			.from(transactions)
+			.innerJoin(accounts, eq(accounts.id, transactions.accountId))
+			.where(deletable)
+			.orderBy(asc(accounts.name)),
+	]);
+	const count = facts?.count ?? 0;
+	return {
+		count,
+		firstDate: (facts?.firstDate ?? null) as DayKey | null,
+		lastDate: (facts?.lastDate ?? null) as DayKey | null,
+		totalCents: facts?.totalCents ?? 0,
+		accounts: accountRows.map((row) => row.name),
+		filed: facts?.filed ?? 0,
+		split: facts?.split ?? 0,
+		transfers: facts?.transfers ?? 0,
+		refunds: facts?.refunds ?? 0,
+		receipts: facts?.receipts ?? 0,
+		closedMonths: facts?.closedMonths ?? 0,
+		imported: facts?.imported ?? 0,
+		staying: (every?.count ?? 0) - count,
+	};
+}
+
+/** How many Transactions one batch deletes: their IDs travel as one JSON parameter. */
+export const BULK_DELETE_CHUNK = 100;
+/** The most one bulk delete takes on; a second run takes the rest. */
+export const BULK_DELETE_MAX = 5000;
+
+/**
+ * Deletes every Transaction in the selection that is the Parent's to delete, as it is when this
+ * runs: with its For, Splits, Refund links, Transfers and Matches, as deleting one does, and the
+ * line IDs of imported ones remembered so they never come back (ADR-0045). Goal spending and
+ * anything partly in the other Parent's Personal Allowance stay. `beforeDeleting` is told how
+ * many are about to go, before any does; if it throws, nothing is deleted. A hundred go per
+ * batch, each batch whole or not at all; a retry deletes what is left, so it is safe to run twice.
+ */
+export async function deleteTransactions(
+	db: Db,
+	viewer: Viewer,
+	selection: TransactionSelection,
+	options: { beforeDeleting?: (count: number) => Promise<void> } = {},
+): Promise<{ deleted: number }> {
+	const { householdId } = viewer;
+	const editable = editableBy(householdId, viewer.memberId);
+	const targets = await db
+		.select({ id: transactions.id })
+		.from(transactions)
+		.where(and(selectedBy(viewer, selection), editable))
+		.orderBy(asc(transactions.id))
+		.limit(BULK_DELETE_MAX);
+	if (targets.length === 0) return { deleted: 0 };
+	await options.beforeDeleting?.(targets.length);
+	let deleted = 0;
+	for (let start = 0; start < targets.length; start += BULK_DELETE_CHUNK) {
+		const chunk = targets.slice(start, start + BULK_DELETE_CHUNK).map((row) => row.id);
+		const these = and(inArray(transactions.id, idList(chunk)), editable) as SQL;
+		// Read afresh by every statement: only what is still the Parent's to delete.
+		const theirs = () => db.select({ id: transactions.id }).from(transactions).where(these);
+		const refunded = () =>
+			db
+				.select({ id: refunds.refundTransactionId })
+				.from(refunds)
+				.where(
+					and(
+						eq(refunds.householdId, householdId),
+						isNull(refunds.removedAt),
+						inArray(refunds.originalTransactionId, theirs()),
+					),
+				);
+		await db.batch([
+			rememberDeletedLines(db, these),
+			db.delete(splitFor).where(
+				and(
+					eq(splitFor.householdId, householdId),
+					inArray(
+						splitFor.splitId,
+						db
+							.select({ id: splits.id })
+							.from(splits)
+							.where(
+								and(eq(splits.householdId, householdId), inArray(splits.transactionId, theirs())),
+							),
+					),
+				),
+			),
+			db
+				.delete(splits)
+				.where(and(eq(splits.householdId, householdId), inArray(splits.transactionId, theirs()))),
+			db
+				.delete(transactionFor)
+				.where(
+					and(
+						eq(transactionFor.householdId, householdId),
+						inArray(transactionFor.transactionId, theirs()),
+					),
+				),
+			// Money back linked to one as a Refund is unassigned again, as when one is deleted.
+			db
+				.delete(transactionFor)
+				.where(
+					and(
+						eq(transactionFor.householdId, householdId),
+						inArray(transactionFor.transactionId, refunded()),
+					),
+				),
+			db
+				.update(transactions)
+				.set({
+					bucketId: null,
+					commitmentId: null,
+					goalId: null,
+					version: sql`${transactions.version} + 1`,
+				})
+				.where(
+					and(eq(transactions.householdId, householdId), inArray(transactions.id, refunded())),
+				),
+			db
+				.delete(refunds)
+				.where(
+					and(
+						eq(refunds.householdId, householdId),
+						or(
+							inArray(refunds.originalTransactionId, theirs()),
+							inArray(refunds.refundTransactionId, theirs()),
+						),
+					),
+				),
+			// The other side of a Transfer stays, an ordinary Transaction again.
+			db
+				.delete(transfers)
+				.where(
+					and(
+						eq(transfers.householdId, householdId),
+						or(
+							inArray(transfers.outTransactionId, theirs()),
+							inArray(transfers.inTransactionId, theirs()),
+						),
+					),
+				),
+			db
+				.delete(matches)
+				.where(
+					and(
+						eq(matches.householdId, householdId),
+						or(inArray(matches.quickAddId, theirs()), inArray(matches.importedId, theirs())),
+					),
+				),
+			db.delete(transactions).where(these),
+		]);
+		const [left] = await db
+			.select({ count: sql<number>`count(*)`.mapWith(Number) })
+			.from(transactions)
+			.where(
+				and(eq(transactions.householdId, householdId), inArray(transactions.id, idList(chunk))),
+			);
+		deleted += chunk.length - (left?.count ?? 0);
+	}
+	return { deleted };
 }

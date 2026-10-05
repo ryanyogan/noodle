@@ -26,9 +26,10 @@ async function openPlan(page: Page) {
 	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Plan");
 }
 
-const waterfall = (page: Page) =>
-	page.getByRole("region", { name: "From take-home pay to Free to Spend" });
-const freeToSpend = (page: Page) => waterfall(page).getByRole("listitem").last();
+const waterfall = (page: Page) => page.getByRole("region", { name: "Where take-home pay goes" });
+/** The last row under the bar: "Free to Spend" and its amount, without its share. */
+const freeToSpend = (page: Page) =>
+	waterfall(page).getByRole("listitem").last().locator("[data-slot=plan-split-figure]");
 const bucketRow = (page: Page, bucket: string) =>
 	page.getByRole("listitem").filter({ has: page.getByRole("button", { name: `Edit ${bucket}` }) });
 

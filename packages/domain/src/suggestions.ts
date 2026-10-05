@@ -1,6 +1,7 @@
 import { merchantKey, type Rule, ruleFor } from "./categorize";
 import type { Cadence } from "./commitments";
 import { addDays, addMonths, type DayKey, daysBetween, type MonthKey, monthOfDay } from "./month";
+import { looksLikeCardPayment } from "./transfers";
 
 // Suggestions (ADR-0027): what background AI spots in spending and offers a Parent to add with one
 // tap. Pure, so the thresholds are unit-tested; the run (suggestion-run.ts) loads lines and saves
@@ -557,11 +558,15 @@ export function changedALot(before: Evidence, now: Evidence): boolean {
 /** The month a suggestion would start in the Plan: this month. */
 export const suggestionMonth = (today: DayKey): MonthKey => monthOfDay(today);
 
-/** A card payment or a transfer between accounts ("Online Payment", "Autopay Payment"), by its name. */
+/**
+ * A card payment or a transfer between accounts ("Online Payment", "Autopay Payment", "Chase
+ * Credit Crd Autopay", "Amex Epayment"), by its name. Never suggested as a Commitment or a Rule:
+ * paying the card is a Transfer (#91).
+ */
 export const isMoneyMovement = (merchant: string) =>
 	/^(online|autopay|auto|mobile|internet|electronic|ach|e-?pay|card|credit card)?\s*(payment|pymt)s?\b|\bautopay\b|\btransfers?\b|\bxfer\b|\bthank you\b/i.test(
 		merchant.trim(),
-	);
+	) || looksLikeCardPayment(merchant);
 
 /**
  * An imported line a Parent put in a Bucket themselves (not filed by categorization), with its

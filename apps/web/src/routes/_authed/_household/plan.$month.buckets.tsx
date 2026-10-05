@@ -45,7 +45,7 @@ function PlanBuckets() {
 	const nameOf = (id: string) => members.find((m) => m.id === id)?.name;
 	// Another Parent's Personal Allowance isn't in this Plan (ADR-0003); only whether one exists is.
 	const stillToSet = useAllowancesStillToSet(parentId);
-	// Amounts being typed in the list, so Left to plan follows before they're saved.
+	// Amounts being typed in a Bucket's sheet, so Left to plan follows before they're saved.
 	const [drafts, setDrafts] = useState<Record<string, number>>({});
 	const typed = state.buckets.reduce(
 		(sum, b) => sum + (drafts[b.id] === undefined ? 0 : (drafts[b.id] ?? 0) - b.allowance),
@@ -162,14 +162,11 @@ function PlanBuckets() {
 							figures
 						/>
 						{state.editable ? (
-							// Under the list (#98): what each part of a row does, and Add without scrolling back
-							// up a long list. Its own words, so the bar's Add Buckets stays the one of that name.
+							// Under the list (#98): how a Bucket is changed, and Add without scrolling back up a
+							// long list. Its own words, so the bar's Add Buckets stays the one of that name.
 							<div className="grid gap-3 px-1">
 								<p data-slot="bucket-how" className="text-[13px] text-muted-foreground">
-									To change a Bucket, choose its amount (its name is there too). The pencil has its
-									colour, what happens at the end of the month, moving it and archiving it. A new
-									amount counts from {monthName(month)} on, unless you choose just{" "}
-									{monthName(month)}.
+									Choose a Bucket to change its amount, name, colour and more.
 								</p>
 								<AddBuckets
 									month={month}

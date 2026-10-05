@@ -30,12 +30,21 @@ type ToastOptions = {
 			 * every Undo stays the same time.
 			 */
 			undo: () => void;
+			/**
+			 * Called once when the toast has left without Undo being pressed: its time ran out
+			 * (Sonner's own countdown, which waits while the toast is hovered, held or the tab is
+			 * hidden) or it was swiped away. For a change that is only sent once it can no longer be
+			 * undone. Never called after Undo. Not for a toast with an `id`: one that is replaced
+			 * never leaves.
+			 */
+			onGone?: () => void;
 			action?: never;
 			sticky?: never;
 			duration?: never;
 	  }
 	| {
 			undo?: never;
+			onGone?: never;
 			/** Any action but Undo (Retry, View, …): Undo is `undo`, which sets its own time. */
 			action?: { label: string; onClick: () => void };
 			/** Stays until it's dismissed. Not for an Undo, which leaves after UNDO_TOAST_MS. */
@@ -76,6 +85,20 @@ function toastDuration({
 }
 
 /**
+ * An Undo and what follows when it wasn't pressed, so that only one of the two ever happens, and
+ * only once: pressing Undo closes the toast, which Sonner also reports as it leaving.
+ */
+function undoOrGone(undo: () => void, onGone?: () => void) {
+	let over = false;
+	const once = (run?: () => void) => () => {
+		if (over) return;
+		over = true;
+		run?.();
+	};
+	return { undo: once(undo), gone: once(onGone) };
+}
+
+/**
  * Shows a short message at the bottom of the screen. Toasts with an action stay long enough to
  * use it; errors stay longest; one with `undo` stays UNDO_TOAST_MS; a sticky one stays until it's
  * dismissed; `duration` sets another time for one that isn't sticky.
@@ -84,9 +107,14 @@ function toast(message: string, options: ToastOptions = { tone: "success" }) {
 	// Sonner counts the time down itself, so it still waits while a toast is hovered, held or the
 	// tab is hidden, or after Alt+T moved the keyboard to the toasts (until Escape), and starts
 	// again when a toast is replaced by one with the same id.
-	sonner.custom((id) => <ToastBody id={id as string} message={message} {...options} />, {
+	const latch = options.undo ? undoOrGone(options.undo, options.onGone) : undefined;
+	const shown: ToastOptions = options.undo && latch ? { ...options, undo: latch.undo } : options;
+	sonner.custom((id) => <ToastBody id={id as string} message={message} {...shown} />, {
 		duration: toastDuration(options),
 		id: options.id,
+		// The toast's real end, whenever its countdown was paused on the way.
+		onAutoClose: latch?.gone,
+		onDismiss: latch?.gone,
 	});
 }
 
@@ -165,4 +193,4 @@ function Toaster({ className }: { className?: string }) {
 	);
 }
 
-export { Toaster, toast, toastDuration, UNDO_TOAST_MS };
+export { Toaster, toast, toastDuration, UNDO_TOAST_MS, undoOrGone };

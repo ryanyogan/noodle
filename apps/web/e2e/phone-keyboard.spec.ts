@@ -25,11 +25,16 @@ const scrollY = (page: Page) => page.evaluate(() => window.scrollY);
 
 /** The element is wholly inside what the keyboard leaves visible. */
 async function expectAboveKeyboard(page: Page, locator: Locator) {
-	const bottom = await visibleBottom(page);
-	const box = await locator.boundingBox();
-	expect(box, "it is on screen").not.toBeNull();
-	expect(box?.y ?? -1).toBeGreaterThanOrEqual(0);
-	expect((box?.y ?? 0) + (box?.height ?? Number.POSITIVE_INFINITY)).toBeLessThanOrEqual(bottom + 1);
+	// A sheet slides up as it opens: measured again until it has come to rest.
+	await expect(async () => {
+		const bottom = await visibleBottom(page);
+		const box = await locator.boundingBox();
+		expect(box, "it is on screen").not.toBeNull();
+		expect(box?.y ?? -1).toBeGreaterThanOrEqual(0);
+		expect((box?.y ?? 0) + (box?.height ?? Number.POSITIVE_INFINITY)).toBeLessThanOrEqual(
+			bottom + 1,
+		);
+	}).toPass({ timeout: 3000 });
 }
 
 test("Quick Add stays above the keyboard while a note is typed", async ({ browser }) => {
@@ -126,5 +131,53 @@ test("Edit Transaction stays above the keyboard with Save in view", async ({ bro
 			name: /^Costco for the week, \$12\.50/,
 		}),
 	).toBeVisible();
+	await page.context().close();
+});
+
+test("the Bucket sheet opens on its amount and stays above the keyboard with Save in view", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, {
+		baseline: "5,000",
+		buckets: [
+			["Groceries", "1,200"],
+			["Gas", "200"],
+		],
+	});
+	const now = new Date();
+	await page.goto(
+		`/plan/${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}/buckets`,
+	);
+	await expect(page.getByRole("button", { name: "Add Buckets", exact: true })).toBeEnabled();
+	const keyboardGone = await withKeyboard(page, keyboardHeight);
+	const before = await scrollY(page);
+
+	// Choosing the row's amount opens the one Bucket sheet (#98) with the amount ready to type.
+	await page
+		.locator("[data-bucket-row]")
+		.filter({ has: page.getByRole("link", { name: "Groceries", exact: true }) })
+		.getByText("$1,200", { exact: true })
+		.first()
+		.click();
+	const sheet = page.getByRole("dialog", { name: "Groceries", exact: true });
+	const amount = sheet.getByRole("textbox", { name: "Allowance", exact: true });
+	await expect(amount).toBeFocused();
+	await expect
+		.poll(() =>
+			page.evaluate(() => document.documentElement.style.getPropertyValue("--keyboard-inset")),
+		)
+		.toBe(`${keyboardHeight}px`);
+	await amount.fill("1,300");
+	await expect(sheet.getByRole("radio", { name: /^From .* on$/ })).toBeChecked();
+
+	await expectAboveKeyboard(page, sheet);
+	await expectAboveKeyboard(page, amount);
+	await expectAboveKeyboard(page, sheet.getByRole("button", { name: "Save", exact: true }));
+	expect(await scrollY(page)).toBe(before);
+
+	await keyboardGone();
+	await sheet.getByRole("button", { name: "Save", exact: true }).click();
+	await expect(sheet).toBeHidden();
 	await page.context().close();
 });
