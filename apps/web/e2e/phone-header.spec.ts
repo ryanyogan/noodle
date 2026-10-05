@@ -358,10 +358,15 @@ test("More in the tab bar reaches every page that isn't a tab, and Back closes i
 	const account = sheet.getByRole("region", { name: "Your account" });
 	await expect(account.getByRole("button", { name: "Manage account" })).toBeVisible();
 	await expect(account.getByRole("button", { name: "Sign out" })).toBeVisible();
-	// The sheet ends at the bottom of the window and fits its width.
-	const box = await sheet.boundingBox();
+	// The sheet ends at the bottom of the window and fits its width, once it has slid up.
 	const viewport = page.viewportSize();
-	expect(Math.round((box?.y ?? 0) + (box?.height ?? 0))).toBe(viewport?.height);
+	await expect
+		.poll(async () => {
+			const box = await sheet.boundingBox();
+			return Math.round((box?.y ?? 0) + (box?.height ?? 0));
+		})
+		.toBe(viewport?.height);
+	const box = await sheet.boundingBox();
 	expect(Math.round(box?.width ?? 0)).toBe(viewport?.width);
 
 	// Back closes it and stays on the page.
