@@ -113,7 +113,13 @@ function PlanHome() {
 			variant={look === "heading" ? undefined : "outline"}
 			size={look === "under" ? undefined : "sm"}
 			// Beside the heading on a phone there is room for the words only, at any text size.
-			className={cn("justify-self-start", look === "heading" && "max-sm:[&_svg]:hidden")}
+			// Under the table its words go onto a second line when a phone's text is very large,
+			// rather than pushing the page wider than the screen; two lines fit the button's height.
+			className={cn(
+				"justify-self-start",
+				look === "heading" && "max-sm:[&_svg]:hidden",
+				look === "under" && "max-w-full text-start whitespace-normal",
+			)}
 			disabled={!hydrated}
 			onClick={() => setAdding(true)}
 		>

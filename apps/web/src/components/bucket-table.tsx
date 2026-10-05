@@ -338,7 +338,9 @@ export function BucketTable({
 	}, [buckets, editable, canEdit, setBy, was, hydrated, month]);
 
 	return (
-		<div className="grid gap-3">
+		// One column no wider than its place: what is under the table (a button's words, which don't
+		// shrink) must not widen the table at large text.
+		<div className="grid grid-cols-[minmax(0,1fr)] gap-3">
 			<div ref={moving.listRef} {...moving.guard}>
 				{/* Clipped to the card's corners, so a row's hover and the open row's ground follow them. */}
 				<Card className="overflow-clip">
