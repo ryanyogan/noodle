@@ -71,6 +71,7 @@ function camera(
 	shape: number,
 	most: number,
 	move: number,
+	sideways: boolean,
 ) {
 	// The share of the still's height in view when it is exactly as wide as the stage.
 	const band = Math.min(1, stage.height / (stage.width * shape));
@@ -82,7 +83,8 @@ function camera(
 	const w = 1 / scale;
 	const h = band / scale;
 	const clamp = (value: number, size: number) => Math.min(1 - size, Math.max(0, value));
-	const x = clamp((focus ? focus.x + focus.w / 2 : 0.5) - w / 2, w);
+	// A phone's still keeps its middle: moving sideways cuts the start of its lines off.
+	const x = clamp((focus && sideways ? focus.x + focus.w / 2 : 0.5) - w / 2, w);
 	// A page with no subject is read from its top, and so is a subject taller than the band.
 	const y = clamp(!focus ? 0 : tall ? focus.y - 0.02 : focus.y + focus.h / 2 - h / 2, h);
 	const width = stage.width * scale;
@@ -103,6 +105,7 @@ function StillShot({ still, ring }: { still: StillName; ring: boolean }) {
 		VIEWPORT[cut].height / VIEWPORT[cut].width,
 		cut === "phone" ? 1.12 : 1.2,
 		move,
+		cut !== "phone",
 	);
 	// A ring round nearly the whole still points at nothing, and one that runs out of view is half a ring.
 	const ringed = ring && focus && !view.tall && focus.w * focus.h < 0.7;

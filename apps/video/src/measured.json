@@ -1,15 +1,21 @@
 {
+	"plan-overview-desktop": {
+		"x": 0.2,
+		"y": 0.197,
+		"width": 0.486,
+		"height": 0.492
+	},
 	"month-desktop": {
 		"x": 0.708,
 		"y": 0.131,
 		"width": 0.264,
-		"height": 0.398
+		"height": 0.376
 	},
 	"month-bucket-desktop": {
 		"x": 0.201,
-		"y": 0.314,
+		"y": 0.176,
 		"width": 0.485,
-		"height": 0.099
+		"height": 0.096
 	},
 	"accounts-bank-desktop": {
 		"x": 0.448,
@@ -39,7 +45,7 @@
 		"x": 0.2,
 		"y": 0.264,
 		"width": 0.486,
-		"height": 0.602
+		"height": 0.382
 	},
 	"close-month-desktop": {
 		"x": 0.862,
@@ -47,27 +53,33 @@
 		"width": 0.101,
 		"height": 0.04
 	},
-	"review-rule-desktop": {
+	"household-invite-desktop": {
 		"x": 0.2,
-		"y": 0.476,
-		"width": 0.4,
-		"height": 0.047
+		"y": 0.387,
+		"width": 0.375,
+		"height": 0.227
+	},
+	"plan-overview-phone": {
+		"x": 0.041,
+		"y": 0.239,
+		"width": 0.919,
+		"height": 0.52
 	},
 	"month-phone": {
 		"x": 0.041,
 		"y": 0.099,
 		"width": 0.919,
-		"height": 0.411
+		"height": 0.388
 	},
 	"month-bucket-phone": {
 		"x": 0.043,
-		"y": 0.447,
+		"y": 0.449,
 		"width": 0.913,
-		"height": 0.104
+		"height": 0.102
 	},
 	"accounts-bank-phone": {
 		"x": 0.043,
-		"y": 0.542,
+		"y": 0.564,
 		"width": 0.913,
 		"height": 0.122
 	},
@@ -91,15 +103,27 @@
 	},
 	"explore-afford-phone": {
 		"x": 0.041,
-		"y": 0.045,
+		"y": 0,
 		"width": 0.919,
-		"height": 0.955
+		"height": 0.427
 	},
 	"close-month-phone": {
 		"x": 0.588,
 		"y": 0.474,
 		"width": 0.372,
 		"height": 0.052
+	},
+	"household-invite-phone": {
+		"x": 0.041,
+		"y": 0.347,
+		"width": 0.919,
+		"height": 0.305
+	},
+	"review-rule-desktop": {
+		"x": 0.2,
+		"y": 0.476,
+		"width": 0.4,
+		"height": 0.047
 	},
 	"review-rule-phone": {
 		"x": 0.041,
