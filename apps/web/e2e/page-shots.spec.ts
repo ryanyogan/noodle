@@ -2,8 +2,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createHousehold, openMore, savedBy, signedInPage } from "./session";
-import { seedShotsHousehold } from "./shots-household";
+import { choose, createHousehold, openMore, openToDo, savedBy, signedInPage } from "./session";
+import { seedIncomeHousehold, seedShotsHousehold } from "./shots-household";
 
 // Pictures of every page with one realistic Household, for looking at a redesign without a browser
 // on the machine: .github/workflows/shots.yml runs this on GitHub and uploads the PNGs. Not a test
@@ -66,11 +66,15 @@ type Shot = {
 	scrolledTo?: number;
 	/** Only what's in the window, at every width: what a Parent sees without scrolling. */
 	window?: boolean;
+	/** Pictured as the third Parent, whose small Household is there for what Income brings up. */
+	small?: boolean;
 };
 
 let parent: Awaited<ReturnType<typeof createTestParent>> | undefined;
 /** The Parent of the new Household that hasn't finished setup. */
 let freshParent: Awaited<ReturnType<typeof createTestParent>> | undefined;
+/** The Parent of the small Household for the Income and Cover pictures (#86, #87). */
+let smallParent: Awaited<ReturnType<typeof createTestParent>> | undefined;
 let shots: Shot[] = [];
 /** What the seeding couldn't do: written beside the pictures so a missing section is explained. */
 const seedNotes: string[] = [];
@@ -172,6 +176,23 @@ async function openDangerSheet(page: Page, action: "Start fresh" | "Delete House
 	});
 }
 
+/**
+ * Opens one To do on This Month: from lg its own row, on a phone the folded strip (every To do is
+ * then on the page).
+ */
+async function openToDoRow(page: Page, label: string) {
+	if ((page.viewportSize()?.width ?? 0) >= 1024) return openToDo(page, label);
+	const strip = page
+		.getByRole("region", { name: "To do" })
+		.locator("button[aria-expanded]:visible");
+	// The strip only answers once the page is hydrated.
+	await expect(async () => {
+		if ((await strip.first().getAttribute("aria-expanded")) !== "true")
+			await strip.first().click({ timeout: 2000 });
+		await expect(strip.first()).toHaveAttribute("aria-expanded", "true", { timeout: 2000 });
+	}).toPass({ timeout: 20_000 });
+}
+
 test.beforeAll(async ({ browser }) => {
 	if (!enabled) return;
 	test.setTimeout(600_000);
@@ -236,17 +257,117 @@ test.beforeAll(async ({ browser }) => {
 		await createHousehold(freshPage, "The Parkers", "Jo");
 		await freshPage.context().close();
 	});
+	// The third Household: small, with a Cover, a month to close and Income that each picture sets.
+	let small: Shot[] = [];
+	await attempt("A small Household for the Income pictures", async () => {
+		smallParent = await createTestParent();
+		const smallPage = await signedInPage(browser, smallParent.email, {
+			viewport: { width: 1440, height: 900 },
+			colorScheme,
+		});
+		const seeded = await seedIncomeHousehold(smallPage);
+		await smallPage.context().close();
+		const thisMonth = `/month/${seeded.month}`;
+		/** This month's Income becomes `cents`, and the page is loaded again to show it. */
+		const withIncome = async (page: Page, cents: number) => {
+			await seeded.setIncome(cents);
+			await page.reload();
+			await settled(page);
+		};
+		const extraIncome = async (page: Page) => {
+			await withIncome(page, 620_000);
+			await openToDoRow(page, "Extra income");
+			await expect(page.getByRole("button", { name: "Add $1,200 to Free to Spend" })).toBeVisible({
+				timeout: 15_000,
+			});
+		};
+		const cameInLower = async (page: Page) => {
+			await withIncome(page, 440_000);
+			await expect(page.getByRole("button", { name: "Lower take-home pay to $4,400" })).toBeVisible(
+				{
+					timeout: 15_000,
+				},
+			);
+		};
+		small = [
+			// $1,200 above take-home pay: the Extra income prompt, its To do open (#86).
+			{ name: "01b-extra-income", path: thisMonth, small: true, ready: extraIncome },
+			{
+				// "Choose where": the sheet, Free to Spend first. What's in the window.
+				name: "01c-extra-income-choose-where",
+				path: thisMonth,
+				small: true,
+				window: true,
+				ready: async (page) => {
+					await extraIncome(page);
+					await page.locator("button:visible", { hasText: "Choose where" }).first().click();
+					await expect(page.getByRole("dialog")).toBeVisible({ timeout: 15_000 });
+				},
+			},
+			{
+				// Last month waiting to be closed, its Extra income left in the account (#86).
+				name: "01d-close-month",
+				path: thisMonth,
+				small: true,
+				ready: async (page) => {
+					await openToDoRow(page, "Close ");
+					await choose(page, "Where the Extra income goes", "Leave it in the account");
+				},
+			},
+			// A Bucket's page with a Cover into it, and the Bucket the money came from (#87).
+			{
+				name: "04b-bucket-covers",
+				path: `/plan/${seeded.month}/buckets/${seeded.bucketIds.Hockey}`,
+				small: true,
+			},
+			{
+				name: "04c-bucket-covers-source",
+				path: `/plan/${seeded.month}/buckets/${seeded.bucketIds.Groceries}`,
+				small: true,
+			},
+			{
+				// $600 less than take-home pay has come in: Plan › Income's quiet step (#86).
+				name: "06a-income-came-in-lower",
+				path: `/plan/${seeded.month}/income`,
+				small: true,
+				ready: cameInLower,
+			},
+			{
+				// The Edit sheet, with its sentence about pay that varies. What's in the window.
+				name: "06b-income-edit-take-home-pay",
+				path: `/plan/${seeded.month}/income`,
+				small: true,
+				window: true,
+				ready: async (page) => {
+					await cameInLower(page);
+					await page.getByRole("button", { name: "Edit take-home pay" }).click();
+					await expect(page.getByRole("dialog")).toBeVisible({ timeout: 15_000 });
+				},
+			},
+		];
+	});
+
 	const fresh: Shot[] = freshParent
 		? [
 				// Nothing planned: the get-started list on its own, and the way back into the wizard.
 				{ name: "30-fresh-this-month-get-started", path: `/month/${month}`, fresh: true },
 				// The wizard's first four steps. Each walks on from where the one before left it.
-				...["31-setup-step-1", "32-setup-step-2", "33-setup-step-3", "34-setup-step-4"].map(
-					(name, index): Shot => ({
+				// 32a is the income step again, only the window: its intro above the sticky bar (#86).
+				...(
+					[
+						["31-setup-step-1", 1],
+						["32-setup-step-2", 2],
+						["32a-setup-step-2-window", 2],
+						["33-setup-step-3", 3],
+						["34-setup-step-4", 4],
+					] as const
+				).map(
+					([name, step]): Shot => ({
 						name,
 						path: "/setup",
 						fresh: true,
-						ready: (page) => toSetupStep(page, index + 1),
+						window: name.endsWith("-window"),
+						ready: (page) => toSetupStep(page, step),
 					}),
 				),
 			]
@@ -432,6 +553,7 @@ test.beforeAll(async ({ browser }) => {
 				await openMore(page);
 			},
 		},
+		...small,
 		...fresh,
 	];
 	mkdirSync(OUT, { recursive: true });
@@ -444,6 +566,7 @@ test.beforeAll(async ({ browser }) => {
 test.afterAll(async () => {
 	await parent?.remove();
 	await freshParent?.remove();
+	await smallParent?.remove();
 });
 
 for (const viewport of viewports) {
@@ -465,6 +588,7 @@ for (const viewport of viewports) {
 		const main = await signedInPage(browser, parent.email, device);
 		// Signed in only when there is something to picture as the second Parent.
 		let freshPage: Page | undefined;
+		let smallPage: Page | undefined;
 		const dir = join(OUT, String(viewport.width));
 		mkdirSync(dir, { recursive: true });
 		const failures: string[] = [];
@@ -476,6 +600,11 @@ for (const viewport of viewports) {
 					if (!freshParent) throw new Error("No second Household");
 					freshPage ??= await signedInPage(browser, freshParent.email, device);
 					page = freshPage;
+				}
+				if (shot.small) {
+					if (!smallParent) throw new Error("No small Household");
+					smallPage ??= await signedInPage(browser, smallParent.email, device);
+					page = smallPage;
 				}
 				await page.goto(shot.path);
 				await settled(page);
@@ -517,6 +646,7 @@ for (const viewport of viewports) {
 		}
 		await main.context().close();
 		await freshPage?.context().close();
+		await smallPage?.context().close();
 		if (failures.length > 0) writeFileSync(join(dir, "failures.txt"), `${failures.join("\n")}\n`);
 		expect(failures, "pages that couldn't be pictured").toEqual([]);
 		expect(seedNotes, "data that couldn't be seeded").toEqual([]);

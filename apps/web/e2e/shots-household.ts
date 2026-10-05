@@ -197,3 +197,40 @@ export async function seedShotsHousehold(page: Page, userId: string) {
 	await seedSql(statements);
 	return { householdId, parentId, month, bucketIds, commitmentIds, ids };
 }
+
+/**
+ * A small second Household for the pictures of what a month's Income brings up (#86, #87): $5,000
+ * take-home pay, three Buckets, Hockey $50 over and covered from Groceries, and last month ended
+ * with $600 of Extra income and nothing spent, so it waits to be closed. `setIncome` replaces this
+ * month's Income: above take-home pay for the Extra income prompt, below it for the low month.
+ */
+export async function seedIncomeHousehold(page: Page) {
+	const created = await createPlannedHousehold(page, {
+		baseline: "5,000",
+		buckets: [
+			["Groceries", "1,200"],
+			["Hockey", "400"],
+			["Fun", "300"],
+		],
+	});
+	if (!created) throw new Error("The Household wasn't made through /api/dev/household");
+	const { householdId, parentId, month, bucketIds } = created;
+	const h = q(householdId);
+	const m = q(parentId);
+	const last = q(dayOf(1, 1).slice(0, 7));
+	await seedSql([
+		// The Plan starts last month, as seedReportHistory moves it back.
+		`update buckets set from_month = ${last} where household_id = ${h};`,
+		`update bucket_allowances set month = ${last} where household_id = ${h};`,
+		`update baselines set month = ${last} where household_id = ${h};`,
+		`insert into income (id, household_id, date, amount_cents, note, created_by_member_id) values (${q(ulid())}, ${h}, ${q(dayOf(1, 15))}, 560000, 'Paychecks', ${m});`,
+		`insert into transactions (id, household_id, source, date, amount_cents, note, created_by_member_id, bucket_id) values (${q(ulid())}, ${h}, 'quick-add', ${q(dayOf(0, 2))}, 45000, 'Skates', ${m}, ${q(bucketIds.Hockey ?? "")});`,
+		`insert into moves (id, household_id, kind, month, from_bucket_id, to_bucket_id, amount_cents, created_by_member_id) values (${q(ulid())}, ${h}, 'cover', ${q(month)}, ${q(bucketIds.Groceries ?? "")}, ${q(bucketIds.Hockey ?? "")}, 5000, ${m});`,
+	]);
+	const setIncome = (cents: number) =>
+		seedSql([
+			`delete from income where household_id = ${h} and date >= ${q(`${month}-01`)};`,
+			`insert into income (id, household_id, date, amount_cents, note, created_by_member_id) values (${q(ulid())}, ${h}, ${q(dayOf(0, 2))}, ${cents}, 'Paychecks', ${m});`,
+		]);
+	return { month, bucketIds, setIncome };
+}
