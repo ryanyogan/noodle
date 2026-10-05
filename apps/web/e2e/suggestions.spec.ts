@@ -4,6 +4,7 @@ import { createTestParent } from "./parents";
 import {
 	createPlannedHousehold,
 	reloadUntil,
+	savedBy,
 	signedInPage,
 	uploadStatement,
 	waitForReview,
@@ -98,8 +99,12 @@ test("a bill is suggested under Plan › Commitments with its reason, not on Thi
 
 	await page.goto(`/plan/${month}/commitments`);
 	await page.waitForLoadState("networkidle");
+	// The card drops a row the moment it's tapped, before the server has answered: wait for the
+	// answer too, or the reload below cancels the request and the suggestion is still there (#76).
+	const putAway = savedBy(page, "decideSuggestion");
 	await card.getByRole("button", { name: "Not now: Spotify" }).click();
 	await expect(card).not.toContainText("Spotify");
+	expect((await putAway).ok()).toBe(true);
 	// Add opens the terms first, filled in from the charges, to change before adding.
 	await card.getByRole("button", { name: "Add Commitment: Planet Fitness" }).click();
 	const terms = card.getByRole("form", { name: /Planet Fitness, before adding/ });
@@ -108,8 +113,10 @@ test("a bill is suggested under Plan › Commitments with its reason, not on Thi
 	await terms.getByRole("textbox", { name: "Amount due" }).fill("52");
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(393);
 	await axe(page, "Suggested Commitment terms at 393");
+	const added = savedBy(page, "decideSuggestion");
 	await terms.getByRole("button", { name: "Add Commitment" }).click();
 	await expect(card).toBeHidden();
+	expect((await added).ok()).toBe(true);
 
 	await page.reload();
 	await expect(page.getByText("Planet Fitness").first()).toBeVisible();
@@ -205,8 +212,11 @@ test("filing one merchant into one Bucket by hand 3 times suggests a Rule on Rev
 
 	// reloadUntil left a fresh load: a click before React hydrates does nothing, and the card stays.
 	await page.waitForLoadState("networkidle");
+	// As above: the reload must not cancel the Add the card has already hidden.
+	const added = savedBy(page, "decideSuggestion");
 	await card.getByRole("button", { name: "Add Rule: Acme Widgets" }).click();
 	await expect(card).toBeHidden();
+	expect((await added).ok()).toBe(true);
 	// The new Rule looks again at Review in the background and files the fourth one.
 	await reloadUntil(page, review, async () => {
 		await expect(page.getByText("Nothing to review")).toBeVisible({ timeout: 2_000 });
