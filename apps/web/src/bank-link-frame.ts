@@ -100,7 +100,13 @@ export function bankLinkFrame({ back = true }: FrameOptions = {}): LinkFrame {
 		show(closeLink) {
 			close = closeLink;
 			const active = document.activeElement;
-			opener = active instanceof HTMLElement && active !== document.body ? active : lastOpener;
+			// What the Parent pressed comes first: when a sheet asked a question in between (how far
+			// back, #89), the focus is on something of that sheet's, which is about to go.
+			opener = lastOpener?.isConnected
+				? lastOpener
+				: active instanceof HTMLElement && active !== document.body
+					? active
+					: null;
 			overflow = document.body.style.overflow;
 
 			host = document.createElement("div");
