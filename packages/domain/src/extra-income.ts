@@ -9,6 +9,7 @@ import {
 	monthOfDay,
 } from "./month";
 import type { BucketState } from "./month-state";
+import type { PlanScope } from "./plan-scope";
 
 /**
  * Income received on a day: a paycheck, a bonus, a tax refund. A Refund of a purchase is not
@@ -110,6 +111,78 @@ export function incomeCheck({
 	const below = elapsed >= INCOME_WARNING_FROM_DAY && short > baseline * INCOME_TOLERANCE;
 	return { received, expected, short, below };
 }
+
+/** On This Month the step is offered in the month's last days, when little more pay is due. */
+export const LOWER_PAY_LAST_DAYS = 5;
+
+/**
+ * The one-tap step for a low month (#86, ADR-0040): take-home pay in the Plan is the pay the
+ * Household can count on, so when less than that arrives, this month's take-home pay is lowered to
+ * what came in and Free to Spend stops reading too high.
+ */
+export type LowerTakeHomePay = {
+	/** This month's take-home pay as it stands. */
+	was: Cents;
+	/** What it becomes: the Income received so far this month. */
+	to: Cents;
+	/** How far the Income is below take-home pay. */
+	short: Cents;
+	/**
+	 * The month is in its last LOWER_PAY_LAST_DAYS days: worth offering on This Month. Before then
+	 * a paycheck may still be on its way, so the step only sits quietly on Plan › Income.
+	 */
+	prompt: boolean;
+};
+
+/**
+ * Whether `month`'s take-home pay can be lowered to what came in, and to what. Null unless `month`
+ * is the Household's current month (an ended month's Plan is closed), it has take-home pay, some
+ * Income has been recorded in it (a Household that records none isn't short), and the Income is
+ * more than EXTRA_INCOME_FROM below take-home pay: a few dollars short is the usual pay landing a
+ * little different, as a few dollars over is.
+ */
+export function lowerTakeHomePay({
+	baseline,
+	income,
+	month,
+	asOf,
+}: {
+	baseline: Cents | null;
+	income: Income[];
+	month: MonthKey;
+	asOf: DayKey;
+}): LowerTakeHomePay | null {
+	if (baseline === null || baseline <= 0 || monthOfDay(asOf) !== month) return null;
+	const received = receivedIn(income, month);
+	const short = baseline - received;
+	if (received <= 0 || short <= EXTRA_INCOME_FROM) return null;
+	const daysLeft = daysInMonth(month) - daysElapsed(month, asOf);
+	return { was: baseline, to: received, short, prompt: daysLeft < LOWER_PAY_LAST_DAYS };
+}
+
+/** A change to one month's take-home pay only ("Just <Month>"): later months keep their amount. */
+export type TakeHomePayJust = { month: MonthKey; amountCents: Cents; scope: PlanScope };
+
+/** The Plan change that lowers `month`'s take-home pay to what came in, for that month only. */
+export const lowerTakeHomePayChange = (
+	month: MonthKey,
+	step: LowerTakeHomePay,
+): TakeHomePayJust => ({
+	month,
+	amountCents: step.to,
+	scope: "just",
+});
+
+/** Its Undo: `month`'s take-home pay back to what it was, again for that month only. */
+export const undoLowerTakeHomePay = (month: MonthKey, step: LowerTakeHomePay): TakeHomePayJust => ({
+	month,
+	amountCents: step.was,
+	scope: "just",
+});
+
+/** Free to Spend once the step is taken: it falls by exactly what take-home pay falls by. */
+export const freeToSpendAfterLowering = (freeToSpend: Cents, step: LowerTakeHomePay): Cents =>
+	freeToSpend - step.short;
 
 /**
  * Where Extra income can go: what a Goal has set aside, a Bucket this month, or the month's Free

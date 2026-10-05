@@ -4,6 +4,7 @@ import {
 	loadAmountBands,
 	loadBucketMonths,
 	loadDailySpend,
+	loadExtraToFree,
 	loadForCells,
 	loadGoals,
 	loadHistoryStart,
@@ -431,11 +432,13 @@ async function viewData(
 	const months = monthsIn(range);
 	switch (request.view) {
 		case "overview": {
-			const [cells, previousCells, income, earnedBefore] = await Promise.all([
+			const [cells, previousCells, income, earnedBefore, extraToFree] = await Promise.all([
 				spendCells(db, scope, grouping),
 				compared ? spendCells(db, { ...scope, range: compared }, "all") : null,
 				loadIncomeCells(db, householdId, range, grouping, request.account),
 				compared ? earnedIn(db, householdId, compared, request.account) : null,
+				// Extra income added to Free to Spend, in this period and the one compared (#86).
+				extraToFreeIn(db, householdId, [...(compared ? monthsIn(compared) : []), ...months]),
 			]);
 			const spent = seriesOf(cells, periods);
 			const earned = seriesOf(income, periods);
@@ -447,14 +450,14 @@ async function viewData(
 				now: headlines({
 					spent: sumOf(cells),
 					earned: sumOf(income),
-					freeToSpend: freeToSpendOver(records, months),
+					freeToSpend: freeToSpendOver(records, months, extraToFree),
 				}),
 				previous:
 					previousCells && compared && earnedBefore !== null
 						? headlines({
 								spent: sumOf(previousCells),
 								earned: earnedBefore,
-								freeToSpend: freeToSpendOver(records, monthsIn(compared)),
+								freeToSpend: freeToSpendOver(records, monthsIn(compared), extraToFree),
 							})
 						: null,
 				series: periods.map((period, i) => ({
@@ -687,4 +690,12 @@ async function viewData(
 			};
 		}
 	}
+}
+
+/** Extra income added to Free to Spend in the months from the earliest to the latest of `months`. */
+function extraToFreeIn(db: Db, householdId: string, months: readonly MonthKey[]) {
+	const sorted = [...months].sort();
+	const first = sorted[0];
+	const last = sorted.at(-1);
+	return first && last ? loadExtraToFree(db, householdId, first, addMonths(last, 1)) : [];
 }

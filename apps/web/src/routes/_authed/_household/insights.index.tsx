@@ -194,7 +194,7 @@ function InsightCard({
 			disabled={!hydrated}
 			onClick={() => setEnding(commitment)}
 		>
-			End {commitment.name} in the Plan…
+			End {commitment.name} in the Plan
 		</Button>
 	));
 	return (

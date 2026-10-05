@@ -166,3 +166,46 @@ test("income is added and removed on Plan › Income as on This Month", async ({
 	await expect(income(page).getByRole("listitem")).toHaveCount(0);
 	await page.context().close();
 });
+
+test("a low month: take-home pay is lowered to what came in, for this month only, with Undo", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
+	const month = /\/month\/(\d{4}-\d{2})/.exec(page.url())?.[1];
+	if (!month) throw new Error(`No month in ${page.url()}`);
+	await expect(freeToSpend(page)).toContainText("$3,800");
+
+	// Plan › Income offers it quietly whenever the month's Income is below take-home pay.
+	await page.goto(`/plan/${month}/income`);
+	const takeHomePay = page.getByRole("listitem").filter({ hasText: "Your usual monthly pay" });
+	const lower = page.getByRole("button", { name: "Lower take-home pay to $4,400" });
+	await expect(lower).toHaveCount(0);
+	await addIncome(page, "4,400", "Paychecks");
+	await expect(
+		page.getByRole("note").filter({ hasText: "Came in lower this month?" }),
+	).toContainText("Free to Spend becomes $3,200");
+	await lower.click();
+	await expect(takeHomePay).toContainText("$4,400");
+	await expect(lower).toHaveCount(0);
+
+	// Undo puts it back, and the step with it.
+	const lowered = page.getByRole("status").filter({ hasText: "take-home pay is now $4,400" });
+	await expect(lowered).toContainText("Free to Spend is $3,200");
+	await lowered.getByRole("button", { name: "Undo" }).click();
+	await expect(takeHomePay).toContainText("$5,000");
+	await lower.click();
+	await expect(takeHomePay).toContainText("$4,400");
+
+	// It's saved, Free to Spend follows, and next month keeps the pay they can count on.
+	await page.reload();
+	await expect(takeHomePay).toContainText("$4,400");
+	await page.goto(`/month/${month}`);
+	await expect(freeToSpend(page)).toContainText("$3,200");
+	const [year, monthNumber] = month.split("-").map(Number) as [number, number];
+	const next =
+		monthNumber === 12 ? `${year + 1}-01` : `${year}-${String(monthNumber + 1).padStart(2, "0")}`;
+	await page.goto(`/plan/${next}/income`);
+	await expect(takeHomePay).toContainText("$5,000");
+	await page.context().close();
+});

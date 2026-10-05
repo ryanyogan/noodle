@@ -231,6 +231,16 @@ describe("headlines", () => {
 			2 * (800_000 - 300_000 - 120_000),
 		);
 	});
+
+	it("counts Extra income added to Free to Spend in those months, and no others", () => {
+		const extraToFree = [
+			{ month: "2026-09" as MonthKey, amount: 100_000 },
+			{ month: "2026-10" as MonthKey, amount: 7_000 },
+		];
+		expect(freeToSpendOver(records, ["2026-08", "2026-09"], extraToFree)).toBe(
+			2 * (800_000 - 300_000 - 120_000) + 100_000,
+		);
+	});
 });
 
 describe("big expenses", () => {

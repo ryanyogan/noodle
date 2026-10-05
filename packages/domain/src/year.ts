@@ -58,6 +58,8 @@ export type YearActuals = {
 	goalFunding: readonly { month: MonthKey; amount: Cents }[];
 	/** Moves from Free to Spend into Buckets (Covers; not from Extra income or another Bucket). */
 	covers?: readonly { month: MonthKey; amount: Cents }[];
+	/** Extra income a Parent added to a month's Free to Spend (#86). */
+	extraToFree?: readonly { month: MonthKey; amount: Cents }[];
 };
 
 const sumIn = (rows: readonly { month: MonthKey; amount: Cents }[], month: MonthKey) =>
@@ -119,6 +121,7 @@ export function yearGrid({
 			const plan = planForMonth(records, month);
 			const goalFunding = actual?.goalFunding ?? 0;
 			const covers = sumIn(actuals.covers ?? [], month);
+			const extraToFree = sumIn(actuals.extraToFree ?? [], month);
 			return {
 				month,
 				when,
@@ -128,7 +131,7 @@ export function yearGrid({
 					commitments: totalCommitments(plan),
 					allowances: plan.buckets.reduce((sum, b) => sum + b.allowance, 0) + covers,
 					goalFunding,
-					freeToSpend: freeToSpend(plan) - goalFunding - covers,
+					freeToSpend: freeToSpend(plan) - goalFunding - covers + extraToFree,
 				},
 				actual,
 				lumps,

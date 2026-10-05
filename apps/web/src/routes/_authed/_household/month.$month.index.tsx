@@ -7,7 +7,9 @@ import {
 	extraIncomeSuggestions,
 	type IncomeCheck,
 	incomeCheck,
+	type LowerTakeHomePay,
 	lastDayOf,
+	lowerTakeHomePay,
 	lumpsIn,
 	type MonthCloseProposal,
 	type MonthKey,
@@ -51,6 +53,7 @@ import {
 	ExtraIncomeSheet,
 	MonthIncome,
 } from "../../../components/extra-income";
+import { LowerTakeHomePayNote, useLowerTakeHomePay } from "../../../components/lower-take-home-pay";
 import { MonthCloseSection, MonthEndSection } from "../../../components/month-close";
 import { MonthGlance, monthSentence } from "../../../components/month-glance";
 import { PerkResetLine, usePerkResetSoon } from "../../../components/perk-reset";
@@ -167,6 +170,13 @@ function ThisMonth() {
 		month,
 		asOf: state.asOf,
 	});
+	// A low month, in its last days: this month's take-home pay can be lowered to what came in.
+	const lower = lowerTakeHomePay({
+		baseline: state.baseline,
+		income: state.income,
+		month,
+		asOf: state.asOf,
+	});
 	const activeGoals = goals.goals.filter((g) => g.state === "active");
 	// This month's Extra income can go to its Buckets too; an ended month's only to Goals.
 	const extraIncomePlaces = {
@@ -270,7 +280,7 @@ function ThisMonth() {
 					</SplitMain>
 					<SplitRail>
 						<div className="order-1 grid gap-3 lg:order-none">
-							<FreeToSpend state={state} check={check} />
+							<FreeToSpend state={state} check={check} lower={lower} />
 							<LumpCallout lumps={lumpsIn(state)} month={month} />
 						</div>
 						{/* Under Free to Spend at every size: on a phone a closed strip, from lg open in the
@@ -557,6 +567,7 @@ function ClosePreviousMonth({
 }) {
 	const state = useMonthState(month);
 	const close = useCloseMonth();
+	const extraIncomes = useExtraIncomes();
 	const proposal = monthCloseProposal(state);
 	if (state.closed || nothingToClose(proposal)) return null;
 	return (
@@ -565,7 +576,18 @@ function ClosePreviousMonth({
 			goals={goals}
 			emergencyGoalId={emergencyGoalId}
 			pending={close.isPending}
-			onClose={(choice) =>
+			onClose={(choice) => {
+				// "Leave it in the account": the same Move as "Add to Free to Spend" on that month,
+				// so the Extra income stops waiting for a decision. Nothing carries into this month.
+				if (choice.leaveExtraIncome) {
+					extraIncomes.decide.mutate({
+						moveId: ulid(),
+						month,
+						to: { kind: "free-to-spend" },
+						toName: "Free to Spend",
+						amountCents: proposal.windfall,
+					});
+				}
 				close.mutate({
 					closeId: ulid(),
 					month,
@@ -577,8 +599,8 @@ function ClosePreviousMonth({
 					windfall: choice.windfallGoalId
 						? [{ moveId: ulid(), goalId: choice.windfallGoalId, amountCents: proposal.windfall }]
 						: [],
-				})
-			}
+				});
+			}}
 		/>
 	);
 }
@@ -587,7 +609,16 @@ function ClosePreviousMonth({
  * Free to Spend, said plainly, with where the rest of the month stands beneath it, and a calm
  * word when income is tracking below what's usual by now.
  */
-function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck | null }) {
+function FreeToSpend({
+	state,
+	check,
+	lower,
+}: {
+	state: MonthState;
+	check: IncomeCheck | null;
+	lower: LowerTakeHomePay | null;
+}) {
+	const lowering = useLowerTakeHomePay(state.month);
 	const overPlanned = state.freeToSpend < 0;
 	// An ended month has no days left, and what wasn't planned is simply what it ended with.
 	const ended = state.month < monthOfDay(state.asOf);
@@ -628,7 +659,16 @@ function FreeToSpend({ state, check }: { state: MonthState; check: IncomeCheck |
 							))
 						)}
 					</p>
-					{check?.below ? (
+					{lower?.prompt ? (
+						<LowerTakeHomePayNote
+							className="mt-2 rounded-xl bg-surface-2 px-3 py-2.5"
+							month={state.month}
+							step={lower}
+							freeToSpend={state.freeToSpend}
+							pending={lowering.pending}
+							onLower={() => lowering.lower(lower, state.freeToSpend)}
+						/>
+					) : check?.below ? (
 						<p role="note" className="mt-2 rounded-xl bg-surface-2 px-3 py-2.5 text-sm">
 							Income is {formatMoney(check.short)} behind where it usually is by now. Worth a look
 							before planning more spending.

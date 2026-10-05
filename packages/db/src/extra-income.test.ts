@@ -1,4 +1,4 @@
-import { type MonthKey, monthState, planForMonth } from "@noodle/domain";
+import { addMonths, type MonthKey, monthState, planForMonth } from "@noodle/domain";
 import { type SQL, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { extraIncomeLeftSql, loadExtraToFree } from "./extra-income";
@@ -315,6 +315,14 @@ describe("Extra income added to Free to Spend (#86)", () => {
 		});
 		expect(result.ok).toBe(true);
 		expect(await scalar(freeToSpendSql(householdId, month))).toBe(0);
+	});
+
+	it("is read over a range of months, for Plan › Year and Reports", async () => {
+		await toFree("free-1", 80_000);
+		expect(
+			await loadExtraToFree(db, householdId, addMonths(month, -2), addMonths(month, 1)),
+		).toEqual([{ id: "free-1", amount: 80_000, month }]);
+		expect(await loadExtraToFree(db, householdId, addMonths(month, -2), month)).toEqual([]);
 	});
 
 	it("is refused beyond what's left of the Extra income", async () => {

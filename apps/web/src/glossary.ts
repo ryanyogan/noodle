@@ -16,7 +16,7 @@ export const glossary = {
 		term: "Take-home pay",
 		short:
 			"Your usual monthly pay after taxes and deductions: what lands in your account. The Plan divides it up.",
-		more: "If a month brings in more, the difference is Extra income. If pay changes for good, change your take-home pay on Plan › Income.",
+		more: "If someone’s pay varies, enter the amount you can count on: the lowest it usually is. A month that brings in more shows the difference as Extra income, to add to Free to Spend or send to a Goal. If pay changes for good, change your take-home pay on Plan › Income.",
 		was: "Baseline",
 	},
 	"free-to-spend": {
@@ -97,7 +97,7 @@ export const glossary = {
 	"extra-income": {
 		term: "Extra income",
 		short:
-			"Pay above your usual take-home pay in a month, like a third paycheck, a bonus or a refund. You decide where it goes, so it doesn’t drift into everyday spending.",
+			"Pay above your take-home pay in a month, like a bigger paycheck, a third paycheck or a bonus. You decide where it goes: add it to Free to Spend, or send it to a Goal or a Bucket.",
 		was: "Windfall",
 	},
 	sweep: {

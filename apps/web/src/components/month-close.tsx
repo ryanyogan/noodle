@@ -21,7 +21,12 @@ import { TermHelp } from "./term-help";
 export type MonthCloseChoice = {
 	sweeps: Record<string, string>;
 	windfallGoalId: string | null;
+	/** The Extra income stays where it landed: counted as that month's Free to Spend (#86). */
+	leaveExtraIncome: boolean;
 };
+
+/** The Extra income select's value for "Leave it in the account"; never a Goal's ID. */
+const LEAVE_EXTRA_INCOME = "leave";
 
 /**
  * A month that has ended, awaiting the Parents: each resetting Bucket's leftover to Sweep into
@@ -114,7 +119,11 @@ export function MonthCloseSection({
 									value={extraIncomeGoalId}
 									disabled={!hydrated || pending}
 									onValueChange={setExtraIncomeGoalId}
-									choices={[{ value: "", label: "Decide later" }, ...goalChoices]}
+									choices={[
+										{ value: "", label: "Decide later" },
+										{ value: LEAVE_EXTRA_INCOME, label: "Leave it in the account" },
+										...goalChoices,
+									]}
 								/>
 							}
 						/>
@@ -124,7 +133,16 @@ export function MonthCloseSection({
 			<div className="flex justify-end pt-3">
 				<Button
 					disabled={!hydrated || pending}
-					onClick={() => onClose({ sweeps, windfallGoalId: extraIncomeGoalId || null })}
+					onClick={() =>
+						onClose({
+							sweeps,
+							windfallGoalId:
+								extraIncomeGoalId && extraIncomeGoalId !== LEAVE_EXTRA_INCOME
+									? extraIncomeGoalId
+									: null,
+							leaveExtraIncome: extraIncomeGoalId === LEAVE_EXTRA_INCOME,
+						})
+					}
 				>
 					Close {name}
 				</Button>

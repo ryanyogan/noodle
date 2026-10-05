@@ -142,11 +142,18 @@ export {
 	type ExtraIncomeSuggestion,
 	extraIncomeOf,
 	extraIncomeSuggestions,
+	freeToSpendAfterLowering,
 	INCOME_WARNING_FROM_DAY,
 	type Income,
 	type IncomeCheck,
 	incomeCheck,
+	LOWER_PAY_LAST_DAYS,
+	type LowerTakeHomePay,
+	lowerTakeHomePay,
+	lowerTakeHomePayChange,
 	receivedIn,
+	type TakeHomePayJust,
+	undoLowerTakeHomePay,
 } from "./extra-income";
 export * from "./file-holds";
 export {

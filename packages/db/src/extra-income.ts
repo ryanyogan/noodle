@@ -218,11 +218,15 @@ export function insertExtraIncomeMove(db: Db, input: ExtraIncomeMoveInput, guard
 	return db.insert(moves).select(select).onConflictDoNothing({ target: moves.id });
 }
 
-/** Extra income a Parent added to `month`'s Free to Spend, oldest first. */
+/**
+ * Extra income a Parent added to `month`'s Free to Spend, oldest first; with `until`, in every
+ * month from `month` up to, not including, `until` (Plan › Year and Reports).
+ */
 export async function loadExtraToFree(
 	db: Db,
 	householdId: string,
 	month: MonthKey,
+	until: MonthKey = addMonths(month, 1),
 ): Promise<(ExtraToFree & { id: string })[]> {
 	const rows = await db
 		.select({ id: moves.id, amount: moves.amountCents, month: moves.month })
@@ -230,7 +234,8 @@ export async function loadExtraToFree(
 		.where(
 			and(
 				eq(moves.householdId, householdId),
-				eq(moves.month, month),
+				gte(moves.month, month),
+				lt(moves.month, until),
 				eq(moves.kind, "windfall"),
 				isNull(moves.toBucketId),
 				isNull(moves.toGoalId),
