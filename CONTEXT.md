@@ -89,16 +89,17 @@ The part of an Account's balance no Goal holds ("$3,000 not set aside"); new Goa
 _Avoid_: Unclaimed, available for goals, unallocated
 
 **Take-home pay**:
-The Household's usual monthly pay after taxes and deductions, which the Plan is built on.
+The Household's usual monthly pay after taxes and deductions, which the Plan is built on: the pay it can count on. When a Parent's pay varies, that is the lowest it usually is (added to the other Parent's), so a better month shows up as Extra income (ADR-0040).
+In a low month (Income more than $25 below it) a Parent can lower Just that month's Take-home pay to the Income that came in, which lowers that month's Free to Spend by the same amount; it is never lowered on its own. The app says "Lower take-home pay to $4,400".
 _Avoid_: Baseline, expected income, salary, budgeted income, gross income
 
 **Extra income**:
-Income received beyond the Take-home pay in a month (a third paycheck, a bonus, a refund), awaiting a decision on where it goes.
-Income up to $25 above the Take-home pay is the usual pay landing a few dollars different, not Extra income. A Parent sends Extra income to a Goal, to a Bucket, or adds it to that month's Free to Spend; it never gets there on its own.
+Income received beyond the Take-home pay in a month (the better month of a Parent whose pay varies, a third paycheck, a bonus, a tax refund), awaiting a decision on where it goes.
+Income up to $25 above the Take-home pay is the usual pay landing a few dollars different, not Extra income. A Parent sends Extra income to a Goal, to a Bucket, or adds it to that month's Free to Spend; it never gets there on its own. For a month that has ended, adding it to Free to Spend is said as "Leave it in the account" on "Close <Month>".
 _Avoid_: Windfall, surplus, bonus
 
 **Free to Spend**:
-Money in the current Plan not yet assigned to any Commitment, Bucket, or Goal.
+Money in the current Plan not yet assigned to any Commitment, Bucket, or Goal: the Take-home pay, plus any Extra income a Parent added, less what's assigned.
 _Avoid_: Unallocated, leftover, safe-to-spend
 
 **Move**:
