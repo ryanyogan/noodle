@@ -52,10 +52,52 @@ Never let the CLI overwrite a file here.
 | Chart | shadcn | On Recharts, for Reports and Explore. |
 | PageLayout, SplitLayout (SplitMain, SplitRail), MasterDetail | Noodle's own (#67) | The page grid, below. Every page under the shared header is one of the three. |
 | DetailPanel, ListWithPanel | Noodle's own (issue 107) | `components/detail-panel.tsx`. A picked item in a panel on the window's right edge from lg, over the page; a page with Back below lg. See "The page grid" and "Which dialog" below. ADR-0047. |
+| DataTable | Noodle's own, on TanStack Table v9 (issues 107 and 99) | `components/data-table.tsx`, rules in `lib/data-table.ts`. A list a Parent works in: sortable headers, checkboxes, a row that opens, a totals row, and the same columns stacked on a phone. See "Working tables" below. ADR-0051. |
 | Stat, StatGrid | Noodle's own (#56) | A figure under its label, and the `<dl>` a few of them sit in. See "Figures" below. |
 | Money | Noodle's own (#56) | An amount from cents, in tabular figures on one line: `whole` rounds to dollars, `signed` adds "+" to a gain, `flagNegative` puts a negative in the over ink. `formatMoney` (`lib/money.ts`) is the same text as a string. |
 | Field, FormError | Noodle's own | A labelled control with its hint or error. `FormError` is the error under a form: the destructive Alert with `role="alert"`, laid out as a row so a "Try again" Button can sit beside the words. |
 | List, PageHeader, Section, SectionGroup, Tile, EmptyState, Logo | Noodle's own | ListRow `below` sits under the title and trailing columns; `belowFull` widens it to the whole row, under the leading tile, for a form opened in the row. SectionGroup puts Sections under one short heading (Household's People, Reminders, Setup) and drops their headings to h3. |
+
+## Working tables
+
+Two tables, two jobs. `Table` is a few figures to read (a `<table>` with a caption). `DataTable` is a list a Parent works in: Transactions, Plan › Buckets. It is TanStack Table v9 in manual mode (ADR-0051): the library holds the columns, the header and row models, hidden columns, the order and which loaded rows are selected, and never sorts, filters or pages the rows itself. **The page owns the order and the selection**; the rows are drawn in the order given.
+
+- **One column list for every width.** Each column has an `id`, a `header`, a `cell(row)`, a `min` width in rem, and optionally `width` (its grid track: `"6rem"`, `"minmax(0,2fr)"`; never `auto`, since each row is its own grid), `align: "end"` for money (right-aligned, tabular figures), `priority` (1 always shows; a 3 drops before a 2 as the table's container narrows), `stacked` (where it goes when rows are blocks: `title`, `value` on the right of the title, `secondary` for a line under them, `trailing` for an edit button at the end, `hidden`), `wide: false` for a line that only exists stacked, `sortable`, `footer` (its cell in the totals row), `hidden`.
+- **Width is the container's, not the window's.** Below `@2xl` (42rem: every phone) rows are stacked and there is no header row. Above it columns come in at `@2xl`, `@3xl`, `@4xl`, `@5xl` and `@6xl` by priority. Nothing scrolls sideways. Don't write a column template in the page.
+- **Sorting.** `sort={{ id, desc }}` and `onSortChange`: the header's button asks, the page (its address, its server) sorts. One column at a time, no unsorted step. The header says which way with `aria-sort`.
+- **Selecting.** `selection={{ isSelected, canSelect, rowLabel, all, onSelect, onSelectAll }}`. The table keeps none: `onSelect` gives the ids to set and whether on or off (one row, or a shift-click or Shift+Space range over the rows that can be selected), and `all` is what the header's checkbox shows (`headerCheck(selected, total)` from `lib/data-table`, where the page's total may count rows not loaded).
+- **Opening.** `onOpen(row)` on a click that isn't on a control, or Enter; `isOpen(row)` marks the row `aria-current`. In a `ListWithPanel` the table is the `list` and the panel its sibling (the table's root is a `@container`, which must not hold the fixed panel). Keep the item's link in the title cell with `masterDetailItem`, so focus returns to it when the panel closes.
+- **Keys**, with a row in focus: ↑ ↓ Home End move, Space selects, Enter opens. One row is in the tab order; the controls inside a row follow it.
+- **Also:** `leading` (a slot before the first column, for a drag handle; the table never reorders rows and `rowProps` passes `data-*` and refs to the row for the drag to measure), `groupBefore` (a full-width row before a row: a day's label), `empty`, `loading`, `more` (a last full-width row for "Loading more"), `rowCount`, `stickyHeader` (set `--data-table-top` to stop it under something), `surface="card"` when it sits on a card.
+- `role` is `grid` when rows open or select, else `table`. Both are divs; a raw `<table>` in the app fails `shared-controls.test.ts`.
+
+```tsx
+const columns: DataTableColumn<Row>[] = [
+	{ id: "date", header: "Date", min: 4.5, width: "4.5rem", priority: 2, stacked: "hidden",
+		sortable: { descFirst: true, said: { asc: "oldest first", desc: "newest first" } }, cell: (t) => shortDay(t.date) },
+	{ id: "name", header: "Name", min: 12, width: "minmax(0,2fr)", stacked: "title", sortable: true, cell: (t) => <NameCell row={t} /> },
+	{ id: "amount", header: "Amount", min: 6, width: "6rem", align: "end", stacked: "value",
+		sortable: { descFirst: true }, cell: (t) => <Money cents={t.amountCents} /> },
+];
+
+<DataTable
+	label={`Transactions in ${monthName(month)}`}
+	columns={columns}
+	data={rows} // as the server sent them
+	getRowId={(t) => t.id}
+	sort={sortOf(search.sort)} // the address is the state
+	onSortChange={(next) => navigate({ search: (s) => ({ ...s, sort: sortParam(next) }) })}
+	selection={{
+		isSelected: (t) => isPicked(picking, t.id),
+		rowLabel: (t) => `Select ${t.name}`,
+		all: headerCheck(pickedCount(picking, matching) ?? 0, matching ?? 0),
+		onSelect: ({ ids, on }) => setPicking((p) => setPicked(p, ids, on)),
+		onSelectAll: (on) => setPicking(on ? pickAll(false) : nothingPicked),
+	}}
+	onOpen={(t) => navigate({ to: "/transactions/$month/$transactionId", params: { month, transactionId: t.id } })}
+	isOpen={(t) => t.id === openId}
+/>
+```
 
 ## Palette (#75)
 
