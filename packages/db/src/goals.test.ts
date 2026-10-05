@@ -196,9 +196,9 @@ describe("Accounts", () => {
 				createdByMemberId: parentId,
 			});
 		// IDs are ULIDs, so later ones sort after: they settle balances entered the same instant.
-		expect(await update("balance-savings-2", 1_100_000)).toEqual({ ok: true });
-		expect(await update("balance-savings-3", 1_050_000)).toEqual({ ok: true });
-		expect(await update("balance-savings-3", 1_050_000)).toEqual({ ok: true });
+		expect(await update("balance-savings-2", 1_100_000)).toMatchObject({ ok: true });
+		expect(await update("balance-savings-3", 1_050_000)).toMatchObject({ ok: true });
+		expect(await update("balance-savings-3", 1_050_000)).toMatchObject({ ok: true });
 		expect(await update("balance-savings-4", 1, "other-savings")).toEqual({
 			ok: false,
 			reason: "refused",
@@ -215,8 +215,8 @@ describe("Accounts", () => {
 
 describe("addGoal", () => {
 	it("adds a Goal with what's already set aside for it, once", async () => {
-		expect(await goal("braces", 300_000)).toEqual({ ok: true });
-		expect(await goal("braces", 300_000)).toEqual({ ok: true });
+		expect(await goal("braces", 300_000)).toMatchObject({ ok: true });
+		expect(await goal("braces", 300_000)).toMatchObject({ ok: true });
 		const { goals, changes } = await loadGoals(db, viewer);
 		expect(goals).toEqual([
 			{
@@ -288,9 +288,9 @@ describe("claimForGoal", () => {
 	});
 
 	it("sets not set aside money aside, and releases no more than what's set aside", async () => {
-		expect(await claim("c1", "braces", 50_000)).toEqual({ ok: true });
+		expect(await claim("c1", "braces", 50_000)).toMatchObject({ ok: true });
 		expect(await claim("c2", "braces", -350_001)).toEqual({ ok: false, reason: "refused" });
-		expect(await claim("c3", "braces", -350_000)).toEqual({ ok: true });
+		expect(await claim("c3", "braces", -350_000)).toMatchObject({ ok: true });
 		expect(await setAside("braces")).toBe(0);
 	});
 
@@ -306,8 +306,8 @@ describe("fundGoal", () => {
 	});
 
 	it("Moves money from Free to Spend into what's set aside, apart from Bucket Moves", async () => {
-		expect(await fund("m1", "braces", 25_000)).toEqual({ ok: true });
-		expect(await fund("m1", "braces", 25_000)).toEqual({ ok: true });
+		expect(await fund("m1", "braces", 25_000)).toMatchObject({ ok: true });
+		expect(await fund("m1", "braces", 25_000)).toMatchObject({ ok: true });
 		expect(await setAside("braces")).toBe(25_000);
 		expect(await loadGoalFunding(db, householdId, month)).toEqual([
 			{ id: "m1", goalId: "braces", amount: 25_000, month },
@@ -326,9 +326,9 @@ describe("fundGoal", () => {
 
 	it("refuses more than Free to Spend has left", async () => {
 		expect(await fund("m1", "braces", 780_001)).toEqual({ ok: false, reason: "refused" });
-		expect(await fund("m2", "braces", 700_000)).toEqual({ ok: true });
+		expect(await fund("m2", "braces", 700_000)).toMatchObject({ ok: true });
 		expect(await fund("m3", "braces", 80_001)).toEqual({ ok: false, reason: "refused" });
-		expect(await fund("m4", "braces", 80_000)).toEqual({ ok: true });
+		expect(await fund("m4", "braces", 80_000)).toMatchObject({ ok: true });
 	});
 
 	it("refuses a Goal that isn't the Household's or isn't active", async () => {
@@ -353,8 +353,12 @@ describe("undoGoalFunding", () => {
 	});
 
 	it("returns the money to Free to Spend, once", async () => {
-		expect(await undoGoalFunding(db, { householdId, moveId: "m1", month })).toEqual({ ok: true });
-		expect(await undoGoalFunding(db, { householdId, moveId: "m1", month })).toEqual({ ok: true });
+		expect(await undoGoalFunding(db, { householdId, moveId: "m1", month })).toMatchObject({
+			ok: true,
+		});
+		expect(await undoGoalFunding(db, { householdId, moveId: "m1", month })).toMatchObject({
+			ok: true,
+		});
 		expect(await loadGoalFunding(db, householdId, month)).toEqual([]);
 		expect(await evaluate(freeToSpendSql(householdId, month))).toBe(780_000);
 	});
@@ -372,7 +376,9 @@ describe("undoGoalFunding", () => {
 			reason: "refused",
 		});
 		await claim("c1", "braces", 5_000);
-		expect(await undoGoalFunding(db, { householdId, moveId: "m1", month })).toEqual({ ok: true });
+		expect(await undoGoalFunding(db, { householdId, moveId: "m1", month })).toMatchObject({
+			ok: true,
+		});
 	});
 
 	it("leaves other Households' Goal funding alone", async () => {
@@ -391,8 +397,8 @@ describe("spendGoal", () => {
 			free: await evaluate(freeToSpendSql(householdId, month)),
 			groceries: await evaluate(bucketLeftSql(householdId, "groceries", month)),
 		};
-		expect(await spend("t1", "braces", 120_000)).toEqual({ ok: true });
-		expect(await spend("t1", "braces", 120_000)).toEqual({ ok: true });
+		expect(await spend("t1", "braces", 120_000)).toMatchObject({ ok: true });
+		expect(await spend("t1", "braces", 120_000)).toMatchObject({ ok: true });
 		expect(await evaluate(freeToSpendSql(householdId, month))).toBe(before.free);
 		expect(await evaluate(bucketLeftSql(householdId, "groceries", month))).toBe(before.groceries);
 		expect(await loadSpending(db, viewer, month)).toEqual([]);
@@ -420,7 +426,7 @@ describe("spendGoal", () => {
 
 	it("refuses more than what's set aside", async () => {
 		expect(await spend("t1", "braces", 300_001)).toEqual({ ok: false, reason: "refused" });
-		expect(await spend("t2", "braces", 300_000)).toEqual({ ok: true });
+		expect(await spend("t2", "braces", 300_000)).toMatchObject({ ok: true });
 		expect(await spend("t3", "braces", 1)).toEqual({ ok: false, reason: "refused" });
 	});
 
@@ -435,7 +441,7 @@ describe("spendGoal", () => {
 
 	it("still spends a completed Goal", async () => {
 		await completeGoal(db, { householdId, goalId: "braces" });
-		expect(await spend("t1", "braces", 100)).toEqual({ ok: true });
+		expect(await spend("t1", "braces", 100)).toMatchObject({ ok: true });
 	});
 
 	it("lists as the Goal's in the Transactions list, where it can't be edited or deleted", async () => {
@@ -504,8 +510,8 @@ describe("Splits assigned to a Goal", () => {
 
 	it("is Goal spending: out of what's set aside and the Goal's Account, never a Bucket or Free to Spend", async () => {
 		const free = await evaluate(freeToSpendSql(householdId, month));
-		expect(await split(10_000)).toEqual({ ok: true });
-		expect(await split(10_000)).toEqual({ ok: true });
+		expect(await split(10_000)).toMatchObject({ ok: true });
+		expect(await split(10_000)).toMatchObject({ ok: true });
 
 		expect(await loadSpending(db, viewer, month)).toMatchObject([
 			{ bucketId: "groceries", amount: 15_000 },
@@ -543,10 +549,10 @@ describe("Splits assigned to a Goal", () => {
 	it("refuses more than what's set aside, counting what the Transaction already takes from it", async () => {
 		await spend("t0", "braces", 20_000);
 		expect(await split(10_001)).toEqual({ ok: false, reason: "not-in-plan" });
-		expect(await split(10_000)).toEqual({ ok: true });
+		expect(await split(10_000)).toMatchObject({ ok: true });
 		expect(await setAside("braces")).toBe(0);
 		// Split again with new Splits: its own $100 is back in what's set aside while they replace it.
-		expect(await split(10_000, ["food-2", "part-2"])).toEqual({ ok: true });
+		expect(await split(10_000, ["food-2", "part-2"])).toMatchObject({ ok: true });
 		expect(await split(10_001, ["food-3", "part-3"])).toEqual({ ok: false, reason: "not-in-plan" });
 		expect(await setAside("braces")).toBe(0);
 	});
@@ -628,8 +634,8 @@ describe("payoff Goals (ADR-0019)", () => {
 
 	it("adds one on a card with what's owed now as its target, once, and logs it", async () => {
 		expect(await owedNow(db, { householdId, accountId: "visa" })).toBe(50_000);
-		expect(await payoff("visa-goal")).toEqual({ ok: true });
-		expect(await payoff("visa-goal")).toEqual({ ok: true });
+		expect(await payoff("visa-goal")).toMatchObject({ ok: true });
+		expect(await payoff("visa-goal")).toMatchObject({ ok: true });
 		const { goals, owed } = await loadGoals(db, viewer);
 		expect(goals).toEqual([
 			expect.objectContaining({
@@ -660,21 +666,23 @@ describe("payoff Goals (ADR-0019)", () => {
 		await payoff("first");
 		expect(await payoff("second")).toEqual({ ok: false, reason: "refused" });
 		await completeGoal(db, { householdId, goalId: "first" });
-		expect(await payoff("second")).toEqual({ ok: true });
+		expect(await payoff("second")).toMatchObject({ ok: true });
 		const logged = await db.all(sql`select 1 from plan_changes where kind = 'goal-add'`);
 		expect(logged).toHaveLength(2);
 	});
 
 	it("is funded from Free to Spend, but sets nothing aside and can't be spent or the emergency Goal", async () => {
 		await payoff("visa-goal");
-		expect(await fund("f1", "visa-goal", 20_000)).toEqual({ ok: true });
+		expect(await fund("f1", "visa-goal", 20_000)).toMatchObject({ ok: true });
 		expect(await claim("c1", "visa-goal", 1_000)).toEqual({ ok: false, reason: "refused" });
 		expect(await spend("t1", "visa-goal", 1_000)).toEqual({ ok: false, reason: "refused" });
 		expect(await setEmergencyGoal(db, { householdId, goalId: "visa-goal" })).toEqual({
 			ok: false,
 			reason: "refused",
 		});
-		expect(await undoGoalFunding(db, { householdId, moveId: "f1", month })).toEqual({ ok: true });
+		expect(await undoGoalFunding(db, { householdId, moveId: "f1", month })).toMatchObject({
+			ok: true,
+		});
 	});
 
 	it("keeps its target when edited: only its name and date change", async () => {
@@ -711,7 +719,7 @@ describe("payoff Goals (ADR-0019)", () => {
 				owedCents,
 			});
 		expect(await restart(50_000)).toEqual({ ok: false, reason: "refused" });
-		expect(await restart(65_000)).toEqual({ ok: true });
+		expect(await restart(65_000)).toMatchObject({ ok: true });
 		expect((await loadGoals(db, viewer)).goals[0]).toMatchObject({
 			target: 65_000,
 			fromMonth: "2026-10",
@@ -719,7 +727,7 @@ describe("payoff Goals (ADR-0019)", () => {
 		const logged = await db.all(sql`select 1 from plan_changes where kind = 'goal'`);
 		expect(logged).toHaveLength(1);
 		// Again changes nothing and logs nothing.
-		expect(await restart(65_000)).toEqual({ ok: true });
+		expect(await restart(65_000)).toMatchObject({ ok: true });
 		expect(await db.all(sql`select 1 from plan_changes where kind = 'goal'`)).toHaveLength(1);
 	});
 });

@@ -189,7 +189,7 @@ export async function fileCategorizations(
 	const batch: BatchItem<"sqlite">[] = [
 		db
 			.update(transactions)
-			.set({ bucketId: chosen })
+			.set({ bucketId: chosen, version: sql`${transactions.version} + 1` })
 			.where(
 				and(
 					changeableBy(viewer),
@@ -202,7 +202,7 @@ export async function fileCategorizations(
 			),
 		db
 			.update(transactions)
-			.set({ commitmentId: chosenCommitment })
+			.set({ commitmentId: chosenCommitment, version: sql`${transactions.version} + 1` })
 			.where(
 				and(
 					changeableBy(viewer),

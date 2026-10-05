@@ -780,6 +780,8 @@ export {
 	type TransactionEditResult,
 	type TransactionRow,
 	type TransactionSort,
+	type TransactionWriteResult,
+	transactionVersion,
 	updateTransaction,
 } from "./transactions";
 export {

@@ -358,6 +358,7 @@ export async function addCommitmentPayment(
 					capturedVia: sql<string | null>`null`.as("captured_via"),
 					pending: sql<boolean>`0`.as("pending"),
 					merchant: sql<string | null>`null`.as("merchant"),
+					version: sql<number>`0`.as("version"),
 				})
 				.from(commitments)
 				.where(

@@ -61,6 +61,7 @@ const skates: TransactionRow = {
 	transfer: null,
 	refundOf: null,
 	autoFiled: null,
+	version: 0,
 };
 
 const change = (next: TransactionChange["next"]): TransactionChange => ({

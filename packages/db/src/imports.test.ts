@@ -281,7 +281,7 @@ describe("importStatement", () => {
 					},
 				],
 			}),
-		).toEqual({ ok: true });
+		).toMatchObject({ ok: true });
 		expect(await check(sam)).toMatchObject({
 			amountCents: 4_000,
 			note: null,

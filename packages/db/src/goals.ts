@@ -711,6 +711,7 @@ export async function spendGoal(
 					capturedVia: sql<string | null>`null`.as("captured_via"),
 					pending: sql<boolean>`0`.as("pending"),
 					merchant: sql<string | null>`null`.as("merchant"),
+					version: sql<number>`0`.as("version"),
 				})
 				.from(goals)
 				.where(

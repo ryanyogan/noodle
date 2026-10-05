@@ -535,6 +535,10 @@ export const transactions = sqliteTable(
 		// WA"), named by background AI from the note (merchant-run.ts, ADR-0027). Null until named,
 		// and always for a Quick Add, whose note is what the Parent typed.
 		merchant: text("merchant"),
+		// Goes up by one with every write that changes what a Parent sees of it. A Parent's change
+		// says which version it was made on, and is refused once that isn't the one any more, so two
+		// screens never quietly overwrite each other (ADR-0041).
+		version: integer("version").notNull().default(0),
 	},
 	(t) => [
 		index("transactions_household_date_idx").on(t.householdId, t.date),

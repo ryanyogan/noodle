@@ -28,6 +28,7 @@ import {
 	newestMigration,
 	ruleApplyOutcome,
 } from "./snapshot-store";
+import type { TransactionWriteAnswer } from "./transactions";
 
 // Review and Rules. Review is read for the Parent looking, like every read of Transactions
 // (ADR-0003); confirming or changing a card is an ordinary Transaction edit (server/transactions),
@@ -95,12 +96,17 @@ export const returnToReview = createServerFn({ method: "POST" })
 				})
 				.nullable(),
 			forMemberIds: z.array(ulidSchema).max(20),
+			// The version this Parent last had of it: left alone if it has moved on (ADR-0041).
+			expectedVersion: z.number().int().min(0).optional(),
 		}),
 	)
-	.handler(async ({ data, context }) => {
-		await returnToReviewInDb(getDb(), viewerOf(context), data);
+	.handler(async ({ data, context }): Promise<TransactionWriteAnswer> => {
+		const result = await returnToReviewInDb(getDb(), viewerOf(context), data);
+		// Changed on another screen since: it stays as it is, and this screen refetches.
+		if (!result.ok) return { status: "changed-elsewhere", current: null };
 		// Every month: what's left can roll into later ones.
 		await notifyHousehold(context.household.id, ["months", "for-earlier", "bucket-uses"]);
+		return { status: "saved", version: result.version };
 	});
 
 /** How many cards one "File all" takes: what Review sends at once. */
@@ -114,10 +120,15 @@ export const fileWithoutBucket = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(z.object({ transactionIds: z.array(ulidSchema).min(1).max(FILE_AT_ONCE) }))
 	.handler(async ({ data, context }) => {
-		const { filed } = await fileWithoutBucketInDb(getDb(), viewerOf(context), data.transactionIds);
+		const { filed, versions } = await fileWithoutBucketInDb(
+			getDb(),
+			viewerOf(context),
+			data.transactionIds,
+		);
 		// Review's count lives under every month's key; no month's spending changed.
 		if (filed.length > 0) await notifyHousehold(context.household.id, ["months"]);
-		return { filed: filed.length };
+		// `versions`: what each filed Transaction is at now, for this screen's next change to it.
+		return { filed: filed.length, versions };
 	});
 
 /** The Rules this Parent may see: the Household's and their own private ones. */

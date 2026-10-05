@@ -166,6 +166,31 @@ export const getTransaction = createServerFn({ method: "GET" })
 			loadTransaction(getDb(), viewerOf(context), data.transactionId),
 	);
 
+/**
+ * How a Parent's change to a Transaction ended (ADR-0041): saved, with the version it is at now
+ * (null once deleted), or left alone because it had changed since the version the change was made
+ * on, with the Transaction as it is now (null: gone, or no longer this Parent's to see). An
+ * answer, not an error: the screen shows what is there now instead of a failure.
+ */
+export type TransactionWriteAnswer =
+	| { status: "saved"; version: number | null }
+	| { status: "changed-elsewhere"; current: TransactionRow | null };
+
+const saved = (version: number | null): TransactionWriteAnswer => ({ status: "saved", version });
+
+async function changedElsewhere(
+	viewer: Parameters<typeof loadTransaction>[1],
+	transactionId: string,
+): Promise<TransactionWriteAnswer> {
+	return {
+		status: "changed-elsewhere",
+		current: await loadTransaction(getDb(), viewer, transactionId),
+	};
+}
+
+/** The version of the Transaction the change was made on; left out by a caller that has none. */
+const versionSchema = z.number().int().min(0).optional();
+
 /** What a Transaction, or one of its Splits, is assigned to. */
 const assignmentSchema = z.union([
 	z.object({ bucketId: ulidSchema }),
@@ -186,9 +211,10 @@ export const updateTransaction = createServerFn({ method: "POST" })
 			assignment: assignmentSchema,
 			note: z.string().trim().max(80).optional(),
 			forMemberIds: z.array(ulidSchema).max(20),
+			expectedVersion: versionSchema,
 		}),
 	)
-	.handler(async ({ data, context }) => {
+	.handler(async ({ data, context }): Promise<TransactionWriteAnswer> => {
 		const result = await updateTransactionInDb(getDb(), {
 			householdId: context.household.id,
 			memberId: context.parent.id,
@@ -197,8 +223,13 @@ export const updateTransaction = createServerFn({ method: "POST" })
 			assignment: data.assignment,
 			note: data.note || null,
 			forMemberIds: data.forMemberIds,
+			expectedVersion: data.expectedVersion,
 		});
-		if (!result.ok) throw new Error("That isn’t in the Plan for this Transaction’s month.");
+		if (!result.ok) {
+			if (result.reason === "changed-elsewhere")
+				return changedElsewhere(viewerOf(context), data.transactionId);
+			throw new Error("That isn’t in the Plan for this Transaction’s month.");
+		}
 		// Changed or confirmed: categorization's marker goes, and its merchant is learned.
 		await afterAssignment(viewerOf(context), data.transactionId);
 		await notifyHousehold(context.household.id, [
@@ -207,6 +238,7 @@ export const updateTransaction = createServerFn({ method: "POST" })
 			"for-earlier",
 			"bucket-uses",
 		]);
+		return saved(result.version);
 	});
 
 /** How many Splits one Transaction can have. */
@@ -224,6 +256,7 @@ export const splitTransaction = createServerFn({ method: "POST" })
 			.object({
 				transactionId: ulidSchema,
 				month: monthKeySchema,
+				expectedVersion: versionSchema,
 				amountCents: z.number().int().min(1).max(MAX_CENTS),
 				note: z.string().trim().max(80).optional(),
 				splits: z
@@ -247,7 +280,7 @@ export const splitTransaction = createServerFn({ method: "POST" })
 				"Splits must add up to the Transaction’s amount.",
 			),
 	)
-	.handler(async ({ data, context }) => {
+	.handler(async ({ data, context }): Promise<TransactionWriteAnswer> => {
 		const result = await splitTransactionInDb(getDb(), {
 			householdId: context.household.id,
 			memberId: context.parent.id,
@@ -255,8 +288,11 @@ export const splitTransaction = createServerFn({ method: "POST" })
 			amountCents: data.amountCents,
 			note: data.note || null,
 			splits: data.splits,
+			expectedVersion: data.expectedVersion,
 		});
 		if (!result.ok) {
+			if (result.reason === "changed-elsewhere")
+				return changedElsewhere(viewerOf(context), data.transactionId);
 			throw new Error(
 				result.reason === "splits-unbalanced"
 					? "Splits must add up to the Transaction’s amount."
@@ -271,22 +307,32 @@ export const splitTransaction = createServerFn({ method: "POST" })
 			"for-earlier",
 			"bucket-uses",
 		]);
+		return saved(result.version);
 	});
 
 /** Deletes a Transaction. Idempotent, so the client can retry it safely. */
 export const deleteTransaction = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
-	.validator(z.object({ transactionId: ulidSchema, month: monthKeySchema }))
-	.handler(async ({ data, context }) => {
-		await deleteTransactionInDb(getDb(), {
+	.validator(
+		z.object({
+			transactionId: ulidSchema,
+			month: monthKeySchema,
+			expectedVersion: versionSchema,
+		}),
+	)
+	.handler(async ({ data, context }): Promise<TransactionWriteAnswer> => {
+		const result = await deleteTransactionInDb(getDb(), {
 			householdId: context.household.id,
 			memberId: context.parent.id,
 			transactionId: data.transactionId,
+			expectedVersion: data.expectedVersion,
 		});
+		if (!result.ok) return changedElsewhere(viewerOf(context), data.transactionId);
 		await notifyHousehold(context.household.id, [
 			// Every month: what's left can roll into later ones.
 			"months",
 			"for-earlier",
 			"bucket-uses",
 		]);
+		return saved(null);
 	});

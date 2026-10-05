@@ -368,6 +368,7 @@ export async function addQuickAdd(
 					capturedVia: sql<string | null>`null`.as("captured_via"),
 					pending: sql<boolean>`0`.as("pending"),
 					merchant: sql<string | null>`null`.as("merchant"),
+					version: sql<number>`0`.as("version"),
 				})
 				.from(buckets)
 				.where(
@@ -481,6 +482,8 @@ export type TransactionRow = {
 	 * changed or confirmed it; null otherwise. The list marks it so a Parent can check it.
 	 */
 	autoFiled: CategorizationMethod | null;
+	/** Which version of it this is: sent back with a change, so one made on an old one is refused (ADR-0041). */
+	version: number;
 };
 
 /** Where a page of the list starts: after this Transaction, going back in time. */
@@ -658,6 +661,7 @@ export async function loadTransactionsPage(
 				join transactions o on o.id = r.original_transaction_id
 				where r.refund_transaction_id = ${transactions.id} and r.removed_at is null)`,
 			autoFiled: categorizations.method,
+			version: transactions.version,
 		})
 		.from(transactions)
 		.leftJoin(goals, eq(goals.id, transactions.goalId))
@@ -773,8 +777,42 @@ export async function loadTransaction(
 }
 
 export type TransactionEditResult =
-	| { ok: true }
-	| { ok: false; reason: "not-in-plan" | "splits-unbalanced" };
+	/** `version` is the Transaction's once the change landed: what the next change is made on. */
+	| { ok: true; version: number }
+	/** "changed-elsewhere": it is no longer at the version the change was made on, or is gone. */
+	| { ok: false; reason: "not-in-plan" | "splits-unbalanced" | "changed-elsewhere" };
+
+/** How a guarded write that sets no new values ended (a delete, a return to Review). */
+export type TransactionWriteResult =
+	| { ok: true; version: number | null }
+	| { ok: false; reason: "changed-elsewhere" };
+
+/** The guard for a change made on version `expected`: the Transaction is still at it (ADR-0041). */
+const atVersion = (expected: number | undefined) =>
+	expected === undefined ? undefined : eq(transactions.version, expected);
+
+/** Once a change made on `expected` has landed, the Transaction is one version on. */
+const pastVersion = (expected: number | undefined) =>
+	expected === undefined ? undefined : eq(transactions.version, expected + 1);
+
+/** The Household's Transaction's version now; undefined once it's gone. */
+export async function transactionVersion(db: Db, householdId: string, transactionId: string) {
+	const [row] = await db
+		.select({ version: transactions.version })
+		.from(transactions)
+		.where(and(eq(transactions.id, transactionId), eq(transactions.householdId, householdId)));
+	return row?.version;
+}
+
+/** Why a change didn't land: the Transaction moved on from the version it was made on, or the Plan. */
+async function refusal(
+	db: Db,
+	input: { householdId: string; transactionId: string; expectedVersion?: number },
+): Promise<"changed-elsewhere" | "not-in-plan"> {
+	if (input.expectedVersion === undefined) return "not-in-plan";
+	const version = await transactionVersion(db, input.householdId, input.transactionId);
+	return version === input.expectedVersion ? "not-in-plan" : "changed-elsewhere";
+}
 
 /**
  * What `assignment` names is the Household's and, for a Bucket or Commitment, in the Plan for
@@ -917,6 +955,8 @@ export async function updateTransaction(
 		forMemberIds: string[];
 		/** Only while nobody has decided its assignment (a Receipt applying itself). */
 		undecided?: boolean;
+		/** The version the Parent made this change on: refused if it has moved on (ADR-0041). */
+		expectedVersion?: number;
 	},
 ): Promise<TransactionEditResult> {
 	const bucketId = "bucketId" in input.assignment ? input.assignment.bucketId : null;
@@ -934,6 +974,7 @@ export async function updateTransaction(
 		sql`${transactions.bucketId} is ${bucketId}`,
 		sql`${transactions.commitmentId} is ${commitmentId}`,
 		sql`${transactions.note} is ${input.note}`,
+		pastVersion(input.expectedVersion),
 	)})`;
 	const update = db
 		.update(transactions)
@@ -943,12 +984,14 @@ export async function updateTransaction(
 			commitmentId,
 			note: input.note,
 			merchant: keptMerchant(input.note),
+			version: sql`${transactions.version} + 1`,
 		})
 		.where(
 			and(
 				theTransaction,
 				assignable(input.householdId, input.memberId, input.assignment, month),
 				input.undecided ? stillUndecided(theTransaction) : undefined,
+				atVersion(input.expectedVersion),
 			),
 		);
 	const clearFor = db
@@ -986,10 +1029,11 @@ export async function updateTransaction(
 		await db.batch([update, clearFor, ...cleared]);
 	}
 	const [landed] = await db
-		.select({ id: transactions.id })
+		.select({ version: transactions.version })
 		.from(transactions)
 		.where(and(theTransaction, edited));
-	return landed ? { ok: true } : { ok: false, reason: "not-in-plan" };
+	if (landed) return { ok: true, version: landed.version };
+	return { ok: false, reason: await refusal(db, input) };
 }
 
 /** A Split to write: its client ID, amount, assignment, and For (none for the whole Household). */
@@ -1021,6 +1065,8 @@ export async function splitTransaction(
 		splits: SplitInput[];
 		/** Only while nobody has decided its assignment (a Receipt applying itself). */
 		undecided?: boolean;
+		/** The version the Parent made this change on: refused if it has moved on (ADR-0041). */
+		expectedVersion?: number;
 	},
 ): Promise<TransactionEditResult> {
 	const { householdId, memberId, transactionId } = input;
@@ -1045,6 +1091,7 @@ export async function splitTransaction(
 		isNull(transactions.bucketId),
 		isNull(transactions.commitmentId),
 		sql`${transactions.note} is ${input.note}`,
+		pastVersion(input.expectedVersion),
 	)})`;
 	const undecided = input.undecided
 		? stillUndecided(
@@ -1062,8 +1109,9 @@ export async function splitTransaction(
 			commitmentId: null,
 			note: input.note,
 			merchant: keptMerchant(input.note),
+			version: sql`${transactions.version} + 1`,
 		})
-		.where(and(theTransaction, allAssignable, undecided));
+		.where(and(theTransaction, allAssignable, undecided, atVersion(input.expectedVersion)));
 	const clearFor = db
 		.delete(transactionFor)
 		.where(
@@ -1155,7 +1203,8 @@ export async function splitTransaction(
 					row.goalId === columns.goalId,
 			);
 		});
-	return landed ? { ok: true } : { ok: false, reason: "not-in-plan" };
+	if (!landed) return { ok: false, reason: await refusal(db, input) };
+	return { ok: true, version: (await transactionVersion(db, householdId, transactionId)) ?? 0 };
 }
 
 /** Raw SQL: the IDs of money back linked as a Refund of the Transaction `id`. */
@@ -1170,11 +1219,18 @@ const refundedBy = (id: string) =>
  */
 export async function deleteTransaction(
 	db: Db,
-	input: { householdId: string; memberId: string; transactionId: string },
-): Promise<void> {
+	input: {
+		householdId: string;
+		memberId: string;
+		transactionId: string;
+		/** The version the Parent saw when they deleted it: left alone if it has moved on (ADR-0041). */
+		expectedVersion?: number;
+	},
+): Promise<TransactionWriteResult> {
 	const theTransaction = and(
 		eq(transactions.id, input.transactionId),
 		editableBy(input.householdId, input.memberId),
+		atVersion(input.expectedVersion),
 	) as SQL;
 	await db.batch(
 		transactionDeletes(db, { ...input, theTransaction }) as [
@@ -1182,6 +1238,12 @@ export async function deleteTransaction(
 			...BatchItem<"sqlite">[],
 		],
 	);
+	if (input.expectedVersion === undefined) return { ok: true, version: null };
+	// Gone is deleted, now or on an earlier try; still there at another version was changed elsewhere.
+	const version = await transactionVersion(db, input.householdId, input.transactionId);
+	return version === undefined || version === input.expectedVersion
+		? { ok: true, version: null }
+		: { ok: false, reason: "changed-elsewhere" };
 }
 
 /**
@@ -1218,7 +1280,12 @@ export function transactionDeletes(
 			),
 		db
 			.update(transactions)
-			.set({ bucketId: null, commitmentId: null, goalId: null })
+			.set({
+				bucketId: null,
+				commitmentId: null,
+				goalId: null,
+				version: sql`${transactions.version} + 1`,
+			})
 			.where(
 				and(
 					eq(transactions.householdId, input.householdId),

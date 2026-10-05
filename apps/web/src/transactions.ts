@@ -15,6 +15,7 @@ import {
 	useMutation,
 	useQueryClient,
 } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { formatMoney } from "./format";
 import { monthChangeKey } from "./plan-changes";
 import { bucketUsesQuery, forTotalsEarlierKey, monthQuery, monthsKey } from "./queries";
@@ -28,6 +29,13 @@ import {
 	type TransactionsPage,
 	updateTransaction,
 } from "./server/transactions";
+import {
+	CHANGED_ELSEWHERE,
+	ChangedElsewhere,
+	expectedVersionOf,
+	formSeen,
+	settleWrite,
+} from "./transaction-versions";
 
 export type { Assignment, SplitRow, TransactionRow, TransactionSort };
 
@@ -222,32 +230,114 @@ export function withRowChange(
 	};
 }
 
-/** Saves a change to a Transaction on the server: an edit, a split, or a delete. */
-export function saveTransactionChange({ transaction, next }: TransactionChange) {
+/**
+ * Saves a change to a Transaction on the server: an edit, a split, or a delete. It says which
+ * version of the Transaction it was made on, read now, as it is sent: a change that waited its
+ * turn behind another to the same Transaction goes with the version that one left (ADR-0041).
+ * Throws ChangedElsewhere when the server left it alone because another screen changed it since.
+ */
+export async function saveTransactionChange({ transaction, next }: TransactionChange) {
 	const month = monthOfTransaction(transaction);
-	if (next && "splits" in next) {
-		return splitTransaction({
-			data: {
-				transactionId: transaction.id,
-				month,
-				amountCents: next.amountCents,
-				note: next.note ?? undefined,
-				splits: next.splits,
-			},
+	const expectedVersion = expectedVersionOf(transaction);
+	const answer =
+		next && "splits" in next
+			? await splitTransaction({
+					data: {
+						transactionId: transaction.id,
+						month,
+						amountCents: next.amountCents,
+						note: next.note ?? undefined,
+						splits: next.splits,
+						expectedVersion,
+					},
+				})
+			: next
+				? await updateTransaction({
+						data: {
+							transactionId: transaction.id,
+							month,
+							amountCents: next.amountCents,
+							assignment: next.assignment,
+							note: next.note ?? undefined,
+							forMemberIds: next.forMemberIds,
+							expectedVersion,
+						},
+					})
+				: await deleteTransaction({
+						data: { transactionId: transaction.id, month, expectedVersion },
+					});
+	settleWrite(transaction.id, answer);
+}
+
+/** How long before the same "changed on another screen" message may be said again. */
+const SAY_AGAIN_AFTER_MS = 5000;
+let saidAt = Number.NEGATIVE_INFINITY;
+
+/**
+ * Says, once, that a Transaction was changed on another screen: several changes refused in a row
+ * (cards decided one after another, or queued behind each other) get one message, not one each.
+ */
+export function sayChangedElsewhere(now = Date.now()) {
+	if (now - saidAt < SAY_AGAIN_AFTER_MS) return;
+	saidAt = now;
+	toast(CHANGED_ELSEWHERE);
+}
+
+/**
+ * The key of a Transaction's open edit form. It changes when another screen (the other Parent's,
+ * another tab, or the bank's sync) changes the Transaction while the form is open: the form then
+ * starts again from the fresh values and says so once, instead of later saving what it showed
+ * before over the other change (ADR-0041). This screen's own saves don't restart it.
+ */
+export function useEditFormKey(transaction: Pick<TransactionRow, "id" | "version">) {
+	const [seen, setSeen] = useState(() => ({
+		id: transaction.id,
+		version: transaction.version,
+		elsewhere: 0,
+	}));
+	const now = formSeen(seen, transaction);
+	// Derived from the row during render, so the form never renders once more on the old key.
+	if (now !== seen) setSeen(now);
+	const { elsewhere } = now;
+	useEffect(() => {
+		if (elsewhere > 0) sayChangedElsewhere();
+	}, [elsewhere]);
+	return `${now.id}:${elsewhere}`;
+}
+
+/**
+ * Shows a Transaction as the server says it is now, after a change to it was refused: in every
+ * cached list of its month and at its own address, so an open sheet has the fresh values before
+ * the refetch lands. Null: it is gone.
+ */
+export function showCurrentTransaction(
+	queryClient: QueryClient,
+	transaction: TransactionRow,
+	current: TransactionRow | null,
+) {
+	const month = monthOfTransaction(transaction);
+	const lists = [
+		...queryClient.getQueriesData<InfiniteData<TransactionsPage>>({
+			queryKey: transactionsKey(month),
+		}),
+		...queryClient.getQueriesData<InfiniteData<TransactionsPage>>({
+			queryKey: [...monthsKey, "account-transactions"],
+		}),
+	];
+	for (const [queryKey, list] of lists) {
+		// Only lists: the one-Transaction query lives under the same key and isn't paged.
+		if (!list || !Array.isArray(list.pages)) continue;
+		queryClient.setQueryData(queryKey, {
+			...list,
+			pages: list.pages.map((page) => ({
+				...page,
+				transactions: current
+					? page.transactions.map((row) => (row.id === transaction.id ? current : row))
+					: page.transactions.filter((row) => row.id !== transaction.id),
+			})),
 		});
 	}
-	return next
-		? updateTransaction({
-				data: {
-					transactionId: transaction.id,
-					month,
-					amountCents: next.amountCents,
-					assignment: next.assignment,
-					note: next.note ?? undefined,
-					forMemberIds: next.forMemberIds,
-				},
-			})
-		: deleteTransaction({ data: { transactionId: transaction.id, month } });
+	queryClient.setQueryData(transactionQuery(month, transaction.id).queryKey, current);
 }
 
 /**
@@ -313,8 +403,17 @@ export function useTransactionChange() {
 		onMutate: async (variables) => ({
 			rollback: await applyTransactionChange(queryClient, variables),
 		}),
-		onError: (_error, variables, context) => {
+		onError: (error, variables, context) => {
 			context?.rollback();
+			// Another screen changed it first: nothing to retry, show how it is now (ADR-0041).
+			if (error instanceof ChangedElsewhere) {
+				showCurrentTransaction(
+					queryClient,
+					variables.transaction,
+					error.current as TransactionRow | null,
+				);
+				return sayChangedElsewhere();
+			}
 			toast(
 				variables.next
 					? `Couldn’t save your change to ${variables.label}, so it’s been undone.`

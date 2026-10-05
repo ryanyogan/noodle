@@ -22,12 +22,22 @@ import {
 } from "./server/review";
 import type { TransactionsPage } from "./server/transactions";
 import {
+	ChangedElsewhere,
+	expectedVersionOf,
+	leftAsTheyAre,
+	noteVersion,
+	settleWrite,
+} from "./transaction-versions";
+import {
 	applyTransactionChange,
 	monthOfTransaction,
 	refetchAfterChange,
 	saveTransactionChange,
+	sayChangedElsewhere,
+	showCurrentTransaction,
 	type TransactionChange,
 	type TransactionEdit,
+	type TransactionRow,
 	transactionLabel,
 	transactionsKey,
 } from "./transactions";
@@ -104,8 +114,18 @@ export function useReviewDecision({
 				},
 			};
 		},
-		onError: (_error, decision, context) => {
+		onError: (error, decision, context) => {
 			context?.rollback();
+			// Another screen changed it first (ADR-0041): said once, with nothing to retry. One that
+			// was decided there leaves the stack again; the refetch settles the rest.
+			if (error instanceof ChangedElsewhere) {
+				const current = error.current as TransactionRow | null;
+				showCurrentTransaction(queryClient, decision.item, current);
+				if (!current || current.bucketId || current.commitmentId || current.splits.length > 0) {
+					void takeCards(queryClient, (item) => item.id === decision.item.id);
+				}
+				return sayChangedElsewhere();
+			}
 			// Sort says so beside the card, which is back on top to try again.
 			if (decision.quiet) return;
 			toast(`Couldn’t file ${transactionLabel(decision.item)}, so it’s back in Review.`, {
@@ -147,8 +167,18 @@ export function useConfirmAll({
 		mutationKey: monthChangeKey,
 		scope: reviewWrites,
 		mutationFn: async (decisions: ReviewDecision[]) => {
-			// One at a time: each is an ordinary Transaction change.
-			for (const decision of decisions) await saveTransactionChange(changeOf(decision));
+			// One at a time: each is an ordinary Transaction change. One that another screen changed
+			// first is left as it is and counted; the rest are still filed (ADR-0041).
+			const skipped: ReviewDecision[] = [];
+			for (const decision of decisions) {
+				try {
+					await saveTransactionChange(changeOf(decision));
+				} catch (error) {
+					if (!(error instanceof ChangedElsewhere)) throw error;
+					skipped.push(decision);
+				}
+			}
+			return { skipped };
 		},
 		onMutate: async (decisions) => {
 			const ids = new Set(decisions.map((d) => d.item.id));
@@ -172,19 +202,27 @@ export function useConfirmAll({
 				action: { label: "Retry", onClick: () => confirmAll.mutate(decisions) },
 			});
 		},
-		onSuccess: (_data, decisions) => {
-			// Sort says so beside the stack, whose Undo is right there.
-			if (decisions.every((decision) => decision.quiet)) return;
-			toast(`Filed ${decisions.length} where Noodle suggested`, {
-				tone: "success",
-				action: {
-					label: "Undo",
-					onClick: () => {
-						if (onUndo) return onUndo(decisions.map((decision) => decision.item));
-						for (const decision of decisions) returnCard.mutate(decision.item);
+		onSuccess: ({ skipped }, asked) => {
+			const decisions = asked.filter((decision) => !skipped.includes(decision));
+			const left = leftAsTheyAre(skipped.length);
+			// Sort says so beside the stack, whose Undo is right there; what was left alone is said here.
+			if (asked.every((decision) => decision.quiet) && !left) return;
+			if (decisions.length === 0) return toast(left);
+			toast(
+				left
+					? `Filed ${decisions.length} where Noodle suggested. ${left}`
+					: `Filed ${decisions.length} where Noodle suggested`,
+				{
+					tone: "success",
+					action: {
+						label: "Undo",
+						onClick: () => {
+							if (onUndo) return onUndo(decisions.map((decision) => decision.item));
+							for (const decision of decisions) returnCard.mutate(decision.item);
+						},
 					},
 				},
-			});
+			);
 		},
 		onSettled: () => refetchAfterChange(queryClient),
 	});
@@ -206,8 +244,14 @@ export function useFileWithoutBucket({
 	const file = useMutation({
 		mutationKey: monthChangeKey,
 		scope: reviewWrites,
-		mutationFn: ({ items }: { items: ReviewItem[]; quiet?: boolean }) =>
-			fileWithoutBucket({ data: { transactionIds: items.map((item) => item.id) } }),
+		mutationFn: async ({ items }: { items: ReviewItem[]; quiet?: boolean }) => {
+			const answer = await fileWithoutBucket({
+				data: { transactionIds: items.map((item) => item.id) },
+			});
+			// Filing moved each one's version on: this screen's next change to it (an Undo) says so.
+			for (const [id, version] of Object.entries(answer.versions)) noteVersion(id, version);
+			return answer;
+		},
 		onMutate: async ({ items }) => {
 			const ids = new Set(items.map((item) => item.id));
 			return { putBack: await takeCards(queryClient, (item) => ids.has(item.id)) };
@@ -223,7 +267,11 @@ export function useFileWithoutBucket({
 				{ tone: "error", action: { label: "Retry", onClick: () => file.mutate(variables) } },
 			);
 		},
-		onSuccess: (_data, { items, quiet }) => {
+		onSuccess: ({ filed }, { items, quiet }) => {
+			// Only what still waited was filed: the rest was decided on another screen (ADR-0041).
+			const left = leftAsTheyAre(items.length - filed);
+			if (left && items.length === 1) return sayChangedElsewhere();
+			if (left) return toast(filed > 0 ? `Filed ${filed} without a Bucket. ${left}` : left);
 			if (quiet) return;
 			const [first] = items;
 			toast(
@@ -284,10 +332,12 @@ export function useReturnToReview() {
 	const returnCard = useMutation({
 		mutationKey: monthChangeKey,
 		scope: reviewWrites,
-		mutationFn: (item: ReviewItem) =>
-			returnToReview({
+		mutationFn: async (item: ReviewItem) => {
+			const answer = await returnToReview({
 				data: {
 					transactionId: item.id,
+					// Read as it is sent: the decision being undone moved the version on (ADR-0041).
+					expectedVersion: expectedVersionOf(item),
 					month: monthOfTransaction(item),
 					merchant: item.merchant,
 					guess: item.guess
@@ -300,7 +350,9 @@ export function useReturnToReview() {
 						: null,
 					forMemberIds: item.for,
 				},
-			}),
+			});
+			settleWrite(item.id, answer);
+		},
 		onMutate: async (item) => {
 			const { queryKey } = reviewQuery();
 			const monthKey = monthQuery(monthOfTransaction(item)).queryKey;
@@ -339,8 +391,10 @@ export function useReturnToReview() {
 				},
 			};
 		},
-		onError: (_error, item, context) => {
+		onError: (error, item, context) => {
 			context?.rollback();
+			// Another screen changed it after the decision: it stays as it is there (ADR-0041).
+			if (error instanceof ChangedElsewhere) return sayChangedElsewhere();
 			toast(`Couldn’t put ${transactionLabel(item)} back in Review.`, {
 				tone: "error",
 				action: { label: "Retry", onClick: () => returnCard.mutate(item) },
