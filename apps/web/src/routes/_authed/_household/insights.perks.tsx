@@ -1,7 +1,9 @@
 import {
 	addDays,
 	byDoNow,
+	byPerkValue,
 	type DayKey,
+	earnRate,
 	PERK_RENEWALS,
 	PERK_SOURCE_KINDS,
 	type PerkRenewal,
@@ -41,6 +43,7 @@ import {
 	useAddPerkSource,
 	useDecidePerkSource,
 	useMarkPerkUsed,
+	useNameCard,
 	useRemovePerkUse,
 	useSetAnnualFee,
 	useSetPerkValue,
@@ -74,6 +77,13 @@ const usd = (cents: number) => {
 
 const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
 
+/** Something to do now: never what a card earns more on, which isn't used up or reset. */
+const toDoNow = (entry: PerkEntry) =>
+	entry.perk.kind !== "earn" && perkDoNow(entry.standing, entry.perk.renews);
+
+/** A card shows its most valuable perks; the rest fold under "Show all N perks". */
+const PERKS_SHOWN = 5;
+
 /**
  * Credit card perks: what the Household's cards (and phone plans and memberships) include, read
  * from each one's own benefits page. First this year's sums (value used against value
@@ -100,7 +110,7 @@ function PerksPage() {
 	}));
 	const doNow = cards
 		.flatMap((card) => card.entries)
-		.filter((entry) => perkDoNow(entry.standing, entry.perk.renews))
+		.filter(toDoNow)
 		.sort(byDoNow);
 	return (
 		<div className="grid gap-(--layout-gap)">
@@ -168,7 +178,7 @@ const sumsOf = (source: PerkSourceItem, entries: PerkEntry[]): CardSums => ({
 	available: sum(entries.map((e) => e.standing.yearlyValueCents ?? 0)),
 	fee: source.annualFeeCents,
 	perks: entries.length,
-	toUse: entries.filter((e) => perkDoNow(e.standing, e.perk.renews)).length,
+	toUse: entries.filter(toDoNow).length,
 });
 
 function Meter({ used, available, label }: { used: number; available: number; label: string }) {
@@ -345,7 +355,9 @@ function PerkRow({ entry, doNow = false }: { entry: PerkEntry; doNow?: boolean }
 	const noteId = useId();
 	const [marking, setMarking] = useState(false);
 	const used = standing.usedThisPeriod;
-	const line = usedLine(entry);
+	const earns = perk.kind === "earn";
+	const rate = earns ? earnRate(perk.quote) : null;
+	const line = earns ? "" : usedLine(entry);
 	const save = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		const note = String(new FormData(event.currentTarget).get("note") ?? "").trim() || null;
@@ -358,13 +370,21 @@ function PerkRow({ entry, doNow = false }: { entry: PerkEntry; doNow?: boolean }
 				<span className="min-w-0 break-words font-medium">{perk.name}</span>
 				{perk.valueCents !== null ? (
 					<span className="shrink-0 font-semibold tabular-nums">{usd(perk.valueCents)}</span>
+				) : rate ? (
+					<span className="shrink-0 font-semibold tabular-nums">{rate}</span>
 				) : null}
 			</div>
 			<MetaParts
 				parts={[
 					doNow ? source.name : null,
 					perk.renews ? perkRenewalLabel[perk.renews] : null,
-					doNow ? null : perk.kind === "service" ? "A service it includes" : "A cost it pays for",
+					doNow
+						? null
+						: earns
+							? "Earns more here"
+							: perk.kind === "service"
+								? "A service it includes"
+								: "A cost it pays for",
 					doNow ? null : (
 						<a
 							key="source"
@@ -408,7 +428,7 @@ function PerkRow({ entry, doNow = false }: { entry: PerkEntry; doNow?: boolean }
 						</Button>
 					</div>
 				</form>
-			) : (
+			) : earns ? null : (
 				<div className={doNow ? "flex items-center gap-3" : "flex flex-wrap gap-2"}>
 					{doNow ? (
 						<p className="min-w-0 flex-1 text-sm text-muted-foreground">{stepFor(entry)}</p>
@@ -615,104 +635,229 @@ function PerkSourceCard({ source, entries }: { source: PerkSourceItem; entries: 
 	const status = researchStatus(source);
 	const busy = !hydrated || update.isPending || decide.isPending;
 	const sums = sumsOf(source, entries);
+	const [showAll, setShowAll] = useState(false);
+	// The most valuable first: by what each is worth in a year, then credits before the rest.
+	const ordered = byPerkValue(
+		entries.map((entry) => ({ ...entry.perk, entry })),
+		(perk) => perk.entry.standing.yearlyValueCents ?? perk.valueCents,
+	).map((perk) => perk.entry);
+	const shown = showAll ? ordered : ordered.slice(0, PERKS_SHOWN);
+	const card = source.card;
+	const asking = card?.needsProduct === true;
 	return (
-		<Card role="article" aria-labelledby={titleId} className="min-w-0">
-			<div className="grid gap-2 p-(--card-pad)">
-				<div className="flex flex-wrap items-center gap-2">
-					<h3 id={titleId} className="min-w-0 break-words text-[15px] font-semibold leading-snug">
-						{source.name}
-					</h3>
-					<PrivateBadge source={source} />
-				</div>
-				<p className="text-[13px] text-muted-foreground">
-					{[
-						kindAndPlan(source),
-						source.checkedAt && source.research === "done"
-							? `Checked ${shortDayAt(source.checkedAt)}`
-							: null,
-					]
-						.filter(Boolean)
-						.join(" · ")}
-				</p>
-				{sums.available > 0 ? (
-					<div className="grid gap-1.5">
-						<p className="text-sm tabular-nums">
-							{usd(sums.used)} of {usd(sums.available)} used this year
-							{sums.fee !== null ? ` · annual fee ${usd(sums.fee)}` : ""}
+		<article aria-labelledby={titleId} className="grid min-w-0 content-start gap-2">
+			{/* The card's name is the heading, outside its card (ADR-0033), with its last digits. */}
+			<div className="flex flex-wrap items-center gap-2">
+				<h3 id={titleId} className="min-w-0 break-words text-[15px] font-semibold leading-snug">
+					{source.name}
+					{card?.mask ? (
+						<span className="font-normal text-muted-foreground"> ••{card.mask}</span>
+					) : null}
+				</h3>
+				<PrivateBadge source={source} />
+			</div>
+			<Card className="min-w-0">
+				<div className="grid gap-2 p-(--card-pad)">
+					<p className="break-words text-[13px] text-muted-foreground">
+						{[
+							kindAndPlan(source),
+							card && card.accountName.trim() !== source.name
+								? `Account “${card.accountName.trim()}”`
+								: null,
+							source.checkedAt && source.research === "done"
+								? `Checked ${shortDayAt(source.checkedAt)}`
+								: null,
+						]
+							.filter(Boolean)
+							.join(" · ")}
+					</p>
+					{sums.available > 0 ? (
+						<div className="grid gap-1.5">
+							<p className="text-sm tabular-nums">
+								{usd(sums.used)} of {usd(sums.available)} used this year
+								{sums.fee !== null ? ` · annual fee ${usd(sums.fee)}` : ""}
+							</p>
+							<Meter
+								used={sums.used}
+								available={sums.available}
+								label={`${source.name} used this year`}
+							/>
+						</div>
+					) : null}
+					{asking && card ? <WhichCard source={source} card={card} disabled={busy} /> : null}
+					{status && !asking ? (
+						<p role="status" className="text-sm">
+							{status}
 						</p>
-						<Meter
-							used={sums.used}
-							available={sums.available}
-							label={`${source.name} used this year`}
-						/>
+					) : null}
+					{source.research === "needs-plan" && source.planOptions.length > 0 ? (
+						<PlanPicker source={source} disabled={busy} />
+					) : null}
+					{!asking && (source.research === "needs-link" || source.research === "unreadable") ? (
+						<PageLink source={source} disabled={busy} />
+					) : null}
+				</div>
+				{source.worth.length > 0 ? (
+					<div className="grid gap-2 border-t px-(--card-pad) py-3">
+						<h4 id={`${titleId}-worth`} className="text-[13px] font-semibold">
+							Worth using
+						</h4>
+						<ul aria-labelledby={`${titleId}-worth`} className="grid gap-2.5">
+							{source.worth.map((line) => (
+								<li key={line.key} className="grid gap-0.5 text-sm">
+									<span className="min-w-0 break-words">{line.text}</span>
+									{line.evidence.length > 0 ? (
+										<span className="min-w-0 break-words text-[13px] text-muted-foreground">
+											{line.evidence
+												.map((e) => `${shortDay(e.date)} ${e.note} ${usd(e.amountCents)}`)
+												.join(" · ")}
+										</span>
+									) : null}
+								</li>
+							))}
+						</ul>
 					</div>
 				) : null}
-				{status ? (
-					<p role="status" className="text-sm">
-						{status}
-					</p>
+				{entries.length > 0 ? (
+					<ul aria-label={`${source.name} Perks`} className="border-t [&>li+li]:border-t">
+						{shown.map((entry) => (
+							<PerkRow key={entry.perk.id} entry={entry} />
+						))}
+					</ul>
 				) : null}
-				{source.research === "needs-plan" && source.planOptions.length > 0 ? (
-					<PlanPicker source={source} disabled={busy} />
-				) : null}
-				{source.research === "needs-link" || source.research === "unreadable" ? (
-					<PageLink source={source} disabled={busy} />
-				) : null}
-			</div>
-			{entries.length > 0 ? (
-				<ul aria-label={`${source.name} Perks`} className="border-t [&>li+li]:border-t">
-					{entries.map((entry) => (
-						<PerkRow key={entry.perk.id} entry={entry} />
-					))}
-				</ul>
-			) : null}
-			<div className="grid gap-3 border-t px-(--card-pad) py-2.5">
-				{source.kind === "credit-card" ? <AnnualFee source={source} disabled={busy} /> : null}
-				<div className="flex flex-wrap items-center gap-2">
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={busy || source.research === "researching"}
-						onClick={() => update.mutate({ id: source.id })}
-					>
-						{update.isPending ? <Spinner /> : <RefreshCw />}
-						Check again
-					</Button>
-					{source.pageUrl ? (
-						<a
-							href={source.pageUrl}
-							target="_blank"
-							rel="noreferrer"
-							className="inline-flex min-w-0 items-center gap-1 text-[13px] text-muted-foreground underline-offset-4 hover:text-foreground hover:underline max-lg:min-h-11"
+				{ordered.length > PERKS_SHOWN ? (
+					<div className="border-t px-(--card-pad) py-1.5">
+						<Button
+							variant="ghost"
+							size="sm"
+							className="max-lg:min-h-11"
+							aria-expanded={showAll}
+							onClick={() => setShowAll(!showAll)}
 						>
-							Benefits page
-							<ExternalLink aria-hidden="true" className="size-3" />
-						</a>
-					) : null}
-					<Button
-						variant="ghost"
-						size="sm"
-						className="ms-auto"
-						disabled={busy}
-						onClick={() => setRemoving(true)}
-					>
-						Remove
-					</Button>
-				</div>
-				{removing ? (
-					<Confirm
-						confirmLabel={`Remove ${source.name}`}
-						onCancel={() => setRemoving(false)}
-						onConfirm={() => {
-							setRemoving(false);
-							decide.mutate({ source, status: "dismissed" });
-						}}
-					>
-						Its Perks, and the Insights resting on them, go too. Noodle won’t suggest it again.
-					</Confirm>
+							{showAll ? "Show fewer" : `Show all ${ordered.length} perks`}
+						</Button>
+					</div>
 				) : null}
+				<div className="grid gap-3 border-t px-(--card-pad) py-2.5">
+					{source.kind === "credit-card" ? <AnnualFee source={source} disabled={busy} /> : null}
+					<div className="flex flex-wrap items-center gap-2">
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={busy || source.research === "researching"}
+							onClick={() => update.mutate({ id: source.id })}
+						>
+							{update.isPending ? <Spinner /> : <RefreshCw />}
+							Check again
+						</Button>
+						{source.pageUrl ? (
+							<a
+								href={source.pageUrl}
+								target="_blank"
+								rel="noreferrer"
+								className="inline-flex min-w-0 items-center gap-1 text-[13px] text-muted-foreground underline-offset-4 hover:text-foreground hover:underline max-lg:min-h-11"
+							>
+								Benefits page
+								<ExternalLink aria-hidden="true" className="size-3" />
+							</a>
+						) : null}
+						<Button
+							variant="ghost"
+							size="sm"
+							className="ms-auto"
+							disabled={busy}
+							onClick={() => setRemoving(true)}
+						>
+							Remove
+						</Button>
+					</div>
+					{removing ? (
+						<Confirm
+							confirmLabel={`Remove ${source.name}`}
+							onCancel={() => setRemoving(false)}
+							onConfirm={() => {
+								setRemoving(false);
+								decide.mutate({ source, status: "dismissed" });
+							}}
+						>
+							Its Perks, and the Insights resting on them, go too. Noodle won’t suggest it again.
+						</Confirm>
+					) : null}
+				</div>
+			</Card>
+		</article>
+	);
+}
+
+const ANOTHER_CARD = "Another card…";
+
+/**
+ * The one question for a card the bank named only "CREDIT CARD": which of its issuer's cards it
+ * is, from a short list, or another by name. Its perks are looked up once a Parent says.
+ */
+function WhichCard({
+	source,
+	card,
+	disabled,
+}: {
+	source: PerkSourceItem;
+	card: NonNullable<PerkSourceItem["card"]>;
+	disabled: boolean;
+}) {
+	const name = useNameCard();
+	const id = useId();
+	const listed = card.productOptions.length > 0;
+	const [choice, setChoice] = useState("");
+	const typing = !listed || choice === ANOTHER_CARD;
+	const label = `Which ${card.issuer ? `${card.issuer} ` : ""}card is this?`;
+	const save = (event: FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		const typed = String(new FormData(event.currentTarget).get("product") ?? "").trim();
+		const product = typing ? typed : choice;
+		if (product) name.mutate({ id: source.id, product });
+	};
+	return (
+		<form onSubmit={save} className="grid gap-2 rounded-xl bg-surface-2 p-3">
+			<p className="break-words text-sm">
+				The bank calls this card “{card.accountName.trim()}” and doesn’t say which card it is, so
+				Noodle can’t look up its perks yet.
+			</p>
+			{listed ? (
+				<Field label={label} htmlFor={id}>
+					<OptionSelect
+						id={id}
+						value={choice}
+						onValueChange={setChoice}
+						placeholder="Choose a card"
+						choices={[...card.productOptions, ANOTHER_CARD].map((option) => ({
+							value: option,
+							label: option,
+						}))}
+					/>
+				</Field>
+			) : null}
+			{typing ? (
+				<Field label={listed ? "Card name" : label} htmlFor={`${id}-name`}>
+					<Input
+						id={`${id}-name`}
+						name="product"
+						required
+						maxLength={80}
+						placeholder="e.g. Sapphire Preferred"
+						className="bg-card"
+					/>
+				</Field>
+			) : null}
+			<div>
+				<Button
+					type="submit"
+					variant="outline"
+					disabled={disabled || name.isPending || (!typing && !choice)}
+				>
+					Look up its perks
+				</Button>
 			</div>
-		</Card>
+		</form>
 	);
 }
 

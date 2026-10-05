@@ -3,9 +3,12 @@ import { NonRetryableError } from "cloudflare:workflows";
 import {
 	createDb,
 	type Db,
+	ensureCardPerkSources,
 	listHouseholds,
+	loadPerkPage,
 	loadPerkSourceToResearch,
 	perkSourcesToRecheck,
+	savePerkPage,
 	saveResearch,
 } from "@noodle/db";
 import { dayKeyAt, PERK_RECHECK_DAYS } from "@noodle/domain";
@@ -15,6 +18,7 @@ import { getDb } from "./db";
 import { insightDeps } from "./insights-nightly";
 import { lookForHouseholdInsights } from "./insights-run";
 import { notifyHousehold } from "./notify";
+import { browserRenderer, RECHECKS_PER_NIGHT, readablePageFetcher, robotsCheck } from "./perk-page";
 import {
 	inlineStep,
 	type PerkResearchDeps,
@@ -23,16 +27,37 @@ import {
 	recheckRun,
 	runPerkResearch,
 } from "./perk-research-run";
-import { stubPerkReader, workersAiPerkReader } from "./perks-model";
+import { type PerkReader, stubPerkReader, workersAiPerkReader } from "./perks-model";
 
 // The Perk research Workflow's Worker side: the class the Worker exports, starting a run when a
 // Parent asks for one, and the nightly re-check's starts. The logic is runPerkResearch.
+
+/**
+ * The web and Workers AI, with a real browser (Browser Rendering, the BROWSER binding) for a page
+ * a plain fetch can't read, and the page's text kept in D1 for a week (perk-page.ts, ADR-0044).
+ */
+function liveReader(db: Db): PerkReader {
+	const reader = workersAiPerkReader(env.AI, env.AI_GATEWAY_ID);
+	return {
+		...reader,
+		fetchPage: readablePageFetcher({
+			fetchPage: reader.fetchPage,
+			render: browserRenderer(env.BROWSER),
+			cache: {
+				load: (url, since) => loadPerkPage(db, url, since),
+				save: (page) => savePerkPage(db, page),
+			},
+			robots: robotsCheck(fetch),
+			now: () => new Date(),
+		}),
+	};
+}
 
 function researchDeps(db: Db): PerkResearchDeps {
 	return {
 		loadSource: ({ householdId, perkSourceId }) =>
 			loadPerkSourceToResearch(db, householdId, perkSourceId),
-		reader: __AI_STUB__ ? stubPerkReader : workersAiPerkReader(env.AI, env.AI_GATEWAY_ID),
+		reader: __AI_STUB__ ? stubPerkReader : liveReader(db),
 		save: ({ householdId, perkSourceId }, outcome, checkedAt) =>
 			saveResearch(db, { householdId, perkSourceId, checkedAt, outcome, newId: ulid }),
 		async lookForOverlaps({ householdId, timeZone }) {
@@ -80,7 +105,13 @@ export async function startPerkResearch(params: PerkResearchParams): Promise<voi
 export async function startPerkRechecks(now: Date): Promise<void> {
 	const db = getDb();
 	const before = new Date(now.getTime() - PERK_RECHECK_DAYS * 86_400_000);
-	const due = await perkSourcesToRecheck(db, before);
+	// Cards a Bank Connection brought in since get their Perk Source here too (#96); the ones whose
+	// card is known are never read yet, so they're due below.
+	await ensureCardPerkSources(db, { newId: ulid }).catch((error) =>
+		console.error("Couldn’t add Perk Sources for linked cards", error),
+	);
+	// A bounded night: the rest are still due tomorrow.
+	const due = (await perkSourcesToRecheck(db, before)).slice(0, RECHECKS_PER_NIGHT);
 	const zoneOf = new Map((await listHouseholds(db)).map((h) => [h.id, h.timeZone]));
 	const instances = due.map(({ id, householdId }) => {
 		const timeZone = zoneOf.get(householdId) ?? "UTC";

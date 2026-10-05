@@ -218,3 +218,57 @@ test("a credit card's Account page links to its perks, under the page's own head
 	await expect(page.getByRole("article", { name: "Amex Platinum" })).toBeVisible();
 	await page.context().close();
 });
+
+test("a linked credit card appears by itself, asks which card it is, then shows its perks and what's worth using", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "9,000", buckets: [["Groceries", "1,200"]] });
+	// The fake bank (AI_MODEL=stub) has one credit card, "Costco Anywhere Visa" ••3333, at a bank
+	// that isn't a card issuer Noodle knows by name.
+	await page.goto("/accounts");
+	await page.getByRole("button", { name: "Connect a bank" }).click();
+	await page
+		.getByRole("dialog", { name: "Which of these do you have already?" })
+		.getByRole("button", { name: "Start bringing them in" })
+		.click();
+	await expect(
+		page.getByRole("status").filter({ hasText: "Bringing in 4 Accounts" }),
+	).toBeVisible();
+
+	// Nobody added it: the card has a section of its own, and one question.
+	await page.goto("/insights/perks");
+	const unnamed = page.getByRole("article", { name: "Credit card" });
+	await expect(unnamed).toContainText("3333");
+	await expect(unnamed).toContainText("The bank calls this card “Costco Anywhere Visa");
+	await expect(unnamed).toContainText("doesn’t say which card it is");
+	await expect(unnamed.getByRole("button", { name: "Check again" })).toBeVisible();
+	await unnamed.getByLabel("Which card is this?").fill("Chase Sapphire Preferred");
+	await unnamed.getByRole("button", { name: "Look up its perks" }).click();
+
+	// Its perks, read from the (fake) benefits page: what it earns more on, a credit and DashPass.
+	// The rate the fake model made up ("5x on travel") isn't on the page, so it isn't a perk.
+	const card = page.getByRole("article", { name: "Chase Sapphire Preferred" });
+	const perks = card.getByRole("list", { name: "Chase Sapphire Preferred Perks" });
+	await expect(perks.getByRole("listitem")).toHaveCount(4);
+	await expect(card).toContainText("3333");
+	await expect(perks.getByRole("listitem").first()).toContainText("Kroger credit");
+	await expect(perks.getByRole("listitem", { name: "3x on dining" })).toContainText(
+		"Earns more here",
+	);
+	await expect(perks).not.toContainText("5x on travel");
+	await expect(page.getByRole("button", { name: "Look up its perks" })).toHaveCount(0);
+
+	// Worth using, once the bank's Transactions are in: Kroger was paid from checking.
+	const worth = card.getByRole("list", { name: "Worth using" });
+	await expect(async () => {
+		await page.reload();
+		await expect(worth).toContainText("Kroger on Plaid Checking", { timeout: 3_000 });
+	}).toPass({ timeout: 60_000 });
+	await expect(worth).toContainText("this card pays back up to $10 a month.");
+
+	// On a small phone nothing runs off the side.
+	await page.setViewportSize({ width: 320, height: 700 });
+	await expect(card).toBeVisible();
+	expect(await noSideways(page)).toBe(true);
+});
