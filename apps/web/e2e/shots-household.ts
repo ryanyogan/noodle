@@ -187,6 +187,18 @@ export async function seedShotsHousehold(page: Page, userId: string) {
 			`insert into categorizations (transaction_id, household_id, member_id, outcome, method, bucket_id, confidence, merchant) values (${q(id)}, ${h}, ${m}, 'review', ${guess ? "'model'" : "'none'"}, ${guess ? bucket(guess) : "null"}, ${guess ? "0.62" : "null"}, ${q(merchant)});`,
 		);
 	}
+	// A payment to the Amex card out of checking, waiting in Review: offered as a card payment.
+	const paymentId = ulid();
+	statements.push(
+		`insert into transactions (id, household_id, source, date, amount_cents, note, merchant, account_id, created_by_member_id) values (${q(paymentId)}, ${h}, 'import', ${q(dayOf(0, 8))}, 40000, 'AMEX EPAYMENT ACH PMT', 'AMEX EPAYMENT ACH PMT', ${q(ids.checking)}, ${m});`,
+		`insert into categorizations (transaction_id, household_id, member_id, outcome, method, bucket_id, confidence, merchant) values (${q(paymentId)}, ${h}, ${m}, 'review', 'none', null, null, 'AMEX EPAYMENT ACH PMT');`,
+	);
+	// An archived Account: Accounts folds it away under "Archived".
+	const archivedId = ulid();
+	statements.push(
+		`insert into accounts (id, household_id, name, kind, bank_connection_id, external_id, mask, archived_at) values (${q(archivedId)}, ${h}, 'Old Wells Fargo Checking', 'checking', null, null, null, ${Date.now() - 20 * 86_400_000});`,
+		`insert into account_balances (id, household_id, account_id, amount_cents, created_by_member_id) values (${q(ulid())}, ${h}, ${q(archivedId)}, 0, ${m});`,
+	);
 	// Extra income this month, and three Insights.
 	statements.push(
 		`insert into income (id, household_id, date, amount_cents, note, created_by_member_id) values (${q(ulid())}, ${h}, ${q(dayOf(0, 2))}, 184000, 'Tax refund', ${m});`,
