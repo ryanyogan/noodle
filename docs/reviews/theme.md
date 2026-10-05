@@ -561,3 +561,82 @@ WCAG 2.x ratios from a script over the old and new values; soft fills are compos
 Tightest now: allowance beside spend 3.02 (unchanged), field edge on surface-2 3.09, comparison series on the card 3.12 (and it must stay under 3.19), hint text on surface-3 4.55. The heat cells were not tabulated here: their tests (ink at least 4.5:1 on every strength, the strongest cell at least 3:1 off the card) pass on the new card with `--heat-top` 65. A finding that is older than this change: hint text on a selected row's tint was 4.31:1 and is 4.16:1; no check covers that pair and whether hint text is drawn on a selected row was not looked into.
 
 Comparison pictures: every strict `*-dark-*` baseline changes (sign-in and sign-up, setup Hello and Buckets, This Month and Household, desktop and iPhone); they are redrawn from CI's pictures, not here.
+
+## 12. Phase 116a: dark follows Linear's blue-cast dark look
+
+The Parent (2026-10-05): "the dark theme should use linear styling however their newer, blue color theme :)". Dark only; no light value changed (light gained one alias, `--selected: var(--surface-2)`, which draws what it drew before).
+
+**Why these values.** The old dark was a neutral near-black with a faint cool cast, an indigo-violet accent and a drop shadow under every card. The new one puts every ground on one blue hue (about 222 to 226 degrees) and steps it up a little at a time, page to card to raised to bar track, so a surface is told from the one under it by a small step and a hairline, as in Linear, and shadows are kept for layers that float (menus, popovers, dialogs, sheets, the slide-out panel). The accent is a calmer, slightly greyed blue instead of indigo, and a picked or current row gets a faint blue ground of its own (`--selected`) instead of the grey every hover uses.
+
+Grounded in what Linear's dark interface looks like, from memory; Linear's site was not consulted in this phase and none of its assets, fonts or exact values are used.
+
+| Token (dark) | Old | New |
+|---|---|---|
+| `--background` (and the dark `theme-color` meta) | `#0c0d10` | `#080a0f` |
+| `--card` (also popovers, menus, dialogs, sheets, the panel) | `#1c1d21` | `#151821` |
+| `--surface-2` (hover, raised rows, empty chart cell) | `#232429` | `#1b1f2a` |
+| `--surface-3` (bar tracks, pressed) | `#292b31` | `#222734` |
+| `--border` | `#2a2c32` | `#262b39` |
+| `--border-strong` | `#383b43` | `#343b4c` |
+| `--selected` (new: picked rows, the current row, the Sidebar's current item) | `--surface-2` `#232429` | `#20283a` |
+| `--foreground` | `#f0f1f3` | `#e9ecf3` |
+| `--muted-foreground` | `#a4a7b0` | `#a3aaba` |
+| `--subtle-foreground` | `#8f929c` | `#8b93a5` |
+| `--brand` (links, marks, focus ring, charts) | `#8e96ff` | `#6c9af2` |
+| `--brand-soft` | `rgb(142 150 255 / 0.16)` | `rgb(108 154 242 / 0.14)` |
+| `--primary` (main button fill) | `#5a64d6` | `#3568cf` |
+| `--glow-1` | `rgb(142 150 255 / 0.07)` | `rgb(108 154 242 / 0.05)` |
+| `--scrim` | `rgb(0 0 0 / 0.62)` | `rgb(3 5 9 / 0.66)` |
+| `--elevation-card` | `0 1px 2px rgb(0 0 0 / 0.4)` | none (`0 0 0 0 transparent`) |
+| `--elevation-pop` | `0 16px 40px -8px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.06)` | `0 16px 48px -12px rgb(0 2 8 / 0.72), 0 0 0 1px rgb(150 175 230 / 0.09)` |
+| `--elevation-side` | `-20px 0 48px -8px rgb(0 0 0 / 0.75), -2px 0 8px rgb(0 0 0 / 0.5)` | `-20px 0 48px -12px rgb(0 2 8 / 0.7), -1px 0 0 rgb(150 175 230 / 0.07)` |
+| `--card-highlight` | `inset 0 1px 0 rgb(255 255 255 / 0.04)` | `inset 0 1px 0 rgb(190 210 255 / 0.03)` |
+| `--chart-spend` | `#c3c6ce` | `#c1c7d4` |
+| `--chart-compare` | `#676a75` | `#5d6578` |
+| `--chart-allowance` | `#6a6d77` | `#626a7d` |
+| `--input` (field and control edges, off switch track) | `#6c6f79` | `#6e778b` |
+
+Not moved: Pace (`#f5b23a`), Over (`#f07171`, `#f38383`) and their soft fills, the eight Bucket colours, the sequential scale's shares (32 / 52 / 74 % of the accent into the card), the heat cells' `--heat-top` (65). The accent was chosen so those two chart scales pass unchanged: a brighter blue (`#76a2f6`) put the words on the strongest blue heat cell at 4.37:1.
+
+Where `--selected` is used (through classes, `bg-selected`): `Table` rows in the selected state, `DataTable` rows that are picked or open, the Transactions list's picked rows, and the Sidebar's current item. Hover everywhere is still `--surface-2`.
+
+### Measured contrast (dark), old and new
+
+WCAG 2.x ratios by script (the same arithmetic as `apps/web/src/contrast.test.ts`; soft fills composited on the card; scale steps mixed in oklab).
+
+| Pair | Needs | Old | New |
+|---|---|---|---|
+| Card vs page | - | 1.15 | 1.12 |
+| Surface-2 vs card | - | 1.09 | 1.08 |
+| Surface-3 vs surface-2 | - | 1.09 | 1.10 |
+| Hairline on card / on page / on surface-2 | - | 1.21 / 1.39 / 1.11 | 1.26 / 1.40 / 1.17 |
+| Stronger line on card | - | 1.50 | 1.58 |
+| Sidebar (card at 55%) vs page | - | 1.07 | 1.06 |
+| Body text on page / card / surface-2 / surface-3 / selected | 4.5 | 17.3 / 14.90 / 13.70 / 12.52 / - | 16.74 / 14.99 / 13.92 / 12.61 / 12.3 |
+| Muted text on page / card / surface-2 / surface-3 / selected | 4.5 | 8.1 / 7.00 / 6.44 / 5.88 / - | 8.50 / 7.61 / 7.07 / 6.40 / 6.3 |
+| Hint text on page / card / surface-2 / surface-3 / selected | 4.5 | 6.25 / 5.42 / 4.99 / 4.55 / 4.16 (on the old brand-soft row) | 6.42 / 5.75 / 5.34 / 4.84 / 4.7 |
+| Accent as text on page / card / surface-2 / surface-3 / selected | 4.5 | - / 6.38 / 5.87 / - / - | 7.11 / 6.37 / 5.91 / 5.36 / 5.2 |
+| Accent text on its soft fill (brand badge) | 4.5 | 4.90 | about 5.1 |
+| White on the main button | 4.5 | 4.97 | 5.21 |
+| Main button fill on card / on page | 3 | 3.39 / - | 3.40 / 3.80 |
+| Over text (`--over-foreground`) on card / surface-2 / surface-3 | 4.5 | 6.72 / - / - | 7.08 / 6.57 / 5.96 |
+| Over (`--over`) as text on card / surface-2 | 4.5 | 5.86 / 5.39 | 6.17 / 5.73 |
+| Over badge text on its tint | 4.5 | 5.47 | 5.84 |
+| Pace badge text on its tint | 4.5 | 7.81 | 8.31 |
+| Over bar / Pace marker on bar track | 3 | 4.92 / 7.62 | 5.19 / 8.03 |
+| Worst Bucket on bar track | 3 | 3.35 | 3.54 |
+| Field edge (`--input`) on card / page / surface-2 / surface-3 (info) | 3 | 3.36 / 3.87 / 3.09 / 2.82 | 3.95 / 4.41 / 3.66 / 3.32 |
+| Allowance bar on card | 3 | 3.26 | 3.27 |
+| Allowance bar vs spend bar | 3 | 3.02 | 3.20 |
+| Spend bar on card | 3 | 9.85 | 10.46 |
+| Comparison series on card (must stay under half the accent's 6.37) | 3 | 3.12 | 3.04 |
+| Sequential step 1 beside an empty day | 1.5 | 1.56 | 1.53 |
+| Steps 2, 3, 4 beside the one before | 1.3 | 1.50, 1.55, 1.62 | 1.50, 1.57, 1.64 |
+| Words on the weakest-contrast heat cell, red / blue | 4.5 | passes | 4.78 / 4.68 |
+| Strongest heat cell off the card, red / blue | 3 | passes | 3.16 / 3.24 |
+
+Tightest now: the comparison series on the card 3.04 (band 3.00 to 3.18), strongest red heat cell 3.16 off the card, allowance beside spend 3.20, hint text on a selected row 4.7.
+
+The card is 1.12:1 from the page where phase 75f had set 1.15: the page is darker and bluer and the hairline is a little stronger on both (1.26 on the card, 1.40 on the page), so the card is held by step and edge together.
+
+Comparison pictures: every strict `*-dark-*` baseline changes; they are redrawn from CI's pictures, not on a developer's machine.
