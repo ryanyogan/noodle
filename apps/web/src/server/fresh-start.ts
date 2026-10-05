@@ -64,13 +64,23 @@ export const getFreshStartCounts = createServerFn({ method: "GET" })
 	.handler(async ({ context }) => {
 		const db = getDb();
 		const householdId = context.household.id;
-		const [counts, statementFiles, banks, active] = await Promise.all([
+		const [counts, statementFiles, banks, active, parents] = await Promise.all([
 			countHouseholdData(db, householdId),
 			countFiles(householdId),
 			linkedBankNames(db, householdId),
 			loadActiveFreshStart(db, householdId),
+			listParents(db, householdId),
 		]);
-		return { counts: { ...counts, statementFiles }, banks, freshStart: statusOf(active) };
+		return {
+			counts: { ...counts, statementFiles },
+			banks,
+			freshStart: statusOf(active),
+			// With another Parent in, it waits a day and they're told (freshStartRunAt): the sheet
+			// says so before anything is confirmed.
+			otherParents: parents
+				.filter((parent) => parent.id !== context.parent.id)
+				.map((parent) => parent.name),
+		};
 	});
 
 /** Only a fresh start scheduled or running, for the banner both Parents see (cheap to read). */

@@ -23,7 +23,7 @@ export type FreshStartParams = {
 	id: string;
 	householdId: string;
 	level: ClearLevel;
-	/** Delete Household only: the Parent ticked "Also delete backups", so no last snapshot is kept. */
+	/** Delete Household only: the Parent ticked "Also delete the last snapshot", so no last snapshot is kept. */
 	deleteBackups?: boolean;
 };
 
@@ -104,7 +104,7 @@ export class FreshStartWorkflow extends WorkflowEntrypoint<Env, FreshStartParams
 			});
 		}
 		// Delete Household keeps one last snapshot for 30 days, outside the Household's own prefix
-		// (which the clear empties), unless the Parent ticked "Also delete backups". The same key on
+		// (which the clear empties), unless the Parent ticked "Also delete the last snapshot". The same key on
 		// a retry, so it is written over, not doubled.
 		if (level === "delete" && !deleteBackups) {
 			await step.do("keep one last snapshot", RETRY, async () => {

@@ -87,6 +87,8 @@ test("a single Parent starts fresh: counts, typed name, progress, All cleared, t
 
 	const confirm = sheet.getByRole("button", { name: "Start fresh" });
 	await expect(confirm).toBeDisabled();
+	// One Parent: nobody to wait for, and the sheet says so before it's confirmed.
+	await expect(sheet).toContainText("This happens as soon as you confirm.");
 	await sheet.getByLabel("Type “The Rinks”").fill("The Rink");
 	await expect(confirm).toBeDisabled();
 	await sheet.getByLabel("Type “The Rinks”").fill("The Rinks");
@@ -151,6 +153,10 @@ test("with both Parents in, it waits a day; the other Parent sees it and cancels
 
 	const sheet = await confirmInSheets(alex, "Start fresh");
 	await sheet.getByRole("button", { name: "Continue" }).click();
+	// Said before it's confirmed, not only in the toast afterwards.
+	await expect(sheet).toContainText(
+		"This happens in 24 hours. Sam is told now, and either of you can cancel it until then.",
+	);
 	await sheet.getByLabel("Type “The Rinks”").fill("The Rinks");
 	await sheet.getByRole("button", { name: "Start fresh" }).click();
 	const zone = alex.getByRole("region", { name: "Danger zone" });
@@ -175,8 +181,9 @@ test("a single Parent deletes the Household and lands on /welcome", async ({ bro
 	const sheet = await confirmInSheets(page, "Delete Household");
 	await sheet.getByRole("button", { name: "Continue" }).click();
 	await sheet.getByLabel("Type “The Rinks”").fill("The Rinks");
+	await expect(sheet).toContainText("can’t be stopped once it starts");
 	await expect(sheet).toContainText("One last snapshot is kept for 30 days, then deleted.");
-	await sheet.getByLabel("Also delete backups").check();
+	await sheet.getByLabel("Also delete the last snapshot").check();
 	await expect(sheet).toContainText("Nothing is kept.");
 	await sheet.getByRole("button", { name: "Delete Household" }).click();
 	await expect(page).toHaveURL(/\/welcome/, { timeout: 90_000 });
