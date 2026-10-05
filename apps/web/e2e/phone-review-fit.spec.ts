@@ -40,8 +40,11 @@ const LINES: [what: string, amount: string][] = [
 	["SUPERCALIFRAGILISTICEXPIALIDOCIOUSHARDWAREANDGARDENSUPPLY*ONLINE4417", "12.50"],
 ];
 
-/** The cards waiting: the lines, and the purchase that makes Chase Freedom a card Noodle follows. */
-const WAITING = LINES.length + 1;
+/**
+ * The cards waiting: the lines. The purchase that makes Chase Freedom a card Noodle follows isn't
+ * one of them: the fake knows Shell and files it in Gas.
+ */
+const WAITING = LINES.length;
 
 /** Each kind of payment card (the card's data-payment), and its first action. */
 const PAYMENTS = {
