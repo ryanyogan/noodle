@@ -29,6 +29,7 @@ import {
 import { EXPORT_PATH, handleExportDownload, sweepExports } from "./server/export-workflow";
 import { connectToHouseholdAgent } from "./server/household-agent";
 import { startInsights } from "./server/insights-nightly";
+import { handleIntroFile, INTRO_PATH } from "./server/intro-video";
 import { startMonthCloses } from "./server/month-close-workflow";
 import { consumeNudges, type NudgeDelivery } from "./server/nudge-delivery";
 import { startPerkRechecks } from "./server/perk-research-workflow";
@@ -57,6 +58,10 @@ const NIGHTLY_CRON = "0 9 * * *";
 export default {
 	fetch(request) {
 		const { pathname } = new URL(request.url);
+		// The intro video's files, with the byte ranges Safari needs; before sign-in or the app.
+		if (pathname.startsWith(INTRO_PATH)) {
+			return handleIntroFile(request, () => handler.fetch(request));
+		}
 		if (pathname === HOUSEHOLD_AGENT_PATH) return connectToHouseholdAgent(request);
 		if (pathname === CAPTURE_PATH) return handleCapture(request);
 		if (pathname.startsWith(EXPORT_PATH)) return handleExportDownload(request);

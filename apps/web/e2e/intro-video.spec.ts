@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import {
 	type Browser,
@@ -104,6 +106,75 @@ test("the video's files are served", async ({ request }) => {
 	const captions = await request.get(INTRO_FILES.captions);
 	expect(captions.ok()).toBe(true);
 	expect(await captions.text()).toMatch(/^WEBVTT/);
+});
+
+// Safari on iPhone and Mac only plays a <video> whose server answers byte ranges with 206. Static
+// assets answer with the whole file, so the Worker cuts the films itself (src/server/intro-video.ts).
+// Nobody is signed in here: sign-in's own page plays the film.
+test("the films answer byte ranges, as Safari needs", async ({ request }, testInfo) => {
+	test.slow();
+	for (const [address, name] of [
+		[INTRO_FILES.wide, "intro.mp4"],
+		[INTRO_FILES.vertical, "intro-vertical.mp4"],
+	] as const) {
+		const file = readFileSync(join(testInfo.config.rootDir, "../public/intro", name));
+		const size = file.byteLength;
+		const ranged = (range: string) => request.get(address, { headers: { Range: range } });
+
+		// The whole film, with the promise that ranges work.
+		const whole = await request.get(address);
+		expect(whole.status(), name).toBe(200);
+		expect(whole.headers()["accept-ranges"], name).toBe("bytes");
+		expect(whole.headers()["content-type"], name).toBe("video/mp4");
+		expect((await whole.body()).byteLength, name).toBe(size);
+
+		const head = await request.head(address);
+		expect(head.status(), name).toBe(200);
+		expect(head.headers()["accept-ranges"], name).toBe("bytes");
+		expect(head.headers()["content-type"], name).toBe("video/mp4");
+
+		// The first hundred bytes.
+		const first = await ranged("bytes=0-99");
+		expect(first.status(), name).toBe(206);
+		expect(first.headers()["content-range"], name).toBe(`bytes 0-99/${size}`);
+		expect(first.headers()["content-type"], name).toBe("video/mp4");
+		const firstBytes = await first.body();
+		expect(firstBytes.byteLength, name).toBe(100);
+		expect(firstBytes.equals(file.subarray(0, 100)), name).toBe(true);
+
+		// Safari's first question: two bytes.
+		const probe = await ranged("bytes=0-1");
+		expect(probe.status(), name).toBe(206);
+		expect(probe.headers()["content-range"], name).toBe(`bytes 0-1/${size}`);
+		expect((await probe.body()).byteLength, name).toBe(2);
+
+		// From somewhere to the end.
+		const rest = await ranged(`bytes=${size - 1000}-`);
+		expect(rest.status(), name).toBe(206);
+		expect(rest.headers()["content-range"], name).toBe(`bytes ${size - 1000}-${size - 1}/${size}`);
+		expect((await rest.body()).equals(file.subarray(size - 1000)), name).toBe(true);
+
+		// The last 500 bytes.
+		const last = await ranged("bytes=-500");
+		expect(last.status(), name).toBe(206);
+		expect(last.headers()["content-range"], name).toBe(`bytes ${size - 500}-${size - 1}/${size}`);
+		const lastBytes = await last.body();
+		expect(lastBytes.byteLength, name).toBe(500);
+		expect(lastBytes.equals(file.subarray(size - 500)), name).toBe(true);
+
+		// Past the end of the film.
+		const beyond = await ranged(`bytes=${size}-${size + 99}`);
+		expect(beyond.status(), name).toBe(416);
+		expect(beyond.headers()["content-range"], name).toBe(`bytes */${size}`);
+	}
+
+	// The poster and captions aren't films: they are served as they were.
+	const poster = await request.get(INTRO_FILES.poster);
+	expect(poster.status()).toBe(200);
+	expect(poster.headers()["content-type"]).toBe("image/png");
+	expect((await poster.body()).byteLength).toBe(
+		readFileSync(join(testInfo.config.rootDir, "../public/intro/poster.png")).byteLength,
+	);
 });
 
 test("sign-in on a desktop: the wide cut opens with captions, and closing stops it", async ({

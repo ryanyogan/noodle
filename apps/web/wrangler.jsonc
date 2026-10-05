@@ -5,6 +5,11 @@
 	"compatibility_flags": ["nodejs_compat"],
 	// TanStack Start's server entry, plus the Household Agent class it exports.
 	"main": "src/server.ts",
+	// Static files (public/, and the built client) are served before the Worker runs; the Cloudflare
+	// Vite plugin fills in the directory. Except /intro/*: the intro video's films need byte-range
+	// answers for Safari, which static assets don't give, so the Worker answers those from ASSETS
+	// (server/intro-video.ts, #54).
+	"assets": { "binding": "ASSETS", "run_worker_first": ["/intro/*"] },
 	// Logs and traces, every request, kept in Workers Observability (set by the Parent, 2026-10-03).
 	// Query strings aren't redacted; the invite token is in the path (/invite/<token>) either way.
 	"observability": {
