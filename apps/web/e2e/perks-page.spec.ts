@@ -10,7 +10,7 @@ import {
 	signedInPage,
 } from "./session";
 
-// The Credit card perks page with two cards' worth of perks (AI_MODEL=stub, see perks-model.ts):
+// The Perks & Benefits page with two cards' worth of perks (AI_MODEL=stub, see perks-model.ts):
 // a "premium" page with $15 Uber Cash each month, a $200 airline fee credit each year, a $120
 // Global Entry credit every four years and a $100 hotel credit each stay; a "travel-card" page
 // with a $300 travel credit each year, a $10 DoorDash credit each month and DashPass.
@@ -235,7 +235,7 @@ test("a perk resetting within a week is a To do on This Month and a line on the 
 	await expect(onMonth.getByRole("link", { name: line })).toBeVisible();
 	await onMonth.getByRole("link", { name: line }).click();
 	await expect(page).toHaveURL(/\/insights\/perks$/);
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Credit card perks");
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Perks & Benefits");
 
 	await page.goto("/check-in");
 	const onCheckIn = page.getByRole("link", { name: line });
@@ -261,7 +261,7 @@ test("a credit card's Account page links to its perks, under the page's own head
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "9,000", buckets: [["Groceries", "1,200"]] });
 	await page.goto("/insights/perks");
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Credit card perks");
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Perks & Benefits");
 	await addCard(page, "Amex Platinum", "https://example.com/premium-card", "695", 4);
 
 	await page.goto("/accounts");
@@ -274,7 +274,7 @@ test("a credit card's Account page links to its perks, under the page's own head
 	await expect(link).toBeVisible();
 	await link.click();
 	await expect(page).toHaveURL(/\/insights\/perks$/);
-	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Credit card perks");
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Perks & Benefits");
 	await expect(page.getByRole("article", { name: "Amex Platinum" })).toBeVisible();
 	await page.context().close();
 });

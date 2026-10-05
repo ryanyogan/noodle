@@ -15,3 +15,5 @@ Browser Rendering was added as a bounded fallback in ADR-0044 (#96).
 ## Exception: a Perk's value (#80)
 
 The research model now also reports a Perk's value and how often it renews, so the Credit card perks page can weigh what was used against the annual fee. A value is kept only when the Perk's quote, the page's own words, states that exact dollar figure (`perksOnPage`); otherwise it is dropped and the Perk has no value. So an amount on the page is still always the benefits page's, never the model's. When the page states none (DashPass), a Parent may type the value and how often it renews by hand.
+
+Note (issue 111, 2026-10-05): the page this ADR calls "Credit card perks" is now named "Perks & Benefits" in the app, since Perk Sources are no longer only credit cards. Its address (`/insights/perks`) is unchanged.

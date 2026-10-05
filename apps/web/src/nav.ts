@@ -83,7 +83,7 @@ export const navGroups: NavGroup[] = [
 			{ label: "Reports", icon: ChartColumn, to: "/reports" },
 			{ label: "Insights", icon: Lightbulb, to: "/insights", except: ["/insights/perks"] },
 			// Perks are a tab of Insights, but Parents look for them by name (#80): their own entry.
-			{ label: "Credit card perks", icon: CreditCard, to: "/insights/perks" },
+			{ label: "Perks & Benefits", icon: CreditCard, to: "/insights/perks" },
 			// On a computer Ask is the small button in the corner of every page (app-shell's AskButton).
 			{ label: "Ask", icon: MessageCircleQuestionMark, to: "/ask", phoneOnly: true },
 		],

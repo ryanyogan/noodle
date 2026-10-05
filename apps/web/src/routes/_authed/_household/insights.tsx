@@ -4,7 +4,7 @@ import { createFileRoute, linkOptions, useMatchRoute } from "@tanstack/react-rou
 import { SectionLayout, type SectionTab } from "../../../components/section-layout";
 import { perkSourcesQuery } from "../../../queries";
 
-// Insights and the Perks they rest on: each page has its own header (Credit card perks has its own
+// Insights and the Perks they rest on: each page has its own header (Perks & Benefits has its own
 // Sidebar entry too), and two tabs stay put below it as the way between them. The Perks tab says
 // how many Perk Sources wait to be confirmed.
 export const Route = createFileRoute("/_authed/_household/insights")({
@@ -35,7 +35,7 @@ function InsightsLayout() {
 	return (
 		<SectionLayout
 			eyebrow="Understand"
-			title={onPerks ? "Credit card perks" : "Insights"}
+			title={onPerks ? "Perks & Benefits" : "Insights"}
 			tabsLabel="Insights pages"
 			tabs={tabs}
 		/>

@@ -245,7 +245,7 @@ A confirmed product the Household holds that bundles benefits: a phone plan, cre
 _Avoid_: Provider, card, subscription
 
 **Perk**:
-A specific benefit included with a Perk Source: a service it includes, a cost it pays back, or a kind of purchase it earns more on. Each has the link it came from, the page's own words, and the date it was last checked. A card's Perks are listed most valuable first, and "Worth using" sets them against the Household's own spending: credits that went unused, charges on other Accounts the card would pay back, and the kinds of purchases it earns more on. Only ever about a card the Household already has.
+A specific benefit included with a Perk Source: a service it includes, a cost it pays back, or a kind of purchase it earns more on. Each has the link it came from, the page's own words, and the date it was last checked. A card's Perks are listed most valuable first, and "Worth using" sets them against the Household's own spending: credits that went unused, charges on other Accounts the card would pay back, and the kinds of purchases it earns more on. Only ever about a card the Household already has. The page that lists them is named "Perks & Benefits" (it was "Credit card perks"; Perk Sources are not only cards); that is the page's name only, and the term stays Perk.
 _Avoid_: Benefit, reward, feature
 
 ### Exploring

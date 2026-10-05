@@ -29,7 +29,7 @@ export function usePerkResetSoon(): string | null {
 	return `${soonest.name} resets ${when} — use it`;
 }
 
-/** The line itself, linking to Credit card perks; nothing when no perk resets within a week. */
+/** The line itself, linking to Perks & Benefits; nothing when no perk resets within a week. */
 export function PerkResetLine({ line, className }: { line?: string | null; className?: string }) {
 	const own = usePerkResetSoon();
 	const text = line === undefined ? own : line;

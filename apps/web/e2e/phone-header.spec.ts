@@ -326,7 +326,7 @@ const DESTINATIONS: Record<Exclude<(typeof moreItems)[number], "Glossary">, RegE
 	Explore: /\/explore/,
 	Reports: /\/reports/,
 	Insights: /\/insights$/,
-	"Credit card perks": /\/insights\/perks$/,
+	"Perks & Benefits": /\/insights\/perks$/,
 	Ask: /\/ask$/,
 	"Check-in": /\/check-in$/,
 	"Household settings": /\/household$/,

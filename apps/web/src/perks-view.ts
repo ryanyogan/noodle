@@ -10,7 +10,7 @@ import {
 	perkSourceKindLabel,
 } from "@noodle/domain";
 
-// What the Credit card perks page shows, worked out by plain code (issue 101): the cards and
+// What the Perks & Benefits page shows, worked out by plain code (issue 101): the cards and
 // memberships a Parent can pick from when adding one, where a Perk Source stands in a word, its
 // one-line summary, and its Perks under small headings when there are many.
 
