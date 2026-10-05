@@ -2,6 +2,7 @@ import {
 	type Db,
 	type GoalRecords,
 	loadBucketMonths,
+	loadExtraToFree,
 	loadGoals,
 	loadIncome,
 	loadIncomeCells,
@@ -77,12 +78,13 @@ export const getYear = createServerFn({ method: "GET" })
 		const actualUntil = last < current ? addMonths(last, 1) : addMonths(current, 1);
 		const range = { from: firstOf(first), until: firstOf(actualUntil) };
 		const hasActuals = first <= current;
-		const [records, goals, spending, income, moves] = await Promise.all([
+		const [records, goals, spending, income, moves, extraToFree] = await Promise.all([
 			loadPlanRecords(db, household.id, last > current ? last : current),
 			loadGoals(db, viewer),
 			hasActuals ? loadSpendCells(db, { viewer, range, filters: {} }, "month") : null,
 			hasActuals ? loadIncomeCells(db, household.id, range, "month") : [],
 			hasActuals ? loadMovesBetween(db, household.id, first, actualUntil) : [],
+			hasActuals ? loadExtraToFree(db, household.id, first, actualUntil) : [],
 		]);
 		const months = yearGrid({
 			year: data.year,
@@ -96,6 +98,7 @@ export const getYear = createServerFn({ method: "GET" })
 					.filter((c) => c.kind === "funding" && c.from === undefined)
 					.filter((c) => c.month >= first && c.month <= last),
 				covers: moves.filter((m) => m.fromBucketId === null && !m.windfall),
+				extraToFree,
 			},
 		});
 		return { year: data.year, current, lastYear, months };

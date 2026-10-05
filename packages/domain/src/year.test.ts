@@ -166,6 +166,32 @@ describe("yearGrid", () => {
 		});
 	});
 
+	it("counts Extra income added to Free to Spend, as This Month does", () => {
+		const extraToFree = [
+			{ month: "2026-09" as MonthKey, amount: 100_000 },
+			{ month: "2026-08" as MonthKey, amount: 30_000 },
+		];
+		const of = (month: MonthKey, extra: YearActuals["extraToFree"]) =>
+			yearGrid({
+				year: 2026,
+				current: "2026-09",
+				records,
+				goals: [],
+				actuals: { ...actuals, extraToFree: extra },
+			}).find((m) => m.month === month)?.plan.freeToSpend ?? 0;
+		const state = monthState({
+			plan: planForMonth(records, "2026-09"),
+			spending: [],
+			extraToFree: [{ amount: 100_000, month: "2026-09" }],
+			asOf: "2026-09-15",
+		});
+		expect(of("2026-09", extraToFree)).toBe(state.freeToSpend);
+		expect(of("2026-09", extraToFree) - of("2026-09", [])).toBe(100_000);
+		// An ended month's too; a month ahead is projected and has none.
+		expect(of("2026-08", extraToFree) - of("2026-08", [])).toBe(30_000);
+		expect(of("2026-10", extraToFree)).toBe(of("2026-10", []));
+	});
+
 	it("shows this month's Plan as This Month does: Goal funding so far, and Covers", () => {
 		const goalFunding = [{ month: "2026-09" as MonthKey, amount: 155_000 }];
 		const covers = [{ month: "2026-09" as MonthKey, amount: 5_000 }];

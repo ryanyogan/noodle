@@ -297,14 +297,25 @@ export function headlines({
 	return { spent, earned, saved, savingsRate: earned > 0 ? saved / earned : null, freeToSpend };
 }
 
-/** The Plans' Free to Spend summed over some months. */
-export function freeToSpendOver(records: PlanRecords, months: readonly MonthKey[]): Cents {
+/**
+ * The Plans' Free to Spend summed over some months, with the Extra income a Parent added to Free
+ * to Spend in them (`extraToFree`, #86).
+ */
+export function freeToSpendOver(
+	records: PlanRecords,
+	months: readonly MonthKey[],
+	extraToFree: readonly { month: MonthKey; amount: Cents }[] = [],
+): Cents {
+	const added = extraToFree.reduce(
+		(sum, e) => (months.includes(e.month) ? sum + e.amount : sum),
+		0,
+	);
 	return months.reduce((sum, month) => {
 		const plan = planForMonth(records, month);
 		const commitments = plan.commitments.reduce((s, c) => s + expectedIn(c, month), 0);
 		const allowances = plan.buckets.reduce((s, b) => s + b.allowance, 0);
 		return sum + (plan.baseline ?? 0) - commitments - allowances;
-	}, 0);
+	}, added);
 }
 
 /** The amounts Big expenses' threshold snaps to; D1 counts Transactions in bands between them. */
