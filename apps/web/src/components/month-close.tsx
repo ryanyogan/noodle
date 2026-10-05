@@ -130,7 +130,8 @@ export function MonthCloseSection({
 					) : null}
 				</List>
 			</div>
-			<div className="flex justify-end pt-3">
+			{/* From lg in line with the selects above, which sit inside the rows’ padding (#73). */}
+			<div className="flex justify-end pt-3 lg:pe-2">
 				<Button
 					disabled={!hydrated || pending}
 					onClick={() =>
