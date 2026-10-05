@@ -107,3 +107,54 @@ test("a Rule that files one Transaction takes no snapshot and doesn't say it did
 	await expect(rows.filter({ hasText: "By hand" })).toHaveCount(1);
 	await expect(rows.filter({ hasText: "Before applying a Rule" })).toHaveCount(0);
 });
+
+test("a Rule that's already there says the same when it files several Transactions at once", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
+	const thisMonth = page.url();
+
+	await uploadStatement(
+		page,
+		[
+			["ACME WIDGETS LLC #101", "19.99"],
+			["ACME WIDGETS LLC #102", "24.50"],
+			["ACME WIDGETS LLC #103", "31.75"],
+		],
+		true,
+	);
+	await waitForReview(page, new URL("/review", thisMonth).href, "1 of 3");
+
+	// A Rule that matches none of them: saved, nothing filed, no snapshot.
+	await page.getByRole("link", { name: "Rules" }).click();
+	await page.getByRole("button", { name: "Add Rule" }).click();
+	const add = page.getByRole("dialog", { name: "Add a Rule" });
+	await add.getByLabel("Merchant").fill("Acme Gadgets");
+	await choose(add, "Files to", "Groceries");
+	await add.getByRole("button", { name: "Add Rule and file what matches" }).click();
+	await expect(add).toBeHidden();
+	await expect(page.getByText("Noodle took a snapshot first")).toHaveCount(0);
+
+	// The Rule is opened, pointed at the merchant the three lines have, and told to file what's
+	// still unassigned: the apply of a Rule that exists, not the one saving a new Rule does.
+	await page.getByRole("link", { name: /^acme gadgets, Groceries, / }).click();
+	const merchant = page.getByLabel("Merchant");
+	await expect(merchant).toHaveValue(/acme gadgets/i);
+	await merchant.fill("Acme Widgets");
+	await page.getByRole("button", { name: "Save and file what’s still unassigned" }).click();
+	await expect(page.getByRole("status").filter({ hasText: SNAPSHOT_FIRST })).toHaveText(
+		`Filed 3 in Groceries. ${SNAPSHOT_FIRST}`,
+	);
+	await expect(
+		page.getByRole("link", { name: /^acme widgets, Groceries, For Everyone, Filed 3 so far$/ }),
+	).toBeVisible();
+
+	await page.goto("/household");
+	const taken = snapshotHistory(page)
+		.getByRole("listitem")
+		.filter({ hasText: "Before applying a Rule" });
+	await expect(taken).toHaveCount(1);
+	await expect(taken).toContainText("3 Transactions,");
+});

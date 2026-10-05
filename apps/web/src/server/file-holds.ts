@@ -6,7 +6,7 @@ import {
 	type SnapshotFile,
 } from "@noodle/db";
 import { households } from "@noodle/db/schema";
-import { referencedFiles, splitHeldFiles } from "@noodle/domain";
+import { referencedFiles, splitFilesForClear, splitHeldFiles } from "@noodle/domain";
 import { type ClearDeps, clearHouseholdFiles, filePrefixes } from "./fresh-start-clear";
 import {
 	FINAL_SNAPSHOT_PREFIX,
@@ -128,6 +128,34 @@ export async function releaseHeldFiles(deps: ReleaseDeps, householdId: string) {
 	for (let i = 0; i < remove.length; i += PAGE) await deps.files.delete(remove.slice(i, i + PAGE));
 	if (remove.length > 0) await writeHeldFiles(deps.backups, householdId, keep);
 	return { removed: remove.length, held: keep.length };
+}
+
+/**
+ * Deleting a living Household's files by hand, outside a clear (a refused upload today; removing
+ * an Import, when there is such a thing): the same rule as a Fresh start. A file a kept snapshot
+ * refers to stays, on the Household's list, and goes the night its last such snapshot has expired
+ * or been deleted (`releaseHeldFiles`); the rest are deleted now. When a snapshot can't be read
+ * nothing is deleted on a guess: every file is listed, and the nightly run decides.
+ */
+export async function deleteFilesUnlessHeld(
+	deps: ReleaseDeps,
+	householdId: string,
+	keys: string[],
+): Promise<{ removed: string[]; held: string[] }> {
+	if (keys.length === 0) return { removed: [], held: [] };
+	let split: { hold: string[]; remove: string[] };
+	try {
+		const needs = await snapshotFileNeeds(deps, householdId);
+		split = splitFilesForClear(keys, new Set(needs.flatMap((needed) => [...needed])));
+	} catch (error) {
+		console.error(`Couldn’t read Household ${householdId}’s snapshots; keeping its files`, error);
+		split = { hold: keys, remove: [] };
+	}
+	// Listed first: a file left behind unlisted would never be deleted.
+	await holdFiles(deps.backups, householdId, split.hold);
+	for (let i = 0; i < split.remove.length; i += PAGE)
+		await deps.files.delete(split.remove.slice(i, i + PAGE));
+	return { removed: split.remove, held: split.hold };
 }
 
 /**

@@ -50,6 +50,12 @@ async function confirmInSheets(page: Page, action: "Start fresh" | "Delete House
 	await expect(sheet).toBeVisible();
 	await expect(sheet.getByRole("list", { name: "What will be cleared" })).toBeVisible();
 	await expect(sheet.getByRole("link", { name: "Download everything first" })).toBeVisible();
+	// A download left in Noodle goes with the rest, and no snapshot holds it (ADR-0035).
+	await expect(sheet).toContainText(
+		action === "Start fresh"
+			? "Save it to your phone or computer: a download left in Noodle is cleared too, and doesn’t come back with a snapshot."
+			: "Save it to your phone or computer: a download left in Noodle is deleted too.",
+	);
 	// Start fresh takes a snapshot first (#78); Delete Household keeps one for 30 days at most.
 	await expect(sheet).toContainText(
 		action === "Start fresh"
