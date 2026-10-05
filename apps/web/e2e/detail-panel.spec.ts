@@ -116,6 +116,17 @@ test("a Commitment opens in a panel from the right and the list keeps its width"
 	await expect(page.getByRole("link", { name: "Back to Commitments" })).toBeHidden();
 	await expect(panel(page).locator("[data-slot=detail-pager]")).toBeVisible();
 	await axe(page, "A Commitment in its panel");
+	// What the panel lies over can't take keyboard focus out of sight, and Ask Noodle stays on top.
+	const covered = page.locator("main [data-panel-covered]");
+	await expect.poll(() => covered.count()).toBeGreaterThan(0);
+	expect(await covered.evaluateAll((all) => all.every((one) => one.tabIndex === -1))).toBe(true);
+	expect(
+		await page.locator("[data-ask-button]").evaluate((button) => {
+			const box = button.getBoundingClientRect();
+			const top = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+			return top !== null && button.contains(top);
+		}),
+	).toBe(true);
 
 	// Another row is one click away: the same panel shows it, at its own address.
 	await panel(page).evaluate((node) => {
@@ -140,6 +151,7 @@ test("a Commitment opens in a panel from the right and the list keeps its width"
 	await expect(panel(page)).toHaveCount(0);
 	await expect(row(page, "Internet")).toBeFocused();
 	expect(await list(page).boundingBox()).toEqual(listBefore);
+	await expect(covered).toHaveCount(0);
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
 
 	// Back and Forward walk the same addresses.

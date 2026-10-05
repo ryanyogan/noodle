@@ -29,6 +29,8 @@ const wide = () => window.matchMedia(`(min-width: ${PANEL_FROM}px)`).matches;
 const EDITING = 'input, textarea, select, [contenteditable="true"], [role="combobox"]';
 const LAYERS = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]';
 
+const CONTROLS = "a[href], button, input, select, textarea, summary, [tabindex]";
+
 /** The rows of the list this panel belongs to: its sibling in a `ListWithPanel`. */
 const rowsOf = (root: Element | null) =>
 	root
@@ -108,6 +110,49 @@ function DetailPanel({
 		return () => document.removeEventListener("keydown", onKey);
 	}, []);
 
+	// The panel lies over the right-hand part of the page. A control under it can't be seen or
+	// clicked, so it must not take keyboard focus either: while the panel is open, every control of
+	// the page whose middle is under the panel leaves the tab order, and comes back when the panel
+	// goes or the window changes width. What the panel covers is still there for a screen reader.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: measured again for each item opened
+	React.useLayoutEffect(() => {
+		const panel = ref.current;
+		const page = panel?.closest("main") ?? panel?.parentElement;
+		if (!panel || !page) return;
+		const held = new Map<HTMLElement, string | null>();
+		const release = () => {
+			for (const [control, was] of held) {
+				if (!control.hasAttribute("data-panel-covered")) continue;
+				control.removeAttribute("data-panel-covered");
+				if (was === null) control.removeAttribute("tabindex");
+				else control.setAttribute("tabindex", was);
+			}
+			held.clear();
+		};
+		const cover = () => {
+			release();
+			if (!wide()) return;
+			// Where the panel's left edge rests (it may still be sliding in).
+			const edge = document.documentElement.clientWidth - panel.offsetWidth;
+			for (const control of page.querySelectorAll<HTMLElement>(CONTROLS)) {
+				if (panel.contains(control) || control.tabIndex < 0) continue;
+				// Drawn over the panel (the Ask Noodle button), so still in view.
+				if (control.closest("[data-over-panel]")) continue;
+				const box = control.getBoundingClientRect();
+				if (box.width === 0 || box.left + box.width / 2 < edge) continue;
+				held.set(control, control.getAttribute("tabindex"));
+				control.setAttribute("tabindex", "-1");
+				control.setAttribute("data-panel-covered", "");
+			}
+		};
+		cover();
+		window.addEventListener("resize", cover);
+		return () => {
+			window.removeEventListener("resize", cover);
+			release();
+		};
+	}, [itemKey]);
+
 	// When the panel goes (Esc, Close, or the list's own tab), focus that was in it returns to the
 	// item's row. A layout effect, so it runs while the panel can still say where focus was.
 	React.useLayoutEffect(() => {
@@ -142,7 +187,9 @@ function DetailPanel({
 			className={cn(
 				"@container/detail min-w-0 outline-none",
 				"lg:fixed lg:inset-y-0 lg:right-0 lg:z-30 lg:overflow-y-auto lg:overscroll-contain",
-				"lg:rounded-l-3xl lg:border-l lg:bg-background lg:p-6 lg:shadow-pop",
+				// The bottom padding keeps the end of the item clear of the Ask Noodle button, which stays
+				// in the window's corner over the panel.
+				"lg:rounded-l-3xl lg:border-l lg:bg-background lg:p-6 lg:pb-16 lg:shadow-pop",
 				// Slides in when an item opens; going from item to item it stays where it is.
 				"lg:animate-side-in",
 				size === "wide" ? "lg:w-(--detail-panel-width-wide)" : "lg:w-(--detail-panel-width)",
