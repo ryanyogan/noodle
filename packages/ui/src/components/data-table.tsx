@@ -82,6 +82,8 @@ export type DataTableColumn<TData extends RowData> = ColumnShape & {
 	/** Left out altogether (not the same as dropping when narrow): a closed month has no Edit. */
 	hidden?: boolean;
 	className?: string;
+	/** For the column's header alone, e.g. the same inset its cells have. */
+	headerClassName?: string;
 };
 
 export type DataTableSelection<TData extends RowData> = {
@@ -466,6 +468,7 @@ function DataTable<TData extends RowData>({
 									"min-w-0 items-center",
 									HEAD_FROM[tierOf(layout.tiers, column.id)],
 									column.align === "end" ? "justify-end text-end" : null,
+									column.headerClassName,
 								)}
 							>
 								{sortable ? (

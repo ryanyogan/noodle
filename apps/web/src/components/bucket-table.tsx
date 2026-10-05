@@ -22,8 +22,41 @@ function Left({ cents }: { cents: number }) {
 	return (
 		<span className={cn("font-medium tabular-nums", cents < 0 && "text-over-foreground")}>
 			<span className="hidden @2xl/dt:inline">{formatMoney(cents)}</span>
-			<span className="@2xl/dt:hidden">
+			{/* The narrowest phone has no room for it beside the name: there it leads the line under. */}
+			<span className="hidden @[20rem]/dt:inline @2xl/dt:hidden">
 				{cents < 0 ? `${formatMoney(-cents)} over` : `${formatMoney(cents)} left`}
+			</span>
+		</span>
+	);
+}
+
+/**
+ * The line under the name in a stacked row: the figures that have no column there. On the
+ * narrowest phone (a table under 320px) the name has the first line to itself, so this line says
+ * what is left first: "$120 left of $400".
+ */
+function Summary({
+	allowance,
+	spent,
+	left,
+	rolling = false,
+}: {
+	allowance: number;
+	spent: number;
+	left: number;
+	rolling?: boolean;
+}) {
+	return (
+		<span className="truncate font-normal tabular-nums">
+			<span className="@[20rem]/dt:hidden">
+				<span className={cn("font-medium", left < 0 ? "text-over-foreground" : "text-foreground")}>
+					{formatMoney(Math.abs(left))}
+				</span>
+				{left < 0 ? " over" : " left"} of {formatMoney(allowance)}
+			</span>
+			<span className="hidden @[20rem]/dt:inline">
+				{formatMoney(allowance)} allowance · {formatMoney(spent)} spent
+				{rolling ? " · Carries over" : ""}
 			</span>
 		</span>
 	);
@@ -155,7 +188,8 @@ export function BucketTable({
 						disabled={!hydrated}
 						aria-haspopup="dialog"
 						data-bucket-amount=""
-						className="-me-2 px-2 font-medium tabular-nums"
+						// The figure as the other columns write theirs, not a button's smaller, quieter words.
+						className="-me-2 px-2 text-sm font-medium text-foreground tabular-nums"
 						onClick={(event) => edit(bucket, event.currentTarget)}
 					>
 						{formatMoney(bucket.allowance)}
@@ -196,16 +230,19 @@ export function BucketTable({
 			wide: false,
 			stacked: "secondary",
 			cell: (bucket) => (
-				<span className="truncate tabular-nums">
-					{formatMoney(bucket.allowance)} allowance · {formatMoney(bucket.spent)} spent
-					{bucket.rolling ? " · Carries over" : ""}
-				</span>
+				<Summary
+					allowance={bucket.allowance}
+					spent={bucket.spent}
+					left={bucket.left}
+					rolling={bucket.rolling}
+				/>
 			),
 			footer: totals ? (
-				<span className="truncate font-normal tabular-nums">
-					{formatMoney(sum(buckets, (b) => b.allowance))} allowance ·{" "}
-					{formatMoney(sum(buckets, (b) => b.spent))} spent
-				</span>
+				<Summary
+					allowance={sum(buckets, (b) => b.allowance)}
+					spent={sum(buckets, (b) => b.spent)}
+					left={sum(buckets, (b) => b.left)}
+				/>
 			) : undefined,
 		},
 		{
@@ -215,8 +252,10 @@ export function BucketTable({
 			width: "minmax(5rem,1fr)",
 			priority: 3,
 			stacked: "hidden",
+			// Clear of the figure before it, which ends where this column would begin.
+			headerClassName: "ps-4",
 			cell: (bucket) => (
-				<div className="w-full min-w-0">
+				<div className="w-full min-w-0 ps-4">
 					<BudgetBar
 						bucket={asBucketColor(bucket.color)}
 						value={bucket.spent}

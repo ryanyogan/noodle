@@ -524,7 +524,13 @@ test("Buckets is a table from 1024 with the totals under it; a Bucket is a drawe
 	await expect(page.getByRole("button", { name: "Edit Gas", exact: true })).toBeEnabled();
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 	await axe(page, "The Buckets table at 320");
-	await bucketRow(page, "Gas").getByText("$200 left", { exact: true }).click();
+	// With no room beside the name, what's left leads the line under it.
+	const under = bucketRow(page, "Gas").locator("[data-column=summary]");
+	await expect(under).toContainText("$200 left of $200");
+	await expect(
+		bucketRow(page, "Gas").getByRole("link", { name: "Gas", exact: true }),
+	).toBeVisible();
+	await under.click();
 	await expect(page).toHaveURL(bucketAddress);
 	await expect(page.getByRole("link", { name: "Back to Buckets" })).toBeVisible();
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
