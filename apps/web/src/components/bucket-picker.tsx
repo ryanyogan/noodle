@@ -21,7 +21,7 @@ import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/compon
 import { cn } from "@noodle/ui/lib/utils";
 import { useHydrated } from "@tanstack/react-router";
 import { ChevronDown, Plus } from "lucide-react";
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { ulid } from "ulid";
 import { nextBucketColor } from "../buckets";
 import { formatMoney, formatMoneyInput, monthName } from "../format";
@@ -59,6 +59,7 @@ export function BucketPicker({
 	choices,
 	onValueChange,
 	onCreate,
+	foot,
 	"aria-label": label,
 }: {
 	id?: string;
@@ -70,6 +71,8 @@ export function BucketPicker({
 	onValueChange: (value: string) => void;
 	/** Asked to make a Bucket by this name. Without it there's no Create row. */
 	onCreate?: (name: string) => void;
+	/** Under the choices: a way to where Buckets are managed (issue 98, from Review). */
+	foot?: ReactNode;
 	"aria-label": string;
 }) {
 	const hydrated = useHydrated();
@@ -149,6 +152,11 @@ export function BucketPicker({
 							</CommandGroup>
 						) : null}
 					</CommandList>
+					{foot ? (
+						<div data-slot="bucket-picker-foot" className="border-t p-1">
+							{foot}
+						</div>
+					) : null}
 				</Command>
 			</PopoverContent>
 		</Popover>

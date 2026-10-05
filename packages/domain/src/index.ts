@@ -48,6 +48,17 @@ export {
 	resplit,
 } from "./bank-sync";
 export { looksPersonToPerson, parentNamedIn } from "./between-us";
+export {
+	type BucketGroup,
+	cleanGroupName,
+	GROUP_NAME_MAX,
+	groupBuckets,
+	groupNames,
+	groupTotals,
+	inGroupOrder,
+	peersOf,
+	putInOrder,
+} from "./bucket-groups";
 export { parseCapturedAmount } from "./capture";
 export * from "./card-issuers";
 export {

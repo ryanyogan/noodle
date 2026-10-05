@@ -402,3 +402,187 @@ test("A Bucket is dragged by its handle under a finger, and the rest of the row 
 	}
 	await page.context().close();
 });
+
+// Groups (issue 98): a name Buckets share, set in the Bucket sheet. The Plan lists a group's
+// Buckets together under its name, after those in no group, with the group's subtotal in the
+// Buckets' own columns; a Bucket moves among its group's Buckets only.
+const grouped: [string, string][] = [
+	["Groceries", "800"],
+	["Gas", "200"],
+	["Fun", "150"],
+	["Gifts", "100"],
+];
+
+const groupHeading = (page: Page) => page.locator('[data-slot="data-table-group"]');
+
+/** Sets a Bucket's group in its sheet: typed, or picked from the groups there are. */
+async function putInGroup(page: Page, name: string, group: string, how: "type" | "pick") {
+	await page.getByRole("button", { name: `Edit ${name}`, exact: true }).click();
+	const sheet = page.getByRole("dialog", { name, exact: true });
+	const field = sheet.getByLabel("Group", { exact: true });
+	if (how === "type") await field.fill(group);
+	else {
+		await sheet
+			.locator('[data-slot="bucket-groups"]')
+			.getByRole("button", { name: group, exact: true })
+			.click();
+		await expect(field).toHaveValue(group);
+	}
+	const saved = savedBy(page, "updateBucket");
+	await sheet.getByRole("button", { name: "Save", exact: true }).click();
+	await saved;
+	await expect(sheet).toHaveCount(0);
+}
+
+test("Buckets are put in a group from the sheet, listed under it with a subtotal, moved within it, and the group is renamed and removed", async ({
+	browser,
+}) => {
+	test.setTimeout(180_000);
+	const page = await signedInPage(browser, parent.email, wide);
+	await createPlannedHousehold(page, { baseline: "9,000", buckets: grouped });
+	await openBuckets(page);
+	await expect(groupHeading(page)).toHaveCount(0);
+
+	// A new group, typed: its Bucket goes under its name, after the Buckets in no group.
+	await putInGroup(page, "Gas", "Home", "type");
+	await expect(groupHeading(page)).toHaveCount(1);
+	await expect(groupHeading(page)).toContainText("Home");
+	expect(await names(page)).toEqual(["Groceries", "Fun", "Gifts", "Gas"]);
+
+	// A second Bucket picks the group there is. The heading has the two's subtotal, each figure
+	// ending where the rows' figures end.
+	await putInGroup(page, "Groceries", "Home", "pick");
+	expect(await names(page)).toEqual(["Fun", "Gifts", "Groceries", "Gas"]);
+	const heading = groupHeading(page);
+	await expect(heading.locator('[data-column="allowance"]')).toHaveText("$1,000");
+	await expect(heading.locator('[data-column="spent"]')).toHaveText("$0");
+	await expect(heading.locator('[data-column="left"]')).toContainText("$1,000");
+	for (const column of ["allowance", "spent", "left"]) {
+		const right = async (of: ReturnType<typeof row>) => {
+			const box = await of.locator(`[data-column="${column}"]`).boundingBox();
+			if (!box) throw new Error(`No ${column} column`);
+			return Math.round(box.x + box.width);
+		};
+		expect(await right(heading), column).toBe(await right(row(page, "Gas")));
+	}
+	await axe(page, "grouped Buckets");
+
+	// Moved by keyboard: within the group, and no further than its first place.
+	const said = page.getByTestId("reorder-said");
+	const gas = page.locator("[data-reorder]").and(page.getByRole("button", { name: "Move Gas" }));
+	await gas.focus();
+	let saved = savedBy(page, "reorderBuckets");
+	await page.keyboard.press("ArrowUp");
+	await saved;
+	await expect(said).toHaveText("Gas moved to position 3 of 4");
+	expect(await names(page)).toEqual(["Fun", "Gifts", "Gas", "Groceries"]);
+	await page.keyboard.press("ArrowUp");
+	await page.keyboard.press("Home");
+	expect(await names(page)).toEqual(["Fun", "Gifts", "Gas", "Groceries"]);
+	// A Bucket in no group stays among those: End is the last of them, not the list's last.
+	await page
+		.locator("[data-reorder]")
+		.and(page.getByRole("button", { name: "Move Fun" }))
+		.focus();
+	saved = savedBy(page, "reorderBuckets");
+	await page.keyboard.press("End");
+	await saved;
+	expect(await names(page)).toEqual(["Gifts", "Fun", "Gas", "Groceries"]);
+
+	// The sheet's Move up and Move down count the group's Buckets.
+	await page.getByRole("button", { name: "Edit Groceries", exact: true }).click();
+	const sheet = page.getByRole("dialog", { name: "Groceries", exact: true });
+	await expect(sheet.getByText("2 of 2 in Home")).toBeVisible();
+	await expect(sheet.getByRole("button", { name: "Move down" })).toBeDisabled();
+	saved = savedBy(page, "reorderBuckets");
+	await sheet.getByRole("button", { name: "Move up" }).click();
+	await saved;
+	await expect(sheet.getByText("1 of 2 in Home")).toBeVisible();
+	await sheet.getByRole("button", { name: "Cancel", exact: true }).click();
+	expect(await names(page)).toEqual(["Gifts", "Fun", "Groceries", "Gas"]);
+
+	// The group is renamed from its heading: both Buckets go with it, and it is kept.
+	await page.getByRole("button", { name: "Rename the group Home" }).click();
+	const groupSheet = page.getByRole("dialog", { name: "Home", exact: true });
+	await groupSheet.getByLabel("Group name").fill("House");
+	saved = savedBy(page, "renameBucketGroup");
+	await groupSheet.getByRole("button", { name: "Save", exact: true }).click();
+	await saved;
+	await expect(groupHeading(page)).toContainText("House");
+	await page.reload();
+	await expect(groupHeading(page)).toContainText("House");
+	await expect(groupHeading(page).locator('[data-column="allowance"]')).toHaveText("$1,000");
+	expect(await names(page)).toEqual(["Gifts", "Fun", "Groceries", "Gas"]);
+	await expect(page.getByRole("button", { name: "Add Buckets", exact: true })).toBeEnabled();
+
+	// One Bucket leaves the group (its field emptied); then the group goes, and its Bucket stays.
+	await putInGroup(page, "Gas", "", "type");
+	expect(await names(page)).toEqual(["Gifts", "Fun", "Gas", "Groceries"]);
+	await expect(groupHeading(page).locator('[data-column="allowance"]')).toHaveText("$800");
+	await page.getByRole("button", { name: "Rename the group House" }).click();
+	const again = page.getByRole("dialog", { name: "House", exact: true });
+	await again.getByLabel("Group name").fill("");
+	saved = savedBy(page, "renameBucketGroup");
+	await again.getByRole("button", { name: "Remove group", exact: true }).click();
+	await saved;
+	await expect(groupHeading(page)).toHaveCount(0);
+	// Each Bucket is back at its own place in the Plan's order, which a group never changed.
+	expect(await names(page)).toEqual(["Gifts", "Fun", "Groceries", "Gas"]);
+	await page.context().close();
+});
+
+test("A group's heading and subtotal fit a phone, and the sheet's Group field leaves Save in reach", {
+	tag: "@phone",
+}, async ({ browser }) => {
+	test.setTimeout(180_000);
+	const page = await signedInPage(browser, parent.email, {
+		viewport: { width: 393, height: 852 },
+		isMobile: true,
+		hasTouch: true,
+	});
+	await createPlannedHousehold(page, { baseline: "9,000", buckets: grouped });
+	await openBuckets(page);
+	await putInGroup(page, "Gas", "Home and car", "type");
+	await putInGroup(page, "Groceries", "Home and car", "pick");
+
+	for (const width of [393, 320]) {
+		await page.setViewportSize({ width, height: 852 });
+		const heading = groupHeading(page);
+		await heading.scrollIntoViewIfNeeded();
+		await expect(heading.getByText("Home and car", { exact: true })).toBeVisible();
+		// Beside the name, or on the narrowest phone leading the line under it.
+		await expect(
+			heading.locator("span:visible", { hasText: /\$1,000 left/ }).first(),
+		).toBeVisible();
+		// Nothing of it is cut off or runs past the screen.
+		const box = await heading.boundingBox();
+		if (!box) throw new Error("No group heading");
+		expect(box.x, `${width}`).toBeGreaterThanOrEqual(0);
+		expect(box.x + box.width, `${width}`).toBeLessThanOrEqual(width);
+		for (const part of await heading.locator("span:visible, button:visible").all()) {
+			const inner = await part.boundingBox();
+			if (!inner) continue;
+			expect(inner.x + inner.width, `${width}`).toBeLessThanOrEqual(box.x + box.width + 0.5);
+		}
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+			`${width}: no sideways scroll`,
+		).toBeLessThanOrEqual(0);
+
+		// In the sheet, with the Group field on screen, Save and Cancel are still on screen.
+		await page.getByRole("button", { name: "Edit Gas", exact: true }).click();
+		const sheet = page.getByRole("dialog", { name: "Gas", exact: true });
+		const field = sheet.getByLabel("Group", { exact: true });
+		await field.scrollIntoViewIfNeeded();
+		await expect(field).toBeInViewport();
+		await expect(sheet.getByRole("button", { name: "Save", exact: true })).toBeInViewport();
+		const cancel = sheet.getByRole("button", { name: "Cancel", exact: true });
+		await expect(cancel).toBeInViewport();
+		const pick = await sheet.locator('[data-slot="bucket-groups"]').boundingBox();
+		if (!pick) throw new Error("No groups to pick");
+		expect(pick.x + pick.width, `${width}`).toBeLessThanOrEqual(width);
+		await cancel.click();
+		await expect(sheet).toHaveCount(0);
+	}
+	await page.context().close();
+});

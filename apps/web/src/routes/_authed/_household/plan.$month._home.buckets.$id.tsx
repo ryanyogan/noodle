@@ -3,8 +3,11 @@ import {
 	type BucketRecord,
 	type BucketState,
 	canAssign,
+	groupNames,
+	inGroupOrder,
 	type MonthKey,
 	monthOfDay,
+	peersOf,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { BudgetBar } from "@noodle/ui/components/budget-bar";
@@ -115,7 +118,9 @@ function BucketPage() {
 	const archived = !current && record.fromMonth <= month;
 	// The chart shows only once the Bucket has been in the Plan in one of the months.
 	const charted = data.months.some((m) => m.inPlan);
-	const shared = state.buckets.filter((b) => b.owner === undefined).map((b) => b.id);
+	// As the Plan lists them: in their groups (issue 98).
+	const sharedBuckets = inGroupOrder(state.buckets.filter((b) => b.owner === undefined));
+	const shared = sharedBuckets.map((b) => b.id);
 	// Its last allowance, to restore it with. A Bucket archived in the month it started was in no
 	// month's Plan, so its Plan history (newest first) gives the amount it had.
 	const lastAllowance =
@@ -262,6 +267,8 @@ function BucketPage() {
 					month={month}
 					bucket={current}
 					order={personal ? [] : shared}
+					peers={personal ? undefined : peersOf(sharedBuckets, id)}
+					groups={personal ? undefined : groupNames(sharedBuckets)}
 					open={editing}
 					onOpenChange={setEditing}
 					changes={changes}

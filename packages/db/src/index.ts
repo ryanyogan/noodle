@@ -689,6 +689,7 @@ export {
 	bucketsWithAllowanceChanges,
 	loadPlanRecords,
 	parentsWithPersonalAllowance,
+	renameBucketGroup,
 	reorderBuckets,
 	restoreBucket,
 	setAllowance,

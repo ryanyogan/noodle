@@ -34,6 +34,8 @@ export type BucketRecord = {
 	archivedFromMonth: MonthKey | null;
 	/** Set for a Personal Allowance: the Parent it belongs to. */
 	owner?: string | null;
+	/** The group a Parent put it in (issue 98); null or absent for none. */
+	group?: string | null;
 };
 
 export type CommitmentRecord = {
@@ -61,6 +63,8 @@ export type PlanBucket = {
 	 * assign spending to it (see `canAssign`); it counts in the Plan like any Bucket.
 	 */
 	owner?: string;
+	/** The group it is listed under in the Plan (issue 98); absent for none. Changes no figure. */
+	group?: string;
 };
 
 export type PlanCommitment = {
@@ -141,8 +145,9 @@ export function planForMonth(records: PlanRecords, month: MonthKey): Plan {
 	const buckets = records.buckets
 		.filter((b) => inPlan(month, b.fromMonth, b.archivedFromMonth))
 		.sort((a, b) => a.position - b.position || (a.id < b.id ? -1 : 1))
-		.map(({ id, name, color, owner }) => ({
+		.map(({ id, name, color, owner, group }) => ({
 			...(owner ? { owner } : {}),
+			...(group && !owner ? { group } : {}),
 			id,
 			name,
 			color,
