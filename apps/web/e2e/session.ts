@@ -130,8 +130,8 @@ function patientGoto(page: Page) {
 		} catch (error) {
 			if (!(error instanceof Error) || !error.message.includes("interrupted by another navigation"))
 				throw error;
-			// Counted in CI's log: the app is meant not to reload a page that is being left.
-			console.log(`GOTO-AGAIN ${url}`);
+			// Counted in CI's summary of steps: the app is meant not to reload a page being left.
+			console.log("TIMING goto-again 0");
 			await page.waitForLoadState("domcontentloaded");
 			return goto(url, options);
 		}

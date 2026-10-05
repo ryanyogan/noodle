@@ -95,8 +95,9 @@ test("a busy month flings without blank gaps or long frames", async ({ browser }
 		realTouch(page) ? page.mouse.wheel(0, dy) : page.evaluate((dy) => window.scrollBy(0, dy), dy);
 	const start = await page.evaluate(() => window.scrollY);
 	for (let i = 0; i < 4; i++) {
-		// A quick flick up (Chromium scrolls with it; elsewhere the wheel below does the work).
-		await swipe(page, rows.nth(2), -360, 3);
+		// A quick flick up, where a flick can scroll (Chromium). Elsewhere it moves nothing, and
+		// after the first scroll the row it would start on is drawn above the screen, out of reach.
+		if (realTouch(page)) await swipe(page, rows.nth(2), -360, 3);
 		expect(await gaps(), `after flick ${i + 1}`).toEqual([]);
 		await page.mouse.move(196, 500);
 		await wheel(900);
