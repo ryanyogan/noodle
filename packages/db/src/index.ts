@@ -531,13 +531,9 @@ export {
 	undoExtraIncome,
 } from "./extra-income";
 export {
-	FREE_TO_SPEND_TARGET,
 	loadFreeCarriedIn,
 	loadFreeCarriedInto,
 	loadFreeCarryMonths,
-	loadFreeToSpendKeepBack,
-	setFreeToSpendCarry,
-	setFreeToSpendKeepBack,
 } from "./free-carry";
 export * from "./fresh-start";
 export {

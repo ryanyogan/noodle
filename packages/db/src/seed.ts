@@ -51,7 +51,6 @@ const TABLES = {
 	buckets: s.buckets,
 	bucketAllowances: s.bucketAllowances,
 	bucketRolling: s.bucketRolling,
-	freeToSpendCarry: s.freeToSpendCarry,
 	// Before Commitments: one may pay down a card or loan (commitments.account_id, issue 93).
 	bankConnections: s.bankConnections,
 	accounts: s.accounts,

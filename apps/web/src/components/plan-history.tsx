@@ -44,9 +44,6 @@ export function describeValues(before: PlanChangeValue | null, after: PlanChange
 	if (after.rolling !== undefined) {
 		parts.push(fromTo(was.rolling, after.rolling, (r) => (r ? "Carries over" : "Resets monthly")));
 	}
-	if (after.buildsUp !== undefined) {
-		parts.push(fromTo(was.buildsUp, after.buildsUp, (b) => (b ? "Builds up" : "Starts fresh")));
-	}
 	if (after.cadence !== undefined) {
 		parts.push(fromTo(was.cadence, after.cadence, (c) => cadenceNames[c]));
 	}
@@ -123,9 +120,7 @@ export const groupTitle = (group: Pick<PlanChangeGroup, "kind" | "targetName">) 
 		? "Take-home pay"
 		: group.kind === "personal-allowance"
 			? PERSONAL_ALLOWANCE
-			: group.kind === "free-to-spend"
-				? "Free to Spend"
-				: (group.targetName ?? "Removed item");
+			: (group.targetName ?? "Removed item");
 
 const people = new Intl.ListFormat("en-US", { style: "long", type: "conjunction" });
 

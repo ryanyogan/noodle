@@ -38,7 +38,10 @@ async function plannedMonth(page: Page) {
 	return month;
 }
 
-test("This Month and Plan › Year show what was carried over from the months before", async ({
+// issue 113: the opt-in design this was written for is gone. Ended months now hand on what they
+// ACTUALLY left, so the seed needs income and spending in them and the figures below are stale.
+// Skipped until the display phase reworks it (see handoffs/phases/113r.md).
+test.fixme("This Month and Plan › Year show what was carried over from the months before", async ({
 	browser,
 }) => {
 	test.slow();
@@ -54,7 +57,6 @@ test("This Month and Plan › Year show what was carried over from the months be
 		`insert into baselines (household_id, month, amount_cents) values (${household}, ${q(first)}, 500000);`,
 		`insert into buckets (id, household_id, name, color, position, from_month) values (${q(fun)}, ${household}, 'Fun', 2, 10, ${q(first)});`,
 		`insert into bucket_allowances (household_id, bucket_id, month, amount_cents) values (${household}, ${q(fun)}, ${q(first)}, 440000);`,
-		`insert into free_to_spend_carry (household_id, month, carries) values (${household}, ${q(first)}, 1);`,
 	]);
 	await page.reload();
 

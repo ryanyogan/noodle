@@ -240,8 +240,8 @@ function YearTable({ months }: { months: YearMonth[] }) {
 	// year's total leaves it out: the row still reads take-home pay less every part (issue 113).
 	const total = (key: keyof YearFigures) =>
 		months.reduce((sum, m) => sum + m.plan[key] - (key === "freeToSpend" ? m.carriedIn : 0), 0);
-	// Only a Household whose Free to Spend builds up has anything carried over (issue 113).
-	const carries = months.some((m) => m.carriedIn > 0);
+	// The column shows once a month has something carried over, a surplus or a shortfall (issue 113).
+	const carries = months.some((m) => m.carriedIn !== 0);
 	const cell = "px-2 first:ps-(--card-pad) last:pe-(--card-pad) xl:px-(--card-pad)";
 	// With the extra column the headings no longer fit on one line at 1024, and the last column
 	// (Free to Spend) was cut off: below the wide layout they may wrap instead.
@@ -302,7 +302,7 @@ function YearTable({ months }: { months: YearMonth[] }) {
 								<Fragment key={f.key}>
 									{carries && f.key === "freeToSpend" ? (
 										<TableCell numeric className={cn(cell, "py-2.5")}>
-											{month.carriedIn > 0 ? (
+											{month.carriedIn !== 0 ? (
 												<Amount cents={month.carriedIn} />
 											) : (
 												<span className="text-muted-foreground">–</span>
@@ -371,7 +371,7 @@ function YearList({ months }: { months: YearMonth[] }) {
 						<span className="shrink-0 text-end text-sm font-medium tabular-nums">
 							<span className="sr-only">Free to Spend: </span>
 							<Amount cents={month.plan.freeToSpend} />
-							{month.carriedIn > 0 ? (
+							{month.carriedIn !== 0 ? (
 								<span className="block text-xs font-normal text-muted-foreground">
 									<Amount cents={month.carriedIn} /> carried over
 								</span>

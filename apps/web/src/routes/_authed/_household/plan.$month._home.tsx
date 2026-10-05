@@ -22,7 +22,6 @@ import { AddBucketsSheet } from "../../../components/add-buckets";
 import { AddPersonalAllowance } from "../../../components/bucket-editor";
 import { BucketTable, bucketsHaveHandles } from "../../../components/bucket-table";
 import { LumpCallout } from "../../../components/coming-up";
-import { FreeToSpendCarry } from "../../../components/free-to-spend-carry";
 import { AmountInput } from "../../../components/goals";
 import { PlanDraftSection } from "../../../components/plan-draft";
 import { SaveFailed } from "../../../components/plan-editing";
@@ -174,19 +173,7 @@ function PlanHome() {
 			<SectionGrid className="empty:hidden xl:grid-cols-[minmax(0,1fr)] min-[120rem]:grid-cols-2">
 				{unpaid ? null : (
 					<div className="grid gap-3 only:col-span-full">
-						<PlanSplit
-							state={typed}
-							current={month === current}
-							footer={
-								state.baseline === null ? null : (
-									<FreeToSpendCarry
-										month={month}
-										editable={state.editable}
-										carriedIn={state.freeCarriedIn}
-									/>
-								)
-							}
-						/>
+						<PlanSplit state={typed} current={month === current} />
 						<LumpCallout lumps={lumpsIn(state)} month={month} />
 					</div>
 				)}

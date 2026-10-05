@@ -168,12 +168,11 @@ export {
 	shares,
 } from "./for";
 export {
-	aboveKeepBack,
+	type CarryInputs,
 	type FreeCarryMonth,
+	firstCarryMonth,
 	freeCarriedIn,
-	freeCarries,
 	freeCarryMonths,
-	freeCarrySince,
 	type MonthAmount,
 } from "./free-carry";
 export {
@@ -562,6 +561,7 @@ export {
 	transferPairs,
 } from "./transfers";
 export {
+	actualFigures,
 	type YearActuals,
 	type YearFigures,
 	type YearMonth,

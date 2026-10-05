@@ -8,7 +8,6 @@ import {
 	loadCharges,
 	loadExtraToFree,
 	loadFreeCarryMonths,
-	loadFreeToSpendKeepBack,
 	loadGoalFunding,
 	loadIncome,
 	loadMonthClose,
@@ -28,7 +27,6 @@ import {
 	dayKeyAt,
 	type ExtraToFree,
 	firstPlanMonth,
-	freeCarries,
 	type GoalFunding,
 	type MonthKey,
 	monthKeyAt,
@@ -64,19 +62,17 @@ export type MonthData = {
 	 */
 	rolledOver: Record<string, Cents>;
 	/**
-	 * What last month's Free to Spend carried into this one, when it builds up (issue 113); absent
-	 * or 0 when it starts fresh. Like `rolledOver`, it depends only on earlier months.
+	 * What the months before left for this month's Free to Spend, or were short by (issue 113);
+	 * 0 for the first month with a Plan. Like `rolledOver`, it depends only on earlier months.
 	 */
 	freeCarriedIn?: Cents;
-	/** Whether this month's Free to Spend builds up into the next (else it starts fresh). */
-	freeBuildsUp?: boolean;
-	/** The Household's "Keep back" amount. */
-	freeKeepBack?: Cents;
 	/**
-	 * What each of the last months (six at most, oldest first, ending with last month) carried
-	 * over, for the unbroken run of months building up before this one.
+	 * What each of the last months (six at most, oldest first, ending with last month) handed on,
+	 * since the first month with a Plan.
 	 */
 	freeBuiltUp?: { month: MonthKey; amount: Cents }[];
+	/** For an ended month, what it handed on to the next: what it actually ended with. */
+	freeHandedOn?: Cents;
 	/** Moves from Free to Spend into what Goals have set aside. */
 	goalFunding: (GoalFunding & { id: string })[];
 	/** Extra income a Parent added to the month's Free to Spend. */
@@ -130,20 +126,18 @@ export async function loadMonth(
 		loadExtraToFree(db, household.id, month),
 		loadBetweenUsIncome(db, household.id, month, addMonths(month, 1)),
 	]);
-	const [rolledOver, carried, freeKeepBack] = await Promise.all([
-		loadRolledOver(db, household.id, records, month),
-		loadFreeCarryMonths(db, household.id, records, addMonths(month, -1)),
-		loadFreeToSpendKeepBack(db, household.id),
-	]);
-	const freeBuiltUp: NonNullable<MonthData["freeBuiltUp"]> = [];
-	for (let i = carried.length - 1; i >= 0 && freeBuiltUp.length < 6; i--) {
-		const earlier = carried[i];
-		if (!earlier?.carries) break;
-		freeBuiltUp.unshift({ month: earlier.month, amount: earlier.carriedOut });
-	}
-	const freeCarriedIn = carried[carried.length - 1]?.carriedOut ?? 0;
 	const now = new Date();
 	const current = monthKeyAt(now, household.timeZone);
+	const [rolledOver, carried] = await Promise.all([
+		loadRolledOver(db, household.id, records, month),
+		loadFreeCarryMonths(db, viewer, records, month, current),
+	]);
+	const own = carried.find((m) => m.month === month);
+	const freeBuiltUp = carried
+		.filter((m) => m.month < month)
+		.slice(-6)
+		.map((m) => ({ month: m.month, amount: m.left }));
+	const freeCarriedIn = own?.carriedIn ?? 0;
 	return {
 		plan: planForMonth(records, month),
 		planBefore: planForMonth(records, addMonths(month, -1)),
@@ -152,9 +146,8 @@ export async function loadMonth(
 		moves,
 		rolledOver,
 		freeCarriedIn,
-		freeBuildsUp: freeCarries(records, month),
-		freeKeepBack,
 		freeBuiltUp,
+		...(own?.ended ? { freeHandedOn: own.left } : {}),
 		goalFunding,
 		extraToFree,
 		sweeps,

@@ -88,10 +88,15 @@ export const getYear = createServerFn({ method: "GET" })
 			hasActuals ? loadMovesBetween(db, household.id, first, actualUntil) : [],
 			hasActuals ? loadExtraToFree(db, household.id, first, actualUntil) : [],
 		]);
-		// What each month begun was carried, when Free to Spend builds up (issue 113).
-		const freeCarry = hasActuals
-			? await loadFreeCarryMonths(db, household.id, records, last < current ? last : current)
-			: [];
+		// What each month through this one was carried and hands on (issue 113); months ahead
+		// chain on from this month's.
+		const freeCarry = await loadFreeCarryMonths(
+			db,
+			viewer,
+			records,
+			last < current ? last : current,
+			current,
+		);
 		const months = yearGrid({
 			year: data.year,
 			current,
@@ -134,7 +139,10 @@ export async function loadPlanHealth(
 		followedCards(db, viewer.householdId, asOf),
 	]);
 	const follows = new Set(followed);
+	// What this month's Free to Spend hands on: the months ahead chain on from it (issue 113).
+	const carried = await loadFreeCarryMonths(db, viewer, records, month, month);
 	const warnings = planHealth({
+		freeHandedOn: carried[carried.length - 1]?.left ?? 0,
 		asOf,
 		parentId: viewer.memberId,
 		records,

@@ -19,7 +19,6 @@ export const PLAN_CHANGE_KINDS = [
 	"commitment-account",
 	"goal-add",
 	"goal",
-	"free-carry",
 ] as const;
 
 export type PlanChangeKind = (typeof PLAN_CHANGE_KINDS)[number];
@@ -31,8 +30,6 @@ export type PlanChangeKind = (typeof PLAN_CHANGE_KINDS)[number];
 export type PlanChangeValue = {
 	amount?: Cents | null;
 	rolling?: boolean;
-	/** Whether Free to Spend builds up (true) or starts fresh (issue 113). */
-	buildsUp?: boolean;
 	name?: string;
 	cadence?: Cadence;
 	dueDate?: DayKey;
@@ -74,9 +71,9 @@ export type PlanChange = {
 
 /** One item's Plan changes in a month, netted: what it was before the first and after the last. */
 export type PlanChangeGroup<C extends PlanChange = PlanChange> = {
-	/** "baseline", "free-to-spend", or the Bucket, Commitment or Goal ID. */
+	/** "baseline", or the Bucket, Commitment or Goal ID. */
 	key: string;
-	kind: "baseline" | "bucket" | "commitment" | "goal" | "personal-allowance" | "free-to-spend";
+	kind: "baseline" | "bucket" | "commitment" | "goal" | "personal-allowance";
 	targetId: string | null;
 	targetName: string | null;
 	/** Added this month (so nothing was before) or taken out of the Plan from it. */
@@ -93,7 +90,6 @@ export type PlanChangeGroup<C extends PlanChange = PlanChange> = {
 
 const groupKind = (kind: PlanChange["kind"]): PlanChangeGroup["kind"] => {
 	if (kind === "baseline" || kind === "personal-allowance") return kind;
-	if (kind === "free-carry") return "free-to-spend";
 	if (kind.startsWith("goal")) return "goal";
 	return kind.startsWith("commitment") ? "commitment" : "bucket";
 };

@@ -127,8 +127,8 @@ function committedSql(householdId: string, month: MonthKey): SQL {
 /**
  * Free to Spend this month: take-home pay, plus Extra income a Parent added to it, less
  * Commitments, allowances, and Moves out of it (an Extra income Move to a Bucket or Goal comes
- * from the Extra income, not from it), plus what earlier months carried in when Free to Spend
- * builds up (`carriedInCents`: freeCarriedIn in @noodle/domain, loaded with loadFreeCarriedIn).
+ * from the Extra income, not from it), plus what the months before left or were short by
+ * (`carriedInCents`, any sign: freeCarriedIn in @noodle/domain, loaded with loadFreeCarriedIn).
  */
 export function freeToSpendSql(
 	householdId: string,

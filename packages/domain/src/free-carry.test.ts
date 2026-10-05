@@ -1,224 +1,165 @@
 import { describe, expect, it } from "vitest";
 import {
-	aboveKeepBack,
+	type CarryInputs,
+	firstCarryMonth,
 	freeCarriedIn,
-	freeCarries,
 	freeCarryMonths,
-	freeCarrySince,
-} from "./free-carry";
-import type { MonthKey } from "./month";
-import { monthState } from "./month-state";
-import { type PlanRecords, planForMonth } from "./plan";
+	type MonthKey,
+	monthState,
+	type PlanRecords,
+	planForMonth,
+	planHealth,
+	yearGrid,
+} from "./index";
 
-// Take-home pay $5,000, Groceries $1,000: every month ends with $4,000 in Free to Spend.
-const plan = (extra: Partial<PlanRecords> = {}): PlanRecords => ({
-	baselines: [{ month: "2026-01", amount: 5000_00 }],
+// Take-home pay $5,000 from August 2026 with a $4,400 Bucket: each month's own figure is $600.
+// From November the Bucket is $5,012.20, so November's own figure is −$12.20 (the Parent's case).
+const records: PlanRecords = {
+	baselines: [{ month: "2026-08", amount: 500_000 }],
 	buckets: [
 		{
-			id: "groceries",
-			name: "Groceries",
+			id: "fun",
+			name: "Fun",
 			color: 1,
 			position: 0,
-			fromMonth: "2026-01",
+			fromMonth: "2026-08",
 			archivedFromMonth: null,
+			owner: null,
 		},
 	],
-	allowances: [{ bucketId: "groceries", month: "2026-01", amount: 1000_00 }],
+	allowances: [
+		{ bucketId: "fun", month: "2026-08", amount: 440_000 },
+		{ bucketId: "fun", month: "2026-11", amount: 501_220 },
+	],
+	rolling: [],
 	commitments: [],
 	commitmentTerms: [],
-	rolling: [],
-	...extra,
-});
+};
+const none: Pick<CarryInputs, "actual" | "outOfFree" | "extraToFree"> = {
+	actual: [],
+	outOfFree: [],
+	extraToFree: [],
+};
+const walk = (current: MonthKey, to: MonthKey, inputs: Partial<typeof none> = {}) =>
+	freeCarryMonths({ records, current, ...none, ...inputs, to });
 
-const carriedInto = (records: PlanRecords, month: MonthKey, moves = {}) =>
-	freeCarriedIn({ records, outOfFree: [], extraToFree: [], month, ...moves });
-
-describe("Free to Spend that builds up", () => {
-	it("starts fresh by default: nothing is carried, whatever earlier months left", () => {
-		expect(carriedInto(plan(), "2026-06")).toBe(0);
-		expect(freeCarrySince(plan(), "2026-06")).toBeNull();
-		expect(freeCarries(plan(), "2026-06")).toBe(false);
-		expect(carriedInto(plan({ freeCarries: [] }), "2026-06")).toBe(0);
+describe("Free to Spend carried over (issue 113)", () => {
+	it("starts at the first month with a Plan, which is carried nothing", () => {
+		expect(firstCarryMonth(records, "2026-10")).toBe("2026-08");
+		expect(firstCarryMonth(records, "2026-07")).toBeNull();
+		expect(walk("2026-08", "2026-08")).toEqual([
+			{ month: "2026-08", ended: false, carriedIn: 0, own: 60_000, left: 60_000 },
+		]);
+		expect(freeCarriedIn({ records, current: "2026-08", ...none, month: "2026-08" })).toBe(0);
 	});
 
-	it("carries what a month ended with into the next", () => {
-		const records = plan({ freeCarries: [{ month: "2026-01", carries: true }] });
-		expect(carriedInto(records, "2026-02")).toBe(4000_00);
+	it("ignores months before the first Plan, whatever happened in them", () => {
+		const months = walk("2026-10", "2026-10", {
+			actual: [
+				{ month: "2026-05", amount: 900_000 },
+				{ month: "2026-07", amount: -300_000 },
+				{ month: "2026-08", amount: 10_000 },
+				{ month: "2026-09", amount: 20_000 },
+			],
+		});
+		expect(months.map((m) => m.month)).toEqual(["2026-08", "2026-09", "2026-10"]);
+		expect(months[2]).toMatchObject({ carriedIn: 30_000, left: 90_000 });
 	});
 
-	it("builds up over several months", () => {
-		const records = plan({ freeCarries: [{ month: "2026-01", carries: true }] });
-		expect(carriedInto(records, "2026-04")).toBe(12000_00);
-		expect(
-			freeCarryMonths({
-				records,
-				outOfFree: [],
-				extraToFree: [],
-				from: "2026-01",
-				to: "2026-03",
-			}),
-		).toEqual([
-			{ month: "2026-01", carries: true, carriedIn: 0, left: 4000_00, carriedOut: 4000_00 },
-			{ month: "2026-02", carries: true, carriedIn: 4000_00, left: 8000_00, carriedOut: 8000_00 },
-			{
-				month: "2026-03",
-				carries: true,
-				carriedIn: 8000_00,
-				left: 12000_00,
-				carriedOut: 12000_00,
-			},
+	it("carries a surplus into the next month", () => {
+		const carried = freeCarriedIn({
+			records,
+			current: "2026-10",
+			...none,
+			actual: [
+				{ month: "2026-08", amount: 60_000 },
+				{ month: "2026-09", amount: 60_000 },
+			],
+			month: "2026-10",
+		});
+		expect(carried).toBe(120_000);
+	});
+
+	it("carries a shortfall too, and it stays until a later month makes it up", () => {
+		const months = walk("2026-10", "2026-10", {
+			actual: [
+				{ month: "2026-08", amount: -100_000 },
+				{ month: "2026-09", amount: 25_000 },
+			],
+		});
+		expect(months.map((m) => [m.carriedIn, m.left])).toEqual([
+			[0, -100_000],
+			[-100_000, -75_000],
+			[-75_000, -15_000],
 		]);
 	});
 
-	it("starts from the month a Parent turned it on: older months' leftovers are not pulled in", () => {
-		const records = plan({ freeCarries: [{ month: "2026-03", carries: true }] });
-		expect(freeCarrySince(records, "2026-03")).toBeNull();
-		expect(carriedInto(records, "2026-03")).toBe(0);
-		expect(freeCarrySince(records, "2026-05")).toBe("2026-03");
-		expect(carriedInto(records, "2026-04")).toBe(4000_00);
-		expect(carriedInto(records, "2026-05")).toBe(8000_00);
+	it("an ended month hands on what it actually ended with, not what its Plan left", () => {
+		// September's Plan leaves $600, but $900 more was spent than planned: it ended $300 short.
+		const months = walk("2026-10", "2026-10", {
+			actual: [
+				{ month: "2026-08", amount: 60_000 },
+				{ month: "2026-09", amount: -30_000 },
+			],
+			// An ended month's Moves are already in its actual: they are not counted again.
+			outOfFree: [{ month: "2026-09", amount: 5_000 }],
+		});
+		expect(months[1]).toMatchObject({ ended: true, own: -30_000, left: 30_000 });
+		expect(months[2]).toMatchObject({ ended: false, carriedIn: 30_000, own: 60_000 });
 	});
 
-	it("takes Covers from Free to Spend and Goal funding out before carrying", () => {
-		const records = plan({ freeCarries: [{ month: "2026-01", carries: true }] });
-		const outOfFree = [
-			{ month: "2026-01" as const, amount: 300_00 },
-			{ month: "2026-01" as const, amount: 200_00 },
-			// Out of the month being asked about: no part of what's carried into it.
-			{ month: "2026-02" as const, amount: 999_00 },
-		];
-		expect(carriedInto(records, "2026-02", { outOfFree })).toBe(3500_00);
+	it("the Household's month uses its Plan figure, with its Moves and Extra income", () => {
+		const months = walk("2026-10", "2026-10", {
+			actual: [{ month: "2026-08", amount: 60_000 }],
+			outOfFree: [{ month: "2026-10", amount: 10_000 }],
+			extraToFree: [{ month: "2026-10", amount: 4_000 }],
+		});
+		expect(months[2]).toMatchObject({ carriedIn: 60_000, own: 54_000, left: 114_000 });
+		const state = monthState({
+			plan: planForMonth(records, "2026-10"),
+			spending: [],
+			freeCarriedIn: months[2]?.carriedIn,
+			asOf: "2026-10-05",
+		});
+		expect(state.freeToSpend).toBe(120_000);
+		expect(state.freeCarriedIn).toBe(60_000);
 	});
 
-	it("carries Extra income a Parent left in an ended month's Free to Spend", () => {
-		const records = plan({ freeCarries: [{ month: "2026-01", carries: true }] });
-		const extraToFree = [{ month: "2026-01" as const, amount: 250_00 }];
-		expect(carriedInto(records, "2026-02", { extraToFree })).toBe(4250_00);
-		expect(carriedInto(records, "2026-03", { extraToFree })).toBe(8250_00);
-	});
-
-	it("carries nothing out of a month that ends below zero: the next starts clean", () => {
-		const records = plan({
-			freeCarries: [{ month: "2026-01", carries: true }],
-			// February alone plans $9,000 into Groceries: $4,000 over, even with January's $4,000.
-			allowances: [
-				{ bucketId: "groceries", month: "2026-01", amount: 1000_00 },
-				{ bucketId: "groceries", month: "2026-02", amount: 13500_00 },
-				{ bucketId: "groceries", month: "2026-03", amount: 1000_00 },
+	it("months ahead chain: a month the ones before cover is neither short nor flagged", () => {
+		const carry = walk("2026-10", "2026-10", {
+			actual: [
+				{ month: "2026-08", amount: 0 },
+				{ month: "2026-09", amount: 0 },
 			],
 		});
-		const months = freeCarryMonths({
+		// October leaves $600; November on its own is −$12.20.
+		expect(walk("2026-10", "2026-11").at(-1)).toMatchObject({ own: -1_220, left: 58_780 });
+		const months = yearGrid({
+			year: 2026,
+			current: "2026-10",
 			records,
-			outOfFree: [],
-			extraToFree: [],
-			from: "2026-01",
-			to: "2026-03",
+			goals: [],
+			actuals: { spending: [], income: [], goalFunding: [] },
+			freeCarry: carry,
 		});
-		expect(months[1]).toMatchObject({ carriedIn: 4000_00, left: -4500_00, carriedOut: 0 });
-		expect(carriedInto(records, "2026-03")).toBe(0);
-		// March is not charged February's shortfall, and builds up again from its own leftover.
-		expect(carriedInto(records, "2026-04")).toBe(4000_00);
-	});
-
-	it("lets carried-in money absorb an over-planned month, carrying on what remains", () => {
-		const records = plan({
-			freeCarries: [{ month: "2026-01", carries: true }],
-			allowances: [
-				{ bucketId: "groceries", month: "2026-01", amount: 1000_00 },
-				{ bucketId: "groceries", month: "2026-02", amount: 6000_00 },
-			],
-		});
-		// February alone is −$1,000; with January's $4,000 it ends with $3,000.
-		expect(carriedInto(records, "2026-03")).toBe(3000_00);
-	});
-
-	it("stops carrying from the month it's turned off, and keeps what earlier months built", () => {
-		const records = plan({
-			freeCarries: [
-				{ month: "2026-01", carries: true },
-				{ month: "2026-03", carries: false },
-				{ month: "2026-05", carries: true },
-			],
-		});
-		expect(carriedInto(records, "2026-02")).toBe(4000_00);
-		expect(carriedInto(records, "2026-03")).toBe(8000_00);
-		// March has it, and ends with it.
-		expect(carriedInto(records, "2026-04")).toBe(0);
-		expect(carriedInto(records, "2026-05")).toBe(0);
-		// Turned on again in May: only May's own leftover, nothing from before.
-		expect(freeCarrySince(records, "2026-06")).toBe("2026-05");
-		expect(carriedInto(records, "2026-06")).toBe(4000_00);
-	});
-
-	it("counts a Commitment each time it's due in a month, not once", () => {
-		const records = plan({
-			freeCarries: [{ month: "2026-01", carries: true }],
-			commitments: [{ id: "sitter", name: "Sitter", fromMonth: "2026-01", endedFromMonth: null }],
-			// Biweekly from Jan 2: due Jan 2, 16 and 30, so January takes it three times.
-			commitmentTerms: [
-				{
-					commitmentId: "sitter",
-					month: "2026-01",
-					amount: 100_00,
-					cadence: "biweekly",
-					dueDate: "2026-01-02",
-				},
-			],
-		});
-		expect(carriedInto(records, "2026-02")).toBe(3700_00);
-	});
-});
-
-describe("the month's state", () => {
-	const records = plan();
-
-	it("is unchanged when nothing is carried in", () => {
-		const state = monthState({
-			plan: planForMonth(records, "2026-02"),
-			spending: [],
-			asOf: "2026-02-10",
-		});
-		expect(state.freeToSpend).toBe(4000_00);
-		expect(state.freeCarriedIn).toBe(0);
-	});
-
-	it("adds what was carried in to Free to Spend", () => {
-		const state = monthState({
-			plan: planForMonth(records, "2026-02"),
-			spending: [],
-			goalFunding: [{ goalId: "trip", amount: 500_00, month: "2026-02" }],
-			freeCarriedIn: 4000_00,
-			asOf: "2026-02-10",
-		});
-		expect(state.freeCarriedIn).toBe(4000_00);
-		expect(state.freeToSpend).toBe(7500_00);
-	});
-
-	it("ends each month with what the walk says it carries on", () => {
-		const carrying = plan({ freeCarries: [{ month: "2026-01", carries: true }] });
-		const february = monthState({
-			plan: planForMonth(carrying, "2026-02"),
-			spending: [],
-			freeCarriedIn: carriedInto(carrying, "2026-02"),
-			asOf: "2026-02-28",
-		});
-		expect(carriedInto(carrying, "2026-03")).toBe(february.freeToSpend);
-	});
-});
-
-describe("keeping some back", () => {
-	it("offers what's left above the kept-back amount", () => {
-		expect(aboveKeepBack({ left: 412_00, keepBack: 100_00 })).toBe(312_00);
-		expect(aboveKeepBack({ left: 412_00, keepBack: 0 })).toBe(412_00);
-	});
-
-	it("offers nothing at or below it, or from a month below zero", () => {
-		expect(aboveKeepBack({ left: 100_00, keepBack: 100_00 })).toBe(0);
-		expect(aboveKeepBack({ left: 40_00, keepBack: 100_00 })).toBe(0);
-		expect(aboveKeepBack({ left: -50_00, keepBack: 0 })).toBe(0);
-	});
-
-	it("treats a kept-back amount below zero as none", () => {
-		expect(aboveKeepBack({ left: 412_00, keepBack: -5 })).toBe(412_00);
+		const at = (month: MonthKey) => months.find((m) => m.month === month);
+		expect(at("2026-10")).toMatchObject({ carriedIn: 0, plan: { freeToSpend: 60_000 } });
+		expect(at("2026-11")).toMatchObject({ carriedIn: 60_000, plan: { freeToSpend: 58_780 } });
+		expect(at("2026-12")).toMatchObject({ carriedIn: 58_780, plan: { freeToSpend: 57_560 } });
+		const health = (freeHandedOn?: number) =>
+			planHealth({
+				asOf: "2026-10-05",
+				parentId: "alex",
+				records: { ...records },
+				goals: [],
+				changes: [],
+				income: [],
+				spent: [],
+				freeHandedOn,
+			}).filter((w) => w.kind === "negative-ahead");
+		expect(health(carry.at(-1)?.left)).toEqual([]);
+		// On its own November would be flagged, and with a shortfall carried it is.
+		expect(health()).toMatchObject([{ month: "2026-11", freeToSpend: -1_220 }]);
+		expect(health(-50_000)).toMatchObject([{ month: "2026-11", freeToSpend: -51_220 }]);
 	});
 });

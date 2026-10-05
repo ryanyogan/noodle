@@ -132,6 +132,7 @@ export function planHealth({
 	income,
 	spent,
 	cards = [],
+	freeHandedOn = 0,
 }: {
 	asOf: DayKey;
 	parentId: string;
@@ -142,6 +143,11 @@ export function planHealth({
 	spent: readonly { bucketId: string; month: MonthKey; amount: Cents }[];
 	/** The Household's credit cards in use; left out, no Commitment is checked against them. */
 	cards?: readonly HealthCard[];
+	/**
+	 * What this month's Free to Spend hands on to the next (see freeCarryMonths; issue 113): the
+	 * months ahead chain on from it, so one that earlier months cover is not flagged.
+	 */
+	freeHandedOn?: Cents;
 }): PlanWarning[] {
 	const month = monthOfDay(asOf);
 	const warnings: PlanWarning[] = [];
@@ -152,8 +158,13 @@ export function planHealth({
 		month,
 		HEALTH_MONTHS_AHEAD + 1,
 	);
+	let carried = freeHandedOn;
 	const negative = project(ahead)
 		.months.slice(1)
+		.map((m) => {
+			carried += m.freeToSpend;
+			return { month: m.month, freeToSpend: carried };
+		})
 		.filter((m) => m.freeToSpend < 0);
 	const firstNegative = negative[0];
 	if (firstNegative) {

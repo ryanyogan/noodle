@@ -11,7 +11,7 @@ import { Card } from "@noodle/ui/components/card";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { cn } from "@noodle/ui/lib/utils";
 import { useHydrated } from "@tanstack/react-router";
-import { type ReactNode, useId, useState } from "react";
+import { useId, useState } from "react";
 import { formatMoney, monthName } from "../format";
 import { planSplit, type SplitRow, shareText, splitSentence } from "../plan-split";
 import { planParts } from "./plan-page";
@@ -71,23 +71,14 @@ const CELLS = [
  * rest. One list either way. Given a month with typed allowances (`withDraftAllowances`), it
  * shows that.
  */
-export function PlanSplit({
-	state,
-	current,
-	footer,
-}: {
-	state: MonthState;
-	current: boolean;
-	/** A last line of the card: what happens to Free to Spend at the end of the month. */
-	footer?: ReactNode;
-}) {
+export function PlanSplit({ state, current }: { state: MonthState; current: boolean }) {
 	// Goal funding shows in the current month, where it can still happen, or once it did.
 	const parts = freeToSpendParts(state)
 		.filter(({ part, amount }) => part !== "goal-funding" || amount > 0 || current)
 		.map(({ part, amount }) => ({ key: part, label: planParts[part].label, amount }));
 	// Extra income a Parent sent to Free to Spend is on top of take-home pay.
 	const extra = state.baseline === null ? 0 : state.extraToFreeToSpend;
-	// So is what last month's Free to Spend carried over, when it builds up (issue 113).
+	// So is what the months before carried over; a shortfall carried over takes from it (issue 113).
 	const carried = state.baseline === null ? 0 : freeToSpendSources(state).carriedOver;
 	const split = planSplit({
 		income: state.baseline === null ? null : state.baseline + extra + carried,
@@ -210,7 +201,6 @@ export function PlanSplit({
 						</Button>
 					</div>
 				) : null}
-				{footer}
 			</Card>
 			{over ? (
 				<Alert variant="destructive">

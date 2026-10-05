@@ -324,8 +324,13 @@ export const fundGoal = createServerFn({ method: "POST" })
 		const result = await fundGoalInDb(db, {
 			householdId: household.id,
 			createdByMemberId: context.parent.id,
-			// Free to Spend that builds up has last month's leftover to fund from (issue 113).
-			freeCarriedInCents: await loadFreeCarriedInto(db, household.id, data.month),
+			// What the months before left, or were short by, counts in what can be funded (issue 113).
+			freeCarriedInCents: await loadFreeCarriedInto(
+				db,
+				viewerOf(context),
+				data.month,
+				monthKeyAt(new Date(), household.timeZone),
+			),
 			...data,
 		});
 		if (!result.ok) {

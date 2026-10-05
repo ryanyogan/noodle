@@ -673,8 +673,13 @@ function FreeToSpend({
 								{formatMoney(-state.freeToSpend)} more than your take-home pay.{" "}
 								<PlanLink month={state.month}>Adjust the Plan</PlanLink>
 							</>
-						) : ended && carry.buildsUp && state.freeToSpend > 0 ? (
-							<>Carried over into {monthName(addMonths(state.month, 1))}</>
+						) : ended && carry.handedOn !== null ? (
+							<span data-slot="free-handed-on">
+								{carry.handedOn < 0
+									? `Ended ${formatMoney(-carry.handedOn)} short, carried over into `
+									: `Ended with ${formatMoney(carry.handedOn)}, carried over into `}
+								{monthName(addMonths(state.month, 1))}
+							</span>
 						) : ended ? (
 							<>Left unplanned at the end of {monthName(state.month)}</>
 						) : (

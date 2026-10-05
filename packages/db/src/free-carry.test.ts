@@ -1,12 +1,12 @@
-import { type MonthKey, monthState, planForMonth } from "@noodle/domain";
-import { eq, type SQL, sql } from "drizzle-orm";
+import { addMonths, type DayKey, type MonthKey, monthState, planForMonth } from "@noodle/domain";
+import { type SQL, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
-import { clearHouseholdRows } from "./fresh-start";
 import {
 	addAccount,
 	addBucket,
-	addCommitment,
 	addGoal,
+	addIncome,
+	addQuickAdd,
 	createHouseholdForParent,
 	type Db,
 	fundGoal,
@@ -14,29 +14,62 @@ import {
 	loadFreeCarriedIn,
 	loadFreeCarriedInto,
 	loadFreeCarryMonths,
-	loadFreeToSpendKeepBack,
 	loadGoalFunding,
-	loadPlanChanges,
 	loadPlanRecords,
-	setAllowance,
-	setFreeToSpendCarry,
-	setFreeToSpendKeepBack,
 	setTakeHomePay,
 } from "./index";
 import { addCover, freeToSpendSql, loadMoves } from "./moves";
-import * as s from "./schema";
 import { testDb } from "./test-db";
 
 const householdId = "household";
 const parentId = "parent";
+const viewer = { householdId, memberId: parentId };
+const current: MonthKey = "2026-10";
 
 let db: Db;
+let n = 0;
 
-// September 2026: take-home pay $9,000, Buckets $1,850, Mortgage $2,500: $4,650 unassigned.
-// A Cover of $20 and Goal funding of $300 come out of it and $100 of Extra income is added,
-// so September ends with $4,430 in Free to Spend. October on its own has $4,650.
+const earn = (month: MonthKey, amountCents: number) =>
+	addIncome(db, {
+		householdId,
+		incomeId: `income-${n++}`,
+		date: `${month}-03` as DayKey,
+		amountCents,
+		note: "Salary",
+		createdByMemberId: parentId,
+	});
+
+const spend = (month: MonthKey, amountCents: number) =>
+	addQuickAdd(db, {
+		householdId,
+		transactionId: `spend-${n++}`,
+		bucketId: "fun",
+		date: `${month}-10` as DayKey,
+		amountCents,
+		note: null,
+		forMemberIds: [],
+		createdByMemberId: parentId,
+	});
+
+const fund = (moveId: string, month: MonthKey, amountCents: number, freeCarriedInCents?: number) =>
+	fundGoal(db, {
+		householdId,
+		moveId,
+		goalId: "braces",
+		month,
+		amountCents,
+		freeCarriedInCents,
+		createdByMemberId: parentId,
+	});
+
+// The Plan starts in April 2026: take-home pay $5,000 and a $4,400 Bucket, so each month's Plan
+// leaves $600. What the ended months actually left (income less spending and Goal funding):
+// April +$700, May −$1,200, June −$500, July +$1,000, August +$600, September nothing.
+// March's $9,000 of income is bank history from before the Plan. October, the Household's month,
+// has a $50 Cover from Free to Spend.
 beforeEach(async () => {
 	db = testDb();
+	n = 0;
 	await createHouseholdForParent(db, {
 		clerkUserId: "clerk-user",
 		householdId,
@@ -45,12 +78,11 @@ beforeEach(async () => {
 		parentId,
 		parentName: "Alex",
 	});
-	const month = "2026-09";
-	await setTakeHomePay(db, { householdId, memberId: parentId, month, amountCents: 900_000 });
+	const month = "2026-04";
+	await setTakeHomePay(db, { householdId, memberId: parentId, month, amountCents: 500_000 });
 	for (const [bucketId, color, allowanceCents] of [
-		["groceries", 1, 120_000],
-		["hockey", 2, 40_000],
-		["fun", 3, 25_000],
+		["fun", 1, 440_000],
+		["extras", 2, 0],
 	] as const) {
 		await addBucket(db, {
 			householdId,
@@ -62,16 +94,6 @@ beforeEach(async () => {
 			allowanceCents,
 		});
 	}
-	await addCommitment(db, {
-		householdId,
-		memberId: parentId,
-		commitmentId: "mortgage",
-		name: "Mortgage",
-		month,
-		amountCents: 250_000,
-		cadence: "monthly",
-		dueDate: "2026-09-01",
-	});
 	await addAccount(db, {
 		householdId,
 		accountId: "savings",
@@ -88,266 +110,119 @@ beforeEach(async () => {
 		name: "Braces",
 		targetCents: 3_000_000,
 		targetDate: null,
-		fromMonth: "2026-09",
+		fromMonth: "2026-04",
 		claimId: "claim",
 		claimCents: 0,
 		createdByMemberId: parentId,
 	});
+	await earn("2026-03", 900_000);
+	for (const [m, income, spent] of [
+		["2026-04", 500_000, 430_000],
+		["2026-05", 500_000, 620_000],
+		["2026-06", 400_000, 450_000],
+		["2026-07", 500_000, 380_000],
+		["2026-08", 500_000, 440_000],
+	] as const) {
+		await earn(m, income);
+		await spend(m, spent);
+	}
+	expect((await fund("fund-jul", "2026-07", 20_000)).ok).toBe(true);
 	await addCover(db, {
 		householdId,
-		moveId: "cover-sep",
-		month,
+		moveId: "cover-oct",
+		month: current,
 		fromBucketId: null,
-		toBucketId: "fun",
-		amountCents: 2_000,
+		toBucketId: "extras",
+		amountCents: 5_000,
+		freeCarriedInCents: 60_000,
 		createdByMemberId: parentId,
 	});
-	await fund("fund-sep", "2026-09", 30_000);
-	await extraToFree("extra-sep", "2026-09", 10_000);
 });
-
-const fund = (moveId: string, month: MonthKey, amountCents: number, freeCarriedInCents?: number) =>
-	fundGoal(db, {
-		householdId,
-		moveId,
-		goalId: "braces",
-		month,
-		amountCents,
-		freeCarriedInCents,
-		createdByMemberId: parentId,
-	});
-
-/** Extra income a Parent added to a month's Free to Spend, as decideExtraIncome writes it. */
-const extraToFree = (id: string, month: MonthKey, amountCents: number) =>
-	db.insert(s.moves).values({
-		id,
-		householdId,
-		kind: "windfall",
-		month,
-		fromBucketId: null,
-		toBucketId: null,
-		toGoalId: null,
-		amountCents,
-		createdByMemberId: parentId,
-	});
 
 const evaluate = async (expression: SQL) =>
 	(await db.values<[number | null]>(sql`select ${expression}`))[0]?.[0];
 
-/** The month's state as the app computes it (loadMonth), from the same rows. */
-async function domainState(month: MonthKey) {
-	const records = await loadPlanRecords(db, householdId, month);
-	const [moves, goalFunding, extra, freeCarriedIn] = await Promise.all([
-		loadMoves(db, householdId, month),
-		loadGoalFunding(db, householdId, month),
-		loadExtraToFree(db, householdId, month),
-		loadFreeCarriedIn(db, householdId, records, month),
-	]);
-	return monthState({
-		plan: planForMonth(records, month),
-		spending: [],
-		moves,
-		goalFunding,
-		extraToFree: extra,
-		freeCarriedIn,
-		asOf: `${month}-15`,
-	});
-}
+const walk = async (through: MonthKey, now: MonthKey = current) =>
+	loadFreeCarryMonths(db, viewer, await loadPlanRecords(db, householdId, through), through, now);
 
-const months = ["2026-08", "2026-09", "2026-10", "2026-11", "2026-12", "2027-01"] as const;
-
-describe("with no setting, Free to Spend starts fresh", () => {
-	it("loads the Plan's records with no setting, and carries nothing", async () => {
-		const records = await loadPlanRecords(db, householdId, "2026-12");
-		expect(records.freeCarries).toEqual([]);
-		for (const month of months) {
-			expect(await loadFreeCarriedIn(db, householdId, records, month)).toBe(0);
-			expect(await loadFreeCarriedInto(db, householdId, month)).toBe(0);
-		}
+describe("Free to Spend carried over (issue 113)", () => {
+	it("walks from the first month with a Plan, ended months handing on what they actually left", async () => {
+		const months = await walk(current);
+		expect(months.map((m) => [m.month, m.carriedIn, m.own, m.left])).toEqual([
+			["2026-04", 0, 70_000, 70_000],
+			["2026-05", 70_000, -120_000, -50_000],
+			["2026-06", -50_000, -50_000, -100_000],
+			["2026-07", -100_000, 100_000, 0],
+			["2026-08", 0, 60_000, 60_000],
+			["2026-09", 60_000, 0, 60_000],
+			// The Household's month: its Plan's $600 less the $50 Cover.
+			["2026-10", 60_000, 55_000, 115_000],
+		]);
+		expect(months.map((m) => m.ended)).toEqual([true, true, true, true, true, true, false]);
 	});
 
-	it.each(months)("leaves %s's Free to Spend as it was", async (month) => {
-		const state = await domainState(month);
-		expect(state.freeCarriedIn).toBe(0);
-		expect(await evaluate(freeToSpendSql(householdId, month))).toBe(state.freeToSpend);
+	it("carries nothing into the first month with a Plan, or any before it", async () => {
+		expect(await loadFreeCarriedInto(db, viewer, "2026-04", current)).toBe(0);
+		expect(await loadFreeCarriedInto(db, viewer, "2026-03", current)).toBe(0);
+		expect(await walk("2026-03")).toEqual([]);
 	});
 
-	it("has September end with $4,430 and October start with its own $4,650", async () => {
-		expect((await domainState("2026-09")).freeToSpend).toBe(443_000);
-		expect((await domainState("2026-10")).freeToSpend).toBe(465_000);
-	});
-});
-
-describe("once Free to Spend builds up", () => {
-	beforeEach(async () => {
-		await setFreeToSpendCarry(db, { householdId, month: "2026-09", carries: true });
-		// November alone plans far more than it has, even with what two months built.
-		await setAllowance(db, {
-			householdId,
-			memberId: parentId,
-			bucketId: "groceries",
-			month: "2026-11",
-			amountCents: 2_000_000,
-		});
-		await setAllowance(db, {
-			householdId,
-			memberId: parentId,
-			bucketId: "groceries",
-			month: "2026-12",
-			amountCents: 120_000,
-		});
-		await fund("fund-oct", "2026-10", 50_000);
-	});
-
-	it("carries each month's leftover into the next, and nothing out of one below zero", async () => {
-		const carried = async (month: MonthKey) => (await domainState(month)).freeCarriedIn;
-		expect(await carried("2026-09")).toBe(0);
-		expect(await carried("2026-10")).toBe(443_000);
-		// October: $4,650 of its own, $4,430 carried in, $500 to the Goal.
-		expect(await carried("2026-11")).toBe(858_000);
-		expect((await domainState("2026-11")).freeToSpend).toBeLessThan(0);
-		expect(await carried("2026-12")).toBe(0);
-		expect(await carried("2027-01")).toBe(465_000);
-	});
-
-	it.each(months)("has the guard's SQL agree with @noodle/domain in %s", async (month) => {
-		const state = await domainState(month);
-		expect(await evaluate(freeToSpendSql(householdId, month, state.freeCarriedIn))).toBe(
-			state.freeToSpend,
-		);
-	});
-
-	it.each(months)(
-		"loads the same amount with or without the Plan's records, in %s",
-		async (month) => {
-			const records = await loadPlanRecords(db, householdId, month);
-			expect(await loadFreeCarriedInto(db, householdId, month)).toBe(
-				await loadFreeCarriedIn(db, householdId, records, month),
-			);
-		},
-	);
-
-	it("lets Goal funding use carried-in money, and refuses it without", async () => {
-		// October has $4,150 of its own left; $8,000 only fits with September's $4,430.
-		expect(await fund("too-much", "2026-10", 800_000)).toEqual({ ok: false, reason: "refused" });
-		const carriedIn = await loadFreeCarriedInto(db, householdId, "2026-10");
-		expect(await fund("fits", "2026-10", 800_000, carriedIn)).toEqual({ ok: true });
-		expect(await fund("over", "2026-10", 60_000, carriedIn)).toEqual({
-			ok: false,
-			reason: "refused",
-		});
-		expect((await domainState("2026-10")).freeToSpend).toBe(58_000);
-	});
-
-	it("lets a Cover from Free to Spend use carried-in money, and refuses it without", async () => {
-		const cover = (moveId: string, freeCarriedInCents?: number) =>
-			addCover(db, {
-				householdId,
-				moveId,
-				month: "2026-10",
-				fromBucketId: null,
-				toBucketId: "fun",
-				amountCents: 800_000,
-				freeCarriedInCents,
-				createdByMemberId: parentId,
-			});
-		expect(await cover("too-much")).toEqual({ ok: false, reason: "refused" });
-		expect(await cover("fits", await loadFreeCarriedInto(db, householdId, "2026-10"))).toEqual({
-			ok: true,
-		});
-	});
-
-	it("follows a late change to an ended month", async () => {
-		await extraToFree("extra-late", "2026-09", 25_000);
-		expect((await domainState("2026-10")).freeCarriedIn).toBe(468_000);
-	});
-
-	it("stops from the month it's turned off, and a month's setting can be set again", async () => {
-		await setFreeToSpendCarry(db, { householdId, month: "2026-10", carries: false });
-		expect(await loadFreeCarriedInto(db, householdId, "2026-10")).toBe(443_000);
-		expect(await loadFreeCarriedInto(db, householdId, "2026-11")).toBe(0);
-		await setFreeToSpendCarry(db, { householdId, month: "2026-10", carries: true });
-		expect(await loadFreeCarriedInto(db, householdId, "2026-11")).toBe(858_000);
-		expect(await db.select().from(s.freeToSpendCarry)).toHaveLength(2);
-	});
-
-	it("is another Household's own business", async () => {
-		expect(await loadFreeCarriedInto(db, "another-household", "2026-10")).toBe(0);
-	});
-});
-
-describe("the kept-back amount", () => {
-	it("is nothing until a Parent sets one, and never below zero", async () => {
-		expect(await loadFreeToSpendKeepBack(db, householdId)).toBe(0);
-		await setFreeToSpendKeepBack(db, { householdId, amountCents: 10_000 });
-		expect(await loadFreeToSpendKeepBack(db, householdId)).toBe(10_000);
-		await setFreeToSpendKeepBack(db, { householdId, amountCents: -5 });
-		expect(await loadFreeToSpendKeepBack(db, householdId)).toBe(0);
-	});
-
-	it("doesn't change Free to Spend", async () => {
-		await setFreeToSpendCarry(db, { householdId, month: "2026-09", carries: true });
-		await setFreeToSpendKeepBack(db, { householdId, amountCents: 10_000 });
-		expect((await domainState("2026-10")).freeCarriedIn).toBe(443_000);
-	});
-});
-
-describe("a fresh start", () => {
-	it("clears the setting and the kept-back amount with the rest of the Plan", async () => {
-		await setFreeToSpendCarry(db, { householdId, month: "2026-09", carries: true });
-		await setFreeToSpendKeepBack(db, { householdId, amountCents: 10_000 });
-		await clearHouseholdRows(db, householdId, "fresh-start");
-		expect(
-			await db
-				.select()
-				.from(s.freeToSpendCarry)
-				.where(eq(s.freeToSpendCarry.householdId, householdId)),
-		).toEqual([]);
-		expect(await loadFreeToSpendKeepBack(db, householdId)).toBe(0);
-	});
-});
-
-describe("the setting in the Plan's history, and the months it built up (issue 113)", () => {
-	const viewer = { householdId, memberId: parentId };
-
-	it("logs turning it on once, and turning it off, as Plan changes to Free to Spend", async () => {
-		const on = { householdId, memberId: parentId, month: "2026-09" as MonthKey, carries: true };
-		await setFreeToSpendCarry(db, on);
-		// A retry changes nothing, so it logs nothing.
-		await setFreeToSpendCarry(db, on);
-		await setFreeToSpendCarry(db, { ...on, month: "2026-10", carries: false });
-		const { changes } = await loadPlanChanges(db, viewer, { month: "2026-09" });
-		const logged = changes.filter((c) => c.kind === "free-carry");
-		expect(logged).toHaveLength(1);
-		expect(logged[0]).toMatchObject({
-			targetId: "free-to-spend",
-			month: "2026-09",
-			before: { buildsUp: false },
-			after: { buildsUp: true },
-		});
-		const october = await loadPlanChanges(db, viewer, { month: "2026-10" });
-		expect(october.changes.filter((c) => c.kind === "free-carry")).toMatchObject([
-			{ before: { buildsUp: true }, after: { buildsUp: false } },
+	it("months ahead hand on their Plan figure", async () => {
+		const months = await walk("2026-12");
+		expect(months.slice(-2).map((m) => [m.month, m.carriedIn, m.own, m.left])).toEqual([
+			["2026-11", 115_000, 60_000, 175_000],
+			["2026-12", 175_000, 60_000, 235_000],
 		]);
 	});
 
-	it("walks the months from when it was turned on, agreeing with what is carried in", async () => {
-		expect(
-			await loadFreeCarryMonths(
-				db,
-				householdId,
-				await loadPlanRecords(db, householdId, "2026-11"),
-				"2026-11",
-			),
-		).toEqual([]);
-		await setFreeToSpendCarry(db, { householdId, month: "2026-09", carries: true });
-		const records = await loadPlanRecords(db, householdId, "2026-11");
-		const months = await loadFreeCarryMonths(db, householdId, records, "2026-11");
-		expect(months.map((m) => m.month)).toEqual(["2026-09", "2026-10", "2026-11"]);
-		expect(months[0]).toMatchObject({ carriedIn: 0, carriedOut: months[1]?.carriedIn });
-		expect(months[1]?.carriedOut).toBe(
-			await loadFreeCarriedIn(db, householdId, records, "2026-11"),
-		);
-		expect(months[2]?.carriedIn).toBe(months[1]?.carriedOut);
+	it("the guards' SQL agrees with monthState in every month, carried in above or below zero", async () => {
+		const seen: number[] = [];
+		// Each month in turn as the Household's month, so it is its Plan figure that is checked.
+		for (let month: MonthKey = "2026-04"; month <= current; month = addMonths(month, 1)) {
+			const records = await loadPlanRecords(db, householdId, month);
+			const [moves, goalFunding, extraToFree, freeCarriedIn] = await Promise.all([
+				loadMoves(db, householdId, month),
+				loadGoalFunding(db, householdId, month),
+				loadExtraToFree(db, householdId, month),
+				loadFreeCarriedIn(db, viewer, records, month, month),
+			]);
+			const state = monthState({
+				plan: planForMonth(records, month),
+				spending: [],
+				moves,
+				goalFunding,
+				extraToFree,
+				freeCarriedIn,
+				asOf: `${month}-15` as DayKey,
+			});
+			expect(await evaluate(freeToSpendSql(householdId, month, freeCarriedIn))).toBe(
+				state.freeToSpend,
+			);
+			seen.push(freeCarriedIn);
+		}
+		expect(seen).toEqual([0, 70_000, -50_000, -100_000, 0, 60_000, 60_000]);
+	});
+
+	it("Goal funding and a Cover may use what was carried over, and no more", async () => {
+		// October has $550 of its own and $600 carried over.
+		expect((await fund("too-much", current, 120_000, 60_000)).ok).toBe(false);
+		expect((await fund("own-only", current, 110_000)).ok).toBe(false);
+		expect((await fund("with-carry", current, 110_000, 60_000)).ok).toBe(true);
+		expect((await walk(current)).at(-1)?.left).toBe(5_000);
+	});
+
+	it("a shortfall carried over leaves less to fund a Goal or Cover a Bucket from", async () => {
+		expect((await fund("short", current, 10_000, -50_000)).ok).toBe(false);
+		await addCover(db, {
+			householdId,
+			moveId: "cover-short",
+			month: current,
+			fromBucketId: null,
+			toBucketId: "extras",
+			amountCents: 10_000,
+			freeCarriedInCents: -50_000,
+			createdByMemberId: parentId,
+		});
+		expect(await loadMoves(db, householdId, current)).toHaveLength(1);
 	});
 });
