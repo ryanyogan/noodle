@@ -45,7 +45,7 @@ export function useLowerTakeHomePay(month: MonthKey) {
 			onSuccess: () =>
 				toast(
 					`${name}’s take-home pay is now ${formatMoney(step.to)}. Free to Spend is ${formatMoney(after)}.`,
-					{ tone: "success", action: { label: "Undo", onClick: () => undo(step) }, sticky: true },
+					{ tone: "success", undo: () => undo(step) },
 				),
 			onError: () =>
 				toast(`Couldn’t lower ${name}’s take-home pay, so it’s still ${formatMoney(step.was)}.`, {

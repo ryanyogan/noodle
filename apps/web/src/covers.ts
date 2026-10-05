@@ -122,8 +122,7 @@ export function useCovers() {
 				`${formatMoney(variables.amountCents)} from ${variables.fromName} covers ${variables.toName}`,
 				{
 					tone: "success",
-					action: { label: "Undo", onClick: () => undo.mutate(variables) },
-					sticky: true,
+					undo: () => undo.mutate(variables),
 				},
 			);
 		},

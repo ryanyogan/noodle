@@ -7,37 +7,67 @@ import { cn } from "#lib/utils";
 // Undo still showing), pauses them while hovered, lets them be swiped away, and Alt+T reaches
 // them by keyboard. The app keeps calling `toast(message, options)` as before.
 
+/**
+ * How long a toast with Undo stays, in milliseconds (issue 103): ten seconds, then it leaves by
+ * itself.
+ * The one place this time is written: anything that waits for an Undo to go (a change sent only
+ * once it can no longer be undone) uses this too.
+ */
+const UNDO_TOAST_MS = 10_000;
+
 type ToastOptions = {
 	tone: "success" | "error";
-	action?: { label: string; onClick: () => void };
-	/**
-	 * Stays until it's dismissed, for an Undo of money moved in one click: a few seconds isn't
-	 * long enough to notice a mistake.
-	 */
-	sticky?: boolean;
-	/**
-	 * How long it stays, in milliseconds, instead of its kind's usual time: for a message too long
-	 * to read in a couple of seconds that shouldn't sit over the page until dismissed. A sticky
-	 * toast ignores it.
-	 */
-	duration?: number;
 	/**
 	 * Replaces a toast still showing with the same id, so doing a thing twice shows one toast,
 	 * which then stays for its time again.
 	 */
 	id?: string;
-};
+} & (
+	| {
+			/**
+			 * Puts back what was just done. The toast shows an Undo button, stays UNDO_TOAST_MS and
+			 * then goes by itself; pressing Undo closes it at once. It takes no time of its own, so
+			 * every Undo stays the same time.
+			 */
+			undo: () => void;
+			action?: never;
+			sticky?: never;
+			duration?: never;
+	  }
+	| {
+			undo?: never;
+			/** Any action but Undo (Retry, View, …): Undo is `undo`, which sets its own time. */
+			action?: { label: string; onClick: () => void };
+			/** Stays until it's dismissed. Not for an Undo, which leaves after UNDO_TOAST_MS. */
+			sticky?: boolean;
+			/**
+			 * How long it stays, in milliseconds, instead of its kind's usual time: for a message too
+			 * long to read in a couple of seconds that shouldn't sit over the page until dismissed. A
+			 * sticky toast ignores it.
+			 */
+			duration?: number;
+	  }
+);
 
 /**
- * How long a toast stays, in milliseconds: until dismissed when sticky, else the time asked for,
- * else by kind (an error 10 s, one with an action 6 s, any other 2.4 s).
+ * How long a toast stays, in milliseconds: UNDO_TOAST_MS with Undo, whatever else is asked; else
+ * until dismissed when sticky, else the time asked for, else by kind (an error 10 s, one with an
+ * action 6 s, any other 2.4 s).
  */
 function toastDuration({
 	tone,
+	undo,
 	action,
 	sticky,
 	duration,
-}: Pick<ToastOptions, "tone" | "action" | "sticky" | "duration">) {
+}: {
+	tone: ToastOptions["tone"];
+	undo?: () => void;
+	action?: { label: string; onClick: () => void };
+	sticky?: boolean;
+	duration?: number;
+}) {
+	if (undo) return UNDO_TOAST_MS;
 	if (sticky) return Number.POSITIVE_INFINITY;
 	// Only a real length of time counts: Sonner reads 0 as its own default and never closes Infinity.
 	if (duration !== undefined && Number.isFinite(duration) && duration > 0) return duration;
@@ -47,12 +77,13 @@ function toastDuration({
 
 /**
  * Shows a short message at the bottom of the screen. Toasts with an action stay long enough to
- * use it; errors stay longest; a sticky one stays until it's dismissed; `duration` sets another
- * time for one that isn't sticky.
+ * use it; errors stay longest; one with `undo` stays UNDO_TOAST_MS; a sticky one stays until it's
+ * dismissed; `duration` sets another time for one that isn't sticky.
  */
 function toast(message: string, options: ToastOptions = { tone: "success" }) {
 	// Sonner counts the time down itself, so it still waits while a toast is hovered, held or the
-	// tab is hidden, and starts again when a toast is replaced by one with the same id.
+	// tab is hidden, or after Alt+T moved the keyboard to the toasts (until Escape), and starts
+	// again when a toast is replaced by one with the same id.
 	sonner.custom((id) => <ToastBody id={id as string} message={message} {...options} />, {
 		duration: toastDuration(options),
 		id: options.id,
@@ -63,9 +94,11 @@ function ToastBody({
 	id,
 	message,
 	tone,
-	action,
+	undo,
+	action: other,
 	sticky,
 }: ToastOptions & { id: string | number; message: string }) {
+	const action = undo ? { label: "Undo", onClick: undo } : other;
 	return (
 		// Each toast is a status, so it's announced politely and found as one.
 		<div
@@ -132,4 +165,4 @@ function Toaster({ className }: { className?: string }) {
 	);
 }
 
-export { Toaster, toast, toastDuration };
+export { Toaster, toast, toastDuration, UNDO_TOAST_MS };
