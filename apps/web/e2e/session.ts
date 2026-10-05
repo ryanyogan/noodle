@@ -106,9 +106,36 @@ export async function signedInPage(
 	const context = await openContext(browser, storageState ? { ...options, storageState } : options);
 	shared?.opened(context);
 	const page = await context.newPage();
+	patientGoto(page);
 	await setupClerkTestingToken({ page });
 	if (!shared) await signIn(page, email);
 	return page;
+}
+
+/**
+ * Makes `page.goto` go again, once, when the page it is leaving reloads itself under it.
+ *
+ * A test leaves a page sooner than a person could: while the page is still fetching the script of
+ * the route it shows. WebKit drops that fetch as the next page is asked for, the router takes the
+ * failed import for an old deploy's missing file and reloads the page (once per tab, by design),
+ * and Playwright's WebKit then reports the test's own navigation as "interrupted by another
+ * navigation" to the address it was leaving. Chromium lets the new navigation win. The reload has
+ * landed by the time the error is thrown, and the router doesn't reload a second time.
+ */
+function patientGoto(page: Page) {
+	const goto = page.goto.bind(page);
+	page.goto = async (url, options) => {
+		try {
+			return await goto(url, options);
+		} catch (error) {
+			if (!(error instanceof Error) || !error.message.includes("interrupted by another navigation"))
+				throw error;
+			// Counted in CI's summary of steps: the app is meant not to reload a page being left.
+			console.log("TIMING goto-again 0");
+			await page.waitForLoadState("domcontentloaded");
+			return goto(url, options);
+		}
+	};
 }
 
 /** From the get-started wizard a new Household lands on, leaves it for This Month. */
@@ -534,4 +561,35 @@ export async function openFromMore(page: Page, item: (typeof moreItems)[number])
 	const sheet = await openMore(page);
 	await moreItem(sheet, item).click();
 	await expect(sheet).toBeHidden();
+}
+
+/**
+ * Waits until React has taken over `target` (hydrated it). Before then a link is only a plain
+ * link: a click on it loads a whole new page, so anything marked or measured on the page before
+ * the click is gone, and a button does nothing. It asks React itself: the node's fiber is in the
+ * tree React has committed, not the one it is still building.
+ */
+export async function hydrated(target: Locator) {
+	await expect
+		.poll(
+			() =>
+				target.first().evaluate((node) => {
+					type Fiber = {
+						return: Fiber | null;
+						alternate: Fiber | null;
+						tag: number;
+						stateNode: { current?: Fiber } | null;
+					};
+					const key = Object.keys(node).find((name) => name.startsWith("__reactFiber$"));
+					const fiber = key ? (node as unknown as Record<string, Fiber>)[key] : undefined;
+					const committed = (from: Fiber | null | undefined) => {
+						let top = from;
+						while (top?.return) top = top.return;
+						return !!top && top.tag === 3 && top.stateNode?.current === top;
+					};
+					return committed(fiber) || committed(fiber?.alternate);
+				}),
+			clientRendered,
+		)
+		.toBe(true);
 }

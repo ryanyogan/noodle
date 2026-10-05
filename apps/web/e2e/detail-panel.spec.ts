@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { createPlannedHousehold, hydrated, signedInPage } from "./session";
 
 // Guards the picked item's panel (issue 107, ADR-0047), on Plan › Commitments, the first page to
 // use it: on a computer a Commitment opens in a panel on the window's right edge, over the rail,
@@ -49,6 +49,9 @@ async function household(page: Page) {
 	});
 	await page.goto(`/plan/${month}/commitments`);
 	await expect(row(page, "Rent")).toBeVisible();
+	// Hydrated: a row clicked before then is a plain link, which loads the Commitment as a whole new
+	// page (it still opens, but nothing of the page before is kept, the list included).
+	await hydrated(row(page, "Rent"));
 }
 
 /** Open, and hydrated: Edit in a Commitment's header is off until then. */
