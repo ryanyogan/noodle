@@ -33,7 +33,8 @@ const phone = { viewport: { width: 393, height: 852 }, isMobile: true, hasTouch:
 const heading = (page: Page) => page.getByRole("heading", { level: 1 });
 const header = (page: Page) => page.locator("[data-slot=page-header]:visible");
 const planTabs = (page: Page) => page.getByRole("navigation", { name: "Plan pages" });
-const waterfall = (page: Page) => page.getByRole("region", { name: "Where take-home pay goes" });
+// By its heading, not its role: with a sheet open the page behind is hidden from role queries.
+const waterfall = (page: Page) => page.locator("section[aria-labelledby=plan-waterfall]");
 const planRow = (page: Page, bucket: string) =>
 	page
 		.locator("[data-bucket-row]")

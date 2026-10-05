@@ -9,7 +9,7 @@ import {
 } from "./session";
 
 const waterfall = (page: Page) => page.getByRole("region", { name: "Where take-home pay goes" });
-const whatChanged = (page: Page) => page.getByRole("region", { name: "What changed" });
+const whatChanged = (page: Page) => page.locator("section[aria-labelledby=what-changed]");
 const item = (page: Page, title: string) =>
 	whatChanged(page)
 		.getByRole("listitem")

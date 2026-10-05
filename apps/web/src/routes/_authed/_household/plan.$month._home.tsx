@@ -113,7 +113,7 @@ function PlanHome() {
 			variant={look === "heading" ? undefined : "outline"}
 			size={look === "under" ? undefined : "sm"}
 			// Beside the heading on a phone there is room for the words only, at any text size.
-			className={cn("justify-self-start", look === "heading" && "max-sm:[&>svg]:hidden")}
+			className={cn("justify-self-start", look === "heading" && "max-sm:[&_svg]:hidden")}
 			disabled={!hydrated}
 			onClick={() => setAdding(true)}
 		>
