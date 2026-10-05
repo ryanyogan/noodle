@@ -60,6 +60,15 @@ import { asBucketColor, monogram } from "../../../buckets";
 import { BucketPicker, NewBucketStep } from "../../../components/bucket-picker";
 import { DetailHeader, DetailPending } from "../../../components/master-detail";
 import { ReviewMatchOffer } from "../../../components/match-section";
+import {
+	BETWEEN_US_WHY,
+	BetweenUsButton,
+	type BetweenUsOffer,
+	BetweenUsSuggestion,
+	betweenUsDone,
+	betweenUsOffer,
+	parentNames,
+} from "../../../components/review-between-us";
 import { RuleForm } from "../../../components/rule-form";
 import { SectionPending } from "../../../components/section-layout";
 import { Suggested } from "../../../components/suggested";
@@ -221,7 +230,10 @@ function ReviewPage() {
 		.map((plan) => plan.dataUpdatedAt)
 		.join(" ");
 	// biome-ignore lint/correctness/useExhaustiveDependencies: plansRead says a Plan was read again
-	const { items, payments } = useMemo(() => {
+	const { items, payments, between } = useMemo(() => {
+		// Money out that reads as sent to a person is offered as between the Parents first (issue 92).
+		const names = parentNames(members);
+		const between = new Map<string, BetweenUsOffer>();
 		const follows = new Set(followed ?? []);
 		const cardsAndLoans: PaymentAccount[] = (accounts ?? []).flatMap((account) =>
 			account.kind === "credit-card" || account.kind === "loan"
@@ -254,13 +266,24 @@ function ReviewPage() {
 					: [],
 			);
 			const payment = cardPaymentOf(item, cardsAndLoans, paying);
-			if (!payment) return item;
-			payments.set(item.id, payment);
+			if (payment) payments.set(item.id, payment);
+			else {
+				const offer = betweenUsOffer(
+					{
+						text: item.note || (item.merchantName ?? item.merchant),
+						amountCents: item.amountCents,
+					},
+					names,
+				);
+				if (!offer) return item;
+				between.set(item.id, offer);
+			}
 			return item.guess ? { ...item, guess: null } : item;
 		});
-		return { items, payments };
-	}, [queue.items, accounts, followed, plansRead, queryClient]);
+		return { items, payments, between };
+	}, [queue.items, accounts, followed, plansRead, queryClient, members]);
 	const paymentOf = (item: ReviewItem) => payments.get(item.id) ?? null;
+	const betweenOf = (item: ReviewItem) => between.get(item.id) ?? null;
 	/** A Bucket picked for a payment to a card Noodle follows: asked about before it's filed. */
 	const [caution, setCaution] = useState<{
 		item: ReviewItem;
@@ -480,7 +503,7 @@ function ReviewPage() {
 	}
 
 	/** "It's a card payment": marks it as a Transfer, which counts nowhere and leaves Review. */
-	function markPayment(item: ReviewItem) {
+	function markPayment(item: ReviewItem, reason?: "between-us") {
 		const transferId = ulid();
 		const back = () => {
 			marked.current.delete(item.id);
@@ -488,9 +511,23 @@ function ReviewPage() {
 		};
 		marked.current.set(item.id, transferId);
 		moveOn(item);
-		decided([item], `${labelOf(item)} is a card payment: not counted as spending.`, "right");
+		decided(
+			[item],
+			reason
+				? betweenUsDone(labelOf(item))
+				: `${labelOf(item)} is a card payment: not counted as spending.`,
+			"right",
+		);
 		money.mutate(
-			{ kind: "mark", transferId, transactionId: item.id, label: labelOf(item) },
+			{
+				kind: "mark",
+				transferId,
+				transactionId: item.id,
+				label: labelOf(item),
+				reason,
+				// Its toast's Undo puts the card back through the stack, as the stack's own does.
+				onUndo: reason ? () => putBack([item]) : undefined,
+			},
 			{ onSuccess: (result) => (result.ok ? undefined : back()), onError: back },
 		);
 	}
@@ -504,6 +541,7 @@ function ReviewPage() {
 		}
 		// A Transfer goes in no Bucket, so it's never stuck for want of one.
 		if (payment?.kind === "followed") return markPayment(item);
+		if (betweenOf(item)) return markPayment(item, "between-us");
 		if (stuck(item)) return nope(item);
 		const decision = confirmed(item);
 		if (!decision || !item.guess) {
@@ -925,7 +963,9 @@ function ReviewPage() {
 								// A fresh card, undragged, for each Transaction on top.
 								key={order[0].id}
 								enabled={hydrated && !reduced}
-								rightLabel={rightLabelOf(order[0], paymentOf(order[0]))}
+								rightLabel={
+									betweenOf(order[0]) ? "Between us ✓" : rightLabelOf(order[0], paymentOf(order[0]))
+								}
 								leftLabel="Pick another"
 								onRight={() => confirm(order[0] as ReviewItem)}
 								onLeft={() => pickAnother(order[0] as ReviewItem)}
@@ -940,7 +980,7 @@ function ReviewPage() {
 									<section
 										id="review-top"
 										tabIndex={-1}
-										aria-label={cardName(order[0], paymentOf(order[0]))}
+										aria-label={cardName(order[0], paymentOf(order[0]), betweenOf(order[0]))}
 										className="rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-safe:animate-card-in"
 									>
 										<ReviewCard
@@ -956,6 +996,8 @@ function ReviewPage() {
 											thisMonth={current}
 											caution={cautionFor(order[0])}
 											onPayment={() => markPayment(order[0] as ReviewItem)}
+											between={betweenOf(order[0])}
+											onBetweenUs={() => markPayment(order[0] as ReviewItem, "between-us")}
 											onConfirm={() => confirm(order[0] as ReviewItem)}
 											onPick={(value, plan) => file(order[0] as ReviewItem, value, plan)}
 											onCreate={
@@ -1002,6 +1044,7 @@ function ReviewPage() {
 									<ReviewCard
 										item={leaving.item}
 										payment={paymentOf(leaving.item)}
+										between={betweenOf(leaving.item)}
 										thisMonth={current}
 										today={today}
 										members={members}
@@ -1114,6 +1157,8 @@ function ReviewPage() {
 															thisMonth={current}
 															caution={cautionFor(item)}
 															onPayment={() => markPayment(item)}
+															between={betweenOf(item)}
+															onBetweenUs={() => markPayment(item, "between-us")}
 															onConfirm={() => confirm(item)}
 															onPick={(value, plan) => file(item, value, plan)}
 															onCreate={
@@ -1277,7 +1322,11 @@ const labelOf = (item: ReviewItem) =>
 	item.merchantName ?? displayMerchant(item.note ?? item.merchant);
 
 /** The top card's name for a screen reader: what, how much, and the suggestion. */
-const cardName = (item: ReviewItem, payment: PaymentCase | null = null) =>
+const cardName = (
+	item: ReviewItem,
+	payment: PaymentCase | null = null,
+	between: BetweenUsOffer | null = null,
+) =>
 	`${labelOf(item)}, ${formatMoney(item.amountCents)}, ${
 		payment?.kind === "commitment"
 			? `suggested ${payment.commitment}, a payment to ${payment.account}`
@@ -1285,9 +1334,11 @@ const cardName = (item: ReviewItem, payment: PaymentCase | null = null) =>
 				? "looks like a card payment"
 				: payment
 					? "looks like a payment to a card Noodle doesn’t follow"
-					: item.guess
-						? `suggested ${item.guess.name}`
-						: "no suggestion"
+					: between
+						? "looks like money between the two of you"
+						: item.guess
+							? `suggested ${item.guess.name}`
+							: "no suggestion"
 	}`;
 
 /** What a swipe right on the top card does. */
@@ -1454,6 +1505,8 @@ function ReviewCard({
 	onConfirmAll,
 	onFileWithout,
 	payment = null,
+	between = null,
+	onBetweenUs,
 	thisMonth,
 	caution = null,
 	onPayment,
@@ -1466,6 +1519,10 @@ function ReviewCard({
 	 * doesn't follow) a Commitment to make, is offered first, and a Bucket second.
 	 */
 	payment?: PaymentCase | null;
+	/** It reads as money sent to a person: "It’s between us" is offered first, a Bucket second. */
+	between?: BetweenUsOffer | null;
+	/** Marks it as between the two Parents: a Transfer with only this side. */
+	onBetweenUs?: () => void;
 	/** The Household's month now: where a Commitment for it would be added. */
 	thisMonth: MonthKey;
 	caution?: PaymentCaution | null;
@@ -1523,6 +1580,7 @@ function ReviewCard({
 			data-testid={ghost ? undefined : "review-card"}
 			data-current={current || undefined}
 			data-payment={payment?.kind}
+			data-between-us={between ? "" : undefined}
 			onFocusCapture={onFocus}
 			className={cn(
 				// Its rows shrink with it: a row that can't (a long button beside the picker) wraps instead.
@@ -1566,9 +1624,11 @@ function ReviewCard({
 								? "Not spending?"
 								: payment
 									? "Card payment"
-									: item.guess
-										? "We weren’t sure"
-										: "New merchant"}
+									: between
+										? "Not spending?"
+										: item.guess
+											? "We weren’t sure"
+											: "New merchant"}
 					</Badge>
 				</div>
 			</div>
@@ -1625,6 +1685,8 @@ function ReviewCard({
 						</div>
 						<TermHelp term="card-payment" />
 					</>
+				) : between ? (
+					<BetweenUsSuggestion offer={between} />
 				) : item.guess ? (
 					<>
 						<Tile aria-hidden="true" bucket={bucket ? asBucketColor(bucket.color) : undefined}>
@@ -1653,6 +1715,15 @@ function ReviewCard({
 					</>
 				)}
 			</div>
+			{between ? (
+				// The narrowest phones are the shortest: there the tile says it alone.
+				<p
+					className="text-[13px] text-muted-foreground wrap-anywhere max-[359px]:hidden"
+					data-testid="review-between-us-why"
+				>
+					{BETWEEN_US_WHY}
+				</p>
+			) : null}
 			{caution ? (
 				// A Bucket was picked for a payment to a card Noodle follows: asked before it's filed.
 				<div data-testid="review-payment-caution" className="grid gap-2">
@@ -1675,7 +1746,7 @@ function ReviewCard({
 						</Button>
 					</div>
 				</div>
-			) : empty && !payment ? (
+			) : empty && !payment && !between ? (
 				<div className="grid gap-2 text-sm sm:flex sm:items-center sm:justify-between">
 					<p>
 						{plan?.baseline === null
@@ -1702,7 +1773,7 @@ function ReviewCard({
 						"flex items-center gap-2 max-[359px]:flex-wrap",
 						// "It’s a card payment" is long: on any phone it has the first row with Edit, and the
 						// picker the whole row under them, so the card is never wider than the screen.
-						payment && "max-sm:flex-wrap",
+						(payment || between) && "max-sm:flex-wrap",
 					)}
 				>
 					<BucketPicker
@@ -1711,19 +1782,19 @@ function ReviewCard({
 						className={cn(
 							"min-w-0 flex-1",
 							item.guess && "max-[359px]:order-last max-[359px]:basis-full",
-							payment && "max-sm:order-last",
+							(payment || between) && "max-sm:order-last",
 							// On the narrowest phones "It’s a card payment" shares the picker's row. Each
 							// width has one rule of its own, so neither depends on which is written last.
 							payment?.kind === "not-followed"
 								? "max-[359px]:basis-[30%] min-[360px]:max-sm:basis-full"
-								: payment && "max-sm:basis-full",
+								: (payment || between) && "max-sm:basis-full",
 						)}
 						aria-label={`Where ${labelOf(item)} goes`}
 						disabled={!hydrated || !places}
 						placeholder={
 							payment?.kind === "commitment"
 								? "Pick another…"
-								: payment
+								: payment || between
 									? "Or pick a Bucket…"
 									: item.guess
 										? "Pick another…"
@@ -1743,6 +1814,7 @@ function ReviewCard({
 					>
 						<Pencil />
 					</Button>
+					{between ? <BetweenUsButton disabled={!hydrated} onClick={onBetweenUs} /> : null}
 					{payment?.kind === "followed" ? (
 						<Button
 							className="max-sm:order-first max-sm:min-w-0 max-sm:flex-1"
@@ -1828,7 +1900,7 @@ function ReviewCard({
 					</Button>
 				</div>
 			) : null}
-			{onFileWithout && (!empty || payment) ? (
+			{onFileWithout && (!empty || payment || between) ? (
 				<Button
 					variant="link"
 					// Wraps on a narrow phone rather than running off the card.

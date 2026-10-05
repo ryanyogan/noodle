@@ -36,6 +36,8 @@ export type MoneyChange =
 			label: string;
 			/** Money to or from the other Parent, when only this side is in Noodle. */
 			reason?: "between-us";
+			/** What the toast's Undo does instead of unmarking it here (Review puts its card back). */
+			onUndo?: () => void;
 	  }
 	| { kind: "unmark"; transferId: string; label: string }
 	| {
@@ -79,6 +81,9 @@ const done: Record<MoneyChange["kind"], string> = {
 	unlink: "unlinked",
 };
 
+/** Said when a mark as between us found the other side in one of the Household's Accounts. */
+export const PAIRED = "paired with its other side: a Transfer between your Accounts";
+
 const failed: Record<MoneyChange["kind"], string> = {
 	mark: "mark {label} as a Transfer",
 	unmark: "unmark {label}",
@@ -105,14 +110,17 @@ export function useMoneyChange() {
 				return;
 			}
 			if (variables.kind === "mark" && variables.reason === "between-us") {
-				toast(`${variables.label} marked as between us`, {
+				// Its other side was in Noodle after all: it's a plain Transfer, and is said as one.
+				toast(`${variables.label} ${result.paired ? PAIRED : "marked as between us"}`, {
 					tone: "success",
-					undo: () =>
-						change.mutate({
-							kind: "unmark",
-							transferId: variables.transferId,
-							label: variables.label,
-						}),
+					undo:
+						variables.onUndo ??
+						(() =>
+							change.mutate({
+								kind: "unmark",
+								transferId: variables.transferId,
+								label: variables.label,
+							})),
 				});
 				return;
 			}

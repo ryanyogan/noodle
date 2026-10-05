@@ -147,7 +147,7 @@ Paying the card is a Transfer, never a Bucket's spending: what was bought on the
 _Avoid_: Payment, Move
 
 **Between us**:
-Money one Parent moved to the other. It isn't Income and it isn't spending. When both Parents' Accounts are in Noodle the two sides pair as an ordinary Transfer; when only one side is (the other Parent's Account isn't followed), a Parent marks that side as "Between us": a one-sided Transfer with that reason, for money in (a deposit, which then leaves Income and Extra income) or money out (ADR-0052). Never marked automatically. Refused for money in while Extra income already decided in its month would no longer be covered without it, as removing that income would be.
+Money one Parent moved to the other. It isn't Income and it isn't spending. When both Parents' Accounts are in Noodle the two sides pair as an ordinary Transfer; when only one side is (the other Parent's Account isn't followed), a Parent marks that side as "Between us": a one-sided Transfer with that reason, for money in (a deposit, which then leaves Income and Extra income) or money out (ADR-0052). Money out whose wording reads person to person (Zelle, Venmo, PayPal, Cash App, Apple Cash) or names a Parent is offered as "It’s between us" first in Review, a Bucket second. Never marked automatically. Refused for money in while Extra income already decided in its month would no longer be covered without it, as removing that income would be.
 _Avoid_: Internal transfer, reimbursement, gift
 
 **Refund**:

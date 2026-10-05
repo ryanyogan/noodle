@@ -92,7 +92,7 @@ export const glossary = {
 	"between-us": {
 		term: "Between us",
 		short: "Money one of you moved to the other. It isn’t Income and it isn’t spending.",
-		more: "When one of you sends the other money (Zelle, Venmo, a bank transfer) the Household has gained and lost nothing. If only one of your Accounts is in Noodle, that side would look like Income coming in or spending going out, so say “It’s between us” on it: in the Income list’s actions for money in, in a Transaction’s details for money out. Noodle never decides this on its own, and you can undo it. If the money then paid a bill from an Account Noodle doesn’t follow, that bill isn’t counted anywhere until you add it.",
+		more: "When one of you sends the other money (Zelle, Venmo, a bank transfer) the Household has gained and lost nothing. If only one of your Accounts is in Noodle, that side would look like Income coming in or spending going out, so say “It’s between us” on it: in the Income list’s actions for money in, on its card in Review or in a Transaction’s details for money out. Noodle never decides this on its own, and you can undo it. If the money then paid a bill from an Account Noodle doesn’t follow, that bill isn’t counted anywhere until you add it.",
 	},
 	"set-aside": {
 		term: "Set aside",
