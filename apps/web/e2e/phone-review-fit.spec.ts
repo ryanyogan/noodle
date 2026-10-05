@@ -46,7 +46,15 @@ test.afterEach(async () => {
  * "?" beside a term is 24px with a 44px hit area drawn by its ::after, which is what's measured.
  */
 function misfits(page: Page) {
-	return page.evaluate(() => {
+	return page.evaluate(async () => {
+		// A card on its way in is drawn at 96% of its size for a moment (card-in), so its 44px buttons
+		// measure 42: wait until whatever is moving has stopped. What never stops is left out.
+		await Promise.all(
+			document
+				.getAnimations()
+				.filter((moving) => moving.effect?.getComputedTiming().iterations !== Infinity)
+				.map((moving) => moving.finished.catch(() => undefined)),
+		);
 		const root = document.documentElement;
 		const width = root.clientWidth;
 		const found: string[] = [];
