@@ -53,8 +53,11 @@ test("a term's help explains it in place and leads to the Glossary", async ({ br
 	await expect(glossary).toBeHidden();
 	await expect(freeToSpendHelp(page)).toBeFocused();
 
-	// Glossary in the sidebar opens it too; it searches, and closes by clicking outside.
-	const icon = page.getByRole("complementary").getByRole("button", { name: "Glossary" });
+	// On a computer the Glossary is linked from Ask (#100), which is the small button on every
+	// page; it opens over Ask, searches, and closes by clicking outside.
+	await page.getByRole("link", { name: "Ask Noodle" }).click();
+	await expect(heading(page)).toHaveText("Ask");
+	const icon = page.getByRole("link", { name: "the Glossary" });
 	await icon.click();
 	await expect(glossary).toBeVisible();
 	expect(await glossary.getByRole("term").count()).toBeGreaterThan(10);
@@ -64,10 +67,10 @@ test("a term's help explains it in place and leads to the Glossary", async ({ br
 	await page.mouse.click(5, 5);
 	await expect(glossary).toBeHidden();
 	await expect(icon).toBeFocused();
-	// The sidebar has no Glossary page of its own any more.
-	await expect(
-		page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Glossary" }),
-	).toHaveCount(0);
+	// The sidebar has no Glossary of its own any more: no page, and no button.
+	const sidebar = page.getByRole("navigation", { name: "Main" });
+	await expect(sidebar.getByRole("link", { name: "Glossary" })).toHaveCount(0);
+	await expect(sidebar.getByRole("button", { name: "Glossary" })).toHaveCount(0);
 
 	// The page is still there to link to, from each term's help.
 	await page.goto("/glossary");

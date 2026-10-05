@@ -50,8 +50,10 @@ test("answers cite the Household's figures and link to the screens with more", a
 	await pickQuickAddBucket(quickAdd, "Hockey");
 	await expect(quickAdd).toBeHidden();
 
-	await page.getByRole("link", { name: "Ask", exact: true }).click();
+	// On a computer Ask is the small button in the corner of every page (#100), but not on Ask itself.
+	await page.getByRole("link", { name: "Ask Noodle" }).click();
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ask");
+	await expect(page.getByRole("link", { name: "Ask Noodle" })).toHaveCount(0);
 
 	await ask(page, "How much did Hockey cost this year?");
 	await expect(page.getByText(/^Hockey: \$40 spent from January \d{4}/)).toBeVisible();

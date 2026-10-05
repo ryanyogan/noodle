@@ -200,7 +200,6 @@ test("the Sidebar has Credit card perks of its own, beside Insights", async ({ b
 		"Reports",
 		"Insights",
 		"Credit card perks",
-		"Ask",
 	]);
 	await nav.getByRole("link", { name: "Credit card perks" }).click();
 	await expect(page).toHaveURL(/\/insights\/perks$/);
