@@ -294,6 +294,78 @@ export async function followedCards(db: Db, householdId: string, today: DayKey):
 	return rows.map((row) => row.id);
 }
 
+/** Money out over a stretch of days, and the Household's cards and loans in use (loadPaymentHistory). */
+export type PaymentHistory = {
+	lines: { text: string | null; amountCents: Cents; date: DayKey; from: string | null }[];
+	accounts: { id: string; name: string; kind: "credit-card" | "loan"; connected: boolean }[];
+};
+
+/**
+ * What the amount a Commitment might pay a card or loan down by is worked out from (suggestPayment
+ * in @noodle/domain): every line of money out `viewer` may read from `from` up to, not including,
+ * `until`, as its bank worded it and with the Account it left, as Review reads a line; and the
+ * Household's credit cards and loans in use. A Transfer's side is among them: a payment already
+ * marked as one is still a payment to the card.
+ */
+export async function loadPaymentHistory(
+	db: Db,
+	viewer: Viewer,
+	from: DayKey,
+	until: DayKey,
+): Promise<PaymentHistory> {
+	const [lineRows, accountRows] = await Promise.all([
+		db
+			.select({
+				note: transactions.note,
+				merchant: transactions.merchant,
+				amountCents: transactions.amountCents,
+				date: transactions.date,
+				source: transactions.source,
+				accountId: transactions.accountId,
+			})
+			.from(transactions)
+			.where(
+				and(
+					visibleTo(viewer),
+					gt(transactions.amountCents, 0),
+					gte(transactions.date, from),
+					sql`${transactions.date} < ${until}`,
+				),
+			),
+		db
+			.select({
+				id: accounts.id,
+				name: accounts.name,
+				kind: accounts.kind,
+				bankConnectionId: accounts.bankConnectionId,
+				archivedAt: accounts.archivedAt,
+			})
+			.from(accounts)
+			.where(eq(accounts.householdId, viewer.householdId)),
+	]);
+	const names = new Map(accountRows.map((account) => [account.id, account.name]));
+	return {
+		lines: lineRows.map((row) => ({
+			text: row.note || row.merchant,
+			amountCents: row.amountCents,
+			date: row.date as DayKey,
+			from: row.source === "import" && row.accountId ? (names.get(row.accountId) ?? null) : null,
+		})),
+		accounts: accountRows.flatMap((account) =>
+			account.archivedAt === null && (account.kind === "credit-card" || account.kind === "loan")
+				? [
+						{
+							id: account.id,
+							name: account.name,
+							kind: account.kind,
+							connected: account.bankConnectionId !== null,
+						},
+					]
+				: [],
+		),
+	};
+}
+
 export type CommitmentLinkInput = Author & {
 	householdId: string;
 	commitmentId: string;

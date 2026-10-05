@@ -77,7 +77,7 @@ A Goal to pay a credit card or loan down to $0 (ADR-0019). Its target is what wa
 _Avoid_: Debt goal, pay-down goal, debt snowball
 
 **Pays down** (on a Commitment):
-The label for the credit card or loan a Commitment's payments bring down ("Pays down American Express"); "Nothing" when it has none. A card Noodle follows can be chosen only with "This is a set payment on a balance I'm carrying". On the Commitment's page its Charges read "Payments", with "Still owed" beside them.
+The label for the credit card or loan a Commitment's payments bring down ("Pays down American Express"); "Nothing" when it has none. A card Noodle follows can be chosen only with "This is a set payment on a balance I'm carrying". On the Commitment's page its Charges read "Payments", with "Still owed" beside them. Bills on This Month carry the same "Pays down" line. When the add form has a card or loan chosen, it offers a monthly amount from the payments to it over the last three full months ("About $2,300 a month across 9 payments", with "Use $2,300"); nothing is offered when payments fall in fewer than two of those months. If the card later becomes one Noodle follows and the Commitment isn't for a carried balance, **Plan health** lists it under "Things to check" ("American Express is connected now, so its payments would count twice.") with "End this Commitment" and "Keep it: it's for a balance I'm carrying".
 _Avoid_: Paid to, linked account
 
 **What's owed** (on a credit card or loan):
@@ -145,6 +145,10 @@ _Avoid_: Line item, sub-transaction
 A Transaction pair that moves real money between two of the Household's own Accounts (e.g. paying the credit card). Never counts as spending.
 Paying the card is a Transfer, never a Bucket's spending: what was bought on the card was filed when it was bought. Where only one side is in Noodle (the other Account isn't followed), a Parent marks that side alone; a line whose words say it pays a credit card is offered as one in Review, never marked or filed on its own (#91).
 _Avoid_: Payment, Move
+
+**Between us**:
+Money one Parent moved to the other. It isn't Income and it isn't spending. When both Parents' Accounts are in Noodle the two sides pair as an ordinary Transfer; when only one side is (the other Parent's Account isn't followed), a Parent marks that side as "Between us": a one-sided Transfer with that reason, for money in (a deposit, which then leaves Income and Extra income) or money out (ADR-0052). Never marked automatically. Refused for money in while Extra income already decided in its month would no longer be covered without it, as removing that income would be.
+_Avoid_: Internal transfer, reimbursement, gift
 
 **Refund**:
 Money returned for a prior purchase; it restores the Bucket the purchase came from.

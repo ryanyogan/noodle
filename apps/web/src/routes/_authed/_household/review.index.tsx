@@ -3,12 +3,15 @@ import {
 	canAssign,
 	type DayKey,
 	displayMerchant,
-	likelyCardPayment,
 	type MonthKey,
 	merchantKey,
 	monthKeyAt,
+	type PayingCommitment,
+	type PaymentAccount,
+	type PaymentCase,
 	type Plan,
 	type PlanBucket,
+	paymentCase,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
@@ -22,7 +25,7 @@ import { Tile } from "@noodle/ui/components/tile";
 import { toast } from "@noodle/ui/components/toast";
 import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { cn } from "@noodle/ui/lib/utils";
-import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useHydrated, useNavigate } from "@tanstack/react-router";
 import {
 	Archive,
@@ -68,6 +71,7 @@ import { forLabel, type MemberSummary } from "../../../members";
 import { useReducedMotion } from "../../../motion";
 import { PLAN_BUCKETS_HASH } from "../../../plan-pages";
 import {
+	followedCardsQuery,
 	goalsQuery,
 	membersQuery,
 	monthQuery,
@@ -108,6 +112,9 @@ export const Route = createFileRoute("/_authed/_household/review/")({
 			context.queryClient.ensureQueryData(reviewQuery()),
 			context.queryClient.ensureQueryData(membersQuery()),
 			context.queryClient.ensureQueryData(suggestionsQuery()),
+			// A payment to a card or loan is told from spending by the Household's cards and loans.
+			context.queryClient.ensureQueryData(goalsQuery()),
+			context.queryClient.ensureQueryData(followedCardsQuery()),
 		]);
 		const months = new Set<MonthKey>([context.current]);
 		for (const item of queue.items) months.add(monthOfTransaction(item));
@@ -198,21 +205,69 @@ function ReviewPage() {
 	const lookAgain = useLookAgain();
 	const hydrated = useHydrated();
 	const queryClient = useQueryClient();
-	// A likely card payment (#91) is offered as a Transfer, never with a Bucket as its suggestion:
-	// a guess it was given before is dropped, so Confirm and "Confirm all" can't file it by habit.
+	// Money out that reads as a payment to a card or loan has one tree (ADR-0050, paymentCase),
+	// decided here each time Review is read: a Commitment that pays the card or loan down, a
+	// Transfer for a card Noodle follows, or the spending itself for a card it doesn't. Never a
+	// Bucket as its suggestion: a guess it was given before is dropped, so Confirm and "Confirm
+	// all" can't file it by habit.
 	const accounts = useQuery(goalsQuery()).data?.accounts;
+	const followed = useQuery(followedCardsQuery()).data;
+	const cardMonths = useMemo(
+		() => [...new Set(queue.items.map((item) => monthOfTransaction(item)))],
+		[queue.items],
+	);
+	/** When each of those months' Plans was last read: a Commitment's "Pays down" may have changed. */
+	const plansRead = useQueries({ queries: cardMonths.map((month) => monthQuery(month)) })
+		.map((plan) => plan.dataUpdatedAt)
+		.join(" ");
+	// biome-ignore lint/correctness/useExhaustiveDependencies: plansRead says a Plan was read again
 	const { items, payments } = useMemo(() => {
-		const creditCards = (accounts ?? []).filter((account) => account.kind === "credit-card");
-		const payments = new Map<string, CardPayment>();
+		const follows = new Set(followed ?? []);
+		const cardsAndLoans: PaymentAccount[] = (accounts ?? []).flatMap((account) =>
+			account.kind === "credit-card" || account.kind === "loan"
+				? [
+						{
+							id: account.id,
+							name: account.name,
+							kind: account.kind,
+							followed:
+								account.kind === "credit-card" &&
+								(account.bankConnectionId !== null || follows.has(account.id)),
+						},
+					]
+				: [],
+		);
+		const payments = new Map<string, PaymentCase>();
 		const items = queue.items.map((item) => {
-			const payment = cardPaymentOf(item, creditCards);
+			const plan = queryClient.getQueryData(monthQuery(monthOfTransaction(item)).queryKey)?.plan;
+			const paying: PayingCommitment[] = (plan?.commitments ?? []).flatMap((commitment) =>
+				commitment.accountId
+					? [
+							{
+								id: commitment.id,
+								name: commitment.name,
+								accountId: commitment.accountId,
+								amountCents: commitment.amount,
+								carriedBalance: commitment.carriedBalance ?? false,
+							},
+						]
+					: [],
+			);
+			const payment = cardPaymentOf(item, cardsAndLoans, paying);
 			if (!payment) return item;
 			payments.set(item.id, payment);
 			return item.guess ? { ...item, guess: null } : item;
 		});
 		return { items, payments };
-	}, [queue.items, accounts]);
+	}, [queue.items, accounts, followed, plansRead, queryClient]);
 	const paymentOf = (item: ReviewItem) => payments.get(item.id) ?? null;
+	/** A Bucket picked for a payment to a card Noodle follows: asked about before it's filed. */
+	const [caution, setCaution] = useState<{
+		item: ReviewItem;
+		value: string;
+		plan: Plan;
+		place: string;
+	} | null>(null);
 	const money = useMoneyChange();
 	/** The Transfers marked from cards here, by Transaction: what their Undo unmarks. */
 	const marked = useRef(new Map<string, string>());
@@ -354,6 +409,7 @@ function ReviewPage() {
 	/** Records a decision; in Sort the card flies off, focus moves on and it's said. */
 	function decided(items: ReviewItem[], what: string, way: Way = "right", suggested = false) {
 		dispatch({ type: "decided", items });
+		setCaution(null);
 		if (!sorting) return;
 		const ids = new Set(items.map((item) => item.id));
 		// Of everything waiting, not only the cards loaded.
@@ -440,8 +496,14 @@ function ReviewPage() {
 	}
 
 	function confirm(item: ReviewItem) {
+		const payment = paymentOf(item);
+		// A payment to a card or loan a Commitment pays down: filed there, like any suggestion.
+		const itsPlan = planOf(item);
+		if (payment?.kind === "commitment" && itsPlan) {
+			return file(item, `commitment:${payment.commitmentId}`, itsPlan, "suggested");
+		}
 		// A Transfer goes in no Bucket, so it's never stuck for want of one.
-		if (paymentOf(item)) return markPayment(item);
+		if (payment?.kind === "followed") return markPayment(item);
 		if (stuck(item)) return nope(item);
 		const decision = confirmed(item);
 		if (!decision || !item.guess) {
@@ -458,17 +520,32 @@ function ReviewPage() {
 		offerRule(item, { id: bucketId, name, owner }, item.for);
 	}
 
-	/** Files a card where the Parent picked: a Bucket or a Commitment. */
-	function file(item: ReviewItem, value: string, plan: Plan) {
+	/**
+	 * Files a card where the Parent picked: a Bucket or a Commitment. "suggested" is Confirm on a
+	 * payment's own Commitment; "anyway" is after the caution about a card Noodle follows.
+	 */
+	function file(item: ReviewItem, value: string, plan: Plan, how?: "suggested" | "anyway") {
 		const [kind, id] = value.split(":") as ["bucket" | "commitment", string];
 		const assignment: Assignment = kind === "bucket" ? { bucketId: id } : { commitmentId: id };
 		const bucket = kind === "bucket" ? plan.buckets.find((b) => b.id === id) : undefined;
 		const name = bucket?.name ?? plan.commitments.find((c) => c.id === id)?.name ?? null;
+		// What was bought on a card Noodle follows is already in the Buckets: the payment in a
+		// Bucket too counts it twice, so that's asked first, on the card.
+		const followedCard = paymentOf(item)?.kind === "followed";
+		if (followedCard && bucket && how !== "anyway") {
+			return setCaution({ item, value, plan, place: bucket.name });
+		}
 		moveOn(item);
-		// Not stopped, but said once (#91): a card payment in a Bucket counts what was bought twice.
-		const payment = paymentOf(item) !== null;
+		// In a Commitment it isn't stopped, but said once.
+		const payment = followedCard;
+		const warned = how === "anyway";
 		const filed = `Filed ${labelOf(item)} in ${name ?? "its Commitment"}.`;
-		decided([item], payment ? `${filed} ${PAYMENT_FILED}` : filed, "left");
+		decided(
+			[item],
+			payment && !warned ? `${filed} ${PAYMENT_FILED}` : filed,
+			how === "suggested" ? "right" : "left",
+			how === "suggested",
+		);
 		decide.mutate(
 			{
 				quiet: sorting || payment,
@@ -486,7 +563,7 @@ function ReviewPage() {
 		if (payment) {
 			// No "Always file …?" for a card payment. In Sort it's said beside the card, by its Undo.
 			if (!sorting) {
-				toast(`${filed} ${PAYMENT_FILED}`, {
+				toast(warned ? filed : `${filed} ${PAYMENT_FILED}`, {
 					tone: "success",
 					undo: () => putBack([item]),
 				});
@@ -579,6 +656,16 @@ function ReviewPage() {
 		if (stuck(item)) return nope(item);
 		openPicker(item);
 	}
+
+	/** The caution a card shows while a Bucket picked for it waits on the Parent's answer. */
+	const cautionFor = (item: ReviewItem): PaymentCaution | null =>
+		caution?.item.id === item.id
+			? {
+					place: caution.place,
+					onTransfer: () => markPayment(item),
+					onAnyway: () => file(item, caution.value, caution.plan, "anyway"),
+				}
+			: null;
 
 	/** Splits the card, in the editor's Splits. */
 	function splitCard(item: ReviewItem) {
@@ -838,13 +925,7 @@ function ReviewPage() {
 								// A fresh card, undragged, for each Transaction on top.
 								key={order[0].id}
 								enabled={hydrated && !reduced}
-								rightLabel={
-									paymentOf(order[0])
-										? "Card payment ✓"
-										: order[0].guess
-											? `${order[0].guess.name} ✓`
-											: "Pick where it goes"
-								}
+								rightLabel={rightLabelOf(order[0], paymentOf(order[0]))}
 								leftLabel="Pick another"
 								onRight={() => confirm(order[0] as ReviewItem)}
 								onLeft={() => pickAnother(order[0] as ReviewItem)}
@@ -859,7 +940,7 @@ function ReviewPage() {
 									<section
 										id="review-top"
 										tabIndex={-1}
-										aria-label={cardName(order[0], paymentOf(order[0]) !== null)}
+										aria-label={cardName(order[0], paymentOf(order[0]))}
 										className="rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-safe:animate-card-in"
 									>
 										<ReviewCard
@@ -872,6 +953,8 @@ function ReviewPage() {
 											sameMerchant={[]}
 											onFocus={() => {}}
 											payment={paymentOf(order[0])}
+											thisMonth={current}
+											caution={cautionFor(order[0])}
 											onPayment={() => markPayment(order[0] as ReviewItem)}
 											onConfirm={() => confirm(order[0] as ReviewItem)}
 											onPick={(value, plan) => file(order[0] as ReviewItem, value, plan)}
@@ -919,6 +1002,7 @@ function ReviewPage() {
 									<ReviewCard
 										item={leaving.item}
 										payment={paymentOf(leaving.item)}
+										thisMonth={current}
 										today={today}
 										members={members}
 										parentId={parentId}
@@ -1027,6 +1111,8 @@ function ReviewPage() {
 															sameMerchant={item.guess && same.length > 1 ? same : []}
 															onFocus={() => setCursor(item.id)}
 															payment={paymentOf(item)}
+															thisMonth={current}
+															caution={cautionFor(item)}
 															onPayment={() => markPayment(item)}
 															onConfirm={() => confirm(item)}
 															onPick={(value, plan) => file(item, value, plan)}
@@ -1191,34 +1277,60 @@ const labelOf = (item: ReviewItem) =>
 	item.merchantName ?? displayMerchant(item.note ?? item.merchant);
 
 /** The top card's name for a screen reader: what, how much, and the suggestion. */
-const cardName = (item: ReviewItem, payment = false) =>
+const cardName = (item: ReviewItem, payment: PaymentCase | null = null) =>
 	`${labelOf(item)}, ${formatMoney(item.amountCents)}, ${
-		payment
-			? "looks like a card payment"
-			: item.guess
-				? `suggested ${item.guess.name}`
-				: "no suggestion"
+		payment?.kind === "commitment"
+			? `suggested ${payment.commitment}, a payment to ${payment.account}`
+			: payment?.kind === "followed"
+				? "looks like a card payment"
+				: payment
+					? "looks like a payment to a card Noodle doesn’t follow"
+					: item.guess
+						? `suggested ${item.guess.name}`
+						: "no suggestion"
 	}`;
 
-/** A likely payment to a credit card, and the Household's card it names, if one (#91). */
-type CardPayment = { card: string | null };
+/** What a swipe right on the top card does. */
+const rightLabelOf = (item: ReviewItem, payment: PaymentCase | null) =>
+	payment?.kind === "commitment"
+		? `${payment.commitment} ✓`
+		: payment?.kind === "followed"
+			? "Card payment ✓"
+			: item.guess
+				? `${item.guess.name} ✓`
+				: "Pick where it goes";
 
 /**
- * Whether a card in Review is likely a card payment: by the bank's own wording (its note). Its
- * name is read only when there is no wording, since a Parent may have renamed it.
+ * Which case of the payment tree a card in Review is (paymentCase), by the bank's own wording (its
+ * note). Its name is read only when there is no wording, since a Parent may have renamed it. The
+ * Account it left is never the one paid: a card doesn't pay itself.
  */
-function cardPaymentOf(item: ReviewItem, creditCards: { name: string }[]): CardPayment | null {
-	// Never the Account it left: a card doesn't pay itself.
-	const others = creditCards.filter((card) => card.name !== item.importedFrom);
+function cardPaymentOf(
+	item: ReviewItem,
+	cardsAndLoans: PaymentAccount[],
+	paying: PayingCommitment[],
+): PaymentCase | null {
 	const text = item.note || (item.merchantName ?? item.merchant);
-	return likelyCardPayment({ text, amountCents: item.amountCents }, others);
+	return paymentCase(
+		{ text, amountCents: item.amountCents, from: item.importedFrom },
+		cardsAndLoans,
+		paying,
+	);
 }
+
+/** A Bucket was picked for a payment to a card Noodle follows: what the card asks first. */
+type PaymentCaution = { place: string; onTransfer: () => void; onAnyway: () => void };
 
 /** Said once when a likely card payment is filed in a Bucket or a Commitment anyway. */
 const PAYMENT_FILED = "Card payments usually aren’t spending.";
-/** Why a card payment goes in no Bucket, on its card. */
-const PAYMENT_WHY =
-	"What you bought on the card is already in your Buckets, so the payment itself isn’t spending.";
+/**
+ * Why, as the second line of a payment card's panel, naming the card when the line does: a card
+ * payment goes in no Bucket, or a payment to a card Noodle can't see into is planned like a bill.
+ */
+const paymentWhy = (payment: Exclude<PaymentCase, { kind: "commitment" }>) =>
+	payment.kind === "followed"
+		? `What you bought on ${payment.card ?? "the card"} is already in your Buckets, so the payment itself isn’t spending.`
+		: `Noodle can’t see what was bought on ${payment.card ?? "this card"}, so the payment is the spending.`;
 
 /** The top card's other actions: split it, file it in the Parent's own Personal Allowance, or make a Rule. */
 function CardActions({
@@ -1342,13 +1454,22 @@ function ReviewCard({
 	onConfirmAll,
 	onFileWithout,
 	payment = null,
+	thisMonth,
+	caution = null,
 	onPayment,
 	ghost = false,
 	actions,
 }: {
 	item: ReviewItem;
-	/** It looks like a payment to a credit card: the Transfer is offered first, a Bucket second. */
-	payment?: CardPayment | null;
+	/**
+	 * It reads as a payment to a card or loan: its Commitment, a Transfer, or (a card Noodle
+	 * doesn't follow) a Commitment to make, is offered first, and a Bucket second.
+	 */
+	payment?: PaymentCase | null;
+	/** The Household's month now: where a Commitment for it would be added. */
+	thisMonth: MonthKey;
+	caution?: PaymentCaution | null;
+	/** Marks it as a Transfer. */
 	onPayment?: () => void;
 	today: DayKey;
 	members: MemberSummary[];
@@ -1401,6 +1522,7 @@ function ReviewCard({
 			aria-labelledby={headingId}
 			data-testid={ghost ? undefined : "review-card"}
 			data-current={current || undefined}
+			data-payment={payment?.kind}
 			onFocusCapture={onFocus}
 			className={cn(
 				// Its rows shrink with it: a row that can't (a long button beside the picker) wraps instead.
@@ -1418,7 +1540,14 @@ function ReviewCard({
 					</p>
 					<h3
 						id={headingId}
-						className="text-base font-semibold max-sm:line-clamp-2 max-sm:wrap-anywhere sm:truncate"
+						className={cn(
+							"text-base font-semibold max-sm:wrap-anywhere sm:truncate",
+							// A payment card has more on it: on the shortest phones its name keeps to one line.
+							// Each width has one rule of its own, so neither depends on which is written last.
+							payment
+								? "max-[359px]:line-clamp-1 min-[360px]:max-sm:line-clamp-2"
+								: "max-sm:line-clamp-2",
+						)}
 					>
 						{labelOf(item)}
 					</h3>
@@ -1431,22 +1560,67 @@ function ReviewCard({
 						{formatMoney(item.amountCents)}
 					</p>
 					<Badge>
-						{payment ? "Not spending?" : item.guess ? "We weren’t sure" : "New merchant"}
+						{payment?.kind === "commitment"
+							? "Payment"
+							: payment?.kind === "followed"
+								? "Not spending?"
+								: payment
+									? "Card payment"
+									: item.guess
+										? "We weren’t sure"
+										: "New merchant"}
 					</Badge>
 				</div>
 			</div>
 			<div className="flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5 max-[359px]:py-1.5">
-				{payment ? (
+				{payment?.kind === "commitment" ? (
 					<>
-						<Tile aria-hidden="true">
-							<ArrowLeftRight />
-						</Tile>
+						{/* The narrowest phones are the shortest: the words get the tile's width there. */}
+						<div className="shrink-0 max-[359px]:hidden">
+							<Tile aria-hidden="true">{monogram(payment.commitment)}</Tile>
+						</div>
 						<div className="grid min-w-0 flex-1">
-							<span className="text-sm font-medium wrap-anywhere">Card payment — not spending</span>
+							<span className="text-sm font-medium wrap-anywhere">
+								Payment to {payment.account}
+							</span>
 							<span className="text-xs text-muted-foreground wrap-anywhere">
-								{payment.card
-									? `Looks like a payment to ${payment.card}`
-									: "Looks like a payment to a credit card"}
+								Files in {payment.commitment}
+								<span className="max-[359px]:sr-only"> · pays down what’s owed</span>
+							</span>
+						</div>
+					</>
+				) : payment ? (
+					<>
+						{/* The narrowest phones are the shortest: there the why says it alone, in the tile's
+						    width as well, and the title is only read out. */}
+						<div className="shrink-0 max-[359px]:hidden">
+							<Tile aria-hidden="true">
+								{payment.kind === "followed" ? <ArrowLeftRight /> : <Wallet />}
+							</Tile>
+						</div>
+						<div className="grid min-w-0 flex-1">
+							<span className="text-sm font-medium wrap-anywhere max-[359px]:sr-only">
+								{payment.kind === "followed"
+									? "Card payment — not spending"
+									: "Payment to a card Noodle doesn’t follow"}
+							</span>
+							<span
+								className="text-xs text-muted-foreground wrap-anywhere"
+								data-testid="review-payment-why"
+							>
+								{paymentWhy(payment)}
+								{payment.kind === "not-followed" ? (
+									// On the narrowest phones this choice is here, not on a row of its own.
+									<>
+										{" "}
+										<Link
+											to="/accounts"
+											className="-my-1 inline-block py-1 font-medium whitespace-nowrap text-foreground underline underline-offset-2 min-[360px]:hidden"
+										>
+											Connect the card
+										</Link>
+									</>
+								) : null}
 							</span>
 						</div>
 						<TermHelp term="card-payment" />
@@ -1479,25 +1653,29 @@ function ReviewCard({
 					</>
 				)}
 			</div>
-			{payment ? (
-				<p
-					className="text-[13px] text-muted-foreground wrap-anywhere"
-					data-testid="review-payment-why"
-				>
-					{PAYMENT_WHY}
-					{payment.card ? null : (
-						<>
-							{" "}
-							If the card isn’t in Noodle, what’s bought on it isn’t counted anywhere:{" "}
-							<Link to="/accounts" className="font-medium text-foreground underline">
-								add it in Accounts
-							</Link>
-							.
-						</>
-					)}
-				</p>
-			) : null}
-			{empty && !payment ? (
+			{caution ? (
+				// A Bucket was picked for a payment to a card Noodle follows: asked before it's filed.
+				<div data-testid="review-payment-caution" className="grid gap-2">
+					<p className="text-sm wrap-anywhere">
+						<span className="font-medium">File a card payment in {caution.place}?</span> What was
+						bought on the card is already counted, so this counts it twice.
+					</p>
+					<div className="flex flex-wrap gap-2">
+						<Button className="max-sm:flex-1" disabled={!hydrated} onClick={caution.onTransfer}>
+							<ArrowLeftRight />
+							Mark as Transfer
+						</Button>
+						<Button
+							variant="outline"
+							className="max-sm:flex-1"
+							disabled={!hydrated}
+							onClick={caution.onAnyway}
+						>
+							File anyway
+						</Button>
+					</div>
+				</div>
+			) : empty && !payment ? (
 				<div className="grid gap-2 text-sm sm:flex sm:items-center sm:justify-between">
 					<p>
 						{plan?.baseline === null
@@ -1533,12 +1711,23 @@ function ReviewCard({
 						className={cn(
 							"min-w-0 flex-1",
 							item.guess && "max-[359px]:order-last max-[359px]:basis-full",
-							payment && "max-sm:order-last max-sm:basis-full",
+							payment && "max-sm:order-last",
+							// On the narrowest phones "It’s a card payment" shares the picker's row. Each
+							// width has one rule of its own, so neither depends on which is written last.
+							payment?.kind === "not-followed"
+								? "max-[359px]:basis-[30%] min-[360px]:max-sm:basis-full"
+								: payment && "max-sm:basis-full",
 						)}
 						aria-label={`Where ${labelOf(item)} goes`}
 						disabled={!hydrated || !places}
 						placeholder={
-							payment ? "Or pick a Bucket…" : item.guess ? "Pick another…" : "Pick where it goes"
+							payment?.kind === "commitment"
+								? "Pick another…"
+								: payment
+									? "Or pick a Bucket…"
+									: item.guess
+										? "Pick another…"
+										: "Pick where it goes"
 						}
 						searchPlaceholder="Find a Bucket"
 						choices={choices}
@@ -1554,13 +1743,56 @@ function ReviewCard({
 					>
 						<Pencil />
 					</Button>
-					{payment ? (
+					{payment?.kind === "followed" ? (
 						<Button
 							className="max-sm:order-first max-sm:min-w-0 max-sm:flex-1"
 							disabled={!hydrated}
 							onClick={onPayment}
 						>
 							<Check />
+							It’s a card payment
+						</Button>
+					) : null}
+					{payment?.kind === "commitment" ? (
+						// Like every payment card on a phone: Confirm and Edit, then the picker under them.
+						<Button
+							className="max-sm:order-first max-sm:min-w-0 max-sm:flex-1"
+							disabled={!hydrated}
+							onClick={onConfirm}
+						>
+							<Check />
+							Confirm
+						</Button>
+					) : null}
+					{payment?.kind === "not-followed" ? (
+						// The payment is the spending, so it's planned like a bill: the Commitment's form
+						// opens with this line's name and amount, and the card to pay down ready.
+						<Button
+							className="max-sm:order-first max-sm:min-w-0 max-sm:grow max-sm:shrink max-[359px]:basis-[70%] min-[360px]:max-sm:basis-0"
+							asChild
+						>
+							<Link
+								to="/plan/$month/commitments"
+								params={{ month: thisMonth }}
+								search={{
+									name: labelOf(item).slice(0, 40),
+									amount: item.amountCents,
+									paysDown: payment.accountId ?? "add",
+								}}
+							>
+								Make it a Commitment
+							</Link>
+						</Button>
+					) : null}
+					{payment?.kind === "not-followed" ? (
+						// The narrowest phones are the shortest too: there the card's last choice sits beside
+						// the picker, so Skip and Undo stay above the bottom bar. Wider, it has its own row.
+						<Button
+							variant="outline"
+							className="order-last shrink-0 px-2 text-xs min-[360px]:hidden"
+							disabled={!hydrated}
+							onClick={onPayment}
+						>
 							It’s a card payment
 						</Button>
 					) : null}
@@ -1578,6 +1810,24 @@ function ReviewCard({
 					) : null}
 				</div>
 			)}
+			{payment?.kind === "not-followed" && !caution ? (
+				// Its other two ways out: see into the card, or say the payment isn't spending after all.
+				// The narrowest phones have no height for this row: there "Connect the card" ends the why
+				// above and "It’s a card payment" sits beside the picker.
+				<div className="flex flex-wrap gap-2 max-[359px]:hidden">
+					<Button variant="outline" className="max-sm:flex-auto" asChild>
+						<Link to="/accounts">Connect the card</Link>
+					</Button>
+					<Button
+						variant="outline"
+						className="max-sm:flex-auto"
+						disabled={!hydrated}
+						onClick={onPayment}
+					>
+						It’s a card payment
+					</Button>
+				</div>
+			) : null}
 			{onFileWithout && (!empty || payment) ? (
 				<Button
 					variant="link"

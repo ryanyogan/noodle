@@ -4,8 +4,10 @@ import {
 	type DayKey,
 	likelyOriginals,
 	type MonthKey,
+	merchantKey,
 	REFUND_WINDOW_DAYS,
 	type RefundSide,
+	ruleFor,
 	TRANSFER_WINDOW_DAYS,
 	type TransferSide,
 	transferPairs,
@@ -31,9 +33,11 @@ import { changeableBy, type Viewer, visibleTo } from "./privacy";
 import {
 	accounts,
 	buckets,
+	commitments,
 	income,
 	members,
 	refunds,
+	rules,
 	splitFor,
 	splits,
 	transactionFor,
@@ -61,6 +65,9 @@ export type MoneyPeer = {
 	account: string | null;
 };
 
+/** Why a Parent marked one side alone: money one Parent moved to the other. */
+export type TransferReason = "between-us";
+
 /** A Transaction's Transfer, or whether a Parent may mark it as one. */
 export type TransferView =
 	| {
@@ -71,6 +78,8 @@ export type TransferView =
 			from: string | null;
 			to: string | null;
 			peer: MoneyPeer | null;
+			/** Why a one-sided Transfer is one: money between the two Parents (ADR-0052). */
+			reason: TransferReason | null;
 	  }
 	| { kind: "none"; markable: boolean };
 
@@ -103,7 +112,12 @@ const transferable = and(
 /** Income that could be the arriving side of a Transfer: imported, and not already one. */
 const transferableIncome = and(isNotNull(income.accountId), incomeCounts()) as SQL;
 
-type Side = TransferSide & { income: boolean };
+type Side = TransferSide & {
+	income: boolean;
+	/** Money out only: the bank's wording, which a Rule is matched against. */
+	merchant?: string | null;
+	note?: string | null;
+};
 
 /** Transferable Transactions (money out, or money back as a positive amount) and income. */
 async function loadSides(
@@ -123,7 +137,11 @@ async function loadSides(
 	});
 	const [outs, backs, received] = await db.batch([
 		db
-			.select(side(sql<number>`${transactions.amountCents}`))
+			.select({
+				...side(sql<number>`${transactions.amountCents}`),
+				merchant: transactions.merchant,
+				note: transactions.note,
+			})
 			.from(transactions)
 			.where(
 				and(
@@ -174,13 +192,14 @@ async function loadSides(
 }
 
 /** Selected in the `transfers` table's column order: insert … select is positional. */
-const transferRow = (row: {
+export const transferRow = (row: {
 	id: SQL | string;
 	householdId: string;
 	outId: SQL | string | null;
 	inTransactionId: SQL | string | null;
 	inIncomeId: SQL | string | null;
 	createdBy: string | null;
+	reason?: TransferReason | null;
 }) => ({
 	id: sql<string>`${row.id}`.as("id"),
 	householdId: sql<string>`${row.householdId}`.as("household_id"),
@@ -191,6 +210,8 @@ const transferRow = (row: {
 	createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
 	removedAt: sql<Date | null>`null`.as("removed_at"),
 	removedByMemberId: sql<string | null>`null`.as("removed_by_member_id"),
+	reason: sql<TransferReason | null>`${row.reason ?? null}`.as("reason"),
+	otherAccountId: sql<string | null>`null`.as("other_account_id"),
 });
 
 /** Raw SQL: the Transaction `id` is still a transferable side of the Household's. */
@@ -220,7 +241,7 @@ export async function detectTransfers(
 	to: DayKey,
 	newId: () => string,
 ): Promise<{ marked: number; months: string[] }> {
-	const [{ outs, ins }, refusedRows] = await Promise.all([
+	const [{ outs: leaving, ins }, refusedRows, ruleRows] = await Promise.all([
 		loadSides(
 			db,
 			householdId,
@@ -235,7 +256,29 @@ export async function detectTransfers(
 			})
 			.from(transfers)
 			.where(and(eq(transfers.householdId, householdId), isNotNull(transfers.removedAt))),
+		// The Household's own Rules: a Parent's private one files only in their Personal Allowance.
+		db
+			.select({
+				pattern: rules.pattern,
+				bucketId: rules.bucketId,
+				commitmentId: rules.commitmentId,
+				ended: commitments.endedFromMonth,
+			})
+			.from(rules)
+			.leftJoin(commitments, eq(commitments.id, rules.commitmentId))
+			.where(and(eq(rules.householdId, householdId), isNull(rules.ownerMemberId))),
 	]);
+	// Money out that a Rule files in a Commitment is that Commitment's payment, not a Transfer
+	// (ADR-0050): paired with its other side (a connected loan's "payment received") it would count
+	// nowhere, the Rule would never see it, and the Commitment would never show paid. It's left
+	// for categorization, which runs next and files it.
+	const toCommitment = (out: Side) => {
+		const rule = ruleFor(ruleRows, merchantKey(out.merchant ?? out.note ?? ""));
+		return !!rule?.commitmentId && (rule.ended === null || rule.ended > out.date.slice(0, 7));
+	};
+	const outs = ruleRows.some((rule) => rule.commitmentId)
+		? leaving.filter((out) => !toCommitment(out))
+		: leaving;
 	if (outs.length === 0 || ins.length === 0) return { marked: 0, months: [] };
 	const refused = new Set(refusedRows.map((row) => `${row.outId}|${row.inId}`));
 	const pairs = transferPairs(outs, ins, (o, i) => refused.has(`${o}|${i}`));
@@ -373,18 +416,21 @@ export async function loadTransfer(
 		from: isOut ? self.account : (peer?.account ?? null),
 		to: isOut ? (peer?.account ?? null) : self.account,
 		peer: peer ?? null,
+		reason: transfer.reason,
 	};
 }
 
 /**
  * A Parent marks an imported Transaction as a Transfer: money out as the side leaving an Account,
  * money back as the side arriving. It's paired with its other side when exactly one fits
- * (transferPairs); otherwise it's marked alone. Idempotent per `transferId`.
+ * (transferPairs); otherwise it's marked alone, and only then keeps the `reason` a Parent gave
+ * (money that has both its sides in Noodle is a plain Transfer, whoever it went to). Idempotent
+ * per `transferId`.
  */
 export async function markTransfer(
 	db: Db,
 	viewer: Viewer,
-	input: { transferId: string; transactionId: string },
+	input: { transferId: string; transactionId: string; reason?: TransferReason },
 ): Promise<MoneyResult> {
 	const self = await loadSelf(db, viewer, input.transactionId);
 	if (!self?.transferable || !self.changeable || self.amount === 0) {
@@ -424,6 +470,7 @@ export async function markTransfer(
 						inTransactionId,
 						inIncomeId,
 						createdBy: viewer.memberId,
+						reason: peer ? null : (input.reason ?? null),
 					}),
 				)
 				.from(transactions)
@@ -446,7 +493,10 @@ export async function markTransfer(
 	return transferOutcome(db, viewer, input.transferId, false);
 }
 
-/** A Parent unmarks a Transfer with a side they may change: both sides count again. */
+/**
+ * A Parent unmarks a Transfer with a side they may change: both sides count again. Income marked
+ * alone as between the Parents is the Household's, so either Parent unmarks it.
+ */
 export async function unmarkTransfer(
 	db: Db,
 	viewer: Viewer,
@@ -460,8 +510,10 @@ export async function unmarkTransfer(
 				eq(transfers.id, transferId),
 				eq(transfers.householdId, viewer.householdId),
 				isNull(transfers.removedAt),
-				sql`exists (select 1 from ${transactions} where (${transactions.id} = ${transfers.outTransactionId}
-					or ${transactions.id} = ${transfers.inTransactionId}) and ${changeableBy(viewer)})`,
+				sql`((${transfers.outTransactionId} is null and ${transfers.inTransactionId} is null
+						and ${transfers.inIncomeId} is not null)
+					or exists (select 1 from ${transactions} where (${transactions.id} = ${transfers.outTransactionId}
+					or ${transactions.id} = ${transfers.inTransactionId}) and ${changeableBy(viewer)}))`,
 			),
 		);
 	return transferOutcome(db, viewer, transferId, true);

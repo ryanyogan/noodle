@@ -1,15 +1,19 @@
 import type { MonthKey, PlanWarning } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
+import { Button } from "@noodle/ui/components/button";
 import { List } from "@noodle/ui/components/list";
 import { RowButton } from "@noodle/ui/components/row-button";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
+import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, type LinkProps, useHydrated } from "@tanstack/react-router";
 import { ChevronDown, ChevronRight, CircleAlert, TriangleAlert } from "lucide-react";
 import { useId, useState } from "react";
 import { formatMoney, fullDay, monthName } from "../format";
 import { planHealthQuery } from "../queries";
+import { endCommitment, keepCarriedBalance } from "../server/commitments";
+import { Confirm } from "./plan-editing";
 
 /**
  * Plan health: what in the Plan needs attention now, each warning opening the page that fixes
@@ -69,14 +73,18 @@ const keyOf = (warning: PlanWarning) =>
 		? `${warning.kind}:${warning.bucketId}`
 		: warning.kind === "goal-late"
 			? `${warning.kind}:${warning.goalId}`
-			: warning.kind;
+			: warning.kind === "card-followed"
+				? `${warning.kind}:${warning.commitmentId}`
+				: warning.kind;
 
 /** Most urgent first: money running out, then income, then advice. */
 const urgency: Record<PlanWarning["kind"], number> = {
 	"negative-ahead": 0,
 	"income-behind": 1,
-	"goal-late": 2,
-	"bucket-over": 3,
+	// Spending counted twice is wrong today, not advice.
+	"card-followed": 2,
+	"goal-late": 3,
+	"bucket-over": 4,
 };
 
 const monthsText = (n: number) => `${n} month${n === 1 ? "" : "s"}`;
@@ -117,10 +125,115 @@ function describe(
 						: `At its recent pace it gets there in ${monthName(warning.reachedIn)} ${warning.reachedIn.slice(0, 4)}. Fund it more, or move its date.`,
 				link: { to: "/goals/$goalId", params: { goalId: warning.goalId } },
 			};
+		case "card-followed":
+			return {
+				title: warning.connected
+					? `${warning.account} is connected now, so its payments would count twice.`
+					: `Noodle sees what’s bought on ${warning.account} now, so its payments would count twice.`,
+				meta: `${warning.name} pays it down, and what’s bought on the card is already in your Buckets.`,
+				link: {
+					to: "/plan/$month/commitments/$id",
+					params: { month, id: warning.commitmentId },
+				},
+			};
 	}
 }
 
+/**
+ * A Commitment that pays down a card Noodle has begun to follow (ADR-0050), with its two ways
+ * out on the row itself: end the Commitment, or keep it as a set payment on a balance being
+ * carried (what the form's own tick says).
+ */
+function FollowedCardRow({
+	warning,
+	month,
+}: {
+	warning: Extract<PlanWarning, { kind: "card-followed" }>;
+	month: MonthKey;
+}) {
+	const { title, meta, link } = describe(warning, month);
+	const hydrated = useHydrated();
+	const queryClient = useQueryClient();
+	const [confirmEnd, setConfirmEnd] = useState(false);
+	// The Plan, what's owed and this list all follow from either choice.
+	const onSettled = () => queryClient.invalidateQueries();
+	const end = useMutation({
+		mutationFn: () => endCommitment({ data: { commitmentId: warning.commitmentId, month } }),
+		onSuccess: () => toast(`${warning.name} ends from ${monthName(month)} on.`),
+		onError: () => toast(`${warning.name} wasn’t ended. Try again.`, { tone: "error" }),
+		onSettled,
+	});
+	const keep = useMutation({
+		mutationFn: async () => {
+			const kept = await keepCarriedBalance({
+				data: { commitmentId: warning.commitmentId, accountId: warning.accountId },
+			});
+			if (!kept.ok) throw new Error(kept.reason);
+		},
+		onSuccess: () => toast(`${warning.name} stays: a set payment on a balance you’re carrying.`),
+		onError: () => toast(`${warning.name} wasn’t changed. Try again.`, { tone: "error" }),
+		onSettled,
+	});
+	const busy = !hydrated || end.isPending || keep.isPending;
+	return (
+		<li
+			data-testid="plan-health-card-followed"
+			className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 px-(--card-pad) py-3.5"
+		>
+			<TriangleAlert aria-hidden="true" className="mt-0.5 size-4 text-pace" />
+			<div className="grid min-w-0 gap-2">
+				<div className="grid min-w-0 gap-0.5">
+					<p className="text-sm font-medium wrap-anywhere">{title}</p>
+					<p className="text-[13px] text-muted-foreground wrap-anywhere">
+						<Link {...link} className="font-medium text-foreground underline underline-offset-2">
+							{warning.name}
+						</Link>
+						{meta.slice(warning.name.length)}
+					</p>
+				</div>
+				<div className="flex min-w-0 flex-wrap gap-2">
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className="max-lg:min-h-11"
+						disabled={busy}
+						onClick={() => setConfirmEnd(true)}
+					>
+						End this Commitment
+					</Button>
+					<Button
+						type="button"
+						variant="outline"
+						// Its words wrap on a narrow phone rather than running off the row.
+						size="wrap"
+						className="min-h-8 px-3 py-1.5 text-start text-[13px] max-lg:min-h-11"
+						disabled={busy}
+						onClick={() => keep.mutate()}
+					>
+						Keep it: it’s for a balance I’m carrying
+					</Button>
+				</div>
+			</div>
+			{confirmEnd ? (
+				<Confirm
+					onConfirm={() => end.mutate()}
+					onCancel={() => setConfirmEnd(false)}
+					confirmLabel={`End ${warning.name}`}
+				>
+					{warning.name} leaves the Plan from {monthName(month)} on. Earlier months keep it.
+				</Confirm>
+			) : null}
+		</li>
+	);
+}
+
 function HealthRow({ warning, month }: { warning: PlanWarning; month: MonthKey }) {
+	if (warning.kind === "card-followed") return <FollowedCardRow warning={warning} month={month} />;
+	return <LinkedRow warning={warning} month={month} />;
+}
+
+function LinkedRow({ warning, month }: { warning: PlanWarning; month: MonthKey }) {
 	const { title, meta, link } = describe(warning, month);
 	// The whole row opens the fix, though the link's name is just the warning.
 	return (

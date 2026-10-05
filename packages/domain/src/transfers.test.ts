@@ -4,6 +4,9 @@ import {
 	likelyCardPayment,
 	likelyOriginals,
 	looksLikeCardPayment,
+	type PayingCommitment,
+	type PaymentAccount,
+	paymentCase,
 	type RefundSide,
 	type TransferSide,
 	transferPairs,
@@ -171,5 +174,185 @@ describe("card payments by their words (#91)", () => {
 			likelyCardPayment({ text: "PAYMENT THANK YOU", amountCents: -50_000 }, cards),
 		).toBeNull();
 		expect(likelyCardPayment({ text: null, amountCents: 100 }, cards)).toBeNull();
+	});
+});
+
+describe("Review's tree for a payment to a card or loan", () => {
+	const account = (
+		id: string,
+		name: string,
+		kind: PaymentAccount["kind"] = "credit-card",
+		followed = false,
+	): PaymentAccount => ({ id, name, kind, followed });
+	const paying = (
+		id: string,
+		name: string,
+		accountId: string,
+		amountCents = 230_000,
+		carriedBalance = false,
+	): PayingCommitment => ({ id, name, accountId, amountCents, carriedBalance });
+	const out = (text: string, amountCents = 61_250) => ({ text, amountCents, from: "Checking" });
+
+	// The Household's real lines.
+	const AMEX = "AMERICAN EXPRESS ACH PMT M8054 WEB ID: 2005032111";
+	const CHASE = "CHASE CREDIT CRD AUTOPAY PPD ID: 4760039224";
+	const LOAN = "TOYOTA FINANCIAL RETAIL PAY PPD ID: 9000012345";
+
+	const amex = account("amex", "American Express");
+	const sapphire = account("sapphire", "Chase Sapphire", "credit-card", true);
+	const carLoan = account("car", "Toyota loan", "loan");
+	const amexPayment = paying("c-amex", "Amex payment", "amex");
+
+	it("files a line in the Commitment that pays down the card it names, whatever the amount", () => {
+		const fits = {
+			kind: "commitment",
+			commitmentId: "c-amex",
+			commitment: "Amex payment",
+			accountId: "amex",
+			account: "American Express",
+		};
+		// $612.50 against a $2,300 Commitment: one of several payments in the month.
+		expect(paymentCase(out(AMEX), [amex, sapphire], [amexPayment])).toEqual(fits);
+		// The bank's short name for the issuer, and a card named by it.
+		expect(paymentCase(out("AMEX EPAYMENT ACH PMT"), [amex], [amexPayment])).toEqual(fits);
+		expect(paymentCase(out(AMEX), [account("amex", "Amex Gold")], [amexPayment])).toMatchObject({
+			kind: "commitment",
+			account: "Amex Gold",
+		});
+	});
+
+	it("files a loan servicer's line in the loan's Commitment", () => {
+		const loanPayment = paying("c-car", "Car payment", "car", 41_200);
+		expect(paymentCase(out(LOAN, 41_200), [amex, carLoan], [amexPayment, loanPayment])).toEqual({
+			kind: "commitment",
+			commitmentId: "c-car",
+			commitment: "Car payment",
+			accountId: "car",
+			account: "Toyota loan",
+		});
+		// A loan with no Commitment is an ordinary line: a loan's payment is never a Transfer.
+		expect(paymentCase(out(LOAN), [amex, carLoan], [amexPayment])).toBeNull();
+		// A word many loans share fits only a line that reads as a loan's.
+		const mortgage = account("home", "Home mortgage", "loan");
+		const house = paying("c-home", "Mortgage", "home");
+		expect(paymentCase(out("ROCKET MORTGAGE PAYMENT"), [mortgage, carLoan], [house])).toMatchObject(
+			{ commitmentId: "c-home" },
+		);
+		expect(paymentCase(out("HOME DEPOT AUTOPAY"), [mortgage], [house])).toBeNull();
+	});
+
+	it("takes the only card a Commitment pays down for a card payment that names none", () => {
+		const gold = account("gold", "Gold card");
+		const goldPayment = paying("c-gold", "Card payment", "gold");
+		expect(paymentCase(out("CARDMEMBER SERV WEB PYMT"), [gold], [goldPayment])).toMatchObject({
+			kind: "commitment",
+			account: "Gold card",
+		});
+		expect(paymentCase(out(AMEX), [gold], [goldPayment])).toMatchObject({ kind: "commitment" });
+		// Not when the line names another issuer than the card's own name does.
+		expect(paymentCase(out(CHASE), [amex], [amexPayment])).toEqual({
+			kind: "not-followed",
+			card: null,
+			accountId: null,
+		});
+		// Not a loan for a card's line, nor when two cards are paid down.
+		expect(
+			paymentCase(out("CARDMEMBER SERV WEB PYMT"), [carLoan], [paying("c", "Car", "car")]),
+		).toEqual({ kind: "not-followed", card: null, accountId: null });
+		const blue = account("blue", "Blue card");
+		expect(
+			paymentCase(
+				out("CARDMEMBER SERV WEB PYMT"),
+				[gold, blue],
+				[goldPayment, paying("c-blue", "Blue", "blue")],
+			),
+		).toEqual({ kind: "not-followed", card: null, accountId: null });
+	});
+
+	it("tells two cards with similar names apart by their words, else only by an exact amount", () => {
+		const freedom = account("freedom", "Chase Freedom");
+		const unfollowed = { ...sapphire, followed: false };
+		const both = [
+			paying("c-sapphire", "Sapphire payment", "sapphire", 30_000),
+			paying("c-freedom", "Freedom payment", "freedom", 12_500),
+		];
+		expect(
+			paymentCase(out("CHASE CARD ENDING IN 1234 FREEDOM AUTOPAY"), [unfollowed, freedom], both),
+		).toMatchObject({ commitmentId: "c-freedom" });
+		// The line fits both equally: the one whose Commitment is for exactly this much.
+		expect(paymentCase(out(CHASE, 12_500), [unfollowed, freedom], both)).toMatchObject({
+			commitmentId: "c-freedom",
+		});
+		// An amount that matches neither: no Commitment is picked for the Parent.
+		expect(paymentCase(out(CHASE, 61_250), [unfollowed, freedom], both)).toEqual({
+			kind: "not-followed",
+			card: null,
+			accountId: null,
+		});
+	});
+
+	it("offers a Transfer for a card Noodle follows, and a Commitment only for a balance carried", () => {
+		expect(paymentCase(out(CHASE), [amex, sapphire], [amexPayment])).toEqual({
+			kind: "followed",
+			card: "Chase Sapphire",
+		});
+		// A Commitment without the tick doesn't take a followed card's payment (it would count twice).
+		const plain = paying("c-chase", "Chase payment", "sapphire");
+		expect(paymentCase(out(CHASE), [sapphire], [plain])).toEqual({
+			kind: "followed",
+			card: "Chase Sapphire",
+		});
+		expect(paymentCase(out(CHASE), [sapphire], [{ ...plain, carriedBalance: true }])).toMatchObject(
+			{ kind: "commitment", commitmentId: "c-chase" },
+		);
+		// Two followed cards fit: a Transfer, whichever it is.
+		const freedom = account("freedom", "Chase Freedom", "credit-card", true);
+		expect(paymentCase(out(CHASE), [sapphire, freedom], [])).toEqual({
+			kind: "followed",
+			card: null,
+		});
+	});
+
+	it("says a card payment is the spending when Noodle can't see into the card", () => {
+		// The card isn't in Noodle at all.
+		expect(paymentCase(out(AMEX), [sapphire], [])).toEqual({
+			kind: "not-followed",
+			card: null,
+			accountId: null,
+		});
+		// It's kept by hand, with no Commitment yet: the Commitment to make can pay it down.
+		expect(paymentCase(out(AMEX), [amex, sapphire], [])).toEqual({
+			kind: "not-followed",
+			card: "American Express",
+			accountId: "amex",
+		});
+	});
+
+	it("never takes money sent to a person, a purchase, a bill or money back for a payment", () => {
+		const all = [amex, sapphire, carLoan];
+		const linked = [amexPayment, paying("c-car", "Car payment", "car")];
+		for (const text of [
+			"ZELLE PAYMENT TO AMERICAN EXPRESS TRAVEL 12345",
+			"Zelle payment to Toyota Tom JPM99a1b2c3",
+			"VENMO PAYMENT 1029384756",
+			"VENMO *CHASE SMITH PAYMENT",
+			"PAYPAL INST XFER AMERICAN EXPRESS",
+			"TOYOTA OF SPRINGFIELD SERVICE",
+			"AMERICAN EXPRESS TRAVEL PURCHASE",
+			"T-MOBILE AUTOPAY",
+			"STATE FARM INSURANCE PAYMENT",
+			"ONLINE PAYMENT",
+		])
+			expect(paymentCase(out(text), all, linked), text).toBeNull();
+		expect(paymentCase({ text: AMEX, amountCents: -61_250 }, all, linked)).toBeNull();
+		expect(paymentCase({ text: null, amountCents: 100 }, all, linked)).toBeNull();
+		// The Account it left never pays itself.
+		expect(
+			paymentCase(
+				{ text: AMEX, amountCents: 100, from: "American Express" },
+				[amex],
+				[amexPayment],
+			),
+		).toEqual({ kind: "not-followed", card: null, accountId: null });
 	});
 });

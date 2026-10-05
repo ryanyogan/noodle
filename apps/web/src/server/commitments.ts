@@ -7,6 +7,7 @@ import {
 	followedCards,
 	linkCommitment,
 	loadChargesBetween,
+	loadPaymentHistory,
 	loadPlanRecords,
 	updateCommitment as updateCommitmentInDb,
 } from "@noodle/db";
@@ -19,7 +20,12 @@ import {
 	MAX_CENTS,
 	monthKeyAt,
 	monthOfDay,
+	PAYMENT_HISTORY_MONTHS,
+	type PaymentSuggestion,
 	type PlanRecords,
+	paymentsTo,
+	planForMonth,
+	suggestPayment,
 } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -212,3 +218,66 @@ export const getFollowedCards = createServerFn({ method: "GET" })
 				dayKeyAt(new Date(), context.household.timeZone),
 			),
 	);
+
+/**
+ * Keeps a Commitment that pays down a card Noodle has begun to follow, as a set payment on a
+ * balance the Household is carrying (Plan health's "Keep it", ADR-0050). Through linkCommitment's
+ * guard, like the form's own tick.
+ */
+export const keepCarriedBalance = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ commitmentId: ulidSchema, accountId: ulidSchema }))
+	.handler(async ({ data, context }): Promise<CommitmentLinkResult> => {
+		const result = await setPaysDown(context, data.commitmentId, {
+			accountId: data.accountId,
+			carriedBalance: true,
+		});
+		await notifyHousehold(context.household.id, ["months", "goals"]);
+		return result ?? { ok: true };
+	});
+
+/**
+ * What a Commitment paying down this card or loan might be set at: what the payments to it came
+ * to a month over the last three full months, as the Parent may see them. The payments are found
+ * as Review finds them (paymentsTo). Null with too little history (suggestPayment).
+ */
+export const getPaymentSuggestion = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ accountId: ulidSchema }))
+	.handler(async ({ data, context }): Promise<PaymentSuggestion | null> => {
+		const db = getDb();
+		const today = dayKeyAt(new Date(), context.household.timeZone);
+		const month = monthOfDay(today);
+		const [history, followed, records] = await Promise.all([
+			loadPaymentHistory(
+				db,
+				viewerOf(context),
+				`${addMonths(month, -PAYMENT_HISTORY_MONTHS)}-01` as DayKey,
+				`${month}-01` as DayKey,
+			),
+			followedCards(db, context.household.id, today),
+			loadPlanRecords(db, context.household.id, month),
+		]);
+		if (!history.accounts.some((account) => account.id === data.accountId)) return null;
+		const follows = new Set(followed);
+		const accounts = history.accounts.map((account) => ({
+			id: account.id,
+			name: account.name,
+			kind: account.kind,
+			followed: account.kind === "credit-card" && (account.connected || follows.has(account.id)),
+		}));
+		const paying = planForMonth(records, month).commitments.flatMap((commitment) =>
+			commitment.accountId
+				? [
+						{
+							id: commitment.id,
+							name: commitment.name,
+							accountId: commitment.accountId,
+							amountCents: commitment.amount,
+							carriedBalance: commitment.carriedBalance ?? false,
+						},
+					]
+				: [],
+		);
+		return suggestPayment(paymentsTo(data.accountId, history.lines, accounts, paying), month);
+	});

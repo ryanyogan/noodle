@@ -1,10 +1,11 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { ulid } from "ulid";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
 import { choose, createHousehold, openMore, savedBy, signedInPage } from "./session";
-import { q, seedIncomeHousehold, seedShotsHousehold } from "./shots-household";
+import { q, seedBetweenUs, seedIncomeHousehold, seedShotsHousehold } from "./shots-household";
 
 // Pictures of every page with one realistic Household, for looking at a redesign without a browser
 // on the machine: .github/workflows/shots.yml runs this on GitHub and uploads the PNGs. Not a test
@@ -237,7 +238,74 @@ test.beforeAll(async ({ browser }) => {
 		colorScheme,
 	});
 
-	const { month, bucketIds, commitmentIds, ids } = await seedShotsHousehold(page, parent.userId);
+	const { householdId, parentId, month, bucketIds, commitmentIds, ids } = await seedShotsHousehold(
+		page,
+		parent.userId,
+	);
+	// Money between the two Parents: a deposit from Sam among the Income, and a line sent to Sam.
+	let sentToSam = "";
+	await attempt("Money between the two Parents", async () => {
+		sentToSam = await seedBetweenUs(householdId, parentId, ids.checking);
+	});
+	/** Plan › Income with the Zelle from Sam counted as Income (`marked` false) or between us. */
+	const zelleFromSam = async (page: Page, marked: boolean) => {
+		const region = page.locator('section[aria-label="Between us"]:visible').first();
+		const hint = page.getByText("From the other Parent? It’s between us").first();
+		if (marked) {
+			await expect(async () => {
+				if (!(await region.isVisible())) {
+					await page
+						.getByRole("button", { name: "Actions for $1,500 of income" })
+						.first()
+						.click({ timeout: 2000 });
+					await page
+						.getByRole("menuitem", { name: "It’s between us · not Income" })
+						.click({ timeout: 2000 });
+				}
+				await expect(region).toBeVisible({ timeout: 5000 });
+			}).toPass({ timeout: 30_000 });
+			// The toast has gone before the picture: it would sit over the rows on a phone.
+			await expect(page.getByRole("status").filter({ hasText: "is between you" })).toHaveCount(0, {
+				timeout: 20_000,
+			});
+		} else {
+			await expect(async () => {
+				if (await region.isVisible())
+					await region
+						.getByRole("button", { name: "Count $1,500 as Income" })
+						.click({ timeout: 2000 });
+				await expect(hint).toBeVisible({ timeout: 5000 });
+			}).toPass({ timeout: 30_000 });
+		}
+		const shown = marked ? region : hint;
+		await shown.evaluate((node) => node.scrollIntoView({ block: "center" }));
+	};
+
+	// Two more payments waiting in Review, beside the Amex one (a card Noodle follows): one to a
+	// card kept by hand that a Commitment pays down, and one to a card that isn't in Noodle at all.
+	await attempt("Review's card payments", async () => {
+		const h = q(householdId);
+		const m = q(parentId);
+		const discover = q(ulid());
+		const paying = q(ulid());
+		const statements = [
+			`insert into accounts (id, household_id, name, kind, bank_connection_id, external_id, mask) values (${discover}, ${h}, 'Discover it', 'credit-card', null, null, null);`,
+			`insert into account_balances (id, household_id, account_id, amount_cents, created_by_member_id) values (${q(ulid())}, ${h}, ${discover}, 312000, ${m});`,
+			`insert into commitments (id, household_id, name, from_month, account_id) values (${paying}, ${h}, 'Discover payment', ${q(month)}, ${discover});`,
+			`insert into commitment_terms (household_id, commitment_id, month, amount_cents, cadence, due_date) values (${h}, ${paying}, ${q(month)}, 60000, 'monthly', ${q(`${month}-01`)});`,
+		];
+		for (const [line, cents] of [
+			["DISCOVER E-PAYMENT 7731 WEB", 25_000],
+			["CITI CARD ONLINE PAYMENT", 18_000],
+		] as const) {
+			const id = q(ulid());
+			statements.push(
+				`insert into transactions (id, household_id, source, date, amount_cents, note, merchant, account_id, created_by_member_id) values (${id}, ${h}, 'import', ${q(`${month}-01`)}, ${cents}, ${q(line)}, ${q(line)}, ${q(ids.checking)}, ${m});`,
+				`insert into categorizations (transaction_id, household_id, member_id, outcome, method, bucket_id, confidence, merchant) values (${id}, ${h}, ${m}, 'review', 'none', null, null, ${q(line)});`,
+			);
+		}
+		await seedSql(statements);
+	});
 
 	// Two credit cards with their Perks, one of them used.
 	await attempt("Credit card perks", async () => {
@@ -597,6 +665,34 @@ test.beforeAll(async ({ browser }) => {
 				await page.evaluate(() => window.scrollTo(0, 0));
 			},
 		},
+		// One by one, what's in the window, with each of the other two payments on top: one to a card
+		// Noodle doesn't follow (the tallest card: does Skip still clear the bottom bar?), and one a
+		// Commitment pays down.
+		...(
+			[
+				["12c-review-card-payment-not-followed", "not-followed", "link", "Make it a Commitment"],
+				["12d-review-card-payment-commitment", "commitment", "button", "Confirm"],
+			] as const
+		).map(
+			([name, kind, role, action]): Shot => ({
+				name,
+				path: "/review",
+				window: true,
+				ready: async (page) => {
+					const stack = page.getByTestId("review-stack");
+					const first = stack
+						.locator(`[data-testid=review-card][data-payment=${kind}]`)
+						.getByRole(role, { name: action });
+					for (let skipped = 0; skipped < 10; skipped++) {
+						if (await first.isVisible()) break;
+						await stack.getByRole("button", { name: "Skip" }).click({ timeout: 15_000 });
+						await page.waitForTimeout(400);
+					}
+					await expect(first).toBeVisible();
+					await page.evaluate(() => window.scrollTo(0, 0));
+				},
+			}),
+		),
 		{ name: "13-review-list", path: "/review?view=list" },
 		{ name: "14-rules", path: "/review/rules" },
 		{ name: "15-accounts", path: "/accounts" },
@@ -783,6 +879,32 @@ test.beforeAll(async ({ browser }) => {
 		},
 		...small,
 		...fresh,
+		// Money between the two Parents, last: marking it changes the month's Income for good.
+		{
+			// The deposit from Sam among the Income, with the line under it that says what it may be.
+			name: "40-income-from-the-other-parent",
+			path: `/plan/${month}/income`,
+			window: true,
+			ready: (page) => zelleFromSam(page, false),
+		},
+		{
+			// Marked: out of the Income total and listed under "Between us" with "Count as Income".
+			name: "41-income-between-us",
+			path: `/plan/${month}/income`,
+			window: true,
+			ready: (page) => zelleFromSam(page, true),
+		},
+		{
+			// Money sent to Sam, in no Bucket: "Mark as Transfer" and "It’s between us" side by side.
+			name: "42-transaction-between-us",
+			path: `/transactions/${month}/${sentToSam}`,
+			window: true,
+			ready: async (page) => {
+				const button = page.getByRole("button", { name: "It’s between us" }).first();
+				await expect(button).toBeVisible({ timeout: 15_000 });
+				await button.evaluate((node) => node.scrollIntoView({ block: "center" }));
+			},
+		},
 	];
 	mkdirSync(OUT, { recursive: true });
 	writeFileSync(

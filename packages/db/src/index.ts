@@ -463,6 +463,12 @@ export {
 } from "./bank-connections";
 export { type BankSyncResult, syncBankLines } from "./bank-sync";
 export {
+	type BetweenUsIncome,
+	type IncomeTransferResult,
+	loadBetweenUsIncome,
+	markIncomeTransfer,
+} from "./between-us";
+export {
 	addCapture,
 	type CaptureResult,
 	type CaptureTokenSummary,
@@ -503,6 +509,8 @@ export {
 	linkCommitment,
 	loadCharges,
 	loadChargesBetween,
+	loadPaymentHistory,
+	type PaymentHistory,
 	updateCommitment,
 } from "./commitments";
 export {
@@ -817,6 +825,7 @@ export {
 	type MoneyResult,
 	markTransfer,
 	type RefundView,
+	type TransferReason,
 	type TransferView,
 	unlinkRefund,
 	unmarkTransfer,

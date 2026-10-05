@@ -29,7 +29,7 @@ export const glossary = {
 		term: "Commitment",
 		short:
 			"A bill you expect every time, like the mortgage, insurance, daycare or a subscription: monthly, every two weeks, or once a year.",
-		more: "A Commitment can pay down a credit card or loan: choose it under “Pays down”, and each payment filed in the Commitment brings what’s owed on it down. If Noodle already sees what you buy on a card, paying it is a Transfer, not spending, so pick it only for a set payment on a balance you’re carrying.",
+		more: "A Commitment can pay down a credit card or loan: choose it under “Pays down”, and each payment filed in the Commitment brings what’s owed on it down. If Noodle already sees what you buy on a card, paying it is a Transfer, not spending, so pick it only for a set payment on a balance you’re carrying. If a card paid down this way is connected later, the Plan asks under “Things to check” whether to end the Commitment or keep it for a balance you’re carrying. Once a card or loan is chosen, the form offers an amount from your last three months of payments to it.",
 	},
 	"lumpy-month": {
 		term: "Lumpy month",
@@ -88,6 +88,11 @@ export const glossary = {
 		short:
 			"Paying a credit card from checking is a Transfer: money moving between your own Accounts. It isn’t spending, so it goes in no Bucket.",
 		more: "What you bought on the card was filed in your Buckets when you bought it, so the payment in a Bucket would count it twice. When checking and the card are both in Noodle, the two sides are paired on their own. When only one is, say so in Review: “It’s a card payment”. If the card isn’t in Noodle, what’s bought on it isn’t counted anywhere until you connect or add it in Accounts. Paying down a balance from before your Plan? Make its regular payment a Commitment and file the payment there; a Goal to pay it off is for anything extra.",
+	},
+	"between-us": {
+		term: "Between us",
+		short: "Money one of you moved to the other. It isn’t Income and it isn’t spending.",
+		more: "When one of you sends the other money (Zelle, Venmo, a bank transfer) the Household has gained and lost nothing. If only one of your Accounts is in Noodle, that side would look like Income coming in or spending going out, so say “It’s between us” on it: in the Income list’s actions for money in, in a Transaction’s details for money out. Noodle never decides this on its own, and you can undo it. If the money then paid a bill from an Account Noodle doesn’t follow, that bill isn’t counted anywhere until you add it.",
 	},
 	"set-aside": {
 		term: "Set aside",

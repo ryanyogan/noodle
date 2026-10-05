@@ -29,7 +29,14 @@ export const moneyQuery = (transaction: { id: string; date: string }) =>
 	});
 
 export type MoneyChange =
-	| { kind: "mark"; transferId: string; transactionId: string; label: string }
+	| {
+			kind: "mark";
+			transferId: string;
+			transactionId: string;
+			label: string;
+			/** Money to or from the other Parent, when only this side is in Noodle. */
+			reason?: "between-us";
+	  }
 	| { kind: "unmark"; transferId: string; label: string }
 	| {
 			kind: "link";
@@ -44,7 +51,11 @@ const send = (change: MoneyChange): Promise<MoneyResult> => {
 	switch (change.kind) {
 		case "mark":
 			return markTransfer({
-				data: { transferId: change.transferId, transactionId: change.transactionId },
+				data: {
+					transferId: change.transferId,
+					transactionId: change.transactionId,
+					reason: change.reason,
+				},
 			});
 		case "unmark":
 			return unmarkTransfer({ data: { transferId: change.transferId } });
@@ -93,6 +104,18 @@ export function useMoneyChange() {
 				);
 				return;
 			}
+			if (variables.kind === "mark" && variables.reason === "between-us") {
+				toast(`${variables.label} marked as between us`, {
+					tone: "success",
+					undo: () =>
+						change.mutate({
+							kind: "unmark",
+							transferId: variables.transferId,
+							label: variables.label,
+						}),
+				});
+				return;
+			}
 			toast(`${variables.label} ${done[variables.kind]}`);
 		},
 		onError: (_error, variables) => {
@@ -114,9 +137,21 @@ export function useMoneyChange() {
 	return change;
 }
 
-/** Where a Transfer's money went, for its row: "Transfer · Checking → Visa", or one side's Account. */
-export function transferDetail(transfer: { from: string | null; to: string | null }): string {
+/**
+ * Where a Transfer's money went, for its row: "Transfer · Checking → Visa", or one side's Account.
+ * One side alone that a Parent said was between the two of them reads "Between us · out of Checking".
+ */
+export function transferDetail(transfer: {
+	from: string | null;
+	to: string | null;
+	reason?: string | null;
+}): string {
 	if (transfer.from && transfer.to) return `Transfer · ${transfer.from} → ${transfer.to}`;
+	if (transfer.reason === "between-us") {
+		if (transfer.from) return `Between us · out of ${transfer.from}`;
+		if (transfer.to) return `Between us · into ${transfer.to}`;
+		return "Between us";
+	}
 	if (transfer.from) return `Transfer out of ${transfer.from}`;
 	if (transfer.to) return `Transfer into ${transfer.to}`;
 	return "Transfer";

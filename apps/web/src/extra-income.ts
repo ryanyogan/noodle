@@ -1,3 +1,4 @@
+import type { IncomeRecord } from "@noodle/db";
 import type { Cents, DayKey, ExtraIncomeDestination, MonthKey } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -23,6 +24,7 @@ import {
 	undoExtraIncome,
 } from "./server/extra-income";
 import type { MonthData } from "./server/month";
+import { markIncomeTransfer, unmarkTransfer } from "./server/transfers";
 
 export type IncomeVariables = {
 	/** A client ULID: retrying the same income records it once. */
@@ -287,4 +289,111 @@ export function useExtraIncomes() {
 	});
 
 	return { decide, undo };
+}
+
+export type BetweenUsVariables = {
+	/** A client ULID: retrying the same mark writes it once; unmarking names the same one. */
+	transferId: string;
+	month: MonthKey;
+	entry: IncomeRecord;
+};
+
+const plainIncome = ({ id, amount, date, note }: IncomeRecord): IncomeRecord => ({
+	id,
+	amount,
+	date,
+	note,
+});
+
+/** A month's inputs with income moved out of Income, into what's between the two Parents. */
+export const asBetweenUs = (data: MonthData, v: BetweenUsVariables): MonthData => ({
+	...data,
+	income: data.income.filter((i) => i.id !== v.entry.id),
+	betweenUs: [
+		...(data.betweenUs ?? []).filter((b) => b.id !== v.entry.id),
+		{ ...plainIncome(v.entry), transferId: v.transferId },
+	],
+});
+
+/** A month's inputs with income that was between the two Parents counted as Income again. */
+export const asIncomeAgain = (data: MonthData, v: BetweenUsVariables): MonthData => ({
+	...data,
+	betweenUs: (data.betweenUs ?? []).filter((b) => b.id !== v.entry.id),
+	income: data.income.some((i) => i.id === v.entry.id)
+		? data.income
+		: [...data.income, plainIncome(v.entry)].sort(
+				(a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id),
+			),
+});
+
+class BetweenUsRefused extends Error {
+	constructor(readonly reason: "refused" | "extra-income") {
+		super("Not marked as between us");
+	}
+}
+
+/**
+ * Marking income as "Between us" (money the other Parent sent: not Income, not spending) and
+ * counting it as Income again. Each lands in the month's cached inputs at once (ADR-0006) and
+ * rolls back if the server fails or refuses it; marking's toast offers Undo.
+ */
+export function useBetweenUs() {
+	const queryClient = useQueryClient();
+
+	const unmark = useMutation({
+		mutationKey: monthChangeKey,
+		mutationFn: async ({ transferId }: BetweenUsVariables) => {
+			const result = await unmarkTransfer({ data: { transferId } });
+			if (!result.ok) throw new BetweenUsRefused("refused");
+		},
+		onMutate: async (v): Promise<Rollback> => [
+			await editCache<MonthData>(queryClient, monthQuery(v.month).queryKey, (data) =>
+				asIncomeAgain(data, v),
+			),
+		],
+		onError: (_error, _v, rollback) => {
+			rollBack(queryClient, rollback);
+			toast("Couldn’t count it as Income again, so it’s still between you.", { tone: "error" });
+		},
+		onSuccess: (_data, v) =>
+			toast(`${formatMoney(v.entry.amount)} counts as Income again`, { tone: "success" }),
+		onSettled: () => refetchMonthsOnceSettled(queryClient),
+	});
+
+	const mark = useMutation({
+		mutationKey: monthChangeKey,
+		mutationFn: async ({ transferId, entry }: BetweenUsVariables) => {
+			const result = await markIncomeTransfer({ data: { transferId, incomeId: entry.id } });
+			if (!result.ok) throw new BetweenUsRefused(result.reason);
+		},
+		onMutate: async (v): Promise<Rollback> => [
+			await editCache<MonthData>(queryClient, monthQuery(v.month).queryKey, (data) =>
+				asBetweenUs(data, v),
+			),
+		],
+		onError: (error, v, rollback) => {
+			rollBack(queryClient, rollback);
+			if (error instanceof BetweenUsRefused) {
+				toast(
+					error.reason === "extra-income"
+						? "Some of this month’s Extra income has gone somewhere already, so this stays Income."
+						: "Couldn’t mark it as between us: it was just changed.",
+					{ tone: "error" },
+				);
+			} else {
+				toast("Couldn’t mark it as between us, so it’s still Income.", {
+					tone: "error",
+					action: { label: "Retry", onClick: () => mark.mutate(v) },
+				});
+			}
+		},
+		onSuccess: (_data, v) =>
+			toast(`${formatMoney(v.entry.amount)} is between you, so it isn’t Income`, {
+				tone: "success",
+				undo: () => unmark.mutate(v),
+			}),
+		onSettled: () => refetchMonthsOnceSettled(queryClient),
+	});
+
+	return { mark, unmark };
 }

@@ -116,9 +116,19 @@ const PLAIN_ACCOUNT_WORDS = new Set([
 	"and",
 	"checking",
 	"savings",
+	"loan",
+	"loans",
+	"payment",
+	"payments",
 ]);
 
-const wordsOf = (text: string) => text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+/** A line's or a name's words, with an issuer's short names spelled out ("AMEX" is American Express). */
+const wordsOf = (text: string) =>
+	text
+		.toLowerCase()
+		.replace(/\bamex\b/g, "american express")
+		.replace(/\bcitibank\b/g, "citi")
+		.match(/[a-z0-9]+/g) ?? [];
 
 /**
  * Whether a bank line's words say it pays a credit card ("CHASE CREDIT CRD AUTOPAY", "AMEX
@@ -158,4 +168,177 @@ export function likelyCardPayment(
 	if (named) return { card: named };
 	// Two of the Household's cards fit equally, or none does: likely only by its own words.
 	return scored.length > 0 || looksLikeCardPayment(text) ? { card: null } : null;
+}
+
+// Review's one decision tree for money out that reads as a payment to a card or loan (ADR-0050).
+// Decided when Review is read, from the bank's own wording, the Household's cards and loans and
+// the Commitments that pay them down; nothing is stored.
+//   commitment:   a Commitment pays down the card or loan the line fits: file it there.
+//   followed:     the line names a card Noodle follows: a Transfer, since what was bought on it
+//                 is already in the Buckets.
+//   not-followed: a card payment to a card Noodle can't see into, with no Commitment for it: the
+//                 payment is the spending, so plan it as a Commitment, or connect the card.
+
+/** A credit card or loan of the Household's, as the tree reads it. */
+export type PaymentAccount = {
+	id: string;
+	name: string;
+	kind: "credit-card" | "loan";
+	/** Noodle sees what's bought on it: connected, or with purchases imported lately. */
+	followed: boolean;
+};
+
+/** A Commitment that pays down a card or loan. */
+export type PayingCommitment = {
+	id: string;
+	name: string;
+	accountId: string;
+	amountCents: Cents;
+	/** A set payment on a balance being carried: what lets it pay down a card Noodle follows. */
+	carriedBalance: boolean;
+};
+
+export type PaymentCase =
+	| {
+			kind: "commitment";
+			commitmentId: string;
+			commitment: string;
+			accountId: string;
+			account: string;
+	  }
+	| { kind: "followed"; card: string | null }
+	| { kind: "not-followed"; card: string | null; accountId: string | null };
+
+/** Money sent to a person, a purchase, or a bill that is never a card's or a loan's payment. */
+const NOT_A_PAYMENT =
+	/\b(insurance|rent|debit|checkcard|check card|pos|purchases?|gift ?cards?|zelle|venmo|paypal|cash app)\b/i;
+/** Words a loan's payment line has: "MORTGAGE", "STUDENT LN", "TOYOTA FINANCIAL", "LOAN SERVICING". */
+const LOAN_WORDS =
+	/\b(mortgage|mtg|loans?|ln|lease|financial|finance|financing|servicing|lending|lender)\b/i;
+/** Words only a loan's line has: enough, alone, to take it for the one loan a Commitment pays down. */
+const SURE_LOAN_WORDS = /\b(mortgage|mtg|loans?|ln|lease|servicing|lending|lender)\b/i;
+/** Words in a loan's name that many loans share: they fit a line only when it reads as a loan's. */
+const SHARED_LOAN_WORDS = new Set(["car", "auto", "home", "house", "student", "mortgage"]);
+/** Issuers a payment line may name: one the line names and the Account's name doesn't isn't it. */
+const ISSUER_NAMES = [
+	"american express",
+	"citi",
+	"capital one",
+	"discover",
+	"barclays",
+	"barclaycard",
+	"synchrony",
+	"chase",
+	"wells fargo",
+	"bank of america",
+	"apple",
+	"us bank",
+	"usaa",
+	"navy federal",
+];
+
+const issuersIn = (text: string) => {
+	const padded = ` ${wordsOf(text).join(" ")} `;
+	return ISSUER_NAMES.filter((issuer) => padded.includes(` ${issuer} `));
+};
+
+/** How many of an Account's telling words the line has. */
+function wordsFit(account: PaymentAccount, said: Set<string>, loanLine: boolean): number {
+	return wordsOf(account.name).filter(
+		(word) =>
+			word.length >= 3 &&
+			!PLAIN_ACCOUNT_WORDS.has(word) &&
+			said.has(word) &&
+			(loanLine || !SHARED_LOAN_WORDS.has(word)),
+	).length;
+}
+
+/**
+ * Which case of the tree a line waiting in Review is: null when it doesn't read as a payment to a
+ * card or loan, so it's an ordinary card. `text` is the bank's own wording, `from` the name of the
+ * Account it left (an Account never pays itself). A Commitment is chosen only when its card or
+ * loan is the one clear fit: the Account whose name the line has the most words of, or, when the
+ * line fits none of the Household's, the only card (for a card payment) or loan (for a loan's
+ * line) a Commitment pays down, unless the line names another issuer. The amount never has to
+ * match: it only breaks a tie between two Accounts, or two Commitments on one Account.
+ */
+export function paymentCase(
+	line: { text: string | null | undefined; amountCents: Cents; from?: string | null },
+	accounts: PaymentAccount[],
+	commitments: PayingCommitment[],
+): PaymentCase | null {
+	const text = line.text ?? "";
+	if (line.amountCents <= 0 || NOT_A_PAYMENT.test(text)) return null;
+	const loanLine = LOAN_WORDS.test(text);
+	const cardLine = looksLikeCardPayment(text);
+	if (!PAYMENT_WORDS.test(text) && !loanLine) return null;
+	const others = accounts.filter((account) => account.name !== line.from);
+	const byId = new Map(others.map((account) => [account.id, account]));
+	// A card Noodle follows is paid down by a Commitment only for a balance being carried.
+	const paying = commitments.filter((commitment) => {
+		const account = byId.get(commitment.accountId);
+		return account && (!account.followed || commitment.carriedBalance);
+	});
+	const paidDown = (account: PaymentAccount) =>
+		paying.filter((commitment) => commitment.accountId === account.id);
+	const exact = (account: PaymentAccount) =>
+		paidDown(account).filter((commitment) => commitment.amountCents === line.amountCents);
+
+	const said = new Set(wordsOf(text));
+	const scored = others
+		.map((account) => ({ account, score: wordsFit(account, said, loanLine) }))
+		.filter(({ score }) => score > 0)
+		.sort((a, b) => b.score - a.score);
+	const best = scored.filter(({ score }) => score === scored[0]?.score).map((s) => s.account);
+	let account: PaymentAccount | null = best.length === 1 ? (best[0] ?? null) : null;
+	if (best.length > 1) {
+		// Two fit equally ("Chase Sapphire", "Chase Freedom"): only an exact amount tells them apart.
+		const byAmount = best.filter((candidate) => exact(candidate).length > 0);
+		if (byAmount.length === 1) account = byAmount[0] ?? null;
+	}
+	if (scored.length === 0 && (cardLine || SURE_LOAN_WORDS.test(text))) {
+		// It names none of the Household's: the only card or loan a Commitment pays down is it.
+		const kind = cardLine ? "credit-card" : "loan";
+		const linked = others.filter(
+			(candidate) => candidate.kind === kind && paidDown(candidate).length > 0,
+		);
+		const [only] = linked;
+		const named = issuersIn(text);
+		const theirs = only ? new Set(issuersIn(only.name)) : new Set<string>();
+		// A name that says no issuer ("Gold card") can be any issuer's card.
+		const sameIssuer = theirs.size === 0 || named.every((issuer) => theirs.has(issuer));
+		if (only && linked.length === 1 && sameIssuer) {
+			account = only;
+		}
+	}
+	if (account) {
+		const linked = paidDown(account);
+		const [byAmount] = exact(account);
+		const commitment = byAmount ?? linked[0];
+		if (commitment) {
+			return {
+				kind: "commitment",
+				commitmentId: commitment.id,
+				commitment: commitment.name,
+				accountId: account.id,
+				account: account.name,
+			};
+		}
+	}
+
+	// No Commitment for it: only a credit card's payment is anything but an ordinary line.
+	const cards = others.filter((candidate) => candidate.kind === "credit-card");
+	const likely = likelyCardPayment({ text, amountCents: line.amountCents }, cards);
+	if (!likely) return null;
+	if (likely.card) {
+		const card = cards.find((candidate) => candidate.name === likely.card);
+		return card?.followed
+			? { kind: "followed", card: card.name }
+			: { kind: "not-followed", card: likely.card, accountId: card?.id ?? null };
+	}
+	// Several of the Household's cards fit and Noodle follows them all: a Transfer, whichever it is.
+	const fitting = best.filter((candidate) => candidate.kind === "credit-card");
+	return fitting.length > 1 && fitting.every((candidate) => candidate.followed)
+		? { kind: "followed", card: null }
+		: { kind: "not-followed", card: null, accountId: null };
 }

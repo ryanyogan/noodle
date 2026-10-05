@@ -5,6 +5,7 @@ import { extraIncomeLeftSql } from "./extra-income";
 import {
 	addAccount,
 	addBucket,
+	addCommitment,
 	addPersonalAllowance,
 	addQuickAdd,
 	createHouseholdForParent,
@@ -19,6 +20,7 @@ import {
 	loadTransfer,
 	loadUncategorized,
 	markTransfer,
+	saveRule,
 	setTakeHomePay,
 	unlinkRefund,
 	unmarkTransfer,
@@ -141,13 +143,76 @@ describe("Transfers on Import", () => {
 		expect(result.ok && result.import.transferCount).toBe(1);
 
 		const rows = await listed();
-		expect(rows.get("AUTOPAY VISA")?.transfer).toEqual({ from: "Checking", to: "Visa" });
-		expect(rows.get("PAYMENT THANK YOU")?.transfer).toEqual({ from: "Checking", to: "Visa" });
+		expect(rows.get("AUTOPAY VISA")?.transfer).toEqual({
+			from: "Checking",
+			to: "Visa",
+			reason: null,
+		});
+		expect(rows.get("PAYMENT THANK YOU")?.transfer).toEqual({
+			from: "Checking",
+			to: "Visa",
+			reason: null,
+		});
 		expect(rows.get("REI")?.transfer).toBeNull();
 		// Even assigned to a Bucket, a Transfer's side isn't spending.
 		await assignToGear(await idOf("AUTOPAY VISA"));
 		await assignToGear(await idOf("REI"));
 		expect(await gearSpent()).toBe(3_000);
+	});
+
+	it("leaves money out that a Rule files in a Commitment for that Commitment, not a Transfer", async () => {
+		await addAccount(db, {
+			householdId,
+			accountId: "loan",
+			name: "Toyota loan",
+			kind: "loan",
+			balanceCents: 1_200_000,
+			balanceId: "loan-balance",
+			createdByMemberId: parentId,
+		});
+		for (const [commitmentId, name] of [
+			["car", "Car payment"],
+			["boat", "Boat payment"],
+		] as const) {
+			await addCommitment(db, {
+				householdId,
+				memberId: parentId,
+				commitmentId,
+				name,
+				month,
+				amountCents: 41_200,
+				cadence: "monthly",
+				dueDate: "2026-09-05",
+			});
+		}
+		const rule = await saveRule(db, {
+			id: "rule-car",
+			householdId,
+			memberId: parentId,
+			pattern: "TOYOTA FINANCIAL",
+			bucketId: null,
+			commitmentId: "car",
+		});
+		expect(rule.ok).toBe(true);
+
+		// The loan is connected, so its own side comes in: same amount, two days later.
+		await importInto("checking", "i-1", [
+			line("2026-09-09", -41_200, "TOYOTA FINANCIAL RETAIL PAY PPD ID: 9000012345"),
+			line("2026-09-09", -50_000, "AUTOPAY VISA"),
+		]);
+		const result = await importInto("loan", "i-2", [
+			line("2026-09-11", 41_200, "PAYMENT RECEIVED - THANK YOU"),
+		]);
+		expect(result.ok && result.transfers).toBe(0);
+		const rows = await listed();
+		expect(rows.get("TOYOTA FINANCIAL RETAIL PAY PPD ID: 9000012345")?.transfer).toBeNull();
+		// Still there for categorization, whose Rule files it in the Commitment.
+		const waiting = (await loadUncategorized(db, householdId, "i-1")).map((row) => row.note);
+		expect(waiting).toContain("TOYOTA FINANCIAL RETAIL PAY PPD ID: 9000012345");
+
+		// Money out with no such Rule still pairs, in the same Household.
+		const card = await importInto("card", "i-3", [line("2026-09-10", 50_000, "PAYMENT THANK YOU")]);
+		expect(card.ok && card.transfers).toBe(1);
 	});
 
 	it("never offers a Transfer's side to categorization", async () => {
@@ -235,7 +300,11 @@ describe("Transfers on Import", () => {
 		expect(await markTransfer(db, viewer, { transferId: "t-1", transactionId: venmo })).toEqual(
 			marked,
 		);
-		expect((await listed()).get("VENMO")?.transfer).toEqual({ from: "Checking", to: null });
+		expect((await listed()).get("VENMO")?.transfer).toEqual({
+			from: "Checking",
+			to: null,
+			reason: null,
+		});
 		// A Quick Add is spending, never a Transfer.
 		await addQuickAdd(db, {
 			householdId,
