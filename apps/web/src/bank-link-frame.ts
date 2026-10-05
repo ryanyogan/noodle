@@ -158,12 +158,23 @@ export function bankLinkFrame({ back = true }: FrameOptions = {}): LinkFrame {
  * Puts the focus back on what opened Link. The button is disabled until the page hears Link has
  * closed, so this tries for a moment, and stops as soon as the Parent has moved on to something.
  */
-function refocus(target: HTMLElement | null, tries = 10) {
+function refocus(target: HTMLElement | null, tries = 10, resting?: Element | null) {
 	if (!target?.isConnected) return;
 	const active = document.activeElement;
-	if (active && active !== document.body && active !== target) return;
+	// The first try is at the moment Link closes: whatever has the focus then (a closed sheet may
+	// have left it on the page, #89) wasn't chosen by the Parent. After that, a move is theirs.
+	if (
+		resting !== undefined &&
+		active &&
+		active !== document.body &&
+		active !== target &&
+		active !== resting
+	) {
+		return;
+	}
 	target.focus({ preventScroll: true });
 	if (document.activeElement !== target && tries > 0) {
-		window.setTimeout(() => refocus(target, tries - 1), 50);
+		const rest = resting === undefined ? document.activeElement : resting;
+		window.setTimeout(() => refocus(target, tries - 1, rest), 50);
 	}
 }
