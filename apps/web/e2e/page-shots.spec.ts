@@ -161,6 +161,17 @@ async function attempt(what: string, run: () => Promise<void>) {
 	}
 }
 
+/** Opens one of the Danger zone's confirming sheets and leaves it open: nothing is confirmed. */
+async function openDangerSheet(page: Page, action: "Start fresh" | "Delete Household") {
+	const zone = page.getByRole("region", { name: "Danger zone" });
+	await zone.getByRole("button", { name: action }).click();
+	const sheet = page.getByRole("dialog", { name: `${action}?` });
+	await expect(sheet).toBeVisible({ timeout: 15_000 });
+	await expect(sheet.getByRole("list", { name: "What will be cleared" })).toBeVisible({
+		timeout: 15_000,
+	});
+}
+
 test.beforeAll(async ({ browser }) => {
 	if (!enabled) return;
 	test.setTimeout(600_000);
@@ -397,6 +408,21 @@ test.beforeAll(async ({ browser }) => {
 			},
 		},
 		{ name: "27-household-settings", path: "/household" },
+		{
+			// The Start fresh sheet, open and not confirmed: what it says about snapshots, files and
+			// a prepared download (#78). What's in the window: the sheet is over the page.
+			name: "27a-start-fresh-sheet",
+			path: "/household",
+			window: true,
+			ready: (page) => openDangerSheet(page, "Start fresh"),
+		},
+		{
+			// The Delete Household sheet's first step, open and not confirmed (#78).
+			name: "27b-delete-household-sheet",
+			path: "/household",
+			window: true,
+			ready: (page) => openDangerSheet(page, "Delete Household"),
+		},
 		{ name: "28-glossary", path: "/glossary" },
 		{
 			name: "29-more-sheet",
