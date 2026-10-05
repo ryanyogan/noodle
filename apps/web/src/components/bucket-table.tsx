@@ -103,7 +103,8 @@ export function BucketTable({
 		{
 			id: "bucket",
 			header: "Bucket",
-			min: 8.5,
+			// Wide enough that a name reads beside its tile; with it, Pace shows from a 768px table.
+			min: 12,
 			width: "minmax(0,2fr)",
 			stacked: "title",
 			cell: (bucket) => {

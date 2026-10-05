@@ -55,9 +55,10 @@ async function reachAndEdit(page: Page) {
 	await allowanceSaved;
 	await expect(sheet).toBeHidden();
 	await expect(gasRow).toContainText("$250");
-	// In a list this narrow (a phone, or beside the rail at 1280) the row is stacked: the pencil is
-	// its one button besides its handle. The allowance is a button only where it has its own column.
-	await expect(gasRow.getByRole("button")).toHaveCount(2);
+	// The pencil and the handle are in the row at every width (the allowance is a button too, but
+	// only where it has its own column).
+	await expect(gasRow.getByRole("button", { name: "Edit Gas", exact: true })).toBeVisible();
+	await expect(gasRow.getByRole("button", { name: "Move Gas", exact: true })).toBeVisible();
 
 	// Moved from the same sheet, opened by the pencil, with no dragging.
 	await page.getByRole("button", { name: "Edit Gas", exact: true }).click();

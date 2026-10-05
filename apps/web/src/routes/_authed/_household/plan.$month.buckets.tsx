@@ -63,9 +63,12 @@ function PlanBuckets() {
 		<PlanMasterDetail
 			noun="Bucket"
 			listLabel="Buckets"
-			// A Bucket opens in a panel from the right; the table keeps its width and every column.
+			// A Bucket opens in a panel from the right; the table keeps its width and every column. The
+			// table has the page's whole width up to 1440, with the totals under it; from there they
+			// are beside it and the panel covers them.
 			panel={{
 				size: "wide",
+				besideFrom: "late",
 				close: linkOptions({ to: "/plan/$month/buckets", params: { month } }),
 			}}
 			editable={state.editable}

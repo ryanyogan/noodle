@@ -395,11 +395,15 @@ test("a Bucket's row opens it in the panel and the table keeps its width and eve
 	const page = await signedInPage(browser, parent.email, at(1440));
 	await buckets(page);
 	const table = page.getByRole("grid", { name: "Buckets", exact: true });
-	// At 1440 the list is wide enough for the table's columns up to Pace; End of month needs more.
-	for (const name of ["Bucket", "Allowance", "Spent", "Left", "Pace"]) {
+	// At 1440 the totals are beside the table, which has room for its figures and a name that
+	// reads; Pace and End of month need more.
+	for (const name of ["Bucket", "Allowance", "Spent", "Left"]) {
 		await expect(table.getByRole("columnheader", { name, exact: true })).toBeVisible();
 	}
+	await expect(table.getByRole("columnheader", { name: "Pace", exact: true })).toBeHidden();
 	await expect(table.getByRole("columnheader", { name: "End of month" })).toBeHidden();
+	const name = await bucketRow(page, "Gas").locator("[data-column=bucket]").boundingBox();
+	expect(name?.width ?? 0, "the name's column").toBeGreaterThanOrEqual(192);
 	// The totals are the table's last row.
 	const foot = table.locator("[data-slot=data-table-foot]");
 	await expect(foot).toContainText("Total");
@@ -420,7 +424,7 @@ test("a Bucket's row opens it in the panel and the table keeps its width and eve
 	// nothing of the table is under the panel.
 	expect(await list(page).boundingBox()).toEqual(listBefore);
 	expect(await table.boundingBox()).toEqual(tableBefore);
-	await expect(table.getByRole("columnheader", { name: "Pace", exact: true })).toBeVisible();
+	await expect(table.getByRole("columnheader", { name: "Left", exact: true })).toBeVisible();
 	await expect(bucketRow(page, "Gas")).toHaveAttribute("aria-current", "true");
 	const under = await table.evaluate((node, left) => {
 		const out: string[] = [];
@@ -472,22 +476,47 @@ test("a Bucket's row opens it in the panel and the table keeps its width and eve
 	await page.context().close();
 });
 
-test("a Bucket is a drawer at 1024 and a page with Back on a phone, and nothing scrolls sideways", async ({
+test("Buckets is a table from 1024 with the totals under it; a Bucket is a drawer there and a page with Back on a phone", async ({
 	browser,
 }) => {
 	test.slow();
 	const page = await signedInPage(browser, parent.email, at(1024));
 	await buckets(page);
-	// The list is narrow here, so the rows are stacked; a row still opens its Bucket.
-	await bucketRow(page, "Gas").getByText("$200 left", { exact: true }).click();
-	await expect(page).toHaveURL(bucketAddress);
-	await expect(title(page)).toHaveText("Gas");
-	expect((await settled(page, 1024)).width).toBe(480);
-	await expect(panel(page)).toHaveAttribute("role", "dialog");
-	await expect(page.locator("[data-panel-scrim]")).toBeVisible();
-	await page.keyboard.press("Escape");
-	await expect(page).toHaveURL(bucketsAddress);
-	await expect(panel(page)).toHaveCount(0);
+	const table = page.getByRole("grid", { name: "Buckets", exact: true });
+	const totals = page.locator("[data-slot=master-detail-aside]");
+	// Up to 1440 the table has the page's width and the totals are under it: a real table on a
+	// small laptop (its figures in columns), and every column on a common one.
+	for (const [width, columns, missing] of [
+		[1024, ["Bucket", "Allowance", "Spent", "Left"], ["Pace", "End of month"]],
+		[1280, ["Bucket", "Allowance", "Spent", "Left", "Pace", "End of month"], []],
+	] as const) {
+		await page.setViewportSize({ width, height: 800 });
+		for (const name of columns) {
+			await expect(table.getByRole("columnheader", { name, exact: true })).toBeVisible();
+		}
+		for (const name of missing) {
+			await expect(table.getByRole("columnheader", { name, exact: true })).toBeHidden();
+		}
+		const tableBox = await table.boundingBox();
+		const totalsBox = await totals.boundingBox();
+		if (!tableBox || !totalsBox) throw new Error("no table or no totals");
+		expect(totalsBox.y, `the totals are under the table at ${width}`).toBeGreaterThan(
+			tableBox.y + tableBox.height - 1,
+		);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+			width,
+		);
+		// With no rail beside the table, a Bucket is a drawer over the dimmed page.
+		await bucketRow(page, "Gas").locator("[data-column=spent]").click();
+		await expect(page).toHaveURL(bucketAddress);
+		await expect(title(page)).toHaveText("Gas");
+		expect((await settled(page, width)).width).toBe(480);
+		await expect(panel(page)).toHaveAttribute("role", "dialog");
+		await expect(page.locator("[data-panel-scrim]")).toBeVisible();
+		await page.keyboard.press("Escape");
+		await expect(page).toHaveURL(bucketsAddress);
+		await expect(panel(page)).toHaveCount(0);
+	}
 
 	// The narrowest phone: the same table, stacked; a row opens the Bucket's page, with Back.
 	await page.setViewportSize({ width: 320, height: 700 });
