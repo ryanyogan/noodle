@@ -64,7 +64,7 @@ async function confirmInSheets(page: Page, action: "Start fresh" | "Delete House
 	);
 	// The files a kept snapshot refers to are kept too, so they come back with it (ADR-0035).
 	if (action === "Start fresh") {
-		await expect(sheet).toContainText("Statement and Receipt files come back with it");
+		await expect(sheet).toContainText("Statement and Receipt files come back with a snapshot");
 	}
 	return sheet;
 }

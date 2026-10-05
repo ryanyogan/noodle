@@ -202,24 +202,32 @@ function FreshStartSheet({
 	}
 
 	const c = counts.data?.counts;
+	// Only what's there: "0 Receipts" isn't something that will be cleared. The Plan's own line
+	// below is always said, so the list is never empty.
 	const items = c
-		? [
-				plural(c.transactions, "Transaction"),
-				plural(c.bankConnections, "bank connection"),
-				plural(c.accounts, "Account"),
-				plural(c.buckets, "Bucket"),
-				plural(c.commitments, "Commitment"),
-				plural(c.goals, "Goal"),
-				plural(c.rules, "Rule"),
-				plural(c.insights, "Insight"),
-				plural(c.receipts, "Receipt"),
-				plural(c.statementFiles, "statement file"),
-			]
+		? (
+				[
+					[c.transactions, "Transaction"],
+					[c.bankConnections, "bank connection"],
+					[c.accounts, "Account"],
+					[c.buckets, "Bucket"],
+					[c.commitments, "Commitment"],
+					[c.goals, "Goal"],
+					[c.rules, "Rule"],
+					[c.insights, "Insight"],
+					[c.receipts, "Receipt"],
+					[c.statementFiles, "statement file"],
+				] as const
+			)
+				.filter(([n]) => n > 0)
+				.map(([n, one]) => plural(n, one))
 		: [];
 
 	return (
 		<Sheet open onOpenChange={(open) => (open ? null : onClose())}>
-			<SheetContent>
+			{/* Step 1 can be taller than a small phone: its body scrolls and the buttons sit under it,
+			    not over its last lines (#74). */}
+			<SheetContent className={step === 1 ? "flex flex-col overflow-hidden" : undefined}>
 				{step === 1 ? (
 					<>
 						<SheetHeader
@@ -230,7 +238,21 @@ function FreshStartSheet({
 									: "Everything below goes. Your Household, its Parents and Children stay."
 							}
 						/>
-						<div className="grid gap-4 text-sm">
+						<div className="-mx-1 grid min-h-0 flex-1 content-start gap-4 overflow-y-auto overscroll-contain px-1 text-sm">
+							{/* What matters most is said first, where it's read before anything scrolls. */}
+							{level === "delete" ? (
+								<p>
+									<span className="font-medium">This can’t be undone.</span> Noodle keeps one last
+									snapshot for {FINAL_SNAPSHOT_DAYS} days, then deletes it. You can’t put it back
+									yourself.
+								</p>
+							) : (
+								<p>
+									<span className="font-medium">Noodle takes a snapshot first.</span> For up to{" "}
+									{SNAPSHOT_KEPT_DAYS} days you can put your Household back from Snapshots in
+									Household settings.
+								</p>
+							)}
 							{counts.isPending ? (
 								<p className="text-muted-foreground">Counting what’s there…</p>
 							) : counts.isError ? (
@@ -257,20 +279,11 @@ function FreshStartSheet({
 									? "Save it to your phone or computer: a download left in Noodle is deleted too."
 									: "Save it to your phone or computer: a download left in Noodle is cleared too, and doesn’t come back with a snapshot."}
 							</p>
-							{level === "delete" ? (
-								<p>
-									<span className="font-medium">This can’t be undone.</span> Noodle keeps one last
-									snapshot for {FINAL_SNAPSHOT_DAYS} days, then deletes it. You can’t put it back
-									yourself. On the next step you can choose to delete it too.
-								</p>
-							) : (
-								<p>
-									<span className="font-medium">Noodle takes a snapshot first.</span> For up to{" "}
-									{SNAPSHOT_KEPT_DAYS} days you can put your Household back from Snapshots in
-									Household settings. Statement and Receipt files come back with it: Noodle keeps
-									them for as long as a snapshot needs them. Banks need connecting again.
-								</p>
-							)}
+							<p>
+								{level === "delete"
+									? "On the next step you can choose to delete that last snapshot too."
+									: "Statement and Receipt files come back with a snapshot: Noodle keeps them for as long as a snapshot needs them. Banks need connecting again."}
+							</p>
 						</div>
 						<SheetFooter className="max-lg:grid-cols-2">
 							<Button type="button" variant="outline" onClick={onClose}>
