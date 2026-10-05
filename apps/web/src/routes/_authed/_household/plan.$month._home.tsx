@@ -112,7 +112,8 @@ function PlanHome() {
 			type="button"
 			variant={look === "heading" ? undefined : "outline"}
 			size={look === "under" ? undefined : "sm"}
-			className="justify-self-start"
+			// Beside the heading on a phone there is room for the words only, at any text size.
+			className={cn("justify-self-start", look === "heading" && "max-sm:[&>svg]:hidden")}
 			disabled={!hydrated}
 			onClick={() => setAdding(true)}
 		>

@@ -151,7 +151,11 @@ test("the Bucket sheet opens on its amount and stays above the keyboard with Sav
 	);
 	await expect(page.getByRole("button", { name: "Add Buckets", exact: true })).toBeEnabled();
 	const keyboardGone = await withKeyboard(page, keyboardHeight);
-	const before = await scrollY(page);
+	// Where the Buckets heading is in the window. Not the page's scroll: while a sheet is open the
+	// page behind is held in place, and its scroll reads 0.
+	const headingTop = () =>
+		page.locator("#buckets").evaluate((el) => Math.round(el.getBoundingClientRect().top));
+	const before = await headingTop();
 
 	// The row's pencil opens the one Bucket sheet with the amount ready to type (the row itself
 	// opens the Bucket's page, issue 107).
@@ -174,7 +178,7 @@ test("the Bucket sheet opens on its amount and stays above the keyboard with Sav
 	await expectAboveKeyboard(page, sheet);
 	await expectAboveKeyboard(page, amount);
 	await expectAboveKeyboard(page, sheet.getByRole("button", { name: "Save", exact: true }));
-	expect(await scrollY(page)).toBe(before);
+	expect(Math.abs((await headingTop()) - before)).toBeLessThanOrEqual(1);
 
 	await keyboardGone();
 	await sheet.getByRole("button", { name: "Save", exact: true }).click();

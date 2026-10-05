@@ -39,6 +39,20 @@ const INK: Record<PlanPart | "free" | "over" | "pay", string> = {
 type Ink = keyof typeof INK;
 
 /**
+ * The cells' columns, by how many parts there are besides Free to Spend. One row where every
+ * name fits its cell on one line ("Personal Allowances" is the longest); in a narrower card two
+ * even rows, rather than one cell left over on a row of its own.
+ */
+const CELLS = [
+	"@xl/split:grid-cols-1",
+	"@xl/split:grid-cols-2",
+	"@xl/split:grid-cols-3",
+	"@xl/split:grid-cols-2 @2xl/split:grid-cols-4",
+	"@xl/split:grid-cols-3 @3xl/split:grid-cols-5",
+	"@xl/split:grid-cols-3 @5xl/split:grid-cols-6",
+];
+
+/**
  * Where take-home pay goes: one bar that is the whole pay, split in the Plan's order into
  * Commitments, Buckets, Goal funding and what's left, Free to Spend. The sentence above says the
  * takeaway and the parts under the bar are the real content (name, amount, share, in the bar's
@@ -130,7 +144,10 @@ export function PlanSplit({ state, current }: { state: MonthState; current: bool
 				<ul
 					id={listId}
 					aria-label="Where take-home pay goes, part by part"
-					className="@xl/split:grid @xl/split:grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] @xl/split:gap-x-4 @xl/split:gap-y-3 @xl/split:px-(--card-pad) @xl/split:pb-(--card-pad)"
+					className={cn(
+						"@xl/split:grid @xl/split:gap-x-4 @xl/split:gap-y-3 @xl/split:px-(--card-pad) @xl/split:pb-(--card-pad)",
+						CELLS[Math.min(split.parts.length, CELLS.length - 1)],
+					)}
 				>
 					{split.parts.map((row) => (
 						<SplitRowItem

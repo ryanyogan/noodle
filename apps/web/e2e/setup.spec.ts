@@ -179,7 +179,7 @@ test("by hand: Bills, Buckets and a Goal land on the Plan, and going back adds n
 			await expect(page.getByText(shows).first()).toBeVisible();
 		};
 		await planPage("Commitments", "Piano lessons");
-		await planPage("Buckets", "Fuel");
+		await planPage("Overview", "Fuel");
 		await planPage("Goal funding", "Emergency fund");
 	} finally {
 		await parent.remove();

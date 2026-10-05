@@ -539,6 +539,7 @@ test("Buckets is a table from 1024 with the totals under it; a Bucket is a drawe
 	await expect(page.getByRole("link", { name: "Back to Buckets" })).toBeVisible();
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 	await page.getByRole("link", { name: "Back to Buckets" }).click();
-	await expect(page).toHaveURL(bucketsAddress);
+	// Back lands on the Buckets, part-way down the Plan's first page.
+	await expect(page).toHaveURL(new RegExp(`/plan/${month}#buckets$`));
 	await page.context().close();
 });

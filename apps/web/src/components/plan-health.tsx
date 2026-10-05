@@ -13,8 +13,9 @@ import { planHealthQuery } from "../queries";
 
 /**
  * Plan health: what in the Plan needs attention now, each warning opening the page that fixes
- * it. Nothing shows while the Plan is healthy. `folded` (the Plan overview, #65): on a phone it's
- * one line naming the most urgent, opened on a tap, so Free to Spend stays above the fold.
+ * it. Nothing shows while the Plan is healthy. `folded` (the Plan's first page): one line naming
+ * the most urgent, opened on a press, so the Buckets start right under where the pay goes. From
+ * 1920, where it sits beside that, it is open.
  */
 export function PlanHealth({ folded = false }: { folded?: boolean }) {
 	const { warnings, month } = useSuspenseQuery(planHealthQuery()).data;
@@ -26,7 +27,7 @@ export function PlanHealth({ folded = false }: { folded?: boolean }) {
 	const first = sorted[0];
 	return (
 		<Section aria-labelledby="plan-health">
-			<div className={cn(folded && "max-lg:hidden")}>
+			<div className={cn(folded && "max-[120rem]:hidden")}>
 				<SectionHeader id="plan-health" title="Things to check" count={warnings.length} />
 			</div>
 			{folded && first ? (
@@ -36,7 +37,7 @@ export function PlanHealth({ folded = false }: { folded?: boolean }) {
 					aria-controls={id}
 					disabled={!hydrated}
 					onClick={() => setOpen((o) => !o)}
-					className="min-h-11 min-w-0 justify-start gap-2 bg-card lg:hidden"
+					className="min-h-11 min-w-0 justify-start gap-2 bg-card min-[120rem]:hidden"
 				>
 					<span className="text-sm font-semibold">Things to check</span>
 					<Badge variant="count">{warnings.length}</Badge>
@@ -52,7 +53,7 @@ export function PlanHealth({ folded = false }: { folded?: boolean }) {
 				</RowButton>
 			) : null}
 			{/* The wrapper hides, not the List: its Card would stay behind as a thin empty line. */}
-			<div id={id} className={cn(folded && !open && "max-lg:hidden")}>
+			<div id={id} className={cn(folded && !open && "max-[120rem]:hidden")}>
 				<List>
 					{sorted.map((warning) => (
 						<HealthRow key={keyOf(warning)} warning={warning} month={month} />

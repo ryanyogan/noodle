@@ -72,6 +72,7 @@ export function SectionLayout({
 								    scroll where it is: only the part below the tabs changes. */}
 								<Link
 									{...tab.link}
+									aria-current={tabCurrent(tab)}
 									activeOptions={{ exact: holdsOtherTabs(tab, tabs), includeSearch: false }}
 									resetScroll={false}
 								>

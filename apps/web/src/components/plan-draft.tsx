@@ -16,7 +16,7 @@ import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { ulid } from "ulid";
 import { formatMoney, formatMoneyInput, shortDay } from "../format";
 import { monthChangeKey } from "../plan-changes";
-import { monthsKey, planDraftQuery } from "../queries";
+import { monthsKey, planDraftQuery, suggestionsQuery } from "../queries";
 import { acceptDraft, finishDraft, skipDraft } from "../server/plan-draft";
 import { AmountInput } from "./goals";
 import { SaveFailed } from "./plan-editing";
@@ -84,6 +84,8 @@ function useDecide() {
 		// The Plan changed too, and the draft is under every month's key.
 		// Only after the last of several quick decisions, so each one doesn't start a round.
 		onSettled: () => {
+			// What was added or skipped here is no longer suggested on the Plan's other pages.
+			void queryClient.invalidateQueries({ queryKey: suggestionsQuery().queryKey });
 			if (queryClient.isMutating({ mutationKey: monthChangeKey }) === 1) {
 				return queryClient.invalidateQueries({ queryKey: monthsKey });
 			}

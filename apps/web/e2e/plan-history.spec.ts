@@ -15,7 +15,7 @@ const item = (page: Page, title: string) =>
 		.getByRole("listitem")
 		.filter({ has: page.getByText(title, { exact: true }) });
 
-async function openPart(page: Page, part: "Buckets" | "Commitments") {
+async function openPart(page: Page, part: "Overview" | "Commitments") {
 	await page
 		.getByRole("navigation", { name: "Plan pages" })
 		.getByRole("link", { name: part, exact: true })
@@ -59,7 +59,7 @@ test("What changed shows each Plan change and who made it; the other Parent's Pe
 
 		await page.goto("/month");
 		await switchTo(page, "Plan");
-		await openPart(page, "Buckets");
+		await openPart(page, "Overview");
 		// Alex's own Personal Allowance, which Sam never sees the amounts of.
 		await page.getByLabel("Your Personal Allowance").fill("150");
 		await page.getByRole("button", { name: "Set up Personal Allowance" }).click();

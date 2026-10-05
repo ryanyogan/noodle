@@ -178,7 +178,7 @@ export function BucketTable({
 								<Link
 									to="/plan/$month/buckets/$id"
 									params={{ month, id: bucket.id }}
-									className="truncate font-medium hover:underline"
+									className="truncate font-medium hover:underline @max-2xl/dt:[overflow-wrap:anywhere] @max-2xl/dt:whitespace-normal"
 									{...masterDetailItem}
 								>
 									{bucket.name}

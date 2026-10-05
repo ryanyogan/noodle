@@ -56,6 +56,8 @@ test("the year at a glance, and Plan health pointing at the fix", async ({ brows
 		.click();
 
 	// Plan health: Free to Spend goes below zero then, and the warning opens that month's Plan.
+	// Under where the pay goes it is one line, naming the most urgent: opened, it lists them.
+	await page.getByRole("button", { name: /^Things to check/ }).click();
 	const warning = health(page).getByRole("link", {
 		name: `Free to Spend goes below zero in ${monthName(lumpy)}`,
 	});

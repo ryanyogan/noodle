@@ -338,9 +338,9 @@ test("the take-home split and the Buckets table are one page, and the old Bucket
 	// From 1440 what changed is beside that column, not under it, and it is all the rail holds.
 	const rail = await page.locator("[data-slot=master-detail-aside]").boundingBox();
 	expect(rail?.x ?? 0, "the rail is beside the page").toBeGreaterThan(split.x + split.width - 1);
-	await expect(page.getByRole("region", { name: "What changed" })).toBeVisible();
+	await expect(page.locator("section[aria-labelledby=what-changed]")).toBeVisible();
 	await expect(page.locator("[data-slot=master-detail-aside]").getByRole("heading")).toHaveText([
-		"What changed",
+		/^What changed/,
 	]);
 	// The first Bucket is on the first screen, under the split.
 	expect(await page.evaluate(() => window.scrollY)).toBe(0);
@@ -470,7 +470,7 @@ test("the Plan's first page is short: the Buckets start on the first screen, the
 	await expect(page.getByRole("button", { name: "Add Buckets", exact: true })).toHaveCount(1);
 	await expect(page.getByRole("button", { name: "Add another Bucket" })).toHaveCount(1);
 	const rail = page.locator("[data-slot=master-detail-aside]");
-	await expect(rail.getByRole("heading")).toHaveText(["What changed"]);
+	await expect(rail.getByRole("heading")).toHaveText([/^What changed/]);
 	const railBox = await rail.boundingBox();
 	const tableBox = await table.boundingBox();
 	if (!railBox || !tableBox) throw new Error("no rail or no table");

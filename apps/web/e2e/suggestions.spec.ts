@@ -141,7 +141,8 @@ test("steady pet spending is suggested as a Bucket under Plan › Buckets and in
 	const month = thisMonth();
 
 	const card = page.getByTestId("suggested");
-	await reloadUntil(page, `/plan/${month}#buckets`, () =>
+	// No hash: going to the same address with one would not load the page again.
+	await reloadUntil(page, `/plan/${month}`, () =>
 		expect(card).toContainText("A Bucket for Pets", { timeout: 2_000 }),
 	);
 	await expect(card).toContainText("10 charges");
