@@ -46,12 +46,10 @@
 		"AI_GATEWAY_ID": "default",
 		// Plaid's environment for Bank Connections: "sandbox" or "production" (ADR-0017). They also
 		// need the PLAID_CLIENT_ID, PLAID_SECRET and BANK_CONNECTION_KEY secrets (server/bank-setup.ts);
-		// without them the Accounts page says Plaid isn't set up. For production, set "production"
-		// and replace PLAID_SECRET with the production secret.
-		"PLAID_ENV": "production",
-		// The practice (Sandbox) Bank Connections were ended at the switch (#70), so Accounts says
-		// "Connect your real bank" once. Remove when the Household has connected its real banks.
-		"PLAID_SANDBOX_RETIRED": "true"
+		// without them the Accounts page says Plaid isn't set up. The deployed app is on production
+		// since 2026-10-05 (issue 70, docs/runbooks/plaid-production.md); PLAID_SECRET is the
+		// production secret. A local copy names its own in .dev.vars, or runs the fake (AI_MODEL=stub).
+		"PLAID_ENV": "production"
 	},
 	// Workers AI, for Ask and categorization (ADR-0012). It has no local simulator: `vite dev` calls
 	// the real service with the logged-in account, unless AI_MODEL=stub (as E2E runs) swaps in
