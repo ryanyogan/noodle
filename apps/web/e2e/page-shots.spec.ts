@@ -32,7 +32,11 @@ const wanted = (process.env.PAGE_SHOTS_WIDTHS ?? "")
 	.map((width) => Number(width.trim()))
 	.filter(Boolean);
 // Pictured only when asked for by width: the widest desktop window, where the page stops growing (#73).
-const ON_REQUEST = [{ width: 2560, height: 1440 }];
+// And the widest phone, where a row that only just fits the others has room to go wrong.
+const ON_REQUEST = [
+	{ width: 2560, height: 1440 },
+	{ width: 430, height: 932 },
+];
 const viewports = [
 	...VIEWPORTS.filter(({ width }) => wanted.length === 0 || wanted.includes(width)),
 	...ON_REQUEST.filter(({ width }) => wanted.includes(width)),
@@ -540,6 +544,25 @@ test.beforeAll(async ({ browser }) => {
 				await expect(confirm).toBeVisible();
 				// Pressing Skip scrolls the page to it: back to the top, so the picture is what a Parent
 				// sees on arriving, and whether Skip and Undo clear the bottom bar there.
+				await page.evaluate(() => window.scrollTo(0, 0));
+			},
+		},
+		{
+			// One by one, with a likely card payment on top: its long button has the first row with
+			// Edit and the picker the row under them, and the card stays inside the screen.
+			name: "12b-review-card-payment",
+			path: "/review",
+			ready: async (page) => {
+				const stack = page.getByTestId("review-stack");
+				const mark = stack
+					.getByTestId("review-card")
+					.getByRole("button", { name: "It’s a card payment" });
+				for (let skipped = 0; skipped < 8; skipped++) {
+					if (await mark.isVisible()) break;
+					await stack.getByRole("button", { name: "Skip" }).click({ timeout: 15_000 });
+					await page.waitForTimeout(400);
+				}
+				await expect(mark).toBeVisible();
 				await page.evaluate(() => window.scrollTo(0, 0));
 			},
 		},
