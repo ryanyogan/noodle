@@ -196,9 +196,11 @@ export function DetailHeader({
 				) : null}
 				<h2
 					data-slot="detail-title"
-					// Focus lands here when the item opens in a panel (issue 107).
+					// Focus lands here when the item opens in a panel (ADR-0047). The app's ring, around the
+					// words only, and only when the panel was opened from the keyboard: DetailPanel marks
+					// the title then. Focus moved here after a click or a page load draws nothing.
 					tabIndex={-1}
-					className="rounded-sm text-xl font-semibold tracking-[-0.02em] text-balance break-words outline-none focus-visible:ring-2 focus-visible:ring-ring lg:text-2xl"
+					className="w-fit max-w-full rounded-sm text-xl font-semibold tracking-[-0.02em] text-balance break-words outline-none data-keyboard-open:focus:outline-offset-2 data-keyboard-open:focus:[outline:2px_solid_var(--ring)] lg:text-2xl"
 				>
 					{title}
 				</h2>

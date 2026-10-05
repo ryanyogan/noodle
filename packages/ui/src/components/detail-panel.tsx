@@ -2,32 +2,65 @@ import * as React from "react";
 import { MasterDetailPane } from "#components/layout";
 import {
 	closesOnEscape,
+	type DetailPanelMode,
 	type DetailPanelSize,
-	PANEL_FROM,
+	panelMode,
 	returnsFocus,
 	returnTarget,
 } from "#lib/detail-panel";
 import { cn } from "#lib/utils";
 
 /*
- * A picked item in a panel from the window's right edge (issue 107, ADR-0047). The Parent: "the
- * two column views are weird as the rows condense too far on the left when selected". So from lg
- * the list keeps its width and its columns, and the item opens over the page instead of beside a
- * narrowed list. Below lg nothing is different from MasterDetail: the item is a page with Back.
+ * A picked item in a panel from the window's right edge (ADR-0047). The Parent: "the two column
+ * views are weird as the rows condense too far on the left when selected". So from lg the list
+ * keeps its width and its columns, and the item opens over the page instead of beside a narrowed
+ * list. Below lg nothing is different from MasterDetail: the item is a page with Back.
  *
- * It is not a dialog. There is no scrim, no focus trap and no scroll lock: the list under it stays
- * clickable, so the Parent goes from one item to the next without closing anything, and the page
- * behind still scrolls. The panel scrolls on its own, as a sheet does.
+ * From xl it is beside the list: as wide as what is to the right of the list column (the rail,
+ * the gap, the gutter), so it covers the rail and none of the list's columns. It is not a dialog
+ * there. No scrim, no focus trap and no scroll lock: the list stays clickable, so the Parent goes
+ * from one item to the next without closing anything, and the page behind still scrolls.
+ *
+ * From lg to xl the rail is too narrow for that, and a panel that reads would cut the list's
+ * columns. There it is an honest drawer: a dialog over a dimmed page, the rest of the window
+ * inert, closed by Esc, Close or a click on the dimmed page.
  *
  * It renders in place (no portal), so an item opened by its address is in the server's HTML and
  * phones and desktops share one DOM. Nothing between <body> and it may create a containing block
  * for fixed boxes (transform, filter, contain, container-type): keep it out of `@container`s.
  */
 
-const wide = () => window.matchMedia(`(min-width: ${PANEL_FROM}px)`).matches;
+const mode = (): DetailPanelMode => panelMode(window.innerWidth);
+const wide = () => mode() !== "page";
+
+// Whether the Parent's last move was a key: an item opened from the keyboard shows the ring on its
+// title, one opened by a click or by its address does not. Kept for the whole page, since the key
+// that opens an item is pressed before its panel exists.
+let byKeyboard = false;
+if (typeof document !== "undefined") {
+	document.addEventListener(
+		"keydown",
+		(event) => {
+			if (!event.metaKey && !event.ctrlKey && !event.altKey) byKeyboard = true;
+		},
+		true,
+	);
+	document.addEventListener(
+		"pointerdown",
+		() => {
+			byKeyboard = false;
+		},
+		true,
+	);
+}
 
 const EDITING = 'input, textarea, select, [contenteditable="true"], [role="combobox"]';
 const LAYERS = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]';
+/** A sheet, dialog, menu or listbox is open (the panel itself, a dialog as a drawer, aside). */
+const layerOpen = () =>
+	[...document.querySelectorAll(LAYERS)].some((layer) => !layer.hasAttribute("data-panel"));
+// Left usable beside a drawer: where toasts are announced (an Undo must stay reachable).
+const KEPT = "[aria-live], [data-sonner-toaster]";
 
 const CONTROLS = "a[href], button, input, select, textarea, summary, [tabindex]";
 
@@ -62,6 +95,15 @@ function DetailPanel({
 	close?: React.ReactNode;
 }) {
 	const ref = React.useRef<HTMLElement>(null);
+	// Known once the window is: the server's HTML is the same for every width.
+	const [shown, setShown] = React.useState<DetailPanelMode | null>(null);
+	React.useLayoutEffect(() => {
+		const read = () => setShown(mode());
+		read();
+		window.addEventListener("resize", read);
+		return () => window.removeEventListener("resize", read);
+	}, []);
+	const drawer = shown === "drawer";
 	// The open item's row, remembered while it is marked, since the mark goes as the panel closes.
 	const row = React.useRef<HTMLElement | null>(null);
 	const closing = React.useRef(onClose);
@@ -88,9 +130,15 @@ function DetailPanel({
 	React.useEffect(() => {
 		const panel = ref.current;
 		if (!panel || !wide() || panel.contains(document.activeElement)) return;
-		if (document.querySelector(LAYERS)) return;
+		if (layerOpen()) return;
 		const title = panel.querySelector<HTMLElement>("[data-slot=detail-title][tabindex]");
-		(title ?? panel).focus({ preventScroll: true });
+		const to = title ?? panel;
+		// The ring is for an item opened from the keyboard only (see `byKeyboard`).
+		if (byKeyboard) {
+			to.setAttribute("data-keyboard-open", "");
+			to.addEventListener("blur", () => to.removeAttribute("data-keyboard-open"), { once: true });
+		} else to.removeAttribute("data-keyboard-open");
+		to.focus({ preventScroll: true });
 	}, [itemKey]);
 
 	// Esc closes, from the panel or the list, unless something nearer has a use for the key.
@@ -100,7 +148,7 @@ function DetailPanel({
 			const at = {
 				panel: wide(),
 				editing: target?.closest(EDITING) != null,
-				layerOpen: document.querySelector(LAYERS) !== null,
+				layerOpen: layerOpen(),
 			};
 			if (!closesOnEscape(event, at)) return;
 			event.preventDefault();
@@ -110,15 +158,42 @@ function DetailPanel({
 		return () => document.removeEventListener("keydown", onKey);
 	}, []);
 
-	// The panel lies over the right-hand part of the page. A control under it can't be seen or
-	// clicked, so it must not take keyboard focus either: while the panel is open, every control of
-	// the page whose middle is under the panel leaves the tab order, and comes back when the panel
-	// goes or the window changes width. What the panel covers is still there for a screen reader.
+	// As a drawer, the rest of the window is out of reach while it is open: every branch of the
+	// page that the panel is not in is inert (no clicks, no focus, not read out), which is also what
+	// keeps Tab inside the drawer. Sheets opened from the drawer arrive later and are not touched.
+	// Declared before the effect that returns focus, so the row can take focus again by then.
+	React.useLayoutEffect(() => {
+		const panel = ref.current;
+		if (!panel || !drawer) return;
+		const held: HTMLElement[] = [];
+		for (let node: HTMLElement = panel; node.parentElement; node = node.parentElement) {
+			for (const other of node.parentElement.children) {
+				if (other === node || !(other instanceof HTMLElement) || other.inert) continue;
+				if (other.hasAttribute("data-panel-scrim")) continue;
+				if (other.matches("script, style") || other.matches(KEPT) || other.querySelector(KEPT))
+					continue;
+				other.inert = true;
+				held.push(other);
+			}
+			if (node.parentElement === document.body) break;
+		}
+		return () => {
+			for (const other of held) other.inert = false;
+		};
+	}, [drawer]);
+
+	// Beside the list the panel lies over the rail and whatever of the page's header is above the
+	// rail. A control under it can't be seen or clicked, so it must not take keyboard focus either:
+	// while the panel is open, every control of the page whose middle is under the panel leaves the
+	// tab order, and comes back when the panel goes or the window changes width. What the panel
+	// covers is still there for a screen reader. (A drawer makes the whole page inert instead.)
+	// Measured again when the page gains or loses elements, so a row or a form that arrives while
+	// the panel is open is held too.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: measured again for each item opened
 	React.useLayoutEffect(() => {
 		const panel = ref.current;
 		const page = panel?.closest("main") ?? panel?.parentElement;
-		if (!panel || !page) return;
+		if (!panel || !page || shown !== "beside") return;
 		const held = new Map<HTMLElement, string | null>();
 		const release = () => {
 			for (const [control, was] of held) {
@@ -131,7 +206,6 @@ function DetailPanel({
 		};
 		const cover = () => {
 			release();
-			if (!wide()) return;
 			// Where the panel's left edge rests (it may still be sliding in).
 			const edge = document.documentElement.clientWidth - panel.offsetWidth;
 			for (const control of page.querySelectorAll<HTMLElement>(CONTROLS)) {
@@ -146,12 +220,24 @@ function DetailPanel({
 			}
 		};
 		cover();
-		window.addEventListener("resize", cover);
+		let frame = 0;
+		const later = () => {
+			cancelAnimationFrame(frame);
+			frame = requestAnimationFrame(cover);
+		};
+		// Elements coming and going only: `cover` itself changes attributes, never the tree.
+		const watch = new MutationObserver((changes) => {
+			if (changes.some((change) => !panel.contains(change.target))) later();
+		});
+		watch.observe(page, { childList: true, subtree: true });
+		window.addEventListener("resize", later);
 		return () => {
-			window.removeEventListener("resize", cover);
+			watch.disconnect();
+			cancelAnimationFrame(frame);
+			window.removeEventListener("resize", later);
 			release();
 		};
-	}, [itemKey]);
+	}, [itemKey, shown]);
 
 	// When the panel goes (Esc, Close, or the list's own tab), focus that was in it returns to the
 	// item's row. A layout effect, so it runs while the panel can still say where focus was.
@@ -177,40 +263,56 @@ function DetailPanel({
 	}, []);
 
 	return (
-		<section
-			ref={ref}
-			data-slot="master-detail-detail"
-			data-panel={size}
-			aria-label={label}
-			// Takes focus itself while the item's title hasn't arrived (it is still loading).
-			tabIndex={-1}
-			className={cn(
-				"@container/detail min-w-0 outline-none",
-				"lg:fixed lg:inset-y-0 lg:right-0 lg:z-30 lg:overflow-y-auto lg:overscroll-contain",
-				// The bottom padding keeps the end of the item clear of the Ask Noodle button, which stays
-				// in the window's corner over the panel.
-				"lg:rounded-l-3xl lg:border-l lg:border-border-strong lg:bg-background lg:p-6 lg:pb-16 lg:shadow-pop",
-				// Slides in when an item opens; going from item to item it stays where it is.
-				"lg:animate-side-in",
-				size === "wide" ? "lg:w-(--detail-panel-width-wide)" : "lg:w-(--detail-panel-width)",
-				className,
-			)}
-			{...props}
-		>
-			{close ? (
-				// In the top corner whatever the panel is scrolled to. It takes no room of its own: the
-				// item's header leaves the corner free (`DetailHeader inPanel`).
-				<div
-					data-slot="detail-close"
-					// Sticks at the panel's own padding (a scroller's padding already insets what sticks in
-					// it); the margin puts the control on the middle line of the item's header.
-					className="sticky top-0 z-10 flex h-0 justify-end max-lg:hidden [&>*]:mt-2.5"
-				>
-					{close}
-				</div>
-			) : null}
-			{children}
-		</section>
+		<>
+			{/* The dimmed page behind a drawer: a click on it closes, as Esc does. */}
+			<div
+				data-panel-scrim=""
+				aria-hidden="true"
+				onClick={() => closing.current()}
+				className="fixed inset-0 z-35 hidden animate-fade-in bg-scrim lg:max-xl:block"
+			/>
+			<section
+				ref={ref}
+				data-slot="master-detail-detail"
+				data-panel={size}
+				data-panel-mode={shown ?? undefined}
+				// A dialog only as a drawer; beside the list it is a region of the page.
+				{...(drawer ? { role: "dialog", "aria-modal": true } : null)}
+				aria-label={label}
+				// Takes focus itself while the item's title hasn't arrived (it is still loading).
+				tabIndex={-1}
+				className={cn(
+					"@container/detail min-w-0 outline-none",
+					"lg:fixed lg:inset-y-0 lg:right-0 lg:z-30 lg:overflow-y-auto lg:overscroll-contain",
+					// A raised surface with an edge that reads in both themes: the stronger border, and
+					// a shadow thrown left. The bottom padding keeps the end of the item clear of the Ask
+					// Noodle button, which stays in the window's corner over the panel.
+					"lg:rounded-l-3xl lg:border-l lg:border-border-strong lg:bg-popover lg:p-6 lg:pb-16 lg:shadow-side",
+					// Slides in when an item opens; going from item to item it stays where it is.
+					"lg:animate-side-in",
+					// A drawer from lg (over its scrim and the Ask Noodle button, under sheets); from xl
+					// what is to the right of the list column.
+					"lg:max-xl:z-35 lg:w-[min(var(--detail-panel-drawer),100%)]",
+					size === "wide" ? "xl:w-detail-panel-wide" : "xl:w-detail-panel",
+					className,
+				)}
+				{...props}
+			>
+				{close ? (
+					// In the top corner whatever the panel is scrolled to. It takes no room of its own:
+					// the item's header leaves the corner free (`DetailHeader inPanel`).
+					<div
+						data-slot="detail-close"
+						// Sticks at the panel's own padding (a scroller's padding already insets what sticks
+						// in it); the margin puts the control on the middle line of the item's header.
+						className="sticky top-0 z-10 flex h-0 justify-end max-lg:hidden [&>*]:mt-2.5"
+					>
+						{close}
+					</div>
+				) : null}
+				{children}
+			</section>
+		</>
 	);
 }
 

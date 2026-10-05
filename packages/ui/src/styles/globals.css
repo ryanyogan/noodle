@@ -74,6 +74,8 @@
 	--scrim: rgb(22 23 26 / 0.4);
 	--elevation-card: 0 1px 2px rgb(22 23 26 / 0.05), 0 1px 1px rgb(22 23 26 / 0.03);
 	--elevation-pop: 0 12px 32px -8px rgb(22 23 26 / 0.2), 0 2px 6px rgb(22 23 26 / 0.06);
+	/* A layer on the window's right edge (DetailPanel): thrown to the left, where its edge is. */
+	--elevation-side: -16px 0 40px -8px rgb(22 23 26 / 0.16), -2px 0 6px rgb(22 23 26 / 0.06);
 	--card-highlight: inset 0 0 0 0 transparent;
 
 	/* Bucket identity, assigned in this order (colour-blind validated in #2); tiles and meters only. */
@@ -165,18 +167,20 @@
 	   the window (360, 380, 440), as does the list pane (360, 400, 460). */
 	--rail-width: 320px;
 	--list-pane-width: 360px;
-	/* A picked item's panel on the window's right edge (components/detail-panel.tsx, ADR-0047):
-	   a form's worth (480, 480, 520, 560) or a page's worth (480, 560, 640, 800), stepped at the
-	   same breakpoints as the cap. lib/detail-panel.ts mirrors these numbers and a test compares. */
-	--detail-panel-width: 480px;
-	--detail-panel-width-wide: 480px;
+	/* A picked item's panel on the window's right edge (components/detail-panel.tsx, ADR-0047). Its
+	   width is what is to the right of the list column (the `w-detail-panel` utilities below), no
+	   narrower than min and no wider than max; from lg to xl, where that room is under min, it is
+	   a drawer of its own width. lib/detail-panel.ts mirrors these numbers and a test compares. */
+	--detail-panel-min: 400px;
+	--detail-panel-max: 640px;
+	--detail-panel-max-wide: 800px;
+	--detail-panel-drawer: 480px;
 	--reading-width: 48rem;
 }
 
 @media (min-width: 80rem) {
 	:root {
 		--rail-width: 360px;
-		--detail-panel-width-wide: 560px;
 	}
 }
 
@@ -185,8 +189,6 @@
 		--shell-max: 1440px;
 		--rail-width: 380px;
 		--list-pane-width: 400px;
-		--detail-panel-width: 520px;
-		--detail-panel-width-wide: 640px;
 	}
 }
 
@@ -196,8 +198,6 @@
 		--shell-max-wide: 1800px;
 		--rail-width: 440px;
 		--list-pane-width: 460px;
-		--detail-panel-width: 560px;
-		--detail-panel-width-wide: 800px;
 	}
 }
 
@@ -229,6 +229,7 @@
 		--scrim: rgb(0 0 0 / 0.62);
 		--elevation-card: 0 1px 2px rgb(0 0 0 / 0.4);
 		--elevation-pop: 0 16px 40px -8px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.06);
+		--elevation-side: -20px 0 48px -8px rgb(0 0 0 / 0.75), -2px 0 8px rgb(0 0 0 / 0.5);
 		--card-highlight: inset 0 1px 0 rgb(255 255 255 / 0.04);
 		--bucket-1: #3987e5;
 		--bucket-2: #a95cc0;
@@ -325,6 +326,7 @@
 
 	--shadow-card: var(--elevation-card), var(--card-highlight);
 	--shadow-pop: var(--elevation-pop);
+	--shadow-side: var(--elevation-side);
 
 	/* Motion */
 	--ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -514,6 +516,37 @@
 			transition-duration: 0ms !important;
 		}
 	}
+}
+
+/*
+ * DetailPanel's width beside the list (ADR-0047): the rail, the gap, the page's right gutter and
+ * any margin outside the page's cap, so the panel's left edge is the list column's right edge.
+ * 100% is the window less a classic scrollbar (the panel is fixed). Written here, not as a :root
+ * token, because the Sidebar's width changes on <html> when it is collapsed.
+ */
+@utility w-detail-panel {
+	width: clamp(
+		var(--detail-panel-min),
+		calc(
+			var(--rail-width) +
+			var(--layout-gap) +
+			var(--gutter) +
+			max(0px, (100% - var(--sidebar-width) - var(--shell-max)) / 2)
+		),
+		var(--detail-panel-max)
+	);
+}
+@utility w-detail-panel-wide {
+	width: clamp(
+		var(--detail-panel-min),
+		calc(
+			var(--rail-width) +
+			var(--layout-gap) +
+			var(--gutter) +
+			max(0px, (100% - var(--sidebar-width) - var(--shell-max)) / 2)
+		),
+		var(--detail-panel-max-wide)
+	);
 }
 
 @utility tabular {
