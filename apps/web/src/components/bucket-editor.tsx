@@ -99,6 +99,7 @@ export function BucketEditor({
 	return (
 		<ListRow
 			data-bucket-row={bucket.id}
+			data-dragged={dragged || undefined}
 			className={cn(opens && "cursor-pointer", dragged && "relative z-1 bg-surface-2 shadow-pop")}
 			// The whole row is the pencil's hit area, for a thumb or a mouse; the pencil is the one
 			// control a keyboard or screen reader meets, and takes focus so it comes back to it when
