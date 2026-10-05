@@ -96,11 +96,18 @@ async function settled(page: Page) {
 
 /** A credit card added on Credit card perks, as perks-page.spec.ts does (AI_MODEL=stub reads the page). */
 async function addCard(page: Page, name: string, pageUrl: string, fee: string, perks: number) {
-	const add = page.getByRole("region", { name: "Add a Perk Source" });
-	await add.getByLabel("Name").fill(name);
-	await add.getByLabel("Benefits page (optional)").fill(pageUrl);
-	await add.getByRole("button", { name: "Add" }).click();
+	await page.getByRole("button", { name: "Add a card or membership" }).click();
+	const sheet = page.getByRole("dialog", { name: "Add a card or membership" });
+	await sheet.getByLabel("Card or membership").fill(name);
+	await sheet.getByRole("button", { name: "I have a link to its benefits page" }).click();
+	await sheet.getByLabel("Benefits page (optional)").fill(pageUrl);
+	await sheet.getByRole("button", { name: "Add and read its perks" }).click();
+	await expect(sheet).toBeHidden({ timeout: 30_000 });
 	const card = page.getByRole("article", { name });
+	// One Perk Source is open at a time: open this one's row.
+	const row = card.locator("h3").getByRole("button");
+	await expect(row).toBeEnabled();
+	if ((await row.getAttribute("aria-expanded")) !== "true") await row.click();
 	await expect(card.getByRole("list", { name: `${name} Perks` }).getByRole("listitem")).toHaveCount(
 		perks,
 		{ timeout: 30_000 },
@@ -213,6 +220,7 @@ test.beforeAll(async ({ browser }) => {
 		await page.goto("/insights/perks");
 		const amex = await addCard(page, "Amex Platinum", "https://example.com/premium-card", "695", 4);
 		await addCard(page, "Chase Sapphire Reserve", "https://example.com/travel-card", "550", 3);
+		await amex.locator("h3").getByRole("button").click();
 		const uber = amex.getByRole("listitem", { name: "Uber Cash" });
 		await uber.getByRole("button", { name: "Mark Uber Cash used" }).click();
 		await uber.getByLabel("Note (optional)").fill("Rides to the airport");

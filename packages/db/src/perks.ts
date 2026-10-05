@@ -1,4 +1,8 @@
 import {
+	cardCatalogKey,
+	cardIssuerFor,
+	cardProductIn,
+	cardProductNamed,
 	catalogEntryFor,
 	type DayKey,
 	type FoundPerk,
@@ -10,11 +14,27 @@ import {
 	type PerkSourceSuggestion,
 	type PerkUse,
 	perkKey,
+	type WorthLine,
+	worthUsing,
 } from "@noodle/domain";
-import { and, desc, eq, inArray, isNull, lt, ne, notInArray, or, type SQL, sql } from "drizzle-orm";
+import {
+	and,
+	desc,
+	eq,
+	gt,
+	inArray,
+	isNull,
+	like,
+	lt,
+	ne,
+	notInArray,
+	or,
+	type SQL,
+	sql,
+} from "drizzle-orm";
 import type { Db } from "./index";
 import type { Viewer } from "./privacy";
-import { accounts, perkSources, perks, perkUses } from "./schema";
+import { accounts, bankConnections, perkPages, perkSources, perks, perkUses } from "./schema";
 
 // Perk Sources and their Perks in D1. A suggestion seen only in a Parent's own Personal Allowance
 // is stored as theirs alone, like an Insight (ADR-0003), and so are its Perks and the Perk
@@ -27,6 +47,212 @@ export type PerkResearch = (typeof perkSources.$inferSelect)["research"];
 /** A Perk Source's fingerprint: its catalog product, or its own ID, with its owner. */
 const fingerprintOf = (ownerMemberId: string | null, product: string) =>
 	`${ownerMemberId ?? "household"}|${product}`;
+
+/**
+ * A Perk Source made from a card a Bank Connection brought in is bound to that Account by its
+ * fingerprint ("household|account:<Account ID>", #96): one per Account, and one a Parent removed
+ * isn't made again.
+ */
+const ACCOUNT_MARK = "|account:";
+const boundAccountId = (fingerprint: string): string | null => {
+	const at = fingerprint.indexOf(ACCOUNT_MARK);
+	return at < 0 ? null : fingerprint.slice(at + ACCOUNT_MARK.length);
+};
+
+/** Whether a card's Perk Source is this Account's by its name, as #80 told them: for ones not bound. */
+const namedFor = (
+	source: { name: string; seenIn: string | null },
+	accountName: string,
+): boolean => {
+	const name = accountName.trim();
+	const entry = catalogEntryFor(source.name);
+	return (
+		name === source.seenIn ||
+		name.toLowerCase() === source.name.trim().toLowerCase() ||
+		(entry !== undefined && catalogEntryFor(name) === entry)
+	);
+};
+
+type CardAccount = {
+	id: string;
+	householdId: string;
+	name: string;
+	kind: string;
+	mask: string | null;
+	bankConnectionId: string | null;
+	institution: string | null;
+};
+
+/** Accounts with the institution each came from, for one Household or all. */
+function loadAccountsWithBank(db: Db, householdId?: string): Promise<CardAccount[]> {
+	return db
+		.select({
+			id: accounts.id,
+			householdId: accounts.householdId,
+			name: accounts.name,
+			kind: accounts.kind,
+			mask: accounts.mask,
+			bankConnectionId: accounts.bankConnectionId,
+			institution: bankConnections.institution,
+		})
+		.from(accounts)
+		.leftJoin(bankConnections, eq(bankConnections.id, accounts.bankConnectionId))
+		.where(householdId ? eq(accounts.householdId, householdId) : undefined);
+}
+
+/**
+ * Every credit card a Bank Connection brought in gets a Perk Source of its own, confirmed, without
+ * a Parent adding it (#96). Idempotent: an Account that has one (bound to it, or told by its
+ * name), or whose one a Parent removed, is left alone. When the Account's name tells which card it
+ * is, its benefits page is known and the returned Perk Sources are ready to research; when the
+ * bank named it only "CREDIT CARD", the Perk Source waits for a Parent to say which card it is.
+ */
+export async function ensureCardPerkSources(
+	db: Db,
+	input: { householdId?: string; newId: () => string },
+): Promise<{ id: string; householdId: string }[]> {
+	const cards = (await loadAccountsWithBank(db, input.householdId)).filter(
+		(account) => account.kind === "credit-card" && account.bankConnectionId !== null,
+	);
+	if (cards.length === 0) return [];
+	const existing = await db
+		.select({
+			householdId: perkSources.householdId,
+			name: perkSources.name,
+			seenIn: perkSources.seenIn,
+			status: perkSources.status,
+			fingerprint: perkSources.fingerprint,
+		})
+		.from(perkSources)
+		.where(
+			and(
+				eq(perkSources.kind, "credit-card"),
+				input.householdId ? eq(perkSources.householdId, input.householdId) : undefined,
+			),
+		);
+	const inserts = cards.flatMap((account) => {
+		const has = existing.some(
+			(row) =>
+				row.householdId === account.householdId &&
+				(boundAccountId(row.fingerprint) === account.id ||
+					(row.status !== "dismissed" && namedFor(row, account.name))),
+		);
+		if (has) return [];
+		const issuer = cardIssuerFor(account.institution, account.name);
+		const product = issuer ? cardProductIn(issuer, account.name) : undefined;
+		const known = catalogEntryFor(account.name);
+		const catalog = known?.kind === "credit-card" ? known : undefined;
+		const pageUrl = product?.page ?? catalog?.page ?? null;
+		return [
+			db
+				.insert(perkSources)
+				.values({
+					id: input.newId(),
+					householdId: account.householdId,
+					name:
+						product?.name ??
+						catalog?.name ??
+						(issuer ? `${issuer.name} credit card` : "Credit card"),
+					kind: "credit-card",
+					catalogKey: issuer && product ? cardCatalogKey(issuer, product) : (catalog?.key ?? null),
+					pageUrl,
+					seenIn: account.name.trim(),
+					status: "confirmed",
+					research: pageUrl ? "researching" : "idle",
+					fingerprint: fingerprintOf(null, `account:${account.id}`),
+				})
+				.onConflictDoNothing({ target: [perkSources.householdId, perkSources.fingerprint] })
+				.returning({
+					id: perkSources.id,
+					householdId: perkSources.householdId,
+					pageUrl: perkSources.pageUrl,
+				}),
+		];
+	});
+	const [first, ...rest] = inserts;
+	if (!first) return [];
+	const results = await db.batch([first, ...rest]);
+	return results
+		.flat()
+		.filter((row) => row.pageUrl !== null)
+		.map(({ id, householdId }) => ({ id, householdId }));
+}
+
+/**
+ * A Parent says which card a linked card's Perk Source is: one of its issuer's listed cards
+ * (whose benefits page is then known), or another they name (they're then asked for its page).
+ * The Perks it had, if any, were another card's and go. Returns whether it changed.
+ */
+export async function nameCardProduct(
+	db: Db,
+	viewer: Viewer,
+	input: { id: string; product: string },
+): Promise<boolean> {
+	const target = and(
+		readableBy(viewer),
+		eq(perkSources.id, input.id),
+		eq(perkSources.status, "confirmed"),
+	);
+	const [row] = await db
+		.select({ fingerprint: perkSources.fingerprint })
+		.from(perkSources)
+		.where(target);
+	const accountId = row ? boundAccountId(row.fingerprint) : null;
+	if (!accountId) return false;
+	const account = (await loadAccountsWithBank(db, viewer.householdId)).find(
+		(a) => a.id === accountId,
+	);
+	// The issuer is the bank's when it's one Noodle knows, else whichever the typed name tells.
+	const issuer =
+		(account ? cardIssuerFor(account.institution, account.name) : undefined) ??
+		cardIssuerFor(null, input.product);
+	const listed = issuer
+		? (cardProductNamed(issuer, input.product) ?? cardProductIn(issuer, input.product))
+		: undefined;
+	const known = catalogEntryFor(input.product);
+	const [changed] = await db.batch([
+		db
+			.update(perkSources)
+			.set({
+				name: listed?.name ?? input.product,
+				catalogKey: issuer && listed ? cardCatalogKey(issuer, listed) : "card:other",
+				pageUrl: listed?.page ?? (known?.kind === "credit-card" ? known.page : null),
+				plan: null,
+				planOptions: null,
+				research: "researching",
+				decidedByMemberId: viewer.memberId,
+			})
+			.where(target)
+			.returning({ id: perkSources.id }),
+		db.delete(perks).where(eq(perks.perkSourceId, input.id)),
+	]);
+	return changed.length > 0;
+}
+
+/** A benefits page read since `since`, if one was kept. */
+export async function loadPerkPage(
+	db: Db,
+	url: string,
+	since: Date,
+): Promise<{ url: string; text: string; via: "fetch" | "browser"; fetchedAt: Date } | null> {
+	const [row] = await db
+		.select()
+		.from(perkPages)
+		.where(and(eq(perkPages.url, url), gt(perkPages.fetchedAt, since)));
+	return row ? { url: row.finalUrl, text: row.text, via: row.via, fetchedAt: row.fetchedAt } : null;
+}
+
+/** Keeps a benefits page as just read, in place of the one kept before. */
+export async function savePerkPage(
+	db: Db,
+	page: { url: string; finalUrl: string; text: string; via: "fetch" | "browser"; fetchedAt: Date },
+): Promise<void> {
+	const { url, ...fields } = page;
+	await db
+		.insert(perkPages)
+		.values(page)
+		.onConflictDoUpdate({ target: perkPages.url, set: fields });
+}
 
 /** The Perk Sources `viewer` may read: the Household's and their own. */
 const readableBy = (viewer: Viewer) =>
@@ -57,7 +283,22 @@ export async function recordPerkSourceSuggestions(
 	newId: () => string,
 ): Promise<number> {
 	if (suggestions.length === 0) return 0;
-	const [first, ...rest] = suggestions.map((s) => {
+	// A card that already has a Perk Source of its own (bound to its Account, #96) isn't suggested too.
+	const bound = suggestions.some((s) => s.kind === "credit-card")
+		? await db
+				.select({ seenIn: perkSources.seenIn })
+				.from(perkSources)
+				.where(
+					and(
+						eq(perkSources.householdId, viewer.householdId),
+						like(perkSources.fingerprint, `%${ACCOUNT_MARK}%`),
+					),
+				)
+		: [];
+	const fresh = suggestions.filter(
+		(s) => s.kind !== "credit-card" || !bound.some((row) => row.seenIn === s.seenIn),
+	);
+	const [first, ...rest] = fresh.map((s) => {
 		const ownerMemberId = s.private ? viewer.memberId : null;
 		return db
 			.insert(perkSources)
@@ -76,7 +317,8 @@ export async function recordPerkSourceSuggestions(
 			.onConflictDoNothing({ target: [perkSources.householdId, perkSources.fingerprint] })
 			.returning({ id: perkSources.id });
 	});
-	const results = await db.batch([first as NonNullable<typeof first>, ...rest]);
+	if (!first) return 0;
+	const results = await db.batch([first, ...rest]);
 	return results.reduce((sum, added) => sum + added.length, 0);
 }
 
@@ -97,6 +339,19 @@ export type PerkItem = {
 	spentOn: DayKey[];
 };
 
+/** The card Account a credit-card Perk Source is, when Noodle knows which. */
+export type PerkCard = {
+	accountId: string;
+	accountName: string;
+	mask: string | null;
+	/** The card's issuer, when the institution or the Account's name tells. */
+	issuer: string | null;
+	/** The bank didn't say which card it is: a Parent is asked. */
+	needsProduct: boolean;
+	/** The issuer's common cards, to pick from. */
+	productOptions: string[];
+};
+
 export type PerkSourceItem = {
 	id: string;
 	name: string;
@@ -114,6 +369,9 @@ export type PerkSourceItem = {
 	annualFeeCents: number | null;
 	/** The Household's today, when it was loaded for the Perks page. */
 	asOf: DayKey | null;
+	card: PerkCard | null;
+	/** "Worth using": its Perks against the Household's own spending, most valuable first. */
+	worth: WorthLine[];
 	perks: PerkItem[];
 };
 
@@ -121,7 +379,16 @@ export type PerkSourceItem = {
 export async function loadPerkSources(
 	db: Db,
 	viewer: Viewer,
-	look?: { asOf: DayKey; spends: { date: DayKey; note: string; accountId?: string | null }[] },
+	look?: {
+		asOf: DayKey;
+		spends: {
+			id?: string;
+			date: DayKey;
+			note: string;
+			amount?: number;
+			accountId?: string | null;
+		}[];
+	},
 ): Promise<PerkSourceItem[]> {
 	const rows = await db
 		.select()
@@ -160,28 +427,63 @@ export async function loadPerkSources(
 	const spends = look?.spends ?? [];
 	// A card's perk counts only charges on that card's own Account (#80): "Hotel" on another
 	// card isn't this card's hotel credit used. Other Perk Sources count any of the spending.
-	const cardAccounts = look
-		? await db
-				.select({ id: accounts.id, name: accounts.name })
-				.from(accounts)
-				.where(and(eq(accounts.householdId, viewer.householdId), eq(accounts.kind, "credit-card")))
-		: [];
+	const allAccounts = await loadAccountsWithBank(db, viewer.householdId);
+	const cardAccounts = allAccounts.filter((account) => account.kind === "credit-card");
+	/** The card Accounts a Perk Source is: the one it's bound to, else those its name tells. */
+	const accountsOf = (row: (typeof rows)[number]) => {
+		if (row.kind !== "credit-card") return [];
+		const bound = boundAccountId(row.fingerprint);
+		return bound
+			? cardAccounts.filter((account) => account.id === bound)
+			: cardAccounts.filter((account) => namedFor(row, account.name));
+	};
 	const spendsFor = (row: (typeof rows)[number]) => {
 		if (row.kind !== "credit-card") return spends;
-		const entry = catalogEntryFor(row.name);
-		const own = new Set(
-			cardAccounts
-				.filter((account) => {
-					const name = account.name.trim();
-					return (
-						name === row.seenIn ||
-						name.toLowerCase() === row.name.trim().toLowerCase() ||
-						(entry !== undefined && catalogEntryFor(name) === entry)
-					);
-				})
-				.map((account) => account.id),
-		);
+		const own = new Set(accountsOf(row).map((account) => account.id));
 		return spends.filter((s) => s.accountId != null && own.has(s.accountId));
+	};
+	const cardOf = (row: (typeof rows)[number]): PerkCard | null => {
+		const account = accountsOf(row)[0];
+		if (!account) return null;
+		const issuer = cardIssuerFor(account.institution, account.name);
+		const needsProduct = boundAccountId(row.fingerprint) !== null && row.catalogKey === null;
+		return {
+			accountId: account.id,
+			accountName: account.name,
+			mask: account.mask,
+			issuer: issuer?.name ?? null,
+			needsProduct,
+			productOptions: needsProduct ? (issuer?.products.map((product) => product.name) ?? []) : [],
+		};
+	};
+	const accountNames = Object.fromEntries(allAccounts.map((account) => [account.id, account.name]));
+	const usesOf = (perkId: string) => uses.filter((use) => use.perkId === perkId);
+	const worthOf = (row: (typeof rows)[number]): WorthLine[] => {
+		if (!look || row.kind !== "credit-card" || row.status !== "confirmed") return [];
+		return worthUsing({
+			cardAccountId: accountsOf(row)[0]?.id ?? null,
+			perks: found
+				.filter((perk) => perk.perkSourceId === row.id)
+				.map((perk) => ({
+					id: perk.id,
+					name: perk.name,
+					kind: perk.kind,
+					matches: perk.matches,
+					quote: perk.quote,
+					valueCents: perk.valueCents,
+					renews: perk.renews,
+					usedOn: usesOf(perk.id).map((use) => use.usedOn as DayKey),
+				})),
+			spends: spends.map((s, index) => ({
+				id: s.id ?? String(index),
+				date: s.date,
+				amount: s.amount ?? 0,
+				note: s.note,
+				accountId: s.accountId ?? null,
+			})),
+			accountNames,
+			asOf: look.asOf,
+		});
 	};
 	const spendsBySource = new Map(rows.map((row) => [row.id, spendsFor(row)]));
 	return rows.map((row) => ({
@@ -198,6 +500,8 @@ export async function loadPerkSources(
 		private: row.ownerMemberId !== null,
 		annualFeeCents: row.annualFeeCents,
 		asOf: look?.asOf ?? null,
+		card: cardOf(row),
+		worth: worthOf(row),
 		perks: found
 			.filter((perk) => perk.perkSourceId === row.id)
 			.map((perk) => ({
@@ -458,7 +762,8 @@ export function perkSourcesToRecheck(
 		.where(
 			and(
 				eq(perkSources.status, "confirmed"),
-				notInArray(perkSources.research, ["needs-plan", "needs-link"]),
+				// "idle" once confirmed is a linked card waiting for a Parent to say which card it is (#96).
+				notInArray(perkSources.research, ["needs-plan", "needs-link", "idle"]),
 				or(isNull(perkSources.checkedAt), lt(perkSources.checkedAt, before)),
 			),
 		);
@@ -479,7 +784,8 @@ export async function loadInsightPerks(db: Db, viewer: Viewer): Promise<InsightP
 		})
 		.from(perks)
 		.innerJoin(perkSources, eq(perkSources.id, perks.perkSourceId))
-		.where(and(readableBy(viewer), eq(perkSources.status, "confirmed")));
+		// What a card earns more on (#96) covers no cost and includes no service: no Overlap rests on it.
+		.where(and(readableBy(viewer), eq(perkSources.status, "confirmed"), ne(perks.kind, "earn")));
 	return rows.map(({ owner, ...perk }) => ({ ...perk, private: owner !== null }));
 }
 

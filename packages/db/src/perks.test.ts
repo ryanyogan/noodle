@@ -5,19 +5,23 @@ import {
 	createHouseholdForParent,
 	type Db,
 	decidePerkSource,
+	ensureCardPerkSources,
 	loadInsightPerks,
 	loadInsights,
+	loadPerkPage,
 	loadPerkSources,
 	loadPerkSourceToResearch,
+	nameCardProduct,
 	perkSourcesToRecheck,
 	recordInsights,
 	recordPerkSourceSuggestions,
+	savePerkPage,
 	saveResearch,
 	setPerkValue,
 	updatePerkSource,
 	type Viewer,
 } from "./index";
-import { accounts, members } from "./schema";
+import { accounts, bankConnections, members } from "./schema";
 import { testDb } from "./test-db";
 
 const householdId = "household";
@@ -379,5 +383,199 @@ describe("setPerkValue", () => {
 		await research({ valueCents: 999, renews: "yearly" });
 		const [cleared] = await loadPerkSources(db, alex);
 		expect(cleared?.perks[0]).toMatchObject({ valueCents: 999, renews: "yearly" });
+	});
+});
+
+describe("linked cards (#96)", () => {
+	beforeEach(async () => {
+		await db.insert(bankConnections).values({
+			id: "bank",
+			householdId,
+			provider: "plaid",
+			externalId: "item",
+			institution: "Chase",
+			credential: "sealed",
+			createdByMemberId: "alex",
+		});
+		await db.insert(accounts).values([
+			{
+				id: "acct-card",
+				householdId,
+				name: "CREDIT CARD",
+				kind: "credit-card",
+				bankConnectionId: "bank",
+				externalId: "x1",
+				mask: "7316",
+			},
+			{
+				id: "acct-freedom",
+				householdId,
+				name: "Chase Freedom Unlimited",
+				kind: "credit-card",
+				bankConnectionId: "bank",
+				externalId: "x2",
+				mask: "1234",
+			},
+			{
+				id: "acct-checking",
+				householdId,
+				name: "Chase Checking",
+				kind: "checking",
+				bankConnectionId: "bank",
+				externalId: "x3",
+				mask: "0001",
+			},
+			{ id: "acct-hand", householdId, name: "Store card", kind: "credit-card" },
+		]);
+	});
+
+	const unnamedId = async () =>
+		(await loadPerkSources(db, alex)).find((s) => s.card?.needsProduct)?.id as string;
+
+	it("gives each linked card a Perk Source once, and asks which card when the bank doesn't say", async () => {
+		const added = await ensureCardPerkSources(db, { householdId, newId });
+		// Only the card whose name says which it is can be researched yet.
+		expect(added).toHaveLength(1);
+		expect(await ensureCardPerkSources(db, { newId })).toEqual([]);
+		const sources = await loadPerkSources(db, alex);
+		expect(
+			sources
+				.map((s) => [s.name, s.status, s.research, s.card?.mask, s.card?.needsProduct])
+				.sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+		).toEqual([
+			["Chase credit card", "confirmed", "idle", "7316", true],
+			["Chase Freedom Unlimited", "confirmed", "researching", "1234", false],
+		]);
+		const unnamed = sources.find((s) => s.card?.needsProduct);
+		expect(unnamed?.card).toMatchObject({
+			accountId: "acct-card",
+			accountName: "CREDIT CARD",
+			issuer: "Chase",
+		});
+		expect(unnamed?.card?.productOptions).toContain("Chase Sapphire Preferred");
+		expect(unnamed?.pageUrl).toBeNull();
+		// One waiting on a Parent isn't re-checked each night.
+		expect((await perkSourcesToRecheck(db, new Date())).map((s) => s.id)).toEqual([added[0]?.id]);
+	});
+
+	it("names the card from its issuer's list, with its page, or another by name", async () => {
+		await ensureCardPerkSources(db, { householdId, newId });
+		const id = await unnamedId();
+		expect(await nameCardProduct(db, alex, { id, product: "Chase Sapphire Preferred" })).toBe(true);
+		const named = (await loadPerkSources(db, alex)).find((s) => s.id === id);
+		expect(named).toMatchObject({
+			name: "Chase Sapphire Preferred",
+			research: "researching",
+			pageUrl: "https://creditcards.chase.com/rewards-credit-cards/sapphire/preferred",
+		});
+		expect(named?.card).toMatchObject({ mask: "7316", needsProduct: false, productOptions: [] });
+		expect(await nameCardProduct(db, alex, { id, product: "My odd card" })).toBe(true);
+		expect((await loadPerkSources(db, alex)).find((s) => s.id === id)).toMatchObject({
+			name: "My odd card",
+			pageUrl: null,
+		});
+		// Only a linked card's own Perk Source is named this way.
+		const own = await addPerkSource(db, alex, {
+			id: newId(),
+			name: "Store card",
+			kind: "credit-card",
+			plan: null,
+			pageUrl: null,
+		});
+		expect(await nameCardProduct(db, alex, { id: own, product: "Chase Freedom Flex" })).toBe(false);
+	});
+
+	it("isn't made again once a Parent removed it, and isn't suggested as well", async () => {
+		await ensureCardPerkSources(db, { householdId, newId });
+		await decidePerkSource(db, alex, { id: await unnamedId(), status: "dismissed" });
+		expect(await ensureCardPerkSources(db, { householdId, newId })).toEqual([]);
+		expect((await loadPerkSources(db, alex)).map((s) => s.name)).toEqual([
+			"Chase Freedom Unlimited",
+		]);
+		const again: PerkSourceSuggestion = {
+			catalogKey: "chase-sapphire",
+			name: "Chase Sapphire",
+			kind: "credit-card",
+			page: "https://creditcards.chase.com/rewards-credit-cards/sapphire",
+			seenIn: "Chase Freedom Unlimited",
+			private: false,
+		};
+		expect(await recordPerkSourceSuggestions(db, alex, [again], newId)).toBe(0);
+	});
+
+	it("sets the card's Perks against spending on its own and other Accounts", async () => {
+		await ensureCardPerkSources(db, { householdId, newId });
+		const id = await unnamedId();
+		await nameCardProduct(db, alex, { id, product: "Chase Sapphire Preferred" });
+		await saveResearch(db, {
+			householdId,
+			perkSourceId: id,
+			checkedAt,
+			newId,
+			outcome: {
+				research: "done",
+				sourceUrl: "https://creditcards.chase.com/rewards-credit-cards/sapphire/preferred",
+				perks: [
+					perk({
+						name: "Kroger credit",
+						kind: "cost",
+						matches: "Kroger",
+						quote: "$10 monthly Kroger credit",
+						valueCents: 1000,
+						renews: "monthly",
+					}),
+					perk({
+						name: "3x on dining",
+						kind: "earn",
+						matches: "Dining",
+						quote: "Earn 3x points on dining",
+					}),
+				],
+			},
+		});
+		const loaded = (
+			await loadPerkSources(db, alex, {
+				asOf: "2026-10-05" as never,
+				spends: [
+					{
+						id: "t1",
+						date: "2026-09-20" as never,
+						note: "KROGER #1",
+						amount: 6412,
+						accountId: "acct-checking",
+					},
+				],
+			})
+		).find((s) => s.id === id);
+		expect(loaded?.worth.map((line) => line.text)).toEqual([
+			"Kroger on Chase Checking: this card pays back up to $10 a month.",
+		]);
+		// A charge on another Account isn't this card's credit used.
+		expect(loaded?.perks.find((p) => p.matches === "Kroger")?.spentOn).toEqual([]);
+		// What a card earns more on never makes an Overlap.
+		expect((await loadInsightPerks(db, alex)).map((p) => p.matches)).toEqual(["Kroger"]);
+	});
+
+	it("keeps a benefits page's text with its date, the latest in place of the last", async () => {
+		const page = {
+			url: "https://a.example/x",
+			finalUrl: "https://a.example/x/",
+			text: "hello",
+			via: "browser" as const,
+		};
+		await savePerkPage(db, { ...page, fetchedAt: new Date("2026-10-01") });
+		expect(await loadPerkPage(db, page.url, new Date("2026-09-30"))).toMatchObject({
+			url: "https://a.example/x/",
+			text: "hello",
+			via: "browser",
+		});
+		expect(await loadPerkPage(db, page.url, new Date("2026-10-02"))).toBeNull();
+		await savePerkPage(db, {
+			...page,
+			text: "new",
+			via: "fetch",
+			fetchedAt: new Date("2026-10-04"),
+		});
+		expect((await loadPerkPage(db, page.url, new Date("2026-10-02")))?.text).toBe("new");
 	});
 });

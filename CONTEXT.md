@@ -232,11 +232,11 @@ Paying twice for the same benefit: two services that serve the same need, a serv
 _Avoid_: Double spending, duplicate
 
 **Perk Source**:
-A confirmed product the Household holds that bundles benefits: a phone plan, credit card, membership, or insurance policy.
+A confirmed product the Household holds that bundles benefits: a phone plan, credit card, membership, or insurance policy. A credit card a Bank Connection brings in is one by itself, without a Parent adding it; when the bank doesn't say which card it is, a Parent is asked once ("Which Chase card is this?") (ADR-0044).
 _Avoid_: Provider, card, subscription
 
 **Perk**:
-A specific benefit included with a Perk Source, with the link it came from and the date it was last checked.
+A specific benefit included with a Perk Source: a service it includes, a cost it pays back, or a kind of purchase it earns more on. Each has the link it came from, the page's own words, and the date it was last checked. A card's Perks are listed most valuable first, and "Worth using" sets them against the Household's own spending: credits that went unused, charges on other Accounts the card would pay back, and the kinds of purchases it earns more on. Only ever about a card the Household already has.
 _Avoid_: Benefit, reward, feature
 
 ### Exploring

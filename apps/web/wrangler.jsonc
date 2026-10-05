@@ -109,6 +109,9 @@
 	// research Workflow reads a Perk Source's benefits page when a Parent confirms or adds one. The
 	// Import Workflow reads a Bank Connection's Transactions, started from the ingest Queue. The Setup
 	// Workflow waits for a new Household's first history, files it and drafts the Plan (#53).
+	// A real browser for benefits pages a plain fetch can't read (Browser Rendering's quick actions,
+	// server/perk-page.ts, ADR-0044): only issuers' and catalog sites, one page a research run.
+	"browser": { "binding": "BROWSER" },
 	"workflows": [
 		{ "name": "noodle-month-close", "binding": "MONTH_CLOSE", "class_name": "MonthCloseWorkflow" },
 		{

@@ -1185,6 +1185,19 @@ export const perkUses = sqliteTable("perk_uses", {
 		.default(sql`(unixepoch() * 1000)`),
 });
 
+// A benefits page as it was last read (#96): its text, when, and whether a plain fetch or a real
+// browser (Browser Rendering) got it, so research soon after (a Parent picking a plan tier, a
+// second Household with the same card) doesn't fetch or render it again. Public pages only, kept
+// by address: nothing here belongs to a Household.
+export const perkPages = sqliteTable("perk_pages", {
+	url: text("url").primaryKey(),
+	/** Where it ended up, after redirects. */
+	finalUrl: text("final_url").notNull(),
+	text: text("text").notNull(),
+	via: text("via", { enum: ["fetch", "browser"] }).notNull(),
+	fetchedAt: integer("fetched_at", { mode: "timestamp_ms" }).notNull(),
+});
+
 // A Receipt: an itemized record of a purchase a Parent sent in (a forwarded email; later a
 // photo), kept in R2 (`file_key`, with a small image of it at `thumbnail_key` when it's a
 // picture) and read by a model into `lines` (ReceiptLine from @noodle/domain, as JSON). It's

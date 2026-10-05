@@ -48,6 +48,7 @@ export {
 	resplit,
 } from "./bank-sync";
 export { parseCapturedAmount } from "./capture";
+export * from "./card-issuers";
 export {
 	AUTO_FILE_CONFIDENCE,
 	type Categorization,
@@ -311,21 +312,28 @@ export {
 	suggestPairings,
 } from "./pairing";
 export * from "./perk-standing";
+export * from "./perk-worth";
 export {
+	byPerkValue,
 	type CatalogEntry,
 	catalogEntryFor,
 	detectPerkSources,
+	earnRate,
 	type FoundPerk,
 	mentions,
+	PERK_CATEGORIES,
 	PERK_DETECT_DAYS,
 	PERK_KINDS,
 	PERK_RECHECK_DAYS,
 	PERK_SOURCE_CATALOG,
 	PERK_SOURCE_KINDS,
+	type PerkCategory,
 	type PerkKind,
 	type PerkSourceKind,
 	type PerkSourceSuggestion,
 	type PerkSpend,
+	perkCategory,
+	perkCategoryLabel,
 	perkKey,
 	perkSourceKindLabel,
 	perksForPlan,

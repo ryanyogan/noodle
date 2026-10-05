@@ -11,8 +11,11 @@ import type { PerkRenewal } from "./perk-standing";
 export const PERK_SOURCE_KINDS = ["phone-plan", "credit-card", "membership", "insurance"] as const;
 export type PerkSourceKind = (typeof PERK_SOURCE_KINDS)[number];
 
-/** A Perk is a service included (Netflix with a phone plan), or a cost covered (a TSA PreCheck credit). */
-export const PERK_KINDS = ["service", "cost"] as const;
+/**
+ * A Perk is a service included (Netflix with a phone plan), a cost covered (a TSA PreCheck
+ * credit), or a kind of purchase that earns more (4x points on dining): `earn` (#96).
+ */
+export const PERK_KINDS = ["service", "cost", "earn"] as const;
 export type PerkKind = (typeof PERK_KINDS)[number];
 
 export const perkSourceKindLabel: Record<PerkSourceKind, string> = {
@@ -241,6 +244,8 @@ export function perksOnPage(found: FoundPerk[], pageText: string): FoundPerk[] {
 			matches.length <= 40 &&
 			quote.length >= MIN_QUOTE &&
 			page.includes(plainWords(quote)) &&
+			// A purchase that earns more must say how much more, in the page's own words.
+			(perk.kind !== "earn" || earnRate(quote) !== null) &&
 			!seen.has(key);
 		if (!ok) return [];
 		seen.add(key);
@@ -266,6 +271,64 @@ const valueOnPage = (cents: number | undefined, quote: string) => {
 	);
 	return figures.includes(cents);
 };
+
+/**
+ * The earning rate a quote states, as a Parent would read it: "4x" (4X points, 4 points per
+ * dollar) or "3%" (3% cash back); null when it states none.
+ */
+export function earnRate(quote: string): string | null {
+	const times = quote.match(/(\d+(?:\.\d+)?)\s?x\b/i);
+	if (times) return `${Number(times[1])}x`;
+	const per = quote.match(
+		/(\d+(?:\.\d+)?)\s+(?:points?|miles?)\s+(?:per|for each|for every|on every)\s+(?:\$1|dollar)/i,
+	);
+	if (per) return `${Number(per[1])}x`;
+	const percent = quote.match(/(\d+(?:\.\d+)?)\s?%/);
+	return percent ? `${Number(percent[1])}%` : null;
+}
+
+/** What sort of Perk it is, for a Parent: read from its kind and its own words, by plain code. */
+export const PERK_CATEGORIES = ["credit", "earn", "travel", "protection", "membership"] as const;
+export type PerkCategory = (typeof PERK_CATEGORIES)[number];
+
+export const perkCategoryLabel: Record<PerkCategory, string> = {
+	credit: "Statement credit",
+	earn: "Earns more",
+	travel: "Lounges and travel",
+	protection: "Insurance and protection",
+	membership: "Membership",
+};
+
+export function perkCategory(perk: {
+	kind: PerkKind;
+	name: string;
+	matches: string;
+	valueCents?: number | null;
+}): PerkCategory {
+	if (perk.kind === "earn") return "earn";
+	const words = `${perk.name} ${perk.matches}`.toLowerCase();
+	if (/insurance|protection|warranty|coverage|waiver/.test(words)) return "protection";
+	if (perk.valueCents) return "credit";
+	if (/lounge|priority pass|global entry|tsa|airline|flight|hotel|travel|baggage/.test(words)) {
+		return "travel";
+	}
+	if (perk.kind === "service" || /membership|pass\b/.test(words)) return "membership";
+	return "credit";
+}
+
+/**
+ * Perks with the most valuable first: by what each is worth in a year (unknown last), then by
+ * sort (credits, earning more, travel, protection, memberships), then by name.
+ */
+export function byPerkValue<
+	T extends { kind: PerkKind; name: string; matches: string; valueCents: number | null },
+>(perks: T[], yearly: (perk: T) => number | null = (perk) => perk.valueCents): T[] {
+	const rank = (perk: T) => PERK_CATEGORIES.indexOf(perkCategory(perk));
+	return [...perks].sort(
+		(a, b) =>
+			(yearly(b) ?? -1) - (yearly(a) ?? -1) || rank(a) - rank(b) || a.name.localeCompare(b.name),
+	);
+}
 
 /** A Perk's identity within its Perk Source, stable across re-checks: its kind and statement name. */
 export const perkKey = (perk: Pick<FoundPerk, "kind" | "matches">) =>
