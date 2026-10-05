@@ -160,7 +160,8 @@ test("paying the card from checking is one Transfer, which counts nowhere", asyn
 		name: /, Unassigned, For Everyone, from Checking$/,
 	});
 	await expect(unassigned).toHaveCount(1);
-	await says(page, unassigned, ["Unassigned", "Everyone", "Checking"]);
+	// Who it's For is in the row's name: the For column needs a wider table than this window's.
+	await says(page, unassigned, ["Unassigned", "Checking"]);
 });
 
 test("a payment to a card Noodle doesn't follow is the spending: Review offers a Commitment or connecting the card, and a Transfer second", async ({

@@ -4,15 +4,14 @@ import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
 import { clientRendered, createPlannedHousehold, signedInPage } from "./session";
 
-// A Goal with a long History on a wide desktop (#73, ADR-0033): its progress card and actions sit
-// beside History, start on the same line, and stay in view while the page scrolls. Nothing scrolls
-// in a pane of its own.
+// A Goal with a long History on a wide desktop. It opens in the panel from the right (issue 107,
+// ADR-0047), which is one column: the progress card and what to do with it come first, History
+// after them, and the panel scrolls on its own while the page under it stays where it is. (Before
+// the panel, the Goal had two columns beside the list and the progress column was held in view.)
 
 const wide = { viewport: { width: 1920, height: 1080 } };
 /** Months of History seeded; the page shows the latest twelve. */
 const MONTHS = 14;
-/** The space kept above the held column (the shell's top padding at lg). */
-const INSET = 24;
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 test.beforeEach(async () => {
@@ -24,7 +23,7 @@ test.afterEach(async () => {
 
 const q = (value: string) => `'${value.replaceAll("'", "''")}'`;
 
-test("a Goal's progress and actions stay in view while a long History scrolls", async ({
+test("a Goal's panel scrolls by itself: progress and actions first, a long History under them", async ({
 	browser,
 }) => {
 	test.slow();
@@ -50,63 +49,67 @@ test("a Goal's progress and actions stay in view while a long History scrolls", 
 	]);
 
 	await page.goto(`/goals/${goal}`);
-	const side = page.locator("[data-slot=goal-side]");
-	// Measured after the page is live: the column is held only while all of it fits the window.
-	await expect(side).toHaveAttribute("data-fits", "true", clientRendered);
+	const panel = page.locator("[data-slot=master-detail-detail]");
+	await expect(panel).toHaveAttribute("data-panel-mode", "beside", clientRendered);
+	await expect(panel.locator("[data-slot=detail-title]")).toHaveText("Hawaii trip");
 
 	const measure = () =>
 		page.evaluate(() => {
-			const root = document.scrollingElement ?? document.documentElement;
-			const held = document.querySelector<HTMLElement>("[data-slot=goal-side]");
+			const box = document.querySelector<HTMLElement>("[data-slot=master-detail-detail]");
+			const side = box?.querySelector<HTMLElement>("[data-slot=goal-side]");
 			const history = document.getElementById("goal-history")?.closest("section");
-			if (!held || !history) return null;
-			const scrollers: string[] = [];
-			for (
-				let el: Element | null = held.parentElement;
-				el && el !== root && el !== document.body;
-				el = el.parentElement
-			) {
-				const style = getComputedStyle(el);
-				// A scrolling or hidden ancestor would hold the column to itself, not the window.
-				if ([style.overflowX, style.overflowY].some((o) => o !== "visible" && o !== "clip")) {
-					scrollers.push(`${el.tagName}.${el.getAttribute("data-slot") ?? ""}`);
-				}
-			}
-			const sideBox = held.getBoundingClientRect();
-			const historyBox = history.getBoundingClientRect();
+			const add = [...(box?.querySelectorAll("button") ?? [])].find(
+				(button) => button.textContent?.trim() === "Add money",
+			);
+			if (!box || !side || !history || !add) return null;
 			return {
-				position: getComputedStyle(held).position,
-				scrolled: root.scrollTop,
-				sideTop: sideBox.top,
-				sideLeft: sideBox.left,
-				sideBottom: sideBox.bottom,
-				historyTop: historyBox.top,
-				historyRight: historyBox.right,
-				historyHeight: historyBox.height,
+				position: getComputedStyle(box).position,
+				overflow: getComputedStyle(box).overflowY,
+				// In one column the side's box dissolves, so nothing in it is held.
+				sideDisplay: getComputedStyle(side).display,
+				top: box.getBoundingClientRect().top,
+				height: box.clientHeight,
+				content: box.scrollHeight,
+				scrolled: box.scrollTop,
+				pageScrolled: (document.scrollingElement ?? document.documentElement).scrollTop,
+				addTop: add.getBoundingClientRect().top,
+				addBottom: add.getBoundingClientRect().bottom,
+				historyTop: history.getBoundingClientRect().top,
+				historyBottom: history.getBoundingClientRect().bottom,
 				window: window.innerHeight,
-				scrollers,
 			};
 		});
 
 	const before = await measure();
 	expect(before).not.toBeNull();
 	if (!before) return;
-	expect(before.position).toBe("sticky");
-	expect(before.scrollers, "no ancestor clips or scrolls the held column").toEqual([]);
-	// Two columns that start on the same line, History far taller than the window.
-	expect(before.sideLeft).toBeGreaterThanOrEqual(before.historyRight);
-	expect(Math.abs(before.sideTop - before.historyTop)).toBeLessThanOrEqual(1);
-	expect(before.historyHeight).toBeGreaterThan(before.window);
-
-	// Scroll the page (the one scroll there is) well into History: the column is held at the inset,
-	// whole and in view.
-	await expect(async () => {
-		await page.evaluate(() => window.scrollTo(0, 700));
-		const after = await measure();
-		expect(after?.scrolled).toBeGreaterThanOrEqual(690);
-		expect(Math.abs((after?.sideTop ?? 0) - INSET)).toBeLessThanOrEqual(1);
-		expect(after?.historyTop).toBeLessThan(0);
-		expect(after?.sideBottom).toBeLessThanOrEqual(after?.window ?? 0);
-	}).toPass({ timeout: 10_000 });
+	// The panel is a layer the height of the window with a scroll of its own; History is far taller.
+	expect(before.position).toBe("fixed");
+	expect(before.overflow).toBe("auto");
+	expect(before.top).toBe(0);
+	expect(before.height).toBe(before.window);
+	expect(before.content).toBeGreaterThan(before.window * 1.5);
+	expect(before.sideDisplay).toBe("contents");
+	// Progress and its actions are what the panel opens on; History follows them.
+	expect(before.addTop).toBeGreaterThan(0);
+	expect(before.addBottom).toBeLessThanOrEqual(before.window);
+	expect(before.historyTop).toBeGreaterThan(before.addBottom);
 	await expect(page.getByRole("button", { name: "Add money" })).toBeInViewport();
+
+	// A wheel over the panel scrolls the panel to the end of History; the page doesn't move.
+	await panel.hover();
+	await expect(async () => {
+		await page.mouse.wheel(0, 4000);
+		const after = await measure();
+		expect(after?.scrolled).toBeGreaterThan(0);
+		expect(
+			Math.abs((after?.scrolled ?? 0) + (after?.height ?? 0) - (after?.content ?? 0)),
+		).toBeLessThanOrEqual(1);
+		expect(after?.pageScrolled).toBe(0);
+		expect(after?.historyBottom).toBeLessThanOrEqual(after?.window ?? 0);
+	}).toPass({ timeout: 10_000 });
+	// Back to the top, the actions are in reach again.
+	await panel.evaluate((box) => box.scrollTo(0, 0));
+	await expect(page.getByRole("button", { name: "Add money" })).toBeInViewport();
+	await page.context().close();
 });

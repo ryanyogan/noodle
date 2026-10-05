@@ -19,6 +19,7 @@ import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-q
 import {
 	createFileRoute,
 	Link,
+	linkOptions,
 	useHydrated,
 	useParams,
 	useRouteContext,
@@ -109,12 +110,12 @@ function AccountsPage() {
 					</Button>
 				}
 			/>
-			{/* The Accounts and Bank Connections on the left; the picked Account beside them (#67). While
-			    none is picked they take the wide column and the totals the side one (#73). On phones the
-			    totals come first. */}
+			{/* The Accounts and Bank Connections in the wide column and the totals in the side one (#73); a
+			    picked Account opens in the panel from the right (issue 107). On phones the totals come
+			    first. */}
 			<ListBesideDetail
 				picked={picked !== undefined}
-				listFills
+				panel={{ size: "wide", close: linkOptions({ to: "/accounts" }), itemKey: picked }}
 				noun="Account"
 				listLabel="Accounts"
 				aside={<AccountTotals accounts={accounts} />}
@@ -235,8 +236,8 @@ function ArchivedAccounts({ accounts }: { accounts: ArchivedAccount[] }) {
 }
 
 /**
- * One group's Accounts: a list in the narrow pane beside a picked Account, a grid of cards (two or
- * three across, by the room there is) while the list has the wide column (#73), as Goals do. In
+ * One group's Accounts: a list on a phone, a grid of cards (two or three across, by the room there
+ * is) where the list has the wide column (#73), as Goals do. In
  * the grid the list's card steps aside (`contents`) and each row becomes a card of its own.
  */
 function AccountList({ children }: { children: ReactNode }) {

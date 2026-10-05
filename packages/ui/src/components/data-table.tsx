@@ -18,9 +18,11 @@ import {
 	COLUMN_GAP,
 	type ColumnShape,
 	columnTiers,
+	extendIds,
 	gridTemplate,
 	type HeaderCheck,
 	nextSort,
+	type RangeAnchor,
 	rangeIds,
 	type StackedSlot,
 	selectsAll,
@@ -105,6 +107,11 @@ export type DataTableSelection<TData extends RowData> = {
 	onSelect: (change: { ids: string[]; on: boolean; row: TData; range: boolean }) => void;
 	/** The header's checkbox: everything (`true`) or nothing. */
 	onSelectAll: (on: boolean) => void;
+	/**
+	 * False leaves the checkbox column out where rows are stacked (a phone), for a page with its
+	 * own way to select there. Space, the arrows and Ctrl+A still work. Default: always shown.
+	 */
+	stacked?: boolean;
 };
 
 type DataTableProps<TData extends RowData> = Omit<
@@ -199,6 +206,8 @@ const ALIGN = {
 const BEFORE = {
 	select: cn("flex [grid-column:sel] [grid-row:1/span_var(--dt-rows)]", UNSTACK),
 	leading: cn("flex [grid-column:lead] [grid-row:1/span_var(--dt-rows)]", UNSTACK),
+	// The checkbox column of a table that only shows it in columns (`selection.stacked: false`).
+	selectWide: cn("hidden @2xl/dt:flex", UNSTACK),
 };
 // The indeterminate box: a dash on the primary fill instead of the tick.
 const MIXED =
@@ -251,6 +260,8 @@ function DataTable<TData extends RowData>({
 		[columns],
 	);
 	const hasSelection = Boolean(selection);
+	const selectStacked = selection?.stacked ?? true;
+	const selectCell = selectStacked ? BEFORE.select : BEFORE.selectWide;
 	const leadingMin = leading ? (leading.min ?? 2.75) : 0;
 	const leadingWidth = leading ? (leading.width ?? `${leadingMin}rem`) : null;
 	// Room held open where a neighbouring table has its leading slot; this table has none.
@@ -270,7 +281,7 @@ function DataTable<TData extends RowData>({
 		];
 		const vars: Record<string, string | number> = {
 			"--dt-stack": stackedTemplate({
-				select: hasSelection,
+				select: hasSelection && selectStacked,
 				leading: leadingWidth,
 				value: stacked.has.value,
 				trailing: stacked.has.trailing,
@@ -281,7 +292,7 @@ function DataTable<TData extends RowData>({
 			vars[`--dt-cols-${tier}`] = gridTemplate(shown, tiers, tier, before);
 		}
 		return { tiers, stacked, vars };
-	}, [shown, hasSelection, leadingWidth, leadingMin, indentWidth, indentMin]);
+	}, [shown, hasSelection, selectStacked, leadingWidth, leadingMin, indentWidth, indentMin]);
 	// Takes the indent's track in the header, each row and the totals; gone where rows are stacked.
 	const spacer = indentWidth ? (
 		<div aria-hidden="true" data-slot="data-table-indent" className="hidden @2xl/dt:block" />
@@ -346,11 +357,17 @@ function DataTable<TData extends RowData>({
 		rows[0]?.id;
 
 	// The row ticked last and what it was set to: a shift-click gives the rows up to it that state.
-	const anchor = React.useRef<{ id: string; on: boolean } | null>(null);
+	const anchor = React.useRef<RangeAnchor | null>(null);
+	// An anchor only counts while its row is still as it was set: after the page clears the
+	// selection (Cancel, Esc), a range starts afresh instead of reaching back to an old tick.
+	const liveAnchor = () => {
+		const at = anchor.current;
+		return at && Boolean(rowSelection[at.id]) === at.on ? at : null;
+	};
 	const shift = React.useRef(false);
 	function pick(row: Row<Features, TData>, range: boolean) {
 		if (!selection || !row.getCanSelect()) return;
-		const from = range ? anchor.current : null;
+		const from = range ? liveAnchor() : null;
 		if (from) {
 			const ordered = rows.filter((other) => other.getCanSelect()).map((other) => other.id);
 			selection.onSelect({
@@ -369,6 +386,18 @@ function DataTable<TData extends RowData>({
 	function onRowKeyDown(event: React.KeyboardEvent<HTMLDivElement>, row: Row<Features, TData>) {
 		// Keys pressed in a control inside the row are that control's.
 		if (event.target !== event.currentTarget || event.defaultPrevented) return;
+		// Ctrl+A (Cmd+A on a Mac) with a row in focus: everything, as the header's checkbox does.
+		if (
+			selection &&
+			(event.ctrlKey || event.metaKey) &&
+			!event.altKey &&
+			!event.shiftKey &&
+			event.key.toLowerCase() === "a"
+		) {
+			event.preventDefault();
+			selection.onSelectAll(true);
+			return;
+		}
 		if (event.altKey || event.ctrlKey || event.metaKey) return;
 		const siblings = [
 			...(event.currentTarget.parentElement?.querySelectorAll<HTMLElement>(
@@ -386,6 +415,20 @@ function DataTable<TData extends RowData>({
 						: event.key === "End"
 							? siblings.length - 1
 							: -1;
+		if (selection && event.shiftKey && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+			// Shift+Up or Shift+Down: the focus moves a row and the selection goes with it.
+			event.preventDefault();
+			const target = siblings[to];
+			const toId = target?.dataset.rowId;
+			target?.focus();
+			if (to === at || toId === undefined) return;
+			const ordered = rows.filter((other) => other.getCanSelect()).map((other) => other.id);
+			const next = extendIds(ordered, liveAnchor(), row.id, toId);
+			if (!next || next.ids.length === 0) return;
+			anchor.current = next.anchor;
+			selection.onSelect({ ids: next.ids, on: next.on, row: row.original, range: true });
+			return;
+		}
 		if (to !== -1 && !event.shiftKey) {
 			// Handled here, so a list's own arrow keys around the table leave it alone.
 			event.preventDefault();
@@ -596,7 +639,7 @@ function DataTable<TData extends RowData>({
 										{...rest}
 									>
 										{selection ? (
-											<div role={cellRole} className={cn("items-center", BEFORE.select)}>
+											<div role={cellRole} className={cn("items-center", selectCell)}>
 												<Checkbox
 													checked={selected}
 													disabled={!hydrated || !row.getCanSelect()}
@@ -652,7 +695,7 @@ function DataTable<TData extends RowData>({
 					className="border-t border-border-strong font-medium"
 				>
 					<div role={ROLE.row} className={cn(ROW_GRID, "min-h-11 py-2")}>
-						{selection ? <div role={cellRole} className={BEFORE.select} /> : null}
+						{selection ? <div role={cellRole} className={selectCell} /> : null}
 						{leading ? <div role={cellRole} className={BEFORE.leading} /> : null}
 						{spacer}
 						{footers.map((footer) => {

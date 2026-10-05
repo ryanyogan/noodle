@@ -1,5 +1,6 @@
 import type { DeletionSummary, TransactionSelection } from "@noodle/db";
 import type { DayKey, MonthKey } from "@noodle/domain";
+import type { HeaderCheck } from "@noodle/ui/lib/data-table";
 import { formatMoney } from "./format";
 
 // Selecting Transactions on the Transactions page to delete them together (#97, ADR-0045). What
@@ -39,6 +40,67 @@ export function togglePicked(picking: Picking, id: string): Picking {
 	return picking.all
 		? { ...picking, except: flipped(picking.except) }
 		: { ...picking, picked: flipped(picking.picked) };
+}
+
+/**
+ * `picking` with these Transactions all set on, or all off: a tick in the table, or the run of
+ * rows a shift-click or Shift+Down takes (issue 99). With everything that matches selected it is
+ * the exceptions that change, so rows that have not loaded stay selected.
+ */
+export function setPicked(picking: Picking, ids: readonly string[], on: boolean): Picking {
+	const changed = (set: ReadonlySet<string>, add: boolean) => {
+		const next = new Set(set);
+		for (const id of ids) {
+			if (add) next.add(id);
+			else next.delete(id);
+		}
+		return next;
+	};
+	return picking.all
+		? { ...picking, except: changed(picking.except, !on) }
+		: { ...picking, picked: changed(picking.picked, on) };
+}
+
+/** Goal spending can't be selected here: it changes from its Goal. */
+export const canPick = (transaction: { goal?: unknown }) => !transaction.goal;
+
+/** Whether the selection holds anything, as far as this screen can tell. */
+export const anyPicked = (picking: Picking) => picking.all !== null || picking.picked.size > 0;
+
+/**
+ * What the checkbox in the table's header says. `selectable` is how many Transactions in the list
+ * can be selected once every one of them has loaded; undefined while more are still to load,
+ * when ticks made one by one can't be known to be all of them.
+ */
+export function headerCheckOf(
+	picking: Picking | null,
+	selectable: number | undefined,
+): HeaderCheck {
+	if (!picking) return "none";
+	if (picking.all) {
+		if (picking.except.size === 0) return "all";
+		const noneLeft =
+			!picking.all.andEarlier && selectable !== undefined && picking.except.size >= selectable;
+		return noneLeft ? "none" : "some";
+	}
+	if (picking.picked.size === 0) return "none";
+	return selectable !== undefined && selectable > 0 && picking.picked.size >= selectable
+		? "all"
+		: "some";
+}
+
+/**
+ * The words on the bar's "select everything" buttons. `short` is for a phone, where the two sit
+ * side by side: the region around them already says they select.
+ */
+export function selectAllLabel(
+	count: number,
+	month: string,
+	at: { filtered: boolean; andEarlier: boolean; short?: boolean },
+): string {
+	const n = count.toLocaleString("en-US");
+	if (at.short) return at.andEarlier ? `All ${n} with earlier months` : `All ${n} in ${month}`;
+	return `Select all ${n}${at.filtered ? " that match" : ""} in ${month}${at.andEarlier ? " and every month before" : ""}`;
 }
 
 /** The filters as the server takes them, for a month or for it and every month before. */

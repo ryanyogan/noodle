@@ -278,7 +278,7 @@ test("a Transaction opened at its own address has one header, its own", async ({
 		await page.setViewportSize({ width: 1280, height });
 		await page.goto("/transactions");
 		await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
-		await page.locator("[data-slot=list-row] button").first().click();
+		await page.locator("[data-slot=list-row] button:not([role=checkbox])").first().click();
 		await expect(page).toHaveURL(/\/transactions\/\d{4}-\d{2}\/[0-9A-Z]{26}/);
 		const path = new URL(page.url()).pathname;
 

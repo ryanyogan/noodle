@@ -52,7 +52,7 @@ import { DetailPending, sectionHeaderOverItem } from "../../../components/master
 import { TransactionEditor } from "../../../components/transaction-editor";
 import { useBringsSpendingIn } from "../../../components/transaction-list";
 import { DeleteSelectedSheet, SelectionBar } from "../../../components/transaction-selection";
-import { TransactionTable } from "../../../components/transaction-table";
+import { TransactionTable, tableIsStacked } from "../../../components/transaction-table";
 import { formatMoney, monthName } from "../../../format";
 import { type AccountView, useGoals } from "../../../goals";
 import { type MemberSummary, pickableMembers } from "../../../members";
@@ -61,11 +61,12 @@ import { monthKeySchema } from "../../../server/month";
 import { ulidSchema } from "../../../server/schemas";
 import { forFilterSchema, SEARCH_MAX, transactionSortSchema } from "../../../server/transactions";
 import {
-	isPicked,
+	anyPicked,
 	nothingPicked,
 	type Picking,
 	togglePicked,
 } from "../../../transaction-selection";
+import { escapeStep } from "../../../transaction-table";
 import {
 	type TransactionFilters,
 	type TransactionRow,
@@ -127,13 +128,17 @@ function TransactionsPage() {
 	// Select mode (#97): what is selected, by ID or as "all that match", never by rows on screen.
 	const [picking, setPicking] = useState<Picking | null>(null);
 	const [confirming, setConfirming] = useState(false);
+	// A tick in the table (issue 99): the first one starts selecting, unticking the last ends it.
+	const onPick = (next: Picking) => setPicking(anyPicked(next) ? next : null);
+	const selecting = picking !== null;
 	const hydrated = useHydrated();
 	// The Transaction open in the pane beside the list (its route is this one's child).
 	const picked = useParams({ strict: false, select: (params) => params.transactionId });
 	// From lg a Transaction opens beside the list, at its own address; on a phone, in a sheet.
 	const onEdit = (transaction: TransactionRow) => {
-		// While selecting, a tap selects (or unselects) instead of opening.
-		if (picking) return setPicking(togglePicked(picking, transaction.id));
+		// While selecting where rows are stacked (a phone: no checkbox column), a tap selects or
+		// unselects instead of opening. In columns the checkbox selects and the row still opens.
+		if (picking && tableIsStacked()) return setPicking(togglePicked(picking, transaction.id));
 		if (window.matchMedia("(min-width: 1024px)").matches) {
 			void navigate({
 				to: "/transactions/$month/$transactionId",
@@ -147,13 +152,23 @@ function TransactionsPage() {
 	// it. It goes to the list's address, not Back: a Transaction's address opened on its own has
 	// nothing to go back to. Listened for here rather than in the pane, which hydrates later than
 	// the list, so the key works as soon as the list does.
+	// Esc steps back one thing at a time (issue 99): an open picker or sheet first (its own), then
+	// the open Transaction, then the selection.
 	useEffect(() => {
-		if (!picked) return;
+		if (!picked && !selecting) return;
 		const onKey = (event: KeyboardEvent) => {
 			if (event.key !== "Escape" || event.defaultPrevented) return;
-			if (document.querySelector("[role=dialog],[role=alertdialog],[role=listbox],[role=menu]")) {
-				return;
-			}
+			const target = event.target instanceof HTMLElement ? event.target : null;
+			const step = escapeStep({
+				overlay: Boolean(
+					document.querySelector("[role=dialog],[role=alertdialog],[role=listbox],[role=menu]"),
+				),
+				typing: Boolean(target?.closest("input, textarea, select, [contenteditable]")),
+				open: Boolean(picked),
+				selecting,
+			});
+			if (step === "unselect") setPicking(null);
+			if (step !== "close") return;
 			document.querySelector<HTMLElement>('[data-slot="list-row"] button[aria-current]')?.focus();
 			void navigate({
 				to: "/transactions/$month",
@@ -165,7 +180,7 @@ function TransactionsPage() {
 		// Before a picker's own Esc handler runs, while it is still in the page.
 		window.addEventListener("keydown", onKey, true);
 		return () => window.removeEventListener("keydown", onKey, true);
-	}, [picked, navigate, month]);
+	}, [picked, selecting, navigate, month]);
 	const change = useTransactionChange();
 	const waiting = useSuspenseQuery(reviewQuery()).data.total;
 	const sameYear = month.slice(0, 4) === current.slice(0, 4);
@@ -204,7 +219,9 @@ function TransactionsPage() {
 								size="sm"
 								// A phone's header has room for one action and the month arrows: there, Select
 								// is beside Filters and Sort instead.
-								className="me-1 max-sm:hidden"
+								// From 1400 the table has its checkbox column even beside an open Transaction, and a
+								// tick starts selecting. Narrower, the list beside one is stacked: this is the way in.
+								className="me-1 max-sm:hidden min-[1400px]:hidden"
 								disabled={!hydrated}
 								onClick={() => setPicking(nothingPicked)}
 							>
@@ -274,8 +291,9 @@ function TransactionsPage() {
 				</div>
 				<SplitLayout className={cn("max-lg:gap-4", !picked && "lg:grid-cols-1")}>
 					<SplitMain className={cn(picked && "max-lg:hidden")}>
-						{picking ? (
-							<div className="mb-2">
+						{/* One gap between the bar and the list, the same on a phone as anywhere (issue 115). */}
+						<div className="grid min-w-0 gap-3">
+							{picking ? (
 								<SelectionBar
 									month={month}
 									filters={filters}
@@ -285,20 +303,21 @@ function TransactionsPage() {
 									onDelete={() => setConfirming(true)}
 									onCancel={() => setPicking(null)}
 								/>
-							</div>
-						) : null}
-						<TransactionList
-							picking={picking}
-							month={month}
-							filters={filters}
-							today={asOf}
-							plan={plan}
-							members={members}
-							filtered={filtered}
-							picked={picked}
-							onSort={(sort) => onChange({ sort })}
-							onEdit={onEdit}
-						/>
+							) : null}
+							<TransactionList
+								picking={picking}
+								onPick={onPick}
+								month={month}
+								filters={filters}
+								today={asOf}
+								plan={plan}
+								members={members}
+								filtered={filtered}
+								picked={picked}
+								onSort={(sort) => onChange({ sort })}
+								onEdit={onEdit}
+							/>
+						</div>
 					</SplitMain>
 					{picked ? (
 						<SplitRail>
@@ -643,11 +662,14 @@ function TransactionList({
 	filtered,
 	picked,
 	picking,
+	onPick,
 	onSort,
 	onEdit,
 }: {
 	/** Select mode's selection; null when the list isn't selecting. */
 	picking: Picking | null;
+	/** A tick in the table: the selection as it should be now. */
+	onPick: (next: Picking) => void;
 	month: MonthKey;
 	filters: TransactionFilters;
 	today: DayKey;
@@ -731,7 +753,8 @@ function TransactionList({
 			members={members}
 			bringsIn={bringsIn}
 			open={picked}
-			checked={picking ? (transaction) => isPicked(picking, transaction.id) : undefined}
+			picking={picking}
+			onPick={onPick}
 			onEdit={onEdit}
 		/>
 	);

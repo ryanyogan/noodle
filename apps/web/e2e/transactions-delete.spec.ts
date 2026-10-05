@@ -76,19 +76,56 @@ test("select all that match a search, read the facts, delete, and find a snapsho
 	await openTransactions(page);
 	await expect(list(page).getByRole("button")).toHaveCount(5);
 
-	// Select mode: a tap selects instead of opening.
-	await page.getByRole("button", { name: "Select", exact: true }).click();
-	await expect(bar(page)).toContainText("0 selected");
-	await row(page, "zebra apple").click();
-	await expect(row(page, "zebra apple")).toHaveAttribute("aria-pressed", "true");
+	// A tick in the checkbox column starts selecting; nothing opens. The Select button is a phone's.
+	const boxes = list(page).getByRole("checkbox");
+	const box = (title: string) =>
+		list(page).getByRole("checkbox", { name: new RegExp(`^Select ${title},`, "i") });
+	const everything = page.getByRole("checkbox", { name: /^Select all Transactions in / });
+	await expect(boxes).toHaveCount(5);
+	await expect(page.getByRole("button", { name: "Select", exact: true })).toBeHidden();
+	await box("zebra apple").click();
+	await expect(box("zebra apple")).toBeChecked();
 	await expect(bar(page)).toContainText("1 selected");
+	await expect(everything).toHaveAttribute("aria-checked", "mixed");
 	await expect(page.getByRole("heading", { name: "Edit Transaction" })).toHaveCount(0);
-	await row(page, "zebra apple").click();
-	await expect(bar(page)).toContainText("0 selected");
+	// Unticking the last one ends it.
+	await box("zebra apple").click();
+	await expect(bar(page)).toHaveCount(0);
+
+	// Shift-click takes the rows in between.
+	await boxes.nth(0).click();
+	await boxes.nth(2).click({ modifiers: ["Shift"] });
+	await expect(bar(page)).toContainText("3 selected");
+	await expect(boxes.nth(1)).toBeChecked();
+	// The header's checkbox: everything in the month, then nothing.
+	await everything.click();
+	await expect(bar(page)).toContainText("5 selected");
+	await expect(everything).toBeChecked();
+	await everything.click();
+	await expect(bar(page)).toHaveCount(0);
+
+	// Keys, with a row in focus: Space, Shift+Down and back, Ctrl+A, and Esc to end.
+	const rows = list(page).locator("[data-slot=list-row]");
+	await rows.nth(0).focus();
+	await page.keyboard.press("Space");
+	await expect(bar(page)).toContainText("1 selected");
+	await page.keyboard.press("Shift+ArrowDown");
+	await expect(bar(page)).toContainText("2 selected");
+	await expect(rows.nth(1)).toBeFocused();
+	await page.keyboard.press("Shift+ArrowUp");
+	await expect(bar(page)).toContainText("1 selected");
+	await page.keyboard.press("ArrowDown");
+	await page.keyboard.press("ArrowDown");
+	await expect(rows.nth(2)).toBeFocused();
+	await page.keyboard.press("Control+a");
+	await expect(bar(page)).toContainText("5 selected");
+	await page.keyboard.press("Escape");
+	await expect(bar(page)).toHaveCount(0);
 
 	// Everything a search matches, in this month, or in it and every month before.
 	await page.getByLabel("Search notes and merchants").fill("zebra");
 	await expect(list(page).getByRole("button")).toHaveCount(3);
+	await boxes.nth(0).click();
 	await expect(
 		bar(page).getByRole("button", { name: /^Select all 3 that match in / }),
 	).toBeVisible();
@@ -96,10 +133,10 @@ test("select all that match a search, read the facts, delete, and find a snapsho
 		.getByRole("button", { name: /^Select all 5 that match in .+ and every month before$/ })
 		.click();
 	await expect(bar(page)).toContainText("5 selected");
-	await expect(row(page, "zebra banana")).toHaveAttribute("aria-pressed", "true");
-	await row(page, "zebra banana").click();
+	await expect(box("zebra banana")).toBeChecked();
+	await box("zebra banana").click();
 	await expect(bar(page)).toContainText("4 selected");
-	await row(page, "zebra banana").click();
+	await box("zebra banana").click();
 	await expect(bar(page)).toContainText("5 selected");
 
 	// The facts first; nothing has gone yet.
