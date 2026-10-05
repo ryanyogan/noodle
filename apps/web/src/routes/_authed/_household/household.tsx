@@ -39,11 +39,12 @@ import {
 	checkInQuery,
 	householdParentsQuery,
 	membersQuery,
+	monthsKey,
 	nudgeSettingsQuery,
 	receiptAddressQuery,
 	setupQuery,
 } from "../../../queries";
-import { addChild, removeChild, updateChild } from "../../../server/members";
+import { addChild, removeChild, updateChild, updateParent } from "../../../server/members";
 import { restartSetup } from "../../../server/setup";
 
 export const Route = createFileRoute("/_authed/_household/household")({
@@ -63,7 +64,7 @@ export const Route = createFileRoute("/_authed/_household/household")({
 });
 
 function HouseholdPage() {
-	const { household } = Route.useRouteContext();
+	const { household, parentId } = Route.useRouteContext();
 	const { data } = useSuspenseQuery(householdParentsQuery());
 	const members = useSuspenseQuery(membersQuery()).data;
 	const children = childrenOf(members);
@@ -89,24 +90,13 @@ function HouseholdPage() {
 								<SectionHeader id="parents" title="Parents" count={data.parents.length} />
 								<List>
 									{data.parents.map((parent) => (
-										<ListRow
+										<ParentRow
 											key={parent.id}
-											leading={<Tile>{parent.name.charAt(0).toUpperCase()}</Tile>}
-											title={parent.name}
-											meta={
-												// The email on its own line: beside "Parent" it wrapped or not by its
-												// length, so the row's height changed from one Parent to the next.
-												<span className="flex w-full min-w-0 flex-col">
-													<span>Parent</span>
-													{parent.email ? (
-														// One line, cut short when long (the whole address on hover), so every
-														// Parent's row is the same height whatever the address.
-														<span className="min-w-0 truncate" title={parent.email}>
-															{parent.email}
-														</span>
-													) : null}
-												</span>
-											}
+											parent={parent}
+											// Their name and colour as the Members list has them, which shows a change
+											// at once.
+											member={members.find((m) => m.id === parent.id)}
+											own={parent.id === parentId}
 										/>
 									))}
 								</List>
@@ -171,6 +161,163 @@ function HouseholdPage() {
 				</SectionGrid>
 			</PageLayout>
 		</>
+	);
+}
+
+/**
+ * A Parent. Their own row has a pencil that opens their sheet (issue 104); the other Parent's has
+ * none, since each changes only their own name and colour.
+ */
+function ParentRow({
+	parent,
+	member,
+	own,
+}: {
+	parent: { id: string; name: string; email: string | null };
+	member: MemberSummary | undefined;
+	own: boolean;
+}) {
+	const hydrated = useHydrated();
+	const queryClient = useQueryClient();
+	const [open, setOpen] = useState(false);
+	const name = member?.name ?? parent.name;
+	const color = member?.color ?? null;
+	const details = useMemberChange({
+		save: async (data: { memberId: string; name?: string; color?: number }) => {
+			await updateParent({ data });
+			// Their Personal Allowance may be named after them, and the Plan lists it.
+			await Promise.all([
+				queryClient.invalidateQueries({ queryKey: householdParentsQuery().queryKey }),
+				...(data.name === undefined
+					? []
+					: [queryClient.invalidateQueries({ queryKey: monthsKey })]),
+			]);
+		},
+		apply: withChildDetails,
+	});
+	return (
+		<ListRow
+			leading={
+				// Plain until they pick a colour, as every Parent was before.
+				<Tile bucket={color ? asBucketColor(color) : undefined}>{monogram(name)}</Tile>
+			}
+			title={name}
+			meta={
+				// The email on its own line: beside "Parent" it wrapped or not by its
+				// length, so the row's height changed from one Parent to the next.
+				<span className="flex w-full min-w-0 flex-col">
+					<span>{own ? "Parent · You" : "Parent"}</span>
+					{parent.email ? (
+						// One line, cut short when long (the whole address on hover), so every
+						// Parent's row is the same height whatever the address.
+						<span className="min-w-0 truncate" title={parent.email}>
+							{parent.email}
+						</span>
+					) : null}
+				</span>
+			}
+			trailing={
+				own ? (
+					<>
+						<Button
+							variant="ghost"
+							size="icon"
+							type="button"
+							disabled={!hydrated}
+							aria-label="Edit your name and colour"
+							onClick={() => setOpen(true)}
+						>
+							<Pencil />
+						</Button>
+						<ParentSheet
+							name={name}
+							color={color}
+							open={open}
+							onOpenChange={setOpen}
+							onSave={(change) => details.mutate({ memberId: parent.id, ...change })}
+						/>
+					</>
+				) : undefined
+			}
+			below={details.isError ? <SaveFailed change={details} /> : undefined}
+		/>
+	);
+}
+
+/** A Parent's own sheet (issue 104): the name Noodle shows for them and their colour, saved together. */
+function ParentSheet({
+	name: savedName,
+	color: savedColor,
+	open,
+	onOpenChange,
+	onSave,
+}: {
+	name: string;
+	color: number | null;
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	onSave: (change: ChildChange) => void;
+}) {
+	const hydrated = useHydrated();
+	const nameId = useId();
+	const [name, setName] = useState(savedName);
+	// 0 is no colour yet: no swatch is chosen until they pick one.
+	const [color, setColor] = useState(savedColor ?? 0);
+	const trimmed = name.trim();
+	const change: ChildChange = {
+		...(trimmed !== savedName ? { name: trimmed } : {}),
+		...(color !== (savedColor ?? 0) ? { color } : {}),
+	};
+	const dirty = Object.keys(change).length > 0;
+
+	function close() {
+		setName(savedName);
+		setColor(savedColor ?? 0);
+		onOpenChange(false);
+	}
+
+	function onSubmit(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		if (!trimmed) return;
+		// The row shows the change at once (and says so if it didn't save).
+		if (dirty) onSave(change);
+		onOpenChange(false);
+	}
+
+	return (
+		<Sheet open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
+			{open ? (
+				<SheetContent>
+					<SheetHeader title="Your name and colour" description="How you show up in Noodle" />
+					<form onSubmit={onSubmit} className="grid gap-4">
+						<Field
+							label="Name"
+							htmlFor={nameId}
+							hint="What Noodle calls you, for both Parents. Your sign-in stays as it is."
+						>
+							<Input
+								id={nameId}
+								name="name"
+								required
+								maxLength={80}
+								autoComplete="off"
+								value={name}
+								onChange={(event) => setName(event.currentTarget.value)}
+							/>
+						</Field>
+						<ColourPicker value={color} onChange={setColor} />
+						<SheetFooter className="max-lg:grid-cols-2">
+							<Button type="button" variant="outline" onClick={close}>
+								Cancel
+							</Button>
+							<Button type="submit" disabled={!hydrated || !trimmed || !dirty}>
+								Save
+							</Button>
+						</SheetFooter>
+					</form>
+				</SheetContent>
+			) : null}
+		</Sheet>
 	);
 }
 
