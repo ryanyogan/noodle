@@ -151,14 +151,25 @@ test("a Commitment pays down a card kept by hand: a payment brings what's owed d
 	await expect(page.getByRole("region", { name: /^Charges/ })).toHaveCount(0);
 
 	// Un-filing the payment (deleting the Quick Add) puts what's owed back.
-	await page.goto(new URL(`/transactions/${month}`, page.url()).href);
+	// Reached from the Sidebar, so the page is hydrated and the row opens when pressed.
 	await page
-		.getByRole("button", { name: /Amex payment/ })
-		.first()
+		.getByRole("navigation", { name: "Main" })
+		.getByRole("link", { name: "Transactions" })
 		.click();
-	await page.getByRole("button", { name: "Delete", exact: true }).click();
-	await page.getByRole("button", { name: "Delete Transaction" }).click();
-	await expect(page.getByRole("button", { name: /Amex payment/ })).toHaveCount(0);
+	const payment = page
+		.getByRole("list", { name: /^Transactions in / })
+		.getByRole("button", { name: /Amex payment/ });
+	await payment.click();
+	const pane = page
+		.locator("[role=dialog], [data-slot=transaction-detail]")
+		.filter({ has: page.getByRole("heading", { name: "Edit Transaction" }) });
+	await pane.getByRole("button", { name: "Delete" }).click();
+	// The delete is sent once its Undo has gone, and the Undo waits while the pointer is on it.
+	const deleted = savedBy(page, "deleteTransaction");
+	await page.getByRole("alertdialog").getByRole("button", { name: "Delete Transaction" }).click();
+	await page.mouse.move(0, 0);
+	await expect(payment).toHaveCount(0);
+	await deleted;
 	await openAccount(page, "American Express");
 	await expect(owedCard(page)).toContainText("$2,000");
 	await expect(owedCard(page)).not.toContainText("paid since");
@@ -166,8 +177,13 @@ test("a Commitment pays down a card kept by hand: a payment brings what's owed d
 	// On a 320px phone: the Commitment sheet adds a loan inline, passes axe, and nothing scrolls sideways.
 	await page.setViewportSize({ width: 320, height: 700 });
 	await openCommitments(page, month);
-	await page.getByRole("button", { name: "Edit Amex payment" }).click();
 	const sheet = page.getByRole("dialog", { name: "Amex payment" });
+	// Pressed again until it opens: a press before the page has hydrated is lost.
+	await expect(async () => {
+		if (!(await sheet.isVisible()))
+			await page.getByRole("button", { name: "Edit Amex payment" }).click({ timeout: 2_000 });
+		await expect(sheet).toBeVisible({ timeout: 2_000 });
+	}).toPass();
 	await expect(sheet.getByRole("combobox", { name: "Pays down", exact: true })).toContainText(
 		"American Express",
 	);
