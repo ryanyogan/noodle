@@ -106,11 +106,10 @@ _Avoid_: Windfall, surplus, bonus
 Money in the current Plan not yet assigned to any Commitment, Bucket, or Goal: the Take-home pay, plus any Extra income a Parent added and anything carried over from last month, less what's assigned.
 _Avoid_: Unallocated, leftover, safe-to-spend
 
-**Builds up** (Free to Spend that builds up):
-What a month's Free to Spend ends with, when above zero, is carried over into the next month's. Off until a Parent turns it on, and from that month only; otherwise Free to Spend **starts fresh** each month. A month that ends below zero carries nothing. What is carried is worked out from the months themselves, never stored (ADR-0054).
-The Household's **Keep back** amount is what of a month's leftover is not offered to a Goal when the month closes; it builds up like the rest.
-The app says "builds up" and "carried over". Sending the leftover to a Goal is Goal funding, not a Sweep.
-_Avoid_: Rollover, Sweep, savings pot, surplus
+**Carried over** (Free to Spend that is carried over):
+What a month actually ended with (income received, less its spending and Goal funding, plus what it was itself carried) counts in the next month's Free to Spend, whether money was left or the month ended short. It starts at the first month with a Plan, needs no setting, and is worked out from the months themselves, never stored (ADR-0054). Months ahead chain the same way from their Plan figures, so a month that earlier months cover is not shown short.
+The app shows the two parts, "$1,846 this month · $6,710 carried over from October", or for a shortfall "$230 short carried over from September". Sending what is left to a Goal is Goal funding, not a Sweep.
+_Avoid_: Builds up, Keep back, Rollover, Sweep, savings pot, surplus
 
 **Move**:
 A reassignment of planned money from one place in the Plan to another, without any real money leaving an Account. Cover, Sweep, and Goal funding are all Moves.

@@ -25,7 +25,7 @@ import { Fragment, type ReactNode } from "react";
 import { lumpText } from "../../../components/coming-up";
 import { SectionPending } from "../../../components/section-layout";
 import { TermHelp } from "../../../components/term-help";
-import { monthName } from "../../../format";
+import { formatMoney, monthName } from "../../../format";
 import { yearQuery } from "../../../queries";
 import { FIRST_YEAR } from "../../../server/year";
 
@@ -373,7 +373,9 @@ function YearList({ months }: { months: YearMonth[] }) {
 							<Amount cents={month.plan.freeToSpend} />
 							{month.carriedIn !== 0 ? (
 								<span className="block text-xs font-normal text-muted-foreground">
-									<Amount cents={month.carriedIn} /> carried over
+									{month.carriedIn < 0
+										? `${formatMoney(-month.carriedIn)} short carried over`
+										: `${formatMoney(month.carriedIn)} carried over`}
 								</span>
 							) : null}
 							{month.actual ? (

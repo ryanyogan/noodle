@@ -23,7 +23,7 @@ export const glossary = {
 		term: "Free to Spend",
 		short:
 			"Take-home pay that isn’t planned for a Commitment, a Bucket or a Goal yet. It’s yours to spend or to plan.",
-		more: "Plan more for something and it goes down. Below zero means the Plan promises more than comes in. What’s left at the end of a month starts fresh the next month, unless you set it to build up in the Plan: then it’s carried over into next month’s Free to Spend, where you can still spend it, Cover a Bucket from it or send it to a Goal. A month that ends below zero carries nothing.",
+		more: "Plan more for something and it goes down. Below zero means the Plan promises more than comes in. What a month actually ends with is carried over into the next month’s Free to Spend: money left adds to it, and a month that ended short takes from it. This Month shows the two parts, what this month adds and what was carried over.",
 	},
 	commitment: {
 		term: "Commitment",

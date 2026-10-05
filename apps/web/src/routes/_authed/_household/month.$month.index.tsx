@@ -68,6 +68,7 @@ import { useLearned } from "../../../learned";
 import { closingWeek, useCloseMonth } from "../../../month-close";
 import { useFreeCarry } from "../../../plan-changes";
 import { PLAN_BUCKETS_HASH } from "../../../plan-pages";
+import { carriedOverText } from "../../../plan-split";
 import {
 	checkInStatusQuery,
 	commitmentsQuery,
@@ -642,8 +643,11 @@ function FreeToSpend({
 	const overPlanned = state.freeToSpend < 0;
 	// An ended month has no days left, and what wasn't planned is simply what it ended with.
 	const ended = state.month < monthOfDay(state.asOf);
-	// Free to Spend that builds up (issue 113): what came in from last month, and how it grew.
+	// Free to Spend is carried over (issue 113): what the months before handed on, of either sign,
+	// and what this month adds on its own, so the month still reads fresh.
 	const carry = useFreeCarry(state.month);
+	const ownFree = state.freeToSpend - state.freeCarriedIn;
+	const lastMonth = monthName(addMonths(state.month, -1));
 	return (
 		<Section aria-labelledby="free-to-spend">
 			<SectionHeader
@@ -667,10 +671,16 @@ function FreeToSpend({
 								Set your take-home pay to see what’s free.{" "}
 								<PlanLink month={state.month}>Set take-home pay</PlanLink>
 							</>
+						) : overPlanned && ownFree >= 0 ? (
+							<>
+								{lastMonth} ended {formatMoney(-state.freeCarriedIn)} short, more than the{" "}
+								{formatMoney(ownFree)} {monthName(state.month)} adds.{" "}
+								<PlanLink month={state.month}>Adjust the Plan</PlanLink>
+							</>
 						) : overPlanned ? (
 							<>
 								Your {state.committed > 0 ? "Commitments and Buckets" : "Buckets"} add up to{" "}
-								{formatMoney(-state.freeToSpend)} more than your take-home pay.{" "}
+								{formatMoney(-ownFree)} more than your take-home pay.{" "}
 								<PlanLink month={state.month}>Adjust the Plan</PlanLink>
 							</>
 						) : ended && carry.handedOn !== null ? (
@@ -688,20 +698,21 @@ function FreeToSpend({
 							))
 						)}
 					</p>
-					{state.freeCarriedIn > 0 ? (
+					{state.freeCarriedIn !== 0 ? (
 						<p data-slot="free-carried-in" className="text-sm text-muted-foreground tabular-nums">
-							Includes {formatMoney(state.freeCarriedIn)} carried over from{" "}
-							{monthName(addMonths(state.month, -1))}
+							{formatMoney(ownFree)} {ended ? `in ${monthName(state.month)}` : "this month"} ·{" "}
+							{carriedOverText(state.freeCarriedIn, lastMonth)}
 						</p>
 					) : null}
-					{carry.builtUp.length > 1 && state.freeCarriedIn > 0 ? (
+					{carry.builtUp.length > 1 && state.freeCarriedIn !== 0 ? (
 						<div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] text-muted-foreground tabular-nums">
 							{/* The list's name says the same to a screen reader. */}
-							<span aria-hidden="true">Built up:</span>
-							<ul aria-label="What Free to Spend carried over, month by month" className="contents">
+							<span aria-hidden="true">Each month carried over:</span>
+							<ul aria-label="What each month carried over into the next" className="contents">
 								{carry.builtUp.map((m) => (
 									<li key={m.month}>
-										{monthName(m.month).slice(0, 3)} {formatMoney(m.amount)}
+										{monthName(m.month).slice(0, 3)}{" "}
+										{m.amount < 0 ? `${formatMoney(-m.amount)} short` : formatMoney(m.amount)}
 									</li>
 								))}
 							</ul>
@@ -745,15 +756,21 @@ function Breakdown({ state, baseline }: { state: MonthState; baseline: number })
 	);
 }
 
-/** "Where $5,000 take-home pay goes", with Extra income added and what was carried over, if any. */
+/** "Where $5,000 take-home pay goes", with Extra income and what was carried over, of either sign. */
 function breakdownLabel(baseline: number, extra: number, carried: number) {
 	const added = [
 		...(extra > 0 ? [`${formatMoney(extra)} Extra income`] : []),
-		...(carried > 0 ? [`${formatMoney(carried)} carried over`] : []),
+		...(carried > 0 ? [carriedOverText(carried)] : []),
 	];
 	const pay = `Where ${formatMoney(baseline)} take-home pay`;
-	if (added.length === 0) return `${pay} goes`;
-	return added.length === 1 ? `${pay} and ${added[0]} go` : `${pay}, ${added.join(" and ")} go`;
+	const whole =
+		added.length === 0
+			? `${pay} goes`
+			: added.length === 1
+				? `${pay} and ${added[0]} go`
+				: `${pay}, ${added.join(" and ")} go`;
+	// A shortfall carried over is taken off first: the parts then add up to the pay less it.
+	return carried < 0 ? `${whole}, less ${carriedOverText(carried)}` : whole;
 }
 
 function PlanLink({ month, children }: { month: MonthState["month"]; children: string }) {

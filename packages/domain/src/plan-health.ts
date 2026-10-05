@@ -1,3 +1,4 @@
+import { expectedIn } from "./commitments";
 import { type Income, incomeCheck } from "./extra-income";
 import { type GoalKind, goalProgress, projectionGoalOf, type SetAsideChange } from "./goals";
 import type { Cents } from "./money";
@@ -28,6 +29,11 @@ export const HEALTH_MONTHS_AHEAD = 12;
 /** How many finished months a Bucket's habit is judged over. */
 export const HEALTH_HABIT_MONTHS = 6;
 
+/** One planned amount of a month: a Commitment's, a Bucket's allowance, or all its Goal funding. */
+export type PlanAmount =
+	| { kind: "commitment" | "bucket"; id: string; name: string; amount: Cents }
+	| { kind: "goal-funding"; amount: Cents };
+
 export type PlanWarning =
 	| {
 			kind: "negative-ahead";
@@ -36,6 +42,12 @@ export type PlanWarning =
 			freeToSpend: Cents;
 			/** How many of the months ahead are below zero. */
 			months: number;
+			/** What the months before hand on to it, of either sign (issue 113). */
+			carriedIn: Cents;
+			/** What the month's own Plan adds (take-home pay less what is planned); below zero when it uses more. */
+			own: Cents;
+			/** The month's largest planned amounts, largest first, two at most: where to look. */
+			largest: PlanAmount[];
 	  }
 	| { kind: "income-behind"; month: MonthKey; short: Cents; received: Cents; expected: Cents }
 	| {
@@ -107,6 +119,32 @@ export function cardsNowFollowed(
 	});
 }
 
+/** A month's two largest planned amounts. The other Parent's Personal Allowance is left out. */
+function largestPlanned(
+	records: PlanRecords,
+	month: MonthKey,
+	goalFunding: Cents,
+	parentId: string,
+): PlanAmount[] {
+	const plan = planForMonth(records, month);
+	const amounts: PlanAmount[] = [
+		...plan.commitments.map((c) => ({
+			kind: "commitment" as const,
+			id: c.id,
+			name: c.name,
+			amount: expectedIn(c, month),
+		})),
+		...plan.buckets
+			.filter((b) => !b.owner || b.owner === parentId)
+			.map((b) => ({ kind: "bucket" as const, id: b.id, name: b.name, amount: b.allowance })),
+		{ kind: "goal-funding" as const, amount: goalFunding },
+	];
+	return amounts
+		.filter((a) => a.amount > 0)
+		.sort((a, b) => b.amount - a.amount)
+		.slice(0, 2);
+}
+
 export type HealthGoal = {
 	id: string;
 	name: string;
@@ -162,8 +200,15 @@ export function planHealth({
 	const negative = project(ahead)
 		.months.slice(1)
 		.map((m) => {
+			const carriedIn = carried;
 			carried += m.freeToSpend;
-			return { month: m.month, freeToSpend: carried };
+			return {
+				month: m.month,
+				freeToSpend: carried,
+				carriedIn,
+				own: m.freeToSpend,
+				goalFunding: m.goalFunding,
+			};
 		})
 		.filter((m) => m.freeToSpend < 0);
 	const firstNegative = negative[0];
@@ -173,6 +218,9 @@ export function planHealth({
 			month: firstNegative.month,
 			freeToSpend: firstNegative.freeToSpend,
 			months: negative.length,
+			carriedIn: firstNegative.carriedIn,
+			own: firstNegative.own,
+			largest: largestPlanned(records, firstNegative.month, firstNegative.goalFunding, parentId),
 		});
 	}
 

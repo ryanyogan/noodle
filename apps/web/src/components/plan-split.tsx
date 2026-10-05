@@ -88,13 +88,17 @@ export function PlanSplit({ state, current }: { state: MonthState; current: bool
 	const over = split.overBy > 0;
 	const drawn = [...split.parts, split.free].filter((row) => row.width > 0);
 	const payLabel =
-		carried > 0
+		carried < 0
 			? extra > 0
-				? "Take-home pay, Extra income and carried over"
-				: "Take-home pay and carried over"
-			: extra > 0
-				? "Take-home pay and Extra income"
-				: "Take-home pay";
+				? "Take-home pay and Extra income, less the shortfall carried over"
+				: "Take-home pay less the shortfall carried over"
+			: carried > 0
+				? extra > 0
+					? "Take-home pay, Extra income and carried over"
+					: "Take-home pay and carried over"
+				: extra > 0
+					? "Take-home pay and Extra income"
+					: "Take-home pay";
 	// What a share is a share of, for a screen reader, which can't see the column it sits in.
 	const shareOf = payLabel.toLowerCase().replace("extra income", "Extra income");
 	// In a narrow card the parts other than Free to Spend wait behind a button.

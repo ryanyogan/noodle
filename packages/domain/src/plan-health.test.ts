@@ -67,9 +67,26 @@ describe("planHealth", () => {
 		// Free to Spend is carried over (issue 113): nothing to warn of.
 		expect(health({ records: december(450_000) })).toEqual([]);
 		// Unless this month hands on a shortfall the months between do not make up.
-		expect(health({ records: december(450_000), freeHandedOn: -5_000_000 })).toMatchObject([
-			{ kind: "negative-ahead", month: "2026-10" },
+		const short = health({ records: december(450_000), freeHandedOn: -5_000_000 });
+		expect(short).toMatchObject([
+			{ kind: "negative-ahead", month: "2026-10", carriedIn: -5_000_000 },
 		]);
+		// The warning says what the figure is made of and names the month's largest amounts.
+		const [first] = short;
+		if (first?.kind !== "negative-ahead") throw new Error("expected a month below zero");
+		expect(first.carriedIn + first.own).toBe(first.freeToSpend);
+		expect(first.largest.length).toBeGreaterThan(0);
+		expect(first.largest.length).toBeLessThanOrEqual(2);
+		expect(first.largest.map((a) => a.amount)).toEqual(
+			[...first.largest.map((a) => a.amount)].sort((a, b) => b - a),
+		);
+		const [december1] = warnings;
+		if (december1?.kind !== "negative-ahead") throw new Error("expected December below zero");
+		expect(december1.largest[0]).toMatchObject({
+			kind: "bucket",
+			id: "groceries",
+			amount: 4_500_000,
+		});
 	});
 
 	it("warns when this month's income is behind take-home pay", () => {
