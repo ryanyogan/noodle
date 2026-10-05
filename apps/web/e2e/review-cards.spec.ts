@@ -148,6 +148,8 @@ test("an edit from Transactions made while a Review decision is still waiting to
 	const lines: [string, string][] = [
 		["CORNER GAS MART", "40.00"],
 		["VALLEY GAS STOP", "30.00"],
+		// A third card, so the stack (and its saving state) is still there after two decisions.
+		["ACME WIDGETS LLC", "19.99"],
 	];
 	await createPlannedHousehold(page, {
 		baseline: "5,000",
@@ -159,7 +161,7 @@ test("an edit from Transactions made while a Review decision is still waiting to
 	});
 	const thisMonth = page.url();
 	await uploadStatement(page, lines, true);
-	await waitForReview(page, new URL("/review", thisMonth).href, "1 of 2");
+	await waitForReview(page, new URL("/review", thisMonth).href, "1 of 3");
 
 	// The first card's save is slow: it doesn't reach the server until the test lets it.
 	let release = () => {};
@@ -179,7 +181,7 @@ test("an edit from Transactions made while a Review decision is still waiting to
 
 	const first = await topName(page);
 	await pick(page, `Where ${first} goes`, "Gas");
-	await expect(stack(page)).toContainText("2 of 2");
+	await expect(stack(page)).toContainText("2 of 3");
 	// The second card is filed in Groceries; its save waits behind the first.
 	const second = await topName(page);
 	const amount = lines.find(([what]) =>
@@ -187,6 +189,7 @@ test("an edit from Transactions made while a Review decision is still waiting to
 	)?.[1];
 	expect(amount).toBeDefined();
 	await pick(page, `Where ${second} goes`, "Groceries");
+	await expect(stack(page)).toContainText("3 of 3");
 	await expect(stack(page)).toHaveAttribute("data-saving", "true");
 
 	// Without leaving the app, the same Transaction is moved to Hockey from Transactions.
