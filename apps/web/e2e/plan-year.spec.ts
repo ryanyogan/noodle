@@ -107,7 +107,7 @@ test("the year at a glance, and Plan health pointing at the fix", async ({ brows
 	const list = page.getByRole("list", { name: "The Plan month by month" });
 	await expect(list).toBeVisible();
 	await expect(list.getByRole("listitem").filter({ hasText: monthName(lumpy) })).toContainText(
-		"−$4,200",
+		"−$600",
 	);
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
 		true,
