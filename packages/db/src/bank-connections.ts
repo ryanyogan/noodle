@@ -58,6 +58,8 @@ export type BankConnectionToImport = {
 	provider: BankProvider;
 	credential: string;
 	cursor: string | null;
+	/** The first day its Imports keep (YYYY-MM-DD); null keeps everything. */
+	historyStart: string | null;
 	/** The Parent who connected it: Imports are theirs, as a statement's is its uploader's. */
 	createdByMemberId: string;
 	status: BankConnectionStatus;
@@ -87,6 +89,8 @@ export async function addBankConnection(
 		institutionId?: string | null;
 		credential: string;
 		createdByMemberId: string;
+		/** The first day its Imports keep (YYYY-MM-DD), as the Parent chose; none keeps everything. */
+		historyStart?: string | null;
 	},
 ): Promise<AddBankConnectionResult> {
 	const { householdId, connectionId } = input;
@@ -100,6 +104,7 @@ export async function addBankConnection(
 			institution: input.institution,
 			institutionId: input.institutionId ?? null,
 			credential: input.credential,
+			historyStart: input.historyStart ?? null,
 			createdByMemberId: input.createdByMemberId,
 			status: "choosing",
 		})
@@ -411,6 +416,7 @@ export async function loadBankConnectionToImport(
 				provider: bankConnections.provider,
 				credential: bankConnections.credential,
 				cursor: bankConnections.cursor,
+				historyStart: bankConnections.historyStart,
 				createdByMemberId: bankConnections.createdByMemberId,
 				status: bankConnections.status,
 			})
@@ -668,6 +674,8 @@ export type BankLinkSession = {
 	returnTo: string;
 	/** The Bank Connection being logged in to again; null when it's a new one. */
 	connectionId: string | null;
+	/** For a new one, the first day its Imports will keep, as the Parent chose before Link opened. */
+	historyStart?: string | null;
 };
 
 /** Plaid's link tokens last 4 hours, and 30 minutes in update mode. */
@@ -684,6 +692,7 @@ export async function saveBankLinkSession(
 		linkToken: input.linkToken,
 		returnTo: input.returnTo,
 		connectionId: input.connectionId,
+		historyStart: input.historyStart ?? null,
 		createdAt: input.now,
 	};
 	await db
@@ -708,7 +717,12 @@ export async function loadBankLinkSession(
 	if (!row) return null;
 	const age = now.getTime() - row.createdAt.getTime();
 	if (age > (row.connectionId ? UPDATE_LINK_TOKEN_MS : LINK_TOKEN_MS)) return null;
-	return { linkToken: row.linkToken, returnTo: row.returnTo, connectionId: row.connectionId };
+	return {
+		linkToken: row.linkToken,
+		returnTo: row.returnTo,
+		connectionId: row.connectionId,
+		historyStart: row.historyStart,
+	};
 }
 
 /** Forgets the Parent's Link in progress, once it's finished. */

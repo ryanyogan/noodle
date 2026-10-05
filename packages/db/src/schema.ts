@@ -261,6 +261,10 @@ export const bankConnections = sqliteTable(
 		institutionId: text("institution_id"),
 		credential: text("credential").notNull(),
 		cursor: text("cursor"),
+		// The first day (YYYY-MM-DD) its Imports keep: what the Parent chose when connecting (#89).
+		// Nothing dated earlier is brought in. Null on Bank Connections made before the choice was
+		// asked, which keep everything.
+		historyStart: text("history_start"),
 		// "choosing" until a Parent has said which Accounts its accounts are (ADR-0020): nothing is
 		// read from it meanwhile, so no history is lost.
 		status: text("status", {
@@ -302,6 +306,9 @@ export const bankLinkSessions = sqliteTable("bank_link_sessions", {
 	returnTo: text("return_to").notNull(),
 	// The Bank Connection being logged in to again (update mode); null for a new one.
 	connectionId: text("connection_id"),
+	// For a new one, the first day its Imports will keep (#89): what the Parent chose before Link
+	// opened, kept here so it's still known when their bank sends them back.
+	historyStart: text("history_start"),
 	createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 });
 

@@ -11,7 +11,10 @@ import { FAKE_WEBHOOK_KEY_ID, FAKE_WEBHOOK_PRIVATE_KEY } from "./plaid-fake-webh
 // what a later sync would (fakeLaterChanges): that charge posted, one changed, one dropped and a
 // new pending one; a read after that finds nothing new. The browser's side of Link is faked too
 // (bank-connections.tsx): a fake link token turns straight into its public token. Its webhook key
-// is plaid-fake-webhook-key.ts's.
+// is plaid-fake-webhook-key.ts's. A new link's `days_requested` rides on its tokens ("~d90" after the
+// login), and a read with such a token honours it: older lines (fakeOlderTransactions) come only
+// when they're inside the span, bar one far older that comes regardless, as a bank that ignores
+// the span would send it. A token without the mark reads as the fake always has.
 
 const FAKE_LINK_TOKEN_PREFIX = "link-fake-";
 
@@ -88,6 +91,31 @@ export function fakeTransactions(today: DayKey): [PlaidTransaction[], PlaidTrans
 }
 
 /**
+ * Older lines, for a link that asked for a span of days: 45 and 100 days back, which come when the
+ * span reaches them, and one 400 days back that comes whatever was asked.
+ */
+export function fakeOlderTransactions(today: DayKey): {
+	asked: PlaidTransaction[];
+	regardless: PlaidTransaction[];
+} {
+	return {
+		asked: [
+			transaction("fake-old1", "fake-checking", 45, today, 82.17, "Safeway"),
+			transaction("fake-old2", "fake-card", 100, today, 54.2, "REI"),
+		],
+		regardless: [transaction("fake-old3", "fake-checking", 400, today, 19.99, "Blockbuster")],
+	};
+}
+
+const DAYS_MARK = /^(.*)~d(\d+)$/;
+
+/** A fake token's login, and the days its link asked for (null on a token that doesn't say). */
+function fakeLogin(rest: string): { login: string; days: number | null } {
+	const marked = DAYS_MARK.exec(rest);
+	return marked ? { login: marked[1] ?? "", days: Number(marked[2]) } : { login: rest, days: null };
+}
+
+/**
  * What a later sync finds: Netflix (fake-t5) posted, for a little more; Kroger (fake-t1) changed;
  * Chipotle (fake-t9) dropped; and a new pending charge.
  */
@@ -109,14 +137,18 @@ export function fakeLaterChanges(today: DayKey) {
 export function fakePlaidTransport(today: DayKey): PlaidTransport {
 	const [firstPage, lastPage] = fakeTransactions(today);
 	const later = fakeLaterChanges(today);
+	const older = fakeOlderTransactions(today);
 	return async (path, body) => {
 		switch (path) {
 			case "/link/token/create": {
 				const user = body.user as { client_user_id: string };
 				// Update mode (a reconnect) names the Item's access token.
 				const mode = body.access_token ? "update-" : "";
+				const asked = (body.transactions as { days_requested?: number } | undefined)
+					?.days_requested;
+				const days = !body.access_token && asked ? `~d${asked}` : "";
 				return {
-					link_token: `${FAKE_LINK_TOKEN_PREFIX}${mode}${user.client_user_id}`,
+					link_token: `${FAKE_LINK_TOKEN_PREFIX}${mode}${user.client_user_id}${days}`,
 					expiration: "",
 				};
 			}
@@ -125,20 +157,30 @@ export function fakePlaidTransport(today: DayKey): PlaidTransport {
 				if (!token.startsWith("public-fake-")) {
 					throw new BankProviderError("Plaid: invalid public token", "INVALID_PUBLIC_TOKEN");
 				}
-				// The same login again is the same Item.
-				const login = token.slice("public-fake-".length);
-				return { access_token: `access-fake-${login}`, item_id: `item-fake-${login}` };
+				// The same login again is the same Item, whatever span its link asked for.
+				const { login, days } = fakeLogin(token.slice("public-fake-".length));
+				return {
+					access_token: `access-fake-${login}${days === null ? "" : `~d${days}`}`,
+					item_id: `item-fake-${login}`,
+				};
 			}
 			case "/accounts/get":
 				return { accounts: FAKE_ACCOUNTS };
 			case "/transactions/sync": {
 				const cursor = body.cursor ?? null;
 				const none = { added: [], modified: [], removed: [] };
+				// The span the Item's link asked for, when its access token says.
+				const { days } = fakeLogin(String(body.access_token ?? ""));
+				const from = days === null ? null : addDays(today, -days);
+				const asked = (lines: PlaidTransaction[]) =>
+					from === null ? lines : lines.filter((line) => line.date >= from);
+				const last =
+					days === null ? lastPage : [...asked([...lastPage, ...older.asked]), ...older.regardless];
 				const page =
 					cursor === null
-						? { ...none, added: firstPage, next_cursor: FIRST_CURSOR, has_more: true }
+						? { ...none, added: asked(firstPage), next_cursor: FIRST_CURSOR, has_more: true }
 						: cursor === FIRST_CURSOR
-							? { ...none, added: lastPage, next_cursor: SECOND_CURSOR, has_more: false }
+							? { ...none, added: last, next_cursor: SECOND_CURSOR, has_more: false }
 							: cursor === SECOND_CURSOR
 								? { ...later, next_cursor: LAST_CURSOR, has_more: false }
 								: { ...none, next_cursor: LAST_CURSOR, has_more: false };

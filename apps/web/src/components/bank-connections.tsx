@@ -3,6 +3,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field, FormError } from "@noodle/ui/components/field";
 import { List, ListRow } from "@noodle/ui/components/list";
+import { RadioGroup, RadioGroupCard } from "@noodle/ui/components/radio-group";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { OptionSelect } from "@noodle/ui/components/select";
 import {
@@ -22,6 +23,11 @@ import { Link, useHydrated } from "@tanstack/react-router";
 import { Landmark, Plus, Unplug } from "lucide-react";
 import { type FormEvent, useEffect, useId, useState } from "react";
 import { ulid } from "ulid";
+import {
+	BANK_HISTORY_OPTIONS,
+	type BankHistoryChoice,
+	DEFAULT_BANK_HISTORY,
+} from "../bank-history";
 import {
 	type LinkedBank,
 	LOGGED_LINK_EVENTS,
@@ -276,20 +282,22 @@ const openLink = (setUp: BankConnectionsData["setUp"], token: string, options: L
  * Runs Link from the page the Parent is on: for a new Bank Connection, or to log in to one again
  * (update mode, the same Item). The link token is made now, when the Parent asked, so it's fresh
  * (they last 4 hours, 30 minutes in update mode); if Link still says it's no good, a new one is
- * made and Link reopened, once.
+ * made and Link reopened, once. A new Bank Connection names how far back to bring Transactions
+ * in (`history`), which the Parent chose just before: what they pressed was noted then.
  */
 async function linkHere(
 	setUp: BankConnectionsData["setUp"],
 	connectionId: string | null,
 	newAccounts = false,
+	history?: BankHistoryChoice,
 ): Promise<LinkOutcome | { kind: "not-started" }> {
-	rememberLinkOpener();
+	if (!history) rememberLinkOpener();
 	const returnTo = window.location.pathname;
 	let outcome: LinkOutcome | null = null;
 	for (let attempt = 0; attempt < 2; attempt++) {
 		const started = connectionId
 			? await startBankReconnect({ data: { connectionId, returnTo, newAccounts } })
-			: await startBankLink({ data: { returnTo } });
+			: await startBankLink({ data: { returnTo, history } });
 		if (!started.ok) return { kind: "not-started" };
 		keep(LINK_KEY, { linkToken: started.linkToken, returnTo, connectionId } satisfies StoredLink);
 		outcome = await openLink(setUp, started.linkToken, {
@@ -417,6 +425,10 @@ export function useConnectBank() {
 	const [problem, setProblem] = useState<string | null>(null);
 	// The bank just linked is one the Household has: reconnect it instead?
 	const [duplicate, setDuplicate] = useState<DuplicateOffer | null>(null);
+	// How far back to bring Transactions in: asked once, before Link opens for a new Bank
+	// Connection (#89). Plaid fixes it when the connection is made, so it can't be asked after.
+	const [asking, setAsking] = useState(false);
+	const [history, setHistory] = useState<BankHistoryChoice>(DEFAULT_BANK_HISTORY);
 	const refresh = () =>
 		void queryClient.invalidateQueries({ queryKey: bankConnectionsQuery().queryKey });
 
@@ -442,7 +454,7 @@ export function useConnectBank() {
 		/** `anyway` is a bank already linked, which the Parent says is a different login. */
 		mutationFn: async (anyway?: Linked): Promise<Connected> => {
 			if (anyway) return connectLinked(anyway, true);
-			const outcome = await linkHere(setUp, null);
+			const outcome = await linkHere(setUp, null, false, history);
 			if (outcome.kind === "not-started") return { ok: false, reason: "not-set-up" };
 			if (outcome.kind === "linked") return connectLinked(outcome.linked);
 			const message = linkExitMessage(outcome.error, outcome.institution);
@@ -453,9 +465,15 @@ export function useConnectBank() {
 		onError: () =>
 			toast("Couldn’t connect the bank.", {
 				tone: "error",
-				action: { label: "Retry", onClick: () => connect.mutate(undefined) },
+				action: { label: "Retry", onClick: () => again() },
 			}),
 	});
+
+	/** Link again with the span already chosen: what was pressed is where focus goes back to. */
+	const again = () => {
+		rememberLinkOpener();
+		connect.mutate(undefined);
+	};
 
 	// Back from the bank's own page by /bank/return: carry on as if Link had finished here.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: once, on arriving
@@ -475,7 +493,10 @@ export function useConnectBank() {
 		plaid,
 		setUp,
 		connections,
-		start: () => connect.mutate(undefined),
+		start: () => {
+			rememberLinkOpener();
+			setAsking(true);
+		},
 		pending: connect.isPending,
 		choose: setChoosing,
 		chooseSheet: (
@@ -489,13 +510,26 @@ export function useConnectBank() {
 								size="inline"
 								className="text-current hover:text-current"
 								disabled={connect.isPending}
-								onClick={() => connect.mutate(undefined)}
+								onClick={again}
 							>
 								Try again
 							</Button>
 						</AlertDescription>
 					</Alert>
 				) : null}
+				<HistorySheet
+					open={asking}
+					value={history}
+					onChange={setHistory}
+					onClose={() => setAsking(false)}
+					onContinue={() => {
+						// Focus leaves the sheet before it goes, so Link's frame gives it back to the
+						// button the Parent pressed, not to one that's gone.
+						if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+						setAsking(false);
+						connect.mutate(undefined);
+					}}
+				/>
 				<ChooseAccountsSheet
 					connection={connections.find((c) => c.id === choosing) ?? null}
 					onClose={() => setChoosing(null)}
@@ -513,6 +547,62 @@ export function useConnectBank() {
 			</>
 		),
 	};
+}
+
+/**
+ * Asked before Plaid Link opens for a new Bank Connection: how far back Noodle brings Transactions
+ * in (#89). This month only is chosen to begin with, so a Parent who wants a fresh start just
+ * continues. Reconnecting and adding an account never ask: that login's span is set already.
+ */
+function HistorySheet({
+	open,
+	value,
+	onChange,
+	onClose,
+	onContinue,
+}: {
+	open: boolean;
+	value: BankHistoryChoice;
+	onChange: (value: BankHistoryChoice) => void;
+	onClose: () => void;
+	onContinue: () => void;
+}) {
+	const id = useId();
+	return (
+		<Sheet open={open} onOpenChange={(next) => (next ? null : onClose())}>
+			{open ? (
+				<SheetContent>
+					<SheetHeader
+						title="How far back should Noodle bring in what you spent?"
+						description="Older spending stays at your bank. You can’t change this later for this connection."
+					/>
+					<RadioGroup
+						aria-label="How far back"
+						value={value}
+						onValueChange={(next) => onChange(next as BankHistoryChoice)}
+						className="gap-1.5"
+					>
+						{BANK_HISTORY_OPTIONS.map((option) => (
+							<RadioGroupCard
+								key={option.value}
+								id={`${id}-${option.value}`}
+								value={option.value}
+								label={option.label}
+								description={option.description}
+								className="min-h-11 items-center py-2"
+							/>
+						))}
+					</RadioGroup>
+					<SheetFooter>
+						<SheetCancel />
+						<Button type="button" onClick={onContinue}>
+							Continue to your bank
+						</Button>
+					</SheetFooter>
+				</SheetContent>
+			) : null}
+		</Sheet>
+	);
 }
 
 /**
@@ -583,7 +673,7 @@ export type ConnectBank = ReturnType<typeof useConnectBank>;
 
 /** What connecting does, in a sentence or two: said before a Parent connects. */
 export const CONNECT_EXPLAINED =
-	"Noodle reads balances and about a year of Transactions, and can’t move money. You pick the Accounts you already have, so nothing counts twice; each bank login uses one of Noodle’s 10 Plaid connections.";
+	"Noodle reads balances and Transactions, as far back as you choose, and can’t move money. You pick the Accounts you already have, so nothing counts twice; each bank login uses one of Noodle’s 10 Plaid connections.";
 
 export function BankConnections({ bank }: { bank: ConnectBank }) {
 	const hydrated = useHydrated();

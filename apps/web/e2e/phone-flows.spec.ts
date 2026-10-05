@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { continueToBank, historySheet } from "./bank-history";
 import { createTestParent } from "./parents";
 import { seedReportHistory } from "./reports-seed";
 import { clientRendered, createPlannedHousehold, signedInPage, uploadStatement } from "./session";
@@ -56,10 +57,18 @@ test("on a phone a statement comes in, a bank connects and last month closes", a
 	await page.goto("/accounts");
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
 	const chooser = page.getByRole("dialog", { name: "Which of these do you have already?" });
+	// First the one question: how far back. It fits a phone, with its button in view.
+	const howFar = historySheet(page);
 	await expect(async () => {
-		await page.getByRole("button", { name: "Connect a bank" }).first().click();
-		await expect(chooser).toBeVisible({ timeout: 2_000 });
+		if (!(await howFar.isVisible())) {
+			await page.getByRole("button", { name: "Connect a bank" }).first().click();
+		}
+		await expect(howFar).toBeVisible({ timeout: 2_000 });
 	}).toPass(clientRendered);
+	await expect(howFar.getByRole("radio")).toHaveCount(6);
+	await expect(howFar.getByRole("button", { name: "Continue to your bank" })).toBeInViewport();
+	await continueToBank(page);
+	await expect(chooser).toBeVisible();
 	const start = chooser.getByRole("button", { name: "Start bringing them in" });
 	await expect(start).toBeInViewport();
 	await start.click();

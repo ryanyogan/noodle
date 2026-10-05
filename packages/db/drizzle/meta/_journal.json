@@ -351,6 +351,13 @@
       "when": 1791168555724,
       "tag": "0049_transaction_version",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "6",
+      "when": 1791205733300,
+      "tag": "0050_bank_history_start",
+      "breakpoints": true
     }
   ]
 }

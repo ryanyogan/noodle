@@ -38,11 +38,20 @@ const PLAID_HOSTS: Record<PlaidEnvironment, string> = {
 const RECONNECT_CODES = new Set(["ITEM_LOGIN_REQUIRED"]);
 
 /**
- * How far back a new link asks Plaid for Transactions: a year, so the plan draft and Bucket
- * suggestions see a whole year's seasons (school, holidays, insurance) without the slow first
- * import of Plaid's most, 730 days. Plaid gathers it once, when the Item is made.
+ * The furthest back a new link asks Plaid for Transactions: a year, the longest a Parent can
+ * choose (bank-history.ts, #89), and what's asked when no span is named. Plaid gathers it once,
+ * when the Item is made, and the span can't be changed afterwards.
  */
 export const HISTORY_DAYS = 365;
+
+/** Plaid takes `days_requested` from 1 to 730. */
+const PLAID_MAX_DAYS = 730;
+
+/** A span of days as Plaid takes it: a whole number from 1 to 730. */
+const daysRequested = (days: number | undefined): number =>
+	Number.isFinite(days)
+		? Math.min(PLAID_MAX_DAYS, Math.max(1, Math.trunc(days as number)))
+		: HISTORY_DAYS;
 
 /** Plaid's answers that mean its keys don't fit this environment: Plaid isn't set up here. */
 const NOT_SET_UP_CODES = new Set(["INVALID_API_KEYS", "UNAUTHORIZED_ENVIRONMENT"]);
@@ -151,11 +160,16 @@ export type LinkTokenOptions = {
 	 * account opened since is added (Plaid's NEW_ACCOUNTS_AVAILABLE).
 	 */
 	accountSelection?: boolean;
+	/**
+	 * For a new link, how many days back Plaid gathers Transactions (`days_requested`, 1 to 730):
+	 * what the Parent chose before Link opened. Not sent in update mode, where it's set already.
+	 */
+	historyDays?: number;
 };
 
 /**
  * A link token for Plaid Link, for one Household: its ID is Plaid's `client_user_id`. A new link
- * asks for transactions, HISTORY_DAYS back (what Plaid gathers when the Item is made, so it's set
+ * asks for transactions, `historyDays` back (what Plaid gathers when the Item is made, so it's set
  * here); update mode names the Item instead, whose products are set already.
  */
 export async function createLinkToken(
@@ -175,7 +189,10 @@ export async function createLinkToken(
 					access_token: options.accessToken,
 					...(options.accountSelection ? { update: { account_selection_enabled: true } } : {}),
 				}
-			: { products: ["transactions"], transactions: { days_requested: HISTORY_DAYS } }),
+			: {
+					products: ["transactions"],
+					transactions: { days_requested: daysRequested(options.historyDays) },
+				}),
 	})) as { link_token?: unknown };
 	if (typeof answer.link_token !== "string") {
 		throw new BankProviderError("Plaid /link/token/create: no link token");
@@ -326,7 +343,8 @@ async function syncFrom(
 		more = answer.has_more;
 		status = answer.transactions_update_status;
 	}
-	// Complete once every page is read and Plaid has all HISTORY_DAYS, not just the first 30.
+	// Complete once every page is read and Plaid has all the days the link asked for
+	// (HISTORICAL_UPDATE_COMPLETE), however many the Parent chose, not just the first 30.
 	const complete = !more && (status === undefined || status === "HISTORICAL_UPDATE_COMPLETE");
 	return { lines: [...lines.values()], removed: [...removed.values()], cursor, complete };
 }

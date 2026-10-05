@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
+import { continueToBank } from "./bank-history";
 import { createTestParent } from "./parents";
 import { savedBy, signedInPage } from "./session";
 
@@ -170,6 +171,7 @@ test("bank: connecting the fake bank runs the Setup Workflow to the end", async 
 
 	// Plaid Link (its stand-in here) and Choose Accounts open in the wizard itself.
 	await page.getByRole("button", { name: "Connect your bank" }).click();
+	await continueToBank(page);
 	await page
 		.getByRole("dialog", { name: "Which of these do you have already?" })
 		.getByRole("button", { name: "Start bringing them in" })

@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { continueToBank } from "./bank-history";
 import { createTestParent } from "./parents";
 import { clientRendered, createHousehold, signedInPage } from "./session";
 
@@ -57,6 +58,7 @@ test("Link opens once, and Escape or Back closes it with Accounts as it was", as
 	await toAccounts(page);
 
 	await connectButton(page).click();
+	await continueToBank(page);
 	await expect(linkFrame(page)).toHaveCount(1);
 	// The button waits, so Link can't be opened twice.
 	await expect(connectButton(page)).toBeDisabled();
@@ -73,12 +75,14 @@ test("Link opens once, and Escape or Back closes it with Accounts as it was", as
 
 	// Back closes it too, and stays on Accounts.
 	await connectButton(page).click();
+	await continueToBank(page);
 	await expect(linkFrame(page)).toHaveCount(1);
 	await page.goBack();
 	await expectClosed(page);
 
 	// Nothing is left over: it opens again, once.
 	await connectButton(page).click();
+	await continueToBank(page);
 	await expect(linkFrame(page)).toHaveCount(1);
 	await page.keyboard.press("Escape");
 	await expectClosed(page);
@@ -96,6 +100,7 @@ test("on a phone Link stays clear of the notch and Close is always in reach", {
 	}, inset);
 
 	await connectButton(page).click();
+	await continueToBank(page);
 	await expect(linkFrame(page)).toHaveCount(1);
 
 	// Noodle's Close sits under the notch's edge, above Link, a full tap target.
@@ -124,6 +129,7 @@ test("on a phone Link stays clear of the notch and Close is always in reach", {
 
 	// Back (the phone's swipe) closes it as well.
 	await connectButton(page).click();
+	await continueToBank(page);
 	await expect(linkFrame(page)).toHaveCount(1);
 	await page.goBack();
 	await expect(linkFrame(page)).toHaveCount(0);

@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { continueToBank, historySheet } from "./bank-history";
 import { createTestParent } from "./parents";
 import { savedBy, signedInPage } from "./session";
 
@@ -144,6 +145,9 @@ for (const size of sizes) {
 			await spendingPath(bank, /Connect a bank/);
 			await axe(bank, "bank card");
 			await bank.getByRole("button", { name: "Connect your bank" }).click();
+			await expect(historySheet(bank)).toBeVisible();
+			await axe(bank, "How far back");
+			await continueToBank(bank);
 			const choose = bank.getByRole("dialog", { name: "Which of these do you have already?" });
 			await expect(choose).toBeVisible();
 			await axe(bank, "Choose Accounts");

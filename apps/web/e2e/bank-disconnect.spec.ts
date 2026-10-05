@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { signFakeWebhook } from "../src/server/plaid-fake-webhook-key";
+import { continueToBank } from "./bank-history";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
 import { createPlannedHousehold, signedInPage } from "./session";
@@ -45,6 +46,7 @@ async function connectBank(page: Page) {
 	await accountsLink(page).click();
 	// The empty Accounts page has it in its ways to add an Account; otherwise it's in Bank Connections.
 	await page.getByRole("button", { name: "Connect a bank" }).click();
+	await continueToBank(page);
 	await expect(chooseSheet(page)).toBeVisible();
 }
 
