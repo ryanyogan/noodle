@@ -62,6 +62,8 @@ function cardStatement(day: string, payment: string, owed: string) {
 test("a card is paid off with a payoff Goal: added from what's owed, funded, paid down, completed", async ({
 	browser,
 }) => {
+	// A long walk (some forty steps): past the 30 s a test gets off CI when the machine is busy.
+	test.slow();
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, plan);
 	const thisMonth = page.url();
@@ -88,6 +90,17 @@ test("a card is paid off with a payoff Goal: added from what's owed, funded, pai
 	await expect(owedCard(page)).toContainText("$1,200");
 	await expect(owedCard(page)).toContainText("Paid down $0 of $1,200");
 	await expect(owedCard(page).getByRole("button", { name: "Spend" })).toHaveCount(0);
+
+	// Each is in its own list's panel, and the link from one opens the other (issue 107).
+	await page
+		.getByRole("region", { name: "Goal details" })
+		.getByRole("link", { name: "Visa", exact: true })
+		.click();
+	await expect(page.getByRole("region", { name: "Account details" })).toBeVisible();
+	await expect(page.getByRole("region", { name: "Goal details" })).toHaveCount(0);
+	await payingOff.getByRole("link", { name: /^Pay off Visa, / }).click();
+	await expect(page.getByRole("region", { name: "Goal details" })).toBeVisible();
+	await expect(owedCard(page)).toContainText("Paid down $0 of $1,200");
 
 	// Funding plans extra payments from Free to Spend; nothing is set aside.
 	await owedCard(page).getByRole("button", { name: "Fund" }).click();
