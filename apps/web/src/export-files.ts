@@ -94,9 +94,18 @@ export function exportFiles(data: ExportData): Record<string, string> {
 		]);
 	}
 
-	const accounts: (string | number | null)[][] = [["Account", "Kind", "Balance", "Balance as of"]];
+	const accounts: (string | number | null)[][] = [
+		["Account", "Kind", "Balance", "Balance as of", "Owed now"],
+	];
 	for (const a of data.accounts) {
-		accounts.push([a.name, a.kind, dollars(a.balanceCents), day(a.balanceAt)]);
+		// "Balance" is what was last entered; "Owed now" is that less the payments filed since.
+		accounts.push([
+			a.name,
+			a.kind,
+			dollars(a.balanceCents),
+			day(a.balanceAt),
+			a.owedCents === null ? null : dollars(a.owedCents),
+		]);
 	}
 
 	const plan: (string | number | null)[][] = [["Month", "Line", "Name", "Amount", "Details"]];

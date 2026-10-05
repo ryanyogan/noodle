@@ -579,6 +579,7 @@ export function AddCommitment({ month, start }: { month: MonthKey; start?: Commi
 							: undefined
 					}
 					startAdding={prefill?.paysDown === "add"}
+					suggest
 				/>
 				<CommitmentFormErrors errors={errors} />
 				<SaveFailed change={add} />

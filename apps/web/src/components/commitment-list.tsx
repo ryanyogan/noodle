@@ -29,6 +29,7 @@ import {
 } from "../commitments";
 import { formatMoney, formatMoneyInput, fullDay, shortDay } from "../format";
 import { masterDetailItem } from "./master-detail";
+import { PaysDownNote } from "./pays-down";
 
 const list = new Intl.ListFormat("en-US", { style: "long", type: "conjunction" });
 
@@ -207,6 +208,8 @@ function CommitmentRow({
 							Record payment
 						</Button>
 					) : null}
+					{/* Its own line under the rest, as on Plan › Commitments. */}
+					{commitment.accountId ? <PaysDownNote accountId={commitment.accountId} /> : null}
 				</>
 			}
 			trailing={

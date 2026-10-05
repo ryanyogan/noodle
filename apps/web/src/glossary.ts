@@ -29,7 +29,7 @@ export const glossary = {
 		term: "Commitment",
 		short:
 			"A bill you expect every time, like the mortgage, insurance, daycare or a subscription: monthly, every two weeks, or once a year.",
-		more: "A Commitment can pay down a credit card or loan: choose it under “Pays down”, and each payment filed in the Commitment brings what’s owed on it down. If Noodle already sees what you buy on a card, paying it is a Transfer, not spending, so pick it only for a set payment on a balance you’re carrying.",
+		more: "A Commitment can pay down a credit card or loan: choose it under “Pays down”, and each payment filed in the Commitment brings what’s owed on it down. If Noodle already sees what you buy on a card, paying it is a Transfer, not spending, so pick it only for a set payment on a balance you’re carrying. If a card paid down this way is connected later, the Plan asks under “Things to check” whether to end the Commitment or keep it for a balance you’re carrying. Once a card or loan is chosen, the form offers an amount from your last three months of payments to it.",
 	},
 	"lumpy-month": {
 		term: "Lumpy month",

@@ -47,9 +47,8 @@ test("a Zelle to a person is offered as between us in Review, fits a 320px phone
 	await expect(top).toHaveAttribute("data-between-us", "");
 	await expect(top).toContainText("It’s between us · not spending");
 	await expect(top).toContainText("Looks like money sent to a person");
-	await expect(top.getByTestId("review-between-us-why")).toContainText(
-		"Money one of you sent the other isn’t spending.",
-	);
+	// The narrowest phones are the shortest: the why is left to wider ones.
+	await expect(top.getByTestId("review-between-us-why")).toBeHidden();
 	// No Bucket is suggested for it, so there is nothing to confirm by habit.
 	await expect(top.getByRole("button", { name: "Confirm" })).toHaveCount(0);
 

@@ -1,5 +1,6 @@
 import {
 	type Db,
+	followedCards,
 	type GoalRecords,
 	loadBucketMonths,
 	loadExtraToFree,
@@ -119,12 +120,14 @@ export async function loadPlanHealth(
 ): Promise<PlanHealthData> {
 	const month = monthOfDay(asOf);
 	const since = addMonths(month, -HEALTH_HABIT_MONTHS);
-	const [records, goals, income, spent] = await Promise.all([
+	const [records, goals, income, spent, followed] = await Promise.all([
 		loadPlanRecords(db, viewer.householdId, addMonths(month, HEALTH_MONTHS_AHEAD)),
 		loadGoals(db, viewer),
 		loadIncome(db, viewer.householdId, addMonths(month, -1), addMonths(month, 1)),
 		loadBucketMonths(db, viewer, since, month),
+		followedCards(db, viewer.householdId, asOf),
 	]);
+	const follows = new Set(followed);
 	const warnings = planHealth({
 		asOf,
 		parentId: viewer.memberId,
@@ -133,6 +136,15 @@ export async function loadPlanHealth(
 		changes: goals.changes,
 		income,
 		spent,
+		// A Commitment that pays down a card Noodle has since begun to follow (ADR-0050).
+		cards: goals.accounts
+			.filter((account) => account.kind === "credit-card")
+			.map((account) => ({
+				id: account.id,
+				name: account.name,
+				connected: account.bankConnectionId !== null,
+				followed: account.bankConnectionId !== null || follows.has(account.id),
+			})),
 	});
 	return { month, warnings };
 }

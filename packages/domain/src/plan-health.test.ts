@@ -173,4 +173,69 @@ describe("planHealth: payoff Goals (ADR-0019)", () => {
 			expect.objectContaining({ kind: "goal-late", goalId: "card" }),
 		]);
 	});
+
+	it("warns when a Commitment pays down a card Noodle has begun to follow", () => {
+		const records: PlanRecords = {
+			...healthy,
+			commitments: [
+				{
+					id: "amex-payment",
+					name: "Amex payment",
+					fromMonth: "2026-01",
+					endedFromMonth: null,
+					accountId: "amex",
+				},
+				{
+					id: "carried",
+					name: "Old Visa balance",
+					fromMonth: "2026-01",
+					endedFromMonth: null,
+					accountId: "visa",
+					carriedBalance: true,
+				},
+				{
+					id: "store",
+					name: "Store card",
+					fromMonth: "2026-01",
+					endedFromMonth: null,
+					accountId: "store",
+				},
+				{ id: "rent", name: "Rent", fromMonth: "2026-01", endedFromMonth: null },
+				{
+					id: "ended",
+					name: "Ended",
+					fromMonth: "2026-01",
+					endedFromMonth: "2026-06",
+					accountId: "amex",
+				},
+			],
+			commitmentTerms: ["amex-payment", "carried", "store", "rent", "ended"].map(
+				(commitmentId) => ({
+					commitmentId,
+					month: "2026-01" as MonthKey,
+					amount: 10_000,
+					cadence: "monthly" as const,
+					dueDate: "2026-01-05" as const,
+				}),
+			),
+		};
+		const cards = [
+			{ id: "amex", name: "American Express", connected: true, followed: true },
+			{ id: "visa", name: "Visa", connected: false, followed: true },
+			// Kept by hand, nothing imported lately: its payments are the spending.
+			{ id: "store", name: "Store card", connected: false, followed: false },
+		];
+		expect(health({ records, cards })).toEqual([
+			{
+				kind: "card-followed",
+				commitmentId: "amex-payment",
+				name: "Amex payment",
+				accountId: "amex",
+				account: "American Express",
+				connected: true,
+			},
+		]);
+		// Without the cards nothing is checked.
+		expect(health({ records })).toEqual([]);
+	});
 });
