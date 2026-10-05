@@ -152,14 +152,37 @@ function PlanBuckets() {
 			) : null}
 			<div className="grid gap-3">
 				{buckets.length > 0 ? (
-					<BucketList
-						month={month}
-						buckets={buckets}
-						editable={state.editable}
-						was={changes.allowances}
-						onDraft={onDraft}
-						figures
-					/>
+					<>
+						<BucketList
+							month={month}
+							buckets={buckets}
+							editable={state.editable}
+							was={changes.allowances}
+							onDraft={onDraft}
+							figures
+						/>
+						{state.editable ? (
+							// Under the list (#98): what each part of a row does, and Add without scrolling back
+							// up a long list. Its own words, so the bar's Add Buckets stays the one of that name.
+							<div className="grid gap-3 px-1">
+								<p data-slot="bucket-how" className="text-[13px] text-muted-foreground">
+									To change a Bucket, choose its amount (its name is there too). The pencil has its
+									colour, what happens at the end of the month, moving it and archiving it. A new
+									amount counts from {monthName(month)} on, unless you choose just{" "}
+									{monthName(month)}.
+								</p>
+								<AddBuckets
+									month={month}
+									buckets={state.buckets}
+									freeToSpend={state.freeToSpend}
+									parentId={parentId}
+									parentName={nameOf(parentId)}
+									label="Add another Bucket"
+									variant="outline"
+								/>
+							</div>
+						) : null}
+					</>
 				) : state.editable ? (
 					<p className="px-1 text-sm text-muted-foreground">
 						An allowance for each kind of everyday spending, like Groceries, Fun, or Hockey, tracked

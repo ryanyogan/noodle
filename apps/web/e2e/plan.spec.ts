@@ -68,7 +68,7 @@ async function openBucket(page: Page, bucket: string) {
 
 /** Opens the Edit sheet on a Bucket's page. */
 async function editBucket(page: Page, bucket: string) {
-	await page.getByRole("button", { name: "Edit", exact: true }).click();
+	await page.getByRole("button", { name: "Edit Bucket", exact: true }).click();
 	const sheet = page.getByRole("dialog", { name: bucket });
 	await expect(sheet).toBeVisible();
 	return sheet;

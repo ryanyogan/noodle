@@ -145,15 +145,16 @@ function BucketPage() {
 				leading={back}
 				actions={
 					current && open && state.editable ? (
+						// Named and outlined (#98): a bare "Edit" in the corner was easy to miss.
 						<Button
 							type="button"
-							variant="ghost"
+							variant="outline"
 							size="sm"
 							disabled={!hydrated}
 							onClick={() => setEditing(true)}
 						>
 							<Pencil />
-							Edit
+							Edit Bucket
 						</Button>
 					) : archived && !personal && state.editable ? (
 						<Button

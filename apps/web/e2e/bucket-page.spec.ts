@@ -73,7 +73,7 @@ test("a Bucket's page shows its month, its year and its history, and changes it"
 	await expect(spentVsAllowance.getByRole("row").last()).toContainText("$400$100$300");
 
 	// A new allowance lands in its history.
-	await page.getByRole("button", { name: "Edit", exact: true }).click();
+	await page.getByRole("button", { name: "Edit Bucket", exact: true }).click();
 	await editSheet(page, "Hockey")
 		.getByRole("textbox", { name: "Allowance", exact: true })
 		.fill("450");
@@ -86,7 +86,7 @@ test("a Bucket's page shows its month, its year and its history, and changes it"
 
 	// One sheet, one Save: closing it with changes asks before throwing them away.
 	await expect(page.getByRole("group", { name: "Carried over each month" })).toHaveCount(0);
-	await page.getByRole("button", { name: "Edit", exact: true }).click();
+	await page.getByRole("button", { name: "Edit Bucket", exact: true }).click();
 	const sheet = editSheet(page, "Hockey");
 	await expect(sheet.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
 	await sheet.getByLabel("Name").fill("Kids’ hockey");
@@ -139,7 +139,7 @@ test("an archived Bucket can be restored to the Plan", async ({ browser }) => {
 		],
 	});
 	await page.getByRole("link", { name: "Gifts", exact: true }).click();
-	await page.getByRole("button", { name: "Edit", exact: true }).click();
+	await page.getByRole("button", { name: "Edit Bucket", exact: true }).click();
 	await editSheet(page, "Gifts").getByRole("button", { name: "Archive" }).click();
 	await page.getByRole("alertdialog").getByRole("button", { name: "Archive Gifts" }).click();
 	await expect(heading(page)).toHaveText("Gifts");
@@ -172,7 +172,7 @@ test("a Bucket's page works on a phone", { tag: "@phone" }, async ({ browser }) 
 	await page.getByRole("link", { name: "Groceries", exact: true }).click();
 	await expect(heading(page)).toHaveText("Groceries");
 	await expect(page.getByRole("group", { name: "Spent vs allowance" })).toBeVisible();
-	await page.getByRole("button", { name: "Edit", exact: true }).click();
+	await page.getByRole("button", { name: "Edit Bucket", exact: true }).click();
 	await expect(editSheet(page, "Groceries").getByRole("button", { name: "Save" })).toBeVisible();
 	const width = await page.evaluate(() => document.documentElement.scrollWidth);
 	expect(width).toBeLessThanOrEqual(393);
