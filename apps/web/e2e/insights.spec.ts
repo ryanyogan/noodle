@@ -89,15 +89,15 @@ test("an Overlap between two streaming Commitments is found, accepted, and dismi
 
 	// Its action says what it does: ending one in the Plan, asked first, never by itself.
 	await expect(card.getByRole("button", { name: "Try “Without Hulu”" })).toBeVisible();
-	await card.getByRole("button", { name: "End Hulu in the Plan…" }).click();
+	await card.getByRole("button", { name: "End Hulu in the Plan" }).click();
 	await page
 		.getByRole("alertdialog")
 		.getByRole("button", { name: "End Hulu", exact: true })
 		.click();
 	await expect(page.getByText(/^Hulu leaves the Plan from/)).toBeVisible();
 	await expect(card).toContainText("Seen");
-	await expect(card.getByRole("button", { name: "End Hulu in the Plan…" })).toHaveCount(0);
-	await expect(card.getByRole("button", { name: "End Disney+ in the Plan…" })).toBeVisible();
+	await expect(card.getByRole("button", { name: "End Hulu in the Plan" })).toHaveCount(0);
+	await expect(card.getByRole("button", { name: "End Disney+ in the Plan" })).toBeVisible();
 
 	// Not useful: it's gone, and looking again doesn't bring it back.
 	await card.getByRole("button", { name: "Not useful" }).click();
