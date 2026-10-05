@@ -187,7 +187,7 @@ test("no desktop page has a region that scrolls inside another", async ({ browse
 	// may scroll in it.
 	await page.goto("/transactions");
 	await expect(page.locator("[data-slot=page-header]:visible").first()).toBeVisible(clientRendered);
-	const row = page.locator("[data-slot=list-row] button").first();
+	const row = page.locator("[data-slot=list-row] button:not([role=checkbox])").first();
 	// Hydrated: before then a press on a row does nothing.
 	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled(clientRendered);
 	await expect(row).toBeVisible();
