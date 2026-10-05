@@ -45,7 +45,10 @@ export function sqliteDb(sqlite: DatabaseSync): Db {
 			// D1 runs a batch atomically; so does this.
 			sqlite.exec("begin");
 			try {
-				const results = queries.map(({ sql, params, method }) => run(sql, params, method));
+				const results = queries.map(({ sql, params, method }) => {
+					refuseSameNamedColumns(sqlite, sql);
+					return run(sql, params, method);
+				});
 				sqlite.exec("commit");
 				return results;
 			} catch (error) {
@@ -57,4 +60,24 @@ export function sqliteDb(sqlite: DatabaseSync): Db {
 	);
 	// Same query builder and dialect as the D1 driver; only the transport differs.
 	return db as unknown as Db;
+}
+
+/**
+ * D1 hands a batch its rows keyed by column name, and Drizzle reads them back in that order
+ * (`d1ToRawMapping` in drizzle-orm/d1/session.js). Two columns of one name (`transactions.id`
+ * beside `commitments.id`, or the same unnamed expression twice) collapse into one there and
+ * every column after them shifts, so the Worker reads wrong values where this database, which
+ * reads rows as arrays, would read the right ones. A batch like that is refused here instead:
+ * select the column under another name (`sql\`...\`.as("name")`), or one that isn't a twin.
+ */
+function refuseSameNamedColumns(sqlite: DatabaseSync, query: string) {
+	const names = sqlite
+		.prepare(query)
+		.columns()
+		.map((column) => column.name);
+	const twice = [...new Set(names.filter((name, at) => names.indexOf(name) !== at))];
+	if (twice.length > 0)
+		throw new Error(
+			`A batch can't read two columns named ${twice.map((name) => `"${name}"`).join(", ")}: D1 would collapse them. ${query}`,
+		);
 }

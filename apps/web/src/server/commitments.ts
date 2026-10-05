@@ -2,7 +2,10 @@ import {
 	addCommitment as addCommitmentInDb,
 	addCommitmentPayment as addCommitmentPaymentInDb,
 	type CommitmentCharge,
+	type CommitmentLinkResult,
 	endCommitment as endCommitmentInDb,
+	followedCards,
+	linkCommitment,
 	loadChargesBetween,
 	loadPlanRecords,
 	updateCommitment as updateCommitmentInDb,
@@ -14,6 +17,7 @@ import {
 	type DayKey,
 	dayKeyAt,
 	MAX_CENTS,
+	monthKeyAt,
 	monthOfDay,
 	type PlanRecords,
 } from "@noodle/domain";
@@ -39,45 +43,79 @@ const commitmentSchema = z.object({
 	amountCents: centsSchema,
 	cadence: z.enum(CADENCES),
 	dueDate: dayKeySchema,
+	/** The credit card or loan its payments pay down (null for none); left out, it stays as it is. */
+	paysDown: z.object({ accountId: ulidSchema.nullable(), carriedBalance: z.boolean() }).optional(),
 });
+
+/**
+ * What saving a Commitment did about the card or loan it pays down: null when it wasn't asked to
+ * change, else linkCommitment's answer. A refusal leaves the rest of the save in place, and the
+ * form says why in plain words.
+ */
+export type CommitmentSaved = { paysDown: CommitmentLinkResult | null };
+
+/** Sets what a Commitment pays down, through linkCommitment's guard and its Plan change. */
+async function setPaysDown(
+	context: { household: { id: string; timeZone: string }; parent: { id: string } },
+	commitmentId: string,
+	paysDown: { accountId: string | null; carriedBalance: boolean } | undefined,
+): Promise<CommitmentLinkResult | null> {
+	if (!paysDown) return null;
+	const now = new Date();
+	return linkCommitment(getDb(), {
+		householdId: context.household.id,
+		memberId: context.parent.id,
+		commitmentId,
+		accountId: paysDown.accountId,
+		carriedBalance: paysDown.accountId !== null && paysDown.carriedBalance,
+		month: monthKeyAt(now, context.household.timeZone),
+		today: dayKeyAt(now, context.household.timeZone),
+	});
+}
 
 export const addCommitment = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(commitmentSchema)
-	.handler(async ({ data, context }) => {
+	.handler(async ({ data, context }): Promise<CommitmentSaved> => {
 		assertEditable(context.household, data.month);
 		await addCommitmentInDb(getDb(), {
 			householdId: context.household.id,
 			memberId: context.parent.id,
 			...data,
 		});
-		await notifyHousehold(context.household.id, ["months"]);
+		const paysDown = await setPaysDown(context, data.commitmentId, data.paysDown);
+		// What's owed on the card or loan follows from the link, so Accounts and Goals refetch too.
+		await notifyHousehold(context.household.id, paysDown ? ["months", "goals"] : ["months"]);
 		await queueAi({
 			householdId: context.household.id,
 			memberId: context.parent.id,
 			kind: "commitment-changed",
 			ids: [data.commitmentId],
 		});
+		return { paysDown };
 	});
 
 /** Renames a Commitment, and sets what it expects from `month` onward, or just for `month`. */
 export const updateCommitment = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(commitmentSchema.extend({ scope: planScopeSchema }))
-	.handler(async ({ data, context }) => {
+	.handler(async ({ data, context }): Promise<CommitmentSaved> => {
 		assertEditable(context.household, data.month);
 		await updateCommitmentInDb(getDb(), {
 			householdId: context.household.id,
 			memberId: context.parent.id,
 			...data,
 		});
-		await notifyHousehold(context.household.id, ["months"]);
+		const paysDown = await setPaysDown(context, data.commitmentId, data.paysDown);
+		// What's owed on the card or loan follows from the link, so Accounts and Goals refetch too.
+		await notifyHousehold(context.household.id, paysDown ? ["months", "goals"] : ["months"]);
 		await queueAi({
 			householdId: context.household.id,
 			memberId: context.parent.id,
 			kind: "commitment-changed",
 			ids: [data.commitmentId],
 		});
+		return { paysDown };
 	});
 
 export const endCommitment = createServerFn({ method: "POST" })
@@ -158,3 +196,19 @@ export const getCommitments = createServerFn({ method: "GET" })
 			asOf,
 		};
 	});
+
+/**
+ * The Household's credit cards in use that Noodle follows (it syncs with their bank, or a purchase
+ * was brought in from one in the last 60 days): what's bought on them is already in Buckets, so a
+ * Commitment may pay one down only as a set payment on a balance being carried (ADR-0050).
+ */
+export const getFollowedCards = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.handler(
+		async ({ context }): Promise<string[]> =>
+			followedCards(
+				getDb(),
+				context.household.id,
+				dayKeyAt(new Date(), context.household.timeZone),
+			),
+	);

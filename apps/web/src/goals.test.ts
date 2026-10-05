@@ -27,6 +27,7 @@ const goals: GoalsData = {
 			bankConnectionId: null,
 			lastStatementDate: null,
 			latestBalance: { amount: 1_000_000, at: 1 },
+			owed: null,
 		},
 		{
 			id: "visa",
@@ -36,12 +37,14 @@ const goals: GoalsData = {
 			bankConnectionId: null,
 			lastStatementDate: null,
 			latestBalance: { amount: 50_000, at: 1 },
+			owed: 50_000,
 		},
 	],
 	withdrawals: [],
 	goals: [],
 	changes: [],
 	owed: [{ accountId: "visa", amount: 50_000, at: 1 }],
+	payments: [],
 };
 
 const braces = {
@@ -129,7 +132,7 @@ describe("the optimistic Goal edits", () => {
 		expect(goalsView(added).goals[0]).toMatchObject({
 			kind: "payoff",
 			progress: { saved: 0, remaining: 50_000, monthly: 8_334 },
-			payoff: { owed: 50_000, history: [{ amount: 50_000, at: 1 }] },
+			payoff: { owed: 50_000, history: [{ amount: 50_000, at: 1 }], payments: [] },
 		});
 		const paid = withBalance(added, { balanceId: "b2", accountId: "visa", amountCents: 20_000 });
 		const view = goalsView(paid);

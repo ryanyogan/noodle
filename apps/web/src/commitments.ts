@@ -1,7 +1,9 @@
-import type { CommitmentCharge } from "@noodle/db";
+import type { CommitmentCharge, CommitmentLinkResult } from "@noodle/db";
 import {
+	type AccountKind,
 	byNextDue,
 	type Cadence,
+	type Cents,
 	type CommitmentState,
 	type CommitmentTerms,
 	type DayKey,
@@ -83,15 +85,138 @@ export type CommitmentVariables = {
 	dueDate: DayKey;
 	/** How far a change to its terms reaches; from `month` on when left out. */
 	scope?: PlanScope;
+	/** What it pays down, when that is being set or changed; left out, it stays as it is. */
+	paysDown?: PaysDown;
 };
 
-const toPlanCommitment = (v: CommitmentVariables): PlanCommitment => ({
+/** The credit card or loan a Commitment pays down (null for none), and the "carrying" tick. */
+export type PaysDown = { accountId: string | null; carriedBalance: boolean };
+
+/** What it pays down once `v` is saved: as asked, else as it was. */
+const linkOf = (v: CommitmentVariables, was?: PlanCommitment) => {
+	const accountId = v.paysDown === undefined ? was?.accountId : v.paysDown.accountId;
+	if (!accountId) return {};
+	const carried = v.paysDown === undefined ? was?.carriedBalance : v.paysDown.carriedBalance;
+	return { accountId, carriedBalance: carried ?? false };
+};
+
+const toPlanCommitment = (v: CommitmentVariables, was?: PlanCommitment): PlanCommitment => ({
 	id: v.commitmentId,
 	name: v.name,
 	amount: v.amountCents,
 	cadence: v.cadence,
 	dueDate: v.dueDate,
+	...linkOf(v, was),
 });
+
+/** A card or loan a Commitment could pay down, as the "Pays down" choice shows it. */
+export type PaysDownAccount = {
+	id: string;
+	name: string;
+	kind: AccountKind;
+	/** What's owed now; null without a balance. */
+	owed: Cents | null;
+	/** It syncs with its bank, which keeps what's owed up to date. */
+	connected: boolean;
+	/** A card whose purchases Noodle already counts in Buckets (ADR-0050). */
+	followed: boolean;
+};
+
+/** The Household's credit cards and loans in use, with the cards Noodle follows marked. */
+export function paysDownAccounts(
+	accounts: readonly {
+		id: string;
+		name: string;
+		kind: AccountKind;
+		bankConnectionId: string | null;
+		owed: Cents | null;
+	}[],
+	followedCards: readonly string[],
+): PaysDownAccount[] {
+	return accounts
+		.filter((account) => account.kind === "credit-card" || account.kind === "loan")
+		.map((account) => ({
+			id: account.id,
+			name: account.name,
+			kind: account.kind,
+			owed: account.owed,
+			connected: account.bankConnectionId !== null,
+			followed:
+				account.kind === "credit-card" &&
+				(account.bankConnectionId !== null || followedCards.includes(account.id)),
+		}));
+}
+
+/** A card Noodle follows is paid down only as a set payment on a balance being carried. */
+export const needsCarriedTick = (account: Pick<PaysDownAccount, "kind" | "followed">) =>
+	account.kind === "credit-card" && account.followed;
+
+/** The line under "Pays down": what choosing this card or loan (or nothing yet) means. */
+export function paysDownHint(account: PaysDownAccount | null): string {
+	if (account === null) return "Pick a card or loan and each payment brings what’s owed down.";
+	if (account.kind === "loan") {
+		return account.connected
+			? `Each payment counts toward ${account.name}. Its bank keeps what’s owed up to date.`
+			: `Each payment brings what’s owed on ${account.name} down.`;
+	}
+	return account.followed
+		? `Noodle already counts what you buy on ${account.name} in your Buckets. Paying it off is a Transfer, so it isn’t counted twice.`
+		: `Noodle can’t see what’s bought on ${account.name}, so these payments are the spending.`;
+}
+
+/**
+ * What a Commitment form says about "Pays down" (PaysDownField's inputs). `paysDown` is there only
+ * when the choice differs from what the Commitment had (`was`), so saving something else never
+ * asks the server to judge a link that's already in place; `needsTick` when that new choice is a
+ * card Noodle follows without "a balance I'm carrying"; `busy` while a card or loan added in the
+ * form is still saving. A form without the field (no card or loan yet) changes nothing.
+ */
+export function readPaysDown(
+	values: FormData,
+	was?: { accountId?: string | null | undefined; carriedBalance?: boolean | undefined },
+): { paysDown?: PaysDown; needsTick: boolean; busy: boolean } {
+	const busy = values.has("paysDownBusy");
+	if (!values.has("paysDown")) return { needsTick: false, busy };
+	const accountId = String(values.get("paysDown") ?? "") || null;
+	const tick = values.get("paysDownTick");
+	const carriedBalance = accountId !== null && tick === "ticked";
+	const wasCarried = accountId !== null && (was?.carriedBalance ?? false);
+	if (accountId === (was?.accountId ?? null) && carriedBalance === wasCarried) {
+		return { needsTick: false, busy };
+	}
+	return {
+		paysDown: { accountId, carriedBalance },
+		needsTick: accountId !== null && tick === "needed",
+		busy,
+	};
+}
+
+type LinkRefusal = Extract<CommitmentLinkResult, { ok: false }>["reason"];
+
+/** Why a Commitment was saved without the card or loan it was meant to pay down. */
+export function paysDownRefusal(reason: LinkRefusal, commitmentName: string): string {
+	switch (reason) {
+		case "wrong-kind":
+			return `${commitmentName} was saved, but a Commitment can only pay down a credit card or loan, so it pays nothing down.`;
+		case "archived":
+			return `${commitmentName} was saved, but that Account is archived, so it pays nothing down. Restore the Account, or pick another.`;
+		case "followed":
+			return `${commitmentName} was saved, but Noodle already counts what’s bought on that card, so paying it is a Transfer. Tick “This is a set payment on a balance I’m carrying” to have it pay the card down.`;
+		case "not-found":
+			return `${commitmentName} was saved, but that Account is gone, so it pays nothing down.`;
+	}
+}
+
+/** Waits for a Commitment's save and says so when the card or loan it pays down was refused. */
+export async function tellPaysDownRefusal(
+	saved: Promise<{ paysDown: CommitmentLinkResult | null }>,
+	commitmentName: string,
+): Promise<void> {
+	const { paysDown } = await saved;
+	if (paysDown && !paysDown.ok) {
+		toast(paysDownRefusal(paysDown.reason, commitmentName), { tone: "error" });
+	}
+}
 
 // The optimistic edits, mirroring what each server function records.
 
@@ -113,7 +238,7 @@ export const withNewCommitment = (data: MonthData, variables: CommitmentVariable
 
 export const withCommitment = (data: MonthData, variables: CommitmentVariables) =>
 	mapCommitments(data, (commitments) =>
-		commitments.map((c) => (c.id === variables.commitmentId ? toPlanCommitment(variables) : c)),
+		commitments.map((c) => (c.id === variables.commitmentId ? toPlanCommitment(variables, c) : c)),
 	);
 
 export const withoutCommitment = (data: MonthData, { commitmentId }: { commitmentId: string }) =>

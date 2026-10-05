@@ -1059,7 +1059,7 @@ function GoalStep({
 	const owingAccount = kind === "payoff" ? owing.find((a) => a.id === paidOff) : undefined;
 	const choosePaidOff = (value: string) => {
 		setPaidOff(value);
-		const owed = owing.find((a) => a.id === value)?.latestBalance?.amount;
+		const owed = owing.find((a) => a.id === value)?.owed ?? undefined;
 		setTarget(owed && owed > 0 ? formatMoneyInput(owed) : "");
 	};
 	const targetCents = parseDollars(target);
@@ -1093,7 +1093,7 @@ function GoalStep({
 							: owed
 						: "savings",
 			};
-			if (owingAccount && owingAccount.latestBalance?.amount !== targetCents) {
+			if (owingAccount && owingAccount.owed !== targetCents) {
 				// The Goal's target is what's owed now (read on the server), so what the Parent typed
 				// becomes the card's or loan's balance first.
 				await updateAccountBalance({

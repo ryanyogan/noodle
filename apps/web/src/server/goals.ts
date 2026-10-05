@@ -101,6 +101,7 @@ export const addAccount = createServerFn({ method: "POST" })
 			householdId: context.household.id,
 			createdByMemberId: context.parent.id,
 			...data,
+			asOf: today(context.household),
 		});
 		await notifyHousehold(context.household.id, ["goals"]);
 	});
@@ -113,15 +114,28 @@ export const renameAccount = createServerFn({ method: "POST" })
 		await notifyHousehold(context.household.id, ["goals"]);
 	});
 
-/** Records an Account's balance as it is now. */
+/**
+ * Records an Account's balance: as it is today, or as a statement had it on its closing date
+ * (`asOf`, never later than today). Payments filed after that day in a Commitment that pays the
+ * Account down come off what's owed (ADR-0050).
+ */
 export const updateAccountBalance = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
-	.validator(z.object({ balanceId: ulidSchema, accountId: ulidSchema, amountCents: balanceSchema }))
+	.validator(
+		z.object({
+			balanceId: ulidSchema,
+			accountId: ulidSchema,
+			amountCents: balanceSchema,
+			asOf: dayKeySchema.optional(),
+		}),
+	)
 	.handler(async ({ data, context }): Promise<GoalWriteResult> => {
+		const now = today(context.household);
 		const result = await updateAccountBalanceInDb(getDb(), {
 			householdId: context.household.id,
 			createdByMemberId: context.parent.id,
 			...data,
+			asOf: data.asOf && data.asOf < now ? data.asOf : now,
 		});
 		if (result.ok) await notifyHousehold(context.household.id, ["goals"]);
 		return result;

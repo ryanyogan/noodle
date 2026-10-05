@@ -26,6 +26,7 @@ import {
 	SheetHeader,
 } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
+import { useQueryClient } from "@tanstack/react-query";
 import { useHydrated } from "@tanstack/react-router";
 import { Pencil, Plus } from "lucide-react";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
@@ -35,16 +36,20 @@ import {
 	type CommitmentVariables,
 	cadenceNames,
 	costText,
+	readPaysDown,
 	schedule,
+	tellPaysDownRefusal,
 	withCommitment,
 	withNewCommitment,
 	withoutCommitment,
 } from "../commitments";
 import { formatMoney, formatMoneyInput, fullDay, monthName, shortDay } from "../format";
 import { usePlanChange } from "../plan-changes";
+import { goalsQuery } from "../queries";
 import { addCommitment, endCommitment, updateCommitment } from "../server/commitments";
 import { CommitmentLink } from "./commitment-list";
 import { AmountInput } from "./goals";
+import { PaysDownField, PaysDownNote } from "./pays-down";
 import { Confirm, SaveFailed } from "./plan-editing";
 import { PlanHistoryDisclosure } from "./plan-history";
 import { ChangedNote, PlanScopeField } from "./plan-scope-field";
@@ -94,6 +99,7 @@ export function CommitmentEditor({
 							: ""}
 					</span>
 					<ChangedNote was={was} />
+					{commitment.accountId ? <PaysDownNote accountId={commitment.accountId} /> : null}
 					{monthly ? (
 						// In a list wider than the pane beside an item, the yearly total is its own column instead.
 						<span className="basis-full text-subtle-foreground @lg:sr-only">
@@ -175,8 +181,10 @@ function PaidState({ commitment }: { commitment: CommitmentState }) {
  * its row, which must not take a failure with it.
  */
 export function useCommitmentChanges(month: MonthKey) {
+	const refreshOwed = useRefreshOwed();
 	const update = usePlanChange(month, {
-		save: (data: CommitmentVariables) => updateCommitment({ data }),
+		save: (data: CommitmentVariables) =>
+			tellPaysDownRefusal(updateCommitment({ data }), data.name).finally(() => refreshOwed(data)),
 		apply: withCommitment,
 	});
 	const end = usePlanChange(month, {
@@ -195,6 +203,20 @@ export function useCommitmentChanges(month: MonthKey) {
 
 export type CommitmentChanges = ReturnType<typeof useCommitmentChanges>;
 
+/** After a save that set what a Commitment pays down: what's owed on Accounts and Goals follows. */
+function useRefreshOwed() {
+	const queryClient = useQueryClient();
+	return (data: CommitmentVariables) => {
+		if (data.paysDown) void queryClient.invalidateQueries({ queryKey: goalsQuery().queryKey });
+	};
+}
+
+/** What the Commitment sheet edits: its terms, and the card or loan it pays down. */
+type SheetCommitment = Pick<CommitmentState, "id" | "name" | "amount" | "cadence" | "dueDate"> & {
+	accountId?: string | null | undefined;
+	carriedBalance?: boolean | undefined;
+};
+
 /** The Commitment sheet: change its terms from this month on or just this month, or end it. */
 export function CommitmentSheet({
 	month,
@@ -204,7 +226,7 @@ export function CommitmentSheet({
 	changes,
 }: {
 	month: MonthKey;
-	commitment: Pick<CommitmentState, "id" | "name" | "amount" | "cadence" | "dueDate">;
+	commitment: SheetCommitment;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	changes: CommitmentChanges;
@@ -234,24 +256,51 @@ export function CommitmentSheet({
 }
 
 /** What's wrong with a Commitment's fields, each shown beside the form on submit. */
-type CommitmentErrors = { name?: boolean; amount?: boolean; dueDate?: boolean };
+type CommitmentErrors = {
+	name?: boolean;
+	amount?: boolean;
+	dueDate?: boolean;
+	/** A card Noodle follows was chosen without "a balance I'm carrying". */
+	carried?: boolean;
+	/** A card or loan added in the form is still being saved. */
+	busy?: boolean;
+};
 
-/** The fields' values, checked; with the errors when any is missing or wrong. */
-export function readCommitment(form: HTMLFormElement) {
+/**
+ * The fields' values, checked; with the errors when any is missing or wrong. What it pays down
+ * (`paysDown`) is in the terms only when it differs from `was` (readPaysDown).
+ */
+export function readCommitment(
+	form: HTMLFormElement,
+	was?: { accountId?: string | null | undefined; carriedBalance?: boolean | undefined },
+) {
 	const values = new FormData(form);
 	const name = String(values.get("name") ?? "").trim();
 	const amountCents = parseDollars(String(values.get("amount") ?? ""));
 	const cadence = values.get("cadence");
 	const dueDate = values.get("dueDate");
+	const { paysDown, needsTick, busy } = readPaysDown(values, was);
 	const errors: CommitmentErrors = {
 		name: name === "",
 		amount: amountCents === null,
 		dueDate: !isDay(dueDate),
+		carried: needsTick,
+		busy,
 	};
 	const ok =
-		!errors.name && amountCents !== null && isCadence(cadence) && isDay(dueDate) && !errors.dueDate;
+		!errors.name &&
+		amountCents !== null &&
+		isCadence(cadence) &&
+		isDay(dueDate) &&
+		!errors.dueDate &&
+		!errors.carried &&
+		!errors.busy;
 	return ok
-		? { ok: true as const, errors, terms: { name, amountCents, cadence, dueDate } }
+		? {
+				ok: true as const,
+				errors,
+				terms: { name, amountCents, cadence, dueDate, ...(paysDown ? { paysDown } : {}) },
+			}
 		: { ok: false as const, errors };
 }
 
@@ -263,6 +312,14 @@ export function CommitmentFormErrors({ errors }: { errors: CommitmentErrors }) {
 				<FormError>Enter the amount as a dollar amount, like 1,800 or 15.99.</FormError>
 			) : null}
 			{errors.dueDate ? <FormError>Pick a day it’s due.</FormError> : null}
+			{errors.carried ? (
+				<FormError>
+					Tick “This is a set payment on a balance I’m carrying”, or choose Nothing under Pays down.
+				</FormError>
+			) : null}
+			{errors.busy ? (
+				<FormError>The card or loan is still being added. Try again in a moment.</FormError>
+			) : null}
 		</>
 	);
 }
@@ -276,7 +333,7 @@ function CommitmentDetails({
 	history,
 }: {
 	month: MonthKey;
-	commitment: Pick<CommitmentState, "id" | "name" | "amount" | "cadence" | "dueDate">;
+	commitment: SheetCommitment;
 	onSave: (terms: Omit<CommitmentVariables, "commitmentId" | "month">) => void;
 	onEnd: (commitmentId: string) => void;
 	/** The Commitment's history: above the footer, so Save stays last. */
@@ -292,7 +349,7 @@ function CommitmentDetails({
 
 	function save(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		const read = readCommitment(event.currentTarget);
+		const read = readCommitment(event.currentTarget, commitment);
 		setErrors(read.errors);
 		if (!read.ok) return;
 		const { terms } = read;
@@ -334,6 +391,7 @@ function CommitmentDetails({
 					dueHint="The rest follow from it."
 					invalid={errors.dueDate}
 				/>
+				<PaysDownField id={id} initial={commitment} invalid={errors.carried} />
 				<PlanScopeField
 					month={month}
 					current={commitment.amount}
@@ -426,8 +484,10 @@ export function AddCommitment({ month }: { month: MonthKey }) {
 	// A fresh ID per Commitment; a retry of the same attempt reuses it, so it's added once.
 	const [commitmentId, setCommitmentId] = useState(() => ulid());
 	const [errors, setErrors] = useState<CommitmentErrors>({});
+	const refreshOwed = useRefreshOwed();
 	const add = usePlanChange(month, {
-		save: (data: CommitmentVariables) => addCommitment({ data }),
+		save: (data: CommitmentVariables) =>
+			tellPaysDownRefusal(addCommitment({ data }), data.name).finally(() => refreshOwed(data)),
 		apply: withNewCommitment,
 	});
 
@@ -481,6 +541,8 @@ export function AddCommitment({ month }: { month: MonthKey }) {
 					inCard={false}
 					invalid={errors.dueDate}
 				/>
+				{/* Keyed by the Commitment being added, so the next one starts from Nothing again. */}
+				<PaysDownField key={commitmentId} id={id} invalid={errors.carried} />
 				<CommitmentFormErrors errors={errors} />
 				<SaveFailed change={add} />
 				<Button

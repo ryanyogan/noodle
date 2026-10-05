@@ -29,6 +29,7 @@ export const glossary = {
 		term: "Commitment",
 		short:
 			"A bill you expect every time, like the mortgage, insurance, daycare or a subscription: monthly, every two weeks, or once a year.",
+		more: "A Commitment can pay down a credit card or loan: choose it under “Pays down”, and each payment filed in the Commitment brings what’s owed on it down. If Noodle already sees what you buy on a card, paying it is a Transfer, not spending, so pick it only for a set payment on a balance you’re carrying.",
 	},
 	"lumpy-month": {
 		term: "Lumpy month",
