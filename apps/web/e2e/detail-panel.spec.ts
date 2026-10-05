@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
+import { createTestParent } from "./parents";
 import { createPlannedHousehold, signedInPage } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
 // Guards the picked item's panel (issue 107, ADR-0047), on Plan › Commitments, the first page to
 // use it: on a computer a Commitment opens in a panel on the window's right edge, over the rail,
@@ -19,10 +19,14 @@ const month = new Intl.DateTimeFormat("en-CA", {
 	month: "2-digit",
 }).format(new Date());
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 const list = (page: Page) => page.locator("[data-slot=master-detail-list]");
