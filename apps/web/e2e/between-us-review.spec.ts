@@ -40,7 +40,8 @@ test("a Zelle to a person is offered as between us in Review, fits a 320px phone
 	await waitForReview(page, new URL("/review", thisMonth).href, "1 of 1");
 	const stack = page.getByTestId("review-stack");
 	const top = stack.getByTestId("review-card");
-	await expect(stack.getByRole("button", { name: "Skip" })).toBeEnabled(clientRendered);
+	// The only card: there is nothing to skip to, so its picker says the page is ready.
+	await expect(top.getByRole("combobox", { name: /^Where .+ goes$/ })).toBeEnabled(clientRendered);
 	await page.evaluate(() => document.fonts.ready);
 
 	await expect(top).toHaveAttribute("data-between-us", "");
