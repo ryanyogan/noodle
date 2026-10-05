@@ -217,7 +217,9 @@ export function IncomeSection({
 								title={entry.note ?? "Money in"}
 								meta={`Between us · ${shortDay(entry.date)}`}
 								trailing={
-									<div className="flex items-center gap-1">
+									// On the narrowest phones the amount sits over the button, so the name and its
+									// date keep a line each.
+									<div className="flex items-center gap-1 max-[359px]:flex-col max-[359px]:items-end max-[359px]:gap-0">
 										<span className="text-muted-foreground tabular-nums">
 											{formatMoney(entry.amount)}
 										</span>
@@ -225,6 +227,7 @@ export function IncomeSection({
 											<Button
 												variant="ghost"
 												size="sm"
+												className="max-[359px]:-mr-2.5"
 												disabled={!hydrated}
 												aria-label={`Count ${formatMoney(entry.amount)} as Income`}
 												onClick={() => onCountAgain(entry)}
