@@ -25,7 +25,7 @@ export type { PerkSourceItem };
 export function researchStatus(source: Pick<PerkSourceItem, "research">): string | null {
 	switch (source.research) {
 		case "researching":
-			return "Checking its Perks…";
+			return "Reading its perks…";
 		case "needs-plan":
 			return "Which plan is it? Its Perks depend on the plan.";
 		case "needs-link":
