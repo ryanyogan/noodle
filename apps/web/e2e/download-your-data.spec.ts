@@ -44,8 +44,13 @@ test("prepare, download and open the ZIP; another Household's link is refused", 
 
 	await page.goto("/household");
 	const section = page.getByRole("region", { name: "Download your data" });
-	// On a phone the second paragraph waits behind a button.
-	await section.getByRole("button", { name: "More about this file" }).click();
+	// On a phone the second paragraph waits behind a button. A click before the page has come alive
+	// in the browser does nothing, so click (only while it is still closed) until it opens.
+	const more = section.getByRole("button", { name: "More about this file" });
+	await expect(async () => {
+		if ((await more.getAttribute("aria-expanded")) !== "true") await more.click();
+		await expect(more).toHaveAttribute("aria-expanded", "true", { timeout: 2_000 });
+	}).toPass({ timeout: 20_000 });
 	await expect(
 		section.getByText("The other Parent’s Personal Allowance isn’t included"),
 	).toBeVisible();

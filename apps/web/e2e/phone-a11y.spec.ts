@@ -148,6 +148,18 @@ test("help buttons, switches and tick boxes have a centred 44 × 44 tap area not
 	let probed = 0;
 	for (const path of ["/household", "/month", "/plan", "/accounts"]) {
 		await open(page, path);
+		if (path === "/household") {
+			// On a phone the Nudge switches wait behind a button (#74). A click before the page has
+			// come alive in the browser does nothing, so click (only while closed) until it opens.
+			const more = page.getByRole("button", { name: "Choose which Nudges you get" });
+			const box = await more.boundingBox();
+			expect(box?.height, "the fold button's height").toBeGreaterThanOrEqual(44);
+			await expect(async () => {
+				if ((await more.getAttribute("aria-expanded")) !== "true") await more.click();
+				await expect(more).toHaveAttribute("aria-expanded", "true", { timeout: 2_000 });
+			}).toPass(clientRendered);
+			await expect(page.getByRole("switch").first()).toBeVisible();
+		}
 		const found = await page.evaluate(() => {
 			const selector = "[data-slot=switch],[data-slot=checkbox],[data-slot=button][data-size=help]";
 			const px = (v: string) => (v.endsWith("px") ? Number.parseFloat(v) : Number.NaN);
