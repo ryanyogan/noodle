@@ -484,10 +484,25 @@ function Filters({
 					disabled={!hydrated}
 					onValueChange={(sort) => onChange({ sort: sort as TransactionSort })}
 				>
-					<SelectTrigger aria-label="Sort" className="min-w-0 max-w-full max-sm:flex-1 xl:hidden">
+					{/* A Button like the two beside it (issue 115). The order's own words are in the HTML the
+					    server sends (Radix fills a bare SelectValue only once it runs in the browser); on the
+					    narrowest phones, where they don't fit between Filters and Select, it reads "Sort". */}
+					<SelectTrigger
+						aria-label="Sort"
+						variant="button"
+						className="min-w-0 max-w-full max-sm:flex-1 xl:hidden"
+					>
 						<span className="flex min-w-0 items-center gap-2">
-							<ArrowUpDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-							<SelectValue />
+							<ArrowUpDown
+								aria-hidden="true"
+								className="size-4 shrink-0 text-muted-foreground max-[22.5rem]:hidden"
+							/>
+							<span className="truncate max-[22.5rem]:hidden">
+								<SelectValue>{sortLabel(filters.sort ?? "newest")}</SelectValue>
+							</span>
+							<span aria-hidden="true" className="min-[22.5625rem]:hidden">
+								Sort
+							</span>
 						</span>
 					</SelectTrigger>
 					<SelectContent>
@@ -773,3 +788,4 @@ const SORTS: [TransactionSort, string][] = [
 	["account-az", "Account A–Z"],
 	["account-za", "Account Z–A"],
 ];
+const sortLabel = (sort: TransactionSort) => SORTS.find(([value]) => value === sort)?.[1] ?? "";
