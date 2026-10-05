@@ -16,23 +16,23 @@ import {
 describe("which cut plays", () => {
 	it("is the wide one, with its poster, on anything but an upright phone", () => {
 		expect(introCut(false)).toEqual({
-			src: "/intro/intro.mp4",
-			poster: "/intro/poster.png",
+			src: "/intro/intro.mp4?v=1",
+			poster: "/intro/poster.png?v=1",
 			width: 1920,
 			height: 1080,
 		});
 	});
 	it("is the vertical one on an upright phone", () => {
 		expect(introCut(true, true)).toEqual({
-			src: "/intro/intro-vertical.mp4",
-			poster: "/intro/poster-vertical.png",
+			src: "/intro/intro-vertical.mp4?v=1",
+			poster: "/intro/poster-vertical.png?v=1",
 			width: 1080,
 			height: 1920,
 		});
 	});
 	it("shows the wide poster on a phone until the vertical poster exists", () => {
-		expect(introCut(true, false).poster).toBe("/intro/poster.png");
-		expect(introCut(true, false).src).toBe("/intro/intro-vertical.mp4");
+		expect(introCut(true, false).poster).toBe("/intro/poster.png?v=1");
+		expect(introCut(true, false).src).toBe("/intro/intro-vertical.mp4?v=1");
 	});
 	it("calls a phone anything narrower than md and held upright", () => {
 		expect(INTRO_PHONE_QUERY).toBe("(max-width: 47.99rem) and (orientation: portrait)");
@@ -44,8 +44,8 @@ describe("the player", () => {
 	const vertical = renderToStaticMarkup(h(IntroVideoPlayer, { phone: true }));
 
 	it("has the browser's controls and a poster, and fetches nothing until play", () => {
-		expect(wide).toContain('src="/intro/intro.mp4"');
-		expect(wide).toContain('poster="/intro/poster.png"');
+		expect(wide).toContain('src="/intro/intro.mp4?v=1"');
+		expect(wide).toContain('poster="/intro/poster.png?v=1"');
 		expect(wide).toContain('preload="none"');
 		expect(wide).toMatch(/<video[^>]* controls=""/);
 		expect(wide).toMatch(/<video[^>]* playsInline=""/i);
@@ -54,16 +54,17 @@ describe("the player", () => {
 		expect(wide).not.toMatch(/autoplay/i);
 		expect(vertical).not.toMatch(/autoplay/i);
 	});
-	it("has English captions, on from the start", () => {
+	it("offers English captions, without switching them on", () => {
 		const track = /<track[^>]*>/.exec(wide)?.[0] ?? "";
 		expect(track).toContain('kind="captions"');
 		expect(track).toContain(`src="${INTRO_FILES.captions}"`);
 		expect(track).toMatch(/srclang="en"/i);
 		expect(track).toContain('label="English"');
-		expect(track).toContain('default=""');
+		// The words are drawn into the film, so the captions are offered but not switched on.
+		expect(track).not.toContain("default");
 	});
 	it("plays the vertical cut in a tall frame on an upright phone", () => {
-		expect(vertical).toContain('src="/intro/intro-vertical.mp4"');
+		expect(vertical).toContain('src="/intro/intro-vertical.mp4?v=1"');
 		expect(vertical).toContain('data-cut="vertical"');
 		expect(vertical).toContain("aspect-[9/16]");
 		expect(wide).toContain('data-cut="wide"');

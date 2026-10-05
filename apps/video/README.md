@@ -107,7 +107,8 @@ After a render, copy the files across and commit them:
 ```sh
 mkdir -p apps/web/public/intro
 cp apps/video/out/intro.mp4 apps/video/out/intro-vertical.mp4 \
-   apps/video/out/poster.png apps/video/out/intro.vtt apps/web/public/intro/
+   apps/video/out/poster.png apps/video/out/poster-vertical.png \
+   apps/video/out/intro.vtt apps/web/public/intro/
 ls -l apps/web/public/intro   # every file must be under 25 MiB (26,214,400 bytes)
 ```
 
@@ -116,7 +117,7 @@ ls -l apps/web/public/intro   # every file must be under 25 MiB (26,214,400 byte
 | `intro.mp4` | the wide cut, played on desktops, tablets and phones held sideways |
 | `intro-vertical.mp4` | the vertical cut, played on a phone held upright |
 | `poster.png` | the picture shown before play |
-| `poster-vertical.png` | the same for the vertical cut. Optional: `render` doesn't make it yet |
+| `poster-vertical.png` | the same for the vertical cut (`render:poster` writes both posters) |
 | `intro.vtt` | the captions |
 
 The app's side is `apps/web/src/intro-video-files.ts` (the paths and two switches) and
@@ -129,8 +130,14 @@ The app's side is `apps/web/src/intro-video-files.ts` (the paths and two switche
 3. Redraw the comparison pictures of sign-in and of the wizard's Hello step, which both gain the
    button (`auth-shots.spec.ts` and `setup-shots.spec.ts` in `apps/web/e2e/`).
 
-A later render only replaces the files: same names, nothing else to change. Browsers may keep the
-old film for a while, since the names don't change.
+The files went in with #54 (both switches are `true`), so those three steps are done.
+
+A later render replaces the files under the same names. So that nobody is shown the old film from
+a cache, the app asks for every file with a version on the end (`/intro/intro.mp4?v=1`): in the
+same commit as the new files, add one to `INTRO_FILES_VERSION` in
+`apps/web/src/intro-video-files.ts` (and to the `?v=1` addresses in
+`apps/web/src/components/intro-video.test.ts`). Nothing else changes: no comparison picture shows
+the poster, which is only fetched when the player opens.
 
 The player fetches nothing until a Parent opens it, and no film until they press play
 (`preload="none"`), so sign-in loads as fast as before.

@@ -66,7 +66,9 @@ export function IntroVideoPlayer({ phone, ref }: { phone: boolean; ref?: Ref<HTM
 				playsInline
 				aria-label="Noodle’s 1-minute intro"
 			>
-				<track kind="captions" src={INTRO_FILES.captions} srcLang="en" label="English" default />
+				{/* Not on by default: the film has its words drawn in, so captions on top would say
+				    everything twice. They stay in the player's menu for anyone who wants them. */}
+				<track kind="captions" src={INTRO_FILES.captions} srcLang="en" label="English" />
 			</video>
 		</div>
 	);

@@ -12,8 +12,8 @@ import { createTestParent } from "./parents";
 import { createHousehold, signedInPage } from "./session";
 
 // The one-minute intro video (#54) plays from sign-in and from the get-started wizard's Hello
-// step, in a Dialog, with captions, and stops when the Dialog closes. Skipped until the video's
-// files are in apps/web/public/intro/ and INTRO_VIDEO_READY (src/intro-video-files.ts) is true.
+// step, in a Dialog, with captions on offer, and stops when the Dialog closes. Skipped if the
+// video's files are taken out again and INTRO_VIDEO_READY (src/intro-video-files.ts) is false.
 test.skip(!INTRO_VIDEO_READY, "The intro video's files aren't in place yet (INTRO_VIDEO_READY)");
 
 const desktop = { viewport: { width: 1440, height: 900 } } as const;
@@ -53,7 +53,10 @@ async function expectPlayer(page: Page, cut: "wide" | "vertical") {
 		cut === "wide" ? INTRO_FILES.wide : INTRO_FILES.vertical,
 	);
 	await expect(video).toHaveAttribute("preload", "none");
-	await expect(video).toHaveAttribute("poster", /^\/intro\/poster(-vertical)?\.png$/);
+	await expect(video).toHaveAttribute(
+		"poster",
+		cut === "wide" ? INTRO_FILES.poster : INTRO_FILES.posterVertical,
+	);
 	await expect(video).toHaveJSProperty("controls", true);
 	await expect(video).toHaveJSProperty("autoplay", false);
 	await expect(video).toHaveJSProperty("paused", true);
@@ -61,7 +64,8 @@ async function expectPlayer(page: Page, cut: "wide" | "vertical") {
 	await expect(track).toHaveAttribute("kind", "captions");
 	await expect(track).toHaveAttribute("srclang", "en");
 	await expect(track).toHaveAttribute("src", INTRO_FILES.captions);
-	await expect(track).toHaveJSProperty("default", true);
+	// The words are drawn into the film, so the captions are offered but not switched on.
+	await expect(track).toHaveJSProperty("default", false);
 }
 
 /** Closing with Esc calls pause on the player and winds it back to the start. */
@@ -88,7 +92,12 @@ async function expectClosingStops(page: Page) {
 }
 
 test("the video's files are served", async ({ request }) => {
-	for (const file of [INTRO_FILES.wide, INTRO_FILES.vertical, INTRO_FILES.poster]) {
+	for (const file of [
+		INTRO_FILES.wide,
+		INTRO_FILES.vertical,
+		INTRO_FILES.poster,
+		INTRO_FILES.posterVertical,
+	]) {
 		const response = await request.head(file);
 		expect(response.ok(), file).toBe(true);
 	}
