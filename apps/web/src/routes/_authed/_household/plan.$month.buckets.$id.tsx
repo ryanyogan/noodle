@@ -1,4 +1,11 @@
-import type { BucketMonth, BucketRecord, BucketState, MonthKey } from "@noodle/domain";
+import {
+	type BucketMonth,
+	type BucketRecord,
+	type BucketState,
+	canAssign,
+	type MonthKey,
+	monthOfDay,
+} from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { BudgetBar } from "@noodle/ui/components/budget-bar";
 import { Button } from "@noodle/ui/components/button";
@@ -21,14 +28,17 @@ import {
 import { createFileRoute, Link, linkOptions, notFound, useHydrated } from "@tanstack/react-router";
 import { ArchiveRestore, ChartColumn, ChevronLeft, Pencil } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import { coversOfBucket } from "../../../bucket-covers";
 import { asBucketColor, availableParts, barState } from "../../../buckets";
 import { BucketSheet, useBucketChanges } from "../../../components/bucket-editor";
+import { BucketCovers } from "../../../components/cover";
 import { DetailHeader, DetailPager, DetailPending } from "../../../components/master-detail";
 import { PlanHistoryList } from "../../../components/plan-history";
 import { PlanAmountForm } from "../../../components/plan-scope-field";
 import { AllowanceBars, ChartCard, TrendLines } from "../../../components/report-charts";
 import { TermHelp } from "../../../components/term-help";
 import { EditTransactionSheet, TransactionItem } from "../../../components/transaction-list";
+import { useCovers } from "../../../covers";
 import { formatMoney, monthName } from "../../../format";
 import {
 	bucketQuery,
@@ -91,6 +101,8 @@ function BucketPage() {
 	const [restoring, setRestoring] = useState(false);
 	// Owned here: archiving takes the Bucket out of this month, and with it the sheet.
 	const changes = useBucketChanges(month);
+	const { undo } = useCovers();
+	const queryClient = useQueryClient();
 	const back = <BackToBuckets month={month} />;
 	const record = data.bucket;
 	// A Bucket only goes away if another Parent's change removes it; the loader 404s on reload.
@@ -110,6 +122,10 @@ function BucketPage() {
 		history?.changes.find((c) => c.targetId === id && typeof c.after?.amount === "number")?.after
 			?.amount ??
 		null;
+	// This month's Covers into it and out of it, undone here as they once were on This Month (#87).
+	const covers = coversOfBucket(state.moves, id, month);
+	// Covers happen within the current month; earlier months are closed.
+	const canCover = monthOfDay(state.asOf) === month;
 	return (
 		<>
 			<DetailHeader
@@ -168,6 +184,34 @@ function BucketPage() {
 								: `It joins the Plan in ${monthName(record.fromMonth)}.`}
 						</Card>
 					)}
+					<BucketCovers
+						month={month}
+						covers={covers}
+						buckets={state.buckets}
+						// The Parent who may Cover the Bucket that was covered may undo it (ADR-0003).
+						canUndo={(move) => {
+							const covered = state.buckets.find((b) => b.id === move.toBucketId);
+							return canCover && covered !== undefined && canAssign(covered, parentId);
+						}}
+						onUndo={(move, names) =>
+							undo.mutate(
+								{ moveId: move.id, month, ...names },
+								{
+									// This Month and this page follow the month's Moves; both Buckets' month-by-month
+									// history is fetched apart, so it is asked for again.
+									onSettled: () => {
+										for (const bucketId of [move.toBucketId, move.fromBucketId]) {
+											if (bucketId) {
+												void queryClient.invalidateQueries({
+													queryKey: bucketQuery(bucketId).queryKey,
+												});
+											}
+										}
+									},
+								},
+							)
+						}
+					/>
 				</div>
 				<div className="@max-2xl:contents @2xl:grid @2xl:min-w-0 @2xl:gap-8">
 					{/* Side by side, the heading here is as tall as the chart's two-line one beside it, so the

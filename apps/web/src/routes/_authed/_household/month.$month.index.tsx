@@ -45,7 +45,7 @@ import { ulid } from "ulid";
 import { asBucketColor, availableParts, barState, monogram } from "../../../buckets";
 import { Bills } from "../../../components/bills";
 import { LumpCallout } from "../../../components/coming-up";
-import { CoverSheet, CoversInto, sourceName } from "../../../components/cover";
+import { CoverSheet, sourceName } from "../../../components/cover";
 import {
 	ExtraIncomeSection,
 	ExtraIncomeSheet,
@@ -94,7 +94,7 @@ export const Route = createFileRoute("/_authed/_household/month/$month/")({
 function ThisMonth() {
 	const { month, parentId } = Route.useRouteContext();
 	const state = useMonthState(month);
-	const { cover, undo } = useCovers();
+	const { cover } = useCovers();
 	// The overspent Bucket being covered, by ID, so the sheet follows its latest state.
 	const [covering, setCovering] = useState<string | null>(null);
 	const [choosingExtraIncome, setChoosingExtraIncome] = useState(false);
@@ -121,7 +121,6 @@ function ThisMonth() {
 	const firstOver = [...buckets, ...allowances].find((b) => over.includes(b));
 	const bucketRow = (bucket: BucketState) => {
 		const mine = canAssign(bucket, parentId);
-		const covers = state.moves.filter((m) => m.toBucketId === bucket.id);
 		return (
 			<BucketRow
 				key={bucket.id}
@@ -130,25 +129,6 @@ function ThisMonth() {
 				explainCover={bucket === firstOver}
 				// Only the other Parent's Personal Allowance is private; its totals are all there is.
 				private={!mine}
-				covers={
-					covers.length > 0 ? (
-						<CoversInto
-							moves={covers}
-							buckets={state.buckets}
-							onUndo={
-								canCover && mine
-									? (move, fromName) =>
-											undo.mutate({
-												moveId: move.id,
-												month,
-												fromName,
-												toName: bucket.name,
-											})
-									: undefined
-							}
-						/>
-					) : null
-				}
 			/>
 		);
 	};
@@ -682,17 +662,16 @@ function PlanLink({ month, children }: { month: MonthState["month"]; children: s
 
 /**
  * A Bucket this month: its bar fills with what's spent out of Available, against the Today line
- * (its Pace). `covers` lists Covers into it.
+ * (its Pace). Its Covers and their Undo are on its own page (#87); "moved in" beneath the bar
+ * says it had some.
  */
 function BucketRow({
 	bucket,
-	covers,
 	onCover,
 	explainCover = false,
 	private: isPrivate = false,
 }: {
 	bucket: BucketState;
-	covers?: ReactNode;
 	/** Says what Cover does beside its button: only the first overspent row does. */
 	explainCover?: boolean;
 	/** Covers it, when it's overspent and the Parent may. */
@@ -786,7 +765,6 @@ function BucketRow({
 						}`}
 					/>
 					{parts ? <p className="text-xs text-muted-foreground tabular-nums">{parts}</p> : null}
-					{covers ? <div className="relative z-10">{covers}</div> : null}
 					{onCover ? (
 						<div className="relative z-10">
 							<CoverButton name={bucket.name} onCover={onCover} explain={explainCover} />
