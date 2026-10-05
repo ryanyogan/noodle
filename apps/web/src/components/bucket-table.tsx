@@ -47,7 +47,7 @@ function Summary({
 	rolling?: boolean;
 }) {
 	return (
-		<span className="truncate font-normal tabular-nums">
+		<span className="min-w-0 font-normal tabular-nums">
 			<span className="@[20rem]/dt:hidden">
 				<span className={cn("font-medium", left < 0 ? "text-over-foreground" : "text-foreground")}>
 					{formatMoney(Math.abs(left))}
@@ -258,12 +258,15 @@ export function BucketTable({
 				wide: false,
 				stacked: "secondary",
 				cell: (bucket) => (
-					<Summary
-						allowance={bucket.allowance}
-						spent={bucket.spent}
-						left={bucket.left}
-						rolling={bucket.rolling}
-					/>
+					// Under the Bucket's name, not its tile: past the tile (36px) and its gap (issue 115).
+					<span className="flex min-w-0 ps-12">
+						<Summary
+							allowance={bucket.allowance}
+							spent={bucket.spent}
+							left={bucket.left}
+							rolling={bucket.rolling}
+						/>
+					</span>
 				),
 				footer: totals ? (
 					<Summary
