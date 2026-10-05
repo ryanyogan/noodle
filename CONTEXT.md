@@ -128,6 +128,7 @@ _Avoid_: Bank, card (as a generic term)
 **Transaction**:
 A single movement of real money in or out of an Account. It is assigned as a whole, or through Splits, to Buckets, Commitments, or Goals.
 A Parent's change to one is made on the version of it they were looking at: if it has changed on another screen since (the other Parent's, another tab, the bank), the change is left out and they are shown how it looks now (ADR-0041).
+Any Transaction a Parent may change can be deleted, one at a time (with an Undo for a few seconds) or many at once from the Transactions page's **Select** mode: these ones, or everything the filters match in a month or up to the end of it. Before many go, Noodle states what that touches and takes a snapshot ("Before deleting Transactions"). One that came from a bank or a statement is never brought in again (ADR-0045). Goal spending is deleted only from its Goal; money in (income) is not a Transaction and is removed from Income.
 _Avoid_: Expense, entry, purchase
 
 **Split**:
@@ -150,6 +151,7 @@ _Avoid_: Manual entry, pending
 
 **Import**:
 A batch of Transactions brought in from an Account, whether from a statement file or a Bank Connection.
+It leaves out lines already in the Account and lines a Parent deleted from it (ADR-0045).
 _Avoid_: Sync, upload, feed
 
 **Bank Connection**:

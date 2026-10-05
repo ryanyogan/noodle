@@ -43,6 +43,8 @@ export function kindLabel(snapshot: Pick<SnapshotSummary, "kind" | "takenBy">): 
 			return "Before Delete Household";
 		case "before-rule-apply":
 			return "Before applying a Rule";
+		case "before-transactions-delete":
+			return "Before deleting Transactions";
 	}
 }
 

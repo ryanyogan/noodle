@@ -552,7 +552,9 @@ function EditForm({
 					onConfirm={() => onChange(null)}
 					onCancel={() => setConfirmDelete(false)}
 				>
-					It comes out of this month’s spending everywhere.
+					{transaction.importedFrom
+						? "It comes out of this month’s spending everywhere, and it won’t come back when your bank syncs or a statement is uploaded again."
+						: "It comes out of this month’s spending everywhere."}
 				</Confirm>
 			) : null}
 			<EditorActions inline={inline}>

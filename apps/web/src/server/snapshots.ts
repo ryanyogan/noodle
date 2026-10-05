@@ -37,7 +37,8 @@ export type SnapshotSummary = {
 		| "before-restore"
 		| "before-fresh-start"
 		| "before-delete"
-		| "before-rule-apply";
+		| "before-rule-apply"
+		| "before-transactions-delete";
 	takenBy: string | null;
 	note: string | null;
 	bytes: number;

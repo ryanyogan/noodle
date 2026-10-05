@@ -63,6 +63,7 @@ const TABLES = {
 	income: s.income,
 	transactions: s.transactions,
 	bankLinePairs: s.bankLinePairs,
+	deletedBankLines: s.deletedBankLines,
 	transactionFor: s.transactionFor,
 	splits: s.splits,
 	splitFor: s.splitFor,
