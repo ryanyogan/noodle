@@ -48,13 +48,15 @@ test.afterEach(async () => {
 function misfits(page: Page) {
 	return page.evaluate(async () => {
 		// A card on its way in is drawn at 96% of its size for a moment (card-in), so its 44px buttons
-		// measure 42: wait until whatever is moving has stopped. What never stops is left out.
-		await Promise.all(
-			document
-				.getAnimations()
-				.filter((moving) => moving.effect?.getComputedTiming().iterations !== Infinity)
-				.map((moving) => moving.finished.catch(() => undefined)),
-		);
+		// measure 42: wait until the cards have stopped moving, but no longer than two seconds, so one
+		// that never arrives is still measured as it is.
+		const moving = [
+			...document.querySelectorAll("[data-testid=review-stack], [data-testid=review-card]"),
+		]
+			.flatMap((part) => part.getAnimations({ subtree: true }))
+			.filter((motion) => motion.effect?.getComputedTiming().iterations !== Infinity)
+			.map((motion) => motion.finished.catch(() => undefined));
+		await Promise.race([Promise.all(moving), new Promise((done) => setTimeout(done, 2_000))]);
 		const root = document.documentElement;
 		const width = root.clientWidth;
 		const found: string[] = [];
