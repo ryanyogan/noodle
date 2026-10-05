@@ -640,3 +640,26 @@ Tightest now: the comparison series on the card 3.04 (band 3.00 to 3.18), strong
 The card is 1.12:1 from the page where phase 75f had set 1.15: the page is darker and bluer and the hairline is a little stronger on both (1.26 on the card, 1.40 on the page), so the card is held by step and edge together.
 
 Comparison pictures: every strict `*-dark-*` baseline changes; they are redrawn from CI's pictures, not on a developer's machine.
+
+### Phase 116b: menus one step up, the rest looked at
+
+Changed after looking at the pictures below (dark only):
+
+| What | 116a | 116b | Why |
+| --- | --- | --- | --- |
+| `--popover` (dropdown menu, select list, command list, date picker, popover, chart tooltip) | the card `#151821` | `--surface-2` `#1b1f2a` | A select list open over the Transactions table or a Household settings card had the card's own colour: only its outline and the cut-off words behind it said it was a layer. One step up (1.08:1 off the card, 1.21:1 off the page) and it reads as one. |
+| `--menu-hover` (new; the row under the pointer or the keys in those lists, and the calendar's marked days) | `--surface-2` | `--surface-3` `#222734` | The old hover colour is now the menu's own ground. Light: `--menu-hover` is `--surface-2`, what those rows had. |
+| The slide-out panel's ground | `bg-popover` | `bg-card` | Same colour as before in both themes; it no longer follows the menus up. |
+| The picked row of a list beside its item (`master-detail.tsx`) | `bg-surface-2` | `bg-selected` | The same faint blue as picked rows in tables. |
+
+Text on a menu: body 13.92:1, muted 7.07, hint 5.34; on its hover row 12.61 / 6.40 / 4.84.
+
+The card stays 1.12:1 off the page. On This Month, Transactions, Accounts, Goals, Insights, Perks and Check-in, at 1440 and at 393, every card is found at a glance by its hairline (1.26:1 on the card, 1.40:1 on the page); lifting it to 1.15 would spend the room the comparison grey has (3.04 in a band of 3.00 to 3.18) for no gain seen.
+
+The toast is the inverse on purpose (`bg-foreground` with the card colour as text): a light pill in dark. Left as it is.
+
+Light is unchanged: `--menu-hover` and `--selected` are aliases of `--surface-2`, and This Month, the Plan and Transactions pictured light at 1440 before and after are the same pixel for pixel outside the parts where the two seeded Households differ (the Income list, an avatar, the order of some rows).
+
+Comparison pictures redrawn from CI run 37387019798: sign-in and sign-up (desktop, iphone), setup-buckets (desktop, iphone), shell month and household (desktop, iphone): ten. The two setup-hello dark pictures passed as they were (inside the comparison's tolerance) and were not redrawn. No light picture failed.
+
+Looked at (dark; 1440 unless said): the Quick Add sheet (and 393); a toast; the account menu open over the Sidebar; select lists open on Transactions (and 393), Household settings, Reports and the Transaction editor, before and after the change; a hovered and a focused column-sort button; a hovered and a focused Sidebar item; the panel open on an Account and on a Goal; Accounts, Goals, Explore (whole page), Insights, Perks, Check-in; the lower halves of This Month and Explore; Reports' overview. At 393: This Month, Transactions, Accounts, Goals, Insights, Check-in, an Account with its "…" menu open, a Goal. At 1100: the panel as a drawer over the dimmed page, on an Account and on a Goal.
