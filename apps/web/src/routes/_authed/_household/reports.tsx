@@ -216,13 +216,15 @@ function ReportsPage() {
 // The views in three groups: the overview; where the spending went; money in, its flow and Goals.
 const VIEW_GROUP_STARTS = new Set<ReportView>(["big", "cash-flow"]);
 
+// From 1024 to 1280 the ten views are set a little closer, so all of them show beside the sidebar
+// without scrolling the strip (#73); wider windows have the room, and phones scroll it.
 function ViewTabs({ current }: { current: ReportSearch["view"] & string }) {
 	return (
-		<LinkTabs aria-label="Report views">
+		<LinkTabs aria-label="Report views" listClassName="lg:max-xl:gap-0">
 			{REPORT_VIEWS.map((view) => (
 				<Fragment key={view}>
-					{VIEW_GROUP_STARTS.has(view) ? <LinkTabsSeparator /> : null}
-					<LinkTab asChild>
+					{VIEW_GROUP_STARTS.has(view) ? <LinkTabsSeparator className="lg:max-xl:mx-0" /> : null}
+					<LinkTab asChild className="lg:max-xl:px-1.5">
 						<Link
 							from={Route.fullPath}
 							search={(prev) => ({

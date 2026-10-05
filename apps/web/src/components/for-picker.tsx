@@ -9,7 +9,8 @@ import { pickableMembers } from "../members";
  * Who spending was For, as a segmented control: Everyone (the whole Household), then each Child,
  * then each Parent. One tap picks one Member (a radio group); with `multiple`, taps add or remove
  * Members and Everyone clears them (toggle buttons). Removed Children only show while they're picked.
- * On a phone the choices wrap onto more lines rather than run off the side.
+ * On a phone, or in a narrow pane or popover, the choices wrap onto more lines rather than run off
+ * the side.
  */
 export function ForPicker({
 	members,
@@ -40,7 +41,7 @@ export function ForPicker({
 		</>
 	);
 	return (
-		<div className={cn("grid gap-2", className)}>
+		<div className={cn("@container grid gap-2", className)}>
 			<p id={labelId} className="mb-2 text-xs font-medium text-muted-foreground">
 				For
 			</p>
@@ -78,9 +79,11 @@ export function ForPicker({
 	);
 }
 
-// From sm the choices share one line (and scroll inside it if a big family doesn't fit). On a
+// With room the choices share one line (and scroll inside it if a big family doesn't fit). On a
 // phone they wrap into equal columns instead, three across at 320, so none is cut off at the
-// edge (#74); a long name is cut with an ellipsis inside its own choice.
+// edge (#74); a long name is cut with an ellipsis inside its own choice. The same goes wherever
+// the picker itself is under 28rem wide, whatever the window: the open Transaction's pane beside
+// the list is about 280px at 1024, where the fifth choice was cut off after two letters (#73).
 const trackClass =
-	"flex w-full overflow-x-auto rounded-xl p-0.75 [scrollbar-width:none] max-sm:grid max-sm:grid-cols-[repeat(auto-fit,minmax(5rem,1fr))] max-sm:overflow-x-visible";
-const itemClass = "h-7.5 min-w-0 flex-[1_0_auto] rounded-[9px] px-3 max-sm:px-2";
+	"flex w-full overflow-x-auto rounded-xl p-0.75 [scrollbar-width:none] max-sm:grid max-sm:grid-cols-[repeat(auto-fit,minmax(5rem,1fr))] max-sm:overflow-x-visible @max-md:grid @max-md:grid-cols-[repeat(auto-fit,minmax(5rem,1fr))] @max-md:overflow-x-visible";
+const itemClass = "h-7.5 min-w-0 flex-[1_0_auto] rounded-[9px] px-3 max-sm:px-2 @max-md:px-2";
