@@ -19,3 +19,18 @@ ADR-0024 gave every page one of three layouts and four fixed sizes. On a 1920 px
 - At 1920 the pages fill about 40 % more width; at 1440 the rail and list pane are 20–40 px wider.
 - This Month's main splits into two stacks from 1680 px (was 1920) now that the cap allows it.
 - Not yet done in this phase: Accounts' Bank Connections rows and status grid, Goals' card grid and a Goal's page using DetailColumns, and the Cover row's own "?" on This Month. The rollout to the other pages follows the Parent's approval.
+
+## Note, 2026-10-04 (#73, phase 73ak): the capped page sits in the middle of the space beside the Sidebar
+
+At 2560 px every signed-in page stopped at its cap but sat hard against the Sidebar, with 600–700 px empty on the right only. The page is now centred in the space beside the Sidebar (`mx-auto` on the shell's `<main>`, the one mechanism; no page changes), so whatever the cap leaves over is split evenly left and right.
+
+Space beside the open Sidebar (248 px) against the cap, gutters (40 px each side) inside the cap:
+
+| Window | Space | Cap (wide) | Left over, each side |
+| --- | --- | --- | --- |
+| 1440 | 1192 | 1440 (1440) | 0: the page fills the space, nothing moves |
+| 1680 | 1432 | 1440 (1440) | 0: fills, nothing moves |
+| 1920 | 1672 | 1680 (1800) | 0: fills, nothing moves |
+| 2560 | 2312 | 1680 (1800) | 316 (256 on a wide page), was 632 (512) on the right only |
+
+The page moves only where the space is wider than the cap: with the Sidebar open that is 1689–1919 px (up to 115 px each side just under 1920, where the cap is still 1440) and from 1929 px up; with the Sidebar collapsed to its 60 px rail, 1501–1919 px and from 1920 px up (90 px each side at 1920). Sticky columns, rails and detail panes live inside the page and move with it; sheets, dialogs and toasts are placed against the window, as before.
