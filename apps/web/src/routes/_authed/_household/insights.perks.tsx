@@ -258,14 +258,17 @@ function YearSummary({
 					<dl className="grid gap-4 sm:grid-cols-3">
 						<div className="grid gap-1">
 							<dt className="text-[13px] text-muted-foreground">Value used</dt>
-							<dd className="text-2xl font-semibold tabular-nums">
-								{usd(used)}
-								<span className="text-sm font-normal text-muted-foreground">
-									{" "}
-									of {usd(available)}
+							{/* The meter is part of the value: a list of terms holds only terms and values. */}
+							<dd className="grid gap-1">
+								<span className="text-2xl font-semibold tabular-nums">
+									{usd(used)}
+									<span className="text-sm font-normal text-muted-foreground">
+										{" "}
+										of {usd(available)}
+									</span>
 								</span>
+								<Meter used={used} available={available} label="Value used this year" />
 							</dd>
-							<Meter used={used} available={available} label="Value used this year" />
 						</div>
 						<div className="grid content-start gap-1">
 							<dt className="text-[13px] text-muted-foreground">Annual fees</dt>

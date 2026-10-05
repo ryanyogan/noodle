@@ -385,7 +385,9 @@ test("on a phone, a Sort menu beside Filters orders the list and the address kee
 		"Account A–Z",
 		"Account Z–A",
 	]);
+	// The open menu itself: while it is open the page behind it is hidden from assistive tech.
 	const open = await new AxeBuilder({ page })
+		.include("[role=listbox]")
 		.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
 		.analyze();
 	expect(open.violations.map((violation) => violation.id)).toEqual([]);

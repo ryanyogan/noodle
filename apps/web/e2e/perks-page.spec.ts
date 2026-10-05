@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { continueToBank } from "./bank-history";
 import { createTestParent } from "./parents";
 import {
 	accountKindLabel,
@@ -287,6 +288,7 @@ test("a linked credit card appears by itself, asks which card it is, then shows 
 	// that isn't a card issuer Noodle knows by name.
 	await page.goto("/accounts");
 	await page.getByRole("button", { name: "Connect a bank" }).click();
+	await continueToBank(page);
 	await page
 		.getByRole("dialog", { name: "Which of these do you have already?" })
 		.getByRole("button", { name: "Start bringing them in" })
