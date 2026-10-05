@@ -19,6 +19,7 @@ import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { ArrowUp, RotateCcw, Telescope } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { type AskTurnState, useAsk } from "../../../ask";
+import { openGlossary } from "../../../components/glossary";
 import { formatMoney, monthName } from "../../../format";
 import { type ExploreTry, useTryInExplore } from "../../../scenarios";
 import type { AskLink } from "../../../server/ask-tools";
@@ -131,6 +132,24 @@ function AskPage() {
 						</form>
 						<p id="ask-kept" className="text-xs text-muted-foreground">
 							Questions aren't saved. They're gone when you leave this page.
+						</p>
+						<p className="text-xs text-muted-foreground">
+							Not sure what a word means? It's in{" "}
+							<Link
+								to="/glossary"
+								aria-haspopup="dialog"
+								className="font-medium text-foreground underline underline-offset-2"
+								onClick={(event) => {
+									// A modified click opens the Glossary page in a new tab; a plain one opens it over
+									// this page, so the questions asked so far stay.
+									if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+									event.preventDefault();
+									openGlossary(null, event.currentTarget);
+								}}
+							>
+								the Glossary
+							</Link>
+							.
 						</p>
 					</div>
 				</div>

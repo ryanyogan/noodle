@@ -49,10 +49,11 @@ import {
 	LogOut,
 	Plus,
 	Settings,
+	Sparkles,
 	UserRound,
 } from "lucide-react";
 import { type ComponentProps, type ReactNode, useEffect, useId } from "react";
-import { moreGroups, type NavGroup, type NavItem, navGroups, tabItems } from "../nav";
+import { moreGroups, type NavGroup, type NavItem, sidebarGroups, tabItems } from "../nav";
 import { checkInStatusQuery, membersQuery, reviewQuery } from "../queries";
 import { openGlossary } from "./glossary";
 import { markQuickAddOpened, quickAddSearch } from "./quick-add";
@@ -106,6 +107,7 @@ export function AppShell({
 					)}
 				>
 					{children}
+					<AskButton />
 				</main>
 				<TabBar householdName={householdName} />
 			</div>
@@ -160,7 +162,7 @@ function AppSidebar({ householdName }: { householdName: string }) {
 			</SidebarHeader>
 			<SidebarContent>
 				<nav aria-label="Main" className="flex flex-col gap-4 rail:gap-3">
-					{navGroups.map((group) => (
+					{sidebarGroups.map((group) => (
 						<NavGroupSection key={group.label} group={group} />
 					))}
 				</nav>
@@ -170,6 +172,34 @@ function AppSidebar({ householdName }: { householdName: string }) {
 				<ParentMenu householdName={householdName} />
 			</SidebarFooter>
 		</Sidebar>
+	);
+}
+
+/**
+ * Ask, from any page on a computer (issue 100): a small button fixed in the window's bottom right
+ * corner, in the page's gutter and bottom padding, so it covers nothing at the end of a page.
+ * Toasts are bottom centre and sheets open over it. Ask itself has its question box there, so it
+ * isn't shown on Ask. A phone has Ask in More.
+ */
+function AskButton() {
+	const matchRoute = useMatchRoute();
+	if (matchRoute({ to: "/ask", fuzzy: true }) !== false) return null;
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Button
+					asChild
+					variant="outline"
+					size="icon-lg"
+					className="fixed end-2 bottom-2 z-20 size-10 rounded-full bg-card shadow-card max-lg:hidden"
+				>
+					<Link to="/ask" aria-label="Ask Noodle" data-ask-button="">
+						<Sparkles strokeWidth={1.75} aria-hidden="true" />
+					</Link>
+				</Button>
+			</TooltipTrigger>
+			<TooltipContent side="left">Ask Noodle</TooltipContent>
+		</Tooltip>
 	);
 }
 

@@ -159,9 +159,17 @@ test("the sidebar marks the section you're in, collapses to a rail, and holds th
 		"Transactions",
 		"Accounts",
 	]);
-	await expect(nav.getByRole("group").filter({ hasText: "Glossary" })).toHaveAccessibleName(
+	await expect(nav.getByRole("group").filter({ hasText: "Check-in" })).toHaveAccessibleName(
 		"Household",
 	);
+	// Ask and the Glossary aren't in the Sidebar (#100): Ask is a small button on every page but its own.
+	await expect(nav.getByRole("link", { name: "Ask" })).toHaveCount(0);
+	await expect(nav.getByRole("button", { name: "Glossary" })).toHaveCount(0);
+	const askButton = page.getByRole("link", { name: "Ask Noodle" });
+	await expect(askButton).toBeVisible();
+	const askBox = await askButton.boundingBox();
+	expect(askBox?.width).toBeGreaterThanOrEqual(40);
+	expect(askBox?.height).toBeGreaterThanOrEqual(40);
 	await expect(current).toHaveText("This Month");
 	const axe = async () =>
 		(await new AxeBuilder({ page }).include("[data-slot=sidebar]").analyze()).violations;

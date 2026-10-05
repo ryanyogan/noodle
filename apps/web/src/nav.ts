@@ -16,7 +16,9 @@ import {
 	UsersRound,
 } from "lucide-react";
 
-// The app's navigation, once: the desktop sidebar renders every group, the phone tab bar renders
+// The app's navigation, once: the desktop sidebar renders every group (less the items a phone
+// alone lists: Ask is the shell's small button on a computer, and the Glossary is linked from Ask,
+// issue 100), the phone tab bar renders
 // the items with a `tab`, and its last item, More, opens a sheet with all the others (#74). Which item is current comes from the router matching `to` and
 // `within` (app-shell's useIsCurrent), never from comparing path strings.
 
@@ -40,6 +42,8 @@ export type NavItem = {
 	 * item without a `tab` is in the More sheet (#74).
 	 */
 	tab?: { label: string };
+	/** Only in the phone's More sheet: the Sidebar leaves it out (issue 100). */
+	phoneOnly?: true;
 };
 
 export type NavGroup = { label: string; items: NavItem[] };
@@ -80,7 +84,8 @@ export const navGroups: NavGroup[] = [
 			{ label: "Insights", icon: Lightbulb, to: "/insights", except: ["/insights/perks"] },
 			// Perks are a tab of Insights, but Parents look for them by name (#80): their own entry.
 			{ label: "Credit card perks", icon: CreditCard, to: "/insights/perks" },
-			{ label: "Ask", icon: MessageCircleQuestionMark, to: "/ask" },
+			// On a computer Ask is the small button in the corner of every page (app-shell's AskButton).
+			{ label: "Ask", icon: MessageCircleQuestionMark, to: "/ask", phoneOnly: true },
 		],
 	},
 	{
@@ -89,9 +94,9 @@ export const navGroups: NavGroup[] = [
 			// Weekly. On a phone it's in More, and on This Month's card on the day, its Nudge and email.
 			{ label: "Check-in", icon: CalendarCheck, to: "/check-in", badge: "check-in" },
 			{ label: "Household settings", icon: UsersRound, to: "/household" },
-			// Not a destination: it opens over the page. On a phone it's in More, and every term's
-			// help popover.
-			{ label: "Glossary", icon: BookOpen, action: "glossary" },
+			// Not a destination: it opens over the page. On a phone it's in More; on a computer Ask
+			// links to it; and every term's help popover does.
+			{ label: "Glossary", icon: BookOpen, action: "glossary", phoneOnly: true },
 		],
 	},
 ];
@@ -107,6 +112,11 @@ declare module "@tanstack/react-router" {
 		wide?: boolean;
 	}
 }
+
+/** What the desktop Sidebar lists: every group, without the items only a phone lists (issue 100). */
+export const sidebarGroups: NavGroup[] = navGroups
+	.map((group) => ({ ...group, items: group.items.filter((item) => !item.phoneOnly) }))
+	.filter((group) => group.items.length > 0);
 
 /** What the phone's More sheet lists: every destination that isn't a tab, in the sidebar's groups. */
 export const moreGroups: NavGroup[] = navGroups
