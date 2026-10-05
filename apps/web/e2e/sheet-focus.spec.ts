@@ -58,7 +58,7 @@ test("a sheet focuses its first field, and gives focus back to what opened it", 
 	// Asking before archiving, on the Bucket's page: a modal alert dialog on top of the sheet,
 	// starting on Cancel, and Esc goes back to the Archive button in the sheet.
 	await page.getByRole("link", { name: "Groceries", exact: true }).click();
-	const editPage = page.getByRole("button", { name: "Edit", exact: true });
+	const editPage = page.getByRole("button", { name: "Edit Bucket", exact: true });
 	await editPage.click();
 	const archive = sheet.getByRole("button", { name: "Archive", exact: true });
 	await archive.click();

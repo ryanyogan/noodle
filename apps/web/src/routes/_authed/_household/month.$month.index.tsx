@@ -41,6 +41,7 @@ import {
 	History,
 	Lightbulb,
 	ListChecks,
+	Pencil,
 } from "lucide-react";
 import { type ReactNode, useId, useState } from "react";
 import { ulid } from "ulid";
@@ -234,6 +235,22 @@ function ThisMonth() {
 											title="Buckets"
 											count={buckets.length}
 											help={<TermHelp term="bucket" extra={<BucketsHelpExtra />} />}
+											// The way to the list where Buckets are added, changed, moved and
+											// archived (#98): it was three taps away on a phone, under More.
+											action={
+												state.editable ? (
+													// A plain link as tall as the heading from lg (44px on a phone), so
+													// the card under it stays level with Free to Spend's in the rail (#73L).
+													<Link
+														to="/plan/$month/buckets"
+														params={{ month }}
+														className="-me-1 inline-flex min-h-7 shrink-0 items-center gap-1.5 rounded-md px-1 text-[13px] font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring max-lg:min-h-11 [&_svg]:size-3.5"
+													>
+														<Pencil aria-hidden="true" />
+														Edit Buckets
+													</Link>
+												) : undefined
+											}
 										/>
 										<List>{buckets.map(bucketRow)}</List>
 										{/* Under the list, not between the heading and the card, so the card's top is level

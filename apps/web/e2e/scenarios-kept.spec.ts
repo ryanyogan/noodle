@@ -170,7 +170,7 @@ test("a kept Scenario still names a Bucket archived since, marked archived", asy
 
 	// Hockey is archived.
 	await page.goto(bucketPage);
-	await page.getByRole("button", { name: "Edit", exact: true }).click();
+	await page.getByRole("button", { name: "Edit Bucket", exact: true }).click();
 	await page
 		.getByRole("dialog", { name: "Hockey" })
 		.getByRole("button", { name: "Archive", exact: true })

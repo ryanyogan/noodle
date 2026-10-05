@@ -17,9 +17,10 @@ import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useHydrated } from "@tanstack/react-router";
-import { Archive, Pencil, Plus } from "lucide-react";
+import { Archive, ArrowDown, ArrowUp, Pencil, Plus } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useId, useState } from "react";
 import { ulid } from "ulid";
+import { nudged, placeOf } from "../bucket-order";
 import { asBucketColor, barState, monogram, nextBucketColor } from "../buckets";
 import { formatMoney, formatMoneyInput, monthName } from "../format";
 import {
@@ -644,10 +645,42 @@ function BucketActions({
 	// A Personal Allowance has its own section, and stays in the Plan: its Parent sets it to zero
 	// rather than archiving it.
 	if (bucket.owner !== undefined || index < 0) return null;
+	const move = (by: -1 | 1) => {
+		const next = nudged(order, bucket.id, by);
+		if (next !== order) changes.reorder.mutate({ bucketIds: next });
+	};
 
 	return (
 		<div className="grid gap-2 border-t pt-4">
 			<p className="text-[13px] text-muted-foreground">These happen at once.</p>
+			{/* Moving it without dragging: the list's handle needs a steady thumb on a phone (#98). */}
+			{order.length > 1 ? (
+				<div className="flex flex-wrap items-center gap-2">
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						disabled={index === 0}
+						onClick={() => move(-1)}
+					>
+						<ArrowUp />
+						Move up
+					</Button>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						disabled={index === order.length - 1}
+						onClick={() => move(1)}
+					>
+						<ArrowDown />
+						Move down
+					</Button>
+					<p aria-live="polite" className="text-[13px] text-muted-foreground tabular-nums">
+						{placeOf(order, bucket.id)} in the list
+					</p>
+				</div>
+			) : null}
 			<div className="flex flex-wrap items-center gap-2">
 				<Button type="button" variant="ghost" size="sm" onClick={() => setConfirmArchive(true)}>
 					<Archive />

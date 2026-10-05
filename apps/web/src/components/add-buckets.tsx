@@ -56,6 +56,8 @@ export function AddBuckets({
 	freeToSpend,
 	parentId,
 	parentName,
+	label = "Add Buckets",
+	variant,
 }: {
 	month: MonthKey;
 	buckets: PlanBucket[];
@@ -63,6 +65,9 @@ export function AddBuckets({
 	freeToSpend: number;
 	parentId: string;
 	parentName: string | undefined;
+	/** The button's words, when a page has a second one (under a long list). The sheet is the same. */
+	label?: string;
+	variant?: "outline";
 }) {
 	const hydrated = useHydrated();
 	const [open, setOpen] = useState(false);
@@ -74,12 +79,13 @@ export function AddBuckets({
 		<div className="grid gap-2">
 			<Button
 				type="button"
+				variant={variant}
 				className="justify-self-start"
 				disabled={!hydrated}
 				onClick={() => setOpen(true)}
 			>
 				<Plus />
-				Add Buckets
+				{label}
 			</Button>
 			<SaveFailed change={add} />
 			<Sheet open={open} onOpenChange={setOpen}>
