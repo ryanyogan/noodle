@@ -324,6 +324,8 @@ const insertBalance = (
 					createdByMemberId: sql<string>`${input.createdByMemberId}`.as("created_by_member_id"),
 					// To the millisecond, as a Parent's balances are: it's newer than one entered a moment ago.
 					createdAt: sql<Date>`${Date.now()}`.as("created_at"),
+					// Last, as the table has it. A bank's balance has no day of its own (issue 93).
+					asOf: sql<string | null>`null`.as("as_of"),
 				})
 				.from(accounts)
 				.where(
@@ -538,6 +540,8 @@ export async function refreshBankBalances(
 							amountCents: sql<number>`${amountCents}`.as("amount_cents"),
 							createdByMemberId: sql<string | null>`null`.as("created_by_member_id"),
 							createdAt: sql<Date>`${Date.now()}`.as("created_at"),
+							// Last, as the table has it. A bank's balance has no day of its own (issue 93).
+							asOf: sql<string | null>`null`.as("as_of"),
 						})
 						.from(accounts)
 						.where(

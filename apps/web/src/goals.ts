@@ -12,6 +12,7 @@ import {
 	holdsMoney,
 	type MonthKey,
 	owedFor,
+	owedOn,
 	splitAccount,
 } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
@@ -77,7 +78,15 @@ export type GoalView = GoalRecord & {
 	 * A payoff Goal's card or loan: what's owed now (null without a balance), and every balance
 	 * since the one before the Goal was added, newest first. Null for a savings Goal.
 	 */
-	payoff: { owed: Cents | null; history: BalanceUpdate[] } | null;
+	payoff: {
+		owed: Cents | null;
+		history: BalanceUpdate[];
+		/**
+		 * Payments filed in Commitments that pay its card or loan down (ADR-0050) since the Goal
+		 * began, newest first.
+		 */
+		payments: { id: string; amount: Cents; date: DayKey }[];
+	} | null;
 };
 
 export type GoalsView = {
@@ -96,10 +105,13 @@ export const goalState = (goal: Pick<GoalRecord, "completed" | "archived">): Goa
 	goal.archived ? "archived" : goal.completed ? "completed" : "active";
 
 export function accountView(data: GoalsData, account: AccountRecord): AccountView {
-	const balance = accountBalance(
-		account.latestBalance,
-		data.withdrawals.filter((w) => w.accountId === account.id),
-	);
+	// What a card or loan owes is its own figure (owedOn, ADR-0050); only money held has Goal spending.
+	const balance = holdsMoney(account.kind)
+		? accountBalance(
+				account.latestBalance,
+				data.withdrawals.filter((w) => w.accountId === account.id),
+			)
+		: account.owed;
 	const goals = data.goals.filter((g) => g.accountId === account.id);
 	// A payoff Goal sets nothing aside (ADR-0019).
 	const split = splitAccount({
@@ -134,7 +146,17 @@ export function goalView(data: GoalsData, goal: GoalRecord): GoalView {
 		account: data.accounts.find((a) => a.id === goal.accountId) ?? null,
 		progress: goalProgress({ ...goal, owed }, data.changes, data.month),
 		changes: data.changes.filter((c) => c.goalId === goal.id).reverse(),
-		payoff: goal.kind === "payoff" ? { owed, history: owedHistory(data, goal) } : null,
+		payoff:
+			goal.kind === "payoff"
+				? {
+						owed,
+						history: owedHistory(data, goal),
+						payments: data.payments
+							.filter((p) => p.accountId === goal.accountId && p.date >= `${goal.fromMonth}-01`)
+							.map(({ id, amount, date }) => ({ id, amount, date }))
+							.reverse(),
+					}
+				: null,
 	};
 }
 
@@ -152,7 +174,7 @@ function owedHistory(data: GoalsData, goal: GoalRecord): BalanceUpdate[] {
 	});
 	return points
 		.slice(startsAt)
-		.map(({ amount, at }) => ({ amount, at }))
+		.map(({ amount, at, day }) => ({ amount, at, ...(day ? { day } : {}) }))
 		.reverse();
 }
 
@@ -315,7 +337,10 @@ export const withAccount = (data: GoalsData, v: AddAccountVariables): GoalsData 
 						bankConnectionId: null,
 						lastStatementDate: null,
 						latestBalance:
-							v.balanceCents === null ? null : { amount: v.balanceCents, at: Date.now() },
+							v.balanceCents === null
+								? null
+								: { amount: v.balanceCents, at: Date.now(), day: data.asOf },
+						owed: canPayOff(v.kind) ? v.balanceCents : null,
 					},
 				],
 			};
@@ -328,16 +353,35 @@ export const withAccountName = (
 	accounts: data.accounts.map((a) => (a.id === accountId ? { ...a, name } : a)),
 });
 
-export type BalanceVariables = { balanceId: string; accountId: string; amountCents: Cents };
+export type BalanceVariables = {
+	balanceId: string;
+	accountId: string;
+	amountCents: Cents;
+	/** The day the balance was true: a statement's closing date. Today when left out. */
+	asOf?: DayKey;
+};
 
 export const withBalance = (data: GoalsData, v: BalanceVariables): GoalsData => {
 	const at = Date.now();
 	const account = data.accounts.find((a) => a.id === v.accountId);
 	return {
 		...data,
-		accounts: data.accounts.map((a) =>
-			a.id === v.accountId ? { ...a, latestBalance: { amount: v.amountCents, at } } : a,
-		),
+		accounts: data.accounts.map((a) => {
+			if (a.id !== v.accountId) return a;
+			const day = v.asOf ?? data.asOf;
+			return {
+				...a,
+				latestBalance: { amount: v.amountCents, at, day },
+				// As the server will have it: payments made after the balance's day still come off.
+				owed: canPayOff(a.kind)
+					? owedOn(
+							{ amount: v.amountCents, day },
+							data.payments.filter((p) => p.accountId === a.id),
+							a.bankConnectionId !== null,
+						)
+					: null,
+			};
+		}),
 		owed:
 			account && canPayOff(account.kind)
 				? [...data.owed, { accountId: v.accountId, amount: v.amountCents, at }]

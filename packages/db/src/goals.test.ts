@@ -645,7 +645,9 @@ describe("payoff Goals (ADR-0019)", () => {
 				target: 50_000,
 			}),
 		]);
-		expect(owed).toEqual([{ accountId: "visa", amount: 50_000, at: expect.any(Number) }]);
+		expect(owed).toEqual([
+			{ accountId: "visa", amount: 50_000, at: expect.any(Number), day: expect.any(String) },
+		]);
 		const logged = await db.all(sql`select kind from plan_changes where target_id = 'visa-goal'`);
 		expect(logged).toEqual([["goal-add"]]);
 	});

@@ -66,6 +66,8 @@ export async function loadPlanRecords(
 					name: commitments.name,
 					fromMonth: commitments.fromMonth,
 					endedFromMonth: commitments.endedFromMonth,
+					accountId: commitments.accountId,
+					carriedBalance: commitments.carriedBalance,
 				})
 				.from(commitments)
 				.where(and(eq(commitments.householdId, householdId), lte(commitments.fromMonth, month))),

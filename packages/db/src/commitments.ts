@@ -1,4 +1,5 @@
 import {
+	addDays,
 	addMonths,
 	type Cadence,
 	type Cents,
@@ -8,12 +9,12 @@ import {
 	type PlanScope,
 	restoreAfterJust,
 } from "@noodle/domain";
-import { and, eq, gt, gte, isNotNull, isNull, lte, or, type SQL, sql } from "drizzle-orm";
+import { and, eq, gt, gte, inArray, isNotNull, isNull, lte, or, type SQL, sql } from "drizzle-orm";
 import { counts } from "./counting";
 import type { Db } from "./index";
 import { type Author, inForce, logChange } from "./plan-log";
 import { type Viewer, visibleTo } from "./privacy";
-import { commitments, commitmentTerms, households, splits, transactions } from "./schema";
+import { accounts, commitments, commitmentTerms, households, splits, transactions } from "./schema";
 
 // A Household's Commitments and the payments recorded against them. Every query is scoped by
 // household_id; Commitment IDs from the client are only ever used together with it. Writes are
@@ -262,6 +263,137 @@ export const commitmentEnd = (db: Db, input: EndCommitmentInput) => {
 		db.update(commitments).set({ endedFromMonth: input.month }).where(endable),
 	] as const;
 };
+
+// --- What a Commitment pays down (issue 93, ADR-0050) ------------------------------------------
+
+/** An imported purchase this recent makes a card one Noodle follows. */
+export const FOLLOWED_WITHIN_DAYS = 60;
+
+/**
+ * Over a row of `accounts`: Noodle follows it, so what's bought on it is already counted in
+ * Buckets. It syncs with its bank, or a purchase was imported into it in the last 60 days.
+ */
+const followedSql = (today: DayKey) =>
+	sql`(${accounts.bankConnectionId} is not null or exists (select 1 from transactions ft
+		where ft.account_id = ${accounts.id} and ft.source = 'import' and ft.amount_cents > 0
+		and ft.date >= ${addDays(today, -FOLLOWED_WITHIN_DAYS)}))`;
+
+/** The Household's credit cards in use that Noodle follows (followedSql), by ID. */
+export async function followedCards(db: Db, householdId: string, today: DayKey): Promise<string[]> {
+	const rows = await db
+		.select({ id: accounts.id })
+		.from(accounts)
+		.where(
+			and(
+				eq(accounts.householdId, householdId),
+				eq(accounts.kind, "credit-card"),
+				isNull(accounts.archivedAt),
+				followedSql(today),
+			),
+		);
+	return rows.map((row) => row.id);
+}
+
+export type CommitmentLinkInput = Author & {
+	householdId: string;
+	commitmentId: string;
+	/** The credit card or loan it pays down; null for none. */
+	accountId: string | null;
+	/** "This is a set payment on a balance I'm carrying": needed for a card Noodle follows. */
+	carriedBalance: boolean;
+	/** The Household's current month, for the Plan change. */
+	month: MonthKey;
+	/** Today in the Household's time zone. */
+	today: DayKey;
+};
+
+export type CommitmentLinkResult =
+	| { ok: true }
+	/**
+	 * "not-found": the Commitment or the Account isn't the Household's. "wrong-kind": the Account
+	 * holds money. "archived": the Account is archived. "followed": it's a card Noodle follows, and
+	 * `carriedBalance` wasn't given.
+	 */
+	| { ok: false; reason: "not-found" | "wrong-kind" | "archived" | "followed" };
+
+/**
+ * linkCommitment as statements (its Plan change, then itself), for a batch with others. The
+ * write lands only while the Account is the Household's credit card or loan and isn't archived,
+ * and, for a card Noodle follows, only with `carriedBalance`: paying such a card is a Transfer,
+ * so a Commitment for it would count its purchases twice unless it's a balance being carried.
+ */
+export const commitmentLink = (db: Db, input: CommitmentLinkInput) => {
+	const own = ownCommitment(input.householdId, input.commitmentId);
+	const entry = { ...input, kind: "commitment-account" as const, targetId: input.commitmentId };
+	// Spelled out: inside a select's fields Drizzle leaves column names unqualified.
+	const before = sql`json_object('paysDown',
+		(select pa.name from accounts pa where pa.id = "commitments"."account_id"))`;
+	if (input.accountId === null) {
+		return [
+			logChange(db, commitments, and(own, isNotNull(commitments.accountId)), {
+				...entry,
+				before,
+				after: { paysDown: null },
+			}),
+			db.update(commitments).set({ accountId: null, carriedBalance: false }).where(own),
+		] as const;
+	}
+	const allowed = sql`exists (select 1 from ${accounts} where ${and(
+		eq(accounts.id, input.accountId),
+		eq(accounts.householdId, input.householdId),
+		inArray(accounts.kind, ["credit-card", "loan"]),
+		isNull(accounts.archivedAt),
+		input.carriedBalance
+			? undefined
+			: sql`(${accounts.kind} = 'loan' or not ${followedSql(input.today)})`,
+	)})`;
+	return [
+		logChange(
+			db,
+			commitments,
+			and(own, allowed, sql`${commitments.accountId} is not ${input.accountId}`),
+			{
+				...entry,
+				before,
+				after: sql`json_object('paysDown',
+					(select pa.name from accounts pa where pa.id = ${input.accountId}))`,
+			},
+		),
+		db
+			.update(commitments)
+			.set({ accountId: input.accountId, carriedBalance: input.carriedBalance })
+			.where(and(own, allowed)),
+	] as const;
+};
+
+/**
+ * Sets the credit card or loan a Commitment's payments pay down, or none (ADR-0050). Nothing
+ * else is written: what's owed on an Account kept by hand is derived from the payments filed in
+ * the Commitment (owedOn in @noodle/domain). Refused, with why, by commitmentLink's guard.
+ */
+export async function linkCommitment(
+	db: Db,
+	input: CommitmentLinkInput,
+): Promise<CommitmentLinkResult> {
+	await db.batch(commitmentLink(db, input));
+	const [row] = await db
+		.select({ accountId: commitments.accountId, carried: commitments.carriedBalance })
+		.from(commitments)
+		.where(ownCommitment(input.householdId, input.commitmentId));
+	if (!row) return { ok: false, reason: "not-found" };
+	if (input.accountId === null) return { ok: true };
+	if (row.accountId === input.accountId && row.carried === input.carriedBalance)
+		return { ok: true };
+	const [account] = await db
+		.select({ kind: accounts.kind, archivedAt: accounts.archivedAt })
+		.from(accounts)
+		.where(and(eq(accounts.id, input.accountId), eq(accounts.householdId, input.householdId)));
+	if (!account) return { ok: false, reason: "not-found" };
+	if (account.kind !== "credit-card" && account.kind !== "loan") {
+		return { ok: false, reason: "wrong-kind" };
+	}
+	return { ok: false, reason: account.archivedAt === null ? "followed" : "archived" };
+}
 
 /** A payment recorded against a Commitment, with the Transaction's ID. */
 export type CommitmentCharge = Charge & { id: string };

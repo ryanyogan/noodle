@@ -16,6 +16,7 @@ export const PLAN_CHANGE_KINDS = [
 	"commitment-terms",
 	"commitment-rename",
 	"commitment-end",
+	"commitment-account",
 	"goal-add",
 	"goal",
 ] as const;
@@ -35,6 +36,8 @@ export type PlanChangeValue = {
 	target?: Cents;
 	targetDate?: DayKey | null;
 	until?: MonthKey | null;
+	/** The name of the card or loan a Commitment pays down; null for none (issue 93). */
+	paysDown?: string | null;
 };
 
 /** Where a Plan change was made: the Plan itself, or a Scenario applied to it. */

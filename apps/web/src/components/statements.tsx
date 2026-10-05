@@ -6,6 +6,7 @@ import {
 	closingBalanceFor,
 	DATE_FORMATS,
 	type DateFormat,
+	type DayKey,
 	dayKeyAt,
 	guessCsvMapping,
 	parseCsv,
@@ -63,7 +64,8 @@ export function StatementBalanceNote({
 	onUse,
 }: {
 	account: AccountView;
-	onUse?: (amountCents: Cents) => void;
+	/** With the statement's closing date, the day the balance was true. */
+	onUse?: (amountCents: Cents, asOf: DayKey) => void;
 }) {
 	const hydrated = useHydrated();
 	const { imports } = useSuspenseQuery(accountImportsQuery(account.id)).data;
@@ -73,7 +75,8 @@ export function StatementBalanceNote({
 	const { owing, amount } = closingBalanceFor(closing, account.holdsMoney);
 	const newer =
 		account.latestBalance === null ||
-		closing.date >= dayKeyAt(new Date(account.latestBalance.at), timeZone);
+		closing.date >=
+			(account.latestBalance.day ?? dayKeyAt(new Date(account.latestBalance.at), timeZone));
 	const offer = onUse && newer && amount >= 0 && amount !== account.balance;
 	return (
 		<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
@@ -88,7 +91,7 @@ export function StatementBalanceNote({
 					variant="outline"
 					size="sm"
 					disabled={!hydrated}
-					onClick={() => onUse(amount)}
+					onClick={() => onUse(amount, closing.date)}
 				>
 					Use {formatMoney(amount)} {owing ? "as what’s owed" : "as the balance"}
 				</Button>
@@ -246,7 +249,8 @@ export function balanceOffer(
 	const { owing, amount } = closingBalanceFor(closing, account.holdsMoney);
 	const newer =
 		account.latestBalance === null ||
-		closing.date >= dayKeyAt(new Date(account.latestBalance.at), timeZone);
+		closing.date >=
+			(account.latestBalance.day ?? dayKeyAt(new Date(account.latestBalance.at), timeZone));
 	return newer && amount >= 0 && amount !== account.balance ? { owing, amount } : null;
 }
 
@@ -292,6 +296,7 @@ function ImportedBalance({
 								balanceId: ulid(),
 								accountId: account.id,
 								amountCents: offer.amount,
+								asOf: closing?.date,
 							});
 							onDone();
 						}}

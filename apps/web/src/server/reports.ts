@@ -48,6 +48,7 @@ import {
 	monthOfDay,
 	monthsIn,
 	owedAtEndOf,
+	owedOverTime,
 	type PlanRecords,
 	paidDownHistory,
 	paidDownOf,
@@ -348,11 +349,7 @@ export const getReport = createServerFn({ method: "GET" })
 									: monthKeyAt(new Date(g.completedAt), context.household.timeZone),
 						})),
 						// What was owed on each card or loan, by the month it was recorded in.
-						goalRecords.owed.map((p) => ({
-							accountId: p.accountId,
-							amount: p.amount,
-							month: monthKeyAt(new Date(p.at), context.household.timeZone),
-						})),
+						owedByMonth(goalRecords, context.household.timeZone),
 					);
 		return { asOf, range, compared, historyFrom, grouping, periods, meta, data };
 	});
@@ -701,4 +698,33 @@ function extraToFreeIn(db: Db, householdId: string, months: readonly MonthKey[])
 	const first = sorted[0];
 	const last = sorted.at(-1);
 	return first && last ? loadExtraToFree(db, householdId, first, addMonths(last, 1)) : [];
+}
+
+/**
+ * What was owed on each card or loan over time, by the month of each point's day: every balance
+ * and, for an Account kept by hand, what was left after each payment filed in a Commitment that
+ * pays it down (ADR-0050). So a payoff Goal's months in Reports come down with those payments, as
+ * its page and the Account's do. An archived Account's balances stay as they were entered.
+ */
+function owedByMonth(
+	records: {
+		owed: readonly { accountId: string; amount: number; at: number; day?: DayKey | undefined }[];
+		payments: readonly { accountId: string; amount: number; date: DayKey }[];
+		accounts: readonly { id: string; bankConnectionId: string | null }[];
+	},
+	timeZone: string,
+) {
+	return [...new Set(records.owed.map((point) => point.accountId))].flatMap((accountId) => {
+		const account = records.accounts.find((a) => a.id === accountId);
+		return owedOverTime(
+			records.owed
+				.filter((point) => point.accountId === accountId)
+				.map((point) => ({
+					amount: point.amount,
+					day: point.day ?? dayKeyAt(new Date(point.at), timeZone),
+				})),
+			records.payments.filter((payment) => payment.accountId === accountId),
+			account ? account.bankConnectionId !== null : true,
+		).map((point) => ({ accountId, amount: point.amount, month: monthOfDay(point.day) }));
+	});
 }

@@ -379,6 +379,13 @@
       "when": 1791210501190,
       "tag": "0053_perk_pages",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "6",
+      "when": 1791216709569,
+      "tag": "0054_commitment_account",
+      "breakpoints": true
     }
   ]
 }

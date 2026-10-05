@@ -81,8 +81,8 @@ export function PayoffGoalDetails({
 	const close = (open: boolean) => {
 		if (!open) setSheet(null);
 	};
-	const saveOwed = (amountCents: Cents) =>
-		updateOwed.mutate({ balanceId: ulid(), accountId: goal.accountId, amountCents });
+	const saveOwed = (amountCents: Cents, asOf?: DayKey) =>
+		updateOwed.mutate({ balanceId: ulid(), accountId: goal.accountId, amountCents, asOf });
 
 	return (
 		<>
@@ -361,6 +361,7 @@ function PayoffStatus({ goal, lead }: { goal: GoalView; lead: ReactNode }) {
 
 type HistoryItem =
 	| { kind: "owed"; key: string; day: DayKey; amount: Cents }
+	| { kind: "payment"; key: string; day: DayKey; amount: Cents }
 	| { kind: "funding"; key: string; day: DayKey; change: GoalChange };
 
 /**
@@ -385,8 +386,18 @@ function PayoffHistory({
 			(point): HistoryItem => ({
 				kind: "owed",
 				key: `owed-${point.at}`,
-				day: dayKeyAt(new Date(point.at), timeZone),
+				day: point.day ?? dayKeyAt(new Date(point.at), timeZone),
 				amount: point.amount,
+			}),
+		),
+		// Payments filed in a Commitment that pays the card or loan down. Before a balance of the
+		// same day in this newest-first list, as that balance is taken to have them in it already.
+		...(goal.payoff?.payments ?? []).map(
+			(payment): HistoryItem => ({
+				kind: "payment",
+				key: `payment-${payment.id}`,
+				day: payment.date,
+				amount: payment.amount,
 			}),
 		),
 		...goal.changes.map(
@@ -397,7 +408,11 @@ function PayoffHistory({
 				change,
 			}),
 		),
-	].sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0));
+	].sort(
+		(a, b) =>
+			(a.day < b.day ? 1 : a.day > b.day ? -1 : 0) ||
+			Number(a.kind === "payment") - Number(b.kind === "payment"),
+	);
 	const when = (day: DayKey) =>
 		day.slice(0, 4) === today.slice(0, 4) ? shortDay(day) : fullDay(day);
 
@@ -407,7 +422,18 @@ function PayoffHistory({
 			{items.length > 0 ? (
 				<List>
 					{items.map((item) =>
-						item.kind === "owed" ? (
+						item.kind === "payment" ? (
+							<ListRow
+								key={item.key}
+								title={`Payment · ${goal.account?.name ?? "the card or loan"}`}
+								meta={when(item.day)}
+								trailing={
+									<span className="text-sm font-semibold tabular-nums text-muted-foreground">
+										{formatMoney(item.amount)}
+									</span>
+								}
+							/>
+						) : item.kind === "owed" ? (
 							<ListRow
 								key={item.key}
 								title="What’s owed"

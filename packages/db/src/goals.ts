@@ -4,11 +4,14 @@ import {
 	type BalanceUpdate,
 	type Cents,
 	type DayKey,
+	dayKeyAt,
 	type GoalFunding,
 	type GoalKind,
 	holdsMoney,
 	type MonthKey,
 	monthOfDay,
+	type OwedPayment,
+	owedOn,
 	type SetAsideChange,
 } from "@noodle/domain";
 import {
@@ -33,6 +36,7 @@ import {
 	accountBalances,
 	accounts,
 	buckets,
+	commitments,
 	earmarkClaims,
 	goals,
 	households,
@@ -89,6 +93,8 @@ const insertBalance = (
 		accountId: string;
 		amountCents: Cents;
 		createdByMemberId: string;
+		/** The day the balance was true: a statement's closing date, or today; null when unknown. */
+		asOf?: DayKey | null;
 	},
 ) =>
 	db
@@ -102,6 +108,8 @@ const insertBalance = (
 					amountCents: sql<number>`${input.amountCents}`.as("amount_cents"),
 					createdByMemberId: sql<string>`${input.createdByMemberId}`.as("created_by_member_id"),
 					createdAt: nowMs.as("created_at"),
+					// Selected in the table's column order: insert … select is positional.
+					asOf: sql<string | null>`${input.asOf ?? null}`.as("as_of"),
 				})
 				.from(accounts)
 				.where(ownAccount(input.householdId, input.accountId)),
@@ -122,6 +130,8 @@ export async function addAccount(
 		balanceCents: Cents | null;
 		balanceId: string;
 		createdByMemberId: string;
+		/** The day the balance is from: today in the Household's time zone. */
+		asOf?: DayKey | null;
 	},
 ): Promise<void> {
 	const insertAccount = db
@@ -151,8 +161,8 @@ export async function renameAccount(
 }
 
 /**
- * Records an Account's balance as a Parent entered it. Idempotent per `balanceId`. Refused
- * unless the Account is the Household's.
+ * Records an Account's balance as a Parent entered it, true on `asOf` (a statement's closing
+ * date, or today). Idempotent per `balanceId`. Refused unless the Account is the Household's.
  */
 export async function updateAccountBalance(
 	db: Db,
@@ -162,6 +172,7 @@ export async function updateAccountBalance(
 		accountId: string;
 		amountCents: Cents;
 		createdByMemberId: string;
+		asOf?: DayKey | null;
 	},
 ): Promise<GoalWriteResult> {
 	await insertBalance(db, input);
@@ -374,28 +385,127 @@ export async function updateGoal(db: Db, input: GoalTargetInput & { name: string
 	]);
 }
 
-/** What's owed on one of the Household's credit cards or loans now: its latest balance, if any. */
-export const latestBalanceSql = (accountId: SQL | string) =>
-	sql<number | null>`(select b.amount_cents from account_balances b
-		where b.account_id = ${accountId} order by b.created_at desc, b.id desc limit 1)`;
+/** The day a balance was true: its `as_of`, else the day it was recorded in the Household's time zone. */
+const balanceDay = (row: { asOf: string | null; at: Date }, timeZone: string): DayKey =>
+	(row.asOf as DayKey | null) ?? dayKeyAt(row.at, timeZone);
 
-/** What's owed now on one of the Household's credit cards or loans; null without a balance. */
+/**
+ * What's owed now on a credit card or loan, as SQL: owedOn's twin (goals.test.ts holds it to
+ * it). Its latest balance, and for an Account kept by hand less the payments filed in
+ * Commitments that pay it down and dated after the balance's day. SQLite knows no time zones, so
+ * the day of a balance without an `as_of` is `fallbackDay`, read by the caller just before
+ * (readOwed); without one it's the UTC day.
+ */
+export const owedSql = (accountId: SQL | string, fallbackDay: DayKey | null = null) => {
+	const day = sql`coalesce(b.as_of, ${fallbackDay}, date(b.created_at / 1000, 'unixepoch'))`;
+	return sql<number | null>`(select case when oa.bank_connection_id is not null then b.amount_cents
+		else b.amount_cents
+			- coalesce((select sum(t.amount_cents) from transactions t
+				inner join commitments c on c.id = t.commitment_id
+				where c.account_id = b.account_id and t.household_id = b.household_id
+				and t.date > ${day} and ${sql.raw(countsRaw("t.id"))}), 0)
+			- coalesce((select sum(s.amount_cents) from splits s
+				inner join transactions t on t.id = s.transaction_id
+				inner join commitments c on c.id = s.commitment_id
+				where c.account_id = b.account_id and s.household_id = b.household_id
+				and t.date > ${day} and ${sql.raw(countsRaw("t.id"))}), 0)
+		end
+		from account_balances b inner join accounts oa on oa.id = b.account_id
+		where b.account_id = ${accountId} order by b.created_at desc, b.id desc limit 1)`;
+};
+
+/**
+ * The payments filed in Commitments that pay down a card or loan (ADR-0050), whole Transactions
+ * then Splits, for the whole Household: a Commitment has no owner, and what's owed is one figure
+ * for both Parents.
+ */
+const paymentQueries = (db: Db, householdId: string, accountId?: string) =>
+	[
+		db
+			.select({
+				id: transactions.id,
+				accountId: commitments.accountId,
+				// Not commitments.id: D1 hands a batch its rows keyed by column name, so two "id"s collapse
+				// into one and every column after it shifts.
+				commitmentId: transactions.commitmentId,
+				amount: transactions.amountCents,
+				date: transactions.date,
+			})
+			.from(transactions)
+			.innerJoin(commitments, eq(commitments.id, transactions.commitmentId))
+			.where(
+				and(
+					eq(transactions.householdId, householdId),
+					accountId ? eq(commitments.accountId, accountId) : isNotNull(commitments.accountId),
+					counts(),
+				),
+			),
+		db
+			.select({
+				id: splits.transactionId,
+				accountId: commitments.accountId,
+				commitmentId: splits.commitmentId,
+				amount: splits.amountCents,
+				date: transactions.date,
+			})
+			.from(splits)
+			.innerJoin(transactions, eq(transactions.id, splits.transactionId))
+			.innerJoin(commitments, eq(commitments.id, splits.commitmentId))
+			.where(
+				and(
+					eq(splits.householdId, householdId),
+					accountId ? eq(commitments.accountId, accountId) : isNotNull(commitments.accountId),
+					counts(),
+				),
+			),
+	] as const;
+
+/** What's owed now on one of the Household's Accounts (owedOn), and its latest balance's day. */
+async function readOwed(
+	db: Db,
+	input: { householdId: string; accountId: string },
+): Promise<{ owed: Cents | null; day: DayKey | null }> {
+	const [balanceRows, accountRows, whole, split] = await db.batch([
+		db
+			.select({
+				amount: accountBalances.amountCents,
+				at: accountBalances.createdAt,
+				asOf: accountBalances.asOf,
+			})
+			.from(accountBalances)
+			.where(
+				and(
+					eq(accountBalances.accountId, input.accountId),
+					eq(accountBalances.householdId, input.householdId),
+				),
+			)
+			.orderBy(desc(accountBalances.createdAt), desc(accountBalances.id))
+			.limit(1),
+		db
+			.select({ bankConnectionId: accounts.bankConnectionId, timeZone: households.timeZone })
+			.from(accounts)
+			.innerJoin(households, eq(households.id, accounts.householdId))
+			.where(ownAccount(input.householdId, input.accountId)),
+		...paymentQueries(db, input.householdId, input.accountId),
+	]);
+	const [balance] = balanceRows;
+	const [account] = accountRows;
+	if (!balance || !account) return { owed: null, day: null };
+	const day = balanceDay(balance, account.timeZone);
+	const owed = owedOn(
+		{ amount: balance.amount, day },
+		[...whole, ...split] as OwedPayment[],
+		account.bankConnectionId !== null,
+	);
+	return { owed, day };
+}
+
+/** What's owed now on one of the Household's credit cards or loans (owedOn); null without a balance. */
 export async function owedNow(
 	db: Db,
 	input: { householdId: string; accountId: string },
 ): Promise<Cents | null> {
-	const [row] = await db
-		.select({ amount: accountBalances.amountCents })
-		.from(accountBalances)
-		.where(
-			and(
-				eq(accountBalances.accountId, input.accountId),
-				eq(accountBalances.householdId, input.householdId),
-			),
-		)
-		.orderBy(desc(accountBalances.createdAt), desc(accountBalances.id))
-		.limit(1);
-	return row?.amount ?? null;
+	return (await readOwed(db, input)).owed;
 }
 
 /**
@@ -418,12 +528,13 @@ export async function addPayoffGoal(
 		createdByMemberId: string;
 	},
 ): Promise<GoalWriteResult> {
+	const { day } = await readOwed(db, input);
 	const guard = and(
 		ownAccount(input.householdId, input.accountId),
 		inArray(accounts.kind, ["credit-card", "loan"]),
 		isNull(accounts.archivedAt),
 		sql`${input.targetCents} > 0`,
-		sql`${latestBalanceSql(sql`${accounts.id}`)} = ${input.targetCents}`,
+		sql`${owedSql(sql`${accounts.id}`, day)} = ${input.targetCents}`,
 		notExists(
 			db
 				.select({ id: goals.id })
@@ -501,13 +612,19 @@ export async function restartPayoffGoal(
 	db: Db,
 	input: Author & { householdId: string; goalId: string; month: MonthKey; owedCents: Cents },
 ): Promise<GoalWriteResult> {
+	const [goal] = await db
+		.select({ accountId: goals.accountId })
+		.from(goals)
+		.where(ownGoal(input.householdId, input.goalId));
+	if (!goal) return { ok: false, reason: "refused" };
+	const { day } = await readOwed(db, { householdId: input.householdId, accountId: goal.accountId });
 	const guard = and(
 		ownGoal(input.householdId, input.goalId),
 		eq(goals.kind, "payoff"),
 		isNull(goals.completedAt),
 		isNull(goals.archivedAt),
 		sql`${input.owedCents} > 0`,
-		sql`${latestBalanceSql(sql`${goals.accountId}`)} = ${input.owedCents}`,
+		sql`${owedSql(sql`${goals.accountId}`, day)} = ${input.owedCents}`,
 	);
 	await db.batch([
 		logChange(
@@ -744,8 +861,14 @@ export type AccountRecord = {
 	/** The account number's last four digits, when known. */
 	mask: string | null;
 	kind: AccountKind;
-	/** The latest balance a Parent entered; null until one is. */
+	/** The latest balance a Parent entered, with the day it was true; null until one is. */
 	latestBalance: BalanceUpdate | null;
+	/**
+	 * What's owed on a credit card or loan now (owedOn): its latest balance, less the payments
+	 * filed since in Commitments that pay it down when it's kept by hand. Null for an Account that
+	 * holds money, and until it has a balance.
+	 */
+	owed: Cents | null;
 	/** The Bank Connection that brought it in; null for one entered by hand. */
 	bankConnectionId: string | null;
 	/** The last day a statement uploaded to it covers; null when none was. */
@@ -793,6 +916,11 @@ export type GoalRecords = {
 	 * owed over time, which a payoff Goal's history shows.
 	 */
 	owed: (BalanceUpdate & { accountId: string })[];
+	/**
+	 * Every payment filed in a Commitment that pays down a card or loan (ADR-0050), oldest first
+	 * by its day; `id` is its Transaction's.
+	 */
+	payments: (OwedPayment & { id: string; accountId: string; commitmentId: string })[];
 	/** The Goal the Household keeps for emergencies, if it has marked one. */
 	emergencyGoalId: string | null;
 	/**
@@ -819,6 +947,8 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 		splitRows,
 		householdRows,
 		archivedRows,
+		paymentRows,
+		splitPaymentRows,
 	] = await db.batch([
 		db
 			.select({
@@ -840,6 +970,7 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 				accountId: accountBalances.accountId,
 				amount: accountBalances.amountCents,
 				at: accountBalances.createdAt,
+				asOf: accountBalances.asOf,
 			})
 			.from(accountBalances)
 			.where(eq(accountBalances.householdId, householdId))
@@ -899,7 +1030,7 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 			.innerJoin(goals, eq(goals.id, splits.goalId))
 			.where(and(visibleSplit(viewer), visibleTo(viewer), counts(), isNotNull(splits.goalId))),
 		db
-			.select({ emergencyGoalId: households.emergencyGoalId })
+			.select({ emergencyGoalId: households.emergencyGoalId, timeZone: households.timeZone })
 			.from(households)
 			.where(eq(households.id, householdId)),
 		db
@@ -913,6 +1044,7 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 			.from(accounts)
 			.where(and(eq(accounts.householdId, householdId), isNotNull(accounts.archivedAt)))
 			.orderBy(desc(accounts.archivedAt), asc(accounts.id)),
+		...paymentQueries(db, householdId),
 	]);
 	const spendingRows = [
 		...wholeRows,
@@ -921,10 +1053,19 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 		...splitRows.map((row) => ({ ...row, at: new Date(row.at.getTime() + 999) })),
 	];
 	// Oldest first, so the last one per Account is its latest.
-	const latest = new Map<string, BalanceUpdate>();
+	const timeZone = householdRows[0]?.timeZone ?? "UTC";
+	const latest = new Map<string, BalanceUpdate & { day: DayKey }>();
 	for (const row of balanceRows) {
-		latest.set(row.accountId, { amount: row.amount, at: row.at.getTime() });
+		latest.set(row.accountId, {
+			amount: row.amount,
+			at: row.at.getTime(),
+			day: balanceDay(row, timeZone),
+		});
 	}
+	// commitment.account_id is filtered to non-null; dates are always written as DayKeys.
+	const payments = ([...paymentRows, ...splitPaymentRows] as GoalRecords["payments"]).sort(
+		(a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+	);
 	// Goal IDs are filtered to non-null; months and days are always written as Month/DayKeys.
 	const changes: GoalChange[] = [
 		...claimRows.map((row) => ({ ...row, kind: "claim" as const }) as GoalChange),
@@ -951,11 +1092,21 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 		),
 	].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 	return {
-		accounts: accountRows.map((row) => ({
-			...row,
-			lastStatementDate: row.lastStatementDate as DayKey | null,
-			latestBalance: latest.get(row.id) ?? null,
-		})),
+		accounts: accountRows.map((row) => {
+			const latestBalance = latest.get(row.id) ?? null;
+			return {
+				...row,
+				lastStatementDate: row.lastStatementDate as DayKey | null,
+				latestBalance,
+				owed: holdsMoney(row.kind)
+					? null
+					: owedOn(
+							latestBalance,
+							payments.filter((p) => p.accountId === row.id),
+							row.bankConnectionId !== null,
+						),
+			};
+		}),
 		withdrawals: spendingRows
 			.filter((row) => row.accountId !== null)
 			.map((row) => ({
@@ -978,7 +1129,13 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 		changes,
 		owed: balanceRows
 			.filter((row) => accountRows.some((a) => a.id === row.accountId && !holdsMoney(a.kind)))
-			.map((row) => ({ accountId: row.accountId, amount: row.amount, at: row.at.getTime() })),
+			.map((row) => ({
+				accountId: row.accountId,
+				amount: row.amount,
+				at: row.at.getTime(),
+				day: balanceDay(row, timeZone),
+			})),
+		payments,
 		emergencyGoalId: householdRows[0]?.emergencyGoalId ?? null,
 		archivedAccounts: archivedRows.map((row) => ({
 			...row,

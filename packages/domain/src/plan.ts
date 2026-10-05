@@ -43,6 +43,10 @@ export type CommitmentRecord = {
 	fromMonth: MonthKey;
 	/** The first month the Commitment is no longer part of the Plan, once ended. */
 	endedFromMonth: MonthKey | null;
+	/** The credit card or loan its payments pay down (ADR-0050); null or absent for none. */
+	accountId?: string | null;
+	/** A Parent said it's a set payment on a balance they're carrying. */
+	carriedBalance?: boolean;
 };
 
 export type PlanBucket = {
@@ -59,7 +63,14 @@ export type PlanBucket = {
 	owner?: string;
 };
 
-export type PlanCommitment = { id: string; name: string } & CommitmentTerms;
+export type PlanCommitment = {
+	id: string;
+	name: string;
+	/** The credit card or loan it pays down (ADR-0050); absent when it pays down none. */
+	accountId?: string;
+	/** Set with `accountId`: a set payment on a balance the Household is carrying. */
+	carriedBalance?: boolean;
+} & CommitmentTerms;
 
 /** One month's Plan. `baseline` is null until a Parent has set one. */
 export type Plan = {
@@ -94,14 +105,15 @@ export function commitmentsIn(
 ): PlanCommitment[] {
 	const commitments = records.commitments
 		.filter((c) => inPlan(month, c.fromMonth, c.endedFromMonth))
-		.flatMap(({ id, name }): PlanCommitment[] => {
+		.flatMap(({ id, name, accountId, carriedBalance }): PlanCommitment[] => {
 			const terms = effective(
 				records.commitmentTerms.filter((t) => t.commitmentId === id),
 				month,
 			);
 			if (!terms) return [];
 			const { amount, cadence, dueDate } = terms;
-			return [{ id, name, amount, cadence, dueDate }];
+			const paysDown = accountId ? { accountId, carriedBalance: carriedBalance ?? false } : {};
+			return [{ id, name, amount, cadence, dueDate, ...paysDown }];
 		});
 	return byNextDue(commitments, `${month}-01`);
 }

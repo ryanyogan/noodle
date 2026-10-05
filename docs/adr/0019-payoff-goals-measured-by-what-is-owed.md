@@ -13,7 +13,7 @@ The rest follows from those four.
 
 ## What's owed now
 
-What's owed is the card's or loan's balance as Noodle knows it: the latest one the bank brought in, or a Parent entered (Update what's owed), or a statement's closing balance a Parent chose to use. Nothing else moves it.
+What's owed is the card's or loan's balance as Noodle knows it: the latest one the bank brought in, or a Parent entered (Update what's owed), or a statement's closing balance a Parent chose to use. Nothing else moves it. (Amended by ADR-0050: on an Account kept by hand, payments filed in a Commitment that pays it down come off it too.)
 
 - **A card payment** (a Transfer from checking to the card) doesn't change what's owed by itself. A Transfer never counts as spending, so it doesn't touch Free to Spend either. The payment shows in what's owed when the bank brings in the card's next balance, or when a Parent updates it or uses the statement's. The payoff Goal's page offers both: "Update what's owed" and, when the card's latest statement is newer than its balance, "Use the statement's $X".
 - **Funding and payments are separate on purpose.** Funding is the Plan saying "this month we'll pay $400 extra"; the payment is the money actually leaving checking. Progress only ever comes from what's owed, so funding that was never paid doesn't count as progress, and a payment that was never planned still does.
