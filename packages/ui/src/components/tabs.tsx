@@ -16,8 +16,12 @@ const tabsListVariants = cva(
 	"inline-flex w-max max-w-full items-center gap-0.5 rounded-lg bg-surface-3/80 p-0.5 text-muted-foreground dark:bg-surface-2",
 );
 
+// On a phone a tab is 36px in a 40px track, and takes a thumb over 44px: its `::after` reaches 4px
+// above and below it (issue 115). LinkTabs' strip is 44px tall so that reach isn't cut off; a
+// TabsList is its own strip, so there the reach ends at the track (40px).
 const tabsTriggerVariants = cva([
-	"inline-flex h-8 max-lg:h-11 shrink-0 items-center justify-center gap-1.5 rounded-md px-3 text-[13px] font-medium whitespace-nowrap",
+	"inline-flex h-8 max-lg:h-9 shrink-0 items-center justify-center gap-1.5 rounded-md px-3 text-[13px] font-medium whitespace-nowrap",
+	"max-lg:relative max-lg:after:absolute max-lg:after:inset-x-0 max-lg:after:-inset-y-1",
 	"transition-[background-color,color,box-shadow] duration-(--duration-fast) ease-standard hover:text-foreground",
 	"focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
 	"disabled:pointer-events-none disabled:opacity-50",
@@ -119,7 +123,13 @@ function LinkTabs({
 }: React.ComponentProps<"nav"> & { listClassName?: string }) {
 	const fade = useEdgeFade<HTMLElement>();
 	return (
-		<nav data-slot="link-tabs" className={cn(edgeFade, className)} {...props} {...fade}>
+		<nav
+			data-slot="link-tabs"
+			// Room for the tabs' 44px tap area above and below the track on a phone.
+			className={cn(edgeFade, "max-lg:py-0.5", className)}
+			{...props}
+			{...fade}
+		>
 			<div className={cn(tabsListVariants(), "max-w-none", listClassName)}>{children}</div>
 		</nav>
 	);

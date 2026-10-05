@@ -43,10 +43,16 @@ export function PlanHealth({ folded = false }: { folded?: boolean }) {
 					onClick={() => setOpen((o) => !o)}
 					className="min-h-11 min-w-0 justify-start gap-2 bg-card min-[120rem]:hidden"
 				>
-					<span className="text-sm font-semibold">Things to check</span>
-					<Badge variant="count">{warnings.length}</Badge>
-					<span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
-						{describe(first, month).title}
+					{/* On a phone the first warning goes under the heading, on up to two lines, where
+					    beside it there was room for two words of it (issue 115). */}
+					<span className="flex min-w-0 flex-1 flex-col gap-0.5 text-start sm:flex-row sm:items-center sm:gap-2">
+						<span className="flex items-center gap-2">
+							<span className="text-sm font-semibold">Things to check</span>
+							<Badge variant="count">{warnings.length}</Badge>
+						</span>
+						<span className="line-clamp-2 min-w-0 text-[13px] text-muted-foreground sm:line-clamp-none sm:flex-1 sm:truncate">
+							{describe(first, month).title}
+						</span>
 					</span>
 					<ChevronDown
 						aria-hidden="true"
