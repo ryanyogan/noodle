@@ -11,7 +11,7 @@ import { Money } from "@noodle/ui/components/money";
 import { RowButton } from "@noodle/ui/components/row-button";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, linkOptions } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import {
@@ -123,6 +123,11 @@ function PlanCommitments() {
 		<PlanMasterDetail
 			noun="Commitment"
 			listLabel="Commitments"
+			// A Commitment opens in a panel from the right; the list keeps its width and columns.
+			panel={{
+				size: "wide",
+				close: linkOptions({ to: "/plan/$month/commitments", params: { month } }),
+			}}
 			editable={state.editable}
 			summary={
 				state.commitments.length > 0 ? (

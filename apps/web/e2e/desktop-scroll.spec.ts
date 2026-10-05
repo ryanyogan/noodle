@@ -12,7 +12,7 @@ import {
 
 // Guards the desktop's one scroll per region (#67): the page scrolls, and nothing scrolls inside
 // it. A rail with its own scrollbar inside a scrolling page is what this catches. Allowed:
-// the sidebar, open sheets, dialogs, menus and popovers,
+// the sidebar, open sheets, dialogs, menus and popovers, a picked item's panel (issue 107, ADR-0047),
 // text areas, and things that only scroll sideways (tab strips, wide tables).
 const desktop = { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 } as const;
 
@@ -89,7 +89,7 @@ function measure(page: Page) {
 		const root = document.scrollingElement ?? document.documentElement;
 		const pageScrolls = root.scrollHeight > root.clientHeight + 1;
 		const allowed =
-			"[data-slot=sidebar],[role=dialog],[role=alertdialog],[role=menu],[role=listbox],[data-radix-popper-content-wrapper]";
+			"[data-slot=sidebar],[data-slot=master-detail-detail][data-panel],[role=dialog],[role=alertdialog],[role=menu],[role=listbox],[data-radix-popper-content-wrapper]";
 		const insideScroller = (el: Element) => {
 			for (let e = el.parentElement; e && e !== document.body; e = e.parentElement) {
 				if (scrollsY(e)) return true;
