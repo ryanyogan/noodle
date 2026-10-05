@@ -1,9 +1,11 @@
 import { env } from "cloudflare:workers";
 import {
+	carriedTables,
+	carryNotes,
+	carryRefusal,
 	listHouseholdSnapshots,
 	listParents,
 	loadActiveFreshStart,
-	SNAPSHOT_FORMAT,
 	snapshotRefusal,
 } from "@noodle/db";
 import { createServerFn } from "@tanstack/react-start";
@@ -44,8 +46,10 @@ export type SnapshotSummary = {
 	bytes: number;
 	createdAt: number;
 	counts: { transactions: number; buckets: number; goals: number; accounts: number };
-	/** Taken with today's schema, so it can be restored (an older one is refused, ADR-0035). */
+	/** False only when taken under a newer migration than the database's, or in another format. */
 	restorable: boolean;
+	/** What will differ after restoring one taken before a migration, a line each (ADR-0048). */
+	carryNotes: string[];
 };
 
 /** The Household's snapshots, newest first: when, kind, who, the note, size and a few counts. */
@@ -72,7 +76,8 @@ export const getSnapshots = createServerFn({ method: "GET" })
 				goals: row.rowCounts.goals ?? 0,
 				accounts: row.rowCounts.accounts ?? 0,
 			},
-			restorable: row.format === SNAPSHOT_FORMAT && row.migration === migration,
+			restorable: snapshotRefusal(row, context.household.id, migration) === null,
+			carryNotes: carryNotes(row.migration, migration),
 		}));
 	});
 
@@ -100,7 +105,7 @@ const RUNNING = new Set(["queued", "running", "waiting", "paused", "waitingForPa
 
 /**
  * A Parent restores a snapshot after typing the Household's name. Refused plainly when it can't
- * be (another Household's, an older schema, a Fresh start or another restore under way); else a
+ * be (another Household's, a newer schema, a Fresh start or another restore under way); else a
  * "Before restore" snapshot is taken first and the restore Workflow started, under that one's id.
  */
 export const restoreSnapshot = createServerFn({ method: "POST" })
@@ -127,7 +132,9 @@ export const restoreSnapshot = createServerFn({ method: "POST" })
 		const deps = await snapshotDeps();
 		const file = await readSnapshot(env.BACKUPS, snapshot.key);
 		if (!file) return { ok: false as const, reason: "That snapshot’s file is gone." };
-		const refusal = snapshotRefusal(file, householdId, deps.migration);
+		const refusal =
+			snapshotRefusal(file, householdId, deps.migration) ??
+			carryRefusal(carriedTables(file, deps.migration));
 		if (refusal) return { ok: false as const, reason: refusal };
 		const before = await takeSnapshotAndTell(
 			deps,
