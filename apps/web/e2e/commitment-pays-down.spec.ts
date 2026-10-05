@@ -2,7 +2,14 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { measure } from "./overflow";
 import { createTestParent } from "./parents";
-import { accountKindLabel, choose, createPlannedHousehold, savedBy, signedInPage } from "./session";
+import {
+	accountKindLabel,
+	choose,
+	createPlannedHousehold,
+	reloadUntil,
+	savedBy,
+	signedInPage,
+} from "./session";
 
 // A Commitment can pay down a credit card or loan (issue 93, ADR-0050): chosen under "Pays down"
 // in its form, each payment filed in it after the balance's day brings what's owed on an Account
@@ -264,4 +271,78 @@ test("a card Noodle follows needs the balance-I'm-carrying tick", async ({ brows
 	await addForm(page).getByRole("button", { name: "Add Commitment" }).click();
 	await added;
 	await expect(row(page, "Card minimum").first()).toContainText("Pays down Chase Freedom");
+});
+
+test("a payment out of checking to a card a Commitment pays down is offered in Review as that payment, and Confirm files it there", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await createPlannedHousehold(page, plan);
+	const thisMonth = page.url();
+	const month = /\d{4}-\d{2}/.exec(thisMonth)?.[0] ?? (await daysAgo(page, 0)).slice(0, 7);
+	await addAccount(page, "Everyday Checking", "checking", "4,000");
+	await addAccount(page, "American Express", "credit-card");
+
+	// What's owed is from a statement that closed three days ago, so a payment today comes off it.
+	await openAccount(page, "American Express");
+	await page.getByRole("button", { name: "Upload statement" }).click();
+	const upload = page.getByRole("dialog", { name: "Upload a statement" });
+	await upload.getByLabel("Statement file").setInputFiles({
+		name: "amex.qfx",
+		mimeType: "application/x-ofx",
+		buffer: Buffer.from(cardStatement(await daysAgo(page, 3), "2000.00")),
+	});
+	await upload.getByRole("button", { name: /^Import \d+ lines?$/ }).click();
+	await upload.getByRole("button", { name: "Use $2,000 as what’s owed" }).click();
+	await expect(upload).toBeHidden();
+
+	await openCommitments(page, month);
+	await addForm(page).getByLabel("New Commitment").fill("Amex payment");
+	await addForm(page).getByLabel("Amount due").fill("2,300");
+	await paysDown(addForm(page), page, /^American Express/);
+	const added = savedBy(page, "addCommitment");
+	await addForm(page).getByRole("button", { name: "Add Commitment" }).click();
+	await added;
+	await expect(row(page, "Amex payment").first()).toContainText("Pays down American Express");
+
+	// The bank's own line for one of the month's payments: less than the Commitment's amount.
+	await openAccount(page, "Everyday Checking");
+	const [year, monthOf, day] = (await daysAgo(page, 0)).split("-");
+	const csv = [
+		"Details,Posting Date,Description,Amount,Type,Balance,Check or Slip #",
+		`DEBIT,${monthOf}/${day}/${year},"AMERICAN EXPRESS ACH PMT M8054 WEB ID: 2005032111",-612.50,ACH_DEBIT,3387.50,`,
+	].join("\n");
+	await page.getByRole("button", { name: "Upload statement" }).click();
+	await upload
+		.getByLabel("Statement file")
+		.setInputFiles({ name: "checking.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+	await upload.getByRole("button", { name: "Import 1 line" }).click();
+	await expect(
+		page.getByRole("status").filter({ hasText: "checking.csv: 1 Transaction" }),
+	).toBeVisible();
+
+	// Review suggests the payment, by the card it pays down; Confirm files it in the Commitment.
+	const card = page.getByTestId("review-card").filter({ hasText: "Payment to American Express" });
+	await reloadUntil(page, new URL("/review?view=list", thisMonth).href, () =>
+		expect(card).toHaveCount(1, { timeout: 2_000 }),
+	);
+	await expect(card).toContainText("Files in Amex payment · pays down what’s owed");
+	await expect(card.getByRole("button", { name: "It’s a card payment" })).toHaveCount(0);
+	const confirm = card.getByRole("button", { name: "Confirm" });
+	await expect(confirm).toBeEnabled();
+	const filed = savedBy(page, "updateTransaction");
+	await confirm.click();
+	await filed;
+	await expect(page.getByTestId("review-card")).toHaveCount(0);
+	// Then the usual offer to always file it there.
+	await expect(page.getByRole("status").filter({ hasText: "in Amex payment?" })).toBeVisible();
+
+	// The Commitment shows how far along it is, and the card owes that much less.
+	await openCommitments(page, month);
+	await expect(row(page, "Amex payment").first()).toContainText("$612.50 of $2,300 paid");
+	await openAccount(page, "American Express");
+	await expect(owedCard(page)).toContainText("$1,387.50");
+	await expect(owedCard(page)).toContainText("less $612.50 paid since.");
+	await expect(payments(page)).toContainText("Payment · Amex payment");
 });

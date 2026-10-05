@@ -36,6 +36,7 @@ import {
 	type CommitmentVariables,
 	cadenceNames,
 	costText,
+	partPaid,
 	readPaysDown,
 	schedule,
 	tellPaysDownRefusal,
@@ -158,6 +159,12 @@ function PaidState({ commitment }: { commitment: CommitmentState }) {
 	}
 	if (status === "paid") return <Badge dot>Paid</Badge>;
 	if (status === "differs") {
+		// Partly paid, and it pays down a card or loan: several payments a month are the usual
+		// thing there, so it says how far along it is rather than how far off (ADR-0050).
+		const part = partPaid(commitment);
+		if (part) {
+			return <span className="text-[13px] text-muted-foreground tabular-nums">{part}</span>;
+		}
 		return (
 			<Badge variant={difference > 0 ? "over" : "default"} dot>
 				{difference > 0 ? `${formatMoney(difference)} more` : `${formatMoney(-difference)} less`}
@@ -478,9 +485,20 @@ export function ScheduleFields({
 	);
 }
 
-export function AddCommitment({ month }: { month: MonthKey }) {
+/** What the add form opens with, from a payment in Review made into a Commitment (ADR-0050). */
+export type CommitmentStart = {
+	name?: string | undefined;
+	/** Cents. */
+	amount?: number | undefined;
+	/** The card or loan it pays down, by ID, or "add" for one Noodle doesn't have yet. */
+	paysDown?: string | undefined;
+};
+
+export function AddCommitment({ month, start }: { month: MonthKey; start?: CommitmentStart }) {
 	const hydrated = useHydrated();
 	const id = useId();
+	// Only the first Commitment added starts from what Review passed.
+	const [prefill, setPrefill] = useState(start);
 	// A fresh ID per Commitment; a retry of the same attempt reuses it, so it's added once.
 	const [commitmentId, setCommitmentId] = useState(() => ulid());
 	const [errors, setErrors] = useState<CommitmentErrors>({});
@@ -500,6 +518,7 @@ export function AddCommitment({ month }: { month: MonthKey }) {
 		add.mutate({ commitmentId, month, ...read.terms });
 		// The Commitment shows at once; the next one gets its own ID.
 		setCommitmentId(ulid());
+		setPrefill(undefined);
 		form.reset();
 	}
 
@@ -511,11 +530,16 @@ export function AddCommitment({ month }: { month: MonthKey }) {
 				aria-label="Add a Commitment"
 				className="grid gap-3 p-(--card-pad)"
 			>
-				<div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem] lg:grid-cols-1">
+				{/* Keyed like "Pays down": the next one starts empty, not from Review's line again. */}
+				<div
+					key={commitmentId}
+					className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem] lg:grid-cols-1"
+				>
 					<Field label="New Commitment" htmlFor={`${id}-name`}>
 						<Input
 							id={`${id}-name`}
 							name="name"
+							defaultValue={prefill?.name}
 							maxLength={40}
 							autoComplete="off"
 							placeholder="Mortgage"
@@ -526,6 +550,9 @@ export function AddCommitment({ month }: { month: MonthKey }) {
 						<Input
 							id={`${id}-amount`}
 							name="amount"
+							defaultValue={
+								prefill?.amount ? (prefill.amount / 100).toFixed(2).replace(/\.00$/, "") : undefined
+							}
 							inputMode="decimal"
 							autoComplete="off"
 							placeholder="0"
@@ -542,7 +569,17 @@ export function AddCommitment({ month }: { month: MonthKey }) {
 					invalid={errors.dueDate}
 				/>
 				{/* Keyed by the Commitment being added, so the next one starts from Nothing again. */}
-				<PaysDownField key={commitmentId} id={id} invalid={errors.carried} />
+				<PaysDownField
+					key={commitmentId}
+					id={id}
+					invalid={errors.carried}
+					initial={
+						prefill?.paysDown && prefill.paysDown !== "add"
+							? { accountId: prefill.paysDown }
+							: undefined
+					}
+					startAdding={prefill?.paysDown === "add"}
+				/>
 				<CommitmentFormErrors errors={errors} />
 				<SaveFailed change={add} />
 				<Button

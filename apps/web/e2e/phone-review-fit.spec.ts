@@ -2,9 +2,12 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
 import {
+	accountKindLabel,
+	choose,
 	clientRendered,
 	createPlannedHousehold,
 	reloadUntil,
+	savedBy,
 	signedInPage,
 	uploadStatement,
 	waitForReview,
@@ -12,8 +15,10 @@ import {
 
 // Review on a phone, one by one and in the list: no card is wider than the screen, whatever is on
 // it. The card that was: a likely card payment, whose long "It’s a card payment" button sat beside
-// the picker and Edit on one row. Also a suggestion, a merchant with a long name, and one whose
-// name is a single long word. Categorization runs with its fake (AI_MODEL=stub): it guesses Gas
+// the picker and Edit on one row. Every kind of payment card is here (ADR-0050): one a Commitment
+// pays down (Confirm), one to a card Noodle follows (a Transfer), one to a card it doesn't ("Make
+// it a Commitment", with two more choices on a row under the picker). Also a suggestion, a
+// merchant with a long name, and one whose name is a single long word. Categorization runs with its fake (AI_MODEL=stub): it guesses Gas
 // for a merchant with "gas" in its name.
 
 const WIDTHS = [
@@ -24,11 +29,44 @@ const WIDTHS = [
 ] as const;
 
 const LINES: [what: string, amount: string][] = [
-	["AMEX EPAYMENT ACH PMT", "400.00"],
+	// A Commitment pays this card down: "Payment to American Express", with Confirm.
+	["AMERICAN EXPRESS ACH PMT M8054 WEB ID: 2005032111", "612.50"],
+	// A card Noodle follows: "It’s a card payment".
+	["CHASE CREDIT CRD AUTOPAY", "400.00"],
+	// A card Noodle doesn't have: "Make it a Commitment".
+	["DISCOVER E-PAYMENT 4821", "250.00"],
 	["CORNER GAS MART", "40.00"],
 	["ACME WIDGETS AND INDUSTRIAL FASTENERS OF NORTH AMERICA LLC SPRINGFIELD WAREHOUSE", "19.99"],
 	["SUPERCALIFRAGILISTICEXPIALIDOCIOUSHARDWAREANDGARDENSUPPLY*ONLINE4417", "12.50"],
 ];
+
+/** The cards waiting: the lines, and the purchase that makes Chase Freedom a card Noodle follows. */
+const WAITING = LINES.length + 1;
+
+/** Each kind of payment card (the card's data-payment), and its first action. */
+const PAYMENTS = {
+	commitment: { role: "button", name: "Confirm" },
+	followed: { role: "button", name: "It’s a card payment" },
+	"not-followed": { role: "link", name: "Make it a Commitment" },
+} as const;
+
+/** Adds an Account on the Accounts page: its form when there are none yet, else its sheet. */
+async function addAccount(page: Page, name: string, kind: string, owed?: string) {
+	await page.goto(new URL("/accounts", page.url()).href);
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Accounts");
+	const first = await page.getByText("Accounts are where the money is").count();
+	if (!first) await page.getByRole("button", { name: "Add Account" }).click();
+	const form = first
+		? page.getByRole("main")
+		: page.getByRole("dialog", { name: "Add an Account" });
+	await form.getByLabel("Name").fill(name);
+	await choose(form, "Kind", accountKindLabel(kind));
+	if (owed) await form.getByLabel("Owed now").fill(owed);
+	const saved = savedBy(page, "addAccount");
+	await form.getByRole("button", { name: "Add Account" }).click();
+	await saved;
+	await expect(page.getByRole("link", { name: new RegExp(`^${name}, `) })).toBeVisible();
+}
 
 let parent: Awaited<ReturnType<typeof createTestParent>>;
 
@@ -87,7 +125,7 @@ async function axe(page: Page, what: string) {
 	).toEqual([]);
 }
 
-test("on a phone no Review card is wider than the screen: a card payment, a suggestion and long names, one by one and in the list", async ({
+test("on a phone no Review card is wider than the screen: every kind of payment card, a suggestion and long names, one by one and in the list", async ({
 	browser,
 }) => {
 	test.slow();
@@ -100,12 +138,46 @@ test("on a phone no Review card is wider than the screen: a card payment, a sugg
 		],
 	});
 	const thisMonth = page.url();
-	await uploadStatement(page, LINES, true);
-	await waitForReview(page, new URL("/review", thisMonth).href, `1 of ${LINES.length}`);
+	const month = /\d{4}-\d{2}/.exec(thisMonth)?.[0] ?? "";
+
+	// A card Noodle follows: a purchase on it came in today.
+	await addAccount(page, "Chase Freedom", "credit-card", "900");
+	await page.getByRole("link", { name: /^Chase Freedom, / }).click();
+	await expect(page.locator("[data-slot=detail-title]:visible")).toContainText("Chase Freedom");
+	const today = await page.evaluate(() => new Date().toLocaleDateString("en-US"));
+	await page.getByRole("button", { name: "Upload statement" }).click();
+	const upload = page.getByRole("dialog", { name: "Upload a statement" });
+	await upload.getByLabel("Statement file").setInputFiles({
+		name: "chase.csv",
+		mimeType: "text/csv",
+		buffer: Buffer.from(
+			`Transaction Date,Description,Debit,Credit\n${today},SHELL OIL 5741,38.50,`,
+		),
+	});
+	await upload.getByRole("button", { name: "Import 1 line" }).click();
+	await expect(upload).toBeHidden();
+	// A card kept by hand, with a Commitment that pays it down.
+	await addAccount(page, "American Express", "credit-card", "2,000");
+	await page.goto(new URL(`/plan/${month}/commitments`, thisMonth).href);
+	const addForm = page.getByRole("form", { name: "Add a Commitment" });
+	await addForm.getByLabel("New Commitment").fill("Amex payment");
+	await addForm.getByLabel("Amount due").fill("2,300");
+	await addForm.getByRole("combobox", { name: "Pays down", exact: true }).click();
+	await page
+		.getByRole("listbox")
+		.getByRole("option", { name: /^American Express/ })
+		.click();
+	const added = savedBy(page, "addCommitment");
+	await addForm.getByRole("button", { name: "Add Commitment" }).click();
+	await added;
+	// The lines themselves come in on a third card.
+	await addAccount(page, "Visa", "credit-card", "800");
+	await page.goto(thisMonth);
+	await uploadStatement(page, LINES);
+	await waitForReview(page, new URL("/review", thisMonth).href, `1 of ${WAITING}`);
 
 	const stack = page.getByTestId("review-stack");
 	const top = stack.getByTestId("review-card");
-	const mark = top.getByRole("button", { name: "It’s a card payment" });
 	const skip = stack.getByRole("button", { name: "Skip" });
 
 	for (const [width, height] of WIDTHS) {
@@ -115,14 +187,17 @@ test("on a phone no Review card is wider than the screen: a card payment, a sugg
 		await page.goto("/review");
 		await expect(skip).toBeEnabled(clientRendered);
 		await page.evaluate(() => document.fonts.ready);
-		let payment = false;
-		for (let card = 0; card < LINES.length; card++) {
+		const seen = new Set<string>();
+		for (let card = 0; card < WAITING; card++) {
 			await expect(top.getByRole("combobox", { name: /^Where .+ goes$/ })).toBeEnabled();
-			if (await mark.isVisible()) {
-				payment = true;
-				// Its button has the first row; the picker the whole row under it.
+			const kind = (await top.getAttribute("data-payment")) as keyof typeof PAYMENTS | null;
+			if (kind) {
+				seen.add(kind);
+				// Its first action has the first row; the picker the whole row under it.
+				const first = top.getByRole(PAYMENTS[kind].role, { name: PAYMENTS[kind].name });
+				await expect(first).toBeVisible();
 				const [button, picker, inside] = await Promise.all([
-					mark.boundingBox(),
+					first.boundingBox(),
 					top.getByRole("combobox", { name: /^Where .+ goes$/ }).boundingBox(),
 					top.boundingBox(),
 				]);
@@ -133,30 +208,47 @@ test("on a phone no Review card is wider than the screen: a card payment, a sugg
 				expect(picker.width, `${width}: the picker has the card's width`).toBeGreaterThan(
 					inside.width - 40,
 				);
-				if (width === 393) await axe(page, "one by one, a card payment on top");
+				if (kind === "not-followed") {
+					// Its other two choices are under the picker, inside the card.
+					const others = await Promise.all([
+						top.getByRole("link", { name: "Connect the card" }).boundingBox(),
+						top.getByRole("button", { name: "It’s a card payment" }).boundingBox(),
+					]);
+					for (const other of others) {
+						expect(other?.y, `${width}: under the picker`).toBeGreaterThanOrEqual(
+							picker.y + picker.height,
+						);
+					}
+				}
+				if (width === 393) await axe(page, `one by one, a ${kind} payment on top`);
 			}
 			expect(await misfits(page), `${width}: one by one, card ${card + 1}`).toEqual([]);
 			await skip.click();
 			// The card flies off and the next one settles.
 			await page.waitForTimeout(600);
 		}
-		expect(payment, `${width}: a card payment came to the top`).toBe(true);
+		expect([...seen].sort(), `${width}: every kind of payment card came to the top`).toEqual(
+			Object.keys(PAYMENTS).sort(),
+		);
 		expect(await misfits(page), `${width}: one by one, after the last skip`).toEqual([]);
 
 		// The list: every card at once.
 		const cards = page.getByTestId("review-card");
 		await reloadUntil(page, "/review?view=list", async () => {
-			await expect(cards).toHaveCount(LINES.length, { timeout: 3_000 });
+			await expect(cards).toHaveCount(WAITING, { timeout: 3_000 });
 			await expect(cards.first().getByRole("combobox", { name: /^Where .+ goes$/ })).toBeEnabled({
 				timeout: 3_000,
 			});
 		});
 		await page.evaluate(() => document.fonts.ready);
-		await expect(
-			cards.filter({ hasText: "Card payment — not spending" }).getByRole("button", {
-				name: "It’s a card payment",
-			}),
-		).toBeVisible();
+		for (const [kind, action] of Object.entries(PAYMENTS)) {
+			await expect(
+				page
+					.locator(`[data-testid=review-card][data-payment=${kind}]`)
+					.getByRole(action.role, { name: action.name }),
+				`${width}: the list's ${kind} payment card`,
+			).toBeVisible();
+		}
 		expect(await misfits(page), `${width}: the list`).toEqual([]);
 		if (width === 393) await axe(page, "the list");
 	}

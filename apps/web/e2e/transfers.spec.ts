@@ -143,7 +143,7 @@ test("paying the card from checking is one Transfer, which counts nowhere", asyn
 	await expect(page.getByText("Unassigned · Everyone · Checking")).toHaveCount(1);
 });
 
-test("a payment to a card Noodle doesn't follow is offered in Review as a card payment, and one tap marks it a Transfer (#91)", async ({
+test("a payment to a card Noodle doesn't follow is the spending: Review offers a Commitment or connecting the card, and a Transfer second", async ({
 	browser,
 }) => {
 	test.slow();
@@ -165,23 +165,33 @@ test("a payment to a card Noodle doesn't follow is offered in Review as a card p
 	);
 	await expect(toast(page, "checking.csv: 2 Transactions")).toBeVisible();
 
-	// In Review it's a card payment first, with why, and a Bucket second.
+	// In Review it's a payment to a card Noodle can't see into, with why: the payment is the
+	// spending, so it's planned as a Commitment, or the card is connected.
 	const payment = page
 		.getByTestId("review-card")
-		.filter({ hasText: "Card payment — not spending" });
+		.filter({ hasText: "Payment to a card Noodle doesn’t follow" });
 	await reloadUntil(page, new URL("/review?view=list", thisMonth).href, () =>
 		expect(payment).toHaveCount(1, { timeout: 2_000 }),
 	);
 	await expect(payment).toContainText("Looks like a payment to a credit card");
 	await expect(payment.getByTestId("review-payment-why")).toContainText(
-		"What you bought on the card is already in your Buckets, so the payment itself isn’t spending.",
+		"Noodle can’t see what was bought on this card, so the payment is the spending.",
 	);
-	await expect(payment.getByRole("link", { name: "add it in Accounts" })).toBeVisible();
+	// The Commitment's form would open with the line's amount, and a card to add ready.
+	const commit = payment.getByRole("link", { name: "Make it a Commitment" });
+	await expect(commit).toBeVisible();
+	await expect(commit).toHaveAttribute("href", /\/plan\/\d{4}-\d{2}\/commitments\?.*amount=40000/);
+	await expect(commit).toHaveAttribute("href", /paysDown=add/);
+	await expect(payment.getByRole("link", { name: "Connect the card" })).toHaveAttribute(
+		"href",
+		"/accounts",
+	);
 	await expect(payment.getByRole("button", { name: "Confirm" })).toHaveCount(0);
 	await expect(payment.getByRole("combobox", { name: /^Where .+ goes$/ })).toBeVisible();
 	// The corner store is an ordinary card.
 	await expect(page.getByTestId("review-card")).toHaveCount(2);
 
+	// Still a Transfer if the Parent says so: the second choice.
 	const mark = payment.getByRole("button", { name: "It’s a card payment" });
 	await expect(mark).toBeEnabled();
 	await mark.click();

@@ -33,9 +33,12 @@ export function PaysDownField({
 	initial,
 	inCard = false,
 	invalid = false,
+	startAdding = false,
 }: {
 	id: string;
 	initial?: { accountId?: string | null | undefined; carriedBalance?: boolean | undefined };
+	/** Opens with "Add a card or loan…" ready: the Commitment is for a card Noodle doesn't have. */
+	startAdding?: boolean;
 	inCard?: boolean;
 	/** The form was submitted without the tick a followed card needs. */
 	invalid?: boolean;
@@ -45,7 +48,7 @@ export function PaysDownField({
 	const addAccount = useAddAccount();
 	const [value, setValue] = useState(initial?.accountId ?? "");
 	const [carried, setCarried] = useState(initial?.carriedBalance ?? false);
-	const [adding, setAdding] = useState(false);
+	const [adding, setAdding] = useState(startAdding);
 	const [name, setName] = useState("");
 	const [kind, setKind] = useState<"credit-card" | "loan">("credit-card");
 	const [owed, setOwed] = useState("");
@@ -58,7 +61,7 @@ export function PaysDownField({
 		followed ?? [],
 	);
 	// Nothing to pay down yet: Accounts is where the first card or loan is added.
-	if (accounts.length === 0 && value === "") return null;
+	if (accounts.length === 0 && value === "" && !adding) return null;
 	const chosen = accounts.find((account) => account.id === value) ?? null;
 	// One it paid down before the Account was archived still shows, by name.
 	const gone =

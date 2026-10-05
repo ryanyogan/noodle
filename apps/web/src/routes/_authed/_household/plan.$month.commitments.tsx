@@ -14,6 +14,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, linkOptions } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
+import { z } from "zod";
 import {
 	AddCommitment,
 	CommitmentEditor,
@@ -28,6 +29,12 @@ import { usePlanChanges } from "../../../plan-changes";
 import { commitmentsQuery, goalsQuery, suggestionsQuery, useMonthState } from "../../../queries";
 
 export const Route = createFileRoute("/_authed/_household/plan/$month/commitments")({
+	// From a payment in Review made into a Commitment: what the add form opens with (ADR-0050).
+	validateSearch: z.object({
+		name: z.string().max(40).optional().catch(undefined),
+		amount: z.number().int().positive().optional().catch(undefined),
+		paysDown: z.string().max(40).optional().catch(undefined),
+	}),
 	// Lumpy months ahead read every Commitment's schedule; Suggested is in the first paint.
 	loader: ({ context }) =>
 		Promise.all([
@@ -42,6 +49,7 @@ export const Route = createFileRoute("/_authed/_household/plan/$month/commitment
 
 function PlanCommitments() {
 	const { month } = Route.useRouteContext();
+	const start = Route.useSearch();
 	const state = useMonthState(month);
 	const changes = usePlanChanges(month);
 	const all = useSuspenseQuery(commitmentsQuery()).data;
@@ -73,7 +81,7 @@ function PlanCommitments() {
 	);
 	const aside = (
 		<>
-			{state.editable ? <AddCommitment month={month} /> : null}
+			{state.editable ? <AddCommitment month={month} start={start} /> : null}
 			{state.commitments.length > 0 ? (
 				<>
 					<p className="px-1 text-sm text-muted-foreground">
