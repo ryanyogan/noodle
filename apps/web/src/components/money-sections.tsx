@@ -115,7 +115,7 @@ export function TransferSection({
 				Transfer
 			</h3>
 			<p className="text-[13px] text-muted-foreground">
-				{looksLikeCardPayment(transaction.note) || looksLikeCardPayment(transaction.merchantName)
+				{looksLikeCardPayment(transaction.note || transaction.merchantName)
 					? "Looks like a card payment. What you bought on the card is already in your Buckets, so the payment itself isn’t spending: mark it as a Transfer and it counts nowhere."
 					: "Money moving between your own Accounts, like paying the card? A Transfer counts nowhere."}
 			</p>

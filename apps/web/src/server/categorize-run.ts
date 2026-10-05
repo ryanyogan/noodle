@@ -160,8 +160,8 @@ export async function decideRows<R extends Rule & { id: string }>(
 	// A line that says it pays a credit card is a Transfer, not spending (#91): unless a Rule of the
 	// Parent's own files it, it's never filed or given a Bucket as a guess, and waits in Review,
 	// where the card offers the Transfer (or pairs with the card's side once that's imported).
-	const cardPayment = (row: Uncategorized) =>
-		looksLikeCardPayment(row.note) || looksLikeCardPayment(row.merchant);
+	// Read from the bank's own wording; the name (a Parent may have given it) only when there is none.
+	const cardPayment = (row: Uncategorized) => looksLikeCardPayment(row.note || row.merchant);
 	const unruled = [...byMerchant.entries()]
 		.filter(([merchant, row]) => !ruleOf(merchant, row) && !cardPayment(row))
 		.map(([merchant]) => merchant);

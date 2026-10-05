@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { cleanMerchant } from "./merchant-name";
 import {
 	type DayKey,
 	likelyCardPayment,
@@ -109,6 +110,29 @@ describe("card payments by their words (#91)", () => {
 			null,
 		])
 			expect(looksLikeCardPayment(text), String(text)).toBe(false);
+	});
+
+	it("still knows a card payment by the clean name Noodle gives its line (#95)", () => {
+		for (const raw of [
+			"AMERICAN EXPRESS ACH PMT",
+			"AMEX EPAYMENT ACH PMT",
+			"CHASE CREDIT CRD AUTOPAY PPD ID: 4760039224",
+			"CHASE CREDIT CRD AUTOPAY",
+			"DISCOVER E-PAYMENT",
+			"CITI CARD ONLINE PMT",
+			"CAPITAL ONE CRCARDPMT",
+			"CAPITAL ONE ONLINE PMT",
+			"BARCLAYCARD US CREDITCARD",
+		]) {
+			const { name } = cleanMerchant(raw);
+			expect(looksLikeCardPayment(raw), raw).toBe(true);
+			expect(looksLikeCardPayment(name), `${raw} named ${name}`).toBe(true);
+		}
+		expect(cleanMerchant("AMERICAN EXPRESS ACH PMT").name).toBe("American Express payment");
+		// A bill on autopay and a loan keep their names and stay what they are.
+		for (const raw of ["T-MOBILE AUTOPAY", "ROCKET MORTGAGE PMT"]) {
+			expect(looksLikeCardPayment(cleanMerchant(raw).name), raw).toBe(false);
+		}
 	});
 
 	it("names the Household's card when the line's words fit exactly one", () => {

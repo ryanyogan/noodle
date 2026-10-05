@@ -487,7 +487,7 @@ function ReviewPage() {
 			if (!sorting) {
 				toast(`${filed} ${PAYMENT_FILED}`, {
 					tone: "success",
-					action: { label: "Undo", onClick: () => putBack([item]) },
+					undo: () => putBack([item]),
 				});
 			}
 			return;
@@ -1193,15 +1193,15 @@ const cardName = (item: ReviewItem, payment = false) =>
 /** A likely payment to a credit card, and the Household's card it names, if one (#91). */
 type CardPayment = { card: string | null };
 
-/** Whether a card in Review is likely a card payment: by its bank line, else its clean name. */
+/**
+ * Whether a card in Review is likely a card payment: by the bank's own wording (its note). Its
+ * name is read only when there is no wording, since a Parent may have renamed it.
+ */
 function cardPaymentOf(item: ReviewItem, creditCards: { name: string }[]): CardPayment | null {
 	// Never the Account it left: a card doesn't pay itself.
 	const others = creditCards.filter((card) => card.name !== item.importedFrom);
-	const { amountCents } = item;
-	return (
-		likelyCardPayment({ text: item.note, amountCents }, others) ??
-		likelyCardPayment({ text: item.merchantName ?? item.merchant, amountCents }, others)
-	);
+	const text = item.note || (item.merchantName ?? item.merchant);
+	return likelyCardPayment({ text, amountCents: item.amountCents }, others);
 }
 
 /** Said once when a likely card payment is filed in a Bucket or a Commitment anyway. */
