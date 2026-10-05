@@ -1,10 +1,10 @@
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { ulid } from "ulid";
+import { createTestParent } from "./parents";
+import { seedSql } from "./seed-sql";
 import {
 	accountKindLabel,
 	choose,
@@ -15,12 +15,15 @@ import {
 	serverFn,
 	signedInPage,
 } from "./session";
-import { type SharedParent, test } from "./worker-parent";
 
-let parent: SharedParent;
+let parent: Awaited<ReturnType<typeof createTestParent>>;
 
-test.beforeEach(async ({ sharedParent }) => {
-	parent = sharedParent;
+test.beforeEach(async () => {
+	parent = await createTestParent();
+});
+
+test.afterEach(async () => {
+	await parent?.remove();
 });
 
 const plan = {
@@ -219,22 +222,19 @@ test("at 1440 a long list draws every row as the page scrolls, and its card ends
 	if (!created) throw new Error("The Household wasn't made directly, so its IDs aren't known");
 	const { householdId, parentId, month, bucketIds } = created;
 	// 60 rows over a few days: more than a page of 50 and several windows tall.
-	const file = join(mkdtempSync(join(tmpdir(), "noodle-transactions-")), "seed.sql");
+	// Through the Worker (seedSql): `wrangler d1 execute` was a second process on the SQLite file,
+	// and a test running beside this one met "database is locked" (#108).
 	const sql = (value: string) => `'${value.replaceAll("'", "''")}'`;
 	const days = Math.min(new Date().getDate(), 4);
-	writeFileSync(
-		file,
+	await seedSql(
 		Array.from({ length: 60 }, (_, index) => {
 			const day = String(1 + (index % days)).padStart(2, "0");
 			const note = `Row ${String(index + 1).padStart(2, "0")}`;
 			// A real ULID: the list's next page is asked for by the last row's ID, which is checked.
 			const id = ulid();
-			return `insert into transactions (id, household_id, source, date, amount_cents, bucket_id, note, created_by_member_id) values (${sql(id)}, ${sql(householdId)}, 'quick-add', ${sql(`${month}-${day}`)}, ${1_000 + index}, ${sql(bucketIds.Groceries ?? "")}, ${sql(note)}, ${sql(parentId)});`;
-		}).join("\n"),
+			return `insert into transactions (id, household_id, source, date, amount_cents, bucket_id, note, created_by_member_id) values (${sql(id)}, ${sql(householdId)}, 'quick-add', ${sql(`${month}-${day}`)}, ${1_000 + index}, ${sql(bucketIds.Groceries ?? "")}, ${sql(note)}, ${sql(parentId)})`;
+		}),
 	);
-	execFileSync("bunx", ["wrangler", "d1", "execute", "noodle", "--local", `--file=${file}`], {
-		stdio: "pipe",
-	});
 	await page.goto(`/transactions/${month}`);
 	await expect(page.locator("[data-slot=page-header]:visible")).toContainText("Transactions");
 	const rows = list(page).getByRole("button");

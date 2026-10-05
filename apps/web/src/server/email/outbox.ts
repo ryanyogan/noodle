@@ -28,6 +28,13 @@ export async function recordInOutbox(
 	return { ok: true };
 }
 
+/** Forgets the emails "sent" to that address: E2E hands the same Parent to one test after another. */
+export async function clearOutbox(bucket: R2Bucket, to: string): Promise<void> {
+	const listed = await bucket.list({ prefix: prefix(to) });
+	const keys = listed.objects.map((object) => object.key);
+	if (keys.length > 0) await bucket.delete(keys);
+}
+
 /** GET /api/dev/outbox?to=a@b.com: the emails sent to that address, oldest first. */
 export async function handleDevOutbox(request: Request): Promise<Response> {
 	const bucket = env.STATEMENTS;
