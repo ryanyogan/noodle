@@ -2,7 +2,7 @@ import { addDays, type DayKey } from "./month";
 import type { PerkRenewal } from "./perk-standing";
 import { earnRate, mentions, type PerkKind } from "./perks";
 
-// "Worth using" (#96): a card's Perks set against the Household's own spending, by plain code.
+// "Worth using": a card's Perks set against the Household's own spending, by plain code.
 // Three looks, each with the charges it rests on: credits that went unused in past months,
 // charges on other Accounts that a Perk on this card pays back or includes, and the kinds of
 // purchases the Household makes most that this card earns more on. Only ever about a card the

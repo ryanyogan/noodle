@@ -250,7 +250,7 @@ $10 monthly DoorDash credit on non-restaurant orders.
 Complimentary DashPass membership when you activate by the end of the year.
 ${"Terms apply to every benefit on this page. ".repeat(10)}`;
 
-/** A rewards card's page: what it earns more on, a monthly credit and DashPass (#96). */
+/** A rewards card's page: what it earns more on, a monthly credit and DashPass. */
 const STUB_REWARDS_PAGE = `Preferred card benefits.
 Earn 3x points on dining, including eligible delivery services and takeout.
 Earn 3x points on groceries bought online.

@@ -45,7 +45,7 @@ export const getPerkSources = createServerFn({ method: "GET" })
 		const db = getDb();
 		const viewer = viewerOf(context);
 		const asOf = dayKeyAt(new Date(), context.household.timeZone);
-		// Every credit card a Bank Connection brought in has a Perk Source of its own (#96): made
+		// Every credit card a Bank Connection brought in has a Perk Source of its own: made
 		// here when it's missing, and researched at once when the bank's name for it says which card.
 		try {
 			const added = await ensureCardPerkSources(db, {

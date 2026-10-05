@@ -105,7 +105,7 @@ export async function startPerkResearch(params: PerkResearchParams): Promise<voi
 export async function startPerkRechecks(now: Date): Promise<void> {
 	const db = getDb();
 	const before = new Date(now.getTime() - PERK_RECHECK_DAYS * 86_400_000);
-	// Cards a Bank Connection brought in since get their Perk Source here too (#96); the ones whose
+	// Cards a Bank Connection brought in since get their Perk Source here too; the ones whose
 	// card is known are never read yet, so they're due below.
 	await ensureCardPerkSources(db, { newId: ulid }).catch((error) =>
 		console.error("Couldn’t add Perk Sources for linked cards", error),

@@ -13,7 +13,7 @@ export type PerkSourceKind = (typeof PERK_SOURCE_KINDS)[number];
 
 /**
  * A Perk is a service included (Netflix with a phone plan), a cost covered (a TSA PreCheck
- * credit), or a kind of purchase that earns more (4x points on dining): `earn` (#96).
+ * credit), or a kind of purchase that earns more (4x points on dining): `earn`.
  */
 export const PERK_KINDS = ["service", "cost", "earn"] as const;
 export type PerkKind = (typeof PERK_KINDS)[number];

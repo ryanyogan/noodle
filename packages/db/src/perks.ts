@@ -102,7 +102,7 @@ function loadAccountsWithBank(db: Db, householdId?: string): Promise<CardAccount
 
 /**
  * Every credit card a Bank Connection brought in gets a Perk Source of its own, confirmed, without
- * a Parent adding it (#96). Idempotent: an Account that has one (bound to it, or told by its
+ * a Parent adding it. Idempotent: an Account that has one (bound to it, or told by its
  * name), or whose one a Parent removed, is left alone. When the Account's name tells which card it
  * is, its benefits page is known and the returned Perk Sources are ready to research; when the
  * bank named it only "CREDIT CARD", the Perk Source waits for a Parent to say which card it is.
@@ -762,7 +762,7 @@ export function perkSourcesToRecheck(
 		.where(
 			and(
 				eq(perkSources.status, "confirmed"),
-				// "idle" once confirmed is a linked card waiting for a Parent to say which card it is (#96).
+				// "idle" once confirmed is a linked card waiting for a Parent to say which card it is.
 				notInArray(perkSources.research, ["needs-plan", "needs-link", "idle"]),
 				or(isNull(perkSources.checkedAt), lt(perkSources.checkedAt, before)),
 			),
@@ -784,7 +784,7 @@ export async function loadInsightPerks(db: Db, viewer: Viewer): Promise<InsightP
 		})
 		.from(perks)
 		.innerJoin(perkSources, eq(perkSources.id, perks.perkSourceId))
-		// What a card earns more on (#96) covers no cost and includes no service: no Overlap rests on it.
+		// What a card earns more on covers no cost and includes no service: no Overlap rests on it.
 		.where(and(readableBy(viewer), eq(perkSources.status, "confirmed"), ne(perks.kind, "earn")));
 	return rows.map(({ owner, ...perk }) => ({ ...perk, private: owner !== null }));
 }

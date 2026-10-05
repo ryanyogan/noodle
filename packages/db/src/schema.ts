@@ -1185,7 +1185,7 @@ export const perkUses = sqliteTable("perk_uses", {
 		.default(sql`(unixepoch() * 1000)`),
 });
 
-// A benefits page as it was last read (#96): its text, when, and whether a plain fetch or a real
+// A benefits page as it was last read: its text, when, and whether a plain fetch or a real
 // browser (Browser Rendering) got it, so research soon after (a Parent picking a plan tier, a
 // second Household with the same card) doesn't fetch or render it again. Public pages only, kept
 // by address: nothing here belongs to a Household.

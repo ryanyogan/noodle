@@ -1,6 +1,6 @@
 import { mentions, plainWords } from "./perks";
 
-// The card issuers Noodle knows by name, each with a short list of its common cards (#96). A
+// The card issuers Noodle knows by name, each with a short list of its common cards. A
 // bank often names a card only "CREDIT CARD", so the Perks page asks a Parent which of these it
 // is. Names only: nothing here says what a card includes. Each `page` is the issuer's own
 // benefits page as best known when this was written: UNVERIFIED, and only where research starts.
