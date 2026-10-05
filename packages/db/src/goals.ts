@@ -425,7 +425,9 @@ const paymentQueries = (db: Db, householdId: string, accountId?: string) =>
 			.select({
 				id: transactions.id,
 				accountId: commitments.accountId,
-				commitmentId: commitments.id,
+				// Not commitments.id: D1 hands a batch its rows keyed by column name, so two "id"s collapse
+				// into one and every column after it shifts.
+				commitmentId: transactions.commitmentId,
 				amount: transactions.amountCents,
 				date: transactions.date,
 			})
@@ -442,7 +444,7 @@ const paymentQueries = (db: Db, householdId: string, accountId?: string) =>
 			.select({
 				id: splits.transactionId,
 				accountId: commitments.accountId,
-				commitmentId: commitments.id,
+				commitmentId: splits.commitmentId,
 				amount: splits.amountCents,
 				date: transactions.date,
 			})
