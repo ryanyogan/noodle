@@ -161,9 +161,9 @@ const points = [
 
 /**
  * The frame for sign-in and sign-up. On desktop, what Noodle does sits beside Clerk's card; on a
- * phone, the logo and one line sit above it.
+ * phone, the logo and one line sit above it. `intro` goes under them: the intro video's button.
  */
-export function AuthPage({ children }: { children: ReactNode }) {
+export function AuthPage({ children, intro }: { children: ReactNode; intro?: ReactNode }) {
 	return (
 		<main className="flex min-h-dvh flex-col lg:grid lg:grid-cols-2">
 			<div className="flex flex-col gap-3 px-(--gutter) pt-[calc(var(--safe-top)+24px)] lg:justify-center lg:border-r lg:border-border lg:bg-[color-mix(in_oklab,var(--brand)_7%,var(--background))] lg:px-16 lg:py-16">
@@ -184,7 +184,8 @@ export function AuthPage({ children }: { children: ReactNode }) {
 						</li>
 					))}
 				</ul>
-				{/* "Watch the 1-minute intro" goes here once the video exists (#54). */}
+				{/* Sign-in's "Watch the 1-minute intro" (#54); nothing until the video's files exist. */}
+				{intro}
 			</div>
 			<div className="flex flex-1 animate-enter justify-center px-(--gutter) pt-6 pb-[calc(var(--safe-bottom)+24px)] lg:items-center lg:py-16">
 				{children}

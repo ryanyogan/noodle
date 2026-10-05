@@ -98,8 +98,43 @@ A still that is missing stops the render; it never renders a blank frame.
 
 ## Hosting
 
-To be decided in the next part of #54: in `apps/web/public/intro/` if the files fit Workers'
-static-asset limits, otherwise in R2 behind a route. Record the choice here.
+The files are **static files of the app**, in `apps/web/public/intro/`, served from the app's own
+address (`/intro/intro.mp4` and so on). They are not in R2: Workers serves a static file of up to
+25 MiB, and each cut must stay under about 15 MB. The app's service worker caches nothing, so it
+doesn't keep a copy either.
+
+After a render, copy the files across and commit them:
+
+```sh
+mkdir -p apps/web/public/intro
+cp apps/video/out/intro.mp4 apps/video/out/intro-vertical.mp4 \
+   apps/video/out/poster.png apps/video/out/intro.vtt apps/web/public/intro/
+ls -l apps/web/public/intro   # every file must be under 25 MiB (26,214,400 bytes)
+```
+
+| File | What it is |
+|---|---|
+| `intro.mp4` | the wide cut, played on desktops, tablets and phones held sideways |
+| `intro-vertical.mp4` | the vertical cut, played on a phone held upright |
+| `poster.png` | the picture shown before play |
+| `poster-vertical.png` | the same for the vertical cut. Optional: `render` doesn't make it yet |
+| `intro.vtt` | the captions |
+
+The app's side is `apps/web/src/intro-video-files.ts` (the paths and two switches) and
+`apps/web/src/components/intro-video.tsx` (the player). The first time the files go in:
+
+1. Set `INTRO_VIDEO_READY` to `true` in the same commit as the files. Until then the get-started
+   wizard says the video is coming soon and sign-in shows no button.
+2. If there is a `poster-vertical.png`, set `INTRO_VERTICAL_POSTER_READY` to `true` too. Without
+   it the phone shows `poster.png` inside the tall frame.
+3. Redraw the comparison pictures of sign-in and of the wizard's Hello step, which both gain the
+   button (`auth-shots.spec.ts` and `setup-shots.spec.ts` in `apps/web/e2e/`).
+
+A later render only replaces the files: same names, nothing else to change. Browsers may keep the
+old film for a while, since the names don't change.
+
+The player fetches nothing until a Parent opens it, and no film until they press play
+(`preload="none"`), so sign-in loads as fast as before.
 
 ## Remotion's licence
 

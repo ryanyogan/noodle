@@ -15,6 +15,7 @@ import { type FormEvent, type ReactNode, Suspense, useEffect, useId, useState } 
 import { ulid } from "ulid";
 import { GlossaryDialog } from "../../components/glossary";
 import { AmountInput } from "../../components/goals";
+import { IntroVideoCard } from "../../components/intro-video";
 import { InviteOtherParent } from "../../components/invite-other-parent";
 import { SetupBills } from "../../components/setup-bills";
 import { SetupBankCard, SetupStatementCard } from "../../components/setup-spending";
@@ -354,10 +355,8 @@ function HelloStep({
 			disabled={!path}
 			onSubmit={() => path && start.mutate(path)}
 		>
-			{/* The 1-minute intro video (#54) goes here once it lands. */}
-			<Card data-slot="intro-video" className="p-(--card-pad) text-sm text-muted-foreground">
-				A 1-minute intro video is coming soon.
-			</Card>
+			{/* The 1-minute intro video (#54), or "coming soon" until its files are in place. */}
+			<IntroVideoCard />
 			<fieldset className="grid gap-3">
 				<legend className="pb-3 text-sm font-medium">How will you bring in what you spend?</legend>
 				<RadioGroup
