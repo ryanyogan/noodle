@@ -779,6 +779,23 @@ export function RankedBars({
 	);
 }
 
+// Plan vs actual's heat fills (#73): a share of red (over) or indigo (under) mixed into the card,
+// from HEAT_BASE% just outside the Plan to the top at double or nothing. The words on a cell are
+// always the main ink, so the top stops where that ink is still 4.5:1 on the fill: 80% in light,
+// 65% in dark, where both colours are light and a stronger fill left no ink that could be read
+// (contrast.test.ts measures every step). The appearance sets --heat-top; nothing else differs.
+export const HEAT_BASE = 15;
+export const HEAT_TOP = { light: 80, dark: 65 } as const;
+/** Tailwind reads this as written, so it can't be built from HEAT_TOP; contrast.test.ts checks they agree. */
+export const HEAT_TOP_CLASS = "[--heat-top:80] dark:[--heat-top:65]";
+/** How far from the Plan a cell is, 0 to 1: the share of the way from the weakest fill to the top. */
+export const heatShare = (off: number) => Math.min(1, Math.abs(off));
+/** The colour's share of the fill, in percent, for an appearance whose top is `top`. */
+export const heatPercent = (off: number, top: number) =>
+	HEAT_BASE + heatShare(off) * (top - HEAT_BASE);
+const heatStrength = (off: number) =>
+	`calc(${HEAT_BASE}% + ${heatShare(off)} * (var(--heat-top) - ${HEAT_BASE}) * 1%)`;
+
 /**
  * Planned vs spent per Bucket per month: each cell shaded by how far spending was from the Plan,
  * the brand for under, --over for over, a grey midpoint on Plan. The ratio is printed too, so
@@ -803,8 +820,7 @@ export function VarianceHeatmap({
 		if (ratio === null) return "transparent";
 		const off = ratio - 1;
 		if (Math.abs(off) <= 0.1) return "var(--chart-mid)";
-		const strength = Math.min(1, Math.abs(off)) * 70 + 15;
-		return `color-mix(in oklab, ${off > 0 ? "var(--over)" : "var(--brand)"} ${strength}%, var(--card))`;
+		return `color-mix(in oklab, ${off > 0 ? "var(--over)" : "var(--brand)"} ${heatStrength(off)}, var(--card))`;
 	};
 	// On a phone the months overflow: start scrolled to the latest, with the Buckets pinned.
 	const scroller = useRef<HTMLDivElement>(null);
@@ -813,7 +829,7 @@ export function VarianceHeatmap({
 		if (el && months.length) el.scrollLeft = el.scrollWidth;
 	}, [months.length]);
 	return (
-		<>
+		<div className={cn("contents", HEAT_TOP_CLASS)}>
 			{/* On a phone, a list: each Bucket's latest month in words, its past months as a strip. */}
 			<ul className="grid gap-1 sm:hidden">
 				{rows.map((row) => {
@@ -852,11 +868,7 @@ export function VarianceHeatmap({
 								<span
 									className={cn(
 										"min-w-14 shrink-0 rounded-md px-2 py-1.5 text-center text-sm tabular-nums",
-										off > 0.75
-											? "font-semibold text-white"
-											: off > 0.5
-												? "font-semibold text-foreground"
-												: "text-foreground",
+										off > 0.5 ? "font-semibold text-foreground" : "text-foreground",
 										!cell && "bg-surface-2/40",
 									)}
 									style={{ background: cell ? tone(cell.ratio) : undefined }}
@@ -904,8 +916,6 @@ export function VarianceHeatmap({
 										cell?.ratio === null || !cell ? "—" : `${Math.round(cell.ratio * 100)}%`;
 									const off = cell && cell.ratio !== null ? Math.abs(cell.ratio - 1) : 0;
 									const strong = off > 0.5;
-									// The deepest tints are dark enough in both appearances to need light text.
-									const deep = off > 0.75;
 									return (
 										<td key={month} className="p-0">
 											<WithTooltip
@@ -927,11 +937,7 @@ export function VarianceHeatmap({
 													className={cn(
 														"h-9 w-full min-w-12 rounded-md text-center tabular-nums transition-[transform,box-shadow] duration-(--duration-fast)",
 														"enabled:hover:scale-[1.04] enabled:hover:shadow-card focus-visible:outline-2 focus-visible:outline-ring",
-														deep
-															? "font-semibold text-white"
-															: strong
-																? "font-semibold text-foreground"
-																: "text-foreground",
+														strong ? "font-semibold text-foreground" : "text-foreground",
 														!cell && "bg-surface-2/40",
 													)}
 													style={{ background: cell ? tone(cell.ratio) : undefined }}
@@ -948,7 +954,7 @@ export function VarianceHeatmap({
 				</table>
 			</div>
 			<HeatmapKey tone={tone} />
-		</>
+		</div>
 	);
 }
 

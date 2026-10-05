@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 
 // Guards the colour tokens (#75, ADR-0034; Indigo, ADR-0038): every colour comes from the tokens in
 // packages/ui/src/styles/globals.css, so light and dark change in one place. A hex, rgb(), hsl(),
-// oklch(), oklab(), lab(), lch() or hwb() colour written anywhere else under apps/web/src or
-// packages/ui/src fails here. Use a token (bg-card, text-muted-foreground, var(--pace), …); if a
+// oklch(), oklab(), lab(), lch() or hwb() colour, or a white or black class (text-white, bg-black),
+// written anywhere else under apps/web/src or packages/ui/src fails here. Use a token (bg-card, text-muted-foreground, var(--pace), …); if a
 // file really can't read CSS variables, add it below with the reason.
 const ALLOWED: Record<string, string> = {
 	"apps/web/src/routes/__root.tsx":
@@ -23,7 +23,13 @@ const ALLOWED: Record<string, string> = {
 		"store numbers in a prompt's example bank lines, not colours",
 };
 
-const COLOUR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|oklab|lab|lch|hwb)\(/;
+// A class can write a colour too: text-white is white in both appearances, which is how white words
+// ended up on a light fill in dark (#73). Use the token that turns with the appearance.
+const CLASS =
+	/(?<![\w-])(?:text|bg|border|fill|stroke|ring|outline|decoration|divide|from|via|to|shadow|accent|caret|placeholder)-(?:white|black)(?![\w-])/;
+const COLOUR = new RegExp(
+	`#[0-9a-fA-F]{3,8}\\b|\\b(?:rgba?|hsla?|oklch|oklab|lab|lch|hwb)\\(|${CLASS.source}`,
+);
 
 const repo = join(import.meta.dirname, "../../..");
 const roots = ["apps/web/src", "packages/ui/src"].map((dir) => join(repo, dir));
