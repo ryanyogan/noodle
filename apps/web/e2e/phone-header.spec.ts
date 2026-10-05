@@ -236,7 +236,7 @@ test("an item's page has the same header: Back, title and arrows on one row, one
 	await page.goto("/explore/scenarios");
 	await page.getByRole("link", { name: "Raise", exact: true }).first().click();
 	await expect(page).toHaveURL(/\/explore\/scenarios\/[^/]+$/);
-	// Open in Explore is in the header from 640, and under it across a phone; Rename and Delete
+	// Open in Explore is under the header, across a phone; Rename and Delete
 	// come after the Scenario.
 	const header = page.locator("[data-slot=detail-header]:visible");
 	await expect(page.getByRole("link", { name: "Open in Explore" })).toBeVisible();
@@ -278,7 +278,7 @@ test("a Transaction opened at its own address has one header, its own", async ({
 		await page.setViewportSize({ width: 1280, height });
 		await page.goto("/transactions");
 		await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
-		await page.locator("[data-slot=list-row] button").first().click();
+		await page.locator("[data-slot=list-row] button:not([role=checkbox])").first().click();
 		await expect(page).toHaveURL(/\/transactions\/\d{4}-\d{2}\/[0-9A-Z]{26}/);
 		const path = new URL(page.url()).pathname;
 

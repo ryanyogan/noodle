@@ -91,8 +91,7 @@ function GoalPage() {
 	const goal = goals.find((g) => g.id === goalId);
 	const account = accounts.find((a) => a.id === goal?.accountId);
 	// A Goal only goes away if another Parent's change removes it; the loader 404s on reload.
-	if (!goal)
-		return <DetailHeader listBeside eyebrow="Goal" title="Goal" leading={<BackToGoals />} />;
+	if (!goal) return <DetailHeader inPanel eyebrow="Goal" title="Goal" leading={<BackToGoals />} />;
 	if (goal.kind === "payoff") {
 		return <PayoffGoalDetails goal={goal} account={account} month={month} today={asOf} />;
 	}
@@ -154,7 +153,7 @@ function GoalDetails({
 	return (
 		<>
 			<DetailHeader
-				listBeside
+				inPanel
 				eyebrow="Goal"
 				title={goal.name}
 				leading={<BackToGoals />}

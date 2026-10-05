@@ -9,7 +9,7 @@ import { PageHeader } from "@noodle/ui/components/page-header";
 import { Section, SectionHeader } from "@noodle/ui/components/section";
 import { Stat, StatGrid } from "@noodle/ui/components/stat";
 import { cn } from "@noodle/ui/lib/utils";
-import { createFileRoute, Link, useHydrated, useParams } from "@tanstack/react-router";
+import { createFileRoute, Link, linkOptions, useHydrated, useParams } from "@tanstack/react-router";
 import { Landmark, Plus, Target } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { z } from "zod";
@@ -85,7 +85,8 @@ function GoalsPage() {
 			/>
 			<ListBesideDetail
 				picked={picked !== undefined}
-				listFills
+				// A picked Goal opens in the panel from the right; the cards keep their width (issue 107).
+				panel={{ size: "wide", close: linkOptions({ to: "/goals" }), itemKey: picked }}
 				noun="Goal"
 				listLabel="Goals"
 				aside={
@@ -209,8 +210,7 @@ function GoalsPage() {
 
 /**
  * Goals as one list card, or a grid of Goal cards (2 columns, 3 from 64 rem) when the list itself
- * is wide (#51; while nothing is picked the list fills the page, #73L):
- * a container query, not a viewport one, since beside a Goal the list is the narrow master pane.
+ * is wide (#51): a container query, not a viewport one, since a phone's list is narrow.
  * In the grid the list's card steps aside (`contents`) and each row becomes a card of its own.
  */
 function GoalList({ children }: { children: ReactNode }) {

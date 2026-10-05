@@ -8,8 +8,8 @@ import { RuleForm } from "../../../components/rule-form";
 import { membersQuery, monthQuery, rulesQuery } from "../../../queries";
 
 /**
- * A Rule beside the Rules list (#67): its editor in the right pane from lg, a page with Back on a
- * phone. Saving or deleting goes back to the list.
+ * A Rule picked from the Rules list: its editor in the panel from the right from lg (issue 107),
+ * a page with Back on a phone. Saving or deleting goes back to the list.
  */
 export const Route = createFileRoute("/_authed/_household/review/rules/$ruleId")({
 	pendingComponent: DetailPending,
@@ -37,7 +37,7 @@ function RulePane() {
 	if (!rule) {
 		return (
 			<>
-				<DetailHeader listBeside title="Rule" leading={back} />
+				<DetailHeader inPanel title="Rule" leading={back} />
 				<p className="text-sm text-muted-foreground">This Rule isn’t here any more.</p>
 			</>
 		);
@@ -45,7 +45,7 @@ function RulePane() {
 	return (
 		<div className="max-w-xl">
 			<DetailHeader
-				listBeside
+				inPanel
 				eyebrow={rule.private ? "Rule · only you see it" : "Rule"}
 				title={`“${rule.pattern}”`}
 				leading={back}

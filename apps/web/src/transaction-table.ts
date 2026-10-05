@@ -48,3 +48,19 @@ export function dayTotals(
 	if (more && last) totals.set(last.date, null);
 	return totals;
 }
+
+/**
+ * What Esc does on the Transactions page, one thing at a time (issue 99): a menu, picker or sheet
+ * that is open takes it itself; then the open Transaction closes; then the selection ends, unless
+ * the key was pressed in a field (Esc there is the field's, e.g. clearing the search).
+ */
+export function escapeStep(at: {
+	overlay: boolean;
+	typing: boolean;
+	open: boolean;
+	selecting: boolean;
+}): "nothing" | "close" | "unselect" {
+	if (at.overlay) return "nothing";
+	if (at.open) return "close";
+	return at.selecting && !at.typing ? "unselect" : "nothing";
+}

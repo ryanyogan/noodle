@@ -10,7 +10,7 @@ import { Sheet, SheetContent, SheetHeader } from "@noodle/ui/components/sheet";
 import { Tile } from "@noodle/ui/components/tile";
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, useHydrated, useParams } from "@tanstack/react-router";
+import { createFileRoute, Link, linkOptions, useHydrated, useParams } from "@tanstack/react-router";
 import { ChevronRight, Lock, Plus, WandSparkles } from "lucide-react";
 import { useState } from "react";
 import { asBucketColor, monogram } from "../../../buckets";
@@ -51,7 +51,7 @@ function RulesPage() {
 	);
 	const hydrated = useHydrated();
 	const [adding, setAdding] = useState(false);
-	// The Rule open beside the list (its route is this one's child).
+	// The Rule open in the panel (its route is this one's child).
 	const picked = useParams({ strict: false, select: (params) => params.ruleId });
 
 	return (
@@ -60,9 +60,9 @@ function RulesPage() {
 				picked={picked !== undefined}
 				noun="Rule"
 				listLabel="Rules"
-				// Nothing picked: the Rules take the wide column and what a Rule does the rail's width,
-				// rather than a narrow list beside an empty pane (#73).
-				listFills
+				// The Rules take the wide column and what a Rule does the rail's width; a picked Rule opens
+				// in the panel from the right (issue 107).
+				panel={{ close: linkOptions({ to: "/review/rules" }), itemKey: picked }}
 				aside={
 					<p className="text-sm text-muted-foreground">
 						A Rule files each new statement line whose merchant contains its words. What it filed
