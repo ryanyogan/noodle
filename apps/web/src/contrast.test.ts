@@ -237,3 +237,61 @@ describe.each([
 		expect(heatPercent(1, top)).toBe(top);
 	});
 });
+
+// The sequential scale (#73): Trends' "Every day" calendar fills a day with one of four steps of
+// `color-mix(in oklab, brand N%, card)`; a day with no spending is --surface-2. Each step has to be
+// told from an empty day and from the step beside it, in the calendar and in its "Less … More" key.
+const seqShares = (from: number) => {
+	const start = css.indexOf(":root {", from);
+	const block = css.slice(start, css.indexOf("}", start));
+	return [1, 2, 3].map((step) => {
+		const share = block.match(
+			new RegExp(
+				`--chart-seq-${step}:\\s*color-mix\\(in oklab, var\\(--brand\\) (\\d+)%, var\\(--card\\)\\);`,
+			),
+		)?.[1];
+		expect(share, `--chart-seq-${step}`).toBeDefined();
+		return Number(share) / 100;
+	});
+};
+
+describe.each([
+	["light", light, 0],
+	["dark", dark, css.indexOf("@media (prefers-color-scheme: dark) {")],
+])("the sequential scale (Trends' Every day), %s theme (#73)", (_theme, t, from) => {
+	const steps = [
+		...seqShares(from).map((share) => mixedLuminance(t.brand as string, share, t.card as string)),
+		luminance(t.brand as string),
+	];
+	const card = luminance(t.card as string);
+	const empty = luminance(t["surface-2"] as string);
+
+	it("the lowest step is at least 1.5:1 from an empty day", () => {
+		expect(ratio(steps[0] as number, empty)).toBeGreaterThanOrEqual(1.5);
+	});
+
+	it("each step is at least 1.3:1 from the one before it", () => {
+		for (let i = 1; i < steps.length; i++) {
+			expect(ratio(steps[i] as number, steps[i - 1] as number)).toBeGreaterThanOrEqual(1.3);
+		}
+	});
+
+	it("the steps move one way, away from the card", () => {
+		const off = [ratio(empty, card), ...steps.map((step) => ratio(step, card))];
+		expect(off).toEqual([...off].sort((a, b) => a - b));
+	});
+});
+
+// Big expenses' "What did we spend over…" (#73): the bars under the chosen amount are
+// --chart-allowance and the counted ones --chart-spend.
+describe.each([
+	["light", light],
+	["dark", dark],
+])("Big expenses' bars, %s theme (#73)", (_theme, t) => {
+	it("the bars under the chosen amount are at least 3:1 on the card, and 3:1 from the counted ones", () => {
+		expect(contrast(t["chart-allowance"] as string, t.card as string)).toBeGreaterThanOrEqual(3);
+		expect(
+			contrast(t["chart-spend"] as string, t["chart-allowance"] as string),
+		).toBeGreaterThanOrEqual(3);
+	});
+});

@@ -42,11 +42,15 @@ export function ChildCosts({ of: children }: { of: CostChild[] }) {
 				id="child-costs"
 				title="What each Child cost, by Bucket"
 				action={
-					<span className="text-[13px] text-muted-foreground">
+					<span className="text-[13px] text-muted-foreground max-sm:hidden">
 						{monthName(month)} and {month.slice(0, 4)} so far
 					</span>
 				}
 			/>
+			{/* On a phone the heading and the months don't fit one line, so the months go under it. */}
+			<p className="-mt-2 text-[13px] text-muted-foreground sm:hidden">
+				{monthName(month)} and {month.slice(0, 4)} so far
+			</p>
 			{children.map((child) => (
 				<ChildCost key={child.id} child={child} totals={totals} />
 			))}

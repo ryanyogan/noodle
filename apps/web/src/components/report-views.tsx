@@ -717,7 +717,7 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 											<span
 												className={cn(
 													"w-4 max-w-full rounded-t-[3px] transition-[height,background-color] duration-300",
-													s >= threshold ? "bg-(--chart-spend)" : "bg-(--chart-mid)",
+													s >= threshold ? "bg-(--chart-spend)" : "bg-(--chart-allowance)",
 												)}
 												style={{
 													height: amount > 0 ? `${Math.max(6, (amount / bandMax) * 100)}%` : "2px",
@@ -1465,6 +1465,8 @@ function PeopleView({ report, data, names, nav, tables, search }: ViewProps<"peo
 		) : (
 			<NothingYet />
 		);
+	// Nothing For a Child in the period would draw a flat line on an axis of $0s.
+	const childSpending = data.cells.some((c) => children.includes(c.who) && c.amount > 0);
 	const memberColor = (who: string) => {
 		const color = report.meta.members.find((m) => m.id === who)?.color;
 		return color ? `var(--bucket-${color})` : "var(--chart-spend)";
@@ -1506,7 +1508,12 @@ function PeopleView({ report, data, names, nav, tables, search }: ViewProps<"peo
 				title="What each Child costs"
 				description={`By ${report.grouping}`}
 			>
-				{children.length ? (
+				{children.length && !childSpending ? (
+					<p className="text-sm text-muted-foreground">
+						Nothing here yet. When you add spending, choose a Child under For, and what they cost
+						shows up here.
+					</p>
+				) : children.length ? (
 					<TrendLines
 						labelOf={periodLabel}
 						rows={report.periods.map((p) => ({
@@ -1785,7 +1792,7 @@ function IncomeView({ data, nav, tables }: ViewProps<"income">) {
 			<ChartCard
 				className="lg:col-span-3"
 				title="Income by month"
-				description="Up to your usual take-home pay in ink; Extra income above it in blue"
+				description="Your usual take-home pay at the bottom of each bar, with Extra income stacked on top"
 				table={tables.months}
 			>
 				<PeriodBars

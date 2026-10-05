@@ -58,9 +58,9 @@ Every colour-bearing custom property in `globals.css`. "Uses" counts Tailwind ut
 | `--chart-net` | `var(--foreground)` | `same` | 2 | 1 | report-charts.tsx |
 | `--chart-grid` | `var(--border)` | `same` | 9 | 2 | scenario-outcomes.tsx, report-charts.tsx |
 | `--chart-mid` | `var(--surface-3)` | `same` | 1 | 1 | report-charts.tsx |
-| `--chart-seq-1` | `color-mix(in oklab, var(--brand) 14%, var(--card))` | `same` | 1 | 1 | report-charts.tsx |
-| `--chart-seq-2` | `color-mix(in oklab, var(--brand) 34%, var(--card))` | `same` | 2 | 2 | scenario-outcomes.tsx, report-charts.tsx |
-| `--chart-seq-3` | `color-mix(in oklab, var(--brand) 60%, var(--card))` | `same` | 2 | 2 | report-views.tsx, report-charts.tsx |
+| `--chart-seq-1` | `color-mix(in oklab, var(--brand) 14%, var(--card))` (since 73an: 36% light, 32% dark, section 10) | `same` | 1 | 1 | report-charts.tsx |
+| `--chart-seq-2` | `color-mix(in oklab, var(--brand) 34%, var(--card))` (since 73an: 56% light, 52% dark, section 10) | `same` | 2 | 2 | scenario-outcomes.tsx, report-charts.tsx |
+| `--chart-seq-3` | `color-mix(in oklab, var(--brand) 60%, var(--card))` (since 73an: 76% light, 74% dark, section 10) | `same` | 2 | 2 | report-views.tsx, report-charts.tsx |
 | `--chart-seq-4` | `var(--brand)` | `same` | 2 | 2 | scenario-outcomes.tsx, report-charts.tsx |
 | `--card-foreground` | `var(--foreground)` | `same` | 1 | 1 | card.tsx |
 | `--popover` | `var(--card)` | `same` | 9 | 9 | select.tsx, scenario-outcomes.tsx, report-charts.tsx |
@@ -460,3 +460,30 @@ Comparison pictures: none should change. The Household in `shell.spec.ts` has no
 Looked at, 1440, full-size crops. Dark before (run 37238169201): the glance's "Spent from Buckets" and "Goals" keys read as the same grey; Reports' "Left over" and "Spent" keys as two near-white squares. Dark after (run 37238720453, at cfca9cb): the Goals part is an outlined empty box between the striped part and the indigo end, and its key an outlined square; the Reports legend reads square, line with dot, square. Light after (run 37238412045): the glance is as it was, a filled light grey Goals part with no edge; the Reports legend has the line key in ink.
 
 Light, the controls' edge (`--input`, `#86888f`), same run: setup's Bills (eight empty boxes: a thin mid grey line, plainly boxes, quieter than the labels), setup's first step (three unchosen options, the same line on a circle), setup's Buckets (off "Carries over" switches beside name and amount fields: the switch's edge and the fields' edge are the same line and weight, and the one switch that is on is solid indigo and leads without the off ones looking faint) and Household's Nudges (one off switch among three on, the same line as the From and Until fields under it). Nothing reads heavier than a text field or competes with the ticked state; nothing was changed. Kept Scenarios' compare page was opened too, but both of its boxes were ticked, so it shows no empty box. Left alone: the tooltip on Reports' chart still shows a square for "Left over"; its rows are labelled and far apart. Not looked at by 73ai: phone widths, and the glance when "Left in Buckets" is zero (the hollow part then sits straight after "Spent from Buckets") or when Free to Spend is zero or less (the hollow part is then last, and the bar's rounded end clips its edge). On a phone, 74ag has since seen the hollow Goals part at 393 in dark, at full size: distinct from the grey and hatched parts, its key a hollow ring, quiet but readable. The two glance cases are still not looked at at any width.
+
+## 10. Phase 73an: the sequential scale and Big expenses' quiet bars
+
+73am saw, in dark, that the two lowest steps of Trends' "Every day" calendar nearly vanished against the empty days and the card, and that Big expenses' bars under the chosen amount were faint. 73an measured both; light failed the same tests, so both themes changed.
+
+- **`--chart-seq-1/2/3`**: the share of `--brand` mixed in oklab into `--card`. Light `14 / 34 / 60 %` -> `36 / 56 / 76 %`. Dark had no values of its own (it used light's shares on the dark brand and card); it now has `32 / 52 / 74 %`. `--chart-seq-4` is still `var(--brand)`. An empty day is `--surface-2`.
+- **Who else uses them**: `--chart-seq-2` is "Goal funding" and `--chart-seq-4` "Free to Spend" in Explore's outcome bars (`scenario-outcomes.tsx`); `--chart-seq-3` is a Goal's colour wherever Reports colours a Target that is not a Bucket (`shareColor` in `report-views.tsx`). Goal funding and Goals are a stronger indigo than before in both themes; Free to Spend is unchanged.
+- **Big expenses, "What did we spend over…"**: the bars under the chosen amount were `--chart-mid` (`--surface-3`); they are now `--chart-allowance`. The counted bars are still `--chart-spend`. No token changed. `--chart-mid` is still the "on Plan" heat cell.
+- **The contrast script** (`apps/web/src/contrast.test.ts`) reads the shares from both blocks of `globals.css`, mixes them as the browser does, and checks: lowest step at least 1.5:1 from an empty day, each step at least 1.3:1 from the one before, the steps in order away from the card; and Big expenses' quiet bars at least 3:1 on the card and 3:1 from the counted ones.
+
+WCAG 2.x ratios, oklab mix, from 73an's script.
+
+| Pair | Wanted | Light before | Light now | Dark before | Dark now |
+| --- | --- | --- | --- | --- | --- |
+| Empty day (`--surface-2`) on card (info) | - | 1.12 | 1.12 | 1.07 | 1.07 |
+| Step 1 beside an empty day | 1.5:1 | 1.09 | 1.52 | 1.12 | 1.56 |
+| Step 1 on card (info) | - | 1.22 | 1.70 | 1.20 | 1.67 |
+| Step 2 beside step 1 | 1.3:1 | 1.35 | 1.40 | 1.45 | 1.53 |
+| Step 3 beside step 2 | 1.3:1 | 1.55 | 1.45 | 1.75 | 1.61 |
+| Step 4 beside step 3 | 1.3:1 | 2.20 | 1.63 | 2.27 | 1.68 |
+| Step 2, 3, 4 on card (info) | - | 1.65, 2.55, 5.61 | 2.37, 3.43, 5.61 | 1.74, 3.05, 6.91 | 2.56, 4.11, 6.91 |
+| Big expenses' quiet bars on card | 3:1 | 1.22 | 3.84 | 1.21 | 3.53 |
+| Counted bars (`--chart-spend`) beside the quiet ones | 3:1 | 10.01 | 3.19 | 8.85 | 3.02 |
+
+Tightest: the counted bars beside the quiet ones in dark, 3.02 (the same pair 73ah kept at 3:1); light step 2 beside step 1, 1.40.
+
+Comparison pictures: none should change. No strict picture shows Trends, Big expenses, People, Income or Explore; `reports-*-light` is a brand-new Household's Reports, which says "Nothing to report yet".
