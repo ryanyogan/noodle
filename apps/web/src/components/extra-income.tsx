@@ -176,7 +176,10 @@ export function IncomeSection({
 							}
 							trailing={
 								<div className="flex items-center gap-1">
-									<span className="tabular-nums">{formatMoney(entry.amount)}</span>
+									{/* The weight every list's amount has (issue 73). */}
+									<span className="text-sm font-semibold tabular-nums">
+										{formatMoney(entry.amount)}
+									</span>
 									{canRecord || onBetweenUs ? (
 										<DropdownMenu>
 											<DropdownMenuTrigger asChild>
