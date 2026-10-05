@@ -62,7 +62,8 @@ export const members = sqliteTable(
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()
 			.default(sql`(unixepoch() * 1000)`),
-		// Set only for Children: 1–8, their identity colour (--bucket-N).
+		// 1–8, their identity colour (--bucket-N). A Child always has one; a Parent has one once
+		// they pick it (issue 104), and is drawn plain until then.
 		color: integer("color"),
 		// A removed Child leaves the Household's pickers, but Transactions For them keep it.
 		removedAt: integer("removed_at", { mode: "timestamp_ms" }),

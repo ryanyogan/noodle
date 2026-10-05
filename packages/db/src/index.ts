@@ -586,6 +586,7 @@ export {
 	type MemberSummary,
 	removeChild,
 	updateChild,
+	updateParent,
 } from "./members";
 export {
 	hasUnnamedMerchants,
