@@ -10,6 +10,7 @@ import {
 	withCommitment,
 	withNewCommitment,
 } from "./commitments";
+import { type GoalsData, withAccount } from "./goals";
 import type { MonthData } from "./server/month";
 
 // What a Commitment pays down (issue 93, ADR-0050): the choices, their hints, what the form sends
@@ -213,5 +214,33 @@ describe("the optimistic edit", () => {
 			paysDown: { accountId: "car", carriedBalance: false },
 		}).plan.commitments.find((c) => c.id === "c2");
 		expect(added).toMatchObject({ accountId: "car", carriedBalance: false });
+	});
+});
+
+describe("a card or loan added from the Commitment form", () => {
+	const goals = { accounts: [accounts[1]], asOf: "2026-10-05" } as unknown as GoalsData;
+	const loan = {
+		accountId: "new",
+		name: "Car loan",
+		kind: "loan",
+		balanceCents: 900_000,
+		balanceId: "b1",
+	} as const;
+
+	it("is among the choices before the Household's list has it", () => {
+		const choices = paysDownAccounts(withAccount(goals, loan).accounts, []);
+		expect(choices.map((a) => a.id)).toEqual(["amex", "new"]);
+		expect(choices[1]).toMatchObject({ name: "Car loan", kind: "loan", owed: 900_000 });
+		expect(paysDownHint(choices[1] ?? null)).toBe(
+			"Each payment brings what’s owed on Car loan down.",
+		);
+	});
+
+	it("is listed once when the Household's list has it too", () => {
+		const saved = withAccount(goals, loan);
+		expect(paysDownAccounts(withAccount(saved, loan).accounts, []).map((a) => a.id)).toEqual([
+			"amex",
+			"new",
+		]);
 	});
 });

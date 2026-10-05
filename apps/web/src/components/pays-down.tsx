@@ -10,7 +10,7 @@ import { type KeyboardEvent, useState } from "react";
 import { ulid } from "ulid";
 import { needsCarriedTick, paysDownAccounts, paysDownHint } from "../commitments";
 import { formatMoney } from "../format";
-import { useAddAccount } from "../goals";
+import { type AddAccountVariables, useAddAccount, withAccount } from "../goals";
 import { followedCardsQuery, goalsQuery } from "../queries";
 import { AmountInput } from "./goals";
 import { SaveFailed } from "./plan-editing";
@@ -50,8 +50,13 @@ export function PaysDownField({
 	const [kind, setKind] = useState<"credit-card" | "loan">("credit-card");
 	const [owed, setOwed] = useState("");
 	const [tried, setTried] = useState(false);
+	// The card or loan added here, until it has saved: see `add`.
+	const [added, setAdded] = useState<AddAccountVariables | null>(null);
 	if (!goals) return null;
-	const accounts = paysDownAccounts(goals.accounts, followed ?? []);
+	const accounts = paysDownAccounts(
+		(added ? withAccount(goals, added) : goals).accounts,
+		followed ?? [],
+	);
 	// Nothing to pay down yet: Accounts is where the first card or loan is added.
 	if (accounts.length === 0 && value === "") return null;
 	const chosen = accounts.find((account) => account.id === value) ?? null;
@@ -70,12 +75,23 @@ export function PaysDownField({
 		if (name.trim() === "" || (owed.trim() !== "" && owedCents === null)) return;
 		const accountId = ulid();
 		const before = value;
-		addAccount.mutate(
-			{ accountId, name: name.trim(), kind, balanceCents: owedCents, balanceId: ulid() },
+		const account = {
+			accountId,
+			name: name.trim(),
+			kind,
+			balanceCents: owedCents,
+			balanceId: ulid(),
+		};
+		addAccount.mutate(account, {
 			// Not added after all: back to what was chosen before.
-			{ onError: () => setValue(before) },
-		);
-		// It's in the list at once, and chosen.
+			onError: () => setValue(before),
+			// Saved or not, the Household's own list has the last word from here.
+			onSettled: () => setAdded(null),
+		});
+		// It's in the list at once, and chosen. The list the Household's Accounts are read from gains
+		// it a moment later, and a select told to show a choice it doesn't have yet answers by
+		// choosing Nothing, so the new one is listed here in the same render that chooses it.
+		setAdded(account);
 		setValue(accountId);
 		setCarried(false);
 		setAdding(false);
@@ -99,6 +115,9 @@ export function PaysDownField({
 				hint={gone ? `${gone} is archived. Pick another, or Nothing.` : paysDownHint(chosen)}
 			>
 				<OptionSelect
+					// A new list of cards and loans starts the select again with its choice already in it:
+					// one that gains a choice and is moved to it at once drops back to Nothing.
+					key={accounts.map((account) => account.id).join(" ")}
 					id={`${id}-pays-down`}
 					name="paysDown"
 					value={value}
