@@ -127,9 +127,10 @@ test("a Commitment opens in a panel from the right and the list keeps its width"
 	await expect(page.getByRole("region", { name: "Commitment details" })).toBeVisible();
 	await expect(page.getByRole("dialog")).toHaveCount(0);
 	// On the right edge, the height of the window, and as wide as what is to the right of the list
-	// column at 1440: the rail (380), the gap (32) and the gutter (40).
+	// column at 1440, less the 16 px left clear beside the list: the rail (380), the gap (32) and
+	// the gutter (40).
 	const box = await settled(page, 1440);
-	expect(box.width).toBe(452);
+	expect(box.width).toBe(436);
 	await listClearOf(page, box.x, "1440");
 	// Opened by a click: focus is on the title, without a ring.
 	await expect(title(page)).not.toHaveAttribute("data-keyboard-open");
@@ -251,10 +252,10 @@ test("beside the list the panel covers the rail and none of the list's columns",
 	browser,
 }) => {
 	test.slow();
-	// The rail, the gap and the gutter: 360 + 32 + 40 at 1280, 440 + 32 + 40 at 1920.
+	// The rail, the gap and the gutter, less 16 px: 360 + 32 + 40 - 16 at 1280, 440 + 32 + 40 - 16 at 1920.
 	for (const [width, wide] of [
-		[1280, 432],
-		[1920, 512],
+		[1280, 416],
+		[1920, 496],
 	] as const) {
 		const page = await signedInPage(browser, parent.email, at(width));
 		if (width === 1280) await household(page);

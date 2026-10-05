@@ -172,6 +172,7 @@
 	   narrower than min and no wider than max; from lg to xl, where that room is under min, it is
 	   a drawer of its own width. lib/detail-panel.ts mirrors these numbers and a test compares. */
 	--detail-panel-min: 400px;
+	--detail-panel-clear: 16px;
 	--detail-panel-max: 640px;
 	--detail-panel-max-wide: 800px;
 	--detail-panel-drawer: 480px;
@@ -520,7 +521,8 @@
 
 /*
  * DetailPanel's width beside the list (ADR-0047): the rail, the gap, the page's right gutter and
- * any margin outside the page's cap, so the panel's left edge is the list column's right edge.
+ * any margin outside the page's cap, less a strip of the gap left clear, so the panel's left edge
+ * is 16px to the right of the list column.
  * 100% is the window less a classic scrollbar (the panel is fixed). Written here, not as a :root
  * token, because the Sidebar's width changes on <html> when it is collapsed.
  */
@@ -530,7 +532,8 @@
 		calc(
 			var(--rail-width) +
 			var(--layout-gap) +
-			var(--gutter) +
+			var(--gutter) -
+			var(--detail-panel-clear) +
 			max(0px, (100% - var(--sidebar-width) - var(--shell-max)) / 2)
 		),
 		var(--detail-panel-max)
@@ -542,7 +545,8 @@
 		calc(
 			var(--rail-width) +
 			var(--layout-gap) +
-			var(--gutter) +
+			var(--gutter) -
+			var(--detail-panel-clear) +
 			max(0px, (100% - var(--sidebar-width) - var(--shell-max)) / 2)
 		),
 		var(--detail-panel-max-wide)

@@ -23,6 +23,12 @@ export const PANEL_MIN = 400;
 /** The widest the panel gets beside the list: `--detail-panel-max` and `--detail-panel-max-wide`. */
 export const PANEL_MAX: Record<DetailPanelSize, number> = { default: 640, wide: 800 };
 
+/**
+ * The strip of page left showing between the list column and the panel, so the two surfaces (the
+ * same colour in the dark theme) never touch: `--detail-panel-clear`, half the layout's gap.
+ */
+export const PANEL_CLEAR = 16;
+
 /** The drawer's width: `--detail-panel-drawer`. */
 export const PANEL_DRAWER = 480;
 
@@ -54,9 +60,10 @@ export function layoutAt(windowWidth: number): { pageMax: number; rail: number }
  * The panel must not cover the list's columns, so its width comes from the layout: everything to
  * the right of the list column. That is the rail, the gap between the list and the rail, the
  * page's right gutter and, where the window is wider than the page's cap, the margin outside the
- * page. It is never wider than the size's maximum (the rest of the rail then shows beside it).
+ * page, less a strip of the gap left clear beside the list (PANEL_CLEAR). It is never wider than
+ * the size's maximum (the rest of the rail then shows beside it).
  *
- * Where the rail, the gap and the gutter together are less than the narrowest panel that reads,
+ * Where the rail, the gap and the gutter together (less that strip) are less than the narrowest panel that reads,
  * the panel could only fit by covering the list, so the item is a drawer instead: modal, over a
  * dimmed page, at its own width.
  */
@@ -74,11 +81,11 @@ export function panelLayout(at: {
 }): { mode: DetailPanelMode; width: number | null; room: number } {
 	const { gap = LAYOUT_GAP, gutter = LAYOUT_GUTTER } = at;
 	const margin = Math.max(0, (at.windowWidth - at.sidebarWidth - at.pageMax) / 2);
-	const room = at.railWidth + gap + gutter + margin;
+	const room = at.railWidth + gap + gutter - PANEL_CLEAR + margin;
 	if (at.windowWidth < PANEL_FROM) return { mode: "page", width: null, room };
 	// By what the layout always gives (the margin comes and goes with the Sidebar's width, and the
 	// item must not change from a drawer to a panel because the Sidebar was collapsed).
-	if (at.railWidth + gap + gutter < PANEL_MIN)
+	if (at.railWidth + gap + gutter - PANEL_CLEAR < PANEL_MIN)
 		return { mode: "drawer", width: Math.min(PANEL_DRAWER, at.windowWidth), room };
 	return { mode: "beside", width: Math.min(room, PANEL_MAX[at.size]), room };
 }

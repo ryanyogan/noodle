@@ -7,6 +7,7 @@ import {
 	LAYOUT_GUTTER,
 	LAYOUT_STEPS,
 	PANEL_BESIDE_FROM,
+	PANEL_CLEAR,
 	PANEL_DRAWER,
 	PANEL_FROM,
 	PANEL_MAX,
@@ -35,24 +36,24 @@ describe("the panel's width", () => {
 	it("is what is to the right of the list column: the rail, the gap and the gutter", () => {
 		// The page fills the window beside the Sidebar at these widths, so there is no outer margin.
 		expect([1280, 1439, 1440, 1688, 1920].map((w) => panelAt("wide", w))).toEqual([
-			{ mode: "beside", width: 360 + 32 + 40, room: 432 },
-			{ mode: "beside", width: 432, room: 432 },
-			{ mode: "beside", width: 380 + 32 + 40, room: 452 },
-			{ mode: "beside", width: 452, room: 452 },
-			{ mode: "beside", width: 440 + 32 + 40, room: 512 },
+			{ mode: "beside", width: 360 + 32 + 40 - 16, room: 416 },
+			{ mode: "beside", width: 416, room: 416 },
+			{ mode: "beside", width: 380 + 32 + 40 - 16, room: 436 },
+			{ mode: "beside", width: 436, room: 436 },
+			{ mode: "beside", width: 440 + 32 + 40 - 16, room: 496 },
 		]);
 		// Both sizes are the same until the window gives more room than the narrower one's maximum.
-		expect(panelAt("default", 1440).width).toBe(452);
+		expect(panelAt("default", 1440).width).toBe(436);
 	});
 
 	it("takes the margin outside the page too, when the window is wider than the page's cap", () => {
 		// 1919: 1671 px beside the Sidebar for a 1440 px page, so 115.5 px a side.
-		expect(panelAt("wide", 1919)).toEqual({ mode: "beside", width: 567.5, room: 567.5 });
+		expect(panelAt("wide", 1919)).toEqual({ mode: "beside", width: 551.5, room: 551.5 });
 		// 1920 with the Sidebar as icons: 1860 px for a 1680 px page, so 90 px a side.
-		expect(panelAt("wide", 1920, "icons")).toEqual({ mode: "beside", width: 602, room: 602 });
-		// 2560: 2312 px for a 1680 px page, 316 px a side: 828 px of room, more than either maximum.
-		expect(panelAt("default", 2560)).toMatchObject({ mode: "beside", width: 640, room: 828 });
-		expect(panelAt("wide", 2560)).toMatchObject({ mode: "beside", width: 800, room: 828 });
+		expect(panelAt("wide", 1920, "icons")).toEqual({ mode: "beside", width: 586, room: 586 });
+		// 2560: 2312 px for a 1680 px page, 316 px a side: 812 px of room, more than either maximum.
+		expect(panelAt("default", 2560)).toMatchObject({ mode: "beside", width: 640, room: 812 });
+		expect(panelAt("wide", 2560)).toMatchObject({ mode: "beside", width: 800, room: 812 });
 	});
 
 	it("never covers the list column beside the list, at any width, with either Sidebar", () => {
@@ -67,10 +68,10 @@ describe("the panel's width", () => {
 	});
 
 	it("is a drawer where the room is under the narrowest panel that reads", () => {
-		// 320 + 32 + 40 = 392 px to the right of the list from 1024 to 1279: under 400.
-		expect(panelAt("wide", 1024)).toEqual({ mode: "drawer", width: 480, room: 392 });
+		// 320 + 32 + 40 - 16 = 376 px for the panel from 1024 to 1279: under 400.
+		expect(panelAt("wide", 1024)).toEqual({ mode: "drawer", width: 480, room: 376 });
 		// Collapsing the Sidebar gives a margin, not a wider rail: still a drawer.
-		expect(panelAt("default", 1279, "icons")).toEqual({ mode: "drawer", width: 480, room: 401.5 });
+		expect(panelAt("default", 1279, "icons")).toEqual({ mode: "drawer", width: 480, room: 385.5 });
 		expect(
 			panelLayout({
 				size: "wide",
@@ -128,6 +129,7 @@ describe("the panel's width", () => {
 			)
 				expect(LAYOUT_STEPS.map((step) => step.from)).toContain(from);
 		expect(token("--detail-panel-min", 0)).toBe(PANEL_MIN);
+		expect(token("--detail-panel-clear", 0)).toBe(PANEL_CLEAR);
 		expect(token("--detail-panel-max", 0)).toBe(PANEL_MAX.default);
 		expect(token("--detail-panel-max-wide", 0)).toBe(PANEL_MAX.wide);
 		expect(token("--detail-panel-drawer", 0)).toBe(PANEL_DRAWER);
@@ -138,7 +140,7 @@ describe("the panel's width", () => {
 		] as const) {
 			const rule = css.match(new RegExp(`@utility ${utility} \\{([^}]*)\\}`))?.[1] ?? "";
 			expect(rule.replace(/\s+/g, " "), utility).toContain(
-				`width: clamp( var(--detail-panel-min), calc( var(--rail-width) + var(--layout-gap) + var(--gutter) + max(0px, (100% - var(--sidebar-width) - var(--shell-max)) / 2) ), var(${max}) );`,
+				`width: clamp( var(--detail-panel-min), calc( var(--rail-width) + var(--layout-gap) + var(--gutter) - var(--detail-panel-clear) + max(0px, (100% - var(--sidebar-width) - var(--shell-max)) / 2) ), var(${max}) );`,
 			);
 		}
 	});
