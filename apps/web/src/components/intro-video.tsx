@@ -121,6 +121,10 @@ export function IntroVideo({
 /**
  * The video's card on the get-started wizard's Hello step. Until the video's files are in place
  * it is the "coming soon" card, exactly as it was.
+ *
+ * On a phone (below `sm`) it is the button alone, as wide as the cards under it and with no card
+ * around it: 44px instead of the card's 110px, so the whole step fits a 393×852 screen and its
+ * last line isn't under the sticky Continue bar. The button's own words say what it does.
  */
 export function IntroVideoCard({ ready = INTRO_VIDEO_READY }: { ready?: boolean }) {
 	if (!ready) {
@@ -133,10 +137,14 @@ export function IntroVideoCard({ ready = INTRO_VIDEO_READY }: { ready?: boolean 
 	return (
 		<Card
 			data-slot="intro-video"
-			className="flex flex-wrap items-center justify-between gap-3 p-(--card-pad) text-sm text-muted-foreground"
+			className={cn(
+				"flex flex-wrap items-center justify-between gap-3 p-(--card-pad) text-sm text-muted-foreground",
+				// overflow-visible: the Card clips, and the button's focus ring must not be cut off.
+				"max-sm:overflow-visible max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none",
+			)}
 		>
-			<span>New to Noodle? See how it works first.</span>
-			<IntroVideoDialog />
+			<span className="max-sm:hidden">New to Noodle? See how it works first.</span>
+			<IntroVideoDialog className="max-sm:w-full" />
 		</Card>
 	);
 }

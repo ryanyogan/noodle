@@ -10,3 +10,4 @@ playwright-report/
 !.dev.vars.example
 .claude/worktrees/
 apps/web/.tanstack/
+apps/web/.tmp-shots/

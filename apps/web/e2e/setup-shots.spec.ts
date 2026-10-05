@@ -91,6 +91,23 @@ for (const name of ["hello", "buckets"] as const) {
 					.toBe(0);
 				// The primary button stays on screen, whatever the step's length.
 				await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeInViewport();
+				if (name === "hello" && screen === "iphone") {
+					// The whole Hello step fits a phone's first screen (#54): nothing to scroll, the intro
+					// video's button is a full tap target, and the last line isn't under the sticky bar.
+					expect(
+						await page.evaluate(() => document.documentElement.scrollHeight),
+						"the Hello step is no taller than the phone's screen",
+					).toBeLessThanOrEqual(device.viewport.height);
+					const opener = await page
+						.getByRole("button", { name: "Watch the 1-minute intro" })
+						.boundingBox();
+					expect(opener?.height).toBeGreaterThanOrEqual(44);
+					const note = await page.getByText("You can change this later.").boundingBox();
+					const bar = await page
+						.getByRole("button", { name: "Continue", exact: true })
+						.boundingBox();
+					expect(note && bar && note.y + note.height <= bar.y - 12).toBe(true);
+				}
 				// No hover or focus left over from the walk: step 3's Skip is tapped where step 4's Skip then
 				// sits, and a retry walks the wizard when a first attempt found it already at Buckets. The
 				// picture must be the same whichever way the step was reached.
