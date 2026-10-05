@@ -18,6 +18,7 @@ import {
 import { formatMoney } from "./format";
 import { monthChangeKey } from "./plan-changes";
 import { bucketUsesQuery, forTotalsEarlierKey, monthQuery, monthsKey } from "./queries";
+import { reviewWrites } from "./review-stack";
 import type { MonthData } from "./server/month";
 import {
 	deleteTransaction,
@@ -299,11 +300,15 @@ export function refetchAfterChange(queryClient: QueryClient) {
  * list of that month at once (ADR-0006), so This Month's Bucket meters and the list move before
  * the server answers. A failure rolls both back and offers a retry. Lives above the edit sheet,
  * so it finishes after the sheet closes.
+ *
+ * Sent in turn with Review's writes (`reviewWrites`), and with other edits made here: the request
+ * waits for the ones made before it, so the change made last is the one written last (#85).
  */
 export function useTransactionChange() {
 	const queryClient = useQueryClient();
 	const change = useMutation({
 		mutationKey: monthChangeKey,
+		scope: reviewWrites,
 		mutationFn: saveTransactionChange,
 		onMutate: async (variables) => ({
 			rollback: await applyTransactionChange(queryClient, variables),

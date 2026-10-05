@@ -38,6 +38,10 @@ export const canUndo = <T extends { id: string }>(state: StackState<T>) => state
  * decided while its Undo was still saving raced it to the server: whichever was written last won,
  * so a slow return could quietly unfile what the Parent had just filed. The card still leaves or
  * comes back on screen at once (ADR-0006); only the request waits.
+ *
+ * An edit, split or delete from the Transactions sheet (`useTransactionChange`) is in the same
+ * queue (#85): sent at once, it overtook a Review decision still waiting its turn on the same
+ * Transaction, which then landed after it and overwrote the later edit.
  */
 export const reviewWrites = { id: "review-writes" } as const;
 
