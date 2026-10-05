@@ -102,7 +102,7 @@ async function settled(page: Page) {
 	await page.waitForTimeout(600);
 }
 
-/** A credit card added on Credit card perks, as perks-page.spec.ts does (AI_MODEL=stub reads the page). */
+/** A credit card added on Perks & Benefits, as perks-page.spec.ts does (AI_MODEL=stub reads the page). */
 async function addCard(page: Page, name: string, pageUrl: string, fee: string, perks: number) {
 	await page.getByRole("button", { name: "Add a card or membership" }).click();
 	const sheet = page.getByRole("dialog", { name: "Add a card or membership" });
@@ -308,7 +308,7 @@ test.beforeAll(async ({ browser }) => {
 	});
 
 	// Two credit cards with their Perks, one of them used.
-	await attempt("Credit card perks", async () => {
+	await attempt("Perks & Benefits", async () => {
 		await page.goto("/insights/perks");
 		const amex = await addCard(page, "Amex Platinum", "https://example.com/premium-card", "695", 4);
 		await addCard(page, "Chase Sapphire Reserve", "https://example.com/travel-card", "550", 3);

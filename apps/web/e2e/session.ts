@@ -528,7 +528,7 @@ export const moreItems = [
 	"Explore",
 	"Reports",
 	"Insights",
-	"Credit card perks",
+	"Perks & Benefits",
 	"Ask",
 	"Check-in",
 	"Household settings",

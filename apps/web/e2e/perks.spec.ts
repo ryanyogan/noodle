@@ -194,7 +194,7 @@ test("a card added by hand covers a cost already paid; a page that can't be read
 	await expect(overlap).toHaveCount(0);
 });
 
-test("Phones reach Insights and Credit card perks from More in the tab bar", {
+test("Phones reach Insights and Perks & Benefits from More in the tab bar", {
 	tag: "@phone",
 }, async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email, {
@@ -212,24 +212,24 @@ test("Phones reach Insights and Credit card perks from More in the tab bar", {
 	await expect(more).toHaveAttribute("aria-current", "true");
 	const sheet = await openMore(page);
 	await expect(moreItem(sheet, "Insights")).toHaveAttribute("aria-current", "page");
-	await moreItem(sheet, "Credit card perks").click();
+	await moreItem(sheet, "Perks & Benefits").click();
 	await expect(page).toHaveURL(/\/insights\/perks$/);
 	await expect(page.getByText("No Perk Sources yet")).toBeVisible();
 	await page.context().close();
 });
 
-test("the Sidebar has Credit card perks of its own, beside Insights", async ({ browser }) => {
+test("the Sidebar has Perks & Benefits of its own, beside Insights", async ({ browser }) => {
 	const page = await signedInPage(browser, parent.email);
 	await createPlannedHousehold(page, { baseline: "9,000", buckets: [["Groceries", "1,200"]] });
 	const nav = page.getByRole("navigation", { name: "Main" });
 	await expect(nav.getByRole("group", { name: "Understand" }).getByRole("link")).toHaveText([
 		"Reports",
 		"Insights",
-		"Credit card perks",
+		"Perks & Benefits",
 	]);
-	await nav.getByRole("link", { name: "Credit card perks" }).click();
+	await nav.getByRole("link", { name: "Perks & Benefits" }).click();
 	await expect(page).toHaveURL(/\/insights\/perks$/);
 	await expect(page.getByText("No Perk Sources yet")).toBeVisible();
-	await expect(nav.locator("[aria-current=page]")).toHaveText("Credit card perks");
+	await expect(nav.locator("[aria-current=page]")).toHaveText("Perks & Benefits");
 	await page.context().close();
 });

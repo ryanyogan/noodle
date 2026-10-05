@@ -96,7 +96,7 @@ const PERKS_SHOWN = 5;
 const FEW = 3;
 
 /**
- * Credit card perks: what the Household's cards (and phone plans and memberships) include, read
+ * Perks & Benefits: what the Household's cards (and phone plans and memberships) include, read
  * from each one's own benefits page. The page opens short (issue 101): one button to add a card or
  * membership, this year's sums, the few perks worth using now, the ones Noodle spotted to
  * confirm, then one row per Perk Source. A row opens that Perk Source alone: its perks (value, how
