@@ -24,7 +24,7 @@ import { useHydrated } from "@tanstack/react-router";
 import { Plus, Sparkles, Split as SplitIcon, Trash2, X } from "lucide-react";
 import { type FormEvent, type ReactNode, useRef, useState } from "react";
 import { ulid } from "ulid";
-import { isUnassigned, nothingToFileIn } from "../before-plan";
+import { cantSaveSentence, isUnassigned, noSplitSentence, nothingToFileIn } from "../before-plan";
 import { dayName, formatMoney, formatMoneyInput } from "../format";
 import { forLabel, type MemberSummary } from "../members";
 import type {
@@ -299,7 +299,7 @@ function EditForm({
 	const [splits, setSplits] = useState<DraftSplit[] | null>(
 		transaction.splits.length > 0
 			? transaction.splits.map(draftOf)
-			: splitting
+			: splitting && !none
 				? [
 						{ ...blankSplit(), assignment: assignmentValue(transaction), for: transaction.for },
 						blankSplit(),
@@ -589,7 +589,11 @@ function EditForm({
 					<FormError>Enter the amount in dollars, like 12 or 85.50.</FormError>
 				) : null}
 				{invalid === "assignment" ? (
-					<FormError>Choose the Bucket or Commitment it belongs to.</FormError>
+					<FormError>
+						{none
+							? cantSaveSentence(ownMonth, current)
+							: "Choose the Bucket or Commitment it belongs to."}
+					</FormError>
 				) : null}
 				{splits ? (
 					<div className="grid gap-3">
@@ -648,17 +652,24 @@ function EditForm({
 				) : (
 					<>
 						<ForPicker members={members} value={forMemberIds} onChange={setForMemberIds} multiple />
-						<Button
-							type="button"
-							variant="secondary"
-							size="sm"
-							className="justify-self-start"
-							disabled={!hydrated}
-							onClick={split}
-						>
-							<SplitIcon />
-							Split
-						</Button>
+						{none ? (
+							// Nothing to split between (issue 117): said, not found out on Save.
+							<p className="text-muted-foreground text-sm" data-testid="no-split">
+								{noSplitSentence(ownMonth, current)}
+							</p>
+						) : (
+							<Button
+								type="button"
+								variant="secondary"
+								size="sm"
+								className="justify-self-start"
+								disabled={!hydrated}
+								onClick={split}
+							>
+								<SplitIcon />
+								Split
+							</Button>
+						)}
 					</>
 				)}
 			</div>

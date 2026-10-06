@@ -20,10 +20,33 @@ export function nothingToFileIn(
 	return month < current && plan.buckets.length === 0 && plan.commitments.length === 0;
 }
 
+/** A month as a sentence names it: the year only when it isn't this one. */
+function named(month: MonthKey, current: MonthKey) {
+	const year = month.slice(0, 4);
+	return year === current.slice(0, 4) ? monthName(month) : `${monthName(month)} ${year}`;
+}
+
+/**
+ * What a picker says when a search finds nothing in a month that is over, or null for the month
+ * it is now and later ones, which can still be given a Bucket. A past month's Plan is closed, so
+ * its picker never offers to create one.
+ */
+export function pastPlanSentence(month: MonthKey, current: MonthKey): string | null {
+	if (month >= current) return null;
+	return `Nothing in ${named(month, current)} matches, and a past month’s Plan can’t be given a new Bucket.`;
+}
+
+/** In place of Split, for a month with nothing to file in: every Split belongs somewhere. */
+export const noSplitSentence = (month: MonthKey, current: MonthKey) =>
+	`It can’t be split: each Split belongs to a Bucket, and ${named(month, current)} had none.`;
+
+/** On Save, for an Unassigned Transaction of such a month: an edit is saved with where it belongs. */
+export const cantSaveSentence = (month: MonthKey, current: MonthKey) =>
+	`${named(month, current)} had no Buckets, so there’s nothing to assign this to and changes to it can’t be saved.`;
+
 /** The one sentence a picker shows instead of an empty list; the year only when it isn't this one. */
 export function noBucketsSentence(month: MonthKey, current: MonthKey, canFileWithout: boolean) {
-	const year = month.slice(0, 4);
-	const name = year === current.slice(0, 4) ? monthName(month) : `${monthName(month)} ${year}`;
+	const name = named(month, current);
 	return `${name} had no Buckets yet. Transactions from before your Plan can stay Unassigned${
 		canFileWithout ? ", or file this one without a Bucket" : ""
 	}.`;

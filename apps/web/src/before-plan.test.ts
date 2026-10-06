@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { isUnassigned, noBucketsSentence, nothingToFileIn } from "./before-plan";
+import {
+	cantSaveSentence,
+	isUnassigned,
+	noBucketsSentence,
+	noSplitSentence,
+	nothingToFileIn,
+	pastPlanSentence,
+} from "./before-plan";
 
 const none = { buckets: [], commitments: [] };
 
@@ -18,6 +25,34 @@ describe("nothingToFileIn", () => {
 	it("is not a Plan that hasn't loaded", () => {
 		expect(nothingToFileIn(null, "2026-03", "2026-10")).toBe(false);
 		expect(nothingToFileIn(undefined, "2026-03", "2026-10")).toBe(false);
+	});
+});
+
+describe("pastPlanSentence", () => {
+	it("says a month that is over can't be given a new Bucket, with the year when it isn't this one", () => {
+		expect(pastPlanSentence("2026-09", "2026-10")).toBe(
+			"Nothing in September matches, and a past month’s Plan can’t be given a new Bucket.",
+		);
+		expect(pastPlanSentence("2025-12", "2026-10")).toBe(
+			"Nothing in December 2025 matches, and a past month’s Plan can’t be given a new Bucket.",
+		);
+	});
+	it("is null for the month it is now and later ones: a Bucket can be created there", () => {
+		expect(pastPlanSentence("2026-10", "2026-10")).toBeNull();
+		expect(pastPlanSentence("2026-11", "2026-10")).toBeNull();
+	});
+});
+
+describe("a month with nothing to file in", () => {
+	it("says why its Transaction can't be split", () => {
+		expect(noSplitSentence("2026-03", "2026-10")).toBe(
+			"It can’t be split: each Split belongs to a Bucket, and March had none.",
+		);
+	});
+	it("says why Save can't keep a change to an Unassigned one", () => {
+		expect(cantSaveSentence("2025-03", "2026-10")).toBe(
+			"March 2025 had no Buckets, so there’s nothing to assign this to and changes to it can’t be saved.",
+		);
 	});
 });
 

@@ -7,6 +7,7 @@ import type { InfiniteData } from "@tanstack/react-query";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FolderInput, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { nothingToFileIn, pastPlanSentence } from "../before-plan";
 import { monthName } from "../format";
 import type { TransactionsPage } from "../server/transactions";
 import {
@@ -42,6 +43,7 @@ import {
 	transactionsQuery,
 } from "../transactions";
 import { BucketPicker, NewBucketStep } from "./bucket-picker";
+import { NoBuckets } from "./no-buckets";
 import { tableIsStacked } from "./transaction-table";
 
 // Select mode on the Transactions page (#97, ADR-0045): a bar that says how many are selected and
@@ -85,6 +87,7 @@ function useStackedRows() {
 
 export function SelectionBar({
 	month,
+	current,
 	filters,
 	filtered,
 	picking,
@@ -99,6 +102,8 @@ export function SelectionBar({
 	/** "File in…" has filed the selection: the selecting is over. */
 	onFiled: () => void;
 	month: MonthKey;
+	/** The month it is now: an earlier one's Plan is closed, so nothing is created in it. */
+	current: MonthKey;
 	filters: TransactionFilters;
 	/** A filter or search is narrowing the list. */
 	filtered: boolean;
@@ -113,6 +118,7 @@ export function SelectionBar({
 	// selected. One month only: a Transaction is filed in its own month's Plan.
 	const [filing, setFiling] = useState(false);
 	const [creating, setCreating] = useState<string | null>(null);
+	const closed = pastPlanSentence(month, current);
 	const choices = [
 		{
 			label: "Buckets",
@@ -231,7 +237,14 @@ export function SelectionBar({
 							value=""
 							className="w-44 max-sm:w-36"
 							placeholder="File in…"
-							searchPlaceholder="Search or create"
+							searchPlaceholder={closed ? "Find a Bucket" : "Search or create"}
+							empty={closed ?? undefined}
+							// A month before the first Plan (issue 117): why there is nothing to file in.
+							none={
+								nothingToFileIn(plan, month, current) ? (
+									<NoBuckets month={month} current={current} />
+								) : undefined
+							}
 							aria-label="File the selected Transactions in"
 							choices={choices}
 							onClose={() => setFiling(false)}
@@ -242,10 +255,14 @@ export function SelectionBar({
 									.find((choice) => choice.value === value)?.label;
 								if (name) file.mutate({ value, name });
 							}}
-							onCreate={(name) => {
-								setFiling(false);
-								setCreating(name);
-							}}
+							onCreate={
+								closed
+									? undefined
+									: (name) => {
+											setFiling(false);
+											setCreating(name);
+										}
+							}
 						/>
 					) : (
 						<Button

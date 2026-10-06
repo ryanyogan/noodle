@@ -65,6 +65,7 @@ export function BucketPicker({
 	foot,
 	none,
 	loading,
+	empty = "Nothing matches.",
 	"aria-label": label,
 }: {
 	/** What is chosen to begin with (a table cell shows what the row is assigned to). */
@@ -91,6 +92,8 @@ export function BucketPicker({
 	none?: ReactNode;
 	/** Said in the list while another month's Plan is on its way, instead of "Nothing matches". */
 	loading?: string;
+	/** Said when a search finds nothing. A month that is over says why nothing can be created. */
+	empty?: string;
 	"aria-label": string;
 }) {
 	const hydrated = useHydrated();
@@ -152,7 +155,7 @@ export function BucketPicker({
 									{loading}
 								</p>
 							) : (
-								<CommandEmpty>Nothing matches.</CommandEmpty>
+								<CommandEmpty>{empty}</CommandEmpty>
 							)}
 							{shown.map((group) => (
 								<CommandGroup key={group.label} heading={group.label}>

@@ -34,6 +34,11 @@ export type CellEdits = {
 	 * when there is something to pick.
 	 */
 	none: ((transaction: TransactionRow) => ReactNode) | null;
+	/**
+	 * The cell's month is over, so its Plan can't be given a Bucket: no Create row, and this is
+	 * said when a search finds nothing. Null for the month it is now.
+	 */
+	closed: string | null;
 };
 
 // Quiet until the row is pointed at or holds focus; always there where nothing hovers (a tablet).
@@ -168,12 +173,13 @@ export function AssignedCell({
 					value={assignedValue(transaction)}
 					className="w-full"
 					placeholder="Unassigned"
-					searchPlaceholder="Search or create"
+					searchPlaceholder={cells.closed ? "Find a Bucket" : "Search or create"}
 					aria-label={`File ${title} in`}
 					choices={cells.choices}
 					onClose={() => cells.stop(true)}
 					onValueChange={(value) => cells.refile(transaction, value)}
-					onCreate={(name) => cells.create(transaction, name)}
+					onCreate={cells.closed ? undefined : (name) => cells.create(transaction, name)}
+					empty={cells.closed ?? undefined}
 					loading={cells.loading ? "Loading that month’s Buckets…" : undefined}
 					none={cells.none?.(transaction)}
 				/>

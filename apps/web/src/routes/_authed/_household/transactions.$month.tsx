@@ -341,6 +341,7 @@ function TransactionsPage() {
 						{picking ? (
 							<SelectionBar
 								month={month}
+								current={current}
 								filters={filters}
 								filtered={filtered}
 								picking={picking}

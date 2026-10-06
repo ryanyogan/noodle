@@ -5,7 +5,7 @@ import { Skeleton } from "@noodle/ui/components/skeleton";
 import { cn } from "@noodle/ui/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, type Ref, useEffect, useMemo, useRef, useState } from "react";
-import { isUnassigned, nothingToFileIn } from "../before-plan";
+import { isUnassigned, nothingToFileIn, pastPlanSentence } from "../before-plan";
 import { dayName, formatMoney } from "../format";
 import type { MemberSummary } from "../members";
 import { cellEdits, refileOf, renameOf, undoOf } from "../transaction-cells";
@@ -261,6 +261,7 @@ export function TransactionTable({
 		editing,
 		choices,
 		loading: cellPlan === null,
+		closed: pastPlanSentence(cellMonth, current),
 		none: cellEmpty
 			? (transaction) => (
 					<NoBuckets

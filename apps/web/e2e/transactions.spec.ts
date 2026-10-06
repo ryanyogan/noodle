@@ -922,6 +922,34 @@ test("more than a month: a row of another month is refiled where it is, in its o
 	await page.context().close();
 });
 
+test("a month that is over: its row's picker finds its Buckets but offers no new one, and says why", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await page.setViewportSize({ width: 1440, height: 900 });
+	const { month } = await setUpMonths(page);
+	await page.goto(`/transactions/${month}?range=3m`);
+	await hydrated(page.getByLabel("Months"));
+	const refile = (title: string) =>
+		list(page).getByRole("button", { name: new RegExp(`^Refile ${title}, now `) });
+
+	// Last month's Plan is closed: its Buckets can be searched, and nothing can be created in it.
+	await refile("Last B").click();
+	await expect(page.getByPlaceholder("Search or create")).toHaveCount(0);
+	await page.getByPlaceholder("Find a Bucket").fill("Skates");
+	await expect(page.getByText(PAST_PLAN)).toBeVisible();
+	await expect(page.getByRole("option")).toHaveCount(0);
+	await page.getByPlaceholder("Find a Bucket").fill("Hock");
+	await expect(page.getByRole("option")).toHaveText(["Hockey"]);
+	await page.keyboard.press("Escape");
+
+	// This month's still offers a new Bucket by the name typed.
+	await refile("Now A").click();
+	await page.getByPlaceholder("Search or create").fill("Skates");
+	await expect(page.getByRole("option", { name: "Create Bucket “Skates”" })).toBeVisible();
+	await page.context().close();
+});
+
 test("more than a month: all in the range are selected and deleted across its months, and File in… is off with its reason", async ({
 	browser,
 }) => {
@@ -989,6 +1017,8 @@ async function setUpBeforePlan(page: Page) {
 	return { month, before };
 }
 
+const PAST_PLAN =
+	/^Nothing in \w+( \d{4})? matches, and a past month’s Plan can’t be given a new Bucket\.$/;
 const NO_BUCKETS =
 	/^\w+( \d{4})? had no Buckets yet\. Transactions from before your Plan can stay Unassigned, or file this one without a Bucket\.$/;
 
@@ -1036,6 +1066,47 @@ test("a Transaction from before the first Plan: its picker says the month had no
 	await page.context().close();
 });
 
+test("a month before the first Plan: File in… says it had no Buckets, and its Transaction's editor says why it can't be split or saved", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await page.setViewportSize({ width: 1440, height: 900 });
+	const { before } = await setUpBeforePlan(page);
+	await page.goto(`/transactions/${before}`);
+	await hydrated(page.getByLabel("Search notes and merchants"));
+
+	// The selection's File in…: the sentence, with nothing to search, create or file without.
+	await list(page)
+		.getByRole("checkbox", { name: /^Select Old F,/i })
+		.click();
+	const bar = page.getByRole("region", { name: "Selecting Transactions" });
+	await bar.getByRole("button", { name: "File in…" }).click();
+	const note = page.getByTestId("no-buckets");
+	await expect(note.getByRole("paragraph")).toHaveText(
+		/^\w+( \d{4})? had no Buckets yet\. Transactions from before your Plan can stay Unassigned\.$/,
+	);
+	await expect(note.getByRole("button")).toHaveCount(0);
+	await expect(page.getByPlaceholder(/^(Search or create|Find a Bucket)$/)).toHaveCount(0);
+	await page.keyboard.press("Escape");
+	await bar.getByRole("button", { name: "Cancel" }).click();
+
+	// Its editor: no Split to start (a Split belongs to a Bucket), and Save says why it can't.
+	await row(page, "Old F").click();
+	const sheet = editSheet(page);
+	await expect(sheet.getByTestId("no-split")).toHaveText(
+		/^It can’t be split: each Split belongs to a Bucket, and \w+( \d{4})? had none\.$/,
+	);
+	await expect(sheet.getByRole("button", { name: "Split", exact: true })).toHaveCount(0);
+	await sheet.getByRole("button", { name: "Save", exact: true }).click();
+	await expect(
+		sheet.getByText(
+			/had no Buckets, so there’s nothing to assign this to and changes to it can’t be saved\.$/,
+		),
+	).toBeVisible();
+	await expect(sheet.getByText("Choose the Bucket or Commitment it belongs to.")).toHaveCount(0);
+	await page.context().close();
+});
+
 test("on a phone, a Transaction from before the first Plan says so in its sheet and is filed without a Bucket there", {
 	tag: "@phone",
 }, async ({ browser }) => {
@@ -1055,6 +1126,9 @@ test("on a phone, a Transaction from before the first Plan says so in its sheet 
 	const note = editSheet(page).getByTestId("no-buckets");
 	await expect(note.getByRole("paragraph")).toHaveText(NO_BUCKETS);
 	await expect(editSheet(page).getByRole("combobox", { name: "Assigned to" })).toHaveCount(0);
+	// Nothing to split between, said in place of the button.
+	await expect(editSheet(page).getByTestId("no-split")).toBeVisible();
+	await expect(editSheet(page).getByRole("button", { name: "Split", exact: true })).toHaveCount(0);
 	const filed = savedBy(page, "fileWithoutBucket");
 	await note.getByRole("button", { name: "File without a Bucket" }).click();
 	await filed;
