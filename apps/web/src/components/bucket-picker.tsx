@@ -150,7 +150,9 @@ export function BucketPicker({
 							value={search}
 							onValueChange={setSearch}
 						/>
-						<CommandList>
+						{/* A short window (1024×768): a shorter list, so the panel opens under its field and
+						    not upward over the page's title (issue 73). Phones keep the full list. */}
+						<CommandList className="sm:[@media(max-height:820px)]:max-h-52">
 							{loading ? (
 								<p role="status" className="px-3 py-6 text-center text-sm text-muted-foreground">
 									{loading}

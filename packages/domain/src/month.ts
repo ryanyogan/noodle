@@ -74,6 +74,14 @@ export function lastDayOf(month: MonthKey): DayKey {
 }
 
 /**
+ * Whether `month` is over as of `asOf`: every day of it has passed. On its last day it is still
+ * running. An ended month has no "today" and no "by now": what happened in it is simply how it ended.
+ */
+export function monthEnded(month: MonthKey, asOf: DayKey): boolean {
+	return month < monthOfDay(asOf);
+}
+
+/**
  * How many days of `month` have passed by the end of `asOf`, counting `asOf` itself:
  * 0 before the month starts, every day once it has ended.
  */

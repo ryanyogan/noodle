@@ -182,7 +182,7 @@ function AppSidebar({ householdName }: { householdName: string }) {
 
 /**
  * Ask, from any page on a computer (issue 100): a small button fixed in the window's bottom right
- * corner, in the page's gutter and bottom padding, so it covers nothing at the end of a page.
+ * corner, in the page's gutter and bottom padding, so it covers nothing of a page.
  * Toasts are bottom centre and sheets open over it; an item's panel on the right edge (`z-30`)
  * opens under it and keeps its own bottom padding clear of it. Ask itself has its question box there, so it
  * isn't shown on Ask. A phone has Ask in More.
@@ -197,7 +197,10 @@ function AskButton() {
 					asChild
 					variant="outline"
 					size="icon-lg"
-					className="fixed end-2 bottom-2 z-31 size-10 rounded-full bg-card shadow-card max-lg:hidden"
+					// As wide as the page's gutter and inside it, so nothing of the page is under it: 8px in
+					// from the edge it lay over the last 8px of a rail (issue 73). Where the page sits in the
+					// middle of a wider window there is room for it to stand off the edge.
+					className="fixed end-0 bottom-2 z-31 size-10 rounded-full bg-card shadow-card max-lg:hidden min-[130rem]:end-2"
 				>
 					<Link to="/ask" aria-label="Ask Noodle" data-ask-button="" data-over-panel="">
 						<Sparkles strokeWidth={1.75} aria-hidden="true" />

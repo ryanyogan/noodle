@@ -991,14 +991,20 @@ function HeatmapKey({ tone }: { tone: (ratio: number | null) => string }) {
 	const stops = [0, 0.5, 1, 1.5, 2];
 	return (
 		<div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-3 text-xs text-muted-foreground">
-			<span className="flex items-center gap-1.5">
-				Under the Plan
+			{/* Under 360px the two ends read "Under" and "Over" (the next line names the Plan), so the
+			    scale stays one line instead of breaking inside each label. */}
+			<span className="flex items-center gap-1.5 whitespace-nowrap">
+				<span>
+					Under<span className="max-[359px]:sr-only"> the Plan</span>
+				</span>
 				<span aria-hidden="true" className="flex gap-0.5">
 					{stops.map((s) => (
 						<span key={s} className="h-3 w-5 rounded-[3px]" style={{ background: tone(s) }} />
 					))}
 				</span>
-				Over the Plan
+				<span>
+					Over<span className="max-[359px]:sr-only"> the Plan</span>
+				</span>
 			</span>
 			<span>Grey is within 10% of the Plan</span>
 			<span className="flex items-center gap-1.5">

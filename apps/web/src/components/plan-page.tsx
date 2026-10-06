@@ -184,13 +184,9 @@ export function PlanMasterDetail({
 		</div>
 	) : undefined;
 	const rail = (
-		// Under a list that keeps the page's width, the rail is no wider than it is beside one.
-		<div
-			className={cn(
-				"w-full min-w-0",
-				panel.besideFrom === "late" && "lg:max-[90rem]:max-w-(--rail-width)",
-			)}
-		>
+		// Under a list that keeps the page's width, the rail has its row's whole width too: as wide as
+		// it is beside one, it was a narrow card with the rest of its row empty (issue 73).
+		<div className="w-full min-w-0">
 			{overview && overviewHeader ? <PaneHeader {...overviewHeader} /> : null}
 			<div className="grid content-start gap-4">
 				{overview}

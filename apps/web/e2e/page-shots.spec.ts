@@ -742,6 +742,38 @@ test.beforeAll(async ({ browser }) => {
 			name: "01i-ended-month",
 			path: `/month/${new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)) - 2, 1)).toISOString().slice(0, 7)}`,
 		},
+		// This Month under the keyboard and the pointer (issue 73), as Reports' 23sa to 23sd: a Bucket's
+		// row focused and a To do row under the pointer; the To do row (a toggle: it opens and closes)
+		// focused and a button under the pointer; that button focused and a Bucket's row under the pointer.
+		...(
+			[
+				["01m-this-month-row-focus-toggle-hover", "row", "toggle"],
+				["01n-this-month-toggle-focus-button-hover", "toggle", "button"],
+				["01o-this-month-button-focus-row-hover", "button", "row"],
+			] as const
+		).map(
+			([name, focused, hovered]): Shot => ({
+				name,
+				path: `/month/${month}`,
+				window: true,
+				ready: async (page) => {
+					const main = page.getByRole("main");
+					const part = {
+						row: main.getByRole("link", { name: "Groceries", exact: true }).first(),
+						toggle: main
+							.getByRole("region", { name: "To do" })
+							.locator("button[aria-expanded]:visible")
+							.first(),
+						// A plain button: not a "?" and not a row that opens.
+						button: main
+							.locator("button:visible:not([aria-expanded]):not([aria-haspopup])")
+							.first(),
+					};
+					await keyboardFocus(page, part[focused]);
+					await part[hovered].hover();
+				},
+			}),
+		),
 		{
 			name: "02-this-month-to-do-open",
 			path: `/month/${month}`,
@@ -1805,6 +1837,30 @@ test.beforeAll(async ({ browser }) => {
 				},
 			}),
 		),
+		// The Check-in finished: "You’re done for this week" and what still waits. A step's card is
+		// read-only (its work is done on its own page), so the steps are passed with their Skip and the
+		// last one finishes the week. Only when asked for by name (PAGE_SHOTS_ONLY=26e), one width a
+		// run: the Check-in stays done for every picture after it.
+		...(only.includes("26e")
+			? [
+					{
+						name: "26e-check-in-done",
+						path: "/check-in",
+						ready: async (page: Page) => {
+							const main = page.getByRole("main");
+							const done = main.getByText("You’re done for this week");
+							await expect(async () => {
+								if ((await done.count()) === 0)
+									await main
+										.getByRole("button", { name: /^Skip (for now|and finish)$/ })
+										.first()
+										.click({ timeout: 2000 });
+								await expect(done).toBeVisible({ timeout: 2000 });
+							}).toPass({ timeout: 30_000 });
+						},
+					},
+				]
+			: []),
 		{ name: "27-household-settings", path: "/household" },
 		{
 			// The Start fresh sheet, open and not confirmed: what it says about snapshots, files and
@@ -2443,7 +2499,7 @@ test.beforeAll(async ({ browser }) => {
 				),
 				...([1, 2] as const).map(
 					(toasts): Shot => ({
-						// One toast with Undo, then two stacked: a row of last month deleted for each.
+						// One toast, then two stacked: a row of last month deleted, then a Quick Add.
 						name: toasts === 1 ? "d62-toast-undo" : "d63-toasts-two",
 						path: `/transactions/${monthBefore}`,
 						ready: async (page) => {
@@ -2451,21 +2507,42 @@ test.beforeAll(async ({ browser }) => {
 								.getByRole("grid", { name: /^Transactions in / })
 								.locator("[data-slot=data-table-body]")
 								.getByRole("checkbox");
-							for (let made = 0; made < toasts; made++) {
-								await boxes.first().click({ timeout: 15_000 });
-								await page
-									.getByRole("region", { name: "Selecting Transactions" })
-									.getByRole("button", { name: "Delete" })
-									.click({ timeout: 15_000 });
-								const sheet = page.getByRole("dialog", { name: /^Delete \d+ Transactions?\?$/ });
-								await sheet.getByRole("button", { name: /^Delete/ }).click({ timeout: 15_000 });
-								await expect(page.locator("[data-sonner-toast]")).toHaveCount(made + 1, {
-									timeout: 15_000,
-								});
-							}
+							await boxes.first().click({ timeout: 15_000 });
+							await page
+								.getByRole("region", { name: "Selecting Transactions" })
+								.getByRole("button", { name: "Delete" })
+								.click({ timeout: 15_000 });
+							const sheet = page.getByRole("dialog", { name: /^Delete \d+ Transactions?\?$/ });
+							await sheet.getByRole("button", { name: /^Delete/ }).click({ timeout: 15_000 });
+							const said = page.locator("[data-sonner-toast]");
+							await expect(said).toHaveCount(1, { timeout: 15_000 });
+							if (toasts === 1) return;
+							// The second, while the first still shows (it stays ten seconds): a Quick Add.
+							const quick = page.getByRole("dialog", { name: "Quick Add" });
+							await expect(sheet).toBeHidden({ timeout: 15_000 });
+							await page.keyboard.press("q");
+							await expect(quick).toBeVisible({ timeout: 15_000 });
+							await page.keyboard.type("7");
+							await quick.getByRole("button", { name: /^Add \$7 to / }).click({ timeout: 15_000 });
+							await expect(said).toHaveCount(2, { timeout: 15_000 });
 						},
 					}),
 				),
+				{
+					// Ask with an answer (the shots build answers from the stub model).
+					name: "d24y-ask-answer",
+					path: "/ask",
+					ready: async (page) => {
+						const question = page.getByPlaceholder("Ask about your money");
+						await expect(question).toBeEnabled({ timeout: 15_000 });
+						await question.fill("How much did we spend on groceries this month?");
+						const ask = page.getByRole("button", { name: "Ask", exact: true });
+						await ask.click({ timeout: 15_000 });
+						// Asked and answered: the field is empty again and the button no longer busy.
+						await expect(question).toHaveValue("", { timeout: 30_000 });
+						await page.waitForTimeout(2500);
+					},
+				},
 			] satisfies Shot[]
 		).map((shot): Shot => ({ ...shot, desktop: true, window: true })),
 		{ name: "50-bank-return", path: "/bank/return", window: true },

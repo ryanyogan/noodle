@@ -569,14 +569,20 @@ function Group({
 						{shown?.map((line) => line.node)}
 						<li
 							key="fold"
-							className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-(--card-pad) py-2.5"
+							className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-(--card-pad) py-2.5 max-sm:flex-nowrap"
 						>
-							{summary ? <p className="text-sm text-muted-foreground">{summary}</p> : null}
+							{/* On a phone the sentence wraps beside the button, so every group's row has the
+							    same shape (the button used to drop under the longer sentences only). */}
+							{summary ? (
+								<p className="text-sm text-muted-foreground max-sm:min-w-0 max-sm:flex-1">
+									{summary}
+								</p>
+							) : null}
 							<Button
 								type="button"
 								variant="outline"
 								size="sm"
-								className="ms-auto"
+								className="ms-auto shrink-0"
 								aria-expanded={all}
 								onClick={() => {
 									if (all) setKept(new Set(changedKeys.split(" ")));

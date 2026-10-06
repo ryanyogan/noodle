@@ -691,7 +691,7 @@ export function AddPersonalAllowance({
 
 	return (
 		<Card>
-			<form onSubmit={onSubmit} className="grid gap-3 p-(--card-pad)">
+			<form onSubmit={onSubmit} className="grid gap-3 p-(--card-pad) max-sm:@container/allowance">
 				<p className="text-[13px] text-muted-foreground">
 					Money that’s yours to spend each month. It counts in the Plan like any Bucket; the other
 					Parent sees only its totals, never what you spent it on.
@@ -718,8 +718,12 @@ export function AddPersonalAllowance({
 					className="justify-self-start"
 					disabled={!hydrated}
 				>
-					<Plus />
-					Set up Personal Allowance
+					<Plus className="@max-[15rem]/allowance:hidden" />
+					{/* In a form under 15 text sizes wide (text at 200% on a phone) the button says "Set up":
+					    the heading above names the allowance, and a screen reader still hears all of it. */}
+					<span>
+						Set up<span className="@max-[15rem]/allowance:sr-only"> Personal Allowance</span>
+					</span>
 				</Button>
 			</form>
 		</Card>

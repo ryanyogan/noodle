@@ -180,6 +180,7 @@ describe("incomeCheck: a warning when income is tracking below take-home pay", (
 			expected: 600_000,
 			short: 300_000,
 			below: true,
+			ended: false,
 		});
 		// On the 14th last month had only the first paycheck too.
 		expect(
@@ -189,6 +190,27 @@ describe("incomeCheck: a warning when income is tracking below take-home pay", (
 			short: 0,
 			below: false,
 		});
+	});
+
+	it("knows an ended month from one still running: nothing in it is 'by now'", () => {
+		const income = [
+			paid("2026-08-01", 300_000),
+			paid("2026-08-15", 300_000),
+			paid("2026-09-01", 300_000),
+			paid("2026-09-20", 140_000),
+		];
+		// On its last day September is still running: a paycheck may yet come.
+		expect(
+			incomeCheck({ baseline: takeHomePay, income, month: "2026-09", asOf: "2026-09-30" }),
+		).toMatchObject({ ended: false, below: true, short: 160_000 });
+		// From October on it has ended: all of it against all of August, in the past tense.
+		expect(
+			incomeCheck({ baseline: takeHomePay, income, month: "2026-09", asOf: "2026-10-06" }),
+		).toEqual({ received: 440_000, expected: 600_000, short: 160_000, below: true, ended: true });
+		// An ended month that brought the usual has nothing to say.
+		expect(
+			incomeCheck({ baseline: takeHomePay, income, month: "2026-08", asOf: "2026-10-06" }),
+		).toMatchObject({ ended: true, below: false, short: 0 });
 	});
 
 	it("waits until mid-month before warning", () => {
