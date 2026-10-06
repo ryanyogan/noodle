@@ -41,6 +41,42 @@ export function noteVersion(transactionId: string, version: number | null) {
 	else written.set(transactionId, version);
 }
 
+type Versioned = { id: string; version: number };
+
+/** The row at the version this screen would send a change to it with now (ADR-0041). */
+const asSent = <Row extends Versioned>(row: Row): Row => ({
+	...row,
+	version: expectedVersionOf(row),
+});
+
+/**
+ * What the outbox writes down for a change of `kind` (waiting-writes.ts, ADR-0056): what it was asked with, its Transaction at the version this
+ * screen would send it with now. This screen's own answered writes move a Transaction's version
+ * on and that is remembered only in memory (`written`), so without this an Undo
+ * left waiting behind its decision that WAS answered would be sent again on the card's old
+ * version and refused as "changed on another screen", when the only screen was this one. It is
+ * only ever the version this Parent's own write answered or their screen showed: never one read
+ * fresh from the server, so a change another screen made since is still never written over.
+ */
+export function carryVersions(kind: string, variables: unknown): unknown {
+	if (kind === "change") {
+		const change = variables as { transaction: Versioned };
+		return { ...change, transaction: asSent(change.transaction) };
+	}
+	if (kind === "decision") {
+		const decision = variables as { item: Versioned };
+		return { ...decision, item: asSent(decision.item) };
+	}
+	if (kind === "decisions") {
+		return (variables as { item: Versioned }[]).map((decision) => ({
+			...decision,
+			item: asSent(decision.item),
+		}));
+	}
+	if (kind === "return-to-review") return asSent(variables as Versioned);
+	return variables;
+}
+
 /**
  * Takes the server's answer to a change: remembers the new version, or throws ChangedElsewhere.
  * A refusal forgets what was remembered rather than catching up to the server, so a change still

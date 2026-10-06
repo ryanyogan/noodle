@@ -491,7 +491,8 @@ export function useSaveRule() {
 	const save = useMutation({
 		mutationKey: monthChangeKey,
 		scope: reviewWrites,
-		meta: { outbox: "rule" },
+		// Not written down to be sent again (ADR-0056): a Rule names no version, so a repeat could put
+		// back one deleted since or undo a newer choice for the merchant.
 		mutationFn: sendRule,
 		onMutate: async (rule) => {
 			const matches = [{ pattern: merchantKey(rule.pattern), bucketId: rule.bucketId }];

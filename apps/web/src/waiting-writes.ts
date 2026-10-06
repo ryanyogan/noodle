@@ -2,27 +2,26 @@
  * The app's side of the outbox (outbox.ts, ADR-0056): which changes are written down until the
  * server answers, and how one left by an earlier page is sent again.
  *
- * They are the writes that wait their turn (`reviewWrites`): a Transaction's edit, split or
- * delete, a Review card's decision or several at once, filing without a Bucket, an Undo back into
- * Review, and a Rule stated from a card. Each is sent again by the very function its screen uses,
- * in the same queue, with the version read as it is sent (ADR-0041): a repeat of one that did land
- * is answered "saved", and one made on something that has since changed is left alone and said
- * the usual way.
+ * They are the writes that wait their turn (`reviewWrites`) and say which version of the
+ * Transaction they were made on, or touch only what still waits in Review: a Transaction's edit,
+ * split, rename or delete, a Review card's decision or several at once, an Undo back into Review,
+ * and filing without a Bucket. Each is sent again by the very function its screen uses, in the
+ * same queue, with the version written down for it (ADR-0041): a repeat of one that did land is
+ * answered "saved", and one made on something that has since changed is left alone and said the
+ * usual way.
+ *
+ * A Rule stated from a card is NOT one of them. It names no version: sent again days later it
+ * would put back a Rule deleted since, or point the merchant's Rule back at the old Bucket over a
+ * newer choice, and file everything unassigned that matches. It is sent once, as before.
  */
 import { toast } from "@noodle/ui/components/toast";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { MAX_TRIES, openOutbox, type Resend, type Store, type Waiting, type Who } from "./outbox";
 import { monthChangeKey } from "./plan-changes";
-import {
-	sendDecision,
-	sendDecisions,
-	sendFileWithoutBucket,
-	sendReturnToReview,
-	sendRule,
-} from "./review";
+import { sendDecision, sendDecisions, sendFileWithoutBucket, sendReturnToReview } from "./review";
 import { reviewWrites } from "./review-stack";
-import { ChangedElsewhere, leftAsTheyAre } from "./transaction-versions";
+import { ChangedElsewhere, carryVersions, leftAsTheyAre } from "./transaction-versions";
 import { refetchAfterChange, saveTransactionChange, sayChangedElsewhere } from "./transactions";
 
 /** By the `meta.outbox` its mutation says: how each kind is sent. */
@@ -32,8 +31,13 @@ const senders: Record<string, (variables: never) => Promise<unknown>> = {
 	decisions: sendDecisions,
 	"file-without-bucket": sendFileWithoutBucket,
 	"return-to-review": sendReturnToReview,
-	rule: sendRule,
 };
+
+/** Said once when something written down was too old to send (outbox.ts, `MAX_AGE_MS`). */
+export const tooOldToSave = (count: number) =>
+	count === 1
+		? "A change you made over a week ago was never saved, so it has been left out."
+		: `${count} changes you made over a week ago were never saved, so they have been left out.`;
 
 /** Said once when what an earlier page left has been saved. */
 export const SAVED_LATER = "Saved what was still waiting when you left.";
@@ -116,6 +120,8 @@ export function useWaitingWrites({ householdId, parentId }: Who) {
 			resend: resendWith(queryClient),
 			refused: (error) => error instanceof ChangedElsewhere,
 			leaving: () => leaving,
+			carry: carryVersions,
+			expired: (count) => toast(tooOldToSave(count), { tone: "error", id: "saved-too-old" }),
 		});
 	}, [queryClient, householdId, parentId]);
 }

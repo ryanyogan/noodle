@@ -46,7 +46,6 @@ async function setUp(page: Page) {
 		],
 	});
 	await page.goto("/household");
-	console.log("DIAGSS", await page.evaluate(() => sessionStorage.getItem("diag")));
 	await page.getByLabel("Add a Child").fill("Leo");
 	await page.getByRole("button", { name: "Add Child" }).click();
 	await expect(page.getByRole("button", { name: "Edit Leo" })).toBeVisible();

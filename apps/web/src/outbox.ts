@@ -13,6 +13,9 @@
  * change that did land from a change made on something that has since moved on, so sending again
  * is safe and nothing is forced.
  *
+ * What is written down does not wait for ever: after a week it is dropped unsent and said
+ * (`MAX_AGE_MS`), and no more than `MAX_WAITING` are kept at once.
+ *
  * No React and no `window` here: the storage and the "page is going" signal are handed in, so the
  * bookkeeping is tested on its own (outbox.test.ts). With no storage it does nothing at all.
  */
@@ -27,6 +30,8 @@ export type Waiting = {
 	variables: unknown;
 	/** How many times sending it again got no answer. */
 	tries: number;
+	/** When it was made (ms since 1970): one too old is dropped, not sent. */
+	at: number;
 };
 
 /** Whose changes they are. Never sent for anyone else. */
@@ -41,6 +46,16 @@ export type Resend = MutationOptions<unknown, Error, unknown, unknown>;
 /** Sending again that gets no answer this many times is given up. */
 export const MAX_TRIES = 3;
 
+/**
+ * One made longer ago than this is dropped unsent. A week-old decision is no longer what the
+ * Parent would do on what the Household's figures are now, and a month may have been closed on
+ * them since.
+ */
+export const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** No more than this many are written down at once; one made past it is sent as ever, only not kept. */
+export const MAX_WAITING = 100;
+
 const PREFIX = "noodle.outbox.";
 
 /** Where one Parent's waiting changes in one Household are kept. */
@@ -52,6 +67,7 @@ const isWaiting = (entry: unknown): entry is Waiting =>
 	typeof (entry as Waiting).id === "string" &&
 	typeof (entry as Waiting).kind === "string" &&
 	typeof (entry as Waiting).tries === "number" &&
+	typeof (entry as Waiting).at === "number" &&
 	"variables" in entry;
 
 /** What is written down, oldest first. Anything unreadable counts as nothing. */
@@ -108,6 +124,9 @@ export function openOutbox({
 	resend,
 	refused = () => false,
 	leaving = () => false,
+	carry,
+	expired = () => {},
+	now = Date.now,
 }: {
 	queryClient: QueryClient;
 	who: Who;
@@ -119,6 +138,17 @@ export function openOutbox({
 	refused?: (error: unknown) => boolean;
 	/** True while the page is going: a request that fails then was cut off, not answered. */
 	leaving?: () => boolean;
+	/**
+	 * What to write down for a change of this page, given what it was asked with: the same, with
+	 * what this page's answered writes have since learned (a Transaction's version). Asked when it
+	 * is made and again each time another of this page's changes is answered, so one left waiting
+	 * behind a change that WAS answered is sent again on what that answer left, not on the row as
+	 * it was before. Never asked for a change another page wrote down.
+	 */
+	carry?: (kind: string, variables: unknown) => unknown;
+	/** Told how many were dropped unsent for being older than `MAX_AGE_MS`. */
+	expired?: (count: number) => void;
+	now?: () => number;
 }): () => void {
 	const key = outboxKey(who);
 	const already = opened.get(queryClient);
@@ -131,6 +161,13 @@ export function openOutbox({
 	const change = (edit: (list: Waiting[]) => Waiting[]) =>
 		keep(store, key, edit(waitingIn(store, key)));
 	const crossOff = (id: string) => change((list) => list.filter((entry) => entry.id !== id));
+	const carried = (kind: string, variables: unknown) => {
+		try {
+			return carry ? carry(kind, variables) : variables;
+		} catch {
+			return variables;
+		}
+	};
 
 	const unsubscribe = cache.subscribe((event) => {
 		if (event.type !== "updated") return;
@@ -146,14 +183,33 @@ export function openOutbox({
 			if (typeof meta.waiting === "string") return void live.set(mutation.mutationId, meta.waiting);
 			const id = newId();
 			live.set(mutation.mutationId, id);
-			change((list) => [...list, { id, kind, variables: action.variables, tries: 0 }]);
+			change((list) =>
+				list.length >= MAX_WAITING
+					? list
+					: [
+							...list,
+							{ id, kind, variables: carried(kind, action.variables), tries: 0, at: now() },
+						],
+			);
 			return;
 		}
 		if (action.type !== "success" && action.type !== "error") return;
 		const id = live.get(mutation.mutationId);
 		if (id === undefined) return;
 		live.delete(mutation.mutationId);
-		if (action.type === "success") return crossOff(id);
+		if (action.type === "success") {
+			// Answered: crossed off, and this page's others still waiting carry what it learned.
+			const mine = new Set(live.values());
+			return change((list) =>
+				list
+					.filter((entry) => entry.id !== id)
+					.map((entry) =>
+						carry && mine.has(entry.id)
+							? { ...entry, variables: carried(entry.kind, entry.variables) }
+							: entry,
+					),
+			);
+		}
 		// Cut off by the page going: it stays written down for the next page.
 		if (leaving()) return;
 		// Made on this page: the Parent has been told and the screen put back. Sent again and
@@ -173,7 +229,14 @@ export function openOutbox({
 	opened.set(queryClient, { key, close });
 
 	dropOthers(store, key);
-	for (const waiting of waitingIn(store, key)) {
+	// Too old to send (or dated in the future by more than that: a clock that was wrong).
+	const all = waitingIn(store, key);
+	const fresh = all.filter((entry) => Math.abs(now() - entry.at) <= MAX_AGE_MS);
+	if (fresh.length < all.length) {
+		keep(store, key, fresh);
+		expired(all.length - fresh.length);
+	}
+	for (const waiting of fresh) {
 		const options = resend(waiting);
 		if (!options) {
 			crossOff(waiting.id);

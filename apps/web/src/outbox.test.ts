@@ -1,6 +1,22 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
-import { MAX_TRIES, openOutbox, outboxKey, type Resend, type Store, waitingIn } from "./outbox";
+import {
+	MAX_AGE_MS,
+	MAX_TRIES,
+	MAX_WAITING,
+	openOutbox,
+	outboxKey,
+	type Resend,
+	type Store,
+	waitingIn,
+} from "./outbox";
+import {
+	carryVersions,
+	expectedVersionOf,
+	forgetVersions,
+	noteVersion,
+	settleWrite,
+} from "./transaction-versions";
 
 const who = { householdId: "house", parentId: "ryan" };
 const key = outboxKey(who);
@@ -38,7 +54,14 @@ function server() {
 function page(
 	store: Store | null,
 	send: (what: unknown) => Promise<void>,
-	options: { leaving?: () => boolean; as?: typeof who; resend?: () => Resend | null } = {},
+	options: {
+		leaving?: () => boolean;
+		as?: typeof who;
+		resend?: () => Resend | null;
+		carry?: (kind: string, variables: unknown) => unknown;
+		expired?: (count: number) => void;
+		now?: () => number;
+	} = {},
 ) {
 	const queryClient = new QueryClient();
 	const failed: unknown[] = [];
@@ -50,6 +73,9 @@ function page(
 		resend: options.resend ?? (() => again),
 		refused: (error) => error === "changed-elsewhere",
 		leaving: options.leaving,
+		carry: options.carry,
+		expired: options.expired,
+		now: options.now,
 	});
 	const make = (what: string, meta: Record<string, unknown> = { outbox: "change" }) =>
 		queryClient
@@ -306,5 +332,141 @@ describe("changes written down until the server answers (issue 128)", () => {
 		sent[0]?.answer();
 		await made;
 		expect(kept(store)).toEqual([]);
+	});
+});
+
+describe("what is written down does not wait for ever", () => {
+	it("one made more than a week ago is dropped unsent and said, and a newer one still goes", async () => {
+		const store = memory();
+		let clock = 1_000_000;
+		const old = page(store, server().send, { now: () => clock });
+		void old.make("a week old");
+		clock += MAX_AGE_MS - 60_000;
+		void old.make("yesterday's");
+
+		clock += 120_000;
+		const { sent, send, names } = server();
+		const dropped: number[] = [];
+		page(store, send, { now: () => clock, expired: (count) => void dropped.push(count) });
+		await tick();
+		expect(dropped).toEqual([1]);
+		expect(names()).toEqual(["yesterday's"]);
+		expect(kept(store)).toEqual(["yesterday's"]);
+		sent[0]?.answer();
+		await tick();
+		expect(kept(store)).toEqual([]);
+	});
+
+	it("one dated far in the future (a clock that was wrong) is dropped too, and nothing is said when none is old", async () => {
+		const store = memory();
+		void page(store, server().send, { now: () => 10 * MAX_AGE_MS }).make("from the future");
+		const { send, names } = server();
+		const dropped: number[] = [];
+		page(store, send, { now: () => 1_000, expired: (count) => void dropped.push(count) });
+		await tick();
+		expect(names()).toEqual([]);
+		expect(dropped).toEqual([1]);
+		expect(store.data.size).toBe(0);
+
+		void page(store, server().send, { now: () => 1_000 }).make("fresh");
+		const quiet: number[] = [];
+		page(store, server().send, { now: () => 2_000, expired: (count) => void quiet.push(count) });
+		await tick();
+		expect(quiet).toEqual([]);
+	});
+
+	it("no more than the limit are written down; one past it is still sent", async () => {
+		const store = memory();
+		const { send, names } = server();
+		const { make } = page(store, send);
+		for (let n = 0; n <= MAX_WAITING; n++) void make(`change ${n}`);
+		await tick();
+		expect(kept(store)).toHaveLength(MAX_WAITING);
+		expect(names()).toEqual(["change 0"]);
+	});
+});
+
+describe("a change left behind one that was answered carries what the answer said", () => {
+	it("is written down again with what this page has learned, each time one of its own is answered", async () => {
+		const store = memory();
+		let learned = 0;
+		const carry = (_kind: string, variables: unknown) =>
+			`${String(variables).split("@")[0]}@${learned}`;
+		const { sent, send } = server();
+		const { make } = page(store, send, { carry });
+		void make("first");
+		void make("second");
+		await tick();
+		expect(kept(store)).toEqual(["first@0", "second@0"]);
+		learned = 1;
+		sent[0]?.answer();
+		await tick();
+		expect(kept(store)).toEqual(["second@1"]);
+	});
+
+	it("never touches what another page of theirs wrote down", async () => {
+		const store = memory();
+		const { sent, send } = server();
+		const mine = page(store, send, { carry: (_kind, variables) => `${String(variables)}!` });
+		// Their other tab, opened after: its change is in the same list, and is not this page's.
+		void page(store, server().send).make("the other tab's");
+		void mine.make("mine");
+		void mine.make("mine too");
+		await tick();
+		expect(kept(store)).toEqual(["the other tab's", "mine!", "mine too!"]);
+		sent[0]?.answer();
+		await tick();
+		expect(kept(store)).toEqual(["the other tab's", "mine too!!"]);
+	});
+
+	it("an Undo behind its decision that WAS answered goes with the version that answer left", () => {
+		forgetVersions();
+		const card = { id: "t1", version: 4, merchant: "Costco" };
+		// Written down when made, both on the card as the screen had it.
+		expect(carryVersions("decision", { item: card, next: {} })).toEqual({ item: card, next: {} });
+		// The decision is answered: the Transaction is one version on.
+		settleWrite("t1", { status: "saved", version: 5 });
+		const undo = carryVersions("return-to-review", card) as typeof card;
+		expect(undo).toEqual({ ...card, version: 5 });
+		// A new page remembers nothing: what was written down is what is sent.
+		forgetVersions();
+		expect(expectedVersionOf(undo)).toBe(5);
+		expect(expectedVersionOf(card)).toBe(4);
+	});
+
+	it("carries each kind's Transaction and leaves the others as they are", () => {
+		forgetVersions();
+		noteVersion("t1", 7);
+		const row = { id: "t1", version: 2 };
+		const other = { id: "t2", version: 3 };
+		expect(carryVersions("change", { transaction: row, next: null, label: "Costco" })).toEqual({
+			transaction: { id: "t1", version: 7 },
+			next: null,
+			label: "Costco",
+		});
+		expect(carryVersions("decisions", [{ item: row }, { item: other }])).toEqual([
+			{ item: { id: "t1", version: 7 } },
+			{ item: other },
+		]);
+		const filing = { items: [row] };
+		expect(carryVersions("file-without-bucket", filing)).toBe(filing);
+		forgetVersions();
+	});
+
+	it("never raises a version after a refusal: what waits behind it is refused too", () => {
+		forgetVersions();
+		const row = { id: "t1", version: 2 };
+		noteVersion("t1", 3);
+		expect(() => settleWrite("t1", { status: "changed-elsewhere", current: null })).toThrow();
+		expect(carryVersions("change", { transaction: row })).toEqual({ transaction: row });
+	});
+
+	it("what isn't shaped as expected is written down as it was, not lost", async () => {
+		const store = memory();
+		const { send } = server();
+		const { make } = page(store, send, { carry: carryVersions });
+		void make("not a change at all");
+		await tick();
+		expect(kept(store)).toEqual(["not a change at all"]);
 	});
 });
