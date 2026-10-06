@@ -30,8 +30,9 @@ const pill = "h-4.5 px-1.5 text-[11px]";
 
 /**
  * A Quick Add whose bank copy hasn't come in. Where the badge sits beside the name and the window
- * is under 1280px it is a dot with a tooltip, so the name keeps the room: whole, it cut the name
- * to three letters at 1024 (issue 120). The row's own label says it to a screen reader
+ * is under 1536px it is a dot with a tooltip, so the name keeps the room: whole, it cut the name
+ * to three letters at 1024 (issue 120) and a 15-letter one by 27, 42 and 14px at 1280, 1366 and
+ * 1440 (issue 121). The row's own label says it to a screen reader
  * ("waiting for the bank's copy"), and opening the row says it in words.
  */
 export function WaitingForBankBadge() {
@@ -44,13 +45,13 @@ export function WaitingForBankBadge() {
 						dot
 						className={cn(
 							pill,
-							"sm:max-xl:w-4.5 sm:max-xl:justify-center sm:max-xl:gap-0 sm:max-xl:px-0",
+							"sm:max-2xl:w-4.5 sm:max-2xl:justify-center sm:max-2xl:gap-0 sm:max-2xl:px-0",
 						)}
 					>
-						<span className="sm:max-xl:sr-only">Waiting for bank</span>
+						<span className="sm:max-2xl:sr-only">Waiting for bank</span>
 					</Badge>
 				</TooltipTrigger>
-				<TooltipContent className="max-sm:hidden xl:hidden">Waiting for bank</TooltipContent>
+				<TooltipContent className="max-sm:hidden 2xl:hidden">Waiting for bank</TooltipContent>
 			</Tooltip>
 		</TooltipProvider>
 	);

@@ -16,7 +16,7 @@ import { Link, useHydrated, useNavigate, useParams } from "@tanstack/react-route
 import { GripVertical, Pencil } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import { asBucketColor, barState, monogram } from "../buckets";
-import { formatMoney } from "../format";
+import { formatMoney, formatWholeMoney } from "../format";
 import { BucketSheet, GroupSheet, useBucketChanges } from "./bucket-editor";
 import { useBucketReorder } from "./bucket-reorder";
 import { masterDetailItem } from "./master-detail";
@@ -41,6 +41,25 @@ function Left({ cents }: { cents: number }) {
 /** The "·" between two parts of a stacked row's line, in a box as wide as the line is pulled left. */
 const DOT = <span className="inline-block w-[1em] text-center whitespace-pre"> · </span>;
 
+/** From $100,000 a phone's line has no room for cents under 375px: see `PhoneFigure`. */
+const SIX_FIGURES = 100_000_00;
+
+/**
+ * A figure in a phone's line. `short` (either figure in the line is $100,000 or more) writes it in
+ * whole dollars on a phone under 375px, where "$123,456.78 of $100,000.50 spent" was cut at 320
+ * (issue 121); from 375px, and for smaller amounts at any width, it is exact. One of the two is
+ * ever in the page's text, so a screen reader hears what is drawn.
+ */
+function PhoneFigure({ cents, short }: { cents: number; short: boolean }) {
+	if (!short) return formatMoney(cents);
+	return (
+		<>
+			<span className="max-[375px]:hidden">{formatMoney(cents)}</span>
+			<span className="min-[375px]:hidden">{formatWholeMoney(cents)}</span>
+		</>
+	);
+}
+
 /**
  * The line under the name in a stacked row: the figures that have no column there. On a phone it
  * is one short line at every width: "$1,184.62 of $1,100 spent" (issue 120). A stacked list on a
@@ -63,6 +82,7 @@ function Summary({
 	/** Under a Bucket's name, not its tile: see `UNDER_NAME`. Not for the total, which has no tile. */
 	underName?: boolean;
 }) {
+	const short = Math.max(Math.abs(spent), Math.abs(allowance)) >= SIX_FIGURES;
 	return (
 		// Two boxes: the outer one starts with the tile over it, the inner one with the name. It wraps.
 		<span className={cn("flex min-w-0", indent && STACKED_INDENT)}>
@@ -74,9 +94,9 @@ function Summary({
 					<span
 						className={cn("font-medium", left < 0 ? "text-over-foreground" : "text-foreground")}
 					>
-						{formatMoney(spent)}
+						<PhoneFigure cents={spent} short={short} />
 					</span>{" "}
-					of {formatMoney(allowance)} spent
+					of <PhoneFigure cents={allowance} short={short} /> spent
 				</span>
 				{/* A narrow list that is not a phone. Each line wraps between its parts, never inside one,
 				    and none ends in a "·" (issue 74). */}
