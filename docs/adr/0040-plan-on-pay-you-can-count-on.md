@@ -2,6 +2,8 @@
 
 Amends [ADR-0001](0001-layered-plan-not-zero-based.md), which kept income above the Take-home pay out of Free to Spend altogether.
 
+Amended by [ADR-0057](0057-money-in-has-a-kind.md) (2026-10-06): Income is marked with whose pay it is, and a Parent whose pay varies is shown its range over the last three full months. The Take-home pay stays one Household figure, counted on the low end; pay per Parent is still not stored.
+
 In the Household this app is for, one Parent's pay is the same each month give or take a few dollars, and the other Parent's pay varies month to month. Under ADR-0001 a better month became Extra income that could only go to a Goal or one Bucket: Free to Spend never moved, so the money read as "not usable" (#86). A month a few dollars over raised a To do, and a low month left Free to Spend reading too high with nothing to do about it.
 
 ## Decision

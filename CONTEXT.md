@@ -30,7 +30,9 @@ _Avoid_: Edit, audit entry, revision
 
 **Commitment**:
 A fixed obligation the Household has signed up to and pays on a schedule, usually monthly: rent or mortgage, a car payment or other loan, insurance, utilities (electric, gas, water, trash), phone, internet and TV, childcare and tuition, memberships and subscriptions. It is not day-to-day spending that happens to repeat, like fast food, coffee, groceries, fuel or small shop purchases: those belong in Buckets. A Commitment may **pay down** one credit card or loan (ADR-0050): each payment filed in it then brings **what's owed** on that Account down, when the Account is kept by hand. A card Noodle follows (it syncs with its bank, or its purchases were imported in the last 60 days) can only be paid down this way as a balance the Household is carrying, since paying such a card is a Transfer.
-_Avoid_: Bill, fixed expense, recurring
+Its amount is either **the same each time** or **about** (it varies, as power and water do): an "about" amount is the average of its charges over the last year (the last three, until there is a year of them), shown with how far they range ("About $160 · $120–$210"). The month's real charge is what counts; over or under comes out of, or adds to, what carries over.
+The app calls the list of them "Bills"; the thing itself is a Commitment.
+_Avoid_: Fixed expense, recurring; utilities Bucket
 
 **Coming up**:
 The Commitments due from today through the next 30 days, by due date, each paid, partly paid, or due from the charges recorded against it in its month.
@@ -98,6 +100,10 @@ The Household's usual monthly pay after taxes and deductions, which the Plan is 
 In a low month (Income more than $25 below it) a Parent can lower Just that month's Take-home pay to the Income that came in, which lowers that month's Free to Spend by the same amount; it is never lowered on its own. The app says "Lower take-home pay to $4,400".
 _Avoid_: Baseline, expected income, salary, budgeted income, gross income
 
+**Income**:
+Money in that is pay or other earnings: a paycheck, a bonus, a tax refund, interest earned. Each has **whose pay** it is (a Parent, or the Household). Money in is one of Income, a Refund, Paid back, a Transfer or Between us, and a Parent can change which; only Income counts toward the Take-home pay and Extra income. A Parent whose pay varies is shown its range over the last three full months ("usually $2,100–$2,900"); the Plan still counts on the low end (ADR-0040).
+_Avoid_: Deposit, credit, earnings; salary
+
 **Extra income**:
 Income received beyond the Take-home pay in a month (the better month of a Parent whose pay varies, a third paycheck, a bonus, a tax refund), awaiting a decision on where it goes.
 Income up to $25 above the Take-home pay is the usual pay landing a few dollars different, not Extra income. A Parent sends Extra income to a Goal, to a Bucket, or adds it to that month's Free to Spend; it never gets there on its own. For a month that has ended, adding it to Free to Spend is said as "Leave it in the account" on "Close <Month>".
@@ -160,6 +166,14 @@ _Avoid_: Internal transfer, reimbursement, gift
 Money returned for a prior purchase; it restores the Bucket the purchase came from.
 _Avoid_: Credit, return, income
 
+**Paid back**:
+Money in from someone outside the Household's pool of money (a Child's other parent, a Child from their own account, a friend) for something the Household bought. It isn't Income; it restores the Bucket or Commitment the purchase was filed in, in the month it arrives. One payment can pay back several purchases.
+_Avoid_: Reimbursement, refund, income, Between us
+
+**Owed back**:
+The part of a purchase someone has said they'll pay back, and who ("Owed back $600 · Casey"), until it is Paid back. The person is a name, not a Member.
+_Avoid_: Receivable, IOU, debt, split (that is a Split)
+
 **Quick Add**:
 A Transaction entered by hand at the moment of spending, before any bank data exists for it. One the Parent's iPhone Shortcut captures when they pay with Wallet (tap to capture) is a Quick Add too; it is filed the way imported Transactions are (by Rule, similar merchant, or the model), else goes to Review.
 Quick Add can be filled in by snapping a paper Receipt or by saying or typing a phrase ("forty on pizza after hockey"): the amount, a suggested Bucket, For and a note are read for the Parent to check, and nothing is saved until they tap a Bucket. One saved from a snapped Receipt is dated as the Receipt is, with it attached.
@@ -218,7 +232,7 @@ _Avoid_: Alert, push, reminder
 
 **Review**:
 The set of Transactions whose assignment is uncertain and awaits a Parent's confirmation.
-A Parent can always decide one: confirm or pick within its own month's Plan, or **file it without a Bucket** (it leaves Review unassigned and changes no month's figures), which is how Transactions from months before the Plan, or from a month that's over, are cleared.
+A Parent can always decide one: confirm or pick within its own month's Plan, or **file it without a Bucket** (it leaves Review unassigned and changes no Bucket, Commitment or Goal; the money still left the Account, so it still comes out of what its month carries over), which is how Transactions from months before the Plan, or from a month that's over, are cleared.
 One a Parent **put back** with Undo waits for a Parent: background AI doesn't file it again by itself (#105).
 _Avoid_: Inbox, queue, uncategorized
 
@@ -314,4 +328,7 @@ _Avoid_: Tag, assignee, owner
 
 - "Budget" was used for both the whole Plan and a single Bucket's allowance — resolved: the whole is the **Plan**; a Bucket has an **allowance**.
 - "Transfer" was used for both real money moving between Accounts and planned money moving within the Plan — resolved: real = **Transfer**, planned = **Move**.
+- "Bill" was used for a Commitment — resolved: the thing is a **Commitment**; "Bills" is only the app's name for the list of them.
+- "Reimbursement" was used for money from a Child's other parent and from a Child's own account — resolved: both are **Paid back**; from the merchant it is a **Refund**; between the Parents it is **Between us**.
+- "Fees" and card interest are not a kind of Transaction — resolved: they are spending, filed in a **Bucket**.
 - "Double spending" covered duplicate charges, redundant services, and perk-covered services — resolved: all are **Overlaps**.
