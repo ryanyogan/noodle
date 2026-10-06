@@ -60,30 +60,49 @@ test("signed out, a Parent reads the Docs and finds an article by a word in its 
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
 		"Getting started in five minutes",
 	);
-	await expect(page.getByRole("link", { name: /^Next/ })).toContainText("What budgeting is");
+	// Next is the article listed after this one, whichever that is.
+	const listed = page.getByRole("navigation", { name: "All docs" }).getByRole("link");
+	const titles = (await listed.allInnerTexts()).map((title) => title.trim());
+	const here = titles.indexOf("Getting started in five minutes");
+	expect(here).toBeGreaterThanOrEqual(0);
+	expect(titles.length).toBeGreaterThan(here + 1);
+	await expect(page.getByRole("link", { name: /^Next/ })).toContainText(titles[here + 1] ?? "");
 
-	// "Lumpy" is only in the text of one article. Typed again until the page has hydrated.
+	// "Bounces" is a word from the text of Receipts, in no title, heading or summary: the match
+	// is found by what the article says. Typed again until the page has hydrated.
 	const search = page.getByRole("combobox", { name: "Search the Docs" });
 	const matches = page.getByRole("listbox", { name: "Matching articles" });
 	await expect(search).toHaveAttribute("enterkeyhint", "search");
 	await expect(async () => {
 		// Emptied first: typing the same word again after hydration would not count as a change.
 		await search.fill("");
-		await search.fill("lumpy");
+		await search.fill("bounces");
 		await expect(matches).toBeVisible({ timeout: 1_000 });
 	}).toPass({ timeout: 20_000 });
-	await expect(matches.getByRole("option")).toHaveCount(1);
-	await expect(matches.getByRole("option")).toContainText(/How to budget with Noodle.*Lumpy month/);
+	await expect(matches.getByRole("option").filter({ hasText: "Receipts" }).first()).toContainText(
+		/bounces/i,
+	);
 	await shot(page, "search-1440-light");
-	// Esc clears it; the arrows mark a match and Enter opens it.
+	// Esc clears it; the arrows mark a match and Enter opens the marked one.
 	await page.keyboard.press("Escape");
 	await expect(matches).toBeHidden();
 	await search.fill("month");
 	await expect(matches.getByRole("option").first()).toHaveAttribute("aria-selected", "true");
 	await page.keyboard.press("ArrowDown");
 	await expect(matches.getByRole("option").nth(1)).toHaveAttribute("aria-selected", "true");
-	await search.fill("lumpy");
+	await search.fill("bounces");
+	await expect(matches.getByRole("option").first()).toHaveAttribute("aria-selected", "true");
+	const marked = await matches.getByRole("option").first().innerText();
 	await page.keyboard.press("Enter");
+	await expect(page).not.toHaveURL(/\/docs\/getting-started$/);
+	await expect(page).toHaveURL(/\/docs\/[a-z-]+$/);
+	expect(marked).toContain(await page.getByRole("heading", { level: 1 }).innerText());
+
+	// A long article, with the list of its headings beside it.
+	await page
+		.getByRole("navigation", { name: "All docs" })
+		.getByRole("link", { name: "How to budget with Noodle", exact: true })
+		.click();
 	await expect(page).toHaveURL(/\/docs\/how-to-budget$/);
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText("How to budget with Noodle");
 	await expect(page.getByRole("navigation", { name: "On this page" })).toBeVisible();
