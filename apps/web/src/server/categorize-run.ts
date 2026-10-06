@@ -15,6 +15,8 @@ import {
 } from "@noodle/db";
 import {
 	decideCategorization,
+	feesBucketIn,
+	feesOffer,
 	type GuessMethod,
 	looksLikeCardPayment,
 	merchantKey,
@@ -162,6 +164,9 @@ export async function decideRows<R extends Rule & { id: string }>(
 	// where the card offers the Transfer (or pairs with the card's side once that's imported).
 	// Read from the bank's own wording; the name (a Parent may have given it) only when there is none.
 	const cardPayment = (row: Uncategorized) => looksLikeCardPayment(row.note || row.merchant);
+	const feesBucketId = feesBucketIn(buckets)?.id ?? null;
+	const feeOrInterest = (row: Uncategorized) =>
+		feesOffer({ text: row.note || row.merchant, amountCents: row.amountCents }) !== null;
 	const unruled = [...byMerchant.entries()]
 		.filter(([merchant, row]) => !ruleOf(merchant, row) && !cardPayment(row))
 		.map(([merchant]) => merchant);
@@ -201,6 +206,12 @@ export async function decideRows<R extends Rule & { id: string }>(
 					? { bucketId: guess.bucketId, confidence: guess.confidence, why: guess.why }
 					: undefined,
 		});
+		// A fee or interest (issue 137) is only ever put in the "Fees and interest" Bucket without a
+		// Rule: any other Bucket is dropped, as a filing and as a guess, and it waits in Review,
+		// where its card offers that Bucket (adding it to the Plan) and the Rule that files the rest.
+		if (!rule && feeOrInterest(row) && categorization.bucketId !== feesBucketId) {
+			return { transactionId: row.id, merchant, categorization: decideCategorization({}) };
+		}
 		return { transactionId: row.id, merchant, categorization, ruleId: rule?.id };
 	});
 	return decisions;

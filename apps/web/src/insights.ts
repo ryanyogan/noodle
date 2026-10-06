@@ -18,7 +18,9 @@ export const insightLabel = (insight: Pick<InsightItem, "kind">) =>
 		? "Overlap"
 		: insight.kind === "price-increase"
 			? "Price increase"
-			: "Not charged lately";
+			: insight.kind === "fees-interest"
+				? "Fees and interest"
+				: "Not charged lately";
 
 /**
  * What an Insight can be tried as in Explore, a Change preset each: ending a Commitment it's about
@@ -41,6 +43,7 @@ export function exploreTriesFor(
 	switch (insight.kind) {
 		case "duplicate-charge":
 		case "perk-cost":
+		case "fees-interest":
 			return [];
 		case "price-increase": {
 			// Its latest charge (Transactions are newest first) is the new price.

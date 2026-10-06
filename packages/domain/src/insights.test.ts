@@ -357,3 +357,62 @@ describe("Perk Overlaps", () => {
 		expect(found[0]?.private).toBe(true);
 	});
 });
+
+describe("fees and interest", () => {
+	const fees = (found: ReturnType<typeof findInsights>) =>
+		found.filter((i) => i.kind === "fees-interest");
+
+	it("says the year's total once it's $50 over at least three charges", () => {
+		const paid = [
+			spend("MONTHLY SERVICE FEE", 12, "2026-02-03"),
+			spend("OVERDRAFT FEE FOR A $54.12 ITEM", 34, "2026-05-19"),
+			spend("INTEREST CHARGE ON PURCHASES", 22.1, "2026-09-02"),
+		];
+		const [found, ...more] = fees(
+			findInsights(
+				inputs({
+					spends: [
+						...paid,
+						spend("BLUE BOTTLE COFFEE", 90, "2026-09-03"),
+						spend("LATE NIGHT DINER", 80, "2026-09-04"),
+						// Last year's are last year's.
+						spend("OVERDRAFT FEE", 34, "2025-12-30"),
+					],
+				}),
+			),
+		);
+		expect(more).toEqual([]);
+		expect(found).toMatchObject({
+			fingerprint: "fees-interest:2026",
+			yearlyImpact: 6810,
+			transactionIds: paid.map((s) => s.id),
+			commitmentIds: [],
+			private: false,
+			title: "Fees and interest so far in 2026",
+		});
+	});
+
+	it("says nothing for two charges, however large", () => {
+		const spends = [
+			spend("OVERDRAFT FEE", 34, "2026-05-19"),
+			spend("OVERDRAFT FEE", 34, "2026-06-19"),
+		];
+		expect(fees(findInsights(inputs({ spends })))).toEqual([]);
+	});
+
+	it("says nothing under $50", () => {
+		const spends = ["2026-03-03", "2026-04-03", "2026-05-03", "2026-06-03"].map((date) =>
+			spend("MONTHLY SERVICE FEE", 12, date),
+		);
+		expect(fees(findInsights(inputs({ spends })))).toEqual([]);
+		spends.push(spend("ATM SURCHARGE", 3.5, "2026-07-01"));
+		expect(fees(findInsights(inputs({ spends })))).toHaveLength(1);
+	});
+
+	it("is the Parent's alone when it rests on their own Personal Allowance", () => {
+		const spends = ["2026-03-03", "2026-04-03", "2026-05-03"].map((date) =>
+			spend("LATE FEE", 29, date, { private: true }),
+		);
+		expect(fees(findInsights(inputs({ spends })))[0]?.private).toBe(true);
+	});
+});

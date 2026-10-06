@@ -111,6 +111,7 @@ const KIND_TEXT: Record<InsightKind, string> = {
 	unused: "A Commitment in the Plan with no charges for a while",
 	"perk-service": "A service they pay for that one of their plans, cards or memberships includes",
 	"perk-cost": "A cost they paid that one of their cards or memberships covers or credits",
+	"fees-interest": "What their bank and cards charged them in fees and interest so far this year",
 };
 
 export function groupPrompt(names: NameToGroup[]): string {
