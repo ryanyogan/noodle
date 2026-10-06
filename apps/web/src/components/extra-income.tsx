@@ -155,9 +155,10 @@ export function IncomeSection({
 					) : null
 				}
 			/>
-			<p className="px-1 pb-2 text-sm text-muted-foreground">
+			<p className="pb-2 text-sm text-muted-foreground">
 				<span className="font-medium text-foreground tabular-nums">{formatMoney(received)}</span>{" "}
-				received of {formatMoney(baseline)} usual take-home pay
+				received of {formatMoney(baseline)} usual{" "}
+				<span className="whitespace-nowrap">take-home pay</span>
 			</p>
 			{income.length > 0 ? (
 				<List>
@@ -317,7 +318,7 @@ export function ExtraIncomeSection({
 					}
 				/>
 			</div>
-			<p className="px-1 pb-3 text-sm text-muted-foreground">
+			<p className="pb-3 text-sm text-muted-foreground">
 				<span className="font-medium text-foreground tabular-nums">{formatMoney(left)}</span> came
 				in above your usual take-home pay{monthName ? ` in ${monthName}` : ""}. Add it to Free to
 				Spend to use it, or choose a Goal or Bucket for it.

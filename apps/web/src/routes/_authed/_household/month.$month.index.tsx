@@ -1045,18 +1045,31 @@ function useGetStartedSteps(state: MonthState) {
 		{
 			done: state.baseline !== null,
 			title: "Set your take-home pay",
+			// At 320px the title was cut off after two lines beside its button, with no way to read the
+			// rest (issue 74): there it reads "Set take-home pay" and "Set up", read out in full.
+			shown: (
+				<>
+					Set <span className="max-[359px]:sr-only">your </span>take-home pay
+				</>
+			),
 			link: (
 				<Link to="/plan/$month" params={{ month: state.month }}>
-					Set up the Plan
+					Set up<span className="max-[359px]:sr-only"> the Plan</span>
 				</Link>
 			),
 		},
 		{
 			done: state.buckets.length > 0,
 			title: "Add Buckets for everyday spending",
+			// The same at 320px (issue 74): "Add Buckets" and "Add".
+			shown: (
+				<>
+					Add Buckets<span className="max-[359px]:sr-only"> for everyday spending</span>
+				</>
+			),
 			link: (
 				<Link to="/plan/$month" params={{ month: state.month }} hash={PLAN_BUCKETS_HASH}>
-					Add Buckets
+					Add<span className="max-[359px]:sr-only"> Buckets</span>
 				</Link>
 			),
 		},
