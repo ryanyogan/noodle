@@ -12,7 +12,7 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 
 | Surface | How to reach it | Another agent busy? | 1024 | 1280 | 1440 | 1920 | 2560 | dark 1440 | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Sidebar, open | any page from 1024 | shell agent | open: at 1024×768 the last link (Household settings) is cut by the Sidebar's foot until it is scrolled | — | ok | — | — | — | seen on every picture below; the shell agent's |
+| Sidebar, open | any page from 1024 | shell agent | open: at 1024×768 the last link (Household settings) is cut by the Sidebar's foot until it is scrolled | — | ok | — | — | — | seen on every picture below; 1024×768 still cuts the last link (opened again in part 2, pic 23 at 1024): NOT fixed |
 | Sidebar, collapsed to the icon rail | Sidebar trigger | shell agent | — | — | — | — | — | — |  |
 | Household menu (Sidebar foot) | click the Household name | shell agent | — | — | — | — | — | — |  |
 | Term help popover | any "?" beside a heading | shared (packages/ui) | — | — | — | — | — | — |  |
@@ -44,7 +44,7 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 
 | Surface | How to reach it | Another agent busy? | 1024 | 1280 | 1440 | 1920 | 2560 | dark 1440 | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| This Month | /month/$month | yes | — | — | — | — | — | — |  |
+| This Month | /month/$month | yes | — | — | ok | — | — | — | pic 01 at 1440: Buckets, Free to Spend with a carried-over amount, To do with Close September, Bills, Income. "Ended with $0, carried over" reworded in 526a6722 (not pictured: needs a month that ended on $0) |
 | This Month, To do row open | To do › a row | yes | — | — | — | — | — | — |  |
 | This Month, get started (fresh Household) | /month/$month (pic 30) | yes | — | — | — | — | — | — |  |
 | Extra income card, menu and "Send the Extra income" sheet | This Month | yes | — | — | — | — | — | — |  |
@@ -65,13 +65,13 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 | Restore Bucket sheet | Bucket panel › history | yes | — | — | — | — | — | — |  |
 | Plan editing dialog (discard draft) | Plan › edit, leave | yes | — | — | — | — | — | — |  |
 | Plan › Year | /plan/$month/year, /plan/year/$year | yes | — | — | — | — | — | — |  |
-| Plan › Commitments | /plan/$month/commitments (pic 06) | no | — | — | ok | — | — | — | seen under the open panel (pic 07). Decision: yearly rows say $40/mo in the amount column, so figures don't end on one digit edge |
-| Commitment in the panel | /plan/$month/commitments/$id (pic 07) | no | — | — | ok | — | — | — | the floating Ask button covers the last line of the panel's text at the window's bottom right (shell) |
+| Plan › Commitments | /plan/$month/commitments (pic 06) | no | fixed 526a6722 | — | fixed 526a6722 | — | — | ok (layout) | amount column holds the figure alone; a yearly one says "A month’s share of $480 yearly" on its meta line (two lines beside the rail at 1440 and 1024). $11.58 keeps its cents: Plan figures are exact |
+| Commitment in the panel | /plan/$month/commitments/$id (pic 07) | no | — | — | fixed 5277492e | — | — | — | the panel ends in a 64px strip of its own ground under the Ask button (detail-panel.tsx); retaken, pic 07 |
 | Commitment sheet (edit) | Commitment panel › Edit | no | — | — | — | — | — | — |  |
 | Plan › Commitments, empty | fresh Household (pic 39h) | no | — | — | — | — | — | — |  |
 | Plan › Goal funding | /plan/$month/goals (pic 08) | no | — | — | — | — | — | — |  |
 | Plan › Goal funding, empty | fresh Household (pic 39i) | no | — | — | — | — | — | — |  |
-| Plan › Income | /plan/$month/income (pic 08x) | no | fixed 007ffe4 | — | fixed 007ffe4 | — | — | — | row amounts were regular weight, now semibold like every list. Open (copy): the rail repeats "$11,868 received of $9,400" and says "change it on Plan › Income" on that page |
+| Plan › Income | /plan/$month/income (pic 08x) | no | fixed 007ffe4 | — | fixed 526a6722 | — | — | — | rail no longer repeats the received line or its bar; its help says "here, with Edit take-home pay". 1024 not retaken after this |
 | Income came in lower | small Household (pic 06a) | no | — | — | — | — | — | — |  |
 | "Take-home pay" sheet | Income › Edit take-home pay (pic 06b) | no | — | — | — | — | — | — |  |
 | Income: money from the other Parent, Between us | pics 40, 41 | no | — | — | — | — | — | — |  |
@@ -104,9 +104,9 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 
 | Surface | How to reach it | Another agent busy? | 1024 | 1280 | 1440 | 1920 | 2560 | dark 1440 | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Accounts list | /accounts (pic 15) | no | — | — | open: cards in a row centre their content, so a card with the "Log in again" line sits its name 5px higher and its balance 5px lower than its neighbour (ListRow card, packages/ui) | — | — | — | pic 16 |
+| Accounts list | /accounts (pic 15) | no | — | — | fixed 836a1ade | — | — | — | cards start at the top, balance on the bottom line (pic 16, under the panel) |
 | Accounts, archived open | pic 15a | no | — | — | — | — | — | — |  |
-| Account in the panel (credit card) | /accounts/$id (pic 16) | no | — | — | ok | — | — | — | long name wraps to two lines beside More/Close (decided in issue 107). Ask button covers a row's amount (shell). "Perks for this card" names the card twice (Perks agent) |
+| Account in the panel (credit card) | /accounts/$id (pic 16) | no | — | — | ok | — | — | — | part 2: the first foot strip sat 64px too high (opened); corrected in 5277492e and retaken, but the retake of pic 16 was NOT opened (pic 07 was) |
 | Account in the panel (no balance) | pic 16a | no | — | — | — | — | — | — |  |
 | Account actions menu | Account panel › More | no | — | — | — | — | — | — |  |
 | Rename Account sheet | Account menu › Rename | no | — | — | — | — | — | — |  |
@@ -149,20 +149,20 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 
 | Surface | How to reach it | Another agent busy? | 1024 | 1280 | 1440 | 1920 | 2560 | dark 1440 | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Reports › Overview | /reports (pic 23) | no | open: money format | — | — | — | — | — | open (decision): amounts in one column mix whole dollars and cents ($14,400 beside $6,656.62), the app-wide formatMoney; see the handoff. Layout, chart, stat row, filters: clean |
-| Reports › Big expenses | ?view=big (pic 23b) | no | ok | — | — | — | — | — | bars, both lists and the chart line up; the two cards end 30px apart (content-length, fine) |
-| Reports › Merchants | ?view=merchants (pic 23f) | no | — | — | ok | — | — | — | one row ($841.65) has cents, same decision as above |
-| Reports › Cash flow | ?view=cash-flow (pic 23a) | no | — | — | — | — | — | — |  |
-| Reports › Buckets | ?view=buckets (pic 23c) | no | — | — | open: money format | — | — | — | donut centre says $38,056.66 where the Overview stat says $38,057; rows mix formats |
-| Reports › Plan vs actual | ?view=plan (pic 23d) | no | open: money format | — | — | — | — | — | heatmap clean; the over/under chips mix $2,483 and $224.38 |
-| Reports › Trends | ?view=trends (pic 23e) | no | — | — | — | — | — | — |  |
-| Reports › People | ?view=people (pic 23g) | no | — | — | — | — | — | — |  |
-| Reports › Goals | ?view=goals (pic 23h) | no | — | — | — | — | — | — |  |
-| Reports › Income | ?view=income (pic 23i) | no | — | — | — | — | — | — |  |
+| Reports › Overview | /reports (pic 23) | no | fixed 99cccec2 | — | fixed 99cccec2 | — | ok (opened at reduced size) | — | part 2 (73ap): lists, chips and the donut are whole dollars; cents stay in the tables and CSV. At 2560 the page sits about 115px left of the middle of the room beside the Sidebar: open, not measured in the DOM |
+| Reports › Big expenses | ?view=big (pic 23b) | no | ok | — | ok | — | — | — | bars, both lists and the chart line up; the two cards end 30px apart (content-length, fine) |
+| Reports › Merchants | ?view=merchants (pic 23f) | no | — | — | fixed 99cccec2 | — | — | — | one row ($841.65) has cents, same decision as above |
+| Reports › Cash flow | ?view=cash-flow (pic 23a) | no | — | — | ok | — | — | — |  |
+| Reports › Buckets | ?view=buckets (pic 23c) | no | — | — | fixed 99cccec2 | ok (top 700px, reduced) | — | — | donut centre now $38,057 as the Overview stat; one format down the list |
+| Reports › Plan vs actual | ?view=plan (pic 23d) | no | open: money format | — | fixed 99cccec2 | — | — | — | heatmap clean; chips whole dollars |
+| Reports › Trends | ?view=trends (pic 23e) | no | — | — | ok | — | — | — | "Every day" read-out keeps cents (Oct 5: $4,990.29), an exact read-out by design; the heatmap fills the left 60% of its card: decision in the handoff |
+| Reports › People | ?view=people (pic 23g) | no | — | — | ok | — | — | — | footnote "Spending For Everyone counts once … $4,834.22 this month" (child-costs.tsx) keeps cents: a sentence, not a column |
+| Reports › Goals | ?view=goals (pic 23h) | no | — | — | ok | — | — | — | "7.0%" beside "16%" and "30%" in the cards: two-figure percentages, decision in the handoff |
+| Reports › Income | ?view=income (pic 23i) | no | — | — | ok | — | — | — |  |
 | Reports, drilled into an area (breadcrumb) | a row of Buckets / People | no | — | — | — | — | — | — |  |
 | Reports filters (period, pickers) and Filters sheet | header of every view | no | — | — | — | — | — | — |  |
 | Reports "as a table" (each chart's figures) | under each chart | no | — | — | — | — | — | — |  |
-| Reports, empty | fresh Household (pic 39a) | no | — | — | — | — | — | — |  |
+| Reports, empty | fresh Household (pic 39a) | no | — | — | ok | — | — | — |  |
 
 ## Insights, Check-in, Ask
 
