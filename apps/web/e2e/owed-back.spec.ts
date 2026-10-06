@@ -40,8 +40,7 @@ async function shot(target: Locator, name: string) {
 }
 
 /** A page's words on one line, as a person reads them across. */
-const words = async (page: Page) =>
-	(await page.locator("main").innerText()).replace(/\s+/g, " ");
+const words = async (page: Page) => (await page.locator("main").innerText()).replace(/\s+/g, " ");
 
 const toast = (page: Page, text: string) => page.getByRole("status").filter({ hasText: text });
 
