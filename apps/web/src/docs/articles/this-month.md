@@ -17,15 +17,17 @@ A "?" beside a word opens a one-sentence explanation, with a link to the Glossar
 
 ## Buckets
 
-Each [Bucket](/docs/buckets) shows what is left of its amount for the month. Choose a Bucket's row to open it and see what was filed in it.
+Each [Bucket](/docs/buckets) shows what is left of its amount for the month, with a bar for how much is spent. Press a Bucket to open its own page.
 
 Overspent Buckets are listed first, each with a **Cover** button. A Cover brings the Bucket back to $0 with money from another Bucket or from Free to Spend. See [When you overspend](/docs/when-you-overspend).
 
 **Personal Allowances** sit in a group of their own. You see your own purchases. For the other Parent's, you see totals only. See [Personal Allowance](/docs/personal-allowance).
 
-## Coming up
+## Bills
 
-The [Commitments](/docs/commitments) due from today through the next 30 days are here too, by due date. Each shows as paid, partly paid or due, from the payments recorded against it.
+Under **Bills** are the [Commitments](/docs/commitments) due this month. Each one says where it stands, from the charges recorded against it: when it is due, how much of it is paid, or "Paid". Commitments that are not due this month are tucked under "Not this month".
+
+In the current month, Bills has a second view, **Coming up**: the bills ahead of you, by date.
 
 ## Income and Extra income
 
@@ -43,7 +45,7 @@ This Month only asks for attention when something needs it.
 
 ## Looking at another month
 
-**Previous month** and **Next month**, beside the month's name, step back to earlier months and forward to later ones. An ended month that has been closed shows how it ended. Each month has its own address, so you can bookmark or share one with the other Parent.
+**Previous month** and **Next month**, beside the month's name, step back as far as your first month with a Plan, and forward to later months, so you can plan ahead. On a phone you can also swipe sideways. An ended month that has been closed shows how it ended. Each month has its own address, so you can bookmark or share one with the other Parent.
 
 ## If nothing is planned yet
 

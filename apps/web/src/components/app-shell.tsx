@@ -664,7 +664,9 @@ function MoreAccount({ householdName, close }: { householdName: string; close: (
 					variant="ghost"
 					// `wrap`: 44px, and taller when the text is set very large.
 					size="wrap"
-					className="min-w-0 flex-1 justify-start gap-3 rounded-xl px-3 py-1 text-left text-sm"
+					// It keeps the width "Manage account" needs in full (`!`: over the size's own floor): on a phone too narrow for that
+					// beside Docs and Sign out (320, 375), those two go onto a line of their own (issue 126).
+					className="min-w-[10.875rem]! flex-1 justify-start gap-3 rounded-xl px-3 py-1 text-left text-sm"
 					onClick={() => {
 						close();
 						clerk.openUserProfile();
@@ -680,20 +682,22 @@ function MoreAccount({ householdName, close }: { householdName: string; close: (
 				</Button>
 				{/* How Noodle works, for reading (issue 126). It takes the sheet's place in history, as
 				    picking a page does; closing the sheet first went back and lost the press in Safari. */}
-				<Button variant="ghost" size="wrap" className="rounded-xl px-3 text-sm" asChild>
-					<Link to="/docs" replace>
-						Docs
-					</Link>
-				</Button>
-				<Button
-					variant="outline"
-					size="wrap"
-					className="rounded-xl px-3.5 text-sm"
-					onClick={() => void clerk.signOut({ redirectUrl: "/" })}
-				>
-					<LogOut aria-hidden="true" />
-					Sign out
-				</Button>
+				<div className="ms-auto flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
+					<Button variant="ghost" size="wrap" className="rounded-xl px-3 text-sm" asChild>
+						<Link to="/docs" replace>
+							Docs
+						</Link>
+					</Button>
+					<Button
+						variant="outline"
+						size="wrap"
+						className="rounded-xl px-3.5 text-sm"
+						onClick={() => void clerk.signOut({ redirectUrl: "/" })}
+					>
+						<LogOut aria-hidden="true" />
+						Sign out
+					</Button>
+				</div>
 			</div>
 		</section>
 	);

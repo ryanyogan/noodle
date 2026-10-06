@@ -29,12 +29,14 @@ function DocsLayout() {
 	return (
 		<div className="min-h-dvh">
 			<header className="sticky top-0 z-10 border-b border-border bg-background pt-(--safe-top)">
-				<div className="mx-auto flex w-full max-w-[90rem] flex-wrap items-center gap-x-4 gap-y-2 px-(--gutter) py-3">
+				{/* One line above the search on the narrowest phone (320): the gap tightens and "All docs" is
+				    its icon alone there, still named for a screen reader. */}
+				<div className="mx-auto flex w-full max-w-[90rem] flex-wrap items-center gap-x-2 gap-y-2 px-(--gutter) py-3 min-[22.5rem]:gap-x-4">
 					<Link to="/docs" className="flex items-center gap-2 rounded-lg">
 						<Logo />
 						<span className="text-base font-medium text-muted-foreground">Docs</span>
 					</Link>
-					<div className="flex flex-1 items-center justify-end gap-2 lg:order-last lg:flex-none">
+					<div className="flex flex-1 items-center justify-end gap-1 min-[22.5rem]:gap-2 lg:order-last lg:flex-none">
 						<Button
 							variant="outline"
 							size="sm"
@@ -42,9 +44,9 @@ function DocsLayout() {
 							onClick={() => setListOpen(true)}
 						>
 							<List aria-hidden="true" />
-							All docs
+							<span className="max-[22.5rem]:sr-only">All docs</span>
 						</Button>
-						<Button variant="ghost" size="sm" asChild>
+						<Button variant="ghost" size="sm" className="max-[22.5rem]:px-1.5" asChild>
 							<a href="/">Open Noodle</a>
 						</Button>
 					</div>
