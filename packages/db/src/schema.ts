@@ -730,7 +730,8 @@ export const transfers = sqliteTable(
 		// Why a one-sided Transfer is one, when a Parent said: 'between-us' is money one Parent
 		// moved to the other, whose own Account isn't in Noodle (ADR-0052). Null for the rest.
 		reason: text("reason", { enum: ["between-us"] }),
-		// The Account on the side Noodle can't see, once a Parent names it (a remembered pair, money-in.ts).
+		// The Account on the side Noodle can't see, once a Parent names it: a remembered pair
+		// (money-in.ts), or the card a payment marked alone pays (card-payments.ts).
 		otherAccountId: text("other_account_id").references(() => accounts.id),
 	},
 	(t) => [
@@ -1027,6 +1028,27 @@ export const moneyInRules = sqliteTable(
 		otherAccountId: text("other_account_id").references(() => accounts.id),
 	},
 	(t) => [uniqueIndex("money_in_rules_household_pattern_idx").on(t.householdId, t.pattern)],
+);
+
+// A card payment's wording, remembered (issue 136): once a Parent says money out is a payment to a
+// card, later lines with the same wording (a merchantKey, matched as whole words) are marked as a
+// Transfer on Import. `account_id` is the card it pays, null for a card that isn't in Noodle. A
+// wording that is the card's spending instead is an ordinary Rule into its Commitment (`rules`).
+export const cardPaymentRules = sqliteTable(
+	"card_payment_rules",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		pattern: text("pattern").notNull(),
+		accountId: text("account_id").references(() => accounts.id),
+		createdByMemberId: text("created_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [uniqueIndex("card_payment_rules_household_pattern_idx").on(t.householdId, t.pattern)],
 );
 
 // Who a Rule files spending For: one row per Member, like `transaction_for` (ADR-0011). No rows

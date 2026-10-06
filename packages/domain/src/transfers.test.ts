@@ -8,6 +8,7 @@ import {
 	type PaymentAccount,
 	paymentCase,
 	type RefundSide,
+	readsAsPaymentReceived,
 	type TransferSide,
 	transferPairs,
 } from "./index";
@@ -354,5 +355,114 @@ describe("Review's tree for a payment to a card or loan", () => {
 				[amexPayment],
 			),
 		).toEqual({ kind: "not-followed", card: null, accountId: null });
+	});
+});
+
+describe("the card's side of a payment, by its words (issue 136)", () => {
+	it("reads the banks' own wordings for a payment arriving on a card", () => {
+		for (const text of [
+			"PAYMENT THANK YOU",
+			"Payment Thank You-Mobile",
+			"Payment Thank You - Web",
+			"AUTOMATIC PAYMENT - THANK YOU",
+			"AUTOPAY PAYMENT - THANK YOU",
+			"ONLINE PAYMENT, THANK YOU",
+			"ONLINE PAYMENT - THANK YOU",
+			"MOBILE PAYMENT - THANK YOU",
+			"INTERNET PAYMENT - THANK YOU",
+			"INTERNET PAYMENT THANK YOU",
+			"PAYMENT RECEIVED - THANK YOU",
+			"PAYMENT RECEIVED -- THANK YOU",
+			"ELECTRONIC PAYMENT RECEIVED-THANK",
+			"Payment Received",
+			"PAYMENT - THANK YOU",
+			"ONLINE ACH PAYMENT THANK YOU",
+			"BA ELECTRONIC PAYMENT",
+			"Online payment from CHK 1234",
+			"CAPITAL ONE MOBILE PYMT",
+			"CAPITAL ONE ONLINE PYMT",
+			"CAPITAL ONE AUTOPAY PYMT",
+			"DIRECTPAY FULL BALANCE",
+			"AUTOPAY 999990000012345 RAUTOPAY AUTO-PMT",
+			"ACH Deposit Internet transfer from account ending in 1234",
+			"Credit Card Payment",
+			"Payment",
+			"E-PAYMENT RECEIVED",
+		]) {
+			expect(readsAsPaymentReceived(text), text).toBe(true);
+		}
+	});
+
+	it("leaves refunds, statement credits, rewards and cashback as money back", () => {
+		for (const text of [
+			"AMAZON.COM AMZN.COM/BILL WA",
+			"REFUND AMAZON",
+			"TARGET REFUND",
+			"PAYPAL *PAYMENT REFUND",
+			"STATEMENT CREDIT",
+			"AMEX DINING CREDIT",
+			"TRAVEL CREDIT",
+			"CASH BACK REWARD",
+			"CASHBACK BONUS REDEMPTION",
+			"REWARDS REDEMPTION CREDIT",
+			"Pay with Rewards credit",
+			"LATE FEE REVERSAL",
+			"LATE PAYMENT FEE REFUND",
+			"ANNUAL FEE REFUND",
+			"INTEREST CHARGE ADJUSTMENT",
+			"RETURNED PAYMENT",
+			"PAYMENT REVERSAL",
+			"PROVISIONAL CREDIT",
+			"DISPUTE CREDIT",
+			"PAYMENT PROTECTION REFUND",
+			"APPLE PAY RETURN",
+			"PAYMENT SYSTEMS INC",
+			"COSTCO WHSE #1042",
+			"",
+			null,
+			undefined,
+		]) {
+			expect(readsAsPaymentReceived(text), String(text)).toBe(false);
+		}
+	});
+});
+
+describe("a bank that is also a card issuer, on the paying side (issue 136)", () => {
+	it("catches Chase, Wells Fargo, Bank of America and US Bank card payments without the words credit card", () => {
+		for (const text of [
+			"CHASE CARD SERV ONLINE PMT",
+			"CHASE EPAY 1234567890",
+			"CHASE CREDIT CRD EPAY",
+			"CHASE CARD AUTOPAY",
+			"WELLS FARGO CARD CCPYMT",
+			"WF CREDIT CARD AUTO PAY",
+			"WELLS FARGO VISA ONLINE PYMT",
+			"BK OF AMER VISA ONLINE PMT",
+			"BANK OF AMERICA MC ONLINE PMT",
+			"BANK OF AMERICA CREDIT CARD Bill Payment",
+			"Online Banking payment to CRD 1234 Confirmation# 0912",
+			"US BANK CC PYMT",
+			"U.S. BANK CARD PAYMENT",
+			"USBANK E-PAYMENT",
+		]) {
+			expect(looksLikeCardPayment(text), text).toBe(true);
+		}
+	});
+
+	it("still leaves their loans, and money that only names the bank, alone", () => {
+		for (const text of [
+			"CHASE MORTGAGE PAYMENT",
+			"JPMORGAN CHASE AUTO LOAN PYMT",
+			"CHASE AUTO FIN AUTOPAY",
+			"WELLS FARGO HOME MTG AUTO PAY",
+			"WELLS FARGO DEALER SVC PAYMENT",
+			"BANK OF AMERICA HELOC PAYMENT",
+			"US BANK HOME EQUITY PMT",
+			"CHASE QUICKPAY",
+			"WELLS FARGO ATM WITHDRAWAL",
+			"T-MOBILE AUTOPAY",
+		]) {
+			expect(looksLikeCardPayment(text), text).toBe(false);
+		}
 	});
 });

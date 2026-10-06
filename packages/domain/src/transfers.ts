@@ -93,16 +93,25 @@ export function likelyOriginals(
 
 /** Words for paying something: "PAYMENT", "PYMT", "EPAYMENT", "AUTOPAY", "CRCARDPMT". */
 const PAYMENT_WORDS =
-	/\b(e-?payments?|e-?pay|payments?|pymts?|pmts?|autopay|auto ?pay)\b|crcardpmt|creditcard/i;
+	/\b(e-?payments?|e-?pay|payments?|pymts?|pmts?|autopay|auto ?pay)\b|crcardpmt|ccpymt|creditcard/i;
 /** Words only a credit card's payment has: "CREDIT CRD", "CARD ENDING IN", "CARDMEMBER SERV". */
 const CREDIT_CARD_WORDS =
-	/\bcredit ?ca?rd\b|\bcrd\b|crcardpmt|creditcard|\bcardmember\b|\bcard (srvc|services?|online|ending|e-?payment|payment|pymt|pmt|autopay)\b|\bbarclaycard\b|\bapple ?card\b/i;
+	/\bcredit ?ca?rd\b|\bcrd\b|crcardpmt|creditcard|ccpymt|\bcardmember\b|\bcard (srvc|serv|services?|online|ending|e-?payment|payment|pymt|pmt|autopay)\b|\bbarclaycard\b|\bapple ?card\b/i;
 /** Card issuers whose payment lines name only themselves: "AMEX EPAYMENT", "DISCOVER E-PAYMENT". */
 const CARD_ISSUERS =
 	/\b(amex|american express|citi|citibank|capital one|discover|barclays|synchrony)\b/i;
+/**
+ * Banks that issue cards and also keep checking Accounts, lend on cars and hold mortgages: their
+ * name alone says nothing, so a line naming one is a card's payment only with BANK_CARD_WORDS.
+ */
+const BANKS_WITH_CARDS =
+	/\b(jpmorgan|chase|wells fargo|wf|bank of america|bk of amer(ica)?|bofa|us ?bank|u\.s\. bank)\b/i;
+/** What such a bank's line says when it's the card being paid: the card, its network, or an e-payment. */
+const BANK_CARD_WORDS =
+	/\b(cards?|cc|visa|mastercard|mc|e-?payments?|e-?pay|ccpymt|online (pmt|pymt|payment))\b/i;
 /** A purchase made with a card, a loan or a bill, or money sent to a person: never a card payment. */
 const NOT_A_CARD_PAYMENT =
-	/\b(mortgage|mtg|loan|lease|auto finance|carpay|insurance|rent|debit|checkcard|check card|pos|purchases?|gift ?cards?|zelle|venmo|paypal|cash app)\b/i;
+	/\b(mortgage|mtg|loan|lease|auto (finance|fin)|dealer|heloc|home equity|carpay|insurance|rent|debit|checkcard|check card|pos|purchases?|gift ?cards?|zelle|venmo|paypal|cash app)\b/i;
 /** Words in an Account's name that don't tell one card from another. */
 const PLAIN_ACCOUNT_WORDS = new Set([
 	"card",
@@ -137,7 +146,42 @@ const wordsOf = (text: string) =>
  */
 export function looksLikeCardPayment(text: string | null | undefined): boolean {
 	if (!text || NOT_A_CARD_PAYMENT.test(text) || !PAYMENT_WORDS.test(text)) return false;
-	return CREDIT_CARD_WORDS.test(text) || CARD_ISSUERS.test(text);
+	return (
+		CREDIT_CARD_WORDS.test(text) ||
+		CARD_ISSUERS.test(text) ||
+		(BANKS_WITH_CARDS.test(text) && BANK_CARD_WORDS.test(text))
+	);
+}
+
+// The card's side of a payment, by its words (issue 136).
+// Money arriving on a card is a refund, a credit, a reward, or the Household paying the card. Only
+// the last is a Transfer, and the card's bank says so in a handful of set phrases ("PAYMENT THANK
+// YOU", "AUTOPAY PAYMENT - THANK YOU", "CAPITAL ONE MOBILE PYMT"). A line that reads that way is a
+// Transfer whether or not the paying Account's side is in Noodle; anything else stays money back.
+
+/** A payment, as a card's own statement words it. */
+const RECEIVED_PAYMENT_WORDS = /\b(e-?payments?|payments?|pymts?|pmts?|autopay|directpay)\b/i;
+/** What says the payment is the cardholder's: thanks, how it was made, or where it came from. */
+const RECEIVED_HOW =
+	/\bthank(s| you)?\b|\b(received|autopay|auto|automatic|online|mobile|internet|electronic|web|ach|e-?payments?|directpay|pymts?|full balance)\b|\bfrom (chk|checking|sav|savings|account|acct)\b/i;
+/** A line that is nothing but the word: "Payment", "Credit Card Payment". */
+const ONLY_PAYMENT = /^\W*(credit ca?rd )?payments?\W*$/i;
+/** Apple Card's wording, which never says payment. */
+const TRANSFER_FROM_ACCOUNT =
+	/\b(internet|online) transfer from (account|acct|checking|chk|savings)\b/i;
+/** Money back that isn't a payment, and a payment that came back: never the card's side of one. */
+const NOT_A_PAYMENT_RECEIVED =
+	/\b(refunds?|returns?|returned|reversals?|reversed|rewards?|cash ?back|redemptions?|disputes?|disputed|adjustments?|fees?|interest|bonus|protection|provisional|credits?(?! ca?rd))\b/i;
+
+/**
+ * Whether a line arriving on a card reads as the Household paying that card ("PAYMENT THANK YOU",
+ * "ONLINE PAYMENT - THANK YOU", "Payment Received"). A refund, a statement credit, a reward or
+ * cashback doesn't, and neither does a merchant whose name only has the word in it.
+ */
+export function readsAsPaymentReceived(text: string | null | undefined): boolean {
+	if (!text || NOT_A_PAYMENT_RECEIVED.test(text)) return false;
+	if (TRANSFER_FROM_ACCOUNT.test(text) || ONLY_PAYMENT.test(text)) return true;
+	return RECEIVED_PAYMENT_WORDS.test(text) && RECEIVED_HOW.test(text);
 }
 
 /**
