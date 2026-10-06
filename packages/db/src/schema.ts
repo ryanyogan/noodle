@@ -1424,13 +1424,26 @@ export const freshStarts = sqliteTable(
 		level: text("level", { enum: ["fresh-start", "delete"] }).notNull(),
 		requestedBy: text("requested_by").notNull(),
 		runAt: integer("run_at", { mode: "timestamp_ms" }).notNull(),
-		status: text("status", { enum: ["scheduled", "running", "done", "cancelled"] }).notNull(),
+		// `failed`: a step used up its retries (issue 118); Try again takes it back to running.
+		status: text("status", {
+			enum: ["scheduled", "running", "failed", "done", "cancelled"],
+		}).notNull(),
 		step: integer("step").notNull().default(0),
 		steps: integer("steps").notNull().default(0),
 		label: text("label"),
 		cancelledBy: text("cancelled_by"),
 		createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 		finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+		// Issue 118, all nullable. The Workflow instance carrying the request (null: the first,
+		// whose id is the request's own); when it last began a step; the step that used up its
+		// retries and when; the other Parent who said "Start it now"; and Delete Household's
+		// "Also delete the last snapshot", so a later run knows it too.
+		runId: text("run_id"),
+		progressAt: integer("progress_at", { mode: "timestamp_ms" }),
+		failedStep: text("failed_step"),
+		failedAt: integer("failed_at", { mode: "timestamp_ms" }),
+		agreedBy: text("agreed_by"),
+		deleteBackups: integer("delete_backups", { mode: "boolean" }),
 	},
 	(t) => [index("fresh_starts_household_idx").on(t.householdId, t.createdAt)],
 );
