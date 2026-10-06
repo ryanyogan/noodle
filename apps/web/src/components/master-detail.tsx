@@ -356,7 +356,12 @@ export function ListBesideDetail({
 				aside ? (
 					<div className="grid w-full content-start gap-4">{aside}</div>
 				) : asideFills && hint ? (
-					<p data-hint-only="" className="px-1 text-sm text-muted-foreground">
+					// With an item open under 1920 the panel covers the hint's place and cut its sentence
+					// in half: not shown then (it keeps its room, so nothing moves).
+					<p
+						data-hint-only=""
+						className={cn("px-1 text-sm text-muted-foreground", picked && "max-[1919px]:invisible")}
+					>
 						{hint}
 					</p>
 				) : undefined
