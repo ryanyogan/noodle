@@ -10,6 +10,7 @@ Noodle uses a small set of plain words, like Bucket, Commitment and Free to Spen
 ## Where to find it
 
 - Open the [Glossary](/glossary) in the app. You need to be signed in.
+- On a phone, **Glossary** is in More.
 - Wherever a word has a small "?" beside it, press it. You get a one-sentence explanation and a link that opens the Glossary at that word, over the page you are on.
 
 ## Good to know

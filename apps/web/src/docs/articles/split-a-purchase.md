@@ -9,7 +9,7 @@ Sometimes one purchase belongs in more than one place. A big shop might be mostl
 
 ## Where to find it
 
-- On **Transactions**, open the Transaction and edit it. The **Split** button is by the place you choose its Bucket.
+- On **Transactions**, open the Transaction. Its editor has a **Split** button.
 - In **Review**, each card has a **Split** button.
 
 ## Split by hand
@@ -28,7 +28,7 @@ If a Receipt is attached to the Transaction, Noodle reads its items and proposes
 
 1. Forward the Receipt to your Household's Receipt address, or snap it in Quick Add.
 2. Open the Transaction. The proposed Splits are listed under the Receipt.
-3. Choose a Bucket for any item that does not have one yet.
+3. Choose a Bucket for each item that does not have one. Noodle will not apply the Splits until every item has one.
 4. Press **Apply these Splits**.
 
 When Noodle is sure of every item and nobody has filed the Transaction yet, it applies the Splits by itself. The Transaction then reads "Split from its Receipt."

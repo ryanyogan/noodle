@@ -25,14 +25,14 @@ The line moves to a small **Between us** list under Income. It no longer counts 
 
 ### Money that went out
 
-1. Find it in **Review**, or open it on **Transactions**.
-2. Choose **It's between us**.
+- In **Review**, press **It's between us** on its card.
+- Or open it on **Transactions**. In its editor, under **Transfer**, press **It's between us**.
 
 In Review, a payment that reads like money sent to a person is offered as "It's between us" first, with a Bucket as the second choice.
 
 ## Changing your mind
 
-Money in that you marked has a **Count as Income** button in the Between us list. In Review, **Undo** puts back the card you just decided.
+Money in that you marked has a **Count as Income** button in the Between us list. Money out that you marked reads "Between us" when you open the Transaction, with an **Unmark Transfer** button that puts it back. In Review, **Undo** puts back the card you just decided.
 
 ## Good to know
 

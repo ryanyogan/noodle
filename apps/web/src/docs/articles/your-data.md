@@ -34,17 +34,20 @@ Nightly snapshots are kept for 14 days, then one a week is kept for 8 weeks. One
 
 ## Restore a snapshot
 
-1. Under Snapshots, choose the one you want and ask to restore it.
+1. Under Snapshots, find the one you want and press its restore button.
 2. Read what will happen. Everything in your Household now is replaced with what was there then.
 3. Type your Household's name to confirm.
+4. Press **Restore**. It takes about a minute.
 
 Noodle takes a snapshot of how things are now first, so you can come back. A bank linked since the snapshot is disconnected. The other Parent is told.
+
+A snapshot taken with a newer version of Noodle than the one you are using cannot be restored.
 
 ## Good to know
 
 - Snapshots hold both Parents' data, so what is in them is never shown or downloaded. They can only be restored.
 - In Reports, **Export CSV** saves the tables of the report you are looking at as a spreadsheet file.
-- Before Start fresh or Delete Household, download first and save the file outside Noodle. A download left in Noodle is cleared with everything else.
+- Before Start fresh or Delete Household, download first and save the file outside Noodle. A download left in Noodle is cleared with everything else, and it does not come back with a snapshot.
 
 ## Related
 

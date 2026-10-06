@@ -37,31 +37,41 @@ On an iPhone or iPad, add Noodle to your Home Screen first (Share, then Add to H
 
 Start fresh empties your Household so you can begin again.
 
-- It clears every Transaction, bank connection, Bucket and Goal, every month's Plan and its changes.
+- It clears every Transaction, Account, bank connection, Bucket, Commitment, Goal, Rule and Insight, every month's Plan and its changes, and Noodle's notes on your spending.
 - It keeps your Household, its Parents and its Children.
 - Noodle takes a snapshot first. For up to 90 days you can put your Household back from Snapshots, statement and Receipt files included.
-- Banks need connecting again afterwards.
+- Two things do not come back with a snapshot. Banks need connecting again. A data download left in Noodle is cleared for good.
 
 1. Under Danger zone, press **Start fresh**.
-2. Read the list of what goes. Press **Download everything first** if you want a copy, and save it to your phone or computer. A download left in Noodle is cleared too.
-3. Type your Household's name to confirm. If banks are connected, tick the box to disconnect them.
-4. Confirm with **Start fresh**.
+2. Read the list of what goes. To keep a copy, press **Download everything first** and save the file to your phone or computer.
+3. Press **Continue**.
+4. Type your Household's name. If banks are connected, tick the box that reads **Disconnect**, the bank's name, **from Noodle**. Noodle tells you what is still needed.
+5. Press **Start fresh**.
+
+### When it happens
+
+- **With two Parents**, it does not happen at once. It is set for 24 hours later, and the other Parent is told straight away. Until then, Household settings shows when it will happen, and either of you can press **Cancel**.
+- The other Parent can agree sooner. They press **Start it now** and type the Household's name, and it happens as soon as they confirm.
+- **With one Parent**, it happens as soon as you confirm.
+- Once it starts, it cannot be stopped.
+- When it has finished, Noodle says your Household is empty and offers **Set up your Household**.
+- If it stops partway, Noodle says what is done so far and offers **Try again**, which carries on from that step.
 
 ## Delete Household
 
 > Deleting cannot be undone. Start fresh can be put back. Deleting cannot.
 
-Delete Household removes everything, including the Household itself, its Parents and Children, and every snapshot in Snapshots.
+Delete Household removes everything Start fresh clears, and also the Household itself, its Parents and Children, and every snapshot in Snapshots. A data download left in Noodle is deleted too.
 
-Noodle keeps one last snapshot for 30 days, then deletes it. You cannot put it back yourself. When you confirm, you can tick **Also delete the last snapshot**, and then nothing is kept.
+Noodle keeps one last snapshot for 30 days, then deletes it. You cannot put it back yourself, so do not count on it. On the last step you can tick **Also delete the last snapshot**, and then nothing is kept.
 
-The steps are the same as Start fresh: read what goes, download first if you want a copy, type the Household's name, and confirm with **Delete Household**.
+1. Under Danger zone, press **Delete Household**.
+2. Read the list of what goes. Press **Download everything first** if you want a copy, and save it to your phone or computer.
+3. Press **Continue**.
+4. Type your Household's name. If banks are connected, tick the box to disconnect them.
+5. Press **Delete Household**.
 
-## Good to know
-
-- The other Parent is told when you ask for either reset. It may be set to happen 24 hours later, and until then either of you can cancel it.
-- Otherwise it happens as soon as you confirm. Deleting cannot be stopped once it starts.
-- After Start fresh, the page offers **Set up your Household** to begin again.
+The timing is the same as Start fresh: 24 hours later with two Parents, with **Cancel** for either of you until then, and at once with one Parent. Once deleting starts, it cannot be stopped or undone.
 
 ## Related
 

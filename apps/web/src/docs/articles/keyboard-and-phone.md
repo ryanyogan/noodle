@@ -9,7 +9,7 @@ Noodle works with a mouse or a finger alone. These shortcuts are there if you wa
 
 ## Anywhere, on a computer
 
-- **Q** opens Quick Add.
+- **Q** opens Quick Add. It does nothing while a sheet or the Glossary is open.
 - **Ctrl B**, or **⌘ B** on a Mac, collapses and opens the sidebar.
 - **Alt T** moves the keyboard to a message that has just popped up, so you can reach its Undo. **Esc** takes you back.
 

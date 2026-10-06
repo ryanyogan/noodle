@@ -9,16 +9,16 @@ When a month ends, a little money is often left over. Closing is where you say w
 
 ## Where to find it
 
-In the first week of a new month, This Month asks you to close the one that just ended. The section is named **Close** and the month, for example "Close September".
+After a month ends, This Month asks you to close it, as long as there is something to decide. The section is named **Close** and the month, for example "Close September". On a computer it is a row in the To do list. It stays until one of you closes the month, or Noodle closes it by the defaults.
 
-The [Check-in](/docs/check-in) has a Sweeps step that takes you there too.
+The [Check-in](/docs/check-in) has a Sweeps step that lists the same leftovers.
 
 ## Close it step by step
 
 1. Open the **Close** section. Each line is something to decide.
 2. **Bucket leftovers.** Every Bucket that resets monthly and has money left gets a line. Choose a Goal to move it into, which is called a Sweep, or choose **Leave it**.
-3. **Free to Spend.** If some is left, choose **Keep it in Free to Spend** or **Send to** one of your Goals. Kept, it is carried over into the next month.
-4. **Extra income.** If Extra income is still waiting, choose a Goal, **Leave it in the account**, or **Decide later**.
+3. **Free to Spend.** If some is left and you have a Goal, choose **Keep it in Free to Spend** or **Send to** one of your Goals. Kept, it is carried over into the next month.
+4. **Extra income.** If Extra income is still waiting, choose a Goal, **Leave it in the account**, or **Decide later**. It starts on Decide later.
 5. Press the **Close** button with the month's name.
 
 ## If nobody closes it

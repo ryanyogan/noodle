@@ -28,7 +28,6 @@ The change happens at once. There is nothing to save.
 - The choice is remembered on the device you made it on. Your phone and your computer can each have their own.
 - It is your choice only. It does not change what the other Parent sees.
 - These Docs follow the same theme.
-- In a private browser window the choice may only last for that visit.
 
 ## Related
 

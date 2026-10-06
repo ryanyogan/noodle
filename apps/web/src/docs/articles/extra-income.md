@@ -32,11 +32,11 @@ If Extra income is still undecided when the month ends, it shows up when you clo
 
 ## When less comes in than usual
 
-In a low month, Noodle offers a button that reads **Lower take-home pay to** and the amount that arrived. It lowers Take-home pay for just that month, and Free to Spend goes down by the same amount. Later months do not change. Noodle never does this by itself, and you can undo it straight away.
+In a low month, Noodle offers a button that reads **Lower take-home pay to** and the amount that arrived. It lowers Take-home pay for just that month, and Free to Spend goes down by the same amount. Later months do not change. Noodle never does this by itself. The message that confirms it has an **Undo**.
 
 ## Good to know
 
-- A few dollars over is not Extra income. Up to $25 above your Take-home pay is treated as your usual pay landing slightly different.
+- A few dollars over is not Extra income. Up to $25 above your Take-home pay is treated as your usual pay landing slightly different. Once more than $25 above comes in, all of the difference is Extra income.
 - If someone's pay varies, set Take-home pay to the amount you can count on. Better months then show up as Extra income.
 - You can ask for a Nudge when Extra income arrives. Turn it on in Household settings, under Reminders.
 - A Refund of a purchase is not income. It goes back to the Bucket the purchase came from.

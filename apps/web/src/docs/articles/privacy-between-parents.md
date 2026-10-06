@@ -24,7 +24,6 @@ A Personal Allowance is a Bucket that belongs to one Parent. You see every purch
 - **Nudges.** You can be told about the other Parent's Quick Adds, but never anything in their Personal Allowance.
 - **Quick Add.** You are never offered the other Parent's Personal Allowance as a place to file.
 - **Suggestions.** One that rests on your Personal Allowance is shown only to you.
-- **Ask.** Answers use the figures as you are allowed to see them.
 - **Plan health.** It never warns you about the other Parent's Personal Allowance.
 - **Editing.** A Transaction with part of it in a Parent's Personal Allowance can only be changed by that Parent.
 
