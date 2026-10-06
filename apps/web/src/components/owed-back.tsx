@@ -1,4 +1,10 @@
-import { type Cents, defaultOwedBack, OWED_BACK_NAME_MAX, owedBackLeft } from "@noodle/domain";
+import {
+	type Cents,
+	defaultOwedBack,
+	monthOfDay,
+	OWED_BACK_NAME_MAX,
+	owedBackLeft,
+} from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Field } from "@noodle/ui/components/field";
 import { Input } from "@noodle/ui/components/input";
@@ -16,6 +22,7 @@ import {
 	useSayOwedBack,
 } from "../owed-back";
 import { MoneyInput } from "./money-input";
+import { OwedBackListLink } from "./owed-back-list";
 
 // Paid back and Owed back (issue 132, ADR-0058): saying on a purchase that someone's paying part
 // of it back, and confirming which of those a Paid back money-in line settles.
@@ -136,6 +143,7 @@ export function OwedBackOnPurchase({
 					<p className="text-sm font-medium" data-testid="owed-back-text">
 						{owedBackText(item)}
 					</p>
+					<OwedBackListLink month={monthOfDay(item.date)}>All that’s Owed back</OwedBackListLink>
 					{editing ? null : (
 						<>
 							<Button type="button" size="sm" variant="outline" onClick={() => setEditing(true)}>

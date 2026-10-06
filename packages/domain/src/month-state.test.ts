@@ -411,9 +411,12 @@ describe("monthState: Paid back into a Commitment isn't a payment of it", () => 
 	};
 	const stateOf = (charges: Charge[]) => {
 		const state = monthState({ plan, spending: [], charges, asOf: "2026-09-20" });
-		const { actual, charges: paid, difference, status } = state.commitments[0] as NonNullable<
-			(typeof state.commitments)[0]
-		>;
+		const {
+			actual,
+			charges: paid,
+			difference,
+			status,
+		} = state.commitments[0] as NonNullable<(typeof state.commitments)[0]>;
 		return { actual, paid, difference, status };
 	};
 	const paid: Charge = { commitmentId: "tuition", amount: 120_000, date: "2026-09-01" };
