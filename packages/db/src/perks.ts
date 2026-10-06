@@ -562,6 +562,31 @@ export async function decidePerkSource(
 	return changed.length > 0;
 }
 
+/** The Perk Source bound to a linked card Account that this name tells, if there is one. */
+async function linkedCardSourceNamed(
+	db: Db,
+	householdId: string,
+	name: string,
+): Promise<string | null> {
+	const cards = (await loadAccountsWithBank(db, householdId)).filter(
+		(account) => account.kind === "credit-card",
+	);
+	if (cards.length === 0) return null;
+	const rows = await db
+		.select({ id: perkSources.id, fingerprint: perkSources.fingerprint })
+		.from(perkSources)
+		.where(and(eq(perkSources.householdId, householdId), eq(perkSources.kind, "credit-card")));
+	const source = { name, seenIn: null };
+	const found = rows.find((row) => {
+		const bound = boundAccountId(row.fingerprint);
+		return (
+			bound !== null &&
+			cards.some((account) => account.id === bound && namedFor(source, account.name))
+		);
+	});
+	return found?.id ?? null;
+}
+
 /**
  * A Parent adds a Perk Source of their own, for the Household. A catalog product is the catalog's
  * (a suggestion of it, or one removed before, becomes confirmed again, with its page unless a
@@ -580,6 +605,27 @@ export async function addPerkSource(
 ): Promise<string> {
 	const entry = catalogEntryFor(input.name);
 	const pageUrl = input.pageUrl ?? entry?.page ?? null;
+	// A linked card already has a Perk Source of its own (issue 96). Adding the same card by name
+	// confirms that one: a second would show the card twice, each counting the same charges.
+	const linked =
+		input.kind === "credit-card"
+			? await linkedCardSourceNamed(db, viewer.householdId, input.name)
+			: null;
+	if (linked) {
+		await db
+			.update(perkSources)
+			.set({
+				name: input.name,
+				status: "confirmed",
+				research: "researching",
+				decidedByMemberId: viewer.memberId,
+				...(entry ? { catalogKey: entry.key } : {}),
+				...(input.plan ? { plan: input.plan } : {}),
+				...(pageUrl ? { pageUrl } : {}),
+			})
+			.where(and(eq(perkSources.householdId, viewer.householdId), eq(perkSources.id, linked)));
+		return linked;
+	}
 	const [row] = await db
 		.insert(perkSources)
 		.values({

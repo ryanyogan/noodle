@@ -458,6 +458,47 @@ describe("linked cards (#96)", () => {
 		expect((await perkSourcesToRecheck(db, new Date())).map((s) => s.id)).toEqual([added[0]?.id]);
 	});
 
+	it("adding a linked card by name confirms its own Perk Source instead of a second one", async () => {
+		await ensureCardPerkSources(db, { householdId, newId });
+		const before = (await loadPerkSources(db, alex)).find((s) => s.card?.mask === "1234");
+		const id = await addPerkSource(db, alex, {
+			id: newId(),
+			name: "Chase Freedom Unlimited",
+			kind: "credit-card",
+			plan: null,
+			pageUrl: null,
+		});
+		expect(id).toBe(before?.id);
+		const cards = (await loadPerkSources(db, alex)).filter((s) => s.card?.mask === "1234");
+		expect(cards.map((s) => [s.name, s.status])).toEqual([
+			["Chase Freedom Unlimited", "confirmed"],
+		]);
+		// Removed by a Parent, then added by name: the same one comes back, still one.
+		await decidePerkSource(db, alex, { id, status: "dismissed" });
+		const again = await addPerkSource(db, alex, {
+			id: newId(),
+			name: "chase freedom unlimited",
+			kind: "credit-card",
+			plan: null,
+			pageUrl: null,
+		});
+		expect(again).toBe(id);
+		expect(
+			(await loadPerkSources(db, alex)).filter(
+				(s) => s.kind === "credit-card" && s.card?.mask === "1234",
+			),
+		).toHaveLength(1);
+		// A card that isn't a linked Account's is still added on its own.
+		const other = await addPerkSource(db, alex, {
+			id: newId(),
+			name: "Amex Platinum",
+			kind: "credit-card",
+			plan: null,
+			pageUrl: null,
+		});
+		expect(other).not.toBe(id);
+	});
+
 	it("names the card from its issuer's list, with its page, or another by name", async () => {
 		await ensureCardPerkSources(db, { householdId, newId });
 		const id = await unnamedId();

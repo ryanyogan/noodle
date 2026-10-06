@@ -410,8 +410,9 @@ export function UploadForm({
 	const lines = statement?.lines.length ?? 0;
 	return (
 		<form onSubmit={onSubmit} className="grid grid-cols-[minmax(0,1fr)] gap-4">
-			{/* One line on a phone too: the file's name gives way (truncated) before Clear wraps. */}
-			<div className="flex items-center gap-3">
+			{/* On a phone the file's name has the line above the buttons: beside them it was cut to
+			    "ch…" at 320 (issue 74). From sm it's one line and the name gives way (truncated). */}
+			<div className="flex items-center gap-x-3 gap-y-2 max-sm:flex-wrap">
 				<input
 					ref={input}
 					id={`${id}-file`}
@@ -432,13 +433,17 @@ export function UploadForm({
 					<FileUp />
 					{file ? "Choose another file" : "Choose a file"}
 				</Button>
-				{file ? <span className="min-w-0 truncate text-sm font-medium">{file.name}</span> : null}
+				{file ? (
+					<span className="min-w-0 truncate text-sm font-medium max-sm:order-first max-sm:basis-full">
+						{file.name}
+					</span>
+				) : null}
 				{file ? (
 					<Button
 						type="button"
 						variant="ghost"
 						size="sm"
-						className="shrink-0"
+						className="shrink-0 max-sm:ms-auto"
 						disabled={upload.isPending}
 						onClick={() => {
 							upload.reset();
