@@ -38,6 +38,7 @@ import {
 	merchantName,
 	monthLabel,
 	type Names,
+	oneOffsOver,
 	periodLabel,
 	type ReportSearch,
 	type ReportTable,
@@ -656,7 +657,7 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 	const threshold = stops[index] ?? 0;
 	const over = overThreshold(data.bands, threshold);
 	const pickerId = useId();
-	const shown = data.items.filter((item) => item.amount >= threshold);
+	const shown = oneOffsOver(data.items, threshold);
 	const maxItem = Math.max(1, ...data.items.map((i) => i.amount));
 	const bandMax = Math.max(1, ...data.bands.map((b) => b.amount));
 	// The picked bar in words, so touch reads what hover's tooltip shows.
@@ -742,14 +743,17 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 				</div>
 			</Card>
 			<ChartCard
-				className={data.commitments.length ? "lg:col-span-5 xl:col-span-3" : "lg:col-span-5"}
+				className={
+					data.commitments.length ? "lg:col-span-5 min-[90rem]:col-span-3" : "lg:col-span-5"
+				}
 				title="Largest Transactions"
 				description={
 					shown.length
 						? `The biggest ${shown.length} one-offs over ${formatWholeMoney(threshold)}; Commitments aren't counted`
 						: `No one-offs over ${formatWholeMoney(threshold)} this period`
 				}
-				table={tables.items}
+				// The table lists what the card's sentence counts: the one-offs over the picked amount (issue 73).
+				table={tables.items && { ...tables.items, rows: itemRows(shown, names) }}
 			>
 				<RankedBars
 					max={maxItem}
@@ -794,8 +798,9 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 			</ChartCard>
 			{data.commitments.length ? (
 				<ChartCard
-					// Under the list from 1024 to 1279: a two-fifths card there is too narrow for its five-column table (issue 73).
-					className="lg:col-span-5 lg:self-start xl:col-span-2"
+					// Under the list from 1024 to 1439: a two-fifths card there is too narrow for its five-column
+					// table, whose last column went under the card's edge at 1280 (issue 73).
+					className="lg:col-span-5 lg:self-start min-[90rem]:col-span-2"
 					title="Commitments, by the year"
 					description="What each costs a year, from how often it's due"
 					table={tables.commitments}

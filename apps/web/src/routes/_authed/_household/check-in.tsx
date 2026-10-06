@@ -110,7 +110,8 @@ function CheckInPage() {
 						</StepList>
 					</div>
 				) : null}
-				<div className={cn("grid max-w-3xl gap-3", view.cards.length > 0 && "lg:max-w-none")}>
+				{/* From lg the card takes the page's column with or without steps beside it (issue 73). */}
+				<div className="grid max-w-3xl gap-3 lg:max-w-none">
 					{step.kind === "card" ? (
 						<p className="text-sm text-muted-foreground tabular-nums">
 							{step.position} of {step.of}

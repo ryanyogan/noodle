@@ -1,6 +1,7 @@
 import { looksPersonToPerson, parentNamedIn } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Tile } from "@noodle/ui/components/tile";
+import { cn } from "@noodle/ui/lib/utils";
 import { Users } from "lucide-react";
 import type { MemberSummary } from "../members";
 import { TermHelp } from "./term-help";
@@ -54,6 +55,13 @@ export function BetweenUsSuggestion({ offer }: { offer: BetweenUsOffer }) {
 	);
 }
 
+/**
+ * A Review card's wide button when the card is narrower than 15 text sizes (text at about 200% on
+ * a phone): it has a row to itself and its words wrap inside it, so none is cut at its edge.
+ */
+export const largeTextButton =
+	"@max-[15rem]/card:h-auto! @max-[15rem]/card:min-h-11 @max-[15rem]/card:basis-full! @max-[15rem]/card:py-2 @max-[15rem]/card:whitespace-normal";
+
 /** The card's first action. On a phone it has the first row with Edit; the picker is under them. */
 export function BetweenUsButton({
 	disabled,
@@ -64,7 +72,7 @@ export function BetweenUsButton({
 }) {
 	return (
 		<Button
-			className="max-sm:order-first max-sm:min-w-0 max-sm:flex-1"
+			className={cn("max-sm:order-first max-sm:min-w-0 max-sm:flex-1", largeTextButton)}
 			disabled={disabled}
 			onClick={onClick}
 		>
