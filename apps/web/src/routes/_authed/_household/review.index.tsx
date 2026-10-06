@@ -1771,11 +1771,8 @@ function ReviewCard({
 						// On the narrowest phones, with a suggestion, the picker has the row under Confirm and Edit.
 						className={cn(
 							"min-w-0 flex-1",
-							// A stacked card (text at 200%): beside Edit, except on a payment's card, whose
-							// picker would read "Pi…" there and so has a line to itself.
-							payment || between
-								? "@max-[15rem]/card:basis-full!"
-								: "@max-[15rem]/card:basis-[50%]!",
+							// A stacked card (text at 200%): a line to itself, as beside Edit it read "Pi…".
+							"@max-[15rem]/card:basis-full!",
 							item.guess && "max-[359px]:order-last max-[359px]:basis-full",
 							(payment || between) && "max-sm:order-last",
 							// On the narrowest phones "It’s a card payment" shares the picker's row. Each
