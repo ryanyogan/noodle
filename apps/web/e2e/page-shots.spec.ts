@@ -76,6 +76,8 @@ type Shot = {
 	phoneSheet?: boolean;
 	/** Only at phone widths, the whole page: what only a phone shows (a folded group opened). */
 	phone?: boolean;
+	/** A phone's sheet picture taken at desktop widths too: what's in the window (issue 73). */
+	desk?: boolean;
 	/**
 	 * The page draws only the rows in the window (Transactions): the window is made as tall as the
 	 * page for the picture, or the rows below the fold come out as an empty card.
@@ -209,16 +211,31 @@ async function toSetupStep(page: Page, wanted: number) {
 /** Opens one line of Explore's outline: on a phone its editor comes up in a sheet. */
 async function openLine(page: Page, title: string) {
 	const sheet = page.getByRole("dialog", { name: title });
+	let inline = false;
 	// The row only answers once the page is hydrated.
 	await expect(async () => {
 		// On a phone a long group is folded once the page is hydrated: its lines are behind
 		// "Show all N …", so every group is opened first (nothing to press from 640 up).
 		for (const all of await page.getByRole("button", { name: /^Show all \d+ / }).all())
 			await all.click({ timeout: 2000 });
-		if (!(await sheet.isVisible()))
-			await page.getByRole("button", { name: `Edit ${title}` }).click({ timeout: 2000 });
+		const edit = page.getByRole("button", { name: `Edit ${title}` });
+		// From 640 up the editor opens under its row, not in a sheet.
+		if ((await edit.getAttribute("aria-expanded")) !== null) {
+			if ((await edit.getAttribute("aria-expanded")) !== "true")
+				await edit.click({ timeout: 2000 });
+			await expect(edit).toHaveAttribute("aria-expanded", "true", { timeout: 2000 });
+			inline = true;
+			return;
+		}
+		if (!(await sheet.isVisible())) await edit.click({ timeout: 2000 });
 		await expect(sheet).toBeVisible({ timeout: 2000 });
 	}).toPass({ timeout: 20_000 });
+	if (inline) {
+		await page
+			.getByRole("button", { name: `Edit ${title}` })
+			.evaluate((node) => node.scrollIntoView({ block: "center" }));
+		return page.getByRole("main");
+	}
 	return sheet;
 }
 
@@ -267,11 +284,12 @@ async function attempt(what: string, run: () => Promise<void>) {
 const opened =
 	(button: string | RegExp, confirm = false) =>
 	async (page: Page) => {
+		// One more than is up already: at 1024 an open item is itself a dialog (a drawer).
+		const layers = page.locator("[role=dialog], [role=menu]");
+		const before = await layers.count();
 		await pressFor(
 			page.getByRole("button", { name: button }).first(),
-			confirm
-				? page.getByRole("button", { name: "Cancel" }).first()
-				: page.getByRole("dialog").or(page.getByRole("menu")).first(),
+			confirm ? page.getByRole("button", { name: "Cancel" }).first() : layers.nth(before),
 		);
 		await page.waitForTimeout(400);
 	};
@@ -1083,37 +1101,51 @@ test.beforeAll(async ({ browser }) => {
 			name: "15b-accounts-add-sheet",
 			path: "/accounts",
 			phoneSheet: true,
+			desk: true,
 			ready: opened("Add Account"),
 		},
 		{
 			name: "16b-account-more-or-rename",
 			path: `/accounts/${ids.sapphire}`,
 			phoneSheet: true,
+			desk: true,
 			ready: opened(/^(More actions for|Rename)/),
 		},
 		{
 			name: "16c-account-balance-sheet",
 			path: `/accounts/${ids.sapphire}`,
 			phoneSheet: true,
+			desk: true,
 			ready: opened(/^(Update|Add) (balance|what’s owed)/),
 		},
 		{
 			name: "16d-account-upload-statement",
 			path: `/accounts/${ids.college}`,
 			phoneSheet: true,
+			desk: true,
 			ready: opened("Upload statement"),
 		},
 		{
 			name: "16e-account-archive-confirm",
 			path: `/accounts/${ids.college}`,
 			phoneSheet: true,
+			desk: true,
 			ready: opened("Archive this Account", true),
 		},
 		{
 			name: "16f-account-rename-sheet",
 			path: `/accounts/${ids.college}`,
 			phoneSheet: true,
+			desk: true,
 			ready: opened(/^(More actions for|Rename)/),
+		},
+		{
+			// "Connect a bank": how far back to bring Transactions in, asked before the bank's own
+			// window opens (issue 73).
+			name: "15c-accounts-connect-a-bank",
+			path: "/accounts",
+			window: true,
+			ready: opened("Connect a bank"),
 		},
 		{ name: "17-goals", path: "/goals" },
 		{ name: "18-goal", path: `/goals/${ids.vacation}` },
@@ -1122,35 +1154,57 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "18a-goal-long-history", path: `/goals/${ids.roof}` },
 		{ name: "18b-goal-long-history-scrolled", path: `/goals/${ids.roof}`, scrolledTo: 700 },
 		// A Goal's sheets on a phone (issue 74).
-		{ name: "17a-goals-add-sheet", path: "/goals", phoneSheet: true, ready: opened("Add Goal") },
+		{
+			name: "17a-goals-add-sheet",
+			path: "/goals",
+			phoneSheet: true,
+			desk: true,
+			ready: opened("Add Goal"),
+		},
+		{
+			// Add Goal opened on paying off a card or loan, as the Plan's pages link to it (issue 73).
+			name: "17b-goals-add-payoff",
+			path: "/goals?add=payoff",
+			window: true,
+			ready: async (page) => {
+				await expect(page.getByRole("dialog")).toBeVisible({ timeout: 15_000 });
+			},
+		},
+		// The Goals of one Account, on their own page (issue 73).
+		{ name: "18h-goals-account", path: `/goals/accounts/${ids.savings}` },
 		{
 			name: "18c-goal-add-money-sheet",
 			path: `/goals/${ids.vacation}`,
 			phoneSheet: true,
+			desk: true,
 			ready: opened("Add money"),
 		},
 		{
 			name: "18d-goal-edit-sheet",
 			path: `/goals/${ids.vacation}`,
 			phoneSheet: true,
+			desk: true,
 			ready: opened("Edit"),
 		},
 		{
 			name: "18e-goal-spend-sheet",
 			path: `/goals/${ids.vacation}`,
 			phoneSheet: true,
+			desk: true,
 			ready: opened("Spend"),
 		},
 		{
 			name: "18f-goal-take-back-sheet",
 			path: `/goals/${ids.vacation}`,
 			phoneSheet: true,
+			desk: true,
 			ready: opened("Take money back"),
 		},
 		{
 			name: "18g-goal-archive-confirm",
 			path: `/goals/${ids.vacation}`,
 			phoneSheet: true,
+			desk: true,
 			ready: opened("Archive", true),
 		},
 		{ name: "19-explore", path: "/explore" },
@@ -1161,8 +1215,21 @@ test.beforeAll(async ({ browser }) => {
 			name: "19b-explore-line-open",
 			path: "/explore",
 			phoneSheet: true,
+			desk: true,
 			ready: async (page) => {
 				await openLine(page, "Electricity");
+			},
+		},
+		{
+			// "Apply to Plan" pressed with one change: what would change, asked first (issue 73).
+			name: "19e-explore-apply-dialog",
+			path: "/explore?lever=baseline:1020000",
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: "Apply to Plan", exact: true }).first(),
+					page.getByRole("alertdialog"),
+				);
 			},
 		},
 		{
@@ -1187,11 +1254,14 @@ test.beforeAll(async ({ browser }) => {
 			name: "19c-explore-growth-open",
 			path: "/explore",
 			phoneSheet: true,
+			desk: true,
 			ready: async (page) => {
 				const sheet = await openLine(page, "Raises & inflation");
 				const on = sheet.getByRole("switch", { name: "Model raises and inflation" });
 				if ((await on.getAttribute("aria-checked")) !== "true") await on.click({ timeout: 15_000 });
-				await expect(sheet.getByLabel("Income, % a year")).toBeVisible({ timeout: 15_000 });
+				const income = sheet.getByLabel("Income, % a year");
+				await expect(income).toBeVisible({ timeout: 15_000 });
+				await income.evaluate((node) => node.scrollIntoView({ block: "center" }));
 			},
 		},
 		{ name: "20-can-we-afford-it", path: "/explore/afford" },
@@ -1224,6 +1294,22 @@ test.beforeAll(async ({ browser }) => {
 			},
 		},
 		...(scenarioPath ? [{ name: "22-scenario", path: scenarioPath }] : []),
+		// A saved Scenario's Rename and Delete, each asked in its own dialog (issue 73).
+		...(scenarioPath ? [scenarioPath] : []).flatMap((path) =>
+			(["Rename", "Delete"] as const).map(
+				(action, at): Shot => ({
+					name: `22${"bc"[at]}-scenario-${action.toLowerCase()}`,
+					path,
+					window: true,
+					ready: async (page) => {
+						await pressFor(
+							page.getByRole("button", { name: action, exact: true }).first(),
+							page.getByRole("alertdialog"),
+						);
+					},
+				}),
+			),
+		),
 		{
 			// A Scenario open while two are compared: Compare keeps to the room left of the panel.
 			name: "22a-scenario-open-over-compare",
@@ -1596,6 +1682,21 @@ test.beforeAll(async ({ browser }) => {
 			},
 		},
 		{
+			// The Bucket's sheet closed with a change not saved: "Discard changes" is asked (issue 73).
+			name: "04a5-bucket-sheet-discard",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: async (page) => {
+				const sheet = page.getByRole("dialog", { name: "Groceries", exact: true });
+				await pressFor(page.getByRole("button", { name: "Edit Groceries", exact: true }), sheet);
+				await sheet.getByRole("textbox", { name: "Allowance", exact: true }).fill("1,000");
+				await page.keyboard.press("Escape");
+				await expect(page.getByRole("button", { name: "Discard changes" })).toBeVisible({
+					timeout: 15_000,
+				});
+			},
+		},
+		{
 			// A Bucket nothing was ever spent from can be deleted: the question asked first.
 			name: "44-bucket-delete-confirm",
 			path: `/plan/${month}#buckets`,
@@ -1780,6 +1881,7 @@ test.beforeAll(async ({ browser }) => {
 			name: "12l-review-new-bucket",
 			path: "/review",
 			phoneSheet: true,
+			desk: true,
 			ready: async (page) => {
 				const card = await reviewCardOnTop(page, ":has([role=combobox])");
 				await card.getByRole("combobox").first().click({ timeout: 15_000 });
@@ -1915,7 +2017,7 @@ for (const viewport of viewports) {
 		mkdirSync(dir, { recursive: true });
 		const failures: string[] = [];
 		for (const shot of shots) {
-			if ((shot.phoneSheet || shot.phone) && !phone) continue;
+			if ((shot.phoneSheet || shot.phone) && !phone && !shot.desk) continue;
 			if (only.length > 0 && !only.some((name) => shot.name.startsWith(name))) continue;
 			let page = main;
 			try {
