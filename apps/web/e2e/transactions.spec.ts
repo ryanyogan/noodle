@@ -503,8 +503,9 @@ test("an Account lists its Transactions, and Transactions filters by it", async 
 	await expect(row(page, "Pro Hockey Life")).toHaveAccessibleName(
 		"Pro Hockey Life, $64.99, Groceries, For Everyone, waiting for the bank’s copy",
 	);
-	// Its "Waiting for bank" badge is whole from 1280px; under that it is a dot with the words in
-	// a tooltip, so the name beside it isn't cut (issue 120). The row's name says it either way.
+	// Its "Waiting for bank" badge is whole from 1536px, the narrowest window where a 15-letter name
+	// is whole beside it; under that it is a dot with the words in a tooltip (issues 120 and 121).
+	// The row's name says it either way.
 	const waitingRow = list(page)
 		.getByRole("row")
 		.filter({ has: page.getByRole("button", { name: /^Pro Hockey Life,/ }) });
@@ -515,14 +516,14 @@ test("an Account lists its Transactions, and Transactions filters by it", async 
 	const nameCut = () =>
 		row(page, "Pro Hockey Life")
 			.locator("span.truncate")
-			.evaluate((node) => node.scrollWidth > node.clientWidth);
-	for (const width of [1440, 1280, 1279, 1024]) {
+			.evaluate((node) => node.scrollWidth - node.clientWidth);
+	for (const width of [1920, 1728, 1600, 1536, 1535, 1440, 1366, 1280, 1024]) {
 		await page.setViewportSize({ width, height: 720 });
 		await expect(waitingBadge).toBeVisible();
 		const box = await waitingBadge.boundingBox();
 		await page.mouse.move(0, 0);
 		await waitingBadge.hover();
-		if (width >= 1280) {
+		if (width >= 1536) {
 			expect(box?.width).toBeGreaterThan(80);
 			expect((await waitingWords.boundingBox())?.width).toBeGreaterThan(60);
 			await expect(waitingTip).toBeHidden();
@@ -530,8 +531,9 @@ test("an Account lists its Transactions, and Transactions filters by it", async 
 			expect(box?.width).toBe(18);
 			expect(box?.height).toBe(18);
 			await expect(waitingTip).toBeVisible();
-			expect(await nameCut()).toBe(false);
 		}
+		// A 15-letter name is whole beside it either way.
+		expect.soft(await nameCut(), `the name is whole at ${width}`).toBeLessThanOrEqual(0);
 		await expect(row(page, "Pro Hockey Life")).toHaveAccessibleName(/waiting for the bank’s copy$/);
 	}
 	await page.mouse.move(0, 0);
