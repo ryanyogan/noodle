@@ -91,11 +91,12 @@ test("a 400-row month draws every row, scrolls with the page and opens a row", a
 	expect(Math.abs(measured.listHeight - measured.rowsHeight)).toBeLessThan(ROWS);
 	expect(measured.pageHeight).toBeGreaterThan(measured.listHeight);
 
-	// The last row, far down the page, opens beside the list.
+	// The last row, far down the page, opens in place, under itself.
 	const last = rows.last().locator("button:not([role=checkbox]):not([data-cell])");
 	await last.scrollIntoViewIfNeeded();
 	await last.click();
 	await expect(
 		page.locator("[data-slot=transaction-detail] [data-slot=detail-title]"),
 	).toBeVisible();
+	await expect(page.locator("[data-slot=list-row][aria-current=true]")).toBeInViewport();
 });

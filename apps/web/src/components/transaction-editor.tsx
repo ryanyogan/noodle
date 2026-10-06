@@ -152,6 +152,7 @@ export function TransactionBody({
 	onClose,
 	heading,
 	inline = false,
+	wide = false,
 	splitting = false,
 }: {
 	transaction: TransactionRow;
@@ -163,6 +164,8 @@ export function TransactionBody({
 	onClose: () => void;
 	heading: (title: string, description: string) => ReactNode;
 	inline?: boolean;
+	/** Under its row in the Transactions table (issue 99): two columns once there is room. */
+	wide?: boolean;
 	/** Opens on splitting it, as Review's card's Split does. */
 	splitting?: boolean;
 }) {
@@ -202,6 +205,7 @@ export function TransactionBody({
 				onChange={onChange}
 				onClose={onClose}
 				inline={inline}
+				wide={wide}
 				today={today}
 				splitting={splitting}
 			/>
@@ -263,6 +267,7 @@ function EditForm({
 	onChange,
 	onClose,
 	inline,
+	wide,
 	splitting,
 	today,
 }: {
@@ -273,6 +278,8 @@ function EditForm({
 	onClose: () => void;
 	/** In a pane, not a sheet: Cancel closes the pane. */
 	inline: boolean;
+	/** Room for two columns (the row open in the table): the fields, and beside them the rest. */
+	wide: boolean;
 	splitting: boolean;
 	/** The Household's today, for the Match section's Waiting for bank line. */
 	today: DayKey;
@@ -444,198 +451,225 @@ function EditForm({
 
 	return (
 		// Checked on Save, with what's wrong said beside it, rather than by the browser's own bubble.
-		<form ref={form} onSubmit={save} noValidate className="grid gap-4">
-			<div className="grid gap-1.5">
-				<Field label="Name" htmlFor="transaction-name">
-					{fromBank ? (
-						<Input
-							id="transaction-name"
-							maxLength={80}
-							autoComplete="off"
-							placeholder={banksName || "Give it a name"}
-							value={name}
-							onChange={(event) => setName(event.target.value)}
-						/>
-					) : (
-						<Input
-							id="transaction-name"
-							name="note"
-							maxLength={80}
-							autoComplete="off"
-							placeholder="Add a name (optional)"
-							defaultValue={transaction.note ?? ""}
-						/>
-					)}
-				</Field>
-				{banksWording && name.trim() !== banksWording ? (
-					<p className="min-w-0 break-words text-muted-foreground text-sm">
-						From your bank: {banksWording}
-					</p>
-				) : null}
-				{banksName && name.trim() !== banksName ? (
-					<Button
-						type="button"
-						variant="ghost"
-						size="sm"
-						// Its words start under the line above, not a button's padding further in.
-						className="-ml-2.5 justify-self-start"
-						disabled={!hydrated}
-						onClick={() => setName(banksName)}
-					>
-						Use the bank’s name
-					</Button>
-				) : null}
-			</div>
-			<div className="grid gap-3 sm:grid-cols-2">
-				<Field label="Amount" htmlFor="transaction-amount">
-					<AmountInput
-						id="transaction-amount"
-						name="amount"
-						required
-						disabled={!hydrated}
-						value={amount}
-						onChange={(event) => setAmount(event.currentTarget.value)}
-						aria-invalid={invalid === "amount" || undefined}
-					/>
-				</Field>
-				{splits ? null : (
-					<Field
-						label="Assigned to"
-						htmlFor="transaction-assignment"
-						hint={
-							transaction.autoFiled && assignment === assignmentValue(transaction) ? (
-								<span className="inline-flex items-center gap-1" data-testid="auto-filed-hint">
-									<Sparkles aria-hidden="true" className="size-3 shrink-0" />
-									{AUTO_FILED[transaction.autoFiled]} Change it if it’s wrong.
-								</span>
-							) : undefined
-						}
-					>
-						<Combobox
-							id="transaction-assignment"
-							name="assignment"
+		<form
+			ref={form}
+			onSubmit={save}
+			noValidate
+			className={cn(
+				"grid gap-4",
+				// Under its row, 48rem wide or more: the fields, and beside them the receipt, the match
+				// and the Transfer choices, so the form is no taller than it needs to be.
+				wide && "@3xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] @3xl:items-start @3xl:gap-x-8",
+			)}
+		>
+			<div data-slot="editor-fields" className="grid min-w-0 gap-4">
+				<div className="grid gap-1.5">
+					<Field label="Name" htmlFor="transaction-name">
+						{fromBank ? (
+							<Input
+								id="transaction-name"
+								maxLength={80}
+								autoComplete="off"
+								placeholder={banksName || "Give it a name"}
+								value={name}
+								onChange={(event) => setName(event.target.value)}
+							/>
+						) : (
+							<Input
+								id="transaction-name"
+								name="note"
+								maxLength={80}
+								autoComplete="off"
+								placeholder="Add a name (optional)"
+								defaultValue={transaction.note ?? ""}
+							/>
+						)}
+					</Field>
+					{banksWording && name.trim() !== banksWording ? (
+						<p className="min-w-0 break-words text-muted-foreground text-sm">
+							From your bank: {banksWording}
+						</p>
+					) : null}
+					{banksName && name.trim() !== banksName ? (
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							// Its words start under the line above, not a button's padding further in.
+							className="-ml-2.5 justify-self-start"
 							disabled={!hydrated}
-							value={assignment}
-							onValueChange={setAssignment}
-							placeholder="Choose a Bucket"
-							searchPlaceholder="Search"
-							aria-invalid={invalid === "assignment" || undefined}
-							choices={choices}
+							onClick={() => setName(banksName)}
+						>
+							Use the bank’s name
+						</Button>
+					) : null}
+				</div>
+				<div className="grid gap-3 sm:grid-cols-2">
+					<Field label="Amount" htmlFor="transaction-amount">
+						<AmountInput
+							id="transaction-amount"
+							name="amount"
+							required
+							disabled={!hydrated}
+							value={amount}
+							onChange={(event) => setAmount(event.currentTarget.value)}
+							aria-invalid={invalid === "amount" || undefined}
 						/>
 					</Field>
-				)}
-			</div>
-			{invalid === "amount" ? (
-				<FormError>Enter the amount in dollars, like 12 or 85.50.</FormError>
-			) : null}
-			{invalid === "assignment" ? (
-				<FormError>Choose the Bucket or Commitment it belongs to.</FormError>
-			) : null}
-			{splits ? (
-				<div className="grid gap-3">
-					{splits.map((split, index) => (
-						<SplitFields
-							key={split.id}
-							index={index}
-							split={split}
-							members={members}
-							disabled={!hydrated}
-							invalid={invalid === "splits"}
-							onChange={(change) => changeSplit(index, change)}
-							onRemove={
-								splits.length > 2
-									? () => setSplits(splits.filter((_, i) => i !== index))
-									: undefined
+					{splits ? null : (
+						<Field
+							label="Assigned to"
+							htmlFor="transaction-assignment"
+							hint={
+								transaction.autoFiled && assignment === assignmentValue(transaction) ? (
+									<span className="inline-flex items-center gap-1" data-testid="auto-filed-hint">
+										<Sparkles aria-hidden="true" className="size-3 shrink-0" />
+										{AUTO_FILED[transaction.autoFiled]} Change it if it’s wrong.
+									</span>
+								) : undefined
 							}
-							choices={choices}
-						/>
-					))}
-					<div className="flex flex-wrap items-center gap-2">
+						>
+							<Combobox
+								id="transaction-assignment"
+								name="assignment"
+								disabled={!hydrated}
+								value={assignment}
+								onValueChange={setAssignment}
+								placeholder="Choose a Bucket"
+								searchPlaceholder="Search"
+								aria-invalid={invalid === "assignment" || undefined}
+								choices={choices}
+							/>
+						</Field>
+					)}
+				</div>
+				{invalid === "amount" ? (
+					<FormError>Enter the amount in dollars, like 12 or 85.50.</FormError>
+				) : null}
+				{invalid === "assignment" ? (
+					<FormError>Choose the Bucket or Commitment it belongs to.</FormError>
+				) : null}
+				{splits ? (
+					<div className="grid gap-3">
+						{splits.map((split, index) => (
+							<SplitFields
+								key={split.id}
+								index={index}
+								split={split}
+								members={members}
+								disabled={!hydrated}
+								invalid={invalid === "splits"}
+								onChange={(change) => changeSplit(index, change)}
+								onRemove={
+									splits.length > 2
+										? () => setSplits(splits.filter((_, i) => i !== index))
+										: undefined
+								}
+								choices={choices}
+							/>
+						))}
+						<div className="flex flex-wrap items-center gap-2">
+							<Button
+								type="button"
+								variant="secondary"
+								size="sm"
+								disabled={!hydrated}
+								onClick={() =>
+									setSplits([
+										...splits,
+										blankSplit(remainder && remainder > 0 ? formatMoneyInput(remainder) : ""),
+									])
+								}
+							>
+								<Plus />
+								Add Split
+							</Button>
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								disabled={!hydrated}
+								onClick={unsplit}
+							>
+								Remove Splits
+							</Button>
+							<Remainder remainder={remainder} />
+						</div>
+						{invalid === "splits" ? (
+							<FormError>
+								{remainder === 0
+									? "Give each Split an amount and choose what it belongs to."
+									: "Splits must add up to the Transaction’s amount."}
+							</FormError>
+						) : null}
+					</div>
+				) : (
+					<>
+						<ForPicker members={members} value={forMemberIds} onChange={setForMemberIds} multiple />
 						<Button
 							type="button"
 							variant="secondary"
 							size="sm"
+							className="justify-self-start"
 							disabled={!hydrated}
-							onClick={() =>
-								setSplits([
-									...splits,
-									blankSplit(remainder && remainder > 0 ? formatMoneyInput(remainder) : ""),
-								])
-							}
+							onClick={split}
 						>
-							<Plus />
-							Add Split
+							<SplitIcon />
+							Split
 						</Button>
-						<Button type="button" variant="ghost" size="sm" disabled={!hydrated} onClick={unsplit}>
-							Remove Splits
-						</Button>
-						<Remainder remainder={remainder} />
-					</div>
-					{invalid === "splits" ? (
-						<FormError>
-							{remainder === 0
-								? "Give each Split an amount and choose what it belongs to."
-								: "Splits must add up to the Transaction’s amount."}
-						</FormError>
-					) : null}
-				</div>
-			) : (
-				<>
-					<ForPicker members={members} value={forMemberIds} onChange={setForMemberIds} multiple />
-					<Button
-						type="button"
-						variant="secondary"
-						size="sm"
-						className="justify-self-start"
-						disabled={!hydrated}
-						onClick={split}
-					>
-						<SplitIcon />
-						Split
-					</Button>
-				</>
-			)}
-			<ReceiptSection transaction={transaction} plan={plan} members={members} onChange={onChange} />
-			<MatchSection
-				transaction={transaction}
-				beforeChange={saveBeforeMatch}
-				onDone={onClose}
-				today={today}
-			/>
-			{transaction.importedFrom ? (
-				<TransferSection transaction={transaction} onDone={onClose} />
-			) : null}
-			{confirmDelete ? (
-				<Confirm
-					confirmLabel="Delete Transaction"
-					onConfirm={() => onChange(null)}
-					onCancel={() => setConfirmDelete(false)}
-				>
-					{transaction.importedFrom
-						? "It comes out of this month’s spending everywhere, and it won’t come back when your bank syncs or a statement is uploaded again."
-						: "It comes out of this month’s spending everywhere."}
-				</Confirm>
-			) : null}
-			<EditorActions inline={inline}>
-				<Button type="button" variant="ghost" onClick={() => setConfirmDelete(true)}>
-					<Trash2 />
-					Delete
-				</Button>
-				{inline ? (
-					<Button type="button" variant="outline" className="ms-auto" onClick={onClose}>
-						Cancel
-					</Button>
-				) : (
-					<SheetCancel className="ms-auto" />
+					</>
 				)}
-				<Button
-					type="submit"
-					className="max-lg:ms-auto"
-					disabled={!hydrated || (splits !== null && remainder !== 0)}
-				>
-					Save
-				</Button>
-			</EditorActions>
+			</div>
+			<div data-slot="editor-more" className="grid min-w-0 content-start gap-4 empty:hidden">
+				<ReceiptSection
+					transaction={transaction}
+					plan={plan}
+					members={members}
+					onChange={onChange}
+				/>
+				<MatchSection
+					transaction={transaction}
+					beforeChange={saveBeforeMatch}
+					onDone={onClose}
+					today={today}
+				/>
+				{transaction.importedFrom ? (
+					<TransferSection transaction={transaction} onDone={onClose} />
+				) : null}
+			</div>
+			<div className="col-span-full grid gap-4">
+				{confirmDelete ? (
+					<Confirm
+						confirmLabel="Delete Transaction"
+						onConfirm={() => onChange(null)}
+						onCancel={() => setConfirmDelete(false)}
+					>
+						{transaction.importedFrom
+							? "It comes out of this month’s spending everywhere, and it won’t come back when your bank syncs or a statement is uploaded again."
+							: "It comes out of this month’s spending everywhere."}
+					</Confirm>
+				) : null}
+				<EditorActions inline={inline}>
+					<Button type="button" variant="ghost" onClick={() => setConfirmDelete(true)}>
+						<Trash2 />
+						Delete
+					</Button>
+					{inline ? (
+						<Button type="button" variant="outline" className="ms-auto" onClick={onClose}>
+							Cancel
+						</Button>
+					) : (
+						<SheetCancel className="ms-auto" />
+					)}
+					<Button
+						type="submit"
+						className="max-lg:ms-auto"
+						disabled={!hydrated || (splits !== null && remainder !== 0)}
+					>
+						Save
+					</Button>
+				</EditorActions>
+			</div>
 		</form>
 	);
 }

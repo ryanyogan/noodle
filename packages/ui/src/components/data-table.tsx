@@ -149,6 +149,13 @@ type DataTableProps<TData extends RowData> = Omit<
 	indent?: { width: string; min: number };
 	/** A full-width row before this one: a day's label and total. Null for none. */
 	groupBefore?: (row: TData, previous: TData | undefined) => React.ReactNode;
+	/**
+	 * A full-width row under this one: the row's item opened in place (issue 99). Null for none.
+	 * The caller gives it its padding and ground; arrows, Space and Enter in it are its own.
+	 */
+	rowAfter?: (row: TData) => React.ReactNode;
+	/** A first full-width row, before the rows: an open item whose row isn't among them. */
+	top?: React.ReactNode;
 	/** Extra attributes for a row's element (`data-*`, a ref for a drag to measure). */
 	rowProps?: (row: TData, index: number) => React.ComponentProps<"div"> & Record<string, unknown>;
 	/** Shown instead of rows when there are none. */
@@ -237,6 +244,8 @@ function DataTable<TData extends RowData>({
 	leading,
 	indent,
 	groupBefore,
+	rowAfter,
+	top,
 	rowProps,
 	empty,
 	loading = false,
@@ -596,12 +605,18 @@ function DataTable<TData extends RowData>({
 						<div role={cellRole}>{empty}</div>
 					</div>
 				) : null}
+				{top && !loading ? (
+					<div role={ROLE.row} data-slot="data-table-expanded" className="block">
+						<div role={cellRole}>{top}</div>
+					</div>
+				) : null}
 				{loading
 					? null
 					: rows.map((row, index) => {
 							const selected = row.getIsSelected();
 							const open = isOpen?.(row.original) ?? false;
 							const group = groupBefore?.(row.original, rows[index - 1]?.original);
+							const after = rowAfter?.(row.original);
 							const { className: rowClassName, ...rest } = rowProps?.(row.original, index) ?? {};
 							return (
 								<React.Fragment key={row.id}>
@@ -678,6 +693,11 @@ function DataTable<TData extends RowData>({
 											);
 										})}
 									</div>
+									{after ? (
+										<div role={ROLE.row} data-slot="data-table-expanded" className="block">
+											<div role={cellRole}>{after}</div>
+										</div>
+									) : null}
 								</React.Fragment>
 							);
 						})}

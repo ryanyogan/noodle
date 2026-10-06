@@ -11,7 +11,6 @@ import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Input } from "@noodle/ui/components/input";
-import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import {
 	Select,
@@ -44,7 +43,7 @@ import {
 	Search,
 	X,
 } from "lucide-react";
-import { Suspense, useEffect, useId, useRef, useState } from "react";
+import { type ReactNode, Suspense, useEffect, useId, useRef, useState } from "react";
 import { z } from "zod";
 import { QuickAddLink } from "../../../components/app-shell";
 import { type FilterOption, FilterSelect } from "../../../components/filter-select";
@@ -133,14 +132,23 @@ function TransactionsPage() {
 	const onPick = (next: Picking) => setPicking(anyPicked(next) ? next : null);
 	const selecting = picking !== null;
 	const hydrated = useHydrated();
-	// The Transaction open in the pane beside the list (its route is this one's child).
+	// The Transaction open under its row in the table (its route is this one's child).
 	const picked = useParams({ strict: false, select: (params) => params.transactionId });
-	// From lg a Transaction opens beside the list, at its own address; on a phone, in a sheet.
+	// From lg a Transaction opens in place, under its row, at its own address; on a phone, in a
+	// sheet. A click on the row that is open closes it again.
 	const onEdit = (transaction: TransactionRow) => {
 		// While selecting where rows are stacked (a phone: no checkbox column), a tap selects or
 		// unselects instead of opening. In columns the checkbox selects and the row still opens.
 		if (picking && tableIsStacked()) return setPicking(togglePicked(picking, transaction.id));
 		if (window.matchMedia("(min-width: 1024px)").matches) {
+			if (transaction.id === picked) {
+				return void navigate({
+					to: "/transactions/$month",
+					params: { month },
+					search: true,
+					resetScroll: false,
+				});
+			}
 			void navigate({
 				to: "/transactions/$month/$transactionId",
 				params: { month, transactionId: transaction.id },
@@ -221,9 +229,9 @@ function TransactionsPage() {
 								size="sm"
 								// A phone's header has room for one action and the month arrows: there, Select
 								// is beside Filters and Sort instead.
-								// From 1400 the table has its checkbox column even beside an open Transaction, and a
-								// tick starts selecting. Narrower, the list beside one is stacked: this is the way in.
-								className="me-1 max-sm:hidden min-[1400px]:hidden"
+								// From lg the table is always in columns (a Transaction opens under its row, not
+								// beside the list), so its checkbox column is the way in and this isn't needed.
+								className="me-1 max-sm:hidden lg:hidden"
 								disabled={!hydrated}
 								onClick={() => setPicking(nothingPicked)}
 							>
@@ -276,8 +284,8 @@ function TransactionsPage() {
 			/>
 			{/* The filters and the month's total are a bar over the table (issue 99), which takes the
 			    page's width, every loaded row drawn and the page scrolling. From lg a Transaction
-			    picked from it opens in the rail beside it; a Transaction taller than the window
-			    scrolls with the page. */}
+			    picked from it opens in place, under its row; below lg it is a page of its own, the
+			    filters and the other rows hidden. */}
 			<div className="grid gap-4">
 				<div data-slot="transaction-filters" className={cn(picked && "max-lg:hidden")}>
 					<Filters
@@ -291,52 +299,43 @@ function TransactionsPage() {
 						onSelect={picking ? undefined : () => setPicking(nothingPicked)}
 					/>
 				</div>
-				<SplitLayout className={cn("max-lg:gap-4", !picked && "lg:grid-cols-1")}>
-					<SplitMain className={cn(picked && "max-lg:hidden")}>
-						{/* One gap between the bar and the list, the same on a phone as anywhere (issue 115). */}
-						<div className="grid min-w-0 gap-3">
-							{picking ? (
-								<SelectionBar
-									month={month}
-									filters={filters}
-									filtered={filtered}
-									picking={picking}
-									onPick={setPicking}
-									onDelete={() => setConfirming(true)}
-									onCancel={() => setPicking(null)}
-								/>
-							) : null}
-							<TransactionList
-								picking={picking}
-								onPick={onPick}
+				<div data-slot="transaction-list" className="min-w-0">
+					{/* One gap between the bar and the list, the same on a phone as anywhere (issue 115). */}
+					<div className="grid min-w-0 gap-3">
+						{picking ? (
+							<SelectionBar
 								month={month}
 								filters={filters}
-								today={asOf}
-								plan={plan}
-								members={members}
 								filtered={filtered}
-								picked={picked}
-								onSort={(sort) => onChange({ sort })}
-								onEdit={onEdit}
-								onCellChange={change.mutate}
+								picking={picking}
+								onPick={setPicking}
+								onDelete={() => setConfirming(true)}
+								onCancel={() => setPicking(null)}
 							/>
-						</div>
-					</SplitMain>
-					{picked ? (
-						<SplitRail>
-							<section
-								aria-label="Transaction details"
-								data-slot="transaction-detail"
-								// No scroll of its own: an editor taller than the window flows with the page.
-								className="@container min-w-0"
-							>
-								<Suspense fallback={<DetailPending />}>
-									<Outlet />
-								</Suspense>
-							</section>
-						</SplitRail>
-					) : null}
-				</SplitLayout>
+						) : null}
+						<TransactionList
+							picking={picking}
+							onPick={onPick}
+							month={month}
+							filters={filters}
+							today={asOf}
+							plan={plan}
+							members={members}
+							filtered={filtered}
+							picked={picked}
+							onSort={(sort) => onChange({ sort })}
+							onEdit={onEdit}
+							onCellChange={change.mutate}
+							detail={
+								picked ? (
+									<Suspense fallback={<DetailPending />}>
+										<Outlet />
+									</Suspense>
+								) : undefined
+							}
+						/>
+					</div>
+				</div>
 			</div>
 			<DeleteSelectedSheet
 				open={confirming}
@@ -669,7 +668,10 @@ function TransactionList({
 	onSort,
 	onEdit,
 	onCellChange,
+	detail,
 }: {
+	/** The open Transaction's editor, drawn under its row in the table. */
+	detail?: ReactNode;
 	/** A rename or refile made in a cell of the table. */
 	onCellChange: (change: TransactionChange) => void;
 	/** Select mode's selection; null when the list isn't selecting. */
@@ -682,7 +684,7 @@ function TransactionList({
 	plan: Pick<Plan, "buckets" | "commitments">;
 	members: MemberSummary[];
 	filtered: boolean;
-	/** The Transaction open beside the list. */
+	/** The Transaction open in the list, from the address. */
 	picked: string | undefined;
 	onSort: (sort: TransactionSort) => void;
 	onEdit: (transaction: TransactionRow) => void;
@@ -715,7 +717,9 @@ function TransactionList({
 	}, [transactions.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
 	if (transactions.length === 0) {
-		return filtered ? (
+		// An address opened with no row to open under (the filters leave every row out): its
+		// editor, then what the list says. Below lg the Transaction is a page of its own.
+		const nothing = filtered ? (
 			<EmptyState
 				icon={<ReceiptText />}
 				title="Nothing matches"
@@ -744,6 +748,19 @@ function TransactionList({
 				}
 			/>
 		);
+		if (!picked || !detail) return nothing;
+		return (
+			<div className="grid gap-4">
+				<section
+					aria-label="Transaction details"
+					data-slot="transaction-detail"
+					className="@container min-w-0"
+				>
+					{detail}
+				</section>
+				<div className="max-lg:hidden">{nothing}</div>
+			</div>
+		);
 	}
 
 	return (
@@ -759,6 +776,7 @@ function TransactionList({
 			members={members}
 			bringsIn={bringsIn}
 			open={picked}
+			detail={detail}
 			picking={picking}
 			onPick={onPick}
 			onEdit={onEdit}

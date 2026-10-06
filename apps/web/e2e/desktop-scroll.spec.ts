@@ -183,8 +183,7 @@ test("no desktop page has a region that scrolls inside another", async ({ browse
 		await expect(page.locator("[data-slot=detail-title]")).toBeVisible();
 		await walk(page, [new URL(page.url()).pathname]);
 	}
-	// A Transaction beside its month's list (67d): the page scrolls, and only the Transaction's pane
-	// may scroll in it.
+	// A Transaction open under its row (issue 99): the page scrolls, and nothing scrolls inside it.
 	await page.goto("/transactions");
 	await expect(page.locator("[data-slot=page-header]:visible").first()).toBeVisible(clientRendered);
 	const row = page

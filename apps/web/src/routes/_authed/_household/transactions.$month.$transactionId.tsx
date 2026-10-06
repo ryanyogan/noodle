@@ -19,9 +19,14 @@ import {
 
 const list = getRouteApi("/_authed/_household/transactions/$month");
 
+// Under its row the editor is part of the table: the table's card is its card (issue 99).
+const inTable =
+	"p-(--card-pad) lg:[[data-open-place]_&]:rounded-none lg:[[data-open-place]_&]:border-0 lg:[[data-open-place]_&]:bg-transparent lg:[[data-open-place]_&]:p-0 lg:[[data-open-place]_&]:shadow-none";
+
 /**
- * A Transaction beside its month's list (#67): from lg its editor fills the right pane while the
- * list keeps its place; below lg it is a page with Back (a tap on a phone still opens the sheet).
+ * A Transaction in its month's list (#67, issue 99): from lg its editor opens in place, under its
+ * row in the table, which keeps its columns and its place; below lg it is a page with Back (a tap
+ * on a phone still opens the sheet).
  */
 export const Route = createFileRoute("/_authed/_household/transactions/$month/$transactionId")({
 	pendingComponent: DetailPending,
@@ -81,7 +86,7 @@ function TransactionPane() {
 	if (!transaction) {
 		// Deleted, or not this Parent's to see: the two read the same (ADR-0003).
 		return (
-			<Card className="p-(--card-pad)">
+			<Card className={inTable}>
 				<DetailHeader title="Transaction" leading={back} />
 				<p className="text-sm text-muted-foreground">
 					There’s no Transaction here. It may have been deleted.
@@ -103,7 +108,7 @@ function TransactionPane() {
 	// Spending from a Goal is changed on its Goal, as its row in the list goes there.
 	if (transaction.goal) {
 		return (
-			<Card className="p-(--card-pad)">
+			<Card className={inTable}>
 				<DetailHeader title={transactionLabel(transaction)} leading={back} />
 				<p className="text-sm text-muted-foreground">
 					This was spent from{" "}
@@ -120,9 +125,10 @@ function TransactionPane() {
 		);
 	}
 	return (
-		<Card className="p-(--card-pad)">
+		<Card className={inTable}>
 			<TransactionBody
 				inline
+				wide
 				transaction={transaction}
 				today={data.asOf}
 				plan={plan}
