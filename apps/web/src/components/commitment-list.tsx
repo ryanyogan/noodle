@@ -264,8 +264,8 @@ function RecordPayment({
 			<label htmlFor={id} className="sr-only">
 				Amount paid to {commitment.name}
 			</label>
-			{/* At 320px the three don't fit one line and Cancel fell alone: the field takes the line. */}
-			<div className="relative w-32 max-[359px]:w-full">
+			{/* Below 393px the three don’t fit one line and Cancel fell alone: the field takes the line. */}
+			<div className="relative w-32 max-[392px]:w-full">
 				<span
 					aria-hidden="true"
 					className="pointer-events-none absolute inset-y-0 left-3 grid place-items-center text-muted-foreground text-sm"
