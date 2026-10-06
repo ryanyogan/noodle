@@ -701,9 +701,12 @@ function FreeToSpend({
 							</>
 						) : ended && carry.handedOn !== null ? (
 							<span data-slot="free-handed-on">
-								{carry.handedOn < 0
-									? `Ended ${formatMoney(-carry.handedOn)} short, carried over into `
-									: `Ended with ${formatMoney(carry.handedOn)}, carried over into `}
+								{carry.handedOn === 0
+									? // Nothing to carry: "Ended with $0, carried over into October" read as a mistake (issue 73).
+										`Ended with nothing left, so nothing was carried over into `
+									: carry.handedOn < 0
+										? `Ended ${formatMoney(-carry.handedOn)} short, carried over into `
+										: `Ended with ${formatMoney(carry.handedOn)}, carried over into `}
 								{monthName(addMonths(state.month, 1))}
 							</span>
 						) : ended ? (
