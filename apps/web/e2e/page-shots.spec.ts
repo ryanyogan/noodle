@@ -1913,6 +1913,8 @@ test.beforeAll(async ({ browser }) => {
 				await page.getByRole("dialog").getByRole("textbox").first().focus();
 			},
 		},
+		// The small Household has one Parent, so People shows the invite form (the big one has two).
+		{ name: "27i-household-invite", path: "/household", small: true },
 		{ name: "28-glossary", path: "/glossary" },
 		{ name: "24x-ask", path: "/ask" },
 		{
@@ -1921,7 +1923,9 @@ test.beforeAll(async ({ browser }) => {
 			path: "/ask",
 			phoneSheet: true,
 			ready: async (page) => {
-				const ask = page.getByLabel("Ask").first();
+				// By its placeholder: "Ask" as a label also matches other things on the page, and a fill that
+				// lands on one waits out the whole run (why this picture never came out before).
+				const ask = page.getByPlaceholder("Ask about your money");
 				await ask.fill("Can we afford a second car if the payment is $450 a month?");
 				await ask.focus();
 			},
