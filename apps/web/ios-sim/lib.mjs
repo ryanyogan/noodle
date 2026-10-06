@@ -519,10 +519,35 @@ export async function openSafari(device, initialUrl) {
 			];
 			// Tapping key by key suits the decimal pad (`keys`). On the letter keyboard taps were lost as
 			// it changed case after a capital, so there XCUITest types the text through the keyboard.
-			if (!keys) ways.push(ways.shift());
+			if (!keys) {
+				ways.push(ways.shift());
+				// XCUITest dropped letters at its usual speed on the iPhone 16 ("cCTS" for "costco"):
+				// typed slower, and tried twice before the other ways.
+				await cmd("POST", "/appium/settings", { settings: { maxTypingFrequency: 8 } }).catch(
+					() => {},
+				);
+				ways.unshift(ways[0]);
+				await sleep(800);
+			}
+			// A way that typed only part of the text leaves it behind: the field is emptied before the
+			// next way starts, so the text is never doubled (emptying is not typing, so the page does it).
+			const empty = () =>
+				driver
+					.js(() => {
+						const el = document.activeElement;
+						if (!el || !("value" in el) || el.value === "") return;
+						const proto =
+							el instanceof HTMLTextAreaElement
+								? HTMLTextAreaElement.prototype
+								: HTMLInputElement.prototype;
+						Object.getOwnPropertyDescriptor(proto, "value").set.call(el, "");
+						el.dispatchEvent(new Event("input", { bubbles: true }));
+					})
+					.catch(() => {});
 			const errors = [];
 			for (const [name, run] of ways) {
 				try {
+					if (errors.length > 0) await empty();
 					await run();
 					if (await arrived()) {
 						log(`typed "${text}" (${name})`);
@@ -560,6 +585,54 @@ export async function openSafari(device, initialUrl) {
 				],
 			});
 			await cmd("DELETE", "/actions").catch(() => {});
+		},
+		/**
+		 * Where the page sits on the screen: `dx`/`dy` to add to a point of the page (client
+		 * coordinates) for the same point of the screen. Found with one real tap in the middle of the
+		 * screen, which the page is kept from acting on.
+		 */
+		async calibrate() {
+			await driver.js(() => {
+				window.__iosSimTouch = null;
+				const kinds = [
+					"pointerdown",
+					"pointerup",
+					"touchstart",
+					"touchend",
+					"mousedown",
+					"mouseup",
+					"click",
+				];
+				const swallow = (event) => {
+					const touch = event.touches?.[0] ?? event.changedTouches?.[0] ?? event;
+					if (!window.__iosSimTouch && typeof touch.clientX === "number")
+						window.__iosSimTouch = { x: touch.clientX, y: touch.clientY };
+					event.stopImmediatePropagation();
+					if (event.cancelable) event.preventDefault();
+				};
+				for (const kind of kinds)
+					window.addEventListener(kind, swallow, { capture: true, passive: false });
+				window.__iosSimStop = () => {
+					for (const kind of kinds) window.removeEventListener(kind, swallow, { capture: true });
+				};
+			});
+			const screen = await driver.screen();
+			const at = { x: Math.round(screen.width / 2), y: Math.round(screen.height * 0.4) };
+			await driver.mobile("tap", at);
+			await sleep(800);
+			const seen = await driver.js(() => {
+				const touch = window.__iosSimTouch;
+				window.__iosSimStop?.();
+				return touch;
+			});
+			if (!seen) throw new Error("the page did not see the calibration tap");
+			return { dx: at.x - seen.x, dy: at.y - seen.y, screen };
+		},
+		/** A real tap on what XCUITest finds on the screen (Safari's own buttons, the Home Screen). */
+		async nativeClick(using, value) {
+			await driver.native();
+			const found = await cmd("POST", "/element", { using, value });
+			await cmd("POST", `/element/${found[ELEMENT]}/click`, {});
 		},
 		async quit() {
 			await request("DELETE", `/session/${id}`).catch(() => {});
@@ -620,6 +693,23 @@ async function clerkApi(path, body) {
 			continue;
 		}
 		throw new Error(`Clerk ${path}: ${response.status} ${(await response.text()).slice(0, 300)}`);
+	}
+}
+
+/** A new Clerk testing token (passes the bot check), kept out of the uploaded logs. */
+export async function newTestingToken() {
+	const { token } = await clerkApi("/testing_tokens", {});
+	shortLived.push(token);
+	return token;
+}
+
+/** `simctl ui`: the simulator's appearance ("appearance dark") and text size ("content_size …"). */
+export function ui(device, ...args) {
+	try {
+		return simctl("ui", device.udid, ...args).trim();
+	} catch (error) {
+		log("simctl ui", args.join(" "), "failed:", String(error).split("\n")[0]);
+		return null;
 	}
 }
 
