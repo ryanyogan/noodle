@@ -126,8 +126,13 @@ test("a bank statement comes in once, as Transactions to assign and income", asy
 	await page.keyboard.press("Escape");
 	await expect(editor).toBeHidden();
 	await page.keyboard.press("Escape");
-	// Deposits are income, not Transactions.
-	await expect(page.getByText("ACME CORP PAYROLL")).toHaveCount(0);
+	// Deposits are income, not Transactions: listed under Money in (issue 131), not in the table.
+	await expect(
+		page.getByRole("grid", { name: /^Transactions in / }).getByText("ACME CORP PAYROLL"),
+	).toHaveCount(0);
+	await expect(
+		page.getByRole("region", { name: "Money in" }).getByText("ACME CORP PAYROLL"),
+	).toBeVisible();
 });
 
 test("money back onto a card is listed but counts nowhere", async ({ browser }) => {

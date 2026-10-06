@@ -391,6 +391,7 @@ function TransactionsPage() {
 						filters={filters}
 						onChange={onChange}
 						onSelect={picking ? undefined : () => setPicking(nothingPicked)}
+						idle={show === "in" && !picked}
 					/>
 				</div>
 				<div data-slot="transaction-list" className="min-w-0">
@@ -488,6 +489,7 @@ function Filters({
 	filters,
 	onChange,
 	onSelect,
+	idle = false,
 }: {
 	month: MonthKey;
 	plan: Pick<Plan, "buckets">;
@@ -497,9 +499,11 @@ function Filters({
 	onChange: (filters: TransactionFilters) => void;
 	/** Starts selecting, from the phone's Select button. Left out while selecting. */
 	onSelect?: () => void;
+	/** Money in is showing alone (issue 134): nothing here narrows or orders it, so it all waits. */
+	idle?: boolean;
 }) {
 	// Until hydrated, a change would only move the select, not the list.
-	const hydrated = useHydrated();
+	const hydrated = useHydrated() && !idle;
 	const [search, setSearch] = useState(filters.q ?? "");
 	const change = useRef(onChange);
 	change.current = onChange;

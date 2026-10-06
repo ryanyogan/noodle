@@ -86,6 +86,9 @@ test("money in is listed on Transactions with its kind, and a Parent can change 
 	await moneyInFilter.click();
 	await expect(page).toHaveURL(/[?&]show=in/);
 	await expect(rows).toHaveCount(2);
+	// Nothing in the bar narrows money in, so it waits while Money in shows alone.
+	await expect(page.getByRole("searchbox", { name: "Search notes and merchants" })).toBeDisabled();
+	await expect(page.getByRole("combobox", { name: "Bucket", exact: true })).toBeDisabled();
 	await page.reload();
 	await expect(moneyInFilter).toHaveAttribute("aria-pressed", "true");
 	await expect(rows).toHaveCount(2);
