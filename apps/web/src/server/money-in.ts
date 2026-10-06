@@ -1,12 +1,23 @@
 import {
 	changeMoneyInKind,
+	editMoneyIn,
 	loadMoneyIn,
 	loadMoneyInReview,
 	type MoneyInKindResult,
 	type MoneyInLine,
 	saveMoneyInRule,
+	stateWhosePay,
 } from "@noodle/db";
-import { addMonths, MONEY_IN_KINDS } from "@noodle/domain";
+import {
+	addMonths,
+	type Cents,
+	type DayKey,
+	MAX_CENTS,
+	MONEY_IN_KINDS,
+	PAY_RANGE_MONTHS,
+	type PayRange,
+	payRanges,
+} from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { HouseholdChange } from "../household-changes";
@@ -74,4 +85,86 @@ export const setMoneyInKind = createServerFn({ method: "POST" })
 			"bucket-uses",
 		]);
 		return result;
+	});
+
+/**
+ * A Parent changes whose pay a money-in line is, its note, or, on a line they typed in, its amount
+ * or date (issue 133). Made on the version they were looking at; answered like a change of kind.
+ */
+export const editMoneyInLine = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			incomeId: ulidSchema,
+			expectedVersion: z.number().int().min(0).optional(),
+			edit: z.object({
+				whosePay: ulidSchema.nullable().optional(),
+				note: z.string().trim().max(200).nullable().optional(),
+				amountCents: z.number().int().positive().max(MAX_CENTS).optional(),
+				date: z
+					.string()
+					.regex(/^\d{4}-\d{2}-\d{2}$/)
+					.optional(),
+			}),
+		}),
+	)
+	.handler(async ({ data, context }): Promise<MoneyInKindResult> => {
+		const result = await editMoneyIn(getDb(), viewerOf(context), {
+			incomeId: data.incomeId,
+			expectedVersion: data.expectedVersion,
+			edit: {
+				...data.edit,
+				amountCents: data.edit.amountCents as Cents | undefined,
+				date: data.edit.date as DayKey | undefined,
+			},
+		});
+		if (!result.ok) return result;
+		await notifyHousehold(context.household.id, [
+			...result.months.map((month) => `month:${month}` as HouseholdChange),
+			"months",
+		]);
+		return result;
+	});
+
+/**
+ * "Always treat deposits from <name> as <Parent>'s pay": a Rule from this line's wording, which
+ * also gives that Parent the deposits already here that are still the Household's. Sent once,
+ * never again from the outbox, as any Rule stated from a line (ADR-0056).
+ */
+export const alwaysWhosePay = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({ ruleId: ulidSchema, incomeId: ulidSchema, payMemberId: ulidSchema.nullable() }),
+	)
+	.handler(async ({ data, context }): Promise<{ changed: number } | null> => {
+		const db = getDb();
+		const viewer = viewerOf(context);
+		const [line] = await loadMoneyIn(db, context.household.id, { id: data.incomeId });
+		if (!line?.note) return null;
+		const stated = await stateWhosePay(db, viewer, {
+			ruleId: data.ruleId,
+			wording: line.note,
+			payMemberId: data.payMemberId,
+		});
+		if (!stated) return null;
+		if (stated.changed > 0) await notifyHousehold(context.household.id, ["months"]);
+		return { changed: stated.changed };
+	});
+
+/**
+ * Each Parent's pay (and the Household's) in a month and over the three full months before it,
+ * from money in that counts as Income.
+ */
+export const getPayRanges = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ month: monthKeySchema }))
+	.handler(async ({ data, context }): Promise<PayRange[]> => {
+		const lines = await loadMoneyIn(getDb(), context.household.id, {
+			from: `${addMonths(data.month, -PAY_RANGE_MONTHS)}-01`,
+			until: `${addMonths(data.month, 1)}-01`,
+		});
+		return payRanges(
+			lines.filter((line) => line.kind === "income" && !line.needsReview),
+			data.month,
+		);
 	});

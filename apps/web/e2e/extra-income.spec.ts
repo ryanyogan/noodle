@@ -155,15 +155,18 @@ test("income is added and removed on Plan › Income as on This Month", async ({
 	);
 	await addIncome(page, "2,500", "Paycheck");
 	await expect(income(page)).toContainText("$2,500 received of $5,000 usual take-home pay");
-	await expect(income(page).getByRole("listitem")).toContainText("Paycheck");
+	// Here the entries are a table (issue 133).
+	const table = income(page).getByRole("table", { name: /^Income in / });
+	await expect(table).toContainText("Paycheck");
 
-	// The same list on This Month, and the same row actions on either.
+	// The same Income on This Month, and the same row actions on either.
 	await page.goto(`/month/${month}`);
 	await expect(income(page)).toContainText("$2,500 received of $5,000");
 	await page.goto(`/plan/${month}/income`);
 	await income(page).getByRole("button", { name: "Actions for $2,500 of income" }).click();
 	await page.getByRole("menuitem", { name: "Remove income" }).click();
-	await expect(income(page).getByRole("listitem")).toHaveCount(0);
+	await expect(table).toHaveCount(0);
+	await expect(income(page)).toContainText("$0 received");
 	await page.context().close();
 });
 

@@ -7,6 +7,7 @@ import { createFileRoute, useHydrated } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
 import { useState } from "react";
 import { MonthIncome } from "../../../components/extra-income";
+import { CountOnOffer, IncomeTable } from "../../../components/income-table";
 import { LowerTakeHomePayNote, useLowerTakeHomePay } from "../../../components/lower-take-home-pay";
 import { SaveFailed } from "../../../components/plan-editing";
 import { PlanSubPage } from "../../../components/plan-page";
@@ -50,9 +51,20 @@ function PlanIncome() {
 					/>
 				</Card>
 			) : null}
-			{/* The same income list as This Month's, with Add income and the same row actions. */}
+			{/* When a Parent's pay varies and its low end has moved: one Household figure still. */}
+			{state.editable && state.baseline !== null ? (
+				<CountOnOffer month={month} baseline={state.baseline} />
+			) : null}
+			{/* This Month's Income section, with Add income and the same row actions; here the
+			    entries are a table a Parent works in (issue 133). */}
 			{state.baseline !== null ? (
-				<MonthIncome month={month} asOf={state.asOf} baseline={state.baseline} income={received} />
+				<MonthIncome
+					month={month}
+					asOf={state.asOf}
+					baseline={state.baseline}
+					income={received}
+					renderList={(actions) => <IncomeTable month={month} income={received} {...actions} />}
+				/>
 			) : null}
 		</PlanSubPage>
 	);
