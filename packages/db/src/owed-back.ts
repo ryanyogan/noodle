@@ -542,6 +542,7 @@ export async function loadPaidBackSpending(
 				amount,
 				date: `${month}-01` as DayKey,
 				for: [],
+				paidBack: true,
 			};
 		}
 		return {
@@ -550,6 +551,7 @@ export async function loadPaidBackSpending(
 			amount,
 			date,
 			for: row.splitId ? forOf(row.splitId, partFor) : forOf(row.id, wholeFor),
+			paidBack: true,
 		};
 	});
 }
@@ -571,6 +573,7 @@ export async function loadPaidBackCharges(
 			commitmentId: commitment.as("restored_commitment_id"),
 			amount: sql<number>`-${paidBackMatches.amountCents}`.as("amount"),
 			date: paidBackMatches.countsOn,
+			who: owedBack.who,
 		})
 		.from(paidBackMatches)
 		.innerJoin(owedBack, eq(owedBack.id, paidBackMatches.owedBackId))

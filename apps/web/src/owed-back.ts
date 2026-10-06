@@ -61,6 +61,31 @@ export function owedBackOnCommitmentText(
 	return difference > 0 ? `${formatMoney(difference)} over · ${owed}` : owed;
 }
 
+/**
+ * "$600 Paid back by Casey": money Paid back into a Commitment this month, said apart from what
+ * was paid (ADR-0058). Null when none was.
+ */
+export function paidBackIntoText(
+	paidBack: { amount: number; who: readonly string[] } | undefined,
+): string | null {
+	if (!paidBack || paidBack.amount <= 0) return null;
+	const sum = `${formatMoney(paidBack.amount)} Paid back`;
+	return paidBack.who.length > 0 ? `${sum} by ${names.format(paidBack.who)}` : sum;
+}
+
+/**
+ * What a Bucket has spent this month: "$120 spent". Where money Paid back into it has taken the
+ * month below zero it says that instead of negative spending: "$45 Paid back", or "$20 more Paid
+ * back than spent" when there were purchases too. A month a Refund took below zero stays as it was.
+ */
+export function bucketSpentText(bucket: { spent: number; paidBack?: number | undefined }): string {
+	const back = bucket.paidBack ?? 0;
+	if (bucket.spent >= 0 || back < -bucket.spent) return `${formatMoney(bucket.spent)} spent`;
+	return back === -bucket.spent
+		? `${formatMoney(back)} Paid back`
+		: `${formatMoney(-bucket.spent)} more Paid back than spent`;
+}
+
 /** What's still Owed back on purchases filed in a Commitment, and by whom; null when nothing is. */
 export function useOwedBackOnCommitment(commitmentId: string) {
 	const { data } = useQuery(owedBackOpenQuery());

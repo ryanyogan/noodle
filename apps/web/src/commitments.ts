@@ -16,6 +16,7 @@ import {
 	monthOfDay,
 	type PlanCommitment,
 	type PlanScope,
+	paymentsView,
 	yearlyCost,
 } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
@@ -376,3 +377,22 @@ export function useCommitmentPayment() {
  */
 export const partPaid = ({ accountId, difference, actual, expected }: CommitmentState) =>
 	accountId && difference < 0 ? `${formatMoney(actual)} of ${formatMoney(expected)} paid` : null;
+
+/**
+ * What the month's Commitments have been paid, against what's expected: "$2,630 of $2,580 paid".
+ * Money Paid back into one this month isn't a payment, so where it took a Commitment below what
+ * was expected it is left out and said beside it: "$0 of $600 paid · $600 Paid back".
+ */
+export function commitmentsPaid(commitments: CommitmentState[]): string | null {
+	if (commitments.length === 0) return null;
+	const read = commitments.map(paymentsView);
+	const paid = read.reduce((sum, c) => sum + c.actual, 0);
+	const expected = read.reduce((sum, c) => sum + c.expected, 0);
+	const back = read.reduce(
+		(sum, c, i) => sum + (c === commitments[i] ? 0 : (c.paidBack?.amount ?? 0)),
+		0,
+	);
+	return `${formatMoney(paid)} of ${formatMoney(expected)} paid${
+		back > 0 ? ` · ${formatMoney(back)} Paid back` : ""
+	}`;
+}

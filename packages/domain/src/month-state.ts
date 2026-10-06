@@ -12,14 +12,25 @@ import {
 } from "./plan";
 
 /** Spending recorded against a Bucket on a day (a Transaction or one of its Splits). */
-export type Spend = { bucketId: string; amount: Cents; date: DayKey };
+/**
+ * Spending in a Bucket on a day. One with `paidBack` is not a purchase: it is money Paid back into
+ * the Bucket that day (ADR-0058), a negative amount.
+ */
+export type Spend = { bucketId: string; amount: Cents; date: DayKey; paidBack?: true };
 
 /**
  * A payment recorded against a Commitment on a day (a Transaction or one of its Splits). One with
  * `paidBack` is not a payment: it is money Paid back into the Commitment that day (ADR-0058), a
  * negative amount. It counts in what the Commitment took, never as one of its payments.
  */
-export type Charge = { commitmentId: string; amount: Cents; date: DayKey; paidBack?: true };
+export type Charge = {
+	commitmentId: string;
+	amount: Cents;
+	date: DayKey;
+	paidBack?: true;
+	/** Who paid it back, on one that is `paidBack`. */
+	who?: string;
+};
 
 /** The payments among these charges: everything but money Paid back into the Commitment. */
 export const paymentsOf = <C extends { paidBack?: true | undefined }>(charges: readonly C[]): C[] =>
@@ -65,6 +76,8 @@ export type BucketState = PlanBucket & {
 	/** What the Bucket has to spend this month: its allowance, what rolled over, and what was moved into it. */
 	available: Cents;
 	spent: Cents;
+	/** What of `spent` is money Paid back into it this month (ADR-0058); absent when none was. */
+	paidBack?: Cents;
 	/** Negative once the Bucket is overspent. */
 	left: Cents;
 	pace: {
@@ -100,7 +113,33 @@ export type CommitmentState = PlanCommitment & {
 	 */
 	difference: Cents;
 	status: CommitmentStatus;
+	/**
+	 * Money Paid back into it this month (ADR-0058), which `actual` and `difference` have taken
+	 * off, and who paid it; absent when none was. See `paymentsView`.
+	 */
+	paidBack?: { amount: Cents; who: string[] };
 };
+
+const commitmentStatus = (difference: number, charges: number, due: number): CommitmentStatus =>
+	difference !== 0 ? "differs" : charges < due ? "upcoming" : due > 0 ? "paid" : "not-due";
+
+/**
+ * A Commitment's month as a row should say it. Where money Paid back has taken it below what its
+ * payments were expected to be (tuition's half arriving the month after the purchase), the month
+ * is read by its payments alone, so it says "Due Oct 5" or "Paid" and not a negative payment; the
+ * money back is said beside it from `paidBack`. Any other month is returned as it is.
+ */
+export function paymentsView(commitment: CommitmentState): CommitmentState {
+	const back = commitment.paidBack;
+	if (!back || commitment.difference >= 0) return commitment;
+	const difference = (commitment.difference + back.amount) as Cents;
+	return {
+		...commitment,
+		actual: (commitment.actual + back.amount) as Cents,
+		difference,
+		status: commitmentStatus(difference, commitment.charges, commitment.dueDates.length),
+	};
+}
 
 /**
  * For an "about" Commitment whose charges for the month are all in: how much more (negative: less)
@@ -195,8 +234,14 @@ export function monthState({
 	const days = daysInMonth(plan.month);
 	const elapsed = daysElapsed(plan.month, asOf);
 	const spentByBucket = new Map<string, Cents>();
+	const paidBackByBucket = new Map<string, Cents>();
 	for (const spend of spending) {
 		if (monthOfDay(spend.date) !== plan.month) continue;
+		if (spend.paidBack)
+			paidBackByBucket.set(
+				spend.bucketId,
+				(paidBackByBucket.get(spend.bucketId) ?? 0) - spend.amount,
+			);
 		spentByBucket.set(spend.bucketId, (spentByBucket.get(spend.bucketId) ?? 0) + spend.amount);
 	}
 	const inPlan = new Set(plan.buckets.map((b) => b.id));
@@ -249,6 +294,7 @@ export function monthState({
 			moved,
 			available,
 			spent,
+			...(paidBackByBucket.get(bucket.id) ? { paidBack: paidBackByBucket.get(bucket.id) } : {}),
 			left,
 			pace: { spent: paceSpent, leftShare: 1 - elapsed / days },
 			status,
@@ -257,6 +303,8 @@ export function monthState({
 	const chargedByCommitment = new Map<string, Cents[]>();
 	// Money Paid back into a Commitment this month (ADR-0058): in what it took, not a payment.
 	const paidBackByCommitment = new Map<string, Cents>();
+	// Who paid it back, by Commitment: "casey" and "Casey" are one person, as first written.
+	const paidBackBy = new Map<string, Map<string, string>>();
 	for (const charge of charges) {
 		if (monthOfDay(charge.date) !== plan.month) continue;
 		if (charge.paidBack) {
@@ -264,6 +312,12 @@ export function monthState({
 				charge.commitmentId,
 				(paidBackByCommitment.get(charge.commitmentId) ?? 0) + charge.amount,
 			);
+			const who = charge.who?.trim();
+			if (who) {
+				const people = paidBackBy.get(charge.commitmentId) ?? new Map<string, string>();
+				if (!people.has(who.toLowerCase())) people.set(who.toLowerCase(), who);
+				paidBackBy.set(charge.commitmentId, people);
+			}
 			continue;
 		}
 		const amounts = chargedByCommitment.get(charge.commitmentId) ?? [];
@@ -276,14 +330,8 @@ export function monthState({
 			charged.reduce((sum, amount) => sum + amount, 0) +
 			(paidBackByCommitment.get(commitment.id) ?? 0);
 		const difference = actual - commitment.amount * Math.min(charged.length, dueDates.length);
-		const status: CommitmentStatus =
-			difference !== 0
-				? "differs"
-				: charged.length < dueDates.length
-					? "upcoming"
-					: dueDates.length > 0
-						? "paid"
-						: "not-due";
+		const status = commitmentStatus(difference, charged.length, dueDates.length);
+		const back = -(paidBackByCommitment.get(commitment.id) ?? 0);
 		return {
 			...commitment,
 			dueDates,
@@ -292,6 +340,16 @@ export function monthState({
 			charges: charged.length,
 			difference,
 			status,
+			...(back > 0
+				? {
+						paidBack: {
+							amount: back,
+							who: [...(paidBackBy.get(commitment.id)?.values() ?? [])].sort((a, b) =>
+								a.localeCompare(b),
+							),
+						},
+					}
+				: {}),
 		};
 	});
 	return {

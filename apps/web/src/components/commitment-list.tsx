@@ -5,6 +5,7 @@ import {
 	monthOfDay,
 	nextDueDate,
 	parseDollars,
+	paymentsView,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
@@ -31,7 +32,7 @@ import {
 	useCommitmentPayment,
 } from "../commitments";
 import { formatMoney, formatMoneyInput, fullDay, shortDay } from "../format";
-import { owedBackOnCommitmentText, useOwedBackOnCommitment } from "../owed-back";
+import { owedBackOnCommitmentText, paidBackIntoText, useOwedBackOnCommitment } from "../owed-back";
 import { masterDetailItem } from "./master-detail";
 import { OwedBackOnCommitment } from "./owed-back-list";
 import { PaysDownNote } from "./pays-down";
@@ -65,14 +66,6 @@ function progress(commitment: CommitmentState) {
 	if (charges === 0) return `Due ${list.format(dueDates.map(shortDay))}`;
 	const next = dueDates[charges];
 	return next ? `${charges} of ${dueDates.length} paid · next due ${shortDay(next)}` : "Paid";
-}
-
-/** What the month's Commitments have been paid, against what's expected: "$2,630 of $2,580 paid". */
-export function commitmentsPaid(commitments: CommitmentState[]): string | null {
-	if (commitments.length === 0) return null;
-	const paid = commitments.reduce((sum, c) => sum + c.actual, 0);
-	const expected = commitments.reduce((sum, c) => sum + c.expected, 0);
-	return `${formatMoney(paid)} of ${formatMoney(expected)} paid`;
 }
 
 /**
@@ -186,13 +179,17 @@ export function CommitmentLink({
 
 function CommitmentRow({
 	month,
-	commitment,
+	commitment: given,
 	onPay,
 }: {
 	month: MonthKey;
 	commitment: CommitmentState;
 	onPay?: (amountCents: number) => void;
 }) {
+	// Money Paid back into it this month is said on its own line, never as a negative payment
+	// (issue 132): the row reads by its payments where the money back took it below them.
+	const commitment = paymentsView(given);
+	const paidBack = paidBackIntoText(commitment.paidBack);
 	// An "about" Commitment that came in over or under says where the difference goes instead.
 	const carry = carryNote(commitment, month);
 	// One someone shares says who owes the rest back instead (issue 132): "$600 over · $600 owed
@@ -208,7 +205,7 @@ function CommitmentRow({
 				commitment.expected,
 			)} expected${differs ? `, ${differs}` : ""}${
 				owedBack ? `, ${owedBackOnCommitmentText(commitment.difference, owedBack)}` : ""
-			}${carry ? `, ${carry}` : ""}`}
+			}${carry ? `, ${carry}` : ""}${paidBack ? `, ${paidBack}` : ""}`}
 			leading={<Tile>{monogram(commitment.name)}</Tile>}
 			title={<CommitmentLink month={month} commitment={commitment} />}
 			meta={
@@ -222,6 +219,11 @@ function CommitmentRow({
 					{carry ? <span className="basis-full">{carry}</span> : null}
 					{owedBack ? (
 						<OwedBackOnCommitment commitment={commitment} className="basis-full" />
+					) : null}
+					{paidBack ? (
+						<span className="basis-full" data-testid="paid-back-commitment">
+							{paidBack}
+						</span>
 					) : null}
 					{onPay && !paying ? (
 						// On a phone it always starts a line of its own, in line with the text above it

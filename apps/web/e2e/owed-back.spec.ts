@@ -180,9 +180,13 @@ test("$700 Paid back settles tuition and skates, leaves $25 of the dentist owed,
 		timeout: 30_000,
 	});
 	const thisMonthAfter = await words(page);
-	expect(thisMonthAfter).toContain("Kids −$45 spent $345 of $300");
-	expect(thisMonthAfter).toContain("Health −$55 spent $255 of $200");
-	expect(thisMonthAfter).toMatch(/Tuition Due \w+ 5 .*?−\$600 of \$600/);
+	// Said as money Paid back, never as negative spending or a negative payment.
+	expect(thisMonthAfter).toContain("Kids $45 Paid back $345 of $300");
+	expect(thisMonthAfter).toContain("Health $55 Paid back $255 of $200");
+	expect(thisMonthAfter).toMatch(/Tuition Due \w+ 5 .*?\$600 Paid back by Casey .*?\$0 of \$600/);
+	expect(thisMonthAfter).toContain("$0 of $600 paid · $600 Paid back");
+	expect(thisMonthAfter).not.toContain("−$");
+	expect(thisMonthAfter).not.toContain("less than expected");
 	expect(thisMonthAfter).not.toContain("owed back by Casey");
 	await shot(page.locator("main"), "this-month-after-1440");
 	// Last month is as it was.
