@@ -43,6 +43,8 @@ export type RuleRow = StoredRule & {
 	createdBy: string | null;
 	/** How many Transactions it has filed. */
 	matched: number;
+	/** Who pays back part of what it files, and what part in percent, when it remembers (ADR-0058). */
+	owedBack?: { who: string; percent: number };
 };
 
 /** The Rules `viewer` may read: the Household's, and their own private ones. */
@@ -151,6 +153,8 @@ export async function listRules(db: Db, viewer: Viewer): Promise<RuleRow[]> {
 			owner: rules.ownerMemberId,
 			createdBy: members.name,
 			matched: rules.matchedCount,
+			owedBackWho: rules.owedBackWho,
+			owedBackPercent: rules.owedBackPercent,
 		})
 		.from(rules)
 		.leftJoin(buckets, eq(buckets.id, rules.bucketId))
@@ -163,10 +167,13 @@ export async function listRules(db: Db, viewer: Viewer): Promise<RuleRow[]> {
 		viewer.householdId,
 		rows.map((row) => row.id),
 	);
-	return rows.map(({ owner, ...rule }) => ({
+	return rows.map(({ owner, owedBackWho, owedBackPercent, ...rule }) => ({
 		...rule,
 		for: forRows.get(rule.id) ?? [],
 		private: owner !== null,
+		...(owedBackWho && owedBackPercent
+			? { owedBack: { who: owedBackWho, percent: owedBackPercent } }
+			: {}),
 	}));
 }
 
