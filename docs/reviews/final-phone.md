@@ -119,31 +119,31 @@ The inventory the last comment on issue 74 asks for: every surface a phone can r
 
 | Surface | How to reach it | 320×568 | 375×667 | 393×852 | 430×932 | keyboard | dark 393 | WebKit | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Goals list | pic 17 | — | — | — | — | — | — | — |  |
-| Goal page, long history | pic 18, 18a, 18b | — | — | — | — | — | — | — |  |
+| Goals list | pic 17 | ok | — | — | — | — | — | — | 74aq: 320 opened, nothing to fix (rows are 3 to 4 lines at 320).  |
+| Goal page, long history | pic 18, 18a, 18b | ok | — | — | — | — | — | — | 74aq: 18 and 18a opened at 320; 18b not. At 320 Edit drops under a long title (Hawaii trip) but sits beside a short one (New roof): choice 6.  |
 | Goal sheets (add, edit, fund, withdraw) | Goals, Goal page | — | — | — | — | — | — | — | no pic yet |
-| Goals, empty | pic 39b | — | — | — | — | — | — | — |  |
-| Accounts list, archived open | pic 15, 15a | — | — | — | — | — | — | — |  |
-| Account page (credit card, no balance) | pic 16, 16a | — | — | — | — | — | — | — |  |
+| Goals, empty | pic 39b | ok | — | — | — | — | — | — |  |
+| Accounts list, archived open | pic 15, 15a | ok | — | — | — | — | — | — | 74aq: open at 320: "No balance yet" breaks into two lines in the row's trailing cell; Disconnect sits 13px right of Reconnect (ghost button padding). Not fixed.  |
+| Account page (credit card, no balance) | pic 16, 16a | ok | — | — | — | — | — | — | 74aq: fixed, the Perks row no longer names the card twice ("5 Perks"). Open: "Brought in from Chase" takes two lines beside Upload statement at 320.  |
 | Account menu, Rename, Add an Account, bank sheets | Accounts | — | — | — | — | — | — | — | no pic yet |
 | Upload a statement sheet | Accounts or Transactions | — | — | — | — | — | — | — | no pic yet |
-| Accounts, empty | pic 39c | — | — | — | — | — | — | — |  |
-| Reports: Overview | pic 23 | — | — | — | — | — | — | — | open from before: three full-width selects and Filters take about 250px at 320 (fold into one Filters sheet). Decision waiting on the Parent: the ten-tab strip or a picker; not built |
-| Reports: Cash flow, Big expenses, Buckets, Plan vs actual, Trends, Merchants, People, Goals, Income | pic 23a to 23i | — | — | — | — | — | — | — |  |
-| Reports Filters sheet | Reports › Filters | — | — | — | — | — | — | — | no pic yet |
+| Accounts, empty | pic 39c | ok | — | — | — | — | — | — |  |
+| Reports: Overview | pic 23 | ok | ok | ok | ok | — | ok | — | 74aq: BUILT, one Filters button with the Period beside it; Period, Compare with and Group by are in the sheet; chips for what is on. The strip shows the current tab and the faded edge at every size. Still waiting: open from before: three full-width selects and Filters take about 250px at 320 (fold into one Filters sheet). Decision waiting on the Parent: the ten-tab strip or a picker; not built |
+| Reports: Cash flow, Big expenses, Buckets, Plan vs actual, Trends, Merchants, People, Goals, Income | pic 23a to 23i | ok | — | part | part | — | part | — | 74aq: all nine opened at 320; 393 Trends only, 430 Cash flow only, dark Trends and Plan vs actual. Fixed: Every day showed a sliver of a hidden week beside the weekday names. Open: Cash flow "Went out $38,056.66" touches the card edge at 320 (goes with whole dollars, agent 73ap); Goals shows "7.0%" beside "13%"; Plan vs actual legend words wrap at 320.  |
+| Reports Filters sheet | Reports › Filters | ok | — | ok | ok | — | ok | — | 74aq: pic 23j (sheet) and 23k (chips). Keyboard height not pictured (Merchant and At least fields). no pic yet |
 | Reports, empty | pic 39a | — | — | — | — | — | — | — |  |
-| Explore | pic 19, 19a | — | — | — | — | — | — | — | open from before: 44px buttons beside 36px tabs; two-line 12px chart tabs |
-| Explore sheets: line, group, growth | pic 19b, 19d, 19c | — | — | — | — | — | — | — |  |
+| Explore | pic 19, 19a | part | — | — | — | — | — | — | 74aq: 19 opened at 320 (19a not). Charts tabs are now one line at 14px in a scrolling strip (was two-line 12px). The years toggle is still 44px beside 36px tabs: choice 7. open from before: 44px buttons beside 36px tabs; two-line 12px chart tabs |
+| Explore sheets: line, group, growth | pic 19b, 19d, 19c | part | — | — | — | — | — | — | 74aq: 19b opened at 320 only.  |
 | Can we afford it? (Car, Anything) | pic 20, 20a, 20b | — | — | — | — | — | — | — |  |
-| Scenarios, compare, a Scenario | pic 21, 21a, 22 | — | — | — | — | — | — | — |  |
+| Scenarios, compare, a Scenario | pic 21, 21a, 22 | part | — | — | — | — | — | — | 74aq: 21 and 22 opened at 320; compare not.  |
 | Explore, Afford: empty | pic 39g, 39k | — | — | — | — | — | — | — |  |
 | Insights | pic 24 | — | — | — | — | — | — | — |  |
 | Perks & Benefits, a row open, add sheet | pic 25, 25a, 25b | — | — | — | — | — | — | — | the picture Household's Perks seeding fails ("data that couldn't be seeded"), so pic 25 has no cards |
 | Check-in and its footer | pic 26, 26a | — | — | — | — | — | — | — |  |
-| Household settings, every section | pic 27 | — | — | — | — | — | — | — | CI: strict `household-iphone-*` baselines (Chromium) |
+| Household settings, every section | pic 27 | ok | — | — | — | — | — | — | 74aq: opened at 320, nothing changed (no baseline change expected). CI: strict `household-iphone-*` baselines (Chromium) |
 | Household: Nudges choices open | Household › Nudges | — | — | — | — | — | — | — | never opened in any phase; no pic yet |
 | Household: Snapshots with history | Household › Snapshots | — | — | — | — | — | — | — |  |
-| Household sheets: Start fresh, Delete, your name and colour, Child, invite | pic 27a, 27b, 27c | — | — | — | — | — | — | — |  |
+| Household sheets: Start fresh, Delete, your name and colour, Child, invite | pic 27a, 27b, 27c | part | — | — | — | — | — | — | 74aq: 27a, 27b, 27c opened at 320 (step 1 only, no keyboard). Start fresh's title sits about 6px higher than Delete Household's.  |
 | Ask | pic 24x, 39f | — | — | — | — | — | — | — | has a text field: keyboard column too |
 | Glossary | pic 28 | — | — | — | — | — | — | — |  |
 | Transactions list | pic 10 | — | — | — | — | — | — | — | last, layout only: 99g is changing the range control |
@@ -158,3 +158,7 @@ The inventory the last comment on issue 74 asks for: every surface a phone can r
 3. Quick Add's For picker: equal columns so no choice is left alone on a line (`74an-shots/393/35c-quick-add-for.png`).
 4. Personal Allowance names on two lines at 320: leave as is.
 5. Reports: ten tabs or a picker on phones (from issue 115; not looked at here).
+6. Item pages at 320: the header action (Edit, Rename, More) drops under a long title but stays beside a short one. Recommend always under the title below 360px (`74aq-shots/320/18-goal.png` against `18a-goal-long-history.png`).
+7. Explore: the years toggle (44px, outlined) beside tab strips (36px on a track). Recommend drawing it as the same tab strip (`74aq-shots/320/19-explore.png`).
+8. Explore and Scenario Charts tabs now scroll; at 393 the fourth tab (Goal paths) is wholly off the edge with only the fade to say so. Alternative: a select above the chart (`74aq-shots/sheets/v1.png`).
+9. Reports on a phone: the Period shows as plain text beside Filters, not as a chip. Alternative: make it a tappable chip that opens the sheet (`74aq-shots/320/23-reports.png`).
