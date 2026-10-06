@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 import type * as React from "react";
 import { setNextOpener } from "#lib/focus-return";
@@ -5,8 +6,8 @@ import { cn } from "#lib/utils";
 
 // shadcn/ui's DropdownMenu (https://ui.shadcn.com/docs/components/dropdown-menu), radix-nova, on
 // this design system's tokens: a row's or a page's less common actions behind one button. The
-// parts the app uses are here (items, labels, separators); the registry's checkbox, radio and
-// sub-menu parts can be added from it when something needs them.
+// parts the app uses are here (items, labels, separators, and a radio group for one of a set); the
+// registry's checkbox and sub-menu parts can be added from it when something needs them.
 //
 // The trigger needs an accessible name ("Actions for Mortgage"), and an item that opens a sheet or
 // an AlertDialog ends its label with "…".
@@ -50,6 +51,13 @@ function DropdownMenuGroup(props: React.ComponentProps<typeof DropdownMenuPrimit
 	return <DropdownMenuPrimitive.Group data-slot="dropdown-menu-group" {...props} />;
 }
 
+const itemClasses = [
+	"relative flex min-h-9 max-lg:min-h-11 cursor-default items-center gap-2 rounded-lg px-2 py-1.5 text-sm outline-hidden select-none",
+	"focus:bg-menu-hover focus:text-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
+	"data-[variant=destructive]:text-over-foreground data-[variant=destructive]:focus:bg-over-soft data-[variant=destructive]:focus:text-over-foreground",
+	"[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:text-muted-foreground data-[variant=destructive]:[&_svg]:text-current",
+];
+
 function DropdownMenuItem({
 	className,
 	variant = "default",
@@ -74,15 +82,41 @@ function DropdownMenuItem({
 				// Nothing opened from it: don't hand the button to some later sheet.
 				requestAnimationFrame(() => requestAnimationFrame(() => setNextOpener(null)));
 			}}
-			className={cn(
-				"relative flex min-h-9 max-lg:min-h-11 cursor-default items-center gap-2 rounded-lg px-2 py-1.5 text-sm outline-hidden select-none",
-				"focus:bg-menu-hover focus:text-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
-				"data-[variant=destructive]:text-over-foreground data-[variant=destructive]:focus:bg-over-soft data-[variant=destructive]:focus:text-over-foreground",
-				"[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:text-muted-foreground data-[variant=destructive]:[&_svg]:text-current",
-				className,
-			)}
+			className={cn(itemClasses, className)}
 			{...props}
 		/>
+	);
+}
+
+function DropdownMenuRadioGroup(
+	props: React.ComponentProps<typeof DropdownMenuPrimitive.RadioGroup>,
+) {
+	return <DropdownMenuPrimitive.RadioGroup data-slot="dropdown-menu-radio-group" {...props} />;
+}
+
+/** One of a set (name the group): the chosen one is ticked, and choosing keeps the menu open. */
+function DropdownMenuRadioItem({
+	className,
+	children,
+	onSelect,
+	...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.RadioItem>) {
+	return (
+		<DropdownMenuPrimitive.RadioItem
+			data-slot="dropdown-menu-radio-item"
+			onSelect={(event) => {
+				// The choice changes what the Parent is looking at: they see it, then close the menu.
+				event.preventDefault();
+				onSelect?.(event);
+			}}
+			className={cn(itemClasses, className)}
+			{...props}
+		>
+			{children}
+			<DropdownMenuPrimitive.ItemIndicator className="ms-auto flex">
+				<Check aria-hidden="true" />
+			</DropdownMenuPrimitive.ItemIndicator>
+		</DropdownMenuPrimitive.RadioItem>
 	);
 }
 
@@ -118,6 +152,8 @@ export {
 	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuLabel,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 };

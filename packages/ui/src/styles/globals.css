@@ -11,8 +11,19 @@
 @source "../../../../apps/web/src";
 @source "../";
 
-/* Appearance follows the device setting. */
-@custom-variant dark (@media (prefers-color-scheme: dark));
+/* Appearance follows the device setting, unless the Parent chose Light or Dark on this device
+   (`<html data-theme>`, lib/theme.ts). "all and" keeps this line unlike the dark tokens' own
+   `@media` rule further down, which contrast.test.ts finds by its text. */
+@custom-variant dark {
+	@media all and (prefers-color-scheme: dark) {
+		&:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *) {
+			@slot;
+		}
+	}
+	&:where([data-theme="dark"], [data-theme="dark"] *) {
+		@slot;
+	}
+}
 /* Inside a page whose sidebar is collapsed to its icon rail (Sidebar in components/sidebar.tsx). */
 @custom-variant rail (:where([data-sidebar-state="collapsed"]) &);
 
@@ -216,7 +227,9 @@
 	/* Dark (issue 116): Linear's dark look in a blue cast. A blue-black page, grounds that step up a
 	   little at a time in one cool hue, hairline edges, a calm blue accent. Shadows only where a
 	   layer floats. Measured pairs: docs/reviews/theme.md section 12. */
-	:root {
+	/* Not when the Parent chose Light on this device. `:root` comes last so the tests that read
+	   these tokens still find ":root {". */
+	:not([data-theme="light"]):root {
 		color-scheme: dark;
 		--background: #080a0f;
 		--card: #151821;
@@ -283,6 +296,76 @@
 		--chart-goal: transparent;
 		--chart-goal-edge: var(--chart-compare);
 	}
+}
+
+/* Dark chosen by the Parent on this device, whatever the device says: the same tokens as above.
+   Change both together (theme-tokens.test.ts keeps them the same). */
+:root[data-theme="dark"] {
+	color-scheme: dark;
+	--background: #080a0f;
+	--card: #151821;
+	--surface-2: #1b1f2a;
+	--surface-3: #222734;
+	--border: #262b39;
+	--border-strong: #343b4c;
+	/* A picked or current row: the accent, faintly, on the card. */
+	--selected: #20283a;
+	/* A menu over a card is one step lighter than the card, so it reads as its own layer (issue 116). */
+	--popover: var(--surface-2);
+	--menu-hover: var(--surface-3);
+	--foreground: #e9ecf3;
+	--muted-foreground: #a3aaba;
+	--subtle-foreground: #8b93a5;
+	--brand: #6c9af2;
+	--brand-soft: rgb(108 154 242 / 0.14);
+	/* The main button's fill: darker than --brand so its white text is at least 4.5:1 (5.21:1). */
+	--primary: #3568cf;
+	--primary-hover: color-mix(in oklab, var(--primary) 88%, var(--background));
+	--pace: #f5b23a;
+	--pace-soft: rgb(245 178 58 / 0.14);
+	--pace-foreground: #f5c46a;
+	--over: #f07171;
+	--over-soft: rgb(240 113 113 / 0.14);
+	--over-foreground: #f38383;
+	--glow-1: rgb(108 154 242 / 0.05);
+	--glow-2: transparent;
+	--scrim: rgb(3 5 9 / 0.66);
+	/* A card is held by its edge and its step off the page, not by a shadow. */
+	--elevation-card: 0 0 0 0 transparent;
+	--elevation-pop: 0 16px 48px -12px rgb(0 2 8 / 0.72), 0 0 0 1px rgb(150 175 230 / 0.09);
+	--elevation-side: -20px 0 48px -12px rgb(0 2 8 / 0.7), -1px 0 0 rgb(150 175 230 / 0.07);
+	--card-highlight: inset 0 1px 0 rgb(190 210 255 / 0.03);
+	--bucket-1: #3987e5;
+	--bucket-2: #a95cc0;
+	--bucket-3: #2aa3bd;
+	--bucket-4: #2f9e3a;
+	--bucket-5: #9085e9;
+	--bucket-6: #199e70;
+	--bucket-7: #c47a36;
+	--bucket-8: #d55181;
+	--chart-spend: #c1c7d4;
+	/* A quiet reference series (Explore's Plan bars, a comparison period): 3.04:1 on the card. */
+	--chart-compare: #5d6578;
+	--chart-allowance: #626a7d;
+	/* Dark's own low steps: 1.53:1 from an empty cell, then 1.50, 1.57, 1.64 between steps. */
+	--chart-seq-1: color-mix(in oklab, var(--brand) 32%, var(--card));
+	--chart-seq-2: color-mix(in oklab, var(--brand) 52%, var(--card));
+	--chart-seq-3: color-mix(in oklab, var(--brand) 74%, var(--card));
+	/* The edge of a control with no words in it (an empty Checkbox or Radio, an off Switch): 3:1 or
+	   more where it sits (WCAG 1.4.11). */
+	--input: #6e778b;
+	/* A text field belongs to the theme (issue 116): a raised ground (--surface-2) inside a hairline
+	   one step over --border-strong, not a bright outline. The edge lifts under the pointer, and
+	   focus draws it in the accent (--ring, 6.37:1 on the card). Ratios: docs/reviews/theme.md,
+	   section 12, "Phase 116c". */
+	--field-border: #3f485c;
+	--field-hover: #5b667e;
+	/* An off Switch: a quiet track inside the --input edge, and a light thumb, on or off. */
+	--switch-thumb: #e9ecf3;
+	--chart-flow-hub: var(--muted-foreground);
+	--chart-flow-out: var(--subtle-foreground);
+	--chart-goal: transparent;
+	--chart-goal-edge: var(--chart-compare);
 }
 
 @media (min-width: 64rem) {

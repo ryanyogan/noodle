@@ -24,3 +24,5 @@ The token rules:
 - A future palette change is a `globals.css` change plus baselines; nothing else should need editing.
 - The chart neutrals (`--chart-spend` ink, `--chart-allowance` grey) are greys on purpose and so fail the validator's chroma and lightness checks, which are meant for categorical hues; they pass its colour-blind and contrast checks against the brand income colour.
 - The favicon and the email templates keep the old cool brand colours until someone warms them deliberately.
+
+- 2026-10-06 (issue 124): dark is no longer only under `prefers-color-scheme`. A Parent can choose Light, Dark or Device in the account menu; the choice is stored per device (localStorage `theme`, `<html data-theme>` set before first paint), and Device, which follows the device's setting, is the default.
