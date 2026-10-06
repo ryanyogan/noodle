@@ -96,6 +96,38 @@ test("signed out, a Parent reads the Docs and finds an article by a word in its 
 	await page.context().close();
 });
 
+// The Docs' pages are built ahead of time and go without Clerk (docs-path.ts); nothing else does.
+test("an article is a plain file built ahead of time, and the app stays behind sign-in", async ({
+	browser,
+	request,
+}) => {
+	const article = await request.get("/docs/how-to-budget");
+	expect(article.status()).toBe(200);
+	expect(await article.text()).toContain("Lumpy month");
+	// The same for everyone: no cookie set, and Clerk never looked at the request.
+	expect(article.headers()["set-cookie"]).toBeUndefined();
+	expect(article.headers()["x-clerk-auth-status"]).toBeUndefined();
+	// Against the built Worker (CI) it is a static file, answered before the Worker runs.
+	if (process.env.E2E_SERVER === "build") expect(article.headers().etag).toBeTruthy();
+
+	// Signed out, a page of the app still sends you to sign in; so do addresses that only look
+	// like the Docs.
+	for (const address of ["/month", "/plan", "/docs/../month/2026-10"]) {
+		const response = await request.get(address, { maxRedirects: 0 });
+		expect(response.status(), address).toBe(307);
+		expect(response.headers().location, address).toContain("/sign-in");
+		expect(response.headers()["x-clerk-auth-status"], address).toBe("signed-out");
+	}
+	for (const address of ["/docsx", "/docs%2Fx", "/docs/..%2Fmonth"]) {
+		const response = await request.get(address, { maxRedirects: 0 });
+		expect(response.headers()["x-clerk-auth-status"], address).toBe("signed-out");
+	}
+	const page = await signedOut(browser, { viewport: { width: 1440, height: 900 } });
+	await page.goto("/month");
+	await expect(page).toHaveURL(/\/sign-in/);
+	await page.context().close();
+});
+
 test("on a phone, the article comes first and All docs lists the rest", { tag: "@phone" }, async ({
 	browser,
 }) => {
