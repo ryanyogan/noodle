@@ -71,6 +71,14 @@ export default defineConfig({
 			dependencies: ["setup"],
 			grep: phoneTests,
 		},
+		// The picture set (e2e/page-shots.spec.ts) in WebKit, for the one look at what Safari draws
+		// differently: asked for by name from the Page shots workflow (project: webkit-shots).
+		{
+			name: "webkit-shots",
+			use: { ...devices["iPhone 15"] },
+			dependencies: ["setup"],
+			testMatch: /page-shots\.spec\.ts/,
+		},
 		// The smallest iPhone still sold second-hand: only the checks that depend on screen size.
 		{
 			name: "webkit-iphone-se",

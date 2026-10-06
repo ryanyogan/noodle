@@ -66,8 +66,16 @@ function AskPage() {
 				? "Ask couldn't answer. Retry is below the question."
 				: "";
 
+	// A phone with its keyboard up leaves about 500px: the block pinned to the foot would cover the
+	// intro (cut mid-line) or the answers, so in a short window the intro goes, and the suggested
+	// questions too once there are answers to read. The field and Ask stay.
 	const suggestions = (
-		<div className="flex flex-wrap gap-2">
+		<div
+			className={cn(
+				"flex flex-wrap gap-2",
+				turns.length > 0 && "max-sm:[@media(max-height:560px)]:hidden",
+			)}
+		>
 			{SUGGESTIONS.map((suggestion) => (
 				<Button
 					key={suggestion}
@@ -88,7 +96,7 @@ function AskPage() {
 			<div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
 				<div className="grid max-w-3xl gap-8">
 					{turns.length === 0 ? (
-						<p className="text-sm text-muted-foreground">
+						<p className="text-sm text-muted-foreground max-sm:[@media(max-height:560px)]:hidden">
 							Ask about your Plan, spending, Goals, or whether you can afford something. Answers use
 							your Household's real numbers.
 						</p>

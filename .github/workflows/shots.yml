@@ -16,6 +16,10 @@ name: Page shots
 #
 #   gh workflow run shots.yml --ref shots-<id> -f widths=1440 -f theme=dark
 #   gh run download <run id> --name page-shots-1440-dark --dir <somewhere>
+#
+# WebKit (the engine in Safari on an iPhone), phone widths only; the artifact is "page-shots-<width>-webkit":
+#
+#   gh workflow run shots.yml --ref q-<id> -f widths=393 -f project=webkit-shots
 
 on:
   push:
@@ -31,6 +35,15 @@ on:
         type: choice
         options: [light, dark]
         default: light
+      project:
+        description: "Browser: chromium, or webkit-shots (WebKit as an iPhone 15; phone widths only)"
+        type: choice
+        options: [chromium, webkit-shots]
+        default: chromium
+      only:
+        description: "Only the pictures whose name starts with one of these, comma-separated (empty: all)"
+        type: string
+        default: ""
 
 concurrency:
   group: shots-${{ github.ref }}
@@ -54,7 +67,7 @@ jobs:
     needs: widths
     name: shots (${{ matrix.width }})
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -70,6 +83,7 @@ jobs:
       PAGE_SHOTS: "1"
       PAGE_SHOTS_WIDTHS: ${{ matrix.width }}
       PAGE_SHOTS_THEME: ${{ inputs.theme || 'light' }}
+      PAGE_SHOTS_ONLY: ${{ inputs.only }}
     steps:
       - uses: actions/checkout@v5
       # setup-bun needs unzip, which the image lacks; npm's bun package is the same binary.
@@ -86,11 +100,11 @@ jobs:
         working-directory: apps/web
         env:
           AI_MODEL: stub
-      - run: bun run e2e --project=chromium page-shots.spec.ts
+      - run: bun run e2e --project=${{ inputs.project || 'chromium' }} page-shots.spec.ts
         working-directory: apps/web
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: page-shots-${{ matrix.width }}${{ inputs.theme == 'dark' && '-dark' || '' }}
+          name: page-shots-${{ matrix.width }}${{ inputs.theme == 'dark' && '-dark' || '' }}${{ inputs.project == 'webkit-shots' && '-webkit' || '' }}
           path: apps/web/test-results/page-shots
           if-no-files-found: warn

@@ -909,6 +909,7 @@ function BucketsView({ data, names, search, nav, tables }: ViewProps<"buckets">)
 			title="Share of spending"
 			description="Pick a Bucket to see its trend, merchants and Transactions"
 			table={tables.shares}
+			actionsBelow
 			actions={
 				<ToggleGroup
 					type="single"

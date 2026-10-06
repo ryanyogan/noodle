@@ -921,11 +921,13 @@ function PerkSourceDetails({
 						<AnnualFee source={source} disabled={busy} />
 					</div>
 				) : null}
-				<div className="flex flex-wrap items-center gap-2">
+				{/* Under 360px the four wrapped to three ragged lines: two even columns there. */}
+				<div className="flex flex-wrap items-center gap-2 max-[359px]:grid max-[359px]:grid-cols-2 max-[359px]:justify-items-stretch">
 					{asking ? null : (
 						<Button
 							variant="outline"
 							size="sm"
+							className="max-[359px]:px-2"
 							disabled={busy || source.research === "researching"}
 							onClick={() => update.mutate({ id: source.id })}
 						>
@@ -934,7 +936,13 @@ function PerkSourceDetails({
 						</Button>
 					)}
 					{card && !asking ? (
-						<Button variant="ghost" size="sm" disabled={busy} onClick={() => setNaming(true)}>
+						<Button
+							variant="ghost"
+							size="sm"
+							className="max-[359px]:px-2"
+							disabled={busy}
+							onClick={() => setNaming(true)}
+						>
 							Change which card
 						</Button>
 					) : null}
@@ -943,7 +951,7 @@ function PerkSourceDetails({
 							href={source.pageUrl}
 							target="_blank"
 							rel="noreferrer"
-							className="inline-flex min-w-0 items-center gap-1 text-[13px] text-muted-foreground underline-offset-4 hover:text-foreground hover:underline max-lg:min-h-11"
+							className="inline-flex min-w-0 items-center gap-1 text-[13px] text-muted-foreground underline-offset-4 hover:text-foreground hover:underline max-lg:min-h-11 max-[359px]:justify-center"
 						>
 							Benefits page
 							<ExternalLink aria-hidden="true" className="size-3" />
@@ -952,7 +960,7 @@ function PerkSourceDetails({
 					<Button
 						variant="ghost"
 						size="sm"
-						className="ms-auto"
+						className="ms-auto max-[359px]:ms-0 max-[359px]:px-2"
 						disabled={busy}
 						onClick={() => setRemoving(true)}
 					>

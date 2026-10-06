@@ -548,7 +548,8 @@ function Filters({
 				>
 					{/* A Button like the two beside it (issue 115). The order's own words are in the HTML the
 					    server sends (Radix fills a bare SelectValue only once it runs in the browser); on the
-					    narrowest phones, where they don't fit between Filters and Select, it reads "Sort". */}
+					    narrowest phones, where they don't fit between Filters and Select, it reads "Sort"; so
+					    it does up to 400px while Filters carries its count, which takes the room (issue 74). */}
 					<SelectTrigger
 						aria-label="Sort"
 						variant="button"
@@ -557,13 +558,27 @@ function Filters({
 						<span className="flex min-w-0 items-center gap-2">
 							<ArrowUpDown
 								aria-hidden="true"
-								className="size-4 shrink-0 text-muted-foreground max-[22.5rem]:hidden"
+								className={cn(
+									"size-4 shrink-0 text-muted-foreground",
+									chips.length ? "max-[25rem]:hidden" : "max-[22.5rem]:hidden",
+								)}
 							/>
-							<span className="truncate max-[22.5rem]:hidden">
+							<span
+								className={cn(
+									"truncate",
+									chips.length ? "max-[25rem]:hidden" : "max-[22.5rem]:hidden",
+								)}
+							>
 								<SelectValue>{sortLabel(filters.sort ?? "newest")}</SelectValue>
 							</span>
 							{/* The word is drawn by CSS, so the trigger's text is the order alone. */}
-							<span aria-hidden="true" className="after:content-['Sort'] min-[22.5625rem]:hidden" />
+							<span
+								aria-hidden="true"
+								className={cn(
+									"after:content-['Sort']",
+									chips.length ? "min-[25.0625rem]:hidden" : "min-[22.5625rem]:hidden",
+								)}
+							/>
 						</span>
 					</SelectTrigger>
 					<SelectContent>

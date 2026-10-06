@@ -1060,6 +1060,8 @@ test.beforeAll(async ({ browser }) => {
 			name: "10h-transactions-name-edit",
 			path: `/transactions/${month}`,
 			window: true,
+			// The pencil is not on a phone's stacked rows: a name is changed on the Transaction's page there.
+			desktop: true,
 			ready: async (page) => {
 				await page
 					.locator("button[data-cell=name]")
@@ -1247,7 +1249,8 @@ test.beforeAll(async ({ browser }) => {
 			ready: async (page) => {
 				const sheet = page.getByRole("dialog", { name: "Edit Transaction" });
 				await pressFor(page.getByRole("button", { name: /^Edit / }).first(), sheet);
-				await sheet.getByRole("textbox").first().focus();
+				// Tapped, as a Parent does: the field comes into view (a bare focus() left a tall sheet at its top).
+				await sheet.getByRole("textbox").first().click({ timeout: 15_000 });
 			},
 		},
 		{ name: "14-rules", path: "/review/rules" },
@@ -1780,7 +1783,8 @@ test.beforeAll(async ({ browser }) => {
 			ready: async (page) => {
 				const sheet = page.getByRole("dialog", { name: "Filters" });
 				await pressFor(page.getByRole("button", { name: /^Filters/ }), sheet);
-				await sheet.getByRole("textbox").first().focus();
+				// Tapped, as a Parent does: the field comes into view (a bare focus() left a tall sheet at its top).
+				await sheet.getByRole("textbox").first().click({ timeout: 15_000 });
 			},
 		},
 		{
@@ -1803,6 +1807,30 @@ test.beforeAll(async ({ browser }) => {
 						await row.click({ timeout: 2000 });
 					await expect(row).toHaveAttribute("aria-expanded", "true", { timeout: 2000 });
 				}).toPass({ timeout: 20_000 });
+			},
+		},
+		{
+			// An error toast: the annual fee's save answered 500. What's in the window, on a phone.
+			name: "25c-perks-error-toast",
+			path: "/insights/perks",
+			phoneSheet: true,
+			ready: async (page) => {
+				const row = page
+					.getByRole("article", { name: "Amex Platinum" })
+					.locator("h3")
+					.getByRole("button");
+				await expect(async () => {
+					if ((await row.getAttribute("aria-expanded")) !== "true")
+						await row.click({ timeout: 2000 });
+					await expect(row).toHaveAttribute("aria-expanded", "true", { timeout: 2000 });
+				}).toPass({ timeout: 20_000 });
+				const save = serverFn("setPerkSourceFee");
+				await page.route(save, (route) => route.fulfill({ status: 500, body: "Server error" }));
+				const card = page.getByRole("article", { name: "Amex Platinum" });
+				await card.getByLabel("Annual fee").fill("700", { timeout: 15_000 });
+				await card.getByRole("button", { name: "Save fee" }).click({ timeout: 15_000 });
+				await expect(page.locator("[data-sonner-toast]").first()).toBeVisible({ timeout: 15_000 });
+				await page.unroute(save);
 			},
 		},
 		{
@@ -1986,6 +2014,8 @@ test.beforeAll(async ({ browser }) => {
 				await page.getByRole("dialog").getByRole("textbox").first().focus();
 			},
 		},
+		// The small Household has one Parent, so People shows the invite form (the big one has two).
+		{ name: "27i-household-invite", path: "/household", small: true },
 		{ name: "28-glossary", path: "/glossary" },
 		{ name: "24x-ask", path: "/ask" },
 		{
@@ -1994,8 +2024,12 @@ test.beforeAll(async ({ browser }) => {
 			path: "/ask",
 			phoneSheet: true,
 			ready: async (page) => {
-				const ask = page.getByLabel("Ask").first();
-				await ask.fill("Can we afford a second car if the payment is $450 a month?");
+				// By its placeholder: "Ask" as a label also matches other things on the page, and a fill that
+				// lands on one waits out the whole run (why this picture never came out before).
+				const ask = page.getByPlaceholder("Ask about your money");
+				await ask.fill("Can we afford a second car if the payment is $450 a month?", {
+					timeout: 15_000,
+				});
 				await ask.focus();
 			},
 		},
@@ -2696,7 +2730,8 @@ test.afterAll(async () => {
 for (const viewport of viewports) {
 	test(`page shots at ${viewport.width}x${viewport.height}`, async ({ browser }) => {
 		test.skip(!enabled, "Runs only with PAGE_SHOTS set (see .github/workflows/shots.yml)");
-		test.setTimeout(900_000);
+		// WebKit is slower at full-page pictures: the whole phone set needs longer there.
+		test.setTimeout(test.info().project.name === "webkit-shots" ? 2_100_000 : 900_000);
 		if (!parent) throw new Error("No Parent: beforeAll didn't finish");
 		const phone = viewport.width < 1024;
 		const device: Parameters<typeof signedInPage>[2] = {
