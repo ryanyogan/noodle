@@ -380,17 +380,34 @@ export async function confirmPaidBack(
 					gte(paidBackMatches.countsOn, from),
 				),
 			),
-		db.run(sql`insert into paid_back_matches
-			(id, household_id, income_id, owed_back_id, amount_cents, counts_on, created_by_member_id)
-			select ${field("id")}, ${householdId}, ${input.incomeId}, o.id, ${field("amount")}, ${countsOn},
-				${viewer.memberId}
-			from json_each(${JSON.stringify(input.matches)}) j
-			join owed_back o on o.id = ${field("owedBackId")} and o.household_id = ${householdId}
-			where exists (select 1 from income i where i.id = ${input.incomeId}
-				and i.household_id = ${householdId} and i.kind = 'paid-back')
-			and (select coalesce(sum(x.amount_cents), 0) from paid_back_matches x
-				where x.owed_back_id = o.id) + ${field("amount")} <= o.amount_cents
-			on conflict do nothing`),
+		// Written with the query builder: a raw statement with parameters can't go in a D1 batch.
+		db
+			.insert(paidBackMatches)
+			.select(
+				db
+					.select({
+						// Selected in the table's column order: insert … select is positional.
+						id: sql<string>`${field("id")}`.as("id"),
+						householdId: sql<string>`${householdId}`.as("household_id"),
+						incomeId: sql<string>`${input.incomeId}`.as("income_id"),
+						owedBackId: sql<string>`o.id`.as("owed_back_id"),
+						amountCents: sql<number>`${field("amount")}`.as("amount_cents"),
+						countsOn: sql<string>`${countsOn}`.as("counts_on"),
+						createdByMemberId: sql<string | null>`${viewer.memberId}`.as("created_by_member_id"),
+						createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
+					})
+					.from(
+						sql`json_each(${JSON.stringify(input.matches)}) j
+							join owed_back o on o.id = ${field("owedBackId")} and o.household_id = ${householdId}`,
+					)
+					.where(
+						sql`exists (select 1 from income i where i.id = ${input.incomeId}
+							and i.household_id = ${householdId} and i.kind = 'paid-back')
+						and (select coalesce(sum(x.amount_cents), 0) from paid_back_matches x
+							where x.owed_back_id = o.id) + ${field("amount")} <= o.amount_cents`,
+					),
+			)
+			.onConflictDoNothing(),
 	]);
 	const after = await loadPaidBack(db, householdId, input.incomeId);
 	if (!after) return { ok: false, reason: "not-paid-back" };

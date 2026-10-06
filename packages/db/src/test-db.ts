@@ -1,6 +1,9 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
+import { is } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
+import { SQLiteRaw } from "drizzle-orm/sqlite-core/query-builders/raw";
 import { drizzle } from "drizzle-orm/sqlite-proxy";
 import type { Db } from "./index";
 import * as schema from "./schema";
@@ -67,8 +70,30 @@ export function sqliteDb(sqlite: DatabaseSync): Db {
 		},
 		{ schema },
 	);
+	const batch = db.batch.bind(db);
+	db.batch = ((queries: readonly [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]) => {
+		for (const query of queries) refuseUnpreparedStatement(query);
+		return batch(queries);
+	}) as unknown as typeof db.batch;
 	// Same query builder and dialect as the D1 driver; only the transport differs.
 	return db as unknown as Db;
+}
+
+/**
+ * The D1 driver binds a batch item's parameters on the statement the query builder prepared for
+ * it (`preparedQuery.stmt.bind` in drizzle-orm/d1/session.js). A raw `db.run(sql\`...\`)` (or
+ * `db.all`, `db.get`, `db.values`) prepares nothing, so with a parameter in it the Worker throws
+ * "Cannot read properties of undefined (reading 'bind')" and the whole batch is lost, where this
+ * database would run it. Refused here instead: write it with the query builder
+ * (`db.insert(table).select(...)`, `db.update(...)`), which may carry raw SQL inside.
+ */
+function refuseUnpreparedStatement(query: unknown) {
+	if (!is(query, SQLiteRaw)) return;
+	const { sql: text, params } = query.getQuery();
+	if (params.length > 0)
+		throw new Error(
+			`A batch can't take a raw statement with bound parameters: the D1 driver has nothing to bind them on. Use the query builder. ${text}`,
+		);
 }
 
 /**
