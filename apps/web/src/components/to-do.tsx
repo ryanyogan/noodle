@@ -76,7 +76,10 @@ export function ToDo({ className, items }: { className?: string; items: ToDoItem
 										{item.label}
 									</p>
 								) : (
-									<div className="flex min-w-0 items-center max-lg:hidden">
+									// The row's button runs the card's whole width, so its hover tint does too and
+									// the chevron stays in one column, open or closed; the "?" of an open row sits
+									// over the button, just before the chevron (issue 73).
+									<div className="relative flex min-w-0 items-center max-lg:hidden">
 										<RowButton
 											aria-expanded={shown}
 											aria-controls={panel}
@@ -85,7 +88,12 @@ export function ToDo({ className, items }: { className?: string; items: ToDoItem
 											// The card's own 20px edge, as the Free to Spend and Income cards beside it (issue 73).
 											className="min-w-0 flex-1 rounded-none px-(--card-pad) py-3"
 										>
-											<span className="grid min-w-0 flex-1 gap-0.5">
+											<span
+												className={cn(
+													"grid min-w-0 flex-1 gap-0.5",
+													shown && item.help && !item.action && "pe-8",
+												)}
+											>
 												<span className="truncate text-sm font-medium">{item.label}</span>
 												{/* Open, the status may take a second line: at 1024 it was cut beside the "?" (issue 73). */}
 												{item.status ? (
@@ -109,7 +117,17 @@ export function ToDo({ className, items }: { className?: string; items: ToDoItem
 												)}
 											/>
 										</RowButton>
-										{shown && item.help ? <div className="shrink-0 pe-2">{item.help}</div> : null}
+										{shown && item.help ? (
+											<div
+												className={
+													item.action
+														? "shrink-0 pe-2"
+														: "absolute end-[calc(var(--card-pad)+1.75rem)] top-1/2 flex -translate-y-1/2"
+												}
+											>
+												{item.help}
+											</div>
+										) : null}
 										{item.action ? (
 											<div className="shrink-0 pe-(--card-pad) empty:hidden">{item.action}</div>
 										) : null}

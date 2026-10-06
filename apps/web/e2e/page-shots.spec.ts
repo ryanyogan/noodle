@@ -165,7 +165,11 @@ async function addCard(page: Page, name: string, pageUrl: string, fee: string, p
 	await sheet.getByLabel("Benefits page (optional)").fill(pageUrl);
 	await sheet.getByRole("button", { name: "Add and read its perks" }).click();
 	await expect(sheet).toBeHidden({ timeout: 30_000 });
-	const card = page.getByRole("article", { name });
+	// The seed already has a Perk Source of the same name with fewer Perks (the Chase card the
+	// Account ··0093 brought): take the one just added, by how many Perks it has.
+	const card = page
+		.getByRole("article", { name })
+		.filter({ hasText: new RegExp(`· ${perks} perks`) });
 	// One Perk Source is open at a time: open this one's row.
 	// The row may open by itself as the Perks arrive, and an open card has more headings with
 	// buttons: take the card's own row, and try again if a click landed on a row that had opened.
@@ -261,7 +265,12 @@ async function attempt(what: string, run: () => Promise<void>) {
 	try {
 		await run();
 	} catch (error) {
-		seedNotes.push(`${what}: ${String(error).split("\n")[0]}`);
+		// The first lines say which locator and what it found instead: one line alone didn't.
+		const lines = String(error)
+			.split("\n")
+			.map((line) => line.trim())
+			.filter(Boolean);
+		seedNotes.push(`${what}: ${lines.slice(0, 6).join(" | ")}`);
 	}
 }
 
@@ -405,17 +414,22 @@ test.beforeAll(async ({ browser }) => {
 		await page.waitForLoadState("networkidle");
 		const amexRow = perkRow(amex);
 		const uber = amex.getByRole("listitem", { name: "Uber Cash" });
-		await expect(async () => {
-			if ((await amexRow.getAttribute("aria-expanded")) !== "true") await amexRow.click();
-			const mark = uber.getByRole("button", { name: "Mark Uber Cash used" });
-			if (await mark.isVisible()) await mark.click();
-			const note = uber.getByLabel("Note (optional)");
-			if (await note.isVisible()) {
-				await note.fill("Rides to the airport");
-				await uber.getByRole("button", { name: "Save" }).click();
-			}
-			await expect(uber).toContainText("Rides to the airport", { timeout: 5_000 });
-		}).toPass({ timeout: 45_000 });
+		// Both fees are in before a Perk is marked, and the card opens through its "Worth using
+		// now" line, as perks-page.spec.ts does: a row clicked while the cards redraw closed again.
+		await expect(page.getByRole("region", { name: /^This year/ })).toContainText("$1,245", {
+			timeout: 20_000,
+		});
+		await page
+			.getByRole("list", { name: "Worth using now" })
+			.getByRole("listitem", { name: "Uber Cash" })
+			.getByRole("button")
+			.click();
+		await expect(amexRow).toHaveAttribute("aria-expanded", "true");
+		await expect(uber).toContainText("$15");
+		await uber.getByRole("button", { name: "Mark Uber Cash used" }).click();
+		await uber.getByLabel("Note (optional)").fill("Rides to the airport");
+		await uber.getByRole("button", { name: "Save" }).click();
+		await expect(uber).toContainText("Rides to the airport", { timeout: 15_000 });
 	});
 
 	// A saved Scenario: a raise to $10,200 a month.
