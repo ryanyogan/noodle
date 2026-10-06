@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { columnFormatter, type ReportTable } from "./reports";
+import { columnFormatter, oneOffsOver, type ReportTable } from "./reports";
 
 // One number format down a column of a Reports table (issue 73).
 describe("columnFormatter", () => {
@@ -42,5 +42,16 @@ describe("columnFormatter", () => {
 	});
 	it("leaves text as it is", () => {
 		expect(cells(0)).toEqual(["Mortgage", "Groceries", "Health"]);
+	});
+});
+
+// Big expenses says "the biggest N one-offs over $250": its list and its table show those N (issue 73).
+describe("oneOffsOver", () => {
+	const items = [{ amount: 120_000 }, { amount: 25_000 }, { amount: 24_999 }, { amount: 18_462 }];
+	it("keeps the one-offs of at least the picked amount", () => {
+		expect(oneOffsOver(items, 25_000)).toEqual([{ amount: 120_000 }, { amount: 25_000 }]);
+	});
+	it("keeps them all at $0", () => {
+		expect(oneOffsOver(items, 0)).toHaveLength(4);
 	});
 });
