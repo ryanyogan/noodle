@@ -123,7 +123,7 @@ test("by hand: Bills, Buckets and a Goal land on the Plan, and going back adds n
 		await groceries.fill("800");
 		await page.getByRole("button", { name: "Remove Fun" }).click();
 		await page.getByRole("textbox", { name: "Name of Gas" }).fill("Fuel");
-		await expect(page.getByText(/Left to plan:/)).toContainText("$");
+		await expect(page.getByText(/Free to Spend after this:/)).toContainText("$");
 		saved = savedBy(page, "saveSetup");
 		await page.getByRole("button", { name: "Continue" }).click();
 		await saved;

@@ -191,8 +191,8 @@ test("bank: connecting the fake bank runs the Setup Workflow to the end", async 
 	await expect(pay).toHaveValue(/^5,?000(\.00)?$/);
 	await next(page, 3);
 	await next(page, 4);
-	// Left to plan counts down from the pay the Parent typed, whatever the bank suggested.
-	await expect(page.getByText(/Left to plan:/)).toContainText("$");
+	// Free to Spend after this counts down from the pay the Parent typed, whatever the bank suggested.
+	await expect(page.getByText(/Free to Spend after this:/)).toContainText("$");
 });
 
 test("goal: a pay-off Goal can be for a card already added, without adding another", async ({

@@ -181,7 +181,7 @@ function Scheduled({ status }: { status: Status }) {
 		onSuccess: () => queryClient.setQueryData(freshStartQuery().queryKey, null),
 		onError: () => toast("Couldn’t cancel. Please try again.", { tone: "error" }),
 	});
-	const what = status.level === "delete" ? "Deleting the Household" : "Fresh start";
+	const what = status.level === "delete" ? "Deleting the Household" : "Start fresh";
 	const asked = status.level === "delete" ? "delete the Household" : "start fresh";
 	return (
 		<div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm">
@@ -310,7 +310,7 @@ export function FreshStartBanner() {
 				variant="destructive"
 				className="mx-4 mt-3 w-auto lg:mx-6"
 				aria-label={
-					data.level === "delete" ? "Deleting the Household stopped" : "Fresh start stopped"
+					data.level === "delete" ? "Deleting the Household stopped" : "Start fresh stopped"
 				}
 			>
 				<TriangleAlert />
@@ -321,7 +321,7 @@ export function FreshStartBanner() {
 		);
 	if (!isWaiting(data)) return null;
 	return (
-		<Alert role="status" className="mx-4 mt-3 w-auto lg:mx-6" aria-label="Fresh start scheduled">
+		<Alert role="status" className="mx-4 mt-3 w-auto lg:mx-6" aria-label="Start fresh scheduled">
 			<TriangleAlert />
 			<AlertDescription className="text-foreground">
 				<Scheduled status={data} />

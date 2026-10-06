@@ -125,7 +125,7 @@ test("a single Parent starts fresh: counts, typed name, progress, All cleared, t
 			.getByRole("region", { name: "Snapshots" })
 			.getByRole("list", { name: "Snapshot history" })
 			.getByRole("listitem")
-			.filter({ hasText: "Before Fresh start" }),
+			.filter({ hasText: "Before Start fresh" }),
 	).toContainText("1 Transaction,");
 
 	const transactions = await page.request.get("/transactions");
@@ -169,10 +169,10 @@ test("with both Parents in, it waits a day; the other Parent sees it and cancels
 	await sheet.getByLabel("Type “The Rinks”").fill("The Rinks");
 	await sheet.getByRole("button", { name: "Start fresh" }).click();
 	const zone = alex.getByRole("region", { name: "Danger zone" });
-	await expect(zone).toContainText(/Fresh start scheduled for tomorrow \d+:\d\d [AP]M/);
+	await expect(zone).toContainText(/Start fresh scheduled for tomorrow \d+:\d\d [AP]M/);
 
 	// Sam's open screen hears it from the Household Agent.
-	const banner = sam.getByRole("status", { name: "Fresh start scheduled" });
+	const banner = sam.getByRole("status", { name: "Start fresh scheduled" });
 	await expect(banner).toBeVisible({ timeout: 15_000 });
 	await banner.getByRole("button", { name: "Cancel" }).click();
 	await expect(banner).toBeHidden();
@@ -206,12 +206,12 @@ test("the other Parent agrees, so it starts now; the Parent who asked can't skip
 	await sheet.getByRole("button", { name: "Start fresh" }).click();
 	// The Parent who asked can cancel, and nothing more: their own wait isn't theirs to skip.
 	const zone = alex.getByRole("region", { name: "Danger zone" });
-	await expect(zone).toContainText(/Fresh start scheduled for tomorrow \d+:\d\d [AP]M/);
+	await expect(zone).toContainText(/Start fresh scheduled for tomorrow \d+:\d\d [AP]M/);
 	await expect(zone.getByRole("button", { name: "Cancel" })).toBeVisible();
 	await expect(alex.getByRole("button", { name: "Start it now" })).toHaveCount(0);
 
 	// The other Parent reads who asked and when, and can cancel it or start it now.
-	const banner = sam.getByRole("status", { name: "Fresh start scheduled" });
+	const banner = sam.getByRole("status", { name: "Start fresh scheduled" });
 	await expect(banner).toContainText(
 		/asked to start fresh\. It happens tomorrow \d+:\d\d [AP]M\./,
 		{ timeout: 15_000 },
@@ -266,7 +266,7 @@ test("a clear that fails says what is done and no more; Try again carries on", a
 	// A page opened afresh says the same in its banner and in Household settings.
 	const other = await page.context().newPage();
 	await other.goto("/household");
-	const banner = other.getByRole("status", { name: "Fresh start stopped" });
+	const banner = other.getByRole("status", { name: "Start fresh stopped" });
 	await expect(banner).toContainText("Starting fresh stopped at “Forgetting merchants”.");
 	await expect(banner.getByRole("button", { name: "Try again" })).toBeVisible();
 	const zone = other.getByRole("region", { name: "Danger zone" });

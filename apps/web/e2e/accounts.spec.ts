@@ -43,7 +43,7 @@ test("Accounts are their own area, and each Goal names the Account holding it", 
 	await expect(page.getByText("Accounts are where the money is")).toBeVisible();
 	const ways = page.getByRole("list", { name: "Ways to add an Account" }).getByRole("listitem");
 	await expect(ways).toHaveCount(3);
-	await expect(ways.nth(0)).toContainText("Connect your bank");
+	await expect(ways.nth(0)).toContainText("Connect a bank");
 	await expect(ways.nth(0).getByRole("button", { name: "Connect a bank" })).toBeVisible();
 	await expect(ways.nth(1)).toContainText("Upload statements");
 	await expect(ways.nth(2)).toContainText("Type in a balance");

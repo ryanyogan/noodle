@@ -125,7 +125,7 @@ A Move of the month-end leftover of a Bucket that resets monthly into a Goal.
 _Avoid_: Rollover, save leftovers
 
 **Month-close**:
-Deciding, once a month has ended, where the leftovers of its Buckets that reset monthly are Swept and where its pending Extra income goes, and whether the Free to Spend it ended with stays carried over (the default; nothing is written) or is sent to a Goal as Goal funding dated in that month: by a Parent in the next month's first week, or by the defaults when nobody does. The ended month then shows how it ended: its Sweeps, the Extra income it sent to Goals, what each Bucket that carries over took into the next month, and who closed it.
+Deciding, once a month has ended, where the leftovers of its Buckets that reset monthly are Swept and where its pending Extra income goes, and whether the Free to Spend it ended with stays carried over (the default; nothing is written) or is sent to a Goal as Goal funding dated in that month: by a Parent once the month has ended (This Month asks during the next month's first seven days), or by the defaults when nobody has within a week. The ended month then shows how it ended: its Sweeps, the Extra income it sent to Goals, what each Bucket that carries over took into the next month, and who closed it.
 The app says "Close <Month>" and "How <Month> ended".
 _Avoid_: Rollover, reconciliation, closing the books
 
@@ -265,7 +265,7 @@ A single adjustable quantity in a Scenario: the Take-home pay, a Bucket allowanc
 _Avoid_: Lever, slider, knob, variable
 
 **Change preset**:
-A Change written into a link, so Explore opens with the change already made: its kind, then its fields, colon-separated, with amounts in cents and an optional range last (`end-commitment:<id>:2027-03`). A Commitment's "Try ending this", an Affordability Check, Insights and Ask open Explore this way. A preset only says what to change; one whose Bucket, Commitment or Goal isn't in the Plan, or that touches the other Parent's Personal Allowance, is dropped.
+A Change written into a link, so Explore opens with the change already made: its kind, then its fields, colon-separated, with amounts in cents and an optional range last (`end-commitment:<id>:2027-03`). A Commitment's "See what ending it frees up", an Affordability Check, Insights and Ask open Explore this way. A preset only says what to change; one whose Bucket, Commitment or Goal isn't in the Plan, or that touches the other Parent's Personal Allowance, is dropped.
 _Avoid_: Lever preset, deep link
 
 **Projected balance**:
@@ -302,7 +302,7 @@ _Avoid_: Tag, assignee, owner
 ## Relationships
 
 - A **Household** has one **Plan** per month, two **Parents**, and any number of **Children**.
-- A **Plan** contains **Commitments**, **Buckets**, and **Goals**; whatever remains is **Free to Spend**, which starts fresh each month unless the Household has it **Build up**.
+- A **Plan** contains **Commitments**, **Buckets**, and **Goals**; whatever remains is **Free to Spend**, which is carried over from month to month: what a month ends with, left or short, goes into the next month's (ADR-0054).
 - An **Account** is paired with at most one account at one **Bank Connection**.
 - A **Transaction** belongs to one **Account** and is assigned whole or via **Splits**; each carries a **For**.
 - A **Goal**'s money is **Set aside** on exactly one **Account**.

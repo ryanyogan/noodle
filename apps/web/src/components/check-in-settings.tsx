@@ -34,7 +34,8 @@ export function CheckInSettings() {
 						<CalendarCheck />
 					</Tile>
 					<p className="text-muted-foreground">
-						Once a week, each Parent gets a Nudge at 9 AM and an email with what needs them.
+						Once a week, each Parent gets an email with what needs them, and a Nudge at 9 AM on
+						phones and computers that have Nudges on.
 					</p>
 				</div>
 				<div className="flex gap-2">

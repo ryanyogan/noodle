@@ -629,7 +629,7 @@ function Filters({
 							]}
 						/>
 					</Field>
-					<Field label="Merchant" htmlFor={`${id}-merchant`} hint="A Transaction's note, exactly">
+					<Field label="Merchant" htmlFor={`${id}-merchant`} hint="Its whole name, not part of it">
 						<Input
 							id={`${id}-merchant`}
 							value={merchant}

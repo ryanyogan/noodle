@@ -875,7 +875,7 @@ function BillsStep({
 	);
 }
 
-/** Step 4: the starter Buckets, with suggested amounts and what's left to plan. */
+/** Step 4: the starter Buckets, with suggested amounts and Free to Spend once they are saved. */
 function BucketsStep({
 	answers,
 	jobs,
@@ -989,7 +989,7 @@ function BucketsStep({
 			onSubmit={() => !invalid && save.mutate()}
 			aside={
 				<p className="text-sm text-muted-foreground" aria-live="polite">
-					Left to plan:{" "}
+					Free to Spend after this:{" "}
 					<span
 						className={`font-medium tabular-nums ${left < 0 ? "text-over-foreground" : "text-foreground"}`}
 					>

@@ -120,6 +120,7 @@ export function ReceiptSection({
 				</p>
 			) : parts ? (
 				<>
+					<h4 className="text-xs font-medium text-subtle-foreground">Proposed Splits</h4>
 					<List aria-label="Splits from the Receipt">
 						{parts.map((part) => (
 							<ListRow

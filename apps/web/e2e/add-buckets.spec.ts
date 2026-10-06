@@ -37,7 +37,7 @@ test("eight Buckets are added in one sheet by keyboard alone", async ({ browser 
 	// The Parent's own Personal Allowance is offered, with what the other Parent sees.
 	await expect(sheet).toContainText("the other Parent sees just the total");
 
-	const leftToPlan = sheet.getByText(/^Left to plan/);
+	const leftToPlan = sheet.getByText(/^Free to Spend after this/);
 	const eight: [string, string][] = [
 		["Groceries", "800"],
 		["Dining out", "150"],

@@ -19,7 +19,7 @@ export const SNAPSHOT_FORMAT = 1;
 /** Household tables a snapshot leaves out, and why. */
 export const NOT_SNAPSHOTTED: Readonly<Partial<Record<HouseholdTableName, string>>> = {
 	householdSnapshots: "a snapshot doesn't hold the list of snapshots",
-	freshStarts: "restoring one could start a Fresh start again",
+	freshStarts: "restoring one could set off Start fresh again",
 };
 
 /** Every table a snapshot holds, parents before children (so a restore inserts in this order). */

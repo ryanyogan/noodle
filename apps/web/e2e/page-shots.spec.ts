@@ -2687,7 +2687,7 @@ test.beforeAll(async ({ browser }) => {
 						await expect(question).toBeEnabled({ timeout: 15_000 });
 						await question.fill("How much did we spend on groceries this month?");
 						await page.getByRole("button", { name: "Ask", exact: true }).click({ timeout: 15_000 });
-						await expect(page.getByText("Couldn't answer that just now.")).toBeVisible({
+						await expect(page.getByText("Couldn’t answer that just now.")).toBeVisible({
 							timeout: 30_000,
 						});
 					},

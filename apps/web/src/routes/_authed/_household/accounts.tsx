@@ -310,7 +310,7 @@ function AddAccountWays({ bank }: { bank: ConnectBank }) {
 	const hydrated = useHydrated();
 	const ways = [
 		{
-			title: "Connect your bank",
+			title: "Connect a bank",
 			badge: "Recommended",
 			text: bank.plaid
 				? CONNECT_EXPLAINED
@@ -323,7 +323,7 @@ function AddAccountWays({ bank }: { bank: ConnectBank }) {
 		},
 		{
 			title: "Upload statements",
-			text: "Add the Account below, then upload CSV or OFX files from your bank’s site on its page. Quick Adds are Matched with each statement’s lines.",
+			text: "Add the Account below, then upload CSV, OFX or QFX files from your bank’s site on its page. Quick Adds are Matched with each statement’s lines.",
 			action: null,
 		},
 		{

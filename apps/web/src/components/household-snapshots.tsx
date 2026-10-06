@@ -39,7 +39,7 @@ export function kindLabel(snapshot: Pick<SnapshotSummary, "kind" | "takenBy">): 
 		case "before-restore":
 			return "Before a restore";
 		case "before-fresh-start":
-			return "Before Fresh start";
+			return "Before Start fresh";
 		case "before-delete":
 			return "Before Delete Household";
 		case "before-rule-apply":

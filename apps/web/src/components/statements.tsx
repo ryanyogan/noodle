@@ -173,8 +173,8 @@ export function StatementsSection({
 			{imports.length === 0 ? (
 				<Card className="p-(--card-pad) text-sm text-muted-foreground">
 					{connected
-						? `${bank} brings in this Account’s Transactions on its own, every day.`
-						: "Upload a CSV or OFX statement from your bank to bring in this Account’s Transactions. Uploading one again, or one that overlaps, adds nothing twice."}
+						? `${bank} brings in this Account’s Transactions on its own.`
+						: "Upload a CSV, OFX or QFX statement from your bank to bring in this Account’s Transactions. Uploading one again, or one that overlaps, adds nothing twice."}
 				</Card>
 			) : (
 				<List aria-label="Imported statements">
