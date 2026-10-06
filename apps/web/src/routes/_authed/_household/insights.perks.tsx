@@ -161,9 +161,10 @@ function PerksPage() {
 					/>
 				</Card>
 			) : null}
-			{/* Summary first, with what's worth using now beside it on a wide screen. */}
+			{/* Summary first, with what's worth using now beside it on a wide screen. Each card ends at
+			    its own content: stretched to its neighbour, This year was empty under its figures (issue 120). */}
 			{cards.some((card) => card.entries.length > 0) || doNow.length > 0 ? (
-				<SectionGrid className="xl:items-stretch">
+				<SectionGrid>
 					{cards.some((card) => card.entries.length > 0) ? (
 						<YearSummary cards={cards} year={asOf.slice(0, 4)} />
 					) : null}
@@ -261,10 +262,10 @@ function YearSummary({
 	const available = sum(rows.map((r) => r.available));
 	const fees = sum(rows.map((r) => r.fee ?? 0));
 	return (
-		<Section aria-labelledby="perks-this-year" className="grid-rows-[auto_1fr]">
+		<Section aria-labelledby="perks-this-year">
 			<SectionHeader id="perks-this-year" title={`This year (${year})`} />
 			<Card>
-				<div className="grid h-full content-start gap-5 p-(--card-pad)">
+				<div className="grid gap-5 p-(--card-pad)">
 					<dl className="grid gap-4 sm:grid-cols-3">
 						<div className="grid gap-1">
 							<dt className="text-[13px] text-muted-foreground">Value used</dt>

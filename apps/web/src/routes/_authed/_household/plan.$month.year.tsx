@@ -183,11 +183,17 @@ const unplanned = (month: YearMonth) =>
 /** A past month with no take-home pay and nothing planned or spent. */
 const isBlank = (month: YearMonth) => month.when === "past" && unplanned(month);
 
-/** "This month" for the month under way, "Lumpy" for a lumpy one. */
-function MonthBadges({ month }: { month: YearMonth }) {
+/**
+ * "This month" for the month under way, "Lumpy" for a lumpy one. In the table below 1440px the
+ * month's row is tinted instead and "This month" is only read out (`quiet`): with the badge the
+ * row was three or four lines beside its neighbours' two at 1024 and 1280 (issue 120).
+ */
+function MonthBadges({ month, quiet = false }: { month: YearMonth; quiet?: boolean }) {
 	return (
 		<>
-			{month.when === "current" ? <Badge>This month</Badge> : null}
+			{month.when === "current" ? (
+				<Badge className={quiet ? "max-[1439px]:sr-only" : undefined}>This month</Badge>
+			) : null}
 			{month.lumps.length > 0 ? <Badge>Lumpy</Badge> : null}
 		</>
 	);
@@ -276,13 +282,17 @@ function YearTable({ months }: { months: YearMonth[] }) {
 					{months.map((month) => (
 						<TableRow
 							key={month.month}
-							className={cn("align-top", month.when === "current" && "font-medium")}
+							className={cn(
+								"align-top",
+								month.when === "current" && "font-medium max-[1439px]:bg-surface-2",
+							)}
 						>
 							<th
 								scope="row"
 								className="ps-(--card-pad) pe-2 py-2.5 text-start xl:pe-(--card-pad) font-medium"
 							>
-								<span className="flex flex-wrap items-center gap-1.5">
+								{/* Below 1440px one line: wrapped, the month under way was a line taller than the others (issue 120). */}
+								<span className="flex flex-wrap items-center gap-1.5 max-[1439px]:flex-nowrap max-[1439px]:whitespace-nowrap">
 									<Link
 										to="/plan/$month"
 										params={{ month: month.month }}
@@ -290,7 +300,7 @@ function YearTable({ months }: { months: YearMonth[] }) {
 									>
 										{monthName(month.month)}
 									</Link>
-									<MonthBadges month={month} />
+									<MonthBadges month={month} quiet />
 								</span>
 								{month.actual ? (
 									<span className="block text-xs font-normal text-muted-foreground">

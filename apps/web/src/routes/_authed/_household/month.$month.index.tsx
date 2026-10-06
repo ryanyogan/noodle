@@ -673,6 +673,14 @@ function FreeToSpend({
 	const carry = useFreeCarry(state.month);
 	const ownFree = state.freeToSpend - state.freeCarriedIn;
 	const lastMonth = monthName(addMonths(state.month, -1));
+	// An ended month's headline is what it ended with, the figure its sentence is about (issue 120):
+	// the planned Free to Spend over "Ended $230 short" read as two answers. The planned figure
+	// stays in the split below.
+	const endedWith =
+		ended && state.baseline !== null && !overPlanned && carry.handedOn !== null
+			? carry.handedOn
+			: null;
+	const headline = endedWith ?? state.freeToSpend;
 	// Income below what's usual. A month still running is "behind by now". An ended month has no
 	// "by now" and nothing more to plan in it (issue 73): what it brought is set against the month
 	// before, which is what was expected of it; when that was take-home pay itself there is nothing
@@ -695,13 +703,14 @@ function FreeToSpend({
 			<Card className="max-sm:@container/free">
 				<div className="grid gap-1 p-(--card-pad)">
 					<p
+						data-slot="free-headline"
 						className={cn(
 							"text-[2.75rem] font-[650] leading-[1.05] tracking-[-0.04em] tabular-nums",
 							"max-sm:text-[length:min(2.75rem,17cqi)] max-sm:[-webkit-text-size-adjust:100%] max-sm:[text-size-adjust:100%]",
-							overPlanned && "text-over",
+							headline < 0 && "text-over",
 						)}
 					>
-						{formatMoney(state.freeToSpend)}
+						{formatMoney(headline)}
 					</p>
 					<p className="text-sm text-muted-foreground">
 						{state.baseline === null ? (
@@ -721,14 +730,14 @@ function FreeToSpend({
 								{formatMoney(-ownFree)} more than your take-home pay.{" "}
 								<PlanLink month={state.month}>Adjust the Plan</PlanLink>
 							</>
-						) : ended && carry.handedOn !== null ? (
+						) : endedWith !== null ? (
 							<span data-slot="free-handed-on">
-								{carry.handedOn === 0
+								{endedWith === 0
 									? // Nothing to carry: "Ended with $0, carried over into October" read as a mistake (issue 73).
 										`Ended with nothing left, so nothing was carried over into `
-									: carry.handedOn < 0
-										? `Ended ${formatMoney(-carry.handedOn)} short, carried over into `
-										: `Ended with ${formatMoney(carry.handedOn)}, carried over into `}
+									: endedWith < 0
+										? `Ended ${formatMoney(-endedWith)} short, carried over into `
+										: `Ended with ${formatMoney(endedWith)}, carried over into `}
 								{monthName(addMonths(state.month, 1))}
 							</span>
 						) : ended ? (
