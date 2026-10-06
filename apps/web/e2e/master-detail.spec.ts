@@ -429,6 +429,7 @@ test("a Transaction opens in place under its row, and the table keeps its column
 	// The next one down is one step away in the header: one row open at a time, and it is in view.
 	await page.goto(first);
 	await expect(title).toBeVisible();
+	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
 	await pane.getByRole("link", { name: "Next Transaction" }).click();
 	await expect(page).not.toHaveURL(first);
 	await expect(marked).toHaveCount(1);

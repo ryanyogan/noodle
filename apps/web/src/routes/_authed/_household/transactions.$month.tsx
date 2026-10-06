@@ -301,7 +301,13 @@ function TransactionsPage() {
 				</div>
 				<div data-slot="transaction-list" className="min-w-0">
 					{/* One gap between the bar and the list, the same on a phone as anywhere (issue 115). */}
-					<div className="grid min-w-0 gap-3">
+					<div
+						className={cn(
+							"grid min-w-0 gap-3",
+							// Below lg an open Transaction is a page of its own: the selection's bar waits.
+							picked && "max-lg:[&>[aria-label='Selecting_Transactions']]:hidden",
+						)}
+					>
 						{picking ? (
 							<SelectionBar
 								month={month}
