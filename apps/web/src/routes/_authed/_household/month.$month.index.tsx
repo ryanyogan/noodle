@@ -258,7 +258,7 @@ function ThisMonth() {
 												) : undefined
 											}
 										/>
-										<List>{buckets.map(bucketRow)}</List>
+										<List className={bucketList}>{buckets.map(bucketRow)}</List>
 										{/* Under the list, not between the heading and the card, so the card's top is level
 										    with Free to Spend's in the rail (#73L). */}
 										<BarKey />
@@ -273,7 +273,7 @@ function ThisMonth() {
 											title="Personal Allowances"
 											count={allowances.length}
 										/>
-										<List>{allowances.map(bucketRow)}</List>
+										<List className={bucketList}>{allowances.map(bucketRow)}</List>
 									</Section>
 								) : null}
 							</div>
@@ -814,6 +814,9 @@ function PlanLink({ month, children }: { month: MonthState["month"]; children: s
 	);
 }
 
+/** Below 640px a list of Buckets knows its width in text sizes, so its rows can stack at 200%. */
+const bucketList = "max-sm:@container/buckets";
+
 /**
  * A Bucket this month: its bar fills with what's spent out of Available, against the Today line
  * (its Pace). Its Covers and their Undo are on its own page (#87); "moved in" beneath the bar
@@ -849,6 +852,9 @@ function BucketRow({
 			className={cn(
 				"relative transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60",
 				"has-focus-visible:outline-2 has-focus-visible:-outline-offset-2 has-focus-visible:outline-ring",
+				// In a list under 15 text sizes wide (a phone with text at about 200%) the row stacks: the
+				// tile goes and the name has the whole line, so "Groceries" is neither broken nor cut.
+				"@max-[15rem]/buckets:flex @max-[15rem]/buckets:flex-col @max-[15rem]/buckets:items-stretch @max-[15rem]/buckets:gap-y-1.5 @max-[15rem]/buckets:*:first:hidden",
 			)}
 			leading={<Tile bucket={color}>{monogram(bucket.name)}</Tile>}
 			title={

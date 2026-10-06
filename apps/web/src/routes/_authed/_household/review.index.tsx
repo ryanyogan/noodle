@@ -67,6 +67,7 @@ import {
 	betweenUsDone,
 	betweenUsOffer,
 	largeTextButton,
+	largeTextPicker,
 	parentNames,
 } from "../../../components/review-between-us";
 import { RuleForm } from "../../../components/rule-form";
@@ -1773,6 +1774,7 @@ function ReviewCard({
 							"min-w-0 flex-1",
 							// A stacked card (text at 200%): a line to itself, as beside Edit it read "Pi…".
 							"@max-[15rem]/card:basis-full!",
+							largeTextPicker,
 							item.guess && "max-[359px]:order-last max-[359px]:basis-full",
 							(payment || between) && "max-sm:order-last",
 							// On the narrowest phones "It’s a card payment" shares the picker's row. Each
