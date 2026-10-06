@@ -69,7 +69,7 @@ test("whose pay is said in the Income table, totalled per Parent, and typed Inco
 	await income(page).getByRole("button", { name: "Actions for $2,500 of income" }).click();
 	await page.getByRole("menuitem", { name: "Edit" }).click();
 	const sheet = page.getByRole("dialog", { name: "Edit income" });
-	await sheet.getByLabel("From").fill("September pay");
+	await sheet.getByRole("textbox", { name: "From" }).fill("September pay");
 	await sheet.getByLabel("Amount").fill("2,600");
 	await sheet.getByRole("button", { name: "Save" }).click();
 	await expect(toast(page, "Saved your change to this Income")).toBeVisible();
