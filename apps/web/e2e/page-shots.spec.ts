@@ -545,7 +545,8 @@ test.beforeAll(async ({ browser }) => {
 						window: true,
 						ready: async (page: Page) => {
 							await page.getByRole("button", { name: "Toggle sidebar" }).click();
-							await expect(page.getByRole("button", { name: "Quick Add" }).first()).toBeVisible();
+							// The rail slides shut: wait for it to settle.
+							await page.waitForTimeout(500);
 							await page.mouse.move(700, 500);
 						},
 					},
