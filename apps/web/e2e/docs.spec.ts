@@ -173,7 +173,9 @@ test.describe("from the app", () => {
 	test("on a phone, More has a Docs link beside the account", { tag: "@phone" }, async ({
 		browser,
 	}) => {
-		for (const width of [393, 320]) {
+		// At 320 and 375 Docs and Sign out take a line of their own, so nothing in
+		// the foot is cut short ("Manage account" read "Ma…" beside them).
+		for (const width of [393, 375, 320]) {
 			const page = await signedInPage(browser, parent.email, {
 				...phone,
 				viewport: { width, height: 852 },
@@ -184,6 +186,15 @@ test.describe("from the app", () => {
 				.getByRole("region", { name: "Your account" })
 				.getByRole("link", { name: "Docs" });
 			await expect(link).toBeInViewport({ ratio: 0.99 });
+			const account = sheet.getByRole("region", { name: "Your account" });
+			for (const words of ["Theme", "Manage account", "Sign out"]) {
+				const text = account.getByText(words, { exact: true });
+				await expect(text).toBeInViewport({ ratio: 0.99 });
+				expect(
+					await text.evaluate((el) => el.scrollWidth <= el.clientWidth),
+					`${words} in full at ${width}`,
+				).toBe(true);
+			}
 			await expectNoOverflow(page);
 			await shot(page, `more-${width}-light`);
 			if (width === 393) {
