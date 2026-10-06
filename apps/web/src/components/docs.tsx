@@ -1,8 +1,16 @@
 import { Input } from "@noodle/ui/components/input";
 import { cn } from "@noodle/ui/lib/utils";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Search } from "lucide-react";
-import { type KeyboardEvent, type ReactNode, useId, useMemo, useState } from "react";
+import {
+	type KeyboardEvent,
+	type ReactNode,
+	useEffect,
+	useId,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { type DocsArticle, docsBySection, searchDocs } from "../docs";
 import type { Block, Inline } from "../docs/markdown";
 
@@ -112,8 +120,16 @@ export function DocsSearch({ className }: { className?: string }) {
 
 /** Every article under its section; the one being read is marked. */
 export function DocsNav({ onPick, label }: { onPick?: () => void; label: string }) {
+	const nav = useRef<HTMLElement>(null);
+	const pathname = useRouterState({ select: (state) => state.location.pathname });
+	// The list is longer than the screen: bring the article being read into view in it, when the
+	// list is first drawn (the phone's sheet opening) and when another article is opened.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: pathname is when to look again.
+	useEffect(() => {
+		nav.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: "nearest" });
+	}, [pathname]);
 	return (
-		<nav aria-label={label} className="grid gap-6">
+		<nav ref={nav} aria-label={label} className="grid gap-6">
 			{docsBySection.map(({ section, articles }) => (
 				<div key={section} className="grid gap-1">
 					<p className="px-3 text-xs font-semibold uppercase tracking-wide text-subtle-foreground">
