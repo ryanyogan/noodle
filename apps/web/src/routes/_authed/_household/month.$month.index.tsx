@@ -721,14 +721,21 @@ function FreeToSpend({
 						</p>
 					) : null}
 					{carry.builtUp.length > 1 && state.freeCarriedIn !== 0 ? (
-						<div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] text-muted-foreground tabular-nums">
+						// On a phone a list of two columns, month and amount, under its name: as one wrapped
+						// line it broke wherever it fell, between a month and its amount at 320px (issue 74).
+						<div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] text-muted-foreground tabular-nums max-sm:flex-col">
 							{/* The list's name says the same to a screen reader. */}
 							<span aria-hidden="true">Each month carried over:</span>
-							<ul aria-label="What each month carried over into the next" className="contents">
+							<ul
+								aria-label="What each month carried over into the next"
+								className="contents max-sm:grid max-sm:w-fit max-sm:grid-cols-[auto_auto] max-sm:gap-x-4 max-sm:gap-y-0.5"
+							>
 								{carry.builtUp.map((m) => (
-									<li key={m.month}>
-										{monthName(m.month).slice(0, 3)}{" "}
-										{m.amount < 0 ? `${formatMoney(-m.amount)} short` : formatMoney(m.amount)}
+									<li key={m.month} className="max-sm:contents">
+										<span>{monthName(m.month).slice(0, 3)}</span>{" "}
+										<span className="max-sm:text-end">
+											{m.amount < 0 ? `${formatMoney(-m.amount)} short` : formatMoney(m.amount)}
+										</span>
 									</li>
 								))}
 							</ul>
