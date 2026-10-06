@@ -202,6 +202,26 @@ export async function updateCommitment(
 			after: { name: input.name },
 		},
 	);
+	// Switched to or from "about": said in the Plan's history, only when it really changes.
+	const aboutLog =
+		input.about === undefined
+			? []
+			: [
+					logChange(
+						db,
+						commitments,
+						and(own, sql`${commitments.about} is not ${input.about ? 1 : 0}`),
+						{
+							...input,
+							// It holds for every month, whatever the terms' own reach.
+							scope: "from-on",
+							kind: "commitment-terms",
+							targetId: input.commitmentId,
+							before: sql`json_object('about', json(case when ${commitments.about} then 'true' else 'false' end))`,
+							after: { about: input.about },
+						},
+					),
+				];
 	const rename = db
 		.update(commitments)
 		.set({ name: input.name, ...(input.about === undefined ? {} : { about: input.about }) })
@@ -231,11 +251,12 @@ export async function updateCommitment(
 			: [];
 	const restore = restoreAfterJust(series as ({ month: MonthKey } & Terms)[], input.month);
 	if (!restore) {
-		await db.batch([renameLog, rename, log, write]);
+		await db.batch([renameLog, ...aboutLog, rename, log, write]);
 		return;
 	}
 	await db.batch([
 		renameLog,
+		...aboutLog,
 		rename,
 		log,
 		// Guarded like the change itself; the next month's own terms always win, even ones

@@ -63,6 +63,8 @@ export type DraftCommitmentToAdd = {
 	amountCents: Cents;
 	cadence: Cadence;
 	dueDate: DayKey;
+	/** Its amount is "about": it varies. */
+	about?: boolean | undefined;
 };
 
 export type DraftBucketToAdd = {

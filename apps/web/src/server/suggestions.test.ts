@@ -1,4 +1,11 @@
-import { addBucket, createHouseholdForParent, type Db, loadOpenSuggestions } from "@noodle/db";
+import {
+	addBucket,
+	addCommitment,
+	createHouseholdForParent,
+	type Db,
+	loadOpenSuggestions,
+	loadPlanRecords,
+} from "@noodle/db";
 import { buckets, commitments, rules, suggestions } from "@noodle/db/schema";
 import { testDb } from "@noodle/db/test-db";
 import { isValid } from "ulid";
@@ -134,5 +141,69 @@ describe("other decisions", () => {
 		]);
 		expect(await db.select().from(rules)).toHaveLength(1);
 		expect((await loadOpenSuggestions(db, viewer)).map((item) => item.id)).toEqual(["gym"]);
+	});
+});
+
+describe("a new amount for a bill that varies", () => {
+	const power = {
+		householdId,
+		memberId: "alex",
+		commitmentId: "power",
+		name: "Power",
+		month: "2026-01",
+		amountCents: 14_000,
+		cadence: "monthly",
+		dueDate: "2026-01-15",
+		about: true,
+	} as const;
+	const drift = {
+		kind: "commitment-amount",
+		commitmentId: "power",
+		name: "Power",
+		amountCents: 16_100,
+		cadence: "monthly",
+		dueDate: "2026-01-15",
+		about: true,
+		lowCents: 12_000,
+		highCents: 21_000,
+	} as const;
+	const powerNow = async () => {
+		const records = await loadPlanRecords(db, householdId, "2099-12");
+		return {
+			about: records.commitments.find((c) => c.id === "power")?.about,
+			amounts: records.commitmentTerms
+				.filter((t) => t.commitmentId === "power")
+				.map((t) => t.amount),
+		};
+	};
+
+	beforeEach(async () => {
+		await addCommitment(db, power);
+		await db.insert(suggestions).values({
+			id: "drift",
+			householdId,
+			kind: "commitment-amount",
+			key: "drift",
+			payload: drift,
+			evidence,
+			fingerprint: "drift",
+		});
+	});
+
+	it("sets the Plan's amount to the average and leaves the Commitment about", async () => {
+		await applyDecision(db, who, add("drift"), defer);
+		expect(await powerNow()).toEqual({ about: true, amounts: [14_000, 16_100] });
+		expect((await loadOpenSuggestions(db, viewer)).map((s) => s.id)).not.toContain("drift");
+	});
+
+	it("changes nothing more when Update is sent twice", async () => {
+		await applyDecision(db, who, add("drift"), defer);
+		await applyDecision(db, who, add("drift"), defer);
+		expect(await powerNow()).toEqual({ about: true, amounts: [14_000, 16_100] });
+	});
+
+	it("“Not now” leaves the amount as it was", async () => {
+		await applyDecision(db, who, { suggestionId: "drift", decision: "not-now" }, defer);
+		expect(await powerNow()).toEqual({ about: true, amounts: [14_000] });
 	});
 });

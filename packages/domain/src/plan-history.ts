@@ -38,6 +38,8 @@ export type PlanChangeValue = {
 	until?: MonthKey | null;
 	/** The name of the card or loan a Commitment pays down; null for none (issue 93). */
 	paysDown?: string | null;
+	/** A Commitment's amount is "about" (it varies) or the same each time (issue 135). */
+	about?: boolean;
 };
 
 /** Where a Plan change was made: the Plan itself, or a Scenario applied to it. */

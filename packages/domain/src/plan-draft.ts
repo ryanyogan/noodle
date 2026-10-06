@@ -3,6 +3,7 @@ import type { Cadence } from "./commitments";
 import { type InsightSpend, services } from "./insights";
 import type { Cents } from "./money";
 import { addDays, type DayKey, daysBetween } from "./month";
+import { billKindOf } from "./suggestions";
 
 // The first Plan, drafted from a new Household's history: whatever came in first (statements
 // today, a Bank Connection later), read the same way. Plain code finds the paychecks behind a
@@ -113,7 +114,17 @@ export type DraftTakeHomePay = {
 	amount: Cents;
 	paychecks: (Paycheck & { name: string })[];
 };
-export type DraftCommitment = DetectedCommitment & { key: string; name: string; merchant: string };
+export type DraftCommitment = DetectedCommitment & {
+	key: string;
+	name: string;
+	merchant: string;
+	/** Offered as an "about" amount: a utility, whose bill varies (issue 135). */
+	about?: true;
+};
+
+/** Whether a found bill is a utility (power, water, gas), by its name or the bank's wording. */
+export const draftVaries = (name: string, description: string): boolean =>
+	billKindOf(name) === "utility" || billKindOf(description) === "utility";
 export type DraftBucket = {
 	key: string;
 	name: string;
@@ -398,6 +409,7 @@ export function draftPlan(
 				merchant: c.key,
 				name: nameOf(c.key, c.description),
 			}))
+			.map((c) => (draftVaries(c.name, c.description) ? { ...c, about: true as const } : c))
 			.filter(
 				(c) => !decided.has(c.key) && !planned.has(lower(c.name)) && !planned.has(c.merchant),
 			),

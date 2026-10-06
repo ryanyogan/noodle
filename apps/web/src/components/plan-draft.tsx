@@ -100,6 +100,8 @@ const commitmentToAdd = (c: DraftCommitment, name = c.name, amountCents = c.amou
 	amountCents,
 	cadence: c.cadence,
 	dueDate: c.dueDate,
+	// A utility is added as an "about" amount: it varies (issue 135).
+	...(c.about ? { about: true } : {}),
 });
 
 const bucketToAdd = (b: DraftBucket, name = b.name, allowanceCents = b.allowance) => ({
@@ -163,7 +165,7 @@ export function PlanDraftSection({ planned = [] }: { planned?: string[] }) {
 								key={c.key}
 								name={c.name}
 								renamable
-								meta={`Last charged ${shortDay(c.dueDate)}`}
+								meta={`Last charged ${shortDay(c.dueDate)}${c.about ? " · it varies, so it’s added as About" : ""}`}
 								amount={c.amount}
 								per={cadenceWords[c.cadence]}
 								onAdd={(name, amountCents) =>

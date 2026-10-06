@@ -85,6 +85,8 @@ export function startingBills(
 		amountCents: 0,
 		cadence: "monthly",
 		dueDay: bill.dueDay,
+		// A utility bill varies: planned as "about" unless the Parent says otherwise.
+		...(bill.key === "utilities" ? { about: true } : {}),
 		ticked: false,
 		amount: "",
 		touched: false,
@@ -128,6 +130,7 @@ export function mergeDraftBills(
 			ticked: true,
 			suggested: true,
 			draftKey: found.key,
+			...(found.about ? { about: true } : {}),
 		};
 		const words = `${found.name} ${found.merchant} ${found.description}`;
 		const common = next.findIndex(
@@ -209,7 +212,8 @@ export function planBillWrites(
 				prev.name !== bill.name ||
 				prev.amountCents !== bill.amountCents ||
 				prev.dueDay !== bill.dueDay ||
-				prev.cadence !== bill.cadence;
+				prev.cadence !== bill.cadence ||
+				(prev.about ?? false) !== (bill.about ?? false);
 			if (changed) out.update.push(bill);
 			out.rows.push(bill);
 			continue;

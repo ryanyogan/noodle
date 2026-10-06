@@ -429,6 +429,7 @@ export {
 	draftFindings,
 	draftIsEmpty,
 	draftPlan,
+	draftVaries,
 	EVERYDAY_BUCKET,
 	MAX_DRAFT_MERCHANTS,
 	merchantsToLabel,
