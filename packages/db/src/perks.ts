@@ -100,6 +100,152 @@ function loadAccountsWithBank(db: Db, householdId?: string): Promise<CardAccount
 		.where(householdId ? eq(accounts.householdId, householdId) : undefined);
 }
 
+/** What tells two Perk Sources are one card or membership. */
+type Foldable = {
+	id: string;
+	name: string;
+	kind: string;
+	seenIn: string | null;
+	status: string;
+	fingerprint: string;
+	ownerMemberId: string | null;
+	createdAt: Date;
+};
+
+/** The card Accounts a Perk Source is: the one it's bound to, else those its name tells. */
+function cardAccountsOf(row: Foldable, cardAccounts: CardAccount[]): CardAccount[] {
+	if (row.kind !== "credit-card") return [];
+	const bound = boundAccountId(row.fingerprint);
+	return bound
+		? cardAccounts.filter((account) => account.id === bound)
+		: cardAccounts.filter((account) => namedFor(row, account.name));
+}
+
+/** A name as a Parent would know it again: its letter case and spaces aside. */
+const nameKey = (row: Foldable) =>
+	`${row.ownerMemberId ?? ""}|${row.kind}|${row.name.toLowerCase().replace(/\s+/g, "")}`;
+
+/**
+ * Perk Sources that are the same card or membership, together (issue 119): a Household may hold
+ * two for one Account from before adding one twice was stopped. Two are the same when they are
+ * the same card Account's, or, for one that is no Account's, when they have the same kind and
+ * name (letter case and spaces aside). Nothing stored changes: they are read as one. Each group
+ * has the kept one first: the one bound to the Account, else a confirmed one, else the oldest.
+ * The groups come in the order of their kept ones.
+ */
+function foldDuplicates<T extends Foldable>(rows: T[], cardAccounts: CardAccount[]): T[][] {
+	const groups: T[][] = [];
+	const byAccount = new Map<string, T[]>();
+	const loose: T[] = [];
+	for (const row of rows) {
+		const account = cardAccountsOf(row, cardAccounts)[0];
+		if (!account) {
+			loose.push(row);
+			continue;
+		}
+		const key = `${row.ownerMemberId ?? ""}|${account.id}`;
+		const group = byAccount.get(key);
+		if (group) group.push(row);
+		else {
+			const made = [row];
+			byAccount.set(key, made);
+			groups.push(made);
+		}
+	}
+	for (const row of loose) {
+		const key = nameKey(row);
+		const group = groups.find((members) => members.some((member) => nameKey(member) === key));
+		if (group) group.push(row);
+		else groups.push([row]);
+	}
+	const rank = (row: T) =>
+		(boundAccountId(row.fingerprint) !== null ? 0 : 2) + (row.status === "confirmed" ? 0 : 1);
+	const place = new Map(rows.map((row, index) => [row.id, index]));
+	const placeOf = (row: T | undefined) => (row ? (place.get(row.id) ?? 0) : 0);
+	return groups
+		.map((members) =>
+			[...members].sort(
+				(a, b) =>
+					rank(a) - rank(b) ||
+					a.createdAt.getTime() - b.createdAt.getTime() ||
+					a.id.localeCompare(b.id),
+			),
+		)
+		.sort((a, b) => placeOf(a[0]) - placeOf(b[0]));
+}
+
+const foldable = {
+	id: perkSources.id,
+	name: perkSources.name,
+	kind: perkSources.kind,
+	seenIn: perkSources.seenIn,
+	status: perkSources.status,
+	fingerprint: perkSources.fingerprint,
+	ownerMemberId: perkSources.ownerMemberId,
+	createdAt: perkSources.createdAt,
+};
+
+/** The Perk Sources `viewer` may read that weren't dismissed, the same ones together. */
+async function loadFolded(db: Db, viewer: Viewer): Promise<Foldable[][]> {
+	const rows = await db
+		.select(foldable)
+		.from(perkSources)
+		.where(and(readableBy(viewer), ne(perkSources.status, "dismissed")))
+		.orderBy(perkSources.createdAt, perkSources.id);
+	if (rows.length < 2) return rows.map((row) => [row]);
+	const cardAccounts = (await loadAccountsWithBank(db, viewer.householdId)).filter(
+		(account) => account.kind === "credit-card",
+	);
+	return foldDuplicates(rows, cardAccounts);
+}
+
+/**
+ * The confirmed Perk Source a card or membership a Parent is adding already is, if there is one
+ * (issue 119): the same Account's, the same catalog product, or the same name. The add sheet then
+ * says it's already there instead of adding it again.
+ */
+export async function perkSourceAlreadyThere(
+	db: Db,
+	viewer: Viewer,
+	input: { name: string; kind: PerkSourceKind },
+): Promise<{ id: string; name: string } | null> {
+	const rows: Foldable[] = await db
+		.select(foldable)
+		.from(perkSources)
+		.where(
+			and(
+				eq(perkSources.householdId, viewer.householdId),
+				isNull(perkSources.ownerMemberId),
+				ne(perkSources.status, "dismissed"),
+			),
+		)
+		.orderBy(perkSources.createdAt, perkSources.id);
+	if (rows.length === 0) return null;
+	const cardAccounts = (await loadAccountsWithBank(db, viewer.householdId)).filter(
+		(account) => account.kind === "credit-card",
+	);
+	const entry = catalogEntryFor(input.name);
+	const adding: Foldable = {
+		id: "",
+		name: input.name,
+		kind: input.kind,
+		seenIn: null,
+		status: "confirmed",
+		fingerprint: fingerprintOf(null, entry ? `catalog:${entry.key}` : "own:"),
+		ownerMemberId: null,
+		createdAt: new Date(8.64e15),
+	};
+	const same =
+		foldDuplicates([...rows, adding], cardAccounts)
+			.find((members) => members.includes(adding))
+			?.find((member) => member !== adding) ??
+		rows.find((row) => row.fingerprint === adding.fingerprint);
+	if (!same) return null;
+	// As the Perks page shows it: the kept one of those that are the same.
+	const kept = foldDuplicates(rows, cardAccounts).find((members) => members.includes(same))?.[0];
+	return kept?.status === "confirmed" ? { id: kept.id, name: kept.name } : null;
+}
+
 /**
  * Every credit card a Bank Connection brought in gets a Perk Source of its own, confirmed, without
  * a Parent adding it. Idempotent: an Account that has one (bound to it, or told by its
@@ -375,7 +521,11 @@ export type PerkSourceItem = {
 	perks: PerkItem[];
 };
 
-/** The Perk Sources `viewer` may read that weren't dismissed, suggestions first, with their Perks. */
+/**
+ * The Perk Sources `viewer` may read that weren't dismissed, suggestions first, with their Perks.
+ * Ones that are the same card or membership show as one (issue 119): the kept one, with every
+ * Perk of either once, and a use marked on both counted once.
+ */
 export async function loadPerkSources(
 	db: Db,
 	viewer: Viewer,
@@ -429,14 +579,7 @@ export async function loadPerkSources(
 	// card isn't this card's hotel credit used. Other Perk Sources count any of the spending.
 	const allAccounts = await loadAccountsWithBank(db, viewer.householdId);
 	const cardAccounts = allAccounts.filter((account) => account.kind === "credit-card");
-	/** The card Accounts a Perk Source is: the one it's bound to, else those its name tells. */
-	const accountsOf = (row: (typeof rows)[number]) => {
-		if (row.kind !== "credit-card") return [];
-		const bound = boundAccountId(row.fingerprint);
-		return bound
-			? cardAccounts.filter((account) => account.id === bound)
-			: cardAccounts.filter((account) => namedFor(row, account.name));
-	};
+	const accountsOf = (row: (typeof rows)[number]) => cardAccountsOf(row, cardAccounts);
 	const spendsFor = (row: (typeof rows)[number]) => {
 		if (row.kind !== "credit-card") return spends;
 		const own = new Set(accountsOf(row).map((account) => account.id));
@@ -458,22 +601,46 @@ export async function loadPerkSources(
 	};
 	const accountNames = Object.fromEntries(allAccounts.map((account) => [account.id, account.name]));
 	const usesOf = (perkId: string) => uses.filter((use) => use.perkId === perkId);
-	const worthOf = (row: (typeof rows)[number]): WorthLine[] => {
+	type Folded = { perk: (typeof found)[number]; uses: typeof uses };
+	/** The Perks of Perk Sources that are the same, each once, the kept one's own first. */
+	const perksOf = (members: (typeof rows)[number][]): Folded[] => {
+		const byKey = new Map<string, Folded>();
+		for (const member of members) {
+			for (const perk of found.filter((p) => p.perkSourceId === member.id)) {
+				const own = usesOf(perk.id);
+				const kept = byKey.get(perk.key);
+				if (!kept) {
+					byKey.set(perk.key, { perk, uses: own });
+					continue;
+				}
+				// A use marked on both for one day is one use.
+				const days = new Set(kept.uses.map((use) => use.usedOn));
+				kept.uses = [...kept.uses, ...own.filter((use) => !days.has(use.usedOn))].sort(
+					(a, b) =>
+						b.usedOn.localeCompare(a.usedOn) || b.createdAt.getTime() - a.createdAt.getTime(),
+				);
+				if (kept.perk.valueCents === null && kept.perk.renews === null) {
+					kept.perk = { ...kept.perk, valueCents: perk.valueCents, renews: perk.renews };
+				}
+			}
+		}
+		const place = (perk: Folded["perk"]) => found.findIndex((p) => p.id === perk.id);
+		return [...byKey.values()].sort((a, b) => place(a.perk) - place(b.perk));
+	};
+	const worthOf = (row: (typeof rows)[number], folded: Folded[]): WorthLine[] => {
 		if (!look || row.kind !== "credit-card" || row.status !== "confirmed") return [];
 		return worthUsing({
 			cardAccountId: accountsOf(row)[0]?.id ?? null,
-			perks: found
-				.filter((perk) => perk.perkSourceId === row.id)
-				.map((perk) => ({
-					id: perk.id,
-					name: perk.name,
-					kind: perk.kind,
-					matches: perk.matches,
-					quote: perk.quote,
-					valueCents: perk.valueCents,
-					renews: perk.renews,
-					usedOn: usesOf(perk.id).map((use) => use.usedOn as DayKey),
-				})),
+			perks: folded.map(({ perk, uses: marked }) => ({
+				id: perk.id,
+				name: perk.name,
+				kind: perk.kind,
+				matches: perk.matches,
+				quote: perk.quote,
+				valueCents: perk.valueCents,
+				renews: perk.renews,
+				usedOn: marked.map((use) => use.usedOn as DayKey),
+			})),
 			spends: spends.map((s, index) => ({
 				id: s.id ?? String(index),
 				date: s.date,
@@ -485,26 +652,38 @@ export async function loadPerkSources(
 			asOf: look.asOf,
 		});
 	};
-	const spendsBySource = new Map(rows.map((row) => [row.id, spendsFor(row)]));
-	return rows.map((row) => ({
-		id: row.id,
-		name: row.name,
-		kind: row.kind,
-		plan: row.plan,
-		planOptions: row.planOptions ?? [],
-		pageUrl: row.pageUrl,
-		seenIn: row.seenIn,
-		status: row.status as PerkSourceItem["status"],
-		research: row.research,
-		checkedAt: row.checkedAt?.getTime() ?? null,
-		private: row.ownerMemberId !== null,
-		annualFeeCents: row.annualFeeCents,
-		asOf: look?.asOf ?? null,
-		card: cardOf(row),
-		worth: worthOf(row),
-		perks: found
-			.filter((perk) => perk.perkSourceId === row.id)
-			.map((perk) => ({
+	return foldDuplicates(rows, cardAccounts).flatMap((members) => {
+		const row = members[0];
+		if (!row) return [];
+		const folded = perksOf(members);
+		const ownSpends = spendsFor(row);
+		return [sourceItem(row, members, folded, ownSpends)];
+	});
+	function sourceItem(
+		row: (typeof rows)[number],
+		members: (typeof rows)[number][],
+		folded: Folded[],
+		ownSpends: typeof spends,
+	): PerkSourceItem {
+		return {
+			id: row.id,
+			name: row.name,
+			kind: row.kind,
+			plan: row.plan,
+			planOptions: row.planOptions ?? [],
+			pageUrl: row.pageUrl,
+			seenIn: row.seenIn,
+			status: row.status as PerkSourceItem["status"],
+			research: row.research,
+			checkedAt: row.checkedAt?.getTime() ?? null,
+			private: row.ownerMemberId !== null,
+			// A fee typed on one that is now hidden still counts.
+			annualFeeCents:
+				members.find((member) => member.annualFeeCents !== null)?.annualFeeCents ?? null,
+			asOf: look?.asOf ?? null,
+			card: cardOf(row),
+			worth: worthOf(row, folded),
+			perks: folded.map(({ perk, uses: marked }) => ({
 				id: perk.id,
 				name: perk.name,
 				kind: perk.kind,
@@ -514,14 +693,11 @@ export async function loadPerkSources(
 				checkedAt: perk.checkedAt.getTime(),
 				valueCents: perk.valueCents,
 				renews: perk.renews,
-				uses: uses
-					.filter((use) => use.perkId === perk.id)
-					.map((use) => ({ id: use.id, on: use.usedOn as DayKey, note: use.note })),
-				spentOn: (spendsBySource.get(row.id) ?? [])
-					.filter((s) => mentions(s.note, perk.matches))
-					.map((s) => s.date),
+				uses: marked.map((use) => ({ id: use.id, on: use.usedOn as DayKey, note: use.note })),
+				spentOn: ownSpends.filter((s) => mentions(s.note, perk.matches)).map((s) => s.date),
 			})),
-	}));
+		};
+	}
 }
 
 /**
@@ -543,23 +719,34 @@ export async function decidePerkSource(
 			.returning({ id: perkSources.id });
 		return changed.length > 0;
 	}
-	const [changed] = await db.batch([
-		db
-			.update(perkSources)
-			.set({ status: "dismissed", decidedByMemberId: viewer.memberId })
-			.where(and(target, ne(perkSources.status, "dismissed")))
-			.returning({ id: perkSources.id }),
-		// Only once it's dismissed, whoever wins a race.
-		db
-			.delete(perks)
-			.where(
-				and(
-					eq(perks.perkSourceId, input.id),
-					sql`exists (select 1 from ${perkSources} where ${perkSources.id} = ${input.id} and ${perkSources.status} = 'dismissed' and ${target})`,
+	// Ones that show as the same card or membership go together (issue 119), or the hidden one
+	// would take the removed one's place.
+	const same = (await loadFolded(db, viewer)).find((members) =>
+		members.some((member) => member.id === input.id),
+	);
+	const ids = same ? same.map((member) => member.id) : [input.id];
+	let changed = false;
+	for (const id of ids) {
+		const one = and(readableBy(viewer), eq(perkSources.id, id));
+		const [gone] = await db.batch([
+			db
+				.update(perkSources)
+				.set({ status: "dismissed", decidedByMemberId: viewer.memberId })
+				.where(and(one, ne(perkSources.status, "dismissed")))
+				.returning({ id: perkSources.id }),
+			// Only once it's dismissed, whoever wins a race.
+			db
+				.delete(perks)
+				.where(
+					and(
+						eq(perks.perkSourceId, id),
+						sql`exists (select 1 from ${perkSources} where ${perkSources.id} = ${id} and ${perkSources.status} = 'dismissed' and ${one})`,
+					),
 				),
-			),
-	]);
-	return changed.length > 0;
+		]);
+		changed ||= gone.length > 0;
+	}
+	return changed;
 }
 
 /** The Perk Source bound to a linked card Account that this name tells, if there is one. */
@@ -832,7 +1019,25 @@ export async function loadInsightPerks(db: Db, viewer: Viewer): Promise<InsightP
 		.innerJoin(perkSources, eq(perkSources.id, perks.perkSourceId))
 		// What a card earns more on covers no cost and includes no service: no Overlap rests on it.
 		.where(and(readableBy(viewer), eq(perkSources.status, "confirmed"), ne(perks.kind, "earn")));
-	return rows.map(({ owner, ...perk }) => ({ ...perk, private: owner !== null }));
+	// A Perk two Perk Sources that are the same both hold is one Perk: the kept one's (issue 119).
+	const keptOf = new Map<string, string>();
+	for (const members of await loadFolded(db, viewer)) {
+		for (const member of members) keptOf.set(member.id, members[0]?.id ?? member.id);
+	}
+	const kept = (perk: { sourceId: string }) => keptOf.get(perk.sourceId) ?? perk.sourceId;
+	const own = new Set(
+		rows.filter((perk) => kept(perk) === perk.sourceId).map((p) => `${p.sourceId}|${p.key}`),
+	);
+	const once = new Set<string>();
+	return rows
+		.filter((perk) => {
+			const mark = `${kept(perk)}|${perk.key}`;
+			if (kept(perk) === perk.sourceId) return true;
+			if (own.has(mark) || once.has(mark)) return false;
+			once.add(mark);
+			return true;
+		})
+		.map(({ owner, ...perk }) => ({ ...perk, private: owner !== null }));
 }
 
 /** Perks by ID, with their Perk Source's name, as `viewer` may read them. */
@@ -863,24 +1068,43 @@ export async function loadPerksById(
 	}));
 }
 
+/**
+ * The Perk a Parent's change to `perkId` is stored on, or null when they may not read it: the
+ * Perk itself, or the kept Perk Source's own when a hidden one that is the same holds it too
+ * (issue 119).
+ */
+async function keptPerkId(db: Db, viewer: Viewer, perkId: string): Promise<string | null> {
+	const [perk] = await db
+		.select({ id: perks.id, key: perks.key, sourceId: perks.perkSourceId })
+		.from(perks)
+		.innerJoin(perkSources, eq(perkSources.id, perks.perkSourceId))
+		.where(and(readableBy(viewer), eq(perks.id, perkId)));
+	if (!perk) return null;
+	const kept = (await loadFolded(db, viewer)).find((members) =>
+		members.some((member) => member.id === perk.sourceId),
+	)?.[0];
+	if (!kept || kept.id === perk.sourceId) return perk.id;
+	const [same] = await db
+		.select({ id: perks.id })
+		.from(perks)
+		.where(and(eq(perks.perkSourceId, kept.id), eq(perks.key, perk.key)));
+	return same?.id ?? perk.id;
+}
+
 /** A Parent marks a Perk they may read used on `on`, with a short note. Returns whether it was stored. */
 export async function addPerkUse(
 	db: Db,
 	viewer: Viewer,
 	input: { id: string; perkId: string; on: DayKey; note: string | null },
 ): Promise<boolean> {
-	const [perk] = await db
-		.select({ id: perks.id })
-		.from(perks)
-		.innerJoin(perkSources, eq(perkSources.id, perks.perkSourceId))
-		.where(and(readableBy(viewer), eq(perks.id, input.perkId)));
-	if (!perk) return false;
+	const perkId = await keptPerkId(db, viewer, input.perkId);
+	if (!perkId) return false;
 	await db
 		.insert(perkUses)
 		.values({
 			id: input.id,
 			householdId: viewer.householdId,
-			perkId: input.perkId,
+			perkId,
 			memberId: viewer.memberId,
 			usedOn: input.on,
 			note: input.note,
@@ -925,13 +1149,8 @@ export async function setPerkValue(
 		renews: (typeof perks.$inferInsert)["renews"];
 	},
 ): Promise<boolean> {
-	const [row] = await db
-		.select({ id: perks.id })
-		.from(perks)
-		.innerJoin(perkSources, eq(perks.perkSourceId, perkSources.id))
-		.where(and(eq(perks.id, input.id), readableBy(viewer)))
-		.limit(1);
-	if (!row) return false;
+	const id = await keptPerkId(db, viewer, input.id);
+	if (!id) return false;
 	await db
 		.update(perks)
 		.set({
@@ -939,6 +1158,6 @@ export async function setPerkValue(
 			renews: input.renews ?? null,
 			valueByHand: input.valueCents !== null || input.renews != null,
 		})
-		.where(eq(perks.id, input.id));
+		.where(eq(perks.id, id));
 	return true;
 }

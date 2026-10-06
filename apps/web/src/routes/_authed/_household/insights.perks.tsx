@@ -134,6 +134,15 @@ function PerksPage() {
 		setPicked(id);
 		requestAnimationFrame(() => document.getElementById(`perk-source-${id}-row`)?.focus());
 	};
+	/** From the add sheet's "Open it": the same, once the closing sheet has given focus back. */
+	const openFromSheet = (id: string) => {
+		setPicked(id);
+		setTimeout(() => {
+			const row = document.getElementById(`perk-source-${id}-row`);
+			row?.scrollIntoView({ block: "center" });
+			row?.focus({ preventScroll: true });
+		}, 250);
+	};
 	return (
 		<div className="grid gap-(--layout-gap)">
 			<div className="flex justify-end">
@@ -142,7 +151,7 @@ function PerksPage() {
 					Add a card or membership
 				</Button>
 			</div>
-			<AddPerkSourceSheet open={adding} onOpenChange={setAdding} />
+			<AddPerkSourceSheet open={adding} onOpenChange={setAdding} onOpenSource={openFromSheet} />
 			{sources.length === 0 ? (
 				<Card className="p-0">
 					<EmptyState

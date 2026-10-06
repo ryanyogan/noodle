@@ -7,6 +7,7 @@ import {
 	loadPerkSources,
 	nameCardProduct,
 	type PerkSourceItem,
+	perkSourceAlreadyThere,
 	removePerkUse as removePerkUseInDb,
 	setPerkSourceFee as setPerkSourceFeeInDb,
 	setPerkValue as setPerkValueInDb,
@@ -142,7 +143,14 @@ export const decidePerkSource = createServerFn({ method: "POST" })
 		if (data.status === "confirmed") await research(context.household, data.id);
 	});
 
-/** Adds a Perk Source for the Household, and researches its Perks. */
+/** What adding a card or membership came to: added, or it was already a Perk Source. */
+export type AddedPerkSource = { already: boolean; id: string; name: string };
+
+/**
+ * Adds a Perk Source for the Household, and researches its Perks. One that is already a confirmed
+ * Perk Source (the same Account's, or the same name) isn't added again: the answer says which
+ * one it is, so the sheet can say so and open it (issue 119).
+ */
 export const addPerkSource = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
 	.validator(
@@ -154,10 +162,28 @@ export const addPerkSource = createServerFn({ method: "POST" })
 			pageUrl: pageUrlSchema.nullable(),
 		}),
 	)
-	.handler(async ({ data, context }) => {
-		const id = await addPerkSourceInDb(getDb(), viewerOf(context), data);
+	.handler(async ({ data, context }): Promise<AddedPerkSource> => {
+		const db = getDb();
+		const viewer = viewerOf(context);
+		const there = await perkSourceAlreadyThere(db, viewer, data);
+		if (there) {
+			// A link pasted for it isn't lost: it's read from that page now.
+			if (data.pageUrl) {
+				const linked = await updatePerkSourceInDb(db, viewer, {
+					id: there.id,
+					pageUrl: data.pageUrl,
+				});
+				if (linked) {
+					await notifyHousehold(context.household.id, ["perks"]);
+					await research(context.household, there.id);
+				}
+			}
+			return { already: true, ...there };
+		}
+		const id = await addPerkSourceInDb(db, viewer, data);
 		await notifyHousehold(context.household.id, ["perks"]);
 		await research(context.household, id);
+		return { already: false, id, name: data.name };
 	});
 
 /** Says which plan tier a Perk Source is, links its page, or checks it again: then researches it. */

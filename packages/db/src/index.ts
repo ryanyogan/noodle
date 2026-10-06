@@ -676,6 +676,7 @@ export {
 	type PerkResearchOutcome,
 	type PerkSourceItem,
 	type PerkSourceToResearch,
+	perkSourceAlreadyThere,
 	perkSourcesToRecheck,
 	recordPerkSourceSuggestions,
 	removePerkUse,

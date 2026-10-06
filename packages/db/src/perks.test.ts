@@ -2,6 +2,7 @@ import type { FoundPerk, PerkSourceSuggestion } from "@noodle/domain";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	addPerkSource,
+	addPerkUse,
 	createHouseholdForParent,
 	type Db,
 	decidePerkSource,
@@ -12,6 +13,7 @@ import {
 	loadPerkSources,
 	loadPerkSourceToResearch,
 	nameCardProduct,
+	perkSourceAlreadyThere,
 	perkSourcesToRecheck,
 	recordInsights,
 	recordPerkSourceSuggestions,
@@ -21,7 +23,7 @@ import {
 	updatePerkSource,
 	type Viewer,
 } from "./index";
-import { accounts, bankConnections, members } from "./schema";
+import { accounts, bankConnections, members, perkSources, perks, perkUses } from "./schema";
 import { testDb } from "./test-db";
 
 const householdId = "household";
@@ -147,10 +149,14 @@ describe("addPerkSource", () => {
 			pageUrl: null,
 		});
 		const pages = (await loadPerkSources(db, sam)).map((s) => [s.id, s.pageUrl]);
-		expect(pages.sort()).toEqual([
-			["a", "https://example.org/visa"],
-			["b", null],
-		]);
+		// The same name twice is one card (issue 119): it shows once, the older one, its link kept.
+		expect(pages).toEqual([["a", "https://example.org/visa"]]);
+		expect(
+			await perkSourceAlreadyThere(db, sam, { name: "credit union visa", kind: "credit-card" }),
+		).toEqual({
+			id: "a",
+			name: "Credit union Visa",
+		});
 	});
 });
 
@@ -595,6 +601,193 @@ describe("linked cards (#96)", () => {
 		expect(loaded?.perks.find((p) => p.matches === "Kroger")?.spentOn).toEqual([]);
 		// What a card earns more on never makes an Overlap.
 		expect((await loadInsightPerks(db, alex)).map((p) => p.matches)).toEqual(["Kroger"]);
+	});
+
+	describe("the same card or membership twice (issue 119)", () => {
+		const kroger = perk({
+			name: "Kroger credit",
+			kind: "cost",
+			matches: "Kroger",
+			quote: "$10 monthly Kroger credit",
+			valueCents: 1000,
+			renews: "monthly",
+		});
+		const lounge = perk({
+			name: "Lounge visits",
+			kind: "cost",
+			matches: "Lounge",
+			quote: "Two lounge visits a year",
+			valueCents: 7000,
+			renews: "yearly",
+		});
+		const dining = perk({
+			name: "3x on dining",
+			kind: "earn",
+			matches: "Dining",
+			quote: "Earn 3x points on dining",
+		});
+
+		/** The linked Freedom card's own Perk Source, and a second one for it from before the fix. */
+		async function twoForOneAccount() {
+			await ensureCardPerkSources(db, { householdId, newId });
+			const kept = (await loadPerkSources(db, alex)).find((s) => s.card?.mask === "1234")
+				?.id as string;
+			await db.insert(perkSources).values({
+				id: "dup",
+				householdId,
+				name: "Chase Freedom Unlimited",
+				kind: "credit-card",
+				status: "confirmed",
+				research: "researching",
+				fingerprint: "household|own:dup",
+				annualFeeCents: 9500,
+				createdAt: new Date("2026-01-01T00:00:00Z"),
+			});
+			const sourceUrl = "https://chase.example/freedom";
+			await saveResearch(db, {
+				householdId,
+				perkSourceId: kept,
+				checkedAt,
+				newId,
+				outcome: { research: "done", sourceUrl, perks: [kroger, lounge] },
+			});
+			await saveResearch(db, {
+				householdId,
+				perkSourceId: "dup",
+				checkedAt,
+				newId,
+				outcome: { research: "done", sourceUrl, perks: [kroger, dining] },
+			});
+			const rows = await db.select().from(perks);
+			const idOf = (sourceId: string, matches: string) =>
+				rows.find((row) => row.perkSourceId === sourceId && row.matches === matches)?.id as string;
+			return { kept, idOf };
+		}
+
+		it("shows one Perk Source, each Perk once, and a use marked on both once", async () => {
+			const { kept, idOf } = await twoForOneAccount();
+			const day = (on: string) => on as never;
+			// The same day's use on both, and one more on each alone.
+			await addPerkUse(db, alex, {
+				id: "u1",
+				perkId: idOf(kept, "Kroger"),
+				on: day("2026-09-03"),
+				note: null,
+			});
+			await db.insert(perkUses).values([
+				{
+					id: "u2",
+					householdId,
+					perkId: idOf("dup", "Kroger"),
+					memberId: "alex",
+					usedOn: "2026-09-03",
+				},
+				{
+					id: "u3",
+					householdId,
+					perkId: idOf("dup", "Kroger"),
+					memberId: "sam",
+					usedOn: "2026-08-04",
+				},
+			]);
+			await addPerkUse(db, alex, {
+				id: "u4",
+				perkId: idOf(kept, "Kroger"),
+				on: day("2026-10-02"),
+				note: null,
+			});
+
+			const cards = (
+				await loadPerkSources(db, alex, { asOf: day("2026-10-05"), spends: [] })
+			).filter((s) => s.name === "Chase Freedom Unlimited");
+			expect(cards.map((s) => [s.id, s.card?.mask])).toEqual([[kept, "1234"]]);
+			const [card] = cards;
+			expect(card?.perks.map((p) => p.name).sort()).toEqual([
+				"3x on dining",
+				"Kroger credit",
+				"Lounge visits",
+			]);
+			const credit = card?.perks.find((p) => p.matches === "Kroger");
+			// It is the kept one's own Perk, with every day it was used, each once.
+			expect(credit?.id).toBe(idOf(kept, "Kroger"));
+			expect(credit?.uses.map((use) => use.on)).toEqual(["2026-10-02", "2026-09-03", "2026-08-04"]);
+			// What was used adds up once: three uses of a $10 credit, not four.
+			expect((credit?.uses.length ?? 0) * (credit?.valueCents ?? 0)).toBe(3000);
+			// A fee typed on the one that is hidden still shows.
+			expect(card?.annualFeeCents).toBe(9500);
+			// The Insight detectors get each Perk once too.
+			expect((await loadInsightPerks(db, alex)).map((p) => [p.matches, p.sourceId]).sort()).toEqual(
+				[
+					["Kroger", kept],
+					["Lounge", kept],
+				],
+			);
+		});
+
+		it("writes a use or a value for a hidden one's Perk to the kept one", async () => {
+			const { kept, idOf } = await twoForOneAccount();
+			expect(
+				await addPerkUse(db, alex, {
+					id: "u9",
+					perkId: idOf("dup", "Kroger"),
+					on: "2026-10-01" as never,
+					note: null,
+				}),
+			).toBe(true);
+			expect((await db.select().from(perkUses)).map((use) => use.perkId)).toEqual([
+				idOf(kept, "Kroger"),
+			]);
+			await setPerkValue(db, alex, {
+				id: idOf("dup", "Kroger"),
+				valueCents: 1500,
+				renews: "monthly",
+			});
+			const stored = await db.select().from(perks);
+			expect(stored.find((row) => row.id === idOf(kept, "Kroger"))?.valueCents).toBe(1500);
+			expect(stored.find((row) => row.id === idOf("dup", "Kroger"))?.valueCents).toBe(1000);
+		});
+
+		it("removing the card removes both, so the hidden one doesn't come back", async () => {
+			const { kept } = await twoForOneAccount();
+			expect(await decidePerkSource(db, alex, { id: kept, status: "dismissed" })).toBe(true);
+			expect(
+				(await loadPerkSources(db, alex)).filter((s) => s.name === "Chase Freedom Unlimited"),
+			).toEqual([]);
+		});
+
+		it("says a card or membership is already there, by its Account or by its name", async () => {
+			await ensureCardPerkSources(db, { householdId, newId });
+			const freedom = (await loadPerkSources(db, alex)).find((s) => s.card?.mask === "1234");
+			expect(
+				await perkSourceAlreadyThere(db, alex, {
+					name: "chase freedom  unlimited",
+					kind: "credit-card",
+				}),
+			).toEqual({ id: freedom?.id, name: "Chase Freedom Unlimited" });
+			// One that isn't an Account's: the same name, whatever its case and spaces.
+			const gym = await addPerkSource(db, alex, {
+				id: newId(),
+				name: "Corner Gym",
+				kind: "membership",
+				plan: null,
+				pageUrl: null,
+			});
+			expect(
+				await perkSourceAlreadyThere(db, alex, { name: " corner  GYM", kind: "membership" }),
+			).toEqual({ id: gym, name: "Corner Gym" });
+			expect(
+				await perkSourceAlreadyThere(db, alex, { name: "Corner Gym 2", kind: "membership" }),
+			).toBeNull();
+			// A suggestion isn't there yet, and neither is one a Parent removed.
+			await recordPerkSourceSuggestions(db, alex, [tMobile], newId);
+			expect(
+				await perkSourceAlreadyThere(db, alex, { name: "T-Mobile", kind: "phone-plan" }),
+			).toBeNull();
+			await decidePerkSource(db, alex, { id: gym, status: "dismissed" });
+			expect(
+				await perkSourceAlreadyThere(db, alex, { name: "Corner Gym", kind: "membership" }),
+			).toBeNull();
+		});
 	});
 
 	it("keeps a benefits page's text with its date, the latest in place of the last", async () => {

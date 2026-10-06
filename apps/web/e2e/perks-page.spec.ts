@@ -6,6 +6,7 @@ import {
 	accountKindLabel,
 	choose,
 	createPlannedHousehold,
+	savedBy,
 	serverFn,
 	signedInPage,
 } from "./session";
@@ -398,5 +399,42 @@ test("adding a card is one button and one sheet: search the known cards, pick on
 	await expect(card.getByRole("button", { name: "Remove" })).toBeVisible();
 	await expect(card.getByRole("button", { name: "Check again" })).toBeVisible();
 	expect(await noSideways(page)).toBe(true);
+	await page.context().close();
+});
+
+test("adding a card that is already there says so, adds nothing, and opens its row", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email);
+	await twoCards(page);
+	// By its markup, not its role: the page behind an open sheet is hidden from roles.
+	const rows = page.locator("article[aria-labelledby^='perk-source-']");
+	await expect(rows).toHaveCount(2);
+	// The last one added is open; the one added again is the other.
+	const amex = page.getByRole("article", { name: "Amex Platinum" });
+	await expect(amex.locator("h3").getByRole("button")).toHaveAttribute("aria-expanded", "false");
+
+	await page.getByRole("button", { name: "Add a card or membership" }).click();
+	const sheet = page.getByRole("dialog", { name: "Add a card or membership" });
+	await sheet.getByLabel("Card or membership").fill("amex  platinum");
+	const asked = savedBy(page, "addPerkSource");
+	await sheet.getByRole("button", { name: "Add and read its perks" }).click();
+	await asked;
+	await expect(sheet.getByRole("status")).toHaveText(
+		"Amex Platinum is already in Perks & Benefits, so nothing was added.",
+	);
+	await expect(rows).toHaveCount(2);
+	await expect(rows.filter({ hasText: "Amex Platinum" })).toHaveCount(1);
+
+	await sheet.getByRole("button", { name: "Open it" }).click();
+	await expect(sheet).toBeHidden();
+	await expect(amex.locator("h3").getByRole("button")).toHaveAttribute("aria-expanded", "true");
+	await expect(
+		amex.getByRole("list", { name: "Amex Platinum Perks" }).getByRole("listitem"),
+	).toHaveCount(4);
+	// Still there once, after the page loads again.
+	await page.reload();
+	await expect(rows).toHaveCount(2);
 	await page.context().close();
 });

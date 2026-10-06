@@ -107,14 +107,18 @@ export function PerkSourcePicker({
 
 /**
  * "Add a card or membership": pick it or type its name, and that's it. Its Perks are read once
- * it's added; the sheet closes and its row says so.
+ * it's added; the sheet closes and its row says so. One that is already a Perk Source isn't added
+ * again (issue 119): the sheet says so, and "Open it" closes the sheet and opens its row.
  */
 export function AddPerkSourceSheet({
 	open,
 	onOpenChange,
+	onOpenSource,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	/** Opens a Perk Source's row on the page. */
+	onOpenSource: (id: string) => void;
 }) {
 	return (
 		<Sheet open={open} onOpenChange={onOpenChange}>
@@ -123,13 +127,25 @@ export function AddPerkSourceSheet({
 					title="Add a card or membership"
 					description="Noodle reads its perks from its own benefits page."
 				/>
-				<AddForm onDone={() => onOpenChange(false)} />
+				<AddForm
+					onDone={() => onOpenChange(false)}
+					onOpenSource={(id) => {
+						onOpenChange(false);
+						onOpenSource(id);
+					}}
+				/>
 			</SheetContent>
 		</Sheet>
 	);
 }
 
-function AddForm({ onDone }: { onDone: () => void }) {
+function AddForm({
+	onDone,
+	onOpenSource,
+}: {
+	onDone: () => void;
+	onOpenSource: (id: string) => void;
+}) {
 	const add = useAddPerkSource();
 	const hydrated = useHydrated();
 	const id = useId();
@@ -140,6 +156,8 @@ function AddForm({ onDone }: { onDone: () => void }) {
 	const [errors, setErrors] = useState<{ name?: string; pageUrl?: string }>({});
 	// One ID for the sheet's life, so trying again after a failure doesn't add it twice.
 	const [sourceId] = useState(newPerkSourceId);
+	// The Perk Source it already is, when the server says nothing was added.
+	const [there, setThere] = useState<{ id: string; name: string } | null>(null);
 	const picked = choiceNamed(choices, name);
 	const typed = name.trim();
 	const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -164,9 +182,26 @@ function AddForm({ onDone }: { onDone: () => void }) {
 				plan: null,
 				pageUrl: pageUrl || picked?.pageUrl || null,
 			},
-			{ onSuccess: onDone },
+			{ onSuccess: (added) => (added.already ? setThere(added) : onDone()) },
 		);
 	};
+	if (there) {
+		return (
+			<div className="grid gap-4">
+				<p role="status" className="text-sm">
+					{there.name} is already in Perks &amp; Benefits, so nothing was added.
+				</p>
+				<SheetFooter>
+					<Button type="button" variant="outline" className="max-lg:hidden" onClick={onDone}>
+						Close
+					</Button>
+					<Button type="button" onClick={() => onOpenSource(there.id)}>
+						Open it
+					</Button>
+				</SheetFooter>
+			</div>
+		);
+	}
 	return (
 		<form onSubmit={submit} noValidate className="grid gap-4">
 			<PerkSourcePicker
