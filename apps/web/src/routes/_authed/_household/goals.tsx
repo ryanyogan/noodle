@@ -68,8 +68,10 @@ function GoalsPage() {
 						icon={<Target />}
 						title="Goals start from an Account"
 						// From 640 the way on is inside the card, as on Explore's empty page; a phone keeps its
-						// full-width button under the card.
-						action={<AccountsLink className="max-sm:hidden" />}
+						// full-width button under the card, and the card's place for an action (its last
+						// part) goes with it, or it leaves 16px of nothing under the text.
+						action={<AccountsLink />}
+						className="max-sm:[&>div:last-child]:hidden"
 						description="A Goal is money in a checking or savings Account that you’re keeping for something, like braces or a trip, or a plan to pay off a credit card or loan. Add the Account first, with what’s in it or owed on it now."
 					/>
 					<AccountsLink className="sm:hidden" />

@@ -13,7 +13,13 @@ import {
 	savedBy,
 	signedInPage,
 } from "./session";
-import { q, seedBetweenUs, seedIncomeHousehold, seedShotsHousehold } from "./shots-household";
+import {
+	q,
+	seedBetweenUs,
+	seedIncomeHousehold,
+	seedPayoffGoal,
+	seedShotsHousehold,
+} from "./shots-household";
 
 // Pictures of every page with one realistic Household, for looking at a redesign without a browser
 // on the machine: .github/workflows/shots.yml runs this on GitHub and uploads the PNGs. Not a test
@@ -391,6 +397,11 @@ test.beforeAll(async ({ browser }) => {
 			`insert into buckets (id, household_id, name, color, position, from_month, archived_from_month) values (${q(archivedBucket)}, ${h}, 'Camping', 6, 91, ${q(before)}, ${q(month)});`,
 			`insert into bucket_allowances (household_id, bucket_id, month, amount_cents) values (${h}, ${q(archivedBucket)}, ${q(before)}, 15000);`,
 		]);
+	});
+	// A card being paid off, for the final desktop pass (issue 73): a payoff Goal on the Amex.
+	let payoffGoal = "";
+	await attempt("A payoff Goal on the Amex", async () => {
+		payoffGoal = await seedPayoffGoal(householdId, ids.amex, "Pay off Amex Platinum", 96_240);
 	});
 	/** Plan › Income with the Zelle from Sam counted as Income (`marked` false) or between us. */
 	const zelleFromSam = async (page: Page, marked: boolean) => {
@@ -1334,6 +1345,38 @@ test.beforeAll(async ({ browser }) => {
 			desk: true,
 			ready: opened("Archive", true),
 		},
+		// A card being paid off: its panel, then its Edit sheet (issue 73).
+		{ name: "18i-payoff-goal", path: `/goals/${payoffGoal}`, window: true },
+		{
+			name: "18j-payoff-goal-edit-sheet",
+			path: `/goals/${payoffGoal}`,
+			phoneSheet: true,
+			desk: true,
+			ready: opened("Edit"),
+		},
+		{
+			// Back pressed with something typed in a Goal's Edit sheet: leaving the page asks first
+			// ("Leave without saving?", issue 73). The Goal is opened from the list, so Back is the
+			// app's own step to another page.
+			name: "18k-leave-without-saving",
+			path: "/goals",
+			phoneSheet: true,
+			desk: true,
+			ready: async (page) => {
+				const link = page.getByRole("link", { name: "Hawaii trip" }).first();
+				await pressFor(link, page.getByRole("button", { name: "Edit" }).first());
+				await page.waitForURL(`**/goals/${ids.vacation}`, { timeout: 15_000 });
+				await settled(page);
+				await opened("Edit")(page);
+				const sheet = page.getByRole("dialog").last();
+				await sheet.getByLabel("Name", { exact: true }).fill("Hawaii, all four of us");
+				await page.goBack();
+				await expect(page.getByRole("alertdialog", { name: "Leave without saving?" })).toBeVisible({
+					timeout: 15_000,
+				});
+				await page.waitForTimeout(400);
+			},
+		},
 		{ name: "19-explore", path: "/explore" },
 		// A Scenario not saved yet, with one change: the outline, Your changes and the outcomes (#74).
 		{ name: "19a-explore-with-a-change", path: "/explore?lever=baseline:1020000" },
@@ -2016,7 +2059,12 @@ test.beforeAll(async ({ browser }) => {
 				await page.waitForTimeout(400);
 			},
 		},
-		{ name: "53-archived-bucket", path: `/plan/${month}/buckets/${archivedBucket}`, phone: true },
+		{
+			name: "53-archived-bucket",
+			path: `/plan/${month}/buckets/${archivedBucket}`,
+			phone: true,
+			desk: true,
+		},
 		{
 			name: "53a-restore-bucket-sheet",
 			path: `/plan/${month}/buckets/${archivedBucket}`,

@@ -268,3 +268,21 @@ export async function seedBetweenUs(householdId: string, parentId: string, accou
 	]);
 	return sent;
 }
+
+/**
+ * A payoff Goal on a credit card (`accountId`, owing `owedCents`), to be paid off in ten months,
+ * for the final desktop pass (issue 73). Gives back the Goal's id. Kept out of seedShotsHousehold
+ * so the intro video's Goals stay put.
+ */
+export async function seedPayoffGoal(
+	householdId: string,
+	accountId: string,
+	name: string,
+	owedCents: number,
+) {
+	const goal = ulid();
+	await seedSql([
+		`insert into goals (id, household_id, account_id, name, target_cents, target_date, from_month, kind) values (${q(goal)}, ${q(householdId)}, ${q(accountId)}, ${q(name)}, ${owedCents}, ${q(dayOf(-10, 1))}, ${q(dayOf(0, 1).slice(0, 7))}, 'payoff');`,
+	]);
+	return goal;
+}
