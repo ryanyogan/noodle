@@ -18,7 +18,7 @@ import {
 	unlinkRefund as unlink,
 	unmarkTransfer as unmark,
 } from "@noodle/db";
-import { dayKeyAt, monthOfDay, planForMonth } from "@noodle/domain";
+import { type CardKept, cardKept, dayKeyAt, monthOfDay, planForMonth } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { HouseholdChange } from "../household-changes";
@@ -82,6 +82,8 @@ export type CardPaymentCard = {
 	 * down: the payment is its spending, so it's filed there. Null: the payment is a Transfer.
 	 */
 	commitment: { id: string; name: string } | null;
+	/** How its purchases get in (cardKept): its bank, statements, by hand, not at all; null: not asked. */
+	kept: CardKept | null;
 };
 
 /** The Household's cards, for "It's a card payment" to ask which one. */
@@ -99,10 +101,18 @@ export const getCardPaymentCards = createServerFn({ method: "GET" })
 		const follows = new Set(followed);
 		const commitments = planForMonth(records, month).commitments;
 		return cards.map((card) => {
-			const paying = follows.has(card.id)
-				? undefined
-				: commitments.find((commitment) => commitment.accountId === card.id);
-			return { ...card, commitment: paying ? { id: paying.id, name: paying.name } : null };
+			// The Parent's answer when the card was added, else what Noodle can see of it (issue 136).
+			const kept = cardKept({ ...card, followed: follows.has(card.id) });
+			const paying =
+				kept === "bank" || kept === "statements"
+					? undefined
+					: commitments.find((commitment) => commitment.accountId === card.id);
+			return {
+				id: card.id,
+				name: card.name,
+				kept,
+				commitment: paying ? { id: paying.id, name: paying.name } : null,
+			};
 		});
 	});
 

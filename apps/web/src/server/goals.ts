@@ -29,6 +29,7 @@ import {
 	type MonthKey,
 	monthKeyAt,
 	monthState,
+	PURCHASES_GET_IN,
 } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -95,6 +96,8 @@ export const addAccount = createServerFn({ method: "POST" })
 			/** For a credit card or loan, what's owed. */
 			balanceCents: balanceSchema.nullable(),
 			balanceId: ulidSchema,
+			/** For a credit card: how its purchases get into Noodle. */
+			purchases: z.enum(PURCHASES_GET_IN).nullish(),
 		}),
 	)
 	.handler(async ({ data, context }) => {

@@ -13,6 +13,7 @@ import {
 	type MonthKey,
 	owedFor,
 	owedOn,
+	type PurchasesGetIn,
 	splitAccount,
 } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
@@ -26,6 +27,7 @@ import {
 import { formatMoney } from "./format";
 import { monthChangeKey } from "./plan-changes";
 import { goalsQuery, monthQuery, monthsKey } from "./queries";
+import { setCardKept } from "./server/card-kept";
 import {
 	addAccount,
 	addGoal,
@@ -320,6 +322,8 @@ export type AddAccountVariables = {
 	kind: AccountKind;
 	balanceCents: Cents | null;
 	balanceId: string;
+	/** For a credit card: how its purchases get into Noodle. */
+	purchases?: PurchasesGetIn | null;
 };
 
 export const withAccount = (data: GoalsData, v: AddAccountVariables): GoalsData =>
@@ -336,6 +340,9 @@ export const withAccount = (data: GoalsData, v: AddAccountVariables): GoalsData 
 						kind: v.kind,
 						bankConnectionId: null,
 						lastStatementDate: null,
+						purchases: v.kind === "credit-card" ? (v.purchases ?? null) : null,
+						walletName: null,
+						statementDay: null,
 						latestBalance:
 							v.balanceCents === null
 								? null
@@ -499,6 +506,33 @@ export const useAddAccount = () =>
 	useGoalChange({
 		save: (data: AddAccountVariables) => addAccount({ data }),
 		apply: withAccount,
+	});
+
+export type CardKeptVariables = {
+	accountId: string;
+	purchases: PurchasesGetIn;
+	/** The day of the month its statement closes; left as it is when not given. */
+	statementDay?: number | null;
+};
+
+export const withCardKept = (data: GoalsData, v: CardKeptVariables): GoalsData => ({
+	...data,
+	accounts: data.accounts.map((a) =>
+		a.id === v.accountId
+			? {
+					...a,
+					purchases: v.purchases,
+					statementDay: v.statementDay === undefined ? a.statementDay : v.statementDay,
+				}
+			: a,
+	),
+});
+
+/** Says how a card's purchases get into Noodle, and when its statement closes. */
+export const useSetCardKept = () =>
+	useGoalChange({
+		save: (data: CardKeptVariables) => refuseUnlessOk(setCardKept({ data })),
+		apply: withCardKept,
 	});
 
 export const useRenameAccount = () =>

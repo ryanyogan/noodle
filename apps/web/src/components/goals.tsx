@@ -7,6 +7,8 @@ import {
 	type DayKey,
 	type GoalKind,
 	type MonthKey,
+	PURCHASES_GET_IN,
+	type PurchasesGetIn,
 	parseDollars,
 } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
@@ -31,6 +33,7 @@ import { Link, linkOptions, useHydrated } from "@tanstack/react-router";
 import { ChevronLeft, CreditCard, HandCoins, Landmark, PiggyBank, Plus } from "lucide-react";
 import { type ComponentProps, type FormEvent, type ReactNode, useId, useState } from "react";
 import { ulid } from "ulid";
+import { purchasesHint, purchasesName } from "../card-kept";
 import { formatMoney, formatMoneyInput, fullDay } from "../format";
 import {
 	type AccountView,
@@ -390,6 +393,7 @@ function AccountFields({
 	const hydrated = useHydrated();
 	const id = useId();
 	const [kind, setKind] = useState<AccountKind>("checking");
+	const [purchases, setPurchases] = useState<PurchasesGetIn>("statements");
 	const [balance, setBalance] = useState("");
 	const balanceCents = balance.trim() === "" ? null : parseDollars(balance);
 	const balanceInvalid = balance.trim() !== "" && balanceCents === null;
@@ -405,7 +409,14 @@ function AccountFields({
 			return;
 		}
 		if (balanceInvalid) return;
-		onAdd({ accountId: ulid(), name, kind, balanceCents, balanceId: ulid() });
+		onAdd({
+			accountId: ulid(),
+			name,
+			kind,
+			balanceCents,
+			balanceId: ulid(),
+			purchases: kind === "credit-card" ? purchases : null,
+		});
 		form.reset();
 		setBalance("");
 	}
@@ -442,6 +453,21 @@ function AccountFields({
 					/>
 				</Field>
 			</div>
+			{kind === "credit-card" ? (
+				<Field
+					label="How do its purchases get into Noodle?"
+					htmlFor={`${id}-purchases`}
+					hint={purchasesHint[purchases]}
+				>
+					<OptionSelect
+						id={`${id}-purchases`}
+						disabled={!hydrated}
+						value={purchases}
+						onValueChange={(value) => setPurchases(value as PurchasesGetIn)}
+						choices={PURCHASES_GET_IN.map((p) => ({ value: p, label: purchasesName[p] }))}
+					/>
+				</Field>
+			) : null}
 			<Field
 				label={owes ? "Owed now" : "Balance now"}
 				htmlFor={`${id}-balance`}

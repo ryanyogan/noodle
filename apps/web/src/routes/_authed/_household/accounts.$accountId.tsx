@@ -42,6 +42,7 @@ import { type FormEvent, Fragment, useId, useState } from "react";
 import { ulid } from "ulid";
 import { accountSource, accountSourceText } from "../../../account-source";
 import { DisconnectBankDialog } from "../../../components/bank-connections";
+import { CardKeptSection } from "../../../components/card-kept";
 import {
 	AccountPager,
 	AddGoalSheet,
@@ -415,6 +416,9 @@ function AccountDetails({ account }: { account: AccountView }) {
 							) : null}
 						</Card>
 					</Section>
+					{account.kind === "credit-card" && account.bankConnectionId === null ? (
+						<CardKeptSection account={account} />
+					) : null}
 					<SaveFailed change={updateBalance} />
 					<SaveFailed change={rename} />
 

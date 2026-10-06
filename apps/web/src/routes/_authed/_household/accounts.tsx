@@ -33,6 +33,7 @@ import {
 	type ConnectBank,
 	useConnectBank,
 } from "../../../components/bank-connections";
+import { CardNudges } from "../../../components/card-kept";
 import {
 	AddAccountForm,
 	AddAccountSheet,
@@ -122,6 +123,7 @@ function AccountsPage() {
 				list={
 					<>
 						<SaveFailed change={addAccount} />
+						<CardNudges />
 						<AccountGroup id="accounts-cash" title="Cash" accounts={cash} />
 						<AccountGroup id="accounts-owed" title="Cards and loans" accounts={owing} />
 						<BankConnections bank={bank} />
