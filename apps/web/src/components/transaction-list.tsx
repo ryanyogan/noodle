@@ -41,6 +41,8 @@ export function useBringsSpendingIn(): boolean {
  */
 export const waitingForBank = (transaction: TransactionRow, today: DayKey, bringsIn: boolean) =>
 	bringsIn &&
+	// On a card kept by hand the Quick Add is the record: no bank copy is on its way.
+	!transaction.byHand &&
 	transaction.importedFrom === null &&
 	transaction.goal === null &&
 	transaction.matchedIn === null &&

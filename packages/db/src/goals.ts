@@ -1,7 +1,9 @@
 import {
 	type AccountKind,
 	type AccountWithdrawal,
+	type BalanceCheck,
 	type BalanceUpdate,
+	balanceCheck,
 	type Cents,
 	type DayKey,
 	dayKeyAt,
@@ -12,7 +14,9 @@ import {
 	monthOfDay,
 	type OwedPayment,
 	owedOn,
+	type PurchasesGetIn,
 	type SetAsideChange,
+	statementCheckDue,
 } from "@noodle/domain";
 import {
 	and,
@@ -43,6 +47,7 @@ import {
 	moves,
 	splits,
 	transactions,
+	transfers,
 } from "./schema";
 
 // Accounts, Goals, and what their Goals have set aside (ADR-0002). Money set aside is never stored: it is derived from
@@ -132,6 +137,8 @@ export async function addAccount(
 		createdByMemberId: string;
 		/** The day the balance is from: today in the Household's time zone. */
 		asOf?: DayKey | null;
+		/** For a credit card: how its purchases get into Noodle, as the Parent answered. */
+		purchases?: PurchasesGetIn | null;
 	},
 ): Promise<void> {
 	const insertAccount = db
@@ -141,6 +148,7 @@ export async function addAccount(
 			householdId: input.householdId,
 			name: input.name,
 			kind: input.kind,
+			purchases: input.kind === "credit-card" ? (input.purchases ?? null) : null,
 		})
 		.onConflictDoNothing({ target: accounts.id });
 	if (input.balanceCents === null) {
@@ -148,6 +156,38 @@ export async function addAccount(
 		return;
 	}
 	await db.batch([insertAccount, insertBalance(db, { ...input, amountCents: input.balanceCents })]);
+}
+
+/**
+ * Records how a credit card's purchases get into Noodle (statements, by hand, or not at all), and
+ * for one kept by hand the day of the month its statement closes. Refused unless it is the
+ * Household's credit card, in use.
+ */
+export async function setCardKept(
+	db: Db,
+	input: {
+		householdId: string;
+		accountId: string;
+		purchases: PurchasesGetIn;
+		/** 1 to 31; left as it is when not given. */
+		statementDay?: number | null;
+	},
+): Promise<{ ok: boolean }> {
+	const changed = await db
+		.update(accounts)
+		.set({
+			purchases: input.purchases,
+			...(input.statementDay === undefined ? {} : { statementDay: input.statementDay }),
+		})
+		.where(
+			and(
+				ownAccount(input.householdId, input.accountId),
+				eq(accounts.kind, "credit-card"),
+				isNull(accounts.archivedAt),
+			),
+		)
+		.returning({ id: accounts.id });
+	return { ok: changed.length > 0 };
 }
 
 export async function renameAccount(
@@ -409,6 +449,15 @@ export const owedSql = (accountId: SQL | string, fallbackDay: DayKey | null = nu
 				inner join commitments c on c.id = s.commitment_id
 				where c.account_id = b.account_id and s.household_id = b.household_id
 				and t.date > ${day} and ${sql.raw(countsRaw("t.id"))}), 0)
+			+ case when oa.purchases = 'hand' then
+				coalesce((select sum(t.amount_cents) from transactions t
+					where t.account_id = b.account_id and t.household_id = b.household_id
+					and t.date > ${day} and ${sql.raw(NOT_MATCHED_QUICK_ADD("t.id"))}), 0)
+				- coalesce((select sum(t.amount_cents) from transfers x
+					inner join transactions t on t.id = x.out_transaction_id
+					where x.other_account_id = b.account_id and x.household_id = b.household_id
+					and x.removed_at is null and x.in_transaction_id is null and t.date > ${day}), 0)
+			else 0 end
 		end
 		from account_balances b inner join accounts oa on oa.id = b.account_id
 		where b.account_id = ${accountId} order by b.created_at desc, b.id desc limit 1)`;
@@ -460,12 +509,66 @@ const paymentQueries = (db: Db, householdId: string, accountId?: string) =>
 			),
 	] as const;
 
-/** What's owed now on one of the Household's Accounts (owedOn), and its latest balance's day. */
+/**
+ * A line on a card kept by hand counts toward what's owed once: a Quick Add its statement's copy
+ * was Matched with gives way to the copy, which is on the card and is the bank's own figure.
+ */
+const NOT_MATCHED_QUICK_ADD = (id: string) =>
+	`not exists (select 1 from matches where matches.quick_add_id = ${id} and matches.removed_at is null)`;
+
+/**
+ * What moves what's owed on a card whose purchases are kept by hand (issue 136), for the whole
+ * Household: every line recorded on the card (bought above 0, money back or a payment received
+ * below), then the payments marked as a Transfer naming the card whose card side Noodle can't see.
+ */
+const byHandQueries = (db: Db, householdId: string, accountId?: string) =>
+	[
+		db
+			.select({
+				accountId: transactions.accountId,
+				amount: transactions.amountCents,
+				date: transactions.date,
+			})
+			.from(transactions)
+			.innerJoin(accounts, eq(accounts.id, transactions.accountId))
+			.where(
+				and(
+					eq(transactions.householdId, householdId),
+					eq(accounts.purchases, "hand"),
+					isNull(accounts.bankConnectionId),
+					accountId ? eq(transactions.accountId, accountId) : undefined,
+					sql.raw(NOT_MATCHED_QUICK_ADD('"transactions"."id"')),
+				),
+			),
+		db
+			.select({
+				accountId: transfers.otherAccountId,
+				amount: transactions.amountCents,
+				date: transactions.date,
+			})
+			.from(transfers)
+			.innerJoin(transactions, eq(transactions.id, transfers.outTransactionId))
+			.innerJoin(accounts, eq(accounts.id, transfers.otherAccountId))
+			.where(
+				and(
+					eq(transfers.householdId, householdId),
+					isNull(transfers.removedAt),
+					isNull(transfers.inTransactionId),
+					eq(accounts.purchases, "hand"),
+					accountId ? eq(transfers.otherAccountId, accountId) : undefined,
+				),
+			),
+	] as const;
+
+/**
+ * What's owed now on one of the Household's Accounts (owedOn), and its latest balance's day.
+ * With `upTo`, what was owed at the end of that day: later payments and purchases are left out.
+ */
 async function readOwed(
 	db: Db,
-	input: { householdId: string; accountId: string },
+	input: { householdId: string; accountId: string; upTo?: DayKey },
 ): Promise<{ owed: Cents | null; day: DayKey | null }> {
-	const [balanceRows, accountRows, whole, split] = await db.batch([
+	const [balanceRows, accountRows, whole, split, bought, sent] = await db.batch([
 		db
 			.select({
 				amount: accountBalances.amountCents,
@@ -487,18 +590,74 @@ async function readOwed(
 			.innerJoin(households, eq(households.id, accounts.householdId))
 			.where(ownAccount(input.householdId, input.accountId)),
 		...paymentQueries(db, input.householdId, input.accountId),
+		...byHandQueries(db, input.householdId, input.accountId),
 	]);
 	const [balance] = balanceRows;
 	const [account] = accountRows;
 	if (!balance || !account) return { owed: null, day: null };
 	const day = balanceDay(balance, account.timeZone);
+	const upTo = input.upTo;
+	const by = (rows: readonly { amount: number; date: string }[]) =>
+		(upTo ? rows.filter((row) => row.date <= upTo) : rows) as OwedPayment[];
 	const owed = owedOn(
 		{ amount: balance.amount, day },
-		[...whole, ...split] as OwedPayment[],
+		by([...whole, ...split, ...sent]),
 		account.bankConnectionId !== null,
+		by(bought),
 	);
 	return { owed, day };
 }
+
+/**
+ * The monthly balance check on a card (issue 136): compares the statement's balance a Parent
+ * typed, true on `asOf`, with what Noodle had recorded as owed at the end of that day, then
+ * records the statement's as the card's balance, the new starting point (ADR-0050). Idempotent
+ * per `balanceId` for the write; the answer is only right the first time.
+ */
+export async function checkStatementBalance(
+	db: Db,
+	input: {
+		householdId: string;
+		accountId: string;
+		balanceId: string;
+		statementCents: Cents;
+		asOf: DayKey;
+		createdByMemberId: string;
+	},
+): Promise<{ ok: true; check: BalanceCheck; recordedCents: Cents | null } | { ok: false }> {
+	const [account] = await db
+		.select({ id: accounts.id })
+		.from(accounts)
+		.where(
+			and(
+				ownAccount(input.householdId, input.accountId),
+				inArray(accounts.kind, ["credit-card", "loan"]),
+				isNull(accounts.archivedAt),
+			),
+		);
+	if (!account) return { ok: false };
+	const { owed } = await readOwed(db, { ...input, upTo: input.asOf });
+	await insertBalance(db, { ...input, amountCents: input.statementCents });
+	return { ok: true, check: balanceCheck(input.statementCents, owed), recordedCents: owed };
+}
+
+/** The statement day a card kept by hand is due a balance check for (statementCheckDue), else null. */
+export const balanceCheckDue = (
+	account: {
+		purchases: PurchasesGetIn | null;
+		statementDay: number | null;
+		bankConnectionId: string | null;
+		latestBalance: { day?: DayKey } | null;
+	},
+	today: DayKey,
+): DayKey | null =>
+	account.purchases === "hand" && account.bankConnectionId === null
+		? statementCheckDue({
+				statementDay: account.statementDay,
+				today,
+				lastBalanceDay: account.latestBalance?.day ?? null,
+			})
+		: null;
 
 /** What's owed now on one of the Household's credit cards or loans (owedOn); null without a balance. */
 export async function owedNow(
@@ -875,6 +1034,12 @@ export type AccountRecord = {
 	bankConnectionId: string | null;
 	/** The last day a statement uploaded to it covers; null when none was. */
 	lastStatementDate: DayKey | null;
+	/** A credit card's answer to how its purchases get in; null until asked (cardKept). */
+	purchases: PurchasesGetIn | null;
+	/** The Wallet card name a Parent said is this Account; null until asked. */
+	walletName: string | null;
+	/** The day of the month its statement closes, for the monthly balance check; null until set. */
+	statementDay: number | null;
 };
 
 export type GoalRecord = {
@@ -951,6 +1116,8 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 		archivedRows,
 		paymentRows,
 		splitPaymentRows,
+		boughtRows,
+		sentRows,
 	] = await db.batch([
 		db
 			.select({
@@ -959,6 +1126,9 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 				mask: accounts.mask,
 				kind: accounts.kind,
 				bankConnectionId: accounts.bankConnectionId,
+				purchases: accounts.purchases,
+				walletName: accounts.walletName,
+				statementDay: accounts.statementDay,
 				// Spelled out: inside a select's fields Drizzle leaves column names unqualified.
 				lastStatementDate: sql<string | null>`(select max(i.last_date) from imports i
 					where i.account_id = "accounts"."id" and i.source <> 'bank')`,
@@ -1047,6 +1217,7 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 			.where(and(eq(accounts.householdId, householdId), isNotNull(accounts.archivedAt)))
 			.orderBy(desc(accounts.archivedAt), asc(accounts.id)),
 		...paymentQueries(db, householdId),
+		...byHandQueries(db, householdId),
 	]);
 	const spendingRows = [
 		...wholeRows,
@@ -1104,8 +1275,13 @@ export async function loadGoals(db: Db, viewer: Viewer): Promise<GoalRecords> {
 					? null
 					: owedOn(
 							latestBalance,
-							payments.filter((p) => p.accountId === row.id),
+							[...payments, ...(sentRows as (OwedPayment & { accountId: string })[])].filter(
+								(p) => p.accountId === row.id,
+							),
 							row.bankConnectionId !== null,
+							(boughtRows as (OwedPayment & { accountId: string })[]).filter(
+								(p) => p.accountId === row.id,
+							),
 						),
 			};
 		}),

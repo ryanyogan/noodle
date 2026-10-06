@@ -28,6 +28,8 @@ export type CaptureMessage = {
 	date: DayKey;
 	amountCents: number;
 	merchant: string;
+	/** The Wallet card it was paid with, when the Shortcut sends it: the Account it lands on. */
+	card?: string;
 };
 
 /** A capture token's SHA-256, as hex: all that's stored of it. */
@@ -51,6 +53,12 @@ const captureSchema = z.object({
 		.min(1)
 		.transform((merchant) => merchant.slice(0, 80)),
 	amount: z.union([z.number(), z.string()]),
+	/** Wallet's name for the card paid with ("Apple Card"): the capture lands on that Account. */
+	card: z
+		.string()
+		.trim()
+		.transform((card) => card.slice(0, 80))
+		.optional(),
 	/** When the Shortcut ran (its Current Date), in any format: it tells retries apart. */
 	at: z.string().trim().max(100).optional(),
 	/** Any ID the Shortcut sends for the payment instead; the same ID is the same capture. */
@@ -90,7 +98,7 @@ export async function receiveCapture(request: Request, deps: CaptureDeps): Promi
 	if (!parsed.success || amountCents === null) {
 		return json(400, { error: "Send JSON with a merchant and an amount spent." });
 	}
-	const { merchant, at, id } = parsed.data;
+	const { merchant, at, id, card } = parsed.data;
 	const sentAt = at ? new Date(at) : null;
 	const when =
 		sentAt && Math.abs(sentAt.getTime() - deps.now.getTime()) <= AT_TOLERANCE_MS
@@ -108,6 +116,7 @@ export async function receiveCapture(request: Request, deps: CaptureDeps): Promi
 		date: dayKeyAt(when, found.timeZone),
 		amountCents,
 		merchant,
+		...(card ? { card } : {}),
 	});
 	return json(202, { ok: true });
 }

@@ -476,12 +476,15 @@ export {
 } from "./bucket-delete";
 export {
 	addCapture,
+	answerWalletCard,
 	type CaptureResult,
 	type CaptureTokenSummary,
 	createCaptureToken,
 	findCaptureToken,
 	loadCaptureToken,
+	loadWalletQuestions,
 	revokeCaptureToken,
+	type WalletQuestion,
 } from "./captures";
 export {
 	CARD_PAYMENT_PASS,
@@ -564,6 +567,8 @@ export {
 	addGoal,
 	addPayoffGoal,
 	archiveGoal,
+	balanceCheckDue,
+	checkStatementBalance,
 	claimForGoal,
 	completeGoal,
 	fundGoal,
@@ -577,6 +582,7 @@ export {
 	owedSql,
 	renameAccount,
 	restartPayoffGoal,
+	setCardKept,
 	setEmergencyGoal,
 	spendGoal,
 	undoGoalFunding,

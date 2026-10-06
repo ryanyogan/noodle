@@ -231,7 +231,12 @@ export async function markCardPayments(
 /** The Household's credit cards in use, by name: the cards "It's a card payment" may name. */
 export function loadCreditCards(db: Db, householdId: string) {
 	return db
-		.select({ id: accounts.id, name: accounts.name })
+		.select({
+			id: accounts.id,
+			name: accounts.name,
+			purchases: accounts.purchases,
+			bankConnectionId: accounts.bankConnectionId,
+		})
 		.from(accounts)
 		.where(
 			and(

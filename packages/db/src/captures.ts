@@ -1,8 +1,14 @@
-import { addDays, type Cents, type DayKey, MATCH_WINDOW } from "@noodle/domain";
+import {
+	accountForWalletCard,
+	addDays,
+	type Cents,
+	type DayKey,
+	MATCH_WINDOW,
+} from "@noodle/domain";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
-import { captureTokens, households, members, transactions } from "./schema";
+import { accounts, captureCards, captureTokens, households, members, transactions } from "./schema";
 
 // Tap to capture: a Parent's capture token lets the iPhone Shortcut record a Quick Add as them,
 // the moment they pay. A captured Quick Add is a Quick Add like any other (source 'quick-add',
@@ -129,6 +135,8 @@ export async function addCapture(
 		date: DayKey;
 		amountCents: Cents;
 		merchant: string;
+		/** The Wallet card it was paid with, when the Shortcut sends it: the Account it lands on. */
+		card?: string | null;
 		newId: () => string;
 	},
 ): Promise<CaptureResult> {
@@ -181,6 +189,30 @@ export async function addCapture(
 			),
 		);
 	if (!written) return { ok: false, reason: "revoked" };
+	const card = input.card?.trim();
+	if (card && added.length > 0) {
+		const accountId = accountForWalletCard(card, await walletAccounts(db, householdId));
+		await db.batch([
+			db
+				.insert(captureCards)
+				.values({ transactionId: input.transactionId, householdId, card })
+				.onConflictDoNothing({ target: captureCards.transactionId }),
+			...(accountId
+				? [
+						db
+							.update(transactions)
+							.set({ accountId })
+							.where(
+								and(
+									eq(transactions.id, input.transactionId),
+									eq(transactions.householdId, householdId),
+									isNull(transactions.accountId),
+								),
+							),
+					]
+				: []),
+		]);
+	}
 	// A bank copy imported before the capture arrived, dated within the Match window.
 	const matched = await matchImported(
 		db,
@@ -194,4 +226,72 @@ export async function addCapture(
 		added: added.length > 0,
 		matchedMonths: matched.months,
 	};
+}
+
+/** The Household's Accounts in use, as accountForWalletCard reads them. */
+const walletAccounts = (db: Db, householdId: string) =>
+	db
+		.select({
+			id: accounts.id,
+			name: accounts.name,
+			kind: accounts.kind,
+			walletName: accounts.walletName,
+		})
+		.from(accounts)
+		.where(and(eq(accounts.householdId, householdId), isNull(accounts.archivedAt)));
+
+/** A Wallet card captures were paid with that no Account is known for yet, and how many captures. */
+export type WalletQuestion = { card: string; captures: number };
+
+/**
+ * The Wallet cards a Parent is asked about once: named by a capture that landed on no Account.
+ * Answered by answerWalletCard, which moves those captures, so the question goes away.
+ */
+export async function loadWalletQuestions(db: Db, householdId: string): Promise<WalletQuestion[]> {
+	return db
+		.select({
+			card: sql<string>`min(${captureCards.card})`,
+			captures: sql<number>`count(*)`.mapWith(Number),
+		})
+		.from(captureCards)
+		.innerJoin(transactions, eq(transactions.id, captureCards.transactionId))
+		.where(and(eq(captureCards.householdId, householdId), isNull(transactions.accountId)))
+		.groupBy(sql`lower(${captureCards.card})`)
+		.orderBy(sql`lower(${captureCards.card})`);
+}
+
+/**
+ * A Parent's answer to "Which Account is this Wallet card?": remembered on the Account, so later
+ * captures land there, and the captures already made with that card move to it. Refused unless
+ * the Account is the Household's, in use.
+ */
+export async function answerWalletCard(
+	db: Db,
+	input: { householdId: string; card: string; accountId: string },
+): Promise<{ ok: boolean; moved: number }> {
+	const { householdId, accountId } = input;
+	const card = input.card.trim();
+	const own = and(
+		eq(accounts.id, accountId),
+		eq(accounts.householdId, householdId),
+		isNull(accounts.archivedAt),
+	);
+	const [remembered, moved] = await db.batch([
+		db.update(accounts).set({ walletName: card }).where(own).returning({ id: accounts.id }),
+		db
+			.update(transactions)
+			.set({ accountId })
+			.where(
+				and(
+					eq(transactions.householdId, householdId),
+					isNull(transactions.accountId),
+					sql`${transactions.id} in (select cc.transaction_id from capture_cards cc
+						where cc.household_id = ${householdId} and lower(cc.card) = lower(${card}))`,
+					sql`exists (select 1 from accounts wa where wa.id = ${accountId}
+						and wa.household_id = ${householdId} and wa.archived_at is null)`,
+				),
+			)
+			.returning({ id: transactions.id }),
+	]);
+	return { ok: remembered.length > 0, moved: moved.length };
 }
