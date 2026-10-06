@@ -89,9 +89,12 @@ async function main() {
 	results.device = device;
 	log("device", JSON.stringify(device));
 	boot(device);
-	const stopVideo = recordVideo(device, "walk");
+	let stopVideo = async () => {};
 	try {
 		driver = await openSafari(device, `${baseURL}/sign-in`);
+		// Started once Safari is up: a recording begun before Appium opened the Simulator window
+		// came out a fifteenth of a second long.
+		stopVideo = recordVideo(device, "walk");
 		results.userAgent = await driver.js(() => navigator.userAgent);
 		log(results.userAgent);
 		screenshot(device, "00-sign-in");
@@ -164,7 +167,8 @@ async function main() {
 					left: style.paddingLeft,
 				};
 				probe.remove();
-				const bar = document.querySelector('nav[aria-label="Main"]');
+				// The Sidebar is a "Main" navigation too, hidden on a phone: the one showing is the tab bar.
+				const bar = all('nav[aria-label="Main"]')[0];
 				return {
 					insets,
 					tabBar: box(bar),
@@ -355,30 +359,59 @@ async function main() {
 				shot("06a-quick-add-open");
 				const screen = await driver.screen();
 				const y = Math.round(screen.height * 0.45);
-				await driver.drag({ x: 1, y }, { x: Math.round(screen.width * 0.85), y });
-				let closed = await driver
-					.waitFor("Quick Add to close", () => !dialog("Quick Add"), { timeout: 6000 })
-					.catch(() => false);
-				let way = "w3c-touch-actions";
-				if (!closed) {
-					way = "mobile-dragFromToForDuration";
-					await driver.mobile("dragFromToForDuration", {
-						duration: 0.5,
-						fromX: 0,
-						fromY: y,
-						toX: Math.round(screen.width * 0.85),
-						toY: y,
-					});
-					closed = await driver
-						.waitFor("Quick Add to close", () => !dialog("Quick Add"), { timeout: 6000 })
+				const far = Math.round(screen.width * 0.9);
+				const gone = () =>
+					driver
+						.waitFor("Quick Add to close", () => !dialog("Quick Add"), { timeout: 5000 })
 						.catch(() => false);
+				// Safari takes a drag from the very edge as Back; which synthetic drag it accepts is
+				// found by trying them in turn (the one that worked is recorded).
+				const drags = [
+					["quick-flick", () => driver.drag({ x: 0, y }, { x: far, y }, { ms: 200, hold: 0 })],
+					[
+						"steady-drag",
+						() => driver.drag({ x: 0, y }, { x: far, y }, { ms: 900, hold: 150, steps: 12 }),
+					],
+					[
+						"from-5pt",
+						() => driver.drag({ x: 5, y }, { x: far, y }, { ms: 500, hold: 100, steps: 8 }),
+					],
+					[
+						"mobile-dragFromToForDuration",
+						() =>
+							driver.mobile("dragFromToForDuration", {
+								duration: 0.5,
+								fromX: 0,
+								fromY: y,
+								toX: far,
+								toY: y,
+							}),
+					],
+				];
+				let closed = false;
+				let way = null;
+				const tried = [];
+				for (const [name, run] of drags) {
+					try {
+						await run();
+						closed = await gone();
+					} catch (error) {
+						tried.push(`${name}: ${error.message}`);
+						continue;
+					}
+					tried.push(`${name}: ${closed ? "closed" : "still open"}`);
+					if (closed) {
+						way = name;
+						break;
+					}
+					shot(`06-after-${name}`);
 				}
 				await sleep(1000);
 				shot("06b-after-edge-swipe");
 				const after = await driver.url();
 				must(!!closed, "Quick Add closed");
 				must(/\/month\//.test(after), `the page underneath is still This Month (${after})`);
-				return { way, address, after };
+				return { way, tried, address, after };
 			},
 		);
 	} finally {

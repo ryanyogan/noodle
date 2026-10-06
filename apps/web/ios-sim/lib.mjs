@@ -205,7 +205,8 @@ const ELEMENT = "element-6066-11e4-a52e-4f735466cecf";
 const PRELUDE = `
 const visible = (el) => { if (!el) return false; const r = el.getBoundingClientRect(); const s = getComputedStyle(el); return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none"; };
 const all = (selector, root) => [...(root || document).querySelectorAll(selector)].filter(visible);
-const nameOf = (el) => (el.getAttribute("aria-label") || (el.getAttribute("aria-labelledby") || "").split(" ").map((id) => (document.getElementById(id) || {}).textContent || "").join(" ") || el.textContent || "").trim();
+const spoken = (el) => { const copy = el.cloneNode(true); for (const hidden of copy.querySelectorAll('[aria-hidden="true"]')) hidden.remove(); return copy.textContent || ""; };
+const nameOf = (el) => (el.getAttribute("aria-label") || (el.getAttribute("aria-labelledby") || "").split(" ").map((id) => (document.getElementById(id) || {}).textContent || "").join(" ") || spoken(el)).trim();
 const dialog = (name) => all("[role=dialog]").find((el) => nameOf(el) === name || nameOf(el).startsWith(name));
 const byName = (selector, name, root) => all(selector, root).find((el) => (name instanceof RegExp ? name.test(nameOf(el)) : nameOf(el) === name));
 const box = (el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height, bottom: r.bottom }; };
@@ -483,10 +484,15 @@ export async function openSafari(device, initialUrl) {
 						await driver.native();
 						for (const char of text) {
 							const name = char === " " ? "space" : char;
-							const key = await cmd("POST", "/element", {
-								using: "-ios class chain",
-								value: `**/XCUIElementTypeKeyboard/**/XCUIElementTypeKey[\`name == "${name}"\`]`,
-							});
+							const find = () =>
+								cmd("POST", "/element", {
+									using: "-ios class chain",
+									value: `**/XCUIElementTypeKeyboard/**/XCUIElementTypeKey[\`name == "${name}"\`]`,
+								});
+							// After a capital the keyboard redraws its keys in lower case: look again.
+							const key = await find()
+								.catch(() => sleep(500).then(find))
+								.catch(() => sleep(1000).then(find));
 							await cmd("POST", `/element/${key[ELEMENT]}/click`, {});
 						}
 					},
@@ -527,7 +533,7 @@ export async function openSafari(device, initialUrl) {
 			throw new Error(`Could not type "${text}": ${errors.join("; ")}`);
 		},
 		/** A finger dragged across the screen, in points, by XCUITest (a real gesture to Safari). */
-		async drag(from, to, ms = 350) {
+		async drag(from, to, { ms = 350, hold = 60, steps = 1 } = {}) {
 			await driver.native();
 			await cmd("POST", "/actions", {
 				actions: [
@@ -538,8 +544,13 @@ export async function openSafari(device, initialUrl) {
 						actions: [
 							{ type: "pointerMove", duration: 0, x: from.x, y: from.y },
 							{ type: "pointerDown", button: 0 },
-							{ type: "pause", duration: 60 },
-							{ type: "pointerMove", duration: ms, x: to.x, y: to.y },
+							{ type: "pause", duration: hold },
+							...Array.from({ length: steps }, (_, step) => ({
+								type: "pointerMove",
+								duration: Math.round(ms / steps),
+								x: Math.round(from.x + ((to.x - from.x) * (step + 1)) / steps),
+								y: Math.round(from.y + ((to.y - from.y) * (step + 1)) / steps),
+							})),
 							{ type: "pointerUp", button: 0 },
 						],
 					},
