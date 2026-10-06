@@ -1442,7 +1442,10 @@ test.beforeAll(async ({ browser }) => {
 			path: "/reports?view=buckets",
 			window: true,
 			ready: async (page) => {
-				await keyboardFocus(page, page.getByRole("button", { name: /^Show .* as a table$/ }).first());
+				await keyboardFocus(
+					page,
+					page.getByRole("button", { name: /^Show .* as a table$/ }).first(),
+				);
 				await page.getByRole("link", { name: "Merchants", exact: true }).hover();
 			},
 		},
