@@ -3,8 +3,9 @@ name: CI
 on:
   push:
     # Screenshot and footage pushes (shots-** and video-** branches) start only the Page shots or
-    # Intro video workflow, not the whole suite; q-** branches are for Quick E2E (quick.yml).
-    branches-ignore: ["shots-**", "video-**", "q-**"]
+    # Intro video workflow, not the whole suite; q-** branches are for Quick E2E (quick.yml) and
+    # ios-** branches for the iOS Simulator walk (ios-sim.yml).
+    branches-ignore: ["shots-**", "video-**", "q-**", "ios-**"]
     # A change to docs alone doesn't need the app tested.
     paths-ignore: ["docs/**", "**/*.md"]
   pull_request:

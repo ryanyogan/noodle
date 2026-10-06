@@ -1,0 +1,14 @@
+{
+	"name": "@noodle/ios-sim",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"description": "Walks Noodle in Mobile Safari inside a real iOS Simulator (issue 52). Not a workspace: installed with npm on a macOS runner by .github/workflows/ios-sim.yml.",
+	"scripts": {
+		"appium": "appium --base-path / --port 4723",
+		"checks": "node checks.mjs"
+	},
+	"dependencies": {
+		"appium": "^3.0.0"
+	}
+}

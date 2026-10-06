@@ -1,0 +1,114 @@
+name: iOS Simulator
+
+# Issue 52's "real iPhone" checks, as near as a machine gets: Noodle in Mobile Safari inside a real
+# iOS Simulator on a macOS runner (real WebKit for iOS, the real software keyboard, real safe areas
+# and gestures), driven by Appium's XCUITest driver. Playwright's WebKit as an iPhone (CI's
+# webkit-iphone project) is a desktop engine with an iPhone's screen; this is the phone's software.
+#
+# The Worker is built and served on the runner with a local D1 and Clerk's development keys, as in
+# CI's E2E jobs; nothing here reaches production. The checks are apps/web/ios-sim/checks.mjs. Push
+# a branch named ios-<anything>, or run it from the Actions tab. Each simulator is a job of its
+# own and uploads an "ios-sim-<device>" artifact: NN-name.png (the whole simulator screen, so the
+# keyboard and home indicator show), walk.mp4, results.json and logs/ (the Worker, Appium, and
+# what XCUITest saw each time a keyboard was read).
+#
+#   git push origin HEAD:refs/heads/ios-<id>
+#   gh run list --workflow=ios-sim.yml --branch=ios-<id> --limit 1
+#   gh run watch <run id> -i 60 --exit-status
+#   gh run download <run id> --dir <somewhere>
+#
+# A macOS runner takes about 15 minutes for this, most of it building WebDriverAgent.
+
+on:
+  push:
+    branches: ["ios-**"]
+  workflow_dispatch:
+
+concurrency:
+  group: ios-sim-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  walk:
+    name: walk (${{ matrix.device }})
+    runs-on: macos-15
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - device: iPhone 16
+            slug: iphone-16
+          # The smallest screen still in use (375 x 667, a home button, no home indicator).
+          - device: iPhone SE (3rd generation)
+            slug: iphone-se-3
+    env:
+      CI: "true"
+      IOS_SIM_DEVICE: ${{ matrix.device }}
+      IOS_SIM_OUT: ${{ github.workspace }}/ios-sim-out
+      # Appium keeps its drivers here, apart from the checkout.
+      APPIUM_HOME: ${{ runner.temp }}/appium
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: bun install --frozen-lockfile
+      - name: Write dev keys for the local Worker
+        working-directory: apps/web
+        run: |
+          printf 'VITE_CLERK_PUBLISHABLE_KEY=%s\nCLERK_SECRET_KEY=%s\n' \
+            "${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" "${{ secrets.CLERK_SECRET_KEY }}" > .dev.vars
+          bun scripts/vapid-keys.ts >> .dev.vars
+      # As CI's E2E (#81): the built Worker with the stub AI and the dev-only routes.
+      - run: bun run build
+        working-directory: apps/web
+        env:
+          AI_MODEL: stub
+      - name: Start the Worker on this runner (local D1)
+        working-directory: apps/web
+        env:
+          AI_MODEL: stub
+        run: |
+          mkdir -p "$IOS_SIM_OUT/logs"
+          bun run db:migrate:local
+          nohup bun run preview > "$IOS_SIM_OUT/logs/server.log" 2>&1 &
+          for try in $(seq 1 60); do
+            curl -fsS -o /dev/null http://localhost:5173/sign-in && break
+            sleep 2
+          done
+          curl -fsS -o /dev/null -w 'sign-in page: %{http_code}\n' http://localhost:5173/sign-in
+      - name: Xcode and simulators on this runner
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphonesimulator --show-sdk-version
+          xcrun simctl list runtimes
+          xcrun simctl list devices available | tee "$IOS_SIM_OUT/logs/simulators.txt"
+      - name: Install Appium and its XCUITest driver
+        working-directory: apps/web/ios-sim
+        run: |
+          npm install --no-audit --no-fund
+          npx appium --version
+          npx appium driver install xcuitest
+          npx appium driver list --installed
+      - name: Start Appium
+        working-directory: apps/web/ios-sim
+        run: |
+          nohup npx appium --port 4723 --log-level debug --log "$IOS_SIM_OUT/logs/appium.log" > /dev/null 2>&1 &
+          for try in $(seq 1 30); do
+            curl -fsS -o /dev/null http://127.0.0.1:4723/status && break
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:4723/status
+      - name: Walk the checks in Mobile Safari
+        working-directory: apps/web/ios-sim
+        run: node checks.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-sim-${{ matrix.slug }}
+          path: ios-sim-out
+          if-no-files-found: warn
