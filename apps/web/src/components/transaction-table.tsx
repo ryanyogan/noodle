@@ -81,6 +81,10 @@ function OpenRegion({
 		const row = region
 			.closest("[data-slot=data-table-expanded]")
 			?.previousElementSibling?.closest<HTMLElement>("[data-transaction]");
+		// The selection's bar stays at the foot of the window over the table: the editor is brought
+		// into view above it, so its Delete, Cancel and Save are not under the bar.
+		const bar = document.querySelector<HTMLElement>("[data-slot=selection-bar]");
+		region.style.scrollMarginBottom = bar ? `${bar.offsetHeight + 32}px` : "";
 		region.scrollIntoView({ block: "nearest" });
 		(row ?? region).scrollIntoView({ block: "nearest" });
 		if (region.contains(document.activeElement)) return;
@@ -113,6 +117,9 @@ function OpenRegion({
 				"@container min-w-0 scroll-mt-24 outline-none",
 				"lg:bg-surface-2 lg:px-(--card-pad) lg:pt-3 lg:pb-5 lg:shadow-[inset_2px_0_0_var(--color-primary)]",
 				top && "lg:border-b lg:border-border",
+				// Under its row the header is one compact line: no Back (the row is right there, and
+				// Close is at the end), a title the size of a row's heading.
+				"lg:[&_[data-slot=detail-back]]:hidden lg:[&_[data-slot=detail-header]]:mb-3 lg:[&_[data-slot=detail-title]]:text-lg lg:[&_[data-slot=detail-eyebrow]]:hidden",
 			)}
 		>
 			{children}

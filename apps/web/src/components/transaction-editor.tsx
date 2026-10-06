@@ -460,9 +460,21 @@ function EditForm({
 				// Under its row, 48rem wide or more: the fields, and beside them the receipt, the match
 				// and the Transfer choices, so the form is no taller than it needs to be.
 				wide && "@3xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] @3xl:items-start @3xl:gap-x-8",
+				// With nothing for the second column (no receipt, match or Transfer to offer) the
+				// fields take the table's whole width.
+				wide && "@3xl:has-[>[data-slot=editor-more]:empty]:grid-cols-1",
 			)}
 		>
-			<div data-slot="editor-fields" className="grid min-w-0 gap-4">
+			<div
+				data-slot="editor-fields"
+				className={cn(
+					"grid min-w-0 gap-4",
+					// Wide enough (56rem of table): Name beside Amount and Assigned to, on one line;
+					// everything after them (For, Split) runs the fields' whole width under it.
+					wide &&
+						"@4xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] @4xl:items-start @4xl:gap-x-4 @4xl:*:col-span-full @4xl:[&>*:nth-child(-n+2)]:col-span-1",
+				)}
+			>
 				<div className="grid gap-1.5">
 					<Field label="Name" htmlFor="transaction-name">
 						{fromBank ? (

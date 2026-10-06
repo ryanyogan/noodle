@@ -3,7 +3,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { useQuery, useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, getRouteApi, Link, Navigate } from "@tanstack/react-router";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, X } from "lucide-react";
 import { useCallback } from "react";
 import { DetailHeader, DetailPager, DetailPending } from "../../../components/master-detail";
 import { TransactionBody } from "../../../components/transaction-editor";
@@ -82,12 +82,32 @@ function TransactionPane() {
 			</Link>
 		</Button>
 	);
+	// From lg the editor is under its row, which is right there: Close, at the end of the header
+	// beside previous and next, instead of Back (issue 99). A link too, so it works before hydration.
+	const closeLink = (
+		<Button variant="ghost" size="icon" asChild className="max-lg:hidden">
+			<Link
+				to="/transactions/$month"
+				params={{ month }}
+				search
+				resetScroll={false}
+				aria-label="Close"
+				onClick={() =>
+					document
+						.querySelector<HTMLElement>('[data-slot="list-row"] button[aria-current]')
+						?.focus()
+				}
+			>
+				<X className="size-5" />
+			</Link>
+		</Button>
+	);
 	if (!listed && one.isPending) return <DetailPending />;
 	if (!transaction) {
 		// Deleted, or not this Parent's to see: the two read the same (ADR-0003).
 		return (
 			<Card className={inTable}>
-				<DetailHeader title="Transaction" leading={back} />
+				<DetailHeader title="Transaction" leading={back} pager={closeLink} />
 				<p className="text-sm text-muted-foreground">
 					There’s no Transaction here. It may have been deleted.
 				</p>
@@ -109,7 +129,7 @@ function TransactionPane() {
 	if (transaction.goal) {
 		return (
 			<Card className={inTable}>
-				<DetailHeader title={transactionLabel(transaction)} leading={back} />
+				<DetailHeader title={transactionLabel(transaction)} leading={back} pager={closeLink} />
 				<p className="text-sm text-muted-foreground">
 					This was spent from{" "}
 					<Link
@@ -136,23 +156,37 @@ function TransactionPane() {
 				parentId={parentId}
 				heading={(title) => (
 					<DetailHeader
-						eyebrow={dayName(transaction.date, data.asOf)}
+						// A page of its own below lg says its day; under its row the row says it.
+						eyebrow={<span className="lg:hidden">{dayName(transaction.date, data.asOf)}</span>}
 						// Under 360 the title sits between Back and the arrows: a step smaller keeps it on one line.
-						title={<span className="max-[359px]:text-base">{title}</span>}
+						// From lg the title is the Transaction's name, as the region around it is named:
+						// "Edit Transaction" is still said first, for a screen reader, but not drawn.
+						title={
+							<>
+								<span className="max-[359px]:text-base lg:sr-only">{title}</span>
+								<span className="max-lg:hidden">
+									<span className="sr-only">: </span>
+									{transactionLabel(transaction)}
+								</span>
+							</>
+						}
 						leading={back}
 						pager={
-							<DetailPager
-								// Goal spending opens its Goal, not this pane.
-								ids={loaded.filter((row) => !row.goal).map((row) => row.id)}
-								id={transaction.id}
-								noun="Transaction"
-								link={(id) => ({
-									to: "/transactions/$month/$transactionId",
-									params: { month, transactionId: id },
-									search: true,
-									resetScroll: false,
-								})}
-							/>
+							<>
+								<DetailPager
+									// Goal spending opens its Goal, not this pane.
+									ids={loaded.filter((row) => !row.goal).map((row) => row.id)}
+									id={transaction.id}
+									noun="Transaction"
+									link={(id) => ({
+										to: "/transactions/$month/$transactionId",
+										params: { month, transactionId: id },
+										search: true,
+										resetScroll: false,
+									})}
+								/>
+								{closeLink}
+							</>
 						}
 					/>
 				)}

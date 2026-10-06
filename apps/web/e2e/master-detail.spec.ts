@@ -419,9 +419,14 @@ test("a Transaction opens in place under its row, and the table keeps its column
 	await page.keyboard.press("Escape");
 	await expect(pane).toHaveCount(0);
 	await expect(page.getByRole("region", { name: "Selecting Transactions" })).toBeVisible();
-	// Focus is back on the row's name button.
+	// Focus is back on the row's name button: the control that opened it, not just its row.
 	expect(
-		await page.evaluate(() => Boolean(document.activeElement?.closest("[data-slot=list-row]"))),
+		await page.evaluate(() => {
+			const at = document.activeElement;
+			return Boolean(
+				at?.matches("button[aria-expanded=false]") && at.closest("[data-slot=list-row]"),
+			);
+		}),
 	).toBe(true);
 	await page.keyboard.press("Escape");
 	await expect(page.getByRole("region", { name: "Selecting Transactions" })).toHaveCount(0);

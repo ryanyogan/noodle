@@ -95,6 +95,7 @@ export function SelectionBar({
 	return (
 		<section
 			aria-label="Selecting Transactions"
+			data-slot="selection-bar"
 			// Over the list on a phone. From lg it sits under the table and stays at the foot of the
 			// window, so the first tick doesn't push the rows down from under the pointer.
 			className="sticky top-2 z-20 grid gap-2 rounded-2xl border border-border-strong bg-card p-3 shadow-sm max-sm:gap-1.5 max-sm:p-2.5 lg:top-auto lg:bottom-4 lg:order-last"
