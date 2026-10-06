@@ -137,6 +137,15 @@ export function DetailPager({
 const inPanelLine = "lg:mt-2.5";
 
 /**
+ * In a panel the header is drawn over Close's corner (so it can go out over Close's ground once
+ * the panel is scrolled), and its box reaches the panel's right edge: the room kept for Close is
+ * its own padding. Left as it was, that padding took every click meant for Close. So the header
+ * itself takes no clicks from lg, and its parts (the title, the action, previous and next) do.
+ */
+const inPanelHeader = "lg:pointer-events-none";
+const inPanelPart = "lg:pointer-events-auto";
+
+/**
  * A phone, where the action may drop under the title: a ghost button's words start 10px inside
  * its box (its padding, with no border to show it), so under the title they stood 10px in from
  * the title's edge while an outlined button lined up (issue 74). The pair is 10px wider to the
@@ -186,6 +195,7 @@ export function DetailHeader({
 				// The controls 4px apart, as on a phone, not 8: in the narrowest panel (1280 wide) that
 				// is the room a three-word name needs to take two lines and not three (issue 73).
 				inPanel && "lg:relative lg:z-20 lg:items-start lg:gap-x-1 lg:pe-10",
+				inPanel && inPanelHeader,
 			)}
 		>
 			{/* Phones: the arrow's glyph, not its 44px box, sits on the 16px gutter. */}
@@ -219,6 +229,7 @@ export function DetailHeader({
 					className={cn(
 						"min-w-0 flex-auto lg:flex-1 lg:basis-36",
 						actions ? "max-[359px]:basis-full" : null,
+						inPanel && inPanelPart,
 					)}
 				>
 					{eyebrow ? (
@@ -240,7 +251,11 @@ export function DetailHeader({
 				{actions ? (
 					<div
 						data-slot="detail-actions"
-						className={cn("flex items-center gap-1 lg:ms-auto", inPanel && inPanelLine)}
+						className={cn(
+							"flex items-center gap-1 lg:ms-auto",
+							inPanel && inPanelLine,
+							inPanel && inPanelPart,
+						)}
 					>
 						{actions}
 					</div>
@@ -254,6 +269,7 @@ export function DetailHeader({
 						"flex max-lg:mt-1 max-lg:self-start lg:order-last",
 						!actions && "max-lg:-me-2",
 						inPanel && inPanelLine,
+						inPanel && inPanelPart,
 					)}
 				>
 					{pager}
