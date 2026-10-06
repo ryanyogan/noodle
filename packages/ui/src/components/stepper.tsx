@@ -95,11 +95,15 @@ function StepListItem({
 			{...props}
 		>
 			{state === "done" ? (
-				<Check aria-hidden="true" className="size-4 text-brand" />
+				<Check aria-hidden="true" className="size-4 shrink-0 text-brand" />
 			) : (
 				<span
 					aria-hidden="true"
-					className={cn("size-2 rounded-full", state === "current" ? "bg-brand" : "bg-border")}
+					// The tick's 16px slot, and never squeezed by a step whose words wrap.
+					className={cn(
+						"mx-1 size-2 shrink-0 rounded-full",
+						state === "current" ? "bg-brand" : "bg-border",
+					)}
 				/>
 			)}
 			{children}

@@ -128,12 +128,14 @@ function ToastBody({
 }: ToastOptions & { id: string | number; message: string }) {
 	const action = undo ? { label: "Undo", onClick: undo } : other;
 	return (
-		// Each toast is a status, so it's announced politely and found as one.
+		// Each toast is a status, so it's announced politely and found as one. From sm up every toast
+		// is the Toaster's width, so two or three stacked make one even pile (issue 73); on a phone
+		// each still hugs its words.
 		<div
 			role="status"
 			data-slot="toast"
 			data-tone={tone}
-			className="pointer-events-auto flex w-fit max-w-full items-center gap-3 rounded-xl bg-foreground py-2 ps-3 pe-2 text-sm font-medium text-card shadow-pop"
+			className="pointer-events-auto flex w-fit max-w-full items-center sm:w-full gap-3 rounded-xl bg-foreground py-2 ps-3 pe-2 text-sm font-medium text-card shadow-pop"
 		>
 			<span className="grid size-5 shrink-0 place-items-center rounded-full bg-card/15 [&_svg]:size-3">
 				{tone === "error" ? (
@@ -142,7 +144,7 @@ function ToastBody({
 					<CheckIcon strokeWidth={2.5} />
 				)}
 			</span>
-			<span className={cn("min-w-0", !action && !sticky && "pe-1")}>{message}</span>
+			<span className={cn("min-w-0 sm:flex-1", !action && !sticky && "pe-1")}>{message}</span>
 			{action ? (
 				<button
 					type="button"
@@ -181,7 +183,8 @@ function Toaster({ className }: { className?: string }) {
 			// Above the tab bar while there is one; on desktop, centred over the page, not the window.
 			offset={{ bottom: "var(--toast-bottom)" }}
 			mobileOffset={{ bottom: "var(--toast-bottom)" }}
-			toastOptions={{ unstyled: true, className: "flex w-full justify-center" }}
+			// From sm up the toast's wrapper is the Toaster's width, and so is the toast inside it.
+			toastOptions={{ unstyled: true, className: "flex w-full justify-center sm:*:w-full" }}
 			className={cn(
 				// Sonner's own stylesheet sets a system font; the app's is Geist.
 				"font-sans!",
