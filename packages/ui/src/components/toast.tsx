@@ -3,9 +3,10 @@ import { Toaster as Sonner, toast as sonner } from "sonner";
 import { cn } from "#lib/utils";
 
 // Toasts on Sonner (https://ui.shadcn.com/docs/components/sonner, the toast shadcn recommends),
-// drawn with this design system's own toast: Sonner stacks them (on a desktop a new one no longer
-// replaces an Undo still showing; below lg one shows at a time), pauses them while hovered, lets them be swiped away, and Alt+T reaches
-// them by keyboard. The app keeps calling `toast(message, options)` as before.
+// drawn with this design system's own toast: Sonner stacks them (on a desktop the newest six show,
+// so a new one doesn't replace an Undo still showing; below lg one shows at a time), pauses them
+// while hovered, lets them be swiped away, and Alt+T reaches them by keyboard. The app keeps
+// calling `toast(message, options)` as before.
 
 /**
  * How long a toast with Undo stays, in milliseconds (issue 103): ten seconds, then it leaves by
@@ -102,20 +103,30 @@ function undoOrGone(undo: () => void, onGone?: () => void) {
  * Shows a short message at the bottom of the screen. Toasts with an action stay long enough to
  * use it; errors stay longest; one with `undo` stays UNDO_TOAST_MS; a sticky one stays until it's
  * dismissed; `duration` sets another time for one that isn't sticky.
+ *
+ * Returns a way to take this toast away before its time, as if it were swiped away (so an Undo's
+ * `onGone` then happens): for a caller that keeps one of a kind showing and brings the next in
+ * front, where an `id` would leave the new words in the old one's place in the pile.
  */
-function toast(message: string, options: ToastOptions = { tone: "success" }) {
+function toast(message: string, options: ToastOptions = { tone: "success" }): () => void {
 	// Sonner counts the time down itself, so it still waits while a toast is hovered, held or the
 	// tab is hidden, or after Alt+T moved the keyboard to the toasts (until Escape), and starts
 	// again when a toast is replaced by one with the same id.
 	const latch = options.undo ? undoOrGone(options.undo, options.onGone) : undefined;
 	const shown: ToastOptions = options.undo && latch ? { ...options, undo: latch.undo } : options;
-	sonner.custom((id) => <ToastBody id={id as string} message={message} {...shown} />, {
-		duration: toastDuration(options),
-		id: options.id,
-		// The toast's real end, whenever its countdown was paused on the way.
-		onAutoClose: latch?.gone,
-		onDismiss: latch?.gone,
-	});
+	const shownId = sonner.custom(
+		(id) => <ToastBody id={id as string} message={message} {...shown} />,
+		{
+			duration: toastDuration(options),
+			id: options.id,
+			// The toast's real end, whenever its countdown was paused on the way.
+			onAutoClose: latch?.gone,
+			onDismiss: latch?.gone,
+		},
+	);
+	return () => {
+		sonner.dismiss(shownId);
+	};
 }
 
 function ToastBody({
@@ -176,9 +187,12 @@ function Toaster({ className }: { className?: string }) {
 	return (
 		<Sonner
 			position="bottom-center"
-			// Up to three, each in full, so an Undo is never hidden behind a later toast. Below lg only
-			// the newest is drawn (see toastOptions).
-			visibleToasts={3}
+			// The newest six are drawn, each in full. A seventh pushes the oldest out of sight, an Undo
+			// or not: it can't be pressed then, though its time runs on and what it sends when it goes
+			// is still sent. So an Undo is in reach while no more than five toasts have come after it
+			// (issue 123: with three drawn, the Undo of the first of three Review cards filed in a row
+			// was the one left out). Below lg only the newest is drawn (see toastOptions).
+			visibleToasts={6}
 			expand
 			gap={8}
 			// Above the tab bar while there is one; on desktop, centred over the page, not the window.

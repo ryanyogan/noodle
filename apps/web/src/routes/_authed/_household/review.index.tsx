@@ -456,6 +456,9 @@ function ReviewPage() {
 		}
 	}
 
+	/** Takes away the "Always file …?" toast still showing, if any: one such offer at a time. */
+	const dropRuleToast = useRef<(() => void) | undefined>(undefined);
+
 	/** "Always file <merchant> in <Bucket>?", after a card is filed in a Bucket or a Commitment. */
 	function offerRule(item: ReviewItem, bucket: RuleTarget, forMemberIds: string[]) {
 		// One offer, not two: once background AI suggests this very Rule (ADR-0027), its card below
@@ -469,7 +472,10 @@ function ReviewPage() {
 		);
 		if (suggested) return;
 		if (sorting) return setOffer({ item, bucket, forMemberIds });
-		toast(ruleQuestion({ item, bucket, forMemberIds }), {
+		// The offer for the card filed before goes as this one comes (issue 123): cards filed one
+		// after another each raise an Undo toast too, and those are the ones to keep in the pile.
+		dropRuleToast.current?.();
+		dropRuleToast.current = toast(ruleQuestion({ item, bucket, forMemberIds }), {
 			tone: "success",
 			action: { label: "Always file", onClick: () => takeRule({ item, bucket, forMemberIds }) },
 		});
