@@ -139,6 +139,12 @@ type DataTableProps<TData extends RowData> = Omit<
 		header: string;
 		width?: string;
 		min?: number;
+		/**
+		 * "hidden": the slot and its track go where the table is under 16rem, which on a phone means
+		 * the text is twice its size (issue 74), and the title has the room. Only for a slot whose
+		 * job can be done another way there (a Bucket's order: Move up and Move down in its sheet).
+		 */
+		narrow?: "hidden";
 		render: (row: TData, index: number) => React.ReactNode;
 	};
 	/**
@@ -147,6 +153,12 @@ type DataTableProps<TData extends RowData> = Omit<
 	 * two line up, and drop at the same widths. A stacked row is not indented. Ignored with `leading`.
 	 */
 	indent?: { width: string; min: number };
+	/**
+	 * Under 16rem (a phone with its text twice the size, issue 74) the title takes the row's whole
+	 * first line and the trailing control goes down beside the lines under it, so a name keeps its
+	 * words whole. Only for a table that shows nothing in the value slot at that width.
+	 */
+	narrowTitleLine?: boolean;
 	/** A full-width row before this one: a day's label and total. Null for none. */
 	groupBefore?: (row: TData, previous: TData | undefined) => React.ReactNode;
 	/**
@@ -186,6 +198,9 @@ type DataTableProps<TData extends RowData> = Omit<
 // The templates are CSS variables set on the root from the column list (lib/data-table).
 const ROW_GRID = cn(
 	"grid items-center gap-x-3 gap-y-0.5 px-(--card-pad) grid-cols-(--dt-stack)",
+	// Under 16rem (a phone with its text twice the size): the stacked row without the leading slot's
+	// track, for a table that gives it up there (`leading.narrow`). The same template otherwise.
+	"@max-[16rem]/dt:grid-cols-(--dt-stack-narrow)",
 	"@2xl/dt:grid-cols-(--dt-cols-0) @3xl/dt:grid-cols-(--dt-cols-1) @4xl/dt:grid-cols-(--dt-cols-2)",
 	"@5xl/dt:grid-cols-(--dt-cols-3) @6xl/dt:grid-cols-(--dt-cols-4)",
 );
@@ -225,6 +240,14 @@ const BEFORE = {
 	// The checkbox column of a table that only shows it in columns (`selection.stacked: false`).
 	selectWide: cn("hidden @2xl/dt:flex", UNSTACK),
 };
+// A leading slot that is given up under 16rem: see `leading.narrow`.
+const LEADING_NARROW = "@max-[16rem]/dt:hidden";
+// Under 16rem, for a table that asks (`narrowTitleLine`): the title takes the whole line and the
+// trailing control goes down beside the lines under the title. Whole words in a name (issue 74).
+const NARROW_LINE = {
+	title: "@max-[16rem]/dt:[grid-column:main/-1]",
+	trailing: "@max-[16rem]/dt:[grid-row:2/span_var(--dt-rows-rest)]",
+};
 // The indeterminate box: a dash on the primary fill instead of the tick.
 const MIXED =
 	"data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary data-[state=indeterminate]:before:absolute data-[state=indeterminate]:before:inset-x-1 data-[state=indeterminate]:before:top-1/2 data-[state=indeterminate]:before:h-0.5 data-[state=indeterminate]:before:-translate-y-1/2 data-[state=indeterminate]:before:rounded-full data-[state=indeterminate]:before:bg-primary-foreground [&[data-state=indeterminate]_svg]:hidden";
@@ -251,6 +274,7 @@ function DataTable<TData extends RowData>({
 	onOpen,
 	isOpen,
 	leading,
+	narrowTitleLine = false,
 	indent,
 	groupBefore,
 	rowAfter,
@@ -283,6 +307,8 @@ function DataTable<TData extends RowData>({
 	const selectCell = selectStacked ? BEFORE.select : BEFORE.selectWide;
 	const leadingMin = leading ? (leading.min ?? 2.75) : 0;
 	const leadingWidth = leading ? (leading.width ?? `${leadingMin}rem`) : null;
+	const leadingNarrow = leading?.narrow === "hidden";
+	const leadingCell = cn(BEFORE.leading, leadingNarrow && LEADING_NARROW);
 	// Room held open where a neighbouring table has its leading slot; this table has none.
 	const indentWidth = !leading && indent ? indent.width : null;
 	const indentMin = indentWidth && indent ? indent.min : 0;
@@ -305,13 +331,29 @@ function DataTable<TData extends RowData>({
 				value: stacked.has.value,
 				trailing: stacked.has.trailing,
 			}),
+			"--dt-stack-narrow": stackedTemplate({
+				select: hasSelection && selectStacked,
+				leading: leadingNarrow ? null : leadingWidth,
+				value: stacked.has.value,
+				trailing: stacked.has.trailing,
+			}),
 			"--dt-rows": stacked.rows,
+			"--dt-rows-rest": Math.max(1, stacked.rows - 1),
 		};
 		for (let tier = 0; tier < BODY_FROM.length; tier++) {
 			vars[`--dt-cols-${tier}`] = gridTemplate(shown, tiers, tier, before);
 		}
 		return { tiers, stacked, vars };
-	}, [shown, hasSelection, selectStacked, leadingWidth, leadingMin, indentWidth, indentMin]);
+	}, [
+		shown,
+		hasSelection,
+		selectStacked,
+		leadingWidth,
+		leadingMin,
+		leadingNarrow,
+		indentWidth,
+		indentMin,
+	]);
 	// Takes the indent's track in the header, each row and the totals; gone where rows are stacked.
 	const spacer = indentWidth ? (
 		<div aria-hidden="true" data-slot="data-table-indent" className="hidden @2xl/dt:block" />
@@ -481,10 +523,12 @@ function DataTable<TData extends RowData>({
 			)
 		: null;
 
+	const narrowLine = narrowTitleLine && layout.stacked.has.trailing && layout.stacked.rows > 1;
 	const cellClass = (column: DataTableColumn<TData>, slot: StackedSlot) =>
 		cn(
 			"min-w-0 items-center text-sm",
 			STACKED[slot],
+			narrowLine && (slot === "title" || slot === "trailing") && NARROW_LINE[slot],
 			UNSTACK,
 			column.wide === false ? "@2xl/dt:hidden" : BODY_FROM[tierOf(layout.tiers, column.id)],
 			ALIGN[column.align ?? "start"],
@@ -650,7 +694,7 @@ function DataTable<TData extends RowData>({
 											)}
 										>
 											{selection ? <div role={cellRole} className={selectCell} /> : null}
-											{leading ? <div role={cellRole} className={BEFORE.leading} /> : null}
+											{leading ? <div role={cellRole} className={leadingCell} /> : null}
 											{spacer}
 											{row.getVisibleCells().map((cell) => {
 												const column = byId.get(cell.column.id);
@@ -718,7 +762,7 @@ function DataTable<TData extends RowData>({
 											</div>
 										) : null}
 										{leading ? (
-											<div role={cellRole} className={cn("items-center", BEFORE.leading)}>
+											<div role={cellRole} className={cn("items-center", leadingCell)}>
 												{leading.render(row.original, index)}
 											</div>
 										) : null}
@@ -767,7 +811,7 @@ function DataTable<TData extends RowData>({
 				>
 					<div role={ROLE.row} className={cn(ROW_GRID, "min-h-11 py-2")}>
 						{selection ? <div role={cellRole} className={selectCell} /> : null}
-						{leading ? <div role={cellRole} className={BEFORE.leading} /> : null}
+						{leading ? <div role={cellRole} className={leadingCell} /> : null}
 						{spacer}
 						{footers.map((footer) => {
 							const column = byId.get(footer.column.id);
