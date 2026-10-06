@@ -5,6 +5,9 @@ import { drizzle } from "drizzle-orm/sqlite-proxy";
 import type { Db } from "./index";
 import * as schema from "./schema";
 
+/** D1 allows 100 bound parameters a statement. */
+const D1_MAX_PARAMETERS = 100;
+
 type Method = "run" | "all" | "values" | "get";
 
 /**
@@ -28,6 +31,12 @@ export function testDb(): Db {
  */
 export function sqliteDb(sqlite: DatabaseSync): Db {
 	const run = (query: string, params: unknown[], method: Method) => {
+		// D1 refuses a statement with more than 100 bound parameters; plain SQLite takes thousands.
+		if (params.length > D1_MAX_PARAMETERS) {
+			throw new Error(
+				`too many SQL variables: ${params.length} bound parameters, D1 allows ${D1_MAX_PARAMETERS}`,
+			);
+		}
 		const statement = sqlite.prepare(query);
 		const values = params as SQLInputValue[];
 		if (method === "run") {

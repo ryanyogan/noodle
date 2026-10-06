@@ -15,7 +15,7 @@ import {
 	type ReceiptLine,
 	type ScenarioChange,
 } from "@noodle/domain";
-import { eq } from "drizzle-orm";
+import { eq, getTableColumns } from "drizzle-orm";
 import type { Db } from "./index";
 import * as s from "./schema";
 
@@ -106,9 +106,10 @@ export async function writeSeed(db: Db, rows: SeedRows): Promise<void> {
 	for (const [name, table] of Object.entries(TABLES)) {
 		let list = rows[name as keyof SeedRows] as Record<string, unknown>[];
 		if (name === "households") list = list.map((h) => ({ ...h, emergencyGoalId: null }));
-		// SQLite caps a statement's parameters; 50 rows of the widest table stay well under.
-		for (let i = 0; i < list.length; i += 50) {
-			await db.insert(table).values(list.slice(i, i + 50) as never);
+		// D1 allows 100 bound parameters a statement, and each row binds one a column.
+		const atOnce = Math.max(1, Math.floor(100 / Object.keys(getTableColumns(table)).length));
+		for (let i = 0; i < list.length; i += atOnce) {
+			await db.insert(table).values(list.slice(i, i + atOnce) as never);
 		}
 	}
 	for (const h of rows.households) {

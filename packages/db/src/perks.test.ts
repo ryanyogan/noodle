@@ -23,6 +23,7 @@ import {
 	updatePerkSource,
 	type Viewer,
 } from "./index";
+import { loadPerksById } from "./perks";
 import { accounts, bankConnections, members, perkSources, perks, perkUses } from "./schema";
 import { testDb } from "./test-db";
 
@@ -811,5 +812,29 @@ describe("linked cards (#96)", () => {
 			fetchedAt: new Date("2026-10-04"),
 		});
 		expect((await loadPerkPage(db, page.url, new Date("2026-10-02")))?.text).toBe("new");
+	});
+});
+
+describe("a Household with many perks", () => {
+	it("loads them all, with their uses: D1 allows 100 bound parameters a statement", async () => {
+		const id = await confirmedTMobile();
+		const many = Array.from({ length: 130 }, (_, n) =>
+			perk({ name: `Perk ${String(n).padStart(3, "0")}`, matches: `match-${n}` }),
+		);
+		await saveResearch(db, {
+			householdId,
+			perkSourceId: id,
+			checkedAt: new Date("2026-10-01T09:00:00Z"),
+			outcome: { research: "done", sourceUrl: tMobile.page, perks: many },
+			newId,
+		});
+		const [source] = await loadPerkSources(db, alex);
+		expect(source?.perks).toHaveLength(130);
+		const last = source?.perks.at(-1)?.id as string;
+		await addPerkUse(db, alex, { id, perkId: last, note: null, on: "2026-10-02" });
+		const [again] = await loadPerkSources(db, alex);
+		expect(again?.perks.at(-1)?.uses).toHaveLength(1);
+		const perkIds = (again?.perks ?? []).map((p) => p.id);
+		expect(await loadPerksById(db, alex, perkIds)).toHaveLength(130);
 	});
 });

@@ -45,6 +45,10 @@ import { accounts, bankConnections, perkPages, perkSources, perks, perkUses } fr
 export type PerkResearch = (typeof perkSources.$inferSelect)["research"];
 
 /** A Perk Source's fingerprint: its catalog product, or its own ID, with its owner. */
+/** Ids as one JSON parameter for `in (…)`: D1 allows 100 bound parameters a statement. */
+const jsonList = (values: string[]) =>
+	sql`(select value from json_each(${JSON.stringify(values)}))`;
+
 const fingerprintOf = (ownerMemberId: string | null, product: string) =>
 	`${ownerMemberId ?? "household"}|${product}`;
 
@@ -556,7 +560,7 @@ export async function loadPerkSources(
 			: await db
 					.select()
 					.from(perks)
-					.where(inArray(perks.perkSourceId, ids))
+					.where(inArray(perks.perkSourceId, jsonList(ids)))
 					.orderBy(perks.kind, perks.name);
 	const uses =
 		found.length === 0
@@ -567,10 +571,7 @@ export async function loadPerkSources(
 					.where(
 						and(
 							eq(perkUses.householdId, viewer.householdId),
-							inArray(
-								perkUses.perkId,
-								found.map((perk) => perk.id),
-							),
+							inArray(perkUses.perkId, jsonList(found.map((perk) => perk.id))),
 						),
 					)
 					.orderBy(desc(perkUses.usedOn), desc(perkUses.createdAt));
@@ -951,7 +952,7 @@ export async function saveResearch(
 			.where(
 				and(
 					eq(perks.perkSourceId, perkSourceId),
-					keys.length > 0 ? notInArray(perks.key, keys) : undefined,
+					keys.length > 0 ? notInArray(perks.key, jsonList(keys)) : undefined,
 				),
 			),
 		...outcome.perks.map((perk) => {
@@ -1051,7 +1052,7 @@ export async function loadPerksById(
 		.select({ perk: perks, sourceName: perkSources.name })
 		.from(perks)
 		.innerJoin(perkSources, eq(perkSources.id, perks.perkSourceId))
-		.where(and(readableBy(viewer), inArray(perks.id, ids)));
+		.where(and(readableBy(viewer), inArray(perks.id, jsonList(ids))));
 	return rows.map(({ perk, sourceName }) => ({
 		id: perk.id,
 		name: perk.name,
