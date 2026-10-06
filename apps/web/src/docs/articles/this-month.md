@@ -17,15 +17,17 @@ A "?" beside a word opens a one-sentence explanation, with a link to the Glossar
 
 ## Buckets
 
-Each Bucket shows what is left of its amount for the month. Open a Bucket to see what was filed in it.
+Each Bucket shows what is left of its amount for the month, with a bar for how much is spent. Press a Bucket to open its own page.
 
 A Bucket that has gone over can be **Covered** from another Bucket or from Free to Spend. See [How to budget with Noodle](/docs/how-to-budget) for when to do that.
 
 **Personal Allowances** sit in a group of their own. You see your own purchases. For the other Parent's, you see totals only.
 
-## Bills coming up
+## Bills
 
-Your Commitments for the month are here too, each shown as paid, partly paid or due, from the charges recorded against it.
+Under **Bills** are the Commitments due this month. Each one says where it stands, from the charges recorded against it: when it is due, how much of it is paid, or "Paid". Commitments that are not due this month are tucked under "Not this month".
+
+In the current month, Bills has a second view, **Coming up**: the bills ahead of you, by date.
 
 ## Income and Extra income
 
@@ -43,7 +45,7 @@ This Month only asks for attention when something needs it.
 
 ## Looking at another month
 
-You can step back to earlier months and forward to later ones. An ended month that has been closed shows how it ended. Each month has its own address, so you can bookmark or share one with the other Parent.
+The arrows beside the month's name step back as far as your first month with a Plan, and forward to later months, so you can plan ahead. On a phone you can also swipe sideways. An ended month that has been closed shows how it ended. Each month has its own address, so you can bookmark or share one with the other Parent.
 
 ## If nothing is planned yet
 
