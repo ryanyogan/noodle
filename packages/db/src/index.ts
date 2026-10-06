@@ -628,18 +628,30 @@ export {
 	saveParentName,
 } from "./merchants";
 export {
+	type AccountPairResult,
 	changeMoneyInKind,
 	deleteMoneyInRule,
+	editMoneyIn,
 	loadMoneyIn,
+	loadMoneyInAccounts,
 	loadMoneyInLine,
 	loadMoneyInReview,
 	loadMoneyInRules,
+	type MoneyInEdit,
 	type MoneyInFilter,
 	type MoneyInKindResult,
 	type MoneyInLine,
+	rememberAccountPair,
 	type StoredMoneyInRule,
 	saveMoneyInRule,
+	stateWhosePay,
 } from "./money-in";
+export {
+	householdsAwaitingMoneyInPass,
+	MONEY_IN_PASS,
+	type MoneyInPassResult,
+	runMoneyInPass,
+} from "./money-in-pass";
 export {
 	type CloseMonthInput,
 	closeMonth,
@@ -672,6 +684,24 @@ export {
 	saveNudgePreferences,
 	savePushSubscription,
 } from "./nudges";
+export {
+	confirmPaidBack,
+	loadOwedBack,
+	loadPaidBack,
+	loadUnmatchedPaidBack,
+	type OwedBackFilter,
+	type OwedBackItem,
+	type OwedBackRemoveResult,
+	type OwedBackResult,
+	offerPaidBackFor,
+	type PaidBackConfirmResult,
+	type PaidBackLine,
+	type PaidBackOffered,
+	removeOwedBack,
+	type StoredPaidBackMatch,
+	sayOwedBack,
+	type UnmatchedPaidBack,
+} from "./owed-back";
 export {
 	addPerkSource,
 	addPerkUse,

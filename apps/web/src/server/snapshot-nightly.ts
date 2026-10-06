@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { getDb } from "./db";
 import { releaseAllHeldFiles } from "./file-holds";
+import { runMoneyInPasses } from "./money-in-pass";
 import { newestMigration, takeNightlySnapshots } from "./snapshot-store";
 
 /**
@@ -13,6 +14,13 @@ export async function runNightlySnapshots(now: Date) {
 	const deps = { db: getDb(), bucket: env.BACKUPS, migration: await newestMigration(env.DB) };
 	const result = await takeNightlySnapshots(deps, now);
 	console.log("Nightly snapshots", JSON.stringify(result));
+	// Once per Household, ever (ADR-0057): October 2026's person-to-person money in back to Review.
+	try {
+		const passed = await runMoneyInPasses(deps, now);
+		if (passed.households > 0) console.log("Money-in pass", JSON.stringify(passed));
+	} catch (error) {
+		console.error("Couldn’t run the money-in pass", error);
+	}
 	// After pruning: statement and Receipt files a clear left for snapshots go once no kept
 	// snapshot needs them, and deleted Households' last snapshots (with the files left for them)
 	// once their 30 days are up.

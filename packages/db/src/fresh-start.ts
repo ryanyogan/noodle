@@ -60,6 +60,9 @@ export const HOUSEHOLD_TABLES = {
 	matches: s.matches,
 	transfers: s.transfers,
 	refunds: s.refunds,
+	// After income and Transactions, which they point at; matches after what they settle.
+	owedBack: s.owedBack,
+	paidBackMatches: s.paidBackMatches,
 	moves: s.moves,
 	pushSubscriptions: s.pushSubscriptions,
 	nudgePreferences: s.nudgePreferences,
@@ -80,6 +83,7 @@ export const HOUSEHOLD_TABLES = {
 	planDrafts: s.planDrafts,
 	planDraftDecisions: s.planDraftDecisions,
 	bankLinkSessions: s.bankLinkSessions,
+	householdPasses: s.householdPasses,
 	freshStarts: s.freshStarts,
 	householdSnapshots: s.householdSnapshots,
 } satisfies Record<string, SQLiteTable>;
@@ -95,6 +99,8 @@ export const KEPT_ON_FRESH_START: ReadonlySet<HouseholdTableName> = new Set([
 	"members",
 	"freshStarts",
 	"householdSnapshots",
+	// A one-time pass that ran stays run.
+	"householdPasses",
 ]);
 
 /** The tables a level clears, in the order to clear them (children first). */

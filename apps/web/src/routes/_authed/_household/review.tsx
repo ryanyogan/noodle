@@ -1,7 +1,7 @@
 import { Badge } from "@noodle/ui/components/badge";
-import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, linkOptions } from "@tanstack/react-router";
 import { SectionLayout, type SectionTab } from "../../../components/section-layout";
+import { useReviewWaiting } from "../../../money-in";
 import { reviewQuery } from "../../../queries";
 
 // Review and its Rules: one header and two tabs that stay put, with the page below them. The
@@ -12,7 +12,7 @@ export const Route = createFileRoute("/_authed/_household/review")({
 });
 
 function ReviewLayout() {
-	const total = useSuspenseQuery(reviewQuery()).data.total;
+	const total = useReviewWaiting();
 	const tabs: SectionTab[] = [
 		{
 			label: "Review",

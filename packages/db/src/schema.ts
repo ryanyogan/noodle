@@ -730,7 +730,7 @@ export const transfers = sqliteTable(
 		// Why a one-sided Transfer is one, when a Parent said: 'between-us' is money one Parent
 		// moved to the other, whose own Account isn't in Noodle (ADR-0052). Null for the rest.
 		reason: text("reason", { enum: ["between-us"] }),
-		// The Account on the side Noodle can't see, once a Parent names it. Nothing writes it yet.
+		// The Account on the side Noodle can't see, once a Parent names it (a remembered pair, money-in.ts).
 		otherAccountId: text("other_account_id").references(() => accounts.id),
 	},
 	(t) => [
@@ -939,6 +939,9 @@ export const income = sqliteTable(
 		needsReview: integer("needs_review", { mode: "boolean" }).notNull().default(false),
 		// Goes up with every change of kind, as a Transaction's does (ADR-0041).
 		version: integer("version").notNull().default(0),
+		// Whose pay it is (issue 133, ADR-0057): a Parent, or null for the Household. Last, as
+		// imports.ts inserts by position.
+		payMemberId: text("pay_member_id").references(() => members.id),
 	},
 	(t) => [
 		index("income_household_date_idx").on(t.householdId, t.date),
@@ -1012,10 +1015,16 @@ export const moneyInRules = sqliteTable(
 			.references(() => households.id),
 		pattern: text("pattern").notNull(),
 		kind: text("kind", { enum: MONEY_IN_KINDS }).notNull(),
+		// For a Rule that says Income: the Parent whose pay it is; null for the Household.
+		payMemberId: text("pay_member_id").references(() => members.id),
 		createdByMemberId: text("created_by_member_id").references(() => members.id),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.notNull()
 			.default(sql`(unixepoch() * 1000)`),
+		// A remembered pair of Accounts (ADR-0057): money in with this wording into
+		// `into_account_id` came from `other_account_id` and is always a Transfer. Null on a plain Rule.
+		intoAccountId: text("into_account_id").references(() => accounts.id),
+		otherAccountId: text("other_account_id").references(() => accounts.id),
 	},
 	(t) => [uniqueIndex("money_in_rules_household_pattern_idx").on(t.householdId, t.pattern)],
 );
@@ -1520,3 +1529,85 @@ export const householdSnapshots = sqliteTable(
 );
 
 export type HouseholdSnapshot = typeof householdSnapshots.$inferSelect;
+
+// Owed back (ADR-0058): the part of a purchase someone outside the Household's pool of money has
+// said they'll pay back, and who. The person is a name, not a Member; when a Child was chosen,
+// `member_id` says which and `who` is their name as it was then. One per purchase, or per Split
+// (`split_id`, no foreign key: Splits are rewritten whenever a Transaction is split again, and an
+// item whose Split is gone restores the purchase's largest Split instead). What has been Paid
+// back is the sum of its `paid_back_matches`. Taking it off deletes the row and its matches.
+export const owedBack = sqliteTable(
+	"owed_back",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		transactionId: text("transaction_id")
+			.notNull()
+			.references(() => transactions.id),
+		splitId: text("split_id"),
+		who: text("who").notNull(),
+		memberId: text("member_id").references(() => members.id),
+		amountCents: integer("amount_cents").notNull(),
+		createdByMemberId: text("created_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [
+		index("owed_back_household_idx").on(t.householdId),
+		uniqueIndex("owed_back_one_per_purchase").on(t.transactionId, sql`coalesce(${t.splitId}, '')`),
+	],
+);
+
+// Part of a Paid back money-in line (`income.id`, kind 'paid-back') put against one Owed back
+// item, once a Parent confirmed it. It counts as spending in reverse on `counts_on` (the day the
+// money arrived, or the first day of the month it was confirmed in when that month had ended),
+// restoring the purchase's Bucket or Commitment (counting.ts). What a line has beyond its matches
+// is "Paid back, not matched yet". Deleted when the line stops being Paid back.
+export const paidBackMatches = sqliteTable(
+	"paid_back_matches",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		incomeId: text("income_id")
+			.notNull()
+			.references(() => income.id),
+		owedBackId: text("owed_back_id")
+			.notNull()
+			.references(() => owedBack.id),
+		amountCents: integer("amount_cents").notNull(),
+		countsOn: text("counts_on").notNull(),
+		createdByMemberId: text("created_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [
+		index("paid_back_matches_household_idx").on(t.householdId),
+		index("paid_back_matches_income_idx").on(t.incomeId),
+		index("paid_back_matches_owed_back_idx").on(t.owedBackId),
+	],
+);
+
+// A one-time pass over a Household's rows that has run (money-in-pass.ts): the row is what stops
+// it running twice. Kept through a fresh start and left out of snapshots, so neither runs it again.
+export const householdPasses = sqliteTable(
+	"household_passes",
+	{
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		pass: text("pass").notNull(),
+		// The run that wrote the row: only that run changes anything.
+		runId: text("run_id").notNull(),
+		// The snapshot taken first; null when the pass found nothing to change.
+		snapshotId: text("snapshot_id"),
+		changed: integer("changed").notNull().default(0),
+		ranAt: integer("ran_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [primaryKey({ columns: [t.householdId, t.pass] })],
+);

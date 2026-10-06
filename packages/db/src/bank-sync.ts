@@ -14,7 +14,7 @@ import { importStatement } from "./imports";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
 import { bankLinesNotHere } from "./same-lines";
-import { accounts, income, splits, transactions, transfers } from "./schema";
+import { accounts, income, paidBackMatches, splits, transactions, transfers } from "./schema";
 import { clearSplits, transactionDeletes } from "./transactions";
 import { detectTransfers } from "./transfers";
 
@@ -324,6 +324,16 @@ function removeWrites(
 				and(
 					eq(transfers.householdId, householdId),
 					eq(transfers.inIncomeId, row.id),
+					sql`exists (select 1 from ${income} where ${theRow})`,
+				),
+			),
+		// What it had Paid back is owed again.
+		db
+			.delete(paidBackMatches)
+			.where(
+				and(
+					eq(paidBackMatches.householdId, householdId),
+					eq(paidBackMatches.incomeId, row.id),
 					sql`exists (select 1 from ${income} where ${theRow})`,
 				),
 			),

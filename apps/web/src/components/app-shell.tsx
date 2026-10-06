@@ -61,8 +61,9 @@ import {
 	UserRound,
 } from "lucide-react";
 import { type ComponentProps, type ReactNode, useEffect, useId } from "react";
+import { useReviewWaiting } from "../money-in";
 import { moreGroups, type NavGroup, type NavItem, sidebarGroups, tabItems } from "../nav";
-import { checkInStatusQuery, membersQuery, reviewQuery } from "../queries";
+import { checkInStatusQuery, membersQuery } from "../queries";
 import { openGlossary } from "./glossary";
 import { markQuickAddOpened, quickAddSearch } from "./quick-add";
 
@@ -272,9 +273,9 @@ function CheckInBadge() {
 	);
 }
 
-/** How many Transactions wait in Review, beside Transactions: a link to Review. */
+/** How many Transactions and money-in lines wait in Review, beside Transactions: a link to Review. */
 function ReviewBadge() {
-	const waiting = useQuery(reviewQuery()).data?.total ?? 0;
+	const waiting = useReviewWaiting();
 	if (waiting === 0) return null;
 	return (
 		<SidebarMenuBadge className="pointer-events-auto transition-colors hover:bg-brand-soft hover:text-brand has-focus-visible:ring-2 has-focus-visible:ring-ring">
@@ -566,7 +567,7 @@ function MoreGroup({
 	const labelId = useId();
 	const isCurrent = useIsCurrent();
 	const matchRoute = useMatchRoute();
-	const waiting = useQuery(reviewQuery()).data?.total ?? 0;
+	const waiting = useReviewWaiting();
 	return (
 		<section aria-labelledby={labelId} className="grid gap-1">
 			<p id={labelId} className="px-3 text-xs font-medium text-subtle-foreground">

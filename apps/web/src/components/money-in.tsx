@@ -13,9 +13,12 @@ import {
 	moneyInLabel,
 	moneyInQuery,
 	moneyInReviewQuery,
+	pairOffered,
 	useMoneyInKindChange,
 } from "../money-in";
 import { moneyInShown, type TransactionShow } from "../transaction-summary";
+import { AccountPairOffer } from "./money-in-rules";
+import { PaidBackMatching } from "./owed-back";
 
 // Money in and its kind (issue 131, ADR-0057): listed on Transactions with its kind in plain
 // words, and asked about in Review when it was sent person to person. Money in is green with its
@@ -25,7 +28,14 @@ import { moneyInShown, type TransactionShow } from "../transaction-summary";
  * The five kinds as buttons, the line's own pressed: a Parent says what a money-in line is, and
  * may say it for every line with the same wording from now on (a Rule).
  */
-export function MoneyInKindChoice({ line, onDone }: { line: MoneyInLine; onDone?: () => void }) {
+export function MoneyInKindChoice({
+	line,
+	onDone,
+}: {
+	line: MoneyInLine;
+	/** Called with the line as it is once its kind is changed. */
+	onDone?: (line: MoneyInLine) => void;
+}) {
 	const id = useId();
 	const change = useMoneyInKindChange();
 	const [always, setAlways] = useState(false);
@@ -46,7 +56,15 @@ export function MoneyInKindChoice({ line, onDone }: { line: MoneyInLine; onDone?
 							variant={current ? "default" : "outline"}
 							aria-pressed={current}
 							disabled={change.isPending}
-							onClick={() => change.mutate({ line, kind, always }, { onSuccess: onDone })}
+							onClick={() =>
+								change.mutate(
+									{ line, kind, always },
+									// A Transfer stays open to ask which Account it came from.
+									{
+										onSuccess: (changed) => (pairOffered(changed) ? undefined : onDone?.(changed)),
+									},
+								)
+							}
 						>
 							{MONEY_IN_KIND_LABELS[kind]}
 						</Button>
@@ -65,6 +83,7 @@ export function MoneyInKindChoice({ line, onDone }: { line: MoneyInLine; onDone?
 					</label>
 				</div>
 			) : null}
+			{pairOffered(line) ? <AccountPairOffer line={line} /> : null}
 		</div>
 	);
 }
@@ -134,7 +153,16 @@ export function MoneyInSection({
 						}
 						below={
 							open === line.id ? (
-								<MoneyInKindChoice line={line} onDone={() => setOpen(null)} />
+								<div className="grid gap-4">
+									<MoneyInKindChoice
+										line={line}
+										// Paid back stays open: what it pays back is asked next (issue 132).
+										onDone={(now) => (now.kind === "paid-back" ? undefined : setOpen(null))}
+									/>
+									{line.kind === "paid-back" && !line.needsReview ? (
+										<PaidBackMatching line={line} today={today} />
+									) : null}
+								</div>
 							) : undefined
 						}
 						belowFull

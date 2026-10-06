@@ -347,6 +347,7 @@ export {
 	outcomeWarnings,
 	projectionAssumptions,
 } from "./outcomes";
+export * from "./owed-back";
 export {
 	canPair,
 	type LineToPair,
@@ -357,6 +358,7 @@ export {
 	SAME_LINE_DAYS,
 	suggestPairings,
 } from "./pairing";
+export * from "./pay-range";
 export {
 	PAYMENT_HISTORY_MONTHS,
 	type PaymentLine,
