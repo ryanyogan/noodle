@@ -663,3 +663,38 @@ Light is unchanged: `--menu-hover` and `--selected` are aliases of `--surface-2`
 Comparison pictures redrawn from CI run 37387019798: sign-in and sign-up (desktop, iphone), setup-buckets (desktop, iphone), shell month and household (desktop, iphone): ten. The two setup-hello dark pictures passed as they were (inside the comparison's tolerance) and were not redrawn. No light picture failed.
 
 Looked at (dark; 1440 unless said): the Quick Add sheet (and 393); a toast; the account menu open over the Sidebar; select lists open on Transactions (and 393), Household settings, Reports and the Transaction editor, before and after the change; a hovered and a focused column-sort button; a hovered and a focused Sidebar item; the panel open on an Account and on a Goal; Accounts, Goals, Explore (whole page), Insights, Perks, Check-in; the lower halves of This Month and Explore; Reports' overview. At 393: This Month, Transactions, Accounts, Goals, Insights, Check-in, an Account with its "…" menu open, a Goal. At 1100: the panel as a drawer over the dimmed page, on an Account and on a Goal.
+
+### Phase 116c: fields
+
+The Parent (2026-10-05): "the input and selects do not seem to match the theme". Dark only.
+
+**What clashed.** Every Input, Textarea, Select and Combobox trigger, the amount field, the search field, the time fields and Clerk's email field were drawn with `--input` (`#6e778b`), the edge made for controls with no words in them: 3.95:1 on the card and 4.41:1 on the page, where a card's own edge is 1.26:1 and an outline Button's 1.58:1. So the brightest lines on Transactions, the Transaction editor, Household settings, Reports and sign-in were the outlines of form fields, and a Select beside an outline Button (Check-in's day beside Start, Sort beside Filters on a phone) looked like it came from another set. The fields' ground (`--surface-2`) was already the theme's. The off Switch was a solid grey pill (`--input` as its track) with a dark thumb, and the on Switch had the same dark thumb on blue.
+
+| Token (dark) | 116b | 116c |
+| --- | --- | --- |
+| `--field-border` (new: the edge of Input, Textarea, a Select or Combobox trigger, Clerk's fields) | `--input` `#6e778b` | `#3f485c` |
+| `--field-hover` (new: that edge under the pointer) | none on Input and Textarea; `--muted-foreground` `#a3aaba` on a Select | `#5b667e` |
+| `--switch-track` (an off Switch's track) | `--input` `#6e778b` | `--surface-3` `#222734`, as light |
+| `--switch-thumb` (new) | the card `#151821` | `#e9ecf3` (the text colour) |
+| `--input` | `#6e778b` | the same; now only the edge of an empty Checkbox or Radio and of an off Switch |
+
+Light: `--field-border` is `var(--input)`, `--field-hover` is `var(--muted-foreground)` (what a Select's hover edge was), `--switch-thumb` is `var(--card)`. Input and Textarea take the hover edge in dark only (`dark:not-focus-visible:not-aria-invalid:hover:`), since light had none. Classes: `border-input` became `border-field-border` in `input.tsx`, `textarea.tsx`, `select.tsx` (shared with Combobox) and Explore's Scenario name; `hover:border-muted-foreground` became `hover:border-field-hover` in `select.tsx`; the Switch thumb `bg-card` became `bg-switch-thumb`; Clerk's `formFieldInput` border is `var(--field-border)`. The ground (`--surface-2`), heights, radius, focus and invalid states are as they were, and the same for every field.
+
+**The boundary rule (WCAG 1.4.11), and what it gives up.** At rest a field is no longer 3:1 from what is around it by its edge alone. It is found by three things together: its ground (1.08:1 off the card, 1.20:1 off the page), a hairline one step over an outline Button's, and its label and the words or placeholder in it. Its edge reaches 3:1 under the pointer and when focused or invalid. Controls with no words in them (an empty Checkbox, a Radio, an off Switch) keep the `--input` edge at 3:1 or more. This is a choice made for the look the Parent asked for: someone who needs a 3:1 edge on a field at rest does not get one until the field has the pointer or focus.
+
+| Pair (dark) | Needs | 116b | 116c |
+| --- | --- | --- | --- |
+| Field edge at rest on card / page / its own ground | 3 by the letter; see the rule | 3.95 / 4.41 / 3.66 | 1.94 / 2.16 / 1.80 |
+| Field edge under the pointer on card / page | 3 | 7.61 / 8.50 on a Select, none on an Input | 3.07 / 3.43 |
+| Focused edge (`--ring`) on card / page / the field's ground | 3 | 6.37 / 7.11 / 5.91 | the same |
+| Invalid edge (`--over`) on card / page | 3 | 6.17 / 6.89 | the same |
+| Words in a field / placeholder (`--subtle-foreground`) / chevron on the field's ground | 4.5 / 4.5 / 3 | 13.92 / 5.34 / 7.07 | the same |
+| Outline Button edge on card, for comparison | - | 1.58 | 1.58 |
+| Empty Checkbox, Radio, off Switch edge on card / page / surface-2 | 3 | 3.95 / 4.41 / 3.66 | the same |
+| Switch thumb on its off track / on track | 3 | 3.95 (dark on grey) / 3.40 (dark on blue) | 12.61 / 4.40 |
+
+`apps/web/src/contrast.test.ts` holds the rule: the rest edge at least 1.9:1 on card and page, under `--input` and over `--border-strong`; pointer, focus and invalid edges at least 3:1; words and placeholder at least 4.5:1 on the ground; the thumb at least 3:1 on both tracks.
+
+Looked at (dark, 1440 and 393 unless said), before and after: Transactions (search, the Bucket and For selects; on a phone the search field and the Sort button between Filters and Select), the Transaction editor, Quick Add, Household settings (whole page), Reports' filter selects, Plan › Income, the Add an Account form (with its real "Give the Account a name" error at 393), sign-in. States at 1440: the search field focused by the keys, the Bucket select focused by the keys, its list open under it, an invalid and a disabled field and a disabled Switch on Household settings. Light at 1440, ten pages before and after: no pixel differs.
+
+Comparison pictures redrawn from CI run 37395065440: sign-up (iphone, dark), setup-buckets (desktop and iphone, dark), shell household (desktop and iphone, dark): five. Their differences were the fields' edges and the Switches, nothing else. The other dark pictures with a field in them (sign-in ×2, sign-up desktop) passed as they were, inside the comparison's tolerance, and were not redrawn. No light picture failed.

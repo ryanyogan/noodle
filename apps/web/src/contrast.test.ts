@@ -103,6 +103,42 @@ describe.each([
 	});
 });
 
+// A text field in dark (issue 116). The Parent asked for inputs and selects to match the theme, so a
+// field is no longer drawn by a bright outline (--input, 3.95:1 on the card): it is a raised ground
+// inside a hairline. The rule instead: the hairline is clearly stronger than a card's own edge, the
+// edge under the pointer and the focused edge reach 3:1 (WCAG 1.4.11), and the words in it reach
+// 4.5:1 on the field's ground. Controls with no words in them (Checkbox, Radio, Switch) keep --input.
+describe("a text field, dark theme (issue 116)", () => {
+	const grounds = ["card", "background"];
+
+	it("its hairline is quieter than a wordless control's edge and stronger than a card's", () => {
+		for (const ground of grounds) {
+			const edge = contrast(dark["field-border"] as string, dark[ground] as string);
+			expect(edge).toBeGreaterThanOrEqual(1.9);
+			expect(edge).toBeLessThan(contrast(dark.input as string, dark[ground] as string));
+			expect(edge).toBeGreaterThan(
+				contrast(dark["border-strong"] as string, dark[ground] as string),
+			);
+		}
+	});
+
+	it("its edge under the pointer, focused and invalid is at least 3:1 where a field sits", () => {
+		for (const ground of grounds) {
+			for (const edge of ["field-hover", "brand", "over"]) {
+				expect(contrast(dark[edge] as string, dark[ground] as string)).toBeGreaterThanOrEqual(3);
+			}
+		}
+	});
+
+	it("its words and its placeholder are at least 4.5:1 on its ground (surface-2)", () => {
+		for (const text of ["foreground", "subtle-foreground"]) {
+			expect(contrast(dark[text] as string, dark["surface-2"] as string)).toBeGreaterThanOrEqual(
+				4.5,
+			);
+		}
+	});
+});
+
 describe("chart contrast, dark theme (#73)", () => {
 	it("the comparison series (Explore's Plan bars) is at least 3:1 on the card, and quieter than the Scenario's", () => {
 		const compare = dark["chart-compare"] as string;
@@ -112,8 +148,13 @@ describe("chart contrast, dark theme (#73)", () => {
 		);
 	});
 
-	it("an off Switch's dark thumb (the card colour) is at least 3:1 on its track (--input)", () => {
-		expect(contrast(dark.card as string, dark.input as string)).toBeGreaterThanOrEqual(3);
+	it("an off Switch's thumb is at least 3:1 on its track and on the main button's fill", () => {
+		// Dark's thumb is light (issue 116); the off track is the bar-track grey, the on track --primary.
+		for (const track of ["surface-3", "primary"]) {
+			expect(
+				contrast(dark["switch-thumb"] as string, dark[track] as string),
+			).toBeGreaterThanOrEqual(3);
+		}
 	});
 
 	it("Cash flow's nodes (the two quieter text greys) are at least 3:1 on the card", () => {

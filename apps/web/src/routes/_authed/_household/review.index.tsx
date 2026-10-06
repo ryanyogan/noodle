@@ -55,6 +55,7 @@ import {
 } from "react";
 import { ulid } from "ulid";
 import { z } from "zod";
+import { pastPlanSentence } from "../../../before-plan";
 import { asBucketColor, monogram } from "../../../buckets";
 import { BucketPicker, NewBucketStep } from "../../../components/bucket-picker";
 import { ReviewMatchOffer } from "../../../components/match-section";
@@ -1718,11 +1719,14 @@ function ReviewCard({
 							: `${name}’s Plan has no Buckets yet, so there’s no Bucket to file this in.`}
 					</p>
 					<div className="flex flex-wrap items-center gap-2">
-						<Button variant="ghost" size="sm" asChild>
-							<Link to="/plan/$month" params={{ month }} hash={PLAN_BUCKETS_HASH}>
-								Set up {name}’s Plan
-							</Link>
-						</Button>
+						{/* A month that is over can't be given a Plan now (issue 117): no way there. */}
+						{month >= thisMonth ? (
+							<Button variant="ghost" size="sm" asChild>
+								<Link to="/plan/$month" params={{ month }} hash={PLAN_BUCKETS_HASH}>
+									Set up {name}’s Plan
+								</Link>
+							</Button>
+						) : null}
 						{onFileWithout ? (
 							<Button size="sm" disabled={!hydrated} onClick={onFileWithout}>
 								<Archive />
@@ -1768,9 +1772,10 @@ function ReviewCard({
 						choices={choices}
 						onValueChange={(value) => plan && onPick(value, plan)}
 						onCreate={onCreate && plan ? (name) => onCreate(name, plan) : undefined}
+						empty={pastPlanSentence(month, thisMonth) ?? undefined}
 						// Issue 98: where Buckets are renamed, grouped and put in order is one tap from here.
 						foot={
-							plan ? (
+							plan && month >= thisMonth ? (
 								<Link
 									to="/plan/$month"
 									params={{ month: plan.month }}
