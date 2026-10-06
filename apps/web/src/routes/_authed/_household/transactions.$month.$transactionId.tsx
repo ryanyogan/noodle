@@ -11,6 +11,7 @@ import { dayName } from "../../../format";
 import { membersQuery, monthQuery } from "../../../queries";
 import {
 	monthOfTransaction,
+	nameOf,
 	transactionLabel,
 	transactionQuery,
 	transactionsQuery,
@@ -166,7 +167,7 @@ function TransactionPane() {
 								<span className="max-[359px]:text-base lg:sr-only">{title}</span>
 								<span className="max-lg:hidden">
 									<span className="sr-only">: </span>
-									{transactionLabel(transaction)}
+									{nameOf(transaction) || transactionLabel(transaction)}
 								</span>
 							</>
 						}

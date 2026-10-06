@@ -470,7 +470,7 @@ test("a Transaction's address shows it whatever the list has loaded, and is a pa
 	await rows.first().click();
 	await expect(paneTitle).toBeVisible();
 	const address = new URL(page.url()).pathname;
-	const name = await paneTitle.innerText();
+	const name = (await paneTitle.textContent()) ?? "";
 
 	// Left out of the list by its filters, the Transaction is fetched by its ID.
 	await page.goto(`${address}?q=nothing-is-called-this`);

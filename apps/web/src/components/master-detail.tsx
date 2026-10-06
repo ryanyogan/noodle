@@ -182,10 +182,7 @@ export function DetailHeader({
 					data-slot="detail-back"
 					// On the title's line when the action has dropped under the title: at the top, 4px down,
 					// which is the middle of a one-line header (44px in 52px).
-					className={cn(
-						"flex max-lg:mt-1 max-lg:-ms-3 max-lg:self-start",
-						inPanel && "lg:hidden",
-					)}
+					className={cn("flex max-lg:mt-1 max-lg:-ms-3 max-lg:self-start", inPanel && "lg:hidden")}
 				>
 					{leading}
 				</div>
