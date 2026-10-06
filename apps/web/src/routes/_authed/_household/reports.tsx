@@ -417,7 +417,8 @@ function Options({
 					aria-label={`${PERIOD_LABELS[period]}: change the Period`}
 					data-period-chip=""
 					onClick={() => setFiltersOpen(true)}
-					className="max-w-full min-w-0 shrink pe-2 sm:hidden"
+					// 28px to look at, 44 under a thumb: as tall as Filters beside it.
+					className="relative max-w-full min-w-0 shrink pe-2 after:absolute after:inset-x-0 after:-inset-y-2 sm:hidden"
 				>
 					<span className="truncate">{PERIOD_LABELS[period]}</span>
 					<ChevronDown aria-hidden="true" className="size-3.5 text-muted-foreground" />
