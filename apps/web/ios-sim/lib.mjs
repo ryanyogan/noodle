@@ -216,9 +216,24 @@ const viewport = () => { const v = window.visualViewport; return { scale: v.scal
 /** Opens Safari in the simulator through Appium and returns the driver the checks use. */
 export async function openSafari(device, initialUrl) {
 	log("starting the Safari session (the first one builds WebDriverAgent: several minutes)");
-	const created = await request("POST", "/session", {
+	// Run 37504298761 lost both simulators here (Appium: "did not finish booting within 120000ms",
+	// and a dropped connection): a longer wait for the simulator, and the session is asked for
+	// up to three times.
+	const ask = async (body) => {
+		for (let attempt = 1; ; attempt++) {
+			try {
+				return await request("POST", "/session", body);
+			} catch (error) {
+				log(`session attempt ${attempt} failed:`, error.message);
+				if (attempt >= 3) throw error;
+				await sleep(30_000);
+			}
+		}
+	};
+	const created = await ask({
 		capabilities: {
 			alwaysMatch: {
+				"appium:simulatorStartupTimeout": 600_000,
 				platformName: "iOS",
 				browserName: "Safari",
 				"appium:automationName": "XCUITest",
