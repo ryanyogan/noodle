@@ -140,6 +140,7 @@ export function ChartCard({
 	description,
 	table,
 	actions,
+	actionsBelow,
 	children,
 	className,
 }: {
@@ -147,6 +148,11 @@ export function ChartCard({
 	description?: ReactNode;
 	table?: ReportTable;
 	actions?: ReactNode;
+	/**
+	 * On a phone the actions take the line under the heading: for a wide set (a row of chart types),
+	 * which otherwise squeezes the description to three lines beside it at 393px.
+	 */
+	actionsBelow?: boolean;
 	children: ReactNode;
 	className?: string;
 }) {
@@ -161,7 +167,12 @@ export function ChartCard({
 			role="group"
 		>
 			<div className="flex flex-wrap items-end justify-between gap-3">
-				<div className="grid min-w-0 flex-1 basis-40 gap-0.5">
+				<div
+					className={cn(
+						"grid min-w-0 flex-1 basis-40 gap-0.5",
+						actionsBelow && "max-sm:basis-full",
+					)}
+				>
 					<h2 id={titleId} className="text-[15px] font-semibold">
 						{title}
 					</h2>
