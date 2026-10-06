@@ -86,7 +86,9 @@ export function ToDo({ className, items }: { className?: string; items: ToDoItem
 											disabled={!hydrated}
 											onClick={() => setExpanded((e) => ({ ...e, [item.label]: !shown }))}
 											// The card's own 20px edge, as the Free to Spend and Income cards beside it (issue 73).
-											className="min-w-0 flex-1 rounded-none px-(--card-pad) py-3"
+											// The focus ring is drawn inside the row: outside it, the card's rounded edge
+											// cut off all of it but the bottom line.
+											className="min-w-0 flex-1 rounded-none px-(--card-pad) py-3 focus-visible:-outline-offset-2"
 										>
 											<span
 												className={cn(
