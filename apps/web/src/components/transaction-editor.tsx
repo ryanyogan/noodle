@@ -523,7 +523,14 @@ function EditForm({
 						</Button>
 					) : null}
 				</div>
-				<div className="grid gap-3 sm:grid-cols-2">
+				<div
+					className={cn(
+						"grid gap-3 sm:grid-cols-2",
+						// The sentence of a month with no Buckets is taller than a field (issue 117): Amount
+						// keeps its own height beside it.
+						none && "items-start",
+					)}
+				>
 					<Field label="Amount" htmlFor="transaction-amount">
 						<AmountInput
 							id="transaction-amount"
