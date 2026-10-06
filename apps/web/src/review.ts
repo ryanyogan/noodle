@@ -88,6 +88,70 @@ const changeOf = ({ item, next }: ReviewDecision): TransactionChange => ({
 });
 
 /**
+ * How each of Review's writes is sent. Named, so one left waiting by an earlier page is sent again
+ * by the same function (waiting-writes.ts, ADR-0056).
+ */
+export const sendDecision = (decision: ReviewDecision) => saveTransactionChange(changeOf(decision));
+
+export async function sendDecisions(decisions: ReviewDecision[]) {
+	// One at a time: each is an ordinary Transaction change. One that another screen changed
+	// first is left as it is and counted; the rest are still filed (ADR-0041).
+	const skipped: ReviewDecision[] = [];
+	for (const decision of decisions) {
+		try {
+			await saveTransactionChange(changeOf(decision));
+		} catch (error) {
+			if (!(error instanceof ChangedElsewhere)) throw error;
+			skipped.push(decision);
+		}
+	}
+	return { skipped };
+}
+
+export async function sendFileWithoutBucket({ items }: { items: ReviewItem[]; quiet?: boolean }) {
+	const answer = await fileWithoutBucket({
+		data: { transactionIds: items.map((item) => item.id) },
+	});
+	// Filing moved each one's version on: this screen's next change to it (an Undo) says so.
+	for (const [id, version] of Object.entries(answer.versions)) noteVersion(id, version);
+	return answer;
+}
+
+export async function sendReturnToReview(item: ReviewItem) {
+	const answer = await returnToReview({
+		data: {
+			transactionId: item.id,
+			// Read as it is sent: the decision being undone moved the version on (ADR-0041).
+			expectedVersion: expectedVersionOf(item),
+			month: monthOfTransaction(item),
+			merchant: item.merchant,
+			guess: item.guess
+				? {
+						bucketId: item.guess.bucketId,
+						confidence: item.guess.confidence,
+						method: item.guess.method,
+						reason: item.guess.reason,
+					}
+				: null,
+			forMemberIds: item.for,
+		},
+	});
+	settleWrite(item.id, answer);
+}
+
+export const sendRule = (rule: RuleInput & { bucketName: string }) =>
+	saveRule({
+		data: {
+			ruleId: rule.ruleId,
+			pattern: rule.pattern,
+			bucketId: rule.bucketId,
+			commitmentId: rule.commitmentId ?? null,
+			forMemberIds: rule.forMemberIds,
+			apply: true,
+		},
+	});
+
+/**
  * Confirms or changes a card: it leaves the stack and its Transaction's change lands in its
  * month and lists before the server answers, with an Undo in the toast. A failure puts it all
  * back and offers a retry.
@@ -103,7 +167,8 @@ export function useReviewDecision({
 	const decide = useMutation({
 		mutationKey: monthChangeKey,
 		scope: reviewWrites,
-		mutationFn: (decision: ReviewDecision) => saveTransactionChange(changeOf(decision)),
+		meta: { outbox: "decision" },
+		mutationFn: sendDecision,
 		onMutate: async (decision) => {
 			const putBack = await takeCards(queryClient, (item) => item.id === decision.item.id);
 			const rollback = await applyTransactionChange(queryClient, changeOf(decision));
@@ -163,20 +228,8 @@ export function useConfirmAll({
 	const confirmAll = useMutation({
 		mutationKey: monthChangeKey,
 		scope: reviewWrites,
-		mutationFn: async (decisions: ReviewDecision[]) => {
-			// One at a time: each is an ordinary Transaction change. One that another screen changed
-			// first is left as it is and counted; the rest are still filed (ADR-0041).
-			const skipped: ReviewDecision[] = [];
-			for (const decision of decisions) {
-				try {
-					await saveTransactionChange(changeOf(decision));
-				} catch (error) {
-					if (!(error instanceof ChangedElsewhere)) throw error;
-					skipped.push(decision);
-				}
-			}
-			return { skipped };
-		},
+		meta: { outbox: "decisions" },
+		mutationFn: sendDecisions,
 		onMutate: async (decisions) => {
 			const ids = new Set(decisions.map((d) => d.item.id));
 			const putBack = await takeCards(queryClient, (item) => ids.has(item.id));
@@ -238,14 +291,8 @@ export function useFileWithoutBucket({
 	const file = useMutation({
 		mutationKey: monthChangeKey,
 		scope: reviewWrites,
-		mutationFn: async ({ items }: { items: ReviewItem[]; quiet?: boolean }) => {
-			const answer = await fileWithoutBucket({
-				data: { transactionIds: items.map((item) => item.id) },
-			});
-			// Filing moved each one's version on: this screen's next change to it (an Undo) says so.
-			for (const [id, version] of Object.entries(answer.versions)) noteVersion(id, version);
-			return answer;
-		},
+		meta: { outbox: "file-without-bucket" },
+		mutationFn: sendFileWithoutBucket,
 		onMutate: async ({ items }) => {
 			const ids = new Set(items.map((item) => item.id));
 			return { putBack: await takeCards(queryClient, (item) => ids.has(item.id)) };
@@ -323,27 +370,8 @@ export function useReturnToReview() {
 	const returnCard = useMutation({
 		mutationKey: monthChangeKey,
 		scope: reviewWrites,
-		mutationFn: async (item: ReviewItem) => {
-			const answer = await returnToReview({
-				data: {
-					transactionId: item.id,
-					// Read as it is sent: the decision being undone moved the version on (ADR-0041).
-					expectedVersion: expectedVersionOf(item),
-					month: monthOfTransaction(item),
-					merchant: item.merchant,
-					guess: item.guess
-						? {
-								bucketId: item.guess.bucketId,
-								confidence: item.guess.confidence,
-								method: item.guess.method,
-								reason: item.guess.reason,
-							}
-						: null,
-					forMemberIds: item.for,
-				},
-			});
-			settleWrite(item.id, answer);
-		},
+		meta: { outbox: "return-to-review" },
+		mutationFn: sendReturnToReview,
 		onMutate: async (item) => {
 			const { queryKey } = reviewQuery();
 			const monthKey = monthQuery(monthOfTransaction(item)).queryKey;
@@ -463,17 +491,8 @@ export function useSaveRule() {
 	const save = useMutation({
 		mutationKey: monthChangeKey,
 		scope: reviewWrites,
-		mutationFn: (rule: RuleInput & { bucketName: string }) =>
-			saveRule({
-				data: {
-					ruleId: rule.ruleId,
-					pattern: rule.pattern,
-					bucketId: rule.bucketId,
-					commitmentId: rule.commitmentId ?? null,
-					forMemberIds: rule.forMemberIds,
-					apply: true,
-				},
-			}),
+		meta: { outbox: "rule" },
+		mutationFn: sendRule,
 		onMutate: async (rule) => {
 			const matches = [{ pattern: merchantKey(rule.pattern), bucketId: rule.bucketId }];
 			return { putBack: await takeCards(queryClient, (item) => !!ruleFor(matches, item.merchant)) };

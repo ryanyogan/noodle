@@ -11,6 +11,7 @@ import { QuickAdd } from "../../components/quick-add";
 import { useLiveUpdates } from "../../live-updates";
 import { useKeepPushSubscription } from "../../push-device";
 import { bucketUsesQuery, membersQuery, monthQuery } from "../../queries";
+import { useWaitingWrites } from "../../waiting-writes";
 
 // The authenticated app layout: requires the Parent to belong to a Household.
 export const Route = createFileRoute("/_authed/_household")({
@@ -34,6 +35,8 @@ function AppLayout() {
 	const { household, parentId } = Route.useRouteContext();
 	useLiveUpdates();
 	useKeepPushSubscription();
+	// A change the last page left unsent is sent now (ADR-0056).
+	useWaitingWrites({ householdId: household.id, parentId });
 	return (
 		<TooltipProvider>
 			<AppShell householdName={household.name}>
