@@ -9,8 +9,10 @@ function Input({ className, type, autoComplete, ...props }: React.ComponentProps
 			// Names and amounts here are the Household's own; browser autofill only gets in the way.
 			autoComplete={autoComplete ?? (email ? "email" : "off")}
 			// Phone keyboards: an email keyboard that doesn't capitalize or correct the address, and a
-			// Search key on search fields. Any of these can be overridden by the caller.
-			inputMode={email ? "email" : type === "search" ? "search" : undefined}
+			// Search key on search fields. Any of these can be overridden by the caller. No
+			// inputMode="search": on an iPhone it brings the web-search keyboard, whose return key
+			// reads "go" whatever enterKeyHint says (seen in the iOS Simulator, #52).
+			inputMode={email ? "email" : undefined}
 			autoCapitalize={email ? "none" : undefined}
 			autoCorrect={email ? "off" : undefined}
 			spellCheck={email ? false : undefined}

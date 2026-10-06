@@ -71,7 +71,8 @@ test("fields on a phone bring up the right keyboard", async ({ browser }) => {
 	await page.goto("/transactions");
 	const search = page.locator("#filter-search");
 	await expect(search).toHaveAttribute("enterkeyhint", "search");
-	await expect(search).toHaveAttribute("inputmode", "search");
+	// Not inputmode="search": an iPhone then shows its web-search keyboard, whose key reads "go" (#52).
+	await expect(search).not.toHaveAttribute("inputmode", "search");
 	expect(await wrongKeyboards(page), "Transactions").toEqual([]);
 	// The first row with a button (day headings carry no button), once hydrated: before then a
 	// press on a row does nothing.
