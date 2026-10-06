@@ -112,6 +112,12 @@ test("Phones reach Reports from This Month", { tag: "@phone" }, async ({ browser
 	await createPlannedHousehold(page, plan);
 	await openFromMore(page, "Reports");
 	await expect(header(page)).toContainText("Overview");
+	// The Period beside Filters is a chip that opens the same sheet, where it is changed (#120).
+	const chip = page.getByRole("button", { name: "Last 6 months: change the Period" });
+	await expect(chip).toHaveText("Last 6 months");
+	await chip.click();
+	const sheet = page.getByRole("dialog", { name: "Filters" });
+	await expect(sheet.getByRole("combobox", { name: "Period" })).toBeVisible();
 });
 
 test("no Report view is wider than a phone, and a long merchant name stays in its card", async ({

@@ -32,7 +32,7 @@ import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group
 import { cn } from "@noodle/ui/lib/utils";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ChartPie, Download, Landmark, ListFilter, Plus, X } from "lucide-react";
+import { ChartPie, ChevronDown, Download, Landmark, ListFilter, Plus, X } from "lucide-react";
 import { Fragment, useId, useMemo, useState } from "react";
 import { FilterSelect } from "../../../components/filter-select";
 import { quickAddSearch } from "../../../components/quick-add";
@@ -409,9 +409,19 @@ function Options({
 						</span>
 					) : null}
 				</Button>
-				<p className="min-w-0 flex-1 truncate text-sm text-muted-foreground sm:hidden">
-					{PERIOD_LABELS[period]}
-				</p>
+				{/* The Period is changed in the sheet on a phone, so what says it opens the sheet (issue 120). */}
+				<Button
+					variant="secondary"
+					size="chip"
+					aria-haspopup="dialog"
+					aria-label={`${PERIOD_LABELS[period]}: change the Period`}
+					data-period-chip=""
+					onClick={() => setFiltersOpen(true)}
+					className="max-w-full min-w-0 shrink pe-2 sm:hidden"
+				>
+					<span className="truncate">{PERIOD_LABELS[period]}</span>
+					<ChevronDown aria-hidden="true" className="size-3.5 text-muted-foreground" />
+				</Button>
 			</div>
 			{offered.compare && (search.compare ?? "previous") !== "none" && report.compared === null ? (
 				<p className="text-[13px] text-muted-foreground">
