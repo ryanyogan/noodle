@@ -32,10 +32,20 @@ export const countsRaw = (id: string) =>
 	and not exists (select 1 from transfers where (transfers.out_transaction_id = ${id}
 		or transfers.in_transaction_id = ${id}) and transfers.removed_at is null)`;
 
-/** The income row (a column holding its ID) counts as income: it didn't arrive by Transfer. */
+/** The income row (a column holding its ID) is the arriving side of a Transfer. */
+export const incomeInTransfer = (id: AnyColumn = income.id): SQL =>
+	sql`exists (select 1 from ${transfers} where ${transfers.inIncomeId} = ${id} and ${transfers.removedAt} is null)`;
+
+/**
+ * The income row (a column holding its ID) counts as Income (ADR-0057): it didn't arrive by
+ * Transfer (which covers Between us), it isn't a Refund or Paid back, and it isn't waiting in
+ * Review for a Parent to say its kind.
+ */
 export const incomeCounts = (id: AnyColumn = income.id): SQL =>
-	sql`not exists (select 1 from ${transfers} where ${transfers.inIncomeId} = ${id} and ${transfers.removedAt} is null)`;
+	sql`(not ${incomeInTransfer(id)} and not exists (select 1 from income mk where mk.id = ${id}
+		and (mk.kind is not null or mk.needs_review = 1)))`;
 
 /** `incomeCounts` for raw SQL that names the income row's ID column as `id` (e.g. `i.id`). */
 export const incomeCountsRaw = (id: string) =>
-	`not exists (select 1 from transfers where transfers.in_income_id = ${id} and transfers.removed_at is null)`;
+	`(not exists (select 1 from transfers where transfers.in_income_id = ${id} and transfers.removed_at is null)
+	and not exists (select 1 from income mk where mk.id = ${id} and (mk.kind is not null or mk.needs_review = 1)))`;

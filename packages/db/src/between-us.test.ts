@@ -5,6 +5,7 @@ import { extraIncomeLeftSql } from "./extra-income";
 import { clearHouseholdRows } from "./fresh-start";
 import {
 	addAccount,
+	changeMoneyInKind,
 	createHouseholdForParent,
 	type Db,
 	decideExtraIncome,
@@ -12,6 +13,7 @@ import {
 	loadBetweenUsIncome,
 	loadIncome,
 	loadIncomeCells,
+	loadMoneyInReview,
 	loadSpending,
 	loadTransactionsPage,
 	loadTransfer,
@@ -121,6 +123,13 @@ beforeEach(async () => {
 		line("2026-09-05", 150_000, ZELLE_IN),
 		line("2026-09-12", -20_000, ZELLE_OUT),
 	]);
+	// Person-to-person money in waits in Review (ADR-0057); here a Parent first called it Income.
+	const [asked] = await loadMoneyInReview(db, householdId);
+	await changeMoneyInKind(db, viewer, {
+		incomeId: asked?.id ?? "",
+		kind: "income",
+		transferId: "t-0",
+	});
 });
 
 describe("money in from the other Parent", () => {
