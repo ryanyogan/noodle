@@ -12,7 +12,7 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 
 | Surface | How to reach it | Another agent busy? | 1024 | 1280 | 1440 | 1920 | 2560 | dark 1440 | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Sidebar, open | any page from 1024 | shell agent | open: at 1024×768 the last link (Household settings) is cut by the Sidebar's foot until it is scrolled | — | ok | — | — | — | seen on every picture below; 1024×768 still cuts the last link (opened again in part 2, pic 23 at 1024): NOT fixed |
+| Sidebar, open | any page from 1024 | shell agent | fixed f3092b8b | — | ok | — | — | — | part 3 (73ar): at a window under 800px tall the groups sit 8px apart and their labels are 24px, so Household settings is whole 50px above the foot at 1024×768 (pic 03w at 1024, opened). Other widths seen on every picture |
 | Sidebar, collapsed to the icon rail | Sidebar trigger | shell agent | — | — | — | — | — | — |  |
 | Household menu (Sidebar foot) | click the Household name | shell agent | — | — | — | — | — | — |  |
 | Term help popover | any "?" beside a heading | shared (packages/ui) | — | — | — | — | — | — |  |
@@ -57,19 +57,21 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 
 | Surface | How to reach it | Another agent busy? | 1024 | 1280 | 1440 | 1920 | 2560 | dark 1440 | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Plan overview | /plan/$month | yes | — | — | — | — | — | — |  |
-| Plan › Buckets table | /plan/$month#buckets | yes | — | — | — | — | — | — |  |
-| Add Buckets sheet | Plan › Add Buckets | yes | — | — | — | — | — | — |  |
+| Plan overview | /plan/$month | yes | ok (window only, 03w) | ok | ok | ok (reduced) | — | ok (layout) | 73ar: pics 03, 03b (Things to check open with its three links, What changed "Show all"). 2560 taken, not opened. Things to check's first warning differs between runs (Hawaii trip / Next car): order not looked into |
+| Plan › Buckets table | /plan/$month#buckets | yes | — | ok | fixed f3092b8b | ok (reduced) | — | ok (layout) | 73ar: two groups seeded in page-shots (Food, Family and home). Subtotals and Total end on the rows' right edge in Allowance, Spent and Left at 1280, 1440, 1920, dark; the subtotal's Spent was darker than the column: now muted. 1024 and 2560 taken, not opened. Decision kept: exact cents ("$2,064" beside "$106.77") |
+| Bucket sheet, More open (Group, colour, Move up/down, Archive) | Buckets table › pencil › More (pic 04a2, 04a4) | yes | — | — | ok (reduced) | — | — | — | 73ar: one left edge, one primary (Save); centred in the window |
+| Group rename sheet | Buckets table › a group's Rename (pic 04d) | yes | — | — | ok (reduced) | — | — | — | 73ar: new picture |
+| Add Buckets sheet | Plan › Add Buckets | yes | — | — | — | — | — | — | 73ar: pic 04e added; taken at every width, NOT opened |
 | New Bucket sheet | Bucket picker › New Bucket | yes | — | — | — | — | — | — |  |
-| Bucket in the panel | /plan/$month/buckets/$id | yes | — | — | — | — | — | — |  |
+| Bucket in the panel | /plan/$month/buckets/$id | yes | ok (drawer) | fixed f3092b8b (drawer) | fixed f3092b8b | — | — | — | 73ar: "Spent" and "Even spending by today" figures sat 16px apart when the label wrapped; now on one line (pics 05w). The foot strip clears the Ask button. 1920, 2560, dark taken, not opened. Judgement: its header button is outlined "Edit Bucket" while a Commitment's and Goal's is a plain "Edit" |
 | Restore Bucket sheet | Bucket panel › history | yes | — | — | — | — | — | — |  |
 | Plan editing dialog (discard draft) | Plan › edit, leave | yes | — | — | — | — | — | — |  |
-| Plan › Year | /plan/$month/year, /plan/year/$year | yes | — | — | — | — | — | — |  |
+| Plan › Year | /plan/$month/year, /plan/year/$year | yes | — | — | ok | — | — | — | 73ar: pic 09 at 1440: planned over actual, Carried over, months below zero in red, the yearly total; all columns end on one edge. Other widths taken, not opened |
 | Plan › Commitments | /plan/$month/commitments (pic 06) | no | fixed 526a6722 | — | fixed 526a6722 | — | — | ok (layout) | amount column holds the figure alone; a yearly one says "A month’s share of $480 yearly" on its meta line (two lines beside the rail at 1440 and 1024). $11.58 keeps its cents: Plan figures are exact |
-| Commitment in the panel | /plan/$month/commitments/$id (pic 07) | no | — | — | fixed 5277492e | — | — | — | the panel ends in a 64px strip of its own ground under the Ask button (detail-panel.tsx); retaken, pic 07 |
+| Commitment in the panel | /plan/$month/commitments/$id (pic 07) | no | ok (drawer) | — | ok | — | — | — | 73ar: retaken at every width with the foot strip (pic 07b); 1440 and 1024 opened |
 | Commitment sheet (edit) | Commitment panel › Edit | no | — | — | — | — | — | — |  |
 | Plan › Commitments, empty | fresh Household (pic 39h) | no | — | — | — | — | — | — |  |
-| Plan › Goal funding | /plan/$month/goals (pic 08) | no | — | — | — | — | — | — |  |
+| Plan › Goal funding | /plan/$month/goals (pic 08) | no | — | — | open: retake not opened | — | — | — | 73ar: the dot between "funded this month" and "set aside" had no room before it and two spaces after; now the shared MetaParts dot (f3092b8b). Retaken, NOT opened. The seeded Household has no "Funded" / "Paid off" row: seed one |
 | Plan › Goal funding, empty | fresh Household (pic 39i) | no | — | — | — | — | — | — |  |
 | Plan › Income | /plan/$month/income (pic 08x) | no | fixed 007ffe4 | — | fixed 526a6722 | — | — | — | rail no longer repeats the received line or its bar; its help says "here, with Edit take-home pay". 1024 not retaken after this |
 | Income came in lower | small Household (pic 06a) | no | — | — | — | — | — | — |  |
@@ -106,7 +108,7 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 |---|---|---|---|---|---|---|---|---|---|
 | Accounts list | /accounts (pic 15) | no | — | — | fixed 836a1ade | — | — | — | cards start at the top, balance on the bottom line (pic 16, under the panel) |
 | Accounts, archived open | pic 15a | no | — | — | — | — | — | — |  |
-| Account in the panel (credit card) | /accounts/$id (pic 16) | no | — | — | ok | — | — | — | part 2: the first foot strip sat 64px too high (opened); corrected in 5277492e and retaken, but the retake of pic 16 was NOT opened (pic 07 was) |
+| Account in the panel (credit card) | /accounts/$id (pic 16) | no | — | — | fixed f3092b8b | — | — | — | 73ar: "Perks for this card" said "5 Perks · Chase Sapphire Reserve" under the card's own heading; now "5 Perks" (another source's name is still shown). Pic 16 opened at 1440, with the foot strip in place |
 | Account in the panel (no balance) | pic 16a | no | — | — | — | — | — | — |  |
 | Account actions menu | Account panel › More | no | — | — | — | — | — | — |  |
 | Rename Account sheet | Account menu › Rename | no | — | — | — | — | — | — |  |
@@ -142,7 +144,7 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 | Can we afford it? (car) | pic 20a | no | — | — | — | — | — | — |  |
 | Can we afford it? (anything) | pic 20b | no | — | — | — | — | — | — |  |
 | Can we afford it?, empty | fresh Household (pic 39k) | no | — | — | — | — | — | — |  |
-| Scenarios list, compare | /explore/scenarios | yes | — | — | — | — | — | — |  |
+| Scenarios list, compare | /explore/scenarios | yes | ok (drawer) | — | fixed f3092b8b | — | open: fix not pictured | — | 73ar: with a Scenario open the panel covered Compare's value columns. Compare now keeps to the room left of the panel and, when that is under 448px, lists each number's values (the phone form); its charts stack under 768px (pics 21a, 22a). At 2560 the first fix still left "Pay cut" under the panel (opened); the wide-page correction is committed but NOT pictured. The Outcome tab row in the panel clips "Goal paths" at 1024 and 1440 (it scrolls) |
 | Scenario, Rename and Delete dialogs | /explore/scenarios/$id | yes | — | — | — | — | — | — |  |
 
 ## Reports

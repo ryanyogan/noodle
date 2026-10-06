@@ -125,10 +125,13 @@ function ScenariosPage() {
 				compared.length > 0 ? (
 					// With a Scenario open beside the list, Compare keeps to the room left of the panel
 					// (the panel covers a rail's width and the gap), so its figures stay in view (issue 73).
+					// Explore is a wide page and the panel is measured from the usual cap: past 1920 the
+					// panel reaches further in by half the difference between the two caps.
 					<div
 						className={cn(
 							"grid min-w-0 gap-4",
-							picked !== undefined && "xl:me-[calc(var(--rail-width)+var(--layout-gap))]",
+							picked !== undefined &&
+								"xl:me-[calc(var(--rail-width)+var(--layout-gap)+min((var(--shell-max-wide)-var(--shell-max))/2,max(0px,(100vw-var(--sidebar-width)-var(--shell-max))/2)))]",
 						)}
 					>
 						<Compare
