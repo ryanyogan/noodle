@@ -19,6 +19,7 @@ import {
 	transactionLabel,
 	useTransactionChange,
 } from "../transactions";
+import { WaitingForBankBadge } from "./transaction-columns";
 import { TransactionEditor } from "./transaction-editor";
 
 // One Transaction as a row, the same everywhere it's listed (Transactions, an Account's page, a
@@ -109,9 +110,7 @@ export function TransactionItem({
 					Matched
 				</Badge>
 			) : waiting ? (
-				<Badge aria-hidden="true" dot className={pill}>
-					Waiting for bank
-				</Badge>
+				<WaitingForBankBadge />
 			) : null}
 		</>
 	);

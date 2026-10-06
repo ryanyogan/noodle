@@ -183,6 +183,8 @@ test("a month that ended short is carried over too, and a month ahead it leaves 
 	await expect(page.locator("[data-slot=free-handed-on]")).toHaveText(
 		`Ended $230 short, carried over into ${monthName(month)}`,
 	);
+	// An ended month's headline is what it ended with, not what its Plan left free (issue 120).
+	await expect(page.locator("[data-slot=free-headline]")).toHaveText("−$230");
 
 	await page.goto(`/plan/${month}`);
 	await expect(split(page)).toContainText(

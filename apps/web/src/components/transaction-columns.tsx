@@ -2,6 +2,12 @@ import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import type { DataTableColumn } from "@noodle/ui/components/data-table";
 import { Tile } from "@noodle/ui/components/tile";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@noodle/ui/components/tooltip";
 import { cn } from "@noodle/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeftRight, Check, Sparkles, Split as SplitIcon, Target } from "lucide-react";
@@ -21,6 +27,34 @@ import { AssignedCell, type CellEdits, NameEditor, RenameButton } from "./transa
 export type TransactionTableRow = { transaction: TransactionRow; view: RowView };
 
 const pill = "h-4.5 px-1.5 text-[11px]";
+
+/**
+ * A Quick Add whose bank copy hasn't come in. Where the badge sits beside the name and the window
+ * is under 1280px it is a dot with a tooltip, so the name keeps the room: whole, it cut the name
+ * to three letters at 1024 (issue 120). The row's own label says it to a screen reader
+ * ("waiting for the bank's copy"), and opening the row says it in words.
+ */
+export function WaitingForBankBadge() {
+	return (
+		<TooltipProvider>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Badge
+						aria-hidden="true"
+						dot
+						className={cn(
+							pill,
+							"sm:max-xl:w-4.5 sm:max-xl:justify-center sm:max-xl:gap-0 sm:max-xl:px-0",
+						)}
+					>
+						<span className="sm:max-xl:sr-only">Waiting for bank</span>
+					</Badge>
+				</TooltipTrigger>
+				<TooltipContent className="max-sm:hidden xl:hidden">Waiting for bank</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
+	);
+}
 // A tile with no Bucket colour is the same grey as a selected or open row: there it takes the
 // card's ground, so the square is still a square.
 const plainTile = "[[data-selected]_&]:bg-card [[aria-current=true]_&]:bg-card";
@@ -152,9 +186,7 @@ function NameCell({
 							Matched
 						</Badge>
 					) : view.waiting ? (
-						<Badge aria-hidden="true" dot className={pill}>
-							Waiting for bank
-						</Badge>
+						<WaitingForBankBadge />
 					) : null}
 				</span>
 				{/* The columns say this line's parts apart once the table is wide enough for them. */}
