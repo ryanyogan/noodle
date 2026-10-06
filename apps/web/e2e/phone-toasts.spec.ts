@@ -3,6 +3,7 @@ import { createTestParent } from "./parents";
 import {
 	clientRendered,
 	createPlannedHousehold,
+	pickQuickAddBucket,
 	reloadUntil,
 	signedInPage,
 	uploadStatement,
@@ -29,6 +30,34 @@ async function toasts(page: Page) {
 	const drawn = held.filter({ visible: true });
 	return { held: await held.count(), drawn: await drawn.allInnerTexts() };
 }
+
+// A toast that was tapped (issue 52): on a touch screen Sonner heard the pointer arrive on the pile
+// and never heard it leave, so the toast stayed until something else was tapped. Seen in the iOS
+// Simulator: one tap on a toast's words and it was still there 30 s later.
+test("on a touch screen a toast that was tapped still goes when its time is up", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email, { hasTouch: true });
+	await createPlannedHousehold(page, { baseline: "5,000", buckets: [["Groceries", "1,200"]] });
+	await page.getByRole("link", { name: "Quick Add" }).first().click();
+	const sheet = page.getByRole("dialog", { name: "Quick Add" });
+	await expect(sheet).toBeVisible();
+	await page.keyboard.type("7");
+	await pickQuickAddBucket(sheet, "Groceries");
+	await expect(sheet).toBeHidden();
+
+	const held = page.locator("[data-sonner-toast][data-removed=false]");
+	const words = held.locator("[data-slot=toast] > span").last();
+	await expect(words).toBeVisible();
+	await words.tap();
+	// What an iPhone sends after a tap and Playwright's browsers don't: the mouse arriving on the
+	// toast, made up from the touch, with no leaving to follow.
+	await words.dispatchEvent("mouseover");
+	await words.dispatchEvent("mousemove");
+	// Nothing else is touched. Its time (ten seconds at most, for an Undo) and a margin.
+	await expect(held).toHaveCount(0, { timeout: 16_000 });
+});
 
 test("on a phone one toast shows at a time after filing two Review cards, and an Undo that comes back still undoes", async ({
 	browser,
