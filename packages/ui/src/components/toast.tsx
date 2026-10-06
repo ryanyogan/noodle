@@ -193,27 +193,36 @@ function ToastBody({
  */
 function useTouchEndsHover() {
 	useEffect(() => {
-		let touch = false;
+		// When a finger last touched: the mouse events made up for a touch follow it, some of them
+		// a third of a second later, and on some iPhones after a pointer event that says "mouse".
+		let touched = Number.NEGATIVE_INFINITY;
+		const afterTouch = () => performance.now() - touched < 1_000;
 		const pile = (target: EventTarget | null) =>
 			target instanceof Element ? target.closest("[data-sonner-toaster]") : null;
-		const leave = (list: Element, lift: boolean) =>
-			// After the browser's own handlers for this event, Sonner's among them.
-			setTimeout(() => {
-				if (!list.isConnected) return;
-				// A touch the browser took over (a scroll) ends without the `pointerup` Sonner waits for.
-				if (lift) list.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
-				// React makes `mouseleave` from a `mouseout` to nowhere.
+		const left = (list: Element) => () => {
+			// React makes `mouseleave` from a `mouseout` to nowhere.
+			if (list.isConnected)
 				list.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: null }));
-			}, 0);
+		};
+		const leave = (list: Element, lift: boolean) => {
+			// A touch the browser took over (a scroll) ends without the `pointerup` Sonner waits for;
+			// sent now, so Sonner has taken it in before it is told the pointer left.
+			if (lift) list.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+			// After the browser's own handlers for this event, Sonner's among them; and once more
+			// after any made-up mouse event that is still to come.
+			setTimeout(left(list), 0);
+			setTimeout(left(list), 450);
+		};
 		const onPointer = (event: PointerEvent) => {
-			touch = event.pointerType === "touch";
-			if (!touch || event.type === "pointerdown" || event.type === "pointerover") return;
+			if (event.pointerType !== "touch") return;
+			touched = performance.now();
+			if (event.type === "pointerdown" || event.type === "pointerover") return;
 			const list = pile(event.target);
 			if (list) leave(list, event.type === "pointercancel");
 		};
 		// The mouse events made up after a touch come after its `pointerup`.
 		const onMouse = (event: MouseEvent) => {
-			if (!touch) return;
+			if (!afterTouch()) return;
 			const list = pile(event.target);
 			if (list) leave(list, false);
 		};
