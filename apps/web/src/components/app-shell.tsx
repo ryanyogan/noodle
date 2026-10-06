@@ -381,7 +381,9 @@ function TabBar({ householdName }: { householdName: string }) {
 			<TabGroup items={tabItems.slice(0, half)} />
 			<QuickAddLink
 				className={cn(
-					"mx-2 grid h-11 w-12 place-items-center self-center rounded-[14px] bg-primary text-primary-foreground max-[21.25rem]:mx-1",
+					// Its box is in px, not text sizes: with text at 200% it would take the room the labels
+					// either side of it need (issue 74).
+					"mx-2 grid h-[44px] w-[48px] place-items-center self-center rounded-[14px] bg-primary text-primary-foreground max-[21.25rem]:mx-1",
 					"transition-transform duration-(--duration-fast) ease-standard active:scale-[0.94]",
 				)}
 			>
@@ -469,7 +471,13 @@ function MoreTab({ householdName }: { householdName: string }) {
 				More
 			</Link>
 			<Sheet open={open} onOpenChange={(next) => (next ? undefined : close())}>
-				<SheetContent aria-describedby={undefined} data-more-sheet="">
+				<SheetContent
+					aria-describedby={undefined}
+					data-more-sheet=""
+					// On a short phone the last rows are reached by scrolling the sheet: a soft shade at its
+					// foot says there is more, and goes once the end is in view (issue 74).
+					className="max-sm:[background:linear-gradient(to_top,var(--card)_40%,transparent)_bottom/100%_56px_no-repeat_local,linear-gradient(to_top,color-mix(in_oklab,var(--foreground)_22%,transparent),transparent)_bottom/100%_20px_no-repeat_scroll,var(--card)]"
+				>
 					<SheetHeader title="More" />
 					<nav aria-label="More" className="grid gap-2">
 						{moreGroups.map((group, index) => (

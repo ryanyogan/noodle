@@ -142,7 +142,9 @@ function RuleListRow({
 	const who = forLabel(members, rule.for);
 	const filed = `Filed ${rule.matched} so far`;
 	return (
-		<li data-slot="list-row">
+		// On a phone the row knows its width in text sizes: under 17rem (text at about 200%) the tile
+		// goes and the count sits under the facts, so each fact keeps its words whole (issue 74).
+		<li data-slot="list-row" className="max-sm:@container">
 			<Link
 				to="/review/rules/$ruleId"
 				params={{ ruleId: rule.id }}
@@ -150,6 +152,7 @@ function RuleListRow({
 				aria-label={`${rule.pattern}, ${rule.bucketName}, For ${who}${rule.private ? ", only you" : ""}, ${filed}`}
 				className={cn(
 					"grid w-full grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-3 px-(--card-pad) py-3.5 text-start",
+					"@max-[17rem]:grid-cols-[minmax(0,1fr)_auto] @max-[17rem]:gap-y-1 @max-[17rem]:*:first:hidden",
 					"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2/60",
 					"focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
 				)}
@@ -178,7 +181,7 @@ function RuleListRow({
 					/>
 				</span>
 				{/* How many it has filed, in a column of its own so the counts line up down the list. */}
-				<span className="grid justify-items-end text-end">
+				<span className="grid justify-items-end text-end @max-[17rem]:col-start-1 @max-[17rem]:row-start-2 @max-[17rem]:flex @max-[17rem]:items-baseline @max-[17rem]:gap-1.5 @max-[17rem]:text-start">
 					<span className="text-sm font-semibold tabular-nums">{rule.matched}</span>
 					<span className="text-xs text-muted-foreground">Filed</span>
 				</span>

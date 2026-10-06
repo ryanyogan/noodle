@@ -65,6 +65,7 @@ import {
 	BetweenUsSuggestion,
 	betweenUsDone,
 	betweenUsOffer,
+	largeTextButton,
 	parentNames,
 } from "../../../components/review-between-us";
 import { RuleForm } from "../../../components/rule-form";
@@ -930,7 +931,8 @@ function ReviewPage() {
 								{progress.at} of {progress.of}
 							</h2>
 							<TermHelp term="review" />
-							<div className="ms-auto flex items-center gap-2 max-[359px]:gap-1">
+							{/* With text much larger the tools take a second row rather than leave the screen. */}
+							<div className="ms-auto flex items-center gap-2 max-sm:flex-wrap max-sm:justify-end max-[359px]:gap-1">
 								{confirmAllButton}
 								{lookAgainButton}
 								{viewToggle}
@@ -1565,11 +1567,14 @@ function ReviewCard({
 			className={cn(
 				// Its rows shrink with it: a row that can't (a long button beside the picker) wraps instead.
 				"grid min-w-0 gap-3 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border *:min-w-0 max-[359px]:gap-1.5 max-[359px]:p-3 sm:gap-4 sm:p-5",
+				// On a phone the card knows its width in text sizes: under 15rem (text at about 200%) its
+				// rows stack, so no word is broken to fit beside a tile or a button (issue 74).
+				"max-sm:@container/card",
 				current && "ring-2 ring-ring",
 			)}
 		>
-			<div className="flex items-start justify-between gap-3">
-				<div className="grid min-w-0 gap-0.5">
+			<div className="flex items-start justify-between gap-3 @max-[15rem]/card:flex-wrap @max-[15rem]/card:gap-y-1">
+				<div className="grid min-w-0 gap-0.5 @max-[15rem]/card:basis-full">
 					{/* On a phone a long Account name goes to a second line rather than being cut mid-word;
 					    the narrowest have no height to spare for it. */}
 					<p className="text-xs text-muted-foreground max-[359px]:truncate min-[360px]:max-sm:line-clamp-2 sm:truncate">
@@ -1593,7 +1598,7 @@ function ReviewCard({
 						<p className="text-sm text-muted-foreground">For {forLabel(members, item.for)}</p>
 					) : null}
 				</div>
-				<div className="grid shrink-0 justify-items-end gap-1">
+				<div className="grid shrink-0 justify-items-end gap-1 @max-[15rem]/card:flex @max-[15rem]/card:basis-full @max-[15rem]/card:flex-wrap @max-[15rem]/card:items-center @max-[15rem]/card:justify-between">
 					<p className="text-xl font-semibold tracking-tight tabular-nums">
 						{formatMoney(item.amountCents)}
 					</p>
@@ -1612,7 +1617,8 @@ function ReviewCard({
 					</Badge>
 				</div>
 			</div>
-			<div className="flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5 max-[359px]:py-1.5">
+			{/* At large text the tile goes and the words have the whole row; what follows them wraps under. */}
+			<div className="flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2.5 max-[359px]:py-1.5 @max-[15rem]/card:flex-wrap @max-[15rem]/card:gap-y-1 @max-[15rem]/card:*:first:hidden @max-[15rem]/card:*:nth-2:basis-full">
 				{payment?.kind === "commitment" ? (
 					<>
 						{/* The narrowest phones are the shortest: the words get the tile's width there. */}
@@ -1750,7 +1756,7 @@ function ReviewCard({
 			) : (
 				<div
 					className={cn(
-						"flex items-center gap-2 max-[359px]:flex-wrap",
+						"flex items-center gap-2 max-[359px]:flex-wrap @max-[15rem]/card:flex-wrap",
 						// "It’s a card payment" is long: on any phone it has the first row with Edit, and the
 						// picker the whole row under them, so the card is never wider than the screen.
 						(payment || between) && "max-sm:flex-wrap",
@@ -1760,7 +1766,7 @@ function ReviewCard({
 						id={pickerId(item)}
 						// On the narrowest phones, with a suggestion, the picker has the row under Confirm and Edit.
 						className={cn(
-							"min-w-0 flex-1",
+							"min-w-0 flex-1 @max-[15rem]/card:basis-[50%]!",
 							item.guess && "max-[359px]:order-last max-[359px]:basis-full",
 							(payment || between) && "max-sm:order-last",
 							// On the narrowest phones "It’s a card payment" shares the picker's row. Each
@@ -1812,7 +1818,7 @@ function ReviewCard({
 					{between ? <BetweenUsButton disabled={!hydrated} onClick={onBetweenUs} /> : null}
 					{payment?.kind === "followed" ? (
 						<Button
-							className="max-sm:order-first max-sm:min-w-0 max-sm:flex-1"
+							className={cn("max-sm:order-first max-sm:min-w-0 max-sm:flex-1", largeTextButton)}
 							disabled={!hydrated}
 							onClick={onPayment}
 						>
@@ -1823,7 +1829,7 @@ function ReviewCard({
 					{payment?.kind === "commitment" ? (
 						// Like every payment card on a phone: Confirm and Edit, then the picker under them.
 						<Button
-							className="max-sm:order-first max-sm:min-w-0 max-sm:flex-1"
+							className={cn("max-sm:order-first max-sm:min-w-0 max-sm:flex-1", largeTextButton)}
 							disabled={!hydrated}
 							onClick={onConfirm}
 						>
@@ -1835,7 +1841,10 @@ function ReviewCard({
 						// The payment is the spending, so it's planned like a bill: the Commitment's form
 						// opens with this line's name and amount, and the card to pay down ready.
 						<Button
-							className="max-sm:order-first max-sm:min-w-0 max-sm:grow max-sm:shrink max-[359px]:basis-[70%] min-[360px]:max-sm:basis-0"
+							className={cn(
+								"max-sm:order-first max-sm:min-w-0 max-sm:grow max-sm:shrink max-[359px]:basis-[70%] min-[360px]:max-sm:basis-0",
+								largeTextButton,
+							)}
 							asChild
 						>
 							<Link
@@ -1870,7 +1879,7 @@ function ReviewCard({
 						<Button
 							// On a phone Confirm comes first. On the narrowest it shares its row with Edit and
 							// the picker goes under them, so no button is left on a row alone.
-							className="max-sm:order-first max-[359px]:flex-1"
+							className={cn("max-sm:order-first max-[359px]:flex-1", largeTextButton)}
 							disabled={!hydrated}
 							onClick={onConfirm}
 						>
@@ -1885,12 +1894,12 @@ function ReviewCard({
 				// The narrowest phones have no height for this row: there "Connect the card" ends the why
 				// above and "It’s a card payment" sits beside the picker.
 				<div className="flex flex-wrap gap-2 max-[359px]:hidden">
-					<Button variant="outline" className="max-sm:flex-auto" asChild>
+					<Button variant="outline" className={cn("max-sm:flex-auto", largeTextButton)} asChild>
 						<Link to="/accounts">Connect the card</Link>
 					</Button>
 					<Button
 						variant="outline"
-						className="max-sm:flex-auto"
+						className={cn("max-sm:flex-auto", largeTextButton)}
 						disabled={!hydrated}
 						onClick={onPayment}
 					>
