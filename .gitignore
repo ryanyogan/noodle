@@ -11,3 +11,5 @@ playwright-report/
 .claude/worktrees/
 apps/web/.tanstack/
 apps/web/.tmp-shots/
+apps/web/ios-sim/out/
+apps/web/ios-sim/package-lock.json

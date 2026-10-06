@@ -1,4 +1,5 @@
 import { CheckIcon, TriangleAlertIcon, XIcon } from "lucide-react";
+import { useEffect } from "react";
 import { Toaster as Sonner, toast as sonner } from "sonner";
 import { cn } from "#lib/utils";
 
@@ -182,8 +183,63 @@ function ToastBody({
 	);
 }
 
+/**
+ * Ends Sonner's hover pause once a finger has left a toast (issue 52). Sonner holds every toast's
+ * time while the pointer rests on the pile: it starts on `mouseenter` and ends on `mouseleave`. A
+ * touch screen sends the first after a tap (the mouse events a browser makes up for a touch) and
+ * never the second, so a toast that was tapped stayed until something else was tapped. After a
+ * touch, and after the made-up mouse events that follow it, the pile is told the pointer has left.
+ * A real mouse is left alone: hovering still holds the toasts.
+ */
+function useTouchEndsHover() {
+	useEffect(() => {
+		// When a finger last touched: the mouse events made up for a touch follow it, some of them
+		// a third of a second later, and on some iPhones after a pointer event that says "mouse".
+		let touched = Number.NEGATIVE_INFINITY;
+		const afterTouch = () => performance.now() - touched < 1_000;
+		const pile = (target: EventTarget | null) =>
+			target instanceof Element ? target.closest("[data-sonner-toaster]") : null;
+		const left = (list: Element) => () => {
+			// React makes `mouseleave` from a `mouseout` to nowhere.
+			if (list.isConnected)
+				list.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: null }));
+		};
+		const leave = (list: Element, lift: boolean) => {
+			// A touch the browser took over (a scroll) ends without the `pointerup` Sonner waits for;
+			// sent now, so Sonner has taken it in before it is told the pointer left.
+			if (lift) list.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+			// After the browser's own handlers for this event, Sonner's among them; and once more
+			// after any made-up mouse event that is still to come.
+			setTimeout(left(list), 0);
+			setTimeout(left(list), 450);
+		};
+		const onPointer = (event: PointerEvent) => {
+			if (event.pointerType !== "touch") return;
+			touched = performance.now();
+			if (event.type === "pointerdown" || event.type === "pointerover") return;
+			const list = pile(event.target);
+			if (list) leave(list, event.type === "pointercancel");
+		};
+		// The mouse events made up after a touch come after its `pointerup`.
+		const onMouse = (event: MouseEvent) => {
+			if (!afterTouch()) return;
+			const list = pile(event.target);
+			if (list) leave(list, false);
+		};
+		const pointer = ["pointerover", "pointerdown", "pointerup", "pointercancel"] as const;
+		const mouse = ["mouseover", "mousemove", "mouseup"] as const;
+		for (const kind of pointer) document.addEventListener(kind, onPointer, true);
+		for (const kind of mouse) document.addEventListener(kind, onMouse, true);
+		return () => {
+			for (const kind of pointer) document.removeEventListener(kind, onPointer, true);
+			for (const kind of mouse) document.removeEventListener(kind, onMouse, true);
+		};
+	}, []);
+}
+
 /** Where toasts appear; rendered once in the app frame, outside anything a sheet hides. */
 function Toaster({ className }: { className?: string }) {
+	useTouchEndsHover();
 	return (
 		<Sonner
 			position="bottom-center"
