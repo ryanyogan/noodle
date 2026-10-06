@@ -54,7 +54,10 @@ test("money in is listed on Transactions with its kind, and a Parent can change 
 	await expect(summary.getByTestId("month-total")).toHaveText("$0");
 	await expect(summary.getByTestId("month-review")).toHaveText("0");
 
-	await casey.getByRole("button", { name: "Change what Casey for tuition is" }).click();
+	// The month's money in is in the server's HTML now (issue 134): wait for React before pressing.
+	const changeCasey = casey.getByRole("button", { name: "Change what Casey for tuition is" });
+	await hydrated(changeCasey);
+	await changeCasey.click();
 	await expect(casey.getByRole("button", { name: "Income", exact: true })).toHaveAttribute(
 		"aria-pressed",
 		"true",
