@@ -848,8 +848,8 @@ function BillsStep({
 			intro={
 				<>
 					Tick the bills you pay, with what each one usually costs and the day it’s due. Noodle
-					calls these Commitments <TermHelp term="commitment" />: money spoken for before anything
-					else.
+					calls these Commitments: money spoken for before anything else.{" "}
+					<TermHelp term="commitment" />
 				</>
 			}
 			primary="Continue"
