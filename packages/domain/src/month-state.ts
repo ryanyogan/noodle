@@ -14,8 +14,16 @@ import {
 /** Spending recorded against a Bucket on a day (a Transaction or one of its Splits). */
 export type Spend = { bucketId: string; amount: Cents; date: DayKey };
 
-/** A payment recorded against a Commitment on a day (a Transaction or one of its Splits). */
-export type Charge = { commitmentId: string; amount: Cents; date: DayKey };
+/**
+ * A payment recorded against a Commitment on a day (a Transaction or one of its Splits). One with
+ * `paidBack` is not a payment: it is money Paid back into the Commitment that day (ADR-0058), a
+ * negative amount. It counts in what the Commitment took, never as one of its payments.
+ */
+export type Charge = { commitmentId: string; amount: Cents; date: DayKey; paidBack?: true };
+
+/** The payments among these charges: everything but money Paid back into the Commitment. */
+export const paymentsOf = <C extends { paidBack?: true | undefined }>(charges: readonly C[]): C[] =>
+	charges.filter((charge) => !charge.paidBack);
 
 /**
  * A Move of planned money within one month's Plan, from a Bucket (or from Free to Spend, when
@@ -247,15 +255,26 @@ export function monthState({
 		};
 	});
 	const chargedByCommitment = new Map<string, Cents[]>();
+	// Money Paid back into a Commitment this month (ADR-0058): in what it took, not a payment.
+	const paidBackByCommitment = new Map<string, Cents>();
 	for (const charge of charges) {
 		if (monthOfDay(charge.date) !== plan.month) continue;
+		if (charge.paidBack) {
+			paidBackByCommitment.set(
+				charge.commitmentId,
+				(paidBackByCommitment.get(charge.commitmentId) ?? 0) + charge.amount,
+			);
+			continue;
+		}
 		const amounts = chargedByCommitment.get(charge.commitmentId) ?? [];
 		chargedByCommitment.set(charge.commitmentId, [...amounts, charge.amount]);
 	}
 	const commitments = plan.commitments.map((commitment): CommitmentState => {
 		const dueDates = dueDatesIn(commitment, plan.month);
 		const charged = chargedByCommitment.get(commitment.id) ?? [];
-		const actual = charged.reduce((sum, amount) => sum + amount, 0);
+		const actual =
+			charged.reduce((sum, amount) => sum + amount, 0) +
+			(paidBackByCommitment.get(commitment.id) ?? 0);
 		const difference = actual - commitment.amount * Math.min(charged.length, dueDates.length);
 		const status: CommitmentStatus =
 			difference !== 0

@@ -272,6 +272,10 @@ describe("$700 arrives in October", () => {
 			["hockey", -4_500, ["leo"]],
 		]);
 		expect(await charged(october)).toEqual([["tuition", -60_000]]);
+		// Marked as money Paid back, so nothing reads it as a payment of the bill.
+		expect((await loadCharges(db, viewer, october)).map((charge) => charge.paidBack)).toEqual([
+			true,
+		]);
 		// September ended as it ended.
 		expect(await bucketSpent(september)).toEqual(before.spent);
 		expect(await charged(september)).toEqual(before.charged);

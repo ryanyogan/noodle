@@ -403,3 +403,46 @@ describe("monthState: each Commitment's expected against actual", () => {
 		).toEqual({ actual: 0, difference: 0, status: "upcoming" });
 	});
 });
+
+describe("monthState: Paid back into a Commitment isn't a payment of it", () => {
+	const plan: Plan = {
+		...planOf("2026-09", {}),
+		commitments: [commitment("tuition", 60_000, "monthly", "2026-09-01")],
+	};
+	const stateOf = (charges: Charge[]) => {
+		const state = monthState({ plan, spending: [], charges, asOf: "2026-09-20" });
+		const { actual, charges: paid, difference, status } = state.commitments[0] as NonNullable<
+			(typeof state.commitments)[0]
+		>;
+		return { actual, paid, difference, status };
+	};
+	const paid: Charge = { commitmentId: "tuition", amount: 120_000, date: "2026-09-01" };
+	const back: Charge = {
+		commitmentId: "tuition",
+		amount: -60_000,
+		date: "2026-09-12",
+		paidBack: true,
+	};
+
+	it("is over by the part owed back until the money comes, then as planned", () => {
+		expect(stateOf([paid])).toEqual({
+			actual: 120_000,
+			paid: 1,
+			difference: 60_000,
+			status: "differs",
+		});
+		expect(stateOf([paid, back])).toEqual({
+			actual: 60_000,
+			paid: 1,
+			difference: 0,
+			status: "paid",
+		});
+	});
+
+	it("doesn't mark the bill paid when only the money back has come", () => {
+		const state = stateOf([back]);
+		expect(state.paid).toBe(0);
+		expect(state.actual).toBe(-60_000);
+		expect(state.status).not.toBe("paid");
+	});
+});

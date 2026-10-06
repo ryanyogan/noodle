@@ -65,3 +65,20 @@ describe("how an about Commitment's month came in", () => {
 		expect(aboutCameIn({ ...state, difference: 0 })).toBeNull();
 	});
 });
+
+describe("an about amount and Paid back (issue 132)", () => {
+	it("leaves out money Paid back: it isn't a charge", () => {
+		const charges = [
+			charge("2026-07-12", 12_000),
+			charge("2026-08-12", 15_000),
+			charge("2026-09-12", 21_000),
+			{ ...charge("2026-09-20", -6_000), paidBack: true as const },
+		];
+		expect(aboutAmount(charges, asOf)).toEqual({
+			average: 16_000,
+			low: 12_000,
+			high: 21_000,
+			count: 3,
+		});
+	});
+});

@@ -322,6 +322,7 @@ export {
 	type MonthState,
 	type Move,
 	monthState,
+	paymentsOf,
 	type Spend,
 	type Sweep,
 } from "./month-state";
