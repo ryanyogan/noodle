@@ -9,12 +9,21 @@ import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { owedNow } from "./goals";
 import type { Db } from "./index";
 import { listMembers, type MemberSummary } from "./members";
+import { loadOwedBack } from "./owed-back";
 import { loadPlanRecords } from "./plan";
 import { loadPlanChanges } from "./plan-log";
 import { privateTotals, type Viewer } from "./privacy";
 import { loadHistoryStart } from "./reports";
 import { listRules, type RuleRow } from "./rules";
-import { accountBalances, accounts, goals, households, imports, receipts } from "./schema";
+import {
+	accountBalances,
+	accounts,
+	goals,
+	households,
+	imports,
+	paidBackMatches,
+	receipts,
+} from "./schema";
 import { loadTransactionsPage, type TransactionCursor, type TransactionRow } from "./transactions";
 
 // Everything a Parent's "Download your data" holds (ADR-0028), read for that Parent: the other
@@ -57,6 +66,28 @@ export type ExportData = {
 	commitmentNames: Record<string, string>;
 	planChanges: PlanChange[];
 	rules: RuleRow[];
+	/**
+	 * What someone said they'd pay back, oldest purchase first, with how much of it is Paid back
+	 * (ADR-0058): on the purchases the viewer may see.
+	 */
+	owedBack: {
+		id: string;
+		transactionId: string;
+		splitId: string | null;
+		/** The purchase's day and note. */
+		date: string;
+		purchase: string | null;
+		who: string;
+		owedCents: number;
+		paidBackCents: number;
+	}[];
+	/** What each Paid back money-in line settled, and the day it counts on. */
+	paidBackMatches: {
+		incomeId: string;
+		owedBackId: string;
+		amountCents: number;
+		countsOn: string;
+	}[];
 	files: ExportFile[];
 };
 
@@ -118,6 +149,22 @@ export async function loadExportData(
 	const firstMonth = (firstMonths.sort()[0] ?? thisMonth) as MonthKey;
 	const months = monthsBetween(firstMonth, thisMonth);
 	const plans = months.map((month) => planForMonth(latestRecords, month));
+
+	const [owedBackItems, matchRows] = await Promise.all([
+		loadOwedBack(db, viewer, {}),
+		db
+			.select({
+				incomeId: paidBackMatches.incomeId,
+				owedBackId: paidBackMatches.owedBackId,
+				amountCents: paidBackMatches.amountCents,
+				countsOn: paidBackMatches.countsOn,
+			})
+			.from(paidBackMatches)
+			.where(eq(paidBackMatches.householdId, viewer.householdId))
+			.orderBy(paidBackMatches.countsOn, paidBackMatches.id),
+	]);
+	// Only matches of what the viewer may see: never a purchase in the other Parent's allowance.
+	const owedIds = new Set(owedBackItems.map((item) => item.id));
 
 	const [wholes, splitTotals] = privateTotals(
 		db,
@@ -241,6 +288,17 @@ export async function loadExportData(
 		commitmentNames: Object.fromEntries(latestRecords.commitments.map((c) => [c.id, c.name])),
 		planChanges: planChanges.changes,
 		rules,
+		owedBack: owedBackItems.map((item) => ({
+			id: item.id,
+			transactionId: item.transactionId,
+			splitId: item.splitId,
+			date: item.date,
+			purchase: item.purchase,
+			who: item.who,
+			owedCents: item.owed,
+			paidBackCents: item.paid,
+		})),
+		paidBackMatches: matchRows.filter((match) => owedIds.has(match.owedBackId)),
 		files,
 	};
 }

@@ -1,4 +1,4 @@
-import { canAssign, monthKeyAt, type PlanBucket } from "@noodle/domain";
+import { canAssign, monthKeyAt, owedBackPartText, type PlanBucket } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
@@ -181,6 +181,10 @@ function RuleListRow({
 							rule.bucketName,
 							`For ${who}`,
 							rule.createdBy ? `Made by ${rule.createdBy}` : null,
+							// "Casey pays back half": what it says on each purchase it files (issue 132).
+							rule.owedBack
+								? `${rule.owedBack.who} pays back ${owedBackPartText(rule.owedBack.percent)}`
+								: null,
 						]}
 					/>
 				</span>

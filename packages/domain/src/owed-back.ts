@@ -188,6 +188,9 @@ export function owedBackPersonIn(text: string | null, names: readonly string[]):
  */
 export function owedBackRuleText(pattern: string, who: string, percent: number): string {
 	const name = pattern.charAt(0).toUpperCase() + pattern.slice(1);
-	const part = percent === 50 ? "half" : percent >= 100 ? "all of it" : `${percent}%`;
-	return `${name}: ${who} pays back ${part}`;
+	return `${name}: ${who} pays back ${owedBackPartText(percent)}`;
 }
+
+/** The part of a purchase a Rule says is Owed back: "half", "all of it", or "30%". */
+export const owedBackPartText = (percent: number): string =>
+	percent === 50 ? "half" : percent >= 100 ? "all of it" : `${percent}%`;

@@ -170,12 +170,27 @@ export function exportFiles(data: ExportData): Record<string, string> {
 		]);
 	}
 
+	const owedBack: (string | number | null)[][] = [
+		["Date", "Purchase", "Who", "Owed back", "Paid back", "Still owed"],
+	];
+	for (const o of data.owedBack) {
+		owedBack.push([
+			o.date,
+			o.purchase ?? "",
+			o.who,
+			dollars(o.owedCents),
+			dollars(o.paidBackCents),
+			dollars(o.owedCents - o.paidBackCents),
+		]);
+	}
+
 	return {
 		"transactions.csv": toCsv(transactions),
 		"accounts.csv": toCsv(accounts),
 		"plan.csv": toCsv(plan),
 		"plan-changes.csv": toCsv(changes),
 		"rules.csv": toCsv(rules),
+		"owed-back.csv": toCsv(owedBack),
 		"household.json": `${JSON.stringify({ ...data, files: data.files.map((f) => f.path) }, null, 2)}\n`,
 	};
 }

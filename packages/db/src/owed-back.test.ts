@@ -14,7 +14,10 @@ import {
 	createHouseholdForParent,
 	type Db,
 	deleteTransaction,
+	fileCategorizations,
+	listRules,
 	loadCharges,
+	loadExportData,
 	loadIncome,
 	loadOwedBack,
 	loadPaidBack,
@@ -22,6 +25,7 @@ import {
 	loadSpending,
 	loadUnmatchedPaidBack,
 	offerPaidBackFor,
+	removeChild,
 	removeOwedBack,
 	sayOwedBack,
 	setTakeHomePay,
@@ -525,6 +529,40 @@ describe("a Rule remembers who pays part back", () => {
 		expect(await loadOwedBack(db, viewer, { open: true })).toHaveLength(2);
 	});
 
+	it("says it on what a run files by the Rule: an Import, the bank, a captured Quick Add", async () => {
+		await sayOwedBack(db, viewer, {
+			owedBackId: "ob-academy",
+			transactionId: "academy-sep",
+			who: "Casey",
+		});
+		await rememberOwedBack(db, viewer, { owedBackId: "ob-academy" });
+		// The Rules page says what the Rule remembers.
+		expect((await listRules(db, viewer)).find((rule) => rule.id === "academy")).toMatchObject({
+			owedBack: { who: "Casey", percent: 50 },
+		});
+		await db.insert(transactions).values(line("academy-oct", "2026-10-05", 130_000));
+		// The decision categorize-run.ts makes for a line its Rule matches: the one writer behind
+		// all three ways a line comes in.
+		await fileCategorizations(db, viewer, [
+			{
+				transactionId: "academy-oct",
+				merchant: "riverside academy",
+				ruleId: "academy",
+				categorization: {
+					outcome: "filed",
+					method: "rule",
+					bucketId: null,
+					commitmentId: "tuition",
+					confidence: 1,
+					for: [],
+				},
+			},
+		]);
+		expect(await loadOwedBack(db, viewer, { transactionId: "academy-oct" })).toMatchObject([
+			{ who: "Casey", owed: 65_000, paid: 0, commitmentId: "tuition" },
+		]);
+	});
+
 	it("says nothing once the Rule has forgotten, or when it never remembered", async () => {
 		await db.insert(transactions).values(line("academy-oct", "2026-10-05", 130_000));
 		await applyRule(db, viewer, "academy");
@@ -539,5 +577,71 @@ describe("a Rule remembers who pays part back", () => {
 		await db.insert(transactions).values(line("academy-nov", "2026-11-05", 130_000));
 		await applyRule(db, viewer, "academy");
 		expect(await loadOwedBack(db, viewer, { transactionId: "academy-nov" })).toEqual([]);
+	});
+});
+
+describe("around Owed back", () => {
+	it("keeps what a Child owes once the Child is removed from the Household", async () => {
+		await sayOwedBack(db, viewer, {
+			owedBackId: "ob-skates",
+			transactionId: "skates",
+			who: "",
+			memberId: "leo",
+			amountCents: 2_000 as Cents,
+		});
+		await removeChild(db, { householdId, memberId: "leo" });
+		expect(await loadOwedBack(db, viewer, { open: true })).toMatchObject([
+			{ id: "ob-skates", who: "Leo", memberId: "leo", owed: 2_000, paid: 0 },
+		]);
+		// And it can still be Paid back.
+		await paidBack("from-leo", "2026-10-02", 2_000);
+		expect((await confirmOffer("from-leo")).ok).toBe(true);
+		expect(await loadOwedBack(db, viewer, { open: true })).toEqual([]);
+	});
+
+	it("is in Download your data, with what each Paid back line settled", async () => {
+		await caseyOwes();
+		await paidBack("zelle", "2026-10-02", 70_000);
+		expect((await confirmOffer("zelle")).ok).toBe(true);
+		const data = await loadExportData(db, viewer, today, 0);
+		expect(data.owedBack).toEqual([
+			{
+				id: "ob-tuition",
+				transactionId: "tuition-sep",
+				splitId: null,
+				date: "2026-09-03",
+				purchase: null,
+				who: "Casey",
+				owedCents: 60_000,
+				paidBackCents: 60_000,
+			},
+			{
+				id: "ob-skates",
+				transactionId: "skates",
+				splitId: null,
+				date: "2026-09-14",
+				purchase: "skates",
+				who: "Casey",
+				owedCents: 4_500,
+				paidBackCents: 4_500,
+			},
+			{
+				id: "ob-dentist",
+				transactionId: "dentist",
+				splitId: null,
+				date: "2026-09-20",
+				purchase: "dentist",
+				who: "Casey",
+				owedCents: 8_000,
+				paidBackCents: 5_500,
+			},
+		]);
+		expect(data.paidBackMatches).toHaveLength(3);
+		expect(data.paidBackMatches).toContainEqual({
+			incomeId: "zelle",
+			owedBackId: "ob-dentist",
+			amountCents: 5_500,
+			countsOn: "2026-10-02",
+		});
 	});
 });

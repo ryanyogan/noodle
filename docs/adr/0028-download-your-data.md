@@ -4,7 +4,7 @@ A Parent can take the Household's data out from Household → Your data. "Prepar
 
 ## What's in it
 
-- `transactions.csv` (date, Account, merchant, note, amount, Bucket, Commitment, Goal, Splits, For), `accounts.csv` with each Account's latest balance, `plan.csv` (each month's take-home pay, Commitments, Buckets with allowances, then Goals), `plan-changes.csv`, `rules.csv`, and `household.json` with everything those came from.
+- `transactions.csv` (date, Account, merchant, note, amount, Bucket, Commitment, Goal, Splits, For), `accounts.csv` with each Account's latest balance, `plan.csv` (each month's take-home pay, Commitments, Buckets with allowances, then Goals), `plan-changes.csv`, `rules.csv`, `owed-back.csv` (what someone said they'd pay back and how much of it is Paid back), and `household.json` with everything those came from.
 - The stored statement files (Imports) and receipt files (the Parent's own, and those on Transactions they see).
 - Money is written as numbers in dollars. Text goes through `toCsv`: quoted where needed, and a cell starting `=`, `+`, `-` or `@` gets a leading apostrophe so a spreadsheet never runs it.
 

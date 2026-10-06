@@ -35,12 +35,14 @@ type Child = { id: string; name: string };
 /** Who and how much, for a purchase: a name or a Child, and half unless said. */
 function OwedBackForm({
 	transactionId,
+	splitId,
 	amountCents,
 	item,
 	people,
 	onDone,
 }: {
 	transactionId: string;
+	splitId: string | null;
 	amountCents: number;
 	item: OwedBackItem | undefined;
 	people: Child[];
@@ -61,7 +63,7 @@ function OwedBackForm({
 				event.preventDefault();
 				if (!named || !fits) return;
 				say.mutate(
-					{ transactionId, who, memberId, amountCents: amount as Cents },
+					{ transactionId, splitId, who, memberId, amountCents: amount as Cents },
 					{ onSuccess: onDone },
 				);
 			}}
@@ -106,7 +108,7 @@ function OwedBackForm({
 			) : null}
 			{fits ? null : (
 				<p role="alert" className="text-xs font-medium text-over">
-					Up to {formatMoney(amountCents)}, what the purchase came to.
+					Up to {formatMoney(amountCents)}, what {splitId ? "this Split" : "the purchase"} came to.
 				</p>
 			)}
 			<div className="flex flex-wrap gap-2">
@@ -170,28 +172,34 @@ function OwedBackRuleOffer({ item }: { item: OwedBackItem }) {
 }
 
 /**
- * On a purchase: "Someone's paying part of this back", and once said, "Owed back $600 · Casey"
- * with a way to change it or take it off. Money out only; a split purchase's Splits aren't
- * offered here yet.
+ * "Someone's paying part of this back" for a whole purchase or one of its Splits, and once said,
+ * "Owed back $600 · Casey" with a way to change it or take it off.
  */
-export function OwedBackOnPurchase({
-	transaction,
-	members,
+function OwedBackOn({
+	transactionId,
+	splitId,
+	amountCents,
+	label,
+	item,
+	people,
 }: {
-	transaction: { id: string; amountCents: number };
-	members: { id: string; name: string; kind: string }[];
+	transactionId: string;
+	/** The Split it is said on; null for the whole purchase. */
+	splitId: string | null;
+	amountCents: number;
+	/** Which part of the purchase this is, when it is split. */
+	label?: string | undefined;
+	item: OwedBackItem | undefined;
+	people: Child[];
 }) {
-	const items = useQuery(owedBackOnQuery(transaction.id)).data;
 	const clear = useClearOwedBack();
 	const [editing, setEditing] = useState(false);
-	if (transaction.amountCents <= 0 || !items) return null;
-	const item = items.find((one) => one.splitId === null);
-	const children = members.filter((member) => member.kind === "child");
 	return (
-		<div className="mt-4 grid gap-3 border-t border-border pt-4" data-testid="owed-back">
+		<div className="grid gap-3" data-testid={splitId ? "owed-back-split" : "owed-back-whole"}>
 			{item ? (
 				<div className="flex flex-wrap items-center gap-x-3 gap-y-2">
 					<p className="text-sm font-medium" data-testid="owed-back-text">
+						{label ? <span className="font-normal text-muted-foreground">{label}: </span> : null}
 						{owedBackText(item)}
 					</p>
 					<OwedBackListLink month={monthOfDay(item.date)}>All that’s Owed back</OwedBackListLink>
@@ -212,23 +220,95 @@ export function OwedBackOnPurchase({
 						</>
 					)}
 				</div>
-			) : editing ? null : (
-				<div>
+			) : editing ? (
+				label ? (
+					<p className="text-[13px] text-muted-foreground">{label}</p>
+				) : null
+			) : (
+				<div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+					{label ? <span className="text-[13px] text-muted-foreground">{label}</span> : null}
 					<Button type="button" size="sm" variant="outline" onClick={() => setEditing(true)}>
 						Someone’s paying part of this back
 					</Button>
 				</div>
 			)}
-			{item && !editing ? <OwedBackRuleOffer item={item} /> : null}
+			{/* A Rule remembers it for a whole purchase only. */}
+			{item && !editing && !item.splitId ? <OwedBackRuleOffer item={item} /> : null}
 			{editing ? (
 				<OwedBackForm
-					transactionId={transaction.id}
-					amountCents={transaction.amountCents}
+					transactionId={transactionId}
+					splitId={splitId}
+					amountCents={amountCents}
 					item={item}
-					people={children}
+					people={people}
 					onDone={() => setEditing(false)}
 				/>
 			) : null}
+		</div>
+	);
+}
+
+/**
+ * On a purchase: "Someone's paying part of this back", and once said, "Owed back $600 · Casey".
+ * Money out only. A split purchase is asked Split by Split ("The $45 Split"), each with its own
+ * person and amount; what was said on the whole of it before it was split stays, to change or
+ * take off.
+ */
+export function OwedBackOnPurchase({
+	transaction,
+	members,
+}: {
+	transaction: {
+		id: string;
+		amountCents: number;
+		splits?: { id: string; amountCents: number; goal?: unknown }[];
+	};
+	members: { id: string; name: string; kind: string }[];
+}) {
+	const items = useQuery(owedBackOnQuery(transaction.id)).data;
+	if (transaction.amountCents <= 0 || !items) return null;
+	const children = members.filter((member) => member.kind === "child");
+	// Nothing restores a Goal, so a Split spent from one isn't offered.
+	const splits = (transaction.splits ?? []).filter((split) => split.amountCents > 0 && !split.goal);
+	const whole = items.find((one) => one.splitId === null);
+	// Said on a Split that a later re-split replaced: still owed, so still shown.
+	const loose = items.filter(
+		(one) => one.splitId !== null && !splits.some((split) => split.id === one.splitId),
+	);
+	return (
+		<div className="mt-4 grid gap-3 border-t border-border pt-4" data-testid="owed-back">
+			{splits.length === 0 || whole ? (
+				<OwedBackOn
+					transactionId={transaction.id}
+					splitId={null}
+					amountCents={transaction.amountCents}
+					label={splits.length > 0 ? "The whole purchase" : undefined}
+					item={whole}
+					people={children}
+				/>
+			) : null}
+			{splits.map((split) => (
+				<OwedBackOn
+					key={split.id}
+					transactionId={transaction.id}
+					splitId={split.id}
+					amountCents={split.amountCents}
+					label={`The ${formatMoney(split.amountCents)} Split`}
+					item={items.find((one) => one.splitId === split.id)}
+					people={children}
+				/>
+			))}
+			{loose.map((item) => (
+				<OwedBackOn
+					key={item.id}
+					transactionId={transaction.id}
+					splitId={item.splitId}
+					amountCents={transaction.amountCents}
+					label="A Split that has changed since"
+					item={item}
+					people={children}
+				/>
+			))}
 		</div>
 	);
 }

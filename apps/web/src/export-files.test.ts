@@ -45,6 +45,8 @@ const data = (over: Partial<ExportData> = {}): ExportData => ({
 	commitmentNames: {},
 	planChanges: [],
 	rules: [],
+	owedBack: [],
+	paidBackMatches: [],
 	files: [],
 	...over,
 });
@@ -164,6 +166,7 @@ describe("exportFiles", () => {
 		expect(Object.keys(exportFiles(data())).sort()).toEqual([
 			"accounts.csv",
 			"household.json",
+			"owed-back.csv",
 			"plan-changes.csv",
 			"plan.csv",
 			"rules.csv",

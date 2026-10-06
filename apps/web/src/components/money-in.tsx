@@ -149,13 +149,22 @@ export function MoneyInSection({ month, today }: { month: MonthKey; today: strin
 export function MoneyInReview({ today, className }: { today: string; className?: string }) {
 	const id = useId();
 	const lines = useQuery(moneyInReviewQuery()).data ?? [];
-	if (lines.length === 0) return null;
+	// A line said Paid back has left Review: it stays here while what it pays back is asked.
+	const [paidBack, setPaidBack] = useState<MoneyInLine[]>([]);
+	const matching = paidBack.filter((said) => !lines.some((line) => line.id === said.id));
+	if (lines.length === 0 && matching.length === 0) return null;
 	return (
 		<Section aria-labelledby={id} data-testid="money-in-review" className={className}>
-			<SectionHeader id={id} title="Money in to look at" count={lines.length} />
-			<p className="text-sm text-muted-foreground">
-				Money a person sent you isn’t counted as Income until you say what it is.
-			</p>
+			<SectionHeader
+				id={id}
+				title="Money in to look at"
+				{...(lines.length > 0 ? { count: lines.length } : {})}
+			/>
+			{lines.length > 0 ? (
+				<p className="text-sm text-muted-foreground">
+					Money a person sent you isn’t counted as Income until you say what it is.
+				</p>
+			) : null}
 			<List>
 				{lines.map((line) => (
 					<ListRow
@@ -164,7 +173,33 @@ export function MoneyInReview({ today, className }: { today: string; className?:
 						title={moneyInLabel(line)}
 						meta={<span>{dayName(line.date, today)}</span>}
 						trailing={<span>+{formatMoney(line.amount)}</span>}
-						below={<MoneyInKindChoice line={line} />}
+						below={
+							<MoneyInKindChoice
+								line={line}
+								onDone={(now) =>
+									now.kind === "paid-back"
+										? setPaidBack((was) => [...was.filter((one) => one.id !== now.id), now])
+										: undefined
+								}
+							/>
+						}
+						belowFull
+					/>
+				))}
+				{matching.map((line) => (
+					<ListRow
+						key={line.id}
+						data-testid="money-in-row"
+						title={moneyInLabel(line)}
+						meta={
+							<>
+								<span>{dayName(line.date, today)}</span>
+								<span aria-hidden="true">·</span>
+								<span data-testid="money-in-kind">{moneyInKindText(line)}</span>
+							</>
+						}
+						trailing={<span>+{formatMoney(line.amount)}</span>}
+						below={<PaidBackMatching line={line} today={today} />}
 						belowFull
 					/>
 				))}

@@ -91,6 +91,8 @@ const reasonOf = (error: unknown) => (error instanceof Refused ? error.reason : 
 
 export type OwedBackSaid = {
 	transactionId: string;
+	/** One Split of the purchase, instead of the whole of it. */
+	splitId?: string | null;
 	who: string;
 	/** A Child, instead of a name. */
 	memberId?: string | null;
