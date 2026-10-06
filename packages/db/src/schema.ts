@@ -360,11 +360,40 @@ export const accounts = sqliteTable(
 		 * Transactions stay as they are.
 		 */
 		archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
+		/**
+		 * For a credit card that doesn't sync with a bank, how a Parent said its purchases get into
+		 * Noodle (issue 136): by its statements, by hand (Quick Adds on it are the record, and move
+		 * what's owed), or not at all. Null until asked (cardKept in @noodle/domain).
+		 */
+		purchases: text("purchases", { enum: ["statements", "hand", "none"] }),
+		/** The Wallet card name a Parent said is this Account, for tap to capture; null until asked. */
+		walletName: text("wallet_name"),
+		/** The day of the month its statement closes (1 to 31), for the monthly balance check. */
+		statementDay: integer("statement_day"),
 	},
 	(t) => [
 		index("accounts_household_idx").on(t.householdId),
 		uniqueIndex("accounts_bank_external_idx").on(t.bankConnectionId, t.externalId),
 	],
+);
+
+// The Wallet card a captured Quick Add was paid with, when the capture said one (issue 136). It
+// is what "Which Account is Apple Card?" is asked about, and what moves the captures once answered.
+export const captureCards = sqliteTable(
+	"capture_cards",
+	{
+		transactionId: text("transaction_id")
+			.primaryKey()
+			.references((): AnySQLiteColumn => transactions.id),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		card: text("card").notNull(),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [index("capture_cards_household_idx").on(t.householdId)],
 );
 
 // A balance a Parent entered for an Account. Appended, never updated: the latest one is the

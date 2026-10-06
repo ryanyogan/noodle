@@ -237,6 +237,16 @@ export {
 	withOwed,
 } from "./goals";
 export {
+	accountForWalletCard,
+	type BalanceCheck,
+	balanceCheck,
+	type CardKept,
+	cardKept,
+	PURCHASES_GET_IN,
+	type PurchasesGetIn,
+	statementCheckDue,
+} from "./hand-kept";
+export {
 	findInsights,
 	INSIGHT_KINDS,
 	type InsightCandidate,

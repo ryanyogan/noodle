@@ -67,13 +67,19 @@ export function owedOn(
 	latest: { amount: Cents; day: DayKey } | null,
 	payments: readonly OwedPayment[],
 	connected: boolean,
+	/**
+	 * On a card whose purchases are kept by hand (issue 136): every line recorded on it, money out
+	 * above 0 and money back below. Those after the balance's day go on what's owed.
+	 */
+	bought: readonly OwedPayment[] = [],
 ): Cents | null {
 	if (latest === null) return null;
 	if (connected) return latest.amount;
-	return payments.reduce(
+	const paid = payments.reduce(
 		(owed, payment) => (payment.date > latest.day ? owed - payment.amount : owed),
 		latest.amount,
 	);
+	return bought.reduce((owed, line) => (line.date > latest.day ? owed + line.amount : owed), paid);
 }
 
 /** Money out recorded against an Account (Goal spending), and when it was recorded (ms). */

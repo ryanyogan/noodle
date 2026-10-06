@@ -351,6 +351,8 @@ export async function addQuickAdd(
 		forMemberIds: string[];
 		createdByMemberId: string;
 		receipt?: { id: string; newId: () => string };
+		/** The Account it was paid from, for a card kept by hand (issue 136); the Household's, in use. */
+		accountId?: string | null;
 	},
 ): Promise<QuickAddResult> {
 	const month = input.date.slice(0, 7);
@@ -369,7 +371,12 @@ export async function addQuickAdd(
 					createdByMemberId: sql<string>`${input.createdByMemberId}`.as("created_by_member_id"),
 					createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
 					commitmentId: sql<string | null>`null`.as("commitment_id"),
-					accountId: sql<string | null>`null`.as("account_id"),
+					accountId: sql<
+						string | null
+					>`(select qa.id from accounts qa where qa.id = ${input.accountId ?? null}
+						and qa.household_id = ${input.householdId} and qa.archived_at is null)`.as(
+						"account_id",
+					),
 					goalId: sql<string | null>`null`.as("goal_id"),
 					importId: sql<string | null>`null`.as("import_id"),
 					externalId: sql<string | null>`null`.as("external_id"),
@@ -466,6 +473,8 @@ export type TransactionRow = {
 	merchantName: string | null;
 	/** The name of the Account it was imported from; null unless it came in through an Import. */
 	importedFrom: string | null;
+	/** It's on a card whose purchases are kept by hand: the Quick Add is the record, no bank copy is awaited. */
+	byHand?: boolean;
 	/** Reported by the bank but not yet posted: it may change, or go, until its posted copy lands. */
 	pending: boolean;
 	/** For a Quick Add Matched to its bank copy: the Account the copy was imported into. */
@@ -731,6 +740,10 @@ export async function loadTransactionsPage(
 			>`case when ${partly} then null else ${transactions.merchant} end`,
 			partlyPrivate: sql<boolean>`${partly}`.mapWith(Boolean),
 			pending: transactions.pending,
+			byHand:
+				sql<boolean>`coalesce(${accounts.purchases} = 'hand' and ${accounts.bankConnectionId} is null, 0)`.mapWith(
+					Boolean,
+				),
 			importedFrom: sql<
 				string | null
 			>`case when ${transactions.source} = 'import' then ${accountLabelSql} end`,

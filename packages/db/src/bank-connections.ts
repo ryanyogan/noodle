@@ -189,6 +189,10 @@ export async function chooseBankAccounts(
 								externalId: sql<string>`${account.externalId}`.as("external_id"),
 								mask: sql<string | null>`${accountMask(account.mask)}`.as("mask"),
 								archivedAt: sql<Date | null>`null`.as("archived_at"),
+								// Its bank brings its purchases in: never asked, no Wallet name, no statement day.
+								purchases: sql<null>`null`.as("purchases"),
+								walletName: sql<string | null>`null`.as("wallet_name"),
+								statementDay: sql<number | null>`null`.as("statement_day"),
 							})
 							.from(bankConnections)
 							.where(and(theConnection, notYetPaired)),
