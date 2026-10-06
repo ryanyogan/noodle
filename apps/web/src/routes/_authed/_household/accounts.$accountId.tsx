@@ -915,8 +915,14 @@ function CardPerks({ account }: { account: AccountView }) {
 	const sources = perkSourcesForAccount(account, useSuspenseQuery(perkSourcesQuery()).data);
 	const count = sources.reduce((sum, source) => sum + source.perks.length, 0);
 	if (count === 0) return null;
-	const names = sources.map((source) => source.name).join(", ");
-	const meta = `${count} ${count === 1 ? "Perk" : "Perks"} · ${names}`;
+	// The page is the card's own: its name isn't said again under "Perks for this card", only a
+	// source that is called something else (issue 74).
+	const names = sources
+		.map((source) => source.name)
+		.filter((name) => name.trim().toLowerCase() !== account.name.trim().toLowerCase())
+		.join(", ");
+	const perks = `${count} ${count === 1 ? "Perk" : "Perks"}`;
+	const meta = names ? `${perks} · ${names}` : perks;
 	return (
 		<Section aria-labelledby="account-perks">
 			<SectionHeader id="account-perks" title="Perks" help={<TermHelp term="perk-source" />} />

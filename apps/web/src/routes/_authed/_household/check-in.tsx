@@ -158,16 +158,20 @@ function CheckInCardView({
 				</p>
 				<h2 className="text-lg font-semibold tracking-[-0.01em]">{checkInLine(card)}</h2>
 				{card.kind === "sweeps" ? (
-					<p className="flex flex-wrap items-center gap-x-1 text-sm text-muted-foreground">
+					<p className={helpLine}>
 						<span>
 							Leftovers from last month’s Buckets that reset monthly: choose which Goal they go to.
 						</span>
-						<TermHelp term="sweep" />
+						<span className="sm:ms-1 sm:inline-flex sm:align-middle">
+							<TermHelp term="sweep" />
+						</span>
 					</p>
 				) : card.kind === "windfalls" ? (
-					<p className="flex flex-wrap items-center gap-x-1 text-sm text-muted-foreground">
+					<p className={helpLine}>
 						<span>Pay above your usual take-home pay: decide where it goes.</span>
-						<TermHelp term="extra-income" />
+						<span className="sm:ms-1 sm:inline-flex sm:align-middle">
+							<TermHelp term="extra-income" />
+						</span>
 					</p>
 				) : null}
 			</CardContent>
@@ -185,6 +189,13 @@ function CheckInCardView({
 		</Card>
 	);
 }
+
+/**
+ * A card's line with its "?": from sm the "?" follows the last word, where it used to drop to a
+ * line of its own under a two-line sentence (issue 73). A phone keeps its wrapping row.
+ */
+const helpLine =
+	"text-sm text-muted-foreground max-sm:flex max-sm:flex-wrap max-sm:items-center max-sm:gap-x-1";
 
 /** How many waiting Transactions the Review step lists before "N more". */
 const REVIEW_SHOWN = 5;

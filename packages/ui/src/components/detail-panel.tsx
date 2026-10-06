@@ -329,9 +329,9 @@ function DetailPanel({
 					"@container/detail min-w-0 outline-none",
 					"lg:fixed lg:inset-y-0 lg:right-0 lg:z-30 lg:overflow-y-auto lg:overscroll-contain",
 					// A raised surface with an edge that reads in both themes: the stronger border, and
-					// a shadow thrown left. The bottom padding keeps the end of the item clear of the Ask
-					// Noodle button, which stays in the window's corner over the panel.
-					"lg:rounded-l-3xl lg:border-l lg:border-border-strong lg:bg-card lg:p-6 lg:pb-16 lg:shadow-side",
+					// a shadow thrown left. No bottom padding: the strip after the item (`detail-foot-ground`)
+					// is the room under it, and keeps it clear of the Ask Noodle button in the window's corner.
+					"lg:rounded-l-3xl lg:border-l lg:border-border-strong lg:bg-card lg:p-6 lg:pb-0 lg:shadow-side",
 					// Slides in when an item opens; going from item to item it stays where it is.
 					"lg:animate-side-in",
 					// A drawer from lg (over its scrim and the Ask Noodle button, under sheets); from xl
@@ -370,6 +370,15 @@ function DetailPanel({
 					</div>
 				) : null}
 				{children}
+				{/* The Ask Noodle button floats over the panel's bottom corner. This strip of the panel's
+				    own ground stays at the bottom while the item scrolls, so a row's amount goes under an
+				    edge and not under the button (issue 73); at the end of the item it is the panel's
+				    bottom padding. */}
+				<span
+					aria-hidden="true"
+					data-slot="detail-foot-ground"
+					className="pointer-events-none sticky bottom-0 -mx-6 block h-16 bg-card max-lg:hidden"
+				/>
 			</section>
 		</>
 	);

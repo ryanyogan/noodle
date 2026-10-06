@@ -154,8 +154,19 @@ test("a bank Transaction from a month that is over and closed is filed in one of
 	await waitForReview(page, new URL("/review", thisMonth).href, "1 of 2");
 	await expect(badge(page, 2)).toBeVisible();
 
-	// Its month has a Plan, so its Buckets are offered, as for any card.
+	// Its month has a Plan, so its Buckets are offered, as for any card. The month is over, so
+	// its Plan is closed: a search that finds nothing says so, and offers no new Bucket or way
+	// to that Plan's Buckets.
 	await top(page).getByRole("combobox").click();
+	await page.getByPlaceholder("Find a Bucket").fill("Widgets");
+	await expect(
+		page.getByText(
+			/^Nothing in \w+( \d{4})? matches, and a past month’s Plan can’t be given a new Bucket\.$/,
+		),
+	).toBeVisible();
+	await expect(page.getByRole("option")).toHaveCount(0);
+	await expect(page.getByRole("link", { name: "Edit Buckets", exact: true })).toHaveCount(0);
+	await page.getByPlaceholder("Find a Bucket").fill("");
 	await page.getByRole("listbox").getByRole("option", { name: "Groceries", exact: true }).click();
 	await expect(said(page)).toHaveText(/^Filed .+ in Groceries\. 1 left\.$/);
 	await expect(stack(page)).toContainText("2 of 2");

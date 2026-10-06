@@ -80,7 +80,7 @@ export function MonthCloseSection({
 					}
 				/>
 			</div>
-			<p className="px-1 pb-3 text-sm text-muted-foreground">
+			<p className="pb-3 text-sm text-muted-foreground sm:px-1">
 				{name} has ended.{" "}
 				{proposal.leftovers.length > 0
 					? goals.length > 0
@@ -98,7 +98,7 @@ export function MonthCloseSection({
 			</p>
 			{/* From lg the To do card is the card: the list loses its own and its rows run edge to
 			    edge between the To do card's dividers (#73). */}
-			<div className="lg:-mx-3 lg:border-y lg:*:rounded-none lg:*:border-0 lg:*:bg-transparent lg:*:shadow-none">
+			<div className="lg:-mx-4 lg:border-y lg:*:rounded-none lg:*:border-0 lg:*:bg-transparent lg:*:shadow-none">
 				<List aria-label={`${name} leftovers`}>
 					{proposal.leftovers.map((leftover) => (
 						<ListRow

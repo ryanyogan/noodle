@@ -326,7 +326,9 @@ test("a phone shows Goals or Accounts, then the item with Back", { tag: "@phone"
 	await page.context().close();
 });
 
-test("a Transaction opens beside its month's list, which keeps its place", async ({ browser }) => {
+test("a Transaction opens in place under its row, and the table keeps its columns", async ({
+	browser,
+}) => {
 	test.slow();
 	const page = await signedInPage(browser, parent.email, desktop);
 	await createPlannedHousehold(page, {
@@ -342,53 +344,113 @@ test("a Transaction opens beside its month's list, which keeps its place", async
 	await page.goto("/transactions");
 	const rows = page.locator("[data-slot=list-row] button:not([role=checkbox]):not([data-cell])");
 	const pane = page.locator("[data-slot=transaction-detail]");
+	const title = pane.locator("[data-slot=detail-title]");
 	const marked = page.locator("[data-slot=list-row] button[aria-current]");
+	const openRow = page.locator("[data-slot=list-row][aria-current=true]");
 	// Hydrated: before then a press on a row does nothing.
 	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
 	await expect(rows.first()).toBeVisible();
-
-	// Nothing picked: the rail holds the filters and the month's total.
-	await expect(
-		page.locator("[data-slot=transaction-filters]").getByTestId("month-total"),
-	).toBeVisible();
-	await expect(page.locator("[data-slot=transaction-filters]").getByLabel("Bucket")).toBeVisible();
 	await expect(pane).toHaveCount(0);
+	await expect(openRow).toHaveCount(0);
+	// Where the header's columns are: they must not move when a row opens.
+	const columns = () =>
+		page
+			.locator("[data-slot=data-table-head] [role=columnheader]")
+			.evaluateAll((all) => all.map((el) => Math.round(el.getBoundingClientRect().left)));
+	const before = await columns();
+	expect(before.length).toBeGreaterThan(3);
 
-	// Picked from part-way down: it opens in the rail at its own address, and the page stays put.
+	// Picked from part-way down: it opens under its own row, at its own address.
 	await page.evaluate(() => window.scrollTo(0, 300));
 	const inView = await rows.evaluateAll((all) =>
 		all.findIndex((el) => {
 			const box = el.getBoundingClientRect();
-			return box.top > 150 && box.bottom < 600;
+			return box.top > 150 && box.bottom < 400;
 		}),
 	);
 	expect(inView).toBeGreaterThanOrEqual(0);
 	await rows.nth(inView).click();
 	await expect(page).toHaveURL(/\/transactions\/\d{4}-\d{2}\/[0-9A-Z]{26}$/);
-	await expect(pane.locator("[data-slot=detail-title]")).toBeVisible();
+	await expect(title).toBeVisible();
 	await expect(marked).toHaveCount(1);
-	const y = await page.evaluate(() => window.scrollY);
-	await axe(page, "A Transaction beside its list");
-
-	// The next one down is one step away in the header; the list hasn't moved.
-	const first = page.url();
-	await pane.getByRole("link", { name: "Next Transaction" }).click();
-	await expect(page).not.toHaveURL(first);
-	await expect(marked).toHaveCount(1);
-	expect(await page.evaluate(() => window.scrollY)).toBe(y);
-
-	// A deep link shows the list and the Transaction together; Esc closes the pane.
-	await page.reload();
-	await expect(pane.locator("[data-slot=detail-title]")).toBeVisible();
-	await expect(marked).toHaveCount(1);
-	// Hydrated (the filters are there, out of sight, while a Transaction is open).
-	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
-	await page.keyboard.press("Escape");
-	await expect(pane).toHaveCount(0);
-	await expect(page).toHaveURL(/\/transactions\/\d{4}-\d{2}$/);
+	await expect(openRow).toHaveCount(1);
+	await expect(pane).toHaveCount(1);
+	await expect(marked).toHaveAttribute("aria-expanded", "true");
+	// The region is named after its Transaction, and focus is on its title.
+	const label = (await pane.getAttribute("aria-label")) ?? "";
+	expect(label).not.toBe("Transaction details");
+	expect(await marked.innerText()).toContain(label);
+	await expect(title).toBeFocused();
+	// Directly under its row, as wide as the table; the columns and the filters stay where they were.
+	const placed = await page.evaluate(() => {
+		const row = document.querySelector("[data-slot=list-row][aria-current=true]");
+		const region = document.querySelector("[data-slot=transaction-detail]");
+		const table = document.querySelector("[data-slot=data-table]");
+		if (!row || !region || !table) return null;
+		const r = row.getBoundingClientRect();
+		const g = region.getBoundingClientRect();
+		const t = table.getBoundingClientRect();
+		return {
+			gap: Math.abs(g.top - r.bottom),
+			left: Math.abs(g.left - t.left),
+			right: Math.abs(g.right - t.right),
+			rowInView: r.top >= 0 && r.bottom <= window.innerHeight,
+		};
+	});
+	expect(placed).toEqual({ gap: 0, left: 0, right: 0, rowInView: true });
+	expect(await columns()).toEqual(before);
 	await expect(
 		page.locator("[data-slot=transaction-filters]").getByTestId("month-total"),
 	).toBeVisible();
+	await expect(page.locator("[data-slot=split-rail]")).toHaveCount(0);
+	// The open row's cells don't edit in the cell (its editor is right there); other rows' still do.
+	await expect(openRow.locator("[data-cell]")).toHaveCount(0);
+	await expect(page.locator("[data-slot=list-row] [data-cell=name]").first()).toBeAttached();
+	// A tick on another row selects it and leaves this one open.
+	await page
+		.locator("[data-slot=list-row]:not([aria-current=true]) [role=checkbox]")
+		.first()
+		.click();
+	await expect(page.getByRole("region", { name: "Selecting Transactions" })).toBeVisible();
+	await expect(openRow).toHaveCount(1);
+	await axe(page, "A Transaction open under its row");
+	// Esc closes the open row first and keeps the selection; the next Esc ends the selection.
+	const first = page.url();
+	await page.keyboard.press("Escape");
+	await expect(pane).toHaveCount(0);
+	await expect(page.getByRole("region", { name: "Selecting Transactions" })).toBeVisible();
+	// Focus is back on the row's name button: the control that opened it, not just its row.
+	expect(
+		await page.evaluate(() => {
+			const at = document.activeElement;
+			return Boolean(
+				at?.matches("button[aria-expanded=false]") && at.closest("[data-slot=list-row]"),
+			);
+		}),
+	).toBe(true);
+	await page.keyboard.press("Escape");
+	await expect(page.getByRole("region", { name: "Selecting Transactions" })).toHaveCount(0);
+
+	// The next one down is one step away in the header: one row open at a time, and it is in view.
+	await page.goto(first);
+	await expect(title).toBeVisible();
+	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
+	await pane.getByRole("link", { name: "Next Transaction" }).click();
+	await expect(page).not.toHaveURL(first);
+	await expect(marked).toHaveCount(1);
+	await expect(pane).toHaveCount(1);
+	await expect(openRow).toBeInViewport();
+
+	// A deep link opens the row in the list; a click on the open row closes it.
+	await page.reload();
+	await expect(title).toBeVisible();
+	await expect(marked).toHaveCount(1);
+	await expect(openRow).toBeInViewport();
+	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled();
+	await marked.click();
+	await expect(pane).toHaveCount(0);
+	await expect(page).toHaveURL(/\/transactions\/\d{4}-\d{2}$/);
+	await expect(rows.first()).toBeVisible();
 	await page.context().close();
 });
 
@@ -408,12 +470,17 @@ test("a Transaction's address shows it whatever the list has loaded, and is a pa
 	await rows.first().click();
 	await expect(paneTitle).toBeVisible();
 	const address = new URL(page.url()).pathname;
-	const name = await paneTitle.innerText();
+	const name = (await paneTitle.textContent()) ?? "";
 
 	// Left out of the list by its filters, the Transaction is fetched by its ID.
 	await page.goto(`${address}?q=nothing-is-called-this`);
 	await expect(paneTitle).toHaveText(name, clientRendered);
 	await expect(page.getByText("Nothing matches")).toBeVisible();
+
+	// Further down than the list has loaded, or left out while other rows match: it is the table's
+	// first row, and no row is marked open.
+	await page.goto(`${address}?sort=oldest`);
+	await expect(paneTitle).toHaveText(name, clientRendered);
 
 	// On a phone its address is a page with Back: the list is out of the way until then.
 	await page.setViewportSize({ width: phone.viewport.width, height: phone.viewport.height });
@@ -578,7 +645,12 @@ test("a kept Scenario opens in a panel over Compare, which stays, and is a page 
 	// first columns still show beside it.
 	expect((listBefore?.x ?? 0) + (listBefore?.width ?? 0)).toBeLessThanOrEqual(panelBox?.x ?? 0);
 	expect(compareBefore?.x ?? 0).toBeLessThan((panelBox?.x ?? 0) - 100);
-	await expect(numbers.getByRole("columnheader")).toHaveText(["Number", "Plan", "Raise"]);
+	// Beside the open Scenario Compare has no room for a column each: every number lists the Plan and
+	// the Scenario by name instead, and the table comes back when the panel closes.
+	await expect(numbers).toBeHidden();
+	const stacked = page.locator("section[aria-labelledby=compare] dl").first();
+	await expect(stacked.locator("dt")).toHaveText(["Plan", "Raise"]);
+	await expect(stacked.locator("dd").first()).toBeVisible();
 	await expect(page.getByRole("checkbox", { name: "Compare “Raise”" })).toBeChecked();
 	await expect(list(page)).toHaveAttribute("data-kept", "yes");
 	await expect(title(page)).toBeFocused();

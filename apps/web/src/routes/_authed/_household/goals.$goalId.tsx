@@ -592,8 +592,10 @@ function GoalStatus({ goal, month }: { goal: GoalView; month: MonthKey }) {
 
 function FinishRow({ text, action }: { text: string; action: ReactNode }) {
 	return (
-		<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-			<p className="flex-[1_1_16rem] text-sm text-muted-foreground">{text}</p>
+		// A phone: the action always under its sentence (it wrapped there at 375 and 393 but not at
+		// 430), and a ghost one ("Archive") starts on the sentence's edge, not 10px in (issue 74).
+		<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 max-sm:flex-col max-sm:items-start max-sm:[&>[data-variant=ghost]]:-ms-2.5">
+			<p className="flex-[1_1_16rem] text-sm text-muted-foreground max-sm:flex-none">{text}</p>
 			{action}
 		</div>
 	);

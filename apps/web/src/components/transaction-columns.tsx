@@ -9,6 +9,7 @@ import { monogram } from "../buckets";
 import { shortDay } from "../format";
 import { cellEdits } from "../transaction-cells";
 import type { RowView } from "../transaction-row";
+import { editsInCell } from "../transaction-table";
 import type { TransactionRow } from "../transactions";
 import { AssignedCell, type CellEdits, NameEditor, RenameButton } from "./transaction-cells";
 
@@ -126,6 +127,9 @@ function NameCell({
 						className={nameControl}
 						aria-label={view.label}
 						aria-current={open ? "true" : undefined}
+						// It opens in place, under its row (issue 99). Said on the button: a grid's row can't
+						// take aria-expanded. Goal spending goes to its Goal instead.
+						aria-expanded={transaction.goal ? undefined : open}
 						onClick={() => onEdit(transaction)}
 					>
 						<span className="truncate">{view.title}</span>
@@ -185,7 +189,7 @@ export function transactionColumns({
 	/** Renaming and refiling in the cell (issue 99). */
 	cells?: CellEdits;
 	dated: boolean;
-	/** The Transaction open beside the table. */
+	/** The Transaction open under its row: its cells do not edit in place, its editor is there. */
 	open: string | undefined;
 	/** While the list is selecting: whether a Transaction is selected. Left out otherwise. */
 	checked: ((transaction: TransactionRow) => boolean) | undefined;
@@ -216,7 +220,7 @@ export function transactionColumns({
 					open={row.transaction.id === open}
 					checked={checked?.(row.transaction)}
 					onEdit={onEdit}
-					cells={cells}
+					cells={editsInCell(row.transaction.id, open) ? cells : undefined}
 				/>
 			),
 		},
@@ -229,7 +233,7 @@ export function transactionColumns({
 			sortable: { said: AZ },
 			// A row with one Bucket or none is refiled here; any other kind opens, as its row does.
 			cell: ({ transaction, view }) =>
-				cells && cellEdits(transaction).refile ? (
+				cells && editsInCell(transaction.id, open) && cellEdits(transaction).refile ? (
 					<AssignedCell
 						transaction={transaction}
 						title={view.title}
