@@ -515,12 +515,22 @@ function MoreTab({ householdName }: { householdName: string }) {
 				<SheetContent
 					aria-describedby={undefined}
 					data-more-sheet=""
-					// On a short phone the last rows are reached by scrolling the sheet: a soft shade at its
-					// foot says there is more, and goes once the end is in view (issue 74).
-					className="max-sm:[background:linear-gradient(to_top,var(--card)_40%,transparent)_bottom/100%_56px_no-repeat_local,linear-gradient(to_top,color-mix(in_oklab,var(--foreground)_22%,transparent),transparent)_bottom/100%_20px_no-repeat_scroll,var(--card)]"
+					// The account foot stays put at the bottom while the destinations scroll above it (issue
+					// 124): a column whose list is the only part that gives way. The list keeps 12rem, so at
+					// very large text, where the foot wraps, the whole sheet scrolls rather than the foot
+					// covering the list.
+					className="flex flex-col *:shrink-0"
 				>
 					<SheetHeader title="More" />
-					<nav aria-label="More" className="grid gap-2">
+					<nav
+						aria-label="More"
+						data-more-list=""
+						// On a short phone the last rows are reached by scrolling the list: a soft shade at its
+						// foot says there is more, and goes once the end is in view (issue 74). `relative`: a
+						// row's words for screen readers alone are placed out of the flow, and would otherwise
+						// count as the sheet's own overflow and let the whole sheet scroll.
+						className="relative -mx-4 grid min-h-48 shrink! content-start gap-2 overflow-y-auto overscroll-contain px-4 pb-2 [scrollbar-width:none] [background:linear-gradient(to_top,var(--card)_40%,transparent)_bottom/100%_56px_no-repeat_local,linear-gradient(to_top,color-mix(in_oklab,var(--foreground)_22%,transparent),transparent)_bottom/100%_20px_no-repeat_scroll,var(--card)]"
+					>
 						{moreGroups.map((group, index) => (
 							<MoreGroup key={group.label} group={group} review={index === 0} onGlossary={close} />
 						))}
@@ -615,8 +625,13 @@ function MoreAccount({ householdName, close }: { householdName: string; close: (
 	const [theme, setTheme] = useTheme();
 	const themeLabel = useId();
 	return (
-		<section aria-label="Your account" className="grid gap-3 border-t pt-3">
-			<div className="flex items-center justify-between gap-3 ps-3">
+		// Two short rows right under the list (the sheet's own gap is taken back), each control 44px.
+		<section
+			aria-label="Your account"
+			data-more-account=""
+			className="-mt-4 grid grid-cols-[minmax(0,1fr)] gap-1 border-t pt-2"
+		>
+			<div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 ps-3">
 				<span id={themeLabel} className="text-sm font-medium text-foreground">
 					Theme
 				</span>
@@ -624,6 +639,8 @@ function MoreAccount({ householdName, close }: { householdName: string; close: (
 					type="single"
 					variant="segmented"
 					aria-labelledby={themeLabel}
+					// At very large text the three options go onto a second line rather than off the side.
+					className="max-w-full flex-wrap"
 					value={theme}
 					onValueChange={(value) => setTheme(value as Theme)}
 				>
@@ -634,11 +651,13 @@ function MoreAccount({ householdName, close }: { householdName: string; close: (
 					))}
 				</ToggleGroup>
 			</div>
-			<div className="flex items-center gap-2">
-				{/* One row, so the whole sheet fits a 320 by 640 window: the Parent opens their account. */}
+			<div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+				{/* One row, so the foot stays short on a 320 wide phone: the Parent opens their account. */}
 				<Button
 					variant="ghost"
-					className="min-w-0 flex-1 justify-start gap-3 px-3 text-left"
+					// `wrap`: 44px, and taller when the text is set very large.
+					size="wrap"
+					className="min-w-0 flex-1 justify-start gap-3 rounded-xl px-3 py-1 text-left text-sm"
 					onClick={() => {
 						close();
 						clerk.openUserProfile();
@@ -652,7 +671,12 @@ function MoreAccount({ householdName, close }: { householdName: string; close: (
 						</span>
 					</span>
 				</Button>
-				<Button variant="outline" onClick={() => void clerk.signOut({ redirectUrl: "/" })}>
+				<Button
+					variant="outline"
+					size="wrap"
+					className="rounded-xl px-3.5 text-sm"
+					onClick={() => void clerk.signOut({ redirectUrl: "/" })}
+				>
 					<LogOut aria-hidden="true" />
 					Sign out
 				</Button>

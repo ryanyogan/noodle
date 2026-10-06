@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, openMore, signedInPage } from "./session";
+import { createPlannedHousehold, moreItem, openMore, signedInPage } from "./session";
 
 // The theme (issue 124): a Parent picks Light, Dark or Device in the account menu: the Sidebar's
 // Parent menu on a computer, the foot of More on a phone. It applies at once, is remembered on this
@@ -111,9 +111,8 @@ test("on a phone, a Parent switches to Dark and back to Light at the foot of Mor
 
 	let themes = await themesIn();
 	await expect(themes.getByRole("radio", { name: "Device" })).toBeChecked();
-	// Once the sheet has slid up. At 393 by 852 the control is the sheet's last row in view, its last
-	// couple of pixels under the sheet's fade: the account row is a short scroll below it.
-	await expect(themes).toBeInViewport({ ratio: 0.9 });
+	// Once the sheet has slid up: the control is in the sheet's foot, which stays put.
+	await expect(themes).toBeInViewport({ ratio: 0.99 });
 	await shot(page, "more-393-light");
 	await themes.getByRole("radio", { name: "Dark" }).click();
 	await expect(themes.getByRole("radio", { name: "Dark" })).toBeChecked();
@@ -131,5 +130,84 @@ test("on a phone, a Parent switches to Dark and back to Light at the foot of Mor
 	expect(await drawn(page)).toEqual({ chosen: "light", scheme: "light", bars: ["light"] });
 	// Nothing runs off the side of a 393 window.
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(393);
+	await page.context().close();
+});
+
+// The foot of More stays put (issue 124): the theme, Manage account and Sign out are together and in
+// view without scrolling, on a tall phone and a small one, and only the destinations scroll above.
+test("on a phone, the theme, Manage account and Sign out stay at the foot of More while the list scrolls", {
+	tag: "@phone",
+}, async ({ browser }) => {
+	const page = await signedInPage(browser, parent.email, {
+		viewport: { width: 393, height: 852 },
+		isMobile: true,
+		hasTouch: true,
+		colorScheme: "light",
+	});
+	await page.goto("/month");
+	const sizes = [
+		[393, 852, "light"],
+		[375, 667, "light"],
+		[320, 568, "light"],
+		[393, 852, "dark"],
+		[320, 568, "dark"],
+	] as const;
+	for (const [width, height, scheme] of sizes) {
+		const at = `${width}x${height} ${scheme}`;
+		await page.emulateMedia({ colorScheme: scheme });
+		await page.setViewportSize({ width, height });
+		const sheet = await openMore(page);
+		const list = sheet.getByRole("navigation", { name: "More" });
+		const account = sheet.getByRole("region", { name: "Your account" });
+		const themes = account.getByRole("radiogroup", { name: "Theme" });
+		const controls = [
+			...(await themes.getByRole("radio").all()),
+			account.getByRole("button", { name: "Manage account" }),
+			account.getByRole("button", { name: "Sign out" }),
+		];
+		expect(controls, at).toHaveLength(5);
+		// Once it has slid up, the sheet ends at the bottom of the window.
+		await expect
+			.poll(async () => {
+				const box = await sheet.boundingBox();
+				return Math.round((box?.y ?? 0) + (box?.height ?? 0));
+			}, at)
+			.toBe(height);
+		// The sheet itself has nothing to scroll: only the list does.
+		expect(
+			await sheet.evaluate((el) => [el.scrollTop, el.scrollHeight - el.clientHeight]),
+			at,
+		).toEqual([0, 0]);
+		expect(await list.evaluate((el) => el.scrollTop), at).toBe(0);
+		const top = (await sheet.boundingBox())?.y ?? 0;
+		for (const control of controls) {
+			const box = await control.boundingBox();
+			if (!box) throw new Error(`${at}: a control of the foot has no box`);
+			// All of it inside the sheet and the window, and big enough for a thumb.
+			expect(box.y, at).toBeGreaterThanOrEqual(top);
+			expect(box.y + box.height, at).toBeLessThanOrEqual(height + 0.5);
+			expect(box.x, at).toBeGreaterThanOrEqual(0);
+			expect(box.x + box.width, at).toBeLessThanOrEqual(width + 0.5);
+			expect(box.height, at).toBeGreaterThanOrEqual(44);
+		}
+		await shot(page, `more-${width}-${scheme}`);
+
+		// The last destination comes fully into view above the foot.
+		await list.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+		const last = await moreItem(sheet, "Glossary").boundingBox();
+		const listBox = await list.boundingBox();
+		const foot = await account.boundingBox();
+		if (!last || !listBox || !foot) throw new Error(`${at}: the sheet's parts have no box`);
+		expect(last.y, at).toBeGreaterThanOrEqual(listBox.y);
+		expect(last.y + last.height, at).toBeLessThanOrEqual(foot.y + 0.5);
+		expect(await sheet.evaluate((el) => el.scrollTop), at).toBe(0);
+		// Nothing runs off the side.
+		expect(await page.evaluate(() => document.documentElement.scrollWidth), at).toBe(width);
+		expect(await list.evaluate((el) => el.scrollWidth - el.clientWidth), at).toBe(0);
+		await shot(page, `more-${width}-${scheme}-end`);
+
+		await sheet.getByRole("button", { name: "Close" }).click();
+		await expect(sheet).toBeHidden();
+	}
 	await page.context().close();
 });
