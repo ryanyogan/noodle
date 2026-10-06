@@ -660,7 +660,8 @@ test.beforeAll(async ({ browser }) => {
 					page
 						.getByRole("link", { name: "Edit", exact: true })
 						.or(page.getByRole("button", { name: "Edit", exact: true })),
-					page.getByRole("dialog"),
+					// Under 1440 the panel is itself a dialog (a drawer): the sheet is the one with the form.
+					page.getByRole("dialog").filter({ has: page.getByRole("textbox", { name: "Amount" }) }),
 				);
 			},
 		},
