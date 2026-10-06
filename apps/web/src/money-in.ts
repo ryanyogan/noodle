@@ -138,6 +138,10 @@ export const pairOffered = (
 	!!line.accountId &&
 	!!line.note?.trim();
 
+/** Income with wording to know it by: a Parent may say whose pay it is, and remember its sender. */
+export const whosePayOffered = (line: Pick<MoneyInLine, "kind" | "needsReview" | "note">) =>
+	!line.needsReview && line.kind === "income" && !!line.note?.trim();
+
 /** A Parent says a Transfer came from another Account, and that money like it always does. */
 export function useRememberAccountPair() {
 	const queryClient = useQueryClient();
