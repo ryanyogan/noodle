@@ -1441,15 +1441,23 @@ function MerchantList({
 function MerchantsView({ data, nav, tables }: ViewProps<"merchants">) {
 	if (data.byAmount.length === 0) return <NothingYet />;
 	return (
+		// From lg the two headings share one row, so the two cards start on one line even when one
+		// description takes a second line (at 1024 "By spending" started 19px lower): issue 73.
 		<div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
 			<ChartCard
+				className="lg:row-span-2 lg:grid-rows-subgrid lg:[&>*:first-child]:self-start"
 				title="By spending"
 				description="Grouped by merchant, from each Transaction’s note"
 				table={tables.byAmount}
 			>
 				<MerchantList merchants={data.byAmount.slice(0, 15)} nav={nav} by="amount" />
 			</ChartCard>
-			<ChartCard title="By visits" description="The places you go most" table={tables.byCount}>
+			<ChartCard
+				className="lg:row-span-2 lg:grid-rows-subgrid lg:[&>*:first-child]:self-start"
+				title="By visits"
+				description="The places you go most"
+				table={tables.byCount}
+			>
 				<MerchantList merchants={data.byCount.slice(0, 15)} nav={nav} by="count" />
 			</ChartCard>
 		</div>
@@ -1489,7 +1497,7 @@ function PeopleView({ report, data, names, nav, tables, search }: ViewProps<"peo
 	return (
 		<div className="grid gap-4 lg:grid-cols-5 lg:gap-6">
 			<ChartCard
-				className="lg:col-span-2"
+				className="lg:col-span-2 lg:row-span-2 lg:grid-rows-subgrid lg:[&>*:first-child]:self-start"
 				title="Spending for each person"
 				description="Shared spending counts evenly for each"
 				table={tables.people}
@@ -1519,7 +1527,7 @@ function PeopleView({ report, data, names, nav, tables, search }: ViewProps<"peo
 				/>
 			</ChartCard>
 			<ChartCard
-				className="lg:col-span-3"
+				className="lg:col-span-3 lg:row-span-2 lg:grid-rows-subgrid lg:[&>*:first-child]:self-start"
 				title="What each Child costs"
 				description={`By ${report.grouping}`}
 			>

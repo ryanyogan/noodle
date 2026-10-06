@@ -153,6 +153,9 @@ async function settled(page: Page) {
 	await page.waitForTimeout(600);
 }
 
+/** The row that opens and closes a Perk Source: the first button of its first heading. */
+const perkRow = (card: Locator) => card.locator("h3").first().getByRole("button").first();
+
 /** A credit card added on Perks & Benefits, as perks-page.spec.ts does (AI_MODEL=stub reads the page). */
 async function addCard(page: Page, name: string, pageUrl: string, fee: string, perks: number) {
 	await page.getByRole("button", { name: "Add a card or membership" }).click();
@@ -164,13 +167,16 @@ async function addCard(page: Page, name: string, pageUrl: string, fee: string, p
 	await expect(sheet).toBeHidden({ timeout: 30_000 });
 	const card = page.getByRole("article", { name });
 	// One Perk Source is open at a time: open this one's row.
-	const row = card.locator("h3").getByRole("button");
+	// The row may open by itself as the Perks arrive, and an open card has more headings with
+	// buttons: take the card's own row, and try again if a click landed on a row that had opened.
+	const row = perkRow(card);
 	await expect(row).toBeEnabled();
-	if ((await row.getAttribute("aria-expanded")) !== "true") await row.click();
-	await expect(card.getByRole("list", { name: `${name} Perks` }).getByRole("listitem")).toHaveCount(
-		perks,
-		{ timeout: 30_000 },
-	);
+	await expect(async () => {
+		if ((await row.getAttribute("aria-expanded")) !== "true") await row.click();
+		await expect(
+			card.getByRole("list", { name: `${name} Perks` }).getByRole("listitem"),
+		).toHaveCount(perks, { timeout: 5_000 });
+	}).toPass({ timeout: 45_000 });
 	await card.getByLabel("Annual fee").fill(fee);
 	await card.getByRole("button", { name: "Save fee" }).click();
 	await expect(card).toContainText(`annual fee $${fee}`);
@@ -395,12 +401,21 @@ test.beforeAll(async ({ browser }) => {
 		await page.goto("/insights/perks");
 		const amex = await addCard(page, "Amex Platinum", "https://example.com/premium-card", "695", 4);
 		await addCard(page, "Chase Sapphire Reserve", "https://example.com/travel-card", "550", 3);
-		await amex.locator("h3").getByRole("button").click();
+		// The fee's save redraws the cards: let it finish, or it empties the note being typed.
+		await page.waitForLoadState("networkidle");
+		const amexRow = perkRow(amex);
 		const uber = amex.getByRole("listitem", { name: "Uber Cash" });
-		await uber.getByRole("button", { name: "Mark Uber Cash used" }).click();
-		await uber.getByLabel("Note (optional)").fill("Rides to the airport");
-		await uber.getByRole("button", { name: "Save" }).click();
-		await expect(uber).toContainText("Rides to the airport");
+		await expect(async () => {
+			if ((await amexRow.getAttribute("aria-expanded")) !== "true") await amexRow.click();
+			const mark = uber.getByRole("button", { name: "Mark Uber Cash used" });
+			if (await mark.isVisible()) await mark.click();
+			const note = uber.getByLabel("Note (optional)");
+			if (await note.isVisible()) {
+				await note.fill("Rides to the airport");
+				await uber.getByRole("button", { name: "Save" }).click();
+			}
+			await expect(uber).toContainText("Rides to the airport", { timeout: 5_000 });
+		}).toPass({ timeout: 45_000 });
 	});
 
 	// A saved Scenario: a raise to $10,200 a month.

@@ -1097,10 +1097,13 @@ export function CalendarHeatmap({
 						pointer.current = event.pointerType;
 					}}
 					// From lg up the weeks share the card's width, each up to twice as wide as tall, so a
-					// half year reaches the card's right edge instead of stopping at 60% (issue 73).
-					className="grid w-max gap-[3px] text-[11px] text-muted-foreground lg:w-full lg:min-w-min lg:[--heat-week:3rem]"
+					// half year reaches the card's right edge instead of stopping at 60% (issue 73). They may
+					// narrow to 20px so a half year fits a 1024 window without its first week going under
+					// the weekday names, and in a card wider than the weeks need the grid stays at the
+					// start, beside those names (an auto column took the spare width and parted them).
+					className="grid w-max gap-[3px] text-[11px] text-muted-foreground lg:w-full lg:min-w-min lg:justify-start lg:[--heat-week-min:1.25rem] lg:[--heat-week:3rem]"
 					style={{
-						gridTemplateColumns: `auto repeat(${weeks}, minmax(1.5rem, var(--heat-week, 1.5rem)))`,
+						gridTemplateColumns: `auto repeat(${weeks}, minmax(var(--heat-week-min, 1.5rem), var(--heat-week, 1.5rem)))`,
 						gridTemplateRows: "auto repeat(7, 1.5rem)",
 					}}
 				>
@@ -1109,7 +1112,8 @@ export function CalendarHeatmap({
 							key={`${week}-${label}`}
 							aria-hidden="true"
 							className="pb-0.5 whitespace-nowrap"
-							style={{ gridColumn: `${week + 2} / span 3`, gridRow: 1 }}
+							// Never past the last week: a span over the end made a column of its own.
+							style={{ gridColumn: `${week + 2} / span ${Math.min(3, weeks - week)}`, gridRow: 1 }}
 						>
 							{label}
 						</span>
