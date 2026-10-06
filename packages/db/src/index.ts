@@ -714,6 +714,7 @@ export {
 } from "./plan-draft";
 export { type Author, loadPlanChanges, type PlanHistory } from "./plan-log";
 export { privateTotalId, type Viewer } from "./privacy";
+export { loadBucketsInMonths } from "./range-buckets";
 export {
 	type AddReceiptResult,
 	addReceipt,
@@ -807,6 +808,10 @@ export {
 	type DeletionSummary,
 	deleteTransaction,
 	deleteTransactions,
+	type FiledBefore,
+	type FilingResult,
+	type FilingSkips,
+	fileTransactions,
 	loadBucketUses,
 	loadSpending,
 	loadSpendingBetween,
@@ -828,6 +833,7 @@ export {
 	type TransactionSort,
 	type TransactionWriteResult,
 	transactionVersion,
+	unfileTransactions,
 	updateTransaction,
 } from "./transactions";
 export {

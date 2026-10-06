@@ -331,8 +331,29 @@ test("a failed save puts the card back on top and says so, and the end of the st
 	await expect(stack(page)).toHaveCount(0);
 });
 
-/** Drags the top card sideways by `dx` with the mouse, in steps. */
+/**
+ * The top card is in its place: let go, and sprung all the way back. A card let go short, or
+ * swiped left for the picker, takes 300ms to spring back; measured during that, it is still off
+ * to one side (on CI, its middle was left of the window) and the next drag starts on nothing.
+ */
+async function atRest(page: Page) {
+	await expect
+		.poll(() =>
+			stack(page)
+				.locator("[data-slot=swipe-card]")
+				.evaluate(
+					(card) =>
+						!card.hasAttribute("data-dragging") &&
+						card.getAnimations().length === 0 &&
+						new DOMMatrixReadOnly(getComputedStyle(card).transform).isIdentity,
+				),
+		)
+		.toBe(true);
+}
+
+/** Drags the top card sideways by `dx` with the mouse, in steps, once it is at rest. */
 async function drag(page: Page, card: Locator, dx: number) {
+	await atRest(page);
 	const box = await card.getByRole("heading", { level: 3 }).boundingBox();
 	if (!box) throw new Error("no card");
 	const x = box.x + box.width / 2;
