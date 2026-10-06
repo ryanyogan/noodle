@@ -165,7 +165,8 @@ function PerksPage() {
 				<SectionGrid>
 					<Section aria-labelledby="perks-to-confirm">
 						<SectionHeader id="perks-to-confirm" title="To confirm" count={suggested.length} />
-						<List>
+						{/* The rows measure this list: in a half-width card (1280) the choices go under the text. */}
+						<List className="@container/confirm">
 							{(allSuggested ? suggested : suggested.slice(0, FEW)).map((source) => (
 								<Suggestion key={source.id} source={source} />
 							))}
@@ -689,8 +690,14 @@ function Suggestion({ source }: { source: PerkSourceItem }) {
 					]}
 				/>
 			}
-			trailing={<div className="flex items-center gap-2 max-sm:hidden">{choices}</div>}
-			below={<div className="flex justify-end gap-2 sm:hidden">{choices}</div>}
+			// From a tablet up too, where the list is under 32rem wide (half the page at 1280): beside the
+			// text there, "Seen in …" took a line of its own in one row and not in the next (issue 73).
+			trailing={
+				<div className="flex items-center gap-2 max-sm:hidden @max-lg/confirm:hidden">
+					{choices}
+				</div>
+			}
+			below={<div className="flex justify-end gap-2 sm:@lg/confirm:hidden">{choices}</div>}
 		/>
 	);
 }
