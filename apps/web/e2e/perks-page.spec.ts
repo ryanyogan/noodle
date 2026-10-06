@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { settledAxe } from "./axe";
 import { continueToBank } from "./bank-history";
 import { createTestParent } from "./parents";
 import {
@@ -186,7 +186,7 @@ test("on a phone the page is a short list, a card opens in place, and nothing sc
 	await expect(
 		page.getByRole("list", { name: "Worth using now" }).getByRole("listitem").first(),
 	).toBeVisible();
-	const { violations } = await new AxeBuilder({ page })
+	const { violations } = await (await settledAxe(page))
 		.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
 		.analyze();
 	expect(
@@ -384,7 +384,7 @@ test("adding a card is one button and one sheet: search the known cards, pick on
 	await expect(sheet.getByLabel("What it is")).toHaveCount(0);
 
 	expect(await noSideways(page)).toBe(true);
-	const { violations } = await new AxeBuilder({ page })
+	const { violations } = await (await settledAxe(page))
 		.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
 		.analyze();
 	expect(

@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { ulid } from "ulid";
+import { settledAxe } from "./axe";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
 import {
@@ -346,7 +346,7 @@ test("at xl, Name, Assigned to and Account sort the list, and the column says wh
 	await expect(rows).toHaveCount(3);
 	// Sorting isn't filtering: the total stays the month's.
 	await expect(page.getByTestId("month-total")).toHaveText("$190.49");
-	const results = await new AxeBuilder({ page })
+	const results = await (await settledAxe(page))
 		.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
 		.analyze();
 	expect(results.violations.map((violation) => violation.id)).toEqual([]);
@@ -390,7 +390,7 @@ test("on a phone, a Sort menu beside Filters orders the list and the address kee
 		"Account Z–A",
 	]);
 	// The open menu itself: while it is open the page behind it is hidden from assistive tech.
-	const open = await new AxeBuilder({ page })
+	const open = await (await settledAxe(page))
 		.include("[role=listbox]")
 		.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
 		.analyze();

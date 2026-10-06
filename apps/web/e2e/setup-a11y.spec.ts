@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { settledAxe } from "./axe";
 import { continueToBank, historySheet } from "./bank-history";
 import { createTestParent } from "./parents";
 import { savedBy, signedInPage } from "./session";
@@ -25,7 +25,7 @@ async function axe(page: Page, where: string) {
 	await page.evaluate(() => document.fonts.ready);
 	for (const colorScheme of ["light", "dark"] as const) {
 		await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
-		const { violations } = await new AxeBuilder({ page })
+		const { violations } = await (await settledAxe(page))
 			.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
 			.analyze();
 		expect

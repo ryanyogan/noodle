@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { settledAxe } from "./axe";
 import { createTestParent } from "./parents";
 import { createHousehold, openFromMore, serverFn, signedInPage } from "./session";
 
@@ -174,7 +174,7 @@ test("the sidebar marks the section you're in, collapses to a rail, and holds th
 	expect(askBox?.height).toBeGreaterThanOrEqual(40);
 	await expect(current).toHaveText("This Month");
 	const axe = async () =>
-		(await new AxeBuilder({ page }).include("[data-slot=sidebar]").analyze()).violations;
+		(await (await settledAxe(page)).include("[data-slot=sidebar]").analyze()).violations;
 	expect(await axe()).toEqual([]);
 	for (const [path, label] of [
 		["/month/2020-01", "This Month"],

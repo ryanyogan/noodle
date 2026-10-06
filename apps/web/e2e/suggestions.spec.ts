@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { settledAxe } from "./axe";
 import { createTestParent } from "./parents";
 import {
 	createPlannedHousehold,
@@ -31,7 +31,7 @@ const shots58d1b =
 	"/tmp/claude-1000/-home-ryan-Work-noodle/350084fd-f9e1-4b75-9ecf-7a4034e88af2/scratchpad/s58d1b";
 
 async function axe(page: Page, label: string) {
-	const { violations } = await new AxeBuilder({ page })
+	const { violations } = await (await settledAxe(page))
 		.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
 		.analyze();
 	expect(

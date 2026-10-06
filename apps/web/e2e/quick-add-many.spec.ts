@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { settledAxe } from "./axe";
 import { createTestParent } from "./parents";
 import { createPlannedHousehold, signedInPage } from "./session";
 
@@ -69,8 +69,8 @@ const sheet = (page: Page) => page.getByRole("dialog", { name: "Quick Add" });
 const saved = (page: Page, bucket: string) =>
 	page.getByRole("status").filter({ hasText: "added to" }).filter({ hasText: bucket });
 
-const axe = (page: Page) =>
-	new AxeBuilder({ page })
+const axe = async (page: Page) =>
+	(await settledAxe(page))
 		.include("[role=dialog]")
 		.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
 		.analyze();

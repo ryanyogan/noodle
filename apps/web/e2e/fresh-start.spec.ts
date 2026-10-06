@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { settledAxe } from "./axe";
 import { createTestParent } from "./parents";
 import {
 	createPlannedHousehold,
@@ -22,7 +22,7 @@ test.afterEach(async () => {
 });
 
 async function expectNoAxeViolations(page: Page, what: string) {
-	const { violations } = await new AxeBuilder({ page })
+	const { violations } = await (await settledAxe(page))
 		.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
 		.analyze();
 	expect(

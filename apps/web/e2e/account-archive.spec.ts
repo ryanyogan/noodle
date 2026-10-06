@@ -1,6 +1,6 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { signFakeWebhook } from "../src/server/plaid-fake-webhook-key";
+import { settledAxe } from "./axe";
 import { continueToBank } from "./bank-history";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
@@ -54,7 +54,7 @@ const inChecking = async (clerkUserId: string) =>
 
 /** The open confirm passes axe and nothing on the page scrolls sideways. */
 async function sheetIsSound(page: Page) {
-	const { violations } = await new AxeBuilder({ page })
+	const { violations } = await (await settledAxe(page))
 		.include("[role=alertdialog]")
 		.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
 		.analyze();

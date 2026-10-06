@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { settledAxe } from "./axe";
 import { createTestParent } from "./parents";
 import {
 	accountKindLabel,
@@ -168,7 +168,7 @@ function skipAndUndo(page: Page) {
 }
 
 async function axe(page: Page, what: string) {
-	const { violations } = await new AxeBuilder({ page }).analyze();
+	const { violations } = await (await settledAxe(page)).analyze();
 	expect(
 		violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`),
 		what,

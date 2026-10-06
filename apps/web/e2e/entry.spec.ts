@@ -1,6 +1,6 @@
-import AxeBuilder from "@axe-core/playwright";
 import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import { type APIRequestContext, expect, type Page, test } from "@playwright/test";
+import { settledAxe } from "./axe";
 import { createTestParent } from "./parents";
 import { createHousehold, signedInPage } from "./session";
 
@@ -109,7 +109,7 @@ for (const size of [
 			else await expect(points).toBeVisible();
 			for (const colorScheme of ["light", "dark"] as const) {
 				await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
-				const { violations } = await new AxeBuilder({ page })
+				const { violations } = await (await settledAxe(page))
 					.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
 					.analyze();
 				expect
