@@ -70,7 +70,8 @@ export function ComingUpList() {
 					type="button"
 					variant="ghost"
 					size="sm"
-					className="justify-self-start"
+					// On a phone its words start on the cards' edge, as the lines around it do (issue 74).
+					className="justify-self-start max-sm:-ms-2.5"
 					aria-expanded={all}
 					onClick={() => setAll(!all)}
 				>

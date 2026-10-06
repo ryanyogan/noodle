@@ -38,6 +38,9 @@ function Left({ cents }: { cents: number }) {
 	);
 }
 
+/** The "·" between two parts of a stacked row's line, in a box as wide as the line is pulled left. */
+const DOT = <span className="inline-block w-[1em] text-center whitespace-pre"> · </span>;
+
 /**
  * The line under the name in a stacked row: the figures that have no column there. On the
  * narrowest phone (a table under 320px) the name has the first line to itself, so this line says
@@ -64,19 +67,33 @@ function Summary({
 		// Two boxes: the outer one starts with the tile over it, the inner one with the name. It wraps.
 		<span className={cn("flex min-w-0", indent && STACKED_INDENT)}>
 			<span className={cn("min-w-0 font-normal tabular-nums", underName && UNDER_NAME)}>
+				{/* Each line wraps between its parts, never inside one, and none ends in a "·" (issue 74). */}
 				<span className="@[22rem]/dt:hidden">
-					<span
-						className={cn("font-medium", left < 0 ? "text-over-foreground" : "text-foreground")}
-					>
-						{formatMoney(Math.abs(left))}
-					</span>
-					{left < 0 ? " over" : " left"} of {formatMoney(allowance)}
+					<span className="whitespace-nowrap">
+						<span
+							className={cn("font-medium", left < 0 ? "text-over-foreground" : "text-foreground")}
+						>
+							{formatMoney(Math.abs(left))}
+						</span>
+						{left < 0 ? " over" : " left"}
+					</span>{" "}
+					<span className="whitespace-nowrap">of {formatMoney(allowance)}</span>
 				</span>
-				<span className="hidden @[22rem]/dt:inline">
-					{/* It wraps between its parts, not inside one: "spent" was alone on a line (issue 74). */}
-					<span className="whitespace-nowrap">{formatMoney(allowance)} allowance ·</span>{" "}
-					<span className="whitespace-nowrap">{formatMoney(spent)} spent</span>
-					{rolling ? <span className="whitespace-nowrap"> · Carries over</span> : null}
+				{/* The row is pulled left by a dot's room and cut there: a part that starts a line hides its dot. */}
+				<span className="hidden overflow-hidden @[22rem]/dt:block">
+					<span className="-ms-[1em] flex flex-wrap">
+						<span className="ps-[1em] whitespace-nowrap">{formatMoney(allowance)} allowance</span>
+						<span className="whitespace-nowrap">
+							{DOT}
+							{formatMoney(spent)} spent
+						</span>
+						{rolling ? (
+							<span className="whitespace-nowrap">
+								{DOT}
+								Carries over
+							</span>
+						) : null}
+					</span>
 				</span>
 			</span>
 		</span>
@@ -117,7 +134,13 @@ const STACKED_INDENT = "@max-2xl/dt:ps-[calc(var(--bucket-handle,2.75rem)+0.75re
  * (36px) and its gap (issue 115). In a table without handles this comes after `STACKED_INDENT`, so
  * Buckets and Personal Allowances start their tile, their name and this line at the same three places.
  */
-const UNDER_NAME = "ps-12";
+const UNDER_NAME = "ps-12 @max-[16rem]/dt:ps-0";
+
+/**
+ * Larger text (iOS, 200%) leaves a phone's table under 16rem, where the handle, the tile and the
+ * pencil left a name one letter a line (issue 74). No phone is that narrow at the usual size.
+ */
+const NO_TILE = "@max-[16rem]/dt:hidden";
 
 export const bucketsHaveHandles = (buckets: readonly BucketState[], editable: boolean) =>
 	editable && buckets.length > 1;
@@ -231,7 +254,10 @@ export function BucketTable({
 								: null;
 					return (
 						<div className={cn("flex min-w-0 items-center gap-3", indent && STACKED_INDENT)}>
-							<Tile bucket={asBucketColor(bucket.color)}>{monogram(bucket.name)}</Tile>
+							{/* With the text twice its size (a table under 16rem) the tile goes: the name has its room. */}
+							<Tile bucket={asBucketColor(bucket.color)} className={NO_TILE}>
+								{monogram(bucket.name)}
+							</Tile>
 							<div className="grid min-w-0">
 								<Link
 									to="/plan/$month/buckets/$id"
