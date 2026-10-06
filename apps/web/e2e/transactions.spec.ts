@@ -743,6 +743,39 @@ test("a Transaction is refiled in its Assigned to cell, Undo puts it back, and T
 	await page.context().close();
 });
 
+test("a Bucket is created from the Assigned to cell's picker, and the Transaction is filed in it", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await setUp(page);
+	await openTransactions(page);
+
+	await refileButton(page, "Pro Hockey Life", "Groceries").click();
+	await page.getByPlaceholder("Search or create").fill("Skates");
+	await page.getByRole("option", { name: "Create Bucket “Skates”" }).click();
+
+	const step = page.getByRole("dialog", { name: "New Bucket" });
+	await expect(step.getByLabel("Name")).toHaveValue("Skates");
+	// Naming the Bucket opened neither the row nor its editor.
+	await expect(editSheet(page)).toBeHidden();
+	const saved = savedBy(page, "updateTransaction");
+	await step.getByRole("button", { name: "Create and file here" }).click();
+	await saved;
+	await expect(step).toBeHidden();
+	await expect(row(page, "Pro Hockey Life")).toHaveAccessibleName(
+		"Pro Hockey Life, $64.99, Skates, For Everyone",
+	);
+	await expect(said(page, "filed in")).toContainText("Pro Hockey Life filed in Skates");
+	await expect(editSheet(page)).toBeHidden();
+
+	// The new Bucket is in the Plan with the Transaction in it, and stays after a reload.
+	await page.reload();
+	await expect(refileButton(page, "Pro Hockey Life", "Skates")).toBeVisible();
+	await nav(page).getByRole("link", { name: "This Month" }).click();
+	await expect(bucketRow(page, "Skates")).toContainText("$64.99 spent");
+	await page.context().close();
+});
+
 test("a cell's change made on a Transaction another screen has changed since is left out: the cell shows how it is now", async ({
 	browser,
 }) => {

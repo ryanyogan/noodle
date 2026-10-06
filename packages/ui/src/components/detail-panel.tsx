@@ -123,6 +123,8 @@ function DetailPanel({
 	const drawer = shown === "drawer";
 	// The open item's row, remembered while it is marked, since the mark goes as the panel closes.
 	const row = React.useRef<HTMLElement | null>(null);
+	// Whether the panel's own content is scrolled: Close then gets a ground of its own.
+	const [scrolled, setScrolled] = React.useState(false);
 	const closing = React.useRef(onClose);
 	React.useEffect(() => {
 		closing.current = onClose;
@@ -320,6 +322,9 @@ function DetailPanel({
 				aria-label={label}
 				// Takes focus itself while the item's title hasn't arrived (it is still loading).
 				tabIndex={-1}
+				onScroll={(event) => {
+					if (event.target === event.currentTarget) setScrolled(event.currentTarget.scrollTop > 0);
+				}}
 				className={cn(
 					"@container/detail min-w-0 outline-none",
 					"lg:fixed lg:inset-y-0 lg:right-0 lg:z-30 lg:overflow-y-auto lg:overscroll-contain",
@@ -351,6 +356,16 @@ function DetailPanel({
 						// in it); the margin puts the control on the middle line of the item's header.
 						className="sticky top-0 z-10 flex h-0 justify-end max-lg:hidden [&>*]:mt-2.5"
 					>
+						{/* Once the panel is scrolled, Close has a strip of the panel's ground to itself, edge
+						    to edge, so a row's amount goes under an edge and not under the button (issue
+						    115). Not at the top, where the item's header is on this line. */}
+						{scrolled ? (
+							<span
+								aria-hidden="true"
+								data-slot="detail-close-ground"
+								className="pointer-events-none absolute -inset-x-6 -top-6 -z-10 mt-0! h-19 border-b bg-popover"
+							/>
+						) : null}
 						{close}
 					</div>
 				) : null}

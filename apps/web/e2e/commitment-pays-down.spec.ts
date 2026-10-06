@@ -166,7 +166,7 @@ test("a Commitment pays down a card kept by hand: a payment brings what's owed d
 	const payment = page
 		.getByRole("grid", { name: /^Transactions in / })
 		.locator("[data-slot=data-table-body]")
-		.getByRole("button", { name: /Amex payment/ });
+		.getByRole("button", { name: /^Payment, .*Amex payment/ });
 	await payment.click();
 	const pane = page
 		.locator("[role=dialog], [data-slot=transaction-detail]")
