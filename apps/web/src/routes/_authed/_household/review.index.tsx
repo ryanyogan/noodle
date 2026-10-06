@@ -773,6 +773,7 @@ function ReviewPage() {
 
 	// What Sort last did and the Rule it offers, under the card or the finish: a slot of its own
 	// height, so filling it never moves the card or its buttons.
+	const [, saidHead = said, saidTail] = /^(.*\S) (\d+ left\.|All sorted\.)$/s.exec(said) ?? [];
 	const sortNote = (
 		<div data-slot="review-note" className="grid h-28 content-start gap-2 sm:h-24">
 			<div className="flex min-h-5 items-start justify-center gap-2">
@@ -780,9 +781,13 @@ function ReviewPage() {
 					role="status"
 					data-testid="review-said"
 					// One line on a phone (issue 110): under a tall card a second line ran under the bottom bar.
-					className="line-clamp-2 min-w-0 text-center text-sm text-muted-foreground max-sm:line-clamp-1"
+					// There the first part gives way and the count stays: "Filed Trader Jo… 3 left." (issue 74).
+					className="min-w-0 text-center text-sm text-muted-foreground max-sm:flex max-sm:justify-center max-sm:gap-1 sm:line-clamp-2"
 				>
-					{said}
+					<span className="max-sm:min-w-0 max-sm:truncate">{saidHead}</span>
+					{saidTail ? (
+						<span className="max-sm:shrink-0 max-sm:whitespace-nowrap"> {saidTail}</span>
+					) : null}
 					{streak !== null ? <span className="sr-only"> {streak} in a row!</span> : null}
 				</p>
 				{streak !== null && cheering ? (
@@ -1399,6 +1404,17 @@ function CardActions({
 }
 
 /** A small burst at the end of the stack; only drawn with motion. */
+/**
+ * The picker's words on the card for a payment to a card Noodle doesn't follow. On the narrowest
+ * phones it shares its row with "Card payment", so it says less and nothing is cut (issue 74).
+ */
+const notFollowedPlaceholder = (
+	<>
+		<span className="min-[360px]:hidden">Pick a Bucket…</span>
+		<span className="max-[359px]:hidden">Or pick a Bucket…</span>
+	</>
+);
+
 function Burst() {
 	return (
 		<div aria-hidden="true" className="pointer-events-none absolute top-12 left-1/2 z-10">
@@ -1758,11 +1774,13 @@ function ReviewCard({
 						placeholder={
 							payment?.kind === "commitment"
 								? "Pick another…"
-								: payment || between
-									? "Or pick a Bucket…"
-									: item.guess
-										? "Pick another…"
-										: "Pick where it goes"
+								: payment?.kind === "not-followed"
+									? notFollowedPlaceholder
+									: payment || between
+										? "Or pick a Bucket…"
+										: item.guess
+											? "Pick another…"
+											: "Pick where it goes"
 						}
 						searchPlaceholder="Find a Bucket"
 						choices={choices}
@@ -1840,7 +1858,7 @@ function ReviewCard({
 						// (issue 110: it read "Or pick a …"); a row of its own pushed Skip under the bar.
 						<Button
 							variant="outline"
-							className="order-last shrink-0 px-2 text-xs min-[360px]:hidden"
+							className="order-last shrink-0 px-1.5 text-xs min-[360px]:hidden"
 							aria-label="It’s a card payment"
 							disabled={!hydrated}
 							onClick={onPayment}
