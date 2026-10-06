@@ -68,6 +68,13 @@ const enabled = !!process.env.PAGE_SHOTS;
 // One worker, in order, and no second try: the Household is made once, in beforeAll.
 test.describe.configure({ mode: "default", retries: 0 });
 
+/** Focus as the keyboard gives it (a ring shows): focus, then Tab away and back. */
+async function keyboardFocus(page: Page, target: Locator) {
+	await target.focus();
+	await page.keyboard.press("Tab");
+	await page.keyboard.press("Shift+Tab");
+}
+
 type Shot = {
 	name: string;
 	path: string;
@@ -1559,6 +1566,54 @@ test.beforeAll(async ({ browser }) => {
 					.getByRole("button", { name: /^Groceries: \$/ })
 					.first()
 					.hover();
+			},
+		},
+		// One of each control of Reports in its two other states (issue 73). A picture holds one
+		// keyboard focus and one pointer, so: a tab focused and a table toggle under the pointer; the
+		// toggle focused and a tab under the pointer; a row focused and a select under the pointer;
+		// a chip of the Filters sheet focused and another under the pointer.
+		{
+			name: "23sa-reports-tab-focus-toggle-hover",
+			path: "/reports?view=buckets",
+			window: true,
+			ready: async (page) => {
+				await keyboardFocus(page, page.getByRole("link", { name: "Trends", exact: true }));
+				await page
+					.getByRole("button", { name: /^Show .* as a table$/ })
+					.first()
+					.hover();
+			},
+		},
+		{
+			name: "23sb-reports-toggle-focus-tab-hover",
+			path: "/reports?view=buckets",
+			window: true,
+			ready: async (page) => {
+				await keyboardFocus(
+					page,
+					page.getByRole("button", { name: /^Show .* as a table$/ }).first(),
+				);
+				await page.getByRole("link", { name: "Merchants", exact: true }).hover();
+			},
+		},
+		{
+			name: "23sc-reports-row-focus-select-hover",
+			path: "/reports?view=buckets",
+			window: true,
+			ready: async (page) => {
+				await keyboardFocus(page, page.getByRole("button", { name: /^Kids: \$/ }).first());
+				await page.getByRole("combobox", { name: "Compare with" }).hover();
+			},
+		},
+		{
+			name: "23sd-reports-chip-focus-and-hover",
+			path: "/reports",
+			window: true,
+			ready: async (page) => {
+				const sheet = page.getByRole("dialog", { name: "Filters" });
+				await pressFor(page.getByRole("button", { name: /^Filters/ }), sheet);
+				await keyboardFocus(page, sheet.locator("button", { hasText: /^Kids$/ }));
+				await sheet.locator("button", { hasText: /^Household$/ }).hover();
 			},
 		},
 		{
