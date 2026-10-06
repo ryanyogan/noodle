@@ -45,6 +45,7 @@ import {
 	withoutCommitment,
 } from "../commitments";
 import { formatMoney, formatMoneyInput, fullDay, monthName, shortDay } from "../format";
+import { owedBackOnCommitmentText, useOwedBackOnCommitment } from "../owed-back";
 import { usePlanChange } from "../plan-changes";
 import { goalsQuery } from "../queries";
 import { addCommitment, endCommitment, updateCommitment } from "../server/commitments";
@@ -164,6 +165,8 @@ export function CommitmentEditor({
 /** Where a Commitment stands this month, for its column in a wide list. */
 function PaidState({ commitment }: { commitment: CommitmentState }) {
 	const { status, dueDates, charges, difference } = commitment;
+	// "$600 over · $600 owed back by Casey", as This Month's Bills says it (issue 132).
+	const owedBack = owedBackOnCommitmentText(difference, useOwedBackOnCommitment(commitment.id));
 	if (status === "not-due") {
 		return <span className="text-[13px] text-subtle-foreground">Not due this month</span>;
 	}
@@ -174,6 +177,16 @@ function PaidState({ commitment }: { commitment: CommitmentState }) {
 		const part = partPaid(commitment);
 		if (part) {
 			return <span className="text-[13px] text-muted-foreground tabular-nums">{part}</span>;
+		}
+		if (owedBack) {
+			return (
+				<span
+					className="text-[13px] text-muted-foreground tabular-nums"
+					data-testid="owed-back-commitment"
+				>
+					{owedBack}
+				</span>
+			);
 		}
 		return (
 			<Badge variant={difference > 0 ? "over" : "default"} dot>
