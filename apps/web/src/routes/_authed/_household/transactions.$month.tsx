@@ -21,7 +21,12 @@ import {
 } from "@noodle/ui/components/select";
 import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { cn } from "@noodle/ui/lib/utils";
-import { useQuery, useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
+import {
+	useQuery,
+	useQueryClient,
+	useSuspenseInfiniteQuery,
+	useSuspenseQuery,
+} from "@tanstack/react-query";
 import {
 	createFileRoute,
 	Link,
@@ -114,20 +119,57 @@ export const Route = createFileRoute("/_authed/_household/transactions/$month")(
 		range: search.range,
 	}),
 	// The first page is rendered on the server; later pages load as the Parent scrolls.
-	loader: ({ context, deps }) =>
-		Promise.all([
+	loader: ({ context, deps, cause, preload }) => {
+		const list = transactionsQuery(context.month, deps);
+		// A search or filter changed within the month already showing (issue 52): the page doesn't
+		// wait for the new list here. Waiting longer than the router's 400 ms put the whole page's
+		// loading state in its place, which took the search field and a phone's keyboard away in
+		// the middle of a word. The list is asked for, and the page keeps showing the one it has
+		// until the new one is here (see `filters` in TransactionsPage).
+		// "Already showing": a list of this month's has the page reading it now. (Asked of the
+		// cache, which the loader and the page share; on the server nothing is ever being read.)
+		const reading = (queryKey: readonly unknown[]) =>
+			context.queryClient.getQueryCache().findAll({ queryKey, type: "active" }).length > 0;
+		const narrowing =
+			!preload &&
+			cause === "stay" &&
+			(reading(list.queryKey.slice(0, -1)) ||
+				reading(transactionsQuery(context.month, {}).queryKey.slice(0, -1)));
+		return Promise.all([
 			context.queryClient.ensureQueryData(monthQuery(context.month)),
 			context.queryClient.ensureQueryData(membersQuery()),
 			context.queryClient.ensureQueryData(reviewQuery()),
 			context.queryClient.ensureQueryData(goalsQuery()),
-			context.queryClient.ensureInfiniteQueryData(transactionsQuery(context.month, deps)),
-		]),
+			narrowing
+				? void context.queryClient.prefetchInfiniteQuery(list)
+				: context.queryClient.ensureInfiniteQueryData(list),
+		]);
+	},
 	component: TransactionsPage,
 });
 
 function TransactionsPage() {
 	const { month, current, parentId } = Route.useRouteContext();
-	const filters = Route.useLoaderDeps();
+	// The filters the list on screen was loaded with. After a change they stay as they were until
+	// the list for the new ones has arrived, so the page (and the field being typed in) stays put
+	// instead of giving way to a loading state. Held here rather than left to React to defer: a
+	// second change while the first was still loading showed the loading state all the same.
+	const asked = Route.useLoaderDeps();
+	const askedKey = JSON.stringify(asked);
+	const [filters, setFilters] = useState(asked);
+	const queryClient = useQueryClient();
+	// biome-ignore lint/correctness/useExhaustiveDependencies: `askedKey` is `asked`, by value
+	useEffect(() => {
+		let latest = true;
+		const show = () => {
+			if (latest) setFilters((shown) => (JSON.stringify(shown) === askedKey ? shown : asked));
+		};
+		// Shown when it fails too: the list then says so, as it would have.
+		void queryClient.ensureInfiniteQueryData(transactionsQuery(month, asked)).then(show, show);
+		return () => {
+			latest = false;
+		};
+	}, [askedKey, month, queryClient]);
 	const navigate = useNavigate({ from: Route.fullPath });
 	const data = useSuspenseQuery(monthQuery(month)).data;
 	const { asOf } = data;
