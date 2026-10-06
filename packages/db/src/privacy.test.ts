@@ -409,6 +409,7 @@ describe("Personal Allowance privacy: Splits", () => {
 			transfer: null,
 			refundOf: null,
 			autoFiled: null,
+			assignedName: null,
 			version: 1,
 			for: [],
 			splits: [

@@ -416,10 +416,13 @@ function ThisMonth({ bucket }: { bucket: BucketState }) {
 				{parts ? <p className="text-xs text-muted-foreground tabular-nums">{parts}</p> : null}
 			</div>
 			<StatGrid layout="ruled" wrapLast className="grid-cols-2 @md:grid-cols-3">
-				<Stat label="Spent" value={formatMoney(bucket.spent)} />
+				{/* The label's row takes what is spare: in a narrow panel "Even spending by today" takes
+				    two lines, and the two figures still sit on one line (issue 73). */}
+				<Stat label="Spent" value={formatMoney(bucket.spent)} className="grid-rows-[1fr_auto]" />
 				<Stat
 					label="Even spending by today"
 					help={<TermHelp term="pace" />}
+					className="grid-rows-[1fr_auto]"
 					value={formatMoney(bucket.pace.spent)}
 				/>
 				<Stat label="Planned this month" value={formatMoney(bucket.allowance)} />

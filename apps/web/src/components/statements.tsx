@@ -149,7 +149,11 @@ export function StatementsSection({
 							}}
 						>
 							<FileUp />
-							Upload statement
+							{/* "Upload" to the eye on the narrowest phones, where the whole label pushed
+							    "Brought in from Chase" onto two lines (issue 74); read out in full. */}
+							<span>
+								Upload<span className="max-[359px]:sr-only"> statement</span>
+							</span>
 						</Button>
 					) : undefined
 				}

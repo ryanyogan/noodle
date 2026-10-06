@@ -914,7 +914,7 @@ function ConnectionRow({
 	return (
 		<ListRow
 			// Phones: the row is several lines tall with its buttons, so the bank's icon stays by its name.
-			className="max-sm:items-start"
+			className="items-start"
 			leading={
 				<Tile aria-hidden="true">
 					<Landmark />
@@ -981,7 +981,9 @@ function ConnectionRow({
 								onClick={() => setDisconnecting(true)}
 								aria-label={`Disconnect ${connection.institution ?? "the bank"}`}
 							>
-								<Unplug />
+								{/* No icon on the narrowest phones: with it Disconnect dropped under Reconnect,
+								    inset by its own padding (issue 74). */}
+								<Unplug className="max-[359px]:hidden" />
 								Disconnect
 							</Button>
 						) : null}

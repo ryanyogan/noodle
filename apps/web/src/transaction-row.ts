@@ -11,20 +11,24 @@ import { transferDetail } from "./transfers";
 /** What a Transaction or Split is assigned to, by name, with its Bucket's colour. */
 export function assignmentOf(
 	transaction: Pick<TransactionRow, "bucketId" | "commitmentId"> &
-		Partial<Pick<TransactionRow, "goal">>,
+		Partial<Pick<TransactionRow, "goal" | "assignedName">>,
 	plan: Pick<Plan, "buckets" | "commitments">,
 ) {
 	if (transaction.goal) return { name: transaction.goal.name, color: null };
 	if (transaction.bucketId) {
 		const bucket = plan.buckets.find((b) => b.id === transaction.bucketId);
 		return {
-			name: bucket?.name ?? "An archived Bucket",
+			// Not in this Plan (a row of another month, issue 99): the name read with the row.
+			name: bucket?.name ?? transaction.assignedName ?? "An archived Bucket",
 			color: bucket ? asBucketColor(bucket.color) : null,
 		};
 	}
 	if (transaction.commitmentId) {
 		const commitment = plan.commitments.find((c) => c.id === transaction.commitmentId);
-		return { name: commitment?.name ?? "An ended Commitment", color: null };
+		return {
+			name: commitment?.name ?? transaction.assignedName ?? "An ended Commitment",
+			color: null,
+		};
 	}
 	return { name: "Unassigned", color: null };
 }

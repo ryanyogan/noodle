@@ -11,7 +11,6 @@ import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { EmptyState } from "@noodle/ui/components/empty-state";
 import { Input } from "@noodle/ui/components/input";
-import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
 import { PageHeader } from "@noodle/ui/components/page-header";
 import {
 	Select,
@@ -22,7 +21,7 @@ import {
 } from "@noodle/ui/components/select";
 import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { cn } from "@noodle/ui/lib/utils";
-import { useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseInfiniteQuery, useSuspenseQuery } from "@tanstack/react-query";
 import {
 	createFileRoute,
 	Link,
@@ -44,7 +43,7 @@ import {
 	Search,
 	X,
 } from "lucide-react";
-import { Suspense, useEffect, useId, useRef, useState } from "react";
+import { type ReactNode, Suspense, useEffect, useId, useRef, useState } from "react";
 import { z } from "zod";
 import { QuickAddLink } from "../../../components/app-shell";
 import { type FilterOption, FilterSelect } from "../../../components/filter-select";
@@ -61,6 +60,13 @@ import { monthKeySchema } from "../../../server/month";
 import { ulidSchema } from "../../../server/schemas";
 import { forFilterSchema, SEARCH_MAX, transactionSortSchema } from "../../../server/transactions";
 import {
+	RANGE_OPTIONS,
+	rangeName,
+	TRANSACTION_RANGES,
+	type TransactionRange,
+	totalLabel,
+} from "../../../transaction-range";
+import {
 	anyPicked,
 	nothingPicked,
 	type Picking,
@@ -68,6 +74,8 @@ import {
 } from "../../../transaction-selection";
 import { escapeStep } from "../../../transaction-table";
 import {
+	monthOfTransaction,
+	rangeBucketsQuery,
 	type TransactionChange,
 	type TransactionFilters,
 	type TransactionRow,
@@ -87,6 +95,8 @@ export const Route = createFileRoute("/_authed/_household/transactions/$month")(
 		q: z.string().trim().max(SEARCH_MAX).optional().catch(undefined),
 		// Newest first is the default, so it never shows in the URL.
 		sort: transactionSortSchema.exclude(["newest"]).optional().catch(undefined),
+		// More than the month (issue 99), ending at it; the month alone never shows in the URL.
+		range: z.enum(TRANSACTION_RANGES).optional().catch(undefined),
 	}),
 	beforeLoad: ({ params, context }) => {
 		if (!monthKeySchema.safeParse(params.month).success) throw notFound();
@@ -101,6 +111,7 @@ export const Route = createFileRoute("/_authed/_household/transactions/$month")(
 		account: search.account,
 		q: search.q || undefined,
 		sort: search.sort,
+		range: search.range,
 	}),
 	// The first page is rendered on the server; later pages load as the Parent scrolls.
 	loader: ({ context, deps }) =>
@@ -126,6 +137,22 @@ function TransactionsPage() {
 	const members = useSuspenseQuery(membersQuery()).data;
 	const { accounts } = useGoals();
 	const [editing, setEditing] = useState<TransactionRow | null>(null);
+	// A row of another month (a list of more than a month, issue 99) is edited against its own
+	// month's Plan: the sheet waits for it.
+	const editingMonth = editing ? monthOfTransaction(editing) : month;
+	const otherMonth = useQuery({
+		...monthQuery(editingMonth),
+		enabled: editingMonth !== month,
+	}).data;
+	const editingPlan =
+		editingMonth === month
+			? plan
+			: otherMonth
+				? {
+						...otherMonth.plan,
+						buckets: otherMonth.plan.buckets.filter((b) => canAssign(b, parentId)),
+					}
+				: null;
 	// Select mode (#97): what is selected, by ID or as "all that match", never by rows on screen.
 	const [picking, setPicking] = useState<Picking | null>(null);
 	const [confirming, setConfirming] = useState(false);
@@ -133,14 +160,23 @@ function TransactionsPage() {
 	const onPick = (next: Picking) => setPicking(anyPicked(next) ? next : null);
 	const selecting = picking !== null;
 	const hydrated = useHydrated();
-	// The Transaction open in the pane beside the list (its route is this one's child).
+	// The Transaction open under its row in the table (its route is this one's child).
 	const picked = useParams({ strict: false, select: (params) => params.transactionId });
-	// From lg a Transaction opens beside the list, at its own address; on a phone, in a sheet.
+	// From lg a Transaction opens in place, under its row, at its own address; on a phone, in a
+	// sheet. A click on the row that is open closes it again.
 	const onEdit = (transaction: TransactionRow) => {
 		// While selecting where rows are stacked (a phone: no checkbox column), a tap selects or
 		// unselects instead of opening. In columns the checkbox selects and the row still opens.
 		if (picking && tableIsStacked()) return setPicking(togglePicked(picking, transaction.id));
 		if (window.matchMedia("(min-width: 1024px)").matches) {
+			if (transaction.id === picked) {
+				return void navigate({
+					to: "/transactions/$month",
+					params: { month },
+					search: true,
+					resetScroll: false,
+				});
+			}
 			void navigate({
 				to: "/transactions/$month/$transactionId",
 				params: { month, transactionId: transaction.id },
@@ -187,10 +223,11 @@ function TransactionsPage() {
 	const waiting = useSuspenseQuery(reviewQuery()).data.total;
 	const sameYear = month.slice(0, 4) === current.slice(0, 4);
 	// The order isn't a filter: every Transaction is still there.
-	const { sort: _sort, ...narrowing } = filters;
+	// Nor is how many months are listed.
+	const { sort: _sort, range, ...narrowing } = filters;
 	const filtered = Object.values(narrowing).some((value) => value !== undefined);
 	// Another month or other filters: "all that match" would mean something else, so start again.
-	const shown = JSON.stringify([month, narrowing]);
+	const shown = JSON.stringify([month, range, narrowing]);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: `shown` is what resets the selection
 	useEffect(() => {
 		setPicking((was) => (was ? nothingPicked : was));
@@ -221,9 +258,9 @@ function TransactionsPage() {
 								size="sm"
 								// A phone's header has room for one action and the month arrows: there, Select
 								// is beside Filters and Sort instead.
-								// From 1400 the table has its checkbox column even beside an open Transaction, and a
-								// tick starts selecting. Narrower, the list beside one is stacked: this is the way in.
-								className="me-1 max-sm:hidden min-[1400px]:hidden"
+								// From lg the table is always in columns (a Transaction opens under its row, not
+								// beside the list), so its checkbox column is the way in and this isn't needed.
+								className="me-1 max-sm:hidden lg:hidden"
 								disabled={!hydrated}
 								onClick={() => setPicking(nothingPicked)}
 							>
@@ -276,12 +313,13 @@ function TransactionsPage() {
 			/>
 			{/* The filters and the month's total are a bar over the table (issue 99), which takes the
 			    page's width, every loaded row drawn and the page scrolling. From lg a Transaction
-			    picked from it opens in the rail beside it; a Transaction taller than the window
-			    scrolls with the page. */}
+			    picked from it opens in place, under its row; below lg it is a page of its own, the
+			    filters and the other rows hidden. */}
 			<div className="grid gap-4">
 				<div data-slot="transaction-filters" className={cn(picked && "max-lg:hidden")}>
 					<Filters
 						month={month}
+						current={current}
 						plan={plan}
 						members={members}
 						accounts={accounts}
@@ -291,52 +329,53 @@ function TransactionsPage() {
 						onSelect={picking ? undefined : () => setPicking(nothingPicked)}
 					/>
 				</div>
-				<SplitLayout className={cn("max-lg:gap-4", !picked && "lg:grid-cols-1")}>
-					<SplitMain className={cn(picked && "max-lg:hidden")}>
-						{/* One gap between the bar and the list, the same on a phone as anywhere (issue 115). */}
-						<div className="grid min-w-0 gap-3">
-							{picking ? (
-								<SelectionBar
-									month={month}
-									filters={filters}
-									filtered={filtered}
-									picking={picking}
-									onPick={setPicking}
-									onDelete={() => setConfirming(true)}
-									onCancel={() => setPicking(null)}
-								/>
-							) : null}
-							<TransactionList
-								picking={picking}
-								onPick={onPick}
+				<div data-slot="transaction-list" className="min-w-0">
+					{/* One gap between the bar and the list, the same on a phone as anywhere (issue 115). */}
+					<div
+						className={cn(
+							"grid min-w-0 gap-3",
+							// Below lg an open Transaction is a page of its own: the selection's bar waits.
+							picked && "max-lg:[&>[aria-label='Selecting_Transactions']]:hidden",
+						)}
+					>
+						{picking ? (
+							<SelectionBar
 								month={month}
+								current={current}
 								filters={filters}
-								today={asOf}
-								plan={plan}
-								members={members}
 								filtered={filtered}
-								picked={picked}
-								onSort={(sort) => onChange({ sort })}
-								onEdit={onEdit}
-								onCellChange={change.mutate}
+								picking={picking}
+								onPick={setPicking}
+								onDelete={() => setConfirming(true)}
+								onCancel={() => setPicking(null)}
+								plan={plan}
+								onFiled={() => setPicking(null)}
 							/>
-						</div>
-					</SplitMain>
-					{picked ? (
-						<SplitRail>
-							<section
-								aria-label="Transaction details"
-								data-slot="transaction-detail"
-								// No scroll of its own: an editor taller than the window flows with the page.
-								className="@container min-w-0"
-							>
-								<Suspense fallback={<DetailPending />}>
-									<Outlet />
-								</Suspense>
-							</section>
-						</SplitRail>
-					) : null}
-				</SplitLayout>
+						) : null}
+						<TransactionList
+							parentId={parentId}
+							picking={picking}
+							onPick={onPick}
+							month={month}
+							filters={filters}
+							today={asOf}
+							plan={plan}
+							members={members}
+							filtered={filtered}
+							picked={picked}
+							onSort={(sort) => onChange({ sort })}
+							onEdit={onEdit}
+							onCellChange={change.mutate}
+							detail={
+								picked ? (
+									<Suspense fallback={<DetailPending />}>
+										<Outlet />
+									</Suspense>
+								) : undefined
+							}
+						/>
+					</div>
+				</div>
 			</div>
 			<DeleteSelectedSheet
 				open={confirming}
@@ -350,9 +389,9 @@ function TransactionsPage() {
 				}}
 			/>
 			<TransactionEditor
-				transaction={editing}
+				transaction={editingPlan ? editing : null}
 				today={asOf}
-				plan={plan}
+				plan={editingPlan ?? plan}
 				members={members}
 				parentId={parentId}
 				onClose={() => setEditing(null)}
@@ -375,6 +414,7 @@ const SEARCH_PAUSE_MS = 300;
  */
 function Filters({
 	month,
+	current,
 	plan,
 	members,
 	accounts,
@@ -384,6 +424,8 @@ function Filters({
 	onSelect,
 }: {
 	month: MonthKey;
+	/** The month it is now: "all time" ends there unless the address is an earlier month. */
+	current: MonthKey;
 	plan: Pick<Plan, "buckets">;
 	members: MemberSummary[];
 	accounts: AccountView[];
@@ -408,7 +450,16 @@ function Filters({
 		return () => clearTimeout(timer);
 	}, [search, filters.q]);
 	const [sheetOpen, setSheetOpen] = useState(false);
-	const bucketOptions = plan.buckets.map((bucket) => ({ value: bucket.id, label: bucket.name }));
+	// In a list of more than a month (issue 117) the filter offers the Buckets of every month it
+	// covers, each once, by name; until they are here, the address month's.
+	const inRange = useQuery({
+		...rangeBucketsQuery(month, filters.range),
+		enabled: Boolean(filters.range),
+	}).data;
+	const bucketOptions = (filters.range && inRange ? inRange : plan.buckets).map((bucket) => ({
+		value: bucket.id,
+		label: bucket.name,
+	}));
 	const forOptions = [
 		{ value: "everyone", label: "Everyone (shared)" },
 		...pickableMembers(members, filters.for ? [filters.for] : []).map((member) => ({
@@ -424,6 +475,8 @@ function Filters({
 		value === undefined ? undefined : (options.find((o) => o.value === value)?.label ?? value);
 	const chips = (
 		[
+			// More than the month shows as a chip too: taking it off is back to the month alone.
+			["range", labelOf(RANGE_OPTIONS, filters.range)],
 			["bucket", labelOf(bucketOptions, filters.bucket)],
 			["for", labelOf(forOptions, filters.for)],
 			["account", labelOf(accountOptions, filters.account)],
@@ -435,7 +488,7 @@ function Filters({
 				// From lg the month's total ends the bar, as big as a headline.
 				<p className="flex items-baseline justify-between gap-3 px-1 text-sm lg:order-last lg:ms-auto lg:grid lg:justify-items-end lg:gap-0.5">
 					<span className="text-muted-foreground">
-						{filtered ? "Total for these filters" : `Spent in ${monthName(month)}`}
+						{totalLabel(filters.range, month, { filtered, current })}
 					</span>
 					<span
 						className="font-semibold tabular-nums lg:text-2xl lg:tracking-tight"
@@ -523,6 +576,16 @@ function Filters({
 				) : null}
 			</div>
 			<div className="gap-3 max-lg:hidden lg:grid lg:flex-[3_1_26rem] lg:auto-cols-fr lg:grid-flow-col">
+				{/* How many months the list shows (issue 99), each ending at the month in the header. */}
+				<FilterSelect
+					id="filter-range"
+					label="Months"
+					all="This month"
+					value={filters.range ?? ""}
+					disabled={!hydrated}
+					onChange={(value) => onChange({ range: (value || undefined) as TransactionRange })}
+					options={RANGE_OPTIONS}
+				/>
 				<FilterSelect
 					id="filter-bucket"
 					label="Bucket"
@@ -609,12 +672,14 @@ function FiltersForm({
 	const [bucket, setBucket] = useState(filters.bucket ?? "");
 	const [member, setMember] = useState<string>(filters.for ?? "");
 	const [account, setAccount] = useState(filters.account ?? "");
+	const [range, setRange] = useState<string>(filters.range ?? "");
 	return (
 		<form
 			className="grid gap-5"
 			onSubmit={(event) => {
 				event.preventDefault();
 				onApply({
+					range: (range || undefined) as TransactionRange | undefined,
 					bucket: bucket || undefined,
 					for: (member || undefined) as TransactionFilters["for"],
 					account: account || undefined,
@@ -622,6 +687,14 @@ function FiltersForm({
 			}}
 		>
 			<div className="grid gap-4">
+				<FilterSelect
+					id={`${id}-range`}
+					label="Months"
+					all="This month"
+					value={range}
+					onChange={setRange}
+					options={RANGE_OPTIONS}
+				/>
 				<FilterSelect
 					id={`${id}-bucket`}
 					label="Bucket"
@@ -672,6 +745,7 @@ function FiltersForm({
  */
 function TransactionList({
 	month,
+	parentId,
 	filters,
 	today,
 	plan,
@@ -683,7 +757,11 @@ function TransactionList({
 	onSort,
 	onEdit,
 	onCellChange,
+	detail,
 }: {
+	parentId: string;
+	/** The open Transaction's editor, drawn under its row in the table. */
+	detail?: ReactNode;
 	/** A rename or refile made in a cell of the table. */
 	onCellChange: (change: TransactionChange) => void;
 	/** Select mode's selection; null when the list isn't selecting. */
@@ -696,7 +774,7 @@ function TransactionList({
 	plan: Pick<Plan, "buckets" | "commitments">;
 	members: MemberSummary[];
 	filtered: boolean;
-	/** The Transaction open beside the list. */
+	/** The Transaction open in the list, from the address. */
 	picked: string | undefined;
 	onSort: (sort: TransactionSort) => void;
 	onEdit: (transaction: TransactionRow) => void;
@@ -708,6 +786,12 @@ function TransactionList({
 	const transactions = data.pages.flatMap((page) => page.transactions);
 	const sort = filters.sort ?? "newest";
 	const more = useRef<HTMLDivElement>(null);
+	// The months listed, in words: the month, or the range ending at it (issue 99).
+	const when = !filters.range
+		? monthName(month)
+		: filters.range === "all"
+			? "every month"
+			: rangeName(filters.range, month);
 
 	// The next page loads when the "loading more" row nears the screen.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: transactions.length re-observes the row, which stays in view when a page adds rows above it
@@ -729,16 +813,22 @@ function TransactionList({
 	}, [transactions.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
 	if (transactions.length === 0) {
-		return filtered ? (
+		// An address opened with no row to open under (the filters leave every row out): its
+		// editor, then what the list says. Below lg the Transaction is a page of its own.
+		const nothing = filtered ? (
 			<EmptyState
 				icon={<ReceiptText />}
 				title="Nothing matches"
-				description="No Transactions this month match these filters."
+				description={
+					filters.range
+						? `No Transactions in ${when} match these filters.`
+						: "No Transactions this month match these filters."
+				}
 			/>
 		) : (
 			<EmptyState
 				icon={<ReceiptText />}
-				title={`No Transactions in ${monthName(month)}`}
+				title={`No Transactions in ${when}`}
 				description="Quick Add what you spend as you spend it, or bring it in from your bank: connect it, or upload a statement on its Account."
 				action={
 					<div className="flex flex-wrap justify-center gap-2">
@@ -758,11 +848,27 @@ function TransactionList({
 				}
 			/>
 		);
+		if (!picked || !detail) return nothing;
+		return (
+			<div className="grid gap-4">
+				<section
+					aria-label="Transaction details"
+					data-slot="transaction-detail"
+					className="@container min-w-0"
+				>
+					{detail}
+				</section>
+				<div className="max-lg:hidden">{nothing}</div>
+			</div>
+		);
 	}
 
 	return (
 		<TransactionTable
-			label={`Transactions in ${monthName(month)}`}
+			label={`Transactions in ${when}`}
+			month={month}
+			parentId={parentId}
+			months={Boolean(filters.range)}
 			transactions={transactions}
 			more={hasNextPage}
 			moreRef={more}
@@ -773,6 +879,7 @@ function TransactionList({
 			members={members}
 			bringsIn={bringsIn}
 			open={picked}
+			detail={detail}
 			picking={picking}
 			onPick={onPick}
 			onEdit={onEdit}

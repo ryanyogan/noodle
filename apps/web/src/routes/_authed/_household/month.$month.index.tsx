@@ -725,14 +725,21 @@ function FreeToSpend({
 						</p>
 					) : null}
 					{carry.builtUp.length > 1 && state.freeCarriedIn !== 0 ? (
-						<div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] text-muted-foreground tabular-nums">
+						// On a phone a list of two columns, month and amount, under its name: as one wrapped
+						// line it broke wherever it fell, between a month and its amount at 320px (issue 74).
+						<div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] text-muted-foreground tabular-nums max-sm:flex-col">
 							{/* The list's name says the same to a screen reader. */}
 							<span aria-hidden="true">Each month carried over:</span>
-							<ul aria-label="What each month carried over into the next" className="contents">
+							<ul
+								aria-label="What each month carried over into the next"
+								className="contents max-sm:grid max-sm:w-fit max-sm:grid-cols-[auto_auto] max-sm:gap-x-4 max-sm:gap-y-0.5"
+							>
 								{carry.builtUp.map((m) => (
-									<li key={m.month}>
-										{monthName(m.month).slice(0, 3)}{" "}
-										{m.amount < 0 ? `${formatMoney(-m.amount)} short` : formatMoney(m.amount)}
+									<li key={m.month} className="max-sm:contents">
+										<span>{monthName(m.month).slice(0, 3)}</span>{" "}
+										<span className="max-sm:text-end">
+											{m.amount < 0 ? `${formatMoney(-m.amount)} short` : formatMoney(m.amount)}
+										</span>
 									</li>
 								))}
 							</ul>
@@ -1049,18 +1056,38 @@ function useGetStartedSteps(state: MonthState) {
 		{
 			done: state.baseline !== null,
 			title: "Set your take-home pay",
+			// At 320px the title was cut off after two lines beside its button, with no way to read the
+			// rest (issue 74): there it reads "Set take-home pay" and "Set up", read out in full.
+			shown: (
+				<>
+					Set <span className="max-[359px]:sr-only">your </span>take-home pay
+				</>
+			),
+			// One piece inside the button, so its words keep a word's space between them and not the
+			// button's own gap (issue 74).
 			link: (
 				<Link to="/plan/$month" params={{ month: state.month }}>
-					Set up the Plan
+					{/* One child, so the Button's gap doesn't widen the space between the words (issue 74). */}
+					<span>
+						Set up<span className="max-[359px]:sr-only"> the Plan</span>
+					</span>
 				</Link>
 			),
 		},
 		{
 			done: state.buckets.length > 0,
 			title: "Add Buckets for everyday spending",
+			// The same at 320px (issue 74): "Add Buckets" and "Add".
+			shown: (
+				<>
+					Add Buckets<span className="max-[359px]:sr-only"> for everyday spending</span>
+				</>
+			),
 			link: (
 				<Link to="/plan/$month" params={{ month: state.month }} hash={PLAN_BUCKETS_HASH}>
-					Add Buckets
+					<span>
+						Add<span className="max-[359px]:sr-only"> Buckets</span>
+					</span>
 				</Link>
 			),
 		},

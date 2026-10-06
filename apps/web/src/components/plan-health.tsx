@@ -1,4 +1,4 @@
-import type { MonthKey, PlanWarning } from "@noodle/domain";
+import { byUrgency, type MonthKey, type PlanWarning } from "@noodle/domain";
 import { Badge } from "@noodle/ui/components/badge";
 import { Button } from "@noodle/ui/components/button";
 import { List } from "@noodle/ui/components/list";
@@ -27,7 +27,7 @@ export function PlanHealth({ folded = false }: { folded?: boolean }) {
 	const hydrated = useHydrated();
 	const id = useId();
 	if (warnings.length === 0) return null;
-	const sorted = [...warnings].sort((a, b) => urgency[a.kind] - urgency[b.kind]);
+	const sorted = byUrgency(warnings);
 	const first = sorted[0];
 	return (
 		<Section aria-labelledby="plan-health">
@@ -50,7 +50,13 @@ export function PlanHealth({ folded = false }: { folded?: boolean }) {
 							<span className="text-sm font-semibold">Things to check</span>
 							<Badge variant="count">{warnings.length}</Badge>
 						</span>
-						<span className="line-clamp-2 min-w-0 text-[13px] text-muted-foreground sm:line-clamp-none sm:flex-1 sm:truncate">
+						{/* Open, the first warning is the row right under the heading: not said twice on a phone. */}
+						<span
+							className={cn(
+								"line-clamp-2 min-w-0 text-[13px] text-muted-foreground sm:line-clamp-none sm:flex-1 sm:truncate",
+								open && "max-sm:hidden",
+							)}
+						>
 							{describe(first, month).title}
 						</span>
 					</span>
@@ -82,16 +88,6 @@ const keyOf = (warning: PlanWarning) =>
 			: warning.kind === "card-followed"
 				? `${warning.kind}:${warning.commitmentId}`
 				: warning.kind;
-
-/** Most urgent first: money running out, then income, then advice. */
-const urgency: Record<PlanWarning["kind"], number> = {
-	"negative-ahead": 0,
-	"income-behind": 1,
-	// Spending counted twice is wrong today, not advice.
-	"card-followed": 2,
-	"goal-late": 3,
-	"bucket-over": 4,
-};
 
 const monthsText = (n: number) => `${n} month${n === 1 ? "" : "s"}`;
 

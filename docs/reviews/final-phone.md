@@ -1,0 +1,171 @@
+# Final phone pass (issue 74)
+
+The inventory the last comment on issue 74 asks for: every surface a phone can reach, at every phone size, with the keyboard up, in dark and in WebKit. A cell is marked only from a picture that was opened.
+
+- `—` not looked at · `ok` looked at, nothing wrong · `fixed <sha>` a defect found in that picture and fixed (the picture was retaken and opened) · `open: …` a defect or a decision still to make.
+- Sizes: 320×568, 375×667, 393×852, 430×932. "Keyboard" is the same surface in a window about 500px tall. Dark is judged for layout only until the dark colours are settled (issue 116).
+- WebKit cannot run on the work machine. The WebKit column stays `—` unless a picture from CI's WebKit jobs was opened; the notes say which `phone-*` spec covers the surface there (a passing spec is not a picture).
+- Pictures: `e2e/page-shots.spec.ts` (`PAGE_SHOTS_ONLY=<pic>`, `PAGE_SHOTS_WIDTHS=320,375,393,430`, `PAGE_SHOTS_HEIGHT=568` or `500`, `PAGE_SHOTS_THEME=dark`); "pic" is the picture's name there. A row with no pic has no picture step yet: the next phase adds one.
+- The record of each phase's pictures is kept beside its handoff (`handoffs/phases/74an-shots/<size>/`).
+- A full-page picture draws the tab bar once, over the first screen: that is the picture, not the page.
+- Part 1 (phase 74an, 2026-10-05) looked at section A only. Sections B to D and the shell are part 2.
+
+## Shell
+
+| Surface | How to reach it | 320×568 | 375×667 | 393×852 | 430×932 | keyboard | dark 393 | WebKit | Status / notes |
+|---|---|---|---|---|---|---|---|---|---|
+| Tab bar (Month, Transactions, Quick Add, Goals, More) | every page | ok | ok | ok | ok | — | ok | — | seen on every picture below (320 at 640 tall). CI: `phone-header`, `phone-crowding`, `phone-pwa` (safe areas) |
+| Page header (title, one action, tabs row) | every page | ok | ok | ok | ok | ok | ok | — | 74ap: Review's section header (320, 393, dark) and a Rule's item header with Back and pager (320). 74at: both at 375 and 430, a Rule's header in dark, Review's at 320×500. A long title is NOT pictured (the step that wrote one over the Rule's title did not take). CI: `phone-header` |
+| More sheet | tab bar › More (pic 29) | fixed d7f2e1f1 | ok | fixed fe9df597 | ok | ok | ok | — | one column below 400px, two from 400px (430 opened: every name on one line). 74at: 375, 430, 320×500 and dark 393 opened on the final code. At 375×667 and 320×500 the sheet fills the window and the last rows (Household settings, Glossary, Sign out) are reached by scrolling it |
+| Term help popover | any "?" beside a heading | ok | ok | — | ok | ok | ok | — | pic 12h (Review's "?"). 74at: 375, 430, 320×500 and dark opened; the popover stays inside the gutter |
+| Toast: plain, with Undo, error, two stacked | save, delete, a failed save | open: three toasts cover the card | — | open: same | — | — | — | — | pic 44 (asked for by name; it files cards). Two Undo toasts and the Rule offer stack to about 230px above the tab bar: at 320 they cover the card's buttons. Decision 6 below; not built |
+| "Leave without saving?" dialog | leave an edited form | — | — | — | — | — | — | — | 74at: tried (Accounts › Add Account, a name typed, Back): the question did not come up in the picture run, so NOT pictured and the step was taken out. CI: `sheet-leave`, `phone-pwa` cover it |
+| Intro video dialog | sign-in, sign-up, setup › Watch | ok | ok | ok | ok | — | ok | — | from sign-in (throwaway spec, `74ap-shots/zz-look.spec.ts.txt`). 74at opened 375, 393, 430 and dark: the dialog keeps its gutter, the close button is in reach; the video's first frame is light in dark too |
+| Route error screen | a loader that throws | — | — | — | — | — | — | — | 74at: tried by failing every server-function request and then pressing a tab: the page came from what was already loaded, so NOT pictured (step taken out). Needs a loader made to throw |
+| Not-found screen | an unknown address | fixed d7f2e1f1 | ok | — | ok | ok | ok | — | pic 38: the logo, gutter and safe areas. 74at: 375, 430, 320×500 and dark 393 opened |
+| Section loading skeleton | a slow loader | — | — | — | — | — | — | — | 74at: tried by holding server-function requests for 5 s: the page showed at once from what was loaded, so NOT pictured (step taken out) |
+| 200% text size | iOS larger text, every page | open: Review's card and Rules rows break | — | open: same | — | — | open: same | — | pics 12p, 14d (`html{font-size:200%}`, as `phone-large-text` does). Review: the toolbar's last button runs off the right edge, the card's name is cut to "AME X…" and its reason breaks inside words ("Card paym ent", at 320 one letter a line); Rules: a row's facts are squeezed to a few letters; the tab bar's labels touch at 320. Not fixed (decision 9). CI: `phone-large-text` (WebKit) passes: it measures sideways scroll only |
+
+## Signed out and getting started
+
+| Surface | How to reach it | 320×568 | 375×667 | 393×852 | 430×932 | keyboard | dark 393 | WebKit | Status / notes |
+|---|---|---|---|---|---|---|---|---|---|
+| Sign in | /sign-in (`auth-shots`) | ok | ok | ok | ok | ok | ok | — | 74at opened 375, 430, dark and keyboard (320×500, 393×500) from 74ap's pictures. Clerk's Continue button measures the same box as the fields (240px at 320, 273px at 393); the 1px it looks wider is Clerk's own 1px ring, left |
+| Sign up | /sign-up (`auth-shots`) | fixed 47321ac8 | ok | ok | ok | ok | ok | — | Clerk card's side padding is 20px below 360px (placeholder in full); "Sign in" sits centred under its question. Keyboard = 320×500 and 393×500 with the email field in use. 74at: the four `auth-shots` sign-up baselines redrawn from CI run 37400401920 (the intro button, on desktop too); each actual and diff opened |
+| Sign up, verify code | /sign-up/verify-email-address | fixed 8170de00 | — | fixed 8170de00 | — | ok | fixed 8170de00 | — | the six code boxes had Clerk's own hairline: hardly seen in light, not at all in dark. Below 640px they now have our Input's edge and fill. Retaken and opened at 320, 393, dark and 320×500; 430 opened before the fix only. Desktop keeps Clerk's hairline (decision 10) |
+| Invite | /invite/$token | ok | — | ok | — | — | ok | — | only "This invite link doesn't work" (an unknown token), signed out. A real invite is NOT pictured |
+| Welcome, Joined | /welcome, /joined | ok | — | — | — | — | — | — | pic 52 (Joined, "Here's your Household") at 320: ok. 393 to 430 pictured, not opened. /welcome sends a Parent with a Household to This Month, so Welcome is NOT pictured |
+| Setup step 1 (Hello) | /setup (pic 31) | ok | ok | — | ok | — | ok | — |  |
+| Setup step 2 (income) | /setup (pic 32, 32a) | fixed 47321ac8 | ok | — | ok | ok | ok | — | the label's two lines have normal spacing; keyboard = 393×500 (one line) and 320×500 |
+| Setup steps 3 and 4 | /setup (pic 33, 34) | fixed 02d82843 | ok | — | ok | — | ok | — | step 3 read "Commitments ? : money…": the sentence now ends before its "?" (320 retaken and opened; 375, 430 and dark were opened before the change) |
+| Setup steps 5 to 7 | /setup, continue (pic 35s, 36s, 37s) | ok | — | — | — | — | — | — | One Goal, Invite the other Parent, You're set up: all three at 320. 375 to 430 pictured, not opened |
+| Bank return | /bank/return (pic 50) | ok | — | — | — | — | — | — | "That bank isn't connected yet" only (no bank flow was begun). 375 to 430 pictured, not opened |
+
+## A. This Month and Quick Add
+
+| Surface | How to reach it | 320×568 | 375×667 | 393×852 | 430×932 | keyboard | dark 393 | WebKit | Status / notes |
+|---|---|---|---|---|---|---|---|---|---|
+| This Month: header and month arrows | /month/$month (pic 01) | ok | ok | ok | ok | — | ok | — | CI: `phone-header`, `phone-swipe` |
+| Free to Spend card with a carried-over amount | pic 01 | fixed 0456f81d | — | fixed 0456f81d | ok | — | ok | — | was a sentence that wrapped where it fell; now a two-column list (month, amount right-aligned) under "Each month carried over:" below 640px. Retaken and opened at 320 and 393 (`74ao-shots/sheets/c2.png`); 375 and 430 pictured, not opened; dark not retaken 74as: opened at 430 and in dark at 393 after the fix (`74as-shots/sheets/d1.png`). |
+| "Why it's lower" note card | pic 01 | ok | ok | ok | ok | — | ok | — |  |
+| To do, folded | pic 01 | ok | ok | ok | ok | — | ok | — | the preview is cut with "…"; the full text is one tap away |
+| To do, open (Close <Month>, Extra income, rows) | pic 02 | ok | — | fixed f5060e4c | — | — | — | — | the "September has ended…" text, the "Add $… to Free to Spend" button and the Between us line started 4px right of their headings: now on the same edge below 640px. Opened at 320 (74ao picture, before) and 393 (after, `74as-shots/sheets/c4.png`); 375 and 430 pictured by 74ao, not opened |
+| Buckets list (Over, Ahead, Cover link) | pic 01 | ok | ok | ok | ok | — | ok | — | rows are the same height; figures share a right edge |
+| Personal Allowances | pic 01 | ok | ok | ok | ok | — | ok | — | decision: "Alex's Personal Allowance" takes two lines at 320 (one from 375). It wraps whole, nothing is cut. Recommend leaving it |
+| Bills, This month tab | pic 01 | fixed f5060e4c | — | fixed 3c46ce88 | — | — | ok | — | "Record payment" started 1px right of the "Due" line: fixed. From 375 the pays-down note ends the Due line ("Due Oct 1 · Pays down Discover it"), so the row is three lines; at 320 it keeps its own line (four). Retaken and opened at 320 and 393; 375 and 430 pictured, not opened 74as: at 320 the pays-down note came after "Record payment"; now Due, Pays down, Record payment (`c4.png`). |
+| Bills, Coming up tab | Bills › Coming up | ok | — | ok | — | — | — | — | pic 49 (new step). "See all 11" sits 8px in from the card edge (a text button's padding): left |
+| Bills, "Not this month" opened | pic 01, the fold | ok | — | ok | — | — | — | — | pic 49a (new step) |
+| Record payment form in a Bills row | Bills › Record payment | fixed f5060e4c | — | ok | — | ok (320×500, 393×500) | — | — | pic 49b (new step). At 320 Cancel fell alone under the field and Record: below 360px the field takes the line and Record, Cancel share the next (`d1.png`, `d2.png`) |
+| Income list and "Add income" | pic 01 | fixed ab53b7ce | fixed ab53b7ce | fixed ab53b7ce | fixed ab53b7ce | — | fixed ab53b7ce | — | the "$11,868 received of …" line started 4px right of the heading and the cards; at 320 it broke "take-/home pay". Retaken and opened at 320 only; the same class change at the other sizes |
+| Income row actions menu | Income › "…" | ok | — | ok | — | — | — | — | pic 49c (new step) |
+| Add income sheet | Income › Add income | ok | — | ok | — | ok (320×500, 393×500) | — | — | pic 49d (new step): Add income stays in view at 500 tall |
+| This Month, scrolled (sticky header) | pic 01e | ok | ok | ok | — | — | — | — | the header scrolls away with the page (not sticky); nothing overlaps |
+| Get started (fresh Household) | pic 30 | fixed ab53b7ce | fixed f5060e4c | fixed f5060e4c | fixed f5060e4c | — | — | — | at 320 "Set your take-home…" and "Add Buckets for everyday…" were cut after two lines with no way to read the rest: now "Set take-home pay" · "Set up" and "Add Buckets" · "Add" below 360px (read out in full). Retaken and opened. 375 to 430 pictured, not opened 74as: from 360px the buttons read "Set up  the Plan", "Add  Buckets", "Add  an Account" with a double space (the Button's gap between two children), which also wrapped the titles at 393 and is what turned `shell.spec.ts` month-iphone red: one child now, and the old baselines pass again. 375–430 opened before (74ao pictures), 393 and 320 after (`c1.png`). |
+| Extra income card | pic 01b | — | — | ok | — | — | — | — | opened at 393 (74ao picture); 320 pictured, not opened |
+| "Send the Extra income" sheet | pic 01c | ok | — | ok | — | — | — | — | header, To, Amount, hint and Send all in view; CI: `sheet-phone`, `phone-keyboard` |
+| Close <Month> | pic 01d | — | — | ok | — | — | — | — | opened at 393 (74ao picture); 320 pictured, not opened |
+| Cover a Bucket sheet | pic 04c | ok | — | ok | — | — | — | — | pic 48 (new step; 04c is the source Bucket's page, not the sheet). Opened at 320×568 and 393×568: header, Amount, hint, "Cover from" rows; the list scrolls. Amount field: keyboard height not pictured |
+| Bucket page after a Cover | pic 04b | ok | — | ok | — | — | — | — | CI: `phone-header` (item page). At 320 "Transactions in October" takes two lines beside its link and a long row is cut with "…" (meant) |
+| Month's plan | /month/$month/plan | ok | — | ok | — | — | — | — | pic 49e (new step): the address opens the Plan overview, so this is the row "Plan overview" below, not a surface of its own |
+| Quick Add, at rest | tab bar › + (pic 35) | ok (at 640 tall) | — | ok | — | ok (500) | — | — | CI: `quick-add-many` (strict 393 baseline), `phone-keyboard` (WebKit and iPhone SE) |
+| Quick Add, with an amount | pic 35a | ok (at 640 tall) | — | — | — | ok (320×500) | — | — | at 500 tall one row of Buckets shows above the keypad; the rest scroll (decided in 110d) |
+| Quick Add, More Buckets | pic 35b | ok (at 640 tall) | — | ok | — | — | — | — | search field, sections, amounts right-aligned |
+| Quick Add, For picker | pic 35c | fixed 70d9192a | — | fixed 70d9192a | — | ok (320×500, 393×500, before the fix) | — | — | five choices fell 4 + 1 at 393: now three equal columns on phones (3 + 2). Shared `ForPicker`: the Transaction sheet and the Rule form get the same on phones (not pictured). Retaken and opened at 320 and 393 |
+| Quick Add, the real keyboard up (note field) | focus "Where or what?" | — | — | — | — | — | — | — | CI: `phone-keyboard` |
+| Quick Add, camera and voice capture | the two icon buttons | — | — | — | — | — | — | — |  |
+| Quick Add toast | after adding | — | — | — | — | — | — | — |  |
+
+## B. Plan
+
+| Surface | How to reach it | 320×568 | 375×667 | 393×852 | 430×932 | keyboard | dark 393 | WebKit | Status / notes |
+|---|---|---|---|---|---|---|---|---|---|
+| Plan overview with grouped Buckets | /plan/$month (pic 03) | ok | fixed 1e534492 | fixed 1e534492 | fixed 1e534492 | — | ok | — | pic 43 (new step: puts Gas and Household in "Home"). A group's subtotal ended 8px right of the rows' figures, Total and a row with no pencil 44px right: all on one edge now. "spent" alone on a line: the line now wraps between its parts. At 375 "Subscriptio/ns" broke inside the word: the figure goes under the name below 22rem of table (375 and down). Retaken and opened at all four widths (`74ao-shots/sheets/c1.png`, `d1.png` for 375 after the last fix): at 375 every row is two lines. open: 200% text not checked; decision 6 below 74as: dark at 393 opened (ungrouped, `d1.png`). |
+| Things to check, folded and open | pic 03 | ok | ok | fixed f5060e4c | ok | — | — | — | pic 46 (new step). Rows wrap whole, chevrons share an edge. open (minor): the heading keeps the first warning as its preview while the list under it is open; the order of the first two warnings differed between widths in one run (data, not layout) 74as: open, the first warning is no longer repeated under the heading on a phone (`c5.png`, 393). |
+| Buckets table: drag handle | pic 03 | ok | ok | ok | ok | — | — | — | the handle is 36px wide by decision: recorded exception to 44px |
+| Plan over-planned | pic 03a | ok | — | ok | — | — | — | — | opened at 320 (74ao picture) and 393 (retake). open (minor, with decision 6): at 393 a row's under-name line can end in a lone "·" where it wraps; at 320 "$84.62 over of / $1,100" wraps inside the phrase |
+| Bucket sheet | pic 04a | ok | — | ok | — | — | — | — | CI: `sheet-phone`, `phone-keyboard`. Opened at 568 tall |
+| Bucket sheet: changed, over, More (Group field) | pic 04a3, 04a4, 04a2 | ok | — | ok | — | — | — | — | pic 43b, 04a3, 04a4, 04a2 all opened at 320 and 393 |
+| Bucket sheet: delete confirm | Bucket sheet › Delete | ok (Archive confirm) | — | ok (Archive confirm) | — | — | — | — | pic 44: every seeded Bucket has spending, so Delete is not offered and the step pictures the Archive confirm (same sheet shape). Delete confirm itself: no picture |
+| Rename a group sheet | group row › Rename | ok | — | ok | — | — | — | — | pic 43a (new step), at 568 tall: field, hint, Cancel and Save in view. Keyboard height not pictured |
+| Add Buckets sheet, New Bucket sheet | Plan › Add Buckets | fixed f5060e4c | — | fixed f5060e4c | — | ok (320×500, 393×500) | — | — | pic 45; pic 50 (new step) has a row of the Parent's own typed in ("Add your own" adds a row in this sheet: there is no separate New Bucket sheet). The "?" now stays with "over" and the comma follows it closely (`c1.png`, `d2.png`). At 320 a long name scrolls inside its field |
+| Bucket page | /plan/$month/buckets/$id (pic 05) | — | — | — | — | — | — | — | CI: `phone-header` (item page) |
+| Restore Bucket sheet | Bucket page › history | — | — | — | — | — | — | — | no pic yet |
+| Plan › Commitments | pic 06 | ok | — | fixed f5060e4c | — | — | — | — | the "Across a year…" and "Paying off a card…" notes and the empty-state line started 4px right of the cards: fixed below 640px (`c5.png`). 320 opened in the 74ao picture, before |
+| Commitment page | pic 07 | open: "Edit" (a ghost button) sits 10px in from the title it wraps under; the Bucket page's is outlined and lines up | — | ok | — | — | — | — |  |
+| Commitment sheet (add, edit) | Commitment page › Edit | ok | — | ok | — | — | — | — | pic 47 (new step), edit only, at 568 tall: Save stays in view over the scrolling fields. Add: no picture Add is a form in the page on a phone, not a sheet: pic 51 (new step), opened at 393. |
+| Plan › Goal funding | pic 08 | fixed f5060e4c | — | fixed f5060e4c | fixed f5060e4c | — | ok | — | a row's line ended in a lone "·" where it wrapped: on a phone each part has its own line, so every row is the same height; the summary line and "All Goals…" link start on the cards' edge (`c4.png`, `d1.png` at 430, `d2.png` dark) |
+| Plan › Income | pic 08x | ok | — | ok | — | — | — | — | opened at 320 and 393 (74ao pictures) |
+| "Take-home pay" sheet, Income came in lower | pic 06b, 06a | ok | — | ok | — | — | — | — | opened at 568 tall: Save in view |
+| Income from the other Parent, Between us | pic 40, 41 | — | — | — | — | — | — | — |  |
+| Plan › Year | pic 09 | ok | — | ok | — | — | — | — | October's "This month" and "Lumpy" badges go under the name (one line at 393, two at 320): reads fine |
+| Plan: empty Commitments, Goal funding, Income | pic 39h, 39i, 39j | — | — | ok | — | — | — | — | 320 pictured, not opened |
+
+## C. Review
+
+| Surface | How to reach it | 320×568 | 375×667 | 393×852 | 430×932 | keyboard | dark 393 | WebKit | Status / notes |
+|---|---|---|---|---|---|---|---|---|---|
+| Sort stack, toolbar | /review (pic 12) | ok | ok | ok | ok | — | ok | — | 74ap: four buttons 44px with 4px gaps at 320, 8px from 375; left as is. A payment card's name is one line at 320 by design (full name behind the pencil). What Sort says: fixed fe9df597 (a long line ran past the gutter after 4ca58018; now cut in its first part, "N left." kept; 393 opened, a line long enough to be cut was NOT pictured). At 320×568 and 375×667 Skip and Undo are below the tab bar until scrolled (the guard is 320×640): decision 7 |
+| Card: suggested Bucket | pic 12a | ok | ok | ok | ok | ok | ok | — | 320×500: Confirm and the picker in view, Skip under the tab bar (decision 7) |
+| Card: card payment | pic 12b | ok | ok | — | ok | — | ok | — | followed (12b) and Commitment (12d) |
+| Card: a card Noodle doesn't follow | Review, skip to it | fixed 4ca58018 | ok | ok | ok | ok | ok | — | pic 12c: at 320 the picker reads "Pick a Bucket…" in full beside "Card payment"; `phone-review-fit` passes. At 375×667 the card is taller than the window (decision 7) |
+| Card: Transfer, Refund, Split, between us | pic 42, 12e, 12f, 12j, 12l, 12n | ok | ok | ok | ok | ok | ok | — | between us (12e) and no suggestion (12f) at every size. 74at: the Split sheet (12j: 320, dark), the New Bucket step (12l: 320, 320×500, dark) and the match offer ("Is this your Quick Add …?", seen in 12n at 320) opened: ok. A Refund (money in) card is NOT pictured: the picture Household has none in Review |
+| Review, all done | Review with nothing left | ok | ok | — | ok | — | ok | — | pic 39l ("Nothing to review"). 74at: the finish after the last card (pic 46, by name, 320): "All sorted", Undo and See Transactions; Sort's line is cut as meant ("Filed DISCOVER E-PAYMENT 773… All sorted."); the Rule offer under it is covered by the toast (decision 6) |
+| Review list | pic 13 | ok | ok | — | ok | — | ok | — |  |
+| Edit Transaction sheet | Review list › a row | ok | ok | — | ok | ok | ok | — | pics 13a, 13b (Name in use, 320×500: Delete and Save stay in view). For: one choice alone on the second line from 375 (decision 3) |
+| "Make a Rule" sheet | card › Make a Rule (pic 12k) | ok | — | — | — | ok | ok | — | 74at: 320, 320×500 and dark opened: the button stays in view, For wraps 3 + 2. The Rule offer under the card (pic 43) at 393: ok |
+| Rules list, Rule page, "Add a Rule" sheet | pic 14 | ok | ok | — | ok | ok | ok | — | pics 14, 14a, 14b. List rows are two or three lines at 320 and 375 as the facts wrap whole (left) |
+
+## D. Everything else
+
+| Surface | How to reach it | 320×568 | 375×667 | 393×852 | 430×932 | keyboard | dark 393 | WebKit | Status / notes |
+|---|---|---|---|---|---|---|---|---|---|
+| Goals list | pic 17 | ok | ok | ok | ok | — | ok | — | 74aq 320; 74ar 375, 393, 430, dark. Nothing to fix (rows are 3 to 4 lines at 320). |
+| Goal page, long history | pic 18, 18a, 18b | ok | ok | ok | ok | — | ok | — | 74au: FIXED, under Finish the action is always under its sentence on a phone and "Archive" starts on the sentence's edge (was 10px in at 375 and 393, beside it at 430); seen at 375 and 430 (`74au-shots/y1.png`). At 320 Edit drops under a long title: choice 6. |
+| Goal sheets (add, edit, add money, spend, take back, archive confirm) | pic 17a, 18c to 18g | ok | — | ok | part | — | part | — | 74ar: all six at 320 and 393; two at 430 and in dark. Nothing to fix. Keyboard height not pictured. |
+| Goals, empty | pic 39b | ok | — | — | — | — | — | — |  |
+| Accounts list, archived open | pic 15, 15a | ok | ok | ok | ok | — | ok | — | 74ar: FIXED, "No balance yet" is one line from 360px (seen at 393, `74au-shots/r1.png`; two lines at 320 by design); Disconnect's icon is hidden under 360px so it shares Reconnect's line. |
+| Account page (credit card, no balance) | pic 16, 16a | ok | ok | ok | ok | — | ok | — | 74ar: FIXED, the button reads "Upload" under 360px, so "Brought in from Chase" is one line (seen at 320, `74au-shots/r1.png`). 375 is the no-balance Account only. |
+| Account menu, Rename, Add an Account, Update what's owed, Archive confirm | pic 15b, 16b to 16f | ok | — | ok | — | — | — | — | 74ar: all at 320 and 393, nothing to fix. NOT pictured: "Stop syncing" confirm, Disconnect bank dialog. |
+| Upload a statement sheet | pic 16d | ok | — | ok | — | — | — | — | 74ar: 320 and 393. After choosing a file: no pic yet. |
+| Accounts, empty | pic 39c | ok | — | — | — | — | — | — |  |
+| Reports: Overview | pic 23 | ok | ok | ok | ok | — | ok | — | 74aq: BUILT, one Filters button with the Period beside it; Period, Compare with and Group by are in the sheet; chips for what is on. The strip shows the current tab and the faded edge at every size. Still waiting: open from before: three full-width selects and Filters take about 250px at 320 (fold into one Filters sheet). Decision waiting on the Parent: the ten-tab strip or a picker; not built |
+| Reports: Cash flow, Big expenses, Buckets, Plan vs actual, Trends, Merchants, People, Goals, Income | pic 23a to 23i | ok | — | part | part | — | part | — | 74aq: all nine opened at 320; 393 Trends only, 430 Cash flow only, dark Trends and Plan vs actual. Fixed: Every day showed a sliver of a hidden week beside the weekday names. Open: Cash flow "Went out $38,056.66" touches the card edge at 320 (goes with whole dollars, agent 73ap); Goals shows "7.0%" beside "13%"; Plan vs actual legend words wrap at 320.  |
+| Reports Filters sheet | Reports › Filters | ok | — | ok | ok | — | ok | — | 74aq: pic 23j (sheet) and 23k (chips). Keyboard height not pictured (Merchant and At least fields). no pic yet |
+| Reports, empty | pic 39a | ok | — | — | — | — | — | — | 74au: opened at 320, nothing to fix. |
+| Explore | pic 19, 19a | ok | ok | — | part | — | part | — | 74au: 19 and 19a at 375, 19 at 430 and dark; 74ar 19a at 320. Nothing to fix. The years toggle is still 44px beside 36px tabs: choice 7. |
+| Explore sheets: line, group, growth | pic 19b, 19d, 19c | ok | — | part | — | — | — | — | 74ar: growth and group at 320 and 393 (contact-sheet size). Taken at 375, 430, dark; not opened. |
+| Can we afford it? (Home, Car, Anything) | pic 20, 20a, 20b | ok | part | ok | part | — | part | — | 74ar: all three at 320 and 393. 74au: Home at 375, 430, dark. Nothing to fix. |
+| Scenarios, compare, a Scenario | pic 21, 21a, 22 | ok | ok | part | part | — | part | — | 74au: list and compare at 375, list at 430 and dark. 74ar: compare at 320 and 393. Nothing to fix. |
+| Explore, Afford: empty | pic 39g, 39k | ok | — | — | — | — | — | — | 74au: both at 320, nothing to fix. |
+| Insights, and empty | pic 24, 39d | ok | ok | — | ok | — | ok | — | 74au: nothing to fix. |
+| Perks & Benefits, a row open, add sheet | pic 25, 25a, 25b | ok | part | — | part | — | part | — | 74au: all three at 320; page and add sheet at 375; row open at 430; page in dark. The cards are seeded now (one seed note still fails the picture run). Nothing to fix. |
+| Check-in and its footer, and empty | pic 26, 26a, 39e | ok | part | — | — | — | — | — | 74au: 26, 26a, 39e at 320; 26 at 375. Nothing to fix. Taken at 430 and dark; not opened. |
+| Household settings, every section | pic 27 | ok | ok | — | — | — | — | — | 74au: whole page opened again at 320 and at 375, nothing to fix. Taken at 393, 430, dark; not opened. CI: strict `household-iphone-*` baselines (Chromium) |
+| Household: Nudges choices open | Household › Nudges | — | — | — | — | — | — | — | never opened in any phase; no pic yet |
+| Household: Snapshots with history | Household › Snapshots | — | — | — | — | — | — | — |  |
+| Household sheets: Start fresh, Delete, your name and colour, Child, invite | pic 27a to 27d | part | part | part | — | — | — | — | 74ar: FIXED, Start fresh's title sits where Delete Household's does (seen at 320); Delete step 2 at 393. 74au: Delete step 2 at 375. Child and invite sheets: no pic yet. |
+| Ask, and empty | pic 24x, 39f | ok | ok | — | — | — | — | — | 74au: nothing to fix. Keyboard height not pictured (it has a text field). |
+| Glossary | pic 28 | ok | ok | — | — | — | — | — | 74au: first two screens of the page at each; nothing to fix. |
+| Transactions list, three months | pic 10, 10a, 10h | ok | — | ok | — | — | ok | — | 74au: the new page (open in place, Months). 10a at 320, 393, dark; the long list at 393; three months with its chip and month heading at 320. Nothing to fix. |
+| Transactions: Filters sheet (Months is in it), Sort | pic 10e, 10f | ok | — | ok | — | ok | ok | — | 74au: sheet at 320, 393, dark and 500 tall (320 and 393; it scrolls above its footer); Sort's list at 320. Nothing to fix. |
+| Transactions: selection bar, File in…, Delete sheet | pic 10b, 10c, 10g | ok | ok | ok | — | ok | ok | — | 74au: FIXED three. Under 360px Cancel, File in… and Delete wrapped raggedly under the count: they now share a line of their own equally. The Delete sheet's "Delete 3 Transactions" was cut off at 320 (half the footer): Cancel is as wide as its word and Delete has the rest, no icon under 360px. File in…'s picker is narrower on a phone so the bar isn't a line taller while a Bucket is picked (375 and 393). Seen: `74au-shots/t320.png` before, `u320.png`, `w1.png` after. |
+| Transaction page, editor, Split, old-month sentence | pic 11, 11a, 11b | ok | — | ok | — | part | part | — | 74au: FIXED, in a Split's card at 320 "Everyone" was cut to "Everyo…" (`v320.png` before, `w1.png` after). The "had no Buckets" sentence and "It can't be split" seen in the sheet at 320 and 393 (`y1.png`). Keyboard: name field at 393, Split at 320. Dark: the page only. A Receipt: no pic yet (none seeded). |
+
+## Decisions for the Parent (not built)
+
+1. Free to Spend card: BUILT in 74ao (two-column list).
+2. Bills: BUILT in 74ao (from 375).
+3. Quick Add's For picker: BUILT in 74ao (three equal columns).
+4. Personal Allowance names on two lines at 320: leave as is.
+10. Plan's Buckets on a phone: rows are two or three lines depending on the figures ("$1,100 allowance · $1,184.62 spent" does not fit beside a pencil at 375 to 393). Recommend one short line under the name at every phone width, "$1,184.62 of $1,100 spent" (`74ao-shots/sheets/c1.png`). Not built.
+5. Reports: ten tabs or a picker on phones (from issue 115; not looked at here).
+6. Item pages at 320: the header action (Edit, Rename, More) drops under a long title but stays beside a short one. Recommend always under the title below 360px (`74aq-shots/320/18-goal.png` against `18a-goal-long-history.png`).
+7. Explore: the years toggle (44px, outlined) beside tab strips (36px on a track). Recommend drawing it as the same tab strip (`74aq-shots/320/19-explore.png`).
+8. Explore and Scenario Charts tabs now scroll; at 393 the fourth tab (Goal paths) is wholly off the edge with only the fade to say so. Alternative: a select above the chart (`74aq-shots/sheets/v1.png`).
+9. Reports on a phone: the Period shows as plain text beside Filters, not as a chip. Alternative: make it a tappable chip that opens the sheet (`74aq-shots/320/23-reports.png`).
+11. Toasts on phones: show one at a time so two Undo toasts and a Rule offer never cover the card above the tab bar (`74ap-shots/320/44-review-list-two-toasts.png`). Recommended: one visible toast below 1024px.
+12. Review on short phones (320×568, 375×667): Skip and Undo need a scroll under the taller cards. Recommended: choose the compact card layout by window height (under about 700px), not only by width (`74ap-shots/375/12c-review-card-payment-not-followed.png`).
+13. What Sort says is cut in its first part on phones and keeps "N left."; the cut words cannot be read afterwards (a screen reader hears all). Recommended: leave.
+14. Sheet headers: the close X is centred on the whole header, so beside a three-line description it sits under the title's line (Perks' add sheet, Delete Transactions; `74au-shots/b2.png`, `u320.png`). Recommended: top-align it with the title in `packages/ui` `sheet.tsx` for every sheet, phone and desktop, in a phase that can redraw the desktop pictures. Not built.
+15. Text at 200% in Review and Rules (`74at-shots/new320-393/393/12p-review-large-text.png`, `…/320/14d-rules-large-text.png`): the Sort card and a Rule's row break inside words and the toolbar's last button leaves the screen. Recommended: at large text stack the card's reason under its icon and let the toolbar wrap; part of the compact-card work in decision 7.
+16. The sign-up code boxes have our Input's edge below 640px only (`74at-shots/auth2/393/verify.png`); on desktop they keep Clerk's faint hairline. Recommended: the same edge at every width (desktop sweep, issue 73).

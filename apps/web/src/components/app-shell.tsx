@@ -161,7 +161,12 @@ function AppSidebar({ householdName }: { householdName: string }) {
 				</Tooltip>
 			</SidebarHeader>
 			<SidebarContent>
-				<nav aria-label="Main" className="flex flex-col gap-4 rail:gap-3">
+				{/* A short window (1024×768): the groups sit closer and their labels are lower, so the last
+				    link is whole above the Sidebar's foot without scrolling (issue 73). */}
+				<nav
+					aria-label="Main"
+					className="flex flex-col gap-4 rail:gap-3 [@media(max-height:800px)]:gap-2 [@media(max-height:800px)]:[&_[data-slot=sidebar-group-label]]:h-6"
+				>
 					{sidebarGroups.map((group) => (
 						<NavGroupSection key={group.label} group={group} />
 					))}
@@ -506,7 +511,8 @@ function MoreGroup({
 			<p id={labelId} className="px-3 text-xs font-medium text-subtle-foreground">
 				{group.label}
 			</p>
-			<div className="grid grid-cols-2 gap-1">
+			{/* One column below 400px, so "Perks & Benefits" and "Household settings" keep one line (issue 74). */}
+			<div className="grid grid-cols-2 gap-1 max-[399px]:grid-cols-1">
 				{review ? (
 					<Button asChild variant="ghost" className={moreRow}>
 						{/* `replace`: the sheet's own entry becomes the page, so Back returns to where More was opened. */}

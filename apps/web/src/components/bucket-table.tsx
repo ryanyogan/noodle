@@ -29,8 +29,9 @@ function Left({ cents }: { cents: number }) {
 	return (
 		<span className={cn("font-medium tabular-nums", cents < 0 && "text-over-foreground")}>
 			<span className="hidden @2xl/dt:inline">{formatMoney(cents)}</span>
-			{/* The narrowest phone has no room for it beside the name: there it leads the line under. */}
-			<span className="hidden @[20rem]/dt:inline @2xl/dt:hidden">
+			{/* A phone under 376px has no room for it beside the name: there it leads the line under.
+			    From 22rem of table, not 20: at 375px "Subscriptions" broke inside the word (issue 74). */}
+			<span className="hidden @[22rem]/dt:inline @2xl/dt:hidden">
 				{cents < 0 ? `${formatMoney(-cents)} over` : `${formatMoney(cents)} left`}
 			</span>
 		</span>
@@ -63,7 +64,7 @@ function Summary({
 		// Two boxes: the outer one starts with the tile over it, the inner one with the name. It wraps.
 		<span className={cn("flex min-w-0", indent && STACKED_INDENT)}>
 			<span className={cn("min-w-0 font-normal tabular-nums", underName && UNDER_NAME)}>
-				<span className="@[20rem]/dt:hidden">
+				<span className="@[22rem]/dt:hidden">
 					<span
 						className={cn("font-medium", left < 0 ? "text-over-foreground" : "text-foreground")}
 					>
@@ -71,9 +72,11 @@ function Summary({
 					</span>
 					{left < 0 ? " over" : " left"} of {formatMoney(allowance)}
 				</span>
-				<span className="hidden @[20rem]/dt:inline">
-					{formatMoney(allowance)} allowance · {formatMoney(spent)} spent
-					{rolling ? " · Carries over" : ""}
+				<span className="hidden @[22rem]/dt:inline">
+					{/* It wraps between its parts, not inside one: "spent" was alone on a line (issue 74). */}
+					<span className="whitespace-nowrap">{formatMoney(allowance)} allowance ·</span>{" "}
+					<span className="whitespace-nowrap">{formatMoney(spent)} spent</span>
+					{rolling ? <span className="whitespace-nowrap"> · Carries over</span> : null}
 				</span>
 			</span>
 		</span>
@@ -81,6 +84,13 @@ function Summary({
 }
 
 const anyone = () => true;
+
+/**
+ * A pencil's room where a row has none: a group's heading, the total, the other Parent's Personal
+ * Allowance. In a stacked row their figures then end where the Buckets' figures end (issue 74:
+ * the pencil is 44px below lg, and the group's subtotal ended 8px right of them, the total 44px).
+ */
+const pencilRoom = <span aria-hidden="true" className="block w-8 max-lg:w-11" />;
 
 /**
  * The handle's column: its track, and the least it reads at in rem (32 px a mouse, 44 a thumb).
@@ -384,7 +394,10 @@ export function BucketTable({
 						>
 							<Pencil />
 						</Button>
-					) : null,
+					) : (
+						pencilRoom
+					),
+				footer: totals ? pencilRoom : undefined,
 			},
 		];
 	}, [buckets, editable, canEdit, setBy, was, hydrated, month, indent, editRoom]);
@@ -415,11 +428,11 @@ export function BucketTable({
 				</div>
 			),
 			allowance: <span className="text-muted-foreground">{formatMoney(total.allowance)}</span>,
-			spent: formatMoney(total.spent),
+			// In the tone of the Spent figures under it, as the Allowance subtotal is (issue 73).
+			spent: <span className="text-muted-foreground">{formatMoney(total.spent)}</span>,
 			left: <Left cents={total.left} />,
 			summary: <Summary allowance={total.allowance} spent={total.spent} left={total.left} />,
-			// A pencil's room, so in a stacked row the subtotal ends where the Buckets' figures end.
-			edit: <span aria-hidden="true" className="block w-9" />,
+			edit: pencilRoom,
 		};
 	};
 

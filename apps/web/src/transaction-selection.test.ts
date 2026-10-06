@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	bulkDeletedMessage,
 	deletionFacts,
+	filedMessage,
 	isPicked,
 	nothingPicked,
 	pickAll,
@@ -10,6 +11,7 @@ import {
 	selectionOf,
 	stayingFacts,
 	togglePicked,
+	unfiledMessage,
 } from "./transaction-selection";
 
 const month = "2026-09" as const;
@@ -119,5 +121,59 @@ describe("what the Parent is told", () => {
 		expect(bulkDeletedMessage({ deleted: 0, snapshot: false })).toBe(
 			"Nothing was deleted: those Transactions had already gone.",
 		);
+	});
+});
+
+describe("what File in… says", () => {
+	const none = {
+		split: 0,
+		transfer: 0,
+		moneyBack: 0,
+		goal: 0,
+		private: 0,
+		changed: 0,
+		otherMonth: 0,
+	};
+	it("counts what was filed and each kind it left", () => {
+		expect(
+			filedMessage(
+				{ filed: 12, already: 0, skipped: { ...none, split: 2, transfer: 1 } },
+				"Groceries",
+			),
+		).toBe("Filed 12 in Groceries. 3 skipped: 2 Splits, 1 Transfer.");
+		expect(filedMessage({ filed: 1, already: 0, skipped: none }, "Fun")).toBe("Filed 1 in Fun.");
+		expect(
+			filedMessage(
+				{
+					filed: 1200,
+					already: 2,
+					skipped: {
+						split: 1,
+						transfer: 0,
+						moneyBack: 2,
+						goal: 1,
+						private: 1,
+						changed: 1,
+						otherMonth: 1,
+					},
+				},
+				"Fun",
+			),
+		).toBe(
+			"Filed 1,200 in Fun. 7 skipped: 1 Split, 2 money back, 1 Goal spending, 1 partly the other Parent’s, 1 changed on another screen, 1 in another month. 2 were already there.",
+		);
+	});
+	it("says so when nothing was filed", () => {
+		expect(filedMessage({ filed: 0, already: 1, skipped: none }, "Fun")).toBe(
+			"Nothing was filed in Fun. 1 was already there.",
+		);
+		expect(filedMessage({ filed: 0, already: 0, skipped: { ...none, split: 1 } }, "Fun")).toBe(
+			"Nothing was filed in Fun. 1 skipped: 1 Split.",
+		);
+	});
+	it("and what its Undo put back", () => {
+		expect(unfiledMessage(3, 3)).toBe("Put back where they were.");
+		expect(unfiledMessage(1, 1)).toBe("Put back where it was.");
+		expect(unfiledMessage(2, 3)).toBe("2 put back. 1 has changed since and stayed.");
 	});
 });

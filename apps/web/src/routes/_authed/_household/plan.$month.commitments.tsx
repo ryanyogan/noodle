@@ -84,7 +84,7 @@ function PlanCommitments() {
 			{state.editable ? <AddCommitment month={month} start={start} /> : null}
 			{state.commitments.length > 0 ? (
 				<>
-					<p className="px-1 text-sm text-muted-foreground">
+					<p className="text-sm text-muted-foreground sm:px-1">
 						Across a year these average{" "}
 						<span className="font-medium text-foreground tabular-nums">
 							{formatMoney(average)} a month
@@ -96,7 +96,7 @@ function PlanCommitments() {
 								? `This month’s ${formatMoney(state.committed)} is more, because some fall due in it.`
 								: null}
 					</p>
-					<p className="px-1 text-[13px] text-muted-foreground">
+					<p className="text-[13px] text-muted-foreground sm:px-1">
 						Paying off a card or loan faster? Its regular payment stays here; a{" "}
 						<Link
 							to="/goals"
@@ -199,7 +199,7 @@ function PlanCommitments() {
 						) : null}
 					</>
 				) : state.editable ? (
-					<p className="px-1 text-sm text-muted-foreground">
+					<p className="text-sm text-muted-foreground sm:px-1">
 						Recurring, predictable costs: the mortgage, insurance, daycare, subscriptions. What
 						they’re expected to take each month comes out before the Buckets.{" "}
 						<TermHelp term="commitment" />

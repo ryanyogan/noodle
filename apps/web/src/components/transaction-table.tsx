@@ -1,12 +1,15 @@
-import type { DayKey, Plan } from "@noodle/domain";
+import type { DayKey, MonthKey, Plan } from "@noodle/domain";
 import { Card } from "@noodle/ui/components/card";
 import { DataTable } from "@noodle/ui/components/data-table";
 import { Skeleton } from "@noodle/ui/components/skeleton";
+import { cn } from "@noodle/ui/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
-import { type Ref, useMemo, useRef, useState } from "react";
+import { type ReactNode, type Ref, useEffect, useMemo, useRef, useState } from "react";
+import { isUnassigned, nothingToFileIn, pastPlanSentence } from "../before-plan";
 import { dayName, formatMoney } from "../format";
 import type { MemberSummary } from "../members";
 import { cellEdits, refileOf, renameOf, undoOf } from "../transaction-cells";
+import { monthHeading } from "../transaction-range";
 import { rowView } from "../transaction-row";
 import {
 	canPick,
@@ -17,26 +20,115 @@ import {
 	pickAll,
 	setPicked,
 } from "../transaction-selection";
-import { dayTotals, sortsByDate, tableSortOf, transactionSortOf } from "../transaction-table";
+import {
+	dayTotals,
+	openPlace,
+	sortsByDate,
+	tableSortOf,
+	transactionSortOf,
+} from "../transaction-table";
 import {
 	monthOfTransaction,
 	type TransactionChange,
 	type TransactionRow,
 	type TransactionSort,
 	transactionLabel,
+	useAssignablePlan,
 } from "../transactions";
 import { NewBucketStep } from "./bucket-picker";
+import { NoBuckets, useFileWithout } from "./no-buckets";
 import type { CellEditing, CellEdits } from "./transaction-cells";
 import { type TransactionTableRow, transactionColumns } from "./transaction-columns";
 import { waitingForBank } from "./transaction-list";
 
 /**
- * Whether the table's rows are stacked (a phone, or the narrow list beside an open Transaction):
- * no header and no checkbox column, so while selecting a tap on a row is what selects it.
+ * Whether the table's rows are stacked (a phone; from lg the table is always in columns): no header and no checkbox column, so while selecting a tap on a row is what selects it.
  */
 export function tableIsStacked(): boolean {
 	const head = document.querySelector('[data-slot="data-table-head"]');
 	return !head || head.getClientRects().length === 0;
+}
+
+// What is hidden below lg while a Transaction is open at its address: there it is a page with
+// Back, so the table's own rows and card go and only the open Transaction is left (issue 99).
+const PAGE_BELOW_LG = cn(
+	"max-lg:overflow-visible max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent max-lg:shadow-none",
+	"max-lg:[&_[data-slot=data-table-head]]:hidden max-lg:[&_[data-dt-row]]:hidden",
+	"max-lg:[&_[data-slot=data-table-group]]:hidden max-lg:[&_[data-slot=data-table-more]]:hidden",
+);
+
+/**
+ * The open Transaction, in the table (issue 99): a region named after it, directly under its row
+ * and as wide as the table, on the open row's ground with its mark carried down the edge. Opening
+ * one brings its row into view and puts focus on its title; a Transaction still loading has no
+ * title yet, so the region takes focus and hands it on when the title arrives (as DetailPanel does).
+ */
+function OpenRegion({
+	id,
+	name,
+	top,
+	children,
+}: {
+	id: string;
+	/** The Transaction's name, when its row is in the list. */
+	name: string | undefined;
+	/** Not under a row: the first thing in the table. */
+	top: boolean;
+	children: ReactNode;
+}) {
+	const ref = useRef<HTMLElement>(null);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: runs again for each Transaction opened, and when it moves under its row
+	useEffect(() => {
+		const region = ref.current;
+		// A phone shows it as a page, from the top, as before.
+		if (!region || !window.matchMedia("(min-width: 1024px)").matches) return;
+		const row = region
+			.closest("[data-slot=data-table-expanded]")
+			?.previousElementSibling?.closest<HTMLElement>("[data-transaction]");
+		// The selection's bar stays at the foot of the window over the table: the editor is brought
+		// into view above it, so its Delete, Cancel and Save are not under the bar.
+		const bar = document.querySelector<HTMLElement>("[data-slot=selection-bar]");
+		region.style.scrollMarginBottom = bar ? `${bar.offsetHeight + 32}px` : "";
+		region.scrollIntoView({ block: "nearest" });
+		(row ?? region).scrollIntoView({ block: "nearest" });
+		if (region.contains(document.activeElement)) return;
+		if (document.querySelector("[role=dialog],[role=alertdialog],[role=listbox],[role=menu]"))
+			return;
+		const find = () => region.querySelector<HTMLElement>("[data-slot=detail-title][tabindex]");
+		const title = find();
+		(title ?? region).focus({ preventScroll: true });
+		if (title) return;
+		const watch = new MutationObserver(() => {
+			const arrived = find();
+			if (!arrived) return;
+			watch.disconnect();
+			// Unless the Parent has moved on meanwhile.
+			if (document.activeElement === region) arrived.focus({ preventScroll: true });
+		});
+		watch.observe(region, { childList: true, subtree: true });
+		return () => watch.disconnect();
+	}, [id, top]);
+	return (
+		<section
+			ref={ref}
+			tabIndex={-1}
+			aria-label={name ?? "Transaction details"}
+			data-slot="transaction-detail"
+			data-open-place={top ? "top" : "row"}
+			// No scroll of its own: an editor taller than the window flows with the page. Sized by its
+			// own width, so the editor's two columns follow the table, not the window.
+			className={cn(
+				"@container min-w-0 scroll-mt-24 outline-none",
+				"lg:bg-surface-2 lg:px-(--card-pad) lg:pt-3 lg:pb-5 lg:shadow-[inset_2px_0_0_var(--color-primary)]",
+				top && "lg:border-b lg:border-border",
+				// Under its row the header is one compact line: no Back (the row is right there, and
+				// Close is at the end), a title the size of a row's heading.
+				"lg:[&_[data-slot=detail-back]]:hidden lg:[&_[data-slot=detail-header]]:mb-3 lg:[&_[data-slot=detail-title]]:text-lg lg:[&_[data-slot=detail-eyebrow]]:hidden",
+			)}
+		>
+			{children}
+		</section>
+	);
 }
 
 /**
@@ -54,14 +146,25 @@ export function TransactionTable({
 	onSort,
 	today,
 	plan,
+	month,
+	parentId,
+	months = false,
 	members,
 	bringsIn,
 	open,
+	detail,
 	picking,
 	onPick,
 	onEdit,
 	onChange,
 }: {
+	/** The month `plan` is of: a row of another month is refiled in its own month's Plan. */
+	month: MonthKey;
+	parentId: string;
+	/** The rows are of more than a month (issue 99): by date, each month starts under its name. */
+	months?: boolean;
+	/** The open Transaction's editor (the child route), drawn under its row. */
+	detail?: ReactNode;
 	/** A rename or refile made in a cell: sent with the page's other changes to Transactions. */
 	onChange: (change: TransactionChange) => void;
 	label: string;
@@ -76,7 +179,7 @@ export function TransactionTable({
 	members: MemberSummary[];
 	/** Whether the Household brings spending in from an Account (`useBringsSpendingIn`). */
 	bringsIn: boolean;
-	/** The Transaction open beside the table. */
+	/** The Transaction open in the table, from the address. One at a time. */
 	open: string | undefined;
 	/** 97a's selection, which the checkboxes read and change; null when nothing is being selected. */
 	picking: Picking | null;
@@ -105,17 +208,31 @@ export function TransactionTable({
 	const [creating, setCreating] = useState<{ transaction: TransactionRow; name: string } | null>(
 		null,
 	);
+	// The cell being edited may be in another month than the address's (a list of more than a
+	// month): its picker offers its own month's Buckets, loaded when the cell opens.
+	const cellRow =
+		creating?.transaction ?? (editing ? transactions.find((t) => t.id === editing.id) : undefined);
+	const cellMonth = cellRow ? monthOfTransaction(cellRow) : month;
+	const otherPlan = useAssignablePlan(cellMonth, parentId, cellMonth !== month);
+	const cellPlan = cellMonth === month ? plan : otherPlan;
+	// A month before the first Plan has nothing to file in (issue 117): the picker says so.
+	const current = today.slice(0, 7) as typeof month;
+	const cellEmpty = nothingToFileIn(cellPlan, cellMonth, current);
+	const fileWithout = useFileWithout();
 	const choices = useMemo(
 		() => [
 			{
 				label: "Buckets",
-				choices: plan.buckets.map((b) => ({ value: `bucket:${b.id}`, label: b.name })),
+				choices: (cellPlan?.buckets ?? []).map((b) => ({
+					value: `bucket:${b.id}`,
+					label: b.name,
+				})),
 			},
-			...(plan.commitments.length > 0
+			...(cellPlan && cellPlan.commitments.length > 0
 				? [
 						{
 							label: "Commitments",
-							choices: plan.commitments.map((c) => ({
+							choices: cellPlan.commitments.map((c) => ({
 								value: `commitment:${c.id}`,
 								label: c.name,
 							})),
@@ -123,7 +240,7 @@ export function TransactionTable({
 					]
 				: []),
 		],
-		[plan],
+		[cellPlan],
 	);
 	const titleOf = (transaction: TransactionRow) =>
 		rows.find((row) => row.transaction.id === transaction.id)?.view.title ?? "Transaction";
@@ -143,6 +260,24 @@ export function TransactionTable({
 	const cells: CellEdits = {
 		editing,
 		choices,
+		loading: cellPlan === null,
+		closed: pastPlanSentence(cellMonth, current),
+		none: cellEmpty
+			? (transaction) => (
+					<NoBuckets
+						month={cellMonth}
+						current={current}
+						onFileWithout={
+							isUnassigned(transaction)
+								? () => {
+										setEditing(null);
+										fileWithout.mutate(transaction);
+									}
+								: undefined
+						}
+					/>
+				)
+			: null,
 		start: (transaction, column) => setEditing({ id: transaction.id, column }),
 		stop: (refocus) => {
 			const was = editing;
@@ -173,18 +308,26 @@ export function TransactionTable({
 		create: (transaction, name) => setCreating({ transaction, name }),
 	};
 	const columns = transactionColumns({ dated: !byDate, open, checked, onEdit, cells });
+	const place = openPlace(open, transactions);
+	const region = (id: string, name: string | undefined) => (
+		<OpenRegion key={id} id={id} name={name} top={name === undefined}>
+			{detail}
+		</OpenRegion>
+	);
 	return (
 		// Clipped to the card's corners, so a row's hover and the open row's ground follow them.
 		<Card
 			ref={card}
-			className="overflow-clip"
+			className={cn("overflow-clip", open && PAGE_BELOW_LG)}
 			// F2 on a row in focus renames it (Enter opens it, Space selects it).
 			onKeyDown={(event) => {
 				if (event.key !== "F2" || tableIsStacked()) return;
 				const id = (event.target as HTMLElement).closest<HTMLElement>("[data-transaction]")?.dataset
 					.transaction;
 				const transaction = transactions.find((t) => t.id === id);
-				if (!transaction || cellEdits(transaction).name === null) return;
+				// The open row is renamed in its editor, right under it.
+				if (!transaction || transaction.id === open) return;
+				if (cellEdits(transaction).name === null) return;
 				event.preventDefault();
 				setEditing({ id: transaction.id, column: "name" });
 			}}
@@ -195,8 +338,10 @@ export function TransactionTable({
 					name={creating.name}
 					what={titleOf(creating.transaction)}
 					amountCents={creating.transaction.amountCents}
-					buckets={plan.buckets}
-					taken={[...plan.buckets, ...plan.commitments].map((item) => item.name)}
+					buckets={(cellPlan ?? plan).buckets}
+					taken={[...(cellPlan ?? plan).buckets, ...(cellPlan ?? plan).commitments].map(
+						(item) => item.name,
+					)}
 					onCancel={() => setCreating(null)}
 					onCreated={(bucket) => {
 						setCreating(null);
@@ -221,6 +366,14 @@ export function TransactionTable({
 						: onEdit(transaction)
 				}
 				isOpen={(row) => row.transaction.id === open}
+				rowAfter={
+					place === "row"
+						? ({ transaction, view }) =>
+								transaction.id === open ? region(transaction.id, view.title) : null
+						: undefined
+				}
+				// Further down the list, or left out by the filters: its address still shows it.
+				top={place === "top" && open ? region(open, undefined) : undefined}
 				// The checkbox column, Space, Shift+arrows and Ctrl+A over 97a's selection. The table
 				// keeps none of its own: "all that match, except these" covers rows not loaded yet.
 				selection={{
@@ -241,25 +394,42 @@ export function TransactionTable({
 					"data-slot": "list-row",
 					"data-index": index,
 					"data-transaction": _row.transaction.id,
+					// Under the page's bar when it is brought into view.
+					className: "scroll-mt-24",
 				})}
 				groupBefore={
 					byDate
 						? ({ transaction }, previous) => {
 								if (previous?.transaction.date === transaction.date) return null;
 								const total = totals.get(transaction.date) ?? null;
+								const itsMonth = transaction.date.slice(0, 7);
+								const newMonth = months && previous?.transaction.date.slice(0, 7) !== itsMonth;
 								return (
-									<div
-										data-slot="list-group-label"
-										className="flex items-baseline justify-between gap-3 pt-2.5 pb-1.5 text-xs font-medium text-subtle-foreground"
-									>
-										<span>{dayName(transaction.date, today)}</span>
-										{total !== null ? (
-											<span className="tabular-nums">
-												<span className="sr-only">Spent </span>
-												{formatMoney(total)}
-											</span>
+									<>
+										{newMonth ? (
+											<div
+												data-slot="list-month-label"
+												className={cn(
+													"pb-0.5 text-sm font-semibold text-foreground",
+													previous ? "pt-5" : "pt-3",
+												)}
+											>
+												{monthHeading(itsMonth)}
+											</div>
 										) : null}
-									</div>
+										<div
+											data-slot="list-group-label"
+											className="flex items-baseline justify-between gap-3 pt-2.5 pb-1.5 text-xs font-medium text-subtle-foreground"
+										>
+											<span>{dayName(transaction.date, today)}</span>
+											{total !== null ? (
+												<span className="tabular-nums">
+													<span className="sr-only">Spent </span>
+													{formatMoney(total)}
+												</span>
+											) : null}
+										</div>
+									</>
 								);
 							}
 						: undefined

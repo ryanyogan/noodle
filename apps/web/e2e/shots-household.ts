@@ -83,6 +83,10 @@ export async function seedShotsHousehold(page: Page, userId: string) {
 		roof: ulid(),
 		openTransaction: ulid(),
 	};
+	// Accounts and Goals are listed oldest first, then by id: made in one instant their ids (random
+	// within a millisecond) decided the order, a different one each run. Each gets its own time.
+	let madeAt = Date.now() - 60_000;
+	const made = () => madeAt++;
 	const bucket = (name: string) => q(bucketIds[name] ?? "");
 	const statements: string[] = [
 		// A Bank Connection that needs the Parent to log in again, with two of the four Accounts.
@@ -103,19 +107,19 @@ export async function seedShotsHousehold(page: Page, userId: string) {
 	];
 	for (const [id, name, kind, cents, bank, mask] of accounts) {
 		statements.push(
-			`insert into accounts (id, household_id, name, kind, bank_connection_id, external_id, mask) values (${q(id)}, ${h}, ${q(name)}, ${q(kind)}, ${bank ? q(ids.bank) : "null"}, ${bank ? q(`acct-${id}`) : "null"}, ${mask ? q(mask) : "null"});`,
+			`insert into accounts (id, household_id, name, kind, bank_connection_id, external_id, mask, created_at) values (${q(id)}, ${h}, ${q(name)}, ${q(kind)}, ${bank ? q(ids.bank) : "null"}, ${bank ? q(`acct-${id}`) : "null"}, ${mask ? q(mask) : "null"}, ${made()});`,
 			`insert into account_balances (id, household_id, account_id, amount_cents, created_by_member_id) values (${q(ulid())}, ${h}, ${q(id)}, ${cents}, ${m});`,
 		);
 	}
 	// An Account nobody has given a balance yet ("No balance yet").
 	statements.push(
-		`insert into accounts (id, household_id, name, kind, bank_connection_id, external_id, mask) values (${q(ids.college)}, ${h}, 'College savings', 'savings', null, null, null);`,
+		`insert into accounts (id, household_id, name, kind, bank_connection_id, external_id, mask, created_at) values (${q(ids.college)}, ${h}, 'College savings', 'savings', null, null, null, ${made()});`,
 	);
 	// A Goal with a long History, as goal-side-sticky.spec.ts seeds it: three small fundings a month
 	// for 14 months, so the twelve months shown are far taller than the window (#73).
 	const longAgo = 14;
 	statements.push(
-		`insert into goals (id, household_id, account_id, name, target_cents, target_date, from_month) values (${q(ids.roof)}, ${h}, ${q(ids.savings)}, 'New roof', 900000, null, ${q(dayOf(longAgo - 1, 1).slice(0, 7))});`,
+		`insert into goals (id, household_id, account_id, name, target_cents, target_date, from_month, created_at) values (${q(ids.roof)}, ${h}, ${q(ids.savings)}, 'New roof', 900000, null, ${q(dayOf(longAgo - 1, 1).slice(0, 7))}, ${made()});`,
 		...Array.from(
 			{ length: longAgo * 3 },
 			(_, i) =>
@@ -131,7 +135,7 @@ export async function seedShotsHousehold(page: Page, userId: string) {
 		];
 	for (const [id, name, target, date, monthly] of goals) {
 		statements.push(
-			`insert into goals (id, household_id, account_id, name, target_cents, target_date, from_month) values (${q(id)}, ${h}, ${q(ids.savings)}, ${q(name)}, ${target}, ${date ? q(date) : "null"}, ${q(first)});`,
+			`insert into goals (id, household_id, account_id, name, target_cents, target_date, from_month, created_at) values (${q(id)}, ${h}, ${q(ids.savings)}, ${q(name)}, ${target}, ${date ? q(date) : "null"}, ${q(first)}, ${made()});`,
 		);
 		for (let monthsAgo = 5; monthsAgo >= 0; monthsAgo--) {
 			statements.push(

@@ -40,7 +40,7 @@ export function PlanSubPage({
 					<div className="grid gap-3 max-lg:order-first">
 						{editable ? null : <PlanEnded />}
 						{summary ? (
-							<p className="px-1 text-sm text-muted-foreground tabular-nums">{summary}</p>
+							<p className="text-sm text-muted-foreground tabular-nums sm:px-1">{summary}</p>
 						) : null}
 					</div>
 				) : null}
@@ -59,7 +59,7 @@ export function PaneHeader({ eyebrow, title }: { eyebrow: ReactNode; title: Reac
 	return (
 		<div data-slot="pane-header" className="min-w-0 max-lg:mb-3 lg:mb-6">
 			<p className="text-[13px] font-medium text-muted-foreground max-lg:hidden">{eyebrow}</p>
-			<p className="tabular-nums max-lg:px-1 max-lg:text-sm max-lg:text-muted-foreground lg:text-2xl lg:font-semibold lg:tracking-[-0.02em]">
+			<p className="tabular-nums max-lg:text-sm sm:max-lg:px-1 max-lg:text-muted-foreground lg:text-2xl lg:font-semibold lg:tracking-[-0.02em]">
 				{title}
 			</p>
 		</div>

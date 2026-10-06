@@ -1,16 +1,30 @@
-import type { MonthKey } from "@noodle/domain";
+import type { MonthKey, Plan } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
+import type { InfiniteData } from "@tanstack/react-query";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
+import { FolderInput, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { nothingToFileIn, pastPlanSentence } from "../before-plan";
 import { monthName } from "../format";
-import { deleteTransactions, getDeletionSummary } from "../server/transactions";
+import type { TransactionsPage } from "../server/transactions";
+import {
+	deleteTransactions,
+	type FilingAnswer,
+	fileTransactions,
+	getDeletionSummary,
+	undoFiling,
+} from "../server/transactions";
+import { refileOf } from "../transaction-cells";
+import { rangeName } from "../transaction-range";
 import {
 	bulkDeletedMessage,
+	canPick,
 	deletionFacts,
+	filedMessage,
+	isPicked,
 	matchingAll,
 	type Picking,
 	pickAll,
@@ -20,8 +34,16 @@ import {
 	selectionOf,
 	stayingFacts,
 	transactionsCount,
+	unfiledMessage,
 } from "../transaction-selection";
-import type { TransactionFilters } from "../transactions";
+import {
+	applyFiling,
+	type TransactionFilters,
+	transactionLabel,
+	transactionsQuery,
+} from "../transactions";
+import { BucketPicker, NewBucketStep } from "./bucket-picker";
+import { NoBuckets } from "./no-buckets";
 import { tableIsStacked } from "./transaction-table";
 
 // Select mode on the Transactions page (#97, ADR-0045): a bar that says how many are selected and
@@ -65,14 +87,23 @@ function useStackedRows() {
 
 export function SelectionBar({
 	month,
+	current,
 	filters,
 	filtered,
 	picking,
 	onPick,
 	onDelete,
 	onCancel,
+	plan,
+	onFiled,
 }: {
+	/** The month's Buckets and Commitments this Parent can file in: what "File in…" offers. */
+	plan: Pick<Plan, "buckets" | "commitments">;
+	/** "File in…" has filed the selection: the selecting is over. */
+	onFiled: () => void;
 	month: MonthKey;
+	/** The month it is now: an earlier one's Plan is closed, so nothing is created in it. */
+	current: MonthKey;
 	filters: TransactionFilters;
 	/** A filter or search is narrowing the list. */
 	filtered: boolean;
@@ -82,10 +113,100 @@ export function SelectionBar({
 	onCancel: () => void;
 }) {
 	const stacked = useStackedRows();
+	const queryClient = useQueryClient();
+	// "File in…" (issue 99, ADR-0055): the Bucket picker a cell of the table uses, for everything
+	// selected. One month only: a Transaction is filed in its own month's Plan.
+	const [filing, setFiling] = useState(false);
+	const [creating, setCreating] = useState<string | null>(null);
+	const closed = pastPlanSentence(month, current);
+	const choices = [
+		{
+			label: "Buckets",
+			choices: plan.buckets.map((b) => ({ value: `bucket:${b.id}`, label: b.name })),
+		},
+		...(plan.commitments.length > 0
+			? [
+					{
+						label: "Commitments",
+						choices: plan.commitments.map((c) => ({ value: `commitment:${c.id}`, label: c.name })),
+					},
+				]
+			: []),
+	];
+	/** The selected rows this screen has loaded: filed at once on screen, and sent with their versions. */
+	const loadedPicked = () =>
+		(
+			queryClient.getQueryData<InfiniteData<TransactionsPage>>(
+				transactionsQuery(month, filters).queryKey,
+			)?.pages ?? []
+		)
+			.flatMap((page) => page.transactions)
+			.filter((row) => canPick(row) && isPicked(picking, row.id));
+	const file = useMutation({
+		mutationFn: ({ value }: { value: string; name: string }) => {
+			const [kind, id = ""] = value.split(":");
+			return fileTransactions({
+				data: {
+					selection: selectionOf(picking, month, filters),
+					month,
+					assignment: kind === "commitment" ? { commitmentId: id } : { bucketId: id },
+					versions: Object.fromEntries(
+						loadedPicked()
+							.slice(0, 1000)
+							.map((row) => [row.id, row.version]),
+					),
+				},
+			});
+		},
+		onMutate: async ({ value }) => ({
+			rollback: await applyFiling(
+				queryClient,
+				month,
+				loadedPicked().flatMap((transaction) => {
+					const next = refileOf(transaction, value);
+					return next ? [{ transaction, label: transactionLabel(transaction), next }] : [];
+				}),
+			),
+		}),
+		onError: (error, _to, context) => {
+			context?.rollback();
+			toast(
+				error instanceof Error && error.message.startsWith("That isn’t in the Plan")
+					? error.message
+					: "Couldn’t file them, so nothing has changed. Try again in a moment.",
+				{ tone: "error" },
+			);
+		},
+		onSuccess: (result: FilingAnswer, { name }) => {
+			const said = filedMessage(result, name);
+			const put = async () => {
+				try {
+					const { restored } = await undoFiling({ data: { entries: result.undo } });
+					toast(unfiledMessage(restored, result.undo.length));
+				} catch {
+					toast("Couldn’t undo that. They are still filed.", { tone: "error" });
+				} finally {
+					void queryClient.invalidateQueries();
+				}
+			};
+			// With something filed the message carries its Undo, and stays as long as every Undo does.
+			if (result.undo.length > 0) {
+				toast(said, { tone: "success", id: "transactions-filed", undo: () => void put() });
+			} else toast(said, { tone: "success", duration: 10_000, id: "transactions-filed" });
+			onFiled();
+		},
+		// Everything that counts spending shows it: months, Buckets, Review.
+		onSettled: () => queryClient.invalidateQueries(),
+	});
 	const inMonth = useQuery(summaryQuery({ all: matchingAll(month, filters, false) })).data?.count;
 	const upToMonth = useQuery(summaryQuery({ all: matchingAll(month, filters, true) })).data?.count;
 	const count = pickedCount(picking, picking.all?.andEarlier ? upToMonth : inMonth);
-	const name = monthName(month);
+	// More than a month (issue 99): "all that match" is all in the range the list shows.
+	const name = !filters.range
+		? monthName(month)
+		: filters.range === "all"
+			? "every month"
+			: rangeName(filters.range, month);
 	const offerMonth =
 		inMonth !== undefined && inMonth > 0 && !(picking.all && !picking.all.andEarlier);
 	const offerEarlier =
@@ -95,6 +216,7 @@ export function SelectionBar({
 	return (
 		<section
 			aria-label="Selecting Transactions"
+			data-slot="selection-bar"
 			// Over the list on a phone. From lg it sits under the table and stays at the foot of the
 			// window, so the first tick doesn't push the rows down from under the pointer.
 			className="sticky top-2 z-20 grid gap-2 rounded-2xl border border-border-strong bg-card p-3 shadow-sm max-sm:gap-1.5 max-sm:p-2.5 lg:top-auto lg:bottom-4 lg:order-last"
@@ -103,16 +225,90 @@ export function SelectionBar({
 				<p role="status" className="text-sm font-semibold tabular-nums">
 					{count === undefined ? "Counting…" : `${count.toLocaleString("en-US")} selected`}
 				</p>
-				<div className="flex flex-wrap items-center gap-2">
+				{/* A phone: the three on the count's line, so the bar is no taller for "File in…": words
+				    only, a little closer together. */}
+				{/* The narrowest phones (under 360px) have no room for the three beside the count: they
+				    take a line of their own, shared equally, not a ragged wrap. */}
+				<div className="flex flex-wrap items-center gap-2 max-sm:gap-1 max-sm:[&>button]:px-2.5 max-sm:[&>button>svg]:hidden max-[22.5rem]:w-full max-[22.5rem]:flex-nowrap max-[22.5rem]:[&>*]:min-w-0 max-[22.5rem]:[&>*]:flex-1">
 					<Button variant="ghost" onClick={onCancel}>
 						Cancel
 					</Button>
+					{filing ? (
+						<BucketPicker
+							defaultOpen
+							value=""
+							// A phone: narrow enough to stay on the count's line at 375, so the bar is no taller
+							// while a Bucket is picked.
+							className="w-44 max-sm:w-24"
+							placeholder="File in…"
+							searchPlaceholder={closed ? "Find a Bucket" : "Search or create"}
+							empty={closed ?? undefined}
+							// A month before the first Plan (issue 117): why there is nothing to file in.
+							none={
+								nothingToFileIn(plan, month, current) ? (
+									<NoBuckets month={month} current={current} />
+								) : undefined
+							}
+							aria-label="File the selected Transactions in"
+							choices={choices}
+							onClose={() => setFiling(false)}
+							onValueChange={(value) => {
+								setFiling(false);
+								const name = choices
+									.flatMap((group) => group.choices)
+									.find((choice) => choice.value === value)?.label;
+								if (name) file.mutate({ value, name });
+							}}
+							onCreate={
+								closed
+									? undefined
+									: (name) => {
+											setFiling(false);
+											setCreating(name);
+										}
+							}
+						/>
+					) : (
+						<Button
+							variant="outline"
+							// Inside one month only: a Transaction is filed in its own month's Plan.
+							disabled={
+								!count || file.isPending || Boolean(picking.all?.andEarlier || filters.range)
+							}
+							title={
+								filters.range
+									? "Transactions are filed one month at a time: show This month to file these"
+									: picking.all?.andEarlier
+										? "Transactions are filed one month at a time"
+										: undefined
+							}
+							onClick={() => setFiling(true)}
+						>
+							<FolderInput />
+							{file.isPending ? "Filing…" : "File in…"}
+						</Button>
+					)}
 					<Button variant="destructive" disabled={!count} onClick={onDelete}>
 						<Trash2 />
 						Delete
 					</Button>
 				</div>
 			</div>
+			{creating !== null ? (
+				<NewBucketStep
+					month={month}
+					name={creating}
+					what={transactionsCount(count ?? 0)}
+					amountCents={loadedPicked().reduce((sum, row) => sum + Math.max(0, row.amountCents), 0)}
+					buckets={plan.buckets}
+					taken={[...plan.buckets, ...plan.commitments].map((item) => item.name)}
+					onCancel={() => setCreating(null)}
+					onCreated={(bucket) => {
+						setCreating(null);
+						file.mutate({ value: `bucket:${bucket.id}`, name: bucket.name });
+					}}
+				/>
+			) : null}
 			{offerMonth || offerEarlier ? (
 				// A phone: the two side by side in few words, not two full-width lines (issue 115).
 				<div className="flex gap-2 sm:flex-wrap">
@@ -251,7 +447,9 @@ export function DeleteSelectedSheet({
 						</ul>
 					</div>
 				)}
-				<SheetFooter className="max-lg:grid-cols-2">
+				{/* A phone: Cancel as wide as its word and the rest for "Delete 254 Transactions", which
+				    half of a 320px sheet cut short; under 360px without its icon. */}
+				<SheetFooter className="max-lg:grid-cols-2 max-sm:grid-cols-[auto_minmax(0,1fr)] max-[22.5rem]:[&_svg]:hidden">
 					<Button type="button" variant="ghost" disabled={remove.isPending} onClick={onClose}>
 						Cancel
 					</Button>

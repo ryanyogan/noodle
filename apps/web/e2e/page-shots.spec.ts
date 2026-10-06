@@ -22,6 +22,8 @@ import { q, seedBetweenUs, seedIncomeHousehold, seedShotsHousehold } from "./sho
 //   PAGE_SHOTS_WIDTHS=1440,393      only these widths (default: all five; 2560 only when asked for)
 //   PAGE_SHOTS_THEME=dark           the dark theme (default: light)
 //   PAGE_SHOTS_ONLY=10,26           only the pictures whose name starts with one of these
+//   PAGE_SHOTS_HEIGHT=500          every window this tall: a phone with its keyboard up, or 568 for the
+//                                 smallest phone (issue 74)
 //
 // Each PNG is the full page, at test-results/page-shots/<width>/<name>.png. A page that fails is
 // noted in <width>/failures.txt and the rest still get their picture.
@@ -45,13 +47,15 @@ const wanted = (process.env.PAGE_SHOTS_WIDTHS ?? "")
 // And a common laptop, between the steps the others stand on.
 const ON_REQUEST = [
 	{ width: 1280, height: 800 },
+	{ width: 375, height: 667 },
 	{ width: 2560, height: 1440 },
 	{ width: 430, height: 932 },
 ];
+const height = Number(process.env.PAGE_SHOTS_HEIGHT) || undefined;
 const viewports = [
 	...VIEWPORTS.filter(({ width }) => wanted.length === 0 || wanted.includes(width)),
 	...ON_REQUEST.filter(({ width }) => wanted.includes(width)),
-];
+].map((viewport) => (height ? { ...viewport, height } : viewport));
 const only = (process.env.PAGE_SHOTS_ONLY ?? "")
 	.split(",")
 	.map((name) => name.trim())
@@ -102,6 +106,37 @@ let carryParent: Awaited<ReturnType<typeof createTestParent>> | undefined;
 let shots: Shot[] = [];
 /** What the seeding couldn't do: written beside the pictures so a missing section is explained. */
 const seedNotes: string[] = [];
+
+/** Quick Add opened from the phone's tab bar, then taken as far as the picture needs (issue 74). */
+const quickAdd = (step?: "amount" | "more" | "for") => async (page: Page) => {
+	const sheet = page.getByRole("dialog", { name: "Quick Add" });
+	await pressFor(
+		page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Quick Add" }),
+		sheet,
+	);
+	if (!step) return;
+	const keypad = sheet.getByRole("group", { name: "Keypad" });
+	for (const key of ["2", "4"]) await keypad.getByRole("button", { name: key, exact: true }).tap();
+	if (step === "more") await sheet.getByRole("button", { name: /^More Buckets/ }).tap();
+	if (step === "for") {
+		await sheet.getByRole("button", { name: /^For: / }).tap();
+		await expect(sheet.getByRole("radiogroup", { name: "For" })).toBeVisible({ timeout: 15_000 });
+	}
+};
+
+/** Skips in Review, one by one, until a card of this kind is on top (issue 74). */
+async function reviewCardOnTop(page: Page, which: string) {
+	const stack = page.getByTestId("review-stack");
+	const card = stack.locator(`[data-testid=review-card]${which}`);
+	for (let skipped = 0; skipped < 10; skipped++) {
+		if (await card.isVisible()) break;
+		await stack.getByRole("button", { name: "Skip" }).click({ timeout: 15_000 });
+		await page.waitForTimeout(400);
+	}
+	await expect(card).toBeVisible();
+	await page.evaluate(() => window.scrollTo(0, 0));
+	return card;
+}
 
 /** The page has its heading, nothing is still a skeleton and the fonts are in. */
 async function settled(page: Page) {
@@ -225,6 +260,22 @@ async function attempt(what: string, run: () => Promise<void>) {
 }
 
 /** Opens one of the Danger zone's confirming sheets and leaves it open: nothing is confirmed. */
+/**
+ * Presses a button on the page until what it opens is there: a sheet, a menu, or (for a confirm
+ * drawn in the page) its Cancel button. For the phone pass's pictures of sheets (issue 74).
+ */
+const opened =
+	(button: string | RegExp, confirm = false) =>
+	async (page: Page) => {
+		await pressFor(
+			page.getByRole("button", { name: button }).first(),
+			confirm
+				? page.getByRole("button", { name: "Cancel" }).first()
+				: page.getByRole("dialog").or(page.getByRole("menu")).first(),
+		);
+		await page.waitForTimeout(400);
+	};
+
 async function openDangerSheet(page: Page, action: "Start fresh" | "Delete Household") {
 	const zone = page.getByRole("region", { name: "Danger zone" });
 	await zone.getByRole("button", { name: action }).click();
@@ -269,6 +320,11 @@ test.beforeAll(async ({ browser }) => {
 		page,
 		parent.userId,
 	);
+	// Two groups of Buckets, so the Buckets table has heading rows and subtotals (issue 98).
+	await seedSql([
+		`update buckets set group_name = 'Food' where household_id = ${q(householdId)} and name in ('Groceries', 'Eating out');`,
+		`update buckets set group_name = 'Family and home' where household_id = ${q(householdId)} and name in ('Kids', 'Household', 'Pets');`,
+	]);
 	// Money between the two Parents: a deposit from Sam among the Income, and a line sent to Sam.
 	let sentToSam = "";
 	await attempt("Money between the two Parents", async () => {
@@ -563,6 +619,9 @@ test.beforeAll(async ({ browser }) => {
 						["32a-setup-step-2-window", 2],
 						["33-setup-step-3", 3],
 						["34-setup-step-4", 4],
+						["35s-setup-step-5", 5],
+						["36s-setup-step-6", 6],
+						["37s-setup-step-7", 7],
 					] as const
 				).map(
 					([name, step]): Shot => ({
@@ -604,8 +663,59 @@ test.beforeAll(async ({ browser }) => {
 		},
 		// The Plan's first page, whole: the take-home split, the Buckets table under it, Personal
 		// Allowances and what changed. Then what the window shows of it on arriving.
+		// The Sidebar collapsed to its icon rail. Only when asked for by name (PAGE_SHOTS_ONLY=00): the
+		// Sidebar stays collapsed for every picture after it.
+		...(only.includes("00")
+			? [
+					{
+						name: "00-sidebar-collapsed",
+						path: `/plan/${month}`,
+						window: true,
+						ready: async (page: Page) => {
+							await page.getByRole("button", { name: "Toggle sidebar" }).click();
+							// The rail slides shut: wait for it to settle.
+							await page.waitForTimeout(500);
+							await page.mouse.move(700, 500);
+						},
+					},
+				]
+			: []),
 		{ name: "03-plan-overview", path: `/plan/${month}` },
 		{ name: "03w-plan-overview-window", path: `/plan/${month}`, window: true },
+		{
+			// Every fold on the Plan's first page opened: "Things to check" and "What changed" (issue 73).
+			name: "03b-plan-overview-folds-open",
+			path: `/plan/${month}`,
+			ready: async (page) => {
+				const check = page.getByRole("button", { name: /^Things to check/, expanded: false });
+				if (await check.isVisible()) await check.click({ timeout: 5000 });
+				for (const all of await page.getByRole("button", { name: /^Show all/ }).all())
+					await all.click({ timeout: 5000 }).catch(() => {});
+			},
+		},
+		{
+			// A group's Rename sheet, from the group's heading row in the Buckets table (issue 98).
+			name: "04d-bucket-group-rename",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: "Rename the group Food", exact: true }),
+					page.getByRole("dialog"),
+				);
+			},
+		},
+		{
+			name: "04e-add-buckets-sheet",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: /^Add Buckets/ }).first(),
+					page.getByRole("dialog", { name: "Add Buckets" }),
+				);
+			},
+		},
 		{
 			// A Bucket's sheet, opened from its row: Allowance, from when, Name. What's in the window.
 			name: "04a-bucket-sheet",
@@ -668,7 +778,34 @@ test.beforeAll(async ({ browser }) => {
 			path: `/plan/${month}/commitments/${firstCommitment}`,
 			window: true,
 		},
+		{
+			// The Commitment sheet from its panel's Edit: amount, how often, "Pays down".
+			name: "07c-commitment-sheet",
+			path: `/plan/${month}/commitments/${firstCommitment}`,
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page
+						.getByRole("link", { name: "Edit", exact: true })
+						.or(page.getByRole("button", { name: "Edit", exact: true })),
+					// Under 1440 the panel is itself a dialog (a drawer): the sheet is the one with the form.
+					page.getByRole("dialog").filter({ has: page.getByRole("textbox", { name: "Amount" }) }),
+				);
+			},
+		},
 		{ name: "08-plan-goal-funding", path: `/plan/${month}/goals` },
+		{
+			// An Income row's actions menu, open.
+			name: "08y-plan-income-row-menu",
+			path: `/plan/${month}/income`,
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: /^Actions for / }).first(),
+					page.getByRole("menu"),
+				);
+			},
+		},
 		{ name: "09-plan-year", path: `/plan/${month}/year` },
 		{ name: "10-transactions", path: `/transactions/${month}`, tall: true },
 		// The top of the list as a Parent arrives: search, Filters, Sort and Select above the rows.
@@ -694,6 +831,54 @@ test.beforeAll(async ({ browser }) => {
 						timeout: 15_000,
 					},
 				);
+			},
+		},
+		// The rest of Transactions as a phone has it (issue 74): the Filters sheet, the orders, and
+		// "File in…" opened from the selection's bar.
+		{
+			name: "10e-transactions-filters-sheet",
+			path: `/transactions/${month}`,
+			phoneSheet: true,
+			ready: opened("Filters"),
+		},
+		{
+			name: "10f-transactions-sort-open",
+			path: `/transactions/${month}`,
+			phoneSheet: true,
+			ready: async (page) => {
+				await pressFor(page.getByRole("combobox", { name: "Sort" }), page.getByRole("listbox"));
+			},
+		},
+		{
+			name: "10g-transactions-file-in",
+			path: `/transactions/${month}`,
+			phoneSheet: true,
+			ready: async (page) => {
+				const bar = await selectThree(page);
+				await bar.getByRole("button", { name: "File in…" }).click({ timeout: 15_000 });
+				await expect(page.getByPlaceholder(/^(Search or create|Find a Bucket)$/)).toBeVisible({
+					timeout: 15_000,
+				});
+			},
+		},
+		{
+			// Three months in one list, as the sheet's Months leaves it: the chip, and a heading a month.
+			name: "10h-transactions-three-months",
+			path: `/transactions/${month}?range=3m`,
+			phone: true,
+			window: true,
+		},
+		{
+			// The editor's Split opened: two parts and what is left.
+			name: "11b-transaction-split",
+			path: `/transactions/${month}/${ids.openTransaction}`,
+			phone: true,
+			ready: async (page) => {
+				await page
+					.getByRole("button", { name: "Split", exact: true })
+					.first()
+					.click({ timeout: 15_000 });
+				await page.waitForTimeout(400);
 			},
 		},
 		// Part-way down a long page on a computer: where the round Ask Noodle button sits over it.
@@ -783,8 +968,103 @@ test.beforeAll(async ({ browser }) => {
 				},
 			}),
 		),
+		// The rest of Review for the final phone pass (issue 74): the other kinds of card on top, the
+		// "?" beside the count, what Sort says after a Skip, a phone's safe areas, and the sheets.
+		...(
+			[
+				["12e-review-card-between-us", "[data-between-us]"],
+				["12f-review-card-no-suggestion", ":has-text('pick where it goes')"],
+			] as const
+		).map(
+			([name, which]): Shot => ({
+				name,
+				path: "/review",
+				window: true,
+				ready: async (page) => {
+					await reviewCardOnTop(page, which);
+				},
+			}),
+		),
+		{
+			name: "12g-review-said-after-skip",
+			path: "/review",
+			window: true,
+			ready: async (page) => {
+				const stack = page.getByTestId("review-stack");
+				await stack.getByRole("button", { name: "Skip" }).click({ timeout: 15_000 });
+				await expect(page.getByTestId("review-said")).toContainText("Skipped");
+				await page.evaluate(() => window.scrollTo(0, 0));
+			},
+		},
+		{
+			name: "12h-review-term-help",
+			path: "/review",
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page
+						.getByTestId("review-stack")
+						.getByRole("button", { name: /^What’s / })
+						.first(),
+					page.getByRole("dialog"),
+				);
+			},
+		},
+		{
+			// A phone with a notch and a home indicator: the header clears one, the tab bar the other.
+			name: "12i-review-safe-areas",
+			path: "/review",
+			window: true,
+			ready: async (page) => {
+				await page.addStyleTag({
+					content: ":root{--safe-top:47px!important;--safe-bottom:34px!important}",
+				});
+			},
+		},
 		{ name: "13-review-list", path: "/review?view=list" },
+		{
+			name: "13a-review-edit-transaction",
+			path: "/review?view=list",
+			phoneSheet: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: /^Edit / }).first(),
+					page.getByRole("dialog", { name: "Edit Transaction" }),
+				);
+			},
+		},
+		{
+			// With a field in use, as when the keyboard is up (PAGE_SHOTS_HEIGHT=500).
+			name: "13b-review-edit-transaction-typing",
+			path: "/review?view=list",
+			phoneSheet: true,
+			ready: async (page) => {
+				const sheet = page.getByRole("dialog", { name: "Edit Transaction" });
+				await pressFor(page.getByRole("button", { name: /^Edit / }).first(), sheet);
+				await sheet.getByRole("textbox").first().focus();
+			},
+		},
 		{ name: "14-rules", path: "/review/rules" },
+		{
+			name: "14a-rule-page",
+			path: "/review/rules",
+			ready: async (page) => {
+				await page.locator("a[href*='/review/rules/']").first().click({ timeout: 15_000 });
+				await page.waitForURL(/\/review\/rules\/./);
+			},
+		},
+		{
+			name: "14b-rule-add",
+			path: "/review/rules",
+			phoneSheet: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: "Add Rule" }).first(),
+					page.getByRole("dialog"),
+				);
+			},
+		},
+		{ name: "38-not-found", path: "/no-such-page", window: true },
 		{ name: "15-accounts", path: "/accounts" },
 		{
 			name: "15a-accounts-archived-open",
@@ -798,12 +1078,81 @@ test.beforeAll(async ({ browser }) => {
 		},
 		{ name: "16-account-credit-card", path: `/accounts/${ids.sapphire}` },
 		{ name: "16a-account-no-balance", path: `/accounts/${ids.college}` },
+		// The sheets and confirms of Accounts and an Account, as a phone shows them (issue 74).
+		{
+			name: "15b-accounts-add-sheet",
+			path: "/accounts",
+			phoneSheet: true,
+			ready: opened("Add Account"),
+		},
+		{
+			name: "16b-account-more-or-rename",
+			path: `/accounts/${ids.sapphire}`,
+			phoneSheet: true,
+			ready: opened(/^(More actions for|Rename)/),
+		},
+		{
+			name: "16c-account-balance-sheet",
+			path: `/accounts/${ids.sapphire}`,
+			phoneSheet: true,
+			ready: opened(/^(Update|Add) (balance|what’s owed)/),
+		},
+		{
+			name: "16d-account-upload-statement",
+			path: `/accounts/${ids.college}`,
+			phoneSheet: true,
+			ready: opened("Upload statement"),
+		},
+		{
+			name: "16e-account-archive-confirm",
+			path: `/accounts/${ids.college}`,
+			phoneSheet: true,
+			ready: opened("Archive this Account", true),
+		},
+		{
+			name: "16f-account-rename-sheet",
+			path: `/accounts/${ids.college}`,
+			phoneSheet: true,
+			ready: opened(/^(More actions for|Rename)/),
+		},
 		{ name: "17-goals", path: "/goals" },
 		{ name: "18-goal", path: `/goals/${ids.vacation}` },
 		// A long History: the whole page, then the window after scrolling 700px, where the side column
 		// (progress and actions) should still be in view on a wide screen (#73).
 		{ name: "18a-goal-long-history", path: `/goals/${ids.roof}` },
 		{ name: "18b-goal-long-history-scrolled", path: `/goals/${ids.roof}`, scrolledTo: 700 },
+		// A Goal's sheets on a phone (issue 74).
+		{ name: "17a-goals-add-sheet", path: "/goals", phoneSheet: true, ready: opened("Add Goal") },
+		{
+			name: "18c-goal-add-money-sheet",
+			path: `/goals/${ids.vacation}`,
+			phoneSheet: true,
+			ready: opened("Add money"),
+		},
+		{
+			name: "18d-goal-edit-sheet",
+			path: `/goals/${ids.vacation}`,
+			phoneSheet: true,
+			ready: opened("Edit"),
+		},
+		{
+			name: "18e-goal-spend-sheet",
+			path: `/goals/${ids.vacation}`,
+			phoneSheet: true,
+			ready: opened("Spend"),
+		},
+		{
+			name: "18f-goal-take-back-sheet",
+			path: `/goals/${ids.vacation}`,
+			phoneSheet: true,
+			ready: opened("Take money back"),
+		},
+		{
+			name: "18g-goal-archive-confirm",
+			path: `/goals/${ids.vacation}`,
+			phoneSheet: true,
+			ready: opened("Archive", true),
+		},
 		{ name: "19-explore", path: "/explore" },
 		// A Scenario not saved yet, with one change: the outline, Your changes and the outcomes (#74).
 		{ name: "19a-explore-with-a-change", path: "/explore?lever=baseline:1020000" },
@@ -875,6 +1224,23 @@ test.beforeAll(async ({ browser }) => {
 			},
 		},
 		...(scenarioPath ? [{ name: "22-scenario", path: scenarioPath }] : []),
+		{
+			// A Scenario open while two are compared: Compare keeps to the room left of the panel.
+			name: "22a-scenario-open-over-compare",
+			path: "/explore/scenarios",
+			window: true,
+			ready: async (page) => {
+				for (const name of ["Sam’s raise", "Pay cut"]) {
+					const tick = page.getByRole("checkbox", { name: `Compare “${name}”` });
+					await expect(async () => {
+						if (!(await tick.isChecked())) await tick.click();
+						await expect(tick).toBeChecked({ timeout: 2000 });
+					}).toPass({ timeout: 20_000 });
+				}
+				await page.getByRole("link", { name: "Sam’s raise", exact: true }).first().click();
+				await expect(page.getByRole("button", { name: "Rename" })).toBeVisible({ timeout: 15_000 });
+			},
+		},
 		{ name: "23-reports", path: "/reports" },
 		{ name: "23a-reports-cash-flow", path: "/reports?view=cash-flow" },
 		// The other eight Reports views, in the tab row's order (#73).
@@ -955,6 +1321,19 @@ test.beforeAll(async ({ browser }) => {
 				);
 			},
 		},
+		// On a phone the Period, Compare with and Group by selects are in the Filters sheet, and what
+		// is on shows as chips under the button (issue 74).
+		{
+			name: "23j-reports-filters-sheet",
+			path: "/reports?view=trends",
+			phoneSheet: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: /^Filters/ }),
+					page.getByRole("dialog", { name: "Filters" }),
+				);
+			},
+		},
 		// The Compare with and Group by menus open, and a custom range with its From calendar.
 		...(
 			[
@@ -1013,6 +1392,11 @@ test.beforeAll(async ({ browser }) => {
 		},
 		// A month's own Plan page.
 		{ name: "01j-month-plan", path: `/month/${month}/plan` },
+		{
+			name: "23k-reports-trends-with-chips",
+			path: "/reports?view=trends&period=12m&compare=last-year&group=week&min=50&member=everyone",
+			phone: true,
+		},
 		{ name: "24-insights", path: "/insights" },
 		{ name: "25-credit-card-perks", path: "/insights/perks" },
 		{
@@ -1096,6 +1480,18 @@ test.beforeAll(async ({ browser }) => {
 			ready: (page) => openDangerSheet(page, "Delete Household"),
 		},
 		{
+			// Delete Household's second step: the name to type, as a phone shows it (issue 74).
+			name: "27d-delete-household-step-2",
+			path: "/household",
+			phoneSheet: true,
+			ready: async (page) => {
+				await openDangerSheet(page, "Delete Household");
+				const sheet = page.getByRole("dialog", { name: "Delete Household?" });
+				await sheet.getByRole("button", { name: "Continue" }).click();
+				await sheet.getByRole("textbox").focus();
+			},
+		},
+		{
 			// The Parent's own name and colour, in its sheet. What's in the window.
 			name: "27c-your-name-and-colour",
 			path: "/household",
@@ -1121,12 +1517,211 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "39i-empty-goal-funding", path: `/plan/${month}/goals`, fresh: true },
 		{ name: "39j-empty-income", path: `/plan/${month}/income`, fresh: true },
 		{ name: "39k-empty-afford", path: "/explore/afford", fresh: true },
+		{ name: "39l-empty-review", path: "/review", fresh: true },
 		{
 			name: "29-more-sheet",
 			path: "/reports",
 			phoneSheet: true,
 			ready: async (page) => {
 				await openMore(page);
+			},
+		},
+		// Quick Add as a phone has it: at rest, with an amount, every Bucket, and who it is for.
+		{ name: "35-quick-add", path: `/month/${month}`, phoneSheet: true, ready: quickAdd() },
+		{
+			name: "35a-quick-add-amount",
+			path: `/month/${month}`,
+			phoneSheet: true,
+			ready: quickAdd("amount"),
+		},
+		{
+			name: "35b-quick-add-more-buckets",
+			path: `/month/${month}`,
+			phoneSheet: true,
+			ready: quickAdd("more"),
+		},
+		{
+			name: "35c-quick-add-for",
+			path: `/month/${month}`,
+			phoneSheet: true,
+			ready: quickAdd("for"),
+		},
+		// The Plan's sheets and states the pictures above don't reach (issue 74), after them: the
+		// first puts two Buckets in a group, which stays.
+		{
+			name: "43-plan-grouped",
+			path: `/plan/${month}#buckets`,
+			ready: async (page) => {
+				for (const name of ["Gas", "Household"]) {
+					const edit = page.getByRole("button", { name: `Edit ${name}`, exact: true });
+					const sheet = page.getByRole("dialog", { name, exact: true });
+					await pressFor(edit, sheet);
+					const field = sheet.getByLabel("Group", { exact: true });
+					if ((await field.inputValue()) === "Home") {
+						await sheet.getByRole("button", { name: "Cancel", exact: true }).click();
+					} else {
+						await field.fill("Home");
+						const saved = savedBy(page, "updateBucket");
+						await sheet.getByRole("button", { name: "Save", exact: true }).click();
+						await saved;
+					}
+					await expect(sheet).toHaveCount(0, { timeout: 15_000 });
+				}
+			},
+		},
+		{
+			name: "43a-group-rename-sheet",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: (page) =>
+				pressFor(
+					page.getByRole("button", { name: "Rename the group Home" }),
+					page.getByRole("dialog", { name: "Home", exact: true }),
+				),
+		},
+		{
+			// The Bucket sheet at its Group field, with the groups there are to pick from.
+			name: "43b-bucket-sheet-group",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: async (page) => {
+				// The address is the last picture's, so its sheet is still up: a fresh page.
+				await page.reload();
+				await settled(page);
+				const sheet = page.getByRole("dialog", { name: "Gas", exact: true });
+				await pressFor(page.getByRole("button", { name: "Edit Gas", exact: true }), sheet);
+				await sheet
+					.getByLabel("Group", { exact: true })
+					.evaluate((node) => node.scrollIntoView({ block: "center" }));
+			},
+		},
+		{
+			// A Bucket nothing was ever spent from can be deleted: the question asked first.
+			name: "44-bucket-delete-confirm",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: async (page) => {
+				// The address is the last picture's, so its sheet is still up: a fresh page.
+				await page.reload();
+				await settled(page);
+				const sheet = page.getByRole("dialog", { name: "Gifts", exact: true });
+				await pressFor(page.getByRole("button", { name: "Edit Gifts", exact: true }), sheet);
+				const remove = sheet.getByRole("button", { name: "Delete", exact: true });
+				const archive = sheet.getByRole("button", { name: "Archive", exact: true });
+				await archive.scrollIntoViewIfNeeded({ timeout: 15_000 });
+				await ((await remove.count()) > 0 ? remove : archive).click({ timeout: 15_000 });
+				await page.waitForTimeout(400);
+			},
+		},
+		{
+			name: "45-add-buckets-sheet",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: async (page) => {
+				await page.reload();
+				await settled(page);
+				await pressFor(
+					page.getByRole("button", { name: "Add Buckets", exact: true }).first(),
+					page.getByRole("dialog", { name: "Add Buckets" }),
+				);
+			},
+		},
+		{
+			name: "46-things-to-check-open",
+			path: `/plan/${month}`,
+			phone: true,
+			ready: async (page) => {
+				const row = page.getByRole("button", { name: /Things to check/ }).first();
+				if ((await row.count()) === 0) return;
+				await expect(async () => {
+					if ((await row.getAttribute("aria-expanded")) !== "true")
+						await row.click({ timeout: 2000 });
+					await expect(row).toHaveAttribute("aria-expanded", "true", { timeout: 2000 });
+				}).toPass({ timeout: 20_000 });
+			},
+		},
+		{
+			name: "47-commitment-sheet",
+			path: `/plan/${month}/commitments/${firstCommitment}`,
+			window: true,
+			ready: (page) =>
+				pressFor(
+					page.getByRole("button", { name: "Edit", exact: true }).first(),
+					page.getByRole("dialog").first(),
+				),
+		},
+		{
+			// Cover an over-spent Bucket, from This Month's Buckets list.
+			name: "48-cover-sheet",
+			path: `/month/${month}`,
+			window: true,
+			ready: (page) =>
+				pressFor(
+					page.getByRole("button", { name: /^Cover / }).first(),
+					page.getByRole("dialog", { name: /^Cover / }),
+				),
+		},
+		// This Month's and the Plan's states with no picture until the last phone pass (issue 74). Each
+		// is what the window shows once the thing is brought to its top; nothing is saved.
+		...(
+			[
+				["49-bills-coming-up", `/month/${month}`, { role: "tab", name: /^Coming up/ }],
+				[
+					"49a-bills-not-this-month",
+					`/month/${month}`,
+					{ role: "button", name: /^Not this month/ },
+				],
+				["49b-record-payment", `/month/${month}`, { role: "button", name: "Record payment" }],
+				[
+					"49c-income-row-menu",
+					`/month/${month}`,
+					{ role: "button", name: /^Actions for .* of income$/ },
+				],
+				["49d-add-income-sheet", `/month/${month}`, { role: "button", name: "Add income" }],
+				[
+					"51-commitment-add",
+					`/plan/${month}/commitments`,
+					{ role: "textbox", name: "New Commitment" },
+				],
+			] as const
+		).map(
+			([name, path, target]): Shot => ({
+				name,
+				path,
+				window: true,
+				ready: async (page) => {
+					await page.reload();
+					await settled(page);
+					const control = page.getByRole(target.role, { name: target.name }).first();
+					await control.evaluate((el) => {
+						window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - 120);
+					});
+					await page.waitForTimeout(300);
+					// A text field is only brought into view: tapping it would not bring a keyboard up here.
+					if (target.role !== "textbox") await control.click({ timeout: 15_000 });
+					await page.waitForTimeout(500);
+				},
+			}),
+		),
+		{ name: "49e-months-plan", path: `/month/${month}/plan`, phone: true },
+		{
+			// Add Buckets with a row of the Parent's own ("Add your own") typed in, not saved.
+			name: "50-add-buckets-own-row",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: async (page) => {
+				await page.reload();
+				await settled(page);
+				const sheet = page.getByRole("dialog", { name: "Add Buckets" });
+				await pressFor(
+					page.getByRole("button", { name: "Add Buckets", exact: true }).first(),
+					sheet,
+				);
+				const own = sheet.getByRole("button", { name: "Add your own", exact: true });
+				await own.scrollIntoViewIfNeeded({ timeout: 15_000 });
+				await own.click({ timeout: 15_000 });
+				await page.keyboard.type("Christmas presents");
+				await page.waitForTimeout(400);
 			},
 		},
 		...small,
@@ -1156,6 +1751,128 @@ test.beforeAll(async ({ browser }) => {
 				const button = page.getByRole("button", { name: "It’s between us" }).first();
 				await expect(button).toBeVisible({ timeout: 15_000 });
 				await button.evaluate((node) => node.scrollIntoView({ block: "center" }));
+			},
+		},
+		// What was never pictured before the final phone pass (issue 74): Review's sheets, a long line
+		// from Sort, text at 200%, the bank's return page and the page a joining Parent lands on.
+		{
+			name: "12j-review-split",
+			path: "/review",
+			phoneSheet: true,
+			ready: async (page) => {
+				const card = await reviewCardOnTop(page, ":has(button:text-is('Split'))");
+				await pressFor(card.getByRole("button", { name: "Split" }), page.getByRole("dialog"));
+			},
+		},
+		{
+			name: "12k-review-make-a-rule",
+			path: "/review",
+			phoneSheet: true,
+			ready: async (page) => {
+				const card = await reviewCardOnTop(page, ":has(button:text-is('Split'))");
+				await pressFor(
+					card.getByRole("button", { name: "Make a Rule" }),
+					page.getByRole("dialog", { name: "Make a Rule" }),
+				);
+			},
+		},
+		{
+			name: "12l-review-new-bucket",
+			path: "/review",
+			phoneSheet: true,
+			ready: async (page) => {
+				const card = await reviewCardOnTop(page, ":has([role=combobox])");
+				await card.getByRole("combobox").first().click({ timeout: 15_000 });
+				await page.getByPlaceholder("Find a Bucket").fill("Widgets and wonders");
+				await page.getByRole("option", { name: /^Create Bucket/ }).click({ timeout: 15_000 });
+				await expect(page.getByRole("dialog", { name: "New Bucket" })).toBeVisible();
+			},
+		},
+		{
+			// A payment's name is the statement's own line: long enough that Sort's line is cut.
+			name: "12n-review-said-long",
+			path: "/review",
+			window: true,
+			ready: async (page) => {
+				await reviewCardOnTop(page, "[data-payment]");
+				await page
+					.getByTestId("review-stack")
+					.getByRole("button", { name: "Skip" })
+					.click({ timeout: 15_000 });
+				await expect(page.getByTestId("review-said")).toContainText("Skipped");
+				await page.evaluate(() => window.scrollTo(0, 0));
+			},
+		},
+		...(
+			[
+				["12p-review-large-text", "/review"],
+				["14d-rules-large-text", "/review/rules"],
+			] as const
+		).map(
+			([name, path]): Shot => ({
+				name,
+				path,
+				phone: true,
+				ready: async (page) => {
+					await page.addStyleTag({
+						content:
+							"html { font-size: 200% !important; -webkit-text-size-adjust: 200% !important; }",
+					});
+				},
+			}),
+		),
+		{ name: "50-bank-return", path: "/bank/return", window: true },
+		{ name: "52-joined", path: "/joined", window: true },
+		{
+			// Files every card it can, for the finish after the last one. Asked for by name.
+			name: "46-review-finish",
+			path: "/review",
+			window: true,
+			ready: async (page) => {
+				const stack = page.getByTestId("review-stack");
+				const card = stack.locator("[data-testid=review-card]").first();
+				for (let turn = 0; turn < 60; turn++) {
+					if (!(await card.isVisible())) break;
+					const confirm = card.getByRole("button", { name: "Confirm" });
+					const payment = card.getByRole("button", { name: "It’s a card payment" });
+					if (await confirm.isVisible()) await confirm.click();
+					else if (await payment.isVisible()) await payment.click();
+					else if (await card.getByRole("combobox").first().isVisible()) {
+						await card.getByRole("combobox").first().click();
+						await page.getByRole("option").first().click({ timeout: 15_000 });
+					} else await stack.getByRole("button", { name: "Skip" }).click();
+					await page.waitForTimeout(700);
+				}
+				await page.evaluate(() => window.scrollTo(0, 0));
+			},
+		},
+		// These decide cards for good, so they come last and are asked for by name, one width a run.
+		{
+			// What Sort says after a card is filed, and the Rule it offers after a change of Bucket.
+			name: "43-review-said-after-filing",
+			path: "/review",
+			window: true,
+			ready: async (page) => {
+				const card = await reviewCardOnTop(page, ":has(button:text-is('Confirm'))");
+				await card.getByRole("combobox").click({ timeout: 15_000 });
+				await page.getByRole("option").first().click({ timeout: 15_000 });
+				await expect(page.getByTestId("review-said")).toContainText(/left\.|All sorted/);
+				await page.evaluate(() => window.scrollTo(0, 0));
+			},
+		},
+		{
+			// Two toasts, each with Undo, over the list and above the bottom bar.
+			name: "44-review-list-two-toasts",
+			path: "/review?view=list",
+			window: true,
+			ready: async (page) => {
+				const confirm = page.getByRole("button", { name: "Confirm", exact: true });
+				await expect(confirm.first()).toBeVisible({ timeout: 15_000 });
+				const before = await confirm.count();
+				await confirm.first().click();
+				await expect(confirm).toHaveCount(before - 1, { timeout: 15_000 });
+				await confirm.first().click();
+				await expect(page.locator("[data-sonner-toast]")).toHaveCount(2, { timeout: 15_000 });
 			},
 		},
 	];
@@ -1217,6 +1934,9 @@ for (const viewport of viewports) {
 					carryPage ??= await signedInPage(browser, carryParent.email, device);
 					page = carryPage;
 				}
+				// Off the page first: the next picture may differ only by its "#…", which loads nothing
+				// and would leave the last picture's sheet open.
+				await page.goto("about:blank");
 				await page.goto(shot.path);
 				await settled(page);
 				if (shot.ready) {

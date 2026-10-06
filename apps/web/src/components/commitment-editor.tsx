@@ -105,6 +105,13 @@ export function CommitmentEditor({
 					</span>
 					<ChangedNote was={was} />
 					{commitment.accountId ? <PaysDownNote accountId={commitment.accountId} /> : null}
+					{/* Beside a rail (a desktop window under 1440) the list has no room for the paid column:
+					    what has been paid is said here instead of nowhere (issue 73). Phones keep their rows. */}
+					{commitment.status === "paid" || commitment.status === "differs" ? (
+						<span className="hidden @max-2xl:sm:inline-flex">
+							<PaidState commitment={commitment} />
+						</span>
+					) : null}
 					{monthly ? (
 						// In a list wider than the pane beside an item, the yearly total is its own column instead.
 						<span className="basis-full text-subtle-foreground @lg:sr-only">
