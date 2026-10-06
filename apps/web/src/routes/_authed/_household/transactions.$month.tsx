@@ -519,8 +519,6 @@ function Filters({
 						type="search"
 						placeholder="Search"
 						autoComplete="off"
-						// Without it an iPhone's return key reads "go" here (seen in the iOS Simulator, #52).
-						enterKeyHint="search"
 						maxLength={SEARCH_MAX}
 						disabled={!hydrated}
 						value={search}
