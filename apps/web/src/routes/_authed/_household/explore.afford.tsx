@@ -771,42 +771,43 @@ function CarComparison({
 		{ label: "Costs all in", value: (w) => formatMoney(check[w].totalCost), total: true },
 	];
 	return (
-		<div className="grid gap-2">
-			{/* Below sm the table has no room for a label and three amounts on one line (it used to
-			    scroll sideways at 320): each row is its label, then the three amounts under the three
-			    column headings. From sm up it is the table it was. */}
-			<Table className="text-sm max-sm:block max-sm:text-[13px] sm:min-w-[20rem]">
-				<TableCaption className="mt-0 mb-1.5 caption-top text-start font-medium max-sm:block">
+		<div className="@container/costs grid gap-2">
+			{/* In a card under 24rem (a phone, and the result card beside the form at 1024, where the
+			    Lease column was cut off) the table has no room for a label and three amounts on one
+			    line: each row is its label, then the three amounts under the three column headings.
+			    In a wider card it is the table it was. */}
+			<Table className="text-sm @max-sm/costs:block @max-sm/costs:text-[13px] @sm/costs:min-w-[20rem]">
+				<TableCaption className="mt-0 mb-1.5 caption-top text-start font-medium @max-sm/costs:block">
 					Over {years === 1 ? "1 year" : `${years} years`}
 				</TableCaption>
-				<TableHeader className="max-sm:block">
-					<TableRow className="border-0 max-sm:grid max-sm:grid-cols-3">
-						<td className="max-sm:hidden" />
+				<TableHeader className="@max-sm/costs:block">
+					<TableRow className="border-0 @max-sm/costs:grid @max-sm/costs:grid-cols-3">
+						<td className="@max-sm/costs:hidden" />
 						{ways.map((w) => (
 							<TableHead
 								key={w}
 								scope="col"
 								numeric
-								className={cn("h-auto pb-1.5 max-sm:px-0", w === way && "text-foreground")}
+								className={cn("h-auto pb-1.5 @max-sm/costs:px-0", w === way && "text-foreground")}
 							>
 								{wayName[w]}
 							</TableHead>
 						))}
 					</TableRow>
 				</TableHeader>
-				<TableBody className="max-sm:block">
+				<TableBody className="@max-sm/costs:block">
 					{rows.map((row) => (
 						<TableRow
 							key={row.label}
 							className={cn(
-								"max-sm:grid max-sm:grid-cols-3",
+								"@max-sm/costs:grid @max-sm/costs:grid-cols-3",
 								row.total ? "border-t font-semibold" : "border-0",
 							)}
 						>
 							<th
 								scope="row"
 								className={cn(
-									"py-1.5 text-start font-normal max-sm:col-span-3 max-sm:pb-0",
+									"py-1.5 text-start font-normal @max-sm/costs:col-span-3 @max-sm/costs:pb-0",
 									!row.total && "text-muted-foreground",
 								)}
 							>
@@ -817,7 +818,7 @@ function CarComparison({
 									key={w}
 									numeric
 									className={cn(
-										"py-1.5 max-sm:px-0 max-sm:pt-0.5",
+										"py-1.5 @max-sm/costs:px-0 @max-sm/costs:pt-0.5",
 										w !== way && "text-muted-foreground",
 									)}
 								>

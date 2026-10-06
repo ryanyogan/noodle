@@ -343,10 +343,27 @@ test.beforeAll(async ({ browser }) => {
 	await attempt("Money between the two Parents", async () => {
 		sentToSam = await seedBetweenUs(householdId, parentId, ids.checking);
 	});
+	// Two Buckets for the last phone pass (issue 74): one nothing was ever spent from, which can be
+	// deleted, and one archived from this month on, which can be restored.
+	const unused = ulid();
+	const archivedBucket = ulid();
+	await attempt("A Bucket to delete and one to restore", async () => {
+		const h = q(householdId);
+		const [year, monthOfYear] = month.split("-").map(Number);
+		const before = new Date(Date.UTC(year ?? 0, (monthOfYear ?? 1) - 2, 1))
+			.toISOString()
+			.slice(0, 7);
+		await seedSql([
+			`insert into buckets (id, household_id, name, color, position, from_month) values (${q(unused)}, ${h}, 'Keepsakes', 5, 90, ${q(month)});`,
+			`insert into bucket_allowances (household_id, bucket_id, month, amount_cents) values (${h}, ${q(unused)}, ${q(month)}, 5000);`,
+			`insert into buckets (id, household_id, name, color, position, from_month, archived_from_month) values (${q(archivedBucket)}, ${h}, 'Camping', 6, 91, ${q(before)}, ${q(month)});`,
+			`insert into bucket_allowances (household_id, bucket_id, month, amount_cents) values (${h}, ${q(archivedBucket)}, ${q(before)}, 15000);`,
+		]);
+	});
 	/** Plan › Income with the Zelle from Sam counted as Income (`marked` false) or between us. */
 	const zelleFromSam = async (page: Page, marked: boolean) => {
 		const region = page.locator('section[aria-label="Between us"]:visible').first();
-		const hint = page.getByText("From the other Parent? It’s between us").first();
+		const hint = page.getByText(/\? It’s between us$/).first();
 		if (marked) {
 			await expect(async () => {
 				if (!(await region.isVisible())) {
@@ -360,10 +377,14 @@ test.beforeAll(async ({ browser }) => {
 				}
 				await expect(region).toBeVisible({ timeout: 5000 });
 			}).toPass({ timeout: 30_000 });
-			// The toast has gone before the picture: it would sit over the rows on a phone.
-			await expect(page.getByRole("status").filter({ hasText: "is between you" })).toHaveCount(0, {
-				timeout: 20_000,
-			});
+			// The toast has gone before the picture: it would sit over the rows on a phone. It comes
+			// only when the server has answered, after the row has already moved, so it is waited
+			// for first (it may not come at all when the entry was marked by an earlier width).
+			const toast = page.getByRole("status").filter({ hasText: "is between you" });
+			await toast.waitFor({ state: "visible", timeout: 8000 }).catch(() => {});
+			// Away from it: a toast under the pointer never counts down.
+			await page.mouse.move(1, 1);
+			await expect(toast).toHaveCount(0, { timeout: 20_000 });
 		} else {
 			await expect(async () => {
 				if (await region.isVisible())
@@ -1789,6 +1810,61 @@ test.beforeAll(async ({ browser }) => {
 				await own.click({ timeout: 15_000 });
 				await page.keyboard.type("Christmas presents");
 				await page.waitForTimeout(400);
+			},
+		},
+		{
+			// A Bucket nothing was ever spent from: Delete is offered, and asks first.
+			name: "52-bucket-delete-confirm",
+			path: `/plan/${month}#buckets`,
+			window: true,
+			ready: async (page) => {
+				await page.reload();
+				await settled(page);
+				const sheet = page.getByRole("dialog", { name: "Keepsakes", exact: true });
+				await pressFor(page.getByRole("button", { name: "Edit Keepsakes", exact: true }), sheet);
+				const remove = sheet.getByRole("button", { name: "Delete", exact: true });
+				await remove.scrollIntoViewIfNeeded({ timeout: 15_000 });
+				await remove.click({ timeout: 15_000 });
+				await page.waitForTimeout(400);
+			},
+		},
+		{ name: "53-archived-bucket", path: `/plan/${month}/buckets/${archivedBucket}`, phone: true },
+		{
+			name: "53a-restore-bucket-sheet",
+			path: `/plan/${month}/buckets/${archivedBucket}`,
+			window: true,
+			ready: (page) =>
+				pressFor(
+					page.getByRole("button", { name: "Restore to the Plan" }).first(),
+					page.getByRole("dialog", { name: "Restore Camping" }),
+				),
+		},
+		{
+			// Larger text (iOS, 200%): the root's size doubled, so everything set in rem follows.
+			name: "54-plan-large-text",
+			path: `/plan/${month}`,
+			phone: true,
+			ready: async (page) => {
+				await page.addStyleTag({ content: "html{font-size:200%}" });
+				await page.waitForTimeout(400);
+			},
+		},
+		{
+			// The toast after a Quick Add, over the page and above the tab bar. It saves $24 in the first Bucket offered.
+			name: "55-quick-add-toast",
+			path: `/month/${month}`,
+			phoneSheet: true,
+			ready: async (page) => {
+				await quickAdd("amount")(page);
+				const sheet = page.getByRole("dialog", { name: "Quick Add" });
+				await sheet
+					.getByRole("list", { name: "Add to" })
+					.getByRole("button")
+					.first()
+					.tap({ timeout: 15_000 });
+				await expect(page.getByRole("status").filter({ hasText: "added to" })).toBeVisible({
+					timeout: 15_000,
+				});
 			},
 		},
 		...small,

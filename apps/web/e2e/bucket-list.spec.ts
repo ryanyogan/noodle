@@ -389,7 +389,9 @@ test("A Bucket is dragged by its handle under a finger, and the rest of the row 
 	// are real enough to scroll (see `swipe`).
 	if (realTouch(page)) {
 		await page.setViewportSize({ width: 393, height: 480 });
-		const body = row(page, "Gas").getByText("$200 left", { exact: true });
+		// The figure a phone shows: the line under the name holds the same words for the narrowest
+		// table, hidden here.
+		const body = row(page, "Gas").getByText("$200 left", { exact: true }).filter({ visible: true });
 		const before = (await body.boundingBox())?.y;
 		if (before === undefined) throw new Error("No row to touch");
 		await swipe(page, body, -160);
