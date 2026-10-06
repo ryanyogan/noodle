@@ -467,7 +467,7 @@ export async function openSafari(device, initialUrl) {
 		 * the field's value from the page). `typed` (a page function) says the text arrived; the
 		 * ways of typing are tried in turn until it does. Returns which one worked.
 		 */
-		async type(text, typed, { args = [] } = {}) {
+		async type(text, typed, { args = [], keys = false } = {}) {
 			const arrived = async () => {
 				const end = Date.now() + 4000;
 				while (Date.now() < end) {
@@ -517,6 +517,9 @@ export async function openSafari(device, initialUrl) {
 					},
 				],
 			];
+			// Tapping key by key suits the decimal pad (`keys`). On the letter keyboard taps were lost as
+			// it changed case after a capital, so there XCUITest types the text through the keyboard.
+			if (!keys) ways.push(ways.shift());
 			const errors = [];
 			for (const [name, run] of ways) {
 				try {
