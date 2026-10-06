@@ -253,9 +253,10 @@ test("on a phone no Review card is wider than the screen: every kind of payment 
 				expect(picker.y, `${width}: the picker is under the button`).toBeGreaterThanOrEqual(
 					button.y + button.height,
 				);
-				// On the narrowest phones a card Noodle doesn't follow has its other two choices folded in:
+				// On the narrowest phones, and the short ones (under 700px tall, issue 120), a card Noodle
+				// doesn't follow has its other two choices folded in:
 				// "Connect the card" ends the why, and "It’s a card payment" is beside the picker.
-				const folded = kind === "not-followed" && width < 360;
+				const folded = kind === "not-followed" && (width < 360 || height < 700);
 				if (folded) {
 					await expect(
 						top.getByTestId("review-payment-why").getByRole("link", { name: "Connect the card" }),
@@ -274,8 +275,9 @@ test("on a phone no Review card is wider than the screen: every kind of payment 
 						inside.width - 40,
 					);
 				}
-				if (height === 640) {
-					// The shortest phone: Skip and Undo are on the screen, above its bottom bar, unscrolled.
+				if (height < 700) {
+					// A short phone (the compact card, issue 120): Skip and Undo are on the screen, above
+					// its bottom bar, unscrolled.
 					const fit = await skipAndUndo(page);
 					expect(fit.bottoms, `${width}×${height}: Skip and Undo are there`).toHaveLength(2);
 					for (const bottom of fit.bottoms) {

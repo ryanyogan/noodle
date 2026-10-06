@@ -120,21 +120,19 @@ export const clerkAppearance = {
 			},
 		}),
 		formFieldInputShowPasswordButton: { ...focusRing, [phone]: { minWidth: "2.75rem" } },
-		// On a phone the six code boxes get our Input's edge and fill: Clerk's own hairline could
-		// hardly be seen, in dark not at all (issue 74).
+		// The six code boxes get our Input's edge and fill at every width (issue 120; on phones since
+		// issue 74): Clerk's own hairline could hardly be seen, in dark not at all.
 		otpCodeFieldInput: over({
 			...phoneSized,
-			"@media (max-width: 39.99rem)": {
-				border: "1px solid var(--input)",
-				background: "var(--surface-2)",
-				color: "var(--foreground)",
-				boxShadow: "none",
-				"&:focus, &:focus-visible": {
-					outline: "none",
-					borderColor: "var(--ring)",
-					background: "var(--card)",
-					boxShadow: "0 0 0 3px var(--brand-soft)",
-				},
+			border: "1px solid var(--input)",
+			background: "var(--surface-2)",
+			color: "var(--foreground)",
+			boxShadow: "none",
+			"&:focus, &:focus-visible": {
+				outline: "none",
+				borderColor: "var(--ring)",
+				background: "var(--card)",
+				boxShadow: "0 0 0 3px var(--brand-soft)",
 			},
 		}),
 		footerActionLink: {

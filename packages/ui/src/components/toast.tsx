@@ -3,8 +3,8 @@ import { Toaster as Sonner, toast as sonner } from "sonner";
 import { cn } from "#lib/utils";
 
 // Toasts on Sonner (https://ui.shadcn.com/docs/components/sonner, the toast shadcn recommends),
-// drawn with this design system's own toast: Sonner stacks them (a new one no longer replaces an
-// Undo still showing), pauses them while hovered, lets them be swiped away, and Alt+T reaches
+// drawn with this design system's own toast: Sonner stacks them (on a desktop a new one no longer
+// replaces an Undo still showing; below lg one shows at a time), pauses them while hovered, lets them be swiped away, and Alt+T reaches
 // them by keyboard. The app keeps calling `toast(message, options)` as before.
 
 /**
@@ -176,7 +176,8 @@ function Toaster({ className }: { className?: string }) {
 	return (
 		<Sonner
 			position="bottom-center"
-			// Up to three, each in full, so an Undo is never hidden behind a later toast.
+			// Up to three, each in full, so an Undo is never hidden behind a later toast. Below lg only
+			// the newest is drawn (see toastOptions).
 			visibleToasts={3}
 			expand
 			gap={8}
@@ -184,7 +185,14 @@ function Toaster({ className }: { className?: string }) {
 			offset={{ bottom: "var(--toast-bottom)" }}
 			mobileOffset={{ bottom: "var(--toast-bottom)" }}
 			// From sm up the toast's wrapper is the Toaster's width, and so is the toast inside it.
-			toastOptions={{ unstyled: true, className: "flex w-full justify-center sm:*:w-full" }}
+			// Below lg one toast at a time (issue 120): two or three covered a Review card's buttons on
+			// a phone. The newest takes the place of the one before, which is neither drawn nor
+			// pressable nor read out while it waits behind; its time runs on, so what it sends when it
+			// goes is still sent then, and an Undo with time left comes back when the newer one leaves.
+			toastOptions={{
+				unstyled: true,
+				className: "flex w-full justify-center sm:*:w-full max-lg:data-[front=false]:invisible",
+			}}
 			className={cn(
 				// Sonner's own stylesheet sets a system font; the app's is Geist.
 				"font-sans!",

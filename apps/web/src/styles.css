@@ -1,5 +1,21 @@
 @import "@noodle/ui/globals.css";
 
+/*
+ * Review's compact card (issue 120): for a phone too narrow or too short for the whole card with
+ * Skip and Undo under it: under 360px wide, or under 700px tall below lg (320×568, 375×667, and
+ * Safari with its bars showing). `roomy` is every other window; the two never both match.
+ */
+@custom-variant compact {
+	@media (max-width: 359px), (max-height: 699px) and (max-width: 1023px) {
+		@slot;
+	}
+}
+@custom-variant roomy {
+	@media (min-width: 360px) and (min-height: 700px), (min-width: 1024px) {
+		@slot;
+	}
+}
+
 /* Clerk's sign-in and account UI, themed from the same tokens (follows light/dark). */
 :root {
 	--clerk-color-primary: var(--primary);

@@ -191,10 +191,12 @@ function SheetHeader({
 	return (
 		<div
 			data-slot="sheet-header"
-			className={cn("flex min-h-8 items-center gap-3 max-lg:touch-none", className)}
+			className={cn("flex min-h-8 items-start gap-3 max-lg:touch-none", className)}
 			{...drag}
 		>
-			<div className="grid flex-1 gap-0.5">
+			{/* Close is on the title's line however long the description under it (issue 120): the
+			    title starts as far down as Close is taller than its line, so the two share a middle. */}
+			<div className="grid flex-1 gap-0.5 pt-1 max-lg:pt-2.5">
 				<SheetPrimitive.Title className="text-base font-semibold">{title}</SheetPrimitive.Title>
 				{description ? (
 					<SheetPrimitive.Description className="text-[13px] text-muted-foreground">
@@ -205,7 +207,7 @@ function SheetHeader({
 			<SheetPrimitive.Close
 				aria-label="Close"
 				className={cn(
-					"grid size-8 place-items-center rounded-lg text-muted-foreground max-lg:-me-1.5 max-lg:size-11",
+					"grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground max-lg:-me-1.5 max-lg:size-11",
 					"transition-colors duration-(--duration-fast) ease-standard hover:bg-surface-2 hover:text-foreground",
 					"focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
 				)}
