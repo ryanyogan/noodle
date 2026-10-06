@@ -449,7 +449,12 @@ function TakeHomePayStep({
 			onSubmit={() => cents !== null && cents > 0 && set.mutate(cents)}
 		>
 			<Field
-				label="What lands in your account in a normal month, after tax?"
+				// A label's lines sit tight (it is one line nearly everywhere): this one wraps on a phone.
+				label={
+					<span className="leading-snug">
+						What lands in your account in a normal month, after tax?
+					</span>
+				}
 				htmlFor={`${id}-amount`}
 				hint={
 					suggested
