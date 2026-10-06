@@ -75,6 +75,7 @@ import {
 import { escapeStep } from "../../../transaction-table";
 import {
 	monthOfTransaction,
+	rangeBucketsQuery,
 	type TransactionChange,
 	type TransactionFilters,
 	type TransactionRow,
@@ -448,7 +449,16 @@ function Filters({
 		return () => clearTimeout(timer);
 	}, [search, filters.q]);
 	const [sheetOpen, setSheetOpen] = useState(false);
-	const bucketOptions = plan.buckets.map((bucket) => ({ value: bucket.id, label: bucket.name }));
+	// In a list of more than a month (issue 117) the filter offers the Buckets of every month it
+	// covers, each once, by name; until they are here, the address month's.
+	const inRange = useQuery({
+		...rangeBucketsQuery(month, filters.range),
+		enabled: Boolean(filters.range),
+	}).data;
+	const bucketOptions = (filters.range && inRange ? inRange : plan.buckets).map((bucket) => ({
+		value: bucket.id,
+		label: bucket.name,
+	}));
 	const forOptions = [
 		{ value: "everyone", label: "Everyone (shared)" },
 		...pickableMembers(members, filters.for ? [filters.for] : []).map((member) => ({

@@ -24,6 +24,7 @@ import { reviewWrites } from "./review-stack";
 import type { MonthData } from "./server/month";
 import {
 	deleteTransaction,
+	getRangeBuckets,
 	getSameMerchant,
 	getTransaction,
 	getTransactions,
@@ -97,6 +98,13 @@ export const transactionsQuery = (month: MonthKey, filters: TransactionFilters) 
 			}),
 		initialPageParam: undefined as TransactionCursor | undefined,
 		getNextPageParam: (page) => page.next ?? undefined,
+	});
+
+/** The Buckets of every month a list of more than a month covers: its Bucket filter's (issue 117). */
+export const rangeBucketsQuery = (month: MonthKey, range: TransactionFilters["range"]) =>
+	queryOptions({
+		queryKey: [...monthsKey, "range-buckets", month, range ?? null] as const,
+		queryFn: () => getRangeBuckets({ data: { month, ...rangeBounds(range, month) } }),
 	});
 
 /**

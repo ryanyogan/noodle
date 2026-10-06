@@ -63,6 +63,8 @@ export function BucketPicker({
 	defaultOpen = false,
 	onClose,
 	foot,
+	none,
+	loading,
 	"aria-label": label,
 }: {
 	/** What is chosen to begin with (a table cell shows what the row is assigned to). */
@@ -82,6 +84,13 @@ export function BucketPicker({
 	onCreate?: (name: string) => void;
 	/** Under the choices: a way to where Buckets are managed (issue 98, from Review). */
 	foot?: ReactNode;
+	/**
+	 * In place of the search and the list (issue 117): the Transaction's month had no Buckets, so
+	 * there is nothing to pick or create. It says why.
+	 */
+	none?: ReactNode;
+	/** Said in the list while another month's Plan is on its way, instead of "Nothing matches". */
+	loading?: string;
 	"aria-label": string;
 }) {
 	const hydrated = useHydrated();
@@ -96,7 +105,7 @@ export function BucketPicker({
 			choices: group.choices.filter((c) => matchesSearch(textOf(c), search)),
 		}))
 		.filter((group) => group.choices.length > 0);
-	const create = onCreate ? nameToCreate(search, all.map(textOf)) : null;
+	const create = onCreate && !loading ? nameToCreate(search, all.map(textOf)) : null;
 	const close = () => {
 		setOpen(false);
 		setSearch("");
@@ -122,52 +131,70 @@ export function BucketPicker({
 				align="start"
 				collisionPadding={8}
 				// The shared Combobox's panel: as wide as its field, above sheets and alert dialogs.
-				className="z-55 w-(--radix-popover-trigger-width) min-w-[max(var(--radix-popover-trigger-width),12rem)] max-w-[calc(100vw-16px)] gap-0 overflow-hidden rounded-xl border p-0 ring-0"
+				className={cn(
+					"z-55 w-(--radix-popover-trigger-width) min-w-[max(var(--radix-popover-trigger-width),12rem)] max-w-[calc(100vw-16px)] gap-0 overflow-hidden rounded-xl border p-0 ring-0",
+					// A sentence, not a list of names: room to read it in a narrow cell.
+					none && "min-w-[max(var(--radix-popover-trigger-width),20rem)]",
+				)}
 			>
-				<Command loop shouldFilter={false}>
-					<CommandInput placeholder={searchPlaceholder} value={search} onValueChange={setSearch} />
-					<CommandList>
-						<CommandEmpty>Nothing matches.</CommandEmpty>
-						{shown.map((group) => (
-							<CommandGroup key={group.label} heading={group.label}>
-								{group.choices.map((c) => (
+				{none ? (
+					<div className="p-3">{none}</div>
+				) : (
+					<Command loop shouldFilter={false}>
+						<CommandInput
+							placeholder={searchPlaceholder}
+							value={search}
+							onValueChange={setSearch}
+						/>
+						<CommandList>
+							{loading ? (
+								<p role="status" className="px-3 py-6 text-center text-sm text-muted-foreground">
+									{loading}
+								</p>
+							) : (
+								<CommandEmpty>Nothing matches.</CommandEmpty>
+							)}
+							{shown.map((group) => (
+								<CommandGroup key={group.label} heading={group.label}>
+									{group.choices.map((c) => (
+										<CommandItem
+											key={c.value}
+											value={c.value}
+											disabled={c.disabled}
+											checked={c.value === current}
+											onSelect={() => {
+												setCurrent(c.value);
+												close();
+												onValueChange(c.value);
+											}}
+										>
+											{c.label}
+										</CommandItem>
+									))}
+								</CommandGroup>
+							))}
+							{create && onCreate ? (
+								<CommandGroup heading="New">
 									<CommandItem
-										key={c.value}
-										value={c.value}
-										disabled={c.disabled}
-										checked={c.value === current}
+										value={`create:${create}`}
 										onSelect={() => {
-											setCurrent(c.value);
 											close();
-											onValueChange(c.value);
+											onCreate(create);
 										}}
 									>
-										{c.label}
+										<Plus aria-hidden="true" />
+										<span className="min-w-0 break-words">Create Bucket “{create}”</span>
 									</CommandItem>
-								))}
-							</CommandGroup>
-						))}
-						{create && onCreate ? (
-							<CommandGroup heading="New">
-								<CommandItem
-									value={`create:${create}`}
-									onSelect={() => {
-										close();
-										onCreate(create);
-									}}
-								>
-									<Plus aria-hidden="true" />
-									<span className="min-w-0 break-words">Create Bucket “{create}”</span>
-								</CommandItem>
-							</CommandGroup>
+								</CommandGroup>
+							) : null}
+						</CommandList>
+						{foot ? (
+							<div data-slot="bucket-picker-foot" className="border-t p-1">
+								{foot}
+							</div>
 						) : null}
-					</CommandList>
-					{foot ? (
-						<div data-slot="bucket-picker-foot" className="border-t p-1">
-							{foot}
-						</div>
-					) : null}
-				</Command>
+					</Command>
+				)}
 			</PopoverContent>
 		</Popover>
 	);

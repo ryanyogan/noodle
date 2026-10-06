@@ -24,6 +24,7 @@ import { useHydrated } from "@tanstack/react-router";
 import { Plus, Sparkles, Split as SplitIcon, Trash2, X } from "lucide-react";
 import { type FormEvent, type ReactNode, useRef, useState } from "react";
 import { ulid } from "ulid";
+import { isUnassigned, nothingToFileIn } from "../before-plan";
 import { dayName, formatMoney, formatMoneyInput } from "../format";
 import { forLabel, type MemberSummary } from "../members";
 import type {
@@ -33,11 +34,12 @@ import type {
 	TransactionEdit,
 	TransactionRow,
 } from "../transactions";
-import { nameOf, useEditFormKey } from "../transactions";
+import { monthOfTransaction, nameOf, useEditFormKey } from "../transactions";
 import { ForPicker } from "./for-picker";
 import { AmountInput } from "./goals";
 import { MatchSection } from "./match-section";
 import { MoneyDetail, TransferSection } from "./money-sections";
+import { NoBuckets, useFileWithout } from "./no-buckets";
 import { Confirm } from "./plan-editing";
 import { ReceiptSection } from "./receipt-section";
 
@@ -285,6 +287,11 @@ function EditForm({
 	today: DayKey;
 }) {
 	const hydrated = useHydrated();
+	// A month before the first Plan has nothing to file in (issue 117): the field says so.
+	const ownMonth = monthOfTransaction(transaction);
+	const current = today.slice(0, 7) as typeof ownMonth;
+	const none = nothingToFileIn(plan, ownMonth, current);
+	const fileWithout = useFileWithout();
 	const [amount, setAmount] = useState(formatMoneyInput(transaction.amountCents));
 	const [assignment, setAssignment] = useState(assignmentValue(transaction));
 	const [forMemberIds, setForMemberIds] = useState(transaction.for);
@@ -541,17 +548,33 @@ function EditForm({
 								) : undefined
 							}
 						>
-							<Combobox
-								id="transaction-assignment"
-								name="assignment"
-								disabled={!hydrated}
-								value={assignment}
-								onValueChange={setAssignment}
-								placeholder="Choose a Bucket"
-								searchPlaceholder="Search"
-								aria-invalid={invalid === "assignment" || undefined}
-								choices={choices}
-							/>
+							{none ? (
+								<NoBuckets
+									id="transaction-assignment"
+									month={ownMonth}
+									current={current}
+									onFileWithout={
+										isUnassigned(transaction)
+											? () => {
+													fileWithout.mutate(transaction);
+													onClose();
+												}
+											: undefined
+									}
+								/>
+							) : (
+								<Combobox
+									id="transaction-assignment"
+									name="assignment"
+									disabled={!hydrated}
+									value={assignment}
+									onValueChange={setAssignment}
+									placeholder="Choose a Bucket"
+									searchPlaceholder="Search"
+									aria-invalid={invalid === "assignment" || undefined}
+									choices={choices}
+								/>
+							)}
 						</Field>
 					)}
 				</div>

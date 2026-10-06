@@ -921,3 +921,145 @@ test("more than a month: a row of another month is refiled where it is, in its o
 	await expect(bucketRow(page, "Hockey")).toContainText("$25 spent");
 	await page.context().close();
 });
+
+test("more than a month: all in the range are selected and deleted across its months, and File in… is off with its reason", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await page.setViewportSize({ width: 1440, height: 900 });
+	const { month } = await setUpMonths(page);
+	await page.goto(`/transactions/${month}?range=3m`);
+	await hydrated(page.getByLabel("Months"));
+	const rows = list(page).locator("button:not([role=checkbox]):not([data-cell])");
+	await expect(rows).toHaveCount(4);
+	const bar = page.getByRole("region", { name: "Selecting Transactions" });
+	const box = (title: string) =>
+		list(page).getByRole("checkbox", { name: new RegExp(`^Select ${title},`, "i") });
+
+	// One tick, then everything in the three months.
+	await box("Now A").click();
+	await expect(bar).toContainText("1 selected");
+	await bar.getByRole("button", { name: /^Select all 4 in \w{3}( \d{4})? – \w{3} \d{4}$/ }).click();
+	await expect(bar).toContainText("4 selected");
+	await expect(box("Older D")).toBeChecked();
+
+	// Filing is one month at a time: the button is off and says why.
+	const fileIn = bar.getByRole("button", { name: "File in…" });
+	await expect(fileIn).toBeDisabled();
+	await expect(fileIn).toHaveAttribute(
+		"title",
+		"Transactions are filed one month at a time: show This month to file these",
+	);
+
+	// All but one, from three different months, are deleted together.
+	await box("Last C").click();
+	await expect(bar).toContainText("3 selected");
+	await bar.getByRole("button", { name: "Delete" }).click();
+	const sheet = page.getByRole("dialog", { name: "Delete 3 Transactions?" });
+	await expect(sheet).toContainText("adding up to $70.");
+	await sheet.getByRole("button", { name: "Delete 3 Transactions" }).click();
+	await expect(said(page, "Deleted 3 Transactions.")).toBeVisible();
+	await expect(bar).toHaveCount(0);
+	await expect(rows).toHaveCount(1);
+	await expect(row(page, "Last C")).toBeVisible();
+
+	// The one left out of the range (five months back) is still there.
+	await page.goto(`/transactions/${month}?range=all`);
+	await expect(rows).toHaveCount(2);
+	await expect(row(page, "Far E")).toBeVisible();
+	await page.context().close();
+});
+
+/**
+ * A planned Household whose Buckets start this month, with a Transaction four months back, before
+ * its first Plan (issue 117): unassigned and waiting in Review, as imported bank history is.
+ */
+async function setUpBeforePlan(page: Page) {
+	const created = await createPlannedHousehold(page, plan);
+	if (!created) throw new Error("The Household wasn't made directly, so its IDs aren't known");
+	const { householdId, parentId, month } = created;
+	const sql = (value: string) => `'${value.replaceAll("'", "''")}'`;
+	const old = ulid();
+	const before = monthsBefore(month, 4);
+	await seedSql([
+		`insert into transactions (id, household_id, source, date, amount_cents, note, created_by_member_id) values (${sql(old)}, ${sql(householdId)}, 'quick-add', ${sql(`${before}-10`)}, 4200, 'Old F', ${sql(parentId)})`,
+		`insert into categorizations (transaction_id, household_id, member_id, outcome, merchant, created_at) values (${sql(old)}, ${sql(householdId)}, ${sql(parentId)}, 'review', 'old f', unixepoch() * 1000)`,
+		`insert into transactions (id, household_id, source, date, amount_cents, note, created_by_member_id) values (${sql(ulid())}, ${sql(householdId)}, 'quick-add', ${sql(`${month}-01`)}, 1000, 'Now A', ${sql(parentId)})`,
+	]);
+	return { month, before };
+}
+
+const NO_BUCKETS =
+	/^\w+( \d{4})? had no Buckets yet\. Transactions from before your Plan can stay Unassigned, or file this one without a Bucket\.$/;
+
+test("a Transaction from before the first Plan: its picker says the month had no Buckets, and it is filed without a Bucket and leaves Review", async ({
+	browser,
+}) => {
+	const page = await signedInPage(browser, parent.email);
+	await page.setViewportSize({ width: 1440, height: 900 });
+	const { month } = await setUpBeforePlan(page);
+	await page.goto(`/transactions/${month}?range=all`);
+	await hydrated(page.getByLabel("Months"));
+	const waits = nav(page).getByRole("link", { name: "1 to review" });
+	await expect(waits).toBeVisible();
+	const refile = (title: string) =>
+		list(page).getByRole("button", { name: new RegExp(`^Refile ${title}, now `) });
+	const note = page.getByTestId("no-buckets");
+
+	// A month with Buckets keeps its picker: a search, the Buckets, and a new one by name.
+	await refile("Now A").click();
+	await expect(page.getByPlaceholder("Search or create")).toBeVisible();
+	await expect(page.getByRole("option", { name: "Groceries", exact: true })).toBeVisible();
+	await expect(note).toHaveCount(0);
+	await page.keyboard.press("Escape");
+
+	// The month before the Plan: one sentence instead of an empty list, and nothing to search or
+	// create (a past month's Plan can't be given a Bucket).
+	await refile("Old F").click();
+	await expect(note.getByRole("paragraph")).toHaveText(NO_BUCKETS);
+	await expect(page.getByPlaceholder("Search or create")).toHaveCount(0);
+	await expect(page.getByRole("option")).toHaveCount(0);
+	const filed = savedBy(page, "fileWithoutBucket");
+	await note.getByRole("button", { name: "File without a Bucket" }).click();
+	await filed;
+	await expect(said(page, /filed without a Bucket\. It has left Review\.$/)).toBeVisible();
+	// It is still in the list, Unassigned, and Review no longer asks about it.
+	await expect(row(page, "Old F")).toBeVisible();
+	await expect(waits).toHaveCount(0);
+
+	// Its editor under the row says the same where the Bucket would be chosen.
+	await row(page, "Old F").click();
+	await expect(editSheet(page).getByTestId("no-buckets").getByRole("paragraph")).toHaveText(
+		NO_BUCKETS,
+	);
+	await expect(editSheet(page).getByRole("combobox", { name: "Assigned to" })).toHaveCount(0);
+	await page.context().close();
+});
+
+test("on a phone, a Transaction from before the first Plan says so in its sheet and is filed without a Bucket there", {
+	tag: "@phone",
+}, async ({ browser }) => {
+	const page = await signedInPage(browser, parent.email, {
+		viewport: { width: 393, height: 852 },
+		isMobile: true,
+		hasTouch: true,
+	});
+	// The Household is made at desktop width, where the helpers' links are.
+	await page.setViewportSize({ width: 1280, height: 900 });
+	const { before } = await setUpBeforePlan(page);
+	await page.setViewportSize({ width: 393, height: 852 });
+	// The month before the Plan, at its own address.
+	await page.goto(`/transactions/${before}`);
+	await hydrated(page.getByLabel("Search notes and merchants"));
+	await row(page, "Old F").click();
+	const note = editSheet(page).getByTestId("no-buckets");
+	await expect(note.getByRole("paragraph")).toHaveText(NO_BUCKETS);
+	await expect(editSheet(page).getByRole("combobox", { name: "Assigned to" })).toHaveCount(0);
+	const filed = savedBy(page, "fileWithoutBucket");
+	await note.getByRole("button", { name: "File without a Bucket" }).click();
+	await filed;
+	await expect(said(page, /filed without a Bucket\. It has left Review\.$/)).toBeVisible();
+	await expect(editSheet(page)).toHaveCount(0);
+	await expect(row(page, "Old F")).toBeVisible();
+	await page.context().close();
+});

@@ -1,14 +1,16 @@
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	addBucket,
 	createHouseholdForParent,
 	type Db,
 	fileTransactions,
+	loadBucketsInMonths,
 	loadTransactionsPage,
 	summarizeDeletion,
 	type TransactionSort,
 } from "./index";
-import { transactions } from "./schema";
+import { buckets, transactions } from "./schema";
 import { testDb } from "./test-db";
 
 // More than a month on the Transactions page (issue 99): the list, its total and a selection over
@@ -221,5 +223,52 @@ describe("a selection of more than a month", () => {
 		});
 		expect(byId.ok && byId.filed).toBe(1);
 		expect(byId.ok && byId.skipped.otherMonth).toBe(2);
+	});
+});
+
+describe("the Buckets of the months a list covers (issue 117)", () => {
+	const names = async (range: Parameters<typeof loadBucketsInMonths>[2], who = viewer) =>
+		(await loadBucketsInMonths(db, who, range)).map((bucket) => bucket.name);
+
+	beforeEach(async () => {
+		const add = (bucketId: string, name: string, from: string) =>
+			addBucket(db, {
+				...viewer,
+				bucketId,
+				name,
+				color: 2,
+				month: from as "2026-10",
+				allowanceCents: 10_000,
+			});
+		// Groceries is in the Plan from August (above). Hockey joins in October; "apples" was there
+		// in June and July only.
+		await add("hockey", "Hockey", "2026-10");
+		await add("apples", "apples", "2026-06");
+		await db.update(buckets).set({ archivedFromMonth: "2026-08" }).where(eq(buckets.id, "apples"));
+	});
+
+	it("is one month's Plan when the list is one month", async () => {
+		expect(await names({ month })).toEqual(["Groceries", "Hockey"]);
+		expect(await names({ month: "2026-09" })).toEqual(["Groceries"]);
+		expect(await names({ month: "2026-07" })).toEqual(["apples"]);
+	});
+
+	it("is every month's from the first to the last, each once, by name whatever its capitals", async () => {
+		expect(await names({ month, fromMonth: "2026-08" })).toEqual(["Groceries", "Hockey"]);
+		expect(await names({ month, fromMonth: "2026-07" })).toEqual(["apples", "Groceries", "Hockey"]);
+		expect(await names({ month: "2026-09", fromMonth: "2026-07" })).toEqual([
+			"apples",
+			"Groceries",
+		]);
+	});
+
+	it("is every Bucket there has been up to the month, for all time", async () => {
+		expect(await names({ month, andEarlier: true })).toEqual(["apples", "Groceries", "Hockey"]);
+		expect(await names({ month: "2026-05", andEarlier: true })).toEqual([]);
+	});
+
+	it("is nothing for a month before the first Plan, and nothing of another Household's", async () => {
+		expect(await names({ month: "2026-03" })).toEqual([]);
+		expect(await names({ month, andEarlier: true }, stranger)).toEqual([]);
 	});
 });

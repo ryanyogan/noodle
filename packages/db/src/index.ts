@@ -714,6 +714,7 @@ export {
 } from "./plan-draft";
 export { type Author, loadPlanChanges, type PlanHistory } from "./plan-log";
 export { privateTotalId, type Viewer } from "./privacy";
+export { loadBucketsInMonths } from "./range-buckets";
 export {
 	type AddReceiptResult,
 	addReceipt,

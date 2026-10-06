@@ -2,7 +2,7 @@ import { Button } from "@noodle/ui/components/button";
 import { Input } from "@noodle/ui/components/input";
 import type { ChoiceGroup } from "@noodle/ui/components/select";
 import { ChevronDown, Pencil } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { assignedValue, cellName, NAME_MAX } from "../transaction-cells";
 import { type TransactionRow, useEditFormKey } from "../transactions";
 import { BucketPicker } from "./bucket-picker";
@@ -27,6 +27,13 @@ export type CellEdits = {
 	create: (transaction: TransactionRow, name: string) => void;
 	/** The month's Buckets and Commitments this Parent can assign to. */
 	choices: ChoiceGroup[];
+	/** The Plan of the cell's month is still on its way (a row of another month). */
+	loading: boolean;
+	/**
+	 * The cell's month had no Buckets (issue 117): what its picker says instead of a list. Null
+	 * when there is something to pick.
+	 */
+	none: ((transaction: TransactionRow) => ReactNode) | null;
 };
 
 // Quiet until the row is pointed at or holds focus; always there where nothing hovers (a tablet).
@@ -167,6 +174,8 @@ export function AssignedCell({
 					onClose={() => cells.stop(true)}
 					onValueChange={(value) => cells.refile(transaction, value)}
 					onCreate={(name) => cells.create(transaction, name)}
+					loading={cells.loading ? "Loading that month’s Buckets…" : undefined}
+					none={cells.none?.(transaction)}
 				/>
 			</span>
 		);

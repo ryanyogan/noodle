@@ -7,6 +7,7 @@ import {
 	type FiledBefore,
 	type FilingResult,
 	fileTransactions as fileTransactionsInDb,
+	loadBucketsInMonths,
 	loadBucketUses,
 	loadRules,
 	loadTransaction,
@@ -186,6 +187,21 @@ export const getTransactions = createServerFn({ method: "GET" })
 		({ data, context }): Promise<TransactionsPage> =>
 			loadTransactionsPage(getDb(), viewerOf(context), { ...data, limit: PAGE_SIZE }),
 	);
+
+/**
+ * The Buckets of every month a list of more than a month covers (issue 117), each once, by name:
+ * what its Bucket filter offers. Never the other Parent's Personal Allowance.
+ */
+export const getRangeBuckets = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			month: monthKeySchema,
+			fromMonth: monthKeySchema.optional(),
+			andEarlier: z.boolean().optional(),
+		}),
+	)
+	.handler(({ data, context }) => loadBucketsInMonths(getDb(), viewerOf(context), data));
 
 /**
  * One Transaction by its ID, as the list shows it, for its own address

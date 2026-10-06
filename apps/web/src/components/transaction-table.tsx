@@ -5,6 +5,7 @@ import { Skeleton } from "@noodle/ui/components/skeleton";
 import { cn } from "@noodle/ui/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, type Ref, useEffect, useMemo, useRef, useState } from "react";
+import { isUnassigned, nothingToFileIn } from "../before-plan";
 import { dayName, formatMoney } from "../format";
 import type { MemberSummary } from "../members";
 import { cellEdits, refileOf, renameOf, undoOf } from "../transaction-cells";
@@ -35,6 +36,7 @@ import {
 	useAssignablePlan,
 } from "../transactions";
 import { NewBucketStep } from "./bucket-picker";
+import { NoBuckets, useFileWithout } from "./no-buckets";
 import type { CellEditing, CellEdits } from "./transaction-cells";
 import { type TransactionTableRow, transactionColumns } from "./transaction-columns";
 import { waitingForBank } from "./transaction-list";
@@ -213,6 +215,10 @@ export function TransactionTable({
 	const cellMonth = cellRow ? monthOfTransaction(cellRow) : month;
 	const otherPlan = useAssignablePlan(cellMonth, parentId, cellMonth !== month);
 	const cellPlan = cellMonth === month ? plan : otherPlan;
+	// A month before the first Plan has nothing to file in (issue 117): the picker says so.
+	const current = today.slice(0, 7) as typeof month;
+	const cellEmpty = nothingToFileIn(cellPlan, cellMonth, current);
+	const fileWithout = useFileWithout();
 	const choices = useMemo(
 		() => [
 			{
@@ -254,6 +260,23 @@ export function TransactionTable({
 	const cells: CellEdits = {
 		editing,
 		choices,
+		loading: cellPlan === null,
+		none: cellEmpty
+			? (transaction) => (
+					<NoBuckets
+						month={cellMonth}
+						current={current}
+						onFileWithout={
+							isUnassigned(transaction)
+								? () => {
+										setEditing(null);
+										fileWithout.mutate(transaction);
+									}
+								: undefined
+						}
+					/>
+				)
+			: null,
 		start: (transaction, column) => setEditing({ id: transaction.id, column }),
 		stop: (refocus) => {
 			const was = editing;
