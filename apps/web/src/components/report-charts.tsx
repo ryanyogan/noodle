@@ -49,7 +49,7 @@ import {
 } from "recharts";
 import { formatMoney, formatWholeMoney, shortDay } from "../format";
 import { useReducedMotion } from "../motion";
-import { formatCell, formatCompact, type ReportTable } from "../reports";
+import { columnFormatter, formatCell, formatCompact, type ReportTable } from "../reports";
 
 // Reports' charts (ADR-0013): Recharts through the shadcn wrapper in @noodle/ui, and plain
 // HTML/SVG where a chart is really a grid (heatmaps) or a ranked list. Colour follows the neutral
@@ -190,7 +190,10 @@ export function ChartCard({
 
 /** A ReportTable as an HTML table, money right-aligned in tabular figures. */
 export function DataTable({ table, className }: { table: ReportTable; className?: string }) {
-	const pad = "px-(--card-pad) first:ps-(--card-pad) last:pe-(--card-pad)";
+	// 24px between columns, the card's own padding at its two edges: four columns then fit a
+	// two-fifths card at 1440 without the last one going under the card's edge (issue 73).
+	const pad = "px-3 first:ps-(--card-pad) last:pe-(--card-pad)";
+	const formats = table.columns.map((_, i) => columnFormatter(table, i));
 	return (
 		<div className={cn("-mx-(--card-pad)", className)}>
 			<Table className="min-w-max">
@@ -220,7 +223,7 @@ export function DataTable({ table, className }: { table: ReportTable; className?
 										numeric={i > 0 && kind !== "text"}
 										className={pad}
 									>
-										{formatCell(kind, value)}
+										{(formats[i] ?? ((v) => formatCell(kind, v)))(value)}
 									</TableCell>
 								);
 							})}
@@ -1079,9 +1082,11 @@ export function CalendarHeatmap({
 					onPointerDownCapture={(event) => {
 						pointer.current = event.pointerType;
 					}}
-					className="grid w-max gap-[3px] text-[11px] text-muted-foreground"
+					// From lg up the weeks share the card's width, each up to twice as wide as tall, so a
+					// half year reaches the card's right edge instead of stopping at 60% (issue 73).
+					className="grid w-max gap-[3px] text-[11px] text-muted-foreground lg:w-full lg:min-w-min lg:[--heat-week:3rem]"
 					style={{
-						gridTemplateColumns: `auto repeat(${weeks}, 1.5rem)`,
+						gridTemplateColumns: `auto repeat(${weeks}, minmax(1.5rem, var(--heat-week, 1.5rem)))`,
 						gridTemplateRows: "auto repeat(7, 1.5rem)",
 					}}
 				>
@@ -1129,7 +1134,7 @@ export function CalendarHeatmap({
 									}}
 									aria-label={label}
 									className={cn(
-										"size-6 rounded-[4px] transition-transform duration-(--duration-fast) hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring",
+										"h-6 w-full rounded-[4px] transition-transform duration-(--duration-fast) hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring",
 										day === revealed && "ring-2 ring-foreground/60",
 									)}
 									style={{
@@ -1143,17 +1148,20 @@ export function CalendarHeatmap({
 					})}
 				</div>
 			</div>
-			{current ? (
-				<p className="text-xs text-foreground tabular-nums">
-					{shortDay(current)}: {formatMoney(byDay.get(current) ?? 0)}
-				</p>
-			) : null}
-			<div className="flex items-center gap-1.5 text-xs text-muted-foreground" aria-hidden="true">
-				Less
-				{fills.map((fill) => (
-					<span key={fill} className="size-3 rounded-[3px]" style={{ background: fill }} />
-				))}
-				More
+			{/* From lg up the day's read-out and the key share one line, the key at the right edge. */}
+			<div className="grid gap-3 lg:flex lg:items-center lg:justify-between">
+				{current ? (
+					<p className="text-xs text-foreground tabular-nums">
+						{shortDay(current)}: {formatMoney(byDay.get(current) ?? 0)}
+					</p>
+				) : null}
+				<div className="flex items-center gap-1.5 text-xs text-muted-foreground" aria-hidden="true">
+					Less
+					{fills.map((fill) => (
+						<span key={fill} className="size-3 rounded-[3px]" style={{ background: fill }} />
+					))}
+					More
+				</div>
 			</div>
 		</div>
 	);

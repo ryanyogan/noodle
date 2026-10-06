@@ -16,7 +16,7 @@ import {
 import { Tile } from "@noodle/ui/components/tile";
 import { getRouteApi } from "@tanstack/react-router";
 import { asBucketColor, monogram } from "../buckets";
-import { formatMoney, monthName } from "../format";
+import { formatMoney, formatWholeMoney, monthName } from "../format";
 import { useForTotals } from "../members";
 
 // What each Child cost this month and the year so far, by Bucket: Reports › People shows it under
@@ -56,8 +56,8 @@ export function ChildCosts({ of: children }: { of: CostChild[] }) {
 			))}
 			<p className="text-[13px] text-muted-foreground">
 				Spending For Everyone counts once, for the whole Household:{" "}
-				{formatMoney(totals.month.household.total)} this month,{" "}
-				{formatMoney(totals.yearToDate.household.total)} this year.
+				{formatWholeMoney(totals.month.household.total)} this month,{" "}
+				{formatWholeMoney(totals.yearToDate.household.total)} this year.
 			</p>
 		</Section>
 	);

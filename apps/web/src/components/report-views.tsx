@@ -1079,7 +1079,8 @@ function AreaView({ report, data, names, search, nav, tables }: ViewProps<"area"
 				}
 			>
 				{data.items.length ? (
-					<ul className="-mx-(--card-pad) divide-y border-t">
+					// No line over the first row: the card's own edge is above it (issue 73).
+					<ul className="-mx-(--card-pad) -my-2.5 divide-y">
 						{data.items.map((item, i) => (
 							<li
 								key={`${item.id}:${item.target}`}
@@ -1725,7 +1726,8 @@ function GoalsView({ data, tables, report }: ViewProps<"goals">) {
 										<span className="min-w-0 flex-1 truncate text-sm font-semibold">{g.name}</span>
 										{g.completed ? null : (
 											<span className="text-xs text-muted-foreground tabular-nums">
-												{formatPercent(share)}
+												{/* Whole percents from 1% up, as the bar reads: "7%" beside "16%" (issue 73). */}
+												{share >= 0.01 ? `${Math.round(share * 100)}%` : formatPercent(share)}
 											</span>
 										)}
 									</span>
@@ -1741,7 +1743,8 @@ function GoalsView({ data, tables, report }: ViewProps<"goals">) {
 											<GoalProgressBar share={share} />
 										</>
 									)}
-									<span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+									{/* As tall as a badge with or without one, so the status lines of a row of cards sit on one line. */}
+									<span className="flex min-h-5.5 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
 										{status}
 										{pastDue ? (
 											<Badge variant="over" dot>
