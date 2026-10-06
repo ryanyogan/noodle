@@ -2439,7 +2439,7 @@ test.beforeAll(async ({ browser }) => {
 				),
 				...([1, 2] as const).map(
 					(toasts): Shot => ({
-						// One toast with Undo, then two stacked: a row of last month deleted for each.
+						// One toast, then two stacked: a row of last month deleted, then a Quick Add.
 						name: toasts === 1 ? "d62-toast-undo" : "d63-toasts-two",
 						path: `/transactions/${monthBefore}`,
 						ready: async (page) => {
@@ -2447,21 +2447,42 @@ test.beforeAll(async ({ browser }) => {
 								.getByRole("grid", { name: /^Transactions in / })
 								.locator("[data-slot=data-table-body]")
 								.getByRole("checkbox");
-							for (let made = 0; made < toasts; made++) {
-								await boxes.first().click({ timeout: 15_000 });
-								await page
-									.getByRole("region", { name: "Selecting Transactions" })
-									.getByRole("button", { name: "Delete" })
-									.click({ timeout: 15_000 });
-								const sheet = page.getByRole("dialog", { name: /^Delete \d+ Transactions?\?$/ });
-								await sheet.getByRole("button", { name: /^Delete/ }).click({ timeout: 15_000 });
-								await expect(page.locator("[data-sonner-toast]")).toHaveCount(made + 1, {
-									timeout: 15_000,
-								});
-							}
+							await boxes.first().click({ timeout: 15_000 });
+							await page
+								.getByRole("region", { name: "Selecting Transactions" })
+								.getByRole("button", { name: "Delete" })
+								.click({ timeout: 15_000 });
+							const sheet = page.getByRole("dialog", { name: /^Delete \d+ Transactions?\?$/ });
+							await sheet.getByRole("button", { name: /^Delete/ }).click({ timeout: 15_000 });
+							const said = page.locator("[data-sonner-toast]");
+							await expect(said).toHaveCount(1, { timeout: 15_000 });
+							if (toasts === 1) return;
+							// The second, while the first still shows (it stays ten seconds): a Quick Add.
+							const quick = page.getByRole("dialog", { name: "Quick Add" });
+							await expect(sheet).toBeHidden({ timeout: 15_000 });
+							await page.keyboard.press("q");
+							await expect(quick).toBeVisible({ timeout: 15_000 });
+							await page.keyboard.type("7");
+							await quick.getByRole("button", { name: /^Add \$7 to / }).click({ timeout: 15_000 });
+							await expect(said).toHaveCount(2, { timeout: 15_000 });
 						},
 					}),
 				),
+				{
+					// Ask with an answer (the shots build answers from the stub model).
+					name: "d24y-ask-answer",
+					path: "/ask",
+					ready: async (page) => {
+						const question = page.getByPlaceholder("Ask about your money");
+						await expect(question).toBeEnabled({ timeout: 15_000 });
+						await question.fill("How much did we spend on groceries this month?");
+						const ask = page.getByRole("button", { name: "Ask", exact: true });
+						await ask.click({ timeout: 15_000 });
+						// Asked and answered: the field is empty again and the button no longer busy.
+						await expect(question).toHaveValue("", { timeout: 30_000 });
+						await page.waitForTimeout(2500);
+					},
+				},
 			] satisfies Shot[]
 		).map((shot): Shot => ({ ...shot, desktop: true, window: true })),
 		{ name: "50-bank-return", path: "/bank/return", window: true },
