@@ -85,6 +85,7 @@ import {
 	isFeesGuess,
 	newFeesBucket,
 } from "../../../components/review-fees";
+import { forPicked, ReviewFor } from "../../../components/review-for";
 import { RuleForm } from "../../../components/rule-form";
 import { SectionPending } from "../../../components/section-layout";
 import { Suggested } from "../../../components/suggested";
@@ -175,7 +176,7 @@ function confirmed(item: ReviewItem): ReviewDecision | null {
 			amountCents: item.amountCents,
 			note: item.note,
 			assignment: { bucketId: item.guess.bucketId },
-			forMemberIds: item.for,
+			forMemberIds: forPicked(item),
 		},
 		placeName: item.guess.name,
 	};
@@ -575,7 +576,7 @@ function ReviewPage() {
 		const { bucketId, name } = item.guess;
 		const plan = queryClient.getQueryData(monthQuery(monthOfTransaction(item)).queryKey)?.plan;
 		const owner = plan?.buckets.find((b) => b.id === bucketId)?.owner;
-		offerRule(item, { id: bucketId, name, owner }, item.for);
+		offerRule(item, { id: bucketId, name, owner }, forPicked(item));
 	}
 
 	/**
@@ -617,7 +618,7 @@ function ReviewPage() {
 					amountCents: item.amountCents,
 					note: item.note,
 					assignment,
-					forMemberIds: item.for,
+					forMemberIds: forPicked(item),
 				},
 				placeName: name ?? "its Commitment",
 			},
@@ -642,11 +643,13 @@ function ReviewPage() {
 				bucketId: bucket.id,
 				commitmentId: null,
 				bucketName: bucket.name,
-				forMemberIds: item.for,
+				forMemberIds: forPicked(item),
 			});
 		}
-		if (bucket) offerRule(item, bucket, item.for);
-		else if (name) offerRule(item, { id, name, owner: undefined, commitment: true }, item.for);
+		if (bucket) offerRule(item, bucket, forPicked(item));
+		else if (name) {
+			offerRule(item, { id, name, owner: undefined, commitment: true }, forPicked(item));
+		}
 	}
 
 	/** The "Fees and interest" Bucket being added, by month: one try at a time, one ID for its retries. */
@@ -1669,6 +1672,9 @@ function ReviewCard({
 	const month = monthOfTransaction(item);
 	const plan = useQuery(monthQuery(month)).data?.plan;
 	const places = plan ? placesIn(plan, parentId) : null;
+	// Issue 138: who it is For, on a line over the picker. Not on a payment or between-us card,
+	// whose first answer is no Bucket at all; Edit sets For there.
+	const forChips = !ghost && !payment && !between && Boolean(places);
 	const bucket = plan?.buckets.find((b) => b.id === item.guess?.bucketId);
 	const headingId = `review-${item.id}`;
 	const empty = places !== null && places.buckets.length === 0 && places.commitments.length === 0;
@@ -1729,7 +1735,10 @@ function ReviewCard({
 						{labelOf(item)}
 					</h3>
 					{item.for.length > 0 ? (
-						<p className="text-sm text-muted-foreground">For {forLabel(members, item.for)}</p>
+						// With the For chips below, only where they have no room (the narrowest phones).
+						<p className={cn("text-sm text-muted-foreground", forChips && "hidden compact:block")}>
+							For {forLabel(members, item.for)}
+						</p>
 					) : null}
 				</div>
 				<div className="grid shrink-0 justify-items-end gap-1 @max-[15rem]/card:flex @max-[15rem]/card:basis-full @max-[15rem]/card:flex-wrap @max-[15rem]/card:items-center @max-[15rem]/card:justify-between">
@@ -1896,11 +1905,22 @@ function ReviewCard({
 				<div
 					className={cn(
 						"flex items-center gap-2 compact:flex-wrap @max-[15rem]/card:flex-wrap",
+						// Issue 138: who it is For, on a line over the picker (a real card with somewhere to file it).
+						forChips && "flex-wrap",
 						// "It’s a card payment" is long: on any phone it has the first row with Edit, and the
 						// picker the whole row under them, so the card is never wider than the screen.
 						(payment || between) && "max-sm:flex-wrap",
 					)}
 				>
+					{forChips ? (
+						<ReviewFor
+							item={item}
+							label={labelOf(item)}
+							members={members}
+							disabled={!hydrated}
+							className="order-first basis-full compact:hidden"
+						/>
+					) : null}
 					<BucketPicker
 						id={pickerId(item)}
 						// On the narrowest phones, with a suggestion, the picker has the row under Confirm and Edit.

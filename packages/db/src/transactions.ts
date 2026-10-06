@@ -1870,6 +1870,8 @@ export type FiledBefore = {
 	commitmentId: string | null;
 	/** Its version once filed: Undo only puts back one still at it. */
 	version: number;
+	/** Who it was For before, when the filing set a For too (issue 138): Undo puts that back as well. */
+	for?: string[];
 };
 
 export type FilingResult =
@@ -1902,8 +1904,10 @@ const inPairs = (pairs: string, ahead: 0 | 1) =>
  * `month`, whose Plan the target must be in. Left as they are, and counted: Splits, sides of a
  * Transfer, money back, Goal spending, anything partly in the other Parent's Personal Allowance,
  * and any whose version is not the one in `versions` (the rows the screen had loaded; others are
- * filed as they are). Only the assignment changes: amount, name and For stay. A Transaction filed
- * here leaves categorization, as one filed by hand does; no merchant is learned from it.
+ * filed as they are). Only the assignment changes: amount and name stay, and so does For unless
+ * `forMemberIds` is given (issue 138): then each one filed is For those Members (none: Everyone),
+ * one already in the target included when its For differs. A Transaction filed here leaves
+ * categorization, as one filed by hand does; no merchant is learned from it.
  *
  * Each is written only while still at the version read here, so a change made meanwhile is left
  * alone. Safe to retry: what is already there is counted as `already` and not touched.
@@ -1916,6 +1920,8 @@ export async function fileTransactions(
 		month: MonthKey;
 		assignment: Assignment;
 		versions?: Record<string, number>;
+		/** Who they are For from now on; left out, For stays as it is. */
+		forMemberIds?: string[];
 	},
 ): Promise<FilingResult> {
 	const { householdId, memberId } = viewer;
@@ -1954,6 +1960,44 @@ export async function fileTransactions(
 		.orderBy(asc(transactions.id))
 		.limit(BULK_FILE_MAX);
 
+	// With a For given: who each is For now, to tell what is already so and what Undo puts back.
+	const forNow = new Map<string, string[]>();
+	let forNext: string[] | null = null;
+	if (input.forMemberIds) {
+		const [theirs, current] = await Promise.all([
+			input.forMemberIds.length === 0
+				? []
+				: db
+						.select({ id: members.id })
+						.from(members)
+						.where(
+							and(eq(members.householdId, householdId), inArray(members.id, input.forMemberIds)),
+						),
+			db
+				.select({ transactionId: transactionFor.transactionId, memberId: transactionFor.memberId })
+				.from(transactionFor)
+				.where(
+					and(
+						eq(transactionFor.householdId, householdId),
+						inArray(
+							transactionFor.transactionId,
+							db
+								.select({ id: transactions.id })
+								.from(transactions)
+								.where(selectedBy(viewer, selection)),
+						),
+					),
+				)
+				.orderBy(asc(transactionFor.memberId)),
+		]);
+		forNext = theirs.map((member) => member.id).sort();
+		for (const row of current) {
+			forNow.set(row.transactionId, [...(forNow.get(row.transactionId) ?? []), row.memberId]);
+		}
+	}
+	const sameFor = (id: string) =>
+		forNext === null || (forNow.get(id) ?? []).join() === forNext.join();
+
 	const skipped: FilingSkips = {
 		split: 0,
 		transfer: 0,
@@ -1973,7 +2017,8 @@ export async function fileTransactions(
 		else if (row.transfer) skipped.transfer++;
 		else if (row.refund || row.amountCents < 1) skipped.moneyBack++;
 		else if (row.split) skipped.split++;
-		else if (row.bucketId === bucketId && row.commitmentId === commitmentId) already++;
+		else if (row.bucketId === bucketId && row.commitmentId === commitmentId && sameFor(row.id))
+			already++;
 		else if (sent !== undefined && sent !== row.version) skipped.changed++;
 		else toFile.push(row);
 	}
@@ -2010,6 +2055,7 @@ export async function fileTransactions(
 						),
 					),
 				),
+			...(forNext === null ? [] : forWrites(db, householdId, landed, forNext)),
 		]);
 		const done = new Set(
 			(await db.select({ id: transactions.id }).from(transactions).where(landed)).map(
@@ -2024,6 +2070,7 @@ export async function fileTransactions(
 					bucketId: row.bucketId,
 					commitmentId: row.commitmentId,
 					version: row.version + 1,
+					...(forNext === null ? {} : { for: forNow.get(row.id) ?? [] }),
 				});
 			}
 		}
@@ -2031,11 +2078,43 @@ export async function fileTransactions(
 	return { ok: true, filed: undo.length, already, skipped, undo };
 }
 
+/** Every one of `these` Transactions is For `memberIds` (none: Everyone) from now on. */
+function forWrites(db: Db, householdId: string, these: SQL | undefined, memberIds: string[]) {
+	const clear = db
+		.delete(transactionFor)
+		.where(
+			and(
+				eq(transactionFor.householdId, householdId),
+				inArray(
+					transactionFor.transactionId,
+					db.select({ id: transactions.id }).from(transactions).where(these),
+				),
+			),
+		);
+	if (memberIds.length === 0) return [clear];
+	const set = db
+		.insert(transactionFor)
+		.select(
+			db
+				.select({
+					transactionId: sql<string>`${transactions.id}`.as("transaction_id"),
+					memberId: sql<string>`${members.id}`.as("member_id"),
+					householdId: sql<string>`${members.householdId}`.as("household_id"),
+				})
+				.from(members)
+				.innerJoin(transactions, and(these) as SQL)
+				.where(and(eq(members.householdId, householdId), inArray(members.id, memberIds))),
+		)
+		.onConflictDoNothing();
+	return [clear, set];
+}
+
 /**
  * Undo for "File in…" (ADR-0055): puts each Transaction back in the Bucket or Commitment it had
  * (or none), only while it is still at the version the filing left it at, still the Parent's to
  * change, and what it goes back to is the Household's and theirs to assign to. Says how many went
- * back. Safe to retry: one already put back is one version on and is not touched again.
+ * back. One whose filing set a For too goes back to who it was For before. Safe to retry: one
+ * already put back is one version on and is not touched again.
  */
 export async function unfileTransactions(
 	db: Db,
@@ -2058,11 +2137,24 @@ export async function unfileTransactions(
 			and b.household_id = ${householdId} and (b.owner_member_id is null or b.owner_member_id = ${memberId})))
 			and (${was(3)} is null or exists (select 1 from commitments c where c.id = ${was(3)}
 			and c.household_id = ${householdId}))`;
-		const [before] = await db
-			.select({ count: sql<number>`count(*)`.mapWith(Number) })
+		const going = await db
+			.select({ id: transactions.id })
 			.from(transactions)
 			.where(and(editable, fileableWhole, inPairs(pairs, 0), theirs));
-		await db
+		// For goes back in the same write, only on those this very write puts back: they were at the
+		// filing's version just now and are one on after it.
+		const versions = new Map(chunk.map((entry) => [entry.id, entry.version]));
+		const withFor = chunk.filter(
+			(entry) => entry.for !== undefined && going.some((row) => row.id === entry.id),
+		);
+		const back = and(
+			eq(transactions.householdId, householdId),
+			inPairs(JSON.stringify(withFor.map((entry) => [entry.id, versions.get(entry.id)])), 1),
+		);
+		const whose = JSON.stringify(
+			withFor.flatMap((entry) => (entry.for ?? []).map((memberId) => [entry.id, memberId])),
+		);
+		const update = db
 			.update(transactions)
 			.set({
 				bucketId: was(2),
@@ -2070,11 +2162,50 @@ export async function unfileTransactions(
 				version: sql`${transactions.version} + 1`,
 			})
 			.where(and(editable, fileableWhole, inPairs(pairs, 0), theirs));
+		if (withFor.length === 0) await update;
+		else {
+			await db.batch([
+				update,
+				db
+					.delete(transactionFor)
+					.where(
+						and(
+							eq(transactionFor.householdId, householdId),
+							inArray(
+								transactionFor.transactionId,
+								db.select({ id: transactions.id }).from(transactions).where(back),
+							),
+						),
+					),
+				db
+					.insert(transactionFor)
+					.select(
+						db
+							.select({
+								transactionId: sql<string>`${transactions.id}`.as("transaction_id"),
+								memberId: sql<string>`${members.id}`.as("member_id"),
+								householdId: sql<string>`${members.householdId}`.as("household_id"),
+							})
+							.from(members)
+							.innerJoin(
+								transactions,
+								and(
+									back,
+									sql`exists (select 1 from json_each(${whose}) f
+										where json_extract(f.value, '$[0]') = ${transactions.id}
+										and json_extract(f.value, '$[1]') = ${members.id})`,
+								) as SQL,
+							)
+							.where(eq(members.householdId, householdId)),
+					)
+					.onConflictDoNothing(),
+			]);
+		}
 		const [after] = await db
 			.select({ count: sql<number>`count(*)`.mapWith(Number) })
 			.from(transactions)
 			.where(and(editable, fileableWhole, inPairs(pairs, 0), theirs));
-		restored += Math.max(0, (before?.count ?? 0) - (after?.count ?? 0));
+		restored += Math.max(0, going.length - (after?.count ?? 0));
 	}
 	return { restored };
 }

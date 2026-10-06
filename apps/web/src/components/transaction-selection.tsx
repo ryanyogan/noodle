@@ -1,4 +1,4 @@
-import type { MonthKey, Plan } from "@noodle/domain";
+import type { For, MonthKey, Plan } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { toast } from "@noodle/ui/components/toast";
@@ -9,6 +9,8 @@ import { FolderInput, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { nothingToFileIn, pastPlanSentence } from "../before-plan";
 import { monthName } from "../format";
+import { forLabel } from "../members";
+import { membersQuery } from "../queries";
 import type { TransactionsPage } from "../server/transactions";
 import {
 	deleteTransactions,
@@ -43,6 +45,7 @@ import {
 	transactionsQuery,
 } from "../transactions";
 import { BucketPicker, NewBucketStep } from "./bucket-picker";
+import { ForChips } from "./for-chips";
 import { NoBuckets } from "./no-buckets";
 import { tableIsStacked } from "./transaction-table";
 
@@ -118,6 +121,9 @@ export function SelectionBar({
 	// selected. One month only: a Transaction is filed in its own month's Plan.
 	const [filing, setFiling] = useState(false);
 	const [creating, setCreating] = useState<string | null>(null);
+	// Who they are For as well (issue 138): as each one is, unless a Parent picks here first.
+	const [forPick, setForPick] = useState<For | null>(null);
+	const members = useQuery(membersQuery()).data ?? [];
 	const closed = pastPlanSentence(month, current);
 	const choices = [
 		{
@@ -155,6 +161,7 @@ export function SelectionBar({
 							.slice(0, 1000)
 							.map((row) => [row.id, row.version]),
 					),
+					...(forPick ? { forMemberIds: forPick } : {}),
 				},
 			});
 		},
@@ -164,7 +171,9 @@ export function SelectionBar({
 				month,
 				loadedPicked().flatMap((transaction) => {
 					const next = refileOf(transaction, value);
-					return next ? [{ transaction, label: transactionLabel(transaction), next }] : [];
+					if (!next) return [];
+					const filed = forPick && "assignment" in next ? { ...next, forMemberIds: forPick } : next;
+					return [{ transaction, label: transactionLabel(transaction), next: filed }];
 				}),
 			),
 		}),
@@ -178,7 +187,7 @@ export function SelectionBar({
 			);
 		},
 		onSuccess: (result: FilingAnswer, { name }) => {
-			const said = filedMessage(result, name);
+			const said = filedMessage(result, name, forPick ? forLabel(members, forPick) : undefined);
 			const put = async () => {
 				try {
 					const { restored } = await undoFiling({ data: { entries: result.undo } });
@@ -211,6 +220,8 @@ export function SelectionBar({
 		inMonth !== undefined && inMonth > 0 && !(picking.all && !picking.all.andEarlier);
 	const offerEarlier =
 		upToMonth !== undefined && upToMonth > (inMonth ?? 0) && !picking.all?.andEarlier;
+	// Inside one month only: a Transaction is filed in its own month's Plan.
+	const canFile = Boolean(count) && !(picking.all?.andEarlier || filters.range);
 	// On a phone the two share a line.
 	const everything = "max-sm:min-w-0 max-sm:flex-1 max-sm:justify-center max-sm:text-center";
 	return (
@@ -271,10 +282,7 @@ export function SelectionBar({
 					) : (
 						<Button
 							variant="outline"
-							// Inside one month only: a Transaction is filed in its own month's Plan.
-							disabled={
-								!count || file.isPending || Boolean(picking.all?.andEarlier || filters.range)
-							}
+							disabled={!canFile || file.isPending}
 							title={
 								filters.range
 									? "Transactions are filed one month at a time: show This month to file these"
@@ -294,6 +302,17 @@ export function SelectionBar({
 					</Button>
 				</div>
 			</div>
+			{canFile && members.length > 0 ? (
+				// Issue 138: "File in…" can say who they are For too. "As it is" leaves each one's own.
+				<ForChips
+					members={members}
+					value={forPick}
+					onChange={setForPick}
+					asItIs
+					what="Who the selected Transactions are For once filed"
+					disabled={file.isPending}
+				/>
+			) : null}
 			{creating !== null ? (
 				<NewBucketStep
 					month={month}

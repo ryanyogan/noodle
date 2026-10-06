@@ -134,6 +134,24 @@ describe("what File in… says", () => {
 		changed: 0,
 		otherMonth: 0,
 	};
+	it("says who they were filed For when the filing set it", () => {
+		const skipped = {
+			split: 0,
+			transfer: 0,
+			moneyBack: 0,
+			goal: 0,
+			private: 0,
+			changed: 0,
+			otherMonth: 0,
+		};
+		expect(filedMessage({ filed: 3, already: 0, skipped }, "Groceries", "Mia & Leo")).toBe(
+			"Filed 3 in Groceries, For Mia & Leo.",
+		);
+		expect(filedMessage({ filed: 0, already: 2, skipped }, "Groceries", "Mia")).toBe(
+			"Nothing was filed in Groceries. 2 were already there.",
+		);
+	});
+
 	it("counts what was filed and each kind it left", () => {
 		expect(
 			filedMessage(

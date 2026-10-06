@@ -529,7 +529,8 @@ export type FilingAnswer = Extract<FilingResult, { ok: true }>;
  * Files the selected Transactions that one Bucket or Commitment can take whole in it (issue 99,
  * ADR-0055): inside `month` only. `versions` are those of the rows the screen had loaded; one that
  * has moved on is left alone and counted. Nothing is learned from it: no Rule, no merchant memory,
- * no signal to background AI, unlike a Transaction filed on its own. Safe to retry.
+ * no signal to background AI, unlike a Transaction filed on its own. With `forMemberIds` each one
+ * filed is For those Members too. Safe to retry.
  */
 export const fileTransactions = createServerFn({ method: "POST" })
 	.middleware([householdMiddleware])
@@ -539,6 +540,8 @@ export const fileTransactions = createServerFn({ method: "POST" })
 			month: monthKeySchema,
 			assignment: assignmentSchema,
 			versions: z.record(z.string().min(1).max(64), versionSchema).optional(),
+			// Who they are For as well (issue 138); left out, For stays as it is.
+			forMemberIds: z.array(ulidSchema).max(20).optional(),
 		}),
 	)
 	.handler(async ({ data, context }): Promise<FilingAnswer> => {
@@ -551,6 +554,7 @@ export const fileTransactions = createServerFn({ method: "POST" })
 			month: data.month,
 			assignment: data.assignment,
 			versions,
+			forMemberIds: data.forMemberIds,
 		});
 		if (!result.ok) {
 			throw new Error(
@@ -577,6 +581,7 @@ export const undoFiling = createServerFn({ method: "POST" })
 						bucketId: ulidSchema.nullable(),
 						commitmentId: ulidSchema.nullable(),
 						version: z.number().int().min(0),
+						for: z.array(z.string().min(1).max(64)).max(50).optional(),
 					}),
 				)
 				.max(5000),

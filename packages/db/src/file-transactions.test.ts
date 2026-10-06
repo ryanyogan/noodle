@@ -12,9 +12,11 @@ import {
 	accounts,
 	categorizations,
 	goals,
+	members,
 	monthCloses,
 	refunds,
 	splits,
+	transactionFor,
 	transactions,
 	transfers,
 } from "./schema";
@@ -332,5 +334,139 @@ describe("filing many Transactions at once", () => {
 				{ id: "a", bucketId: "no-such-bucket", commitmentId: null, version: 2 },
 			]),
 		).toEqual({ restored: 0 });
+	});
+	// For as well as the assignment (issue 138): the same path, and the same Undo.
+	describe("with For", () => {
+		const forOf = async () => {
+			const rows = await db
+				.select()
+				.from(transactionFor)
+				.orderBy(asc(transactionFor.transactionId), asc(transactionFor.memberId));
+			const by: Record<string, string[]> = {};
+			for (const row of rows)
+				by[row.transactionId] = [...(by[row.transactionId] ?? []), row.memberId];
+			return by;
+		};
+		beforeEach(async () => {
+			await db.insert(members).values([
+				{ id: "mia", householdId, kind: "child", name: "Mia" },
+				{ id: "leo", householdId, kind: "child", name: "Leo" },
+			]);
+			await add("a");
+			await add("b");
+			await add("g", { bucketId: "groceries" });
+			await add("s");
+			await db.insert(splits).values([
+				{
+					id: "s1",
+					householdId,
+					transactionId: "s",
+					position: 0,
+					bucketId: "fun",
+					amountCents: 400,
+				},
+				{
+					id: "s2",
+					householdId,
+					transactionId: "s",
+					position: 1,
+					bucketId: "groceries",
+					amountCents: 600,
+				},
+			]);
+			await db.insert(transactionFor).values([
+				{ transactionId: "b", memberId: "leo", householdId },
+				{ transactionId: "s", memberId: "leo", householdId },
+			]);
+		});
+
+		it("leaves For as it is unless one is given", async () => {
+			await fileTransactions(db, viewer, {
+				selection: { ids: ["a", "b"] },
+				month,
+				assignment: groceries,
+			});
+			expect(await forOf()).toEqual({ b: ["leo"], s: ["leo"] });
+		});
+
+		it("sets For on what it files, also one already in the Bucket, and never on what it leaves", async () => {
+			const result = await fileTransactions(db, viewer, {
+				selection: { ids: ["a", "b", "g", "s"] },
+				month,
+				assignment: groceries,
+				forMemberIds: ["mia"],
+			});
+			expect(result).toMatchObject({
+				ok: true,
+				filed: 3,
+				already: 0,
+				skipped: { ...none, split: 1 },
+			});
+			expect(await forOf()).toEqual({ a: ["mia"], b: ["mia"], g: ["mia"], s: ["leo"] });
+			expect(await filedIn()).toMatchObject({
+				a: "groceries v1",
+				b: "groceries v1",
+				g: "groceries v1",
+			});
+			// Again: all three are there with that For already.
+			expect(
+				await fileTransactions(db, viewer, {
+					selection: { ids: ["a", "b", "g"] },
+					month,
+					assignment: groceries,
+					forMemberIds: ["mia"],
+				}),
+			).toMatchObject({ ok: true, filed: 0, already: 3 });
+			// Everyone is a For too: it clears the Members.
+			await fileTransactions(db, viewer, {
+				selection: { ids: ["a"] },
+				month,
+				assignment: groceries,
+				forMemberIds: [],
+			});
+			expect((await forOf()).a).toBeUndefined();
+		});
+
+		it("takes only the Household's Members", async () => {
+			await createHouseholdForParent(db, {
+				clerkUserId: "clerk-other",
+				householdId: "other",
+				householdName: "The Others",
+				timeZone: "America/Chicago",
+				parentId: "sam",
+				parentName: "Sam",
+			});
+			await fileTransactions(db, viewer, {
+				selection: { ids: ["a"] },
+				month,
+				assignment: groceries,
+				forMemberIds: ["sam", "mia"],
+			});
+			expect((await forOf()).a).toEqual(["mia"]);
+		});
+
+		it("Undo puts For back with the Bucket, unless it has changed since", async () => {
+			const result = await fileTransactions(db, viewer, {
+				selection: { ids: ["a", "b", "g"] },
+				month,
+				assignment: groceries,
+				forMemberIds: ["mia", "leo"],
+			});
+			if (!result.ok) throw new Error("not filed");
+			expect(result.undo).toEqual([
+				{ id: "a", bucketId: null, commitmentId: null, version: 1, for: [] },
+				{ id: "b", bucketId: null, commitmentId: null, version: 1, for: ["leo"] },
+				{ id: "g", bucketId: "groceries", commitmentId: null, version: 1, for: [] },
+			]);
+			// g is changed on another screen before Undo: its Bucket and its For stay.
+			await db.update(transactions).set({ version: 2 }).where(eq(transactions.id, "g"));
+			expect(await unfileTransactions(db, viewer, result.undo)).toEqual({ restored: 2 });
+			expect(await forOf()).toEqual({ b: ["leo"], g: ["leo", "mia"], s: ["leo"] });
+			expect(await filedIn()).toMatchObject({ a: "- v2", b: "- v2", g: "groceries v2" });
+			// A second Undo changes nothing, For included.
+			await db.insert(transactionFor).values({ transactionId: "a", memberId: "mia", householdId });
+			expect(await unfileTransactions(db, viewer, result.undo)).toEqual({ restored: 0 });
+			expect((await forOf()).a).toEqual(["mia"]);
+		});
 	});
 });
