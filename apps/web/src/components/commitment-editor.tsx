@@ -62,7 +62,7 @@ const isDay = (value: unknown): value is DayKey =>
 /**
  * A Commitment in the Plan: what it takes a month, and the Commitment sheet to change its terms
  * or end it, the same one its page opens. One due less often than monthly shows its monthly share
- * ("$566.67/mo"), so a yearly bill doesn't read as due now. `was` is its amount the month before,
+ * ("$566.67", with "A month’s share of $6,800 yearly" under its name), so a yearly bill doesn't read as due now. `was` is its amount the month before,
  * when this month changed it.
  */
 export function CommitmentEditor({
@@ -93,7 +93,8 @@ export function CommitmentEditor({
 					<span>
 						{monthly
 							? schedule(commitment, month)
-							: `${formatMoney(commitment.amount)} ${cadenceNames[commitment.cadence].toLowerCase()} · ${
+							: // The amount column holds the figure alone (issue 73), so this line says what it is.
+								`A month’s share of ${formatMoney(commitment.amount)} ${cadenceNames[commitment.cadence].toLowerCase()} · ${
 									commitment.dueDates.length > 0
 										? `${formatMoney(commitment.expected)} this month`
 										: `next due ${fullDay(nextDueDate(commitment, `${month}-01`))}`
@@ -125,9 +126,7 @@ export function CommitmentEditor({
 					</span>
 					{/* In the wide list the amount keeps one width, so the columns before it line up down the list. */}
 					<span className="text-end text-sm font-medium tabular-nums @lg:min-w-24">
-						{monthly
-							? formatMoney(commitment.amount)
-							: `${formatMoney(monthlyEquivalent(commitment))}/mo`}
+						{formatMoney(monthly ? commitment.amount : monthlyEquivalent(commitment))}
 					</span>
 					{editable ? (
 						<Button

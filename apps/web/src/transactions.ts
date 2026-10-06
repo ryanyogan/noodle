@@ -5,7 +5,7 @@ import type {
 	TransactionRow,
 	TransactionSort,
 } from "@noodle/db";
-import { assignedParts, displayMerchant, type MonthKey } from "@noodle/domain";
+import { assignedParts, canAssign, displayMerchant, type MonthKey } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import {
 	type InfiniteData,
@@ -13,9 +13,10 @@ import {
 	type QueryClient,
 	queryOptions,
 	useMutation,
+	useQuery,
 	useQueryClient,
 } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatMoney } from "./format";
 import { monthChangeKey } from "./plan-changes";
 import { bucketUsesQuery, forTotalsEarlierKey, monthQuery, monthsKey } from "./queries";
@@ -23,6 +24,7 @@ import { reviewWrites } from "./review-stack";
 import type { MonthData } from "./server/month";
 import {
 	deleteTransaction,
+	getRangeBuckets,
 	getSameMerchant,
 	getTransaction,
 	getTransactions,
@@ -32,6 +34,7 @@ import {
 	type TransactionsPage,
 	updateTransaction,
 } from "./server/transactions";
+import { rangeBounds, type TransactionRange } from "./transaction-range";
 import {
 	CHANGED_ELSEWHERE,
 	ChangedElsewhere,
@@ -53,7 +56,15 @@ export type TransactionFilters = {
 	q?: string;
 	/** Newest first when left out. */
 	sort?: TransactionSort;
+	/** More than the month (issue 99): the last 3 months, its year, or every month up to it. */
+	range?: TransactionRange;
 };
+
+/**
+ * Every cached list of more than a month (issue 99). Its rows are in several months, so it is
+ * kept under "months" as an Account's list is: a change in any month refetches it.
+ */
+export const rangeTransactionsKey = [...monthsKey, "range-transactions"] as const;
 
 /**
  * Every cached list of a month's Transactions, whatever the filters. Kept under the month, so
@@ -63,14 +74,20 @@ export type TransactionFilters = {
 export const transactionsKey = (month: MonthKey) =>
 	[...monthQuery(month).queryKey, "transactions"] as const;
 
-/** A month's Transactions, newest first, a page at a time. */
+/**
+ * A month's Transactions, newest first, a page at a time; with a range, those of every month in
+ * it, ending at `month`.
+ */
 export const transactionsQuery = (month: MonthKey, filters: TransactionFilters) =>
 	infiniteQueryOptions({
-		queryKey: [...transactionsKey(month), filters],
+		queryKey: filters.range
+			? [...rangeTransactionsKey, month, filters]
+			: [...transactionsKey(month), filters],
 		queryFn: ({ pageParam }) =>
 			getTransactions({
 				data: {
 					month,
+					...rangeBounds(filters.range, month),
 					bucketId: filters.bucket,
 					forMember: filters.for,
 					accountId: filters.account,
@@ -81,6 +98,13 @@ export const transactionsQuery = (month: MonthKey, filters: TransactionFilters) 
 			}),
 		initialPageParam: undefined as TransactionCursor | undefined,
 		getNextPageParam: (page) => page.next ?? undefined,
+	});
+
+/** The Buckets of every month a list of more than a month covers: its Bucket filter's (issue 117). */
+export const rangeBucketsQuery = (month: MonthKey, range: TransactionFilters["range"]) =>
+	queryOptions({
+		queryKey: [...monthsKey, "range-buckets", month, range ?? null] as const,
+		queryFn: () => getRangeBuckets({ data: { month, ...rangeBounds(range, month) } }),
 	});
 
 /**
@@ -154,6 +178,25 @@ export type TransactionChange = {
 /** The month a Transaction is in. */
 export const monthOfTransaction = (transaction: TransactionRow) =>
 	transaction.date.slice(0, 7) as MonthKey;
+
+/**
+ * What a Parent can assign to in `month`'s Plan, once it has loaded (issue 99): a row of another
+ * month in a list of several is filed in its own month's Plan, never the one in the address. The
+ * other Parent's Personal Allowance isn't theirs to assign to.
+ */
+export function useAssignablePlan(month: MonthKey, parentId: string, enabled = true) {
+	const data = useQuery({ ...monthQuery(month), enabled }).data;
+	return useMemo(
+		() =>
+			data
+				? {
+						buckets: data.plan.buckets.filter((b) => canAssign(b, parentId)),
+						commitments: data.plan.commitments,
+					}
+				: null,
+		[data, parentId],
+	);
+}
 
 /**
  * A month's inputs with a Transaction changed or deleted, mirroring what the server records: its
@@ -254,7 +297,15 @@ export function withRowChange(
 		pages: data.pages.map((page) => ({
 			...page,
 			transactions: next
-				? page.transactions.map((row) => (row.id === id ? editedRow(row, next) : row))
+				? page.transactions.map((row) => {
+						if (row.id !== id) return row;
+						const edited = editedRow(row, next);
+						// Filed somewhere else: the name read with the row is no longer its Bucket's.
+						return row.assignedName == null ||
+							(edited.bucketId === row.bucketId && edited.commitmentId === row.commitmentId)
+							? edited
+							: { ...edited, assignedName: null };
+					})
 				: page.transactions.filter((row) => row.id !== id),
 		})),
 	};
@@ -413,6 +464,9 @@ export function showCurrentTransaction(
 		...queryClient.getQueriesData<InfiniteData<TransactionsPage>>({
 			queryKey: [...monthsKey, "account-transactions"],
 		}),
+		...queryClient.getQueriesData<InfiniteData<TransactionsPage>>({
+			queryKey: rangeTransactionsKey,
+		}),
 	];
 	for (const [queryKey, list] of lists) {
 		// Only lists: the one-Transaction query lives under the same key and isn't paged.
@@ -451,9 +505,53 @@ export async function applyTransactionChange(queryClient: QueryClient, change: T
 		...queryClient.getQueriesData<InfiniteData<TransactionsPage>>({
 			queryKey: [...monthsKey, "account-transactions"],
 		}),
+		// So does a list of more than a month (issue 99).
+		...queryClient.getQueriesData<InfiniteData<TransactionsPage>>({
+			queryKey: rangeTransactionsKey,
+		}),
 	];
+	// The lists outside the month's key are fetching too: a late answer would undo the change.
+	await queryClient.cancelQueries({ queryKey: rangeTransactionsKey });
 	for (const [queryKey, list] of previousLists) {
 		if (list) queryClient.setQueryData(queryKey, withRowChange(list, change));
+	}
+	return () => {
+		if (previousMonth) queryClient.setQueryData(monthKey, previousMonth);
+		for (const [queryKey, list] of previousLists) queryClient.setQueryData(queryKey, list);
+	};
+}
+
+/**
+ * Lands "File in…" (issue 99) for the rows this screen has loaded, in their month's cached inputs
+ * and its cached lists at once, as a single refile does: `changes` are those rows' refiles.
+ * Returns what puts them back if the server refuses. The open editor of one of them starts again
+ * on the new Bucket when the list refetches; that is this screen's own change, so it isn't said
+ * to have been "changed on another screen".
+ */
+export async function applyFiling(
+	queryClient: QueryClient,
+	month: MonthKey,
+	changes: TransactionChange[],
+) {
+	saidAt = Date.now();
+	const monthKey = monthQuery(month).queryKey;
+	await queryClient.cancelQueries({ queryKey: monthKey });
+	const previousMonth = queryClient.getQueryData(monthKey);
+	if (previousMonth) {
+		queryClient.setQueryData(
+			monthKey,
+			changes.reduce((data, change) => withTransactionChange(data, change), previousMonth),
+		);
+	}
+	const previousLists = queryClient.getQueriesData<InfiniteData<TransactionsPage>>({
+		queryKey: transactionsKey(month),
+	});
+	for (const [queryKey, list] of previousLists) {
+		if (!list || !Array.isArray(list.pages)) continue;
+		queryClient.setQueryData(
+			queryKey,
+			changes.reduce((data, change) => withRowChange(data, change), list),
+		);
 	}
 	return () => {
 		if (previousMonth) queryClient.setQueryData(monthKey, previousMonth);

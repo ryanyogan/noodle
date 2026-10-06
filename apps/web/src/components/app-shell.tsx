@@ -506,7 +506,8 @@ function MoreGroup({
 			<p id={labelId} className="px-3 text-xs font-medium text-subtle-foreground">
 				{group.label}
 			</p>
-			<div className="grid grid-cols-2 gap-1">
+			{/* One column below 400px, so "Perks & Benefits" and "Household settings" keep one line (issue 74). */}
+			<div className="grid grid-cols-2 gap-1 max-[399px]:grid-cols-1">
 				{review ? (
 					<Button asChild variant="ghost" className={moreRow}>
 						{/* `replace`: the sheet's own entry becomes the page, so Back returns to where More was opened. */}

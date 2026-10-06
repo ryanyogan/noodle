@@ -381,7 +381,10 @@ function AccountItem({ account }: { account: AccountView }) {
 			title={<span className="@2xl:block @2xl:truncate">{account.name}</span>}
 			trailingOnTitle
 			// On a card the balance takes its own line, so the kind and bank line can wrap beside nothing.
-			trailingClassName="@2xl:col-start-2 @2xl:row-start-2 @2xl:justify-items-start @2xl:text-start"
+			// Cards in one line of the grid are as tall as the tallest: each starts at the top and its
+			// balance is on the bottom line, so names and balances line up across them (issue 73).
+			className="@2xl:h-full @2xl:grid-rows-[auto_1fr] @2xl:items-start"
+			trailingClassName="@2xl:col-start-2 @2xl:row-start-2 @2xl:justify-items-start @2xl:self-end @2xl:text-start"
 			meta={
 				// Kind and source on one line, how it splits on the next, so a phone reads it in two.
 				// A lapsed bank login is said once, on its Bank Connection; here only a small badge.
@@ -421,9 +424,10 @@ function AccountItem({ account }: { account: AccountView }) {
 							</span>
 						</>
 					) : account.balance === null ? (
-						// On a phone "yet" goes under, as "owed" does: the name has the room.
+						// On the narrowest phones "yet" goes under, as "owed" does: the name has the room.
+						// From 360px the three words fit on one line beside the name (issue 74).
 						<>
-							No balance <span className="max-sm:block">yet</span>
+							No balance <span className="max-[359px]:block">yet</span>
 						</>
 					) : (
 						balanceLabel(account)

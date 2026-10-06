@@ -981,7 +981,9 @@ function ConnectionRow({
 								onClick={() => setDisconnecting(true)}
 								aria-label={`Disconnect ${connection.institution ?? "the bank"}`}
 							>
-								<Unplug />
+								{/* No icon on the narrowest phones: with it Disconnect dropped under Reconnect,
+								    inset by its own padding (issue 74). */}
+								<Unplug className="max-[359px]:hidden" />
 								Disconnect
 							</Button>
 						) : null}

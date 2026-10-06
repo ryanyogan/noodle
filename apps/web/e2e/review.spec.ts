@@ -308,16 +308,13 @@ test("Review confirms a merchant's cards, or all with a suggestion, with one Und
 	});
 	await expect(page.getByRole("button", { name: "What’s “Review”?" })).toBeVisible();
 
-	// A card from a month with no Plan says so, with a way to set it up or to file it without a
-	// Bucket (#82), never an empty list.
+	// A card from a month with no Plan says so, with a way to file it without a Bucket (#82),
+	// never an empty list. The month is over, so its Plan can't be set up now: no link to it.
 	const acme = card(page).filter({ hasText: "Acme Widgets" });
 	await expect(acme).toContainText(/has no Plan yet/);
 	await expect(acme.getByRole("combobox")).toHaveCount(0);
 	await expect(acme.getByRole("button", { name: "File without a Bucket" })).toBeVisible();
-	await expect(acme.getByRole("link", { name: /^Set up .*’s Plan$/ })).toHaveAttribute(
-		"href",
-		/\/plan\/\d{4}-\d{2}#buckets$/,
-	);
+	await expect(acme.getByRole("link", { name: /^Set up .*’s Plan$/ })).toHaveCount(0);
 
 	// Both of one merchant's cards at once; one Undo puts both back.
 	await page

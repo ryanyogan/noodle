@@ -68,3 +68,22 @@ export function escapeStep(at: {
 	if (at.open) return "close";
 	return at.selecting && !at.typing ? "unselect" : "nothing";
 }
+
+/**
+ * Where the open Transaction's editor is drawn in the table (issue 99): under its own row when
+ * the list has loaded it, else in a first row of the table (it is further down, or the filters
+ * leave it out; its address still shows it). "none" with nothing open.
+ */
+export function openPlace(
+	open: string | undefined,
+	loaded: readonly { id: string }[],
+): "none" | "row" | "top" {
+	if (!open) return "none";
+	return loaded.some((row) => row.id === open) ? "row" : "top";
+}
+
+/**
+ * Whether a row's Name and Assigned to edit in the cell: not the open row's, whose editor is
+ * right under it with the same fields (two places to type one name). Other rows' still do.
+ */
+export const editsInCell = (id: string, open: string | undefined) => id !== open;

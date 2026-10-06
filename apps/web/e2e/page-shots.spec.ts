@@ -4,7 +4,14 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import { ulid } from "ulid";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
-import { choose, createHousehold, openMore, savedBy, signedInPage } from "./session";
+import {
+	choose,
+	createHousehold,
+	createPlannedHousehold,
+	openMore,
+	savedBy,
+	signedInPage,
+} from "./session";
 import { q, seedBetweenUs, seedIncomeHousehold, seedShotsHousehold } from "./shots-household";
 
 // Pictures of every page with one realistic Household, for looking at a redesign without a browser
@@ -85,6 +92,8 @@ type Shot = {
 	window?: boolean;
 	/** Pictured as the third Parent, whose small Household is there for what Income brings up. */
 	small?: boolean;
+	/** Pictured as the fourth Parent, whose months ended with nothing left and then short. */
+	carry?: boolean;
 };
 
 let parent: Awaited<ReturnType<typeof createTestParent>> | undefined;
@@ -92,6 +101,8 @@ let parent: Awaited<ReturnType<typeof createTestParent>> | undefined;
 let freshParent: Awaited<ReturnType<typeof createTestParent>> | undefined;
 /** The Parent of the small Household for the Income and Cover pictures (#86, #87). */
 let smallParent: Awaited<ReturnType<typeof createTestParent>> | undefined;
+/** The Parent of the Household whose ended months carried nothing, then a shortfall (issue 73). */
+let carryParent: Awaited<ReturnType<typeof createTestParent>> | undefined;
 let shots: Shot[] = [];
 /** What the seeding couldn't do: written beside the pictures so a missing section is explained. */
 const seedNotes: string[] = [];
@@ -112,6 +123,20 @@ const quickAdd = (step?: "amount" | "more" | "for") => async (page: Page) => {
 		await expect(sheet.getByRole("radiogroup", { name: "For" })).toBeVisible({ timeout: 15_000 });
 	}
 };
+
+/** Skips in Review, one by one, until a card of this kind is on top (issue 74). */
+async function reviewCardOnTop(page: Page, which: string) {
+	const stack = page.getByTestId("review-stack");
+	const card = stack.locator(`[data-testid=review-card]${which}`);
+	for (let skipped = 0; skipped < 10; skipped++) {
+		if (await card.isVisible()) break;
+		await stack.getByRole("button", { name: "Skip" }).click({ timeout: 15_000 });
+		await page.waitForTimeout(400);
+	}
+	await expect(card).toBeVisible();
+	await page.evaluate(() => window.scrollTo(0, 0));
+	return card;
+}
 
 /** The page has its heading, nothing is still a skeleton and the fonts are in. */
 async function settled(page: Page) {
@@ -235,6 +260,22 @@ async function attempt(what: string, run: () => Promise<void>) {
 }
 
 /** Opens one of the Danger zone's confirming sheets and leaves it open: nothing is confirmed. */
+/**
+ * Presses a button on the page until what it opens is there: a sheet, a menu, or (for a confirm
+ * drawn in the page) its Cancel button. For the phone pass's pictures of sheets (issue 74).
+ */
+const opened =
+	(button: string | RegExp, confirm = false) =>
+	async (page: Page) => {
+		await pressFor(
+			page.getByRole("button", { name: button }).first(),
+			confirm
+				? page.getByRole("button", { name: "Cancel" }).first()
+				: page.getByRole("dialog").or(page.getByRole("menu")).first(),
+		);
+		await page.waitForTimeout(400);
+	};
+
 async function openDangerSheet(page: Page, action: "Start fresh" | "Delete Household") {
 	const zone = page.getByRole("region", { name: "Danger zone" });
 	await zone.getByRole("button", { name: action }).click();
@@ -476,6 +517,21 @@ test.beforeAll(async ({ browser }) => {
 					await choose(page, "Where the Extra income goes", "Leave it in the account");
 				},
 			},
+			{
+				// The menu of one Income line ("It's between us", "Remove"): what's in the window.
+				name: "01k-income-line-menu",
+				path: thisMonth,
+				small: true,
+				window: true,
+				ready: async (page) => {
+					const actions = page.locator('button[aria-label^="Actions for"]:visible').first();
+					await expect(async () => {
+						if ((await page.getByRole("menu").count()) === 0)
+							await actions.click({ timeout: 2000 });
+						await expect(page.getByRole("menu")).toBeVisible({ timeout: 2000 });
+					}).toPass({ timeout: 20_000 });
+				},
+			},
 			// A Bucket's page with a Cover into it, and the Bucket the money came from (#87).
 			{
 				name: "04b-bucket-covers",
@@ -523,6 +579,49 @@ test.beforeAll(async ({ browser }) => {
 		];
 	});
 
+	// The fourth Household: two months back ended with nothing left, last month ended $230 short.
+	let carried: Shot[] = [];
+	await attempt("A Household whose months ended with nothing left and short", async () => {
+		carryParent = await createTestParent();
+		const carryPage = await signedInPage(browser, carryParent.email, {
+			viewport: { width: 1440, height: 900 },
+			colorScheme,
+		});
+		await createPlannedHousehold(carryPage, {
+			baseline: "5,000",
+			buckets: [
+				["Groceries", "1,200"],
+				["Fun", "300"],
+			],
+		});
+		const now = /\/month\/(\d{4}-\d{2})/.exec(carryPage.url())?.[1];
+		await carryPage.context().close();
+		if (!now) throw new Error("No month in the new Household's address");
+		const back = (count: number) => {
+			const [year = 0, m = 0] = now.split("-").map(Number);
+			return new Date(Date.UTC(year, m - 1 - count, 1)).toISOString().slice(0, 7);
+		};
+		const userId = q(carryParent.userId);
+		const h = `(select household_id from members where clerk_user_id = ${userId})`;
+		const m = `(select id from members where clerk_user_id = ${userId})`;
+		const ended = (month: string, income: number, spent: number) => [
+			`insert into income (id, household_id, date, amount_cents, note, created_by_member_id) values (${q(ulid())}, ${h}, ${q(`${month}-03`)}, ${income * 100}, 'Paycheck', ${m});`,
+			`insert into transactions (id, household_id, source, date, amount_cents, note, created_by_member_id) values (${q(ulid())}, ${h}, 'quick-add', ${q(`${month}-12`)}, ${spent * 100}, 'Everything that month', ${m});`,
+		];
+		await seedSql([
+			`insert into baselines (household_id, month, amount_cents) values (${h}, ${q(back(2))}, 500000);`,
+			...ended(back(2), 5000, 5000),
+			...ended(back(1), 3000, 3230),
+		]);
+		carried = [
+			// An ended month with $0 left: "Ended with nothing left, so nothing was carried over".
+			{ name: "01f-ended-month-nothing-left", path: `/month/${back(2)}`, carry: true },
+			// An ended month that ended short, and the month after it with the shortfall carried in.
+			{ name: "01g-ended-month-short", path: `/month/${back(1)}`, carry: true },
+			{ name: "01h-this-month-short-carried-over", path: `/month/${now}`, carry: true },
+		];
+	});
+
 	const fresh: Shot[] = freshParent
 		? [
 				// Nothing planned: the get-started list on its own, and the way back into the wizard.
@@ -536,6 +635,9 @@ test.beforeAll(async ({ browser }) => {
 						["32a-setup-step-2-window", 2],
 						["33-setup-step-3", 3],
 						["34-setup-step-4", 4],
+						["35s-setup-step-5", 5],
+						["36s-setup-step-6", 6],
+						["37s-setup-step-7", 7],
 					] as const
 				).map(
 					([name, step]): Shot => ({
@@ -555,6 +657,11 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "01-this-month", path: `/month/${month}` },
 		// Part-way down on a computer: where the round Ask Noodle button sits over the page.
 		{ name: "01e-this-month-scrolled", path: `/month/${month}`, scrolledTo: 500 },
+		// Last month on the full Household: "How <Month> ended" and what it carried over.
+		{
+			name: "01i-ended-month",
+			path: `/month/${new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)) - 2, 1)).toISOString().slice(0, 7)}`,
+		},
 		{
 			name: "02-this-month-to-do-open",
 			path: `/month/${month}`,
@@ -664,6 +771,54 @@ test.beforeAll(async ({ browser }) => {
 				);
 			},
 		},
+		// The rest of Transactions as a phone has it (issue 74): the Filters sheet, the orders, and
+		// "File in…" opened from the selection's bar.
+		{
+			name: "10e-transactions-filters-sheet",
+			path: `/transactions/${month}`,
+			phoneSheet: true,
+			ready: opened("Filters"),
+		},
+		{
+			name: "10f-transactions-sort-open",
+			path: `/transactions/${month}`,
+			phoneSheet: true,
+			ready: async (page) => {
+				await pressFor(page.getByRole("combobox", { name: "Sort" }), page.getByRole("listbox"));
+			},
+		},
+		{
+			name: "10g-transactions-file-in",
+			path: `/transactions/${month}`,
+			phoneSheet: true,
+			ready: async (page) => {
+				const bar = await selectThree(page);
+				await bar.getByRole("button", { name: "File in…" }).click({ timeout: 15_000 });
+				await expect(page.getByPlaceholder(/^(Search or create|Find a Bucket)$/)).toBeVisible({
+					timeout: 15_000,
+				});
+			},
+		},
+		{
+			// Three months in one list, as the sheet's Months leaves it: the chip, and a heading a month.
+			name: "10h-transactions-three-months",
+			path: `/transactions/${month}?range=3m`,
+			phone: true,
+			window: true,
+		},
+		{
+			// The editor's Split opened: two parts and what is left.
+			name: "11b-transaction-split",
+			path: `/transactions/${month}/${ids.openTransaction}`,
+			phone: true,
+			ready: async (page) => {
+				await page
+					.getByRole("button", { name: "Split", exact: true })
+					.first()
+					.click({ timeout: 15_000 });
+				await page.waitForTimeout(400);
+			},
+		},
 		// Part-way down a long page on a computer: where the round Ask Noodle button sits over it.
 		{ name: "10d-transactions-scrolled", path: `/transactions/${month}`, scrolledTo: 600 },
 		{
@@ -751,8 +906,103 @@ test.beforeAll(async ({ browser }) => {
 				},
 			}),
 		),
+		// The rest of Review for the final phone pass (issue 74): the other kinds of card on top, the
+		// "?" beside the count, what Sort says after a Skip, a phone's safe areas, and the sheets.
+		...(
+			[
+				["12e-review-card-between-us", "[data-between-us]"],
+				["12f-review-card-no-suggestion", ":has-text('pick where it goes')"],
+			] as const
+		).map(
+			([name, which]): Shot => ({
+				name,
+				path: "/review",
+				window: true,
+				ready: async (page) => {
+					await reviewCardOnTop(page, which);
+				},
+			}),
+		),
+		{
+			name: "12g-review-said-after-skip",
+			path: "/review",
+			window: true,
+			ready: async (page) => {
+				const stack = page.getByTestId("review-stack");
+				await stack.getByRole("button", { name: "Skip" }).click({ timeout: 15_000 });
+				await expect(page.getByTestId("review-said")).toContainText("Skipped");
+				await page.evaluate(() => window.scrollTo(0, 0));
+			},
+		},
+		{
+			name: "12h-review-term-help",
+			path: "/review",
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page
+						.getByTestId("review-stack")
+						.getByRole("button", { name: /^What’s / })
+						.first(),
+					page.getByRole("dialog"),
+				);
+			},
+		},
+		{
+			// A phone with a notch and a home indicator: the header clears one, the tab bar the other.
+			name: "12i-review-safe-areas",
+			path: "/review",
+			window: true,
+			ready: async (page) => {
+				await page.addStyleTag({
+					content: ":root{--safe-top:47px!important;--safe-bottom:34px!important}",
+				});
+			},
+		},
 		{ name: "13-review-list", path: "/review?view=list" },
+		{
+			name: "13a-review-edit-transaction",
+			path: "/review?view=list",
+			phoneSheet: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: /^Edit / }).first(),
+					page.getByRole("dialog", { name: "Edit Transaction" }),
+				);
+			},
+		},
+		{
+			// With a field in use, as when the keyboard is up (PAGE_SHOTS_HEIGHT=500).
+			name: "13b-review-edit-transaction-typing",
+			path: "/review?view=list",
+			phoneSheet: true,
+			ready: async (page) => {
+				const sheet = page.getByRole("dialog", { name: "Edit Transaction" });
+				await pressFor(page.getByRole("button", { name: /^Edit / }).first(), sheet);
+				await sheet.getByRole("textbox").first().focus();
+			},
+		},
 		{ name: "14-rules", path: "/review/rules" },
+		{
+			name: "14a-rule-page",
+			path: "/review/rules",
+			ready: async (page) => {
+				await page.locator("a[href*='/review/rules/']").first().click({ timeout: 15_000 });
+				await page.waitForURL(/\/review\/rules\/./);
+			},
+		},
+		{
+			name: "14b-rule-add",
+			path: "/review/rules",
+			phoneSheet: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: "Add Rule" }).first(),
+					page.getByRole("dialog"),
+				);
+			},
+		},
+		{ name: "38-not-found", path: "/no-such-page", window: true },
 		{ name: "15-accounts", path: "/accounts" },
 		{
 			name: "15a-accounts-archived-open",
@@ -766,12 +1016,81 @@ test.beforeAll(async ({ browser }) => {
 		},
 		{ name: "16-account-credit-card", path: `/accounts/${ids.sapphire}` },
 		{ name: "16a-account-no-balance", path: `/accounts/${ids.college}` },
+		// The sheets and confirms of Accounts and an Account, as a phone shows them (issue 74).
+		{
+			name: "15b-accounts-add-sheet",
+			path: "/accounts",
+			phoneSheet: true,
+			ready: opened("Add Account"),
+		},
+		{
+			name: "16b-account-more-or-rename",
+			path: `/accounts/${ids.sapphire}`,
+			phoneSheet: true,
+			ready: opened(/^(More actions for|Rename)/),
+		},
+		{
+			name: "16c-account-balance-sheet",
+			path: `/accounts/${ids.sapphire}`,
+			phoneSheet: true,
+			ready: opened(/^(Update|Add) (balance|what’s owed)/),
+		},
+		{
+			name: "16d-account-upload-statement",
+			path: `/accounts/${ids.college}`,
+			phoneSheet: true,
+			ready: opened("Upload statement"),
+		},
+		{
+			name: "16e-account-archive-confirm",
+			path: `/accounts/${ids.college}`,
+			phoneSheet: true,
+			ready: opened("Archive this Account", true),
+		},
+		{
+			name: "16f-account-rename-sheet",
+			path: `/accounts/${ids.college}`,
+			phoneSheet: true,
+			ready: opened(/^(More actions for|Rename)/),
+		},
 		{ name: "17-goals", path: "/goals" },
 		{ name: "18-goal", path: `/goals/${ids.vacation}` },
 		// A long History: the whole page, then the window after scrolling 700px, where the side column
 		// (progress and actions) should still be in view on a wide screen (#73).
 		{ name: "18a-goal-long-history", path: `/goals/${ids.roof}` },
 		{ name: "18b-goal-long-history-scrolled", path: `/goals/${ids.roof}`, scrolledTo: 700 },
+		// A Goal's sheets on a phone (issue 74).
+		{ name: "17a-goals-add-sheet", path: "/goals", phoneSheet: true, ready: opened("Add Goal") },
+		{
+			name: "18c-goal-add-money-sheet",
+			path: `/goals/${ids.vacation}`,
+			phoneSheet: true,
+			ready: opened("Add money"),
+		},
+		{
+			name: "18d-goal-edit-sheet",
+			path: `/goals/${ids.vacation}`,
+			phoneSheet: true,
+			ready: opened("Edit"),
+		},
+		{
+			name: "18e-goal-spend-sheet",
+			path: `/goals/${ids.vacation}`,
+			phoneSheet: true,
+			ready: opened("Spend"),
+		},
+		{
+			name: "18f-goal-take-back-sheet",
+			path: `/goals/${ids.vacation}`,
+			phoneSheet: true,
+			ready: opened("Take money back"),
+		},
+		{
+			name: "18g-goal-archive-confirm",
+			path: `/goals/${ids.vacation}`,
+			phoneSheet: true,
+			ready: opened("Archive", true),
+		},
 		{ name: "19-explore", path: "/explore" },
 		// A Scenario not saved yet, with one change: the outline, Your changes and the outcomes (#74).
 		{ name: "19a-explore-with-a-change", path: "/explore?lever=baseline:1020000" },
@@ -854,6 +1173,151 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "23g-reports-people", path: "/reports?view=people" },
 		{ name: "23h-reports-goals", path: "/reports?view=goals" },
 		{ name: "23i-reports-income", path: "/reports?view=income" },
+		// Every chart of every view as its table (issue 73): the toggles beside the headings, pressed.
+		...(
+			[
+				["23", "/reports"],
+				["23a", "/reports?view=cash-flow"],
+				["23b", "/reports?view=big"],
+				["23c", "/reports?view=buckets"],
+				["23d", "/reports?view=plan"],
+				["23e", "/reports?view=trends"],
+				["23f", "/reports?view=merchants"],
+				["23g", "/reports?view=people"],
+				["23h", "/reports?view=goals"],
+				["23i", "/reports?view=income"],
+			] as const
+		).map(
+			([pic, path]): Shot => ({
+				name: `23t-reports-tables-${pic}`,
+				path,
+				ready: async (page) => {
+					const toggles = page.getByRole("button", { name: /^Show .* as a table$/ });
+					const count = await toggles.count();
+					for (let i = 0; i < count; i++) {
+						const toggle = toggles.nth(i);
+						await expect(async () => {
+							if ((await toggle.getAttribute("aria-pressed")) !== "true")
+								await toggle.click({ timeout: 2000 });
+							await expect(toggle).toHaveAttribute("aria-pressed", "true", { timeout: 2000 });
+						}).toPass({ timeout: 20_000 });
+					}
+				},
+			}),
+		),
+		// Drilled into one Bucket from Reports › Buckets: the breadcrumb and the area's own page.
+		{
+			name: "23u-reports-drilled-into-a-bucket",
+			path: "/reports?view=buckets",
+			ready: async (page) => {
+				const row = page.getByRole("button", { name: /^Groceries: \$/ }).first();
+				await expect(async () => {
+					await row.click({ timeout: 2000 });
+					await expect(page).toHaveURL(/area=/, { timeout: 2000 });
+				}).toPass({ timeout: 20_000 });
+			},
+		},
+		// The Period menu open, and the Filters sheet: only what's in the window.
+		{
+			name: "23v-reports-period-menu",
+			path: "/reports",
+			window: true,
+			ready: async (page) => {
+				const period = page.getByRole("combobox", { name: "Period" });
+				await expect(async () => {
+					if ((await page.getByRole("listbox").count()) === 0)
+						await period.click({ timeout: 2000 });
+					await expect(page.getByRole("listbox")).toBeVisible({ timeout: 2000 });
+				}).toPass({ timeout: 20_000 });
+			},
+		},
+		{
+			name: "23w-reports-filters-sheet",
+			path: "/reports",
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: /^Filters/ }),
+					page.getByRole("dialog", { name: "Filters" }),
+				);
+			},
+		},
+		// On a phone the Period, Compare with and Group by selects are in the Filters sheet, and what
+		// is on shows as chips under the button (issue 74).
+		{
+			name: "23j-reports-filters-sheet",
+			path: "/reports?view=trends",
+			phoneSheet: true,
+			ready: async (page) => {
+				await pressFor(
+					page.getByRole("button", { name: /^Filters/ }),
+					page.getByRole("dialog", { name: "Filters" }),
+				);
+			},
+		},
+		// The Compare with and Group by menus open, and a custom range with its From calendar.
+		...(
+			[
+				["23x-reports-compare-menu", "/reports", "Compare with"],
+				["23y-reports-group-menu", "/reports?view=trends", "Group by"],
+			] as const
+		).map(
+			([name, path, label]): Shot => ({
+				name,
+				path,
+				window: true,
+				ready: async (page) => {
+					const select = page.getByRole("combobox", { name: label });
+					await expect(async () => {
+						if ((await page.getByRole("listbox").count()) === 0)
+							await select.click({ timeout: 2000 });
+						await expect(page.getByRole("listbox")).toBeVisible({ timeout: 2000 });
+					}).toPass({ timeout: 20_000 });
+				},
+			}),
+		),
+		{
+			name: "23z-reports-custom-range",
+			path: "/reports?period=custom",
+			window: true,
+			ready: async (page) => {
+				await pressFor(page.getByRole("button", { name: "From" }), page.getByRole("dialog"));
+			},
+		},
+		// Keyboard focus on a select, a tab and a table toggle of Reports; the pointer over a row.
+		{
+			name: "23s-reports-focus-and-hover",
+			path: "/reports?view=buckets",
+			window: true,
+			ready: async (page) => {
+				await page.getByRole("combobox", { name: "Period" }).focus();
+				await page.keyboard.press("Tab");
+				await page.keyboard.press("Shift+Tab");
+				await page
+					.getByRole("button", { name: /^Groceries: \$/ })
+					.first()
+					.hover();
+			},
+		},
+		{
+			// "Cover" on an overspent Bucket's row: the sheet that asks where the money comes from.
+			name: "01l-cover-a-bucket-sheet",
+			path: `/month/${month}`,
+			window: true,
+			ready: async (page) => {
+				await pressFor(
+					page.locator("button:visible", { hasText: /^Cover/ }).first(),
+					page.getByRole("dialog"),
+				);
+			},
+		},
+		// A month's own Plan page.
+		{ name: "01j-month-plan", path: `/month/${month}/plan` },
+		{
+			name: "23k-reports-trends-with-chips",
+			path: "/reports?view=trends&period=12m&compare=last-year&group=week&min=50&member=everyone",
+			phone: true,
+		},
 		{ name: "24-insights", path: "/insights" },
 		{ name: "25-credit-card-perks", path: "/insights/perks" },
 		{
@@ -898,6 +1362,28 @@ test.beforeAll(async ({ browser }) => {
 				await page.waitForTimeout(400);
 			},
 		},
+		// The Check-in's later steps (Insights, Sweeps, Extra income), each reached with "Skip for now".
+		...([1, 2, 3] as const).map(
+			(skips): Shot => ({
+				name: `26${"bcd"[skips - 1]}-check-in-step-${skips + 1}`,
+				path: "/check-in",
+				ready: async (page) => {
+					const main = page.getByRole("main");
+					for (let n = 1; n <= skips; n++) {
+						await expect(async () => {
+							if ((await main.getByText(`${n} of `, { exact: false }).count()) > 0)
+								await main
+									.getByRole("button", { name: "Skip for now" })
+									.first()
+									.click({ timeout: 2000 });
+							await expect(main.getByText(new RegExp(`^${n + 1} of \\d`))).toBeVisible({
+								timeout: 2000,
+							});
+						}).toPass({ timeout: 20_000 });
+					}
+				},
+			}),
+		),
 		{ name: "27-household-settings", path: "/household" },
 		{
 			// The Start fresh sheet, open and not confirmed: what it says about snapshots, files and
@@ -913,6 +1399,18 @@ test.beforeAll(async ({ browser }) => {
 			path: "/household",
 			window: true,
 			ready: (page) => openDangerSheet(page, "Delete Household"),
+		},
+		{
+			// Delete Household's second step: the name to type, as a phone shows it (issue 74).
+			name: "27d-delete-household-step-2",
+			path: "/household",
+			phoneSheet: true,
+			ready: async (page) => {
+				await openDangerSheet(page, "Delete Household");
+				const sheet = page.getByRole("dialog", { name: "Delete Household?" });
+				await sheet.getByRole("button", { name: "Continue" }).click();
+				await sheet.getByRole("textbox").focus();
+			},
 		},
 		{
 			// The Parent's own name and colour, in its sheet. What's in the window.
@@ -940,6 +1438,7 @@ test.beforeAll(async ({ browser }) => {
 		{ name: "39i-empty-goal-funding", path: `/plan/${month}/goals`, fresh: true },
 		{ name: "39j-empty-income", path: `/plan/${month}/income`, fresh: true },
 		{ name: "39k-empty-afford", path: "/explore/afford", fresh: true },
+		{ name: "39l-empty-review", path: "/review", fresh: true },
 		{
 			name: "29-more-sheet",
 			path: "/reports",
@@ -1202,6 +1701,7 @@ test.beforeAll(async ({ browser }) => {
 			},
 		},
 		...small,
+		...carried,
 		...fresh,
 		// Money between the two Parents, last: marking it changes the month's Income for good.
 		{
@@ -1229,6 +1729,128 @@ test.beforeAll(async ({ browser }) => {
 				await button.evaluate((node) => node.scrollIntoView({ block: "center" }));
 			},
 		},
+		// What was never pictured before the final phone pass (issue 74): Review's sheets, a long line
+		// from Sort, text at 200%, the bank's return page and the page a joining Parent lands on.
+		{
+			name: "12j-review-split",
+			path: "/review",
+			phoneSheet: true,
+			ready: async (page) => {
+				const card = await reviewCardOnTop(page, ":has(button:text-is('Split'))");
+				await pressFor(card.getByRole("button", { name: "Split" }), page.getByRole("dialog"));
+			},
+		},
+		{
+			name: "12k-review-make-a-rule",
+			path: "/review",
+			phoneSheet: true,
+			ready: async (page) => {
+				const card = await reviewCardOnTop(page, ":has(button:text-is('Split'))");
+				await pressFor(
+					card.getByRole("button", { name: "Make a Rule" }),
+					page.getByRole("dialog", { name: "Make a Rule" }),
+				);
+			},
+		},
+		{
+			name: "12l-review-new-bucket",
+			path: "/review",
+			phoneSheet: true,
+			ready: async (page) => {
+				const card = await reviewCardOnTop(page, ":has([role=combobox])");
+				await card.getByRole("combobox").first().click({ timeout: 15_000 });
+				await page.getByPlaceholder("Find a Bucket").fill("Widgets and wonders");
+				await page.getByRole("option", { name: /^Create Bucket/ }).click({ timeout: 15_000 });
+				await expect(page.getByRole("dialog", { name: "New Bucket" })).toBeVisible();
+			},
+		},
+		{
+			// A payment's name is the statement's own line: long enough that Sort's line is cut.
+			name: "12n-review-said-long",
+			path: "/review",
+			window: true,
+			ready: async (page) => {
+				await reviewCardOnTop(page, "[data-payment]");
+				await page
+					.getByTestId("review-stack")
+					.getByRole("button", { name: "Skip" })
+					.click({ timeout: 15_000 });
+				await expect(page.getByTestId("review-said")).toContainText("Skipped");
+				await page.evaluate(() => window.scrollTo(0, 0));
+			},
+		},
+		...(
+			[
+				["12p-review-large-text", "/review"],
+				["14d-rules-large-text", "/review/rules"],
+			] as const
+		).map(
+			([name, path]): Shot => ({
+				name,
+				path,
+				phone: true,
+				ready: async (page) => {
+					await page.addStyleTag({
+						content:
+							"html { font-size: 200% !important; -webkit-text-size-adjust: 200% !important; }",
+					});
+				},
+			}),
+		),
+		{ name: "50-bank-return", path: "/bank/return", window: true },
+		{ name: "52-joined", path: "/joined", window: true },
+		{
+			// Files every card it can, for the finish after the last one. Asked for by name.
+			name: "46-review-finish",
+			path: "/review",
+			window: true,
+			ready: async (page) => {
+				const stack = page.getByTestId("review-stack");
+				const card = stack.locator("[data-testid=review-card]").first();
+				for (let turn = 0; turn < 60; turn++) {
+					if (!(await card.isVisible())) break;
+					const confirm = card.getByRole("button", { name: "Confirm" });
+					const payment = card.getByRole("button", { name: "It’s a card payment" });
+					if (await confirm.isVisible()) await confirm.click();
+					else if (await payment.isVisible()) await payment.click();
+					else if (await card.getByRole("combobox").first().isVisible()) {
+						await card.getByRole("combobox").first().click();
+						await page.getByRole("option").first().click({ timeout: 15_000 });
+					} else await stack.getByRole("button", { name: "Skip" }).click();
+					await page.waitForTimeout(700);
+				}
+				await page.evaluate(() => window.scrollTo(0, 0));
+			},
+		},
+		// These decide cards for good, so they come last and are asked for by name, one width a run.
+		{
+			// What Sort says after a card is filed, and the Rule it offers after a change of Bucket.
+			name: "43-review-said-after-filing",
+			path: "/review",
+			window: true,
+			ready: async (page) => {
+				const card = await reviewCardOnTop(page, ":has(button:text-is('Confirm'))");
+				await card.getByRole("combobox").click({ timeout: 15_000 });
+				await page.getByRole("option").first().click({ timeout: 15_000 });
+				await expect(page.getByTestId("review-said")).toContainText(/left\.|All sorted/);
+				await page.evaluate(() => window.scrollTo(0, 0));
+			},
+		},
+		{
+			// Two toasts, each with Undo, over the list and above the bottom bar.
+			name: "44-review-list-two-toasts",
+			path: "/review?view=list",
+			window: true,
+			ready: async (page) => {
+				const confirm = page.getByRole("button", { name: "Confirm", exact: true });
+				await expect(confirm.first()).toBeVisible({ timeout: 15_000 });
+				const before = await confirm.count();
+				await confirm.first().click();
+				await expect(confirm).toHaveCount(before - 1, { timeout: 15_000 });
+				await confirm.first().click();
+				await expect(page.locator("[data-sonner-toast]")).toHaveCount(2, { timeout: 15_000 });
+			},
+		},
 	];
 	mkdirSync(OUT, { recursive: true });
 	writeFileSync(
@@ -1241,6 +1863,7 @@ test.afterAll(async () => {
 	await parent?.remove();
 	await freshParent?.remove();
 	await smallParent?.remove();
+	await carryParent?.remove();
 });
 
 for (const viewport of viewports) {
@@ -1263,6 +1886,7 @@ for (const viewport of viewports) {
 		// Signed in only when there is something to picture as the second Parent.
 		let freshPage: Page | undefined;
 		let smallPage: Page | undefined;
+		let carryPage: Page | undefined;
 		const dir = join(OUT, String(viewport.width));
 		mkdirSync(dir, { recursive: true });
 		const failures: string[] = [];
@@ -1280,6 +1904,11 @@ for (const viewport of viewports) {
 					if (!smallParent) throw new Error("No small Household");
 					smallPage ??= await signedInPage(browser, smallParent.email, device);
 					page = smallPage;
+				}
+				if (shot.carry) {
+					if (!carryParent) throw new Error("No Household with ended months");
+					carryPage ??= await signedInPage(browser, carryParent.email, device);
+					page = carryPage;
 				}
 				await page.goto(shot.path);
 				await settled(page);
@@ -1322,6 +1951,7 @@ for (const viewport of viewports) {
 		await main.context().close();
 		await freshPage?.context().close();
 		await smallPage?.context().close();
+		await carryPage?.context().close();
 		if (failures.length > 0) writeFileSync(join(dir, "failures.txt"), `${failures.join("\n")}\n`);
 		expect(failures, "pages that couldn't be pictured").toEqual([]);
 		expect(seedNotes, "data that couldn't be seeded").toEqual([]);

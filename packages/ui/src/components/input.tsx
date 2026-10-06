@@ -18,9 +18,11 @@ function Input({ className, type, autoComplete, ...props }: React.ComponentProps
 			data-slot="input"
 			className={cn(
 				// 16px on phones so iOS Safari doesn't zoom on focus.
-				"h-9 max-lg:h-11 w-full min-w-0 rounded-xl border border-input bg-surface-2 px-3 text-base text-foreground lg:text-sm",
+				"h-9 max-lg:h-11 w-full min-w-0 rounded-xl border border-field-border bg-surface-2 px-3 text-base text-foreground lg:text-sm",
 				"transition-[border-color,background-color,box-shadow] duration-(--duration-fast) ease-standard",
 				"placeholder:text-subtle-foreground",
+				// Dark only: the edge lifts under the pointer (issue 116). Light has no hover edge.
+				"dark:not-focus-visible:not-aria-invalid:hover:border-field-hover",
 				"focus-visible:border-ring focus-visible:bg-card focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-brand-soft",
 				"disabled:cursor-not-allowed disabled:opacity-50",
 				"aria-invalid:border-over aria-invalid:ring-3 aria-invalid:ring-over-soft",

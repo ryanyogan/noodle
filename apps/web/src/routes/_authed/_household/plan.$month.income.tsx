@@ -1,5 +1,4 @@
 import { lowerTakeHomePay, type MonthKey, monthOfDay, type PlanScope } from "@noodle/domain";
-import { BudgetBar } from "@noodle/ui/components/budget-bar";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { List, ListRow } from "@noodle/ui/components/list";
@@ -37,10 +36,7 @@ function PlanIncome() {
 		? lowerTakeHomePay({ baseline: state.baseline, income: state.income, month, asOf: state.asOf })
 		: null;
 	return (
-		<PlanSubPage
-			editable={state.editable}
-			aside={<TakeHomePayNote baseline={state.baseline} received={received} />}
-		>
+		<PlanSubPage editable={state.editable} aside={<TakeHomePayNote />}>
 			<TakeHomePayEditor month={month} baseline={state.baseline} editable={state.editable} />
 			{lower ? (
 				<Card className="p-(--card-pad)">
@@ -62,39 +58,19 @@ function PlanIncome() {
 	);
 }
 
-/** What take-home pay is, and how much of it has come in so far this month. */
-function TakeHomePayNote({
-	baseline,
-	received,
-}: {
-	baseline: number | null;
-	received: { amount: number }[];
-}) {
+/**
+ * What take-home pay is. How much of it has come in is said once, over the Income list beside
+ * this (issue 73): the rail used to repeat that line.
+ */
+function TakeHomePayNote() {
 	const term = glossary["take-home-pay"];
-	const total = received.reduce((sum, i) => sum + i.amount, 0);
 	return (
 		<Card className="grid gap-3 p-(--card-pad)">
-			{baseline !== null && baseline > 0 ? (
-				<div className="grid gap-2">
-					<p className="text-sm">
-						<span className="font-medium tabular-nums">{formatMoney(total)}</span>
-						<span className="text-muted-foreground tabular-nums">
-							{" "}
-							received of {formatMoney(baseline)}
-						</span>
-					</p>
-					<BudgetBar
-						value={total}
-						max={baseline}
-						label="Received of take-home pay"
-						valueText={`${formatMoney(total)} received of ${formatMoney(baseline)}`}
-					/>
-				</div>
-			) : null}
 			<div className="grid gap-1 text-[13px] text-muted-foreground">
 				<h2 className="text-sm font-medium text-foreground">What’s take-home pay?</h2>
 				<p>{term.short}</p>
-				<p>{term.more}</p>
+				{/* Said on this very page (issue 73): "on Plan › Income" would point at itself. */}
+				<p>{term.more.replace("on Plan › Income", "here, with Edit take-home pay")}</p>
 			</div>
 		</Card>
 	);

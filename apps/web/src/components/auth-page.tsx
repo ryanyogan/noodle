@@ -8,6 +8,8 @@ import type { ReactNode } from "react";
 
 // Below lg our controls are 44 px tall (COMPONENTS.md); from lg they're 36 px.
 const phone = "@media (max-width: 63.99rem)";
+// The narrowest phones (320 px), where Clerk's own side padding costs the card too much.
+const narrow = "@media (max-width: 22.49rem)";
 const controlHeight = {
 	height: "2.25rem",
 	minHeight: "2.25rem",
@@ -68,6 +70,8 @@ export const clerkAppearance = {
 			boxShadow: "0 1px 0 var(--border)",
 			border: "none",
 			borderRadius: "0",
+			// Clerk's 40 px sides leave a 320 px phone a field too narrow for its placeholder (issue 74).
+			[narrow]: { paddingInline: "1.25rem" },
 		}),
 		headerTitle: { fontSize: "1.125rem", fontWeight: 600, letterSpacing: "-0.02em" },
 		headerSubtitle: { color: "var(--muted-foreground)" },
@@ -98,8 +102,8 @@ export const clerkAppearance = {
 			...controlHeight,
 			...phoneSized,
 			borderRadius: "0.75rem",
-			// --input, the border our own Input has, in light and dark (#73).
-			border: "1px solid var(--input)",
+			// --field-border, the border our own Input has, in light and dark (#73, issue 116).
+			border: "1px solid var(--field-border)",
 			background: "var(--surface-2)",
 			color: "var(--foreground)",
 			boxShadow: "none",
@@ -116,7 +120,23 @@ export const clerkAppearance = {
 			},
 		}),
 		formFieldInputShowPasswordButton: { ...focusRing, [phone]: { minWidth: "2.75rem" } },
-		otpCodeFieldInput: phoneSized,
+		// On a phone the six code boxes get our Input's edge and fill: Clerk's own hairline could
+		// hardly be seen, in dark not at all (issue 74).
+		otpCodeFieldInput: over({
+			...phoneSized,
+			"@media (max-width: 39.99rem)": {
+				border: "1px solid var(--input)",
+				background: "var(--surface-2)",
+				color: "var(--foreground)",
+				boxShadow: "none",
+				"&:focus, &:focus-visible": {
+					outline: "none",
+					borderColor: "var(--ring)",
+					background: "var(--card)",
+					boxShadow: "0 0 0 3px var(--brand-soft)",
+				},
+			},
+		}),
 		footerActionLink: {
 			...tappable,
 			color: "var(--foreground)",
@@ -125,7 +145,14 @@ export const clerkAppearance = {
 			textUnderlineOffset: "2px",
 			"&:hover": { color: "var(--brand)" },
 		},
-		footerActionText: { color: "var(--muted-foreground)" },
+		// "Already have an account? Sign in" stays one centred line, or breaks before the link: never
+		// two columns of words side by side (issue 74).
+		footerAction: {
+			flexWrap: "wrap" as const,
+			justifyContent: "center",
+			[narrow]: { paddingInline: "1rem" },
+		},
+		footerActionText: { color: "var(--muted-foreground)", whiteSpace: "nowrap" as const },
 		formFieldAction: { ...tappable, color: "var(--muted-foreground)", fontWeight: 500 },
 		formResendCodeLink: { ...tappable, color: "var(--foreground)" },
 		identityPreviewEditButton: { ...tappable, color: "var(--foreground)" },

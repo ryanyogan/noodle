@@ -65,8 +65,10 @@ export const filePrefixes = (householdId: string) => [
 	`exports/${householdId}/`,
 ];
 
-/** Vectorize deletes at most this many IDs at once; R2 too. */
+/** R2 lists and deletes at most this many at once. */
 const PAGE = 1000;
+/** Vectorize deletes at most this many IDs at once ("max id count is 100"). */
+export const VECTOR_PAGE = 100;
 
 async function removeBanks(deps: ClearDeps, householdId: string) {
 	for (const connectionId of await linkedBankConnectionIds(deps.db, householdId)) {
@@ -138,8 +140,8 @@ async function clearFiles(deps: ClearDeps, householdId: string, level: ClearLeve
 async function forgetMerchants(deps: ClearDeps, householdId: string) {
 	const merchants = await learnedMerchants(deps.db, householdId);
 	const ids = await Promise.all(merchants.map((merchant) => vectorId(householdId, merchant)));
-	for (let i = 0; i < ids.length; i += PAGE)
-		await deps.merchants.deleteByIds(ids.slice(i, i + PAGE));
+	for (let i = 0; i < ids.length; i += VECTOR_PAGE)
+		await deps.merchants.deleteByIds(ids.slice(i, i + VECTOR_PAGE));
 }
 
 export async function runClearStep(

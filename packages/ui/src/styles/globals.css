@@ -138,8 +138,13 @@
 	--destructive: var(--over);
 	/* Input, Select and Textarea borders: at least 3:1 (WCAG 1.4.11) on the card, surface-2 and the page. */
 	--input: #86888f;
-	/* An off Switch's track; its edge is --input. */
+	/* An off Switch's track; its edge is --input. Its thumb is the card colour; dark has its own. */
 	--switch-track: var(--surface-3);
+	--switch-thumb: var(--card);
+	/* A text field's edge (Input, Textarea, a Select or Combobox trigger, Clerk's fields) and that edge
+	   under the pointer. Light draws what it always drew; dark has quieter values (issue 116). */
+	--field-border: var(--input);
+	--field-hover: var(--muted-foreground);
 	--ring: var(--brand);
 
 	/* Motion durations (easings live in @theme as ease-standard / ease-spring) */
@@ -262,8 +267,17 @@
 		--chart-seq-1: color-mix(in oklab, var(--brand) 32%, var(--card));
 		--chart-seq-2: color-mix(in oklab, var(--brand) 52%, var(--card));
 		--chart-seq-3: color-mix(in oklab, var(--brand) 74%, var(--card));
+		/* The edge of a control with no words in it (an empty Checkbox or Radio, an off Switch): 3:1 or
+		   more where it sits (WCAG 1.4.11). */
 		--input: #6e778b;
-		--switch-track: var(--input);
+		/* A text field belongs to the theme (issue 116): a raised ground (--surface-2) inside a hairline
+		   one step over --border-strong, not a bright outline. The edge lifts under the pointer, and
+		   focus draws it in the accent (--ring, 6.37:1 on the card). Ratios: docs/reviews/theme.md,
+		   section 12, "Phase 116c". */
+		--field-border: #3f485c;
+		--field-hover: #5b667e;
+		/* An off Switch: a quiet track inside the --input edge, and a light thumb, on or off. */
+		--switch-thumb: #e9ecf3;
 		--chart-flow-hub: var(--muted-foreground);
 		--chart-flow-out: var(--subtle-foreground);
 		--chart-goal: transparent;
@@ -308,6 +322,9 @@
 	--color-border: var(--border);
 	--color-border-strong: var(--border-strong);
 	--color-input: var(--input);
+	--color-field-border: var(--field-border);
+	--color-field-hover: var(--field-hover);
+	--color-switch-thumb: var(--switch-thumb);
 	--color-switch-track: var(--switch-track);
 	--color-ring: var(--ring);
 	--color-surface-2: var(--surface-2);
