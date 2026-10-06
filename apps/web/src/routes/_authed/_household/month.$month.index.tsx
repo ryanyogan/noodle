@@ -66,6 +66,7 @@ import { useExtraIncomes } from "../../../extra-income";
 import { formatMoney, monthName, shortDay } from "../../../format";
 import { type GoalView, useGoals } from "../../../goals";
 import { useLearned } from "../../../learned";
+import { useReviewWaiting } from "../../../money-in";
 import { closingWeek, useCloseMonth } from "../../../month-close";
 import { useFreeCarry } from "../../../plan-changes";
 import { PLAN_BUCKETS_HASH } from "../../../plan-pages";
@@ -79,7 +80,6 @@ import {
 	monthsKey,
 	planHealthQuery,
 	planHistoryQuery,
-	reviewQuery,
 	setupQuery,
 	useMonthState,
 } from "../../../queries";
@@ -475,7 +475,7 @@ const present = (items: (ToDoItem | false)[]) =>
 type ChipCounts = { waiting: number; changes: number; insights: number; health: number };
 
 function useChipCounts(month: MonthKey, asOf: DayKey, current: boolean): ChipCounts {
-	const waiting = useQuery(reviewQuery()).data?.total ?? 0;
+	const waiting = useReviewWaiting();
 	const firstWeek = current && Number(asOf.slice(8)) <= 7;
 	const history = useQuery({ ...planHistoryQuery(month), enabled: firstWeek }).data;
 	const changes = firstWeek && history ? whatChanged(history.changes, month).length : 0;

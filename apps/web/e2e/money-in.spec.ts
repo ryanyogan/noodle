@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { createTestParent } from "./parents";
-import { createPlannedHousehold, signedInPage } from "./session";
+import { createPlannedHousehold, hydrated, signedInPage } from "./session";
 
 // Money in has a kind (issue 131, ADR-0057): it is listed on Transactions with its kind in plain
 // words, and a Parent can say it is something other than Income, which takes it out of Income.
@@ -43,7 +43,8 @@ test("money in is listed on Transactions with its kind, and a Parent can change 
 
 	await page.goto("/transactions");
 	const rows = moneyIn(page).getByTestId("money-in-row");
-	await expect(rows).toHaveCount(2);
+	// Money in is fetched once the page is live, which a cold dev server takes a while over.
+	await expect(rows).toHaveCount(2, { timeout: 30_000 });
 	const casey = rows.filter({ hasText: "Casey for tuition" });
 	await expect(casey).toContainText("+$300");
 	await expect(casey.getByTestId("money-in-kind")).toHaveText("Income");
@@ -53,6 +54,8 @@ test("money in is listed on Transactions with its kind, and a Parent can change 
 		"aria-pressed",
 		"true",
 	);
+	// Said for every line worded like it too: a Rule for money in.
+	await casey.getByRole("checkbox", { name: "Always, for money in like this" }).click();
 	await casey.getByRole("button", { name: "Paid back", exact: true }).click();
 	await expect(toast(page, "$300 is Paid back")).toBeVisible();
 	await expect(casey.getByTestId("money-in-kind")).toHaveText("Paid back");
@@ -64,4 +67,16 @@ test("money in is listed on Transactions with its kind, and a Parent can change 
 	// The server keeps it: it is out of the month's Income.
 	await page.goto("/month");
 	await expect(income(page)).toContainText("$5,000 received of $5,000 usual take-home pay");
+
+	// The Rule is listed on the Rules page, and can be removed there.
+	await page.goto("/review/rules");
+	const rule = page.getByTestId("money-in-rules").getByTestId("money-in-rule");
+	await expect(rule).toHaveCount(1);
+	await expect(rule).toContainText(/casey/i);
+	await expect(rule).toContainText("Always Paid back");
+	const remove = rule.getByRole("button", { name: /Remove the Rule for/ });
+	await hydrated(remove);
+	await remove.click();
+	await expect(toast(page, "Rule removed")).toBeVisible();
+	await expect(page.getByTestId("money-in-rules")).toBeHidden();
 });

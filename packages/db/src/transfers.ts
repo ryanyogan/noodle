@@ -102,7 +102,7 @@ const inRefund = () =>
  * An imported Transaction that could be a side of a Transfer: not already one, not a Refund, and
  * nothing a Parent has assigned or split.
  */
-const transferable = and(
+export const transferable = and(
 	eq(transactions.source, "import"),
 	sql`not ${inTransfer()}`,
 	sql`not ${inRefund()}`,
@@ -210,6 +210,8 @@ export const transferRow = (row: {
 	reason?: TransferReason | null;
 	/** The reason as SQL, for rows read from JSON. */
 	reasonSql?: SQL;
+	/** The Account on the side Noodle can't see, for a one-sided Transfer that names it. */
+	otherAccountId?: SQL | string | null;
 }) => ({
 	id: sql<string>`${row.id}`.as("id"),
 	householdId: sql<string>`${row.householdId}`.as("household_id"),
@@ -221,7 +223,7 @@ export const transferRow = (row: {
 	removedAt: sql<Date | null>`null`.as("removed_at"),
 	removedByMemberId: sql<string | null>`null`.as("removed_by_member_id"),
 	reason: sql<TransferReason | null>`${row.reasonSql ?? row.reason ?? null}`.as("reason"),
-	otherAccountId: sql<string | null>`null`.as("other_account_id"),
+	otherAccountId: sql<string | null>`${row.otherAccountId ?? null}`.as("other_account_id"),
 });
 
 /** Raw SQL: the Transaction `id` is still a transferable side of the Household's. */

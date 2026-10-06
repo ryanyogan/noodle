@@ -7,12 +7,12 @@ import {
 	moneyInKindOf,
 	monthOfDay,
 } from "@noodle/domain";
-import { and, eq, gte, isNull, lt, ne, type SQL, sql } from "drizzle-orm";
+import { type AnyColumn, and, eq, gte, isNull, lt, ne, type SQL, sql } from "drizzle-orm";
 import { incomeCounts } from "./counting";
 import { decidedSql, extraIncomeSql } from "./extra-income";
 import type { Db } from "./index";
-import { income, moneyInRules, paidBackMatches, transfers } from "./schema";
-import { transferRow } from "./transfers";
+import { accounts, income, moneyInRules, paidBackMatches, transactions, transfers } from "./schema";
+import { transferable, transferRow } from "./transfers";
 
 // Money in has a kind (ADR-0057): Income, a Refund, Paid back, a Transfer or Between us. Money in
 // is a row in `income` whatever its kind; only Income counts (incomeCounts in counting.ts). The
@@ -38,6 +38,10 @@ export type MoneyInLine = {
 	typed: boolean;
 	/** The Transfer that makes it a Transfer or Between us. */
 	transferId: string | null;
+	/** That Transfer has its other side in Noodle (money out of another Account). */
+	paired: boolean;
+	/** The Account a one-sided Transfer says it came from, once a Parent named it. */
+	otherAccountId: string | null;
 };
 
 export type MoneyInFilter = {
@@ -69,6 +73,8 @@ export async function loadMoneyIn(
 			createdBy: income.createdByMemberId,
 			transferId: transfers.id,
 			reason: transfers.reason,
+			outId: transfers.outTransactionId,
+			otherAccountId: transfers.otherAccountId,
 		})
 		.from(income)
 		.leftJoin(transfers, and(eq(transfers.inIncomeId, income.id), isNull(transfers.removedAt)))
@@ -99,6 +105,8 @@ export async function loadMoneyIn(
 		accountId: row.accountId,
 		typed: row.createdBy !== null && row.accountId === null,
 		transferId: row.transferId,
+		paired: row.outId !== null,
+		otherAccountId: row.otherAccountId,
 	}));
 }
 
@@ -229,12 +237,30 @@ export async function changeMoneyInKind(
 }
 
 /** A Rule for money in, as kept. */
-export type StoredMoneyInRule = MoneyInRule & { id: string };
+export type StoredMoneyInRule = MoneyInRule & {
+	id: string;
+	/** A remembered pair of Accounts: only money into this Account, which came from the other. */
+	intoAccountId: string | null;
+	otherAccountId: string | null;
+	intoAccountName: string | null;
+	otherAccountName: string | null;
+};
+
+const accountName = (id: AnyColumn) =>
+	sql<string | null>`(select a.name from accounts a where a.id = ${id})`;
 
 /** The Household's Rules for money in. */
 export async function loadMoneyInRules(db: Db, householdId: string): Promise<StoredMoneyInRule[]> {
 	return db
-		.select({ id: moneyInRules.id, pattern: moneyInRules.pattern, kind: moneyInRules.kind })
+		.select({
+			id: moneyInRules.id,
+			pattern: moneyInRules.pattern,
+			kind: moneyInRules.kind,
+			intoAccountId: moneyInRules.intoAccountId,
+			otherAccountId: moneyInRules.otherAccountId,
+			intoAccountName: accountName(moneyInRules.intoAccountId),
+			otherAccountName: accountName(moneyInRules.otherAccountId),
+		})
 		.from(moneyInRules)
 		.where(eq(moneyInRules.householdId, householdId))
 		.orderBy(moneyInRules.pattern);
@@ -263,9 +289,146 @@ export async function saveMoneyInRule(
 		})
 		.onConflictDoUpdate({
 			target: [moneyInRules.householdId, moneyInRules.pattern],
-			set: { kind: input.kind },
+			// Stating it plainly again forgets a remembered pair of Accounts.
+			set: { kind: input.kind, intoAccountId: null, otherAccountId: null },
 		});
 	return pattern;
+}
+
+/** The Household's Accounts by name, to say which one money came from. */
+export async function loadMoneyInAccounts(db: Db, householdId: string) {
+	return db
+		.select({ id: accounts.id, name: accounts.name })
+		.from(accounts)
+		.where(and(eq(accounts.householdId, householdId), isNull(accounts.archivedAt)))
+		.orderBy(accounts.name);
+}
+
+export type AccountPairResult =
+	| { ok: true; pattern: string; line: MoneyInLine }
+	| { ok: false; reason: "refused" };
+
+/**
+ * A remembered pair of Accounts (ADR-0057): a Parent says the Transfer this money-in line is came
+ * from another of the Household's Accounts, and that money worded like it into the same Account
+ * always does. The line's one-sided Transfer names that Account, and the Rule is kept: from the
+ * next Import such money in is a Transfer, paired with the money out when Noodle has it and
+ * naming the other Account when it doesn't. Refused for a line that isn't a one-sided Transfer
+ * into an Account, or has no wording to remember.
+ */
+export async function rememberAccountPair(
+	db: Db,
+	viewer: { householdId: string; memberId: string },
+	input: { incomeId: string; otherAccountId: string; ruleId: string },
+): Promise<AccountPairResult> {
+	const { householdId } = viewer;
+	const line = await loadMoneyInLine(db, householdId, input.incomeId);
+	const pattern = line?.note?.trim() ? merchantKey(line.note) : "";
+	if (
+		line?.kind !== "transfer" ||
+		!line.transferId ||
+		line.paired ||
+		!line.accountId ||
+		line.accountId === input.otherAccountId ||
+		!pattern
+	)
+		return { ok: false, reason: "refused" };
+	const [other] = await db
+		.select({ id: accounts.id })
+		.from(accounts)
+		.where(and(eq(accounts.id, input.otherAccountId), eq(accounts.householdId, householdId)));
+	if (!other) return { ok: false, reason: "refused" };
+	const pair = {
+		kind: "transfer" as const,
+		intoAccountId: line.accountId,
+		otherAccountId: other.id,
+	};
+	await db.batch([
+		db
+			.update(transfers)
+			.set({ otherAccountId: other.id })
+			.where(
+				and(
+					eq(transfers.id, line.transferId),
+					eq(transfers.householdId, householdId),
+					isNull(transfers.removedAt),
+					isNull(transfers.outTransactionId),
+				),
+			),
+		db
+			.insert(moneyInRules)
+			.values({
+				id: input.ruleId,
+				householdId,
+				pattern,
+				createdByMemberId: viewer.memberId,
+				...pair,
+			})
+			.onConflictDoUpdate({
+				target: [moneyInRules.householdId, moneyInRules.pattern],
+				set: pair,
+			}),
+	]);
+	const after = await loadMoneyInLine(db, householdId, input.incomeId);
+	return after ? { ok: true, pattern, line: after } : { ok: false, reason: "refused" };
+}
+
+const neverInTransfer = sql`not exists (select 1 from transfers x where x.in_income_id = ${income.id})`;
+const daysApart = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b));
+
+/**
+ * Money in from a remembered pair of Accounts is paired with the same amount going out of the
+ * other Account, however many days apart (the nearest when there are several). What finds no
+ * such money out is left for markMoneyInByRule, which marks it alone.
+ */
+async function pairWithOtherAccount(
+	db: Db,
+	householdId: string,
+	lines: { id: string; otherAccountId: string }[],
+	newId: () => string,
+): Promise<void> {
+	for (const line of lines) {
+		const mine = and(eq(income.id, line.id), eq(income.householdId, householdId)) as SQL;
+		const [arrived] = await db
+			.select({ amount: income.amountCents, date: income.date })
+			.from(income)
+			.where(and(mine, isNull(income.kind), neverInTransfer));
+		if (!arrived) continue;
+		const outs = await db
+			.select({ id: transactions.id, date: transactions.date })
+			.from(transactions)
+			.where(
+				and(
+					eq(transactions.householdId, householdId),
+					eq(transactions.accountId, line.otherAccountId),
+					eq(transactions.amountCents, arrived.amount),
+					transferable,
+				),
+			);
+		const [out] = outs.sort(
+			(a, b) => daysApart(a.date, arrived.date) - daysApart(b.date, arrived.date),
+		);
+		if (!out) continue;
+		await db
+			.insert(transfers)
+			.select(
+				db
+					.select(
+						transferRow({
+							id: newId(),
+							householdId,
+							outId: out.id,
+							inTransactionId: null,
+							inIncomeId: line.id,
+							createdBy: null,
+						}),
+					)
+					.from(income)
+					.where(and(mine, isNull(income.kind), neverInTransfer)),
+			)
+			// The money out was paired by someone else meanwhile: this line is marked alone.
+			.onConflictDoNothing();
+	}
 }
 
 /** Removes a Rule for money in; lines it already decided stay as they are. */
@@ -278,18 +441,33 @@ export async function deleteMoneyInRule(db: Db, householdId: string, ruleId: str
 /**
  * After an Import: money in that a Rule says is a Transfer or Between us, and that paired with
  * nothing, is marked alone. Never a line that was in a Transfer before (an unmarked one is not
- * marked again), so running it twice changes nothing.
+ * marked again), so running it twice changes nothing. A remembered pair of Accounts first looks
+ * for its money out in the other Account, and names that Account when it marks the line alone.
  */
 export async function markMoneyInByRule(
 	db: Db,
 	householdId: string,
-	lines: { id: string; kind: MoneyInKind }[],
+	lines: { id: string; kind: MoneyInKind; otherAccountId?: string | null }[],
 	newId: () => string,
 ): Promise<void> {
-	const marks = lines
-		.filter((line) => line.kind === "transfer" || line.kind === "between-us")
-		.map((line) => ({ id: newId(), incomeId: line.id, reason: line.kind }));
-	if (marks.length === 0) return;
+	const ruled = lines.filter((line) => line.kind === "transfer" || line.kind === "between-us");
+	if (ruled.length === 0) return;
+	await pairWithOtherAccount(
+		db,
+		householdId,
+		ruled.flatMap((line) =>
+			line.kind === "transfer" && line.otherAccountId
+				? [{ id: line.id, otherAccountId: line.otherAccountId }]
+				: [],
+		),
+		newId,
+	);
+	const marks = ruled.map((line) => ({
+		id: newId(),
+		incomeId: line.id,
+		reason: line.kind,
+		other: line.kind === "transfer" ? (line.otherAccountId ?? null) : null,
+	}));
 	const field = (name: string) => sql`json_extract(value, ${`$.${name}`})`;
 	await db
 		.insert(transfers)
@@ -304,6 +482,8 @@ export async function markMoneyInByRule(
 						inIncomeId: field("incomeId"),
 						createdBy: null,
 						reasonSql: sql`case when ${field("reason")} = 'between-us' then 'between-us' end`,
+						otherAccountId: sql`(select a.id from accounts a where a.id = ${field("other")}
+							and a.household_id = ${householdId})`,
 					}),
 				)
 				.from(sql`json_each(${JSON.stringify(marks)})`)

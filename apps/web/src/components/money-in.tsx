@@ -12,8 +12,10 @@ import {
 	moneyInLabel,
 	moneyInQuery,
 	moneyInReviewQuery,
+	pairOffered,
 	useMoneyInKindChange,
 } from "../money-in";
+import { AccountPairOffer } from "./money-in-rules";
 import { PaidBackMatching } from "./owed-back";
 
 // Money in and its kind (issue 131, ADR-0057): listed on Transactions with its kind in plain
@@ -52,7 +54,13 @@ export function MoneyInKindChoice({
 							variant={current ? "default" : "outline"}
 							aria-pressed={current}
 							disabled={change.isPending}
-							onClick={() => change.mutate({ line, kind, always }, { onSuccess: onDone })}
+							onClick={() =>
+								change.mutate(
+									{ line, kind, always },
+									// A Transfer stays open to ask which Account it came from.
+									{ onSuccess: (changed) => (pairOffered(changed) ? undefined : onDone?.(changed)) },
+								)
+							}
 						>
 							{MONEY_IN_KIND_LABELS[kind]}
 						</Button>
@@ -71,6 +79,7 @@ export function MoneyInKindChoice({
 					</label>
 				</div>
 			) : null}
+			{pairOffered(line) ? <AccountPairOffer line={line} /> : null}
 		</div>
 	);
 }

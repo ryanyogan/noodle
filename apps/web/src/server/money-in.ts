@@ -1,9 +1,15 @@
 import {
+	type AccountPairResult,
 	changeMoneyInKind,
+	deleteMoneyInRule,
 	loadMoneyIn,
+	loadMoneyInAccounts,
 	loadMoneyInReview,
+	loadMoneyInRules,
 	type MoneyInKindResult,
 	type MoneyInLine,
+	rememberAccountPair,
+	type StoredMoneyInRule,
 	saveMoneyInRule,
 } from "@noodle/db";
 import { addMonths, MONEY_IN_KINDS } from "@noodle/domain";
@@ -74,4 +80,38 @@ export const setMoneyInKind = createServerFn({ method: "POST" })
 			"bucket-uses",
 		]);
 		return result;
+	});
+
+/** The Household's Accounts by name, to say which one money came from. */
+export const getMoneyInAccounts = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.handler(({ context }) => loadMoneyInAccounts(getDb(), context.household.id));
+
+/**
+ * A remembered pair of Accounts (ADR-0057): this Transfer came from another of the Household's
+ * Accounts, and money worded like it into the same Account always does.
+ */
+export const rememberMoneyInPair = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ incomeId: ulidSchema, otherAccountId: ulidSchema, ruleId: ulidSchema }))
+	.handler(async ({ data, context }): Promise<AccountPairResult> => {
+		const result = await rememberAccountPair(getDb(), viewerOf(context), data);
+		if (result.ok) await notifyHousehold(context.household.id, ["rules", "months"]);
+		return result;
+	});
+
+/** The Household's Rules for money in: wording that is always one kind. */
+export const getMoneyInRules = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.handler(
+		({ context }): Promise<StoredMoneyInRule[]> => loadMoneyInRules(getDb(), context.household.id),
+	);
+
+/** Removes a Rule for money in; what it already decided stays as it is. */
+export const removeMoneyInRule = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ ruleId: ulidSchema }))
+	.handler(async ({ data, context }) => {
+		await deleteMoneyInRule(getDb(), context.household.id, data.ruleId);
+		await notifyHousehold(context.household.id, ["rules"]);
 	});

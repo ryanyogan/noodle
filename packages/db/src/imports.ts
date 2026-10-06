@@ -5,6 +5,7 @@ import {
 	holdsMoney,
 	type MoneyInKind,
 	moneyInOnImport,
+	moneyInRuleFor,
 	type StatementLine,
 	type StoredMoneyInKind,
 	statementLineIds,
@@ -117,10 +118,15 @@ export async function importStatement(
 	// Lines a Parent deleted from the Account stay out (ADR-0045).
 	const deleted = await deletedLineKeys(db, householdId, accountId, ids);
 	const toIncome = holdsMoney(account.kind);
-	const moneyInRules = toIncome ? await loadMoneyInRules(db, householdId) : [];
+	// A remembered pair of Accounts speaks only for money into its own Account.
+	const moneyInRules = toIncome
+		? (await loadMoneyInRules(db, householdId)).filter(
+				(rule) => !rule.intoAccountId || rule.intoAccountId === accountId,
+			)
+		: [];
 	const spending: ImportRow[] = [];
 	const received: (ImportRow & { kind: string | null; review: boolean })[] = [];
-	const ruled: { id: string; kind: MoneyInKind }[] = [];
+	const ruled: { id: string; kind: MoneyInKind; otherAccountId: string | null }[] = [];
 	input.lines.forEach((line, i) => {
 		if (banked.has(i) || deleted.has(ids[i] as string)) return;
 		const row = {
@@ -141,7 +147,11 @@ export async function importStatement(
 				review: said.review,
 			});
 			if (said.kind === "transfer" || said.kind === "between-us")
-				ruled.push({ id: row.id, kind: said.kind });
+				ruled.push({
+					id: row.id,
+					kind: said.kind,
+					otherAccountId: moneyInRuleFor(moneyInRules, row.note)?.otherAccountId ?? null,
+				});
 		}
 		// Transactions hold money spent, so money out is positive and money back negative.
 		else spending.push({ ...row, amount: -line.amount });
