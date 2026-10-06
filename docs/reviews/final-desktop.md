@@ -44,13 +44,13 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 
 | Surface | How to reach it | Another agent busy? | 1024 | 1280 | 1440 | 1920 | 2560 | dark 1440 | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| This Month | /month/$month | yes | — | — | ok | — | — | — | pic 01 at 1440: Buckets, Free to Spend with a carried-over amount, To do with Close September, Bills, Income. "Ended with $0, carried over" reworded in 526a6722 (not pictured: needs a month that ended on $0) |
-| This Month, To do row open | To do › a row | yes | — | — | — | — | — | — |  |
-| This Month, get started (fresh Household) | /month/$month (pic 30) | yes | — | — | — | — | — | — |  |
-| Extra income card, menu and "Send the Extra income" sheet | This Month | yes | — | — | — | — | — | — |  |
-| Close month | This Month › To do | yes | — | — | — | — | — | — |  |
+| This Month | /month/$month | yes | ok (reduced) | — | fixed 139b3032 | — | ok (centring measured only) | — | 73aq: To do card on the 20px edge of the cards around it, Income line under its heading, chips under "To look at". Ended months: pics 01f (nothing left), 01g (short), 01h (short carried in), 01i ("How September ended" Household), opened at 1440. Design choice: an ended month's headline is the planned Free to Spend ("$5,000") over "Ended with nothing left": see the handoff |
+| This Month, To do row open | To do › a row | yes | ok (reduced) | — | fixed 139b3032 | — | — | — | pic 02. At 1024 the open row's status is cut with an ellipsis beside the "?" ("…Free to Spend to de…"): open |
+| This Month, get started (fresh Household) | /month/$month (pic 30) | yes | ok (reduced) | — | fixed 139b3032 | — | — | — | pic 30: "Add  an Account" had a hole after "Add" (two flex children): one label now; retaken, opened |
+| Extra income card, menu and "Send the Extra income" sheet | This Month | yes | ok (reduced) | — | ok | — | — | — | pic 01b opened; 01c (the sheet) taken, NOT opened; the menu not pictured |
+| Close month | This Month › To do | yes | ok (reduced) | — | ok | — | — | — | pic 01d opened at 1440 (Bucket leftovers, the Extra income row, Close September) |
 | Cover a Bucket sheet | This Month › an over Bucket | yes | — | — | — | — | — | — |  |
-| Free to Spend card | This Month, Plan | yes | — | — | — | — | — | — |  |
+| Free to Spend card | This Month, Plan | yes | ok (reduced) | — | ok | — | — | — | carried over positive (01), negative (01h) and its month list, opened at 1440 |
 | Month's plan | /month/$month/plan | yes | — | — | — | — | — | — |  |
 
 ## Plan
@@ -149,19 +149,19 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 
 | Surface | How to reach it | Another agent busy? | 1024 | 1280 | 1440 | 1920 | 2560 | dark 1440 | Status / notes |
 |---|---|---|---|---|---|---|---|---|---|
-| Reports › Overview | /reports (pic 23) | no | fixed 99cccec2 | — | fixed 99cccec2 | — | ok (opened at reduced size) | — | part 2 (73ap): lists, chips and the donut are whole dollars; cents stay in the tables and CSV. At 2560 the page sits about 115px left of the middle of the room beside the Sidebar: open, not measured in the DOM |
-| Reports › Big expenses | ?view=big (pic 23b) | no | ok | — | ok | — | — | — | bars, both lists and the chart line up; the two cards end 30px apart (content-length, fine) |
-| Reports › Merchants | ?view=merchants (pic 23f) | no | — | — | fixed 99cccec2 | — | — | — | one row ($841.65) has cents, same decision as above |
+| Reports › Overview | /reports (pic 23) | no | ok (reduced) | — | ok | — | ok (centred: measured) | — | 73aq: at 2560 the cards span 545–2262 beside a 248px Sidebar, centre 1403.5 of 1404: centred, the "115px" of part 2 was not real (same on This Month). 1280, 1920, dark taken, NOT opened |
+| Reports › Big expenses | ?view=big (pic 23b) | no | ok (reduced) | — | ok | — | — | — | 1280, 1920, 2560 taken, not opened; dark not taken |
+| Reports › Merchants | ?view=merchants (pic 23f) | no | ok (reduced) | — | fixed 99cccec2 | — | — | — | 1280, 1920, 2560 taken, not opened; dark not taken |
 | Reports › Cash flow | ?view=cash-flow (pic 23a) | no | — | — | ok | — | — | — |  |
-| Reports › Buckets | ?view=buckets (pic 23c) | no | — | — | fixed 99cccec2 | ok (top 700px, reduced) | — | — | donut centre now $38,057 as the Overview stat; one format down the list |
-| Reports › Plan vs actual | ?view=plan (pic 23d) | no | open: money format | — | fixed 99cccec2 | — | — | — | heatmap clean; chips whole dollars |
-| Reports › Trends | ?view=trends (pic 23e) | no | — | — | ok | — | — | — | "Every day" read-out keeps cents (Oct 5: $4,990.29), an exact read-out by design; the heatmap fills the left 60% of its card: decision in the handoff |
-| Reports › People | ?view=people (pic 23g) | no | — | — | ok | — | — | — | footnote "Spending For Everyone counts once … $4,834.22 this month" (child-costs.tsx) keeps cents: a sentence, not a column |
-| Reports › Goals | ?view=goals (pic 23h) | no | — | — | ok | — | — | — | "7.0%" beside "16%" and "30%" in the cards: two-figure percentages, decision in the handoff |
+| Reports › Buckets | ?view=buckets (pic 23c) | no | ok (reduced) | — | fixed 99cccec2 | ok (top 700px, reduced) | — | — | 1280, 2560 taken, not opened; dark not taken |
+| Reports › Plan vs actual | ?view=plan (pic 23d) | no | ok (reduced) | — | fixed 99cccec2 | — | — | — | heatmap clean at 1024 (reduced); the "money format" note at 1024 was the chips, whole dollars since 99cccec2 |
+| Reports › Trends | ?view=trends (pic 23e) | no | ok (reduced) | — | fixed 401e6ef7 | — | — | — | 73aq: "Every day" now fills its card from lg (weeks up to 48px wide), read-out and key on one line; retaken and opened at 1440, reduced at 1024. The read-out keeps cents by design |
+| Reports › People | ?view=people (pic 23g) | no | ok (reduced) | — | fixed 401e6ef7 | — | — | — | 73aq: footnote in whole dollars ("$4,834 this month, $20,484 this year"); e2e/children.spec.ts follows |
+| Reports › Goals | ?view=goals (pic 23h) | no | ok (reduced) | — | fixed 401e6ef7 | — | — | — | 73aq: whole percents from 1% ("7%"); the status lines of a row of cards sit on one line with or without a badge; retaken and opened |
 | Reports › Income | ?view=income (pic 23i) | no | — | — | ok | — | — | — |  |
-| Reports, drilled into an area (breadcrumb) | a row of Buckets / People | no | — | — | — | — | — | — |  |
-| Reports filters (period, pickers) and Filters sheet | header of every view | no | — | — | — | — | — | — |  |
-| Reports "as a table" (each chart's figures) | under each chart | no | — | — | — | — | — | — |  |
+| Reports, drilled into an area (breadcrumb) | a row of Buckets / People | no | ok (reduced) | — | fixed 401e6ef7 | — | — | — | pic 23u (new). The Transactions card had a line over its first row under 20px of nothing: removed, retaken, opened |
+| Reports filters (period, pickers) and Filters sheet | header of every view | no | — | — | ok | — | — | — | pics 23v (Period menu), 23w (Filters sheet), new; opened at 1440 only. Compare with / Group by menus and the custom range pickers not pictured |
+| Reports "as a table" (each chart's figures) | under each chart | no | open: retake | — | fixed 401e6ef7 | — | — | — | pics 23t-* (new, all ten views). Fixed: one money format and one percent format down a column, day keys written as dates, 24px between columns (the shared Table's own). Opened at 1440 for every view (Trends' and Plan vs actual's only the top). Commitments, by the year has five columns and its last went under the card's edge at 1440 and 1024: from lg names now wrap instead (44ac9517); that last change is NOT pictured |
 | Reports, empty | fresh Household (pic 39a) | no | — | — | ok | — | — | — |  |
 
 ## Insights, Check-in, Ask
@@ -171,7 +171,7 @@ The inventory the last comment on issue 73 asks for: every desktop surface, at e
 | Insights | /insights (pic 24) | no | — | — | — | — | — | — |  |
 | Insights, empty | fresh Household (pic 39d) | no | — | — | — | — | — | — |  |
 | Perks, its row open, "Add a card or membership" sheets | /insights/perks | yes | — | — | — | — | — | — |  |
-| Check-in | /check-in (pic 26) | no | — | — | ok | — | — | — |  |
+| Check-in | /check-in (pic 26) | no | ok (reduced) | — | ok | — | — | — | pic 26 opened again at 1440, clean |
 | Check-in footer | pic 26a | no | — | — | — | — | — | — |  |
 | Check-in, each step done inline | work through the steps | no | — | — | — | — | — | — |  |
 | Check-in, empty | fresh Household (pic 39e) | no | — | — | — | — | — | — |  |
