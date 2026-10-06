@@ -222,3 +222,61 @@ test("on a phone, a payoff Goal is added from Goals, loses progress to new charg
 	await expect(owedCard(page)).not.toContainText("New charges");
 	await page.context().close();
 });
+
+// A payoff Goal has a header of its own, with the same outlined, named Edit button as any Goal
+// (issue 122: it had kept a plain "Edit" when the others were named). Pressed for real at each
+// width, where nothing may lie over it: in the panel beside the list, in the drawer, and on a
+// phone's page, down to the narrowest, where the button sits under the title.
+test("a payoff Goal's Edit Goal button opens its sheet in the panel, the drawer and on a phone", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email, {
+		viewport: { width: 1440, height: 900 },
+	});
+	await createPlannedHousehold(page, plan);
+	await addAccount(page, "Honda loan", "loan", "8,000");
+	await page.goto(new URL("/goals", page.url()).href);
+	await expect(page.getByRole("heading", { level: 1 })).toHaveText("Goals");
+	await page.getByRole("button", { name: "Add Goal" }).click();
+	await page
+		.getByRole("dialog", { name: "Add a Goal" })
+		.getByRole("radio", { name: "Pay off a card or loan" })
+		.check();
+	const added = savedBy(page, "addGoal");
+	await page
+		.getByRole("dialog", { name: "Pay off a card or loan" })
+		.getByRole("button", { name: "Add Goal" })
+		.click();
+	await added;
+	await page
+		.getByRole("region", { name: /^Paying off/ })
+		.getByRole("link", { name: /^Pay off Honda loan, / })
+		.click();
+	await expect(page).toHaveURL(/\/goals\/[0-9A-Z]{26}$/);
+
+	const edit = page.getByRole("button", { name: "Edit Goal", exact: true });
+	const sheet = page.getByRole("dialog", { name: "Edit Pay off Honda loan" });
+	for (const width of [1440, 1024, 393, 320]) {
+		await page.setViewportSize({ width, height: 900 });
+		// Loaded afresh at its own address, as the panel (or the page) of that width.
+		await page.reload();
+		await expect(page.locator("[data-slot=detail-title]")).toHaveText("Pay off Honda loan");
+		await expect(edit).toHaveCount(1);
+		// Off until the page is hydrated: enabled, it takes its press.
+		await expect(edit).toBeEnabled();
+		// Nothing over its middle: what is there is the button or a part of it.
+		expect(
+			await edit.evaluate((button) => {
+				const box = button.getBoundingClientRect();
+				const top = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+				return top !== null && button.contains(top);
+			}),
+			`at ${width} the middle of Edit Goal is the button's own`,
+		).toBe(true);
+		await edit.click({ timeout: 5000 });
+		await expect(sheet).toBeVisible();
+		await page.keyboard.press("Escape");
+		await expect(sheet).toBeHidden();
+	}
+});
