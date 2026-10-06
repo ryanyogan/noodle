@@ -1,4 +1,6 @@
 import { env } from "cloudflare:workers";
+import { runCardPaymentPasses } from "@noodle/db";
+import { ulid } from "ulid";
 import { getDb } from "./db";
 import { releaseAllHeldFiles } from "./file-holds";
 import { runMoneyInPasses } from "./money-in-pass";
@@ -20,6 +22,14 @@ export async function runNightlySnapshots(now: Date) {
 		if (passed.households > 0) console.log("Money-in pass", JSON.stringify(passed));
 	} catch (error) {
 		console.error("Couldn’t run the money-in pass", error);
+	}
+	// Once per Household, ever (issue 136): payments on a card that came in reading "Money back"
+	// are marked as Transfers. Nothing is deleted and "Unmark" undoes each, so no snapshot first.
+	try {
+		const paid = await runCardPaymentPasses(deps.db, ulid);
+		if (paid.households > 0) console.log("Card-payment pass", JSON.stringify(paid));
+	} catch (error) {
+		console.error("Couldn’t run the card-payment pass", error);
 	}
 	// After pruning: statement and Receipt files a clear left for snapshots go once no kept
 	// snapshot needs them, and deleted Households' last snapshots (with the files left for them)

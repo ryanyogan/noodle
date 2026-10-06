@@ -228,6 +228,21 @@ export async function markCardPayments(
 // payment is its spending (kept by hand, or not in Noodle) is filed in its Commitment instead, and
 // remembered by an ordinary Rule.
 
+/** The Household's credit cards in use, by name: the cards "It's a card payment" may name. */
+export function loadCreditCards(db: Db, householdId: string) {
+	return db
+		.select({ id: accounts.id, name: accounts.name })
+		.from(accounts)
+		.where(
+			and(
+				eq(accounts.householdId, householdId),
+				eq(accounts.kind, "credit-card"),
+				isNull(accounts.archivedAt),
+			),
+		)
+		.orderBy(accounts.name);
+}
+
 /** The Household's remembered card-payment wordings, with the card each names. */
 export function loadCardPaymentRules(db: Db, householdId: string) {
 	return db

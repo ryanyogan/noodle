@@ -9,6 +9,7 @@ import {
 } from "@noodle/domain";
 import { and, asc, eq, inArray, isNull, type SQL, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
+import { markCardPayments } from "./card-payments";
 import { bankLinesNotDeleted } from "./deleted-lines";
 import { importStatement } from "./imports";
 import type { Db } from "./index";
@@ -143,6 +144,11 @@ export async function syncBankLines(
 			importId = input.importId;
 			for (const month of imported.months) months.add(month);
 		}
+	} else {
+		// Nothing new came in, so no Import ran: a payment on a card that reads "Money back" (it
+		// came in before its words were read, or its wording changed as it posted) is still marked.
+		const paid = await markCardPayments(db, householdId, input.newId);
+		for (const month of paid.months) months.add(month);
 	}
 	return {
 		importId,

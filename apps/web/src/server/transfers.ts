@@ -1,17 +1,24 @@
 import {
+	followedCards,
+	forgetCardPayment as forgetCard,
 	type IncomeTransferResult,
 	linkRefund as link,
+	loadCardPaymentRules,
+	loadCreditCards,
+	loadPlanRecords,
 	loadRefund,
 	loadTransfer,
 	type MoneyPeer,
 	type MoneyResult,
 	markTransfer as mark,
+	markCardPayment as markCard,
 	markIncomeTransfer as markIncome,
 	type RefundView,
 	type TransferView,
 	unlinkRefund as unlink,
 	unmarkTransfer as unmark,
 } from "@noodle/db";
+import { dayKeyAt, monthOfDay, planForMonth } from "@noodle/domain";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { HouseholdChange } from "../household-changes";
@@ -64,6 +71,84 @@ export const markTransfer = createServerFn({ method: "POST" })
 		const result = await mark(getDb(), viewerOf(context), data);
 		if (result.ok) await notifyHousehold(context.household.id, moneyChanges(result.months));
 		return result;
+	});
+
+/** A card "It's a card payment" may name, and the Commitment its payment is filed in instead. */
+export type CardPaymentCard = {
+	id: string;
+	name: string;
+	/**
+	 * Set for a card kept by hand (no Bank Connection, no statement lately) that a Commitment pays
+	 * down: the payment is its spending, so it's filed there. Null: the payment is a Transfer.
+	 */
+	commitment: { id: string; name: string } | null;
+};
+
+/** The Household's cards, for "It's a card payment" to ask which one. */
+export const getCardPaymentCards = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.handler(async ({ context }): Promise<CardPaymentCard[]> => {
+		const db = getDb();
+		const today = dayKeyAt(new Date(), context.household.timeZone);
+		const month = monthOfDay(today);
+		const [cards, followed, records] = await Promise.all([
+			loadCreditCards(db, context.household.id),
+			followedCards(db, context.household.id, today),
+			loadPlanRecords(db, context.household.id, month),
+		]);
+		const follows = new Set(followed);
+		const commitments = planForMonth(records, month).commitments;
+		return cards.map((card) => {
+			const paying = follows.has(card.id)
+				? undefined
+				: commitments.find((commitment) => commitment.accountId === card.id);
+			return { ...card, commitment: paying ? { id: paying.id, name: paying.name } : null };
+		});
+	});
+
+/**
+ * "It's a card payment": marks money out as a Transfer to `cardAccountId` (null: a card that
+ * isn't in Noodle) and remembers its wording, so later payments are marked as they come in.
+ * Idempotent per `transferId`.
+ */
+export const markCardPayment = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			transferId: ulidSchema,
+			transactionId: ulidSchema,
+			cardAccountId: ulidSchema.nullable(),
+			ruleId: ulidSchema,
+		}),
+	)
+	.handler(async ({ data, context }): Promise<MoneyResult & { remembered?: string }> => {
+		const result = await markCard(getDb(), viewerOf(context), data);
+		if (result.ok) await notifyHousehold(context.household.id, moneyChanges(result.months));
+		return result;
+	});
+
+/** A remembered card-payment wording and the card it names (null: one that isn't in Noodle). */
+export type CardPaymentRule = { id: string; pattern: string; card: string | null };
+
+/** The wordings the Household said are card payments, for the Rules page. */
+export const getCardPaymentRules = createServerFn({ method: "GET" })
+	.middleware([householdMiddleware])
+	.handler(
+		async ({ context }): Promise<CardPaymentRule[]> =>
+			(await loadCardPaymentRules(getDb(), context.household.id)).map(({ id, pattern, card }) => ({
+				id,
+				pattern,
+				card,
+			})),
+	);
+
+/** Forgets a card-payment wording. Transfers already marked stay as they are. */
+export const forgetCardPayment = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(z.object({ pattern: z.string().min(1).max(200) }))
+	.handler(async ({ data, context }) => {
+		await forgetCard(getDb(), context.household.id, data.pattern);
+		return { ok: true };
 	});
 
 /**

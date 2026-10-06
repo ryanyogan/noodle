@@ -2,11 +2,13 @@ import type { MonthKey } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { monthChangeKey } from "./plan-changes";
-import { bucketUsesQuery, monthQuery, monthsKey } from "./queries";
+import { bucketUsesQuery, monthQuery, monthsKey, rulesQuery } from "./queries";
 import {
+	forgetCardPayment,
 	getTransactionMoney,
 	linkRefund,
 	type MoneyResult,
+	markCardPayment,
 	markTransfer,
 	unlinkRefund,
 	unmarkTransfer,
@@ -36,6 +38,11 @@ export type MoneyChange =
 			label: string;
 			/** Money to or from the other Parent, when only this side is in Noodle. */
 			reason?: "between-us";
+			/**
+			 * "It's a card payment": the card it pays (`id` null for one that isn't in Noodle). Its
+			 * wording is remembered for that card, and `ruleId` names what remembers it.
+			 */
+			card?: { id: string | null; name: string | null; ruleId: string };
 			/** What the toast's Undo does instead of unmarking it here (Review puts its card back). */
 			onUndo?: () => void;
 	  }
@@ -49,9 +56,19 @@ export type MoneyChange =
 	  }
 	| { kind: "unlink"; refundId: string; label: string };
 
-const send = (change: MoneyChange): Promise<MoneyResult> => {
+const send = (change: MoneyChange): Promise<MoneyResult & { remembered?: string }> => {
 	switch (change.kind) {
 		case "mark":
+			if (change.card) {
+				return markCardPayment({
+					data: {
+						transferId: change.transferId,
+						transactionId: change.transactionId,
+						cardAccountId: change.card.id,
+						ruleId: change.card.ruleId,
+					},
+				});
+			}
 			return markTransfer({
 				data: {
 					transferId: change.transferId,
@@ -122,6 +139,32 @@ export function useMoneyChange() {
 								label: variables.label,
 							})),
 				});
+				return;
+			}
+			if (variables.kind === "mark" && variables.card) {
+				// Said with its card, and that its wording is remembered; Undo takes both back.
+				const to = variables.card.name ? ` to ${variables.card.name}` : "";
+				const remembered = result.remembered;
+				toast(
+					`${variables.label} marked as a Transfer${to}${remembered ? ". Payments worded like it will be too." : ""}`,
+					{
+						tone: "success",
+						undo: () => {
+							if (remembered) {
+								void forgetCardPayment({ data: { pattern: remembered } }).finally(() =>
+									queryClient.invalidateQueries({ queryKey: rulesQuery().queryKey }),
+								);
+							}
+							if (variables.onUndo) return variables.onUndo();
+							change.mutate({
+								kind: "unmark",
+								transferId: variables.transferId,
+								label: variables.label,
+							});
+						},
+					},
+				);
+				void queryClient.invalidateQueries({ queryKey: rulesQuery().queryKey });
 				return;
 			}
 			toast(`${variables.label} ${done[variables.kind]}`);

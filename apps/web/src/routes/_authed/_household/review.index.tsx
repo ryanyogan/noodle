@@ -65,6 +65,7 @@ import { ulid } from "ulid";
 import { z } from "zod";
 import { pastPlanSentence } from "../../../before-plan";
 import { asBucketColor, monogram, nextBucketColor } from "../../../buckets";
+import { cardNamedBy } from "../../../card-payments";
 import { BucketPicker, NewBucketStep } from "../../../components/bucket-picker";
 import { ReviewMatchOffer } from "../../../components/match-section";
 import { MoneyInReview } from "../../../components/money-in";
@@ -525,6 +526,8 @@ function ReviewPage() {
 	/** "It's a card payment": marks it as a Transfer, which counts nowhere and leaves Review. */
 	function markPayment(item: ReviewItem, reason?: "between-us") {
 		const transferId = ulid();
+		// The card its wording names is said and remembered with it (issue 136).
+		const card = reason ? undefined : cardNamedBy(paymentOf(item), accounts ?? []);
 		const back = () => {
 			marked.current.delete(item.id);
 			dispatch({ type: "returned", items: [item] });
@@ -545,8 +548,9 @@ function ReviewPage() {
 				transactionId: item.id,
 				label: labelOf(item),
 				reason,
+				card: card && { ...card, ruleId: ulid() },
 				// Its toast's Undo puts the card back through the stack, as the stack's own does.
-				onUndo: reason ? () => putBack([item]) : undefined,
+				onUndo: reason || card ? () => putBack([item]) : undefined,
 			},
 			{ onSuccess: (result) => (result.ok ? undefined : back()), onError: back },
 		);

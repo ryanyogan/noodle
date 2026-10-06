@@ -432,12 +432,26 @@ export async function loadTransfer(
 	const [peer] = peerId
 		? await loadPeers(db, viewer.householdId, [peerId], isOut && transfer.inIncomeId !== null)
 		: [];
+	// The side Noodle can't see, when a Parent named its Account ("It's a card payment").
+	const [other] =
+		!peerId && transfer.otherAccountId
+			? await db
+					.select({ name: accounts.name })
+					.from(accounts)
+					.where(
+						and(
+							eq(accounts.id, transfer.otherAccountId),
+							eq(accounts.householdId, viewer.householdId),
+						),
+					)
+			: [];
+	const unseen = peer?.account ?? other?.name ?? null;
 	return {
 		kind: "transfer",
 		transferId: transfer.id,
 		automatic: transfer.createdByMemberId === null,
-		from: isOut ? self.account : (peer?.account ?? null),
-		to: isOut ? (peer?.account ?? null) : self.account,
+		from: isOut ? self.account : unseen,
+		to: isOut ? unseen : self.account,
 		peer: peer ?? null,
 		reason: transfer.reason,
 	};
