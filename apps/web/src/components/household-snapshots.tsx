@@ -191,25 +191,28 @@ export function HouseholdSnapshots({ householdName }: { householdName: string })
 	}
 	const list = snapshots.data ?? [];
 	const { latest, earlier, label: foldLabel } = foldSnapshots(list, showAll);
+	// Restore, beside the text from a tablet up and under it on a phone (issue 110): beside it at
+	// 320 px the date and the counts broke over five lines.
+	const restoreAction = (snapshot: SnapshotSummary) =>
+		snapshot.restorable ? (
+			<Button
+				variant="ghost"
+				aria-label={`Restore the snapshot from ${when(snapshot.createdAt)}`}
+				disabled={!hydrated || restoreState === "running"}
+				onClick={() => setRestoring(snapshot)}
+			>
+				Restore
+			</Button>
+		) : (
+			<span className="text-sm text-muted-foreground">Can’t be restored</span>
+		);
 	const row = (snapshot: SnapshotSummary) => (
 		<ListRow
 			key={snapshot.id}
 			leading={<Tile>{snapshot.kind === "nightly" ? <Moon /> : <Camera />}</Tile>}
 			title={kindLabel(snapshot)}
-			trailing={
-				snapshot.restorable ? (
-					<Button
-						variant="ghost"
-						aria-label={`Restore the snapshot from ${when(snapshot.createdAt)}`}
-						disabled={!hydrated || restoreState === "running"}
-						onClick={() => setRestoring(snapshot)}
-					>
-						Restore
-					</Button>
-				) : (
-					<span className="text-sm text-muted-foreground">Can’t be restored</span>
-				)
-			}
+			trailing={<div className="max-sm:hidden">{restoreAction(snapshot)}</div>}
+			below={<div className="flex justify-end sm:hidden">{restoreAction(snapshot)}</div>}
 			meta={
 				<span className="flex w-full min-w-0 flex-col">
 					<span>

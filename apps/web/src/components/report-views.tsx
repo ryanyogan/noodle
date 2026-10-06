@@ -768,7 +768,9 @@ function BigView({ data, names, search, nav, tables, report }: ViewProps<"big">)
 								to="/transactions/$month"
 								params={{ month: item.date.slice(0, 7) }}
 								search={{ bucket: target }}
-								className="-mx-2 grid gap-1.5 rounded-xl px-2 py-2 transition-colors duration-(--duration-fast) hover:bg-surface-2"
+								// One column that may shrink: a long bank name is cut short instead of pushing
+								// the amount and the bar past the card's edge on a narrow phone (issue 110).
+								className="-mx-2 grid grid-cols-[minmax(0,1fr)] gap-1.5 rounded-xl px-2 py-2 transition-colors duration-(--duration-fast) hover:bg-surface-2"
 							>
 								<span className="flex items-baseline gap-3">
 									<span className="min-w-0 flex-1 truncate text-sm font-medium">

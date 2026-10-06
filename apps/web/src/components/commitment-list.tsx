@@ -197,16 +197,20 @@ function CommitmentRow({
 						</Badge>
 					) : null}
 					{onPay && !paying ? (
-						<Button
-							type="button"
-							variant="ghost"
-							size="sm"
-							className="-my-1 px-2 text-[13px]"
-							disabled={!hydrated}
-							onClick={() => setPaying(true)}
-						>
-							Record payment
-						</Button>
+						// On a phone it always starts a line of its own, in line with the text above it
+						// (issue 110: at 320 px it stayed beside the text in some rows and dropped in others).
+						<span className="max-sm:basis-full">
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								className="-my-1 px-2 text-[13px] max-sm:-ml-2"
+								disabled={!hydrated}
+								onClick={() => setPaying(true)}
+							>
+								Record payment
+							</Button>
+						</span>
 					) : null}
 					{/* Its own line under the rest, as on Plan › Commitments. */}
 					{commitment.accountId ? <PaysDownNote accountId={commitment.accountId} /> : null}
