@@ -33,6 +33,7 @@ import { aboutText, carryNote, termsSchedule } from "../../../commitments";
 import { DateTile, dueDay, dueStatus } from "../../../components/coming-up";
 import { CommitmentSheet, useCommitmentChanges } from "../../../components/commitment-editor";
 import { DetailHeader, DetailPager, DetailPending } from "../../../components/master-detail";
+import { OwedBackOnCommitment } from "../../../components/owed-back-list";
 import { PlanHistoryList } from "../../../components/plan-history";
 import { formatMoney, fullDay, monthName } from "../../../format";
 import { commitmentsQuery, goalsQuery, planHistoryQuery, useMonthState } from "../../../queries";
@@ -172,6 +173,13 @@ function CommitmentPage() {
 				/>
 			) : null}
 			{changes.failed ? <div className="mb-8">{changes.failed}</div> : null}
+			{thisMonth ? (
+				<OwedBackOnCommitment
+					commitment={thisMonth}
+					month={month}
+					className="mb-6 block text-sm text-muted-foreground"
+				/>
+			) : null}
 			{/* The cost across the top. Beneath it, in a pane wide enough, two columns that both start
 			    with a heading: Charges beside Next due and Terms history. With no Charges yet, their note
 			    goes under Next due, so no column is left nearly empty (#73). Phones keep the reading

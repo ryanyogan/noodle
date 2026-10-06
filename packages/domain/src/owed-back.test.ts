@@ -10,6 +10,7 @@ import {
 	owedBackByPerson,
 	owedBackLeft,
 	owedBackPersonIn,
+	owedBackRuleText,
 	owedBackSummary,
 	settleOwedBack,
 } from "./owed-back";
@@ -160,5 +161,13 @@ describe("who", () => {
 		expect(owedBackPersonIn("Zelle payment from CASEY LOWE 24816357", names)).toBe("Casey");
 		expect(owedBackPersonIn("Zelle payment from SAMANTHA", names)).toBeNull();
 		expect(owedBackPersonIn(null, names)).toBeNull();
+	});
+});
+
+describe("what a Rule remembers about Owed back", () => {
+	it("reads as the Rule's wording, who, and the part", () => {
+		expect(owedBackRuleText("tuition", "Casey", 50)).toBe("Tuition: Casey pays back half");
+		expect(owedBackRuleText("skate shop", "Leo", 100)).toBe("Skate shop: Leo pays back all of it");
+		expect(owedBackRuleText("dentist", "Casey", 30)).toBe("Dentist: Casey pays back 30%");
 	});
 });

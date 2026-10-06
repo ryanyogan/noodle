@@ -1,7 +1,7 @@
 import { type Cadence, dueDatesIn } from "./commitments";
 import type { Cents } from "./money";
 import { addDays, addMonths, type DayKey, type MonthKey, monthOfDay } from "./month";
-import type { Charge } from "./month-state";
+import { type Charge, paymentsOf } from "./month-state";
 import { commitmentsIn, type Plan, type PlanRecords } from "./plan";
 
 type CommitmentRecords = Pick<PlanRecords, "commitments" | "commitmentTerms">;
@@ -43,7 +43,8 @@ export function duesBetween(
 	const dues: Due[] = [];
 	for (const month of months(from, to)) {
 		const charged = new Map<string, Cents>();
-		for (const charge of charges) {
+		// Money Paid back isn't a payment of a due date (ADR-0058).
+		for (const charge of paymentsOf(charges)) {
 			if (monthOfDay(charge.date) !== month) continue;
 			charged.set(charge.commitmentId, (charged.get(charge.commitmentId) ?? 0) + charge.amount);
 		}
@@ -94,7 +95,7 @@ export function matchCharges<C extends Charge>(
 	commitmentId: string,
 	charges: readonly C[],
 ): MatchedCharge<C>[] {
-	const own = charges
+	const own = paymentsOf(charges)
 		.filter((c) => c.commitmentId === commitmentId)
 		.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 	const seen = new Map<MonthKey, number>();

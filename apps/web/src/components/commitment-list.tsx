@@ -31,7 +31,9 @@ import {
 	useCommitmentPayment,
 } from "../commitments";
 import { formatMoney, formatMoneyInput, fullDay, shortDay } from "../format";
+import { owedBackOnCommitmentText, useOwedBackOnCommitment } from "../owed-back";
 import { masterDetailItem } from "./master-detail";
+import { OwedBackOnCommitment } from "./owed-back-list";
 import { PaysDownNote } from "./pays-down";
 
 const list = new Intl.ListFormat("en-US", { style: "long", type: "conjunction" });
@@ -193,7 +195,10 @@ function CommitmentRow({
 }) {
 	// An "about" Commitment that came in over or under says where the difference goes instead.
 	const carry = carryNote(commitment, month);
-	const differs = carry ? null : differsBy(commitment);
+	// One someone shares says who owes the rest back instead (issue 132): "$600 over · $600 owed
+	// back by Casey".
+	const owedBack = useOwedBackOnCommitment(commitment.id);
+	const differs = carry || owedBack ? null : differsBy(commitment);
 	const hydrated = useHydrated();
 	// The amount form opens under the row; until then "Record payment" sits on the bill's own line.
 	const [paying, setPaying] = useState(false);
@@ -201,7 +206,9 @@ function CommitmentRow({
 		<ListRow
 			aria-label={`${commitment.name}: ${formatMoney(commitment.actual)} paid of ${formatMoney(
 				commitment.expected,
-			)} expected${differs ? `, ${differs}` : ""}${carry ? `, ${carry}` : ""}`}
+			)} expected${differs ? `, ${differs}` : ""}${
+				owedBack ? `, ${owedBackOnCommitmentText(commitment.difference, owedBack)}` : ""
+			}${carry ? `, ${carry}` : ""}`}
 			leading={<Tile>{monogram(commitment.name)}</Tile>}
 			title={<CommitmentLink month={month} commitment={commitment} />}
 			meta={
@@ -213,6 +220,9 @@ function CommitmentRow({
 						</Badge>
 					) : null}
 					{carry ? <span className="basis-full">{carry}</span> : null}
+					{owedBack ? (
+						<OwedBackOnCommitment commitment={commitment} className="basis-full" />
+					) : null}
 					{onPay && !paying ? (
 						// On a phone it always starts a line of its own, in line with the text above it
 						// (issue 110: at 320 px it stayed beside the text in some rows and dropped in others).

@@ -280,3 +280,24 @@ describe("next due date", () => {
 		]);
 	});
 });
+
+describe("Paid back into a Commitment (issue 132)", () => {
+	const paid = { commitmentId: "01-mortgage", amount: 250_000, date: "2026-09-01" as DayKey };
+	const back = {
+		commitmentId: "01-mortgage",
+		amount: -100_000,
+		date: "2026-09-10" as DayKey,
+		paidBack: true as const,
+	};
+
+	it("doesn't make a paid due date read partly paid", () => {
+		const [due] = comingUp(records, [paid, back], "2026-09-01", 1);
+		expect(due).toMatchObject({ commitmentId: "01-mortgage", paid: 250_000, status: "paid" });
+	});
+
+	it("isn't one of its payments", () => {
+		expect(matchCharges(records, "01-mortgage", [paid, back])).toEqual([
+			{ ...paid, dueDate: "2026-09-01", onTime: true },
+		]);
+	});
+});

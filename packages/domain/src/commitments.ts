@@ -52,11 +52,12 @@ const ABOUT_YEAR_FROM_DAYS = 334;
  * rests on are always the latest `count`. Null with no charge yet.
  */
 export function aboutAmount(
-	charges: readonly { amount: Cents; date: DayKey }[],
+	charges: readonly { amount: Cents; date: DayKey; paidBack?: true | undefined }[],
 	asOf: DayKey,
 ): AboutAmount | null {
+	// Money Paid back into the Commitment isn't one of its charges (ADR-0058).
 	const past = charges
-		.filter((charge) => charge.date <= asOf)
+		.filter((charge) => !charge.paidBack && charge.date <= asOf)
 		.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 	const oldest = past[0];
 	if (!oldest) return null;

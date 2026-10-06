@@ -567,7 +567,9 @@ export async function loadPaidBackCharges(
 			),
 		)
 		.orderBy(paidBackMatches.countsOn, paidBackMatches.id);
-	return rows as (Charge & { id: string })[];
+	// Marked, so nothing reads one as a payment: not "paid this month", the payment history, or
+	// an "about" average.
+	return rows.map((row) => ({ ...row, paidBack: true })) as (Charge & { id: string })[];
 }
 
 /**

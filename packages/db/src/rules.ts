@@ -241,6 +241,10 @@ export async function saveRule(
 					ownerMemberId: sql<string | null>`${ownerOf(bucketId)}`.as("owner_member_id"),
 					matchedCount: sql<number>`0`.as("matched_count"),
 					commitmentId: sql<string | null>`${commitmentId}`.as("commitment_id"),
+					// A new Rule remembers nothing about Owed back until a Parent says so (ADR-0058).
+					owedBackWho: sql<string | null>`null`.as("owed_back_who"),
+					owedBackMemberId: sql<string | null>`null`.as("owed_back_member_id"),
+					owedBackPercent: sql<number | null>`null`.as("owed_back_percent"),
 				})
 				.from(sql`(select 1)`)
 				.where(and(canAssign, sql`not exists (select 1 from ${rules} where ${sameKey})`)),

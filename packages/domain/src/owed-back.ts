@@ -181,3 +181,13 @@ export function owedBackPersonIn(text: string | null, names: readonly string[]):
 		.sort((a, b) => b.length - a.length);
 	return named[0] ?? null;
 }
+
+/**
+ * "Tuition: Casey pays back half": what a Rule remembers about Owed back, by the Rule's wording.
+ * Half and all are said in words, any other part in percent.
+ */
+export function owedBackRuleText(pattern: string, who: string, percent: number): string {
+	const name = pattern.charAt(0).toUpperCase() + pattern.slice(1);
+	const part = percent === 50 ? "half" : percent >= 100 ? "all of it" : `${percent}%`;
+	return `${name}: ${who} pays back ${part}`;
+}

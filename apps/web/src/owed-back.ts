@@ -1,6 +1,6 @@
-import type { Cents } from "@noodle/domain";
+import { type Cents, owedBackSummary } from "@noodle/domain";
 import { toast } from "@noodle/ui/components/toast";
-import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ulid } from "ulid";
 import { formatMoney } from "./format";
 import { monthChangeKey } from "./plan-changes";
@@ -8,9 +8,13 @@ import { monthsKey } from "./queries";
 import {
 	clearOwedBack,
 	confirmPaidBackMatches,
+	forgetOwedBackRule,
 	getOwedBack,
+	getOwedBackRule,
 	getPaidBackOffer,
+	getUnmatchedPaidBack,
 	type OwedBackItem,
+	rememberOwedBackRule,
 	setOwedBack,
 } from "./server/owed-back";
 
@@ -34,6 +38,35 @@ export const owedBackOpenQuery = () =>
 		queryKey: [...owedBackKey, "open"],
 		queryFn: () => getOwedBack({ data: { open: true } }),
 	});
+
+/** Paid back lines with money that isn't matched to anything Owed back yet, newest first. */
+export const unmatchedPaidBackQuery = () =>
+	queryOptions({
+		queryKey: [...owedBackKey, "unmatched"],
+		queryFn: () => getUnmatchedPaidBack(),
+	});
+
+const names = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
+
+/**
+ * "$600 over · $600 owed back by Casey": a Commitment someone shares, until the money comes
+ * (ADR-0058). Just "$600 owed back by Casey" when it isn't over. Null with nothing owed back.
+ */
+export function owedBackOnCommitmentText(
+	difference: number,
+	summary: { left: number; who: readonly string[] } | null,
+): string | null {
+	if (!summary || summary.left <= 0) return null;
+	const owed = `${formatMoney(summary.left)} owed back by ${names.format(summary.who)}`;
+	return difference > 0 ? `${formatMoney(difference)} over · ${owed}` : owed;
+}
+
+/** What's still Owed back on purchases filed in a Commitment, and by whom; null when nothing is. */
+export function useOwedBackOnCommitment(commitmentId: string) {
+	const { data } = useQuery(owedBackOpenQuery());
+	if (!data) return null;
+	return owedBackSummary(data.filter((item) => item.commitmentId === commitmentId));
+}
 
 /** A Paid back line offered against what's still Owed back. */
 export const paidBackOfferQuery = (incomeId: string) =>
@@ -154,4 +187,34 @@ export function useConfirmPaidBack() {
 			),
 		onSettled: () => queryClient.invalidateQueries({ queryKey: monthsKey }),
 	});
+}
+
+/** The Rule a purchase goes by, and what it remembers about Owed back. */
+export const owedBackRuleQuery = (transactionId: string) =>
+	queryOptions({
+		queryKey: [...owedBackKey, "rule", transactionId],
+		queryFn: () => getOwedBackRule({ data: { transactionId } }),
+	});
+
+/** A Parent has the purchase's Rule remember who pays part back, or stop remembering. */
+export function useOwedBackRule() {
+	const queryClient = useQueryClient();
+	const onSettled = () => queryClient.invalidateQueries({ queryKey: owedBackKey });
+	const failed = () => toast("Couldn’t save it, so the Rule is as it was.", { tone: "error" });
+	const remember = useMutation({
+		mutationFn: async (owedBackId: string) => {
+			const result = await rememberOwedBackRule({ data: { owedBackId } });
+			if (!result.ok) throw new Refused("refused");
+			return result.rule;
+		},
+		onError: failed,
+		onSuccess: () => toast("The Rule will remember", { tone: "success" }),
+		onSettled,
+	});
+	const forget = useMutation({
+		mutationFn: (ruleId: string) => forgetOwedBackRule({ data: { ruleId } }),
+		onError: failed,
+		onSettled,
+	});
+	return { remember, forget };
 }

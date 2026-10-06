@@ -3,6 +3,7 @@ import { and, asc, eq, gt, isNull, lte, or, type SQL, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { counts } from "./counting";
 import type { Db } from "./index";
+import { applyOwedBackRules } from "./owed-back-rules";
 import { assignableBy, changeableBy, type Viewer } from "./privacy";
 import {
 	buckets,
@@ -137,6 +138,8 @@ export async function fileCategorizations(
 	for (let i = 0; i < decisions.length; i += FILED_PER_STATEMENT)
 		batch.push(...filingStatements(db, viewer, decisions.slice(i, i + FILED_PER_STATEMENT)));
 	await db.batch(batch as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+	// A Rule that remembers who pays part back says it on what it just filed (ADR-0058).
+	await applyOwedBackRules(db, viewer, decisions);
 }
 
 /**
