@@ -1767,6 +1767,19 @@ function ReviewCard({
 						choices={choices}
 						onValueChange={(value) => plan && onPick(value, plan)}
 						onCreate={onCreate && plan ? (name) => onCreate(name, plan) : undefined}
+						// Issue 98: where Buckets are renamed, grouped and put in order is one tap from here.
+						foot={
+							plan ? (
+								<Link
+									to="/plan/$month"
+									params={{ month: plan.month }}
+									hash={PLAN_BUCKETS_HASH}
+									className="flex min-h-9 items-center rounded-md px-2 text-[13px] font-medium text-muted-foreground hover:bg-surface-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring max-lg:min-h-11"
+								>
+									Edit Buckets
+								</Link>
+							) : undefined
+						}
 					/>
 					<Button
 						variant="ghost"

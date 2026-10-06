@@ -149,6 +149,15 @@ type DataTableProps<TData extends RowData> = Omit<
 	indent?: { width: string; min: number };
 	/** A full-width row before this one: a day's label and total. Null for none. */
 	groupBefore?: (row: TData, previous: TData | undefined) => React.ReactNode;
+	/**
+	 * A row before this one that is laid out in the table's own columns: a group's name and its
+	 * subtotals, in line with the figures under them. Keyed by column id; a column left out holds its
+	 * place and is empty. Null for none.
+	 */
+	groupCells?: (
+		row: TData,
+		previous: TData | undefined,
+	) => Partial<Record<string, React.ReactNode>> | null;
 	/** Extra attributes for a row's element (`data-*`, a ref for a drag to measure). */
 	rowProps?: (row: TData, index: number) => React.ComponentProps<"div"> & Record<string, unknown>;
 	/** Shown instead of rows when there are none. */
@@ -237,6 +246,7 @@ function DataTable<TData extends RowData>({
 	leading,
 	indent,
 	groupBefore,
+	groupCells,
 	rowProps,
 	empty,
 	loading = false,
@@ -602,6 +612,7 @@ function DataTable<TData extends RowData>({
 							const selected = row.getIsSelected();
 							const open = isOpen?.(row.original) ?? false;
 							const group = groupBefore?.(row.original, rows[index - 1]?.original);
+							const inColumns = groupCells?.(row.original, rows[index - 1]?.original);
 							const { className: rowClassName, ...rest } = rowProps?.(row.original, index) ?? {};
 							return (
 								<React.Fragment key={row.id}>
@@ -612,6 +623,46 @@ function DataTable<TData extends RowData>({
 											className="block px-(--card-pad)"
 										>
 											<div role={cellRole}>{group}</div>
+										</div>
+									) : null}
+									{inColumns ? (
+										<div
+											role={ROLE.row}
+											data-slot="data-table-group"
+											className={cn(
+												ROW_GRID,
+												"min-h-10 border-t border-border py-1.5 font-medium first:border-t-0",
+											)}
+										>
+											{selection ? <div role={cellRole} className={selectCell} /> : null}
+											{leading ? <div role={cellRole} className={BEFORE.leading} /> : null}
+											{spacer}
+											{row.getVisibleCells().map((cell) => {
+												const column = byId.get(cell.column.id);
+												if (!column) return null;
+												const place = layout.stacked.places[column.id];
+												const content = inColumns[column.id];
+												const filled = content !== undefined && content !== null;
+												return (
+													<div
+														key={cell.id}
+														role={cellRole}
+														data-column={column.id}
+														// As a total's: an empty one holds its place and takes no line when stacked.
+														className={cellClass(
+															column,
+															filled ? (place?.slot ?? "secondary") : "hidden",
+														)}
+														style={
+															filled && place?.slot === "secondary"
+																? ({ "--dt-row": place.row } as React.CSSProperties)
+																: undefined
+														}
+													>
+														{content ?? null}
+													</div>
+												);
+											})}
 										</div>
 									) : null}
 									{/* biome-ignore lint/a11y/useAriaPropsSupportedByRole: a row in a grid takes aria-selected; its role is set from a constant the rule can not read */}

@@ -146,6 +146,9 @@ export const buckets = sqliteTable(
 		// Set for a Personal Allowance: the Parent it belongs to. Its Transactions are private to
 		// them; the other Parent only ever reads its totals (ADR-0003, see privacy.ts).
 		ownerMemberId: text("owner_member_id").references(() => members.id),
+		// The group a Parent lists it under in the Plan (issue 98): only a name Buckets share. Null
+		// for none; never set on a Personal Allowance.
+		groupName: text("group_name"),
 	},
 	(t) => [
 		index("buckets_household_idx").on(t.householdId),

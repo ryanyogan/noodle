@@ -1,5 +1,13 @@
 import type { BucketDeleteBlocker } from "@noodle/db";
-import { type MonthKey, type PlanBucket, type PlanScope, parseDollars } from "@noodle/domain";
+import {
+	cleanGroupName,
+	GROUP_NAME_MAX,
+	type MonthKey,
+	type PlanBucket,
+	type PlanScope,
+	parseDollars,
+	putInOrder,
+} from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { Field, FormError } from "@noodle/ui/components/field";
@@ -19,6 +27,7 @@ import {
 	withAllowance,
 	withBucketDetails,
 	withCarriesOver,
+	withGroupRenamed,
 	withNewPersonalAllowance,
 	withOrder,
 	withoutBucket,
@@ -29,6 +38,7 @@ import {
 	addPersonalAllowance,
 	archiveBucket,
 	deleteBucket,
+	renameBucketGroup,
 	reorderBuckets,
 	setAllowance,
 	setCarriesOver,
@@ -48,8 +58,14 @@ export function useBucketChanges(month: MonthKey) {
 		apply: withAllowance,
 	});
 	const details = usePlanChange(month, {
-		save: (data: { bucketId: string; name?: string; color?: number }) => updateBucket({ data }),
+		save: (data: { bucketId: string; name?: string; color?: number; group?: string | null }) =>
+			updateBucket({ data }),
 		apply: withBucketDetails,
+	});
+	// A group's new name, on every Bucket in it (issue 98); null takes them all out of it.
+	const renameGroup = usePlanChange(month, {
+		save: (data: { from: string; to: string | null }) => renameBucketGroup({ data }),
+		apply: withGroupRenamed,
 	});
 	const carriesOver = usePlanChange(month, {
 		save: (data: { bucketId: string; month: MonthKey; rolling: boolean }) =>
@@ -69,7 +85,7 @@ export function useBucketChanges(month: MonthKey) {
 		save: (data: { bucketId: string }) => deleteBucket({ data }),
 		apply: withoutBucket,
 	});
-	const all = [allowance, details, carriesOver, reorder, archive, remove];
+	const all = [allowance, details, carriesOver, reorder, archive, remove, renameGroup];
 	const failed = all.some((change) => change.isError) ? (
 		<>
 			<SaveFailed change={allowance} />
@@ -78,9 +94,10 @@ export function useBucketChanges(month: MonthKey) {
 			<SaveFailed change={reorder} />
 			<SaveFailed change={archive} />
 			<SaveFailed change={remove} />
+			<SaveFailed change={renameGroup} />
 		</>
 	) : null;
-	return { allowance, details, carriesOver, reorder, archive, remove, failed };
+	return { allowance, details, carriesOver, reorder, archive, remove, renameGroup, failed };
 }
 
 export type BucketChanges = ReturnType<typeof useBucketChanges>;
@@ -95,6 +112,8 @@ export function BucketSheet({
 	month,
 	bucket,
 	order,
+	peers,
+	groups,
 	open,
 	onOpenChange,
 	changes,
@@ -106,6 +125,10 @@ export function BucketSheet({
 	month: MonthKey;
 	bucket: PlanBucket;
 	order: string[];
+	/** The Buckets it is moved among, of `order`: its group's (issue 98). Default: all of them. */
+	peers?: string[];
+	/** The groups the Plan's Buckets are in. With it the sheet has the Group field. */
+	groups?: string[];
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	changes: BucketChanges;
@@ -150,6 +173,7 @@ export function BucketSheet({
 					<BucketForm
 						month={month}
 						bucket={bucket}
+						groups={groups}
 						changes={changes}
 						onDraft={onDraft}
 						freeToSpend={freeToSpend}
@@ -162,6 +186,7 @@ export function BucketSheet({
 							month={month}
 							bucket={bucket}
 							order={order}
+							peers={peers}
 							changes={changes}
 							onArchived={close}
 							history={
@@ -187,6 +212,7 @@ export function BucketSheet({
 function BucketForm({
 	month,
 	bucket,
+	groups,
 	changes,
 	onDraft,
 	freeToSpend,
@@ -198,6 +224,7 @@ function BucketForm({
 }: {
 	month: MonthKey;
 	bucket: PlanBucket;
+	groups?: string[];
 	changes: BucketChanges;
 	onDraft?: (cents: number | null) => void;
 	freeToSpend?: number;
@@ -215,6 +242,8 @@ function BucketForm({
 	const [scope, setScope] = useState<PlanScope>("from-on");
 	const [color, setColor] = useState(bucket.color);
 	const [rolling, setRolling] = useState(bucket.rolling);
+	const [group, setGroup] = useState(bucket.group ?? "");
+	const groupName = cleanGroupName(group);
 	const [errors, setErrors] = useState<{ name?: boolean; amount?: boolean }>({});
 	const cents = parseDollars(amount);
 	const trimmed = name.trim();
@@ -223,6 +252,7 @@ function BucketForm({
 		allowance: cents !== bucket.allowance,
 		color: color !== bucket.color,
 		rolling: rolling !== bucket.rolling,
+		group: groupName !== (bucket.group ?? null),
 	};
 	const dirty = Object.values(changed).some(Boolean);
 	const after =
@@ -234,11 +264,12 @@ function BucketForm({
 		const next = { name: trimmed === "", amount: cents === null };
 		setErrors(next);
 		if (next.name || cents === null) return;
-		if (changed.name || changed.color) {
+		if (changed.name || changed.color || changed.group) {
 			changes.details.mutate({
 				bucketId: bucket.id,
 				...(changed.name ? { name: trimmed } : {}),
 				...(changed.color ? { color } : {}),
+				...(changed.group ? { group: groupName } : {}),
 			});
 		}
 		if (changed.allowance) {
@@ -318,6 +349,41 @@ function BucketForm({
 					onChange={setRolling}
 					hint={changed.rolling ? `From ${monthName(month)} on.` : undefined}
 				/>
+				{groups && bucket.owner === undefined ? (
+					// Issue 98: a group is a name Buckets share. Type a new one, pick one there is, or
+					// leave it empty for none.
+					<Field
+						label="Group"
+						htmlFor={`${id}-group`}
+						hint="Buckets in a group are listed together in the Plan, with a subtotal. Empty for no group."
+					>
+						<Input
+							id={`${id}-group`}
+							maxLength={GROUP_NAME_MAX}
+							autoComplete="off"
+							placeholder="No group"
+							value={group}
+							onChange={(event) => setGroup(event.currentTarget.value)}
+						/>
+						{groups.length > 0 ? (
+							<div data-slot="bucket-groups" className="flex flex-wrap gap-2">
+								{groups.map((name) => (
+									<Button
+										key={name}
+										type="button"
+										variant="outline"
+										size="sm"
+										aria-pressed={name === groupName}
+										className="max-w-full aria-pressed:bg-surface-2"
+										onClick={() => setGroup(name === groupName ? "" : name)}
+									>
+										<span className="truncate">{name}</span>
+									</Button>
+								))}
+							</div>
+						) : null}
+					</Field>
+				) : null}
 				{children}
 			</div>
 			<SheetFooter className="max-lg:grid-cols-2">
@@ -379,6 +445,7 @@ function BucketActions({
 	month,
 	bucket,
 	order,
+	peers,
 	changes,
 	onArchived,
 	history,
@@ -386,6 +453,7 @@ function BucketActions({
 	month: MonthKey;
 	bucket: PlanBucket;
 	order: string[];
+	peers?: string[];
 	changes: BucketChanges;
 	onArchived: () => void;
 	/** Its Plan history, where the sheet shows it: between moving and archiving. */
@@ -395,8 +463,10 @@ function BucketActions({
 	const [confirmDelete, setConfirmDelete] = useState(false);
 	const navigate = useNavigate();
 	const openId = useParams({ strict: false, select: (params) => params.id });
-	const index = order.indexOf(bucket.id);
-	const shared = bucket.owner === undefined && index >= 0;
+	// It moves among its group's Buckets (issue 98); the others keep their places.
+	const among = peers ?? order;
+	const index = among.indexOf(bucket.id);
+	const shared = bucket.owner === undefined && order.includes(bucket.id);
 	// Asked when the sheet opens: until it answers, Archive is the only way out of the Plan.
 	const blockers = useQuery({ ...bucketDeleteBlockersQuery(bucket.id), enabled: shared }).data;
 	const kept = blockers?.length ? keptBecause(blockers) : null;
@@ -404,14 +474,14 @@ function BucketActions({
 	// rather than archiving it.
 	if (!shared) return history ?? null;
 	const move = (by: -1 | 1) => {
-		const next = nudged(order, bucket.id, by);
-		if (next !== order) changes.reorder.mutate({ bucketIds: next });
+		const next = nudged(among, bucket.id, by);
+		if (next !== among) changes.reorder.mutate({ bucketIds: putInOrder(order, next) });
 	};
 
 	return (
 		<>
 			{/* Moving it without dragging: the list's handle needs a steady thumb on a phone (#98). */}
-			{order.length > 1 ? (
+			{among.length > 1 ? (
 				<div className="flex flex-wrap items-center gap-2">
 					<Button
 						type="button"
@@ -427,14 +497,14 @@ function BucketActions({
 						type="button"
 						variant="outline"
 						size="sm"
-						disabled={index === order.length - 1}
+						disabled={index === among.length - 1}
 						onClick={() => move(1)}
 					>
 						<ArrowDown />
 						Move down
 					</Button>
 					<p aria-live="polite" className="text-[13px] text-muted-foreground tabular-nums">
-						{placeOf(order, bucket.id)} in the list
+						{placeOf(among, bucket.id)} in {bucket.group ?? "the list"}
 					</p>
 				</div>
 			) : null}
@@ -451,7 +521,7 @@ function BucketActions({
 					</Button>
 				) : null}
 				<p className="text-[13px] text-muted-foreground">
-					{order.length > 1 ? "Moving and archiving happen at once." : "Archiving happens at once."}
+					{among.length > 1 ? "Moving and archiving happen at once." : "Archiving happens at once."}
 				</p>
 			</div>
 			{kept ? (
@@ -488,6 +558,62 @@ function BucketActions({
 				</Confirm>
 			) : null}
 		</>
+	);
+}
+
+/**
+ * A group's own sheet (issue 98), from Rename on its heading in the Plan's Buckets: its name, on
+ * every Bucket in it. An empty name takes them all out of the group; the Buckets stay.
+ */
+export function GroupSheet({
+	group,
+	changes,
+	onClose,
+}: {
+	group: string;
+	changes: BucketChanges;
+	onClose: () => void;
+}) {
+	const hydrated = useHydrated();
+	const id = useId();
+	const [name, setName] = useState(group);
+	const next = cleanGroupName(name);
+	return (
+		<Sheet open onOpenChange={(open) => !open && onClose()}>
+			<SheetContent>
+				<SheetHeader title={group} description="Group of Buckets" />
+				<form
+					className="grid gap-4"
+					onSubmit={(event) => {
+						event.preventDefault();
+						if (next !== group) changes.renameGroup.mutate({ from: group, to: next });
+						onClose();
+					}}
+				>
+					<Field
+						label="Group name"
+						htmlFor={`${id}-name`}
+						hint="Empty takes its Buckets out of the group. They stay in the Plan."
+					>
+						<Input
+							id={`${id}-name`}
+							maxLength={GROUP_NAME_MAX}
+							autoComplete="off"
+							value={name}
+							onChange={(event) => setName(event.currentTarget.value)}
+						/>
+					</Field>
+					<SheetFooter className="max-lg:grid-cols-2">
+						<Button type="button" variant="outline" onClick={onClose}>
+							Cancel
+						</Button>
+						<Button type="submit" disabled={!hydrated || next === group}>
+							{next === null ? "Remove group" : "Save"}
+						</Button>
+					</SheetFooter>
+				</form>
+			</SheetContent>
+		</Sheet>
 	);
 }
 

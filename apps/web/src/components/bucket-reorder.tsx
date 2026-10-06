@@ -1,3 +1,4 @@
+import { putInOrder } from "@noodle/domain";
 import {
 	type KeyboardEvent,
 	type MouseEvent as ReactMouseEvent,
@@ -28,6 +29,8 @@ type Drag = {
 	rows: HTMLElement[];
 	boxes: RowBox[];
 	order: string[];
+	/** The Buckets it moves among (its group's), in order: `rows`, `boxes`, `from` and `to` are theirs. */
+	among: string[];
 	from: number;
 	to: number;
 	startX: number;
@@ -73,9 +76,15 @@ function scrollerOf(element: Element): Element {
  */
 export function useBucketReorder({
 	buckets,
+	peers,
 	reorder,
 }: {
 	buckets: readonly { id: string; name: string }[];
+	/**
+	 * The Buckets a Bucket moves among, when not all of them: those of its group (issue 98). A drag
+	 * and the arrow keys stop at the group's first and last Bucket.
+	 */
+	peers?: (id: string) => readonly string[];
 	/** Saves the new order; `settled` once the Plan has it, or has refused it. */
 	reorder: (ids: string[], settled: () => void) => void;
 }) {
@@ -85,15 +94,26 @@ export function useBucketReorder({
 	/** The Bucket being dragged, for its row's raised look. */
 	const [lifted, setLifted] = useState<string | null>(null);
 	/** The order just dropped, shown until the Plan has it (or has refused it). */
-	const [dropped, setDropped] = useState<string[] | null>(null);
+	const [dropped, setDropped] = useState<{ order: string[]; from: string } | null>(null);
 	const [said, setSaid] = useState("");
 	/** Whether the press now under way began on a handle: the click that ends it opens nothing. */
 	const onHandle = useRef(false);
 	const known = new Set(buckets.map((b) => b.id));
+	const own = buckets.map((b) => b.id);
+	// Only while the Plan still has the order the drop began from: once it has any other (the drop's
+	// own, or one made elsewhere, as by the sheet's Move up), the Plan's order is what shows. A
+	// second save before the first has settled never reports the first as settled (issue 98).
 	const ids =
-		dropped && dropped.length === known.size && dropped.every((id) => known.has(id))
-			? dropped
-			: buckets.map((b) => b.id);
+		dropped &&
+		dropped.from === own.join() &&
+		dropped.order.length === known.size &&
+		dropped.order.every((id) => known.has(id))
+			? dropped.order
+			: own;
+	const amongOf = (id: string) => {
+		const group = peers ? new Set(peers(id)) : null;
+		return group ? ids.filter((other) => group.has(other)) : ids;
+	};
 	const nameOf = (id: string) => buckets.find((b) => b.id === id)?.name ?? "Bucket";
 
 	function save(next: string[], id: string) {
@@ -101,20 +121,21 @@ export function useBucketReorder({
 			setSaid(`${nameOf(id)} stays at position ${next.indexOf(id) + 1} of ${next.length}`);
 			return;
 		}
-		setDropped(next);
+		setDropped({ order: next, from: own.join() });
 		reorder(next, () => setDropped(null));
 		setSaid(`${nameOf(id)} moved to position ${next.indexOf(id) + 1} of ${next.length}`);
 	}
 
 	function onKeyDown(event: KeyboardEvent<HTMLButtonElement>, id: string) {
-		const by = { ArrowUp: -1, ArrowDown: 1, Home: -ids.length, End: ids.length }[event.key];
+		const among = amongOf(id);
+		const by = { ArrowUp: -1, ArrowDown: 1, Home: -among.length, End: among.length }[event.key];
 		if (by === undefined) return;
 		event.preventDefault();
 		event.stopPropagation();
-		const from = ids.indexOf(id);
-		const to = Math.max(0, Math.min(ids.length - 1, from + by));
+		const from = among.indexOf(id);
+		const to = Math.max(0, Math.min(among.length - 1, from + by));
 		if (to === from) return;
-		save(moved(ids, id, to), id);
+		save(putInOrder(ids, moved(among, id, to)), id);
 		// The row is moved in the page, which can take focus from its handle; give it back.
 		requestAnimationFrame(() =>
 			listRef.current?.querySelector<HTMLElement>(`[data-reorder="${id}"]`)?.focus(),
@@ -180,14 +201,19 @@ export function useBucketReorder({
 		root.removeProperty("-webkit-user-select");
 		if (!now.lifted) return;
 		setLifted(null);
-		if (drop && now.to !== now.from) save(moved(now.order, now.id, now.to), now.id);
-		else if (!drop)
+		if (drop && now.to !== now.from) {
+			save(putInOrder(now.order, moved(now.among, now.id, now.to)), now.id);
+		} else if (!drop)
 			setSaid(`${nameOf(now.id)} put back at position ${now.from + 1} of ${now.order.length}`);
 	}
 
 	function onPointerDown(event: ReactPointerEvent<HTMLButtonElement>, id: string) {
 		if (event.button !== 0 || !event.isPrimary || drag.current) return;
-		const rows = [...(listRef.current?.querySelectorAll<HTMLElement>("[data-bucket-row]") ?? [])];
+		// Only its group's rows: they are next to each other, and the drag stays among them.
+		const among = amongOf(id);
+		const rows = [
+			...(listRef.current?.querySelectorAll<HTMLElement>("[data-bucket-row]") ?? []),
+		].filter((row) => among.includes(row.dataset.bucketRow ?? ""));
 		const from = rows.findIndex((row) => row.dataset.bucketRow === id);
 		if (from < 0 || !listRef.current) return;
 		const handle = event.currentTarget;
@@ -243,6 +269,7 @@ export function useBucketReorder({
 				return { top: box.top, height: box.height };
 			}),
 			order: ids,
+			among,
 			from,
 			to: from,
 			startX: event.clientX,

@@ -1,4 +1,11 @@
-import type { BucketState, MonthKey } from "@noodle/domain";
+import {
+	type BucketState,
+	groupNames,
+	groupTotals,
+	inGroupOrder,
+	type MonthKey,
+	peersOf,
+} from "@noodle/domain";
 import { BudgetBar } from "@noodle/ui/components/budget-bar";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
@@ -10,7 +17,7 @@ import { GripVertical, Pencil } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import { asBucketColor, barState, monogram } from "../buckets";
 import { formatMoney } from "../format";
-import { BucketSheet, useBucketChanges } from "./bucket-editor";
+import { BucketSheet, GroupSheet, useBucketChanges } from "./bucket-editor";
 import { useBucketReorder } from "./bucket-reorder";
 import { masterDetailItem } from "./master-detail";
 
@@ -169,8 +176,13 @@ export function BucketTable({
 	const navigate = useNavigate();
 	const openId = useParams({ strict: false, select: (params) => params.id });
 	const changes = useBucketChanges(month);
+	// Issue 98: Buckets a Parent put in a group are listed together under the group's name, after
+	// those in no group; a Bucket is moved among its own group's Buckets only.
+	const ordered = useMemo(() => inGroupOrder(buckets), [buckets]);
+	const [renaming, setRenaming] = useState<string | null>(null);
 	const moving = useBucketReorder({
-		buckets,
+		buckets: ordered,
+		peers: (id) => peersOf(ordered, id),
 		reorder: (bucketIds, settled) => changes.reorder.mutate({ bucketIds }, { onSettled: settled }),
 	});
 	// The sheet's Bucket stays while it closes, so it has something to show on its way out.
@@ -377,6 +389,40 @@ export function BucketTable({
 		];
 	}, [buckets, editable, canEdit, setBy, was, hydrated, month, indent, editRoom]);
 
+	/** Before a group's first Bucket: its name, and its subtotals in the Buckets' own columns. */
+	const groupCells = (bucket: BucketState, previous: BucketState | undefined) => {
+		const { group } = bucket;
+		if (!group || previous?.group === group) return null;
+		const total = groupTotals(shown.filter((other) => other.group === group));
+		return {
+			bucket: (
+				<div data-bucket-group={group} className="flex min-w-0 items-center gap-1">
+					<span className="truncate text-[13px] text-muted-foreground">{group}</span>
+					{editable ? (
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							disabled={!hydrated}
+							aria-label={`Rename the group ${group}`}
+							aria-haspopup="dialog"
+							className="shrink-0 px-2 text-[13px] font-normal text-muted-foreground"
+							onClick={() => setRenaming(group)}
+						>
+							Rename
+						</Button>
+					) : null}
+				</div>
+			),
+			allowance: <span className="text-muted-foreground">{formatMoney(total.allowance)}</span>,
+			spent: formatMoney(total.spent),
+			left: <Left cents={total.left} />,
+			summary: <Summary allowance={total.allowance} spent={total.spent} left={total.left} />,
+			// A pencil's room, so in a stacked row the subtotal ends where the Buckets' figures end.
+			edit: <span aria-hidden="true" className="block w-9" />,
+		};
+	};
+
 	return (
 		// One column no wider than its place: what is under the table (a button's words, which don't
 		// shrink) must not widen the table at large text.
@@ -393,6 +439,7 @@ export function BucketTable({
 						// A short list in the middle of a page: the header scrolls with its rows.
 						stickyHeader={false}
 						indent={indent ? HANDLE : undefined}
+						groupCells={groupCells}
 						leading={
 							handles
 								? {
@@ -452,6 +499,8 @@ export function BucketTable({
 					month={month}
 					bucket={inSheet}
 					order={reorder ? moving.ids : []}
+					peers={reorder ? peersOf(shown, inSheet.id) : undefined}
+					groups={reorder ? groupNames(shown) : undefined}
 					open={sheet?.open ?? false}
 					onOpenChange={(open) => setSheet({ id: inSheet.id, open })}
 					changes={changes}
@@ -459,6 +508,14 @@ export function BucketTable({
 					freeToSpend={freeToSpend}
 					withHistory
 					amountFirst
+				/>
+			) : null}
+			{renaming !== null ? (
+				<GroupSheet
+					key={renaming}
+					group={renaming}
+					changes={changes}
+					onClose={() => setRenaming(null)}
 				/>
 			) : null}
 		</div>
