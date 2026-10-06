@@ -7,17 +7,22 @@ import {
 	addIncome,
 	addPersonalAllowance,
 	addQuickAdd,
+	changeMoneyInKind,
+	confirmPaidBack,
 	createHouseholdForParent,
 	type Db,
 	loadAmountBands,
 	loadBucketHistory,
+	loadDailySpend,
 	loadForCells,
 	loadIncomeCells,
 	loadMerchants,
 	loadPlanRecords,
 	loadReportItems,
 	loadSpendCells,
+	loadSpending,
 	type ReportScope,
+	sayOwedBack,
 	setCarriesOver,
 	setTakeHomePay,
 	splitTransaction,
@@ -152,6 +157,101 @@ describe("loadSpendCells", () => {
 		expect(new Set(weeks)).toEqual(new Set(["2026-08-03", "2026-09-07", "2026-09-14"]));
 		const quarters = (await loadSpendCells(db, scope(alex), "quarter")).cells.map((c) => c.period);
 		expect(new Set(quarters)).toEqual(new Set(["2026-Q3"]));
+	});
+});
+
+describe("Paid back", () => {
+	/** `by` says `cents` of a purchase is Owed back; it arrives on `date` and is matched to it. */
+	async function paidBackOn(by: Viewer, transactionId: string, cents: number, date: DayKey) {
+		const said = await sayOwedBack(db, by, {
+			owedBackId: `ob-${transactionId}`,
+			transactionId,
+			who: "Casey",
+			amountCents: cents as never,
+		});
+		expect(said.ok).toBe(true);
+		const incomeId = `in-${transactionId}`;
+		await addIncome(db, {
+			householdId,
+			incomeId,
+			date,
+			amountCents: cents,
+			note: "Casey",
+			createdByMemberId: by.memberId,
+		});
+		await changeMoneyInKind(db, by, { incomeId, kind: "paid-back", transferId: `t-${incomeId}` });
+		const confirmed = await confirmPaidBack(db, by, {
+			incomeId,
+			matches: [
+				{ id: `m-${transactionId}`, owedBackId: `ob-${transactionId}`, amount: cents as never },
+			],
+			today: "2026-09-28" as DayKey,
+		});
+		expect(confirmed.ok).toBe(true);
+	}
+
+	const sums = (cells: { period: string; target: string; amount: number }[]) =>
+		cells.reduce<Record<string, number>>((acc, c) => {
+			const key = `${c.period} ${c.target}`;
+			acc[key] = (acc[key] ?? 0) + c.amount;
+			return acc;
+		}, {});
+
+	it("restores a Bucket in the month the money arrived, as This Month does", async () => {
+		// Half of August's milk comes back in September.
+		await paidBackOn(alex, "milk", 300, "2026-09-25" as DayKey);
+		const { cells } = await loadSpendCells(db, scope(sam), "month");
+		expect(sums(cells)).toEqual({
+			"2026-08 bucket:groceries": 650,
+			"2026-09 bucket:groceries": 36_700,
+		});
+		const shown = (await loadSpending(db, sam, "2026-09" as MonthKey))
+			.filter((spend) => spend.bucketId === "groceries")
+			.reduce((sum, spend) => sum + spend.amount, 0);
+		expect(shown).toBe(36_700);
+		// It adds no purchase to the count.
+		expect(cells.reduce((n, c) => n + c.count, 0)).toBe(3);
+		const days = await loadDailySpend(db, scope(sam));
+		expect(days.find((d) => d.day === "2026-09-25")?.amount).toBe(-300);
+	});
+
+	it("restores a Commitment, but not in a Report of one-off spending", async () => {
+		await addCommitment(db, {
+			householdId,
+			memberId: "alex",
+			commitmentId: "tuition",
+			name: "Tuition",
+			month: "2026-08",
+			amountCents: 60_000,
+			cadence: "monthly",
+			dueDate: "2026-09-05",
+		});
+		await addCommitmentPayment(db, {
+			householdId,
+			transactionId: "tuition-sep",
+			commitmentId: "tuition",
+			date: "2026-09-05",
+			amountCents: 120_000,
+			createdByMemberId: "alex",
+		});
+		await paidBackOn(alex, "tuition-sep", 60_000, "2026-09-25" as DayKey);
+		const all = await loadSpendCells(db, scope(sam), "all");
+		expect(sums(all.cells)["all commitment:tuition"]).toBe(60_000);
+		const oneOff = await loadSpendCells(db, scope(sam, { oneOff: true }), "all");
+		expect(sums(oneOff.cells)).toEqual({ "all bucket:groceries": 37_650 });
+	});
+
+	it("nets the other Parent's Personal Allowance total, and leaves a narrowed Report alone", async () => {
+		await paidBackOn(alex, "gift", 2_000, "2026-09-25" as DayKey);
+		const { privateMonths } = await loadSpendCells(db, scope(sam), "month");
+		expect(mergeCells(privateMonths)).toEqual([
+			{ period: "2026-09", target: "bucket:alex-pa", amount: 5_200, count: 0, private: true },
+		]);
+		const own = await loadSpendCells(db, scope(alex), "all");
+		expect(sums(own.cells)["all bucket:alex-pa"]).toBe(5_200);
+		await paidBackOn(alex, "milk", 300, "2026-09-25" as DayKey);
+		const narrowed = await loadSpendCells(db, scope(sam, { merchant: "costco" }), "all");
+		expect(sums(narrowed.cells)).toEqual({ "all bucket:groceries": 30_650 });
 	});
 });
 

@@ -162,6 +162,31 @@ describe("exportFiles", () => {
 		expect(JSON.parse(files["household.json"] as string).privateTotals).toHaveLength(1);
 	});
 
+	it("says in rules.csv what a Rule remembers about who pays part back", () => {
+		const rule = (over: Partial<ExportData["rules"][number]>) =>
+			({
+				pattern: "tuition",
+				bucketName: "Tuition",
+				for: [],
+				private: false,
+				matched: 2,
+				createdBy: "Alex",
+				...over,
+			}) as ExportData["rules"][number];
+		const files = exportFiles(
+			data({
+				rules: [
+					rule({ owedBack: { who: "Casey", percent: 50 } }),
+					rule({ pattern: "costco", bucketName: "Groceries" }),
+				],
+			}),
+		);
+		const rows = parseCsv(files["rules.csv"] as string);
+		expect(rows[0]?.at(-1)).toBe("Owed back");
+		expect(rows[1]?.at(-1)).toBe("Casey pays back half");
+		expect(rows[2]?.at(-1)).toBe("");
+	});
+
 	it("writes every file the ZIP holds", () => {
 		expect(Object.keys(exportFiles(data())).sort()).toEqual([
 			"accounts.csv",

@@ -1,5 +1,5 @@
 import type { ExportData } from "@noodle/db";
-import { toCsv } from "@noodle/domain";
+import { owedBackPartText, toCsv } from "@noodle/domain";
 
 // The files a Household's "Download your data" ZIP holds (ADR-0028), built from what the Parent
 // may see. CSVs are escaped by toCsv: quoted where needed, and a cell a spreadsheet would read as
@@ -157,7 +157,7 @@ export function exportFiles(data: ExportData): Record<string, string> {
 	}
 
 	const rules: (string | number | null)[][] = [
-		["Statement words", "Bucket", "For", "Private", "Filed so far", "Set by"],
+		["Statement words", "Bucket", "For", "Private", "Filed so far", "Set by", "Owed back"],
 	];
 	for (const r of data.rules) {
 		rules.push([
@@ -167,6 +167,8 @@ export function exportFiles(data: ExportData): Record<string, string> {
 			r.private ? "Yes" : "No",
 			r.matched,
 			r.createdBy ?? "",
+			// What the Rule remembers (ADR-0058): "Casey pays back half".
+			r.owedBack ? `${r.owedBack.who} pays back ${owedBackPartText(r.owedBack.percent)}` : "",
 		]);
 	}
 

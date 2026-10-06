@@ -2,13 +2,17 @@ import type { DayKey } from "@noodle/domain";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	addBucket,
+	addIncome,
 	addPersonalAllowance,
 	addQuickAdd,
+	changeMoneyInKind,
+	confirmPaidBack,
 	createHouseholdForParent,
 	type Db,
 	loadExportData,
 	loadSpending,
 	monthsBetween,
+	sayOwedBack,
 	setTakeHomePay,
 	type Viewer,
 } from "./index";
@@ -110,6 +114,37 @@ describe("loadExportData", () => {
 				shown.set(s.bucketId ?? "", (shown.get(s.bucketId ?? "") ?? 0) + s.amount);
 			expect(totals).toEqual(shown);
 		}
+	});
+
+	it("takes what was Paid back into the other Parent's Personal Allowance off its total", async () => {
+		await sayOwedBack(db, alex, {
+			owedBackId: "ob-gift",
+			transactionId: "gift",
+			who: "Casey",
+			amountCents: 1_000 as never,
+		});
+		await addIncome(db, {
+			householdId,
+			incomeId: "casey",
+			date: "2026-09-20" as DayKey,
+			amountCents: 1_000,
+			note: "Casey",
+			createdByMemberId: "alex",
+		});
+		await changeMoneyInKind(db, alex, { incomeId: "casey", kind: "paid-back", transferId: "t1" });
+		const confirmed = await confirmPaidBack(db, alex, {
+			incomeId: "casey",
+			matches: [{ id: "m1", owedBackId: "ob-gift", amount: 1_000 as never }],
+			today: "2026-09-28" as DayKey,
+		});
+		expect(confirmed.ok).toBe(true);
+		const forSam = await load(sam);
+		expect(forSam.privateTotals).toEqual([{ bucketId: "alex-pa", month, amountCents: 5_000 }]);
+		expect(forSam.paidBackMatches).toEqual([]);
+		const shown = (await loadSpending(db, sam, month))
+			.filter((spend) => spend.bucketId === "alex-pa")
+			.reduce((sum, spend) => sum + spend.amount, 0);
+		expect(shown).toBe(5_000);
 	});
 
 	it("carries the Plan for each month and the Household's names", async () => {

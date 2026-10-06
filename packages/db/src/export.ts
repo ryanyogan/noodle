@@ -1,6 +1,7 @@
 import {
 	type DayKey,
 	type MonthKey,
+	monthOfDay,
 	type Plan,
 	type PlanChange,
 	planForMonth,
@@ -9,10 +10,10 @@ import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { owedNow } from "./goals";
 import type { Db } from "./index";
 import { listMembers, type MemberSummary } from "./members";
-import { loadOwedBack } from "./owed-back";
+import { loadOwedBack, loadPaidBackSpending } from "./owed-back";
 import { loadPlanRecords } from "./plan";
 import { loadPlanChanges } from "./plan-log";
-import { privateTotals, type Viewer } from "./privacy";
+import { privateTotalId, privateTotals, type Viewer } from "./privacy";
 import { loadHistoryStart } from "./reports";
 import { listRules, type RuleRow } from "./rules";
 import {
@@ -173,7 +174,18 @@ export async function loadExportData(
 		"9999-12-31" as DayKey,
 	);
 	const totals = new Map<string, { bucketId: string; month: MonthKey; amountCents: number }>();
-	for (const row of [...(await wholes), ...(await splitTotals)]) {
+	// What was Paid back into the other Parent's Personal Allowance comes off its month's total,
+	// as it does on This Month (ADR-0058).
+	const restored = (
+		await loadPaidBackSpending(db, viewer, `${firstMonth}-01` as DayKey, "9999-12-31" as DayKey)
+	)
+		.filter((spend) => spend.id === privateTotalId(spend.bucketId, monthOfDay(spend.date)))
+		.map((spend) => ({
+			bucketId: spend.bucketId,
+			month: monthOfDay(spend.date),
+			amount: spend.amount,
+		}));
+	for (const row of [...(await wholes), ...(await splitTotals), ...restored]) {
 		const id = `${row.bucketId}:${row.month}`;
 		const total = totals.get(id) ?? {
 			bucketId: row.bucketId,
