@@ -7,6 +7,8 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuLabel,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@noodle/ui/components/dropdown-menu";
@@ -29,8 +31,10 @@ import {
 	SidebarTrigger,
 	useSidebar,
 } from "@noodle/ui/components/sidebar";
+import { ToggleGroup, ToggleGroupItem } from "@noodle/ui/components/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@noodle/ui/components/tooltip";
 import { useHydrated } from "@noodle/ui/lib/hydrated";
+import { type Theme, useTheme } from "@noodle/ui/lib/theme";
 import { cn } from "@noodle/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -47,9 +51,12 @@ import {
 	Ellipsis,
 	ListChecks,
 	LogOut,
+	MonitorSmartphone,
+	Moon,
 	Plus,
 	Settings,
 	Sparkles,
+	Sun,
 	UserRound,
 } from "lucide-react";
 import { type ComponentProps, type ReactNode, useEffect, useId } from "react";
@@ -310,9 +317,18 @@ function ParentAvatar({
 	);
 }
 
+/** The themes a Parent can pick on this device. Device follows the phone's or computer's own setting. */
+const themes: { value: Theme; label: string; icon: typeof Sun }[] = [
+	{ value: "light", label: "Light", icon: Sun },
+	{ value: "dark", label: "Dark", icon: Moon },
+	{ value: "device", label: "Device", icon: MonitorSmartphone },
+];
+
 /** The signed-in Parent, with their Household: opens the account menu. */
 function ParentMenu({ householdName }: { householdName: string }) {
 	const clerk = useClerk();
+	const [theme, setTheme] = useTheme();
+	const themeLabel = useId();
 	const { name, imageUrl, ready } = useSignedInParent();
 	return (
 		<DropdownMenu>
@@ -341,6 +357,20 @@ function ParentMenu({ householdName }: { householdName: string }) {
 					<UserRound aria-hidden="true" />
 					Manage account…
 				</DropdownMenuItem>
+				<DropdownMenuSeparator />
+				<DropdownMenuLabel id={themeLabel}>Theme</DropdownMenuLabel>
+				<DropdownMenuRadioGroup
+					aria-labelledby={themeLabel}
+					value={theme}
+					onValueChange={(value) => setTheme(value as Theme)}
+				>
+					{themes.map(({ value, label, icon: Icon }) => (
+						<DropdownMenuRadioItem key={value} value={value}>
+							<Icon aria-hidden="true" />
+							{label}
+						</DropdownMenuRadioItem>
+					))}
+				</DropdownMenuRadioGroup>
 				<DropdownMenuSeparator />
 				<DropdownMenuItem onSelect={() => void clerk.signOut({ redirectUrl: "/" })}>
 					<LogOut aria-hidden="true" />
@@ -578,33 +608,55 @@ function MoreGroup({
 	);
 }
 
-/** The signed-in Parent at the foot of the More sheet: their account, and signing out. */
+/** The signed-in Parent at the foot of the More sheet: the theme, their account, and signing out. */
 function MoreAccount({ householdName, close }: { householdName: string; close: () => void }) {
 	const clerk = useClerk();
 	const { name, imageUrl } = useSignedInParent();
+	const [theme, setTheme] = useTheme();
+	const themeLabel = useId();
 	return (
-		<section aria-label="Your account" className="flex items-center gap-2 border-t pt-3">
-			{/* One row, so the whole sheet fits a 320 by 640 window: the Parent opens their account. */}
-			<Button
-				variant="ghost"
-				className="min-w-0 flex-1 justify-start gap-3 px-3 text-left"
-				onClick={() => {
-					close();
-					clerk.openUserProfile();
-				}}
-			>
-				<ParentAvatar name={name} imageUrl={imageUrl} />
-				<span className="grid min-w-0 text-sm leading-tight">
-					<span className="truncate font-medium text-foreground">{name ?? householdName}</span>
-					<span className="truncate text-xs font-normal text-subtle-foreground">
-						Manage account
-					</span>
+		<section aria-label="Your account" className="grid gap-3 border-t pt-3">
+			<div className="flex items-center justify-between gap-3 ps-3">
+				<span id={themeLabel} className="text-sm font-medium text-foreground">
+					Theme
 				</span>
-			</Button>
-			<Button variant="outline" onClick={() => void clerk.signOut({ redirectUrl: "/" })}>
-				<LogOut aria-hidden="true" />
-				Sign out
-			</Button>
+				<ToggleGroup
+					type="single"
+					variant="segmented"
+					aria-labelledby={themeLabel}
+					value={theme}
+					onValueChange={(value) => setTheme(value as Theme)}
+				>
+					{themes.map(({ value, label }) => (
+						<ToggleGroupItem key={value} value={value}>
+							{label}
+						</ToggleGroupItem>
+					))}
+				</ToggleGroup>
+			</div>
+			<div className="flex items-center gap-2">
+				{/* One row, so the whole sheet fits a 320 by 640 window: the Parent opens their account. */}
+				<Button
+					variant="ghost"
+					className="min-w-0 flex-1 justify-start gap-3 px-3 text-left"
+					onClick={() => {
+						close();
+						clerk.openUserProfile();
+					}}
+				>
+					<ParentAvatar name={name} imageUrl={imageUrl} />
+					<span className="grid min-w-0 text-sm leading-tight">
+						<span className="truncate font-medium text-foreground">{name ?? householdName}</span>
+						<span className="truncate text-xs font-normal text-subtle-foreground">
+							Manage account
+						</span>
+					</span>
+				</Button>
+				<Button variant="outline" onClick={() => void clerk.signOut({ redirectUrl: "/" })}>
+					<LogOut aria-hidden="true" />
+					Sign out
+				</Button>
+			</div>
 		</section>
 	);
 }

@@ -2,6 +2,7 @@
 import { ClerkProvider } from "@clerk/tanstack-react-start";
 import { sidebarStateScript } from "@noodle/ui/components/sidebar";
 import geistFont from "@noodle/ui/fonts/geist-latin-wght-normal.woff2?url";
+import { themeScript } from "@noodle/ui/lib/theme";
 import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
 import type { ReactNode } from "react";
@@ -61,13 +62,29 @@ function RootShell({ children }: { children: ReactNode }) {
 			// E2E look and measure as production does.
 			appearance={{ options: { unsafe_disableDevelopmentModeWarnings: true } }}
 		>
-			{/* The inline script below sets data-sidebar-state on it before React hydrates. */}
+			{/* The inline scripts below set data-theme and data-sidebar-state on it before React hydrates. */}
 			<html lang="en" suppressHydrationWarning>
 				<head>
 					<HeadContent />
 					{/* Rendered here, not in head(): head() keeps one meta per name, and there are two. */}
-					<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f7f7f8" />
-					<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#080a0f" />
+					<meta
+						name="theme-color"
+						media="(prefers-color-scheme: light)"
+						content="#f7f7f8"
+						data-theme-color="light"
+						suppressHydrationWarning
+					/>
+					<meta
+						name="theme-color"
+						media="(prefers-color-scheme: dark)"
+						content="#080a0f"
+						data-theme-color="dark"
+						suppressHydrationWarning
+					/>
+					{/* Before first paint, so a theme chosen on this device (the account menu) never shows the
+					    other one first. After the metas above: it points them at the chosen theme. */}
+					{/* biome-ignore lint/security/noDangerouslySetInnerHtml: a constant from packages/ui, no user input. */}
+					<script dangerouslySetInnerHTML={{ __html: themeScript }} />
 					{/* Before first paint, so a sidebar collapsed on this device renders collapsed. */}
 					{/* biome-ignore lint/security/noDangerouslySetInnerHtml: a constant from packages/ui, no user input. */}
 					<script dangerouslySetInnerHTML={{ __html: sidebarStateScript }} />
