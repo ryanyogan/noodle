@@ -25,7 +25,7 @@ Add every one you can think of. Small subscriptions count. Each Commitment shows
 
 A yearly bill, or a bill paid every two weeks that lands three times, makes a **Lumpy month**: a month with less Free to Spend than usual. Noodle shows these ahead of time so they are not a shock.
 
-Day-to-day spending that happens to repeat, like groceries or coffee, is not a Commitment. That belongs in a Bucket.
+Day-to-day spending that happens to repeat, like groceries or coffee, is not a Commitment. That belongs in a Bucket. [Commitments or Buckets: which is which](/docs/commitments-or-buckets) has a quick test, and [Commitments](/docs/commitments) shows how to add one.
 
 ## Set up Buckets
 
@@ -38,11 +38,11 @@ Each Bucket works one of two ways.
 
 Each Parent can also have a **Personal Allowance**: a Bucket of their own. The other Parent sees its totals, never the individual purchases.
 
-Start with a handful of Buckets. Too many makes filing a chore. You can add more when you see a pattern.
+Start with a handful of Buckets. Too many makes filing a chore. You can add more when you see a pattern. [Buckets](/docs/buckets) and [Personal Allowance](/docs/personal-allowance) have the details.
 
 ### When a Bucket runs over
 
-It happens. **Cover** it: move money from another Bucket, or from Free to Spend, to bring it back to zero. Nothing leaves your bank account. You are only changing the Plan to match the month you are having.
+It happens. **Cover** it: move money from another Bucket, or from Free to Spend, to bring it back to zero. Nothing leaves your bank account. You are only changing the Plan to match the month you are having. See [When you overspend](/docs/when-you-overspend).
 
 ## Add Goals
 
@@ -50,7 +50,7 @@ A **Goal** is a target amount you fund over time, with a date if you like. Most 
 
 A Goal can also **pay off a card or loan**. It follows what you owe as it comes down, and it is paid off when that reaches $0.
 
-Goals are funded from Free to Spend. Even a small monthly amount adds up.
+Goals are funded from Free to Spend. Even a small monthly amount adds up. See [Goals](/docs/goals) and [Paying off debt](/docs/paying-off-debt).
 
 ## Watch Free to Spend
 
@@ -62,9 +62,9 @@ If Free to Spend is below zero, the Plan promises more than comes in. Lower a Bu
 
 ## Keep spending filed with Review
 
-Spending reaches Noodle three ways: a connected bank, a statement you upload, or Quick Add by hand. Noodle files each purchase in its Bucket or Commitment for you.
+Spending reaches Noodle [three ways](/docs/bringing-in-spending): a connected bank, a statement you upload, or [Quick Add](/docs/quick-add) by hand. Noodle files each purchase in its Bucket or Commitment for you.
 
-When it is not sure, the purchase waits in **Review**. You confirm the guess or pick the right place. When you correct one, Noodle can remember it as a **Rule**, so the same shop is filed correctly next time.
+When it is not sure, the purchase waits in **Review**. You confirm the guess or pick the right place. When you correct one, Noodle can remember it as a **Rule**, so the same shop is filed correctly next time. See [Review and Rules](/docs/review-and-rules).
 
 Paying your credit card from your checking account is a **Transfer**, not spending. What you bought on the card was already counted when you bought it.
 
@@ -84,7 +84,7 @@ If nobody closes the month, Noodle uses the defaults. Afterwards the month shows
 
 ## Change the Plan when life changes
 
-Each month's Plan starts as a copy of the one before. When you change an amount, you choose how far the change reaches: **From this month on**, or **Just this month**. A pay rise is "from now on". A big birthday party is "just this month".
+Each month's Plan starts as a copy of the one before. When you change an amount, you choose how far the change reaches. The app names the month: **From October on**, or **Just October**. A pay rise is from that month on. A big birthday party is just that month. [The Plan](/docs/plan) explains each page.
 
 ## A good rhythm
 

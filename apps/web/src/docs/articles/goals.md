@@ -20,7 +20,7 @@ A Goal starts from an Account.
 - A saving Goal needs a checking or savings Account, where its money is Set aside.
 - A payoff Goal needs the credit card or loan, with what is owed on it today.
 
-If you have none yet, add the Account first on **Accounts**.
+If you have none yet, add the Account first on **Accounts**. See [Accounts and connecting a bank](/docs/accounts-and-banks).
 
 ## Add a saving Goal
 
@@ -28,8 +28,9 @@ If you have none yet, add the Account first on **Accounts**.
 2. Under **What's it for?**, choose **Save up**.
 3. Give it a name and a **Target**.
 4. Add a **Target date** if you have one.
-5. Choose the Account where the money is Set aside.
+5. Under **Account**, choose the checking or savings Account where the money is Set aside.
 6. If some of the money is already in that Account, enter it under **Already set aside**.
+7. Choose **Add Goal**.
 
 ## Set aside and Not set aside
 

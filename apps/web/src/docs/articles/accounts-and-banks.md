@@ -11,7 +11,7 @@ An Account is a real place your money lives or is owed: checking, savings, a cre
 
 On a computer, Accounts is in the sidebar under Day to day. On a phone, open **More** and choose Accounts.
 
-The page groups your Accounts as **Cash** and **Cards and loans**. **Totals** shows what they add up to, and how much of your cash is Set aside for Goals or Not set aside.
+The page groups your Accounts as **Cash** and **Cards and loans**. **Totals** shows what they add up to, and how much of your cash is Set aside for [Goals](/docs/goals) or Not set aside.
 
 ## Three ways to add an Account
 
@@ -26,7 +26,7 @@ Press **Add Account** for the second and third.
 1. On Accounts, press **Connect a bank**.
 2. Choose how far back Noodle should bring in what you spent. This month only is a fresh start. You can also choose the last 30, 60, 90, 120 or 365 days.
 3. Press **Continue to your bank** and log in there.
-4. Noodle lists the accounts at that bank and asks "Which of these do you have already?" For each one, pick the Account it already is, add it as a new Account, or leave it out.
+4. Noodle lists the accounts at that bank and asks "Which of these do you have already?" For each one, choose **Same as** the Account it already is, **Add as a new Account**, or **Leave it out**.
 5. Press **Start bringing them in**.
 
 > How far back cannot be changed later for that connection. Older spending stays at your bank.
@@ -66,11 +66,12 @@ To bring it back, open **Archived** at the bottom of Accounts and press **Restor
 - An Account a Commitment pays down cannot be archived until you end that Commitment or change what it pays down.
 - On an Account you keep by hand, use **Update balance**, or **Update what's owed** for a card or loan.
 - An Account with no balance yet is not counted in Totals, and the page tells you.
-- On a card or loan, **Plan to pay this off** starts a Goal to bring what is owed down to $0.
+- On a card or loan, **Plan to pay this off** starts a Goal to bring what is owed down to $0. See [Paying off debt](/docs/paying-off-debt).
 - Open any Account to rename it and to see its latest Transactions.
 
 ## Related
 
+- [Bringing in your spending](/docs/bringing-in-spending)
 - [Uploading a statement](/docs/upload-a-statement)
 - [Quick Add](/docs/quick-add)
 - [Transactions](/docs/transactions)

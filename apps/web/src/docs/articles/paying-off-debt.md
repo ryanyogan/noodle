@@ -19,9 +19,9 @@ There are two different situations, and they work differently.
 
 When you pay a credit card from checking, Noodle calls it a **Transfer**. It goes in no Bucket.
 
-When checking and the card are both in Noodle, the two sides are paired on their own. When only one of them is, Noodle asks in Review, and you say **It's a card payment**.
+When checking and the card are both in Noodle, the two sides are paired on their own. When only one of them is, Noodle asks in Review, and you say **It's a card payment**. See [Review and Rules](/docs/review-and-rules).
 
-> If a card is not in Noodle at all, what you buy on it is not counted anywhere. Connect it or add it on Accounts so your Buckets show the whole picture.
+> If a card is not in Noodle at all, what you buy on it is not counted anywhere. Connect it or add it on [Accounts](/docs/accounts-and-banks) so your Buckets show the whole picture.
 
 ## A regular payment is a Commitment
 
@@ -80,5 +80,7 @@ What's owed is the balance as Noodle knows it.
 
 - [Goals](/docs/goals)
 - [Commitments](/docs/commitments)
+- [Accounts and connecting a bank](/docs/accounts-and-banks)
+- [Transactions](/docs/transactions)
 - [Commitments or Buckets: which is which](/docs/commitments-or-buckets)
 - [How to budget with Noodle](/docs/how-to-budget)

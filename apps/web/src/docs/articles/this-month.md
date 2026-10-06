@@ -17,19 +17,19 @@ A "?" beside a word opens a one-sentence explanation, with a link to the Glossar
 
 ## Buckets
 
-Each Bucket shows what is left of its amount for the month. Open a Bucket to see what was filed in it.
+Each [Bucket](/docs/buckets) shows what is left of its amount for the month. Choose a Bucket's row to open it and see what was filed in it.
 
-A Bucket that has gone over can be **Covered** from another Bucket or from Free to Spend. See [How to budget with Noodle](/docs/how-to-budget) for when to do that.
+Overspent Buckets are listed first, each with a **Cover** button. A Cover brings the Bucket back to $0 with money from another Bucket or from Free to Spend. See [When you overspend](/docs/when-you-overspend).
 
-**Personal Allowances** sit in a group of their own. You see your own purchases. For the other Parent's, you see totals only.
+**Personal Allowances** sit in a group of their own. You see your own purchases. For the other Parent's, you see totals only. See [Personal Allowance](/docs/personal-allowance).
 
-## Bills coming up
+## Coming up
 
-Your Commitments for the month are here too, each shown as paid, partly paid or due, from the charges recorded against it.
+The [Commitments](/docs/commitments) due from today through the next 30 days are here too, by due date. Each shows as paid, partly paid or due, from the payments recorded against it.
 
 ## Income and Extra income
 
-This Month shows the income recorded for the month. You can add income by hand.
+This Month shows the income recorded for the month. Choose **Add income** to add some by hand.
 
 When more comes in than your Take-home pay, it appears as **Extra income** and waits for you. Send it to a Goal, send it to a Bucket, or add it to Free to Spend.
 
@@ -43,13 +43,18 @@ This Month only asks for attention when something needs it.
 
 ## Looking at another month
 
-You can step back to earlier months and forward to later ones. An ended month that has been closed shows how it ended. Each month has its own address, so you can bookmark or share one with the other Parent.
+**Previous month** and **Next month**, beside the month's name, step back to earlier months and forward to later ones. An ended month that has been closed shows how it ended. Each month has its own address, so you can bookmark or share one with the other Parent.
 
 ## If nothing is planned yet
 
-A brand-new Household sees "Nothing planned yet". Finish Setup, or add your Take-home pay and a Bucket on the Plan page, and the numbers appear.
+A brand-new Household sees "Nothing planned yet". Finish Setup, or add your Take-home pay and a Bucket on [the Plan](/docs/plan), and the numbers appear.
 
 ## Related
 
+- [The Plan](/docs/plan)
+- [Buckets](/docs/buckets)
+- [Commitments](/docs/commitments)
+- [Goals](/docs/goals)
+- [Quick Add](/docs/quick-add)
 - [Getting started in five minutes](/docs/getting-started)
 - [How to budget with Noodle](/docs/how-to-budget)

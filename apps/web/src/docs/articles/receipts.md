@@ -15,7 +15,7 @@ Your Household has one Receipt address. You set it up once.
 
 1. Open **Household settings** and find **Forward receipts**.
 2. Press **Get an address**.
-3. Save the address in your email contacts.
+3. Keep the address somewhere handy, for example in your email contacts.
 4. When a store emails you a receipt, forward it to that address from your own email.
 
 Noodle attaches the Receipt to its Transaction. If there is no Transaction for it yet, Noodle makes a Quick Add.

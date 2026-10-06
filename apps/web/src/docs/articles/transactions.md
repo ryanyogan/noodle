@@ -26,7 +26,7 @@ Open a Transaction by pressing its row. On a computer it opens under the row. On
 
 - **Name.** Rename it to something you recognise. For one from a bank or a statement, the bank's own wording stays underneath ("From your bank: …"), and **Use the bank's name** puts it back.
 - **Amount.** Correct it if it is wrong.
-- **Assigned to.** Choose the Bucket or Commitment it belongs to. This is called filing it.
+- **Assigned to.** Choose the [Bucket](/docs/buckets) or [Commitment](/docs/commitments) it belongs to. This is called filing it.
 - **For.** Say who the spending was for: one Member, several, or the whole Household.
 - **Add Split.** Divide one Transaction across more than one Bucket. The Splits must add up to the amount. **Remove Splits** goes back to one.
 - **Delete.** Removes it, after you confirm.
@@ -51,10 +51,10 @@ Sometimes Noodle is not sure and shows **Possible match** when you open the Tran
 
 ## Good to know
 
-- Paying a credit card from checking is a Transfer. It is not spending, because what you bought on the card was counted when you bought it.
+- Paying a credit card from checking is a Transfer. It is not spending, because what you bought on the card was counted when you bought it. See [Paying off debt](/docs/paying-off-debt).
 - Money back for a purchase is a Refund. It goes back to the Bucket the purchase came from.
 - Spending from a Goal is changed on its Goal. It cannot be selected here.
-- You never see the other Parent's Personal Allowance purchases in this list, only your own.
+- You never see the other Parent's [Personal Allowance](/docs/personal-allowance) purchases in this list, only your own.
 - If the other Parent changed a Transaction while you were looking at it, your change is left out and you are shown how it looks now.
 - A Transaction from a bank or a statement that you delete is not brought in again.
 

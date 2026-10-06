@@ -34,7 +34,7 @@ Take-home pay is your usual monthly pay after taxes and deductions: what lands i
 To change it:
 
 1. Open **Plan**, then **Income**.
-2. Choose the edit button beside Take-home pay.
+2. Choose **Edit take-home pay**, the small button beside the amount.
 3. Type the new amount.
 4. Under **Applies to**, choose how far the change reaches.
 5. Save.
@@ -61,11 +61,12 @@ Noodle calls these warnings Plan health. Each one links to its fix.
 
 ## Year
 
-The Year page shows every month of the year in one table, from Take-home pay down to Free to Spend. Months that are over, or under way, also show what actually happened. **Lumpy months**, where a yearly bill or a third payment lowers Free to Spend, are picked out so you see them coming.
+The Year page shows every month of the year in one table, from Take-home pay down to Free to Spend. Months that are over, or under way, also show what actually happened. **Lumpy months**, where a yearly bill or a third payment lowers Free to Spend, are marked "Lumpy" and listed under the table, so you see them coming.
 
 ## Good to know
 
 - A month that has ended can no longer be changed. Its Plan stays as a record.
+- To try a change before you make it, use [Explore](/docs/explore). It works on a copy of the Plan.
 - Free to Spend is one number with one name everywhere on the Plan.
 - If Commitments and Buckets add up to more than your Take-home pay, the Overview says by how much.
 - Either Parent can change the Plan. The other Parent's Personal Allowance only ever shows in What changed as "Personal Allowance changed".
@@ -76,4 +77,5 @@ The Year page shows every month of the year in one table, from Take-home pay dow
 - [Commitments](/docs/commitments)
 - [Goals](/docs/goals)
 - [Personal Allowance](/docs/personal-allowance)
+- [Explore and the Affordability Check](/docs/explore)
 - [This Month](/docs/this-month)

@@ -46,7 +46,7 @@ While you type an allowance, the sheet shows **Free to Spend after this**, so yo
 - **Left** is Available less what has been spent.
 - **Pace** is where spending would be by today if you spent evenly across the month. The line on the bar marks it. A Bucket shows **On pace** or **Ahead of pace**. Ahead means it is being spent faster than the month is going.
 
-A Bucket's own page also shows its Transactions for the month, how spending compared with the allowance over recent months, and its allowance history.
+A Bucket's own page also shows its [Transactions](/docs/transactions) for the month, how spending compared with the allowance over recent months, and its allowance history.
 
 ## Order and groups
 
@@ -54,9 +54,9 @@ Drag a Bucket to move it in the list, or use **Move up** and **Move down** in it
 
 ## Archive, restore or delete
 
-- **Archive** takes a Bucket out of the Plan from that month on. Earlier months keep it, with everything filed in it.
+- **Archive**, in the Bucket's edit sheet, takes it out of the Plan from that month on. Earlier months keep it, with everything filed in it.
 - **Restore to the Plan**, on an archived Bucket's page, brings it back.
-- A Bucket can be **deleted** only if nothing ever touched it: nothing filed in it, no money Moved in or out, no Rule, and no earlier month's Plan. Otherwise archive it.
+- **Delete**, in the same sheet, removes a Bucket for good. It works only if nothing ever touched the Bucket: nothing filed in it, no money Moved in or out, no Rule, and no earlier month's Plan. Otherwise the sheet says why it cannot be deleted, and you archive it.
 
 ## Suggested Buckets
 
@@ -67,6 +67,7 @@ When Noodle spots regular spending with no Bucket of its own, it offers one unde
 - Start with a handful. Too many Buckets makes filing a chore.
 - When a Bucket goes over, Cover it from another Bucket or from Free to Spend. See [When you overspend](/docs/when-you-overspend).
 - A Refund goes back into the Bucket the purchase came from.
+- A Rule files a merchant's charges in the same Bucket every time. See [Review and Rules](/docs/review-and-rules).
 - You can ask for a Nudge when a Bucket is being spent faster than the month is going.
 - A Personal Allowance is a Bucket of one Parent's own. See [Personal Allowance](/docs/personal-allowance).
 

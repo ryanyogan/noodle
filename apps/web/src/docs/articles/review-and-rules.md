@@ -28,7 +28,7 @@ On a computer the keys work too: right arrow or Enter confirms, left arrow picks
 
 Switch from **One by one** to **List** to see every card at once. In the list you can use **Confirm all** to file everything where Noodle suggested, or confirm all the cards from one merchant together. A card's pencil opens it, to split it, change its note or say who it was For.
 
-**Look again** asks Noodle to go over what is waiting once more.
+**Look again** has Noodle try once more to file what you brought in that is still waiting, against your Plan as it is now. It helps after you add a Bucket or a Rule. What it still cannot place stays in Review.
 
 ## "Always file…" offers
 
@@ -38,7 +38,7 @@ After you file a card, Noodle may ask "Always file" that merchant in the Bucket 
 
 Some cards are not spending at all, and Review says so.
 
-- **It's a card payment.** A payment to a card Noodle follows is a Transfer. What you bought on the card is already in your Buckets. Mark it and it leaves Review without counting anywhere.
+- **It's a card payment.** A payment to a card Noodle follows is a Transfer. What you bought on the card is already in your Buckets. Mark it and it leaves Review without counting anywhere. [Paying off debt](/docs/paying-off-debt) explains why.
 - **A card Noodle does not follow.** Noodle cannot see what was bought on it, so the payment is the spending. You can **Make it a Commitment**, or connect the card.
 - **It's between us.** Money one Parent sent the other is not spending. If it paid someone else, pick a Bucket.
 
@@ -51,16 +51,16 @@ A Transaction from a month before your Plan started, or from a month with no Buc
 The **Rules** tab lists your Rules. Each shows the words it looks for, where it files, who it is For, and how many it has filed so far.
 
 1. Press **Add Rule**.
-2. Type a word from the merchant's name.
-3. Choose where it files: a Bucket or a Commitment.
-4. Save it. You can also file what matches right away.
+2. Under **Merchant**, type a word from the merchant's name.
+3. Under **Files to**, choose a Bucket or a Commitment.
+4. Choose **Add Rule and file what matches**.
 
 Open a Rule to change it, to **File what's still unassigned now**, or to **Delete Rule**. Deleting a Rule leaves what it already filed where it is.
 
 ## Good to know
 
 - A Rule looks at the bank's own wording, so renaming a Transaction never unfiles anything.
-- A Rule into your Personal Allowance is marked **Only you**. The other Parent never sees it.
+- A Rule into your [Personal Allowance](/docs/personal-allowance) is marked **Only you**. The other Parent never sees it.
 - A card you put back with Undo waits for you. Noodle does not file it again by itself.
 - When nothing is waiting, Review says "Nothing to review" and how many Noodle filed on its own this month.
 
@@ -68,4 +68,7 @@ Open a Rule to change it, to **File what's still unassigned now**, or to **Delet
 
 - [Transactions](/docs/transactions)
 - [Quick Add](/docs/quick-add)
+- [Buckets](/docs/buckets)
+- [Commitments](/docs/commitments)
+- [Paying off debt](/docs/paying-off-debt)
 - [How to budget with Noodle](/docs/how-to-budget)

@@ -17,6 +17,8 @@ Noodle runs in your phone's browser, so there is nothing to download from an app
 
 ## On an Android phone
 
+> Noodle's own instructions cover the iPhone and iPad only. These are the usual steps in Chrome on Android. The words may differ a little on your phone.
+
 1. Open Noodle in Chrome and sign in.
 2. Open Chrome's menu.
 3. Tap **Add to Home screen**. Chrome may call it Install app.
@@ -37,14 +39,14 @@ You can then choose which Nudges you get: a Bucket being spent faster than the m
 
 ## Finding your way on a phone
 
-The bar at the bottom has Month, Transactions and Goals, with Quick Add in the middle and **More** at the end. More holds everything else: Accounts, Plan, Explore, Reports, Insights, Perks & Benefits, Ask, Check-in, Household settings and the Glossary.
+The bar at the bottom has Month, Transactions and Goals, with [Quick Add](/docs/quick-add) in the middle and **More** at the end. More holds everything else: Accounts, Plan, Explore, Reports, Insights, Perks & Benefits, Ask, Check-in, Household settings and the Glossary.
 
 ## Good to know
 
 - Each Parent adds Noodle to their own phone and turns on their own Nudges.
 - If your phone says notifications are blocked for Noodle, allow them in the browser's settings for the site, then come back.
 - You never see a Nudge about the other Parent's Personal Allowance.
-- Noodle looks the same in the browser and from the home screen. Nothing is lost if you remove the icon.
+- Noodle works the same in the browser and from the home screen. Your Household is kept by Noodle, not on the phone, so removing the icon loses nothing.
 
 ## Related
 

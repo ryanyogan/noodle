@@ -9,7 +9,7 @@ Quick Add is how you enter a Transaction by hand, right when you pay. Type the a
 
 ## Where to find it
 
-On a phone, Quick Add is the round button in the middle of the bottom bar. On a computer it is in the sidebar. It opens over whatever page you are on.
+On a phone, Quick Add is the round button in the middle of the bottom bar. On a computer it is the button at the top of the sidebar, and the Q key opens it too. It opens over whatever page you are on.
 
 ## Add what you spent
 
@@ -54,8 +54,8 @@ If the Account also gets Transactions from a bank or a statement, the same purch
 
 ## Good to know
 
-- Quick Add files spending into a Bucket, so your Plan needs at least one Bucket first.
-- You can file in your own Personal Allowance. The other Parent's is never offered.
+- Quick Add files spending into a [Bucket](/docs/buckets), so your Plan needs at least one Bucket first.
+- You can file in your own [Personal Allowance](/docs/personal-allowance). The other Parent's is never offered.
 - Made a mistake? Open it on Transactions to change or delete it.
 
 ## Related

@@ -16,10 +16,10 @@ If the Account is not in Noodle yet, add it first with **Add Account**.
 ## Upload a statement
 
 1. On your bank's site, download a statement for the Account as a CSV, OFX or QFX file.
-2. In Noodle, open the Account and press **Upload a statement**.
+2. In Noodle, open the Account and press **Upload statement**. On a narrow phone the button reads Upload.
 3. Choose the file.
 4. Look at the **Preview**. It shows the lines Noodle read.
-5. If the preview looks right, bring it in.
+5. If the preview looks right, press **Import**. The button says how many lines it will bring in, for example "Import 42 lines".
 
 ## If the columns look wrong
 
@@ -29,7 +29,7 @@ A CSV file can be laid out many ways. If dates or amounts look wrong in the prev
 - Choose the date format.
 - Say how amounts are written: one column where money out is negative, one column where money out is positive, or two columns for money out and money in.
 
-The preview updates so you can check before bringing it in.
+The preview updates so you can check before you import.
 
 ## What happens to each line
 
@@ -49,12 +49,12 @@ If you had already entered a purchase with Quick Add, Noodle Matches it with the
 
 - Each Account's page keeps a list of **Imported statements**.
 - An Account that syncs with its bank gets its Transactions from the bank on its own.
-- If a file seems to be for a different account than earlier statements were, Noodle tells you before you bring it in.
 - If nothing in a file can be read, Noodle says so and nothing changes. Try another file from your bank.
 - You can connect the bank later. What the bank brings in is not added on top of what your statements already brought in.
 
 ## Related
 
+- [Bringing in your spending](/docs/bringing-in-spending)
 - [Accounts and connecting a bank](/docs/accounts-and-banks)
 - [Review and Rules](/docs/review-and-rules)
 - [Quick Add](/docs/quick-add)

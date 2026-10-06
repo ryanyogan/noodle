@@ -19,8 +19,8 @@ A **Cover** brings an overspent Bucket back to $0 with money from another Bucket
 
 1. Open **This Month**. Overspent Buckets are listed first.
 2. Choose **Cover** on the Bucket that is over.
-3. Under **Cover from**, pick where the money comes from: a Bucket with some left, or Free to Spend.
-4. Enter an amount, up to what the Bucket is over, and save.
+3. The sheet opens with **Amount** already set to what the Bucket is over. Lower it if you want to Cover only part.
+4. Under **Cover from**, choose where the money comes from: a Bucket with enough left, or Free to Spend. Choosing one makes the Cover.
 
 The Bucket you took from now has less left for the rest of the month.
 
@@ -59,8 +59,8 @@ The Plan lists this under **Things to check**: "Groceries is over its allowance 
 
 - A Cover is a Move: planned money going from one place in the Plan to another. It is not a Transfer, which is real money moving between your Accounts.
 - Only you can Cover your own Personal Allowance, or Cover from it.
-- A Cover can be undone.
-- A Refund goes back into the Bucket the purchase came from, so returning something can fix an overspent Bucket by itself.
+- A Cover can be undone. Open the Bucket, find it under **Covers in October** (the app names the month), and choose **Undo**.
+- A Refund goes back into the Bucket the purchase came from, so returning something can fix an overspent Bucket by itself. See [Transactions](/docs/transactions).
 
 ## Related
 

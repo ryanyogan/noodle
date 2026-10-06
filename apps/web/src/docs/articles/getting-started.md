@@ -15,12 +15,12 @@ Sign up, then create your Household. A Household is your family: two Parents who
 
 Setup walks you through a few short steps. You can leave at any time and pick up where you stopped.
 
-1. **How spending comes in.** Connect a bank, upload a statement, or add spending by hand. You can change this later.
+1. **How spending comes in.** Connect a bank, upload a statement, or add spending by hand. You can change this later. [Bringing in your spending](/docs/bringing-in-spending) helps you choose.
 2. **Take-home pay.** Your usual monthly pay after taxes: what lands in your account. If pay varies, enter the amount you can count on.
 3. **Bills.** The ones you expect every time, like rent, insurance or daycare. Noodle calls each one a Commitment.
 4. **Buckets.** A monthly amount for day-to-day spending, like Groceries or Fun.
 5. **One Goal.** Something to save for, or a card to pay off. One is enough to begin.
-6. **The other Parent.** Send an invite so you both see the same numbers.
+6. **The other Parent.** Send an invite so you both see the same numbers. See [Inviting the other Parent](/docs/invite-the-other-parent).
 
 Setup ends with a summary and one number: your **Free to Spend**.
 
@@ -32,12 +32,13 @@ Setup ends with a summary and one number: your **Free to Spend**.
 
 ## 4. Record what you spend
 
-Spending from a connected bank or a statement arrives by itself. For anything else, use Quick Add at the moment you pay: type the amount and tap a Bucket.
+Spending from a connected bank or a statement arrives by itself. For anything else, use [Quick Add](/docs/quick-add) at the moment you pay: type the amount and tap a Bucket.
 
-When Noodle is not sure where something belongs, it asks you in Review. A few taps a week keeps everything in its place.
+When Noodle is not sure where something belongs, it asks you in Review. A few taps a week keeps everything in its place. See [Review and Rules](/docs/review-and-rules).
 
 ## What next
 
+- On a phone? Read [Installing Noodle on your phone](/docs/install-on-your-phone).
 - New to budgeting? Read [What budgeting is](/docs/what-budgeting-is).
 - Want the whole method? Read [How to budget with Noodle](/docs/how-to-budget).
 - Not sure about a word? Open the [Glossary](/glossary) in the app.

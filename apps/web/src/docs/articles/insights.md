@@ -48,7 +48,7 @@ Noodle looks every night. To look sooner, for example after bringing in a statem
 ## Good to know
 
 - An Insight is never applied for you. Your Plan changes only when you change it.
-- An Insight that rests on your Personal Allowance is marked **Only you see this**. The other Parent does not see it.
+- An Insight that rests on your [Personal Allowance](/docs/personal-allowance) is marked **Only you see this**. The other Parent does not see it.
 - When there is nothing to show, the page says "No Insights right now". That is a good sign, not a fault.
 - An Insight is different from a Suggestion. A Suggestion offers something to add to your Plan, like a new Bucket. An Insight points out a saving.
 

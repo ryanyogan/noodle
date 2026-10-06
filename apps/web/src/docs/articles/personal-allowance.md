@@ -51,7 +51,7 @@ So the Plan still adds up for both of you. The amounts are shared. The purchases
 
 - Each Parent has one Personal Allowance.
 - Only you can file spending in yours, Cover it, or Cover from it.
-- Quick Add never offers you the other Parent's Personal Allowance.
+- [Quick Add](/docs/quick-add) never offers you the other Parent's Personal Allowance.
 - Things to check on the Plan never calls out the other Parent's Personal Allowance for going over.
 - A Personal Allowance is not archived or deleted. To stop using it, set it to $0.
 - Agree the amounts together. The privacy is about what you buy, not about how much.

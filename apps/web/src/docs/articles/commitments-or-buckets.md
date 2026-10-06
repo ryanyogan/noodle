@@ -51,11 +51,11 @@ Spending that only happens to repeat is still a Bucket. Coffee every morning, a 
 
 Each Commitment shows what it costs in a year. A subscription of $15.99 a month is about $192 a year. Seeing the yearly figure makes it easier to decide whether something is still worth it.
 
-## Months that cost more
+## Lumpy months
 
 Not every Commitment is due every month. A yearly bill lands in one month. A bill paid every two weeks usually comes twice a month, but now and then three times.
 
-A month like that has less Free to Spend than usual. Noodle calls it a **Lumpy month**, and shows it ahead of time on the Plan's Year page, so it is not a shock.
+A month like that has less Free to Spend than usual. Noodle calls it a **Lumpy month**, and shows it ahead of time on the Plan's Year page, marked "Lumpy", so it is not a shock.
 
 ## How Noodle uses the two
 

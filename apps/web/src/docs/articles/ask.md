@@ -9,7 +9,7 @@ Ask lets you type a question about your Household's money the way you would say 
 
 ## Where to find it
 
-On a computer, Ask is the small button in the corner of every page. On a phone, open **More** and choose Ask.
+On a computer, Ask is the small round button in the bottom right corner of every page. On a phone, open **More** and choose Ask.
 
 ## Ask a question
 
@@ -38,7 +38,7 @@ Ask can look up five kinds of things.
 ## What Ask cannot do
 
 - It does not change anything. It only reads.
-- It answers about your Household's own figures in Noodle. It is not a source of general financial advice.
+- It answers from your Household's own figures in Noodle. It does not give financial advice.
 - It does not remember. Each visit starts fresh.
 - For anything outside the five kinds above, a page like Reports or Transactions will serve you better.
 
@@ -47,11 +47,12 @@ If Ask cannot answer, it says so and offers a retry. Rewording the question to n
 ## Good to know
 
 - Questions are not saved. They are gone when you leave the page.
-- Ask sees what you may see. The other Parent's Personal Allowance is totals only.
+- Ask sees what you may see. The other Parent's [Personal Allowance](/docs/personal-allowance) is totals only.
 - Check the figures. Ask shows the numbers it used so you can see where an answer came from.
 - Not sure what a word means? Ask links to the [Glossary](/glossary).
 
 ## Related
 
 - [Explore and the Affordability Check](/docs/explore)
+- [Goals](/docs/goals)
 - [This Month](/docs/this-month)

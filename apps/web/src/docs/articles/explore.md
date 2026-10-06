@@ -20,7 +20,7 @@ A **Scenario** is a copy of your Plan with changes made to it. Explore starts wi
 1. Open **Explore**.
 2. Change something: your Take-home pay, a Commitment, a Bucket's allowance or a Goal. You can also end a Commitment, add a new one, or add a one-off expense or income.
 3. Look at **How it plays out**. It sets the Plan against your Scenario: Free to Spend each month, your Goals, and any warnings the change causes or clears.
-4. Give the Scenario a name to save it.
+4. Give the Scenario a name and press **Save Scenario**.
 
 You can add an assumption for raises and inflation, and switch a change off for a moment to see the outcome without it.
 
@@ -55,12 +55,16 @@ From a Check you can press **Explore as a Scenario** to see the monthly costs pl
 ## Good to know
 
 - Nothing in Explore changes your Plan until you apply a Scenario.
-- The Affordability Check is a guide. It assumes no interest on savings, no inflation and no raises. It is not a lender's decision or financial advice.
-- "Try in Explore" on an Insight, and "Try ending this" on a Commitment, open Explore with the change already made.
+- The Affordability Check is a guide. It assumes no interest on savings, no inflation and no raises. It is not a lender's decision, and it is not financial advice.
+- **Try in Explore** on an Insight, and **See what ending it frees up** on a [Commitment](/docs/commitments), open Explore with the change already made.
 - You never see or change the other Parent's Personal Allowance purchases here.
 
 ## Related
 
+- [The Plan](/docs/plan)
+- [Buckets](/docs/buckets)
+- [Commitments](/docs/commitments)
+- [Goals](/docs/goals)
 - [Insights](/docs/insights)
 - [Ask](/docs/ask)
 - [How to budget with Noodle](/docs/how-to-budget)

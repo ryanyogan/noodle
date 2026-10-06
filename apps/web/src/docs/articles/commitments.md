@@ -27,7 +27,7 @@ Open **Plan**, then **Commitments**. Bills due soon also show on This Month.
 - The totals show **Expected this month**, **Paid so far** and **Still to pay**.
 - A Commitment paid every two weeks or yearly also shows a month's share, so you can compare it with the monthly ones.
 
-A payment that comes in from your bank or a statement is filed in its Commitment for you when Noodle recognises it. If you keep things by hand, choose **Record payment** on the Commitment and enter the amount paid.
+A payment that comes in from your bank or a statement is filed in its Commitment for you once a Rule sends that merchant there. Until then it waits in Review, where you pick the Commitment. See [Review and Rules](/docs/review-and-rules). If you keep things by hand, choose **Record payment** on the Commitment and enter the amount paid.
 
 When a payment is more or less than expected, the row says by how much.
 
@@ -40,11 +40,11 @@ Choose a Commitment to open it. You see:
 - its payments over recent months,
 - its terms history: what the amount and schedule were before.
 
-**See what ending it frees up** opens Explore with the Commitment ended, so you can look before you decide. Nothing in your real Plan changes there.
+**See what ending it frees up** opens [Explore](/docs/explore) with the Commitment ended, so you can look before you decide. Nothing in your real Plan changes there.
 
 ## Change or end one
 
-1. Open the Commitment and choose **Edit Commitment**.
+1. Open the Commitment and choose **Edit Commitment**. On a computer the button reads **Edit**.
 2. Change the name, amount, schedule or next due date, and save.
 3. To stop it, choose **End**.
 
@@ -54,9 +54,9 @@ Ending takes it out of the Plan from that month on. Earlier months keep it, so y
 
 Coming up is the list of Commitments due from today through the next 30 days, by due date. Each one shows as paid, partly paid or due, from the payments recorded against it.
 
-## Months that cost more
+## Lumpy months
 
-A yearly Commitment, or one paid every two weeks that falls three times in a month, makes that month cost more. The Commitments page tells you how many Lumpy months are ahead and links to the Plan's Year page, where each one is picked out.
+A yearly Commitment, or one paid every two weeks that falls three times in a month, makes that month cost more. Noodle calls it a Lumpy month. The Commitments page tells you how many are ahead, for example "2 lumpy months ahead", and links to the Plan's Year page, where each one is listed.
 
 ## Suggested Commitments
 
@@ -74,4 +74,5 @@ When Noodle sees the same charge keep coming back, it may offer "Netflix looks l
 - [The Plan](/docs/plan)
 - [Commitments or Buckets: which is which](/docs/commitments-or-buckets)
 - [Paying off debt](/docs/paying-off-debt)
+- [Review and Rules](/docs/review-and-rules)
 - [This Month](/docs/this-month)
