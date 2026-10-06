@@ -1,7 +1,7 @@
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { ListWithPanel } from "@noodle/ui/components/detail-panel";
-import { DetailColumns, MasterDetail } from "@noodle/ui/components/layout";
+import { DetailColumns } from "@noodle/ui/components/layout";
 import { Skeleton } from "@noodle/ui/components/skeleton";
 import type { DetailPanelSize } from "@noodle/ui/lib/detail-panel";
 import { cn } from "@noodle/ui/lib/utils";
@@ -32,9 +32,8 @@ const EDITING =
 	'input, textarea, select, [contenteditable="true"], [role="menu"], [role="listbox"], [role="combobox"], [role="dialog"]';
 
 /**
- * `onKeyDown` for a `MasterDetail`. In the list, ↑ and ↓ (and Home and End) move between the rows'
- * links, and Enter opens the one in focus, as a link does. In the detail, Esc puts focus back on
- * the picked item's row. Keys typed into a field, a menu or a sheet are left alone.
+ * The list's keys: ↑ and ↓ (and Home and End) move between the rows' links, and Enter opens the
+ * one in focus, as a link does. Keys typed into a field, a menu or a sheet are left alone.
  */
 export function masterDetailKeys(event: KeyboardEvent<HTMLElement>) {
 	const root = event.currentTarget;
@@ -49,12 +48,6 @@ export function masterDetailKeys(event: KeyboardEvent<HTMLElement>) {
 	);
 	if (items.length === 0) return;
 	const picked = items.find((item) => item.hasAttribute("aria-current"));
-	if (event.key === "Escape") {
-		if (list.contains(target)) return;
-		event.preventDefault();
-		(picked ?? items[0])?.focus();
-		return;
-	}
 	if (!list.contains(target)) return;
 	const row = target.closest('[data-slot="list-row"]');
 	const from = items.findIndex((item) => item === target || row?.contains(item));
@@ -156,7 +149,6 @@ export function DetailHeader({
 	leading,
 	actions,
 	pager,
-	listBeside,
 	inPanel,
 }: {
 	eyebrow?: ReactNode;
@@ -166,17 +158,11 @@ export function DetailHeader({
 	actions?: ReactNode;
 	pager?: ReactNode;
 	/**
-	 * From lg the list is on screen beside this item, and is the way to it and between items (#73):
-	 * Back and previous/next show only below lg, where the item is a page of its own.
-	 */
-	listBeside?: boolean;
-	/**
 	 * From lg the item is in a `DetailPanel` over the page (issue 107): the panel has its own Close,
 	 * so Back shows only below lg, where the item is a page; previous and next show at every width.
 	 */
 	inPanel?: boolean;
 }) {
-	const phoneOnly = listBeside ? "lg:hidden" : undefined;
 	return (
 		<header
 			data-slot="detail-header"
@@ -190,10 +176,7 @@ export function DetailHeader({
 		>
 			{/* Phones: the arrow's glyph, not its 44px box, sits on the 16px gutter. */}
 			{leading ? (
-				<div
-					data-slot="detail-back"
-					className={cn("flex max-lg:-ms-3", inPanel ? "lg:hidden" : phoneOnly)}
-				>
+				<div data-slot="detail-back" className={cn("flex max-lg:-ms-3", inPanel && "lg:hidden")}>
 					{leading}
 				</div>
 			) : null}
@@ -219,12 +202,7 @@ export function DetailHeader({
 			    may drop under it); from lg they are last. */}
 			{pager ? (
 				<div
-					className={cn(
-						"flex lg:order-last",
-						!actions && "max-lg:-me-2",
-						phoneOnly,
-						inPanel && inPanelLine,
-					)}
+					className={cn("flex lg:order-last", !actions && "max-lg:-me-2", inPanel && inPanelLine)}
 				>
 					{pager}
 				</div>
@@ -286,7 +264,6 @@ export function ListBesideDetail({
 	list,
 	aside,
 	asideFills,
-	listFills,
 	panel,
 }: {
 	/** An item's route is showing. */
@@ -297,8 +274,8 @@ export function ListBesideDetail({
 	listLabel: string;
 	/**
 	 * Says what the right pane is for while it is empty, e.g. "Tick Scenarios to compare them here."
-	 * Left out where the list fills the page: its cards say they open. With `panel` it shows only
-	 * for an `asideFills` page with no aside, from lg.
+	 * Left out where the list fills the page: its cards say they open. It shows only for an
+	 * `asideFills` page with no aside, from lg.
 	 */
 	hint?: string;
 	list: ReactNode;
@@ -310,17 +287,11 @@ export function ListBesideDetail({
 	 */
 	asideFills?: boolean;
 	/**
-	 * While nothing is picked the list takes the wide column and the aside the rail's width, so a
-	 * list of cards (Goals) fills the window; once an item is picked it's the narrow list pane again
-	 * (#73L, ADR-0033).
-	 */
-	listFills?: boolean;
-	/**
 	 * From lg the picked item opens in a panel from the window's right edge, over the page, and the
 	 * list and the aside stay as they are with nothing picked (issue 107, ADR-0047). `close` is the
-	 * list's own address. Without it, the item sits beside a narrowed list, as before.
+	 * list's own address.
 	 */
-	panel?: {
+	panel: {
 		size?: DetailPanelSize;
 		close: LinkOptions /** The picked item's id. */;
 		itemKey?: string;
@@ -337,61 +308,42 @@ export function ListBesideDetail({
 			</Suspense>
 		</div>
 	) : undefined;
-	if (panel)
-		return (
-			<ListWithPanel
-				className={cn(
-					asideFills
-						? // A phone has no use for the hint alone.
-							"max-lg:[&>[data-slot=master-detail-aside]:has(>[data-hint-only])]:hidden"
-						: // Phones: the section's totals come before the list, as they did.
-							"max-lg:[&>[data-slot=master-detail-aside]]:order-first",
-				)}
-				asideFills={asideFills}
-				size={panel.size}
-				itemKey={panel.itemKey}
-				listLabel={listLabel}
-				asideLabel={`${listLabel} overview`}
-				detailLabel={`${noun} details`}
-				onKeyDown={panelKeys}
-				onClose={() => navigate({ ...panel.close, resetScroll: false })}
-				close={
-					// A link, so it works before the page has hydrated.
-					<Button variant="ghost" size="icon" asChild className="bg-background">
-						<Link {...panel.close} resetScroll={false} aria-label={`Close ${noun}`}>
-							<X />
-						</Link>
-					</Button>
-				}
-				list={shownList}
-				aside={
-					aside ? (
-						<div className="grid w-full content-start gap-4">{aside}</div>
-					) : asideFills && hint ? (
-						<p data-hint-only="" className="px-1 text-sm text-muted-foreground">
-							{hint}
-						</p>
-					) : undefined
-				}
-				detail={detail}
-			/>
-		);
 	return (
-		<MasterDetail
-			className={cn(!asideFills && "max-lg:[&>[data-slot=master-detail-detail]]:order-first")}
-			data-list-fills={listFills && !picked ? "true" : undefined}
+		<ListWithPanel
+			className={cn(
+				asideFills
+					? // A phone has no use for the hint alone.
+						"max-lg:[&>[data-slot=master-detail-aside]:has(>[data-hint-only])]:hidden"
+					: // Phones: the section's totals come before the list, as they did.
+						"max-lg:[&>[data-slot=master-detail-aside]]:order-first",
+			)}
+			asideFills={asideFills}
+			size={panel.size}
+			itemKey={panel.itemKey}
 			listLabel={listLabel}
-			detailLabel={picked ? `${noun} details` : `${listLabel} overview`}
-			emptyStacks={Boolean(aside)}
-			onKeyDown={masterDetailKeys}
-			list={shownList}
-			detail={detail}
-			empty={
-				<div className={cn("grid w-full content-start gap-4", !asideFills && "lg:max-w-md")}>
-					{aside}
-					{hint ? <p className="px-1 text-sm text-muted-foreground max-lg:hidden">{hint}</p> : null}
-				</div>
+			asideLabel={`${listLabel} overview`}
+			detailLabel={`${noun} details`}
+			onKeyDown={panelKeys}
+			onClose={() => navigate({ ...panel.close, resetScroll: false })}
+			close={
+				// A link, so it works before the page has hydrated.
+				<Button variant="ghost" size="icon" asChild className="bg-background">
+					<Link {...panel.close} resetScroll={false} aria-label={`Close ${noun}`}>
+						<X />
+					</Link>
+				</Button>
 			}
+			list={shownList}
+			aside={
+				aside ? (
+					<div className="grid w-full content-start gap-4">{aside}</div>
+				) : asideFills && hint ? (
+					<p data-hint-only="" className="px-1 text-sm text-muted-foreground">
+						{hint}
+					</p>
+				) : undefined
+			}
+			detail={detail}
 		/>
 	);
 }

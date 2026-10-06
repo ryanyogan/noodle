@@ -97,6 +97,7 @@ export function TransactionEditor({
 	onChange,
 	onClose,
 	splitting = false,
+	layout = "side",
 }: {
 	/** The Transaction being edited; the sheet is open while there is one. */
 	transaction: TransactionRow | null;
@@ -109,10 +110,15 @@ export function TransactionEditor({
 	onClose: () => void;
 	/** Opens on splitting it, as Review's card's Split does. */
 	splitting?: boolean;
+	/**
+	 * How the sheet sits from lg: down the right edge, beside the list it was opened from, or a
+	 * centred dialog where there is no list to keep in view (Review, issue 107).
+	 */
+	layout?: "side" | "wide";
 }) {
 	return (
 		<Sheet open={transaction !== null} onOpenChange={(open) => (open ? undefined : onClose())}>
-			<SheetContent layout="side">
+			<SheetContent layout={layout}>
 				{transaction ? (
 					<TransactionBody
 						transaction={transaction}

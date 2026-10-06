@@ -2,14 +2,14 @@ import type { PlanPart } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Card } from "@noodle/ui/components/card";
 import { ListWithPanel } from "@noodle/ui/components/detail-panel";
-import { MasterDetail, SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
+import { SplitLayout, SplitMain, SplitRail } from "@noodle/ui/components/layout";
 import type { DetailPanelSize } from "@noodle/ui/lib/detail-panel";
 import { cn } from "@noodle/ui/lib/utils";
 import { Link, type LinkOptions, Outlet, useNavigate, useParams } from "@tanstack/react-router";
 import { X } from "lucide-react";
 import { type ReactNode, Suspense } from "react";
 import { monthName } from "../format";
-import { DetailPending, masterDetailKeys, panelKeys, selectedRow } from "./master-detail";
+import { DetailPending, panelKeys, selectedRow } from "./master-detail";
 
 /**
  * One part of a month's Plan, below the Plan's header and tabs (which its layout route owns): the
@@ -145,10 +145,9 @@ export function PlanMasterDetail({
 	railLabel?: string;
 	/**
 	 * From lg the picked item opens in a panel from the window's right edge, over the page, and the
-	 * list keeps its width and columns (issue 107, ADR-0047). `close` is the list's own address. Without it, the
-	 * item sits beside a narrowed list, as before.
+	 * list keeps its width and columns (issue 107, ADR-0047). `close` is the list's own address.
 	 */
-	panel?: {
+	panel: {
 		size?: DetailPanelSize;
 		close: LinkOptions;
 		/**
@@ -189,7 +188,7 @@ export function PlanMasterDetail({
 		<div
 			className={cn(
 				"w-full min-w-0",
-				panel?.besideFrom === "late" && "lg:max-[90rem]:max-w-(--rail-width)",
+				panel.besideFrom === "late" && "lg:max-[90rem]:max-w-(--rail-width)",
 			)}
 		>
 			{overview && overviewHeader ? <PaneHeader {...overviewHeader} /> : null}
@@ -201,48 +200,29 @@ export function PlanMasterDetail({
 	);
 	// The picked item opens in a panel from the right (issue 107, ADR-0047): the list and the rail
 	// stay exactly as they are with nothing picked, under it.
-	if (panel)
-		return (
-			<ListWithPanel
-				className="max-w-2xl lg:max-w-none"
-				size={panel.size}
-				besideFrom={panel.besideFrom}
-				listLabel={listLabel}
-				asideLabel={railLabel}
-				detailLabel={`${noun} details`}
-				itemKey={picked}
-				onKeyDown={panelKeys}
-				onClose={() => navigate({ ...panel.close, resetScroll: false })}
-				close={
-					// A link, so it works before the page has hydrated.
-					<Button variant="ghost" size="icon" asChild className="bg-background">
-						<Link {...panel.close} resetScroll={false} aria-label={`Close ${noun}`}>
-							<X />
-						</Link>
-					</Button>
-				}
-				list={list}
-				// With nothing for the rail (a Plan still being set up), the list has the page's width.
-				aside={overview || aside ? rail : undefined}
-				detail={detail}
-			/>
-		);
 	return (
-		<MasterDetail
+		<ListWithPanel
 			className="max-w-2xl lg:max-w-none"
-			// Beside an item the list needs only a name and an amount: it gives the item the room for
-			// two columns at 1440.
-			narrowList
-			// Nothing picked: the list takes the wide column and the totals and add form the rail's
-			// width, rather than a narrow list beside an empty pane (#73).
-			data-list-fills={picked ? undefined : "true"}
+			size={panel.size}
+			besideFrom={panel.besideFrom}
 			listLabel={listLabel}
-			detailLabel={picked ? `${noun} details` : railLabel}
-			emptyStacks
-			onKeyDown={masterDetailKeys}
+			asideLabel={railLabel}
+			detailLabel={`${noun} details`}
+			itemKey={picked}
+			onKeyDown={panelKeys}
+			onClose={() => navigate({ ...panel.close, resetScroll: false })}
+			close={
+				// A link, so it works before the page has hydrated.
+				<Button variant="ghost" size="icon" asChild className="bg-background">
+					<Link {...panel.close} resetScroll={false} aria-label={`Close ${noun}`}>
+						<X />
+					</Link>
+				</Button>
+			}
 			list={list}
+			// With nothing for the rail (a Plan still being set up), the list has the page's width.
+			aside={overview || aside ? rail : undefined}
 			detail={detail}
-			empty={rail}
 		/>
 	);
 }
