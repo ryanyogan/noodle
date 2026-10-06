@@ -624,7 +624,7 @@ test("a kept Scenario opens in a panel over Compare, which stays, and is a page 
 		"Income $5,000 → $4,500 a month",
 	);
 	await expect(detail(page).getByRole("link", { name: "Open in Explore" })).toBeVisible();
-	await expect(detail(page).getByRole("tab", { name: "Projected balance" })).toBeVisible();
+	await expect(detail(page).getByRole("tab", { name: "Balance" })).toBeVisible();
 	await expect(page.getByRole("region", { name: "Scenario details" })).toBeVisible();
 	await expect(detail(page)).toHaveCSS("position", "fixed");
 	await expect

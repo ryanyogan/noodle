@@ -986,7 +986,9 @@ const phoneTabs = {
 
 /**
  * Every outcome chart as Tabs (Free to Spend, Projected balance, each month, Goal paths), so they
- * fit beside the Changes in one pane: one chart at a time, each the same size.
+ * fit beside the Changes in one pane: one chart at a time, each the same size. The tabs' names are
+ * short ("Balance", "Monthly", "Goals") so all four fit the pane at 1024 and in a Scenario's panel
+ * (issue 120); each chart keeps its whole name as its heading.
  */
 export function OutcomeTabs({
 	outcome,
@@ -1006,14 +1008,14 @@ export function OutcomeTabs({
 						Free to Spend
 					</TabsTrigger>
 					<TabsTrigger value="projected-balance" className={phoneTabs.tab}>
-						Projected balance
+						Balance
 					</TabsTrigger>
 					<TabsTrigger value="each-month" className={phoneTabs.tab}>
-						Each month
+						Monthly
 					</TabsTrigger>
 					{hasGoals ? (
 						<TabsTrigger value="goal-paths" className={phoneTabs.tab}>
-							Goal paths
+							Goals
 						</TabsTrigger>
 					) : null}
 				</TabsList>

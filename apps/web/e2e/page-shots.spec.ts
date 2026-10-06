@@ -938,8 +938,8 @@ test.beforeAll(async ({ browser }) => {
 			ready: async (page) => {
 				await pressFor(
 					page
-						.getByRole("link", { name: "Edit", exact: true })
-						.or(page.getByRole("button", { name: "Edit", exact: true })),
+						.getByRole("link", { name: "Edit Commitment", exact: true })
+						.or(page.getByRole("button", { name: "Edit Commitment", exact: true })),
 					// Under 1440 the panel is itself a dialog (a drawer): the sheet is the one with the form.
 					page.getByRole("dialog").filter({ has: page.getByRole("textbox", { name: "Amount" }) }),
 				);
@@ -1409,7 +1409,7 @@ test.beforeAll(async ({ browser }) => {
 			path: `/goals/${ids.vacation}`,
 			phoneSheet: true,
 			desk: true,
-			ready: opened("Edit"),
+			ready: opened("Edit Goal"),
 		},
 		{
 			name: "18e-goal-spend-sheet",
@@ -1439,7 +1439,7 @@ test.beforeAll(async ({ browser }) => {
 			path: `/goals/${payoffGoal}`,
 			phoneSheet: true,
 			desk: true,
-			ready: opened("Edit"),
+			ready: opened("Edit Goal"),
 		},
 		{
 			// Back pressed with something typed in a Goal's Edit sheet: leaving the page asks first
@@ -1451,10 +1451,10 @@ test.beforeAll(async ({ browser }) => {
 			desk: true,
 			ready: async (page) => {
 				const link = page.getByRole("link", { name: "Hawaii trip" }).first();
-				await pressFor(link, page.getByRole("button", { name: "Edit" }).first());
+				await pressFor(link, page.getByRole("button", { name: "Edit Goal" }).first());
 				await page.waitForURL(`**/goals/${ids.vacation}`, { timeout: 15_000 });
 				await settled(page);
-				await opened("Edit")(page);
+				await opened("Edit Goal")(page);
 				const sheet = page.getByRole("dialog").last();
 				await sheet.getByLabel("Name", { exact: true }).fill("Hawaii, all four of us");
 				await page.goBack();
@@ -1465,6 +1465,8 @@ test.beforeAll(async ({ browser }) => {
 			},
 		},
 		{ name: "19-explore", path: "/explore" },
+		// Scrolled down the Changes: the chart and the totals stay in the window beside them (issue 120).
+		{ name: "19f-explore-scrolled", path: "/explore", scrolledTo: 1200 },
 		// A Scenario not saved yet, with one change: the outline, Your changes and the outcomes (#74).
 		{ name: "19a-explore-with-a-change", path: "/explore?lever=baseline:1020000" },
 		{
@@ -2196,7 +2198,7 @@ test.beforeAll(async ({ browser }) => {
 			window: true,
 			ready: (page) =>
 				pressFor(
-					page.getByRole("button", { name: "Edit", exact: true }).first(),
+					page.getByRole("button", { name: "Edit Commitment", exact: true }).first(),
 					page.getByRole("dialog").first(),
 				),
 		},

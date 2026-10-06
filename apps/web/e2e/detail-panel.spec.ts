@@ -57,7 +57,9 @@ async function household(page: Page) {
 /** Open, and hydrated: Edit in a Commitment's header is off until then. */
 async function opened(page: Page, name: string) {
 	await expect(title(page)).toHaveText(name);
-	await expect(panel(page).getByRole("button", { name: "Edit", exact: true })).toBeEnabled();
+	await expect(
+		panel(page).getByRole("button", { name: "Edit Commitment", exact: true }),
+	).toBeEnabled();
 }
 
 /** The panel's box once it has slid in: flush with the window's right edge. */
@@ -206,7 +208,7 @@ test("a Commitment opens in a panel from the right and the list keeps its width"
 	await opened(page, "Daycare");
 
 	// Esc belongs to a sheet opened from the panel first: the sheet closes, the panel stays.
-	await panel(page).getByRole("button", { name: "Edit", exact: true }).click();
+	await panel(page).getByRole("button", { name: "Edit Commitment", exact: true }).click();
 	await expect(page.getByRole("dialog")).toBeVisible();
 	await page.keyboard.press("Escape");
 	await expect(page.getByRole("dialog")).toHaveCount(0);
