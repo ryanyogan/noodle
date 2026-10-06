@@ -101,6 +101,21 @@ export const REPORT_VIEWS = [
 ] as const;
 export type ReportView = (typeof REPORT_VIEWS)[number];
 
+/**
+ * Goals in the order the Goals page lists them: the ones being saved for, then the ones being paid
+ * off, then the completed ones, each group oldest first (the order they arrive in). Reports' lines,
+ * key and cards all follow it, so a Goal is in the same place on both pages.
+ */
+export function inGoalsPageOrder<G extends { kind: GoalKind; completed: boolean }>(
+	goals: readonly G[],
+): G[] {
+	const group = (g: G) => (g.completed ? 2 : g.kind === "payoff" ? 1 : 0);
+	return goals
+		.map((g, i) => [g, i] as const)
+		.sort(([a, i], [b, j]) => group(a) - group(b) || i - j)
+		.map(([g]) => g);
+}
+
 /** Where a drill-down has got to: one Bucket, Commitment, Goal, Member, merchant or Account. */
 export const areaSchema = z
 	.string()
@@ -628,9 +643,8 @@ async function viewData(
 			const last = months.at(-1) as MonthKey;
 			return {
 				kind: "goals",
-				goals: goals
-					.filter((g) => !g.archived && g.fromMonth <= last)
-					.map((g) => {
+				goals: inGoalsPageOrder(goals.filter((g) => !g.archived && g.fromMonth <= last)).map(
+					(g) => {
 						if (g.kind === "payoff") {
 							// Paid down, from what was owed at each month's end (ADR-0019).
 							const own = owed.filter((p) => p.accountId === g.accountId);
@@ -671,7 +685,8 @@ async function viewData(
 								last,
 							),
 						};
-					}),
+					},
+				),
 			};
 		}
 		case "income": {

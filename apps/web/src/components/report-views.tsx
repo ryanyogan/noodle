@@ -1815,7 +1815,7 @@ function IncomeView({ data, nav, tables }: ViewProps<"income">) {
 				</StatGrid>
 			</Card>
 			<ChartCard
-				className="lg:col-span-3"
+				className="lg:col-span-3 lg:row-span-2 lg:grid-rows-subgrid lg:[&>*:first-child]:self-start"
 				title="Income by month"
 				description="Your usual take-home pay at the bottom of each bar, with Extra income stacked on top"
 				table={tables.months}
@@ -1838,7 +1838,7 @@ function IncomeView({ data, nav, tables }: ViewProps<"income">) {
 				/>
 			</ChartCard>
 			<ChartCard
-				className="lg:col-span-2"
+				className="lg:col-span-2 lg:row-span-2 lg:grid-rows-subgrid lg:[&>*:first-child]:self-start"
 				title="By source"
 				description="Grouped by each entry's note"
 				table={tables.sources}
