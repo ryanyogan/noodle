@@ -921,7 +921,8 @@ function CardPerks({ account }: { account: AccountView }) {
 		.map((source) => source.name)
 		.filter((name) => name.trim().toLowerCase() !== account.name.trim().toLowerCase())
 		.join(", ");
-	const meta = `${count} ${count === 1 ? "Perk" : "Perks"}${names ? ` · ${names}` : ""}`;
+	const perks = `${count} ${count === 1 ? "Perk" : "Perks"}`;
+	const meta = names ? `${perks} · ${names}` : perks;
 	return (
 		<Section aria-labelledby="account-perks">
 			<SectionHeader id="account-perks" title="Perks" help={<TermHelp term="perk-source" />} />

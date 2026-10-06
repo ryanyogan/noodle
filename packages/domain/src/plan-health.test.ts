@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { HealthGoal, MonthKey, PlanRecords, SetAsideChange } from "./index";
-import { planHealth } from "./index";
+import type {
+	DayKey,
+	HealthGoal,
+	MonthKey,
+	PlanRecords,
+	PlanWarning,
+	SetAsideChange,
+} from "./index";
+import { byUrgency, planHealth } from "./index";
 
 const bucket = (id: string, owner?: string) => ({
 	id,
@@ -261,5 +268,48 @@ describe("planHealth: payoff Goals (ADR-0019)", () => {
 		]);
 		// Without the cards nothing is checked.
 		expect(health({ records })).toEqual([]);
+	});
+});
+
+describe("byUrgency", () => {
+	const late = (goalId: string, name: string, targetDate: string): PlanWarning => ({
+		kind: "goal-late",
+		goalId,
+		name,
+		targetDate: targetDate as DayKey,
+		reachedIn: null,
+	});
+	const over = (bucketId: string, name: string, gap: number): PlanWarning => ({
+		kind: "bucket-over",
+		bucketId,
+		name,
+		over: 3,
+		months: 6,
+		gap: gap as never,
+	});
+	const behind: PlanWarning = {
+		kind: "income-behind",
+		month: "2026-10" as MonthKey,
+		short: 100 as never,
+		received: 0 as never,
+		expected: 100 as never,
+	};
+
+	it("gives one order whatever order the warnings were found in", () => {
+		const car = late("g2", "Next car", "2027-06-01");
+		const trip = late("g1", "Hawaii trip", "2027-03-01");
+		const twin = late("g0", "Hawaii trip", "2027-03-01");
+		const dining = over("b1", "Dining out", 5000);
+		const fun = over("b2", "Fun", 12000);
+		const expected = [behind, twin, trip, car, fun, dining];
+		expect(byUrgency([car, dining, trip, fun, behind, twin])).toEqual(expected);
+		expect(byUrgency([fun, twin, behind, trip, dining, car])).toEqual(expected);
+		expect(byUrgency([...expected].reverse())).toEqual(expected);
+	});
+
+	it("leaves the list it was given alone", () => {
+		const given = [over("b1", "Dining out", 1), behind];
+		byUrgency(given);
+		expect(given[1]).toBe(behind);
 	});
 });

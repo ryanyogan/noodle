@@ -78,6 +78,16 @@ export function AddBucketsSheet({
 		save: ({ owner: _, ...data }: AddBucketsChange) => addBuckets({ data }),
 		apply: withNewBuckets,
 	});
+	// With every starter already in the Plan (and the Parent's own Personal Allowance set) the list
+	// opens empty: nothing to tick, so the sheet says what can still be done here.
+	const nothingToTick =
+		buckets.some((b) => b.owner === parentId) &&
+		sheetStarters(
+			buckets.filter((b) => b.owner === undefined).map((b) => b.name),
+			undefined,
+			freeToSpend,
+			formatMoneyInput,
+		).length === 0;
 	return (
 		<>
 			<SaveFailed change={add} />
@@ -86,7 +96,11 @@ export function AddBucketsSheet({
 					<SheetContent layout="wide">
 						<SheetHeader
 							title="Add Buckets"
-							description="Tick the ones you want and set what each gets a month. You can change them any time."
+							description={
+								nothingToTick
+									? "Every starter Bucket is already in your Plan. Add your own and set what it gets a month."
+									: "Tick the ones you want and set what each gets a month. You can change them any time."
+							}
 						/>
 						<AddBucketsForm
 							buckets={buckets}
@@ -277,12 +291,9 @@ function AddBucketsForm({
 				))}
 			</p>
 			<p className="text-[13px] text-muted-foreground">
-				A Bucket resets monthly unless it carries{" "}
-				<span className="whitespace-nowrap">
-					over
-					<TermHelp term="carries-over" className="-mr-1" />,
-				</span>{" "}
-				keeping what’s left for next month. Good for Gifts: save a bit each month for December.
+				{/* No punctuation straight after the "?": a comma there stood a space away from its word. */}
+				A Bucket resets monthly. One that carries over <TermHelp term="carries-over" /> keeps what’s
+				left for next month. Good for Gifts: save a bit each month for December.
 			</p>
 			<ul aria-label="Buckets to add" className="grid">
 				{rows.map((row) => (

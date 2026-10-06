@@ -161,7 +161,12 @@ function AppSidebar({ householdName }: { householdName: string }) {
 				</Tooltip>
 			</SidebarHeader>
 			<SidebarContent>
-				<nav aria-label="Main" className="flex flex-col gap-4 rail:gap-3">
+				{/* A short window (1024×768): the groups sit closer and their labels are lower, so the last
+				    link is whole above the Sidebar's foot without scrolling (issue 73). */}
+				<nav
+					aria-label="Main"
+					className="flex flex-col gap-4 rail:gap-3 [@media(max-height:800px)]:gap-2 [@media(max-height:800px)]:[&_[data-slot=sidebar-group-label]]:h-6"
+				>
 					{sidebarGroups.map((group) => (
 						<NavGroupSection key={group.label} group={group} />
 					))}
