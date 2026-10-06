@@ -105,3 +105,64 @@ test("three ticked, one a Split: File in… files two, says what it skipped, and
 	await expect(bucketRow(page, "Groceries")).toContainText("$30 spent");
 	await page.context().close();
 });
+
+test("File in… with a For: the ticked rows are filed For that Child, and Undo puts both back", async ({
+	browser,
+}) => {
+	test.slow();
+	const page = await signedInPage(browser, parent.email, {
+		viewport: { width: 1440, height: 900 },
+	});
+	await createPlannedHousehold(page, {
+		baseline: "6200",
+		buckets: [
+			["Groceries", "800"],
+			["Fun", "200"],
+		],
+	});
+	const household = `(select household_id from members where clerk_user_id = ${q(parent.userId)})`;
+	await seedSql([
+		`insert into members (id, household_id, kind, name) values (${q(ulid())}, ${household}, 'child', 'Mia')`,
+	]);
+	await seed([
+		["zebra apple", 1000],
+		["zebra banana", 2000],
+	]);
+	await page.goto("/transactions");
+	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled(clientRendered);
+
+	await tick(page, ["zebra apple", "zebra banana"]);
+	// For is as each row has it until a Parent says otherwise.
+	const as = (name: string) => bar(page).getByRole("button", { name, exact: true });
+	await expect(as("As it is")).toHaveAttribute("aria-pressed", "true");
+	await as("Mia").click();
+	await expect(as("Mia")).toHaveAttribute("aria-pressed", "true");
+	await expect(as("As it is")).toHaveAttribute("aria-pressed", "false");
+	await fileIn(page, "Groceries");
+	const filed = toast(page, "Filed 2 in Groceries, For Mia.");
+	await expect(filed).toBeVisible();
+	await expect(line(page, "zebra apple")).toContainText("Groceries");
+
+	// Undo puts the Bucket and the For back: filed again For Mia, both are filed anew, not "already there".
+	await filed.getByRole("button", { name: "Undo" }).click();
+	await expect(toast(page, "Put back where they were.")).toBeVisible();
+	await expect(line(page, "zebra apple")).not.toContainText("Groceries");
+	await tick(page, ["zebra apple", "zebra banana"]);
+	await as("Mia").click();
+	await fileIn(page, "Groceries");
+	await expect(toast(page, "Filed 2 in Groceries, For Mia.")).toBeVisible();
+	// The list is read again, so the next filing goes on the versions this one left.
+	await page.reload();
+	await expect(page.getByLabel("Search notes and merchants")).toBeEnabled(clientRendered);
+
+	// They are For Mia now: the same filing again finds them already there, a different For does not.
+	await tick(page, ["zebra apple", "zebra banana"]);
+	await as("Mia").click();
+	await fileIn(page, "Groceries");
+	await expect(toast(page, "Nothing was filed in Groceries. 2 were already there.")).toBeVisible();
+	await tick(page, ["zebra apple", "zebra banana"]);
+	await as("Everyone").click();
+	await fileIn(page, "Groceries");
+	await expect(toast(page, "Filed 2 in Groceries, For Everyone.")).toBeVisible();
+	await page.context().close();
+});

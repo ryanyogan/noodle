@@ -1,4 +1,5 @@
 import { type DayKey, monthState, planForMonth } from "@noodle/domain";
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	addBucket,
@@ -9,6 +10,7 @@ import {
 	createHouseholdForParent,
 	type Db,
 	deleteTransaction,
+	fileTransactions,
 	loadBucketUses,
 	loadCharges,
 	loadPlanRecords,
@@ -21,10 +23,11 @@ import {
 	setAllowance,
 	setTakeHomePay,
 	splitTransaction,
+	unfileTransactions,
 	updateTransaction,
 	type Viewer,
 } from "./index";
-import { members } from "./schema";
+import { members, transactionFor } from "./schema";
 import { testDb } from "./test-db";
 
 const householdId = "household";
@@ -286,6 +289,56 @@ describe("Personal Allowance privacy: writes", () => {
 		expect(own.transactions).toContainEqual(
 			expect.objectContaining({ id: "gift", amountCents: 4_200, for: [] }),
 		);
+	});
+
+	// For on the Review card and when filing many (issue 138): neither path gets round ADR-0003.
+	it("refuses a card confirmed, with a For, into the other Parent's Personal Allowance", async () => {
+		const forOf = (id: string) =>
+			db.select().from(transactionFor).where(eq(transactionFor.transactionId, id));
+		expect(
+			await updateTransaction(db, {
+				householdId,
+				memberId: "alex",
+				transactionId: "milk",
+				amountCents: 650,
+				assignment: { bucketId: "sam-pa" },
+				note: null,
+				forMemberIds: ["sam"],
+			}),
+		).toEqual({ ok: false, reason: "not-in-plan" });
+		expect(await forOf("milk")).toEqual([]);
+		expect(await transactionIds(alex, "groceries")).toEqual(["milk"]);
+	});
+
+	it("refuses many filed at once, with a For, into the other Parent's Personal Allowance", async () => {
+		const forOf = (id: string) =>
+			db.select().from(transactionFor).where(eq(transactionFor.transactionId, id));
+		expect(
+			await fileTransactions(db, alex, {
+				selection: { ids: ["milk", "book"] },
+				month,
+				assignment: { bucketId: "sam-pa" },
+				forMemberIds: ["sam"],
+			}),
+		).toEqual({ ok: false, reason: "not-in-plan" });
+		expect(await forOf("milk")).toEqual([]);
+		// What is in the other Parent's Personal Allowance is left, its For too, whatever is selected.
+		const swept = await fileTransactions(db, alex, {
+			selection: { all: { month } },
+			month,
+			assignment: { bucketId: "groceries" },
+			forMemberIds: ["alex"],
+		});
+		expect(swept).toMatchObject({ ok: true, filed: 3, already: 0 });
+		expect(await forOf("coffee")).toEqual([]);
+		expect(await transactionIds(sam, "sam-pa")).toEqual(["coffee"]);
+		// Nor does an Undo put one back there for them, or change its For.
+		expect(
+			await unfileTransactions(db, alex, [
+				{ id: "milk", bucketId: "sam-pa", commitmentId: null, version: 1, for: ["sam"] },
+			]),
+		).toEqual({ restored: 0 });
+		expect((await forOf("milk")).map((row) => row.memberId)).toEqual(["alex"]);
 	});
 
 	it("is set only by its own Parent, and stays in the Plan", async () => {

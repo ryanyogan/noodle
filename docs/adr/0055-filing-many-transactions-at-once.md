@@ -52,3 +52,15 @@ The filter lists the Buckets of every month the list covers, each once, by name 
 ### What the orders other than by date cost in "All time"
 
 By date, a page is the next 50 rows of an index on the Household and the date, whatever the range: the cost is the page. Any other order (amount, name, Assigned to, Account) has no index to follow, so every page fetch sorts every matching row of the range before it takes 50; in "All time" that is every Transaction the Household has, for each page scrolled to. The first page of any range also sums every matching row for the total. At a Household's size (a few thousand rows a year) this is milliseconds in D1 and is accepted. It is not accepted blindly: if a Household's list becomes slow, the first step is an index per sort key on (household, key, date, id), not a cache; a custom from/to range would bound it too. Nothing here was measured on production data.
+
+## Addendum, 2026-10-06 (issue 138): it can set For as well
+
+"It changes only the assignment: amount, name and For stay" above now reads: amount and name stay, and For stays unless a Parent says who. The selection bar has For chips beside "File in…": "As it is" (the start, and what the bar always did), Everyone, and each Member; several Members can be on. With a For picked, `fileTransactions` takes `forMemberIds` and every Transaction it files is For those Members, in the same write as its Bucket. Nothing else about the run changes: the same rows are left and counted, one month only, nothing learned, no Rule.
+
+- **Already there** now means in that Bucket or Commitment *and*, when a For is given, For the same Members. A row in the target with another For is filed (its For changes, its version moves on), so "File in Groceries, For Mia" over rows already in Groceries is how many get a For at once. For is not set without an assignment: the bar files, and For rides along.
+- **Undo** is still the inverse. Each row's answer also carries who it was For before, and `unfileTransactions` puts that back in the same write as the Bucket, only on the rows that very write returns (still at the filing's version). A row changed since keeps its Bucket and its For.
+- **Members** not in the Household are dropped from the For, as every other write of For does. An empty For is Everyone.
+- **Never the other Parent's Personal Allowance** (ADR-0003): a For changes none of it. The target must be one this Parent can assign to or the whole run is refused; a row in, or partly in, the other Parent's Personal Allowance is left, its For too; Undo will not put a row back there. Tests: `packages/db/src/privacy.test.ts`, `file-transactions.test.ts`.
+- The message says it: "Filed 12 in Groceries, For Mia."
+
+The Review card has the same chips (without "As it is": one Transaction has one For to show). What is picked there is held on the screen until the card is filed; Confirm, the picker and "Confirm all" send it with the assignment through the one-Transaction write, and "Always file …?" puts it in the Rule (ADR-0030).

@@ -29,3 +29,10 @@ A Parent connected a bank and Review filled with Transactions from months before
 
 - A Transaction filed without a Bucket shows in Transactions as unassigned and is counted in no Report by Bucket, as before it was filed.
 - ADR-0021's "can only be skipped" no longer holds: → or ← on such a card says it can be filed without a Bucket or skipped.
+
+## Note, 2026-10-06 (spec 130, issue 138): it still comes out of what the month carries over
+
+"No month's figures change" above is about the act of filing: taking a Transaction out of Review without a Bucket changes nothing that was not already so. It does not mean the money is counted nowhere. Since ADR-0054, Free to Spend is carried over from month to month, and what a month ends with is the income it received less its spending and Goal funding, in a Bucket or not. A Transaction that is unassigned, waiting in Review or filed without a Bucket, adds to no Bucket's spending and shows in no Report by Bucket, but it is money out of its month, so it comes out of what that month carries over to the next. That was already true while it waited; filing it without a Bucket leaves it true. Carrying over starts at the first month with a Plan (ADR-0054), so a Transaction from before it comes out of nothing: those months hand nothing on.
+
+So "it adds nothing to any Bucket" holds, and "what carried over" does not change *by filing it*. Read "No month's figures change" with that meaning, as `CONTEXT.md` now says. The code was right throughout; only these words were loose.
+

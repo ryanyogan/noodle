@@ -254,6 +254,8 @@ const SKIPPED: [keyof FilingSkips, one: string, many: string][] = [
 export function filedMessage(
 	result: { filed: number; already: number; skipped: FilingSkips },
 	into: string,
+	/** Who they were filed For as well, when the filing set it: "Mia & Leo". */
+	forWhom?: string,
 ): string {
 	const n = (count: number) => count.toLocaleString("en-US");
 	const kinds = SKIPPED.flatMap(([key, one, many]) =>
@@ -263,7 +265,9 @@ export function filedMessage(
 	);
 	const total = SKIPPED.reduce((sum, [key]) => sum + result.skipped[key], 0);
 	const said = [
-		result.filed > 0 ? `Filed ${n(result.filed)} in ${into}.` : `Nothing was filed in ${into}.`,
+		result.filed > 0
+			? `Filed ${n(result.filed)} in ${into}${forWhom ? `, For ${forWhom}` : ""}.`
+			: `Nothing was filed in ${into}.`,
 	];
 	if (total > 0) said.push(`${n(total)} skipped: ${kinds.join(", ")}.`);
 	if (result.already > 0) {
