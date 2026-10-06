@@ -186,6 +186,7 @@ const DEFAULTS: Record<string, number> = {
 	"commitments.carried_balance": 0,
 	"income.needs_review": 0,
 	"income.version": 0,
+	"commitments.about": 0,
 };
 
 describe("restoring a snapshot taken under an older migration", () => {

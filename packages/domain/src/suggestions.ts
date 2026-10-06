@@ -1,5 +1,5 @@
 import { merchantKey, type Rule, ruleFor } from "./categorize";
-import type { Cadence } from "./commitments";
+import { aboutAmount, type Cadence } from "./commitments";
 import { addDays, addMonths, type DayKey, daysBetween, type MonthKey, monthOfDay } from "./month";
 import { looksLikeCardPayment } from "./transfers";
 
@@ -58,6 +58,8 @@ export type CommitmentIdea = {
 	dueDate: DayKey;
 	/** Why, in plain words: "Verizon, $85 on the 12th, 4 months running". */
 	reason: string;
+	/** Proposed as an "about" amount: a utility, whose bill varies (issue 135). */
+	about?: true;
 	evidence: Evidence;
 };
 
@@ -70,6 +72,13 @@ export type AmountIdea = {
 	amountCents: number;
 	cadence: Cadence;
 	dueDate: DayKey;
+	/**
+	 * For an "about" Commitment (issue 135): `amountCents` is the average of its charges, which has
+	 * drifted from what the Plan sets aside, and these are the lowest and highest of them.
+	 */
+	about?: true;
+	lowCents?: number;
+	highCents?: number;
 	evidence: Evidence;
 };
 
@@ -231,6 +240,8 @@ export type CommitmentNow = {
 	amountCents: number;
 	cadence: Cadence;
 	dueDate: DayKey;
+	/** Its amount is "about": judged on the average of its charges, not the last three. */
+	about?: boolean;
 };
 
 // What a Commitment is (CONTEXT.md, #76): a bill the Household signed up to, by kind of payee.
@@ -396,11 +407,11 @@ function commitmentReason(
 	merchant: string,
 	cadence: Cadence,
 	amountCents: number,
-	varying: boolean,
+	loosely: "" | "up to " | "about ",
 	dueDay: number,
 	dates: DayKey[],
 ): string {
-	const amount = `${varying ? "up to " : ""}${dollars(amountCents)}`;
+	const amount = `${loosely}${dollars(amountCents)}`;
 	if (cadence === "biweekly")
 		return `${merchant}, ${amount} every two weeks, ${dates.length} times running`;
 	if (cadence === "annual") {
@@ -411,6 +422,17 @@ function commitmentReason(
 	return `${merchant}, ${amount} on the ${ordinal(dueDay)}, ${months} months running`;
 }
 
+/** The fewest charges an "about" Commitment's average must rest on before its drift is raised. */
+export const ABOUT_DRIFT_CHARGES = 3;
+
+const wholeDollars = (cents: number) => Math.round(cents / 100) * 100;
+
+const aboutOf = (lines: SpendLine[], today: DayKey) =>
+	aboutAmount(
+		lines.map((l) => ({ amount: l.amountCents, date: l.date })),
+		today,
+	);
+
 /**
  * Spot Commitments (#76): a bill, not day-to-day spending. Charges at one payee whose kind can be a
  * Commitment (never eating out, coffee, groceries, fuel, retail or moving money), on a cadence that
@@ -419,7 +441,10 @@ function commitmentReason(
  * 3 or more charges (2 for annual), costing at least $25 a month ($10 for a subscription, $100 for
  * an unknown kind), the latest not overdue by more than half a period, paying no Commitment and not
  * near the name of a Commitment or Bucket the Plan has: a Commitment with its terms and a reason.
- * Also a Commitment whose latest charges (2 or more, steady) are more than 10% off what it expects.
+ * A utility (power, water, gas) is proposed as an "about" amount: the average of its charges.
+ * Also a Commitment whose latest charges (2 or more, steady) are more than 10% off what it expects;
+ * for an "about" Commitment instead, one whose average (aboutAmount, 3 or more charges) has drifted
+ * more than 10% from what the Plan sets aside.
  */
 export function spotCommitments(
 	lines: SpendLine[],
@@ -464,8 +489,14 @@ export function spotCommitments(
 		const lastDate = last(run).date;
 		const period = CADENCE_DAYS.find(([c]) => c === cadence)?.[2] ?? 35;
 		if (daysBetween(lastDate, today) > period * 1.5) continue;
-		// A bill that varies is planned at its recent high, so the Plan isn't short in a cold month.
-		const amountCents = varying ? Math.max(...amounts.slice(-3)) : median(amounts);
+		// A utility is an "about" amount: the average of its charges, a cold month's extra coming out
+		// of what carries over. Any other bill that varies is planned at its recent high.
+		const about = kind === "utility" ? aboutOf(run, today) : null;
+		const amountCents = about
+			? wholeDollars(about.average)
+			: varying
+				? Math.max(...amounts.slice(-3))
+				: median(amounts);
 		const least =
 			kind === "unknown"
 				? t.minMonthlyCents.unknown
@@ -485,10 +516,11 @@ export function spotCommitments(
 				merchant,
 				cadence,
 				amountCents,
-				varying && new Set(amounts).size > 1,
+				about ? "about " : varying && new Set(amounts).size > 1 ? "up to " : "",
 				dueDay,
 				dates,
 			),
+			...(about ? { about: true as const } : {}),
 			evidence: {
 				count: run.length,
 				amountCents,
@@ -499,10 +531,42 @@ export function spotCommitments(
 	}
 	for (const commitment of commitments) {
 		// Only the Household's spending: a Commitment is the whole Household's.
-		const paid = recent
+		const charged = recent
 			.filter((l) => l.commitmentId === commitment.id && l.owner === null)
-			.sort((a, b) => a.date.localeCompare(b.date))
-			.slice(-3);
+			.sort((a, b) => a.date.localeCompare(b.date));
+		if (commitment.about) {
+			// It varies, so three charges in a row say nothing: its average is what's watched.
+			const about = aboutOf(charged, today);
+			if (!about || about.count < ABOUT_DRIFT_CHARGES) continue;
+			const amountCents = wholeDollars(about.average);
+			if (
+				Math.abs(about.average - commitment.amountCents) <= commitment.amountCents * 0.1 ||
+				amountCents === commitment.amountCents
+			)
+				continue;
+			const rests = charged.slice(-about.count);
+			ideas.push({
+				kind: "commitment-amount",
+				owner: null,
+				commitmentId: commitment.id,
+				name: commitment.name,
+				fromCents: commitment.amountCents,
+				amountCents,
+				cadence: commitment.cadence,
+				dueDate: commitment.dueDate,
+				about: true,
+				lowCents: about.low,
+				highCents: about.high,
+				evidence: {
+					count: rests.length,
+					amountCents,
+					months: new Set(rests.map((l) => monthOfDay(l.date))).size,
+					transactionIds: rests.map((l) => l.id),
+				},
+			});
+			continue;
+		}
+		const paid = charged.slice(-3);
 		if (paid.length < 2) continue;
 		const amounts = paid.map((l) => l.amountCents);
 		const amountCents = median(amounts);

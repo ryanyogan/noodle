@@ -110,6 +110,7 @@ export async function addCommitment(
 		commitmentId: string;
 		name: string;
 		month: MonthKey;
+		about?: boolean | undefined;
 	} & Terms,
 ): Promise<void> {
 	await db.batch(commitmentAdd(db, input));
@@ -127,6 +128,8 @@ export const commitmentAdd = (
 		name: string;
 		month: MonthKey;
 		endedFromMonth?: MonthKey | null;
+		/** Its amount is "about" (it varies); the same each time when left out. */
+		about?: boolean | undefined;
 	} & Terms,
 ) =>
 	[
@@ -148,6 +151,7 @@ export const commitmentAdd = (
 					cadence: input.cadence,
 					dueDate: input.dueDate,
 					...(input.endedFromMonth ? { until: input.endedFromMonth } : {}),
+					...(input.about ? { about: true } : {}),
 				},
 			},
 		),
@@ -159,6 +163,7 @@ export const commitmentAdd = (
 				name: input.name,
 				fromMonth: input.month,
 				endedFromMonth: input.endedFromMonth ?? null,
+				about: input.about ?? false,
 			})
 			.onConflictDoNothing({ target: commitments.id }),
 		termsFor(db, input).onConflictDoNothing({
@@ -169,7 +174,8 @@ export const commitmentAdd = (
 /**
  * Renames a Commitment (in every month) and sets its terms from `month` onward, or for `scope`
  * "just" that month only: the next month goes back to the terms in force before, unless it has
- * its own. Setting them again for the same month replaces them.
+ * its own. Setting them again for the same month replaces them. `about` says whether its amount is
+ * "about" or the same each time, in every month like its name; left out, that stays as it is.
  */
 export async function updateCommitment(
 	db: Db,
@@ -179,6 +185,7 @@ export async function updateCommitment(
 		name: string;
 		month: MonthKey;
 		scope?: PlanScope;
+		about?: boolean | undefined;
 	} & Terms,
 ): Promise<void> {
 	const own = ownCommitment(input.householdId, input.commitmentId);
@@ -194,7 +201,10 @@ export async function updateCommitment(
 			after: { name: input.name },
 		},
 	);
-	const rename = db.update(commitments).set({ name: input.name }).where(own);
+	const rename = db
+		.update(commitments)
+		.set({ name: input.name, ...(input.about === undefined ? {} : { about: input.about }) })
+		.where(own);
 	const log = termsLog(db, input);
 	const write = termsFor(db, input).onConflictDoUpdate({
 		target: [commitmentTerms.commitmentId, commitmentTerms.month],

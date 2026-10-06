@@ -22,9 +22,12 @@ import { type FormEvent, useId, useState } from "react";
 import { ulid } from "ulid";
 import { monogram } from "../buckets";
 import {
+	aboutText,
 	cadenceNames,
+	carryNote,
 	type PaymentVariables,
 	partPaid,
+	useAboutAmount,
 	useCommitmentPayment,
 } from "../commitments";
 import { formatMoney, formatMoneyInput, fullDay, shortDay } from "../format";
@@ -40,6 +43,17 @@ const differsBy = (commitment: CommitmentState) =>
 		: commitment.difference < 0 && !partPaid(commitment)
 			? `${formatMoney(-commitment.difference)} less than expected`
 			: null;
+
+/** "About $160 · $120–$210" for a Commitment whose amount is "about"; nothing for any other. */
+export function AboutNote({
+	commitment,
+}: {
+	commitment: { id: string; amount: number; about?: boolean | undefined };
+}) {
+	const about = useAboutAmount(commitment);
+	if (!commitment.about) return null;
+	return <span className="tabular-nums">{aboutText(about, commitment.amount)}</span>;
+}
 
 /** "Due Oct 2, 16, and 30", "1 of 3 paid · next due Oct 16", "Paid", "$1,450 of $2,300 paid". */
 function progress(commitment: CommitmentState) {
@@ -177,7 +191,9 @@ function CommitmentRow({
 	commitment: CommitmentState;
 	onPay?: (amountCents: number) => void;
 }) {
-	const differs = differsBy(commitment);
+	// An "about" Commitment that came in over or under says where the difference goes instead.
+	const carry = carryNote(commitment, month);
+	const differs = carry ? null : differsBy(commitment);
 	const hydrated = useHydrated();
 	// The amount form opens under the row; until then "Record payment" sits on the bill's own line.
 	const [paying, setPaying] = useState(false);
@@ -185,7 +201,7 @@ function CommitmentRow({
 		<ListRow
 			aria-label={`${commitment.name}: ${formatMoney(commitment.actual)} paid of ${formatMoney(
 				commitment.expected,
-			)} expected${differs ? `, ${differs}` : ""}`}
+			)} expected${differs ? `, ${differs}` : ""}${carry ? `, ${carry}` : ""}`}
 			leading={<Tile>{monogram(commitment.name)}</Tile>}
 			title={<CommitmentLink month={month} commitment={commitment} />}
 			meta={
@@ -196,6 +212,7 @@ function CommitmentRow({
 							{differs}
 						</Badge>
 					) : null}
+					{carry ? <span className="basis-full">{carry}</span> : null}
 					{onPay && !paying ? (
 						// On a phone it always starts a line of its own, in line with the text above it
 						// (issue 110: at 320 px it stayed beside the text in some rows and dropped in others).

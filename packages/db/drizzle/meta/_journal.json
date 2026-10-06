@@ -421,6 +421,13 @@
       "when": 1791300000000,
       "tag": "0059_money_in_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "6",
+      "when": 1791614863097,
+      "tag": "0062_commitment_about",
+      "breakpoints": true
     }
   ]
 }

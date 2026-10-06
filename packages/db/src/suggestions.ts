@@ -44,6 +44,8 @@ export type SuggestionInputs = {
 		amountCents: number;
 		cadence: "monthly" | "biweekly" | "annual";
 		dueDate: DayKey;
+		/** Its amount is "about": its average is watched, not its last three charges. */
+		about: boolean;
 	}[];
 };
 
@@ -102,6 +104,7 @@ export async function loadSuggestionInputs(
 			amountCents: c.amount,
 			cadence: c.cadence,
 			dueDate: c.dueDate,
+			about: c.about === true,
 		})),
 	};
 }
@@ -344,6 +347,11 @@ export type SuggestionTerms = {
 	merchant?: string;
 	bucketId?: string;
 	bucketName?: string;
+	/** A new Commitment proposed as "about", or an "about" Commitment whose average drifted. */
+	about?: boolean;
+	/** With `about` on a new amount: the lowest and highest of the charges the average rests on. */
+	lowCents?: number;
+	highCents?: number;
 	/** Why it was suggested, in words (#76); rows saved before #76 gain it on the next run. */
 	reason?: string;
 };

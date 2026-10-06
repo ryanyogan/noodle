@@ -48,7 +48,7 @@ import { formatMoney, formatMoneyInput, fullDay, monthName, shortDay } from "../
 import { usePlanChange } from "../plan-changes";
 import { goalsQuery } from "../queries";
 import { addCommitment, endCommitment, updateCommitment } from "../server/commitments";
-import { CommitmentLink } from "./commitment-list";
+import { AboutNote, CommitmentLink } from "./commitment-list";
 import { AmountInput } from "./goals";
 import { PaysDownField, PaysDownNote } from "./pays-down";
 import { Confirm, SaveFailed } from "./plan-editing";
@@ -103,6 +103,7 @@ export function CommitmentEditor({
 							? ` · ${formatMoney(commitment.expected)} this month`
 							: ""}
 					</span>
+					<AboutNote commitment={commitment} />
 					<ChangedNote was={was} />
 					{commitment.accountId ? <PaysDownNote accountId={commitment.accountId} /> : null}
 					{/* Beside a rail (a desktop window under 1440) the list has no room for the paid column:
@@ -231,6 +232,7 @@ function useRefreshOwed() {
 type SheetCommitment = Pick<CommitmentState, "id" | "name" | "amount" | "cadence" | "dueDate"> & {
 	accountId?: string | null | undefined;
 	carriedBalance?: boolean | undefined;
+	about?: boolean | undefined;
 };
 
 /** The Commitment sheet: change its terms from this month on or just this month, or end it. */
@@ -296,6 +298,9 @@ export function readCommitment(
 	const cadence = values.get("cadence");
 	const dueDate = values.get("dueDate");
 	const { paysDown, needsTick, busy } = readPaysDown(values, was);
+	// A form without the choice (none today) leaves it as it is.
+	const kind = values.get("amountKind");
+	const about = kind === null ? undefined : kind === "about";
 	const errors: CommitmentErrors = {
 		name: name === "",
 		amount: amountCents === null,
@@ -315,7 +320,14 @@ export function readCommitment(
 		? {
 				ok: true as const,
 				errors,
-				terms: { name, amountCents, cadence, dueDate, ...(paysDown ? { paysDown } : {}) },
+				terms: {
+					name,
+					amountCents,
+					cadence,
+					dueDate,
+					...(about === undefined ? {} : { about }),
+					...(paysDown ? { paysDown } : {}),
+				},
 			}
 		: { ok: false as const, errors };
 }
@@ -389,6 +401,7 @@ function CommitmentDetails({
 						aria-invalid={errors.amount || undefined}
 					/>
 				</Field>
+				<AmountKindField id={id} about={commitment.about === true} />
 				<Field label="Name" htmlFor={`${id}-name`}>
 					<Input
 						id={`${id}-name`}
@@ -448,6 +461,39 @@ function CommitmentDetails({
 				</Confirm>
 			) : null}
 		</div>
+	);
+}
+
+/**
+ * Whether a Commitment's amount is the same each time or "about" (it varies, as power and water
+ * do), for its forms (issue 135). Read by readCommitment as `about`.
+ */
+export function AmountKindField({
+	id,
+	about = false,
+	className,
+}: {
+	id: string;
+	about?: boolean;
+	className?: string | undefined;
+}) {
+	return (
+		<Field
+			label="The amount is"
+			htmlFor={`${id}-kind`}
+			hint="Pick “About” for a bill that varies, like power or water. Over or under comes out of, or adds to, what carries to the next month."
+		>
+			<OptionSelect
+				id={`${id}-kind`}
+				name="amountKind"
+				defaultValue={about ? "about" : "same"}
+				className={className}
+				choices={[
+					{ value: "same", label: "The same each time" },
+					{ value: "about", label: "About: it varies" },
+				]}
+			/>
+		</Field>
 	);
 }
 
@@ -570,6 +616,8 @@ export function AddCommitment({ month, start }: { month: MonthKey; start?: Commi
 						/>
 					</Field>
 				</div>
+				{/* Keyed like "Pays down": the next one starts at "The same each time" again. */}
+				<AmountKindField key={`kind-${commitmentId}`} id={id} />
 				<ScheduleFields
 					id={id}
 					cadence="monthly"

@@ -1,4 +1,4 @@
-import { comingUp, matchCharges } from "@noodle/domain";
+import { comingUp, matchCharges, planForMonth } from "@noodle/domain";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
 	addBucket,
@@ -10,7 +10,9 @@ import {
 	type Db,
 	loadChargesBetween,
 	loadPlanRecords,
+	loadSuggestionInputs,
 	splitTransaction,
+	updateCommitment,
 	type Viewer,
 } from "./index";
 import { members } from "./schema";
@@ -68,6 +70,59 @@ beforeEach(async () => {
 		amountCents: 114_000,
 		cadence: "annual",
 		dueDate: "2026-10-15",
+	});
+});
+
+describe("a Commitment whose amount is about", () => {
+	const power = {
+		householdId,
+		memberId: "alex",
+		commitmentId: "power",
+		name: "Power",
+		month: "2026-09",
+		amountCents: 16_000,
+		cadence: "monthly",
+		dueDate: "2026-09-12",
+	} as const;
+	const about = async (id: string) =>
+		(await loadPlanRecords(db, householdId, "2026-10")).commitments.find((c) => c.id === id)?.about;
+
+	it("is the same each time unless said, and about when a Parent says so", async () => {
+		await addCommitment(db, { ...power, about: true });
+		expect(await about("power")).toBe(true);
+		expect(await about("daycare")).toBe(false);
+		expect(
+			planForMonth(await loadPlanRecords(db, householdId, "2026-10"), "2026-10").commitments.map(
+				(c) => [c.id, c.about],
+			),
+		).toEqual(
+			expect.arrayContaining([
+				["power", true],
+				["daycare", undefined],
+			]),
+		);
+	});
+
+	it("changes only when an edit says which, in every month", async () => {
+		await addCommitment(db, power);
+		await updateCommitment(db, { ...power, month: "2026-10", amountCents: 17_000, about: true });
+		expect(await about("power")).toBe(true);
+		// A save that doesn't say (a new amount from a Suggestion) leaves it about.
+		await updateCommitment(db, { ...power, month: "2026-10", amountCents: 18_000 });
+		expect(await about("power")).toBe(true);
+		await updateCommitment(db, { ...power, month: "2026-10", amountCents: 18_000, about: false });
+		expect(await about("power")).toBe(false);
+	});
+
+	it("is told to the suggestion run", async () => {
+		await addCommitment(db, { ...power, about: true });
+		const inputs = await loadSuggestionInputs(db, householdId, "2025-09-01", "2026-10");
+		expect(inputs.commitments.map((c) => [c.id, c.about])).toEqual(
+			expect.arrayContaining([
+				["power", true],
+				["daycare", false],
+			]),
+		);
 	});
 });
 

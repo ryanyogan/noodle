@@ -1,4 +1,5 @@
 import {
+	aboutAmount,
 	addDays,
 	addMonths,
 	type DayKey,
@@ -28,7 +29,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, linkOptions, notFound, useHydrated } from "@tanstack/react-router";
 import { ChevronLeft, Pencil } from "lucide-react";
 import { useState } from "react";
-import { termsSchedule } from "../../../commitments";
+import { aboutText, carryNote, termsSchedule } from "../../../commitments";
 import { DateTile, dueDay, dueStatus } from "../../../components/coming-up";
 import { CommitmentSheet, useCommitmentChanges } from "../../../components/commitment-editor";
 import { DetailHeader, DetailPager, DetailPending } from "../../../components/master-detail";
@@ -90,6 +91,16 @@ function CommitmentPage() {
 	if (!commitment)
 		return <DetailHeader inPanel eyebrow="Commitment" title="Commitment" leading={back} />;
 	const terms = currentTerms(data, id, month);
+	// An "about" amount: the average of its charges and how far they range (issue 135), and where
+	// this month's over or under goes once its charge is in.
+	const about = commitment.about
+		? aboutAmount(
+				data.charges.filter((charge) => charge.commitmentId === id),
+				data.asOf,
+			)
+		: null;
+	const thisMonth = inPlan.find((c) => c.id === id);
+	const carry = thisMonth ? carryNote(thisMonth, month) : null;
 	const ended = commitment.endedFromMonth !== null && commitment.endedFromMonth <= month;
 	const hasCharges = matchCharges(data, id, data.charges).length > 0;
 	// The card or loan it pays down (ADR-0050); one archived since is named, with nothing to open.
@@ -153,6 +164,7 @@ function CommitmentPage() {
 						dueDate: terms.dueDate,
 						accountId: commitment.accountId,
 						carriedBalance: commitment.carriedBalance,
+						about: commitment.about,
 					}}
 					open={editing}
 					onOpenChange={setEditing}
@@ -180,9 +192,15 @@ function CommitmentPage() {
 									{formatMoney(monthlyEquivalent(terms))} a month
 								</span>
 							</p>
+							{carry ? <p className="text-sm text-muted-foreground">{carry}</p> : null}
 						</div>
 						<StatGrid layout="ruled" wrapLast className="grid-cols-2 @md:grid-cols-3">
-							<Stat label="Each payment" value={formatMoney(terms.amount)} />
+							<Stat
+								label="Each payment"
+								value={
+									commitment.about ? aboutText(about, terms.amount) : formatMoney(terms.amount)
+								}
+							/>
 							<Stat label="Schedule" value={termsSchedule(terms)} />
 							<Stat
 								label={ended ? "Ended" : "Ends"}
