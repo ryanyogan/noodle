@@ -3,6 +3,7 @@ import {
 	DEFAULT_CHECK_IN_DAY,
 	type DraftLabels,
 	INSIGHT_KINDS,
+	MONEY_IN_KINDS,
 	PERK_KINDS,
 	PERK_RENEWALS,
 	PERK_SOURCE_KINDS,
@@ -11,6 +12,7 @@ import {
 	type ReceiptLine,
 	type ScenarioChangeV1,
 	type ScenarioJson,
+	STORED_MONEY_IN_KINDS,
 	type Weekday,
 } from "@noodle/domain";
 import { sql } from "drizzle-orm";
@@ -921,6 +923,16 @@ export const income = sqliteTable(
 		accountId: text("account_id").references(() => accounts.id),
 		importId: text("import_id").references(() => imports.id),
 		externalId: text("external_id"),
+		// Money in has a kind (ADR-0057). Only what the row itself must hold is kept here: a Refund
+		// or Paid back. A Transfer or Between us is its row in `transfers`; with neither it is
+		// Income (moneyInKindOf in @noodle/domain, money-in.ts). Appended columns: imports.ts
+		// inserts by position.
+		kind: text("kind", { enum: STORED_MONEY_IN_KINDS }),
+		// Waiting in Review for a Parent to say its kind (person-to-person wording on Import).
+		// While it waits it counts nowhere (incomeCounts).
+		needsReview: integer("needs_review", { mode: "boolean" }).notNull().default(false),
+		// Goes up with every change of kind, as a Transaction's does (ADR-0041).
+		version: integer("version").notNull().default(0),
 	},
 	(t) => [
 		index("income_household_date_idx").on(t.householdId, t.date),
@@ -980,6 +992,26 @@ export const rules = sqliteTable(
 		),
 		check("rules_one_target", sql`(bucket_id is null) <> (commitment_id is null)`),
 	],
+);
+
+// A Rule for money in (ADR-0057): wording (a merchantKey, matched as whole words) that is always
+// one kind. Kept apart from `rules`, whose check wants a Bucket or a Commitment. One per Household
+// and pattern; income is the Household's, so these are never private.
+export const moneyInRules = sqliteTable(
+	"money_in_rules",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		pattern: text("pattern").notNull(),
+		kind: text("kind", { enum: MONEY_IN_KINDS }).notNull(),
+		createdByMemberId: text("created_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [uniqueIndex("money_in_rules_household_pattern_idx").on(t.householdId, t.pattern)],
 );
 
 // Who a Rule files spending For: one row per Member, like `transaction_for` (ADR-0011). No rows

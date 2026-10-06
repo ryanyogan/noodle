@@ -3,13 +3,17 @@ import {
 	type CsvMapping,
 	type DayKey,
 	holdsMoney,
+	type MoneyInKind,
+	moneyInOnImport,
 	type StatementLine,
+	type StoredMoneyInKind,
 	statementLineIds,
 } from "@noodle/domain";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { deletedLineKeys } from "./deleted-lines";
 import type { Db } from "./index";
 import { matchImported } from "./matches";
+import { loadMoneyInRules, markMoneyInByRule } from "./money-in";
 import { statementLinesBanked } from "./same-lines";
 import { accounts, bankConnections, csvMappings, imports, income, transactions } from "./schema";
 import { detectTransfers } from "./transfers";
@@ -113,8 +117,10 @@ export async function importStatement(
 	// Lines a Parent deleted from the Account stay out (ADR-0045).
 	const deleted = await deletedLineKeys(db, householdId, accountId, ids);
 	const toIncome = holdsMoney(account.kind);
+	const moneyInRules = toIncome ? await loadMoneyInRules(db, householdId) : [];
 	const spending: ImportRow[] = [];
-	const received: ImportRow[] = [];
+	const received: (ImportRow & { kind: string | null; review: boolean })[] = [];
+	const ruled: { id: string; kind: MoneyInKind }[] = [];
 	input.lines.forEach((line, i) => {
 		if (banked.has(i) || deleted.has(ids[i] as string)) return;
 		const row = {
@@ -124,7 +130,19 @@ export async function importStatement(
 			externalId: ids[i] as string,
 			pending: line.pending === true,
 		};
-		if (line.amount > 0 && toIncome) received.push({ ...row, amount: line.amount });
+		if (line.amount > 0 && toIncome) {
+			// Income without asking only for payroll wording or a Rule; person-to-person money in
+			// waits in Review; the rest is Income as before (ADR-0057).
+			const said = moneyInOnImport(row.note, moneyInRules);
+			received.push({
+				...row,
+				amount: line.amount,
+				kind: said.kind === "refund" || said.kind === "paid-back" ? said.kind : null,
+				review: said.review,
+			});
+			if (said.kind === "transfer" || said.kind === "between-us")
+				ruled.push({ id: row.id, kind: said.kind });
+		}
 		// Transactions hold money spent, so money out is positive and money back negative.
 		else spending.push({ ...row, amount: -line.amount });
 	});
@@ -134,7 +152,8 @@ export async function importStatement(
 	// statement's bound parameters at 100, and a statement can have hundreds of lines.
 	const theImport = sql`exists (select 1 from ${imports} where ${imports.id} = ${importId}
 		and ${imports.householdId} = ${householdId} and ${imports.accountId} = ${accountId})`;
-	const lineField = (field: keyof ImportRow) => sql`json_extract(value, ${`$.${field}`})`;
+	const lineField = (field: keyof ImportRow | "kind" | "review") =>
+		sql`json_extract(value, ${`$.${field}`})`;
 	await db.batch([
 		// The statement's last four digits, for an Account whose digits aren't known yet.
 		db
@@ -204,6 +223,9 @@ export async function importStatement(
 						accountId: sql<string>`${accountId}`.as("account_id"),
 						importId: sql<string>`${importId}`.as("import_id"),
 						externalId: sql<string>`${lineField("externalId")}`.as("external_id"),
+						kind: sql<StoredMoneyInKind | null>`${lineField("kind")}`.as("kind"),
+						needsReview: sql<boolean>`${lineField("review")}`.as("needs_review"),
+						version: sql<number>`0`.as("version"),
 					})
 					.from(sql`json_each(${JSON.stringify(received)})`)
 					.where(theImport),
@@ -237,6 +259,9 @@ export async function importStatement(
 	const last = dates.at(-1) as DayKey;
 	const matched = await matchImported(db, householdId, first, last, input.newId);
 	const moved = await detectTransfers(db, householdId, first, last, input.newId);
+	// A Rule's Transfer or Between us, for money in that paired with nothing. A line this Import
+	// didn't write (it was here already) has a different ID, so nothing is marked for it.
+	await markMoneyInByRule(db, householdId, ruled, input.newId);
 	const [written] = await loadImports(db, householdId, accountId, importId);
 	if (!written) return { ok: false, reason: "no-account" };
 	return {

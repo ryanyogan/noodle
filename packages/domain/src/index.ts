@@ -268,6 +268,7 @@ export {
 	ruleKeys,
 } from "./merchant-name";
 export { type Cents, MAX_CENTS, parseDollars } from "./money";
+export * from "./money-in";
 export {
 	addDays,
 	addMonths,

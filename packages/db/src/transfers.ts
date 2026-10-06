@@ -21,12 +21,13 @@ import {
 	isNotNull,
 	isNull,
 	lte,
+	not,
 	or,
 	type SQL,
 	sql,
 } from "drizzle-orm";
 import { accountLabelSql } from "./account-label";
-import { counts, incomeCounts, inTransfer } from "./counting";
+import { counts, incomeInTransfer, inTransfer } from "./counting";
 import type { Db } from "./index";
 import { bucketInPlan } from "./moves";
 import { changeableBy, type Viewer, visibleTo } from "./privacy";
@@ -112,7 +113,12 @@ const transferable = and(
 ) as SQL;
 
 /** Income that could be the arriving side of a Transfer: imported, and not already one. */
-const transferableIncome = and(isNotNull(income.accountId), incomeCounts()) as SQL;
+// A line waiting in Review may still pair; one a Parent called a Refund or Paid back may not.
+const transferableIncome = and(
+	isNotNull(income.accountId),
+	not(incomeInTransfer()),
+	isNull(income.kind),
+) as SQL;
 
 type Side = TransferSide & {
 	income: boolean;
@@ -202,6 +208,8 @@ export const transferRow = (row: {
 	inIncomeId: SQL | string | null;
 	createdBy: string | null;
 	reason?: TransferReason | null;
+	/** The reason as SQL, for rows read from JSON. */
+	reasonSql?: SQL;
 }) => ({
 	id: sql<string>`${row.id}`.as("id"),
 	householdId: sql<string>`${row.householdId}`.as("household_id"),
@@ -212,7 +220,7 @@ export const transferRow = (row: {
 	createdAt: sql<Date>`(unixepoch() * 1000)`.as("created_at"),
 	removedAt: sql<Date | null>`null`.as("removed_at"),
 	removedByMemberId: sql<string | null>`null`.as("removed_by_member_id"),
-	reason: sql<TransferReason | null>`${row.reason ?? null}`.as("reason"),
+	reason: sql<TransferReason | null>`${row.reasonSql ?? row.reason ?? null}`.as("reason"),
 	otherAccountId: sql<string | null>`null`.as("other_account_id"),
 });
 

@@ -628,6 +628,19 @@ export {
 	saveParentName,
 } from "./merchants";
 export {
+	changeMoneyInKind,
+	deleteMoneyInRule,
+	loadMoneyIn,
+	loadMoneyInLine,
+	loadMoneyInReview,
+	loadMoneyInRules,
+	type MoneyInFilter,
+	type MoneyInKindResult,
+	type MoneyInLine,
+	type StoredMoneyInRule,
+	saveMoneyInRule,
+} from "./money-in";
+export {
 	type CloseMonthInput,
 	closeMonth,
 	listHouseholds,
