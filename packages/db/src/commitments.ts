@@ -12,6 +12,7 @@ import {
 import { and, eq, gt, gte, inArray, isNotNull, isNull, lte, or, type SQL, sql } from "drizzle-orm";
 import { counts } from "./counting";
 import type { Db } from "./index";
+import { loadPaidBackCharges } from "./owed-back";
 import { type Author, inForce, logChange } from "./plan-log";
 import { type Viewer, visibleTo } from "./privacy";
 import { accounts, commitments, commitmentTerms, households, splits, transactions } from "./schema";
@@ -526,7 +527,9 @@ export async function loadChargesBetween(
 			.groupBy(splits.transactionId, splits.commitmentId),
 	]);
 	// commitment_id is filtered to non-null, and dates are always written as DayKeys.
-	return ([...whole, ...split] as CommitmentCharge[]).sort((a, b) =>
+	// Paid back gives a Commitment its money back on the day it arrived (ADR-0058).
+	const paidBack = await loadPaidBackCharges(db, viewer, from, to);
+	return ([...whole, ...split, ...paidBack] as CommitmentCharge[]).sort((a, b) =>
 		a.date < b.date ? -1 : a.date > b.date ? 1 : 0,
 	);
 }

@@ -1520,3 +1520,66 @@ export const householdSnapshots = sqliteTable(
 );
 
 export type HouseholdSnapshot = typeof householdSnapshots.$inferSelect;
+
+// Owed back (ADR-0058): the part of a purchase someone outside the Household's pool of money has
+// said they'll pay back, and who. The person is a name, not a Member; when a Child was chosen,
+// `member_id` says which and `who` is their name as it was then. One per purchase, or per Split
+// (`split_id`, no foreign key: Splits are rewritten whenever a Transaction is split again, and an
+// item whose Split is gone restores the purchase's largest Split instead). What has been Paid
+// back is the sum of its `paid_back_matches`. Taking it off deletes the row and its matches.
+export const owedBack = sqliteTable(
+	"owed_back",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		transactionId: text("transaction_id")
+			.notNull()
+			.references(() => transactions.id),
+		splitId: text("split_id"),
+		who: text("who").notNull(),
+		memberId: text("member_id").references(() => members.id),
+		amountCents: integer("amount_cents").notNull(),
+		createdByMemberId: text("created_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [
+		index("owed_back_household_idx").on(t.householdId),
+		uniqueIndex("owed_back_one_per_purchase").on(t.transactionId, sql`coalesce(${t.splitId}, '')`),
+	],
+);
+
+// Part of a Paid back money-in line (`income.id`, kind 'paid-back') put against one Owed back
+// item, once a Parent confirmed it. It counts as spending in reverse on `counts_on` (the day the
+// money arrived, or the first day of the month it was confirmed in when that month had ended),
+// restoring the purchase's Bucket or Commitment (counting.ts). What a line has beyond its matches
+// is "Paid back, not matched yet". Deleted when the line stops being Paid back.
+export const paidBackMatches = sqliteTable(
+	"paid_back_matches",
+	{
+		id: text("id").primaryKey(),
+		householdId: text("household_id")
+			.notNull()
+			.references(() => households.id),
+		incomeId: text("income_id")
+			.notNull()
+			.references(() => income.id),
+		owedBackId: text("owed_back_id")
+			.notNull()
+			.references(() => owedBack.id),
+		amountCents: integer("amount_cents").notNull(),
+		countsOn: text("counts_on").notNull(),
+		createdByMemberId: text("created_by_member_id").references(() => members.id),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+	},
+	(t) => [
+		index("paid_back_matches_household_idx").on(t.householdId),
+		index("paid_back_matches_income_idx").on(t.incomeId),
+		index("paid_back_matches_owed_back_idx").on(t.owedBackId),
+	],
+);

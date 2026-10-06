@@ -347,6 +347,7 @@ export {
 	outcomeWarnings,
 	projectionAssumptions,
 } from "./outcomes";
+export * from "./owed-back";
 export {
 	canPair,
 	type LineToPair,

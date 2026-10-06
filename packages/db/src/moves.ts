@@ -1,6 +1,6 @@
 import { addMonths, type Cents, daysInMonth, type MonthKey, type Move } from "@noodle/domain";
 import { and, eq, gt, gte, isNotNull, isNull, lt, lte, or, type SQL, sql } from "drizzle-orm";
-import { countsRaw } from "./counting";
+import { countsRaw, paidBackToBucketSql } from "./counting";
 import type { Db } from "./index";
 import { assignableBy, othersAllowance } from "./privacy";
 import { buckets, moves } from "./schema";
@@ -100,6 +100,7 @@ export function bucketLeftSql(
 			join transactions t on t.id = p.transaction_id
 			where p.household_id = ${householdId} and p.bucket_id = s.id
 			and t.date >= ${`${month}-01`} and t.date <= ${`${month}-31`} and ${sql.raw(countsRaw("t.id"))}), 0)
+		+ ${paidBackToBucketSql(householdId, id, `${month}-01`, `${month}-31`)}
 		from buckets s
 		where s.id = ${bucketId} and s.household_id = ${householdId} and ${inPlanSql("s", month)})`;
 }

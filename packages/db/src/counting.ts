@@ -49,3 +49,32 @@ export const incomeCounts = (id: AnyColumn = income.id): SQL =>
 export const incomeCountsRaw = (id: string) =>
 	`(not exists (select 1 from transfers where transfers.in_income_id = ${id} and transfers.removed_at is null)
 	and not exists (select 1 from income mk where mk.id = ${id} and (mk.kind is not null or mk.needs_review = 1)))`;
+
+// Paid back (ADR-0058) counts as spending in reverse too, though its money is a row in `income`:
+// each confirmed match gives its amount back to the Bucket, Commitment or Goal its purchase is
+// filed in, on the match's `counts_on` day. The purchase's month is never touched.
+
+/**
+ * The FROM of every read of what Paid back restores, in raw SQL: one row per match (`m`), with
+ * its Owed back item (`o`), the purchase (`t`) and, when the purchase is split, the Split it
+ * restores (`p`: the one the item names, else the largest).
+ */
+export const PAID_BACK_RESTORES_FROM = `paid_back_matches m
+	join owed_back o on o.id = m.owed_back_id
+	join transactions t on t.id = o.transaction_id
+	left join splits p on p.id = (select q.id from splits q where q.transaction_id = t.id
+		order by coalesce(q.id = o.split_id, 0) desc, q.amount_cents desc, q.position limit 1)`;
+
+/** With PAID_BACK_RESTORES_FROM: the Bucket, Commitment or Goal (`column`) a match restores. */
+export const paidBackRestoresRaw = (column: "bucket_id" | "commitment_id" | "goal_id") =>
+	`(case when p.id is null then t.${column} else p.${column} end)`;
+
+/**
+ * What was Paid back into the Bucket `bucketId` (SQL giving its ID) on days from `from` through
+ * `to`, as a positive sum.
+ */
+export const paidBackToBucketSql = (householdId: string, bucketId: SQL, from: string, to: string) =>
+	sql`coalesce((select sum(m.amount_cents) from ${sql.raw(PAID_BACK_RESTORES_FROM)}
+		where m.household_id = ${householdId}
+		and ${sql.raw(paidBackRestoresRaw("bucket_id"))} = ${bucketId}
+		and m.counts_on >= ${from} and m.counts_on <= ${to} and ${sql.raw(countsRaw("t.id"))}), 0)`;

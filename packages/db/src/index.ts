@@ -673,6 +673,24 @@ export {
 	savePushSubscription,
 } from "./nudges";
 export {
+	confirmPaidBack,
+	loadOwedBack,
+	loadPaidBack,
+	loadUnmatchedPaidBack,
+	type OwedBackFilter,
+	type OwedBackItem,
+	type OwedBackRemoveResult,
+	type OwedBackResult,
+	offerPaidBackFor,
+	type PaidBackConfirmResult,
+	type PaidBackLine,
+	type PaidBackOffered,
+	removeOwedBack,
+	type StoredPaidBackMatch,
+	sayOwedBack,
+	type UnmatchedPaidBack,
+} from "./owed-back";
+export {
 	addPerkSource,
 	addPerkUse,
 	decidePerkSource,

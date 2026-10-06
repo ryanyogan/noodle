@@ -13,6 +13,7 @@ import { and, eq, gte, isNotNull, lt, sql } from "drizzle-orm";
 import { counts } from "./counting";
 import type { Db } from "./index";
 import { loadMovesBetween } from "./moves";
+import { loadPaidBackByMonth } from "./owed-back";
 import type { Viewer } from "./privacy";
 import { loadBucketMonths } from "./reports";
 import { splits, transactions } from "./schema";
@@ -37,7 +38,7 @@ export async function loadRolledOver(
 		lt(transactions.date, `${month}-01`),
 		counts(),
 	);
-	const [spent, splitSpent, moves] = await Promise.all([
+	const [spent, splitSpent, moves, paidBack] = await Promise.all([
 		db
 			.select({
 				bucketId: transactions.bucketId,
@@ -59,9 +60,16 @@ export async function loadRolledOver(
 			.where(and(inHistory, eq(splits.householdId, householdId), isNotNull(splits.bucketId)))
 			.groupBy(splits.bucketId, monthOf),
 		loadMovesBetween(db, householdId, since, month),
+		// Paid back gives a Bucket its money back in the month it arrived (ADR-0058).
+		loadPaidBackByMonth(db, householdId, since, month),
 	]);
 	// bucket_id is filtered to non-null, and dates are always written as DayKeys.
-	return rolledOver({ records, spent: [...spent, ...splitSpent] as MonthlySpend[], moves, month });
+	return rolledOver({
+		records,
+		spent: [...(spent as MonthlySpend[]), ...(splitSpent as MonthlySpend[]), ...paidBack],
+		moves,
+		month,
+	});
 }
 
 /**
