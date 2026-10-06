@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { settledAxe } from "./axe";
 import { measure } from "./overflow";
 import { createTestParent } from "./parents";
 import {
@@ -208,7 +208,7 @@ test("a Commitment pays down a card kept by hand: a payment brings what's owed d
 		"Car loan",
 	);
 	await expect(sheet).toContainText("Each payment brings what’s owed on Car loan down.");
-	const { violations } = await new AxeBuilder({ page })
+	const { violations } = await (await settledAxe(page))
 		.include("[role=dialog]")
 		.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
 		.analyze();

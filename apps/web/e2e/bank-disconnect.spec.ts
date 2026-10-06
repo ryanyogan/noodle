@@ -1,6 +1,6 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { signFakeWebhook } from "../src/server/plaid-fake-webhook-key";
+import { settledAxe } from "./axe";
 import { continueToBank } from "./bank-history";
 import { createTestParent } from "./parents";
 import { seedSql } from "./seed-sql";
@@ -77,7 +77,7 @@ test("disconnecting keeps the Accounts by hand, and connecting again pairs with 
 	await expect(dialog).toContainText("Its Accounts stay, with their Transactions and statements");
 	await expect(dialog).toContainText("Quick Add or by uploading a statement");
 	await expect(dialog.getByRole("button", { name: "Cancel" })).toBeFocused();
-	const { violations } = await new AxeBuilder({ page })
+	const { violations } = await (await settledAxe(page))
 		.include("[role=alertdialog]")
 		.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
 		.analyze();

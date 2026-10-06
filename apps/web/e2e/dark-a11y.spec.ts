@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { settledAxe } from "./axe";
 import { createTestParent } from "./parents";
 import { clientRendered, createHousehold, signedInPage } from "./session";
 
@@ -27,7 +27,7 @@ test("axe finds no violations on a desktop in dark mode", async ({ browser }) =>
 			clientRendered,
 		);
 		await page.evaluate(() => document.fonts.ready);
-		const { violations } = await new AxeBuilder({ page })
+		const { violations } = await (await settledAxe(page))
 			.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
 			.analyze();
 		expect

@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { settledAxe } from "./axe";
 import { createTestParent } from "./parents";
 import {
 	clientRendered,
@@ -51,7 +51,7 @@ test("a Parent renames and recolours themself, and the other Parent sees it", as
 		await editOwn(alex).click();
 		const sheet = ownSheet(alex);
 		await expect(sheet).toBeVisible();
-		const { violations } = await new AxeBuilder({ page: alex })
+		const { violations } = await (await settledAxe(alex))
 			.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
 			.analyze();
 		expect(

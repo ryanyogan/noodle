@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { settledAxe } from "./axe";
 import { createTestParent } from "./parents";
 import {
 	createPlannedHousehold,
@@ -104,7 +104,7 @@ test("the overview says where take-home pay goes in words, as parts of one whole
 	// One "?" for the section, on its heading.
 	await expect(waterfall(page).getByRole("button", { name: /^What’s/ })).toHaveCount(1);
 
-	const { violations } = await new AxeBuilder({ page })
+	const { violations } = await (await settledAxe(page))
 		.include("section[aria-labelledby=plan-waterfall]")
 		.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
 		.analyze();
@@ -346,7 +346,7 @@ test("the take-home split and the Buckets table are one page, and the old Bucket
 	// The first Bucket is on the first screen, under the split.
 	expect(await page.evaluate(() => window.scrollY)).toBe(0);
 	await expect(table.locator("[data-slot=data-table-row]").first()).toBeInViewport({ ratio: 1 });
-	const { violations } = await new AxeBuilder({ page }).analyze();
+	const { violations } = await (await settledAxe(page)).analyze();
 	expect(
 		violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`),
 		"the Plan's first page: axe violations",
@@ -422,7 +422,7 @@ test("on the narrowest phone the Plan's first page has the split and the Buckets
 	if (!split || !buckets) throw new Error("no split or no table");
 	expect(buckets.y, "the table is under the split").toBeGreaterThan(split.y + split.height - 1);
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
-	const { violations } = await new AxeBuilder({ page }).analyze();
+	const { violations } = await (await settledAxe(page)).analyze();
 	expect(
 		violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`),
 		"the Plan's first page at 320: axe violations",
@@ -546,7 +546,7 @@ test("the Plan's first page is short: the Buckets start on the first screen, the
 			).toBeLessThanOrEqual(1);
 		}
 	}
-	const { violations } = await new AxeBuilder({ page }).analyze();
+	const { violations } = await (await settledAxe(page)).analyze();
 	expect(
 		violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`),
 		"the Plan's first page with both tables: axe violations",

@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { settledAxe } from "./axe";
 import { createTestParent } from "./parents";
 import { createPlannedHousehold, planHomeUrl, savedBy, serverFn, signedInPage } from "./session";
 import { realTouch, swipe } from "./touch";
@@ -51,7 +51,7 @@ async function openByAmount(page: Page, name: string, amount: string) {
 const wide = { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 } as const;
 
 async function axe(page: Page, label: string) {
-	const { violations } = await new AxeBuilder({ page })
+	const { violations } = await (await settledAxe(page))
 		.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
 		.analyze();
 	expect(

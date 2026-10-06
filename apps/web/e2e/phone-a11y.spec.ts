@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { type Browser, expect, type Page, test } from "@playwright/test";
+import { settledAxe } from "./axe";
 import { createTestParent } from "./parents";
 import { clientRendered, createHousehold, signedInPage } from "./session";
 
@@ -210,7 +210,7 @@ test("axe finds no violations on a 393 px phone, light and dark", async ({ brows
 		await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
 		for (const path of pages) {
 			await open(page, path);
-			const { violations } = await new AxeBuilder({ page })
+			const { violations } = await (await settledAxe(page))
 				.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
 				.analyze();
 			expect

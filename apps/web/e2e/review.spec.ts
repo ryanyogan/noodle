@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { settledAxe } from "./axe";
 import { createTestParent } from "./parents";
 import { currentTab, expectSectionHeaderKept, markSectionHeader, sectionTabs } from "./section";
 import {
@@ -353,7 +353,7 @@ test("the Review count beside Transactions is a link to Review, expanded and as 
 	const nav = page.getByRole("navigation", { name: "Main" });
 	const count = nav.getByRole("link", { name: "1 to review" });
 	const axe = async () =>
-		(await new AxeBuilder({ page }).include("[data-slot=sidebar]").analyze()).violations;
+		(await (await settledAxe(page)).include("[data-slot=sidebar]").analyze()).violations;
 	// Hydrated, so clicks are client-side (the Parent menu marks itself ready then).
 	const hydrated = () =>
 		page.locator("[data-parent-menu][data-ready=true]").waitFor({ state: "attached" });

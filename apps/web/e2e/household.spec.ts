@@ -1,6 +1,6 @@
-import AxeBuilder from "@axe-core/playwright";
 import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
 import { expect, test } from "@playwright/test";
+import { settledAxe } from "./axe";
 import { createTestParent } from "./parents";
 import { clientRendered, createPlannedHousehold, setUpLater, signedInPage } from "./session";
 
@@ -84,7 +84,7 @@ test("Household settings is settings only, grouped under short headings (#69)", 
 		await expect(page.getByRole("button", { name: "Run setup again" })).toBeEnabled(clientRendered);
 		for (const width of [1440, 393]) {
 			await page.setViewportSize({ width, height: 900 });
-			const { violations } = await new AxeBuilder({ page })
+			const { violations } = await (await settledAxe(page))
 				.withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
 				.analyze();
 			expect(
