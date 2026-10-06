@@ -317,6 +317,8 @@ function TransactionsPage() {
 								onPick={setPicking}
 								onDelete={() => setConfirming(true)}
 								onCancel={() => setPicking(null)}
+								plan={plan}
+								onFiled={() => setPicking(null)}
 							/>
 						) : null}
 						<TransactionList

@@ -4,6 +4,9 @@ import {
 	countSameMerchant,
 	type DeletionSummary,
 	deleteTransaction as deleteTransactionInDb,
+	type FiledBefore,
+	type FilingResult,
+	fileTransactions as fileTransactionsInDb,
 	loadBucketUses,
 	loadRules,
 	loadTransaction,
@@ -15,6 +18,7 @@ import {
 	summarizeDeletion,
 	type TransactionCursor,
 	type TransactionRow,
+	unfileTransactions,
 	updateTransaction as updateTransactionInDb,
 } from "@noodle/db";
 import {
@@ -496,4 +500,73 @@ export const deleteTransactions = createServerFn({ method: "POST" })
 		const changes = changesAfterBulkDelete(result);
 		if (changes.length > 0) await notifyHousehold(context.household.id, changes);
 		return { deleted: result.deleted, snapshot: result.snapshotId !== null };
+	});
+
+/** What "File in…" did: how many were filed, what was left and why, and what Undo puts back. */
+export type FilingAnswer = Extract<FilingResult, { ok: true }>;
+
+/**
+ * Files the selected Transactions that one Bucket or Commitment can take whole in it (issue 99,
+ * ADR-0055): inside `month` only. `versions` are those of the rows the screen had loaded; one that
+ * has moved on is left alone and counted. Nothing is learned from it: no Rule, no merchant memory,
+ * no signal to background AI, unlike a Transaction filed on its own. Safe to retry.
+ */
+export const fileTransactions = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			selection: selectionSchema,
+			month: monthKeySchema,
+			assignment: assignmentSchema,
+			versions: z.record(z.string().min(1).max(64), versionSchema).optional(),
+		}),
+	)
+	.handler(async ({ data, context }): Promise<FilingAnswer> => {
+		const versions: Record<string, number> = {};
+		for (const [id, version] of Object.entries(data.versions ?? {})) {
+			if (version !== undefined) versions[id] = version;
+		}
+		const result = await fileTransactionsInDb(getDb(), viewerOf(context), {
+			selection: data.selection,
+			month: data.month,
+			assignment: data.assignment,
+			versions,
+		});
+		if (!result.ok) {
+			throw new Error(
+				result.reason === "more-than-a-month"
+					? "Transactions are filed one month at a time."
+					: "That isn’t in the Plan for this month.",
+			);
+		}
+		if (result.filed > 0) {
+			await notifyHousehold(context.household.id, ["months", "for-earlier", "bucket-uses"]);
+		}
+		return result;
+	});
+
+/** Undo for "File in…": each goes back where it was, unless it has changed since (ADR-0055). */
+export const undoFiling = createServerFn({ method: "POST" })
+	.middleware([householdMiddleware])
+	.validator(
+		z.object({
+			entries: z
+				.array(
+					z.object({
+						id: z.string().min(1).max(64),
+						bucketId: ulidSchema.nullable(),
+						commitmentId: ulidSchema.nullable(),
+						version: z.number().int().min(0),
+					}),
+				)
+				.max(5000),
+		}),
+	)
+	.handler(async ({ data, context }): Promise<{ restored: number }> => {
+		const entries: FiledBefore[] = data.entries;
+		const result = await unfileTransactions(getDb(), viewerOf(context), entries);
+		if (result.restored > 0) {
+			await notifyHousehold(context.household.id, ["months", "for-earlier", "bucket-uses"]);
+		}
+		return result;
 	});

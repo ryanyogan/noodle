@@ -1,16 +1,28 @@
-import type { MonthKey } from "@noodle/domain";
+import type { MonthKey, Plan } from "@noodle/domain";
 import { Button } from "@noodle/ui/components/button";
 import { Sheet, SheetContent, SheetFooter, SheetHeader } from "@noodle/ui/components/sheet";
 import { toast } from "@noodle/ui/components/toast";
 import { cn } from "@noodle/ui/lib/utils";
+import type { InfiniteData } from "@tanstack/react-query";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
+import { FolderInput, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { monthName } from "../format";
-import { deleteTransactions, getDeletionSummary } from "../server/transactions";
+import type { TransactionsPage } from "../server/transactions";
+import {
+	deleteTransactions,
+	type FilingAnswer,
+	fileTransactions,
+	getDeletionSummary,
+	undoFiling,
+} from "../server/transactions";
+import { refileOf } from "../transaction-cells";
 import {
 	bulkDeletedMessage,
+	canPick,
 	deletionFacts,
+	filedMessage,
+	isPicked,
 	matchingAll,
 	type Picking,
 	pickAll,
@@ -20,8 +32,15 @@ import {
 	selectionOf,
 	stayingFacts,
 	transactionsCount,
+	unfiledMessage,
 } from "../transaction-selection";
-import type { TransactionFilters } from "../transactions";
+import {
+	applyFiling,
+	type TransactionFilters,
+	transactionLabel,
+	transactionsQuery,
+} from "../transactions";
+import { BucketPicker, NewBucketStep } from "./bucket-picker";
 import { tableIsStacked } from "./transaction-table";
 
 // Select mode on the Transactions page (#97, ADR-0045): a bar that says how many are selected and
@@ -71,7 +90,13 @@ export function SelectionBar({
 	onPick,
 	onDelete,
 	onCancel,
+	plan,
+	onFiled,
 }: {
+	/** The month's Buckets and Commitments this Parent can file in: what "File in…" offers. */
+	plan: Pick<Plan, "buckets" | "commitments">;
+	/** "File in…" has filed the selection: the selecting is over. */
+	onFiled: () => void;
 	month: MonthKey;
 	filters: TransactionFilters;
 	/** A filter or search is narrowing the list. */
@@ -82,6 +107,90 @@ export function SelectionBar({
 	onCancel: () => void;
 }) {
 	const stacked = useStackedRows();
+	const queryClient = useQueryClient();
+	// "File in…" (issue 99, ADR-0055): the Bucket picker a cell of the table uses, for everything
+	// selected. One month only: a Transaction is filed in its own month's Plan.
+	const [filing, setFiling] = useState(false);
+	const [creating, setCreating] = useState<string | null>(null);
+	const choices = [
+		{
+			label: "Buckets",
+			choices: plan.buckets.map((b) => ({ value: `bucket:${b.id}`, label: b.name })),
+		},
+		...(plan.commitments.length > 0
+			? [
+					{
+						label: "Commitments",
+						choices: plan.commitments.map((c) => ({ value: `commitment:${c.id}`, label: c.name })),
+					},
+				]
+			: []),
+	];
+	/** The selected rows this screen has loaded: filed at once on screen, and sent with their versions. */
+	const loadedPicked = () =>
+		(
+			queryClient.getQueryData<InfiniteData<TransactionsPage>>(
+				transactionsQuery(month, filters).queryKey,
+			)?.pages ?? []
+		)
+			.flatMap((page) => page.transactions)
+			.filter((row) => canPick(row) && isPicked(picking, row.id));
+	const file = useMutation({
+		mutationFn: ({ value }: { value: string; name: string }) => {
+			const [kind, id = ""] = value.split(":");
+			return fileTransactions({
+				data: {
+					selection: selectionOf(picking, month, filters),
+					month,
+					assignment: kind === "commitment" ? { commitmentId: id } : { bucketId: id },
+					versions: Object.fromEntries(
+						loadedPicked()
+							.slice(0, 1000)
+							.map((row) => [row.id, row.version]),
+					),
+				},
+			});
+		},
+		onMutate: async ({ value }) => ({
+			rollback: await applyFiling(
+				queryClient,
+				month,
+				loadedPicked().flatMap((transaction) => {
+					const next = refileOf(transaction, value);
+					return next ? [{ transaction, label: transactionLabel(transaction), next }] : [];
+				}),
+			),
+		}),
+		onError: (error, _to, context) => {
+			context?.rollback();
+			toast(
+				error instanceof Error && error.message.startsWith("That isn’t in the Plan")
+					? error.message
+					: "Couldn’t file them, so nothing has changed. Try again in a moment.",
+				{ tone: "error" },
+			);
+		},
+		onSuccess: (result: FilingAnswer, { name }) => {
+			const said = filedMessage(result, name);
+			const put = async () => {
+				try {
+					const { restored } = await undoFiling({ data: { entries: result.undo } });
+					toast(unfiledMessage(restored, result.undo.length));
+				} catch {
+					toast("Couldn’t undo that. They are still filed.", { tone: "error" });
+				} finally {
+					void queryClient.invalidateQueries();
+				}
+			};
+			// With something filed the message carries its Undo, and stays as long as every Undo does.
+			if (result.undo.length > 0) {
+				toast(said, { tone: "success", id: "transactions-filed", undo: () => void put() });
+			} else toast(said, { tone: "success", duration: 10_000, id: "transactions-filed" });
+			onFiled();
+		},
+		// Everything that counts spending shows it: months, Buckets, Review.
+		onSettled: () => queryClient.invalidateQueries(),
+	});
 	const inMonth = useQuery(summaryQuery({ all: matchingAll(month, filters, false) })).data?.count;
 	const upToMonth = useQuery(summaryQuery({ all: matchingAll(month, filters, true) })).data?.count;
 	const count = pickedCount(picking, picking.all?.andEarlier ? upToMonth : inMonth);
@@ -104,16 +213,69 @@ export function SelectionBar({
 				<p role="status" className="text-sm font-semibold tabular-nums">
 					{count === undefined ? "Counting…" : `${count.toLocaleString("en-US")} selected`}
 				</p>
-				<div className="flex flex-wrap items-center gap-2">
+				{/* A phone: the three on the count's line, so the bar is no taller for "File in…": words
+				    only, a little closer together. */}
+				<div className="flex flex-wrap items-center gap-2 max-sm:gap-1 max-sm:[&>button]:px-2.5 max-sm:[&>button>svg]:hidden">
 					<Button variant="ghost" onClick={onCancel}>
 						Cancel
 					</Button>
+					{filing ? (
+						<BucketPicker
+							defaultOpen
+							value=""
+							className="w-44 max-sm:w-36"
+							placeholder="File in…"
+							searchPlaceholder="Search or create"
+							aria-label="File the selected Transactions in"
+							choices={choices}
+							onClose={() => setFiling(false)}
+							onValueChange={(value) => {
+								setFiling(false);
+								const name = choices
+									.flatMap((group) => group.choices)
+									.find((choice) => choice.value === value)?.label;
+								if (name) file.mutate({ value, name });
+							}}
+							onCreate={(name) => {
+								setFiling(false);
+								setCreating(name);
+							}}
+						/>
+					) : (
+						<Button
+							variant="outline"
+							// Inside one month only: a Transaction is filed in its own month's Plan.
+							disabled={!count || file.isPending || Boolean(picking.all?.andEarlier)}
+							title={
+								picking.all?.andEarlier ? "Transactions are filed one month at a time" : undefined
+							}
+							onClick={() => setFiling(true)}
+						>
+							<FolderInput />
+							{file.isPending ? "Filing…" : "File in…"}
+						</Button>
+					)}
 					<Button variant="destructive" disabled={!count} onClick={onDelete}>
 						<Trash2 />
 						Delete
 					</Button>
 				</div>
 			</div>
+			{creating !== null ? (
+				<NewBucketStep
+					month={month}
+					name={creating}
+					what={transactionsCount(count ?? 0)}
+					amountCents={loadedPicked().reduce((sum, row) => sum + Math.max(0, row.amountCents), 0)}
+					buckets={plan.buckets}
+					taken={[...plan.buckets, ...plan.commitments].map((item) => item.name)}
+					onCancel={() => setCreating(null)}
+					onCreated={(bucket) => {
+						setCreating(null);
+						file.mutate({ value: `bucket:${bucket.id}`, name: bucket.name });
+					}}
+				/>
+			) : null}
 			{offerMonth || offerEarlier ? (
 				// A phone: the two side by side in few words, not two full-width lines (issue 115).
 				<div className="flex gap-2 sm:flex-wrap">

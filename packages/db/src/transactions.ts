@@ -54,6 +54,7 @@ import {
 	commitments,
 	deletedBankLines,
 	goals,
+	households,
 	matches,
 	members,
 	monthCloses,
@@ -1779,4 +1780,239 @@ export async function deleteTransactions(
 		deleted += chunk.length - (left?.count ?? 0);
 	}
 	return { deleted };
+}
+
+/** The most Transactions one "File in…" takes; a second run takes the rest. */
+export const BULK_FILE_MAX = 5000;
+
+/** Selected Transactions "File in…" left as they are, by why (issue 99, ADR-0055). */
+export type FilingSkips = {
+	split: number;
+	/** One side of a Transfer. */
+	transfer: number;
+	/** Money back, linked as a Refund or not. */
+	moneyBack: number;
+	/** Goal spending: it changes from its Goal. */
+	goal: number;
+	/** Partly in the other Parent's Personal Allowance: theirs to change. */
+	private: number;
+	/** No longer at the version this screen showed (ADR-0041), or changed while this ran. */
+	changed: number;
+	/** Not in the month being filed in. */
+	otherMonth: number;
+};
+
+/** A Transaction as it was before "File in…" changed it, and its version after: what Undo needs. */
+export type FiledBefore = {
+	id: string;
+	bucketId: string | null;
+	commitmentId: string | null;
+	/** Its version once filed: Undo only puts back one still at it. */
+	version: number;
+};
+
+export type FilingResult =
+	| {
+			ok: true;
+			filed: number;
+			/** Already assigned, whole, to the same Bucket or Commitment: nothing to do. */
+			already: number;
+			skipped: FilingSkips;
+			undo: FiledBefore[];
+	  }
+	| { ok: false; reason: "not-in-plan" | "more-than-a-month" };
+
+/** Money back linked as a Refund (the purchase it refunds is an ordinary Transaction here). */
+const refundMoney = sql`exists (select 1 from refunds r where r.refund_transaction_id = ${transactions.id}
+	and r.removed_at is null)`;
+const hasSplits = sql`exists (select 1 from ${splits} where ${splits.transactionId} = ${transactions.id})`;
+
+/** One Bucket or Commitment can take it whole: what a cell of the table refiles too (`cellEdits`). */
+const fileableWhole = sql`(not ${hasSplits} and not ${transferSide} and not ${refundMoney} and ${transactions.amountCents} >= 1)`;
+
+/** The Transaction is in `pairs` ([id, version, …] rows of JSON), `ahead` versions past the one there. */
+const inPairs = (pairs: string, ahead: 0 | 1) =>
+	sql`exists (select 1 from json_each(${pairs}) j where json_extract(j.value, '$[0]') = ${transactions.id}
+		and json_extract(j.value, '$[1]') + ${ahead} = ${transactions.version})`;
+
+/**
+ * Files every selected Transaction that one Bucket or Commitment can take whole in `assignment`,
+ * for the Parent `viewer` (issue 99, ADR-0055): "File in…" on the Transactions page. Only inside
+ * `month`, whose Plan the target must be in. Left as they are, and counted: Splits, sides of a
+ * Transfer, money back, Goal spending, anything partly in the other Parent's Personal Allowance,
+ * and any whose version is not the one in `versions` (the rows the screen had loaded; others are
+ * filed as they are). Only the assignment changes: amount, name and For stay. A Transaction filed
+ * here leaves categorization, as one filed by hand does; no merchant is learned from it.
+ *
+ * Each is written only while still at the version read here, so a change made meanwhile is left
+ * alone. Safe to retry: what is already there is counted as `already` and not touched.
+ */
+export async function fileTransactions(
+	db: Db,
+	viewer: Viewer,
+	input: {
+		selection: TransactionSelection;
+		month: MonthKey;
+		assignment: Assignment;
+		versions?: Record<string, number>;
+	},
+): Promise<FilingResult> {
+	const { householdId, memberId } = viewer;
+	const { selection, month, assignment } = input;
+	if (selection.all && (selection.all.andEarlier || selection.all.month !== month)) {
+		return { ok: false, reason: "more-than-a-month" };
+	}
+	const bucketId = "bucketId" in assignment ? assignment.bucketId : null;
+	const commitmentId = "commitmentId" in assignment ? assignment.commitmentId : null;
+	const target = assignable(householdId, memberId, assignment, sql`${month}`);
+	const [inPlan] = await db
+		.select({ id: households.id })
+		.from(households)
+		.where(and(eq(households.id, householdId), target));
+	if (!inPlan) return { ok: false, reason: "not-in-plan" };
+
+	const editable = editableBy(householdId, memberId);
+	const flag = (when: SQL) => sql<boolean>`(${when})`.mapWith(Boolean);
+	const rows = await db
+		.select({
+			id: transactions.id,
+			version: transactions.version,
+			date: transactions.date,
+			bucketId: transactions.bucketId,
+			commitmentId: transactions.commitmentId,
+			goalId: transactions.goalId,
+			amountCents: transactions.amountCents,
+			editable: flag(editable),
+			split: flag(hasSplits),
+			transfer: flag(transferSide),
+			refund: flag(refundMoney),
+		})
+		.from(transactions)
+		.where(selectedBy(viewer, selection))
+		.orderBy(asc(transactions.id))
+		.limit(BULK_FILE_MAX);
+
+	const skipped: FilingSkips = {
+		split: 0,
+		transfer: 0,
+		moneyBack: 0,
+		goal: 0,
+		private: 0,
+		changed: 0,
+		otherMonth: 0,
+	};
+	let already = 0;
+	const toFile: typeof rows = [];
+	for (const row of rows) {
+		const sent = input.versions?.[row.id];
+		if (row.goalId) skipped.goal++;
+		else if (!row.editable) skipped.private++;
+		else if (row.date.slice(0, 7) !== month) skipped.otherMonth++;
+		else if (row.transfer) skipped.transfer++;
+		else if (row.refund || row.amountCents < 1) skipped.moneyBack++;
+		else if (row.split) skipped.split++;
+		else if (row.bucketId === bucketId && row.commitmentId === commitmentId) already++;
+		else if (sent !== undefined && sent !== row.version) skipped.changed++;
+		else toFile.push(row);
+	}
+
+	const inMonth = and(
+		gte(transactions.date, `${month}-01`),
+		lt(transactions.date, nextMonthStart(month)),
+	);
+	const undo: FiledBefore[] = [];
+	for (let start = 0; start < toFile.length; start += BULK_DELETE_CHUNK) {
+		const chunk = toFile.slice(start, start + BULK_DELETE_CHUNK);
+		const pairs = JSON.stringify(chunk.map((row) => [row.id, row.version]));
+		// Filed by this write (or an earlier try of it): one version on, and in the target.
+		const landed = and(
+			eq(transactions.householdId, householdId),
+			inPairs(pairs, 1),
+			sql`${transactions.bucketId} is ${bucketId}`,
+			sql`${transactions.commitmentId} is ${commitmentId}`,
+		);
+		await db.batch([
+			db
+				.update(transactions)
+				.set({ bucketId, commitmentId, version: sql`${transactions.version} + 1` })
+				.where(and(editable, inMonth, fileableWhole, target, inPairs(pairs, 0))),
+			// A Parent has decided these now: categorization's marker goes, as when one is filed by hand.
+			db
+				.delete(categorizations)
+				.where(
+					and(
+						eq(categorizations.householdId, householdId),
+						inArray(
+							categorizations.transactionId,
+							db.select({ id: transactions.id }).from(transactions).where(landed),
+						),
+					),
+				),
+		]);
+		const done = new Set(
+			(await db.select({ id: transactions.id }).from(transactions).where(landed)).map(
+				(row) => row.id,
+			),
+		);
+		for (const row of chunk) {
+			if (!done.has(row.id)) skipped.changed++;
+			else {
+				undo.push({
+					id: row.id,
+					bucketId: row.bucketId,
+					commitmentId: row.commitmentId,
+					version: row.version + 1,
+				});
+			}
+		}
+	}
+	return { ok: true, filed: undo.length, already, skipped, undo };
+}
+
+/**
+ * Undo for "File in…" (ADR-0055): puts each Transaction back in the Bucket or Commitment it had
+ * (or none), only while it is still at the version the filing left it at, still the Parent's to
+ * change, and what it goes back to is the Household's and theirs to assign to. Says how many went
+ * back. Safe to retry: one already put back is one version on and is not touched again.
+ */
+export async function unfileTransactions(
+	db: Db,
+	viewer: Viewer,
+	entries: FiledBefore[],
+): Promise<{ restored: number }> {
+	const { householdId, memberId } = viewer;
+	const editable = editableBy(householdId, memberId);
+	let restored = 0;
+	for (let start = 0; start < entries.length; start += BULK_DELETE_CHUNK) {
+		const chunk = entries.slice(start, start + BULK_DELETE_CHUNK);
+		const pairs = JSON.stringify(
+			chunk.map((entry) => [entry.id, entry.version, entry.bucketId, entry.commitmentId]),
+		);
+		const was = (index: 2 | 3) =>
+			sql<string | null>`(select json_extract(j.value, ${`$[${index}]`}) from json_each(${pairs}) j
+				where json_extract(j.value, '$[0]') = ${transactions.id})`;
+		// What it goes back to is still the Household's, and a Bucket this Parent can assign to.
+		const theirs = sql`(${was(2)} is null or exists (select 1 from buckets b where b.id = ${was(2)}
+			and b.household_id = ${householdId} and (b.owner_member_id is null or b.owner_member_id = ${memberId})))
+			and (${was(3)} is null or exists (select 1 from commitments c where c.id = ${was(3)}
+			and c.household_id = ${householdId}))`;
+		const [before] = await db
+			.select({ count: sql<number>`count(*)`.mapWith(Number) })
+			.from(transactions)
+			.where(and(editable, fileableWhole, inPairs(pairs, 0), theirs));
+		await db
+			.update(transactions)
+			.set({
+				bucketId: was(2),
+				commitmentId: was(3),
+				version: sql`${transactions.version} + 1`,
+			})
+			.where(and(editable, fileableWhole, inPairs(pairs, 0), theirs));
+		const [after] = await db
+			.select({ count: sql<number>`count(*)`.mapWith(Number) })
+			.from(transactions)
+			.where(and(editable, fileableWhole, inPairs(pairs, 0), theirs));
+		restored += Math.max(0, (before?.count ?? 0) - (after?.count ?? 0));
+	}
+	return { restored };
 }

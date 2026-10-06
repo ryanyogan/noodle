@@ -1,4 +1,4 @@
-import type { DeletionSummary, TransactionSelection } from "@noodle/db";
+import type { DeletionSummary, FilingSkips, TransactionSelection } from "@noodle/db";
 import type { DayKey, MonthKey } from "@noodle/domain";
 import type { HeaderCheck } from "@noodle/ui/lib/data-table";
 import { formatMoney } from "./format";
@@ -224,4 +224,48 @@ export function bulkDeletedMessage(result: { deleted: number; snapshot: boolean 
 	return result.snapshot
 		? `${deleted} Noodle took a snapshot first, so you can put them back from Snapshots in Household settings.`
 		: deleted;
+}
+
+/** Each kind "File in…" leaves alone, as the message counts it, in the order it says them. */
+const SKIPPED: [keyof FilingSkips, one: string, many: string][] = [
+	["split", "Split", "Splits"],
+	["transfer", "Transfer", "Transfers"],
+	["moneyBack", "money back", "money back"],
+	["goal", "Goal spending", "Goal spending"],
+	["private", "partly the other Parent’s", "partly the other Parent’s"],
+	["changed", "changed on another screen", "changed on another screen"],
+	["otherMonth", "in another month", "in another month"],
+];
+
+/**
+ * What the message says after "File in…" (issue 99): "Filed 12 in Groceries. 3 skipped: 2 Splits,
+ * 1 Transfer." Ones already there are said apart: nothing was wrong with them.
+ */
+export function filedMessage(
+	result: { filed: number; already: number; skipped: FilingSkips },
+	into: string,
+): string {
+	const n = (count: number) => count.toLocaleString("en-US");
+	const kinds = SKIPPED.flatMap(([key, one, many]) =>
+		result.skipped[key] > 0
+			? [`${n(result.skipped[key])} ${result.skipped[key] === 1 ? one : many}`]
+			: [],
+	);
+	const total = SKIPPED.reduce((sum, [key]) => sum + result.skipped[key], 0);
+	const said = [
+		result.filed > 0 ? `Filed ${n(result.filed)} in ${into}.` : `Nothing was filed in ${into}.`,
+	];
+	if (total > 0) said.push(`${n(total)} skipped: ${kinds.join(", ")}.`);
+	if (result.already > 0) {
+		said.push(`${result.already === 1 ? "1 was" : `${n(result.already)} were`} already there.`);
+	}
+	return said.join(" ");
+}
+
+/** What the message says after that filing's Undo. */
+export function unfiledMessage(restored: number, filed: number): string {
+	if (restored >= filed)
+		return filed === 1 ? "Put back where it was." : "Put back where they were.";
+	const left = filed - restored;
+	return `${restored.toLocaleString("en-US")} put back. ${left === 1 ? "1 has" : `${left.toLocaleString("en-US")} have`} changed since and stayed.`;
 }

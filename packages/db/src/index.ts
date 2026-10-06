@@ -801,6 +801,10 @@ export {
 	type DeletionSummary,
 	deleteTransaction,
 	deleteTransactions,
+	type FiledBefore,
+	type FilingResult,
+	type FilingSkips,
+	fileTransactions,
 	loadBucketUses,
 	loadSpending,
 	loadSpendingBetween,
@@ -822,6 +826,7 @@ export {
 	type TransactionSort,
 	type TransactionWriteResult,
 	transactionVersion,
+	unfileTransactions,
 	updateTransaction,
 } from "./transactions";
 export {

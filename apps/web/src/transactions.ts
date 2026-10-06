@@ -462,6 +462,44 @@ export async function applyTransactionChange(queryClient: QueryClient, change: T
 }
 
 /**
+ * Lands "File in…" (issue 99) for the rows this screen has loaded, in their month's cached inputs
+ * and its cached lists at once, as a single refile does: `changes` are those rows' refiles.
+ * Returns what puts them back if the server refuses. The open editor of one of them starts again
+ * on the new Bucket when the list refetches; that is this screen's own change, so it isn't said
+ * to have been "changed on another screen".
+ */
+export async function applyFiling(
+	queryClient: QueryClient,
+	month: MonthKey,
+	changes: TransactionChange[],
+) {
+	saidAt = Date.now();
+	const monthKey = monthQuery(month).queryKey;
+	await queryClient.cancelQueries({ queryKey: monthKey });
+	const previousMonth = queryClient.getQueryData(monthKey);
+	if (previousMonth) {
+		queryClient.setQueryData(
+			monthKey,
+			changes.reduce((data, change) => withTransactionChange(data, change), previousMonth),
+		);
+	}
+	const previousLists = queryClient.getQueriesData<InfiniteData<TransactionsPage>>({
+		queryKey: transactionsKey(month),
+	});
+	for (const [queryKey, list] of previousLists) {
+		if (!list || !Array.isArray(list.pages)) continue;
+		queryClient.setQueryData(
+			queryKey,
+			changes.reduce((data, change) => withRowChange(data, change), list),
+		);
+	}
+	return () => {
+		if (previousMonth) queryClient.setQueryData(monthKey, previousMonth);
+		for (const [queryKey, list] of previousLists) queryClient.setQueryData(queryKey, list);
+	};
+}
+
+/**
  * After a change to spending settles: refetch every month, and what follows from spending. Not
  * while another change is in flight, which the refetch would briefly undo on screen.
  */
